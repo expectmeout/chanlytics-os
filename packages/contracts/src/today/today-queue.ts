@@ -94,6 +94,20 @@ function callbackRow(r: EscalationRecord): TodayQueueRowVM {
 /** A handoff: the receptionist stopped and asked for a person; her words are the sentence, Snooze puts it aside. */
 function handoffRow(r: EscalationRecord): TodayQueueRowVM {
   const e = r.e;
+  // A time the customer picked by text: what they asked for is the sentence, and the row answers it (decision 0061).
+  if (e.reason === "booking_request")
+    return {
+      ...handoffOf(r),
+      sentence: say(e.details) || reasonLabelOf(e.reason),
+      quoted: false,
+      request: { conversationId: e.conversation_id },
+    };
+  return handoffOf(r);
+}
+
+/** The handoff's row as every reason draws it. */
+function handoffOf(r: EscalationRecord): TodayQueueRowVM {
+  const e = r.e;
   return {
     id: `q-${e.id}`,
     kind: "handoff",

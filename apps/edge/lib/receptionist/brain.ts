@@ -36,6 +36,7 @@ import { randomUUID } from "node:crypto";
 import type { ThreadTurn } from "../packages/core.js";
 import {
   BRAIN_OUTPUT_JSON_SCHEMA,
+  brainOutputSchemaFor,
   MODEL_ROUTES,
   parseBrainOutput,
   brainMetaOf,
@@ -68,6 +69,8 @@ export interface BrainReply {
    *  dial then holds it where the owner set a floor, instead of the outage
    *  quietly switching the floor off. */
   meta?: BrainMeta;
+  /** The time the customer picked, on a turn that took booking requests (decision 0061; core's InboundBrainReply). */
+  booking?: { slot: string; service: string };
 }
 
 /**
@@ -85,6 +88,8 @@ export interface BrainCall {
    * inbound turn passes them; a draft, a steer and an eval do not, and are never shadowed.
    */
   shadowText?: string;
+  /** This turn takes booking requests (decision 0061): the schema carries the two fields, and the reply what they say. */
+  bookingRequests?: boolean;
 }
 
 /**
@@ -225,7 +230,8 @@ async function answerReply(
     ],
     messages,
   };
-  const ask = (): Promise<Asked> => askOnce(purpose, base, forWhom, stamp, fallbackText);
+  const ask = (): Promise<Asked> =>
+    askOnce(purpose, base, forWhom, stamp, fallbackText, call?.bookingRequests === true);
 
   const conversationId = call?.subjectId ?? null;
   if (!call?.tenantId || !conversationId) return (await ask()).reply;
@@ -271,15 +277,18 @@ async function askOnce(
   forWhom: ModelCallFor,
   stamp: BrainStamp,
   fallbackText: string,
+  bookingRequests = false,
 ): Promise<Asked> {
   const L = logger();
   let structured = true;
+  // A turn that takes booking requests is sent the record with the two fields (decision 0061); every other, the record.
+  const schema = bookingRequests ? brainOutputSchemaFor({ bookingRequests }) : BRAIN_OUTPUT_JSON_SCHEMA;
   let r = await callModel(
     {
       purpose,
       body: {
         ...base,
-        output_config: { effort: "low", format: { type: "json_schema", schema: BRAIN_OUTPUT_JSON_SCHEMA } },
+        output_config: { effort: "low", format: { type: "json_schema", schema } },
       },
     },
     { ...forWhom, unreadable: unreadableRecord },
@@ -330,6 +339,7 @@ async function askOnce(
     text = fallbackText;
     escalate = true;
   }
+  const slot = bookingRequests ? parsed.value.booking_slot : undefined;
   return asked(
     {
       text,
@@ -337,6 +347,7 @@ async function askOnce(
       reason: escalate ? "human_token" : undefined,
       usage,
       meta: brainMetaOf(parsed.value, model, stamp),
+      ...(slot ? { booking: { slot, service: parsed.value.booking_service ?? "" } } : {}),
     },
     parsed.value,
   );

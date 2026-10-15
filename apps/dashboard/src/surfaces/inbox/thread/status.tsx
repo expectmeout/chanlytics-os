@@ -7,7 +7,7 @@
  * the tree it was.
  */
 import type { ReactElement, ReactNode } from "react";
-import { HOLD_ACT_WORDS, heldPill, snoozedThreadWords } from "@chanlytics/contracts";
+import { BOOKING_REQUEST_WORDS, HOLD_ACT_WORDS, heldPill, snoozedThreadWords } from "@chanlytics/contracts";
 import { Icon } from "../../kit/icon/icon";
 import { StatePill } from "../../kit/pill/state-pill";
 import { holderName } from "../../holder-names";
@@ -168,6 +168,36 @@ function snoozedBar(p: StatusProps) {
   );
 }
 
+/**
+ * A time the customer picked by text (decision 0061): Booked it, which drafts the confirmation into the box below, and
+ * Can't, which leaves the thread waiting on a reply.
+ */
+function requestActsOf(thread: Thread, onDecide: StatusProps["onDecide"]) {
+  const W = BOOKING_REQUEST_WORDS;
+  return (
+    <>
+      <Button
+        size="sm"
+        className="ix-state-go"
+        onClick={() => onDecide(thread.id, "__BOOKED__")}
+        data-testid="ix-request-booked"
+        {...gate("approve", W.gate)}
+      >
+        {W.booked_it}
+      </Button>
+      <Button
+        variant="quiet"
+        size="sm"
+        onClick={() => onDecide(thread.id, "__CANT__")}
+        data-testid="ix-request-cant"
+        {...gate("approve", W.gate)}
+      >
+        {W.cant_it}
+      </Button>
+    </>
+  );
+}
+
 /** A real thread that needs you: the reason, what they asked, and the two things to do about it. */
 function needsYouState(p: StatusProps, thread: Thread) {
   const { onTakeOver, onDecide } = p;
@@ -180,48 +210,52 @@ function needsYouState(p: StatusProps, thread: Thread) {
       // What they asked, beside the decision: their last message, or what the call left behind.
       ask={thread.ask && thread.ask.kind !== "call" ? <IxAsk ask={thread.ask} /> : null}
       acts={
-        <>
-          {/* A hold nothing may be sent for (its reason's act is to hand back, escalations.ts HOLD_ACT_WORDS) offers no
+        thread.holdAct === "confirm" ? (
+          requestActsOf(thread, onDecide)
+        ) : (
+          <>
+            {/* A hold nothing may be sent for (its reason's act is to hand back, escalations.ts HOLD_ACT_WORDS) offers no
               reply to write: Hand back is the thread's own verb. */}
-          {thread.holdAct === "hand_back" ? null : ixDockDials(thread) ? (
-            <Button
-              size="sm"
-              className="ix-state-go"
-              href={`tel:${thread.phone}`}
-              onClick={() => onTakeOver(thread.id)}
-              data-testid="ix-call-back"
-            >
-              <Icon name="phone" size={12} /> Call back
-            </Button>
-          ) : (
-            <Button
-              size="sm"
-              className="ix-state-go"
-              onClick={() => onTakeOver(thread.id)}
-              {...gate("approve", "take over a conversation")}
-            >
-              {thread.primaryChannel === "phone" ? (
-                <>
-                  <Icon name="phone" size={12} /> Call back
-                </>
-              ) : (
-                HOLD_ACT_WORDS.reply.take
-              )}
-            </Button>
-          )}
-          {/* Two words on the screen, the whole sentence for a screen reader: it was a sentence wearing a button. */}
-          {thread.escalationId && (
-            <Button
-              variant="quiet"
-              size="sm"
-              onClick={() => onDecide(thread.id, "__HANDBACK__")}
-              aria-label="Nothing needed — hand it back to the receptionist"
-              {...gate("approve", "hand a conversation back")}
-            >
-              Hand back
-            </Button>
-          )}
-        </>
+            {thread.holdAct === "hand_back" ? null : ixDockDials(thread) ? (
+              <Button
+                size="sm"
+                className="ix-state-go"
+                href={`tel:${thread.phone}`}
+                onClick={() => onTakeOver(thread.id)}
+                data-testid="ix-call-back"
+              >
+                <Icon name="phone" size={12} /> Call back
+              </Button>
+            ) : (
+              <Button
+                size="sm"
+                className="ix-state-go"
+                onClick={() => onTakeOver(thread.id)}
+                {...gate("approve", "take over a conversation")}
+              >
+                {thread.primaryChannel === "phone" ? (
+                  <>
+                    <Icon name="phone" size={12} /> Call back
+                  </>
+                ) : (
+                  HOLD_ACT_WORDS.reply.take
+                )}
+              </Button>
+            )}
+            {/* Two words on the screen, the whole sentence for a screen reader: it was a sentence wearing a button. */}
+            {thread.escalationId && (
+              <Button
+                variant="quiet"
+                size="sm"
+                onClick={() => onDecide(thread.id, "__HANDBACK__")}
+                aria-label="Nothing needed — hand it back to the receptionist"
+                {...gate("approve", "hand a conversation back")}
+              >
+                Hand back
+              </Button>
+            )}
+          </>
+        )
       }
     />
   );

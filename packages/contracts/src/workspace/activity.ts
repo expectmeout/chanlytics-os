@@ -171,6 +171,7 @@ const WORDS: Record<string, string> = {
   leave_sequence: "Took people out of a sequence",
   make_sequence: "Made a sequence",
   discard_sequence: "Let a sequence go",
+  answer_booking_request: "Answered a request to book",
   // events
   "message.received": "A customer wrote",
   "message.sent": "A message went out",

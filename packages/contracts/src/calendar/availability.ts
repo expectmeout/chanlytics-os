@@ -20,6 +20,7 @@
 import type { Closure, Hours } from "../config/workspace-config/business-profile";
 import { DAYS } from "../config/workspace-config/config-rules";
 import { NO_LINK_DETAILS } from "../config/no-booking-link";
+import { BOOKING_REQUEST_INSTRUCTION } from "./visit/booking-request";
 import { keyParts } from "./day-keys";
 import { WEEKDAY_KEYS, clockInZone, dayPlusInZone, localToUtcMs } from "./zone-math";
 import type { BusyBlock } from "./feed";
@@ -254,7 +255,14 @@ function span(tz: string, start: number, end: number): string {
 export function describeOpenings(
   openings: Opening[],
   tz: string,
-  opts: { maxDays?: number; daysAhead?: number; hasBookingLink: boolean; bookingHeld?: boolean },
+  opts: {
+    maxDays?: number;
+    daysAhead?: number;
+    hasBookingLink: boolean;
+    bookingHeld?: boolean;
+    /** The workspace takes booking requests on this turn (decision 0061): a time picked is written as one. */
+    requests?: boolean;
+  },
 ): string {
   const maxDays = opts.maxDays ?? 5;
   const ahead = opts.daysAhead ?? BOOKING_DEFAULTS.max_days_ahead;
@@ -269,6 +277,14 @@ export function describeOpenings(
   const lines = openings
     .slice(0, maxDays)
     .map((o) => `- ${o.label}: ${o.windows.map((w) => span(tz, w.start, w.end)).join(", ")}`);
+  // Where the team confirms and requests are taken, a time picked is written as one (decision 0061).
+  const confirms = held || !hasLink;
+  if (opts.requests === true && confirms)
+    return (
+      `Open times (from the calendar, checked just now — these change as bookings come in):\n${lines.join("\n")}\n` +
+      `Offer up to three of these that fit what they want. ${BOOKING_REQUEST_INSTRUCTION}` +
+      (held ? " This business confirms its own bookings: never send or promise the booking link." : "")
+    );
   return (
     `Open times (from the calendar, checked just now — these change as bookings come in):\n${lines.join("\n")}\n` +
     (held
