@@ -44,6 +44,8 @@ import {
   inlineStyles,
   handRoutesIn,
   seedReadsOutsideADemo,
+  needsHumanReads,
+  resumesUnasked,
   sourceReads,
   mediaPreludes,
   mediaWidths,
@@ -428,6 +430,29 @@ export const MEASURES = [
       ),
     advice:
       "Read a demo's seeds only where the session is one: `demoSession() ? sample() : <the real read, or nothing>`. A seed read in a real session draws invented people as customers (the wiring's second audit, X6-1).",
+  },
+  {
+    // Every hand-written module of the apps and the packages: a server reader compared the column as readily as a page.
+    name: "needs_human compared outside the standing rule",
+    file: "needs-human-reads.json",
+    measure: () =>
+      perFile(
+        SRC.filter((f) => /\.(tsx?|jsx?|mjs)$/.test(f)),
+        needsHumanReads,
+      ),
+    advice:
+      "Ask who has a thread through the standing rule (contracts standingOf, personStanding, packages/db threadIdsWaitingOnYou), never the raw state: needs_human is a thread flagged, and a reply a member took stays flagged until handed back (the wiring's second audit, S9-1).",
+  },
+  {
+    name: "resumes sent without the question",
+    file: "resumes-unasked.json",
+    measure: () =>
+      perFile(
+        SHELL.filter((f) => /\.tsx?$/.test(f)),
+        resumesUnasked,
+      ),
+    advice:
+      "Resume a campaign or a reach-out through the ledger's question (ResumeAct, or ResumePress and ResumeQuestion with useResumeAsk), fed by contracts' act (rowResumeOf, chainResumeOf): it says when it runs next, to about how many, and whether it sends on its own (the wiring's second audit, S9-2).",
   },
   {
     // Every file of the tree, one each: it may only lose them. The address step (decision 0015) closed the tree: a
