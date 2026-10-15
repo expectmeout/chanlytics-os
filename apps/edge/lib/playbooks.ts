@@ -12,7 +12,9 @@ import {
   campaignMonthSent,
   emitEvent,
   everyoneIn,
+  followUpsDue,
   holdRecipients,
+  leaveSequence,
   listPolicies,
   mailboxOfTenant,
   messageVersionRowsOf,
@@ -355,18 +357,22 @@ export async function runPlaybook(ctx: TenantRunContext, p: PlaybookRow, req: Ru
       message: (name, language) => messageVersionRowsOf(db, tenantId, { name, language }),
       alreadyRan: async (playbookId, runFor) => {
         const { data } = await db
-          .from("broadcasts")
+          .from("sequence_batches")
           .select("id")
           .eq("tenant_id", tenantId)
-          .eq("playbook_id", playbookId)
+          .eq("step_id", playbookId)
           .eq("run_for", runFor)
           .maybeSingle();
         return !!data;
       },
+      // A customer's step after the first (decision 0060, D6): who it is due to, and the door that takes out those it
+      // will not reach.
+      followUpsDue: (stepId, runFor) => followUpsDue(db, stepId, runFor),
+      leave: (enrollmentIds, why) => leaveSequence(db, { tenantId, enrollmentIds, why }),
       record: async (playbookId, runFor, at, data) => {
         await emitEvent(db, tenantId, "playbook.run", "playbook", playbookId, data).catch(() => {});
         await db
-          .from("playbooks")
+          .from("sequence_steps")
           .update({ last_run_for: runFor, last_run_at: at.toISOString() })
           .eq("id", playbookId)
           .eq("tenant_id", tenantId);

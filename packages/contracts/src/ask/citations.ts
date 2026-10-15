@@ -77,7 +77,7 @@ export function noteRows(read: AskReadSet, refs: Iterable<AskRowRef>): void {
 
 /**
  * The pages a citation or a navigate target may point at without a read: every page the palette jumps to (askPages;
- * the Pipeline and the back office only where the workspace and the person have them), and People's lists.
+ * the Pipeline, Sequences and the back office only where the workspace and the person have them), and People's lists.
  */
 export const ASK_PAGE_ROUTES: readonly string[] = [
   "today",
@@ -90,6 +90,8 @@ export const ASK_PAGE_ROUTES: readonly string[] = [
   "live",
   "calendar",
   "campaigns",
+  // Campaigns › Sequences (decision 0060): drawn where its preview is on, the home elsewhere, so either way a page.
+  "campaigns/sequences",
   "outbound",
   "broadcasts",
   "messages",

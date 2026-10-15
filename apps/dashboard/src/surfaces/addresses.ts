@@ -28,6 +28,7 @@ import {
   parseListToken,
   parsePeopleRoute,
   parsePipelineRoute,
+  parseSequencesRoute,
   personRouteOf,
   personTabRoute,
   pipelinePersonOf,
@@ -109,9 +110,16 @@ function opensCalendar(param: string): Opened | null {
   return at.day ? { view: "calendar/day" } : null;
 }
 
-/** What Campaigns' param opens: a moment (a campaign or a reach-out) in its drawer, a message by its name, the composer or a group. */
+/**
+ * What Campaigns' param opens: its Sequences view (0060: the list, a sequence on one of its tabs, a new one), else a moment (a
+ * campaign or a reach-out) in its drawer, a message by its name, the composer or a group.
+ */
 function opensCampaigns(param: string): Opened | null {
   if (param === "") return { view: "campaigns" };
+  const sequences = parseSequencesRoute(`campaigns/${param}`);
+  if (sequences)
+    return { view: sequences.view === "list" ? "campaigns/sequences" : `campaigns/sequences/${sequences.view}` };
+  if (param.includes("/")) return null;
   const at = parseHome(param);
   if (at.moment) return { ref: { kind: "campaign", id: at.moment } };
   if (at.message) return { ref: { kind: "template", name: at.message } };
@@ -243,7 +251,7 @@ const PAGES: ReadonlyMap<string, Parse> = new Map<string, Parse>([
   ["conversations", flat(opensConversations)],
   ["live", flat(opensLive)],
   ["calendar", flat(opensCalendar)],
-  ["campaigns", flat(opensCampaigns)],
+  ["campaigns", opensCampaigns],
   ["messages", alone("messages")],
   ["broadcasts", flat(opensSent)],
   // A person's tab has a slash (`clients/<id>/history`), which opensPeople reads itself.

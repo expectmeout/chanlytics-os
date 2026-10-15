@@ -422,7 +422,7 @@ test("the door's refusals are said in contracts' words: a search with a chain is
   assert.equal(asked[0].p_chain.root_id, ROOT_ID, "an edit names its chain");
   // A message that is not one of contracts' is never shown as it is.
   serviceSave(() => {
-    throw pgError("23514", 'new row for relation "playbooks" violates check constraint "playbooks_reach_out_gap"');
+    throw pgError("23514", 'new row for relation "playbooks" violates check constraint "sequence_steps_reach_out_gap"');
   });
   await refused(
     chain.PUT.run(send("PUT", CHAIN()), ctxFor(tables(), { id: ROOT_ID })),

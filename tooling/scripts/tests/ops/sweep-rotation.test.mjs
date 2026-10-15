@@ -208,7 +208,7 @@ test("the playbooks page is only what is due, by each workspace's own clock, lea
   const db = fakeDb({ tenants, playbooks: rows });
   const page = await playbooksDue(db, NOW, PLAYBOOKS_PER_TICK);
   assert.deepEqual(
-    page.rows.map((r) => [r.playbook.id, r.timezone]),
+    page.rows.map((r) => [r.step.id, r.timezone]),
     [
       ["p2", DAY],
       ["p3", DAY],
@@ -219,7 +219,7 @@ test("the playbooks page is only what is due, by each workspace's own clock, lea
   assert.equal(page.remaining, 0, "and what is not due is not left behind either");
   const reach = await reachOutsDue(db, NOW, PLAYBOOKS_PER_TICK);
   assert.deepEqual(
-    reach.rows.map((r) => r.playbook.id),
+    reach.rows.map((r) => r.step.id),
     ["r1"],
     "the reach-out page, judged the same way",
   );
@@ -240,14 +240,10 @@ test("what the playbooks page leaves behind is due playbooks only: twenty-six du
   const page = await playbooksDue(db, NOW, PLAYBOOKS_PER_TICK);
   assert.equal(page.rows.length, PLAYBOOKS_PER_TICK);
   assert.ok(
-    page.rows.every((r) => r.playbook.id.startsWith("due-")),
+    page.rows.every((r) => r.step.id.startsWith("due-")),
     "the page holds only what is due",
   );
-  assert.deepEqual(
-    page.rows.map((r) => r.playbook.id).slice(0, 2),
-    ["due-00", "due-01"],
-    "the least recently run first",
-  );
+  assert.deepEqual(page.rows.map((r) => r.step.id).slice(0, 2), ["due-00", "due-01"], "the least recently run first");
   assert.equal(page.remaining, 1, "the twenty-sixth due one, and none of the hundred");
   // A reach-out page over the same table has nothing: no reach-out is running.
   assert.deepEqual(await reachOutsDue(db, NOW, PLAYBOOKS_PER_TICK), { rows: [], remaining: 0 });

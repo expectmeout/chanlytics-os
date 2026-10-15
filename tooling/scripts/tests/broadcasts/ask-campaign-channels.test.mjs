@@ -502,7 +502,7 @@ const sendTo = async (rows, call) => {
     new Request("http://localhost/api/v1/x", { method: "PUT", body: JSON.stringify(call.body) }),
     { supabase, userId: USER, email: "ada@example.com", params: call.params },
   );
-  const written = supabase.seen.filter((s) => s.table === "playbooks" && s.op === "update").map((s) => s.values);
+  const written = supabase.seen.filter((s) => s.table === "sequence_steps" && s.op === "update").map((s) => s.values);
   return { out, written };
 };
 
@@ -530,7 +530,7 @@ test("the channels a playbook that exists goes by are changed from a card: the c
   assert.equal(ask.pool(), 0, "nobody in People was read");
   for (const table of ["contacts", "segments", "segment_members", "deals", "events"])
     assert.ok(!ask.reads().includes(table), `${table} was not read: ${ask.reads().join(", ")}`);
-  assert.ok(ask.reads().includes("playbooks") && ask.reads().includes("broadcasts"), ask.reads().join(", "));
+  assert.ok(ask.reads().includes("sequence_steps") && ask.reads().includes("sequence_batches"), ask.reads().join(", "));
 
   const spec = PROPOSAL_SPECS.playbook_channels;
   const call = spec.commit(p, { settings: null });
@@ -1285,7 +1285,7 @@ test("campaigns.audiences counts what a card would: who it sends to, with how ma
     "one number: the listing's and the card's",
   );
   // Who heard could not be read: no count it cannot stand behind, and it says why.
-  const broken = await listing(heardBy(PEOPLE[0]), { "broadcasts.select": { message: "connection reset" } });
+  const broken = await listing(heardBy(PEOPLE[0]), { "sequence_batches.select": { message: "connection reset" } });
   assert.equal(everyone(broken).can_be_sent_messages, null);
   assert.ok(
     broken.could_not_read.some((w) =>
@@ -1300,7 +1300,7 @@ test("a card whose week could not be read is no card, and the failed read is sai
   const card = (input) => {
     const supabase = fakeDb(
       tables(),
-      { "broadcasts.select": { message: "connection reset" } },
+      { "sequence_batches.select": { message: "connection reset" } },
       { people_list: () => PEOPLE },
     );
     const t = newToolContext({ supabase, userId: USER, email: "ada@example.com", params: {} }, A, "owner", TZ, NOW);

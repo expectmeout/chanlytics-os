@@ -120,15 +120,15 @@ test(
     assert.equal(made.error, null, made.error?.message);
     assert.deepEqual([made.data.trigger, made.data.policy_class], ["proposal_waiting", "follow_up"]);
     const trigger = await db.from("playbooks").insert(row({ trigger: "proposal_forever" }));
-    assert.match(trigger.error?.message ?? "", /playbooks_trigger_check/, "a trigger nobody wrote");
+    assert.match(trigger.error?.message ?? "", /sequence_steps_trigger_check/, "a trigger nobody wrote");
     const cls = await db.from("playbooks").insert(row({ policy_class: "money" }));
-    assert.match(cls.error?.message ?? "", /playbooks_policy_class_check/, "a playbook never runs under money");
+    assert.match(cls.error?.message ?? "", /sequence_steps_policy_class_check/, "a playbook never runs under money");
     const policy = await db.from("policies").insert({ tenant_id: tenantId, class: "nudges", mode: "ask" });
     assert.match(policy.error?.message ?? "", /policies_class_check/, "a class nobody wrote");
     // One follow-up per workspace: a second would owe every proposal a second nudge.
     const second = await db.from("playbooks").insert(row({ name: "Proposal follow-up, again" }));
     assert.equal(second.error?.code, "23505", second.error?.message);
-    assert.match(second.error?.message ?? "", /playbooks_one_follow_up/, "the name the route says it in words by");
+    assert.match(second.error?.message ?? "", /sequence_steps_one_follow_up/, "the name the route says it in words by");
   },
 );
 

@@ -206,7 +206,8 @@ test("the words: a sentence per kind, the one or two fields a reader wants, noth
 // booking that arrived and a payment that went through are ok; the owner answering from their own app is info.
 // 62: the cold lane's four toned domain kinds went (decision 0056); a mailbox connected, resumed and writing again are
 // ok, and one held or signed out is warn.
-const TONED_KINDS = 62;
+// 63: people taken out of a sequence by a member are warn (decision 0060); a step changed is plain.
+const TONED_KINDS = 63;
 test("the tone: said only where the product knows one, and never for a kind that does not exist", () => {
   // A log where every line is the same grey is read rather than scanned, and
   // the line an owner opens it to find is the one that went wrong.

@@ -720,6 +720,19 @@ export const DECISION_VERBS = [
    * 'appointment' (its row), payload from, to, the row's source, its start and the person it is for.
    */
   "mark_visit",
+  /**
+   * A step of a sequence added, changed, given new words or taken away (00441 sequence_step_save, sequence_step_remove,
+   * sequence_step_words; decision 0060): subject 'sequence', payload the step and what changed of it.
+   */
+  "change_step",
+  /** People taken out of a sequence by a member (00441 sequence_leave): subject 'sequence', payload how many left. */
+  "leave_sequence",
+  /**
+   * A new sequence made whole, kept as a draft or started (00441 sequence_create, decision 0060 S4), and one that never
+   * sent let go (sequence_discard): subject 'sequence', payload its steps and whether it started, or its name and state.
+   */
+  "make_sequence",
+  "discard_sequence",
 ] as const;
 export type DecisionVerb = (typeof DECISION_VERBS)[number];
 
@@ -745,6 +758,8 @@ export const DECISION_SUBJECTS = [
   "list",
   /** A visit the record keeps (00345): what a member said became of it (00397). */
   "appointment",
+  /** A sequence (decision 0060, 00441): its steps changed and its people taken out. Its id is its first step's. */
+  "sequence",
 ] as const;
 export type DecisionSubject = (typeof DECISION_SUBJECTS)[number];
 

@@ -309,7 +309,7 @@ const MESSAGE_WORDS = [
  * their names close the enum and their one example each closes the examples, and nothing else it says, takes or shows
  * moved.
  */
-const LANE_ACTIONS = { calendar: ["room"], campaigns: ["messages", "journey"] };
+const LANE_ACTIONS = { calendar: ["room"], campaigns: ["messages", "journey", "sequences", "sequence"] };
 /**
  * 9 Oct 2026 (the moment spec, A7): propose_autonomy is judged by the Autonomy page's rule (policyModeRefusal), so its
  * words say each class takes the modes its row offers, where they said veto is for replies only. The one sentence.
@@ -573,16 +573,20 @@ test("the invariant (PR 4.7): every tool but propose_list, propose_campaign, pro
     assert.deepEqual(now.input_schema.properties.action.enum.slice(-n), lane, `${role} ${name}: the lane's, last`);
     assert.deepEqual(
       now.input_examples.slice(-n),
-      lane.map((action) => ({ action })),
+      lane.map((action) => ({ action, ...d.actions[action].examples[0] })),
       `${role} ${name}: their one example each, last`,
     );
+    // A field only the lane's actions take (15 Oct 2026: campaigns.sequence's sequence_id) is theirs, and leaves with them.
+    const before = words(was(role, name)).input_schema.properties;
+    const theirs = new Set(lane.flatMap((a) => Object.keys(d.actions[a].input.shape)).filter((f) => !(f in before)));
+    const kept = Object.fromEntries(Object.entries(now.input_schema.properties).filter(([f]) => !theirs.has(f)));
     assert.deepEqual(
       {
         ...now,
         input_schema: {
           ...now.input_schema,
           properties: {
-            ...now.input_schema.properties,
+            ...kept,
             action: { type: "string", enum: now.input_schema.properties.action.enum.slice(0, -n) },
           },
         },

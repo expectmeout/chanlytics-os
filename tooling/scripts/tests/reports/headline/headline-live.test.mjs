@@ -80,11 +80,13 @@ test("Today owns the headline it draws: its own page reads it, and no other page
   for (const key of ["calendar", "broadcasts", "playbooks", "notifications", "live", "google", "people"])
     assert.equal(ownsTheScreen(key, "today"), false, `Today does not own ${key}`);
   assert.equal(ownsTheScreen("today", "today"), true);
-  // Of everything Today draws, exactly these three: a surface added to Today's draws is not owned unless it is named here.
+  // Of everything Today draws, exactly these four: a surface added to Today's draws is not owned unless it is named here.
+  // Its pinned lists count on their own since #1598 (R10), read on Today alone.
   assert.deepEqual(ROUTE_DRAWS.today.filter((key) => ownsTheScreen(key, "today")).sort(), [
     "reach_out_replies",
     "reports_headline",
     "setup",
+    "today_pins",
   ]);
 });
 

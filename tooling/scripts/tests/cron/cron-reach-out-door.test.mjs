@@ -92,6 +92,14 @@ const email = (id, status, over = {}) => ({
   ...over,
 });
 
+/** A lead's send as sequence_sends holds it (00439): what the clock's readers hand back since 00440. */
+const stored = ({ broadcast_id, playbook_id, root_id, ...s }) => ({
+  ...s,
+  batch_id: broadcast_id,
+  step_id: playbook_id,
+  sequence_id: root_id,
+});
+
 /** 00186's reads over the tables, as the SQL makes them (its limits and its filters are proved on a stack). */
 function clockReads(t) {
   const runOf = (s) => t.broadcasts.find((b) => b.id === s.broadcast_id);
@@ -134,20 +142,20 @@ function clockReads(t) {
         }
       return n;
     },
-    reach_out_queued_outcomes: () =>
+    sequence_queued_outcomes: () =>
       t.reach_out_sends
         .filter((s) => s.state === "queued")
         .map((s) => {
           const m = emailOf(s);
           return {
-            send: { ...s },
+            send: stored(s),
             status: m?.status ?? null,
             error: m?.error ?? null,
             sent_at: m?.meta?.status_at?.sent ?? null,
             written_at: m?.created_at ?? null,
           };
         }),
-    reach_out_stale_sends: (a) =>
+    sequence_stale_sends: (a) =>
       t.reach_out_sends
         .filter(
           (s) =>
@@ -157,8 +165,8 @@ function clockReads(t) {
             running(s.playbook_id) &&
             running(s.root_id),
         )
-        .map((s) => ({ ...s })),
-    reach_out_closed_sends: (a) =>
+        .map(stored),
+    sequence_closed_sends: (a) =>
       t.reach_out_sends
         .filter(
           (s) =>
@@ -166,7 +174,7 @@ function clockReads(t) {
             (["planned", "held", "queued"].includes(s.state) ||
               (s.state === "claimed" && s.claimed_at < a.p_stuck_before)),
         )
-        .map((s) => ({ send: { ...s }, email_status: emailOf(s)?.status ?? null })),
+        .map((s) => ({ send: stored(s), email_status: emailOf(s)?.status ?? null })),
     reach_out_finishable: () =>
       t.broadcasts
         .filter(
@@ -179,11 +187,11 @@ function clockReads(t) {
         )
         .map((b) => b.id),
     // 00197: a hold, fourteen days from when its send was planned.
-    reach_out_held_stale: (a) =>
+    sequence_held_stale: (a) =>
       t.reach_out_sends
         .filter((s) => s.state === "held" && s.created_at < a.p_before)
         .sort((x, y) => (x.created_at < y.created_at ? -1 : 1))
-        .map((s) => ({ ...s })),
+        .map(stored),
     // 00429: the drafts waiting for their owners, each with its lead's facts as the send door would judge them.
     reach_out_drafts_waiting: (a) =>
       t.reach_out_sends
@@ -269,7 +277,7 @@ function senderReads(t, { monthSent = 0, failClaim = [], onClaim = () => {} } = 
     reach_out_month_sent: () => monthSent,
     reach_out_draft_facts: (a) => draftFacts(t, a.p_tenant_id, a.p_lead_id),
     // 00429: an owner's due sends, a step after the first before a first email, their mailbox let go.
-    reach_out_claim_drafts: (a) => {
+    sequence_claim_drafts: (a) => {
       const picked = t.reach_out_sends
         .filter(
           (s) =>
@@ -281,9 +289,9 @@ function senderReads(t, { monthSent = 0, failClaim = [], onClaim = () => {} } = 
         .sort((x, y) => first(x) - first(y) || (x.send_at < y.send_at ? -1 : 1))
         .slice(0, a.p_limit);
       for (const s of picked) Object.assign(s, { state: "claimed", claimed_at: a.p_at, mailbox_id: null });
-      return picked.map((s) => ({ ...s }));
+      return picked.map(stored);
     },
-    reach_out_claim_from: (a) => {
+    sequence_claim_from: (a) => {
       if (failClaim.includes(a.p_mailbox_id)) throw new Error("canceling statement due to lock timeout");
       if (!t.mailbox_connections.some((d) => d.id === a.p_mailbox_id && d.state === "connected")) return [];
       const picked = t.reach_out_sends
@@ -292,7 +300,7 @@ function senderReads(t, { monthSent = 0, failClaim = [], onClaim = () => {} } = 
         .slice(0, Math.min(a.p_limit, a.p_cap));
       for (const s of picked) Object.assign(s, { state: "claimed", claimed_at: a.p_at });
       onClaim(a.p_mailbox_id);
-      return picked.map((s) => ({ ...s }));
+      return picked.map(stored);
     },
     reach_out_person: (a) => {
       const lead = t.leads.find((l) => l.id === a.p_lead_id && l.tenant_id === a.p_tenant_id);

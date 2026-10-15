@@ -58,6 +58,7 @@ import {
   lifecycleStateOf,
 } from "@chanlytics/contracts";
 import { load } from "../../../readers";
+import { readSequence, readSequences } from "./sequences";
 import { audiencePool } from "../../../readers/audience-pool";
 import { broadcast as broadcastReader, broadcasts as broadcastsReader } from "../../../readers/broadcasts";
 import { lastDaysBySource, lastDaysOf } from "../../../readers/campaign-report";
@@ -722,6 +723,22 @@ export const campaignsTool = defineActions({
       words:
         "Action journey takes nothing more and reads the journey as Campaigns' home draws it: how many of its moments are covered (covered, of), then each stage in the order a customer passes it (first contact, the day before and the day after an appointment, which need a calendar, a proposal waiting where deals are on, quiet or lapsed) with its label, whether it is covered, its state in the page's words, the moment a campaign on it starts from (moment) and the campaigns that stand on it; and guide, what each touch point it can run sends and when, as its moment says it, the month's offer among them on no stage. Call it for what the owner is missing and what each touch point would send. An offer, a promotion or a whole setup is one call of propose_campaign with action plan, which reads the journey itself and makes the steps, never a campaign proposed stage by stage from this read; one stage asked for alone is a campaign on its moment, once a stage that needs a calendar has one (first contact is the receptionist's and needs none). For one campaign's clock, counts and runs, and whether the month's offer runs, call action playbooks.",
       run: readJourney,
+    }),
+    sequences: readAction({
+      input: z.object({}),
+      examples: [{}],
+      label: "Reading the sequences",
+      words:
+        "Action sequences takes nothing more and reads every sequence as the Sequences page lists them (0060: whatever the workspace sends on its own): each with its sequence_id, name, group, what starts it, state, line, steps and who is in it, and what waits on the owner (needs_you); needs_you on top is the page's count.",
+      run: readSequences,
+    }),
+    sequence: readAction({
+      input: z.object({ sequence_id: z.string() }),
+      examples: [{ sequence_id: "f6a7b8c9-d0e1-4f2a-8b3c-4d5e6f7a8b9c" }],
+      label: "Reading the sequence",
+      words:
+        "Action sequence takes sequence_id and reads one as its record shows it: when it starts and stops, the mode its batches go under, its one notice, its steps (wait, message, channels, last 30 days), who is in it by where they stand, and its last five batches.",
+      run: readSequence,
     }),
   },
 });

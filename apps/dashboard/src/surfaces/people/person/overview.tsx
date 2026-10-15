@@ -257,11 +257,13 @@ export function Overview({ c }: { c: PageCtx }) {
   // At a wide window their notes are the third column's (person-real.tsx), not the Overview's.
   const notes = !c.wide && (c.composing || c.p.noteList.length > 0);
   // A thin record (canvas A, P3: no thread, no deal, little history) is Up next, Coming up and its notes; History follows.
+  // A sequence they are in (0060) is what comes to them next, so it is said here too, where it has no tab of its own.
   if (c.p.thin)
     return (
       <>
         <UpNext c={c} />
         {comingUpSection(c.p.comingUp || [])}
+        {c.p.inSequences.length > 0 ? campaignsFold(c.p) : null}
         {notes ? <NotesSection c={c} /> : null}
       </>
     );

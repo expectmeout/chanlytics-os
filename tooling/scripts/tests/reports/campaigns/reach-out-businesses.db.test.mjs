@@ -556,7 +556,8 @@ test(
     }
     everyOutcomeIsOfBusinesses(rep);
 
-    // A send cannot lack its business: the schema forbids a send with no lead, and a lead's removal takes its sends.
+    // A send cannot lack its business: a send names a lead or a person (sequence_sends_someone, 0060), and a lead's removal
+    // takes its sends.
     const lost = await db.from("reach_out_sends").insert({
       id: crypto.randomUUID(),
       tenant_id: w.tenant,
@@ -568,7 +569,7 @@ test(
       send_at: iso(dayAt(1)),
       sent_at: iso(dayAt(1)),
     });
-    assert.equal(lost.error?.code, "23502", `a send with no lead: ${lost.error?.message}`);
+    assert.equal(lost.error?.code, "23514", `a send with no lead: ${lost.error?.message}`);
     ok(await db.from("leads").delete().eq("id", M2.lead), "M2 removed");
     const gone = await report(w);
     assert.deepEqual(pick(gone.totals, ["written", "businesses", "wrote_back"]), {

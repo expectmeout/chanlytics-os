@@ -2238,7 +2238,7 @@ test("the proposal follow-up's facts (0006): answered with People's first page w
   const keep = console.error;
   console.error = (...a) => logged.push(asText(a));
   try {
-    for (const fail of ["playbooks.select", "templates.select", "tenant_channels.select"]) {
+    for (const fail of ["sequence_steps.select", "templates.select", "tenant_channels.select"]) {
       const r = await contacts.GET.run(get(inA), {
         ...ctxFor(world(), {}, rpcs),
         supabase: fakeDb(world(), { [fail]: { message: "statement timeout" } }, rpcs),

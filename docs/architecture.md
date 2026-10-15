@@ -667,6 +667,7 @@ apps/dashboard/src/server/
   public/
   readers/
   receptionist/
+  sequences/
   workspace/
 apps/dashboard/src/legacy-bridge/
   ask/
@@ -722,6 +723,7 @@ packages/contracts/src/
   playbooks/
   reach-out/
   reports/
+  sequences/
   setup/
   shared/
   shell/

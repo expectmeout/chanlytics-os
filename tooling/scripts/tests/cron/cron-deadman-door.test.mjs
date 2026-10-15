@@ -991,7 +991,7 @@ test("a notice that cannot be given is an error line, and the run stays marked n
 });
 
 test("the stranded runs failing to read does not cost the watchdog its tick", async () => {
-  const w = world([waiting("e-a1", A)], { fail: { "broadcasts.select": { message: "connection reset" } } });
+  const w = world([waiting("e-a1", A)], { fail: { "sequence_batches.select": { message: "connection reset" } } });
   const line = wire();
   try {
     const [status, body] = await answer(await w.tick());

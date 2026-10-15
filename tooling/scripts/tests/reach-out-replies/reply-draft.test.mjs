@@ -331,12 +331,25 @@ function edge({
   billing = "active",
   usage = 0,
   mailbox = true,
+  connected = false,
 } = {}) {
   seq += 1;
   const tenant = `dddddddd-dddd-4ddd-8ddd-${String(seq).padStart(12, "0")}`;
   const tables = {
     mailboxes: mailbox
       ? [{ id: `mb-${seq}`, tenant_id: tenant, local_part: "harbor", from_name: "Harbor", reply_token: "tok" }]
+      : [],
+    // A mailbox the workspace connected to send from (0056): where a reply arrives when it has no hosted one.
+    mailbox_connections: connected
+      ? [
+          {
+            id: `mc-${seq}`,
+            tenant_id: tenant,
+            address: "sam@harbor.example",
+            state: "connected",
+            connected_at: "2026-10-01T00:00:00Z",
+          },
+        ]
       : [],
     tenant_config: [{ tenant_id: tenant, config }],
     policies: [{ tenant_id: tenant, class: "reply", mode, limits, subject_type: null, subject_id: null }],
@@ -429,6 +442,9 @@ test("the edge's port asks G14's gates from the workspace's own rows, and a hand
     }
     const under = edge({ limits: { max_llm_tokens_day: 5000 }, usage: 1000 });
     assert.ok("text" in (await under.draft(under.tenant, ask)), "under the cap it drafts");
+    // A workspace that sends from a mailbox of its own, with no hosted one, drafts too (the plan of 0060, S0).
+    const own = edge({ mailbox: false, connected: true });
+    assert.ok("text" in (await own.draft(own.tenant, ask)), "a connected mailbox is the receptionist's way in");
 
     edge.answer = {
       text: "Sorry, one moment.",

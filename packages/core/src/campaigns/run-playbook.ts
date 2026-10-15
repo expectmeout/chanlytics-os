@@ -14,6 +14,8 @@ import {
   playbookRunReach,
   playbookStopBy,
   enrolPurpose,
+  followUpReach,
+  followUpStop,
   messageAboutOfTrigger,
   proposalFactsFor,
   readyForMessage,
@@ -48,6 +50,9 @@ import type {
 } from "./ports";
 
 type Skipped = Extract<RunOutcome, { outcome: "off" }>["skipped"];
+
+/** A customer's step after the first (decision 0060, D6): it reaches the people due it, not a moment's people. */
+const isFollowUp = (p: PlaybookRow): boolean => (p.kind ?? "moment") === "moment" && p.trigger === "after_step";
 
 /** A list as it was counted for a run, kept on it (decision 0009, "sends remember"). */
 type KeptList = { token: string; rule: unknown; counted_at: string };
@@ -137,6 +142,8 @@ async function allowed(
   if (stop) return { ended: await r.off(stop) };
   // One run per local day: a second ask says so and records nothing twice.
   if (await r.ports.alreadyRan(p.id, r.runFor)) return { ended: await r.off("already_ran_today", { record: false }) };
+  // A step after the first reaches whoever its sequence brought to it: no moment, list or calendar of its own.
+  if (isFollowUp(p)) return { ended: null, listIds: null, kept: undefined };
   // A visit playbook, or Lapsed's, without a calendar has nothing to read: off, and the run says so.
   const trig = triggerOf(p.trigger);
   if ((trig?.kind === "visit" || trig?.id === "lapsed") && ctx.calendar !== "ok")
@@ -197,6 +204,18 @@ function draw(
     ctx.pace,
     listIds,
   );
+  return withinTheNumbersDay(r, drawn);
+}
+
+/**
+ * The number's daily limit as a ceiling on WhatsApp's people (Meta's: an email or a text is never held for it), the
+ * people past it named in the run's record, never dropped in silence. A moment's run and a step after the first both.
+ */
+function withinTheNumbersDay(
+  r: Run,
+  drawn: { eligible: PersonRowVM[]; reach: RunReach; channelOf: Record<string, ConsentChannel> },
+): { eligible: PersonRowVM[]; reach: RunReach; channelOf: Record<string, ConsentChannel>; dropped: number } {
+  const { ctx } = r;
   const reach: RunReach = { ...drawn.reach };
   const room =
     ctx.health.limitPerDay === null ? Number.POSITIVE_INFINITY : Math.max(0, Math.floor(ctx.health.limitPerDay));
@@ -213,6 +232,69 @@ function draw(
     if (reach.by_channel) reach.by_channel = { ...reach.by_channel, whatsapp: reach.by_channel.whatsapp - dropped };
   }
   return { eligible, reach, channelOf: drawn.channelOf, dropped };
+}
+
+/**
+ * Who a customer's step after the first reaches (D6): the people the database says are due it (in its sequence, one step
+ * before it, their wait over), less those for whom what it was for no longer holds (they booked, or wrote back, since:
+ * contracts followUpStop), each on one channel (contracts followUpReach), at most its cap, the longest waiting first, and
+ * within the number's day. Whoever it will not reach leaves the sequence, with why (booked, replied, never said yes, gone),
+ * so a day's run never asks of them again; those past the cap stay due for the next day. A read or a leave that fails is
+ * this run failing: nothing is recorded, and the next sweep asks again.
+ */
+async function drawFollowUp(
+  r: Run,
+  message: Message["m"],
+  how: CampaignHow,
+): Promise<ReturnType<typeof withinTheNumbersDay> | { error: string }> {
+  try {
+    const due = await r.ports.followUpsDue(r.p.id, r.runFor);
+    const people = new Map(r.ctx.people.map((person) => [person.id, person]));
+    const leaving = new Map<string, string[]>();
+    const leave = (why: string, id: string) => leaving.set(why, [...(leaving.get(why) ?? []), id]);
+    const goes: PersonRowVM[] = [];
+    const enrolmentOf = new Map<string, string>();
+    for (const d of due) {
+      const person = people.get(d.contact_id);
+      const stop = person ? followUpStop(person, r.p.only_if ?? [], d.sent_at ? Date.parse(d.sent_at) : null) : "gone";
+      if (!person || stop) {
+        leave(stop ?? "gone", d.enrollment_id);
+        continue;
+      }
+      goes.push(person);
+      enrolmentOf.set(person.id, d.enrollment_id);
+    }
+    const drawn = followUpReach(goes, {
+      policy_class: r.p.policy_class,
+      message,
+      channels: how.channels,
+      ready: how.ready,
+    });
+    for (const h of drawn.held) {
+      const id = enrolmentOf.get(h.id);
+      if (id) leave(h.why, id);
+    }
+    // The cap holds the rest to tomorrow: they stay in their sequence, due, the longest waiting first (the due order).
+    const capped = drawn.eligible.slice(0, Math.max(1, r.p.cap_per_run));
+    for (const [why, ids] of leaving) await r.ports.leave(ids, why);
+    return withinTheNumbersDay(r, {
+      eligible: capped,
+      reach: { ...drawn.reach, overCap: drawn.eligible.length - capped.length, will: capped.length },
+      channelOf: drawn.channelOf,
+    });
+  } catch (e) {
+    return { error: `follow_up: ${e instanceof Error ? e.message : String(e)}` };
+  }
+}
+
+/** Who the run reaches: a moment's people, or the people a step after the first is due to (D6). */
+async function drawOf(
+  r: Run,
+  message: Message["m"],
+  how: CampaignHow,
+  listIds: ReadonlySet<string> | null,
+): Promise<ReturnType<typeof withinTheNumbersDay> | { error: string }> {
+  return isFollowUp(r.p) ? drawFollowUp(r, message, how) : draw(r, message, how, listIds);
 }
 
 /**
@@ -250,6 +332,8 @@ async function pastTheRoom(
  */
 function recipientFacts(r: Run, goesAt: Date): (person: PersonRowVM) => Record<string, string> | null {
   const { p, ctx } = r;
+  // A step after the first keeps no visit's or proposal's words: what it says is its own.
+  if (isFollowUp(p)) return () => null;
   const trig = triggerOf(p.trigger);
   // Whose a visit is, as the run judged it when it named them (contracts theirVisitTest): the same rows, the same test.
   const theirs = theirVisitTest(ctx.people);
@@ -416,7 +500,9 @@ export async function runPlaybook(ports: RunPlaybookPorts, cmd: RunPlaybookComma
     // A visit's or a follow-up's message is theirs; any other moment's, the business's news (decision D1).
     about: messageAboutOfTrigger(p.trigger),
   };
-  const { eligible, reach, channelOf, dropped } = draw(run, message.m, how, gate.listIds);
+  const drawn = await drawOf(run, message.m, how, gate.listIds);
+  if ("error" in drawn) return { outcome: "failed", error: drawn.error };
+  const { eligible, reach, channelOf, dropped } = drawn;
   // A WhatsApp version Meta does not approve holds WhatsApp's people alone: none is drawn on it, and the purpose stays
   // the message's own category. A run that ticks WhatsApp and has nobody on email or text stops on it, as it always did.
   if (templateHolds(run, message, eligible.length)) return off("template_not_approved");

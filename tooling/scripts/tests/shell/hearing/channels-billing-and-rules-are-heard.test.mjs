@@ -140,7 +140,11 @@ test("the composers hear the channel, the line and the billing account on their 
     }
     // The tables it heard before are heard as they were: the runs always, a message on its page.
     at(away);
-    assert.equal(wantsRefresh(o, "broadcasts", change("broadcasts")), true, `${o.key}: a run, wherever the tab is`);
+    assert.equal(
+      wantsRefresh(o, "sequence_batches", change("sequence_batches")),
+      true,
+      `${o.key}: a run, wherever the tab is`,
+    );
     assert.equal(wantsRefresh(o, "messages", change("messages", "INSERT")), false);
   }
   at("#/today");

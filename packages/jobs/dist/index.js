@@ -315,7 +315,7 @@ function must(what, r) {
 // src/broadcast-send.ts
 var sendLog = logger3();
 async function countRecipients(db, tenantId, broadcastId, state, reason) {
-  let q = db.from("broadcast_recipients").select("contact_id", { count: "exact", head: true }).eq("tenant_id", tenantId).eq("broadcast_id", broadcastId);
+  let q = db.from("sequence_sends").select("contact_id", { count: "exact", head: true }).eq("tenant_id", tenantId).eq("batch_id", broadcastId);
   if (state) q = q.eq("state", state);
   if (reason) q = q.eq("reason", reason);
   const { count, error } = await q;
@@ -490,7 +490,7 @@ function peoplePorts(ctx, tenantId) {
 function markPort(db, tenantId) {
   return async (id, contactId, patch) => {
     const sentAt = patch.sent_at ?? (patch.state === "sent" ? (/* @__PURE__ */ new Date()).toISOString() : null);
-    const write = db.from("broadcast_recipients").update({ ...patch, sent_at: sentAt }).eq("tenant_id", tenantId).eq("broadcast_id", id).eq("contact_id", contactId);
+    const write = db.from("sequence_sends").update({ ...patch, sent_at: sentAt }).eq("tenant_id", tenantId).eq("batch_id", id).eq("contact_id", contactId).is("lead_id", null);
     if (patch.state !== "failed" || patch.reason !== OUTCOME_UNKNOWN) {
       must("broadcast_send: cannot record how this person's send went", await write);
       return true;
@@ -508,7 +508,9 @@ async function broadcastSend(ctx, job) {
   await sendBroadcastBatch(
     {
       broadcast: async (id) => {
-        const { data, error } = await db.from("broadcasts").select("id, state, name, template_name, template_language, params, recipient_count, playbook_id, audience").eq("id", id).eq("tenant_id", job.tenant_id).maybeSingle();
+        const { data, error } = await db.from("sequence_batches").select(
+          "id, state, name, template_name, template_language, params, recipient_count, playbook_id:step_id, audience"
+        ).eq("id", id).eq("tenant_id", job.tenant_id).maybeSingle();
         if (error) throw new Error(`broadcast_send: cannot read broadcast ${id}: ${error.message}`);
         return withTemplate(data);
       },
@@ -519,7 +521,7 @@ async function broadcastSend(ctx, job) {
       fail: async (id, failure) => {
         const moved = must(
           "broadcast_send: cannot mark the broadcast failed",
-          await db.from("broadcasts").update({ state: "failed", failure, finished_at: (/* @__PURE__ */ new Date()).toISOString() }).eq("id", id).eq("tenant_id", job.tenant_id).neq("state", "failed").select("id")
+          await db.from("sequence_batches").update({ state: "failed", failure, finished_at: (/* @__PURE__ */ new Date()).toISOString() }).eq("id", id).eq("tenant_id", job.tenant_id).neq("state", "failed").select("id")
         );
         if (!moved?.length) return;
         const sent = await countRecipients(db, job.tenant_id, id, "sent").catch(() => null);
@@ -528,7 +530,7 @@ async function broadcastSend(ctx, job) {
       startSending: async (id) => {
         const rows = must(
           "broadcast_send: cannot start the broadcast",
-          await db.from("broadcasts").update({ state: "sending", started_at: (/* @__PURE__ */ new Date()).toISOString() }).eq("id", id).eq("tenant_id", job.tenant_id).eq("state", "scheduled").select("id")
+          await db.from("sequence_batches").update({ state: "sending", started_at: (/* @__PURE__ */ new Date()).toISOString() }).eq("id", id).eq("tenant_id", job.tenant_id).eq("state", "scheduled").select("id")
         );
         return !!rows && rows.length > 0;
       },
@@ -554,7 +556,7 @@ async function broadcastSend(ctx, job) {
       state: async (id) => {
         const row = must(
           "broadcast_send: cannot read whether the broadcast is still wanted",
-          await db.from("broadcasts").select("state").eq("id", id).eq("tenant_id", job.tenant_id).maybeSingle()
+          await db.from("sequence_batches").select("state").eq("id", id).eq("tenant_id", job.tenant_id).maybeSingle()
         );
         return row?.state ?? null;
       },
@@ -578,7 +580,7 @@ async function broadcastSend(ctx, job) {
       finish: async (id, tally) => {
         must(
           "broadcast_send: cannot close the broadcast",
-          await db.from("broadcasts").update({ state: "sent", finished_at: (/* @__PURE__ */ new Date()).toISOString() }).eq("id", id).eq("tenant_id", job.tenant_id).eq("state", "sending")
+          await db.from("sequence_batches").update({ state: "sent", finished_at: (/* @__PURE__ */ new Date()).toISOString() }).eq("id", id).eq("tenant_id", job.tenant_id).eq("state", "sending")
         );
         const told = await recordEvent(db, job.tenant_id, "broadcast.sent", "broadcast", id, tally);
         if (told.error) throw new Error(`broadcast_send: cannot record the broadcast's tally: ${told.error}`);
@@ -1384,13 +1386,13 @@ function resumesOf(payload) {
   return typeof v === "number" && Number.isFinite(v) && v > 0 ? Math.floor(v) : 0;
 }
 async function howFar(db, tenantId, broadcastId) {
-  const of = (state) => db.from("broadcast_recipients").select("contact_id", { count: "exact", head: true }).eq("tenant_id", tenantId).eq("broadcast_id", broadcastId).eq("state", state);
+  const of = (state) => db.from("sequence_sends").select("contact_id", { count: "exact", head: true }).eq("tenant_id", tenantId).eq("batch_id", broadcastId).eq("state", state);
   const [sent, queued] = await Promise.all([of("sent"), of("queued")]);
   const error = sent.error?.message ?? queued.error?.message;
   return { reached: sent.count ?? 0, remaining: queued.count ?? 0, ...error ? { error } : {} };
 }
 async function failBroadcast(db, job, broadcastId, why, far) {
-  const { data, error } = await db.from("broadcasts").update({ state: "failed", failure: "run_interrupted", finished_at: (/* @__PURE__ */ new Date()).toISOString() }).eq("id", broadcastId).eq("tenant_id", job.tenant_id).in("state", ["scheduled", "sending"]).select("id");
+  const { data, error } = await db.from("sequence_batches").update({ state: "failed", failure: "run_interrupted", finished_at: (/* @__PURE__ */ new Date()).toISOString() }).eq("id", broadcastId).eq("tenant_id", job.tenant_id).in("state", ["scheduled", "sending"]).select("id");
   if (error) return [{ what: "broadcast", changed: false, ...far, error: `${why}; then ${error.message}` }];
   if (!data?.length) return [{ what: "broadcast", changed: false, ...far }];
   await emitEvent3(db, job.tenant_id, "broadcast.stopped", "broadcast", broadcastId, {
@@ -1440,7 +1442,7 @@ async function settleJob(db, job, certain) {
   if (job.kind === "broadcast_send") {
     const broadcastId = idFrom(job.payload, "broadcast_id");
     if (!broadcastId) return [{ what: "broadcast", changed: false, error: "no broadcast_id on the job" }];
-    const { data: row, error: readErr } = await db.from("broadcasts").select("id, state").eq("id", broadcastId).eq("tenant_id", job.tenant_id).maybeSingle();
+    const { data: row, error: readErr } = await db.from("sequence_batches").select("id, state").eq("id", broadcastId).eq("tenant_id", job.tenant_id).maybeSingle();
     if (readErr) return [{ what: "broadcast", changed: false, error: readErr.message }];
     if (!row || row.state !== "sending" && row.state !== "scheduled") return [{ what: "broadcast", changed: false }];
     const far = await howFar(db, job.tenant_id, broadcastId);

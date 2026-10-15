@@ -51,7 +51,7 @@ export async function runPlaybookNow(
   if (!db) return refuse(503, "no_database");
 
   const { data: p, error } = await db
-    .from("playbooks")
+    .from("sequence_steps")
     .select("*")
     .eq("id", playbookId)
     .eq("tenant_id", tenantId)

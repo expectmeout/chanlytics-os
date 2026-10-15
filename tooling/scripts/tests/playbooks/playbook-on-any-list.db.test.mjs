@@ -100,10 +100,10 @@ test(
     assert.equal(onPeoples.data.list_key, "lapsed");
     const both = await db.from("playbooks").insert(playbook({ list_key: "lapsed", list_id: listA }));
     assert.equal(both.error?.code, "23514", "one list, never two");
-    assert.match(both.error?.message ?? "", /playbooks_one_list/);
+    assert.match(both.error?.message ?? "", /sequence_steps_one_list/);
     const shaped = await db.from("playbooks").insert(playbook({ list_key: "Drop Table" }));
     assert.equal(shaped.error?.code, "23514", "a key is a list's id, nothing else");
-    assert.match(shaped.error?.message ?? "", /playbooks_list_key_shape/);
+    assert.match(shaped.error?.message ?? "", /sequence_steps_list_key_shape/);
   },
 );
 

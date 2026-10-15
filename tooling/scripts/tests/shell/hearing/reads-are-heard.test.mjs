@@ -102,6 +102,7 @@ const PAGES = [
   "reports/campaigns",
   "reports/reviews",
   "campaigns",
+  "campaigns/sequences",
   "clients",
   "calendar",
   "live",
@@ -513,8 +514,6 @@ const NOT_READ = {
     "The row says the lead's own rows list its people (0052); they are People's rows (leads/peek/people.tsx), which the row re-reads, and the trace finds no read of contacts under Leads, so it is probably premature. Owed: as for POST people/[id]/name.",
   "DELETE people/[id]/business -> leads":
     "The row says the lead's own rows list its people (0052); they are People's rows (leads/peek/people.tsx), which the row re-reads, and the trace finds no read of contacts under Leads, so it is probably premature. Owed: as for POST people/[id]/name.",
-  "POST broadcasts/[id]/recheck -> playbooks":
-    "Check the held again sends a run's held emails back to be checked (reach_out_run_recheck writes reach_out_sends); the trace finds no read of reach_out_sends under the playbooks, so it is probably premature. Owed: drop the two.",
   "PUT settings -> reports_campaigns":
     "channelChange() names the Campaigns lens for the connected number's health; a settings save writes tenant_config (the hours, the postal address), which the lens does not read. Premature. Owed: drop reportsCampaigns() from settingsWrite, with CAMPAIGNS_WRITES in refresh-coverage.test.mjs.",
   "POST settings/receptionist -> reports_campaigns":
@@ -584,7 +583,7 @@ function heardOn(key, table, route, change_ = change(table)) {
 }
 
 test("People hears what its follow-up facts depend on, on its page: the playbooks, the number, the plan, the rules and the templates (F8a)", () => {
-  for (const table of ["playbooks", "tenant_channels", "billing_accounts", "policies", "templates"]) {
+  for (const table of ["sequence_steps", "tenant_channels", "billing_accounts", "policies", "templates"]) {
     assert.ok(overrides.get("people").refreshOnTables.includes(table), `People names ${table}`);
     assert.deepEqual(
       heardOn("people", table, "clients"),
@@ -599,8 +598,8 @@ test("each Reports page hears the tables it counts, on its page: the overview it
     ["reports", "reports", ["calls", "tenant_config", "deals", "appointments", "contacts"]],
     ["reports_receptionist", "reports/receptionist", ["appointments", "contacts", "tenant_config"]],
     ["reports_people", "reports/people", ["contacts", "tenant_channels", "lines", "mailboxes"]],
-    ["reports_campaigns", "reports/campaigns", ["reach_out_replies", "tenant_channels", "mailbox_connections"]],
-    ["campaign_results", "campaigns", ["reach_out_replies"]],
+    ["reports_campaigns", "reports/campaigns", ["sequence_replies", "tenant_channels", "mailbox_connections"]],
+    ["campaign_results", "campaigns", ["sequence_replies"]],
   ];
   for (const [key, route, list] of WANTED)
     for (const table of list) {
@@ -628,13 +627,10 @@ test("each Reports page hears the tables it counts, on its page: the overview it
 
 test("the receipts of a run are the one thing the Campaigns pages count and the feed cannot tell: listed, with why, in the baseline", () => {
   for (const key of ["reports_campaigns", "campaign_results", "broadcasts", "playbooks"])
-    assert.ok(
-      held.has(`${key} broadcast_recipients`),
-      `${key} reads a run's people unheard, and the baseline says why`,
-    );
+    assert.ok(held.has(`${key} sequence_sends`), `${key} reads a run's people unheard, and the baseline says why`);
   assert.equal(
-    watchedTables().includes("broadcast_recipients"),
+    watchedTables().includes("sequence_sends"),
     false,
-    "the feed tells a run (broadcasts), never its people",
+    "the feed tells a batch (sequence_batches), never its sends",
   );
 });

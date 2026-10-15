@@ -37,7 +37,17 @@ function replayed() {
     .filter((f) => f.endsWith(".sql"))
     .sort();
   for (const file of files) {
-    for (const change of functionChangesIn(read(path.join(DIR, file)))) {
+    const sql = read(path.join(DIR, file));
+    // A function renamed stands under its new name (0060: broadcasts_guard is sequence_batches_guard); read before the
+    // file's own definitions, which may then replace it.
+    for (const [, from, args, to] of sql.matchAll(/alter function (?:public\.)?(\w+)\(([^)]*)\) rename to (\w+)/gi))
+      for (const [identity, change] of [...live])
+        if (identity.replace(/\s+/g, "") === `${from}(${args.replace(/\s+/g, "")})`) {
+          live.delete(identity);
+          live.set(`${to}${identity.slice(from.length)}`, { ...change, name: to, file });
+          definedIn.set(to, new Set([...(definedIn.get(to) ?? []), file]));
+        }
+    for (const change of functionChangesIn(sql)) {
       if (change.kind === "create") {
         live.set(change.identity, { ...change, file });
         definedIn.set(change.name, new Set([...(definedIn.get(change.name) ?? []), file]));

@@ -96,6 +96,8 @@ const ADDRESSES = [
   "campaigns/moment:pb-1",
   "campaigns/message:hello",
   "campaigns/new",
+  "campaigns/sequences",
+  "campaigns/sequences/sq-1/people",
   "messages",
   "broadcasts",
   "broadcasts/run:b-1",

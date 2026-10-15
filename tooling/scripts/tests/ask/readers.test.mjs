@@ -1339,6 +1339,7 @@ const PERSON_KEYS = [
   "booking_link",
   "consent_history",
   "campaigns",
+  "sequences",
   "lead",
   "doubts",
   "deals",
@@ -1372,11 +1373,13 @@ const PERSON_READS = {
   "leads.select": 1,
   // Their deals, and the workspace's pace.
   "deals.select": 2,
-  "broadcast_recipients.select": 1,
+  "sequence_sends.select": 1,
+  // The sequences they are in now (decision 0060, S5); with none, their names are never asked.
+  "sequence_enrollments.select": 1,
   "person_doubts.select": 1,
   "person_notes.select": 1,
   // The signers of their replies (db signersOf, decision 0052, #1566).
-  "reach_out_replies.select": 1,
+  "sequence_replies.select": 1,
   "messages.select": 1,
   "escalations.select": 1,
   "decisions.select": 1,
@@ -4143,14 +4146,14 @@ const PEOPLE_ASKED_AT_MAIN = [
   ["tenant_channels.select", "config, number_e164"],
   ["lines.select", "sms_state, reg_mock"],
   ["deals.select", "id, stage, proposed_at, decided_at"],
-  ["playbooks.select", "id, state, run_hour, last_run_for, until, template_name, template_language"],
+  ["sequence_steps.select", "id, state, run_hour, last_run_for, until, template_name, template_language"],
   ["policies.select", "mode"],
   ["tenants.select", "status"],
   ["tenant_channels.select", "config, number_e164"],
   ["deals.select", "id, contact_id, proposed_at"],
   // 3 Oct 2026: the channels the follow-up ticks (db playbookChannels), beside its template: the number and Meta's
   // approval stop only a follow-up that goes by WhatsApp.
-  ["playbooks.select", "channels"],
+  ["sequence_steps.select", "channels"],
   // 11 Oct 2026 (0002's readers): the record over the feed's season, joined to it: a booking's rows whole, and the
   // feed's rows as ids and statuses by key (db visitsOver).
   ["appointments.select", "*"],
@@ -4158,16 +4161,16 @@ const PEOPLE_ASKED_AT_MAIN = [
   ["templates.select", MESSAGE_ROWS_ASKED],
   ["tenants.select", "timezone"],
   ["tenants.select", "timezone"],
-  ["broadcasts.select", "id, playbook_id, state, scheduled_for, created_at, run_for, params"],
-  ["broadcasts.select", "id, playbook_id, state, scheduled_for, created_at, run_for, params"],
+  ["sequence_batches.select", "id, playbook_id:step_id, state, scheduled_for, created_at, run_for, params"],
+  ["sequence_batches.select", "id, playbook_id:step_id, state, scheduled_for, created_at, run_for, params"],
   // 6 Oct 2026: a follow-up's touches carry the deal and the link it was about (0029), the two keys of its words read.
   [
-    "broadcast_recipients.select",
-    "broadcast_id, contact_id, sent_at, state, proposal_link:facts->>proposal_link, proposal_deal:facts->>deal_id",
+    "sequence_sends.select",
+    "broadcast_id:batch_id, contact_id, sent_at, state, proposal_link:facts->>proposal_link, proposal_deal:facts->>deal_id",
   ],
   [
-    "broadcast_recipients.select",
-    "broadcast_id, contact_id, sent_at, state, proposal_link:facts->>proposal_link, proposal_deal:facts->>deal_id",
+    "sequence_sends.select",
+    "broadcast_id:batch_id, contact_id, sent_at, state, proposal_link:facts->>proposal_link, proposal_deal:facts->>deal_id",
   ],
 ];
 /**
@@ -4187,14 +4190,14 @@ const PEOPLE_ASKED_NOW = [
   ["deals.select", "id, stage, proposed_at, decided_at"],
   ["policies.select", "subject_type, subject_id, mode"],
   ["contacts.select", "id"],
-  ["playbooks.select", "id, state, run_hour, last_run_for, until, template_name, template_language"],
+  ["sequence_steps.select", "id, state, run_hour, last_run_for, until, template_name, template_language"],
   ["policies.select", "mode"],
   ["tenants.select", "status"],
   ["tenant_channels.select", "config, number_e164"],
   ["deals.select", "id, contact_id, proposed_at"],
   ["rpc:contact_seen", null],
   ["rpc:team_roster", null],
-  ["playbooks.select", "channels"],
+  ["sequence_steps.select", "channels"],
   // 11 Oct 2026 (0002's readers): the record over the feed's season, joined to it: a booking's rows whole, and the
   // feed's rows as ids and statuses by key (db visitsOver).
   ["appointments.select", "*"],
@@ -4202,16 +4205,16 @@ const PEOPLE_ASKED_NOW = [
   ["templates.select", MESSAGE_ROWS_ASKED],
   ["tenants.select", "timezone"],
   ["tenants.select", "timezone"],
-  ["broadcasts.select", "id, playbook_id, state, scheduled_for, created_at, run_for, params"],
-  ["broadcasts.select", "id, playbook_id, state, scheduled_for, created_at, run_for, params"],
+  ["sequence_batches.select", "id, playbook_id:step_id, state, scheduled_for, created_at, run_for, params"],
+  ["sequence_batches.select", "id, playbook_id:step_id, state, scheduled_for, created_at, run_for, params"],
   // 6 Oct 2026: a follow-up's touches carry the deal and the link it was about (0029), the two keys of its words read.
   [
-    "broadcast_recipients.select",
-    "broadcast_id, contact_id, sent_at, state, proposal_link:facts->>proposal_link, proposal_deal:facts->>deal_id",
+    "sequence_sends.select",
+    "broadcast_id:batch_id, contact_id, sent_at, state, proposal_link:facts->>proposal_link, proposal_deal:facts->>deal_id",
   ],
   [
-    "broadcast_recipients.select",
-    "broadcast_id, contact_id, sent_at, state, proposal_link:facts->>proposal_link, proposal_deal:facts->>deal_id",
+    "sequence_sends.select",
+    "broadcast_id:batch_id, contact_id, sent_at, state, proposal_link:facts->>proposal_link, proposal_deal:facts->>deal_id",
   ],
 ];
 /**
@@ -4268,7 +4271,7 @@ test("GET contacts through its reader asks what it asked at origin/main -- the p
           .slice(1)
           .filter(
             ([k, cols]) =>
-              !/^(playbooks|tenant_channels|lines|templates|broadcasts|broadcast_recipients)\./.test(k) &&
+              !/^(sequence_steps|tenant_channels|lines|templates|sequence_batches|sequence_sends)\./.test(k) &&
               !(k === "deals.select") &&
               !(k === "policies.select" && cols === "mode") &&
               !(k === "tenants.select" && /^(status|timezone)$/.test(cols)),
@@ -4965,24 +4968,24 @@ const PLAYBOOKS_ASKED_AT_MAIN = [
   ["tenants.select", "timezone"],
   ["tenants.select", "sells_by"],
   [
-    "broadcasts.select",
+    "sequence_batches.select",
     "id, name, template_id, template_name, template_language, params, audience, state, scheduled_for, started_at, finished_at, recipient_count, failure, created_at, playbook_id, run_for",
   ],
   [
-    "playbooks.select",
+    "sequence_steps.select",
     "id, name, trigger, list_id, list_key, template_id, template_name, template_language, params, policy_class, state, run_hour, cap_per_run, gap_days, cadence_days, last_run_for, last_run_at, created_at",
   ],
-  ["broadcasts.select", "id, playbook_id, state, scheduled_for, created_at, run_for, params"],
+  ["sequence_batches.select", "id, playbook_id:step_id, state, scheduled_for, created_at, run_for, params"],
   ["deals.select", "id, stage, proposed_at, decided_at"],
   [
-    "broadcast_recipients.select",
+    "sequence_sends.select",
     // 6 Oct 2026: with the channel each went by, so a run says what each channel sent (0030).
     "broadcast_id, contact_id, state, reason, sent_at, channel, messages(conversation_id, status, meta)",
   ],
   // 6 Oct 2026: a follow-up's touches carry the deal and the link it was about (0029), the two keys of its words read.
   [
-    "broadcast_recipients.select",
-    "broadcast_id, contact_id, sent_at, state, proposal_link:facts->>proposal_link, proposal_deal:facts->>deal_id",
+    "sequence_sends.select",
+    "broadcast_id:batch_id, contact_id, sent_at, state, proposal_link:facts->>proposal_link, proposal_deal:facts->>deal_id",
   ],
   ["rpc:people_list", null],
   ["policies.select", "subject_type, subject_id, mode"],
@@ -4994,10 +4997,10 @@ const PLAYBOOKS_ASKED_AT_MAIN = [
   ["appointments.select", "id, status, external_id, starts_at"],
   ["deals.select", "id, contact_id, proposed_at"],
   ["tenants.select", "timezone"],
-  ["broadcasts.select", "id, playbook_id, state, scheduled_for, created_at, run_for, params"],
+  ["sequence_batches.select", "id, playbook_id:step_id, state, scheduled_for, created_at, run_for, params"],
   [
-    "broadcast_recipients.select",
-    "broadcast_id, contact_id, sent_at, state, proposal_link:facts->>proposal_link, proposal_deal:facts->>deal_id",
+    "sequence_sends.select",
+    "broadcast_id:batch_id, contact_id, sent_at, state, proposal_link:facts->>proposal_link, proposal_deal:facts->>deal_id",
   ],
   ["segments.select", "id, name, rule, archived_at"],
   ["segment_members.select", "segment_id, contact_id"],
@@ -5026,13 +5029,13 @@ test("GET playbooks through its reader asks what it asked at origin/main, in its
     // 3 Oct 2026: the playbooks' rows name the channels column, and the page asks whether each channel can send now
     // (server/campaigns/channels-ready.ts) with its first reads: the WhatsApp number's config and the texting line (no email
     // domain is set here, so no mailbox).
-    for (const q of want) if (q[0] === "playbooks.select") q[1] += ", channels";
+    for (const q of want) if (q[0] === "sequence_steps.select") q[1] += ", channels";
     // 11 Oct 2026 (00416): and each one's last day and the end of its trial, which Campaigns' home says as its state.
-    for (const q of want) if (q[0] === "playbooks.select") q[1] += ", until, trial_until";
+    for (const q of want) if (q[0] === "sequence_steps.select") q[1] += ", until, trial_until";
     // 4 Oct 2026: and whether the workspace is paused (tenants.status, db workspacePaused), which the composers and the
     // Campaigns home say instead of a time; read with the channels, for the pages that compose or promise a run.
     want.splice(
-      want.findIndex(([k]) => k === "broadcasts.select"),
+      want.findIndex(([k]) => k === "sequence_batches.select"),
       0,
       ["tenant_channels.select", "config, number_e164"],
       ["lines.select", "sms_state, reg_mock"],
@@ -5041,12 +5044,12 @@ test("GET playbooks through its reader asks what it asked at origin/main, in its
     // 9 Oct 2026 (00374): what the runs earned is the database's count, one call (playbook_totals), where every run of
     // every playbook and every person on one were read to sum it here.
     want.splice(
-      want.findIndex(([k, cols]) => k === "broadcasts.select" && cols.startsWith("id, name, template_id")),
+      want.findIndex(([k, cols]) => k === "sequence_batches.select" && cols.startsWith("id, name, template_id")),
       1,
       ["rpc:playbook_totals", null],
     );
     want.splice(
-      want.findIndex(([k, cols]) => k === "broadcast_recipients.select" && cols.includes("messages(")),
+      want.findIndex(([k, cols]) => k === "sequence_sends.select" && cols.includes("messages(")),
       1,
     );
     // 9 Oct 2026 (spec 2026-10-09 §4.3, decision 7): the autonomy matrix's rows, so the page knows a class under `auto`
@@ -5125,7 +5128,7 @@ test("GET playbooks asks for the pools' reads with its first ones, not behind th
     const w = playbooksWorld();
     const page = await playbooksRoute.GET.run(req(`?workspace=${A}`), worldCtx(w));
     const ctx = worldCtx(w);
-    const open = heldAt(ctx, "playbooks");
+    const open = heldAt(ctx, "sequence_steps");
     let answered = false;
     const waiting = playbooksRoute.GET.run(req(`?workspace=${A}`), ctx).then((p) => ((answered = true), p));
     await idle();
@@ -5144,12 +5147,9 @@ test("GET playbooks asks for the pools' reads with its first ones, not behind th
         `REGRESSION: the pools' ${read} waited for the page's first reads to answer (asked: ${before.join(" | ")})`,
       );
     // The follow-ups' touches are two reads deep, behind the proposals out: both of theirs and the week's own.
-    assert.equal(
-      before.filter((k) => k.startsWith("broadcast_recipients.select") && /proposal_link/.test(k)).length,
-      2,
-    );
+    assert.equal(before.filter((k) => k.startsWith("sequence_sends.select") && /proposal_link/.test(k)).length, 2);
     assert.ok(
-      !before.some((k) => /^(playbooks|templates)\.select/.test(k)),
+      !before.some((k) => /^(sequence_steps|templates)\.select/.test(k)),
       "the templates are read for the playbooks",
     );
     open();
@@ -5988,10 +5988,10 @@ const usageWorld = () => ({
 /** What GET templates asked at origin/main for Settings (`all`), after the workspace's door: the rows, then the usage. */
 const TEMPLATES_ALL_ASKED_AT_MAIN = [
   "templates.select",
-  "broadcasts.select",
-  "broadcast_recipients.select",
+  "sequence_batches.select",
+  "sequence_sends.select",
   "messages.select",
-  "playbooks.select",
+  "sequence_steps.select",
 ];
 /**
  * 9 Oct 2026 (00374): how many of each went out is the database's count, one call (template_sends), where every sent
@@ -6000,7 +6000,7 @@ const TEMPLATES_ALL_ASKED_AT_MAIN = [
 const TEMPLATES_ALL_ASKED = [
   "templates.select",
   "rpc:template_sends",
-  ...TEMPLATES_ALL_ASKED_AT_MAIN.slice(1).filter((k) => k !== "broadcast_recipients.select" && k !== "messages.select"),
+  ...TEMPLATES_ALL_ASKED_AT_MAIN.slice(1).filter((k) => k !== "sequence_sends.select" && k !== "messages.select"),
   // 14 Oct 2026 (the wiring's second audit, S1-3): the business's zone, so a campaign past its last day reads ended.
   "tenants.select",
 ];

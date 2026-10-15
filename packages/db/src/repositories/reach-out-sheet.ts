@@ -38,12 +38,12 @@ export interface ReachOutStepRow {
 }
 
 const STEP_COLUMNS =
-  "id, name, state, trigger, lead_search_id, after_playbook_id, after_days, gap_minutes, mailbox_ids, owner_sends, signed_by, include_unconfirmed, template_id, hand, run_hour, last_run_for, created_at";
+  "id, name, state, trigger, lead_search_id, after_playbook_id:after_step_id, after_days, gap_minutes, mailbox_ids, owner_sends, signed_by, include_unconfirmed, template_id, hand, run_hour, last_run_for, created_at";
 
 /** Every reach-out step of a workspace, each chain's root among them (trigger lead_first). */
 export async function reachOutStepsOf(db: Db, tenantId: string): Promise<ReachOutStepRow[]> {
   const { data, error } = await db
-    .from("playbooks")
+    .from("sequence_steps")
     .select(STEP_COLUMNS)
     .eq("tenant_id", tenantId)
     .eq("kind", "reach_out");
@@ -64,7 +64,7 @@ export async function reachOutRootOf(
   lead_search_id: string | null;
 } | null> {
   const { data, error } = await db
-    .from("playbooks")
+    .from("sequence_steps")
     .select("id, tenant_id, name, state, trigger, lead_search_id")
     .eq("id", id)
     .eq("kind", "reach_out")
@@ -88,8 +88,8 @@ export async function reachOutSendRefOf(
   attempts: number;
 } | null> {
   const { data, error } = await db
-    .from("reach_out_sends")
-    .select("id, tenant_id, broadcast_id, state, reason, attempts")
+    .from("sequence_sends")
+    .select("id, tenant_id, broadcast_id:batch_id, state, reason, attempts")
     .eq("id", id)
     .maybeSingle();
   if (error) throw new Error(`cannot read the email: ${error.message}`);
@@ -225,7 +225,7 @@ export async function saveReachOutChain(
 /** The runs waiting for their owner's approval, as their audiences say them (a reach-out's names its root). */
 export async function runsWaitingOf(db: Db, tenantId: string): Promise<{ id: string; audience: unknown }[]> {
   const { data, error } = await db
-    .from("broadcasts")
+    .from("sequence_batches")
     .select("id, audience")
     .eq("tenant_id", tenantId)
     .eq("state", "pending_approval");
@@ -262,20 +262,22 @@ export interface ReachOutRunSend {
 
 export async function reachOutRunSendsOf(db: Db, tenantId: string, runId: string): Promise<ReachOutRunSend[]> {
   const { data, error } = await db
-    .from("reach_out_sends")
+    .from("sequence_sends")
     .select(
       "id, lead_id, state, reason, hold_detail, opening, angle, send_at, checked_at, created_at, mailbox_id, draft, drafted_at, lead:leads(business_name, email, city, kind, source, facts)",
     )
     .eq("tenant_id", tenantId)
-    .eq("broadcast_id", runId);
+    .eq("batch_id", runId)
+    .not("lead_id", "is", null);
   if (error) throw new Error(`cannot read the run's emails: ${error.message}`);
-  return data ?? [];
+  // A lead's send names its lead (the filter above): the row says so to the type.
+  return (data ?? []).flatMap((r) => (r.lead_id ? [{ ...r, lead_id: r.lead_id }] : []));
 }
 
 /** A step's day: tried now, and, when it ran, the day it ran for (the sweep and Start both stamp it). */
 export async function stampReachOutStep(db: Db, id: string, p: { at: Date; runFor?: string }): Promise<void> {
   const { error } = await db
-    .from("playbooks")
+    .from("sequence_steps")
     .update({ last_run_at: p.at.toISOString(), ...(p.runFor ? { last_run_for: p.runFor } : {}) })
     .eq("id", id);
   if (error) throw new Error(`cannot stamp the step's day: ${error.message}`);
@@ -361,8 +363,9 @@ export async function heldNoticeDue(
   p: { since: string; staleBefore: string; tenantId?: string; limit: number },
 ): Promise<HeldNoticeRun[]> {
   let sends = db
-    .from("reach_out_sends")
-    .select("tenant_id, broadcast_id, reason")
+    .from("sequence_sends")
+    .select("tenant_id, broadcast_id:batch_id, reason")
+    .not("lead_id", "is", null)
     .eq("state", "held")
     .gte("updated_at", p.since)
     .limit(p.limit);
@@ -379,7 +382,7 @@ export async function heldNoticeDue(
   }
   if (byRun.size === 0) return [];
   const runs = await db
-    .from("broadcasts")
+    .from("sequence_batches")
     .select("id, tenant_id, name, state, audience, updated_at")
     .in("id", [...byRun.keys()])
     .in("state", [...RUN_GOING_STATES]);
@@ -416,7 +419,7 @@ export async function markHeldNotice(
   p: { tenantId: string; id: string; audience: JsonObject; mark: HeldNoticeMark; ifUpdatedAt?: string },
 ): Promise<boolean> {
   let q = db
-    .from("broadcasts")
+    .from("sequence_batches")
     .update({ audience: { ...p.audience, held_notice: { ...p.mark } } })
     .eq("tenant_id", p.tenantId)
     .eq("id", p.id);
@@ -443,10 +446,10 @@ export async function runWaitingCounts(
     "cannot count the runs' waiting emails",
     (from, to) =>
       db
-        .from("reach_out_sends")
-        .select("broadcast_id, state")
+        .from("sequence_sends")
+        .select("broadcast_id:batch_id, state")
         .eq("tenant_id", p.tenantId)
-        .in("broadcast_id", [...p.runIds])
+        .in("batch_id", [...p.runIds])
         .in("state", ["held", "drafted"])
         .order("id")
         .range(from, to),

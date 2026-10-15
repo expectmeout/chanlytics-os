@@ -667,10 +667,10 @@ test("the Campaigns lens hears messages, conversations, escalations and runs onl
       ["conversations", "UPDATE"],
       ["escalations", "INSERT"],
       ["escalations", "UPDATE"],
-      ["broadcasts", "INSERT"],
-      ["broadcasts", "UPDATE"],
+      ["sequence_batches", "INSERT"],
+      ["sequence_batches", "UPDATE"],
       // A reach-out's reply read or undone, the number's standing and a sending domain.
-      ["reach_out_replies", "INSERT"],
+      ["sequence_replies", "INSERT"],
       ["tenant_channels", "UPDATE"],
       ["mailbox_connections", "UPDATE"],
       // A person's answer: the yeses and stops it counts (the wiring's second audit, W-person-list-lead-8).
@@ -711,7 +711,7 @@ test("the Campaigns lens hears messages, conversations, escalations and runs onl
       await settle();
       r.asked.length = 0;
       await r.change("escalations", "INSERT");
-      await r.change("broadcasts", "UPDATE");
+      await r.change("sequence_batches", "UPDATE");
       await r.message();
       assert.deepEqual(lensReads(), [], `${hash}: the lens is not on screen`);
 
@@ -738,7 +738,7 @@ test("the Campaigns lens hears messages, conversations, escalations and runs onl
       await settle();
       r.asked.length = 0;
       await r.change("escalations", "INSERT");
-      await r.change("broadcasts", "UPDATE");
+      await r.change("sequence_batches", "UPDATE");
       await r.message();
       await r.message();
       assert.deepEqual(lensReads(), [], `${hash}: the Overview does not hear a burst`);
@@ -853,11 +853,11 @@ test("the page that owns what it draws is an explicit one: the surface registry 
   // read joins: W-campaign-run-template-reachout-2), as the Library itself does.
   for (const route of ["campaigns", "messages"])
     assert.equal(
-      registry.ownsTable("settings", "broadcasts", route),
+      registry.ownsTable("settings", "sequence_batches", route),
       true,
       `a run moves what sends a message, on ${route}`,
     );
-  assert.equal(registry.ownsTable("settings", "broadcasts", "today"), false, "and is kept for them elsewhere");
+  assert.equal(registry.ownsTable("settings", "sequence_batches", "today"), false, "and is kept for them elsewhere");
   // The reach-outs are drawn on the home too; they have no table of their own to refresh on a message, but a route that
   // draws them owns them for the refreshes that name a page. Settings is drawn there again: the templates a composer offers
   // and the Library counts are the settings read's, the one read of them (surfaces/offered-templates.ts).

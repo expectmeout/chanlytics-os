@@ -1614,6 +1614,90 @@
       "rate": "lists",
       "spend": false
     },
+    "GET sequences/[id]/history": {
+      "kind": "read",
+      "scope": "row",
+      "role": null,
+      "rate": "aggregate",
+      "spend": false
+    },
+    "POST sequences/[id]/leave": {
+      "kind": "write",
+      "scope": "row",
+      "role": "operator",
+      "rate": "playbook",
+      "spend": false
+    },
+    "GET sequences/[id]/people": {
+      "kind": "read",
+      "scope": "row",
+      "role": null,
+      "rate": "aggregate",
+      "spend": false
+    },
+    "GET sequences/[id]": {
+      "kind": "read",
+      "scope": "row",
+      "role": null,
+      "rate": "aggregate",
+      "spend": false
+    },
+    "PUT sequences/[id]/steps/[step]": {
+      "kind": "write",
+      "scope": "row",
+      "role": "operator",
+      "rate": "playbook",
+      "spend": false
+    },
+    "DELETE sequences/[id]/steps/[step]": {
+      "kind": "write",
+      "scope": "row",
+      "role": "operator",
+      "rate": "playbook",
+      "spend": false
+    },
+    "POST sequences/[id]/steps/[step]/words": {
+      "kind": "write",
+      "scope": "row",
+      "role": "operator",
+      "rate": "playbook",
+      "spend": false
+    },
+    "POST sequences/[id]/steps": {
+      "kind": "write",
+      "scope": "row",
+      "role": "operator",
+      "rate": "playbook",
+      "spend": false
+    },
+    "GET sequences": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": null,
+      "rate": "aggregate",
+      "spend": false
+    },
+    "POST sequences": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "operator",
+      "rate": "playbook",
+      "spend": false
+    },
+    "DELETE sequences/[id]": {
+      "kind": "write",
+      "scope": "row",
+      "role": "operator",
+      "rate": "playbook",
+      "spend": false
+    },
+    "POST sequences/draft": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "operator",
+      "rate": "ask",
+      "spend": false
+    },
     "POST settings/receptionist": {
       "kind": "write",
       "scope": "workspace",

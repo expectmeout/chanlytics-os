@@ -391,7 +391,9 @@ var BookingsConfigSchema = z3.object({ tool: z3.string().max(40).optional(), by_
 var FeaturesConfigSchema = z3.object({
   vision: z3.boolean().optional(),
   /** Campaigns › Ads, its sample drawn in this workspace as a demo session draws it (contracts ads/address.ts). */
-  ads_preview: z3.boolean().optional()
+  ads_preview: z3.boolean().optional(),
+  /** Campaigns › Sequences (decision 0060), drawn in this workspace before it replaces the home (contracts sequences). */
+  sequences_preview: z3.boolean().optional()
 }).strip();
 var TenantConfigSchema = z3.object({
   brain: BrainConfigSchema.optional(),

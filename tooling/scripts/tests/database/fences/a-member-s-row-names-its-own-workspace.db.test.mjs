@@ -162,33 +162,44 @@ test(
   },
 );
 
-test("a broadcast and its recipients name their own workspace's template, playbook and message", { skip }, async () => {
-  const run = (over) =>
-    me.session
-      .from("broadcasts")
-      .insert({
-        tenant_id: mine.t,
-        name: "Reminder",
-        template_name: "visit_reminder",
-        template_language: "en_US",
-        created_by: me.id,
-        scheduled_for: new Date().toISOString(),
-        ...over,
-      })
-      .select("id");
-  const own = ok(await run({ template_id: mine.template }), "a broadcast of their own template");
-  refused(await run({ template_id: theirs.template }), "a broadcast of another workspace's template");
+test(
+  "a batch is its doors' to make, of its own workspace's template; its recipients name their own workspace's message",
+  { skip },
+  async () => {
+    const run = (client, over) =>
+      client
+        .from("broadcasts")
+        .insert({
+          tenant_id: mine.t,
+          name: "Reminder",
+          template_name: "visit_reminder",
+          template_language: "en_US",
+          created_by: me.id,
+          scheduled_for: new Date().toISOString(),
+          ...over,
+        })
+        .select("id");
+    // 00441: a member writes no batch of their own (the doors make and decide one), so the fence is the database's for
+    // whoever writes: another workspace's template is no batch's, by its same-workspace key.
+    refused(await run(me.session, { template_id: mine.template }), "a member's own batch: the doors' to make");
+    const own = ok(
+      await run(admin, { template_id: mine.template }),
+      "a batch of their own template, by its door's role",
+    );
+    const cross = await run(admin, { template_id: theirs.template });
+    assert.equal(cross.error?.code, "23503", `another workspace's template is no batch's: ${cross.error?.message}`);
 
-  const recipient = (over) =>
-    me.session
-      .from("broadcast_recipients")
-      .insert({ tenant_id: mine.t, broadcast_id: own[0].id, contact_id: mine.contact, ...over });
-  // A recipient's message is the edge's to write when it sends (00278 grants a session no such column), so a session
-  // names none: another workspace's is refused, and so is its own; the policy stands under the grant.
-  refused(await recipient({ message_id: theirs.message }), "a recipient naming another workspace's message");
-  refused(await recipient({ message_id: mine.message }), "a recipient naming any message: the column is the edge's");
-  ok(await recipient({}), "a recipient with no message yet");
-});
+    const recipient = (over) =>
+      me.session
+        .from("broadcast_recipients")
+        .insert({ tenant_id: mine.t, broadcast_id: own[0].id, contact_id: mine.contact, ...over });
+    // A recipient's message is the edge's to write when it sends (00278 grants a session no such column), so a session
+    // names none: another workspace's is refused, and so is its own; the policy stands under the grant.
+    refused(await recipient({ message_id: theirs.message }), "a recipient naming another workspace's message");
+    refused(await recipient({ message_id: mine.message }), "a recipient naming any message: the column is the edge's");
+    ok(await recipient({}), "a recipient with no message yet");
+  },
+);
 
 test("a moment is on their own workspace's list and template, made or moved", { skip }, async () => {
   const moment = (over) =>

@@ -205,7 +205,7 @@ export async function followUpFacts(
 ): Promise<FollowUpFactsDto | null> {
   const [pb, cls, paused, number, out] = await Promise.all([
     ctx.supabase
-      .from("playbooks")
+      .from("sequence_steps")
       .select("id, state, run_hour, last_run_for, until, template_name, template_language")
       .eq("tenant_id", tenantId)
       .eq("trigger", "proposal_waiting")
@@ -295,7 +295,7 @@ export async function playbookRows(ctx: RouteContext, tenantId: string): Promise
     columns: string,
     moments = true,
   ): PromiseLike<{ data: Record<string, unknown>[] | null; error: { message: string } | null }> => {
-    const q = ctx.supabase.from("playbooks").select(columns).eq("tenant_id", tenantId);
+    const q = ctx.supabase.from("sequence_steps").select(columns).eq("tenant_id", tenantId);
     return (moments ? q.eq("kind", "moment") : q).order("created_at", {
       ascending: false,
     }) as unknown as ReturnType<typeof read>;
@@ -452,7 +452,7 @@ async function archivedListRefusal(
   p: { id: string; trigger: string },
 ): Promise<string | null> {
   if (p.trigger !== "saved_list") return null;
-  const { data: on } = await ctx.supabase.from("playbooks").select("list_id").eq("id", p.id).maybeSingle();
+  const { data: on } = await ctx.supabase.from("sequence_steps").select("list_id").eq("id", p.id).maybeSingle();
   const listId = (on as { list_id?: string | null } | null)?.list_id ?? null;
   const list = listId ? await listRow(ctx.supabase, listId) : null;
   return list?.archived_at
@@ -484,11 +484,11 @@ export function playbookPatchPorts(ctx: RouteContext, tenantId: string): CheckPl
 }
 
 /**
- * A write of a playbook the database refused, in words where it is the workspace's one proposal follow-up (00167:
- * two would each owe every proposal its nudge, 0006); any other refusal as it came.
+ * A write of a playbook the database refused, in words where it is the workspace's one proposal follow-up (00167,
+ * sequence_steps_one_follow_up since 00439: two would each owe every proposal its nudge, 0006); any other refusal as it came.
  */
 export function playbookWriteError(error: { code?: string; message: string }): Error {
-  return error.code === "23505" && error.message.includes("playbooks_one_follow_up")
+  return error.code === "23505" && error.message.includes("sequence_steps_one_follow_up")
     ? new AppError("conflict", FOLLOW_UP_ONE, 409)
     : new Error(error.message);
 }

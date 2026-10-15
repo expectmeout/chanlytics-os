@@ -348,7 +348,7 @@ test("only an automatic reply's reading carries a day to wait for (N1)", { skip 
     intent: "away",
     until_at: iso(Date.now() + 3 * DAY),
   });
-  assert.match(res.error?.message ?? "", /reach_out_replies_away_has_until/);
+  assert.match(res.error?.message ?? "", /sequence_replies_away_has_until/);
 });
 
 test("the re-created bodies are 00220's and 00185's, but for the away", { skip }, async () => {

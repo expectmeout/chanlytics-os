@@ -194,11 +194,7 @@ test("REGRESSION: a run counts every person on it past PostgREST's thousand rows
     whole,
     "and the Broadcasts page's rows, from the same people",
   );
-  assert.deepEqual(
-    ordersOf(db, "broadcast_recipients"),
-    ["broadcast_id, contact_id"],
-    "every page under the table's key",
-  );
+  assert.deepEqual(ordersOf(db, "sequence_sends"), ["batch_id, contact_id"], "every page under the table's key");
   assert.deepEqual(
     Object.fromEntries((await listRuns({ supabase: capped(tables()) }, TID)).map((b) => [b.id, b.counts])),
     whole,
@@ -850,7 +846,7 @@ test("with run_counts on the database, a list of runs is its answer, asked once 
     ["run_counts"],
   );
   assert.equal(inboundReads(db).length, 0, "no reply read here");
-  assert.deepEqual(ordersOf(db, "broadcast_recipients"), [], "no person read here");
+  assert.deepEqual(ordersOf(db, "sequence_sends"), [], "no person read here");
   const folded = await listRuns({ supabase: before00362(tables()) }, TID);
   assert.equal(JSON.stringify(counted), JSON.stringify(folded), "the same bytes the fold says");
 });

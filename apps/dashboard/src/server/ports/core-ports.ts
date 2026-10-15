@@ -35,7 +35,7 @@ import { log } from "@/server/log";
  * reports success while changing nothing, and everything a verb does after
  * it would then describe a change that never happened.
  */
-export async function changed(
+async function changed(
   q: PromiseLike<{ data: unknown[] | null; error: { message: string } | null }>,
 ): Promise<boolean> {
   const { data, error } = await q;

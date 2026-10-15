@@ -42,7 +42,7 @@ import {
   type Database,
   type DueCalendar,
   type DuePage,
-  type DuePlaybook,
+  type DueStep,
 } from "../packages/db.js";
 
 type Db = SupabaseClient<Database>;
@@ -67,7 +67,7 @@ export const PLAYBOOKS_PER_TICK = 25;
 /** Consecutive backlogged ticks before a sweep calls itself unhealthy. */
 export const BACKLOG_TICKS_BEFORE_ALARM = 3;
 
-export type { DuePage, DuePlaybook };
+export type { DuePage, DueStep };
 
 /**
  * The workspaces whose calendar is due, never-read first (00245 calendars_due).
@@ -118,7 +118,7 @@ export async function markCalendarChecked(
  * The running moments due at `now`, by each workspace's own clock, least-recently-run first (00245 playbooks_due).
  * Each comes with the zone it was judged in, so the run keeps to the same clock.
  */
-export async function playbooksDue(db: Db, now: Date, limit: number): Promise<DuePage<DuePlaybook>> {
+export async function playbooksDue(db: Db, now: Date, limit: number): Promise<DuePage<DueStep>> {
   return duePlaybooks(db, { kind: "moment", at: now, limit });
 }
 
@@ -126,7 +126,7 @@ export async function playbooksDue(db: Db, now: Date, limit: number): Promise<Du
  * The reach-out steps (Part 3) due at `now`, a page of their own, judged and ordered as the moments are: each runs
  * through runReachOut, never the moments' run, and a workspace's moments never crowd its reach-outs out of a tick.
  */
-export async function reachOutsDue(db: Db, now: Date, limit: number): Promise<DuePage<DuePlaybook>> {
+export async function reachOutsDue(db: Db, now: Date, limit: number): Promise<DuePage<DueStep>> {
   return duePlaybooks(db, { kind: "reach_out", at: now, limit });
 }
 

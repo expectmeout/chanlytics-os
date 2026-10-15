@@ -111,7 +111,7 @@ async function moment(ws, name, over = {}) {
 /** One workspace's moments page at `at`, as the sweep asks it: the last hour a message may go out is twenty. */
 const page = async (ws, at, over = {}) =>
   ok(
-    await db.rpc("playbooks_due", {
+    await db.rpc("sequence_steps_due", {
       p_kind: "moment",
       p_at: at,
       p_last_hour: 20,
@@ -120,7 +120,7 @@ const page = async (ws, at, over = {}) =>
       ...over,
     }),
   );
-const ids = (rows) => rows.map((r) => r.playbook.id);
+const ids = (rows) => rows.map((r) => r.step.id);
 
 before(async () => {
   if (skip) return;
@@ -192,7 +192,7 @@ test(
     // Nine in the morning in Chicago (14:00Z): nothing is at its hour yet.
     assert.deepEqual(await page(chicago, "2026-09-26T14:00:00.000Z"), []);
     // The row comes whole, as the sweep's run reads it.
-    const whole = inChicago.find((r) => r.playbook.id === c.due).playbook;
+    const whole = inChicago.find((r) => r.step.id === c.due).step;
     assert.deepEqual(
       [whole.tenant_id, whole.kind, whole.state, whole.run_hour, whole.last_run_for, whole.last_run_at, whole.name],
       [chicago.id, "moment", "running", 10, null, null, "Never run"],
@@ -234,7 +234,7 @@ test(
     // Through packages/db, as the sweep reads it: the page, each row with its zone, and what is left beyond it.
     const read = await duePlaybooks(db, { kind: "moment", at: new Date(AT), limit: 3, tenantId: ws.id });
     assert.deepEqual(
-      read.rows.map((r) => [r.playbook.id, r.timezone]),
+      read.rows.map((r) => [r.step.id, r.timezone]),
       [
         [first, "America/Chicago"],
         [second, "America/Chicago"],
@@ -316,16 +316,22 @@ test("a reach-out step is on its own page, judged the same way, and never on the
   const beside = await moment(ws, "A moment beside them");
 
   const reach = ok(
-    await db.rpc("playbooks_due", { p_kind: "reach_out", p_at: AT, p_last_hour: 20, p_limit: 100, p_tenant_id: ws.id }),
+    await db.rpc("sequence_steps_due", {
+      p_kind: "reach_out",
+      p_at: AT,
+      p_last_hour: 20,
+      p_limit: 100,
+      p_tenant_id: ws.id,
+    }),
   );
   assert.deepEqual(
-    reach.map((r) => [r.playbook.id, r.playbook.kind, r.due_total]),
+    reach.map((r) => [r.step.id, r.step.kind, r.due_total]),
     [[root, "reach_out", 1]],
     "the step that has not run today, and only it",
   );
   assert.deepEqual(ids(await page(ws, AT)), [beside], "the moments' page has no reach-out on it");
   const read = await duePlaybooks(db, { kind: "reach_out", at: new Date(AT), limit: 25, tenantId: ws.id });
-  assert.deepEqual([read.rows.map((r) => r.playbook.id), read.remaining], [[root], 0]);
+  assert.deepEqual([read.rows.map((r) => r.step.id), read.remaining], [[root], 0]);
 });
 
 test(
@@ -342,14 +348,14 @@ test(
     assert.equal(ok(await db.rpc("safe_zone", { p: "UTC" })), "UTC");
     // Half past four in the afternoon, UTC: due at ten. One in the morning, UTC: not.
     assert.deepEqual(
-      (await page(mars, "2026-09-26T16:30:00.000Z")).map((r) => [r.playbook.id, r.timezone, r.due_total]),
+      (await page(mars, "2026-09-26T16:30:00.000Z")).map((r) => [r.step.id, r.timezone, r.due_total]),
       [[due, "UTC", 1]],
       "judged in UTC, and the page says so",
     );
     assert.deepEqual(await page(mars, "2026-09-27T01:00:00.000Z"), []);
     // Every workspace at once, the bad one among them: both pages still answer.
     ok(
-      await db.rpc("playbooks_due", {
+      await db.rpc("sequence_steps_due", {
         p_kind: "moment",
         p_at: "2026-09-26T16:30:00.000Z",
         p_last_hour: 20,
@@ -379,8 +385,8 @@ test(
     assert.deepEqual(await page(paused, AT), [], "none of the paused workspace's moments is due");
     // Every workspace at once, as the sweep asks: of these two workspaces the sound one's moment is on the page, and
     // the paused twenty-six are neither ahead of it nor counted behind it.
-    const all = ok(await db.rpc("playbooks_due", { p_kind: "moment", p_at: AT, p_last_hour: 20, p_limit: 1000 }));
-    const mine = all.filter((r) => [paused.id, sound.id].includes(r.playbook.tenant_id));
+    const all = ok(await db.rpc("sequence_steps_due", { p_kind: "moment", p_at: AT, p_last_hour: 20, p_limit: 1000 }));
+    const mine = all.filter((r) => [paused.id, sound.id].includes(r.step.tenant_id));
     assert.deepEqual(ids(mine), [runs], "the sound workspace's moment is due; no paused one is");
 
     ok(await db.from("tenants").update({ status: "active" }).eq("id", paused.id));
@@ -535,7 +541,7 @@ test(
 test("neither page opens to anon", { skip: skip || (!ANON && "no anon key in env") }, async () => {
   const anon = createClient(URL_, ANON, { auth: { persistSession: false } });
   for (const [fn, args] of [
-    ["playbooks_due", { p_kind: "moment", p_at: iso(Date.now()), p_last_hour: 20, p_limit: 1 }],
+    ["sequence_steps_due", { p_kind: "moment", p_at: iso(Date.now()), p_last_hour: 20, p_limit: 1 }],
     ["calendars_due", { p_before: iso(Date.now()), p_limit: 1 }],
   ]) {
     const { error } = await anon.rpc(fn, args);

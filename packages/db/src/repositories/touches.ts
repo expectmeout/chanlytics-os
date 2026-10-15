@@ -142,8 +142,8 @@ async function touchesOf(db: Db, tenantId: string, since: Date, now: Date, follo
       params: unknown;
     }>("broadcasts", (from, to) => {
       const q = db
-        .from("broadcasts")
-        .select("id, playbook_id, state, scheduled_for, created_at, run_for, params")
+        .from("sequence_batches")
+        .select("id, playbook_id:step_id, state, scheduled_for, created_at, run_for, params")
         .eq("tenant_id", tenantId)
         .or(runsSince(since));
       return (followUpsOnly ? q.contains("params", FOLLOW_UP_PARAMS) : q).order("id").range(from, to);
@@ -172,28 +172,29 @@ async function touchesOf(db: Db, tenantId: string, since: Date, now: Date, follo
   for (let i = 0; i < ids.length; i += RUN_IDS_PER_QUERY) {
     const rows = await readAllRows<{
       broadcast_id: string;
-      contact_id: string;
+      contact_id: string | null;
       sent_at: string | null;
       state: string;
       proposal_link: string | null;
       proposal_deal: string | null;
     }>("broadcast_recipients", (from, to) =>
       db
-        .from("broadcast_recipients")
+        .from("sequence_sends")
         // Of the words a recipient kept, the proposal's deal and link alone (0029): which one a follow-up was about.
         .select(
-          "broadcast_id, contact_id, sent_at, state, proposal_link:facts->>proposal_link, proposal_deal:facts->>deal_id",
+          "broadcast_id:batch_id, contact_id, sent_at, state, proposal_link:facts->>proposal_link, proposal_deal:facts->>deal_id",
         )
         .eq("tenant_id", tenantId)
-        .in("broadcast_id", ids.slice(i, i + RUN_IDS_PER_QUERY))
+        .is("lead_id", null)
+        .in("batch_id", ids.slice(i, i + RUN_IDS_PER_QUERY))
         .in("state", ["sent", "queued"])
-        .order("broadcast_id")
+        .order("batch_id")
         .order("contact_id")
         .range(from, to),
     );
     for (const r of rows) {
       const run = ofRun.get(r.broadcast_id);
-      if (!run) continue;
+      if (!run || !r.contact_id) continue;
       if (STOPPED.has(run.state) && r.state !== "sent") continue;
       const at = r.sent_at ?? run.scheduled_for ?? run.created_at;
       if (Date.parse(at) < sinceMs) continue;

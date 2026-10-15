@@ -206,8 +206,8 @@ function world() {
       delete from public.person_notes where tenant_id = b;
       ${told("note_removed")}
 
-      -- A playbook made, paused and removed by a teammate (00376): Campaigns' rows and acts repaint. Its template is
-      -- told on its own account (00408).
+      -- A sequence made, paused and removed by a teammate through its first step (00376, 00439): Campaigns' rows and acts
+      -- repaint. Its template is told on its own account (00408).
       insert into public.templates (tenant_id, channel, name, language, meta_status)
         values (a, 'whatsapp', 'told_offer', 'en_US', 'approved') returning id into tpl;
       ${told("template_made")}
@@ -611,7 +611,7 @@ test("a delete is told to the workspace it happened in", { skip }, () => {
 });
 
 test(
-  "a playbook made, paused or removed is told to its workspace alone: the table and the event, never the row (00376)",
+  "a sequence made, paused or removed is told to its workspace alone: the tables and the event, never the row (00376, 0060)",
   { skip },
   () => {
     const { steps } = world();
@@ -620,9 +620,20 @@ test(
       [notice("a", "INSERT", "templates")],
       "its template is told on its own (00408)",
     );
-    assert.deepEqual(steps.playbook_made, [notice("a", "INSERT", "playbooks")]);
-    assert.deepEqual(steps.playbook_paused, [notice("a", "UPDATE", "playbooks")]);
-    assert.deepEqual(steps.playbook_removed, [notice("a", "DELETE", "playbooks")]);
+    // A first step made through the old name makes its sequence, a pause is the sequence's too, and a first step removed
+    // that never ran takes its sequence (00439): each table told once.
+    assert.deepEqual(steps.playbook_made, [
+      notice("a", "INSERT", "sequence_steps"),
+      notice("a", "INSERT", "sequences"),
+    ]);
+    assert.deepEqual(steps.playbook_paused, [
+      notice("a", "UPDATE", "sequence_steps"),
+      notice("a", "UPDATE", "sequences"),
+    ]);
+    assert.deepEqual(steps.playbook_removed, [
+      notice("a", "DELETE", "sequence_steps"),
+      notice("a", "DELETE", "sequences"),
+    ]);
   },
 );
 

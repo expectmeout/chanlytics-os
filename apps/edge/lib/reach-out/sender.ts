@@ -291,7 +291,7 @@ function claimedTurns(t: Tick, s: ReachOutSendRow) {
       const key = `${s.tenant_id}:${reason}`;
       if (!t.said.has(key)) {
         t.said.add(key);
-        t.log.warn("reach_out_send_held", { tenant_id: s.tenant_id, playbook_id: s.playbook_id, reason });
+        t.log.warn("reach_out_send_held", { tenant_id: s.tenant_id, playbook_id: s.step_id, reason });
       }
       return "held";
     },
@@ -347,9 +347,9 @@ async function handOver(t: Tick, s: ReachOutSendRow, turns: ClaimedTurns, m: Mad
   // Its mailbox let go: an owner's email is no mailbox's to count.
   if (!(await move({ state: "drafted", drafted_at: t.now.toISOString(), draft, mailbox_id: null }))) return "lost";
   // The run's row, touched: its drafts are its owner's to send now, and a page that hears the run reads them again.
-  await runHanded(t.db, { tenantId: s.tenant_id, id: s.broadcast_id, at: t.now }).catch((e: unknown) =>
+  await runHanded(t.db, { tenantId: s.tenant_id, id: s.batch_id, at: t.now }).catch((e: unknown) =>
     t.log.warn("reach_out_run_unstarted", {
-      broadcast_id: s.broadcast_id,
+      broadcast_id: s.batch_id,
       error: e instanceof Error ? e.message : String(e),
     }),
   );
@@ -368,7 +368,7 @@ async function writeOne(t: Tick, s: ReachOutSendRow): Promise<Outcome> {
   if (was) return adopt(t, s, messageId, was);
 
   // 1. The run and its chain now: the claim read them, and a writer is seconds behind it.
-  if (!s.playbook_id) return skip("step_removed");
+  if (!s.step_id) return skip("step_removed");
   const standing = await sendStanding(db, s);
   if (!standing.run || standing.run === "canceled" || standing.run === "failed") return skip("run_canceled");
   if (!standing.step) return skip("step_removed");
@@ -395,9 +395,9 @@ async function writeOne(t: Tick, s: ReachOutSendRow): Promise<Outcome> {
   if (s.checked_words !== checkedWordsOf(words, standing.signedBy, workspace.bookingLink !== null)) return recheck();
 
   // 3. A step after the first answers the lead's email on the step before (D19).
-  const after = standing.step.after_playbook_id;
+  const after = standing.step.after_step_id;
   const parent = after
-    ? await parentEmailOf(db, { tenantId: s.tenant_id, rootId: s.root_id, leadId: s.lead_id, stepId: after })
+    ? await parentEmailOf(db, { tenantId: s.tenant_id, rootId: s.sequence_id, leadId: s.lead_id, stepId: after })
     : null;
   if (after && !parent) return skip("no_parent");
   const made: Made = {
@@ -491,9 +491,9 @@ async function sendFromMailbox(
       send_id: s.id,
       lead_id: s.lead_id,
       contact_id: person.contactId,
-      playbook_id: s.playbook_id,
-      root_id: s.root_id,
-      broadcast_id: s.broadcast_id,
+      playbook_id: s.step_id,
+      root_id: s.sequence_id,
+      broadcast_id: s.batch_id,
       attempt: s.attempts ?? 0,
     },
   };
@@ -539,9 +539,9 @@ async function sendFromMailbox(
     return "lost";
   }
   // The run's word only: its email is written and queued, and the clock's finish moves a scheduled run itself.
-  await runSending(db, { tenantId: s.tenant_id, id: s.broadcast_id }).catch((e: unknown) =>
+  await runSending(db, { tenantId: s.tenant_id, id: s.batch_id }).catch((e: unknown) =>
     t.log.warn("reach_out_run_unstarted", {
-      broadcast_id: s.broadcast_id,
+      broadcast_id: s.batch_id,
       error: e instanceof Error ? e.message : String(e),
     }),
   );

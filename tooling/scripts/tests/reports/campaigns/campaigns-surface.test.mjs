@@ -435,8 +435,8 @@ test("its live-feed rule is the lens's own: messages, conversations, escalations
     "messages",
     "conversations",
     "escalations",
-    "broadcasts",
-    "reach_out_replies",
+    "sequence_batches",
+    "sequence_replies",
     "tenant_channels",
     "mailbox_connections",
     "contacts",
@@ -598,7 +598,7 @@ test("a burst of changes is read once, three seconds after the first: the longes
     await advance(1_000);
     heard("escalations", "INSERT");
     await advance(1_000);
-    heard("broadcasts", "UPDATE");
+    heard("sequence_batches", "UPDATE");
     await advance(1_000);
     assert.equal(reads.length, 1, `one read for a burst a second apart, not one a change: ${reads.length}`);
     assert.equal(reads[0], 6_000, "three seconds from its first change (at 3,000)");

@@ -8,7 +8,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { DraftLeadFacts } from "@chanlytics/contracts";
 import type { Database, Json } from "../../database.types";
-import type { ReachOutSendRow } from "../reach-out";
+import { leadSends, type ReachOutSendRow } from "../reach-out";
 import { answer, type DoorResult } from "./reach-out-leads";
 
 type Db = SupabaseClient<Database>;
@@ -20,13 +20,13 @@ export async function claimDrafts(
 ): Promise<ReachOutSendRow[]> {
   if (!Number.isInteger(p.limit) || Number.isNaN(p.at.getTime()))
     throw new Error(`cannot claim the drafts due: a limit is a whole number (${p.limit})`);
-  const { data, error } = await db.rpc("reach_out_claim_drafts", {
+  const { data, error } = await db.rpc("sequence_claim_drafts", {
     p_at: p.at.toISOString(),
     p_limit: p.limit,
     ...(p.tenantId ? { p_tenant_id: p.tenantId } : {}),
   });
   if (error) throw new Error(`cannot claim the drafts due: ${error.message}`);
-  return data ?? [];
+  return leadSends(data);
 }
 
 /** What a reach-out its owner sends holds: of one day's runs, skipped aside, and in all, not yet said to have gone. */
@@ -48,17 +48,18 @@ export async function chainDraftLoad(
 ): Promise<DraftLoad> {
   const [runs, open] = await Promise.all([
     db
-      .from("broadcasts")
+      .from("sequence_batches")
       .select("id")
       .eq("tenant_id", p.tenantId)
       .eq("audience->>kind", "reach_out")
       .eq("audience->>root_id", p.rootId)
       .eq("run_for", p.runFor),
     db
-      .from("reach_out_sends")
+      .from("sequence_sends")
       .select("id", { count: "exact", head: true })
       .eq("tenant_id", p.tenantId)
-      .eq("root_id", p.rootId)
+      .eq("sequence_id", p.rootId)
+      .not("lead_id", "is", null)
       .in("state", ["planned", "held", "claimed", "drafted"]),
   ]);
   if (runs.error) throw new Error(`cannot read the reach-out's runs of the day: ${runs.error.message}`);
@@ -66,10 +67,10 @@ export async function chainDraftLoad(
   const ids = (runs.data ?? []).map((r) => r.id);
   if (ids.length === 0) return { today: 0, open: open.count ?? 0 };
   const { count, error } = await db
-    .from("reach_out_sends")
+    .from("sequence_sends")
     .select("id", { count: "exact", head: true })
     .eq("tenant_id", p.tenantId)
-    .in("broadcast_id", ids)
+    .in("batch_id", ids)
     .neq("state", "skipped");
   if (error) throw new Error(`cannot count the reach-out's emails of the day: ${error.message}`);
   return { today: count ?? 0, open: open.count ?? 0 };
@@ -132,15 +133,15 @@ export async function ownerSendFactsOf(
 ): Promise<Map<string, OwnerSendFacts>> {
   if (p.sendIds.length === 0) return new Map();
   const { data, error } = await db
-    .from("reach_out_sends")
-    .select("id, broadcast_id, state, said_at")
+    .from("sequence_sends")
+    .select("id, batch_id, state, said_at")
     .eq("tenant_id", p.tenantId)
     .in("id", [...p.sendIds]);
   if (error) throw new Error(`cannot read the owner's sends: ${error.message}`);
   return new Map(
     (data ?? []).map((r) => [
       r.id,
-      { runId: r.state === "drafted" ? r.broadcast_id : null, said: r.state === "sent" && r.said_at !== null },
+      { runId: r.state === "drafted" ? r.batch_id : null, said: r.state === "sent" && r.said_at !== null },
     ]),
   );
 }

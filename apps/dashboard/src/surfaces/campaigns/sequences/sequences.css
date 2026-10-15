@@ -1,0 +1,228 @@
+/* Campaigns › Sequences (decision 0060): the list's head and groups, a record's flow, its People and History. Layout and
+   the page's own words alone; every value a token (tokens.css), every primitive the kit's. Loaded with the page's own
+   chunk (sequences-page.tsx), so no other page pays for it. */
+
+/* The list: its search and filters over the groups, which scroll. */
+.sq-list-head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-4) var(--space-2);
+}
+.sq-list-top {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.sq-list-top > :first-child {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.sq-list-rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: 0 var(--space-2) var(--space-4);
+}
+.sq-group {
+  display: flex;
+  flex-direction: column;
+}
+.sq-group-name {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-2) var(--space-2) var(--space-1);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  color: var(--ink-muted);
+}
+.sq-group-act {
+  margin-left: auto;
+}
+.sq-reading {
+  min-height: var(--space-20);
+}
+.sq-none,
+.sq-more {
+  margin: var(--space-3) var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--ink-dim);
+}
+
+/* A record's Steps: the flow, read top to bottom. */
+.sq-flow {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding-top: var(--space-3);
+}
+.sq-flow-end,
+.sq-setting {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: var(--text-sm);
+}
+.sq-flow-k {
+  min-width: 88px;
+  font-weight: var(--weight-semibold);
+  color: var(--ink-muted);
+}
+.sq-flow-src {
+  color: var(--ink-dim);
+}
+.sq-steps {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.sq-step {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+.sq-wait {
+  margin: 0 0 0 36px;
+  font-size: var(--text-xs);
+  color: var(--ink-dim);
+}
+.sq-step-row {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) auto;
+  gap: var(--space-3);
+  align-items: start;
+}
+.sq-node {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-full);
+  background: var(--face-fill);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+}
+.sq-step-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+.sq-step-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: var(--text-sm);
+}
+.sq-step-name {
+  font-weight: var(--weight-semibold);
+}
+.sq-step-via,
+.sq-step-span {
+  color: var(--ink-dim);
+}
+.sq-step-said {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--ink-muted);
+}
+.sq-step-next {
+  color: var(--ink-dim);
+}
+.sq-step-acts {
+  display: flex;
+  gap: var(--space-1);
+}
+.sq-step-done {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--ink-muted);
+  text-align: right;
+  white-space: nowrap;
+}
+.sq-step-span {
+  display: block;
+}
+
+/* A step opened in place. */
+.sq-editor {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  width: 100%;
+  padding: var(--space-4);
+  border-radius: var(--surface-inset-radius);
+  background: var(--surface-inset-fill);
+}
+.sq-editor-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--space-3);
+}
+.sq-editor-acts {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+/* A new sequence: the owner's line and its press over the draft Ask filled in, each choice of Ask's marked. */
+.sq-new {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.sq-new-acts {
+  display: flex;
+  justify-content: flex-end;
+}
+.sq-by-ask {
+  font-size: var(--text-xs);
+  color: var(--ink-dim);
+}
+.sq-new-body {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--ink-dim);
+}
+.sq-new-cannot {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--warn-ink);
+}
+.sq-new-say {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--ink-muted);
+}
+
+/* People and History: groups of rows. */
+.sq-people,
+.sq-history {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding-top: var(--space-3);
+}
+
+/* What needs you, on a row's line: amber, as every badge and sentence that says it is (kit.css, one shape per job). */
+.sq-needs {
+  color: var(--warn-ink);
+}
+
+/* A phone (the kit's one breakpoint): a line's key stands over its words, so the words take the width. */
+@media (max-width: 900px) {
+  .sq-flow-k {
+    flex-basis: 100%;
+    min-width: 0;
+  }
+}

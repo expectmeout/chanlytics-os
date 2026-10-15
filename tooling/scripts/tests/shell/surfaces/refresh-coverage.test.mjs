@@ -225,14 +225,18 @@ test("a run made or moved is heard by Campaigns' two surfaces wherever the tab i
   // on their own page alone (the table the on-screen rule names).
   const { wantsRefresh } = await importSrc("apps/dashboard/src/legacy-bridge/surface-realtime.ts");
   const { watchedTables } = await importSrc("packages/db/src/realtime.ts");
-  assert.ok(watchedTables().includes("broadcasts"), "the database tells a workspace about its runs");
+  assert.ok(watchedTables().includes("sequence_batches"), "the database tells a workspace about its runs");
   const change = (table) => ({ table, event: "INSERT", row: {} });
   for (const route of ["POST broadcasts", "POST playbooks"]) {
     for (const o of AFTER[route]().filter((s) => s.key === "broadcasts" || s.key === "playbooks")) {
-      assert.equal(wantsRefresh(o, "broadcasts"), true, `${o.key} listens for runs`);
-      assert.equal(wantsRefresh(o, "broadcasts", change("broadcasts")), true, `${o.key}: heard on any page`);
+      assert.equal(wantsRefresh(o, "sequence_batches"), true, `${o.key} listens for runs`);
+      assert.equal(
+        wantsRefresh(o, "sequence_batches", change("sequence_batches")),
+        true,
+        `${o.key}: heard on any page`,
+      );
       assert.equal(wantsRefresh(o, "messages"), true, `${o.key}: the default tables still`);
-      assert.equal(wantsRefresh(o, "broadcast_recipients"), false, `${o.key}: a run's people are read when it opens`);
+      assert.equal(wantsRefresh(o, "sequence_sends"), false, `${o.key}: a run's people are read when it opens`);
     }
   }
 });
@@ -242,10 +246,13 @@ test("a playbook paused, renamed or retimed in another tab is heard where Campai
   const { watchedTables } = await importSrc("packages/db/src/realtime.ts");
   const { playbooksOverride } = await importSrc("apps/dashboard/src/surfaces/campaigns/playbooks/surface.ts");
   const { reachOutsOverride } = await importSrc("apps/dashboard/src/surfaces/campaigns/reach-out/surface.ts");
-  assert.ok(watchedTables().includes("playbooks"), "the database tells a workspace about its playbooks");
+  assert.ok(
+    watchedTables().includes("sequence_steps") && watchedTables().includes("sequences"),
+    "the database tells a workspace about its playbooks",
+  );
   const change = (table) => ({ table, event: "UPDATE", row: {} });
   for (const o of [playbooksOverride, reachOutsOverride]) {
-    for (const table of ["playbooks", "broadcasts"]) {
+    for (const table of ["sequences", "sequence_steps", "sequence_batches"]) {
       assert.equal(wantsRefresh(o, table), true, `${o.key} hears ${table}`);
       assert.equal(wantsRefresh(o, table, change(table)), true, `${o.key}: ${table} heard on any page`);
     }
@@ -829,8 +836,8 @@ test("the Campaigns lens's read repaints on the tables of the live feed that mov
     "messages",
     "conversations",
     "escalations",
-    "broadcasts",
-    "reach_out_replies",
+    "sequence_batches",
+    "sequence_replies",
     "tenant_channels",
     "mailbox_connections",
     "contacts",

@@ -289,6 +289,11 @@ export interface PersonDetailDto {
   consent_history?: ConsentChange[];
   /** The runs that named this person, newest first: a playbook's, or a broadcast someone sent (broadcast_recipients). */
   campaigns?: PersonCampaignDto[];
+  /**
+   * The sequences they are in now (decision 0060, S5), soonest next first: each with the step they are at and when the
+   * next goes. Absent from a server before it.
+   */
+  sequences?: { id: string; name: string; place: number; next_at: string | null }[];
   /** The lead this person was found as, when they were one (leads.contact_id). */
   lead?: PersonLeadDto | null;
   /** The open doubts naming this person (0034 step 4, 00344): another record one identity could belong to, each. Absent from a server before the table. */
@@ -335,6 +340,17 @@ export interface PersonLeadDto {
    * when it could not be read, absent from a server before it.
    */
   reach_out?: ReachOutLeadTimelineDto | null;
+}
+
+/**
+ * A sequence a person is in now, on their page (0060, S5): its name, where they are in it ("step 2 · next Fri, Oct 30")
+ * and the door to it, the campaign's own address, which lands on its sequence where Sequences is drawn.
+ */
+export interface PersonSequenceVM {
+  id: string;
+  name: string;
+  line: string;
+  to: string;
 }
 
 /** One run on a person's page: what it was, when, and what became of it. */

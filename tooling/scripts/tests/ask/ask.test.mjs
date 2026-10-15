@@ -209,6 +209,8 @@ const REACHED = {
   // Campaigns' home; the old Playbooks list, `outbound`, is a door to it (contracts doorOf), so its jump is the home's.
   campaigns: ["Campaigns", "campaigns"],
   outbound: ["Campaigns", "campaigns"],
+  // Campaigns › Sequences (decision 0060), a jump where its preview is on (askPages `sequences`).
+  "campaigns/sequences": ["Sequences", "campaigns/sequences"],
   // Campaigns' rooms: Sent and the Library, each still found by the name it went by (ask-palette.test.mjs).
   broadcasts: ["Sent", "broadcasts"],
   messages: ["Library", "messages"],
@@ -240,8 +242,8 @@ for (const lens of REPORT_LENSES.filter((l) => l.id !== "overview" && l.shownWhe
   SCOPES.push(lensRoute(lens.id));
 }
 
-/** Every page, for a workspace with deals on and a person on Chanlytics' staff. */
-const EVERY = askPages({ dealsOn: true, platformAdmin: true });
+/** Every page, for a workspace with deals on, the Sequences preview on, and a person on Chanlytics' staff. */
+const EVERY = askPages({ dealsOn: true, platformAdmin: true, sequences: true });
 const where = (to) => {
   const [page, ...rest] = to.split("/");
   return [page, rest.length ? rest.join("/") : null];
@@ -955,7 +957,10 @@ test("the loop and its reads: several at once, the stable block cached, through 
     [
       ["calendar", ["week", "openings", "room"]],
       ["calls", ["list", "get"]],
-      ["campaigns", ["audiences", "playbooks", "broadcasts", "broadcast", "messages", "journey"]],
+      [
+        "campaigns",
+        ["audiences", "playbooks", "broadcasts", "broadcast", "messages", "journey", "sequences", "sequence"],
+      ],
       ["inbox", ["list", "thread", "search"]],
       ["leads", ["searches", "leads", "lead", "search"]],
       ["people", ["search", "get", "lists", "pipeline"]],

@@ -99,6 +99,8 @@ export const FeaturesConfigSchema = z
     vision: z.boolean().optional(),
     /** Campaigns › Ads, its sample drawn in this workspace as a demo session draws it (contracts ads/address.ts). */
     ads_preview: z.boolean().optional(),
+    /** Campaigns › Sequences (decision 0060), drawn in this workspace before it replaces the home (contracts sequences). */
+    sequences_preview: z.boolean().optional(),
   })
   .strip();
 export type FeaturesConfig = z.infer<typeof FeaturesConfigSchema>;

@@ -40,7 +40,7 @@ test("the purposes, and every one may name an output format: the lead purposes a
   // `ask_warm` is a turn's head sent ahead of its question (the dashboard's server/ask/warm.ts): Ask's, counted apart.
   assert.deepEqual(
     [...GATEWAY_PURPOSES],
-    ["ask", "ask_warm", "lead_draft", "lead_suggest", "list_draft", "person_draft"],
+    ["ask", "ask_warm", "lead_draft", "lead_suggest", "list_draft", "person_draft", "sequence_draft"],
   );
   const draft = validateGatewayRequest({ ...base, output_config: { effort: "low", format } }, "lead_draft");
   assert.deepEqual(draft.request.output_config, { effort: "low", format });

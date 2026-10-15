@@ -142,10 +142,10 @@ async function howFar(
 ): Promise<{ reached: number; remaining: number; error?: string }> {
   const of = (state: string) =>
     db
-      .from("broadcast_recipients")
+      .from("sequence_sends")
       .select("contact_id", { count: "exact", head: true })
       .eq("tenant_id", tenantId)
-      .eq("broadcast_id", broadcastId)
+      .eq("batch_id", broadcastId)
       .eq("state", state);
   const [sent, queued] = await Promise.all([of("sent"), of("queued")]);
   const error = sent.error?.message ?? queued.error?.message;
@@ -165,7 +165,7 @@ async function failBroadcast(
   far: { reached: number; remaining: number },
 ): Promise<Settled[]> {
   const { data, error } = await db
-    .from("broadcasts")
+    .from("sequence_batches")
     .update({ state: "failed", failure: "run_interrupted", finished_at: new Date().toISOString() })
     .eq("id", broadcastId)
     .eq("tenant_id", job.tenant_id)
@@ -279,7 +279,7 @@ export async function settleJob(db: Db, job: TerminalJob, certain: boolean): Pro
     // it finished; when no fresh run can be written, or too many already have
     // been, it falls back to the honest failure with the reason.
     const { data: row, error: readErr } = await db
-      .from("broadcasts")
+      .from("sequence_batches")
       .select("id, state")
       .eq("id", broadcastId)
       .eq("tenant_id", job.tenant_id)

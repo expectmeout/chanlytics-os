@@ -25,8 +25,6 @@ what the script writes.
 | [`billing_accounts`](#billing_accounts) | `packages/db/src/ai-usage.ts`, `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/reach-out.ts` | on, 1 policy |
 | [`billing_card_marks`](#billing_card_marks) | none | on, no policy, so only the service role reaches it |
 | [`billing_events`](#billing_events) | none | on, no policy, so only the service role reaches it |
-| [`broadcast_recipients`](#broadcast_recipients) | `packages/db/src/repositories/campaigns/campaign-channels.ts`, `packages/db/src/repositories/touches.ts`, `packages/db/src/repositories/workspace-export.ts` | on, 2 policies |
-| [`broadcasts`](#broadcasts) | `packages/db/src/events.ts`, `packages/db/src/repositories/campaigns/calendar-runs.ts`, `packages/db/src/repositories/campaigns/campaign-channels.ts`, `packages/db/src/repositories/campaigns/email-offers.ts`, `packages/db/src/repositories/campaigns/reach-out-drafts.ts`, `packages/db/src/repositories/campaigns/stranded-runs.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/touches.ts`, `packages/db/src/repositories/workspace-export.ts` | on, 3 policies |
 | [`business_records`](#business_records) | `packages/db/src/lines.ts`, `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/reach-out.ts` | on, 1 policy |
 | [`calls`](#calls) | `packages/db/src/events.ts`, `packages/db/src/repositories/calls.ts`, `packages/db/src/tenant-db.type-test.ts` | on, 1 policy |
 | [`capability_activations`](#capability_activations) | none | on, 2 policies |
@@ -88,20 +86,23 @@ what the script writes.
 | [`person_notes`](#person_notes) | `packages/db/src/repositories/thread.ts`, `packages/db/src/repositories/workspace-export.ts` | on, 1 policy |
 | [`platform_admins`](#platform_admins) | none | on, no policy, so only the service role reaches it |
 | [`platform_metrics`](#platform_metrics) | `packages/db/src/ops.ts` | on, no policy, so only the service role reaches it |
-| [`playbooks`](#playbooks) | `packages/db/src/events.ts`, `packages/db/src/repositories/campaigns/calendar-runs.ts`, `packages/db/src/repositories/campaigns/campaign-channels.ts`, `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/lists.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/workspace-export.ts`, `packages/db/src/sweeps.ts` | on, 4 policies |
 | [`policies`](#policies) | `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/workspace-export.ts` | on, 5 policies |
 | [`profiles`](#profiles) | none | on, 1 policy |
 | [`provider_events`](#provider_events) | `packages/db/src/provider-events.ts` | on, no policy, so only the service role reaches it |
 | [`push_devices`](#push_devices) | `packages/db/src/repositories/notices/member-alerts.ts` | on, 1 policy |
 | [`rate_hits`](#rate_hits) | none | on, no policy, so only the service role reaches it |
 | [`reach_out_check_spend`](#reach_out_check_spend) | none | on, no policy, so only the service role reaches it |
-| [`reach_out_replies`](#reach_out_replies) | `packages/db/src/repositories/outreach.ts`, `packages/db/src/repositories/people.ts`, `packages/db/src/repositories/workspace-export.ts` | on, 1 policy |
-| [`reach_out_sends`](#reach_out_sends) | `packages/db/src/repositories/campaigns/reach-out-check.ts`, `packages/db/src/repositories/campaigns/reach-out-drafts.ts`, `packages/db/src/repositories/outreach.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts` | on, 1 policy |
 | [`reply_turns`](#reply_turns) | none | on, no policy, so only the service role reaches it |
 | [`segment_members`](#segment_members) | `packages/db/src/repositories/lists.ts`, `packages/db/src/repositories/workspace-export.ts` | on, 3 policies |
 | [`segments`](#segments) | `packages/db/src/events.ts`, `packages/db/src/repositories/lists.ts`, `packages/db/src/repositories/workspace-export.ts` | on, 4 policies |
 | [`sending_domain_days`](#sending_domain_days) | none | on, 1 policy |
 | [`sending_domains`](#sending_domains) | none | on, 1 policy |
+| [`sequence_batches`](#sequence_batches) | `packages/db/src/events.ts`, `packages/db/src/repositories/campaigns/calendar-runs.ts`, `packages/db/src/repositories/campaigns/campaign-channels.ts`, `packages/db/src/repositories/campaigns/email-offers.ts`, `packages/db/src/repositories/campaigns/reach-out-drafts.ts`, `packages/db/src/repositories/campaigns/sequences.ts`, `packages/db/src/repositories/campaigns/stranded-runs.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/touches.ts`, `packages/db/src/repositories/workspace-export.ts` | on, 1 policy |
+| [`sequence_enrollments`](#sequence_enrollments) | `packages/db/src/repositories/campaigns/sequences.ts` | on, 1 policy |
+| [`sequence_replies`](#sequence_replies) | `packages/db/src/repositories/outreach.ts`, `packages/db/src/repositories/people.ts`, `packages/db/src/repositories/workspace-export.ts` | on, 1 policy |
+| [`sequence_sends`](#sequence_sends) | `packages/db/src/repositories/campaigns/campaign-channels.ts`, `packages/db/src/repositories/campaigns/reach-out-check.ts`, `packages/db/src/repositories/campaigns/reach-out-drafts.ts`, `packages/db/src/repositories/outreach.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/touches.ts`, `packages/db/src/repositories/workspace-export.ts` | on, 2 policies |
+| [`sequence_steps`](#sequence_steps) | `packages/db/src/events.ts`, `packages/db/src/repositories/campaigns/calendar-runs.ts`, `packages/db/src/repositories/campaigns/campaign-channels.ts`, `packages/db/src/repositories/campaigns/sequences.ts`, `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/lists.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/workspace-export.ts`, `packages/db/src/sweeps.ts` | on, 4 policies |
+| [`sequences`](#sequences) | `packages/db/src/repositories/campaigns/sequences.ts` | on, 1 policy |
 | [`sweep_status`](#sweep_status) | none | on, no policy, so only the service role reaches it |
 | [`templates`](#templates) | `packages/db/src/events.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/templates.ts`, `packages/db/src/repositories/workspace-export.ts` | on, 1 policy |
 | [`tenant_channels`](#tenant_channels) | `packages/db/src/repositories/campaigns/campaign-channels.ts`, `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/routing.ts`, `packages/db/src/sweeps.ts` | on, 1 policy |
@@ -109,7 +110,12 @@ what the script writes.
 | [`tenant_config_versions`](#tenant_config_versions) | none | on, no policy, so only the service role reaches it |
 | [`tenants`](#tenants) | `packages/db/src/ai-usage.ts`, `packages/db/src/ops.ts`, `packages/db/src/repositories/campaigns/stranded-runs.ts`, `packages/db/src/repositories/campaigns/workspace.ts`, `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/leads.ts`, `packages/db/src/repositories/notices/member-alerts.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/touches.ts`, `packages/db/src/tenant-db.type-test.ts` | on, 2 policies |
 | [`waitlist`](#waitlist) | `packages/db/src/waitlist.ts` | on, no policy, so only the service role reaches it |
+| [`broadcast_recipients`](#broadcast_recipients) (view) | none | |
+| [`broadcasts`](#broadcasts) (view) | none | |
 | [`lead_searches_view`](#lead_searches_view) (view) | none | |
+| [`playbooks`](#playbooks) (view) | none | |
+| [`reach_out_replies`](#reach_out_replies) (view) | none | |
+| [`reach_out_sends`](#reach_out_sends) (view) | none | |
 | [`usage_ledger`](#usage_ledger) (view) | none | |
 
 ## Tables
@@ -408,79 +414,6 @@ Foreign keys:
 Foreign keys:
 
 - `tenant_id` → [`tenants`](#tenants) (`id`), on delete set null
-
-### broadcast_recipients
-
-- Owned by: `packages/db/src/repositories/campaigns/campaign-channels.ts`, `packages/db/src/repositories/touches.ts`, `packages/db/src/repositories/workspace-export.ts`
-- Primary key: `broadcast_id`, `contact_id`
-- Row-level security: on, 2 policies
-
-| Column | Type | Null | Default | Note |
-| --- | --- | --- | --- | --- |
-| `broadcast_id` | uuid | no |  |  |
-| `contact_id` | uuid | no |  |  |
-| `tenant_id` | uuid | no |  |  |
-| `state` | text | no | `'queued'::text` |  |
-| `reason` | text | yes |  |  |
-| `message_id` | uuid | yes |  |  |
-| `sent_at` | timestamp with time zone | yes |  |  |
-| `facts` | jsonb | yes |  | Per-person words a run resolved when it was made (a visit's time and service); the send fills the template's slots from them. |
-| `channel` | text | yes |  | The channel this person is reached on, picked once at enrolment (contracts' reachFor) from the run's channels. NULL: a recipient written before the channels, which is WhatsApp (00298). |
-| `attempt` | integer | no | `0` | How many times this person was claimed and given back (throttled, not_taken): the guard adds one on every release. A broadcast's email to them is named by it (core broadcast-channels.ts), so a person tried again is sent under a new id and a resumed run, which releases nobody, finds the email it was sending (00301). |
-
-Foreign keys:
-
-- `tenant_id`, `broadcast_id` → [`broadcasts`](#broadcasts) (`tenant_id`, `id`), on delete cascade
-- `tenant_id`, `contact_id` → [`contacts`](#contacts) (`tenant_id`, `id`), on delete cascade
-- `tenant_id`, `message_id` → [`messages`](#messages) (`tenant_id`, `id`), on delete set null
-- `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
-
-| Policy | For | To | Using | With check |
-| --- | --- | --- | --- | --- |
-| `broadcast_recipients_acting_insert` | insert | authenticated |  | `(is_acting_member(tenant_id) AND (EXISTS ( SELECT 1 FROM broadcasts b WHERE ((b.id = broadcast_recipients.broadcast_id) AND (b.tenant_id = broadcast_recipients…` |
-| `broadcast_recipients_member_select` | select | authenticated | `(tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE (m.user_id = auth.uid())))` |  |
-
-### broadcasts
-
-- Owned by: `packages/db/src/events.ts`, `packages/db/src/repositories/campaigns/calendar-runs.ts`, `packages/db/src/repositories/campaigns/campaign-channels.ts`, `packages/db/src/repositories/campaigns/email-offers.ts`, `packages/db/src/repositories/campaigns/reach-out-drafts.ts`, `packages/db/src/repositories/campaigns/stranded-runs.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/touches.ts`, `packages/db/src/repositories/workspace-export.ts`
-- Primary key: `id`
-- Row-level security: on, 3 policies
-
-| Column | Type | Null | Default | Note |
-| --- | --- | --- | --- | --- |
-| `id` | uuid | no | `gen_random_uuid()` |  |
-| `tenant_id` | uuid | no |  |  |
-| `name` | text | no |  |  |
-| `template_id` | uuid | yes |  |  |
-| `template_name` | text | yes |  |  |
-| `template_language` | text | yes |  |  |
-| `params` | jsonb | no | `'[]'::jsonb` |  |
-| `audience` | jsonb | no | `'{}'::jsonb` |  |
-| `state` | text | no | `'scheduled'::text` |  |
-| `scheduled_for` | timestamp with time zone | no |  |  |
-| `started_at` | timestamp with time zone | yes |  |  |
-| `finished_at` | timestamp with time zone | yes |  |  |
-| `recipient_count` | integer | no | `0` |  |
-| `failure` | text | yes |  |  |
-| `created_by` | uuid | yes |  |  |
-| `created_at` | timestamp with time zone | no | `now()` |  |
-| `updated_at` | timestamp with time zone | no | `now()` |  |
-| `playbook_id` | uuid | yes |  |  |
-| `run_for` | date | yes |  |  |
-| `channels` | text[] | no | `'{whatsapp}'::text[]` | The channels this run ticked (whatsapp, sms, email, each once, at least one), written whole with its people by assemble_broadcast. WhatsApp alone by default, as every run was before (00298). |
-
-Foreign keys:
-
-- `created_by` → `auth.users` (`id`), on delete set null
-- `tenant_id`, `playbook_id` → [`playbooks`](#playbooks) (`tenant_id`, `id`), on delete set null
-- `tenant_id`, `template_id` → [`templates`](#templates) (`tenant_id`, `id`)
-- `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
-
-| Policy | For | To | Using | With check |
-| --- | --- | --- | --- | --- |
-| `broadcasts_acting_insert` | insert | authenticated |  | `(is_acting_member(tenant_id) AND (created_by = auth.uid()) AND ((playbook_id IS NULL) OR (EXISTS ( SELECT 1 FROM playbooks p WHERE ((p.id = broadcasts.playbook…` |
-| `broadcasts_acting_update` | update | authenticated | `is_acting_member(tenant_id)` | `is_acting_member(tenant_id)` |
-| `broadcasts_member_select` | select | authenticated | `(tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE (m.user_id = auth.uid())))` |  |
 
 ### business_records
 
@@ -2396,66 +2329,6 @@ Foreign keys:
 
 - `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
 
-### playbooks
-
-- Owned by: `packages/db/src/events.ts`, `packages/db/src/repositories/campaigns/calendar-runs.ts`, `packages/db/src/repositories/campaigns/campaign-channels.ts`, `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/lists.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/workspace-export.ts`, `packages/db/src/sweeps.ts`
-- Primary key: `id`
-- Row-level security: on, 4 policies
-
-| Column | Type | Null | Default | Note |
-| --- | --- | --- | --- | --- |
-| `id` | uuid | no | `gen_random_uuid()` |  |
-| `tenant_id` | uuid | no |  |  |
-| `name` | text | no |  |  |
-| `trigger` | text | no |  |  |
-| `template_id` | uuid | yes |  |  |
-| `template_name` | text | yes |  |  |
-| `template_language` | text | yes |  |  |
-| `params` | jsonb | no | `'[]'::jsonb` |  |
-| `policy_class` | text | no |  |  |
-| `state` | text | no | `'running'::text` |  |
-| `run_hour` | integer | no | `10` |  |
-| `cap_per_run` | integer | no | `25` |  |
-| `gap_days` | integer | no | `90` |  |
-| `cadence_days` | integer | no | `30` |  |
-| `created_by` | uuid | yes |  |  |
-| `last_run_for` | date | yes |  |  |
-| `last_run_at` | timestamp with time zone | yes |  |  |
-| `created_at` | timestamp with time zone | no | `now()` |  |
-| `updated_at` | timestamp with time zone | no | `now()` |  |
-| `list_id` | uuid | yes |  | The list of the workspace's own a saved_list playbook runs on. A list a playbook names is archived, never deleted (0009): the playbook pauses and keeps it. |
-| `list_key` | text | yes |  | The People list a saved_list playbook runs on, by its id (contracts lists.ts BUILTIN_LISTS). Null when it runs on one of the workspace's own lists (list_id), and for every other trigger. |
-| `kind` | text | no | `'moment'::text` |  |
-| `lead_search_id` | uuid | yes |  |  |
-| `after_playbook_id` | uuid | yes |  |  |
-| `after_days` | integer | yes |  |  |
-| `gap_minutes` | integer | yes |  |  |
-| `domain_ids` | uuid[] | no | `'{}'::uuid[]` | Retired (decision 0056): the sending domains a chain wrote from. reach_out_save empties it; mailbox_ids is the chain's. |
-| `signed_by` | text | yes |  |  |
-| `include_unconfirmed` | boolean | no | `false` |  |
-| `hand` | jsonb | yes |  | A reach-out's last step that hands each lead it reaches to the team (Reach out Part 5, G20): {kind: call \| note, words}. Such a step has no template. |
-| `channels` | text[] | no | `'{whatsapp}'::text[]` | The channels this campaign may go by (whatsapp, sms, email, each once, at least one): the composer's ticks. Each person is reached once, on one of them (contracts' reachFor). WhatsApp alone by default, as every campaign was before (00298). |
-| `until` | date | yes |  | The last day this campaign runs, on the business's clock: a run on a day past it sends nothing. Null: it runs until it is paused (00416). |
-| `trial_until` | timestamp with time zone | yes |  | Until when this campaign runs on trial: before it, a run its policy would send by itself (auto) waits for a person (veto). Null: no trial (00416). |
-| `mailbox_ids` | uuid[] | no | `'{}'::uuid[]` | A reach-out step's mailboxes (00424): the ones its owner picked, or none for every connected one of its workspace. |
-| `owner_sends` | boolean | no | `false` | A reach-out's root (00429): its owner sends its emails from their own inbox, each handed to them written and checked (state drafted), rather than its mailboxes (mailbox_ids). Its steps read it from the root. |
-
-Foreign keys:
-
-- `tenant_id`, `after_playbook_id` → [`playbooks`](#playbooks) (`tenant_id`, `id`), on delete cascade
-- `created_by` → `auth.users` (`id`), on delete set null
-- `tenant_id`, `list_id` → [`segments`](#segments) (`tenant_id`, `id`)
-- `tenant_id`, `lead_search_id` → [`lead_searches`](#lead_searches) (`tenant_id`, `id`), on delete restrict
-- `tenant_id`, `template_id` → [`templates`](#templates) (`tenant_id`, `id`)
-- `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
-
-| Policy | For | To | Using | With check |
-| --- | --- | --- | --- | --- |
-| `playbooks_acting_delete` | delete | authenticated | `(is_acting_member(tenant_id) AND (kind = 'moment'::text))` |  |
-| `playbooks_acting_insert` | insert | authenticated |  | `(is_acting_member(tenant_id) AND (created_by = auth.uid()) AND (kind = 'moment'::text) AND ((list_id IS NULL) OR (EXISTS ( SELECT 1 FROM segments s WHERE ((s.i…` |
-| `playbooks_acting_update` | update | authenticated | `is_acting_member(tenant_id)` | `(is_acting_member(tenant_id) AND ((list_id IS NULL) OR (EXISTS ( SELECT 1 FROM segments s WHERE ((s.id = playbooks.list_id) AND (s.tenant_id = playbooks.tenant…` |
-| `playbooks_member_select` | select | authenticated | `(tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE (m.user_id = auth.uid())))` |  |
-
 ### policies
 
 - Owned by: `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/workspace-export.ts`
@@ -2588,129 +2461,6 @@ Reach out, Part 4: the check's model attempts per workspace and UTC day, under c
 Foreign keys:
 
 - `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
-
-### reach_out_replies
-
-Reach out Part 5: one reading of one reply to a reach-out, keyed by the message (G3). The intent (or other, with why it could not be read), what the reading did (plan, with what it changed for the undo), the notice's two marks (B2), and the undo. Written by the service role's doors (reach_out_reply_apply, _draft, _tell_claim, _told) and the member's undo (reach_out_reply_undo) only.
-
-- Owned by: `packages/db/src/repositories/outreach.ts`, `packages/db/src/repositories/people.ts`, `packages/db/src/repositories/workspace-export.ts`
-- Primary key: `message_id`
-- Row-level security: on, 1 policy
-
-| Column | Type | Null | Default | Note |
-| --- | --- | --- | --- | --- |
-| `message_id` | uuid | no |  |  |
-| `tenant_id` | uuid | no |  |  |
-| `conversation_id` | uuid | no |  |  |
-| `contact_id` | uuid | yes |  |  |
-| `lead_id` | uuid | yes |  |  |
-| `lead_contact_id` | uuid | yes |  |  |
-| `send_id` | uuid | yes |  |  |
-| `answered_message_id` | uuid | yes |  |  |
-| `claim` | text | no |  |  |
-| `intent` | text | no |  |  |
-| `summary` | text | yes |  |  |
-| `named_day` | date | yes |  |  |
-| `refer_to` | text | yes |  |  |
-| `unread` | text | yes |  |  |
-| `rereads` | integer | no | `0` |  |
-| `reread_at` | timestamp with time zone | yes |  |  |
-| `until_at` | timestamp with time zone | yes |  |  |
-| `plan` | jsonb | no | `'{}'::jsonb` |  |
-| `draft` | text | yes |  |  |
-| `draft_state` | text | no | `'none'::text` |  |
-| `draft_why` | text | yes |  |  |
-| `tell_claimed_at` | timestamp with time zone | yes |  |  |
-| `told_at` | timestamp with time zone | yes |  |  |
-| `read_at` | timestamp with time zone | no | `now()` |  |
-| `undone_at` | timestamp with time zone | yes |  |  |
-| `undone_by` | uuid | yes |  |  |
-| `signer_name` | text | yes |  | Who signed the reply, as the reading found it in the writer's own lines and the human-name gate let it through (contracts signerOf, 0052); null when nobody did. Cleared when the person is erased. |
-| `signer_title` | text | yes |  |  |
-| `signer_state` | text | yes |  | What became of the signer's name (0052): offered (the notice "Use this name"), adopted (by a member's press or automatically), declined, or undone. |
-| `signer_was` | text | yes |  |  |
-| `signer_settled_at` | timestamp with time zone | yes |  |  |
-| `signer_settled_by` | uuid | yes |  |  |
-| `said_by` | uuid | yes |  | For a reading its owner gave (claim owner, 00429): the member who said what the business wrote back. Its message_id is the note that says so on the person's thread (reach_out_reply_said). |
-
-Foreign keys:
-
-- `tenant_id`, `answered_message_id` → [`messages`](#messages) (`tenant_id`, `id`), on delete set null
-- `tenant_id`, `contact_id` → [`contacts`](#contacts) (`tenant_id`, `id`), on delete set null
-- `tenant_id`, `conversation_id` → [`conversations`](#conversations) (`tenant_id`, `id`), on delete cascade
-- `tenant_id`, `lead_contact_id` → [`contacts`](#contacts) (`tenant_id`, `id`), on delete set null
-- `tenant_id`, `lead_id` → [`leads`](#leads) (`tenant_id`, `id`), on delete set null
-- `tenant_id`, `message_id` → [`messages`](#messages) (`tenant_id`, `id`), on delete cascade
-- `said_by` → `auth.users` (`id`), on delete set null
-- `tenant_id`, `send_id` → [`reach_out_sends`](#reach_out_sends) (`tenant_id`, `id`), on delete set null
-- `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
-- `undone_by` → `auth.users` (`id`), on delete set null
-
-| Policy | For | To | Using | With check |
-| --- | --- | --- | --- | --- |
-| `reach_out_replies_member_select` | select | authenticated | `(tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE (m.user_id = auth.uid())))` |  |
-
-### reach_out_sends
-
-Reach out: one lead in one step's run. Planned (a time and a domain), claimed under the domain's capacity, queued as an email row with its outbound_send job, then what that row became. Written by the service role only (the reach-out clock, apps/edge/lib/reach-out).
-
-- Owned by: `packages/db/src/repositories/campaigns/reach-out-check.ts`, `packages/db/src/repositories/campaigns/reach-out-drafts.ts`, `packages/db/src/repositories/outreach.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`
-- Primary key: `id`
-- Row-level security: on, 1 policy
-
-| Column | Type | Null | Default | Note |
-| --- | --- | --- | --- | --- |
-| `id` | uuid | no |  |  |
-| `tenant_id` | uuid | no |  |  |
-| `broadcast_id` | uuid | no |  |  |
-| `playbook_id` | uuid | yes |  |  |
-| `root_id` | uuid | no |  |  |
-| `lead_id` | uuid | no |  |  |
-| `contact_id` | uuid | yes |  |  |
-| `domain_id` | uuid | yes |  | Retired (decision 0056): the sending domain a send left from on the cold Resend lane. Nothing writes it now; mailbox_id is the send's. |
-| `send_at` | timestamp with time zone | yes |  |  |
-| `state` | text | no | `'planned'::text` |  |
-| `reason` | text | yes |  |  |
-| `attempts` | integer | no | `0` |  |
-| `message_id` | uuid | yes |  |  |
-| `claimed_at` | timestamp with time zone | yes |  |  |
-| `sent_at` | timestamp with time zone | yes |  |  |
-| `created_at` | timestamp with time zone | no | `now()` |  |
-| `updated_at` | timestamp with time zone | no | `now()` |  |
-| `opening` | text | yes |  |  |
-| `angle` | text | yes |  |  |
-| `facts_used` | text[] | no | `'{}'::text[]` |  |
-| `checked_at` | timestamp with time zone | yes |  |  |
-| `check_tries` | integer | no | `0` |  |
-| `hold_detail` | text | yes |  |  |
-| `check_after` | timestamp with time zone | yes |  |  |
-| `check_started_at` | timestamp with time zone | yes |  |  |
-| `check_first_at` | timestamp with time zone | yes |  |  |
-| `check_gen` | integer | no | `0` |  |
-| `checked_words` | text | yes |  |  |
-| `included_for` | text[] | no | `'{}'::text[]` |  |
-| `mailbox_id` | uuid | yes |  | The mailbox this send leaves from (00424): planned with it, claimed under its day, and kept by its lead for the whole chain. Null for a skipped send, or once its mailbox is gone. |
-| `drafted_at` | timestamp with time zone | yes |  | When this send was handed to its owner, written and checked (00429): its fourteen days to be sent start here. |
-| `draft` | jsonb | yes |  | The email handed to the owner (00429): {to, subject, body, text, parent_id?}, the words with their values in and, in text, with the foot. What the Sent door writes as the email. |
-| `said_at` | timestamp with time zone | yes |  | When the owner said this drafted email went, or did not (00429). |
-| `said_by` | uuid | yes |  | The member who said it (00429). |
-
-Foreign keys:
-
-- `tenant_id`, `broadcast_id` → [`broadcasts`](#broadcasts) (`tenant_id`, `id`), on delete cascade
-- `tenant_id`, `contact_id` → [`contacts`](#contacts) (`tenant_id`, `id`), on delete set null
-- `tenant_id`, `domain_id` → [`sending_domains`](#sending_domains) (`tenant_id`, `id`), on delete set null
-- `tenant_id`, `lead_id` → [`leads`](#leads) (`tenant_id`, `id`), on delete cascade
-- `tenant_id`, `mailbox_id` → [`mailbox_connections`](#mailbox_connections) (`tenant_id`, `id`), on delete set null
-- `tenant_id`, `message_id` → [`messages`](#messages) (`tenant_id`, `id`), on delete set null
-- `tenant_id`, `playbook_id` → [`playbooks`](#playbooks) (`tenant_id`, `id`), on delete set null
-- `tenant_id`, `root_id` → [`playbooks`](#playbooks) (`tenant_id`, `id`), on delete cascade
-- `said_by` → `auth.users` (`id`), on delete set null
-- `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
-
-| Policy | For | To | Using | With check |
-| --- | --- | --- | --- | --- |
-| `reach_out_sends_member_select` | select | authenticated | `(tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE (m.user_id = auth.uid())))` |  |
 
 ### reply_turns
 
@@ -2862,6 +2612,312 @@ Foreign keys:
 | Policy | For | To | Using | With check |
 | --- | --- | --- | --- | --- |
 | `sending_domains_member_select` | select | authenticated | `(tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE (m.user_id = auth.uid())))` |  |
+
+### sequence_batches
+
+Decision 0060: what goes at one time in a sequence, the unit a person approves (broadcasts until 00439): a step's run for a day (run_for), or a one-off's only batch.
+
+- Owned by: `packages/db/src/events.ts`, `packages/db/src/repositories/campaigns/calendar-runs.ts`, `packages/db/src/repositories/campaigns/campaign-channels.ts`, `packages/db/src/repositories/campaigns/email-offers.ts`, `packages/db/src/repositories/campaigns/reach-out-drafts.ts`, `packages/db/src/repositories/campaigns/sequences.ts`, `packages/db/src/repositories/campaigns/stranded-runs.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/touches.ts`, `packages/db/src/repositories/workspace-export.ts`
+- Primary key: `id`
+- Row-level security: on, 1 policy
+
+| Column | Type | Null | Default | Note |
+| --- | --- | --- | --- | --- |
+| `id` | uuid | no | `gen_random_uuid()` |  |
+| `tenant_id` | uuid | no |  |  |
+| `name` | text | no |  |  |
+| `template_id` | uuid | yes |  |  |
+| `template_name` | text | yes |  |  |
+| `template_language` | text | yes |  |  |
+| `params` | jsonb | no | `'[]'::jsonb` |  |
+| `audience` | jsonb | no | `'{}'::jsonb` |  |
+| `state` | text | no | `'scheduled'::text` |  |
+| `scheduled_for` | timestamp with time zone | no |  |  |
+| `started_at` | timestamp with time zone | yes |  |  |
+| `finished_at` | timestamp with time zone | yes |  |  |
+| `recipient_count` | integer | no | `0` |  |
+| `failure` | text | yes |  |  |
+| `created_by` | uuid | yes |  |  |
+| `created_at` | timestamp with time zone | no | `now()` |  |
+| `updated_at` | timestamp with time zone | no | `now()` |  |
+| `step_id` | uuid | yes |  |  |
+| `run_for` | date | yes |  |  |
+| `channels` | text[] | no | `'{whatsapp}'::text[]` | The channels this run ticked (whatsapp, sms, email, each once, at least one), written whole with its people by assemble_broadcast. WhatsApp alone by default, as every run was before (00298). |
+| `sequence_id` | uuid | no |  | The sequence this batch is a day of (0060): its step's, or a one-off's own id. |
+
+Foreign keys:
+
+- `created_by` → `auth.users` (`id`), on delete set null
+- `tenant_id`, `sequence_id` → [`sequences`](#sequences) (`tenant_id`, `id`), on delete cascade
+- `tenant_id`, `step_id` → [`sequence_steps`](#sequence_steps) (`tenant_id`, `id`), on delete set null
+- `tenant_id`, `template_id` → [`templates`](#templates) (`tenant_id`, `id`)
+- `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
+
+| Policy | For | To | Using | With check |
+| --- | --- | --- | --- | --- |
+| `sequence_batches_member_select` | select | authenticated | `(tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE (m.user_id = auth.uid())))` |  |
+
+### sequence_enrollments
+
+Decision 0060: someone in a sequence. In while a step of theirs is to come; done when the last one went; left, with why (the reason of the send that went nowhere, booked, replied, removed). Kept by their sends as each is written and moves (sequence_sends_move_enrollment), and by the leave door. A customer enters again on a first step's send of a new occasion; a lead enters once.
+
+- Owned by: `packages/db/src/repositories/campaigns/sequences.ts`
+- Primary key: `id`
+- Row-level security: on, 1 policy
+
+| Column | Type | Null | Default | Note |
+| --- | --- | --- | --- | --- |
+| `id` | uuid | no | `gen_random_uuid()` |  |
+| `tenant_id` | uuid | no |  |  |
+| `sequence_id` | uuid | no |  |  |
+| `contact_id` | uuid | yes |  |  |
+| `lead_id` | uuid | yes |  |  |
+| `state` | text | no | `'in'::text` |  |
+| `place` | integer | no | `1` |  |
+| `sent_at` | timestamp with time zone | yes |  | When their last step went. |
+| `next_at` | timestamp with time zone | yes |  | A customer's sequence: when their next step is due (their last step's send and the next step's wait). Null when none is. |
+| `why` | text | yes |  |  |
+| `left_by` | uuid | yes |  |  |
+| `entered_at` | timestamp with time zone | no | `now()` |  |
+| `moved_at` | timestamp with time zone | no | `now()` |  |
+| `ended_at` | timestamp with time zone | yes |  |  |
+
+Foreign keys:
+
+- `tenant_id`, `contact_id` → [`contacts`](#contacts) (`tenant_id`, `id`), on delete cascade
+- `tenant_id`, `lead_id` → [`leads`](#leads) (`tenant_id`, `id`), on delete cascade
+- `left_by` → `auth.users` (`id`), on delete set null
+- `tenant_id`, `sequence_id` → [`sequences`](#sequences) (`tenant_id`, `id`), on delete cascade
+- `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
+
+| Policy | For | To | Using | With check |
+| --- | --- | --- | --- | --- |
+| `sequence_enrollments_member_select` | select | authenticated | `(tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE (m.user_id = auth.uid())))` |  |
+
+### sequence_replies
+
+Decision 0060: one reading of one reply to a sequence's send, keyed by the message (reach_out_replies until 00439). The intent (or other, with why it could not be read), what the reading did (plan), and the draft it wrote.
+
+- Owned by: `packages/db/src/repositories/outreach.ts`, `packages/db/src/repositories/people.ts`, `packages/db/src/repositories/workspace-export.ts`
+- Primary key: `message_id`
+- Row-level security: on, 1 policy
+
+| Column | Type | Null | Default | Note |
+| --- | --- | --- | --- | --- |
+| `message_id` | uuid | no |  |  |
+| `tenant_id` | uuid | no |  |  |
+| `conversation_id` | uuid | no |  |  |
+| `contact_id` | uuid | yes |  |  |
+| `lead_id` | uuid | yes |  |  |
+| `lead_contact_id` | uuid | yes |  |  |
+| `send_id` | uuid | yes |  |  |
+| `answered_message_id` | uuid | yes |  |  |
+| `claim` | text | no |  |  |
+| `intent` | text | no |  |  |
+| `summary` | text | yes |  |  |
+| `named_day` | date | yes |  |  |
+| `refer_to` | text | yes |  |  |
+| `unread` | text | yes |  |  |
+| `rereads` | integer | no | `0` |  |
+| `reread_at` | timestamp with time zone | yes |  |  |
+| `until_at` | timestamp with time zone | yes |  |  |
+| `plan` | jsonb | no | `'{}'::jsonb` |  |
+| `draft` | text | yes |  |  |
+| `draft_state` | text | no | `'none'::text` |  |
+| `draft_why` | text | yes |  |  |
+| `tell_claimed_at` | timestamp with time zone | yes |  |  |
+| `told_at` | timestamp with time zone | yes |  |  |
+| `read_at` | timestamp with time zone | no | `now()` |  |
+| `undone_at` | timestamp with time zone | yes |  |  |
+| `undone_by` | uuid | yes |  |  |
+| `signer_name` | text | yes |  | Who signed the reply, as the reading found it in the writer's own lines and the human-name gate let it through (contracts signerOf, 0052); null when nobody did. Cleared when the person is erased. |
+| `signer_title` | text | yes |  |  |
+| `signer_state` | text | yes |  | What became of the signer's name (0052): offered (the notice "Use this name"), adopted (by a member's press or automatically), declined, or undone. |
+| `signer_was` | text | yes |  |  |
+| `signer_settled_at` | timestamp with time zone | yes |  |  |
+| `signer_settled_by` | uuid | yes |  |  |
+| `said_by` | uuid | yes |  | For a reading its owner gave (claim owner, 00429): the member who said what the business wrote back. Its message_id is the note that says so on the person's thread (reach_out_reply_said). |
+
+Foreign keys:
+
+- `tenant_id`, `answered_message_id` → [`messages`](#messages) (`tenant_id`, `id`), on delete set null
+- `tenant_id`, `contact_id` → [`contacts`](#contacts) (`tenant_id`, `id`), on delete set null
+- `tenant_id`, `conversation_id` → [`conversations`](#conversations) (`tenant_id`, `id`), on delete cascade
+- `tenant_id`, `lead_contact_id` → [`contacts`](#contacts) (`tenant_id`, `id`), on delete set null
+- `tenant_id`, `lead_id` → [`leads`](#leads) (`tenant_id`, `id`), on delete set null
+- `tenant_id`, `message_id` → [`messages`](#messages) (`tenant_id`, `id`), on delete cascade
+- `said_by` → `auth.users` (`id`), on delete set null
+- `tenant_id`, `send_id` → [`sequence_sends`](#sequence_sends) (`tenant_id`, `id`), on delete set null
+- `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
+- `undone_by` → `auth.users` (`id`), on delete set null
+
+| Policy | For | To | Using | With check |
+| --- | --- | --- | --- | --- |
+| `sequence_replies_member_select` | select | authenticated | `(tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE (m.user_id = auth.uid())))` |  |
+
+### sequence_sends
+
+Decision 0060: one message of a sequence to one person. A customer's (contact_id, no lead_id): queued, then sent, skipped or failed, once. A lead's (lead_id): planned (a time and a mailbox), held while its check doubts it, claimed under the mailbox's day, queued as an email or drafted for its owner, then sent, skipped, failed or handed to the team.
+
+- Owned by: `packages/db/src/repositories/campaigns/campaign-channels.ts`, `packages/db/src/repositories/campaigns/reach-out-check.ts`, `packages/db/src/repositories/campaigns/reach-out-drafts.ts`, `packages/db/src/repositories/outreach.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/touches.ts`, `packages/db/src/repositories/workspace-export.ts`
+- Primary key: `id`
+- Row-level security: on, 2 policies
+
+| Column | Type | Null | Default | Note |
+| --- | --- | --- | --- | --- |
+| `id` | uuid | no | `gen_random_uuid()` |  |
+| `tenant_id` | uuid | no |  |  |
+| `sequence_id` | uuid | no |  |  |
+| `step_id` | uuid | yes |  |  |
+| `batch_id` | uuid | no |  |  |
+| `contact_id` | uuid | yes |  |  |
+| `lead_id` | uuid | yes |  |  |
+| `state` | text | no |  |  |
+| `reason` | text | yes |  |  |
+| `attempts` | integer | no | `0` | A customer's send: how many times it was claimed and given back (throttled, not_taken), counted by the guard. A lead's: how many times the clock tried it. |
+| `message_id` | uuid | yes |  |  |
+| `sent_at` | timestamp with time zone | yes |  |  |
+| `facts` | jsonb | yes |  | A customer's send: the words its batch resolved for them when it was made (a visit's time and service); the send fills the message's slots from them. Cleared when the person is erased. |
+| `channel` | text | yes |  | The channel this person is reached on, picked once at enrolment (contracts' reachFor) from the batch's channels. Null: a send kept from before the channels, which went by WhatsApp. |
+| `created_at` | timestamp with time zone | no | `now()` |  |
+| `updated_at` | timestamp with time zone | no | `now()` |  |
+| `domain_id` | uuid | yes |  | Retired (decision 0056): the sending domain a lead's send left from on the cold Resend lane. Nothing writes it now; mailbox_id is the send's. |
+| `send_at` | timestamp with time zone | yes |  |  |
+| `claimed_at` | timestamp with time zone | yes |  |  |
+| `opening` | text | yes |  |  |
+| `angle` | text | yes |  |  |
+| `facts_used` | text[] | no | `'{}'::text[]` |  |
+| `checked_at` | timestamp with time zone | yes |  |  |
+| `check_tries` | integer | no | `0` |  |
+| `hold_detail` | text | yes |  |  |
+| `check_after` | timestamp with time zone | yes |  |  |
+| `check_started_at` | timestamp with time zone | yes |  |  |
+| `check_first_at` | timestamp with time zone | yes |  |  |
+| `check_gen` | integer | no | `0` |  |
+| `checked_words` | text | yes |  |  |
+| `included_for` | text[] | no | `'{}'::text[]` |  |
+| `mailbox_id` | uuid | yes |  | A lead's send: the mailbox it leaves from (00424), planned with it, claimed under its day, and kept by its lead for the whole sequence. |
+| `drafted_at` | timestamp with time zone | yes |  | A lead's send handed to its owner, written and checked (00429): its fourteen days to be sent start here. |
+| `draft` | jsonb | yes |  | The email handed to the owner (00429): {to, subject, body, text, parent_id?}, the words with their values in and, in text, with the foot. |
+| `said_at` | timestamp with time zone | yes |  | When the owner said this drafted email went, or did not (00429). |
+| `said_by` | uuid | yes |  | The member who said it (00429). |
+
+Foreign keys:
+
+- `tenant_id`, `batch_id` → [`sequence_batches`](#sequence_batches) (`tenant_id`, `id`), on delete cascade
+- `tenant_id`, `contact_id` → [`contacts`](#contacts) (`tenant_id`, `id`), on delete cascade
+- `tenant_id`, `domain_id` → [`sending_domains`](#sending_domains) (`tenant_id`, `id`), on delete set null
+- `tenant_id`, `lead_id` → [`leads`](#leads) (`tenant_id`, `id`), on delete cascade
+- `tenant_id`, `mailbox_id` → [`mailbox_connections`](#mailbox_connections) (`tenant_id`, `id`), on delete set null
+- `tenant_id`, `message_id` → [`messages`](#messages) (`tenant_id`, `id`), on delete set null
+- `said_by` → `auth.users` (`id`), on delete set null
+- `tenant_id`, `sequence_id` → [`sequences`](#sequences) (`tenant_id`, `id`), on delete cascade
+- `tenant_id`, `step_id` → [`sequence_steps`](#sequence_steps) (`tenant_id`, `id`), on delete set null
+- `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
+
+| Policy | For | To | Using | With check |
+| --- | --- | --- | --- | --- |
+| `sequence_sends_acting_insert` | insert | authenticated |  | `(is_acting_member(tenant_id) AND (lead_id IS NULL) AND (EXISTS ( SELECT 1 FROM sequence_batches b WHERE ((b.id = sequence_sends.batch_id) AND (b.tenant_id = se…` |
+| `sequence_sends_member_select` | select | authenticated | `(tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE (m.user_id = auth.uid())))` |  |
+
+### sequence_steps
+
+Decision 0060: each step of a sequence in its place (playbooks until 00439). A step is one message (a template, on the channels it ticks) or, last in a sequence to leads, a call or note for the team (hand).
+
+- Owned by: `packages/db/src/events.ts`, `packages/db/src/repositories/campaigns/calendar-runs.ts`, `packages/db/src/repositories/campaigns/campaign-channels.ts`, `packages/db/src/repositories/campaigns/sequences.ts`, `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/lists.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/workspace-export.ts`, `packages/db/src/sweeps.ts`
+- Primary key: `id`
+- Row-level security: on, 4 policies
+
+| Column | Type | Null | Default | Note |
+| --- | --- | --- | --- | --- |
+| `id` | uuid | no | `gen_random_uuid()` |  |
+| `tenant_id` | uuid | no |  |  |
+| `name` | text | no |  |  |
+| `trigger` | text | no |  |  |
+| `template_id` | uuid | yes |  |  |
+| `template_name` | text | yes |  |  |
+| `template_language` | text | yes |  |  |
+| `params` | jsonb | no | `'[]'::jsonb` |  |
+| `policy_class` | text | no |  |  |
+| `state` | text | no | `'running'::text` |  |
+| `run_hour` | integer | no | `10` |  |
+| `cap_per_run` | integer | no | `25` |  |
+| `gap_days` | integer | no | `90` |  |
+| `cadence_days` | integer | no | `30` |  |
+| `created_by` | uuid | yes |  |  |
+| `last_run_for` | date | yes |  |  |
+| `last_run_at` | timestamp with time zone | yes |  |  |
+| `created_at` | timestamp with time zone | no | `now()` |  |
+| `updated_at` | timestamp with time zone | no | `now()` |  |
+| `list_id` | uuid | yes |  | The list of the workspace's own a saved_list playbook runs on. A list a playbook names is archived, never deleted (0009): the playbook pauses and keeps it. |
+| `list_key` | text | yes |  | The People list a saved_list playbook runs on, by its id (contracts lists.ts BUILTIN_LISTS). Null when it runs on one of the workspace's own lists (list_id), and for every other trigger. |
+| `kind` | text | no | `'moment'::text` |  |
+| `lead_search_id` | uuid | yes |  |  |
+| `after_step_id` | uuid | yes |  |  |
+| `after_days` | integer | yes |  |  |
+| `gap_minutes` | integer | yes |  |  |
+| `domain_ids` | uuid[] | no | `'{}'::uuid[]` | Retired (decision 0056): the sending domains a chain wrote from. reach_out_save empties it; mailbox_ids is the chain's. |
+| `signed_by` | text | yes |  |  |
+| `include_unconfirmed` | boolean | no | `false` |  |
+| `hand` | jsonb | yes |  | A reach-out's last step that hands each lead it reaches to the team (Reach out Part 5, G20): {kind: call \| note, words}. Such a step has no template. |
+| `channels` | text[] | no | `'{whatsapp}'::text[]` | The channels this campaign may go by (whatsapp, sms, email, each once, at least one): the composer's ticks. Each person is reached once, on one of them (contracts' reachFor). WhatsApp alone by default, as every campaign was before (00298). |
+| `until` | date | yes |  | The last day this campaign runs, on the business's clock: a run on a day past it sends nothing. Null: it runs until it is paused (00416). |
+| `trial_until` | timestamp with time zone | yes |  | Until when this campaign runs on trial: before it, a run its policy would send by itself (auto) waits for a person (veto). Null: no trial (00416). |
+| `mailbox_ids` | uuid[] | no | `'{}'::uuid[]` | A reach-out step's mailboxes (00424): the ones its owner picked, or none for every connected one of its workspace. |
+| `owner_sends` | boolean | no | `false` | A reach-out's root (00429): its owner sends its emails from their own inbox, each handed to them written and checked (state drafted), rather than its mailboxes (mailbox_ids). Its steps read it from the root. |
+| `sequence_id` | uuid | no |  | The sequence this step is part of (0060); the first step's own id. |
+| `place` | integer | no |  | Where this step stands in its sequence: 1 is the first, each after_step_id one more. |
+| `only_if` | text[] | no | `'{}'::text[]` | A customer's step after the first (D6): what must still hold of the person when it is due, else they leave the sequence: no_booking (no appointment ahead of them), no_reply (nothing written since the step before went). Empty: it goes to everyone due. |
+| `next_template_id` | uuid | yes |  | New words for this step that wait for WhatsApp to approve them (0060): the step keeps sending its message (template_*) until WhatsApp approves these, which then become its message. Null: nothing waits. |
+| `next_template_name` | text | yes |  |  |
+| `next_template_language` | text | yes |  |  |
+| `next_params` | jsonb | yes |  |  |
+
+Foreign keys:
+
+- `tenant_id`, `after_step_id` → [`sequence_steps`](#sequence_steps) (`tenant_id`, `id`), on delete cascade
+- `created_by` → `auth.users` (`id`), on delete set null
+- `tenant_id`, `list_id` → [`segments`](#segments) (`tenant_id`, `id`)
+- `tenant_id`, `next_template_id` → [`templates`](#templates) (`tenant_id`, `id`), on delete set null
+- `tenant_id`, `lead_search_id` → [`lead_searches`](#lead_searches) (`tenant_id`, `id`), on delete restrict
+- `tenant_id`, `sequence_id` → [`sequences`](#sequences) (`tenant_id`, `id`), on delete cascade
+- `tenant_id`, `template_id` → [`templates`](#templates) (`tenant_id`, `id`)
+- `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
+
+| Policy | For | To | Using | With check |
+| --- | --- | --- | --- | --- |
+| `sequence_steps_acting_delete` | delete | authenticated | `(is_acting_member(tenant_id) AND (kind = 'moment'::text))` |  |
+| `sequence_steps_acting_insert` | insert | authenticated |  | `(is_acting_member(tenant_id) AND (created_by = auth.uid()) AND (kind = 'moment'::text) AND ((list_id IS NULL) OR (EXISTS ( SELECT 1 FROM segments s WHERE ((s.i…` |
+| `sequence_steps_acting_update` | update | authenticated | `is_acting_member(tenant_id)` | `(is_acting_member(tenant_id) AND ((list_id IS NULL) OR (EXISTS ( SELECT 1 FROM segments s WHERE ((s.id = sequence_steps.list_id) AND (s.tenant_id = sequence_st…` |
+| `sequence_steps_member_select` | select | authenticated | `(tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE (m.user_id = auth.uid())))` |  |
+
+### sequences
+
+Decision 0060: anything that sends on its own. How it starts (moment: a moment of a customer's journey; list: someone joins a list; leads: a lead joins a list; date: once, on a date), its name, and whether it is on. Its first step (sequence_steps) shares its id, and so does a one-off's only batch.
+
+- Owned by: `packages/db/src/repositories/campaigns/sequences.ts`
+- Primary key: `id`
+- Row-level security: on, 1 policy
+
+| Column | Type | Null | Default | Note |
+| --- | --- | --- | --- | --- |
+| `id` | uuid | no | `gen_random_uuid()` |  |
+| `tenant_id` | uuid | no |  |  |
+| `name` | text | no |  |  |
+| `starts` | text | no |  |  |
+| `state` | text | no | `'on'::text` | draft: not started; on: it runs; paused: it waits; ended: it sends no more, its history kept (a one-off that went, a sequence whose steps were removed after it sent). |
+| `created_by` | uuid | yes |  |  |
+| `created_at` | timestamp with time zone | no | `now()` |  |
+| `updated_at` | timestamp with time zone | no | `now()` |  |
+
+Foreign keys:
+
+- `created_by` → `auth.users` (`id`), on delete set null
+- `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
+
+| Policy | For | To | Using | With check |
+| --- | --- | --- | --- | --- |
+| `sequences_member_select` | select | authenticated | `(tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE (m.user_id = auth.uid())))` |  |
 
 ### sweep_status
 
@@ -3053,9 +3109,39 @@ Foreign keys:
 
 Each view's definition is in `supabase/schema.sql`.
 
+### broadcast_recipients
+
+Decision 0060: a customer's sequence_sends under its old name, while the code moves (step S6 drops it).
+
+- Owned by: none
+
+### broadcasts
+
+Decision 0060: sequence_batches under its old name, while the code moves (step S6 drops it).
+
+- Owned by: none
+
 ### lead_searches_view
 
 Every column of lead_searches with its latest round (round_id, seq, purpose, state, ending, ending_pending, question, answered, target, plan_version, judge_tokens, cost_usd -- what that round has spent, so cost per Qualified lead is read from here -- waiting_since and ended_at) and its counts over the members: qualified, review, excluded, counted, emails_checked (a qualified lead whose address was checked and answered) and with_phone (a qualified lead with a number nobody has marked wrong). Excluded members stay counted after their details are blanked, so "40 left out" stays 40. undo_op_id and undo_version name the operation this search's Undo takes while its twenty-four hours run, and are null once it is undone or the day is out. nearby (00145): where to look next when the round ran dry, the nearest ZIP centres past its area, nearest first; [] otherwise. strong, look and long (00146): the qualified members by fit band, for the band bar over the table. thread_id (00172): the Ask thread the search was planned in, or null.
+
+- Owned by: none
+
+### playbooks
+
+Decision 0060: sequence_steps under its old name, while the code moves (step S6 drops it).
+
+- Owned by: none
+
+### reach_out_replies
+
+Decision 0060: sequence_replies under its old name, while the code moves (step S6 drops it).
+
+- Owned by: none
+
+### reach_out_sends
+
+Decision 0060: a lead's sequence_sends under its old name, while the code moves (step S6 drops it).
 
 - Owned by: none
 

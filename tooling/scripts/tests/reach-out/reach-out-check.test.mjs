@@ -324,7 +324,7 @@ function world({ sends = [], records = {}, billing = "active", monthSent = 0, sp
     tables,
     {},
     {
-      reach_out_unchecked: (a) => {
+      sequence_unchecked: (a) => {
         const now = new Date().toISOString();
         const free = (s) =>
           s.state === "planned" &&
@@ -345,7 +345,13 @@ function world({ sends = [], records = {}, billing = "active", monthSent = 0, sp
           leased.push(s.id);
         }
         return picked.map((s) => ({
-          send: { ...s },
+          // As sequence_sends holds it (00439): what sequence_unchecked hands back since 00440.
+          send: (({ broadcast_id, playbook_id, root_id, ...x }) => ({
+            ...x,
+            batch_id: broadcast_id,
+            step_id: playbook_id,
+            sequence_id: root_id,
+          }))(s),
           check_gen: s.check_gen,
           template_id: TPL,
           template_language: "en",

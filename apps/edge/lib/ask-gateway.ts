@@ -205,6 +205,8 @@ export const GATEWAY_PURPOSES = [
   "lead_suggest",
   "list_draft",
   "person_draft",
+  // A new sequence drafted from the owner's line (decision 0060, S4): the small JSON route, as the other drafts.
+  "sequence_draft",
 ] as const;
 export type GatewayPurpose = (typeof GATEWAY_PURPOSES)[number];
 /** Whether a purpose is Ask's own: its turn, or a turn's warm. */

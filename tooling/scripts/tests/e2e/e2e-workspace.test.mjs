@@ -1564,7 +1564,7 @@ test("the eval's Win-back (the moment spec, A8): written only under --seed-win-b
   // Paused, the hourly sweep never takes it: at its hour it is not due, where the same campaign running would be.
   const due = async () =>
     (
-      await w.db.rpc("playbooks_due", {
+      await w.db.rpc("sequence_steps_due", {
         p_kind: "moment",
         p_at: new Date(NOW + 6 * 3_600_000).toISOString(),
         p_last_hour: 20,

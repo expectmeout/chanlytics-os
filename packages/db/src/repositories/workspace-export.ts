@@ -140,9 +140,9 @@ function recordSections(
     campaigns: (offset, limit) =>
       sectionRows(
         db
-          .from("playbooks")
+          .from("sequence_steps")
           .select(
-            "id, name, kind, trigger, state, template_id, template_name, template_language, params, hand, policy_class, channels, run_hour, cap_per_run, gap_days, cadence_days, gap_minutes, until, list_id, list_key, lead_search_id, after_playbook_id, after_days, signed_by, include_unconfirmed, last_run_for, last_run_at, created_by, created_at, updated_at",
+            "id, name, kind, trigger, state, template_id, template_name, template_language, params, hand, policy_class, channels, run_hour, cap_per_run, gap_days, cadence_days, gap_minutes, until, list_id, list_key, lead_search_id, after_playbook_id:after_step_id, after_days, signed_by, include_unconfirmed, last_run_for, last_run_at, created_by, created_at, updated_at",
           )
           .eq("tenant_id", tenantId)
           .order("created_at", { ascending: true })
@@ -162,9 +162,9 @@ function sendSections(
     sends: (offset, limit) =>
       sectionRows(
         db
-          .from("broadcasts")
+          .from("sequence_batches")
           .select(
-            "id, name, playbook_id, run_for, template_id, template_name, template_language, params, audience, channels, state, scheduled_for, started_at, finished_at, recipient_count, failure, created_by, created_at, updated_at",
+            "id, name, playbook_id:step_id, run_for, template_id, template_name, template_language, params, audience, channels, state, scheduled_for, started_at, finished_at, recipient_count, failure, created_by, created_at, updated_at",
           )
           .eq("tenant_id", tenantId)
           .order("created_at", { ascending: true })
@@ -233,7 +233,7 @@ function sendSections(
     reach_out_replies: (offset, limit) =>
       sectionRows(
         db
-          .from("reach_out_replies")
+          .from("sequence_replies")
           .select(REPLY_COLUMNS)
           .eq("tenant_id", tenantId)
           .order("read_at", { ascending: true })
@@ -380,18 +380,19 @@ function personSendSections(
   });
   return {
     // Each campaign run that named them: what became of their line (sent, skipped and why, failed), on which channel,
-    // the words it filled in for them, and the run it was. A run names a person once (broadcast_recipients_pkey), so the
-    // run's id orders them.
+    // the words it filled in for them, and the run it was. A run names a person once (sequence_sends_person_once), so the
+    // run's id orders them. The file keeps the names it has always had (broadcast_id, broadcasts, playbook_id).
     sends: (offset, limit) =>
       sectionRows(
         db
-          .from("broadcast_recipients")
+          .from("sequence_sends")
           .select(
-            "broadcast_id, state, reason, channel, sent_at, message_id, facts, broadcasts (name, playbook_id, run_for, template_name, template_language, scheduled_for, started_at)",
+            "broadcast_id:batch_id, state, reason, channel, sent_at, message_id, facts, broadcasts:sequence_batches (name, playbook_id:step_id, run_for, template_name, template_language, scheduled_for, started_at)",
           )
           .eq("tenant_id", tenantId)
           .eq("contact_id", contactId)
-          .order("broadcast_id", { ascending: true })
+          .is("lead_id", null)
+          .order("batch_id", { ascending: true })
           .range(offset, last(offset, limit)),
       ),
     holds: async (offset, limit) => {
@@ -438,7 +439,7 @@ function personSendSections(
     reach_out_replies: (offset, limit) =>
       sectionRows(
         db
-          .from("reach_out_replies")
+          .from("sequence_replies")
           .select(REPLY_COLUMNS)
           .eq("tenant_id", tenantId)
           .eq("contact_id", contactId)

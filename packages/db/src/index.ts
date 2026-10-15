@@ -321,6 +321,24 @@ export type { MemberAlertsRow } from "./repositories/notices/member-alerts";
 export { threadIdsWaitingOnYou } from "./repositories/waiting-on-you";
 export { reviewLinkOf, workspacePaused } from "./repositories/campaigns/workspace";
 export { momentSchedules, runsInSpan } from "./repositories/campaigns/calendar-runs";
+export {
+  followUpsDue,
+  leaveSequence,
+  sequenceRow,
+  sequenceOverview,
+  sequenceStepsOf,
+  sequencePeopleOf,
+  sequenceHistoryOf,
+  saveSequenceStep,
+  removeSequenceStep,
+  setSequenceStepWords,
+  takeOutOfSequence,
+  cancelSequenceBatch,
+  makeSequence,
+  discardSequence,
+  sequencesOfPerson,
+} from "./repositories/campaigns/sequences";
+export type { SequenceDoorAnswer } from "./repositories/campaigns/sequences";
 export type { MomentScheduleRow, SpanRunRow } from "./repositories/campaigns/calendar-runs";
 export {
   resolveChannelDetailed,
@@ -629,7 +647,7 @@ export {
   keepChannelQuality,
   keepChannelStanding,
 } from "./sweeps";
-export type { DuePage, DuePlaybook, DueCalendar, WhatsappNumber } from "./sweeps";
+export type { DuePage, DueStep, DueCalendar, WhatsappNumber } from "./sweeps";
 export {
   appointmentByKey,
   appointmentByClientStart,

@@ -26,6 +26,7 @@ import { inboxOverride } from "@/surfaces/inbox/surface";
 import { notificationsOverride } from "./surfaces/notifications";
 import { peopleOverride } from "@/surfaces/people/surface";
 import { playbooksOverride } from "@/surfaces/campaigns/playbooks/surface";
+import { sequencesOverride } from "@/surfaces/campaigns/sequences/surface";
 import { forgetReports, reportsOverride } from "@/surfaces/reports/surface";
 import { headline } from "@/surfaces/reports/headline";
 import { reportsPeople as reportsPeopleLens } from "@/surfaces/reports/people-surface";
@@ -85,6 +86,9 @@ const headlineIfDrawn = ifDrawn(headline);
 // The counts of the lists pinned to Today (surfaces/today/pins-surface.ts; R10), where Today is on screen, and left for it elsewhere:
 // a write the feed does not tell (a person erased takes their messages) moves them.
 const pinsIfDrawn = (): SurfaceOverride[] => (typeof window !== "undefined" ? drawnHere([todayPinsOverride]) : []);
+// The Sequences list counts a batch's replies by their messages (0060): a person erased takes theirs with them. Read where it
+// is drawn, left for its page elsewhere.
+const sequencesIfDrawn = (): SurfaceOverride[] => (typeof window !== "undefined" ? drawnHere([sequencesOverride]) : []);
 // What the Reviews lens says of a review's reply mode (whether its composer asks the receptionist for a draft) is made wrong by a mode
 // saved, which is saved on Autonomy or from a chip, never from the lens: read where the lens is on screen, forgotten elsewhere
 // (the wiring's second audit, W-review-facts-rules-9: a mode saved read the lens nobody had open).
@@ -257,6 +261,7 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
     ...campaignResultsIfDrawn(),
     ...setupIfDrawn(),
     ...pinsIfDrawn(),
+    ...sequencesIfDrawn(),
   ],
   // Two records became one (0028): the kept person's page and People, the threads that folded, and every count by
   // consent, Reports' included: the merge may change an answer, as a consent write does. The bell's lines about the folded thread
@@ -344,6 +349,17 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   "PUT playbooks/[id]": () => [...runsAndChains(), peopleOverride],
   "DELETE playbooks/[id]": runsAndPeople,
   "POST playbooks/[id]/run": runs,
+  // A sequence's doors (0060): a step after the first added, changed, given new words or taken away is the playbook its
+  // row draws, and Today's day strip; people taken out move its runs' sends and People's "in a sequence" with them. The
+  // Sequences page's list beside them, and it reads its own record again behind each of its presses.
+  "POST sequences/[id]/steps": () => [...runsAndChains(), sequencesOverride],
+  "PUT sequences/[id]/steps/[step]": () => [...runsAndChains(), sequencesOverride],
+  "DELETE sequences/[id]/steps/[step]": () => [...runsAndChains(), sequencesOverride],
+  "POST sequences/[id]/steps/[step]/words": () => [...runsAndChains(), sequencesOverride, ...templates()],
+  "POST sequences/[id]/leave": () => [...runsAndChains(), sequencesOverride, peopleOverride, leadsOverride],
+  // A new sequence is a campaign the old home lists too, until S6; a discarded one leaves both.
+  "POST sequences": () => [...runsAndChains(), sequencesOverride],
+  "DELETE sequences/[id]": () => [...runsAndChains(), sequencesOverride],
   // A reach-out is a chain of playbooks over a search's leads (Part 4): its runs are broadcasts, its answers move leads,
   // and its chain is the reach-outs surface (Playbooks' row, and Templates' email rows drawn from it). Its own save writes the chain,
   // its runs and its words and no lead, and an answer that moves a lead is the lead's own write. Leads draws which reach-out a
@@ -591,6 +607,7 @@ export const REFRESHES_NOTHING: Partial<Record<RouteKey, string>> = {
   "POST lines/search": "a search for numbers to buy",
   "POST reach-outs/preview": "a preview of a reach-out's email",
   "POST segments/draft": "a draft of a list's rule",
+  "POST sequences/draft": "a draft of a new sequence, shown in the pane that asked; nothing is made until it is kept",
   "POST templates/draft": "a draft of a template's words",
   "POST leads/check-again": "the checks are scheduled; each row moves as its check lands, through the live feed",
   // Somewhere else: the page leaves, or the provider's page opens.

@@ -103,6 +103,8 @@ const SUBJECT_OPENS = {
   lead_search: { kind: "lead", searchId: ID },
   broadcast: { kind: "send", id: ID },
   playbook: { kind: "campaign", id: ID },
+  // A sequence (0060) is its first step's id, which its campaign opens at until the Sequences page has its address.
+  sequence: { kind: "campaign", id: ID },
   appointment: { kind: "visit", id: ID },
   review: { kind: "review", id: ID },
   membership: { kind: "team" },

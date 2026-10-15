@@ -172,7 +172,7 @@ export async function removeSavedList(ctx: RouteContext, list: SavedListRow) {
       if (!count) throw new AppError("not_found", "List not found.", 404);
     }
     for (const p of paused) {
-      const { error } = await ctx.supabase.from("playbooks").update({ state: "paused" }).eq("id", p.id);
+      const { error } = await ctx.supabase.from("sequence_steps").update({ state: "paused" }).eq("id", p.id);
       if (error) throw new Error(error.message);
       await recordDecision(ctx, tenantId, "playbook", p.id, "pause_playbook", { name: p.name, why: "list_archived" });
     }

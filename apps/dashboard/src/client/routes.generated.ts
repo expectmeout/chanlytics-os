@@ -16,6 +16,8 @@ export const ROUTES = {
   "DELETE playbooks/[id]": { method: "DELETE", path: "/api/v1/playbooks/[id]" },
   "DELETE reach-outs/[id]": { method: "DELETE", path: "/api/v1/reach-outs/[id]" },
   "DELETE segments/[id]": { method: "DELETE", path: "/api/v1/segments/[id]" },
+  "DELETE sequences/[id]": { method: "DELETE", path: "/api/v1/sequences/[id]" },
+  "DELETE sequences/[id]/steps/[step]": { method: "DELETE", path: "/api/v1/sequences/[id]/steps/[step]" },
   "DELETE team/[id]": { method: "DELETE", path: "/api/v1/team/[id]" },
   "DELETE team/partner": { method: "DELETE", path: "/api/v1/team/partner" },
   "DELETE templates/[id]": { method: "DELETE", path: "/api/v1/templates/[id]" },
@@ -90,6 +92,10 @@ export const ROUTES = {
   "GET reports/receptionist": { method: "GET", path: "/api/v1/reports/receptionist" },
   "GET reports/reviews": { method: "GET", path: "/api/v1/reports/reviews" },
   "GET segments": { method: "GET", path: "/api/v1/segments" },
+  "GET sequences": { method: "GET", path: "/api/v1/sequences" },
+  "GET sequences/[id]": { method: "GET", path: "/api/v1/sequences/[id]" },
+  "GET sequences/[id]/history": { method: "GET", path: "/api/v1/sequences/[id]/history" },
+  "GET sequences/[id]/people": { method: "GET", path: "/api/v1/sequences/[id]/people" },
   "GET settings": { method: "GET", path: "/api/v1/settings" },
   "GET setup": { method: "GET", path: "/api/v1/setup" },
   "GET team": { method: "GET", path: "/api/v1/team" },
@@ -225,6 +231,11 @@ export const ROUTES = {
   "POST reach-outs/preview": { method: "POST", path: "/api/v1/reach-outs/preview" },
   "POST segments": { method: "POST", path: "/api/v1/segments" },
   "POST segments/draft": { method: "POST", path: "/api/v1/segments/draft" },
+  "POST sequences": { method: "POST", path: "/api/v1/sequences" },
+  "POST sequences/[id]/leave": { method: "POST", path: "/api/v1/sequences/[id]/leave" },
+  "POST sequences/[id]/steps": { method: "POST", path: "/api/v1/sequences/[id]/steps" },
+  "POST sequences/[id]/steps/[step]/words": { method: "POST", path: "/api/v1/sequences/[id]/steps/[step]/words" },
+  "POST sequences/draft": { method: "POST", path: "/api/v1/sequences/draft" },
   "POST settings/receptionist": { method: "POST", path: "/api/v1/settings/receptionist" },
   "POST setup/request": { method: "POST", path: "/api/v1/setup/request" },
   "POST team/invite": { method: "POST", path: "/api/v1/team/invite" },
@@ -261,6 +272,7 @@ export const ROUTES = {
   "PUT policies": { method: "PUT", path: "/api/v1/policies" },
   "PUT reach-outs/[id]": { method: "PUT", path: "/api/v1/reach-outs/[id]" },
   "PUT segments/[id]": { method: "PUT", path: "/api/v1/segments/[id]" },
+  "PUT sequences/[id]/steps/[step]": { method: "PUT", path: "/api/v1/sequences/[id]/steps/[step]" },
   "PUT settings": { method: "PUT", path: "/api/v1/settings" },
   "PUT templates/[id]": { method: "PUT", path: "/api/v1/templates/[id]" },
   "PUT views/[page]": { method: "PUT", path: "/api/v1/views/[page]" },
@@ -283,6 +295,8 @@ export type Routes = {
   "DELETE playbooks/[id]": typeof import("../../app/api/v1/playbooks/[id]/route").DELETE;
   "DELETE reach-outs/[id]": typeof import("../../app/api/v1/reach-outs/[id]/route").DELETE;
   "DELETE segments/[id]": typeof import("../../app/api/v1/segments/[id]/route").DELETE;
+  "DELETE sequences/[id]": typeof import("../../app/api/v1/sequences/[id]/route").DELETE;
+  "DELETE sequences/[id]/steps/[step]": typeof import("../../app/api/v1/sequences/[id]/steps/[step]/route").DELETE;
   "DELETE team/[id]": typeof import("../../app/api/v1/team/[id]/route").DELETE;
   "DELETE team/partner": typeof import("../../app/api/v1/team/partner/route").DELETE;
   "DELETE templates/[id]": typeof import("../../app/api/v1/templates/[id]/route").DELETE;
@@ -357,6 +371,10 @@ export type Routes = {
   "GET reports/receptionist": typeof import("../../app/api/v1/reports/receptionist/route").GET;
   "GET reports/reviews": typeof import("../../app/api/v1/reports/reviews/route").GET;
   "GET segments": typeof import("../../app/api/v1/segments/route").GET;
+  "GET sequences": typeof import("../../app/api/v1/sequences/route").GET;
+  "GET sequences/[id]": typeof import("../../app/api/v1/sequences/[id]/route").GET;
+  "GET sequences/[id]/history": typeof import("../../app/api/v1/sequences/[id]/history/route").GET;
+  "GET sequences/[id]/people": typeof import("../../app/api/v1/sequences/[id]/people/route").GET;
   "GET settings": typeof import("../../app/api/v1/settings/route").GET;
   "GET setup": typeof import("../../app/api/v1/setup/route").GET;
   "GET team": typeof import("../../app/api/v1/team/route").GET;
@@ -492,6 +510,11 @@ export type Routes = {
   "POST reach-outs/preview": typeof import("../../app/api/v1/reach-outs/preview/route").POST;
   "POST segments": typeof import("../../app/api/v1/segments/route").POST;
   "POST segments/draft": typeof import("../../app/api/v1/segments/draft/route").POST;
+  "POST sequences": typeof import("../../app/api/v1/sequences/route").POST;
+  "POST sequences/[id]/leave": typeof import("../../app/api/v1/sequences/[id]/leave/route").POST;
+  "POST sequences/[id]/steps": typeof import("../../app/api/v1/sequences/[id]/steps/route").POST;
+  "POST sequences/[id]/steps/[step]/words": typeof import("../../app/api/v1/sequences/[id]/steps/[step]/words/route").POST;
+  "POST sequences/draft": typeof import("../../app/api/v1/sequences/draft/route").POST;
   "POST settings/receptionist": typeof import("../../app/api/v1/settings/receptionist/route").POST;
   "POST setup/request": typeof import("../../app/api/v1/setup/request/route").POST;
   "POST team/invite": typeof import("../../app/api/v1/team/invite/route").POST;
@@ -528,6 +551,7 @@ export type Routes = {
   "PUT policies": typeof import("../../app/api/v1/policies/route").PUT;
   "PUT reach-outs/[id]": typeof import("../../app/api/v1/reach-outs/[id]/route").PUT;
   "PUT segments/[id]": typeof import("../../app/api/v1/segments/[id]/route").PUT;
+  "PUT sequences/[id]/steps/[step]": typeof import("../../app/api/v1/sequences/[id]/steps/[step]/route").PUT;
   "PUT settings": typeof import("../../app/api/v1/settings/route").PUT;
   "PUT templates/[id]": typeof import("../../app/api/v1/templates/[id]/route").PUT;
   "PUT views/[page]": typeof import("../../app/api/v1/views/[page]/route").PUT;

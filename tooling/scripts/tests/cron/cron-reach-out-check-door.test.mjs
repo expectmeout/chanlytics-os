@@ -74,13 +74,18 @@ function world({ sends = [send()] } = {}) {
     {},
     {
       ...vault,
-      reach_out_unchecked: () =>
+      sequence_unchecked: () =>
         tables.reach_out_sends
           .filter((s) => s.state === "planned" && s.checked_at == null && s.check_started_at == null)
           .map((s) => {
             s.check_started_at = new Date().toISOString();
             return {
-              send: { ...s },
+              send: (({ broadcast_id, playbook_id, root_id, ...x }) => ({
+                ...x,
+                batch_id: broadcast_id,
+                step_id: playbook_id,
+                sequence_id: root_id,
+              }))(s),
               check_gen: s.check_gen,
               template_id: TPL,
               template_language: "en",

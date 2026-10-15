@@ -68,14 +68,15 @@ const WATCHED: ReadonlyArray<{ table: string; events: readonly Event[] }> = [
   // a list made, renamed, archived, or people put on and taken off by a teammate: People's rail repaints (00169)
   { table: "segments", events: EVERY },
   { table: "segment_members", events: EVERY },
-  // a reply to a reach-out read, drafted or undone: the Inbox's strip and chip repaint (00222)
-  { table: "reach_out_replies", events: EVERY },
-  // a run made by the sweep, approved, stopped, sending or finished: Today's Approve and Stop rows and Campaigns
-  // repaint (00321). Its people are not watched: a run's page reads them when it opens.
-  { table: "broadcasts", events: EVERY },
-  // a playbook paused, resumed, renamed or retimed by a teammate, or stamped by the sweep's run: Campaigns' rows and
-  // their acts repaint (00376)
-  { table: "playbooks", events: EVERY },
+  // a reply to a sequence read, drafted or undone: the Inbox's strip and chip repaint (00222; sequence_replies since 00439)
+  { table: "sequence_replies", events: EVERY },
+  // a batch made by the sweep, approved, stopped, sending or finished: Today's Approve and Stop rows and Campaigns
+  // repaint (00321; sequence_batches since 00439). Its sends are not watched: a batch's page reads them when it opens.
+  { table: "sequence_batches", events: EVERY },
+  // a sequence made, paused, resumed, renamed or ended, and a step changed by a teammate or stamped by the sweep's run:
+  // Campaigns' rows and their acts repaint (00376; the sequence tables since 00439, decision 0060)
+  { table: "sequences", events: EVERY },
+  { table: "sequence_steps", events: EVERY },
   // a booking that arrived by email written, moved or withdrawn by the booking_read job: the Calendar repaints (00345)
   { table: "appointments", events: EVERY },
   // The records no page was told of (00408, 0047). A person made, or renamed, answered, stopped, merged or erased by a

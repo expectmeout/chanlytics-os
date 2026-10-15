@@ -785,6 +785,206 @@ function recordProviderStopIn(tables, args, insertRow) {
   return true;
 }
 
+/* ------------------------------------------------------------ the sequence tables (decision 0060, 00439) -- */
+
+/**
+ * The five old names, each a view of its sequence table (00439): its base, its columns' old names, and which of the
+ * base's rows it shows. A fixture that seeds an old name is written into the base, as a write through the view is; a
+ * read of an old name draws the base's rows under the view's columns; a write through it lands on the base.
+ */
+const OLD_NAMES = {
+  playbooks: { base: "sequence_steps", as: { after_playbook_id: "after_step_id" } },
+  broadcasts: { base: "sequence_batches", as: { playbook_id: "step_id" } },
+  broadcast_recipients: {
+    base: "sequence_sends",
+    as: { broadcast_id: "batch_id", attempt: "attempts" },
+    shows: (r) => r.lead_id == null,
+  },
+  reach_out_sends: {
+    base: "sequence_sends",
+    as: { broadcast_id: "batch_id", playbook_id: "step_id", root_id: "sequence_id" },
+    shows: (r) => r.lead_id != null,
+  },
+  reach_out_replies: { base: "sequence_replies", as: {} },
+};
+const BASE_ROW = Symbol("base row");
+const VIEWS_MADE = Symbol("views made");
+
+/** The view's columns, by their old names (the schema's view). */
+const viewColumns = (name) => Object.keys(SCHEMA.relations[name]?.columns ?? {});
+
+/** A base row seen through an old name: its view's columns, by their old names; a write lands on the base row. */
+function throughOldName(name, base) {
+  const { as } = OLD_NAMES[name];
+  const shown = new Set(viewColumns(name));
+  const real = (k) => (typeof k === "string" && k in as ? as[k] : k);
+  return new Proxy(base, {
+    get: (t, k) => (k === BASE_ROW ? t : t[real(k)]),
+    set: (t, k, v) => {
+      t[real(k)] = v;
+      return true;
+    },
+    has: (t, k) => (typeof k === "string" && shown.size ? shown.has(k) && real(k) in t : real(k) in t),
+    deleteProperty: (t, k) => delete t[real(k)],
+    ownKeys: (t) => (shown.size ? [...shown].filter((k) => real(k) in t) : Reflect.ownKeys(t)),
+    getOwnPropertyDescriptor: (t, k) => {
+      if (shown.size && typeof k === "string" && !shown.has(k)) return undefined;
+      const d = Reflect.getOwnPropertyDescriptor(t, real(k));
+      return d ? { ...d, configurable: true } : undefined;
+    },
+  });
+}
+
+/** A first step's sequence (00439 sequence_steps_place): its id, its name, how it starts and whether it is on. */
+const sequenceOfFirstStep = (row) => ({
+  id: row.id,
+  tenant_id: row.tenant_id,
+  name: row.name,
+  starts: row.kind === "reach_out" ? "leads" : row.trigger === "saved_list" ? "list" : "moment",
+  state: (row.state ?? "running") === "running" ? "on" : "paused",
+});
+
+/**
+ * What a sequence table's BEFORE INSERT trigger fills (00439 sequence_steps_place, sequence_batches_place,
+ * sequence_sends_place): a step's sequence and place (a first step makes its sequence with its id), a batch's
+ * sequence (a one-off is a sequence of its own on a date), a send's sequence and step from its batch, and its first
+ * state by its family. The row is filled in place and answered.
+ */
+function filledBySequenceTriggers(tables, table, row) {
+  if (table === "sequence_steps" && row.sequence_id == null) {
+    row.id ??= crypto.randomUUID();
+    if (row.after_step_id) {
+      const parent = (tables.sequence_steps ?? []).find((s) => s.id === row.after_step_id);
+      row.sequence_id = parent?.sequence_id ?? row.after_step_id;
+      row.place ??= (parent?.place ?? 1) + 1;
+    } else {
+      row.sequence_id = row.id;
+      row.place ??= 1;
+      (tables.sequences ??= []).push(sequenceOfFirstStep(row));
+    }
+  }
+  if (table === "sequence_batches" && row.sequence_id == null) {
+    row.id ??= crypto.randomUUID();
+    if (row.step_id) {
+      const step = (tables.sequence_steps ?? []).find((s) => s.id === row.step_id);
+      row.sequence_id = step?.sequence_id ?? row.step_id;
+    } else {
+      row.sequence_id = row.id;
+      const ended = ["sent", "canceled", "failed"].includes(row.state);
+      (tables.sequences ??= []).push({
+        id: row.id,
+        tenant_id: row.tenant_id,
+        name: row.name,
+        starts: "date",
+        state: ended ? "ended" : "on",
+      });
+    }
+  }
+  if (table === "sequence_sends") {
+    row.id ??= crypto.randomUUID();
+    if (row.sequence_id == null || (row.step_id === undefined && row.lead_id == null)) {
+      const batch = (tables.sequence_batches ?? []).find((b) => b.id === row.batch_id);
+      row.sequence_id ??= batch?.sequence_id ?? row.batch_id;
+      if (row.step_id === undefined) row.step_id = batch?.step_id ?? null;
+    }
+    row.state ??= row.lead_id == null ? "queued" : "planned";
+  }
+  return row;
+}
+
+/**
+ * An old name's row as its base holds it: the same object, its columns renamed to their new names (each old name kept
+ * as a hidden alias of its new one, so a test that holds the row it seeded reads and writes it as it wrote it), and
+ * filled as the base's triggers fill it.
+ */
+function intoBase(tables, name, row) {
+  const { base, as } = OLD_NAMES[name];
+  if (row === null || typeof row !== "object") return row;
+  for (const [old, fresh] of Object.entries(as)) {
+    const own = Object.getOwnPropertyDescriptor(row, old);
+    if (own && !own.enumerable) continue;
+    if (own) {
+      row[fresh] = row[old];
+      delete row[old];
+    }
+    Object.defineProperty(row, old, {
+      configurable: true,
+      enumerable: false,
+      get: () => row[fresh],
+      set: (v) => {
+        row[fresh] = v;
+      },
+    });
+  }
+  return filledBySequenceTriggers(tables, base, row);
+}
+
+/**
+ * A base its old names wrote into: made unseen (not enumerable) where nothing named it, so a world spread from this one
+ * carries its old names, which are its rows, and not a second copy of them under the base's name.
+ */
+function baseOf(tables, base) {
+  if (!Object.prototype.hasOwnProperty.call(tables, base))
+    Object.defineProperty(tables, base, { value: [], writable: true, configurable: true, enumerable: false });
+  return tables[base];
+}
+
+/** An old name's rows now: drawn from its base, written through on push, deleted from it on splice. */
+function viewOf(tables, name) {
+  const { base, shows } = OLD_NAMES[name];
+  const rows = (tables[base] ?? []).filter((r) => !shows || shows(r)).map((r) => throughOldName(name, r));
+  // A row is found by what it is: the row a test holds, or the base row it was written as.
+  Object.defineProperty(rows, "indexOf", {
+    value: (x) => rows.findIndex((r) => r === x || r[BASE_ROW] === (x?.[BASE_ROW] ?? x)),
+  });
+  Object.defineProperty(rows, "push", {
+    value: (...items) => {
+      for (const r of items) baseOf(tables, base).push(r?.[BASE_ROW] ?? intoBase(tables, name, r));
+      return rows.length + items.length;
+    },
+  });
+  Object.defineProperty(rows, "splice", {
+    value: (start, count = rows.length - start) => {
+      const gone = Array.prototype.slice.call(rows, start, start + count).map((r) => r[BASE_ROW]);
+      tables[base] = (tables[base] ?? []).filter((r) => !gone.includes(r));
+      return gone;
+    },
+  });
+  return rows;
+}
+
+/**
+ * The world's old names made views of their bases, once: what a fixture seeded under an old name (in the order a run's
+ * rows depend on each other: steps, batches, sends, replies) is written into its base, and the name answers from the
+ * base from then on. A view's array is drawn afresh on each read; its push writes through, and its splice deletes from
+ * the base, as an insert and a delete through the view do.
+ */
+function viewsOverBases(tables) {
+  if (tables[VIEWS_MADE]) return;
+  Object.defineProperty(tables, VIEWS_MADE, { value: true, enumerable: false });
+  for (const base of ["sequence_steps", "sequence_batches", "sequence_sends"])
+    for (const r of tables[base] ?? []) filledBySequenceTriggers(tables, base, r);
+  for (const name of ["playbooks", "broadcasts", "broadcast_recipients", "reach_out_sends", "reach_out_replies"]) {
+    const seeded = Object.prototype.hasOwnProperty.call(tables, name) ? tables[name] : undefined;
+    delete tables[name];
+    const { base, shows } = OLD_NAMES[name];
+    // The base is made by what is written into it: a world that holds none of these keeps no empty table of them.
+    // A row of a world this one was spread from is that world's base row, seen through its old name.
+    for (const r of seeded ?? []) baseOf(tables, base).push(intoBase(tables, name, r?.[BASE_ROW] ?? r));
+    Object.defineProperty(tables, name, {
+      configurable: true,
+      // Seen in the world as it was given: a name the fixture seeded is one of its tables, one it did not stays unseen.
+      enumerable: seeded !== undefined,
+      get: () => viewOf(tables, name),
+      set: (rows) => {
+        const keep = new Set((rows ?? []).map((r) => r?.[BASE_ROW] ?? r));
+        tables[base] = (tables[base] ?? []).filter((r) => (shows && !shows(r)) || keep.has(r));
+        for (const r of rows ?? []) if (!r?.[BASE_ROW]) baseOf(tables, base).push(intoBase(tables, name, r));
+      },
+    });
+  }
+}
+
 /**
  * @param tables {Record<string, object[]>} mutated in place, so a test can read
  *   back what the code under test actually wrote.
@@ -794,6 +994,8 @@ function recordProviderStopIn(tables, args, insertRow) {
  */
 export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
   const seen = [];
+  // The five old names are views of the sequence tables (00439): a fixture seeded under one is written into its base.
+  viewsOverBases(tables);
 
   /**
    * The doors this file can answer out of the tables it already holds, so a
@@ -815,7 +1017,8 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
    * table's unique keys (a clash is the database's 23505), stamped, and kept. Defined below with `from`; a door runs
    * long after both are made.
    */
-  const insertRow = (table, values) => {
+  const insertRow = (table, given) => {
+    const values = filledBySequenceTriggers(tables, table, { ...given });
     const bad = refusedRow(SCHEMA, table, values, { insert: true });
     if (bad) throw Object.assign(new Error(bad.message), { code: bad.code });
     const fresh = made(table, values, stampOf(tables));
@@ -1179,19 +1382,41 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
         })),
     }),
     /**
-     * The hourly sweeps' pages (00245 playbooks_due, calendars_due), answered from the rows a fixture sets the way
+     * A batch canceled by a member (00441 sequence_batch_cancel), only from the state it was read in: true when it moved.
+     * The member is judged by the route before it, as the definer door judges them; the SQL is proved on a stack
+     * (sequences/sequence-doors.db.test.mjs).
+     */
+    sequence_batch_cancel: ({ p_tenant_id, p_batch_id, p_from }) => {
+      if (!["pending_approval", "scheduled", "sending"].includes(p_from)) return false;
+      const batch = (tables.sequence_batches ?? []).find(
+        (b) => b.id === p_batch_id && b.tenant_id === p_tenant_id && b.state === p_from,
+      );
+      if (!batch) return false;
+      batch.state = "canceled";
+      return true;
+    },
+    /**
+     * The hourly sweeps' pages (00440 sequence_steps_due, calendars_due), answered from the rows a fixture sets the way
      * the database answers them: only what is due, a paused workspace's never, the longest waiting first, `p_limit`
      * of them, every row carrying `due_total`, the count of all that were due. A door test runs the real sweep over
      * what the database would have judged due; the SQL itself is proved on a stack in ops/sweep-pages.db.test.mjs.
      */
-    playbooks_due: ({ p_kind, p_at, p_last_hour, p_limit, p_tenant_id }) => {
+    sequence_steps_due: ({ p_kind, p_at, p_last_hour, p_limit, p_tenant_id }) => {
       const at = new Date(p_at);
-      const due = (tables.playbooks ?? [])
+      const steps = tables.sequence_steps ?? [];
+      // A customer's step after the first runs only while its first step runs and its sequence is on (00440). A sequence
+      // is on while its first step runs (00439 sequence_steps_say_sequence keeps the two together), unless it ended.
+      const sequenceOn = (p) =>
+        p.kind === "reach_out" ||
+        ((steps.find((r) => r.id === p.sequence_id)?.state ?? "running") === "running" &&
+          (tables.sequences ?? []).find((q) => q.id === p.sequence_id)?.state !== "ended");
+      const due = steps
         .map((p) => ({ p, tz: zoneOf(p.tenant_id) }))
         .filter(
           ({ p }) =>
             p.state === "running" &&
-            p.kind === p_kind &&
+            (p.kind ?? "moment") === p_kind &&
+            sequenceOn(p) &&
             tenantOf(p.tenant_id)?.status !== "paused" &&
             (p_tenant_id == null || p.tenant_id === p_tenant_id),
         )
@@ -1200,7 +1425,7 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
         .sort((a, b) => byWaiting(a.p, b.p, "last_run_at", "created_at", "id"));
       return due
         .slice(0, Math.max(0, p_limit ?? 0))
-        .map(({ p, tz }) => ({ playbook: { ...p }, timezone: tz, due_total: due.length }));
+        .map(({ p, tz }) => ({ step: { ...p }, timezone: tz, due_total: due.length }));
     },
     calendars_due: ({ p_before, p_limit, p_tenant_id }) => {
       const due = (tables.tenant_config ?? [])
@@ -1471,7 +1696,10 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
       },
       insert(values) {
         q.op = "insert";
-        q.values = Array.isArray(values) ? values : [values];
+        // A sequence table's row as its BEFORE INSERT trigger fills it (00439), judged after.
+        q.values = (Array.isArray(values) ? values : [values]).map((v) =>
+          filledBySequenceTriggers(tables, table, { ...v }),
+        );
         return proxy;
       },
       delete(opts) {
@@ -1481,7 +1709,9 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
       },
       upsert(values, opts) {
         q.op = "upsert";
-        q.values = Array.isArray(values) ? values : [values];
+        q.values = (Array.isArray(values) ? values : [values]).map((v) =>
+          filledBySequenceTriggers(tables, table, { ...v }),
+        );
         // PostgREST's default target is the primary key.
         q.conflict = opts?.onConflict
           ? String(opts.onConflict)

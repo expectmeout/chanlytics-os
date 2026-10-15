@@ -156,6 +156,8 @@ export const PERSON_ABOUT_WORDS = {
   /** A phone's Campaigns, folded (canvas A, P4): how many went to them, and what came of the newest ("2 sent · Replied"). */
   campaigns: "Campaigns",
   campaignsMark: (n: number, newest: string) => `${n} sent · ${newest}`,
+  /** The sequences they are in now (0060), over what went to them. */
+  inSequence: "In a sequence",
   /** Messages and receptionist's rows (canvas A, P9.4): a mode the workspace sets, and a row nobody here changes. */
   thisWorkspace: "this workspace",
   readOnly: "read only",

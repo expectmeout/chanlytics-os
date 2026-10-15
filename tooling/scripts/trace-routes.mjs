@@ -222,8 +222,12 @@ function trace(repo) {
       const f = FN.get(name) ?? { reads: new Set(), writes: new Map(), calls: new Set() };
       for (const x of body.matchAll(
         /\b(insert\s+into|update|delete\s+from|merge\s+into)\s+(?:only\s+)?(?:public\.)?"?(\w+)"?/gi,
-      ))
+      )) {
         if (TABLES.has(x[2])) noteWrite(f.writes, x[2], ...verbsOf(x[1], statementFrom(body, x.index)));
+        // A write through a view of one table (00439's old names) lands on that table.
+        else if (VIEWS.has(x[2]) && viewTables(x[2]).length === 1)
+          noteWrite(f.writes, viewTables(x[2])[0], ...verbsOf(x[1], statementFrom(body, x.index)));
+      }
       for (const x of body.matchAll(/\b(?:from|join)\s+(?:only\s+)?(?:public\.)?"?(\w+)"?/gi)) {
         if (TABLES.has(x[1])) f.reads.add(x[1]);
         else if (VIEWS.has(x[1])) for (const t of viewTables(x[1])) f.reads.add(t);

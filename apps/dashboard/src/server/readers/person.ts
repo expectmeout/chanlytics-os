@@ -24,6 +24,7 @@ import {
   personReplyMode,
   personRow,
   readAllRows,
+  sequencesOfPerson,
   signersOf,
   textReached,
 } from "@chanlytics/db";
@@ -151,6 +152,18 @@ async function notHere(sb: Parameters<typeof keptPersonOf>[0], tenantId: string,
  * a citation may name, as People names them; so is each of their threads, and each of their calls, by the caller as
  * the Calls page names them.
  */
+/**
+ * What went to a person and what is still to come: the runs that named them (personRuns), and the sequences they are in
+ * now (0060, S5), which a database before them leaves empty, never the profile.
+ */
+async function campaignsOfPerson(rc: ReaderContext, id: string) {
+  const [campaigns, sequences] = await Promise.all([
+    personRuns(rc.ctx, rc.tenantId, id),
+    sequencesOfPerson(rc.ctx.supabase, rc.tenantId, id).catch(() => []),
+  ]);
+  return { campaigns, sequences };
+}
+
 export const person: Reader<{ id: string }, { person: PersonDetailDto }> = {
   name: "person",
   async read(rc, { id }) {
@@ -218,7 +231,7 @@ export const person: Reader<{ id: string }, { person: PersonDetailDto }> = {
       own,
       cfg,
       history,
-      runs,
+      campaigns,
       lead,
       deals,
       sellsBy,
@@ -286,9 +299,9 @@ export const person: Reader<{ id: string }, { person: PersonDetailDto }> = {
         .eq("subject_id", id)
         .order("created_at", { ascending: false })
         .limit(200),
-      // The runs that named them, and the lead they were found as: what a playbook or a broadcast sent them, and the
-      // way back to where the finder found them.
-      personRuns(rc.ctx, tenantId, id),
+      // The runs that named them and the sequences they are in, and the lead they were found as: what a playbook or a
+      // broadcast sent them, what is still to come, and the way back to where the finder found them.
+      campaignsOfPerson(rc, id),
       leadOfPerson(rc.ctx, tenantId, id),
       // Their deals, newest first, each with its link, the day it stands until and why they passed (0008); and how
       // this workspace's customers buy, which decides whether the page says any of it. Each is safe on an older
@@ -349,7 +362,7 @@ export const person: Reader<{ id: string }, { person: PersonDetailDto }> = {
       proposal_url: own.data?.proposal_url ?? null,
       booking_link: fromConfig.bookingLink,
       consent_history: (history.data ?? []).map(consentChangeOf),
-      campaigns: runs,
+      ...campaigns,
       lead,
       doubts,
       deals: deals ?? undefined,

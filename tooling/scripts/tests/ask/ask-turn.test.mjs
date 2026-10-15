@@ -254,6 +254,8 @@ function tables(over = {}) {
 }
 const RPCS = {
   people_list: () => [],
+  // The Sequences page's list (00441 sequence_overview): a workspace with none answers none.
+  sequence_overview: () => [],
   metrics_summary: () => ({ error: "not modelled here" }),
   report_series: () => ({ error: "not modelled here" }),
   // The Reviews lens's ledger (readers/report.ts reviewsReport), which the report tool reads beside the series: no review on
@@ -2770,6 +2772,8 @@ test("the fourteen reads, each an action of the nine read tools, run against the
       "campaigns.journey",
       "campaigns.messages",
       "campaigns.playbooks",
+      "campaigns.sequence",
+      "campaigns.sequences",
       "inbox.list",
       "inbox.search",
       "inbox.thread",
@@ -2836,6 +2840,10 @@ test("the fourteen reads, each an action of the nine read tools, run against the
   assert.equal(out["campaigns.playbooks"].isError, false, out["campaigns.playbooks"].result);
   assert.equal(out["campaigns.messages"].isError, false, out["campaigns.messages"].result);
   assert.deepEqual(JSON.parse(out["campaigns.messages"].result).messages, [], "an empty library, said as no message");
+  // The sequences as their page lists them (0060): none here, and nothing needs you; one asked for by no id is refused.
+  assert.equal(out["campaigns.sequences"].isError, false, out["campaigns.sequences"].result);
+  assert.deepEqual(JSON.parse(out["campaigns.sequences"].result), { route: "campaigns", needs_you: 0, sequences: [] });
+  assert.equal(out["campaigns.sequence"].isError, true, "a sequence is asked for by its id");
   assert.equal(out["campaigns.journey"].isError, false, out["campaigns.journey"].result);
   const journey = JSON.parse(out["campaigns.journey"].result);
   assert.deepEqual(
@@ -5056,7 +5064,7 @@ test("people.get is the person page's one read (ledger #3): the reader's one rou
     "deals",
     "contact_identities",
     "leads",
-    "broadcast_recipients",
+    "sequence_sends",
     "person_notes",
   ]) {
     const asked = order.indexOf(read);

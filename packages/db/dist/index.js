@@ -272,11 +272,11 @@ async function ownNames(db, tenantId, idsOf) {
     readByIds(idsOf("list"), (some) => db.from("segments").select("id, name").eq("tenant_id", tenantId).in("id", some)),
     readByIds(
       idsOf("broadcast"),
-      (some) => db.from("broadcasts").select("id, name").eq("tenant_id", tenantId).in("id", some)
+      (some) => db.from("sequence_batches").select("id, name").eq("tenant_id", tenantId).in("id", some)
     ),
     readByIds(
       idsOf("playbook"),
-      (some) => db.from("playbooks").select("id, name").eq("tenant_id", tenantId).in("id", some)
+      (some) => db.from("sequence_steps").select("id, name").eq("tenant_id", tenantId).in("id", some)
     ),
     readByIds(
       idsOf("lead"),
@@ -492,7 +492,7 @@ var ERASURE_LEGS = {
   deals_trigger: "deals_erase_on_contact: a deal's note, evidence and link cleared",
   leads_trigger: "leads_erase_on_contact: their lead blanked (lead_blank), its places deleted, a reach-out's opening and a preference's example cleared (00391), its drafts cleared (00429), a company's people and key cleared and its domain kept as a digest (00430), its keys kept as digests; one of several people at a business takes only their own address, number and the call's note from it (lead_person_leg, 00413); a person named at any company leaves it, its drafts to them cleared and their address kept as a digest (lead_person_forget, 00430)",
   signer_trigger: "person_signer_erase_on_contact: the name and title a reply's reading found as its signer, and what became of it, cleared (00413)",
-  recipients_trigger: "broadcast_recipients_on_erase: the words each run kept for them, a visit's time, service and key and a proposal's link, cleared (00391)",
+  recipients_trigger: "sequence_sends_on_erase: the words each batch kept for them, a visit's time, service and key and a proposal's link, cleared (00391, 00439)",
   jobs_scrub: "scrubErasedJobs and erase_contact: a job's payload that carried their number or words overwritten, and its error cleared",
   ask_scrub: "scrub_ask_for_contact: the assistant's turns that name them deleted (00238)",
   deliveries_scrub: "provider_events_scrub: a kept delivery that names them deleted (00336)",
@@ -533,23 +533,6 @@ var ERASURE_STRATEGIES = {
   },
   billing_card_marks: { card_fingerprint: WITH_WORKSPACE },
   billing_events: all(NOT_PERSONAL, "id", "type", "currency"),
-  broadcast_recipients: {
-    facts: scrubbedBy("recipients_trigger"),
-    // A refusal's or a failure's code.
-    reason: NOT_PERSONAL
-  },
-  // A run's name, its audience (a list's or a playbook's name, a rule in the closed vocabulary), its channels, its
-  // template and what fills its slots: the business's.
-  broadcasts: all(
-    NOT_PERSONAL,
-    "audience",
-    "channels",
-    "failure",
-    "name",
-    "params",
-    "template_language",
-    "template_name"
-  ),
   // The workspace's carrier registration: the business, its address and tax id, and the representative it names.
   business_records: all(
     WITH_WORKSPACE,
@@ -849,36 +832,67 @@ var ERASURE_STRATEGIES = {
     "dead_letters",
     "intake_lag_ms"
   ),
-  // A campaign: its name, channels, list, template and slots, and the team's instruction; the name it is signed with,
-  // the sender's.
-  playbooks: {
-    signed_by: WITH_WORKSPACE,
-    ...all(NOT_PERSONAL, "channels", "hand", "list_key", "name", "params", "template_language", "template_name")
-  },
   // Numbers: a day's tokens, a pause's hours (contracts config/limits.ts).
   policies: { limits: NOT_PERSONAL },
   provider_events: {
     body: scrubbedBy("deliveries_scrub"),
     ...all(byAge("provider_events"), "provider_event_id", "door", "url", "headers")
   },
-  // A reply to a reach-out hangs on the replier's message and thread, and goes with them.
-  reach_out_replies: {
+  // A list's name and its rule, in the closed vocabulary; its members go by segment_members_on_erase.
+  segments: all(NOT_PERSONAL, "name", "rule"),
+  // A sequence (decision 0060): its name, the business's.
+  sequences: { name: NOT_PERSONAL },
+  // A batch's name, its audience (a list's or a step's name, a rule in the closed vocabulary), its channels, its template
+  // and what fills its slots: the business's.
+  sequence_batches: all(
+    NOT_PERSONAL,
+    "audience",
+    "channels",
+    "failure",
+    "name",
+    "params",
+    "template_language",
+    "template_name"
+  ),
+  // Someone in a sequence: why they left is a send's code or a door's word, never theirs.
+  sequence_enrollments: { why: NOT_PERSONAL },
+  // A reply to a sequence's send hangs on the replier's message and thread, and goes with them.
+  sequence_replies: {
     ...all(withPerson("erase_contact"), "draft", "draft_why", "plan", "refer_to", "summary"),
     // Who signed it (0052): cleared when the person it names is erased, wherever the reply's thread is.
     ...all(scrubbedBy("signer_trigger"), "signer_name", "signer_title"),
     // What became of the signer's name, and the source it replaced: closed words, never the name.
     ...all(NOT_PERSONAL, "signer_state", "signer_was")
   },
-  reach_out_sends: {
-    // Written from the lead's record (00391).
+  sequence_sends: {
+    // A customer's send: the words its batch kept for them.
+    facts: scrubbedBy("recipients_trigger"),
+    // A lead's: written from the lead's record (00391).
     ...all(scrubbedBy("leads_trigger"), "opening", "angle", "hold_detail"),
     // A draft handed to its owner (00429): the business's address, name and the words written to it; lead_blank clears it.
     ...all(scrubbedBy("leads_trigger"), "draft"),
-    // A digest of the words checked, the facts' keys, and the hold's and the skip's codes.
+    // A digest of the words checked, the facts' keys, and the hold's, the skip's and a failure's codes.
     ...all(NOT_PERSONAL, "checked_words", "facts_used", "included_for", "reason")
   },
-  // A list's name and its rule, in the closed vocabulary; its members go by segment_members_on_erase.
-  segments: all(NOT_PERSONAL, "name", "rule"),
+  // A step: its name, channels, list, template and slots, the words waiting for WhatsApp, the conditions it goes on, and
+  // the team's instruction; the name it is signed with, the sender's.
+  sequence_steps: {
+    signed_by: WITH_WORKSPACE,
+    ...all(
+      NOT_PERSONAL,
+      "channels",
+      "hand",
+      "list_key",
+      "name",
+      "next_params",
+      "next_template_language",
+      "next_template_name",
+      "only_if",
+      "params",
+      "template_language",
+      "template_name"
+    )
+  },
   sending_domain_days: all(NOT_PERSONAL, "held_why", "host"),
   // The workspace's sending domain and the provider's records for it; the address and the name its mail is sent as.
   sending_domains: {
@@ -1350,7 +1364,7 @@ async function peopleAtLead(db, tenantId, leadId) {
   }).sort((a, b) => (b.in_touch_at ?? "").localeCompare(a.in_touch_at ?? ""));
 }
 async function signersOf(db, tenantId, personId) {
-  const { data, error } = await db.from("reach_out_replies").select("message_id, signer_name, signer_title, signer_state, read_at, intent, claim").eq("tenant_id", tenantId).eq("contact_id", personId).in("signer_state", ["offered", "adopted"]).is("undone_at", null).order("read_at", { ascending: false }).limit(5);
+  const { data, error } = await db.from("sequence_replies").select("message_id, signer_name, signer_title, signer_state, read_at, intent, claim").eq("tenant_id", tenantId).eq("contact_id", personId).in("signer_state", ["offered", "adopted"]).is("undone_at", null).order("read_at", { ascending: false }).limit(5);
   if (error) throw new Error(`signersOf: ${error.message}`);
   return (data ?? []).flatMap(
     (r) => r.signer_name && (r.signer_state === "offered" || r.signer_state === "adopted") ? [
@@ -1648,7 +1662,7 @@ async function textLineFacts(db, tenantId) {
   return data ?? null;
 }
 async function playbookChannels(db, playbookId) {
-  const { data, error } = await db.from("playbooks").select("channels").eq("id", playbookId).maybeSingle();
+  const { data, error } = await db.from("sequence_steps").select("channels").eq("id", playbookId).maybeSingle();
   if (error) {
     if (/channels/.test(error.message) && /does not exist|could not find/i.test(error.message)) return null;
     throw new Error(`playbook_channels: ${error.message}`);
@@ -1656,31 +1670,31 @@ async function playbookChannels(db, playbookId) {
   return data?.channels ?? null;
 }
 async function playbookForChannels(db, tenantId, playbookId) {
-  const { data, error } = await db.from("playbooks").select("id, name, trigger, policy_class, template_id").eq("tenant_id", tenantId).eq("id", playbookId).maybeSingle();
+  const { data, error } = await db.from("sequence_steps").select("id, name, trigger, policy_class, template_id").eq("tenant_id", tenantId).eq("id", playbookId).maybeSingle();
   if (error) throw new Error(`playbook_for_channels: ${error.message}`);
   if (!data) return null;
-  const waiting = await db.from("broadcasts").select("id").eq("tenant_id", tenantId).eq("playbook_id", playbookId).eq("state", "pending_approval").limit(1);
+  const waiting = await db.from("sequence_batches").select("id").eq("tenant_id", tenantId).eq("step_id", playbookId).eq("state", "pending_approval").limit(1);
   if (waiting.error) throw new Error(`playbook_for_channels: ${waiting.error.message}`);
   return { ...data, run_waits: (waiting.data ?? []).length > 0 };
 }
 async function playbookForChange(db, tenantId, playbookId) {
-  const { data, error } = await db.from("playbooks").select(
+  const { data, error } = await db.from("sequence_steps").select(
     "id, name, trigger, state, policy_class, run_hour, cap_per_run, gap_days, cadence_days, list_id, list_key, template_id, params, until, trial_until"
   ).eq("tenant_id", tenantId).eq("id", playbookId).maybeSingle();
   if (error) throw new Error(`playbook_for_change: ${error.message}`);
   if (!data) return null;
-  const waiting = await db.from("broadcasts").select("id, recipient_count").eq("tenant_id", tenantId).eq("playbook_id", playbookId).eq("state", "pending_approval").limit(1);
+  const waiting = await db.from("sequence_batches").select("id, recipient_count").eq("tenant_id", tenantId).eq("step_id", playbookId).eq("state", "pending_approval").limit(1);
   if (waiting.error) throw new Error(`playbook_for_change: ${waiting.error.message}`);
   const [w] = waiting.data ?? [];
   return { ...data, waiting: w ? { id: w.id, recipient_count: w.recipient_count } : null };
 }
 async function runningTwins(db, tenantId, on) {
-  const { data, error } = await db.from("playbooks").select("id, name, list_id, list_key").eq("tenant_id", tenantId).eq("state", "running").eq("trigger", on.trigger).eq("template_id", on.templateId);
+  const { data, error } = await db.from("sequence_steps").select("id, name, list_id, list_key").eq("tenant_id", tenantId).eq("state", "running").eq("trigger", on.trigger).eq("template_id", on.templateId);
   if (error) throw new Error(`running_twins: ${error.message}`);
   return (data ?? []).filter((p) => (p.list_id ?? null) === on.listId && (p.list_key ?? null) === on.listKey).map((p) => ({ id: p.id, name: p.name }));
 }
 async function followUpOnFile(db, tenantId, trigger) {
-  const { data, error } = await db.from("playbooks").select("id").eq("tenant_id", tenantId).eq("trigger", trigger).limit(1);
+  const { data, error } = await db.from("sequence_steps").select("id").eq("tenant_id", tenantId).eq("trigger", trigger).limit(1);
   if (error) throw new Error(`follow_up_on_file: ${error.message}`);
   return (data ?? []).length > 0;
 }
@@ -1690,20 +1704,13 @@ function noChannelColumns(error) {
 function noRelationshipColumn(error) {
   return !!error && /\bhas_relationship\b/.test(error.message) && /does not exist|could not find/i.test(error.message);
 }
-var UNDEFINED_COLUMN = "42703";
 async function queuedRecipients(db, p) {
-  const withAttempt = await db.from("broadcast_recipients").select("contact_id, facts, channel, attempt").eq("tenant_id", p.tenantId).eq("broadcast_id", p.broadcastId).eq("state", "queued").order("contact_id").limit(p.limit);
-  if (!withAttempt.error) return withAttempt.data ?? [];
-  if (withAttempt.error.code !== UNDEFINED_COLUMN) throw new Error(`queued_recipients: ${withAttempt.error.message}`);
-  const withChannel = await db.from("broadcast_recipients").select("contact_id, facts, channel").eq("tenant_id", p.tenantId).eq("broadcast_id", p.broadcastId).eq("state", "queued").order("contact_id").limit(p.limit);
-  if (!withChannel.error) return withChannel.data ?? [];
-  if (withChannel.error.code !== UNDEFINED_COLUMN) throw new Error(`queued_recipients: ${withChannel.error.message}`);
-  const bare = await db.from("broadcast_recipients").select("contact_id, facts").eq("tenant_id", p.tenantId).eq("broadcast_id", p.broadcastId).eq("state", "queued").order("contact_id").limit(p.limit);
-  if (bare.error) throw new Error(`queued_recipients: ${bare.error.message}`);
-  return bare.data ?? [];
+  const { data, error } = await db.from("sequence_sends").select("contact_id, facts, channel, attempt:attempts").eq("tenant_id", p.tenantId).eq("batch_id", p.broadcastId).is("lead_id", null).eq("state", "queued").order("contact_id").limit(p.limit);
+  if (error) throw new Error(`queued_recipients: ${error.message}`);
+  return (data ?? []).flatMap((r) => r.contact_id ? [{ ...r, contact_id: r.contact_id }] : []);
 }
 async function runGoesByOthers(db, tenantId, broadcastId, than) {
-  const of = db.from("broadcast_recipients").select("contact_id", { count: "exact", head: true }).eq("tenant_id", tenantId).eq("broadcast_id", broadcastId);
+  const of = db.from("sequence_sends").select("contact_id", { count: "exact", head: true }).eq("tenant_id", tenantId).eq("batch_id", broadcastId);
   const { count: count2, error } = await (than === "whatsapp" ? of.in("channel", ["sms", "email"]) : of.or("channel.is.null,channel.eq.whatsapp,channel.eq.sms"));
   if (noChannelColumns(error)) return than === "email";
   if (error) throw new Error(`run_goes_by_others: ${error.message}`);
@@ -1723,9 +1730,9 @@ async function campaignMonthSent(db, tenantId, channel, at) {
 async function holdRecipients(db, p) {
   const skipped = [];
   for (let i = 0; i < p.contactIds.length; i += IDS_PER_READ2) {
-    const { data, error } = await db.from("broadcast_recipients").update({ state: "skipped", reason: p.reason }).eq("tenant_id", p.tenantId).eq("broadcast_id", p.broadcastId).eq("state", "queued").in("contact_id", p.contactIds.slice(i, i + IDS_PER_READ2)).select("contact_id");
+    const { data, error } = await db.from("sequence_sends").update({ state: "skipped", reason: p.reason }).eq("tenant_id", p.tenantId).eq("batch_id", p.broadcastId).is("lead_id", null).eq("state", "queued").in("contact_id", p.contactIds.slice(i, i + IDS_PER_READ2)).select("contact_id");
     if (error) return { skipped, error: `hold_recipients: ${error.message}` };
-    for (const r of data) skipped.push(r.contact_id);
+    for (const r of data) if (r.contact_id) skipped.push(r.contact_id);
   }
   return { skipped, error: null };
 }
@@ -2089,7 +2096,7 @@ async function setEmailOffersYes(db, p) {
   return said?.refused === "unsubscribed" ? "unsubscribed" : "unchanged";
 }
 async function offerLanguageOf(db, p) {
-  const { data, error } = await db.from("broadcasts").select("template_language").eq("tenant_id", p.tenantId).eq("id", p.broadcastId).maybeSingle();
+  const { data, error } = await db.from("sequence_batches").select("template_language").eq("tenant_id", p.tenantId).eq("id", p.broadcastId).maybeSingle();
   if (error) throw new Error(`cannot read the language the offer was sent in: ${error.message}`);
   return data?.template_language ?? null;
 }
@@ -2395,19 +2402,19 @@ import { DEFAULT_TIMEZONE, RUN_GOING_STATES as RUN_GOING_STATES2, isReachOutRun 
 
 // src/repositories/reach-out-sheet.ts
 import { RUN_GOING_STATES, versionWords } from "../../contracts/dist/index.js";
-var STEP_COLUMNS = "id, name, state, trigger, lead_search_id, after_playbook_id, after_days, gap_minutes, mailbox_ids, owner_sends, signed_by, include_unconfirmed, template_id, hand, run_hour, last_run_for, created_at";
+var STEP_COLUMNS = "id, name, state, trigger, lead_search_id, after_playbook_id:after_step_id, after_days, gap_minutes, mailbox_ids, owner_sends, signed_by, include_unconfirmed, template_id, hand, run_hour, last_run_for, created_at";
 async function reachOutStepsOf(db, tenantId) {
-  const { data, error } = await db.from("playbooks").select(STEP_COLUMNS).eq("tenant_id", tenantId).eq("kind", "reach_out");
+  const { data, error } = await db.from("sequence_steps").select(STEP_COLUMNS).eq("tenant_id", tenantId).eq("kind", "reach_out");
   if (error) throw new Error(`cannot read the reach-outs: ${error.message}`);
   return data ?? [];
 }
 async function reachOutRootOf(db, id) {
-  const { data, error } = await db.from("playbooks").select("id, tenant_id, name, state, trigger, lead_search_id").eq("id", id).eq("kind", "reach_out").eq("trigger", "lead_first").maybeSingle();
+  const { data, error } = await db.from("sequence_steps").select("id, tenant_id, name, state, trigger, lead_search_id").eq("id", id).eq("kind", "reach_out").eq("trigger", "lead_first").maybeSingle();
   if (error) throw new Error(`cannot read the reach-out: ${error.message}`);
   return data;
 }
 async function reachOutSendRefOf(db, id) {
-  const { data, error } = await db.from("reach_out_sends").select("id, tenant_id, broadcast_id, state, reason, attempts").eq("id", id).maybeSingle();
+  const { data, error } = await db.from("sequence_sends").select("id, tenant_id, broadcast_id:batch_id, state, reason, attempts").eq("id", id).maybeSingle();
   if (error) throw new Error(`cannot read the email: ${error.message}`);
   return data;
 }
@@ -2463,19 +2470,19 @@ async function saveReachOutChain(db, p) {
   return { data: saved, error: null };
 }
 async function runsWaitingOf(db, tenantId) {
-  const { data, error } = await db.from("broadcasts").select("id, audience").eq("tenant_id", tenantId).eq("state", "pending_approval");
+  const { data, error } = await db.from("sequence_batches").select("id, audience").eq("tenant_id", tenantId).eq("state", "pending_approval");
   if (error) throw new Error(`cannot read the runs waiting: ${error.message}`);
   return data ?? [];
 }
 async function reachOutRunSendsOf(db, tenantId, runId) {
-  const { data, error } = await db.from("reach_out_sends").select(
+  const { data, error } = await db.from("sequence_sends").select(
     "id, lead_id, state, reason, hold_detail, opening, angle, send_at, checked_at, created_at, mailbox_id, draft, drafted_at, lead:leads(business_name, email, city, kind, source, facts)"
-  ).eq("tenant_id", tenantId).eq("broadcast_id", runId);
+  ).eq("tenant_id", tenantId).eq("batch_id", runId).not("lead_id", "is", null);
   if (error) throw new Error(`cannot read the run's emails: ${error.message}`);
-  return data ?? [];
+  return (data ?? []).flatMap((r) => r.lead_id ? [{ ...r, lead_id: r.lead_id }] : []);
 }
 async function stampReachOutStep(db, id, p) {
-  const { error } = await db.from("playbooks").update({ last_run_at: p.at.toISOString(), ...p.runFor ? { last_run_for: p.runFor } : {} }).eq("id", id);
+  const { error } = await db.from("sequence_steps").update({ last_run_at: p.at.toISOString(), ...p.runFor ? { last_run_for: p.runFor } : {} }).eq("id", id);
   if (error) throw new Error(`cannot stamp the step's day: ${error.message}`);
 }
 async function recheckSends(db, p) {
@@ -2500,7 +2507,7 @@ async function tenantZoneOf(db, tenantId) {
 }
 var markOf = (v) => v && typeof v === "object" && !Array.isArray(v) && typeof v.claimed_at === "string" ? { claimed_at: v.claimed_at, ...typeof v.sent_at === "string" ? { sent_at: v.sent_at } : {} } : null;
 async function heldNoticeDue(db, p) {
-  let sends = db.from("reach_out_sends").select("tenant_id, broadcast_id, reason").eq("state", "held").gte("updated_at", p.since).limit(p.limit);
+  let sends = db.from("sequence_sends").select("tenant_id, broadcast_id:batch_id, reason").not("lead_id", "is", null).eq("state", "held").gte("updated_at", p.since).limit(p.limit);
   if (p.tenantId) sends = sends.eq("tenant_id", p.tenantId);
   const held = await sends;
   if (held.error) throw new Error(`cannot read the held: ${held.error.message}`);
@@ -2513,7 +2520,7 @@ async function heldNoticeDue(db, p) {
     byRun.set(s.broadcast_id, r);
   }
   if (byRun.size === 0) return [];
-  const runs = await db.from("broadcasts").select("id, tenant_id, name, state, audience, updated_at").in("id", [...byRun.keys()]).in("state", [...RUN_GOING_STATES]);
+  const runs = await db.from("sequence_batches").select("id, tenant_id, name, state, audience, updated_at").in("id", [...byRun.keys()]).in("state", [...RUN_GOING_STATES]);
   if (runs.error) throw new Error(`cannot read the held's runs: ${runs.error.message}`);
   return (runs.data ?? []).flatMap((b) => {
     const audience = b.audience && typeof b.audience === "object" && !Array.isArray(b.audience) ? b.audience : {};
@@ -2535,7 +2542,7 @@ async function heldNoticeDue(db, p) {
   });
 }
 async function markHeldNotice(db, p) {
-  let q = db.from("broadcasts").update({ audience: { ...p.audience, held_notice: { ...p.mark } } }).eq("tenant_id", p.tenantId).eq("id", p.id);
+  let q = db.from("sequence_batches").update({ audience: { ...p.audience, held_notice: { ...p.mark } } }).eq("tenant_id", p.tenantId).eq("id", p.id);
   if (p.ifUpdatedAt) q = q.eq("updated_at", p.ifUpdatedAt);
   const { data, error } = await q.select("id");
   if (error) throw new Error(`cannot mark the run: ${error.message}`);
@@ -2546,7 +2553,7 @@ async function runWaitingCounts(db, p) {
   if (p.runIds.length === 0) return out;
   const rows = await readAllRows(
     "cannot count the runs' waiting emails",
-    (from, to) => db.from("reach_out_sends").select("broadcast_id, state").eq("tenant_id", p.tenantId).in("broadcast_id", [...p.runIds]).in("state", ["held", "drafted"]).order("id").range(from, to)
+    (from, to) => db.from("sequence_sends").select("broadcast_id:batch_id, state").eq("tenant_id", p.tenantId).in("batch_id", [...p.runIds]).in("state", ["held", "drafted"]).order("id").range(from, to)
   );
   for (const r of rows) {
     const c = out.get(r.broadcast_id) ?? { held: 0, drafted: 0 };
@@ -2559,7 +2566,7 @@ async function runWaitingCounts(db, p) {
 
 // src/repositories/campaigns/stranded-runs.ts
 async function strandedRuns(db, p) {
-  const { data, error } = await db.from("broadcasts").select("id, tenant_id, name, playbook_id, audience, scheduled_for").eq("state", "scheduled").gt("scheduled_for", p.since.toISOString()).lt("scheduled_for", p.before.toISOString()).or("audience->>kind.is.null,audience->>kind.neq.reach_out").order("scheduled_for", { ascending: true }).limit(p.limit);
+  const { data, error } = await db.from("sequence_batches").select("id, tenant_id, name, playbook_id:step_id, audience, scheduled_for").eq("state", "scheduled").gt("scheduled_for", p.since.toISOString()).lt("scheduled_for", p.before.toISOString()).or("audience->>kind.is.null,audience->>kind.neq.reach_out").order("scheduled_for", { ascending: true }).limit(p.limit);
   if (error) throw new Error(`stranded runs: cannot read the scheduled runs: ${error.message}`);
   const runs = (data ?? []).filter((r) => !isReachOutRun(r.audience));
   if (!runs.length) return [];
@@ -2577,14 +2584,14 @@ async function strandedRuns(db, p) {
   return runs.filter((r) => !live.has(r.id));
 }
 async function failStrandedRun(db, p) {
-  const { data, error } = await db.from("broadcasts").update({ state: "failed", failure: "run_interrupted", finished_at: (/* @__PURE__ */ new Date()).toISOString() }).eq("id", p.id).eq("tenant_id", p.tenantId).eq("state", "scheduled").select("id");
+  const { data, error } = await db.from("sequence_batches").update({ state: "failed", failure: "run_interrupted", finished_at: (/* @__PURE__ */ new Date()).toISOString() }).eq("id", p.id).eq("tenant_id", p.tenantId).eq("state", "scheduled").select("id");
   if (error) throw new Error(`stranded runs: cannot mark run ${p.id} not sent: ${error.message}`);
   if (!(data ?? []).length) return false;
   await emitEvent(db, p.tenantId, "broadcast.stopped", "broadcast", p.id, { failure: "run_interrupted", sent: 0 });
   return true;
 }
 async function waitingPlaybookRuns(db, p) {
-  const { data, error } = await db.from("broadcasts").select("id, tenant_id, name, state, playbook_id, run_for, audience").eq("state", "pending_approval").not("playbook_id", "is", null).not("run_for", "is", null).or("audience->>kind.is.null,audience->>kind.neq.reach_out").order("run_for", { ascending: true }).order("created_at", { ascending: true }).limit(p.limit);
+  const { data, error } = await db.from("sequence_batches").select("id, tenant_id, name, state, playbook_id:step_id, run_for, audience").eq("state", "pending_approval").not("step_id", "is", null).not("run_for", "is", null).or("audience->>kind.is.null,audience->>kind.neq.reach_out").order("run_for", { ascending: true }).order("created_at", { ascending: true }).limit(p.limit);
   if (error) throw new Error(`waiting runs: cannot read the runs waiting for approval: ${error.message}`);
   const runs = (data ?? []).filter((r) => !isReachOutRun(r.audience));
   if (!runs.length) return [];
@@ -2607,7 +2614,7 @@ async function waitingPlaybookRuns(db, p) {
   );
 }
 async function cancelBroadcastFrom(db, p) {
-  const { data, error } = await db.from("broadcasts").update({ state: "canceled" }).eq("id", p.id).eq("tenant_id", p.tenantId).eq("state", p.from).select("id");
+  const { data, error } = await db.from("sequence_batches").update({ state: "canceled" }).eq("id", p.id).eq("tenant_id", p.tenantId).eq("state", p.from).select("id");
   if (error) throw new Error(`waiting runs: cannot end run ${p.id}: ${error.message}`);
   return (data ?? []).length > 0;
 }
@@ -2624,11 +2631,11 @@ async function recordSystemDecision(db, p) {
   if (error) throw new Error(`cannot record the system's decision: ${error.message}`);
   return data.id;
 }
-var WAITING_RUN_COLUMNS = "id, name, state, playbook_id, run_for, audience, recipient_count, created_at";
+var WAITING_RUN_COLUMNS = "id, name, state, playbook_id:step_id, run_for, audience, recipient_count, created_at";
 async function waitingRunsOf(db, tenantId) {
   const [pending, going] = await Promise.all([
-    db.from("broadcasts").select(WAITING_RUN_COLUMNS).eq("tenant_id", tenantId).eq("state", "pending_approval").order("created_at", { ascending: false }).limit(200),
-    db.from("broadcasts").select(WAITING_RUN_COLUMNS).eq("tenant_id", tenantId).in("state", [...RUN_GOING_STATES2]).order("created_at", { ascending: false }).limit(200)
+    db.from("sequence_batches").select(WAITING_RUN_COLUMNS).eq("tenant_id", tenantId).eq("state", "pending_approval").order("created_at", { ascending: false }).limit(200),
+    db.from("sequence_batches").select(WAITING_RUN_COLUMNS).eq("tenant_id", tenantId).in("state", [...RUN_GOING_STATES2]).order("created_at", { ascending: false }).limit(200)
   ]);
   if (pending.error) throw new Error(`cannot read the runs waiting for approval: ${pending.error.message}`);
   if (going.error) throw new Error(`cannot read the going runs: ${going.error.message}`);
@@ -2643,7 +2650,7 @@ async function waitingRunsOf(db, tenantId) {
 }
 async function runsNamed(db, tenantId, ids) {
   if (!ids.length) return [];
-  const { data, error } = await db.from("broadcasts").select(WAITING_RUN_COLUMNS).eq("tenant_id", tenantId).in("id", [...ids]);
+  const { data, error } = await db.from("sequence_batches").select(WAITING_RUN_COLUMNS).eq("tenant_id", tenantId).in("id", [...ids]);
   if (error) throw new Error(`cannot read the runs the notices name: ${error.message}`);
   const rows = data ?? [];
   const reaching = rows.filter(
@@ -2925,7 +2932,7 @@ async function reachOutReplyOf(db, p) {
   };
 }
 async function replyReadingOf(db, p) {
-  const { data, error } = await db.from("reach_out_replies").select(
+  const { data, error } = await db.from("sequence_replies").select(
     "intent, claim, summary, unread, rereads, plan, told_at, undone_at, draft, draft_state, draft_why, signer_name, signer_state"
   ).eq("tenant_id", p.tenantId).eq("message_id", p.messageId).maybeSingle();
   if (error) throw new Error(`cannot read the reply's reading: ${error.message}`);
@@ -2993,7 +3000,7 @@ async function archiveConversation(db, p) {
 }
 var REPLY_LIST_COLUMNS = "message_id, conversation_id, read_at, intent, claim, summary, named_day, refer_to, unread, rereads, undone_at, draft, draft_state, draft_why, plan, until_at, lead_id, send_id";
 async function repliesFor(db, p) {
-  let q = db.from("reach_out_replies").select(REPLY_LIST_COLUMNS).eq("tenant_id", p.tenantId).gte("read_at", p.since);
+  let q = db.from("sequence_replies").select(REPLY_LIST_COLUMNS).eq("tenant_id", p.tenantId).gte("read_at", p.since);
   if (p.conversationId) q = q.eq("conversation_id", p.conversationId);
   const { data, error } = await q.order("read_at", { ascending: false }).limit(p.limit);
   if (error) throw new Error(`cannot read the replies: ${error.message}`);
@@ -3001,7 +3008,7 @@ async function repliesFor(db, p) {
   const ids = (k) => [...new Set(rows.map((r) => r[k]).filter((v) => !!v))];
   const [leads, sends] = await Promise.all([
     ids("lead_id").length ? db.from("leads").select("id, business_name").eq("tenant_id", p.tenantId).in("id", ids("lead_id")) : Promise.resolve({ data: [], error: null }),
-    ids("send_id").length ? db.from("reach_out_sends").select("id, playbook_id, root_id").eq("tenant_id", p.tenantId).in("id", ids("send_id")) : Promise.resolve({ data: [], error: null })
+    ids("send_id").length ? db.from("sequence_sends").select("id, playbook_id:step_id, root_id:sequence_id").eq("tenant_id", p.tenantId).in("id", ids("send_id")) : Promise.resolve({ data: [], error: null })
   ]);
   if (leads.error) throw new Error(`cannot read the replies' leads: ${leads.error.message}`);
   if (sends.error) throw new Error(`cannot read the replies' emails: ${sends.error.message}`);
@@ -3015,7 +3022,7 @@ async function repliesFor(db, p) {
   }));
 }
 async function replyReadingRefOf(db, messageId) {
-  const { data, error } = await db.from("reach_out_replies").select("message_id, tenant_id").eq("message_id", messageId).maybeSingle();
+  const { data, error } = await db.from("sequence_replies").select("message_id, tenant_id").eq("message_id", messageId).maybeSingle();
   if (error) throw new Error(`cannot read the reply: ${error.message}`);
   return data ? { id: data.message_id, tenant_id: data.tenant_id } : null;
 }
@@ -3052,6 +3059,9 @@ async function reachOutDayDue(db, now, limit) {
 
 // src/repositories/reach-out.ts
 import { maySpend } from "../../contracts/dist/index.js";
+function leadSends(rows) {
+  return (rows ?? []).flatMap((r) => r.lead_id ? [{ ...r, lead_id: r.lead_id }] : []);
+}
 async function reachOutAudience(db, p) {
   const { data, error } = await db.rpc("reach_out_audience", {
     p_tenant_id: p.tenantId,
@@ -3075,17 +3085,17 @@ async function reachOutPerson(db, tenantId, leadId) {
 async function claimSends(db, p) {
   if (!Number.isInteger(p.cap) || !Number.isInteger(p.limit) || Number.isNaN(p.at.getTime()))
     throw new Error(`cannot claim the mailbox's due sends: a cap and a limit are whole numbers (${p.cap}, ${p.limit})`);
-  const { data, error } = await db.rpc("reach_out_claim_from", {
+  const { data, error } = await db.rpc("sequence_claim_from", {
     p_mailbox_id: p.mailboxId,
     p_cap: p.cap,
     p_at: p.at.toISOString(),
     p_limit: p.limit
   });
   if (error) throw new Error(`cannot claim the mailbox's due sends: ${error.message}`);
-  return data ?? [];
+  return leadSends(data);
 }
 async function moveSend(db, p) {
-  const { data, error } = await db.from("reach_out_sends").update(p.patch).eq("tenant_id", p.tenantId).eq("id", p.id).eq("state", p.from).select("id");
+  const { data, error } = await db.from("sequence_sends").update(p.patch).eq("tenant_id", p.tenantId).eq("id", p.id).eq("state", p.from).select("id");
   if (error) throw new Error(`cannot move the send: ${error.message}`);
   return (data ?? []).length === 1;
 }
@@ -3105,7 +3115,7 @@ async function reachOutFollowers(db, p) {
   return rows;
 }
 async function queuedOutcomes(db, limit, tenantId) {
-  const { data, error } = await db.rpc("reach_out_queued_outcomes", {
+  const { data, error } = await db.rpc("sequence_queued_outcomes", {
     p_limit: limit,
     ...tenantId ? { p_tenant_id: tenantId } : {}
   });
@@ -3113,23 +3123,23 @@ async function queuedOutcomes(db, limit, tenantId) {
   return data ?? [];
 }
 async function stuckClaims(db, before, limit, tenantId) {
-  let q = db.from("reach_out_sends").select("*").eq("state", "claimed");
+  let q = db.from("sequence_sends").select("*").not("lead_id", "is", null).eq("state", "claimed");
   if (tenantId) q = q.eq("tenant_id", tenantId);
   const { data, error } = await q.lt("claimed_at", before.toISOString()).order("claimed_at", { ascending: true }).limit(limit);
   if (error) throw new Error(`cannot read the claimed sends: ${error.message}`);
-  return data ?? [];
+  return leadSends(data);
 }
 async function staleSends(db, before, limit, tenantId) {
-  const { data, error } = await db.rpc("reach_out_stale_sends", {
+  const { data, error } = await db.rpc("sequence_stale_sends", {
     p_before: before.toISOString(),
     p_limit: limit,
     ...tenantId ? { p_tenant_id: tenantId } : {}
   });
   if (error) throw new Error(`cannot read the stale sends: ${error.message}`);
-  return data ?? [];
+  return leadSends(data);
 }
 async function closedRunSends(db, stuckBefore, limit, tenantId) {
-  const { data, error } = await db.rpc("reach_out_closed_sends", {
+  const { data, error } = await db.rpc("sequence_closed_sends", {
     p_stuck_before: stuckBefore.toISOString(),
     p_limit: limit,
     ...tenantId ? { p_tenant_id: tenantId } : {}
@@ -3199,18 +3209,18 @@ async function sendJobScheduled(db, p) {
 }
 async function sendStanding(db, s) {
   const [run, chain] = await Promise.all([
-    db.from("broadcasts").select("state").eq("tenant_id", s.tenant_id).eq("id", s.broadcast_id).maybeSingle(),
-    db.from("playbooks").select("id, state, template_id, after_playbook_id, signed_by, owner_sends").eq("tenant_id", s.tenant_id).in("id", [s.playbook_id ?? s.root_id, s.root_id])
+    db.from("sequence_batches").select("state").eq("tenant_id", s.tenant_id).eq("id", s.batch_id).maybeSingle(),
+    db.from("sequence_steps").select("id, state, template_id, after_step_id, signed_by, owner_sends").eq("tenant_id", s.tenant_id).in("id", [s.step_id ?? s.sequence_id, s.sequence_id])
   ]);
   if (run.error) throw new Error(`cannot read the send's run: ${run.error.message}`);
   if (chain.error) throw new Error(`cannot read the send's chain: ${chain.error.message}`);
-  const step = s.playbook_id ? (chain.data ?? []).find((p) => p.id === s.playbook_id) : void 0;
+  const step = s.step_id ? (chain.data ?? []).find((p) => p.id === s.step_id) : void 0;
   return {
     run: run.data?.state ?? null,
-    step: step?.template_id ? { state: step.state, template_id: step.template_id, after_playbook_id: step.after_playbook_id } : null,
-    root: (chain.data ?? []).find((p) => p.id === s.root_id)?.state ?? null,
-    signedBy: (chain.data ?? []).find((p) => p.id === s.root_id)?.signed_by ?? null,
-    ownerSends: (chain.data ?? []).find((p) => p.id === s.root_id)?.owner_sends === true
+    step: step?.template_id ? { state: step.state, template_id: step.template_id, after_step_id: step.after_step_id } : null,
+    root: (chain.data ?? []).find((p) => p.id === s.sequence_id)?.state ?? null,
+    signedBy: (chain.data ?? []).find((p) => p.id === s.sequence_id)?.signed_by ?? null,
+    ownerSends: (chain.data ?? []).find((p) => p.id === s.sequence_id)?.owner_sends === true
   };
 }
 async function emailWordsOf(db, tenantId, templateId) {
@@ -3238,20 +3248,20 @@ async function contactEmailOf(db, tenantId, contactId) {
   return data?.email ?? null;
 }
 async function sendNow(db, p) {
-  const { data, error } = await db.from("reach_out_sends").select("state, message_id").eq("tenant_id", p.tenantId).eq("id", p.id).maybeSingle();
+  const { data, error } = await db.from("sequence_sends").select("state, message_id").eq("tenant_id", p.tenantId).eq("id", p.id).maybeSingle();
   if (error) throw new Error(`cannot read the send: ${error.message}`);
   return data;
 }
 async function runHanded(db, p) {
-  const { error } = await db.from("broadcasts").update({ state: "sending", updated_at: p.at.toISOString() }).eq("tenant_id", p.tenantId).eq("id", p.id).in("state", ["scheduled", "sending"]);
+  const { error } = await db.from("sequence_batches").update({ state: "sending", updated_at: p.at.toISOString() }).eq("tenant_id", p.tenantId).eq("id", p.id).in("state", ["scheduled", "sending"]);
   if (error) throw new Error(`cannot mark the run handed over: ${error.message}`);
 }
 async function runSending(db, p) {
-  const { error } = await db.from("broadcasts").update({ state: "sending" }).eq("tenant_id", p.tenantId).eq("id", p.id).eq("state", "scheduled");
+  const { error } = await db.from("sequence_batches").update({ state: "sending" }).eq("tenant_id", p.tenantId).eq("id", p.id).eq("state", "scheduled");
   if (error) throw new Error(`cannot start the run: ${error.message}`);
 }
 async function parentEmailOf(db, p) {
-  const { data: sends, error } = await db.from("reach_out_sends").select("message_id, said_at").eq("tenant_id", p.tenantId).eq("root_id", p.rootId).eq("lead_id", p.leadId).eq("playbook_id", p.stepId).eq("state", "sent").order("sent_at", { ascending: false }).limit(1);
+  const { data: sends, error } = await db.from("sequence_sends").select("message_id, said_at").eq("tenant_id", p.tenantId).eq("sequence_id", p.rootId).eq("lead_id", p.leadId).eq("step_id", p.stepId).eq("state", "sent").order("sent_at", { ascending: false }).limit(1);
   if (error) throw new Error(`cannot read the step before's send: ${error.message}`);
   const id = sends?.[0]?.message_id;
   if (!id) return null;
@@ -3299,7 +3309,7 @@ async function leadWritten(db, p) {
   return true;
 }
 async function recordCheck(db, p) {
-  const { data, error } = await db.from("reach_out_sends").update({ ...p.patch, check_started_at: null }).eq("tenant_id", p.tenantId).eq("id", p.id).eq("state", "planned").is("checked_at", null).eq("check_gen", p.gen).select("id");
+  const { data, error } = await db.from("sequence_sends").update({ ...p.patch, check_started_at: null }).eq("tenant_id", p.tenantId).eq("id", p.id).eq("state", "planned").is("checked_at", null).eq("check_gen", p.gen).select("id");
   if (error) throw new Error(`cannot record the send's check: ${error.message}`);
   return (data ?? []).length === 1;
 }
@@ -3379,24 +3389,24 @@ async function reachOutPeopleCounts(db, tenantId) {
 async function claimDrafts(db, p) {
   if (!Number.isInteger(p.limit) || Number.isNaN(p.at.getTime()))
     throw new Error(`cannot claim the drafts due: a limit is a whole number (${p.limit})`);
-  const { data, error } = await db.rpc("reach_out_claim_drafts", {
+  const { data, error } = await db.rpc("sequence_claim_drafts", {
     p_at: p.at.toISOString(),
     p_limit: p.limit,
     ...p.tenantId ? { p_tenant_id: p.tenantId } : {}
   });
   if (error) throw new Error(`cannot claim the drafts due: ${error.message}`);
-  return data ?? [];
+  return leadSends(data);
 }
 async function chainDraftLoad(db, p) {
   const [runs, open] = await Promise.all([
-    db.from("broadcasts").select("id").eq("tenant_id", p.tenantId).eq("audience->>kind", "reach_out").eq("audience->>root_id", p.rootId).eq("run_for", p.runFor),
-    db.from("reach_out_sends").select("id", { count: "exact", head: true }).eq("tenant_id", p.tenantId).eq("root_id", p.rootId).in("state", ["planned", "held", "claimed", "drafted"])
+    db.from("sequence_batches").select("id").eq("tenant_id", p.tenantId).eq("audience->>kind", "reach_out").eq("audience->>root_id", p.rootId).eq("run_for", p.runFor),
+    db.from("sequence_sends").select("id", { count: "exact", head: true }).eq("tenant_id", p.tenantId).eq("sequence_id", p.rootId).not("lead_id", "is", null).in("state", ["planned", "held", "claimed", "drafted"])
   ]);
   if (runs.error) throw new Error(`cannot read the reach-out's runs of the day: ${runs.error.message}`);
   if (open.error) throw new Error(`cannot count the reach-out's emails waiting: ${open.error.message}`);
   const ids = (runs.data ?? []).map((r) => r.id);
   if (ids.length === 0) return { today: 0, open: open.count ?? 0 };
-  const { count: count2, error } = await db.from("reach_out_sends").select("id", { count: "exact", head: true }).eq("tenant_id", p.tenantId).in("broadcast_id", ids).neq("state", "skipped");
+  const { count: count2, error } = await db.from("sequence_sends").select("id", { count: "exact", head: true }).eq("tenant_id", p.tenantId).in("batch_id", ids).neq("state", "skipped");
   if (error) throw new Error(`cannot count the reach-out's emails of the day: ${error.message}`);
   return { today: count2 ?? 0, open: open.count ?? 0 };
 }
@@ -3417,12 +3427,12 @@ async function draftsWaiting(db, p) {
 }
 async function ownerSendFactsOf(db, p) {
   if (p.sendIds.length === 0) return /* @__PURE__ */ new Map();
-  const { data, error } = await db.from("reach_out_sends").select("id, broadcast_id, state, said_at").eq("tenant_id", p.tenantId).in("id", [...p.sendIds]);
+  const { data, error } = await db.from("sequence_sends").select("id, batch_id, state, said_at").eq("tenant_id", p.tenantId).in("id", [...p.sendIds]);
   if (error) throw new Error(`cannot read the owner's sends: ${error.message}`);
   return new Map(
     (data ?? []).map((r) => [
       r.id,
-      { runId: r.state === "drafted" ? r.broadcast_id : null, said: r.state === "sent" && r.said_at !== null }
+      { runId: r.state === "drafted" ? r.batch_id : null, said: r.state === "sent" && r.said_at !== null }
     ])
   );
 }
@@ -3476,7 +3486,7 @@ function recordOf(r) {
   };
 }
 async function uncheckedSends(db, p) {
-  const { data, error } = await db.rpc("reach_out_unchecked", {
+  const { data, error } = await db.rpc("sequence_unchecked", {
     p_limit: p.limit,
     p_per_workspace: p.perWorkspace,
     p_ahead_minutes: p.aheadMinutes,
@@ -3497,7 +3507,7 @@ async function uncheckedSends(db, p) {
   });
 }
 async function uncheckedWaiting(db, tenantId) {
-  let q = db.from("reach_out_sends").select("id").eq("state", "planned").is("checked_at", null);
+  let q = db.from("sequence_sends").select("id").not("lead_id", "is", null).eq("state", "planned").is("checked_at", null);
   if (tenantId) q = q.eq("tenant_id", tenantId);
   const { data, error } = await q.limit(1);
   if (error) throw new Error(`cannot read the sends to check: ${error.message}`);
@@ -3514,13 +3524,13 @@ async function reachOutRecord(db, p) {
   return row ? recordOf(row) : null;
 }
 async function heldStale(db, before, limit, tenantId) {
-  const { data, error } = await db.rpc("reach_out_held_stale", {
+  const { data, error } = await db.rpc("sequence_held_stale", {
     p_before: before.toISOString(),
     p_limit: limit,
     ...tenantId ? { p_tenant_id: tenantId } : {}
   });
   if (error) throw new Error(`cannot read the held sends: ${error.message}`);
-  return data ?? [];
+  return leadSends(data);
 }
 async function releaseUnavailableHolds(db, p) {
   const { data, error } = await db.rpc("reach_out_release_unavailable", {
@@ -4384,14 +4394,14 @@ async function forgetActivityTokens(db, tokens) {
   const { error } = await db.from("push_devices").update({ activity_token: null }).in("activity_token", [...tokens]);
   if (error) throw new Error(`cannot forget the gone activity tokens: ${error.message}`);
 }
-var UNDEFINED_COLUMN2 = "42703";
+var UNDEFINED_COLUMN = "42703";
 async function memberAlertsOf(db, p) {
   const [mine, phones] = await Promise.all([
     db.from("memberships").select("push_off").eq("tenant_id", p.tenantId).eq("user_id", p.userId).maybeSingle(),
     db.from("push_devices").select("platform, app_version, last_seen_at").eq("user_id", p.userId).order("last_seen_at", { ascending: false, nullsFirst: false })
   ]);
   if (phones.error) throw new Error(`cannot read your phones: ${phones.error.message}`);
-  if (mine.error && mine.error.code !== UNDEFINED_COLUMN2)
+  if (mine.error && mine.error.code !== UNDEFINED_COLUMN)
     throw new Error(`cannot read your alert choices: ${mine.error.message}`);
   return {
     pushOff: mine.error ? [] : mine.data?.push_off ?? [],
@@ -4414,7 +4424,7 @@ async function membersPushedFor(db, p) {
   const chosen = ids ? await db.from("memberships").select("user_id, push_off").eq("tenant_id", p.tenantId).in("user_id", ids) : await db.from("memberships").select("user_id, push_off").eq("tenant_id", p.tenantId);
   if (!chosen.error)
     return (chosen.data ?? []).filter((m) => !(m.push_off ?? []).includes(p.kind)).map((m) => m.user_id);
-  if (chosen.error.code !== UNDEFINED_COLUMN2)
+  if (chosen.error.code !== UNDEFINED_COLUMN)
     throw new Error(`cannot read who is in the workspace: ${chosen.error.message}`);
   if (ids) return ids;
   const all2 = await db.from("memberships").select("user_id").eq("tenant_id", p.tenantId);
@@ -4456,18 +4466,18 @@ async function reviewLinkOf(db, tenantId) {
 
 // src/repositories/campaigns/calendar-runs.ts
 import { DAY_MS as DAY_MS3 } from "../../contracts/dist/index.js";
-var RUN_COLUMNS = "id, name, state, scheduled_for, started_at, finished_at, run_for, playbook_id, audience, recipient_count";
+var RUN_COLUMNS = "id, name, state, scheduled_for, started_at, finished_at, run_for, playbook_id:step_id, audience, recipient_count";
 var SEND_LEAD_MS = 2 * DAY_MS3;
 async function runsInSpan(db, tenantId, span) {
   const sendsFrom = new Date(Date.parse(span.fromIso) - SEND_LEAD_MS).toISOString();
   const [runs, sends] = await Promise.all([
     readAllRows(
       "calendar_runs_campaign",
-      (from, to) => db.from("broadcasts").select(RUN_COLUMNS).eq("tenant_id", tenantId).not("playbook_id", "is", null).gte("run_for", span.fromDay).lte("run_for", span.toDay).order("run_for", { ascending: true }).order("id", { ascending: true }).range(from, to)
+      (from, to) => db.from("sequence_batches").select(RUN_COLUMNS).eq("tenant_id", tenantId).not("step_id", "is", null).gte("run_for", span.fromDay).lte("run_for", span.toDay).order("run_for", { ascending: true }).order("id", { ascending: true }).range(from, to)
     ),
     readAllRows(
       "calendar_runs_send",
-      (from, to) => db.from("broadcasts").select(RUN_COLUMNS).eq("tenant_id", tenantId).is("playbook_id", null).gte("scheduled_for", sendsFrom).lt("scheduled_for", span.toIso).order("scheduled_for", { ascending: true }).order("id", { ascending: true }).range(from, to)
+      (from, to) => db.from("sequence_batches").select(RUN_COLUMNS).eq("tenant_id", tenantId).is("step_id", null).gte("scheduled_for", sendsFrom).lt("scheduled_for", span.toIso).order("scheduled_for", { ascending: true }).order("id", { ascending: true }).range(from, to)
     )
   ]);
   return [...runs, ...sends];
@@ -4475,8 +4485,167 @@ async function runsInSpan(db, tenantId, span) {
 async function momentSchedules(db, tenantId) {
   return readAllRows(
     "calendar_moment_schedules",
-    (from, to) => db.from("playbooks").select("id, name, trigger, state, policy_class, run_hour, last_run_for, until, trial_until").eq("tenant_id", tenantId).order("id", { ascending: true }).range(from, to)
+    (from, to) => db.from("sequence_steps").select("id, name, trigger, state, policy_class, run_hour, last_run_for, until, trial_until").eq("tenant_id", tenantId).order("id", { ascending: true }).range(from, to)
   );
+}
+
+// src/repositories/campaigns/sequences.ts
+async function followUpsDue(db, stepId, runFor) {
+  const { data, error } = await db.rpc("sequence_follow_ups_due", { p_step_id: stepId, p_run_for: runFor });
+  if (error) throw new Error(`cannot read who the step is due to: ${error.message}`);
+  return (data ?? []).flatMap(
+    (r) => r.enrollment_id && r.contact_id ? [{ enrollment_id: r.enrollment_id, contact_id: r.contact_id, sent_at: r.sent_at ?? null }] : []
+  );
+}
+async function leaveSequence(db, p) {
+  if (p.enrollmentIds.length === 0) return 0;
+  const { data, error } = await db.rpc("sequence_enrollments_leave", {
+    p_tenant_id: p.tenantId,
+    p_ids: [...p.enrollmentIds],
+    p_why: p.why,
+    ...p.by ? { p_by: p.by } : {}
+  });
+  if (error) throw new Error(`cannot take them out of the sequence: ${error.message}`);
+  return typeof data === "number" ? data : 0;
+}
+async function sequencesOfPerson(db, tenantId, contactId) {
+  const { data, error } = await db.from("sequence_enrollments").select("sequence_id, place, next_at").eq("tenant_id", tenantId).eq("contact_id", contactId).eq("state", "in").order("next_at", { ascending: true, nullsFirst: false }).limit(20);
+  if (error) throw new Error(`cannot read the sequences they are in: ${error.message}`);
+  const rows = data ?? [];
+  if (rows.length === 0) return [];
+  const names = await db.from("sequences").select("id, name").in(
+    "id",
+    rows.map((r) => r.sequence_id)
+  );
+  if (names.error) throw new Error(`cannot read the sequences they are in: ${names.error.message}`);
+  const nameOf = new Map((names.data ?? []).map((q) => [q.id, q.name]));
+  return rows.flatMap((r) => {
+    const name = nameOf.get(r.sequence_id);
+    return name ? [{ id: r.sequence_id, name, place: r.place, next_at: r.next_at }] : [];
+  });
+}
+async function sequenceRow(db, id) {
+  const own = await sequenceById(db, id);
+  if (own) return own;
+  const [step, batch] = await Promise.all([
+    db.from("sequence_steps").select("sequence_id").eq("id", id).maybeSingle(),
+    db.from("sequence_batches").select("sequence_id").eq("id", id).maybeSingle()
+  ]);
+  if (step.error) throw new Error(`cannot read the sequence's step: ${step.error.message}`);
+  if (batch.error) throw new Error(`cannot read the sequence's batch: ${batch.error.message}`);
+  const of = step.data?.sequence_id ?? batch.data?.sequence_id ?? null;
+  return of ? sequenceById(db, of) : null;
+}
+async function sequenceById(db, id) {
+  const { data, error } = await db.from("sequences").select("id, tenant_id, name, starts, state").eq("id", id).maybeSingle();
+  if (error) throw new Error(`cannot read the sequence: ${error.message}`);
+  return data;
+}
+function rowsOf(data) {
+  return Array.isArray(data) ? data.filter((r) => typeof r === "object" && r !== null) : [];
+}
+async function sequenceOverview(db, tenantId, sequenceId) {
+  const { data, error } = await db.rpc("sequence_overview", {
+    p_tenant_id: tenantId,
+    ...sequenceId ? { p_sequence_id: sequenceId } : {}
+  });
+  if (error) throw new Error(`cannot read the sequences: ${error.message}`);
+  return rowsOf(data);
+}
+async function sequenceStepsOf(db, tenantId, sequenceId) {
+  const { data, error } = await db.rpc("sequence_steps_of", { p_tenant_id: tenantId, p_sequence_id: sequenceId });
+  if (error) throw new Error(`cannot read the sequence's steps: ${error.message}`);
+  return rowsOf(data);
+}
+async function sequencePeopleOf(db, p) {
+  const { data, error } = await db.rpc("sequence_people", {
+    p_tenant_id: p.tenantId,
+    p_sequence_id: p.sequenceId,
+    ...p.limit ? { p_limit: p.limit } : {}
+  });
+  if (error) throw new Error(`cannot read who is in the sequence: ${error.message}`);
+  const got = data ?? {};
+  return { counts: got.counts ?? {}, rows: Array.isArray(got.rows) ? got.rows : [] };
+}
+async function sequenceHistoryOf(db, p) {
+  const { data, error } = await db.rpc("sequence_history", {
+    p_tenant_id: p.tenantId,
+    p_sequence_id: p.sequenceId,
+    ...p.before ? { p_before: p.before } : {},
+    ...p.limit ? { p_limit: p.limit } : {}
+  });
+  if (error) throw new Error(`cannot read what the sequence sent: ${error.message}`);
+  const got = data ?? {};
+  return { batches: Array.isArray(got.batches) ? got.batches : [], more: got.more === true };
+}
+var decided = (d) => ({
+  ...d.decision !== void 0 ? { p_decision: d.decision } : {},
+  ...d.via ? { p_via: d.via } : {},
+  ...d.undoOf ? { p_undo_of: d.undoOf } : {}
+});
+async function saveSequenceStep(db, p) {
+  const { data, error } = await db.rpc("sequence_step_save", {
+    p_tenant_id: p.tenantId,
+    p_sequence_id: p.sequenceId,
+    p_step: p.step,
+    ...decided(p)
+  });
+  return answer(data, error);
+}
+async function removeSequenceStep(db, p) {
+  const { data, error } = await db.rpc("sequence_step_remove", {
+    p_tenant_id: p.tenantId,
+    p_step_id: p.stepId,
+    ...decided(p)
+  });
+  return answer(data, error);
+}
+async function setSequenceStepWords(db, p) {
+  const { data, error } = await db.rpc("sequence_step_words", {
+    p_tenant_id: p.tenantId,
+    p_step_id: p.stepId,
+    p_template_id: p.templateId,
+    ...p.params !== void 0 ? { p_params: p.params } : {},
+    ...decided(p)
+  });
+  return answer(data, error);
+}
+async function takeOutOfSequence(db, p) {
+  const { data, error } = await db.rpc("sequence_leave", {
+    p_tenant_id: p.tenantId,
+    p_sequence_id: p.sequenceId,
+    p_enrollment_ids: [...p.enrollmentIds],
+    ...p.why ? { p_why: p.why } : {},
+    ...decided(p)
+  });
+  return answer(data, error);
+}
+async function makeSequence(db, p) {
+  const { data, error } = await db.rpc("sequence_create", {
+    p_tenant_id: p.tenantId,
+    p_first: p.first,
+    p_then: p.then,
+    p_start: p.start,
+    ...decided(p)
+  });
+  return answer(data, error);
+}
+async function discardSequence(db, p) {
+  const { data, error } = await db.rpc("sequence_discard", {
+    p_tenant_id: p.tenantId,
+    p_sequence_id: p.sequenceId,
+    ...decided(p)
+  });
+  return answer(data, error);
+}
+async function cancelSequenceBatch(db, p) {
+  const { data, error } = await db.rpc("sequence_batch_cancel", {
+    p_tenant_id: p.tenantId,
+    p_batch_id: p.batchId,
+    p_from: p.from
+  });
+  if (error) throw new Error(`cannot cancel the batch: ${error.message}`);
+  return data === true;
 }
 
 // src/repositories/routing.ts
@@ -4990,11 +5159,11 @@ async function setWorkspaceLogo(db, tenantId, path) {
   return db.rpc("set_workspace_logo", { p_tenant_id: tenantId, p_logo_path: path });
 }
 async function updatePlaybook(db, id, patch) {
-  const { error } = await db.from("playbooks").update(patch).eq("id", id);
+  const { error } = await db.from("sequence_steps").update(patch).eq("id", id);
   return { error };
 }
 async function removePlaybook(db, id) {
-  const { error, count: count2 } = await db.from("playbooks").delete({ count: "exact" }).eq("id", id);
+  const { error, count: count2 } = await db.from("sequence_steps").delete({ count: "exact" }).eq("id", id);
   return { error, count: count2 };
 }
 async function startPlaybook(db, p) {
@@ -5147,7 +5316,7 @@ async function archiveList(db, id, at, name) {
   return { error, count: data?.length ?? 0 };
 }
 async function playbooksOnList(db, tenantId, listId) {
-  const { data, error } = await db.from("playbooks").select("id, name, state").eq("tenant_id", tenantId).eq("list_id", listId).order("name");
+  const { data, error } = await db.from("sequence_steps").select("id, name, state").eq("tenant_id", tenantId).eq("list_id", listId).order("name");
   if (error) {
     if (missingColumn(error.message, "list_id")) return [];
     throw new Error(`playbooks: ${error.message}`);
@@ -5191,7 +5360,7 @@ var runsSince = (since) => {
 async function touchesOf(db, tenantId, since, now, followUpsOnly) {
   const [all2, zone] = await Promise.all([
     readAllRows("broadcasts", (from, to) => {
-      const q = db.from("broadcasts").select("id, playbook_id, state, scheduled_for, created_at, run_for, params").eq("tenant_id", tenantId).or(runsSince(since));
+      const q = db.from("sequence_batches").select("id, playbook_id:step_id, state, scheduled_for, created_at, run_for, params").eq("tenant_id", tenantId).or(runsSince(since));
       return (followUpsOnly ? q.contains("params", FOLLOW_UP_PARAMS) : q).order("id").range(from, to);
     }),
     db.from("tenants").select("timezone").eq("id", tenantId).maybeSingle().then(
@@ -5213,13 +5382,13 @@ async function touchesOf(db, tenantId, since, now, followUpsOnly) {
   for (let i = 0; i < ids.length; i += RUN_IDS_PER_QUERY) {
     const rows = await readAllRows(
       "broadcast_recipients",
-      (from, to) => db.from("broadcast_recipients").select(
-        "broadcast_id, contact_id, sent_at, state, proposal_link:facts->>proposal_link, proposal_deal:facts->>deal_id"
-      ).eq("tenant_id", tenantId).in("broadcast_id", ids.slice(i, i + RUN_IDS_PER_QUERY)).in("state", ["sent", "queued"]).order("broadcast_id").order("contact_id").range(from, to)
+      (from, to) => db.from("sequence_sends").select(
+        "broadcast_id:batch_id, contact_id, sent_at, state, proposal_link:facts->>proposal_link, proposal_deal:facts->>deal_id"
+      ).eq("tenant_id", tenantId).is("lead_id", null).in("batch_id", ids.slice(i, i + RUN_IDS_PER_QUERY)).in("state", ["sent", "queued"]).order("batch_id").order("contact_id").range(from, to)
     );
     for (const r of rows) {
       const run = ofRun.get(r.broadcast_id);
-      if (!run) continue;
+      if (!run || !r.contact_id) continue;
       if (STOPPED.has(run.state) && r.state !== "sent") continue;
       const at = r.sent_at ?? run.scheduled_for ?? run.created_at;
       if (Date.parse(at) < sinceMs) continue;
@@ -5322,8 +5491,8 @@ function recordSections(db, tenantId) {
       db.from("segment_members").select(SEGMENT_MEMBER_COLUMNS).eq("tenant_id", tenantId).order("segment_id", { ascending: true }).order("contact_id", { ascending: true }).range(offset, last(offset, limit))
     ),
     campaigns: (offset, limit) => sectionRows(
-      db.from("playbooks").select(
-        "id, name, kind, trigger, state, template_id, template_name, template_language, params, hand, policy_class, channels, run_hour, cap_per_run, gap_days, cadence_days, gap_minutes, until, list_id, list_key, lead_search_id, after_playbook_id, after_days, signed_by, include_unconfirmed, last_run_for, last_run_at, created_by, created_at, updated_at"
+      db.from("sequence_steps").select(
+        "id, name, kind, trigger, state, template_id, template_name, template_language, params, hand, policy_class, channels, run_hour, cap_per_run, gap_days, cadence_days, gap_minutes, until, list_id, list_key, lead_search_id, after_playbook_id:after_step_id, after_days, signed_by, include_unconfirmed, last_run_for, last_run_at, created_by, created_at, updated_at"
       ).eq("tenant_id", tenantId).order("created_at", { ascending: true }).order("id", { ascending: true }).range(offset, last(offset, limit))
     )
   };
@@ -5332,8 +5501,8 @@ function sendSections(db, tenantId) {
   return {
     // Each run of a campaign and each one-off send: who it was for, when it went and how many it reached.
     sends: (offset, limit) => sectionRows(
-      db.from("broadcasts").select(
-        "id, name, playbook_id, run_for, template_id, template_name, template_language, params, audience, channels, state, scheduled_for, started_at, finished_at, recipient_count, failure, created_by, created_at, updated_at"
+      db.from("sequence_batches").select(
+        "id, name, playbook_id:step_id, run_for, template_id, template_name, template_language, params, audience, channels, state, scheduled_for, started_at, finished_at, recipient_count, failure, created_by, created_at, updated_at"
       ).eq("tenant_id", tenantId).order("created_at", { ascending: true }).order("id", { ascending: true }).range(offset, last(offset, limit))
     ),
     templates: (offset, limit) => sectionRows(
@@ -5361,7 +5530,7 @@ function sendSections(db, tenantId) {
     ),
     // How each answer to a reach-out was read: what they meant, the day they named, the draft made for it and who signed.
     reach_out_replies: (offset, limit) => sectionRows(
-      db.from("reach_out_replies").select(REPLY_COLUMNS).eq("tenant_id", tenantId).order("read_at", { ascending: true }).order("message_id", { ascending: true }).range(offset, last(offset, limit))
+      db.from("sequence_replies").select(REPLY_COLUMNS).eq("tenant_id", tenantId).order("read_at", { ascending: true }).order("message_id", { ascending: true }).range(offset, last(offset, limit))
     )
   };
 }
@@ -5417,12 +5586,12 @@ function personSendSections(db, tenantId, contactId) {
   });
   return {
     // Each campaign run that named them: what became of their line (sent, skipped and why, failed), on which channel,
-    // the words it filled in for them, and the run it was. A run names a person once (broadcast_recipients_pkey), so the
-    // run's id orders them.
+    // the words it filled in for them, and the run it was. A run names a person once (sequence_sends_person_once), so the
+    // run's id orders them. The file keeps the names it has always had (broadcast_id, broadcasts, playbook_id).
     sends: (offset, limit) => sectionRows(
-      db.from("broadcast_recipients").select(
-        "broadcast_id, state, reason, channel, sent_at, message_id, facts, broadcasts (name, playbook_id, run_for, template_name, template_language, scheduled_for, started_at)"
-      ).eq("tenant_id", tenantId).eq("contact_id", contactId).order("broadcast_id", { ascending: true }).range(offset, last(offset, limit))
+      db.from("sequence_sends").select(
+        "broadcast_id:batch_id, state, reason, channel, sent_at, message_id, facts, broadcasts:sequence_batches (name, playbook_id:step_id, run_for, template_name, template_language, scheduled_for, started_at)"
+      ).eq("tenant_id", tenantId).eq("contact_id", contactId).is("lead_id", null).order("batch_id", { ascending: true }).range(offset, last(offset, limit))
     ),
     holds: async (offset, limit) => {
       const threads = await theirThreads();
@@ -5443,7 +5612,7 @@ function personSendSections(db, tenantId, contactId) {
       );
     },
     reach_out_replies: (offset, limit) => sectionRows(
-      db.from("reach_out_replies").select(REPLY_COLUMNS).eq("tenant_id", tenantId).eq("contact_id", contactId).order("read_at", { ascending: true }).order("message_id", { ascending: true }).range(offset, last(offset, limit))
+      db.from("sequence_replies").select(REPLY_COLUMNS).eq("tenant_id", tenantId).eq("contact_id", contactId).order("read_at", { ascending: true }).order("message_id", { ascending: true }).range(offset, last(offset, limit))
     )
   };
 }
@@ -5914,14 +6083,15 @@ var WATCHED = [
   // a list made, renamed, archived, or people put on and taken off by a teammate: People's rail repaints (00169)
   { table: "segments", events: EVERY },
   { table: "segment_members", events: EVERY },
-  // a reply to a reach-out read, drafted or undone: the Inbox's strip and chip repaint (00222)
-  { table: "reach_out_replies", events: EVERY },
-  // a run made by the sweep, approved, stopped, sending or finished: Today's Approve and Stop rows and Campaigns
-  // repaint (00321). Its people are not watched: a run's page reads them when it opens.
-  { table: "broadcasts", events: EVERY },
-  // a playbook paused, resumed, renamed or retimed by a teammate, or stamped by the sweep's run: Campaigns' rows and
-  // their acts repaint (00376)
-  { table: "playbooks", events: EVERY },
+  // a reply to a sequence read, drafted or undone: the Inbox's strip and chip repaint (00222; sequence_replies since 00439)
+  { table: "sequence_replies", events: EVERY },
+  // a batch made by the sweep, approved, stopped, sending or finished: Today's Approve and Stop rows and Campaigns
+  // repaint (00321; sequence_batches since 00439). Its sends are not watched: a batch's page reads them when it opens.
+  { table: "sequence_batches", events: EVERY },
+  // a sequence made, paused, resumed, renamed or ended, and a step changed by a teammate or stamped by the sweep's run:
+  // Campaigns' rows and their acts repaint (00376; the sequence tables since 00439, decision 0060)
+  { table: "sequences", events: EVERY },
+  { table: "sequence_steps", events: EVERY },
   // a booking that arrived by email written, moved or withdrawn by the booking_read job: the Calendar repaints (00345)
   { table: "appointments", events: EVERY },
   // The records no page was told of (00408, 0047). A person made, or renamed, answered, stopped, merged or erased by a
@@ -6139,7 +6309,7 @@ function remainingOf(rows) {
   return Math.max(0, total - rows.length);
 }
 async function duePlaybooks(db, p) {
-  const { data, error } = await db.rpc("playbooks_due", {
+  const { data, error } = await db.rpc("sequence_steps_due", {
     p_kind: p.kind,
     p_at: p.at.toISOString(),
     p_last_hour: PLAYBOOK_HOURS.max,
@@ -6150,13 +6320,13 @@ async function duePlaybooks(db, p) {
   const rows = data ?? [];
   return {
     // The row as to_jsonb wrote it: the table's own shape, every column a JSON value.
-    rows: rows.map((r) => ({ playbook: r.playbook, timezone: r.timezone })),
+    rows: rows.map((r) => ({ step: r.step, timezone: r.timezone })),
     remaining: remainingOf(rows)
   };
 }
 async function stampPlaybooksTried(db, tenantId, p) {
   if (p.ids.length === 0) return;
-  const { error } = await db.from("playbooks").update({ last_run_at: p.at.toISOString() }).eq("tenant_id", tenantId).in("id", p.ids);
+  const { error } = await db.from("sequence_steps").update({ last_run_at: p.at.toISOString() }).eq("tenant_id", tenantId).in("id", p.ids);
   if (error) throw new Error(`cannot move the moments to the back of the page: ${error.message}`);
 }
 async function dueCalendars(db, p) {
@@ -6532,6 +6702,7 @@ export {
   campaignSeries,
   campaignStuck,
   cancelBroadcastFrom,
+  cancelSequenceBatch,
   chainDraftLoad,
   claimCallActivity,
   claimCallNotification,
@@ -6565,6 +6736,7 @@ export {
   deleteSecondFactor,
   deliveryOf,
   describeLead,
+  discardSequence,
   dismissAppointmentNotice,
   dismissPersonDoubt,
   doubtOn,
@@ -6600,6 +6772,7 @@ export {
   firstReplies,
   followUpOnFile,
   followUpTouchesSince,
+  followUpsDue,
   forgetActivityTokens,
   forgetEveryPhone,
   forgetNotification,
@@ -6672,6 +6845,7 @@ export {
   leadWritten,
   leadsBackToday,
   leavePersonLead,
+  leaveSequence,
   lineForwardingSet,
   linkCallMessage,
   listMemberIds,
@@ -6692,6 +6866,7 @@ export {
   mailboxFor,
   mailboxOfTenant,
   mailboxesToTend,
+  makeSequence,
   markCalendarFeedKept,
   markContact,
   markHeldNotice,
@@ -6831,6 +7006,7 @@ export {
   releaseQueuedSend,
   releaseUnavailableHolds,
   removePlaybook,
+  removeSequenceStep,
   removeTemplateVersion,
   renameList,
   repliedTo,
@@ -6862,6 +7038,7 @@ export {
   runsWaitingOf,
   saveIdeasLine,
   saveReachOutChain,
+  saveSequenceStep,
   saveTemplateVersion,
   savedListFor,
   savedListsFor,
@@ -6878,6 +7055,12 @@ export {
   sentEmailIdByMessageId,
   sentEmailOf,
   sentEmailWithMessageId,
+  sequenceHistoryOf,
+  sequenceOverview,
+  sequencePeopleOf,
+  sequenceRow,
+  sequenceStepsOf,
+  sequencesOfPerson,
   sessionHoldsPartnerSeat,
   setCallRecording,
   setEmailOffersYes,
@@ -6889,6 +7072,7 @@ export {
   setPartnerStatus,
   setPersonReplyMode,
   setPolicyMode,
+  setSequenceStepWords,
   setTemplateQuality,
   setWorkspaceLogo,
   settleDelivery,
@@ -6915,6 +7099,7 @@ export {
   takeCheckAttempt,
   takeIdempotencyKey,
   takeMailboxSync,
+  takeOutOfSequence,
   takeOverThread,
   takeReplyRead,
   templateIdOf,

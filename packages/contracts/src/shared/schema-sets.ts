@@ -50,6 +50,7 @@ import type {
 } from "../workspace/partner";
 import type { BROADCAST_STATES, REACH_OUT_SEND_STATES, RECIPIENT_STATES } from "../broadcasts/broadcasts";
 import type { REPLY_INTENTS, REPLY_UNREADS } from "../reach-out/reach-out-replies";
+import type { SEQUENCE_STARTS, SEQUENCE_STATES } from "../sequences/sequence";
 import type { CALL_OUTCOMES } from "../voice/call-words";
 import type { POLICY_CLASSES, POLICY_MODES } from "../config/workspace-config/policy-classes";
 import type { DEAL_LOST_REASONS, DEAL_PERS, DEAL_SOURCES, DEAL_STAGES } from "../deals/deal-words";
@@ -175,16 +176,19 @@ export type SchemaAgreement = [
   Holds<Exactly<Of<typeof POLICY_MODES>, SchemaSet<"policies.mode">>>,
   Holds<Exactly<Of<typeof SERVER_NOTIFICATION_KINDS>, SchemaSet<"notifications.kind">>>,
 
-  // Broadcasts and playbooks. A playbook runs under one of the policy classes.
-  Holds<Exactly<Of<typeof BROADCAST_STATES>, SchemaSet<"broadcasts.state">>>,
-  Holds<Exactly<Of<typeof RECIPIENT_STATES>, SchemaSet<"broadcast_recipients.state">>>,
-  Holds<Exactly<Of<typeof REACH_OUT_SEND_STATES>, SchemaSet<"reach_out_sends.state">>>,
+  // Sequences (decision 0060, 00439): how one starts and where it stands; a batch's states; a send's, a customer's four within
+  // a lead's nine. A step runs under one of the policy classes.
+  Holds<Exactly<Of<typeof SEQUENCE_STARTS>, SchemaSet<"sequences.starts">>>,
+  Holds<Exactly<Of<typeof SEQUENCE_STATES>, SchemaSet<"sequences.state">>>,
+  Holds<Exactly<Of<typeof BROADCAST_STATES>, SchemaSet<"sequence_batches.state">>>,
+  Holds<Within<Of<typeof RECIPIENT_STATES>, SchemaSet<"sequence_sends.state">>>,
+  Holds<Exactly<Of<typeof REACH_OUT_SEND_STATES>, SchemaSet<"sequence_sends.state">>>,
   // A reply's reading (00222): the seven intents the reader answers in, and the table that keeps them.
-  Holds<Exactly<Of<typeof REPLY_INTENTS>, SchemaSet<"reach_out_replies.intent">>>,
-  Holds<Exactly<Of<typeof REPLY_UNREADS>, SchemaSet<"reach_out_replies.unread">>>,
-  Holds<Exactly<Of<typeof PLAYBOOK_STATES>, SchemaSet<"playbooks.state">>>,
-  Holds<Exactly<(typeof PLAYBOOK_TRIGGERS)[number]["id"], SchemaSet<"playbooks.trigger">>>,
-  Holds<Within<SchemaSet<"playbooks.policy_class">, Of<typeof POLICY_CLASSES>>>,
+  Holds<Exactly<Of<typeof REPLY_INTENTS>, SchemaSet<"sequence_replies.intent">>>,
+  Holds<Exactly<Of<typeof REPLY_UNREADS>, SchemaSet<"sequence_replies.unread">>>,
+  Holds<Exactly<Of<typeof PLAYBOOK_STATES>, SchemaSet<"sequence_steps.state">>>,
+  Holds<Exactly<(typeof PLAYBOOK_TRIGGERS)[number]["id"], SchemaSet<"sequence_steps.trigger">>>,
+  Holds<Within<SchemaSet<"sequence_steps.policy_class">, Of<typeof POLICY_CLASSES>>>,
 
   // Calls, billing, and the business on record with the carriers.
   Holds<Exactly<Of<typeof MESSAGE_DIRECTIONS>, SchemaSet<"calls.direction">>>,

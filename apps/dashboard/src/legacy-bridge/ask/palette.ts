@@ -28,6 +28,7 @@ import {
   runLabelOf,
   runsThatWait,
   sameQuestion,
+  sequencesPreviewOf,
   scopeFromRoute,
   type AskAnswer,
   type AskLanguage,
@@ -70,7 +71,7 @@ export interface PaletteGlobals {
   /** Live's value: the calls on the line, the page's recent few, and every missed call still news (uncapped). */
   __LIVE?: FeedLive;
   __PEOPLE?: { rows?: Array<{ id: string; name: string }>; dealsOn?: boolean } | null;
-  __SETTINGS?: { config?: { calendar?: { ical_url?: string } } | null } | null;
+  __SETTINGS?: { config?: { calendar?: { ical_url?: string }; features?: unknown } | null } | null;
   __WORKSPACES?: Workspace[];
   __ACTIVE_WORKSPACE?: string | null;
   /** Who is looking: their role, and whether they are Chanlytics staff (the back office's jump is theirs alone). */
@@ -147,7 +148,11 @@ export function surfaceFor(page: string, param?: string | null): AskSurface {
  */
 export function jumpIndexFrom(win: Window): JumpEntry[] {
   const w = win as unknown as PaletteGlobals;
-  const out: JumpEntry[] = askPages({ dealsOn: !!w.__PEOPLE?.dealsOn, platformAdmin: !!w.__ME?.platform_admin });
+  const out: JumpEntry[] = askPages({
+    dealsOn: !!w.__PEOPLE?.dealsOn,
+    platformAdmin: !!w.__ME?.platform_admin,
+    sequences: sequencesPreviewOf(w.__SETTINGS?.config),
+  });
   for (const t of w.INBOX_DATA?.THREADS ?? []) {
     if (!t.real) continue;
     out.push({

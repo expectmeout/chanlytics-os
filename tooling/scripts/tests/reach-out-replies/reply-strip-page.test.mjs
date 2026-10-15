@@ -202,5 +202,5 @@ test("the row's chip says what the newest reply was read as, and nothing for a t
 
 test("the surface reads the readings, and says so at once when it could not", async () => {
   assert.deepEqual(bridge.repliesOverride.globals, ["__REPLIES"]);
-  assert.deepEqual(bridge.repliesOverride.refreshOnTables, ["reach_out_replies"]);
+  assert.deepEqual(bridge.repliesOverride.refreshOnTables, ["sequence_replies"]);
 });

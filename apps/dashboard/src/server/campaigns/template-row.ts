@@ -66,7 +66,7 @@ export async function deleteTemplateRow(ctx: RouteContext, tpl: TemplateRow) {
   };
   const id = tpl.id;
   const { count, error: bErr } = await ctx.supabase
-    .from("broadcasts")
+    .from("sequence_batches")
     .select("id", { count: "exact", head: true })
     .eq("tenant_id", tpl.tenant_id)
     .eq("template_name", tpl.name)
@@ -77,7 +77,7 @@ export async function deleteTemplateRow(ctx: RouteContext, tpl: TemplateRow) {
   // A running playbook that sends it would skip every run from now on: named, so the owner can pause it or give
   // it another message first. A paused one runs nothing, and the page names it before the delete.
   const { data: running, error: pErr } = await ctx.supabase
-    .from("playbooks")
+    .from("sequence_steps")
     .select("name")
     .eq("tenant_id", tpl.tenant_id)
     .eq("template_name", tpl.name)

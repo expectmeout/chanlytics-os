@@ -1250,7 +1250,7 @@ test("every old tool's call, made by its new name and action, answers the bytes 
     // 12 Oct 2026 (#1566, decision 0052): and the signers of their replies still offered or taken (db signersOf), in the
     // same round; its bytes are unchanged, the tool not saying them. This world's person names no lead, so the business
     // they work at reads nothing.
-    const withDoubts = NAMES[old] === "people.get" ? [...withDoubts0, "reach_out_replies.select"] : withDoubts0;
+    const withDoubts = NAMES[old] === "people.get" ? [...withDoubts0, "sequence_replies.select"] : withDoubts0;
     // 7 Oct 2026 (00345, bookings arrive by email): the calendar's reader reads the record beside the feed -- the
     // appointments over the span, the notices' health line (the latest, and the held count) and the workspace's mailbox
     // -- so calendar.week makes those reads more. Its bytes are unchanged: this workspace has no calendar and no
@@ -1284,27 +1284,27 @@ test("every old tool's call, made by its new name and action, answers the bytes 
     // playbook's runs earned (00374 playbook_totals, db playbookTotals: one call) and reads the playbooks' rows alone,
     // where it read every run's row beside them to sum it in TypeScript: one `broadcasts` read fewer and one call to the
     // function more. Its bytes are unchanged (GET playbooks answers the same bytes, playbooks/totals/playbook-totals.test.mjs).
-    const countsInTheDatabase = NAMES[old] === "campaigns.playbooks" && withOurWire.includes("broadcasts.select");
+    const countsInTheDatabase = NAMES[old] === "campaigns.playbooks" && withOurWire.includes("sequence_batches.select");
     const withTotals = countsInTheDatabase
-      ? [...withOurWire.toSpliced(withOurWire.indexOf("broadcasts.select"), 1), "rpc:playbook_totals"]
+      ? [...withOurWire.toSpliced(withOurWire.indexOf("sequence_batches.select"), 1), "rpc:playbook_totals"]
       : withOurWire;
     // 9 Oct 2026 (the moment spec, D9): a playbook proposed is held to the running ones on its moment, list and message
     // (packages/db runningTwins): one `playbooks` read more for a call that reaches its card.
     const readsTwins = NAMES[old] === "propose_campaign.playbook" && !want.isError;
-    const withTwins = readsTwins ? [...withTotals, "playbooks.select"] : withTotals;
+    const withTwins = readsTwins ? [...withTotals, "sequence_steps.select"] : withTotals;
     // 10 Oct 2026 (a moment holds many campaigns: the month's allowance, one rule): a playbook proposed is counted against
     // the week's touches as the page's pools are (server/campaigns/playbooks.ts recentTouches, db touchesSince: the week's
     // runs, and the workspace's zone a waiting run is judged by), where it was counted with nobody touched: two reads more
     // for a call that reaches its card, and no read of the runs' people where the week holds no run. Its bytes are
     // unchanged: nobody here heard from a campaign this week.
-    const withWeek = readsTwins ? [...withTwins, "broadcasts.select", "tenants.select"] : withTwins;
+    const withWeek = readsTwins ? [...withTwins, "sequence_batches.select", "tenants.select"] : withTwins;
     // 11 Oct 2026 (a one-off send honours the breath): a broadcast proposed leaves out whoever heard this week, as the
     // composer counts them and the route skips them (db recentTouches over touchesSince): the same two reads more for a
     // call that reaches its card, and for the audiences listing, which counts as the card does. Their bytes are unchanged:
     // nobody here heard from a campaign this week.
     const readsBreath =
       (NAMES[old] === "propose_campaign.broadcast" && !want.isError) || NAMES[old] === "campaigns.audiences";
-    const withBreath = readsBreath ? [...withWeek, "broadcasts.select", "tenants.select"] : withWeek;
+    const withBreath = readsBreath ? [...withWeek, "sequence_batches.select", "tenants.select"] : withWeek;
     // 10 Oct 2026 (Reports, the Receptionist lens, C2 T13): and the Receptionist lens's own: one rpc more (withReceptionistReads).
     // 10 Oct 2026 (Reports, the People lens, C3 T13): and the People lens's: its series and the channels the book is judged against.
     // 11 Oct 2026 (Reports, the Campaigns lens, C4 T16): and the Campaigns lens's ledger, what is stuck and the number (withCampaignReads).
@@ -1318,7 +1318,8 @@ test("every old tool's call, made by its new name and action, answers the bytes 
         : withBreath;
     // 13 Oct 2026 (Ruben: held emails count): and the going runs, whose check may hold emails for your say (db
     // waitingRunsOf): one `broadcasts` read more. Nobody here has a going reach-out run, so no held count is asked.
-    const withRunsWaiting = old === "get_today" ? [...halves, "broadcasts.select", "broadcasts.select"] : halves;
+    const withRunsWaiting =
+      old === "get_today" ? [...halves, "sequence_batches.select", "sequence_batches.select"] : halves;
     // 13 Oct 2026 (the wiring's second audit, R3, S5-3): a person the workspace does not show is asked once more whether
     // they were combined into another (db keptPersonOf), so their old address opens the person they became: one
     // `contacts` read more where the profile is refused. Its bytes are unchanged for nobody combined.
