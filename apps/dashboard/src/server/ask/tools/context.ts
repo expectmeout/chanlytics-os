@@ -215,6 +215,21 @@ export const AUDIENCES_CALL = "sequences with action lists";
 export const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export const str = (v: unknown, max = 200): string => (typeof v === "string" ? v.trim().slice(0, max) : "");
 
+/**
+ * A value with every key the model wrote as null left out, all the way down: the flat schemas show every field's keys,
+ * and the model sends the ones a value does not take as null. Nothing else is dropped.
+ */
+export const nullsLeftOut = (v: unknown): unknown =>
+  Array.isArray(v)
+    ? v.map(nullsLeftOut)
+    : v && typeof v === "object"
+      ? Object.fromEntries(
+          Object.entries(v)
+            .filter(([, x]) => x !== null)
+            .map(([k, x]) => [k, nullsLeftOut(x)]),
+        )
+      : v;
+
 export function json(v: unknown): string {
   return JSON.stringify(v);
 }

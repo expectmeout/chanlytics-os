@@ -1141,7 +1141,7 @@ var PREVIEW = {
   thanksOn: "We'll message you within a few minutes",
   thanksOff: "We'll get back to you",
   neverQuote: "Your receptionist is set to never quote prices, so it will say the price is quoted at a consult. Take the price out of the ad, or change that setting.",
-  excerpt: (text2, cta) => `${text2} \xB7 ${cta}`
+  excerpt: (text, cta) => `${text} \xB7 ${cta}`
 };
 
 // src/ads/words-new.ts
@@ -2050,7 +2050,7 @@ var started = (ad) => ad.approvedDay !== null;
 function viewState(ad, today) {
   return ad.state === "on" && daysBetween(ad.startDay, today) < TOO_EARLY_DAYS ? "too-early" : ad.state;
 }
-var plainSpaces = (text2) => text2.replace(/\s/g, " ");
+var plainSpaces = (text) => text.replace(/\s/g, " ");
 function timeOf(iso, timezone) {
   const ms2 = isoMs(iso);
   return ms2 === null ? "" : plainSpaces(clockTime(ms2, timezone));
@@ -2174,11 +2174,11 @@ function needIds(door, platform, choice) {
   return ids;
 }
 function numberRow(acct, opens) {
-  const text2 = NEW_AD.opens.numberOnPage;
-  if (opens === "page") return { text: text2, tone: "ok", door: null, note: NEW_AD.opens.hostedNote };
+  const text = NEW_AD.opens.numberOnPage;
+  if (opens === "page") return { text, tone: "ok", door: null, note: NEW_AD.opens.hostedNote };
   const ok2 = checkOk(acct, "number-on-page");
   return {
-    text: text2,
+    text,
     tone: ok2 ? "ok" : "warn",
     door: ok2 ? null : fixDoor(),
     fix: ok2 ? null : checkFix("number-on-page", "google")
@@ -2207,7 +2207,7 @@ function reachNoteOf(ad, read) {
   if (ad.door === "whatsapp") return when === null ? REACH_NOTE.whatsapp : REACH_NOTE.lastMessage(when);
   return when === null ? REACH_NOTE.form[ad.platform] : REACH_NOTE.lastNumber(when);
 }
-var quotesPrice = (text2) => /[$£€]\s?\d/.test(text2);
+var quotesPrice = (text) => /[$£€]\s?\d/.test(text);
 function adQuotes(copy, priceNote) {
   const named = priceNote !== "" && (copy.headline.includes(priceNote) || copy.text.includes(priceNote));
   return named || quotesPrice(copy.headline);
@@ -2324,8 +2324,8 @@ var CHECKS2 = {
 function readyRow(acct, id) {
   const ok2 = checkOk(acct, id);
   const manager = id === "manager-link";
-  const text2 = manager ? ok2 ? CONNECT.managerOk : CONNECT.managerNot : checkWords(id, acct.platform);
-  return { id, text: text2, tone: ok2 ? "ok" : "warn", fix: ok2 ? null : checkFix(id, acct.platform) };
+  const text = manager ? ok2 ? CONNECT.managerOk : CONNECT.managerNot : checkWords(id, acct.platform);
+  return { id, text, tone: ok2 ? "ok" : "warn", fix: ok2 ? null : checkFix(id, acct.platform) };
 }
 function permissionRow2(acct, today) {
   if (!acct.permissionEnd) return null;
@@ -2755,15 +2755,15 @@ function isOwn(own, p) {
   return !!p.email && own.has(p.email.toLowerCase());
 }
 function extractContacts(item, own) {
-  const text2 = [item.title, item.description ?? "", item.location ?? ""].join("\n");
+  const text = [item.title, item.description ?? "", item.location ?? ""].join("\n");
   const organizer = item.organizer?.toLowerCase() || null;
   const emails = /* @__PURE__ */ new Set();
-  for (const m of text2.match(EMAIL_RE) ?? []) emails.add(m.toLowerCase());
+  for (const m of text.match(EMAIL_RE) ?? []) emails.add(m.toLowerCase());
   for (const a of item.attendees ?? []) if (a.email) emails.add(a.email.toLowerCase());
   if (organizer) emails.delete(organizer);
   for (const a of own) emails.delete(a);
   const phones = /* @__PURE__ */ new Set();
-  for (const m of text2.replace(EMAIL_RE, " ").match(PHONE_RE) ?? []) {
+  for (const m of text.replace(EMAIL_RE, " ").match(PHONE_RE) ?? []) {
     const p = phoneFrom(m);
     if (p) phones.add(p);
   }
@@ -2783,11 +2783,11 @@ function nameMatcher(name) {
   if (n.length < 4 || isIdentifierName(n)) return null;
   return new RegExp(`(^|[^\\p{L}\\p{N}])${escapeRe(n)}(?=$|[^\\p{L}\\p{N}])`, "iu");
 }
-function personInText(text2, people) {
+function personInText(text, people) {
   let best = null;
   for (const p of people) {
     const re = nameMatcher(p.name);
-    if (re && re.test(text2) && (!best || p.name.trim().length > best.name.trim().length)) best = p;
+    if (re && re.test(text) && (!best || p.name.trim().length > best.name.trim().length)) best = p;
   }
   return best;
 }
@@ -2869,7 +2869,7 @@ function allVisitsIn(index, person) {
   for (const em of person.businessEmails ?? []) for (const it of index.byEmail.get(em) ?? []) take(it, "business");
   const re = nameMatcher(person.name);
   if (re) {
-    for (const { item, text: text2 } of index.texts) if (!seen.has(item) && re.test(text2)) take(item, "name");
+    for (const { item, text } of index.texts) if (!seen.has(item) && re.test(text)) take(item, "name");
   }
   return out.sort((a, b) => a.start - b.start);
 }
@@ -2898,7 +2898,7 @@ function visitsIn(index, person, nowMs) {
   for (const em of person.businessEmails ?? []) for (const it of index.byEmail.get(em) ?? []) take(it, "business");
   const re = nameMatcher(person.name);
   if (re) {
-    for (const { item, text: text2 } of index.texts) if (!seen.has(item) && re.test(text2)) take(item, "name");
+    for (const { item, text } of index.texts) if (!seen.has(item) && re.test(text)) take(item, "name");
   }
   return { next, last, near: near3.sort((a, b) => a.start - b.start), missed };
 }
@@ -3372,11 +3372,11 @@ function forwardingConfirmationOf(e) {
   if (!e.from || !GMAIL_FORWARDING_SENDER.test(e.from.address.trim())) return null;
   const subject = e.subject ?? "";
   if (!/forwarding confirmation/i.test(subject)) return null;
-  const text2 = e.text ?? "";
-  const code2 = /\(#(\d{5,12})\)/.exec(subject)?.[1] ?? /confirmation code:\s*(\d{5,12})/i.exec(text2)?.[1] ?? null;
-  const account = /receive mail from\s+([^\s<>]+@[^\s<>]+)/i.exec(subject)?.[1] ?? /([^\s<>]+@[^\s<>]+)\s+has requested to automatically forward/i.exec(text2)?.[1] ?? null;
+  const text = e.text ?? "";
+  const code2 = /\(#(\d{5,12})\)/.exec(subject)?.[1] ?? /confirmation code:\s*(\d{5,12})/i.exec(text)?.[1] ?? null;
+  const account = /receive mail from\s+([^\s<>]+@[^\s<>]+)/i.exec(subject)?.[1] ?? /([^\s<>]+@[^\s<>]+)\s+has requested to automatically forward/i.exec(text)?.[1] ?? null;
   if (!code2 || !account) return null;
-  const link = /https:\/\/[a-z0-9.-]*\.google\.com\/mail\/vf-[^\s<>")]+/i.exec(text2)?.[0] ?? null;
+  const link = /https:\/\/[a-z0-9.-]*\.google\.com\/mail\/vf-[^\s<>")]+/i.exec(text)?.[0] ?? null;
   return { account: account.toLowerCase(), code: code2, link };
 }
 
@@ -4009,9 +4009,9 @@ function feedSourceLabel(url) {
 }
 function eventText(raw, max = 1500) {
   if (!raw) return null;
-  const text2 = raw.replace(/<br\s*\/?>/gi, "\n").replace(/<\/?(p|div|li|tr|h[1-6])\b[^>]*>/gi, "\n").replace(/<[^>]+>/g, "").replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;|&apos;/g, "'").replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
-  if (!text2) return null;
-  return text2.length > max ? `${text2.slice(0, max - 1).trimEnd()}\u2026` : text2;
+  const text = raw.replace(/<br\s*\/?>/gi, "\n").replace(/<\/?(p|div|li|tr|h[1-6])\b[^>]*>/gi, "\n").replace(/<[^>]+>/g, "").replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;|&apos;/g, "'").replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
+  if (!text) return null;
+  return text.length > max ? `${text.slice(0, max - 1).trimEnd()}\u2026` : text;
 }
 
 // src/lines/line-failure.ts
@@ -5762,8 +5762,8 @@ function areaOfValue(value) {
   }
   return { kind: "radius", miles: Number(value) };
 }
-function zipIssue(text2, have) {
-  const zip = text2.trim();
+function zipIssue(text, have) {
+  const zip = text.trim();
   if (!new RegExp(`^\\d{${ADS_ZIP_DIGITS}}$`).test(zip)) return ZIPS.bad(ADS_ZIP_DIGITS);
   return have.includes(zip) ? ZIPS.already(zip) : null;
 }
@@ -5917,7 +5917,7 @@ function editFootOf(o) {
 // src/ads/drawer.ts
 var connectionsDoor = () => ({ words: SETTINGS_DOOR, to: ADS_DOORS.accounts });
 var renewDoor = () => ({ words: DRAWER.callout.renew, to: ADS_DOORS.accounts });
-var plainPart = (text2) => ({ tone: "plain", text: text2, door: null, acts: [] });
+var plainPart = (text) => ({ tone: "plain", text, door: null, acts: [] });
 function lapsingDay(ad, read) {
   const end = adAccountOf(read, ad.platform)?.permissionEnd ?? null;
   if (ad.platform !== "tiktok" || ad.media.kind !== "post" || end === null) return null;
@@ -6255,8 +6255,8 @@ function setForOf(o) {
   }
   return { label: NEW_AD.step5.setFor, rows: rows2 };
 }
-var plainRow = (text2, tone = "ok") => ({
-  text: text2,
+var plainRow = (text, tone = "ok") => ({
+  text,
   tone,
   note: null,
   door: null,
@@ -6288,18 +6288,18 @@ function accountRowsOf(draft, read, needs2) {
   ];
 }
 var PRICE = /[$£€]\s?\d+(?:,\d{3})*(?:\.\d+)?/g;
-var pricesIn = (text2) => text2.match(PRICE) ?? [];
+var pricesIn = (text) => text.match(PRICE) ?? [];
 function fitRows(ad, read) {
   const w = NEW_AD.step2.where;
   const rows2 = [];
   if (ad.platform === "meta") {
-    const { headline: headline2, text: text2 } = ad.copy;
+    const { headline: headline2, text } = ad.copy;
     if (headline2.length > ADS_COPY_LIMITS.headlineFacebook) {
       const n = headline2.length;
       rows2.push(plainRow(CHECKS.headlineLong({ n, max: ADS_COPY_LIMITS.headlineFacebook, where: w.facebook }), "warn"));
     }
-    if (text2.length > ADS_COPY_LIMITS.textInstagram) {
-      const n = text2.length;
+    if (text.length > ADS_COPY_LIMITS.textInstagram) {
+      const n = text.length;
       rows2.push(plainRow(CHECKS.textLong({ n, max: ADS_COPY_LIMITS.textInstagram, where: w.instagram }), "warn"));
     }
   }
@@ -6432,14 +6432,14 @@ function starterCopy(o) {
   const { service, price, business, door } = o;
   const w = appointmentWords(o.word);
   const priced = `${service}, ${price}`;
-  const text2 = {
+  const text = {
     whatsapp: `Book your first ${w.one} at ${business.name}. Message us on WhatsApp and we'll send you open times.`,
     call: `Call ${business.name} and we'll go through the open times.`,
     form: `Leave your number and ${business.name} will call you back with open times.`
   };
   return {
     headline: priced,
-    text: text2[door],
+    text: text[door],
     headlines: [priced, business.name, "Call to book"],
     lines: [
       `${service} at ${business.name}. Call and we'll go through the open times.`,
@@ -8082,8 +8082,8 @@ function parseSystemOneResponse(raw) {
 function systemOneDollars(inputTokens) {
   return Math.round(inputTokens * SYSTEM_ONE_INPUT_USD_PER_MILLION) / 1e6;
 }
-function systemOneState(text2) {
-  return text2.trim().slice(0, SYSTEM_ONE_STATE_MAX_CHARS);
+function systemOneState(text) {
+  return text.trim().slice(0, SYSTEM_ONE_STATE_MAX_CHARS);
 }
 
 // src/ai/fence.ts
@@ -8099,19 +8099,19 @@ function injectionQuestion() {
     }
   };
 }
-function defang(text2) {
-  return text2.replace(/</g, "\u2039").replace(/>/g, "\u203A");
+function defang(text) {
+  return text.replace(/</g, "\u2039").replace(/>/g, "\u203A");
 }
-function fenceActed(text2) {
-  return defang(text2) !== text2;
+function fenceActed(text) {
+  return defang(text) !== text;
 }
-function fenced(tag, text2) {
+function fenced(tag, text) {
   return `<${tag}>
-${defang(text2)}
+${defang(text)}
 </${tag}>`;
 }
-function fencedInline(tag, text2) {
-  return `<${tag}>${defang(text2)}</${tag}>`;
+function fencedInline(tag, text) {
+  return `<${tag}>${defang(text)}</${tag}>`;
 }
 var PROFILE_NAME_MAX = 60;
 function promptSafeName(name) {
@@ -8538,10 +8538,10 @@ function splitQuotedReply(body) {
   const cuts = [QUOTE_ATTRIBUTION.exec(body), QUOTE_BLOCK.exec(body)].filter((m) => m !== null).map((m) => m.index);
   if (cuts.length === 0) return { text: body, quoted: null };
   const cut2 = Math.min(...cuts);
-  const text2 = body.slice(0, cut2).trim();
+  const text = body.slice(0, cut2).trim();
   const quoted = body.slice(cut2).trim();
-  if (!text2 || !quoted) return { text: body, quoted: null };
-  return { text: text2, quoted };
+  if (!text || !quoted) return { text: body, quoted: null };
+  return { text, quoted };
 }
 
 // src/config/intent-labels.ts
@@ -8909,8 +8909,8 @@ function messageText(m) {
   }
   return `[${m.type}]`;
 }
-function clipAtWord(text2, max) {
-  const t = text2.trim();
+function clipAtWord(text, max) {
+  const t = text.trim();
   if (t.length <= max) return t;
   const cut2 = t.slice(0, max + 1);
   const space = cut2.lastIndexOf(" ");
@@ -9488,8 +9488,8 @@ var PRICE_PATTERNS = [
   new RegExp(String.raw`\b(?:discount|descuento)\s+(?:of\s+|del?\s+)?\d{1,3}\s?${PERCENT}`, "i"),
   /\b(?:half[\s-]price|half off|mitad de precio|2\s?x\s?1|dos por uno)\b/i
 ];
-function violatesNoPrices(text2) {
-  return PRICE_PATTERNS.some((p) => p.test(text2));
+function violatesNoPrices(text) {
+  return PRICE_PATTERNS.some((p) => p.test(text));
 }
 function canonicalNumber(run) {
   const m = /^(\d{1,3}(?:[.,]\d{3})+|\d+)(?:[.,](\d{1,2}))?$/.exec(run);
@@ -9555,30 +9555,30 @@ var RANGE_TOP = new RegExp(
   "i"
 );
 var BETWEEN_TOP = new RegExp(String.raw`^\s*(?:and|y)\s*[$€£]?\s*(\d+(?:[.,]\d+)*)${NOT_A_PRICE_AFTER}`, "i");
-function rangeTopAfter(text2, from, to) {
-  const tail = text2.slice(to);
-  const top = RANGE_TOP.exec(tail) ?? (/\b(?:between|entre)\s+$/i.test(text2.slice(0, from)) ? BETWEEN_TOP.exec(tail) : null);
+function rangeTopAfter(text, from, to) {
+  const tail = text.slice(to);
+  const top = RANGE_TOP.exec(tail) ?? (/\b(?:between|entre)\s+$/i.test(text.slice(0, from)) ? BETWEEN_TOP.exec(tail) : null);
   return top?.[1] ? canonicalNumber(top[1].replace(/[.,]$/, "")) : null;
 }
-function priceFigures(text2) {
+function priceFigures(text) {
   const found = [];
   for (const p of PRICE_PATTERNS) {
-    for (const m of text2.matchAll(new RegExp(p.source, p.flags.includes("g") ? p.flags : `${p.flags}g`))) {
+    for (const m of text.matchAll(new RegExp(p.source, p.flags.includes("g") ? p.flags : `${p.flags}g`))) {
       let from = m.index;
       let to = m.index + m[0].length;
-      while (from > 0 && /[\d.,]/.test(text2.charAt(from - 1))) from -= 1;
-      while (to < text2.length && /[\d.,]/.test(text2.charAt(to))) to += 1;
-      const figure2 = figureOf(text2.slice(from, to).replace(/[.,]$/, ""));
+      while (from > 0 && /[\d.,]/.test(text.charAt(from - 1))) from -= 1;
+      while (to < text.length && /[\d.,]/.test(text.charAt(to))) to += 1;
+      const figure2 = figureOf(text.slice(from, to).replace(/[.,]$/, ""));
       found.push(figure2);
-      const top = /^\d/.test(figure2) && !figure2.endsWith("%") ? rangeTopAfter(text2, from, to) : null;
+      const top = /^\d/.test(figure2) && !figure2.endsWith("%") ? rangeTopAfter(text, from, to) : null;
       if (top) found.push(top);
     }
   }
   return [...new Set(found)];
 }
-function priceBreach(text2, allowed) {
-  if (!allowed) return violatesNoPrices(text2);
-  return priceFigures(text2).some((f) => !allowed.has(f));
+function priceBreach(text, allowed) {
+  if (!allowed) return violatesNoPrices(text);
+  return priceFigures(text).some((f) => !allowed.has(f));
 }
 var MONEY_PATTERNS = [
   /\brefund(?:s|ed|ing|able)?\b/i,
@@ -9612,8 +9612,8 @@ var MONEY_PATTERNS = [
   /\bfinanciaci[oó]n\b/i,
   /\bmeses sin intereses\b/i
 ];
-function namesMoney(text2) {
-  return MONEY_PATTERNS.some((p) => p.test(text2));
+function namesMoney(text) {
+  return MONEY_PATTERNS.some((p) => p.test(text));
 }
 var HELD_LINES = {
   en: {
@@ -9771,37 +9771,37 @@ function slotKey(name) {
 }
 var keyInSet = (set, inner) => set.kind === "numbered" ? inner.replace(/^0+(?=\d)/, "") : slotKey(inner);
 var slotWritten = (key) => `{{${key}}}`;
-function slotMentions(set, text2) {
-  return [...text2.matchAll(patternOf(set))].map((m) => ({
+function slotMentions(set, text) {
+  return [...text.matchAll(patternOf(set))].map((m) => ({
     key: keyInSet(set, m[1] ?? ""),
     index: m.index,
     written: m[0]
   }));
 }
-function slotsWritten(set, text2) {
-  const keys = [...new Set(slotMentions(set, text2).map((m) => m.key))];
+function slotsWritten(set, text) {
+  const keys = [...new Set(slotMentions(set, text).map((m) => m.key))];
   if (set.kind === "numbered") return { keys: keys.sort((a, b) => Number(a) - Number(b)), stray: false };
-  return { keys, stray: /[{}]/.test(text2.replace(NAMED_SLOT, "")) };
+  return { keys, stray: /[{}]/.test(text.replace(NAMED_SLOT, "")) };
 }
-function slotCountIn(set, text2, key) {
-  return slotMentions(set, text2).filter((m) => m.key === key).length;
+function slotCountIn(set, text, key) {
+  return slotMentions(set, text).filter((m) => m.key === key).length;
 }
-function slotsOut(set, text2) {
-  return text2.replace(patternOf(set), " ");
+function slotsOut(set, text) {
+  return text.replace(patternOf(set), " ");
 }
-function slotOutside(set, text2) {
-  return slotsWritten(set, text2).keys.find((k) => !set.keys.includes(k)) ?? null;
+function slotOutside(set, text) {
+  return slotsWritten(set, text).keys.find((k) => !set.keys.includes(k)) ?? null;
 }
-function slotFault(set, text2) {
-  return slotOutside(set, text2) !== null || slotsWritten(set, text2).stray;
+function slotFault(set, text) {
+  return slotOutside(set, text) !== null || slotsWritten(set, text).stray;
 }
 var placeInSet = (set, key) => !set || set.kind === "numbered" ? Number(key) - 1 : set.keys.indexOf(key);
 function slotValueOf(set, key, values) {
   return values[placeInSet(set, key)];
 }
-function fillSlots(text2, values, set) {
+function fillSlots(text, values, set) {
   const kind = set ?? { kind: "numbered" };
-  return text2.replace(
+  return text.replace(
     patternOf(kind),
     (whole, inner) => slotValueOf(set, keyInSet(kind, inner), values) ?? whole
   );
@@ -9809,8 +9809,8 @@ function fillSlots(text2, values, set) {
 function slotValues(set, known) {
   return set.keys.map((key) => known[key]?.trim() || void 0);
 }
-function slotHoles(set, text2, values) {
-  const written = slotsWritten(set, text2);
+function slotHoles(set, text, values) {
+  const written = slotsWritten(set, text);
   return written.stray || written.keys.some((key) => (slotValueOf(set, key, values) ?? null) === null);
 }
 
@@ -9837,8 +9837,8 @@ function smsStopLine(language) {
 }
 var GSM7 = /^[@£$¥èéùìòÇ\nØø\r\fÅåΔ_ΦΓΛΩΠΨΣΘΞÆæßÉ !"#¤%&'()*+,\-./0-9:;<=>?¡A-ZÄÖÑÜ§¿a-zäöñüà^{}\\[~\]|€]*$/;
 var GSM7_EXTENSION = /^[\f^{}\\[~\]|€]$/;
-function gsm7Segments(text2) {
-  const costs = [...text2].map((c) => GSM7_EXTENSION.test(c) ? 2 : 1);
+function gsm7Segments(text) {
+  const costs = [...text].map((c) => GSM7_EXTENSION.test(c) ? 2 : 1);
   const septets = costs.reduce((sum3, n) => sum3 + n, 0);
   if (septets <= 160) return { septets, segments: septets === 0 ? 0 : 1 };
   let segments = 1;
@@ -9852,13 +9852,13 @@ function gsm7Segments(text2) {
   }
   return { septets, segments };
 }
-function smsSegments(text2) {
-  const unicode = !GSM7.test(text2);
+function smsSegments(text) {
+  const unicode = !GSM7.test(text);
   if (!unicode) {
-    const { septets, segments: segments2 } = gsm7Segments(text2);
+    const { septets, segments: segments2 } = gsm7Segments(text);
     return { segments: segments2, chars: septets, perSegment: segments2 > 1 ? 153 : 160, unicode };
   }
-  const chars = [...text2].length;
+  const chars = [...text].length;
   const segments = chars === 0 ? 0 : chars <= 70 ? 1 : Math.ceil(chars / 67);
   return { segments, chars, perSegment: segments > 1 ? 67 : 70, unicode };
 }
@@ -9873,8 +9873,8 @@ function clean(s) {
 function numberedRefusal(extra, slots) {
   return slots === 0 ? `This message fills no values, so {{${extra}}} has nothing to take.` : `{{${extra}}} is not one of this message's values: it has ${slots === 1 ? "{{1}}" : `{{1}} to {{${slots}}}`}.`;
 }
-function versionSlotsRefusal(text2, slots) {
-  const extra = slotOutside(numberedSlots(slots), text2);
+function versionSlotsRefusal(text, slots) {
+  const extra = slotOutside(numberedSlots(slots), text);
   return extra === null ? null : numberedRefusal(extra, slots);
 }
 function emailIssues(w, rules) {
@@ -9888,12 +9888,12 @@ function emailIssues(w, rules) {
   }
   if (!w.body) at3("body", "body_missing");
   else if (w.body.length > rules.bodyMax) at3("body", "body_too_long");
-  for (const [field, text2] of [
+  for (const [field, text] of [
     ["subject", subject],
     ["body", w.body]
   ]) {
-    if (!text2) continue;
-    const written = slotsWritten(rules.slots, text2);
+    if (!text) continue;
+    const written = slotsWritten(rules.slots, text);
     for (const key of written.keys) if (!rules.slots.keys.includes(key)) at3(field, "unknown_slot", key);
     if (written.stray) at3(field, "stray_brace");
   }
@@ -10082,44 +10082,44 @@ var REACH_OUT_NAME_MAX = 80;
 var SIGNED_BY_MAX = 60;
 var REACH_OUT_GAP_MINUTES = [5, 8, 12, 20, 30, 60];
 var REACH_OUT_AFTER_DAYS = { min: 2, max: 30, first: 4 };
-function slotCount(text2, slot) {
-  return slotCountIn(REACH_OUT_SLOT_SET, text2, slot);
+function slotCount(text, slot) {
+  return slotCountIn(REACH_OUT_SLOT_SET, text, slot);
 }
-function reachOutSlotFault(text2) {
-  return slotFault(REACH_OUT_SLOT_SET, text2);
+function reachOutSlotFault(text) {
+  return slotFault(REACH_OUT_SLOT_SET, text);
 }
 function wordsNeedOpening(w) {
   return slotCount(`${w.subject ?? ""}
 ${w.body}`, "opening") > 0;
 }
-function wordCount(text2) {
-  return text2.split(/\s+/).filter((t) => /[\p{L}\p{N}]/u.test(t)).length;
+function wordCount(text) {
+  return text.split(/\s+/).filter((t) => /[\p{L}\p{N}]/u.test(t)).length;
 }
-function emailWordCount(text2) {
-  const slots = slotMentions(REACH_OUT_SLOT_SET, text2).reduce(
+function emailWordCount(text) {
+  const slots = slotMentions(REACH_OUT_SLOT_SET, text).reduce(
     (n, m) => n + (m.key === "opening" ? OPENING_WORDS_MAX : 1),
     0
   );
-  return slots + wordCount(slotsOut(REACH_OUT_SLOT_SET, text2));
+  return slots + wordCount(slotsOut(REACH_OUT_SLOT_SET, text));
 }
 var ADDRESS = /[^\s@<>]+@[^\s@<>]+/g;
 var SCHEME_OR_WWW = /\bhttps?:\/\/[^\s<>]+|\bwww\.[^\s<>]+/gi;
 var BARE_HOST = /\b[a-z0-9-]+(?:\.[a-z0-9-]+)*\.[a-z]{2,24}\b(?:\/[^\s<>]*)?/g;
-function linksIn(text2) {
+function linksIn(text) {
   const out = [];
-  const rest = slotsOut(REACH_OUT_SLOT_SET, text2).replace(ADDRESS, " ").replace(SCHEME_OR_WWW, (m) => {
+  const rest = slotsOut(REACH_OUT_SLOT_SET, text).replace(ADDRESS, " ").replace(SCHEME_OR_WWW, (m) => {
     out.push(m);
     return " ";
   });
   for (const m of rest.matchAll(BARE_HOST)) out.push(m[0]);
   return out;
 }
-function linkCount(text2) {
-  return linksIn(text2).length + slotCount(text2, "booking link");
+function linkCount(text) {
+  return linksIn(text).length + slotCount(text, "booking link");
 }
-function shoutingLine(text2) {
+function shoutingLine(text) {
   let run = 0;
-  for (const line of slotsOut(REACH_OUT_SLOT_SET, text2).split(/\r\n|\r|\n/)) {
+  for (const line of slotsOut(REACH_OUT_SLOT_SET, text).split(/\r\n|\r|\n/)) {
     const letters = line.replace(/[^\p{L}]/gu, "");
     const capitals = letters !== "" && letters === letters.toUpperCase() && letters !== letters.toLowerCase();
     run = capitals ? run + letters.length : 0;
@@ -10271,8 +10271,8 @@ function recordNumbers(r2) {
     add(5);
   }
   if (r2.reviews !== null) add(r2.reviews);
-  for (const text2 of [r2.business_name, r2.category, r2.city, r2.hours, r2.about, r2.why_it_fits])
-    for (const m of (text2 ?? "").matchAll(NUMBER)) out.add(m[0].replace(/,$/, ""));
+  for (const text of [r2.business_name, r2.category, r2.city, r2.hours, r2.about, r2.why_it_fits])
+    for (const m of (text ?? "").matchAll(NUMBER)) out.add(m[0].replace(/,$/, ""));
   return out;
 }
 var OPENING_PROBLEMS = [
@@ -10290,20 +10290,20 @@ function isOpeningProblem(p) {
   return OPENING_PROBLEMS.includes(p ?? "");
 }
 function checkOpening(o, r2) {
-  const text2 = o.opening.trim();
-  if (!text2) return "empty";
-  if (wordCount(text2) > OPENING_WORDS_MAX || text2.length > OPENING_CHARS_MAX) return "too_long";
-  let unnamed = text2;
+  const text = o.opening.trim();
+  if (!text) return "empty";
+  if (wordCount(text) > OPENING_WORDS_MAX || text.length > OPENING_CHARS_MAX) return "too_long";
+  let unnamed = text;
   for (const own of [r2.business_name, r2.city]) if (own?.trim()) unnamed = unnamed.split(own.trim()).join(" ");
   if (linksIn(unnamed).length > 0 || /@/.test(unnamed)) return "link";
-  if (/\{\{|\}\}/.test(text2)) return "brace";
-  if (shoutingLine(text2)) return "shouting";
-  if (violatesNoPrices(text2)) return "price";
+  if (/\{\{|\}\}/.test(text)) return "brace";
+  if (shoutingLine(text)) return "shouting";
+  if (violatesNoPrices(text)) return "price";
   const angle = o.angle.trim().split(/\s+/).filter(Boolean);
   if (angle.length === 0 || angle.length > ANGLE_WORDS_MAX) return "angle";
   for (const k of o.facts_used) if (!isOpeningFactKey(k) || !factValue(r2, k)) return "unnamed_fact";
   const known = recordNumbers(r2);
-  for (const m of text2.matchAll(NUMBER)) if (!known.has(m[0].replace(/,$/, ""))) return "unbacked_number";
+  for (const m of text.matchAll(NUMBER)) if (!known.has(m[0].replace(/,$/, ""))) return "unbacked_number";
   return null;
 }
 function openingProblemWords(p) {
@@ -10608,8 +10608,8 @@ var REPLY_CHIP_WORDS = {
   away: "Away",
   other: "Wrote back"
 };
-function withinChars(text2, max) {
-  const t = text2.trim();
+function withinChars(text, max) {
+  const t = text.trim();
   return t.length <= max ? t : clipAtWord(t, max - 1);
 }
 var REPLY_UNREADS = ["no_model", "may_not_spend", "day_spent", "model_failed"];
@@ -10708,10 +10708,10 @@ function replyUserContent(p) {
 var ADDRESS_IN_TEXT = /[^\s@]+@[^\s@]+/g;
 var NUMBER_IN_TEXT = /\+?\(?\d[\d\s().-]{5,}\d/g;
 var numberRun = (run) => run.replace(/\D/g, "").length >= 7 && !/^\d{4}-\d{2}-\d{2}$/.test(run.trim());
-function firstWords(text2, n) {
+function firstWords(text, n) {
   const kept = [];
   let words3 = 0;
-  for (const token2 of text2.split(" ")) {
+  for (const token2 of text.split(" ")) {
     const isWord = wordCount(token2) > 0;
     if (isWord && words3 === n) break;
     if (isWord) words3++;
@@ -10785,8 +10785,8 @@ function ownLines(lines, pastHeads) {
   }
   return kept.join("\n").trim();
 }
-function replyTextOf(text2) {
-  const lines = (text2 ?? "").replace(/\r\n?/g, "\n").split("\n");
+function replyTextOf(text) {
+  const lines = (text ?? "").replace(/\r\n?/g, "\n").split("\n");
   return ownLines(lines, false) || ownLines(lines, true).replace(/\n{3,}/g, "\n\n");
 }
 function stepDayFor(day) {
@@ -11134,8 +11134,8 @@ ${JSON.stringify(quoted)}
 function judgeShadowCalls(plan, places) {
   const criteria = { ...JUDGE_ANSWER_RULES };
   const questions = {};
-  for (const [key, text2] of Object.entries(judgeQuestions(plan))) {
-    questions[key] = { type: "choice", instructions: `Judge the place against this criterion: ${text2}`, criteria };
+  for (const [key, text] of Object.entries(judgeQuestions(plan))) {
+    questions[key] = { type: "choice", instructions: `Judge the place against this criterion: ${text}`, criteria };
   }
   const domainOnly = (email) => `@${email.slice(email.lastIndexOf("@") + 1)}`;
   return places.map((p) => ({
@@ -11271,8 +11271,8 @@ var K = new Uint32Array([
   3204031479,
   3329325298
 ]);
-function sha256Hex(text2) {
-  const bytes = new TextEncoder().encode(text2);
+function sha256Hex(text) {
+  const bytes = new TextEncoder().encode(text);
   const bitLen = bytes.length * 8;
   const padded = new Uint8Array(Math.ceil((bytes.length + 9) / 64) * 64);
   padded.set(bytes);
@@ -11543,8 +11543,8 @@ function modelTurnRequestOf(sent2) {
     photo: sent2.photoType ?? null
   };
 }
-function modelTurnResponseOf(stopReason, record2, text2) {
-  return { stop_reason: stopReason, text: text2.slice(0, MODEL_TURN_TEXT_MAX), record: record2 ? { ...record2 } : null };
+function modelTurnResponseOf(stopReason, record2, text) {
+  return { stop_reason: stopReason, text: text.slice(0, MODEL_TURN_TEXT_MAX), record: record2 ? { ...record2 } : null };
 }
 
 // src/ai/flags.ts
@@ -12928,7 +12928,7 @@ function personTabsOf(f, phone) {
 // src/ask/ask.ts
 var ASK_MAX_CHARS = 1e3;
 var ASK_MAX_ROUNDS = 8;
-var ASK_TURN_BUDGET_MS = 12e4;
+var ASK_TURN_BUDGET_MS = 2 * MIN_MS;
 var ASK_SPOKEN_TURN_BUDGET_MS = 45e3;
 var ASK_TOOLS_CHARS_CEILING = 13e4;
 var ASK_CORE_TOOLS_CHARS_CEILING = 4e4;
@@ -12961,7 +12961,7 @@ var ASK_CAPS = {
   needsRows: 10
 };
 var ASK_THREAD_VERBS = ["take_over", "hand_back", "snooze", "wake", "archive", "resolve"];
-var ASK_UNDO_MS = 10 * 6e4;
+var ASK_UNDO_MS = 10 * MIN_MS;
 var ASK_CARD_FRESH_MS = DAY_MS;
 var ASK_PLAN_FRESH_MS = WEEK_MS;
 function askCardLapsed(p, nowMs) {
@@ -13078,7 +13078,7 @@ var WRITE_CLAIMS = [
   /(?<![\p{L}\p{N}])aprob[eé](?![\p{L}\p{N}])/iu,
   /\bdone[,.!]/i
 ];
-var claimsWrite = (text2) => WRITE_CLAIMS.some((re) => re.test(unquoted(text2)));
+var claimsWrite = (text) => WRITE_CLAIMS.some((re) => re.test(unquoted(text)));
 
 // src/people/lists/list-rules.ts
 import * as z3 from "zod/mini";
@@ -14399,17 +14399,17 @@ function addedByAd(ad) {
   return { who: "Ads", how: `from ${from} (${ad.name}, on ${PERSON_AD_ON[ad.platform]})`, to: adRoute(ad.id) };
 }
 function campaignsOf(d, tz, nowMs) {
-  const threadOf3 = /* @__PURE__ */ new Map();
+  const threadOf2 = /* @__PURE__ */ new Map();
   const repliesIn = /* @__PURE__ */ new Map();
   for (const c of d.conversations) {
     for (const m of c.messages) {
-      threadOf3.set(m.id, c.id);
+      threadOf2.set(m.id, c.id);
       if (isTheirOwnWords(m)) repliesIn.set(c.id, [...repliesIn.get(c.id) ?? [], m.created_at]);
     }
   }
   return (d.campaigns ?? []).map((c) => {
     const at3 = ts(c.sent_at ?? c.scheduled_for);
-    const thread = c.message_id ? threadOf3.get(c.message_id) : void 0;
+    const thread = c.message_id ? threadOf2.get(c.message_id) : void 0;
     const sentAt = c.sent_at;
     const replied = c.state === "sent" && !!sentAt && !!thread && (repliesIn.get(thread) ?? []).some((x) => isReplyTo(sentAt, x));
     const why = c.reason ? HELD_REASONS[c.reason] : void 0;
@@ -15980,12 +15980,12 @@ function validateTemplateDraft(d) {
   if (/\{\{/.test(footer)) return { ok: false, error: "The footer cannot take a value." };
   let button = null;
   if (d.button) {
-    const text2 = String(d.button.text ?? "").replace(/\s+/g, " ").trim();
+    const text = String(d.button.text ?? "").replace(/\s+/g, " ").trim();
     const url = String(d.button.url ?? "").trim();
-    if (!text2) return { ok: false, error: "Give the button its words, or leave it out." };
-    if (text2.length > TEMPLATE_BUTTON_TEXT_MAX)
+    if (!text) return { ok: false, error: "Give the button its words, or leave it out." };
+    if (text.length > TEMPLATE_BUTTON_TEXT_MAX)
       return { ok: false, error: `A button's words must be under ${TEMPLATE_BUTTON_TEXT_MAX} characters.` };
-    if (/\{\{/.test(text2) || /\{\{/.test(url))
+    if (/\{\{/.test(text) || /\{\{/.test(url))
       return {
         ok: false,
         error: "A button cannot take a value: Chanlytics sends the message and nothing else, and WhatsApp would refuse every send."
@@ -15998,7 +15998,7 @@ function validateTemplateDraft(d) {
     }
     if (!parsed || !/^https?:$/.test(parsed.protocol))
       return { ok: false, error: "The button needs a web address to open, starting with https://." };
-    button = { text: text2, url };
+    button = { text, url };
   }
   const warnings = [];
   if (/^\s*\{\{\d+\}\}/.test(body) || /\{\{\d+\}\}\s*$/.test(body))
@@ -16658,9 +16658,9 @@ var SMS_OPT_OUT_PATTERN = /^\s*(stop|stopall|end|cancel|quit|unsubscribe|revoke|
 var OPT_IN_PATTERN = /^\s*(start|unstop|resume|alta|yes offers|si ofertas|s\u00ed ofertas)\s*[.!]?\s*$/i;
 var MARKETING_OPT_IN_PATTERN = /^\s*(yes offers|si ofertas|s\u00ed ofertas)\s*[.!]?\s*$/i;
 var CONVERSATION_OPT_IN_PATTERN = /^\s*(start|unstop|resume|alta)\s*[.!]?\s*$/i;
-function optInPurposeOf(text2) {
-  if (MARKETING_OPT_IN_PATTERN.test(text2)) return "marketing";
-  if (CONVERSATION_OPT_IN_PATTERN.test(text2)) return "conversational";
+function optInPurposeOf(text) {
+  if (MARKETING_OPT_IN_PATTERN.test(text)) return "marketing";
+  if (CONVERSATION_OPT_IN_PATTERN.test(text)) return "conversational";
   return null;
 }
 var OFFERS_OPT_IN_PHRASES = { en: "YES OFFERS", es: "SI OFERTAS" };
@@ -16668,10 +16668,10 @@ function waMeDigits(number2) {
   const digits2 = String(number2 ?? "").replace(/\D/g, "");
   return digits2.length < 8 ? null : digits2;
 }
-function waMeLink(number2, text2) {
+function waMeLink(number2, text) {
   const digits2 = waMeDigits(number2);
   if (!digits2) return null;
-  return `https://wa.me/${digits2}${text2 ? `?text=${encodeURIComponent(text2)}` : ""}`;
+  return `https://wa.me/${digits2}${text ? `?text=${encodeURIComponent(text)}` : ""}`;
 }
 function optInLink(numberE164, phrase = OFFERS_OPT_IN_PHRASES.en) {
   return waMeLink(numberE164, phrase);
@@ -17410,8 +17410,8 @@ function footerOf(components) {
     if (!c || typeof c !== "object") continue;
     const part = c;
     if (String(part.type ?? "").toUpperCase() !== "FOOTER") continue;
-    const text2 = typeof part.text === "string" ? part.text.trim() : "";
-    if (text2) return text2;
+    const text = typeof part.text === "string" ? part.text.trim() : "";
+    if (text) return text;
   }
   return null;
 }
@@ -17444,8 +17444,8 @@ function templateParts(components) {
   for (const b of list2) {
     if (!b || typeof b !== "object") continue;
     const kind = BUTTON_KIND[String(b.type ?? "").toUpperCase()];
-    const text2 = typeof b.text === "string" ? b.text.trim() : "";
-    if (kind && text2) buttons.push({ text: text2, kind });
+    const text = typeof b.text === "string" ? b.text.trim() : "";
+    if (kind && text) buttons.push({ text, kind });
   }
   return {
     // A picture heading is not words and is not drawn as any.
@@ -17518,9 +17518,9 @@ function templateLinkButton(components) {
     if (!b || typeof b !== "object") continue;
     const x = b;
     if (String(x.type ?? "").toUpperCase() !== "URL") continue;
-    const text2 = typeof x.text === "string" ? x.text.trim() : "";
+    const text = typeof x.text === "string" ? x.text.trim() : "";
     const url = typeof x.url === "string" ? x.url.trim() : "";
-    if (text2 && url) return { text: text2, url };
+    if (text && url) return { text, url };
   }
   return null;
 }
@@ -17740,6 +17740,11 @@ var wasIn = (data, k) => {
 };
 var idIn = (pl, k) => typeof pl?.[k] === "string" && pl[k] ? pl[k] : null;
 var refuseWith = (words3) => ({ refused: words3 });
+var uniqueIds = (v) => Array.isArray(v) ? [...new Set(v.map(asText).filter(Boolean))] : [];
+function oneOrMany(calls) {
+  const [only, ...rest] = calls;
+  return only && rest.length === 0 ? only : calls;
+}
 var BATCH_SIZE = 50;
 function inBatches(items, size = BATCH_SIZE) {
   const out = [];
@@ -18290,7 +18295,6 @@ var openLead = ({ payload: pl }) => {
   const id = idIn(pl, "lead_id");
   return id ? leadsRoute({ searchId: idIn(pl, "search_id"), list: "all", cls: null, peek: id }) : "clients/leads";
 };
-var idsOf = (v) => Array.isArray(v) ? [...new Set(v.map(asText).filter(Boolean))] : [];
 var toastOr = (data, words3) => asText(rec(data).toast) || words3;
 var leadOpUndo = {
   label: () => "Undo",
@@ -18330,11 +18334,11 @@ var leadMarkSpec = {
   gate: "find",
   commit: ({ payload: pl }) => {
     const search = idIn(pl, "search_id");
-    const ids = idsOf(pl.lead_ids);
+    const ids = uniqueIds(pl.lead_ids);
     if (!isLeadMark(pl.mark) || !search || !ids.length) return refuseWith(PROPOSAL_WORDS.cannotApprove);
     const door = LEAD_MARK_DOORS[pl.mark];
     const calls = ids.map((id) => ({ route: door, params: { id }, body: { search_id: search } }));
-    return calls.length === 1 ? calls[0] : calls;
+    return oneOrMany(calls);
   },
   gather: (answers) => ({ done: answers.length }),
   receipt: ({ payload: pl }, data) => {
@@ -18368,7 +18372,7 @@ var leadsCheckSpec = {
   doing: "check leads' addresses again",
   gate: "find",
   commit: ({ payload: pl }) => {
-    const ids = idsOf(pl.lead_ids);
+    const ids = uniqueIds(pl.lead_ids);
     return ids.length ? { route: "POST leads/check-again", body: { ids } } : refuseWith(PROPOSAL_WORDS.cannotApprove);
   },
   receipt: (_p, data) => toastOr(data, `${Number(rec(data).scheduled) || 0} addresses checked again`),
@@ -18386,7 +18390,7 @@ var leadListSpec = {
   needs: "operator",
   gate: "approve",
   commit: ({ payload: pl }) => {
-    const ids = idsOf(pl.lead_ids);
+    const ids = uniqueIds(pl.lead_ids);
     return asText(pl.name) && ids.length ? { route: "POST lead-searches/chosen", body: { name: asText(pl.name), lead_ids: ids } } : refuseWith(PROPOSAL_WORDS.cannotApprove);
   },
   receipt: ({ payload: pl }, data) => {
@@ -18481,12 +18485,12 @@ function leadTodayLine(hours, tz, now) {
   if (last && hourOf(last[4], last[5], last[6]) <= hourOf(last[1], last[2], last[3]) && at3 < hourOf(last[4], last[5], last[6])) {
     return `Open until ${clock3(last[4], last[5], last[6])}`;
   }
-  const text2 = hoursOn(now);
-  if (text2 === null) return null;
-  if (/^closed/i.test(text2)) return "Closed today";
-  if (/^open 24 hours$/i.test(text2)) return "Open 24 hours";
-  const m = text2.match(CLOCK);
-  if (!m) return `Open today \xB7 ${leadHoursShort(text2)}`;
+  const text = hoursOn(now);
+  if (text === null) return null;
+  if (/^closed/i.test(text)) return "Closed today";
+  if (/^open 24 hours$/i.test(text)) return "Open 24 hours";
+  const m = text.match(CLOCK);
+  if (!m) return `Open today \xB7 ${leadHoursShort(text)}`;
   const open = hourOf(m[1], m[2], m[3]);
   let close = hourOf(m[4], m[5], m[6]);
   if (close <= open) close += 24;
@@ -18494,8 +18498,8 @@ function leadTodayLine(hours, tz, now) {
   if (at3 < close) return `Open until ${clock3(m[4], m[5], m[6])}`;
   return "Closed now";
 }
-function leadHoursShort(text2) {
-  const t = text2.trim();
+function leadHoursShort(text) {
+  const t = text.trim();
   if (/^open 24 hours$/i.test(t)) return "24 hours";
   if (/^closed/i.test(t)) return "Closed";
   const at3 = (h, mm) => mm && mm !== "00" ? `${h}:${mm}` : h;
@@ -18788,12 +18792,12 @@ function csvCell(v) {
   if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`;
   return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
-function delimiterOf(text2) {
-  const first = (text2.split(/\r?\n/, 1)[0] ?? "").replace(/"[^"]*"/g, "");
+function delimiterOf(text) {
+  const first = (text.split(/\r?\n/, 1)[0] ?? "").replace(/"[^"]*"/g, "");
   return (first.match(/;/g) ?? []).length > (first.match(/,/g) ?? []).length ? ";" : ",";
 }
-function parseCsv(text2) {
-  const s = text2.charCodeAt(0) === 65279 ? text2.slice(1) : text2;
+function parseCsv(text) {
+  const s = text.charCodeAt(0) === 65279 ? text.slice(1) : text;
   const sep = delimiterOf(s);
   const rows2 = [];
   let row2 = [];
@@ -18996,8 +19000,8 @@ function leadImportColumns(rows2) {
   return { columns, header };
 }
 var leadImportReady = (r2) => !!r2.name && !!r2.email;
-function leadImportPlanOf(text2) {
-  const cells = parseCsv(text2 || "");
+function leadImportPlanOf(text) {
+  const cells = parseCsv(text || "");
   const { columns, header } = leadImportColumns(cells);
   const cell3 = (r2, i) => i === null ? "" : (r2[i] ?? "").trim();
   const words3 = (v, max) => Array.from(v.replace(/\s+/g, " ")).slice(0, max).join("").trim() || null;
@@ -19546,11 +19550,11 @@ function leadWeekSummary(week) {
 function leadWeekBars(hours, tz, now) {
   const today = dateFormat("en-US", { timeZone: tz, weekday: "long" }).format(now).toLowerCase();
   return hours.map((h) => {
-    const text2 = h.hours.trim();
+    const text = h.hours.trim();
     let bar = null;
-    if (/^open 24 hours$/i.test(text2)) bar = { x: 0, w: 100 };
-    else if (!/^closed/i.test(text2)) {
-      const m = text2.match(CLOCK);
+    if (/^open 24 hours$/i.test(text)) bar = { x: 0, w: 100 };
+    else if (!/^closed/i.test(text)) {
+      const m = text.match(CLOCK);
       if (m) {
         const a = hourOf(m[1], m[2], m[3]);
         let b = hourOf(m[4], m[5], m[6]);
@@ -19558,7 +19562,7 @@ function leadWeekBars(hours, tz, now) {
         bar = { x: Math.round(a / 24 * 1e3) / 10, w: Math.round((b - a) / 24 * 1e3) / 10 };
       }
     }
-    return { day: h.day, hours: text2, short: leadHoursShort(text2), bar, today: h.day.toLowerCase() === today };
+    return { day: h.day, hours: text, short: leadHoursShort(text), bar, today: h.day.toLowerCase() === today };
   });
 }
 function dayIn(tz, iso, now) {
@@ -20068,7 +20072,7 @@ var listMemberSpec = {
       body: add.length ? { add: ids } : { remove: ids },
       events: [PEOPLE_CHANGED]
     }));
-    return parts2.length === 1 ? parts2[0] : parts2;
+    return oneOrMany(parts2);
   },
   receipt: ({ payload: pl }) => {
     const add = idsIn(pl.add);
@@ -20096,7 +20100,7 @@ var listMemberSpec = {
         body: add.length ? { add: ids } : { remove: ids },
         events: [PEOPLE_CHANGED]
       }));
-      return parts2.length === 1 ? parts2[0] : parts2;
+      return oneOrMany(parts2);
     },
     receipt: (_data, u) => idsIn(u.add).length ? `Back on ${asText(u.name)}` : `Taken off ${asText(u.name)} again`
   },
@@ -20447,13 +20451,12 @@ function manySaid(data, verb) {
   const why = asText(rec(failedRows[0]).message) || (skipped2.length ? "no longer in this workspace" : "");
   return { done, failed, said: failed ? `${failed} could not be ${verb}${why ? ` \u2014 ${why}` : ""}` : "" };
 }
-var idsOf2 = (v) => Array.isArray(v) ? [...new Set(v.map(asText).filter(Boolean))] : [];
 function manyCalls(route, pl, fields) {
-  const ids = idsOf2(pl.ids);
+  const ids = uniqueIds(pl.ids);
   if (!ids.length) return refuseWith("Pick at least one person.");
   const rest = fieldsOf(pl, fields);
   const calls = inBatches(ids).map((part) => ({ route, body: { ...rest, ids: part }, events: [PEOPLE_CHANGED] }));
-  return calls.length === 1 ? calls[0] : calls;
+  return oneOrMany(calls);
 }
 var ANSWER_DOOR = {
   conversational: "PUT contacts/[id]/consent",
@@ -20555,7 +20558,7 @@ var personMergeSpec = {
   receipt: ({ payload: pl }) => MERGE_WORDS.done(asText(pl.who), asText(pl.other)),
   open: personRoute
 };
-var threadOf2 = (data) => idIn(rec(data), "conversation_id");
+var threadMade = (data) => idIn(rec(data), "conversation_id");
 var personMessageSpec = {
   needs: "operator",
   gate: "approve",
@@ -20582,29 +20585,29 @@ var personMessageSpec = {
     call: (u) => ({ route: "POST messages/[id]/cancel-send", params: { id: asText(u.message_id) } }),
     receipt: () => "Canceled before it sent"
   },
-  made: (_p, data) => threadOf2(data),
+  made: (_p, data) => threadMade(data),
   open: (p, outcome) => outcome?.made?.id ? `inbox/th-${outcome.made.id}` : personRoute(p)
 };
 
-// src/ask/follow-ups.ts
+// src/ask-proposals/follow-ups.ts
 var ASK_VIEW_PAGE = "ask";
 var ASK_FOLLOW_UPS_MAX = 3;
 var FOLLOW_UP_SAID_MAX = 100;
 var FOLLOW_UP_PROMPT_MAX = 200;
 var FOLLOW_UP_WAKES = ["search_done", "replies", "date"];
 var isWake = (v) => typeof v === "string" && FOLLOW_UP_WAKES.includes(v);
-var text = (v, max) => typeof v === "string" ? v.trim().slice(0, max) : "";
+var clipped = (v, max) => typeof v === "string" ? v.trim().slice(0, max) : "";
 function followUpOf(v) {
   if (!v || typeof v !== "object") return null;
   const r2 = v;
-  const id = text(r2.id, 40);
-  const said = text(r2.said, FOLLOW_UP_SAID_MAX);
-  const prompt = text(r2.prompt, FOLLOW_UP_PROMPT_MAX);
+  const id = clipped(r2.id, 40);
+  const said = clipped(r2.said, FOLLOW_UP_SAID_MAX);
+  const prompt = clipped(r2.prompt, FOLLOW_UP_PROMPT_MAX);
   if (!id || !said || !prompt || !isWake(r2.wake)) return null;
-  const subject = text(r2.subject, 40) || null;
+  const subject = clipped(r2.subject, 40) || null;
   const on = typeof r2.on === "string" && /^\d{4}-\d{2}-\d{2}$/.test(r2.on) ? r2.on : null;
   if (r2.wake === "date" ? !on : !subject) return null;
-  return { id, said, prompt, wake: r2.wake, subject, on, made_at: text(r2.made_at, 40) };
+  return { id, said, prompt, wake: r2.wake, subject, on, made_at: clipped(r2.made_at, 40) };
 }
 function followUpsOf(views) {
   const ask = views && typeof views === "object" ? views[ASK_VIEW_PAGE] : null;
@@ -23856,8 +23859,8 @@ function describeSettingsChange(change) {
     case "set_hours":
       return change.open && change.close ? `${change.day}: ${change.open}\u2013${change.close}` : `${change.day}: closed`;
     case "add_note": {
-      const text2 = clipAtWord(change.text.replace(/\s+/g, " "), NOTE_TEXT_SAID_MAX);
-      return `Note for the receptionist: \u201C${change.title}\u201D${change.until ? `, until ${change.until}` : ""}${text2 ? ` \u2014 \u201C${text2}\u201D` : ""}`;
+      const text = clipAtWord(change.text.replace(/\s+/g, " "), NOTE_TEXT_SAID_MAX);
+      return `Note for the receptionist: \u201C${change.title}\u201D${change.until ? `, until ${change.until}` : ""}${text ? ` \u2014 \u201C${text}\u201D` : ""}`;
     }
     case "add_service":
       return `New service: ${change.name}${change.duration_min ? ` (${change.duration_min} min)` : ""}`;
@@ -24679,11 +24682,11 @@ function failedAnswer(sentenceText, language) {
   return structured(sentenceText, language);
 }
 var PROSE_MAX = 1500;
-function proseAnswer(text2, language) {
+function proseAnswer(text, language) {
   return {
     v: 2,
     form: "prose",
-    say: { headline: "", detail: cleanAnswer(text2).slice(0, PROSE_MAX) },
+    say: { headline: "", detail: cleanAnswer(text).slice(0, PROSE_MAX) },
     show: { figures: [], items: [], breakdown: null },
     do: { open: null, next: [] },
     language
@@ -24814,9 +24817,9 @@ function feedProblemWords(reason, status) {
       return null;
   }
 }
-function feedBodyProblem(text2) {
-  if (text2.length > FEED_MAX_BYTES) return "too_large";
-  if (!/BEGIN:VCALENDAR/i.test(text2)) return "not_ical";
+function feedBodyProblem(text) {
+  if (text.length > FEED_MAX_BYTES) return "too_large";
+  if (!/BEGIN:VCALENDAR/i.test(text)) return "not_ical";
   return null;
 }
 function offeringHorizon(now, daysAhead) {
@@ -25242,155 +25245,13 @@ var AskSettingsChangeSchema = z7.discriminatedUnion("op", [
   z7.object({ op: z7.literal("set_goal"), goal: z7.string().max(ASK_GOAL_MAX) })
 ]);
 
-// src/ask/guide.ts
-var WHY = {
-  signIn: "it signs in to another service (Google, Microsoft, Meta), which happens on that service's own screen",
-  money: "it spends or changes money on the account, which is the owner's on the billing page",
-  legal: "it is a statement to the carriers in the business's legal name",
-  file: "it reads or writes a file on the member's own device",
-  live: "it acts on a phone call that is happening, where the Live page's button is quicker than a sentence",
-  erase: "it erases a person for good, which is asked for and confirmed on their page",
-  team: "it changes who is on the team, which the owner does in Settings \u203A Team",
-  draft: "Ask writes the draft itself in the conversation, so it never needs the page's drafter"
-};
-var ASK_GUIDE_PAGES = [
-  {
-    page: "Today",
-    route: "today",
-    for: "Who waits on you right now, replies about to time out, a booking the receptionist asked for (Booked it or Can't), today's calls and visits, and the day's recap.",
-    verbs: ["booking_request"],
-    pageOnly: []
-  },
-  {
-    page: "Inbox",
-    route: "inbox",
-    for: "Every conversation: answer, take one over, hand it back to the receptionist, snooze, wake or archive it.",
-    verbs: ["reply", "steer", "thread_verb"],
-    pageOnly: [{ what: "Export a conversation", why: WHY.file }]
-  },
-  {
-    page: "Live",
-    route: "live",
-    for: "Calls happening now: listen, whisper to the receptionist, hand the call to your phone or end it.",
-    verbs: ["whisper", "call_hand_over"],
-    pageOnly: [{ what: "End a call", why: WHY.live }]
-  },
-  {
-    page: "People",
-    route: "clients",
-    for: "Everyone who has written or called: their answers, notes, steps, deals, lists, and what the receptionist does with each.",
-    verbs: [
-      "person_mode",
-      "note",
-      "person_details",
-      "answer",
-      "person_add",
-      "person_merge",
-      "person_message",
-      "answer_many",
-      "person_mode_many",
-      "note_many",
-      "list",
-      "list_member",
-      "list_change",
-      "list_delete"
-    ],
-    pageOnly: [
-      { what: "Import people from a file, or export them", why: WHY.file },
-      { what: "Delete a person", why: WHY.erase }
-    ]
-  },
-  {
-    page: "Pipeline",
-    route: "clients/pipeline",
-    for: "Deals by where they stand: consultations, proposals out, clients, and the ones that passed.",
-    verbs: ["deal"],
-    pageOnly: []
-  },
-  {
-    page: "Leads",
-    route: "clients/leads",
-    for: "Find businesses or people to reach, review what a search found, and work each lead to a yes.",
-    verbs: [
-      "lead_search",
-      "people_search",
-      "lead_search_more",
-      "lead_stage",
-      "lead_mark",
-      "lead_later",
-      "leads_bulk",
-      "leads_check",
-      "lead_addressee",
-      "lead_list",
-      "reach_out_said"
-    ],
-    pageOnly: [{ what: "Import leads from a file, or export them", why: WHY.file }]
-  },
-  {
-    page: "Calendar",
-    route: "calendar",
-    for: "The week's appointments from your booking tool, the open times, and how full the next two weeks are.",
-    verbs: [],
-    pageOnly: [{ what: "Connect the booking tool", why: WHY.signIn }]
-  },
-  {
-    page: "Campaigns",
-    route: "campaigns",
-    for: "Everything that sends on its own: sequences on a moment or a list, one-off sends, cold email to leads, saved messages.",
-    verbs: [
-      "broadcast",
-      "playbook",
-      "run",
-      "playbook_channels",
-      "playbook_change",
-      "message",
-      "sequence_make",
-      "sequence_step",
-      "sequence_step_remove",
-      "sequence_words",
-      "sequence_start",
-      "sequence_leave",
-      "sequence_send_decide",
-      "sequence_send_said",
-      "sequence_discard",
-      "sequence_draft",
-      "reach_out_make",
-      "reach_out_add"
-    ],
-    pageOnly: [{ what: "Draft a sequence from a line on the page", why: WHY.draft }]
-  },
-  {
-    page: "Reports",
-    route: "reports",
-    for: "How any period went: replies, calls, people, campaigns, reviews, cold email and the receptionist, against the period before.",
-    verbs: ["review_reply"],
-    pageOnly: []
-  },
-  {
-    page: "Settings",
-    route: "admin/workspace",
-    for: "What the receptionist knows and may do alone, your goal, connections, notifications, team and billing.",
-    verbs: ["settings", "policy", "invite", "follow_up"],
-    pageOnly: [
-      { what: "Connect WhatsApp, Google, a mailbox or a phone line", why: WHY.signIn },
-      { what: "Billing and the plan", why: WHY.money },
-      { what: "The business on record for texting", why: WHY.legal },
-      { what: "Invite or remove a teammate", why: WHY.team }
-    ]
-  }
-];
-var ASK_PAGE_ONLY_VERBS = {
-  invite: WHY.team,
-  sequence_draft: WHY.draft
-};
-
 // src/ask/ask-language.ts
 var ASK_LANGUAGES = ["en", "es", "other"];
 var ES_HINT = /[áéíóúñ¿¡]|\b(qué|que|quién|quien|cómo|como|cuándo|cuando|dónde|donde|hoy|mañana|hola|gracias|abierto|libre|cita|cliente|llam[oó]|llamaron|necesita|espera|por favor|el|la|los|las|una?|est[aá]n?)\b/i;
 var EN_HINT = /\b(what|who|when|where|how|did|does|is|are|open|today|tomorrow|call|called|needs|waiting|the|a|an|please|tell)\b/i;
-function detectLanguage(text2) {
-  const es = (text2.match(ES_HINT) || []).length;
-  const en = (text2.match(EN_HINT) || []).length;
+function detectLanguage(text) {
+  const es = (text.match(ES_HINT) || []).length;
+  const en = (text.match(EN_HINT) || []).length;
   if (!es && !en) return "other";
   return es > en ? "es" : "en";
 }
@@ -25588,9 +25449,9 @@ var DISCONNECTION_LABELS = {
 // src/voice/whisper.ts
 var OPEN = 'Owner: "';
 var STANDING_RULES_HOLD = (what) => `The rules in your instructions still hold, and you are the business's automated assistant, never a person: if the ${what} asks for something they rule out, use what you can of it and leave the rest.`;
-function frameWhisper(text2) {
+function frameWhisper(text) {
   return `A whisper from the business owner, who is listening to this call. The caller cannot hear it.
-${OPEN}${text2.trim()}"
+${OPEN}${text.trim()}"
 Keep it in mind from here on and use it in your own words when it fits: in your next answer if it applies now, later if it is conditional (for example, only if the caller brings something up). Never read it out word for word, and do not force it into an answer where it does not belong. ` + STANDING_RULES_HOLD("whisper");
 }
 function frameGuardrail(rule2, opts) {
@@ -25599,9 +25460,9 @@ function frameGuardrail(rule2, opts) {
 ${what}
 Put it right in your own words when you next speak: say you cannot confirm pricing yourself, that the team confirms it, and ${priceNextStep(opts.hasBookingLink)}. Do not repeat the figure, and never read this out.`;
 }
-function frameSteer(text2) {
+function frameSteer(text) {
   return `An instruction from the business owner, who read your draft before it went out. The customer cannot see it.
-${OPEN}${text2.trim()}"
+${OPEN}${text.trim()}"
 Write your reply again and follow it where it fits. Keep everything else that was right. Never repeat the instruction word for word. ` + STANDING_RULES_HOLD("instruction");
 }
 function whisperText(content) {
@@ -25663,8 +25524,8 @@ function callNotesOf(a) {
 function callNoteLines(n) {
   return n.todo ? [n.todo, ...n.gave] : n.gave;
 }
-function tidyCallSummary(text2) {
-  const t = (text2 ?? "").replace(/\s+/g, " ").trim();
+function tidyCallSummary(text) {
+  const t = (text ?? "").replace(/\s+/g, " ").trim();
   if (!t) return null;
   const folded2 = t.replace(
     /^The (?:user|caller|customer) (?:called|phoned|contacted|reached out to) [^.,;]*? (to|and) /i,
@@ -26490,8 +26351,8 @@ function offerNote(offer, line, dates, notes) {
   const title = clip(SAY.offerTitle(offer.words), PROFILE_LIMITS.noteTitle);
   if (notes.some((n) => n.title === title && n.until === dates.until)) return null;
   const service = offer.service?.trim().replace(/[.!?…]+$/, "") || null;
-  const text2 = SAY.noteText(line, dates.fromWords, dates.untilWords, service);
-  return { change: { op: "add_note", title, text: clip(text2, PROFILE_LIMITS.noteText), until: dates.until } };
+  const text = SAY.noteText(line, dates.fromWords, dates.untilWords, service);
+  return { change: { op: "add_note", title, text: clip(text, PROFILE_LIMITS.noteText), until: dates.until } };
 }
 function monthsOfferPauses(world, until) {
   const at3 = { tz: world.tz, now: world.now, dealsOn: false };
@@ -26647,6 +26508,148 @@ function planOf(intent, world) {
   const read = offerRead(intent.offer, intent.say, world);
   return "refused" in read ? read : offerPlan(read, world);
 }
+
+// src/ask-proposals/guide.ts
+var WHY = {
+  signIn: "it signs in to another service (Google, Microsoft, Meta), which happens on that service's own screen",
+  money: "it spends or changes money on the account, which is the owner's on the billing page",
+  legal: "it is a statement to the carriers in the business's legal name",
+  file: "it reads or writes a file on the member's own device",
+  live: "it acts on a phone call that is happening, where the Live page's button is quicker than a sentence",
+  erase: "it erases a person for good, which is asked for and confirmed on their page",
+  team: "it changes who is on the team, which the owner does in Settings \u203A Team",
+  draft: "Ask writes the draft itself in the conversation, so it never needs the page's drafter"
+};
+var ASK_GUIDE_PAGES = [
+  {
+    page: "Today",
+    route: "today",
+    for: "Who waits on you right now, replies about to time out, a booking the receptionist asked for (Booked it or Can't), today's calls and bookings, and the day's recap.",
+    verbs: ["booking_request"],
+    pageOnly: []
+  },
+  {
+    page: "Inbox",
+    route: "inbox",
+    for: "Every conversation: answer, take one over, hand it back to the receptionist, snooze, wake or archive it.",
+    verbs: ["reply", "steer", "thread_verb"],
+    pageOnly: [{ what: "Export a conversation", why: WHY.file }]
+  },
+  {
+    page: "Live",
+    route: "live",
+    for: "Calls happening now: listen, whisper to the receptionist, hand the call to your phone or end it.",
+    verbs: ["whisper", "call_hand_over"],
+    pageOnly: [{ what: "End a call", why: WHY.live }]
+  },
+  {
+    page: "People",
+    route: "clients",
+    for: "Everyone who has written or called: their answers, notes, steps, deals, lists, and what the receptionist does with each.",
+    verbs: [
+      "person_mode",
+      "note",
+      "person_details",
+      "answer",
+      "person_add",
+      "person_merge",
+      "person_message",
+      "answer_many",
+      "person_mode_many",
+      "note_many",
+      "list",
+      "list_member",
+      "list_change",
+      "list_delete"
+    ],
+    pageOnly: [
+      { what: "Import people from a file, or export them", why: WHY.file },
+      { what: "Delete a person", why: WHY.erase }
+    ]
+  },
+  {
+    page: "Pipeline",
+    route: "clients/pipeline",
+    for: "Deals by where they stand: consultations, proposals out, clients, and the ones that passed.",
+    verbs: ["deal"],
+    pageOnly: []
+  },
+  {
+    page: "Leads",
+    route: "clients/leads",
+    for: "Find businesses or people to reach, review what a search found, and work each lead to a yes.",
+    verbs: [
+      "lead_search",
+      "people_search",
+      "lead_search_more",
+      "lead_stage",
+      "lead_mark",
+      "lead_later",
+      "leads_bulk",
+      "leads_check",
+      "lead_addressee",
+      "lead_list",
+      "reach_out_said"
+    ],
+    pageOnly: [{ what: "Import leads from a file, or export them", why: WHY.file }]
+  },
+  {
+    page: "Calendar",
+    route: "calendar",
+    for: "The week's appointments from your booking tool, the open times, and how full the next two weeks are.",
+    verbs: [],
+    pageOnly: [{ what: "Connect the booking tool", why: WHY.signIn }]
+  },
+  {
+    page: "Campaigns",
+    route: "campaigns",
+    for: "Everything that sends on its own: sequences on a moment or a list, one-off sends, cold email to leads, saved messages.",
+    verbs: [
+      "broadcast",
+      "playbook",
+      "run",
+      "playbook_channels",
+      "playbook_change",
+      "message",
+      "sequence_make",
+      "sequence_step",
+      "sequence_step_remove",
+      "sequence_words",
+      "sequence_start",
+      "sequence_leave",
+      "sequence_send_decide",
+      "sequence_send_said",
+      "sequence_discard",
+      "sequence_draft",
+      "reach_out_make",
+      "reach_out_add"
+    ],
+    pageOnly: [{ what: "Draft a sequence from a line on the page", why: WHY.draft }]
+  },
+  {
+    page: "Reports",
+    route: "reports",
+    for: "How any period went: replies, calls, people, campaigns, reviews, cold email and the receptionist, against the period before.",
+    verbs: ["review_reply"],
+    pageOnly: []
+  },
+  {
+    page: "Settings",
+    route: "admin/workspace",
+    for: "What the receptionist knows and may do alone, your goal, connections, notifications, team and billing.",
+    verbs: ["settings", "policy", "invite", "follow_up"],
+    pageOnly: [
+      { what: "Connect WhatsApp, Google, a mailbox or a phone line", why: WHY.signIn },
+      { what: "Billing and the plan", why: WHY.money },
+      { what: "The business on record for texting", why: WHY.legal },
+      { what: "Invite or remove a teammate", why: WHY.team }
+    ]
+  }
+];
+var ASK_PAGE_ONLY_VERBS = {
+  invite: WHY.team,
+  sequence_draft: WHY.draft
+};
 
 // src/shared/html.ts
 var escapeHtml = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
@@ -27054,9 +27057,9 @@ function zoneOfTzid(tzid, fallbackTz) {
 function unescapeText(v) {
   return v.replace(/\\([\\;,nN])/g, (_, c) => c === "n" || c === "N" ? "\n" : c).trim();
 }
-function unfold(text2) {
+function unfold(text) {
   const out = [];
-  for (const raw of text2.replace(/\r\n/g, "\n").split("\n")) {
+  for (const raw of text.replace(/\r\n/g, "\n").split("\n")) {
     if ((raw.startsWith(" ") || raw.startsWith("	")) && out.length) out[out.length - 1] += raw.slice(1);
     else out.push(raw);
   }
@@ -27235,7 +27238,7 @@ var seriesOf = (occurrence) => occurrence === null ? {} : { occurrence };
 function dueAt(rid, fallbackTz) {
   return rid ? toMs(rid.value, rid.params, fallbackTz) : null;
 }
-function parseIcs(text2, fallbackTz, opts = {}) {
+function parseIcs(text, fallbackTz, opts = {}) {
   const horizon = opts.horizon ?? { from: Date.now() - 864e5, to: Date.now() + 90 * 864e5 };
   const busy = [];
   const items = [];
@@ -27244,7 +27247,7 @@ function parseIcs(text2, fallbackTz, opts = {}) {
   let skippedRecurring = 0;
   const raws = [];
   let cur = null;
-  for (const line of unfold(text2)) {
+  for (const line of unfold(text)) {
     if (line === "BEGIN:VEVENT") {
       cur = { props: {}, exdates: [], rdates: [], attendees: [] };
       continue;
@@ -28506,11 +28509,11 @@ function sendLine(s, tz, nowMs) {
   const name = stepName(s.n, s.hand);
   const t = at(s.sent_at) ?? at(s.send_at);
   if (t === null) return null;
-  const line = (text2) => ({
+  const line = (text) => ({
     id: `s-${s.id}`,
     at: t,
     when: capitalize(clockNearWhen(t, tz, nowMs)),
-    text: text2
+    text
   });
   if (s.left) {
     const from = s.from || s.host ? ` \xB7 from ${s.from ?? s.host}` : s.said ? " \xB7 from your inbox" : "";
@@ -28530,8 +28533,8 @@ function readingLine(r2, tz, nowMs) {
   if (t === null) return null;
   const until = at(r2.until_at);
   const undone = r2.undone ? " \xB7 undone" : "";
-  const text2 = r2.claim === "auto_reply" && r2.intent === "away" ? `An automatic reply \xB7 away${until !== null ? ` until ${clockDate(until, tz, nowMs)}` : ""}${undone}` : `${r2.claim === "owner" ? "You said they wrote back \xB7" : "They wrote back \xB7 read as"} ${intentWords(r2.intent)}${undone}`;
-  return { id: `r-${r2.message_id}`, at: t, when: capitalize(clockNearWhen(t, tz, nowMs)), text: text2 };
+  const text = r2.claim === "auto_reply" && r2.intent === "away" ? `An automatic reply \xB7 away${until !== null ? ` until ${clockDate(until, tz, nowMs)}` : ""}${undone}` : `${r2.claim === "owner" ? "You said they wrote back \xB7" : "They wrote back \xB7 read as"} ${intentWords(r2.intent)}${undone}`;
+  return { id: `r-${r2.message_id}`, at: t, when: capitalize(clockNearWhen(t, tz, nowMs)), text };
 }
 function reachOutTimelineOf(t, nowMs, tz) {
   const lines = [
@@ -29284,7 +29287,7 @@ function dealNextAct(p, nowMs, deal = p.deal) {
   if (deal.proposal?.sending) return act("won");
   const send = dealSendOf(p);
   const sent2 = sentOf(p, deal);
-  const words3 = (text2) => send.can ? { text: text2 } : { hint: DEAL_ACT_HINTS.approved };
+  const words3 = (text) => send.can ? { text } : { hint: DEAL_ACT_HINTS.approved };
   if (!sent2 && send.reach) return act("send", words3(proposalMessage(url)));
   if (sent2 && send.reach && followUpOn(p, deal)?.kind !== "will" && waitingOnProposal({ deal, askedMs: p.askedMs ?? null }, nowMs, p.dealPace ?? null))
     return act("follow-up", words3(proposalFollowUp(url)));
@@ -30196,16 +30199,16 @@ var EARLIER_FALLBACK_DEFAULTS = /* @__PURE__ */ (() => ({
   error: "Thanks for reaching out to {business}! Book anytime: {booking link} \u2014 or a member of our team will reply here soon.",
   non_text: FALLBACK_DEFAULTS.non_text
 }))();
-function isProductFallback(key, text2) {
-  const t = typeof text2 === "string" ? text2.trim() : "";
+function isProductFallback(key, text) {
+  const t = typeof text === "string" ? text.trim() : "";
   return t === FALLBACK_DEFAULTS[key] || t === EARLIER_FALLBACK_DEFAULTS[key];
 }
 var DETAIL = /\{\s*(business|booking\s+link|phone)\s*\}/gi;
-var namesADetail = (text2) => /\{\s*(business|booking\s+link|phone)\s*\}/i.test(text2);
+var namesADetail = (text) => /\{\s*(business|booking\s+link|phone)\s*\}/i.test(text);
 var detailOf = (raw) => raw.toLowerCase().replace(/\s+/g, " ");
-function fillDetails(text2, values) {
-  if (!namesADetail(text2)) return text2;
-  return text2.split("\n").map((line) => {
+function fillDetails(text, values) {
+  if (!namesADetail(text)) return text;
+  return text.split("\n").map((line) => {
     if (!namesADetail(line)) return line;
     return line.split(/(?<=[.!?])\s+/).filter((s) => [...s.matchAll(DETAIL)].every((m) => values[detailOf(m[1])])).map((s) => s.replace(DETAIL, (_, name) => values[detailOf(name)])).join(" ");
   }).join("\n").replace(/\n{3,}/g, "\n\n").trim();
@@ -30224,8 +30227,8 @@ function fallbackMessages(brain, known) {
   const say2 = (kind) => fillDetails(own(kind), values) || fillDetails(FALLBACK_DEFAULTS[kind], values);
   return { greeting: say2("greeting"), error: say2("error"), non_text: say2("non_text") };
 }
-function unknownDetails(text2) {
-  return [...text2.matchAll(/\{[^{}\n]{1,40}\}/g)].map((m) => m[0]).filter((name) => !namesADetail(name));
+function unknownDetails(text) {
+  return [...text.matchAll(/\{[^{}\n]{1,40}\}/g)].map((m) => m[0]).filter((name) => !namesADetail(name));
 }
 
 // src/config/workspace-config/brain-config.ts
@@ -30245,8 +30248,8 @@ var BASELINE_CLOSING = ", answering inbound customer messages. You are warm, con
 function baselinePrompt(businessName) {
   return `${BASELINE_OPENING}${businessName}${BASELINE_CLOSING}`;
 }
-function isBaselinePrompt(text2) {
-  return text2.startsWith(BASELINE_OPENING) && text2.endsWith(BASELINE_CLOSING);
+function isBaselinePrompt(text) {
+  return text.startsWith(BASELINE_OPENING) && text.endsWith(BASELINE_CLOSING);
 }
 
 // src/config/workspace-config/offers-ask.ts
@@ -30572,15 +30575,15 @@ function ownWordsSection({ profile, channel, hrs, closed }) {
       profile.services?.length ? "services" : ""
     ].filter(Boolean);
     const stated2 = above.length > 0;
-    const text2 = profile.extra_instructions.trim();
+    const text = profile.extra_instructions.trim();
     const header = [
       stated2 ? `${PROMPT_OPENINGS.ownWordsUnderDetails} Where these disagree with the ${joinList(above)} above, the details above are current and correct.` : "",
       channel === "voice" ? `${PROMPT_OPENINGS.ownWordsOnACall}; you are on a phone call.` : ""
     ].filter(Boolean).join(" ");
     s.push(header ? `
 ${header}
-${text2}` : `
-${text2}`);
+${text}` : `
+${text}`);
   }
   return s;
 }
@@ -30707,33 +30710,33 @@ var DENIES_RECORDING = [
 var LINK2 = /\b(?:https?:\/\/|www\.)\S+|\b[\w-]+\.(?:com|net|org|co|io|us|mx|es)\b/i;
 var SPANISH = /[¿¡ñ]|\b(?:hola|gracias|llamar|llamada|ayudar|ayudarle|ayudarte|bienvenid[oa]s?|c[oó]mo|est[aá]|usted)\b/i;
 var NAME_STANDS_IN = "Xname";
-function judged(text2, name) {
+function judged(text, name) {
   const straight = (s) => s.replace(/[‘’]/g, "'");
-  let t = straight(text2).split(GREETING_NAME_SLOT).join(NAME_STANDS_IN);
+  let t = straight(text).split(GREETING_NAME_SLOT).join(NAME_STANDS_IN);
   const n = straight(name ?? "").trim();
   if (n) t = t.split(n).join(NAME_STANDS_IN);
   return t;
 }
 var any = (rules, t) => rules.some((r2) => r2.test(t));
-function statesAutomated(text2, name = null) {
-  const t = judged(text2, name);
+function statesAutomated(text, name = null) {
+  const t = judged(text, name);
   return any(STATES_AI, t) && !any(DENIES_AI, t);
 }
-function deniesAutomated(text2, name = null) {
-  return any(DENIES_AI, judged(text2, name));
+function deniesAutomated(text, name = null) {
+  return any(DENIES_AI, judged(text, name));
 }
 function spokenNameOf(name) {
   const n = (name ?? "").trim();
   return n || null;
 }
-var clauseFor = (text2, name) => SPANISH.test(judged(text2, name)) ? AI_CLAUSE.es : AI_CLAUSE.en;
-function withAiClause(text2, clause2) {
-  const closing = /^([\s\S]*[.!?…])\s+([^.!?…]*\?)\s*$/.exec(text2);
+var clauseFor = (text, name) => SPANISH.test(judged(text, name)) ? AI_CLAUSE.es : AI_CLAUSE.en;
+function withAiClause(text, clause2) {
+  const closing = /^([\s\S]*[.!?…])\s+([^.!?…]*\?)\s*$/.exec(text);
   if (closing) {
     const [, head, question] = closing;
     return `${head} ${clause2} ${question}`;
   }
-  const trimmed2 = text2.trimEnd();
+  const trimmed2 = text.trimEnd();
   return `${trimmed2}${/[.!?…]$/.test(trimmed2) ? "" : "."} ${clause2}`;
 }
 function greetingOf(input) {
@@ -30847,15 +30850,15 @@ function ownWordsOf(brain) {
   return own?.trim() ? own : brain?.system_prompt ?? null;
 }
 function whoseWords(brain) {
-  const text2 = ownWordsOf(brain);
-  if (!text2?.trim()) return { kind: "none", text: null };
+  const text = ownWordsOf(brain);
+  if (!text?.trim()) return { kind: "none", text: null };
   if (brain?.profile?.extra_instructions?.trim())
-    return { kind: isBaselineInOwnersField(text2) ? "baseline" : "own", text: text2 };
-  if (isBaselinePrompt(text2.trim())) return { kind: "baseline", text: text2 };
-  return { kind: hasProfile(brain?.profile) ? "carried" : "prompt", text: text2 };
+    return { kind: isBaselineInOwnersField(text) ? "baseline" : "own", text };
+  if (isBaselinePrompt(text.trim())) return { kind: "baseline", text };
+  return { kind: hasProfile(brain?.profile) ? "carried" : "prompt", text };
 }
-function isBaselineInOwnersField(text2) {
-  const t = text2.trim();
+function isBaselineInOwnersField(text) {
+  const t = text.trim();
   if (!isBaselinePrompt(t)) return false;
   const name = t.slice(BASELINE_OPENING.length, t.length - BASELINE_CLOSING.length);
   return name.trim().length > 0 && name.length <= 120 && !/[\r\n]/.test(name) && !/[.!?]\s/.test(name);
@@ -30865,8 +30868,8 @@ function isBaselineInOwnersField(text2) {
 var BARE_PRICE = /^\s*(?:from|starting at|desde|a partir de)?\s*\$?\s*(\d+(?:[.,]\d{1,2})?)\s*(?:(?:-|–|to|a)\s*\$?\s*(\d+(?:[.,]\d{1,2})?))?\s*\+?\s*$/i;
 var FORBIDS = /\b(?:never|don['’]?t|do not|not to|no digas|no menciones|nunca)\b/i;
 var CUT = /\d\s*%?\s*(?:off|de descuento|menos)\b/i;
-function amountsIn(text2) {
-  return text2.split(/(?<=[.!?;])\s+|\n+/).filter((s) => s.trim() && !namesMoney(s) && !CUT.test(s) && !FORBIDS.test(s)).flatMap((s) => priceFigures(s)).filter((f) => /^\d+(?:\.\d+)?$/.test(f));
+function amountsIn(text) {
+  return text.split(/(?<=[.!?;])\s+|\n+/).filter((s) => s.trim() && !namesMoney(s) && !CUT.test(s) && !FORBIDS.test(s)).flatMap((s) => priceFigures(s)).filter((f) => /^\d+(?:\.\d+)?$/.test(f));
 }
 function amountsInPriceBox(note) {
   const bare = BARE_PRICE.exec(note);
@@ -31261,8 +31264,8 @@ function profileRefusal(key, seen, of) {
   return say2();
 }
 var WRITTEN_OUT_NUMBER = /\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}/;
-function writtenOutDetail(text2, bookingLink) {
-  const said = typeof text2 === "string" ? text2 : "";
+function writtenOutDetail(text, bookingLink) {
+  const said = typeof text === "string" ? text : "";
   const link = typeof bookingLink === "string" ? bookingLink.trim() : "";
   if (link && said.includes(link)) return "link";
   return WRITTEN_OUT_NUMBER.test(said) ? "number" : null;
@@ -31297,8 +31300,8 @@ var TONE_PRESETS = [
     tone: "Chatty and relaxed. Uses the customer's first name when it has one, and sounds like a friendly front desk."
   }
 ];
-var cutAtWord = (text2, max) => {
-  const t = text2.replace(/\s+/g, " ").trim();
+var cutAtWord = (text, max) => {
+  const t = text.replace(/\s+/g, " ").trim();
   if (t.length <= max) return t;
   const head = t.slice(0, max + 1);
   const at3 = head.lastIndexOf(" ");
@@ -31320,8 +31323,8 @@ function noteEndedWords(until, tz, now) {
   return notesInForce([{ until }], tz, now).length ? null : `ended ${closureDatesLabel({ date: until })}`;
 }
 var OPENING_SHOWN = 72;
-function instructionsWords(text2) {
-  const t = typeof text2 === "string" ? text2.trim() : "";
+function instructionsWords(text) {
+  const t = typeof text === "string" ? text.trim() : "";
   if (!t) return { opening: null, limit: null };
   return {
     opening: `\u201C${cutAtWord(t, OPENING_SHOWN)}\u201D`,
@@ -31649,13 +31652,13 @@ function ownWordsSpan(lines, ownWords) {
   }
   return null;
 }
-function promptBlocks(text2, channel, from) {
+function promptBlocks(text, channel, from) {
   if (from === void 0 || typeof from !== "object") {
     throw new TypeError(
       "promptBlocks needs what the prompt was composed from: the stored brain, { profile } for a draft, or null."
     );
   }
-  const lines = text2.split("\n");
+  const lines = text.split("\n");
   const whose = whoseWords(from);
   const own = ownWordsSpan(lines, whose.text);
   const insideOwn = (n) => !!own && n >= own.from && n < own.to;
@@ -31718,7 +31721,7 @@ function promptBlocks(text2, channel, from) {
     return {
       id: n === 1 ? block.row : `${block.row}-${n}`,
       ...block,
-      share: block.chars / text2.length,
+      share: block.chars / text.length,
       text: lines.slice(a, b).join("\n").trim()
     };
   });
@@ -31764,13 +31767,13 @@ function reviewReplyPrompt(facts, review) {
   ].filter((l) => l !== null).join("\n");
   const author = promptSafeName(review.author);
   const name = firstName(author);
-  const text2 = (review.text ?? "").replace(/\s+/g, " ").trim();
+  const text = (review.text ?? "").replace(/\s+/g, " ").trim();
   const user = [
     `Rating: ${typeof review.rating === "number" ? `${review.rating} of 5` : "not given"}`,
     `From: ${name ? author : "a customer who did not give a name"}`,
     review.written_at ? `Written: ${review.written_at.slice(0, 10)}` : null,
-    text2 ? `Review:
-${fenced("review", text2)}` : "The review has no words, only the stars."
+    text ? `Review:
+${fenced("review", text)}` : "The review has no words, only the stars."
   ].filter((l) => l !== null).join("\n");
   return { system, user };
 }
@@ -31782,9 +31785,9 @@ function cleanDraft(raw) {
   t = t.replace(/\s+/g, " ").trim();
   return t.slice(0, REVIEW_REPLY_MAX_CHARS);
 }
-function autoReplyHold(text2) {
-  if (violatesNoPrices(text2)) return "price";
-  if (namesMoney(text2)) return "money";
+function autoReplyHold(text) {
+  if (violatesNoPrices(text)) return "price";
+  if (namesMoney(text)) return "money";
   return null;
 }
 var REVIEW_HELD_WORDS = { price: "it named a price", money: "it named money" };
@@ -31824,7 +31827,7 @@ function listingFactsOf(raw) {
   if (raw === null || typeof raw !== "object" || Array.isArray(raw)) return null;
   const r2 = raw;
   if (!Object.keys(r2).length) return null;
-  const text2 = (v) => typeof v === "string" && v.trim() ? v.trim() : null;
+  const text = (v) => typeof v === "string" && v.trim() ? v.trim() : null;
   const hours = Array.isArray(r2.hours) ? r2.hours.flatMap((p) => {
     const q = p !== null && typeof p === "object" ? p : null;
     const open = q ? pointOf(q.open) : null;
@@ -31835,14 +31838,14 @@ function listingFactsOf(raw) {
   }) : null;
   return {
     hours,
-    phone_e164: text2(r2.phone_e164),
-    phone_display: text2(r2.phone_display),
-    website: text2(r2.website),
-    primary_type: text2(r2.primary_type),
-    primary_type_label: text2(r2.primary_type_label),
+    phone_e164: text(r2.phone_e164),
+    phone_display: text(r2.phone_display),
+    website: text(r2.website),
+    primary_type: text(r2.primary_type),
+    primary_type_label: text(r2.primary_type_label),
     service_area_only: r2.service_area_only === true,
-    time_zone: text2(r2.time_zone),
-    booking_page: bookingPageOf(text2(r2.booking_page))
+    time_zone: text(r2.time_zone),
+    booking_page: bookingPageOf(text(r2.booking_page))
   };
 }
 function bookingPageKept(prev, website) {
@@ -32987,8 +32990,8 @@ function previewOf(messages) {
 function askOf(escalation, lastInbound) {
   if (!escalation) return null;
   if (escalation.reason === "callback") {
-    const text2 = escalation.details?.trim();
-    return text2 ? { kind: "call", label: "From the call", text: text2, quoted: false, channel: "phone" } : null;
+    const text = escalation.details?.trim();
+    return text ? { kind: "call", label: "From the call", text, quoted: false, channel: "phone" } : null;
   }
   if (!lastInbound) return null;
   const wrote = lastInbound.type === "text";
@@ -33388,7 +33391,7 @@ function toDealReportVM(dto, within2) {
     ["reasons", reasonsLine(dto.reasons, dto.lost)],
     ["open", openLine(dto.open)]
   ];
-  const lines = said.flatMap(([id, text2]) => text2 ? [{ id, text: text2 }] : []);
+  const lines = said.flatMap(([id, text]) => text ? [{ id, text }] : []);
   return { present: true, headline: headline2, stock, outcomes, lines };
 }
 
@@ -34410,9 +34413,9 @@ function dealSheetBody(mode, draft, deal, opts) {
     let send = null;
     if ((mode === "propose" || mode === "again") && draft.send && opts.canSend) {
       if (!url) return problem("link", P.sendNeedsLink);
-      const text2 = dealSheetMessage(draft).trim();
-      if (!text2.includes(url)) return problem("message", P.messageLink);
-      send = { text: text2 };
+      const text = dealSheetMessage(draft).trim();
+      if (!text.includes(url)) return problem("message", P.messageLink);
+      send = { text };
     }
     return { body: clear.length ? { ...body, clear } : body, send };
   }
@@ -35082,8 +35085,8 @@ function peopleEstimateUsd(count2, prices) {
   const usd = (people * (prices.perPerson + prices.perCheck) + prices.start) * LEAD_ESTIMATE_MARGIN;
   return Math.round((Math.ceil(usd * 100) / 100 + 2 * PEOPLE_RUN_FLOOR_USD) * 100) / 100;
 }
-function usStatesTyped(text2) {
-  const parts2 = listTyped(text2, PEOPLE_STATES_MAX * 2);
+function usStatesTyped(text) {
+  const parts2 = listTyped(text, PEOPLE_STATES_MAX * 2);
   const codes = [...new Set(parts2.map(usStateCode).filter((s) => !!s))].slice(0, PEOPLE_STATES_MAX);
   return { codes, unread: parts2.filter((p) => !usStateCode(p)) };
 }
@@ -35112,10 +35115,10 @@ function peopleSheetProblems(t) {
   if (!Number.isInteger(n) || n < 1 || n > PEOPLE_COUNT_MAX) out.count = PEOPLE_FIND_WORDS.needCount;
   return out;
 }
-function listTyped(text2, max) {
+function listTyped(text, max) {
   return [
     ...new Set(
-      text2.split(/[,;\n]/).map((s) => s.trim()).filter(Boolean)
+      text.split(/[,;\n]/).map((s) => s.trim()).filter(Boolean)
     )
   ].slice(0, max);
 }
@@ -35593,8 +35596,8 @@ function placeOf(input) {
   if (stateCode(city) && !stateCode(region)) return { city: region || null, state: stateCode(city) };
   return { city: city || null, state: null };
 }
-function planKey(text2, fallback, taken) {
-  const base = text2.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 40).replace(/_+$/, "");
+function planKey(text, fallback, taken) {
+  const base = text.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 40).replace(/_+$/, "");
   let key = /^[a-z]/.test(base) ? base : fallback;
   let n = 2;
   while (taken.has(key)) key = `${fallback}_${n++}`;
@@ -36547,8 +36550,8 @@ function standingFromConfig(value) {
     ];
   });
   const notes = listOf(s.notes).flatMap((n) => {
-    const text2 = textOrNull(n);
-    return text2 ? [text2] : [];
+    const text = textOrNull(n);
+    return text ? [text] : [];
   });
   return {
     can_send: canSend,
@@ -36569,8 +36572,8 @@ function standingNeedsRead(n, nowMs) {
   const readAt = n.standingReadAt ? Date.parse(n.standingReadAt) : Number.NaN;
   return Number.isNaN(readAt) || nowMs - readAt > STANDING_STALE_MS;
 }
-var withStop = (text2) => {
-  const t = text2.trim();
+var withStop = (text) => {
+  const t = text.trim();
   return /[.!?]$/.test(t) ? t : `${t}.`;
 };
 var problemWords = (p) => p.fix ? `${withStop(p.said)} ${withStop(p.fix)}` : withStop(p.said);
@@ -37600,15 +37603,15 @@ var TEXT_MAX = 80;
 function parseTodayWidgetSnapshot(v) {
   if (!v || typeof v !== "object") return null;
   const s = v;
-  const text2 = (x) => typeof x === "string" ? x.trim().slice(0, TEXT_MAX) : null;
-  const headline2 = text2(s.headline);
+  const text = (x) => typeof x === "string" ? x.trim().slice(0, TEXT_MAX) : null;
+  const headline2 = text(s.headline);
   const at3 = typeof s.at === "string" && !Number.isNaN(Date.parse(s.at)) ? s.at : null;
   const waiting = isCount(s.waiting) ? s.waiting : null;
   if (headline2 === null || at3 === null || waiting === null || !Array.isArray(s.figures)) return null;
   const figures = [];
   for (const f of s.figures.slice(0, FIGURES_MAX)) {
     if (!f || typeof f !== "object") return null;
-    const label = text2(f.label);
+    const label = text(f.label);
     const value = f.value;
     if (label === null || typeof value !== "number" || !Number.isFinite(value) || value < 0) return null;
     figures.push({ label, value: Math.floor(value) });
@@ -37616,8 +37619,8 @@ function parseTodayWidgetSnapshot(v) {
   let first = null;
   if (s.first !== null && s.first !== void 0) {
     if (typeof s.first !== "object") return null;
-    const who = text2(s.first.who);
-    const reason = text2(s.first.reason);
+    const who = text(s.first.who);
+    const reason = text(s.first.reason);
     if (who === null || reason === null) return null;
     first = { who, reason };
   }
@@ -39091,11 +39094,11 @@ function noteSuggestUserContent(turns, known) {
   const kept = [];
   let used = 0;
   for (const t of [...turns].reverse()) {
-    const text2 = clean2(t.text);
-    if (!text2) continue;
-    if (used + text2.length > NOTE_SUGGEST_LIMITS.transcriptMaxChars) break;
-    kept.unshift({ who: t.who, text: text2 });
-    used += text2.length;
+    const text = clean2(t.text);
+    if (!text) continue;
+    if (used + text.length > NOTE_SUGGEST_LIMITS.transcriptMaxChars) break;
+    kept.unshift({ who: t.who, text });
+    used += text.length;
   }
   return [
     `<conversation>
@@ -39312,7 +39315,7 @@ var HOLD_CHANNEL_WORDS = {
   email: "Email",
   voice: "Phone"
 };
-var clipped = (s, max) => {
+var clipped2 = (s, max) => {
   const t = s.replace(/\s+/g, " ").trim();
   return t.length > max ? `${t.slice(0, max - 1)}\u2026` : t;
 };
@@ -39323,16 +39326,16 @@ function holdNotice(f) {
   const shown2 = f.erased ? null : f.address?.startsWith("+") ? formatPhoneDisplay(f.address) ?? f.address : f.address;
   const name = !f.erased && f.who?.trim() || shown2 || "A customer";
   const lines = f.erased ? [] : [
-    ...f.customerWords ? [`They wrote: \u201C${clipped(f.customerWords, 600)}\u201D`] : [],
-    ...f.replyWords ? [`The receptionist: \u201C${clipped(f.replyWords, 600)}\u201D`] : [],
-    ...f.details ? [clipped(f.details, 600)] : []
+    ...f.customerWords ? [`They wrote: \u201C${clipped2(f.customerWords, 600)}\u201D`] : [],
+    ...f.replyWords ? [`The receptionist: \u201C${clipped2(f.replyWords, 600)}\u201D`] : [],
+    ...f.details ? [clipped2(f.details, 600)] : []
   ];
   const pause = f.pausedHours ? `${act2.replace(/\.$/, "")} \u2014 the receptionist is paused on this thread for ${f.pausedHours}h.` : act2;
   return {
     kind: "handoff",
     route: `inbox/th-${f.conversationId}`,
     about: { type: "conversation", id: f.conversationId },
-    subject: clipped(why ? `${name} needs a person \u2014 ${why}` : `${name} needs a person`, 200),
+    subject: clipped2(why ? `${name} needs a person \u2014 ${why}` : `${name} needs a person`, 200),
     body: [...lines, "", `${where} conversation${shown2 ? ` \xB7 ${shown2}` : ""}`, pause].join("\n").replace(/^\n/, ""),
     redactedBody: `A ${where === "The" ? "" : `${where} `}conversation needed a person${why ? ` (${why})` : ""}, and nobody could be told.`
   };
@@ -39567,8 +39570,8 @@ function toPersonRowVM(r2, tz, now = /* @__PURE__ */ new Date(), viewerId = null
 }
 
 // src/people/person-attention.ts
-function clippedLine(text2, max) {
-  const t = text2.replace(/\s+/g, " ").trim();
+function clippedLine(text, max) {
+  const t = text.replace(/\s+/g, " ").trim();
   return t.length > max ? `${t.slice(0, max - 1).trimEnd()}\u2026` : t;
 }
 function clock2(ms2, tz, nowMs) {
@@ -39987,8 +39990,8 @@ function consentChangeWords(c) {
       ...c.source === "unsubscribe" ? { sub: c.words ? `Wrote \u201C${c.words}\u201D in reply to an email` : "Pressed Unsubscribe in an email" } : c.source === "reply_undone" ? { sub: "A reply read as no, undone" } : c.consent === "opted_in" && c.source === "customer_message" ? { sub: `In their own words by email${c.words ? `: \u201C${c.words}\u201D` : ""}` } : {}
     };
   const offers = c.purpose === "marketing";
-  const text2 = c.consent === "opted_in" ? offers ? "Said yes to offers and news" : "Said yes to messages" : c.consent === "opted_out" ? offers ? "Said no to offers" : `${STOP_WORDS.said()} \u2014 nothing goes out to them` : offers ? "Offers: back to not asked" : "Back to not asked";
-  return { who: offers ? "Offers" : "Consent", text: text2, sub: howKnown(c) };
+  const text = c.consent === "opted_in" ? offers ? "Said yes to offers and news" : "Said yes to messages" : c.consent === "opted_out" ? offers ? "Said no to offers" : `${STOP_WORDS.said()} \u2014 nothing goes out to them` : offers ? "Offers: back to not asked" : "Back to not asked";
+  return { who: offers ? "Offers" : "Consent", text, sub: howKnown(c) };
 }
 var DECISION_LABELS = {
   take_over: { who: "Took over", did: "paused the receptionist on this thread" },
@@ -40185,10 +40188,10 @@ function dealItems({ profile, dealsOn, stamp }) {
   const items = [];
   for (const x of dealsOn ? profile.deals ?? [] : []) {
     const svc = x.service ? ` \xB7 ${x.service}` : "";
-    const put = (id, at3, text2) => {
+    const put = (id, at3, text) => {
       const t = ts(at3);
       if (t === null) return;
-      items.push({ id, ts: t, ...stamp(t), kind: "deal", who: "You", text: text2 });
+      items.push({ id, ts: t, ...stamp(t), kind: "deal", who: "You", text });
     };
     const value = amountWords(x.amount_cents, x.per, x.currency);
     const client = x.stage === "won" || x.stage === "ended";
@@ -40785,8 +40788,8 @@ function localPart(address) {
 }
 var QUOTE_HEAD2 = /^(on|el|le|am|il|em|op)\b.*\b(wrote|escribió|a écrit|schrieb|ha scritto|escreveu|schreef)\s*:\s*$/i;
 var ORIGINAL2 = /^-{2,}\s*(original message|forwarded message|mensaje original)\s*-{2,}$/i;
-function signedLinesOf(text2) {
-  const lines = (text2 ?? "").replace(/\r\n?/g, "\n").split("\n");
+function signedLinesOf(text) {
+  const lines = (text ?? "").replace(/\r\n?/g, "\n").split("\n");
   const kept = [];
   for (const [i, line] of lines.entries()) {
     const t = line.trim();
@@ -40796,8 +40799,8 @@ function signedLinesOf(text2) {
   }
   return kept.join("\n");
 }
-function standsIn(text2, words3) {
-  const t = ` ${foldedName(text2)} `;
+function standsIn(text, words3) {
+  const t = ` ${foldedName(text)} `;
   const w = foldedName(words3);
   return !!w && t.includes(` ${w} `);
 }
@@ -50702,14 +50705,14 @@ function pageLine(at3, page2) {
     waits ? `waits on ${waits}` : null,
     phone ? `on a phone ${msWords(phone.p75)}` : null
   ].filter(Boolean);
-  const text2 = said.join(" \xB7 ");
+  const text = said.join(" \xB7 ");
   const verdict = speedVerdict(how, lead.p75);
   return {
     page: page2,
     label: pageSpeedLabel(page2),
     value: msWords(lead.p75),
     tone: VERDICT_TONES2[verdict],
-    hint: `${text2.charAt(0).toUpperCase()}${text2.slice(1)} \xB7 ${countWords(lead.samples, how === "move" ? "move" : "load")}`
+    hint: `${text.charAt(0).toUpperCase()}${text.slice(1)} \xB7 ${countWords(lead.samples, how === "move" ? "move" : "load")}`
   };
 }
 function partLines(rows2, shown2) {
@@ -50839,38 +50842,38 @@ var ClientErrorInput = z26.object({
 
 // src/templates/message-version-slots.ts
 var partWritten = (part) => part.written ?? slotWritten(part.slot);
-function toSlotParts(text2, set = { kind: "numbered" }) {
+function toSlotParts(text, set = { kind: "numbered" }) {
   const parts2 = [];
   let last = 0;
-  for (const m of slotMentions(set, text2)) {
+  for (const m of slotMentions(set, text)) {
     if (m.key === "") continue;
-    if (m.index > last) parts2.push({ kind: "text", text: text2.slice(last, m.index) });
+    if (m.index > last) parts2.push({ kind: "text", text: text.slice(last, m.index) });
     const slot = { kind: "slot", slot: m.key };
     parts2.push(m.written === slotWritten(m.key) ? slot : { ...slot, written: m.written });
     last = m.index + m.written.length;
   }
-  if (last < text2.length) parts2.push({ kind: "text", text: text2.slice(last) });
+  if (last < text.length) parts2.push({ kind: "text", text: text.slice(last) });
   return parts2;
 }
 function fromSlotParts(parts2) {
   return parts2.map((p) => p.kind === "slot" ? partWritten(p) : p.text).join("");
 }
-var within = (text2, at3) => Math.max(0, Math.min(text2.length, Math.trunc(at3)));
-function insertSlot(text2, slot, start, end) {
-  const from = within(text2, Math.min(start, end));
-  const to = within(text2, Math.max(start, end));
+var within = (text, at3) => Math.max(0, Math.min(text.length, Math.trunc(at3)));
+function insertSlot(text, slot, start, end) {
+  const from = within(text, Math.min(start, end));
+  const to = within(text, Math.max(start, end));
   const written = slotWritten(slot);
-  return { text: `${text2.slice(0, from)}${written}${text2.slice(to)}`, caret: from + written.length };
+  return { text: `${text.slice(0, from)}${written}${text.slice(to)}`, caret: from + written.length };
 }
-function clampWords(text2, caret, max, set = { kind: "numbered" }) {
-  const at3 = within(text2, caret);
-  const over = text2.length - Math.max(0, max);
-  if (over <= 0) return { text: text2, caret: at3 };
-  const held = new Array(text2.length).fill(false);
-  for (const m of slotMentions(set, text2)) if (m.key !== "") held.fill(true, m.index, m.index + m.written.length);
+function clampWords(text, caret, max, set = { kind: "numbered" }) {
+  const at3 = within(text, caret);
+  const over = text.length - Math.max(0, max);
+  if (over <= 0) return { text, caret: at3 };
+  const held = new Array(text.length).fill(false);
+  for (const m of slotMentions(set, text)) if (m.key !== "") held.fill(true, m.index, m.index + m.written.length);
   const letters = [];
-  for (let i = 0; i < text2.length; ) {
-    const to = i + ((text2.codePointAt(i) ?? 0) > 65535 ? 2 : 1);
+  for (let i = 0; i < text.length; ) {
+    const to = i + ((text.codePointAt(i) ?? 0) > 65535 ? 2 : 1);
     if (!held[i]) letters.push({ from: i, to });
     i = to;
   }
@@ -50882,19 +50885,19 @@ function clampWords(text2, caret, max, set = { kind: "numbered" }) {
   }
   let kept = "";
   let before = 0;
-  for (let i = 0; i < text2.length; i += 1) {
-    if (!gone.has(i)) kept += text2.charAt(i);
+  for (let i = 0; i < text.length; i += 1) {
+    if (!gone.has(i)) kept += text.charAt(i);
     else if (i < at3) before += 1;
   }
   return { text: kept, caret: at3 - before };
 }
-function eraseSlot(text2, start, end, way, set = { kind: "numbered" }) {
+function eraseSlot(text, start, end, way, set = { kind: "numbered" }) {
   if (start !== end) return null;
   let at3 = 0;
-  for (const p of toSlotParts(text2, set)) {
+  for (const p of toSlotParts(text, set)) {
     const length = p.kind === "slot" ? partWritten(p).length : p.text.length;
     const hit = p.kind === "slot" && (way === "back" ? at3 + length === start : at3 === start);
-    if (hit) return { text: `${text2.slice(0, at3)}${text2.slice(at3 + length)}`, caret: at3 };
+    if (hit) return { text: `${text.slice(0, at3)}${text.slice(at3 + length)}`, caret: at3 };
     at3 += length;
   }
   return null;
@@ -50908,8 +50911,8 @@ function slotLabel(set, slot) {
 function namesJoined(names3) {
   return names3.length < 2 ? names3[0] ?? "" : `${names3.slice(0, -1).join(", ")} and ${names3[names3.length - 1]}`;
 }
-function namedRefusal(text2, set) {
-  const extra = slotOutside(set, text2);
+function namedRefusal(text, set) {
+  const extra = slotOutside(set, text);
   if (extra === null) return null;
   const name = slotLabel(set, extra);
   return set.keys.length === 0 ? `This message fills no values, so ${name} has nothing to take.` : `${name} is not one of this message's values: it has ${namesJoined(set.keys.map((k) => slotLabel(set, k)))}.`;
@@ -51212,8 +51215,8 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
 }
 
 // src/today/today-brief-words.ts
-var plain = (text2) => ({ text: text2 });
-var bold = (text2) => ({ text: text2, strong: true });
+var plain = (text) => ({ text });
+var bold = (text) => ({ text, strong: true });
 function names2(who, rest) {
   const said = who.slice(0, 3);
   const left = who.length - said.length + rest;
@@ -51529,7 +51532,7 @@ var LEAK_ORDER = [
   "unreachable",
   "quiet"
 ];
-var askWhy2 = (text2, math) => `${text2} ${capitalize(math)}. Why is that?`;
+var askWhy2 = (text, math) => `${text} ${capitalize(math)}. Why is that?`;
 function leakFactsOf(reports, people, noReply, nowMs) {
   const list2 = (id) => people ? people.lists.find((l) => l.id === id) ?? null : null;
   const step2 = (id) => {
@@ -51548,18 +51551,18 @@ function neverBookedLeak({ reports, list: list2, step: step2 }) {
   if (!(reports && b && b.present && b.pct !== null && b.asked >= 5 && b.pct <= 25)) return null;
   const { asked, booked } = b;
   const never = list2("asked_never_booked");
-  const text2 = booked === 0 ? `${asked} people wrote or called in the last ${reports.rangeLabel}. Not one of them is on the calendar.` : `Only ${booked} of the ${asked} people who wrote or called in the last ${reports.rangeLabel} got onto the calendar.`;
+  const text = booked === 0 ? `${asked} people wrote or called in the last ${reports.rangeLabel}. Not one of them is on the calendar.` : `Only ${booked} of the ${asked} people who wrote or called in the last ${reports.rangeLabel} got onto the calendar.`;
   const math = never ? `${b.headline} \xB7 ${never.count} on Asked, never booked` : b.headline;
   return {
     id: "never-booked",
     tone: "warn",
     tag: "Booking gap",
     icon: "calendar",
-    text: text2,
+    text,
     math,
     people: [],
     peopleLead: null,
-    ask: askWhy2(text2, math),
+    ask: askWhy2(text, math),
     cta: { label: "See who", to: never ? `clients/seg:${never.id}` : "clients" },
     also: step2("asked_never_booked")
   };
@@ -51567,18 +51570,18 @@ function neverBookedLeak({ reports, list: list2, step: step2 }) {
 function unansweredLeak({ reports, noReply }) {
   const a = reports ? reports.answered : null;
   if (!(reports && a && a.none >= 2)) return null;
-  const text2 = `${a.none} customer message${a.none === 1 ? "" : "s"} never got an answer at all.`;
+  const text = `${a.none} customer message${a.none === 1 ? "" : "s"} never got an answer at all.`;
   const math = `of ${reports.messages.total} in the last ${reports.rangeLabel} \xB7 the receptionist answered ${a.ai}, you answered ${a.you}`;
   return {
     id: "unanswered",
     tone: "warn",
     tag: "No reply",
     icon: "alert",
-    text: text2,
+    text,
     math,
     people: noReply.slice(0, 2).map((r2) => ({ id: r2.conversationId, name: r2.who, to: r2.to, title: `Open ${r2.who}'s thread` })),
     peopleLead: "Waiting now",
-    ask: askWhy2(text2, math),
+    ask: askWhy2(text, math),
     cta: { label: "Open Reports", to: "reports" },
     also: null
   };
@@ -51591,14 +51594,14 @@ function consultsWaitingLeak({ people, dealsAt }) {
   const held = consultationsWithoutProposal(consultRows, at3);
   if (!(people && people.dealsOn && held.length >= 1)) return null;
   const n = held.length;
-  const text2 = `${n} consultation${n === 1 ? "" : "s"} in the last week ended with no proposal yet.`;
+  const text = `${n} consultation${n === 1 ? "" : "s"} in the last week ended with no proposal yet.`;
   const math = `${consultsHeldWords(n)} \xB7 on Pipeline`;
   return {
     id: "consults-waiting",
     tone: "warn",
     tag: "Next step",
     icon: "calendar",
-    text: text2,
+    text,
     math,
     people: held.slice(0, 2).map((r2) => ({
       id: r2.id,
@@ -51607,18 +51610,18 @@ function consultsWaitingLeak({ people, dealsAt }) {
       title: `Open ${r2.name} in People`
     })),
     peopleLead: "Consultation with",
-    ask: askWhy2(text2, math),
+    ask: askWhy2(text, math),
     cta: { label: "See who", to: "clients/pipeline" },
     also: null
   };
 }
 function proposalsWaitingWords(n, pace, po, inHand) {
   const ago3 = pace ? `${pace.waitDays} days` : "a week";
-  const text2 = pace?.longerThanUsual ? `${n} proposal${n === 1 ? " has" : "s have"} waited longer than usual with nothing back.` : `${n} proposal${n === 1 ? "" : "s"} went out more than ${ago3} ago with nothing back.`;
+  const text = pace?.longerThanUsual ? `${n} proposal${n === 1 ? " has" : "s have"} waited longer than usual with nothing back.` : `${n} proposal${n === 1 ? "" : "s"} went out more than ${ago3} ago with nothing back.`;
   const since = pace ? `${pace.words.charAt(0).toLowerCase()}${pace.words.slice(1)} \xB7 nothing heard since it went` : "nothing heard since it went";
   const counted3 = po ? `${po.count} on Proposal out \xB7 ${since}` : since;
   const math = inHand ? `${counted3} \xB7 the follow-up has ${inHand} more` : counted3;
-  return { text: text2, math };
+  return { text, math };
 }
 function yoursToFollowUp(waiting) {
   return waiting.filter((r2) => !isOptedOutContact({ consent: r2.consent.state, dnc: r2.consent.dnc })).filter((r2, i, all) => all.findIndex((x) => x.id === r2.id) === i).slice(0, 2).flatMap(
@@ -51639,17 +51642,17 @@ function proposalsWaitingLeak({ people, list: list2, dealsAt }) {
   const waiting = out.filter((r2) => r2.followUp?.kind !== "will");
   const po = list2("proposal_out");
   if (!(people && people.dealsOn && waiting.length >= 1)) return null;
-  const { text: text2, math } = proposalsWaitingWords(waiting.length, pace, po, inHand);
+  const { text, math } = proposalsWaitingWords(waiting.length, pace, po, inHand);
   return {
     id: "proposals-waiting",
     tone: "warn",
     tag: "Waiting",
     icon: "clock",
-    text: text2,
+    text,
     math,
     people: inHand ? yoursToFollowUp(waiting) : [],
     peopleLead: inHand ? "Yours to follow up" : null,
-    ask: askWhy2(text2, math),
+    ask: askWhy2(text, math),
     cta: {
       label: "See who",
       to: inHand ? pipelineRoute({ view: "waiting" }) : po ? `clients/seg:${po.id}` : "clients"
@@ -51664,18 +51667,18 @@ function unreachableLeak({ people, list: list2 }) {
   const said = people.rows.filter((r2) => r2.saidYes.offers);
   const noNumber = said.length > 0;
   const why = said.some((r2) => r2.whyNot.offers === "no_channel") ? NO_CHANNEL_REACH : NO_NUMBER_REACH;
-  const text2 = `${yes.count} ${yes.count === 1 ? "person has" : "people have"} said yes to messages, but ${noNumber ? "nobody can be sent an offer yet" : "nobody has said yes to offers"}.`;
+  const text = `${yes.count} ${yes.count === 1 ? "person has" : "people have"} said yes to messages, but ${noNumber ? "nobody can be sent an offer yet" : "nobody has said yes to offers"}.`;
   const math = `${noNumber ? why : "a broadcast reaches only the second yes"} \xB7 0 can receive one`;
   return {
     id: "unreachable",
     tone: "warn",
     tag: "Reach",
     icon: "users",
-    text: text2,
+    text,
     math,
     people: [],
     peopleLead: null,
-    ask: askWhy2(text2, math),
+    ask: askWhy2(text, math),
     cta: { label: "Open People", to: `clients/seg:${yes.id}` },
     also: !noNumber && yes.action && yes.action.enabled ? { label: yes.action.cta, to: yes.action.to } : null
   };
@@ -51683,18 +51686,18 @@ function unreachableLeak({ people, list: list2 }) {
 function quietLeak({ people, list: list2, step: step2 }) {
   const quiet = list2("quiet");
   if (!(quiet && quiet.count >= 5)) return null;
-  const text2 = `${quiet.count} people have not heard from you in 30 days.`;
+  const text = `${quiet.count} people have not heard from you in 30 days.`;
   const math = people && people.aggregates ? `of ${people.aggregates.total} in People` : "on the Quiet 30+ days list";
   return {
     id: "quiet",
     tone: "info",
     tag: "Gone quiet",
     icon: "clock",
-    text: text2,
+    text,
     math,
     people: [],
     peopleLead: null,
-    ask: askWhy2(text2, math),
+    ask: askWhy2(text, math),
     cta: { label: "See who", to: `clients/seg:${quiet.id}` },
     also: step2("quiet")
   };
@@ -53788,9 +53791,9 @@ var REVERSED_WORDS = {
   dispute_won: "a dispute was won"
 };
 function partnerEventBits(kind, p) {
-  const text2 = (k) => typeof p[k] === "string" && p[k] ? p[k] : null;
+  const text = (k) => typeof p[k] === "string" && p[k] ? p[k] : null;
   const known = (words3, k) => {
-    const said = text2(k);
+    const said = text(k);
     const word = said !== null && Object.hasOwn(words3, said) ? words3[said] ?? null : null;
     return word === null ? [] : [word];
   };

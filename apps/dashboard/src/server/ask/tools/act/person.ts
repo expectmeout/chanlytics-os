@@ -1,6 +1,7 @@
 import "server-only";
 import { z } from "zod";
 import {
+  addressOf,
   CONSENT_SOURCES,
   MERGE_WORDS,
   NOTE_MAX,
@@ -16,6 +17,7 @@ import {
   proposalBelowNeeds,
   whyNotAPhone,
   whyNotAnEmail,
+  type WriteWay,
 } from "@chanlytics/contracts";
 import { load } from "../../../readers";
 import { personReach } from "../../../readers/person";
@@ -64,7 +66,7 @@ async function personOnCard(t: ToolContext, contactId: string): Promise<CardPers
   // As People names them (personName). What the page shows in place of a name of their own is that, minus the typed name.
   const who = personName(c);
   const shows = c.wa_profile_name || c.phone_e164 || c.email ? personName({ ...c, display_name: null }) : null;
-  noteRow(t, "person", id, who, `clients/${id}`);
+  noteRow(t, "person", id, who, addressOf({ kind: "person", id }));
   return { id, who, name: c.display_name ?? null, email: c.email ?? null, shows };
 }
 const refused = (p: CardPerson | ProposalOutcome): p is ProposalOutcome => "result" in p;
@@ -262,19 +264,37 @@ async function proposeMerge(t: ToolContext, input: { contact_id: string; other_i
  * wanted: on a wire their answers allow now (the person's reach, the rule the send asks again: readers/person.ts
  * personReach), the member's words where the wire carries words and an approved message where only one can go.
  */
-async function proposeMessage(
-  t: ToolContext,
-  input: {
-    contact_id: string;
-    wire?: "whatsapp" | "sms" | "email";
-    text?: string;
-    subject?: string;
-    template_name?: string;
-    template_language?: string;
-    then?: "receptionist" | "me";
-    note?: string;
-  },
-): Promise<ProposalOutcome> {
+/** A first message as the model asks it (propose_person action message). */
+interface MessageAsk {
+  contact_id: string;
+  wire?: "whatsapp" | "sms" | "email";
+  text?: string;
+  subject?: string;
+  template_name?: string;
+  template_language?: string;
+  then?: "receptionist" | "me";
+  note?: string;
+}
+
+/** What a first message carries on its wire: its words, or a message WhatsApp approved where only one can go; or why not. */
+function carried(
+  input: MessageAsk,
+  carries: WriteWay["carries"],
+  who: string,
+): { text: string; template: { name: string; language: string } | null } | { refusal: string } {
+  const text = input.text?.trim() ?? "";
+  const name = input.template_name?.trim();
+  const language = input.template_language?.trim();
+  const template = name && language ? { name, language } : null;
+  if (carries === "approved" && !template)
+    return {
+      refusal: `only a message WhatsApp approved can go to ${who} on WhatsApp now: name it with template_name and template_language (sequences with action messages lists them)`,
+    };
+  if (carries === "words" && !text && !template) return { refusal: "text is required: the words to send" };
+  return { text, template };
+}
+
+async function proposeMessage(t: ToolContext, input: MessageAsk): Promise<ProposalOutcome> {
   const person = await personOnCard(t, input.contact_id);
   if (refused(person)) return person;
   const read = await unlessNotFound(load(t.rc, personReach, { id: person.id }));
@@ -284,16 +304,9 @@ async function proposeMessage(
   if (!wire) return refuse(reach.ways.find((w) => w.why)?.why ?? "No message can go to them now.");
   const way = reach.ways.find((w) => w.wire === wire);
   if (!way || !way.ok) return refuse(way?.why ?? `No message can go to them by ${wire} now.`);
-  const text = input.text?.trim() ?? "";
-  const template =
-    input.template_name?.trim() && input.template_language?.trim()
-      ? { name: input.template_name.trim(), language: input.template_language.trim() }
-      : null;
-  if (way.carries === "approved" && !template)
-    return refuse(
-      `only a message WhatsApp approved can go to ${person.who} on WhatsApp now: name it with template_name and template_language (sequences with action messages lists them)`,
-    );
-  if (way.carries === "words" && !text && !template) return refuse("text is required: the words to send");
+  const words = carried(input, way.carries, person.who);
+  if ("refusal" in words) return refuse(words.refusal);
+  const { text, template } = words;
   const subject = wire === "email" ? input.subject?.trim().slice(0, 200) : undefined;
   const then = input.then ?? "receptionist";
   const firstText =
@@ -376,7 +389,9 @@ export const propose_person = defineActions({
       kind: "answer",
       input: z.object({
         contact_id: z.string().describe("Whose answer: an id a read returned."),
-        question: z.enum(["messages", "offers"]).describe("messages: about their own visits; offers: offers and news."),
+        question: z
+          .enum(["messages", "offers"])
+          .describe("messages: about their own bookings; offers: offers and news."),
         answer: z.enum(["yes", "no", "not_asked"]).describe("What they said, or not_asked to clear it."),
         how: z
           .enum(SOURCE_IDS)
@@ -390,7 +405,7 @@ export const propose_person = defineActions({
       ],
       label: "Preparing their answer",
       words:
-        "Action answer records what one person said to one of the two questions: messages (about their own visits) or offers (offers and news): yes, no, or not_asked again, with how they told you. Only what they said: never record a yes they did not give. A yes to offers has to be in writing (form, or customer_message naming the message), and a spoken yes covers messages alone; a no is honoured however it came.",
+        "Action answer records what one person said to one of the two questions: messages (about their own bookings) or offers (offers and news): yes, no, or not_asked again, with how they told you. Only what they said: never record a yes they did not give. A yes to offers has to be in writing (form, or customer_message naming the message), and a spoken yes covers messages alone; a no is honoured however it came.",
       build: proposeAnswer,
     }),
     add: actAction({

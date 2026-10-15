@@ -39,20 +39,20 @@ export interface AskFollowUp {
 
 const isWake = (v: unknown): v is FollowUpWake =>
   typeof v === "string" && (FOLLOW_UP_WAKES as readonly string[]).includes(v);
-const text = (v: unknown, max: number): string => (typeof v === "string" ? v.trim().slice(0, max) : "");
+const clipped = (v: unknown, max: number): string => (typeof v === "string" ? v.trim().slice(0, max) : "");
 
 /** One follow-up as a view keeps it, or null where it is not one: a view is the member's, and read leniently. */
 function followUpOf(v: unknown): AskFollowUp | null {
   if (!v || typeof v !== "object") return null;
   const r = v as Record<string, unknown>;
-  const id = text(r.id, 40);
-  const said = text(r.said, FOLLOW_UP_SAID_MAX);
-  const prompt = text(r.prompt, FOLLOW_UP_PROMPT_MAX);
+  const id = clipped(r.id, 40);
+  const said = clipped(r.said, FOLLOW_UP_SAID_MAX);
+  const prompt = clipped(r.prompt, FOLLOW_UP_PROMPT_MAX);
   if (!id || !said || !prompt || !isWake(r.wake)) return null;
-  const subject = text(r.subject, 40) || null;
+  const subject = clipped(r.subject, 40) || null;
   const on = typeof r.on === "string" && /^\d{4}-\d{2}-\d{2}$/.test(r.on) ? r.on : null;
   if (r.wake === "date" ? !on : !subject) return null;
-  return { id, said, prompt, wake: r.wake, subject, on, made_at: text(r.made_at, 40) };
+  return { id, said, prompt, wake: r.wake, subject, on, made_at: clipped(r.made_at, 40) };
 }
 
 /** A member's follow-ups, from their views (GET views' `views`), oldest first: none where the view holds none. */

@@ -7,10 +7,10 @@ import { NO_ACTION, defineRead, offeredTo, unread, type ActTool, type ToolContex
 import { propose_call } from "../act/call";
 import { propose_deal } from "../act/deal";
 import { propose_follow_up } from "../act/follow-up";
-import { propose_lead_search } from "../act/lead-search";
-import { propose_leads } from "../act/leads";
-import { propose_list } from "../act/list";
-import { propose_people } from "../act/people";
+import { propose_lead_search } from "../act/leads/lead-search";
+import { propose_leads } from "../act/leads/leads";
+import { propose_list } from "../act/people/list";
+import { propose_people } from "../act/people/people";
 import { propose_person } from "../act/person";
 import { propose_reply } from "../act/reply";
 import { propose_review } from "../act/review";
@@ -43,7 +43,7 @@ const ACT_TOOLS: readonly ActTool[] = [
 ];
 
 /** How a member asks for a kind of card: "tool with action", each that makes it and is offered to their role. */
-function askedFor(t: ToolContext): Map<AskProposal["kind"], string[]> {
+function kindsAsked(t: ToolContext): Map<AskProposal["kind"], string[]> {
   const out = new Map<AskProposal["kind"], string[]>();
   for (const tool of ACT_TOOLS)
     for (const [action, def] of Object.entries(tool.actions)) {
@@ -55,7 +55,7 @@ function askedFor(t: ToolContext): Map<AskProposal["kind"], string[]> {
 }
 
 async function readGuide(t: ToolContext): Promise<unknown> {
-  const asked = askedFor(t);
+  const asked = kindsAsked(t);
   const setup = await load(t.rc, connections, undefined).then((r) => r.data.setup, unread(t, "guide", "setup"));
   const missing: string[] = [];
   if (setup) {

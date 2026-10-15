@@ -176,6 +176,15 @@ export const wasIn = (data: unknown, k: string): unknown => {
 export const idIn = (pl: Record<string, unknown> | undefined, k: string): string | null =>
   typeof pl?.[k] === "string" && pl[k] ? (pl[k] as string) : null;
 export const refuseWith = (words: string): ProposalRefusal => ({ refused: words });
+/** The ids a payload names, as text, each once. */
+export const uniqueIds = (v: unknown): string[] =>
+  Array.isArray(v) ? [...new Set(v.map(asText).filter(Boolean))] : [];
+
+/** A batch's calls as a spec commits them: the one call where it is one part, else its parts in order. */
+export function oneOrMany<C extends ProposalCall>(calls: readonly C[]): C | readonly C[] {
+  const [only, ...rest] = calls;
+  return only && rest.length === 0 ? only : calls;
+}
 
 /** The size of a batch door's request: fifty people at a time, as each batch door has always taken them. */
 const BATCH_SIZE = 50;

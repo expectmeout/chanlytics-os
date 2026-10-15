@@ -36,7 +36,7 @@ import {
   type ToolContext,
 } from "../context";
 import { broadcastAction } from "./broadcast";
-import { reachOutAddAction } from "./lead-search";
+import { reachOutAddAction } from "./leads/lead-search";
 import { messageAction } from "./message";
 import { playbookAction } from "./playbook";
 import { playbookChangeAction } from "./playbook-change";
@@ -629,7 +629,7 @@ export const propose_sequence = defineActions({
       }),
       examples: [
         {
-          name: "Salons near you",
+          name: "Businesses near you",
           search_id: "9c2e4b6d-1f3a-4e5c-8b7d-0a1c2e3f4b5d",
           steps: [
             { subject: "A quick idea for {business_name}", body: "Hi {first_name}, ..." },

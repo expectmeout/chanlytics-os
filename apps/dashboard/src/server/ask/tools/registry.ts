@@ -34,12 +34,12 @@ import { propose_reply } from "./act/reply";
 import { propose_thread_verb } from "./act/thread-verb";
 import { propose_call } from "./act/call";
 import { propose_person } from "./act/person";
-import { propose_people } from "./act/people";
-import { propose_list } from "./act/list";
+import { propose_people } from "./act/people/people";
+import { propose_list } from "./act/people/list";
 import { propose_deal } from "./act/deal";
 import { propose_settings } from "./act/settings";
-import { propose_lead_search } from "./act/lead-search";
-import { propose_leads } from "./act/leads";
+import { propose_lead_search } from "./act/leads/lead-search";
+import { propose_leads } from "./act/leads/leads";
 import { propose_sequence } from "./act/sequence";
 import { propose_review } from "./act/review";
 import { propose_plan } from "./act/plan";
@@ -218,7 +218,7 @@ function flatten(schema: Record<string, unknown>): Record<string, unknown> {
   // What each action says of a shared field (the operator, 15 Oct 2026: each input explained on itself), by action.
   const said = new Map<string, Array<[string, string]>>();
   for (const b of branches) {
-    const action = String(b.properties.action.const);
+    const action = String(b.properties.action?.const ?? "");
     for (const [k, v] of Object.entries(b.properties)) {
       if (k === "action") continue;
       // One shape, whatever each action says of it: a description is words, never a shape.

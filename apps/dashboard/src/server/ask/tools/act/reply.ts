@@ -2,6 +2,7 @@ import "server-only";
 import { z } from "zod";
 import {
   AppError,
+  addressOf,
   BOOKING_REQUEST_REFUSALS,
   BOOKING_REQUEST_WORDS,
   asTenantId,
@@ -55,15 +56,8 @@ async function startRefusal(
   }
 }
 
-async function draftReply(
-  t: ToolContext,
-  input: { conversation_id: string; text: string; voice: string },
-): Promise<ProposalOutcome> {
-  const id = str(input.conversation_id, 40);
-  const text = str(input.text, 1000);
-  const voice = input.voice === "receptionist" ? "receptionist" : "you";
-  if (!UUID.test(id)) return refuse("conversation_id must be an id a read returned");
-  if (!text) return refuse("text is required");
+/** A thread a card names, in this workspace, with who it is with as the Inbox names them; null where there is none. */
+async function threadOnCard(t: ToolContext, id: string) {
   const { data: conv, error } = await t.ctx.supabase
     .from("conversations")
     .select(
@@ -73,7 +67,7 @@ async function draftReply(
     .eq("tenant_id", t.tenantId)
     .maybeSingle();
   if (error) throw new Error(error.message);
-  if (!conv) return refuse("no such conversation in this workspace");
+  if (!conv) return null;
   const who = contactName({
     contact: {
       id: conv.contacts?.id ?? "",
@@ -85,6 +79,21 @@ async function draftReply(
       dnc: false,
     },
   } as Parameters<typeof contactName>[0]);
+  return { conv, who };
+}
+
+async function draftReply(
+  t: ToolContext,
+  input: { conversation_id: string; text: string; voice: string },
+): Promise<ProposalOutcome> {
+  const id = str(input.conversation_id, 40);
+  const text = str(input.text, 1000);
+  const voice = input.voice === "receptionist" ? "receptionist" : "you";
+  if (!UUID.test(id)) return refuse("conversation_id must be an id a read returned");
+  if (!text) return refuse("text is required");
+  const thread = await threadOnCard(t, id);
+  if (!thread) return refuse("no such conversation in this workspace");
+  const { conv, who } = thread;
   // The one consent rule (mayMessageFor): a person who texted STOP (consent opted_out) is refused as a do-not-contact is,
   // here at the draft, not at the commit (defect 32). A reply answers them, so it is conversational.
   // The channel it will go out on: where they last wrote (the reply route's own rule).
@@ -111,7 +120,7 @@ async function draftReply(
   // Layer two, said on the card: a price or money (a refund, a discount, a payment term) in a reply is the person's to
   // send knowingly, never the receptionist's to promise (the charter).
   const price = violatesNoPrices(text) || namesMoney(text);
-  noteRow(t, "thread", id, who, `inbox/th-${id}`);
+  noteRow(t, "thread", id, who, addressOf({ kind: "conversation", id }));
   return propose({
     kind: "reply",
     title: `Reply to ${who}`,
@@ -149,7 +158,7 @@ async function proposeSteer(
   ) {
     return refuse("that reply is not waiting any more; there is nothing to rewrite");
   }
-  noteRow(t, "thread", m.conversation_id, "The held reply", `inbox/th-${m.conversation_id}`);
+  noteRow(t, "thread", m.conversation_id, "The held reply", addressOf({ kind: "conversation", id: m.conversation_id }));
   return propose({
     kind: "steer",
     title: "Rewrite the held reply",
@@ -169,30 +178,14 @@ async function proposeBooking(
 ): Promise<ProposalOutcome> {
   const id = str(input.conversation_id, 40);
   if (!UUID.test(id)) return refuse("conversation_id must be an id a read returned");
+  const thread = await threadOnCard(t, id);
+  if (!thread) return refuse("no such conversation in this workspace");
   const row = await openRequestOfThread(t.ctx.supabase, id);
   if (!row) return refuse(BOOKING_REQUEST_REFUSALS.none);
-  const { data: conv, error } = await t.ctx.supabase
-    .from("conversations")
-    .select("id, contacts (id, display_name, wa_profile_name, phone_e164, email)")
-    .eq("id", id)
-    .eq("tenant_id", t.tenantId)
-    .maybeSingle();
-  if (error) throw new Error(error.message);
-  if (!conv) return refuse("no such conversation in this workspace");
-  const who = contactName({
-    contact: {
-      id: conv.contacts?.id ?? "",
-      display_name: conv.contacts?.display_name ?? null,
-      wa_profile_name: conv.contacts?.wa_profile_name ?? null,
-      phone_e164: conv.contacts?.phone_e164 ?? null,
-      email: conv.contacts?.email ?? null,
-      consent: null,
-      dnc: false,
-    },
-  } as Parameters<typeof contactName>[0]);
+  const { who } = thread;
   const booked = input.booked === true;
   const asked = BOOKING_REQUEST_WORDS.hold(slotShort(Date.parse(row.starts_at), row.timezone), row.service);
-  noteRow(t, "thread", id, who, `inbox/th-${id}`);
+  noteRow(t, "thread", id, who, addressOf({ kind: "conversation", id }));
   return propose({
     kind: "booking_request",
     title: `${booked ? BOOKING_REQUEST_WORDS.booked_it : BOOKING_REQUEST_WORDS.cant_it}: ${who}`,

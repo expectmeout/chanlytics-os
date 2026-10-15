@@ -19,10 +19,10 @@ import {
   type ReachOutAddDto,
 } from "@chanlytics/contracts";
 import { leadCardsLive, reachOutRootOf } from "@chanlytics/db";
-import { addToReachOut } from "../../../leads/lead-workbench";
-import { answerPlanOf, planFacts, searchRow, waitingQuestionOf, type SearchViewRow } from "../../../leads/leads";
-import { refuseList } from "../../../leads/lead-lists";
-import { requireUuid } from "../../../request-guards";
+import { addToReachOut } from "../../../../leads/lead-workbench";
+import { answerPlanOf, planFacts, searchRow, waitingQuestionOf, type SearchViewRow } from "../../../../leads/leads";
+import { refuseList } from "../../../../leads/lead-lists";
+import { requireUuid } from "../../../../request-guards";
 import {
   UUID,
   actAction,
@@ -36,7 +36,7 @@ import {
   type ActDef,
   type ProposalOutcome,
   type ToolContext,
-} from "../context";
+} from "../../context";
 
 /**
  * The ask as the model writes it, field by field, in the flat shape it is shown. The plan's own schema

@@ -3346,8 +3346,14 @@ test("the proposal builders run against the database in memory: each kind is a c
   const whisper = await p("propose_call", { action: "whisper", call_id: K1, text: "Saturday is full" });
   assert.deepEqual([whisper.proposal.kind, whisper.proposal.title], ["whisper", "Whisper on the call with Rosa"]);
   assert.ok(tc.read.call.has(K1));
+  // The card reads the call as calls.get does, once a turn: a call that ended is refused on the next turn's read (and the
+  // whisper's own door refuses one that ended in between).
   t.calls[0].status = "ended";
-  assert.match((await p("propose_call", { action: "whisper", call_id: K1, text: "x" })).result, /not in progress/);
+  const nextTurn = newToolContext(tc.ctx, A, "owner", TZ, NOW);
+  assert.match(
+    (await buildProposal(nextTurn, "propose_call", { action: "whisper", call_id: K1, text: "x" })).result,
+    /not in progress/,
+  );
 
   assert.match((await p("propose_person", { action: "add", email: "nope" })).result, /missing the @/);
   assert.match(

@@ -17,6 +17,8 @@ import {
   type ProposalSpec,
   type ProposalSpecAboveOperator,
   type ProposalUndo,
+  oneOrMany,
+  uniqueIds,
 } from "./spec";
 
 /** Where a lead's card opens: Leads, with the lead open, in the search it was worked in where the card names one. */
@@ -26,7 +28,6 @@ const openLead = ({ payload: pl }: { payload: Record<string, unknown> }): string
 };
 
 /** The ids a payload names, as text, each once. */
-const idsOf = (v: unknown): string[] => (Array.isArray(v) ? [...new Set(v.map(asText).filter(Boolean))] : []);
 
 /** A door's own sentence for what it did (`toast`), the receipt every lead door answers with; else the card's words. */
 const toastOr = (data: unknown, words: string): string => asText(rec(data).toast) || words;
@@ -88,11 +89,11 @@ export const leadMarkSpec: ProposalSpecAboveOperator = {
   gate: "find",
   commit: ({ payload: pl }) => {
     const search = idIn(pl, "search_id");
-    const ids = idsOf(pl.lead_ids);
+    const ids = uniqueIds(pl.lead_ids);
     if (!isLeadMark(pl.mark) || !search || !ids.length) return refuseWith(PROPOSAL_WORDS.cannotApprove);
     const door = LEAD_MARK_DOORS[pl.mark];
     const calls: ProposalCall[] = ids.map((id) => ({ route: door, params: { id }, body: { search_id: search } }));
-    return calls.length === 1 ? calls[0] : calls;
+    return oneOrMany(calls);
   },
   gather: (answers) => ({ done: answers.length }),
   receipt: ({ payload: pl }, data) => {
@@ -140,7 +141,7 @@ export const leadsCheckSpec: ProposalSpecAboveOperator = {
   doing: "check leads' addresses again",
   gate: "find",
   commit: ({ payload: pl }) => {
-    const ids = idsOf(pl.lead_ids);
+    const ids = uniqueIds(pl.lead_ids);
     return ids.length ? { route: "POST leads/check-again", body: { ids } } : refuseWith(PROPOSAL_WORDS.cannotApprove);
   },
   receipt: (_p, data) => toastOr(data, `${Number(rec(data).scheduled) || 0} addresses checked again`),
@@ -172,7 +173,7 @@ export const leadListSpec: ProposalSpec = {
   needs: "operator",
   gate: "approve",
   commit: ({ payload: pl }) => {
-    const ids = idsOf(pl.lead_ids);
+    const ids = uniqueIds(pl.lead_ids);
     return asText(pl.name) && ids.length
       ? { route: "POST lead-searches/chosen", body: { name: asText(pl.name), lead_ids: ids } }
       : refuseWith(PROPOSAL_WORDS.cannotApprove);

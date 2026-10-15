@@ -1,6 +1,7 @@
 import "server-only";
 import { fenced, type ModelSpeed } from "@chanlytics/contracts";
 import { streamModel, type GatewayCall } from "./gateway";
+import type { GatewayBlockStart } from "./sse";
 
 /**
  * One model round: the request goes out, the stream comes back, the content
@@ -66,6 +67,24 @@ export interface RoundResult {
 }
 
 /** `stream` is the gateway unless a test hands in its own events, so the gathering runs without a model. */
+/**
+ * A block as its start opens it: a call's id and name where it is one (ours, or the tool search's own), and what its
+ * kind carries back unmodified (a thinking block's signature, a redacted one's data, a search's result).
+ */
+function opened(b: GatewayBlockStart["block"]): RoundBlock {
+  const called = b.type === "tool_use" || b.type === "server_tool_use";
+  return {
+    type: b.type,
+    id: called ? b.id : "",
+    name: called ? b.name : "",
+    text: "",
+    json: "",
+    ...(b.type === "thinking" ? { thinking: "", signature: "" } : {}),
+    ...(b.type === "redacted_thinking" ? { data: b.data } : {}),
+    ...(b.type === "tool_search_tool_result" ? { toolUseId: b.toolUseId, content: b.content } : {}),
+  };
+}
+
 export async function runRound(
   call: GatewayCall,
   onText: (textSoFar: string) => void,
@@ -86,18 +105,7 @@ export async function runRound(
     if (firstEventMs === null && ev.type !== "timing") firstEventMs = Date.now() - t0;
     switch (ev.type) {
       case "block_start":
-        blocks.set(ev.index, {
-          type: ev.block.type,
-          id: ev.block.type === "tool_use" || ev.block.type === "server_tool_use" ? ev.block.id : "",
-          name: ev.block.type === "tool_use" || ev.block.type === "server_tool_use" ? ev.block.name : "",
-          text: "",
-          json: "",
-          ...(ev.block.type === "thinking" ? { thinking: "", signature: "" } : {}),
-          ...(ev.block.type === "redacted_thinking" ? { data: ev.block.data } : {}),
-          ...(ev.block.type === "tool_search_tool_result"
-            ? { toolUseId: ev.block.toolUseId, content: ev.block.content }
-            : {}),
-        });
+        blocks.set(ev.index, opened(ev.block));
         break;
       case "text": {
         const b = blocks.get(ev.index);

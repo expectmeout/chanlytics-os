@@ -9,7 +9,8 @@ import {
   followUpsOf,
   type AskFollowUp,
 } from "@chanlytics/contracts";
-import { memberViewsOf } from "@chanlytics/db";
+import { load } from "../../../readers";
+import { memberViews } from "../../../readers/notifications";
 import {
   actAction,
   defineActions,
@@ -25,14 +26,14 @@ import {
 /**
  * Ask's follow-ups (the operator, 15 Oct 2026, D3): Ask keeps a note to come back to something when it happens -- a lead
  * search finishing or stopping to ask, replies on a sequence or a cold email, or a day -- and clears it once it came back.
- * Kept in the member's own views (contracts ask/follow-ups.ts), so the card writes the whole list the view will hold and
+ * Kept in the member's own views (contracts ask-proposals/follow-ups.ts), so the card writes the whole list the view will hold and
  * its undo the list it held. It changes nothing of the business; the `signals` read says a due one first.
  */
 
 /** The member's follow-ups as their views hold them now, read on the session client (their own row). */
 async function heldNow(t: ToolContext): Promise<AskFollowUp[]> {
   if (!t.ctx.userId) return [];
-  return followUpsOf(await memberViewsOf(t.ctx.supabase, { tenantId: t.tenantId, userId: t.ctx.userId }));
+  return followUpsOf((await load(t.rc, memberViews, undefined)).data);
 }
 
 async function proposeKeep(

@@ -281,7 +281,7 @@ function peopleSaid(pv: PeopleReportVM) {
  * to), or one of the control's shortcuts, worked out from the workspace's own today (contracts reportShortcuts). Refused
  * in the route's own words where it is not a window.
  */
-async function windowOf(
+async function askedWindow(
   t: ToolContext,
   input: {
     period?: (typeof REPORT_PERIOD_IDS)[number];
@@ -312,27 +312,13 @@ async function windowOf(
   }
 }
 
-async function getReport(
-  t: ToolContext,
-  input: {
-    period?: (typeof REPORT_PERIOD_IDS)[number];
-    from?: string;
-    to?: string;
-    shortcut?: (typeof SHORTCUTS)[number];
-    lenses?: Lens[];
-  },
-): Promise<unknown> {
-  const w = await windowOf(t, input);
-  if ("refusal" in w) return { error: w.refusal };
-  const { window } = w;
-  // Only the lenses asked for are read (every one where none is named), so a question about reviews reads reviews.
-  const want = new Set<Lens>(input.lenses?.length ? input.lenses : LENSES);
+/**
+ * Each lens's own read, beside the Reports page's (readers/report.ts), for the lenses asked for alone: one not asked is
+ * null, one that fails is null too, and said in the log.
+ */
+function lensReads(t: ToolContext, window: Parameters<typeof report.read>[1], want: Set<Lens>) {
   const none = Promise.resolve(null);
-  // The Reports page's own read (readers/report.ts), once a turn: the series, then the booking line and the deals
-  // beside it, with how the workspace's customers buy taken from the turn (ledger #1). A report the function will not
-  // answer is the reader's 404, said as the tool always said it.
-  const [r, campaignRead, ledgerRead, reviewRead, reachRead, receptionistRead, peopleRead] = await Promise.all([
-    unlessNotFound(load(t.rc, report, window)),
+  return Promise.all([
     // The Campaigns lens's own read (readers/campaign-report.ts), beside it: one that fails is said as null, and in the log.
     want.has("campaigns")
       ? load(t.rc, campaignReport, window).then((x) => x.data.report, unread(t, "report", "campaigns"))
@@ -365,58 +351,60 @@ async function getReport(
     // the book null, one that fails is null here (said as an error), and the fold is outside the catch, as above.
     want.has("people") ? load(t.rc, peopleReport, window).then((x) => x.data, unread(t, "report", "people")) : none,
   ]);
-  // The Campaigns lens is folded from its three reads at once, as the page folds them (a read that failed is null, and the
-  // fold says what stands); the Reach-outs section is the same fold's own part, said whether or not the sends were read.
-  const campaigns = toCampaignLensVM(
-    { campaigns: campaignRead, ledger: ledgerRead, reachOuts: reachRead },
-    t.rc.now.getTime(),
-  );
-  const reviews = reviewRead ? toReviewsReportVM(reviewRead, { nowMs: t.rc.now.getTime() }) : null;
-  const reachOuts = campaigns.reachOuts;
-  const receptionist = receptionistRead
-    ? toReceptionistReportVM(receptionistRead, { nowMs: t.rc.now.getTime() })
-    : null;
-  const people = peopleRead ? toPeopleReportVM(peopleRead) : null;
-  if (!r) return { error: "report unavailable" };
-  // The page's own builders over the page's own payload, as the bridge applies them (legacy-bridge/surface-data.ts).
-  const vm = toReportVM(r.data.report, { profile: r.data.profile });
-  const booking = r.data.booking ? toBookingReportVM(r.data.booking) : null;
-  const deals = toDealReportVM(r.data.deals, vm.period.within);
-  const overview = want.has("overview")
-    ? {
-        empty: vm.empty,
-        tiles: vm.tiles.map((x) => ({ label: x.label, value: x.value, meta: x.meta, change: x.delta?.text ?? null })),
-        answered: vm.answered.totals,
-        // The median and p90 include the hold the owner set; `hold` splits the replies against it, null where none waited one.
-        reply_time: {
-          median: vm.replyTime.medianLabel,
-          p90: vm.replyTime.p90Label,
-          count: vm.replyTime.count,
-          hold: vm.replyTime.hold,
-        },
-        calls: { total: vm.calls.total, minutes: vm.calls.minutes, voicemail: vm.calls.voicemail },
-        new_people: vm.people.total,
-        escalation_reasons: vm.reasons.slice(0, 5).map((r) => `${r.label}: ${r.value}`),
-        by_day: vm.answered.points
-          .slice(-14)
-          .map((p) => ({ day: p.short, in: p.in, receptionist: p.ai, you: p.you, unanswered: p.none })),
-        // Asked, then booked: the page's one conversion line, its headline ("12 of 40 booked", "Nobody asked") where the
-        // calendar was read, else the page's own sentence for why there is nothing to count. Null: that line's read failed.
-        booking: booking ? (booking.present ? booking.headline : booking.sub) : null,
-        // The Deals section as the page draws it, where it draws one (deals are on and one was recorded). Null where none.
-        deals: deals.present
-          ? {
-              headline: deals.headline,
-              outcomes: (deals.outcomes?.rows ?? []).map((o) => `${o.label}: ${o.value}`),
-              lines: deals.lines.map((l) => l.text),
-              stock: deals.stock,
-            }
-          : null,
-      }
-    : {};
+}
+
+/** The overview as the page draws it: its tiles, answers, reply times, calls, people, reasons, days, booking line and deals. */
+function overviewSaid(
+  vm: ReturnType<typeof toReportVM>,
+  booking: ReturnType<typeof toBookingReportVM> | null,
+  deals: ReturnType<typeof toDealReportVM>,
+) {
   return {
-    range: vm.rangeLabel,
-    ...overview,
+    empty: vm.empty,
+    tiles: vm.tiles.map((x) => ({ label: x.label, value: x.value, meta: x.meta, change: x.delta?.text ?? null })),
+    answered: vm.answered.totals,
+    // The median and p90 include the hold the owner set; `hold` splits the replies against it, null where none waited one.
+    reply_time: {
+      median: vm.replyTime.medianLabel,
+      p90: vm.replyTime.p90Label,
+      count: vm.replyTime.count,
+      hold: vm.replyTime.hold,
+    },
+    calls: { total: vm.calls.total, minutes: vm.calls.minutes, voicemail: vm.calls.voicemail },
+    new_people: vm.people.total,
+    escalation_reasons: vm.reasons.slice(0, 5).map((r) => `${r.label}: ${r.value}`),
+    by_day: vm.answered.points
+      .slice(-14)
+      .map((p) => ({ day: p.short, in: p.in, receptionist: p.ai, you: p.you, unanswered: p.none })),
+    // Asked, then booked: the page's one conversion line, its headline ("12 of 40 booked", "Nobody asked") where the
+    // calendar was read, else the page's own sentence for why there is nothing to count. Null: that line's read failed.
+    booking: booking ? (booking.present ? booking.headline : booking.sub) : null,
+    // The Deals section as the page draws it, where it draws one (deals are on and one was recorded). Null where none.
+    deals: deals.present
+      ? {
+          headline: deals.headline,
+          outcomes: (deals.outcomes?.rows ?? []).map((o) => `${o.label}: ${o.value}`),
+          lines: deals.lines.map((l) => l.text),
+          stock: deals.stock,
+        }
+      : null,
+  };
+}
+
+/** Each lens asked for, as the page says it; an error where its read failed, never as nothing. */
+function lensesSaid(
+  t: ToolContext,
+  want: Set<Lens>,
+  lens: {
+    campaigns: ReturnType<typeof toCampaignLensVM>;
+    reviews: ReturnType<typeof toReviewsReportVM> | null;
+    receptionist: ReturnType<typeof toReceptionistReportVM> | null;
+    people: ReturnType<typeof toPeopleReportVM> | null;
+  },
+) {
+  const { campaigns, reviews, receptionist, people } = lens;
+  const reachOuts = campaigns.reachOuts;
+  return {
     // Each lens as the page says it, where it was asked for; an error where its read failed, never as nothing.
     ...(want.has("campaigns") ? { campaigns: campaignsSaid(campaigns) } : {}),
     ...(want.has("reviews")
@@ -439,6 +427,49 @@ async function getReport(
     ...(want.has("people")
       ? { people: people ? peopleSaid(people) : { error: "the people numbers could not be read just now" } }
       : {}),
+  };
+}
+
+async function getReport(
+  t: ToolContext,
+  input: {
+    period?: (typeof REPORT_PERIOD_IDS)[number];
+    from?: string;
+    to?: string;
+    shortcut?: (typeof SHORTCUTS)[number];
+    lenses?: Lens[];
+  },
+): Promise<unknown> {
+  const w = await askedWindow(t, input);
+  if ("refusal" in w) return { error: w.refusal };
+  const { window } = w;
+  // Only the lenses asked for are read (every one where none is named), so a question about reviews reads reviews.
+  const want = new Set<Lens>(input.lenses?.length ? input.lenses : LENSES);
+  // The Reports page's own read (readers/report.ts), once a turn: the series, then the booking line and the deals
+  // beside it, with how the workspace's customers buy taken from the turn (ledger #1). A report the function will not
+  // answer is the reader's 404, said as the tool always said it. Each lens asked for is read beside it.
+  const [r, lensRead] = await Promise.all([unlessNotFound(load(t.rc, report, window)), lensReads(t, window, want)]);
+  const [campaignRead, ledgerRead, reviewRead, reachRead, receptionistRead, peopleRead] = lensRead;
+  // The Campaigns lens is folded from its three reads at once, as the page folds them (a read that failed is null, and the
+  // fold says what stands); the Reach-outs section is the same fold's own part, said whether or not the sends were read.
+  const campaigns = toCampaignLensVM(
+    { campaigns: campaignRead, ledger: ledgerRead, reachOuts: reachRead },
+    t.rc.now.getTime(),
+  );
+  const reviews = reviewRead ? toReviewsReportVM(reviewRead, { nowMs: t.rc.now.getTime() }) : null;
+  const receptionist = receptionistRead
+    ? toReceptionistReportVM(receptionistRead, { nowMs: t.rc.now.getTime() })
+    : null;
+  const people = peopleRead ? toPeopleReportVM(peopleRead) : null;
+  if (!r) return { error: "report unavailable" };
+  // The page's own builders over the page's own payload, as the bridge applies them (legacy-bridge/surface-data.ts).
+  const vm = toReportVM(r.data.report, { profile: r.data.profile });
+  const booking = r.data.booking ? toBookingReportVM(r.data.booking) : null;
+  const deals = toDealReportVM(r.data.deals, vm.period.within);
+  return {
+    range: vm.rangeLabel,
+    ...(want.has("overview") ? overviewSaid(vm, booking, deals) : {}),
+    ...lensesSaid(t, want, { campaigns, reviews, receptionist, people }),
   };
 }
 

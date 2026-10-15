@@ -20,6 +20,18 @@ export {
   twinRunsWords,
 } from "./campaigns";
 export { answerSaidOf } from "./people-verbs";
+export {
+  ASK_VIEW_PAGE,
+  ASK_FOLLOW_UPS_MAX,
+  FOLLOW_UP_SAID_MAX,
+  FOLLOW_UP_PROMPT_MAX,
+  FOLLOW_UP_WAKES,
+  followUpsOf,
+  followUpDue,
+} from "./follow-ups";
+export type { AskFollowUp, FollowUpWake, FollowUpWorld } from "./follow-ups";
+export { ASK_GUIDE_PAGES, ASK_PAGE_ONLY_VERBS } from "./guide";
+export type { GuidePage } from "./guide";
 export { PERSON_DETAIL_WORDS } from "./person";
 export { PROPOSAL_WORDS } from "./spec";
 export type {

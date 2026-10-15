@@ -23,6 +23,8 @@ import {
   type ProposalCall,
   type ProposalSpec,
   type ProposalSpecAboveOperator,
+  oneOrMany,
+  uniqueIds,
 } from "./spec";
 
 /** The two questions a person is asked (00095): messages (about their own appointments), and offers and news. */
@@ -62,9 +64,6 @@ function manySaid(data: unknown, verb: string): { done: number; failed: number; 
   return { done, failed, said: failed ? `${failed} could not be ${verb}${why ? ` — ${why}` : ""}` : "" };
 }
 
-/** The people a payload names, as text, each once. */
-const idsOf = (v: unknown): string[] => (Array.isArray(v) ? [...new Set(v.map(asText).filter(Boolean))] : []);
-
 /**
  * A selection's act through its batch door, fifty people a request (the door's own rule), one card for all of them: the
  * body's other fields on every request, each request's people its own (the operator, 15 Oct 2026).
@@ -74,11 +73,11 @@ function manyCalls(
   pl: Record<string, unknown>,
   fields: readonly string[],
 ): ProposalCall | readonly ProposalCall[] | ReturnType<typeof refuseWith> {
-  const ids = idsOf(pl.ids);
+  const ids = uniqueIds(pl.ids);
   if (!ids.length) return refuseWith("Pick at least one person.");
   const rest = fieldsOf(pl, fields);
   const calls = inBatches(ids).map((part) => ({ route, body: { ...rest, ids: part }, events: [PEOPLE_CHANGED] }));
-  return calls.length === 1 ? calls[0] : calls;
+  return oneOrMany(calls);
 }
 
 const ANSWER_DOOR: Record<AnswerPurpose, ApiRouteKey> = {
@@ -210,7 +209,7 @@ export const personMergeSpec: ProposalSpecAboveOperator = {
 };
 
 /** What a first message's door answers of the thread it opened, as text, or null. */
-const threadOf = (data: unknown): string | null => idIn(rec(data), "conversation_id");
+const threadMade = (data: unknown): string | null => idIn(rec(data), "conversation_id");
 
 /**
  * A first message to someone in People (POST people/:id/message): on the wire their answers allow, its words or an
@@ -244,6 +243,6 @@ export const personMessageSpec: ProposalSpec = {
     call: (u) => ({ route: "POST messages/[id]/cancel-send", params: { id: asText(u.message_id) } }),
     receipt: () => "Canceled before it sent",
   },
-  made: (_p, data) => threadOf(data),
+  made: (_p, data) => threadMade(data),
   open: (p, outcome) => (outcome?.made?.id ? `inbox/th-${outcome.made.id}` : personRoute(p)),
 };

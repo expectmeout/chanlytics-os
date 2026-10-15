@@ -287,7 +287,7 @@ async function readIdeas(t: ToolContext): Promise<unknown> {
  * Leads' Back today (00426, GET leads/back's own read): who asked to hear back on a day that has come, still not closed,
  * booked, stopped or won. Nothing writes to them by itself: the owner writes by hand, or Ask proposes a first message.
  */
-async function readBack(t: ToolContext): Promise<unknown> {
+async function readBackToday(t: ToolContext): Promise<unknown> {
   const back = await backTodayOf(t.ctx, t.tenantId);
   return {
     route: "clients/leads",
@@ -381,7 +381,7 @@ export const leadsTool = defineActions({
       label: "Reading Back today",
       words:
         "Action back reads Back today: the leads who asked to hear from the business on a day that has come, each with its lead_id, the business, the day and its person where it has one. Nothing writes to them by itself.",
-      run: readBack,
+      run: readBackToday,
     }),
     search: readAction({
       input: z.object({ search_id: z.string() }),

@@ -46,7 +46,7 @@ export const ASK_MAX_ROUNDS = 8;
  * A typed turn end to end, under the route's ceiling (app/api/v1/ask, maxDuration): long enough for a plan of several
  * cards over many reads (the operator, 15 Oct 2026; his rule that cost never outranks the experience).
  */
-export const ASK_TURN_BUDGET_MS = 120_000;
+export const ASK_TURN_BUDGET_MS = 2 * MIN_MS;
 /**
  * A spoken turn end to end (the voice door): a person is listening, so it keeps the budget a turn had before the operator,
  * under the voice claim's own staleness (ASK_VOICE_CLAIM_STALE_MS).
@@ -310,7 +310,7 @@ export interface AskProposalOutcome {
 }
 
 /** How long a committed card's undo stays open, for every verb whose route sets no window of its own (askUndoOpen). */
-export const ASK_UNDO_MS = 10 * 60_000;
+export const ASK_UNDO_MS = 10 * MIN_MS;
 
 /** How long a card may be approved after it was made: a day. Past it, it is asked for again and made from what is true then. */
 const ASK_CARD_FRESH_MS = DAY_MS;

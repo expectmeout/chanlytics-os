@@ -33,15 +33,16 @@ import {
   type ActTool,
   type ProposalOutcome,
   type ToolContext,
+  nullsLeftOut,
 } from "../context";
 import { getRoom } from "../read/calendar";
 import { propose_call } from "./call";
 import { propose_deal } from "./deal";
 import { propose_follow_up } from "./follow-up";
-import { propose_lead_search } from "./lead-search";
-import { propose_leads } from "./leads";
-import { propose_list } from "./list";
-import { propose_people } from "./people";
+import { propose_lead_search } from "./leads/lead-search";
+import { propose_leads } from "./leads/leads";
+import { propose_list } from "./people/list";
+import { propose_people } from "./people/people";
 import { propose_person } from "./person";
 import { propose_reply } from "./reply";
 import { propose_review } from "./review";
@@ -323,18 +324,6 @@ const STEP_TOOLS: ReadonlyMap<string, ActTool> = new Map(
 /** The most steps one plan takes: a plan longer than this is two questions. */
 const PLAN_STEPS_MAX = 12;
 
-/** A value with every key the model wrote as null left out, all the way down (the flat schemas show every key). */
-const withoutNulls = (v: unknown): unknown =>
-  Array.isArray(v)
-    ? v.map(withoutNulls)
-    : v && typeof v === "object"
-      ? Object.fromEntries(
-          Object.entries(v)
-            .filter(([, x]) => x !== null)
-            .map(([k, x]) => [k, withoutNulls(x)]),
-        )
-      : v;
-
 /** The earlier steps a payload names by their tokens (`@step:n`), anywhere in it. */
 function stepsNamedIn(v: unknown, into: Set<number> = new Set()): Set<number> {
   if (typeof v === "string") {
@@ -360,7 +349,7 @@ async function genericStep(t: ToolContext, n: number, step: PlanStepAsked): Prom
   const def = Object.prototype.hasOwnProperty.call(tool.actions, key) ? tool.actions[key] : null;
   if (!def) return { refusal: `${step.tool} takes action ${Object.keys(tool.actions).join(", ")}` };
   if (!offeredTo(def, t.role)) return { refusal: `${step.tool}.${key} is not this member's to approve` };
-  const parsed = def.input.safeParse(withoutNulls(step.input ?? {}));
+  const parsed = def.input.safeParse(nullsLeftOut(step.input ?? {}));
   if (!parsed.success)
     return { refusal: parsed.error.issues.map((i) => `${i.path.join(".")} ${i.message}`).join("; ") };
   const made = await def.build({ ...t, step: n }, parsed.data);
@@ -438,18 +427,18 @@ const stepsAction = actAction({
   }),
   examples: [
     {
-      words: "Keep the 120 best salons as a list, write to them in three emails, and I'll tell you who answers.",
+      words: "Keep the 120 best leads as a list, write to them in three emails, and I'll tell you who answers.",
       steps: [
         {
           tool: "propose_leads",
           action: "list",
-          input: { name: "Salons near you", lead_ids: ["5e6f7a8b-9c0d-4e1f-8a2b-3c4d5e6f7a8b"] },
+          input: { name: "Businesses near you", lead_ids: ["5e6f7a8b-9c0d-4e1f-8a2b-3c4d5e6f7a8b"] },
         },
         {
           tool: "propose_sequence",
           action: "cold_email",
           input: {
-            name: "Salons near you",
+            name: "Businesses near you",
             search_id: "@step:1",
             steps: [{ subject: "A quick idea for {business_name}", body: "Hi {first_name}, ..." }],
           },
@@ -458,8 +447,8 @@ const stepsAction = actAction({
           tool: "propose_follow_up",
           action: "keep",
           input: {
-            said: "When the salons answer, I'll draft the replies",
-            prompt: "Salons near you has replies: read them and propose answers.",
+            said: "When they answer, I'll draft the replies",
+            prompt: "Businesses near you has replies: read them and propose answers.",
             wake: "replies",
             subject: "@step:2",
           },

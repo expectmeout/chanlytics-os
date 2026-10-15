@@ -214,7 +214,7 @@
     },
     {
       "name": "people",
-      "description": "People, the customers and callers, as the People page, a person's page and the Pipeline read them: find people by name or by conditions, a profile, the lists, who wins for this business, and the deals. Action search takes query and an optional list and finds people by name, WhatsApp name, address or three or more digits of a phone number, as the People page searches them; each row says their state in the pages' words, their last contact and last message, their conversation id, channels, consent, receptionist mode, how many calls, their next and last appointment when the calendar is connected, and their next step when they have one. No query lists the most recent people; all finds who conditions hold today, in the lists' vocabulary (who said yes, their last visit, how they came, a channel, a deal's stage, and the rest propose_list names), counted over everyone; list narrows to one list, given as the token sequences with action lists gives (seg:<id> for People's lists, list:<id> for the workspace's own) or as a People list's bare id: needs_you (Needs you), waiting_on_you (You have it), steps_due (Steps due), new_week (New this week), booked_week (Booked this week), booked (Booked), asked_never_booked (Asked, never booked), lapsed (Lapsed), consultation_booked (Consultations), proposal_out (Proposal out), clients (Clients), deal_passed (Passed), deal_ended (Ended), quiet (Quiet 30+ days), phoned_only (Phoned only), opted_in (Said yes to messages), offers_ok (Can receive offers), opted_out (Opted out). Call it to find someone, or to see who is on a list; it returns at most 12 people, with matches counted before the cap, and a list that cannot be counted here says why. Action get takes contact_id, the id a row here, inbox with action thread, calls with action get or calendar with action week returned, and reads one person's profile as their page reads it: right now, the facts on file, what is known about them, their receptionist mode, their last exchange, their open conversation, their conversations and calls with ids, their next and last appointments' ids, their timeline, and the team's notes (a note the receptionist suggested is marked so, and is not the team's). Call it when the profile, the timeline or the notes are needed and the page on screen holds only their row; it returns their five newest conversations and calls, twenty timeline entries and twenty notes, and a person the workspace does not hold is an error, said in words. Action lists takes nothing more and reads every list People's rail shows: People's own lists this workspace can count, each with its token (the list action search takes), what it holds and how many are on it; the ones it cannot count here, with why; and the workspace's own lists, kept by hand or by a rule, each with its rule in the page's words and its count or why it cannot be counted, and the archived ones by name. Call it to say which lists there are and how many are on each, and action search with a list's token for who is on it. It counts over everyone in People, as a send counts them. Action winners takes nothing more and reads who wins for this business: how many paid (a deal won), booked (a visit on record) and said yes to offers, then what the winners share against everyone (how they first came, their channels) and, for those a lead search found, what kind of business they were, where, and how they rate. Call it before planning a search for more customers like the best ones, or a list of people like them. Action pipeline takes nothing more and reads the Pipeline as its page builds it, where deals are on: the line over the table (the proposals out and what they come to, the ones waiting longer than usual, the lapsed, the clients and what they come to), the workspace's pace, and each group (consultations, proposals out, clients, passed or ended) with its count, what it comes to and its people, each with the deal's id, service and value, how long it has stood there, the page's chip and their next step. Call it for where deals stand, and action get for one person's deal in full. It returns at most 30 people across the groups, the groups' counts whole; where deals are off it says so, and People holds everyone.",
+      "description": "People, the customers and callers, as the People page, a person's page and the Pipeline read them: find people by name or by conditions, a profile, the lists, who wins for this business, and the deals. Action search takes query and an optional list and finds people by name, WhatsApp name, address or three or more digits of a phone number, as the People page searches them; each row says their state in the pages' words, their last contact and last message, their conversation id, channels, consent, receptionist mode, how many calls, their next and last appointment when the calendar is connected, and their next step when they have one. No query lists the most recent people; all finds who conditions hold today, in the lists' vocabulary (who said yes, when they last booked, how they came, a channel, a deal's stage, and the rest propose_list names), counted over everyone; list narrows to one list, given as the token sequences with action lists gives (seg:<id> for People's lists, list:<id> for the workspace's own) or as a People list's bare id: needs_you (Needs you), waiting_on_you (You have it), steps_due (Steps due), new_week (New this week), booked_week (Booked this week), booked (Booked), asked_never_booked (Asked, never booked), lapsed (Lapsed), consultation_booked (Consultations), proposal_out (Proposal out), clients (Clients), deal_passed (Passed), deal_ended (Ended), quiet (Quiet 30+ days), phoned_only (Phoned only), opted_in (Said yes to messages), offers_ok (Can receive offers), opted_out (Opted out). Call it to find someone, or to see who is on a list; it returns at most 12 people, with matches counted before the cap, and a list that cannot be counted here says why. Action get takes contact_id, the id a row here, inbox with action thread, calls with action get or calendar with action week returned, and reads one person's profile as their page reads it: right now, the facts on file, what is known about them, their receptionist mode, their last exchange, their open conversation, their conversations and calls with ids, their next and last appointments' ids, their timeline, and the team's notes (a note the receptionist suggested is marked so, and is not the team's). Call it when the profile, the timeline or the notes are needed and the page on screen holds only their row; it returns their five newest conversations and calls, twenty timeline entries and twenty notes, and a person the workspace does not hold is an error, said in words. Action lists takes nothing more and reads every list People's rail shows: People's own lists this workspace can count, each with its token (the list action search takes), what it holds and how many are on it; the ones it cannot count here, with why; and the workspace's own lists, kept by hand or by a rule, each with its rule in the page's words and its count or why it cannot be counted, and the archived ones by name. Call it to say which lists there are and how many are on each, and action search with a list's token for who is on it. It counts over everyone in People, as a send counts them. Action winners takes nothing more and reads who wins for this business: how many paid (a deal won), booked (a booking on record) and said yes to offers, then what the winners share against everyone (how they first came, their channels) and, for those a lead search found, what kind of business they were, where, and how they rate. Call it before planning a search for more customers like the best ones, or a list of people like them. Action pipeline takes nothing more and reads the Pipeline as its page builds it, where deals are on: the line over the table (the proposals out and what they come to, the ones waiting longer than usual, the lapsed, the clients and what they come to), the workspace's pace, and each group (consultations, proposals out, clients, passed or ended) with its count, what it comes to and its people, each with the deal's id, service and value, how long it has stood there, the page's chip and their next step. Call it for where deals stand, and action get for one person's deal in full. It returns at most 30 people across the groups, the groups' counts whole; where deals are off it says so, and People holds everyone.",
       "input_schema": {
         "type": "object",
         "properties": {
@@ -815,7 +815,7 @@
     },
     {
       "name": "people",
-      "description": "People, the customers and callers, as the People page, a person's page and the Pipeline read them: find people by name or by conditions, a profile, the lists, who wins for this business, and the deals. Action search takes query and an optional list and finds people by name, WhatsApp name, address or three or more digits of a phone number, as the People page searches them; each row says their state in the pages' words, their last contact and last message, their conversation id, channels, consent, receptionist mode, how many calls, their next and last appointment when the calendar is connected, and their next step when they have one. No query lists the most recent people; all finds who conditions hold today, in the lists' vocabulary (who said yes, their last visit, how they came, a channel, a deal's stage, and the rest propose_list names), counted over everyone; list narrows to one list, given as the token sequences with action lists gives (seg:<id> for People's lists, list:<id> for the workspace's own) or as a People list's bare id: needs_you (Needs you), waiting_on_you (You have it), steps_due (Steps due), new_week (New this week), booked_week (Booked this week), booked (Booked), asked_never_booked (Asked, never booked), lapsed (Lapsed), consultation_booked (Consultations), proposal_out (Proposal out), clients (Clients), deal_passed (Passed), deal_ended (Ended), quiet (Quiet 30+ days), phoned_only (Phoned only), opted_in (Said yes to messages), offers_ok (Can receive offers), opted_out (Opted out). Call it to find someone, or to see who is on a list; it returns at most 12 people, with matches counted before the cap, and a list that cannot be counted here says why. Action get takes contact_id, the id a row here, inbox with action thread, calls with action get or calendar with action week returned, and reads one person's profile as their page reads it: right now, the facts on file, what is known about them, their receptionist mode, their last exchange, their open conversation, their conversations and calls with ids, their next and last appointments' ids, their timeline, and the team's notes (a note the receptionist suggested is marked so, and is not the team's). Call it when the profile, the timeline or the notes are needed and the page on screen holds only their row; it returns their five newest conversations and calls, twenty timeline entries and twenty notes, and a person the workspace does not hold is an error, said in words. Action lists takes nothing more and reads every list People's rail shows: People's own lists this workspace can count, each with its token (the list action search takes), what it holds and how many are on it; the ones it cannot count here, with why; and the workspace's own lists, kept by hand or by a rule, each with its rule in the page's words and its count or why it cannot be counted, and the archived ones by name. Call it to say which lists there are and how many are on each, and action search with a list's token for who is on it. It counts over everyone in People, as a send counts them. Action winners takes nothing more and reads who wins for this business: how many paid (a deal won), booked (a visit on record) and said yes to offers, then what the winners share against everyone (how they first came, their channels) and, for those a lead search found, what kind of business they were, where, and how they rate. Call it before planning a search for more customers like the best ones, or a list of people like them. Action pipeline takes nothing more and reads the Pipeline as its page builds it, where deals are on: the line over the table (the proposals out and what they come to, the ones waiting longer than usual, the lapsed, the clients and what they come to), the workspace's pace, and each group (consultations, proposals out, clients, passed or ended) with its count, what it comes to and its people, each with the deal's id, service and value, how long it has stood there, the page's chip and their next step. Call it for where deals stand, and action get for one person's deal in full. It returns at most 30 people across the groups, the groups' counts whole; where deals are off it says so, and People holds everyone.",
+      "description": "People, the customers and callers, as the People page, a person's page and the Pipeline read them: find people by name or by conditions, a profile, the lists, who wins for this business, and the deals. Action search takes query and an optional list and finds people by name, WhatsApp name, address or three or more digits of a phone number, as the People page searches them; each row says their state in the pages' words, their last contact and last message, their conversation id, channels, consent, receptionist mode, how many calls, their next and last appointment when the calendar is connected, and their next step when they have one. No query lists the most recent people; all finds who conditions hold today, in the lists' vocabulary (who said yes, when they last booked, how they came, a channel, a deal's stage, and the rest propose_list names), counted over everyone; list narrows to one list, given as the token sequences with action lists gives (seg:<id> for People's lists, list:<id> for the workspace's own) or as a People list's bare id: needs_you (Needs you), waiting_on_you (You have it), steps_due (Steps due), new_week (New this week), booked_week (Booked this week), booked (Booked), asked_never_booked (Asked, never booked), lapsed (Lapsed), consultation_booked (Consultations), proposal_out (Proposal out), clients (Clients), deal_passed (Passed), deal_ended (Ended), quiet (Quiet 30+ days), phoned_only (Phoned only), opted_in (Said yes to messages), offers_ok (Can receive offers), opted_out (Opted out). Call it to find someone, or to see who is on a list; it returns at most 12 people, with matches counted before the cap, and a list that cannot be counted here says why. Action get takes contact_id, the id a row here, inbox with action thread, calls with action get or calendar with action week returned, and reads one person's profile as their page reads it: right now, the facts on file, what is known about them, their receptionist mode, their last exchange, their open conversation, their conversations and calls with ids, their next and last appointments' ids, their timeline, and the team's notes (a note the receptionist suggested is marked so, and is not the team's). Call it when the profile, the timeline or the notes are needed and the page on screen holds only their row; it returns their five newest conversations and calls, twenty timeline entries and twenty notes, and a person the workspace does not hold is an error, said in words. Action lists takes nothing more and reads every list People's rail shows: People's own lists this workspace can count, each with its token (the list action search takes), what it holds and how many are on it; the ones it cannot count here, with why; and the workspace's own lists, kept by hand or by a rule, each with its rule in the page's words and its count or why it cannot be counted, and the archived ones by name. Call it to say which lists there are and how many are on each, and action search with a list's token for who is on it. It counts over everyone in People, as a send counts them. Action winners takes nothing more and reads who wins for this business: how many paid (a deal won), booked (a booking on record) and said yes to offers, then what the winners share against everyone (how they first came, their channels) and, for those a lead search found, what kind of business they were, where, and how they rate. Call it before planning a search for more customers like the best ones, or a list of people like them. Action pipeline takes nothing more and reads the Pipeline as its page builds it, where deals are on: the line over the table (the proposals out and what they come to, the ones waiting longer than usual, the lapsed, the clients and what they come to), the workspace's pace, and each group (consultations, proposals out, clients, passed or ended) with its count, what it comes to and its people, each with the deal's id, service and value, how long it has stood there, the page's chip and their next step. Call it for where deals stand, and action get for one person's deal in full. It returns at most 30 people across the groups, the groups' counts whole; where deals are off it says so, and People holds everyone.",
       "input_schema": {
         "type": "object",
         "properties": {
@@ -1045,7 +1045,7 @@
     },
     {
       "name": "propose_call",
-      "description": "Propose an act on a phone call in progress, as a card the person approves: a whisper to the phone receptionist, or the call handed to the business's own line. Action whisper takes call_id and text: a sentence only the phone receptionist hears, worked into its next answer to the caller. It shapes what the receptionist says next and never reaches the caller as written. Action hand_over takes call_id and passes the call to the business's own phone: the receptionist tells the caller someone is picking up and transfers them. Call it when they want to take the call themselves. A call that has ended is refused in words, since there is nobody on the line. Ending a call is the Live page's own button.",
+      "description": "Propose an act on a phone call in progress, as a card the person approves: a whisper to the phone receptionist, or the call handed to the business's own line. Action whisper takes call_id and text: a sentence only the phone receptionist hears, worked into its next answer to the caller. It shapes what the receptionist says next and never reaches the caller as written. Action hand_over takes call_id and passes the call to the business's own phone: the receptionist tells the caller someone is picking up and transfers them. Call it when they want to take the call themselves. A call that has ended is notLive in words, since there is nobody on the line. Ending a call is the Live page's own button.",
       "input_schema": {
         "type": "object",
         "properties": {
@@ -1304,7 +1304,7 @@
         },
         {
           "action": "list",
-          "name": "Salons near you",
+          "name": "Businesses near you",
           "lead_ids": ["5e6f7a8b-9c0d-4e1f-8a2b-3c4d5e6f7a8b"]
         },
         {
@@ -1738,7 +1738,7 @@
           "question": {
             "type": "string",
             "enum": ["messages", "offers"],
-            "description": "messages: about their own visits; offers: offers and news."
+            "description": "messages: about their own bookings; offers: offers and news."
           },
           "answer": {
             "type": "string",
@@ -1802,7 +1802,7 @@
     },
     {
       "name": "propose_person",
-      "description": "Propose an act on one person in People, by action: how the receptionist treats them, a note, their name or email, their answer to messages or offers, a new person, two records merged, or a first message. A card the person asking approves; nothing changes until they do. Action note takes contact_id, the id a read returned, body, the note in the words to keep (at most 600 characters), and for, who reads it: receptionist, for what should shape how the receptionist answers them (it reads the note before every answer to them), or team, for the team's own reminders and judgments (the receptionist never reads it). Always give for, from their words: it has no default, and the card says it back. Call it for something about one person worth keeping on their page, such as a preference or what to remember next time; a fact about the business itself, such as parking or a policy, is a settings change and not a note, and a next step with a day is not a note: it rides on a deal's move (propose_deal), or is set on their page. Action details takes contact_id, the id a read returned, and name, email or both: the name the business calls them by and the address they can be written to, the two fields of their profile. Call it when a customer gave their name or an email address in a message and their profile lacks it or says otherwise; read them first (people with action get), since an address a customer writes back when the receptionist asks for one is kept already, and never propose what the profile holds. It never touches their notes, and the card shows each field as it was and as it becomes. Action answer records what one person said to one of the two questions: messages (about their own visits) or offers (offers and news): yes, no, or not_asked again, with how they told you. Only what they said: never record a yes they did not give. A yes to offers has to be in writing (form, or customer_message naming the message), and a spoken yes covers messages alone; a no is honoured however it came. Action add puts someone in People by hand: a phone, an email or both, and a name. Nobody is messaged by adding them and their answers start as not asked; a number or address already in People opens that person instead. Action message writes first to someone in People: a new conversation on a channel their answers allow now, in the member's words or, where only a message WhatsApp approved can go, that message by name. Use propose_reply for a thread that waits on an answer. The card says the channel and who has the thread after; it leaves 15 seconds after it is approved and can be cancelled within them.",
+      "description": "Propose an act on one person in People, by action: how the receptionist treats them, a note, their name or email, their answer to messages or offers, a new person, two records merged, or a first message. A card the person asking approves; nothing changes until they do. Action note takes contact_id, the id a read returned, body, the note in the words to keep (at most 600 characters), and for, who reads it: receptionist, for what should shape how the receptionist answers them (it reads the note before every answer to them), or team, for the team's own reminders and judgments (the receptionist never reads it). Always give for, from their words: it has no default, and the card says it back. Call it for something about one person worth keeping on their page, such as a preference or what to remember next time; a fact about the business itself, such as parking or a policy, is a settings change and not a note, and a next step with a day is not a note: it rides on a deal's move (propose_deal), or is set on their page. Action details takes contact_id, the id a read returned, and name, email or both: the name the business calls them by and the address they can be written to, the two fields of their profile. Call it when a customer gave their name or an email address in a message and their profile lacks it or says otherwise; read them first (people with action get), since an address a customer writes back when the receptionist asks for one is kept already, and never propose what the profile holds. It never touches their notes, and the card shows each field as it was and as it becomes. Action answer records what one person said to one of the two questions: messages (about their own bookings) or offers (offers and news): yes, no, or not_asked again, with how they told you. Only what they said: never record a yes they did not give. A yes to offers has to be in writing (form, or customer_message naming the message), and a spoken yes covers messages alone; a no is honoured however it came. Action add puts someone in People by hand: a phone, an email or both, and a name. Nobody is messaged by adding them and their answers start as not asked; a number or address already in People opens that person instead. Action message writes first to someone in People: a new conversation on a channel their answers allow now, in the member's words or, where only a message WhatsApp approved can go, that message by name. Use propose_reply for a thread that waits on an answer. The card says the channel and who has the thread after; it leaves 15 seconds after it is approved and can be cancelled within them.",
       "input_schema": {
         "type": "object",
         "properties": {
@@ -1832,7 +1832,7 @@
           "question": {
             "type": "string",
             "enum": ["messages", "offers"],
-            "description": "messages: about their own visits; offers: offers and news."
+            "description": "messages: about their own bookings; offers: offers and news."
           },
           "answer": {
             "type": "string",
@@ -2027,13 +2027,13 @@
         },
         {
           "action": "steps",
-          "words": "Keep the 120 best salons as a list, write to them in three emails, and I'll tell you who answers.",
+          "words": "Keep the 120 best leads as a list, write to them in three emails, and I'll tell you who answers.",
           "steps": [
             {
               "tool": "propose_leads",
               "action": "list",
               "input": {
-                "name": "Salons near you",
+                "name": "Businesses near you",
                 "lead_ids": ["5e6f7a8b-9c0d-4e1f-8a2b-3c4d5e6f7a8b"]
               }
             },
@@ -2041,7 +2041,7 @@
               "tool": "propose_sequence",
               "action": "cold_email",
               "input": {
-                "name": "Salons near you",
+                "name": "Businesses near you",
                 "search_id": "@step:1",
                 "steps": [
                   {
@@ -2055,8 +2055,8 @@
               "tool": "propose_follow_up",
               "action": "keep",
               "input": {
-                "said": "When the salons answer, I'll draft the replies",
-                "prompt": "Salons near you has replies: read them and propose answers.",
+                "said": "When they answer, I'll draft the replies",
+                "prompt": "Businesses near you has replies: read them and propose answers.",
                 "wake": "replies",
                 "subject": "@step:2"
               }
@@ -2679,7 +2679,7 @@
         },
         {
           "action": "cold_email",
-          "name": "Salons near you",
+          "name": "Businesses near you",
           "search_id": "9c2e4b6d-1f3a-4e5c-8b7d-0a1c2e3f4b5d",
           "steps": [
             {
@@ -3148,7 +3148,7 @@
     },
     {
       "name": "people",
-      "description": "People, the customers and callers, as the People page, a person's page and the Pipeline read them: find people by name or by conditions, a profile, the lists, who wins for this business, and the deals. Action search takes query and an optional list and finds people by name, WhatsApp name, address or three or more digits of a phone number, as the People page searches them; each row says their state in the pages' words, their last contact and last message, their conversation id, channels, consent, receptionist mode, how many calls, their next and last appointment when the calendar is connected, and their next step when they have one. No query lists the most recent people; all finds who conditions hold today, in the lists' vocabulary (who said yes, their last visit, how they came, a channel, a deal's stage, and the rest propose_list names), counted over everyone; list narrows to one list, given as the token sequences with action lists gives (seg:<id> for People's lists, list:<id> for the workspace's own) or as a People list's bare id: needs_you (Needs you), waiting_on_you (You have it), steps_due (Steps due), new_week (New this week), booked_week (Booked this week), booked (Booked), asked_never_booked (Asked, never booked), lapsed (Lapsed), consultation_booked (Consultations), proposal_out (Proposal out), clients (Clients), deal_passed (Passed), deal_ended (Ended), quiet (Quiet 30+ days), phoned_only (Phoned only), opted_in (Said yes to messages), offers_ok (Can receive offers), opted_out (Opted out). Call it to find someone, or to see who is on a list; it returns at most 12 people, with matches counted before the cap, and a list that cannot be counted here says why. Action get takes contact_id, the id a row here, inbox with action thread, calls with action get or calendar with action week returned, and reads one person's profile as their page reads it: right now, the facts on file, what is known about them, their receptionist mode, their last exchange, their open conversation, their conversations and calls with ids, their next and last appointments' ids, their timeline, and the team's notes (a note the receptionist suggested is marked so, and is not the team's). Call it when the profile, the timeline or the notes are needed and the page on screen holds only their row; it returns their five newest conversations and calls, twenty timeline entries and twenty notes, and a person the workspace does not hold is an error, said in words. Action lists takes nothing more and reads every list People's rail shows: People's own lists this workspace can count, each with its token (the list action search takes), what it holds and how many are on it; the ones it cannot count here, with why; and the workspace's own lists, kept by hand or by a rule, each with its rule in the page's words and its count or why it cannot be counted, and the archived ones by name. Call it to say which lists there are and how many are on each, and action search with a list's token for who is on it. It counts over everyone in People, as a send counts them. Action winners takes nothing more and reads who wins for this business: how many paid (a deal won), booked (a visit on record) and said yes to offers, then what the winners share against everyone (how they first came, their channels) and, for those a lead search found, what kind of business they were, where, and how they rate. Call it before planning a search for more customers like the best ones, or a list of people like them. Action pipeline takes nothing more and reads the Pipeline as its page builds it, where deals are on: the line over the table (the proposals out and what they come to, the ones waiting longer than usual, the lapsed, the clients and what they come to), the workspace's pace, and each group (consultations, proposals out, clients, passed or ended) with its count, what it comes to and its people, each with the deal's id, service and value, how long it has stood there, the page's chip and their next step. Call it for where deals stand, and action get for one person's deal in full. It returns at most 30 people across the groups, the groups' counts whole; where deals are off it says so, and People holds everyone.",
+      "description": "People, the customers and callers, as the People page, a person's page and the Pipeline read them: find people by name or by conditions, a profile, the lists, who wins for this business, and the deals. Action search takes query and an optional list and finds people by name, WhatsApp name, address or three or more digits of a phone number, as the People page searches them; each row says their state in the pages' words, their last contact and last message, their conversation id, channels, consent, receptionist mode, how many calls, their next and last appointment when the calendar is connected, and their next step when they have one. No query lists the most recent people; all finds who conditions hold today, in the lists' vocabulary (who said yes, when they last booked, how they came, a channel, a deal's stage, and the rest propose_list names), counted over everyone; list narrows to one list, given as the token sequences with action lists gives (seg:<id> for People's lists, list:<id> for the workspace's own) or as a People list's bare id: needs_you (Needs you), waiting_on_you (You have it), steps_due (Steps due), new_week (New this week), booked_week (Booked this week), booked (Booked), asked_never_booked (Asked, never booked), lapsed (Lapsed), consultation_booked (Consultations), proposal_out (Proposal out), clients (Clients), deal_passed (Passed), deal_ended (Ended), quiet (Quiet 30+ days), phoned_only (Phoned only), opted_in (Said yes to messages), offers_ok (Can receive offers), opted_out (Opted out). Call it to find someone, or to see who is on a list; it returns at most 12 people, with matches counted before the cap, and a list that cannot be counted here says why. Action get takes contact_id, the id a row here, inbox with action thread, calls with action get or calendar with action week returned, and reads one person's profile as their page reads it: right now, the facts on file, what is known about them, their receptionist mode, their last exchange, their open conversation, their conversations and calls with ids, their next and last appointments' ids, their timeline, and the team's notes (a note the receptionist suggested is marked so, and is not the team's). Call it when the profile, the timeline or the notes are needed and the page on screen holds only their row; it returns their five newest conversations and calls, twenty timeline entries and twenty notes, and a person the workspace does not hold is an error, said in words. Action lists takes nothing more and reads every list People's rail shows: People's own lists this workspace can count, each with its token (the list action search takes), what it holds and how many are on it; the ones it cannot count here, with why; and the workspace's own lists, kept by hand or by a rule, each with its rule in the page's words and its count or why it cannot be counted, and the archived ones by name. Call it to say which lists there are and how many are on each, and action search with a list's token for who is on it. It counts over everyone in People, as a send counts them. Action winners takes nothing more and reads who wins for this business: how many paid (a deal won), booked (a booking on record) and said yes to offers, then what the winners share against everyone (how they first came, their channels) and, for those a lead search found, what kind of business they were, where, and how they rate. Call it before planning a search for more customers like the best ones, or a list of people like them. Action pipeline takes nothing more and reads the Pipeline as its page builds it, where deals are on: the line over the table (the proposals out and what they come to, the ones waiting longer than usual, the lapsed, the clients and what they come to), the workspace's pace, and each group (consultations, proposals out, clients, passed or ended) with its count, what it comes to and its people, each with the deal's id, service and value, how long it has stood there, the page's chip and their next step. Call it for where deals stand, and action get for one person's deal in full. It returns at most 30 people across the groups, the groups' counts whole; where deals are off it says so, and People holds everyone.",
       "input_schema": {
         "type": "object",
         "properties": {
@@ -3378,7 +3378,7 @@
     },
     {
       "name": "propose_call",
-      "description": "Propose an act on a phone call in progress, as a card the person approves: a whisper to the phone receptionist, or the call handed to the business's own line. Action whisper takes call_id and text: a sentence only the phone receptionist hears, worked into its next answer to the caller. It shapes what the receptionist says next and never reaches the caller as written. Action hand_over takes call_id and passes the call to the business's own phone: the receptionist tells the caller someone is picking up and transfers them. Call it when they want to take the call themselves. A call that has ended is refused in words, since there is nobody on the line. Ending a call is the Live page's own button.",
+      "description": "Propose an act on a phone call in progress, as a card the person approves: a whisper to the phone receptionist, or the call handed to the business's own line. Action whisper takes call_id and text: a sentence only the phone receptionist hears, worked into its next answer to the caller. It shapes what the receptionist says next and never reaches the caller as written. Action hand_over takes call_id and passes the call to the business's own phone: the receptionist tells the caller someone is picking up and transfers them. Call it when they want to take the call themselves. A call that has ended is notLive in words, since there is nobody on the line. Ending a call is the Live page's own button.",
       "input_schema": {
         "type": "object",
         "properties": {
@@ -3847,7 +3847,7 @@
         },
         {
           "action": "list",
-          "name": "Salons near you",
+          "name": "Businesses near you",
           "lead_ids": ["5e6f7a8b-9c0d-4e1f-8a2b-3c4d5e6f7a8b"]
         },
         {
@@ -4281,7 +4281,7 @@
           "question": {
             "type": "string",
             "enum": ["messages", "offers"],
-            "description": "messages: about their own visits; offers: offers and news."
+            "description": "messages: about their own bookings; offers: offers and news."
           },
           "answer": {
             "type": "string",
@@ -4345,7 +4345,7 @@
     },
     {
       "name": "propose_person",
-      "description": "Propose an act on one person in People, by action: how the receptionist treats them, a note, their name or email, their answer to messages or offers, a new person, two records merged, or a first message. A card the person asking approves; nothing changes until they do. Action note takes contact_id, the id a read returned, body, the note in the words to keep (at most 600 characters), and for, who reads it: receptionist, for what should shape how the receptionist answers them (it reads the note before every answer to them), or team, for the team's own reminders and judgments (the receptionist never reads it). Always give for, from their words: it has no default, and the card says it back. Call it for something about one person worth keeping on their page, such as a preference or what to remember next time; a fact about the business itself, such as parking or a policy, is a settings change and not a note, and a next step with a day is not a note: it rides on a deal's move (propose_deal), or is set on their page. Action details takes contact_id, the id a read returned, and name, email or both: the name the business calls them by and the address they can be written to, the two fields of their profile. Call it when a customer gave their name or an email address in a message and their profile lacks it or says otherwise; read them first (people with action get), since an address a customer writes back when the receptionist asks for one is kept already, and never propose what the profile holds. It never touches their notes, and the card shows each field as it was and as it becomes. Action answer records what one person said to one of the two questions: messages (about their own visits) or offers (offers and news): yes, no, or not_asked again, with how they told you. Only what they said: never record a yes they did not give. A yes to offers has to be in writing (form, or customer_message naming the message), and a spoken yes covers messages alone; a no is honoured however it came. Action add puts someone in People by hand: a phone, an email or both, and a name. Nobody is messaged by adding them and their answers start as not asked; a number or address already in People opens that person instead. Action message writes first to someone in People: a new conversation on a channel their answers allow now, in the member's words or, where only a message WhatsApp approved can go, that message by name. Use propose_reply for a thread that waits on an answer. The card says the channel and who has the thread after; it leaves 15 seconds after it is approved and can be cancelled within them.",
+      "description": "Propose an act on one person in People, by action: how the receptionist treats them, a note, their name or email, their answer to messages or offers, a new person, two records merged, or a first message. A card the person asking approves; nothing changes until they do. Action note takes contact_id, the id a read returned, body, the note in the words to keep (at most 600 characters), and for, who reads it: receptionist, for what should shape how the receptionist answers them (it reads the note before every answer to them), or team, for the team's own reminders and judgments (the receptionist never reads it). Always give for, from their words: it has no default, and the card says it back. Call it for something about one person worth keeping on their page, such as a preference or what to remember next time; a fact about the business itself, such as parking or a policy, is a settings change and not a note, and a next step with a day is not a note: it rides on a deal's move (propose_deal), or is set on their page. Action details takes contact_id, the id a read returned, and name, email or both: the name the business calls them by and the address they can be written to, the two fields of their profile. Call it when a customer gave their name or an email address in a message and their profile lacks it or says otherwise; read them first (people with action get), since an address a customer writes back when the receptionist asks for one is kept already, and never propose what the profile holds. It never touches their notes, and the card shows each field as it was and as it becomes. Action answer records what one person said to one of the two questions: messages (about their own bookings) or offers (offers and news): yes, no, or not_asked again, with how they told you. Only what they said: never record a yes they did not give. A yes to offers has to be in writing (form, or customer_message naming the message), and a spoken yes covers messages alone; a no is honoured however it came. Action add puts someone in People by hand: a phone, an email or both, and a name. Nobody is messaged by adding them and their answers start as not asked; a number or address already in People opens that person instead. Action message writes first to someone in People: a new conversation on a channel their answers allow now, in the member's words or, where only a message WhatsApp approved can go, that message by name. Use propose_reply for a thread that waits on an answer. The card says the channel and who has the thread after; it leaves 15 seconds after it is approved and can be cancelled within them.",
       "input_schema": {
         "type": "object",
         "properties": {
@@ -4375,7 +4375,7 @@
           "question": {
             "type": "string",
             "enum": ["messages", "offers"],
-            "description": "messages: about their own visits; offers: offers and news."
+            "description": "messages: about their own bookings; offers: offers and news."
           },
           "answer": {
             "type": "string",
@@ -4570,13 +4570,13 @@
         },
         {
           "action": "steps",
-          "words": "Keep the 120 best salons as a list, write to them in three emails, and I'll tell you who answers.",
+          "words": "Keep the 120 best leads as a list, write to them in three emails, and I'll tell you who answers.",
           "steps": [
             {
               "tool": "propose_leads",
               "action": "list",
               "input": {
-                "name": "Salons near you",
+                "name": "Businesses near you",
                 "lead_ids": ["5e6f7a8b-9c0d-4e1f-8a2b-3c4d5e6f7a8b"]
               }
             },
@@ -4584,7 +4584,7 @@
               "tool": "propose_sequence",
               "action": "cold_email",
               "input": {
-                "name": "Salons near you",
+                "name": "Businesses near you",
                 "search_id": "@step:1",
                 "steps": [
                   {
@@ -4598,8 +4598,8 @@
               "tool": "propose_follow_up",
               "action": "keep",
               "input": {
-                "said": "When the salons answer, I'll draft the replies",
-                "prompt": "Salons near you has replies: read them and propose answers.",
+                "said": "When they answer, I'll draft the replies",
+                "prompt": "Businesses near you has replies: read them and propose answers.",
                 "wake": "replies",
                 "subject": "@step:2"
               }
@@ -5222,7 +5222,7 @@
         },
         {
           "action": "cold_email",
-          "name": "Salons near you",
+          "name": "Businesses near you",
           "search_id": "9c2e4b6d-1f3a-4e5c-8b7d-0a1c2e3f4b5d",
           "steps": [
             {
@@ -5310,7 +5310,7 @@
           },
           "goal": {
             "type": "string",
-            "description": "The goal in the owner's own words, at most 200 characters, such as \"twenty new salon clients a month\"; empty clears it."
+            "description": "The goal in the owner's own words, at most 200 characters, such as \"twenty new clients a month\"; empty clears it."
           }
         },
         "required": ["action"],
@@ -5355,7 +5355,7 @@
         },
         {
           "action": "goal",
-          "goal": "Twenty new salon clients a month"
+          "goal": "Twenty new clients a month"
         }
       ],
       "defer_loading": true
@@ -5766,7 +5766,7 @@
     },
     {
       "name": "people",
-      "description": "People, the customers and callers, as the People page, a person's page and the Pipeline read them: find people by name or by conditions, a profile, the lists, who wins for this business, and the deals. Action search takes query and an optional list and finds people by name, WhatsApp name, address or three or more digits of a phone number, as the People page searches them; each row says their state in the pages' words, their last contact and last message, their conversation id, channels, consent, receptionist mode, how many calls, their next and last appointment when the calendar is connected, and their next step when they have one. No query lists the most recent people; all finds who conditions hold today, in the lists' vocabulary (who said yes, their last visit, how they came, a channel, a deal's stage, and the rest propose_list names), counted over everyone; list narrows to one list, given as the token sequences with action lists gives (seg:<id> for People's lists, list:<id> for the workspace's own) or as a People list's bare id: needs_you (Needs you), waiting_on_you (You have it), steps_due (Steps due), new_week (New this week), booked_week (Booked this week), booked (Booked), asked_never_booked (Asked, never booked), lapsed (Lapsed), consultation_booked (Consultations), proposal_out (Proposal out), clients (Clients), deal_passed (Passed), deal_ended (Ended), quiet (Quiet 30+ days), phoned_only (Phoned only), opted_in (Said yes to messages), offers_ok (Can receive offers), opted_out (Opted out). Call it to find someone, or to see who is on a list; it returns at most 12 people, with matches counted before the cap, and a list that cannot be counted here says why. Action get takes contact_id, the id a row here, inbox with action thread, calls with action get or calendar with action week returned, and reads one person's profile as their page reads it: right now, the facts on file, what is known about them, their receptionist mode, their last exchange, their open conversation, their conversations and calls with ids, their next and last appointments' ids, their timeline, and the team's notes (a note the receptionist suggested is marked so, and is not the team's). Call it when the profile, the timeline or the notes are needed and the page on screen holds only their row; it returns their five newest conversations and calls, twenty timeline entries and twenty notes, and a person the workspace does not hold is an error, said in words. Action lists takes nothing more and reads every list People's rail shows: People's own lists this workspace can count, each with its token (the list action search takes), what it holds and how many are on it; the ones it cannot count here, with why; and the workspace's own lists, kept by hand or by a rule, each with its rule in the page's words and its count or why it cannot be counted, and the archived ones by name. Call it to say which lists there are and how many are on each, and action search with a list's token for who is on it. It counts over everyone in People, as a send counts them. Action winners takes nothing more and reads who wins for this business: how many paid (a deal won), booked (a visit on record) and said yes to offers, then what the winners share against everyone (how they first came, their channels) and, for those a lead search found, what kind of business they were, where, and how they rate. Call it before planning a search for more customers like the best ones, or a list of people like them. Action pipeline takes nothing more and reads the Pipeline as its page builds it, where deals are on: the line over the table (the proposals out and what they come to, the ones waiting longer than usual, the lapsed, the clients and what they come to), the workspace's pace, and each group (consultations, proposals out, clients, passed or ended) with its count, what it comes to and its people, each with the deal's id, service and value, how long it has stood there, the page's chip and their next step. Call it for where deals stand, and action get for one person's deal in full. It returns at most 30 people across the groups, the groups' counts whole; where deals are off it says so, and People holds everyone.",
+      "description": "People, the customers and callers, as the People page, a person's page and the Pipeline read them: find people by name or by conditions, a profile, the lists, who wins for this business, and the deals. Action search takes query and an optional list and finds people by name, WhatsApp name, address or three or more digits of a phone number, as the People page searches them; each row says their state in the pages' words, their last contact and last message, their conversation id, channels, consent, receptionist mode, how many calls, their next and last appointment when the calendar is connected, and their next step when they have one. No query lists the most recent people; all finds who conditions hold today, in the lists' vocabulary (who said yes, when they last booked, how they came, a channel, a deal's stage, and the rest propose_list names), counted over everyone; list narrows to one list, given as the token sequences with action lists gives (seg:<id> for People's lists, list:<id> for the workspace's own) or as a People list's bare id: needs_you (Needs you), waiting_on_you (You have it), steps_due (Steps due), new_week (New this week), booked_week (Booked this week), booked (Booked), asked_never_booked (Asked, never booked), lapsed (Lapsed), consultation_booked (Consultations), proposal_out (Proposal out), clients (Clients), deal_passed (Passed), deal_ended (Ended), quiet (Quiet 30+ days), phoned_only (Phoned only), opted_in (Said yes to messages), offers_ok (Can receive offers), opted_out (Opted out). Call it to find someone, or to see who is on a list; it returns at most 12 people, with matches counted before the cap, and a list that cannot be counted here says why. Action get takes contact_id, the id a row here, inbox with action thread, calls with action get or calendar with action week returned, and reads one person's profile as their page reads it: right now, the facts on file, what is known about them, their receptionist mode, their last exchange, their open conversation, their conversations and calls with ids, their next and last appointments' ids, their timeline, and the team's notes (a note the receptionist suggested is marked so, and is not the team's). Call it when the profile, the timeline or the notes are needed and the page on screen holds only their row; it returns their five newest conversations and calls, twenty timeline entries and twenty notes, and a person the workspace does not hold is an error, said in words. Action lists takes nothing more and reads every list People's rail shows: People's own lists this workspace can count, each with its token (the list action search takes), what it holds and how many are on it; the ones it cannot count here, with why; and the workspace's own lists, kept by hand or by a rule, each with its rule in the page's words and its count or why it cannot be counted, and the archived ones by name. Call it to say which lists there are and how many are on each, and action search with a list's token for who is on it. It counts over everyone in People, as a send counts them. Action winners takes nothing more and reads who wins for this business: how many paid (a deal won), booked (a booking on record) and said yes to offers, then what the winners share against everyone (how they first came, their channels) and, for those a lead search found, what kind of business they were, where, and how they rate. Call it before planning a search for more customers like the best ones, or a list of people like them. Action pipeline takes nothing more and reads the Pipeline as its page builds it, where deals are on: the line over the table (the proposals out and what they come to, the ones waiting longer than usual, the lapsed, the clients and what they come to), the workspace's pace, and each group (consultations, proposals out, clients, passed or ended) with its count, what it comes to and its people, each with the deal's id, service and value, how long it has stood there, the page's chip and their next step. Call it for where deals stand, and action get for one person's deal in full. It returns at most 30 people across the groups, the groups' counts whole; where deals are off it says so, and People holds everyone.",
       "input_schema": {
         "type": "object",
         "properties": {
@@ -5996,7 +5996,7 @@
     },
     {
       "name": "propose_call",
-      "description": "Propose an act on a phone call in progress, as a card the person approves: a whisper to the phone receptionist, or the call handed to the business's own line. Action whisper takes call_id and text: a sentence only the phone receptionist hears, worked into its next answer to the caller. It shapes what the receptionist says next and never reaches the caller as written. Action hand_over takes call_id and passes the call to the business's own phone: the receptionist tells the caller someone is picking up and transfers them. Call it when they want to take the call themselves. A call that has ended is refused in words, since there is nobody on the line. Ending a call is the Live page's own button.",
+      "description": "Propose an act on a phone call in progress, as a card the person approves: a whisper to the phone receptionist, or the call handed to the business's own line. Action whisper takes call_id and text: a sentence only the phone receptionist hears, worked into its next answer to the caller. It shapes what the receptionist says next and never reaches the caller as written. Action hand_over takes call_id and passes the call to the business's own phone: the receptionist tells the caller someone is picking up and transfers them. Call it when they want to take the call themselves. A call that has ended is notLive in words, since there is nobody on the line. Ending a call is the Live page's own button.",
       "input_schema": {
         "type": "object",
         "properties": {
@@ -6465,7 +6465,7 @@
         },
         {
           "action": "list",
-          "name": "Salons near you",
+          "name": "Businesses near you",
           "lead_ids": ["5e6f7a8b-9c0d-4e1f-8a2b-3c4d5e6f7a8b"]
         },
         {
@@ -6899,7 +6899,7 @@
           "question": {
             "type": "string",
             "enum": ["messages", "offers"],
-            "description": "messages: about their own visits; offers: offers and news."
+            "description": "messages: about their own bookings; offers: offers and news."
           },
           "answer": {
             "type": "string",
@@ -6973,7 +6973,7 @@
     },
     {
       "name": "propose_person",
-      "description": "Propose an act on one person in People, by action: how the receptionist treats them, a note, their name or email, their answer to messages or offers, a new person, two records merged, or a first message. A card the person asking approves; nothing changes until they do. Action mode takes contact_id, the id a read returned, and mode, how the receptionist treats them: auto (answers them), ask (asks a person first), never (stays silent with them), or inherit (follows the workspace's rule). Call it when they want the receptionist to stop, resume or check first with one person; propose_settings with action autonomy changes a whole class instead, and propose_thread_verb acts on one thread. Only an owner can approve it: for anyone else, say so and that an owner can ask. Action note takes contact_id, the id a read returned, body, the note in the words to keep (at most 600 characters), and for, who reads it: receptionist, for what should shape how the receptionist answers them (it reads the note before every answer to them), or team, for the team's own reminders and judgments (the receptionist never reads it). Always give for, from their words: it has no default, and the card says it back. Call it for something about one person worth keeping on their page, such as a preference or what to remember next time; a fact about the business itself, such as parking or a policy, is a settings change and not a note, and a next step with a day is not a note: it rides on a deal's move (propose_deal), or is set on their page. Action details takes contact_id, the id a read returned, and name, email or both: the name the business calls them by and the address they can be written to, the two fields of their profile. Call it when a customer gave their name or an email address in a message and their profile lacks it or says otherwise; read them first (people with action get), since an address a customer writes back when the receptionist asks for one is kept already, and never propose what the profile holds. It never touches their notes, and the card shows each field as it was and as it becomes. Action answer records what one person said to one of the two questions: messages (about their own visits) or offers (offers and news): yes, no, or not_asked again, with how they told you. Only what they said: never record a yes they did not give. A yes to offers has to be in writing (form, or customer_message naming the message), and a spoken yes covers messages alone; a no is honoured however it came. Action add puts someone in People by hand: a phone, an email or both, and a name. Nobody is messaged by adding them and their answers start as not asked; a number or address already in People opens that person instead. Action merge takes contact_id, the record kept, and other_id, another record of the same person: the kept one takes the other's messages, calls, deals, notes and lists. It cannot be undone. Call it only when two records are plainly one person (the same name with the same number or address, or they said so). Only an owner can approve it: for anyone else, say so and that an owner can ask. Action message writes first to someone in People: a new conversation on a channel their answers allow now, in the member's words or, where only a message WhatsApp approved can go, that message by name. Use propose_reply for a thread that waits on an answer. The card says the channel and who has the thread after; it leaves 15 seconds after it is approved and can be cancelled within them.",
+      "description": "Propose an act on one person in People, by action: how the receptionist treats them, a note, their name or email, their answer to messages or offers, a new person, two records merged, or a first message. A card the person asking approves; nothing changes until they do. Action mode takes contact_id, the id a read returned, and mode, how the receptionist treats them: auto (answers them), ask (asks a person first), never (stays silent with them), or inherit (follows the workspace's rule). Call it when they want the receptionist to stop, resume or check first with one person; propose_settings with action autonomy changes a whole class instead, and propose_thread_verb acts on one thread. Only an owner can approve it: for anyone else, say so and that an owner can ask. Action note takes contact_id, the id a read returned, body, the note in the words to keep (at most 600 characters), and for, who reads it: receptionist, for what should shape how the receptionist answers them (it reads the note before every answer to them), or team, for the team's own reminders and judgments (the receptionist never reads it). Always give for, from their words: it has no default, and the card says it back. Call it for something about one person worth keeping on their page, such as a preference or what to remember next time; a fact about the business itself, such as parking or a policy, is a settings change and not a note, and a next step with a day is not a note: it rides on a deal's move (propose_deal), or is set on their page. Action details takes contact_id, the id a read returned, and name, email or both: the name the business calls them by and the address they can be written to, the two fields of their profile. Call it when a customer gave their name or an email address in a message and their profile lacks it or says otherwise; read them first (people with action get), since an address a customer writes back when the receptionist asks for one is kept already, and never propose what the profile holds. It never touches their notes, and the card shows each field as it was and as it becomes. Action answer records what one person said to one of the two questions: messages (about their own bookings) or offers (offers and news): yes, no, or not_asked again, with how they told you. Only what they said: never record a yes they did not give. A yes to offers has to be in writing (form, or customer_message naming the message), and a spoken yes covers messages alone; a no is honoured however it came. Action add puts someone in People by hand: a phone, an email or both, and a name. Nobody is messaged by adding them and their answers start as not asked; a number or address already in People opens that person instead. Action merge takes contact_id, the record kept, and other_id, another record of the same person: the kept one takes the other's messages, calls, deals, notes and lists. It cannot be undone. Call it only when two records are plainly one person (the same name with the same number or address, or they said so). Only an owner can approve it: for anyone else, say so and that an owner can ask. Action message writes first to someone in People: a new conversation on a channel their answers allow now, in the member's words or, where only a message WhatsApp approved can go, that message by name. Use propose_reply for a thread that waits on an answer. The card says the channel and who has the thread after; it leaves 15 seconds after it is approved and can be cancelled within them.",
       "input_schema": {
         "type": "object",
         "properties": {
@@ -7007,7 +7007,7 @@
           "question": {
             "type": "string",
             "enum": ["messages", "offers"],
-            "description": "messages: about their own visits; offers: offers and news."
+            "description": "messages: about their own bookings; offers: offers and news."
           },
           "answer": {
             "type": "string",
@@ -7216,13 +7216,13 @@
         },
         {
           "action": "steps",
-          "words": "Keep the 120 best salons as a list, write to them in three emails, and I'll tell you who answers.",
+          "words": "Keep the 120 best leads as a list, write to them in three emails, and I'll tell you who answers.",
           "steps": [
             {
               "tool": "propose_leads",
               "action": "list",
               "input": {
-                "name": "Salons near you",
+                "name": "Businesses near you",
                 "lead_ids": ["5e6f7a8b-9c0d-4e1f-8a2b-3c4d5e6f7a8b"]
               }
             },
@@ -7230,7 +7230,7 @@
               "tool": "propose_sequence",
               "action": "cold_email",
               "input": {
-                "name": "Salons near you",
+                "name": "Businesses near you",
                 "search_id": "@step:1",
                 "steps": [
                   {
@@ -7244,8 +7244,8 @@
               "tool": "propose_follow_up",
               "action": "keep",
               "input": {
-                "said": "When the salons answer, I'll draft the replies",
-                "prompt": "Salons near you has replies: read them and propose answers.",
+                "said": "When they answer, I'll draft the replies",
+                "prompt": "Businesses near you has replies: read them and propose answers.",
                 "wake": "replies",
                 "subject": "@step:2"
               }
@@ -7868,7 +7868,7 @@
         },
         {
           "action": "cold_email",
-          "name": "Salons near you",
+          "name": "Businesses near you",
           "search_id": "9c2e4b6d-1f3a-4e5c-8b7d-0a1c2e3f4b5d",
           "steps": [
             {
@@ -7956,7 +7956,7 @@
           },
           "goal": {
             "type": "string",
-            "description": "The goal in the owner's own words, at most 200 characters, such as \"twenty new salon clients a month\"; empty clears it."
+            "description": "The goal in the owner's own words, at most 200 characters, such as \"twenty new clients a month\"; empty clears it."
           }
         },
         "required": ["action"],
@@ -8001,7 +8001,7 @@
         },
         {
           "action": "goal",
-          "goal": "Twenty new salon clients a month"
+          "goal": "Twenty new clients a month"
         }
       ],
       "defer_loading": true

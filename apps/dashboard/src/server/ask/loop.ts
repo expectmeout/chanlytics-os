@@ -30,7 +30,7 @@ import type { RouteContext } from "../with-route";
 import { load, type ReaderContext } from "../readers";
 import { log } from "@/server/log";
 import { GatewayRefused } from "./gateway";
-import { DROP_EVENTS, dropFor } from "./refusals";
+import { DROP_EVENTS, dropFor, letGo, refusalText, type Offer } from "./refusals";
 import {
   ACT_TOOL_NAMES,
   buildProposal,
@@ -200,31 +200,6 @@ export function askPorts(): AskPorts {
   };
 }
 
-function refusalText(r: GatewayRefused["refusal"], es: boolean): string {
-  switch (r.kind) {
-    case "preview":
-      return es ? "Ask solo responde en el panel de producción." : "Ask only answers on the production dashboard.";
-    case "budget":
-      return es
-        ? "Ask usó su presupuesto diario. Vuelve mañana; las páginas siguen funcionando."
-        : "Ask has used its daily budget. Try again tomorrow; the pages still work.";
-    case "no_key":
-      return es ? "Ask no está conectado a un modelo todavía." : "Ask is not connected to a model yet.";
-    case "paused":
-      return es
-        ? "Ask está apagado mientras este espacio de trabajo está en pausa. Reactívalo en Ajustes › Facturación."
-        : "Ask is off while this workspace is paused. Resume it from Settings › Billing.";
-    case "unreachable":
-      return es
-        ? "No pude llegar al modelo. Inténtalo de nuevo en un momento."
-        : "I could not reach the model. Try again in a moment.";
-    default:
-      return es
-        ? "El modelo rechazó la pregunta. Inténtalo de otra forma."
-        : "The model refused the question. Try it another way.";
-  }
-}
-
 /**
  * What the turn's tools run with, as the person, its read set starting with the rows the thread's earlier answers cited
  * (the Phase 5 plan, D5): one of them is cited and opened without a read, and any read this turn makes of one -- the
@@ -331,11 +306,22 @@ function besideActs(written: string, r: { refused: boolean; planned: string | nu
   return "";
 }
 
+/**
+ * A typed turn's whole budget (the operator, 15 Oct 2026: a plan of several cards over many reads); a spoken one keeps
+ * the budget a listener waits through.
+ */
+const budgetOf = (input: TurnInput): number => (input.spoken ? ASK_SPOKEN_TURN_BUDGET_MS : ASK_TURN_BUDGET_MS);
+
+/**
+ * A server tool (the tool search, D11) paused the turn with no call of ours: the API resumes it from the response as
+ * it came, so the round goes back whole, with nothing after it, and the next round carries on.
+ */
+const pausedByServer = (stopReason: string | null, calls: number, last: boolean): boolean =>
+  stopReason === "pause_turn" && calls === 0 && !last;
+
 export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts()): Promise<TurnResult> {
   const t0 = Date.now();
-  // A typed turn's whole budget (the operator, 15 Oct 2026: a plan of several cards over many reads); a spoken one keeps
-  // the budget a listener waits through.
-  const budgetMs = input.spoken ? ASK_SPOKEN_TURN_BUDGET_MS : ASK_TURN_BUDGET_MS;
+  const budgetMs = budgetOf(input);
   const model = askModel();
   const now = input.now ?? new Date();
   const es = input.language === "es";
@@ -411,17 +397,12 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
   let dataDropped = pageBlocks.length === 0 && crossBlocks.length === 0;
   const sayWords = wordsBlock(input, now, { built, crossBlocks, scopedRow, read: tc.read });
   const question = { type: "text", text: input.text };
-  // The tools as the API takes them (registry.ts): the same bytes every round, until the API refuses their examples or
-  // the tool search (offer.ts: then every tool rides up front).
-  let examples = true;
-  let search = true;
+  // The tools (registry.ts), the same bytes every round, and the answer's format, until the API refuses a part of the
+  // offer: then it is let go (refusals.ts letGo) and the same round asked again. No tool is strict: the API takes twenty
+  // strict tools and twenty-four optional parameters across them (26 tools, then 31 parameters in the act tools alone,
+  // were refused on every operator turn, 23 Sep), and the tools ran as they always had without it.
+  const offer: Offer = { examples: true, search: true, format: true };
   let { tools } = head;
-  // The answer has its format until the API refuses it: then it is dropped and
-  // the same round is asked again. No tool is strict: the API takes twenty
-  // strict tools and twenty-four optional parameters across them (26 tools,
-  // then 31 parameters in the act tools alone, were refused on every operator
-  // turn, 23 Sep), and the tools ran as they always had without it.
-  let format = true;
   // A round's request: its messages a copy with the cache's markers (withMarkers), at `at` and on its last block.
   const requestOf = (msgs: Msg[], at: unknown, last: boolean) => ({
     ...(head.speed ? { model: head.model, speed: head.speed } : { model: head.model }),
@@ -431,7 +412,7 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
     tools,
     // The last round may call no tool: all that is left is the answer.
     tool_choice: last ? { type: "none" as const } : head.tool_choice,
-    output_config: format ? head.output_config : { effort: model.effort },
+    output_config: offer.format ? head.output_config : { effort: model.effort },
   });
   // The earlier turns (memory.ts, the Phase 5 plan, D1–D4): replayed as the model was sent them while the thread is
   // warm, round one on the same model and prefix and within the bound (bpR where the last request ended); else the
@@ -464,7 +445,7 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
       crossBlocks,
       plan,
       meter,
-      format,
+      format: offer.format,
       toolsUsed,
       proposals,
       questionAt,
@@ -494,7 +475,7 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
           log.warn("ask_say_not_first", { first: firstKey.slice(0, 40), tenant_id: input.tenantId });
       }
     }
-    const part = json ? partialSay(soFar) : format ? null : { headline: "", detail: soFar };
+    const part = json ? partialSay(soFar) : offer.format ? null : { headline: "", detail: soFar };
     if (!part) return;
     // Nothing past a tag, even in a preview: the leak seen on production (cleanAnswer).
     const say = { headline: cleanAnswer(part.headline), detail: cleanAnswer(part.detail) };
@@ -600,7 +581,7 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
           // each. Without the page's data, their reads leave the count and the words stop pointing at them; without
           // the format, what comes back is read as JSON when it is, else as prose (D15).
           const m = e.refusal.kind === "bad_request" ? e.refusal.message : "";
-          const drop = dropFor(m, { replay: live && round === 1, context: !dataDropped, examples, search, format });
+          const drop = dropFor(m, { replay: live && round === 1, context: !dataDropped, ...offer });
           if (drop) {
             log.error(DROP_EVENTS[drop], { error: m.slice(0, 200), tenant_id: input.tenantId });
             if (drop === "replay") {
@@ -617,13 +598,7 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
                   .filter((b) => b.type !== "search_result")
                   .map((b) => (b === words ? bare : b)),
               };
-            } else if (drop === "examples") {
-              examples = false;
-              tools = toApiTools(input.role, examples, search);
-            } else if (drop === "search") {
-              search = false;
-              tools = toApiTools(input.role, examples, search);
-            } else format = false;
+            } else tools = letGo(offer, drop, input.role);
             round--;
             continue;
           }
@@ -683,7 +658,7 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
       // format refused, since the rules ask for it -- or words where no call
       // stands beside them or the format was refused. Words beside a call,
       // where the format asks for JSON, are the model thinking aloud.
-      let written = text && (text.startsWith("{") || !format || !calls.length) ? text : "";
+      let written = text && (text.startsWith("{") || !offer.format || !calls.length) ? text : "";
 
       // An answer beside a read was written before its rows: it is set aside,
       // and the model answers next round with them.
@@ -696,9 +671,7 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
         unsay();
       }
 
-      // A server tool (the tool search, D11) paused the turn: the API resumes it from the response as it came, so the
-      // round goes back whole, with nothing of ours after it, and the next round carries on.
-      if (stopReason === "pause_turn" && !calls.length && !last) {
+      if (pausedByServer(stopReason, calls.length, last)) {
         messages.push({ role: "assistant", content: replayBlocks(blocks) });
         continue;
       }
@@ -762,7 +735,7 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
           answer = withoutClaimedWrite(shaped.answer, input, proposals);
         } else {
           // Words with no shape: the format was refused (D15), or words came where the JSON should have.
-          if (format) log.warn("ask_answer_not_json", { chars: written.length, tenant_id: input.tenantId });
+          if (offer.format) log.warn("ask_answer_not_json", { chars: written.length, tenant_id: input.tenantId });
           answer = withoutClaimedWrite(proseAnswer(written, input.language), input, proposals);
         }
         return done({

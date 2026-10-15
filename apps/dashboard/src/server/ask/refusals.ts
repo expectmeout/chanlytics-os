@@ -1,5 +1,8 @@
 import "server-only";
+import type { MembershipRole } from "@chanlytics/contracts";
 import type { DashboardLogEvent } from "@/server/log";
+import type { GatewayRefused } from "./gateway";
+import { toApiTools } from "./tools";
 import { featureRejected } from "./sse";
 
 /**
@@ -55,4 +58,47 @@ export function dropFor(message: string, still: Record<Dropped, boolean>): Dropp
   if (examplesRefused(message)) return still.examples ? "examples" : null;
   if (searchRefused(message)) return still.search ? "search" : null;
   return still.format && featureRejected(message) ? "format" : null;
+}
+
+/** What a turn offers the API that it can do without: the tools' examples, the tool search and the answer's format. */
+export interface Offer {
+  examples: boolean;
+  search: boolean;
+  format: boolean;
+}
+
+/** A refused part of the offer let go (dropFor): its flag off, and the tools as the API takes them now. */
+export function letGo(
+  offer: Offer,
+  drop: "examples" | "search" | "format",
+  role: MembershipRole,
+): ReturnType<typeof toApiTools> {
+  offer[drop] = false;
+  return toApiTools(role, offer.examples, offer.search);
+}
+
+/** What a turn the gateway refused says, in the person's language, by why it was refused. */
+export function refusalText(r: GatewayRefused["refusal"], es: boolean): string {
+  switch (r.kind) {
+    case "preview":
+      return es ? "Ask solo responde en el panel de producción." : "Ask only answers on the production dashboard.";
+    case "budget":
+      return es
+        ? "Ask usó su presupuesto diario. Vuelve mañana; las páginas siguen funcionando."
+        : "Ask has used its daily budget. Try again tomorrow; the pages still work.";
+    case "no_key":
+      return es ? "Ask no está conectado a un modelo todavía." : "Ask is not connected to a model yet.";
+    case "paused":
+      return es
+        ? "Ask está apagado mientras este espacio de trabajo está en pausa. Reactívalo en Ajustes › Facturación."
+        : "Ask is off while this workspace is paused. Resume it from Settings › Billing.";
+    case "unreachable":
+      return es
+        ? "No pude llegar al modelo. Inténtalo de nuevo en un momento."
+        : "I could not reach the model. Try again in a moment.";
+    default:
+      return es
+        ? "El modelo rechazó la pregunta. Inténtalo de otra forma."
+        : "The model refused the question. Try it another way.";
+  }
 }

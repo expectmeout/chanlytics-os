@@ -12,9 +12,9 @@ import {
   proposalBelowNeeds,
   type LeadRowDto,
 } from "@chanlytics/contracts";
-import { load } from "../../../readers";
-import { lead as leadReader } from "../../../readers/leads";
-import { search as searchReader } from "../../../readers/searches";
+import { load } from "../../../../readers";
+import { lead as leadReader } from "../../../../readers/leads";
+import { search as searchReader } from "../../../../readers/searches";
 import {
   UUID,
   actAction,
@@ -27,7 +27,7 @@ import {
   unlessNotFound,
   type ProposalOutcome,
   type ToolContext,
-} from "../context";
+} from "../../context";
 
 /**
  * Leads, worked by card (the operator, 15 Oct 2026): every act the Leads page's workbench and its bulk bar press, and
@@ -136,7 +136,8 @@ async function proposeMark(
   if (!search) return refuse("no such search in this workspace");
   const ids = leadIdsOf(a.lead_ids, LEADS_PART);
   if ("refusal" in ids) return refuse(ids.refusal);
-  const one = ids.ids.length === 1 ? await leadOnCard(t, ids.ids[0], searchId) : null;
+  const [only, ...more] = ids.ids;
+  const one = only && more.length === 0 ? await leadOnCard(t, only, searchId) : null;
   const who = one && "row" in one ? one.row.business_name : null;
   const said = { keep: "kept", exclude: "set aside", put_back: "put back" }[a.mark];
   return propose({
@@ -376,7 +377,7 @@ export const propose_leads = defineActions({
         name: z.string().describe("What Leads calls the list."),
         lead_ids: LEAD_IDS,
       }),
-      examples: [{ name: "Salons near you", lead_ids: ["5e6f7a8b-9c0d-4e1f-8a2b-3c4d5e6f7a8b"] }],
+      examples: [{ name: "Businesses near you", lead_ids: ["5e6f7a8b-9c0d-4e1f-8a2b-3c4d5e6f7a8b"] }],
       label: "Preparing the list of leads",
       words: `Action list keeps chosen leads (at most ${LEAD_LIST_MAX}) as a list of their own, a search a cold email sequence writes to; it spends nothing. In a plan, a cold email step names it by its token.`,
       build: (t, input) => Promise.resolve(proposeLeadList(t, input)),

@@ -5,6 +5,7 @@ import {
   AskSettingsChangeSchema,
   describeSettingsChange,
   proposalBelowNeeds,
+  type AskSettingsChange,
 } from "@chanlytics/contracts";
 import {
   actAction,
@@ -20,7 +21,7 @@ import {
 import { autonomyAction } from "./policy";
 
 /** Each change's card title, in the person's words. */
-const SETTINGS_TITLE: Record<string, string> = {
+const SETTINGS_TITLE: Record<AskSettingsChange["op"], string> = {
   add_closure: "Close for a day",
   set_hours: "Change the hours",
   add_note: "Remember this",
@@ -99,10 +100,10 @@ const goalAction = actAction({
     goal: z
       .string()
       .describe(
-        `The goal in the owner's own words, at most ${ASK_GOAL_MAX} characters, such as "twenty new salon clients a month"; empty clears it.`,
+        `The goal in the owner's own words, at most ${ASK_GOAL_MAX} characters, such as "twenty new clients a month"; empty clears it.`,
       ),
   }),
-  examples: [{ goal: "Twenty new salon clients a month" }],
+  examples: [{ goal: "Twenty new clients a month" }],
   label: "Preparing your goal",
   words: `Action goal keeps the owner's goal in one line (at most ${ASK_GOAL_MAX} characters), which you read on every question and weigh every suggestion and plan against; empty clears it. Call it when they say what they want the business to reach, or ask you to aim for something. The receptionist never reads it. ${approvalWords("settings")}.`,
   build: (t, input) => proposeSettings(t, { change: { op: "set_goal", goal: input.goal } }),

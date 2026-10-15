@@ -22306,7 +22306,7 @@ declare const ASK_MAX_ROUNDS = 8;
  * A typed turn end to end, under the route's ceiling (app/api/v1/ask, maxDuration): long enough for a plan of several
  * cards over many reads (the operator, 15 Oct 2026; his rule that cost never outranks the experience).
  */
-declare const ASK_TURN_BUDGET_MS = 120000;
+declare const ASK_TURN_BUDGET_MS: number;
 /**
  * A spoken turn end to end (the voice door): a person is listening, so it keeps the budget a turn had before the operator,
  * under the voice claim's own staleness (ASK_VOICE_CLAIM_STALE_MS).
@@ -22721,86 +22721,6 @@ declare const AskSettingsChangeSchema: z$1.ZodDiscriminatedUnion<[z$1.ZodObject<
     op: z$1.ZodLiteral<"set_goal">;
     goal: z$1.ZodString;
 }, z$1.core.$strip>], "op">;
-
-/**
- * Ask's follow-ups (the operator, 15 Oct 2026, D3): Ask's own note to come back to something when it happens -- a lead
- * search finishing, replies arriving on a sequence or a cold email, or a day coming -- with what it will ask itself then
- * and the line the member reads. A follow-up never acts: when it is due, the member's Ask reads it (the `signals` read
- * says it first) and proposes cards, which they approve.
- *
- * Kept where a member's own small state is kept, their views in this workspace (memberships.views, PUT views/:page,
- * member_view_set 00113), under the page `ask`: one member's, never a teammate's, and nothing new to store. A view is a
- * small object (2,000 characters at most), so a member holds at most ASK_FOLLOW_UPS_MAX at once, each in a few words.
- */
-/** The page a member's follow-ups are kept under in their views. */
-declare const ASK_VIEW_PAGE = "ask";
-/** How many follow-ups a member holds at once: a view is a small object. */
-declare const ASK_FOLLOW_UPS_MAX = 3;
-/** The line the member reads, in characters. */
-declare const FOLLOW_UP_SAID_MAX = 100;
-/** What Ask asks itself when it is due, in characters. */
-declare const FOLLOW_UP_PROMPT_MAX = 200;
-/** What wakes a follow-up: a lead search finishing, replies on a sequence or a cold email, or a day. */
-declare const FOLLOW_UP_WAKES: readonly ["search_done", "replies", "date"];
-type FollowUpWake = (typeof FOLLOW_UP_WAKES)[number];
-interface AskFollowUp {
-    id: string;
-    /** The line the member reads: what Ask will come back to. */
-    said: string;
-    /** What Ask asks itself when it is due, as if the member had asked it. */
-    prompt: string;
-    wake: FollowUpWake;
-    /** The search, the sequence or the cold email it waits on; null for a day. */
-    subject: string | null;
-    /** The day it waits for (YYYY-MM-DD, by the business's calendar); null for an event. */
-    on: string | null;
-    /** When it was made (ISO): replies count from it. */
-    made_at: string;
-}
-/** A member's follow-ups, from their views (GET views' `views`), oldest first: none where the view holds none. */
-declare function followUpsOf(views: unknown): AskFollowUp[];
-/** What the world says of a follow-up's wake: a search's state, a subject's replies since it was made, today's date. */
-interface FollowUpWorld {
-    /** A lead search's latest round state by its id (lead_rounds.state), where it was read. */
-    searches: ReadonlyMap<string, string>;
-    /** Replies waiting on a sequence or a cold email, by its id, where it was read. */
-    replies: ReadonlyMap<string, number>;
-    /** Today, YYYY-MM-DD by the business's calendar. */
-    today: string;
-}
-/** Whether a follow-up is due, by what the world says now; never due on what could not be read. */
-declare function followUpDue(f: AskFollowUp, w: FollowUpWorld): boolean;
-
-/**
- * The product as Ask tells it (the operator, 15 Oct 2026): each page, what it is for, the verbs it commits that Ask may
- * propose as cards, and what stays on the page with why. Ask's `guide` read says it to a member who asks "what can you
- * do?" or "where do I...?", and the parity test (ask-parity.test.mjs) holds it to the verb table both ways: every verb
- * a card commits is on one page here, and every verb here is one Ask proposes or one this file says stays on the page.
- * Pure words and kinds: nothing here reads a workspace.
- */
-
-type Kind = AskProposal["kind"];
-interface GuidePage {
-    /** The page's name as the sidebar says it. */
-    page: string;
-    /** Its address in the workspace (the route a card's Open and the Line's jump take). */
-    route: string;
-    /** What it is for, in a sentence. */
-    for: string;
-    /** The verbs it commits that are also Ask's cards. */
-    verbs: readonly Kind[];
-    /** What it does that Ask leaves to it, each with why. */
-    pageOnly: readonly {
-        what: string;
-        why: string;
-    }[];
-}
-declare const ASK_GUIDE_PAGES: readonly GuidePage[];
-/**
- * The verbs Ask does not propose, each with why: a card of a kind kept for the threads that already hold one, or a verb
- * the page's own screen does better. The parity test reads it beside the registry.
- */
-declare const ASK_PAGE_ONLY_VERBS: Readonly<Partial<Record<Kind, string>>>;
 
 /**
  * The rules an answer's text passes before the Line draws it: tag-shaped junk out (cleanAnswer), a figure with nothing
@@ -24041,6 +23961,86 @@ type Answer$1 = "opted_in" | "opted_out" | "unknown";
  * to offers, or to messages (the two answers, as broadcasts say them). The page draws the name bold before it.
  */
 declare function answerSaidOf(purpose: AnswerPurpose, consent: Answer$1): string;
+
+/**
+ * Ask's follow-ups (the operator, 15 Oct 2026, D3): Ask's own note to come back to something when it happens -- a lead
+ * search finishing, replies arriving on a sequence or a cold email, or a day coming -- with what it will ask itself then
+ * and the line the member reads. A follow-up never acts: when it is due, the member's Ask reads it (the `signals` read
+ * says it first) and proposes cards, which they approve.
+ *
+ * Kept where a member's own small state is kept, their views in this workspace (memberships.views, PUT views/:page,
+ * member_view_set 00113), under the page `ask`: one member's, never a teammate's, and nothing new to store. A view is a
+ * small object (2,000 characters at most), so a member holds at most ASK_FOLLOW_UPS_MAX at once, each in a few words.
+ */
+/** The page a member's follow-ups are kept under in their views. */
+declare const ASK_VIEW_PAGE = "ask";
+/** How many follow-ups a member holds at once: a view is a small object. */
+declare const ASK_FOLLOW_UPS_MAX = 3;
+/** The line the member reads, in characters. */
+declare const FOLLOW_UP_SAID_MAX = 100;
+/** What Ask asks itself when it is due, in characters. */
+declare const FOLLOW_UP_PROMPT_MAX = 200;
+/** What wakes a follow-up: a lead search finishing, replies on a sequence or a cold email, or a day. */
+declare const FOLLOW_UP_WAKES: readonly ["search_done", "replies", "date"];
+type FollowUpWake = (typeof FOLLOW_UP_WAKES)[number];
+interface AskFollowUp {
+    id: string;
+    /** The line the member reads: what Ask will come back to. */
+    said: string;
+    /** What Ask asks itself when it is due, as if the member had asked it. */
+    prompt: string;
+    wake: FollowUpWake;
+    /** The search, the sequence or the cold email it waits on; null for a day. */
+    subject: string | null;
+    /** The day it waits for (YYYY-MM-DD, by the business's calendar); null for an event. */
+    on: string | null;
+    /** When it was made (ISO): replies count from it. */
+    made_at: string;
+}
+/** A member's follow-ups, from their views (GET views' `views`), oldest first: none where the view holds none. */
+declare function followUpsOf(views: unknown): AskFollowUp[];
+/** What the world says of a follow-up's wake: a search's state, a subject's replies since it was made, today's date. */
+interface FollowUpWorld {
+    /** A lead search's latest round state by its id (lead_rounds.state), where it was read. */
+    searches: ReadonlyMap<string, string>;
+    /** Replies waiting on a sequence or a cold email, by its id, where it was read. */
+    replies: ReadonlyMap<string, number>;
+    /** Today, YYYY-MM-DD by the business's calendar. */
+    today: string;
+}
+/** Whether a follow-up is due, by what the world says now; never due on what could not be read. */
+declare function followUpDue(f: AskFollowUp, w: FollowUpWorld): boolean;
+
+/**
+ * The product as Ask tells it (the operator, 15 Oct 2026): each page, what it is for, the verbs it commits that Ask may
+ * propose as cards, and what stays on the page with why. Ask's `guide` read says it to a member who asks "what can you
+ * do?" or "where do I...?", and the parity test (ask-parity.test.mjs) holds it to the verb table both ways: every verb
+ * a card commits is on one page here, and every verb here is one Ask proposes or one this file says stays on the page.
+ * Pure words and kinds: nothing here reads a workspace.
+ */
+
+type Kind = AskProposal["kind"];
+interface GuidePage {
+    /** The page's name as the sidebar says it. */
+    page: string;
+    /** Its address in the workspace (the route a card's Open and the Line's jump take). */
+    route: string;
+    /** What it is for, in a sentence. */
+    for: string;
+    /** The verbs it commits that are also Ask's cards. */
+    verbs: readonly Kind[];
+    /** What it does that Ask leaves to it, each with why. */
+    pageOnly: readonly {
+        what: string;
+        why: string;
+    }[];
+}
+declare const ASK_GUIDE_PAGES: readonly GuidePage[];
+/**
+ * The verbs Ask does not propose, each with why: a card of a kind kept for the threads that already hold one, or a verb
+ * the page's own screen does better. The parity test reads it beside the registry.
+ */
+declare const ASK_PAGE_ONLY_VERBS: Readonly<Partial<Record<Kind, string>>>;
 
 /**
  * The two fields of a person's profile a details card sets (D9), and each as its card and its receipt say it: its

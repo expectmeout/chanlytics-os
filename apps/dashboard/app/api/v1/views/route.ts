@@ -1,5 +1,6 @@
 import { read, workspace } from "@/server/route";
-import { memberViewsOf } from "@chanlytics/db";
+import { load, readerContext } from "@/server/readers";
+import { memberViews } from "@/server/readers/notifications";
 
 /**
  * GET /api/v1/views -- what this member's pages remember in this workspace.
@@ -11,6 +12,6 @@ import { memberViewsOf } from "@chanlytics/db";
 export const GET = read({
   scope: workspace,
   handle: async ({ ctx, member }) => {
-    return { views: await memberViewsOf(ctx.supabase, { tenantId: member.tenantId, userId: ctx.userId }) };
+    return { views: (await load(readerContext(ctx, member), memberViews, undefined)).data };
   },
 });

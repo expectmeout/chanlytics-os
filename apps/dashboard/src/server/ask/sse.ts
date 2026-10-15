@@ -145,6 +145,28 @@ function cacheMissOf(diagnostics: unknown): string | null {
 }
 
 /** One SSE frame → one event, or nothing for pings and the frames the loop does not use. */
+/** A block as its start names it; anything else is text. */
+function blockOf(b: NonNullable<RawEvent["content_block"]>): GatewayBlockStart["block"] {
+  switch (b.type) {
+    case "tool_use":
+      return { type: "tool_use", id: b.id ?? "", name: b.name ?? "" };
+    // Thinking is its own kind: a model that always thinks (Opus 5.5) must
+    // be handed it back unmodified, which a block read as text cannot be.
+    case "thinking":
+      return { type: "thinking" };
+    case "redacted_thinking":
+      return { type: "redacted_thinking", data: b.data ?? "" };
+    // Tool search's own blocks: the search call (its input streams as JSON, as a tool call's does), and what it found,
+    // which arrives whole in the block's start.
+    case "server_tool_use":
+      return { type: "server_tool_use", id: b.id ?? "", name: b.name ?? "" };
+    case "tool_search_tool_result":
+      return { type: "tool_search_tool_result", toolUseId: b.tool_use_id ?? "", content: b.content ?? null };
+    default:
+      return { type: "text" };
+  }
+}
+
 export function parseFrame(frame: string): GatewayEvent | null {
   let data = "";
   for (const line of frame.split("\n")) {
@@ -161,32 +183,7 @@ export function parseFrame(frame: string): GatewayEvent | null {
     case "content_block_start": {
       const b = ev.content_block;
       if (!b || typeof ev.index !== "number") return null;
-      if (b.type === "tool_use")
-        return {
-          type: "block_start",
-          index: ev.index,
-          block: { type: "tool_use", id: b.id ?? "", name: b.name ?? "" },
-        };
-      // Thinking is its own kind: a model that always thinks (Opus 5.5) must
-      // be handed it back unmodified, which a block read as text cannot be.
-      if (b.type === "thinking") return { type: "block_start", index: ev.index, block: { type: "thinking" } };
-      if (b.type === "redacted_thinking")
-        return { type: "block_start", index: ev.index, block: { type: "redacted_thinking", data: b.data ?? "" } };
-      // Tool search's own blocks: the search call (its input streams as JSON, as a tool call's does), and what it found,
-      // which arrives whole in the block's start.
-      if (b.type === "server_tool_use")
-        return {
-          type: "block_start",
-          index: ev.index,
-          block: { type: "server_tool_use", id: b.id ?? "", name: b.name ?? "" },
-        };
-      if (b.type === "tool_search_tool_result")
-        return {
-          type: "block_start",
-          index: ev.index,
-          block: { type: "tool_search_tool_result", toolUseId: b.tool_use_id ?? "", content: b.content ?? null },
-        };
-      return { type: "block_start", index: ev.index, block: { type: "text" } };
+      return { type: "block_start", index: ev.index, block: blockOf(b) };
     }
     case "content_block_delta": {
       if (typeof ev.index !== "number" || !ev.delta) return null;

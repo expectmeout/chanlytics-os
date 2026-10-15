@@ -139,6 +139,24 @@ const withoutNullsDeep = (v: unknown): unknown =>
         )
       : v;
 
+/**
+ * A list's members as the People rail counts them, over the audience pool once a turn; one of the workspace's own
+ * counted from the lists the turn holds. A list that cannot be counted here says why, in the page's words.
+ */
+async function listMembersOf(
+  t: ToolContext,
+  ref: NonNullable<ReturnType<typeof parseListToken>>,
+): Promise<{ pool: AudiencePool; ids: Set<string> } | { error: string }> {
+  const [held, kept] = await Promise.all([
+    load(t.rc, audiencePool, undefined).then((r) => r.data),
+    ref.kind === "saved" ? load(t.rc, listsReader, undefined).then((r) => r.data.lists) : undefined,
+  ]);
+  const found = await poolList(t.ctx, t.tenantId, held, ref, kept);
+  if (!found) return { error: `no such list; ${AUDIENCES_CALL} names them` };
+  if ("unknown" in found) return { error: `${found.label}: ${found.unknown}` };
+  return { pool: held, ids: new Set(found.memberIds) };
+}
+
 async function searchPeople(
   t: ToolContext,
   input: { query?: string; list?: string; all?: unknown[] },
@@ -165,16 +183,10 @@ async function searchPeople(
     members = held.ids;
   }
   if (ref) {
-    const [held, kept] = await Promise.all([
-      load(t.rc, audiencePool, undefined).then((r) => r.data),
-      ref.kind === "saved" ? load(t.rc, listsReader, undefined).then((r) => r.data.lists) : undefined,
-    ]);
-    pool = held;
-    const found = await poolList(t.ctx, t.tenantId, pool, ref, kept);
-    if (!found) return { error: `no such list; ${AUDIENCES_CALL} names them`, people: [] };
-    if ("unknown" in found) return { error: `${found.label}: ${found.unknown}`, people: [] };
-    const onList = new Set(found.memberIds);
-    members = members ? new Set([...members].filter((id) => onList.has(id))) : onList;
+    const listed = await listMembersOf(t, ref);
+    if ("error" in listed) return { error: listed.error, people: [] };
+    pool = listed.pool;
+    members = members ? new Set([...members].filter((id) => listed.ids.has(id))) : listed.ids;
   }
   const on = members;
   const viewer = t.ctx.userId ?? null;
@@ -546,7 +558,7 @@ export const peopleTool = defineActions({
         },
       ],
       label: "Looking through People",
-      words: `Action search takes query and an optional list and finds people by name, WhatsApp name, address or three or more digits of a phone number, as the People page searches them; each row says their state in the pages' words, their last contact and last message, their conversation id, channels, consent, receptionist mode, how many calls, their next and last appointment when the calendar is connected, and their next step when they have one. No query lists the most recent people; all finds who conditions hold today, in the lists' vocabulary (who said yes, their last visit, how they came, a channel, a deal's stage, and the rest propose_list names), counted over everyone; list narrows to one list, given as the token sequences with action lists gives (seg:<id> for People's lists, list:<id> for the workspace's own) or as a People list's bare id: ${BUILTIN_LISTS.map((l) => `${l.id} (${l.label})`).join(", ")}. Call it to find someone, or to see who is on a list; it returns at most ${ASK_CAPS.people} people, with matches counted before the cap, and a list that cannot be counted here says why.`,
+      words: `Action search takes query and an optional list and finds people by name, WhatsApp name, address or three or more digits of a phone number, as the People page searches them; each row says their state in the pages' words, their last contact and last message, their conversation id, channels, consent, receptionist mode, how many calls, their next and last appointment when the calendar is connected, and their next step when they have one. No query lists the most recent people; all finds who conditions hold today, in the lists' vocabulary (who said yes, when they last booked, how they came, a channel, a deal's stage, and the rest propose_list names), counted over everyone; list narrows to one list, given as the token sequences with action lists gives (seg:<id> for People's lists, list:<id> for the workspace's own) or as a People list's bare id: ${BUILTIN_LISTS.map((l) => `${l.id} (${l.label})`).join(", ")}. Call it to find someone, or to see who is on a list; it returns at most ${ASK_CAPS.people} people, with matches counted before the cap, and a list that cannot be counted here says why.`,
       run: searchPeople,
     }),
     get: readAction({
@@ -570,7 +582,7 @@ export const peopleTool = defineActions({
       examples: [{}],
       label: "Reading who wins",
       words:
-        "Action winners takes nothing more and reads who wins for this business: how many paid (a deal won), booked (a visit on record) and said yes to offers, then what the winners share against everyone (how they first came, their channels) and, for those a lead search found, what kind of business they were, where, and how they rate. Call it before planning a search for more customers like the best ones, or a list of people like them.",
+        "Action winners takes nothing more and reads who wins for this business: how many paid (a deal won), booked (a booking on record) and said yes to offers, then what the winners share against everyone (how they first came, their channels) and, for those a lead search found, what kind of business they were, where, and how they rate. Call it before planning a search for more customers like the best ones, or a list of people like them.",
       run: readWinners,
     }),
     pipeline: readAction({

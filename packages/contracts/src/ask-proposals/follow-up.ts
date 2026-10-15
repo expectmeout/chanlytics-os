@@ -4,7 +4,7 @@
  * So the builder writes the whole list the view will hold (its follow-ups, contracts ask/follow-ups.ts), and the undo
  * puts back the list it held. It changes nothing of the business: a plan approves it with its other silent steps.
  */
-import { ASK_VIEW_PAGE } from "../ask/follow-ups";
+import { ASK_VIEW_PAGE } from "./follow-ups";
 import { PROPOSAL_WORDS, asText, refuseWith, type ProposalSpec } from "./spec";
 
 const listIn = (v: unknown): unknown[] | null => (Array.isArray(v) ? v : null);

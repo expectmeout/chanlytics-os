@@ -13,11 +13,11 @@ import {
   plural,
   proposalBelowNeeds,
 } from "@chanlytics/contracts";
-import { poolList } from "../../../people/audience";
-import { load } from "../../../readers";
-import { audiencePool } from "../../../readers/audience-pool";
-import { lists as listsReader } from "../../../readers/lists";
-import { ruleMembers } from "../read/people";
+import { poolList } from "../../../../people/audience";
+import { load } from "../../../../readers";
+import { audiencePool } from "../../../../readers/audience-pool";
+import { lists as listsReader } from "../../../../readers/lists";
+import { ruleMembers } from "../../read/people";
 import {
   AUDIENCES_CALL,
   UUID,
@@ -30,7 +30,7 @@ import {
   str,
   type ProposalOutcome,
   type ToolContext,
-} from "../context";
+} from "../../context";
 
 /**
  * Many people at once (the operator, 15 Oct 2026, D5): the same act People's bulk bar does for a selection -- their
@@ -213,7 +213,9 @@ export const propose_people = defineActions({
       kind: "answer_many",
       input: z.object({
         ...SELECTION,
-        question: z.enum(["messages", "offers"]).describe("messages: about their own visits; offers: offers and news."),
+        question: z
+          .enum(["messages", "offers"])
+          .describe("messages: about their own bookings; offers: offers and news."),
         answer: z.enum(["yes", "no", "not_asked"]).describe("What they said, or not_asked to clear it."),
         how: z.enum(MANY_SOURCES).optional().describe("How they told you: in_person, phone or form."),
         note: z.string().optional().describe("A few words kept with each answer."),

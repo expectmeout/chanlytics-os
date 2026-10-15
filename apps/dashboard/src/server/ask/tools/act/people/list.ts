@@ -11,29 +11,29 @@ import {
   plural,
   ruleLists,
 } from "@chanlytics/contracts";
-import { LIST_NAME_MAX, LIST_NAME_TAKEN, LIST_RULE_LINES, cleanListName, cleanListRule } from "../../../people/lists";
-import { load } from "../../../readers";
-import { audiencePool } from "../../../readers/audience-pool";
-import { lists as listsReader } from "../../../readers/lists";
-import { actAction, defineActions, propose, refuse, str, type ProposalOutcome, type ToolContext } from "../context";
+import {
+  LIST_NAME_MAX,
+  LIST_NAME_TAKEN,
+  LIST_RULE_LINES,
+  cleanListName,
+  cleanListRule,
+} from "../../../../people/lists";
+import { load } from "../../../../readers";
+import { audiencePool } from "../../../../readers/audience-pool";
+import { lists as listsReader } from "../../../../readers/lists";
+import {
+  actAction,
+  defineActions,
+  propose,
+  refuse,
+  str,
+  type ProposalOutcome,
+  type ToolContext,
+  nullsLeftOut,
+} from "../../context";
 
 /** What they asked that the vocabulary cannot say, kept as the drafter keeps it: a few words, trimmed. */
 const LEFT_OUT = ListDraftAnswerSchema.shape.cannot;
-
-/**
- * A value with every key the model wrote as null left out, all the way down: the flat schema shows each fact every
- * field's keys, and the model sends the ones a fact does not take as null. Nothing else is dropped.
- */
-const withoutNulls = (v: unknown): unknown =>
-  Array.isArray(v)
-    ? v.map(withoutNulls)
-    : v && typeof v === "object"
-      ? Object.fromEntries(
-          Object.entries(v)
-            .filter(([, x]) => x !== null)
-            .map(([k, x]) => [k, withoutNulls(x)]),
-        )
-      : v;
 
 /** One of the lists routes' guards (server/people/lists.ts), run as the route runs it: its answer, or its words. */
 function guard<T>(check: () => T): { ok: T } | { refused: string } {
@@ -48,7 +48,7 @@ function guard<T>(check: () => T): { ok: T } | { refused: string } {
 /** A rule the model wrote, read strictly as a stored rule is, its nulls aside; or the refusal in the vocabulary's words. */
 function ruleOf(all: unknown[]): { rule: NonNullable<ReturnType<typeof asListRule>> } | { refusal: string } {
   if (!all.length) return { refusal: "all needs a condition: a list of everyone is Everyone, which People has" };
-  const rule = asListRule({ all: withoutNulls(all) });
+  const rule = asListRule({ all: nullsLeftOut(all) });
   if (!rule)
     return {
       refusal:

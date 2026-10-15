@@ -110,8 +110,8 @@
     "depth": 6
   },
   "apps/dashboard/src/server/ask/sse.ts::parseFrame#1": {
-    "lines": 67,
-    "branches": 41,
+    "lines": 56,
+    "branches": 35,
     "depth": 2
   },
   "apps/dashboard/src/server/ask/tools/act/deal.ts::proposeDeal#1": {
@@ -220,8 +220,8 @@
     "depth": 0
   },
   "packages/contracts/src/ask/ask-suggestions.ts::buildAskSuggestions#1": {
-    "lines": 51,
-    "branches": 40,
+    "lines": 50,
+    "branches": 39,
     "depth": 2
   },
   "packages/contracts/src/calendar/calendar.ts::toCalendarVM#1": {

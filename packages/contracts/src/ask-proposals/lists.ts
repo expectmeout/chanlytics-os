@@ -2,7 +2,17 @@
  * People's lists: a list Ask proposes, kept current by its rule (the Phase 4 plan, D10).
  */
 import { listToken } from "../people/lists/lists";
-import { PEOPLE_CHANGED, PROPOSAL_WORDS, asText, idIn, inBatches, rec, refuseWith, type ProposalSpec } from "./spec";
+import {
+  PEOPLE_CHANGED,
+  PROPOSAL_WORDS,
+  asText,
+  idIn,
+  inBatches,
+  rec,
+  refuseWith,
+  type ProposalSpec,
+  oneOrMany,
+} from "./spec";
 
 /** The most people one request puts on or takes off a list kept by hand (the lists door's LIST_BATCH_MAX). */
 const LIST_PART = 500;
@@ -83,7 +93,7 @@ export const listMemberSpec: ProposalSpec = {
       body: add.length ? { add: ids } : { remove: ids },
       events: [PEOPLE_CHANGED],
     }));
-    return parts.length === 1 ? parts[0] : parts;
+    return oneOrMany(parts);
   },
   receipt: ({ payload: pl }) => {
     const add = idsIn(pl.add);
@@ -111,7 +121,7 @@ export const listMemberSpec: ProposalSpec = {
         body: add.length ? { add: ids } : { remove: ids },
         events: [PEOPLE_CHANGED],
       }));
-      return parts.length === 1 ? parts[0] : parts;
+      return oneOrMany(parts);
     },
     receipt: (_data, u) => (idsIn(u.add).length ? `Back on ${asText(u.name)}` : `Taken off ${asText(u.name)} again`),
   },

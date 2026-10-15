@@ -5,7 +5,7 @@
  * a card commits is on one page here, and every verb here is one Ask proposes or one this file says stays on the page.
  * Pure words and kinds: nothing here reads a workspace.
  */
-import type { AskProposal } from "./ask";
+import type { AskProposal } from "../ask/ask";
 
 type Kind = AskProposal["kind"];
 
@@ -38,7 +38,7 @@ export const ASK_GUIDE_PAGES: readonly GuidePage[] = [
   {
     page: "Today",
     route: "today",
-    for: "Who waits on you right now, replies about to time out, a booking the receptionist asked for (Booked it or Can't), today's calls and visits, and the day's recap.",
+    for: "Who waits on you right now, replies about to time out, a booking the receptionist asked for (Booked it or Can't), today's calls and bookings, and the day's recap.",
     verbs: ["booking_request"],
     pageOnly: [],
   },
