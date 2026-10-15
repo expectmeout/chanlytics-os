@@ -17,7 +17,8 @@ export type { GatewayEvent } from "./sse";
 /** The edge deployment, as service.ts names it for steer and whisper. */
 import { edgeConfigured, edgeHeaders, edgeUrl } from "../edge";
 import { deployment } from "../env";
-import type { EdgeErrorCode, ModelSpeed, ThinkingType } from "@chanlytics/contracts";
+import { isEffortMessage } from "@chanlytics/contracts";
+import type { EdgeErrorCode, ModelEffort, ModelSpeed, SkillCraftPurpose, ThinkingType } from "@chanlytics/contracts";
 
 export interface GatewayCall {
   tenantId: string;
@@ -28,16 +29,25 @@ export interface GatewayCall {
    * themselves. Every purpose may carry a format: Ask's turn answers in
    * ASK_ANSWER_FORMAT.
    */
-  purpose?: "ask" | "ask_warm" | "lead_draft" | "lead_suggest" | "list_draft" | "person_draft" | "sequence_draft";
+  purpose?:
+    | "ask"
+    | "ask_warm"
+    | "lead_draft"
+    | "lead_suggest"
+    | "list_draft"
+    | "person_draft"
+    | "sequence_draft"
+    | SkillCraftPurpose;
   request: {
     model?: string;
     max_tokens: number;
     system: unknown;
+    /** The person's and the model's turns, and an effort said among them (contracts ai/effort.ts: a draft's). */
     messages: unknown[];
     tools?: unknown[];
     tool_choice?: unknown;
     output_config?: {
-      effort?: "low" | "medium" | "high";
+      effort?: ModelEffort;
       format?: { type: "json_schema"; schema: Record<string, unknown> };
     };
     /**
@@ -129,6 +139,33 @@ async function gatewayRefusalOf(res: Response): Promise<GatewayRefusal> {
 const RETRY_PAUSE_MS = 400;
 
 /**
+ * The API's refusal of an effort said in the messages (contracts ai/effort.ts), in its own words: what an edge older
+ * than them makes of one, since it drops the beta they need ("messages.1.output_config: Extra inputs are not
+ * permitted"), or a model that takes none ("requires a model that supports per-turn effort").
+ */
+const EFFORT_REFUSED = /messages\.\d+\.output_config|per-turn effort/;
+
+/**
+ * A request an edge older than the effort messages refused for them, asked again without them: the round runs at the
+ * turn's own effort, and the draft is asked as every other turn is, until the edge that lets them through deploys.
+ * Null for any other refusal, or a request that carried none.
+ */
+function withoutEffort(call: GatewayCall, refusal: GatewayRefusal | null): GatewayCall | null {
+  if (refusal?.kind !== "bad_request" || !EFFORT_REFUSED.test(refusal.message)) return null;
+  if (!call.request.messages.some(isEffortMessage)) return null;
+  const messages = call.request.messages.filter((m) => !isEffortMessage(m));
+  return { ...call, request: { ...call.request, messages } };
+}
+
+const gatewayBody = (call: GatewayCall): string =>
+  JSON.stringify({
+    tenant_id: call.tenantId,
+    user_id: call.userId,
+    purpose: call.purpose ?? "ask",
+    request: call.request,
+  });
+
+/**
  * Open one model round and yield its events as they arrive.
  *
  * Throws GatewayRefused before the first event when the edge would not run
@@ -136,21 +173,19 @@ const RETRY_PAUSE_MS = 400;
  * request, a model that could not be reached); after the stream starts, a
  * broken connection surfaces as an "error" event. A model that could not be
  * reached is asked once more before the refusal is said (the edge has already
- * asked the route's fallback model), unless the turn's own time is up.
+ * asked the route's fallback model), unless the turn's own time is up; a
+ * request refused for its effort messages, once more without them
+ * (withoutEffort).
  */
 export async function* streamModel(call: GatewayCall): AsyncGenerator<GatewayEvent> {
   if (!deployment.providersLive) throw new GatewayRefused({ kind: "preview" });
   if (!edgeConfigured()) throw new GatewayRefused({ kind: "no_key" });
-  const body = JSON.stringify({
-    tenant_id: call.tenantId,
-    user_id: call.userId,
-    purpose: call.purpose ?? "ask",
-    request: call.request,
-  });
+  let sent = call;
   let res: (Response & { body: ReadableStream<Uint8Array> }) | null = null;
   let sentAt = Date.now();
   for (let attempt = 0; !res; attempt++) {
     sentAt = Date.now();
+    const body = gatewayBody(sent);
     let refusal: GatewayRefusal | null = null;
     try {
       const r = await fetch(`${edgeUrl()}/api/admin/llm`, {
@@ -163,6 +198,12 @@ export async function* streamModel(call: GatewayCall): AsyncGenerator<GatewayEve
       else refusal = await gatewayRefusalOf(r);
     } catch (e) {
       refusal = { kind: "unreachable", message: e instanceof Error ? e.message : String(e) };
+    }
+    const plain = withoutEffort(sent, refusal);
+    if (plain) {
+      sent = plain;
+      attempt--;
+      continue;
     }
     if (refusal && (refusal.kind !== "unreachable" || attempt > 0 || call.signal?.aborted))
       throw new GatewayRefused(refusal);

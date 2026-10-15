@@ -65,10 +65,11 @@ export type ThinkingType = (typeof THINKING_TYPES)[number];
 
 /**
  * What each model takes of the settings the gateway lets a request name (Anthropic's model pages and migration guide,
- * read 15 Oct 2026): the thinking types it accepts, and whether it runs fast mode. The port sends a model only what it
- * takes (channels models/anthropic.ts), so a fallback asked with a request written for another model still answers:
- * Opus 5.5's fast request falls back to Sonnet 5 at standard speed, Sonnet 5.5's `between_tools` to Opus 5.5 thinking
- * as it does.
+ * read 15 Oct 2026): the thinking types it accepts, whether it runs fast mode, and whether it takes an effort said in
+ * its messages (ai/effort.ts). The port sends a model only what it takes (channels models/anthropic.ts), so a fallback
+ * asked with a request written for another model still answers: Opus 5.5's fast request falls back to Sonnet 5 at
+ * standard speed, Sonnet 5.5's `between_tools` to Opus 5.5 thinking as it does, and Opus 5.5's effort messages to
+ * Sonnet 5 as the request's own effort.
  *
  * Haiku 5.5 also refuses three things no route sends it: a server-side `fallbacks` list (its refusals have no fallback;
  * the lead judge's `fallbacks: "default"` is taken and does nothing), an assistant prefill (Ask's requests end on the
@@ -78,20 +79,23 @@ export type ThinkingType = (typeof THINKING_TYPES)[number];
 export interface ModelTakes {
   thinking: readonly ThinkingType[];
   fast: boolean;
+  /** An effort message (ai/effort.ts, per-message effort): the API refuses one to a model without ("per-turn effort"). */
+  effortMessages: boolean;
 }
 
 const { OPUS_5_5, OPUS_5, SONNET_5_5, SONNET_5, HAIKU_5_5, HAIKU_4_5 } = MODELS;
 
 export const MODEL_TAKES: Record<ModelId, ModelTakes> = {
   // Thinking can't be turned off on Opus 5.5: effort is its only control.
-  [OPUS_5_5]: { thinking: ["adaptive"], fast: true },
-  [OPUS_5]: { thinking: ["adaptive", "disabled"], fast: true },
-  [SONNET_5_5]: { thinking: ["adaptive", "between_tools"], fast: false },
-  [SONNET_5]: { thinking: ["adaptive", "disabled"], fast: false },
-  // Haiku 5.5 takes `disabled` at effort high or below, which is every effort the gateway lets through.
-  [HAIKU_5_5]: { thinking: ["adaptive", "disabled"], fast: false },
+  [OPUS_5_5]: { thinking: ["adaptive"], fast: true, effortMessages: true },
+  [OPUS_5]: { thinking: ["adaptive", "disabled"], fast: true, effortMessages: true },
+  // Sonnet 5.5 takes an effort message only while it thinks: never beside `between_tools`, which no route sends.
+  [SONNET_5_5]: { thinking: ["adaptive", "between_tools"], fast: false, effortMessages: true },
+  [SONNET_5]: { thinking: ["adaptive", "disabled"], fast: false, effortMessages: false },
+  // Haiku 5.5 takes `disabled` at effort high or below; no route sends it either.
+  [HAIKU_5_5]: { thinking: ["adaptive", "disabled"], fast: false, effortMessages: true },
   // Haiku 4.5 thinks only on a token budget, which no route sends: it runs without.
-  [HAIKU_4_5]: { thinking: ["disabled"], fast: false },
+  [HAIKU_4_5]: { thinking: ["disabled"], fast: false, effortMessages: false },
 };
 
 /** What a model takes; null for one the registry does not list (a variable's), which is sent what it is asked. */
@@ -105,10 +109,11 @@ export function hasFastMode(model: string): boolean {
 }
 
 /**
- * How hard a request asks a model to think (`output_config.effort`): the levels the gateway lets through, which every
- * model the platform asks accepts. Ask's is its deployment's to name (ASK_EFFORT, ask-model.ts).
+ * How hard a request asks a model to think (`output_config.effort`), least first: the levels the gateway lets through,
+ * which every model a route asks accepts. Ask's is its deployment's to name (ASK_EFFORT, ask-model.ts), and a draft's
+ * (ASK_DRAFT_EFFORT); xhigh and max since 15 Oct 2026, for the drafts (the effort sweep: ai/effort.ts).
  */
-export const MODEL_EFFORTS = ["low", "medium", "high"] as const;
+export const MODEL_EFFORTS = ["low", "medium", "high", "xhigh", "max"] as const;
 export type ModelEffort = (typeof MODEL_EFFORTS)[number];
 
 /** Why the platform spends its model key. The usage ledger (ai_usage.purpose) keeps these words. */

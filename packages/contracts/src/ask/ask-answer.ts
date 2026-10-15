@@ -5,7 +5,7 @@
  * answer-format.ts) and the server reads back through normalizeAnswer -- and one rule for the doors it offers. Pure.
  */
 import { ASK_CAPS, type AskMessageVM, type AskProposal } from "./ask";
-import { FOLLOWUP_ECHO, cleanAnswer, navigateLabel, sameQuestion } from "./answer-text";
+import { FOLLOWUP_ECHO, cleanAnswer, firstSentence, navigateLabel, sameQuestion } from "./answer-text";
 import type { AskLanguage } from "./ask-language";
 import { CALENDAR_SETTING_ROUTE } from "../setup/calendar-source";
 import type { FastCall } from "./ask-fast-paths";
@@ -159,6 +159,19 @@ function listLines(l: AskList): string[] {
 export function answerText(a: AskAnswer): string {
   const say = [a.say.headline, a.say.detail].filter(Boolean).join(a.form === "prose" ? "\n" : " ");
   return [say, ...listLines(a.show.list ?? noList())].filter(Boolean).join("\n");
+}
+
+/** The answer as Copy takes it: its words (answerText), then its parts, each figure and each row, a line each. */
+export function answerCopy(a: AskAnswer): string {
+  const b = a.show.breakdown;
+  return [
+    answerText(a),
+    ...(b ? [`${b.total} ${b.label}: ${b.parts.map((p) => `${p.label} ${p.value}`).join(", ")}`] : []),
+    ...a.show.figures.map((f) => `${[f.value, f.label].filter(Boolean).join(" ")}${f.note ? ` (${f.note})` : ""}`),
+    ...a.show.items.map((it) => [it.title, it.meta, it.line].filter(Boolean).join(" · ")),
+  ]
+    .filter(Boolean)
+    .join("\n");
 }
 
 /** Lines said one after another: each ends as a sentence does, so a voice pauses between them. */
@@ -518,10 +531,16 @@ const entry = (v: unknown) =>
 
 /**
  * Say as the Line draws it, the same while it streams (partialSay) and when it lands (normalizeAnswer): the headline
- * one line of words, the detail its own lines (clipLines), each cleaned as every string is and cut at its cap.
+ * its first sentence, on one line of words, and the detail its own lines (clipLines), opening with whatever the
+ * headline said past that sentence; each cleaned as every string is and cut at its cap.
  */
 export function sayAsDrawn(say: { headline?: unknown; detail?: unknown }): { headline: string; detail: string } {
-  return { headline: words(say.headline, C.headline), detail: clipLines(drawnText(say.detail), C.detail) };
+  const [headline, more] = firstSentence(drawnText(say.headline).replace(/\s+/g, " ").trim());
+  const detail = drawnText(say.detail);
+  return {
+    headline: clip(headline, C.headline),
+    detail: clipLines(more && detail ? `${more} ${detail}` : more || detail, C.detail),
+  };
 }
 const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : Number.NaN);
 

@@ -323,6 +323,7 @@ export const LIMITED_TREES = [
   "packages/contracts/src/ads",
   "packages/contracts/src/ai",
   "packages/contracts/src/ask-proposals",
+  "packages/contracts/src/ask-skills",
   "packages/contracts/src/broadcasts",
   "packages/contracts/src/consent",
   "packages/contracts/src/email",

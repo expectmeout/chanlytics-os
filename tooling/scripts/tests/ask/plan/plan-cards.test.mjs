@@ -1138,9 +1138,14 @@ test("an offer's journey and Library read before round 1 are the plan's own read
   const r = await planTurn([PLAN_CALL], { ctx: ahead });
   assert.deepEqual(r.tools, ["sequences.journey", "sequences.messages", "propose_plan.offer"]);
   readerCache.clear();
-  // Words that name nothing to read ahead, the same call.
+  // Words that name nothing to read ahead, the same call. They name no draft either, and a plan begun at the turn's own
+  // effort is set aside and asked again at the draft's (server/ask/effort.ts): this counts the database's asks, so the
+  // draft's effort is off for it.
   const bare = ctxOf(tables());
-  const r2 = await planTurn([PLAN_CALL], { text: "Make it so", ctx: bare });
+  process.env.ASK_DRAFT_EFFORT = "off";
+  const r2 = await planTurn([PLAN_CALL], { text: "Make it so", ctx: bare }).finally(() => {
+    delete process.env.ASK_DRAFT_EFFORT;
+  });
   assert.deepEqual(r2.tools, ["propose_plan.offer"]);
   assert.deepEqual(asked(ahead), asked(bare));
   // The Library and the campaigns whole, which the reads ahead and the plan share, were asked once (a step's own read of

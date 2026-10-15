@@ -2,7 +2,6 @@ import "server-only";
 import {
   ASK_ANSWER_FORMAT,
   ASK_MAX_ROUNDS,
-  ASK_MAX_TOKENS,
   ASK_SPOKEN_TURN_BUDGET_MS,
   ASK_TURN_BUDGET_MS,
   answerForCards,
@@ -25,7 +24,7 @@ import {
   type PageContext,
   type PlanLead,
 } from "@chanlytics/contracts";
-import type { AskModelProfile, MembershipRole } from "@chanlytics/contracts";
+import type { AskModelProfile, EffortMessage, MembershipRole } from "@chanlytics/contracts";
 import type { RouteContext } from "../with-route";
 import { load, type ReaderContext } from "../readers";
 import { log } from "@/server/log";
@@ -47,8 +46,9 @@ import { stableSystem, systemBlocks, systemHash, turnWords, type WorkspaceFacts 
 import { buildContext, shapeBlock, type BuiltContext, type SearchResultBlock } from "./context";
 import { crossPagePlan, readBlock, scopedRead } from "./cross-page";
 import { shape as shapeReader } from "../readers/shape";
-import { replayBlocks, resultBlocks, runRound, type RoundBlock } from "./round";
+import { argsOf, replayBlocks, resultBlocks, runRound, type RoundBlock } from "./round";
 import { askModel } from "./model";
+import { turnEffort } from "./effort";
 import { foldHistory, replayFor, withMarkers, type Chain, type RawTurn, type TurnEnd } from "./memory";
 import { finishTurn, turnMeter } from "./turn-end";
 
@@ -70,7 +70,8 @@ import { finishTurn, turnMeter } from "./turn-end";
 
 // The whole round -- the model's thinking, every tool call it makes and, when
 // it answers in the same round, the answer itself -- fits in ASK_MAX_TOKENS
-// (contracts), the one number the edge also clamps Ask to. An act tool's
+// (contracts), the one number the edge also clamps Ask to; a draft's round,
+// asked harder, in ASK_DRAFT_MAX_TOKENS (effort.ts, askRoundCap). An act tool's
 // arguments are long -- propose_lead_search alone writes a who, a where, up to
 // five terms, six criteria and six exclusions -- and at 1200 the stream reached
 // the cap in the MIDDLE of that JSON. A cut-off tool call is not a smaller tool
@@ -163,8 +164,8 @@ export interface TurnResult {
   raw: RawTurn | null;
 }
 
-/** A message as a request carries it. */
-export type Msg = { role: "user" | "assistant"; content: unknown };
+/** A message as a request carries it: the person's or the model's, or an effort said between them (effort.ts). */
+export type Msg = { role: "user" | "assistant"; content: unknown } | EffortMessage;
 
 /**
  * Everything the turn reaches outside itself, as one object: the model
@@ -343,6 +344,8 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
   let reads = 0;
   // Where the time went and what the model was fed (AskTurnShape, turn-end.ts): only the loop sees all of it.
   const meter = turnMeter(t0);
+  // How hard each round is asked: the turn's own effort, or a draft's, said in its messages (effort.ts).
+  const effort = turnEffort(model, input, meter);
 
   // Before the model is asked, in parallel (the Phase 2 plan, PR 2.4): the page the person is on (context.ts: the
   // warm's build if it is kept, else a build now), the shape of the workspace, the reads the question names of another
@@ -418,7 +421,7 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
   // A round's request: its messages a copy with the cache's markers (withMarkers), at `at` and on its last block.
   const requestOf = (msgs: Msg[], at: unknown, last: boolean) => ({
     ...(head.speed ? { model: head.model, speed: head.speed } : { model: head.model }),
-    max_tokens: ASK_MAX_TOKENS,
+    ...effort.of(msgs),
     system,
     messages: withMarkers(msgs, at),
     tools,
@@ -441,6 +444,7 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
   let live = !!replayed;
   // Where the question sits in every request of the turn: a later round only appends.
   let questionAt = messages.length - 1;
+  effort.open(messages);
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), budgetMs);
 
@@ -507,25 +511,7 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
     input.emit({ t: "say", headline: "", detail: "" });
   };
 
-  /**
-   * A tool call's arguments, or null when they did not arrive whole.
-   *
-   * `parseInput` answers {} for JSON it cannot read, which is the right shape
-   * but the wrong fact: every required field then looks missing, and the model
-   * is told "the plan is not complete: looking_for Required" about a field it
-   * had just written. It reads that as its own mistake -- on the lead finder it
-   * told the owner it "hit a formatting snag" and gave up -- when what happened
-   * is that the round hit max_tokens mid-argument. Say that instead, so the
-   * retry is a shorter call rather than a guess at a field that was never wrong.
-   */
-  const argsOf = (b: RoundBlock): Record<string, unknown> | null => {
-    if (!b.json) return {};
-    try {
-      return JSON.parse(b.json) as Record<string, unknown>;
-    } catch {
-      return null;
-    }
-  };
+  // A call whose arguments did not arrive whole (round.ts argsOf): the round hit its cap mid-argument, and is told so.
   const cutOff = (b: RoundBlock) => {
     log.error("ask_tool_input_cut_off", { tool: b.name, bytes: b.json.length, tenant_id: input.tenantId });
     return {
@@ -599,6 +585,7 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
               ({ messages, anchor, words } = cold());
               live = false;
               questionAt = messages.length - 1;
+              effort.open(messages);
             } else if (drop === "context") {
               dataDropped = true;
               reads -= (pageRead ? 1 : 0) + prefetched.length + (scopedRow ? 1 : 0);
@@ -641,24 +628,20 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
           round,
         );
       }
-      // The cap was reached. Whatever this round produced may be half-written,
-      // and a tool call or an answer that is half-written does not parse at
-      // all; it is caught where it is used (argsOf, normalizeAnswer), but it is
-      // recorded here, because a turn that keeps hitting the cap is a budget
-      // that is too small and not a model that keeps changing its mind.
-      if (stopReason === "max_tokens") {
-        meter.capHits++;
-        log.error("ask_round_hit_cap", {
-          round,
-          tools: blocks.filter((b) => b.type === "tool_use").map((b) => calledName(b.name, argsOf(b))),
-          tenant_id: input.tenantId,
-        });
-      }
+      // The cap was reached: what the round wrote may be half-written, and it is recorded (turn-end.ts capped).
+      meter.capped(stopReason, round, blocks, input.tenantId);
       if (stopReason === "refusal") {
         return fail(es ? "No puedo responder a eso aquí." : "I can't answer that here.", "refusal", round);
       }
 
       const calls = blocks.filter((b) => b.type === "tool_use");
+      // A draft begun at the turn's own effort is set aside, its calls unrun, and the round asked again at the draft's
+      // (effort.ts): the question did not say it was one.
+      if (effort.redraft(calls, messages)) {
+        unsay();
+        round--;
+        continue;
+      }
       const acts = calls.filter((b) => ACT_TOOL_NAMES.has(b.name));
       const text = blocks
         .filter((b) => b.type === "text")
