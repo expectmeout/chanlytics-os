@@ -2879,7 +2879,7 @@ test("a reminder asks its appointment again at the send: one cancelled, or gone 
       ["k4", "sent", null],
     ],
   );
-  assert.equal(HELD_REASONS.appointment_changed, "their appointment moved or was cancelled");
+  assert.equal(HELD_REASONS.appointment_changed, "their booking moved or was cancelled");
 
   // Gone from the calendar, or moved, at a read after the run's: held too.
   for (const row of [

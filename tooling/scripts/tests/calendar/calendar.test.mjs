@@ -184,7 +184,7 @@ test("the week as the page draws it: hours with air, bands where closed, blocks 
   assert.equal(vm.feed.line, "From your calendar · read 2m ago · 4 events");
   assert.equal(
     vm.rules,
-    "Offers times with at least 2h notice · 15 min between appointments · up to 14 days ahead · 30-min slots",
+    "Offers times with at least 2h notice · 15 min between bookings · up to 14 days ahead · 30-min slots",
   );
   assert.equal(vm.bookingLink, "https://book.example.com/marisas");
 });

@@ -40,13 +40,16 @@ export const ALWAYS = [`${TESTS}/repo`, `${TESTS}/types`, `${TESTS}/docs`, `${TE
 /**
  * Paths whose tests live in folders their names do not say, each with those folders: the prompt's composer is proved
  * where each channel reads what it composes, the answer verb through the doors that call it, and the campaign runner
- * where playbooks and broadcasts run. Until 11 Oct 2026 each selected no test, so a change to what the receptionist
- * reads on every message ran only the rules on its pull request.
+ * where playbooks and broadcasts run, and a list rule's fields where Ask's list tool hands them to the model (its bytes
+ * frozen per role in fixtures/ask-tools-4-7.json). Until 11 Oct 2026 each selected no test, so a change to what the
+ * receptionist reads on every message ran only the rules on its pull request; #1612 reworded a list field's line and
+ * nothing ran the freeze (16 Oct 2026).
  */
 export const TESTED_IN = {
   "packages/contracts/src/config/workspace-config/": ["receptionist", "whatsapp", "voice", "calendar", "sms"],
   "packages/core/src/inbound/": ["whatsapp", "sms", "email", "intake", "receptionist", "conversations"],
   "packages/core/src/campaigns/": ["playbooks", "broadcasts"],
+  "packages/contracts/src/people/lists/": ["ask"],
 };
 
 /**
@@ -62,6 +65,17 @@ export const READ_BY = {
     ...READER_SCOPE.map((tree) => `${tree}/`),
     `${TESTS}/_source.mjs`,
     `${TESTS}/baselines/appointment-words.json`,
+  ],
+  // One page, one word: each page's words for an appointment, run from the modules that make them (16 Oct 2026).
+  [`${TESTS}/journey/one-page-one-word.test.mjs`]: [
+    "packages/contracts/src/reports/",
+    "packages/contracts/src/calendar/",
+    "packages/contracts/src/setup/",
+    "packages/contracts/src/people/",
+    "packages/contracts/src/config/",
+    "packages/contracts/src/ask/",
+    "packages/contracts/src/workspace/",
+    "packages/contracts/src/broadcasts/",
   ],
   [`${TESTS}/shell/hearing`]: [
     ...[...TRACED, "apps/dashboard/src", "packages/contracts/src"].map((tree) => `${tree}/`),

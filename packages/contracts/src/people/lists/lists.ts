@@ -128,14 +128,14 @@ export const BUILTIN_LISTS: readonly BuiltinSpec[] = [
   {
     id: "booked_week",
     label: "Booked this week",
-    tip: "An appointment this week, Monday to Sunday",
+    tip: "Booked this week, Monday to Sunday",
     group: "journey",
     rule: r({ field: "next_visit", op: "this_week" }),
   },
   {
     id: "booked",
     label: "Booked",
-    tip: "An appointment ahead on your calendar — the booking is the conversion",
+    tip: "Something ahead on your calendar — the booking is the conversion",
     group: "journey",
     rule: r({ field: "booked", op: "is", yes: true }),
   },

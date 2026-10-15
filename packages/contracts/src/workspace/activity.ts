@@ -202,7 +202,7 @@ const WORDS: Record<string, string> = {
   "contact.erased": "A person was erased",
   "contact.merged": "Two records of one person became one",
   "person.resolved": "A door resolved who a person is",
-  "appointment.changed": "An appointment on the calendar changed",
+  "appointment.changed": "A booking on the calendar changed",
   // Retired with the Blob store (00151): nothing writes it, but rows written before survive in `events` and still need their sentence.
   "contact.blob_erased": "A person's stored thread was erased",
   "conversation.reopened": "A thread reopened",

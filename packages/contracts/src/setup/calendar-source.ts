@@ -388,12 +388,12 @@ export function calendarLinkShown(withWhat: string, held: boolean): "shown" | "o
 export function calendarLinkNote(withWhat: string, bookingLink: boolean): string {
   if (!withWhat) return "";
   if (withWhat === BOOKS_BY_HAND) return `Nothing to connect. ${noTimesWords(bookingLink)}`;
-  if (withWhat === BOOKS_WITH_CALENDAR) return "Paste the private address of the calendar your appointments land in.";
+  if (withWhat === BOOKS_WITH_CALENDAR) return "Paste the private address of the calendar your bookings land in.";
   const tool = bookingToolName(withWhat) ?? "Your tool";
   const kind = bookingToolCalendar(withWhat);
   if (kind === "none") return `${tool} offers no calendar link. ${noTimesWords(bookingLink)}`;
   if (kind === "own") return `${tool} offers a calendar link of its own. Paste it here.`;
   if (kind === "writes")
-    return `${tool} writes your appointments into your own calendar. Paste that calendar's private address here.`;
+    return `${tool} writes your bookings into your own calendar. Paste that calendar's private address here.`;
   return `If ${tool} offers a calendar link, or writes into your own calendar, paste that address here.`;
 }

@@ -197,7 +197,7 @@ export const BtaLanguages = ({
 // switch stood for one fact).
 const BTA_RULES: [GuardrailKey, string, string][] = [
   ["never_quote_prices", "Never quote a price", "Never quotes a price"],
-  ["never_confirm_booking", "Never confirm an appointment", "Never confirms a booking"],
+  ["never_confirm_booking", "Never confirm a booking", "Never confirms a booking"],
   ["disclose_ai", "Says it's an automated assistant", "Says it's an assistant"],
   ["no_health_advice", "No health advice", "No health advice"],
 ];

@@ -1370,8 +1370,8 @@ test("asked, then booked: the report's one conversion line, in words that say wh
     present: true,
     calendar: "ok",
     headline: "12 of 40 booked",
-    sub: "30% of the people who wrote or called in the last 30 days have an appointment on the calendar",
-    words: "of the people who wrote or called in the last 30 days have an appointment on the calendar",
+    sub: "30% of the people who wrote or called in the last 30 days have booked",
+    words: "of the people who wrote or called in the last 30 days have booked",
     pct: 30,
     asked: 40,
     booked: 12,
@@ -1392,16 +1392,16 @@ test("asked, then booked: the report's one conversion line, in words that say wh
       toBookingReportVM({ calendar: "ok", days: 7, asked: 3, booked: 3 }).unbooked,
       toBookingReportVM({ calendar: "ok", days: 7, asked: 3, booked: 3 }).rest,
     ],
-    [0, "Everyone who asked in the last 7 days has an appointment."],
+    [0, "Everyone who asked in the last 7 days has booked."],
   );
   // One day (Month on the 1st): "1 day", never "1 days", in each place the card names its period.
   assert.equal(
     toBookingReportVM({ calendar: "ok", days: 1, asked: 2, booked: 1 }).words,
-    "of the people who wrote or called in the last 1 day have an appointment on the calendar",
+    "of the people who wrote or called in the last 1 day have booked",
   );
   assert.equal(
     toBookingReportVM({ calendar: "ok", days: 1, asked: 3, booked: 3 }).rest,
-    "Everyone who asked in the last 1 day has an appointment.",
+    "Everyone who asked in the last 1 day has booked.",
   );
   assert.equal(
     toBookingReportVM({ calendar: "ok", days: 1, asked: 0, booked: 0 }).sub,
@@ -1847,7 +1847,7 @@ test("the journey from visits: Booked this week and Lapsed, in three groups; eac
   assert.deepEqual([answeredNoNumber.to, answeredNoNumber.enabled], ["broadcasts/offers_ok", false]);
   assert.match(answeredNoNumber.text, /a recorded yes with a number to send to/);
   assert.deepEqual(peopleListAction("booked_week", [week]), {
-    text: "Their appointments are on the Calendar.",
+    text: "Their bookings are on the Calendar.",
     cta: "See the week",
     to: "calendar",
     enabled: true,
