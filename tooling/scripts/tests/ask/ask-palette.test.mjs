@@ -14,7 +14,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { legacyAddress } from "../shell/address/_address.mjs";
 import { kitPages, useStubHooks } from "../_legacy-react.mjs";
-import { MODEL_QUESTIONS, QUICK_FORMS } from "./_quick-questions.mjs";
+import { MODEL_QUESTIONS, QUICK_FORMS } from "./quick-path/_questions.mjs";
 import {
   PROPOSAL_GATE,
   ROLE_PERMS,

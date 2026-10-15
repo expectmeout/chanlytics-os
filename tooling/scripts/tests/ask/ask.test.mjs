@@ -50,7 +50,7 @@ import {
 } from "@chanlytics/contracts";
 import { readCode, readRaw } from "../_source.mjs";
 import { fromContext } from "../../eval-ask-context.mjs";
-import { MODEL_QUESTIONS, QUICK_FORMS } from "./_quick-questions.mjs";
+import { MODEL_QUESTIONS, QUICK_FORMS } from "./quick-path/_questions.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
