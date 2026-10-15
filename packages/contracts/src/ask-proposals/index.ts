@@ -1,14 +1,12 @@
-/** The cards Ask proposes, one spec per kind (Ask Rewired, Phase 3, D6): what proposals.ts says, and each family's spec. */
-export {
-  PROPOSAL_SPECS,
-  ASK_SENDS,
-  proposalSpec,
-  verbSpec,
-  proposalBelowNeeds,
-  PROPOSAL_GATE,
-  askUndoOpen,
-} from "./proposals";
-export type { ProposalKindAboveOperator, VerbKind } from "./proposals";
+/**
+ * The cards Ask proposes, one spec per kind (Ask Rewired, Phase 3, D6): the whole table (proposals.ts), the verbs the
+ * pages press and the readings of a spec (page-specs.ts), and each family's spec. Ask's own kinds come by their own
+ * entry (`@chanlytics/contracts/ask-only`).
+ */
+export { PROPOSAL_SPECS, ASK_SENDS, proposalBelowNeeds } from "./proposals";
+export { PROPOSAL_GATE, addProposalSpecs, askUndoOpen, cardOpenRoute, proposalSpec, verbSpec } from "./page-specs";
+export type { ProposalKindAboveOperator } from "./proposals";
+export type { VerbKind } from "./page-specs";
 export { ASK_THREAD_ROUTES } from "./inbox";
 export {
   RUN_VERBS,

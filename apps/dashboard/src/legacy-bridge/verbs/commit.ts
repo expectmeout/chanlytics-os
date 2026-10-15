@@ -2,7 +2,9 @@
  * One act, committed through its verb's spec, whichever hand pressed it: a sheet's Save, a bulk bar's press, or Ask's
  * card (legacy-bridge/ask/commit.ts walks a card through the same `sendCall`). What each verb does -- its door, the body
  * it sends, a second call (a deal's next step), the window events, the receipt and what its undo keeps and sends -- is
- * its spec's (contracts PROPOSAL_SPECS); this module only walks it (the sheets as verbs, 14 Oct 2026).
+ * its spec's (contracts PROPOSAL_SPECS); this module only walks it (the sheets as verbs, 14 Oct 2026). A page's bundle
+ * carries the specs of the verbs a page presses; the cards only Ask proposes come by their own entry, loaded once, when
+ * Ask is installed or the first of them is walked (`moreSpecs`).
  *
  * Every call goes through the typed client as one intent (decision 0035: `once`, a press again before it lands is the
  * same request, which the server answers once), unless a card's own key names it; the moment the door takes it, what
@@ -20,9 +22,11 @@
  */
 import {
   PROPOSAL_WORDS,
+  addProposalSpecs,
   refusalOf,
   verbSpec,
   type ProposalCall,
+  type ProposalSpec,
   type ProposalRefusal,
   type ProposalTab,
   type ProposalThen,
@@ -171,13 +175,37 @@ async function sendThen(
   return n.ok ? { ok: true } : { ok: false, message: n.message };
 }
 
+/** The load of Ask's own cards (contracts ask-only.ts), once: again after one that failed. */
+let moreLoad: Promise<void> | null = null;
+
+/** Ask's own cards into the specs (contracts addProposalSpecs), by their own entry: a page's bundle carries none. */
+export function moreSpecs(): Promise<void> {
+  moreLoad ??= import("@chanlytics/contracts/ask-only").then(
+    (m) => addProposalSpecs(m.ASK_ONLY_SPECS),
+    (e: unknown) => {
+      moreLoad = null;
+      throw e;
+    },
+  );
+  return moreLoad;
+}
+
+/**
+ * A verb's spec, Ask's own cards loaded first where it is none of the pages'; null for a kind no card has. Its spec
+ * comes back in a box: a spec has a `then` (a deal's next step), which an awaited value would be taken for.
+ */
+export async function specOf(kind: string): Promise<{ spec: ProposalSpec | null }> {
+  if (!verbSpec(kind)) await moreSpecs().catch(() => undefined);
+  return { spec: verbSpec(kind) };
+}
+
 /**
  * Walk one act: its spec's calls (refused here, unsent, where its body is not its door's), the window told, the second
  * call where its spec makes one, and the receipt, what its undo keeps and the id it made. Ask's commit hands a card
  * here after its own checks (fresh, its plan's steps).
  */
 export async function walkVerb(card: VerbCard, use: VerbUse = {}): Promise<VerbResult> {
-  const spec = verbSpec(card.kind);
+  const { spec } = await specOf(card.kind);
   if (!spec) return refusedHere(PROPOSAL_WORDS.cannotApprove);
   const win = use.win ?? window;
   const client = use.client ?? apiFor(win);
@@ -217,7 +245,7 @@ export async function undoVerb(
   record: Record<string, unknown>,
   use: VerbUse = {},
 ): Promise<UndoDone | ApiRefusal> {
-  const undo = verbSpec(kind)?.undo;
+  const undo = (await specOf(kind)).spec?.undo;
   if (!undo) return refusedHere(PROPOSAL_WORDS.noUndo);
   const win = use.win ?? window;
   const client = use.client ?? apiFor(win);

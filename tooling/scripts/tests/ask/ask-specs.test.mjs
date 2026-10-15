@@ -652,7 +652,8 @@ test("Ask's new campaign opens its drawer once it is made, by the id the route a
 });
 
 test("every kind has a spec -- the twenty-one Ask proposed and every page's verb the operator made a card -- and every route a spec names is a route the app has", () => {
-  assert.deepEqual(Object.keys(PROPOSAL_SPECS), KINDS.slice(0, -1));
+  // The table is the pages' verbs and then the kinds only Ask's cards commit (page-specs.ts, ask-only.ts): every kind, once.
+  assert.deepEqual(Object.keys(PROPOSAL_SPECS).sort(), KINDS.slice(0, -1).sort());
   const named = Object.fromEntries(
     Object.keys(PROPOSAL_SPECS).map((k) => [k, [...new Set(routesOf(k).map((x) => x.route))].sort()]),
   );
@@ -752,19 +753,20 @@ test("a spec's `needs` is the policy role of every route it names; the exception
   assert.deepEqual(
     Object.entries(PROPOSAL_SPECS)
       .filter(([, s]) => s.needs !== "operator")
-      .map(([k, s]) => [k, s.needs]),
+      .map(([k, s]) => [k, s.needs])
+      .sort(([a], [b]) => a.localeCompare(b)),
     [
-      ["person_mode", "owner"],
-      ["settings", "partner"],
       ["invite", "owner"],
-      ["lead_search", "partner"],
-      ["people_search", "partner"],
-      ["person_mode_many", "owner"],
-      ["person_merge", "owner"],
-      ["lead_mark", "partner"],
-      ["leads_check", "partner"],
       ["lead_addressee", "partner"],
+      ["lead_mark", "partner"],
+      ["lead_search", "partner"],
       ["lead_search_more", "partner"],
+      ["leads_check", "partner"],
+      ["people_search", "partner"],
+      ["person_merge", "owner"],
+      ["person_mode", "owner"],
+      ["person_mode_many", "owner"],
+      ["settings", "partner"],
     ],
   );
   for (const [kind, spec] of Object.entries(PROPOSAL_SPECS))

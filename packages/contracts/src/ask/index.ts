@@ -84,7 +84,6 @@ export type { AskWaiting } from "./ask-waiting";
 export type { AskModelProfile } from "./ask-model";
 export {
   answerText,
-  cardOpenRoute,
   oneDoor,
   answerFromV1,
   needsAnswer,

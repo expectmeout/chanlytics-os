@@ -17,7 +17,7 @@ import {
   type AskCitationKind,
   type AskReadSet,
 } from "./citations";
-import { PROPOSAL_SPECS, proposalSpec } from "../ask-proposals/proposals";
+import { cardOpenRoute } from "../ask-proposals/page-specs";
 import { planCountWords } from "./plan-steps";
 import { rightNowCounts, rightNowLine, type AskWaiting } from "./ask-waiting";
 import { canonicalRoute } from "../shell/address";
@@ -113,16 +113,6 @@ export function answerText(a: AskAnswer): string {
 }
 
 /* ------------------------------------------------------------- one door */
-
-/**
- * Where a card's Open goes, or null for the kinds that have none (a reply, a rewrite, a whisper, an invite): its
- * spec's `open` (ask-proposals/). A lead search's, once approved, is the search the commit made. A kind no card has
- * opens the thread its payload names, as a thread card does.
- */
-export function cardOpenRoute(p: Pick<AskProposal, "kind" | "payload" | "outcome">): string | null {
-  const card = { payload: (p.payload ?? {}) as Record<string, unknown> };
-  return (proposalSpec(p.kind) ?? PROPOSAL_SPECS.thread_verb).open(card, p.outcome ?? null);
-}
 
 function nextQuestions(next: string[], places: string[]): string[] {
   const out: string[] = [];

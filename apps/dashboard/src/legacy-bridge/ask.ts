@@ -39,6 +39,7 @@ import {
   type UndoResult,
 } from "./ask/commit";
 import { askPalette, quickAnswer } from "./ask/palette";
+import { moreSpecs } from "./verbs/commit";
 import { askSpeech, type SpeechPurpose } from "./ask/speech";
 import { askAloud } from "./ask/aloud";
 import { installVoice } from "./ask/voice";
@@ -135,6 +136,10 @@ export function oneVoice(
 }
 
 export function installAsk(win: Window = window, storage: Storage | null = safeStorage()): AskApi {
+  // The kinds only Ask's cards commit come by their own entry (contracts ask-only.ts), loaded now; a turn and a thread
+  // are handed over once it is in, so every card draws its gate, its undo and its Open (a load that fails leaves the
+  // pages' kinds alone, and a card of the others commits after the walk has tried again).
+  const specsIn = moreSpecs().catch(() => undefined);
   const palette = askPalette(win, storage);
   const api = askApi(apiFor(win));
   // Reading aloud in Ask's voice (ask/speech.ts: the clip from the speech route, played by one element of the module's)
@@ -158,13 +163,14 @@ export function installAsk(win: Window = window, storage: Storage | null = safeS
   }
   const send: AskApiCalls["send"] = (input, on) => {
     palette.rememberLanguage(palette.language(input.text));
-    return api.send(input, on);
+    return specsIn.then(() => api.send(input, on));
   };
+  const thread: AskApiCalls["thread"] = (...args) => specsIn.then(() => api.thread(...args));
   // A question spoken to the agent is a turn like a typed one (ask/spoken.ts): the same events, and its language kept.
   const spoken = spokenTurns(voice, api);
   const sendSpoken: typeof spoken.sendSpoken = (input, words, on) => {
     palette.rememberLanguage(palette.language(words));
-    return spoken.sendSpoken(input, words, on);
+    return specsIn.then(() => spoken.sendSpoken(input, words, on));
   };
   const ask: AskApi = {
     ...palette,
@@ -173,6 +179,7 @@ export function installAsk(win: Window = window, storage: Storage | null = safeS
     ...askAloud(speech),
     ...voice,
     send,
+    thread,
     sendSpoken,
     commit: (p, cards = []) => commitCard(win, p, cards),
     commitPlan: (cards) => commitPlan(win, cards),
