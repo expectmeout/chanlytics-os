@@ -173,8 +173,8 @@ const SILENT: Record<StepKind, boolean> = {
 /** Each stage of the journey, as a sentence about when it sends says it. */
 const STAGE_WORDS: Record<JourneyStageId, string> = {
   first_contact: "at first contact",
-  before: "the day before an appointment",
-  after: "the day after an appointment",
+  before: "the day before a booked time",
+  after: "the day after a booked time",
   proposal: "while a proposal waits",
   quiet: "once they go quiet",
 };

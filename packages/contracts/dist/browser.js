@@ -2107,7 +2107,7 @@ var BOOKING_TOOL_STEPS = {
   acuity: {
     way: "recipient",
     steps: [
-      "In Acuity, open the calendar your appointments land on, then Calendar notifications.",
+      "In Acuity, open the calendar your bookings land on, then Calendar notifications.",
       "Under \u201CSend booking notifications to\u201D, add the address above beside your own."
     ]
   },
@@ -2190,7 +2190,7 @@ var NOTICE_HOLD_WORDS = {
   unreadable: "It could not be read as a booking.",
   // Kept on the ledger and set aside, never held: nobody is asked to look at a tool's receipt or its newsletter.
   not_a_booking: "It is from your booking tool, but not about one booking.",
-  no_time: "No appointment time could be read from it.",
+  no_time: "No time for the booking could be read from it.",
   no_client: "No client could be read from it.",
   gone: "The email was gone before it could be read."
 };
@@ -4165,7 +4165,7 @@ var HELD_REASONS = {
   missing_value: "a value was missing",
   // A reminder's appointment moved, was cancelled or marked missed, or left the calendar between the run and the send
   // (calendar/feed-appointments.ts appointmentHolds): held, never sent for a time that no longer stands.
-  appointment_changed: "their appointment moved or was cancelled",
+  appointment_changed: "their booking moved or was cancelled",
   // Spelled out rather than computed from OUTCOME_UNKNOWN: a computed key makes
   // this object opaque to the bundler, which then carries the whole map into
   // every package that imports anything from here. core-broadcast.test.mjs
@@ -8292,7 +8292,7 @@ var WORDS = {
   "contact.erased": "A person was erased",
   "contact.merged": "Two records of one person became one",
   "person.resolved": "A door resolved who a person is",
-  "appointment.changed": "An appointment on the calendar changed",
+  "appointment.changed": "A booking on the calendar changed",
   // Retired with the Blob store (00151): nothing writes it, but rows written before survive in `events` and still need their sentence.
   "contact.blob_erased": "A person's stored thread was erased",
   "conversation.reopened": "A thread reopened",
@@ -10369,14 +10369,14 @@ var BUILTIN_LISTS = [
   {
     id: "booked_week",
     label: "Booked this week",
-    tip: "An appointment this week, Monday to Sunday",
+    tip: "Booked this week, Monday to Sunday",
     group: "journey",
     rule: r({ field: "next_visit", op: "this_week" })
   },
   {
     id: "booked",
     label: "Booked",
-    tip: "An appointment ahead on your calendar \u2014 the booking is the conversion",
+    tip: "Something ahead on your calendar \u2014 the booking is the conversion",
     group: "journey",
     rule: r({ field: "booked", op: "is", yes: true })
   },
@@ -13338,7 +13338,7 @@ function readAgoLabel(iso, now) {
 function ruleParts(rules) {
   const r2 = { ...BOOKING_DEFAULTS, ...rules ?? {} };
   const parts2 = [`at least ${r2.lead_hours}h notice`];
-  if (r2.buffer_min > 0) parts2.push(`${r2.buffer_min} min between appointments`);
+  if (r2.buffer_min > 0) parts2.push(`${r2.buffer_min} min between bookings`);
   parts2.push(`up to ${r2.max_days_ahead} days ahead`, `${r2.slot_min}-min slots`);
   if (rules?.party_max)
     parts2.push(`up to ${rules.party_max} ${rules.party_max === 1 ? "person" : "people"} per booking`);
@@ -13621,13 +13621,13 @@ function calendarLinkShown(withWhat, held) {
 function calendarLinkNote(withWhat, bookingLink) {
   if (!withWhat) return "";
   if (withWhat === BOOKS_BY_HAND) return `Nothing to connect. ${noTimesWords(bookingLink)}`;
-  if (withWhat === BOOKS_WITH_CALENDAR) return "Paste the private address of the calendar your appointments land in.";
+  if (withWhat === BOOKS_WITH_CALENDAR) return "Paste the private address of the calendar your bookings land in.";
   const tool = bookingToolName(withWhat) ?? "Your tool";
   const kind = bookingToolCalendar(withWhat);
   if (kind === "none") return `${tool} offers no calendar link. ${noTimesWords(bookingLink)}`;
   if (kind === "own") return `${tool} offers a calendar link of its own. Paste it here.`;
   if (kind === "writes")
-    return `${tool} writes your appointments into your own calendar. Paste that calendar's private address here.`;
+    return `${tool} writes your bookings into your own calendar. Paste that calendar's private address here.`;
   return `If ${tool} offers a calendar link, or writes into your own calendar, paste that address here.`;
 }
 
@@ -19326,7 +19326,7 @@ var LIST_STEPS = {
     text: "Their yes to offers is the phrase and the QR under Get their yes in Sent.",
     answered: { cta: USE_IN_A_BROADCAST, to: "broadcasts/new_week" }
   },
-  booked_week: { cta: "See the week", to: "calendar", text: "Their appointments are on the Calendar." },
+  booked_week: { cta: "See the week", to: "calendar", text: "Their bookings are on the Calendar." },
   asked_never_booked: { cta: "Text the booking link", to: "broadcasts/asked_never_booked", broadcast: true },
   // "Bring them back", never "Win them back": Win-back is the playbook for the quiet (quiet_30), and this list has its
   // own, named Lapsed.
@@ -19885,7 +19885,7 @@ var KIND_WORDS = {
     playbook: "Campaign",
     template: "Template",
     mailbox: "Mailbox",
-    visit: "Appointment",
+    visit: "Booking",
     review: "Review"
   },
   es: {
@@ -21950,8 +21950,8 @@ var SILENT = {
 };
 var STAGE_WORDS = {
   first_contact: "at first contact",
-  before: "the day before an appointment",
-  after: "the day after an appointment",
+  before: "the day before a booked time",
+  after: "the day after a booked time",
   proposal: "while a proposal waits",
   quiet: "once they go quiet"
 };
@@ -24347,14 +24347,14 @@ var FEED_GUIDES = [
     name: "Google Calendar",
     steps: [
       "On a computer, open Google Calendar and go to Settings.",
-      "Under \u201CSettings for my calendars\u201D, pick the calendar your appointments land in.",
+      "Under \u201CSettings for my calendars\u201D, pick the calendar your bookings land in.",
       "Open \u201CIntegrate calendar\u201D and copy \u201CSecret address in iCal format\u201D."
     ]
   },
   {
     name: "Apple Calendar (iCloud)",
     steps: [
-      "In the Calendar app, open Calendars and press \u24D8 beside the calendar your appointments land in.",
+      "In the Calendar app, open Calendars and press \u24D8 beside the calendar your bookings land in.",
       "Turn on Public Calendar, then Share Link, and copy it."
     ]
   },
@@ -24370,7 +24370,7 @@ var FEED_GUIDES = [
 var FEED_CHECK_WORDS = {
   guide: "Where do I find it?",
   reading: "Reading it\u2026",
-  read: (events, next) => events === 0 ? "Read it: it's empty so far. Your receptionist will see new appointments as they land." : `Read it: ${events} ${events === 1 ? "event" : "events"}, ${next ? `the next ${next}` : "none in the next 30 days"}.`
+  read: (events, next) => events === 0 ? "Read it: it's empty so far. Your receptionist will see new bookings as they land." : `Read it: ${events} ${events === 1 ? "event" : "events"}, ${next ? `the next ${next}` : "none in the next 30 days"}.`
 };
 var FEED_MAX_BYTES = 2e6;
 function feedProblemWords(reason, status) {
@@ -27088,8 +27088,8 @@ function abilityRows(i) {
 var CANNOT_ROWS = [
   {
     id: "book",
-    title: "Book, move or cancel an appointment",
-    detail: "Not a setting you could switch on. Nothing in this product can create, move or cancel an appointment: it only records the ones your booking tool reports. Your booking link does that, whichever tool is behind it."
+    title: "Make, move or cancel a booking",
+    detail: "Not a setting you could switch on. Nothing in this product can make, move or cancel a booking: it only records the ones your booking tool reports. Your booking link does that, whichever tool is behind it."
   },
   {
     id: "outbound_call",
@@ -27105,7 +27105,7 @@ var CANNOT_ROWS = [
   }
 ];
 var CANNOT_NO_LINK = {
-  book: "Not a setting you could switch on. Nothing in this product can create, move or cancel an appointment. Your team does that, from the details it takes.",
+  book: "Not a setting you could switch on. Nothing in this product can make, move or cancel a booking. Your team does that, from the details it takes.",
   sms: "Not part of what is sold yet. It arrives with a line the carriers have approved, and Connections will say when."
 };
 function cannotRows(i) {
@@ -27134,7 +27134,7 @@ function bookingRulesWords(rules) {
   if (isNumber(r2.slot_min)) parts2.push(`${count(r2.slot_min)}-minute slots`);
   if (isNumber(r2.buffer_min))
     parts2.push(
-      r2.buffer_min === 0 ? "no gap between appointments" : `${pluralGrouped(r2.buffer_min, "minute", "minutes")} between appointments`
+      r2.buffer_min === 0 ? "no gap between bookings" : `${pluralGrouped(r2.buffer_min, "minute", "minutes")} between bookings`
     );
   if (isNumber(r2.max_days_ahead)) parts2.push(`up to ${pluralGrouped(r2.max_days_ahead, "day", "days")} ahead`);
   if (isNumber(r2.party_max)) parts2.push(`up to ${pluralGrouped(r2.party_max, "person", "people")}`);
@@ -28069,7 +28069,7 @@ var STRENGTHS = /* @__PURE__ */ (() => ({
   never_confirm_booking: {
     strength: "structural",
     chip: "Built in",
-    sentence: "It can't book, move or cancel an appointment anyway. Off only stops it being told not to claim it did.",
+    sentence: "It can't make, move or cancel a booking anyway. Off only stops it being told not to claim it did.",
     checkedOn: null
   },
   never_quote_prices: {
@@ -28116,7 +28116,7 @@ var STRENGTHS = /* @__PURE__ */ (() => ({
   no_health_advice: {
     strength: "instructed",
     chip: "Told",
-    sentence: "A professional advises at the appointment. It's told this, and nothing checks its answer.",
+    sentence: "It leaves health questions to a professional. It's told this, and nothing checks its answer.",
     checkedOn: null
   }
 }))();
@@ -38868,7 +38868,7 @@ function toBookingReportVM(dto) {
       rest: ""
     };
   const pct2 = Math.round(dto.booked / dto.asked * 100);
-  const words2 = `of the people who wrote or called in the last ${plural(dto.days, "day")} have an appointment on the calendar`;
+  const words2 = `of the people who wrote or called in the last ${plural(dto.days, "day")} have booked`;
   const unbooked = dto.asked - dto.booked;
   return {
     present: true,
@@ -38882,7 +38882,7 @@ function toBookingReportVM(dto) {
     unbooked,
     // The other side of the same share, said once: who is still waiting to be
     // given a time. It is the half an owner can do something about.
-    rest: unbooked === 0 ? `Everyone who asked in the last ${plural(dto.days, "day")} has an appointment.` : `${unbooked} of the ${dto.asked} who asked ${unbooked === 1 ? "has" : "have"} nothing on the calendar yet.`
+    rest: unbooked === 0 ? `Everyone who asked in the last ${plural(dto.days, "day")} has booked.` : `${unbooked} of the ${dto.asked} who asked ${unbooked === 1 ? "has" : "have"} nothing on the calendar yet.`
   };
 }
 

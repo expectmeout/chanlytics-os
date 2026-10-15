@@ -105,7 +105,7 @@ async function tellPeopleAdded(
   await recordNotification(tenantId, {
     kind: "calendar_people",
     title: `${r.added} ${one ? "person" : "people"} added from your calendar`,
-    body: `${one ? "An appointment" : "Appointments"} on your calendar carried a phone number nobody in People had. ${one ? "They are" : "They are all"} in People now, with consent unknown.`,
+    body: `${one ? "An event" : "Events"} on your calendar carried a phone number nobody in People had. ${one ? "They are" : "They are all"} in People now, with consent unknown.`,
     route: "clients",
   });
 }

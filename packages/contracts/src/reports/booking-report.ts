@@ -99,7 +99,7 @@ export function toBookingReportVM(dto: BookingReportDto | null | undefined): Boo
       rest: "",
     };
   const pct = Math.round((dto.booked / dto.asked) * 100);
-  const words = `of the people who wrote or called in the last ${plural(dto.days, "day")} have an appointment on the calendar`;
+  const words = `of the people who wrote or called in the last ${plural(dto.days, "day")} have booked`;
   const unbooked = dto.asked - dto.booked;
   return {
     present: true,
@@ -115,7 +115,7 @@ export function toBookingReportVM(dto: BookingReportDto | null | undefined): Boo
     // given a time. It is the half an owner can do something about.
     rest:
       unbooked === 0
-        ? `Everyone who asked in the last ${plural(dto.days, "day")} has an appointment.`
+        ? `Everyone who asked in the last ${plural(dto.days, "day")} has booked.`
         : `${unbooked} of the ${dto.asked} who asked ${unbooked === 1 ? "has" : "have"} nothing on the calendar yet.`,
   };
 }

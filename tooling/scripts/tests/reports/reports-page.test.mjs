@@ -947,10 +947,7 @@ test("Worth knowing says the campaign that drew the most replies from the Campai
 test("asked, then booked: the share as a meter beside the view model's words, the calendar's sentence, or a failed read", () => {
   const ok = card(page(), "chart-booking");
   assert.equal(textOf(cls(ok, "rpt-booked-number")), "38%");
-  assert.equal(
-    textOf(cls(ok, "rpt-booked-copy")),
-    "of the people who wrote or called in the last 7 days have an appointment on the calendar.",
-  );
+  assert.equal(textOf(cls(ok, "rpt-booked-copy")), "of the people who wrote or called in the last 7 days have booked.");
   const none = card(page({ booking: { calendar: "none", days: 7, asked: 0, booked: 0 } }), "chart-booking");
   assert.ok(textOf(none).includes("Add a calendar link under Settings › Business to see who booked."));
   press(find(none, (n) => n.type === "button"));
@@ -989,7 +986,7 @@ test("asked, then booked: the share's other side sits on the card's foot, with t
   assert.deepEqual(went, ["clients"], "and on People itself before the lists are known");
   // Everybody booked: the good news, and nothing to open.
   const all8 = card(page({ booking: { calendar: "ok", days: 7, asked: 8, booked: 8 } }), "chart-booking");
-  assert.equal(textOf(byTestId(all8, "booked-rest")), "Everyone who asked in the last 7 days has an appointment.");
+  assert.equal(textOf(byTestId(all8, "booked-rest")), "Everyone who asked in the last 7 days has booked.");
   assert.equal(byTestId(all8, "booked-rest-door"), null);
   // Nothing counted, nothing said: no calendar, one that could not be read, and nobody asking.
   for (const booking of [
