@@ -337,7 +337,7 @@ export const PURPOSE_REFUSALS: Record<DeliveryRefusal, string> & Record<string, 
   superseded_by_human: "Someone on your team answered first, so this was not sent.",
   // Reach out's, at the wire (deliver.ts): a cold email goes only as the rules it was built under allow.
   unsubscribed:
-    "This person unsubscribed from your marketing emails. No offers or first emails go to them by email; replies and messages about their visits still can.",
+    "This person unsubscribed from your marketing emails. No offers or first emails go to them by email; replies, reminders and confirmations still can.",
   outreach_is_email_only: "Cold messages go only by email: never by text or WhatsApp.",
   outreach_not_a_lead: "Cold email goes only to a business your searches found.",
   outreach_lead_closed: "This business is no longer being written to: it said no, became a customer, or was set aside.",

@@ -155,7 +155,7 @@ export async function draftList(
       "validation",
       answer.cannot
         ? `A list can't say that yet: ${answer.cannot}.`
-        : "A list can't say that yet. Try when they last visited, how they reach you, or where they came from.",
+        : "A list can't say that yet. Try when they were last on the calendar, how they reach you, or where they came from.",
     );
   return { name: answer.name, rule, cannot: answer.cannot || null };
 }

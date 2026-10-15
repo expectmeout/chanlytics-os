@@ -76,7 +76,7 @@ const STRENGTHS: Record<GuardrailKey, RuleStrengthVM> = /* @__PURE__ */ (() => (
   never_confirm_booking: {
     strength: "structural",
     chip: "Built in",
-    sentence: "It can't book, move or cancel an appointment anyway. Off only stops it being told not to claim it did.",
+    sentence: "It can't make, move or cancel a booking anyway. Off only stops it being told not to claim it did.",
     checkedOn: null,
   },
   never_quote_prices: {
@@ -125,7 +125,7 @@ const STRENGTHS: Record<GuardrailKey, RuleStrengthVM> = /* @__PURE__ */ (() => (
   no_health_advice: {
     strength: "instructed",
     chip: "Told",
-    sentence: "A professional advises at the appointment. It's told this, and nothing checks its answer.",
+    sentence: "It leaves health questions to a professional. It's told this, and nothing checks its answer.",
     checkedOn: null,
   },
 }))();

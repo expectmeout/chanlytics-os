@@ -26,7 +26,7 @@ const METRIC_WORDS: Record<ReportMetric, string> = {
   new_people:
     "People whose first message in their own words, or first connected call to you, fell in this period, counted once. A message you or the receptionist sent, an automatic reply or a list's mail, a call you placed, people brought in with their history, people who asked to be forgotten, and people who have not written or phoned yet are not counted.",
   booked:
-    "Of the people who wrote or called in this period, how many have an appointment ahead on your calendar, or one that began no more than a day before they asked. It is a dash where no calendar is connected or it could not be read.",
+    "Of the people who wrote or called in this period, how many have a booking on your calendar, ahead or begun no more than a day before they asked. It is a dash where no calendar is connected or it could not be read.",
   delivered_share: `Of the messages sent, the share the channel reports as delivered or read (${DELIVERY_RECEIPTS_WORDS}). A message with no receipt yet is not counted as delivered.`,
   said_yes: `People who said yes to being messaged ${REPLY_WINDOW_WORDS} of a campaign or a broadcast reaching them, in their own words or recorded at the desk, counted once in the period. A yes with no campaign before it, a merge restating an answer and a person who asked to be forgotten are not counted.`,
   asked_to_stop: `People who asked to stop being messaged ${REPLY_WINDOW_WORDS} of a campaign or a broadcast reaching them, by STOP, a carrier's report or at the desk, and for email by the unsubscribe in the message however late it is used, counted once in the period. A stop with no campaign before it, a merge restating an answer and a person who asked to be forgotten are not counted.`,
@@ -59,7 +59,7 @@ const METRIC_WORDS: Record<ReportMetric, string> = {
   people_reached:
     "People who wrote in their own words, or phoned and were spoken to, in this period, counted once however often they did. An automatic reply, a message or call you placed, a call that rang out, people brought in with their history, and people who asked to be forgotten are not counted.",
   yeses_won:
-    "The yeses people gave in this period, one for each person and each kind of message (their visit, offers, offers by email), in their own words or recorded at the desk. A merge restating a yes, a client list imported, which never records a yes, a person who asked to be forgotten, and a record merged into another are not counted.",
+    "The yeses people gave in this period, one for each person and each kind of message (messages, offers, offers by email), in their own words or recorded at the desk. A merge restating a yes, a client list imported, which never records a yes, a person who asked to be forgotten, and a record merged into another are not counted.",
   stops_recorded:
     "The stops people gave in this period, one for each person and each kind of message they stopped, by their own STOP, an unsubscribe link, a complaint, the carrier or at the desk. A merge restating a stop, the end of a yes to offers that a STOP brings with it, a person who asked to be forgotten, and a record merged into another are not counted.",
   steps_overdue:

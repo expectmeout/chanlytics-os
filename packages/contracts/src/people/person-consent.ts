@@ -112,7 +112,7 @@ export const OFFERS_YES_SOURCES: readonly string[] = ["form", "customer_message"
 /** Why a yes to offers given this way cannot be recorded -- or null when it can. */
 export function offersYesRefusal(source: string | null | undefined): string | null {
   if (source && OFFERS_YES_SOURCES.includes(source)) return null;
-  return "A yes to offers has to be in writing: a sign-up form they signed, or their own message. A spoken yes covers messages about their visit, not offers.";
+  return "A yes to offers has to be in writing: a sign-up form they signed, or their own message. A spoken yes covers messages, not offers.";
 }
 
 /**

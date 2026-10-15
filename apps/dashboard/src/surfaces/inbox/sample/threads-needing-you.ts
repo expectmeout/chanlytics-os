@@ -66,7 +66,7 @@ export const NEEDING_YOU: SeededThread[] = [
   {
     id: "th-aisha-refund",
     who: "Aisha Khan",
-    whoMeta: "Member · 7 visits · $1,040 LTV",
+    whoMeta: "Member · 7 appointments · $1,040 LTV",
     avatar: "AK",
     state: "needs",
     clientId: "c-aisha",
@@ -88,7 +88,7 @@ export const NEEDING_YOU: SeededThread[] = [
       { label: "Next appt", value: "Today 2:45 PM", to: "calendar" },
       { label: "No-shows", value: "2 this week", warn: true, to: "segments/high-no-show" },
       { label: "Refund history", value: "1 waiver used (Q1)", to: "segments/used-waiver" },
-      { label: "Therapist", value: "Lena (regular)" },
+      { label: "Staff", value: "Lena (regular)" },
     ],
     lastAt: "2m",
     lastAtFull: "11:40",
@@ -143,7 +143,7 @@ export const NEEDING_YOU: SeededThread[] = [
         {
           label: "Brief you 15 min before the call",
           auto: false,
-          hint: "LTV, visit history, both no-shows — on your phone at 4:15",
+          hint: "LTV, appointment history, both no-shows — on your phone at 4:15",
         },
       ],
     },
@@ -297,7 +297,7 @@ export const NEEDING_YOU: SeededThread[] = [
   {
     id: "th-jordan-discount",
     who: "Jordan Patel",
-    whoMeta: "Lead · First visit booked",
+    whoMeta: "Lead · First appointment booked",
     avatar: "JP",
     state: "needs",
     clientId: "c-jordan",
@@ -474,7 +474,7 @@ export const NEEDING_YOU: SeededThread[] = [
     hasHumanContact: false,
     approval: {
       kind: "Booking conflict · Lena 1:00",
-      summary: "Two agents booked the same therapist and time. Someone has to move.",
+      summary: "Two agents booked the same staff member and time. Someone has to move.",
       recommended: "Approve",
       plan: {
         label: "Tara → Jay, 1:00 today",
@@ -486,12 +486,12 @@ export const NEEDING_YOU: SeededThread[] = [
       },
       fallback: "SMS Agent offers Tara the next open Lena slots instead",
       suggestedReply:
-        "Hi Tara — you're all set for a Swedish 60 at 1:00 today. You'll be with Jay, one of our senior therapists. See you soon!",
+        "Hi Tara — you're all set for a Swedish 60 at 1:00 today. You'll be with Jay, one of our senior team. See you soon!",
       evidence: [
         {
           kind: "policy",
           label: "No double-booking",
-          detail: "One therapist, one client per slot — agents must escalate",
+          detail: "One staff member, one client per slot — agents must escalate",
           to: "admin/autonomy",
         },
         {
@@ -512,7 +512,7 @@ export const NEEDING_YOU: SeededThread[] = [
       ],
       nextSteps: [
         { label: "Book Tara with Jay at 1:00", auto: true },
-        { label: "Text Tara the therapist change", auto: true },
+        { label: "Text Tara the change of staff", auto: true },
         { label: "Leave Jordan's 1:00 untouched", auto: true },
       ],
     },

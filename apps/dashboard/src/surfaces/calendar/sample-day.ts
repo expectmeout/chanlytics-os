@@ -92,7 +92,7 @@ function todayItems(item: SampleItem, clock: SampleClock): CalendarItemDto[] {
     phone: "+15555550134",
   });
   const dulce = sampleFacts({
-    deal: { deal_stage: "proposed", deal_service: "Balayage", deal_proposed_at: ago(6 * 24 * 60) },
+    deal: { deal_stage: "proposed", deal_service: "Package", deal_proposed_at: ago(6 * 24 * 60) },
     last: { at: ago(26 * 60), by: "Your team replied" },
     phone: "+15555550152",
   });

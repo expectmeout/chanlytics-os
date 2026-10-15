@@ -6,11 +6,12 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
 import { relative, sep } from "node:path";
 import * as C from "@chanlytics/contracts";
 import { ratchet } from "../_ratchet.mjs";
-import { ROOT, readerFiles, readerLines } from "../_source.mjs";
+import ts from "typescript";
+import { parse, visitsWrittenIn } from "../_ast.mjs";
+import { ROOT, readerFiles } from "../_source.mjs";
 
 /** The four shapes: a calendar connected or not, deals on or not. */
 const SHAPES = [
@@ -300,86 +301,53 @@ test("one page, one word: for 4 shapes × 5 words, every string Campaigns' view 
 
 /* ------------------------------------- the words not yet the word's ------------------------------------- */
 
-/** A quoted string a reader reads: its content is the second group. */
-const QUOTED = /(["'`])((?:\\.|(?!\1).)*)\1/g;
-const VISIT_WORD = /\bvisit(?:s|ed)?\b/i;
-/** A class name is no word: `className="cl-prof-section cl-prof-visits"` names a style, and nobody reads it. */
-const CLASS_NAME = /\bclassName=(["'])(?:(?!\1).)*\1/g;
-
-/** A template's own text, and the code of each `${…}` in it, found by its braces (a `{ timeZone }` inside one is its own). */
-function templateParts(content) {
-  let text = "";
-  const code = [];
-  for (let i = 0; i < content.length; i += 1) {
-    if (content[i] !== "$" || content[i + 1] !== "{") {
-      text += content[i];
-      continue;
-    }
-    let depth = 1;
-    let j = i + 2;
-    for (; j < content.length && depth > 0; j += 1) {
-      if (content[j] === "{") depth += 1;
-      else if (content[j] === "}") depth -= 1;
-    }
-    code.push(content.slice(i + 2, j - 1));
-    i = j - 1;
-  }
-  return { text, code };
-}
-
 /**
- * The words a quoted string says "visit" in: its own text, where it holds a space, and each string quoted inside its
- * `${…}`s. The code there is no word: `${visitStartTime(visit, tz)}` names a variable, and a reader never reads it.
- */
-function visitWordsIn(content) {
-  const { text, code } = templateParts(content);
-  let n = /\s/.test(text) && VISIT_WORD.test(text) ? 1 : 0;
-  for (const c of code) for (const m of c.matchAll(QUOTED)) n += visitWordsIn(m[2]);
-  return n;
-}
-
-/** The words a line says "visit" in: each quoted string a reader reads on it, its class names left out. */
-function visitWordsOnLine(text) {
-  return [...text.replace(CLASS_NAME, "").matchAll(QUOTED)].reduce((n, m) => n + visitWordsIn(m[2]), 0);
-}
-
-/**
- * Per file in the reader scope, the quoted strings a reader reads that hold a space and the whole word visit (ids like
- * "visit_tomorrow" hold neither), comments, member accesses and `trade-word:` lines left out (readerLines). It may only
- * fall: each sweep banks its file, and when it reaches zero "visit" joins trade-neutral's banned words.
+ * Per file in the reader scope, each place it says "visit" to a person, read from the syntax tree (_ast.mjs
+ * visitsWrittenIn): a sentence or a label in a string, a template's own text or a JSX text; ids, keys, comparisons, route
+ * keys, class names and `trade-word:` lines left out. Until 16 Oct 2026 it read the text line by line, so a one-word label,
+ * a JSX text and a template's second line went unseen, and a route's key was counted. It may only fall: each sweep banks
+ * its file, and when it reaches zero "visit" joins trade-neutral's banned words.
  */
 function appointmentWordsWrittenIn() {
   const out = {};
   for (const file of readerFiles()) {
-    let n = 0;
-    for (const { text } of readerLines(readFileSync(file, "utf8"))) n += visitWordsOnLine(text);
-    if (n > 0) out[relative(ROOT, file).split(sep).join("/")] = n;
+    const rel = relative(ROOT, file).split(sep).join("/");
+    const n = visitsWrittenIn(parse(rel)).length;
+    if (n > 0) out[rel] = n;
   }
   return out;
 }
 
-test("the count reads what a reader reads: a sentence's word, not an id, a variable in a template's code, or a marked line", () => {
-  const count = (src) => readerLines(src).reduce((n, { text }) => n + visitWordsOnLine(text), 0);
+test("the count reads what a reader reads, from the syntax tree: a sentence or a label, not an id, a class or a marked line", () => {
+  const count = (src) =>
+    visitsWrittenIn(ts.createSourceFile("x.tsx", src, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)).length;
   assert.equal(count(`const a = "Visit reminder";`), 1);
+  assert.equal(count(`const a = "Visits";`), 1, "a label of one word: People's tab said it unseen");
   assert.equal(
-    count(`const a = "visit_tomorrow"; const b = "visit"; const c = p.visit;`),
+    count(`const a = "visit_tomorrow"; const b = "visit"; const c = p.visit; if (k === "Visit") f();`),
     0,
-    "ids and a member are no words",
+    "ids, a member and a comparison are no words",
   );
+  assert.equal(count(`const o = { "Next visit": 1 }; switch (k) { case "Visit": break; }`), 0, "a key and a case");
   assert.equal(
     count("const a = `${visitDayWord(visit, tz)} at ${visitStartTime(visit, tz)}`;"),
     0,
     "a template's code",
   );
   assert.equal(count("const a = `Last visit · ${p}`;"), 1);
+  assert.equal(count('const a = `${ahead ? "Next visit ahead" : "None"} · ${x}`;'), 1, "a sentence inside its code");
+  assert.equal(count("const a = `Their\n  last visit`;"), 1, "a template's second line");
+  assert.equal(count(`const a = <p>Open their visit</p>;`), 1, "a JSX text");
+  assert.equal(count(`const a = <i title="Next visit" aria-label="Visits" />;`), 2, "the attributes a person reads");
   assert.equal(
-    count('const a = `${ahead ? "Next visit ahead" : "None"} · ${x}`;'),
-    1,
-    "a sentence quoted inside its code",
+    count('const a = <i className={`cl-a cl-visits${on ? " on" : ""}`} data-testid="visit row" />;'),
+    0,
+    "a class and a test's handle are no words",
   );
+  assert.equal(count(`const k = "POST calendar/visits/[id]";`), 0, "a route's key");
   assert.equal(count(`const a = "a visit"; // trade-word: the word's own forms`), 0, "a marked line");
+  assert.equal(count(`// trade-word: a clinic's own service\nconst a = "Sick visit";`), 0, "a line marked over it");
   assert.equal(count(`// "about your visit" in a comment`), 0);
-  assert.equal(count(`const a = <i className="cl-a cl-visits" title="Next visit" />;`), 1, "a class name is none");
 });
 
 ratchet({
