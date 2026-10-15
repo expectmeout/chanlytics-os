@@ -1,7 +1,9 @@
 /**
- * One sequence's reads as its record draws them (verbs.ts): painted at once from the last answer this tab holds, read
+ * One sequence's reads as its record draws them (verbs.ts): painted at once from the last answer this tab holds and read
  * again behind, and read again each time the list's surface is (surface.ts), which hears every change of a sequence, its
- * batches, its sends and its replies, so a record on screen never says less than the list beside it.
+ * batches, its sends and its replies, so a record on screen never says less than the list beside it. What is shown is
+ * always the id asked for: a read is kept with the id it answers, so a record opened from another's never paints the
+ * other while its own is read.
  */
 import { useEffect, useState } from "react";
 import type { ApiResult } from "@/client/api";
@@ -13,9 +15,12 @@ type Read<T> = { state: "reading" } | { state: "read"; data: T } | { state: "fai
 const asRead = <T>(r: ApiResult<T> | null): Read<T> =>
   r === null ? { state: "reading" } : r.ok ? { state: "read", data: r.data } : { state: "failed", why: r.message };
 
+const READING = { state: "reading" } as const;
+
 /**
- * A read of the sequence `id` (null: none open), through `read` and painted from `peek`: again whenever the list is read
- * again, and when `again` changes (a press that moved it).
+ * A read of `id` (null: none open), through `read` and painted from `peek`: again whenever the list is read again, and
+ * when `again` changes (a press that moved it). The same id read again keeps what it shows until the answer lands;
+ * another id shows its own, from what the tab holds of it or reading.
  */
 export function useSequenceRead<T>(
   id: string | null,
@@ -24,18 +29,23 @@ export function useSequenceRead<T>(
   again = 0,
 ): Read<T> {
   const list = useSurface("sequences");
-  const [now, setNow] = useState<Read<T>>(() => (id ? asRead(peek(id)) : { state: "reading" }));
+  const [now, setNow] = useState<{ id: string | null; read: Read<T> }>(() => ({
+    id,
+    read: id ? asRead(peek(id)) : READING,
+  }));
   useEffect(() => {
     if (!id) return undefined;
     let live = true;
-    setNow((was) => (was.state === "read" ? was : asRead(peek(id))));
+    setNow((was) => (was.id === id && was.read.state === "read" ? was : { id, read: asRead(peek(id)) }));
     void read(id).then((r) => {
-      if (live) setNow(asRead(r));
+      if (live) setNow({ id, read: asRead(r) });
     });
     return () => {
       live = false;
     };
     // The list's value is a new object at each read of it: the record follows it.
   }, [id, list, again, read, peek]);
-  return now;
+  if (!id) return READING;
+  // Between a new id and its read, what is held is the last id's: the new one paints from the tab's own answer, or reads.
+  return now.id === id ? now.read : asRead(peek(id));
 }

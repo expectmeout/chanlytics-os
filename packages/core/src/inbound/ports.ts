@@ -17,6 +17,7 @@
 import type {
   BrainConfig,
   BrainIntent,
+  BookingRequestTerms,
   BrainMeta,
   CalendarConfig,
   FeaturesConfig,
@@ -167,6 +168,21 @@ export interface BrainCall {
   purpose?: "receptionist" | "reply_draft";
   /** The customer's own words, when a second model may be put beside this turn in shadow (decision 0023). */
   shadowText?: string;
+  /**
+   * This turn takes booking requests (decision 0061): the answer's schema carries the two fields a time the customer
+   * picked is written in. Absent on every other turn, which is sent exactly the record.
+   */
+  bookingRequests?: boolean;
+}
+
+/** A booking the receptionist asks for, as the sink opens it with its hold (decision 0061). */
+export interface BookingRequestHold {
+  startsAt: string;
+  endsAt: string;
+  service: string | null;
+  timezone: string;
+  /** The hold's line (contracts BOOKING_REQUEST_WORDS.hold). */
+  words: string;
 }
 
 /** What the model answered, and what the row remembers about it (the edge's brain.ts `BrainReply`). */
@@ -177,6 +193,8 @@ export interface InboundBrainReply {
   usage?: { input_tokens: number; output_tokens: number };
   /** Absent when the model's answer could not be read and the holding reply went out instead. */
   meta?: BrainMeta;
+  /** The time the customer picked, as the model wrote it, on a turn that took booking requests (decision 0061). */
+  booking?: { slot: string; service: string };
 }
 
 /**
@@ -226,6 +244,12 @@ export interface InboundSink {
    * failed. The set is packages/jobs escalate.ts `EscalationOutcome`.
    */
   escalate(reason: string, details: string): Promise<EscalateOutcome>;
+  /**
+   * A booking the receptionist asks for and its hold, opened together (decision 0061), resolving as `escalate` does. An
+   * adapter that cannot open one hands the thread to a person to reply (booking_reply). Absent in an adapter that has none:
+   * the turn's hold is then that reply's.
+   */
+  request?(req: BookingRequestHold, details: string): Promise<EscalateOutcome>;
   /** Download from the provider, upload to storage, record where it went. The bytes when they were fetched. */
   media(n: NormalizedInbound): Promise<{ bytes: ArrayBuffer; mime: string | null } | null | undefined>;
 }
@@ -281,6 +305,16 @@ export interface InboundPorts {
   calendar: {
     openings(rt: InboundRuntime, now?: Date): Promise<string | null>;
     visits(rt: InboundRuntime, who: { phone: string | null; name: string | null }, now?: Date): Promise<string | null>;
+    /**
+     * Booking requests (decision 0061): whether this workspace takes them on a text turn (`takes`), and what a time the
+     * customer picked is checked against, read when they picked it (`terms`; null when the openings cannot be read).
+     * `who` is the person, whose own open request takes no slot from them. Absent in an adapter that has none: no turn
+     * takes one.
+     */
+    requests?: {
+      takes: (rt: InboundRuntime) => boolean;
+      terms: (rt: InboundRuntime, who: string | null, now?: Date) => Promise<BookingRequestTerms | null>;
+    };
   };
   budget: {
     /** A rolling day of this workspace's model usage; it may stop counting at `stopAt`. */

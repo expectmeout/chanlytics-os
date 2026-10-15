@@ -597,6 +597,14 @@ export const ESCALATION_REASONS = [
   "carriers",
   /** An email a person must read before anyone answers it (00127). */
   "email_review",
+  /** A time the customer picked by text, held for the owner to confirm (00443, decision 0061): Booked it or Can't. */
+  "booking_request",
+  /**
+   * A time the customer asked for by text that a person answers (00443, decision 0061): the owner said Can't, or the
+   * time was not one the code found open, or the request could not be kept. The receptionist told them the team will
+   * confirm, so a reply is owed.
+   */
+  "booking_reply",
 ] as const;
 export type EscalationReason = (typeof ESCALATION_REASONS)[number];
 
@@ -733,6 +741,11 @@ export const DECISION_VERBS = [
    */
   "make_sequence",
   "discard_sequence",
+  /**
+   * A member answered a booking the receptionist asked for (00443 booking_request_answer, decision 0061): booked, or not,
+   * subject 'appointment' (the request's row), payload booked, its start, the person and the service.
+   */
+  "answer_booking_request",
 ] as const;
 export type DecisionVerb = (typeof DECISION_VERBS)[number];
 

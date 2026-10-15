@@ -353,13 +353,14 @@ test("every role is offered exactly the actions it may use (D2): a tool with non
  * The tools the operator lane (15 Oct 2026, decision 0062) left as PR 4.7 froze them. Every other tool moved on purpose:
  * campaigns and propose_campaign became sequences and propose_sequence (the Sequences page's words and its verbs), the
  * plan its own tool (propose_plan), propose_autonomy and propose_whisper actions of propose_settings and propose_call,
- * the invitation the Team page's alone; leads, people, report, today, propose_person, propose_list, propose_settings and
- * propose_lead_search gained the actions and the words that let Ask do what their pages do.
+ * the invitation the Team page's alone; leads, people, report, today, propose_person, propose_list, propose_settings,
+ * propose_lead_search and propose_reply (a booking the receptionist asked for, answered) gained the actions and the words
+ * that let Ask do what their pages do.
  */
-const UNMOVED = ["calendar", "calls", "inbox", "propose_deal", "propose_reply", "propose_thread_verb", "workspace"];
+const UNMOVED = ["calendar", "calls", "inbox", "propose_deal", "propose_thread_verb", "workspace"];
 const PR_4_7 = fixture("ask-tools-4-7.json");
 
-test("the invariant (the operator): calendar, calls, inbox, propose_deal, propose_reply, propose_thread_verb and workspace read to every role byte for byte as PR 4.7 froze them, with their examples and without, less the deferral that the tool search adds outside the core; and every tool PR 4.7 offered a role is offered it still, under its name or the one the rename gave it", () => {
+test("the invariant (the operator): calendar, calls, inbox, propose_deal, propose_thread_verb and workspace read to every role byte for byte as PR 4.7 froze them, with their examples and without, less the deferral that the tool search adds outside the core; and every tool PR 4.7 offered a role is offered it still, under its name or the one the rename gave it", () => {
   const bare = ({ input_examples: _, ...t }) => t;
   const undeferred = ({ defer_loading: _, ...t }) => t;
   for (const role of ROLES) {

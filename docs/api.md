@@ -13,7 +13,7 @@ once per key for a day: the same request sent again is given the first answer an
 another request (another method, path or body) is refused with 422, and one that arrives while the first still runs
 with 409 (decision 0035). A write that keeps its own key, or has no workspace to keep one in, says so.
 
-275 handlers in 49 domains.
+276 handlers in 49 domains.
 
 ## activity
 
@@ -656,6 +656,14 @@ Reads; for a member of the row's own workspace; no rate bucket; spends nothing.
 Writes; for a member of the row's own workspace, operator or above; counts against the `thread_state` rate; spends nothing.
 
 Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/conversations/[id]/archive/route.ts`).
+
+### `POST /api/v1/conversations/[id]/booking-request`
+
+Writes; for a member of the row's own workspace, operator or above; counts against the `thread_state` rate; spends nothing.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `booked` | boolean | yes |  |
 
 ### `GET /api/v1/conversations/[id]/export`
 
@@ -2073,6 +2081,7 @@ Writes; for a member of the workspace the request names, operator or above; coun
 | --- | --- | --- | --- |
 | `words` | string | yes | at least 8 characters; at most 500 characters |
 | `previous` | object | no |  |
+| `list` | object | no |  |
 
 ## settings
 

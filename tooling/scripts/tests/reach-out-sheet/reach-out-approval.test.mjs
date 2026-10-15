@@ -128,16 +128,33 @@ const DETAIL = (state, run = RUN()) => ({
   reach_out: run,
 });
 
-/** The couriers, stubbed: the run as the test holds it, each read and press recorded. */
+const json = (status, body) =>
+  new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
+
+/**
+ * The couriers, stubbed: the run as the test holds it, each read and press recorded. A held email's door is its verb
+ * (`sequence_send_decide`), which walks the typed client to its route: the wire answers it as the test says, and any
+ * other read the walk's refresh asks for is answered empty.
+ */
 const world = (state, run) => {
   const w = { detail: DETAIL(state, run), reads: 0, pressed: [], answer: { ok: true, data: {} } };
   realVerbs();
+  W.fetch = async (url, init = {}) => {
+    const u = new URL(String(url), "https://app.chanlytics.com");
+    const decide = /^\/api\/v1\/reach-out-sends\/([^/]+)\/decide$/.exec(u.pathname);
+    if (decide && init.method === "POST") {
+      w.pressed.push(["decide", decide[1], JSON.parse(init.body).decision]);
+      return w.answer.ok
+        ? json(200, { ok: true, data: w.answer.data })
+        : json(409, { ok: false, error: { code: "conflict", message: w.answer.message } });
+    }
+    return json(404, { ok: false, error: { code: "not_found", message: `no ${u.pathname}` } });
+  };
   Object.assign(broadcasts, {
     detail: async () => ((w.reads += 1), { ok: true, data: w.detail }),
     peekDetail: () => null,
   });
   Object.assign(bridge.reachOuts, {
-    decide: async (id, door) => (w.pressed.push(["decide", id, door]), w.answer),
     recheck: async (id) => (w.pressed.push(["recheck", id]), w.answer),
     watchRun: (id) => {
       w.pressed.push(["watch", id]);
@@ -319,15 +336,17 @@ test("R20: a scheduled run with held opens to them; each door presses its decisi
   }
   const reads = w.reads;
   press(byTestId(held[0], "ro-door-include"));
-  await settle();
-  redraw();
-  await settle();
+  // The verb's walk reads the surfaces it moved before it answers, so a fixed number of turns is not enough: a condition is.
+  for (let i = 0; i < 50 && w.reads === reads; i += 1) {
+    await settle();
+    redraw();
+  }
   assert.deepEqual(w.pressed.at(-1), ["decide", "h1", "include"]);
   assert.ok(w.reads > reads, "the run read again once the decision landed");
   w.answer = { ok: false, message: "This email was planned too long ago to include." };
   tree = redraw();
   press(byTestId(all(tree, (n) => n.props?.["data-testid"] === "ro-held")[0], "ro-door-skip"));
-  await settle();
+  for (let i = 0; i < 50 && !byTestId(redraw(), "ro-held-said"); i += 1) await settle();
   assert.equal(textOf(byTestId(redraw(), "ro-held-said")), "This email was planned too long ago to include.");
 });
 

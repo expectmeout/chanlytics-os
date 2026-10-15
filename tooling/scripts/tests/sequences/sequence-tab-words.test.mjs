@@ -1,0 +1,152 @@
+/**
+ * What a sequence's tabs say past its flow (decision 0060, contracts sequence-tab-words.ts and sequence-words.ts), executed
+ * on batches as the readers answer them: History's period, its four figures counted from the batches Reports counts (never
+ * one that has not gone), whether the pages read reach back over a period, a day's row; a lead's step done, going now or
+ * still to come; a message's WhatsApp standing; and the list tokens a new sequence may start on.
+ */
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import {
+  REPORT_MIN_N,
+  SEQUENCE_EDIT_WORDS,
+  SEQUENCE_NEEDS_WORDS,
+  SEQUENCE_PEOPLE_WORDS,
+  batchWent,
+  historyCovers,
+  historyDayWords,
+  historyDays,
+  historyFigures,
+  historyIn,
+  historySince,
+  isListToken,
+  leadStepStand,
+  listStartsSentence,
+  stepApprovalOf,
+} from "@chanlytics/contracts";
+
+const TZ = "America/New_York";
+const NOW = Date.parse("2026-10-15T16:00:00Z");
+const batch = (id, runFor, state, counts = {}, over = {}) => ({
+  id,
+  state,
+  run_for: runFor,
+  at: `${runFor}T13:00:00Z`,
+  scheduled_for: `${runFor}T13:00:00Z`,
+  finished_at: null,
+  people: 14,
+  failure: null,
+  place: 1,
+  counts,
+  ...over,
+});
+const B = [
+  batch("b5", "2026-10-16", "pending_approval"),
+  batch("b4", "2026-10-15", "sent", { sent: 13, delivered: 12, read: 11, replied: 2 }),
+  batch("b3", "2026-10-13", "sent", { sent: 9, delivered: 9, read: 8, replied: 1, held: 1 }),
+  batch("b2", "2026-10-12", "canceled"),
+  batch("b1", "2026-08-01", "sent", { sent: 40, delivered: 40, read: 30, replied: 4 }),
+];
+
+test("History's period: its first business day, and the batches on or after it", () => {
+  assert.equal(historySince("30", TZ, NOW), "2026-09-16");
+  assert.equal(historySince("90", TZ, NOW), "2026-07-18");
+  assert.equal(historySince("all", TZ, NOW), null);
+  assert.deepEqual(
+    historyIn(B, "2026-09-16", TZ).map((b) => b.id),
+    ["b5", "b4", "b3", "b2"],
+  );
+  assert.equal(historyIn(B, null, TZ).length, 5);
+});
+
+test("the four figures count what went and what came of it, never a batch that has not gone, and a share of none is a dash", () => {
+  const f = Object.fromEntries(historyFigures(historyIn(B, "2026-09-16", TZ)).map((x) => [x.id, x]));
+  assert.deepEqual(
+    ["sent", "delivered", "read", "replied"].map((id) => [f[id].value, f[id].meta]),
+    [
+      ["22", null],
+      ["95%", "21 of 22"],
+      ["19", "on WhatsApp"],
+      ["3", "14% of those sent"],
+    ],
+  );
+  assert.equal(f.delivered.n, 22, "a share says what it is of, for the kit to grey too few");
+  assert.deepEqual(
+    [f.sent.minN, f.delivered.minN, f.read.minN],
+    [null, REPORT_MIN_N, null],
+    "a share is greyed by Reports' own fewest, a count never",
+  );
+  assert.deepEqual(
+    B.map(batchWent),
+    [false, true, true, false, true],
+    "what went is what History counts and opens onto",
+  );
+  assert.ok(
+    Object.values(f).every((x) => x.definition.length > 20),
+    "each label says what it counts",
+  );
+  const none = Object.fromEntries(historyFigures([B[0], B[3]]).map((x) => [x.id, x]));
+  assert.deepEqual([none.sent.value, none.delivered.value, none.delivered.meta], ["0", "—", null]);
+  assert.equal(historyDays(historyIn(B, "2026-09-16", TZ), TZ), 2, "the days it sent, not the days it was asked to");
+});
+
+test("the pages read cover a period once they reach back past its first day, or there is nothing older", () => {
+  const first = { batches: B.slice(0, 3), more: true };
+  assert.equal(historyCovers(first, "2026-09-16", TZ), false, "the last page read stops inside the period");
+  assert.equal(historyCovers({ batches: B, more: true }, "2026-09-16", TZ), true);
+  assert.equal(historyCovers({ batches: B.slice(0, 3), more: false }, "2026-09-16", TZ), true);
+  assert.equal(historyCovers({ batches: B, more: true }, null, TZ), false, "all of it needs every page");
+});
+
+test("a day's row: what it went to, or why it did not go, with the step where a sequence has several", () => {
+  assert.deepEqual(historyDayWords(B[1], null), { end: "13 sent", said: "12 delivered · 11 read · 2 replied" });
+  assert.deepEqual(historyDayWords(B[2], "step 2"), {
+    end: "9 sent",
+    said: "step 2 · 9 delivered · 8 read · 1 replied · 1 held",
+  });
+  assert.deepEqual(historyDayWords(B[0], null), { end: "Waits for you", said: "14 people" });
+  assert.deepEqual(historyDayWords({ ...B[0], people: 0 }, null), { end: "Waits for you", said: "" }, "never 0 people");
+  assert.deepEqual(historyDayWords(B[3], null), { end: "Canceled", said: "Nothing went" });
+  const failed = batch(
+    "b6",
+    "2026-10-14",
+    "failed",
+    { sent: 2, failed: 12 },
+    { failure: "The number was disconnected" },
+  );
+  assert.deepEqual(historyDayWords(failed, null), {
+    end: "Failed",
+    said: "0 delivered · 0 read · 0 replied · 12 failed · The number was disconnected",
+  });
+});
+
+test("a lead's step is done, going now or still to come; a message's WhatsApp standing has its tone", () => {
+  assert.deepEqual(
+    [1, 2, 3].map((place) => leadStepStand(place, place === 1 ? 31 : 0, 2)),
+    ["done", "now", "later"],
+  );
+  assert.deepEqual(
+    [1, 2].map((place) => leadStepStand(place, place === 1 ? 31 : 0, null)),
+    ["done", "later"],
+    "with no batch to come, a step that sent is done",
+  );
+  assert.deepEqual(stepApprovalOf("approved"), { label: "Approved", tone: "ok" });
+  assert.deepEqual(stepApprovalOf("pending"), { label: "In review", tone: "warn" });
+  assert.deepEqual(stepApprovalOf("rejected"), { label: "Not approved", tone: "danger" });
+  assert.equal(stepApprovalOf(null), null);
+});
+
+test("a new sequence starts on a list by the token the composer writes; the editor and Needs you say what a press reaches", () => {
+  assert.ok(isListToken("seg:clients"));
+  assert.ok(isListToken("list:3f6c1a52-0d1e-4b8a-9c2f-5e7d8a9b0c1d"));
+  for (const bad of ["seg:", "seg:Clients!", "list:abc", "clients", "list:3f6c1a52-0d1e-4b8a-9c2f-5e7d8a9b0c1d/x"])
+    assert.equal(isListToken(bad), false, bad);
+  assert.match(SEQUENCE_EDIT_WORDS.reaches(false), /already waiting keeps their day/);
+  assert.equal(SEQUENCE_NEEDS_WORDS.sendAll(1), "Send it as it is");
+  assert.equal(SEQUENCE_NEEDS_WORDS.sendAll(3), "Send all 3 as they are");
+  assert.equal(SEQUENCE_NEEDS_WORDS.wentAll(1), "1 email goes as it is");
+  assert.equal(SEQUENCE_PEOPLE_WORDS.takeOutAll(4), "Take these 4 out");
+  assert.equal(SEQUENCE_EDIT_WORDS.days(1), "1 day");
+  // A list's start reads the same on a record and on a draft about to be made.
+  assert.equal(listStartsSentence("Clients", 10), "Someone joins Clients, at 10:00 AM");
+  assert.equal(listStartsSentence(null, null), "Someone joins the list");
+});

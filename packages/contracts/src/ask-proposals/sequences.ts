@@ -1,10 +1,13 @@
 /**
  * The Sequences page's own verbs (decision 0060, 00442's doors), committed through the one walk every sheet and card
- * goes through (the sheets as verbs, VERB_SPECS): a customer's step after the first added or changed, taken away, given
- * new words, people taken out, and a sequence made from its draft or a draft let go. Each says the same receipt and
+ * goes through (the sheets as verbs, PROPOSAL_SPECS): a customer's step after the first added or changed, taken away, given
+ * new words, people taken out, an email the check held decided and one handed to its owner said of, and a sequence made
+ * from its draft or a draft let go. Each says the same receipt and
  * offers the same undo whichever hand pressed it. A sequence's state and a batch's approval are the campaign's and the run's own verbs (`playbook_change`, `run`).
  */
 import { plural } from "../shared/words";
+import { REACH_OUT_DECISIONS, REACH_OUT_SAID_OUTCOMES } from "../reach-out/reach-out-dtos";
+import { toSendSaidWords } from "../reach-out/reach-out-approval";
 import { SEQUENCES_ROUTE, sequenceRoute } from "../sequences/sequence-address";
 import {
   asText,
@@ -254,7 +257,12 @@ export const sequenceDraftSpec: ProposalSpec = {
       typeof before.name === "string" && typeof before.steps === "number"
         ? { previous: { name: before.name, steps: before.steps } }
         : {};
-    return { route: "POST sequences/draft", body: { words, ...previous } };
+    const on = rec(pl.list);
+    const list =
+      typeof on.token === "string" && typeof on.label === "string"
+        ? { list: { token: on.token, label: on.label } }
+        : {};
+    return { route: "POST sequences/draft", body: { words, ...previous, ...list } };
   },
   receipt: () => "Drafted",
   open: () => `${SEQUENCES_ROUTE}/new`,
@@ -270,4 +278,67 @@ export const sequenceDiscardSpec: ProposalSpec = {
   },
   receipt: () => "The draft is gone",
   open: () => SEQUENCES_ROUTE,
+};
+
+/** Where a send's verb opens: the run that holds the email, its sheet in Sent (`run_id`), or nowhere it was not named. */
+const openRun = ({ payload }: { payload: Record<string, unknown> }): string | null => {
+  const run = idIn(payload, "run_id");
+  return run ? `broadcasts/run:${run}` : null;
+};
+
+/** What deciding a held email did, by the answer given: said with the business's name where the press carries it. */
+const DECIDED: Record<(typeof REACH_OUT_DECISIONS)[number], (name: string) => string> = {
+  include: (name) => `${name}'s email goes as it is`,
+  rewrite: (name) => `${name}'s opening is written again`,
+  skip: (name) => `${name} is left out of this batch`,
+  not_a_fit: (name) => `${name} is set aside: not a fit`,
+};
+
+/**
+ * An email the check held, decided (R18, 00211 reach_out_send_decide): it goes as it is, its opening is written again, it
+ * is left out of its batch, or its business is set aside as not a fit. The run's sheet in Sent and a sequence's People
+ * press the same door. Nothing to undo: an email let go may already be on its way.
+ */
+export const sequenceSendDecideSpec: ProposalSpec = {
+  needs: "operator",
+  gate: "approve",
+  commit: ({ payload: pl }) => {
+    const id = idIn(pl, "send_id");
+    const decision = REACH_OUT_DECISIONS.find((d) => d === pl.decision);
+    return id && decision
+      ? { route: "POST reach-out-sends/[id]/decide", params: { id }, body: { decision } }
+      : refuseWith(PROPOSAL_WORDS.cannotApprove);
+  },
+  receipt: ({ payload: pl }) => {
+    const decision = REACH_OUT_DECISIONS.find((d) => d === pl.decision) ?? "include";
+    return DECIDED[decision](asText(pl.name) || "The business");
+  },
+  open: openRun,
+};
+
+/**
+ * The owner's word on an email handed to them to send from their own inbox (00429 reach_out_send_said): it went, or it
+ * did not. Said once; a second word answers how it stands, which the receipt says (contracts toSendSaidWords).
+ */
+export const sequenceSendSaidSpec: ProposalSpec = {
+  needs: "operator",
+  gate: "approve",
+  commit: ({ payload: pl }) => {
+    const id = idIn(pl, "send_id");
+    const outcome = REACH_OUT_SAID_OUTCOMES.find((o) => o === pl.outcome);
+    return id && outcome
+      ? { route: "POST reach-out-sends/[id]/said", params: { id }, body: { outcome } }
+      : refuseWith(PROPOSAL_WORDS.cannotApprove);
+  },
+  receipt: ({ payload: pl }, data) => {
+    const a = rec(data);
+    return toSendSaidWords(asText(pl.name) || "The business", {
+      said: a.said === true,
+      state: asText(a.state),
+      reason: asText(a.reason),
+      since: asText(a.since),
+      on_thread: a.on_thread === true,
+    });
+  },
+  open: openRun,
 };

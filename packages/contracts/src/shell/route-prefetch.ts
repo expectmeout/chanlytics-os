@@ -79,6 +79,9 @@ export const PREFETCH_READS: Readonly<Record<string, readonly string[]>> = {
     "policies",
     "templates?all=1",
   ],
+  // Campaigns › Sequences (decision 0060), its list and a record open beside it: the sequences' own read, and the settings
+  // read, which holds the messages a step may send and the business's name its preview is filled with (ROUTE_DRAWS).
+  "campaigns/sequences": ["sequences", "settings", "team", "policies", "templates?all=1"],
   // Templates and every pane of Settings are drawn from the settings surface; the Library's number notice from the channels read,
   // which Connections draws too and asks for as its pane comes on screen.
   messages: ["settings", "team", "policies", "channels", "templates?all=1"],
@@ -172,6 +175,8 @@ export function routePrefetchScript(): string {
       `B=${JSON.stringify(PREFETCH_BESIDE)},O=Object.prototype.hasOwnProperty;`,
     // Leads is People's scope with a surface of its own: the scope alone opens on its own list.
     'if(s==="clients"&&l==="leads")s="leads";',
+    // Sequences is Campaigns' view with a surface of its own: its list, a record and a new one all open on its read.
+    'if(s==="campaigns"&&l==="sequences")s="campaigns/sequences";',
     // A day the Calendar's address names is read by the weeks around that day, which the page works out: no read here. A
     // view's word or a visit with no day (`calendar/month`, `calendar/a-<id>`) opens on the weeks around today, as the
     // route alone does (contracts calendarParamParts).

@@ -191,9 +191,11 @@ export type Database = {
           client_phone: string | null
           consultation: boolean
           contact_id: string | null
+          conversation_id: string | null
           created_at: string
           created_by: string | null
           ends_at: string
+          expires_at: string | null
           external_id: string | null
           id: string
           lead_id: string | null
@@ -218,9 +220,11 @@ export type Database = {
           client_phone?: string | null
           consultation?: boolean
           contact_id?: string | null
+          conversation_id?: string | null
           created_at?: string
           created_by?: string | null
           ends_at: string
+          expires_at?: string | null
           external_id?: string | null
           id?: string
           lead_id?: string | null
@@ -245,9 +249,11 @@ export type Database = {
           client_phone?: string | null
           consultation?: boolean
           contact_id?: string | null
+          conversation_id?: string | null
           created_at?: string
           created_by?: string | null
           ends_at?: string
+          expires_at?: string | null
           external_id?: string | null
           id?: string
           lead_id?: string | null
@@ -271,6 +277,13 @@ export type Database = {
             columns: ["tenant_id", "contact_id"]
             isOneToOne: false
             referencedRelation: "contacts"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "appointments_conversation_id_same_workspace"
+            columns: ["tenant_id", "conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
             referencedColumns: ["tenant_id", "id"]
           },
           {
@@ -7416,6 +7429,28 @@ export type Database = {
         Returns: boolean
       }
       billing_may_spend: { Args: { p_tenant_id: string }; Returns: boolean }
+      booking_request_answer: {
+        Args: {
+          p_appointment_id: string
+          p_booked: boolean
+          p_reply_words?: string
+          p_via?: string
+        }
+        Returns: Json
+      }
+      booking_request_open: {
+        Args: {
+          p_contact_id: string
+          p_conversation_id: string
+          p_ends_at: string
+          p_service: string
+          p_starts_at: string
+          p_tenant_id: string
+          p_timezone: string
+          p_words: string
+        }
+        Returns: Json
+      }
       calendars_due: {
         Args: { p_before: string; p_limit: number; p_tenant_id?: string }
         Returns: {

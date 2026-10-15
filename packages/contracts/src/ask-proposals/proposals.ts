@@ -32,7 +32,7 @@ import {
   playbookSpec,
   runSpec,
 } from "./campaigns";
-import { callHandOverSpec, replySpec, steerSpec, threadVerbSpec, whisperSpec } from "./inbox";
+import { bookingRequestSpec, callHandOverSpec, replySpec, steerSpec, threadVerbSpec, whisperSpec } from "./inbox";
 import {
   leadAddresseeSpec,
   leadLaterSpec,
@@ -63,6 +63,8 @@ import {
   sequenceDiscardSpec,
   sequenceDraftSpec,
   sequenceLeaveSpec,
+  sequenceSendDecideSpec,
+  sequenceSendSaidSpec,
   sequenceMakeSpec,
   sequenceStartSpec,
   sequenceStepRemoveSpec,
@@ -112,10 +114,14 @@ export const PROPOSAL_SPECS = {
   sequence_step_remove: sequenceStepRemoveSpec,
   sequence_words: sequenceWordsSpec,
   sequence_leave: sequenceLeaveSpec,
+  sequence_send_decide: sequenceSendDecideSpec,
+  sequence_send_said: sequenceSendSaidSpec,
   sequence_draft: sequenceDraftSpec,
   sequence_make: sequenceMakeSpec,
   sequence_start: sequenceStartSpec,
   sequence_discard: sequenceDiscardSpec,
+  // A booking the receptionist asked for, answered on Today, in the Inbox and on the Calendar (decision 0061).
+  booking_request: bookingRequestSpec,
   // Live's, Leads' and Reach out's, and a review's (lead-work.ts, inbox.ts, reviews.ts).
   call_hand_over: callHandOverSpec,
   lead_stage: leadStageSpec,

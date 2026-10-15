@@ -66,6 +66,20 @@ export interface SequenceDraftStepDto {
   params: ParamSpec[];
 }
 
+/**
+ * A list a new sequence may start on, as the composer names one (playbooks' pools): `seg:<key>` for one of People's,
+ * `list:<id>` for one the workspace keeps; and its name. Everyone on it gets the first step, and whoever joins it later.
+ */
+export interface SequenceDraftListDto {
+  token: string;
+  label: string;
+}
+
+/** Whether a token names a list as the composer writes one: `seg:<key>` (People's) or `list:<uuid>` (the workspace's). */
+export const isListToken = (token: string): boolean =>
+  /^seg:[a-z0-9_]{1,40}$/.test(token) ||
+  /^list:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(token);
+
 /** What POST sequences/draft answers: the sequence it would make, with what Ask could not do. */
 export interface SequenceDraftDto {
   /** The owner's own line, kept on top. */
@@ -74,6 +88,8 @@ export interface SequenceDraftDto {
   business: string;
   name: string;
   trigger: string;
+  /** The list it starts on, for a sequence on a list (trigger `saved_list`); null for one on a moment. */
+  list: SequenceDraftListDto | null;
   run_hour: number;
   policy_class: string;
   steps: SequenceDraftStepDto[];
@@ -97,5 +113,16 @@ export const SEQUENCE_NEW_WORDS = {
   discard: "Discard",
   startsWhen: "It starts with the next run of its moment",
   first: "The first batch waits for your OK, as every batch of its kind does",
+  starts: "What starts it",
+  startsOn: { moment: "A moment", list: "A list", date: "A date", leads: "Leads" },
+  startsHint: {
+    moment: "Before they come in, after they leave, or when they go quiet: Ask drafts the steps from your line",
+    list: "Everyone on a list, and whoever joins it later",
+    date: "One message to the people you pick, on a day you pick",
+    leads: "Emails to businesses a search found, written for each one",
+  },
+  whichList: "Which list",
+  noLists: "No list to start on yet. Make one in People.",
+  openComposer: { date: "Write it", leads: "Pick the leads" },
   failed: "Ask couldn’t draft it just now. Try again in a moment.",
 } as const;

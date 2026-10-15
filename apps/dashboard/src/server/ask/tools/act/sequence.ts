@@ -7,7 +7,9 @@ import {
   PLAYBOOK_CARD_WORDS,
   PROPOSAL_SPECS,
   REACH_OUT_AFTER_DAYS,
+  REACH_OUT_DECISIONS,
   REACH_OUT_GAP_MINUTES,
+  REACH_OUT_SAID_OUTCOMES,
   REACH_OUT_STEPS_MAX,
   ReachOutChainSchema,
   SEQUENCE_DRAFT_THEN_MAX,
@@ -289,6 +291,70 @@ async function proposeLeave(
   });
 }
 
+/**
+ * A send of a sequence's that waits on the owner, by its id, as its People tab lists it (the operator, 15 Oct 2026): an
+ * email the check held (group held), or one handed to the owner to send from their own inbox (to_send); or the refusal.
+ */
+async function sendOnCard(
+  t: ToolContext,
+  input: { sequence_id: string; send_id: string },
+  group: "held" | "to_send",
+): Promise<{ rec: SequenceRecordDto; name: string; send_id: string } | { refusal: string }> {
+  const rec = await sequenceOnCard(t, input.sequence_id);
+  if (isRefusal(rec)) return rec;
+  const id = str(input.send_id, 40);
+  if (!UUID.test(id)) return { refusal: "send_id must be an id sequences with action sequence returned" };
+  const people = (await load(t.rc, sequencePeople, { id: rec.sequence.id, limit: 500 })).data;
+  const row = people.rows.find((r) => r.send_id === id);
+  if (!row) return { refusal: `no send of ${rec.sequence.name} has that id now` };
+  if (row.group !== group)
+    return {
+      refusal:
+        group === "held"
+          ? "that email is not held by the check: only a held email is decided"
+          : "that email was not handed over to send by hand",
+    };
+  return { rec, name: row.name ?? "The business", send_id: id };
+}
+
+const DECIDE_TITLE: Record<(typeof REACH_OUT_DECISIONS)[number], string> = {
+  include: "Let it go as it is",
+  rewrite: "Write its opening again",
+  skip: "Leave it out of this batch",
+  not_a_fit: "Set the business aside",
+};
+
+async function proposeSendDecide(
+  t: ToolContext,
+  input: { sequence_id: string; send_id: string; decision: (typeof REACH_OUT_DECISIONS)[number] },
+): Promise<ProposalOutcome> {
+  const on = await sendOnCard(t, input, "held");
+  if (isRefusal(on)) return refuse(on.refusal);
+  return propose({
+    kind: "sequence_send_decide",
+    title: `${DECIDE_TITLE[input.decision]}: ${on.name}`,
+    summary: `The email to ${on.name} that the check held, in ${on.rec.sequence.name}. An email let go may be on its way at once, so nothing undoes it.`,
+    payload: { send_id: on.send_id, decision: input.decision, name: on.name, sequence_id: on.rec.sequence.id },
+  });
+}
+
+async function proposeSendSaid(
+  t: ToolContext,
+  input: { sequence_id: string; send_id: string; outcome: (typeof REACH_OUT_SAID_OUTCOMES)[number] },
+): Promise<ProposalOutcome> {
+  const on = await sendOnCard(t, input, "to_send");
+  if (isRefusal(on)) return refuse(on.refusal);
+  const sent = input.outcome === "sent";
+  return propose({
+    kind: "sequence_send_said",
+    title: `${sent ? "Sent" : "Not sent"}: ${on.name}`,
+    summary: sent
+      ? `The email to ${on.name} went from your own inbox; ${on.rec.sequence.name} carries on from it.`
+      : `The email to ${on.name} did not go; ${on.rec.sequence.name} says so.`,
+    payload: { send_id: on.send_id, outcome: input.outcome, name: on.name, sequence_id: on.rec.sequence.id },
+  });
+}
+
 async function proposeDiscard(t: ToolContext, input: { sequence_id: string }): Promise<ProposalOutcome> {
   const rec = await sequenceOnCard(t, input.sequence_id);
   if (isRefusal(rec)) return refuse(rec.refusal);
@@ -486,6 +552,46 @@ export const propose_sequence = defineActions({
       words:
         "Action leave takes people or leads out of a sequence; a send of theirs not yet gone is skipped with them.",
       build: proposeLeave,
+    }),
+    decide: actAction({
+      kind: "sequence_send_decide",
+      input: z.object({
+        sequence_id: SEQUENCE_ID,
+        send_id: z.string().describe("A held email's send_id, from sequences with action sequence (waiting_on_you)."),
+        decision: z.enum(REACH_OUT_DECISIONS).describe("include, rewrite, skip or not_a_fit."),
+      }),
+      examples: [
+        {
+          sequence_id: "f6a7b8c9-d0e1-4f2a-8b3c-4d5e6f7a8b9c",
+          send_id: "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d",
+          decision: "include",
+        },
+      ],
+      label: "Preparing the held email",
+      words:
+        "Action decide answers an email the check held: include lets it go as it is, rewrite writes its opening again, skip leaves it out of this batch, not_a_fit sets its business aside. Nothing undoes it.",
+      build: proposeSendDecide,
+    }),
+    sent_by_hand: actAction({
+      kind: "sequence_send_said",
+      input: z.object({
+        sequence_id: SEQUENCE_ID,
+        send_id: z
+          .string()
+          .describe("The send_id of an email handed over to send by hand, from sequences with action sequence."),
+        outcome: z.enum(REACH_OUT_SAID_OUTCOMES).describe("sent or not_sent."),
+      }),
+      examples: [
+        {
+          sequence_id: "f6a7b8c9-d0e1-4f2a-8b3c-4d5e6f7a8b9c",
+          send_id: "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d",
+          outcome: "sent",
+        },
+      ],
+      label: "Preparing what became of the email",
+      words:
+        "Action sent_by_hand records what became of an email handed over to send by hand from the business's own inbox: sent, or not_sent. Ask them; never say one went that they did not say.",
+      build: proposeSendSaid,
     }),
     discard: actAction({
       kind: "sequence_discard",

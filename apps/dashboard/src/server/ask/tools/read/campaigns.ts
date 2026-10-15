@@ -716,7 +716,7 @@ export const sequencesTool = defineActions({
       examples: [{ sequence_id: "f6a7b8c9-d0e1-4f2a-8b3c-4d5e6f7a8b9c" }],
       label: "Reading the sequence",
       words:
-        "Action sequence reads one as its record shows it: when it starts and stops, the mode its batches go under, its one notice, its steps with their ids (wait, message, channels, last 30 days), who is in it by where they stand, and its last five batches.",
+        "Action sequence reads one as its record shows it: when it starts and stops, the mode its batches go under, its one notice, its steps with their ids (wait, message, channels, last 30 days), who is in it by where they stand (in_it: the first 25, each with its contact_id or lead_id), what waits on the owner (waiting_on_you: each held or handed-over email by its send_id, for propose_sequence with action decide or sent_by_hand), and its last five batches.",
       run: readSequence,
     }),
     moments: readAction({

@@ -250,6 +250,8 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   "POST conversations/[id]/snooze": thread,
   "POST conversations/[id]/wake": thread,
   "POST conversations/[id]/archive": thread,
+  // A time a customer picked by text, answered (decision 0061): the thread's hold, and the visit it booked or let go.
+  "POST conversations/[id]/booking-request": () => [...thread(), ...visits()],
   "POST conversations/[id]/reply": thread,
   "POST escalations/[id]/resolve": thread,
   "POST messages/[id]/steer": thread,
@@ -372,8 +374,14 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   "POST reach-outs": () => [reachOutsOverride, playbooksOverride, broadcastsOverride, leadsOverride],
   "PUT reach-outs/[id]": () => [reachOutsOverride, playbooksOverride, broadcastsOverride],
   "DELETE reach-outs/[id]": () => [reachOutsOverride, playbooksOverride, broadcastsOverride, leadsOverride],
-  // One held email decided moves its run and its lead, never its chain: the row's counts are its report, read on open.
-  "POST reach-out-sends/[id]/decide": () => [broadcastsOverride, playbooksOverride, leadsOverride],
+  // One held email decided moves its run and its lead, never its chain (the row's counts are its report, read on open),
+  // and the Needs you of its sequence where the Sequences page is drawn.
+  "POST reach-out-sends/[id]/decide": () => [
+    broadcastsOverride,
+    playbooksOverride,
+    leadsOverride,
+    ...sequencesIfDrawn(),
+  ],
   // An email its owner said went (00429): its run and its lead, the person it made and the email on their thread, and the
   // reach-out's people; one left out moves the run alone, which the same reads cover.
   "POST reach-out-sends/[id]/said": () => [
@@ -383,6 +391,7 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
     reachOutsOverride,
     ...personAndThreads(),
     ...reportsCampaigns(),
+    ...sequencesIfDrawn(),
   ],
   // Leads added to a reach-out's list (00426): each row's reach-out and the pile, and the reach-out's people and counts.
   // Nothing is planned until its run is made, so no run moves yet, and the reach-out's own row is not written.

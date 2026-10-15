@@ -2,7 +2,7 @@
  * One act, committed through its verb's spec, whichever hand pressed it: a sheet's Save, a bulk bar's press, or Ask's
  * card (legacy-bridge/ask/commit.ts walks a card through the same `sendCall`). What each verb does -- its door, the body
  * it sends, a second call (a deal's next step), the window events, the receipt and what its undo keeps and sends -- is
- * its spec's (contracts VERB_SPECS); this module only walks it (the sheets as verbs, 14 Oct 2026).
+ * its spec's (contracts PROPOSAL_SPECS); this module only walks it (the sheets as verbs, 14 Oct 2026).
  *
  * Every call goes through the typed client as one intent (decision 0035: `once`, a press again before it lands is the
  * same request, which the server answers once), unless a card's own key names it; the moment the door takes it, what

@@ -12,6 +12,7 @@
  */
 import { useEffect, useReducer, useRef, useState, type ReactNode } from "react";
 import { inboxBucketWord } from "@chanlytics/contracts";
+import { answerRequest } from "../../booking-request";
 import { EmptyState } from "../../kit/empty/empty";
 import { useSurface } from "../../use-surface";
 import { TICK_MS } from "../constants";
@@ -140,6 +141,20 @@ function opening() {
   );
 }
 
+/**
+ * Booked it or Can't, pressed on the thread (decision 0061): the reply Booked it drafts lands in the box below, where
+ * nothing is sent until the member sends it, and the toast says what moved.
+ */
+async function answerHere(t: RealThread, booked: boolean, say: (flash: Flash) => void): Promise<void> {
+  const r = await answerRequest(t.conversationId, booked, t.who);
+  if (!r.ok) {
+    say({ tone: "danger", msg: <>{r.message}</> });
+    return;
+  }
+  if (booked && r.reply) window.dispatchEvent(new CustomEvent("inbox:compose", { detail: { text: r.reply } }));
+  say({ msg: <>{r.receipt}</> });
+}
+
 /** A real thread: InboxThread with the two verbs, and the role first, for every one. */
 function realThread(
   p: ThreadPaneProps & {
@@ -180,8 +195,10 @@ function realThread(
         onVetoAct={(_id, act) => hold(t, act, redraw)}
         // The role first, for every verb: a real thread's hand-back used to skip the check and reach the server.
         onDecide={(_id, action) => {
-          if (can() && action === "__HANDBACK__")
+          if (!can()) return;
+          if (action === "__HANDBACK__")
             void verb(t, "hand-back", undefined, "cleared — the receptionist is answering again");
+          else if (action === "__BOOKED__" || action === "__CANT__") void answerHere(t, action === "__BOOKED__", say);
         }}
         onSnooze={() => {
           if (can() && t.state !== "snoozed") void verb(t, "snooze", {}, "snoozed until tomorrow 10:00");

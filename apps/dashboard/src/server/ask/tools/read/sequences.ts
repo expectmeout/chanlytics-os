@@ -31,6 +31,8 @@ import { str, unlessNotFound, type ToolContext } from "../context";
 
 /** How many batches of a sequence's History one read says. */
 const HISTORY_CAP = 5;
+/** How many of who waits on the owner, and of who is in a sequence, one read names: the counts say them all. */
+const PEOPLE_CAP = 25;
 
 /** A sequence as its list row says it. */
 function sequenceLine(row: SequenceRowDto, word: AppointmentWord, tz: string, nowMs: number) {
@@ -103,6 +105,26 @@ export async function readSequence(t: ToolContext, input: { sequence_id: string 
         people.counts[g],
       ]),
     ),
+    // Who waits on the owner, by id (the operator, 15 Oct 2026): an email the check held (propose_sequence action
+    // decide) or one handed to them to send (action sent_by_hand); and who is in it, for action leave.
+    waiting_on_you: people.rows
+      .filter((r) => (r.group === "held" || r.group === "to_send") && r.send_id)
+      .slice(0, PEOPLE_CAP)
+      .map((r) => ({
+        send_id: r.send_id,
+        name: r.name,
+        stands: PEOPLE_GROUP_WORDS[r.group],
+        ...(r.why || r.hold_detail ? { why: r.hold_detail ?? r.why } : {}),
+      })),
+    in_it: people.rows
+      .filter((r) => r.enrollment_id && r.group !== "left" && r.group !== "done")
+      .slice(0, PEOPLE_CAP)
+      .map((r) => ({
+        name: r.name,
+        stands: PEOPLE_GROUP_WORDS[r.group],
+        ...(r.contact_id ? { contact_id: r.contact_id } : {}),
+        ...(r.lead_id ? { lead_id: r.lead_id } : {}),
+      })),
     history: history.batches.slice(0, HISTORY_CAP).map((b) => ({
       at: clockStamp(Date.parse(b.at), t.timezone, nowMs),
       state: b.state,

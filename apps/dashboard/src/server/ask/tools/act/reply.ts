@@ -2,16 +2,20 @@ import "server-only";
 import { z } from "zod";
 import {
   AppError,
+  BOOKING_REQUEST_REFUSALS,
+  BOOKING_REQUEST_WORDS,
   asTenantId,
   contactName,
   isHeldDraft,
   mayMessageFor,
   namesMoney,
   replyWindow,
+  slotShort,
   violatesNoPrices,
   type ConsentChannel,
 } from "@chanlytics/contracts";
 import { mayBegin } from "@chanlytics/core";
+import { openRequestOfThread } from "@chanlytics/db";
 import { beginPorts } from "../../../new-conversation/ports";
 import { replyChannelOf } from "../../../verbs";
 import {
@@ -154,7 +158,55 @@ async function proposeSteer(
   });
 }
 
-/** A reply (D11): a new one (draft, once draft_reply) and a rewrite of one held (steer, once propose_steer). */
+/**
+ * The booking the receptionist asked for in a thread, answered (decision 0061; the operator, 15 Oct 2026): Booked it
+ * books the time and drafts the reply the member sends, Can't lets it go and leaves the thread waiting on their reply,
+ * as Today's row, the Inbox's thread and the Calendar's visit answer it. Nothing goes to the customer by the answer.
+ */
+async function proposeBooking(
+  t: ToolContext,
+  input: { conversation_id: string; booked: boolean },
+): Promise<ProposalOutcome> {
+  const id = str(input.conversation_id, 40);
+  if (!UUID.test(id)) return refuse("conversation_id must be an id a read returned");
+  const row = await openRequestOfThread(t.ctx.supabase, id);
+  if (!row) return refuse(BOOKING_REQUEST_REFUSALS.none);
+  const { data: conv, error } = await t.ctx.supabase
+    .from("conversations")
+    .select("id, contacts (id, display_name, wa_profile_name, phone_e164, email)")
+    .eq("id", id)
+    .eq("tenant_id", t.tenantId)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!conv) return refuse("no such conversation in this workspace");
+  const who = contactName({
+    contact: {
+      id: conv.contacts?.id ?? "",
+      display_name: conv.contacts?.display_name ?? null,
+      wa_profile_name: conv.contacts?.wa_profile_name ?? null,
+      phone_e164: conv.contacts?.phone_e164 ?? null,
+      email: conv.contacts?.email ?? null,
+      consent: null,
+      dnc: false,
+    },
+  } as Parameters<typeof contactName>[0]);
+  const booked = input.booked === true;
+  const asked = BOOKING_REQUEST_WORDS.hold(slotShort(Date.parse(row.starts_at), row.timezone), row.service);
+  noteRow(t, "thread", id, who, `inbox/th-${id}`);
+  return propose({
+    kind: "booking_request",
+    title: `${booked ? BOOKING_REQUEST_WORDS.booked_it : BOOKING_REQUEST_WORDS.cant_it}: ${who}`,
+    summary: booked
+      ? `${asked}. Books it and drafts the reply for you to send; nothing goes to them by itself.`
+      : `${asked}. Lets the time go; the thread waits on your reply.`,
+    payload: { conversation_id: id, booked, who },
+  });
+}
+
+/**
+ * A reply (D11): a new one (draft, once draft_reply), a rewrite of one held (steer, once propose_steer), and the answer
+ * to a booking the receptionist asked for in a thread (booking, decision 0061).
+ */
 export const propose_reply = defineActions({
   name: "propose_reply",
   description: "Propose a reply to a customer, as a card the person approves before anything is sent.",
@@ -183,6 +235,18 @@ export const propose_reply = defineActions({
       words:
         "Action steer takes message_id, the held draft's id from inbox (with action list or thread), never a conversation id, and instruction, a rewrite in words ('shorter', 'mention Saturday is full', 'in Spanish') of a reply the receptionist is holding; the rewrite waits its turn like the first draft.",
       build: proposeSteer,
+    }),
+    booking: actAction({
+      kind: "booking_request",
+      input: z.object({
+        conversation_id: z.string(),
+        booked: z.boolean().describe("true to book it (Booked it), false to let the time go (Can't)."),
+      }),
+      examples: [{ conversation_id: "3b9d6f1e-7a2c-4d8e-9f01-2a3b4c5d6e7f", booked: true }],
+      label: "Preparing the booking's answer",
+      words:
+        "Action booking answers a booking the receptionist asked for in a thread (a hold that says Asked for a time): booked true books it and drafts the reply they send, booked false lets the time go and leaves the thread waiting on their reply. It takes the thread's conversation_id; one with no request waiting is refused in words.",
+      build: proposeBooking,
     }),
   },
 });

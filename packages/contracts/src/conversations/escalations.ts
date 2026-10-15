@@ -41,6 +41,8 @@ export const ESCALATION_REASON_LABELS: Record<EscalationReason, string> = {
   paused: "Held — the workspace is paused until billing resumes",
   carriers: "Held — the carriers have not approved this line for texting yet",
   email_review: "Wrote by email — a person answers",
+  booking_request: "Asked to book a time — confirm it or say you can't",
+  booking_reply: "Asked to book a time — reply to them",
 };
 
 /**
@@ -68,6 +70,8 @@ export const ESCALATION_REASON_SHORT: Record<EscalationReason, string> = {
   paused: "the workspace is paused until billing resumes",
   carriers: "the carriers have not approved this line",
   email_review: "wrote by email",
+  booking_request: "asked to book a time",
+  booking_reply: "asked to book a time",
 };
 
 /** The clause for a reason, or the reason's own words for one the set does not know; nothing for none. */
@@ -102,6 +106,8 @@ const ESCALATION_REASON_WHY: Record<EscalationReason, string> = {
   paused: "because the workspace is paused",
   carriers: "while waiting on carriers",
   email_review: "because they wrote by email",
+  booking_request: "because they asked to book a time",
+  booking_reply: "because they asked to book a time",
 };
 
 /** Why a reason handed a conversation over; a reason the set does not know is said by its clause. */
@@ -149,6 +155,10 @@ export const ESCALATION_SUMMARIES: Record<EscalationReason, string> = {
     "This text arrived before the carriers approved your line for texting, so the receptionist did not answer. Answer it yourself, or wait for the approval on Setup.",
   email_review:
     "They wrote by email. The receptionist does not answer email yet, so nothing was sent. Read it and reply from here.",
+  booking_request:
+    "They picked a time the calendar shows open, and the receptionist told them the team will confirm it. That's you: Booked it, or Can't and reply.",
+  booking_reply:
+    "They asked to book a time, and the receptionist told them the team will confirm. Reply with a time that works.",
 };
 
 /** The label for a reason, or the reason's own words for one the set does not know: a row never reads as nothing. */
@@ -168,7 +178,7 @@ export function reasonSummaryOf(reason: string): string {
  * stop is not offered "Open and reply" under a thread whose reply box says nothing can be sent. The set is the database's
  * (schema-sets.ts), so a reason the CHECK gains without its act fails the package's typecheck.
  */
-export type HoldAct = "reply" | "call_back" | "hand_back";
+export type HoldAct = "reply" | "call_back" | "hand_back" | "confirm";
 
 export const ESCALATION_ACTS: Record<EscalationReason, HoldAct> = {
   human_token: "reply",
@@ -190,6 +200,8 @@ export const ESCALATION_ACTS: Record<EscalationReason, HoldAct> = {
   paused: "reply",
   carriers: "reply",
   email_review: "reply",
+  booking_request: "confirm",
+  booking_reply: "reply",
 };
 
 /** The act of a reason; a reason the set does not know is answered, as a person is needed for it. */
@@ -254,4 +266,6 @@ export const HOLD_ACT_WORDS: Record<HoldAct, { cta: string; take: string | null;
   reply: { cta: "Open and reply", take: "I'll answer this", notice: "Reply from the Inbox." },
   call_back: { cta: "Open the call", take: "Call back", notice: "Call them back." },
   hand_back: { cta: "Open the thread", take: null, notice: "Nothing can be sent to them." },
+  // A booking request (decision 0061): Booked it confirms it; Can't is its second button, and leaves the thread to a reply.
+  confirm: { cta: "Booked it", take: "Booked it", notice: "Confirm it or say you can't." },
 };

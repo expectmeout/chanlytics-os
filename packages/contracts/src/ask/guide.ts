@@ -38,8 +38,8 @@ export const ASK_GUIDE_PAGES: readonly GuidePage[] = [
   {
     page: "Today",
     route: "today",
-    for: "Who waits on you right now, replies about to time out, today's calls and visits, and the day's recap.",
-    verbs: [],
+    for: "Who waits on you right now, replies about to time out, a booking the receptionist asked for (Booked it or Can't), today's calls and visits, and the day's recap.",
+    verbs: ["booking_request"],
     pageOnly: [],
   },
   {
@@ -131,6 +131,8 @@ export const ASK_GUIDE_PAGES: readonly GuidePage[] = [
       "sequence_words",
       "sequence_start",
       "sequence_leave",
+      "sequence_send_decide",
+      "sequence_send_said",
       "sequence_discard",
       "sequence_draft",
       "reach_out_make",
