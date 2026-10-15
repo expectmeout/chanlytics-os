@@ -23,6 +23,9 @@ export const SEQUENCE_WORDS = {
   tabs: { steps: "Steps", people: "People", leads: "Leads", history: "History" },
   addFollowUp: "Add a follow-up",
   approve: "Approve",
+  skip: "Skip",
+  skipAsk: "Skip this batch?",
+  skipDetail: "Nobody in it gets this step from this batch; the sequence goes on with its next one.",
   lookFirst: "Look first",
   pause: "Pause",
   resume: "Turn on",
@@ -33,6 +36,59 @@ export const SEQUENCE_WORDS = {
   edit: "Edit",
   you: "You approve",
 } as const;
+
+/** The flow's own words (the canvas's Steps board): its keys, the step's lines, and what each part of it says. */
+export const SEQUENCE_FLOW_WORDS = {
+  starts: "Starts",
+  stops: "Stops",
+  stopsAlways: "never to anyone who said stop",
+  from: "From",
+  noMessage: "No message yet",
+  sent: "sent",
+  replied: "replied",
+  last30: "last 30 days",
+  takeAway: "Take away",
+  hour: "Sends at",
+  saveHour: "Save",
+  cancel: "Cancel",
+  goingNow: "Going now",
+  done: "Done",
+  writtenEach: "Written for each business",
+  call: "A call for you, on Today",
+  sendsFrom: "Sends from",
+  fromYou: "You, from your own inbox",
+  fromMailboxes: "Your connected mailboxes",
+  connect: "Connect a mailbox",
+  mailboxes: "Mailboxes",
+  checked: "Each one is checked before it goes",
+  takeAwayAsk: (place: number) => `Take step ${place} away?`,
+  takeAwayDetail: "The steps after it go with it; nobody waiting for it hears more from this sequence.",
+  /** New words a step waits on WhatsApp for, and its answer where it said no. */
+  newWords: (name: string, rejected: boolean) =>
+    `New words “${name}” wait for WhatsApp${rejected ? ", which did not approve them" : ""}`,
+  sample: "The next one, as it reads",
+  addLeads: "Add leads",
+  /** When the step's next batch goes, with how many where they are counted: "next 9 tomorrow 9:00 AM". */
+  next: (people: number, when: string) => (people > 0 ? `next ${people} ${when}` : `next ${when}`),
+} as const;
+
+/** A message's WhatsApp standing, as a step's line says it beside its words: the tone the kit's pill draws it in. */
+export function stepApprovalOf(
+  status: string | null | undefined,
+): { label: string; tone: "ok" | "warn" | "danger" } | null {
+  if (status === "approved") return { label: "Approved", tone: "ok" };
+  if (status === "pending") return { label: "In review", tone: "warn" };
+  if (status === "rejected") return { label: "Not approved", tone: "danger" };
+  if (status === "paused" || status === "disabled") return { label: "Paused by WhatsApp", tone: "danger" };
+  return null;
+}
+
+/** Where a lead's step stands in its sequence: gone out, going now, or still to come (the Leads board's nodes). */
+export function leadStepStand(place: number, sent: number, now: number | null): "done" | "now" | "later" {
+  if (now !== null && place === now) return "now";
+  if (now !== null ? place < now : sent > 0) return "done";
+  return "later";
+}
 
 /** The groups the list draws, in their order: what needs you first, then by how each starts, and the drafts last. */
 export const SEQUENCE_GROUPS = ["needs", "customers", "leads", "dates", "drafts"] as const;
@@ -132,9 +188,16 @@ export function sequenceStateWords(row: SequenceRowDto): string {
     };
     return DATE[row.date.state] ?? "Scheduled";
   }
-  const STATE: Record<SequenceState, string> = { draft: "Draft", on: "On", paused: "Paused", ended: "Ended" };
-  return STATE[row.state];
+  return SEQUENCE_STATE_WORDS[row.state];
 }
+
+/** A sequence's state in a word, on its pill: a draft's before it is made too (New). */
+export const SEQUENCE_STATE_WORDS: Record<SequenceState, string> = {
+  draft: "Draft",
+  on: "On",
+  paused: "Paused",
+  ended: "Ended",
+};
 
 /**
  * The tone of that pill (the kit's tones), the state's alone: a one-off waiting for you is amber, one that failed red, what
@@ -242,16 +305,23 @@ export function sequenceNotice(
 /** What starts a sequence, in a sentence the flow opens with: "The day before each visit, at 9:00 AM". */
 export function sequenceStartsSentence(row: SequenceRowDto, word: AppointmentWord, tz: string, nowMs: number): string {
   const f = row.first;
-  const at = f ? atHour(f.run_hour) : "";
   if (row.starts === "date" && row.date)
     return `${clockWhen(Date.parse(row.date.at), tz, nowMs)}, for ${plural(row.date.people, "person", "people")}`;
   if (row.starts === "leads") return f?.search_name ? `A lead joins ${f.search_name}` : "A lead joins the list";
-  if (row.starts === "list") return `Someone joins ${f?.list_name ?? "the list"}${at}`;
+  if (row.starts === "list") return listStartsSentence(f?.list_name ?? null, f?.run_hour ?? null);
   return momentStartsSentence(f?.trigger ?? null, f?.run_hour ?? null, word);
 }
 
 /** ", at 9:00 AM": the hour a sequence's runs go, as the flow says it after its moment. */
 const atHour = (hour: number): string => `, at ${clockTime(Date.UTC(2026, 0, 1, hour), "UTC")}`;
+
+/**
+ * A list's sentence, at its hour: what the flow of a sequence on a list opens with, and what a new one's draft on a list
+ * says before it is made (New).
+ */
+export function listStartsSentence(list: string | null, hour: number | null): string {
+  return `Someone joins ${list ?? "the list"}${hour === null ? "" : atHour(hour)}`;
+}
 
 /**
  * A moment's sentence, at its hour: what the flow of a sequence on it opens with, and what a new one's draft says before

@@ -9,7 +9,7 @@
   "campaigns/parts": "broadcasts playbooks",
   "campaigns/playbooks": "playbooks settings",
   "campaigns/reach-out": "broadcasts reach_outs settings",
-  "campaigns/sequences": "sequences settings",
+  "campaigns/sequences": "playbooks sequences settings",
   "campaigns/templates": "channels playbooks reach_outs settings workspace",
   "channels": "channels",
   "inbox": "broadcasts conversations inbox people settings",

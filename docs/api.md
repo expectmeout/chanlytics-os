@@ -2073,6 +2073,7 @@ Writes; for a member of the workspace the request names, operator or above; coun
 | --- | --- | --- | --- |
 | `words` | string | yes | at least 8 characters; at most 500 characters |
 | `previous` | object | no |  |
+| `list` | object | no |  |
 
 ## settings
 
