@@ -10,11 +10,13 @@ import { createHash } from "node:crypto";
 import {
   AppError,
   MIN_MS,
+  isEffortMessage,
   type AskAnswer,
   type AskMessageVM,
   type AskRowRef,
   type AskScope,
   type AskTurnShape,
+  type EffortMessage,
 } from "@chanlytics/contracts";
 import type { RouteContext } from "../with-route";
 import { answerLine, titleFromQuestion, titleFromSearch, type CardOutcome, type SearchAnswering } from "./prompt";
@@ -124,7 +126,7 @@ function citedIn(rows: AskMessageVM[]): AskRowRef[] {
 export function foldHistory(history: TurnInput["history"], last: string | unknown[]): Msg[] {
   const questions = questionsOf(history);
   const from = questions[Math.max(0, questions.length - HISTORY_TURNS)] ?? history.length;
-  const messages: Msg[] = [
+  const messages: Array<Exclude<Msg, EffortMessage>> = [
     ...history.slice(from).map((h) => ({ role: h.role, content: h.text.slice(0, HISTORY_CHARS) })),
     { role: "user", content: last },
   ];
@@ -300,8 +302,10 @@ interface Kept {
   final: unknown[];
   results: unknown[];
 }
+/** A message as a raw turn keeps it: the person's or the model's, or an effort said between them (effort.ts). */
 const isMsg = (m: unknown): m is Msg =>
-  !!m && typeof m === "object" && "content" in m && "role" in m && (m.role === "user" || m.role === "assistant");
+  isEffortMessage(m) ||
+  (!!m && typeof m === "object" && "content" in m && "role" in m && (m.role === "user" || m.role === "assistant"));
 const messagesOf = (v: unknown): Msg[] | null => (Array.isArray(v) && v.every(isMsg) ? v : null);
 
 /** A raw turn as the row keeps it (storedRaw), read back whole, or null for anything else: a replay takes no doubt. */
@@ -496,12 +500,14 @@ const marked = (b: unknown): unknown =>
  * blocks they mark -- the turn's own messages never carry one, so the turn as it keeps itself (RawTurn) carries none.
  * Two here, beside system's two: `anchor`, the block where what an earlier request wrote to the cache ends (the page's
  * last block on a cold turn, bp3), and the request's last block, which moves with each round (bp4), so each request
- * writes only what it appended. An anchor the request no longer carries marks nothing.
+ * writes only what it appended. An anchor the request no longer carries marks nothing. An effort message has no block
+ * (effort.ts), so the last block is the last message's before it.
  */
 export function withMarkers(messages: Msg[], anchor: unknown): Msg[] {
-  const last = messages.length - 1;
+  let last = messages.length - 1;
+  while (last > 0 && isEffortMessage(messages[last])) last--;
   return messages.map((m, i) => {
-    if (!Array.isArray(m.content)) return m;
+    if (isEffortMessage(m) || !Array.isArray(m.content)) return m;
     const blocks: unknown[] = m.content;
     const at = anchor === undefined ? -1 : blocks.indexOf(anchor);
     if (at < 0 && i !== last) return m;
@@ -519,7 +525,8 @@ function unmarkedBlock(b: unknown): unknown {
   return rest;
 }
 /** A message less the cache's markers a request carried on it (D10): the turn as it was sent, whoever marked it. */
-const unmarked = (m: Msg): Msg => (Array.isArray(m.content) ? { ...m, content: m.content.map(unmarkedBlock) } : m);
+const unmarked = (m: Msg): Msg =>
+  !isEffortMessage(m) && Array.isArray(m.content) ? { ...m, content: m.content.map(unmarkedBlock) } : m;
 
 /**
  * The turn as it was sent, from the round it ended on and where the question sits in that round's request, and what it
