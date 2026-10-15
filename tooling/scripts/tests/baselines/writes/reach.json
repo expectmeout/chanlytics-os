@@ -1922,18 +1922,19 @@
       }
     },
     "PUT settings": {
-      "changes": "tenant_config UPDATE",
-      "tells": "tenant_config",
+      "changes": "tenant_config UPDATE · tenants UPDATE",
+      "tells": "tenant_config · tenants",
       "extra": {
-        "broadcasts": "inbox, today",
-        "people": "clients/person, today",
-        "playbooks": "broadcasts, messages, today",
-        "reports_campaigns": "reports, reports/campaigns",
         "setup": "admin, admin/activity, admin/autonomy, admin/billing, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/setup, admin/team, admin/workspace, broadcasts, calendar, campaigns, clients, clients/leads, clients/person, conversations, inbox, leads, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, segments"
       },
       "missing": {
+        "calendar_runs": "calendar",
+        "campaign_results": "campaigns",
         "person": "clients/person",
+        "reach_outs": "campaigns, messages, outbound",
         "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
+        "reports_reviews": "reports/reviews",
+        "today": "today",
         "today_pins": "today"
       }
     },

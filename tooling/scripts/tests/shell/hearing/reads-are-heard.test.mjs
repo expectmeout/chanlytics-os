@@ -515,8 +515,6 @@ const NOT_READ = {
     "The row says the lead's own rows list its people (0052); they are People's rows (leads/peek/people.tsx), which the row re-reads, and the trace finds no read of contacts under Leads, so it is probably premature. Owed: as for POST people/[id]/name.",
   "POST broadcasts/[id]/recheck -> playbooks":
     "Check the held again sends a run's held emails back to be checked (reach_out_run_recheck writes reach_out_sends); the trace finds no read of reach_out_sends under the playbooks, so it is probably premature. Owed: drop the two.",
-  "PUT settings -> reports_campaigns":
-    "channelChange() names the Campaigns lens for the connected number's health; a settings save writes tenant_config (the hours, the postal address), which the lens does not read. Premature. Owed: drop reportsCampaigns() from settingsWrite, with CAMPAIGNS_WRITES in refresh-coverage.test.mjs.",
   "POST settings/receptionist -> reports_campaigns":
     "channelChange() names the Campaigns lens for the connected number's health; the first receptionist writes tenant_config (the hours, the postal address), which the lens does not read. Premature. Owed: drop reportsCampaigns() from settingsWrite, with CAMPAIGNS_WRITES in refresh-coverage.test.mjs.",
   "PATCH workspaces -> calendar":

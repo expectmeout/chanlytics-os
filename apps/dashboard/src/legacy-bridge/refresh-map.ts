@@ -229,8 +229,6 @@ const visits = () => [
 // conversations, the escalations, the calls and the searches) draw no configuration; the headline it owns does, its booking pair read
 // from the calendar link and the zone (the Booking gap line), so it is read where Today is on screen and forgotten elsewhere (the
 // wiring's second audit, W-visit-deal-4). The one list for the two writes that carry them, so they cannot drift.
-// A save that changes the business's name renames the workspace (00439, X4-5): the sidebar and the switcher say it from the
-// boot's own list, as they do the logo, read last (the settings first, for the next save's version).
 const settingsWrite = () => [
   settingsOverride,
   calendarOverride,
@@ -238,7 +236,6 @@ const settingsWrite = () => [
   ...channelChange(),
   ...receptionist(),
   ...headlineIfDrawn(),
-  workspaceOverride,
 ];
 
 /** Exported for the tests that hold a verb to its surfaces by running this, not by reading a courier. */
@@ -419,9 +416,12 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   // Name, hours, services, the hand-off number and the calendar feed are Setup rows too. The business's postal address is
   // saved here as well, and an offer by email is closed without it: the composers' Send by row and People's reach follow. The hours and
   // the closures are what the Receptionist lens's "while you were closed" counts by, and the address is read by the People lens's
-  // "can receive offers" too, so a save forgets that lens's read as well (settingsWrite).
-  "PUT settings": settingsWrite,
-  // The first receptionist is a settings write too, from what is known (its profile carries the hours): the same surfaces read again.
+  // "can receive offers" too, so a save forgets that lens's read as well (settingsWrite). A save that changes the business's
+  // name renames the workspace (00439, X4-5): the sidebar and the switcher say it from the boot's own list, as they do the
+  // logo, read last (the settings first, for the next save's version).
+  "PUT settings": () => [...settingsWrite(), workspaceOverride],
+  // The first receptionist is a settings write too, from what is known (its profile carries the hours): the same surfaces read
+  // again. It takes the workspace's name and renames nothing, so the workspace is not read again.
   "POST settings/receptionist": settingsWrite,
   // A booking email held for a look and dismissed (00345): the Calendar's read carries the held list and its count, which the
   // Business tab's fold and the board's card both draw from, so the list says what is left at once. (Read again is a job: below.)
