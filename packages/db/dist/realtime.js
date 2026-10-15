@@ -47,13 +47,13 @@ var WATCHED = [
   // a list made, renamed, archived, or people put on and taken off by a teammate: People's rail repaints (00169)
   { table: "segments", events: EVERY },
   { table: "segment_members", events: EVERY },
-  // a reply to a sequence read, drafted or undone: the Inbox's strip and chip repaint (00222; sequence_replies since 00439)
+  // a reply to a sequence read, drafted or undone: the Inbox's strip and chip repaint (00222; sequence_replies since 00440)
   { table: "sequence_replies", events: EVERY },
   // a batch made by the sweep, approved, stopped, sending or finished: Today's Approve and Stop rows and Campaigns
-  // repaint (00321; sequence_batches since 00439). Its sends are not watched: a batch's page reads them when it opens.
+  // repaint (00321; sequence_batches since 00440). Its sends are not watched: a batch's page reads them when it opens.
   { table: "sequence_batches", events: EVERY },
   // a sequence made, paused, resumed, renamed or ended, and a step changed by a teammate or stamped by the sweep's run:
-  // Campaigns' rows and their acts repaint (00376; the sequence tables since 00439, decision 0060)
+  // Campaigns' rows and their acts repaint (00376; the sequence tables since 00440, decision 0060)
   { table: "sequences", events: EVERY },
   { table: "sequence_steps", events: EVERY },
   // a booking that arrived by email written, moved or withdrawn by the booking_read job: the Calendar repaints (00345)

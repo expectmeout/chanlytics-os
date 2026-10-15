@@ -260,6 +260,12 @@ create index if not exists sequence_enrollments_person on public.sequence_enroll
 create index if not exists sequence_enrollments_lead on public.sequence_enrollments (tenant_id, lead_id) where lead_id is not null;
 create index if not exists sequence_enrollments_due on public.sequence_enrollments (sequence_id, place, next_at)
   where state = 'in' and next_at is not null;
+-- Someone's latest place in a sequence, whatever its state: what each send's trigger finds first (a batch of thousands
+-- landing in one statement finds each by the key, never by a scan of the sequence's places).
+create index if not exists sequence_enrollments_customer_latest
+  on public.sequence_enrollments (sequence_id, contact_id, entered_at desc, id desc) where lead_id is null;
+create index if not exists sequence_enrollments_lead_latest
+  on public.sequence_enrollments (sequence_id, lead_id, entered_at desc, id desc) where lead_id is not null;
 
 alter table public.sequence_enrollments enable row level security;
 drop policy if exists sequence_enrollments_member_select on public.sequence_enrollments;
@@ -293,6 +299,73 @@ declare
   v_next_days int;
   v_has_next boolean;
 begin
+  -- Sends made, once a statement (sequence_sends_enrol, below): set-based, so a batch of thousands is one pass.
+  if TG_LEVEL = 'STATEMENT' then
+    -- 1. Someone still in the sequence whose first step comes again leaves first: one place is in at a time.
+    with asked as (
+      select distinct on (n.sequence_id, n.lead_id, n.contact_id) n.sequence_id, n.contact_id, n.lead_id, st.place
+        from new_sends n join public.sequence_steps st on st.id = n.step_id
+       order by n.sequence_id, n.lead_id, n.contact_id, st.place desc
+    ), seen as (
+      select a.*, e.id as e_id, e.state as e_state, e.place as e_place
+        from asked a
+        left join lateral (
+          select e.id, e.state, e.place from public.sequence_enrollments e
+           where e.sequence_id = a.sequence_id
+             and case when a.lead_id is null then e.lead_id is null and e.contact_id = a.contact_id
+                      else e.lead_id = a.lead_id end
+           order by e.entered_at desc, e.id desc
+           limit 1) e on true
+    )
+    update public.sequence_enrollments x
+       set state = 'left', why = 'started_again', ended_at = now(), next_at = null
+      from seen s
+     where x.id = s.e_id and s.e_state = 'in' and s.lead_id is null and s.place = 1 and s.e_place > 1;
+
+    -- 2. A place that stands is in again, at the later step.
+    with asked as (
+      select distinct on (n.sequence_id, n.lead_id, n.contact_id) n.sequence_id, n.contact_id, n.lead_id, st.place
+        from new_sends n join public.sequence_steps st on st.id = n.step_id
+       order by n.sequence_id, n.lead_id, n.contact_id, st.place desc
+    ), seen as (
+      select a.*, e.id as e_id, e.state as e_state, e.place as e_place
+        from asked a
+        left join lateral (
+          select e.id, e.state, e.place from public.sequence_enrollments e
+           where e.sequence_id = a.sequence_id
+             and case when a.lead_id is null then e.lead_id is null and e.contact_id = a.contact_id
+                      else e.lead_id = a.lead_id end
+           order by e.entered_at desc, e.id desc
+           limit 1) e on true
+    )
+    update public.sequence_enrollments x
+       set state = 'in', why = null, ended_at = null, next_at = null, left_by = null,
+           place = greatest(case when x.state = 'in' then x.place else 0 end, s.place)
+      from seen s
+     where x.id = s.e_id and not (s.lead_id is null and s.place = 1 and (s.e_state <> 'in' or s.e_place > 1));
+
+    -- 3. Everyone else takes a new place: none before, or a customer's first step again.
+    with asked as (
+      select distinct on (n.sequence_id, n.lead_id, n.contact_id)
+             n.tenant_id, n.sequence_id, n.contact_id, n.lead_id, st.place
+        from new_sends n join public.sequence_steps st on st.id = n.step_id
+       order by n.sequence_id, n.lead_id, n.contact_id, st.place desc
+    )
+    insert into public.sequence_enrollments (tenant_id, sequence_id, contact_id, lead_id, place)
+    select a.tenant_id, a.sequence_id, a.contact_id, a.lead_id, a.place
+      from asked a
+      left join lateral (
+        select e.state, e.place from public.sequence_enrollments e
+         where e.sequence_id = a.sequence_id
+           and case when a.lead_id is null then e.lead_id is null and e.contact_id = a.contact_id
+                    else e.lead_id = a.lead_id end
+         order by e.entered_at desc, e.id desc
+         limit 1) e on true
+     where e.state is null
+        or (a.lead_id is null and a.place = 1 and e.state <> 'in');
+    return null;
+  end if;
+
   select st.place into v_place from public.sequence_steps st where st.id = NEW.step_id;
   if v_place is null then
     return null;
@@ -304,25 +377,6 @@ begin
    order by e.entered_at desc, e.id desc
    limit 1
    for update;
-
-  if TG_OP = 'INSERT' then
-    if v_e.id is null
-       or (NEW.lead_id is null and v_place = 1 and (v_e.state <> 'in' or v_e.place > 1)) then
-      if v_e.id is not null and v_e.state = 'in' then
-        update public.sequence_enrollments
-           set state = 'left', why = 'started_again', ended_at = now(), next_at = null
-         where id = v_e.id;
-      end if;
-      insert into public.sequence_enrollments (tenant_id, sequence_id, contact_id, lead_id, place)
-      values (NEW.tenant_id, NEW.sequence_id, NEW.contact_id, NEW.lead_id, v_place);
-    else
-      update public.sequence_enrollments
-         set state = 'in', why = null, ended_at = null, next_at = null, left_by = null,
-             place = greatest(case when state = 'in' then place else 0 end, v_place)
-       where id = v_e.id;
-    end if;
-    return null;
-  end if;
 
   if v_e.id is null or NEW.state is not distinct from OLD.state then
     return null;
@@ -360,8 +414,18 @@ begin
 end $$;
 
 drop trigger if exists sequence_sends_move_enrollment on public.sequence_sends;
-create trigger sequence_sends_move_enrollment after insert or update of state on public.sequence_sends
+create trigger sequence_sends_move_enrollment after update of state on public.sequence_sends
   for each row execute function public.sequence_sends_move_enrollment();
+
+-- Sends made put their people in the sequence, once a statement, set-based (the same function's statement branch): a batch of thousands lands in one insert, and
+-- a trigger for each row read and wrote each person's place one at a time. Each person's latest place in the sequence is
+-- read once: none, or a customer's first step again after they left it or moved past it, is a new place (one still in it
+-- leaves as started_again first, so one place is in at a time); anything else is that place, in again, at the later step.
+
+drop trigger if exists sequence_sends_enrol on public.sequence_sends;
+create trigger sequence_sends_enrol after insert on public.sequence_sends
+  referencing new table as new_sends
+  for each statement execute function public.sequence_sends_move_enrollment();
 
 -- Who is in each sequence now, from the sends already written: the person's latest send in it says where they stand.
 insert into public.sequence_enrollments (tenant_id, sequence_id, contact_id, lead_id, state, place, sent_at, why,

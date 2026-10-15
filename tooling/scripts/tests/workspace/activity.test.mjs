@@ -105,6 +105,11 @@ test("the words: a sentence per kind, the one or two fields a reader wants, noth
     activityWords("settings.changed", { fields: ["hours", "closures", "calendar", "notifications", "extra"] }),
     "Settings changed · hours, closures, calendar, notifications",
   );
+  // A rename keeps what it changed from and to (00439, X4-5): the one setting the log says in full.
+  assert.equal(
+    activityWords("settings.changed", { fields: ["name"], from: "Harbor Moving", to: "Harbor Movers" }),
+    "Settings changed · renamed from “Harbor Moving” to “Harbor Movers”",
+  );
   assert.equal(
     activityWords("line.texting_rejected", {
       error: "provided Opt-in information (30896 · MESSAGE_FLOW)",

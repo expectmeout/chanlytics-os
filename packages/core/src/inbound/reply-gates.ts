@@ -28,6 +28,7 @@
  */
 import { errField } from "@chanlytics/channels";
 import {
+  confirmationNameOf,
   offersAfterStart,
   optInConfirmation,
   tokenBudgetSpent,
@@ -53,6 +54,21 @@ async function offersNoteFor(at: Answering): Promise<string | null> {
     return answer ? offersAfterStart(answer, channel) : null;
   } catch (e) {
     L.warn("lead_context_unavailable", { error: errField(e) });
+    return null;
+  }
+}
+
+/**
+ * The name the campaign filed for this workspace, which a START by text is confirmed in (X4-5); null where no filing kept
+ * one, the adapter reads none, or the read failed (the confirmation is then in the workspace's name).
+ */
+async function filedCampaignName(at: Answering): Promise<string | null> {
+  const { db, tenantId, ports, channel, L } = at;
+  if (channel !== "sms" || !db || !tenantId || !ports.filing) return null;
+  try {
+    return (await ports.filing.names(db, tenantId)).campaign;
+  } catch (e) {
+    L.warn("filed_name_unavailable", { error: errField(e) });
     return null;
   }
 }
@@ -148,7 +164,14 @@ export async function confirmedYes(at: Answering, bodyText: string): Promise<typ
       await processedAfter(sink, null, "none");
       return;
     }
-    const filed = optInConfirmation(brainCfg?.business_name ?? rt?.known?.workspace?.name ?? "", purpose);
+    // In whose name (contracts confirmationNameOf): a START by text in the name its campaign was filed under.
+    const name = confirmationNameOf({
+      channel,
+      filed: await filedCampaignName(at),
+      workspace: rt?.known?.workspace?.name ?? null,
+      receptionist: brainCfg?.business_name ?? null,
+    });
+    const filed = optInConfirmation(name, purpose);
     // The yes to offers a STOP ended does not come back with a START: said here, on WhatsApp alone.
     const offers = n.optInMarketing ? null : await offersNoteFor(at);
     const words = offers ? `${filed} ${offers}` : filed;

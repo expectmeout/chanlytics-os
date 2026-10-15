@@ -324,6 +324,11 @@ export interface PublicWorkspaceRead {
    * server/public/public-facts.type-test.ts holds it).
    */
   record: PublicRecordRead | null;
+  /**
+   * The business on record has no tax id: one person, filed as a sole proprietor, whose street the page leaves off
+   * (00439 sole_proprietor_of; the wiring's second audit, X4-5). False with nothing on record. The tax id is never read.
+   */
+  soleProprietor: boolean;
   config: Json | null;
   channels: { kind: string; number_e164: string | null }[];
 }
@@ -342,9 +347,10 @@ export async function publicWorkspaceBySlug(db: Db, slug: string): Promise<Publi
   if (t.error) throw new Error(`reading the workspace: ${t.error.message}`);
   if (!t.data) return null;
   const id = t.data.id;
-  const [billing, record, cfg, channels] = await Promise.all([
+  const [billing, record, sole, cfg, channels] = await Promise.all([
     db.from("billing_accounts").select("mode, status").eq("tenant_id", id).maybeSingle(),
     publicRecordOf(db, id),
+    db.rpc("sole_proprietor_of", { p_tenant_id: id }),
     db.from("tenant_config").select("config").eq("tenant_id", id).maybeSingle(),
     db
       .from("tenant_channels")
@@ -355,6 +361,7 @@ export async function publicWorkspaceBySlug(db: Db, slug: string): Promise<Publi
   ]);
   if (billing.error) throw new Error(`reading the workspace's billing: ${billing.error.message}`);
   if (record.error) throw new Error(`reading the business on record: ${record.error.message}`);
+  if (sole.error) throw new Error(`reading whether the business is a sole proprietor: ${sole.error.message}`);
   if (cfg.error) throw new Error(`reading the workspace's configuration: ${cfg.error.message}`);
   if (channels.error) throw new Error(`reading the workspace's channels: ${channels.error.message}`);
   return {
@@ -368,6 +375,7 @@ export async function publicWorkspaceBySlug(db: Db, slug: string): Promise<Publi
       billing: billingPlanOf(billing.data),
     }),
     record: record.data ?? null,
+    soleProprietor: sole.data === true,
     config: cfg.data?.config ?? null,
     channels: channels.data ?? [],
   };

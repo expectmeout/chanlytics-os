@@ -219,11 +219,16 @@ test("a booking changed is worded as the time freed or the new time, opening the
   const cancelled = visitChangeNews(visit(), "cancelled", NOW);
   assert.deepEqual(
     [cancelled.kind, cancelled.route, cancelled.about, cancelled.subject],
-    ["booking", `calendar/2999-10-12:a-${APPT}`, { type: "appointment", id: APPT }, "Rosa Diaz cancelled their visit"],
+    [
+      "booking",
+      `calendar/2999-10-12:a-${APPT}`,
+      { type: "appointment", id: APPT },
+      "Rosa Diaz cancelled their booking",
+    ],
   );
   assert.match(cancelled.body, /\nThat time is free again\.\n\n/);
   const moved = visitChangeNews(visit({ who: null }), "moved", NOW);
-  assert.equal(moved.subject, "Someone moved their visit");
+  assert.equal(moved.subject, "Someone moved their booking");
   assert.match(moved.body, /^Now /);
   assert.doesNotMatch(moved.body, /free again/);
 });

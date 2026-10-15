@@ -632,7 +632,7 @@ export {
   leadCardsLive,
   leadCompanyUpsert,
 } from "./repositories/leads";
-export { ownLineOf, businessOnRecordOf } from "./lines";
+export { ownLineOf, businessOnRecordOf, filedNamesOf } from "./lines";
 export type { LeadOneLead, LeadOneMember, IdeasKept } from "./repositories/leads";
 export { watchedTables, watchedEvents, narrowedUpdates, subscribeWorkspaceChanges } from "./realtime";
 export type { SubscribeOptions } from "./realtime";

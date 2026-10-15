@@ -299,8 +299,8 @@ export interface MessagesSummaryPart {
 }
 
 /**
- * Messages and receptionist, folded (canvas A): the three answers in one line, "Visit messages not asked · Offers & news
- * not asked · Answer", each a part, so the page can make a "not asked" the press that asks it.
+ * Messages and receptionist, folded (canvas A): the three answers in one line, "Messages not asked · Offers & news not
+ * asked · Answer", each a part, so the page can make a "not asked" the press that asks it.
  */
 export function messagesSummaryOf(
   visit: { label: string; unknown: boolean },
@@ -309,7 +309,7 @@ export function messagesSummaryOf(
 ): MessagesSummaryPart[] {
   const low = (s: string) => `${s.charAt(0).toLowerCase()}${s.slice(1)}`;
   return [
-    { id: "visit", lead: "Visit messages", answer: low(visit.label), notAsked: visit.unknown },
+    { id: "visit", lead: "Messages", answer: low(visit.label), notAsked: visit.unknown },
     { id: "offers", lead: "Offers & news", answer: low(offers.label), notAsked: offers.unknown },
     { id: "receptionist", lead: "", answer: receptionist, notAsked: false },
   ];

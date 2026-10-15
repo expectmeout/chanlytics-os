@@ -269,6 +269,27 @@ test("the name the carriers are told, against the name the brand registers", () 
   }
 });
 
+test("the name the receptionist answers in, against the name the filing states (X4-5)", () => {
+  // A customer who signs up under the page's name and is answered under another reads two businesses, and the name the
+  // campaign files is in the confirmation for good. An owner's save of the name renames both, so the fix is one save.
+  const [p] = registrationPreflight(ready({ receptionistName: "Harbor Hair Studio" }));
+  assert.equal(p.id, "names_differ");
+  assert.match(p.what, /Harbor Hair Studio/);
+  assert.match(p.what, /Marisa's Beauty Salon/);
+  assert.match(p.fix, /Settings › Business/);
+  // One name, said loosely, is one name; and a name never read refuses nothing.
+  for (const same of [
+    "Marisa's Beauty Salon",
+    "Marisa’s Beauty Salon",
+    "MARISAS BEAUTY SALON",
+    null,
+    undefined,
+    "",
+    "  ",
+  ])
+    assert.deepEqual(registrationPreflight(ready({ receptionistName: same })), [], String(same));
+});
+
 test("the page the carriers will open has to exist", () => {
   // We file `/b/<slug>` as the website and the privacy policy. It renders from
   // the legal name and the address; without them it answers 404, so the filing

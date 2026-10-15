@@ -2099,7 +2099,7 @@ interface PlaybookRow {
     /** What must still hold of someone due it (D6, contracts FOLLOW_UP_CONDITIONS): no_booking, no_reply. */
     only_if?: string[] | null;
 }
-/** Someone a customer's step after the first is due to (00440 sequence_follow_ups_due). */
+/** Someone a customer's step after the first is due to (00441 sequence_follow_ups_due). */
 interface FollowUpDue {
     enrollment_id: string;
     contact_id: string;
@@ -2189,11 +2189,11 @@ interface RunPlaybookPorts extends AssemblePorts {
     /** Whether a run for this local day was already made (the unique index's fact, read first). */
     alreadyRan(playbookId: string, runFor: string): Promise<boolean>;
     /**
-     * Who a customer's step after the first is due to on the business's day `runFor` (00440 sequence_follow_ups_due): in its
+     * Who a customer's step after the first is due to on the business's day `runFor` (00441 sequence_follow_ups_due): in its
      * sequence one step before it, their wait over. Throws when it cannot be read: unread is not nobody.
      */
     followUpsDue(stepId: string, runFor: string): Promise<FollowUpDue[]>;
-    /** People taken out of their sequence with why (00440 sequence_enrollments_leave): how many left. Throws on a failed write. */
+    /** People taken out of their sequence with why (00441 sequence_enrollments_leave): how many left. Throws on a failed write. */
     leave(enrollmentIds: readonly string[], why: string): Promise<number>;
     /** The run recorded: the event, and the playbook's last run. Never throws. */
     record(playbookId: string, runFor: string, at: Date, data: Record<string, unknown>): Promise<void>;
@@ -4330,6 +4330,17 @@ interface InboundPorts {
          * road on the WhatsApp prompt, and the ask for the yes to offers is for WhatsApp alone.
          */
         describe(lead: LeadContext, now?: Date, tz?: string, channel?: InboundChannel): string;
+    };
+    /**
+     * The names the workspace's filings sent the carriers (packages/db filedNamesOf): the campaign's is the name a START by
+     * text is confirmed in (contracts confirmationNameOf; the wiring's second audit, X4-5). Absent in an adapter that has
+     * none: the confirmation is then in the workspace's name.
+     */
+    filing?: {
+        names(db: InboundDb, tenantId: string): Promise<{
+            campaign: string | null;
+            brand: string | null;
+        }>;
     };
     calendar: {
         openings(rt: InboundRuntime, now?: Date): Promise<string | null>;

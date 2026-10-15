@@ -36,6 +36,6 @@ export const CALENDAR_UNREADABLE_WORDS = {
   title: "Your calendar link stopped answering",
   body: (f: { sinceMs: number; nowMs: number }): string =>
     `Your calendar link stopped answering ${agoWords(f.sinceMs, f.nowMs)}. Until it answers again, the receptionist ` +
-    "does not say which times are open, and new visits do not reach the Calendar. Check the link in Settings, under " +
+    "does not say which times are open, and new bookings do not reach the Calendar. Check the link in Settings, under " +
     "Business.",
 } as const;

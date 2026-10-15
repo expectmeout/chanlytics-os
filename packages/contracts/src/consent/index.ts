@@ -28,6 +28,7 @@ export type {
 export {
   policyLinks,
   optInConfirmation,
+  confirmationNameOf,
   verbalOptInScript,
   consentPageVM,
   consentFormVM,

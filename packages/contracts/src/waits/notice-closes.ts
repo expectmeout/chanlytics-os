@@ -116,7 +116,7 @@ export const NOTICE_ENDS: Record<ServerNotificationKind, NoticeEnd> = {
   },
   calendar_people: {
     ends: "news",
-    why: "Who the calendar's visits are with is told once; the Calendar keeps the names to look at.",
+    why: "Who is on the calendar is told once; the Calendar keeps the names to look at.",
   },
   alert: {
     ends: "news",
@@ -129,7 +129,7 @@ export const NOTICE_ENDS: Record<ServerNotificationKind, NoticeEnd> = {
   reach_out_replied: { ends: "news", why: "A reply is told once per reading; its thread holds the rest." },
   reach_out_day: { ends: "news", why: "The day's reach-out numbers are a line, told once at six." },
   opted_out: { ends: "news", why: "A customer's stop is news, told once; there is nothing to answer." },
-  booking: { ends: "news", why: "A booking that arrived is news; the Calendar holds the visit." },
+  booking: { ends: "news", why: "A booking that arrived is news; the Calendar holds it." },
   member_joined: { ends: "news", why: "A teammate who joined is news, told once." },
   member_left: { ends: "news", why: "A teammate who left is news, told once." },
 };

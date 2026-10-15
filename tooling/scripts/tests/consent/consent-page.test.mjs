@@ -18,6 +18,8 @@ import {
   SMS_CLAUSES,
   consentFormVM,
   optInConfirmation,
+  confirmationNameOf,
+  cleanWorkspaceName,
   verbalOptInScript,
   deskSignVM,
 } from "@chanlytics/contracts";
@@ -475,6 +477,33 @@ test("the confirmation a yes receives names the program, the frequency, the rate
   assert.match(offers, /A few messages a month/);
   assert.doesNotMatch(offers, /appointment/i);
   assert.ok(optInConfirmation("  ", "marketing").startsWith("This business: "));
+});
+
+test("a START by text is confirmed in the name its campaign was filed under; a YES OFFERS in the receptionist's (X4-5)", () => {
+  // The carriers approved the campaign's opt-in message with the name it was filed under, and only a new campaign changes
+  // it: a business renamed since is still confirmed in it. Older filings kept no name, and their confirmation is the
+  // workspace's, which no owner could change before 00439.
+  const names = { filed: "Harbor Moving", workspace: "Harbor Movers", receptionist: "Harbor Movers of Miami" };
+  assert.equal(confirmationNameOf({ channel: "sms", ...names }), "Harbor Moving");
+  assert.equal(confirmationNameOf({ channel: "sms", ...names, filed: null }), "Harbor Movers");
+  assert.equal(confirmationNameOf({ channel: "sms", ...names, filed: "  ", workspace: "" }), "Harbor Movers of Miami");
+  // WhatsApp files nothing with the carriers: the receptionist's name, then the workspace's, as before.
+  assert.equal(confirmationNameOf({ channel: "whatsapp", ...names }), "Harbor Movers of Miami");
+  assert.equal(confirmationNameOf({ channel: "whatsapp", ...names, receptionist: null }), "Harbor Movers");
+  // Nobody named: the confirmation's own fallback says "This business".
+  const none = confirmationNameOf({ channel: "sms", filed: null, workspace: null, receptionist: null });
+  assert.equal(none, "");
+  assert.ok(optInConfirmation(none, "conversational").startsWith("This business: "));
+});
+
+test("the name a workspace takes is one line, trimmed, and never empty (X4-5)", () => {
+  assert.deepEqual(cleanWorkspaceName("  Harbor \n  Movers "), { ok: true, name: "Harbor Movers" });
+  assert.equal(cleanWorkspaceName("   ").ok, false);
+  assert.equal(cleanWorkspaceName(null).ok, false);
+  assert.equal(cleanWorkspaceName("x".repeat(120)).ok, true);
+  const long = cleanWorkspaceName("x".repeat(121));
+  assert.equal(long.ok, false);
+  assert.match(long.reason, /120 characters/);
 });
 
 test("what staff ask in person or on the phone is one sentence, with the call to action's disclosures, for the visit question only", () => {

@@ -319,6 +319,13 @@ test("setup-request: a known `what` and a workspace on record, or nothing; the p
     // Nobody named: a member.
     assert.equal((await knock(SETUP, { what: "line", by: "   " })).status, 200);
     assert.match(net.mail()[1].text, /\nRequested by: a member\n/);
+    // A name the carriers hold (00439, X4-5): the mail says where the filed names are kept and that a new campaign changes it.
+    assert.equal((await knock(SETUP, { what: "name" })).status, 200);
+    const named = net.mail()[2];
+    assert.equal(named.subject, "Harbor Moving asked to change the name the carriers hold for their texting");
+    assert.match(named.text, /a2p_campaign_name/);
+    assert.match(named.text, /register a new campaign/);
+    net.seen.splice(2, 1);
     // A key holder naming the workspace -- support, from the console -- gets the same mail about that workspace.
     await keyed(async () => {
       assert.deepEqual(

@@ -31,14 +31,14 @@ const consentIn = (v: unknown): Answer => (v === "opted_in" || v === "opted_out"
 const fieldsOf = (pl: Record<string, unknown>, keys: readonly string[]): Record<string, unknown> =>
   Object.fromEntries(keys.filter((k) => pl[k] !== undefined).map((k) => [k, pl[k]]));
 
-/** Their answer, as the sheet and its receipt say it: to offers, or to messages about their visit. */
+/** Their answer, as the sheet and its receipt say it: to offers, or to messages (the two answers, as broadcasts say them). */
 function answerSaid(purpose: AnswerPurpose, consent: Answer, who: string): string {
   if (purpose === "marketing") {
     if (consent === "opted_in") return `${who} said yes to offers and news`;
-    if (consent === "opted_out") return `${who} said no to offers — messages about their own visit still reach them`;
+    if (consent === "opted_out") return `${who} said no to offers — other messages still reach them`;
     return `${who} has not been asked about offers`;
   }
-  if (consent === "opted_in") return `${who} said yes to messages about their visit`;
+  if (consent === "opted_in") return `${who} said yes to messages`;
   if (consent === "opted_out") return `${who} said stop — nothing goes out to them at all`;
   return `${who} is back to "not asked"`;
 }
@@ -106,7 +106,7 @@ export const answerManySpec: ProposalSpec = {
   },
   receipt: ({ payload: pl }, data) => {
     const m = manySaid(data, "recorded");
-    const what = purposeOf(pl.purpose) === "marketing" ? "to offers" : "to messages about their visit";
+    const what = purposeOf(pl.purpose) === "marketing" ? "to offers" : "to messages";
     const answer = consentIn(pl.consent);
     const head =
       answer === "unknown"

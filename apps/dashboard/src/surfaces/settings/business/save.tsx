@@ -111,8 +111,8 @@ export type RowChange = (brain: Brain, profile: Profile) => Brain;
 interface JobBase {
   /** The row's or the fold's id. */
   row: string;
-  /** The toast once the server takes it. */
-  said?: ReactNode;
+  /** The toast once the server takes it, or the toast its answer makes (a rename says what it renamed, who.tsx). */
+  said?: ReactNode | ((answer: unknown) => LegacyFlash);
   /** Runs then too (the row closes). */
   done?: () => unknown;
   flash?: (flash: LegacyFlash) => unknown;
@@ -397,7 +397,7 @@ const btSaver = (): Saver => {
         }
         taken[job.row] = Date.now();
         btSafely(job.done);
-        btSafely(job.flash, { msg: job.said });
+        btSafely(job.flash, typeof job.said === "function" ? job.said(saved) : { msg: job.said });
         // With the server's answer in hand the next patch goes on it now; without one, it waits for the re-read,
         // which is when the promise settles.
         if (answer && answer.config) free();

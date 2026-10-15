@@ -119,6 +119,27 @@ export function recordFilingOf(
   return best;
 }
 
+/**
+ * Where a line keeps the names a filing sent the carriers (its facts): the brand's, the business on record's name (X4-3),
+ * and the campaign's, whose confirmation a customer receives after START and which no later rename reaches (X4-5).
+ */
+export const LINE_FILED_NAMES = { brand: "a2p_filed_name", campaign: "a2p_campaign_name" } as const;
+
+/**
+ * What an owner is told when the business is renamed (X4-5; Ruben, 15 October 2026): its pages follow at once, and a name
+ * the carriers hold does not. A filed confirmation can only be replaced by a new campaign, so that change goes through
+ * Chanlytics, asked for here (a setup request of kind `name`).
+ */
+export const RENAME_WORDS = {
+  pages: (name: string) => `Your sign-up page, its paper form and your desk sign say “${name}” now.`,
+  held: (filed: string) =>
+    `The carriers still hold “${filed}” as you filed it, and the text confirming a START says it until it is changed with them.`,
+  ask: "Request a name change",
+  kept: "Saved. The workspace could not be renamed, so your sign-up page and your sign still say its old name.",
+  requested: "Requested: a person at Chanlytics changes the name with the carriers and writes to you.",
+  already: "Already asked: a person at Chanlytics is changing the name with the carriers.",
+} as const;
+
 /** What the save door answers beside the record: what moved, and what the carriers hold of it. */
 export interface RecordSavedDto {
   /** The first record this workspace kept. */

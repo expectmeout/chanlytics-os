@@ -492,7 +492,7 @@ var ERASURE_LEGS = {
   deals_trigger: "deals_erase_on_contact: a deal's note, evidence and link cleared",
   leads_trigger: "leads_erase_on_contact: their lead blanked (lead_blank), its places deleted, a reach-out's opening and a preference's example cleared (00391), its drafts cleared (00429), a company's people and key cleared and its domain kept as a digest (00430), its keys kept as digests; one of several people at a business takes only their own address, number and the call's note from it (lead_person_leg, 00413); a person named at any company leaves it, its drafts to them cleared and their address kept as a digest (lead_person_forget, 00430)",
   signer_trigger: "person_signer_erase_on_contact: the name and title a reply's reading found as its signer, and what became of it, cleared (00413)",
-  recipients_trigger: "sequence_sends_on_erase: the words each batch kept for them, a visit's time, service and key and a proposal's link, cleared (00391, 00439)",
+  recipients_trigger: "sequence_sends_on_erase: the words each batch kept for them, a visit's time, service and key and a proposal's link, cleared (00391, 00440)",
   jobs_scrub: "scrubErasedJobs and erase_contact: a job's payload that carried their number or words overwritten, and its error cleared",
   ask_scrub: "scrub_ask_for_contact: the assistant's turns that name them deleted (00238)",
   deliveries_scrub: "provider_events_scrub: a kept delivery that names them deleted (00336)",
@@ -5109,14 +5109,16 @@ async function publicWorkspaceBySlug(db, slug) {
   if (t.error) throw new Error(`reading the workspace: ${t.error.message}`);
   if (!t.data) return null;
   const id = t.data.id;
-  const [billing, record, cfg, channels] = await Promise.all([
+  const [billing, record, sole, cfg, channels] = await Promise.all([
     db.from("billing_accounts").select("mode, status").eq("tenant_id", id).maybeSingle(),
     publicRecordOf(db, id),
+    db.rpc("sole_proprietor_of", { p_tenant_id: id }),
     db.from("tenant_config").select("config").eq("tenant_id", id).maybeSingle(),
     db.from("tenant_channels").select("kind, number_e164").eq("tenant_id", id).eq("status", "active").order("created_at", { ascending: true })
   ]);
   if (billing.error) throw new Error(`reading the workspace's billing: ${billing.error.message}`);
   if (record.error) throw new Error(`reading the business on record: ${record.error.message}`);
+  if (sole.error) throw new Error(`reading whether the business is a sole proprietor: ${sole.error.message}`);
   if (cfg.error) throw new Error(`reading the workspace's configuration: ${cfg.error.message}`);
   if (channels.error) throw new Error(`reading the workspace's channels: ${channels.error.message}`);
   return {
@@ -5130,6 +5132,7 @@ async function publicWorkspaceBySlug(db, slug) {
       billing: billingPlanOf(billing.data)
     }),
     record: record.data ?? null,
+    soleProprietor: sole.data === true,
     config: cfg.data?.config ?? null,
     channels: channels.data ?? []
   };
@@ -6035,6 +6038,7 @@ async function leadCountriesOf(db, ids) {
 }
 
 // src/lines.ts
+import { LINE_FILED_NAMES } from "../../contracts/dist/index.js";
 async function ownLineOf(db, tenantId) {
   const { data, error } = await db.from("lines").select("id, tenant_id, e164, provider, subaccount_sid, messaging_service_sid, sms_state, voice_state").eq("tenant_id", tenantId).neq("provider", "carrier").neq("voice_state", "failed").order("created_at", { ascending: true }).limit(1).maybeSingle();
   if (error) throw new Error(`cannot read the workspace's own line: ${error.message}`);
@@ -6044,6 +6048,19 @@ async function businessOnRecordOf(db, tenantId) {
   const { data, error } = await db.from("business_records").select("*").eq("tenant_id", tenantId).maybeSingle();
   if (error) throw new Error(`cannot read the business on record: ${error.message}`);
   return data;
+}
+async function filedNamesOf(db, tenantId) {
+  const { data, error } = await db.from("lines").select("facts").eq("tenant_id", tenantId).neq("provider", "carrier").order("created_at", { ascending: true });
+  if (error) throw new Error(`cannot read the names the workspace filed: ${error.message}`);
+  const named = (key) => {
+    for (const row of data ?? []) {
+      const facts = row.facts && typeof row.facts === "object" && !Array.isArray(row.facts) ? row.facts : null;
+      const value = facts ? facts[key] : null;
+      if (typeof value === "string" && value.trim()) return value.trim();
+    }
+    return null;
+  };
+  return { campaign: named(LINE_FILED_NAMES.campaign), brand: named(LINE_FILED_NAMES.brand) };
 }
 
 // src/realtime.ts
@@ -6095,13 +6112,13 @@ var WATCHED = [
   // a list made, renamed, archived, or people put on and taken off by a teammate: People's rail repaints (00169)
   { table: "segments", events: EVERY },
   { table: "segment_members", events: EVERY },
-  // a reply to a sequence read, drafted or undone: the Inbox's strip and chip repaint (00222; sequence_replies since 00439)
+  // a reply to a sequence read, drafted or undone: the Inbox's strip and chip repaint (00222; sequence_replies since 00440)
   { table: "sequence_replies", events: EVERY },
   // a batch made by the sweep, approved, stopped, sending or finished: Today's Approve and Stop rows and Campaigns
-  // repaint (00321; sequence_batches since 00439). Its sends are not watched: a batch's page reads them when it opens.
+  // repaint (00321; sequence_batches since 00440). Its sends are not watched: a batch's page reads them when it opens.
   { table: "sequence_batches", events: EVERY },
   // a sequence made, paused, resumed, renamed or ended, and a step changed by a teammate or stamped by the sweep's run:
-  // Campaigns' rows and their acts repaint (00376; the sequence tables since 00439, decision 0060)
+  // Campaigns' rows and their acts repaint (00376; the sequence tables since 00440, decision 0060)
   { table: "sequences", events: EVERY },
   { table: "sequence_steps", events: EVERY },
   // a booking that arrived by email written, moved or withdrawn by the booking_read job: the Calendar repaints (00345)
@@ -6780,6 +6797,7 @@ export {
   failedMessageErrors,
   feedAdditionsWith,
   feedWordsOver,
+  filedNamesOf,
   finishableRuns,
   firstReplies,
   followUpOnFile,

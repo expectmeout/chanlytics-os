@@ -40,10 +40,10 @@ test("F4: a save re-reads the settings surface, so the next save carries the new
   const { AFTER } = await importSrc("apps/dashboard/src/legacy-bridge/refresh-map.ts");
   assert.deepEqual(
     AFTER["PUT settings"]().map((o) => o.key),
-    // The postal address saved here is one of the channels' readiness, which People's reach reads too, and the composers where a page
-    // draws them: no page is on screen here.
-    // People's reach is read again only where People is drawn (#1602, S4-6), and no page is drawn here.
-    ["settings", "calendar", "setup"],
+    // The postal address saved here is one of the channels' readiness, which People's reach reads too, and the composers, each where
+    // a page draws them: no page is on screen here, so neither is read (refresh-map.ts peopleIfDrawn; this said People before it
+    // was read only where drawn). And the workspace's own list, last: a save of the business's name renames it (X4-5).
+    ["settings", "calendar", "setup", "workspace"],
     "REGRESSION: the second save in a row was a 409 — settings first, for the version",
   );
   assert.ok(!fn.includes("await refresh();"), "the generic refresh never re-read this pane");

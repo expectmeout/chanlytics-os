@@ -10,6 +10,7 @@
 //
 // It holds no hook of its own (the rows hold theirs).
 
+import { RENAME_WORDS } from "@chanlytics/contracts";
 import type { Fact, FactConflict, FactSource, ResolvedFacts } from "@chanlytics/contracts";
 import type { ReactNode } from "react";
 import { BUSINESS_TAB } from "@/legacy-bridge/business-tab";
@@ -24,7 +25,7 @@ import type { BtDisputed } from "./gestures/row";
 import { phoneShown } from "./save";
 import type { Brain, Config, Saver } from "./save";
 import { businessTabSave } from "./saver";
-import { factsNow, samePhone } from "./shell";
+import { factsNow, samePhone, setupApi } from "./shell";
 
 /** What a row's box is handed to draw: the draft, its setter, what stops it, the field's own props, the row's gate. */
 interface BoxProps<D> {
@@ -232,6 +233,39 @@ const btWordsSaved = (id: "name" | "address" | "website" | "booking_link") => (d
   return { change: S.PATCH_OF[id](S.STORED_AS[id] ? S.STORED_AS[id](d) : S.trimmed(d)), said: BT_SAVED };
 };
 
+/**
+ * The name's save, which renames the workspace too (00439; the wiring's second audit, X4-5): its toast says what the
+ * sign-up page and the sign say now, and where the carriers hold the name the campaign was filed under, says that with the
+ * way to ask for it to change. An answer that renamed nothing says what every row says.
+ */
+const btNameSaved = (flash: (f: LegacyFlash) => void) => (d: string) => ({
+  ...btWordsSaved("name")(d),
+  said: (answer: unknown): LegacyFlash => {
+    const r = (answer as { renamed?: { to?: unknown; carriers_hold?: unknown; refused?: unknown } } | null)?.renamed;
+    if (!r) return { msg: BT_SAVED };
+    if (r.refused) return { tone: "warn", msg: RENAME_WORDS.kept };
+    const pages = RENAME_WORDS.pages(typeof r.to === "string" ? r.to : "");
+    const held = typeof r.carriers_hold === "string" ? r.carriers_hold : null;
+    if (!held) return { msg: pages };
+    return {
+      msg: `${pages} ${RENAME_WORDS.held(held)}`,
+      action: { label: RENAME_WORDS.ask, onClick: () => btAskNameChange(flash) },
+    };
+  },
+});
+
+/**
+ * Ask a person at Chanlytics to change the name the carriers hold (setup_request 'name'), through Setup's verb as the
+ * Workspace pane asks for a repair, and say what was asked.
+ */
+const btAskNameChange = async (flash: (f: LegacyFlash) => void) => {
+  const setup = setupApi();
+  if (!setup) return;
+  const r = await setup.request("name");
+  if (!r.ok) return flash({ tone: "danger", msg: r.message || "That didn't go through." });
+  flash({ msg: r.already ? RENAME_WORDS.already : RENAME_WORDS.requested });
+};
+
 /** What every card's row is handed by the card. */
 interface RowShared {
   brain: Brain;
@@ -387,7 +421,7 @@ const BtNameRow = ({ shared, brain, goesOn }: { shared: RowShared; brain: Brain;
       gate={btChangeGate("name")}
       initial={brain.business_name || ""}
       check={S.CHECK_OF.name}
-      commit={btWordsSaved("name")}
+      commit={btNameSaved(shared.flash)}
       body={btTextBox({ placeholder: "The name customers know you by", autoComplete: "organization" })}
     />
   );

@@ -7,6 +7,7 @@ export {
   knownTimezones,
   usableDeviceTimezone,
   DEFAULT_TIMEZONE,
+  cleanWorkspaceName,
 } from "./workspace";
 export {
   platformRows,

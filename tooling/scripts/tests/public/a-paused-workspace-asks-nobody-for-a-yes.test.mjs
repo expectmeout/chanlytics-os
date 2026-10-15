@@ -337,10 +337,12 @@ test("one load: each reader's call reads each table once, only selects, and the 
   t.after(() => setServiceClient(null));
   const { slug, db } = world();
   const facts = await businessPageFor(slug);
-  const asked = db.seen.map((q) => `${q.table}.${q.op}`);
+  // And whether the business has a tax id, asked as a yes or no (00439 sole_proprietor_of): never the tax id itself.
+  const asked = db.seen.map((q) => (q.rpc ? `rpc.${q.rpc}` : `${q.table}.${q.op}`));
   assert.deepEqual([...asked].sort(), [
     "billing_accounts.select",
     "business_records.select",
+    "rpc.sole_proprietor_of",
     "tenant_channels.select",
     "tenant_config.select",
     "tenants.select",
