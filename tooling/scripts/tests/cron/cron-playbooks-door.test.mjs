@@ -395,7 +395,7 @@ test("a paused workspace's moments are not on the page at all: nothing is made, 
 });
 
 test("a workspace paused after the page was read is counted off and said once, quietly: nothing is made or scheduled, the day stays open, and the moment moves to the back of the page", async () => {
-  const w = world({ people: { [P]: [person("c1")] }, rpcs: { playbooks_due: readBeforeThePause } });
+  const w = world({ people: { [P]: [person("c1")] }, rpcs: { sequence_steps_due: readBeforeThePause } });
   workspace(w.tables, P, OPEN, "auto", "paused");
   w.tables.playbooks.push(playbook(P, "pb-p"));
 
@@ -629,7 +629,7 @@ test("a moment the page calls due and the edge's clock does not is never run, sa
   // they read apart (a POSIX string before 00245's safe_zone refused it).
   const w = world({
     people: { [A]: [person("c1")] },
-    rpcs: { playbooks_due: (a, derived) => derived(a).map((r) => ({ ...r, timezone: CLOSED })) },
+    rpcs: { sequence_steps_due: (a, derived) => derived(a).map((r) => ({ ...r, timezone: CLOSED })) },
   });
   workspace(w.tables, A, OPEN, "auto");
   w.tables.playbooks.push(playbook(A, "pb-a"));
@@ -693,13 +693,13 @@ test("reach-out steps a tick that ran long never reached are counted as left beh
 
 test("playbooks that cannot be read are a 500 that says so, and nothing is noted: a database without the page's function included, so the edge deployed ahead of its migration is loud, never quiet", async () => {
   for (const refusal of [
-    "permission denied for function playbooks_due",
-    "Could not find the function public.playbooks_due(p_at, p_kind, p_last_hour, p_limit) in the schema cache",
+    "permission denied for function sequence_steps_due",
+    "Could not find the function public.sequence_steps_due(p_at, p_kind, p_last_hour, p_limit) in the schema cache",
   ]) {
     const w = world({
       people: { [A]: [person("c1")] },
       rpcs: {
-        playbooks_due: () => {
+        sequence_steps_due: () => {
           throw new Error(refusal);
         },
       },
@@ -726,8 +726,8 @@ test("a reach-out page that cannot be read is said, and the moments still run", 
   const w = world({
     people: { [A]: [person("c1")] },
     rpcs: {
-      playbooks_due: (a, ask) => {
-        if (a.p_kind === "reach_out") throw new Error("permission denied for function playbooks_due");
+      sequence_steps_due: (a, ask) => {
+        if (a.p_kind === "reach_out") throw new Error("permission denied for function sequence_steps_due");
         return ask(a);
       },
     },
@@ -899,7 +899,7 @@ test("a moment and a reach-out in one workspace each run through their own verb:
 
 test("a reach-out that cannot run moves to the back of the page and keeps its day open; the steps behind it run, and the alarm counts both pages", async () => {
   // Its workspace paused after the page was read: the step is on the page, and its run finds the pause.
-  const w = world({ rpcs: { ...coldRpcs([coldLead("l1")]), playbooks_due: readBeforeThePause } });
+  const w = world({ rpcs: { ...coldRpcs([coldLead("l1")]), sequence_steps_due: readBeforeThePause } });
   // A paused workspace's step, never run: it sorts first.
   coldWorkspace(w.tables, A, OPEN);
   w.tables.tenants[0].status = "paused";
@@ -1351,7 +1351,7 @@ test("a paused workspace is not a failure: no page, no notice, however late in i
   const line = wire();
   try {
     await withEnv(MAIL_ENV, async () => {
-      const w = world({ people: { [P]: [person("c1")] }, rpcs: { playbooks_due: readBeforeThePause } });
+      const w = world({ people: { [P]: [person("c1")] }, rpcs: { sequence_steps_due: readBeforeThePause } });
       workspace(w.tables, P, LAST, "auto", "paused");
       w.tables.playbooks.push(playbook(P, "pb-p"));
       const [, body] = await answer(await w.tick());

@@ -189,67 +189,6 @@
       "where": null
     },
     {
-      "table": "broadcast_recipients",
-      "name": "broadcast_recipients_pkey",
-      "primary": true,
-      "nullsNotDistinct": false,
-      "keys": [
-        {
-          "column": "broadcast_id"
-        },
-        {
-          "column": "contact_id"
-        }
-      ],
-      "where": null
-    },
-    {
-      "table": "broadcasts",
-      "name": "broadcasts_pkey",
-      "primary": true,
-      "nullsNotDistinct": false,
-      "keys": [
-        {
-          "column": "id"
-        }
-      ],
-      "where": null
-    },
-    {
-      "table": "broadcasts",
-      "name": "broadcasts_playbook_run",
-      "primary": false,
-      "nullsNotDistinct": false,
-      "keys": [
-        {
-          "column": "playbook_id"
-        },
-        {
-          "column": "run_for"
-        }
-      ],
-      "where": {
-        "notNull": {
-          "column": "playbook_id"
-        }
-      }
-    },
-    {
-      "table": "broadcasts",
-      "name": "broadcasts_tenant_id_id_key",
-      "primary": false,
-      "nullsNotDistinct": false,
-      "keys": [
-        {
-          "column": "tenant_id"
-        },
-        {
-          "column": "id"
-        }
-      ],
-      "where": null
-    },
-    {
       "table": "business_records",
       "name": "business_records_pkey",
       "primary": true,
@@ -1960,85 +1899,6 @@
       "where": null
     },
     {
-      "table": "playbooks",
-      "name": "playbooks_one_chain_per_search",
-      "primary": false,
-      "nullsNotDistinct": false,
-      "keys": [
-        {
-          "column": "lead_search_id"
-        }
-      ],
-      "where": {
-        "notNull": {
-          "column": "lead_search_id"
-        }
-      }
-    },
-    {
-      "table": "playbooks",
-      "name": "playbooks_one_follow_up",
-      "primary": false,
-      "nullsNotDistinct": false,
-      "keys": [
-        {
-          "column": "tenant_id"
-        }
-      ],
-      "where": {
-        "cmp": "=",
-        "left": {
-          "column": "trigger"
-        },
-        "right": {
-          "value": "proposal_waiting"
-        }
-      }
-    },
-    {
-      "table": "playbooks",
-      "name": "playbooks_one_next",
-      "primary": false,
-      "nullsNotDistinct": false,
-      "keys": [
-        {
-          "column": "after_playbook_id"
-        }
-      ],
-      "where": {
-        "notNull": {
-          "column": "after_playbook_id"
-        }
-      }
-    },
-    {
-      "table": "playbooks",
-      "name": "playbooks_pkey",
-      "primary": true,
-      "nullsNotDistinct": false,
-      "keys": [
-        {
-          "column": "id"
-        }
-      ],
-      "where": null
-    },
-    {
-      "table": "playbooks",
-      "name": "playbooks_tenant_id_id_key",
-      "primary": false,
-      "nullsNotDistinct": false,
-      "keys": [
-        {
-          "column": "tenant_id"
-        },
-        {
-          "column": "id"
-        }
-      ],
-      "where": null
-    },
-    {
       "table": "policies",
       "name": "policies_pkey",
       "primary": true,
@@ -2149,111 +2009,6 @@
         },
         {
           "column": "day"
-        }
-      ],
-      "where": null
-    },
-    {
-      "table": "reach_out_replies",
-      "name": "reach_out_replies_pkey",
-      "primary": true,
-      "nullsNotDistinct": false,
-      "keys": [
-        {
-          "column": "message_id"
-        }
-      ],
-      "where": null
-    },
-    {
-      "table": "reach_out_sends",
-      "name": "reach_out_sends_broadcast_id_lead_id_key",
-      "primary": false,
-      "nullsNotDistinct": false,
-      "keys": [
-        {
-          "column": "broadcast_id"
-        },
-        {
-          "column": "lead_id"
-        }
-      ],
-      "where": null
-    },
-    {
-      "table": "reach_out_sends",
-      "name": "reach_out_sends_one_first",
-      "primary": false,
-      "nullsNotDistinct": false,
-      "keys": [
-        {
-          "column": "tenant_id"
-        },
-        {
-          "column": "lead_id"
-        }
-      ],
-      "where": {
-        "and": [
-          {
-            "cmp": "=",
-            "left": {
-              "column": "playbook_id"
-            },
-            "right": {
-              "column": "root_id"
-            }
-          },
-          {
-            "not": {
-              "and": [
-                {
-                  "cmp": "=",
-                  "left": {
-                    "column": "state"
-                  },
-                  "right": {
-                    "value": "skipped"
-                  }
-                },
-                {
-                  "in": {
-                    "column": "reason"
-                  },
-                  "values": [
-                    "run_canceled",
-                    "owner_took_back"
-                  ]
-                }
-              ]
-            }
-          }
-        ]
-      }
-    },
-    {
-      "table": "reach_out_sends",
-      "name": "reach_out_sends_pkey",
-      "primary": true,
-      "nullsNotDistinct": false,
-      "keys": [
-        {
-          "column": "id"
-        }
-      ],
-      "where": null
-    },
-    {
-      "table": "reach_out_sends",
-      "name": "reach_out_sends_tenant_id_id_key",
-      "primary": false,
-      "nullsNotDistinct": false,
-      "keys": [
-        {
-          "column": "tenant_id"
-        },
-        {
-          "column": "id"
         }
       ],
       "where": null
@@ -2391,6 +2146,393 @@
     {
       "table": "sending_domains",
       "name": "sending_domains_tenant_id_id_key",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "sequence_batches",
+      "name": "sequence_batches_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "sequence_batches",
+      "name": "sequence_batches_step_run",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "step_id"
+        },
+        {
+          "column": "run_for"
+        }
+      ],
+      "where": {
+        "notNull": {
+          "column": "step_id"
+        }
+      }
+    },
+    {
+      "table": "sequence_batches",
+      "name": "sequence_batches_tenant_id_id_key",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "sequence_enrollments",
+      "name": "sequence_enrollments_one_in_customer",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "sequence_id"
+        },
+        {
+          "column": "contact_id"
+        }
+      ],
+      "where": {
+        "and": [
+          {
+            "cmp": "=",
+            "left": {
+              "column": "state"
+            },
+            "right": {
+              "value": "in"
+            }
+          },
+          {
+            "isNull": {
+              "column": "lead_id"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "table": "sequence_enrollments",
+      "name": "sequence_enrollments_one_in_lead",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "sequence_id"
+        },
+        {
+          "column": "lead_id"
+        }
+      ],
+      "where": {
+        "and": [
+          {
+            "cmp": "=",
+            "left": {
+              "column": "state"
+            },
+            "right": {
+              "value": "in"
+            }
+          },
+          {
+            "notNull": {
+              "column": "lead_id"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "table": "sequence_enrollments",
+      "name": "sequence_enrollments_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "sequence_enrollments",
+      "name": "sequence_enrollments_tenant_id_id_key",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "sequence_replies",
+      "name": "sequence_replies_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "message_id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "sequence_sends",
+      "name": "sequence_sends_batch_id_lead_id_key",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "batch_id"
+        },
+        {
+          "column": "lead_id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "sequence_sends",
+      "name": "sequence_sends_one_first",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "lead_id"
+        }
+      ],
+      "where": {
+        "and": [
+          {
+            "notNull": {
+              "column": "lead_id"
+            }
+          },
+          {
+            "cmp": "=",
+            "left": {
+              "column": "step_id"
+            },
+            "right": {
+              "column": "sequence_id"
+            }
+          },
+          {
+            "not": {
+              "and": [
+                {
+                  "cmp": "=",
+                  "left": {
+                    "column": "state"
+                  },
+                  "right": {
+                    "value": "skipped"
+                  }
+                },
+                {
+                  "in": {
+                    "column": "reason"
+                  },
+                  "values": [
+                    "run_canceled",
+                    "owner_took_back"
+                  ]
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "table": "sequence_sends",
+      "name": "sequence_sends_person_once",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "batch_id"
+        },
+        {
+          "column": "contact_id"
+        }
+      ],
+      "where": {
+        "isNull": {
+          "column": "lead_id"
+        }
+      }
+    },
+    {
+      "table": "sequence_sends",
+      "name": "sequence_sends_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "sequence_sends",
+      "name": "sequence_sends_tenant_id_id_key",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "sequence_steps",
+      "name": "sequence_steps_one_chain_per_search",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "lead_search_id"
+        }
+      ],
+      "where": {
+        "notNull": {
+          "column": "lead_search_id"
+        }
+      }
+    },
+    {
+      "table": "sequence_steps",
+      "name": "sequence_steps_one_follow_up",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        }
+      ],
+      "where": {
+        "cmp": "=",
+        "left": {
+          "column": "trigger"
+        },
+        "right": {
+          "value": "proposal_waiting"
+        }
+      }
+    },
+    {
+      "table": "sequence_steps",
+      "name": "sequence_steps_one_next",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "after_step_id"
+        }
+      ],
+      "where": {
+        "notNull": {
+          "column": "after_step_id"
+        }
+      }
+    },
+    {
+      "table": "sequence_steps",
+      "name": "sequence_steps_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "sequence_steps",
+      "name": "sequence_steps_place",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "sequence_id"
+        },
+        {
+          "column": "place"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "sequence_steps",
+      "name": "sequence_steps_tenant_id_id_key",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "sequences",
+      "name": "sequences_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "sequences",
+      "name": "sequences_tenant_id_id_key",
       "primary": false,
       "nullsNotDistinct": false,
       "keys": [
@@ -2608,8 +2750,8 @@
     "person_notes": {
       "source": "page"
     },
-    "reach_out_sends": {
-      "state": "planned"
+    "sequence_enrollments": {
+      "state": "in"
     }
   },
   "unmodelled": []

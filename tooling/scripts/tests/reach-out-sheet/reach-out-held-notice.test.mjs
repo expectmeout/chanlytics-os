@@ -49,6 +49,7 @@ function world({
     reach_out_sends: Array.from({ length: held }, (_, i) => ({
       id: `send-${i}`,
       tenant_id: T,
+      lead_id: `lead-${i}`,
       broadcast_id: "run-1",
       state: "held",
       reason: i === 0 ? "unbacked_fact" : "check_unavailable",

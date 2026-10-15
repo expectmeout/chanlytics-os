@@ -11,23 +11,17 @@ import { readAllRows } from "../../paged";
 
 type Db = SupabaseClient<Database>;
 
-/** A run as the span's marks read it: the broadcasts row's schedule, its state and whose it is. */
+/** A run as the span's marks read it: the batch's schedule, its state and whose it is. */
 export type SpanRunRow = Pick<
-  Database["public"]["Tables"]["broadcasts"]["Row"],
-  | "id"
-  | "name"
-  | "state"
-  | "scheduled_for"
-  | "started_at"
-  | "finished_at"
-  | "run_for"
-  | "playbook_id"
-  | "audience"
-  | "recipient_count"
->;
+  Database["public"]["Tables"]["sequence_batches"]["Row"],
+  "id" | "name" | "state" | "scheduled_for" | "started_at" | "finished_at" | "run_for" | "audience" | "recipient_count"
+> & {
+  /** The step it is a run of (sequence_batches.step_id), under the name the Calendar's marks read; null for a one-off. */
+  playbook_id: string | null;
+};
 
 const RUN_COLUMNS =
-  "id, name, state, scheduled_for, started_at, finished_at, run_for, playbook_id, audience, recipient_count";
+  "id, name, state, scheduled_for, started_at, finished_at, run_for, playbook_id:step_id, audience, recipient_count";
 
 /** How far before the span a one-off send may have been scheduled and still sit in it (it sits where it finished). */
 const SEND_LEAD_MS = 2 * DAY_MS;
@@ -46,10 +40,10 @@ export async function runsInSpan(
   const [runs, sends] = await Promise.all([
     readAllRows<SpanRunRow>("calendar_runs_campaign", (from, to) =>
       db
-        .from("broadcasts")
+        .from("sequence_batches")
         .select(RUN_COLUMNS)
         .eq("tenant_id", tenantId)
-        .not("playbook_id", "is", null)
+        .not("step_id", "is", null)
         .gte("run_for", span.fromDay)
         .lte("run_for", span.toDay)
         .order("run_for", { ascending: true })
@@ -58,10 +52,10 @@ export async function runsInSpan(
     ),
     readAllRows<SpanRunRow>("calendar_runs_send", (from, to) =>
       db
-        .from("broadcasts")
+        .from("sequence_batches")
         .select(RUN_COLUMNS)
         .eq("tenant_id", tenantId)
-        .is("playbook_id", null)
+        .is("step_id", null)
         .gte("scheduled_for", sendsFrom)
         .lt("scheduled_for", span.toIso)
         .order("scheduled_for", { ascending: true })
@@ -74,7 +68,7 @@ export async function runsInSpan(
 
 /** A campaign's schedule: what its next run and its last day are worked out from, and its class. */
 export type MomentScheduleRow = Pick<
-  Database["public"]["Tables"]["playbooks"]["Row"],
+  Database["public"]["Tables"]["sequence_steps"]["Row"],
   "id" | "name" | "trigger" | "state" | "policy_class" | "run_hour" | "last_run_for" | "until" | "trial_until"
 >;
 
@@ -82,7 +76,7 @@ export type MomentScheduleRow = Pick<
 export async function momentSchedules(db: Db, tenantId: string): Promise<MomentScheduleRow[]> {
   return readAllRows<MomentScheduleRow>("calendar_moment_schedules", (from, to) =>
     db
-      .from("playbooks")
+      .from("sequence_steps")
       .select("id, name, trigger, state, policy_class, run_hour, last_run_for, until, trial_until")
       .eq("tenant_id", tenantId)
       .order("id", { ascending: true })

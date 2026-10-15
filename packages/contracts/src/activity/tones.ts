@@ -67,6 +67,7 @@ const TONES: Record<string, Tone> = {
   pause_playbook: "warn",
   cancel_send: "warn",
   cancel_broadcast: "warn",
+  leave_sequence: "warn",
   revoke_invite: "warn",
   snooze: "warn",
   // info -- it is on its way, or a person took it on

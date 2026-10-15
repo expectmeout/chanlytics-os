@@ -226,8 +226,12 @@ test("Pause and Resume press the chain's first step; Remove is offered only whil
   r.redraw();
   await settle();
   tree = r.redraw();
-  assert.equal(textOf(byTestId(tree, "ro-toggle")), "Resume");
+  assert.equal(textOf(byTestId(tree, "ro-toggle")).trim(), "Resume", "its glyph, then its word");
+  // Resume is asked in place (decision 7): the press puts its question where it stood, and its yes resumes.
   press(byTestId(tree, "ro-toggle"));
+  await settle();
+  assert.deepEqual(pressed.slice(1), [], "asked first");
+  press(byTestId(r.redraw(), "ro-toggle-yes"));
   await settle();
   assert.deepEqual(pressed.slice(1), [["resume", ROOT]]);
 

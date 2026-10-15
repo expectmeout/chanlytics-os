@@ -65,7 +65,7 @@ export async function textLineFacts(
  * alone. Any other failed read throws.
  */
 export async function playbookChannels(db: Db, playbookId: string): Promise<string[] | null> {
-  const { data, error } = await db.from("playbooks").select("channels").eq("id", playbookId).maybeSingle();
+  const { data, error } = await db.from("sequence_steps").select("channels").eq("id", playbookId).maybeSingle();
   if (error) {
     if (/channels/.test(error.message) && /does not exist|could not find/i.test(error.message)) return null;
     throw new Error(`playbook_channels: ${error.message}`);
@@ -86,13 +86,13 @@ export async function playbookForChannels(
   playbookId: string,
 ): Promise<
   | (Pick<
-      Database["public"]["Tables"]["playbooks"]["Row"],
+      Database["public"]["Tables"]["sequence_steps"]["Row"],
       "id" | "name" | "trigger" | "policy_class" | "template_id"
     > & { run_waits: boolean })
   | null
 > {
   const { data, error } = await db
-    .from("playbooks")
+    .from("sequence_steps")
     .select("id, name, trigger, policy_class, template_id")
     .eq("tenant_id", tenantId)
     .eq("id", playbookId)
@@ -100,17 +100,17 @@ export async function playbookForChannels(
   if (error) throw new Error(`playbook_for_channels: ${error.message}`);
   if (!data) return null;
   const waiting = await db
-    .from("broadcasts")
+    .from("sequence_batches")
     .select("id")
     .eq("tenant_id", tenantId)
-    .eq("playbook_id", playbookId)
+    .eq("step_id", playbookId)
     .eq("state", "pending_approval")
     .limit(1);
   if (waiting.error) throw new Error(`playbook_for_channels: ${waiting.error.message}`);
   return { ...data, run_waits: (waiting.data ?? []).length > 0 };
 }
 
-type PlaybookRowOf = Database["public"]["Tables"]["playbooks"]["Row"];
+type PlaybookRowOf = Database["public"]["Tables"]["sequence_steps"]["Row"];
 
 /**
  * One playbook as a change in place is judged against it (core checkPlaybookPatch; Ask's change card, PUT
@@ -145,7 +145,7 @@ export async function playbookForChange(
   | null
 > {
   const { data, error } = await db
-    .from("playbooks")
+    .from("sequence_steps")
     .select(
       "id, name, trigger, state, policy_class, run_hour, cap_per_run, gap_days, cadence_days, list_id, list_key, template_id, params, until, trial_until",
     )
@@ -155,10 +155,10 @@ export async function playbookForChange(
   if (error) throw new Error(`playbook_for_change: ${error.message}`);
   if (!data) return null;
   const waiting = await db
-    .from("broadcasts")
+    .from("sequence_batches")
     .select("id, recipient_count")
     .eq("tenant_id", tenantId)
-    .eq("playbook_id", playbookId)
+    .eq("step_id", playbookId)
     .eq("state", "pending_approval")
     .limit(1);
   if (waiting.error) throw new Error(`playbook_for_change: ${waiting.error.message}`);
@@ -177,7 +177,7 @@ export async function runningTwins(
   on: { trigger: string; listId: string | null; listKey: string | null; templateId: string },
 ): Promise<{ id: string; name: string }[]> {
   const { data, error } = await db
-    .from("playbooks")
+    .from("sequence_steps")
     .select("id, name, list_id, list_key")
     .eq("tenant_id", tenantId)
     .eq("state", "running")
@@ -192,13 +192,13 @@ export async function runningTwins(
 
 /**
  * Whether this workspace already has a playbook on the proposal follow-up's moment (`trigger`), in any state: what the
- * database's one-follow-up index (00167 playbooks_one_follow_up) holds a workspace to one of, read before a second is
+ * database's one-follow-up index (00167, sequence_steps_one_follow_up since 00440) holds a workspace to one of, read before a second is
  * proposed (Ask's card) or a starter is filed for one (POST playbooks), so the index is the last word and never the first.
  * Under the caller's row security. Throws on a failed read.
  */
 export async function followUpOnFile(db: Db, tenantId: string, trigger: string): Promise<boolean> {
   const { data, error } = await db
-    .from("playbooks")
+    .from("sequence_steps")
     .select("id")
     .eq("tenant_id", tenantId)
     .eq("trigger", trigger)
@@ -209,10 +209,10 @@ export async function followUpOnFile(db: Db, tenantId: string, trigger: string):
 
 /**
  * Whether a read failed because the database has not reached the migration that adds a channel column it named: a
- * person's `consent_channels` and `marketing_channels` (00297), or a recipient's `channel` (00298). Postgres's 42703,
- * "column ... does not exist", read by its words as readLeadContext reads it. The caller reads again without the
- * columns: the arrays then read as null (WhatsApp alone) and the recipient's channel as null (WhatsApp), so every reply,
- * booking link and WhatsApp broadcast of code that shipped before its migration goes on. Either deploy order works.
+ * person's `consent_channels` and `marketing_channels` (00297). Postgres's 42703, "column ... does not exist", read by
+ * its words as readLeadContext reads it. The caller reads again without the columns: the arrays then read as null
+ * (WhatsApp alone), so every reply, booking link and WhatsApp broadcast of code that shipped before its migration goes
+ * on. Either deploy order works. (A send's own channel needs no second read: 00440's one table of sends has it.)
  */
 export function noChannelColumns(error: { message: string } | null | undefined): boolean {
   return (
@@ -233,54 +233,30 @@ export function noRelationshipColumn(error: { message: string } | null | undefin
   return !!error && /\bhas_relationship\b/.test(error.message) && /does not exist|could not find/i.test(error.message);
 }
 
-/** Postgres's SQLSTATE for a column that is not there (undefined_column): what PostgREST answers a read that names one. */
-const UNDEFINED_COLUMN = "42703";
-
 /**
- * Up to `limit` people of a run still queued, in the order of their ids, each with their own words, the channel the run
- * picked for them (00298) and how many times they were claimed and given back (`attempt`, 00301): what the batch sends
- * from. The order is part of the read: without one the database may hand back a different few of a long run's queued
- * people on every read, and a person released and read again must come back the same way each time.
- *
- * A database that has not reached a migration lacks its column, and Postgres says so by its code (42703), whichever
- * column it was: the read is made again without the newest one first (`attempt`: the batch then names its emails as it
- * did before, by the run's waits), and without the channel too (everyone goes by WhatsApp, as every run did). Any other
- * failed read throws.
+ * Up to `limit` people of a batch still queued, in the order of their ids, each with their own words, the channel the
+ * batch picked for them (00298) and how many times they were claimed and given back (`attempt`, 00301; the send's
+ * `attempts`): what the batch sends from. The order is part of the read: without one the database may hand back a
+ * different few of a long batch's queued people on every read, and a person released and read again must come back the
+ * same way each time. A customer's sends alone (no lead_id), as a batch of a customer's sequence holds. A failed read
+ * throws.
  */
 export async function queuedRecipients(
   db: Db,
   p: { tenantId: string; broadcastId: string; limit: number },
 ): Promise<Array<{ contact_id: string; facts: unknown; channel?: string | null; attempt?: number }>> {
-  const withAttempt = await db
-    .from("broadcast_recipients")
-    .select("contact_id, facts, channel, attempt")
+  const { data, error } = await db
+    .from("sequence_sends")
+    .select("contact_id, facts, channel, attempt:attempts")
     .eq("tenant_id", p.tenantId)
-    .eq("broadcast_id", p.broadcastId)
+    .eq("batch_id", p.broadcastId)
+    .is("lead_id", null)
     .eq("state", "queued")
     .order("contact_id")
     .limit(p.limit);
-  if (!withAttempt.error) return withAttempt.data ?? [];
-  if (withAttempt.error.code !== UNDEFINED_COLUMN) throw new Error(`queued_recipients: ${withAttempt.error.message}`);
-  const withChannel = await db
-    .from("broadcast_recipients")
-    .select("contact_id, facts, channel")
-    .eq("tenant_id", p.tenantId)
-    .eq("broadcast_id", p.broadcastId)
-    .eq("state", "queued")
-    .order("contact_id")
-    .limit(p.limit);
-  if (!withChannel.error) return withChannel.data ?? [];
-  if (withChannel.error.code !== UNDEFINED_COLUMN) throw new Error(`queued_recipients: ${withChannel.error.message}`);
-  const bare = await db
-    .from("broadcast_recipients")
-    .select("contact_id, facts")
-    .eq("tenant_id", p.tenantId)
-    .eq("broadcast_id", p.broadcastId)
-    .eq("state", "queued")
-    .order("contact_id")
-    .limit(p.limit);
-  if (bare.error) throw new Error(`queued_recipients: ${bare.error.message}`);
-  return bare.data ?? [];
+  if (error) throw new Error(`queued_recipients: ${error.message}`);
+  // A customer's send names its person (sequence_sends_someone).
+  return (data ?? []).flatMap((r) => (r.contact_id ? [{ ...r, contact_id: r.contact_id }] : []));
 }
 
 /**
@@ -296,10 +272,10 @@ export async function runGoesByOthers(
   than: "whatsapp" | "email",
 ): Promise<boolean> {
   const of = db
-    .from("broadcast_recipients")
+    .from("sequence_sends")
     .select("contact_id", { count: "exact", head: true })
     .eq("tenant_id", tenantId)
-    .eq("broadcast_id", broadcastId);
+    .eq("batch_id", broadcastId);
   const { count, error } = await (than === "whatsapp"
     ? of.in("channel", ["sms", "email"])
     : of.or("channel.is.null,channel.eq.whatsapp,channel.eq.sms"));
@@ -341,15 +317,16 @@ export async function holdRecipients(
   const skipped: string[] = [];
   for (let i = 0; i < p.contactIds.length; i += IDS_PER_READ) {
     const { data, error } = await db
-      .from("broadcast_recipients")
+      .from("sequence_sends")
       .update({ state: "skipped", reason: p.reason })
       .eq("tenant_id", p.tenantId)
-      .eq("broadcast_id", p.broadcastId)
+      .eq("batch_id", p.broadcastId)
+      .is("lead_id", null)
       .eq("state", "queued")
       .in("contact_id", p.contactIds.slice(i, i + IDS_PER_READ))
       .select("contact_id");
     if (error) return { skipped, error: `hold_recipients: ${error.message}` };
-    for (const r of data) skipped.push(r.contact_id);
+    for (const r of data) if (r.contact_id) skipped.push(r.contact_id);
   }
   return { skipped, error: null };
 }

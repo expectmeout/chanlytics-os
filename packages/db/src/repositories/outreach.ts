@@ -266,7 +266,7 @@ export async function replyReadingOf(
   p: { tenantId: string; messageId: string },
 ): Promise<ReplyReadingRow | null> {
   const { data, error } = await db
-    .from("reach_out_replies")
+    .from("sequence_replies")
     .select(
       "intent, claim, summary, unread, rereads, plan, told_at, undone_at, draft, draft_state, draft_why, signer_name, signer_state",
     )
@@ -428,7 +428,7 @@ export interface ReplyListRow {
   plan: Json;
   until_at: string | null;
   business: string | null;
-  /** The step the reply answers (reach_out_sends.playbook_id), and its chain's first step. */
+  /** The step the reply answers (its send's step_id), and its sequence's first step (its sequence_id). */
   playbook_id: string | null;
   root_id: string | null;
 }
@@ -444,7 +444,7 @@ export async function repliesFor(
   db: Db,
   p: { tenantId: string; since: string; conversationId?: string | null; limit: number },
 ): Promise<ReplyListRow[]> {
-  let q = db.from("reach_out_replies").select(REPLY_LIST_COLUMNS).eq("tenant_id", p.tenantId).gte("read_at", p.since);
+  let q = db.from("sequence_replies").select(REPLY_LIST_COLUMNS).eq("tenant_id", p.tenantId).gte("read_at", p.since);
   if (p.conversationId) q = q.eq("conversation_id", p.conversationId);
   const { data, error } = await q.order("read_at", { ascending: false }).limit(p.limit);
   if (error) throw new Error(`cannot read the replies: ${error.message}`);
@@ -456,8 +456,8 @@ export async function repliesFor(
       : Promise.resolve({ data: [], error: null }),
     ids("send_id").length
       ? db
-          .from("reach_out_sends")
-          .select("id, playbook_id, root_id")
+          .from("sequence_sends")
+          .select("id, playbook_id:step_id, root_id:sequence_id")
           .eq("tenant_id", p.tenantId)
           .in("id", ids("send_id"))
       : Promise.resolve({ data: [], error: null }),
@@ -477,7 +477,7 @@ export async function repliesFor(
 /** A reading by its message, on the caller's client: the row a member's undo acts on. Null when RLS hides it. */
 export async function replyReadingRefOf(db: Db, messageId: string): Promise<{ id: string; tenant_id: string } | null> {
   const { data, error } = await db
-    .from("reach_out_replies")
+    .from("sequence_replies")
     .select("message_id, tenant_id")
     .eq("message_id", messageId)
     .maybeSingle();

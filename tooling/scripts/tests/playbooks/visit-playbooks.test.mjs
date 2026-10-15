@@ -616,7 +616,7 @@ test("the touch history is read whole, and a workspace that cannot be read is RE
   // escapes the whole handler, so one unreadable touch history would end the
   // tick for every workspace after it and skip the backlog note saying so.
   const bad = await loadTenantRunContext(
-    ctxDb({}, { "broadcast_recipients.select": { message: "statement timeout" } }),
+    ctxDb({}, { "sequence_sends.select": { message: "statement timeout" } }),
     "t1",
     now,
   );
@@ -635,7 +635,7 @@ test("a broadcasts read that fails is an ERROR, never 'nobody has been touched'"
   // stop holding -- and the people it can no longer see it touched are
   // messaged again. That reading is the defect the paging was added for.
   const bad = await loadTenantRunContext(
-    ctxDb({}, { "broadcasts.select": { message: "statement timeout" } }),
+    ctxDb({}, { "sequence_batches.select": { message: "statement timeout" } }),
     "t1",
     new Date("2026-09-12T15:00:00Z"),
   );

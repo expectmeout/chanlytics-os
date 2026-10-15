@@ -124,11 +124,11 @@ test(
 );
 
 test(
-  "a run is made with the columns the product writes: its start, finish and failure are the edge's; its people carry no delivery state",
+  "a run is its door's to make (00442), never a member's; its people carry no delivery state",
   { skip },
   async () => {
-    const run = (over) =>
-      me.session
+    const run = (client, over) =>
+      client
         .from("broadcasts")
         .insert({
           tenant_id: w.t,
@@ -145,10 +145,12 @@ test(
           ...over,
         })
         .select("id");
-    const made1 = ok(await run({}), "a run as the product writes it");
-    noPrivilege(await run({ finished_at: new Date().toISOString() }), "a run born finished");
-    noPrivilege(await run({ started_at: new Date().toISOString() }), "a run born started");
-    noPrivilege(await run({ failure: "spoofed" }), "a failure the edge would write");
+    // A run is made by its door (assemble_broadcast, the service role's) and decided by its doors (00442): a member writes
+    // none, whatever its columns say.
+    noPrivilege(await run(me.session, {}), "a run written by a member");
+    noPrivilege(await run(me.session, { finished_at: new Date().toISOString() }), "a run born finished");
+    noPrivilege(await run(me.session, { failure: "spoofed" }), "a failure the edge would write");
+    const made1 = ok(await run(admin, {}), "a run as its door writes it");
     const recipient = (over) =>
       me.session
         .from("broadcast_recipients")

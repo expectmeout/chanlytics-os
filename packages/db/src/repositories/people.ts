@@ -508,7 +508,7 @@ export async function peopleAtLead(db: Db, tenantId: string, leadId: string): Pr
  */
 export async function signersOf(db: Db, tenantId: string, personId: string): Promise<PersonSignerDto[]> {
   const { data, error } = await db
-    .from("reach_out_replies")
+    .from("sequence_replies")
     .select("message_id, signer_name, signer_title, signer_state, read_at, intent, claim")
     .eq("tenant_id", tenantId)
     .eq("contact_id", personId)

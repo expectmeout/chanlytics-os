@@ -10,7 +10,7 @@ import { plural } from "../shared/words";
 import { DEAL_ACT_WORDS } from "../deals/deal-words";
 import type { DealVM } from "../deals/deal-vm";
 import { dealPaceOf, type DealPaceVM } from "../deals/deal-waits";
-import type { PersonCampaignVM, PersonDetailDto } from "./person-dto";
+import type { PersonCampaignVM, PersonDetailDto, PersonSequenceVM } from "./person-dto";
 import { MERGE_WORDS } from "./person-merge";
 import { DOUBT_WORDS, type DoubtSeen } from "./person-doubts";
 import { personName } from "./person-name";
@@ -18,18 +18,15 @@ import { formatPhoneDisplay } from "../shared/phone";
 import type { HolderNames, PersonMode } from "./person-receptionist";
 import { mayReach, type PersonProposalVM, proposalAction } from "./person-reach";
 import type { PersonRowVM } from "./person-row";
-import { ts } from "./person-helpers";
+import { campaignsOf, inSequencesOf, ts } from "./person-helpers";
 import { personNotesVM, type PersonNoteTeamDto, type PersonNoteVM } from "../notes/person-notes";
 import { PERSON_CHANNEL_WORDS, REPLY_WIRE, type PersonChannel } from "./person-words";
 import type { ChannelsReady } from "../broadcasts/reach-for";
 import { wayOff, writeWaysOf, type WriteWay } from "../new-conversation/write-ways";
-import { addressOf } from "../activity/record-address";
-import { HELD_REASONS, isReplyTo } from "../broadcasts/run-words";
 import { messageAt, type MessageDto } from "../conversations/thread-dto";
 import { draftSendsAtMs, heldDraftOf } from "../conversations/message-words";
 import { replyWaitsOnYou } from "../conversations/standing";
 import { isIdentifierName, shortName } from "../conversations/thread-contact";
-import { THREAD_CHANNEL_WORDS, isTheirOwnWords, writtenChannelOf } from "../conversations/thread-channel";
 import {
   aboutOf,
   personFactsOf,
@@ -165,8 +162,9 @@ export interface PersonVM extends PersonRowVM {
    * in the rule's own words (listRuleWhy): the facts they meet today.
    */
   smartLists: { id: string; label: string; why: string }[];
-  /** The runs that named them, newest first, each with what became of it. */
+  /** The runs that named them, newest first, each with what became of it; and the sequences they are in now (0060). */
   campaigns: PersonCampaignVM[];
+  inSequences: PersonSequenceVM[];
   /** The lead they were found as, with the door to it on Leads; null when they were never one. */
   lead: { id: string; name: string; found: string; to: string } | null;
   /**
@@ -518,6 +516,7 @@ export function toPersonVM(
     ownMessages: ownMessagesOf(d, ctx.stamp),
     smartLists: smartListsOf(d, base),
     campaigns: campaignsOf(d, tz, nowMs),
+    inSequences: inSequencesOf(d, tz, nowMs),
     lead: leadOf(d, base, tz, nowMs),
     // The doors' own test, as far as the page can see it: a lead names them, or they work at one.
     yesLocked: d.lead || base.worksAt ? LEAD_CONSENT_REFUSAL : null,
@@ -672,7 +671,7 @@ function personPageOf(
     visits: visitsSeen,
     marked: earlierSaid,
     deals: p.deals.length,
-    campaigns: p.campaigns.length,
+    campaigns: p.campaigns.length + p.inSequences.length,
     thin,
     dealsOn: p.dealsOn,
   };
@@ -747,52 +746,4 @@ function heldDraftWaiting(
   if (!held || !thread) return null;
   const at = draftSendsAtMs(held);
   return replyWaitsOnYou({ endsAtMs: at }, nowMs) ? { to: thread, sends: clockTime(at, tz) } : null;
-}
-
-/**
- * The runs that named a person, newest first, each with what became of it: sent, and answered by the run report's own
- * rule (isReplyTo) in the thread the message went to; held back, in the owner's words for why (HELD_REASONS); or not
- * sent. A person's page said nothing about what a playbook or a broadcast had sent them.
- */
-function campaignsOf(d: PersonDetailDto, tz: string, nowMs: number): PersonCampaignVM[] {
-  const threadOf = new Map<string, string>();
-  const repliesIn = new Map<string, string[]>();
-  for (const c of d.conversations) {
-    for (const m of c.messages) {
-      threadOf.set(m.id, c.id);
-      // A reply is their own words, as a run's page counts it (isTheirOwnWords): not a call's note, not their mailbox.
-      if (isTheirOwnWords(m)) repliesIn.set(c.id, [...(repliesIn.get(c.id) ?? []), m.created_at]);
-    }
-  }
-  return (d.campaigns ?? []).map((c) => {
-    const at = ts(c.sent_at ?? c.scheduled_for);
-    const thread = c.message_id ? threadOf.get(c.message_id) : undefined;
-    const sentAt = c.sent_at;
-    const replied =
-      c.state === "sent" && !!sentAt && !!thread && (repliesIn.get(thread) ?? []).some((x) => isReplyTo(sentAt, x));
-    const why = c.reason ? HELD_REASONS[c.reason] : undefined;
-    const outcome =
-      c.state === "sent"
-        ? replied
-          ? "Replied"
-          : "Sent"
-        : c.state === "skipped"
-          ? `Held — ${why ?? "held back"}`
-          : c.state === "failed"
-            ? why
-              ? `Didn't send — ${why}`
-              : "Didn't send"
-            : "Waiting to send";
-    return {
-      id: c.broadcast_id,
-      kind: c.playbook_id ? "playbook" : "broadcast",
-      title: c.playbook_id ? c.playbook_name || c.name : c.name,
-      when: at !== null ? clockDate(at, tz, nowMs) : "—",
-      outcome,
-      // Which wire it went by, or would have: a person on three channels is not told "Sent" with nowhere to look.
-      line: `${c.playbook_id ? "Campaign" : "Broadcast"} · ${THREAD_CHANNEL_WORDS[writtenChannelOf(c.channel)]} · ${outcome}`,
-      tone: replied ? "ok" : c.state === "skipped" || c.state === "failed" ? "warn" : "plain",
-      to: addressOf({ kind: "send", id: c.broadcast_id }),
-    };
-  });
 }

@@ -186,7 +186,7 @@ test(
   async () => {
     const refused = async (row, why) => {
       const r = await db.from("playbooks").insert(row);
-      assert.match(r.error?.message ?? "", /playbooks_reach_out_shape/, why);
+      assert.match(r.error?.message ?? "", /sequence_steps_shape/, why);
     };
     await refused(rootRow({ lead_search_id: null }), "a root without its search");
     await refused(rootRow({ gap_minutes: null }), "a reach-out without its pace");
@@ -262,7 +262,7 @@ test(
     ok(await move(s, { state: "sent", sent_at: new Date().toISOString() }));
     for (const to of ["planned", "claimed", "queued", "skipped"]) {
       const r = await move(s, { state: to });
-      assert.match(r.error?.message ?? "", /reach_out_sends\.state moves sent -> /, `sent -> ${to}`);
+      assert.match(r.error?.message ?? "", /sequence_sends\.state moves sent -> /, `sent -> ${to}`);
     }
     const t = await send();
     assert.match(
@@ -290,7 +290,7 @@ test(
       root_id: root,
       lead_id: await lead(),
     });
-    assert.match(noTime.error?.message ?? "", /reach_out_sends_planned_is_timed/);
+    assert.match(noTime.error?.message ?? "", /sequence_sends_planned_is_timed/);
     const l = await lead();
     await send({ lead_id: l });
     const twice = await db.from("reach_out_sends").insert({
@@ -500,6 +500,6 @@ test(
       tenant_id: B,
       template_id: template,
     });
-    assert.match(across.error?.message ?? "", /playbooks_after_same_workspace/);
+    assert.match(across.error?.message ?? "", /sequence_steps_after_same_workspace/);
   },
 );

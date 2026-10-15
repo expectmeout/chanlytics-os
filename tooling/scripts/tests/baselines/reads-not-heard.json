@@ -44,6 +44,9 @@
         "reports_receptionist": [
           "memberships"
         ],
+        "sequences": [
+          "memberships"
+        ],
         "today": [
           "memberships"
         ],
@@ -268,52 +271,60 @@
       "why": "A run's per-person rows, who was sent what and the receipts. A statement for each message would be a notice for each receipt, so the feed tells the run (broadcasts) and a message's ticks, never these rows (realtime.ts: a run's people are read when its page opens). The pages that count them read them again when a run or a message they hear moves (heardWith).",
       "reads": {
         "broadcasts": [
-          "broadcast_recipients"
-        ],
-        "campaign_results": [
-          "broadcast_recipients"
-        ],
-        "people": [
-          "broadcast_recipients"
-        ],
-        "playbooks": [
-          "broadcast_recipients"
-        ],
-        "reports_campaigns": [
-          "broadcast_recipients"
-        ],
-        "person": [
-          "broadcast_recipients"
+          "sequence_sends"
         ],
         "calendar_runs": [
-          "broadcast_recipients"
+          "sequence_sends"
+        ],
+        "campaign_results": [
+          "sequence_sends"
+        ],
+        "people": [
+          "sequence_sends"
+        ],
+        "person": [
+          "sequence_enrollments",
+          "sequence_sends"
+        ],
+        "playbooks": [
+          "sequence_sends"
+        ],
+        "reports_campaigns": [
+          "sequence_sends"
+        ],
+        "sequences": [
+          "sequence_enrollments",
+          "sequence_sends"
         ]
       },
       "heardWith": {
         "broadcasts": [
-          "broadcasts",
+          "sequence_batches",
           "messages"
         ],
         "campaign_results": [
-          "broadcasts",
+          "sequence_batches",
           "messages"
         ],
         "people": [
           "messages"
         ],
         "playbooks": [
-          "broadcasts",
+          "sequence_batches",
           "messages"
         ],
         "reports_campaigns": [
-          "broadcasts",
+          "sequence_batches",
           "messages"
         ],
         "person": [
-          "broadcasts"
+          "sequence_batches"
         ],
         "calendar_runs": [
-          "broadcasts"
+          "sequence_batches"
+        ],
+        "sequences": [
+          "sequence_batches"
         ]
       }
     },
@@ -323,7 +334,7 @@
       "why": "The Library's sent counts join a run's per-person rows (broadcast_recipients), which the feed never tells. Settings hears no run and no message, so a count moves only on the settings read's next read: owed with the Library's hearing of the campaign and send kinds on its page (lane R5).",
       "reads": {
         "settings": [
-          "broadcast_recipients"
+          "sequence_sends"
         ]
       }
     },
@@ -374,36 +385,13 @@
       "reads": {
         "reach_outs": [
           "lead_suppressions",
-          "reach_out_sends"
+          "sequence_sends"
         ]
       },
       "heardWith": {
         "reach_outs": [
-          "reach_out_replies",
-          "playbooks"
-        ]
-      }
-    },
-    {
-      "kind": "unfed",
-      "finding": "W-person-list-lead-8",
-      "why": "The reach-outs' report counts what a chain sent from its sends' rows (reach_out_sends), which the feed never tells: a run writes one for each email. The home and the lens read again when a reply or a run they hear moves (heardWith), and a send leaving waits for their next read.",
-      "reads": {
-        "campaign_results": [
-          "reach_out_sends"
-        ],
-        "reports_campaigns": [
-          "reach_out_sends"
-        ]
-      },
-      "heardWith": {
-        "campaign_results": [
-          "reach_out_replies",
-          "broadcasts"
-        ],
-        "reports_campaigns": [
-          "reach_out_replies",
-          "broadcasts"
+          "sequence_replies",
+          "sequence_steps"
         ]
       }
     },
@@ -413,12 +401,12 @@
       "why": "The email a reply answered, from the sends' rows (answeredReachOutEmail over reach_out_sends), which the feed never tells. The strip reads again when the reply itself moves (heardWith).",
       "reads": {
         "reach_out_replies": [
-          "reach_out_sends"
+          "sequence_sends"
         ]
       },
       "heardWith": {
         "reach_out_replies": [
-          "reach_out_replies"
+          "sequence_replies"
         ]
       }
     },
@@ -428,7 +416,7 @@
       "why": "Which reach-out a lead is with reads its first sends (00426 lead_chain_of over reach_out_sends), which the feed never tells. A reach-out made from a list, added to or taken back re-reads Leads in the writer's tab (rereadAfter); a send leaving is read on the next read.",
       "reads": {
         "leads": [
-          "reach_out_sends"
+          "sequence_sends"
         ]
       },
       "rereadAfter": {
@@ -436,26 +424,6 @@
           "POST reach-outs",
           "POST reach-outs/[id]/leads",
           "POST lead-operations/[id]/undo"
-        ]
-      }
-    },
-    {
-      "kind": "unfed",
-      "why": "The emails the check holds in a going reach-out run, counted beside each run of Sent (withHeld over heldSendCounts, the wiring's second audit W-campaign-run-template-reachout-4). The feed does not tell reach_out_sends, which a run writes once for each email. A held email is decided on the run's page or sent to be checked again, writes whose rows re-read Sent (rereadAfter); the check that holds one ticks the run's own row, which the feed tells (heardWith).",
-      "reads": {
-        "broadcasts": [
-          "reach_out_sends"
-        ]
-      },
-      "rereadAfter": {
-        "broadcasts": [
-          "POST reach-out-sends/[id]/decide",
-          "POST broadcasts/[id]/recheck"
-        ]
-      },
-      "heardWith": {
-        "broadcasts": [
-          "broadcasts"
         ]
       }
     },
@@ -526,7 +494,7 @@
           "appointments",
           "deals",
           "person_notes",
-          "reach_out_replies"
+          "sequence_replies"
         ]
       },
       "heardBy": {
@@ -555,8 +523,7 @@
       "why": "The business a person works at, and its reach-out story: the place the lead was found at (lead_places) and the sends the lead was written (reach_out_sends, reach_out_lead_timeline), which the feed never tells. The person is read again when their business moves (heardWith), and when a reply to it is read: People hears the reply on every page, and its read reloads the open person's page (person-real.tsx hears surface:clients).",
       "reads": {
         "person": [
-          "lead_places",
-          "reach_out_sends"
+          "lead_places"
         ]
       },
       "heardWith": {
@@ -583,7 +550,7 @@
         "reports": [
           "leads",
           "person_notes",
-          "reach_out_replies"
+          "sequence_replies"
         ],
         "reports_headline": [
           "conversations",
@@ -591,31 +558,31 @@
           "escalations",
           "leads",
           "person_notes",
-          "reach_out_replies"
+          "sequence_replies"
         ],
         "reports_receptionist": [
           "conversations",
           "deals",
           "leads",
           "person_notes",
-          "reach_out_replies"
+          "sequence_replies"
         ],
         "reports_people": [
           "conversations",
           "deals",
           "escalations",
           "leads",
-          "reach_out_replies"
+          "sequence_replies"
         ],
         "broadcasts": [
           "leads",
           "person_notes",
-          "reach_out_replies"
+          "sequence_replies"
         ],
         "playbooks": [
           "leads",
           "person_notes",
-          "reach_out_replies"
+          "sequence_replies"
         ],
         "calendar": [
           "calls",
@@ -624,13 +591,13 @@
           "escalations",
           "messages",
           "person_notes",
-          "reach_out_replies"
+          "sequence_replies"
         ],
         "setup": [
           "escalations",
           "leads",
           "person_notes",
-          "reach_out_replies"
+          "sequence_replies"
         ]
       }
     },
@@ -650,16 +617,16 @@
       "why": "A run's follow-up facts name the playbook that sends it (followUpFacts): a playbook renamed or retimed by a teammate is told to the Campaigns pages, and read here on the next read. The Library's counts hear the playbooks on its page (Settings, R5c). Owed where a figure of the page names one.",
       "reads": {
         "broadcasts": [
-          "playbooks"
+          "sequence_steps"
         ],
         "campaign_results": [
-          "playbooks"
+          "sequence_steps"
         ],
         "reach_out_replies": [
-          "playbooks"
+          "sequence_steps"
         ],
         "reports_campaigns": [
-          "playbooks"
+          "sequence_steps"
         ]
       }
     },
@@ -704,7 +671,7 @@
       "reads": {
         "today_pins": [
           "leads",
-          "reach_out_replies"
+          "sequence_replies"
         ]
       },
       "heardWith": {
@@ -781,7 +748,7 @@
       "why": "Which reach-out a lead is with (00426 lead_chain_of, which leads_page's chain_id and the pile's order read): the reach-out's playbook. A reach-out made from a list, added to or taken back re-reads Leads in the writer's tab (rereadAfter); a playbook retimed elsewhere is read on the next read. Hearing every playbook would re-read Leads on each run's stamp, so the owed hearing is the playbook's name and state alone.",
       "reads": {
         "leads": [
-          "playbooks"
+          "sequence_steps"
         ]
       },
       "rereadAfter": {
@@ -813,7 +780,7 @@
       },
       "heardWith": {
         "calendar_runs": [
-          "broadcasts"
+          "sequence_batches"
         ]
       }
     },

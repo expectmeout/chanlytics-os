@@ -27,6 +27,10 @@ function tablesWithTenantId() {
     for (const m of sql.matchAll(/create table (?:if not exists )?public\.(\w+)\s*\(([\s\S]*?)\n\);/g)) {
       if (/\btenant_id\b/.test(m[2])) found.add(m[1]);
     }
+    // A table renamed keeps its rows under its new name (0060: playbooks became sequence_steps), and one dropped has none.
+    for (const m of sql.matchAll(/alter table (?:if exists )?public\.(\w+) rename to (\w+);/g))
+      if (found.delete(m[1])) found.add(m[2]);
+    for (const m of sql.matchAll(/drop table (?:if exists )?public\.(\w+)[\s;]/g)) found.delete(m[1]);
   }
   return found;
 }

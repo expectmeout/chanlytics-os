@@ -678,6 +678,39 @@ const TENANT_TABLES = {
       trigger: "new_week",
     }),
   ],
+  // Decision 0060 (00440): a sequence, its steps, its batches, its sends and its replies are each the workspace's. The five
+  // names above are views of them, under the caller's own rights; these are the tables.
+  sequences: ["member", () => ({ tenant_id: A, name: "stranger sequence", starts: "date" })],
+  sequence_steps: [
+    "member",
+    () => ({
+      tenant_id: A,
+      name: "stranger step",
+      policy_class: "reengage",
+      template_id: ctx.template,
+      template_language: "en_US",
+      template_name: "tenancy_tpl_1",
+      trigger: "new_week",
+    }),
+  ],
+  sequence_batches: [
+    "member",
+    () => ({
+      tenant_id: A,
+      name: "stranger batch",
+      template_id: ctx.template,
+      template_name: "tenancy_tpl_1",
+      template_language: "en_US",
+      scheduled_for: new Date().toISOString(),
+    }),
+  ],
+  sequence_sends: ["member", () => ({ tenant_id: A, batch_id: ctx.broadcast, contact_id: ctx.contact2 })],
+  // Someone in a sequence (00441): members read where people stand; only the sends' trigger and the leave door write it.
+  sequence_enrollments: ["member", () => ({ tenant_id: A, sequence_id: ctx.broadcast, contact_id: ctx.contact2 })],
+  sequence_replies: [
+    "member",
+    () => ({ message_id: ctx.message, tenant_id: A, conversation_id: ctx.conversation, claim: "person", intent: "no" }),
+  ],
   segments: ["member", () => ({ tenant_id: A, name: "stranger segment" })],
   segment_members: ["member", () => ({ tenant_id: A, segment_id: ctx.segment, contact_id: ctx.contact2 })],
   deals: ["member", () => ({ tenant_id: A, contact_id: ctx.contact2, stage: "proposed" })],

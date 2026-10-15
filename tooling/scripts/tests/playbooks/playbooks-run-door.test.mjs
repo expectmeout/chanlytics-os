@@ -571,7 +571,7 @@ test("what else makes a person's run off, each recorded with its reason: a templ
   assert.deepEqual(w.tables.events, [], "no run recorded: there was none");
   assert.equal(w.tables.playbooks[0].last_run_for, null, "not marked as run, so it runs the day billing resumes");
 
-  w = world({ faults: { "playbooks.select": { message: "permission denied for table playbooks" } } });
+  w = world({ faults: { "sequence_steps.select": { message: "permission denied for table playbooks" } } });
   workspace(w.tables, A, "auto");
   assert.deepEqual(await answer(await knock(press)), [
     500,

@@ -50,6 +50,24 @@
     "fresh": "Read as a run's sheet opens, painted from the last answer and read again behind; then each time Sent's runs are read, while the run is underway and for the reply window after it ended (contracts runStillMoving).",
     "why": "What a run's report says moves with its sends, and with the replies, yeses and stops counted to it for 72 hours after it ends, each a record Sent's runs hear; a run that ended longer ago is history (the wiring's second audit, X2-2). Its delivery ticks are read with the next of those (R9)."
   },
+  "apps/dashboard/src/surfaces/campaigns/sequences/verbs.ts GET sequences/[id]": {
+    "kind": "follows",
+    "follows": "sequences",
+    "fresh": "Read as a sequence's record opens, painted from the last answer and read again behind; then each time the Sequences list is read, and after each press on it.",
+    "why": "A sequence's steps, its notice and its head move with the sequence, its steps and its batches, each a record the list hears."
+  },
+  "apps/dashboard/src/surfaces/campaigns/sequences/verbs.ts GET sequences/[id]/history": {
+    "kind": "follows",
+    "follows": "sequences",
+    "fresh": "Read as a sequence's History tab opens, painted from the last answer and read again behind; then each time the Sequences list is read, and after each press on it.",
+    "why": "What a sequence sent is its batches, which the list hears; a page further back is history and read as it is asked for."
+  },
+  "apps/dashboard/src/surfaces/campaigns/sequences/verbs.ts GET sequences/[id]/people": {
+    "kind": "follows",
+    "follows": "sequences",
+    "fresh": "Read as a sequence's People tab opens, painted from the last answer and read again behind; then each time the Sequences list is read, and after each press on it.",
+    "why": "Where people stand moves with each batch and its sends; the list hears the batches, and a press on the tab reads it again."
+  },
   "apps/dashboard/src/surfaces/inbox/held-threads.ts GET conversations": {
     "kind": "surface",
     "fresh": "Read inside the Inbox's and Today's own reads: the threads of open holds past the newest hundred, by their ids.",

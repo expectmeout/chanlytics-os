@@ -339,7 +339,7 @@ test("a broadcast still in flight is handed to a fresh run, with what it reached
   // COUNTED, never a page of rows: PostgREST caps a plain select at max_rows and
   // a broadcast may carry more people than that, so reading the rows to count
   // them understates exactly the broadcasts big enough for the number to matter.
-  const counts = db.seen.filter((s) => s.table === "broadcast_recipients");
+  const counts = db.seen.filter((s) => s.table === "sequence_sends");
   assert.ok(counts.length > 0 && counts.every((s) => s.counted), "every recipient read here is a count");
   assert.deepEqual(await settleJob(db, run("b2"), false), [{ what: "broadcast", changed: false }]);
   assert.equal(broadcasts[1].state, "sending", "another workspace's broadcast is not this job's to settle");
@@ -470,7 +470,7 @@ test("a count that could not be read is never reported as zero, and never risks 
   const broadcasts = [sending()];
   const blind = fakeDb(
     { broadcasts, broadcast_recipients: [], jobs: [] },
-    { "broadcast_recipients.select": { message: "statement timeout" } },
+    { "sequence_sends.select": { message: "statement timeout" } },
   );
   const out = await settleJob(blind, ranAndDied({ broadcast_id: "b1" }), false);
   assert.deepEqual(

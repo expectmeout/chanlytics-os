@@ -233,7 +233,7 @@ test(
     );
     // What the check stores keeps within its bounds.
     const bad = await sendIn({ included_for: ["not_a_hold"] }).catch((e) => e);
-    assert.match(String(bad?.message ?? bad), /reach_out_sends_check_is_whole/);
+    assert.match(String(bad?.message ?? bad), /sequence_sends_check_is_whole/);
   },
 );
 
@@ -339,7 +339,7 @@ test("a search has one chain; signed_by and include_unconfirmed are a root's alo
     template_name: "t",
     template_language: "en",
   });
-  assert.match(again.error?.message ?? "", /playbooks_one_chain_per_search/);
+  assert.match(again.error?.message ?? "", /sequence_steps_one_chain_per_search/);
   const step = await one(
     db.from("playbooks").insert({
       tenant_id: A,
@@ -358,12 +358,12 @@ test("a search has one chain; signed_by and include_unconfirmed are a root's alo
   for (const patch of [{ signed_by: "Sam" }, { include_unconfirmed: true }])
     assert.match(
       (await db.from("playbooks").update(patch).eq("id", step)).error?.message ?? "",
-      /playbooks_root_settings/,
+      /sequence_steps_root_settings/,
     );
   ok(await db.from("playbooks").update({ signed_by: "Sam", include_unconfirmed: true }).eq("id", root));
   assert.match(
     (await db.from("playbooks").update({ signed_by: "   " }).eq("id", root)).error?.message ?? "",
-    /playbooks_root_settings/,
+    /sequence_steps_root_settings/,
   );
   ok(await db.from("playbooks").update({ signed_by: null, include_unconfirmed: false }).eq("id", root));
   ok(await db.from("playbooks").delete().eq("id", step));

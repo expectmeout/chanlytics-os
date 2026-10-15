@@ -190,9 +190,9 @@ test(
   { skip },
   async () => {
     const run = runRow({ run_for: "2026-09-29" });
-    // A planned send with no time breaks reach_out_sends_planned_is_timed: the whole call fails.
+    // A planned send with no time breaks sequence_sends_planned_is_timed: the whole call fails.
     const r = await plan(run, [planned(await lead()), planned(await lead(), { send_at: null })]);
-    assert.match(r.error?.message ?? "", /reach_out_sends_planned_is_timed/);
+    assert.match(r.error?.message ?? "", /sequence_sends_planned_is_timed/);
     assert.deepEqual(ok(await db.from("broadcasts").select("id").eq("id", run.id)), [], "no run left behind");
     // And the next tick makes it whole.
     assert.deepEqual(ok(await plan(run, [planned(await lead())])), { id: run.id });

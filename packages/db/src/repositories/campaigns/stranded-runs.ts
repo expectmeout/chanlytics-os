@@ -40,8 +40,8 @@ export interface StrandedRun {
  */
 export async function strandedRuns(db: Db, p: { since: Date; before: Date; limit: number }): Promise<StrandedRun[]> {
   const { data, error } = await db
-    .from("broadcasts")
-    .select("id, tenant_id, name, playbook_id, audience, scheduled_for")
+    .from("sequence_batches")
+    .select("id, tenant_id, name, playbook_id:step_id, audience, scheduled_for")
     .eq("state", "scheduled")
     .gt("scheduled_for", p.since.toISOString())
     .lt("scheduled_for", p.before.toISOString())
@@ -80,7 +80,7 @@ export async function strandedRuns(db: Db, p: { since: Date; before: Date; limit
  */
 export async function failStrandedRun(db: Db, p: { tenantId: string; id: string }): Promise<boolean> {
   const { data, error } = await db
-    .from("broadcasts")
+    .from("sequence_batches")
     .update({ state: "failed", failure: "run_interrupted", finished_at: new Date().toISOString() })
     .eq("id", p.id)
     .eq("tenant_id", p.tenantId)
@@ -113,10 +113,10 @@ export interface WaitingPlaybookRun {
  */
 export async function waitingPlaybookRuns(db: Db, p: { limit: number }): Promise<WaitingPlaybookRun[]> {
   const { data, error } = await db
-    .from("broadcasts")
-    .select("id, tenant_id, name, state, playbook_id, run_for, audience")
+    .from("sequence_batches")
+    .select("id, tenant_id, name, state, playbook_id:step_id, run_for, audience")
     .eq("state", "pending_approval")
-    .not("playbook_id", "is", null)
+    .not("step_id", "is", null)
     .not("run_for", "is", null)
     .or("audience->>kind.is.null,audience->>kind.neq.reach_out")
     .order("run_for", { ascending: true })
@@ -156,7 +156,7 @@ export async function waitingPlaybookRuns(db: Db, p: { limit: number }): Promise
  */
 export async function cancelBroadcastFrom(db: Db, p: { tenantId: string; id: string; from: string }): Promise<boolean> {
   const { data, error } = await db
-    .from("broadcasts")
+    .from("sequence_batches")
     .update({ state: "canceled" })
     .eq("id", p.id)
     .eq("tenant_id", p.tenantId)
@@ -204,7 +204,7 @@ export interface WaitingRunRow {
   drafted?: number;
 }
 
-const WAITING_RUN_COLUMNS = "id, name, state, playbook_id, run_for, audience, recipient_count, created_at";
+const WAITING_RUN_COLUMNS = "id, name, state, playbook_id:step_id, run_for, audience, recipient_count, created_at";
 
 /**
  * One workspace's runs waiting for a word, newest first, on the session's client (RLS decides): those waiting for
@@ -216,14 +216,14 @@ const WAITING_RUN_COLUMNS = "id, name, state, playbook_id, run_for, audience, re
 export async function waitingRunsOf(db: Db, tenantId: string): Promise<WaitingRunRow[]> {
   const [pending, going] = await Promise.all([
     db
-      .from("broadcasts")
+      .from("sequence_batches")
       .select(WAITING_RUN_COLUMNS)
       .eq("tenant_id", tenantId)
       .eq("state", "pending_approval")
       .order("created_at", { ascending: false })
       .limit(200),
     db
-      .from("broadcasts")
+      .from("sequence_batches")
       .select(WAITING_RUN_COLUMNS)
       .eq("tenant_id", tenantId)
       .in("state", [...RUN_GOING_STATES])
@@ -251,7 +251,7 @@ export async function waitingRunsOf(db: Db, tenantId: string): Promise<WaitingRu
 export async function runsNamed(db: Db, tenantId: string, ids: readonly string[]): Promise<WaitingRunRow[]> {
   if (!ids.length) return [];
   const { data, error } = await db
-    .from("broadcasts")
+    .from("sequence_batches")
     .select(WAITING_RUN_COLUMNS)
     .eq("tenant_id", tenantId)
     .in("id", [...ids]);

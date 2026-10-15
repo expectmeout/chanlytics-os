@@ -461,7 +461,7 @@ export async function setWorkspaceLogo(db: Db, tenantId: string, path: string) {
 }
 
 /** The columns an edit may write, as the table types them. */
-export type PlaybookPatch = Database["public"]["Tables"]["playbooks"]["Update"];
+export type PlaybookPatch = Database["public"]["Tables"]["sequence_steps"]["Update"];
 
 /** Write the edited fields of a playbook. */
 export async function updatePlaybook(
@@ -469,7 +469,7 @@ export async function updatePlaybook(
   id: string,
   patch: PlaybookPatch,
 ): Promise<{ error: PostgrestError | null }> {
-  const { error } = await db.from("playbooks").update(patch).eq("id", id);
+  const { error } = await db.from("sequence_steps").update(patch).eq("id", id);
   return { error };
 }
 
@@ -478,14 +478,14 @@ export async function removePlaybook(
   db: Db,
   id: string,
 ): Promise<{ error: PostgrestError | null; count: number | null }> {
-  const { error, count } = await db.from("playbooks").delete({ count: "exact" }).eq("id", id);
+  const { error, count } = await db.from("sequence_steps").delete({ count: "exact" }).eq("id", id);
   return { error, count };
 }
 
 /** What a new playbook names: the columns the door writes from, as the table types them. */
 export type PlaybookToStart = Required<
   Pick<
-    Database["public"]["Tables"]["playbooks"]["Insert"],
+    Database["public"]["Tables"]["sequence_steps"]["Insert"],
     | "name"
     | "trigger"
     | "list_id"

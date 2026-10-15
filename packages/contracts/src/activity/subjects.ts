@@ -35,6 +35,8 @@ export const ACTIVITY_SUBJECT_HOMES = {
   broadcast: { door: byId((id) => addressOf({ kind: "send", id })) },
   // A campaign is a moment of Campaigns' home, open in its drawer (decision of 3 Oct 2026; contracts doorOf).
   playbook: { door: byId((id) => addressOf({ kind: "campaign", id })) },
+  // A sequence (0060) is its first step's id: it opens where its campaign does, until the Sequences page has its address.
+  sequence: { door: byId((id) => addressOf({ kind: "campaign", id })) },
   // A visit opens its panel on the Calendar. The id alone cannot name its day: the server adds it (activity.ts).
   appointment: { door: byId((id) => addressOf({ kind: "visit", id })) },
   // A review's ledger line (a reply, one held) names the review's row: its door opens that review with its reply box, and the lens

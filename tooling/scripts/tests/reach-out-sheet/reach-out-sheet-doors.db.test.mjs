@@ -615,10 +615,10 @@ test("a chain renamed renames its words in Templates too", { skip }, async () =>
 
 test("a step's sends are read by their step, not by walking every workspace's", { skip }, async () => {
   const rows = query(
-    "select indexdef from pg_indexes where schemaname = 'public' and indexname = 'reach_out_sends_step'",
+    "select indexdef from pg_indexes where schemaname = 'public' and indexname = 'sequence_sends_step'",
   );
   assert.equal(rows.length, 1);
-  assert.match(rows[0].indexdef, /\(playbook_id, state\)/);
+  assert.match(rows[0].indexdef, /\(step_id, state\)/);
 });
 
 test(

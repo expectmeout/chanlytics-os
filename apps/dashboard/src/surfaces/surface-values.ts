@@ -25,6 +25,7 @@ import type { BroadcastsSurface } from "./campaigns/broadcasts/surface";
 import type { PlaybooksSurface } from "./campaigns/playbooks/surface";
 import type { ReachOutsSurface } from "./campaigns/reach-out/surface";
 import type { CampaignResultsSurface } from "./campaigns/home/results-surface";
+import type { SequencesSurface } from "./campaigns/sequences/surface";
 import type { SettingsSurface } from "../legacy-bridge/surfaces/settings";
 import type { ChannelsSurface } from "./channels/surface";
 import type { ConversationsSurface, InboxSurface } from "./inbox/types";
@@ -62,6 +63,8 @@ export interface SurfaceValues {
   reach_outs: ReachOutsSurface;
   /** Campaigns' own 30 days, read where Campaigns is drawn (campaigns/home/results-surface.ts): the funnel's and each row's. */
   campaign_results: CampaignResultsSurface;
+  /** The Sequences page's list (decision 0060), read where it is drawn (campaigns/sequences/surface.ts); null when it failed. */
+  sequences: SequencesSurface;
   settings: SettingsSurface;
   /** The channels the workspace is reached on, read once for every page that draws one (channels/surface.ts). */
   channels: ChannelsSurface;
@@ -219,6 +222,7 @@ const SURFACE_KEYS: Record<SurfaceKey, true> = {
   broadcasts: true,
   reach_outs: true,
   campaign_results: true,
+  sequences: true,
   settings: true,
   live: true,
   people: true,

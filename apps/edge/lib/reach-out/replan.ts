@@ -44,8 +44,8 @@ type Move = (s: ReachOutSendRow, patch: Partial<ReachOutSendRow>) => Promise<boo
 /** A step's pace and mailboxes, and whether its chain's root says its owner sends it (00429), in one read. */
 async function stepAndRootOf(db: Db, tenantId: string, stepId: string, rootId: string) {
   const { data, error } = await db
-    .from("playbooks")
-    .select("id, gap_minutes, mailbox_ids, after_playbook_id, owner_sends")
+    .from("sequence_steps")
+    .select("id, gap_minutes, mailbox_ids, after_step_id, owner_sends")
     .eq("tenant_id", tenantId)
     .in("id", [stepId, rootId]);
   if (error) throw new Error(`the step: ${error.message}`);
@@ -83,14 +83,14 @@ async function keepTheirs(
   group: readonly ReachOutSendRow[],
   p: {
     ownerSends: boolean;
-    step: { after_playbook_id: string | null } | null;
+    step: { after_step_id: string | null } | null;
     now: Date;
     wrote: ReadonlySet<string>;
     move: Move;
     out: ReplanCounts;
   },
 ): Promise<ReachOutSendRow[]> {
-  const theirs = p.ownerSends ? group : p.step?.after_playbook_id ? group.filter((s) => !s.mailbox_id) : [];
+  const theirs = p.ownerSends ? group : p.step?.after_step_id ? group.filter((s) => !s.mailbox_id) : [];
   if (theirs.length) await replanOwnerSends(theirs, p);
   return group.filter((s) => !theirs.includes(s));
 }
@@ -105,19 +105,19 @@ export async function replanSends(db: Db, items: Replan[], now: Date, log: Logge
   // By step: its pace and its mailboxes are the step's.
   const byStep = new Map<string, [...ReachOutSendRow[], ReachOutSendRow]>();
   for (const s of sends) {
-    const key = s.playbook_id ?? "";
+    const key = s.step_id ?? "";
     byStep.set(key, [...(byStep.get(key) ?? []), s]);
   }
   const zones = new Map<string, string>();
   for (const [stepId, group] of byStep) {
     const tenantId = group[0].tenant_id;
-    // A step removed since (its sends' playbook_id set null): nothing to pace or place them by, so they go no further.
+    // A step removed since (its sends' step_id set null): nothing to pace or place them by, so they go no further.
     if (!stepId) {
       for (const s of group) if (await move(s, { state: "skipped", reason: "step_removed" })) out.gave_up += 1;
       continue;
     }
     try {
-      const { step, ownerSends } = await stepAndRootOf(db, tenantId, stepId, group[0].root_id);
+      const { step, ownerSends } = await stepAndRootOf(db, tenantId, stepId, group[0].sequence_id);
       const mine = await keepTheirs(group, { ownerSends, step, now, wrote, move, out });
       if (mine.length === 0) continue;
       // A hundred at a time: an id list rides in the request's address, and a step's mine can hold five hundred.
@@ -137,7 +137,7 @@ export async function replanSends(db: Db, items: Replan[], now: Date, log: Logge
         zones.set(tenantId, t?.timezone || "America/New_York");
       }
       // A later step's send keeps the mailbox its lead's chain writes from; a first one may take any of the step's.
-      const keeps = !!step?.after_playbook_id;
+      const keeps = !!step?.after_step_id;
       // Each mailbox's times, less these sends' own: a send planned again never waits for the time it held.
       const own = new Map<string, number[]>();
       for (const s of mine) {

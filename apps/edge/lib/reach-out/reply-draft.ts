@@ -3,8 +3,9 @@
  * the draft port the reply_read job asks. Core's readReply decides when; this asks the gates and the brain.
  *
  *   - The runtime is the workspace's, loaded by a RoutedChannel built from its mailbox (loadTenantRuntime reads
- *     everything by the tenant; an email kind binds no WhatsApp credentials). No wire is bound from it: a draft is text
- *     on the reading, and nothing sends it but a person.
+ *     everything by the tenant; an email kind binds no WhatsApp credentials): its hosted one, else the first of the
+ *     mailboxes it connected (0056), which is where a reach-out's reply arrives when it sends from its own. No wire is
+ *     bound from it: a draft is text on the reading, and nothing sends it but a person.
  *   - The gates are G14's, in its order (contracts draftRefusal): a receptionist that can speak, a workspace whose reply
  *     policy lets it, the day's tokens (tokenBudgetSpent, the receptionist's own rule), the spend (workspaceMaySpend).
  *   - The brain is the receptionist's (generateReply) over the workspace's own prompt, the thread, and the lead note.
@@ -27,6 +28,7 @@ import {
   type DraftWhy,
 } from "../packages/contracts.js";
 import {
+  mailboxConnectionsOf,
   mailboxOfTenant,
   readThreadState,
   workspaceMaySpend,
@@ -47,6 +49,17 @@ type Draft = NonNullable<JobContext["replies"]>["draft"];
 /** The thread's turns the brain is shown, as the receptionist reads them (readThreadState's own default). */
 const DRAFT_HISTORY = 16;
 
+/**
+ * The mailbox a draft's runtime is loaded by: the workspace's hosted one, else the first mailbox it connected that is not
+ * removed (0056: a workspace that sends its reach-outs from its own mailbox may have no hosted one). Null with neither.
+ */
+async function mailboxOf(db: Db, tenantId: string): Promise<{ id: string; externalId: string } | null> {
+  const hosted = await mailboxOfTenant(db, tenantId);
+  if (hosted) return { id: hosted.id, externalId: hosted.local_part };
+  const [own] = await mailboxConnectionsOf(db, tenantId);
+  return own ? { id: own.id, externalId: own.address } : null;
+}
+
 /** The draft port over this database. The tests give their own brain and clock. */
 export function replyDrafter(db: Db, over: { brain?: typeof generateReply; now?: () => number } = {}): Draft {
   const brain = over.brain ?? generateReply;
@@ -57,13 +70,13 @@ export function replyDrafter(db: Db, over: { brain?: typeof generateReply; now?:
       L.info("reach_out_reply_draft", { conversation: ask.conversationId, drafted: false, why });
       return { why };
     };
-    const mailbox = await mailboxOfTenant(db, tenantId);
+    const mailbox = await mailboxOf(db, tenantId);
     if (!mailbox) return said("no_receptionist");
     const routed: RoutedChannel = {
       kind: "email",
       channelId: mailbox.id,
       tenantId,
-      externalId: mailbox.local_part,
+      externalId: mailbox.externalId,
       numberE164: null,
       credentialsRef: null,
       config: {},

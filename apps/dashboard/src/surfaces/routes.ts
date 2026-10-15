@@ -13,7 +13,7 @@
  * page does not take stays with the frame's table, which draws its row or says it is not found.
  */
 import { CAMPAIGN_ROOMS, FIRST_RUN_WORDS } from "@chanlytics/contracts";
-import { broadcastsChrome, campaignsChrome } from "./campaigns/routes";
+import { broadcastsChrome, campaignsChrome, messagesChrome } from "./campaigns/routes";
 import { calendarChrome } from "./calendar/chrome";
 import { conversationsCrumbs, conversationsNav, inboxCrumbs } from "./inbox/routes";
 import { liveChrome } from "./live/routes";
@@ -138,6 +138,8 @@ export const SURFACE_ROUTES: Readonly<Record<string, SurfaceRoute>> = {
     activeNav: "messages",
     crumbs: [{ label: CAMPAIGN_ROOMS.home, to: "campaigns" }, CAMPAIGN_ROOMS.library],
     pane: true,
+    // Campaigns › Messages beside Sequences where its preview is on (0060, D4); else the home's room, as above.
+    chrome: () => messagesChrome(),
   },
   // Sent: the runs, a room of Campaigns' home.
   broadcasts: {

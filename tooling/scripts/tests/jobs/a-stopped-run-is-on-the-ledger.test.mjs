@@ -59,7 +59,7 @@ test("a run the send job stops (here a paused workspace) is on the ledger with i
 
 test("a ledger that cannot see its recipients still writes the stop, with no count rather than a wrong one", async () => {
   const tables = { tenants: [{ id: T, status: "paused" }], broadcasts: [run()], broadcast_recipients: [], events: [] };
-  const db = fakeDb(tables, { "broadcast_recipients.select": { message: "connection reset" } });
+  const db = fakeDb(tables, { "sequence_sends.select": { message: "connection reset" } });
   await broadcastSend(
     { db, wire: { whatsapp: null, sms: null }, alert: async () => {}, deadline: Date.now() + 60_000 },
     { id: "j1", tenant_id: T, kind: "broadcast_send", payload: { broadcast_id: "b1" } },

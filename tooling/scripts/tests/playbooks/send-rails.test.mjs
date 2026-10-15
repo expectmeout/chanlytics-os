@@ -496,7 +496,7 @@ test("a follow-up's touch keeps the proposal it was about (0029): the deal and t
   assert.ok(
     db.seen.some(
       (q) =>
-        q.table === "broadcast_recipients" &&
+        q.table === "sequence_sends" &&
         /proposal_link:facts->>proposal_link, proposal_deal:facts->>deal_id/.test(q.columns),
     ),
     "the deal and the link alone of the words each recipient kept",

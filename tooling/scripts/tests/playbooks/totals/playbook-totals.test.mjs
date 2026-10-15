@@ -322,7 +322,7 @@ test("Sent and a run's sheet say what run_counts says, read in one call for the 
     "one call for the fifty",
   );
   assert.equal(
-    sql.seen.some((q) => q.table === "broadcast_recipients"),
+    sql.seen.some((q) => q.table === "sequence_sends"),
     false,
     "no person read to count them",
   );
@@ -356,7 +356,7 @@ test("GET playbooks' rows: the database's count read in one call, the same bytes
     ["playbook_totals"],
   );
   assert.equal(
-    sql.seen.some((q) => q.table === "broadcasts" || q.table === "broadcast_recipients"),
+    sql.seen.some((q) => q.table === "sequence_batches" || q.table === "sequence_sends"),
     false,
     "no run read to sum them",
   );
@@ -389,7 +389,7 @@ test("GET playbooks' rows: the database's count read in one call, the same bytes
   );
   assert.deepEqual(
     bare.seen.map((q) => q.table ?? `rpc:${q.rpc}`),
-    ["playbooks"],
+    ["sequence_steps"],
     "and nothing of a run",
   );
 });
@@ -411,7 +411,7 @@ test("Settings' templates: how many of each went out is template_sends', one cal
     "the database's count",
   );
   assert.equal(
-    sql.seen.some((q) => q.table === "broadcast_recipients"),
+    sql.seen.some((q) => q.table === "sequence_sends"),
     false,
     "no sent person paged",
   );

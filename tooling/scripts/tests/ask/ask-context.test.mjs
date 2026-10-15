@@ -1587,9 +1587,9 @@ test("the shape reads the playbooks' rows alone: no run, no person on one and no
   );
   await load(rcIn(ctx, A, { keep: false }), shape, undefined);
   const asked = ctx.supabase.seen.map((q) => q.table ?? `rpc:${q.rpc}`);
-  for (const not of ["broadcasts", "broadcast_recipients", "rpc:playbook_totals", "rpc:run_counts"])
+  for (const not of ["sequence_batches", "sequence_sends", "rpc:playbook_totals", "rpc:run_counts"])
     assert.equal(asked.includes(not), false, `${not}: not the shape's`);
-  assert.ok(asked.includes("playbooks"), "the rows themselves");
+  assert.ok(asked.includes("sequence_steps"), "the rows themselves");
 });
 
 /* ------------------------------------------------------------------ the tab's warm */

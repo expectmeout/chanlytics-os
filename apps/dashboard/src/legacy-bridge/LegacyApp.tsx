@@ -83,6 +83,7 @@ import { installBroadcasts } from "@/surfaces/campaigns/broadcasts/verbs";
 import { installPlaybooks } from "@/surfaces/campaigns/playbooks/verbs";
 import { reachOutsOverride } from "@/surfaces/campaigns/reach-out/surface";
 import { campaignResultsOverride } from "@/surfaces/campaigns/home/results-surface";
+import { sequencesOverride } from "@/surfaces/campaigns/sequences/surface";
 import { installReplies, repliesOverride } from "./reach-out/replies";
 import { installCalendar } from "@/surfaces/calendar/verbs";
 import { installMascot } from "./mascot";
@@ -218,6 +219,8 @@ const SURFACES = [
   reachOutsOverride,
   // Campaigns' own 30 days, read where Campaigns is drawn and nowhere else (surfaces/campaigns/home/results-surface.ts).
   campaignResultsOverride,
+  // Campaigns › Sequences (decision 0060): its list, read where its view is drawn (surfaces/campaigns/sequences/surface.ts).
+  sequencesOverride,
   repliesOverride,
   // The partner's account (0012): on the person, read once, beside the rest.
   partnerOverride,

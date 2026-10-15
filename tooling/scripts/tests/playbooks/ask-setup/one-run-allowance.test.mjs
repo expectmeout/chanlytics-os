@@ -420,7 +420,11 @@ test("the week's touches could not be read: the card declines in its words, and 
   // The read the week's breath is made of (touchesSince, over every send of the week) fails; every other read answers.
   const rows = tables();
   setServiceClient(fakeDb(rows, {}, { campaign_month_sent: () => 0 }));
-  const supabase = fakeDb(rows, { "broadcasts.select": { message: "the read failed" } }, { people_list: () => PEOPLE });
+  const supabase = fakeDb(
+    rows,
+    { "sequence_batches.select": { message: "the read failed" } },
+    { people_list: () => PEOPLE },
+  );
   const t = newToolContext({ supabase, userId: USER, email: "ada@example.com", params: {} }, A, "owner", TZ, NOW);
   const r = await buildProposal(t, "propose_campaign", {
     action: "playbook",

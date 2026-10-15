@@ -25,6 +25,7 @@ import {
   reachOutRootOf,
   reachOutSendRefOf,
   replyReadingRefOf,
+  sequenceRow,
   type Json,
   appointmentWorkspace,
 } from "@chanlytics/db";
@@ -416,8 +417,8 @@ export const listScope = row((ctx, params) => loadList(ctx, String(params.id ?? 
 async function loadBroadcast(ctx: RouteContext, id: string) {
   const broadcastId = requireUuid(id, "broadcast");
   const { data, error } = await ctx.supabase
-    .from("broadcasts")
-    .select("id, tenant_id, state, name, recipient_count, playbook_id, run_for, audience, scheduled_for")
+    .from("sequence_batches")
+    .select("id, tenant_id, state, name, recipient_count, playbook_id:step_id, run_for, audience, scheduled_for")
     .eq("id", broadcastId)
     .maybeSingle();
   if (error) throw new Error(error.message);
@@ -425,6 +426,14 @@ async function loadBroadcast(ctx: RouteContext, id: string) {
   return { ...data, tenant_id: asTenantId(data.tenant_id) };
 }
 export const broadcastScope = row((ctx, params) => loadBroadcast(ctx, String(params.id ?? "")));
+
+/** The sequence a verb or a read acts on (decision 0060), read under RLS: one the caller cannot see is a 404. */
+async function loadSequence(ctx: RouteContext, id: string) {
+  const found = await sequenceRow(ctx.supabase, requireUuid(id, "sequence"));
+  if (!found) throw new AppError("not_found", "Sequence not found.", 404);
+  return { ...found, tenant_id: asTenantId(found.tenant_id) };
+}
+export const sequenceScope = row((ctx, params) => loadSequence(ctx, String(params.id ?? "")));
 
 /** The template a verb acts on (hidden, titled, deleted), read under RLS: one the caller cannot see is a 404. */
 async function loadTemplate(ctx: RouteContext, id: string) {
@@ -445,7 +454,7 @@ async function loadPlaybook(ctx: RouteContext, id: string) {
   // A person reads "campaign", never "playbook" (decision 19): the 404s below are said in a toast.
   const playbookId = requireUuid(id, "campaign");
   const { data, error } = await ctx.supabase
-    .from("playbooks")
+    .from("sequence_steps")
     // Its class and its message are what a change of its channels alone is judged by (campaigns/playbook-row.ts).
     .select("id, tenant_id, name, state, trigger, policy_class, template_id")
     .eq("id", playbookId)

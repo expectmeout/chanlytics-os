@@ -39,6 +39,16 @@ import {
   personModeManySpec,
 } from "./people-verbs";
 import { dealSpec, noteSpec, personDetailsSpec, personModeSpec } from "./person";
+import {
+  sequenceDiscardSpec,
+  sequenceDraftSpec,
+  sequenceLeaveSpec,
+  sequenceMakeSpec,
+  sequenceStartSpec,
+  sequenceStepRemoveSpec,
+  sequenceStepSpec,
+  sequenceWordsSpec,
+} from "./sequences";
 import type { ProposalGate, ProposalSpec, ProposalSpecAboveOperator } from "./spec";
 import { inviteSpec, policySpec, settingsSpec } from "./workspace";
 
@@ -82,6 +92,15 @@ const VERB_SPECS = /* @__PURE__ */ (() => ({
   person_add: personAddSpec,
   person_merge: personMergeSpec,
   list_member: listMemberSpec,
+  // The Sequences page's own (decision 0060, ask-proposals/sequences.ts).
+  sequence_step: sequenceStepSpec,
+  sequence_step_remove: sequenceStepRemoveSpec,
+  sequence_words: sequenceWordsSpec,
+  sequence_leave: sequenceLeaveSpec,
+  sequence_draft: sequenceDraftSpec,
+  sequence_make: sequenceMakeSpec,
+  sequence_start: sequenceStartSpec,
+  sequence_discard: sequenceDiscardSpec,
 }))();
 /** A verb a sheet or a card commits. */
 export type VerbKind = keyof typeof VERB_SPECS;

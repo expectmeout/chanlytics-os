@@ -130,7 +130,7 @@ test("always heard, wherever the tab is: Settings its facts, rules, library and 
     [conversationsOverride, ["contacts"]],
     [todayOverride, ["contacts"]],
     [calendarOverride, ["appointment_notices", "tenant_config"]],
-    [reachOutsOverride, ["reach_out_replies"]],
+    [reachOutsOverride, ["sequence_replies"]],
   ];
   for (const hash of ["#/today", "#/campaigns", "#/calendar", "#/admin/workspace", "#/clients"]) {
     at(hash);
@@ -173,7 +173,7 @@ const ON_ITS_PAGE = [
     // The text line and the mailbox its reach is counted against (R6: S3-3, W-channel-team-plus-3).
     [
       "contacts",
-      "playbooks",
+      "sequence_steps",
       "tenant_channels",
       "lines",
       "mailboxes",
@@ -191,7 +191,7 @@ const ON_ITS_PAGE = [
   [reportsHeadlineOverride, "#/today", "#/inbox", ["contacts"]],
   [reportsPeopleOverride, "#/reports/people", "#/inbox", ["contacts", "tenant_config"]],
   [receptionistOverride, "#/reports/receptionist", "#/inbox", ["contacts", "tenant_config"]],
-  [campaignResultsOverride, "#/campaigns", "#/inbox", ["reach_out_replies"]],
+  [campaignResultsOverride, "#/campaigns", "#/inbox", ["sequence_replies"]],
 ];
 
 test("the heavy pages hear them on their own page alone: People, the composers, the Reports lenses and Campaigns' 30 days", () => {
@@ -240,9 +240,9 @@ test("each keeps the tables it had: People its own, the composers their runs and
   at("#/today");
   for (const table of ["deals", "person_notes", "segments", "segment_members", "appointments"])
     assert.equal(hears(peopleOverride, table), true, `People: ${table}`);
-  assert.equal(hears(broadcastsOverride, "broadcasts"), true, "Sent's runs");
-  assert.equal(hears(playbooksOverride, "broadcasts"), true, "the playbooks' runs");
-  assert.equal(hears(playbooksOverride, "playbooks"), true, "and the playbooks themselves");
+  assert.equal(hears(broadcastsOverride, "sequence_batches"), true, "Sent's runs");
+  assert.equal(hears(playbooksOverride, "sequence_batches"), true, "the playbooks' runs");
+  assert.equal(hears(playbooksOverride, "sequence_steps"), true, "and the playbooks themselves");
   // A message is still a page's own to hear.
   assert.equal(hears(peopleOverride, "messages", "INSERT"), false, "People: a message passes by off its page");
   at("#/clients");

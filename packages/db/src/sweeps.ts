@@ -46,27 +46,28 @@ function remainingOf(rows: Array<{ due_total: unknown }>): number {
   return Math.max(0, total - rows.length);
 }
 
-type PlaybookRow = Database["public"]["Tables"]["playbooks"]["Row"];
+type StepRow = Database["public"]["Tables"]["sequence_steps"]["Row"];
 
-export interface DuePlaybook {
-  /** The playbook as its row reads. */
-  playbook: PlaybookRow;
+export interface DueStep {
+  /** The step as its row reads (sequence_steps, 00440). */
+  step: StepRow;
   /** The zone it was judged due in: its workspace's own (tenants.timezone), the one its run keeps to. */
   timezone: string;
 }
 
 /**
- * The running playbooks of one kind due at `at` (00245 playbooks_due): at or past their hour by their workspace's own
- * clock, not past the last hour a message may go out, and not yet run for that clock's day -- runDueNow's rule, judged
- * in the database -- never run first, then the least recently run, `limit` of them, with the exact count of due
- * playbooks beyond the page. A paused workspace's are not due: they run the hour after it resumes, their day still
- * open. `tenantId` keeps to one workspace (a test's); the sweep asks for every workspace.
+ * The running steps of one kind due at `at` (00245 playbooks_due's rule; sequence_steps_due, 00441): at or past their hour
+ * by their workspace's own clock, not past the last hour a message may go out, and not yet run for that clock's day --
+ * runDueNow's rule, judged in the database -- never run first, then the least recently run, `limit` of them, with the
+ * exact count of due steps beyond the page. A paused workspace's are not due: they run the hour after it resumes, their
+ * day still open. A customer's step after the first is due only while its sequence is on (D6). `tenantId` keeps to one
+ * workspace (a test's); the sweep asks for every workspace.
  */
 export async function duePlaybooks(
   db: Db,
   p: { kind: "moment" | "reach_out"; at: Date; limit: number; tenantId?: string },
-): Promise<DuePage<DuePlaybook>> {
-  const { data, error } = await db.rpc("playbooks_due", {
+): Promise<DuePage<DueStep>> {
+  const { data, error } = await db.rpc("sequence_steps_due", {
     p_kind: p.kind,
     p_at: p.at.toISOString(),
     p_last_hour: PLAYBOOK_HOURS.max,
@@ -74,10 +75,10 @@ export async function duePlaybooks(
     ...(p.tenantId ? { p_tenant_id: p.tenantId } : {}),
   });
   if (error) throw new Error(`cannot read the playbooks due: ${error.message}`);
-  const rows = (data ?? []) as Array<{ playbook: Json; timezone: string; due_total: number }>;
+  const rows = (data ?? []) as Array<{ step: Json; timezone: string; due_total: number }>;
   return {
     // The row as to_jsonb wrote it: the table's own shape, every column a JSON value.
-    rows: rows.map((r) => ({ playbook: r.playbook as PlaybookRow, timezone: r.timezone })),
+    rows: rows.map((r) => ({ step: r.step as StepRow, timezone: r.timezone })),
     remaining: remainingOf(rows),
   };
 }
@@ -91,7 +92,7 @@ export async function duePlaybooks(
 export async function stampPlaybooksTried(db: Db, tenantId: string, p: { ids: string[]; at: Date }): Promise<void> {
   if (p.ids.length === 0) return;
   const { error } = await db
-    .from("playbooks")
+    .from("sequence_steps")
     .update({ last_run_at: p.at.toISOString() })
     .eq("tenant_id", tenantId)
     .in("id", p.ids);

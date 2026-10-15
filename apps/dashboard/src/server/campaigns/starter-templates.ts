@@ -418,7 +418,7 @@ export async function checkStarterPlaybook(
   known?: ZoneAndSettings,
 ): Promise<StarterJudged> {
   const { trig, cls } = await checkPlaybookMomentInput(ctx, tenantId, body, known);
-  // One proposal follow-up a workspace (00167 playbooks_one_follow_up): the index is the database's last word, said here
+  // One proposal follow-up a workspace (00167, sequence_steps_one_follow_up): the index is the database's last word, said here
   // first, so a second's starter is never filed and nothing of it reaches Meta.
   if (trig.kind === "deal" && (await followUpOnFile(ctx.supabase, tenantId, trig.id)))
     throw new AppError("conflict", FOLLOW_UP_ONE, 409);

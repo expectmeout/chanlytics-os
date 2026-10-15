@@ -704,7 +704,7 @@ test("the doors are a signed-in member's; the predicate, the lines and the recor
     member_rule: false,
   });
   const [idx] = query(
-    `select indisunique as unique, indisvalid as valid from pg_index where indexrelid = 'public.reach_out_sends_one_first'::regclass`,
+    `select indisunique as unique, indisvalid as valid from pg_index where indexrelid = 'public.sequence_sends_one_first'::regclass`,
   );
   assert.deepEqual(idx, { unique: true, valid: true });
 });

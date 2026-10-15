@@ -14,11 +14,17 @@ import {
   LIFECYCLE_WORDS,
   TO_SEND_ALL_WORDS,
   TO_SEND_ROUTE,
+  SEQUENCES_ROUTE,
+  SEQUENCE_WORDS,
   isAdsParam,
+  isSequencesParam,
   parseAds,
+  parseSequencesRoute,
+  routeOfPath,
   templateTitle,
 } from "@chanlytics/contracts";
 import { adsShown } from "./ads/shown";
+import { sequencesShown } from "./sequences/shown";
 import { surfaceValue } from "../surface-values";
 import type { SurfaceViews } from "../routes";
 // MOCKUP: the crumb names an ad the page has read (the store remembers them) until the wiring lane's surface holds real ones.
@@ -43,16 +49,50 @@ const CAMPAIGNS: Crumb = { label: CAMPAIGN_ROOMS.home, to: "campaigns" };
  * people who have your number, and what you pay to show people who don't. Library and Sent are rooms of Messages and draw no
  * strip, as before.
  */
-function campaignsViews(picked: "messages" | "ads"): SurfaceViews {
+function campaignsViews(picked: "sequences" | "messages" | "ads"): SurfaceViews {
+  // Sequences first (decision 0060), where its preview is on, and Messages then the Library (D4); Ads last, where it is drawn.
+  const preview = sequencesShown();
+  const sequences = preview
+    ? [{ id: "sequences", label: SEQUENCE_WORDS.title, to: SEQUENCES_ROUTE, testid: "campaigns-view-sequences" }]
+    : [];
+  const ads = inDemo() ? [{ id: "ads", label: ADS_WORDS.adsTab, to: ADS_ROUTE, testid: "campaigns-view-ads" }] : [];
   return {
     name: "campaigns",
     label: ADS_WORDS.viewsLabel,
     testid: "campaigns-views",
     picked,
     tabs: [
-      { id: "messages", label: ADS_WORDS.messagesTab, to: "campaigns", testid: "campaigns-view-messages" },
-      { id: "ads", label: ADS_WORDS.adsTab, to: ADS_ROUTE, testid: "campaigns-view-ads" },
+      ...sequences,
+      {
+        id: "messages",
+        label: ADS_WORDS.messagesTab,
+        to: preview ? "messages" : "campaigns",
+        testid: "campaigns-view-messages",
+      },
+      ...ads,
     ],
+  };
+}
+
+/**
+ * Sequences' crumbs (decision 0060): Campaigns, then Sequences, and under it the sequence open, named once the list holds
+ * it, or a new one. Every address is the one mount of Campaigns, the page following its own address.
+ */
+function sequencesChrome(): { crumbs: Crumb[]; mount: string; act: null; views: SurfaceViews } {
+  const route = typeof window === "undefined" ? null : routeOfPath(window.location.pathname);
+  const place = route ? parseSequencesRoute(route) : null;
+  const list = surfaceValue("sequences");
+  const named = place?.view === "record" ? (list?.sequences.find((q) => q.id === place.id)?.name ?? null) : null;
+  const sequences = { label: SEQUENCE_WORDS.title, to: SEQUENCES_ROUTE };
+  return {
+    crumbs: named
+      ? [CAMPAIGNS, sequences, named]
+      : place?.view === "new"
+        ? [CAMPAIGNS, sequences, SEQUENCE_WORDS.newSequence]
+        : [CAMPAIGNS, SEQUENCE_WORDS.title],
+    mount: "campaigns",
+    act: null,
+    views: campaignsViews("sequences"),
   };
 }
 
@@ -89,6 +129,8 @@ export function campaignsChrome({ param }: { param: string | null }): {
 } {
   const demo = inDemo();
   if (demo && param && isAdsParam(param)) return adsChrome(param);
+  const sequences = sequencesShown();
+  if (sequences && isSequencesParam(param)) return sequencesChrome();
   const at = parseHome(param);
   const playbooks = surfaceValue("playbooks");
   const chains = surfaceValue("reach_outs");
@@ -117,6 +159,15 @@ export function campaignsChrome({ param }: { param: string | null }): {
     act: null,
     ...(demo ? { views: campaignsViews("messages") } : {}),
   };
+}
+
+/**
+ * The Library's chrome: where the Sequences preview is on (decision 0060, D4), it is Campaigns › Messages, in the strip of
+ * views beside Sequences; anywhere else a room of the home, as before (no `views`).
+ */
+export function messagesChrome(): { crumbs: Crumb[]; views?: SurfaceViews } {
+  if (!sequencesShown()) return { crumbs: [CAMPAIGNS, CAMPAIGN_ROOMS.library] };
+  return { crumbs: [CAMPAIGNS, ADS_WORDS.messagesTab], views: campaignsViews("messages") };
 }
 
 /** Sent's one list of every email handed to its owner, from each reach-out they send themselves (00429), as its param. */

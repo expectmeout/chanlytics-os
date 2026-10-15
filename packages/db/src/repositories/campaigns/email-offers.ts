@@ -130,7 +130,7 @@ export async function setEmailOffersYes(
  */
 export async function offerLanguageOf(db: Db, p: { tenantId: string; broadcastId: string }): Promise<string | null> {
   const { data, error } = await db
-    .from("broadcasts")
+    .from("sequence_batches")
     .select("template_language")
     .eq("tenant_id", p.tenantId)
     .eq("id", p.broadcastId)

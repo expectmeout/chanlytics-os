@@ -116,7 +116,21 @@ interface AskPagesHas {
   dealsOn: boolean;
   /** The person is Chanlytics staff: the rail draws the back office for them alone. */
   platformAdmin: boolean;
+  /** Campaigns › Sequences is drawn here (decision 0060): its preview is on (`features.sequences_preview`). */
+  sequences?: boolean;
 }
+
+/**
+ * Campaigns › Sequences (decision 0060), where its preview is on: everything that sends on its own. Elsewhere its address
+ * draws Campaigns' home, so it is no jump there; it answers to what the old pages were called.
+ */
+const SEQUENCES: JumpEntry = {
+  label: "Sequences",
+  to: "campaigns/sequences",
+  kind: "page",
+  sub: "everything that sends on its own",
+  also: ["automations", "follow-ups", "drip"],
+};
 
 /**
  * The Pipeline: People's third scope where deals are on (0008, people.jsx plScopes). Where they are off its address
@@ -138,13 +152,17 @@ const BACK_OFFICE: JumpEntry = {
   sub: "every workspace, for Chanlytics staff",
 };
 
-/** The pages this workspace has, for this person: every workspace's, the Pipeline after Leads, and the back office. */
+/**
+ * The pages this workspace has, for this person: every workspace's, the Pipeline after Leads, Sequences after Campaigns
+ * where its preview is on, and the back office.
+ */
 export function askPages(has: AskPagesHas): JumpEntry[] {
   const out: JumpEntry[] = [];
   const lastLens = LENS_JUMPS.at(-1)?.to;
   for (const p of ASK_PAGES) {
     out.push(p);
     if (p.to === "clients/leads" && has.dealsOn) out.push(PIPELINE);
+    if (p.to === "campaigns" && has.sequences) out.push(SEQUENCES);
     if (p.to === lastLens && has.dealsOn) out.push(...DEALS_LENS_JUMPS);
   }
   if (has.platformAdmin) out.push(BACK_OFFICE);

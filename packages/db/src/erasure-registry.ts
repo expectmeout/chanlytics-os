@@ -46,7 +46,7 @@ export const ERASURE_LEGS = {
   signer_trigger:
     "person_signer_erase_on_contact: the name and title a reply's reading found as its signer, and what became of it, cleared (00413)",
   recipients_trigger:
-    "broadcast_recipients_on_erase: the words each run kept for them, a visit's time, service and key and a proposal's link, cleared (00391)",
+    "sequence_sends_on_erase: the words each batch kept for them, a visit's time, service and key and a proposal's link, cleared (00391, 00440)",
   jobs_scrub:
     "scrubErasedJobs and erase_contact: a job's payload that carried their number or words overwritten, and its error cleared",
   ask_scrub: "scrub_ask_for_contact: the assistant's turns that name them deleted (00238)",
@@ -107,23 +107,6 @@ export const ERASURE_STRATEGIES: Readonly<Record<string, Readonly<Record<string,
   },
   billing_card_marks: { card_fingerprint: WITH_WORKSPACE },
   billing_events: all(NOT_PERSONAL, "id", "type", "currency"),
-  broadcast_recipients: {
-    facts: scrubbedBy("recipients_trigger"),
-    // A refusal's or a failure's code.
-    reason: NOT_PERSONAL,
-  },
-  // A run's name, its audience (a list's or a playbook's name, a rule in the closed vocabulary), its channels, its
-  // template and what fills its slots: the business's.
-  broadcasts: all(
-    NOT_PERSONAL,
-    "audience",
-    "channels",
-    "failure",
-    "name",
-    "params",
-    "template_language",
-    "template_name",
-  ),
   // The workspace's carrier registration: the business, its address and tax id, and the representative it names.
   business_records: all(
     WITH_WORKSPACE,
@@ -423,36 +406,67 @@ export const ERASURE_STRATEGIES: Readonly<Record<string, Readonly<Record<string,
     "dead_letters",
     "intake_lag_ms",
   ),
-  // A campaign: its name, channels, list, template and slots, and the team's instruction; the name it is signed with,
-  // the sender's.
-  playbooks: {
-    signed_by: WITH_WORKSPACE,
-    ...all(NOT_PERSONAL, "channels", "hand", "list_key", "name", "params", "template_language", "template_name"),
-  },
   // Numbers: a day's tokens, a pause's hours (contracts config/limits.ts).
   policies: { limits: NOT_PERSONAL },
   provider_events: {
     body: scrubbedBy("deliveries_scrub"),
     ...all(byAge("provider_events"), "provider_event_id", "door", "url", "headers"),
   },
-  // A reply to a reach-out hangs on the replier's message and thread, and goes with them.
-  reach_out_replies: {
+  // A list's name and its rule, in the closed vocabulary; its members go by segment_members_on_erase.
+  segments: all(NOT_PERSONAL, "name", "rule"),
+  // A sequence (decision 0060): its name, the business's.
+  sequences: { name: NOT_PERSONAL },
+  // A batch's name, its audience (a list's or a step's name, a rule in the closed vocabulary), its channels, its template
+  // and what fills its slots: the business's.
+  sequence_batches: all(
+    NOT_PERSONAL,
+    "audience",
+    "channels",
+    "failure",
+    "name",
+    "params",
+    "template_language",
+    "template_name",
+  ),
+  // Someone in a sequence: why they left is a send's code or a door's word, never theirs.
+  sequence_enrollments: { why: NOT_PERSONAL },
+  // A reply to a sequence's send hangs on the replier's message and thread, and goes with them.
+  sequence_replies: {
     ...all(withPerson("erase_contact"), "draft", "draft_why", "plan", "refer_to", "summary"),
     // Who signed it (0052): cleared when the person it names is erased, wherever the reply's thread is.
     ...all(scrubbedBy("signer_trigger"), "signer_name", "signer_title"),
     // What became of the signer's name, and the source it replaced: closed words, never the name.
     ...all(NOT_PERSONAL, "signer_state", "signer_was"),
   },
-  reach_out_sends: {
-    // Written from the lead's record (00391).
+  sequence_sends: {
+    // A customer's send: the words its batch kept for them.
+    facts: scrubbedBy("recipients_trigger"),
+    // A lead's: written from the lead's record (00391).
     ...all(scrubbedBy("leads_trigger"), "opening", "angle", "hold_detail"),
     // A draft handed to its owner (00429): the business's address, name and the words written to it; lead_blank clears it.
     ...all(scrubbedBy("leads_trigger"), "draft"),
-    // A digest of the words checked, the facts' keys, and the hold's and the skip's codes.
+    // A digest of the words checked, the facts' keys, and the hold's, the skip's and a failure's codes.
     ...all(NOT_PERSONAL, "checked_words", "facts_used", "included_for", "reason"),
   },
-  // A list's name and its rule, in the closed vocabulary; its members go by segment_members_on_erase.
-  segments: all(NOT_PERSONAL, "name", "rule"),
+  // A step: its name, channels, list, template and slots, the words waiting for WhatsApp, the conditions it goes on, and
+  // the team's instruction; the name it is signed with, the sender's.
+  sequence_steps: {
+    signed_by: WITH_WORKSPACE,
+    ...all(
+      NOT_PERSONAL,
+      "channels",
+      "hand",
+      "list_key",
+      "name",
+      "next_params",
+      "next_template_language",
+      "next_template_name",
+      "only_if",
+      "params",
+      "template_language",
+      "template_name",
+    ),
+  },
   sending_domain_days: all(NOT_PERSONAL, "held_why", "host"),
   // The workspace's sending domain and the provider's records for it; the address and the name its mail is sent as.
   sending_domains: {

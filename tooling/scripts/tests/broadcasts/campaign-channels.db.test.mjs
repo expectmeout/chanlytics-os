@@ -188,10 +188,10 @@ test("a playbook and a run default to WhatsApp alone, and each CHECK refuses wha
   ]) {
     checkRefused(
       await db.from("playbooks").update({ channels: bad }).eq("id", playbook.id).select("id"),
-      "playbooks_channels_check",
+      "sequence_steps_channels_check",
       `a playbook with ${why}`,
     );
-    checkRefused(await broadcast(bad), "broadcasts_channels_check", `a run with ${why}`);
+    checkRefused(await broadcast(bad), "sequence_batches_channels_check", `a run with ${why}`);
   }
   assert.deepEqual(
     ok(await db.from("playbooks").select("channels").eq("id", playbook.id).single()).channels,
@@ -229,12 +229,8 @@ test("a recipient has no channel (a person written before the channels, who is W
     [people.byText, "whatsapp"],
   ])
     assert.equal(ok(await person(contact, channel)).at(0).channel, channel);
-  checkRefused(
-    await person(people.byWhatsApp, "fax"),
-    "broadcast_recipients_channel_check",
-    "a channel there is none of",
-  );
-  checkRefused(await person(people.silent, "Email"), "broadcast_recipients_channel_check", "a channel in another case");
+  checkRefused(await person(people.byWhatsApp, "fax"), "sequence_sends_channel_check", "a channel there is none of");
+  checkRefused(await person(people.silent, "Email"), "sequence_sends_channel_check", "a channel in another case");
 });
 
 test("a run is assembled with the channels it ticks and each person's channel, kept as given", async (t) => {

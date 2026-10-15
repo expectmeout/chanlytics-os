@@ -901,7 +901,7 @@ test("each part of a run's report says its own words: the span its bars cover, w
 
 /* ------------------- each person's channel (One message, every channel, step 3) ------------------- */
 
-test("the detail reads the channel each person was picked for, and a database 00298 has not reached reads as it always did: by WhatsApp, with no word of it", async () => {
+test("the detail reads the channel each person was picked for, and a row that names none is null", async () => {
   const world = {
     broadcasts: [bRow()],
     broadcast_recipients: [
@@ -915,43 +915,6 @@ test("the detail reads the channel each person was picked for, and a database 00
   const d = await getBroadcast({ supabase: fakeDb(world) }, TID, B);
   const by = Object.fromEntries(d.recipients.map((r) => [r.contact_id, r.channel]));
   assert.deepEqual(by, { "c-mail": "email", "c-wa": "whatsapp", "c-old": null }, "a row that names none is null");
-  // A database that has no such column refuses the read that asks for it: read again without, never a run that cannot open.
-  const db = fakeDb(world);
-  const noColumn = {
-    // The run's counts are the database's (run_counts, 00374), which this database answers as it always does.
-    rpc: (name, args) => db.rpc(name, args),
-    from: (table) => {
-      const q = db.from(table);
-      if (table !== "broadcast_recipients") return q;
-      return {
-        select: (columns, ...rest) =>
-          columns.startsWith("channel,")
-            ? {
-                eq() {
-                  return this;
-                },
-                order() {
-                  return this;
-                },
-                range() {
-                  return this;
-                },
-                then: (res, rej) =>
-                  Promise.resolve({
-                    data: null,
-                    error: { message: "column broadcast_recipients.channel does not exist" },
-                  }).then(res, rej),
-              }
-            : q.select(columns, ...rest),
-      };
-    },
-  };
-  const old = await getBroadcast({ supabase: noColumn }, TID, B);
-  assert.equal(old.recipients.length, 3, "the run opens, with everyone on it");
-  assert.deepEqual(
-    old.recipients.map((r) => r.channel),
-    [null, null, null],
-  );
 });
 
 test("a run's report says each person's channel where it reached anybody by something but WhatsApp, and the words for a message that never arrived are the channel's own", () => {

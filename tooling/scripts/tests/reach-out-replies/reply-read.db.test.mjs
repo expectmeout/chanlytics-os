@@ -159,7 +159,7 @@ async function stepAfter(root) {
   return nextSteps.get(root);
 }
 let days = 0;
-/** A run of the chain: each on a day of its own, as a chain has one run a day (broadcasts_playbook_run). */
+/** A run of the chain: each on a day of its own, as a chain has one run a day (sequence_batches_step_run). */
 const run = (root, state) =>
   one(
     db.from("broadcasts").insert({
@@ -1124,11 +1124,11 @@ test(
       if (!member.has(r.proname)) assert.equal(r.service, true, `${r.proname}: the service role's door`);
     }
     const policies = query(
-      "select polname, polcmd from pg_policy where polrelid = 'public.reach_out_replies'::regclass",
+      "select polname, polcmd from pg_policy where polrelid = 'public.sequence_replies'::regclass",
     );
     assert.deepEqual(
       policies,
-      [{ polname: "reach_out_replies_member_select", polcmd: "r" }],
+      [{ polname: "sequence_replies_member_select", polcmd: "r" }],
       "no insert or update policy",
     );
     const denied = await owner.c

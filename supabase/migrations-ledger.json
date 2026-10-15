@@ -441,6 +441,9 @@
     "00436_a_visit_change_says_who_made_it.sql": "fba9614a061c48ce2984d129ea768dd432691a31f116759400e149c2dd752b0b",
     "00437_a_teammate_who_leaves_is_told.sql": "35ce48decf1fc0016c0846207a13f1e1926f3768bbbfb54a6983093f9b134c10",
     "00438_a_reply_from_the_business_app_settles_its_hold.sql": "d42cbc5a64a5553f70d69e388f371fdc36ec51a7ccb64c62ebf451220ff4534a",
-    "00439_the_business_has_one_name.sql": "2288ddaa33ef2c46d3b8227b784c77276d32448ab273646de9b4e1f870d821f8"
+    "00439_the_business_has_one_name.sql": "2288ddaa33ef2c46d3b8227b784c77276d32448ab273646de9b4e1f870d821f8",
+    "00440_everything_that_sends_on_its_own_is_a_sequence.sql": "d1544d9b8a573d31abb156a6a260ade4a6f46749e139c1b5df345ba33c15c345",
+    "00441_one_loop_runs_every_sequence.sql": "f002e4ac978aa6912c546ddb20a3373039968ffafae8fd1ddfabd33f836804af",
+    "00442_a_sequence_is_read_and_changed_through_its_doors.sql": "e65c0b3364cc4e11e83cef21656a1b21edee90e81ded4a503eb49fe9d5eda9d2"
   }
 }

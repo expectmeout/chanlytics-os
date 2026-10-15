@@ -167,6 +167,10 @@ const WORDS: Record<string, string> = {
   restore_list: "Restored a list",
   delete_list: "Deleted a list",
   mark_visit: "Said what became of a visit",
+  change_step: "Changed a sequence's step",
+  leave_sequence: "Took people out of a sequence",
+  make_sequence: "Made a sequence",
+  discard_sequence: "Let a sequence go",
   // events
   "message.received": "A customer wrote",
   "message.sent": "A message went out",

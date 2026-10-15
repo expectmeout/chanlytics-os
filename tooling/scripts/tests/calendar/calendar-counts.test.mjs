@@ -976,7 +976,7 @@ test("a proposal's moment (0006): counted by the workspace's pace where deals ar
           { id: "d2", tenant_id: T, contact_id: "p2", stage: "proposed", proposed_at: iso(NOW.getTime() - 20 * DAY) },
         ],
       }),
-      { "broadcasts.select": { message: "canceling statement due to statement timeout" } },
+      { "sequence_batches.select": { message: "canceling statement due to statement timeout" } },
       { people_list: pagedList(all) },
     ),
   };

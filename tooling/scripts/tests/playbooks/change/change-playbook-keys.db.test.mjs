@@ -1,9 +1,10 @@
 /**
  * 00416 on a real Postgres: a campaign ends, runs on trial, and changes its words.
  *
- *   1. The migration runs again, twice, and changes nothing: playbooks.until is a date and playbooks.trial_until a
- *      timestamptz, both null with no default, each saying what it is, a member's session may write both, and the
- *      change_playbook door is the same function with the same grants.
+ *   1. The two columns stand where 00440 moved the playbooks (decision 0060, sequence_steps): until is a date and
+ *      trial_until a timestamptz, both null with no default, each saying what it is, a member's session may write both,
+ *      and the change_playbook and start_playbook doors are a member's. 00416 is not run again: the table it altered
+ *      is sequence_steps now, and its old name a view.
  *   2. The door takes the three keys beside the six: `until`, `trial_until` and `params` are each written where they
  *      differ from the row, answered as `was`, and recorded in the same transaction with the decision the caller names
  *      (its payload names each key changed, as it does for the six). The two dates take null, which clears them (an
@@ -14,15 +15,15 @@
  *   3. The start_playbook door writes both columns where a new campaign names them (Ask's card starts one on trial
  *      under an auto class), each as the instant or day it is, and null where it names neither.
  *
- * Local stack only: it makes workspaces, members and playbooks with the service key and removes them after, and runs
- * the migration through ../../google/_db-stack.mjs, which first holds the stack under SUPABASE_WORKDIR to the one
+ * Local stack only: it makes workspaces, members and playbooks with the service key and removes them after, and reads
+ * the catalog through ../../google/_db-stack.mjs, which first holds the stack under SUPABASE_WORKDIR to the one
  * SUPABASE_URL names and fails the suite where they differ. Every change is made as a signed-in member: the door is
  * security invoker, so the table's update policy and column grants judge it.
  */
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { createClient } from "@supabase/supabase-js";
-import { migrationNamed, query, runMigration } from "../../google/_db-stack.mjs";
+import { query } from "../../google/_db-stack.mjs";
 
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -36,8 +37,6 @@ const skip =
         ? "no SUPABASE_ANON_KEY in env: the members this suite signs in as need it"
         : false;
 
-const MIGRATION = "a_campaign_ends_and_runs_on_trial";
-
 let db;
 let tenantId;
 let templateId;
@@ -50,8 +49,6 @@ const ok = (res) => {
 
 before(async () => {
   if (skip) return;
-  // A database the replay built holds the columns and the door already; one that has not reached 00416 gets them here.
-  runMigration(migrationNamed(MIGRATION));
   db = createClient(URL_, KEY, { auth: { persistSession: false } });
   tenantId = ok(
     await db
@@ -146,11 +143,11 @@ const at = (iso) => (iso == null ? null : Date.parse(iso));
 const columns = () =>
   query(
     `select c.column_name, c.data_type, c.is_nullable, c.column_default,
-            col_description('public.playbooks'::regclass, c.ordinal_position::int) as comment,
-            has_column_privilege('authenticated', 'public.playbooks', c.column_name, 'INSERT') as may_insert,
-            has_column_privilege('authenticated', 'public.playbooks', c.column_name, 'UPDATE') as may_update
+            col_description('public.sequence_steps'::regclass, c.ordinal_position::int) as comment,
+            has_column_privilege('authenticated', 'public.sequence_steps', c.column_name, 'INSERT') as may_insert,
+            has_column_privilege('authenticated', 'public.sequence_steps', c.column_name, 'UPDATE') as may_update
        from information_schema.columns c
-      where c.table_schema = 'public' and c.table_name = 'playbooks' and c.column_name in ('until', 'trial_until')
+      where c.table_schema = 'public' and c.table_name = 'sequence_steps' and c.column_name in ('until', 'trial_until')
       order by c.column_name`,
   );
 /** A door as the catalog holds it: its whole definition, hashed, and who may call it. */
@@ -164,7 +161,7 @@ const door = (signature = "public.change_playbook(uuid, uuid, jsonb, jsonb, text
 const START = "public.start_playbook(uuid, jsonb, jsonb, text, uuid)";
 
 test(
-  "00416 runs again, twice, and changes nothing: until is a date and trial_until a timestamptz, null, with no default, each saying what it is and written by a member's session, and the door is the same",
+  "00416's columns stand on sequence_steps (0060): until is a date and trial_until a timestamptz, null, with no default, each saying what it is and written by a member's session, and the doors are a member's",
   { skip },
   () => {
     const once = columns();
@@ -177,15 +174,10 @@ test(
     );
     assert.match(once[0].comment, /^Until when this campaign runs on trial/);
     assert.match(once[1].comment, /^The last day this campaign runs/);
-    const doorOnce = door();
-    assert.deepEqual([doorOnce[0].member, doorOnce[0].anon], [true, false]);
-    const startOnce = door(START);
-    assert.deepEqual([startOnce[0].member, startOnce[0].anon], [true, false]);
-    runMigration(migrationNamed(MIGRATION));
-    runMigration(migrationNamed(MIGRATION));
-    assert.deepEqual(columns(), once);
-    assert.deepEqual(door(), doorOnce);
-    assert.deepEqual(door(START), startOnce);
+    const [change] = door();
+    assert.deepEqual([change.member, change.anon], [true, false]);
+    const [start] = door(START);
+    assert.deepEqual([start.member, start.anon], [true, false]);
   },
 );
 

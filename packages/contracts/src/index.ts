@@ -24,6 +24,7 @@ export * from "./people";
 export * from "./person-page";
 export * from "./playbooks";
 export * from "./reach-out";
+export * from "./sequences";
 export * from "./reports";
 export * from "./setup";
 export * from "./shared";

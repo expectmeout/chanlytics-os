@@ -688,12 +688,12 @@ test("the Library or the campaigns unread: refused in the plan's words; the jour
     );
   // The campaigns' read fails: an offer cannot know the month's offer to pause; a setup cannot know the journey.
   refusedFor(
-    await call({ action: "plan", ...offer() }, tables(), "owner", PEOPLE, { "playbooks.select": BOOM }),
+    await call({ action: "plan", ...offer() }, tables(), "owner", PEOPLE, { "sequence_steps.select": BOOM }),
     W.playbooksUnread,
   );
   refusedFor(
     await call({ action: "plan", intent: "cover_journey" }, withCalendar(), "owner", PEOPLE, {
-      "playbooks.select": BOOM,
+      "sequence_steps.select": BOOM,
     }),
     W.journeyUnread,
   );
@@ -1099,7 +1099,7 @@ test("an offer's journey and Library read before round 1 are the plan's own read
   // one message or one campaign by its id or name is its handler's).
   const whole = (ctx, table) =>
     ctx.supabase.seen.filter((q) => q.table === table && q.op === "select" && q.filters.length === 1).length;
-  for (const table of ["templates", "playbooks"]) assert.equal(whole(ahead, table), 1, table);
+  for (const table of ["templates", "sequence_steps"]) assert.equal(whole(ahead, table), 1, table);
   assert.deepEqual(
     r.proposals.map((p) => [p.kind, p.title]),
     r2.proposals.map((p) => [p.kind, p.title]),

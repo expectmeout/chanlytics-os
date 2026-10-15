@@ -84,11 +84,12 @@ async function templateSendsRead(
     // from these rows, apart from "Delivered". Counted the way that page counts.
     everyRow("broadcast_recipients", (from, to) =>
       rc.ctx.supabase
-        .from("broadcast_recipients")
-        .select("broadcast_id, state, sent_at")
+        .from("sequence_sends")
+        .select("broadcast_id:batch_id, state, sent_at")
         .eq("tenant_id", tenantId)
+        .is("lead_id", null)
         .eq("state", "sent")
-        .order("broadcast_id")
+        .order("batch_id")
         .order("contact_id")
         .range(from, to),
     ),
@@ -163,8 +164,8 @@ async function templatesOf(rc: ReaderContext, all: boolean) {
   // two.
   const runs = everyRow("broadcasts", (from, to) =>
     rc.ctx.supabase
-      .from("broadcasts")
-      .select("id, template_name, playbook_id, name, state, created_at")
+      .from("sequence_batches")
+      .select("id, template_name, playbook_id:step_id, name, state, created_at")
       .eq("tenant_id", tenantId)
       .order("id")
       .range(from, to),
@@ -172,7 +173,7 @@ async function templatesOf(rc: ReaderContext, all: boolean) {
   const [pb, runRows, sends] = await Promise.all([
     // Its clock, for the line under what sends it ("runs daily at 10:00"), and its last day.
     rc.ctx.supabase
-      .from("playbooks")
+      .from("sequence_steps")
       .select("id, name, template_name, state, trigger, run_hour, cadence_days, until")
       .eq("tenant_id", tenantId),
     runs,

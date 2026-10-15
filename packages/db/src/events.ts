@@ -566,10 +566,10 @@ async function ownNames(db: Db, tenantId: string, idsOf: (type: string) => strin
   const [lists, broadcasts, playbooks, leads, searches] = await Promise.all([
     readByIds(idsOf("list"), (some) => db.from("segments").select("id, name").eq("tenant_id", tenantId).in("id", some)),
     readByIds(idsOf("broadcast"), (some) =>
-      db.from("broadcasts").select("id, name").eq("tenant_id", tenantId).in("id", some),
+      db.from("sequence_batches").select("id, name").eq("tenant_id", tenantId).in("id", some),
     ),
     readByIds(idsOf("playbook"), (some) =>
-      db.from("playbooks").select("id, name").eq("tenant_id", tenantId).in("id", some),
+      db.from("sequence_steps").select("id, name").eq("tenant_id", tenantId).in("id", some),
     ),
     readByIds(idsOf("lead"), (some) =>
       db.from("leads").select("id, business_name").eq("tenant_id", tenantId).in("id", some),

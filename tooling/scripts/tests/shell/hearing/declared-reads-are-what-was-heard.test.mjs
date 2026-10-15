@@ -88,8 +88,9 @@ const HEARD_BEFORE = {
     "templates",
     "memberships",
     "invitations",
-    "playbooks",
-    "broadcasts",
+    "sequences",
+    "sequence_steps",
+    "sequence_batches",
     "tenant_channels",
     "lines",
     "google_listings",
@@ -120,7 +121,8 @@ const HEARD_BEFORE = {
     "conversations",
     "escalations",
     "contacts",
-    "playbooks",
+    "sequences",
+    "sequence_steps",
     "tenant_channels",
     "billing_accounts",
     "policies",
@@ -133,9 +135,9 @@ const HEARD_BEFORE = {
     "segment_members",
     // Decision 0052 (#1566) adds what a row draws of the business a person works at and the signer a reply of theirs offers.
     "leads",
-    "reach_out_replies",
+    "sequence_replies",
     // The runs a row's "Follow-up to approve" names (W-campaign-run-template-reachout-9).
-    "broadcasts",
+    "sequence_batches",
     // The text line and the mailbox its reach is counted against (R6: S3-3, W-channel-team-plus-3).
     "lines",
     "mailboxes",
@@ -168,8 +170,8 @@ const HEARD_BEFORE = {
     "messages",
     "conversations",
     "escalations",
-    "broadcasts",
-    "reach_out_replies",
+    "sequence_batches",
+    "sequence_replies",
     "tenant_channels",
     "mailbox_connections",
     // A person's answer (the wiring's second audit, W-person-list-lead-8): an update of one, never a person made.
@@ -183,33 +185,48 @@ const HEARD_BEFORE = {
   // Its line is the channels read's, which it follows (R6).
   live: ["calls"],
   // And a deal an audience names, and the team the people read names; the playbooks a deal (owed, closed 15 October).
-  broadcasts: [...SENT_PAGE, "broadcasts", "deals", "memberships"],
-  playbooks: [...COMPOSER_PAGE, "broadcasts", "playbooks", "deals"],
+  broadcasts: [...SENT_PAGE, "sequence_batches", "deals", "memberships"],
+  playbooks: [...COMPOSER_PAGE, "sequence_batches", "sequences", "sequence_steps", "deals"],
   // And the rule that is a chain's mode (W-review-facts-rules-8); a chain's templates and a lead's deal won (owed, closed).
-  reach_outs: ["playbooks", "broadcasts", "reach_out_replies", "policies", "templates", "deals"],
+  reach_outs: ["sequences", "sequence_steps", "sequence_batches", "sequence_replies", "policies", "templates", "deals"],
   // A person's answer, by an update of them (the wiring's second audit, S3-2). And a deal won and the numbers and mailboxes the
   // reach-outs counted left from (owed, closed 15 October).
   campaign_results: [
     "messages",
     "conversations",
     "escalations",
-    "broadcasts",
-    "reach_out_replies",
+    "sequence_batches",
+    "sequence_replies",
     "contacts",
     "deals",
     "tenant_channels",
     "mailboxes",
     "mailbox_connections",
   ],
+  // Campaigns › Sequences (decision 0060), declared as it arrived: a sequence and its steps, its batches, a lead's reply and a
+  // customer's (the messages), the rule that says who approves, the workspace's word and clock, and the list or the search it
+  // starts on.
+  sequences: [
+    "sequences",
+    "sequence_steps",
+    "sequence_batches",
+    "sequence_replies",
+    "messages",
+    "policies",
+    "tenant_config",
+    "tenants",
+    "segments",
+    "lead_searches",
+  ],
   // And the mailbox a reply came to (decision 0056; owed, closed 15 October).
-  reach_out_replies: ["reach_out_replies", "mailboxes", "mailbox_connections"],
+  reach_out_replies: ["sequence_replies", "mailboxes", "mailbox_connections"],
   partner: [],
   alerts: [],
   // And the person a visit is (W-person-list-lead-6): an update of them, never a person made.
   // And the mailbox the Business tab's forwarding code is kept on (R6: S4-4).
   calendar: ["appointments", "appointment_notices", "tenant_config", "contacts", "mailboxes"],
   // The Calendar's campaign marks (its lane C): the runs, the campaigns, the classes' modes and the workspace's pause.
-  calendar_runs: ["broadcasts", "playbooks", "policies", "tenants"],
+  calendar_runs: ["sequence_batches", "sequences", "sequence_steps", "policies", "tenants"],
   // The counts of the lists pinned to Today (the wiring's second audit, R10): what the lists are made of, a person's threads,
   // holds and calls, visits, steps and deals, the lists kept by hand, who can be reached, the settings and the workspace's row.
   today_pins: [
@@ -265,8 +282,9 @@ const HEARD_BEFORE = {
     "contacts",
     "escalations",
     "calls",
-    "broadcasts",
-    "playbooks",
+    "sequence_batches",
+    "sequences",
+    "sequence_steps",
     "policies",
     "tenant_config",
     "leads",
@@ -285,7 +303,8 @@ const ON_ITS_PAGE_BEFORE = {
     "conversations",
     "escalations",
     "contacts",
-    "playbooks",
+    "sequences",
+    "sequence_steps",
     "tenant_channels",
     "billing_accounts",
     "policies",
@@ -295,7 +314,7 @@ const ON_ITS_PAGE_BEFORE = {
     // every page since S1-1 (the Inbox thread a bell row opens draws it from People's rows).
     "leads",
     // The runs a row's follow-up names (W-campaign-run-template-reachout-9).
-    "broadcasts",
+    "sequence_batches",
     // The text line and the mailbox its reach is counted against (R6).
     "lines",
     "mailboxes",
@@ -312,12 +331,22 @@ const ON_ITS_PAGE_BEFORE = {
   reports_campaigns: HEARD_BEFORE.reports_campaigns,
   reports_reviews: HEARD_BEFORE.reports_reviews,
   campaign_results: HEARD_BEFORE.campaign_results,
+  // Its batches and its sequences wherever the tab is (`always`), the rest on its page.
+  sequences: ["sequence_replies", "messages", "policies", "tenant_config", "tenants", "segments", "lead_searches"],
   person: HEARD_BEFORE.person,
   calendar_runs: HEARD_BEFORE.calendar_runs,
   today_pins: HEARD_BEFORE.today_pins,
   // The Library's counts, on the Library and Settings' panes (W-campaign-run-template-reachout-2), and the Business pane's facts
   // (R6).
-  settings: ["playbooks", "broadcasts", "tenant_channels", "lines", "google_listings", "appointments"],
+  settings: [
+    "sequences",
+    "sequence_steps",
+    "sequence_batches",
+    "tenant_channels",
+    "lines",
+    "google_listings",
+    "appointments",
+  ],
   // A search's rows and strip, on Leads' scope (S10-5).
   leads: HEARD_BEFORE.leads,
   // What Setup's rows state, on Start and Today's card (S4-3).
@@ -356,7 +385,12 @@ const ROUTES = [
   "clients/0b9c4f6e-1d2a-4c3b-9e8f-7a6b5c4d3e2f/history",
 ];
 /** The Campaigns lens hears the feed on the lens alone, though the Overview draws the surface too; the Library is Settings' page. */
-const HOME = { reports_campaigns: "reports/campaigns", settings: "messages", leads: "clients/leads" };
+const HOME = {
+  reports_campaigns: "reports/campaigns",
+  settings: "messages",
+  leads: "clients/leads",
+  sequences: "campaigns/sequences",
+};
 /** The first route that owns every table the surface hears on its page alone: its own page, not one that owns some kinds of it. */
 const homeOf = (o) =>
   HOME[o.key] ?? ROUTES.find((route) => (o.refreshOnTables ?? []).every((table) => ownsTable(o.key, table, route)));

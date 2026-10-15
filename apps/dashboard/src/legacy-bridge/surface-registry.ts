@@ -69,6 +69,9 @@ export const SURFACE_STATES: Record<string, SurfaceState> = {
   studio: "demo",
   campaigns: "real", // Campaigns' home (canvas A, "Lifecycle"): the moments around a customer over the playbooks' surface, and who can hear you, what is coming and what came back over the broadcasts', the library's templates and the reach-outs'
   outbound: "real", // the old Playbooks list, a door now: it lands on campaigns (contracts doorOf), and a playbook is campaigns/moment:<id>
+  // Campaigns › Sequences (decision 0060): everything sent on its own, one list and a record, over the sequences surface;
+  // drawn where its preview is on, the home elsewhere (campaigns/sequences/shown.ts).
+  "campaigns/sequences": "real",
   content: "demo",
   broadcasts: "real", // Campaigns › Sent: the runs, and the send screen where an audience is named; SMS and email stay not available
   messages: "real", // Campaigns › Library: what the receptionist and the campaigns send, as the customer sees it, a reach-out's emails included (drawn from the reach_outs surface's chains, each count read as its row opens)
@@ -125,6 +128,8 @@ export const ROUTE_SURFACE: Record<string, string> = {
   broadcasts: "broadcasts",
   // Campaigns' home is the playbooks' moments first; the broadcasts, the library and the reach-outs fill in beside it (ROUTE_DRAWS).
   campaigns: "playbooks",
+  // Its Sequences view (0060) is its own list: the gate waits for it, never the home's moments.
+  "campaigns/sequences": "sequences",
   // The templates ride on the settings surface; the page waits for it like Settings does.
   messages: "settings",
   outbound: "playbooks",
@@ -230,6 +235,9 @@ export const ROUTE_DRAWS: Record<string, readonly string[]> = {
   // (surfaces/offered-templates.ts), so Settings is drawn here, last: the home's first draw would otherwise add its line after
   // the rest, and say nothing of the call's text until the boot's second pass.
   campaigns: ["broadcasts", "campaign_results", "reach_outs", "settings", "channels"],
+  // Sequences (0060) draws its own list, read as the view comes on screen (onDemand), and the settings read: its preview's
+  // switch, and the messages a step may send (offered-templates.ts).
+  "campaigns/sequences": ["sequences", "settings"],
   // Templates says which playbooks send each template (messages.jsx), and Broadcasts names a run's playbook. The Library's
   // number notice and a message's drawer are made of the channels read.
   messages: ["reach_outs", "playbooks", "channels"],
@@ -290,7 +298,10 @@ function paneOf(page: string, param?: string | null): string | null | undefined 
     const at = reportsParamParts(param);
     if (at) return at.lens === "overview" ? null : at.lens;
   }
-  return page === "admin" && param && param.includes("/") ? param.slice(0, param.indexOf("/")) : param;
+  // A Settings pane's, and Campaigns' Sequences view (`campaigns/sequences/<id>/people`): the first word is what is fed.
+  return (page === "admin" || page === "campaigns") && param && param.includes("/")
+    ? param.slice(0, param.indexOf("/"))
+    : param;
 }
 
 /**

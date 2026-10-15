@@ -311,7 +311,8 @@ after(async () => {
   if (user) await db.auth.admin.deleteUser(user);
 });
 
-const playbook = async (id) => ok(await db.from("playbooks").select("*").eq("id", id).single());
+// A step as the sweep hands it to its runner: its table's row (00440), its sequence named.
+const playbook = async (id) => ok(await db.from("sequence_steps").select("*").eq("id", id).single());
 const runOf = async (stepId) =>
   ok(await db.from("broadcasts").select("*").eq("tenant_id", A).eq("playbook_id", stepId).single());
 const stepRun = async (stepId) => {

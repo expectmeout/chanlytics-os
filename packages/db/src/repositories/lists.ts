@@ -281,7 +281,7 @@ export async function playbooksOnList(
   listId: string,
 ): Promise<{ id: string; name: string; state: string }[]> {
   const { data, error } = await db
-    .from("playbooks")
+    .from("sequence_steps")
     .select("id, name, state")
     .eq("tenant_id", tenantId)
     .eq("list_id", listId)

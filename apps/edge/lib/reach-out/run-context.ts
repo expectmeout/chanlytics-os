@@ -25,10 +25,7 @@ import { loadTenantNotifications } from "../tenant-runtime.js";
 import { logger } from "../log.js";
 
 type Db = SupabaseClient<Database>;
-export type ReachOutRow = Database["public"]["Tables"]["playbooks"]["Row"];
-
-/** A chain is short (Part 4's sheet makes a few steps); a longer walk is a loop in the rows, never a chain. */
-const CHAIN_MAX = 10;
+export type ReachOutRow = Database["public"]["Tables"]["sequence_steps"]["Row"];
 
 /** When the first email of a run goes, in the workspace's words: "Monday 9:30 AM". */
 const firstWords = (tz: string, atMs: number): string =>
@@ -37,25 +34,25 @@ const firstWords = (tz: string, atMs: number): string =>
   );
 
 /**
- * The step as the verb reads it: its chain's root, the chain's state (a paused root pauses every step of it), what
- * feeds it (the root's search: a list of via chosen or import, else the finder's, 00426), and who sends it (the root's
- * owner_sends, 00429). A hand step (00228) has its hand and no template. Null when its root cannot be found within a
- * chain's length, or the row is neither.
+ * The step as the verb reads it: its sequence's first step (the root, whose id is the sequence's, 00440), the chain's
+ * state (a paused root pauses every step of it), what feeds it (the root's search: a list of via chosen or import, else
+ * the finder's, 00426), and who sends it (the root's owner_sends, 00429). A hand step (00228) has its hand and no
+ * template. Null when its root cannot be found, or the row is neither.
  */
 async function stepOf(db: Db, row: ReachOutRow): Promise<ReachOutStep | HandStep | null> {
   let root = row;
-  for (let i = 0; root.after_playbook_id && i < CHAIN_MAX; i += 1) {
+  if (row.sequence_id !== row.id) {
     const { data, error } = await db
-      .from("playbooks")
+      .from("sequence_steps")
       .select("*")
       .eq("tenant_id", row.tenant_id)
-      .eq("id", root.after_playbook_id)
+      .eq("id", row.sequence_id)
       .maybeSingle();
     if (error) throw new Error(`cannot read the step's chain: ${error.message}`);
     if (!data) return null;
     root = data;
   }
-  if (root.after_playbook_id) return null;
+  if (root.after_step_id) return null;
   const fedBy = await reachOutFedByOf(db, row.tenant_id, root.lead_search_id);
   const common: Omit<HandStep, "hand"> = {
     id: row.id,
@@ -67,7 +64,7 @@ async function stepOf(db: Db, row: ReachOutRow): Promise<ReachOutStep | HandStep
     lead_search_id: row.lead_search_id,
     fed_by: fedBy,
     include_unconfirmed: root.include_unconfirmed === true,
-    after_playbook_id: row.after_playbook_id,
+    after_playbook_id: row.after_step_id,
     after_days: row.after_days,
     gap_minutes: row.gap_minutes ?? 0,
     mailbox_ids: row.mailbox_ids ?? [],
@@ -145,10 +142,10 @@ export async function reachOutRunContext(
     maySpend: spend,
     alreadyRan: async (stepId, runFor) => {
       const { data, error } = await db
-        .from("broadcasts")
+        .from("sequence_batches")
         .select("id")
         .eq("tenant_id", tenantId)
-        .eq("playbook_id", stepId)
+        .eq("step_id", stepId)
         .eq("run_for", runFor)
         .maybeSingle();
       if (error) throw new Error(`cannot read the step's runs: ${error.message}`);
@@ -156,7 +153,7 @@ export async function reachOutRunContext(
     },
     chainState: async (rootId) => {
       const { data, error } = await db
-        .from("broadcasts")
+        .from("sequence_batches")
         .select("state")
         .eq("tenant_id", tenantId)
         .eq("audience->>kind", "reach_out")

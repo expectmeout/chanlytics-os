@@ -5,12 +5,20 @@
  */
 import { clockDate } from "../shared/clock";
 import { DAY_MS } from "../shared/time";
-import type { PersonDetailDto } from "./person-dto";
+import type { PersonCampaignVM, PersonDetailDto, PersonSequenceVM } from "./person-dto";
 import type { PersonProposalVM } from "./person-reach";
 import { adRoute } from "../ads/address";
 import { PERSON_AD_ON, PERSON_CAME_FROM_WORDS, PERSON_CHANNEL_WORDS, type PersonChannel } from "./person-words";
 import type { ConversationDto } from "../conversations/thread-dto";
-import { isChatMessage, isFromTheirSide, isTheirOwnWords, writtenChannelOf } from "../conversations/thread-channel";
+import {
+  THREAD_CHANNEL_WORDS,
+  isChatMessage,
+  isFromTheirSide,
+  isTheirOwnWords,
+  writtenChannelOf,
+} from "../conversations/thread-channel";
+import { HELD_REASONS, isReplyTo } from "../broadcasts/run-words";
+import { addressOf } from "../activity/record-address";
 
 export const MONTH_MS = 30 * DAY_MS;
 
@@ -137,4 +145,62 @@ function addedByAd(ad: NonNullable<PersonDetailDto["added"]>["ad"] | null): {
   const from = PERSON_CAME_FROM_WORDS.ad.toLowerCase();
   if (!ad) return { who: "Ads", how: `from ${from}`, to: null };
   return { who: "Ads", how: `from ${from} (${ad.name}, on ${PERSON_AD_ON[ad.platform]})`, to: adRoute(ad.id) };
+}
+
+/**
+ * The runs that named a person, newest first, each with what became of it: sent, and answered by the run report's own
+ * rule (isReplyTo) in the thread the message went to; held back, in the owner's words for why (HELD_REASONS); or not
+ * sent. A person's page said nothing about what a playbook or a broadcast had sent them.
+ */
+export function campaignsOf(d: PersonDetailDto, tz: string, nowMs: number): PersonCampaignVM[] {
+  const threadOf = new Map<string, string>();
+  const repliesIn = new Map<string, string[]>();
+  for (const c of d.conversations) {
+    for (const m of c.messages) {
+      threadOf.set(m.id, c.id);
+      // A reply is their own words, as a run's page counts it (isTheirOwnWords): not a call's note, not their mailbox.
+      if (isTheirOwnWords(m)) repliesIn.set(c.id, [...(repliesIn.get(c.id) ?? []), m.created_at]);
+    }
+  }
+  return (d.campaigns ?? []).map((c) => {
+    const at = ts(c.sent_at ?? c.scheduled_for);
+    const thread = c.message_id ? threadOf.get(c.message_id) : undefined;
+    const sentAt = c.sent_at;
+    const replied =
+      c.state === "sent" && !!sentAt && !!thread && (repliesIn.get(thread) ?? []).some((x) => isReplyTo(sentAt, x));
+    const why = c.reason ? HELD_REASONS[c.reason] : undefined;
+    const outcome =
+      c.state === "sent"
+        ? replied
+          ? "Replied"
+          : "Sent"
+        : c.state === "skipped"
+          ? `Held — ${why ?? "held back"}`
+          : c.state === "failed"
+            ? why
+              ? `Didn't send — ${why}`
+              : "Didn't send"
+            : "Waiting to send";
+    return {
+      id: c.broadcast_id,
+      kind: c.playbook_id ? "playbook" : "broadcast",
+      title: c.playbook_id ? c.playbook_name || c.name : c.name,
+      when: at !== null ? clockDate(at, tz, nowMs) : "—",
+      outcome,
+      // Which wire it went by, or would have: a person on three channels is not told "Sent" with nowhere to look.
+      line: `${c.playbook_id ? "Campaign" : "Broadcast"} · ${THREAD_CHANNEL_WORDS[writtenChannelOf(c.channel)]} · ${outcome}`,
+      tone: replied ? "ok" : c.state === "skipped" || c.state === "failed" ? "warn" : "plain",
+      to: addressOf({ kind: "send", id: c.broadcast_id }),
+    };
+  });
+}
+
+/** The sequences a person is in now (0060, S5), as their page says them, soonest next first (PersonSequenceVM). */
+export function inSequencesOf(d: PersonDetailDto, tz: string, nowMs: number): PersonSequenceVM[] {
+  return (d.sequences ?? []).map((q) => ({
+    id: q.id,
+    name: q.name,
+    line: q.next_at ? `step ${q.place} · next ${clockDate(Date.parse(q.next_at), tz, nowMs)}` : `step ${q.place}`,
+    to: addressOf({ kind: "campaign", id: q.id }),
+  }));
 }

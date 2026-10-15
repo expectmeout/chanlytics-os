@@ -141,7 +141,7 @@ async function runCall(input, { role = "operator", now = NOW } = {}) {
  * A run as the run's sheet reads it (getBroadcast): the run, then its counts (run_counts, 00374) asked as its people are,
  * not after them, then every person on it.
  */
-const RUN_READ = ["broadcasts.select", "rpc.run_counts", "broadcast_recipients.select"];
+const RUN_READ = ["sequence_batches.select", "rpc.run_counts", "sequence_sends.select"];
 const payload = (id, verb, name, people) => ({ broadcast_id: id, verb, name, people, timezone: TZ });
 
 /** Each call and what it comes to: a refusal in the model's words (and what was read before it), or the card. */
@@ -182,7 +182,7 @@ const RUN_CALLS = [
     { broadcast_id: THEIRS, verb: "approve" },
     {},
     { error: "no such run in this workspace" },
-    ["broadcasts.select"],
+    ["sequence_batches.select"],
   ],
   [
     "a reach-out run: cold email, approved on its own sheet (D11)",

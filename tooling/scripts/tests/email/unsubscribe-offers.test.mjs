@@ -73,7 +73,7 @@ function world({ name = "Best Movers", fails = {}, readFails = false, languageFa
     // The email a link came in cannot be read: the database answers the select with an error. So may the broadcast that says its language.
     {
       ...(readFails ? { "messages.select": { message: "the database is not answering" } } : {}),
-      ...(languageFails ? { "broadcasts.select": { message: "the database is not answering" } } : {}),
+      ...(languageFails ? { "sequence_batches.select": { message: "the database is not answering" } } : {}),
     },
     {
       set_email_marketing: (args) => {

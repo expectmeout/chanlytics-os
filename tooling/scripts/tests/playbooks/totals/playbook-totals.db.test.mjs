@@ -627,7 +627,7 @@ end $$`);
   // Read as production reads it, on statistics that know these rows, as "a workspace that talks" reads them. Asked
   // straight after 180,000 rows landed, on statistics the suite's earlier files left, CI's member passed 8 s where
   // the same call answers in about a second here and in 461 ms on CI once analyzed (PR #1535's first run).
-  query("analyze public.messages, public.broadcasts, public.broadcast_recipients, public.playbooks");
+  query("analyze public.messages, public.sequence_batches, public.sequence_sends, public.sequence_steps");
   return tenant;
 }
 let busy;
@@ -908,7 +908,7 @@ test(
                   date_trunc('day', now()) - interval '701 days' - (c * 3 + n) * interval '1 minute'
              from (select '${tenant}'::uuid as t) w, generate_series(0, 599) c, generate_series(1, 3) n`);
     // Counted as production counts them, on its tables' statistics.
-    query("analyze public.messages, public.broadcasts, public.broadcast_recipients, public.playbooks");
+    query("analyze public.messages, public.sequence_batches, public.sequence_sends, public.sequence_steps");
     const [{ inbound }] = query(
       `select count(*) as inbound from public.messages where tenant_id = '${tenant}' and direction = 'inbound'`,
     );

@@ -2091,6 +2091,20 @@ interface PlaybookRow {
     until?: string | null;
     /** Until when it runs on trial (00416): before it, a run its class would send by itself waits (contracts effectiveMode). */
     trial_until?: string | null;
+    /** A moment's step, or a sequence to leads' (00183). Absent: a moment's. */
+    kind?: string;
+    /** A customer's step after the first (decision 0060, D6): the step before it, and how many days after it it goes. */
+    after_step_id?: string | null;
+    after_days?: number | null;
+    /** What must still hold of someone due it (D6, contracts FOLLOW_UP_CONDITIONS): no_booking, no_reply. */
+    only_if?: string[] | null;
+}
+/** Someone a customer's step after the first is due to (00441 sequence_follow_ups_due). */
+interface FollowUpDue {
+    enrollment_id: string;
+    contact_id: string;
+    /** When their step before it went. */
+    sent_at: string | null;
 }
 /** The workspace as the run reads it once per tenant: the people, the modes, the number, the touches, the calendar. */
 interface RunContext {
@@ -2174,6 +2188,13 @@ interface RunPlaybookPorts extends AssemblePorts {
     message(name: string, language: string): Promise<MessageVersionRow[]>;
     /** Whether a run for this local day was already made (the unique index's fact, read first). */
     alreadyRan(playbookId: string, runFor: string): Promise<boolean>;
+    /**
+     * Who a customer's step after the first is due to on the business's day `runFor` (00441 sequence_follow_ups_due): in its
+     * sequence one step before it, their wait over. Throws when it cannot be read: unread is not nobody.
+     */
+    followUpsDue(stepId: string, runFor: string): Promise<FollowUpDue[]>;
+    /** People taken out of their sequence with why (00441 sequence_enrollments_leave): how many left. Throws on a failed write. */
+    leave(enrollmentIds: readonly string[], why: string): Promise<number>;
     /** The run recorded: the event, and the playbook's last run. Never throws. */
     record(playbookId: string, runFor: string, at: Date, data: Record<string, unknown>): Promise<void>;
     /**

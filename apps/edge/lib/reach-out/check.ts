@@ -300,7 +300,7 @@ export async function checkSends(p: {
         if (!(await write(u, f.patch))) return;
         if (!f.gaveUp) return void (out.failed += 1);
         out.gave_up += 1;
-        const { tenant_id, id: send_id, broadcast_id } = s;
+        const { tenant_id, id: send_id, batch_id: broadcast_id } = s;
         log.warn("reach_out_check_held", { tenant_id, send_id, broadcast_id, tries: f.tries, why });
       };
       if (c.kind === "failed") {

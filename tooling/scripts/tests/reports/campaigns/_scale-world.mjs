@@ -227,9 +227,9 @@ export function atScale(query, made = () => {}) {
   // landed, on the statistics the suite's earlier files left, CI's member passed 8 s where the same call answered in a
   // second once analyzed (the playbook-totals suite, PR #1535's first run).
   query(
-    `analyze public.messages, public.broadcasts, public.broadcast_recipients, public.playbooks, public.conversations,
-             public.contacts, public.events, public.decisions, public.leads, public.reach_out_sends,
-             public.reach_out_replies`,
+    // The sequence tables by their own names (0060): an analyze of a view analyzes nothing.
+    `analyze public.messages, public.sequences, public.sequence_batches, public.sequence_sends, public.sequence_steps,
+             public.conversations, public.contacts, public.events, public.decisions, public.leads, public.sequence_replies`,
   );
   return tenant;
 }

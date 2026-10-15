@@ -13,7 +13,7 @@ once per key for a day: the same request sent again is given the first answer an
 another request (another method, path or body) is refused with 422, and one that arrives while the first still runs
 with 409 (decision 0035). A write that keeps its own key, or has no workspace to keep one in, says so.
 
-263 handlers in 48 domains.
+275 handlers in 49 domains.
 
 ## activity
 
@@ -1972,6 +1972,107 @@ Writes; for a member of the workspace the request names, operator or above; coun
 | Body field | Type | Required | Limits |
 | --- | --- | --- | --- |
 | `words` | string | yes | at least 4 characters; at most 300 characters |
+
+## sequences
+
+### `GET /api/v1/sequences`
+
+Reads; for a member of the workspace the request names; counts against the `aggregate` rate; spends nothing.
+
+Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/sequences/route.ts`).
+
+### `POST /api/v1/sequences`
+
+Writes; for a member of the workspace the request names, operator or above; counts against the `playbook` rate; spends nothing.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `first` | object | yes |  |
+| `then` | array of object | yes | at most 3 |
+| `start` | boolean | yes |  |
+
+### `GET /api/v1/sequences/[id]`
+
+Reads; for a member of the row's own workspace; counts against the `aggregate` rate; spends nothing.
+
+Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/sequences/[id]/route.ts`).
+
+### `DELETE /api/v1/sequences/[id]`
+
+Writes; for a member of the row's own workspace, operator or above; counts against the `playbook` rate; spends nothing.
+
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/sequences/[id]/route.ts`).
+
+### `GET /api/v1/sequences/[id]/history`
+
+Reads; for a member of the row's own workspace; counts against the `aggregate` rate; spends nothing.
+
+| Query field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `before` | string | no |  |
+
+### `POST /api/v1/sequences/[id]/leave`
+
+Writes; for a member of the row's own workspace, operator or above; counts against the `playbook` rate; spends nothing.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `enrollment_ids` | array of string | yes | at least 1; at most 500 |
+
+### `GET /api/v1/sequences/[id]/people`
+
+Reads; for a member of the row's own workspace; counts against the `aggregate` rate; spends nothing.
+
+Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/sequences/[id]/people/route.ts`).
+
+### `POST /api/v1/sequences/[id]/steps`
+
+Writes; for a member of the row's own workspace, operator or above; counts against the `playbook` rate; spends nothing.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `after_days` | integer | yes | ≥ 1; ≤ 90 |
+| `template_id` | string | yes | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
+| `params` | array of any | no | at most 20 |
+| `only_if` | array of one of `"no_booking"`, `"no_reply"` | no | at most 2 |
+| `channels` | array of one of `"whatsapp"`, `"sms"`, `"email"` | no | at least 1; at most 3 |
+| `name` | string | no | at least 1 characters; at most 120 characters |
+
+### `PUT /api/v1/sequences/[id]/steps/[step]`
+
+Writes; for a member of the row's own workspace, operator or above; counts against the `playbook` rate; spends nothing.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `after_days` | integer | no | ≥ 1; ≤ 90 |
+| `only_if` | array of one of `"no_booking"`, `"no_reply"` | no | at most 2 |
+| `channels` | array of one of `"whatsapp"`, `"sms"`, `"email"` | no | at least 1; at most 3 |
+| `name` | string | no | at least 1 characters; at most 120 characters |
+| `params` | array of any | no | at most 20 |
+
+### `DELETE /api/v1/sequences/[id]/steps/[step]`
+
+Writes; for a member of the row's own workspace, operator or above; counts against the `playbook` rate; spends nothing.
+
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/sequences/[id]/steps/[step]/route.ts`).
+
+### `POST /api/v1/sequences/[id]/steps/[step]/words`
+
+Writes; for a member of the row's own workspace, operator or above; counts against the `playbook` rate; spends nothing.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `template_id` | string | yes | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
+| `params` | array of any | no | at most 20 |
+
+### `POST /api/v1/sequences/draft`
+
+Writes; for a member of the workspace the request names, operator or above; counts against the `ask` rate; spends nothing.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `words` | string | yes | at least 8 characters; at most 500 characters |
+| `previous` | object | no |  |
 
 ## settings
 

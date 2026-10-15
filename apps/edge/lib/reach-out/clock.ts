@@ -270,13 +270,13 @@ export async function reachOutClock(
     for (const id of await finishableRuns(db, PAGE, tenantId)) {
       // Through the runs' own moves (broadcasts_guard): a scheduled run starts, then finishes.
       const { error: e1 } = await db
-        .from("broadcasts")
+        .from("sequence_batches")
         .update({ state: "sending" })
         .eq("id", id)
         .eq("state", "scheduled");
       if (e1) throw new Error(`cannot start the run ${id}: ${e1.message}`);
       const { data, error } = await db
-        .from("broadcasts")
+        .from("sequence_batches")
         .update({ state: "sent", finished_at: now.toISOString() })
         .eq("id", id)
         .eq("state", "sending")

@@ -41,7 +41,7 @@ const RECENT = 50;
 const IN_CHUNK = 200;
 
 const ROW_COLUMNS =
-  "id, name, template_id, template_name, template_language, params, audience, state, scheduled_for, started_at, finished_at, recipient_count, failure, created_at, playbook_id, run_for";
+  "id, name, template_id, template_name, template_language, params, audience, state, scheduled_for, started_at, finished_at, recipient_count, failure, created_at, playbook_id:step_id, run_for";
 
 interface BroadcastRow {
   id: string;
@@ -320,12 +320,15 @@ async function peopleOnRuns(ctx: RouteContext, tenantId: string, ids: string[]):
     const chunk = ids.slice(i, i + IN_CHUNK);
     const people = (await readAllRows("run recipients", (from, to) =>
       ctx.supabase
-        .from("broadcast_recipients")
+        .from("sequence_sends")
         // With the channel each went by (00298), so a run says what each sent and its read is WhatsApp's (0030).
-        .select("broadcast_id, contact_id, state, reason, sent_at, channel, messages(conversation_id, status, meta)")
+        .select(
+          "broadcast_id:batch_id, contact_id, state, reason, sent_at, channel, messages(conversation_id, status, meta)",
+        )
         .eq("tenant_id", tenantId)
-        .in("broadcast_id", chunk)
-        .order("broadcast_id")
+        .is("lead_id", null)
+        .in("batch_id", chunk)
+        .order("batch_id")
         .order("contact_id")
         .range(from, to),
     )) as unknown as RecipientRow[];
@@ -406,7 +409,7 @@ export async function listBroadcasts(
   tenantId: string,
 ): Promise<{ broadcasts: BroadcastDto[]; more: boolean }> {
   const { data: rows, error } = await ctx.supabase
-    .from("broadcasts")
+    .from("sequence_batches")
     .select(ROW_COLUMNS)
     .eq("tenant_id", tenantId)
     .order("created_at", { ascending: false })
@@ -455,10 +458,10 @@ async function withHeld(ctx: RouteContext, tenantId: string, rows: BroadcastDto[
  */
 export async function listRuns(ctx: RouteContext, tenantId: string): Promise<BroadcastDto[]> {
   const { data: rows, error } = await ctx.supabase
-    .from("broadcasts")
+    .from("sequence_batches")
     .select(ROW_COLUMNS)
     .eq("tenant_id", tenantId)
-    .not("playbook_id", "is", null)
+    .not("step_id", "is", null)
     .order("created_at", { ascending: false });
   if (error) throw new Error(error.message);
   return withCounts(ctx, tenantId, (rows ?? []) as BroadcastRow[]);
@@ -557,39 +560,31 @@ function firstNameOfRecipient(r: RecipientRow): string | null {
 }
 
 const RECIPIENT_COLUMNS =
-  "broadcast_id, contact_id, message_id, state, reason, sent_at, messages(conversation_id, status, meta, external_id), contacts(display_name, wa_profile_name, phone_e164, email, erased_at, merged_into_contact_id, name_source, name_settled_at)";
+  "broadcast_id:batch_id, contact_id, message_id, state, reason, sent_at, messages(conversation_id, status, meta, external_id), contacts(display_name, wa_profile_name, phone_e164, email, erased_at, merged_into_contact_id, name_source, name_settled_at)";
 
 /**
- * Every person on a run, a page at a time, each with the channel the send picked for them. A database 00298 has not
- * reached has no such column, and every run there went by WhatsApp: read again without it, so a deploy that lands before
- * the migration shows the run as it always did.
+ * Every person on a run, a page at a time, each with the channel the send picked for them (00298; every send has its
+ * column since 00440 made the one table of sends).
  */
 async function recipientsOf(ctx: RouteContext, tenantId: string, id: string): Promise<RecipientRow[]> {
   // The person is the tiebreak the pager needs (the key is broadcast_id, contact_id).
-  const read = (columns: string) =>
-    readAllRows("broadcast recipients", (from, to) =>
-      ctx.supabase
-        .from("broadcast_recipients")
-        .select(columns)
-        .eq("tenant_id", tenantId)
-        .eq("broadcast_id", id)
-        .order("sent_at", { ascending: false, nullsFirst: false })
-        .order("contact_id")
-        .range(from, to),
-    ) as unknown as Promise<RecipientRow[]>;
-  try {
-    return await read(`channel, ${RECIPIENT_COLUMNS}`);
-  } catch (e) {
-    const said = e instanceof Error ? e.message : "";
-    if (!/channel/.test(said) || !/does not exist|could not find/i.test(said)) throw e;
-    return (await read(RECIPIENT_COLUMNS)).map((r) => ({ ...r, channel: null }));
-  }
+  return readAllRows("broadcast recipients", (from, to) =>
+    ctx.supabase
+      .from("sequence_sends")
+      .select(`channel, ${RECIPIENT_COLUMNS}`)
+      .eq("tenant_id", tenantId)
+      .eq("batch_id", id)
+      .is("lead_id", null)
+      .order("sent_at", { ascending: false, nullsFirst: false })
+      .order("contact_id")
+      .range(from, to),
+  ) as unknown as Promise<RecipientRow[]>;
 }
 
 /** One broadcast and every person on it, in the words of what happened to them -- and what came back from each. */
 export async function getBroadcast(ctx: RouteContext, tenantId: string, id: string): Promise<BroadcastDetailDto> {
   const { data: row, error } = await ctx.supabase
-    .from("broadcasts")
+    .from("sequence_batches")
     .select(ROW_COLUMNS)
     .eq("tenant_id", tenantId)
     .eq("id", id)
@@ -663,11 +658,12 @@ export async function personRuns(ctx: RouteContext, tenantId: string, contactId:
     channel: string | null;
   }>("broadcast_recipients", (from, to) =>
     ctx.supabase
-      .from("broadcast_recipients")
-      .select("broadcast_id, state, reason, sent_at, message_id, channel")
+      .from("sequence_sends")
+      .select("broadcast_id:batch_id, state, reason, sent_at, message_id, channel")
       .eq("tenant_id", tenantId)
       .eq("contact_id", contactId)
-      .order("broadcast_id")
+      .is("lead_id", null)
+      .order("batch_id")
       .range(from, to),
   );
   if (rows.length === 0) return [];
@@ -678,8 +674,8 @@ export async function personRuns(ctx: RouteContext, tenantId: string, contactId:
   >();
   for (let i = 0; i < ids.length; i += IN_CHUNK) {
     const { data, error } = await ctx.supabase
-      .from("broadcasts")
-      .select("id, name, playbook_id, audience, scheduled_for, created_at")
+      .from("sequence_batches")
+      .select("id, name, playbook_id:step_id, audience, scheduled_for, created_at")
       .eq("tenant_id", tenantId)
       .in("id", ids.slice(i, i + IN_CHUNK));
     if (error) throw new Error(error.message);

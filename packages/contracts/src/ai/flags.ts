@@ -276,6 +276,13 @@ export const FLAGS: readonly Flag[] = [
     sunset: "2026-12-31",
   },
   {
+    name: "sequences_preview",
+    mechanism: "workspace_feature",
+    does: "Campaigns › Sequences, the one page for everything the workspace sends on its own (0060), drawn in this workspace before it replaces Campaigns' home, Sent and the Library.",
+    owner: "Ruben",
+    sunset: "2026-12-31",
+  },
+  {
     name: "ANTHROPIC_EVAL_KEY",
     mechanism: "ci_secret",
     does: "Runs the nightly evals (nightly-evals.yml) on a sandbox key; unset, the job says it skipped.",

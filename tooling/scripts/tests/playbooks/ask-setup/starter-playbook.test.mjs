@@ -128,7 +128,7 @@ const refusesNow = (door) => {
 
 /**
  * The doors a new playbook and a starter's versions go through, over the same tables (their SQL is proved on Postgres).
- * start_playbook holds the database's one-follow-up index (00167 playbooks_one_follow_up) as Postgres does.
+ * start_playbook holds the database's one-follow-up index (00167 sequence_steps_one_follow_up) as Postgres does.
  */
 function doors(tables) {
   let next = 900;
@@ -158,9 +158,12 @@ function doors(tables) {
           a.p_playbook.trigger === "proposal_waiting" &&
           tables.playbooks.some((p) => p.tenant_id === a.p_tenant_id && p.trigger === "proposal_waiting")
         )
-          throw Object.assign(new Error('duplicate key value violates unique constraint "playbooks_one_follow_up"'), {
-            code: "23505",
-          });
+          throw Object.assign(
+            new Error('duplicate key value violates unique constraint "sequence_steps_one_follow_up"'),
+            {
+              code: "23505",
+            },
+          );
         const row = {
           id: crypto.randomUUID(),
           tenant_id: a.p_tenant_id,
@@ -379,8 +382,8 @@ test("a second proposal follow-up is refused before anything is filed, in the wo
   });
   await refused(post({ trigger: "proposal_waiting", starter_key: FOLLOW_UP.key }), "conflict", 409, FOLLOW_UP_ONE);
   assert.deepEqual(
-    [tables.templates, tables.playbooks, tables.decisions],
-    [[], [one], []],
+    [tables.templates, tables.playbooks.map((p) => p.id), tables.decisions],
+    [[], [one.id], []],
     "nothing filed, nothing started",
   );
   assert.deepEqual(meta.calls, [], "nothing reached Meta");

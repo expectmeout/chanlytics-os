@@ -64,10 +64,10 @@ async function countRecipients(
   reason?: string,
 ): Promise<number> {
   let q = db
-    .from("broadcast_recipients")
+    .from("sequence_sends")
     .select("contact_id", { count: "exact", head: true })
     .eq("tenant_id", tenantId)
-    .eq("broadcast_id", broadcastId);
+    .eq("batch_id", broadcastId);
   if (state) q = q.eq("state", state);
   if (reason) q = q.eq("reason", reason);
   const { count, error } = await q;
@@ -339,11 +339,12 @@ function markPort(db: SupabaseClient<Database>, tenantId: string): BroadcastBatc
   return async (id, contactId, patch) => {
     const sentAt = patch.sent_at ?? (patch.state === "sent" ? new Date().toISOString() : null);
     const write = db
-      .from("broadcast_recipients")
+      .from("sequence_sends")
       .update({ ...patch, sent_at: sentAt })
       .eq("tenant_id", tenantId)
-      .eq("broadcast_id", id)
-      .eq("contact_id", contactId);
+      .eq("batch_id", id)
+      .eq("contact_id", contactId)
+      .is("lead_id", null);
     if (patch.state !== "failed" || patch.reason !== OUTCOME_UNKNOWN) {
       must("broadcast_send: cannot record how this person's send went", await write);
       return true;
@@ -365,8 +366,10 @@ export async function broadcastSend(ctx: JobContext, job: ClaimedJob): Promise<v
     {
       broadcast: async (id) => {
         const { data, error } = await db
-          .from("broadcasts")
-          .select("id, state, name, template_name, template_language, params, recipient_count, playbook_id, audience")
+          .from("sequence_batches")
+          .select(
+            "id, state, name, template_name, template_language, params, recipient_count, playbook_id:step_id, audience",
+          )
           .eq("id", id)
           .eq("tenant_id", job.tenant_id)
           .maybeSingle();
@@ -383,7 +386,7 @@ export async function broadcastSend(ctx: JobContext, job: ClaimedJob): Promise<v
         const moved = must(
           "broadcast_send: cannot mark the broadcast failed",
           await db
-            .from("broadcasts")
+            .from("sequence_batches")
             .update({ state: "failed", failure, finished_at: new Date().toISOString() })
             .eq("id", id)
             .eq("tenant_id", job.tenant_id)
@@ -400,7 +403,7 @@ export async function broadcastSend(ctx: JobContext, job: ClaimedJob): Promise<v
         const rows = must(
           "broadcast_send: cannot start the broadcast",
           await db
-            .from("broadcasts")
+            .from("sequence_batches")
             .update({ state: "sending", started_at: new Date().toISOString() })
             .eq("id", id)
             .eq("tenant_id", job.tenant_id)
@@ -432,7 +435,7 @@ export async function broadcastSend(ctx: JobContext, job: ClaimedJob): Promise<v
       state: async (id) => {
         const row = must(
           "broadcast_send: cannot read whether the broadcast is still wanted",
-          await db.from("broadcasts").select("state").eq("id", id).eq("tenant_id", job.tenant_id).maybeSingle(),
+          await db.from("sequence_batches").select("state").eq("id", id).eq("tenant_id", job.tenant_id).maybeSingle(),
         );
         return row?.state ?? null;
       },
@@ -457,7 +460,7 @@ export async function broadcastSend(ctx: JobContext, job: ClaimedJob): Promise<v
         must(
           "broadcast_send: cannot close the broadcast",
           await db
-            .from("broadcasts")
+            .from("sequence_batches")
             .update({ state: "sent", finished_at: new Date().toISOString() })
             .eq("id", id)
             .eq("tenant_id", job.tenant_id)

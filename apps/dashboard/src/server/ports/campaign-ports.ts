@@ -17,6 +17,7 @@ import {
   approveBroadcast,
   assembleBroadcast,
   campaignMonthSent,
+  cancelSequenceBatch,
   holdRecipients,
   messageVersionRowsOf,
   recentTouches,
@@ -33,7 +34,6 @@ import type {
 } from "@chanlytics/core";
 import type { RouteContext } from "../with-route";
 import { log, requestId } from "../log";
-import { changed } from "./core-ports";
 import { recordDecision } from "../verbs";
 import { cancelKindFor } from "../jobs";
 import { archivedListWords, audiencePool, poolList, type AudiencePool } from "../people/audience";
@@ -200,10 +200,8 @@ export function approveRunPorts(ctx: RouteContext, tenantId: string): ApproveRun
 export function cancelBroadcastPorts(ctx: RouteContext, tenantId: string): CancelBroadcastPorts {
   return {
     withdraw: (id) => cancelKindFor(tenantId, "broadcast_send", "broadcast_id", id),
-    cancel: (id, from) =>
-      changed(
-        ctx.supabase.from("broadcasts").update({ state: "canceled" }).eq("id", id).eq("state", from).select("id"),
-      ),
+    // The batch door (00442 sequence_batch_cancel): members no longer write a batch's row themselves.
+    cancel: (id, from) => cancelSequenceBatch(ctx.supabase, { tenantId, batchId: id, from }),
     record: (subject, id, verb, payload) => recordDecision(ctx, tenantId, subject, id, verb, payload),
   };
 }

@@ -226,16 +226,30 @@ function writesPastVerbs(sf) {
 /** A token of the snapshot's SQL that is the word `v`, in any case. */
 const isSqlWord = (t, v) => t?.type === "word" && t.value.toLowerCase() === v;
 
-/** The schema's tables, by name: each `create table public.<name>` the replayed migrations' snapshot holds. */
+/**
+ * The schema's tables, by name: each `create table public.<name>` the replayed migrations' snapshot holds. Its `views`
+ * names each view drawn from one table with that table (00440's old names): a write through such a view is a write of
+ * its table.
+ */
 function schemaTables(sql) {
   const tables = new Set();
+  const views = new Map();
   for (const { tokens } of statementsOf(sql)) {
-    if (!isSqlWord(tokens[0], "create") || !isSqlWord(tokens[1], "table")) continue;
+    if (!isSqlWord(tokens[0], "create")) continue;
+    if (isSqlWord(tokens[1], "view")) {
+      const name = isSqlWord(tokens[2], "public") && tokens[3]?.value === "." ? tokens[4] : tokens[2];
+      const from = tokens.flatMap((t, k) => (isSqlWord(t, "from") || isSqlWord(t, "join") ? [k] : []));
+      const base = from.length === 1 ? tokens[from[0] + (isSqlWord(tokens[from[0] + 1], "public") ? 3 : 1)] : null;
+      if (name && base) views.set(name.value.toLowerCase(), base.value.toLowerCase());
+      continue;
+    }
+    if (!isSqlWord(tokens[1], "table")) continue;
     const at = isSqlWord(tokens[2], "if") ? 5 : 2;
     const name = isSqlWord(tokens[at], "public") && tokens[at + 1]?.value === "." ? tokens[at + 2] : tokens[at];
     if (name?.type === "word" || name?.type === "ident") tables.add(name.value.toLowerCase());
   }
-  return tables;
+  for (const [view, base] of views) if (!tables.has(base)) views.delete(view);
+  return Object.assign(tables, { views });
 }
 
 /**
@@ -255,8 +269,9 @@ export function tablesWrittenBy(body, tables, { inserts = false } = {}) {
     else if (isSqlWord(toks[k], "delete") && isSqlWord(toks[k + 1], "from")) t = nameAt(k + 2);
     else if (isSqlWord(toks[k], "update") && !["do", "for", "key"].some((w) => isSqlWord(toks[k - 1], w)))
       t = nameAt(isSqlWord(toks[k + 1], "only") ? k + 2 : k + 1);
-    if ((t?.type === "word" || t?.type === "ident") && tables.has(t.value.toLowerCase()))
-      out.add(t.value.toLowerCase());
+    const name = t?.type === "word" || t?.type === "ident" ? t.value.toLowerCase() : null;
+    const table = name && (tables.has(name) ? name : tables.views?.get(name));
+    if (table) out.add(table);
   }
   return out;
 }

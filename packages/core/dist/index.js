@@ -2587,6 +2587,8 @@ import {
   playbookRunReach,
   playbookStopBy,
   enrolPurpose as enrolPurpose2,
+  followUpReach,
+  followUpStop,
   messageAboutOfTrigger as messageAboutOfTrigger3,
   proposalFactsFor,
   readyForMessage,
@@ -2629,6 +2631,7 @@ function refuseTicks(how, purpose) {
 }
 
 // src/campaigns/run-playbook.ts
+var isFollowUp = (p) => (p.kind ?? "moment") === "moment" && p.trigger === "after_step";
 async function readMessage(r) {
   const { ports, p } = r;
   try {
@@ -2655,6 +2658,7 @@ async function allowed(r, message) {
   });
   if (stop) return { ended: await r.off(stop) };
   if (await r.ports.alreadyRan(p.id, r.runFor)) return { ended: await r.off("already_ran_today", { record: false }) };
+  if (isFollowUp(p)) return { ended: null, listIds: null, kept: void 0 };
   const trig = triggerOf3(p.trigger);
   if ((trig?.kind === "visit" || trig?.id === "lapsed") && ctx.calendar !== "ok")
     return { ended: await withoutCalendar(r) };
@@ -2694,6 +2698,10 @@ function draw(r, message, how, listIds) {
     ctx.pace,
     listIds
   );
+  return withinTheNumbersDay(r, drawn);
+}
+function withinTheNumbersDay(r, drawn) {
+  const { ctx } = r;
   const reach = { ...drawn.reach };
   const room = ctx.health.limitPerDay === null ? Number.POSITIVE_INFINITY : Math.max(0, Math.floor(ctx.health.limitPerDay));
   let onWhatsApp = 0;
@@ -2710,6 +2718,48 @@ function draw(r, message, how, listIds) {
   }
   return { eligible, reach, channelOf: drawn.channelOf, dropped };
 }
+async function drawFollowUp(r, message, how) {
+  try {
+    const due = await r.ports.followUpsDue(r.p.id, r.runFor);
+    const people = new Map(r.ctx.people.map((person) => [person.id, person]));
+    const leaving = /* @__PURE__ */ new Map();
+    const leave = (why, id) => leaving.set(why, [...leaving.get(why) ?? [], id]);
+    const goes = [];
+    const enrolmentOf = /* @__PURE__ */ new Map();
+    for (const d of due) {
+      const person = people.get(d.contact_id);
+      const stop = person ? followUpStop(person, r.p.only_if ?? [], d.sent_at ? Date.parse(d.sent_at) : null) : "gone";
+      if (!person || stop) {
+        leave(stop ?? "gone", d.enrollment_id);
+        continue;
+      }
+      goes.push(person);
+      enrolmentOf.set(person.id, d.enrollment_id);
+    }
+    const drawn = followUpReach(goes, {
+      policy_class: r.p.policy_class,
+      message,
+      channels: how.channels,
+      ready: how.ready
+    });
+    for (const h of drawn.held) {
+      const id = enrolmentOf.get(h.id);
+      if (id) leave(h.why, id);
+    }
+    const capped = drawn.eligible.slice(0, Math.max(1, r.p.cap_per_run));
+    for (const [why, ids] of leaving) await r.ports.leave(ids, why);
+    return withinTheNumbersDay(r, {
+      eligible: capped,
+      reach: { ...drawn.reach, overCap: drawn.eligible.length - capped.length, will: capped.length },
+      channelOf: drawn.channelOf
+    });
+  } catch (e) {
+    return { error: `follow_up: ${e instanceof Error ? e.message : String(e)}` };
+  }
+}
+async function drawOf(r, message, how, listIds) {
+  return isFollowUp(r.p) ? drawFollowUp(r, message, how) : draw(r, message, how, listIds);
+}
 async function pastTheRoom(r, message, drawn, goesAt) {
   try {
     const people = drawn.eligible.map((person) => ({
@@ -2725,6 +2775,7 @@ async function pastTheRoom(r, message, drawn, goesAt) {
 }
 function recipientFacts(r, goesAt) {
   const { p, ctx } = r;
+  if (isFollowUp(p)) return () => null;
   const trig = triggerOf3(p.trigger);
   const theirs = theirVisitTest(ctx.people);
   return (person) => {
@@ -2812,7 +2863,9 @@ async function runPlaybook(ports, cmd) {
     // A visit's or a follow-up's message is theirs; any other moment's, the business's news (decision D1).
     about: messageAboutOfTrigger3(p.trigger)
   };
-  const { eligible, reach, channelOf: channelOf2, dropped } = draw(run, message.m, how, gate.listIds);
+  const drawn = await drawOf(run, message.m, how, gate.listIds);
+  if ("error" in drawn) return { outcome: "failed", error: drawn.error };
+  const { eligible, reach, channelOf: channelOf2, dropped } = drawn;
   if (templateHolds(run, message, eligible.length)) return off("template_not_approved");
   if (eligible.length === 0) {
     await record({ mode, eligible: 0, reach, ...dropped ? { dropped } : {} });

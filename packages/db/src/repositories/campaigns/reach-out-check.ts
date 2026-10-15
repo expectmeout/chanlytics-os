@@ -6,7 +6,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../../database.types";
-import type { ReachOutSendRow } from "../reach-out";
+import { leadSends, type ReachOutSendRow } from "../reach-out";
 
 type Db = SupabaseClient<Database>;
 
@@ -32,7 +32,7 @@ export interface ReachOutRecordRow {
   claimed: boolean | null;
 }
 
-/** A send to check (00197 reach_out_unchecked), leased to this tick: the send, its step, its chain and its record. */
+/** A send to check (00197; sequence_unchecked, 00441), leased to this tick: the send, its step, its sequence and its record. */
 export interface UncheckedSend {
   send: ReachOutSendRow;
   /** The words' version the send was read at: the check writes only while it is still this (R5). */
@@ -78,7 +78,7 @@ export async function uncheckedSends(
   db: Db,
   p: { limit: number; perWorkspace: number; aheadMinutes: number; tenantId?: string },
 ): Promise<UncheckedSend[]> {
-  const { data, error } = await db.rpc("reach_out_unchecked", {
+  const { data, error } = await db.rpc("sequence_unchecked", {
     p_limit: p.limit,
     p_per_workspace: p.perWorkspace,
     p_ahead_minutes: p.aheadMinutes,
@@ -103,7 +103,12 @@ export async function uncheckedSends(
 
 /** Whether any send waits to be checked: what the check's clock answers for when it cannot check (R4). */
 export async function uncheckedWaiting(db: Db, tenantId?: string): Promise<boolean> {
-  let q = db.from("reach_out_sends").select("id").eq("state", "planned").is("checked_at", null);
+  let q = db
+    .from("sequence_sends")
+    .select("id")
+    .not("lead_id", "is", null)
+    .eq("state", "planned")
+    .is("checked_at", null);
   if (tenantId) q = q.eq("tenant_id", tenantId);
   const { data, error } = await q.limit(1);
   if (error) throw new Error(`cannot read the sends to check: ${error.message}`);
@@ -127,13 +132,13 @@ export async function reachOutRecord(
 
 /** Holds left past `before`, oldest planned first (00197: fourteen days from when a send was planned, R10). */
 export async function heldStale(db: Db, before: Date, limit: number, tenantId?: string): Promise<ReachOutSendRow[]> {
-  const { data, error } = await db.rpc("reach_out_held_stale", {
+  const { data, error } = await db.rpc("sequence_held_stale", {
     p_before: before.toISOString(),
     p_limit: limit,
     ...(tenantId ? { p_tenant_id: tenantId } : {}),
   });
   if (error) throw new Error(`cannot read the held sends: ${error.message}`);
-  return data ?? [];
+  return leadSends(data);
 }
 
 /**

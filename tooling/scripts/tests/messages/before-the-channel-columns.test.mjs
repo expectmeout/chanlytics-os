@@ -2,8 +2,9 @@
  * Either deploy order works (One message, every channel, steps 2 and 3): the code that sends reads three things the
  * migrations 00297 (a person's consent_channels and marketing_channels) and 00298 (a recipient's channel) add, and it may
  * reach production before they do. Where the database answers that such a column does not exist (42703), each read is
- * made again without it -- the arrays read as null, which is WhatsApp alone, and a recipient's channel as null, which is
- * WhatsApp -- so every reply, receptionist answer, booking link and WhatsApp broadcast keeps going.
+ * made again without it -- the arrays read as null, which is WhatsApp alone -- so every reply, receptionist answer,
+ * booking link and WhatsApp broadcast keeps going. A send's channel and attempt (00298, 00301) are no longer read twice:
+ * 00440 made the one table of sends with both, so no database the code meets lacks them.
  *
  * The database in memory is made the older one by `withoutColumns` (_schema.mjs): it refuses a read that names a column
  * the older schema lacks, as the real one does, so a read that still named one would fail here as it would there.
@@ -26,7 +27,6 @@ const T = "11111111-1111-4111-8111-111111111111";
 const NOW = Date.parse("2026-09-10T10:00:00.000Z");
 /** The columns the two migrations add, which a database that has not run them does not have. */
 const BEFORE_00297 = { contacts: ["consent_channels", "marketing_channels"] };
-const BEFORE_00298 = { broadcast_recipients: ["channel"] };
 
 /** The selects a table was asked, in order: how a read made again is seen. */
 function watch(db, table) {
@@ -206,11 +206,10 @@ function context(t) {
 }
 const JOB = { id: "j1", tenant_id: T, kind: "broadcast_send", payload: { broadcast_id: "b1" } };
 
-test("a WhatsApp broadcast, on a database 00298 has not reached, still goes: the recipients are read again without their channel, and everyone is WhatsApp's", async () => {
-  await withoutColumns({ ...BEFORE_00297, ...BEFORE_00298 }, async () => {
+test("a WhatsApp broadcast, on a database 00297 has not reached, still goes: a run made before the channel column was is WhatsApp's", async () => {
+  await withoutColumns(BEFORE_00297, async () => {
     const t = world();
     const w = context(t);
-    const seen = watch(w.ctx.db, "broadcast_recipients");
     await dispatchJob(w.ctx, JOB);
     assert.equal(w.wa.length, 1, "the template left");
     assert.deepEqual(w.wa[0].p.template, { name: "offer", language: "en_US", params: ["Ada"] });
@@ -219,16 +218,10 @@ test("a WhatsApp broadcast, on a database 00298 has not reached, still goes: the
       [["k1", "sent", null]],
     );
     assert.equal(t.broadcasts[0].state, "sent");
-    // The newest column first (00301's attempt), then without it, then without the channel too: each step is made on the
-    // database's own 42703, whichever column it was.
-    assert.ok(
-      /\bchannel\b/.test(seen[0]) && !/\bchannel\b/.test(seen.at(-1)),
-      "asked for the channel, then without it",
-    );
   });
 });
 
-test("a run's queued people, on a database 00301 has not reached, are read again without their attempt, keeping their channel: an email is then named as it was, by the run's waits", async () => {
+test("a run's queued people are read once, each with their channel and attempt, in the order of their ids; a failed read is a failure", async () => {
   const run = (over = {}) => ({
     tenant_id: T,
     broadcast_id: "b1",
@@ -245,57 +238,27 @@ test("a run's queued people, on a database 00301 has not reached, are read again
   const ask = (db) => queuedRecipients(db, { tenantId: T, broadcastId: "b1", limit: 25 });
   // As the database is now: every column, and the people in the order of their ids (a batch is the same few every read).
   const now = fakeDb({ broadcast_recipients: rows() });
-  const reads = watch(now, "broadcast_recipients");
+  const reads = watch(now, "sequence_sends");
   assert.deepEqual(await ask(now), [
     { contact_id: "k1", facts: null, channel: "sms", attempt: 0 },
     { contact_id: "k2", facts: null, channel: "email", attempt: 2 },
     { contact_id: "k3", facts: null, channel: "whatsapp", attempt: 1 },
   ]);
   assert.equal(reads.length, 1);
-  // Before 00301: the second read, without the attempt only.
-  await withoutColumns({ broadcast_recipients: ["attempt"] }, async () => {
-    const db = fakeDb({ broadcast_recipients: rows().map(({ attempt: _attempt, ...r }) => r) });
-    const seen = watch(db, "broadcast_recipients");
-    const people = await ask(db);
-    assert.deepEqual(
-      people.map((p) => [p.contact_id, p.channel, "attempt" in p]),
-      [
-        ["k1", "sms", false],
-        ["k2", "email", false],
-        ["k3", "whatsapp", false],
-      ],
-      "the channel kept, no attempt to read: absent, not zero",
-    );
-    assert.equal(seen.length, 2);
-    assert.ok(/\battempt\b/.test(seen[0]) && !/\battempt\b/.test(seen[1]) && /\bchannel\b/.test(seen[1]));
-  });
-  // Before 00298 too: the third, bare.
-  await withoutColumns({ broadcast_recipients: ["attempt", "channel"] }, async () => {
-    const db = fakeDb({ broadcast_recipients: rows().map(({ attempt: _a, channel: _c, ...r }) => r) });
-    const seen = watch(db, "broadcast_recipients");
-    assert.deepEqual(
-      (await ask(db)).map((p) => Object.keys(p).sort()),
-      [
-        ["contact_id", "facts"],
-        ["contact_id", "facts"],
-        ["contact_id", "facts"],
-      ],
-    );
-    assert.equal(seen.length, 3);
-  });
-  // Any other failed read is a failure, never a read made again: not every error is a missing column.
+  // A failed read is a failure, never a read made again.
   const timeout = { code: "57014", message: "canceling statement due to statement timeout" };
   const chain = {
     select: () => chain,
     eq: () => chain,
+    is: () => chain,
     order: () => chain,
     limit: async () => ({ data: null, error: timeout }),
   };
   await assert.rejects(ask({ from: () => chain }), /queued_recipients: canceling statement due to statement timeout/);
 });
 
-test("a run whose WhatsApp template is not approved, on a database 00298 has not reached, fails as it always did: nobody on it goes by email or text there", async () => {
-  await withoutColumns({ ...BEFORE_00297, ...BEFORE_00298 }, async () => {
+test("a run whose WhatsApp template is not approved, on a database 00297 has not reached, fails as it always did: nobody on it goes by email or text there", async () => {
+  await withoutColumns(BEFORE_00297, async () => {
     const t = world();
     t.templates[0].meta_status = "rejected";
     const w = context(t);

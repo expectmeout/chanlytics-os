@@ -1189,7 +1189,7 @@ test("one proposal follow-up per workspace (00167): the database's refusal of a 
       withStartDoor(
         tables,
         {},
-        { code: "23505", message: 'duplicate key value violates unique constraint "playbooks_one_follow_up"' },
+        { code: "23505", message: 'duplicate key value violates unique constraint "sequence_steps_one_follow_up"' },
       ),
     ),
   };
@@ -1525,7 +1525,9 @@ test("a playbook's channels alone: judged against the playbook as it stands and 
   assert.deepEqual(out, { id: K1, name: "Visit reminder", state: "running", was: { channels: ["whatsapp"] } });
   assert.deepEqual(rowOf(K1).channels, ["whatsapp", "email"], "in the product's order");
   assert.deepEqual({ ...rowOf(K1), channels: null }, { ...before, channels: null }, "nothing else of it moved");
-  const written = ctx.supabase.seen.filter((s) => s.table === "playbooks" && s.op === "update").map((s) => s.values);
+  const written = ctx.supabase.seen
+    .filter((s) => s.table === "sequence_steps" && s.op === "update")
+    .map((s) => s.values);
   assert.deepEqual(written, [{ channels: ["whatsapp", "email"] }], "the one column, and no other");
   // The same channels again: nothing is written.
   ctx = ctxFor(tables, { id: K1 });

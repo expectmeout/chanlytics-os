@@ -53,7 +53,7 @@ import {
   noteBacklog,
   PLAYBOOKS_PER_TICK,
   type DuePage,
-  type DuePlaybook,
+  type DueStep,
 } from "../ops/sweep-rotation.js";
 import { CONTEXT_PAUSED, loadTenantRunContext, runPlaybook, type PlaybookRow } from "../playbooks.js";
 import { tellPlaybookFailed } from "./playbook-failed.js";
@@ -161,11 +161,11 @@ async function endRunsWhoseDayPassed(tick: Tick): Promise<void> {
  * The tick stops starting moments at MOMENTS_YIELD_AT_MS, as it does reach-out steps: what it did not start stays due and
  * runs next hour, is counted as remaining, and the sweep always reaches its backlog note and its closing line.
  */
-async function runMoments(tick: Tick, page: DuePage<DuePlaybook>) {
+async function runMoments(tick: Tick, page: DuePage<DueStep>) {
   const { db, now, L, out } = tick;
   // By workspace, each with the zone the page judged it in: a workspace is read once for all its playbooks.
   const byTenant = new Map<string, { tz: string; rows: PlaybookRow[] }>();
-  for (const { playbook, timezone } of page.rows) {
+  for (const { step: playbook, timezone } of page.rows) {
     const t = byTenant.get(playbook.tenant_id) ?? { tz: timezone, rows: [] };
     t.rows.push(playbook as PlaybookRow);
     byTenant.set(playbook.tenant_id, t);
@@ -236,11 +236,11 @@ async function runMoments(tick: Tick, page: DuePage<DuePlaybook>) {
  * workbench's call 10: follow-ups first), so a nudge takes its place in a mailbox's day, and in its owner's day's share
  * (00429), before new leads fill it; within each, the page's own order.
  */
-async function runReachOuts({ db, now, L, out, started }: Tick, reach: DuePage<DuePlaybook>) {
+async function runReachOuts({ db, now, L, out, started }: Tick, reach: DuePage<DueStep>) {
   const rows = [...reach.rows].sort(
-    (a, b) => Number(a.playbook.after_playbook_id === null) - Number(b.playbook.after_playbook_id === null),
+    (a, b) => Number(a.step.after_step_id === null) - Number(b.step.after_step_id === null),
   );
-  for (const [i, { playbook: row, timezone: tz }] of rows.entries()) {
+  for (const [i, { step: row, timezone: tz }] of rows.entries()) {
     if (Date.now() - started > REACH_OUT_YIELD_AT_MS) {
       L.info("reach_outs_yielded", { left: rows.length - i });
       out.remaining += rows.length - i;
@@ -276,7 +276,7 @@ export async function sweepPlaybooks({ db, L, started }: SweepTick): Promise<Res
   // a paused workspace's held the page for every workspace on the platform --
   // and what it said it could not reach counted those too. Now the page holds
   // only what is due, and `remaining` only what is due beyond it.
-  let page: DuePage<DuePlaybook>;
+  let page: DuePage<DueStep>;
   try {
     page = await playbooksDue(db, now, PLAYBOOKS_PER_TICK);
   } catch (e) {
@@ -299,7 +299,7 @@ export async function sweepPlaybooks({ db, L, started }: SweepTick): Promise<Res
   await endRunsWhoseDayPassed(tick);
   await runMoments(tick, page);
 
-  const reach = await reachOutsDue(db, now, PLAYBOOKS_PER_TICK).catch((e: unknown): DuePage<DuePlaybook> => {
+  const reach = await reachOutsDue(db, now, PLAYBOOKS_PER_TICK).catch((e: unknown): DuePage<DueStep> => {
     L.error("reach_outs_read_failed", { error: e instanceof Error ? e.message : String(e) });
     return { rows: [], remaining: 0 };
   });

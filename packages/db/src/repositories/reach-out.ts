@@ -1,6 +1,6 @@
 /**
- * Reach out's sends and the doors they go through (Part 3): the one place `reach_out_sends` is typed, and the doors of
- * 00184. The service role asks every one of them (the edge's clock and run); a read or a door that fails throws,
+ * A sequence's sends to leads and the doors they go through (Reach out Part 3; `sequence_sends` since 00440, decision
+ * 0060): the one place a lead's send is typed, and the doors of 00184. The service role asks every one of them (the edge's clock and run); a read or a door that fails throws,
  * because "we could not check" is not "yes". Cross-workspace: the reach-out clock's sweeps read every workspace; each
  * door given a tenant keeps to it.
  */
@@ -12,8 +12,16 @@ import { withdrawQueued } from "./control";
 import { recordEvent } from "../events";
 
 type Db = SupabaseClient<Database>;
-export type ReachOutSendRow = Database["public"]["Tables"]["reach_out_sends"]["Row"];
-export type ReachOutSendInsert = Database["public"]["Tables"]["reach_out_sends"]["Insert"];
+/** One message of a sequence to one person (00440): a customer's (contact_id, no lead_id) or a lead's. */
+export type SequenceSendRow = Database["public"]["Tables"]["sequence_sends"]["Row"];
+/** A send to a lead: its lead always named (sequence_sends_someone, and every reader here keeps to a lead's sends). */
+export type ReachOutSendRow = Omit<SequenceSendRow, "lead_id"> & { lead_id: string };
+export type ReachOutSendInsert = Database["public"]["Tables"]["sequence_sends"]["Insert"];
+
+/** The rows a lead's reader handed back, each with its lead: a customer's send among them would be a reader's mistake. */
+export function leadSends(rows: readonly SequenceSendRow[] | null): ReachOutSendRow[] {
+  return (rows ?? []).flatMap((r) => (r.lead_id ? [{ ...r, lead_id: r.lead_id }] : []));
+}
 
 export interface AudienceLead {
   lead_id: string;
@@ -75,14 +83,14 @@ export async function claimSends(
   // A share or a limit that is not a whole number is a caller's mistake, never "no cap" (JSON would send NaN as null).
   if (!Number.isInteger(p.cap) || !Number.isInteger(p.limit) || Number.isNaN(p.at.getTime()))
     throw new Error(`cannot claim the mailbox's due sends: a cap and a limit are whole numbers (${p.cap}, ${p.limit})`);
-  const { data, error } = await db.rpc("reach_out_claim_from", {
+  const { data, error } = await db.rpc("sequence_claim_from", {
     p_mailbox_id: p.mailboxId,
     p_cap: p.cap,
     p_at: p.at.toISOString(),
     p_limit: p.limit,
   });
   if (error) throw new Error(`cannot claim the mailbox's due sends: ${error.message}`);
-  return data ?? [];
+  return leadSends(data);
 }
 
 /** One send's move, only from the state it was read in: a stale writer changes nothing and is told so. */
@@ -91,7 +99,7 @@ export async function moveSend(
   p: { tenantId: string; id: string; from: ReachOutSendRow["state"]; patch: Partial<ReachOutSendRow> },
 ): Promise<boolean> {
   const { data, error } = await db
-    .from("reach_out_sends")
+    .from("sequence_sends")
     .update(p.patch)
     .eq("tenant_id", p.tenantId)
     .eq("id", p.id)
@@ -155,9 +163,9 @@ export interface QueuedOutcome {
   written_at: string | null;
 }
 
-/** Queued sends with their emails, the ones with an outcome to read first (00186). */
+/** Queued sends with their emails, the ones with an outcome to read first (00186; sequence_queued_outcomes, 00441). */
 export async function queuedOutcomes(db: Db, limit: number, tenantId?: string): Promise<QueuedOutcome[]> {
-  const { data, error } = await db.rpc("reach_out_queued_outcomes", {
+  const { data, error } = await db.rpc("sequence_queued_outcomes", {
     p_limit: limit,
     ...(tenantId ? { p_tenant_id: tenantId } : {}),
   });
@@ -167,35 +175,35 @@ export async function queuedOutcomes(db: Db, limit: number, tenantId?: string): 
 
 /** Claims older than `before`, oldest first: a writer that died mid-send left them. */
 export async function stuckClaims(db: Db, before: Date, limit: number, tenantId?: string): Promise<ReachOutSendRow[]> {
-  let q = db.from("reach_out_sends").select("*").eq("state", "claimed");
+  let q = db.from("sequence_sends").select("*").not("lead_id", "is", null).eq("state", "claimed");
   if (tenantId) q = q.eq("tenant_id", tenantId);
   const { data, error } = await q
     .lt("claimed_at", before.toISOString())
     .order("claimed_at", { ascending: true })
     .limit(limit);
   if (error) throw new Error(`cannot read the claimed sends: ${error.message}`);
-  return data ?? [];
+  return leadSends(data);
 }
 
-/** Planned sends left past `before` in runs that go ahead on running chains (00186 reach_out_stale_sends). */
+/** Planned sends left past `before` in runs that go ahead on running chains (00186; sequence_stale_sends, 00441). */
 export async function staleSends(db: Db, before: Date, limit: number, tenantId?: string): Promise<ReachOutSendRow[]> {
-  const { data, error } = await db.rpc("reach_out_stale_sends", {
+  const { data, error } = await db.rpc("sequence_stale_sends", {
     p_before: before.toISOString(),
     p_limit: limit,
     ...(tenantId ? { p_tenant_id: tenantId } : {}),
   });
   if (error) throw new Error(`cannot read the stale sends: ${error.message}`);
-  return data ?? [];
+  return leadSends(data);
 }
 
-/** The open sends of canceled or failed runs, with their email's state (00186 reach_out_closed_sends). */
+/** The open sends of canceled or failed runs, with their email's state (00186; sequence_closed_sends, 00441). */
 export async function closedRunSends(
   db: Db,
   stuckBefore: Date,
   limit: number,
   tenantId?: string,
 ): Promise<Array<{ send: ReachOutSendRow; email_status: string | null }>> {
-  const { data, error } = await db.rpc("reach_out_closed_sends", {
+  const { data, error } = await db.rpc("sequence_closed_sends", {
     p_stuck_before: stuckBefore.toISOString(),
     p_limit: limit,
     ...(tenantId ? { p_tenant_id: tenantId } : {}),
@@ -310,7 +318,7 @@ export async function sendJobScheduled(db: Db, p: { tenantId: string; messageId:
 /** A send's run and its chain as they stand now: the claim read them, and its writer is seconds behind. */
 export interface SendStanding {
   run: string | null;
-  step: { state: string; template_id: string; after_playbook_id: string | null } | null;
+  step: { state: string; template_id: string; after_step_id: string | null } | null;
   root: string | null;
   /** The name the chain signs with ({{your name}}): the root's. */
   signedBy: string | null;
@@ -320,24 +328,24 @@ export interface SendStanding {
 
 export async function sendStanding(db: Db, s: ReachOutSendRow): Promise<SendStanding> {
   const [run, chain] = await Promise.all([
-    db.from("broadcasts").select("state").eq("tenant_id", s.tenant_id).eq("id", s.broadcast_id).maybeSingle(),
+    db.from("sequence_batches").select("state").eq("tenant_id", s.tenant_id).eq("id", s.batch_id).maybeSingle(),
     db
-      .from("playbooks")
-      .select("id, state, template_id, after_playbook_id, signed_by, owner_sends")
+      .from("sequence_steps")
+      .select("id, state, template_id, after_step_id, signed_by, owner_sends")
       .eq("tenant_id", s.tenant_id)
-      .in("id", [s.playbook_id ?? s.root_id, s.root_id]),
+      .in("id", [s.step_id ?? s.sequence_id, s.sequence_id]),
   ]);
   if (run.error) throw new Error(`cannot read the send's run: ${run.error.message}`);
   if (chain.error) throw new Error(`cannot read the send's chain: ${chain.error.message}`);
-  const step = s.playbook_id ? (chain.data ?? []).find((p) => p.id === s.playbook_id) : undefined;
+  const step = s.step_id ? (chain.data ?? []).find((p) => p.id === s.step_id) : undefined;
   return {
     run: run.data?.state ?? null,
     step: step?.template_id
-      ? { state: step.state, template_id: step.template_id, after_playbook_id: step.after_playbook_id }
+      ? { state: step.state, template_id: step.template_id, after_step_id: step.after_step_id }
       : null,
-    root: (chain.data ?? []).find((p) => p.id === s.root_id)?.state ?? null,
-    signedBy: (chain.data ?? []).find((p) => p.id === s.root_id)?.signed_by ?? null,
-    ownerSends: (chain.data ?? []).find((p) => p.id === s.root_id)?.owner_sends === true,
+    root: (chain.data ?? []).find((p) => p.id === s.sequence_id)?.state ?? null,
+    signedBy: (chain.data ?? []).find((p) => p.id === s.sequence_id)?.signed_by ?? null,
+    ownerSends: (chain.data ?? []).find((p) => p.id === s.sequence_id)?.owner_sends === true,
   };
 }
 
@@ -416,7 +424,7 @@ export async function sendNow(
   p: { tenantId: string; id: string },
 ): Promise<{ state: string; message_id: string | null } | null> {
   const { data, error } = await db
-    .from("reach_out_sends")
+    .from("sequence_sends")
     .select("state, message_id")
     .eq("tenant_id", p.tenantId)
     .eq("id", p.id)
@@ -432,7 +440,7 @@ export async function sendNow(
  */
 export async function runHanded(db: Db, p: { tenantId: string; id: string; at: Date }): Promise<void> {
   const { error } = await db
-    .from("broadcasts")
+    .from("sequence_batches")
     .update({ state: "sending", updated_at: p.at.toISOString() })
     .eq("tenant_id", p.tenantId)
     .eq("id", p.id)
@@ -443,7 +451,7 @@ export async function runHanded(db: Db, p: { tenantId: string; id: string; at: D
 /** A run whose first email is written: scheduled becomes sending, through its guard's own move. */
 export async function runSending(db: Db, p: { tenantId: string; id: string }): Promise<void> {
   const { error } = await db
-    .from("broadcasts")
+    .from("sequence_batches")
     .update({ state: "sending" })
     .eq("tenant_id", p.tenantId)
     .eq("id", p.id)
@@ -469,12 +477,12 @@ export async function parentEmailOf(
   p: { tenantId: string; rootId: string; leadId: string; stepId: string },
 ): Promise<ParentEmail | null> {
   const { data: sends, error } = await db
-    .from("reach_out_sends")
+    .from("sequence_sends")
     .select("message_id, said_at")
     .eq("tenant_id", p.tenantId)
-    .eq("root_id", p.rootId)
+    .eq("sequence_id", p.rootId)
     .eq("lead_id", p.leadId)
-    .eq("playbook_id", p.stepId)
+    .eq("step_id", p.stepId)
     .eq("state", "sent")
     .order("sent_at", { ascending: false })
     .limit(1);
@@ -586,7 +594,7 @@ export async function recordCheck(
   p: { tenantId: string; id: string; gen: number; patch: Partial<ReachOutSendRow> },
 ): Promise<boolean> {
   const { data, error } = await db
-    .from("reach_out_sends")
+    .from("sequence_sends")
     .update({ ...p.patch, check_started_at: null })
     .eq("tenant_id", p.tenantId)
     .eq("id", p.id)

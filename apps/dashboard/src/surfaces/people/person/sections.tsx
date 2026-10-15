@@ -246,7 +246,7 @@ export function aboutGroups(c: PageCtx) {
  */
 export function campaignsFold(p: PersonVM) {
   const newest = p.campaigns[0];
-  if (!newest) return null;
+  if (!newest) return p.inSequences.length > 0 ? campaignsCard(p) : null;
   const W = PERSON_ABOUT_WORDS;
   return (
     <section className="cl-prof-section" data-testid="person-campaigns-fold">
@@ -257,6 +257,7 @@ export function campaignsFold(p: PersonVM) {
         remember
         testid="person-campaigns-press"
       >
+        {sequenceRows(p)}
         {campaignRows(p)}
       </RecordDisclosure>
     </section>
@@ -266,12 +267,31 @@ export function campaignsFold(p: PersonVM) {
 /** What a playbook or a broadcast sent them, and what came of it: each row opens the run's own report. */
 export function campaignsCard(p: PersonVM) {
   return (
-    p.campaigns.length > 0 && (
+    (p.campaigns.length > 0 || p.inSequences.length > 0) && (
       <div className="cl-prof-rail-section" data-testid="person-campaigns">
         <div className="cl-prof-rail-label">{PERSON_ABOUT_WORDS.campaigns}</div>
+        {sequenceRows(p)}
         {campaignRows(p)}
       </div>
     )
+  );
+}
+
+/** The sequences they are in now (0060), each a door to it: where they are in it, and when the next goes. */
+function sequenceRows(p: PersonVM) {
+  if (p.inSequences.length === 0) return null;
+  return (
+    <div className="cl-prof-attr-list" data-testid="person-sequences">
+      {p.inSequences.map((q) => (
+        <a key={q.id} className="cl-prof-attr cl-prof-run" {...routeDoor(q.to)} data-testid="person-sequence">
+          <span className="cl-prof-attr-key">{PERSON_ABOUT_WORDS.inSequence}</span>
+          <span className="cl-prof-attr-val">
+            <span className="cl-prof-run-title">{q.name}</span>
+            <span className="cl-prof-run-out">{q.line}</span>
+          </span>
+        </a>
+      ))}
+    </div>
   );
 }
 

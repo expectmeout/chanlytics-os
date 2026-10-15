@@ -70,6 +70,8 @@ export const PAGE_HEARS: Readonly<Record<string, Readonly<Record<string, PageCel
   // The composers fill a review-link slot only where the listing keeps one, which the settings read says (parts/channels.ts
   // cmBusinessOf): the listing linked, read or dropped is heard for Settings where a composer is drawn (S1-4).
   outbound: { playbooks: true, settings: ["review"] },
+  // Campaigns › Sequences (decision 0060): its own list, whole, and the settings read its step editor offers messages from.
+  "campaigns/sequences": { sequences: true, settings: true },
   messages: { settings: true },
   broadcasts: { broadcasts: true, settings: ["review"] },
   clients: { people: true },

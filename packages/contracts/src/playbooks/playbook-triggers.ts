@@ -125,7 +125,7 @@ export const MOMENT_TRIGGERS = PLAYBOOK_TRIGGERS.filter(
 
 export type PlaybookTriggerKind = (typeof PLAYBOOK_TRIGGERS)[number]["kind"];
 
-export type PlaybookPolicyClass = SchemaSet<"playbooks.policy_class">;
+export type PlaybookPolicyClass = SchemaSet<"sequence_steps.policy_class">;
 
 export const PLAYBOOK_STATES = ["running", "paused"] as const;
 
