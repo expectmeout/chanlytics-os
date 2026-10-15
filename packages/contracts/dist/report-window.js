@@ -153,7 +153,16 @@ var ESCALATION_ACTS = {
   carriers: "reply",
   email_review: "reply"
 };
+function holdActOf(reason) {
+  return ESCALATION_ACTS[reason ?? ""] ?? "reply";
+}
 var HAND_BACK_REASONS = Object.keys(ESCALATION_ACTS).filter((r) => ESCALATION_ACTS[r] === "hand_back");
+var WAITING_REASONS = Object.keys(ESCALATION_ACTS).filter(
+  (r) => waitsOnAPerson(r)
+);
+function waitsOnAPerson(reason) {
+  return holdActOf(reason) !== "hand_back";
+}
 
 // src/config/no-booking-link.ts
 var NO_LINK_DETAILS = "their name, what they need, and where and when";

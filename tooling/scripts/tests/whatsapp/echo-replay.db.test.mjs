@@ -29,6 +29,7 @@ const skip =
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
 const { recordEchoAndPause } = await import(pathToFileURL(path.join(ROOT, "packages/db/dist/index.js")).href);
+const { WAITING_REASONS } = await import(pathToFileURL(path.join(ROOT, "packages/contracts/dist/index.js")).href);
 
 let db;
 let tenantId;
@@ -69,6 +70,7 @@ test(
         body: "On my way.",
         externalId: `wamid.echo.${stamp}`,
         pausedUntilIso,
+        settles: [],
       });
 
     const first = new Date(Date.now() + 6 * 3_600_000).toISOString();
@@ -117,6 +119,7 @@ test(
       body: "Anonymous echo.",
       externalId: null,
       pausedUntilIso: at(3_600_000),
+      settles: [],
     });
     const second = at(7_200_000);
     await recordEchoAndPause(db, {
@@ -125,6 +128,7 @@ test(
       body: "Anonymous echo.",
       externalId: null,
       pausedUntilIso: second,
+      settles: [],
     });
     const { data: contact } = await db
       .from("contacts")
@@ -143,5 +147,141 @@ test(
       Date.parse(second),
       "nothing here can say 'seen it', so the receptionist stays down",
     );
+  },
+);
+
+/* ---- S7-5: a reply typed in the Business app settles the hold it answers (00438) ---- */
+
+/** A customer's thread with their message `agoMs` ago and a hold of `reason` opened after it, through its own door. */
+async function heldThread(digits, { agoMs, reason = "human_token" }) {
+  const { data: contact, error: cerr } = await db
+    .from("contacts")
+    .insert({ tenant_id: tenantId, phone_e164: `+${digits}` })
+    .select("id")
+    .single();
+  if (cerr) throw new Error(cerr.message);
+  const { data: conv, error: verr } = await db
+    .from("conversations")
+    .insert({ tenant_id: tenantId, contact_id: contact.id })
+    .select("id")
+    .single();
+  if (verr) throw new Error(verr.message);
+  const { error: merr } = await db.from("messages").insert({
+    tenant_id: tenantId,
+    conversation_id: conv.id,
+    contact_id: contact.id,
+    channel: "whatsapp",
+    direction: "inbound",
+    sender: "customer",
+    type: "text",
+    body: "Can someone call me?",
+    external_id: `wamid.in.${digits}`,
+    status: "received",
+    created_at: new Date(Date.now() - agoMs).toISOString(),
+  });
+  if (merr) throw new Error(merr.message);
+  const { error: herr } = await db.rpc("escalation_open", {
+    p_tenant_id: tenantId,
+    p_conversation_id: conv.id,
+    p_reason: reason,
+    p_details: "asked for a person",
+  });
+  if (herr) throw new Error(herr.message);
+  return conv.id;
+}
+const holdOf = async (conversationId) =>
+  (await db.from("escalations").select("id, state, decision_id").eq("conversation_id", conversationId).single()).data;
+/** The deadman's candidates now, whatever their age: whether this thread's hold is among them. */
+const deadmanHas = async (conversationId) => {
+  const { data, error } = await db.rpc("deadman_candidates", { p_older_than: "0 seconds" });
+  if (error) throw new Error(error.message);
+  return data.some((c) => c.conversation_id === conversationId);
+};
+const reply = (digits, body, id) =>
+  recordEchoAndPause(db, {
+    tenantId,
+    customerPhoneDigits: digits,
+    body,
+    externalId: id,
+    pausedUntilIso: new Date(Date.now() + 3_600_000).toISOString(),
+    settles: WAITING_REASONS,
+  });
+
+test(
+  "REGRESSION (S7-5): a reply typed in the WhatsApp Business app settles the hold it answers, once; the deadman leaves it",
+  { skip },
+  async () => {
+    const digits = `1646555${String((Date.now() + 1111) % 10000).padStart(4, "0")}`;
+    const conv = await heldThread(digits, { agoMs: 120_000 });
+    assert.equal((await holdOf(conv)).state, "open");
+    assert.equal(await deadmanHas(conv), true, "a hold nobody answered is the deadman's");
+    assert.equal(await reply(digits, "Yes, I'll call you in five minutes.", `wamid.typed.${stamp}`), true);
+    const hold = await holdOf(conv);
+    assert.equal(hold.state, "resolved", "REGRESSION: the customer stayed in Needs you over the owner's own answer");
+    const { data: decision } = await db
+      .from("decisions")
+      .select("verb, subject_id, actor_user_id, payload")
+      .eq("id", hold.decision_id)
+      .single();
+    assert.deepEqual(
+      [decision.verb, decision.subject_id, decision.actor_user_id, decision.payload.via],
+      ["resolve", conv, null, "whatsapp_business_app"],
+      "one resolve, by no member: the owner answered from their phone",
+    );
+    assert.equal(await deadmanHas(conv), false);
+    // Meta, redelivering: the echo is kept once, and nothing is settled twice.
+    assert.equal(await reply(digits, "Yes, I'll call you in five minutes.", `wamid.typed.${stamp}`), true);
+    const { count } = await db
+      .from("decisions")
+      .select("id", { count: "exact", head: true })
+      .eq("tenant_id", tenantId)
+      .eq("subject_id", conv)
+      .eq("verb", "resolve");
+    assert.equal(count, 1);
+  },
+);
+
+test(
+  "S7-5: an automatic reply (within seconds of the customer's message) and a STOP's hold are not settled",
+  { skip },
+  async () => {
+    const quick = `1646555${String((Date.now() + 2222) % 10000).padStart(4, "0")}`;
+    const conv = await heldThread(quick, { agoMs: 3_000 });
+    assert.equal(
+      await reply(quick, "Thanks for your message! We'll reply soon.", `wamid.away.${stamp}`),
+      true,
+      "kept, and paused",
+    );
+    assert.equal((await holdOf(conv)).state, "open", "an away message is no answer");
+    assert.equal(await deadmanHas(conv), true, "and the deadman still sees the hold");
+    const stopped = `1646555${String((Date.now() + 3333) % 10000).padStart(4, "0")}`;
+    const stop = await heldThread(stopped, { agoMs: 120_000, reason: "opt_out" });
+    assert.equal(await reply(stopped, "Understood, we've removed you.", `wamid.stop.${stamp}`), true);
+    assert.equal((await holdOf(stop)).state, "open", "a STOP's hold waits on nobody, and a reply settles none");
+  },
+);
+
+test(
+  "S7-5: the deadman leaves a hold a person answered on the dashboard, however its hold was left",
+  { skip },
+  async () => {
+    const digits = `1646555${String((Date.now() + 4444) % 10000).padStart(4, "0")}`;
+    const conv = await heldThread(digits, { agoMs: 120_000 });
+    const { data: c } = await db.from("conversations").select("contact_id").eq("id", conv).single();
+    const { error } = await db.from("messages").insert({
+      tenant_id: tenantId,
+      conversation_id: conv,
+      contact_id: c.contact_id,
+      channel: "whatsapp",
+      direction: "outbound",
+      sender: "human",
+      type: "text",
+      body: "On it.",
+      external_id: `wamid.dash.${stamp}`,
+      status: "sent",
+    });
+    if (error) throw new Error(error.message);
+    assert.equal((await holdOf(conv)).state, "open", "the hold left open");
+    assert.equal(await deadmanHas(conv), false, "REGRESSION: 'Still waiting' said of a customer a person answered");
   },
 );

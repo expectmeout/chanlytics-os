@@ -39,7 +39,7 @@
  *      SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY.
  */
 import crypto from "node:crypto";
-import { phoneTail, pauseMsOf } from "../packages/contracts.js";
+import { phoneTail, pauseMsOf, WAITING_REASONS } from "../packages/contracts.js";
 import { WABA_FIELDS, accountOf, handleWabaChange, notificationsFor } from "./waba-events.js";
 import { json, refuse } from "../http.js";
 import { pg } from "../pg.js";
@@ -122,6 +122,8 @@ async function recordEchoes(db: ReturnType<typeof pg>, routed: RoutedChannel | n
           body: echo.text?.body ?? null,
           externalId: echo.id ?? null,
           pausedUntilIso: new Date(Date.now() + echoPauseMs).toISOString(),
+          // A reply typed in the Business app settles the holds it answers, as a dashboard reply does (00438, S7-5).
+          settles: WAITING_REASONS,
         }),
       );
       // A write that threw has said so (pg_echo_failed), and one the database refused in its own words (record_echo_*).

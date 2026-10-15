@@ -439,6 +439,7 @@
     "00434_a_lost_analysis_is_asked_for.sql": "8ae66b74b5a3d7f8617accdbb9ed9b82279d65fc35340c4acdc08213bd590b62",
     "00435_a_calendar_link_that_stopped_answering.sql": "38b75300f1313cc30aaca31d61e641c5f8b1be2dc87b53f3c9c6fdb9160753c7",
     "00436_a_visit_change_says_who_made_it.sql": "fba9614a061c48ce2984d129ea768dd432691a31f116759400e149c2dd752b0b",
-    "00437_a_teammate_who_leaves_is_told.sql": "35ce48decf1fc0016c0846207a13f1e1926f3768bbbfb54a6983093f9b134c10"
+    "00437_a_teammate_who_leaves_is_told.sql": "35ce48decf1fc0016c0846207a13f1e1926f3768bbbfb54a6983093f9b134c10",
+    "00438_a_reply_from_the_business_app_settles_its_hold.sql": "d42cbc5a64a5553f70d69e388f371fdc36ec51a7ccb64c62ebf451220ff4534a"
   }
 }

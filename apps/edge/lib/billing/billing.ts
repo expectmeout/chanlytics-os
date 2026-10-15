@@ -27,7 +27,7 @@ import {
   MIN_MS,
 } from "../packages/contracts.js";
 import { mendWarnings } from "../ops/notify.js";
-import { ringOnce } from "./billing-notices.js";
+import { ringOnce, tellOnce } from "./billing-notices.js";
 import { logger, errField } from "../log.js";
 import { env } from "../env.js";
 import { dashboardOrigin } from "../dashboard-origin.js";
@@ -235,8 +235,16 @@ export async function applySubscription(
   // planned against and the status it moves to. Stripe sends several events for one change within milliseconds, each
   // reading the subscription afresh, so each plans the same move from the same row and finds the one bell kept; the
   // compare-and-set below lets one of them write the row.
-  if (plan.bell)
-    await ringOnce(db, row.tenant_id, plan.bell, `billing:${row.tenant_id}:${row.updated_at ?? "new"}:${facts.status}`);
+  if (plan.bell) {
+    const key = `billing:${row.tenant_id}:${row.updated_at ?? "new"}:${facts.status}`;
+    // A pause is mailed too (tellOnce, S6-11): the receptionist stops answering. Its mail never holds the row back: a
+    // mail provider that is down must not leave a workspace answering on a plan that has stopped, so a mail still owed
+    // is said and the row is written; the bell and the phones are the notice that must be kept first.
+    if (plan.switched === "paused") {
+      const { mailOwed } = await tellOnce(db, row.tenant_id, plan.bell, key);
+      if (mailOwed) L.warn("billing_mail_owed", { source, status: facts.status });
+    } else await ringOnce(db, row.tenant_id, plan.bell, key);
+  }
   const customerId = idOf(sub.customer);
   // Written only if the row is still what this reading was planned against,
   // and with the switch it throws, in one write (00382): a death between the
@@ -760,13 +768,14 @@ interface PaymentNote {
 /**
  * The bells a payment event rings, beside the row facts it keeps. A paid invoice that took no money (a trial's $0 first
  * invoice, a full discount) is not a payment and stamps nothing: last_paid_at says the workspace has paid, which
- * Billing shows and 0020 reads to decide whether a partner joining it earns. A declined card's bell is kept once under
- * the event, or thrown, so Stripe's retry tells it (ringOnce).
+ * Billing shows and 0020 reads to decide whether a partner joining it earns. A declined card is mailed as well as rung
+ * (tellOnce, S6-11), once under the event; a bell not kept, or a mail still owed, is thrown, so Stripe's retry tells it,
+ * the mail alone when the bell was kept. Nothing waits on it here: the stamp is the same on every try.
  */
 export async function notePayment(db: Db, row: BillingRow, p: PaymentNote, now = new Date()): Promise<void> {
   if (p.kind === "failed") {
     await keepOnRow(db, row.tenant_id, { last_payment_failed_at: now.toISOString() });
-    await ringOnce(
+    const { mailOwed } = await tellOnce(
       db,
       row.tenant_id,
       {
@@ -775,6 +784,7 @@ export async function notePayment(db: Db, row: BillingRow, p: PaymentNote, now =
       },
       `stripe:${p.eventId}`,
     );
+    if (mailOwed) throw new Error("the declined card's mail did not go; it goes on the retry");
     await emitEvent(db, row.tenant_id, "billing.payment_failed", "subscription", null, {}).catch(() => {});
   } else if (p.amountPaid === undefined || p.amountPaid > 0) {
     await keepOnRow(db, row.tenant_id, { last_paid_at: now.toISOString() });

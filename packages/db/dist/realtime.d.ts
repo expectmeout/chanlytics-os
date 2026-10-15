@@ -6841,6 +6841,14 @@ type Database = {
                 };
                 Returns: Json;
             };
+            conversation_echo_settles: {
+                Args: {
+                    p_external_id: string;
+                    p_reasons: string[];
+                    p_tenant_id: string;
+                };
+                Returns: Json;
+            };
             conversation_hand_back: {
                 Args: {
                     p_conversation_id: string;
@@ -10048,6 +10056,14 @@ type Database = {
                     p_mailbox_id: string;
                 };
                 Returns: Json;
+            };
+            reply_was_typed: {
+                Args: {
+                    p_at: string;
+                    p_conversation_id: string;
+                    p_tenant_id: string;
+                };
+                Returns: boolean;
             };
             report_series: {
                 Args: {

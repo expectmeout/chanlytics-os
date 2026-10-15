@@ -446,6 +446,134 @@ test("REGRESSION (S6-12): a declined card's bell that could not be kept is told 
   assert.equal(state.notifications.length, 1);
 });
 
+/* ------------------------------------------------ S6-11: the receptionist stopping is mailed */
+
+/** A workspace with an alert address, and its billing mail on unless `off`. */
+const addressed = (off = false) => ({
+  tenant_config: [
+    {
+      tenant_id: T,
+      config: {
+        notifications: {
+          escalation_emails: ["owner@harbor.example"],
+          from: "alerts@harbor.example",
+          ...(off ? { email_off: ["billing"] } : {}),
+        },
+      },
+    },
+  ],
+  tenant_channels: [],
+});
+/** Resend, stubbed: each mail recorded, answered as the test says (the last answer repeats); every other call passes. */
+function resend(answers) {
+  const mails = [];
+  const was = globalThis.fetch;
+  const key = process.env.RESEND_API_KEY;
+  process.env.RESEND_API_KEY = "re_test_key";
+  globalThis.fetch = async (url, init) => {
+    if (!String(url).includes("api.resend.com")) return was(url, init);
+    mails.push(JSON.parse(init.body));
+    const status = answers.length > 1 ? answers.shift() : answers[0];
+    return new Response(status === 200 ? JSON.stringify({ id: "m_1" }) : "down", { status });
+  };
+  return {
+    mails,
+    restore: () => {
+      globalThis.fetch = was;
+      if (key === undefined) delete process.env.RESEND_API_KEY;
+      else process.env.RESEND_API_KEY = key;
+    },
+  };
+}
+
+test("S6-11: a paused receptionist is mailed as well as rung, once; a mail that does not go never holds the pause back", async () => {
+  const p = resend([200]);
+  try {
+    const state = tables(addressed());
+    setPg(fakeDb(state));
+    subs.set("sub_1", sub({ status: "paused" }));
+    const res = await deliver("customer.subscription.paused", sub({ status: "paused" }), "evt_paused_mail");
+    assert.deepEqual(await res.json(), { ok: true, status: "paused", switched: "paused" });
+    assert.deepEqual(
+      p.mails.map((m) => [m.to, m.subject]),
+      [[["owner@harbor.example"], "Your receptionist is paused"]],
+      "REGRESSION: told on the bell and a paused phone app alone",
+    );
+    assert.deepEqual(
+      state.notifications.map((n) => [n.kind, n.title, n.mail_due_at ?? null]),
+      [["billing", "Your receptionist is paused", null]],
+      "one row, its mail sent",
+    );
+    await deliver("customer.subscription.updated", sub({ status: "paused" }), "evt_paused_twin");
+    assert.equal(p.mails.length, 1, "another event for the same change mails nothing");
+  } finally {
+    p.restore();
+  }
+  // The mail provider down: the bell and the phones are told, the row says its mail is owed, and the workspace pauses.
+  const down = resend([500]);
+  try {
+    const state = tables(addressed());
+    setPg(fakeDb(state));
+    subs.set("sub_1", sub({ status: "paused" }));
+    const { result, lines } = await logged(() =>
+      deliver("customer.subscription.paused", sub({ status: "paused" }), "evt_paused_down"),
+    );
+    assert.equal(result.status, 200, "the pause is applied all the same");
+    assert.equal(state.tenants[0].status, "paused");
+    assert.ok(state.notifications[0].mail_due_at, "the row says its mail is owed");
+    assert.ok(
+      lines.some((l) => l.event === "billing_mail_owed"),
+      "and the log says so",
+    );
+  } finally {
+    down.restore();
+  }
+});
+
+test("S6-11: a declined card is mailed once; a mail that failed is sent alone on Stripe's retry, and a business that turned billing mail off gets the bell alone", async () => {
+  const declined = () => ({ id: "in_1", object: "invoice", customer: "cus_1", metadata: {} });
+  const p = resend([500, 200]);
+  try {
+    const state = tables({ ...addressed(), billing_accounts: [row({ status: "past_due" })] });
+    setPg(fakeDb(state));
+    const failed = await deliver("invoice.payment_failed", declined(), "evt_declined_mail");
+    assert.equal(failed.status, 500, "the mail did not go, so Stripe is asked again");
+    assert.equal(state.notifications.length, 1, "the bell's row stays, its mail owed");
+    assert.ok(state.notifications[0].mail_due_at);
+    assert.deepEqual(state.events, [], "its event waits for the notice");
+    const retried = await deliver("invoice.payment_failed", declined(), "evt_declined_mail");
+    assert.deepEqual(await retried.json(), { ok: true });
+    assert.deepEqual(
+      p.mails.map((m) => m.subject),
+      ["A payment did not go through", "A payment did not go through"],
+      "the retry sent the mail alone",
+    );
+    assert.deepEqual(
+      [state.notifications.length, state.notifications[0].mail_due_at ?? null],
+      [1, null],
+      "no twin row, and its mail no longer owed",
+    );
+    assert.deepEqual(
+      state.events.map((e) => e.kind),
+      ["billing.payment_failed"],
+    );
+  } finally {
+    p.restore();
+  }
+  const off = resend([200]);
+  try {
+    const state = tables({ ...addressed(true), billing_accounts: [row({ status: "past_due" })] });
+    setPg(fakeDb(state));
+    assert.deepEqual(await (await deliver("invoice.payment_failed", declined(), "evt_declined_off")).json(), {
+      ok: true,
+    });
+    assert.deepEqual(off.mails, [], "the business turned billing mail off on Settings › Notifications");
+    assert.equal(state.notifications.length, 1, "the bell's row is the notice");
+  } finally {
+    off.restore();
+  }
+});
+
 /* ------------------------------------------------ what an invoice moved (K8) */
 
 /** The database's door for an invoice's amount, recording each call; `over` makes it answer another way. */

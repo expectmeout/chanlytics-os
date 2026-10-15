@@ -1152,6 +1152,52 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
       open.details = p_details;
       return "refreshed";
     },
+    /**
+     * A reply typed in the WhatsApp Business app settling the holds it answers (00438 conversation_echo_settles), over the
+     * rows a world holds: the echo found by its id; typed when it is text and no message of the customer's came in the
+     * quarter minute before it (reply_was_typed); the open holds of the reasons handed it, opened before it, resolved by
+     * one resolve decision of no member. A world's rows written in one millisecond keep the order they were written in.
+     */
+    conversation_echo_settles: ({ p_tenant_id, p_external_id, p_reasons }) => {
+      const msg = (tables.messages ?? []).find(
+        (m) =>
+          m.tenant_id === p_tenant_id &&
+          m.external_id === p_external_id &&
+          m.direction === "outbound" &&
+          m.sender === "human",
+      );
+      if (!msg) return { resolved: 0, why: "no_echo" };
+      if (msg.type !== "text" || !String(msg.body ?? "").trim()) return { resolved: 0, why: "not_text" };
+      const at = Date.parse(msg.created_at);
+      const automatic = (tables.messages ?? []).some(
+        (i) =>
+          i.conversation_id === msg.conversation_id &&
+          i.direction === "inbound" &&
+          Date.parse(i.created_at) > at - 15_000 &&
+          Date.parse(i.created_at) <= at,
+      );
+      if (automatic) return { resolved: 0, why: "automatic" };
+      const holds = (tables.escalations ?? []).filter(
+        (e) =>
+          e.tenant_id === p_tenant_id &&
+          e.conversation_id === msg.conversation_id &&
+          (e.state ?? "open") === "open" &&
+          (p_reasons ?? []).includes(e.reason) &&
+          Date.parse(e.created_at) <= at,
+      );
+      if (!holds.length) return { resolved: 0, why: "nothing_open" };
+      const decision = insertRow("decisions", {
+        tenant_id: p_tenant_id,
+        subject_type: "conversation",
+        subject_id: msg.conversation_id,
+        verb: "resolve",
+        actor_type: "user",
+        actor_user_id: null,
+        payload: { message_id: msg.id, via: "whatsapp_business_app" },
+      });
+      for (const h of holds) Object.assign(h, { state: "resolved", decision_id: decision.id });
+      return { resolved: holds.length, decision_id: decision.id, undo_dropped: false };
+    },
     // Ask's message search (00219), from the messages and calls the fixture holds: a suite that searches models no door.
     search_messages: (args) => searchMessagesIn(tables, args),
     // The erasure digests (00263), as a database the re-key has not run on makes them: the legacy sha256 of

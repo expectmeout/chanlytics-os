@@ -198,19 +198,27 @@ export function holdActOf(reason: string | null | undefined): HoldAct {
 }
 
 /**
- * The reasons whose hold waits on nobody (`hand_back`: a customer's STOP, which is news). A read of the open holds asks
- * for these apart from the rest, so a page of them never crowds out a hold that waits on a person (legacy STOP holds
- * were left open, 00409); the rest is read as waiting, so a reason added later is counted, as holdActOf counts it.
- */
-/**
  * The most open holds of each half one read of them takes (GET escalations: those that wait on a person, and those that
  * wait on nobody). A page that read fewer waiting holds than this read them all.
  */
 export const OPEN_HOLDS_READ_MAX = 100;
 
+/**
+ * The reasons whose hold waits on nobody (`hand_back`: a customer's STOP, which is news). A read of the open holds asks
+ * for these apart from the rest, so a page of them never crowds out a hold that waits on a person (legacy STOP holds
+ * were left open, 00409); the rest is read as waiting, so a reason added later is counted, as holdActOf counts it.
+ */
 export const HAND_BACK_REASONS: readonly EscalationReason[] = (
   Object.keys(ESCALATION_ACTS) as EscalationReason[]
 ).filter((r) => ESCALATION_ACTS[r] === "hand_back");
+
+/**
+ * The reasons whose hold waits on a person (waitsOnAPerson): what a person's answer settles. A reply typed in the
+ * WhatsApp Business app resolves the open holds of these on its thread (00438 conversation_echo_settles), never a STOP.
+ */
+export const WAITING_REASONS: readonly EscalationReason[] = (Object.keys(ESCALATION_ACTS) as EscalationReason[]).filter(
+  (r) => waitsOnAPerson(r),
+);
 
 /** The act of the open hold a thread has, or null where it has none. */
 export function openHoldAct(hold: { reason: string } | null | undefined): HoldAct | null {

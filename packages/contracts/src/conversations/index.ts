@@ -55,6 +55,7 @@ export {
   reasonSummaryOf,
   ESCALATION_ACTS,
   HAND_BACK_REASONS,
+  WAITING_REASONS,
   OPEN_HOLDS_READ_MAX,
   HOLD_ACT_WORDS,
   holdActOf,

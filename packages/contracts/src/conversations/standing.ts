@@ -104,7 +104,9 @@ export function standingOf(i: StandingInput, nowMs: number): StandingVerdict {
   const claimedByTeammate = !!i.assignee_user_id && i.assignee_is_me === false;
   // A pause with no escalation open is the one a person's own reply leaves
   // behind: the receptionist stepped back because someone answered. A pause
-  // WITH an escalation open is the receptionist waiting for that someone.
+  // WITH an escalation open is the receptionist waiting for that someone. A
+  // reply typed in the WhatsApp Business app settles the hold it answers too
+  // (00438), so its thread reads as yours, as a reply from the dashboard's does.
   const mine = !!i.assignee_user_id || (paused && !holds);
   const standing: Standing =
     i.state === "snoozed"

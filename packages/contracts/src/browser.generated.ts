@@ -117,7 +117,7 @@ export { ABANDONED_MS, abandonedCall, callAttemptWords, missedCall, neverConnect
 export { callEndedWords, spokenDuration, toCallVM } from "./conversations/call-vm";
 export { CONVERSATION_MOVES, conversationPatch, conversationMoveAllowed } from "./conversations/conversation-moves";
 export { toConversationVM } from "./conversations/conversation-vm";
-export { ESCALATION_REASON_LABELS, ESCALATION_REASON_SHORT, ESCALATION_SUMMARIES, reasonShort, reasonLabelOf, reasonSummaryOf, ESCALATION_ACTS, HAND_BACK_REASONS, OPEN_HOLDS_READ_MAX, HOLD_ACT_WORDS, holdActOf, holdWaits, waitsOnAPerson } from "./conversations/escalations";
+export { ESCALATION_REASON_LABELS, ESCALATION_REASON_SHORT, ESCALATION_SUMMARIES, reasonShort, reasonLabelOf, reasonSummaryOf, ESCALATION_ACTS, HAND_BACK_REASONS, WAITING_REASONS, OPEN_HOLDS_READ_MAX, HOLD_ACT_WORDS, holdActOf, holdWaits, waitsOnAPerson } from "./conversations/escalations";
 export { REFERRAL_ID_MAX } from "./conversations/first-touch";
 export { HANDLED_OUTCOMES } from "./conversations/handled";
 export { threadStanding, conversationWaitsOnYou, threadsWaitingOnYou, threadWaitsOf, heldThreadIds, HELD_BY_ID_MAX, snoozedThreadWords, heldDraftWaits, toInboxThreadVM } from "./conversations/inbox-thread";
