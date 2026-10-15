@@ -149,7 +149,7 @@ function withoutEffort(call: GatewayCall, refusal: GatewayRefusal | null): Gatew
   return { ...call, request: { ...call.request, messages } };
 }
 
-const bodyOf = (call: GatewayCall): string =>
+const gatewayBody = (call: GatewayCall): string =>
   JSON.stringify({
     tenant_id: call.tenantId,
     user_id: call.userId,
@@ -177,7 +177,7 @@ export async function* streamModel(call: GatewayCall): AsyncGenerator<GatewayEve
   let sentAt = Date.now();
   for (let attempt = 0; !res; attempt++) {
     sentAt = Date.now();
-    const body = bodyOf(sent);
+    const body = gatewayBody(sent);
     let refusal: GatewayRefusal | null = null;
     try {
       const r = await fetch(`${edgeUrl()}/api/admin/llm`, {

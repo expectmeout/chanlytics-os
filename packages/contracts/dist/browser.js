@@ -12377,12 +12377,12 @@ var EFFORT_MESSAGE_BETA = "mid-conversation-output-config-2026-07-01";
 function effortMessage(effort) {
   return { role: "system", content: [], output_config: { effort } };
 }
-var isRecord = (v) => !!v && typeof v === "object" && !Array.isArray(v);
+var isPlainObject = (v) => !!v && typeof v === "object" && !Array.isArray(v);
 function isEffortMessage(m) {
-  if (!isRecord(m)) return false;
+  if (!isPlainObject(m)) return false;
   const { role, content, output_config: oc, ...rest } = m;
   if (role !== "system" || !Array.isArray(content) || content.length > 0 || Object.keys(rest).length > 0) return false;
-  if (!isRecord(oc)) return false;
+  if (!isPlainObject(oc)) return false;
   const { effort, ...more2 } = oc;
   return Object.keys(more2).length === 0 && MODEL_EFFORTS.includes(effort);
 }
@@ -12400,7 +12400,7 @@ function foldEffortMessages(body) {
   const messages = Array.isArray(body.messages) ? body.messages : [];
   const effort = effortInForce(messages, null);
   if (effort === null) return body;
-  const own = isRecord(body.output_config) ? body.output_config : {};
+  const own = isPlainObject(body.output_config) ? body.output_config : {};
   return { ...body, messages: messages.filter((m) => !isEffortMessage(m)), output_config: { ...own, effort } };
 }
 
@@ -33083,7 +33083,7 @@ var APP_FILE_TYPES = ["text/csv", "text/plain"];
 var APP_FILE_MAX_CHARS = 2e6;
 var APP_FILE_NAME_RE = /^[\w .()-]{1,100}\.(csv|txt)$/;
 var PUSH_TOKEN_MAX = 200;
-var isRecord2 = (v) => typeof v === "object" && v !== null;
+var isRecord = (v) => typeof v === "object" && v !== null;
 var PAGE_MESSAGES = {
   route: (v) => typeof v.route === "string" && APP_ROUTE_RE.test(v.route) ? { t: "route", route: v.route } : null,
   needs: (v) => isCount(v.inbox) ? { t: "needs", inbox: v.inbox } : null,
@@ -33107,13 +33107,13 @@ function parsePageMessage(raw) {
   } catch {
     return null;
   }
-  if (!isRecord2(v) || typeof v.t !== "string") return null;
+  if (!isRecord(v) || typeof v.t !== "string") return null;
   if (!Object.prototype.hasOwnProperty.call(PAGE_MESSAGES, v.t)) return null;
   return PAGE_MESSAGES[v.t](v);
 }
 var token = (v) => typeof v === "string" && v.trim() && v.trim().length <= PUSH_TOKEN_MAX ? v.trim() : null;
 function parseShellMessage(v) {
-  if (!isRecord2(v)) return null;
+  if (!isRecord(v)) return null;
   switch (v.t) {
     case "navigate":
       if (typeof v.route !== "string" || !APP_ROUTE_RE.test(v.route)) return null;

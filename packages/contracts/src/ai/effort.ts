@@ -34,14 +34,14 @@ export function effortMessage(effort: ModelEffort): EffortMessage {
   return { role: "system", content: [], output_config: { effort } };
 }
 
-const isRecord = (v: unknown): v is Record<string, unknown> => !!v && typeof v === "object" && !Array.isArray(v);
+const isPlainObject = (v: unknown): v is Record<string, unknown> => !!v && typeof v === "object" && !Array.isArray(v);
 
 /** Whether `m` is an effort message: a system message, no content, an output_config with a level the API takes and nothing else. */
 export function isEffortMessage(m: unknown): m is EffortMessage {
-  if (!isRecord(m)) return false;
+  if (!isPlainObject(m)) return false;
   const { role, content, output_config: oc, ...rest } = m;
   if (role !== "system" || !Array.isArray(content) || content.length > 0 || Object.keys(rest).length > 0) return false;
-  if (!isRecord(oc)) return false;
+  if (!isPlainObject(oc)) return false;
   const { effort, ...more } = oc;
   return Object.keys(more).length === 0 && (MODEL_EFFORTS as readonly unknown[]).includes(effort);
 }
@@ -68,6 +68,6 @@ export function foldEffortMessages(body: Record<string, unknown>): Record<string
   const messages = Array.isArray(body.messages) ? (body.messages as unknown[]) : [];
   const effort = effortInForce(messages, null);
   if (effort === null) return body;
-  const own = isRecord(body.output_config) ? body.output_config : {};
+  const own = isPlainObject(body.output_config) ? body.output_config : {};
   return { ...body, messages: messages.filter((m) => !isEffortMessage(m)), output_config: { ...own, effort } };
 }
