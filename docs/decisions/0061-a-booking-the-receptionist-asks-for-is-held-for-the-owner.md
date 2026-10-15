@@ -38,7 +38,7 @@ or hand back. The call-back hold carries what to do in its details.
    - `booking_service`: the service, as the business lists it.
 
    Both are empty otherwise, and the two fields are in the answer's schema only on a turn that takes requests. Its words
-   say the team will confirm. It never confirms a slot itself. The phone is not part of this step.
+   say the team will confirm. It never confirms a slot itself, and a time it writes is no reason on its own to set escalate: the time is what reaches the team, and a model's own handoff stands over a request (the eval of 15 October 2026 found it escalating every such turn). The phone is not part of this step.
 
 3. **Code decides whether it is a request, never the model.** The slot counts only if it is a real time on the
    business's clock (a day and a clock time that exist: not the 30th of February, not an hour the spring skips), starts
