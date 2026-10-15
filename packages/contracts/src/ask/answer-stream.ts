@@ -94,7 +94,7 @@ interface Frame {
  * The objects of `show.figures` and `show.items` that have closed in a JSON prefix, in order: read by structure, the
  * strings and their escapes respected, so a brace or a key's name inside a string is never taken for one.
  */
-export function closedShowEntries(prefix: string): { figures: unknown[]; items: unknown[] } {
+function closedShowEntries(prefix: string): { figures: unknown[]; items: unknown[] } {
   const got: { figures: unknown[]; items: unknown[] } = { figures: [], items: [] };
   const stack: Frame[] = [];
   for (let i = 0; i < prefix.length; i++) {
@@ -129,7 +129,7 @@ export function closedShowEntries(prefix: string): { figures: unknown[]; items: 
 }
 
 /** Show as written so far, grounded in this turn's reads as the final will be: empty until a figure or a row closes. */
-export function partialShow(prefix: string, read: AskReadSet, language: AskLanguage): AskShowPreview {
+function partialShow(prefix: string, read: AskReadSet, language: AskLanguage): AskShowPreview {
   const { figures, items } = closedShowEntries(prefix);
   if (!figures.length && !items.length) return { figures: [], items: [] };
   const shaped = normalizeAnswer({ say: { headline: "-" }, show: { figures, items }, language }, read, language);
