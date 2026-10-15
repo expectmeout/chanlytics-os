@@ -40,7 +40,12 @@ export function combineAsk(c: PageCtx): { title: string; sub: string; body: Reac
   const act = c.merge.combine;
   const business = c.p.business?.name ?? (c.p.worksAt && !c.p.worksAt.gone ? c.p.worksAt.name : null);
   if (!act || !business || !c.isOwner) return null;
-  const vm = combineOf({ here: { id: c.p.id, name: c.p.name, email: c.p.email }, act, business });
+  const vm = combineOf({
+    here: { id: c.p.id, name: c.p.name, email: c.p.email },
+    act,
+    business,
+    dealsOn: c.p.dealsOn,
+  });
   const { busy } = c.merge;
   const combine = async () => {
     if (busy) return;

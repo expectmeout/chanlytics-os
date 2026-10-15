@@ -85,13 +85,15 @@ test("the sheet says what the door does: one who gave no name keeps none, and is
     keptNamed: who.named,
   });
   const here = { id: standIn.id, name: standIn.name, email: standIn.email };
-  const named = combineOf({ here, act: act(dana), business: "Northside Print Shop" });
+  const named = combineOf({ here, act: act(dana), business: "Northside Print Shop", dealsOn: false });
   assert.deepEqual([named.keepId, named.dropId, named.title], ["p1", "s1", W.title("Dana Ortiz")]);
   assert.equal(named.rows[0], W.keeps);
+  assert.equal(named.rows[2], "Takes its notes, deals, appointments and lists", "in the workspace's word, never visit");
   assert.equal(named.why, W.why("Northside Print Shop", standIn.email, "Dana Ortiz", dana.email));
-  const unnamed = combineOf({ here, act: act(someone), business: "Northside Print Shop" });
+  const unnamed = combineOf({ here, act: act(someone), business: "Northside Print Shop", dealsOn: true });
   assert.equal(unnamed.title, W.yes, "the sheet is Combine, not Combine with an address");
   assert.equal(unnamed.body, W.bodySomeone("Northside Print Shop"));
   assert.equal(unnamed.rows[0], W.keepsNoName, "they keep no name, never the business's");
+  assert.equal(unnamed.rows[2], W.takesRecords("meetings"), "where deals are on, a meeting");
   assert.match(unnamed.why, /and someone answered from dana@northside\.example\.$/);
 });

@@ -19922,10 +19922,10 @@ var fieldsOf = (pl, keys) => Object.fromEntries(keys.filter((k) => pl[k] !== voi
 function answerSaid(purpose, consent, who) {
   if (purpose === "marketing") {
     if (consent === "opted_in") return `${who} said yes to offers and news`;
-    if (consent === "opted_out") return `${who} said no to offers \u2014 messages about their own visit still reach them`;
+    if (consent === "opted_out") return `${who} said no to offers \u2014 other messages still reach them`;
     return `${who} has not been asked about offers`;
   }
-  if (consent === "opted_in") return `${who} said yes to messages about their visit`;
+  if (consent === "opted_in") return `${who} said yes to messages`;
   if (consent === "opted_out") return `${who} said stop \u2014 nothing goes out to them at all`;
   return `${who} is back to "not asked"`;
 }
@@ -19980,7 +19980,7 @@ var answerManySpec = {
   },
   receipt: ({ payload: pl }, data) => {
     const m = manySaid(data, "recorded");
-    const what = purposeOf(pl.purpose) === "marketing" ? "to offers" : "to messages about their visit";
+    const what = purposeOf(pl.purpose) === "marketing" ? "to offers" : "to messages";
     const answer = consentIn(pl.consent);
     const head = answer === "unknown" ? `${m.done} back to "not asked"` : `${m.done} said ${answer === "opted_in" ? "yes" : "no"} ${what}`;
     return m.said ? `${head} \xB7 ${m.said}` : head;
@@ -27511,7 +27511,7 @@ function receptionistKnowsOf(f) {
 function messagesSummaryOf(visit, offers, receptionist) {
   const low = (s) => `${s.charAt(0).toLowerCase()}${s.slice(1)}`;
   return [
-    { id: "visit", lead: "Visit messages", answer: low(visit.label), notAsked: visit.unknown },
+    { id: "visit", lead: "Messages", answer: low(visit.label), notAsked: visit.unknown },
     { id: "offers", lead: "Offers & news", answer: low(offers.label), notAsked: offers.unknown },
     { id: "receptionist", lead: "", answer: receptionist, notAsked: false }
   ];
@@ -37990,12 +37990,12 @@ function checkNoteSuggestion(answer, turns, known) {
 var ARRIVES = /* @__PURE__ */ new Set(["added", "confirmed"]);
 var VISIT_CHANGES_TOLD = {
   added: "A booking arriving (bookingArriving): told, unless it is the owner's own entry or a calendar's catching up.",
-  confirmed: "A proposed visit booked by the tool: told as a booking arriving.",
+  confirmed: "A proposed one the tool confirmed: told as a booking arriving.",
   cancelled: "Told when the customer cancelled through their booking tool (bookingChanged); a member's cancel is theirs.",
   moved: "Told when the customer moved it through their booking tool; the calendar's moves are the owner's own diary.",
-  kept: "A member's word on a visit that happened: theirs, not news.",
+  kept: "A member's word that they came: theirs, not news.",
   missed: "A member's word on a no-show: theirs, not news.",
-  vanished: "Gone from the owner's calendar, their own diary: not told, as a feed's rebuild would tell every visit.",
+  vanished: "Gone from the owner's calendar, their own diary: not told, as a feed's rebuild would tell them all.",
   back: "Back on the owner's calendar, their own diary: not told."
 };
 var ARRIVES_BY = /* @__PURE__ */ new Set(["booking_email", "booking_tool", "calendar_feed"]);
@@ -38046,7 +38046,8 @@ function visitChangeNews(v, change, nowMs) {
     kind: "booking",
     route: visitRoute(v.id, visitDayOf(v)),
     about: { type: "appointment", id: v.id },
-    subject: (cancelled ? `${who} cancelled their visit` : `${who} moved their visit`).slice(0, 200),
+    // Said without the workspace's word for an appointment, as visitNews says a booking arriving: a booking is the act.
+    subject: (cancelled ? `${who} cancelled their booking` : `${who} moved their booking`).slice(0, 200),
     body: [
       cancelled ? when : `Now ${when}`,
       ...v.service ? [v.service] : [],
@@ -38175,7 +38176,7 @@ var GOOGLE_SYNC_NOTICE_WORDS = {
 var CALENDAR_UNREADABLE_TOLD_AFTER_MS = DAY_MS;
 var CALENDAR_UNREADABLE_WORDS = {
   title: "Your calendar link stopped answering",
-  body: (f) => `Your calendar link stopped answering ${agoWords(f.sinceMs, f.nowMs)}. Until it answers again, the receptionist does not say which times are open, and new visits do not reach the Calendar. Check the link in Settings, under Business.`
+  body: (f) => `Your calendar link stopped answering ${agoWords(f.sinceMs, f.nowMs)}. Until it answers again, the receptionist does not say which times are open, and new bookings do not reach the Calendar. Check the link in Settings, under Business.`
 };
 
 // src/people/person-row.ts
@@ -39275,7 +39276,7 @@ var VISITS_TAB_WORDS = {
   toMark: "To mark",
   ahead: "Ahead",
   past: "Past",
-  none: "No visits ahead.",
+  none: "Nothing ahead.",
   /** A visit the calendar names nothing for. */
   visit: "Visit",
   /** A missed visit: it is not a gap between visits, so the cadence does not read it. */
@@ -40653,7 +40654,8 @@ var COMBINE_WORDS = {
   keeps: "Keeps their own name, number and address",
   keepsNoName: "Keeps their own number and address, and no name until they give one",
   takesThread: (other) => `Takes the messages and calls on ${other}'s record, in one thread`,
-  takesRecords: "Takes its notes, deals, visits and lists",
+  /** In the workspace's word for its appointments: "Takes its notes, deals, appointments and lists". */
+  takesRecords: (many) => `Takes its notes, deals, ${many} and lists`,
   takesReachOut: "Takes the emails we sent it, the replies, and the lead's link to it",
   answers: MERGE_ANSWERS,
   after: (other) => `${other}'s record stays as a merged record with no number or address`,
@@ -40692,7 +40694,7 @@ function combineOf(f) {
     rows: [
       named ? W.keeps : W.keepsNoName,
       W.takesThread(drop.name),
-      W.takesRecords,
+      W.takesRecords(appointmentWords(appointmentWordWhere(f.dealsOn)).many),
       W.takesReachOut,
       W.answers,
       W.after(drop.name)
@@ -51108,7 +51110,7 @@ var NOTICE_ENDS = {
   },
   calendar_people: {
     ends: "news",
-    why: "Who the calendar's visits are with is told once; the Calendar keeps the names to look at."
+    why: "Who is on the calendar is told once; the Calendar keeps the names to look at."
   },
   alert: {
     ends: "news",
@@ -51121,7 +51123,7 @@ var NOTICE_ENDS = {
   reach_out_replied: { ends: "news", why: "A reply is told once per reading; its thread holds the rest." },
   reach_out_day: { ends: "news", why: "The day's reach-out numbers are a line, told once at six." },
   opted_out: { ends: "news", why: "A customer's stop is news, told once; there is nothing to answer." },
-  booking: { ends: "news", why: "A booking that arrived is news; the Calendar holds the visit." },
+  booking: { ends: "news", why: "A booking that arrived is news; the Calendar holds it." },
   member_joined: { ends: "news", why: "A teammate who joined is news, told once." },
   member_left: { ends: "news", why: "A teammate who left is news, told once." }
 };

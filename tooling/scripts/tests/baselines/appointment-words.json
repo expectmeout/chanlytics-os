@@ -20,10 +20,7 @@
   "packages/contracts/src/people/person-attention.ts": 1,
   "packages/contracts/src/people/person-consent.ts": 1,
   "packages/contracts/src/people/person-timeline.ts": 1,
-  "packages/contracts/src/person-page/combine.ts": 1,
   "packages/contracts/src/person-page/next.ts": 1,
-  "packages/contracts/src/person-page/visits.ts": 1,
-  "packages/contracts/src/person-page/words.ts": 1,
   "packages/contracts/src/playbooks/lifecycle/lifecycle-words.ts": 2,
   "packages/contracts/src/reports/report-metrics.ts": 1,
   "packages/contracts/src/route-keys.generated.ts": 1,
@@ -31,6 +28,5 @@
   "packages/contracts/src/setup/setup-rows.ts": 2,
   "packages/contracts/src/templates/starter-templates.ts": 4,
   "packages/contracts/src/today/notification-kinds.ts": 1,
-  "packages/contracts/src/waits/notice-closes.ts": 2,
   "packages/contracts/src/workspace/activity.ts": 2
 }

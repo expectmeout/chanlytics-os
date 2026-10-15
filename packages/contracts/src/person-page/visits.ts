@@ -19,7 +19,7 @@ export const VISITS_TAB_WORDS = {
   toMark: "To mark",
   ahead: "Ahead",
   past: "Past",
-  none: "No visits ahead.",
+  none: "Nothing ahead.",
   /** A visit the calendar names nothing for. */
   visit: "Visit",
   /** A missed visit: it is not a gap between visits, so the cadence does not read it. */

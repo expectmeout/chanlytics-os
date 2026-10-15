@@ -33,13 +33,13 @@ const ARRIVES: ReadonlySet<string> = new Set(["added", "confirmed"]);
  */
 export const VISIT_CHANGES_TOLD = {
   added: "A booking arriving (bookingArriving): told, unless it is the owner's own entry or a calendar's catching up.",
-  confirmed: "A proposed visit booked by the tool: told as a booking arriving.",
+  confirmed: "A proposed one the tool confirmed: told as a booking arriving.",
   cancelled:
     "Told when the customer cancelled through their booking tool (bookingChanged); a member's cancel is theirs.",
   moved: "Told when the customer moved it through their booking tool; the calendar's moves are the owner's own diary.",
-  kept: "A member's word on a visit that happened: theirs, not news.",
+  kept: "A member's word that they came: theirs, not news.",
   missed: "A member's word on a no-show: theirs, not news.",
-  vanished: "Gone from the owner's calendar, their own diary: not told, as a feed's rebuild would tell every visit.",
+  vanished: "Gone from the owner's calendar, their own diary: not told, as a feed's rebuild would tell them all.",
   back: "Back on the owner's calendar, their own diary: not told.",
 } as const;
 
@@ -175,7 +175,8 @@ export function visitChangeNews(v: BookedVisit, change: VisitChange, nowMs: numb
     kind: "booking",
     route: visitRoute(v.id, visitDayOf(v)),
     about: { type: "appointment", id: v.id },
-    subject: (cancelled ? `${who} cancelled their visit` : `${who} moved their visit`).slice(0, 200),
+    // Said without the workspace's word for an appointment, as visitNews says a booking arriving: a booking is the act.
+    subject: (cancelled ? `${who} cancelled their booking` : `${who} moved their booking`).slice(0, 200),
     body: [
       cancelled ? when : `Now ${when}`,
       ...(v.service ? [v.service] : []),
