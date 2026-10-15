@@ -86,7 +86,7 @@ const LIST_STEPS: Record<
   opted_in: {
     cta: "Get their yes to offers",
     to: GET_YES_ROUTE,
-    text: "They answer and hear about their own visits. Offers need a second, separate yes.",
+    text: "They get replies, reminders and confirmations. Offers need a second, separate yes.",
     answered: OFFERS_STEP,
   },
   offers_ok: OFFERS_STEP,

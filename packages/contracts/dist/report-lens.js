@@ -268,7 +268,7 @@ var METRIC_WORDS = {
   call_backs: "Of the conversations that need you, the ones where the customer asked to be rung back, as of now, whatever period is picked. A call-back someone has taken over, or put aside until later, is not counted.",
   replies_held_back: "Replies the receptionist wrote in this period that the send door refused, such as a person having the thread or the customer having asked to stop. A reply you cancelled or a person answered first, which the hold counts, and a broadcast or campaign message the door held are not counted.",
   people_reached: "People who wrote in their own words, or phoned and were spoken to, in this period, counted once however often they did. An automatic reply, a message or call you placed, a call that rang out, people brought in with their history, and people who asked to be forgotten are not counted.",
-  yeses_won: "The yeses people gave in this period, one for each person and each kind of message (their visit, offers, offers by email), in their own words or recorded at the desk. A merge restating a yes, a client list imported, which never records a yes, a person who asked to be forgotten, and a record merged into another are not counted.",
+  yeses_won: "The yeses people gave in this period, one for each person and each kind of message (messages, offers, offers by email), in their own words or recorded at the desk. A merge restating a yes, a client list imported, which never records a yes, a person who asked to be forgotten, and a record merged into another are not counted.",
   stops_recorded: "The stops people gave in this period, one for each person and each kind of message they stopped, by their own STOP, an unsubscribe link, a complaint, the carrier or at the desk. A merge restating a stop, the end of a yes to offers that a STOP brings with it, a person who asked to be forgotten, and a record merged into another are not counted.",
   steps_overdue: "People whose earliest open step has a day before today, as of now, whatever period is picked. A step with no day, a step already done, and a later step of the same person are not counted.",
   steps_due_today: "People whose earliest open step has today for its day, as of now, whatever period is picked. A step with no day, a step already done, and a later step of the same person are not counted.",
@@ -1313,26 +1313,26 @@ var LIST_NEEDS = ["calendar", "consult", "deals", "viewer"];
 var LIST_RULE_FIELDS = [
   {
     id: "last_visit",
-    label: "Last visit",
+    label: "Last on the calendar",
     kind: "days",
     needs: ["calendar"],
     draft: "days since their last appointment on the calendar"
   },
   {
     id: "next_visit",
-    label: "Next visit",
+    label: "Next on the calendar",
     kind: "days",
     needs: ["calendar"],
     draft: "days until their next appointment; op this_week is Monday to Sunday of this week"
   },
   {
     id: "missed_visit",
-    label: "Missed a visit",
+    label: "Missed one",
     kind: "days",
     needs: ["calendar"],
-    draft: "days since a visit they did not come to, as a member marked it missed on the calendar"
+    draft: "days since an appointment they did not come to, as a member marked it missed on the calendar"
   },
-  { id: "booked", label: "A visit booked", kind: "yesno", needs: ["calendar"], draft: "an appointment booked ahead" },
+  { id: "booked", label: "Booked ahead", kind: "yesno", needs: ["calendar"], draft: "an appointment booked ahead" },
   {
     id: "asked_not_booked",
     label: "Asked, never booked",
@@ -1412,7 +1412,7 @@ var LIST_RULE_FIELDS = [
     label: "A consultation",
     kind: "yesno",
     needs: ["calendar", "consult"],
-    draft: "their next or last visit is a consultation"
+    draft: "their next or last appointment is a consultation"
   },
   { id: "step_due", label: "A next step due", kind: "yesno", needs: [], draft: "a next step whose day has come" },
   {
@@ -1478,7 +1478,7 @@ function factProblem(f) {
   if (f.field !== "last_visit" && f.field !== "next_visit" && f.field !== "missed_visit" && f.field !== "last_heard" && f.field !== "first_contact")
     return null;
   if ((f.op === "more_than" || f.op === "within") && f.days === void 0) return `${f.field} ${f.op} needs days`;
-  if (f.op === "this_week" && f.field !== "next_visit") return "only the next visit can be this week";
+  if (f.op === "this_week" && f.field !== "next_visit") return "only the next one on the calendar can be this week";
   return null;
 }
 var ListRuleSchema = z.strictObject({
@@ -1682,7 +1682,7 @@ var BUILTIN_LISTS = [
   {
     id: "lapsed",
     label: "Lapsed",
-    tip: "Forty-five days or more since their last visit, nothing ahead \u2014 the win-back list, from visits rather than silence",
+    tip: "Forty-five days or more since they were last on the calendar, nothing ahead \u2014 the win-back list, from the calendar rather than silence",
     group: "journey",
     rule: r({ field: "booked", op: "is", yes: false }, { field: "last_visit", op: "more_than", days: 44 })
   },
@@ -1749,7 +1749,7 @@ var BUILTIN_LISTS = [
   {
     id: "opted_in",
     label: "Said yes to messages",
-    tip: "Said yes to hearing from you \u2014 replies and messages about their own visit",
+    tip: "Said yes to messages \u2014 replies, reminders and confirmations",
     group: "reach",
     onProfile: false,
     rule: r({ field: "said_yes", op: "is", to: "messages", yes: true })

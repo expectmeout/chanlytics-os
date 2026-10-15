@@ -768,6 +768,6 @@ test("every refusal the door can give has words for the thread and for a run's r
   }
   // Said plainly, the audit's corrections: an unsubscribe stops what the business starts, not their own replies (and,
   // since offers by email go to customers, not the messages about their visits: the spec's decision 12).
-  assert.match(PURPOSE_REFUSALS.unsubscribed, /replies and messages about their visits still can/);
+  assert.match(PURPOSE_REFUSALS.unsubscribed, /replies, reminders and confirmations still can/);
   assert.doesNotMatch(PURPOSE_REFUSALS.outreach_not_a_lead, /People/);
 });

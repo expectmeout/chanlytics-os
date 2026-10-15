@@ -2231,7 +2231,7 @@ test("a new list may be described: the assistant drafts a rule, the box shows it
   const tree = draw();
   assert.deepEqual(drafted, [["POST", { words: "regulars who stopped coming" }]]);
   assert.deepEqual(all(tree, (n) => n.props?.["data-testid"] === "new-list-rule").map(textOf), [
-    "Last visit more than 60 days ago",
+    "Last on the calendar more than 60 days ago",
   ]);
   assert.equal(textOf(byTestId(tree, "new-list-holds")), "3 people on it today, and it keeps itself current.");
   assert.equal(textOf(byTestId(tree, "new-list-cannot")), "Left out: who their stylist is");

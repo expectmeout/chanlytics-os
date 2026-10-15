@@ -48,7 +48,7 @@ const SUGGESTIONS: Readonly<Record<string, readonly string[]>> = {
   makeup_artist: ["Bridal makeup", "Event makeup", "Makeup lesson", "Airbrush makeup", "Trial session"],
   tanning_studio: ["Spray tan", "Tanning session", "Tanning package", "Rapid tan"],
   body_art_service: ["Tattoo", "Piercing", "Touch-up", "Cover-up", "Consultation"],
-  dentist: ["Cleaning", "Checkup", "Whitening", "Filling", "Crown", "Emergency visit"],
+  dentist: ["Cleaning", "Checkup", "Whitening", "Filling", "Crown", "Emergency visit"], // trade-word: a dentist's own service, suggested only where Google lists a dentist
   chiropractor: ["New patient exam", "Adjustment", "Massage", "Spinal decompression", "Consultation"],
   physiotherapist: [
     "Evaluation",
@@ -57,10 +57,10 @@ const SUGGESTIONS: Readonly<Record<string, readonly string[]>> = {
     "Post-surgery rehab",
     "Dry needling",
   ],
-  doctor: ["New patient visit", "Annual physical", "Sick visit", "Follow-up", "Telehealth visit", "Vaccination"],
+  doctor: ["New patient visit", "Annual physical", "Sick visit", "Follow-up", "Telehealth visit", "Vaccination"], // trade-word: a doctor's own services, suggested only where Google lists a doctor
   foot_care: ["Foot exam", "Nail care", "Callus removal", "Orthotics fitting", "Diabetic foot check"],
   wellness_center: ["Consultation", "Massage", "Acupuncture", "IV drip", "Membership"],
-  veterinary_care: ["Wellness exam", "Vaccinations", "Dental cleaning", "Spay or neuter", "Sick visit", "Microchip"],
+  veterinary_care: ["Wellness exam", "Vaccinations", "Dental cleaning", "Spay or neuter", "Sick visit", "Microchip"], // trade-word: a vet's own service, suggested only where Google lists a vet
   pet_care: ["Full groom", "Bath and brush", "Nail trim", "Boarding", "Daycare", "Dog walking"],
   fitness_center: ["Personal training", "Group class", "Membership", "Day pass", "Nutrition coaching"],
   yoga_studio: ["Drop-in class", "Class pack", "Private session", "Beginners series", "Membership"],

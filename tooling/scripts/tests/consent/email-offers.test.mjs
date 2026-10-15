@@ -361,7 +361,7 @@ test("an unsubscribe is the strictest reason after a stop; the words for every p
   }
   assert.match(heldWords("no_address", "marketing"), /^No email address on file/);
   assert.equal(HELD_REASONS.unsubscribed, "unsubscribed");
-  assert.match(PURPOSE_REFUSALS.unsubscribed, /replies and messages about their visits still can/);
+  assert.match(PURPOSE_REFUSALS.unsubscribed, /replies, reminders and confirmations still can/);
   for (const reason of ["email_offers_paused", "email_marketing_disabled", "outreach_without_unsubscribe"]) {
     assert.ok(PURPOSE_REFUSALS[reason] && HELD_REASONS[reason], `${reason} has words in both places`);
   }

@@ -233,7 +233,7 @@ export const ALERT_TOPICS: readonly AlertTopic[] = [
     key: "sweep",
     group: "worth_knowing",
     title: "Sending is paused",
-    what: "Offers and news by email, or a mailbox your reach-outs write from, are held after bounces or complaints, or when its provider signs it out, and you are told. Messages about a visit and everything on WhatsApp go on.",
+    what: "Offers and news by email, or a mailbox your reach-outs write from, are held after bounces or complaints, or when its provider signs it out, and you are told. Reminders, confirmations and everything on WhatsApp go on.",
     email: "choice",
     phone: false,
     kinds: ["sweep"],
