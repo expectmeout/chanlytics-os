@@ -73,7 +73,7 @@ export type {
   SequenceHeldVM,
   SequenceNeedsVM,
 } from "./sequence-tab-words";
-export { SEQUENCE_ACT_WORDS, SEQUENCE_CARD_WORDS, sequenceRunsNow, sequenceResumeAsk } from "./sequence-acts";
+export { SEQUENCE_ACT_WORDS, sequenceRunsNow, sequenceResumeAsk } from "./sequence-acts";
 export type { SequenceResumeAsk } from "./sequence-acts";
 export {
   SEQUENCES_ROUTE,

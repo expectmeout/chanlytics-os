@@ -39,7 +39,7 @@ import {
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
 const POLICY = JSON.parse(fs.readFileSync(path.join(ROOT, "tooling/scripts/tests/route-policy.json"), "utf8")).routes;
 
-/** The twenty-two kinds, in AskProposal's order, and one no card has (people_search, the people card's, 00430). */
+/** The twenty-one kinds, in AskProposal's order, and one no card has (people_search, the people card's, 00430). */
 const KINDS = [
   "reply",
   "steer",
@@ -62,7 +62,6 @@ const KINDS = [
   "playbook_channels",
   "playbook_change",
   "message",
-  "sequence",
   "teleport",
 ];
 
@@ -91,7 +90,6 @@ test("the gate each kind checks before Approve is the one it checked at a993b71d
     playbook_channels: "approve",
     playbook_change: "approve",
     message: "approve",
-    sequence: "approve",
   });
 });
 
@@ -141,7 +139,6 @@ const UNDO_OPEN = {
   playbook_channels: "000000000 111111000 111111000 111111000 111111000 111111000 111111000 111111000",
   playbook_change: "000000000 111111000 111111000 111111000 111111000 111111000 111111000 111111000",
   message: "000000000 111111000 111111000 111111000 111111000 111111000 111111000 111111000",
-  sequence: "000000000 111111000 111111000 111111000 111111000 111111000 111111000 111111000",
   teleport: "000000000 111111000 111111000 111111000 111111000 111111000 111111000 111111000",
 };
 
@@ -238,8 +235,6 @@ const OPEN = {
   playbook_change: "outbound",
   // The Library, which gives one message no address of its own: before Approve and after it.
   message: "messages",
-  // None of the table's payloads names a sequence: nowhere. With one, its record (contracts sequenceRoute).
-  sequence: null,
   teleport: [null, null, "inbox/th-c1", null, null, "inbox/th-c1", null, null, null, null, null, null, null, null],
 };
 
@@ -358,19 +353,6 @@ const SHAPES = {
       versions: { whatsapp: { body: "Hi {{1}}" }, email: { subject: "Hi", body: "Hi {{1}}" } },
       slots: [{ position: 1, label: "First name", example: "Dani", kind: "first_name" }],
     }),
-  ],
-  // A sequence's step added, its words, and one taken away: the page's own verbs, by the card's op.
-  sequence: [
-    card("sequence", {
-      sequence_id: "q1",
-      op: "step",
-      after_days: 7,
-      only_if: ["no_booking"],
-      template_id: "t1",
-      params: [],
-    }),
-    card("sequence", { sequence_id: "q1", op: "words", step_id: "s2", template_id: "t1", params: [] }),
-    card("sequence", { sequence_id: "q1", op: "remove", step_id: "s2" }),
   ],
 };
 
@@ -505,8 +487,8 @@ test("Ask's new campaign opens its drawer once it is made, by the id the route a
   });
 });
 
-test("the twenty-two kinds each have a spec, and every route a spec names is a route the app has", () => {
-  assert.deepEqual(Object.keys(PROPOSAL_SPECS), KINDS.slice(0, 22));
+test("the twenty-one kinds each have a spec, and every route a spec names is a route the app has", () => {
+  assert.deepEqual(Object.keys(PROPOSAL_SPECS), KINDS.slice(0, 21));
   const named = Object.fromEntries(
     Object.keys(PROPOSAL_SPECS).map((k) => [k, [...new Set(routesOf(k).map((x) => x.route))].sort()]),
   );
@@ -539,11 +521,6 @@ test("the twenty-two kinds each have a spec, and every route a spec names is a r
     playbook_channels: ["PUT playbooks/[id]"],
     playbook_change: ["PUT playbooks/[id]"],
     message: ["DELETE templates/versions/[id]", "POST templates/message"],
-    sequence: [
-      "DELETE sequences/[id]/steps/[step]",
-      "POST sequences/[id]/steps",
-      "POST sequences/[id]/steps/[step]/words",
-    ],
   });
   for (const routes of Object.values(named)) for (const r of routes) assert.ok(ROUTE_KEYS.includes(r), r);
 });

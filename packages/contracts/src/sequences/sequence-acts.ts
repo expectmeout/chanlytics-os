@@ -9,7 +9,6 @@ import type { LifecyclePlaybooks } from "../playbooks/lifecycle/lifecycle-types"
 import { LIFECYCLE_WORDS } from "../playbooks/lifecycle/lifecycle-words";
 import { campaignRunsOn } from "../playbooks/playbook-schedule";
 import type { SequenceRowDto } from "./sequence-dto";
-import { SEQUENCE_EDIT_WORDS } from "./sequence-tab-words";
 
 /** The head's words past its one act. */
 export const SEQUENCE_ACT_WORDS = {
@@ -67,21 +66,3 @@ export function sequenceResumeAsk(
   const detail = row.starts === "leads" ? W.chain : first ? resumeDetailOf(first, { ...at, paused }) : null;
   return { question: SEQUENCE_ACT_WORDS.resumeAsk(row.name), detail, yes: SEQUENCE_ACT_WORDS.resumeYes };
 }
-
-/** What must still hold for a step after the first to go, as the editor offers it ("If they haven't booked"). */
-function stepHoldWords(onlyIf: readonly string[]): string {
-  const H = SEQUENCE_EDIT_WORDS.holds;
-  const booking = onlyIf.includes("no_booking");
-  const reply = onlyIf.includes("no_reply");
-  return booking && reply ? H.neither : booking ? H.no_booking : reply ? H.no_reply : H.always;
-}
-
-/** Ask's card for a sequence (contracts sequenceCardSpec): its title by its op, and what a step's wait says. */
-export const SEQUENCE_CARD_WORDS = {
-  add: (place: number, name: string) => `Add step ${place} to ${name}`,
-  wait: (place: number, name: string) => `Change step ${place} of ${name}`,
-  words: (place: number, name: string) => `New words for step ${place} of ${name}`,
-  remove: (place: number, name: string) => `Take step ${place} of ${name} away`,
-  after: (days: number, onlyIf: readonly string[]) =>
-    `${SEQUENCE_EDIT_WORDS.days(days)} after the step before · ${stepHoldWords(onlyIf)}`,
-} as const;

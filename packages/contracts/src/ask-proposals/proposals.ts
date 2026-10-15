@@ -24,7 +24,6 @@ import {
   messageSpec,
   playbookChangeSpec,
   playbookChannelsSpec,
-  playbookRunSpec,
   playbookSpec,
   runSpec,
 } from "./campaigns";
@@ -41,7 +40,6 @@ import {
 } from "./people-verbs";
 import { dealSpec, noteSpec, personDetailsSpec, personModeSpec } from "./person";
 import {
-  sequenceCardSpec,
   sequenceDiscardSpec,
   sequenceDraftSpec,
   sequenceLeaveSpec,
@@ -79,8 +77,6 @@ export const PROPOSAL_SPECS = {
   playbook_channels: playbookChannelsSpec,
   playbook_change: playbookChangeSpec,
   message: messageSpec,
-  // A sequence that exists, changed by one of its page's own verbs (ask-proposals/sequences.ts).
-  sequence: sequenceCardSpec,
 } satisfies Record<AskProposal["kind"], ProposalSpec>;
 
 /**
@@ -98,8 +94,6 @@ const VERB_SPECS = /* @__PURE__ */ (() => ({
   person_add: personAddSpec,
   person_merge: personMergeSpec,
   list_member: listMemberSpec,
-  // A campaign run now at the member's request: Run now, under a sequence's More.
-  playbook_run: playbookRunSpec,
   // The Sequences page's own (decision 0060, ask-proposals/sequences.ts).
   sequence_step: sequenceStepSpec,
   sequence_step_remove: sequenceStepRemoveSpec,

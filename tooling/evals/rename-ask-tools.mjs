@@ -43,7 +43,6 @@ export const ADDED_SINCE = [
   "propose_campaign.message",
   "propose_campaign.plan",
   "propose_campaign.run",
-  "propose_campaign.sequence",
   "propose_list",
   "propose_person.details",
   "propose_person.note",

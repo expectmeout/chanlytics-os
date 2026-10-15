@@ -1,7 +1,6 @@
 import "server-only";
 import { z } from "zod";
 import {
-  FOLLOW_UP_CONDITIONS,
   LIFECYCLE_WORDS,
   PLAN_WORDS,
   PLAYBOOK_CARD_REFUSALS,
@@ -12,10 +11,6 @@ import {
   PLAYBOOK_PATCH_WORDS,
   PLAYBOOK_STATES,
   PLAYBOOK_VETO_DELAY_WORDS,
-  SEQUENCE_CARD_WORDS,
-  SEQUENCE_EDIT_WORDS,
-  SEQUENCE_FLOW_WORDS,
-  SEQUENCE_WAIT_DAYS,
   campaignDayWords,
   effectiveMode,
   isPlaybookState,
@@ -23,28 +18,13 @@ import {
   planRun,
   trialDayWords,
   triggerOf,
-  type FollowUpCondition,
   type PlaybookPatch,
   type PlaybookPolicyClass,
-  type SequenceRecordDto,
-  type SequenceStepDto,
 } from "@chanlytics/contracts";
 import { checkPlaybookPatch, untilOf } from "@chanlytics/core";
 import { listPolicies, playbookForChange } from "@chanlytics/db";
 import { playbookPatchPorts } from "../../../campaigns/playbooks";
-import { load } from "../../../readers";
-import { sequence } from "../../../readers/sequences";
-import {
-  UUID,
-  actAction,
-  propose,
-  refuse,
-  stepNamed,
-  str,
-  unlessNotFound,
-  type ProposalOutcome,
-  type ToolContext,
-} from "../context";
+import { UUID, actAction, propose, refuse, stepNamed, str, type ProposalOutcome, type ToolContext } from "../context";
 import { paramSpecsOf } from "./playbook";
 import { MODE_WORDS } from "./playbook-card";
 
@@ -244,166 +224,4 @@ export const playbookChangeAction = actAction({
   label: "Preparing a campaign's change",
   words: `Action change takes playbook_id, a playbook that exists, as ${PLAYBOOK_FROM} gives it (or the page's rows), and only what they asked to change: state (paused stops its next runs; running starts them again under its class's autonomy mode), name (at most ${PLAYBOOK_NAME_MAX} characters), run_hour (${PLAYBOOK_LIMITS.run_hour.min} to ${PLAYBOOK_LIMITS.run_hour.max} by the business's clock), cap_per_run (${PLAYBOOK_LIMITS.cap_per_run.min} to ${PLAYBOOK_LIMITS.cap_per_run.max} people a run), gap_days (${PLAYBOOK_LIMITS.gap_days.min} to ${PLAYBOOK_LIMITS.gap_days.max} days before a person is reached again), cadence_days (${PLAYBOOK_LIMITS.cadence_days.min} to ${PLAYBOOK_LIMITS.cadence_days.max}, the month's offer alone), params (its message's values in order, as action playbook takes them: new text in the same message, never a new message), until (its last day, YYYY-MM-DD by the business's clock, today or later; it runs nothing after) or trial_until (an ISO time still to come, with its offset, until which each run its class would send on its own waits ${PLAYBOOK_VETO_DELAY_WORDS} for a Stop, or null to end its trial now). Nothing else about it moves: its moment, message and list are its drawer's, and its channels are action channels'. A run already waiting for approval stays waiting after a pause, and the card says so: propose action run with verb skip beside it when they want that run gone. A reach-out's step, a value outside its bounds and a playbook that already reads so are refused in words.`,
   build: proposePlaybookChange,
-});
-
-/* ------------------------------------------------ a sequence's steps (decision 0060; the parity review's W1) */
-
-/** Where a sequence's id and its steps' ids are read, said as the model calls it. */
-const SEQUENCE_FROM = "campaigns with action sequence";
-
-/**
- * What the model asks, in as few fields as the tools block holds (its ceiling): a step named, or none for a new one at
- * the end; its wait, its words, or `remove`. The card says which of the page's verbs it is by its `op`.
- */
-type SequenceAsked = {
-  sequence_id: string;
-  step_id?: string;
-  after_days?: number;
-  only_if?: string[];
-  template_id?: string;
-  params?: string[];
-  remove?: boolean;
-};
-
-const isCondition = (c: string): c is FollowUpCondition => (FOLLOW_UP_CONDITIONS as readonly string[]).includes(c);
-
-/** A wait in days the door takes (00441: one to ninety), or a refusal in the model's words. */
-const waitOf = (days: number | undefined): number | string | null =>
-  days === undefined
-    ? null
-    : Number.isInteger(days) && days >= SEQUENCE_WAIT_DAYS.min && days <= SEQUENCE_WAIT_DAYS.max
-      ? days
-      : `after_days is ${SEQUENCE_WAIT_DAYS.min} to ${SEQUENCE_WAIT_DAYS.max} whole days`;
-
-/** The step's message and its values as the door stores them (act/playbook.ts paramSpecsOf), or a refusal. */
-function stepWordsOf(input: SequenceAsked): { template_id: string; params: unknown[] } | string {
-  const template = str(input.template_id, 40);
-  if (!UUID.test(template)) return "template_id must be a message's id, as campaigns with action audiences lists it";
-  const specs = paramSpecsOf(input.params ?? []);
-  return "refusal" in specs ? specs.refusal : { template_id: template, params: specs.specs };
-}
-
-/** What a sequence card is asked over: the sequence read as its record reads it, the step named, and its wait. */
-interface SequenceAsk {
-  input: SequenceAsked;
-  row: SequenceRecordDto["sequence"];
-  steps: SequenceStepDto[];
-  step: SequenceStepDto | null;
-  wait: number | null;
-  onlyIf: FollowUpCondition[] | undefined;
-}
-
-const CARD = SEQUENCE_CARD_WORDS;
-
-/** A step after the first taken away, with the steps after it. */
-function proposeStepRemove({ row, step }: SequenceAsk): ProposalOutcome {
-  if (!step || step.place === 1) return refuse("say which step after the first to take away, by its step_id");
-  return propose({
-    kind: "sequence",
-    title: CARD.remove(step.place, row.name),
-    summary: SEQUENCE_FLOW_WORDS.takeAwayDetail,
-    payload: { sequence_id: row.id, op: "remove", step_id: step.id },
-  });
-}
-
-/** A step's new message: at once, or waiting for WhatsApp while the step sends its own. Its wait is another card. */
-function proposeStepWords({ input, row, step, wait, onlyIf }: SequenceAsk): ProposalOutcome {
-  if (!step) return refuse("say which step takes the new words, by its step_id");
-  if (wait !== null || onlyIf) return refuse("change a step's words and its wait in two cards, one at a time");
-  const words = stepWordsOf(input);
-  if (typeof words === "string") return refuse(words);
-  return propose({
-    kind: "sequence",
-    title: CARD.words(step.place, row.name),
-    summary: `${SEQUENCE_EDIT_WORDS.reaches(step.place === 1)} · ${SEQUENCE_EDIT_WORDS.whatsAppFirst}`,
-    payload: { sequence_id: row.id, op: "words", step_id: step.id, ...words },
-  });
-}
-
-/** A step after the first given a new wait, or a new condition: what reaches everyone who gets the step before from now. */
-function proposeStepWait({ row, step, wait, onlyIf }: SequenceAsk & { step: SequenceStepDto }): ProposalOutcome {
-  if (step.place === 1) return refuse("the first step goes at its moment and has no wait: change its hour on the page");
-  if (wait === null && onlyIf === undefined) return refuse("say the step's new after_days or only_if");
-  return propose({
-    kind: "sequence",
-    title: CARD.wait(step.place, row.name),
-    summary: `${CARD.after(wait ?? step.after_days ?? 1, onlyIf ?? step.only_if)} · ${SEQUENCE_EDIT_WORDS.reaches(false)}`,
-    payload: {
-      sequence_id: row.id,
-      op: "step",
-      step_id: step.id,
-      ...(wait !== null ? { after_days: wait } : {}),
-      ...(onlyIf ? { only_if: onlyIf } : {}),
-    },
-  });
-}
-
-/** A step at the end, with its message, its wait (three days unless said) and what must still hold (no booking). */
-function proposeStepAdd({ input, row, steps, wait, onlyIf }: SequenceAsk): ProposalOutcome {
-  const words = stepWordsOf(input);
-  if (typeof words === "string") return refuse(words);
-  const days = wait ?? 3;
-  const holds = onlyIf ?? ["no_booking"];
-  return propose({
-    kind: "sequence",
-    title: CARD.add(steps.length + 1, row.name),
-    summary: CARD.after(days, holds),
-    payload: { sequence_id: row.id, op: "step", after_days: days, only_if: holds, ...words },
-  });
-}
-
-/**
- * A sequence that exists, changed by one of its page's own verbs: a step after the first added at the end, or its wait
- * changed (op step), a step given new words (op words), or a step after the first taken away with the steps after it
- * (op remove). It reads the sequence as its record does (readers/sequences.ts), so a step is named by the id the read
- * gave, and what the door would refuse (a sequence that takes no steps, the first step's wait, a wait out of bounds) is
- * refused here in words; the door judges the message against its values as the page's editor does. Its state, name and a
- * batch's OK are action change's and action run's.
- */
-async function proposeSequence(t: ToolContext, input: SequenceAsked): Promise<ProposalOutcome> {
-  const id = str(input.sequence_id, 40).toLowerCase();
-  if (!UUID.test(id)) return refuse(`sequence_id must be a sequence's id, as ${SEQUENCE_FROM}s gives it`);
-  const read = await unlessNotFound(load(t.rc, sequence, { id }));
-  if (!read) return refuse(`no such sequence in this workspace; ${SEQUENCE_FROM}s names them`);
-  noteRows(t.read, read.rows);
-  const { sequence: row, steps } = read.data;
-  if (row.starts !== "moment" && row.starts !== "list")
-    return refuse("only a customer's sequence, on a moment or a list, takes steps after its first; say so");
-  const named = input.step_id ? str(input.step_id, 40).toLowerCase() : null;
-  const step = named ? (steps.find((s) => s.id === named) ?? null) : null;
-  if (named && !step) return refuse(`step_id must be one of its steps' step_id, as ${SEQUENCE_FROM} gives them`);
-  const wait = waitOf(input.after_days);
-  if (typeof wait === "string") return refuse(wait);
-  if (input.only_if && !input.only_if.every(isCondition))
-    return refuse(`only_if holds ${FOLLOW_UP_CONDITIONS.join(" or ")}, or both`);
-  const onlyIf = input.only_if ? [...new Set(input.only_if.filter(isCondition))] : undefined;
-  const ask: SequenceAsk = { input, row, steps, step, wait, onlyIf };
-  if (input.remove) return proposeStepRemove(ask);
-  if (step && input.template_id) return proposeStepWords(ask);
-  return step ? proposeStepWait({ ...ask, step }) : proposeStepAdd(ask);
-}
-
-/** A sequence that exists, changed: propose_campaign's action sequence. */
-export const sequenceAction = actAction({
-  kind: "sequence",
-  input: z.object({
-    sequence_id: z.string(),
-    step_id: z.string().optional(),
-    after_days: z.number().optional(),
-    only_if: z.array(z.string()).optional(),
-    template_id: z.string().optional(),
-    params: z.array(z.string()).optional(),
-    remove: z.boolean().optional(),
-  }),
-  label: "Preparing a sequence's change",
-  examples: [
-    {
-      sequence_id: "f6a7b8c9-d0e1-4f2a-8b3c-4d5e6f7a8b9c",
-      after_days: 7,
-      only_if: ["no_booking"],
-      template_id: "d4e5f6a7-b8c9-4d0e-9f1a-2b3c4d5e6f70",
-    },
-  ],
-  words: `Action sequence changes a customer's sequence (ids from ${SEQUENCE_FROM}): a step's after_days (${SEQUENCE_WAIT_DAYS.min} to ${SEQUENCE_WAIT_DAYS.max}), only_if (${FOLLOW_UP_CONDITIONS.join(", ")}), template_id and params, or remove true; no step_id adds one.`,
-  build: proposeSequence,
 });
