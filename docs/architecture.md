@@ -702,6 +702,7 @@ packages/contracts/src/
   ai/
   ask/
   ask-proposals/
+  ask-skills/
   broadcasts/
   calendar/
   config/

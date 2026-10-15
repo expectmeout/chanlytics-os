@@ -26805,6 +26805,546 @@ var ASK_PAGE_ONLY_VERBS = {
   sequence_draft: WHY.draft
 };
 
+// src/ask-skills/skill.ts
+var SKILL_CRAFT_PURPOSES = ["message_draft"];
+var SKILL_CRAFT_MAX_TOKENS = 8e3;
+var skillBullets = (lines) => lines.map((l) => `- ${l}`).join("\n");
+function craftSystem(skill) {
+  return [
+    skill.role,
+    `What you write:
+${skillBullets(skill.when.jobs)}`,
+    ...skill.rules.map((s) => `${s.title}:
+${skillBullets(s.lines)}`),
+    `Never:
+${skillBullets(skill.never)}`,
+    ...skill.examples.map((e, i) => `Example ${i + 1}, ${e.title}.
+Given:
+${e.given}
+A good answer:
+${e.answer}`),
+    DATA_NOT_INSTRUCTIONS
+  ].join("\n\n");
+}
+var SKILL_GUIDE_MAX = 1200;
+function guideBlock(skill) {
+  return [`Skill: ${skill.title}. It is used for: ${skill.when.jobs.join(" ")}`, skillBullets(skill.guide)].join("\n");
+}
+
+// src/ask-skills/customer-message/skill.ts
+var CUSTOMER_MESSAGE_SKILL = {
+  id: "customer_message",
+  title: "Customer message writer",
+  role: "You write the messages a small business sends its own customers on WhatsApp, by email and by text: the words they read under the business's name. You are handed the business, the message it wants (its kind, its language, its values) and a first draft of it. You write it again, as well as it can be written, every version the draft has, in its language, and answer in the JSON asked for.",
+  when: {
+    jobs: [
+      "A new message for the business's Library, on WhatsApp, by email or by text, in English or Spanish.",
+      "An offer, news, an invitation back, a thank-you, a reminder, or a request for a review.",
+      "The message a plan writes for its offers, which later offers reuse."
+    ],
+    asked: /\b(?:write|draft|compose|rewrite|redo|make|create|prepare)\b[^.?!]{0,60}\b(?:message|text|sms|e-?mail|whatsapp|offer|promo(?:tion)?|announcement|win-?back|reminder|newsletter|campaign)s?\b|\b(?:escr[ií]be(?:me|le|les)?|redacta|prepara|crea|haz(?:me)?)\b[^.?!]{0,60}\b(?:mensajes?|textos?|sms|correos?|whatsapp|ofertas?|promoci[oó]n(?:es)?|campañas?|recordatorios?|anuncios?)\b/i
+  },
+  rules: [
+    {
+      title: "The draft and its facts",
+      lines: [
+        "The draft says what the owner wants said. Keep every fact in it: the offer and its exact figure, the days, the service, who it is for. Add none.",
+        "A thin draft becomes a fuller message from the same facts, never from new ones.",
+        "Its kind (marketing or utility), its language and its values are decided: write within them.",
+        "Call an offer what the draft calls it. Words such as discount, coupon, promotion or free appear only where the draft has them."
+      ]
+    },
+    {
+      title: "Every version",
+      lines: [
+        "One message, one purpose, one call to act, said once: pick a time with the booking link, reply with a day, or leave a review.",
+        "Open with their first name where a value carries it, then the point, in the first sentence. No 'Dear valued customer', no 'We hope this finds you well'.",
+        "Short sentences and plain words, the way the business writes to someone it knows.",
+        "The business's tone line decides warmth, formality, exclamation marks and emoji. With no tone line: warm, brief and plain, at most one exclamation mark.",
+        "At most one emoji, only where the tone allows it, never in place of a word, never in an email's subject.",
+        "No capitals for emphasis. STOP is the only word in capitals.",
+        "Where the message speaks of a booking, use the business's own word for one (given below), or 'booking'.",
+        "Write each value exactly as given, {{1}}, {{2}}, with its number, meaning what it is said to mean. Never type a value's words yourself (no link, no name, no time), never a {{n}} you were not given, never braces for anything else.",
+        "A link or a contact reaches the message only through a value. Never type a web address, a phone number or an email address."
+      ]
+    },
+    {
+      title: "WhatsApp",
+      lines: [
+        "WhatsApp's reviewers read it before it can be sent; then the customer reads it on their phone.",
+        "Under 600 characters reads best; never over 1,024.",
+        "Every value given appears in it, with words around it: never at the very start or the very end, never two values side by side.",
+        "Marketing (an offer, news, an invitation): its last line, after a blank line, is exactly the opt-out line given, and nothing follows it.",
+        "Utility (about their own booking, order or account): about that one thing. No offer, no news, no 'while you are here', no opt-out line. WhatsApp moves a utility message that promotes anything to marketing, or refuses it.",
+        "Specific: its point is in its own words, never only in its values. Line breaks between ideas, never more than one blank line in a row."
+      ]
+    },
+    {
+      title: "Email",
+      lines: [
+        "Subject: under 60 characters, says what the email is about, specific, with no emoji, no '!!!' and no 'Re:'.",
+        "Body: a greeting, two or three short paragraphs, the call to act on a line of its own, and the business's name to sign off (by its value where one is given).",
+        "The sender adds the footer and, under an offer, the unsubscribe link: never write your own, and never write STOP."
+      ]
+    },
+    {
+      title: "Text",
+      lines: [
+        "The sender adds the STOP line under every text: never write STOP or how to opt out.",
+        "Keep it to the room given for it, which counts the values at a typical length and the STOP line, so it goes as one part.",
+        "A curly quote, an emoji, or a letter such as \xE1, \xED, \xF3 or \xFA sends the whole text in a larger alphabet with 70 characters to a part: in Spanish keep it short enough for that, and in English use straight quotes and no emoji.",
+        "Name the business in its first words, by its value or by its name, so they know who wrote.",
+        "A text never carries an offer: the business texts only about bookings and accounts."
+      ]
+    },
+    {
+      title: "English and Spanish",
+      lines: [
+        "Write in the language asked, as someone from there writes to a customer, never word for word from another language.",
+        "Spanish: neutral for Latin America and the US unless the business's own words say otherwise. T\xFA unless the tone is formal, then usted, and one of them throughout. Opening and closing marks on questions and exclamations (\xBF\u2026?, \xA1\u2026!).",
+        "English: US spelling unless the business's own words use another."
+      ]
+    },
+    {
+      title: "When you cannot",
+      lines: [
+        "Where the draft asks for something these rules forbid (a promotion in a utility message, an offer in a text), write the closest message the rules allow and say what you left out in could_not, in one short sentence for the owner. Leave could_not empty when everything fit.",
+        "Leave a version the draft does not have empty: its body (and an email's subject) an empty string."
+      ]
+    }
+  ],
+  never: [
+    "A price, a percentage, a discount, a free thing, a date, a deadline, a countdown, a number of places left or a promise the draft does not hold.",
+    "A number the draft does not hold, written in figures or in words.",
+    "A claim about health, results or safety.",
+    "Asking for a card number, a password or any payment detail.",
+    "A web address, a phone number or an email address typed in.",
+    "A person's name as the signer, or anyone but the business.",
+    "Pressure ('don't miss out', 'last chance', 'hurry'), unless the draft's own deadline is real and then said once, plainly.",
+    "A value moved to a new number, added, or left out of the WhatsApp version."
+  ],
+  examples: [
+    {
+      title: "an invitation back, marketing, English, WhatsApp and email",
+      given: [
+        "Tone: Warm and brief. Friendly, a sentence or two at a time.",
+        "Values: {{1}} their first name; {{2}} the business's name; {{3}} the booking link.",
+        "Opt-out line: Reply STOP to opt out",
+        "Draft WhatsApp: Hi {{1}}, it's been a while since we saw you at {{2}}. We'd love to see you again! Book here: {{3}} Reply STOP to opt out.",
+        "Draft email: subject 'We miss you'; body 'Hi {{1}}, it's been a while. Book again here: {{3}}'"
+      ].join("\n"),
+      answer: [
+        "WhatsApp: Hi {{1}}, it's been a while since we've seen you at {{2}}, and we've missed having you in.\\n\\nWhenever you're ready, pick a time that suits you here: {{3}}\\n\\nReply STOP to opt out",
+        "Email subject: We've missed you at {{2}}",
+        "Email body: Hi {{1}},\\n\\nIt's been a while since we've seen you, and we've missed having you in.\\n\\nWhenever you're ready, pick a time that suits you:\\n{{3}}\\n\\nSee you soon,\\n{{2}}",
+        "could_not: (empty)"
+      ].join("\n")
+    },
+    {
+      title: "a reminder, utility, Spanish, WhatsApp and text",
+      given: [
+        "Tone: Formal y directo, de usted, sin signos de exclamaci\xF3n.",
+        "The business calls a booking: appointment (in Spanish, cita).",
+        "Values: {{1}} their first name; {{2}} the business's name; {{3}} their booked time.",
+        "Text room: about 75 characters besides its values.",
+        "Draft WhatsApp: Hola {{1}}! Te esperamos en {{2}} el {{3}}. Aprovecha y pregunta por nuestras novedades!",
+        "Draft text: Hola {{1}}, recuerda tu cita en {{2}} el {{3}}."
+      ].join("\n"),
+      answer: [
+        "WhatsApp: Hola {{1}}, le recordamos su cita en {{2}} el {{3}}.\\n\\nSi necesita cambiarla, responda a este mensaje y le ofrecemos otro horario.",
+        "Text: {{2}}: {{1}}, le recordamos su cita el {{3}}. Para cambiarla, responda a este mensaje.",
+        "could_not: Dej\xE9 fuera la invitaci\xF3n a preguntar por novedades: un recordatorio no puede promocionar nada."
+      ].join("\n")
+    },
+    {
+      title: "the offer message a plan reuses, marketing, English, WhatsApp",
+      given: [
+        "Tone: (none set)",
+        "Values: {{1}} their first name; {{2}} the business's name; {{3}} typed for each send, 'The offer', a sentence such as 'A free consultation with any booking this week.'; {{4}} the booking link.",
+        "This message is reused for every later offer: write around {{3}}, never about one offer.",
+        "Opt-out line: Reply STOP to opt out",
+        "Draft WhatsApp: Hi {{1}}, an offer from {{2}}: {{3}} Book here: {{4}} or reply with a day that suits you.\\n\\nReply STOP to opt out"
+      ].join("\n"),
+      answer: [
+        "WhatsApp: Hi {{1}}, something from all of us at {{2}}: {{3}}\\n\\nPick a time here: {{4}}, or reply with a day that suits you.\\n\\nReply STOP to opt out",
+        "could_not: (empty)"
+      ].join("\n")
+    }
+  ],
+  guide: [
+    "propose_sequence's action message (and a plan's message) is rewritten by this skill before its card is shown: the versions you write are its first draft.",
+    "Spend your care on the facts: the offer in the owner's own words and figures, its days, who it is for. Never a price, a discount or a date they did not give.",
+    "Decide its kind: marketing for an offer, news or an invitation; utility only for their own booking, order or account, and it promotes nothing.",
+    "Choose its channels and values: WhatsApp and email for an offer, never a text; first_name to greet, booking_link or review_link for the one call to act.",
+    "Write the language their customers read (en or es); another language is another card under the same name."
+  ],
+  craft: { effort: "high", maxTokens: 8e3, purpose: "message_draft" }
+};
+
+// src/ask-skills/registry.ts
+var ASK_SKILLS = { customer_message: CUSTOMER_MESSAGE_SKILL };
+var ASK_SKILL_IDS = Object.keys(ASK_SKILLS);
+function skillGuide(id) {
+  return guideBlock(ASK_SKILLS[id]);
+}
+function isAskSkillId(v) {
+  return typeof v === "string" && Object.hasOwn(ASK_SKILLS, v);
+}
+function skillsAsked(question) {
+  return ASK_SKILL_IDS.filter((id) => ASK_SKILLS[id].when.asked.test(question));
+}
+
+// src/ask-skills/customer-message/brief.ts
+import { z as z8 } from "zod";
+var CRAFT_CHANNELS = ["whatsapp", "email", "sms"];
+var draftChannels = (b) => CRAFT_CHANNELS.filter((c) => !!b.message.draft[c]);
+function craftValueLength(kind, business) {
+  const typical = {
+    first_name: 9,
+    business_name: business.length,
+    booking_link: 30,
+    review_link: 34,
+    visit_when: 21,
+    visit_service: 20,
+    proposal_link: 30,
+    text: 40
+  };
+  return typical[kind];
+}
+var CRAFT_PART_CHARS = { plain: 160, unicode: 70, unicodeTwo: 134 };
+function textRoom(b) {
+  const stop = 1 + smsStopLine(b.message.language).length;
+  const values = b.message.values.reduce((n, v) => n + craftValueLength(v.kind, b.business.name), 0);
+  const left = (part) => Math.max(0, part - stop - values);
+  return {
+    plain: left(CRAFT_PART_CHARS.plain),
+    unicode: left(CRAFT_PART_CHARS.unicode),
+    unicodeTwo: left(CRAFT_PART_CHARS.unicodeTwo)
+  };
+}
+function textAsSent(body, b) {
+  const filled = body.replace(/\{\{(\d+)\}\}/g, (slot, n) => {
+    const v = b.message.values.find((x) => x.position === Number(n));
+    return "x".repeat(v ? craftValueLength(v.kind, b.business.name) : slot.length);
+  });
+  return `${filled}
+${smsStopLine(b.message.language)}`;
+}
+var textPartsAllowed = (language) => language === "es" ? 2 : 1;
+var CRAFT_LANGUAGE_WORDS = { en: "English", es: "Spanish" };
+var CRAFT_CATEGORY_WORDS = {
+  marketing: "marketing: an offer, news or an invitation, sent to people who said yes to offers",
+  utility: "utility: about the person's own booking, order or account, promoting nothing"
+};
+function craftValueLine(v) {
+  const what = v.kind === "text" ? `typed for each send, "${v.label}"` : PARAM_SOURCE_LABELS[v.kind].replace(/^\w/, (c) => c.toLowerCase());
+  return `- {{${v.position}}}: ${what}`;
+}
+function craftDraftLines(d) {
+  return [
+    ...d.whatsapp ? [`WhatsApp:
+${d.whatsapp.body}`] : [],
+    ...d.email ? [`Email subject: ${d.email.subject}
+Email body:
+${d.email.body}`] : [],
+    ...d.sms ? [`Text:
+${d.sms.body}`] : []
+  ].join("\n\n");
+}
+function craftRoomLine(b) {
+  const r2 = textRoom(b);
+  const plain2 = `The text's room: about ${r2.plain} characters besides its values for one part in plain characters`;
+  if (b.message.language === "en") return `${plain2}, so no curly quotes and no emoji.`;
+  const accented = r2.unicode >= 30 ? `about ${r2.unicode} with an accent such as \xE1 or an emoji in it` : `with an accent such as \xE1 it cannot be one part: keep it to two, about ${r2.unicodeTwo}`;
+  return `${plain2}; ${accented}.`;
+}
+function messageBriefText(b) {
+  const { business: biz, message: m } = b;
+  const channels = draftChannels(b);
+  const es = m.language === "es";
+  const business = [
+    `The business: ${biz.name}.`,
+    biz.tone ? `Its tone, in its own words: ${biz.tone}` : "It has no tone line.",
+    `It calls a booking: ${biz.word}${es ? " (say it in Spanish)" : ""}.`,
+    ...biz.services.length ? [`Its services: ${biz.services.join(", ")}.`] : [],
+    ...biz.notes.length ? [
+      `Its notes in force, for context only (the message says none of them unless the draft does):
+${fenced("record", biz.notes.map((n) => `- ${n}`).join("\n"))}`
+    ] : []
+  ];
+  const message = [
+    `The message: "${m.name}", ${CRAFT_CATEGORY_WORDS[m.category]}, in ${CRAFT_LANGUAGE_WORDS[m.language]}.`,
+    m.values.length ? `Its values:
+${m.values.map(craftValueLine).join("\n")}` : "It has no values.",
+    ...m.reused ? [
+      "This message is reused for every later offer, each typing its own words into the typed value: write around that value, never about one offer."
+    ] : [],
+    ...m.category === "marketing" && m.draft.whatsapp ? [`The opt-out line: ${smsStopLine(m.language)}`] : [],
+    ...m.draft.sms ? [craftRoomLine(b)] : []
+  ];
+  return [
+    business.join("\n"),
+    message.join("\n"),
+    `The first draft, written by Ask from what the owner asked:
+${fenced("record", craftDraftLines(m.draft))}`,
+    `Write every version the draft has (${channels.join(", ")}), and leave the others empty.`
+  ].join("\n\n");
+}
+var MESSAGE_CRAFT_JSON_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: ["whatsapp", "email", "sms", "could_not"],
+  properties: {
+    whatsapp: {
+      type: "object",
+      additionalProperties: false,
+      required: ["body"],
+      properties: { body: { type: "string" } }
+    },
+    email: {
+      type: "object",
+      additionalProperties: false,
+      required: ["subject", "body"],
+      properties: { subject: { type: "string" }, body: { type: "string" } }
+    },
+    sms: { type: "object", additionalProperties: false, required: ["body"], properties: { body: { type: "string" } } },
+    could_not: { type: "string" }
+  }
+};
+var MessageCraftAnswerSchema = z8.object({
+  whatsapp: z8.object({ body: z8.string() }),
+  email: z8.object({ subject: z8.string(), body: z8.string() }),
+  sms: z8.object({ body: z8.string() }),
+  could_not: z8.string()
+});
+var craftClean = (s) => s.replace(/\r\n/g, "\n").trim();
+function craftedVersions(a, b) {
+  const versions = {};
+  const missing = [];
+  for (const c of draftChannels(b)) {
+    if (c === "email") {
+      const subject = craftClean(a.email.subject).replace(/\s+/g, " ");
+      const body = craftClean(a.email.body);
+      if (subject && body) versions.email = { subject, body };
+      else missing.push(c);
+    } else {
+      const body = craftClean(a[c].body);
+      if (body) versions[c] = { body };
+      else missing.push(c);
+    }
+  }
+  return { versions, missing, couldNot: craftClean(a.could_not) || null };
+}
+
+// src/ask-skills/customer-message/checks.ts
+var CRAFT_SLOT = /\{\{(\d+)\}\}/g;
+var craftWithoutSlots = (s) => s.replace(CRAFT_SLOT, " ");
+var craftFigures = (s) => craftWithoutSlots(s).match(/\d+(?:[.,:]\d+)*/g) ?? [];
+var CRAFT_FREE = /\b(?<!feel )free\b(?! to\b)|\bgratis\b|\bgratuit[oa]s?\b/i;
+var CRAFT_CONTACT = /https?:\/\/|\bwww\.|[\w.+-]+@[\w-]+\.[a-z]{2,}|\+?\d[\d ().-]{7,}\d/i;
+var CRAFT_CAPS = /(?<![\p{L}\d])[\p{Lu}]{4,}(?![\p{L}\d])/gu;
+var CRAFT_PICTOGRAPH = /\p{Extended_Pictographic}/u;
+var CRAFT_UNSUBSCRIBE = /\bunsubscribe\b|\bdar(?:te|se) de baja\b/i;
+var CRAFT_STOP = /\bSTOP\b/;
+function craftAllWords(v) {
+  return [v.whatsapp?.body, v.email?.subject, v.email?.body, v.sms?.body].filter(Boolean).join("\n");
+}
+function craftWordsOf(v, c) {
+  if (c === "email") return v.email ? `${v.email.subject}
+${v.email.body}` : "";
+  return v[c]?.body ?? "";
+}
+function craftBeyondDraft(c, text, draft, b) {
+  const out = [];
+  const at3 = (code2, words3) => out.push({ channel: c, code: code2, words: words3 });
+  if (priceBreach(text, new Set(priceFigures(draft)))) at3("new_price", "a price or a share the draft does not hold");
+  if (namesMoney(text) && !namesMoney(draft) || CRAFT_FREE.test(text) && !CRAFT_FREE.test(draft))
+    at3("new_money", "a discount, a free thing or a payment term the draft does not hold");
+  const known = new Set(craftFigures(draft));
+  const extra = craftFigures(text).filter((n) => !known.has(n));
+  if (extra.length) at3("new_number", `numbers the draft does not hold: ${[...new Set(extra)].join(", ")}`);
+  if (CRAFT_CONTACT.test(craftWithoutSlots(text)))
+    at3("typed_contact", "a link, an email address or a phone number typed in");
+  const own = /* @__PURE__ */ new Set([...b.business.name.split(/\s+/), ...draft.match(CRAFT_CAPS) ?? [], "STOP"]);
+  const loud = (text.match(CRAFT_CAPS) ?? []).filter((w) => !own.has(w));
+  if (loud.length) at3("shouting", `capitals for emphasis: ${[...new Set(loud)].join(", ")}`);
+  return out;
+}
+function craftWhatsappIssues(body, b) {
+  const out = [];
+  const at3 = (code2, words3) => out.push({ channel: "whatsapp", code: code2, words: words3 });
+  const want = b.message.values.map((v) => v.position).sort((x, y) => x - y);
+  const got = placeholdersOf(body);
+  if (got.join(",") !== want.join(","))
+    at3(
+      "values",
+      `values ${got.map((n) => `{{${n}}}`).join(" ") || "none"}, asked ${want.map((n) => `{{${n}}}`).join(" ") || "none"}`
+    );
+  if (/^\s*\{\{\d+\}\}|\{\{\d+\}\}\s*$/.test(body)) at3("value_at_edge", "a value at the very start or end");
+  if (/\}\}\s*\{\{/.test(body)) at3("values_side_by_side", "two values side by side");
+  if (templateBodyTooLong(body)) at3("too_long", "over WhatsApp's 1,024 characters");
+  if (/\n[^\S\n]*\n[^\S\n]*\n/.test(body)) at3("blank_lines", "more than one blank line in a row");
+  const stop = smsStopLine(b.message.language);
+  const last = body.trim().split("\n").at(-1)?.trim().replace(/\.$/, "") ?? "";
+  if (b.message.category === "marketing" && last !== stop) at3("opt_out", `an offer's last line is not "${stop}"`);
+  return out;
+}
+function craftEmailIssues(e) {
+  const out = [];
+  const at3 = (code2, words3) => out.push({ channel: "email", code: code2, words: words3 });
+  if (!e.subject || e.subject.length > EMAIL_SUBJECT_MAX || CRAFT_PICTOGRAPH.test(e.subject))
+    at3("subject", `a subject under ${EMAIL_SUBJECT_MAX} characters, with no emoji`);
+  if (e.body.length > EMAIL_BODY_MAX) at3("too_long", `over ${EMAIL_BODY_MAX} characters`);
+  if (/\n[^\S\n]*\n[^\S\n]*\n/.test(e.body)) at3("blank_lines", "more than one blank line in a row");
+  if (CRAFT_UNSUBSCRIBE.test(e.body) || CRAFT_STOP.test(e.body))
+    at3("stop_written", "a way out of its own: the sender's foot says it");
+  return out;
+}
+function craftTextIssues(body, b) {
+  const out = [];
+  const at3 = (code2, words3) => out.push({ channel: "sms", code: code2, words: words3 });
+  const parts2 = smsSegments(textAsSent(body, b)).segments;
+  const allowed = textPartsAllowed(b.message.language);
+  if (parts2 > allowed) at3("text_parts", `${parts2} parts with its values and the STOP line; at most ${allowed}`);
+  if (CRAFT_STOP.test(body)) at3("stop_written", "STOP written in: the sender adds it");
+  return out;
+}
+function messageCraftIssues(v, b, missing = []) {
+  const out = missing.map((c) => ({ channel: c, code: "missing", words: "left empty" }));
+  const draft = craftAllWords(b.message.draft);
+  const n = b.message.values.length;
+  for (const c of CRAFT_CHANNELS) {
+    const text = craftWordsOf(v, c);
+    if (!text) continue;
+    const outside = placeholdersOf(text).filter((p) => p < 1 || p > n);
+    if (c !== "whatsapp" && outside.length)
+      out.push({
+        channel: c,
+        code: "values",
+        words: `values it was not given: ${outside.map((p) => `{{${p}}}`).join(" ")}`
+      });
+    if (/[{}]/.test(craftWithoutSlots(text)))
+      out.push({ channel: c, code: "braces", words: "braces that are not a value" });
+    if (c === "whatsapp" && v.whatsapp) out.push(...craftWhatsappIssues(v.whatsapp.body, b));
+    if (c === "email" && v.email) out.push(...craftEmailIssues(v.email));
+    if (c === "sms" && v.sms) out.push(...craftTextIssues(v.sms.body, b));
+    if (b.message.category === "utility" && (priceFigures(text).length > 0 || namesMoney(text) || CRAFT_FREE.test(text)))
+      out.push({ channel: c, code: "promotes", words: "a price, a discount or a free thing in a utility message" });
+    out.push(...craftBeyondDraft(c, text, draft, b));
+  }
+  return out;
+}
+
+// src/ask-skills/customer-message/rubric.ts
+import { z as z9 } from "zod";
+var MESSAGE_RUBRIC = [
+  {
+    id: "approvable",
+    hard: true,
+    ask: "WhatsApp's reviewers would approve its WhatsApp version as written, in its kind: its point is in its own words, each value has words around it, it is not vague, misleading or pressuring, and it asks for no payment detail. Pass where it has no WhatsApp version."
+  },
+  {
+    id: "category",
+    hard: true,
+    ask: "Its kind is right for what it says: utility only about the person's own booking, order or account and promoting nothing at all; marketing for an offer, news or an invitation, its WhatsApp version ending on the opt-out line."
+  },
+  {
+    id: "facts",
+    hard: true,
+    ask: "It holds no price, share, discount, free thing, date, deadline, number, promise or claim that the draft does not hold, and leaves out none of the draft's own facts (an offer, its figure, its days, who it is for)."
+  },
+  {
+    id: "one_action",
+    hard: false,
+    ask: "It asks for one thing, once: one call to act, easy to see."
+  },
+  {
+    id: "voice",
+    hard: false,
+    ask: "It reads in the business's voice as its tone line says (warmth, formality, exclamation marks, emoji; warm, brief and plain with no tone line), the way the business writes to someone it knows: never generic, stiff or salesy."
+  },
+  {
+    id: "language",
+    hard: false,
+    ask: "It is natural in its language, never a word-for-word translation: Spanish neutral for Latin America and the US, one register (t\xFA or usted) throughout, with \xBF and \xA1 where they belong; English plain and idiomatic."
+  },
+  {
+    id: "channel_fit",
+    hard: false,
+    ask: "Each version fits its channel: WhatsApp conversational and easy to scan on a phone; an email's subject specific and its body in short paragraphs; a text short, naming the business first."
+  }
+];
+function messageJudgeSystem() {
+  return [
+    "You judge a message a small business will send its own customers, against the brief it was written from. Be strict: a customer reads these words under the business's name, and WhatsApp reviews them before they can be sent.",
+    "Give one verdict for each criterion below, by its id: pass or not, and why in one short line. Judge only what the words say, never what the writer might have meant.",
+    MESSAGE_RUBRIC.map((c) => `- ${c.id}${c.hard ? " (must pass)" : ""}: ${c.ask}`).join("\n"),
+    DATA_NOT_INSTRUCTIONS
+  ].join("\n\n");
+}
+function craftJudgedLines(v, couldNot) {
+  return [
+    ...v.whatsapp ? [`WhatsApp:
+${v.whatsapp.body}`] : [],
+    ...v.email ? [`Email subject: ${v.email.subject}
+Email body:
+${v.email.body}`] : [],
+    ...v.sms ? [`Text (the sender adds its STOP line):
+${v.sms.body}`] : [],
+    ...couldNot ? [`What the writer says it left out: ${couldNot}`] : []
+  ].join("\n\n");
+}
+function messageJudgeQuestion(b, v, couldNot) {
+  return [
+    `The brief the message was written from:
+${messageBriefText(b)}`,
+    `The message to judge:
+${fenced("record", craftJudgedLines(v, couldNot))}`
+  ].join("\n\n");
+}
+var MESSAGE_JUDGE_JSON_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: ["verdicts"],
+  properties: {
+    verdicts: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["id", "pass", "why"],
+        properties: {
+          id: { type: "string", enum: MESSAGE_RUBRIC.map((c) => c.id) },
+          pass: { type: "boolean" },
+          why: { type: "string" }
+        }
+      }
+    }
+  }
+};
+var MessageJudgeAnswerSchema = z9.object({
+  verdicts: z9.array(z9.object({ id: z9.string(), pass: z9.boolean(), why: z9.string() }))
+});
+function messageVerdict(issues, judged2) {
+  const failed = issues.map((i) => `${i.channel} ${i.code}: ${i.words}`);
+  const notes = [];
+  let passed = 0;
+  let of = 0;
+  for (const c of MESSAGE_RUBRIC) {
+    const v = judged2.verdicts.find((x) => x.id === c.id);
+    const ok2 = v?.pass === true;
+    const why = v ? v.why : "the judge gave no verdict";
+    if (c.hard) {
+      if (!ok2) failed.push(`${c.id}: ${why}`);
+    } else {
+      of += 1;
+      if (ok2) passed += 1;
+      else notes.push(`${c.id}: ${why}`);
+    }
+  }
+  return { pass: failed.length === 0, failed, soft: { passed, of }, notes };
+}
+
 // src/shared/html.ts
 var escapeHtml = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 
@@ -27267,8 +27807,8 @@ function toMs(value, params, fallbackTz) {
   }
   const m = /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})?(Z)?$/.exec(v);
   if (!m) return null;
-  const [, y, mo, d, hh, mm, ss, z32] = m;
-  if (z32) return Date.UTC(Number(y), Number(mo) - 1, Number(d), Number(hh), Number(mm), Number(ss ?? 0));
+  const [, y, mo, d, hh, mm, ss, z34] = m;
+  if (z34) return Date.UTC(Number(y), Number(mo) - 1, Number(d), Number(hh), Number(mm), Number(ss ?? 0));
   const tz = zoneOfTzid(params.TZID, fallbackTz);
   return localToUtcMs(tz, Number(y), Number(mo), Number(d), Number(hh), Number(mm)) + Number(ss ?? 0) * 1e3;
 }
@@ -30148,10 +30688,10 @@ function roleTable() {
 }
 
 // src/config/workspace-config/policy-limits-schema.ts
-import { z as z8 } from "zod";
-var PolicyLimitsSchema = z8.object({
-  max_replies_day: z8.number().int().min(1).max(200).optional(),
-  pause_hours: z8.number().int().min(PAUSE_HOURS_MIN).max(PAUSE_HOURS_MAX).optional(),
+import { z as z10 } from "zod";
+var PolicyLimitsSchema = z10.object({
+  max_replies_day: z10.number().int().min(1).max(200).optional(),
+  pause_hours: z10.number().int().min(PAUSE_HOURS_MIN).max(PAUSE_HOURS_MAX).optional(),
   /**
    * How long the receptionist WAITS before its own reply goes out, in ms.
    *
@@ -30160,14 +30700,14 @@ var PolicyLimitsSchema = z8.object({
    * the customer nothing and buys the business a window to redirect the bot
    * before it speaks, rather than apologising for it afterwards.
    */
-  reply_delay_ms: z8.number().int().min(REPLY_DELAY_MIN_MS).max(REPLY_DELAY_MAX_MS).optional(),
+  reply_delay_ms: z10.number().int().min(REPLY_DELAY_MIN_MS).max(REPLY_DELAY_MAX_MS).optional(),
   /**
    * The confidence dial. Under 'auto', a reply the model is less sure about
    * than this waits in the hold window (reply_delay_ms) for a person instead
    * of going straight out — sure enough sends itself, not sure enough waits.
    * 0 or absent means off.
    */
-  min_confidence: z8.number().min(0).max(1).optional(),
+  min_confidence: z10.number().min(0).max(1).optional(),
   /**
    * The day's token budget: model tokens in and out over a rolling 24
    * hours, read from the usage events every reply writes. Over it the
@@ -30175,7 +30715,7 @@ var PolicyLimitsSchema = z8.object({
    * reply cap. 0 or absent is off; a value is at least a thousand, because
    * a budget of ten would be a mute button with a misleading name.
    */
-  max_llm_tokens_day: z8.number().int().min(0).max(5e6).refine((n) => n === 0 || n >= 1e3, "at least 1,000, or 0 to turn it off").optional()
+  max_llm_tokens_day: z10.number().int().min(0).max(5e6).refine((n) => n === 0 || n >= 1e3, "at least 1,000, or 0 to turn it off").optional()
 }).strict();
 
 // src/config/limits.ts
@@ -31697,21 +32237,21 @@ function cannotRows(i) {
 }
 
 // src/config/brain-schema.ts
-import { z as z9 } from "zod";
-var BrainOutputSchema = z9.object({
-  reply: z9.string(),
-  intent: z9.enum(BRAIN_INTENTS).catch("other"),
-  escalate: z9.boolean().catch(false),
-  reason: z9.string().catch("").transform((s) => s.trim().slice(0, 300)),
-  confidence: z9.number().catch(0).transform((n) => Number.isFinite(n) ? Math.min(1, Math.max(0, n)) : 0),
-  facts_used: z9.array(z9.string()).catch([]).transform(
+import { z as z11 } from "zod";
+var BrainOutputSchema = z11.object({
+  reply: z11.string(),
+  intent: z11.enum(BRAIN_INTENTS).catch("other"),
+  escalate: z11.boolean().catch(false),
+  reason: z11.string().catch("").transform((s) => s.trim().slice(0, 300)),
+  confidence: z11.number().catch(0).transform((n) => Number.isFinite(n) ? Math.min(1, Math.max(0, n)) : 0),
+  facts_used: z11.array(z11.string()).catch([]).transform(
     (a) => a.map((s) => s.trim()).filter(Boolean).slice(0, 5).map((s) => s.slice(0, 80))
   ),
-  language: z9.enum(BRAIN_LANGUAGES).catch("other"),
+  language: z11.enum(BRAIN_LANGUAGES).catch("other"),
   // A time the customer picked, where the turn took booking requests (decision 0061): absent from every other answer,
   // and from its record (an absent key stays absent), so a workspace that takes none keeps exactly the record it kept.
-  booking_slot: z9.string().trim().optional().catch(void 0),
-  booking_service: z9.string().trim().optional().catch(void 0)
+  booking_slot: z11.string().trim().optional().catch(void 0),
+  booking_service: z11.string().trim().optional().catch(void 0)
 });
 function parseBrainOutput(raw) {
   let json;
@@ -32842,14 +33382,14 @@ function offerUnsubscribeWords(v, language) {
 }
 
 // src/workspace/event-data.ts
-import { z as z10 } from "zod";
+import { z as z12 } from "zod";
 var SHARED_EVENT_VERSIONS = {
   "contact.added": 1,
   "contact.consent_changed": 1,
   "platform.acted": 1
 };
-var wireText = z10.string();
-var ContactAddedData = z10.looseObject({
+var wireText = z12.string();
+var ContactAddedData = z12.looseObject({
   source: wireText,
   title: wireText.nullish(),
   uid: wireText.nullish(),
@@ -32857,7 +33397,7 @@ var ContactAddedData = z10.looseObject({
   by: wireText.nullish(),
   lead_id: wireText.nullish()
 });
-var ContactConsentChangedData = z10.looseObject({
+var ContactConsentChangedData = z12.looseObject({
   consent: wireText,
   source: wireText,
   purpose: wireText.optional(),
@@ -32869,7 +33409,7 @@ var ContactConsentChangedData = z10.looseObject({
   message_id: wireText.nullish(),
   words: wireText.nullish()
 });
-var PlatformActedData = z10.looseObject({
+var PlatformActedData = z12.looseObject({
   action: wireText,
   by: wireText,
   by_email: wireText.nullish(),
@@ -34968,32 +35508,32 @@ function pipelineBoardMore(n) {
 }
 
 // src/deals/deal-body.ts
-import { z as z11 } from "zod";
-var DealMoveBody = z11.object({
-  stage: z11.enum(DEAL_STAGES),
+import { z as z13 } from "zod";
+var DealMoveBody = z13.object({
+  stage: z13.enum(DEAL_STAGES),
   /** Absent: a new engagement, which starts proposed. Present: the row the page saw, with the version it saw. */
-  deal_id: z11.uuid().optional(),
-  version: z11.number().int().min(1).optional(),
-  service: z11.string().trim().min(1).max(80).optional(),
+  deal_id: z13.uuid().optional(),
+  version: z13.number().int().min(1).optional(),
+  service: z13.string().trim().min(1).max(80).optional(),
   /** An ISO instant with a time (a bare date would land at UTC midnight, the previous evening in the Americas); absent means now. */
-  when: z11.string().refine((s) => /T/.test(s) && Number.isFinite(Date.parse(s)), "when must be an ISO instant with a time").optional(),
-  amount_cents: z11.number().int().min(0).max(1e9).optional(),
-  per: z11.enum(DEAL_PERS).optional(),
-  note: z11.string().trim().max(200).optional(),
+  when: z13.string().refine((s) => /T/.test(s) && Number.isFinite(Date.parse(s)), "when must be an ISO instant with a time").optional(),
+  amount_cents: z13.number().int().min(0).max(1e9).optional(),
+  per: z13.enum(DEAL_PERS).optional(),
+  note: z13.string().trim().max(200).optional(),
   /** Evidence, the consent's shape: the inbound message they said it in, or a note saying where it was signed. */
-  message_id: z11.uuid().optional(),
-  form_note: z11.string().trim().min(1).max(200).optional(),
+  message_id: z13.uuid().optional(),
+  form_note: z13.string().trim().min(1).max(200).optional(),
   /**
    * The proposal's web address (0008), judged by the one normalizer before the door, which holds the stored shape.
    * Blank says nothing, as absent does: an emptied link is `clear`.
    */
-  proposal_url: z11.string().max(600).optional(),
+  proposal_url: z13.string().max(600).optional(),
   /** The last day the proposal stands; null says nothing, as absent does (an emptied day is `clear`). */
-  valid_until: z11.string().refine(isRealDate, "valid_until must be a day, like 2026-09-30").nullable().optional(),
+  valid_until: z13.string().refine(isRealDate, "valid_until must be a day, like 2026-09-30").nullable().optional(),
   /** Why they passed, on a move to lost. */
-  lost_reason: z11.enum(DEAL_LOST_REASONS).optional(),
+  lost_reason: z13.enum(DEAL_LOST_REASONS).optional(),
   /** The fields a person emptied: a move keeps everything it is not told. */
-  clear: z11.array(z11.enum(DEAL_CLEARABLE)).max(DEAL_CLEARABLE.length).optional()
+  clear: z13.array(z13.enum(DEAL_CLEARABLE)).max(DEAL_CLEARABLE.length).optional()
 }).strict();
 
 // src/email/mailbox.ts
@@ -35072,41 +35612,41 @@ function journeyGuide(input) {
 }
 
 // src/leads/search/plan-schema.ts
-import { z as z12 } from "zod";
-var words2 = (min, max) => z12.string().transform((s) => stripUnsafe(s).trim()).pipe(z12.string().min(min).max(max));
-var LeadSearchPlanSchema = z12.object({
-  version: z12.number().int().min(1),
-  card: z12.literal("local_businesses"),
+import { z as z14 } from "zod";
+var words2 = (min, max) => z14.string().transform((s) => stripUnsafe(s).trim()).pipe(z14.string().min(min).max(max));
+var LeadSearchPlanSchema = z14.object({
+  version: z14.number().int().min(1),
+  card: z14.literal("local_businesses"),
   name: words2(2, 80),
-  category_key: z12.string().regex(KEY).optional(),
-  from: z12.literal("idea").optional(),
+  category_key: z14.string().regex(KEY).optional(),
+  from: z14.literal("idea").optional(),
   asked: words2(1, 400),
-  terms: z12.array(words2(2, 60)).min(1).max(5),
-  area: z12.object({
-    kind: z12.enum(["zip", "city", "radius"]),
+  terms: z14.array(words2(2, 60)).min(1).max(5),
+  area: z14.object({
+    kind: z14.enum(["zip", "city", "radius"]),
     label: words2(2, 80),
-    state: z12.string().regex(/^[A-Z]{2}$/),
-    center: z12.object({ lat: z12.number().min(-90).max(90), lng: z12.number().min(-180).max(180) }).nullable(),
-    radius_m: z12.number().int().min(500).max(2e5),
-    zip: z12.string().regex(/^\d{5}$/).optional(),
+    state: z14.string().regex(/^[A-Z]{2}$/),
+    center: z14.object({ lat: z14.number().min(-90).max(90), lng: z14.number().min(-180).max(180) }).nullable(),
+    radius_m: z14.number().int().min(500).max(2e5),
+    zip: z14.string().regex(/^\d{5}$/).optional(),
     query: words2(2, 120)
   }),
-  count: z12.number().int().min(1).max(LEAD_MAX_PLACES),
-  contact: z12.enum(["phone", "email"]),
-  criteria: z12.array(
-    z12.object({
-      key: z12.string().regex(KEY),
+  count: z14.number().int().min(1).max(LEAD_MAX_PLACES),
+  contact: z14.enum(["phone", "email"]),
+  criteria: z14.array(
+    z14.object({
+      key: z14.string().regex(KEY),
       text: words2(2, 120),
-      standard: z12.enum(["likely", "seen"]),
-      required: z12.boolean()
+      standard: z14.enum(["likely", "seen"]),
+      required: z14.boolean()
     })
   ).max(8),
-  exclusions: z12.array(
-    z12.object({
-      key: z12.string().regex(KEY),
+  exclusions: z14.array(
+    z14.object({
+      key: z14.string().regex(KEY),
       text: words2(2, 80),
-      origin: z12.enum(["claude", "you_said"]),
-      category_key: z12.string().regex(KEY).optional()
+      origin: z14.enum(["claude", "you_said"]),
+      category_key: z14.string().regex(KEY).optional()
     })
   ).max(8)
 }).superRefine((p, ctx) => {
@@ -35351,7 +35891,7 @@ function peoplePlanSentence(p) {
 }
 
 // src/leads/search/people-plan-schema.ts
-import { z as z13 } from "zod";
+import { z as z15 } from "zod";
 
 // src/leads/search/people-industries.ts
 var PEOPLE_INDUSTRIES = [
@@ -35538,47 +36078,47 @@ function peopleIndustriesNear(typed) {
 }
 
 // src/leads/search/people-plan-schema.ts
-var industry = z13.string().transform((typed, ctx) => {
+var industry = z15.string().transform((typed, ctx) => {
   const name = peopleIndustryOf(typed);
   if (name) return name;
   ctx.addIssue({
     code: "custom",
     message: PEOPLE_FIND_WORDS.industryUnread(typed.trim(), peopleIndustriesNear(typed))
   });
-  return z13.NEVER;
+  return z15.NEVER;
 });
-var LeadPeoplePlanSchema = z13.object({
-  version: z13.literal(1),
-  card: z13.literal(PEOPLE_CARD),
+var LeadPeoplePlanSchema = z15.object({
+  version: z15.literal(1),
+  card: z15.literal(PEOPLE_CARD),
   name: words2(2, 80),
   asked: words2(1, PEOPLE_ASKED_CHARS),
-  count: z13.number().int().min(1).max(PEOPLE_COUNT_MAX),
-  titles: z13.array(words2(2, PEOPLE_TITLE_CHARS)).min(1).max(PEOPLE_TITLES_MAX),
-  seniority: z13.array(z13.enum(PEOPLE_SENIORITIES)).max(PEOPLE_SENIORITIES.length),
+  count: z15.number().int().min(1).max(PEOPLE_COUNT_MAX),
+  titles: z15.array(words2(2, PEOPLE_TITLE_CHARS)).min(1).max(PEOPLE_TITLES_MAX),
+  seniority: z15.array(z15.enum(PEOPLE_SENIORITIES)).max(PEOPLE_SENIORITIES.length),
   // The directory's own names alone: it refuses a run naming any other.
-  industries: z13.array(industry).max(PEOPLE_INDUSTRIES_MAX),
-  sizes: z13.array(z13.enum(PEOPLE_COMPANY_SIZES)).max(PEOPLE_COMPANY_SIZES.length),
-  states: z13.array(
-    z13.string().transform((s) => s.trim().toUpperCase()).refine((s) => US_CODES.has(s), "a US state's two letters")
+  industries: z15.array(industry).max(PEOPLE_INDUSTRIES_MAX),
+  sizes: z15.array(z15.enum(PEOPLE_COMPANY_SIZES)).max(PEOPLE_COMPANY_SIZES.length),
+  states: z15.array(
+    z15.string().transform((s) => s.trim().toUpperCase()).refine((s) => US_CODES.has(s), "a US state's two letters")
   ).max(PEOPLE_STATES_MAX),
-  contact: z13.literal("email"),
+  contact: z15.literal("email"),
   // Made by peoplePlanFrom: no phrases, and the states as an area every page reads.
-  terms: z13.tuple([]),
-  criteria: z13.tuple([]),
-  exclusions: z13.tuple([]),
-  area: z13.object({
-    kind: z13.literal("city"),
+  terms: z15.tuple([]),
+  criteria: z15.tuple([]),
+  exclusions: z15.tuple([]),
+  area: z15.object({
+    kind: z15.literal("city"),
     label: words2(2, 400),
-    state: z13.string().max(2),
-    center: z13.null(),
-    radius_m: z13.number().int().min(0).max(0),
+    state: z15.string().max(2),
+    center: z15.null(),
+    radius_m: z15.number().int().min(0).max(0),
     query: words2(2, 420)
   })
 });
-var LeadPeopleSearchSchema = z13.object({
+var LeadPeopleSearchSchema = z15.object({
   plan: LeadPeoplePlanSchema,
-  via: z13.enum(["people", "ask"]),
-  thread_id: z13.uuid().nullable().optional()
+  via: z15.enum(["people", "ask"]),
+  thread_id: z15.uuid().nullable().optional()
 });
 
 // src/leads/search/question.ts
@@ -35634,96 +36174,96 @@ function questionAfterProbe(plan, members) {
 }
 
 // src/leads/lead-plan-schema.ts
-import { z as z14 } from "zod";
-var LeadsQuerySchema = z14.object({
-  list: z14.enum(LEAD_LISTS).default("all"),
-  search: z14.string().uuid().optional(),
-  class: z14.enum(LEAD_CLASSES).optional(),
-  sort: z14.enum(LEAD_SORTS).default("fit"),
-  dir: z14.enum(["asc", "desc"]).default("asc"),
-  after_key: z14.string().max(80).optional(),
-  after_id: z14.string().uuid().optional(),
-  limit: z14.coerce.number().int().min(1).max(500).default(500),
+import { z as z16 } from "zod";
+var LeadsQuerySchema = z16.object({
+  list: z16.enum(LEAD_LISTS).default("all"),
+  search: z16.string().uuid().optional(),
+  class: z16.enum(LEAD_CLASSES).optional(),
+  sort: z16.enum(LEAD_SORTS).default("fit"),
+  dir: z16.enum(["asc", "desc"]).default("asc"),
+  after_key: z16.string().max(80).optional(),
+  after_id: z16.string().uuid().optional(),
+  limit: z16.coerce.number().int().min(1).max(500).default(500),
   /** The pile (sort=pile, 00426): the list its adds go to, whose leads it puts last, and its progress line's numbers. */
-  pile_list: z14.uuid().optional()
+  pile_list: z16.uuid().optional()
 });
-var LeadOneQuerySchema = z14.object({ search: z14.string().uuid().optional() });
+var LeadOneQuerySchema = z16.object({ search: z16.string().uuid().optional() });
 var LeadsViewSchema = LeadsQuerySchema.omit({ after_key: true, after_id: true, limit: true });
-var LeadStageInputSchema = z14.discriminatedUnion("kind", [
-  z14.object({ kind: z14.literal("stage"), stage: z14.enum(["ready", "nurture", "converted"]) }),
-  z14.object({ kind: z14.literal("not_a_fit"), why: z14.enum(LEAD_NOT_A_FIT_WHYS) }),
-  z14.object({ kind: z14.literal("said_no") }),
-  z14.object({
-    kind: z14.literal("outcome"),
-    outcome: z14.enum(LEAD_CALL_OUTCOMES),
-    note: z14.string().trim().max(280).optional(),
+var LeadStageInputSchema = z16.discriminatedUnion("kind", [
+  z16.object({ kind: z16.literal("stage"), stage: z16.enum(["ready", "nurture", "converted"]) }),
+  z16.object({ kind: z16.literal("not_a_fit"), why: z16.enum(LEAD_NOT_A_FIT_WHYS) }),
+  z16.object({ kind: z16.literal("said_no") }),
+  z16.object({
+    kind: z16.literal("outcome"),
+    outcome: z16.enum(LEAD_CALL_OUTCOMES),
+    note: z16.string().trim().max(280).optional(),
     /** Who the call reached (0052): Interested names the person it makes, or a stand-in still named for the business. */
-    spoke_with: z14.string().trim().max(80).optional()
+    spoke_with: z16.string().trim().max(80).optional()
   }),
   /** "Did you send it?" Yes. */
-  z14.object({ kind: z14.literal("emailed") })
+  z16.object({ kind: z16.literal("emailed") })
 ]);
-var LeadsBulkSchema = z14.discriminatedUnion("by", [
+var LeadsBulkSchema = z16.discriminatedUnion("by", [
   // Keep and Exclude (D3) take ids only, and may name the search the Needs review pile is read in.
-  z14.object({
-    by: z14.literal("ids"),
-    action: z14.enum(["contacted", "not_a_fit", "keep", "exclude"]),
-    ids: z14.array(z14.string().uuid()).min(1).max(500),
-    search_id: z14.string().uuid().optional()
+  z16.object({
+    by: z16.literal("ids"),
+    action: z16.enum(["contacted", "not_a_fit", "keep", "exclude"]),
+    ids: z16.array(z16.string().uuid()).min(1).max(500),
+    search_id: z16.string().uuid().optional()
   }),
-  z14.object({ by: z14.literal("view"), action: z14.enum(["contacted", "not_a_fit"]), view: LeadsViewSchema })
+  z16.object({ by: z16.literal("view"), action: z16.enum(["contacted", "not_a_fit"]), view: LeadsViewSchema })
 ]);
-var LeadsCheckAgainSchema = z14.object({ ids: z14.array(z14.string().uuid()).min(1).max(500) });
-var LeadDraftInputSchema = z14.object({
-  tone: z14.enum(["first", "shorter", "warmer"]).default("first"),
-  previous: z14.object({ subject: z14.string().max(200), body: z14.string().max(4e3) }).optional()
+var LeadsCheckAgainSchema = z16.object({ ids: z16.array(z16.string().uuid()).min(1).max(500) });
+var LeadDraftInputSchema = z16.object({
+  tone: z16.enum(["first", "shorter", "warmer"]).default("first"),
+  previous: z16.object({ subject: z16.string().max(200), body: z16.string().max(4e3) }).optional()
 });
 var LeadExportQuerySchema = LeadsViewSchema;
-var RenameLeadSearchSchema = z14.object({ name: z14.string().trim().min(1).max(80) });
-var BusinessLineSchema = z14.object({ business_line: z14.string().trim().min(3).max(160) });
-var planChip = (max) => z14.string().trim().min(2).max(max);
-var ProposeLeadSearchSchema = z14.object({
+var RenameLeadSearchSchema = z16.object({ name: z16.string().trim().min(1).max(80) });
+var BusinessLineSchema = z16.object({ business_line: z16.string().trim().min(3).max(160) });
+var planChip = (max) => z16.string().trim().min(2).max(max);
+var ProposeLeadSearchSchema = z16.object({
   /**
    * What is asked for: local businesses (the Maps card), or people at home, online sellers and anything else, which are
    * answered in words. Named people at companies are ProposePeopleSearchSchema's (00430).
    */
-  looking_for: z14.enum(["local_businesses", "people", "online_sellers", "other"]),
-  country: z14.string().trim().min(2).max(40),
-  count: z14.number().int().min(1).max(LEAD_MAX_PLACES),
+  looking_for: z16.enum(["local_businesses", "people", "online_sellers", "other"]),
+  country: z16.string().trim().min(2).max(40),
+  count: z16.number().int().min(1).max(LEAD_MAX_PLACES),
   /** Plural, as the sentence says it: "personal trainers". */
   who: planChip(60),
   /** One of them, for the question and the judge's rubric: "personal trainer". */
   who_one: planChip(60),
-  category_key: z14.string().regex(/^[a-z][a-z0-9_]{0,39}$/),
-  terms: z14.array(planChip(60)).min(1).max(5),
-  city: z14.string().trim().max(60).nullable().default(null),
-  region: z14.string().trim().min(2).max(40),
-  zip: z14.string().regex(/^\d{5}$/).nullable().default(null),
-  contact: z14.enum(["phone", "email"]),
-  criteria: z14.array(z14.object({ text: planChip(120), standard: z14.enum(["likely", "seen"]), required: z14.boolean() })).max(6).default([]),
-  leave_out: z14.array(z14.object({ words: planChip(40) })).max(6).default([]),
-  asked: z14.string().trim().min(1).max(400)
+  category_key: z16.string().regex(/^[a-z][a-z0-9_]{0,39}$/),
+  terms: z16.array(planChip(60)).min(1).max(5),
+  city: z16.string().trim().max(60).nullable().default(null),
+  region: z16.string().trim().min(2).max(40),
+  zip: z16.string().regex(/^\d{5}$/).nullable().default(null),
+  contact: z16.enum(["phone", "email"]),
+  criteria: z16.array(z16.object({ text: planChip(120), standard: z16.enum(["likely", "seen"]), required: z16.boolean() })).max(6).default([]),
+  leave_out: z16.array(z16.object({ words: planChip(40) })).max(6).default([]),
+  asked: z16.string().trim().min(1).max(400)
 });
-var ProposePeopleSearchSchema = z14.object({
-  looking_for: z14.literal("people_at_companies"),
-  country: z14.string().trim().min(2).max(40),
-  count: z14.number().int().min(1).max(PEOPLE_COUNT_MAX),
+var ProposePeopleSearchSchema = z16.object({
+  looking_for: z16.literal("people_at_companies"),
+  country: z16.string().trim().min(2).max(40),
+  count: z16.number().int().min(1).max(PEOPLE_COUNT_MAX),
   /** What to call the search: "Marketing managers at agencies". */
   who: planChip(80),
-  terms: z14.array(planChip(PEOPLE_TITLE_CHARS)).min(1).max(PEOPLE_TITLES_MAX),
-  region: z14.string().trim().min(2).max(200),
-  asked: z14.string().trim().min(1).max(400),
-  seniority: z14.array(z14.enum(PEOPLE_SENIORITIES)).max(PEOPLE_SENIORITIES.length).default([]),
-  industries: z14.array(planChip(PEOPLE_INDUSTRY_CHARS)).max(PEOPLE_INDUSTRIES_MAX).default([]),
-  company_sizes: z14.array(z14.enum(PEOPLE_COMPANY_SIZES)).max(PEOPLE_COMPANY_SIZES.length).default([])
+  terms: z16.array(planChip(PEOPLE_TITLE_CHARS)).min(1).max(PEOPLE_TITLES_MAX),
+  region: z16.string().trim().min(2).max(200),
+  asked: z16.string().trim().min(1).max(400),
+  seniority: z16.array(z16.enum(PEOPLE_SENIORITIES)).max(PEOPLE_SENIORITIES.length).default([]),
+  industries: z16.array(planChip(PEOPLE_INDUSTRY_CHARS)).max(PEOPLE_INDUSTRIES_MAX).default([]),
+  company_sizes: z16.array(z16.enum(PEOPLE_COMPANY_SIZES)).max(PEOPLE_COMPANY_SIZES.length).default([])
 });
-var ProposeAnySearchSchema = z14.discriminatedUnion("looking_for", [
+var ProposeAnySearchSchema = z16.discriminatedUnion("looking_for", [
   ProposeLeadSearchSchema,
   ProposePeopleSearchSchema
 ]);
-var LeadDraftAnswerSchema = z14.object({
-  subject: z14.string().trim().min(3).max(120),
-  body: z14.string().trim().min(20).max(2e3)
+var LeadDraftAnswerSchema = z16.object({
+  subject: z16.string().trim().min(3).max(120),
+  body: z16.string().trim().min(20).max(2e3)
 });
 var US_NAMES2 = /* @__PURE__ */ new Set([
   "us",
@@ -36387,29 +36927,29 @@ function ideaAreaPhrase(label) {
 }
 
 // src/leads/lead-ideas-read.ts
-import { z as z15 } from "zod";
-var cut = (max) => z15.string().transform((s) => s.trim().slice(0, max));
-var LeadIdeasAnswerSchema = z15.object({
-  line: z15.string().trim().min(3).transform((s) => s.slice(0, 160)),
-  ideas: z15.array(
-    z15.object({
+import { z as z17 } from "zod";
+var cut = (max) => z17.string().transform((s) => s.trim().slice(0, max));
+var LeadIdeasAnswerSchema = z17.object({
+  line: z17.string().trim().min(3).transform((s) => s.slice(0, 160)),
+  ideas: z17.array(
+    z17.object({
       words: cut(80),
       why: cut(140),
       who: cut(60),
       who_one: cut(60),
       category_key: cut(40),
-      terms: z15.array(z15.string()).catch([]),
-      place: z15.string().catch(""),
-      count: z15.number().int().catch(IDEA_SIZES[1]),
-      contact: z15.enum(["email", "phone"]).catch("email"),
-      criteria: z15.array(
-        z15.object({
-          text: z15.string(),
-          standard: z15.enum(["likely", "seen"]).catch("likely"),
-          required: z15.boolean().catch(false)
+      terms: z17.array(z17.string()).catch([]),
+      place: z17.string().catch(""),
+      count: z17.number().int().catch(IDEA_SIZES[1]),
+      contact: z17.enum(["email", "phone"]).catch("email"),
+      criteria: z17.array(
+        z17.object({
+          text: z17.string(),
+          standard: z17.enum(["likely", "seen"]).catch("likely"),
+          required: z17.boolean().catch(false)
         })
       ).catch([]),
-      leave_out: z15.array(z15.string()).catch([])
+      leave_out: z17.array(z17.string()).catch([])
     })
   ).min(1)
 });
@@ -36485,25 +37025,25 @@ function ideasFrom(answer, p) {
 }
 
 // src/leads/lead-import-schema.ts
-import { z as z16 } from "zod";
-var nullableText = (max) => z16.string().trim().max(max).nullable().optional();
-var LeadImportRowSchema = z16.object({
-  name: z16.string().trim().min(1).max(200),
-  email: z16.string().trim().min(3).max(254),
+import { z as z18 } from "zod";
+var nullableText = (max) => z18.string().trim().max(max).nullable().optional();
+var LeadImportRowSchema = z18.object({
+  name: z18.string().trim().min(1).max(200),
+  email: z18.string().trim().min(3).max(254),
   phone: nullableText(16),
   website_host: nullableText(120),
   city: nullableText(120),
   region: nullableText(2),
   category: nullableText(120)
 });
-var LeadImportSchema = z16.object({
-  name: z16.string().trim().min(1).max(120),
-  asked: z16.string().trim().max(400).optional(),
-  rows: z16.array(LeadImportRowSchema).min(1).max(LEAD_LIST_MAX)
+var LeadImportSchema = z18.object({
+  name: z18.string().trim().min(1).max(120),
+  asked: z18.string().trim().max(400).optional(),
+  rows: z18.array(LeadImportRowSchema).min(1).max(LEAD_LIST_MAX)
 });
-var LeadChooseSchema = z16.object({
-  name: z16.string().trim().min(1).max(120),
-  lead_ids: z16.array(z16.string().uuid()).min(1).max(LEAD_LIST_MAX)
+var LeadChooseSchema = z18.object({
+  name: z18.string().trim().min(1).max(120),
+  lead_ids: z18.array(z18.string().uuid()).min(1).max(LEAD_LIST_MAX)
 });
 
 // src/leads/lead-pile.ts
@@ -39144,39 +39684,39 @@ function writeReachOf(r2, at3) {
 }
 
 // src/new-conversation/person-draft-schema.ts
-import { z as z17 } from "zod";
-var PersonDraftInputSchema = z17.object({
-  how: z17.enum(DRAFT_HOWS),
-  wire: z17.enum(CONSENT_CHANNELS).optional(),
-  about: z17.string().trim().min(1, "Say what it is about.").max(DRAFT_ABOUT_MAX),
-  answers: z17.array(
-    z17.object({
-      key: z17.string().min(1).max(40),
-      question: z17.string().max(200),
-      words: z17.string().trim().min(1).max(DRAFT_ANSWER_MAX)
+import { z as z19 } from "zod";
+var PersonDraftInputSchema = z19.object({
+  how: z19.enum(DRAFT_HOWS),
+  wire: z19.enum(CONSENT_CHANNELS).optional(),
+  about: z19.string().trim().min(1, "Say what it is about.").max(DRAFT_ABOUT_MAX),
+  answers: z19.array(
+    z19.object({
+      key: z19.string().min(1).max(40),
+      question: z19.string().max(200),
+      words: z19.string().trim().min(1).max(DRAFT_ANSWER_MAX)
     }).strict()
   ).max(DRAFT_ASKS_MAX).optional(),
-  previous: z17.object({ text: z17.string().max(4e3), subject: z17.string().max(200).optional() }).strict().optional(),
-  tone: z17.enum(DRAFT_TONES).optional()
+  previous: z19.object({ text: z19.string().max(4e3), subject: z19.string().max(200).optional() }).strict().optional(),
+  tone: z19.enum(DRAFT_TONES).optional()
 }).strict();
-var PersonDraftAnswerSchema = z17.object({
-  asks: z17.array(z17.object({ key: z17.string().trim().min(1).max(40), question: z17.string().trim().min(3).max(200) })).max(4),
-  text: z17.string().trim().max(4e3),
-  subject: z17.string().trim().max(200),
-  note: z17.string().trim().max(600),
-  opening: z17.string().trim().max(400),
-  points: z17.array(z17.string().trim().max(300)).max(6),
-  avoid: z17.array(z17.string().trim().max(300)).max(6),
-  ask: z17.string().trim().max(300)
+var PersonDraftAnswerSchema = z19.object({
+  asks: z19.array(z19.object({ key: z19.string().trim().min(1).max(40), question: z19.string().trim().min(3).max(200) })).max(4),
+  text: z19.string().trim().max(4e3),
+  subject: z19.string().trim().max(200),
+  note: z19.string().trim().max(600),
+  opening: z19.string().trim().max(400),
+  points: z19.array(z19.string().trim().max(300)).max(6),
+  avoid: z19.array(z19.string().trim().max(300)).max(6),
+  ask: z19.string().trim().max(300)
 });
-var PersonMessageBodySchema = z17.object({
-  wire: z17.enum(CONSENT_CHANNELS),
-  text: z17.string().max(REPLY_MAX_ANY, "That message is longer than any channel can carry.").optional(),
-  subject: z17.string().trim().min(1).max(200).optional(),
-  template: z17.object({ name: z17.string().min(1).max(512), language: z17.string().min(2).max(15) }).strict().optional(),
-  email_to: z17.string().max(320).optional(),
-  then: z17.enum(["receptionist", "me"]),
-  note: z17.string().trim().min(1).max(PLAN_NOTE_MAX).optional()
+var PersonMessageBodySchema = z19.object({
+  wire: z19.enum(CONSENT_CHANNELS),
+  text: z19.string().max(REPLY_MAX_ANY, "That message is longer than any channel can carry.").optional(),
+  subject: z19.string().trim().min(1).max(200).optional(),
+  template: z19.object({ name: z19.string().min(1).max(512), language: z19.string().min(2).max(15) }).strict().optional(),
+  email_to: z19.string().max(320).optional(),
+  then: z19.enum(["receptionist", "me"]),
+  note: z19.string().trim().min(1).max(PLAN_NOTE_MAX).optional()
 }).strict();
 
 // src/notes/note-suggest.ts
@@ -41463,14 +42003,14 @@ function heldDraftWaiting(messages, thread, tz, nowMs) {
 }
 
 // src/people/lists/list-schemas.ts
-import { z as z18 } from "zod";
-var PeopleExportQuerySchema = z18.object({
-  list: z18.string().max(80).refine((t) => parseListToken(t) !== null, "Name a list by its token.").optional()
+import { z as z20 } from "zod";
+var PeopleExportQuerySchema = z20.object({
+  list: z20.string().max(80).refine((t) => parseListToken(t) !== null, "Name a list by its token.").optional()
 });
-var ListDraftAnswerSchema = z18.object({
-  name: z18.string().trim().min(1).max(60),
-  cannot: z18.string().trim().max(200),
-  all: z18.array(z18.unknown()).max(LIST_RULE_MAX)
+var ListDraftAnswerSchema = z20.object({
+  name: z20.string().trim().min(1).max(60),
+  cannot: z20.string().trim().max(200),
+  all: z20.array(z20.unknown()).max(LIST_RULE_MAX)
 });
 
 // src/people/lists/people-route.ts
@@ -41587,53 +42127,53 @@ function legacyLeadSuppressionHash(tenantId, value) {
 }
 
 // src/people/doors/person-bodies.ts
-import { z as z19 } from "zod";
+import { z as z21 } from "zod";
 var PERSON_RECEPTIONIST_MODES = ["auto", "ask", "never", "inherit"];
-var SOME_PEOPLE = z19.array(z19.uuid()).min(1, "Pick at least one person.").max(50, "Fifty at a time.");
-var CONSENT = z19.enum(CONSENT_STATES, { message: "Consent must be one of: opted_in, opted_out, unknown." });
-var MODE = z19.enum(PERSON_RECEPTIONIST_MODES, { message: "Mode must be one of: auto, ask, never, inherit." });
-var ConsentAnswerBody = z19.object({
+var SOME_PEOPLE = z21.array(z21.uuid()).min(1, "Pick at least one person.").max(50, "Fifty at a time.");
+var CONSENT = z21.enum(CONSENT_STATES, { message: "Consent must be one of: opted_in, opted_out, unknown." });
+var MODE = z21.enum(PERSON_RECEPTIONIST_MODES, { message: "Mode must be one of: auto, ask, never, inherit." });
+var ConsentAnswerBody = z21.object({
   consent: CONSENT,
-  source: z19.string().optional(),
-  note: z19.string().optional(),
-  message_id: z19.uuid({ message: "Choose one of their messages." }).optional()
+  source: z21.string().optional(),
+  note: z21.string().optional(),
+  message_id: z21.uuid({ message: "Choose one of their messages." }).optional()
 });
-var ConsentManyBody = z19.object({
+var ConsentManyBody = z21.object({
   ids: SOME_PEOPLE,
   consent: CONSENT,
-  source: z19.string().optional(),
-  note: z19.string().optional()
+  source: z21.string().optional(),
+  note: z21.string().optional()
 });
-var ReceptionistModeBody = z19.object({ mode: MODE });
-var ReceptionistManyBody = z19.object({ ids: SOME_PEOPLE, mode: MODE });
-var NotesAppendManyBody = z19.object({
+var ReceptionistModeBody = z21.object({ mode: MODE });
+var ReceptionistManyBody = z21.object({ ids: SOME_PEOPLE, mode: MODE });
+var NotesAppendManyBody = z21.object({
   ids: SOME_PEOPLE,
-  append: z19.string().trim().min(1, "Write the note first.").max(NOTE_LINE_MAX, `A note line is at most ${NOTE_LINE_MAX} characters.`)
+  append: z21.string().trim().min(1, "Write the note first.").max(NOTE_LINE_MAX, `A note line is at most ${NOTE_LINE_MAX} characters.`)
 });
-var PersonMergeBody = z19.object({
-  merge: z19.uuid({ message: "Choose the record to merge into this one." })
+var PersonMergeBody = z21.object({
+  merge: z21.uuid({ message: "Choose the record to merge into this one." })
 });
-var PersonAddBody = z19.object({
-  phone: z19.string().optional(),
-  email: z19.string().optional(),
-  name: z19.string().optional(),
-  source: z19.string().optional()
+var PersonAddBody = z21.object({
+  phone: z21.string().optional(),
+  email: z21.string().optional(),
+  name: z21.string().optional(),
+  source: z21.string().optional()
 });
-var NoteWriteBody = z19.object({
-  body: z19.string().trim().min(1).max(NOTE_MAX),
+var NoteWriteBody = z21.object({
+  body: z21.string().trim().min(1).max(NOTE_MAX),
   /** The member it is for; absent or null is for everyone. */
-  for_user_id: z19.uuid().nullable().optional(),
+  for_user_id: z21.uuid().nullable().optional(),
   /** For the team only: the receptionist never reads it. */
-  team_only: z19.boolean().optional(),
+  team_only: z21.boolean().optional(),
   /** Absent: a new note. Present: its author's change, with the version the page saw. */
-  note_id: z19.uuid().optional(),
-  version: z19.number().int().min(1).optional(),
+  note_id: z21.uuid().optional(),
+  version: z21.number().int().min(1).optional(),
   /** Its day, which makes it a step, and the team's (00166): a real day by the business's calendar. */
-  due_on: z19.string().refine(isRealDate, "A day, as 2026-09-30.").nullable().optional(),
+  due_on: z21.string().refine(isRealDate, "A day, as 2026-09-30.").nullable().optional(),
   /** The person's own deal it moves, when it names one. */
-  deal_id: z19.uuid().nullable().optional(),
+  deal_id: z21.uuid().nullable().optional(),
   /** On a change: take its day away. A change that does not name a day keeps the one it has. */
-  clear_due: z19.boolean().optional()
+  clear_due: z21.boolean().optional()
 }).strict();
 
 // src/people/doors/say-it.ts
@@ -41723,24 +42263,24 @@ function noteSheetFill(sheet, fill2) {
 }
 
 // src/people/doors/say-it-schema.ts
-import { z as z20 } from "zod";
-var SayItInputSchema = z20.object({
-  verb: z20.enum(SAY_IT_VERBS),
-  words: z20.string().trim().min(1, "Say what happened first.").max(SAY_IT_MAX, `At most ${SAY_IT_MAX} characters.`)
+import { z as z22 } from "zod";
+var SayItInputSchema = z22.object({
+  verb: z22.enum(SAY_IT_VERBS),
+  words: z22.string().trim().min(1, "Say what happened first.").max(SAY_IT_MAX, `At most ${SAY_IT_MAX} characters.`)
 }).strict();
-var SayItDealAnswerSchema = z20.object({
-  service: z20.string(),
-  value: z20.string(),
-  per: z20.string(),
-  link: z20.string(),
-  valid_until: z20.string(),
-  lost_reason: z20.string(),
-  note: z20.string()
+var SayItDealAnswerSchema = z22.object({
+  service: z22.string(),
+  value: z22.string(),
+  per: z22.string(),
+  link: z22.string(),
+  valid_until: z22.string(),
+  lost_reason: z22.string(),
+  note: z22.string()
 });
-var SayItNoteAnswerSchema = z20.object({
-  body: z20.string(),
-  day: z20.string(),
-  team_only: z20.boolean()
+var SayItNoteAnswerSchema = z22.object({
+  body: z22.string(),
+  day: z22.string(),
+  team_only: z22.boolean()
 });
 
 // src/person-page/head-state.ts
@@ -42002,26 +42542,26 @@ function combineOf(f) {
 }
 
 // src/person-page/schemas.ts
-import { z as z21 } from "zod";
-var PersonNameActSchema = z21.discriminatedUnion("act", [
-  z21.object({ act: z21.literal("adopt"), message_id: z21.uuid({ message: "Name the reply whose signer to use." }) }),
-  z21.object({ act: z21.literal("undo") }),
-  z21.object({ act: z21.literal("decline"), message_id: z21.uuid({ message: "Name the reply whose signer to decline." }) })
+import { z as z23 } from "zod";
+var PersonNameActSchema = z23.discriminatedUnion("act", [
+  z23.object({ act: z23.literal("adopt"), message_id: z23.uuid({ message: "Name the reply whose signer to use." }) }),
+  z23.object({ act: z23.literal("undo") }),
+  z23.object({ act: z23.literal("decline"), message_id: z23.uuid({ message: "Name the reply whose signer to decline." }) })
 ]);
-var PersonWorksAtSchema = z21.object({
-  lead_id: z21.uuid({ message: "Choose a business from your leads." })
+var PersonWorksAtSchema = z23.object({
+  lead_id: z23.uuid({ message: "Choose a business from your leads." })
 });
-var PersonCallSchema = z21.object({
-  outcome: z21.enum(PERSON_CALL_OUTCOMES, { message: "Say how the call went." }),
-  said: z21.string().trim().max(PERSON_CALL_SAID_MAX).optional(),
+var PersonCallSchema = z23.object({
+  outcome: z23.enum(PERSON_CALL_OUTCOMES, { message: "Say how the call went." }),
+  said: z23.string().trim().max(PERSON_CALL_SAID_MAX).optional(),
   /** The day to call back, which makes the note a step (00166): a real day by the business's calendar. */
-  due_on: z21.string().refine(isRealDate, "A day, as 2026-09-30.").nullable().optional(),
+  due_on: z23.string().refine(isRealDate, "A day, as 2026-09-30.").nullable().optional(),
   /** The receptionist reads the note: off, it is the team's only. */
-  tell: z21.boolean().optional(),
+  tell: z23.boolean().optional(),
   /** Who answered a stand-in's number, under Interested (0052). */
-  spoke_with: z21.string().trim().max(80).optional(),
+  spoke_with: z23.string().trim().max(80).optional(),
   /** This call was the call back they asked for: the door hands back their thread holding the request (00422, X3-1). */
-  closes_call_back: z21.boolean().optional()
+  closes_call_back: z23.boolean().optional()
 }).strict();
 
 // src/playbooks/playbook-failed.ts
@@ -43448,55 +43988,55 @@ function zoneOfRegion(region) {
 }
 
 // src/reach-out/reach-out-schemas.ts
-import { z as z22 } from "zod";
-var ReachOutRepliesQuerySchema = z22.object({
-  since: z22.string().datetime({ offset: true }).optional(),
-  conversation_id: z22.string().uuid().optional()
+import { z as z24 } from "zod";
+var ReachOutRepliesQuerySchema = z24.object({
+  since: z24.string().datetime({ offset: true }).optional(),
+  conversation_id: z24.string().uuid().optional()
 });
-var ReachOutStepSchema = z22.object({
+var ReachOutStepSchema = z24.object({
   /** An existing step's id, when the sheet edits a chain; none for a new one. */
-  id: z22.string().uuid().nullable().optional(),
-  subject: z22.string().max(REACH_OUT_SUBJECT_MAX * 2).nullable(),
-  body: z22.string().max(REACH_OUT_BODY_MAX * 2),
-  after_days: z22.number().int().min(REACH_OUT_AFTER_DAYS.min).max(REACH_OUT_AFTER_DAYS.max).nullable(),
+  id: z24.string().uuid().nullable().optional(),
+  subject: z24.string().max(REACH_OUT_SUBJECT_MAX * 2).nullable(),
+  body: z24.string().max(REACH_OUT_BODY_MAX * 2),
+  after_days: z24.number().int().min(REACH_OUT_AFTER_DAYS.min).max(REACH_OUT_AFTER_DAYS.max).nullable(),
   /** A call or a note for the team instead of an email (Part 5, G20): the chain's last step only. */
-  hand: z22.object({ kind: z22.enum(HAND_KINDS), words: z22.string().max(HAND_WORDS_MAX * 2) }).nullable().optional()
+  hand: z24.object({ kind: z24.enum(HAND_KINDS), words: z24.string().max(HAND_WORDS_MAX * 2) }).nullable().optional()
 });
-var ReachOutChainSchema = z22.object({
-  name: z22.string().trim().min(1).max(REACH_OUT_NAME_MAX),
-  search_id: z22.string().uuid(),
-  include_unconfirmed: z22.boolean(),
+var ReachOutChainSchema = z24.object({
+  name: z24.string().trim().min(1).max(REACH_OUT_NAME_MAX),
+  search_id: z24.string().uuid(),
+  include_unconfirmed: z24.boolean(),
   /** One of the sheet's paces: the database's CHECK holds the same set (00211). */
-  gap_minutes: z22.number().int().refine((g) => REACH_OUT_GAP_MINUTES.includes(g), {
+  gap_minutes: z24.number().int().refine((g) => REACH_OUT_GAP_MINUTES.includes(g), {
     message: `One of ${REACH_OUT_GAP_MINUTES.join(", ")} minutes.`
   }),
   /** Empty: every connected mailbox of the workspace (00424). */
-  mailbox_ids: z22.array(z22.string().uuid()).max(REACH_OUT_MAILBOXES_MAX),
+  mailbox_ids: z24.array(z24.string().uuid()).max(REACH_OUT_MAILBOXES_MAX),
   /** Its owner sends its emails from their own inbox, each handed to them written and checked (00429). */
-  owner_sends: z22.boolean().default(false),
-  signed_by: z22.string().trim().max(SIGNED_BY_MAX).nullable(),
-  steps: z22.array(ReachOutStepSchema).min(1).max(REACH_OUT_STEPS_MAX)
+  owner_sends: z24.boolean().default(false),
+  signed_by: z24.string().trim().max(SIGNED_BY_MAX).nullable(),
+  steps: z24.array(ReachOutStepSchema).min(1).max(REACH_OUT_STEPS_MAX)
 });
-var ReachOutPreviewSchema = z22.object({
-  search_id: z22.string().uuid(),
-  index: z22.number().int().min(0).max(REACH_OUT_PREVIEW_INDEX_MAX),
-  include_unconfirmed: z22.boolean(),
-  words: z22.object({
-    subject: z22.string().max(REACH_OUT_SUBJECT_MAX * 2).nullable(),
-    body: z22.string().trim().min(1).max(REACH_OUT_BODY_MAX * 2)
+var ReachOutPreviewSchema = z24.object({
+  search_id: z24.string().uuid(),
+  index: z24.number().int().min(0).max(REACH_OUT_PREVIEW_INDEX_MAX),
+  include_unconfirmed: z24.boolean(),
+  words: z24.object({
+    subject: z24.string().max(REACH_OUT_SUBJECT_MAX * 2).nullable(),
+    body: z24.string().trim().min(1).max(REACH_OUT_BODY_MAX * 2)
   }),
-  signed_by: z22.string().trim().max(SIGNED_BY_MAX).nullable(),
-  language: z22.string().regex(/^[a-z]{2,3}(_[A-Z]{2})?$/).optional()
+  signed_by: z24.string().trim().max(SIGNED_BY_MAX).nullable(),
+  language: z24.string().regex(/^[a-z]{2,3}(_[A-Z]{2})?$/).optional()
 });
-var ReachOutDecideSchema = z22.object({ decision: z22.enum(REACH_OUT_DECISIONS) });
-var ReachOutSaidSchema = z22.object({ outcome: z22.enum(REACH_OUT_SAID_OUTCOMES) });
-var ReachOutReplySaidSchema = z22.object({
-  intent: z22.enum(OWNER_SAID_INTENTS),
-  day: z22.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
-  refer_to: z22.string().trim().max(120).nullable().optional()
+var ReachOutDecideSchema = z24.object({ decision: z24.enum(REACH_OUT_DECISIONS) });
+var ReachOutSaidSchema = z24.object({ outcome: z24.enum(REACH_OUT_SAID_OUTCOMES) });
+var ReachOutReplySaidSchema = z24.object({
+  intent: z24.enum(OWNER_SAID_INTENTS),
+  day: z24.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
+  refer_to: z24.string().trim().max(120).nullable().optional()
 });
-var ReachOutAddSchema = z22.object({
-  lead_ids: z22.array(z22.uuid()).min(1).max(LEAD_LIST_MAX)
+var ReachOutAddSchema = z24.object({
+  lead_ids: z24.array(z24.uuid()).min(1).max(LEAD_LIST_MAX)
 });
 
 // src/reach-out/reach-out-draft.ts
@@ -44402,23 +44942,23 @@ var SEQUENCE_NEW_WORDS = {
 };
 
 // src/sequences/sequence-draft-schema.ts
-import { z as z23 } from "zod";
-var TEXTS = z23.array(z23.string().max(300)).max(10);
-var SequenceDraftAnswerSchema = z23.object({
-  name: z23.string().trim().max(80),
-  moment: z23.string().trim().max(40),
-  hour: z23.number().int(),
-  first: z23.object({ message: z23.string().trim().max(10), texts: TEXTS }),
-  then: z23.array(
-    z23.object({
-      name: z23.string().trim().max(80),
-      after_days: z23.number().int(),
-      only_if: z23.array(z23.enum(FOLLOW_UP_CONDITIONS)).max(FOLLOW_UP_CONDITIONS.length),
-      message: z23.string().trim().max(10),
+import { z as z25 } from "zod";
+var TEXTS = z25.array(z25.string().max(300)).max(10);
+var SequenceDraftAnswerSchema = z25.object({
+  name: z25.string().trim().max(80),
+  moment: z25.string().trim().max(40),
+  hour: z25.number().int(),
+  first: z25.object({ message: z25.string().trim().max(10), texts: TEXTS }),
+  then: z25.array(
+    z25.object({
+      name: z25.string().trim().max(80),
+      after_days: z25.number().int(),
+      only_if: z25.array(z25.enum(FOLLOW_UP_CONDITIONS)).max(FOLLOW_UP_CONDITIONS.length),
+      message: z25.string().trim().max(10),
       texts: TEXTS
     })
   ).max(SEQUENCE_DRAFT_THEN_MAX + 2),
-  cannot: z23.string().trim().max(300)
+  cannot: z25.string().trim().max(300)
 });
 
 // src/reports/booking-report.ts
@@ -50595,7 +51135,7 @@ function routePrefetchScript() {
 }
 
 // src/shell/vitals.ts
-import * as z24 from "zod/mini";
+import * as z26 from "zod/mini";
 var PAGE_VITALS = ["LCP", "INP", "CLS", "FCP", "TTFB"];
 var PAGE_SPEED = ["READY", "SETTLED"];
 var PAGE_METRICS = [...PAGE_VITALS, ...PAGE_SPEED];
@@ -50621,18 +51161,18 @@ var PAGE_BUILD = /^[0-9a-z]{3,40}$/;
 var VITAL_CEILING = 10 * MIN_MS;
 var PAGE_VITALS_PER_BEACON = 100;
 var DETAIL_WORD = /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,79}$/;
-var detailWord = () => z24.optional(z24.string().check(z24.regex(DETAIL_WORD)));
-var detailMs = () => z24.optional(z24.number().check(z24.minimum(0), z24.maximum(VITAL_CEILING)));
-var PageVitalDetail = z24.object({
+var detailWord = () => z26.optional(z26.string().check(z26.regex(DETAIL_WORD)));
+var detailMs = () => z26.optional(z26.number().check(z26.minimum(0), z26.maximum(VITAL_CEILING)));
+var PageVitalDetail = z26.object({
   wait: detailWord(),
   wait_ms: detailMs(),
   server_ms: detailMs(),
   db_ms: detailMs(),
-  db_n: z24.optional(z24.int().check(z24.minimum(0), z24.maximum(1e4))),
+  db_n: z26.optional(z26.int().check(z26.minimum(0), z26.maximum(1e4))),
   chunk_ms: detailMs(),
   render_ms: detailMs(),
   el: detailWord(),
-  type: z24.optional(z24.enum(["pointer", "keyboard"])),
+  type: z26.optional(z26.enum(["pointer", "keyboard"])),
   input_ms: detailMs(),
   processing_ms: detailMs(),
   presentation_ms: detailMs(),
@@ -50641,19 +51181,19 @@ var PageVitalDetail = z24.object({
   load_delay_ms: detailMs(),
   load_ms: detailMs(),
   render_delay_ms: detailMs(),
-  shift: z24.optional(z24.number().check(z24.minimum(0), z24.maximum(100))),
-  state: z24.optional(z24.enum(["loading", "dom-interactive", "dom-content-loaded", "complete"])),
+  shift: z26.optional(z26.number().check(z26.minimum(0), z26.maximum(100))),
+  state: z26.optional(z26.enum(["loading", "dom-interactive", "dom-content-loaded", "complete"])),
   phase: detailWord()
 });
-var PageVitalReport = z24.object({
-  id: z24.string().check(z24.regex(VITAL_ID, { error: "A report needs the browser's id." })),
-  name: z24.enum(PAGE_METRICS, { error: "A report names one of the seven." }),
-  value: z24.number().check(z24.minimum(0), z24.maximum(VITAL_CEILING)),
-  page: z24.optional(z24.string().check(z24.regex(PAGE_NAME))),
-  part: z24.optional(z24.string().check(z24.regex(PAGE_NAME))),
-  from: z24.optional(z24.string().check(z24.regex(PAGE_NAME))),
-  warm: z24.optional(z24.boolean()),
-  detail: z24.optional(PageVitalDetail)
+var PageVitalReport = z26.object({
+  id: z26.string().check(z26.regex(VITAL_ID, { error: "A report needs the browser's id." })),
+  name: z26.enum(PAGE_METRICS, { error: "A report names one of the seven." }),
+  value: z26.number().check(z26.minimum(0), z26.maximum(VITAL_CEILING)),
+  page: z26.optional(z26.string().check(z26.regex(PAGE_NAME))),
+  part: z26.optional(z26.string().check(z26.regex(PAGE_NAME))),
+  from: z26.optional(z26.string().check(z26.regex(PAGE_NAME))),
+  warm: z26.optional(z26.boolean()),
+  detail: z26.optional(PageVitalDetail)
 });
 var PEOPLE_SCOPES = [
   [/^leads(:|$)/, "leads"],
@@ -50765,12 +51305,12 @@ function pageVitalsWords(rows2) {
 }
 
 // src/shell/vitals-schema.ts
-import { z as z25 } from "zod";
-var PageVitalsInput = z25.object({
-  page: z25.string().regex(PAGE_NAME, { error: "A page's name is a word in lower case." }),
-  device: z25.enum(PAGE_DEVICES).optional(),
-  build: z25.string().regex(PAGE_BUILD, { error: "A build is its sha, or dev." }).optional(),
-  vitals: z25.array(PageVitalReport).min(1).max(PAGE_VITALS_PER_BEACON)
+import { z as z27 } from "zod";
+var PageVitalsInput = z27.object({
+  page: z27.string().regex(PAGE_NAME, { error: "A page's name is a word in lower case." }),
+  device: z27.enum(PAGE_DEVICES).optional(),
+  build: z27.string().regex(PAGE_BUILD, { error: "A build is its sha, or dev." }).optional(),
+  vitals: z27.array(PageVitalReport).min(1).max(PAGE_VITALS_PER_BEACON)
 });
 
 // src/shell/page-speed.ts
@@ -50981,17 +51521,17 @@ function clientErrorOf(boundary, error, page2, digest, workspace) {
 }
 
 // src/shell/client-error-schema.ts
-import { z as z26 } from "zod";
-var ClientErrorInput = z26.object({
-  boundary: z26.enum(CLIENT_ERROR_BOUNDARIES, { error: "Say which boundary caught it." }),
-  page: z26.string().regex(PAGE).max(CLIENT_ERROR_LIMITS.page).nullable(),
-  name: z26.string().max(CLIENT_ERROR_LIMITS.name),
-  message: z26.string().max(CLIENT_ERROR_LIMITS.message),
-  stack: z26.string().max(CLIENT_ERROR_LIMITS.stack).nullable(),
+import { z as z28 } from "zod";
+var ClientErrorInput = z28.object({
+  boundary: z28.enum(CLIENT_ERROR_BOUNDARIES, { error: "Say which boundary caught it." }),
+  page: z28.string().regex(PAGE).max(CLIENT_ERROR_LIMITS.page).nullable(),
+  name: z28.string().max(CLIENT_ERROR_LIMITS.name),
+  message: z28.string().max(CLIENT_ERROR_LIMITS.message),
+  stack: z28.string().max(CLIENT_ERROR_LIMITS.stack).nullable(),
   /** Next's digest for a server component's error: the key to its server-side line. */
-  digest: z26.string().max(CLIENT_ERROR_LIMITS.digest).nullable(),
+  digest: z28.string().max(CLIENT_ERROR_LIMITS.digest).nullable(),
   /** The workspace the tab held, when it held one: the auth pages and the root boundary may hold none. */
-  workspace: z26.string().regex(WORKSPACE).max(CLIENT_ERROR_LIMITS.workspace).nullable()
+  workspace: z28.string().regex(WORKSPACE).max(CLIENT_ERROR_LIMITS.workspace).nullable()
 });
 
 // src/templates/message-version-slots.ts
@@ -54618,11 +55158,11 @@ function isActivityNoise(kind) {
 }
 
 // src/workspace/signup-schema.ts
-import { z as z27 } from "zod";
-var InviteCodeSchema = z27.string().trim().max(80);
-var SignupSchema = z27.object({
-  name: z27.string().trim().min(SIGNUP_NAME_MIN, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX, "That name is too long \u2014 120 characters at most."),
-  email: z27.string().trim().toLowerCase().email("Enter a work email address.").max(254),
+import { z as z29 } from "zod";
+var InviteCodeSchema = z29.string().trim().max(80);
+var SignupSchema = z29.object({
+  name: z29.string().trim().min(SIGNUP_NAME_MIN, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX, "That name is too long \u2014 120 characters at most."),
+  email: z29.string().trim().toLowerCase().email("Enter a work email address.").max(254),
   /**
    * The credential, and the reason it is OPTIONAL here rather than required.
    *
@@ -54636,17 +55176,17 @@ var SignupSchema = z27.object({
    *
    * The cap here is a body-size guard, not the rule; the rule is bytes.
    */
-  password: z27.string().max(200).optional(),
+  password: z29.string().max(200).optional(),
   /** IANA zone from the device; the database validates it and the route retries without one it does not know. */
-  timezone: z27.string().trim().min(1).max(64).optional(),
+  timezone: z29.string().trim().min(1).max(64).optional(),
   /** The invite code, when sign-up is by invitation. */
   code: InviteCodeSchema.optional()
 }).strict();
-var PendingWorkspaceSchema = z27.object({
-  name: z27.string().trim().min(SIGNUP_NAME_MIN).max(SIGNUP_NAME_MAX),
+var PendingWorkspaceSchema = z29.object({
+  name: z29.string().trim().min(SIGNUP_NAME_MIN).max(SIGNUP_NAME_MAX),
   // A clock Postgres would refuse is dropped here, so the owner's first Create
   // never fails over a zone a stranger's device reported.
-  timezone: z27.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone(v) ? v : null)
+  timezone: z29.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone(v) ? v : null)
 });
 function pendingWorkspaceOf(metadata) {
   if (!metadata || typeof metadata !== "object") return null;
@@ -54699,38 +55239,38 @@ var PASSWORD_WORDS = {
 };
 
 // src/workspace/partner-schema.ts
-import { z as z28 } from "zod";
-var PartnerBecomeSchema = z28.object({
-  code: z28.string().trim().min(1).max(64),
-  terms: z28.literal(true, { message: "The terms have to be accepted." })
+import { z as z30 } from "zod";
+var PartnerBecomeSchema = z30.object({
+  code: z30.string().trim().min(1).max(64),
+  terms: z30.literal(true, { message: "The terms have to be accepted." })
 }).strict();
-var PartnerLettersSchema = z28.object({ letters: z28.boolean() }).strict();
-var letterCents = z28.coerce.number();
-var letterSum = z28.object({ currency: z28.string(), cents: letterCents });
-var PartnerLetterNewsSchema = z28.object({
+var PartnerLettersSchema = z30.object({ letters: z30.boolean() }).strict();
+var letterCents = z30.coerce.number();
+var letterSum = z30.object({ currency: z30.string(), cents: letterCents });
+var PartnerLetterNewsSchema = z30.object({
   /** Ledger rows written since: shares and reversals, per kind and currency, void ones left out. */
-  written: z28.array(z28.object({ kind: z28.string(), currency: z28.string(), count: z28.coerce.number(), cents: letterCents })).default([]),
+  written: z30.array(z30.object({ kind: z30.string(), currency: z30.string(), count: z30.coerce.number(), cents: letterCents })).default([]),
   /** Rows written before the last letter that became payable since. */
-  matured: z28.array(letterSum).default([]),
+  matured: z30.array(letterSum).default([]),
   /** Shares written before that will not be paid: their workspace was disqualified. */
-  voided: z28.array(letterSum).default([]),
-  paid: z28.array(z28.object({ currency: z28.string(), cents: letterCents, reference: z28.string(), sent_at: z28.string() })).default([]),
+  voided: z30.array(letterSum).default([]),
+  paid: z30.array(z30.object({ currency: z30.string(), cents: letterCents, reference: z30.string(), sent_at: z30.string() })).default([]),
   /** A workspace held for review, or a person's decision on one, with the why they wrote for the partner. */
-  standing: z28.array(z28.object({ workspace: z28.string().nullable(), standing: z28.string(), why: z28.string().nullable() })).default([]),
+  standing: z30.array(z30.object({ workspace: z30.string().nullable(), standing: z30.string(), why: z30.string().nullable() })).default([]),
   /** Workspaces that came through the link since. */
-  brought: z28.array(z28.string().nullable()).default([]),
+  brought: z30.array(z30.string().nullable()).default([]),
   /** Workspaces the partner set up whose owner accepted them, or declined them (0016, 00214). */
-  accepted: z28.array(z28.string().nullable()).default([]),
-  declined: z28.array(z28.string().nullable()).default([]),
+  accepted: z30.array(z30.string().nullable()).default([]),
+  declined: z30.array(z30.string().nullable()).default([]),
   /** The partner's own status, when it changed since. */
-  status: z28.object({ status: z28.string(), why: z28.string().nullable() }).nullable().default(null),
-  balance: z28.array(
-    z28.object({
-      currency: z28.string(),
+  status: z30.object({ status: z30.string(), why: z30.string().nullable() }).nullable().default(null),
+  balance: z30.array(
+    z30.object({
+      currency: z30.string(),
       held: letterCents,
       payable: letterCents,
       paid: letterCents,
-      next_payable_at: z28.string().nullable()
+      next_payable_at: z30.string().nullable()
     })
   ).default([])
 });
@@ -54813,14 +55353,14 @@ function handoverInviteEmail(h) {
 }
 
 // src/workspace/handover-schema.ts
-import { z as z29 } from "zod";
-var ownerEmail = z29.string().trim().toLowerCase().max(254, "That address is too long.").regex(/^[^@\s]+@[^@\s]+\.[^@\s]+$/, "Enter the business owner's email address.");
-var HandoverCreateSchema = z29.object({
-  name: z29.string().trim().min(2, "A workspace needs a name of at least 2 characters.").max(120, "That name is too long: 120 characters at most."),
-  timezone: z29.string().trim().max(64).nullish(),
+import { z as z31 } from "zod";
+var ownerEmail = z31.string().trim().toLowerCase().max(254, "That address is too long.").regex(/^[^@\s]+@[^@\s]+\.[^@\s]+$/, "Enter the business owner's email address.");
+var HandoverCreateSchema = z31.object({
+  name: z31.string().trim().min(2, "A workspace needs a name of at least 2 characters.").max(120, "That name is too long: 120 characters at most."),
+  timezone: z31.string().trim().max(64).nullish(),
   email: ownerEmail
 }).strict();
-var HandoverResendSchema = z29.object({ email: ownerEmail }).strict();
+var HandoverResendSchema = z31.object({ email: ownerEmail }).strict();
 
 // src/workspace/second-factor.ts
 function factorStepNeeded(aal) {
@@ -54895,10 +55435,10 @@ function secondFactorResetWords(code2, removed) {
 }
 
 // src/workspace/second-factor-schema.ts
-import { z as z30 } from "zod";
-var PartnerSecondFactorResetSchema = z30.object({
-  partner_id: z30.string().uuid("That partner does not exist."),
-  why: z30.string().trim().min(1, "Say why, and how you checked it's them.").max(500, "At most 500 characters.")
+import { z as z32 } from "zod";
+var PartnerSecondFactorResetSchema = z32.object({
+  partner_id: z32.string().uuid("That partner does not exist."),
+  why: z32.string().trim().min(1, "Say why, and how you checked it's them.").max(500, "At most 500 characters.")
 }).strict();
 
 // src/workspace/partner-invite.ts
@@ -54995,9 +55535,9 @@ function partnerInviteEmail(i) {
 }
 
 // src/workspace/partner-invite-schema.ts
-import { z as z31 } from "zod";
-var PartnerInviteSchema = z31.object({
-  code: z31.string().trim().min(1, "Enter your partner's code, or paste their link.").max(200, "That is too long for a partner's code or link.")
+import { z as z33 } from "zod";
+var PartnerInviteSchema = z33.object({
+  code: z33.string().trim().min(1, "Enter your partner's code, or paste their link.").max(200, "That is too long for a partner's code or link.")
 }).strict();
 
 // src/workspace/activation.ts
@@ -55923,6 +56463,7 @@ export {
   ASK_SCOPE_KINDS,
   ASK_SELECTION_MAX,
   ASK_SENDS,
+  ASK_SKILL_IDS,
   ASK_SPEECH_MAX_CHARS,
   ASK_SPEED,
   ASK_SPOKEN_TURN_BUDGET_MS,
@@ -56074,7 +56615,9 @@ export {
   CONVERSATION_STATES,
   CONVERSATION_UNDER_WAY,
   COUNTED,
+  CRAFT_CHANNELS,
   CUSTOMER_DOMAIN_DAILY_MAX,
+  CUSTOMER_MESSAGE_SKILL,
   CalendarConfigSchema,
   ClientErrorInput,
   ClosureSchema,
@@ -56459,9 +57002,12 @@ export {
   MERGE_WORDS,
   MESSAGE_BEGIN_WORDS,
   MESSAGE_CHANNELS,
+  MESSAGE_CRAFT_JSON_SCHEMA,
   MESSAGE_DIRECTIONS,
   MESSAGE_GONE_WORDS,
+  MESSAGE_JUDGE_JSON_SCHEMA,
   MESSAGE_MOMENT_WORDS,
+  MESSAGE_RUBRIC,
   MESSAGE_SENDERS,
   MESSAGE_STATUSES,
   MESSAGE_TYPES,
@@ -56483,6 +57029,8 @@ export {
   MODEL_TURN_WRITE_MS,
   MOMENTS_RETIRED,
   MOMENT_TRIGGERS,
+  MessageCraftAnswerSchema,
+  MessageJudgeAnswerSchema,
   NAME_SOURCES,
   NEEDS_TITLE,
   NEEDS_YOU_WORD,
@@ -56933,6 +57481,9 @@ export {
   SIGNUP_NAME_MIN,
   SIGNUP_WAITLIST,
   SIGNUP_WORDS,
+  SKILL_CRAFT_MAX_TOKENS,
+  SKILL_CRAFT_PURPOSES,
+  SKILL_GUIDE_MAX,
   SMS_CLAUSES,
   SMS_OPT_OUT_PATTERN,
   SMS_SEGMENTS_MAX,
@@ -57380,6 +57931,8 @@ export {
   countedDoor,
   coveredChannels,
   coversSpan,
+  craftSystem,
+  craftedVersions,
   csvCell,
   currencySymbol,
   customerDomainOf,
@@ -57601,6 +58154,7 @@ export {
   guardrailsInForce,
   guessName,
   guessSlotKind,
+  guideBlock,
   handOf,
   handStepWords,
   handoffCallRow,
@@ -57689,6 +58243,7 @@ export {
   isActivityNoise,
   isAdsParam,
   isAppointmentWord,
+  isAskSkillId,
   isAutomatedSend,
   isBaselinePrompt,
   isBookingTool,
@@ -57995,13 +58550,18 @@ export {
   messageAboutOfTrigger,
   messageAt,
   messageAuthor,
+  messageBriefText,
+  messageCraftIssues,
   messageFitsMoment,
   messageHolds,
+  messageJudgeQuestion,
+  messageJudgeSystem,
   messageLanguageChoices,
   messageLanguageCode,
   messageStandingWords,
   messageStatusLabel,
   messageText,
+  messageVerdict,
   messageVia,
   messageWhy,
   messageWhyNot,
@@ -58655,6 +59215,8 @@ export {
   signerOf,
   signupPosture,
   siteHost,
+  skillGuide,
+  skillsAsked,
   slotChoices,
   slotCount,
   slotKnown,
@@ -58768,6 +59330,9 @@ export {
   templateUseNote,
   templateUseWords,
   tenantStatusFor,
+  textAsSent,
+  textPartsAllowed,
+  textRoom,
   textingTermsMetadata,
   textingTermsVM,
   textingWords,

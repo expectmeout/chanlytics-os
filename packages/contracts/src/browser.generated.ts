@@ -31,6 +31,9 @@ export { PROPOSAL_GATE, addProposalSpecs, askUndoOpen, cardOpenRoute, proposalSp
 export { answerSaidOf } from "./ask-proposals/people-verbs";
 export { PERSON_DETAIL_WORDS } from "./ask-proposals/person";
 export { PROPOSAL_WORDS } from "./ask-proposals/spec";
+export { CUSTOMER_MESSAGE_SKILL } from "./ask-skills/customer-message/skill";
+export { ASK_SKILL_IDS, isAskSkillId, skillGuide, skillsAsked } from "./ask-skills/registry";
+export { SKILL_CRAFT_PURPOSES, SKILL_CRAFT_MAX_TOKENS, SKILL_GUIDE_MAX, craftSystem, guideBlock } from "./ask-skills/skill";
 export { ASK_ANSWER_FORMAT } from "./ask/answer-format";
 export { partialSay } from "./ask/answer-stream";
 export { cleanAnswer, isUngrounded, sameQuestion, navigateLabel, FOLLOWUP_ECHO, claimsWrite, unquoted } from "./ask/answer-text";

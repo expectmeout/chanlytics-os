@@ -29,6 +29,7 @@ import {
   MODELS,
   MODEL_EFFORTS,
   MODEL_ROUTES,
+  SKILL_CRAFT_MAX_TOKENS,
   THINKING_TYPES,
   askRoundCap,
   effortInForce,
@@ -260,6 +261,8 @@ export const GATEWAY_PURPOSES = [
   "person_draft",
   // A new sequence drafted from the owner's line (decision 0060, S4): the small JSON route, as the other drafts.
   "sequence_draft",
+  // A customer message written again by Ask's message writer skill (contracts ask-skills): a craft call at high effort.
+  "message_draft",
 ] as const;
 export type GatewayPurpose = (typeof GATEWAY_PURPOSES)[number];
 /** Whether a purpose is Ask's own: its turn, or a turn's warm. */
@@ -267,11 +270,13 @@ const isAsk = (purpose: GatewayPurpose): boolean => purpose === "ask" || purpose
 
 /**
  * The registry's purpose a gateway purpose is asked as (contracts ai/models.ts): Ask's turn is Ask's route (the template
- * drafter's rounds come as Ask's too), the ideas for a new search their own (00398), the lead and list drafts the small
- * JSON route. The route names the fallback.
+ * drafter's rounds come as Ask's too), the ideas for a new search their own (00398), a customer message the skill writes
+ * the template drafter's (a message's words, the ledger's word for them, so no new purpose for its CHECK), the lead and
+ * list drafts the small JSON route. The route names the fallback and bounds the try.
  */
 export function modelPurposeOf(purpose: GatewayPurpose): ModelPurpose {
   if (isAsk(purpose)) return "ask";
+  if (purpose === "message_draft") return "template_draft";
   return purpose === "lead_suggest" ? "lead_suggest" : "lead_json";
 }
 /** What Ask's daily budget counts: the gateway's purposes, and the reach-out sheet's preview (its own door, R12). */
@@ -332,10 +337,17 @@ const mayName = (purpose: GatewayPurpose, model: string): boolean =>
 
 /**
  * The most a purpose's request may write: Ask's round what the effort in force at its messages' end earns (askRoundCap:
- * a draft's thinking counts), a warm next to nothing, a small draft the drafts'.
+ * a draft's thinking counts), a warm next to nothing, a skill's craft call the skills' (its thinking counts toward it,
+ * at high effort), a small draft the drafts'.
  */
 const ceilingOf = (purpose: GatewayPurpose, effort: ModelEffort | null): number =>
-  purpose === "ask" ? askRoundCap(effort) : purpose === "ask_warm" ? ASK_WARM_MAX_TOKENS : GATEWAY_MAX_TOKENS;
+  purpose === "ask"
+    ? askRoundCap(effort)
+    : purpose === "ask_warm"
+      ? ASK_WARM_MAX_TOKENS
+      : purpose === "message_draft"
+        ? SKILL_CRAFT_MAX_TOKENS
+        : GATEWAY_MAX_TOKENS;
 
 /** A request the gateway will not send: `bad_request`, with the rule it broke in `detail`. */
 const badRequest = (detail: string) => ({ ok: false as const, error: "bad_request" as const, detail });

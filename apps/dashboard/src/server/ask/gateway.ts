@@ -18,7 +18,7 @@ export type { GatewayEvent } from "./sse";
 import { edgeConfigured, edgeHeaders, edgeUrl } from "../edge";
 import { deployment } from "../env";
 import { isEffortMessage } from "@chanlytics/contracts";
-import type { EdgeErrorCode, ModelEffort, ModelSpeed, ThinkingType } from "@chanlytics/contracts";
+import type { EdgeErrorCode, ModelEffort, ModelSpeed, SkillCraftPurpose, ThinkingType } from "@chanlytics/contracts";
 
 export interface GatewayCall {
   tenantId: string;
@@ -29,7 +29,15 @@ export interface GatewayCall {
    * themselves. Every purpose may carry a format: Ask's turn answers in
    * ASK_ANSWER_FORMAT.
    */
-  purpose?: "ask" | "ask_warm" | "lead_draft" | "lead_suggest" | "list_draft" | "person_draft" | "sequence_draft";
+  purpose?:
+    | "ask"
+    | "ask_warm"
+    | "lead_draft"
+    | "lead_suggest"
+    | "list_draft"
+    | "person_draft"
+    | "sequence_draft"
+    | SkillCraftPurpose;
   request: {
     model?: string;
     max_tokens: number;
