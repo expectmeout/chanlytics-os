@@ -68,7 +68,7 @@ const useArLine = (A, H) => {
   const [threads, setThreads] = useArState([]);
   const [active, setActive] = useArState(null); // { id, title, messages, scope }
   const [live, setLive] = useArState(null); // the turn in flight: { q, text, traces }
-  const [quick, setQuick] = useArState(null); // a quick answer, no model: { q, answer } or { q, pending: true }
+  const [quick, setQuick] = useArState(null); // a quick question being read, no model: { q, pending: true }; its answer opens `active`
   const [scope, setScope] = useArState(null);
   const [sel, setSel] = useArState(0); // the row the keys stand on
   const [move, setMove] = useArState(-1); // the answer's move they stand on, none at first
@@ -450,12 +450,29 @@ const arActs = (ln) => {
 /** A phone lets go of the field as a question is asked, and its keyboard: the answer lands to be read, never dimmed (D4). */
 const arLetGo = (el) => { if (arPhone() && el && typeof el.blur === "function") el.blur(); };
 
-// One turn: the question goes in, the words stream back, the answer lands. A quick question needs no model and no
-// thread. A question that repeats a thread's first question resumes that thread rather than opening a twin. `turn` is
-// what the stream writes and the landing reads: its thread's id, the final message, and what it has said. Asking (as
-// opening another conversation does) stops an answer read aloud, which went on over the next one (D14).
+// A quick question (contracts askIntent): answered from what the page holds, with no model, as the first turn of a
+// conversation, kept as it is drawn (A.keepQuick: in the thread whose first question it repeats, else a new one), whose
+// id the conversation takes as it lands (`kept`). A later question, a conversation opened or Clear meanwhile: not drawn.
+const arQuickTurn = async (ln, q, pending, spoken) => {
+  const { A, M, turnSeq, threads, threadsReady, setQuick, setActive, setThreads } = ln;
+  const mine = ++turnSeq.current; setQuick({ q, pending: true });
+  const answer = await pending; if (mine !== turnSeq.current) return;
+  const kept = (threadsReady.current || Promise.resolve(threads)).then((list) => A.keepQuick({ text: q, answer, threadId: (list.find((th) => A.sameQuestion(th.title, q)) || {}).id || null })).catch(() => null);
+  const m = { atMs: Date.now(), citations: [], followups: [], proposals: [] };
+  setQuick(null); setActive({ id: null, title: q, scope: null, kept, messages: [{ ...m, id: "u-" + m.atMs, role: "user", text: q }, { ...m, id: "k-" + m.atMs, role: "assistant", text: A.answerText(answer), answer }] });
+  kept.then((th) => { if (th) { setActive((prev) => (prev && prev.kept === kept ? { ...prev, id: th.id, title: th.title } : prev)); A.threads().then(setThreads); } });
+  if (M) { M.mood.set("idle"); M.mood.react("nod"); }
+  if (spoken) arAnswerAloud(ln, A.answerSpoken(answer));
+};
+/** A conversation a quick answer opened, once its turn is kept: in the thread it landed in, or in none if it was not. */
+const arKept = async (c) => { const th = await c.kept; return { ...c, kept: null, ...(th ? { id: th.id, title: th.title } : {}) }; };
+
+// One turn: the question goes in, the words stream back, the answer lands. A quick question needs no model (arQuickTurn).
+// A question that repeats a thread's first question resumes that thread rather than opening a twin. `turn` is what the
+// stream writes and the landing reads: its thread's id, the final message, and what it has said. Asking (as opening
+// another conversation does) stops an answer read aloud, which went on over the next one (D14).
 const arSubmitter = (ln) => {
-  const { A, M, query, live, active, threads, threadsReady, turnSeq, scope, surface, openedAt, inputRef, speech, setQuery, setView, setUnfolded, setLang, setQuick, setActive, setLive, setScope, openThread } = ln;
+  const { A, query, live, active, threads, threadsReady, turnSeq, scope, surface, openedAt, inputRef, speech, setQuery, setView, setUnfolded, setLang, setQuick, setScope, openThread } = ln;
   const submit = async (qArg, chipArg, how) => {
     const q = (typeof qArg === "string" ? qArg : query).trim(), chip = chipArg !== undefined ? chipArg : scope; // a seed names its opening's chip; `how.spoken` marks a question the recogniser heard
     if (!q || live) return;
@@ -465,22 +482,10 @@ const arSubmitter = (ln) => {
     setView("rows");
     setUnfolded(-1);
     setLang(A.language(q));
-    if (!active) {
-      const pending = A.quick(q);
-      if (pending) {
-        const mine = ++turnSeq.current;
-        setQuick({ q, pending: true });
-        const answer = await pending;
-        // A later question, a conversation opened or Clear took the line meanwhile: this answer is not drawn.
-        if (mine !== turnSeq.current) return;
-        setQuick({ q, answer });
-        if (M) { M.mood.set("idle"); M.mood.react("nod"); }
-        if (spoken) arAnswerAloud(ln, A.answerSpoken(answer));
-        return;
-      }
-    }
+    const pending = active ? null : A.quick(q);
+    if (pending) return arQuickTurn(ln, q, pending, spoken);
     setQuick(null);
-    let base = active;
+    let base = active && active.kept ? await arKept(active) : active; // asked once a quick turn is kept, which it reads
     if (!base) {
       const list = await (threadsReady.current || Promise.resolve(threads));
       const twin = list.find((th) => A.sameQuestion(th.title, q));
@@ -585,11 +590,7 @@ const arUnder = ({ A, t, lang, query, surface, scope, threads, view, phone, acti
   const rowsDrawn = showRows && !composing;
   const sections = rowsDrawn ? buildLineRows({ A, t, lang, query, surface, scope, threads, view, phone }) : [];
   const rows = flatRows(sections);
-  const drawn = showRows || talk.listening || live
-    ? null
-    : quick
-      ? quick.answer ? { answer: quick.answer, cardOpen: {} } : null
-      : answerMsg ? A.answer(answerMsg) : null;
+  const drawn = showRows || talk.listening || live || quick || !answerMsg ? null : A.answer(answerMsg);
   const moves = drawn ? answerMoves(drawn.answer) : [];
   const [words, spoken] = drawn ? [A.answerCopy(drawn.answer), A.answerSpoken(drawn.answer)] : ["", ""];
   const th = arThreadOf({ phone, view, active, quick, showRows, composing, talk, live, latest });
@@ -768,7 +769,6 @@ const arBody = ({ rowsDrawn, sections, sel, setSel, activate, askDelete, t, view
       </div>
     );
   }
-  if (quick && quick.answer) return <AskTurn quick={quick.answer} q={quick.q} latest walk sel={move} next={!thread} t={t} lang={lang} onNav={nav} onFollow={submit} onEdit={editWords} />;
   if (answerMsg)
     return (
       <AskTurn
@@ -792,10 +792,10 @@ const arBody = ({ rowsDrawn, sections, sel, setSel, activate, askDelete, t, view
 
 /** A phone's hero as it stands: shrunk with the question under it, at rest, and the standing pills. */
 const arHeroState = ({ live, answerMsg, quick, latest, talk, showRows, view, query, phone, A, lang, composingRows, thread }) => {
-  const heroSmall = !!(live && (live.say || live.text)) || !!answerMsg || !!(quick && quick.answer);
+  const heroSmall = !!(live && (live.say || live.text)) || !!answerMsg;
   // In a phone's thread the three lead the newest answer (D3), its question the bubble over them, not a line under.
   const heroMode = arHeroModeOf({ thread, heroSmall, live, quick });
-  const heroQ = !heroSmall || thread ? null : live ? live.q : quick && quick.answer ? quick.q : latest && latest.q ? latest.q.text : null;
+  const heroQ = !heroSmall || thread ? null : live ? live.q : latest && latest.q ? latest.q.text : null;
   const restful = !thread && (talk.listening || (showRows && view === "rows" && !query));
   // The standing pills (who needs you, the runs and searches waiting) are the hero's on a phone: under the three at
   // rest, and still there while the field is in use, since they are what a person came to see (spec 5.9).

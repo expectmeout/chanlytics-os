@@ -9527,8 +9527,8 @@ function violatesNoPrices(text) {
 function canonicalNumber(run) {
   const m = /^(\d{1,3}(?:[.,]\d{3})+|\d+)(?:[.,](\d{1,2}))?$/.exec(run);
   if (!m) return run.replace(/[.,]0+$/, "");
-  const [, whole = "", cents = ""] = m;
-  const int3 = String(Number(whole.replace(/[.,]/g, "")));
+  const [, whole2 = "", cents = ""] = m;
+  const int3 = String(Number(whole2.replace(/[.,]/g, "")));
   const dec = cents.replace(/0+$/, "");
   return dec ? `${int3}.${dec}` : int3;
 }
@@ -9572,15 +9572,15 @@ function numberOfWords(words3) {
 var CURRENCY_WORDS = new RegExp(String.raw`\b${COUNTRY}(?:${CODES}|${NAMES}|quid)\b`, "gi");
 var PERCENT_SIGN = new RegExp(PERCENT, "i");
 var DEAL = /\b(?:2\s?x\s?1|dos por uno)\b/i;
-function figureOf(whole) {
-  if (DEAL.test(whole)) return "2x1";
-  const percent = PERCENT_SIGN.test(whole) ? "%" : "";
-  const run = /\d+(?:[.,]\d+)*/.exec(whole)?.[0];
+function figureOf(whole2) {
+  if (DEAL.test(whole2)) return "2x1";
+  const percent = PERCENT_SIGN.test(whole2) ? "%" : "";
+  const run = /\d+(?:[.,]\d+)*/.exec(whole2)?.[0];
   if (run) return `${canonicalNumber(run)}${percent}`;
   const spelled = numberOfWords(
-    whole.replace(CURRENCY_WORDS, " ").replace(PERCENT_SIGN, " ").replace(/\b(?:off|discount)\b/gi, " ")
+    whole2.replace(CURRENCY_WORDS, " ").replace(PERCENT_SIGN, " ").replace(/\b(?:off|discount)\b/gi, " ")
   );
-  return spelled !== null ? `${spelled}${percent}` : whole.toLowerCase().replace(/\s+/g, " ").trim();
+  return spelled !== null ? `${spelled}${percent}` : whole2.toLowerCase().replace(/\s+/g, " ").trim();
 }
 var NOT_A_PRICE_AFTER = String.raw`(?!\d|[.,]\d|-\d|\s*(?::|%|-?\s*(?:am|pm|a\.m|p\.m|o'clock|min|mins|minutes?|hours?|hrs?|people|persons?|guests?|days?|weeks?|months?|years?|minutos?|horas?|personas?|d[ií]as?|semanas?|meses|años?)\b))`;
 var RANGE_TOP = new RegExp(
@@ -9836,7 +9836,7 @@ function fillSlots(text, values, set) {
   const kind = set ?? { kind: "numbered" };
   return text.replace(
     patternOf(kind),
-    (whole, inner) => slotValueOf(set, keyInSet(kind, inner), values) ?? whole
+    (whole2, inner) => slotValueOf(set, keyInSet(kind, inner), values) ?? whole2
   );
 }
 function slotValues(set, known) {
@@ -11838,8 +11838,8 @@ var NAMES_A_PLACE = /^\s+(?:in|near|around|within|across|throughout)\s+(?:[A-Z]|
 function planWho(plan) {
   const a = plan.area;
   const known = new Set(bits(`${a.label} ${a.query} ${a.zip ?? ""} ${a.state} ${US_NAMES[a.state] ?? ""}`));
-  const whole = SAYS_WHERE.test(plan.name) && bits(plan.name).some((w) => known.has(w));
-  let cut2 = whole ? "" : plan.name.trim();
+  const whole2 = SAYS_WHERE.test(plan.name) && bits(plan.name).some((w) => known.has(w));
+  let cut2 = whole2 ? "" : plan.name.trim();
   const m = PLACE_CLAUSE.exec(cut2);
   if (m && (bits(m[0]).some((w) => known.has(w)) || NAMES_A_PLACE.test(m[0]))) cut2 = cut2.slice(0, m.index).trim();
   const said = new Set(plan.criteria.flatMap((c) => bits(c.text)));
@@ -15486,10 +15486,10 @@ function manySaid(data, verb) {
   const why = asText(rec(failedRows[0]).message) || (skipped2.length ? "no longer in this workspace" : "");
   return { done, failed, said: failed ? `${failed} could not be ${verb}${why ? ` \u2014 ${why}` : ""}` : "" };
 }
-function manyCalls(route, pl, fields) {
+function manyCalls(route, pl, fields2) {
   const ids = uniqueIds(pl.ids);
   if (!ids.length) return refuseWith("Pick at least one person.");
-  const rest = fieldsOf(pl, fields);
+  const rest = fieldsOf(pl, fields2);
   const calls = inBatches(ids).map((part) => ({ route, body: { ...rest, ids: part }, events: [PEOPLE_CHANGED] }));
   return oneOrMany(calls);
 }
@@ -22855,9 +22855,9 @@ function normalizeAnswer(raw, read, fallback) {
   const b = asObj(show.breakdown);
   const parts2 = asArr(b.parts).map(asObj).map((p) => ({ label: words(p.label, C.label), value: num(p.value), warn: p.warn === true }));
   const total = num(b.total);
-  const whole = words(b.label, C.label);
-  const adds = !!whole && parts2.length >= 2 && parts2.length <= C.parts && parts2.every((p) => p.label && Number.isFinite(p.value) && p.value >= 0) && Number.isFinite(total) && Math.abs(parts2.reduce((s, p) => s + p.value, 0) - total) < 1e-9;
-  const breakdown = adds ? { label: whole, total, parts: parts2, source: ground(b.source) } : null;
+  const whole2 = words(b.label, C.label);
+  const adds = !!whole2 && parts2.length >= 2 && parts2.length <= C.parts && parts2.every((p) => p.label && Number.isFinite(p.value) && p.value >= 0) && Number.isFinite(total) && Math.abs(parts2.reduce((s, p) => s + p.value, 0) - total) < 1e-9;
+  const breakdown = adds ? { label: whole2, total, parts: parts2, source: ground(b.source) } : null;
   const l = asObj(show.list);
   const list2 = {
     style: ASK_LIST_STYLES.find((x) => x === l.style) ?? "bullets",
@@ -24112,9 +24112,71 @@ function toLiveVM(calls, channels, tz, now = /* @__PURE__ */ new Date()) {
 }
 
 // src/ask/ask-fast-paths.ts
-var NEEDS_RE = /\b(who needs me|who needs my|needs? (my|me)\b|what('s| is| do i have)? waiting|waiting (on|for) me|anyone waiting|qui[eé]n me necesita|qu[eé] (me )?espera|qu[eé] (hay )?pendiente|pendientes?)\b/i;
-var CALLS_RE = /\b((did|has|have) (anyone|someone|anybody|somebody) (call|called|rang|phoned)|missed calls?|who called|any calls?|llam[oó] alguien|llamaron|llamadas? perdidas?|qui[eé]n llam[oó]|alguna llamada)\b/i;
-var OPEN_RE = /\b(what('s| is) open|what('s| is) free|openings?|availab|free (slot|slots|time)|any (slots?|room|space|time)|qu[eé] (hay|tengo) (libre|disponible)|disponibilidad|disponibles?|huecos?|espacios? libres?|cu[aá]ndo (hay|tienen) (libre|espacio))\b/i;
+var QUICK_WORDS = 8;
+var FILLER = "(?:(?:hey|ok|okay|so|and|oye|bueno|y) )?";
+var NOW = "(?: (?:right now|now|today|so far today|ahora(?: mismo)?|hoy))?";
+var CALLED_WHEN = "(?: (?:today|so far today|while i was (?:busy|out|away)|hoy|mientras estaba ocupad[oa]))?";
+var DAY_FORM = "(?:today|tomorrow|hoy|ma\xF1ana|(?:(?:on|this|el|este) )?(?:mon|monday|tue|tues|tuesday|wed|wednesday|thu|thur|thursday|fri|friday|sat|saturday|sun|sunday|lunes|martes|mi[e\xE9]rcoles|jueves|viernes|s[a\xE1]bado|domingo))";
+var FOR_SERVICE = "(?:for|para) (?:an? |un |una )?[a-z\xE0-\xFF'-]+(?: [a-z\xE0-\xFF'-]+){0,2}";
+var whole = (forms, tail) => new RegExp(`^${FILLER}(?:${forms.join("|")})${tail}$`);
+var NEEDS_RE = whole(
+  [
+    "who needs (?:me|my (?:attention|answer|reply|help))",
+    "what needs (?:me|my (?:attention|answer|reply))",
+    "(?:who|what)(?:'s|s| is) waiting(?: (?:on|for) me)?",
+    "(?:is )?(?:anyone|anybody|someone) waiting(?: (?:on|for) me)?",
+    "what do i have waiting",
+    "(?:is )?anything (?:waiting|pending)(?: (?:on|for) me)?",
+    "qui[e\xE9]n me (?:necesita|espera)",
+    "qu[e\xE9] me espera",
+    "qu[e\xE9] (?:hay|tengo) pendientes?",
+    "(?:hay )?alguien (?:me espera|esperando)",
+    "(?:algo )?pendientes?"
+  ],
+  NOW
+);
+var CALLS_RE = whole(
+  [
+    "(?:did|has|have) (?:anyone|someone|anybody|somebody) (?:call|called|rang|rung|phoned)(?: me| us)?",
+    "(?:any|were there any) (?:missed )?calls?",
+    "missed calls?",
+    "did (?:i|we) (?:miss|get|have) any (?:missed )?calls?",
+    "did (?:i|we) miss (?:a|any) calls?",
+    "how many (?:missed )?calls(?: did (?:i|we) (?:miss|get))?",
+    "who called(?: me| us)?",
+    "(?:me )?llam[o\xF3] alguien",
+    "alguien (?:me )?(?:llam[o\xF3]|ha llamado)",
+    "qui[e\xE9]n (?:me )?(?:llam[o\xF3]|ha llamado)",
+    "(?:me )?llamaron",
+    "(?:alguna|hay|hubo) llamadas? perdidas?",
+    "alguna llamada",
+    "(?:cu[a\xE1]ntas )?llamadas? perdidas?"
+  ],
+  CALLED_WHEN
+);
+var OPEN_RE = whole(
+  [
+    "what(?:'s|s| is) (?:open|free|available)",
+    "(?:is there )?anything (?:open|free|available)",
+    "(?:any|are there any) (?:openings?|availability|slots?|room|space|free (?:slots?|times?|spots?)|open (?:slots?|times?|spots?))",
+    "(?:do|does) (?:i|we) have (?:any )?(?:openings?|availability|room|space|free (?:time|slots?))",
+    "openings?",
+    "availability",
+    "qu[e\xE9] (?:hay|tengo|tenemos) (?:libre|disponible)",
+    "(?:hay )?(?:disponibilidad|huecos?|espacios? libres?|algo libre|horas? libres?)",
+    "cu[a\xE1]ndo (?:hay|tienen|tenemos|tengo) (?:libre|espacio|hueco|disponibilidad)"
+  ],
+  `(?: ${DAY_FORM})?(?: ${FOR_SERVICE})?(?: ${DAY_FORM})?`
+);
+var ACT_RE = /\b(draft|write|send|set ?up|make|turn|create|reply|respond|text|email|book|schedule|cancel|remind|tell|redacta|escribe|env[ií]a|manda|configura|crea|haz|responde|apaga|enciende|programa|reserva|agenda|cancela|recu[eé]rdame|dile)\b/i;
+var PERIOD_RE = /\b(yesterday|last|next|week|weekend|month|year|since|between|compare|vs|versus|ayer|anoche|semana|mes|año|pasad[oa]|pr[oó]xim[oa]|desde|entre|compara)\b/i;
+var NOT_A_NAME2 = /^(mon|tue|tues|wed|thu|thur|thurs|fri|sat|sun)(day|sday|nesday|rsday|urday)?$|^(today|tomorrow|hoy|mañana|lunes|martes|mi[eé]rcoles|jueves|viernes|s[aá]bado|domingo)$/i;
+function namesSomeone(question) {
+  return question.split(/\s+/).map((w) => w.replace(/^[^\p{L}]+|[^\p{L}]+$/gu, "")).slice(1).some((w) => /^\p{Lu}\p{Ll}/u.test(w) && !NOT_A_NAME2.test(w));
+}
+function quickWords(question) {
+  return question.replace(/[’‘`´]/g, "'").toLowerCase().replace(/[¿¡?!.,;:]+/g, " ").replace(/\s+/g, " ").trim();
+}
 var DAY_WORDS = [
   [/\b(mon|monday|lunes)\b/i, "mon"],
   [/\b(tue|tues|tuesday|martes)\b/i, "tue"],
@@ -24150,11 +24212,49 @@ function dayFromQuestion(q, now, tz) {
 }
 function askIntent(question, now, tz) {
   const q = question.trim();
-  if (!q || q.length > 160) return null;
-  if (NEEDS_RE.test(q)) return { kind: "needs" };
-  if (CALLS_RE.test(q)) return { kind: "calls" };
-  if (OPEN_RE.test(q)) return { kind: "openings", day: dayFromQuestion(q, now, tz), service: q };
+  const words3 = quickWords(q);
+  if (!words3 || q.length > 160 || words3.split(" ").length > QUICK_WORDS) return null;
+  if (ACT_RE.test(words3) || PERIOD_RE.test(words3) || namesSomeone(q)) return null;
+  if (NEEDS_RE.test(words3)) return { kind: "needs" };
+  if (CALLS_RE.test(words3)) return { kind: "calls" };
+  if (OPEN_RE.test(words3)) return { kind: "openings", day: dayFromQuestion(q, now, tz), service: q };
   return null;
+}
+var C2 = ASK_ANSWER_CAPS;
+var CITATION_KINDS = new Set(ASK_CITATION_KINDS);
+var fields = (v) => v && typeof v === "object" && !Array.isArray(v) ? v : {};
+var capTo = (v, n) => clip(typeof v === "string" ? v : "", n);
+var appRoute = (v) => typeof v === "string" && v.length <= 300 && /^[a-z][a-z0-9-]*(?:\/[^\s\\]*)?$/i.test(v) && !v.includes("//") ? v : null;
+function quickAnswerOf(raw) {
+  const a = fields(raw);
+  const say2 = fields(a.say);
+  const headline2 = capTo(say2.headline, C2.headline);
+  if (a.v !== 2 || a.form !== "structured" || !headline2) return null;
+  const rows2 = fields(a.show).items;
+  const items = [];
+  for (const it of (Array.isArray(rows2) ? rows2 : []).slice(0, C2.items).map(fields)) {
+    const s = fields(it.source);
+    const title = capTo(it.title, C2.title);
+    const to = appRoute(s.to);
+    if (!title || !to || typeof s.kind !== "string" || !CITATION_KINDS.has(s.kind) || typeof s.id !== "string")
+      return null;
+    if (!s.id || s.id.length > 300) return null;
+    const label = capTo(s.label, C2.label) || title;
+    const source = { kind: s.kind, id: s.id, label, to, door: s.door !== false };
+    items.push({ title, meta: capTo(it.meta, C2.meta), line: capTo(it.line, C2.line), source });
+  }
+  const o = fields(a.do).open;
+  const openTo = o ? appRoute(fields(o).to) : null;
+  if (o && !openTo) return null;
+  const open = openTo ? { to: openTo, label: capTo(fields(o).label, C2.label), now: false } : null;
+  return {
+    v: 2,
+    form: "structured",
+    say: { headline: headline2, detail: capTo(say2.detail, C2.detail) },
+    show: { figures: [], items, breakdown: null, list: { style: "bullets", entries: [] } },
+    do: { open, next: [] },
+    language: a.language === "es" || a.language === "en" ? a.language : "other"
+  };
 }
 function callsToday(calls, now, tz) {
   const today = dayKey(now, tz);
@@ -28145,12 +28245,12 @@ function offerLead(offer) {
 // src/deals/deal-amount.ts
 function amountWords(cents, per, currency = "USD") {
   if (cents === null || cents === void 0 || !Number.isFinite(cents)) return null;
-  const whole = cents % 100 === 0;
+  const whole2 = cents % 100 === 0;
   const money2 = numberFormat("en-US", {
     style: "currency",
     currency: currency.toUpperCase(),
-    minimumFractionDigits: whole ? 0 : 2,
-    maximumFractionDigits: whole ? 0 : 2
+    minimumFractionDigits: whole2 ? 0 : 2,
+    maximumFractionDigits: whole2 ? 0 : 2
   }).format(cents / 100);
   const p = per && DEAL_PERS.includes(per) ? DEAL_PER_WORDS[per] : null;
   return p && per !== "once" ? `${money2} ${p}` : money2;
@@ -28717,9 +28817,9 @@ function visitServiceOf(title, names3) {
   return service;
 }
 function visitTitleWithout(title, names3) {
-  const whole = title.trim();
-  const service = visitServiceOf(whole, names3);
-  return /[\p{L}\p{N}]/u.test(service) ? service : whole;
+  const whole2 = title.trim();
+  const service = visitServiceOf(whole2, names3);
+  return /[\p{L}\p{N}]/u.test(service) ? service : whole2;
 }
 
 // src/calendar/calendar.ts
@@ -31827,10 +31927,10 @@ var SERVICE_CHIPS = CHIPS_SHOWN;
 function lengthWords(minutes) {
   const m = typeof minutes === "string" ? Number(minutes.trim()) : minutes;
   if (typeof m !== "number" || !Number.isFinite(m) || m <= 0) return null;
-  const whole = Math.round(m);
-  if (whole < 60) return `${whole} min`;
-  const h = Math.floor(whole / 60);
-  const rest = whole % 60;
+  const whole2 = Math.round(m);
+  if (whole2 < 60) return `${whole2} min`;
+  const h = Math.floor(whole2 / 60);
+  const rest = whole2 % 60;
   return rest ? `${h} h ${rest} min` : `${h} h`;
 }
 var SERVICE_PRICE_EMPTY = "At consult";
@@ -39672,13 +39772,13 @@ function planNoteOf(day, how, about) {
 function writeReachOf(r2, at3) {
   const { ready, mode, facts, now = /* @__PURE__ */ new Date() } = at3;
   const ways = writeWaysOf(r2, ready, now);
-  const C2 = NEW_CONVERSATION_WORDS.call;
+  const C3 = NEW_CONVERSATION_WORDS.call;
   return {
     person: { id: r2.id, name: personName(r2), phone: r2.phone_e164, email: r2.email },
     thread: r2.latest_conversation_id ? `th-${r2.latest_conversation_id}` : null,
     ways,
     default_wire: defaultWriteWire(ways, r2.last_inbound_channel),
-    call: !r2.phone_e164 ? { ok: false, tel: null, why: C2.noNumber } : r2.dnc ? { ok: false, tel: null, why: C2.doNotContact } : { ok: true, tel: r2.phone_e164, why: null },
+    call: !r2.phone_e164 ? { ok: false, tel: null, why: C3.noNumber } : r2.dnc ? { ok: false, tel: null, why: C3.doNotContact } : { ok: true, tel: r2.phone_e164, why: null },
     receptionist: { answers: mode !== "ask" && mode !== "never" },
     offers_ok: r2.marketing_consent === "opted_in",
     fills: facts ? {
@@ -41869,7 +41969,7 @@ function toPersonVM(d, tz, now = /* @__PURE__ */ new Date(), viewerId = null, pa
     // The one rule's answer, wire by wire, over People's own row for them (the sheet asks the same of the same row).
     ways: writeWaysOf(ctx.row, page2?.ready ?? null, now)
   };
-  const whole = {
+  const whole2 = {
     ...vm,
     proposal: ctx.proposal,
     proposalAction: proposalAction(
@@ -41877,7 +41977,7 @@ function toPersonVM(d, tz, now = /* @__PURE__ */ new Date(), viewerId = null, pa
       ctx.sentWords
     )
   };
-  const withActs = { ...whole, acts: personActs(whole) };
+  const withActs = { ...whole2, acts: personActs(whole2) };
   return { ...withActs, ...personPageOf(withActs, d, tz, now) };
 }
 function callLength2(seconds2) {
@@ -42420,7 +42520,7 @@ function refusalOf(input) {
   const status = Number.isFinite(input.status) ? input.status : 0;
   const said = typeof input.message === "string" ? input.message.trim() : "";
   const retryAfterS = retryAfterOf(input.details, input.retryAfter, input.nowMs ?? Date.now());
-  const fields = fieldsOf2(input.details);
+  const fields2 = fieldsOf2(input.details);
   const code2 = typeof input.code === "string" && input.code ? input.code : null;
   const aside = asideOf(input.details, status);
   const refusal = (c, title, message) => ({
@@ -42429,7 +42529,7 @@ function refusalOf(input) {
     title,
     message,
     retryAfterS,
-    fields,
+    fields: fields2,
     ...aside
   });
   if (!code2) {
@@ -42601,12 +42701,12 @@ function runCapOf(p) {
 }
 var noOne = () => ({ whatsapp: 0, sms: 0, email: 0 });
 function runReadingOf(drawn, trigger, caps) {
-  const whole = drawn.reach.by_channel ?? noOne();
-  const reading = { candidates: drawn.reach.will, by_channel: whole };
+  const whole2 = drawn.reach.by_channel ?? noOne();
+  const reading = { candidates: drawn.reach.will, by_channel: whole2 };
   const below = new Set(
     caps.map((cap2) => runCapOf({ trigger, cap_per_run: cap2 })).filter((cap2) => cap2 >= 1 && cap2 < reading.candidates)
   );
-  if (below.size === 0 || CONSENT_CHANNELS.filter((c) => whole[c] > 0).length < 2) return reading;
+  if (below.size === 0 || CONSENT_CHANNELS.filter((c) => whole2[c] > 0).length < 2) return reading;
   const last = Math.max(...below);
   const counts = noOne();
   const run_split = {};
@@ -42621,13 +42721,13 @@ function runReadingOf(drawn, trigger, caps) {
   return { ...reading, run_split };
 }
 function oneRunByChannel(reading, run) {
-  const whole = reading.by_channel;
-  if (!whole) return null;
+  const whole2 = reading.by_channel;
+  if (!whole2) return null;
   const cap2 = runCapOf(run);
-  if (cap2 === 0 || cap2 >= reading.candidates) return whole;
+  if (cap2 === 0 || cap2 >= reading.candidates) return whole2;
   const atCap = reading.run_split?.[String(cap2)];
   if (atCap) return atCap;
-  const carrying = CONSENT_CHANNELS.filter((c) => whole[c] > 0);
+  const carrying = CONSENT_CHANNELS.filter((c) => whole2[c] > 0);
   const [only] = carrying;
   return carrying.length === 1 && only ? { ...noOne(), [only]: cap2 } : null;
 }
@@ -49383,19 +49483,19 @@ function firstRunOf(vm, at3, who) {
   const final = def === last;
   const google = rowOf(vm, "google");
   const find = shown2.key === "business" && !!who?.owner && vm.findable && !!google && (findAsked || !google.later);
-  const C2 = FIRST_RUN_WORDS.check;
+  const C3 = FIRST_RUN_WORDS.check;
   const onCheck = shown2.key === "business" && !find && vm.check.receptionist !== "broken";
   const made = vm.check.receptionist === "set";
   const check = onCheck ? {
     made,
     make: !made && who?.owner ? {
-      sentence: vm.check.listed ? C2.makeListed : C2.makeNamed(businessNameOf(null, who.workspaceName)),
-      cta: C2.make,
-      busy: C2.making
+      sentence: vm.check.listed ? C3.makeListed : C3.makeNamed(businessNameOf(null, who.workspaceName)),
+      cta: C3.make,
+      busy: C3.making
     } : null,
-    waiting: !made && !who?.owner ? C2.ownerSetsUp : null,
+    waiting: !made && !who?.owner ? C3.ownerSetsUp : null,
     unsure: made ? unsureHoursWords(vm.check.unsure) : null,
-    find: vm.findable && who?.owner ? { label: C2.findIt, to: FIRST_RUN_FIND_ROUTE } : null,
+    find: vm.findable && who?.owner ? { label: C3.findIt, to: FIRST_RUN_FIND_ROUTE } : null,
     type: vm.check.type,
     bookingPage: vm.check.bookingPage
   } : null;
@@ -49406,10 +49506,10 @@ function firstRunOf(vm, at3, who) {
     lead: who?.receptionistName ? F.leadOnRecord : F.lead,
     onward: null
   } : check ? {
-    heading: vm.check.listed ? C2.found : C2.basics,
-    lead: vm.check.listed ? C2.foundLead : C2.basicsLead,
+    heading: vm.check.listed ? C3.found : C3.basics,
+    lead: vm.check.listed ? C3.foundLead : C3.basicsLead,
     onward: made ? {
-      label: C2.looksRight,
+      label: C3.looksRight,
       to: FIRST_RUN_ROUTE,
       leaves: false,
       held: shown2.state === "done" ? null : facts?.sentence ?? null
@@ -50834,6 +50934,7 @@ var ROUTE_KEYS = [
   "PATCH workspaces",
   "POST ask",
   "POST ask/messages/[id]/proposals/[pid]",
+  "POST ask/quick",
   "POST ask/speech",
   "POST ask/voice",
   "POST ask/voice/end",
@@ -51386,8 +51487,8 @@ function indexOf(rows2) {
     return r2 && r2.samples >= PAGE_SPEED_MIN ? r2 : null;
   };
 }
-function share(part, whole) {
-  return `${Math.round(part / whole * 10)} in 10`;
+function share(part, whole2) {
+  return `${Math.round(part / whole2 * 10)} in 10`;
 }
 function pageLine(at3, page2) {
   const load = at3("READY", page2, "", "load");
@@ -54861,8 +54962,8 @@ function settingsChangedWords(p) {
   const from = textAt(p, "from");
   const to = textAt(p, "to");
   if (from && to) return `renamed from \u201C${from}\u201D to \u201C${to}\u201D`;
-  const fields = Array.isArray(p.fields) ? p.fields.filter((f) => typeof f === "string") : [];
-  return fields.length ? fields.slice(0, 4).join(", ") : null;
+  const fields2 = Array.isArray(p.fields) ? p.fields.filter((f) => typeof f === "string") : [];
+  return fields2.length ? fields2.slice(0, 4).join(", ") : null;
 }
 function importWords(p) {
   const n = (k) => numberAt(p, k) ?? 0;
@@ -55053,8 +55154,8 @@ var exportedWords = (what) => what === "workspace" ? "the records" : what === "p
 function activityWords(kind, payload) {
   const p = payload && typeof payload === "object" && !Array.isArray(payload) ? payload : {};
   const base = kind === "take_over" && textAt(p, "how") === "transfer" ? "Took over a call" : WORDS2[kind] ?? humanize(kind);
-  const whole = WHOLE_SENTENCE.get(kind);
-  if (whole) return whole(p, base);
+  const whole2 = WHOLE_SENTENCE.get(kind);
+  if (whole2) return whole2(p, base);
   const bits2 = [];
   switch (kind) {
     case "take_over": {
@@ -58945,6 +59046,7 @@ export {
   pushesFor,
   quantile,
   questionAfterProbe,
+  quickAnswerOf,
   quietOf,
   quotesPrice,
   raiseOf,

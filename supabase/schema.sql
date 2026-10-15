@@ -34618,6 +34618,13 @@ CREATE INDEX event_outbox_created ON public.event_outbox USING btree (created_at
 
 
 --
+-- Name: events_contact_added; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX events_contact_added ON ONLY public.events USING btree (tenant_id, subject_id, created_at) WHERE ((kind = 'contact.added'::text) AND (subject_type = 'contact'::text));
+
+
+--
 -- Name: events_tenant_kind_created; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -34629,6 +34636,13 @@ CREATE INDEX events_tenant_kind_created ON ONLY public.events USING btree (tenan
 --
 
 CREATE INDEX events_default_tenant_id_kind_created_at_idx ON public.events_default USING btree (tenant_id, kind, created_at);
+
+
+--
+-- Name: events_default_tenant_id_subject_id_created_at_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX events_default_tenant_id_subject_id_created_at_idx ON public.events_default USING btree (tenant_id, subject_id, created_at) WHERE ((kind = 'contact.added'::text) AND (subject_type = 'contact'::text));
 
 
 --
@@ -35735,6 +35749,13 @@ ALTER INDEX public.events_pkey ATTACH PARTITION public.events_default_pkey;
 --
 
 ALTER INDEX public.events_tenant_kind_created ATTACH PARTITION public.events_default_tenant_id_kind_created_at_idx;
+
+
+--
+-- Name: events_default_tenant_id_subject_id_created_at_idx; Type: INDEX ATTACH; Schema: public; Owner: -
+--
+
+ALTER INDEX public.events_contact_added ATTACH PARTITION public.events_default_tenant_id_subject_id_created_at_idx;
 
 
 --
