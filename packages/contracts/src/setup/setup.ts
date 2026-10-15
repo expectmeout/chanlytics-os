@@ -454,10 +454,11 @@ export const BROKEN_CONFIG_WORDS = {
 
 /**
  * What an owner can ask a person at Chanlytics for (00123): a phone line, until
- * lines provision themselves; bringing the number they have over (S14); and a
- * repair of a configuration the receptionist can no longer read (S8).
+ * lines provision themselves; bringing the number they have over (S14); a
+ * repair of a configuration the receptionist can no longer read (S8); and a
+ * change of the name the carriers hold, which no rename reaches (X4-5, 00439).
  */
-export const SETUP_REQUEST_KINDS = ["line", "port", "repair", "forwarding"] as const;
+export const SETUP_REQUEST_KINDS = ["line", "port", "repair", "forwarding", "name"] as const;
 export type SetupRequestKind = (typeof SETUP_REQUEST_KINDS)[number];
 
 /**

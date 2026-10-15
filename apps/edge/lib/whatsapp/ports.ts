@@ -21,7 +21,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../packages/db.js";
 import { pg } from "../pg.js";
-import { readLeadContext, personReplyMode, offersAnswerOf, describeLead } from "../packages/db.js";
+import { readLeadContext, personReplyMode, offersAnswerOf, describeLead, filedNamesOf } from "../packages/db.js";
 import { loadTenantRuntime, waCfgFor, type TenantRuntime } from "../tenant-runtime.js";
 import { openingsFor, visitsFor } from "../calendar/availability.js";
 import { tokensLast24h } from "../receptionist/budget.js";
@@ -32,7 +32,7 @@ import { whatsappSender, type InboundPorts as CoreInboundPorts } from "../packag
 import { logger } from "../log.js";
 import { env } from "../env.js";
 
-export interface InboundPorts extends Omit<CoreInboundPorts, "log" | "waCfg" | "leads"> {
+export interface InboundPorts extends Omit<CoreInboundPorts, "log" | "waCfg" | "leads" | "filing"> {
   /** The database, or null when this deployment persists nothing. */
   db: () => SupabaseClient<Database> | null;
   /** The control plane's one door: the workspace's persona, policy, credentials. */
@@ -42,6 +42,8 @@ export interface InboundPorts extends Omit<CoreInboundPorts, "log" | "waCfg" | "
     personReplyMode: typeof personReplyMode;
     offersAnswer?: typeof offersAnswerOf;
   };
+  /** The names the workspace's filings hold: a START by text is confirmed in its campaign's (X4-5). A test's world may leave it out. */
+  filing?: { names: typeof filedNamesOf };
   calendar: {
     openings(rt: TenantRuntime, now?: Date): Promise<string | null>;
     visits(rt: TenantRuntime, who: { phone: string | null; name: string | null }, now?: Date): Promise<string | null>;
@@ -97,6 +99,7 @@ export function realPorts(): InboundPorts {
     db: pg,
     runtime: loadTenantRuntime,
     leads: { read: readLeadContext, personReplyMode, offersAnswer: offersAnswerOf },
+    filing: { names: filedNamesOf },
     // A chat: what follows an opening or a visit may offer any link (calendar/availability.ts linkOfferedOn).
     calendar: {
       openings: (rt, now) => openingsFor(rt, "chat", now),

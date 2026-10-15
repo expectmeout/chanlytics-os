@@ -111,7 +111,7 @@ export { ROLES, ROLE_PERMS, ROLE_SAYS, TEAM_ROLES, roleSays, roleTable } from ".
 export { isOptedOutContact, mayRing, isOfferByEmail, mayMessageFor, relationshipOnRecord, consentChangeOf, purposeOfTemplate, purposeOfPlaybook, OPT_OUT_REFUSAL, optOutWords, STOP_WORDS, stopRequestQuestion, DELIVERY_REFUSALS, PURPOSE_REFUSALS } from "./consent/consent";
 export { yesAsked, consentGuardWords, consentRuleWords } from "./consent/consent-asks";
 export { CONSENT_CHANNELS, CONSENT_CHANNEL_WORDS, channelsOfYes, yesCovers, coveredChannels, channelsWords } from "./consent/consent-channels";
-export { policyLinks, optInConfirmation, verbalOptInScript, consentPageVM, consentFormVM, consentPageMetadata, consentFormMetadata, deskSignVM, deskSignMetadata, notTakingSignUps, GET_YES_PAUSED_WORDS, YES_WHILE_PAUSED, CONSENT_PHRASE, CONSENT_PHRASE_ES, CONVERSATION_PHRASE, CONVERSATIONAL_ASK_TITLE } from "./consent/consent-page";
+export { policyLinks, optInConfirmation, confirmationNameOf, verbalOptInScript, consentPageVM, consentFormVM, consentPageMetadata, consentFormMetadata, deskSignVM, deskSignMetadata, notTakingSignUps, GET_YES_PAUSED_WORDS, YES_WHILE_PAUSED, CONSENT_PHRASE, CONSENT_PHRASE_ES, CONVERSATION_PHRASE, CONVERSATIONAL_ASK_TITLE } from "./consent/consent-page";
 export { offerUnsubscribeWords, STOP_ALL_REFUSALS } from "./consent/offers-unsubscribe";
 export { ABANDONED_MS, abandonedCall, callAttemptWords, missedCall, neverConnected, reachedVoicemail, DISCONNECTION_LABELS } from "./conversations/call-dto";
 export { callEndedWords, spokenDuration, toCallVM } from "./conversations/call-vm";
@@ -189,7 +189,7 @@ export { LINE_CODES_WITHIN_MS, LINE_CODES_MAX, LINE_CODES_EVERY_MS } from "./lin
 export { lineCredentialFailure, LINE_CREDENTIALS_SENTENCE } from "./lines/line-failure";
 export { lineReleaseAfterDays, billingEndedAt, lineReleaseStep, lineReleaseDay, lineReleaseWarning, lineReleasedWords, LINE_RELEASE_WARN_DAYS, LINE_RELEASE_MIN_DAYS, LINE_RELEASE_REPORT_DAYS } from "./lines/line-release";
 export { standingFromConfig, standingNeedsRead, standingAlertWords, standingAfterNameDecision, nameDecisionWords, numberHealthWithStanding, numberHealthOfConfig, PAYMENT_HOLD_WORD } from "./lines/number-standing";
-export { isPublishedFact, changedRecordFields, publicPagePath, recordFilingOf, recordSavedOf, recordSavedWords, RECORD_REVIEW_CONFIRM, PUBLIC_FIELD_MARK, BUSINESS_PAGE_NOTE, SERVICES_ON_PUBLIC_PAGE } from "./lines/published-facts";
+export { isPublishedFact, changedRecordFields, publicPagePath, recordFilingOf, recordSavedOf, recordSavedWords, RECORD_REVIEW_CONFIRM, LINE_FILED_NAMES, RENAME_WORDS, PUBLIC_FIELD_MARK, BUSINESS_PAGE_NOTE, SERVICES_ON_PUBLIC_PAGE } from "./lines/published-facts";
 export { registrationPathOf, soleProprietorLimits, REGISTRATION_PATHS, SOLE_PROP_LIMITS, REGISTRATION_QUESTION, REGISTRATION_PATH_WORDS, REGISTRATION_COST_WORDS } from "./lines/registration-path";
 export { WHATSAPP_COST_WORDS } from "./lines/whatsapp-cost";
 export { tryItLink } from "./lines/whatsapp-try-it";
@@ -398,4 +398,4 @@ export { PLATFORM_DAYS_READ, PLATFORM_NUMBERS, pastTarget, pastTargetPage, platf
 export { retentionWords, RETENTION_DAYS, RATE_HITS_RETENTION_HOURS, EVENT_EVIDENCE_KINDS, RECORDING_RETENTION_DAYS, RECORDING_PURGED_WORDS } from "./workspace/retention";
 export { SECOND_FACTOR_LEVEL, SECOND_FACTOR_PATH, SECOND_FACTOR_REQUIRED_PATH, SECOND_FACTOR_WORDS, cleanFactorCode, enrolRefusalWords, factorCodeWords, factorStepNeeded, seatNeedsSecondFactor, secondFactorResetWords, secondFactorShown } from "./workspace/second-factor";
 export { signupPosture, sendFailureIsOurs, addressAlreadyKnown, emailNotConfirmed, deviceTimezone, firstWorkspaceDoor, googleCallbackUrl, resendLeft, requestCodeWords, verifyCodeWords, SIGNUP_NAME_MIN, SIGNUP_NAME_MAX, SIGNUP_WAITLIST, PENDING_WORKSPACE_KEY, SIGNUP_WORDS, SIGNIN_RESEND_COOLDOWN_S } from "./workspace/signup";
-export { isTimezone, cleanTimezone, timezoneWords, zoneSearchWords, knownTimezones, usableDeviceTimezone, DEFAULT_TIMEZONE } from "./workspace/workspace";
+export { isTimezone, cleanTimezone, timezoneWords, zoneSearchWords, knownTimezones, usableDeviceTimezone, DEFAULT_TIMEZONE, WORKSPACE_NAME_MAX, cleanWorkspaceName } from "./workspace/workspace";

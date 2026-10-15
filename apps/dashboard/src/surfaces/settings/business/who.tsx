@@ -10,8 +10,10 @@
 //
 // It holds no hook of its own (the rows hold theirs).
 
+import { RENAME_WORDS } from "@chanlytics/contracts";
 import type { Fact, FactConflict, FactSource, ResolvedFacts } from "@chanlytics/contracts";
 import type { ReactNode } from "react";
+import { api } from "@/legacy-bridge/api";
 import { BUSINESS_TAB } from "@/legacy-bridge/business-tab";
 import { gate, navigate } from "../../legacy-verbs";
 import type { LegacyFlash } from "../../legacy-verbs";
@@ -232,6 +234,35 @@ const btWordsSaved = (id: "name" | "address" | "website" | "booking_link") => (d
   return { change: S.PATCH_OF[id](S.STORED_AS[id] ? S.STORED_AS[id](d) : S.trimmed(d)), said: BT_SAVED };
 };
 
+/**
+ * The name's save, which renames the workspace too (00439; the wiring's second audit, X4-5): its toast says what the
+ * sign-up page and the sign say now, and where the carriers hold the name the campaign was filed under, says that with the
+ * way to ask for it to change. An answer that renamed nothing says what every row says.
+ */
+const btNameSaved = (flash: (f: LegacyFlash) => void) => (d: string) => ({
+  ...btWordsSaved("name")(d),
+  said: (answer: unknown): LegacyFlash => {
+    const r = (answer as { renamed?: { to?: unknown; carriers_hold?: unknown; refused?: unknown } } | null)?.renamed;
+    if (!r) return { msg: BT_SAVED };
+    if (r.refused) return { tone: "warn", msg: RENAME_WORDS.kept };
+    const pages = RENAME_WORDS.pages(typeof r.to === "string" ? r.to : "");
+    const held = typeof r.carriers_hold === "string" ? r.carriers_hold : null;
+    if (!held) return { msg: pages };
+    return {
+      msg: `${pages} ${RENAME_WORDS.held(held)}`,
+      action: { label: RENAME_WORDS.ask, onClick: () => btAskNameChange(flash) },
+    };
+  },
+});
+
+/** Ask a person at Chanlytics to change the name the carriers hold (setup_request 'name'), and say what was asked. */
+const btAskNameChange = async (flash: (f: LegacyFlash) => void) => {
+  const r = await api()("POST setup/request", { body: { what: "name" }, once: true });
+  if (!r.ok) return flash({ tone: "danger", msg: r.message || "That didn't go through." });
+  const at = (r.data.request as { requested_at?: unknown } | null)?.requested_at;
+  flash({ msg: RENAME_WORDS.requested(typeof at === "string" ? at : new Date().toISOString(), Date.now()) });
+};
+
 /** What every card's row is handed by the card. */
 interface RowShared {
   brain: Brain;
@@ -387,7 +418,7 @@ const BtNameRow = ({ shared, brain, goesOn }: { shared: RowShared; brain: Brain;
       gate={btChangeGate("name")}
       initial={brain.business_name || ""}
       check={S.CHECK_OF.name}
-      commit={btWordsSaved("name")}
+      commit={btNameSaved(shared.flash)}
       body={btTextBox({ placeholder: "The name customers know you by", autoComplete: "organization" })}
     />
   );

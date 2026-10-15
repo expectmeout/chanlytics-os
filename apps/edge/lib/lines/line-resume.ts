@@ -22,7 +22,12 @@
  *
  * Cross-workspace: the lines sweep resumes every workspace's stuck line; a take acts on a row its caller holds.
  */
-import { PROVISIONING_DEADLINE_MS, LINE_STEP_WORDS, formatPhoneDisplay } from "../packages/contracts.js";
+import {
+  PROVISIONING_DEADLINE_MS,
+  LINE_STEP_WORDS,
+  LINE_FILED_NAMES,
+  formatPhoneDisplay,
+} from "../packages/contracts.js";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { tenantDb, type Database, type Json } from "../packages/db.js";
 import type { Logger } from "../log.js";
@@ -60,7 +65,13 @@ export function retryRequestedBy(raw: unknown): "owner" | "support" {
  * The name a line's brand was filed under (channels brandNameOf), kept by the filing that made the brand: what the save of
  * the business on record says the carriers hold after the record moves on (the wiring's second audit, X4-3).
  */
-export const FILED_NAME_FACT = "a2p_filed_name";
+export const FILED_NAME_FACT = LINE_FILED_NAMES.brand;
+
+/**
+ * The name a line's campaign was filed under (the workspace's, as the filing that made the campaign read it): the name a
+ * START by text is confirmed in, which only a new campaign changes (the wiring's second audit, X4-5).
+ */
+export const CAMPAIGN_NAME_FACT = LINE_FILED_NAMES.campaign;
 
 /** A line's facts as an object to read or spread into a write: anything else stored there (null, an array) is none. */
 export const factsOf = (row: Pick<LineDbRow, "facts">): Record<string, unknown> =>

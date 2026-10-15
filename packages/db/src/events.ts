@@ -145,7 +145,15 @@ interface TableData {
   "reach_out.lead_stopped": { by: string };
   "reach_out.send_decided": { decision: string; by: string };
   "policy.veto_window_skipped": { delay_ms: number; source: string; reason: string };
-  "settings.changed": { fields: string[]; by: string; version: number | string | null; via?: string };
+  /** A rename of the workspace keeps the names it changed from and to (00439, X4-5): the one setting the ledger says in full. */
+  "settings.changed": {
+    fields: string[];
+    by: string;
+    version: number | string | null;
+    via?: string;
+    from?: string;
+    to?: string;
+  };
   /** A message deleted from the Library, and one sent to WhatsApp for approval: its name, its language, and who. */
   "template.removed": { name: string; language: string; by: string };
   "template.submitted": { name: string; language: string; by: string };

@@ -4310,6 +4310,17 @@ interface InboundPorts {
          */
         describe(lead: LeadContext, now?: Date, tz?: string, channel?: InboundChannel): string;
     };
+    /**
+     * The names the workspace's filings sent the carriers (packages/db filedNamesOf): the campaign's is the name a START by
+     * text is confirmed in (contracts confirmationNameOf; the wiring's second audit, X4-5). Absent in an adapter that has
+     * none: the confirmation is then in the workspace's name.
+     */
+    filing?: {
+        names(db: InboundDb, tenantId: string): Promise<{
+            campaign: string | null;
+            brand: string | null;
+        }>;
+    };
     calendar: {
         openings(rt: InboundRuntime, now?: Date): Promise<string | null>;
         visits(rt: InboundRuntime, who: {

@@ -25205,7 +25205,7 @@ begin
   if p_tenant_id is null or not public.is_acting_member(p_tenant_id) then
     raise exception 'Workspace not found.' using errcode = 'P0002';
   end if;
-  if p_what is null or p_what not in ('line', 'port', 'repair', 'forwarding') then
+  if p_what is null or p_what not in ('line', 'port', 'repair', 'forwarding', 'name') then
     raise exception 'Unknown request.' using errcode = '22023';
   end if;
 
@@ -25230,6 +25230,10 @@ begin
     v_title := 'We got your request to set up forwarding';
     v_body := 'A person at Chanlytics will set up forwarding in your phone system with you on a call. You will hear from us by email to find a time.';
     v_route := 'start/phone';
+  elsif p_what = 'name' then
+    v_title := 'We got your request to change your name with the carriers';
+    v_body := 'A person at Chanlytics will change the name the carriers hold for your texting to the one you saved. Until then, the text confirming a START says the name you filed. You will hear from us by email.';
+    v_route := 'admin/workspace';
   else
     v_title := 'We got your request to repair your settings';
     v_body := 'A person at Chanlytics will repair the business settings the receptionist can no longer read; until then it stays silent. You will hear from us by email.';
@@ -25251,7 +25255,26 @@ end $$;
 -- Name: FUNCTION setup_request(p_tenant_id uuid, p_what text); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.setup_request(p_tenant_id uuid, p_what text) IS 'Setup: the owner asks a person at Chanlytics for something the product cannot do by itself -- a phone line, bringing a number over, setting up forwarding in an office phone system, or repairing a configuration the receptionist cannot read. A bell row for the workspace, an event for the platform; idempotent within a day per thing.';
+COMMENT ON FUNCTION public.setup_request(p_tenant_id uuid, p_what text) IS 'Setup: the owner asks a person at Chanlytics for something the product cannot do by itself -- a phone line, bringing a number over, setting up forwarding in an office phone system, repairing a configuration the receptionist cannot read, or changing the name the carriers hold (00439). A bell row for the workspace, an event for the platform; idempotent within a day per thing.';
+
+
+--
+-- Name: sole_proprietor_of(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.sole_proprietor_of(p_tenant_id uuid) RETURNS boolean
+    LANGUAGE sql STABLE
+    SET search_path TO 'public'
+    AS $$
+  select coalesce(btrim(r.ein), '') = '' from public.business_records r where r.tenant_id = p_tenant_id;
+$$;
+
+
+--
+-- Name: FUNCTION sole_proprietor_of(p_tenant_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.sole_proprietor_of(p_tenant_id uuid) IS 'Whether a workspace''s business on record has no tax id: filed as one person, a sole proprietor (00439); null with nothing on record. The public page asks it to say where such a business is by city alone, without ever reading the tax id. Service role: the public pages read with it.';
 
 
 --
@@ -41859,6 +41882,14 @@ GRANT ALL ON FUNCTION public.setup_request(p_tenant_id uuid, p_what text) TO ser
 
 
 --
+-- Name: FUNCTION sole_proprietor_of(p_tenant_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.sole_proprietor_of(p_tenant_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.sole_proprietor_of(p_tenant_id uuid) TO service_role;
+
+
+--
 -- Name: FUNCTION stamp_email_complaint(p_tenant_id uuid, p_message_id uuid, p_at timestamp with time zone); Type: ACL; Schema: public; Owner: -
 --
 
@@ -43870,6 +43901,13 @@ GRANT ALL ON TABLE public.tenant_config_versions TO service_role;
 
 GRANT SELECT,INSERT,DELETE ON TABLE public.tenants TO authenticated;
 GRANT ALL ON TABLE public.tenants TO service_role;
+
+
+--
+-- Name: COLUMN tenants.name; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT UPDATE(name) ON TABLE public.tenants TO authenticated;
 
 
 --

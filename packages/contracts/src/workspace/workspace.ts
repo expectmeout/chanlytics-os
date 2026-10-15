@@ -141,3 +141,19 @@ export function usableDeviceTimezone(resolve?: () => string | undefined): string
   const tz = signupDeviceTimezone(resolve);
   return tz && isTimezone(tz) ? tz : null;
 }
+
+/** The longest name a workspace may carry: the receptionist's name's own bound (brain-config-schema.ts business_name). */
+export const WORKSPACE_NAME_MAX = 120;
+
+/**
+ * A workspace's name as it is saved (the wiring's second audit, X4-5; Ruben, 15 October 2026): one line, trimmed, 1 to 120
+ * characters. It is the name customers read on the sign-up page, its paper form, the desk sign and the unsubscribe page, and
+ * the name a filing made from then on states. Before, only Chanlytics could change it.
+ */
+export function cleanWorkspaceName(raw: unknown): { ok: true; name: string } | { ok: false; reason: string } {
+  const name = typeof raw === "string" ? raw.replace(/\s+/g, " ").trim() : "";
+  if (!name) return { ok: false, reason: "A business needs a name." };
+  if (name.length > WORKSPACE_NAME_MAX)
+    return { ok: false, reason: `A business's name is at most ${WORKSPACE_NAME_MAX} characters.` };
+  return { ok: true, name };
+}

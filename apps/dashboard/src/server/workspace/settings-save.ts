@@ -8,7 +8,7 @@
  * (withHiddenFeed); a transfer number is judged again when it changes, so a number that would ring the receptionist
  * straight back cannot be saved from anywhere; what the read left out of the stored row is put back first
  * (withStoredKeysKept); and the answer hides the feed from whoever may not see it (feedVisibleTo). The route declares
- * who may and how often.
+ * who may and how often. A change of the business's name renames the workspace too (renamedWith), and the answer says so.
  */
 import {
   AppError,
@@ -19,10 +19,12 @@ import {
   whyNotAHandoff,
   withStoredKeysKept,
 } from "@chanlytics/contracts";
-import { putTenantConfig } from "@chanlytics/db";
+import { filedNamesOf, putTenantConfig } from "@chanlytics/db";
 import { configRowOf } from "@/server/workspace/config-row";
 import { SETTINGS_REFUSED, recordSettingsChanged } from "@/server/workspace/settings-write";
 import { feedVisibleTo, knownFacts, withHiddenFeed } from "@/server/readers/settings";
+import { renameWorkspace } from "@/server/workspace/workspace-list";
+import { log } from "@/server/log";
 import type { RouteContext } from "@/server/with-route";
 import type { Member } from "@/server/route";
 
@@ -74,8 +76,41 @@ export async function saveSettings(ctx: RouteContext, req: Request, member: Memb
   // Two different failures, each in its own words (settings-write.ts says why).
   if (!result.ok) throw new AppError("conflict", SETTINGS_REFUSED[result.reason], 409);
   await recordSettingsChanged(ctx, member.tenantId, before?.config, next, result.row.version);
+  const renamed = await renamedWith(ctx, member, before?.config, next);
   return {
     config: feedVisibleTo(member.role, parseTenantConfig(result.row.config) ?? {}),
     version: result.row.version,
+    ...(renamed ? { renamed } : {}),
   };
+}
+
+/** What a save that changed the business's name did to the workspace's: its answer's `renamed`. */
+type Renamed =
+  /** Renamed: the names it changed from and to, and the name the carriers still hold where it is not the new one. */
+  | { from: string; to: string; carriers_hold: string | null }
+  /** The settings were saved and the workspace kept its name: the pages still say `kept`. */
+  | { kept: string | null; refused: true };
+
+/**
+ * One name for the business (the wiring's second audit, X4-5): a save that changes the name the receptionist introduces it
+ * by renames the workspace, whose name the sign-up page, its paper form and the desk sign say. Only a change of it: a save
+ * of anything else leaves a workspace named otherwise as it is. The settings are saved whatever this does, so a refusal is
+ * the answer's to say, never the save's to throw; and the name a filing gave the carriers does not follow (a campaign
+ * keeps its name until a new one is filed), so the answer says it where it differs.
+ */
+async function renamedWith(ctx: RouteContext, member: Member, was: unknown, next: unknown): Promise<Renamed | null> {
+  const name = parseTenantConfig(next)?.brain?.business_name?.trim() ?? "";
+  const before = parseTenantConfig(was ?? null)?.brain?.business_name?.trim() ?? "";
+  if (!name || name === before) return null;
+  let done: { from: string; to: string } | null;
+  try {
+    done = await renameWorkspace(ctx, member, name);
+  } catch (e) {
+    log.warn("workspace_rename_refused", { tenant_id: member.tenantId, error: e });
+    return { kept: null, refused: true };
+  }
+  if (!done) return null;
+  const filed = await filedNamesOf(ctx.supabase, member.tenantId).catch(() => null);
+  const held = filed?.campaign ?? null;
+  return { ...done, carriers_hold: held && held !== done.to ? held : null };
 }

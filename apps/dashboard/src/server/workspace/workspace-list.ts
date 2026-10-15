@@ -16,6 +16,7 @@ import {
   AppError,
   SELLS_BY_REFUSAL,
   cleanTimezone,
+  cleanWorkspaceName,
   isSellsBy,
   pendingWorkspaceOf,
   providerNameOf,
@@ -23,7 +24,7 @@ import {
   workspaceLogoSrc,
   type SellsBy,
 } from "@chanlytics/contracts";
-import { emitEvent, getOpenHandovers, getOwnPartner } from "@chanlytics/db";
+import { emitEvent, getOpenHandovers, getOwnPartner, workspaceNamed } from "@chanlytics/db";
 import { serviceDb } from "@/server/service-db";
 import { isPlatformAdmin } from "@/server/platform/platform";
 import { env } from "@/server/env";
@@ -243,14 +244,7 @@ export async function patchWorkspace(ctx: RouteContext, req: Request, member: Me
     patch.sells_by = answer;
   }
 
-  const { data, error } = (await ctx.supabase
-    .from("tenants")
-    .update(patch)
-    .eq("id", member.tenantId)
-    .select(patch.sells_by ? WORKSPACE_COLUMNS : OLDER_COLUMNS)) as unknown as {
-    data: Partial<WorkspaceRow>[] | null;
-    error: { message: string; code?: string } | null;
-  };
+  const { data, error } = await writeOwnFields(ctx, member.tenantId, patch);
   // A zone this server's Intl knows and the database does not (00365 refuses one written, as creation always did) is
   // the owner's to choose again, in the words a zone nobody knows is refused in, not a failure of ours.
   if (error?.code === "22023" && patch.timezone)
@@ -271,4 +265,52 @@ export async function patchWorkspace(ctx: RouteContext, req: Request, member: Me
     version: null,
   });
   return { workspace: data[0] };
+}
+
+/**
+ * The fields of the tenant row a business owns, written through the session: RLS (the settings permission) is the floor,
+ * and the rows that come back are the check, since a forbidden UPDATE answers success with none.
+ */
+async function writeOwnFields(
+  ctx: RouteContext,
+  tenantId: string,
+  patch: { timezone?: string; sells_by?: SellsBy; name?: string },
+) {
+  return (await ctx.supabase
+    .from("tenants")
+    .update(patch)
+    .eq("id", tenantId)
+    .select(patch.sells_by ? WORKSPACE_COLUMNS : OLDER_COLUMNS)) as unknown as {
+    data: Partial<WorkspaceRow>[] | null;
+    error: { message: string; code?: string } | null;
+  };
+}
+
+/**
+ * Rename the workspace with the business's name an owner saved (00439; the wiring's second audit, X4-5; Ruben, 15 October
+ * 2026): its sign-up page, the page's paper form, the desk sign and the unsubscribe page say the name the receptionist
+ * does. The ledger keeps the names it changed from and to, the one setting it says in full. Null where the workspace is
+ * named so already, or the name is not one a workspace takes (the settings save took it; the workspace keeps its name). A
+ * refusal throws: the grant missing (a database 00439 has not reached), or no row the caller may change.
+ */
+export async function renameWorkspace(
+  ctx: RouteContext,
+  member: Member,
+  raw: string,
+): Promise<{ from: string; to: string } | null> {
+  const cleaned = cleanWorkspaceName(raw);
+  if (!cleaned.ok) return null;
+  const was = await workspaceNamed(ctx.supabase, member.tenantId);
+  if (!was || was.name === cleaned.name) return null;
+  const { data, error } = await writeOwnFields(ctx, member.tenantId, { name: cleaned.name });
+  if (error) throw new Error(error.message);
+  if (!data?.length) throw new AppError("forbidden", "That workspace's name could not be changed.", 403);
+  await emitEvent(serviceDb(), member.tenantId, "settings.changed", "workspace", member.tenantId, {
+    fields: ["name"],
+    by: ctx.userId,
+    version: null,
+    from: was.name,
+    to: cleaned.name,
+  });
+  return { from: was.name, to: cleaned.name };
 }

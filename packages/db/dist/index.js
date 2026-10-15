@@ -4940,14 +4940,16 @@ async function publicWorkspaceBySlug(db, slug) {
   if (t.error) throw new Error(`reading the workspace: ${t.error.message}`);
   if (!t.data) return null;
   const id = t.data.id;
-  const [billing, record, cfg, channels] = await Promise.all([
+  const [billing, record, sole, cfg, channels] = await Promise.all([
     db.from("billing_accounts").select("mode, status").eq("tenant_id", id).maybeSingle(),
     publicRecordOf(db, id),
+    db.rpc("sole_proprietor_of", { p_tenant_id: id }),
     db.from("tenant_config").select("config").eq("tenant_id", id).maybeSingle(),
     db.from("tenant_channels").select("kind, number_e164").eq("tenant_id", id).eq("status", "active").order("created_at", { ascending: true })
   ]);
   if (billing.error) throw new Error(`reading the workspace's billing: ${billing.error.message}`);
   if (record.error) throw new Error(`reading the business on record: ${record.error.message}`);
+  if (sole.error) throw new Error(`reading whether the business is a sole proprietor: ${sole.error.message}`);
   if (cfg.error) throw new Error(`reading the workspace's configuration: ${cfg.error.message}`);
   if (channels.error) throw new Error(`reading the workspace's channels: ${channels.error.message}`);
   return {
@@ -4961,6 +4963,7 @@ async function publicWorkspaceBySlug(db, slug) {
       billing: billingPlanOf(billing.data)
     }),
     record: record.data ?? null,
+    soleProprietor: sole.data === true,
     config: cfg.data?.config ?? null,
     channels: channels.data ?? []
   };
@@ -5866,6 +5869,7 @@ async function leadCountriesOf(db, ids) {
 }
 
 // src/lines.ts
+import { LINE_FILED_NAMES } from "../../contracts/dist/index.js";
 async function ownLineOf(db, tenantId) {
   const { data, error } = await db.from("lines").select("id, tenant_id, e164, provider, subaccount_sid, messaging_service_sid, sms_state, voice_state").eq("tenant_id", tenantId).neq("provider", "carrier").neq("voice_state", "failed").order("created_at", { ascending: true }).limit(1).maybeSingle();
   if (error) throw new Error(`cannot read the workspace's own line: ${error.message}`);
@@ -5875,6 +5879,19 @@ async function businessOnRecordOf(db, tenantId) {
   const { data, error } = await db.from("business_records").select("*").eq("tenant_id", tenantId).maybeSingle();
   if (error) throw new Error(`cannot read the business on record: ${error.message}`);
   return data;
+}
+async function filedNamesOf(db, tenantId) {
+  const { data, error } = await db.from("lines").select("facts").eq("tenant_id", tenantId).neq("provider", "carrier").order("created_at", { ascending: true });
+  if (error) throw new Error(`cannot read the names the workspace filed: ${error.message}`);
+  const named = (key) => {
+    for (const row of data ?? []) {
+      const facts = row.facts && typeof row.facts === "object" && !Array.isArray(row.facts) ? row.facts : null;
+      const value = facts ? facts[key] : null;
+      if (typeof value === "string" && value.trim()) return value.trim();
+    }
+    return null;
+  };
+  return { campaign: named(LINE_FILED_NAMES.campaign), brand: named(LINE_FILED_NAMES.brand) };
 }
 
 // src/realtime.ts
@@ -6608,6 +6625,7 @@ export {
   failedMessageErrors,
   feedAdditionsWith,
   feedWordsOver,
+  filedNamesOf,
   finishableRuns,
   firstReplies,
   followUpOnFile,

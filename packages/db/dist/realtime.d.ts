@@ -10309,6 +10309,12 @@ type Database = {
                 };
                 Returns: Json;
             };
+            sole_proprietor_of: {
+                Args: {
+                    p_tenant_id: string;
+                };
+                Returns: boolean;
+            };
             stamp_email_complaint: {
                 Args: {
                     p_at: string;

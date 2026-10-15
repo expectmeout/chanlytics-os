@@ -691,6 +691,47 @@ test("START is confirmed in the campaign's own words without the model, and YES 
   assert.doesNotMatch(offers, /appointment/i);
 });
 
+test("a START by text is confirmed in the name its campaign was filed under, not a name the business took since (X4-5)", async () => {
+  // The carriers approved the campaign's opt-in message with the name it was filed under, and only a new campaign
+  // changes it: a business renamed in Settings is still confirmed in the name the carriers hold.
+  const carrier = {
+    channel: "sms",
+    send: async () => ({ ok: true, wamid: "s1", status: 200 }),
+    body: (t) => t,
+    held: null,
+    consent: null,
+  };
+  const renamed = { rt: runtime({ known: { workspace: { name: "Harbor Nails & Spa" } } }), carrier };
+  const asked = [];
+  const filing = {
+    names: async (_db, tenant) => (asked.push(tenant), { campaign: "Harbor Nails", brand: "Harbor Nails LLC" }),
+  };
+  const sms = world(renamed);
+  await sms.run(text("START"), { filing });
+  assert.equal(sms.seen.sent.length, 1);
+  assert.equal(sms.seen.sent[0].body, optInConfirmation("Harbor Nails", "conversational"));
+  assert.deepEqual(asked, ["t1"], "one read, of this workspace");
+
+  // A filing that kept no name: the workspace's, which no owner could change before 00439. A read that fails holds
+  // nothing back: the yes is confirmed in the workspace's name.
+  for (const names of [
+    async () => ({ campaign: null, brand: "Harbor Nails LLC" }),
+    async () => {
+      throw new Error("the read failed");
+    },
+  ]) {
+    const older = world(renamed);
+    await older.run(text("START"), { filing: { names } });
+    assert.equal(older.seen.sent[0].body, optInConfirmation("Harbor Nails & Spa", "conversational"));
+  }
+
+  // WhatsApp files nothing with the carriers: the receptionist's name, and nobody asks for a filing's.
+  const wa = world({ rt: renamed.rt });
+  await wa.run(text("START"), { filing });
+  assert.equal(wa.seen.sent[0].body, optInConfirmation("Harbor Nails", "conversational"));
+  assert.equal(asked.length, 1, "a WhatsApp START reads no filing");
+});
+
 test("YES OFFERS is not the way back in from a STOP: an opted-out person gets nothing, and START is", async () => {
   // One word opening both programs is what the carriers refuse (30913); the way
   // back in is START, as their own reply to a STOP says.

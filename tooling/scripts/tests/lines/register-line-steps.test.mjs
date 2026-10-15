@@ -67,13 +67,21 @@ const FILING_ENV = {
  * Runs one filing, or `times` of them at once over the same row as each read it: `answer(req, n)` is Twilio; `seen` is
  * each request with the row as it stood when it was made.
  */
-async function file({ env = FILING_ENV, line = unfiled(), record = RECORD, answer = () => null, times = 1 } = {}) {
+async function file({
+  env = FILING_ENV,
+  line = unfiled(),
+  record = RECORD,
+  answer = () => null,
+  times = 1,
+  config,
+} = {}) {
   const saved = { ...process.env };
   for (const k of [...Object.keys(FILING_ENV), "LINES_DRY_RUN"]) delete process.env[k];
   Object.assign(process.env, env);
   const rows = [{ ...line, facts: structuredClone(line.facts) }];
   const credentials = [];
-  const db = fakeDb({ lines: rows }, {}, { get_line_credentials: () => (credentials.push(1), { auth_token: "t" }) });
+  const tables = { lines: rows, ...(config ? { tenant_config: [{ tenant_id: TENANT, config, version: 1 }] } : {}) };
+  const db = fakeDb(tables, {}, { get_line_credentials: () => (credentials.push(1), { auth_token: "t" }) });
   const seen = [];
   const realFetch = globalThis.fetch;
   globalThis.fetch = async (url, init) => {
@@ -118,6 +126,28 @@ test("the prerequisites are named in their order, and a refusal reads nothing", 
   assert.equal(noMailbox.out.error, "no_platform_mailbox", "then the mailbox, before the Messaging Service");
 });
 
+test("a filing whose receptionist answers in another name than the campaign states is refused before anything is sent (X4-5)", async () => {
+  const brain = (business_name) => ({
+    brain: {
+      business_name,
+      booking_link: "https://book.example.com/harbor",
+      system_prompt: "Answer as the front desk: brief, warm, and never a price over text.",
+      fallbacks: { greeting: "g", error: "e", non_text: "n" },
+      profile: {},
+    },
+  });
+  const two = await file({ config: brain("Harbor Hauling") });
+  assert.equal(two.out.ok, false);
+  assert.ok(
+    two.out.problems.some((p) => /Harbor Hauling/.test(p) && /Settings › Business/.test(p)),
+    two.out.problems.join(" | "),
+  );
+  assert.equal(two.seen.length, 0, "nothing reached the carriers");
+  // One name, as the campaign states it: filed.
+  const one = await file({ config: brain("Harbor Moving") });
+  assert.equal(one.out.ok, true, (one.out.problems ?? []).join(" | "));
+});
+
 test("the row says registering before the first request, and every receipt joins the ones before it", async () => {
   const { out, row, seen } = await file();
   assert.equal(out.ok, true);
@@ -133,6 +163,8 @@ test("the row says registering before the first request, and every receipt joins
       trunk_ready: true,
       // The name the brand goes under, kept by the filing that made it (the wiring's second audit, X4-3).
       a2p_filed_name: "Harbor Moving LLC",
+      // And the name the campaign states, the workspace's, which a START by text is confirmed in (X4-5).
+      a2p_campaign_name: "Harbor Moving",
       a2p_business_sid: "SID2",
       a2p_representative_sid: "SID4",
       a2p_address_sid: "SID6",
@@ -163,6 +195,16 @@ test("the name a brand is filed under is kept by the filing that makes it, and o
     record: { ...RECORD, legal_name: "New Harbor LLC" },
   });
   assert.equal(kept.row.facts.a2p_filed_name, "Old Harbor LLC");
+});
+
+test("the name a campaign is filed under is kept by the filing that makes it: a line whose campaign exists keeps the name it was filed with, whatever the workspace is called since (X4-5)", async () => {
+  const made = await file();
+  assert.equal(made.row.facts.a2p_campaign_name, "Harbor Moving", "the workspace's name, as the campaign states it");
+  // A line the carriers hold a campaign for (a filing resumed past it): the confirmation they approved says the old name.
+  const kept = await file({
+    line: unfiled({ campaign_sid: "CMkept", facts: { trunk_ready: true, a2p_campaign_name: "Old Harbor" } }),
+  });
+  assert.equal(kept.row.facts.a2p_campaign_name, "Old Harbor");
 });
 
 test("REGRESSION (review of X4-3): a filing that resumes past the step that sends the name keeps the name sent then, and one that resumes before it keeps the name it sends now", async () => {

@@ -34,6 +34,7 @@ import {
   formatPhoneDisplay,
   industryOf,
   businessRecordProblems,
+  parseTenantConfig,
   registrationPathOf,
   registrationPreflight,
   type EdgeErrorCode,
@@ -42,10 +43,10 @@ import { platformTo } from "../ops/notify.js";
 import { lineProviderFromEnv } from "./lines.js";
 import { lineAccount } from "../sms/sms.js";
 import { logger } from "../log.js";
-import { tenantDb } from "../packages/db.js";
+import { getTenantConfig, tenantDb } from "../packages/db.js";
 import { env } from "../env.js";
 import { campaignFactsFor } from "./a2p-campaign-facts.js";
-import { factsOf, FILED_NAME_FACT } from "./line-resume.js";
+import { CAMPAIGN_NAME_FACT, factsOf, FILED_NAME_FACT } from "./line-resume.js";
 
 export type Db = SupabaseClient<Database>;
 export type LineRow = Database["public"]["Tables"]["lines"]["Row"];
@@ -152,7 +153,10 @@ export async function filingProblems(
   const path = registrationPathOf(o.record) ?? "standard";
   // The numbers this workspace was given by us, so the check can tell an owner's
   // handset from the line we answer on their behalf.
-  const ours = await db.from("lines").select("e164").eq("tenant_id", line.tenant_id);
+  const [ours, receptionistName] = await Promise.all([
+    db.from("lines").select("e164").eq("tenant_id", line.tenant_id),
+    receptionistNameOf(db, line.tenant_id),
+  ]);
   const ourNumbers = (ours.data ?? []).map((r) => r.e164).filter((n): n is string => !!n);
   const problems = Object.values(businessRecordProblems(o.record, path, { ourNumbers }));
 
@@ -162,6 +166,7 @@ export async function filingProblems(
   // campaign went to the carriers describing a business called "Billing probe".
   for (const p of registrationPreflight({
     workspaceName: o.workspaceName,
+    receptionistName,
     legalName: o.record.legal_name,
     tradeName: o.record.trade_name,
     street: o.record.street,
@@ -173,6 +178,20 @@ export async function filingProblems(
     problems.push(`${p.what} ${p.fix}`);
   }
   return problems;
+}
+
+/**
+ * The name the receptionist introduces the business by (its settings' business name), for the preflight to hold against
+ * the name the campaign states (X4-5). A read that fails, or settings that do not parse, say none: the check that cannot
+ * be made does not refuse a filing.
+ */
+async function receptionistNameOf(db: Db, tenantId: string): Promise<string | null> {
+  try {
+    const row = await getTenantConfig(db, tenantId);
+    return parseTenantConfig(row?.config)?.brain?.business_name ?? null;
+  } catch {
+    return null;
+  }
 }
 
 export interface RegisterResult {
@@ -234,6 +253,15 @@ function sendsBrandName(line: LineRow, record: BusinessRecord): boolean {
 }
 
 /**
+ * The name this filing's campaign states, kept where the filing makes the campaign (CAMPAIGN_NAME_FACT): the workspace's,
+ * as it reads now. A line that has its campaign files none, and keeps the name the campaign was filed under (X4-5).
+ */
+function campaignNameFiled(line: LineRow, workspaceName: string): Record<string, string> {
+  const name = workspaceName.trim();
+  return line.campaign_sid || !name ? {} : { [CAMPAIGN_NAME_FACT]: name };
+}
+
+/**
  * The filing takes its line before the saga's first call: the row says `registering`, and which registration, and
  * holds the filing's lease -- only if it is still the row this filing read. Two presses of Register, or an owner's
  * press and the sweep filing the held campaign, each read the row before either wrote; each ran the saga from it and
@@ -258,6 +286,7 @@ async function takeFiling(db: Db, o: Filing, record: BusinessRecord): Promise<Li
       facts: {
         ...factsOf(o.line),
         ...(sendsBrandName(o.line, record) ? { [FILED_NAME_FACT]: brandNameOf(record) } : {}),
+        ...campaignNameFiled(o.line, o.workspaceName),
         [LEASE_FACT]: new Date(now + A2P_FILING_LEASE_MS).toISOString(),
       },
     })

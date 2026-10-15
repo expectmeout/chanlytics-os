@@ -691,6 +691,13 @@ export function activityWords(kind: string, payload: unknown): string {
       break;
     }
     case "settings.changed": {
+      // A rename keeps what it changed from and to (X4-5; Ruben, 15 October 2026): the one setting the log says in full.
+      const from = textAt(p, "from");
+      const to = textAt(p, "to");
+      if (from && to) {
+        bits.push(`renamed from “${from}” to “${to}”`);
+        break;
+      }
       const fields = Array.isArray(p.fields)
         ? (p.fields as unknown[]).filter((f): f is string => typeof f === "string")
         : [];
