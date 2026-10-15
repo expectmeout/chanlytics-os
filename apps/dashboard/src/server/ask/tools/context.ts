@@ -47,6 +47,8 @@ export interface ToolDef {
   input_schema: Record<string, unknown>;
   /** The definition's examples, where it has them (D9): sent beside the schema, dropped once if the API refuses them. */
   input_examples?: Array<Record<string, unknown>>;
+  /** The input streams as the model writes it, unvalidated by the API (the answer tool, answer.ts). */
+  eager_input_streaming?: true;
 }
 
 export interface ToolRun {

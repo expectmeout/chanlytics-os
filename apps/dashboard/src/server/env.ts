@@ -78,6 +78,7 @@ const SCHEMA = {
   ASK_EFFORT: optionalText,
   ASK_SPEED: optionalText,
   ASK_DRAFT_EFFORT: optionalText,
+  ASK_ANSWER_TOOL: optionalText,
 
   // Ask spoken (docs/superpowers/specs/2026-10-03-ask-spoken-design.md): the key a voice session's access token is
   // sealed under at rest, and the secret the voice agent sends the brain door with every custom LLM request.
@@ -121,6 +122,7 @@ const READ: { readonly [K in Name]: () => string | undefined } = {
   ASK_EFFORT: () => process.env.ASK_EFFORT,
   ASK_SPEED: () => process.env.ASK_SPEED,
   ASK_DRAFT_EFFORT: () => process.env.ASK_DRAFT_EFFORT,
+  ASK_ANSWER_TOOL: () => process.env.ASK_ANSWER_TOOL,
   ASK_VOICE_SECRET: () => process.env.ASK_VOICE_SECRET,
   ELEVENLABS_LLM_SECRET: () => process.env.ELEVENLABS_LLM_SECRET,
   CANONICAL_HOST: () => process.env.CANONICAL_HOST,

@@ -124,6 +124,8 @@ interface TurnSoFar {
   plan: ToolRun[];
   meter: ReturnType<typeof turnMeter>;
   format: boolean;
+  /** How the answer that ended the turn was written: the answer tool's input, as text, or null where none was. */
+  answerIn: "tool" | "text" | null;
   toolsUsed: string[];
   proposals: AskProposal[];
   /** Where the question sits in every request of the turn: a later round only appends. */
@@ -181,6 +183,8 @@ export function finishTurn(r: TurnEnd, soFar: TurnSoFar): TurnResult {
     hop_ms: hopMs,
     cap_hits: capHits,
     format,
+    answer_tool: model.answerTool,
+    answer_in: r.failed ? null : soFar.answerIn,
     failed: r.failed,
   };
   log.info("ask_turn_shape", { tenant_id: input.tenantId, ...shape, tools: toolsUsed, form: r.answer.form });
