@@ -218,7 +218,8 @@ function flatten(schema: Record<string, unknown>): Record<string, unknown> {
   // What each action says of a shared field (the operator, 15 Oct 2026: each input explained on itself), by action.
   const said = new Map<string, Array<[string, string]>>();
   for (const b of branches) {
-    const action = String(b.properties.action?.const ?? "");
+    const named = b.properties.action?.const;
+    const action = typeof named === "string" ? named : "";
     for (const [k, v] of Object.entries(b.properties)) {
       if (k === "action") continue;
       // One shape, whatever each action says of it: a description is words, never a shape.
