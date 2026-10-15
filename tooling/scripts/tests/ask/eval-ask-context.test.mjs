@@ -441,6 +441,8 @@ test("turn 2 is not asked when turn 1 left it nothing to ask in, and a turn 2 an
     notAsked({ expect: {}, between: "approve" }, { final: m, threadId: T1 }),
     "turn 1 made no card to approve",
   );
+  // REGRESSION (X5-4's first run, 15 Oct): a snooze between the turns needs no card, and turn 2 was never asked.
+  assert.equal(notAsked({ expect: {}, between: "snooze" }, { final: m, threadId: T1 }), null);
   const one = final({ items: [item(U(12), "Casey Example")] });
   assert.equal(
     notAsked({ expect: { opens_item: 2 } }, { final: one, threadId: T1 }),
@@ -1775,13 +1777,44 @@ test("X5-4's eval: the thread is woken whatever turn 2 did, and a thread that ca
   assert.deepEqual([s.why, s.stop, stopped.keys()], ["the run was stopped before it", true, []], "nothing written");
 });
 
-test("X5-4's eval: turn 2 names the snoozed thread nowhere -- no row, no citation, not who it is with -- and the case says so", () => {
+test("X5-4's eval: turn 2's headline does not say who the snoozed thread is with, and the case reads again and says so", () => {
   const snoozed = { id: DANA.id, who: "Dana Example", was: "needs_human" };
   const fresh = final({ text: "Rio Example needs you.", items: [{ source: RIO }] });
   assert.deepEqual(omitsSnoozed(fresh, snoozed), []);
   assert.deepEqual(omitsSnoozed(needsMe, snoozed), [
-    "the answer still names the thread snoozed between the turns, Dana Example's",
-    "the answer still says Dana, whose thread was snoozed between the turns",
+    "the answer's headline still says Dana, whose thread was snoozed between the turns",
+  ]);
+  // REGRESSION (the first runs, 15 Oct): the snooze heard, said in the detail and as a row that says it no longer needs
+  // you, with the thread's one Open, passes. Today's recap keeps the reply that failed to deliver; the headline may not
+  // name it.
+  const heard = {
+    ...fresh,
+    text: "No one needs you right now. Dana Example is no longer on the needs-you list.",
+    citations: [],
+    answer: {
+      v: 2,
+      form: "structured",
+      say: { headline: "No one needs you right now.", detail: "Dana Example is no longer on the needs-you list." },
+      show: {
+        figures: [],
+        items: [
+          {
+            title: "Dana Example",
+            meta: "WhatsApp",
+            line: "No longer needs you, but a reply failed to deliver earlier.",
+            source: { kind: "thread", id: DANA.id, label: "Dana Example", to: `inbox/th-${DANA.id}` },
+          },
+        ],
+        breakdown: null,
+      },
+      do: { open: { to: `inbox/th-${DANA.id}`, label: "Open the thread", now: false }, next: [] },
+      language: "en",
+    },
+  };
+  assert.deepEqual(omitsSnoozed(heard, snoozed), []);
+  const headlined = { ...heard, answer: { ...heard.answer, say: { headline: "Dana Example needs you.", detail: "" } } };
+  assert.deepEqual(omitsSnoozed(headlined, snoozed), [
+    "the answer's headline still says Dana, whose thread was snoozed between the turns",
   ]);
   assert.deepEqual(
     omitsSnoozed(final({ text: "Danae Example needs you." }), snoozed),
@@ -1791,13 +1824,14 @@ test("X5-4's eval: turn 2 names the snoozed thread nowhere -- no row, no citatio
   assert.deepEqual(omitsSnoozed(fresh, null), ["nothing was snoozed between the turns to look for"]);
   const t1 = { threadId: U(70), snoozed };
   assert.deepEqual(followUpFails({ omits_snoozed: true }, { threadId: U(70), final: fresh }, t1), []);
-  // The case is written as the runner asks it: it needs an escalated thread, and is judged by omits_snoozed.
+  // The case is written as the runner asks it: it needs an escalated thread, reads again, and is judged by omits_snoozed.
   const base = { id: "s", text: "who needs me right now?", surface: "today", expect: {} };
-  const then = { text: "and now?", between: "snooze", expect: { omits_snoozed: true } };
+  const then = { text: "and now?", between: "snooze", expect: { omits_snoozed: true, tools_any: ["today"] } };
   assert.deepEqual(pageProblems([{ ...base, needs: ["escalated_thread"], then }]), []);
   assert.deepEqual(pageProblems([{ ...base, then: { ...then, expect: {} } }]), [
     's: between: "snooze" snoozes a thread an open escalation flags: the case needs "escalated_thread"',
     's: between: "snooze" is judged by then.expect.omits_snoozed',
+    's: between: "snooze" reads again: then.expect.tools_any names the reads',
   ]);
   const listed = CASES.find((c) => c.id === "needs_me_after_a_snooze");
   assert.deepEqual([listed.then.between, listed.needs], ["snooze", ["escalated_thread"]], "the case the runner asks");
