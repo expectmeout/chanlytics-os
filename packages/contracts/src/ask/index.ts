@@ -84,6 +84,7 @@ export type { AskWaiting } from "./ask-waiting";
 export type { AskModelProfile } from "./ask-model";
 export {
   answerText,
+  answerCopy,
   answerSpoken,
   listSpoken,
   storedAnswer,

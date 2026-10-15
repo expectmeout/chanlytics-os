@@ -20115,6 +20115,22 @@ function cleanAnswer(raw) {
   if (cut >= 0) s = s.slice(0, cut);
   return s.replace(/<\/?[a-z_]+(\s[^>]*)?>/gi, "").replace(/\s+$/g, "").trim();
 }
+var NOT_AN_END = new Set(
+  "mr mrs ms dr st sr sra srta jr vs no etc approx inc ltd co ave blvd mt ft jan feb mar apr jun jul aug sep sept oct nov dec ene abr ago dic".split(
+    " "
+  )
+);
+var HEADLINE_STOP = /[.!?]["'”’)\]]*\s+(?=[\p{Lu}\d¿¡"“'‘(])/gu;
+function firstSentence(s) {
+  for (const m of s.matchAll(HEADLINE_STOP)) {
+    const before = /[\p{L}.]+$/u.exec(s.slice(0, m.index))?.[0] ?? "";
+    if (m[0][0] === "." && (before.length === 1 || before.includes(".") || NOT_AN_END.has(before.toLowerCase())))
+      continue;
+    const stop = m[0].trimEnd().length;
+    return [s.slice(0, m.index + stop), s.slice(m.index + m[0].length)];
+  }
+  return [s, ""];
+}
 function isUngrounded(answer, reads) {
   return reads === 0 && /\d/.test(answer);
 }
@@ -20654,6 +20670,15 @@ function answerText(a) {
   const say2 = [a.say.headline, a.say.detail].filter(Boolean).join(a.form === "prose" ? "\n" : " ");
   return [say2, ...listLines(a.show.list ?? noList())].filter(Boolean).join("\n");
 }
+function answerCopy(a) {
+  const b = a.show.breakdown;
+  return [
+    answerText(a),
+    ...b ? [`${b.total} ${b.label}: ${b.parts.map((p) => `${p.label} ${p.value}`).join(", ")}`] : [],
+    ...a.show.figures.map((f) => `${[f.value, f.label].filter(Boolean).join(" ")}${f.note ? ` (${f.note})` : ""}`),
+    ...a.show.items.map((it) => [it.title, it.meta, it.line].filter(Boolean).join(" \xB7 "))
+  ].filter(Boolean).join("\n");
+}
 var sentences = (lines) => lines.map((l) => l.trim()).filter(Boolean).map((l) => /[.!?…:;,]$/.test(l) ? l : `${l}.`).join(" ");
 function listSpoken(l) {
   return sentences(l.entries.map((e, i) => l.style === "numbers" ? `${i + 1}. ${e}` : e));
@@ -20876,7 +20901,12 @@ var drawnText = (v) => unbold(cleanAnswer(typeof v === "string" ? v : ""));
 var words = (v, n) => clip(drawnText(v), n);
 var entry = (v) => words(typeof v === "string" ? v.replace(/^\s*(?:[-*•·–]|\d{1,2}[.)])\s+/, "") : "", C.entry);
 function sayAsDrawn(say2) {
-  return { headline: words(say2.headline, C.headline), detail: clipLines(drawnText(say2.detail), C.detail) };
+  const [headline, more2] = firstSentence(drawnText(say2.headline).replace(/\s+/g, " ").trim());
+  const detail = drawnText(say2.detail);
+  return {
+    headline: clip(headline, C.headline),
+    detail: clipLines(more2 && detail ? `${more2} ${detail}` : more2 || detail, C.detail)
+  };
 }
 var num = (v) => typeof v === "number" && Number.isFinite(v) ? v : Number.NaN;
 var UUID2 = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
@@ -21532,7 +21562,7 @@ function toCallVM(dto, tz, now = /* @__PURE__ */ new Date()) {
   const missed = neverConnected(dto);
   const wanted = (dto.wanted || "").trim();
   const headSummary = tidyCallSummary(dto.summary) ?? "";
-  const firstSentence = headSummary ? headSummary.split(/(?<=[.!?])\s/)[0] ?? headSummary : "";
+  const firstSentence2 = headSummary ? headSummary.split(/(?<=[.!?])\s/)[0] ?? headSummary : "";
   const bullets = [
     `${dto.direction === "inbound" ? "Inbound" : "Outbound"} \xB7 ${missed ? "never connected" : spokenDuration(dto.duration_ms)}`
   ];
@@ -21554,7 +21584,7 @@ function toCallVM(dto, tz, now = /* @__PURE__ */ new Date()) {
   }
   if (dto.message_id && !withheld) bullets.push(`Noted on ${whoShort}'s thread in the Inbox`);
   const transcript = transcriptOf(dto.transcript_object ?? []);
-  const snippetBody = missed ? "The call never connected." : wanted || firstSentence || (reachedVoicemail(dto) ? "Reached voicemail." : "No summary from this call.");
+  const snippetBody = missed ? "The call never connected." : wanted || firstSentence2 || (reachedVoicemail(dto) ? "Reached voicemail." : "No summary from this call.");
   return {
     id: `cv-${dto.id}`,
     real: true,
@@ -21572,7 +21602,7 @@ function toCallVM(dto, tz, now = /* @__PURE__ */ new Date()) {
     outcome: callOutcomeFor(dto, live),
     ...live ? { live: true } : {},
     snippet: withheld ? `${dto.direction === "inbound" ? "Inbound" : "Outbound"} call${dur ? ` \xB7 ${dur}` : ""} \u2014 caller ID withheld, so this call isn't linked to a customer.` : `${dto.direction === "inbound" ? "Inbound" : "Outbound"} call${dur ? ` \xB7 ${dur}` : ""} \u2014 ${snippetBody}`,
-    summary: { headline: wanted || firstSentence || snippetBody, bullets },
+    summary: { headline: wanted || firstSentence2 || snippetBody, bullets },
     transcript,
     durationSec: dto.duration_ms ? Math.round(dto.duration_ms / 1e3) : null,
     recordingState: recState,
@@ -21583,7 +21613,7 @@ function toCallVM(dto, tz, now = /* @__PURE__ */ new Date()) {
     direction: dto.direction === "outbound" ? "outbound" : "inbound",
     missed,
     // A voicemail says so in how it ended; "Reached voicemail." here said it twice.
-    about: missed ? null : wanted || firstSentence || null,
+    about: missed ? null : wanted || firstSentence2 || null,
     facts: [CALL_MOOD[dto.sentiment ?? ""], ending, missed ? void 0 : RECORDING_NOTE[recState]].filter(
       (f) => !!f
     ),
@@ -48723,6 +48753,7 @@ export {
   allowedPrices,
   amountTotalsWords,
   amountWords,
+  answerCopy,
   answerForCards,
   answerFromV1,
   answerSaidOf,
