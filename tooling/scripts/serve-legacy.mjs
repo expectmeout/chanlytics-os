@@ -173,6 +173,8 @@ async function sampleBundle(route) {
     alias: {
       // The schemas a page asks for by import() (contracts' write-rules entry), bundled in, as the mockup has no chunks.
       "@chanlytics/contracts/write-rules": path.join(REPO, "packages/contracts/dist/write-rules.js"),
+      // The kinds only Ask's cards commit (contracts' ask-only entry), which the verb walk loads by import(), the same way.
+      "@chanlytics/contracts/ask-only": path.join(REPO, "packages/contracts/dist/ask-only.js"),
       "@chanlytics/contracts": CONTRACTS,
       ...(s.atDashboard ? { "@": path.join(REPO, "apps/dashboard/src") } : {}),
     },
