@@ -11,7 +11,7 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { ASK_MODEL } from "@chanlytics/contracts";
+import { ASK_MODEL, needsAnswer } from "@chanlytics/contracts";
 import { fakeDb } from "../_fake-db.mjs";
 import { PLAN } from "../_lead-fixtures.mjs";
 
@@ -26,6 +26,7 @@ const ask = await import(at("apps/dashboard/app/api/v1/ask/route.ts"));
 const { setAskPorts } = await import(at("apps/dashboard/src/server/ask/loop.ts"));
 const proposals = await import(at("apps/dashboard/app/api/v1/ask/messages/[id]/proposals/[pid]/route.ts"));
 const openings = await import(at("apps/dashboard/app/api/v1/ask/openings/route.ts"));
+const quick = await import(at("apps/dashboard/app/api/v1/ask/quick/route.ts"));
 const threads = await import(at("apps/dashboard/app/api/v1/ask/threads/route.ts"));
 const thread = await import(at("apps/dashboard/app/api/v1/ask/threads/[id]/route.ts"));
 const metrics = await import(at("apps/dashboard/app/api/v1/metrics/route.ts"));
@@ -291,6 +292,134 @@ test("a question answered: the thread is made before the model is asked, the per
   } finally {
     setAskPorts(null);
   }
+});
+
+/* ---------------------------------------- a quick answer, kept (the review's A1) */
+
+const CONV = "cccccccc-cccc-4ccc-8ccc-ccccccccccc1";
+/** Who needs me, as the Line draws it from Today's queue (contracts needsAnswer): Nora, waiting on her thread. */
+const noraWaits = () =>
+  needsAnswer(
+    {
+      people: [
+        {
+          kind: "thread",
+          id: CONV,
+          who: "Nora",
+          channel: "WhatsApp",
+          when: "waited 2h",
+          line: "“Can I come at 3?”",
+          to: `inbox/${CONV}`,
+        },
+      ],
+      more: 0,
+      runs: [],
+      searches: [],
+      windows: [],
+    },
+    "en",
+  );
+
+test("a quick answer kept (POST ask/quick): every member's and counted as a question; only a quick question's answer, in a shape the Line draws, in a thread of the caller's in this workspace -- and nothing is saved for a refusal", async () => {
+  assert.deepEqual(quick.POST.policy, { kind: "write", scope: "workspace", role: "viewer", rate: "ask", spend: false });
+  const tables = { memberships: both("viewer", "operator"), ask_threads: [threadRow(T1, A)], ask_messages: [] };
+  const answer = noraWaits();
+  const ctx = ctxFor(tables);
+  const keep = (body, q = inB) => quick.POST.run(send("POST", body, q), ctx);
+  await refused(keep({ text: "who needs me?", answer }, ""), "choose_workspace", 400);
+  await refused(keep({ text: "  ", answer }), "validation", 400, "Ask something.");
+  await refused(
+    keep({ text: "Draft a reply to everyone waiting on me", answer }),
+    "validation",
+    400,
+    "Only a quick question's answer is kept here.",
+  );
+  await refused(
+    keep({ text: "who needs me?", answer: { ...answer, form: "prose" } }),
+    "validation",
+    400,
+    "not one the Line draws",
+  );
+  await refused(keep({ text: "who needs me?" }), "validation", 400, "not one the Line draws");
+  await refused(
+    keep({ text: "who needs me?", answer, thread_id: "nope" }),
+    "not_found",
+    404,
+    "That thread does not exist.",
+  );
+  await refused(keep({ text: "who needs me?", answer, thread_id: T1 }), "not_found", 404, "That thread is not yours.");
+  assert.equal(writes(ctx), 0, "nothing is saved for a refusal");
+  assert.deepEqual([tables.ask_threads.length, tables.ask_messages.length], [1, 0]);
+});
+
+test("a quick answer kept: a new thread titled by its question, the question and the answer its two turns, stored as a turn's; the thread named takes the next two; and the next question is asked with it, its rows by id", async () => {
+  const tables = {
+    memberships: both("viewer", "operator"),
+    tenants: [{ id: A, name: "Harbor", timezone: "America/New_York" }],
+    tenant_config: [{ tenant_id: A, config: {}, version: 1 }],
+    policies: [],
+    ask_threads: [],
+    ask_messages: [],
+  };
+  const answer = noraWaits();
+  const kept = await quick.POST.run(send("POST", { text: "Who needs me?", answer }, inA), ctxFor(tables));
+  assert.equal(tables.ask_threads.length, 1);
+  const thread = tables.ask_threads[0];
+  assert.deepEqual(kept, { thread: { id: thread.id, title: "Who needs me?" } });
+  assert.deepEqual([thread.tenant_id, thread.user_id, thread.title], [A, USER, "Who needs me?"]);
+  assert.deepEqual(
+    tables.ask_messages.map((m) => [m.thread_id, m.role]),
+    [
+      [thread.id, "user"],
+      [thread.id, "assistant"],
+    ],
+  );
+  assert.equal(tables.ask_messages[0].content.text, "Who needs me?");
+  const stored = tables.ask_messages[1].content;
+  assert.deepEqual([stored.v, stored.quick, stored.failed, stored.proposals], [2, "needs", false, []]);
+  assert.deepEqual(stored.answer, answer, "the answer as the Line drew it");
+  assert.equal(stored.text, answer.say.headline, "with the v1 fields every older reader knows");
+  assert.deepEqual(
+    stored.citations.map((c) => [c.kind, c.id]),
+    [["thread", CONV]],
+  );
+  // Asked again, as a question that repeats the thread's first: the same thread takes it.
+  await quick.POST.run(send("POST", { text: "who needs me?", answer, thread_id: thread.id }, inA), ctxFor(tables));
+  assert.deepEqual([tables.ask_threads.length, tables.ask_messages.length], [1, 4]);
+  // The next question, in that thread: the model reads what was shown, the rows by their ids.
+  const none = { kind: "none", id: "", label: "" };
+  const written = JSON.stringify({
+    say: { headline: "Nora asked to come at 3.", detail: "" },
+    show: { figures: [], items: [], breakdown: { label: "", total: 0, parts: [], source: none } },
+    do: { open: { source: none, label: "", now: false }, next: [] },
+    language: "en",
+  });
+  const asked = [];
+  setAskPorts({
+    round: async (call, onText) => {
+      asked.push(JSON.stringify(call.request.messages));
+      onText(written);
+      return {
+        blocks: [{ type: "text", id: "", name: "", text: written, json: "" }],
+        stopReason: "end_turn",
+        streamError: null,
+      };
+    },
+    shape: async () => "",
+  });
+  try {
+    const res = await ask.POST.run(
+      send("POST", { text: "What did the first one want?", thread_id: thread.id }, inA),
+      ctxFor(tables),
+    );
+    await res.text();
+  } finally {
+    setAskPorts(null);
+  }
+  assert.equal(asked.length, 1);
+  assert.ok(asked[0].includes(answer.say.headline), asked[0]);
+  assert.ok(asked[0].includes(`thread ${CONV} Nora`), "the first one is Nora's thread, by its id");
+  assert.equal(tables.ask_messages.length, 6, "the follow-up joined the thread");
 });
 
 test("a turn reads back as it was stored: one made since the Line with its answer, one made before with its v1 fields alone", async () => {

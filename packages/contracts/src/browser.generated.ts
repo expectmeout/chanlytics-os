@@ -34,7 +34,7 @@ export { scopeFromRoute, ASK_MAX_CHARS, ASK_MAX_ROUNDS, ASK_TURN_BUDGET_MS, ASK_
 export { answerText, cardOpenRoute, oneDoor, answerFromV1, needsAnswer, callsAnswer, openingsAnswer, normalizeAnswer, answerWords, partialSay, answerForCards, failedAnswer, proseAnswer, v1FromAnswer, clip, ASK_ANSWER_CAPS } from "./ask/ask-answer";
 export { callJumpSub, askCallOutcome } from "./ask/ask-calls";
 export { ASK_CONTEXT_MAX_ROWS, ASK_CONTEXT_ROW_KINDS, itemFocus } from "./ask/ask-context";
-export { dayFromQuestion, askIntent, callsToday } from "./ask/ask-fast-paths";
+export { dayFromQuestion, askIntent, callsToday, quickAnswerOf } from "./ask/ask-fast-paths";
 export { askJump, askPages, ASK_PAGES } from "./ask/ask-jump";
 export { detectLanguage, ASK_LANGUAGES } from "./ask/ask-language";
 export { askModelProfile, ASK_EFFORT, ASK_MODEL, ASK_SPEED } from "./ask/ask-model";

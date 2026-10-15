@@ -23,6 +23,13 @@
       "rate": "aggregate",
       "spend": false
     },
+    "POST ask/quick": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "viewer",
+      "rate": "ask",
+      "spend": false
+    },
     "POST ask": {
       "kind": "write",
       "scope": "workspace",
