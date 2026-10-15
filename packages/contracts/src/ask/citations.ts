@@ -15,8 +15,10 @@ import { LENS_ROUTES, reportsRouteParts } from "../reports/lenses";
 /* ----------------------------------------------------------- the citation */
 
 /**
- * Thirteen names (the spec, 5.7): a page, and the twelve kinds of row a reader returns. A Broadcasts row cites as a
- * broadcast: `run` is the word its address and a scope spell (ask.ts ASK_SCOPE_KINDS), never a citation's.
+ * Fifteen names (the spec, 5.7): a page, and the fourteen kinds of row a reader returns. A Broadcasts row cites as a
+ * broadcast: `run` is the word its address and a scope spell (ask.ts ASK_SCOPE_KINDS), never a citation's. A visit (the
+ * record's row, appointments.id) and a Google review (google_reviews.id) joined them with the wiring's last two links
+ * (15 October 2026): an answer about a booking or a review now opens it, where it opened the page around it.
  */
 export const ASK_CITATION_KINDS = [
   "thread",
@@ -32,12 +34,14 @@ export const ASK_CITATION_KINDS = [
   "playbook",
   "template",
   "mailbox",
+  "visit",
+  "review",
 ] as const;
 export type AskCitationKind = (typeof ASK_CITATION_KINDS)[number];
 
 /** The rows an answer's items may name, in words: said once, by the prompt's rules and the format's items alike. */
 export const ASK_ROW_WORDS =
-  "people, threads, calls, leads, searches, deals, lists, broadcasts, playbooks, templates, mailboxes";
+  "people, threads, calls, leads, searches, deals, lists, broadcasts, playbooks, templates, mailboxes, visits, reviews";
 
 export interface AskCitation {
   kind: AskCitationKind;
@@ -111,8 +115,8 @@ export const ASK_PAGE_ROUTES: readonly string[] = [
  * Whether a route is a page Ask may name: one of the listed pages (ASK_PAGE_ROUTES), or an address its page takes by a
  * parse of its own -- the Calendar's day, Reports' lens and the days after it, People's Leads views that name no search
  * and no lead and its built-in lists, the Sent room's Get their yes, the calls tab of Conversations and a group of
- * Campaigns' ledger. A visit is no page (it is a row, and Ask has no kind to cite one by), so `calendar/<day>:a-<id>` is not
- * one, whatever the id. A route that only BEGINS with a page's word
+ * Campaigns' ledger. A visit is no page: it is a row, cited as kind visit, so `calendar/<day>:a-<id>` is not one, whatever
+ * the id. A route that only BEGINS with a page's word
  * is no page (`admin/hours`, `calendar/next-week`, `reports/foo`, `today/x`): it lands on "Not in this release", on the usual
  * week or on a card that names no surface. A list of the workspace's own (`clients/list:<id>`) is a row, its reader's route,
  * and so are a thread, a call, a person, a campaign and a run: never a page.
@@ -203,6 +207,9 @@ const OWN_ROUTES: Partial<Record<AskCitationKind, (id: string) => string>> = {
   conversation: (id) => addressOf({ kind: "conversation", id, in: "conversations" }),
   call: (id) => addressOf({ kind: "call", id }),
   person: (id) => addressOf({ kind: "person", id }),
+  // Where the record opens them without a day: the Calendar finds a visit by its row, and the Reviews lens a review.
+  visit: (id) => addressOf({ kind: "visit", id }),
+  review: (id) => addressOf({ kind: "review", id }),
 };
 
 /**

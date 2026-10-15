@@ -194,6 +194,8 @@ const KIND_WORDS: Record<"en" | "es", Record<AskCitationKind, string>> = {
     playbook: "Campaign",
     template: "Template",
     mailbox: "Mailbox",
+    visit: "Visit",
+    review: "Review",
   },
   es: {
     thread: "Hilo",
@@ -209,6 +211,8 @@ const KIND_WORDS: Record<"en" | "es", Record<AskCitationKind, string>> = {
     playbook: "Campaña",
     template: "Plantilla",
     mailbox: "Buzón",
+    visit: "Cita",
+    review: "Reseña",
   },
 };
 

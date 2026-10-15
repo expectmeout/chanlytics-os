@@ -91,6 +91,8 @@ test("grounding: a citation must name a row a tool returned this turn; pages are
       ["playbook", []],
       ["template", []],
       ["mailbox", []],
+      ["visit", []],
+      ["review", []],
     ],
     "the read set is kind → id → RowRef, one map per row kind; a page needs no read and is not kept",
   );
@@ -461,8 +463,8 @@ test("the surfaces are one list, Leads among them, and every kind a scope may ha
   // A campaign is one now, open in its drawer (the moment spec, A1): campaigns/moment:<id>.
   assert.deepEqual(
     ASK_CITATION_KINDS.filter((k) => !ASK_SCOPE_KINDS.includes(k)),
-    ["deal", "list", "broadcast", "template", "mailbox"],
-    "the rows a reader returns that no page opens as a scope",
+    ["deal", "list", "broadcast", "template", "mailbox", "visit", "review"],
+    "the rows a reader returns that no page opens as a scope (a visit's sheet and a review's reply box are the page around them)",
   );
 });
 

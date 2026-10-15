@@ -21,7 +21,10 @@ import {
   unmetNeed,
   type PersonRowDto,
   type PersonRowVM,
+  type VisitDto,
+  visitDateKey,
   visitLine,
+  visitRoute,
   callEndedWords,
   toInboxThreadVM,
 } from "@chanlytics/contracts";
@@ -43,6 +46,16 @@ import {
   unlessNotFound,
   type ToolContext,
 } from "../context";
+
+/**
+ * A person's next or last visit as a row an answer may cite (kind visit, by the record's row, VisitDto.record_id), noted
+ * where the Calendar opens it, on its day: its id, or null where the record has not kept a row for it (its words alone).
+ */
+function visitRow(t: ToolContext, v: VisitDto | null | undefined, tz: string, who: string): string | null {
+  if (!v?.record_id) return null;
+  noteRow(t, "visit", v.record_id, `${who} · ${v.title}`, visitRoute(v.record_id, visitDateKey(v.start, tz)));
+  return v.record_id;
+}
 
 function stepLine(r: PersonRowDto, tz: string, nowMs: number): string | null {
   const s = nextStepOf(r, tz, nowMs);
@@ -78,11 +91,13 @@ function personLine(r: PersonRowDto, vm: PersonRowVM, tz: string, nowMs: number)
     next_visit: r.visits?.next
       ? `${visitLine(r.visits.next, r.visits.timezone, nowMs)} · ${r.visits.next.title}`
       : null,
+    next_visit_id: r.visits?.next?.record_id ?? null,
     // Their earliest open step (0007, amended), its day as the pages say it: "Send the quote · Due Fri".
     next_step: stepLine(r, tz, nowMs),
     last_visit: r.visits?.last
       ? `${visitLine(r.visits.last, r.visits.timezone, nowMs)} · ${r.visits.last.title}`
       : null,
+    last_visit_id: r.visits?.last?.record_id ?? null,
   };
 }
 
@@ -142,6 +157,9 @@ async function searchPeople(t: ToolContext, input: { query: string; list?: strin
     noteRow(t, "person", r.id, personName(r), `clients/${r.id}`);
     const th = r.latest_conversation_id;
     if (th) noteRow(t, "thread", th, personName(r), `inbox/th-${th}`);
+    const tz = r.visits?.timezone ?? t.timezone;
+    visitRow(t, r.visits?.next, tz, personName(r));
+    visitRow(t, r.visits?.last, tz, personName(r));
   }
   return {
     query: q,
@@ -201,6 +219,10 @@ async function getPerson(t: ToolContext, input: { contact_id: string }): Promise
         state: threadState(toInboxThreadVM(c, null, t.timezone, t.now)),
         last_at: c.last_message_at,
       })),
+    // Their next and last visits as rows an answer may cite (kind visit); null where the record keeps none. The visits' words
+    // are in the facts and the timeline.
+    next_visit_id: visitRow(t, detail.visits?.next, detail.visits?.timezone ?? t.timezone, vm.name),
+    last_visit_id: visitRow(t, detail.visits?.last, detail.visits?.timezone ?? t.timezone, vm.name),
     calls: detail.calls.slice(0, 5).map((c) => ({
       call_id: c.id,
       route: `conversations/cv-${c.id}`,
@@ -371,7 +393,7 @@ export const peopleTool = defineActions({
       examples: [{ contact_id: "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d" }],
       label: "Reading the profile",
       words:
-        "Action get takes contact_id, the id a row here, inbox with action thread, calls with action get or calendar with action week returned, and reads one person's profile as their page reads it: right now, the facts on file, what is known about them, their receptionist mode, their last exchange, their open conversation, their conversations and calls with ids, their timeline, and the team's notes (a note the receptionist suggested is marked so, and is not the team's). Call it when the profile, the timeline or the notes are needed and the page on screen holds only their row; it returns their five newest conversations and calls, twenty timeline entries and twenty notes, and a person the workspace does not hold is an error, said in words.",
+        "Action get takes contact_id, the id a row here, inbox with action thread, calls with action get or calendar with action week returned, and reads one person's profile as their page reads it: right now, the facts on file, what is known about them, their receptionist mode, their last exchange, their open conversation, their conversations and calls with ids, their next and last visits' ids, their timeline, and the team's notes (a note the receptionist suggested is marked so, and is not the team's). Call it when the profile, the timeline or the notes are needed and the page on screen holds only their row; it returns their five newest conversations and calls, twenty timeline entries and twenty notes, and a person the workspace does not hold is an error, said in words.",
       run: getPerson,
     }),
     lists: readAction({

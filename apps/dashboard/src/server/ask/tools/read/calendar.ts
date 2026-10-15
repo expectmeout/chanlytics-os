@@ -1,6 +1,14 @@
 import "server-only";
 import { z } from "zod";
-import { dayInZone, isDayKey, shiftKey, toCalendarVM, visitStands, type CalendarBlockVM } from "@chanlytics/contracts";
+import {
+  dayInZone,
+  isDayKey,
+  shiftKey,
+  toCalendarVM,
+  visitRoute,
+  visitStands,
+  type CalendarBlockVM,
+} from "@chanlytics/contracts";
 import { load } from "../../../readers";
 import { calendar } from "../../../readers/calendar";
 import { openings } from "../../../readers/openings";
@@ -65,10 +73,20 @@ async function getCalendar(t: ToolContext, input: { day: string; days?: number }
   const vm = toCalendarVM(r.data.calendar, t.now);
   // Taken is what stands: the board draws a visit the record says was cancelled, struck, and Today and People count it none.
   const standing = (blocks: CalendarBlockVM[]) => blocks.filter((b) => visitStands(b.visit));
-  // A person the calendar names is a row read: the answer may name them, and open their profile.
+  // A person the calendar names is a row read: the answer may name them, and open their profile. So is a visit the record
+  // keeps (its row, VisitMark.id): the answer may cite it as kind visit, and it opens on its day with its sheet.
   for (const d of vm.days)
-    for (const b of [...standing(d.allDay), ...standing(d.blocks)])
+    for (const b of [...standing(d.allDay), ...standing(d.blocks)]) {
       if (b.person) noteRow(t, "person", b.person.id, b.person.name, `clients/${b.person.id}`);
+      if (b.visit?.id)
+        noteRow(
+          t,
+          "visit",
+          b.visit.id,
+          `${b.person?.name ?? b.title} · ${d.long}, ${b.time}`,
+          visitRoute(b.visit.id, d.key),
+        );
+    }
   return {
     route: "calendar",
     feed: vm.feed.line,
@@ -81,6 +99,7 @@ async function getCalendar(t: ToolContext, input: { day: string; days?: number }
         time: b.time,
         title: b.title,
         person: b.person ? { contact_id: b.person.id, name: b.person.name } : null,
+        visit_id: b.visit?.id ?? null,
       })),
       open: d.windows.map((w) => w.label),
     })),
@@ -102,7 +121,7 @@ export const calendarTool = defineActions({
       examples: [{ day: "tomorrow" }, { day: "2026-10-03", days: 3 }, { day: "", days: 7 }],
       label: "Reading the calendar",
       words:
-        "Action week takes day and an optional days and reads a day or a few: what is taken (in the calendar's own words, with the person in People when the title names one), whether the business is closed that day, and the windows the receptionist would offer; day is today, tomorrow, a weekday (mon..sun), a date (YYYY-MM-DD), or empty for the page's own week, and days is how many from there, at most 14.",
+        "Action week takes day and an optional days and reads a day or a few: what is taken (in the calendar's own words, with the person in People when the title names one, and its visit_id), whether the business is closed that day, and the windows the receptionist would offer; day is today, tomorrow, a weekday (mon..sun), a date (YYYY-MM-DD), or empty for the page's own week, and days is how many from there, at most 14.",
       run: getCalendar,
     }),
     openings: readAction({

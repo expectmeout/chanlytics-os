@@ -866,6 +866,27 @@ function withoutStoredWords(old, gotResult, wantResult) {
   return [strip(got), strip(want)];
 }
 
+/**
+ * 15 Oct 2026 (the wiring's last two links): people says a person's next and last visits' ids beside the words these bytes
+ * say of them, an answer's to cite as kind visit. Each is held to an id or null here, then taken out, so the rest is
+ * compared byte for byte.
+ */
+function withoutVisitIds(old, gotResult) {
+  const rows = old === "search_people" ? "people" : old === "get_person" ? null : undefined;
+  if (rows === undefined) return gotResult;
+  const said = JSON.parse(gotResult);
+  if (said.error) return gotResult;
+  const strip = (row) => {
+    for (const k of ["next_visit_id", "last_visit_id"]) {
+      assert.ok(k in row, `${old}: says ${k}`);
+      assert.ok(row[k] === null || typeof row[k] === "string", `${old}: ${k} is an id or null`);
+    }
+    const { next_visit_id: _next, last_visit_id: _last, ...rest } = row;
+    return rest;
+  };
+  return JSON.stringify(rows ? { ...said, [rows]: said[rows].map(strip) } : strip(said));
+}
+
 /** The old tools that read the open escalations through their reader: two halves since 13 Oct 2026 (R2). */
 const ESCALATION_HALVES = new Set(["get_today", "list_threads", "get_thread"]);
 
@@ -1333,7 +1354,7 @@ test("every old tool's call, made by its new name and action, answers the bytes 
       old,
       ...(NAMES[old] === "campaigns.playbooks"
         ? againstOffered(got.result, withLastThirtyDays(result))
-        : [got.result, NAMES[old] === "people.get" ? withoutRightNowDetail(result) : result]),
+        : [withoutVisitIds(old, got.result), NAMES[old] === "people.get" ? withoutRightNowDetail(result) : result]),
     );
     // 2 Oct 2026: a win-back proposed asks first whether a calendar is connected (check-playbook's calendarOn), from the
     // zone and settings the turn reads once: the same reads as before, those two earlier.

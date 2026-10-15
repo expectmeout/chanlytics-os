@@ -209,6 +209,23 @@ const TOO_LATE_WORDS = [
  */
 const HELD_LIST_WORDS = ["waiting_on_you (Waiting on you)", "waiting_on_you (You have it)"];
 /**
+ * 15 Oct 2026 (the wiring's last two links: Ask cites a visit and a review): calendar's week names each visit's id, people
+ * names a person's next and last visits' ids, and report the reviews waiting and the newest with theirs. The rules say
+ * how each is cited (prompt.ts); nothing else any of the three says moved.
+ */
+const VISIT_ID_WORDS = [
+  "with the person in People when the title names one), whether",
+  "with the person in People when the title names one, and its visit_id), whether",
+];
+const PERSON_VISIT_IDS_WORDS = [
+  "their conversations and calls with ids, their timeline,",
+  "their conversations and calls with ids, their next and last visits' ids, their timeline,",
+];
+const REVIEW_ROWS_WORDS = [
+  "hold a reply the receptionist wrote and did not post);",
+  "hold a reply the receptionist wrote and did not post), the oldest five waiting in rows and the newest five in latest, each with its id;",
+];
+/**
  * 8 Oct 2026 (Ask names channels, the review of that day): each playbook the listing gives says the channels it goes by
  * now, since propose_campaign with action channels asks for all of them, and the model was told to read them from an
  * answer that did not hold them. The one phrase, once.
@@ -611,7 +628,8 @@ test("the invariant (PR 4.7): every tool but propose_list, propose_campaign, pro
         .replace(
           "receptionist says available false where the database does not keep these numbers yet, and error where they could not be read.",
           REPORT_PEOPLE_WORDS,
-        ),
+        )
+        .replace(...REVIEW_ROWS_WORDS),
       role,
     );
     assert.deepEqual(words(tool(role, "report")), words(was(role, "report")), role);
@@ -638,9 +656,21 @@ test("the invariant (PR 4.7): every tool but propose_list, propose_campaign, pro
     );
     // calendar (10 Oct 2026): the room in the book (LANE_ACTIONS), which its tail names (12 Oct 2026), and nothing else it
     // says moved.
-    laneAdded(role, "calendar", was(role, "calendar").description.replace(...ROOM_TAIL_WORDS));
+    laneAdded(
+      role,
+      "calendar",
+      was(role, "calendar")
+        .description.replace(...ROOM_TAIL_WORDS)
+        .replace(...VISIT_ID_WORDS),
+    );
     // people (12 Oct 2026): the list of the threads the member looking has says the Inbox's words, and nothing else moved.
-    assert.equal(tool(role, "people").description, was(role, "people").description.replace(...HELD_LIST_WORDS), role);
+    assert.equal(
+      tool(role, "people").description,
+      was(role, "people")
+        .description.replace(...HELD_LIST_WORDS)
+        .replace(...PERSON_VISIT_IDS_WORDS),
+      role,
+    );
     assert.deepEqual(words(tool(role, "people")), words(was(role, "people")), role);
   }
   for (const role of ["operator", "partner", "owner"]) {

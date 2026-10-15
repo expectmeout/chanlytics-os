@@ -1551,6 +1551,15 @@ test("report says the Reviews lens as the page does (Reports phase C, lens 1): t
     google_connections: [connection()],
     google_reviews: reviews,
   });
+  // A review as report lists it (15 Oct 2026): its row's id, who wrote it, its stars, when, its words and whether it was answered.
+  const said = (n, stars, when, replied) => ({
+    id: reviews[n - 1].id,
+    author: "Ana P.",
+    stars,
+    when,
+    text: "Fast, careful, and on time.",
+    replied,
+  });
   const run = async (t, over = {}) => {
     const tc = newToolContext(ctxFor(t, { ...rpcs, reviews_ledger: ledger, ...over }), A, "owner", TZ, NOW);
     const out = await runTool(tc, { name: "report", input: { days: 7 } });
@@ -1572,8 +1581,29 @@ test("report says the Reviews lens as the page does (Reports phase C, lens 1): t
       line: "1 of the 2 reviews written in the last 7 days are 4 or 5 stars.",
       rows: ["5 stars: 1 · 50%", "4 stars: 0 · 0%", "3 stars: 0 · 0%", "2 stars: 1 · 50%", "1 star: 0 · 0%"],
     },
-    waiting: { count: 1, held: 1 },
+    waiting: {
+      count: 1,
+      held: 1,
+      // The oldest waiting as the page lists them, each with its id and the reply the receptionist held (15 Oct 2026).
+      rows: [
+        { ...said(2, "★★☆☆☆", "2d ago", false), held: "The receptionist wrote a reply and held it: it named a price." },
+      ],
+    },
+    // The newest besides, as the page lists them: the one waiting is above, and the one public review is among them.
+    latest: [
+      said(5, "★☆☆☆☆", "1d ago", false),
+      said(1, "★★★★★", "4d ago", true),
+      said(3, "★★★★☆", "Sep 2", true),
+      said(4, "★★★★★", "Aug 15", true),
+    ],
   });
+  // Each review listed is a row an answer may cite (kind review), opening on the lens with its reply box.
+  const cited = newToolContext(ctxFor(profile, { ...rpcs, reviews_ledger: ledger }), A, "owner", TZ, NOW);
+  await runTool(cited, { name: "report", input: { days: 7 } });
+  assert.deepEqual(
+    [...cited.read.review.values()].map((r) => [r.id, r.route]),
+    [2, 5, 1, 3, 4].map((n) => [reviews[n - 1].id, `reports/reviews:${reviews[n - 1].id}`]),
+  );
 
   // Only the five Google shows of a public listing: the listing's head and four figures, and nothing that needs the whole set.
   const publicOnly = tables({
@@ -1589,12 +1619,20 @@ test("report says the Reviews lens as the page does (Reports phase C, lens 1): t
       { label: "Gained in 7 days", value: "—", meta: "needs a second day of reading", change: null },
       { label: "Newest review", value: "1d ago", meta: "★☆☆☆☆ · Ana P.", change: null },
     ],
+    // The five Google shows, listed as the lens lists them, each a review an answer may cite.
+    latest: [
+      said(5, "★☆☆☆☆", "1d ago", false),
+      said(2, "★★☆☆☆", "2d ago", false),
+      said(1, "★★★★★", "4d ago", true),
+      said(3, "★★★★☆", "Sep 2", true),
+      said(4, "★★★★★", "Aug 15", true),
+    ],
     connect: "Connect your Business Profile to see every review, who answered, and how fast.",
   });
   assert.deepEqual(
     Object.keys(places),
-    ["head", "tiles", "connect"],
-    "no answered, stars or waiting from five reviews that are a sample of nothing, and what the profile would add",
+    ["head", "tiles", "latest", "connect"],
+    "no answered, stars or waiting from five reviews that are a sample of nothing: the five listed, and what the profile would add",
   );
   // A profile connected whose first sync has not yet run holds none of the reviews: it says what the public listing says,
   // and offers no connection to one that is already there.
@@ -3935,7 +3973,7 @@ test("a gated list's refusal names the condition that failed: with a calendar an
   }
 });
 
-test("calendar.week reads the people it names: a person on the calendar enters the read set, so the answer may name them and open their profile (F5)", async () => {
+test("calendar.week reads the people it names: a person on the calendar enters the read set, so the answer may name them and open their profile (F5); and a visit the record keeps comes with its id, a row an answer may cite and open on its day (15 Oct 2026)", async () => {
   const { forgetFeeds } = await import(at("apps/dashboard/src/server/ask/openings.ts"));
   const ICS = [
     "BEGIN:VCALENDAR",
@@ -3951,11 +3989,25 @@ test("calendar.week reads the people it names: a person on the calendar enters t
     "END:VCALENDAR",
   ].join("\r\n");
   const base = tables();
+  // The row the hourly sync keeps for the event (00345, by its UID and start): its id is the visit's.
+  const VISIT = "dddddddd-dddd-4ddd-8ddd-ddddddddddd1";
   const t = tables({
     tenant_config: [
       {
         ...base.tenant_config[0],
         config: { ...base.tenant_config[0].config, calendar: { ical_url: "https://calendar.example/harbor.ics" } },
+      },
+    ],
+    appointments: [
+      {
+        id: VISIT,
+        tenant_id: A,
+        source: "calendar_feed",
+        external_id: "e2",
+        status: "booked",
+        starts_at: "2026-09-15T14:00:00.000Z",
+        ends_at: "2026-09-15T15:00:00.000Z",
+        vanished_at: null,
       },
     ],
   });
@@ -3965,6 +4017,13 @@ test("calendar.week reads the people it names: a person on the calendar enters t
     forgetFeeds();
     const tc = newToolContext(ctxFor(t, { ...RPCS, people_list: () => threeAnswers() }), A, "owner", TZ, NOW);
     const out = await runTool(tc, { name: "calendar", input: { action: "week", day: "tomorrow" } });
+    const [taken] = JSON.parse(out.result).days[0].taken;
+    assert.equal(taken.visit_id, VISIT, "the visit's id, as the record keeps it");
+    assert.deepEqual(
+      [...tc.read.visit.values()].map((r) => [r.id, r.route]),
+      [[VISIT, `calendar/2026-09-15:a-${VISIT}`]],
+      "a row read, opened on its day with its sheet",
+    );
     assert.equal(out.isError, false, out.result);
     assert.equal(
       JSON.parse(out.result).note,
@@ -5140,8 +5199,8 @@ test("people.get is the person page's one read (ledger #3): the reader's one rou
   assert.deepEqual(lines, [], "a person who is not here is not a failed read");
   assert.deepEqual(
     Object.values(away.read).map((s) => s.size),
-    Array(12).fill(0),
-    "nothing of another workspace enters the read set, of any of the twelve kinds of row",
+    Array(14).fill(0),
+    "nothing of another workspace enters the read set, of any of the fourteen kinds of row",
   );
 });
 
@@ -6092,12 +6151,30 @@ test("people.search answers who booked and who never did, a list counted over th
     last_inbound_at: iso(NOW.getTime() - 3 * 86_400_000),
   }));
   const base = tables();
+  // Rosa's visit as the record holds it (15 Oct 2026): a booking that arrived by email, for her number, at the feed's time.
+  // Its id comes with her next visit, a row an answer may cite. (A feed event nobody said a word of is not in the pools'
+  // read of the record, feedWordsOver: its words alone, and the Calendar's week names its id.)
+  const VISIT = "dddddddd-dddd-4ddd-8ddd-ddddddddddd2";
   const t = tables({
     contacts: contactsOf(rows),
     tenant_config: [
       {
         ...base.tenant_config[0],
         config: { ...base.tenant_config[0].config, calendar: { ical_url: "https://calendar.example/harbor.ics" } },
+      },
+    ],
+    appointments: [
+      {
+        id: VISIT,
+        tenant_id: A,
+        source: "booking_email",
+        status: "booked",
+        title: "Colour",
+        client_name: "Rosa Diaz",
+        client_phone: "+15555550182",
+        starts_at: "2026-09-16T14:00:00.000Z",
+        ends_at: "2026-09-16T15:00:00.000Z",
+        vanished_at: null,
       },
     ],
   });
@@ -6114,10 +6191,16 @@ test("people.search answers who booked and who never did, a list counted over th
       ["Rosa Diaz"],
     );
     assert.match(booked.people[0].next_visit, /Colour$/, "her next visit, from the feed");
+    assert.equal(booked.people[0].next_visit_id, VISIT, "and its id, as the record keeps it");
+    assert.deepEqual(
+      [...tc.read.visit.values()].map((r) => [r.id, r.route]),
+      [[VISIT, `calendar/2026-09-16:a-${VISIT}`]],
+      "a row read, opened on its day with its sheet",
+    );
     const never = await on("asked_never_booked");
     assert.deepEqual(
-      [never.people.map((p) => p.name), never.people[0].next_visit],
-      [["Luis Mora"], null],
+      [never.people.map((p) => p.name), never.people[0].next_visit, never.people[0].next_visit_id],
+      [["Luis Mora"], null, null],
       "wrote this month, and the calendar never had him",
     );
   } finally {
@@ -7039,7 +7122,7 @@ test("the three retries run in their order, each once: the page's data, then the
   assert.deepEqual([r.shape.context_dropped, r.shape.format], [true, false]);
 });
 
-test("thirteen names move five spans of the request (PR 4.2): the format's kind enum, its source's words and its items' words, the rules' items list and their source rule", async () => {
+test("fifteen names move five spans of the request (PR 4.2; a visit and a review, 15 Oct 2026): the format's kind enum, its source's words and its items' words, the rules' items list and their source rule", async () => {
   const s = scripted([ROUND([answer("Fine.")])]);
   await runAskTurn(turn(ctxFor(), { role: "owner" }).input, ports(s.round));
   const req = s.requests[0];
@@ -7051,10 +7134,11 @@ test("thirteen names move five spans of the request (PR 4.2): the format's kind 
     act.properties.open.properties.source,
   ];
   for (const source of sources) {
-    assert.deepEqual(source.properties.kind.enum, [...ASK_CITATION_KINDS, "none"], "a page, twelve rows, and none");
+    assert.deepEqual(source.properties.kind.enum, [...ASK_CITATION_KINDS, "none"], "a page, fourteen rows, and none");
     assert.ok(source.description.includes("(a page's id is its route; a run is kind broadcast)"), source.description);
   }
-  const every = "people, threads, calls, leads, searches, deals, lists, broadcasts, playbooks, templates, mailboxes";
+  const every =
+    "people, threads, calls, leads, searches, deals, lists, broadcasts, playbooks, templates, mailboxes, visits, reviews";
   assert.equal(ASK_ROW_WORDS, every, "the rows an answer's items may name, said once");
   assert.ok(
     show.properties.items.description.startsWith(`The rows the answer names (${every}), at most 5;`),

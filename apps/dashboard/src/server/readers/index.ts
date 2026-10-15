@@ -32,7 +32,7 @@ import type { Member } from "../route";
  * turns with other clocks and other roles.
  */
 
-/** The kinds a row may be cited as, twelve, and a page: the citation's thirteen names (contracts ASK_CITATION_KINDS). */
+/** The kinds a row may be cited as, fourteen, and a page: the citation's fifteen names (contracts ASK_CITATION_KINDS). */
 export type RowKind = AskCitationKind;
 
 /**

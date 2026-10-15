@@ -14193,9 +14193,11 @@ var ASK_CITATION_KINDS = [
   "broadcast",
   "playbook",
   "template",
-  "mailbox"
+  "mailbox",
+  "visit",
+  "review"
 ];
-var ASK_ROW_WORDS = "people, threads, calls, leads, searches, deals, lists, broadcasts, playbooks, templates, mailboxes";
+var ASK_ROW_WORDS = "people, threads, calls, leads, searches, deals, lists, broadcasts, playbooks, templates, mailboxes, visits, reviews";
 function emptyReadSet() {
   return Object.fromEntries(
     ASK_CITATION_KINDS.filter((k) => k !== "page").map((k) => [k, /* @__PURE__ */ new Map()])
@@ -14289,7 +14291,10 @@ var OWN_ROUTES = {
   thread: (id) => addressOf({ kind: "conversation", id }),
   conversation: (id) => addressOf({ kind: "conversation", id, in: "conversations" }),
   call: (id) => addressOf({ kind: "call", id }),
-  person: (id) => addressOf({ kind: "person", id })
+  person: (id) => addressOf({ kind: "person", id }),
+  // Where the record opens them without a day: the Calendar finds a visit by its row, and the Reviews lens a review.
+  visit: (id) => addressOf({ kind: "visit", id }),
+  review: (id) => addressOf({ kind: "review", id })
 };
 function citationRoute(c, read) {
   if (c.kind === "page") return c.id;
@@ -20981,7 +20986,9 @@ var KIND_WORDS = {
     broadcast: "Broadcast",
     playbook: "Campaign",
     template: "Template",
-    mailbox: "Mailbox"
+    mailbox: "Mailbox",
+    visit: "Visit",
+    review: "Review"
   },
   es: {
     thread: "Hilo",
@@ -20996,7 +21003,9 @@ var KIND_WORDS = {
     broadcast: "Difusi\xF3n",
     playbook: "Campa\xF1a",
     template: "Plantilla",
-    mailbox: "Buz\xF3n"
+    mailbox: "Buz\xF3n",
+    visit: "Cita",
+    review: "Rese\xF1a"
   }
 };
 function answerFromV1(m) {
