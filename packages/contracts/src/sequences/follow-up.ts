@@ -39,7 +39,7 @@ export function followUpStop(
  * What a customer's step is about, by its class (a step after the first carries its first step's): a visit's or a
  * proposal's (Booking, the follow-ups) is theirs, anything else the business's news (consent.ts MessageAbout, D1).
  */
-function messageAboutOfClass(policyClass: string): MessageAbout {
+export function messageAboutOfClass(policyClass: string): MessageAbout {
   return policyClass === "booking" || policyClass === "follow_up" ? "theirs" : "ours";
 }
 

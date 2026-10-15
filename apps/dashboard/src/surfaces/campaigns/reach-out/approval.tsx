@@ -2,7 +2,7 @@
  * Broadcasts: a reach-out run's block (moved from legacy/pages/reach-out/reach-out-approval.jsx, decision 0015; Reach out,
  * Part 4 PR 7; canvas board 05; F13, R20-R22). A live reach-out run -- waiting on its owner, scheduled or sending -- opens
  * to this, never to a WhatsApp run's sheet: its sends are reach_out_sends, not recipients. It says today's share and the
- * rest, the held with their reasons and doors (Include, Rewrite, Skip, Not a fit: `reachOuts.decide`), the skipped by
+ * rest, the held with their reasons and doors (Include, Rewrite, Skip, Not a fit: the `sequence_send_decide` verb), the skipped by
  * reason, how many are still being checked, and the first ready business's email as it reads, its opening marked. "Check
  * the held again" asks the check once more for every email it could not answer. A run waiting has Approve, which counts
  * and names the checked, ready sends only (R21), and Skip, which asks first; one that is not waiting keeps the run's own
@@ -15,6 +15,7 @@ import type { ReactNode } from "react";
 import { REACH_OUT_SHEET_WORDS } from "@chanlytics/contracts";
 import type { BroadcastDetailDto, ReachOutDecision } from "@chanlytics/contracts";
 import type { ApiRefusal } from "@/client/api";
+import { commitVerb } from "@/legacy-bridge/verbs/commit";
 import { canDo, gateTitle, navigate } from "../../legacy-verbs";
 import { Button } from "../../kit/button/button";
 import { Confirm } from "../../kit/confirm/confirm";
@@ -33,8 +34,11 @@ interface Said {
   text: string;
 }
 
-/** The first ready business's email as it reads: the opening marked, as a slot is on a WhatsApp run's sheet. */
-function RoRunWords({ vm }: { vm: RunWords }) {
+/**
+ * The first ready business's email as it reads: the opening marked, as a slot is on a WhatsApp run's sheet. A sequence to
+ * leads draws it on the step going now (sequences/lead-step.tsx).
+ */
+export function RoRunWords({ vm }: { vm: RunWords }) {
   return vm.words.length > 0 ? (
     <div className="bc-sheet-words" data-testid="ro-run-words">
       <p className="bc-sheet-quote">
@@ -87,11 +91,14 @@ interface HeldProps {
   may: boolean;
   busy: string | null;
   said: Said | null;
-  onDecide: (sendId: string, door: ReachOutDecision) => Promise<void>;
+  onDecide: (sendId: string, door: ReachOutDecision, name: string) => Promise<void>;
 }
 
-/** The held, each with why and its doors (R20); a door's refusal said at its row. Out of sight for a role that may not. */
-function RoRunHeld({ vm, may, busy, said, onDecide }: HeldProps) {
+/**
+ * The held, each with why and its doors (R20); a door's refusal said at its row. Out of sight for a role that may not. A
+ * sequence's People draws it too, open under Needs you (sequences/needs.tsx).
+ */
+export function RoRunHeld({ vm, may, busy, said, onDecide }: HeldProps) {
   return (
     <section className="bc-touched bc-sheet-people bc-approval-people" data-testid="ro-run-held">
       {vm.held.map((h) => (
@@ -105,7 +112,7 @@ function RoRunHeld({ vm, may, busy, said, onDecide }: HeldProps) {
                   key={door}
                   className="bc-person-door"
                   disabled={busy === h.id}
-                  onClick={() => onDecide(h.id, door)}
+                  onClick={() => onDecide(h.id, door, h.name)}
                   data-testid={`ro-door-${door}`}
                 >
                   {words}
@@ -217,8 +224,12 @@ function RoRunActs({ vm, sheet, acts, seeAll, onSeeAll }: ActsProps) {
 /** What a door or the recheck answers: taken, or refused in the owner's words. */
 type Answer = { ok: true } | ApiRefusal;
 
-/** A door pressed or the held checked again: said at its row when refused, and the run read again when taken. */
-function useRoRunDoors(runId: string, onDecided: () => void) {
+/**
+ * A door pressed or the held checked again: said at its row when refused, and the run read again when taken. A door is
+ * the `sequence_send_decide` verb, the one walk every press takes (its receipt, the surfaces it moves), whichever page
+ * draws the held: the run's sheet in Sent, or a sequence's People.
+ */
+export function useRoRunDoors(runId: string, onDecided: () => void) {
   const [busy, setBusy] = useState<string | null>(null);
   const [said, setSaid] = useState<Said | null>(null);
   const press = async (key: string, fn: () => Promise<Answer>) => {
@@ -234,7 +245,8 @@ function useRoRunDoors(runId: string, onDecided: () => void) {
   return {
     busy,
     said,
-    decide: (id: string, door: ReachOutDecision) => press(id, () => V.decide(id, door)),
+    decide: (id: string, door: ReachOutDecision, name: string) =>
+      press(id, () => commitVerb("sequence_send_decide", { send_id: id, decision: door, name, run_id: runId })),
     recheck: () => press("recheck", () => V.recheck(runId)),
   };
 }

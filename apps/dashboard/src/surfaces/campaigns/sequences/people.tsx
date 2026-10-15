@@ -1,74 +1,141 @@
 /**
- * A sequence's People (Leads for a sequence to leads; the canvas's People board): who is in it, by where they stand, in
- * the People tab's order (contracts SEQUENCE_PEOPLE_GROUPS): waiting for your OK, held by the check, for you to send, up
- * next, in it, done and left, each group's whole count and its first rows. Someone still in it may be taken out, alone or
- * with the rest of their group: a send of theirs not yet gone is skipped with them (00442 sequence_leave). A held email and
- * one the owner sends from their own mail are decided where every such email is (the run's sheet, and Sent's one To send),
- * each row a door there, until this tab decides them in place (the plan's S6).
+ * A sequence's People (Leads for a sequence to leads; the canvas's People board): who is in it, by where they stand, one
+ * row per person or lead read from their enrollment (00441), so every screen says the same. What needs you is open at the
+ * top: a batch waiting for your OK with the people it holds, and for a sequence to leads the emails the check held and
+ * those for you to send, decided in place (needs.tsx). Everything else folds to one line that already says its numbers:
+ * up next, in it, done and left (contracts SEQUENCE_PEOPLE_GROUPS), each opening onto its rows, each row a door to the
+ * person or the lead. Someone still in it may be taken out, alone or with the rest of their group: a send of theirs not
+ * yet gone is skipped with them (00442 sequence_leave).
  */
 import { useState } from "react";
 import {
   PEOPLE_GROUP_WORDS,
-  TO_SEND_ROUTE,
+  SEQUENCE_PEOPLE_WORDS as P,
   addressOf,
-  SEQUENCE_PEOPLE_GROUPS,
   clockStamp,
+  clockWhen,
   sequenceLeftWords,
+  type SequencePeopleGroup,
   type SequencePersonDto,
   type SequenceRecordDto,
 } from "@chanlytics/contracts";
 import { Button } from "../../kit/button/button";
 import { FailedRead } from "../../kit/empty/empty";
 import { ListRow } from "../../kit/list-row/list-row";
+import { RecordDisclosure } from "../../kit/record/disclosure";
 import { gate, routeDoor } from "../../legacy-verbs";
 import type { LegacyFlash } from "../../legacy-verbs";
+import { SequenceNeeds } from "./needs";
 import { useSequenceRead } from "./use-record";
 import { pressed, sequenceVerbs as verbs } from "./verbs";
 
 type Flash = (flash: LegacyFlash) => void;
 
+/** The groups folded under Needs you, in their order. */
+const FOLDED: readonly SequencePeopleGroup[] = ["next", "in", "done", "left"];
+
 /** Whether someone may be taken out: still in it, with a place in it. */
 const mayLeave = (p: SequencePersonDto) => p.enrollment_id !== null && (p.group === "in" || p.group === "next");
 
-/** Where a row opens: a held email or one to send on the run that holds it, where it is decided; anyone else's page. */
+/** Where a row opens: the person's page, or the lead's. */
 function rowDoor(p: SequencePersonDto) {
-  if ((p.group === "held" || p.group === "to_send") && p.batch_id)
-    return routeDoor(addressOf({ kind: "send", id: p.batch_id }));
   if (p.contact_id) return routeDoor(addressOf({ kind: "person", id: p.contact_id }));
   if (p.lead_id) return routeDoor(addressOf({ kind: "lead", id: p.lead_id }));
   return {};
 }
 
-/** A group's own act: the emails held go to the run that holds the first, those to send to the one To send list. */
-function GroupDoor({ group, rows }: { group: string; rows: SequencePersonDto[] }) {
-  const batch = rows.find((r) => r.batch_id)?.batch_id ?? null;
-  if (group === "to_send")
-    return (
-      <Button size="sm" variant="quiet" className="sq-group-act" {...routeDoor(TO_SEND_ROUTE)} data-testid="sq-to-send">
-        Send them
-      </Button>
-    );
-  if (group === "held" && batch)
-    return (
-      <Button
-        size="sm"
-        variant="quiet"
-        className="sq-group-act"
-        {...routeDoor(addressOf({ kind: "send", id: batch }))}
-        data-testid="sq-decide-held"
-      >
-        Decide them
-      </Button>
-    );
-  return null;
-}
-
-/** What a row says under the name: when, and why for someone held or gone. */
+/** What a row says under the name: its step, when, and why for someone held or gone. */
 function personLineOf(p: SequencePersonDto, tz: string, nowMs: number): string {
   const at = p.at ? clockStamp(Date.parse(p.at), tz, nowMs) : null;
-  const place = p.place ? `step ${p.place}` : null;
+  const place = p.place ? P.step(p.place) : null;
   const why = p.group === "left" || p.group === "done" ? sequenceLeftWords(p.why) : (p.hold_detail ?? p.why ?? null);
   return [place, at, why].filter(Boolean).join(" · ");
+}
+
+/**
+ * What a folded group says beside its count, from its rows: when the soonest of them goes for those still to come, and
+ * why they left for those gone ("3 wrote back · 1 booked"). Said only where every row of the group is in hand, so a tally
+ * never counts part of a group as all of it.
+ */
+function foldMarkOf(
+  g: SequencePeopleGroup,
+  rows: SequencePersonDto[],
+  whole: number,
+  clock: { tz: string; nowMs: number },
+): string | null {
+  const { tz, nowMs } = clock;
+  if (rows.length === 0) return null;
+  if (g === "next" || g === "in") {
+    const soonest = rows.find((r) => r.at)?.at;
+    return soonest ? P.next(clockWhen(Date.parse(soonest), tz, nowMs)) : null;
+  }
+  if (rows.length < whole) return null;
+  const by = new Map<string, number>();
+  for (const r of rows) {
+    const why = sequenceLeftWords(r.why) || P.lastStep;
+    by.set(why, (by.get(why) ?? 0) + 1);
+  }
+  return [...by.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .map(([why, n]) => `${n} ${why}`)
+    .join(" · ");
+}
+
+interface GroupProps {
+  g: SequencePeopleGroup;
+  rows: SequencePersonDto[];
+  whole: number;
+  rec: SequenceRecordDto;
+  busy: string | null;
+  takeOut: (key: string, ids: string[]) => Promise<void>;
+}
+
+/** A group's rows, each a door, with Take out on those still in it, and the group's own Take out over all of them. */
+function GroupRows({ g, rows, whole, rec, busy, takeOut }: GroupProps) {
+  const nowMs = Date.now();
+  const leaving = rows.filter(mayLeave).flatMap((r) => (r.enrollment_id ? [r.enrollment_id] : []));
+  return (
+    <div className="sq-group-rows">
+      {leaving.length > 1 ? (
+        <Button
+          size="sm"
+          variant="quiet"
+          className="sq-group-act"
+          disabled={busy !== null}
+          onClick={() => void takeOut(g, leaving)}
+          data-testid={`sq-take-out-${g}`}
+          {...gate("approve")}
+        >
+          {P.takeOutAll(leaving.length)}
+        </Button>
+      ) : null}
+      {rows.map((r) => (
+        <ListRow
+          key={`${r.enrollment_id ?? r.send_id ?? r.contact_id ?? r.lead_id}`}
+          face={{ person: { name: r.name ?? "" }, size: "sm" }}
+          name={r.name ?? P.someone}
+          said={personLineOf(r, rec.timezone, nowMs)}
+          end={(place) =>
+            mayLeave(r) && r.enrollment_id ? (
+              <Button
+                size="sm"
+                variant="quiet"
+                className={place}
+                disabled={busy !== null}
+                onClick={() => void takeOut(r.enrollment_id ?? "", [r.enrollment_id ?? ""])}
+                data-testid={`sq-take-out-${r.enrollment_id}`}
+                {...gate("approve")}
+              >
+                {P.takeOut}
+              </Button>
+            ) : null
+          }
+          {...rowDoor(r)}
+        />
+      ))}
+      {whole > rows.length ? <p className="sq-more">{P.more(whole - rows.length)}</p> : null}
+    </div>
+  );
 }
 
 export function SequencePeople(p: { rec: SequenceRecordDto; flash: Flash; again: number; moved: () => void }) {
@@ -76,7 +143,7 @@ export function SequencePeople(p: { rec: SequenceRecordDto; flash: Flash; again:
   const read = useSequenceRead(rec.sequence.id, verbs.people, verbs.peekPeople, again);
   const [busy, setBusy] = useState<string | null>(null);
   if (read.state === "failed")
-    return <FailedRead what="who is in it" why={read.why} onRetry={moved} testid="sq-people-failed" />;
+    return <FailedRead what={P.failed} why={read.why} onRetry={moved} testid="sq-people-failed" />;
   if (read.state === "reading") return <div className="sq-reading" aria-busy="true" />;
   const { counts, rows } = read.data;
   const nowMs = Date.now();
@@ -85,64 +152,47 @@ export function SequencePeople(p: { rec: SequenceRecordDto; flash: Flash; again:
     await pressed("sequence_leave", { sequence_id: rec.sequence.id, enrollment_ids: ids }, flash, moved);
     setBusy(null);
   };
-  const groups = SEQUENCE_PEOPLE_GROUPS.filter((g) => (counts[g] ?? 0) > 0);
-  if (groups.length === 0) return <p className="sq-none">Nobody is in it yet.</p>;
+  const of = (g: SequencePeopleGroup) => rows.filter((r) => r.group === g);
+  // The batches holding emails the check held or handed to you: each read whole below, where they are decided.
+  const needBatches = [
+    ...new Set(
+      rows.filter((r) => (r.group === "held" || r.group === "to_send") && r.batch_id).map((r) => r.batch_id ?? ""),
+    ),
+  ];
+  const needs = (counts.held ?? 0) + (counts.to_send ?? 0);
+  const waiting = of("waiting");
+  const folded = FOLDED.filter((g) => (counts[g] ?? 0) > 0);
+  if (needs === 0 && waiting.length === 0 && folded.length === 0) return <p className="sq-none">{P.nobody}</p>;
   return (
     <div className="sq-people" data-testid="sq-people">
-      {groups.map((g) => {
-        const shown = rows.filter((r) => r.group === g);
-        const leaving = shown.filter(mayLeave).flatMap((r) => (r.enrollment_id ? [r.enrollment_id] : []));
-        return (
-          <section key={g} className="sq-group" aria-label={PEOPLE_GROUP_WORDS[g]} data-testid={`sq-people-${g}`}>
-            <h3 className="sq-group-name">
-              {PEOPLE_GROUP_WORDS[g]}
-              <span className={g === "waiting" || g === "held" || g === "to_send" ? "tally tally-warn" : "tally"}>
-                {counts[g]}
-              </span>
-              <GroupDoor group={g} rows={shown} />
-              {leaving.length > 1 ? (
-                <Button
-                  size="sm"
-                  variant="quiet"
-                  className="sq-group-act"
-                  disabled={busy !== null}
-                  onClick={() => void takeOut(g, leaving)}
-                  {...gate("approve")}
-                >
-                  Take these {leaving.length} out
-                </Button>
-              ) : null}
-            </h3>
-            {shown.map((r) => (
-              <ListRow
-                key={`${r.enrollment_id ?? r.send_id ?? r.contact_id ?? r.lead_id}`}
-                face={{ person: { name: r.name ?? "" }, size: "sm" }}
-                name={r.name ?? "Someone"}
-                said={personLineOf(r, rec.timezone, nowMs)}
-                end={(place) =>
-                  mayLeave(r) && r.enrollment_id ? (
-                    <Button
-                      size="sm"
-                      variant="quiet"
-                      className={place}
-                      disabled={busy !== null}
-                      onClick={() => void takeOut(r.enrollment_id ?? "", [r.enrollment_id ?? ""])}
-                      data-testid={`sq-take-out-${r.enrollment_id}`}
-                      {...gate("approve")}
-                    >
-                      Take out
-                    </Button>
-                  ) : null
-                }
-                {...rowDoor(r)}
-              />
-            ))}
-            {(counts[g] ?? 0) > shown.length ? (
-              <p className="sq-more">and {(counts[g] ?? 0) - shown.length} more</p>
-            ) : null}
-          </section>
-        );
-      })}
+      <SequenceNeeds batches={needBatches} count={needs} flash={flash} onDecided={moved} />
+      {waiting.length > 0 ? (
+        <section className="sq-group" aria-label={PEOPLE_GROUP_WORDS.waiting} data-testid="sq-people-waiting">
+          <h3 className="sq-group-name">
+            {PEOPLE_GROUP_WORDS.waiting}
+            <span className="tally tally-warn">{counts.waiting}</span>
+          </h3>
+          <GroupRows g="waiting" rows={waiting} whole={counts.waiting ?? 0} rec={rec} busy={busy} takeOut={takeOut} />
+        </section>
+      ) : null}
+      <div className="sq-folds">
+        {folded.map((g) => (
+          <RecordDisclosure
+            key={g}
+            id={`sq-people-${rec.sequence.id}-${g}`}
+            label={
+              <>
+                <b>{PEOPLE_GROUP_WORDS[g]}</b> · {counts[g]}
+              </>
+            }
+            mark={foldMarkOf(g, of(g), counts[g] ?? 0, { tz: rec.timezone, nowMs })}
+            remember
+            testid={`sq-people-${g}`}
+          >
+            <GroupRows g={g} rows={of(g)} whole={counts[g] ?? 0} rec={rec} busy={busy} takeOut={takeOut} />
+          </RecordDisclosure>
+        ))}
+      </div>
     </div>
   );
 }

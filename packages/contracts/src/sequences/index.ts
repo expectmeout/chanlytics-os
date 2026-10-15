@@ -1,7 +1,7 @@
 /** Sequences (decision 0060): everything the workspace sends on its own, its steps, batches, sends and replies. */
 export { SEQUENCE_STARTS, SEQUENCE_STATES, sequencesPreviewOf } from "./sequence";
 export type { SequenceStart, SequenceState } from "./sequence";
-export { FOLLOW_UP_CONDITIONS, followUpStop, followUpReach } from "./follow-up";
+export { FOLLOW_UP_CONDITIONS, followUpStop, followUpReach, messageAboutOfClass } from "./follow-up";
 export type { FollowUpCondition, FollowUpStop, FollowUpStep } from "./follow-up";
 export { SEQUENCE_PEOPLE_GROUPS } from "./sequence-dto";
 export type {
@@ -23,6 +23,9 @@ export type {
 } from "./sequence-dto";
 export {
   SEQUENCE_WORDS,
+  SEQUENCE_FLOW_WORDS,
+  stepApprovalOf,
+  leadStepStand,
   SEQUENCE_GROUPS,
   PEOPLE_GROUP_WORDS,
   needsCount,
@@ -38,6 +41,8 @@ export {
   sequenceNotice,
   sequenceStartsSentence,
   momentStartsSentence,
+  listStartsSentence,
+  SEQUENCE_STATE_WORDS,
   sequenceWaitWords,
   sequenceChannelsWords,
   sequenceStopsSentence,
@@ -46,6 +51,21 @@ export {
   peopleTabWord,
 } from "./sequence-words";
 export type { SequenceGroup, SequenceNotice } from "./sequence-words";
+export {
+  SEQUENCE_EDIT_WORDS,
+  SEQUENCE_NEEDS_WORDS,
+  SEQUENCE_PEOPLE_WORDS,
+  SEQUENCE_HISTORY_PERIODS,
+  SEQUENCE_HISTORY_WORDS,
+  historySince,
+  historyIn,
+  historyCovers,
+  historyFigures,
+  historyDays,
+  historyDayWords,
+  batchWent,
+} from "./sequence-tab-words";
+export type { SequenceHistoryPeriod, SequenceHistoryFigure } from "./sequence-tab-words";
 export {
   SEQUENCES_ROUTE,
   isSequencesParam,
@@ -60,7 +80,8 @@ export {
   SEQUENCE_WAIT_DAYS,
   SEQUENCE_DRAFT_JSON_SCHEMA,
   SEQUENCE_NEW_WORDS,
+  isListToken,
 } from "./sequence-draft";
-export type { SequenceDraftStepDto, SequenceDraftDto } from "./sequence-draft";
+export type { SequenceDraftStepDto, SequenceDraftDto, SequenceDraftListDto } from "./sequence-draft";
 export { SequenceDraftAnswerSchema } from "./sequence-draft-schema";
 export type { SequenceDraftAnswer } from "./sequence-draft-schema";

@@ -6,8 +6,9 @@
  * its own (verbs.ts), each following the list. The address says what is open (contracts parseSequencesRoute), so Back
  * walks the list, a record and its tabs.
  */
-import { SEQUENCE_WORDS, parseSequencesRoute } from "@chanlytics/contracts";
+import { SEQUENCES_ROUTE, SEQUENCE_WORDS, parseSequencesRoute } from "@chanlytics/contracts";
 import { EmptyState, FailedRead } from "../../kit/empty/empty";
+import { gate } from "../../legacy-verbs";
 import { useSurface } from "../../use-surface";
 import { CmSplit } from "../parts/split";
 import { SequencesList } from "./list";
@@ -55,6 +56,12 @@ export function SequencesPage({ route }: { route: string }) {
             glyph="send"
             title={SEQUENCE_WORDS.title}
             body={SEQUENCE_WORDS.empty}
+            action={{
+              label: SEQUENCE_WORDS.newSequence,
+              to: `${SEQUENCES_ROUTE}/new`,
+              testid: "sq-empty-new",
+              gate: gate("approve"),
+            }}
             testid="sq-empty"
           />
         ) : (
