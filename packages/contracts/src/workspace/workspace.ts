@@ -143,7 +143,7 @@ export function usableDeviceTimezone(resolve?: () => string | undefined): string
 }
 
 /** The longest name a workspace may carry: the receptionist's name's own bound (brain-config-schema.ts business_name). */
-export const WORKSPACE_NAME_MAX = 120;
+const WORKSPACE_NAME_MAX = 120;
 
 /**
  * A workspace's name as it is saved (the wiring's second audit, X4-5; Ruben, 15 October 2026): one line, trimmed, 1 to 120
