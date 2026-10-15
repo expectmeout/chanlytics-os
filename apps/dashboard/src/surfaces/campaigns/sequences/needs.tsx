@@ -1,12 +1,12 @@
 /**
  * What needs you in a sequence to leads, open at the top of its Leads tab (the canvas's People board), laid out from People's
- * one read (00445, contracts peopleNeedsOf), never each batch's run beside it: the emails the check held, a row each with
+ * one read (00447, contracts peopleNeedsOf), never each batch's run beside it: the emails the check held, a row each with
  * why in amber and its answers under it, "Send all N as they are" over those that may go as written; then the emails
  * handed to you to send from your own inbox, each the row every To send draws (reach-out/to-send.tsx RoToSendRows): your
  * mail app first, the rest under its More, and Sent or Skip at its end (0059). Decided through the verbs Sent's run sheet
  * presses (`sequence_send_decide`, `sequence_send_said`), so a held email decided here is decided everywhere, with the
  * same receipt; "Send all" presses the one verb once for each, and says what went in one toast. A batch whose rows came
- * without their drafts (a server before 00445) is opened in Sent. A customer's sequence holds none of these: its batches
+ * without their drafts (a server before 00447) is opened in Sent. A customer's sequence holds none of these: its batches
  * wait for an OK, which the record's one notice asks.
  */
 import { useState } from "react";

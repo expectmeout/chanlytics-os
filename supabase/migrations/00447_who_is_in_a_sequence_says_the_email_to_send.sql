@@ -1,4 +1,4 @@
--- 00445: who is in a sequence says the email handed to its owner (decision 0060; the Sequences parity review of 15 Oct
+-- 00447: who is in a sequence says the email handed to its owner (decision 0060; the Sequences parity review of 15 Oct
 -- 2026, wiring W2). sequence_people's to_send rows carry their draft as it was handed over (00429: its address, subject
 -- and words with the foot, whether it follows an email before, its angle and when it was handed), so a sequence's People
 -- lays out what needs you from its one read, as the run's sheet in Sent does from the run's, and never reads each batch's
@@ -108,4 +108,4 @@ as $$
 $$;
 
 comment on function public.sequence_people(uuid, uuid, integer) is
-  'Who is in a sequence (0060), by where they stand, each group''s count whole and its first p_limit (1 to 200, 50) rows: waiting (a batch waiting for your OK), held (by the check, with why), to_send (an email for you to send, with its draft as it was handed over: 00445), next (going out), in (between steps, their next step''s day), done, and left (with why). A person by their name, a lead by its business''s. Under the caller''s row security.';
+  'Who is in a sequence (0060), by where they stand, each group''s count whole and its first p_limit (1 to 200, 50) rows: waiting (a batch waiting for your OK), held (by the check, with why), to_send (an email for you to send, with its draft as it was handed over: 00447), next (going out), in (between steps, their next step''s day), done, and left (with why). A person by their name, a lead by its business''s. Under the caller''s row security.';

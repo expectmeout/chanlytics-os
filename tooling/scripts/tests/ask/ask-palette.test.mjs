@@ -14,6 +14,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { legacyAddress } from "../shell/address/_address.mjs";
 import { kitPages, useStubHooks } from "../_legacy-react.mjs";
+import { MODEL_QUESTIONS, QUICK_FORMS } from "./quick-path/_questions.mjs";
 import {
   PROPOSAL_GATE,
   ROLE_PERMS,
@@ -349,10 +350,10 @@ const said = (id, text) => ({
 });
 /**
  * Ask as the bridge installs it: the real palette, quick answers and speech over this window, and a recorded stand-in
- * for the routes that go out (the threads, one thread, a deletion, a turn, the openings).
+ * for the routes that go out (the threads, one thread, a deletion, a turn, a quick answer kept, the openings).
  */
 const ask = (threads = []) => {
-  const calls = { deleted: [], sent: [], opened: [], inputs: [] };
+  const calls = { deleted: [], sent: [], opened: [], inputs: [], kept: [] };
   let list = [...threads];
   const palette = askPalette(globalThis.window, globalThis.localStorage);
   const openings = async () => ({ state: "no_calendar", days: [] });
@@ -396,6 +397,19 @@ const ask = (threads = []) => {
     send: async (input) => {
       calls.sent.push(input.text);
       calls.inputs.push(input);
+    },
+    // POST ask/quick: the thread named, else a new one at the top of the list.
+    keepQuick: async (input) => {
+      calls.kept.push(input);
+      if (input.threadId) return list.find((x) => x.id === input.threadId) ?? null;
+      const th = {
+        id: `cccccccc-cccc-4ccc-8ccc-00000000000${calls.kept.length}`,
+        title: input.text,
+        lastAtMs: Date.now(),
+        scope: null,
+      };
+      list = [th, ...list];
+      return th;
     },
     openings,
   };
@@ -3091,6 +3105,96 @@ test("a quick answer nods, and a failed turn shakes: the palette says how a turn
     MASCOT.mood.set("idle");
     delete globalThis.window.__mascot;
   }
+});
+
+/* ------------------------------ the quick path (the review's A1) ------------------------------ */
+
+test("REGRESSION (the review's A1): an ordinary question goes to the model, wherever it says who needs me, calls or openings; only a short form is answered by the Line itself", async () => {
+  for (const q of MODEL_QUESTIONS) {
+    const calls = ask([]);
+    render(Palette, OPEN);
+    await asks(await later(Palette, OPEN), OPEN, q);
+    assert.deepEqual(calls.sent, [q], `the model's: ${q}`);
+    assert.equal(calls.kept.length, 0, q);
+    await closes();
+  }
+  for (const [q] of QUICK_FORMS) {
+    const calls = ask([]);
+    render(Palette, OPEN);
+    let tree = await later(Palette, OPEN);
+    tree = await asks(tree, OPEN, q);
+    assert.deepEqual(calls.sent, [], `the Line's own: ${q}`);
+    assert.ok(byTestId(tree, "ask-say"), `answered at once: ${q}`);
+    assert.equal(calls.kept.length, 1, `and kept: ${q}`);
+    await closes();
+  }
+});
+
+test("REGRESSION (the review's A1): a quick answer is a turn of a conversation -- kept, listed in Earlier, folded above the next question, which is asked in its thread", async () => {
+  globalThis.window.TODAY_DATA = askQueue();
+  try {
+    const calls = ask([]);
+    globalThis.window.__ask.send = async (input, on) => {
+      calls.sent.push(input.text);
+      calls.inputs.push(input);
+      on({ t: "thread", id: input.threadId, title: "who needs me?" });
+      on({ t: "final", message: said("m-1", "Nora asked to come at 3.") });
+    };
+    render(Palette, OPEN);
+    let tree = await later(Palette, OPEN);
+    tree = await asks(tree, OPEN, "who needs me?");
+    assert.deepEqual(calls.sent, [], "no model");
+    const said1 = textOf(byTestId(tree, "ask-say"));
+    assert.ok(said1.startsWith("Nora needs you"), said1);
+    assert.equal(calls.kept.length, 1);
+    const [kept] = calls.kept;
+    assert.deepEqual([kept.text, kept.threadId], ["who needs me?", null], "a new thread, titled by the question");
+    assert.equal(kept.answer.say.headline, said1, "the answer kept is the answer drawn");
+    assert.equal(kept.answer.show.items[0].title, "Nora", "its rows with it, so the model reads who they were");
+    tree = await asks(tree, OPEN, "what did the first one want?");
+    assert.deepEqual(calls.sent, ["what did the first one want?"]);
+    assert.equal(
+      calls.inputs[0].threadId,
+      "cccccccc-cccc-4ccc-8ccc-000000000001",
+      "asked in the quick answer's thread",
+    );
+    const folds = all(tree, (n) => n.props?.["data-testid"] === "ask-fold");
+    assert.equal(folds.length, 1, "the quick answer folds above the line, as any answer does");
+    assert.ok(textOf(folds[0]).includes("who needs me?") && textOf(folds[0]).includes(said1), textOf(folds[0]));
+    assert.equal(textOf(byTestId(tree, "ask-say")), "Nora asked to come at 3.");
+    press(byTestId(tree, "ask-clear"));
+    tree = await later(Palette, OPEN);
+    const earlier = all(tree, (n) => n.props?.["data-testid"] === "ask-row-thread").map(textOf);
+    assert.equal(earlier.length, 1, "Earlier lists it");
+    assert.ok(earlier[0].startsWith("who needs me?"), earlier[0]);
+    await closes();
+  } finally {
+    delete globalThis.window.TODAY_DATA;
+  }
+});
+
+test("a quick question asked again resumes its thread, as a model's does; one that could not be kept leaves the next question to open a thread of its own", async () => {
+  const calls = ask([{ ...TH(1), title: "Who needs me?" }]);
+  render(Palette, OPEN);
+  let tree = await later(Palette, OPEN);
+  tree = await asks(tree, OPEN, "who needs me?");
+  assert.equal(calls.kept[0].threadId, TH(1).id, "kept in the thread whose first question it repeats");
+  assert.deepEqual(calls.opened, [], "drawn at once: nothing read first");
+  tree = await asks(tree, OPEN, "and the second one?");
+  assert.equal(calls.inputs[0].threadId, TH(1).id);
+  press(byTestId(tree, "ask-clear"));
+  tree = await later(Palette, OPEN);
+  // The route refuses it, or the network drops it: the answer stays drawn, and nothing waits on it.
+  globalThis.window.__ask.keepQuick = async (input) => {
+    calls.kept.push(input);
+    return null;
+  };
+  tree = await asks(tree, OPEN, "any missed calls today?");
+  assert.ok(textOf(byTestId(tree, "ask-say")).includes("No missed calls today"), textOf(tree));
+  await asks(tree, OPEN, "and this week?");
+  assert.deepEqual(calls.sent, ["and the second one?", "and this week?"]);
+  assert.equal(calls.inputs[1].threadId, null, "no thread to join: the turn opens its own");
+  await closes();
 });
 
 /* ------------------------------ what the tab keeps ------------------------------ */

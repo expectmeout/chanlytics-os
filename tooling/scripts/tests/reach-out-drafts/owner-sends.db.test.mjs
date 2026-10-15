@@ -636,7 +636,7 @@ test("Reports names the emails their owner sent from their own inbox apart from 
 });
 
 test(
-  "a sequence's People reads each email handed to its owner with its draft, whole, and no other row carries one (00445)",
+  "a sequence's People reads each email handed to its owner with its draft, whole, and no other row carries one (00447)",
   { skip },
   async () => {
     const L = await lead({ business_name: "People Fixture Gym" });

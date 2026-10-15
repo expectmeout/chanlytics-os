@@ -25381,7 +25381,7 @@ $$;
 -- Name: FUNCTION sequence_people(p_tenant_id uuid, p_sequence_id uuid, p_limit integer); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.sequence_people(p_tenant_id uuid, p_sequence_id uuid, p_limit integer) IS 'Who is in a sequence (0060), by where they stand, each group''s count whole and its first p_limit (1 to 200, 50) rows: waiting (a batch waiting for your OK), held (by the check, with why), to_send (an email for you to send, with its draft as it was handed over: 00445), next (going out), in (between steps, their next step''s day), done, and left (with why). A person by their name, a lead by its business''s. Under the caller''s row security.';
+COMMENT ON FUNCTION public.sequence_people(p_tenant_id uuid, p_sequence_id uuid, p_limit integer) IS 'Who is in a sequence (0060), by where they stand, each group''s count whole and its first p_limit (1 to 200, 50) rows: waiting (a batch waiting for your OK), held (by the check, with why), to_send (an email for you to send, with its draft as it was handed over: 00447), next (going out), in (between steps, their next step''s day), done, and left (with why). A person by their name, a lead by its business''s. Under the caller''s row security.';
 
 
 --
@@ -34632,6 +34632,13 @@ CREATE INDEX event_outbox_created ON public.event_outbox USING btree (created_at
 
 
 --
+-- Name: events_contact_added; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX events_contact_added ON ONLY public.events USING btree (tenant_id, subject_id, created_at) WHERE ((kind = 'contact.added'::text) AND (subject_type = 'contact'::text));
+
+
+--
 -- Name: events_tenant_kind_created; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -34643,6 +34650,13 @@ CREATE INDEX events_tenant_kind_created ON ONLY public.events USING btree (tenan
 --
 
 CREATE INDEX events_default_tenant_id_kind_created_at_idx ON public.events_default USING btree (tenant_id, kind, created_at);
+
+
+--
+-- Name: events_default_tenant_id_subject_id_created_at_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX events_default_tenant_id_subject_id_created_at_idx ON public.events_default USING btree (tenant_id, subject_id, created_at) WHERE ((kind = 'contact.added'::text) AND (subject_type = 'contact'::text));
 
 
 --
@@ -35749,6 +35763,13 @@ ALTER INDEX public.events_pkey ATTACH PARTITION public.events_default_pkey;
 --
 
 ALTER INDEX public.events_tenant_kind_created ATTACH PARTITION public.events_default_tenant_id_kind_created_at_idx;
+
+
+--
+-- Name: events_default_tenant_id_subject_id_created_at_idx; Type: INDEX ATTACH; Schema: public; Owner: -
+--
+
+ALTER INDEX public.events_contact_added ATTACH PARTITION public.events_default_tenant_id_subject_id_created_at_idx;
 
 
 --

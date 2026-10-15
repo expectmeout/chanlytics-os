@@ -77,12 +77,12 @@ export interface SequenceNeedsVM {
   /** The held whose answers include sending it as written: what "Send all N as they are" sends. */
   asIs: SequenceHeldVM[];
   toSend: (ToSendRowVM & { batchId: string | null })[];
-  /** Batches holding an email to send that this read carries no draft of (a server before 00445): their run's sheet lays them out. */
+  /** Batches holding an email to send that this read carries no draft of (a server before 00447): their run's sheet lays them out. */
   unread: string[];
 }
 
 /**
- * What needs you on a sequence's People, from who is in it (00442 sequence_people, the drafts 00445's): the emails the
+ * What needs you on a sequence's People, from who is in it (00442 sequence_people, the drafts 00447's): the emails the
  * check held, each with why and its answers in their own words (contracts holdWords, holdDoors, as the run's sheet in Sent
  * says them), and those handed to you to send, each the row every To send draws (toSendRowOf). A held send whose reason
  * is none of the check's is not answerable here and is left out, as the run's sheet leaves it.

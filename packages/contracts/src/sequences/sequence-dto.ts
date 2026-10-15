@@ -136,13 +136,13 @@ export interface SequencePersonDto {
   why: string | null;
   hold_detail: string | null;
   /**
-   * On a to_send row, the email as it was handed to its owner (00445): what their mail app opens with. Null on every other
-   * row, and absent from a server before 00445, where the run's sheet in Sent lays it out instead.
+   * On a to_send row, the email as it was handed to its owner (00447): what their mail app opens with. Null on every other
+   * row, and absent from a server before 00447, where the run's sheet in Sent lays it out instead.
    */
   draft?: SequencePersonDraftDto | null;
 }
 
-/** The email handed to its owner to send from their own inbox (00429), as a to_send row carries it (00445). */
+/** The email handed to its owner to send from their own inbox (00429), as a to_send row carries it (00447). */
 export interface SequencePersonDraftDto {
   to: string;
   subject: string;

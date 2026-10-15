@@ -2,7 +2,7 @@
  * A sequence's People (Leads for a sequence to leads; the canvas's People board): who is in it, by where they stand, one
  * row per person or lead read from their enrollment (00441), so every screen says the same. What needs you is open at the
  * top: a batch waiting for your OK with the people it holds, and for a sequence to leads the emails the check held and
- * those for you to send, decided in place from the same read (needs.tsx, 00445). Everything else folds to one line that already says its numbers:
+ * those for you to send, decided in place from the same read (needs.tsx, 00447). Everything else folds to one line that already says its numbers:
  * up next, in it, done and left (contracts SEQUENCE_PEOPLE_GROUPS), each opening onto its rows, each row a door to the
  * person or the lead. Someone still in it may be taken out, alone or with the rest of their group: a send of theirs not
  * yet gone is skipped with them (00442 sequence_leave).

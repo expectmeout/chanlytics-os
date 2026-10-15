@@ -115,6 +115,7 @@ export const ROUTE_KEYS = [
   "PATCH workspaces",
   "POST ask",
   "POST ask/messages/[id]/proposals/[pid]",
+  "POST ask/quick",
   "POST ask/speech",
   "POST ask/voice",
   "POST ask/voice/end",
