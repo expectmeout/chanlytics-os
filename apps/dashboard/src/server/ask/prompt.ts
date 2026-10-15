@@ -80,9 +80,10 @@ export const ASK_DEFINITIONS: Record<string, string> = {
 export const ASK_RULES = [
   "You are the workspace assistant inside Chanlytics for one small business. You help the owner and their team see what the receptionist (an automated WhatsApp and phone assistant) has been doing, find people and conversations, and understand the workspace's settings and numbers.",
   "Answer from the tools. Never state a name, a count, a time, a price or a quote you did not read this turn, but for a row an earlier answer in this thread named: it may be named, cited and opened by the kind, id and name the earlier turns give it, without a read, and anything about it (a count, a time, what was said, where it stands now) is read again. If a tool returns nothing, say so plainly. If you are not sure, say what you would need to check.",
-  "Answer in the person's language (Spanish if they wrote Spanish), in plain words: no markdown, lists, headings, tags or emoji in any string. The answer is written in its format, in three parts the page draws in order: say, show and do.",
-  'say.headline is the answer itself, in one sentence: the finding first ("6 of 16 customer messages went unanswered"), never a preamble ("Here is your week"). say.detail is empty unless the headline needs a reason or a condition that show cannot hold; it never repeats a number or a row that show has, and it grows only when they asked why, how, for a summary or for detail.',
-  `show holds only what the headline rests on: figures for its numbers, items for the rows it names (${ASK_ROW_WORDS}), and a breakdown for one whole in parts whose values add up exactly to its total. Leave a part empty rather than fill it for its own sake.`,
+  "Answer in the person's language (Spanish if they wrote Spanish), in plain words unless they ask for a shape. No markdown, headings or tags in any string: the page draws every shape itself. The answer is written in its format, in three parts the page draws in order: say, show and do.",
+  'say.headline is the answer itself, in one sentence: the finding first ("6 of 16 customer messages went unanswered"), never a preamble ("Here is your week"). say.detail is empty unless the headline needs a reason or a condition that show cannot hold; it never repeats a number, a row or an entry that show has, and it grows only when they asked why, how, for a summary, for detail or for a length.',
+  `show holds only what the headline rests on: figures for its numbers, items for the rows it names (${ASK_ROW_WORDS}), a breakdown for one whole in parts whose values add up exactly to its total, and a list for points in words. Leave a part empty rather than fill it for its own sake.`,
+  `Give the answer the shape they ask for, and never say a word about the format: no apology, no "I can't", no "here is your list". A list (bullet points, a numbered list, steps, one per line) is show.list: each entry one point with no bullet or number of its own, bullets unless they asked for numbers or one per line, and as many entries as they asked for. Steps to follow are a numbered list whether they asked or not. Rows read are items, never entries: a numbered list of rows is the items in that order, with show.list's style numbers and its entries empty. A length (one word, one sentence, fifty words) is the headline and the detail at that length and nothing else said: one word is the headline alone. Emoji or capitals when they ask for them. Bold, a heading or a table is the nearest shape the page has: the list, items, figures or a breakdown.`,
   "Every source is a row or a page with the kind and the exact id it came with (a page's id is its route, such as reports, calendar or admin/autonomy). A row the Broadcasts page calls a run is kind broadcast; a list is kind list, with the audience_id campaigns gave it. The page's data and the reads given with the question are read already: name their rows without calling their tools again. A page needs no read, so a fact from this prompt names its page, or kind none. An appointment is kind visit, by the visit_id it came with, and a Google review kind review, by its id. A row with no id of its own, such as an appointment the record has not kept yet, cites the page it came from.", // trade-word: visit is the citation kind's own name, which the model writes, never a sentence a person reads
   "do.open is the one place to open, when it helps; a row in items is already its own door. When they ask to open, show or see a transcript, a call, a thread or a profile, open that row with now true and answer in one sentence, from the row already read: reading it first only keeps them waiting, since the app goes there and the page has the rest (the call page has the transcript and the recording). do.next is the natural next question or two, never one about a place already offered, never padding.",
   "Already in this prompt, above: the hours, closures, services, notes, guardrails, booking notes and the autonomy modes (what the receptionist does on its own, class by class), and the definitions of the pages' words. Answer questions about those from here, without a read; a word the pages use is defined above, never read.",
@@ -103,11 +104,14 @@ export const ASK_RULES = [
 ] as const;
 
 const NOTHING = { kind: "none", id: "", label: "" };
+const NO_BREAKDOWN = { label: "", total: 0, parts: [], source: NOTHING };
+const NO_LIST = { style: "bullets", entries: [] };
 const REPORTS = { kind: "page", id: "reports", label: "Reports, past 7 days" };
 
 /**
  * Answers as the format has them (spec 5.9): a count, a who, and an open answered from the row already read (the
- * eval set measured an open that read the call first: a round for nothing). The names are made up; an id is given.
+ * eval set measured an open that read the call first: a round for nothing); then the shapes asked for, a numbered list
+ * of rows (the items, numbered) and a list of words. The names are made up; an id is given.
  */
 export const ASK_EXAMPLES = [
   [
@@ -130,6 +134,7 @@ export const ASK_EXAMPLES = [
           ],
           source: REPORTS,
         },
+        list: NO_LIST,
       },
       do: {
         open: {
@@ -162,7 +167,8 @@ export const ASK_EXAMPLES = [
             source: { kind: "thread", id: "<the conversation_id a tool returned>", label: "Sam Ortiz" },
           },
         ],
-        breakdown: { label: "", total: 0, parts: [], source: NOTHING },
+        breakdown: NO_BREAKDOWN,
+        list: NO_LIST,
       },
       do: { open: { source: NOTHING, label: "", now: false }, next: ["What did the receptionist tell Ana?"] },
       language: "en",
@@ -172,7 +178,7 @@ export const ASK_EXAMPLES = [
     "Open the transcript of the most recent call",
     {
       say: { headline: "Opening Casey Lin's call from 3:34 PM.", detail: "" },
-      show: { figures: [], items: [], breakdown: { label: "", total: 0, parts: [], source: NOTHING } },
+      show: { figures: [], items: [], breakdown: NO_BREAKDOWN, list: NO_LIST },
       do: {
         open: {
           source: { kind: "call", id: "<the call_id the calls above gave>", label: "Casey Lin's call" },
@@ -181,6 +187,54 @@ export const ASK_EXAMPLES = [
         },
         next: [],
       },
+      language: "en",
+    },
+  ],
+  [
+    "Who needs me? As a numbered list",
+    {
+      say: { headline: "Two people need you, the longest wait first.", detail: "" },
+      show: {
+        figures: [],
+        items: [
+          {
+            title: "Ana Lima",
+            meta: "WhatsApp · 3 days",
+            line: "Sent a photo the receptionist can't read.",
+            source: { kind: "thread", id: "<the conversation_id a tool returned>", label: "Ana Lima" },
+          },
+          {
+            title: "Sam Ortiz",
+            meta: "Text · 1 day",
+            line: "Wants a call back about a quote.",
+            source: { kind: "thread", id: "<the conversation_id a tool returned>", label: "Sam Ortiz" },
+          },
+        ],
+        breakdown: NO_BREAKDOWN,
+        list: { style: "numbers", entries: [] },
+      },
+      do: { open: { source: NOTHING, label: "", now: false }, next: [] },
+      language: "en",
+    },
+  ],
+  [
+    "How do I answer a bad review? Bullet points",
+    {
+      say: { headline: "Answer it soon, briefly, and in public, then take it offline.", detail: "" },
+      show: {
+        figures: [],
+        items: [],
+        breakdown: NO_BREAKDOWN,
+        list: {
+          style: "bullets",
+          entries: [
+            "Thank them and name what went wrong, without excuses.",
+            "Say what you changed, in one line.",
+            "Offer to talk it through by phone.",
+          ],
+        },
+      },
+      do: { open: { source: NOTHING, label: "", now: false }, next: [] },
       language: "en",
     },
   ],
@@ -310,7 +364,7 @@ export function definitionsBlock(): string {
     .join("\n");
 }
 
-/** The cached block: rules, two example answers, definitions, facts. Same text for every turn until settings change. */
+/** The cached block: rules, the example answers, definitions, facts. Same text for every turn until settings change. */
 export function stableSystem(f: WorkspaceFacts): string {
   return [
     ASK_RULES.join("\n"),
@@ -404,12 +458,13 @@ export interface TurnFacts {
 }
 
 /**
- * The spoken register, one line in the turn's words (spec 2026-10-03 §3.4, verbatim): the agent starts speaking at
+ * The spoken register, one line in the turn's words (spec 2026-10-03 §3.4, verbatim, and a list's clause since the list
+ * part): the agent starts speaking at
  * the first comma, so the opening clause is short and punctuated; the normaliser reads digits, so a time or a count
  * stays as the page shows it; an id, a route, a symbol or a tag would be read aloud as nonsense.
  */
 const SPOKEN_LINE =
-  "They are listening, not reading. Open with a short clause and a comma, then what matters first in one breath, in say.headline; say.detail may run to three short sentences when they asked for a summary, a reason or detail, and is empty otherwise. Say a name as a name and a time or a count as the page shows it; never an id, a route, a symbol or a bracketed tag. Every figure and row goes in show, where the screen draws it.";
+  "They are listening, not reading. Open with a short clause and a comma, then what matters first in one breath, in say.headline; say.detail may run to three short sentences when they asked for a summary, a reason or detail, and is empty otherwise. Say a name as a name and a time or a count as the page shows it; never an id, a route, a symbol or a bracketed tag. Every figure and row goes in show, where the screen draws it; a list goes in show.list, whose entries are read after the say, one by one, so keep each short.";
 
 /**
  * A row as the turn's words name it: by the label the page gave it, which is often someone else's (a customer's name,
@@ -575,6 +630,8 @@ const LINE_CAPS = {
   receipt: 80,
   rows: ASK_ANSWER_CAPS.items,
   label: ASK_ANSWER_CAPS.label,
+  entries: 3,
+  entry: 60,
 } as const;
 /**
  * A part of a rebuilt line, cut as an answer's own parts are (contracts clip): one line of words, never a new line, at
@@ -604,7 +661,8 @@ const listed = (name: string, parts: string[], more: number): string =>
 
 /**
  * An earlier answer as a cold turn's history says it (the Phase 5 plan, D4): one line, never a new line -- its headline
- * (a prose answer's first words), then each card it made as `<id> · <kind> · <title> · <what the person did>`, then the
+ * (a prose answer's first words), then its list's first entries as `List (<style>): a; b; and N more.`, so "the second
+ * one" is answerable, then each card it made as `<id> · <kind> · <title> · <what the person did>`, then the
  * rows it named in the answer's order as `<n>. <kind> <id> <label>`, each part only when there is one; a turn that
  * failed says so first, and keeps its cards. At most `max` characters, the history's cut for a turn: a row the line has
  * no room for goes whole into "and N more", so an id is never cut. An answer of words alone, one line of 160 characters
@@ -617,9 +675,15 @@ export function answerLine(m: AskMessageVM, max: number): string {
     .map((p) =>
       [oneLine(p.id), p.kind, linePart(historyName(p.title), LINE_CAPS.title), outcomeWords(p.outcome)].join(" · "),
     );
+  const entries = a.show.list.entries;
   const head = [
     m.failed ? "(This turn failed.)" : "",
     linePart(a.say.headline || a.say.detail, ASK_ANSWER_CAPS.headline),
+    listed(
+      `List (${a.show.list.style})`,
+      entries.slice(0, LINE_CAPS.entries).map((e) => linePart(e, LINE_CAPS.entry)),
+      entries.length - LINE_CAPS.entries,
+    ),
     listed("Cards", cards, m.proposals.length - cards.length),
   ];
   const rows = a.show.items

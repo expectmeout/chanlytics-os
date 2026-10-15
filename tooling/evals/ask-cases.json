@@ -1806,5 +1806,113 @@
         "no_write": true
       }
     }
+  },
+  {
+    "id": "format_bullets",
+    "text": "What will the receptionist never do? Bullet points please.",
+    "surface": "today",
+    "expect": {
+      "list": { "style": "bullets", "min": 2 },
+      "no_format_apology": true,
+      "language": "en",
+      "no_write": true
+    }
+  },
+  {
+    "id": "format_numbered_steps",
+    "text": "How do I connect a calendar? Give me numbered steps.",
+    "surface": "today",
+    "expect": {
+      "list": { "style": "numbers", "min": 2 },
+      "no_format_apology": true,
+      "language": "en",
+      "no_write": true
+    }
+  },
+  {
+    "id": "format_numbered_rows",
+    "text": "Give me a numbered list of who needs me right now",
+    "surface": "today",
+    "expect": {
+      "tools_any": ["today", "inbox.list"],
+      "list": { "style": "numbers", "rows": true },
+      "no_format_apology": true,
+      "language": "en",
+      "no_write": true
+    }
+  },
+  {
+    "id": "format_one_per_line",
+    "text": "Write \"thanks for coming in\" with each word on its own line",
+    "surface": "today",
+    "expect": {
+      "list": { "style": "lines", "entries": ["thanks", "for", "coming", "in"] },
+      "no_format_apology": true,
+      "no_write": true
+    }
+  },
+  {
+    "id": "format_one_word",
+    "text": "In one word: will the receptionist ever quote a price?",
+    "surface": "today",
+    "expect": {
+      "headline_words": 1,
+      "detail_empty": true,
+      "list_empty": true,
+      "no_format_apology": true,
+      "no_write": true
+    }
+  },
+  {
+    "id": "format_exactly_three",
+    "text": "Give me exactly three bullet points on how to get more reviews",
+    "surface": "today",
+    "expect": {
+      "list": { "style": "bullets", "count": 3 },
+      "no_format_apology": true,
+      "language": "en",
+      "no_write": true
+    }
+  },
+  {
+    "id": "format_bullets_es",
+    "text": "Dame en viñetas lo que la recepcionista nunca hace",
+    "surface": "today",
+    "expect": {
+      "list": { "style": "bullets", "min": 2 },
+      "no_format_apology": true,
+      "language": "es",
+      "no_write": true
+    }
+  },
+  {
+    "id": "format_emoji",
+    "text": "What will the receptionist never do? Start each point with an emoji.",
+    "surface": "today",
+    "expect": { "list": { "min": 2, "emoji": true }, "no_format_apology": true, "language": "en", "no_write": true }
+  },
+  {
+    "id": "format_caps",
+    "text": "Reply in all caps: who needs me right now?",
+    "surface": "today",
+    "expect": {
+      "tools_any": ["today", "inbox.list"],
+      "all_caps": true,
+      "no_format_apology": true,
+      "language": "en",
+      "no_write": true
+    }
+  },
+  {
+    "id": "format_bold",
+    "text": "Who has waited longest for me? Put their name in bold.",
+    "surface": "today",
+    "expect": {
+      "tools_any": ["today", "inbox.list"],
+      "no_format_apology": true,
+      "excludes": ["**"],
+      "language": "en",
+      "no_write": true
+    }
   }
 ]
