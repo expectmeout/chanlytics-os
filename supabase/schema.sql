@@ -25316,6 +25316,7 @@ COMMENT ON FUNCTION public.sequence_sends_guard() IS 'A customer''s send: queued
 CREATE FUNCTION public.sequence_sends_move_enrollment() RETURNS trigger
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
+    SET jit TO 'off'
     AS $$
 declare
   v_place int;

@@ -446,6 +446,6 @@
     "00440_everything_that_sends_on_its_own_is_a_sequence.sql": "d1544d9b8a573d31abb156a6a260ade4a6f46749e139c1b5df345ba33c15c345",
     "00441_one_loop_runs_every_sequence.sql": "f002e4ac978aa6912c546ddb20a3373039968ffafae8fd1ddfabd33f836804af",
     "00442_a_sequence_is_read_and_changed_through_its_doors.sql": "e65c0b3364cc4e11e83cef21656a1b21edee90e81ded4a503eb49fe9d5eda9d2",
-    "00444_a_sequence_s_people_are_found_by_an_index.sql": "9e0bfaa36638cae6437a79be8a72fcdf2b77966c5dd5e58a7a75141af0adaf29"
+    "00444_a_sequence_s_people_are_found_by_an_index.sql": "72a6fa3b640b299c6957d9578ec0db0d65f398dfd7461181800fbabc900f0b54"
   }
 }

@@ -10,6 +10,12 @@
 -- Each lookup is now two branches, a customer's by contact and a lead's by lead, of which only one runs, each on an
 -- index that holds its order (entered_at desc, id desc): the latest place is one index step. The "nothing else pending"
 -- check reads a customer's sends by their person (sequence_sends_person). What the function does is unchanged.
+--
+-- And it runs with jit off. Its statements run once for each batch of sends, and their cost estimates, once a sequence's
+-- tables are large and analyzed, cross jit_above_cost: Postgres compiled them with LLVM at every batch, which cost more
+-- than the statements themselves. On CI's image (postgres 17.6, jit on), playbook-totals' first test took 12-17 s with jit
+-- and 3-4 s with the function's jit off, and the full suite's seed write passed 30 s on CPU alone, waiting on nothing.
+-- Production already runs with jit off (read 15 Oct 2026), so there this is the replayed stack made to behave as it does.
 
 create index if not exists sequence_enrollments_latest_customer
   on public.sequence_enrollments (sequence_id, contact_id, entered_at desc, id desc) where lead_id is null;
@@ -19,6 +25,7 @@ create index if not exists sequence_enrollments_latest_lead
 create or replace function public.sequence_sends_move_enrollment() returns trigger
 language plpgsql security definer
 set search_path = public
+set jit = off
 as $$
 declare
   v_place int;
