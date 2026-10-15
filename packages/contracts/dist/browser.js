@@ -20417,12 +20417,15 @@ function appLink(slug, route = "", query) {
 }
 
 // src/ask/ask-answer.ts
+var ASK_LIST_STYLES = ["bullets", "numbers", "lines"];
 var ASK_ANSWER_CAPS = {
   headline: 160,
   detail: 700,
   figures: 4,
   items: 5,
   parts: 4,
+  entries: 15,
+  entry: 160,
   next: 2,
   value: 24,
   label: 60,
@@ -20432,23 +20435,42 @@ var ASK_ANSWER_CAPS = {
   line: 160,
   question: 90
 };
-var clip = (s, n) => {
-  const t = (s ?? "").replace(/\s+/g, " ").trim();
+var noList = () => ({ style: "bullets", entries: [] });
+function storedAnswer(a) {
+  return a.show.list ? a : { ...a, show: { ...a.show, list: noList() } };
+}
+var cutAt = (t, n) => {
   if (t.length <= n) return t;
   const cut = t.slice(0, n - 1);
-  const space = cut.lastIndexOf(" ");
+  const space = cut.search(/\s\S*$/);
   return `${(space > n / 2 ? cut.slice(0, space) : cut).trimEnd()}\u2026`;
 };
+var clip = (s, n) => cutAt((s ?? "").replace(/\s+/g, " ").trim(), n);
+var clipLines = (s, n) => cutAt(
+  (s ?? "").replace(/\r\n?/g, "\n").split("\n").map((l) => l.replace(/\s+/g, " ").trim()).join("\n").replace(/\n{3,}/g, "\n\n").trim(),
+  n
+);
 var structured = (headline, language) => ({
   v: 2,
   form: "structured",
   say: { headline: clip(headline, ASK_ANSWER_CAPS.headline), detail: "" },
-  show: { figures: [], items: [], breakdown: null },
+  show: { figures: [], items: [], breakdown: null, list: noList() },
   do: { open: null, next: [] },
   language
 });
+function listLines(l) {
+  return l.entries.map((e, i) => l.style === "numbers" ? `${i + 1}. ${e}` : l.style === "bullets" ? `\u2022 ${e}` : e);
+}
 function answerText(a) {
-  return [a.say.headline, a.say.detail].filter(Boolean).join(a.form === "prose" ? "\n" : " ");
+  const say2 = [a.say.headline, a.say.detail].filter(Boolean).join(a.form === "prose" ? "\n" : " ");
+  return [say2, ...listLines(a.show.list ?? noList())].filter(Boolean).join("\n");
+}
+var sentences = (lines) => lines.map((l) => l.trim()).filter(Boolean).map((l) => /[.!?…:;,]$/.test(l) ? l : `${l}.`).join(" ");
+function listSpoken(l) {
+  return sentences(l.entries.map((e, i) => l.style === "numbers" ? `${i + 1}. ${e}` : e));
+}
+function answerSpoken(a) {
+  return [sentences([a.say.headline, ...a.say.detail.split("\n")]), listSpoken(a.show.list ?? noList())].filter(Boolean).join(" ");
 }
 function nextQuestions(next, places) {
   const out = [];
@@ -20485,7 +20507,11 @@ function oneDoor(a, cards = []) {
   const breakdown = a.show.breakdown ? { ...a.show.breakdown, source: receipt(a.show.breakdown.source) } : null;
   const figures = a.show.figures.map((f) => ({ ...f, source: receipt(f.source) }));
   return {
-    answer: { ...a, show: { figures, items, breakdown }, do: { open, next: nextQuestions(a.do.next, [...offered]) } },
+    answer: {
+      ...a,
+      show: { figures, items, breakdown, list: a.show.list ?? noList() },
+      do: { open, next: nextQuestions(a.do.next, [...offered]) }
+    },
     cardOpen
   };
 }
@@ -20542,7 +20568,7 @@ function answerFromV1(m) {
     v: 2,
     form: "prose",
     say: { headline: "", detail: (m.text ?? "").trim() },
-    show: { figures: [], items, breakdown: null },
+    show: { figures: [], items, breakdown: null, list: noList() },
     do: { open, next: m.followups ?? [] },
     language
   };
@@ -20656,7 +20682,13 @@ function openingsAnswer(o, language, day = null) {
 var C = ASK_ANSWER_CAPS;
 var asObj = (v) => v && typeof v === "object" && !Array.isArray(v) ? v : {};
 var asArr = (v) => Array.isArray(v) ? v : [];
-var words = (v, n) => clip(cleanAnswer(typeof v === "string" ? v : ""), n);
+var unbold = (s) => s.replace(/\*\*(.+?)\*\*|__(.+?)__/g, "$1$2");
+var drawnText = (v) => unbold(cleanAnswer(typeof v === "string" ? v : ""));
+var words = (v, n) => clip(drawnText(v), n);
+var entry = (v) => words(typeof v === "string" ? v.replace(/^\s*(?:[-*•·–]|\d{1,2}[.)])\s+/, "") : "", C.entry);
+function sayAsDrawn(say2) {
+  return { headline: words(say2.headline, C.headline), detail: clipLines(drawnText(say2.detail), C.detail) };
+}
 var num = (v) => typeof v === "number" && Number.isFinite(v) ? v : Number.NaN;
 var UUID2 = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
 var ROW_KINDS = ASK_CITATION_KINDS.filter((k) => k !== "page");
@@ -20688,8 +20720,8 @@ function normalizeAnswer(raw, read, fallback) {
     }
   }
   const root = asObj(json);
-  const say2 = asObj(root.say);
-  const headline = words(say2.headline, C.headline);
+  const say2 = sayAsDrawn(asObj(root.say));
+  const headline = say2.headline;
   if (!headline) return { ok: false, error: "no headline" };
   const language = root.language === "en" || root.language === "es" ? root.language : fallback;
   let dropped = 0;
@@ -20721,6 +20753,11 @@ function normalizeAnswer(raw, read, fallback) {
   const whole = words(b.label, C.label);
   const adds = !!whole && parts2.length >= 2 && parts2.length <= C.parts && parts2.every((p) => p.label && Number.isFinite(p.value) && p.value >= 0) && Number.isFinite(total) && Math.abs(parts2.reduce((s, p) => s + p.value, 0) - total) < 1e-9;
   const breakdown = adds ? { label: whole, total, parts: parts2, source: ground(b.source) } : null;
+  const l = asObj(show.list);
+  const list2 = {
+    style: ASK_LIST_STYLES.find((x) => x === l.style) ?? "bullets",
+    entries: asArr(l.entries).map(entry).filter(Boolean).slice(0, C.entries)
+  };
   const d = asObj(root.do);
   const o = asObj(d.open);
   const at3 = ground(o.source);
@@ -20735,8 +20772,8 @@ function normalizeAnswer(raw, read, fallback) {
     answer: {
       v: 2,
       form: "structured",
-      say: { headline, detail: words(say2.detail, C.detail) },
-      show: { figures, items, breakdown },
+      say: say2,
+      show: { figures, items, breakdown, list: list2 },
       do: { open, next },
       language
     },
@@ -20753,46 +20790,9 @@ function answerWords(a) {
       a.show.breakdown.label,
       String(a.show.breakdown.total),
       ...a.show.breakdown.parts.flatMap((p) => [p.label, String(p.value)])
-    ] : []
+    ] : [],
+    ...a.show.list.entries
   ].filter(Boolean).join(" ");
-}
-function partialField(s, key) {
-  const k = s.indexOf(`"${key}"`);
-  if (k < 0) return "";
-  const colon = s.indexOf(":", k + key.length + 2);
-  if (colon < 0) return "";
-  let i = colon + 1;
-  while (i < s.length && /\s/.test(s[i])) i++;
-  if (s[i] !== '"') return "";
-  i++;
-  let out = "";
-  while (i < s.length) {
-    const c = s[i];
-    if (c === '"') break;
-    if (c === "\\") {
-      const n = s[i + 1];
-      if (n === void 0) break;
-      if (n === "u") {
-        const hex = s.slice(i + 2, i + 6);
-        if (hex.length < 4) break;
-        out += String.fromCharCode(parseInt(hex, 16) || 32);
-        i += 6;
-        continue;
-      }
-      out += n === "n" ? "\n" : n === "t" ? "	" : n === "r" ? "\r" : n === "b" ? "\b" : n === "f" ? "\f" : n;
-      i += 2;
-      continue;
-    }
-    out += c;
-    i++;
-  }
-  return out;
-}
-function partialSay(prefix) {
-  const at3 = prefix.indexOf('"say"');
-  if (at3 < 0) return null;
-  const rest = prefix.slice(at3);
-  return { headline: partialField(rest, "headline"), detail: partialField(rest, "detail") };
 }
 var sentence = (s) => /[.!?]$/.test(s) ? s : `${s}.`;
 function answerForCards(cards, language, words2) {
@@ -20818,7 +20818,7 @@ function proseAnswer(text, language) {
     v: 2,
     form: "prose",
     say: { headline: "", detail: cleanAnswer(text).slice(0, PROSE_MAX) },
-    show: { figures: [], items: [], breakdown: null },
+    show: { figures: [], items: [], breakdown: null, list: noList() },
     do: { open: null, next: [] },
     language
   };
@@ -20866,7 +20866,7 @@ var ASK_ANSWER_FORMAT = {
         },
         detail: {
           type: "string",
-          description: `Only what the headline needs: empty when the headline is enough; at most two short sentences, or five when they asked why, how, for a summary or for detail; at most ${ASK_ANSWER_CAPS.detail} characters.`
+          description: `Only what the headline needs, in sentences: empty when the headline is enough; at most two short sentences, or five when they asked why, how, for a summary or for detail, or the length they asked for; a list goes in show.list, never here; at most ${ASK_ANSWER_CAPS.detail} characters.`
         }
       },
       required: ["headline", "detail"],
@@ -20940,9 +20940,27 @@ var ASK_ANSWER_FORMAT = {
           },
           required: ["label", "total", "parts", "source"],
           additionalProperties: false
+        },
+        list: {
+          type: "object",
+          description: "What they asked to see as a list (bullets, numbered, steps, one per line), and steps to follow: points in words, never the rows items hold; entries empty when nothing is a list.",
+          properties: {
+            style: {
+              type: "string",
+              enum: [...ASK_LIST_STYLES],
+              description: "bullets; numbers for steps or an order; lines for one entry to a line with no mark. With entries empty, numbers numbers the items."
+            },
+            entries: {
+              type: "array",
+              description: `At most ${ASK_ANSWER_CAPS.entries}, each one point of at most ${ASK_ANSWER_CAPS.entry} characters, with no bullet or number of its own: the page draws them.`,
+              items: { type: "string" }
+            }
+          },
+          required: ["style", "entries"],
+          additionalProperties: false
         }
       },
-      required: ["figures", "items", "breakdown"],
+      required: ["figures", "items", "breakdown", "list"],
       additionalProperties: false
     },
     do: {
@@ -20976,6 +20994,46 @@ var ASK_ANSWER_FORMAT = {
   required: ["say", "show", "do", "language"],
   additionalProperties: false
 };
+
+// src/ask/answer-stream.ts
+function partialField(s, key) {
+  const k = s.indexOf(`"${key}"`);
+  if (k < 0) return "";
+  const colon = s.indexOf(":", k + key.length + 2);
+  if (colon < 0) return "";
+  let i = colon + 1;
+  while (i < s.length && /\s/.test(s.charAt(i))) i++;
+  if (s[i] !== '"') return "";
+  i++;
+  let out = "";
+  while (i < s.length) {
+    const c = s[i];
+    if (c === '"') break;
+    if (c === "\\") {
+      const n = s[i + 1];
+      if (n === void 0) break;
+      if (n === "u") {
+        const hex = s.slice(i + 2, i + 6);
+        if (hex.length < 4) break;
+        out += String.fromCharCode(parseInt(hex, 16) || 32);
+        i += 6;
+        continue;
+      }
+      out += n === "n" ? "\n" : n === "t" ? "	" : n === "r" ? "\r" : n === "b" ? "\b" : n === "f" ? "\f" : n;
+      i += 2;
+      continue;
+    }
+    out += c;
+    i++;
+  }
+  return out;
+}
+function partialSay(prefix) {
+  const at3 = prefix.indexOf('"say"');
+  if (at3 < 0) return null;
+  const rest = prefix.slice(at3);
+  return sayAsDrawn({ headline: partialField(rest, "headline"), detail: partialField(rest, "detail") });
+}
 
 // src/conversations/call-dto.ts
 var ABANDONED_MS = 15e3;
@@ -29406,7 +29464,7 @@ function toInboxThreadVM(dto, escalation, tz, now = /* @__PURE__ */ new Date()) 
   });
   if (escalation) {
     const idx = dto.messages.findIndex((m) => m.created_at > escalation.created_at);
-    const entry = {
+    const entry2 = {
       type: "event",
       kind: "flag",
       at: shortTime(escalation.created_at, tz, now),
@@ -29415,8 +29473,8 @@ function toInboxThreadVM(dto, escalation, tz, now = /* @__PURE__ */ new Date()) 
       // are said only here.
       body: `Flagged for a human \u2014 ${reasonLabel}${escalation.details && escalation.reason !== "callback" ? ` \xB7 \u201C${clipAtWord(escalation.details, 120)}\u201D` : ""}`
     };
-    if (idx === -1) timeline.push(entry);
-    else timeline.splice(idx, 0, entry);
+    if (idx === -1) timeline.push(entry2);
+    else timeline.splice(idx, 0, entry2);
   }
   const waitingMin = escalation ? Math.max(1, Math.round((now.getTime() - new Date(escalation.created_at).getTime()) / MIN_MS)) : void 0;
   const ask = askOf(escalation, lastInbound);
@@ -33257,10 +33315,10 @@ function todayDraftsSub(n) {
 }
 function todaySentences(f, tone, alert) {
   const { period, callMinutes } = f;
-  const sentences = [];
+  const sentences2 = [];
   const headlineCoversTraffic = tone === "calm" && !alert;
   if (period.answered_by_ai && !headlineCoversTraffic) {
-    sentences.push({
+    sentences2.push({
       // Not "the WhatsApp receptionist": answered_by_ai is first_replies with
       // no channel predicate (00037_hygiene.sql), so an email it answered is
       // in this count. Every other sentence in this file already says just
@@ -33270,19 +33328,19 @@ function todaySentences(f, tone, alert) {
     });
   }
   if (period.calls && !headlineCoversTraffic) {
-    sentences.push({
+    sentences2.push({
       text: `${period.calls} caller${period.calls === 1 ? "" : "s"} reached the phone line${callMinutes ? ` \u2014 ${callMinutes} minute${callMinutes === 1 ? "" : "s"} total` : ""}.`,
       traffic: true
     });
   }
   if (period.messages_out_you) {
-    sentences.push({
+    sentences2.push({
       text: `You sent ${period.messages_out_you} repl${period.messages_out_you === 1 ? "y" : "ies"} yourself.`
     });
   }
   const failed = todaySendFailure(f);
-  if (failed) sentences.push(failed);
-  return sentences;
+  if (failed) sentences2.push(failed);
+  return sentences2;
 }
 function todaySendFailure(f) {
   const { period, conversations, sinceMs } = f;
@@ -46036,7 +46094,7 @@ function todayBriefWords(vm, day, runs) {
   const dayWords3 = daySentence(day);
   const needs2 = needsSentences(vm);
   const caught = !needs2.length && !runs.length && vm.queue.empty.tone === "ok";
-  const sentences = [
+  const sentences2 = [
     ...needs2,
     ...caught ? [[plain("You're all caught up.")]] : [],
     ...dayWords3 ? [dayWords3] : [],
@@ -46044,7 +46102,7 @@ function todayBriefWords(vm, day, runs) {
     ...runs.map(runSentence)
   ];
   const also = (vm.recap ? vm.recap.sentences : []).filter((s) => !s.traffic).map((s) => s.text);
-  return { sentences, text: [...sentences.map((s) => s.map((x) => x.text).join("")), ...also].join(" ") };
+  return { sentences: sentences2, text: [...sentences2.map((s) => s.map((x) => x.text).join("")), ...also].join(" ") };
 }
 
 // src/today/today-day.ts
@@ -48474,6 +48532,7 @@ export {
   answerForCards,
   answerFromV1,
   answerSaidOf,
+  answerSpoken,
   answerText,
   answerWireOf,
   answerWords,
@@ -49241,6 +49300,7 @@ export {
   listRuleMatches,
   listRuleParts,
   listRuleWhy,
+  listSpoken,
   listStartsSentence,
   listToken,
   listTyped,
@@ -49989,6 +50049,7 @@ export {
   stopRequestQuestion,
   stopToldBesideState,
   stoppedRunFix,
+  storedAnswer,
   suggestLocalPart,
   sumOf,
   takesBookingRequests,

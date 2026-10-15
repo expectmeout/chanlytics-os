@@ -8,7 +8,6 @@ import {
   answerForCards,
   answerWords,
   claimsWrite,
-  cleanAnswer,
   failedAnswer,
   isUngrounded,
   normalizeAnswer,
@@ -475,11 +474,10 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
           log.warn("ask_say_not_first", { first: firstKey.slice(0, 40), tenant_id: input.tenantId });
       }
     }
-    const part = json ? partialSay(soFar) : offer.format ? null : { headline: "", detail: soFar };
-    if (!part) return;
-    // Nothing past a tag, even in a preview: the leak seen on production (cleanAnswer).
-    const say = { headline: cleanAnswer(part.headline), detail: cleanAnswer(part.detail) };
-    if (!say.headline && !say.detail) return;
+    // Drawn as the final message will draw it (contracts partialSay, proseAnswer): nothing past a tag, the leak seen on
+    // production, and the detail's lines kept, so nothing the preview showed moves when the answer lands.
+    const say = json ? partialSay(soFar) : offer.format ? null : proseAnswer(soFar, input.language).say;
+    if (!say || (!say.headline && !say.detail)) return;
     const key = `${say.headline}\n${say.detail}`;
     const at = Date.now();
     if (key === said || at - saidAt < SAY_EVERY_MS) return;

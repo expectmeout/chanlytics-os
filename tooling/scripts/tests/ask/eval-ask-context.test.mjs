@@ -53,6 +53,8 @@ import {
   secondScope,
   secondTurn,
   setupCardsFails,
+  shapeAskedFails,
+  previewJudged,
   skipFor,
   snoozeThenAsk,
   toolsOrderNote,
@@ -1841,4 +1843,87 @@ test("X5-4's eval: turn 2's headline does not say who the snoozed thread is with
     "skip needs_me_after_a_snooze (needs escalated_thread)",
     "never on the nightly's workspace",
   );
+});
+
+test("the shape asked for, judged on what the Line draws: a list's style, size, words and emoji, a numbered list of rows as the items, a length, capitals, and never a word spent on the format", () => {
+  const m = (show = {}, say = { headline: "Three rules.", detail: "" }, text = "") => ({
+    text,
+    answer: {
+      form: "structured",
+      say,
+      show: { figures: [], items: [], breakdown: null, list: { style: "bullets", entries: [] }, ...show },
+    },
+  });
+  const listed = (style, entries) => m({ list: { style, entries } });
+  assert.deepEqual(shapeAskedFails({ list: { style: "bullets", min: 2 } }, listed("bullets", ["a", "b"])), []);
+  assert.match(shapeAskedFails({ list: { style: "bullets", min: 2 } }, listed("bullets", ["a"]))[0], /at least 2/);
+  assert.match(shapeAskedFails({ list: { style: "numbers" } }, listed("bullets", ["a", "b"]))[0], /asked as numbers/);
+  assert.match(shapeAskedFails({ list: { count: 3 } }, listed("bullets", ["a", "b"]))[0], /exactly 3/);
+  const words = { list: { style: "lines", entries: ["thanks", "for", "coming", "in"] } };
+  assert.deepEqual(
+    shapeAskedFails(words, listed("lines", ["Thanks", "for", "coming", "in."])),
+    [],
+    "case and stops aside",
+  );
+  assert.match(shapeAskedFails(words, listed("lines", ["thanks for coming in"]))[0], /were asked/);
+  assert.deepEqual(shapeAskedFails({ list: { emoji: true } }, listed("bullets", ["🚫 Prices", "📅 Bookings"])), []);
+  assert.match(shapeAskedFails({ list: { emoji: true } }, listed("bullets", ["🚫 Prices", "Bookings"]))[0], /emoji/);
+  // A numbered list of rows is the items, numbered by the list's style with no entries; one row asks for no style.
+  const item = {
+    title: "Ana",
+    meta: "",
+    line: "",
+    source: { kind: "thread", id: "x", label: "Ana", to: "inbox/th-x" },
+  };
+  const rows = { list: { style: "numbers", rows: true } };
+  assert.deepEqual(shapeAskedFails(rows, m({ items: [item, item], list: { style: "numbers", entries: [] } })), []);
+  assert.match(shapeAskedFails(rows, m({ items: [item, item] }))[0], /drawn as bullets/);
+  assert.deepEqual(shapeAskedFails(rows, m({ items: [item] })), []);
+  // A length: one word is the headline alone.
+  const word = { headline_words: 1, detail_empty: true, list_empty: true };
+  assert.deepEqual(shapeAskedFails(word, m({}, { headline: "No.", detail: "" })), []);
+  assert.equal(shapeAskedFails(word, m({}, { headline: "No, it never does.", detail: "It says it." })).length, 2);
+  assert.deepEqual(shapeAskedFails({ all_caps: true }, m({}, { headline: "ANA NEEDS YOU, 2 DAYS.", detail: "" })), []);
+  assert.match(shapeAskedFails({ all_caps: true }, m({}, { headline: "ANA needs you.", detail: "" }))[0], /lower case/);
+  // The probe's own apologies (15 Oct, production), in both languages, each a fail; a plain answer is none.
+  for (const said of [
+    "I can't use bullet points here, so I've put it in plain sentences.",
+    "The page can't show a numbered list.",
+    "I couldn't put each word on its own line because this answer has to fit the app's fixed format.",
+    "Answers here are plain text only.",
+    "No puedo usar viñetas aquí.",
+  ])
+    assert.equal(shapeAskedFails({ no_format_apology: true }, m({}, undefined, said)).length, 1, said);
+  assert.deepEqual(
+    shapeAskedFails({ no_format_apology: true }, m({}, undefined, "Ana can't come on Friday; she asked for Saturday.")),
+    [],
+  );
+  assert.match(shapeAskedFails({ list: { min: 1 } }, { text: "x", answer: { form: "prose" } })[0], /has none/);
+  assert.deepEqual(shapeAskedFails({}, { text: "" }), [], "a case that asks for no shape is not judged on one");
+});
+
+test("the preview against the answer it led to: a line the preview drew and the answer lost fails; any other move is a note; a taken-back or failed turn is not judged", () => {
+  const m = (headline, detail, failed = false) => ({ failed, answer: { say: { headline, detail } } });
+  const say = (headline, detail) => ({ t: "say", headline, detail });
+  assert.deepEqual(
+    previewJudged([say("Two", ""), say("Two steps.", "Open.\nPaste.")], m("Two steps.", "Open.\nPaste.")),
+    {
+      fails: [],
+      notes: [],
+    },
+  );
+  // 15 Oct's bug: the preview drew two lines, the final folded them into one.
+  assert.match(
+    previewJudged([say("Two steps.", "Open.\nPaste.")], m("Two steps.", "Open. Paste.")).fails[0],
+    /2 lines/,
+  );
+  assert.equal(previewJudged([say("Two steps.", "Open.")], m("Three steps.", "Open.")).notes.length, 1);
+  // A preview the final grew from is no move: the last words wait their 50 ms and land with the final.
+  assert.deepEqual(previewJudged([say("Robin Example", "")], m("Robin Example asked for Tuesday.", "")), {
+    fails: [],
+    notes: [],
+  });
+  assert.deepEqual(previewJudged([say("Two", ""), say("", "")], m("Other.", "")), { fails: [], notes: [] });
+  assert.deepEqual(previewJudged([say("Two", "a\nb")], m("Failed.", "", true)), { fails: [], notes: [] });
+  assert.deepEqual(previewJudged([], m("No preview.", "")), { fails: [], notes: [] });
 });

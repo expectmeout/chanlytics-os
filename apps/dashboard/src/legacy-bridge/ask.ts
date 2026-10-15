@@ -14,6 +14,7 @@
  */
 import {
   PROPOSAL_GATE,
+  answerSpoken,
   answerText,
   askUndoOpen,
   cardOpenRoute,
@@ -74,8 +75,10 @@ export type AskApi = ReturnType<typeof askPalette> &
     undoOpen: typeof askUndoOpen;
     /** A quick question's answer, without a model: Today's queue, today's calls or the openings route; null for the rest. */
     quick(question: string): Promise<AskAnswer> | null;
-    /** An answer's words, for copy, reading aloud and a folded turn. */
+    /** An answer's words, for copy and a folded turn: its list a line an entry, each with its mark. */
     answerText: typeof answerText;
+    /** An answer's words as Read aloud and a spoken question's answer say them: its list an entry a sentence. */
+    answerSpoken: typeof answerSpoken;
     /** Where a card's Open goes, or null. */
     cardOpenRoute: typeof cardOpenRoute;
     /**
@@ -190,6 +193,7 @@ export function installAsk(win: Window = window, storage: Storage | null = safeS
     undoOpen: askUndoOpen,
     quick: quickAnswer(palette, api.openings),
     answerText,
+    answerSpoken,
     cardOpenRoute,
     context: (route, words, thread) => pageContext(win, route, words, thread),
   };

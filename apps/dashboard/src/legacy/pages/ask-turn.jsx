@@ -38,7 +38,7 @@ const atProse = (m, lang) => ({
   v: 2,
   form: "prose",
   say: { headline: "", detail: (m && m.text) || "" },
-  show: { figures: [], items: [], breakdown: null },
+  show: { figures: [], items: [], breakdown: null, list: { style: "bullets", entries: [] } },
   do: { open: null, next: [] },
   language: lang || "en",
 });
@@ -399,28 +399,28 @@ const AskBreakdown = ({ b, t, onNav }) => {
   );
 };
 
-// The answer: Say (the headline, or a prose answer's words), Show (the whole in its parts, the figures, the rows it
-// names), Do (the cards, then one row: Try again, Open as the kit's button, the next questions as chips). `walk`: this
-// is the answer the keys walk, whose moves carry the ids the line points at (answerMoves' order) and `sel` is the one
-// they stand on; a folded answer has none. `next`: whether the next questions are drawn in the answer: a phone's thread
-// draws the newest answer's over its field (AskNextRow) and an earlier answer's nowhere (the spec
-// 2026-09-27-ask-chat-on-a-phone, D6).
-const AskAnswer = ({ answer, cardOpen, cards, messageId, retry, walk = false, sel = -1, next = true, t, onNav, onFollow, onOutcome, onEdit }) => {
-  const A = window.__ask;
+// What they asked to see as a list, and steps to follow (contracts AskList): a real list, numbered for steps, the page's
+// own bullet, or one entry to a line with no mark; the entries never carry a mark of their own (normalizeAnswer).
+const AskListPart = ({ l }) => {
+  const Tag = l.style === "numbers" ? "ol" : "ul";
+  return (
+    <Tag className={`ask-list ${l.style}`} data-testid="ask-list" data-style={l.style}>
+      {l.entries.map((e, k) => <li key={k}>{e}</li>)}
+    </Tag>
+  );
+};
+
+// Show: the list they asked for, the whole in its parts, the figures, the rows it names, each row a move the keys walk
+// (`itemMove`, its place in answerMoves' order, or -1 for a row drawn without a door). An answer stored before the list
+// part has none. A numbered list of rows is its items, numbered in their marks (the list's style with no entries).
+const AskShow = ({ a, itemMove, moveProps, t, onNav }) => {
   const [receipt, setReceipt] = useAtState(-1);
-  const a = answer;
-  const nexts = next ? a.do.next : [];
-  const hasShow = a.show.figures.length > 0 || a.show.items.length > 0 || !!a.show.breakdown;
-  const hasDo = !!a.do.open || nexts.length > 0 || (cards && cards.length > 0) || !!retry;
-  // Each move's place in answerMoves' order: the items that are doors, then Open, then the next questions.
-  let doors = 0;
-  const itemMove = a.show.items.map((it) => (it.source.door !== false ? doors++ : -1));
-  const openAt = doors;
-  const nextAt = openAt + (a.do.open ? 1 : 0);
-  // A row's kind as the mark before it (askKindGlyph); a row that is a door ends in a chevron.
-  const itemBody = (it) => (
+  const list = a.show.list || { style: "bullets", entries: [] };
+  const numbered = list.style === "numbers" && !list.entries.length;
+  // A row's kind as the mark before it (askKindGlyph), or its place in a numbered list; a row that is a door ends in a chevron.
+  const itemBody = (it, k) => (
     <>
-      <span className="ask-item-mark" data-testid="ask-item-mark"><Icon name={askKindGlyph(it.source.kind)} size={12} /></span>
+      <span className="ask-item-mark" data-testid="ask-item-mark">{numbered ? k + 1 : <Icon name={askKindGlyph(it.source.kind)} size={12} />}</span>
       <span className="ask-item-body">
         <span className="ask-item-top">
           <span className="ask-item-title">{it.title}</span>
@@ -431,6 +431,58 @@ const AskAnswer = ({ answer, cardOpen, cards, messageId, retry, walk = false, se
       {it.source.door !== false ? <Icon name="chevron" size={12} className="ask-item-chev" /> : null}
     </>
   );
+  return (
+    <div className="ask-part show" data-testid="ask-show">
+      <span className="ask-mark m2" aria-hidden="true" data-testid="ask-mark" />
+      <div className="ask-show">
+        {list.entries.length ? <AskListPart l={list} /> : null}
+        {a.show.breakdown ? <AskBreakdown b={a.show.breakdown} t={t} onNav={onNav} /> : null}
+        {a.show.figures.length ? (
+          <div className="ask-figures">
+            {a.show.figures.map((f, k) => (
+              <AskFigure key={k} f={f} open={receipt === k} onToggle={() => setReceipt(receipt === k ? -1 : k)} t={t} onNav={onNav} />
+            ))}
+          </div>
+        ) : null}
+        {a.show.items.length ? (
+          <div className="ask-items">
+            {a.show.items.map((it, k) =>
+              itemMove[k] >= 0 ? (
+                <button key={k} type="button" {...moveProps(itemMove[k], "ask-item")} onClick={() => onNav(it.source.to)} data-testid="ask-item">
+                  {itemBody(it, k)}
+                </button>
+              ) : (
+                <div key={k} className="ask-item plain" data-testid="ask-item">
+                  {itemBody(it, k)}
+                </div>
+              ),
+            )}
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+};
+
+// The answer: Say (the headline, or a prose answer's words), Show (the list they asked for, the whole in its parts, the
+// figures, the rows it names, numbered when they asked for a numbered list of them), Do (the cards, then one row: Try
+// again, Open as the kit's button, the next questions as chips). `walk`: this
+// is the answer the keys walk, whose moves carry the ids the line points at (answerMoves' order) and `sel` is the one
+// they stand on; a folded answer has none. `next`: whether the next questions are drawn in the answer: a phone's thread
+// draws the newest answer's over its field (AskNextRow) and an earlier answer's nowhere (the spec
+// 2026-09-27-ask-chat-on-a-phone, D6).
+const AskAnswer = ({ answer, cardOpen, cards, messageId, retry, walk = false, sel = -1, next = true, t, onNav, onFollow, onOutcome, onEdit }) => {
+  const A = window.__ask;
+  const a = answer;
+  const nexts = next ? a.do.next : [];
+  const listed = !!(a.show.list && a.show.list.entries.length);
+  const hasShow = a.show.figures.length > 0 || a.show.items.length > 0 || !!a.show.breakdown || listed;
+  const hasDo = !!a.do.open || nexts.length > 0 || (cards && cards.length > 0) || !!retry;
+  // Each move's place in answerMoves' order: the items that are doors, then Open, then the next questions.
+  let doors = 0;
+  const itemMove = a.show.items.map((it) => (it.source.door !== false ? doors++ : -1));
+  const openAt = doors;
+  const nextAt = openAt + (a.do.open ? 1 : 0);
   const moveProps = (me, cls) =>
     walk ? { id: `ask-move-${me}`, className: `${cls}${sel === me ? " sel" : ""}` } : { className: cls };
   return (
@@ -442,36 +494,7 @@ const AskAnswer = ({ answer, cardOpen, cards, messageId, retry, walk = false, se
           {a.say.detail ? <p className={a.say.headline ? "ask-detail" : "ask-prose"}>{a.say.detail}</p> : null}
         </div>
       </div>
-      {hasShow ? (
-        <div className="ask-part show" data-testid="ask-show">
-          <span className="ask-mark m2" aria-hidden="true" data-testid="ask-mark" />
-          <div className="ask-show">
-            {a.show.breakdown ? <AskBreakdown b={a.show.breakdown} t={t} onNav={onNav} /> : null}
-            {a.show.figures.length ? (
-              <div className="ask-figures">
-                {a.show.figures.map((f, k) => (
-                  <AskFigure key={k} f={f} open={receipt === k} onToggle={() => setReceipt(receipt === k ? -1 : k)} t={t} onNav={onNav} />
-                ))}
-              </div>
-            ) : null}
-            {a.show.items.length ? (
-              <div className="ask-items">
-                {a.show.items.map((it, k) =>
-                  itemMove[k] >= 0 ? (
-                    <button key={k} type="button" {...moveProps(itemMove[k], "ask-item")} onClick={() => onNav(it.source.to)} data-testid="ask-item">
-                      {itemBody(it)}
-                    </button>
-                  ) : (
-                    <div key={k} className="ask-item plain" data-testid="ask-item">
-                      {itemBody(it)}
-                    </div>
-                  ),
-                )}
-              </div>
-            ) : null}
-          </div>
-        </div>
-      ) : null}
+      {hasShow ? <AskShow a={a} itemMove={itemMove} moveProps={moveProps} t={t} onNav={onNav} /> : null}
       {hasDo ? (
         <div className="ask-part do" data-testid="ask-do">
           <span className="ask-mark m3" aria-hidden="true" data-testid="ask-mark" />
@@ -635,13 +658,14 @@ const AskReads = ({ traces, t }) => {
 
 // An answer's two acts (D14): Copy its words and Read them aloud. A desktop draws them at the field's end beside Clear;
 // a phone under the newest answer, never under an earlier one and never while one is written. `words` are the
-// answer's say, its headline then its detail (contracts answerText), written for the ear: what Copy takes and what
+// answer's say, its headline then its detail, then its list a line an entry with its marks (contracts answerText): what
+// Copy takes. `spoken` are the same written for the ear, the list an entry a sentence (contracts answerSpoken): what
 // Read aloud speaks in Ask's one voice (the one-way speech, legacy-bridge/ask/speech.ts through AskHooks.useAskSpeech;
 // docs/superpowers/specs/2026-10-03-ask-spoken-design.md, §3.5 as amended 4 Oct 2026); the figures and rows are
 // drawn, never read. Nobody speaks back: a follow-up is typed, or said with the mic held. Between the press and the first word
 // the button says it is getting the voice, and a press then stops the wait; where the clip could not be made the
 // button says why, in the server's words.
-const AskActs = ({ words, speech, flash, t }) => {
+const AskActs = ({ words, spoken, speech, flash, t }) => {
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(words);
@@ -653,7 +677,7 @@ const AskActs = ({ words, speech, flash, t }) => {
   const reading = speech.speakingId === "line";
   const loading = speech.loading === "line";
   const read = () => {
-    speech.toggle(words, "answer").then((why) => {
+    speech.toggle(spoken || words, "answer").then((why) => {
       if (why !== null) flash({ tone: "danger", msg: <>{why || t.readFailed}</> });
     });
   };

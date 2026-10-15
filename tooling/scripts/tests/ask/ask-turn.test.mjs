@@ -98,7 +98,7 @@ const { workspaceFacts, stableSystem, turnWords, answerLine, askTurnText, ASK_RU
 );
 /** The listening line, as prompt.ts writes it (the voice door, spec 2026-10-03 §3.4): pinned here, word for word. */
 const SPOKEN_LINE =
-  "They are listening, not reading. Open with a short clause and a comma, then what matters first in one breath, in say.headline; say.detail may run to three short sentences when they asked for a summary, a reason or detail, and is empty otherwise. Say a name as a name and a time or a count as the page shows it; never an id, a route, a symbol or a bracketed tag. Every figure and row goes in show, where the screen draws it.";
+  "They are listening, not reading. Open with a short clause and a comma, then what matters first in one breath, in say.headline; say.detail may run to three short sentences when they asked for a summary, a reason or detail, and is empty otherwise. Say a name as a name and a time or a count as the page shows it; never an id, a route, a symbol or a bracketed tag. Every figure and row goes in show, where the screen draws it; a list goes in show.list, whose entries are read after the say, one by one, so keep each short.";
 const { GatewayRefused } = await import(at("apps/dashboard/src/server/ask/gateway.ts"));
 const { readerCache, readerContext, load } = await import(at("apps/dashboard/src/server/readers/index.ts"));
 const workspaceReads = await import(at("apps/dashboard/src/server/readers/facts.ts"));
@@ -927,6 +927,25 @@ test("Say streams from the answer's JSON as it is written: only what changed, at
     ["It handled it."],
     "the preview shows nothing past a tag",
   );
+
+  // The detail's lines, as the final keeps them (15 Oct: the preview showed lines the final folded into one): spaces run
+  // together within a line, the break kept, and the last preview is the final's words.
+  const lined = answerJson("Two steps.", { say: { detail: "Open\tSettings.\nPaste the link." } });
+  const t4 = turn(ctxFor());
+  const r4 = await runAskTurn(
+    t4.input,
+    ports(
+      scripted([
+        async (_c, onText) => {
+          onText(lined);
+          return ROUND([prose(lined)], { stopReason: "end_turn" });
+        },
+      ]).round,
+    ),
+  );
+  const previews = t4.events.filter((e) => e.t === "say");
+  assert.equal(r4.answer.say.detail, "Open Settings.\nPaste the link.");
+  assert.deepEqual([previews.at(-1).headline, previews.at(-1).detail], [r4.answer.say.headline, r4.answer.say.detail]);
 });
 
 test("a page's context or a shape that fails costs its block, never the turn; a round that throws something other than a refusal is the turn's stated failure", async () => {
@@ -8711,12 +8730,12 @@ const answered = (over = {}) => ({
   failed: false,
   ...over,
 });
-/** A structured answer as normalizeAnswer leaves it: its headline, its detail and its items, each grounded. */
-const shaped = (headline, { detail = "", items = [] } = {}) => ({
+/** A structured answer as normalizeAnswer leaves it: its headline, its detail, its items, each grounded, and its list. */
+const shaped = (headline, { detail = "", items = [], list = { style: "bullets", entries: [] } } = {}) => ({
   v: 2,
   form: "structured",
   say: { headline, detail },
-  show: { figures: [], items, breakdown: null },
+  show: { figures: [], items, breakdown: null, list },
   do: { open: null, next: [] },
   language: "en",
 });
@@ -8762,6 +8781,22 @@ test("an earlier answer, as a cold turn's history says it (the Phase 5 plan, D4)
     ),
     `Two people need you. Cards: p-1 · reply · Reply to Rosa · not pressed yet. Rows, in order: 1. thread ${C1} Rosa; 2. call ${K1} Rosa's call.`,
     "the headline, the card, the rows: never the detail",
+  );
+  // A list's first three entries after the headline, each cut as a part is, so "the second one" can be answered cold.
+  const steps = shaped("Connecting a calendar takes four steps.", {
+    list: {
+      style: "numbers",
+      entries: [
+        "Open Settings.",
+        "Choose Business.",
+        `Paste the calendar's link ${"under Calendar ".repeat(5)}`,
+        "Save.",
+      ],
+    },
+  });
+  assert.equal(
+    answerLine(answered({ answer: steps }), TURN_CHARS),
+    "Connecting a calendar takes four steps. List (numbers): Open Settings.; Choose Business.; Paste the calendar's link under Calendar under Calendar…; and 1 more.",
   );
   // What the person did with each card, in their words: never "done".
   const cards = [

@@ -322,7 +322,11 @@ test("a turn reads back as it was stored: one made since the Line with its answe
     one.messages.map((m) => [m.text, m.answer ?? null]),
     [
       ["Two threads wait.", null],
-      ["Nobody has booked this week yet.", answer],
+      // Stored before the list part: read back as having none (contracts storedAnswer).
+      [
+        "Nobody has booked this week yet.",
+        { ...answer, show: { ...answer.show, list: { style: "bullets", entries: [] } } },
+      ],
     ],
   );
 });
