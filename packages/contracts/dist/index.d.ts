@@ -21667,13 +21667,15 @@ declare function callsToday(calls: FastCall[], now: number, tz?: string | null):
 };
 
 /**
- * Thirteen names (the spec, 5.7): a page, and the twelve kinds of row a reader returns. A Broadcasts row cites as a
- * broadcast: `run` is the word its address and a scope spell (ask.ts ASK_SCOPE_KINDS), never a citation's.
+ * Fifteen names (the spec, 5.7): a page, and the fourteen kinds of row a reader returns. A Broadcasts row cites as a
+ * broadcast: `run` is the word its address and a scope spell (ask.ts ASK_SCOPE_KINDS), never a citation's. A visit (the
+ * record's row, appointments.id) and a Google review (google_reviews.id) joined them with the wiring's last two links
+ * (15 October 2026): an answer about a booking or a review now opens it, where it opened the page around it.
  */
-declare const ASK_CITATION_KINDS: readonly ["thread", "conversation", "call", "person", "page", "lead", "search", "deal", "list", "broadcast", "playbook", "template", "mailbox"];
+declare const ASK_CITATION_KINDS: readonly ["thread", "conversation", "call", "person", "page", "lead", "search", "deal", "list", "broadcast", "playbook", "template", "mailbox", "visit", "review"];
 type AskCitationKind = (typeof ASK_CITATION_KINDS)[number];
 /** The rows an answer's items may name, in words: said once, by the prompt's rules and the format's items alike. */
-declare const ASK_ROW_WORDS = "people, threads, calls, leads, searches, deals, lists, broadcasts, playbooks, templates, mailboxes";
+declare const ASK_ROW_WORDS = "people, threads, calls, leads, searches, deals, lists, broadcasts, playbooks, templates, mailboxes, appointments, reviews";
 interface AskCitation {
     kind: AskCitationKind;
     /** A row's id as its reader gave it (a People list's is its name, `quiet`); for a page, its route. */
@@ -22930,7 +22932,7 @@ declare const ASK_ANSWER_FORMAT: {
                                 readonly properties: {
                                     readonly kind: {
                                         readonly type: "string";
-                                        readonly enum: readonly ["thread", "conversation", "call", "person", "page", "lead", "search", "deal", "list", "broadcast", "playbook", "template", "mailbox", "none"];
+                                        readonly enum: readonly ["thread", "conversation", "call", "person", "page", "lead", "search", "deal", "list", "broadcast", "playbook", "template", "mailbox", "visit", "review", "none"];
                                     };
                                     readonly id: {
                                         readonly type: "string";
@@ -22950,7 +22952,7 @@ declare const ASK_ANSWER_FORMAT: {
                 };
                 readonly items: {
                     readonly type: "array";
-                    readonly description: "The rows the answer names (people, threads, calls, leads, searches, deals, lists, broadcasts, playbooks, templates, mailboxes), at most 5; empty when it names none. Each opens its row.";
+                    readonly description: "The rows the answer names (people, threads, calls, leads, searches, deals, lists, broadcasts, playbooks, templates, mailboxes, appointments, reviews), at most 5; empty when it names none. Each opens its row.";
                     readonly items: {
                         readonly type: "object";
                         readonly properties: {
@@ -22972,7 +22974,7 @@ declare const ASK_ANSWER_FORMAT: {
                                 readonly properties: {
                                     readonly kind: {
                                         readonly type: "string";
-                                        readonly enum: readonly ["thread", "conversation", "call", "person", "page", "lead", "search", "deal", "list", "broadcast", "playbook", "template", "mailbox", "none"];
+                                        readonly enum: readonly ["thread", "conversation", "call", "person", "page", "lead", "search", "deal", "list", "broadcast", "playbook", "template", "mailbox", "visit", "review", "none"];
                                     };
                                     readonly id: {
                                         readonly type: "string";
@@ -23028,7 +23030,7 @@ declare const ASK_ANSWER_FORMAT: {
                             readonly properties: {
                                 readonly kind: {
                                     readonly type: "string";
-                                    readonly enum: readonly ["thread", "conversation", "call", "person", "page", "lead", "search", "deal", "list", "broadcast", "playbook", "template", "mailbox", "none"];
+                                    readonly enum: readonly ["thread", "conversation", "call", "person", "page", "lead", "search", "deal", "list", "broadcast", "playbook", "template", "mailbox", "visit", "review", "none"];
                                 };
                                 readonly id: {
                                     readonly type: "string";
@@ -23062,7 +23064,7 @@ declare const ASK_ANSWER_FORMAT: {
                             readonly properties: {
                                 readonly kind: {
                                     readonly type: "string";
-                                    readonly enum: readonly ["thread", "conversation", "call", "person", "page", "lead", "search", "deal", "list", "broadcast", "playbook", "template", "mailbox", "none"];
+                                    readonly enum: readonly ["thread", "conversation", "call", "person", "page", "lead", "search", "deal", "list", "broadcast", "playbook", "template", "mailbox", "visit", "review", "none"];
                                 };
                                 readonly id: {
                                     readonly type: "string";

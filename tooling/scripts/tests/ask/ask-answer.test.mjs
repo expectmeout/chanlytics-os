@@ -684,7 +684,7 @@ test("a source is a row read this turn however the model spelled it, or a page o
   assert.equal(item.source.to, `inbox/th-${ID}`, "a route the model writes is never taken");
 });
 
-/* ------------------------------------------------------------ thirteen names (Ask Rewired, PR 4.2) */
+/* ------------------------------------------------- fifteen names (Ask Rewired, PR 4.2; a visit and a review, 15 Oct) */
 
 const LEAD = "a1a1a1a1-a1a1-4a1a-8a1a-a1a1a1a1a1a1";
 const SEARCH_ID = "b2b2b2b2-b2b2-4b2b-8b2b-b2b2b2b2b2b2";
@@ -694,6 +694,8 @@ const RUN = "e5e5e5e5-e5e5-4e5e-8e5e-e5e5e5e5e5e5";
 const PLAYBOOK = "f6f6f6f6-f6f6-4f6f-8f6f-f6f6f6f6f6f6";
 const TEMPLATE = "a7a7a7a7-a7a7-4a7a-8a7a-a7a7a7a7a7a7";
 const DOMAIN = "b8b8b8b8-b8b8-4b8b-8b8b-b8b8b8b8b8b8";
+const VISIT = "c9c9c9c9-c9c9-4c9c-8c9c-c9c9c9c9c9c9";
+const REVIEW = "dadadada-dada-4ada-8ada-dadadadadada";
 /** One row of each new kind, as its reader returns it: the route is the reader's, never one the grammar derives. */
 const NEW_ROWS = [
   ref("lead", LEAD, `clients/leads:s-${SEARCH_ID}:p-${LEAD}`, "Bright Movers"),
@@ -705,9 +707,12 @@ const NEW_ROWS = [
   ref("playbook", PLAYBOOK, `outbound/${PLAYBOOK}`, "Win-back"),
   ref("template", TEMPLATE, "messages", "spring_offer"),
   ref("mailbox", DOMAIN, "admin/integrations", "sam@mail.example.com"),
+  // 15 Oct 2026: a visit opens on its day with its sheet, and a review on the Reviews lens with its reply box.
+  ref("visit", VISIT, `calendar/2026-10-16:a-${VISIT}`, "Dana Example · Thursday, October 16, 3:00 PM"),
+  ref("review", REVIEW, `reports/reviews:${REVIEW}`, "Ana P. · ★★★★★"),
 ];
 
-test("thirteen names: the format's kinds are a page and twelve rows, and a run is none of them; the format is measured under the edge's 8,000", () => {
+test("fifteen names: the format's kinds are a page and fourteen rows, and a run is none of them; the format is measured under the edge's 8,000", () => {
   const kinds = at("show", "items", "[]", "source").properties.kind.enum;
   assert.deepEqual(kinds, [...ASK_CITATION_KINDS, "none"], "the format writes the grammar's kinds, and none");
   assert.deepEqual(
@@ -726,6 +731,8 @@ test("thirteen names: the format's kinds are a page and twelve rows, and a run i
       "playbook",
       "template",
       "mailbox",
+      "visit",
+      "review",
     ],
   );
   assert.ok(!kinds.includes("run"), "a Broadcasts row is cited as a broadcast; run is its address's word");

@@ -193,7 +193,7 @@ test("a scope has kinds of its own, and so do the context's rows; each is a kind
   for (const k of ["playbook", "template", "lead", "search", "run", "reach_out"])
     assert.ok(ASK_CONTEXT_ROW_KINDS.includes(k));
   assert.ok(!ASK_SCOPE_KINDS.includes("reach_out"), "a reach-out open is the page over its row");
-  assert.equal(ASK_CITATION_KINDS.length, 13, "thirteen names: a page and twelve kinds of row");
+  assert.equal(ASK_CITATION_KINDS.length, 15, "fifteen names: a page and fourteen kinds of row");
   // An ad has no read of its own until the Ads read lands (decision 0049): a turn about one cites the page it is on.
   const cited = (k) => (k === "run" ? "broadcast" : k === "reach_out" ? "playbook" : k === "ad" ? "page" : k);
   for (const k of [...ASK_SCOPE_KINDS, ...ASK_CONTEXT_ROW_KINDS])

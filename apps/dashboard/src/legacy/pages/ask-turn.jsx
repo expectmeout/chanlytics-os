@@ -27,6 +27,8 @@ const AT_KIND_GLYPHS = {
   ad: "arrow-right",
   template: "content",
   mailbox: "mail",
+  visit: "calendar",
+  review: "star",
 };
 /** A kind's mark, for a row in an answer and for the scope the Line carries; a kind it does not know is a chat. */
 const askKindGlyph = (kind) => AT_KIND_GLYPHS[kind] || "chat";
