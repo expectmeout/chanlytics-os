@@ -7,14 +7,18 @@
  * read. A budget that counted only input and output missed the writes (the scorecard, 29 September); the ledger keeps
  * all four and the dollars they came to.
  */
-import { MODELS, type ModelId, type ModelPort, type ModelPurpose } from "./models";
+import { MODELS, type ModelId, type ModelPort, type ModelPurpose, type ModelSpeed } from "./models";
 
-/** One call's tokens, as the API counts them. */
+/**
+ * One call's tokens, as the API counts them, and the speed it ran at when that was fast mode (the API's own
+ * `usage.speed`): fast tokens have their own price (FAST_MODE_PRICES). A call at standard speed carries no `speed`.
+ */
 export interface ModelUsage {
   input: number;
   output: number;
   cacheRead: number;
   cacheWrite: number;
+  speed?: "fast";
 }
 
 export const NO_USAGE: ModelUsage = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 };
@@ -29,38 +33,60 @@ export interface ModelPrice {
 
 /**
  * The list prices (Anthropic's model table, read 29 September 2026; Sonnet 5 and Opus 5.5 as ops/ask-day.mjs has
- * carried them since 23 September; Sonnet 5.5 at Sonnet 5's, 5 October). A cache write is 1.25 times the input price,
- * a read a tenth of it, but where the table names a read price (Opus 5.5) that price is kept. A model a variable names
- * that has no row here is run all the same, and its dollars are left unsaid (priceOf).
+ * carried them since 23 September; Sonnet 5.5 at Sonnet 5's, 5 October; Haiku 5.5 read 15 October). A cache write is
+ * 1.25 times the input price, a read a tenth of it, but where the table names a read price (Opus 5.5 and Sonnet 5.5,
+ * a twentieth) that price is kept. Haiku 5.5's row is its price for a prompt of up to 100,000 tokens, five times less
+ * than above it; no route asks it a longer one. A model a variable names that has no row here is run all the same,
+ * and its dollars are left unsaid (priceOf).
  */
 export const MODEL_PRICES: Record<ModelId, ModelPrice> = {
   [MODELS.OPUS_5_5]: { input: 4, output: 20, cacheWrite: 5, cacheRead: 0.2 },
   [MODELS.OPUS_5]: { input: 5, output: 25, cacheWrite: 6.25, cacheRead: 0.5 },
   [MODELS.SONNET_5_5]: { input: 2, output: 10, cacheWrite: 2.5, cacheRead: 0.2 },
   [MODELS.SONNET_5]: { input: 2, output: 10, cacheWrite: 2.5, cacheRead: 0.2 },
+  [MODELS.HAIKU_5_5]: { input: 0.1, output: 0.5, cacheWrite: 0.125, cacheRead: 0.01 },
   [MODELS.HAIKU_4_5]: { input: 1, output: 5, cacheWrite: 1.25, cacheRead: 0.1 },
+};
+
+/**
+ * Fast mode's own prices (models.ts MODEL_SPEEDS), for the models that run it: twice the standard row, the cache's
+ * multiples applied on top as the table says (Anthropic's pricing page, read 15 October 2026: Opus 5.5 fast $8 / $40,
+ * Opus 5 fast $10 / $50).
+ */
+export const FAST_MODE_PRICES: Partial<Record<ModelId, ModelPrice>> = {
+  [MODELS.OPUS_5_5]: { input: 8, output: 40, cacheWrite: 10, cacheRead: 0.4 },
+  [MODELS.OPUS_5]: { input: 10, output: 50, cacheWrite: 12.5, cacheRead: 1 },
 };
 
 const PER_TOKEN = 1_000_000;
 
-/**
- * The price of a model the API names in its answer: its own row, or the row of the id it is a dated or undated form
- * of (the API may answer `claude-haiku-4-5` for a request that named its dated id, and the reverse). Null when the
- * platform has no price for it: the ledger then says so rather than guess.
- */
-export function priceOf(model: string): ModelPrice | null {
-  const own = (MODEL_PRICES as Record<string, ModelPrice>)[model];
+/** A price list's row for a model the API names: its own, or the row of the id it is a dated or undated form of. */
+function priceRowOf(prices: Partial<Record<string, ModelPrice>>, model: string): ModelPrice | null {
+  const own = prices[model];
   if (own) return own;
   const bare = model.replace(/-\d{8}$/, "");
-  for (const [id, price] of Object.entries(MODEL_PRICES)) {
-    if (id.replace(/-\d{8}$/, "") === bare) return price;
+  for (const [id, price] of Object.entries(prices)) {
+    if (price && id.replace(/-\d{8}$/, "") === bare) return price;
   }
   return null;
 }
 
-/** The dollars one call came to at list price, to a hundredth of a cent's hundredth; null when the model has no price. */
+/**
+ * The price of a model the API names in its answer, at the speed it ran: its own row, or the row of the id it is a
+ * dated or undated form of (the API may answer `claude-haiku-4-5` for a request that named its dated id, and the
+ * reverse); a fast call's from FAST_MODE_PRICES, and a model with no fast price at its standard one, which is what a
+ * model without fast mode runs. Null when the platform has no price for it: the ledger then says so rather than guess.
+ */
+export function priceOf(model: string, speed: ModelSpeed = "standard"): ModelPrice | null {
+  return (speed === "fast" ? priceRowOf(FAST_MODE_PRICES, model) : null) ?? priceRowOf(MODEL_PRICES, model);
+}
+
+/**
+ * The dollars one call came to at list price, at the speed it ran, to a hundredth of a cent's hundredth; null when
+ * the model has no price.
+ */
 export function usageDollars(model: string, u: ModelUsage): number | null {
-  const p = priceOf(model);
+  const p = priceOf(model, u.speed ?? "standard");
   if (!p) return null;
   const d =
     (u.input * p.input + u.output * p.output + u.cacheWrite * p.cacheWrite + u.cacheRead * p.cacheRead) / PER_TOKEN;
@@ -72,7 +98,7 @@ export function usageTokens(u: ModelUsage): number {
   return u.input + u.output + u.cacheRead + u.cacheWrite;
 }
 
-/** The API's own usage object read into the four kinds; a missing count is zero. */
+/** The API's own usage object read into the four kinds, and its speed when it says fast; a missing count is zero. */
 export function usageOf(raw: unknown): ModelUsage {
   const u = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
   const n = (v: unknown): number => (typeof v === "number" && Number.isFinite(v) && v > 0 ? Math.round(v) : 0);
@@ -81,6 +107,7 @@ export function usageOf(raw: unknown): ModelUsage {
     output: n(u.output_tokens),
     cacheRead: n(u.cache_read_input_tokens),
     cacheWrite: n(u.cache_creation_input_tokens),
+    ...(u.speed === "fast" ? { speed: "fast" as const } : {}),
   };
 }
 

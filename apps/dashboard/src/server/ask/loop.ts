@@ -280,12 +280,13 @@ function wordsBlock(
 
 /**
  * The head of a turn's first request: everything before its messages. The same bytes for every member of a role in a
- * workspace on one model, and so what the model's cache is keyed by (system's two breakpoints end it). A turn builds
- * its requests on it and a warm sends it alone (warm.ts), so what a warm writes is what the next question reads.
+ * workspace on one model and speed, and so what the model's cache is keyed by (system's two breakpoints end it). A turn
+ * builds its requests on it and a warm sends it alone (warm.ts), so what a warm writes is what the next question reads.
  */
 export function turnHead(model: AskModelProfile, role: MembershipRole, facts: WorkspaceFacts, shape: string | null) {
   return {
     model: model.id,
+    ...(model.speed === "fast" ? { speed: "fast" as const } : {}),
     system: systemBlocks(stableSystem(facts), shape),
     // The tools as the API takes them (registry.ts), their examples with them.
     tools: toApiTools(role, true),
@@ -417,7 +418,7 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
   let format = true;
   // A round's request: its messages a copy with the cache's markers (withMarkers), at `at` and on its last block.
   const requestOf = (msgs: Msg[], at: unknown, last: boolean) => ({
-    model: head.model,
+    ...(head.speed ? { model: head.model, speed: head.speed } : { model: head.model }),
     max_tokens: ASK_MAX_TOKENS,
     system,
     messages: withMarkers(msgs, at),

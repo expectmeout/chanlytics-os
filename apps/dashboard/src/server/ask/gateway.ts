@@ -17,7 +17,7 @@ export type { GatewayEvent } from "./sse";
 /** The edge deployment, as service.ts names it for steer and whisper. */
 import { edgeConfigured, edgeHeaders, edgeUrl } from "../edge";
 import { deployment } from "../env";
-import type { EdgeErrorCode } from "@chanlytics/contracts";
+import type { EdgeErrorCode, ModelSpeed, ThinkingType } from "@chanlytics/contracts";
 
 export interface GatewayCall {
   tenantId: string;
@@ -45,6 +45,12 @@ export interface GatewayCall {
      * comparison. The API answers on message_start with why this request missed what that one wrote.
      */
     diagnostics?: { previous_message_id: string | null };
+    /** Fast mode (contracts ask-model.ts): the edge sends it, with its beta, to a model that runs it. */
+    speed?: "fast";
+    /** How the model thinks (contracts THINKING_TYPES): Ask's turn sends none, and each model thinks as it does. */
+    thinking?: { type: ThinkingType };
+    /** Betas the edge lets through (ask-gateway.ts GATEWAY_BETAS); fast mode's is the edge's to add. */
+    betas?: string[];
   };
   signal?: AbortSignal;
 }
@@ -78,6 +84,15 @@ function serverTiming(header: string | null): { gatewayMs: number | null; modelM
   }
   const dur = (name: string): number | null => durs.get(name) ?? null;
   return { gatewayMs: dur("gateway"), modelMs: dur("model") };
+}
+
+/**
+ * The speed the edge asked the answering request at (its `x-model-speed`): fast, or standard where fast mode was not
+ * asked, the model has none, or fast mode's limit refused it and the edge went on at standard; null from an edge older
+ * than fast mode, which says nothing.
+ */
+function speedOf(header: string | null): ModelSpeed | null {
+  return header === "fast" || header === "standard" ? header : null;
 }
 
 /**
@@ -153,7 +168,12 @@ export async function* streamModel(call: GatewayCall): AsyncGenerator<GatewayEve
       throw new GatewayRefused(refusal);
     if (refusal) await new Promise((resolve) => setTimeout(resolve, RETRY_PAUSE_MS));
   }
-  yield { type: "timing", ...serverTiming(res.headers.get("server-timing")), headersMs: Date.now() - sentAt };
+  yield {
+    type: "timing",
+    ...serverTiming(res.headers.get("server-timing")),
+    headersMs: Date.now() - sentAt,
+    speed: speedOf(res.headers.get("x-model-speed")),
+  };
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
   let carry = "";

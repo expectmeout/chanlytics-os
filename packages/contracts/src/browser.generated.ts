@@ -19,9 +19,9 @@ export { ADS_ROUTE, ADS_SCOPE_ALL, ADS_WORDS, adRoute, adsPreviewOf, adsResultsR
 export { MINOR_PER_UNIT, aboutADayAfter, addDays, adWith, daysBetween, patchRestarts, sameArea } from "./ads/ads";
 export { DATA_NOT_INSTRUCTIONS, PROFILE_NAME_MAX, fenceActed, fenced, fencedInline, injectionQuestion, promptSafeName } from "./ai/fence";
 export { FLAGS, FLAG_MECHANISMS, daysToSunset } from "./ai/flags";
-export { MODELS, MODEL_IDS, MODEL_EFFORTS, MODEL_PURPOSES, MODEL_ROUTES, MODEL_PORTS, RETELL_MODELS, modelRoute, fallbackModel, shadowPortOf, isModelId, readsAsModel } from "./ai/models";
+export { MODELS, MODEL_IDS, MODEL_EFFORTS, MODEL_PURPOSES, MODEL_ROUTES, MODEL_PORTS, MODEL_SPEEDS, MODEL_TAKES, FAST_MODE_BETA, THINKING_TYPES, RETELL_MODELS, modelRoute, fallbackModel, shadowPortOf, isModelId, readsAsModel, modelTakes, hasFastMode } from "./ai/models";
 export { MODEL_TURN_WRITE_MS, modelTurnRequestOf, modelTurnResponseOf } from "./ai/turn";
-export { MODEL_PRICES, MODEL_CALL_OUTCOMES, NO_USAGE, priceOf, usageDollars, usageTokens, usageOf, aiUsageBodyOf, usageMonthOf } from "./ai/usage";
+export { MODEL_PRICES, FAST_MODE_PRICES, MODEL_CALL_OUTCOMES, NO_USAGE, priceOf, usageDollars, usageTokens, usageOf, aiUsageBodyOf, usageMonthOf } from "./ai/usage";
 export { RUN_VERBS, PLAYBOOK_CARD_REFUSALS, PLAYBOOK_CARD_WORDS, MESSAGE_WORDS, proposalChannelsWords, stepOfferWords, twinRunsWords } from "./ask-proposals/campaigns";
 export { ASK_THREAD_ROUTES } from "./ask-proposals/inbox";
 export { answerSaidOf } from "./ask-proposals/people-verbs";
@@ -37,7 +37,7 @@ export { ASK_CONTEXT_MAX_ROWS, ASK_CONTEXT_ROW_KINDS, itemFocus } from "./ask/as
 export { dayFromQuestion, askIntent, callsToday } from "./ask/ask-fast-paths";
 export { askJump, askPages, ASK_PAGES } from "./ask/ask-jump";
 export { detectLanguage, ASK_LANGUAGES } from "./ask/ask-language";
-export { askModelProfile, ASK_EFFORT, ASK_MODEL } from "./ask/ask-model";
+export { askModelProfile, ASK_EFFORT, ASK_MODEL, ASK_SPEED } from "./ask/ask-model";
 export { applySettingsChange, describeSettingsChange } from "./ask/ask-settings-change";
 export { cacheHitOf } from "./ask/ask-shape";
 export { buildAskSuggestions } from "./ask/ask-suggestions";

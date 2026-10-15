@@ -26,9 +26,17 @@ import assert from "node:assert/strict";
 import crypto from "node:crypto";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { signEdgeToken } from "@chanlytics/channels";
-import { ASK_TOKENS_DAY, ASK_MODEL, ASK_MAX_TOKENS, ASK_WARM_MAX_TOKENS, MODEL_ROUTES } from "@chanlytics/contracts";
+import { resetFastHolds, signEdgeToken } from "@chanlytics/channels";
+import {
+  ASK_TOKENS_DAY,
+  ASK_MODEL,
+  ASK_MAX_TOKENS,
+  ASK_WARM_MAX_TOKENS,
+  FAST_MODE_BETA,
+  MODEL_ROUTES,
+} from "@chanlytics/contracts";
 import { fakeDb } from "../_fake-db.mjs";
+import { fieldsOf, logLineOf } from "../_log-lines.mjs";
 
 // Each test file is its own process: this is the whole environment. No
 // Supabase credentials, so `setPg(null)` really is no database.
@@ -451,9 +459,11 @@ test("under the budget: the day's usage is read once for this workspace and Ask'
       stop_reason: "end_turn",
       stream: true,
       purpose: "ask",
+      speed: "standard",
     },
-    "the input side and the cache counts from message_start, the output side and the stop reason from message_delta -- read out of a stream chopped mid-payload",
+    "the input side and the cache counts from message_start, the output side and the stop reason from message_delta -- read out of a stream chopped mid-payload -- and the speed asked, which the stream did not say",
   );
+  assert.equal(res.headers.get("x-model-speed"), "standard", "the speed the answering request went at, said back");
 
   // Within the minute: the count is the one kept, however many rows landed since.
   tables.events.push(usage(ws, ASK_TOKENS_DAY, 0, 0));
@@ -848,4 +858,125 @@ test("what the Line needs from the gateway: Opus 5.5 is a model Ask may name, As
     [net.calls[0].body.model, net.calls[0].body.output_config],
     ["claude-opus-5-5", { effort: "low", format: { type: "json_schema", schema } }],
   );
+});
+
+/* ------------------------------------------------ fast mode and thinking (15 Oct 2026) ------------------------------------------------ */
+
+test("what a request may ask the model beyond its words: fast mode rides through and any other speed is standard; a thinking type of the three passes; a beta must be one the gateway lists; anything else is dropped, never refused, as an effort is", () => {
+  const ask = (over) => validateGatewayRequest({ ...REQUEST, model: "claude-opus-5-5", ...over }, "ask");
+  assert.equal(ask({ speed: "fast" }).request.speed, "fast");
+  for (const other of ["standard", "turbo", 2, null])
+    assert.equal("speed" in ask({ speed: other }).request, false, `${JSON.stringify(other)} is standard: none named`);
+  assert.equal("speed" in ask({}).request, false);
+
+  for (const type of ["adaptive", "between_tools", "disabled"])
+    assert.deepEqual(ask({ thinking: { type } }).request.thinking, { type });
+  assert.deepEqual(
+    ask({ thinking: { type: "adaptive", budget_tokens: 9_000 } }).request.thinking,
+    { type: "adaptive" },
+    "the type alone: a budget is a 400 on every model Ask runs",
+  );
+  for (const bad of [{ type: "enabled" }, "adaptive", {}, null]) {
+    const v = ask({ thinking: bad });
+    assert.equal(v.ok, true, JSON.stringify(bad));
+    assert.equal("thinking" in v.request, false, `dropped: ${JSON.stringify(bad)}`);
+  }
+
+  assert.deepEqual(ask({ betas: [FAST_MODE_BETA, FAST_MODE_BETA] }).request.betas, [FAST_MODE_BETA], "each once");
+  assert.equal("betas" in ask({ betas: [] }).request, false);
+  assert.deepEqual(
+    ask({ betas: ["files-api-2025-04-14", FAST_MODE_BETA] }).request.betas,
+    [FAST_MODE_BETA],
+    "only the betas the gateway lists reach the header",
+  );
+  for (const bad of [["files-api-2025-04-14"], FAST_MODE_BETA, [7]])
+    assert.equal("betas" in ask({ betas: bad }).request, false, `dropped: ${JSON.stringify(bad)}`);
+});
+
+/** The stream of a round the API ran in fast mode: its usage says so. */
+const FAST_TURN = TURN.map((e) =>
+  e.type === "message_start"
+    ? { ...e, message: { ...e.message, model: "claude-opus-5-5", usage: { ...e.message.usage, speed: "fast" } } }
+    : e,
+);
+
+test("a fast round: the door sends speed in the body and fast mode's beta in the header, says the speed back in x-model-speed, and its usage row and ledger dollars are fast mode's, as the API said it ran", async () => {
+  resetFastHolds();
+  const ws = T(41);
+  const tables = { events: [] };
+  use(tables);
+  const net = model(FAST_TURN);
+  const t0 = Date.now();
+  const res = await knock(ws, turn({ request: { ...REQUEST, model: "claude-opus-5-5", speed: "fast" } }));
+  assert.equal(res.status, 200);
+  assert.equal(res.headers.get("x-model-speed"), "fast");
+  await res.text();
+  assert.equal(net.calls.length, 1);
+  assert.equal(net.calls[0].body.speed, "fast");
+  assert.equal(net.calls[0].headers["anthropic-beta"], FAST_MODE_BETA, "the port adds the beta for a fast request");
+  const [row] = tables.events.filter((e) => e.tenant_id === ws && Date.parse(e.created_at) >= t0);
+  assert.equal(row.data.speed, "fast", "the usage row says the speed, so ask-day prices it at fast mode's rate");
+  const [ledger] = tables.ai_usage.filter((r) => r.tenant_id === ws);
+  // 1,200 in at $8, 42 out at $40, 900 read from the cache at $0.40, per million.
+  assert.equal(ledger.usd, 0.01164, "fast mode's own price, twice the standard 0.00582");
+});
+
+test("fast mode's own limit refusing a round (a 429) is no failure: the door's answer is the same model at standard speed, said back as standard and in the log as slowed; the next round goes standard from the start, and its usage is priced at standard", async () => {
+  resetFastHolds();
+  const ws = T(42);
+  const tables = { events: [] };
+  use(tables);
+  let n = 0;
+  const net = wired(() =>
+    n++ === 0
+      ? new Response(
+          JSON.stringify({
+            type: "error",
+            error: { type: "rate_limit_error", message: "rate limit of 0 fast mode input tokens per minute" },
+          }),
+          { status: 429, headers: { "content-type": "application/json", "anthropic-fast-input-tokens-limit": "0" } },
+        )
+      : new Response(streamed(sse(TURN)), { status: 200, headers: { "content-type": "text/event-stream" } }),
+  );
+  const warned = [];
+  const was = console.warn;
+  console.warn = (...args) => {
+    const line = logLineOf(args);
+    if (line) warned.push(line);
+  };
+  let res;
+  try {
+    res = await knock(ws, turn({ request: { ...REQUEST, model: "claude-opus-5-5", speed: "fast" } }));
+    assert.equal(res.status, 200, "never a failure for fast mode's limit");
+    await res.text();
+  } finally {
+    console.warn = was;
+  }
+  assert.equal(res.headers.get("x-model-speed"), "standard");
+  assert.deepEqual(
+    net.calls.map((c) => [c.body.model, c.body.speed ?? "standard", c.headers["anthropic-beta"] ?? null]),
+    [
+      ["claude-opus-5-5", "fast", FAST_MODE_BETA],
+      ["claude-opus-5-5", "standard", null],
+    ],
+  );
+  const slowed = warned.filter((l) => l.event === "ask_gateway_slowed");
+  assert.equal(slowed.length, 1);
+  assert.deepEqual(fieldsOf(slowed[0]), { tenant_id: ws, model: "claude-opus-5-5", purpose: "ask" });
+  const [row] = tables.events.filter((e) => e.tenant_id === ws);
+  assert.equal(row.data.speed, "standard");
+  assert.equal(
+    tables.ai_usage.filter((r) => r.tenant_id === ws).length,
+    1,
+    "one ledger row: the refusal spent nothing",
+  );
+
+  // The next round: held at standard, no refusal paid.
+  const next = model();
+  const again = await knock(ws, turn({ request: { ...REQUEST, model: "claude-opus-5-5", speed: "fast" } }));
+  await again.text();
+  assert.equal(next.calls.length, 1);
+  assert.equal(next.calls[0].body.speed, undefined);
+  assert.equal(again.headers.get("x-model-speed"), "standard");
+  resetFastHolds();
 });

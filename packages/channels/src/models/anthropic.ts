@@ -24,9 +24,24 @@
  *
  * The streaming form hands back the API's event stream unread for the gateway to forward; the fallback is asked only
  * before the first byte.
+ *
+ * Each model is sent only what it takes (contracts MODEL_TAKES): fast mode's `speed` and its beta to a model that runs
+ * it, a thinking type to a model that accepts it, so a request written for one model is still an answer from its
+ * fallback. And fast mode has a limit and a capacity of its own: a fast request
+ * either refuses (a 429 or a 529) is asked once more of the same model at standard speed while the deadline leaves
+ * room, so a turn never fails for it, and the answer says it was slowed; the model is then held at standard speed on
+ * this instance for FAST_HOLD_MS (fastHeld).
  */
-import { fallbackModel, modelRoute, usageOf, NO_USAGE } from "@chanlytics/contracts";
-import type { ModelPurpose, ModelUsage } from "@chanlytics/contracts";
+import {
+  FAST_MODE_BETA,
+  MIN_MS,
+  fallbackModel,
+  modelRoute,
+  modelTakes,
+  usageOf,
+  NO_USAGE,
+} from "@chanlytics/contracts";
+import type { ModelPurpose, ModelSpeed, ModelUsage } from "@chanlytics/contracts";
 import { providerFetch, type ProviderReply } from "../provider-fetch";
 
 const ANTHROPIC_MESSAGES_URL = "https://api.anthropic.com/v1/messages";
@@ -59,6 +74,10 @@ interface Asked {
   fellBack: boolean;
   /** The HTTP status of the last try (0 when none came). */
   status: number;
+  /** The speed the last try was sent at: fast only where the request asked it of a model that runs it. */
+  speed: ModelSpeed;
+  /** Whether fast mode refused the request (its limit's 429 or its capacity's 529): it went on at standard speed. */
+  slowed: boolean;
 }
 
 export type ModelReply =
@@ -78,7 +97,10 @@ export type ModelStreamReply =
 
 export interface ModelAsk {
   purpose: ModelPurpose;
-  /** The request without its model: system, messages, tools, output_config, … (max_tokens the route's unless named) */
+  /**
+   * The request without its model: system, messages, tools, output_config, … (max_tokens the route's unless named);
+   * `speed: "fast"` asks for fast mode, and its beta is added for a model that runs it.
+   */
   body: Record<string, unknown>;
   /** The model to ask first; the purpose's own when absent (Ask names its profile, the judge its setting). */
   model?: string;
@@ -166,6 +188,33 @@ interface Plan {
   d: Required<ModelDeps>;
 }
 
+/** A request as one model is sent it: its body and betas, and the speed it goes at. */
+interface Sent {
+  body: Record<string, unknown>;
+  betas: string[];
+  speed: ModelSpeed;
+}
+
+/**
+ * The request as `model` takes it (contracts MODEL_TAKES): fast mode only for a model that runs it, and never once it
+ * was `slowed` (fast mode refused it, or the model is held), the beta with it; a thinking type only for a model that
+ * accepts it, which otherwise thinks as it does by default. A model the registry does not list is sent what it was
+ * asked.
+ */
+function sentFor(ask: ModelAsk, model: string, slowed: boolean): Sent {
+  const takes = modelTakes(model);
+  const { speed, thinking, ...body } = ask.body;
+  const fast = speed === "fast" && !slowed && (takes?.fast ?? true);
+  const type = thinking && typeof thinking === "object" ? (thinking as { type?: unknown }).type : undefined;
+  const thinks = thinking !== undefined && (!takes || (takes.thinking as readonly unknown[]).includes(type));
+  const betas = (ask.betas ?? []).filter((b) => b !== FAST_MODE_BETA);
+  return {
+    body: { ...body, ...(thinks ? { thinking } : {}), ...(fast ? { speed: "fast" } : {}) },
+    betas: fast ? [...betas, FAST_MODE_BETA] : betas,
+    speed: fast ? "fast" : "standard",
+  };
+}
+
 function planOf(ask: ModelAsk, deps: ModelDeps): Plan {
   const d: Required<ModelDeps> = {
     fetch: deps.fetch ?? globalThis.fetch,
@@ -176,17 +225,50 @@ function planOf(ask: ModelAsk, deps: ModelDeps): Plan {
   return { route, first: ask.model ?? route.model, started: d.now(), d };
 }
 
+/**
+ * How long a model whose fast request was refused is asked at standard speed on this instance: the rounds after it do
+ * not each pay the refusal, and its cache stays at one speed, since a cache written at one speed is not read at the
+ * other. An organization without fast mode's research-preview access has a fast limit of zero tokens a minute
+ * (Anthropic's 429, 15 Oct 2026): each instance then asks fast once per hold, and fast mode begins by itself once
+ * access is granted, with no deploy.
+ */
+const FAST_HOLD_MS = 5 * MIN_MS;
+/** Each model's hold, until when (this instance's clock); cleared by resetFastHolds. */
+const fastHolds = new Map<string, number>();
+
+/** Every hold lifted: for a test, which must not inherit the last test's refusal. */
+export function resetFastHolds(): void {
+  fastHolds.clear();
+}
+
+/** Whether `model` is held at standard speed now. */
+const fastHeld = (model: string, p: Plan): boolean => (fastHolds.get(model) ?? 0) > p.d.now();
+
+/** Whether fast mode turned a fast request down: its own limit (a 429) or its capacity (a 529). */
+const fastRefused = (a: ProviderReply): boolean => a.status === 429 || a.status === 529;
+
+/** What is left of the call's deadline, in ms; Infinity when it has none. */
+const leftOf = (ask: ModelAsk, p: Plan): number =>
+  ask.deadlineMs === undefined ? Infinity : ask.deadlineMs - (p.d.now() - p.started);
+
 /** One model's tries: the route's bound (or the caller's sooner one), its retries on "not now", inside the deadline. */
-function tryModel(key: string, ask: ModelAsk, p: Plan, model: string, stream: boolean): Promise<ProviderReply> {
-  const left = ask.deadlineMs === undefined ? Infinity : ask.deadlineMs - (p.d.now() - p.started);
+function tryModel(
+  key: string,
+  ask: ModelAsk,
+  p: Plan,
+  model: string,
+  sent: Sent,
+  stream: boolean,
+): Promise<ProviderReply> {
+  const left = leftOf(ask, p);
   const timeoutMs = Math.max(1, Math.min(ask.timeoutMs ?? p.route.timeoutMs, left));
   return providerFetch(
     "anthropic",
     ANTHROPIC_MESSAGES_URL,
     {
       method: "POST",
-      headers: headersFor(key, ask.betas),
-      body: JSON.stringify({ max_tokens: p.route.maxTokens, ...ask.body, model, ...(stream ? { stream: true } : {}) }),
+      headers: headersFor(key, sent.betas),
+      body: JSON.stringify({ max_tokens: p.route.maxTokens, ...sent.body, model, ...(stream ? { stream: true } : {}) }),
       timeoutMs,
       tries: 1 + Math.max(0, ask.retries ?? p.route.retries),
       ...(Number.isFinite(left) ? { deadlineMs: left } : {}),
@@ -198,31 +280,51 @@ function tryModel(key: string, ask: ModelAsk, p: Plan, model: string, stream: bo
   );
 }
 
+/** Whether another try is worth asking: the caller has not given up, and the deadline leaves it room. */
+const roomFor = (ask: ModelAsk, p: Plan): boolean => !ask.signal?.aborted && leftOf(ask, p) >= FALLBACK_FLOOR_MS;
+
 /** Whether the fallback may still be asked: there is one, and the deadline leaves it room. */
 function fallbackFor(ask: ModelAsk, p: Plan, failed: ProviderReply): string | null {
-  if (!(neverCame(failed) || modelUnknown(failed)) || ask.signal?.aborted) return null;
+  if (!(neverCame(failed) || modelUnknown(failed))) return null;
   const next = fallbackModel(ask.purpose, p.first);
-  if (!next) return null;
-  const left = ask.deadlineMs === undefined ? Infinity : ask.deadlineMs - (p.d.now() - p.started);
-  return left >= FALLBACK_FLOOR_MS ? next : null;
+  return next && roomFor(ask, p) ? next : null;
 }
 
 const failure = (a: ProviderReply): "rejected" | "unreachable" =>
   a.outcome === "refused" ? "rejected" : "unreachable";
 
-/** One answer from the model the purpose names, or its fallback; never thrown. */
-export async function askModel(key: string, ask: ModelAsk, deps: ModelDeps = {}): Promise<ModelReply> {
-  const p = planOf(ask, deps);
+/**
+ * The tries of one call, either form: the first model (at standard speed while it is held); again at standard speed
+ * when fast mode refused a fast request (a 429 or a 529), which holds the model; then the fallback when no answer came
+ * or the model is unknown. What the last try was.
+ */
+async function triesOf(key: string, ask: ModelAsk, p: Plan, stream: boolean) {
   let model = p.first;
-  let a = await tryModel(key, ask, p, model, false);
+  let sent = sentFor(ask, model, fastHeld(model, p));
+  let a = await tryModel(key, ask, p, model, sent, stream);
+  let slowed = false;
+  if (sent.speed === "fast" && fastRefused(a)) {
+    fastHolds.set(model, p.d.now() + FAST_HOLD_MS);
+    slowed = true;
+    if (roomFor(ask, p)) {
+      sent = sentFor(ask, model, true);
+      a = await tryModel(key, ask, p, model, sent, stream);
+    }
+  }
   let fellBack = false;
   const next = a.outcome === "ok" ? null : fallbackFor(ask, p, a);
   if (next) {
     model = next;
     fellBack = true;
-    a = await tryModel(key, ask, p, model, false);
+    sent = sentFor(ask, model, fastHeld(model, p));
+    a = await tryModel(key, ask, p, model, sent, stream);
   }
-  const base = { asked: p.first, fellBack, status: a.status };
+  return { a, model, base: { asked: p.first, fellBack, status: a.status, speed: sent.speed, slowed } };
+}
+
+/** One answer from the model the purpose names, or its fallback; never thrown. */
+export async function askModel(key: string, ask: ModelAsk, deps: ModelDeps = {}): Promise<ModelReply> {
+  const { a, model, base } = await triesOf(key, ask, planOf(ask, deps), false);
   if (a.outcome !== "ok") {
     return {
       ...base,
@@ -246,17 +348,7 @@ export async function askModel(key: string, ask: ModelAsk, deps: ModelDeps = {})
 
 /** The API's event stream for one request, from the model the purpose names or its fallback; never thrown. */
 export async function streamModel(key: string, ask: ModelAsk, deps: ModelDeps = {}): Promise<ModelStreamReply> {
-  const p = planOf(ask, deps);
-  let model = p.first;
-  let a = await tryModel(key, ask, p, model, true);
-  let fellBack = false;
-  const next = a.outcome === "ok" ? null : fallbackFor(ask, p, a);
-  if (next) {
-    model = next;
-    fellBack = true;
-    a = await tryModel(key, ask, p, model, true);
-  }
-  const base = { asked: p.first, model, fellBack, status: a.status };
-  if (a.outcome === "ok" && a.body) return { ...base, outcome: "ok", body: a.body, headers: a.headers };
-  return { ...base, outcome: failure(a), error: errorOf(a), detail: a.text.slice(0, 300) };
+  const { a, model, base } = await triesOf(key, ask, planOf(ask, deps), true);
+  if (a.outcome === "ok" && a.body) return { ...base, model, outcome: "ok", body: a.body, headers: a.headers };
+  return { ...base, model, outcome: failure(a), error: errorOf(a), detail: a.text.slice(0, 300) };
 }

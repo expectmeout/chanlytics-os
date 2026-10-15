@@ -12,6 +12,8 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import {
   ASK_EFFORT,
   ASK_MODEL,
+  ASK_SPEED,
+  FAST_MODE_BETA,
   MODEL_EFFORTS,
   MODEL_ROUTES,
   ASK_WARM_MAX_TOKENS,
@@ -44,14 +46,30 @@ test("the profile: the name the environment gives, whatever Claude model it is, 
   assert.equal(ASK_MODEL, "claude-opus-5-5", "Ruben's decision at approval, 25 Sep 2026");
   assert.equal(ASK_EFFORT, "low");
   assert.deepEqual([...MODEL_EFFORTS], ["low", "medium", "high"]);
-  // A model the registry has never heard of is run as named: trying one is a variable, never a change to a list.
-  for (const id of [SONNET_5_5, "claude-sonnet-5", "claude-haiku-4-5-20251001", UNLISTED])
-    assert.deepEqual(askModelProfile(id), { id, effort: "low" }, id);
-  assert.deepEqual(askModelProfile(SONNET_5_5, "medium"), { id: SONNET_5_5, effort: "medium" });
-  assert.deepEqual(askModelProfile(undefined, "high"), { id: ASK_MODEL, effort: "high" });
-  assert.deepEqual(askModelProfile(SONNET_5_5, "maximum"), { id: SONNET_5_5, effort: "low" }, "an effort that is none");
+  // A model the registry has never heard of is run as named: trying one is a variable, never a change to a list. None
+  // of these runs fast mode, so each is asked at standard speed.
+  for (const id of [SONNET_5_5, "claude-sonnet-5", "claude-haiku-4-5-20251001", "claude-haiku-5-5", UNLISTED])
+    assert.deepEqual(askModelProfile(id), { id, effort: "low", speed: "standard" }, id);
+  assert.deepEqual(askModelProfile(SONNET_5_5, "medium"), { id: SONNET_5_5, effort: "medium", speed: "standard" });
+  assert.deepEqual(askModelProfile(undefined, "high"), { id: ASK_MODEL, effort: "high", speed: "fast" });
+  assert.deepEqual(
+    askModelProfile(SONNET_5_5, "maximum"),
+    { id: SONNET_5_5, effort: "low", speed: "standard" },
+    "an effort that is none",
+  );
   assert.deepEqual(priceOf(SONNET_5_5), { input: 2, output: 10, cacheWrite: 2.5, cacheRead: 0.2 }, "its list price");
   assert.equal(priceOf(UNLISTED), null, "a model with no price is run, and its dollars are not guessed");
+});
+
+test("fast mode is the default on a model that runs it (Ruben, 15 Oct 2026), ASK_SPEED=standard turns it off, and a model without it is standard whatever is asked", () => {
+  assert.equal(ASK_SPEED, "fast");
+  assert.equal(FAST_MODE_BETA, "fast-mode-2026-02-01", "the beta Anthropic's fast mode page names");
+  for (const none of [undefined, null, "", "  ", "fast", "turbo"])
+    assert.equal(askModelProfile(ASK_MODEL, null, none).speed, "fast", String(none));
+  assert.equal(askModelProfile(ASK_MODEL, null, "standard").speed, "standard", "the switch off");
+  assert.equal(askModelProfile(" claude-opus-5 ", "medium", "").speed, "fast", "Opus 5 runs it too");
+  for (const id of [SONNET_5_5, "claude-haiku-5-5", UNLISTED])
+    assert.equal(askModelProfile(id, null, "fast").speed, "standard", `${id} has no fast mode`);
 });
 
 test("the lookup: unset, empty, or a name that does not read as a model is the default, never a throw", () => {
@@ -97,7 +115,11 @@ test("the edge lets Ask name any model that reads as one, refuses a name that do
 
 test("the dashboard picks by environment: unset is the default, a model's name is that model, ASK_EFFORT its effort; a name or an effort that reads as none runs the default and is said once", async () => {
   const { askModel } = await import(at("apps/dashboard/src/server/ask/model.ts"));
-  const was = { ASK_MODEL: process.env.ASK_MODEL, ASK_EFFORT: process.env.ASK_EFFORT };
+  const was = {
+    ASK_MODEL: process.env.ASK_MODEL,
+    ASK_EFFORT: process.env.ASK_EFFORT,
+    ASK_SPEED: process.env.ASK_SPEED,
+  };
   const warned = [];
   const warn = console.warn;
   console.warn = (...args) => {
@@ -107,24 +129,35 @@ test("the dashboard picks by environment: unset is the default, a model's name i
   try {
     delete process.env.ASK_MODEL;
     delete process.env.ASK_EFFORT;
-    assert.deepEqual(askModel(), { id: ASK_MODEL, effort: "low" });
+    delete process.env.ASK_SPEED;
+    assert.deepEqual(askModel(), { id: ASK_MODEL, effort: "low", speed: "fast" });
+    process.env.ASK_SPEED = "standard";
+    assert.deepEqual(askModel(), { id: ASK_MODEL, effort: "low", speed: "standard" }, "the switch off, no code change");
+    delete process.env.ASK_SPEED;
     process.env.ASK_MODEL = SONNET_5_5;
-    assert.deepEqual(askModel(), { id: SONNET_5_5, effort: "low" });
+    assert.deepEqual(askModel(), { id: SONNET_5_5, effort: "low", speed: "standard" });
     process.env.ASK_EFFORT = "medium";
-    assert.deepEqual(askModel(), { id: SONNET_5_5, effort: "medium" });
+    assert.deepEqual(askModel(), { id: SONNET_5_5, effort: "medium", speed: "standard" });
     process.env.ASK_MODEL = UNLISTED;
-    assert.deepEqual(askModel(), { id: UNLISTED, effort: "medium" });
-    assert.equal(warned.filter((l) => l.event === "ask_model_unknown").length, 0, "a model run as named warns nobody");
+    assert.deepEqual(askModel(), { id: UNLISTED, effort: "medium", speed: "standard" });
+    process.env.ASK_SPEED = "fast";
+    askModel();
+    assert.equal(
+      warned.filter((l) => l.event === "ask_model_unknown").length,
+      0,
+      "a model run as named warns nobody, nor fast asked of a model without it",
+    );
     process.env.ASK_MODEL = "sonnet five";
     process.env.ASK_EFFORT = "maximum";
-    assert.deepEqual(askModel(), { id: ASK_MODEL, effort: "low" });
+    process.env.ASK_SPEED = "warp";
+    assert.deepEqual(askModel(), { id: ASK_MODEL, effort: "low", speed: "fast" });
     askModel();
     const unknown = warned.filter((l) => l.event === "ask_model_unknown");
     assert.equal(unknown.length, 1, "said once, not on every turn");
     assert.equal(unknown[0].level, "warn");
     assert.deepEqual(
       fieldsOf(unknown[0]),
-      { name: "sonnet five", effort: "maximum", ran: ASK_MODEL, at: "low" },
+      { name: "sonnet five", effort: "maximum", speed: "warp", ran: ASK_MODEL, at: "low", pace: "fast" },
       "what was asked for and what is run",
     );
   } finally {
@@ -183,7 +216,66 @@ test("the loop asks the profile: the request names its id and its effort, and th
     assert.equal(r.model, UNLISTED);
     assert.equal(requests[0].model, UNLISTED);
     assert.equal(requests[0].output_config.effort, "medium");
-    assert.deepEqual([r.shape.model, r.shape.effort], [UNLISTED, "medium"], "and the stored turn says both");
+    assert.equal(requests[0].speed, undefined, "a model the registry does not list is asked at standard speed");
+    assert.deepEqual(
+      [r.shape.model, r.shape.effort, r.shape.speed],
+      [UNLISTED, "medium", "standard"],
+      "and the stored turn says all three",
+    );
+
+    // On the default model every round asks fast mode, and the turn says what the edge said it ran at: mixed when fast
+    // mode's limit slowed a round; with nothing said it went through an edge older than fast mode, which drops the
+    // speed: standard.
+    delete process.env.ASK_MODEL;
+    for (const [said, kept] of [
+      [["fast"], "fast"],
+      [["standard"], "standard"],
+      [[null], "standard"],
+      [["fast", "standard"], "mixed"],
+    ]) {
+      requests.length = 0;
+      let n = 0;
+      // Every round but the last reads the day; the last answers.
+      const timed = async (c) => {
+        const i = n++;
+        const timing = { firstEventMs: null, firstTextMs: null, totalMs: 5, hopMs: null, speed: said[i] };
+        if (i === said.length - 1) return { ...(await round(c)), timing };
+        requests.push(c.request);
+        const read = { type: "tool_use", id: `toolu_${i}`, name: "today", text: "", json: "{}" };
+        return { blocks: [read], stopReason: "tool_use", streamError: null, timing };
+      };
+      const f = await runAskTurn(
+        {
+          ctx: { supabase: fakeDb({}), userId: "u1", email: "ada@example.com", params: {} },
+          tenantId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          role: "operator",
+          facts: workspaceFacts("Harbor", "America/New_York", null, new Date("2026-09-14T14:00:00Z"), []),
+          timezone: "America/New_York",
+          personLabel: "ada@example.com (operator)",
+          language: "en",
+          scope: null,
+          surface: "today",
+          history: [],
+          text: "Who needs me?",
+          emit: () => {},
+          now: new Date("2026-09-14T14:00:00Z"),
+        },
+        {
+          round: timed,
+          shape: async () => "",
+          tool: async () => ({ result: "{}", isError: false }),
+          propose: buildProposal,
+        },
+      );
+      assert.equal(f.failed, false, f.failure ?? "");
+      assert.equal(requests[0].model, ASK_MODEL);
+      assert.equal(requests.length, said.length);
+      assert.ok(
+        requests.every((q) => q.speed === "fast"),
+        "every round asks fast mode",
+      );
+      assert.equal(f.shape.speed, kept, `the edge said ${said[0]}`);
+    }
   } finally {
     restore(was);
   }
@@ -298,8 +390,9 @@ test("a warm is the head of the turn that follows it: the same model, system, to
     const [w, turn] = calls.map((c) => c.request);
     assert.deepEqual([calls[0].purpose, calls[0].tenantId, calls[0].userId], ["ask_warm", A, USER]);
     assert.ok(calls[1].purpose === undefined || calls[1].purpose === "ask", "the turn is Ask's own");
-    for (const part of ["model", "system", "tools", "tool_choice", "output_config"])
+    for (const part of ["model", "speed", "system", "tools", "tool_choice", "output_config"])
       assert.equal(bytes(w[part]), bytes(turn[part]), `${part}: what the cache is keyed by, the same bytes`);
+    assert.equal(w.speed, "fast", "at the turn's speed: a cache written at one speed is not read at the other");
     assert.ok(
       w.system.length === 2 && w.system.every((b) => b.cache_control),
       "the rules and the shape, each a breakpoint",

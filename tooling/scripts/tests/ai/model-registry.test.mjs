@@ -12,6 +12,11 @@ import {
   MODEL_PURPOSES,
   MODEL_ROUTES,
   MODEL_PRICES,
+  MODEL_TAKES,
+  FAST_MODE_PRICES,
+  THINKING_TYPES,
+  hasFastMode,
+  modelTakes,
   RETELL_MODELS,
   ASK_MODEL,
   NOTE_SUGGEST_MODEL,
@@ -126,6 +131,67 @@ test("a ledger row carries the model asked, the one that answered, the outcome a
     user_id: null,
     subject_id: null,
   });
+});
+
+test("Haiku 5.5 is a model the registry knows, at its price for a prompt of up to 100,000 tokens, with the cache's usual multiples (Anthropic's pricing page, 15 Oct 2026)", () => {
+  assert.equal(MODELS.HAIKU_5_5, "claude-haiku-5-5");
+  assert.ok(isModelId(MODELS.HAIKU_5_5));
+  assert.deepEqual(MODEL_PRICES[MODELS.HAIKU_5_5], { input: 0.1, output: 0.5, cacheWrite: 0.125, cacheRead: 0.01 });
+  // A turn's worth: 2,000 in, 500 out, 30,000 read from the cache.
+  assert.equal(
+    usageDollars(MODELS.HAIKU_5_5, { input: 2_000, output: 500, cacheRead: 30_000, cacheWrite: 0 }),
+    0.00075,
+  );
+  assert.equal(hasFastMode(MODELS.HAIKU_5_5), false);
+  assert.deepEqual([...MODEL_TAKES[MODELS.HAIKU_5_5].thinking], ["adaptive", "disabled"]);
+});
+
+test("fast mode: Opus 5.5 and Opus 5 run it, at their own price (twice the standard, the cache's multiples on top), and a call is priced at the speed the API says it ran", () => {
+  assert.deepEqual(
+    MODEL_IDS.filter((id) => hasFastMode(id)),
+    [MODELS.OPUS_5_5, MODELS.OPUS_5],
+  );
+  assert.equal(hasFastMode("claude-some-model-9"), false, "a model the registry does not list is not assumed to");
+  assert.deepEqual(FAST_MODE_PRICES[MODELS.OPUS_5_5], { input: 8, output: 40, cacheWrite: 10, cacheRead: 0.4 });
+  assert.deepEqual(FAST_MODE_PRICES[MODELS.OPUS_5], { input: 10, output: 50, cacheWrite: 12.5, cacheRead: 1 });
+  for (const id of Object.keys(FAST_MODE_PRICES)) {
+    const [fast, standard] = [FAST_MODE_PRICES[id], MODEL_PRICES[id]];
+    for (const k of ["input", "output", "cacheWrite", "cacheRead"])
+      assert.equal(fast[k], standard[k] * 2, `${id} ${k}`);
+  }
+  assert.equal(priceOf(MODELS.OPUS_5_5, "fast"), FAST_MODE_PRICES[MODELS.OPUS_5_5]);
+  assert.equal(priceOf(MODELS.OPUS_5_5), MODEL_PRICES[MODELS.OPUS_5_5], "standard unless said");
+  assert.equal(priceOf(MODELS.SONNET_5, "fast"), MODEL_PRICES[MODELS.SONNET_5], "no fast price: it ran at standard");
+
+  const u = { input: 2_000, output: 500, cacheRead: 30_000, cacheWrite: 0 };
+  assert.equal(usageDollars(MODELS.OPUS_5_5, u), 0.024);
+  assert.equal(usageDollars(MODELS.OPUS_5_5, { ...u, speed: "fast" }), 0.048);
+  assert.deepEqual(usageOf({ input_tokens: 5, output_tokens: 2, speed: "fast" }), {
+    input: 5,
+    output: 2,
+    cacheRead: 0,
+    cacheWrite: 0,
+    speed: "fast",
+  });
+  assert.equal(usageOf({ input_tokens: 5, speed: "standard" }).speed, undefined, "standard carries no speed");
+  const row = aiUsageBodyOf({
+    tenantId: "t-1",
+    purpose: "ask",
+    asked: MODELS.OPUS_5_5,
+    answered: MODELS.OPUS_5_5,
+    outcome: "answered",
+    usage: usageOf({ input_tokens: 2_000, output_tokens: 500, cache_read_input_tokens: 30_000, speed: "fast" }),
+  });
+  assert.equal(row.usd, 0.048, "the ledger's dollars are fast mode's");
+});
+
+test("what each model takes: every model the registry lists has a row, of thinking types the gateway knows, and Opus 5.5's thinking cannot be turned off", () => {
+  assert.deepEqual(Object.keys(MODEL_TAKES).sort(), [...MODEL_IDS].sort());
+  for (const id of MODEL_IDS)
+    for (const type of MODEL_TAKES[id].thinking) assert.ok(THINKING_TYPES.includes(type), `${id}: ${type}`);
+  assert.deepEqual([...MODEL_TAKES[MODELS.OPUS_5_5].thinking], ["adaptive"]);
+  assert.ok(MODEL_TAKES[MODELS.SONNET_5_5].thinking.includes("between_tools"), "Sonnet 5.5's lowest");
+  assert.equal(modelTakes("claude-some-model-9"), null);
 });
 
 test("a month's usage totals the model calls, their dollars, the call seconds and the conversations", () => {

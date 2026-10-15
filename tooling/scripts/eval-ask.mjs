@@ -193,9 +193,12 @@ function cookieHeader(session) {
 }
 
 /* ---- the cost: Ask's usage rows, priced as Anthropic's pages list them (spec 8.1) ---- */
-/** A model's list price as the usage rows name their tokens, from the one price list (contracts priceOf); null when it has none. */
-const priceFor = (model) => {
-  const p = priceOf(model ?? "");
+/**
+ * A model's list price at the speed a round ran (fast mode's own, 15 Oct 2026), as the usage rows name their tokens,
+ * from the one price list (contracts priceOf); null when it has none.
+ */
+const priceFor = (model, speed) => {
+  const p = priceOf(model ?? "", speed === "fast" ? "fast" : "standard");
   return p && { input: p.input, output: p.output, cache_creation: p.cacheWrite, cache_read: p.cacheRead };
 };
 const DAY_MS = 24 * 3600 * 1000;
@@ -219,34 +222,40 @@ const budgetTokens = (rows) =>
   rows.reduce((s, d) => s + num(d.input_tokens) + num(d.cache_creation_input_tokens) + num(d.output_tokens), 0);
 
 /**
- * A run's usage by model: the rounds, the tokens by kind, the rounds that stopped at the cap, and the dollars at list
- * price, null for a model the price list does not hold. `answered` divides the cost into a per-turn figure.
+ * A run's usage by model: the rounds (those in fast mode among them), the tokens by kind, the rounds that stopped at
+ * the cap, and the dollars at list price, each round at the speed it ran; null for a model the price list does not
+ * hold. `answered` divides the cost into a per-turn figure.
  */
 function summarizeUsage(rows, answered) {
   const byModel = {};
   for (const d of rows) {
     const m = (byModel[d.model ?? "?"] ??= {
       rounds: 0,
+      fast_rounds: 0,
       input: 0,
       output: 0,
       cache_read: 0,
       cache_creation: 0,
       cap_hits: 0,
-      cost: null,
+      cost: 0,
     });
     m.rounds++;
+    if (d.speed === "fast") m.fast_rounds++;
     m.input += num(d.input_tokens);
     m.output += num(d.output_tokens);
     m.cache_read += num(d.cache_read_input_tokens);
     m.cache_creation += num(d.cache_creation_input_tokens);
     if (d.stop_reason === "max_tokens") m.cap_hits++;
-  }
-  for (const [model, m] of Object.entries(byModel)) {
-    const p = priceFor(model);
-    if (p)
-      m.cost =
-        (m.input * p.input + m.output * p.output + m.cache_creation * p.cache_creation + m.cache_read * p.cache_read) /
-        1e6;
+    const p = priceFor(d.model, d.speed);
+    m.cost =
+      p && m.cost !== null
+        ? m.cost +
+          (num(d.input_tokens) * p.input +
+            num(d.output_tokens) * p.output +
+            num(d.cache_creation_input_tokens) * p.cache_creation +
+            num(d.cache_read_input_tokens) * p.cache_read) /
+            1e6
+        : null;
   }
   const models = Object.values(byModel);
   const cost = models.every((m) => m.cost !== null) ? models.reduce((s, m) => s + m.cost, 0) : null;
@@ -897,7 +906,7 @@ for (const s of surfaces) {
 }
 for (const [model, m] of Object.entries(usage.byModel))
   console.log(
-    `  ${model}: ${m.rounds} rounds · input ${m.input.toLocaleString("en-US")} · output ${m.output.toLocaleString("en-US")}` +
+    `  ${model}: ${m.rounds} rounds${m.fast_rounds ? ` (${m.fast_rounds} fast)` : ""} · input ${m.input.toLocaleString("en-US")} · output ${m.output.toLocaleString("en-US")}` +
       ` · cache read ${m.cache_read.toLocaleString("en-US")} · cache write ${m.cache_creation.toLocaleString("en-US")}` +
       ` · ${dollars(m.cost)}`,
   );

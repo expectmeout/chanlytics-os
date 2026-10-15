@@ -57,6 +57,7 @@ export const LOG_EVENTS = [
   "ask_gateway_fell_back",
   "ask_gateway_may_not_spend",
   "ask_gateway_refused",
+  "ask_gateway_slowed",
   "ask_gateway_turn",
   "ask_gateway_unreachable",
   "ask_usage_write_failed",
