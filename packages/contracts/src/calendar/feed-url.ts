@@ -81,14 +81,14 @@ export const FEED_GUIDES: readonly { name: string; steps: readonly string[] }[] 
     name: "Google Calendar",
     steps: [
       "On a computer, open Google Calendar and go to Settings.",
-      "Under “Settings for my calendars”, pick the calendar your appointments land in.",
+      "Under “Settings for my calendars”, pick the calendar your bookings land in.",
       "Open “Integrate calendar” and copy “Secret address in iCal format”.",
     ],
   },
   {
     name: "Apple Calendar (iCloud)",
     steps: [
-      "In the Calendar app, open Calendars and press ⓘ beside the calendar your appointments land in.",
+      "In the Calendar app, open Calendars and press ⓘ beside the calendar your bookings land in.",
       "Turn on Public Calendar, then Share Link, and copy it.",
     ],
   },
@@ -112,7 +112,7 @@ export const FEED_CHECK_WORDS = {
   reading: "Reading it…",
   read: (events: number, next: string | null) =>
     events === 0
-      ? "Read it: it's empty so far. Your receptionist will see new appointments as they land."
+      ? "Read it: it's empty so far. Your receptionist will see new bookings as they land."
       : `Read it: ${events} ${events === 1 ? "event" : "events"}, ${next ? `the next ${next}` : "none in the next 30 days"}.`,
 } as const;
 

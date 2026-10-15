@@ -928,7 +928,7 @@ const ROWS = [
     name: "the day before asked for, with no calendar: nothing to cover, said",
     intent: { intent: "cover_journey", stages: ["before"] },
     world: world({ journey: [{ id: "first_contact", covered: true, moment: null }] }),
-    refused: `${W.nothingToCover} Not offered here: the day before an appointment.`,
+    refused: `${W.nothingToCover} Not offered here: the day before a booked time.`,
   },
   {
     name: "the journey not read is refused, never guessed (ruling 9)",

@@ -254,6 +254,14 @@ export const FLAGS: readonly Flag[] = [
     kept: "It rides with ASK_MODEL: a model tried at another effort is the same variable-and-redeploy.",
   },
   {
+    name: "ASK_SPEED",
+    mechanism: "dashboard_env",
+    does: "Fast mode for Ask's rounds on a model that runs it; empty is fast, standard turns it off (ask-model.ts ASK_SPEED).",
+    owner: "Ruben",
+    sunset: null,
+    kept: "Fast mode is a research preview at twice the price: the switch off is a variable, never a code change.",
+  },
+  {
     name: "EDGE_PROVIDERS",
     mechanism: "dashboard_env",
     does: "'live' lets a preview or a laptop reach the real providers through its edge.",

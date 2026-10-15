@@ -3,11 +3,13 @@
  * fallback, its bound and its retries; an answer that never came (a 529, a 5xx, a timeout) is asked once of the
  * fallback; a "not now" is asked again on the same model; a 429 or a 5xx after that is unreachable, never a refusal; a
  * refused request is rejected; and the answer says which model answered and what it cost, in the four kinds of tokens.
+ * Fast mode (15 Oct 2026): asked of a model that runs it with its beta, never of one that does not; refused by its own
+ * limit or capacity, asked again at standard speed and the model held there a while.
  */
 import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
-import { askModel, streamModel, formatRejected, resetBreakers } from "@chanlytics/channels";
-import { MODEL_ROUTES } from "@chanlytics/contracts";
+import { askModel, streamModel, formatRejected, resetBreakers, resetFastHolds } from "@chanlytics/channels";
+import { FAST_MODE_BETA, MODELS, MODEL_ROUTES } from "@chanlytics/contracts";
 import { scripted, said, status, hang, thrown, streamed } from "./_model-world.mjs";
 
 const KEY = "model-key-for-this-file";
@@ -18,7 +20,10 @@ const ask = (over = {}) => ({
   ...over,
 });
 
-beforeEach(() => resetBreakers());
+beforeEach(() => {
+  resetBreakers();
+  resetFastHolds();
+});
 
 test("the route's model is asked, with its max tokens, the key and the version, and the answer says what it cost", async () => {
   const api = scripted(said("We open at nine."));
@@ -154,4 +159,121 @@ test("the streamed form hands the event stream back unread, after a fallback tak
   const down = scripted(status(503), status(503));
   const d = await streamModel(KEY, ask({ purpose: "ask" }), { fetch: down.fetch, ...noWait });
   assert.equal(d.outcome, "unreachable");
+});
+
+/* ------------------------------------------------ fast mode ------------------------------------------------ */
+
+/** Ask's round in fast mode, as the gateway hands it to the port. */
+const fastAsk = (over = {}) =>
+  ask({
+    purpose: "ask",
+    body: { system: "Answer.", messages: [{ role: "user", content: "Who needs me?" }], speed: "fast" },
+    ...over,
+  });
+
+test("fast mode is asked of a model that runs it with its beta beside any other, and the answer says it went fast; a model without it is asked at standard speed, no beta", async () => {
+  const api = scripted(said("Two people.", { usage: { input_tokens: 10, output_tokens: 5, speed: "fast" } }));
+  const r = await askModel(KEY, fastAsk({ betas: ["server-side-fallback-2026-07-01"] }), {
+    fetch: api.fetch,
+    ...noWait,
+  });
+  assert.equal(r.outcome, "ok");
+  assert.deepEqual([r.speed, r.slowed], ["fast", false]);
+  assert.equal(api.calls[0].model, MODELS.OPUS_5_5);
+  assert.equal(api.calls[0].body.speed, "fast", "a top-level field of the body");
+  assert.equal(api.calls[0].headers["anthropic-beta"], `server-side-fallback-2026-07-01,${FAST_MODE_BETA}`);
+  assert.equal(r.usage.speed, "fast", "the API's own word, which the ledger prices by");
+
+  const sonnet = scripted(said("Two people."));
+  const s = await askModel(KEY, fastAsk({ model: MODELS.SONNET_5_5, betas: [FAST_MODE_BETA] }), {
+    fetch: sonnet.fetch,
+    ...noWait,
+  });
+  assert.equal(s.speed, "standard");
+  assert.equal(sonnet.calls[0].body.speed, undefined, "Sonnet 5.5 has no fast mode: the API would refuse it");
+  assert.equal(sonnet.calls[0].headers["anthropic-beta"], undefined, "nor its beta");
+  assert.equal(s.usage.speed, undefined, "a standard call carries no speed");
+});
+
+test("fast mode's own limit (a 429) is no failure: the same model is asked again at standard speed, once, and held there for the next calls; its capacity (a 529) the same, before any fallback", async (t) => {
+  t.mock.timers.enable({ apis: ["Date"], now: Date.parse("2026-10-15T15:00:00Z") });
+  const limit = "This request would exceed your rate limit of 0 fast mode input tokens per minute";
+  const api = scripted(status(429, limit), streamed("Two people."));
+  const r = await streamModel(KEY, fastAsk(), { fetch: api.fetch, ...noWait });
+  assert.equal(r.outcome, "ok");
+  assert.deepEqual([r.model, r.fellBack, r.speed, r.slowed], [MODELS.OPUS_5_5, false, "standard", true]);
+  assert.deepEqual(
+    api.calls.map((c) => [c.model, c.body.speed ?? "standard", c.headers["anthropic-beta"] ?? null]),
+    [
+      [MODELS.OPUS_5_5, "fast", FAST_MODE_BETA],
+      [MODELS.OPUS_5_5, "standard", null],
+    ],
+    "the same model, without speed or beta: never the fallback for a limit only fast mode has",
+  );
+
+  // Held: the next round goes at standard from the start, and pays no refusal.
+  const next = scripted(said("Here."));
+  const n = await askModel(KEY, fastAsk(), { fetch: next.fetch, ...noWait });
+  assert.deepEqual([n.speed, n.slowed], ["standard", false]);
+  assert.equal(next.calls.length, 1);
+  assert.equal(next.calls[0].body.speed, undefined);
+
+  // Five minutes on, fast is asked again: access granted later starts by itself.
+  t.mock.timers.tick(5 * 60_000 + 1);
+  const later = scripted(said("Here."));
+  const l = await askModel(KEY, fastAsk(), { fetch: later.fetch, ...noWait });
+  assert.equal(later.calls[0].body.speed, "fast");
+  assert.equal(l.speed, "fast");
+
+  // A 529 at fast is fast mode's capacity: standard on the same model first, the fallback only after that.
+  resetFastHolds();
+  const busy = scripted(status(529, "Overloaded"), status(529, "Overloaded"), said("From the fallback."));
+  const b = await askModel(KEY, fastAsk(), { fetch: busy.fetch, ...noWait });
+  assert.equal(b.outcome, "ok");
+  assert.deepEqual(
+    busy.calls.map((c) => [c.model, c.body.speed ?? "standard"]),
+    [
+      [MODELS.OPUS_5_5, "fast"],
+      [MODELS.OPUS_5_5, "standard"],
+      [MODEL_ROUTES.ask.fallback, "standard"],
+    ],
+    "and the fallback (Sonnet 5, no fast mode) is sent no speed",
+  );
+  assert.deepEqual([b.fellBack, b.slowed, b.speed], [true, true, "standard"]);
+});
+
+test("a fallback is sent only what it takes: Opus 5.5's fast request falls back to Sonnet 5 at standard speed, and a thinking type the fallback refuses is left off", async () => {
+  const api = scripted(status(503, "down"), said("Here."));
+  const r = await askModel(
+    KEY,
+    fastAsk({ body: { messages: [{ role: "user", content: "hi" }], speed: "fast", thinking: { type: "adaptive" } } }),
+    { fetch: api.fetch, ...noWait },
+  );
+  assert.equal(r.outcome, "ok");
+  assert.equal(api.calls[0].body.speed, "fast");
+  assert.deepEqual(api.calls[1].body.thinking, { type: "adaptive" }, "Sonnet 5 takes adaptive");
+  assert.equal(api.calls[1].model, MODEL_ROUTES.ask.fallback);
+  assert.equal(api.calls[1].body.speed, undefined);
+  assert.equal(api.calls[1].headers["anthropic-beta"], undefined);
+
+  // Sonnet 5.5's between_tools, falling back to the route's own model: Opus 5.5 would refuse it, so it thinks as it does.
+  const lowest = scripted(status(529), said("Here."));
+  const l = await askModel(
+    KEY,
+    ask({
+      purpose: "ask",
+      model: MODELS.SONNET_5_5,
+      body: { messages: [{ role: "user", content: "hi" }], thinking: { type: "between_tools" } },
+    }),
+    { fetch: lowest.fetch, ...noWait },
+  );
+  assert.equal(l.outcome, "ok");
+  assert.deepEqual(lowest.calls[0].body.thinking, { type: "between_tools" }, "Sonnet 5.5's own lowest");
+  assert.equal(lowest.calls[1].model, MODELS.OPUS_5_5);
+  assert.equal(lowest.calls[1].body.thinking, undefined);
+
+  // A model the registry does not list is sent what it was asked.
+  const unlisted = scripted(said("Here."));
+  await askModel(KEY, fastAsk({ model: "claude-some-model-9" }), { fetch: unlisted.fetch, ...noWait });
+  assert.equal(unlisted.calls[0].body.speed, "fast");
 });

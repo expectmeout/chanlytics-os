@@ -12,6 +12,7 @@ import {
   type AskModelProfile,
   type AskProposal,
   type AskTurnShape,
+  type ModelSpeed,
 } from "@chanlytics/contracts";
 import { calledName, type ToolRun } from "./tools";
 import type { BuiltContext, SearchResultBlock } from "./context";
@@ -39,6 +40,8 @@ export function turnMeter(t0: number) {
     answeredBy: null as string | null,
     cacheMiss: [] as Array<string | null>,
     hopMs: null as number | null,
+    /** The speed each round that came back went at, as the edge said it (null where it said none). */
+    speeds: [] as Array<ModelSpeed | null>,
     /** A round that came back, begun at `roundAt`: its time, and its stream's first byte and text from the turn's start. */
     round(r: RoundResult, roundAt: number): void {
       meter.roundsMs.push(r.timing?.totalMs ?? Date.now() - roundAt);
@@ -46,6 +49,7 @@ export function turnMeter(t0: number) {
       meter.messageIds.push(r.usage?.messageId ?? null);
       meter.answeredBy = r.usage?.model ?? meter.answeredBy;
       meter.cacheMiss.push(r.usage?.cacheMiss ?? null);
+      meter.speeds.push(r.timing?.speed ?? null);
       if (r.timing) {
         if (meter.firstByteMs === null && r.timing.firstEventMs !== null)
           meter.firstByteMs = roundAt - t0 + r.timing.firstEventMs;
@@ -80,6 +84,17 @@ export function turnMeter(t0: number) {
   return meter;
 }
 
+/**
+ * The speed a turn ran at (AskTurnShape.speed): its rounds' as the edge said them, one word when they agree and mixed
+ * when fast mode's limit slowed some. Standard where no round said one: an edge older than fast mode, which never sends
+ * it, or a turn no round of which came back.
+ */
+function speedOfTurn(said: ReadonlyArray<ModelSpeed | null>): AskTurnShape["speed"] {
+  const [first, ...rest] = said.filter((s): s is ModelSpeed => s !== null);
+  if (first === undefined) return "standard";
+  return rest.every((s) => s === first) ? first : "mixed";
+}
+
 /** What the turn read, measured and made up to its end: runAskTurn's own, as they stand when it ends. */
 interface TurnSoFar {
   input: TurnInput;
@@ -111,7 +126,7 @@ export function finishTurn(r: TurnEnd, soFar: TurnSoFar): TurnResult {
   const { lastRound, ...end } = r;
   const { input, model, t0, built, contextMs, dataDropped, pageBlocks, crossBlocks, plan, format, toolsUsed } = soFar;
   const { roundsMs, toolsMs, firstByteMs, firstTextMs, firstSayMs, tokens, capHits } = soFar.meter;
-  const { messageIds, cacheMiss, hopMs } = soFar.meter;
+  const { messageIds, cacheMiss, hopMs, speeds } = soFar.meter;
   const { proposals, live } = soFar;
   // What the turn keeps beside it (RawTurn): a live turn, its link and what it told; a rebuilt one, what its lines told.
   const kept = live && input.chain ? chainEnd(input.chain) : input.told ? { told: input.told } : {};
@@ -121,6 +136,7 @@ export function finishTurn(r: TurnEnd, soFar: TurnSoFar): TurnResult {
     answered_by: soFar.meter.answeredBy,
     prompt_hash: soFar.promptHash,
     effort: model.effort,
+    speed: speedOfTurn(speeds),
     surface: input.surface,
     scope_kind: input.scope?.kind ?? null,
     follow_up: input.history.length > 0,

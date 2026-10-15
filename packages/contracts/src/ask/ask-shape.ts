@@ -22,6 +22,12 @@ export interface AskTurnShape {
   answered_by: string | null;
   prompt_hash: string;
   effort: string;
+  /**
+   * The speed the rounds ran at, as the edge said each one went (15 Oct 2026, fast mode on): fast mode, standard, or
+   * mixed when fast mode's limit slowed some of them to standard. A turn stored before it has no such key: standard,
+   * since nothing ran fast before.
+   */
+  speed: "fast" | "standard" | "mixed";
   surface: string | null;
   scope_kind: string | null;
   /** A second or later question on its thread, and how long after the thread's previous turn it came. */

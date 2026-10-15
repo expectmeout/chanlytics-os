@@ -978,13 +978,13 @@ test("the booking rules come as parts, and a read's unfollowable repeats and und
   const vm = toCalendarVM(counted(2, 3), NOW);
   assert.deepEqual(vm.ruleParts, [
     "at least 2h notice",
-    "15 min between appointments",
+    "15 min between bookings",
     "up to 14 days ahead",
     "30-min slots",
   ]);
   assert.equal(
     vm.rules,
-    "Offers times with at least 2h notice · 15 min between appointments · up to 14 days ahead · 30-min slots",
+    "Offers times with at least 2h notice · 15 min between bookings · up to 14 days ahead · 30-min slots",
     "the sentence stays for whoever reads it whole",
   );
   assert.deepEqual([vm.feed.skippedRecurring, vm.feed.dropped], [2, 3]);
@@ -1391,7 +1391,7 @@ test("REGRESSION (C1): the booking rules the receptionist follows are all on the
   const vm = toCalendarVM(dto({ rules, closures }), NOW);
   assert.deepEqual(vm.ruleParts, [
     "at least 2h notice",
-    "15 min between appointments",
+    "15 min between bookings",
     "up to 14 days ahead",
     "30-min slots",
     "up to 6 people per booking",

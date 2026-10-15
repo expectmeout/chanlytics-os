@@ -356,7 +356,7 @@ export function readAgoLabel(iso: string | null, now: Date): string | null {
 export function ruleParts(rules: (BookingRulesLike & Pick<BookingRules, "party_max">) | null | undefined): string[] {
   const r = { ...BOOKING_DEFAULTS, ...(rules ?? {}) };
   const parts = [`at least ${r.lead_hours}h notice`];
-  if (r.buffer_min > 0) parts.push(`${r.buffer_min} min between appointments`);
+  if (r.buffer_min > 0) parts.push(`${r.buffer_min} min between bookings`);
   parts.push(`up to ${r.max_days_ahead} days ahead`, `${r.slot_min}-min slots`);
   // The party size a booking is held to, when Settings gives one: the receptionist follows it, and the page never said it (C1).
   if (rules?.party_max)

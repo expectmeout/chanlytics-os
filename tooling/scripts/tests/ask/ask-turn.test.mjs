@@ -949,12 +949,14 @@ test("a page's context or a shape that fails costs its block, never the turn; a 
 });
 
 test("the questions production paid a second round for (the week to 5 Oct 2026) are answered in one: each read the table plans for them runs through its own tool, as the model would have called it, and rides in before the first round", async () => {
+  // On Today the day's own read rides in too, after what the question named (the speed plan, A1, 15 Oct 2026).
   for (const [text, surface, reads] of [
     ["Hey how's the business", "calendar", ["today", "report"]],
-    ["What do I have tomorrow?", "today", ["calendar.week"]],
+    ["What do I have tomorrow?", "today", ["calendar.week", "today"]],
     ["Who has a proposal out?", "calendar", ["people.pipeline"]],
-    ["Who wrote today?", "today", ["inbox.list"]],
-    ["Were there any calls today?", "today", ["calls.list"]],
+    ["Who wrote today?", "today", ["inbox.list", "today"]],
+    ["Were there any calls today?", "today", ["calls.list", "today"]],
+    ["Who needs me?", "today", ["today"]],
   ]) {
     const s = scripted([ROUND([answer("Here it is.")])]);
     // The day's metrics and the period's series, which the default world leaves unmodelled: a quiet week.
@@ -2552,16 +2554,23 @@ test("report says the Reach-outs section as the page does (the Campaigns lens, C
 test("a question that names another page's rows reads them before the model is asked, and the read rides in as data, never in system", async () => {
   const s = scripted([ROUND([answer("Quiet week.")])]);
   const t = tables();
+  // Asked on People: off Today, whose own read would ride in beside the one the question names.
+  const surface = "people";
   const r = await runAskTurn(
-    turn(ctxFor(t, { ...RPCS, report_series: () => ({ error: "empty" }) }), { text: "How did the last 7 days go?" })
-      .input,
+    turn(ctxFor(t, { ...RPCS, report_series: () => ({ error: "empty" }) }), {
+      text: "How did the last 7 days go?",
+      surface,
+    }).input,
     ports(s.round),
   );
   assert.equal(r.failed, false);
   // The report function answered with an error, so the read was dropped, not the turn.
   assert.deepEqual(r.tools, []);
   const s2 = scripted([ROUND([answer("Two playbooks run.")])]);
-  const r2 = await runAskTurn(turn(ctxFor(t), { text: "Which playbooks are running?" }).input, ports(s2.round));
+  const r2 = await runAskTurn(
+    turn(ctxFor(t), { text: "Which playbooks are running?", surface }).input,
+    ports(s2.round),
+  );
   assert.deepEqual(
     r2.tools,
     ["campaigns.playbooks"],
@@ -4885,7 +4894,8 @@ test("inbox.thread and calls.get read through the readers (ledger #5): the threa
     ]),
     ROUND([answer("Rosa texted a photo, and the text can be answered now.")]),
   ]);
-  const { input } = turn(ctx);
+  // Asked on People, where nothing is read ahead: the reads counted below are the two tools' own.
+  const { input } = turn(ctx, { surface: "people" });
   const r = await runAskTurn(input, ports(s.round));
   assert.equal(r.failed, false, r.failure ?? "");
   const selects = (table) => ctx.supabase.seen.filter((q) => q.table === table && q.op === "select");
