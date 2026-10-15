@@ -1,5 +1,5 @@
 import "server-only";
-import { fenced } from "@chanlytics/contracts";
+import { fenced, type ModelSpeed } from "@chanlytics/contracts";
 import { streamModel, type GatewayCall } from "./gateway";
 
 /**
@@ -47,6 +47,8 @@ export interface RoundTiming {
    * time and the model's, as the edge's server-timing said them; null when it said nothing.
    */
   hopMs: number | null;
+  /** The speed the edge said the round went at: fast mode, standard, or null when it said none. */
+  speed?: ModelSpeed | null;
 }
 
 export interface RoundResult {
@@ -74,6 +76,7 @@ export async function runRound(
   let firstEventMs: number | null = null;
   let firstTextMs: number | null = null;
   let hopMs: number | null = null;
+  let speed: ModelSpeed | null = null;
   let textSoFar = "";
   for await (const ev of stream(call)) {
     // The edge's timing is said before the stream begins: it is no byte of the model's.
@@ -135,6 +138,7 @@ export async function runRound(
       case "timing":
         hopMs =
           ev.gatewayMs === null || ev.modelMs === null ? null : Math.max(0, ev.headersMs - ev.gatewayMs - ev.modelMs);
+        speed = ev.speed;
         break;
       default:
         break;
@@ -145,7 +149,7 @@ export async function runRound(
     stopReason,
     streamError,
     usage,
-    timing: { firstEventMs, firstTextMs, totalMs: Date.now() - t0, hopMs },
+    timing: { firstEventMs, firstTextMs, totalMs: Date.now() - t0, hopMs, speed },
   };
 }
 

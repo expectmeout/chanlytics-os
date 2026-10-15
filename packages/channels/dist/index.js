@@ -653,7 +653,15 @@ async function imageBytes(fetchImpl, url, timeoutMs, maxBytes) {
 }
 
 // src/models/anthropic.ts
-import { fallbackModel, modelRoute, usageOf, NO_USAGE } from "../../contracts/dist/index.js";
+import {
+  FAST_MODE_BETA,
+  MIN_MS,
+  fallbackModel,
+  modelRoute,
+  modelTakes,
+  usageOf,
+  NO_USAGE
+} from "../../contracts/dist/index.js";
 var ANTHROPIC_MESSAGES_URL = "https://api.anthropic.com/v1/messages";
 var ANTHROPIC_VERSION = "2023-06-01";
 var FALLBACK_FLOOR_MS = 1500;
@@ -689,6 +697,19 @@ function messageTextOf(message) {
 function formatRejected(r) {
   return r.outcome === "rejected" && r.status === 400 && /output_config|output_format|json_schema|schema|format|fallback|beta/i.test(r.error ?? "");
 }
+function sentFor(ask, model, slowed) {
+  const takes = modelTakes(model);
+  const { speed, thinking, ...body } = ask.body;
+  const fast = speed === "fast" && !slowed && (takes?.fast ?? true);
+  const type = thinking && typeof thinking === "object" ? thinking.type : void 0;
+  const thinks = thinking !== void 0 && (!takes || takes.thinking.includes(type));
+  const betas = (ask.betas ?? []).filter((b) => b !== FAST_MODE_BETA);
+  return {
+    body: { ...body, ...thinks ? { thinking } : {}, ...fast ? { speed: "fast" } : {} },
+    betas: fast ? [...betas, FAST_MODE_BETA] : betas,
+    speed: fast ? "fast" : "standard"
+  };
+}
 function planOf(ask, deps) {
   const d = {
     fetch: deps.fetch ?? globalThis.fetch,
@@ -698,16 +719,24 @@ function planOf(ask, deps) {
   const route = modelRoute(ask.purpose);
   return { route, first: ask.model ?? route.model, started: d.now(), d };
 }
-function tryModel(key, ask, p, model, stream) {
-  const left = ask.deadlineMs === void 0 ? Infinity : ask.deadlineMs - (p.d.now() - p.started);
+var FAST_HOLD_MS = 5 * MIN_MS;
+var fastHolds = /* @__PURE__ */ new Map();
+function resetFastHolds() {
+  fastHolds.clear();
+}
+var fastHeld = (model, p) => (fastHolds.get(model) ?? 0) > p.d.now();
+var fastRefused = (a) => a.status === 429 || a.status === 529;
+var leftOf = (ask, p) => ask.deadlineMs === void 0 ? Infinity : ask.deadlineMs - (p.d.now() - p.started);
+function tryModel(key, ask, p, model, sent, stream) {
+  const left = leftOf(ask, p);
   const timeoutMs = Math.max(1, Math.min(ask.timeoutMs ?? p.route.timeoutMs, left));
   return providerFetch(
     "anthropic",
     ANTHROPIC_MESSAGES_URL,
     {
       method: "POST",
-      headers: headersFor(key, ask.betas),
-      body: JSON.stringify({ max_tokens: p.route.maxTokens, ...ask.body, model, ...stream ? { stream: true } : {} }),
+      headers: headersFor(key, sent.betas),
+      body: JSON.stringify({ max_tokens: p.route.maxTokens, ...sent.body, model, ...stream ? { stream: true } : {} }),
       timeoutMs,
       tries: 1 + Math.max(0, ask.retries ?? p.route.retries),
       ...Number.isFinite(left) ? { deadlineMs: left } : {},
@@ -718,26 +747,38 @@ function tryModel(key, ask, p, model, stream) {
     p.d
   );
 }
+var roomFor = (ask, p) => !ask.signal?.aborted && leftOf(ask, p) >= FALLBACK_FLOOR_MS;
 function fallbackFor(ask, p, failed) {
-  if (!(neverCame(failed) || modelUnknown(failed)) || ask.signal?.aborted) return null;
+  if (!(neverCame(failed) || modelUnknown(failed))) return null;
   const next = fallbackModel(ask.purpose, p.first);
-  if (!next) return null;
-  const left = ask.deadlineMs === void 0 ? Infinity : ask.deadlineMs - (p.d.now() - p.started);
-  return left >= FALLBACK_FLOOR_MS ? next : null;
+  return next && roomFor(ask, p) ? next : null;
 }
 var failure = (a) => a.outcome === "refused" ? "rejected" : "unreachable";
-async function askModel(key, ask, deps = {}) {
-  const p = planOf(ask, deps);
+async function triesOf(key, ask, p, stream) {
   let model = p.first;
-  let a = await tryModel(key, ask, p, model, false);
+  let sent = sentFor(ask, model, fastHeld(model, p));
+  let a = await tryModel(key, ask, p, model, sent, stream);
+  let slowed = false;
+  if (sent.speed === "fast" && fastRefused(a)) {
+    fastHolds.set(model, p.d.now() + FAST_HOLD_MS);
+    slowed = true;
+    if (roomFor(ask, p)) {
+      sent = sentFor(ask, model, true);
+      a = await tryModel(key, ask, p, model, sent, stream);
+    }
+  }
   let fellBack = false;
   const next = a.outcome === "ok" ? null : fallbackFor(ask, p, a);
   if (next) {
     model = next;
     fellBack = true;
-    a = await tryModel(key, ask, p, model, false);
+    sent = sentFor(ask, model, fastHeld(model, p));
+    a = await tryModel(key, ask, p, model, sent, stream);
   }
-  const base = { asked: p.first, fellBack, status: a.status };
+  return { a, model, base: { asked: p.first, fellBack, status: a.status, speed: sent.speed, slowed } };
+}
+async function askModel(key, ask, deps = {}) {
+  const { a, model, base } = await triesOf(key, ask, planOf(ask, deps), false);
   if (a.outcome !== "ok") {
     return {
       ...base,
@@ -759,19 +800,9 @@ async function askModel(key, ask, deps = {}) {
   };
 }
 async function streamModel(key, ask, deps = {}) {
-  const p = planOf(ask, deps);
-  let model = p.first;
-  let a = await tryModel(key, ask, p, model, true);
-  let fellBack = false;
-  const next = a.outcome === "ok" ? null : fallbackFor(ask, p, a);
-  if (next) {
-    model = next;
-    fellBack = true;
-    a = await tryModel(key, ask, p, model, true);
-  }
-  const base = { asked: p.first, model, fellBack, status: a.status };
-  if (a.outcome === "ok" && a.body) return { ...base, outcome: "ok", body: a.body, headers: a.headers };
-  return { ...base, outcome: failure(a), error: errorOf(a), detail: a.text.slice(0, 300) };
+  const { a, model, base } = await triesOf(key, ask, planOf(ask, deps), true);
+  if (a.outcome === "ok" && a.body) return { ...base, model, outcome: "ok", body: a.body, headers: a.headers };
+  return { ...base, model, outcome: failure(a), error: errorOf(a), detail: a.text.slice(0, 300) };
 }
 
 // src/models/typesafe.ts
@@ -3519,12 +3550,12 @@ async function fetchMailDomains(cfg) {
 }
 
 // src/google/google-oauth.ts
-import { MIN_MS, utf8Bytes as utf8Bytes2 } from "../../contracts/dist/index.js";
+import { MIN_MS as MIN_MS2, utf8Bytes as utf8Bytes2 } from "../../contracts/dist/index.js";
 var GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
 var GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
 var GOOGLE_REVOKE_URL = "https://oauth2.googleapis.com/revoke";
 var PROFILE_SCOPES = ["openid", "email", "https://www.googleapis.com/auth/business.manage"];
-var STATE_TTL_MS = 10 * MIN_MS;
+var STATE_TTL_MS = 10 * MIN_MS2;
 function authorizeUrl(cfg, state, loginHint) {
   const q = new URLSearchParams({
     client_id: cfg.clientId,
@@ -5543,7 +5574,7 @@ function cleanReply(text) {
 
 // src/tokens/edge-token.ts
 import { createHash as createHash2, createHmac, randomBytes, timingSafeEqual as timingSafeEqual2 } from "crypto";
-import { MIN_MS as MIN_MS2 } from "../../contracts/dist/index.js";
+import { MIN_MS as MIN_MS3 } from "../../contracts/dist/index.js";
 
 // src/tokens/request-id.ts
 var REQUEST_ID_HEADER = "x-request-id";
@@ -5561,7 +5592,7 @@ function requestIdShaped(value) {
 }
 
 // src/tokens/edge-token.ts
-var EDGE_TOKEN_TTL_MS = MIN_MS2;
+var EDGE_TOKEN_TTL_MS = MIN_MS3;
 function edgeBodyHash(body) {
   return createHash2("sha256").update(body, "utf8").digest("base64url");
 }
@@ -6142,6 +6173,7 @@ export {
   resendLimitOf,
   resendWebhookSignature,
   resetBreakers,
+  resetFastHolds,
   retellImportBody,
   retellLocalesFor,
   reviewBells,

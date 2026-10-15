@@ -82,6 +82,8 @@ export interface GatewayTiming {
   gatewayMs: number | null;
   modelMs: number | null;
   headersMs: number;
+  /** The speed the edge said the answering request went at (`x-model-speed`); null when it said none. */
+  speed: "fast" | "standard" | null;
 }
 export type GatewayEvent =
   | GatewayBlockStart

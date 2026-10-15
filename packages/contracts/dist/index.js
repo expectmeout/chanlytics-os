@@ -7816,6 +7816,7 @@ var MODELS = {
   OPUS_5: "claude-opus-5",
   SONNET_5_5: "claude-sonnet-5-5",
   SONNET_5: "claude-sonnet-5",
+  HAIKU_5_5: "claude-haiku-5-5",
   HAIKU_4_5: "claude-haiku-4-5-20251001"
 };
 var MODEL_IDS = [
@@ -7823,10 +7824,31 @@ var MODEL_IDS = [
   MODELS.OPUS_5,
   MODELS.SONNET_5_5,
   MODELS.SONNET_5,
+  MODELS.HAIKU_5_5,
   MODELS.HAIKU_4_5
 ];
+var MODEL_SPEEDS = ["standard", "fast"];
+var FAST_MODE_BETA = "fast-mode-2026-02-01";
+var THINKING_TYPES = ["adaptive", "between_tools", "disabled"];
+var { OPUS_5_5, OPUS_5, SONNET_5_5, SONNET_5, HAIKU_5_5, HAIKU_4_5 } = MODELS;
+var MODEL_TAKES = {
+  // Thinking can't be turned off on Opus 5.5: effort is its only control.
+  [OPUS_5_5]: { thinking: ["adaptive"], fast: true },
+  [OPUS_5]: { thinking: ["adaptive", "disabled"], fast: true },
+  [SONNET_5_5]: { thinking: ["adaptive", "between_tools"], fast: false },
+  [SONNET_5]: { thinking: ["adaptive", "disabled"], fast: false },
+  // Haiku 5.5 takes `disabled` at effort high or below, which is every effort the gateway lets through.
+  [HAIKU_5_5]: { thinking: ["adaptive", "disabled"], fast: false },
+  // Haiku 4.5 thinks only on a token budget, which no route sends: it runs without.
+  [HAIKU_4_5]: { thinking: ["disabled"], fast: false }
+};
+function modelTakes(model) {
+  return MODEL_TAKES[model] ?? null;
+}
+function hasFastMode(model) {
+  return modelTakes(model)?.fast === true;
+}
 var MODEL_EFFORTS = ["low", "medium", "high"];
-var { OPUS_5_5, OPUS_5, SONNET_5_5, SONNET_5, HAIKU_4_5 } = MODELS;
 var MODEL_PURPOSES = [
   "receptionist",
   "reply_draft",
@@ -11300,20 +11322,28 @@ var MODEL_PRICES = {
   [MODELS.OPUS_5]: { input: 5, output: 25, cacheWrite: 6.25, cacheRead: 0.5 },
   [MODELS.SONNET_5_5]: { input: 2, output: 10, cacheWrite: 2.5, cacheRead: 0.2 },
   [MODELS.SONNET_5]: { input: 2, output: 10, cacheWrite: 2.5, cacheRead: 0.2 },
+  [MODELS.HAIKU_5_5]: { input: 0.1, output: 0.5, cacheWrite: 0.125, cacheRead: 0.01 },
   [MODELS.HAIKU_4_5]: { input: 1, output: 5, cacheWrite: 1.25, cacheRead: 0.1 }
 };
+var FAST_MODE_PRICES = {
+  [MODELS.OPUS_5_5]: { input: 8, output: 40, cacheWrite: 10, cacheRead: 0.4 },
+  [MODELS.OPUS_5]: { input: 10, output: 50, cacheWrite: 12.5, cacheRead: 1 }
+};
 var PER_TOKEN = 1e6;
-function priceOf(model) {
-  const own = MODEL_PRICES[model];
+function priceRowOf(prices, model) {
+  const own = prices[model];
   if (own) return own;
   const bare = model.replace(/-\d{8}$/, "");
-  for (const [id, price] of Object.entries(MODEL_PRICES)) {
-    if (id.replace(/-\d{8}$/, "") === bare) return price;
+  for (const [id, price] of Object.entries(prices)) {
+    if (price && id.replace(/-\d{8}$/, "") === bare) return price;
   }
   return null;
 }
+function priceOf(model, speed = "standard") {
+  return (speed === "fast" ? priceRowOf(FAST_MODE_PRICES, model) : null) ?? priceRowOf(MODEL_PRICES, model);
+}
 function usageDollars(model, u) {
-  const p = priceOf(model);
+  const p = priceOf(model, u.speed ?? "standard");
   if (!p) return null;
   const d = (u.input * p.input + u.output * p.output + u.cacheWrite * p.cacheWrite + u.cacheRead * p.cacheRead) / PER_TOKEN;
   return Math.round(d * 1e6) / 1e6;
@@ -11328,7 +11358,8 @@ function usageOf(raw) {
     input: n(u.input_tokens),
     output: n(u.output_tokens),
     cacheRead: n(u.cache_read_input_tokens),
-    cacheWrite: n(u.cache_creation_input_tokens)
+    cacheWrite: n(u.cache_creation_input_tokens),
+    ...u.speed === "fast" ? { speed: "fast" } : {}
   };
 }
 var MODEL_CALL_OUTCOMES = [
@@ -11572,6 +11603,14 @@ var FLAGS = [
     owner: "Ruben",
     sunset: null,
     kept: "It rides with ASK_MODEL: a model tried at another effort is the same variable-and-redeploy."
+  },
+  {
+    name: "ASK_SPEED",
+    mechanism: "dashboard_env",
+    does: "Fast mode for Ask's rounds on a model that runs it; empty is fast, standard turns it off (ask-model.ts ASK_SPEED).",
+    owner: "Ruben",
+    sunset: null,
+    kept: "Fast mode is a research preview at twice the price: the switch off is a variable, never a code change."
   },
   {
     name: "EDGE_PROVIDERS",
@@ -22395,12 +22434,16 @@ function cacheHitOf(t) {
 // src/ask/ask-model.ts
 var ASK_MODEL = MODEL_ROUTES.ask.model;
 var ASK_EFFORT = "low";
-function askModelProfile(name, effort) {
-  const id = (name ?? "").trim();
+var ASK_SPEED = "fast";
+function askModelProfile(name, effort, speed) {
+  const named = (name ?? "").trim();
+  const id = readsAsModel(named) ? named : ASK_MODEL;
   const asked = (effort ?? "").trim();
+  const wanted = (speed ?? "").trim() === "standard" ? "standard" : ASK_SPEED;
   return {
-    id: readsAsModel(id) ? id : ASK_MODEL,
-    effort: MODEL_EFFORTS.includes(asked) ? asked : ASK_EFFORT
+    id,
+    effort: MODEL_EFFORTS.includes(asked) ? asked : ASK_EFFORT,
+    speed: wanted === "fast" && hasFastMode(id) ? "fast" : "standard"
   };
 }
 
@@ -54700,6 +54743,7 @@ export {
   ASK_ROW_WORDS,
   ASK_SCOPE_KINDS,
   ASK_SPEECH_MAX_CHARS,
+  ASK_SPEED,
   ASK_SURFACES,
   ASK_THREAD_ROUTES,
   ASK_THREAD_VERBS,
@@ -54939,6 +54983,8 @@ export {
   EXPORT_SECTIONS,
   FALLBACK_DEFAULTS,
   FALLBACK_DETAILS,
+  FAST_MODE_BETA,
+  FAST_MODE_PRICES,
   FEED_CHECK_WORDS,
   FEED_GUIDES,
   FEED_MAX_BYTES,
@@ -55241,6 +55287,8 @@ export {
   MODEL_PRICES,
   MODEL_PURPOSES,
   MODEL_ROUTES,
+  MODEL_SPEEDS,
+  MODEL_TAKES,
   MODEL_TURN_WRITE_MS,
   MOMENTS_RETIRED,
   MOMENT_TRIGGERS,
@@ -55741,6 +55789,7 @@ export {
   THEME_COLOR_META,
   THEME_INK,
   THEME_OPTIONS,
+  THINKING_TYPES,
   THREAD_CHANNEL_WORDS,
   TILES,
   TIMELINE_FILTERS,
@@ -56352,6 +56401,7 @@ export {
   handoverRoom,
   handoverUntilWords,
   hardLimitsWords,
+  hasFastMode,
   hasHours,
   hasProfile,
   hasPublicPages,
@@ -56740,6 +56790,7 @@ export {
   missedCallIsNews,
   mmss,
   modelRoute,
+  modelTakes,
   modelTurnRequestOf,
   modelTurnResponseOf,
   momentHoldsWords,

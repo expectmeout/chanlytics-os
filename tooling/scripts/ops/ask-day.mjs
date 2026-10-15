@@ -4,10 +4,13 @@
  * Reads the assistant turns of the last HOURS hours (their AskTurnShape, stored
  * on the row by the route since Phase 0) and Ask's usage rows (usage.ask_tokens,
  * one per model round, written by the edge), and prints one line per model and
- * surface: turns, one-round rate, follow-up rate, first Say, first text, final,
- * cache hit, cap hits, how long the palette was open, and the dollars a turn
- * cost at the models' list prices. Read-only; the service role, because a
- * day's turns belong to every member of every workspace.
+ * speed, and under it per surface: turns, one-round rate, follow-up rate, first
+ * Say, first text, final, cache hit, cap hits, how long the palette was open,
+ * and the dollars a turn cost at the models' list prices. A model's turns in
+ * fast mode (15 Oct 2026) are a line of their own, "(fast)", and their rounds
+ * priced at fast mode's own rate, so first words before and after read side by
+ * side; a turn stored before has no speed and ran at standard. Read-only; the
+ * service role, because a day's turns belong to every member of every workspace.
  *
  *   NEXT_PUBLIC_SUPABASE_URL=… SUPABASE_SERVICE_ROLE_KEY=… [HOURS=24] [TENANT=<uuid>] node tooling/scripts/ops/ask-day.mjs [--json] [--check]
  *
@@ -39,11 +42,19 @@ const JSON_OUT = process.argv.includes("--json");
 const CHECK = process.argv.includes("--check");
 if (!URL_ || !KEY) couldNotRun("NEXT_PUBLIC_SUPABASE_URL (or SUPABASE_URL) and SUPABASE_SERVICE_ROLE_KEY are required");
 
-/** A model's list price as the usage rows name their tokens, from the one price list (contracts priceOf); null when it has none. */
-const priceFor = (model) => {
-  const p = priceOf(model ?? "");
+/**
+ * A model's list price at a speed, as the usage rows name their tokens, from the one price list (contracts priceOf);
+ * null when it has none.
+ */
+const priceFor = (model, speed) => {
+  const p = priceOf(model ?? "", speed === "fast" ? "fast" : "standard");
   return p && { input: p.input, output: p.output, cache_creation: p.cacheWrite, cache_read: p.cacheRead };
 };
+/**
+ * The line a turn or a round is counted on: its model, and "(fast)" or "(mixed)" when it ran in fast mode, all of it
+ * or some (AskTurnShape.speed); standard, or no speed said, is the model alone.
+ */
+const lineOf = (model, speed) => `${model ?? "?"}${speed === "fast" || speed === "mixed" ? ` (${speed})` : ""}`;
 const num = (v) => (typeof v === "number" && Number.isFinite(v) ? v : 0);
 
 async function rest(path) {
@@ -79,7 +90,7 @@ const all = (
 ).map((r) => ({
   tenant: r.tenant_id,
   at: r.created_at,
-  model: r.model ?? "?",
+  model: lineOf(r.model, r.shape?.speed),
   shape: r.shape ?? null,
   failed: r.failed === true,
 }));
@@ -96,13 +107,16 @@ const usage = (
   .map((r) => r.data ?? {})
   .filter((d) => !d.purpose || d.purpose === "ask");
 
-/** The dollars the window's rounds cost, by model, at list price; null for a model the price list does not hold. */
+/**
+ * The dollars the window's rounds cost, by model and speed (a fast round at fast mode's price), at list price; null for
+ * a model the price list does not hold.
+ */
 const cost = {};
 for (const d of usage) {
-  const p = priceFor(d.model);
-  const m = (cost[d.model ?? "?"] ??= { rounds: 0, dollars: p ? 0 : null });
+  const p = priceFor(d.model, d.speed);
+  const m = (cost[lineOf(d.model, d.speed)] ??= { rounds: 0, dollars: p ? 0 : null });
   m.rounds++;
-  if (p)
+  if (p && m.dollars !== null)
     m.dollars +=
       (num(d.input_tokens) * p.input +
         num(d.output_tokens) * p.output +
@@ -138,11 +152,11 @@ function summarise(group) {
     hop: spread(sh.map((s) => s.hop_ms)),
   };
 }
-const key = (t) => `${t.shape.model} · ${t.shape.surface ?? "none"}`;
+const key = (t) => `${t.model} · ${t.shape.surface ?? "none"}`;
 const groups = {};
 for (const t of turns) (groups[key(t)] ??= []).push(t);
 const byModel = {};
-for (const t of turns) (byModel[t.shape.model] ??= []).push(t);
+for (const t of turns) (byModel[t.model] ??= []).push(t);
 
 const line = (name, s, dollars) =>
   `${name.padEnd(34)} ${String(s.turns).padStart(5)} ${String(s.failed).padStart(4)} ` +

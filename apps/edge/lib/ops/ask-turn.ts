@@ -21,6 +21,12 @@
  * paused, ended or unbilled spends nothing (402 payment_required), and a day that could not be counted holds the turn
  * (503 read_failed). Every round is written to the usage ledger with the model that answered and its dollars.
  *
+ * A request may ask for fast mode (`speed: "fast"`, Ask's default on a model that runs it: ask-model.ts). Fast mode's
+ * own limit refusing it (a 429) is no failure: the port asks the same model again at standard speed, said in the log as
+ * ask_gateway_slowed. The speed the answering request went at is said back in `x-model-speed`, which the turn keeps on
+ * its shape, and the round's usage row and its ledger dollars are at the speed the API says it ran (fast mode's own
+ * price), or the speed asked when the stream says none.
+ *
  * Signed admin token only: the dashboard is the sole caller, exactly as it is for
  * steer and whisper.
  */
@@ -100,12 +106,13 @@ export async function askTurn(auth: Admitted, tIn: number, request: Request): Pr
 
   const t0 = Date.now();
   const gatewayMs = t0 - tIn;
-  const { model: asked, ...rest } = v.request;
+  const { model: asked, betas, ...rest } = v.request;
   // The whole call, the fallback's try included, inside the function's sixty seconds (vercel.json).
   const up = await streamModelCall({
     purpose: modelPurpose,
     model: asked,
     body: rest,
+    ...(betas ? { betas } : {}),
     deadlineMs: MODEL_ROUTES[modelPurpose].timeoutMs,
   });
   if (!up) return refuse(503, "no_model_key");
@@ -127,11 +134,13 @@ export async function askTurn(auth: Admitted, tIn: number, request: Request): Pr
     );
   }
   if (up.fellBack) L.warn("ask_gateway_fell_back", { tenant_id: tenantId, asked: up.asked, model: up.model });
+  if (up.slowed) L.warn("ask_gateway_slowed", { tenant_id: tenantId, model: up.model, purpose });
   // The hop through this edge (the Phase 6 plan, D3): its own time before it asked the model, and the model's time to
   // its headers, said in server-timing so the dashboard can take both from its own wait without comparing clocks.
   const modelMs = Date.now() - t0;
-  const stream = teeUsage(up.body, async (usage, stopReason) => {
+  const stream = teeUsage(up.body, async (said, stopReason) => {
     const latency = Date.now() - t0;
+    const usage = { ...said, speed: said.speed ?? up.speed };
     L.info("ask_gateway_turn", {
       tenant_id: tenantId,
       ...usage,
@@ -167,6 +176,7 @@ export async function askTurn(auth: Admitted, tIn: number, request: Request): Pr
       "cache-control": "no-store",
       "x-accel-buffering": "no",
       "server-timing": `gateway;dur=${gatewayMs}, model;dur=${modelMs}`,
+      "x-model-speed": up.speed,
     },
   });
 }
