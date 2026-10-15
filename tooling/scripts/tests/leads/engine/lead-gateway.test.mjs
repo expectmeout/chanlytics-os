@@ -22,7 +22,7 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../../..");
-const { validateGatewayRequest, GATEWAY_PURPOSES } = await import(
+const { validateGatewayRequest, GATEWAY_PURPOSES, modelPurposeOf } = await import(
   pathToFileURL(path.join(ROOT, "apps/edge/lib/ask-gateway.ts")).href
 );
 const base = { model: "claude-sonnet-5", max_tokens: 600, system: "s", messages: [{ role: "user", content: "hi" }] };
@@ -40,7 +40,7 @@ test("the purposes, and every one may name an output format: the lead purposes a
   // `ask_warm` is a turn's head sent ahead of its question (the dashboard's server/ask/warm.ts): Ask's, counted apart.
   assert.deepEqual(
     [...GATEWAY_PURPOSES],
-    ["ask", "ask_warm", "lead_draft", "lead_suggest", "list_draft", "person_draft", "sequence_draft"],
+    ["ask", "ask_warm", "lead_draft", "lead_suggest", "list_draft", "person_draft", "sequence_draft", "message_draft"],
   );
   const draft = validateGatewayRequest({ ...base, output_config: { effort: "low", format } }, "lead_draft");
   assert.deepEqual(draft.request.output_config, { effort: "low", format });
@@ -68,4 +68,25 @@ test("a format that is not a JSON schema, or is too large, is refused", () => {
   );
   const big = { type: "json_schema", schema: { type: "object", description: "x".repeat(9_000) } };
   assert.equal(validateGatewayRequest({ ...base, output_config: { format: big } }, "lead_draft").ok, false);
+});
+
+test("a skill's craft call (message_draft): Ask's route's model, at high effort, up to the skills' ceiling, in the ledger as a template's words", async () => {
+  const C = await import("@chanlytics/contracts");
+  for (const p of C.SKILL_CRAFT_PURPOSES) assert.ok(GATEWAY_PURPOSES.includes(p), `the edge lets ${p} through`);
+  const craft = validateGatewayRequest(
+    { ...base, model: C.MODEL_ROUTES.ask.model, max_tokens: 20_000, output_config: { effort: "high", format } },
+    "message_draft",
+  );
+  assert.equal(craft.ok, true);
+  assert.equal(craft.request.model, C.MODEL_ROUTES.ask.model, "the writer is the model Ask's route asks");
+  assert.equal(craft.request.max_tokens, C.SKILL_CRAFT_MAX_TOKENS, "its thinking counts toward a ceiling of its own");
+  assert.deepEqual(craft.request.output_config, { effort: "high", format });
+  assert.equal(
+    validateGatewayRequest({ ...base, max_tokens: 20_000 }, "lead_draft").request.max_tokens,
+    2000,
+    "the small drafts keep theirs",
+  );
+  assert.equal(modelPurposeOf("message_draft"), "template_draft", "a purpose the usage ledger's CHECK already holds");
+  assert.ok(C.MODEL_PURPOSES.includes(modelPurposeOf("message_draft")));
+  assert.equal(validateGatewayRequest({ ...base, model: "claude-unknown-9" }, "message_draft").ok, false);
 });

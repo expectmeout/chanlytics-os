@@ -1,9 +1,11 @@
 /**
- * One structured answer from the model, for the three small drafts a person asks for (a lead's message, a search's
- * suggestions, a list's rows), asked of the edge's gateway (ask/gateway.ts streamModel) and read by zod here.
+ * One structured answer from the model, for the small drafts a person asks for (a lead's message, a search's
+ * suggestions, a list's rows) and for a skill's craft call (ask/skills), asked of the edge's gateway (ask/gateway.ts
+ * streamModel) and read by zod here.
  *
  *   - The model is the registry's for these (contracts MODEL_ROUTES.lead_json: JSON_MODEL), never Ask's profile, and the
- *     answer is asked for in its schema at effort "low"; the caller sets a small max_tokens, and the edge clamps it.
+ *     answer is asked for in its schema at effort "low"; the caller sets a small max_tokens, and the edge clamps it. A
+ *     skill's craft call is the exception: it writes words a customer reads, so it asks SKILL_MODEL at its own effort.
  *   - The key stays on the edge, which holds the day's count: the tokens spend Ask's one daily budget (ASK_USAGE_KIND),
  *     under the caller's own limits (the rate buckets, the suggestions' cache), and are written to the usage ledger for
  *     the workspace under the purpose the edge maps (lead_json). No second budget is kept here.
@@ -17,7 +19,14 @@
  */
 import "server-only";
 import type { ZodType } from "zod";
-import { AppError, MIN_MS, MODEL_ROUTES } from "@chanlytics/contracts";
+import {
+  AppError,
+  MIN_MS,
+  MODEL_ROUTES,
+  SKILL_CRAFT_PURPOSES,
+  type ModelEffort,
+  type SkillCraftPurpose,
+} from "@chanlytics/contracts";
 import { GatewayRefused, streamModel, type GatewayCall } from "./ask/gateway";
 
 /**
@@ -28,12 +37,20 @@ import { GatewayRefused, streamModel, type GatewayCall } from "./ask/gateway";
  */
 export const JSON_MODEL = MODEL_ROUTES.lead_json.model;
 /**
- * The model a purpose asks: the ideas for a new search their own route's (lead_suggest, 00398), every other draft
- * JSON_MODEL. An edge that does not know the ideas' model yet refuses it as a bad request; they are asked once more on
- * JSON_MODEL, so either app may deploy first.
+ * A skill's craft call's model: the one Ask's route asks (Opus 5.5), the best writer the platform runs and one the
+ * gateway lets every purpose name, whatever a deployment's ASK_MODEL moves Ask's own turn to.
+ */
+const SKILL_MODEL = MODEL_ROUTES.ask.model;
+const isCraft = (purpose: ModelJsonCall["purpose"]): purpose is SkillCraftPurpose =>
+  (SKILL_CRAFT_PURPOSES as readonly string[]).includes(purpose);
+
+/**
+ * The model a purpose asks: the ideas for a new search their own route's (lead_suggest, 00398), a skill's craft call
+ * SKILL_MODEL, every other draft JSON_MODEL. An edge that does not know the ideas' model yet refuses it as a bad request;
+ * they are asked once more on JSON_MODEL, so either app may deploy first.
  */
 const modelOf = (purpose: ModelJsonCall["purpose"]) =>
-  purpose === "lead_suggest" ? MODEL_ROUTES.lead_suggest.model : JSON_MODEL;
+  purpose === "lead_suggest" ? MODEL_ROUTES.lead_suggest.model : isCraft(purpose) ? SKILL_MODEL : JSON_MODEL;
 const unknownModel = (e: unknown, model: string) =>
   model !== JSON_MODEL &&
   e instanceof GatewayRefused &&
@@ -50,7 +67,9 @@ export function setModelStream(s: typeof streamModel | null): void {
 }
 
 type ModelJsonCall = Omit<GatewayCall, "request" | "purpose"> & {
-  purpose: "lead_draft" | "lead_suggest" | "list_draft" | "person_draft" | "sequence_draft";
+  purpose: "lead_draft" | "lead_suggest" | "list_draft" | "person_draft" | "sequence_draft" | SkillCraftPurpose;
+  /** How hard the model thinks: "low" for the small drafts (unset), a skill's own for its craft call. */
+  effort?: ModelEffort;
   request: Omit<GatewayCall["request"], "output_config" | "model"> & { schema: Record<string, unknown> };
 };
 
@@ -69,7 +88,7 @@ async function answerFrom(
     request: {
       ...request,
       model,
-      output_config: { effort: "low", format: { type: "json_schema", schema: json } },
+      output_config: { effort: call.effort ?? "low", format: { type: "json_schema", schema: json } },
     },
   })) {
     if (ev.type === "text") text += ev.text;

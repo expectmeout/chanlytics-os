@@ -4,6 +4,7 @@ export * from "./ads";
 export * from "./ai";
 export * from "./ask";
 export * from "./ask-proposals";
+export * from "./ask-skills";
 export * from "./broadcasts";
 export * from "./calendar";
 export * from "./config";
