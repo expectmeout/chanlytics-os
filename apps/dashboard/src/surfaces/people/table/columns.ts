@@ -7,10 +7,21 @@ import type { ColCtx, TableColumn } from "../types";
 
 /** A column of any rows: what a scope hands the table. */
 type AnyColumn = TableColumn<never, never>;
-type ColumnLike = Pick<AnyColumn, "key" | "label" | "labelOf" | "sortable" | "pinned" | "fixed" | "on" | "needs">;
+type ColumnLike = Pick<
+  AnyColumn,
+  "key" | "label" | "labelOf" | "sortable" | "pinned" | "fixed" | "on" | "needs" | "csv"
+>;
 
-/** A column with its heading in the workspace's words where it has them (labelOf), else its own. */
-const withHeading = <C extends ColumnLike>(c: C, x: ColCtx): C => (c.labelOf ? { ...c, label: c.labelOf(x) } : c);
+/** A column with its heading, and its file's, in the workspace's words where it has them (labelOf, csv.headOf), else its own. */
+const withHeading = <C extends ColumnLike>(c: C, x: ColCtx): C => {
+  const headOf = c.csv?.headOf;
+  if (!c.labelOf && !headOf) return c;
+  return {
+    ...c,
+    ...(c.labelOf ? { label: c.labelOf(x) } : {}),
+    ...(c.csv && headOf ? { csv: { ...c.csv, head: headOf(x) } } : {}),
+  };
+};
 
 /** Person and the row's actions are not the member's to hide. */
 export const plLocked = (c: ColumnLike): boolean => !!(c.pinned || c.fixed);

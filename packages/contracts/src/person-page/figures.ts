@@ -4,7 +4,7 @@
  * "recorded". A figure with nothing true to say is not drawn, and a thin record draws none.
  */
 import { capitalize, plural } from "../shared/words";
-import type { PersonTab } from "./route";
+import { personTabWord, type PersonTab } from "./route";
 
 /** One figure: its label, its value, the line under it, and where a press goes (a tab, the business sheet, or nowhere). */
 export interface PersonFigureVM {
@@ -29,6 +29,8 @@ export interface PersonFigureFacts {
   calls: { count: number; minutes: string };
   /** Their visits ahead, the past ones a member said they kept, and the ended ones nobody has said of. */
   visits: { ahead: number; kept: number; toMark: number; any: boolean };
+  /** Whether deals are on here: the visits' figure says the workspace's word, as the tab it opens does (personTabWord). */
+  dealsOn: boolean;
   /** A reach-out's emails to their business, and its answers. */
   emails: { out: number; back: number } | null;
 }
@@ -68,7 +70,7 @@ export function personFiguresOf(f: PersonFigureFacts): PersonFigureVM[] {
   if (f.visits.any)
     out.push({
       id: "visits",
-      label: "Visits",
+      label: personTabWord("visits", f.dealsOn),
       value: f.visits.ahead > 0 ? `${f.visits.ahead} ahead` : "None ahead",
       sub:
         f.visits.toMark > 0

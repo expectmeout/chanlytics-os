@@ -406,7 +406,7 @@ export const peopleOverride: SurfaceOverride = {
       },
       {
         tables: ["appointment_notices"],
-        why: "a booking email held for a look is the Calendar's and Settings'; a row's visits are the appointments themselves",
+        why: "a booking email held for a look is the Calendar's and Settings'; a row reads the appointments themselves",
       },
       {
         tables: ["lead_searches", "lead_rounds", "lead_search_members"],

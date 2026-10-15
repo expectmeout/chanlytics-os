@@ -83,6 +83,8 @@ export const READER_SCOPE = [
   // words as its mockup's twin did, is not yet (its surface's lane).
   "apps/dashboard/src/surfaces/campaigns",
   "apps/dashboard/src/surfaces/live",
+  // People and a person's page (15 Oct 2026): the appointment words written in survived here, where nothing read them.
+  "apps/dashboard/src/surfaces/people",
   "apps/dashboard/src/legacy/pages",
   "apps/dashboard/src/legacy/demo/pages",
   "apps/dashboard/src/legacy/components",

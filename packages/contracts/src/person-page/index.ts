@@ -39,6 +39,7 @@ export {
   personRouteOf,
   personTabRoute,
   personTabsOf,
+  personTabWord,
 } from "./route";
 export type { PersonTab, PersonTabFacts, PersonTabVM } from "./route";
 export { personHeadStateOf } from "./head-state";

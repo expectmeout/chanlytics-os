@@ -25,7 +25,7 @@ test.describe("Consent for one person", () => {
     test.skip((await rows.count()) === 0, "this workspace has nobody to open");
     await openPersonPage(page, rows.first());
 
-    // Since #907 the answer in force is a row on the record kit, its control in the Visit messages fold behind it; since
+    // Since #907 the answer in force is a row on the record kit, its control in the Messages fold behind it; since
     // canvas A (#1574) the rows are inside the card's Messages and receptionist fold.
     await openMessagesFold(page);
     await page.getByTestId("rec-row-act-person-visit").click();

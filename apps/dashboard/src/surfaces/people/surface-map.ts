@@ -170,7 +170,7 @@ export function peopleSurfaceOf(
     // The total is the server's: past the first page the rows here are not everyone.
     aggregates: { ...peopleAggregates(rows, now.getTime()), total: loaded.page?.total ?? rows.length },
 
-    attention: Object.fromEntries(rows.map((r) => [r.id, attentionRow(r, tz, now.getTime())])),
+    attention: Object.fromEntries(rows.map((r) => [r.id, attentionRow(r, tz, now.getTime(), dealsOn)])),
     page: loaded.page,
     views: loaded.views,
     viewsRead: loaded.viewsRead,
