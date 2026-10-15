@@ -61,19 +61,6 @@ jobs:
           echo "SUPABASE_URL=http://127.0.0.1:54321" >> "$GITHUB_ENV"
           echo "SUPABASE_SERVICE_ROLE_KEY=$(supabase status -o env | sed -n 's/^SERVICE_ROLE_KEY="\(.*\)"$/\1/p')" >> "$GITHUB_ENV"
           echo "SUPABASE_ANON_KEY=$(supabase status -o env | sed -n 's/^ANON_KEY="\(.*\)"$/\1/p')" >> "$GITHUB_ENV"
-      # TEMPORARY (PR #1617): plans of the slow statements, reverted before merge.
-      - name: Diagnose slow statements
-        run: |
-          nproc; free -m
-          docker exec supabase_db_chanlytics-messaging psql -U supabase_admin -d postgres -v ON_ERROR_STOP=1 -c "show jit" -c "show server_version" -c "select rolname, rolconfig from pg_roles where rolname in ('authenticator','service_role')" -c "alter role authenticator set session_preload_libraries to 'supautils', 'safeupdate', 'auto_explain'" -c "alter role authenticator set auto_explain.log_min_duration = '2s'" -c "alter role authenticator set auto_explain.log_analyze = on" -c "alter role authenticator set auto_explain.log_triggers = on" -c "alter role authenticator set auto_explain.log_nested_statements = on" -c "alter role authenticator set auto_explain.log_settings = on"
-          docker restart supabase_rest_chanlytics-messaging
-          sleep 5
-          (while true; do docker exec supabase_db_chanlytics-messaging psql -U supabase_admin -d postgres -At -c "select now()::time, pid, state, wait_event_type, wait_event, now()-query_start, left(query, 160) from pg_stat_activity where state = 'active' and pid <> pg_backend_pid() and now()-query_start > interval '3 seconds'" >> /tmp/activity.log 2>&1; sleep 2; done) &
       - run: pnpm test:db
-      - if: always()
-        name: Print slow statements
-        run: |
-          echo "=== activity ==="; cat /tmp/activity.log || true
-          echo "=== plans ==="; docker logs supabase_db_chanlytics-messaging 2>&1 | grep -v "^\s*$" | grep -A 80 "duration: " | head -c 400000 || true
       - if: always()
         run: supabase stop --no-backup
