@@ -327,8 +327,11 @@ test("the first run asks for the receptionist through its route: written, nothin
   assert.deepEqual(await setupVerbs.receptionist(), { ok: false, wrote: false, message: "Only an owner can do this." });
   wire.receptionist = null;
   const { AFTER } = await import("../../../../apps/dashboard/src/legacy-bridge/refresh-map.ts");
+  // All of a save's re-reads but the workspace's: a save may rename the business (00439), the first receptionist does not.
   assert.deepEqual(
     AFTER["POST settings/receptionist"]().map((o) => o.key),
-    AFTER["PUT settings"]().map((o) => o.key),
+    AFTER["PUT settings"]()
+      .map((o) => o.key)
+      .filter((key) => key !== "workspace"),
   );
 });
