@@ -12,7 +12,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import ts from "typescript";
 import { generate, OUT, PAGE_ONLY } from "../../gen/contracts-browser-entry.mjs";
 
@@ -126,6 +126,7 @@ test("a page-only module's names are in no page's entry, and in its own", () => 
     "ads/drawer-edit.ts",
     "ads/new-ad.ts",
     "ads/new-ad-parts.ts",
+    "ask-proposals/proposals.ts",
   ]);
   for (const name of [
     "metricWordsOf",
@@ -145,6 +146,16 @@ test("a page-only module's names are in no page's entry, and in its own", () => 
     assert.ok(!current.names.includes(name), `${name} is the Ads page's, by its own entry`);
   for (const name of ["addDays", "daysBetween", "parseAds", "adRoute", "ADS_WORDS"])
     assert.ok(current.names.includes(name), `${name} stays in the root entry for the frame's routes`);
+  // Ask's cards: the whole table is the server's; a page carries the verbs it presses and their readings, and the cards
+  // only Ask proposes come by their own entry, which Ask's bridge loads.
+  for (const name of ["PROPOSAL_SPECS", "ASK_SENDS", "proposalBelowNeeds"])
+    assert.ok(!current.names.includes(name), `${name} is the server's`);
+  for (const name of ["proposalSpec", "verbSpec", "PROPOSAL_GATE", "askUndoOpen", "cardOpenRoute", "addProposalSpecs"])
+    assert.ok(current.names.includes(name), `${name} stays in the root entry for the pages' verbs`);
+  const askOnly = fs.readFileSync(path.join(ROOT, "packages/contracts/dist/ask-only.js"), "utf8");
+  assert.match(askOnly, /ASK_ONLY_SPECS/);
+  const browser = fs.readFileSync(path.join(ROOT, "packages/contracts/dist/browser.js"), "utf8");
+  assert.doesNotMatch(browser, /leadsBulkSpec|reviewReplySpec|followUpSpec/, "Ask's own cards are in no page's entry");
   const ads = fs.readFileSync(path.join(ROOT, "packages/contracts/dist/ads-page.js"), "utf8");
   assert.match(ads, /adsModel/);
   assert.match(ads, /newAdModel/);
@@ -177,6 +188,11 @@ test("a page-only module's names are in no page's entry, and in its own", () => 
     types: "./dist/ads-page.d.ts",
     import: "./dist/ads-page.js",
     default: "./dist/ads-page.js",
+  });
+  assert.deepEqual(pkg.exports["./ask-only"], {
+    types: "./dist/ask-only.d.ts",
+    import: "./dist/ask-only.js",
+    default: "./dist/ask-only.js",
   });
 });
 
@@ -214,8 +230,28 @@ test("every page-only path names a file, since one that names none would filter 
     assert.ok(all.names.includes(name), `${name} is in the entry when nothing is page-only`);
 });
 
+test("a page reads the verbs it presses at once, and the kinds only Ask's cards commit once their entry is loaded", async () => {
+  // The built files a page's bundle and Ask's bridge load (legacy-bridge/verbs moreSpecs), run as the browser runs them.
+  const dist = (f) => import(pathToFileURL(path.join(ROOT, "packages/contracts/dist", f)).href);
+  const page = await dist("browser.js");
+  assert.ok(page.proposalSpec("answer") && page.proposalSpec("sequence_step"), "a page's verbs are in from the start");
+  assert.equal(page.proposalSpec("reply"), null);
+  assert.equal(page.PROPOSAL_GATE.lead_mark, undefined);
+  assert.equal(page.cardOpenRoute({ kind: "lead_stage", payload: { lead_id: "l1" } }), null);
+  const { ASK_ONLY_SPECS } = await dist("ask-only.js");
+  for (const kind of Object.keys(ASK_ONLY_SPECS)) assert.equal(page.proposalSpec(kind), null, `${kind} is Ask's alone`);
+  page.addProposalSpecs(ASK_ONLY_SPECS);
+  assert.ok(page.proposalSpec("reply") && page.verbSpec("follow_up"));
+  // Each reading takes them in: the gate (the same object window.PROPOSAL_GATE holds), the Open, and the undo's window.
+  assert.equal(page.PROPOSAL_GATE.lead_mark, "find");
+  assert.equal(page.cardOpenRoute({ kind: "thread_verb", payload: { conversation_id: "c1" } }), "inbox/th-c1");
+  assert.equal(page.cardOpenRoute({ kind: "gone_kind", payload: { conversation_id: "c1" } }), "inbox/th-c1");
+  const at = Date.parse("2026-10-15T12:00:00Z");
+  assert.equal(page.askUndoOpen("reply", { cancelable_until: "2026-10-15T12:00:05Z" }, at, at + 10_000, null), false);
+});
+
 test("the page-only entry reaches no classic zod", () => {
-  for (const entry of ["report-lens", "ads-page"]) {
+  for (const entry of ["report-lens", "ads-page", "ask-only"]) {
     const built = fs.readFileSync(path.join(ROOT, `packages/contracts/dist/${entry}.js`), "utf8");
     const specs = [...built.matchAll(/^import\b[^"']*["']([^"']+)["']/gm)].map((m) => m[1]);
     assert.deepEqual(

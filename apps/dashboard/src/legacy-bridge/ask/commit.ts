@@ -34,7 +34,6 @@ import {
   askCardLapsed,
   planMadeOf,
   planWaits,
-  proposalSpec,
   resolveSteps,
   type AskPlanStamp,
   type AskProposal,
@@ -44,7 +43,7 @@ import {
 } from "@chanlytics/contracts";
 import type { Api } from "../../client/api";
 import { apiFor } from "../api";
-import { isRefusal, saidHere, undoVerb, walkVerb } from "../verbs/commit";
+import { isRefusal, saidHere, specOf, undoVerb, walkVerb } from "../verbs/commit";
 import { goToRoute } from "../workspace";
 
 /** What a commit did: its receipt, what its undo keeps, and the id it made that a later step of a plan names, or null. */
@@ -101,8 +100,7 @@ export async function commitProposal(
   client: Api = apiFor(win),
   at: CommitAt = {},
 ): Promise<CommitResult> {
-  const spec = proposalSpec(p.kind);
-  if (!spec) return { ok: false, message: PROPOSAL_WORDS.cannotApprove };
+  if (!(await specOf(p.kind)).spec) return { ok: false, message: PROPOSAL_WORDS.cannotApprove };
   // A card is approved while it is fresh: past a day (a plan's, a week) nothing is sent, and it is asked for again.
   if (askCardLapsed(p, at.nowMs ?? Date.now()))
     return { ok: false, message: p.plan ? PROPOSAL_WORDS.planLapsed : PROPOSAL_WORDS.lapsed };
@@ -207,7 +205,7 @@ export async function undoProposal(
   client: Api = apiFor(win),
 ): Promise<UndoResult> {
   const record = (outcome.undo ?? null) as Record<string, unknown> | null;
-  if (!record || !proposalSpec(p.kind)?.undo) return { ok: false, message: PROPOSAL_WORDS.noUndo };
+  if (!record || !(await specOf(p.kind)).spec?.undo) return { ok: false, message: PROPOSAL_WORDS.noUndo };
   // The verb walk's undo, marked as a card's, under the card's own key: the row it reverses is named by the commit's
   // ledger row (`decision_id`), and a call whose row an earlier press took counts as done (verbs/commit.ts).
   const r = await undoVerb(p.kind, record, { win, client, key: p.id, via: "ask" });

@@ -12,7 +12,11 @@ export interface GatewayBlockStart {
     | { type: "text" }
     | { type: "tool_use"; id: string; name: string }
     | { type: "thinking" }
-    | { type: "redacted_thinking"; data: string };
+    | { type: "redacted_thinking"; data: string }
+    // Tool search (the operator, D11): the API's own call of its search tool, and what it found, both handed back
+    // unchanged on the next request; neither is a call of ours to run.
+    | { type: "server_tool_use"; id: string; name: string }
+    | { type: "tool_search_tool_result"; toolUseId: string; content: unknown };
 }
 export interface GatewayTextDelta {
   type: "text";
@@ -105,7 +109,7 @@ export function featureRejected(message: string): boolean {
 interface RawEvent {
   type: string;
   index?: number;
-  content_block?: { type: string; id?: string; name?: string; data?: string };
+  content_block?: { type: string; id?: string; name?: string; data?: string; tool_use_id?: string; content?: unknown };
   delta?: {
     type?: string;
     text?: string;
@@ -141,6 +145,28 @@ function cacheMissOf(diagnostics: unknown): string | null {
 }
 
 /** One SSE frame → one event, or nothing for pings and the frames the loop does not use. */
+/** A block as its start names it; anything else is text. */
+function blockOf(b: NonNullable<RawEvent["content_block"]>): GatewayBlockStart["block"] {
+  switch (b.type) {
+    case "tool_use":
+      return { type: "tool_use", id: b.id ?? "", name: b.name ?? "" };
+    // Thinking is its own kind: a model that always thinks (Opus 5.5) must
+    // be handed it back unmodified, which a block read as text cannot be.
+    case "thinking":
+      return { type: "thinking" };
+    case "redacted_thinking":
+      return { type: "redacted_thinking", data: b.data ?? "" };
+    // Tool search's own blocks: the search call (its input streams as JSON, as a tool call's does), and what it found,
+    // which arrives whole in the block's start.
+    case "server_tool_use":
+      return { type: "server_tool_use", id: b.id ?? "", name: b.name ?? "" };
+    case "tool_search_tool_result":
+      return { type: "tool_search_tool_result", toolUseId: b.tool_use_id ?? "", content: b.content ?? null };
+    default:
+      return { type: "text" };
+  }
+}
+
 export function parseFrame(frame: string): GatewayEvent | null {
   let data = "";
   for (const line of frame.split("\n")) {
@@ -157,18 +183,7 @@ export function parseFrame(frame: string): GatewayEvent | null {
     case "content_block_start": {
       const b = ev.content_block;
       if (!b || typeof ev.index !== "number") return null;
-      if (b.type === "tool_use")
-        return {
-          type: "block_start",
-          index: ev.index,
-          block: { type: "tool_use", id: b.id ?? "", name: b.name ?? "" },
-        };
-      // Thinking is its own kind: a model that always thinks (Opus 5.5) must
-      // be handed it back unmodified, which a block read as text cannot be.
-      if (b.type === "thinking") return { type: "block_start", index: ev.index, block: { type: "thinking" } };
-      if (b.type === "redacted_thinking")
-        return { type: "block_start", index: ev.index, block: { type: "redacted_thinking", data: b.data ?? "" } };
-      return { type: "block_start", index: ev.index, block: { type: "text" } };
+      return { type: "block_start", index: ev.index, block: blockOf(b) };
     }
     case "content_block_delta": {
       if (typeof ev.index !== "number" || !ev.delta) return null;

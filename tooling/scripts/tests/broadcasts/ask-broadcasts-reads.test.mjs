@@ -145,7 +145,7 @@ const ctxFor = (t = tables()) => ({ supabase: fakeDb(t, {}, {}), userId: USER, e
 const rcIn = () => readerContext(ctxFor(), { tenantId: A, role: "viewer" }, NOW);
 const ask = async (input, role = "viewer") => {
   const tc = newToolContext(ctxFor(), A, role, TZ, NOW);
-  const out = await runTool(tc, { name: "campaigns", input });
+  const out = await runTool(tc, { name: "sequences", input });
   return { out: JSON.parse(out.result), isError: out.isError, tc };
 };
 
@@ -176,7 +176,7 @@ const rowOf = (b) => {
 };
 
 test("campaigns.broadcasts answers the Broadcasts page's rows over its reader, each as toBroadcastVM says it: a playbook's run waiting for a person said as such (Waiting on you, waiting_on_you), a failed one with why; whether older ones exist; each broadcast a row in the read set, opened at its run", async () => {
-  const { out, isError, tc } = await ask({ action: "broadcasts" });
+  const { out, isError, tc } = await ask({ action: "sent" });
   assert.equal(isError, false, JSON.stringify(out));
   const page = await load(rcIn(), broadcastsReader, undefined);
   assert.deepEqual(out, { route: "broadcasts", broadcasts: page.data.broadcasts.map(rowOf), older: page.data.more });
@@ -191,7 +191,7 @@ test("campaigns.broadcasts answers the Broadcasts page's rows over its reader, e
   assert.deepEqual([both.sent_by_channel, both.read], ["1 on WhatsApp, 1 by text", "100%"]);
   // Who sent it, in the words the description reads it in; delivered is a share of what was sent, read of what went by
   // WhatsApp (0030), the one channel that keeps read receipts.
-  const words = READ_DEFS.find((d) => d.name === "campaigns").actions.broadcasts.words;
+  const words = READ_DEFS.find((d) => d.name === "sequences").actions.sent.words;
   assert.equal(out.broadcasts.find((b) => b.broadcast_id === BC1).by, "a person");
   assert.ok(words.includes("whether a campaign or a person sent it"), words);
   assert.ok(words.includes("the share of those delivered, the share of those sent by WhatsApp that were read"), words);
@@ -200,7 +200,7 @@ test("campaigns.broadcasts answers the Broadcasts page's rows over its reader, e
 });
 
 test("campaigns.broadcast answers one run as its opened page draws it over the same reader: its row, the five figures, the people it touched in the page's words and what came back, by the business's clock; the run and each person said in the read set; the recipients' number field left out (everyone here has a name); one another workspace holds, or not an id, is said in words", async () => {
-  const { out, isError, tc } = await ask({ action: "broadcast", broadcast_id: BC1 });
+  const { out, isError, tc } = await ask({ action: "batch", broadcast_id: BC1 });
   assert.equal(isError, false, JSON.stringify(out));
   const d = (await load(rcIn(), broadcastReader, { id: BC1 })).data;
   const nowMs = NOW.getTime();
@@ -233,11 +233,11 @@ test("campaigns.broadcast answers one run as its opened page draws it over the s
   assert.ok(!JSON.stringify(out).includes("555"), "no number field: the page's name, and the id");
   assert.deepEqual(tc.read.broadcast.get(BC1).route, `broadcasts/run:${BC1}`);
   assert.deepEqual(tc.read.person.get(P1), { kind: "person", id: P1, route: `clients/${P1}`, label: "Ana Ruiz" });
-  const other = await ask({ action: "broadcast", broadcast_id: BCB });
+  const other = await ask({ action: "batch", broadcast_id: BCB });
   assert.deepEqual([other.isError, other.out.error], [true, "no such broadcast in this workspace"]);
-  const typo = await ask({ action: "broadcast", broadcast_id: "nope" });
+  const typo = await ask({ action: "batch", broadcast_id: "nope" });
   assert.deepEqual(
     [typo.isError, typo.out.error],
-    [true, "broadcast_id must be an id campaigns with action broadcasts returned"],
+    [true, "broadcast_id must be an id sequences with action sent returned"],
   );
 });

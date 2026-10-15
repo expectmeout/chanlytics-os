@@ -4,6 +4,7 @@ import {
   AppError,
   LEAD_CARDS,
   LEAD_LIST_MAX,
+  LeadSearchPlanSchema,
   addressOf,
   ProposeAnySearchSchema,
   peopleEstimateUsd,
@@ -18,14 +19,15 @@ import {
   type ReachOutAddDto,
 } from "@chanlytics/contracts";
 import { leadCardsLive, reachOutRootOf } from "@chanlytics/db";
-import { addToReachOut } from "../../../leads/lead-workbench";
-import { answerPlanOf, planFacts, searchRow, waitingQuestionOf, type SearchViewRow } from "../../../leads/leads";
-import { requireUuid } from "../../../request-guards";
+import { addToReachOut } from "../../../../leads/lead-workbench";
+import { answerPlanOf, planFacts, searchRow, waitingQuestionOf, type SearchViewRow } from "../../../../leads/leads";
+import { refuseList } from "../../../../leads/lead-lists";
+import { requireUuid } from "../../../../request-guards";
 import {
   UUID,
   actAction,
   approvalWords,
-  defineAct,
+  defineActions,
   noteRow,
   offeredTo,
   propose,
@@ -34,7 +36,7 @@ import {
   type ActDef,
   type ProposalOutcome,
   type ToolContext,
-} from "../context";
+} from "../../context";
 
 /**
  * The ask as the model writes it, field by field, in the flat shape it is shown. The plan's own schema
@@ -221,11 +223,12 @@ async function proposeLeadSearch(t: ToolContext, input: LeadSearchAskInput): Pro
 }
 
 /** propose_lead_search's description, said whole: it takes no action. */
-const LEAD_SEARCH_DESCRIPTION = `Propose a search for businesses in the US the owner could reach, as a plan card they approve; nothing is searched or spent before that. For named people at companies (marketing managers at agencies), looking_for is people_at_companies: terms their titles (one to five), region their US states or US, who a name for it, count how many companies, and when said seniority (owner, founder, c_suite, partner, vp, head, director, manager, senior, entry), industries (the directory's own names, as Marketing & Advertising, Accounting, Construction, Real Estate; a name it lacks comes back with the nearest) and company_sizes (1 - 10, 11 - 50, 51 - 200, 201 - 500, 501 - 1000, 1001 - 5000, 5001 - 10000, 10001+); nothing else is read. The plan: what kind (who, plural, and who_one, one of them, with category_key as one lowercase word), how many (count: 50, 100, 200 or 500 unless they said a number), where (city with its two-letter region, a zip, or a region alone), the contact standard (contact: phone, or email checked), up to three terms (widest first), the criteria each with whether it is seen or likely and whether it is required, who to leave_out (chains, other kinds; short chips in plain words), looking_for (local_businesses, or people, online_sellers or other when that is what was asked: those are answered in words, not searched), and asked, the owner's words. seen is only for what a listing shows (a rating or review count, a website, an email, a phone that matches the site, open or closed) and is judged from those facts alone; what a business is or does (its kind, who owns it, what it serves or sells, who it treats) is likely, never seen, because a listing's name and category do not count as seeing it, and the kind of business itself is checked on every search without being written as a criterion. Read leads with action searches first, so a plan is not repeated: one plan, never a search. amends is the id of a search that stopped to ask (leads with action searches shows its question) when the plan is that search with the owner's answer applied and everything else kept as it was; the card then answers that search instead of starting a new one. Say the plan in one sentence; never promise how many will be found, and never say a search has started until the card is approved. ${approvalWords("lead_search")}.`;
+const LEAD_SEARCH_DESCRIPTION = `Action find proposes a search for businesses in the US the owner could reach, as a plan card they approve; nothing is searched or spent before that. For named people at companies (marketing managers at agencies), looking_for is people_at_companies: terms their titles (one to five), region their US states or US, who a name for it, count how many companies, and when said seniority (owner, founder, c_suite, partner, vp, head, director, manager, senior, entry), industries (the directory's own names, as Marketing & Advertising, Accounting, Construction, Real Estate; a name it lacks comes back with the nearest) and company_sizes (1 - 10, 11 - 50, 51 - 200, 201 - 500, 501 - 1000, 1001 - 5000, 5001 - 10000, 10001+); nothing else is read. The plan: what kind (who, plural, and who_one, one of them, with category_key as one lowercase word), how many (count: 50, 100, 200 or 500 unless they said a number), where (city with its two-letter region, a zip, or a region alone), the contact standard (contact: phone, or email checked), up to three terms (widest first), the criteria each with whether it is seen or likely and whether it is required, who to leave_out (chains, other kinds; short chips in plain words), looking_for (local_businesses, or people, online_sellers or other when that is what was asked: those are answered in words, not searched), and asked, the owner's words. seen is only for what a listing shows (a rating or review count, a website, an email, a phone that matches the site, open or closed) and is judged from those facts alone; what a business is or does (its kind, who owns it, what it serves or sells, who it treats) is likely, never seen, because a listing's name and category do not count as seeing it, and the kind of business itself is checked on every search without being written as a criterion. Read leads with action searches first, so a plan is not repeated: one plan, never a search. amends is the id of a search that stopped to ask (leads with action searches shows its question) when the plan is that search with the owner's answer applied and everything else kept as it was; the card then answers that search instead of starting a new one. Say the plan in one sentence; never promise how many will be found, and never say a search has started until the card is approved. ${approvalWords("lead_search")}.`;
 
 /** A search's plan as a card, propose_lead_search's one definition: named here so its builder asks its own role. */
 const leadSearchAct: ActDef<typeof LeadSearchAsk> = {
   kind: "lead_search",
+  makes: ["people_search"],
   input: LeadSearchAsk,
   // A new plan, and the same plan answering the search that asked (amends): the owner's answer applied, the rest kept.
   examples: [
@@ -271,10 +274,66 @@ const leadSearchAct: ActDef<typeof LeadSearchAsk> = {
   build: proposeLeadSearch,
 };
 
-export const propose_lead_search = defineAct({
+/**
+ * A search's new round (POST lead-searches/:id/more): more of the same businesses (a top-up), or the same search found
+ * again from the start (renew), at the count asked, on the plan the search was made with. A list of the workspace's own
+ * is never searched again (the door's own refusal, in its words). It spends, so it is the owner's or a partner's.
+ */
+async function proposeMore(
+  t: ToolContext,
+  input: { search_id: string; count: number; renew?: boolean },
+): Promise<ProposalOutcome> {
+  if (!offeredTo(moreAct, t.role)) return refuse(proposalBelowNeeds("lead_search_more"));
+  let row: SearchViewRow;
+  try {
+    row = await searchRow(t.ctx, t.tenantId, requireUuid(str(input.search_id, 40), "search"));
+    refuseList(row);
+  } catch (e) {
+    if (e instanceof AppError) return refuse(e.message);
+    throw e;
+  }
+  const count = Math.round(Number(input.count));
+  const plan = LeadSearchPlanSchema.safeParse({ ...(row.plan as object), count });
+  if (!plan.success)
+    return refuse(
+      `that search cannot take a new round as it is: ${plan.error.issues[0]?.path.join(".")} ${plan.error.issues[0]?.message}`,
+    );
+  const facts = await planFacts(t.ctx, t.tenantId, { now: t.now });
+  const name = row.name ?? "The search";
+  noteRow(t, "search", row.id, name, `clients/leads:s-${row.id}`);
+  return propose({
+    kind: "lead_search_more",
+    title: `${name}: ${input.renew ? "search again" : `${count} more`}`,
+    summary: `${input.renew ? "The same search, found again from the start" : `Up to ${count} more of the same`}. Uses up to ${count} of your ${facts.leadsLeft} leads left this month.`,
+    payload: { search_id: row.id, name, purpose: input.renew ? "renew" : "topup", plan: plan.data },
+  });
+}
+
+const moreAct = actAction({
+  kind: "lead_search_more",
+  input: z.object({
+    search_id: z.string().describe("The search, from leads with action searches."),
+    count: z.number().int().describe("How many more to find: 50, 100, 200 or 500 unless they said a number."),
+    renew: z.boolean().optional().describe("true to find the same search again from the start, not more of it."),
+  }),
+  examples: [{ search_id: "9c2e4b6d-1f3a-4e5c-8b7d-0a1c2e3f4b5d", count: 100 }],
+  label: "Planning more leads",
+  words: `Action more finds more for a search that ended (a top-up), or the same search again (renew), on the plan it was made with. ${approvalWords("lead_search_more")}.`,
+  build: proposeMore,
+});
+
+/**
+ * Finding leads (D11, the operator, 15 Oct 2026): a new search planned as a card, or the answer to one that stopped to
+ * ask (find, the one definition before), and a search's new round (more).
+ */
+export const propose_lead_search = defineActions({
   name: "propose_lead_search",
-  description: LEAD_SEARCH_DESCRIPTION,
-  ...leadSearchAct,
+  description:
+    "Propose finding leads, as a plan card the owner or a partner approves; nothing is searched or spent before that: a new search for businesses or for named people at companies in the US, the owner's answer to a search that stopped to ask, or more for a search that ended.",
+  actions: {
+    find: actAction({ ...leadSearchAct, words: LEAD_SEARCH_DESCRIPTION }),
+    more: moreAct,
+  },
 });
 
 /* ------------------------------------------------------------- adding leads to a reach-out (00426) -- */
@@ -312,7 +371,7 @@ async function proposeReachOutAdd(
   });
 }
 
-/** Leads added to a reach-out fed by a list: an action of propose_campaign (the cap is twenty tools a role). */
+/** Leads added to a reach-out fed by a list: an action of propose_sequence (the cap is twenty tools a role). */
 export const reachOutAddAction = actAction({
   kind: "reach_out_add",
   input: z.object({ root_id: z.string(), lead_ids: z.array(z.string()).min(1).max(LEAD_LIST_MAX) }),

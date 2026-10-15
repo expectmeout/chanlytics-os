@@ -16,8 +16,11 @@ import {
   toLeadRowVM,
   type LeadRowVM,
   type LeadSearchDto,
+  leadNamedPeople,
 } from "@chanlytics/contracts";
 import { leadTimelineOf } from "../../../campaigns/reach-out-leads";
+import { suggestionsKept } from "../../../leads/lead-suggestions";
+import { backTodayOf } from "../../../leads/lead-workbench";
 import { toSearchDto, waitingQuestionOf } from "../../../leads/leads";
 import { load } from "../../../readers";
 import { lead as leadReader, leadPeople, leads as leadsReader } from "../../../readers/leads";
@@ -247,6 +250,13 @@ async function getLead(t: ToolContext, input: { lead_id: string; search_id?: str
             standing: reachOutStandingOf(story, t.now.getTime(), t.timezone)?.line ?? null,
           }
         : null,
+    // The people the company's source named (a people search's), one of whom its email goes to: propose_leads with action
+    // addressee chooses another by name.
+    named_people: leadNamedPeople(r.facts).map((p) => ({
+      name: p.name,
+      title: p.title,
+      ...(p.addressee ? { its_email_goes_to_them: true } : {}),
+    })),
     // The people at the business, each a person People holds; null where they could not be read, never "nobody".
     people: people
       ? people.data.map((p) => ({
@@ -256,6 +266,37 @@ async function getLead(t: ToolContext, input: { lead_id: string; search_id?: str
           needs_you: p.needs_you,
         }))
       : null,
+  };
+}
+
+/**
+ * The ideas for a new search as Leads' finder keeps them (§8.9, GET lead-suggestions' own read): what each finds and
+ * where, why this one, and the same search as Ask is asked for it. It writes nothing and asks no model.
+ */
+async function readIdeas(t: ToolContext): Promise<unknown> {
+  const kept = await suggestionsKept(t.ctx, t.tenantId);
+  return {
+    route: "clients/leads",
+    business_line: kept.business_line,
+    ideas: kept.items.map((i) => ({ finds: i.words, why: i.who_for, kind: i.category_key, ask: i.ask ?? null })),
+    ...(kept.note ? { note: kept.note } : {}),
+  };
+}
+
+/**
+ * Leads' Back today (00426, GET leads/back's own read): who asked to hear back on a day that has come, still not closed,
+ * booked, stopped or won. Nothing writes to them by itself: the owner writes by hand, or Ask proposes a first message.
+ */
+async function readBackToday(t: ToolContext): Promise<unknown> {
+  const back = await backTodayOf(t.ctx, t.tenantId);
+  return {
+    route: "clients/leads",
+    back_today: back.leads.map((l) => ({
+      lead_id: l.lead_id,
+      business: l.business_name,
+      asked_for: l.resume_at,
+      contact_id: l.contact_id,
+    })),
   };
 }
 
@@ -291,7 +332,8 @@ async function getLeadSearch(t: ToolContext, input: { search_id: string }): Prom
  */
 export const leadsTool = defineActions({
   name: "leads",
-  description: "The lead finder, as the Leads page reads it, by action.",
+  description:
+    "The lead finder and the leads it found, as the Leads page reads it, by action: the searches, the leads in a view, one lead and the people it names, one search, ideas for a new search, and Back today.",
   tail: "Nothing here starts or changes because it was read, and every string is cut short.",
   actions: {
     searches: readAction({
@@ -299,7 +341,7 @@ export const leadsTool = defineActions({
       examples: [{}],
       label: "Reading your searches",
       words:
-        "Action searches takes nothing more and reads the workspace's lead searches, newest first, as the Leads page lists them: what was asked in the owner's words and when, its state or ending in words, how many qualified, need review and were counted, and, for a search that stopped to ask, its question; beside them, the rail's six counts of leads. Read it before proposing a search, so a plan is not repeated, and to answer about a search the person names. A search with a question is waiting for the owner's answer: words that answer it are propose_lead_search with amends set to that search's id, the same plan with the answer applied; to carry on unchanged or stop it, the owner presses Yes, keep going or Stop here on Leads.",
+        "Action searches takes nothing more and reads the workspace's lead searches, newest first, as the Leads page lists them: what was asked in the owner's words and when, its state or ending in words, how many qualified, need review and were counted, and, for a search that stopped to ask, its question; beside them, the rail's six counts of leads. Read it before proposing a search, so a plan is not repeated, and to answer about a search the person names. A search with a question is waiting for the owner's answer: words that answer it are propose_lead_search with action find and amends set to that search's id, the same plan with the answer applied; to carry on unchanged or stop it, the owner presses Yes, keep going or Stop here on Leads.",
       run: listLeadSearches,
     }),
     leads: readAction({
@@ -324,6 +366,22 @@ export const leadsTool = defineActions({
       words:
         "Action lead takes lead_id, the id action leads returned, and an optional search_id to read it as that search found it, and reads one lead as its peek on Leads shows it: its row, what its listing says about it, where it is and whether it is open today, its rating, why it fits, the checks made, where it was found, its phone, email and website. Call it when one lead's details are needed; a lead the workspace does not hold is an error, said in words.",
       run: getLead,
+    }),
+    ideas: readAction({
+      input: z.object({}),
+      examples: [{}],
+      label: "Reading the search ideas",
+      words:
+        "Action ideas reads the ideas for a new search Leads keeps for this business: what each finds and where, why this one, and the same search as you would be asked for it. Call it when they ask what to look for, before planning a search.",
+      run: readIdeas,
+    }),
+    back: readAction({
+      input: z.object({}),
+      examples: [{}],
+      label: "Reading Back today",
+      words:
+        "Action back reads Back today: the leads who asked to hear from the business on a day that has come, each with its lead_id, the business, the day and its person where it has one. Nothing writes to them by itself.",
+      run: readBackToday,
     }),
     search: readAction({
       input: z.object({ search_id: z.string() }),

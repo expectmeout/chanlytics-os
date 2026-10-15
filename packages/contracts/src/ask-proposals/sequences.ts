@@ -1,6 +1,6 @@
 /**
  * The Sequences page's own verbs (decision 0060, 00442's doors), committed through the one walk every sheet and card
- * goes through (the sheets as verbs, VERB_SPECS): a customer's step after the first added or changed, taken away, given
+ * goes through (the sheets as verbs, PROPOSAL_SPECS): a customer's step after the first added or changed, taken away, given
  * new words, people taken out, an email the check held decided and one handed to its owner said of, and a sequence made
  * from its draft or a draft let go. Each says the same receipt and
  * offers the same undo whichever hand pressed it. A sequence's state and a batch's approval are the campaign's and the run's own verbs (`playbook_change`, `run`).
