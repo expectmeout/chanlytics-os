@@ -223,10 +223,7 @@ async function proposeAnswer(
 }
 
 /** Someone added to People by hand (POST contacts): a number, an address or both, and a name; nobody is messaged. */
-async function proposeAdd(
-  _t: ToolContext,
-  input: { phone?: string; email?: string; name?: string },
-): Promise<ProposalOutcome> {
+function proposeAdd(_t: ToolContext, input: { phone?: string; email?: string; name?: string }): ProposalOutcome {
   const phoneTyped = input.phone?.trim();
   const emailTyped = input.email?.trim();
   if (!phoneTyped && !emailTyped) return refuse("add takes a phone, an email or both");
@@ -407,7 +404,7 @@ export const propose_person = defineActions({
       label: "Preparing a new person",
       words:
         "Action add puts someone in People by hand: a phone, an email or both, and a name. Nobody is messaged by adding them and their answers start as not asked; a number or address already in People opens that person instead.",
-      build: proposeAdd,
+      build: (t, input) => Promise.resolve(proposeAdd(t, input)),
     }),
     merge: mergeAction,
     message: actAction({

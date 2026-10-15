@@ -20602,7 +20602,7 @@ function followUpOf(v) {
   const prompt = text(r2.prompt, FOLLOW_UP_PROMPT_MAX);
   if (!id || !said || !prompt || !isWake(r2.wake)) return null;
   const subject = text(r2.subject, 40) || null;
-  const on = /^\d{4}-\d{2}-\d{2}$/.test(String(r2.on ?? "")) ? String(r2.on) : null;
+  const on = typeof r2.on === "string" && /^\d{4}-\d{2}-\d{2}$/.test(r2.on) ? r2.on : null;
   if (r2.wake === "date" ? !on : !subject) return null;
   return { id, said, prompt, wake: r2.wake, subject, on, made_at: text(r2.made_at, 40) };
 }

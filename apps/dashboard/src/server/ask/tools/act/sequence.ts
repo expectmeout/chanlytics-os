@@ -148,7 +148,7 @@ async function proposeMake(
       `step ${i + 2} ${after(s.after_days)}: ${msg.name}${s.only_if?.length ? ` (only if ${s.only_if.join(" and ").replace(/_/g, " ")})` : ""}`,
     );
   }
-  const name = String(card.payload.name ?? "");
+  const name = typeof card.payload.name === "string" ? card.payload.name : "";
   return propose({
     kind: "sequence_make",
     title: `Sequence: ${name}`,

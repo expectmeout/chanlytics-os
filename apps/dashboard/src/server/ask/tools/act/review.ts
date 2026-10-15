@@ -10,7 +10,7 @@ const REPLY_MAX = 4096;
  * turn read (report with lens reviews names the ones waiting, each a row an answer may cite), so a card never answers a
  * review nobody read. Public once it lands, so it is approved on its own.
  */
-async function proposeReply(t: ToolContext, input: { review_id: string; comment: string }): Promise<ProposalOutcome> {
+function proposeReply(t: ToolContext, input: { review_id: string; comment: string }): ProposalOutcome {
   const id = str(input.review_id, 120);
   if (!id) return refuse("review_id is a review's id from report with lens reviews");
   if (!t.read.review.has(id))
@@ -42,7 +42,7 @@ export const propose_review = defineActions({
       examples: [{ review_id: "accounts/1/locations/2/reviews/3", comment: "Thank you, Ana! We loved having you." }],
       label: "Preparing a review reply",
       words: "Action reply takes review_id and comment and proposes the business's public reply under that review.",
-      build: proposeReply,
+      build: (t, input) => Promise.resolve(proposeReply(t, input)),
     }),
   },
 });

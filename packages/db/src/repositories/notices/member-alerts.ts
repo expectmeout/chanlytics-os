@@ -173,5 +173,5 @@ export async function memberViewsOf(db: Db, p: { tenantId: string; userId: strin
     .maybeSingle();
   if (error) throw new Error(error.message);
   const views = data?.views;
-  return views && typeof views === "object" && !Array.isArray(views) ? (views as Record<string, unknown>) : {};
+  return views && typeof views === "object" && !Array.isArray(views) ? views : {};
 }

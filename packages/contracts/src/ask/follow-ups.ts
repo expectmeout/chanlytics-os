@@ -50,7 +50,7 @@ function followUpOf(v: unknown): AskFollowUp | null {
   const prompt = text(r.prompt, FOLLOW_UP_PROMPT_MAX);
   if (!id || !said || !prompt || !isWake(r.wake)) return null;
   const subject = text(r.subject, 40) || null;
-  const on = /^\d{4}-\d{2}-\d{2}$/.test(String(r.on ?? "")) ? String(r.on) : null;
+  const on = typeof r.on === "string" && /^\d{4}-\d{2}-\d{2}$/.test(r.on) ? r.on : null;
   if (r.wake === "date" ? !on : !subject) return null;
   return { id, said, prompt, wake: r.wake, subject, on, made_at: text(r.made_at, 40) };
 }

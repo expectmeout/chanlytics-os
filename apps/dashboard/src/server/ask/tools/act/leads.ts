@@ -158,7 +158,7 @@ async function proposeLater(t: ToolContext, a: { lead_id: string; search_id: str
   });
 }
 
-async function proposeBulk(
+function proposeBulk(
   t: ToolContext,
   a: {
     become: "contacted" | "not_a_fit" | "keep" | "exclude";
@@ -166,7 +166,7 @@ async function proposeBulk(
     search_id?: string;
     view?: unknown;
   },
-): Promise<ProposalOutcome> {
+): ProposalOutcome {
   if (a.view !== undefined && a.lead_ids?.length) return refuse("name the leads by lead_ids or by a view, never both");
   if (a.view !== undefined) {
     if (a.become !== "contacted" && a.become !== "not_a_fit")
@@ -195,7 +195,7 @@ async function proposeBulk(
   });
 }
 
-async function proposeCheck(t: ToolContext, a: { lead_ids: string[] }): Promise<ProposalOutcome> {
+function proposeCheck(t: ToolContext, a: { lead_ids: string[] }): ProposalOutcome {
   if (!offeredTo(checkAction, t.role)) return refuse(proposalBelowNeeds("leads_check"));
   const ids = leadIdsOf(a.lead_ids, LEADS_PART);
   if ("refusal" in ids) return refuse(ids.refusal);
@@ -227,7 +227,7 @@ async function proposeAddressee(t: ToolContext, a: { lead_id: string; person: st
   });
 }
 
-async function proposeLeadList(t: ToolContext, a: { name: string; lead_ids: string[] }): Promise<ProposalOutcome> {
+function proposeLeadList(t: ToolContext, a: { name: string; lead_ids: string[] }): ProposalOutcome {
   const name = str(a.name, 120);
   if (!name) return refuse("name is what Leads calls the list");
   const ids = leadIdsOf(a.lead_ids, LEAD_LIST_MAX);
@@ -298,7 +298,7 @@ const checkAction = actAction({
   examples: [{ lead_ids: ["5e6f7a8b-9c0d-4e1f-8a2b-3c4d5e6f7a8b"] }],
   label: "Preparing the check",
   words: `Action check runs the mailbox check once more for leads whose last check did not answer; it spends a fraction of a cent each. ${approvalWords("leads_check")}.`,
-  build: proposeCheck,
+  build: (t, input) => Promise.resolve(proposeCheck(t, input)),
 });
 const addresseeAction = actAction({
   kind: "lead_addressee",
@@ -366,7 +366,7 @@ export const propose_leads = defineActions({
       examples: [{ become: "contacted", lead_ids: ["5e6f7a8b-9c0d-4e1f-8a2b-3c4d5e6f7a8b"] }],
       label: "Preparing the leads",
       words: `Action bulk marks many leads at once: by lead_ids (at most ${LEADS_PART}), or every lead a view of Leads matches (contacted or not_a_fit), which the door counts itself.`,
-      build: proposeBulk,
+      build: (t, input) => Promise.resolve(proposeBulk(t, input)),
     }),
     check: checkAction,
     addressee: addresseeAction,
@@ -379,7 +379,7 @@ export const propose_leads = defineActions({
       examples: [{ name: "Salons near you", lead_ids: ["5e6f7a8b-9c0d-4e1f-8a2b-3c4d5e6f7a8b"] }],
       label: "Preparing the list of leads",
       words: `Action list keeps chosen leads (at most ${LEAD_LIST_MAX}) as a list of their own, a search a cold email sequence writes to; it spends nothing. In a plan, a cold email step names it by its token.`,
-      build: proposeLeadList,
+      build: (t, input) => Promise.resolve(proposeLeadList(t, input)),
     }),
     said: actAction({
       kind: "reach_out_said",
