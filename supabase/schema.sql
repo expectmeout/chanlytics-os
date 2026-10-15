@@ -37312,11 +37312,11 @@ ALTER TABLE ONLY public.appointments
 
 
 --
--- Name: appointments appointments_conversation_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: appointments appointments_conversation_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.appointments
-    ADD CONSTRAINT appointments_conversation_id_fkey FOREIGN KEY (conversation_id) REFERENCES public.conversations(id) ON DELETE SET NULL;
+    ADD CONSTRAINT appointments_conversation_id_same_workspace FOREIGN KEY (tenant_id, conversation_id) REFERENCES public.conversations(tenant_id, id) ON DELETE SET NULL (conversation_id);
 
 
 --

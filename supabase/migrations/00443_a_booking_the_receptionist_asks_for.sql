@@ -30,8 +30,12 @@ alter table public.appointments add constraint appointments_source_check
   check (source in ('calendar_feed', 'booking_email', 'booking_tool', 'person', 'receptionist'));
 
 alter table public.appointments add column if not exists expires_at timestamptz;
-alter table public.appointments add column if not exists conversation_id uuid
-  references public.conversations (id) on delete set null;
+alter table public.appointments add column if not exists conversation_id uuid;
+-- The thread is the workspace's own (00279): the key names the workspace too, so a row can never name another's thread.
+alter table public.appointments drop constraint if exists appointments_conversation_id_same_workspace;
+alter table public.appointments add constraint appointments_conversation_id_same_workspace
+  foreign key (tenant_id, conversation_id) references public.conversations (tenant_id, id)
+  on delete set null (conversation_id);
 comment on column public.appointments.expires_at is
   'When a request the receptionist took stops taking its slot (00443): the sooner of a day after it was asked and an hour before the slot. Null for every other row.';
 comment on column public.appointments.conversation_id is

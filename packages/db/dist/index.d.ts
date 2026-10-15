@@ -280,11 +280,11 @@ type Database = {
                         referencedColumns: ["tenant_id", "id"];
                     },
                     {
-                        foreignKeyName: "appointments_conversation_id_fkey";
-                        columns: ["conversation_id"];
+                        foreignKeyName: "appointments_conversation_id_same_workspace";
+                        columns: ["tenant_id", "conversation_id"];
                         isOneToOne: false;
                         referencedRelation: "conversations";
-                        referencedColumns: ["id"];
+                        referencedColumns: ["tenant_id", "id"];
                     },
                     {
                         foreignKeyName: "appointments_lead_id_same_workspace";
@@ -13045,11 +13045,11 @@ declare function builderOf<T extends TenantTable>(db: Db$H, table: T): _supabase
                 referencedRelation: "contacts";
                 referencedColumns: ["tenant_id", "id"];
             }, {
-                foreignKeyName: "appointments_conversation_id_fkey";
-                columns: ["conversation_id"];
+                foreignKeyName: "appointments_conversation_id_same_workspace";
+                columns: ["tenant_id", "conversation_id"];
                 isOneToOne: false;
                 referencedRelation: "conversations";
-                referencedColumns: ["id"];
+                referencedColumns: ["tenant_id", "id"];
             }, {
                 foreignKeyName: "appointments_lead_id_same_workspace";
                 columns: ["tenant_id", "lead_id"];
@@ -24713,11 +24713,11 @@ declare function builderOf<T extends TenantTable>(db: Db$H, table: T): _supabase
             referencedRelation: "contacts";
             referencedColumns: ["tenant_id", "id"];
         }, {
-            foreignKeyName: "appointments_conversation_id_fkey";
-            columns: ["conversation_id"];
+            foreignKeyName: "appointments_conversation_id_same_workspace";
+            columns: ["tenant_id", "conversation_id"];
             isOneToOne: false;
             referencedRelation: "conversations";
-            referencedColumns: ["id"];
+            referencedColumns: ["tenant_id", "id"];
         }, {
             foreignKeyName: "appointments_lead_id_same_workspace";
             columns: ["tenant_id", "lead_id"];
@@ -30975,11 +30975,11 @@ declare function builderOf<T extends TenantTable>(db: Db$H, table: T): _supabase
             referencedRelation: "contacts";
             referencedColumns: ["tenant_id", "id"];
         }, {
-            foreignKeyName: "appointments_conversation_id_fkey";
-            columns: ["conversation_id"];
+            foreignKeyName: "appointments_conversation_id_same_workspace";
+            columns: ["tenant_id", "conversation_id"];
             isOneToOne: false;
             referencedRelation: "conversations";
-            referencedColumns: ["id"];
+            referencedColumns: ["tenant_id", "id"];
         }, {
             foreignKeyName: "appointments_lead_id_same_workspace";
             columns: ["tenant_id", "lead_id"];
@@ -37237,11 +37237,11 @@ declare function builderOf<T extends TenantTable>(db: Db$H, table: T): _supabase
             referencedRelation: "contacts";
             referencedColumns: ["tenant_id", "id"];
         }, {
-            foreignKeyName: "appointments_conversation_id_fkey";
-            columns: ["conversation_id"];
+            foreignKeyName: "appointments_conversation_id_same_workspace";
+            columns: ["tenant_id", "conversation_id"];
             isOneToOne: false;
             referencedRelation: "conversations";
-            referencedColumns: ["id"];
+            referencedColumns: ["tenant_id", "id"];
         }, {
             foreignKeyName: "appointments_lead_id_same_workspace";
             columns: ["tenant_id", "lead_id"];

@@ -237,7 +237,7 @@ One visit as a source stated it (decision 0002): a booking tool's notice, the ca
 Foreign keys:
 
 - `tenant_id`, `contact_id` → [`contacts`](#contacts) (`tenant_id`, `id`), on delete set null
-- `conversation_id` → [`conversations`](#conversations) (`id`), on delete set null
+- `tenant_id`, `conversation_id` → [`conversations`](#conversations) (`tenant_id`, `id`), on delete set null
 - `created_by` → `auth.users` (`id`), on delete set null
 - `tenant_id`, `lead_id` → [`leads`](#leads) (`tenant_id`, `id`), on delete set null
 - `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
