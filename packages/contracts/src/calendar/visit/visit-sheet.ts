@@ -19,6 +19,7 @@ import {
   type VisitLineVM,
 } from "../calendar-words";
 import type { CalendarBlockVM } from "../calendar-vm";
+import { BOOKING_REQUEST_WORDS } from "./booking-request";
 import type { CalendarMomentDto } from "../calendar-runs";
 import { shiftKey } from "../day-keys";
 import { campaignEnded, campaignRunsOn } from "../../playbooks/playbook-schedule";
@@ -94,10 +95,10 @@ export interface VisitSheetState {
 }
 
 /** The one act the foot leads with, by how the visit stands. */
-export type VisitPrimaryAct = "message" | "link" | "new_time" | "proposal" | "add";
+export type VisitPrimaryAct = "message" | "link" | "new_time" | "proposal" | "add" | "booked";
 
 /** An act in More. */
-export type VisitMoreAct = "step" | "note" | "copy" | "deal" | "kept" | "missed" | "cancel" | "page";
+export type VisitMoreAct = "step" | "note" | "copy" | "deal" | "kept" | "missed" | "cancel" | "cant" | "page";
 
 /** Who the visit is for, as the sheet's person line draws them. */
 export type VisitSheetPerson =
@@ -271,6 +272,13 @@ function visitRowsOf(i: VisitSheetInput, ended: boolean, facts: CalendarPersonVM
 function footnoteOf(i: VisitSheetInput, nobody: boolean): string {
   const b = i.block;
   if (nobody) return SHEET_WORDS.foot.nobody(i.source);
+  // A time a customer picked by text is on no calendar: answered here or in its thread, and said so after (decision 0061).
+  if (b.request)
+    return b.request.open
+      ? BOOKING_REQUEST_WORDS.foot
+      : b.visit?.status === "cancelled"
+        ? BOOKING_REQUEST_WORDS.footCant
+        : BOOKING_REQUEST_WORDS.footBooked;
   const status = b.visit?.status;
   if (b.tool) {
     if (status === "proposed") return SHEET_WORDS.foot.requested(b.tool);
@@ -293,6 +301,8 @@ function primaryOf(
   proposalWords: string | null,
 ): VisitSheetVM["primary"] {
   const b = i.block;
+  // A time a customer picked by text leads with its answer; Can't is in More (decision 0061).
+  if (b.request?.open) return { act: "booked", label: BOOKING_REQUEST_WORDS.booked_it, quiet: false };
   if (!b.person) return addToPeopleOf(b) ? { act: "add", label: ADD_TO_PEOPLE_WORDS.act, quiet: false } : null;
   const message = { act: "message" as const, label: SHEET_WORDS.message(firstOf(b.person.name)), quiet: false };
   const status = b.visit?.status;
@@ -321,7 +331,9 @@ function visitMoreOf(i: VisitSheetInput, line: VisitLineVM, phone: string | null
   // A correction is a word about a visit that has been said (visitActsOf): Kept corrects to Missed, and Missed to Kept.
   if (b.visit?.status === "kept" && line.acts.includes("missed")) add("missed", M.missed);
   if (b.visit?.status === "missed" && line.acts.includes("kept")) add("kept", M.kept);
-  if (line.acts.includes("cancelled"))
+  // A time a customer picked by text is cancelled by its answer, Can't, which leaves their thread waiting on a reply.
+  if (b.request?.open) add("cant", BOOKING_REQUEST_WORDS.cant_it, true);
+  else if (line.acts.includes("cancelled"))
     add("cancel", b.visit?.status === "proposed" ? M.cancelRequest : appointmentWords(i.word).cancelAct, true);
   if (b.person) add("page", M.page);
   return out;

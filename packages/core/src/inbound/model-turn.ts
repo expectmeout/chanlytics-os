@@ -4,12 +4,21 @@
  * person rather than a lost message. With no model key the workspace's own greeting goes, labelled a
  * fallback, and the platform is paged.
  */
-import { resolveSystemPrompt, describeNow, shadowWordsOf, priceAllowance } from "@chanlytics/contracts";
+import {
+  resolveSystemPrompt,
+  describeNow,
+  shadowWordsOf,
+  priceAllowance,
+  requestedBookingOf,
+  slotShort,
+  BOOKING_REQUEST_WORDS,
+} from "@chanlytics/contracts";
 import type { BrainConfig, BrainMeta } from "@chanlytics/contracts";
 import { photoUserText } from "./vision";
 import { layerTwo, noModelPlan, NO_MODEL_PAGE } from "./steps";
 import { errField } from "@chanlytics/channels";
 import type { Answering } from "./context";
+import type { BookingRequestHold, InboundBrainReply } from "./ports";
 
 /** What the turn leaves for the dispatch: the words, whether they hand off and why, and what they cost. */
 export interface Turn {
@@ -21,6 +30,8 @@ export interface Turn {
   fallback: ReturnType<typeof noModelPlan> | undefined;
   brainMs: number;
   photo: { mime: string; base64: string } | null;
+  /** A booking the receptionist asks for (decision 0061): the turn's hold opens it. */
+  bookingRequest?: BookingRequestHold | null;
 }
 
 /** Who this person is and their visits, for the model; nothing when they cannot be read, which is never fatal. */
@@ -84,6 +95,47 @@ function checked(
   return { replyText: two.replyText, escalate: two.escalate, escalationReason: two.escalationReason };
 }
 
+/**
+ * A time the customer picked, where the turn took booking requests (decision 0061, point 3): code decides whether it is a
+ * request, never the model. Open, and the words that said the team will confirm went as the model wrote them, it is one,
+ * and the turn's hold is its own (booking_request). Otherwise the turn is a person's to answer (booking_reply), so "the team
+ * will confirm" stays true. A hold layer two placed for something else (a price, money: the words it replaced) stands.
+ * The model's own handoff on such a turn is the request's: the model flags every picked time for a person whatever it is
+ * told (the evals of 15 Oct 2026), and a request already hands the thread to a person, who reads it beside the thread.
+ */
+async function requestOf(
+  at: Answering,
+  r: InboundBrainReply,
+  turn: Pick<Turn, "replyText" | "escalate" | "escalationReason">,
+  now: Date,
+): Promise<Pick<Turn, "replyText" | "escalate" | "escalationReason" | "bookingRequest">> {
+  const { ports, rt, L, ing } = at;
+  const requests = ports.calendar.requests;
+  if (!rt || !requests || !r.booking?.slot) return turn;
+  const terms = await requests.terms(rt, ing?.contact_id ?? null, now);
+  const asked = terms ? requestedBookingOf({ slot: r.booking.slot, service: r.booking.service, ...terms }) : null;
+  // A hold of a booking set to Ask me first (policy_ask), or the model's own handoff (human_token), is the request's.
+  const ownHold = turn.escalate && turn.escalationReason !== "policy_ask" && turn.escalationReason !== "human_token";
+  if (terms && asked?.ok && !ownHold && turn.replyText === r.text) {
+    L.info("booking_request_taken", { service: asked.service !== null });
+    return {
+      ...turn,
+      escalate: true,
+      escalationReason: "booking_request",
+      bookingRequest: {
+        startsAt: new Date(asked.startMs).toISOString(),
+        endsAt: new Date(asked.endMs).toISOString(),
+        service: asked.service,
+        timezone: terms.tz,
+        words: BOOKING_REQUEST_WORDS.hold(slotShort(asked.startMs, terms.tz), asked.service),
+      },
+    };
+  }
+  L.info("booking_request_refused", { why: !asked ? "no_openings" : asked.ok ? "held" : asked.why });
+  // Held already (a booking set to Ask me first, or a hold of its own), it stays as it is; else a reply is owed.
+  return turn.escalate ? turn : { ...turn, escalate: true, escalationReason: "booking_reply" };
+}
+
 /** The model composes and layer two checks the words, or, with no model key, the fallback goes. */
 export async function modelTurn(
   at: Answering,
@@ -100,6 +152,7 @@ export async function modelTurn(
   let brainMeta: BrainMeta | undefined;
   let fallback: ReturnType<typeof noModelPlan> | undefined;
   let brainMs = 0;
+  let bookingRequest: BookingRequestHold | null = null;
   if (ports.env.modelKey) {
     try {
       const { generateReply } = await ports.brain();
@@ -113,6 +166,8 @@ export async function modelTurn(
       // a value none of them ever reads, and the ingest write that must never
       // wait waited behind it.
       const openings = rt ? await ports.calendar.openings(rt) : null;
+      // Where the workspace takes booking requests, the answer's schema carries a time the customer picks (decision 0061).
+      const takes = !!rt && ports.calendar.requests?.takes(rt) === true;
       // The turn's one clock: the prompt, the clock note and layer two all read the business's day from it, so the notes
       // the receptionist is told and the prices it may say from them are the same notes.
       const now = new Date();
@@ -144,12 +199,18 @@ export async function modelTurn(
           configVersion: rt?.configVersion ?? null,
           // A second model is put the customer's own words in shadow, when it is on (contracts shadowWordsOf).
           shadowText: shadowWordsOf({ text: bodyText, photo: photo !== null, caption: n.media?.caption }),
+          ...(takes ? { bookingRequests: true } : {}),
         },
       );
       usage = r.usage;
       brainMeta = r.meta;
       brainMs = Date.now() - tBrain;
-      ({ replyText, escalate, escalationReason } = checked(at, brainCfg, r, now));
+      const two = checked(at, brainCfg, r, now);
+      const done: Pick<Turn, "replyText" | "escalate" | "escalationReason" | "bookingRequest"> = takes
+        ? await requestOf(at, r, two, now)
+        : two;
+      ({ replyText, escalate, escalationReason } = done);
+      bookingRequest = done.bookingRequest ?? null;
     } catch (e) {
       L.error("brain_failed", { error: errField(e) });
       replyText = fallbacks!.error;
@@ -181,5 +242,5 @@ export async function modelTurn(
       }
     }
   }
-  return { replyText, escalate, escalationReason, usage, brainMeta, fallback, brainMs, photo };
+  return { replyText, escalate, escalationReason, usage, brainMeta, fallback, brainMs, photo, bookingRequest };
 }

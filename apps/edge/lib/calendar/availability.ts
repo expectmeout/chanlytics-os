@@ -31,10 +31,12 @@ import {
   ownAddressesOf,
   offersLinkOn,
   bookingHeld,
+  takesBookingRequests,
   resolveFacts,
   feedMarksOf,
   feedWithRecord,
   busyOfAppointments,
+  type BookingRequestTerms,
   type BusyBlock,
   type FeedItem,
   type Opening,
@@ -189,7 +191,12 @@ interface OpeningsData {
  * The openings, or null when there is nothing to say — no feed configured,
  * or a feed that could not be read.
  */
-export async function openingsData(rt: TenantRuntime, now = new Date()): Promise<OpeningsData | null> {
+export async function openingsData(
+  rt: TenantRuntime,
+  now = new Date(),
+  /** A person whose own open request takes no slot from them (decision 0061): picking it again is the same request. */
+  mine: string | null = null,
+): Promise<OpeningsData | null> {
   const L = logger({ tenant_id: rt.tenantId });
   const url = rt.calendar?.ical_url;
   const profile = rt.brain?.profile;
@@ -204,7 +211,7 @@ export async function openingsData(rt: TenantRuntime, now = new Date()): Promise
       closures: profile.closures,
       tz: rt.timezone,
       // The feed's taken time, and the record's beside it (00345): a booking that arrived by email took its slot too.
-      busy: [...feed.busy, ...(await recordBusy(rt.tenantId, now, daysAhead))],
+      busy: [...feed.busy, ...(await recordBusy(rt.tenantId, now, daysAhead, mine))],
       rules,
       now,
     });
@@ -224,7 +231,12 @@ export async function openingsData(rt: TenantRuntime, now = new Date()): Promise
  * none, logged where the diagnostic finds it: the feed's openings are still said, as they were before the record, and
  * a reply is never held for it.
  */
-async function recordBusy(tenantId: string, now: Date, daysAhead: number): Promise<BusyBlock[]> {
+async function recordBusy(
+  tenantId: string,
+  now: Date,
+  daysAhead: number,
+  mine: string | null = null,
+): Promise<BusyBlock[]> {
   const db = pg();
   if (!db) return [];
   const span = offeringHorizon(now, daysAhead);
@@ -235,7 +247,11 @@ async function recordBusy(tenantId: string, now: Date, daysAhead: number): Promi
       new Date(span.from).toISOString(),
       new Date(span.to).toISOString(),
     );
-    return busyOfAppointments(rows);
+    return busyOfAppointments(
+      mine
+        ? rows.filter((r) => !(r.source === "receptionist" && r.status === "proposed" && r.contact_id === mine))
+        : rows,
+    );
   } catch (e) {
     logger({ tenant_id: tenantId }).error("availability_record_failed", { error: errField(e) });
     return [];
@@ -250,6 +266,39 @@ export function linkOfferedOn(on: "call" | "chat", rt: Pick<TenantRuntime, "brai
   return offersLinkOn(on, rt.brain, resolveFacts(rt.brain, rt.known).whatsapp_line.value);
 }
 
+/**
+ * Whether this workspace takes booking requests on a text turn (decision 0061): its switch, and the team confirming its
+ * own bookings (contracts takesBookingRequests).
+ */
+export function takesRequests(rt: Pick<TenantRuntime, "brain" | "known" | "policy" | "features">): boolean {
+  return takesBookingRequests({
+    switchOn: rt.features?.booking_requests === true,
+    linkInChat: linkOfferedOn("chat", rt),
+    bookingHeld: bookingHeld(rt.policy),
+  });
+}
+
+/**
+ * What a time the customer picked is checked against, read when they picked it (decision 0061, point 3): the openings as
+ * they stand, the person's own open request aside, the services the business lists and its slot length. Null when the
+ * openings cannot be read, and no request is then taken.
+ */
+export async function requestTermsFor(
+  rt: TenantRuntime,
+  who: string | null,
+  now = new Date(),
+): Promise<BookingRequestTerms | null> {
+  const data = await openingsData(rt, now, who);
+  if (!data) return null;
+  const profile = rt.brain?.profile;
+  return {
+    openings: data.openings,
+    tz: data.tz,
+    services: profile?.services ?? [],
+    slotMin: profile?.booking_rules?.slot_min ?? BOOKING_DEFAULTS.slot_min,
+  };
+}
+
 /** The openings block for the prompt, or null when there is nothing to say. */
 export async function openingsFor(rt: TenantRuntime, on: "call" | "chat", now = new Date()): Promise<string | null> {
   const data = await openingsData(rt, now);
@@ -260,6 +309,8 @@ export async function openingsFor(rt: TenantRuntime, on: "call" | "chat", now = 
         // Under a booking hold the times end in a person confirming, never the link: the same rule the availability
         // tool reads (11 Oct 2026: the openings handed to chat and to a call's start still ended in the link).
         bookingHeld: bookingHeld(rt.policy),
+        // A time picked by text is written as a request where the workspace takes them (decision 0061); a call takes none.
+        ...(on === "chat" && takesRequests(rt) ? { requests: true } : {}),
       })
     : null;
 }

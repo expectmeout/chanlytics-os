@@ -171,7 +171,7 @@
   },
   "apps/edge/lib/receptionist/eval.ts::evaluateCases#1": {
     "lines": 79,
-    "branches": 34,
+    "branches": 33,
     "depth": 2
   },
   "apps/edge/lib/receptionist/steer.ts::steerHeldDraft#1": {
@@ -200,7 +200,7 @@
     "depth": 1
   },
   "apps/edge/lib/whatsapp/persist.ts::pgSink#1": {
-    "lines": 185,
+    "lines": 183,
     "branches": 5,
     "depth": 0
   },

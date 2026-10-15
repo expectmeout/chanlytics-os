@@ -39,6 +39,12 @@ export type AppointmentUpdate = Database["public"]["Tables"]["appointments"]["Up
 
 /** The statuses a visit may still move from: a hold, or a booking ahead. */
 const LIVE_STATUSES = ["proposed", "booked"] as const;
+
+/**
+ * A row that still stands at the read's clock: a request the receptionist took stops taking its slot, and leaves the
+ * board, once its expiry has passed (00443, decision 0061); every other row has none and always stands.
+ */
+const unexpired = (now = new Date()): string => `expires_at.is.null,expires_at.gt.${now.toISOString()}`;
 /** The most rows a span's read carries: a salon's quarter, not a shared calendar's. */
 const SPAN_MAX = 2000;
 
@@ -126,6 +132,87 @@ export async function updateAppointment(
   throw new Error(`appointment_update: ${error.message}`);
 }
 
+/* ------------------------------------------------------- a booking the receptionist asks for (00443) */
+
+/** A booking the receptionist asks for (decision 0061), as booking_request_open takes it. */
+export interface BookingRequestOpen {
+  tenantId: string;
+  conversationId: string;
+  contactId: string;
+  startsAt: string;
+  endsAt: string;
+  service: string | null;
+  timezone: string;
+  /** The hold's line (contracts BOOKING_REQUEST_WORDS.hold). */
+  words: string;
+}
+
+/**
+ * A request and its thread's hold, opened together (00443 booking_request_open, the service role's), the person's open
+ * request before it cancelled: how the hold landed, as escalation_open answers it, or `too_soon` for a slot an hour
+ * away or less. A failure throws, and then nothing moved.
+ */
+export async function openBookingRequest(
+  db: Db,
+  p: BookingRequestOpen,
+): Promise<{ hold: "opened" | "changed" | "refreshed"; appointmentId: string } | { error: "too_soon" }> {
+  const { data, error } = await db.rpc("booking_request_open", {
+    p_tenant_id: p.tenantId,
+    p_conversation_id: p.conversationId,
+    p_contact_id: p.contactId,
+    p_starts_at: p.startsAt,
+    p_ends_at: p.endsAt,
+    p_service: p.service ?? "",
+    p_timezone: p.timezone,
+    p_words: p.words,
+  });
+  if (error) throw new Error(`booking_request_open: ${error.message}`);
+  const said = (data ?? {}) as { error?: unknown; hold?: unknown; appointment?: { id?: unknown } };
+  if (said.error === "too_soon") return { error: "too_soon" };
+  const hold = said.hold;
+  const id = said.appointment?.id;
+  if ((hold !== "opened" && hold !== "changed" && hold !== "refreshed") || typeof id !== "string")
+    throw new Error(`booking_request_open: the door answered ${JSON.stringify(data)}`);
+  return { hold, appointmentId: id };
+}
+
+/**
+ * A member answers a booking the receptionist asked for (00443 booking_request_answer), on their own session: booked,
+ * which resolves its hold, or not, which cancels it and leaves the thread waiting on a reply (`replyWords` its line).
+ * The door's answer as it gave it (a refusal is `{ error }`: not_a_request, answered), and the database's error for one
+ * it threw (not found, not signed in).
+ */
+export async function answerBookingRequest(
+  db: Db,
+  p: { appointmentId: string; booked: boolean; via: string | null; replyWords: string | null },
+): Promise<{ data: Json | null; error: PostgrestError | null }> {
+  const { data, error } = await db.rpc("booking_request_answer", {
+    p_appointment_id: p.appointmentId,
+    p_booked: p.booked,
+    ...(p.via ? { p_via: p.via } : {}),
+    ...(p.replyWords ? { p_reply_words: p.replyWords } : {}),
+  });
+  return { data, error };
+}
+
+/**
+ * The request the receptionist took in a thread that nobody has answered (00443, decision 0061), as the caller may see
+ * it: what a member's Booked it or Can't answers, on Today, in the Inbox and on the Calendar alike. Null for none.
+ */
+export async function openRequestOfThread(db: Db, conversationId: string): Promise<AppointmentRow | null> {
+  const { data, error } = await db
+    .from("appointments")
+    .select("*")
+    .eq("conversation_id", conversationId)
+    .eq("source", "receptionist")
+    .eq("status", "proposed")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw new Error(`open_request_of_thread: ${error.message}`);
+  return data ?? null;
+}
+
 /* ------------------------------------------------------------------ the board */
 
 /**
@@ -145,6 +232,7 @@ export async function appointmentsBetween(
     .eq("tenant_id", tenantId)
     .in("status", [...LIVE_STATUSES])
     .neq("source", "calendar_feed")
+    .or(unexpired())
     .gt("ends_at", fromIso)
     .lt("starts_at", toIso)
     .order("starts_at", { ascending: true })
@@ -177,6 +265,7 @@ export async function visitsOver(
         .select("*")
         .eq("tenant_id", tenantId)
         .neq("source", "calendar_feed")
+        .or(unexpired())
         .gt("ends_at", fromIso)
         .lt("starts_at", toIso)
         .order("starts_at", { ascending: true })
@@ -257,6 +346,7 @@ export async function notedOver(db: Db, tenantId: string, fromIso: string, toIso
       .select("*")
       .eq("tenant_id", tenantId)
       .neq("source", "calendar_feed")
+      .or(unexpired())
       .gt("ends_at", fromIso)
       .lt("starts_at", toIso)
       .order("starts_at", { ascending: true })

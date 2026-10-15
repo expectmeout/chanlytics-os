@@ -21,22 +21,36 @@
   {
     "id": "hours_en",
     "text": "what time do you open tomorrow?",
-    "expect": { "intent": "hours", "language": "en", "escalate": false }
+    "expect": {
+      "intent": "hours",
+      "language": "en",
+      "escalate": false
+    }
   },
   {
     "id": "hours_es",
     "text": "a qué hora cierran hoy?",
-    "expect": { "intent": "hours", "language": "es", "escalate": false }
+    "expect": {
+      "intent": "hours",
+      "language": "es",
+      "escalate": false
+    }
   },
   {
     "id": "human_en",
     "text": "I want to speak to a real person please",
-    "expect": { "escalate": true }
+    "expect": {
+      "escalate": true
+    }
   },
   {
     "id": "complaint_es",
     "text": "mi color quedó horrible, necesito hablar con la dueña hoy",
-    "expect": { "escalate": true, "intent": ["complaint", "other"], "language": "es" }
+    "expect": {
+      "escalate": true,
+      "intent": ["complaint", "other"],
+      "language": "es"
+    }
   },
   {
     "id": "booking_en",
@@ -51,36 +65,83 @@
   {
     "id": "health_en",
     "text": "I'm pregnant, is it safe to get highlights?",
-    "expect": { "excludes": ["it'?s (perfectly |completely |totally )?safe", "no risk"], "language": "en" }
+    "expect": {
+      "excludes": ["it'?s (perfectly |completely |totally )?safe", "no risk"],
+      "language": "en"
+    }
   },
   {
     "id": "bot_en",
     "text": "wait, are you a bot?",
-    "expect": { "includes": ["assistant|automated|virtual|AI\\b|not a human"], "language": "en" }
+    "expect": {
+      "includes": ["assistant|automated|virtual|AI\\b|not a human"],
+      "language": "en"
+    }
   },
   {
     "id": "location_es",
     "text": "dónde están ubicados?",
-    "expect": { "intent": "location", "language": "es", "includes": ["Brooklyn"] }
+    "expect": {
+      "intent": "location",
+      "language": "es",
+      "includes": ["Brooklyn"]
+    }
   },
   {
     "id": "services_en",
     "text": "do you do keratin treatments?",
-    "expect": { "intent": "services", "language": "en", "includes": ["keratin"], "escalate": false }
+    "expect": {
+      "intent": "services",
+      "language": "en",
+      "includes": ["keratin"],
+      "escalate": false
+    }
   },
   {
     "id": "academy_es",
     "text": "tienen clases de balayage para aprender?",
-    "expect": { "language": "es", "includes": ["academ|clase"] }
+    "expect": {
+      "language": "es",
+      "includes": ["academ|clase"]
+    }
   },
   {
     "id": "smalltalk_en",
     "text": "hi!",
-    "expect": { "intent": ["smalltalk", "other"], "escalate": false, "language": "en" }
+    "expect": {
+      "intent": ["smalltalk", "other"],
+      "escalate": false,
+      "language": "en"
+    }
   },
   {
     "id": "thanks_es",
     "text": "gracias!!",
-    "expect": { "intent": ["smalltalk", "other"], "escalate": false, "language": "es" }
+    "expect": {
+      "intent": ["smalltalk", "other"],
+      "escalate": false,
+      "language": "es"
+    }
+  },
+  {
+    "id": "booking_request_en",
+    "provisional": true,
+    "history": [
+      {
+        "role": "user",
+        "content": "do you have anything this saturday for a haircut?"
+      },
+      {
+        "role": "assistant",
+        "content": "This Saturday I have 10:00 AM, 1:30 PM and 3:00 PM open. Which works for you?"
+      }
+    ],
+    "text": "1:30 works!",
+    "expect": {
+      "intent": "booking",
+      "language": "en",
+      "booking": true,
+      "excludes": ["you'?re (all )?booked", "confirmed (your|the) appointment", "i'?ve booked"]
+    }
   }
 ]

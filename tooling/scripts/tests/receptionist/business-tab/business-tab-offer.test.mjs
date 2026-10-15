@@ -1198,7 +1198,7 @@ test("the booking rules fold holds the five numbers as one list, each with its u
   );
   assert.equal(heardBox(tree, "Other rules").type, "textarea");
   assert.doesNotMatch(textOf(fold), /Saves these five rules/, "a Save writes what its sheet holds: no line says so");
-  assert.doesNotMatch(textOf(fold), /It never books/, "the rules' own row says it (Never confirm an appointment)");
+  assert.doesNotMatch(textOf(fold), /It never books/, "the rules' own row says it (Never confirm a booking)");
 });
 
 test("the booking rules fold's switch asks for an email when the link goes out: off unless stored, and saved as true or as no key", () => {

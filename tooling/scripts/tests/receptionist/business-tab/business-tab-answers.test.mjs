@@ -473,7 +473,7 @@ test("the rules at rest are a chip for each rule in force and one for photos, an
   assert.equal(switchOf(tree, "disclose_ai"), null, "no switch for a rule that is not one");
   for (const [k, label] of [
     ["never_quote_prices", "Never quote a price"],
-    ["never_confirm_booking", "Never confirm an appointment"],
+    ["never_confirm_booking", "Never confirm a booking"],
     ["no_health_advice", "No health advice"],
   ]) {
     const r = byTestId(tree, `rec-rule-${k}`);
@@ -718,7 +718,7 @@ const ruleRow = (tree, key) => byTestId(tree, `rec-rule-${key}`);
 /** Each rule's label, as the fold names it. */
 const BTA_LABELS = {
   never_quote_prices: "Never quote a price",
-  never_confirm_booking: "Never confirm an appointment",
+  never_confirm_booking: "Never confirm a booking",
   disclose_ai: "Says it's an automated assistant",
   no_health_advice: "No health advice",
 };

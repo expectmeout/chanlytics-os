@@ -14,6 +14,7 @@
 import { useState } from "react";
 import {
   ADD_TO_PEOPLE_WORDS,
+  BOOKING_REQUEST_WORDS,
   CALENDAR_VISIT_SHEET_WORDS as W,
   VISIT_ASK_WORDS,
   VISIT_WORDS,
@@ -42,6 +43,7 @@ import { StoppedMark } from "../../kit/pill/stopped-mark";
 import { gate, navigate, openDealSheet, type DealSheetAsk } from "../../legacy-verbs";
 import { openStepSheet } from "../../people/deal/deal-verbs";
 import { sayVisit } from "../../visit-line";
+import { answerRequest } from "../../booking-request";
 
 /** What the parts are drawn from, and what they do. */
 export interface VisitCtx {
@@ -255,6 +257,24 @@ function handOff(c: VisitCtx, open: () => void): void {
   setTimeout(open, 0);
 }
 
+/**
+ * A time a customer picked by text, answered from its visit (decision 0061): Booked it opens their thread with the reply
+ * drafted for the member to send; Can't leaves the thread waiting on their reply.
+ */
+function answerVisit(c: VisitCtx, booked: boolean): void {
+  const threadId = c.b.request?.threadId;
+  if (!threadId) return;
+  void answerRequest(threadId, booked, c.b.person?.name ?? c.b.guess ?? "They").then((r) => {
+    if (!r.ok) return c.flash(r.message);
+    if (!booked) return c.flash(r.receipt);
+    const to = addressOf({ kind: "hold", conversationId: threadId });
+    if (r.reply) carryReply(to, r.reply);
+    c.close();
+    navigate(to);
+    return undefined;
+  });
+}
+
 /** The lead act, by how the visit stands. */
 function PrimaryAct({ c }: { c: VisitCtx }) {
   const { vm, b } = c;
@@ -263,6 +283,7 @@ function PrimaryAct({ c }: { c: VisitCtx }) {
   const pa = vm.primary;
   if (!pa) return null;
   const press = () => {
+    if (pa.act === "booked") return answerVisit(c, true);
     if (pa.act === "message") return messageThem(b);
     if (pa.act === "link") return carryLink(c, words.nextLink);
     if (pa.act === "new_time") return carryLink(c, words.newTimeLink);
@@ -273,13 +294,15 @@ function PrimaryAct({ c }: { c: VisitCtx }) {
     return undefined;
   };
   const gated =
-    pa.act === "proposal"
-      ? gate("approve", "record a deal")
-      : pa.act === "add"
-        ? gate("approve", ADD_TO_PEOPLE_WORDS.gate)
-        : pa.act === "message"
-          ? {}
-          : gate("approve", "send them the booking link");
+    pa.act === "booked"
+      ? gate("approve", BOOKING_REQUEST_WORDS.gate)
+      : pa.act === "proposal"
+        ? gate("approve", "record a deal")
+        : pa.act === "add"
+          ? gate("approve", ADD_TO_PEOPLE_WORDS.gate)
+          : pa.act === "message"
+            ? {}
+            : gate("approve", "send them the booking link");
   return (
     <Button
       variant={pa.quiet ? "secondary" : "primary"}
@@ -341,6 +364,13 @@ function moreItem(c: VisitCtx, m: { act: VisitMoreAct; label: string; danger: bo
       };
     case "cancel":
       return { label, onSelect: ask, tone: danger ? "danger" : undefined, gate: gate("approve", VISIT_ASK_WORDS.gate) };
+    case "cant":
+      return {
+        label,
+        onSelect: () => answerVisit(c, false),
+        tone: danger ? "danger" : undefined,
+        gate: gate("approve", BOOKING_REQUEST_WORDS.gate),
+      };
     case "page":
       return {
         label,

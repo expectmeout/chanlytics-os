@@ -104,6 +104,8 @@ export interface DraftOf {
 export interface CalendarDraft {
   with: string;
   ical_url: string;
+  /** Booking requests (features.booking_requests, decision 0061); absent on a draft from before them, which writes none. */
+  requests?: boolean;
 }
 
 // The days of the week in the schema's order (contracts DAYS): the hours fold writes every one of them.
@@ -214,7 +216,7 @@ export const BT_PATHS_OF: Record<FoldName, string[]> = {
   // The link's address, and what the owner books with (00345): the second a section of its own, which a build from
   // before it leaves out and reads on. One fold since 7 Oct 2026, where each was a row of its own that sent the owner
   // to the other.
-  calendar: ["calendar.ical_url", "bookings.tool", "bookings.by_hand"],
+  calendar: ["calendar.ical_url", "bookings.tool", "bookings.by_hand", "features.booking_requests"],
   // The first save a workspace makes, where it has no receptionist (create.tsx): the three things it
   // cannot answer anyone without, and the product's own prompt and messages, which the schema needs and nobody should
   // have to write (contracts newReceptionistDefaults), written only where none is stored.
@@ -270,7 +272,11 @@ export const btWhole = (fold: string, draft: unknown, parts: string[], kind: "bo
 /** The calendar fold opens with what the owner books with, as the picker holds it (contracts booksWithOf), and the link's address. */
 export const btCalendarDraft = (config: Config): CalendarDraft => {
   const ical_url = (config.calendar && config.calendar.ical_url) || "";
-  return { with: booksWithOf({ ...(config.bookings || {}), ical_url }), ical_url };
+  return {
+    with: booksWithOf({ ...(config.bookings || {}), ical_url }),
+    ical_url,
+    requests: config.features?.booking_requests === true,
+  };
 };
 
 /**
@@ -296,6 +302,10 @@ export const btWriteCalendar = (next: Config, draft: unknown) => {
   btPut(bookings, "by_hand", d.with === BOOKS_BY_HAND ? true : undefined);
   if (Object.keys(bookings).length) next.bookings = bookings;
   else delete next.bookings;
+  // Booking requests (decision 0061): written where switched on, or where it was ever said, as the photos switch is.
+  const features = { ...(next.features || {}) };
+  if (typeof d.requests === "boolean" && (d.requests || features.booking_requests !== undefined))
+    next.features = { ...features, booking_requests: d.requests };
 };
 
 /**

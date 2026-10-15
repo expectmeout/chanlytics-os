@@ -15,8 +15,17 @@ import { bookingCopyTest, type BookingSighting } from "./booking-notice";
 import { appointmentKeyOf, recordIdOf } from "./appointment-key";
 import { isConsultationTitle } from "../deals/deal-consultations";
 
-/** Who wrote the row: the hourly read of the feed, a booking tool's notice or its webhook, or a person. Never the receptionist. */
-export const APPOINTMENT_SOURCES = ["calendar_feed", "booking_email", "booking_tool", "person"] as const;
+/**
+ * Who wrote the row: the hourly read of the feed, a booking tool's notice or its webhook, a person, or the receptionist,
+ * which only ever asks: a time a customer picked, proposed and held for the owner to confirm (00443, decision 0061).
+ */
+export const APPOINTMENT_SOURCES = [
+  "calendar_feed",
+  "booking_email",
+  "booking_tool",
+  "person",
+  "receptionist",
+] as const;
 export type AppointmentSource = (typeof APPOINTMENT_SOURCES)[number];
 
 /**

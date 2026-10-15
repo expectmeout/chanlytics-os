@@ -30,6 +30,10 @@ export const BrainOutputSchema = z.object({
         .map((s) => s.slice(0, 80)),
     ),
   language: z.enum(BRAIN_LANGUAGES).catch("other"),
+  // A time the customer picked, where the turn took booking requests (decision 0061): absent from every other answer,
+  // and from its record (an absent key stays absent), so a workspace that takes none keeps exactly the record it kept.
+  booking_slot: z.string().trim().optional().catch(undefined),
+  booking_service: z.string().trim().optional().catch(undefined),
 });
 
 export type BrainOutput = z.infer<typeof BrainOutputSchema>;

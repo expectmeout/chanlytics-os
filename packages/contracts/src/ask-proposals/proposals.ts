@@ -27,7 +27,7 @@ import {
   playbookSpec,
   runSpec,
 } from "./campaigns";
-import { replySpec, steerSpec, threadVerbSpec, whisperSpec } from "./inbox";
+import { bookingRequestSpec, replySpec, steerSpec, threadVerbSpec, whisperSpec } from "./inbox";
 import { leadSearchSpec, peopleSearchSpec, reachOutAddSpec } from "./leads";
 import { listMemberSpec, listSpec } from "./lists";
 import {
@@ -105,6 +105,8 @@ const VERB_SPECS = /* @__PURE__ */ (() => ({
   sequence_make: sequenceMakeSpec,
   sequence_start: sequenceStartSpec,
   sequence_discard: sequenceDiscardSpec,
+  // A booking the receptionist asked for, answered on Today, in the Inbox and on the Calendar (decision 0061).
+  booking_request: bookingRequestSpec,
 }))();
 /** A verb a sheet or a card commits. */
 export type VerbKind = keyof typeof VERB_SPECS;

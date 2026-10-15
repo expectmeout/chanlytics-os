@@ -91,6 +91,8 @@ export interface CalendarItemDto {
    * kept yet; absent on an older read.
    */
   visit?: VisitMark | null;
+  /** A time a customer picked by text (00443, decision 0061): the thread it is answered in, and whether it waits on an answer. */
+  request?: { thread_id: string; open: boolean } | null;
 }
 
 export interface CalendarDayDto {
