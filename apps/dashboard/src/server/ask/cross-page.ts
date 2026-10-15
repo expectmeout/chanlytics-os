@@ -160,8 +160,9 @@ const OFFER_ASKED = new RegExp(
  * Campaigns' rows are its campaigns and offers, so AUDIENCES' words name them there; who a send can reach is no row of
  * it, and is read when asked in REACH's words. Today is not one (the speed plan, A1, 15 Oct 2026): its page block
  * holds the day's rows, and the `today` read holds what it does not -- the standing, who needs you with the reasons and
- * their last words, the recap -- so the model called it in 27 of production's 39 two-round turns. A question of how
- * things stand reads it ahead there too, as it does on every other page.
+ * their last words, the recap. Production's shapes for the fortnight to 15 Oct had 26 turns on Today take a second
+ * round for that read alone, asked in no words the table holds, so it is read ahead on every question asked there
+ * (crossPagePlan), after the reads the question names.
  */
 const ON_PAGE: Partial<Record<AskSurface, ReadonlySet<string>>> = {
   calendar: new Set(["calendar.openings", "calendar.week"]),
@@ -176,7 +177,8 @@ const ON_PAGE: Partial<Record<AskSurface, ReadonlySet<string>>> = {
  * The reads a question names on another page, at most CROSS_PAGE_MAX, in the order below. On Reports a
  * report is read only for a period other than the one on screen (the context's view). A setup's reads (SETUP) come
  * first, on every page, then a setup's or an offer's (OFFER_ASKED) journey and Library: within the cap a setup keeps
- * its own two, and an offer's go before every other read.
+ * its own two, and an offer's go before every other read. On Today the day's own read comes last, whatever is asked,
+ * where the cap leaves room.
  */
 export function crossPagePlan(text: string, surface: string | null, view: string | null = null): ToolRun[] {
   const q = text.replace(/\s+/g, " ").trim();
@@ -213,6 +215,8 @@ export function crossPagePlan(text: string, surface: string | null, view: string
   else if (CALLS.test(q)) add("calls", { action: "list", filter: "recent" });
   if (HELD.test(q)) add("inbox", { action: "list", filter: "held" });
   else if (WROTE.test(q)) add("inbox", { action: "list", filter: "recent" });
+  // On Today, the day's own read, after what the question named: it fills the cap's room (the speed plan, A1).
+  if (surface === "today") add("today", {});
   return out.slice(0, CROSS_PAGE_MAX);
 }
 
