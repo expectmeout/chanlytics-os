@@ -93,9 +93,10 @@ function peopleListHead(s: PeopleState) {
     shownIds,
     openMade,
     sortBy,
+    dealsOn,
   } = s;
   // The list says how it is ordered at the head's right.
-  const sortedBy = plSortedBy(sortBy);
+  const sortedBy = plSortedBy(sortBy, dealsOn);
   return (
     <div className="cl-section-head">
       <div className="cl-section-lead">

@@ -77,8 +77,11 @@ export interface TableColumn<R extends TableRow = TableRow, X extends TableCtx =
   align?: "end";
   /** What the heading means, in a line: its tip, for a name that does not say it. */
   hint?: string;
-  /** What it says in a file of the people shown: the heading and the cell's words. A column with none is not in the file. */
-  csv?: { head: string; cell: (p: R) => string };
+  /**
+   * What it says in a file of the people shown: the heading and the cell's words. A column with none is not in the file.
+   * `headOf` is the file's heading where it is the workspace's word, read with what the workspace is, as `labelOf` is.
+   */
+  csv?: { head: string; headOf?: (x: ColCtx) => string; cell: (p: R) => string };
   /** The cell, from the row, what the page knows, and (a card's) where the row stands in a selection. */
   cell: (p: R, x: X, pick?: RowPick) => ReactElement<{ className?: string }>;
 }

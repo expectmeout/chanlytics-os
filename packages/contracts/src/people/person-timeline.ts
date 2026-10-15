@@ -170,7 +170,7 @@ export function consentChangeWords(c: ConsentChange): { who: string; text: strin
     c.consent === "opted_in"
       ? offers
         ? "Said yes to offers and news"
-        : "Said yes to messages about their visit"
+        : "Said yes to messages"
       : c.consent === "opted_out"
         ? offers
           ? "Said no to offers"

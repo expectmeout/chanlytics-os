@@ -73,7 +73,8 @@ export const UP_NEXT_WORDS = {
       : `Did ${who} come on ${day.replace(/,/g, "")}?`,
   done: "Done",
   recordYes: "Record a yes",
-  visitNotAsked: "Visit messages not asked",
+  /** Their yes to messages, not asked with a visit ahead: the folded Messages summary's words for it. */
+  visitNotAsked: "Messages not asked",
   more: (n: number) => `${plural(n, "more", "more")}`,
 } as const;
 

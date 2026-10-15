@@ -6,7 +6,7 @@
  * after as it does for Up next.
  */
 import type { ReactElement } from "react";
-import { PERSON_TAB_WORDS, VISITS_TAB_WORDS } from "@chanlytics/contracts";
+import { VISITS_TAB_WORDS, personTabWord } from "@chanlytics/contracts";
 import type { PersonVisitRowVM, PersonVisitsVM } from "@chanlytics/contracts";
 import { EmptyState } from "../../../kit/empty/empty";
 import { Icon } from "../../../kit/icon/icon";
@@ -105,14 +105,14 @@ function head(h: PersonVisitsVM["head"]) {
   );
 }
 
-/** The Visits tab. */
+/** The Visits tab, under the workspace's word for them ("Appointments", "Meetings"). */
 export function VisitsTab({ c }: { c: PageCtx }) {
   const v = c.p.visitTab;
   return (
     <section className="cl-prof-section cl-prof-visits" aria-labelledby="person-visits-title">
       <div className="cl-prof-section-head">
         <h2 className="cl-prof-section-title" id="person-visits-title">
-          {PERSON_TAB_WORDS.visits}
+          {personTabWord("visits", c.p.dealsOn)}
         </h2>
       </div>
       {head(v.head)}

@@ -10,6 +10,7 @@ import type { ListRule } from "@chanlytics/contracts";
 import { FieldError } from "../../kit/field-error/field-error";
 import { Icon } from "../../kit/icon/icon";
 import { focusAsDrawn } from "../../legacy-verbs";
+import { visitWordHere } from "../../visit-line";
 import { lists } from "../people-lists";
 import type { ApiResult } from "@/client/api";
 
@@ -104,7 +105,7 @@ function describeBox(p: {
         <input
           autoFocus={focusAsDrawn()}
           value={words}
-          placeholder="Describe who — “haven’t visited in two months”"
+          placeholder={`Describe who — “no ${visitWordHere()} in two months”`}
           maxLength={300}
           disabled={busy}
           aria-label="Describe who is on the list"

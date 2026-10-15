@@ -654,10 +654,7 @@ function personPageOf(
     thin,
     last: p.lastContact.ts !== null ? { value: clockDate(p.lastContact.ts, tz, nowMs), sub: p.lastContact.by } : null,
     lead: business ? { stage: business.stage.word, since: business.stage.note } : null,
-    deals: {
-      count: p.openDeals.length,
-      recorded: recordedOf(p.openDeals),
-    },
+    deals: { count: p.openDeals.length, recorded: recordedOf(p.openDeals) },
     step: p.nextStep ? { day: p.nextStep.day.near, words: p.nextStep.words } : null,
     calls: { count: p.calls, minutes: callLength(p.callSeconds) },
     visits: {
@@ -667,6 +664,7 @@ function personPageOf(
       any: p.calendar === "ok" && (p.comingUp.length > 0 || visitsSeen > 0 || earlierSaid > 0),
     },
     emails: reachOut ? { out: sent, back: reachOut.readings.filter((r) => !r.undone).length } : null,
+    dealsOn: p.dealsOn,
   });
   const tabFacts = {
     id: p.id,
@@ -676,6 +674,7 @@ function personPageOf(
     deals: p.deals.length,
     campaigns: p.campaigns.length,
     thin,
+    dealsOn: p.dealsOn,
   };
   const evidence = contactEvidenceOf(d, { ...p.firstContact, cameFrom: p.cameFrom?.key ?? null });
   return {

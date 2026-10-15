@@ -4,7 +4,7 @@
  * a face on a card, a selection as a CSV (moved whole from legacy/pages/people.jsx, decision 0015). The pages that have
  * not moved (Leads, the Pipeline, the person page) still read the names published in people-globals.ts.
  */
-import { csvCell, PEOPLE_TABS, stateOf } from "@chanlytics/contracts";
+import { appointmentWordWhere, appointmentWords, csvCell, PEOPLE_TABS, stateOf } from "@chanlytics/contracts";
 import type { PersonRowVM } from "@chanlytics/contracts";
 import { surfaceValue } from "../surface-values";
 import { pageClock } from "@/legacy-bridge/zone";
@@ -89,31 +89,43 @@ export const plReceptSaysTheState = (p: PersonRowVM): boolean =>
   (p.receptionist.tone === "escalated" && p.state === "needs_you") ||
   ((p.receptionist.tone === "paused" || p.receptionist.tone === "yours") && p.state === "waiting_on_you");
 
-/** The sorts a phone offers from its more-menu, in the words it says them in. */
+/** The sorts a phone offers from its more-menu, in the words it says them in (the appointments' in the workspace's word). */
 export const PL_PHONE_SORTS: readonly {
   by: string;
   dir: "asc" | "desc";
   label: string;
+  labelOf?: (x: { dealsOn: boolean }) => string;
   needs?: (x: { withCalendar: boolean }) => boolean;
 }[] = [
   { by: "state", dir: "desc", label: "Needs you first" },
   { by: "last", dir: "desc", label: "Latest contact first" },
   { by: "name", dir: "asc", label: "Name, A to Z" },
   { by: "name", dir: "desc", label: "Name, Z to A" },
-  { by: "visits", dir: "asc", label: "Soonest visit first", needs: (x) => x.withCalendar },
+  {
+    by: "visits",
+    dir: "asc",
+    label: "Soonest appointment first",
+    labelOf: (x) => `Soonest ${appointmentWords(appointmentWordWhere(x.dealsOn)).one} first`,
+    needs: (x) => x.withCalendar,
+  },
 ];
 
-/** What the table is ordered by, said under the list's name (canvas P1: "Sorted by last contact"): each sortable column's own word. */
+/**
+ * What the table is ordered by, said under the list's name (canvas P1: "Sorted by last contact"): each sortable column's
+ * own word, the appointments' in the workspace's ("Sorted by meetings").
+ */
 const PL_SORTED_BY: Record<string, string> = {
   name: "name",
   state: "state",
   next: "next step",
   last: "last contact",
-  visits: "visits",
   offers: "offers",
   calls: "calls",
 };
-export const plSortedBy = (by: string): string => (PL_SORTED_BY[by] ? `Sorted by ${PL_SORTED_BY[by]}` : "");
+export const plSortedBy = (by: string, dealsOn: boolean): string => {
+  const word = by === "visits" ? appointmentWords(appointmentWordWhere(dealsOn)).many : PL_SORTED_BY[by];
+  return word ? `Sorted by ${word}` : "";
+};
 
 /**
  * A visit's hours as its start alone (canvas P1: "Sat, Oct 3 · 10:00 AM"): "2:00 – 3:00 PM" is "2:00 PM", "11:00 AM – 12:00 PM"
