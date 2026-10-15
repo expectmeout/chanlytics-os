@@ -55788,7 +55788,6 @@ export {
   AUDIENCE_KINDS,
   AUTOMATIC_NAMING,
   AppError,
-  AskConfigSchema,
   AskProposalOutcomeSchema,
   AskSettingsChangeSchema,
   BELL_LINE_KINDS,

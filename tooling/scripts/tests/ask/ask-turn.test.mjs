@@ -83,13 +83,16 @@ const { runAskTurn, askPorts } = await import(at("apps/dashboard/src/server/ask/
 const { foldHistory, storedRaw, threadForTurn } = await import(at("apps/dashboard/src/server/ask/memory.ts"));
 const { dropFor } = await import(at("apps/dashboard/src/server/ask/refusals.ts"));
 const { runRound, replayBlocks } = await import(at("apps/dashboard/src/server/ask/round.ts"));
-const { runTool, newToolContext, buildProposal, toApiTools, ACT_TOOL_NAMES, CORE_TOOLS, READ_DEFS, ACT_DEFS } =
-  await import(at("apps/dashboard/src/server/ask/tools/index.ts"));
+const { runTool, newToolContext, buildProposal, toApiTools, ACT_TOOL_NAMES, READ_DEFS, ACT_DEFS } = await import(
+  at("apps/dashboard/src/server/ask/tools/index.ts")
+);
 // The tools as the loop offers them, sorted by name (D11), the acts among the reads: told apart by the act names the
 // loop itself tells apart.
 const READ_TOOLS = toApiTools("owner", true).filter((t) => !ACT_TOOL_NAMES.has(t.name));
 const ACT_TOOLS = toApiTools("owner", true).filter((t) => ACT_TOOL_NAMES.has(t.name));
 const { scopedRead } = await import(at("apps/dashboard/src/server/ask/cross-page.ts"));
+// The tools every question loads, the rest found by the tool search (the operator, D11).
+const { CORE_TOOLS } = await import(at("apps/dashboard/src/server/ask/tools/registry.ts"));
 const { workspaceFacts, stableSystem, turnWords, answerLine, askTurnText, ASK_RULES, ASK_EXAMPLES } = await import(
   at("apps/dashboard/src/server/ask/prompt.ts")
 );

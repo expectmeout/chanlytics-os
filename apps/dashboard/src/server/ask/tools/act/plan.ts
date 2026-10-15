@@ -267,7 +267,7 @@ async function proposePlan(t: ToolContext, asked: PlanAsked): Promise<ProposalOu
 }
 
 /** An offer or a whole setup, made into its cards from one call: propose_plan's action offer. */
-export const planAction = actAction({
+const planAction = actAction({
   // The action makes cards of several kinds; this is what the role it is offered to is judged by (an operator's).
   kind: "playbook",
   input: z.object({

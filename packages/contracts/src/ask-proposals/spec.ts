@@ -178,7 +178,7 @@ export const idIn = (pl: Record<string, unknown> | undefined, k: string): string
 export const refuseWith = (words: string): ProposalRefusal => ({ refused: words });
 
 /** The size of a batch door's request: fifty people at a time, as each batch door has always taken them. */
-export const BATCH_SIZE = 50;
+const BATCH_SIZE = 50;
 
 /** A selection in requests of `size`, in order: one act, its door's batches (the operator, 15 Oct 2026). */
 export function inBatches<T>(items: readonly T[], size: number = BATCH_SIZE): T[][] {

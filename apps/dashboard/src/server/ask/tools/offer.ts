@@ -57,10 +57,10 @@ const OFFER = new Map<MembershipRole, ToolDef[]>(
  * name, description and its inputs' names and descriptions, in the model's own words. The API runs it and loads the
  * tools it finds into the conversation, after the cached prefix.
  */
-export const TOOL_SEARCH = { type: "tool_search_tool_bm25_20251119", name: "tool_search_tool_bm25" } as const;
+const TOOL_SEARCH = { type: "tool_search_tool_bm25_20251119", name: "tool_search_tool_bm25" } as const;
 
 /** A tool as a request carries it: one of Ask's own, deferred or not, or the search tool. */
-export type ApiTool = (ToolDef & { defer_loading?: true }) | typeof TOOL_SEARCH;
+type ApiTool = (ToolDef & { defer_loading?: true }) | typeof TOOL_SEARCH;
 
 /**
  * The tools as the API takes them, for a person of this role (D12, D2): sorted by name, each built from the actions the
