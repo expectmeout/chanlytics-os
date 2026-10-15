@@ -166,7 +166,7 @@ const WORDS: Record<string, string> = {
   archive_list: "Archived a list",
   restore_list: "Restored a list",
   delete_list: "Deleted a list",
-  mark_visit: "Said what became of a visit",
+  mark_visit: "Said whether they came",
   change_step: "Changed a sequence's step",
   leave_sequence: "Took people out of a sequence",
   make_sequence: "Made a sequence",
@@ -667,7 +667,7 @@ export function activityWords(kind: string, payload: unknown): string {
           ? "offers"
           : textAt(p, "purpose") === "email_marketing"
             ? "marketing email"
-            : "messages about their visit";
+            : "messages";
       const consent = textAt(p, "consent");
       bits.push(
         consent === "opted_in"

@@ -170,7 +170,7 @@ export function heldWords(held: HeldOn, purpose: AskedPurpose): string {
     case "stopped":
       return PURPOSE_REFUSALS.opted_out;
     case "unsubscribed":
-      return "They unsubscribed from offers by email. Messages about their visits and replies still reach them.";
+      return "They unsubscribed from offers by email. Reminders, confirmations and replies still reach them.";
     case "no_yes":
       return PURPOSE_REFUSALS[purpose === "marketing" ? "no_marketing_consent" : "not_opted_in"];
     default: {

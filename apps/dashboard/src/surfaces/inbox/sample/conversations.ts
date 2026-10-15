@@ -58,7 +58,7 @@ const CONVERSATIONS: ConversationRow[] = [
     },
     transcript: [
       { t: "0:03", speaker: "client", text: "Hey — I think I need a refund. Two no-shows feels like enough penalty." },
-      { t: "0:11", speaker: "agent", text: "I hear you, Aisha. Let me pull up your visits — one moment." },
+      { t: "0:11", speaker: "agent", text: "I hear you, Aisha. Let me pull up your appointments — one moment." },
       {
         t: "0:26",
         speaker: "agent",
@@ -202,7 +202,7 @@ const CONVERSATIONS: ConversationRow[] = [
     snippet: "Perfect, thank you!",
     summary: {
       headline: "Routine reschedule, handled end-to-end.",
-      bullets: ["Fri 2pm → Sat 11am, same therapist", "No escalation — high-confidence routine"],
+      bullets: ["Fri 2pm → Sat 11am, same staff member", "No escalation — high-confidence routine"],
     },
     messages: [
       { from: "client", at: "11:33", text: "Hey, can I move Friday 2pm to Saturday morning?" },

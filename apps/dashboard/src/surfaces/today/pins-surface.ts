@@ -43,7 +43,7 @@ export const todayPinsOverride: SurfaceOverride = {
       },
       {
         tables: ["appointment_notices"],
-        why: "a booking email held for a look is no visit: the lists count the visits on the calendar",
+        why: "a booking email held for a look is not on the calendar: the lists count the appointments there",
       },
     ],
   }),

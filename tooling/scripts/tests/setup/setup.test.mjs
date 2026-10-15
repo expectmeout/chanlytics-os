@@ -205,7 +205,7 @@ test("a workspace that answers everywhere: nine of ten — the kept number is th
   assert.equal(row(vm, "yes").sentence, "1 person said yes to offers.");
   assert.deepEqual(
     row(vm, "yes").details,
-    ["3 people said yes to messages about their own visit"],
+    ["3 people said yes to messages"],
     "and the other count rides along, so the owner knows what to go and ask for",
   );
   const none = setupSteps({ ...live(), consent: { yes: 3, offers: 0, offersSaidYes: 0 } }, NOW);
@@ -269,7 +269,7 @@ test("REGRESSION: a yes to offers with no number to send one to is a yes -- Setu
       state: "waiting_you",
       stateWords: "Waiting on you",
       sentence: `1 person said yes to offers, but nobody can be sent one yet — ${NO_NUMBER_REACH}.`,
-      details: ["2 people said yes to messages about their own visit"],
+      details: ["2 people said yes to messages"],
       verb: { label: "Open People", to: "clients" },
     },
   );
@@ -686,7 +686,7 @@ test("WhatsApp waits on Meta while the first messages are with them, or while th
   const few = setupSteps(live({ templates: { approved: 2, pending: 0, startersApproved: 2 } }), NOW);
   assert.deepEqual(row(few, "whatsapp").verb, { label: "Add the starters", to: "outbound" });
   assert.ok(
-    row(few, "whatsapp").details.includes("Add the starter messages: the visit reminder, how did it go, the win-back"),
+    row(few, "whatsapp").details.includes("Add the starter messages: the reminder, how did it go, the win-back"),
   );
 });
 
