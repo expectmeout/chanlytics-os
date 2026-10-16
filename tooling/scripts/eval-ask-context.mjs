@@ -584,6 +584,8 @@ function heldAt(payload, at) {
  * holds nothing there (`until`: a change asked to end on a day that names none), null holding nothing either way;
  * `card_fields_each` fails each value named at a path that no card of the kind holds (`language` en_US and es: a message
  * asked for "in Spanish too" is two cards, never the Spanish one alone);
+ * `card_text_excludes` fails a card of the kind whose payload says any of the words, in any case (an offer's send that
+ * types "next month" into a message read on the 1st, or the ask itself, "I want to offer");
  * `next_any` fails unless one of the answer's next questions holds one of the words (a campaign on a list made in the
  * same answer waits for a next question, A2). `e` is a case's expect, `m` the turn's final message. It judges every
  * case's cards, not a setup's alone: an offer's, a written message's, a change's and a text refused are held by the same
@@ -618,6 +620,12 @@ export function setupCardsFails(e, m) {
       for (const v of values)
         if (!cards.some((p) => p.kind === kind && heldAt(p.payload, at) === v))
           fails.push(`no ${kind} card holding ${at} “${v}”, which the words asked for`);
+  for (const [kind, words] of Object.entries(e.card_text_excludes ?? {}))
+    for (const p of cards.filter((x) => x.kind === kind)) {
+      const said = JSON.stringify(p.payload ?? {}).toLowerCase();
+      for (const w of words)
+        if (said.includes(w.toLowerCase())) fails.push(`a ${kind} card that says “${w}”, which the words ruled out`);
+    }
   if (Array.isArray(e.next_any)) {
     const next = (m?.answer?.do?.next ?? m?.followups ?? []).map((q) => String(q).toLowerCase());
     if (!e.next_any.some((w) => next.some((q) => q.includes(w.toLowerCase()))))

@@ -5094,6 +5094,16 @@ async function personReplyMode(db, tenantId, contactId) {
   if (error) throw new Error(error.message);
   return data?.mode ?? null;
 }
+var MODE_IDS_AT_ONCE = 200;
+async function personReplyModes(db, tenantId, contactIds) {
+  const out = /* @__PURE__ */ new Map();
+  for (let i = 0; i < contactIds.length; i += MODE_IDS_AT_ONCE) {
+    const { data, error } = await db.from("policies").select("subject_id, mode").eq("tenant_id", tenantId).eq("class", "reply").eq("subject_type", "contact").in("subject_id", contactIds.slice(i, i + MODE_IDS_AT_ONCE));
+    if (error) throw new Error(error.message);
+    for (const r of data ?? []) if (r.subject_id) out.set(r.subject_id, r.mode);
+  }
+  return out;
+}
 async function setPersonReplyMode(db, tenantId, contactId, mode) {
   if (mode === null) {
     const { data, error: error2 } = await db.from("policies").delete().eq("tenant_id", tenantId).eq("class", "reply").eq("subject_type", "contact").eq("subject_id", contactId).select("mode");
@@ -7107,6 +7117,7 @@ export {
   personExportPages,
   personFactsOf,
   personReplyMode,
+  personReplyModes,
   personRow,
   platformDay,
   platformWide,

@@ -1779,7 +1779,12 @@
       "card_fields_absent": {
         "message": ["versions.sms"]
       },
-      "no_write": true
+      "no_write": true,
+      "card_text_excludes": {
+        "broadcast": ["next month", "I want to", "I'd like to"],
+        "playbook": ["next month", "I want to", "I'd like to"],
+        "settings": ["next month", "I want to", "I'd like to"]
+      }
     }
   },
   {
@@ -1821,7 +1826,12 @@
         "Pauses the month's offer",
         "The calendar has"
       ],
-      "no_write": true
+      "no_write": true,
+      "card_text_excludes": {
+        "broadcast": ["el mes que viene", "el próximo mes", "próximo mes", "Quiero ofrecer", "Me gustaría"],
+        "playbook": ["el mes que viene", "el próximo mes", "próximo mes", "Quiero ofrecer", "Me gustaría"],
+        "settings": ["el mes que viene", "el próximo mes", "próximo mes", "Quiero ofrecer", "Me gustaría"]
+      }
     }
   },
   {

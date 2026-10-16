@@ -22167,6 +22167,8 @@ type OfferChannel$1 = "whatsapp" | "email";
 declare const PLAN_WORDS: {
     readonly noOffer: "intent offer takes offer: its words, from and until, the offer's first and last day. Ask what the offer is and when it runs.";
     readonly noWords: "words is the offer in the owner's words: ask what the offer is.";
+    /** The offer's words say a day from today that its message, note and send, first read on its first day, misread. */
+    readonly dayFromToday: (phrase: string, from: string) => string;
     readonly notADay: "from and until are days on the business's calendar, written YYYY-MM-DD: ask for them again.";
     readonly fromAfterUntil: "until comes before from: an offer's last day is its first day or later. Ask which dates they meant.";
     readonly fromPast: "from is a day already past on the business's calendar: an offer starts today or later. Ask when it starts.";
@@ -24904,7 +24906,8 @@ declare function whatsappOffersOpen(e164: string | null | undefined): EmailOffer
  * room and the pace, WhatsApp's review, the day to ask for a reminder, and the send's day and hour. A channel's reason is
  * channelChoices' own, said in Spanish where contracts wrote it (reach-for.ts, email-offers.ts, whatsapp-offers.ts); one
  * of Meta's own words, or of a number's standing, is said as it was written. The plan's refusals stay English (PLAN_WORDS):
- * the model reads them and says them in the question's language.
+ * the model reads them and says them in the question's language. And what the owner's own words may not carry into a
+ * message read on a later day: a day said from today, or the ask itself (planOf's offerValue).
  */
 
 type OfferChannel = keyof PlanWorld["channels"];

@@ -1656,3 +1656,63 @@ test("the message one plan writes is the message the next plan sends, with that 
   const again = planOf(offer({ words: "Fin de semana" }), world({ language: "es", messages: [filed(esWritten)] }));
   assert.equal(again.steps.filter((s) => s.kind === "message").length, 0, "reused, not written again");
 });
+
+test("what a send types is read on its own day: the owner's phrasing where it names no day from today and is not the ask itself, else the offer's words; words that name one are refused, but for an offer of today alone (the offer-words eval, 16 Oct 2026)", () => {
+  const typed = (out) => out.steps.find((s) => s.kind === "broadcast").input.params[2];
+  const note = (out) => out.steps.find((s) => s.kind === "note").input.change.text;
+  for (const [say, words, line] of [
+    // The eval's own: "all next month" typed into a message that sends on Nov 1, where it reads as December.
+    ["10% off colour all next month", "10% off colour all November", "10% off colour all November."],
+    [
+      "10% de descuento en todo el mes que viene",
+      "10% de descuento en todo noviembre",
+      "10% de descuento en todo noviembre.",
+    ],
+    // The ask itself, which a customer would read first.
+    [
+      "Quiero ofrecer un 10% de descuento en todo noviembre",
+      "10% de descuento en todo noviembre",
+      "10% de descuento en todo noviembre.",
+    ],
+    ["I want to offer 10% off all November", "10% off all November", "10% off all November."],
+    ["Empieza mañana: un 10%", "10% en noviembre", "10% en noviembre."],
+    // A time of day and a weekday name no day from today: the owner's phrasing is what the message says.
+    ["Un 10% por la mañana, todo noviembre", "10% en noviembre", "Un 10% por la mañana, todo noviembre."],
+    ["10% off every Monday in November", "10% off in November", "10% off every Monday in November."],
+  ]) {
+    const out = planOf(offer({ words }, say), world({ messages: [monthsOfferMessage()] }));
+    assert.ok("steps" in out, JSON.stringify(out));
+    assert.equal(typed(out), line, say);
+    assert.ok(note(out).startsWith(`The offer: ${line} `), note(out));
+  }
+  // The offer's words title its note and its send, read until its last day: a day from today is refused, by name.
+  for (const [words, day] of [
+    ["10% off all next month", "next month"],
+    ["15% en todo el próximo mes", "el próximo mes"],
+    ["20% off this weekend", "this weekend"],
+    ["10% de descuento la semana que viene", "la semana que viene"],
+  ])
+    assert.deepEqual(planOf(offer({ words }), world()), { refused: W.dayFromToday(day, "Nov 1") }, words);
+  // An offer of today alone is read on the day it was said: its words stand.
+  const today = planOf(
+    offer({ words: "20% off today only", from: "2026-10-11", until: "2026-10-11" }),
+    world({ messages: [monthsOfferMessage()] }),
+  );
+  assert.ok("steps" in today, JSON.stringify(today));
+  assert.equal(typed(today), "20% off today only.");
+  // A "this" span is read from the offer's first day: right where the offer lies within it, as a weekend's two days or
+  // a month's offer within its month, whatever day it was asked.
+  for (const [words, from, until] of [
+    ["20% off every booking this weekend", "2026-10-17", "2026-10-18"],
+    ["10% off all this month", "2026-11-01", "2026-11-30"],
+    ["15% este fin de semana", "2026-10-16", "2026-10-18"],
+  ]) {
+    const out = planOf(offer({ words, from, until }), world({ messages: [monthsOfferMessage()] }));
+    assert.ok("steps" in out, `${words}: ${JSON.stringify(out)}`);
+    assert.equal(typed(out), `${words}.`);
+  }
+  // One that runs on past today is not: "today" read tomorrow is wrong.
+  assert.deepEqual(planOf(offer({ words: "20% off from today", from: "2026-10-11", until: "2026-10-18" }), world()), {
+    refused: W.dayFromToday("today", "Oct 11"),
+  });
+});

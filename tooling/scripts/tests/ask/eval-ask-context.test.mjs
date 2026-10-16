@@ -1567,6 +1567,21 @@ test("card_fields_absent (the marketing manager's cases): a card of the kind hol
   assert.deepEqual(setupCardsFails(absent, m(card("broadcast", { template_id: "x", versions: { sms: {} } }))), []);
 });
 
+test("card_text_excludes (the offer-words eval, 16 Oct 2026): a card of the kind whose payload says any of the words, in any case, fails; a card of another kind is never judged, and the offer cases hold it", () => {
+  const card = (kind, payload) => ({ id: "p", kind, title: "t", summary: "s", payload });
+  const m = (...proposals) => ({ text: "", proposals, tools: [], answer: { do: { next: [] } } });
+  const e = { card_text_excludes: { broadcast: ["next month", "el mes que viene", "I want to offer"] } };
+  const send = (line) => card("broadcast", { template_id: "x", params: ["@first_name", "@business_name", line] });
+  assert.deepEqual(setupCardsFails(e, m(send("10% off colour all November."))), []);
+  assert.deepEqual(setupCardsFails(e, m(send("10% off colour all Next Month."))), [
+    "a broadcast card that says “next month”, which the words ruled out",
+  ]);
+  assert.match(setupCardsFails(e, m(send("10% de descuento todo el mes que viene.")))[0], /el mes que viene/);
+  assert.deepEqual(setupCardsFails(e, m(card("message", { body: "next month" }))), []);
+  for (const id of ["offer_november_colour", "offer_next_month_es"])
+    assert.ok(CASES.find((c) => c.id === id)?.expect.card_text_excludes?.broadcast?.length, id);
+});
+
 test("needs (a case's workspace): a case needing what EVAL_WORKSPACE_HAS does not hold is said as skipped and never asked, so never failed; one whose needs it holds runs, and so does one with none", () => {
   assert.equal(skipFor({ id: "a", needs: ["calendar", "live_call"] }, ["calendar"]), "skip a (needs live_call)");
   assert.equal(skipFor({ id: "b", needs: ["calendar"] }, ["calendar"]), null);
