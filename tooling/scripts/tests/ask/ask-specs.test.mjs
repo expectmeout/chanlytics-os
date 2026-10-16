@@ -564,11 +564,11 @@ test("leads added to a reach-out from a card (00426): the add door with the lead
   });
   assert.equal(
     spec.receipt(p, { added: 2 }),
-    "Added 2 leads to “Spring dentists”. Its next run waits for your say before anything goes.",
+    "Added 2 leads to “Spring dentists”. Nothing goes to them until you give its next batch your OK.",
   );
   assert.equal(
     spec.receipt(p, { added: 1 }),
-    "Added 1 lead to “Spring dentists”. Its next run waits for your say before anything goes.",
+    "Added 1 lead to “Spring dentists”. Nothing goes to them until you give its next batch your OK.",
   );
   assert.equal(spec.receipt(p, { added: 0 }), "None could be added to “Spring dentists”.");
   assert.deepEqual(spec.undo.record(p, { op_id: "op1", version: 2 }), { op_id: "op1", version: 2 });

@@ -377,3 +377,24 @@ export type {
   LeadPileProgressVM,
   LeadPileSlot,
 } from "./lead-pile";
+export {
+  LEAD_CARD_WORDS,
+  LEAD_CARD_TABS,
+  LEAD_SHEET_WORDS,
+  LEAD_CARD_MARKS_MAX,
+  leadCardEmailOf,
+  leadCardStepsOf,
+  leadCardPartsOf,
+  leadCardReasonOf,
+  leadCardMarksOf,
+} from "./lead-card";
+export type {
+  LeadCardTab,
+  LeadCardPart,
+  LeadCardChain,
+  LeadCardLead,
+  LeadCardEmailVM,
+  LeadCardStepVM,
+  LeadCardReasonVM,
+  LeadCardMarkVM,
+} from "./lead-card";

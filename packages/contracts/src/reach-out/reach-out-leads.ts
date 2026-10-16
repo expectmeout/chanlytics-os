@@ -207,12 +207,12 @@ const intentWords = (intent: string): string => (isReplyIntent(intent) ? REPLY_I
 const personAnswered = (r: ReachOutLineReplyDto | null): r is ReachOutLineReplyDto =>
   !!r && !r.undone && r.claim !== "auto_reply";
 
-/** "Written Tue · nudged Sat", and the next when one is planned. */
+/** "Written Tue · followed up Sat", and the next when one is planned. */
 function writtenWords(l: ReachOutLeadLineDto, tz: string, nowMs: number): string {
   const parts = [`Written ${near(l.first_sent_at, tz, nowMs)}`];
-  if (l.sent > 1) parts.push(`nudged ${near(l.last_sent_at, tz, nowMs)}`);
-  if (l.held) parts.push("a nudge waits for your say");
-  else if ((l.drafted ?? 0) > 0) parts.push("a nudge is handed to you to send");
+  if (l.sent > 1) parts.push(`followed up ${near(l.last_sent_at, tz, nowMs)}`);
+  if (l.held) parts.push("a follow-up waits for your OK");
+  else if ((l.drafted ?? 0) > 0) parts.push("a follow-up is handed to you to send");
   else if (l.next_at) parts.push(`next ${near(l.next_at, tz, nowMs)}`);
   return parts.join(" · ");
 }
@@ -247,7 +247,7 @@ export function reachOutLineOf(l: ReachOutLeadLineDto, nowMs: number, tz: string
   if (l.sent > 0 && away !== null && away > nowMs)
     return `Written ${near(l.first_sent_at, tz, nowMs)} · away until ${clockDate(away, tz, nowMs)}`;
   if (l.sent > 0) return writtenWords(l, tz, nowMs);
-  if (l.held) return "Held for your say";
+  if (l.held) return "Held for your OK";
   // Handed to its owner, written and checked (00429): it waits for them to send it from their inbox.
   if ((l.drafted ?? 0) > 0) return "Drafted for you · to send from your inbox";
   const next = at(l.next_at);
@@ -286,7 +286,7 @@ export function reachOutStripOf(
     parts.push(`next ${when}${s.next.business ? `, ${s.next.business}` : ""}`);
     if (s.next.from || s.next.host) parts.push(`from ${s.next.from ?? s.next.host}`);
   } else parts.push("nothing more planned yet");
-  if (s.held > 0) parts.push(`${s.held} held for your say`);
+  if (s.held > 0) parts.push(`${s.held} held for your OK`);
   if ((s.to_send ?? 0) > 0) parts.push(`${s.to_send} to send from your inbox`);
   return {
     title: running
@@ -297,7 +297,7 @@ export function reachOutStripOf(
     progress: share > 0 ? Math.min(1, s.today / share) : null,
     going: { label: "How it's going", to: `outbound/${s.chain.root_id}` },
     toggle: running ? { label: "Pause", pause: true } : { label: "Resume", pause: false },
-    waiting: s.waiting_run_id ? { label: "A run waits for you", to: `broadcasts/run:${s.waiting_run_id}` } : null,
+    waiting: s.waiting_run_id ? { label: "Waits for your OK", to: `broadcasts/run:${s.waiting_run_id}` } : null,
   };
 }
 
@@ -314,9 +314,9 @@ function emailWords(s: ReachOutTimelineSendDto): string {
 const skippedWords = (reason: string | null): string | null =>
   reason === "run_canceled" || reason === "owner_took_back" ? null : skippedReasonWords(reason ?? "");
 
-/** A step's name: "Your email", "A short nudge", "A call for you". */
+/** A step's name, as a sequence's steps are said (decision 0060): "Email 1", "Email 2", "A call for you". */
 const stepName = (n: number | null, hand: HandKind | null): string =>
-  n === null ? "A step since removed" : stepLabelOf({ n, hand: hand ? { kind: hand } : null });
+  n === null ? "A step since removed" : hand ? stepLabelOf({ n, hand: { kind: hand } }) : `Email ${n + 1}`;
 
 /** One line of a lead's story: its time and what happened. */
 export interface ReachOutStoryLine {
@@ -345,7 +345,7 @@ function sendLine(s: ReachOutTimelineSendDto, tz: string, nowMs: number): ReachO
   }
   if (s.state === "handed") return line(`${name} · handed to you`);
   if (s.state === "drafted") return line(`${name} · handed to you to send`);
-  if (s.state === "held") return line(`${name} · waits for your say`);
+  if (s.state === "held") return line(`${name} · waits for your OK`);
   if (s.state === "planned" || s.state === "claimed" || s.state === "queued") return line(`${name} · planned`);
   if (s.state === "failed") return line(`${name} · could not be sent`);
   const why = skippedWords(s.reason);
@@ -395,7 +395,7 @@ export function reachOutTimelineOf(t: ReachOutLeadTimelineDto, nowMs: number, tz
   const ownerSent = t.sends.some((s) => s.left && s.said === true);
   const answered = t.readings.some((r) => !r.undone && r.claim !== "auto_reply");
   return {
-    label: `Reach out · ${t.chain?.name ?? t.search?.name ?? "a reach-out"}`,
+    label: `Sequence · ${t.chain?.name ?? t.search?.name ?? "a sequence"}`,
     lines,
     stopped: stopped !== null ? `You stopped writing to them ${clockNear(stopped, tz, nowMs)}` : null,
     read: t.conversation_id ? { label: "Read what went out", to: `inbox/th-${t.conversation_id}` } : null,
@@ -428,9 +428,9 @@ export interface ReachOutPersonVM {
 function readingEffect(r: ReachOutTimelineReadingDto): string {
   if (r.undone) return "undone";
   if (r.said_no) return "nothing more will be written";
-  if (r.convert) return "the chain stopped · Talking";
-  if (r.stops) return "the chain stopped";
-  if (r.claim === "auto_reply" && r.intent === "away" && r.until_at) return "the chain waits";
+  if (r.convert) return "the sequence stopped · Talking";
+  if (r.stops) return "the sequence stopped";
+  if (r.claim === "auto_reply" && r.intent === "away" && r.until_at) return "the sequence waits";
   return "nothing changed";
 }
 
@@ -448,7 +448,7 @@ export function reachOutPersonOf(t: ReachOutLeadTimelineDto, nowMs: number, tz: 
     if (s.from || s.host) parts.push(`from ${s.from ?? s.host}`);
     else if (s.said) parts.push("from your inbox");
     parts.push(emailWords(s));
-    emails.set(s.message_id, { who: chain ? `Reach out · ${chain}` : "Your reach-out", sub: parts.join(" · ") });
+    emails.set(s.message_id, { who: chain ? `Sequence · ${chain}` : "Your sequence", sub: parts.join(" · ") });
   }
   const readings = new Map<string, string>();
   for (const r of t.readings)
@@ -501,23 +501,23 @@ const standing = (words: string, tone: ReachOutStandingVM["tone"], stop: boolean
 });
 
 /**
- * When a lead nothing was written to yet goes: with its reach-out's run, never at a minute the run has not chosen (the
- * timetable places each email in its business's hours). A run that waits for its owner, a paused reach-out, today's
- * run still to come, the next hourly sweep (today's not made: an add after the hour is planned then, 00426), or
- * tomorrow's (today's made, or the day's last hour gone). A list-fed reach-out's first email always waits for its
- * owner's say first.
+ * When a lead nothing was written to yet goes: with its sequence's batch for the day, never at a minute the batch has not
+ * chosen (the timetable places each email in its business's hours). A batch that waits for its owner, a paused
+ * sequence, today's batch still to come, the next hourly sweep (today's not made: an add after the hour is planned
+ * then, 00426), or tomorrow's (today's made, or the day's last hour gone). A list-fed sequence's first email always
+ * waits for its owner's OK first.
  */
 export function reachOutWhenOf(c: ReachOutTimelineChainDto, nowMs: number, tz: string): string {
-  if (c.waiting_run_id) return "a run waits for your say";
+  if (c.waiting_run_id) return "waits for your OK";
   if (c.state !== "running") return "nothing goes while it is paused";
   const hour = c.run_hour ?? PLAYBOOK_HOURS.min;
   const now = new Date(nowMs);
   const h = localHour(tz, now);
-  const say = c.fed_by === "list" ? ", after your say" : "";
+  const say = c.fed_by === "list" ? ", after your OK" : "";
   if (c.last_run_for === localDate(tz, now) || h > PLAYBOOK_HOURS.max)
-    return `goes with tomorrow's ${clockHour(hour)} run${say}`;
-  if (h < hour) return `goes with today's ${clockHour(hour)} run${say}`;
-  return `goes with the next run, within the hour${say}`;
+    return `goes tomorrow from ${clockHour(hour)}${say}`;
+  if (h < hour) return `goes today from ${clockHour(hour)}${say}`;
+  return `goes within the hour${say}`;
 }
 
 /** What a person's answer did, after "wrote back Thu · interested". */
@@ -533,7 +533,7 @@ function answerStanding(
   if (r.intent === "not_now" && resume !== null && resume <= nowMs)
     return standing(`asked to hear from you ${askedDayOf(resume, tz, nowMs)} · write to them yourself`, "warn", false);
   const what = `wrote back ${near(r.read_at, tz, nowMs)} · ${intentWords(r.intent)}`;
-  return standing(r.stops || r.convert ? `${what} · the reach-out stopped` : what, "good", false);
+  return standing(r.stops || r.convert ? `${what} · the sequence stopped` : what, "good", false);
 }
 
 /** The time of the earliest email planned in a live run, or null. */
@@ -553,7 +553,7 @@ function writtenStanding(t: ReachOutLeadTimelineDto, tz: string, nowMs: number):
   const drafted = t.sends.some((s) => s.state === "drafted");
   const planned = nextPlanned(t);
   if (left.length === 0) {
-    if (held) return standing("email 1 waits for your say", "warn", false);
+    if (held) return standing("email 1 waits for your OK", "warn", false);
     if (drafted) return standing("email 1 is handed to you to send", "warn", false);
     if (planned !== null) return standing(`email 1 goes ${clockNearWhen(planned, tz, nowMs)}`, "plain", false);
     return null;
@@ -561,7 +561,7 @@ function writtenStanding(t: ReachOutLeadTimelineDto, tz: string, nowMs: number):
   const last = left.at(-1);
   const k = (last?.n ?? 0) + 1;
   const parts = [`${steps >= k ? `email ${k} of ${steps} sent` : "written"} ${near(last?.sent_at ?? null, tz, nowMs)}`];
-  if (held) parts.push("the next waits for your say");
+  if (held) parts.push("the next waits for your OK");
   else if (drafted) parts.push("the next is handed to you to send");
   else if (planned !== null) parts.push(`next ${clockNearWhen(planned, tz, nowMs)}`);
   else if (steps > k) parts.push("the next if nothing comes back");
@@ -593,7 +593,7 @@ export function reachOutStandingOf(t: ReachOutLeadTimelineDto, nowMs: number, tz
   const away = t.readings.find((r) => !r.undone && r.intent === "away" && at(r.until_at) !== null);
   const back = away ? at(away.until_at) : null;
   if (back !== null && back > nowMs)
-    return standing(`away until ${clockDate(back, tz, nowMs)} · the reach-out waits`, "plain", t.can_stop);
+    return standing(`away until ${clockDate(back, tz, nowMs)} · the sequence waits`, "plain", t.can_stop);
   const written = writtenStanding(t, tz, nowMs);
   if (written) return written;
   const added = t.added_at ? `added ${near(t.added_at, tz, nowMs)} · ` : "";
@@ -640,7 +640,7 @@ export const REACH_OUT_WHY_NOT_WORDS: Record<ReachOutWhyNot, string> = {
   unchecked: "with an address not checked yet",
   already: "already on it",
   not_counted: "still in Needs review",
-  elsewhere: "with another reach-out",
+  elsewhere: "in another sequence",
 };
 
 /** One lead the door left out, and the reach-out that has it when another does. */
@@ -670,9 +670,9 @@ export interface ReachOutAddDto {
 
 /** The door's refusals and its undo's answers, in words. */
 export const REACH_OUT_ADD_WORDS = {
-  listGone: "That reach-out's list was removed, so nothing can be added to it.",
-  fedBySearch: "That reach-out writes to its search's leads as they're found, so leads aren't added to it by hand.",
-  door: "Add to its reach-out",
+  listGone: "That sequence's list was removed, so nothing can be added to it.",
+  fedBySearch: "That sequence writes to its search's leads as they're found, so leads aren't added to it by hand.",
+  door: "Add to its sequence",
   takenBack: (n: number) => `Took ${plural(n, "lead", "leads")} back off the list`,
   onItsWay: "Its email is already on its way, so it stays. Stop writing to them instead.",
   sent: "Its email was already sent, so it stays. Stop writing to them instead.",
@@ -755,8 +755,8 @@ export interface ReachOutSourceDto {
 export const REACH_OUT_SOURCE_WORDS = {
   addTitle: "Leads you add",
   addSub: "Pick them on Leads, one at a time or from the table, then write to them",
-  failed: "the searches and lists a reach-out could start from",
-  none: "Every search and list with someone to write to has its reach-out. Find more businesses on Leads.",
+  failed: "the searches and lists a sequence could start from",
+  none: "Every search and list with someone to write to has its sequence. Find more businesses on Leads.",
   find: "Find businesses",
 } as const;
 
@@ -769,7 +769,7 @@ export function reachOutSourceOf(s: ReachOutSourceDto): { title: string; sub: st
       ? "A list you made on the Leads table"
       : s.via === "import"
         ? "A list you imported"
-        : "A search with no reach-out yet";
+        : "A search with no sequence yet";
   return { title: `${s.name} · ${reach}`, sub: what, include };
 }
 

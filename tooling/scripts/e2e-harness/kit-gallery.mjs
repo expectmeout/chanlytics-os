@@ -428,6 +428,22 @@ const kitKickerSheet = () =>
   `<button type="button" class="btn btn-sm btn-primary">Start it</button></div></footer></section>`;
 
 /**
+ * The kit's Sheet with two rests (`rest`, kit-behaves.tsx's; the lead workbench's pile): a kicker's head over one pane of
+ * rows and a foot, standing at half, its handle a button that raises it to full. On a desk it is the side pane.
+ */
+const kitRestsSheet = () =>
+  `<button type="button" class="btn">Go through them</button>` +
+  `<div class="sheet-backdrop" role="presentation" aria-hidden="true"></div>` +
+  `<section class="sheet sheet-kicker sheet-rests" role="dialog" tabindex="-1" data-rest="half">` +
+  `<button type="button" class="sheet-handle" aria-label="Show all of it" aria-expanded="false"></button>` +
+  `<header class="rec-sheet-head"><div class="rec-sheet-heading"><h2 class="rec-sheet-title">Going through</h2></div>` +
+  `<button type="button" tabindex="0" aria-label="Close" class="rec-sheet-close">${icon("x", 13)}</button></header>` +
+  `<div class="rec-sheet-body"><div>${KIT_ROWS}</div></div>` +
+  `<footer class="rec-sheet-foot"><div data-foot-pair="">` +
+  `<button type="button" class="btn btn-sm btn-ghost">Later</button>` +
+  `<button type="button" class="btn btn-sm btn-primary">Add</button></div></footer></section>`;
+
+/**
  * The kit's Sheet in a phone's job's shape, open on its second step (kit-behaves.tsx's): the control that opened it,
  * the wash, and the dialog with its way back, its title and its word, and the step's one act.
  */
@@ -2224,6 +2240,7 @@ export const FAMILIES = [
       { id: "sheet-kit-mark", stage: "sheet", html: kitMarkSheet() },
       { id: "sheet-kit-job", stage: "sheet", html: kitJobSheet() },
       { id: "sheet-kit-kicker", stage: "sheet", html: kitKickerSheet() },
+      { id: "sheet-kit-rests", stage: "sheet", html: kitRestsSheet() },
     ],
   },
   {

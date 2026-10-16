@@ -123,6 +123,11 @@ const STATES: { entry: string; bring: (page: Page) => Promise<void>; ready: stri
     bring: (p) => p.getByTestId("sheet-kicker-open").click(),
     ready: "section.sheet.sheet-kicker",
   },
+  {
+    entry: "sheet-kit-rests",
+    bring: (p) => p.getByTestId("sheet-rests-open").click(),
+    ready: "section.sheet.sheet-rests",
+  },
   { entry: "menu-kit", bring: (p) => p.getByTestId("menu-open").click(), ready: ".more-menu" },
   { entry: "menu-kit-set", bring: (p) => p.getByTestId("menu-set-open").click(), ready: ".more-menu" },
   { entry: "menu-kit-switches", bring: (p) => p.getByTestId("menu-switches-open").click(), ready: ".more-menu" },

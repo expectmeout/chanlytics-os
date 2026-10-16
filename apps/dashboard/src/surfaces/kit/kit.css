@@ -3929,6 +3929,52 @@ a.list-row {
     display: none;
   }
 }
+/* Two rests on a phone (Sheet's `rest`, sheet/rests.ts; the lead workbench's pile, canvas B): one height, the cap's,
+   standing down by its rest at half, so what it holds first shows over the page, with its foot held at the screen's
+   foot by the same length back; at full it stands whole. Its body scrolls, never the sheet, and at half it ends where
+   the raised foot begins, so nothing reads through the foot's glass. The handle is a button between the two, its bar
+   drawn as the handle's and a thumb's 44px round it by an invisible margin, never the house's floor for a button. It
+   moves on the kit's ease, the finger's place an inline transform while it pulls; under reduced motion it snaps. */
+@media (max-width: 900px) {
+  .sheet-rests {
+    --sheet-rest: 240px;
+    height: calc(88dvh - var(--kb, 0px));
+    overflow: hidden;
+    transform: translate3d(0, 0, 0);
+    transition: transform var(--duration-base) var(--ease-out);
+  }
+  .sheet-rests[data-rest="half"] {
+    transform: translate3d(0, var(--sheet-rest), 0);
+  }
+  .sheet-rests[data-rest="half"] > .rec-sheet-foot {
+    transform: translate3d(0, calc(-1 * var(--sheet-rest)), 0);
+  }
+  .sheet-rests[data-rest="half"] > .rec-sheet-body {
+    margin-bottom: var(--sheet-rest);
+  }
+  .sheet-rests > .sheet-handle {
+    position: relative;
+    min-width: 0;
+    min-height: 0;
+    padding: 0;
+    border: 0;
+    cursor: pointer;
+  }
+  .sheet-rests > .sheet-handle::after {
+    content: "";
+    position: absolute;
+    inset: -20px -24px;
+  }
+  .sheet-rests > .sheet-handle:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sheet-rests {
+    transition: none;
+  }
+}
 
 /* ---------- Sub-tabs — a page's own sub-menu ----------
    The few ways to cut the list a page shows (the Inbox's buckets, Conversations' channels), as small text tabs on a line,

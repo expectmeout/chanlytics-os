@@ -1,13 +1,15 @@
 /**
- * The pile (the lead workbench, 00426; canvas B v2): one lead at a time where the rows stand, and three presses for it
- * -- no, not now, yes -- with the five whys of Not a fit in the rail's place when it is pressed. Over it, the search
- * being gone through and where its adds go; under it, how far through it is, and Undo for the last three. At the end,
- * the later ones, or the leads held for a new list and the one press that writes to them. On a desk the lead's details
- * are the peek beside it, which follows the lead that is up; on a phone they are the peek, opened from Details.
+ * The pile (the lead workbench, 00426; canvas B v2): one lead at a time, and three presses for it -- no, not now, yes --
+ * with the five whys of Not a fit in the rail's place when it is pressed. The lead is its card (card.tsx): the reason up
+ * front, what it rests on, how they can be reached and the first email they would get. Over it, the search being gone
+ * through and where its adds go; under it, how far through it is, and Undo for the last three. At the end, the later
+ * ones, or the leads held for a new list and the one press that writes to them. On a desk the pile stands where the
+ * rows stand and the lead's details are the peek beside it, which follows the lead that is up; on a phone the pile is
+ * a sheet over the rows (sheet.tsx), its card at half height and its five tabs at full.
  *
  * Hookless: the page holds the pile (use-pile.ts) and hands it down. Every word is contracts' (LEAD_PILE_WORDS,
- * leadPileRailOf, LEAD_NOT_A_FIT_WORDS); the keys are the page's one listener's (people/hooks/keyboard.ts) and listed in
- * the ? sheet (SHORTCUTS), never drawn here.
+ * leadPileRailOf, LEAD_NOT_A_FIT_WORDS, LEAD_CARD_WORDS); the keys are the page's one listener's
+ * (people/hooks/keyboard.ts) and listed in the ? sheet (SHORTCUTS), never drawn here.
  */
 import {
   LEAD_NOT_A_FIT_TITLE,
@@ -21,18 +23,15 @@ import {
 } from "@chanlytics/contracts";
 import { Button } from "../../kit/button/button";
 import { gate } from "../../legacy-verbs";
-import { LeadTile } from "../cells/tile";
+import { LeadCardHead, LeadCardMail, type LeadCardFacts } from "./card";
 import type { LeadPile } from "./use-pile";
 
-/** A fact the listing showed, with where it came from as its title: the rating, today's hours, the reach. */
-const factRowsOf = (l: LeadRowVM): { key: string; text: string; from: string }[] =>
-  [
-    l.rated ? { key: "rated", text: `${l.rated.score} ★ · ${l.rated.reviews}`, from: "On its listing" } : null,
-    l.card.today ? { key: "today", text: l.card.today, from: "The hours on its listing" } : null,
-    l.reach.email ? { key: "email", text: l.emailWord, from: "Checked without sending anything" } : null,
-    l.phoneAgrees ? { key: "phone", text: "Number on its listing and its site", from: "Two places agree" } : null,
-    l.host ? { key: "site", text: l.host, from: "Its own website" } : null,
-  ].filter((x): x is { key: string; text: string; from: string } => !!x);
+/**
+ * Why the rail's Add would come to nothing for this lead, where the card says so (no address, a slot with no value):
+ * the press is off, and says why at the control. Null when it would go.
+ */
+export const pileAddBlocked = (card: LeadCardFacts | null): string | null =>
+  card && card.email ? card.email.blocked : null;
 
 /** The rail: three presses, or the five whys of Not a fit in their place. */
 const railOf = (p: PileViewProps, l: LeadRowVM) => {
@@ -55,46 +54,41 @@ const railOf = (p: PileViewProps, l: LeadRowVM) => {
         </Button>
       </div>
     );
+  const blocked = pileAddBlocked(p.card);
   return (
     <div className="ld-pile-rail" data-testid="lead-pile-rail">
-      {leadPileRailOf({ cls: pile.cls, target: pile.target ? pile.target.name : null }).map((s) => (
-        <Button
-          key={s.act}
-          variant={s.look}
-          disabled={pile.busy}
-          onClick={() => void pile.act(l, s.act)}
-          data-testid={`lead-pile-${s.act}`}
-          {...gate(s.right, s.label.toLowerCase())}
-        >
-          {s.label}
-        </Button>
-      ))}
+      {leadPileRailOf({ cls: pile.cls, target: pile.target ? pile.target.name : null }).map((s) => {
+        // Add that would come to nothing is off, and says why at the control (the card says it too).
+        const off = s.act === "add" && blocked;
+        return (
+          <Button
+            key={s.act}
+            variant={s.look}
+            disabled={pile.busy || !!off}
+            onClick={() => void pile.act(l, s.act)}
+            data-testid={`lead-pile-${s.act}`}
+            {...(off ? { title: off } : gate(s.right, s.label.toLowerCase()))}
+          >
+            {s.label}
+          </Button>
+        );
+      })}
     </div>
   );
 };
 
-/** The lead that is up: its face, its name and where, why it fits, what the listing showed, and the rail. */
+/** The rail, for the phone's sheet, which holds it still at its foot. */
+export const PileRail = ({ p, l }: { p: PileViewProps; l: LeadRowVM }) => railOf(p, l);
+
+/** The lead that is up, on a desk: its card, then the rail. */
 const pileLeadOf = (p: PileViewProps, l: LeadRowVM) => (
   <article key={l.id} className="ld-pile-lead" aria-label={l.name} data-testid="lead-pile-lead">
-    <div className="ld-pile-who">
-      <LeadTile l={l} size={56} />
-      <div className="ld-pile-name">
-        <h3>{l.name}</h3>
-        {l.sub ? <p>{l.sub}</p> : null}
-      </div>
-    </div>
-    {l.why ? (
-      <p className="ld-pile-why" data-testid="lead-pile-why">
-        {l.fitLabel ? <strong>{l.fitLabel}</strong> : null} {l.why}
-      </p>
+    {p.card ? (
+      <>
+        <LeadCardHead up={l} card={p.card} />
+        <LeadCardMail card={p.card} />
+      </>
     ) : null}
-    <ul className="ld-pile-facts" data-testid="lead-pile-facts">
-      {factRowsOf(l).map((f) => (
-        <li key={f.key} title={f.from}>
-          {f.text}
-        </li>
-      ))}
-    </ul>
     {railOf(p, l)}
   </article>
 );
@@ -149,12 +143,15 @@ const pileEndOf = (p: PileViewProps, later: number) => (
   </div>
 );
 
-/** How far through it is, what is held, Undo for the last three, Details on a phone, and the way out. */
-const progressOf = (p: PileViewProps, up: LeadRowVM | null) => {
+/**
+ * How far through it is, what is held, Undo for the last three, and the way out (a desk's; a phone's sheet closes by
+ * its own pull and Close).
+ */
+const progressOf = (p: PileViewProps, leave: boolean) => {
   const { pile, counts } = p;
   const line = counts ? leadPileProgressOf(counts) : null;
   return (
-    <footer className="ld-pile-progress" data-testid="lead-pile-progress">
+    <div className="ld-pile-progress" data-testid="lead-pile-progress">
       {line ? <span data-testid="lead-pile-progress-line">{line.text}</span> : null}
       {pile.held.length ? <span>{LEAD_PILE_WORDS.held(pile.held.length)}</span> : null}
       {pile.canUndo ? (
@@ -168,19 +165,16 @@ const progressOf = (p: PileViewProps, up: LeadRowVM | null) => {
           {LEAD_PILE_WORDS.undo}
         </Button>
       ) : null}
-      {p.phone && up ? (
-        <Button size="sm" variant="quiet" onClick={() => p.onDetails(up.id)} data-testid="lead-pile-details">
-          {LEAD_PILE_WORDS.details}
+      {leave ? (
+        <Button size="sm" variant="quiet" onClick={pile.stop} data-testid="lead-pile-stop">
+          {LEAD_PILE_WORDS.leave}
         </Button>
       ) : null}
-      <Button size="sm" variant="quiet" onClick={pile.stop} data-testid="lead-pile-stop">
-        {LEAD_PILE_WORDS.leave}
-      </Button>
-    </footer>
+    </div>
   );
 };
 
-interface PileViewProps {
+export interface PileViewProps {
   pile: LeadPile;
   /** The lead that is up, and how many are put off for later (usePileUp). */
   up: LeadRowVM | null;
@@ -188,14 +182,18 @@ interface PileViewProps {
   /** The pile's numbers, from the page's read (00426 lead_pile_counts). */
   counts: LeadPileCountsDto | null;
   searchName: string;
-  phone: boolean;
-  /** Opens the lead's details: the peek. */
-  onDetails: (id: string) => void;
-  /** Writes to the leads held for a new list: the list made of them, and its reach-out's sheet (the bar's Write to them). */
+  /** The card of the lead that is up (card.tsx leadCardFor); null with none up. */
+  card: LeadCardFacts | null;
+  /** Writes to the leads held for a new list: the list made of them, and its sequence (the bar's Write to them). */
   onWriteHeld: (ids: string[]) => void;
 }
 
-/** The pile, where the rows stand. */
+/** The pile's parts the phone's sheet places itself: where adds go, the end of the pile, the progress line. */
+export const PileTargets = ({ p }: { p: PileViewProps }) => targetsOf(p);
+export const PileEnd = ({ p }: { p: PileViewProps }) => pileEndOf(p, p.later);
+export const PileProgress = ({ p }: { p: PileViewProps }) => progressOf(p, false);
+
+/** The pile on a desk, where the rows stand. */
 export const LeadPileView = (p: PileViewProps) => (
   <section className="ld-pile" aria-label={LEAD_PILE_WORDS.head(p.searchName)} data-testid="lead-pile">
     <header className="ld-pile-head">
@@ -203,7 +201,7 @@ export const LeadPileView = (p: PileViewProps) => (
       {targetsOf(p)}
     </header>
     {p.up ? pileLeadOf(p, p.up) : pileEndOf(p, p.later)}
-    {progressOf(p, p.up)}
+    <footer>{progressOf(p, true)}</footer>
   </section>
 );
 
