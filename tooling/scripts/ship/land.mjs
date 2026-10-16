@@ -17,9 +17,9 @@
  *      once every required check passes, pinned to the commit pushed (`--match-head-commit`), so nothing pushed after
  *      it lands unchecked. Where the repository does not allow auto-merge, it says to merge once green.
  *
- *   node tooling/scripts/ops/land.mjs                                    merge main, write, push, auto-merge
- *   node tooling/scripts/ops/land.mjs --title "<title>" --body-file <f>  the same, opening the pull request first
- *   node tooling/scripts/ops/land.mjs --no-auto                          everything but the auto-merge
+ *   node tooling/scripts/ship/land.mjs                                    merge main, write, push, auto-merge
+ *   node tooling/scripts/ship/land.mjs --title "<title>" --body-file <f>  the same, opening the pull request first
+ *   node tooling/scripts/ship/land.mjs --no-auto                          everything but the auto-merge
  */
 import { execFileSync, spawnSync } from "node:child_process";
 import path from "node:path";

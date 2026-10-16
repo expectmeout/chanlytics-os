@@ -627,6 +627,7 @@ test("notify mails exactly the kinds contracts lists as emailed, and the page's 
       "member_joined",
       "member_left",
       "note_for_you",
+      "note_to_keep",
       "review",
       "reach_out_day",
     ].sort(),

@@ -44,7 +44,7 @@ UPDATE_BASELINES=raise corepack pnpm test     # the same, raising a number that 
 corepack pnpm check:dead-exports              # knip against a baseline that may only fall; -- --update banks a fall, -- --raise a rise
 corepack pnpm check:bundle                    # after a dashboard build: the route's JS and CSS and each page's own JS, gzipped bytes, against the ceilings; CI holds each change to what it adds against main's own build, and growth past its line (route 1 KB, a page 2 KB) passes when the PR's description has a line `Bundle: <why>`; nothing in the repository changes for it
 corepack pnpm check:static-shell              # after a dashboard build: every page under app/(os) prerendered whole, one frame for every person and workspace, and /api/version answered per request
-node tooling/scripts/ops/land.mjs             # ship a committed branch: merge main in (main's side of what a command writes, written again; any other conflict is yours), typecheck, push, and set the pull request to squash-merge itself once CI is green (--title and --body-file open it when there is none)
+node tooling/scripts/ship/land.mjs             # ship a committed branch: merge main in (main's side of what a command writes, written again; any other conflict is yours), typecheck, push, and set the pull request to squash-merge itself once CI is green (--title and --body-file open it when there is none)
 corepack pnpm check:local                     # optional: on a committed branch holding all of origin/main, the build, then CI's lint, hygiene, typecheck and the tests of what the branch changes side by side, then an empty commit "Checked locally" naming the tree; pushed while main has not moved past it, CI skips those and runs the build and bundle alone (tooling/scripts/checks/checked-locally.mjs)
 corepack pnpm check:style-equality -- record <file> --against <file>   # a change that must move nothing on screen, recorded and compared (docs/runbook.md)
 corepack pnpm test:db                         # the database suites, against a running Supabase stack
@@ -278,7 +278,7 @@ CI is the gate: it runs the build and bundle, lint, hygiene, the typecheck and t
 and the required check `Typecheck` passes only when every part did, so a pull request set to merge itself (`land`) lands
 nothing unchecked. Run the tests of the folders you touched while you work; `check:local` is there when you want CI's
 whole check on the laptop first. The pull request must say what changes for a customer, what to set or apply before
-merging (usually nothing), and which deploy order it needs (usually either). Ship it with `node tooling/scripts/ops/land.mjs`.
+merging (usually nothing), and which deploy order it needs (usually either). Ship it with `node tooling/scripts/ship/land.mjs`.
 
 A change to a page draws what it adds from the kit, and a new variant has its gallery entry, shown by the spec's run
 (`docs/runbook.md`, "See the kit").

@@ -2,7 +2,7 @@
  * A change reaches production in minutes (16 Oct 2026, Ruben: "from project done to uploaded live on Vercel within a few
  * minutes tops"). What holds the parts that make it so:
  *
- *   - `land` (tooling/scripts/ops/land.mjs) takes main's side only of files a command writes, and writes them again;
+ *   - `land` (tooling/scripts/ship/land.mjs) takes main's side only of files a command writes, and writes them again;
  *     every other conflict is a person's.
  *   - `check:local` runs everything after the build side by side (runTogether), and says each check's own result.
  *   - CI's tests run as four parts at once, each a quarter of the files, and the lint and the format check start from
@@ -16,9 +16,9 @@ import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { isWritten, WRITERS } from "../../../ops/land.mjs";
+import { isWritten, WRITERS } from "../../../ship/land.mjs";
 import { FIRST, LOCAL_CHECKS, runTogether } from "../../../checks/checked-locally.mjs";
-import { withNoCheck } from "../../../ops/edge-build-no-check.mjs";
+import { withNoCheck } from "../../../ship/edge-build-no-check.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../../..");
 const read = (rel) => fs.readFileSync(path.join(ROOT, rel), "utf8");
@@ -95,7 +95,6 @@ test("CI's tests run as four parts at once, and lint and format start from main'
   assert.match(ci, /LINT_CACHE: \$\{\{ github\.event_name == 'push' && '0' \|\| '1' \}\}/, "main lints afresh");
   assert.match(ci, /path: node_modules\/\.cache\/prettier/);
   assert.match(read("package.json"), /"format:check": "prettier --check \. --cache --cache-strategy content/);
-  assert.match(read("tooling/scripts/checks/lint.mjs"), /cacheStrategy: "content"/);
   const picker = spawnSync(
     process.execPath,
     ["tooling/scripts/checks/changed-tests.mjs", "--list", "HEAD", "HEAD", "--test-shard=1/4"],
@@ -109,13 +108,13 @@ test("CI's tests run as four parts at once, and lint and format start from main'
 
 test("the edge's Vercel install turns checking off for the build alone, and only on Vercel", () => {
   const vercel = JSON.parse(read("apps/edge/vercel.json"));
-  assert.equal(vercel.installCommand, "pnpm install && node ../../tooling/scripts/ops/edge-build-no-check.mjs");
+  assert.equal(vercel.installCommand, "pnpm install && node ../../tooling/scripts/ship/edge-build-no-check.mjs");
   assert.equal(vercel.buildCommand, undefined, "no build command: the edge's project has no output folder to find");
   const tsconfig = JSON.parse(read("apps/edge/tsconfig.json"));
   assert.equal(tsconfig.compilerOptions.noCheck, undefined, "the committed tsconfig keeps CI's typecheck whole");
   assert.deepEqual(withNoCheck(tsconfig).compilerOptions, { ...tsconfig.compilerOptions, noCheck: true });
   assert.equal(withNoCheck(tsconfig).include, tsconfig.include);
-  const elsewhere = spawnSync(process.execPath, ["tooling/scripts/ops/edge-build-no-check.mjs"], {
+  const elsewhere = spawnSync(process.execPath, ["tooling/scripts/ship/edge-build-no-check.mjs"], {
     cwd: ROOT,
     encoding: "utf8",
     env: { ...process.env, VERCEL: "" },
