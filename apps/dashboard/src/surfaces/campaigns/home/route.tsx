@@ -12,6 +12,7 @@ import { replaceRoute } from "../../legacy-verbs";
 import { useAdsShown } from "../ads/shown";
 import { useSequencesShown } from "../sequences/shown";
 import { CampaignsHome } from "./home-page";
+import { MessagePaneProvider } from "./message-drawer";
 
 // The Ads view is a page of its own: its code is its own chunk, fetched only when an Ads address is opened where Ads is drawn.
 const AdsPage = lazy(() => import("../ads/ads-page").then((m) => ({ default: m.AdsPage })));
@@ -41,7 +42,10 @@ export function CampaignsRoute() {
   if ((isSequencesParam(param) || landing) && sequencesShown) {
     return (
       <Suspense fallback={<AdsReading />}>
-        <SequencesPage route={landing ?? route} />
+        {/* The message's pane, which the home's drawer holds, handed down to the step editor (parts/message-pane.ts). */}
+        <MessagePaneProvider>
+          <SequencesPage route={landing ?? route} />
+        </MessagePaneProvider>
       </Suspense>
     );
   }

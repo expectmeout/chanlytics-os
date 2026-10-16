@@ -43,8 +43,8 @@ import { gate } from "../../legacy-verbs";
 import type { LegacyFlash } from "../../legacy-verbs";
 import { useSurface } from "../../use-surface";
 import { broadcasts } from "../broadcasts/verbs";
-import { MessageInPlace } from "../parts/message-in-place";
 import { cmBusinessOf, cmOfferedFrom, cmStandInOf, type CmOffered } from "../parts/channels";
+import { MessagePaneContext } from "../parts/message-pane";
 import { MessagePreview } from "../parts/message-preview";
 import { cmOfferFoot, cmPreviewBy } from "../parts/preview-by";
 import { useCmPhone } from "../parts/split";
@@ -127,7 +127,8 @@ function StepPreview(p: {
   params: ParamSpec[];
   policyClass: string;
   batchId: string | null;
-  onEdit: () => void;
+  /** Opens the message's own pane in place of the preview; null where no pane is handed down. */
+  onEdit: (() => void) | null;
 }) {
   const { picked, params, policyClass } = p;
   const settings = useSurface("settings");
@@ -170,9 +171,11 @@ function StepPreview(p: {
     <div className="sq-ed-preview" data-testid="sq-editor-preview">
       <div className="sq-ed-preview-head">
         <p className="sq-ed-k">{E.previewAs}</p>
-        <LinkButton onClick={p.onEdit} data-testid="sq-editor-edit-words" {...gate("approve")}>
-          {E.editHere}
-        </LinkButton>
+        {p.onEdit ? (
+          <LinkButton onClick={p.onEdit} data-testid="sq-editor-edit-words" {...gate("approve")}>
+            {E.editHere}
+          </LinkButton>
+        ) : null}
       </div>
       {people.length > 0 ? (
         <Field
@@ -219,7 +222,10 @@ function MessageFrom({ picked }: { picked: CmOffered }) {
   );
 }
 
-/** The editor's right half: the message as one person reads it, or its own pane where its words are written. */
+/**
+ * The editor's right half: the message as one person reads it, or its own pane where its words are written, the pane
+ * Campaigns' route hands down (parts/message-pane.ts).
+ */
 function EditorRight(p: {
   picked: CmOffered;
   params: ParamSpec[];
@@ -229,10 +235,11 @@ function EditorRight(p: {
   setWriting: (on: boolean) => void;
   flash: Flash;
 }) {
-  if (p.writing)
+  const Pane = useContext(MessagePaneContext);
+  if (p.writing && Pane)
     return (
       <div className="sq-ed-preview" data-testid="sq-editor-writing">
-        <MessageInPlace name={p.picked.name} flash={p.flash} onClose={() => p.setWriting(false)} />
+        <Pane name={p.picked.name} flash={p.flash} onClose={() => p.setWriting(false)} />
       </div>
     );
   return (
@@ -241,7 +248,7 @@ function EditorRight(p: {
       params={p.params}
       policyClass={p.policyClass}
       batchId={p.batchId}
-      onEdit={() => p.setWriting(true)}
+      onEdit={Pane ? () => p.setWriting(true) : null}
     />
   );
 }

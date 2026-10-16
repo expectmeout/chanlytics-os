@@ -28,7 +28,7 @@ function groupNamed(groups: readonly TemplateGroup[], name: string): TemplateGro
 }
 
 /** Where a message is opened from: its name, the toast a change says itself in, and how its pane is closed. */
-interface MessageInPlaceProps {
+export interface MessageInPlaceProps {
   name: string;
   /** The opener's toast host: what a change says outlives the pane. */
   flash: ReturnType<typeof useLegacyToast>[1];
