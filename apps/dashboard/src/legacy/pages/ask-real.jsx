@@ -933,7 +933,7 @@ const arOverField = ({ H, thread, listen, composing, talk, live, drawn, move, qu
 
 /** The Line: the scrim, the dialog, what a screen reader hears, the head, the foot, the band, the question before a delete, what stands over the field, and the middle. */
 const arLineView = (ln) => {
-  const { onClose, tick, dialogRef, drawn, view, live, setView, t, active, quick, clearLine, foot, doomed, removeThread, setDoomed, toastNode, phone } = ln;
+  const { H, onClose, tick, dialogRef, drawn, view, live, setView, t, active, quick, clearLine, foot, doomed, removeThread, setDoomed, toastNode, phone } = ln;
   // What a screen reader hears: the answer's headline (or a prose answer's words) once it is whole (spec 6.10).
   const said = drawn ? drawn.answer.say.headline || drawn.answer.say.detail : "";
   return (

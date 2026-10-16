@@ -1807,6 +1807,36 @@ test("on a desktop Ask pushes no entry of its own and focuses the field; a place
   }
 });
 
+test("a desk's panel keeps the keys pressed in it, lets the shell's chords by, and closes on Esc", async () => {
+  ask([]);
+  let closed = 0;
+  const props = { open: true, onClose: () => (closed += 1) };
+  render(Palette, props);
+  const tree = await later(Palette, props);
+  const key = (k, mods = {}) => {
+    const e = {
+      key: k,
+      metaKey: false,
+      ctrlKey: false,
+      altKey: false,
+      defaultPrevented: false,
+      stopped: false,
+      ...mods,
+    };
+    e.stopPropagation = () => (e.stopped = true);
+    e.preventDefault = () => (e.defaultPrevented = true);
+    byTestId(tree, "ask-real").props.onKeyDown(e);
+    return e;
+  };
+  assert.equal(key("a").stopped, true, "a letter the Inbox would take stays in the panel");
+  assert.equal(key("Enter", { metaKey: true }).stopped, true, "and ⌘↵, which would send the reply box behind");
+  assert.equal(key("k", { metaKey: true }).stopped, false, "⌘K goes on to the shell");
+  assert.equal(closed, 0, "nothing so far closes it");
+  key("Escape");
+  assert.equal(closed, 1, "Esc closes it");
+  await closes();
+});
+
 test("on a touch screen wider than a phone (a tablet at 800px) no field focuses by itself: the Line opens with focus on the dialog, so no keyboard rises until a tap on the field asks for it (Ruben's rule; legacy-verbs focusAsDrawn)", async () => {
   const mm = globalThis.window.matchMedia;
   // 800px wide, a finger for a pointer: no phone's width, a touch screen's pointer.
