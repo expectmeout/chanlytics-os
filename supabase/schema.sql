@@ -46067,8 +46067,8 @@ GRANT ALL ON TABLE public.events_default TO service_role;
 -- Name: TABLE fact_suggestions; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.fact_suggestions TO service_role;
 GRANT SELECT ON TABLE public.fact_suggestions TO authenticated;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.fact_suggestions TO service_role;
 
 
 --
