@@ -16,10 +16,15 @@
  *   4. Pushed, and the pull request (opened with --title and --body-file when there is none) set to squash-merge itself
  *      once every required check passes, pinned to the commit pushed (`--match-head-commit`), so nothing pushed after
  *      it lands unchecked. Where the repository does not allow auto-merge, it says to merge once green.
+ *   5. Not while a migration it adds is off production. Production takes a migration before the code that needs it
+ *      merges (docs/runbook.md, "Apply a migration"), and a pull request that merged itself the moment CI was green
+ *      would deploy that code first. So one that adds a migration is pushed and left to merge by hand, or set to merge
+ *      itself by running this again with --applied once each one is on production and read back.
  *
  *   node tooling/scripts/land.mjs                                    merge main, write, push, auto-merge
  *   node tooling/scripts/land.mjs --title "<title>" --body-file <f>  the same, opening the pull request first
  *   node tooling/scripts/land.mjs --no-auto                          everything but the auto-merge
+ *   node tooling/scripts/land.mjs --applied                          the auto-merge too, its migrations on production
  */
 import { execFileSync, spawnSync } from "node:child_process";
 import path from "node:path";
@@ -37,6 +42,9 @@ export function isWritten(file) {
     file === "tooling/scripts/tests/_unique-keys.generated.json"
   );
 }
+
+/** The migrations among a branch's added files (`git diff --diff-filter=A`): each holds its auto-merge (step 5). */
+export const migrationsAdded = (files) => files.filter((f) => /^supabase\/migrations\/\d{5}_[a-z0-9_]+\.sql$/.test(f));
 
 /** What writes them, in order: the packages' dist last, from the sources the others read. */
 export const WRITERS = [
@@ -127,6 +135,12 @@ function main() {
   }
   say(`pushed ${head.slice(0, 9)} to #${pr}`);
   if (!auto) return say("merge it once CI is green: gh pr merge --squash --match-head-commit " + head);
+  const held = migrationsAdded(git("diff", "--name-only", "--diff-filter=A", "origin/main...HEAD").split("\n"));
+  if (held.length && !args.includes("--applied"))
+    return say(
+      `#${pr} adds ${held.join(", ")}: it merges by hand, or apply ${held.length === 1 ? "it" : "them"} to production, read ` +
+        "back, and run this again with --applied to have it merge itself once green",
+    );
   const set = spawnSync("gh", ["pr", "merge", pr, "--auto", "--squash", "--match-head-commit", head], {
     cwd: ROOT,
     encoding: "utf8",
