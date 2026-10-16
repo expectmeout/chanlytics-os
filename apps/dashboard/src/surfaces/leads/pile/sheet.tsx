@@ -108,19 +108,29 @@ function paneOf(tab: LeadCardTab, p: PileSheetProps, card: LeadCardFacts) {
   );
 }
 
-/** Full height: who, the five tabs, and the open one. */
-const fullOf = (up: LeadRowVM, card: LeadCardFacts, p: PileSheetProps, tab: LeadCardTab, pick: (t: string) => void) => (
+/** Full height: who, the five tabs, and the open one, named by its tab's words. */
+const fullOf = (
+  up: LeadRowVM,
+  card: LeadCardFacts,
+  p: PileSheetProps,
+  tabs: { open: LeadCardTab; pick: (t: string) => void },
+) => (
   <div className="ld-now-full" data-testid="lead-sheet-full">
     <LeadCardWho up={up} />
     <SubTabs
       label={LEAD_SHEET_WORDS.tabs}
-      value={tab}
+      value={tabs.open}
       tabs={LEAD_CARD_TABS.map((t) => ({ id: t.id, label: t.label, testid: `lead-sheet-tab-${t.id}` }))}
-      onSelect={pick}
+      onSelect={tabs.pick}
       dense
     />
-    <div className="ld-now-pane" role="tabpanel" aria-label={tab} data-testid={`lead-sheet-pane-${tab}`}>
-      {paneOf(tab, p, card)}
+    <div
+      className="ld-now-pane"
+      role="tabpanel"
+      aria-label={LEAD_CARD_TABS.find((t) => t.id === tabs.open)?.label}
+      data-testid={`lead-sheet-pane-${tabs.open}`}
+    >
+      {paneOf(tabs.open, p, card)}
     </div>
   </div>
 );
@@ -162,7 +172,7 @@ export function LeadPileSheet(p: PileSheetProps) {
       <PileTargets p={view} />
       {up && card ? (
         rest === "full" ? (
-          fullOf(up, card, p, open, pick)
+          fullOf(up, card, p, { open, pick })
         ) : (
           <article key={up.id} className="ld-pile-now" aria-label={up.name} data-testid="lead-pile-lead">
             <LeadCardHead up={up} card={card} />
