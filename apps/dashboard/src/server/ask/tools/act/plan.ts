@@ -9,6 +9,8 @@ import {
   STEP_TOKEN,
   channelChoices,
   listToken,
+  messageLanguageOf,
+  messageLanguagesOf,
   notesInForce,
   parseTenantConfigResult,
   planOf,
@@ -151,6 +153,17 @@ function notesOf(r: Awaited<ReturnType<typeof worldReads>>, now: Date): PlanWorl
 }
 
 /**
+ * The language a plan's message is written in where the model named none: its customers' (contracts messageLanguageOf),
+ * by the languages the business's profile says its receptionist answers in and the one the person asked in. A profile
+ * that could not be read names none.
+ */
+function customersLanguage(r: Awaited<ReturnType<typeof worldReads>>, t: ToolContext): PlanWorld["language"] {
+  const parsed = parseTenantConfigResult(r.settings?.row?.config ?? null);
+  const names = parsed.ok ? (parsed.config.brain?.profile?.languages ?? []) : [];
+  return messageLanguageOf(messageLanguagesOf(names), t.language);
+}
+
+/**
  * The workspace as a plan is made against (contracts PlanWorld), each part read by the read Ask's own action of it makes,
  * so what the plan reuses, counts and covers is what those actions say: the Library (sequences.messages), the lists and
  * their counts (people.lists: People's offered here and the workspace's own), the journey (sequences.journey, as
@@ -171,7 +184,7 @@ function notesOf(r: Awaited<ReturnType<typeof worldReads>>, now: Date): PlanWorl
 async function planWorld(
   t: ToolContext,
   intent: PlanIntent["intent"],
-  language: PlanWorld["language"],
+  language: PlanWorld["language"] | null,
 ): Promise<PlanWorld | { refusal: string }> {
   const r = await worldReads(t);
   const offer = intent === "offer";
@@ -196,7 +209,7 @@ async function planWorld(
   return {
     now: t.now,
     tz: t.timezone,
-    language,
+    language: language ?? customersLanguage(r, t),
     // A setup's words are said in the question's language; anything but Spanish is said in English.
     says: t.language === "es" ? "es" : "en",
     // How the business works, as Campaigns says it (contracts lifecycle-inputs businessShapeOf): a calendar connected,
@@ -270,7 +283,7 @@ async function stepCard(t: ToolContext, step: PlanStep): Promise<AskProposal | {
 async function proposePlan(t: ToolContext, asked: PlanAsked): Promise<ProposalOutcome> {
   const intent = intentOf(asked);
   if ("refusal" in intent) return refuse(intent.refusal);
-  const world = await planWorld(t, intent.intent, asked.language ?? "en");
+  const world = await planWorld(t, intent.intent, asked.language ?? null);
   if ("refusal" in world) return refuse(world.refusal);
   const planned = planOf(intent, world);
   if ("refused" in planned) return refuse(planned.refused);
@@ -319,7 +332,7 @@ const planAction = actAction({
   ],
   label: "Making a plan",
   words:
-    "Action offer makes every card an offer or a whole setup takes, from one call: intent offer, with offer (words, the offer in their words; from and until, its first and last day, YYYY-MM-DD by the business's calendar; service, who as a list token, and channels, each optional) and say, their own phrasing where they gave one; or intent cover_journey, with optional stages, for a campaign on each moment of the journey not covered yet, and what they told you of their business: books, what their customers book in their own words (“discovery call”), and proposals true where they said some customers get a proposal before they buy. The plan says what must be connected or turned on first for the moments it cannot start yet, and leads the answer with it. Name what they asked for and the days they gave, never an id or a time to send: the plan reads the Library, the lists, the campaigns, the notes, the calendar's room and the channels itself, and reuses a message that fits or writes one in language (en or es, the one their customers read; en where none is named). It comes back as the plan's words and its steps, each its own card in order: those that send nothing (a message, a note for the receptionist, a pause) are approved together, and each send on its own after them; say the plan's words, and never that any of it is done.",
+    "Action offer makes every card an offer or a whole setup takes, from one call: intent offer, with offer (words, the offer in their words; from and until, its first and last day, YYYY-MM-DD by the business's calendar; service, who as a list token, and channels, each optional) and say, their own phrasing where they gave one; or intent cover_journey, with optional stages, for a campaign on each moment of the journey not covered yet, and what they told you of their business: books, what their customers book in their own words (“discovery call”), and proposals true where they said some customers get a proposal before they buy. The plan says what must be connected or turned on first for the moments it cannot start yet, and leads the answer with it. Name what they asked for and the days they gave, never an id or a time to send: the plan reads the Library, the lists, the campaigns, the notes, the calendar's room and the channels itself, and reuses a message that fits or writes one in language (en or es, as the rule for a message's language says; left out, the business's). It comes back as the plan's words and its steps, each its own card in order: those that send nothing (a message, a note for the receptionist, a pause) are approved together, and each send on its own after them; say the plan's words, and never that any of it is done.",
   build: proposePlan,
 });
 
