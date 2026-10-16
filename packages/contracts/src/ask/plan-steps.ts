@@ -204,9 +204,9 @@ export function planGroupOf<P extends HeldCard>(
  * and its follow-up read "2 send" while it called every step pressed on its own a send (the operator stress run, 15 Oct
  * 2026). Null where the cards are not every one a step of one plan, which are counted as cards. The detail is the plan's
  * own words where the round made a plan (`words`, its steps unstamped too, D3: what it pauses, leaves out and asks to be
- * asked again, said nowhere else), in English as the plan says them (Task 18); else, for a plan with steps that send
- * nothing, how its cards are approved, the sends' own press said only where there is a send; else null, each card its
- * own press as several cards are.
+ * asked again, said nowhere else), in the question's language as the plan says them (PlanWorld.says); else, for a plan
+ * with steps that send nothing, how its cards are approved, the sends' own press said only where there is a send; else
+ * null, each card its own press as several cards are.
  */
 export function planCountWords(
   cards: readonly Pick<AskProposal, "kind" | "plan">[],

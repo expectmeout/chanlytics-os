@@ -1284,6 +1284,7 @@ test("the cases fit their workspace and name the new reads (the review after the
     sends.map((c) => [c.id, c.needs]),
     [
       ["offer_november_colour", ["offers_yes", "offers_channel"]],
+      ["offer_next_month_es", ["offers_yes", "offers_channel"]],
       ["covers_propose_campaign_broadcast", ["offers_yes", "offers_whatsapp", "winback_seed"]],
     ],
   );

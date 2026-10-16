@@ -210,7 +210,7 @@ async function planWorld(
     now: t.now,
     tz: t.timezone,
     language: language ?? customersLanguage(r, t),
-    // A setup's words are said in the question's language; anything but Spanish is said in English.
+    // A plan's words (a setup's, an offer's) are said in the question's language; anything but Spanish in English.
     says: t.language === "es" ? "es" : "en",
     // How the business works, as Campaigns says it (contracts lifecycle-inputs businessShapeOf): a calendar connected,
     // readable now or not, is the feed; else its booking tool's emails, else none.

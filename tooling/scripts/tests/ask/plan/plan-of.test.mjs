@@ -33,6 +33,8 @@ const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 // Read as a module, so a name contracts does not export yet is a failing assertion, not a file that will not load.
 const C = await import("@chanlytics/contracts");
 const { PLAN_WORDS: W, planOf, resolveSteps, stepToken, STEP_TOKEN } = C;
+/** What an offer's plan says to the person, in English (a Spanish question's words are its own rows). */
+const EN = C.OFFER_PLAN_WORDS.en;
 
 const TZ = "America/New_York";
 /** Sunday 11 Oct 2026, 10:00 AM in New York. */
@@ -295,7 +297,7 @@ const ROOM_TIGHT =
   "The calendar has 15 open slots in the next 14 days for 40 people, and the send goes to the whole list at once: to pace the offer to the room instead, dismiss the send and ask again on Nov 1.";
 const TODAY_NOTE = noteStep(0, "Oct 11", "Nov 15", "2026-11-15");
 const TODAY_SAYS = "Tells the receptionist about the offer, until Nov 15.";
-const REMINDS_OCT_30 = W.reminderAsk("Oct 30", "Can receive offers");
+const REMINDS_OCT_30 = EN.reminderAsk("Oct 30", "Can receive offers");
 /**
  * A month's offer named near its 80 characters: in the operator's world below, the reminder would end past the answer's
  * 700 characters were WhatsApp's review of the send said before it.
@@ -363,7 +365,7 @@ const ROWS = [
     intent: offer({ channels: ["whatsapp", "sms"] }),
     world: world({ messages: [monthsOfferMessage()] }),
     steps: [noteStep(1), firstSend(2, [1], { channels: ["whatsapp"] })],
-    words: [W.noText, REMINDS, REUSED, NOTE, GOES],
+    words: [EN.noText, REMINDS, REUSED, NOTE, GOES],
   },
   {
     name: "texts asked for alone are refused in words that say texts never carry an offer, not that nothing here can (Task 15, carry-forward e)",
@@ -662,7 +664,7 @@ const ROWS = [
     intent: offer(TODAY),
     world: world({ messages: [monthsOfferMessage({ versions: PENDING_WA })], room: { open: 15, days: 14 } }),
     steps: [{ ...TODAY_NOTE, n: 1 }, pacedStep(2, [1], { template_id: V(1) })],
-    words: [PACED, W.whatsappReview, REUSED, TODAY_SAYS],
+    words: [PACED, EN.whatsappReview, REUSED, TODAY_SAYS],
   },
   {
     name: "a paced campaign by WhatsApp alone is held for the review as a broadcast is: on a version in review, refused",
@@ -694,7 +696,7 @@ const ROWS = [
       notes: [{ title: `Offer: ${WORDS}`, text: "Anything.", until: "2026-11-30" }],
     }),
     steps: [firstSend(1, [])],
-    words: [W.noteKnown, REMINDS, REUSED, GOES],
+    words: [EN.noteKnown, REMINDS, REUSED, GOES],
   },
   {
     name: "the journey unread: an offer is planned all the same, with no reminder said, since who has booked cannot be told (fix round 1)",
@@ -708,14 +710,14 @@ const ROWS = [
     intent: offer(),
     world: world({ messages: [monthsOfferMessage()], playbooks: [monthsOffer()], canNote: false }),
     steps: [pauseStep(1), firstSend(2, [1])],
-    words: [W.noteLeftOut, PAUSES, REMINDS, REUSED, GOES],
+    words: [EN.noteLeftOut, PAUSES, REMINDS, REUSED, GOES],
   },
   {
     name: "and one written message's token still names step 1 with the note left out",
     intent: offer(),
     world: world({ canNote: false }),
     steps: [WRITTEN({ whatsapp: { body: WA_BODY }, email: EMAIL }), writtenSend(2, [1])],
-    words: [W.noteLeftOut, REMINDS, REVIEW_FIRST, WRITES("WhatsApp and email"), GOES],
+    words: [EN.noteLeftOut, REMINDS, REVIEW_FIRST, WRITES("WhatsApp and email"), GOES],
   },
   {
     name: "an offer that ends before its twentieth day: the reminder is asked for on its last day (ruling 1)",
@@ -723,7 +725,7 @@ const ROWS = [
     world: world({ messages: [monthsOfferMessage()] }),
     steps: [noteStep(1, "Nov 1", "Nov 7", "2026-11-07"), firstSend(2, [1])],
     words: [
-      W.reminderAsk("Nov 7", "Can receive offers"),
+      EN.reminderAsk("Nov 7", "Can receive offers"),
       REUSED,
       "Tells the receptionist about the offer, until Nov 7.",
       GOES,
@@ -768,7 +770,7 @@ const ROWS = [
         params: ["@first_name", "@business_name", "A tenth off anything you book in November.", "@booking_link"],
       }),
     ],
-    words: [W.reminderAsk("Nov 20", "Regulars"), REUSED, NOTE, "The offer goes to “Regulars” on Nov 1 at 10:00 AM."],
+    words: [EN.reminderAsk("Nov 20", "Regulars"), REUSED, NOTE, "The offer goes to “Regulars” on Nov 1 at 10:00 AM."],
   },
   {
     name: "a US number, the month's offer running and a tight room for a later offer: what no card carries first (the channel left out, the pause to resume, the room, the reminder), then the message, the note and the send's day (fix round of batch P)",
@@ -793,7 +795,7 @@ const ROWS = [
       canNote: false,
     }),
     steps: [WRITTEN({ whatsapp: { body: WA_BODY } }), pauseStep(2), writtenSend(3, [1, 2], { channels: ["whatsapp"] })],
-    words: [WITHOUT_EMAIL, W.noteLeftOut, PAUSES, ROOM_TIGHT, REMINDS, REVIEW_FIRST, WRITES("WhatsApp"), GOES],
+    words: [WITHOUT_EMAIL, EN.noteLeftOut, PAUSES, ROOM_TIGHT, REMINDS, REVIEW_FIRST, WRITES("WhatsApp"), GOES],
     pastTheCap: true,
   },
   {
@@ -808,8 +810,8 @@ const ROWS = [
     steps: [WRITTEN({ whatsapp: { body: WA_BODY } }), pauseStep(2), writtenSend(3, [1, 2], { channels: ["whatsapp"] })],
     words: [
       WITHOUT_EMAIL,
-      W.noteLeftOut,
-      W.monthsOfferPaused(LONG_MONTHS_OFFER, "Nov 30"),
+      EN.noteLeftOut,
+      EN.monthsOfferPaused(LONG_MONTHS_OFFER, "Nov 30"),
       ROOM_TIGHT,
       REMINDS,
       REVIEW_FIRST,
@@ -1079,6 +1081,268 @@ const ROWS = [
   },
 ];
 
+/* ---- An offer asked in Spanish: the same plans, every word of the answer in Spanish (PlanWorld.says) ---- */
+
+/** The offers list and the month's offer as a Spanish workspace names them. */
+const ES_LIST = { token: OFFERS, name: "Pueden recibir ofertas", count: 40 };
+const esWorld = (over = {}) => world({ says: "es", lists: [ES_LIST], ...over });
+const esMonthsOffer = (over = {}) => monthsOffer({ name: "Oferta del mes", ...over });
+const ES_REUSED = "Envía «this_months_offer», que ya está en la Biblioteca, con la oferta en su texto.";
+const ES_WRITES = (on) =>
+  `Escribe un mensaje para ofertas, «offer», para ${on}: esta oferta va en su texto, y la próxima también podrá enviarlo.`;
+const ES_NOTE = "Avisa a la recepcionista de la oferta, hasta el 30 de noviembre.";
+const ES_TODAY_NOTE = "Avisa a la recepcionista de la oferta, hasta el 15 de noviembre.";
+const ES_PAUSES = (name = "Oferta del mes") =>
+  `Pausa la oferta del mes, «${name}», desde que apruebes el plan, para que nadie reciba dos ofertas; reanúdala después del 30 de noviembre.`;
+const ES_GOES = "La oferta va a «Pueden recibir ofertas» el 1 de noviembre a las 10:00.";
+const ES_REMINDS = (day = "20 de noviembre") =>
+  `El ${day}, pídeme que envíe un recordatorio a quien de «Pueden recibir ofertas» no haya reservado para entonces.`;
+const ES_REVIEW_FIRST = "El envío se puede aprobar cuando WhatsApp haya revisado su versión de WhatsApp.";
+const ES_ROOM = "El calendario tiene 15 huecos libres en los próximos 14 días para 40 personas";
+const ES_PACED = `${ES_ROOM}, así que la oferta va como campaña: hasta 2 al día, cada persona una vez, hasta que termine, desde que la apruebes.`;
+const ES_ROOM_TIGHT = `${ES_ROOM}, y el envío va a toda la lista a la vez: para ajustarla a los huecos, descarta el envío y pídemelo otra vez el 1 de noviembre.`;
+const ES_NO_MAILBOX = "Va sin correo: Configura primero el correo en Ajustes › Conexiones.";
+const ES_NOTE_LEFT_OUT = "La recepcionista no sabe de la oferta hasta que un dueño o un socio añada una nota.";
+
+/** The rows of a Spanish question: the steps an English one makes (their cards' words are the cards'), said in Spanish. */
+const ES_ROWS = [
+  {
+    name: "the month's offer starter reused, the running month's offer paused: the pause, the reminder, the message, the note and the send's day",
+    intent: offer(),
+    world: esWorld({ messages: [monthsOfferMessage()], playbooks: [esMonthsOffer()] }),
+    steps: [noteStep(1), pauseStep(2), firstSend(3, [1, 2])],
+    words: [ES_PAUSES(), ES_REMINDS(), ES_REUSED, ES_NOTE, ES_GOES],
+  },
+  {
+    name: "no message carries an offer: one written for WhatsApp and email, its send approved once WhatsApp has reviewed it",
+    intent: offer(),
+    world: esWorld(),
+    steps: [WRITTEN({ whatsapp: { body: WA_BODY }, email: EMAIL }), noteStep(2), writtenSend(3, [1, 2])],
+    words: [ES_REMINDS(), ES_REVIEW_FIRST, ES_WRITES("WhatsApp y correo"), ES_NOTE, ES_GOES],
+  },
+  {
+    name: "no WhatsApp number: written for email alone, and the channels' reason said in Spanish",
+    intent: offer(),
+    world: esWorld({ channels: { whatsapp: NO_NUMBER, email: OPEN } }),
+    steps: [WRITTEN({ email: EMAIL }), noteStep(2), writtenSend(3, [1, 2], { channels: ["email"] })],
+    words: [
+      "Va sin WhatsApp: Conecta primero un número de WhatsApp.",
+      ES_REMINDS(),
+      ES_WRITES("correo"),
+      ES_NOTE,
+      ES_GOES,
+    ],
+  },
+  {
+    name: "a US number: Meta's pause on offers said as itself, in Spanish, and the starter goes by email",
+    intent: offer(),
+    world: esWorld({
+      channels: { whatsapp: { ok: false, why: US_PAUSED }, email: OPEN },
+      messages: [monthsOfferMessage()],
+    }),
+    steps: [noteStep(1), firstSend(2, [1], { template_id: V(2), channels: ["email"] })],
+    words: [
+      "Va sin WhatsApp: Meta ha pausado las ofertas por WhatsApp a números de EE. UU. Los mensajes sobre citas y las respuestas siguen saliendo.",
+      ES_REMINDS(),
+      ES_REUSED,
+      ES_NOTE,
+      ES_GOES,
+    ],
+  },
+  {
+    name: "email not checked just now, with no reason given: said as not checked",
+    intent: offer(),
+    world: esWorld({ channels: { whatsapp: OPEN, email: { ok: false, why: null } }, messages: [monthsOfferMessage()] }),
+    steps: [noteStep(1), firstSend(2, [1], { channels: ["whatsapp"] })],
+    words: ["Va sin correo: No se pudo comprobar ahora mismo.", ES_REMINDS(), ES_REUSED, ES_NOTE, ES_GOES],
+  },
+  {
+    name: "a text asked for beside WhatsApp is dropped, said in Spanish",
+    intent: offer({ channels: ["whatsapp", "sms"] }),
+    world: esWorld({ messages: [monthsOfferMessage()] }),
+    steps: [noteStep(1), firstSend(2, [1], { channels: ["whatsapp"] })],
+    words: ["Los mensajes de texto no llevan ofertas.", ES_REMINDS(), ES_REUSED, ES_NOTE, ES_GOES],
+  },
+  {
+    name: "an offer starting today on a tight room: the campaign's pace",
+    intent: offer(TODAY),
+    world: esWorld({ messages: [monthsOfferMessage()], room: { open: 15, days: 14 } }),
+    steps: [{ ...TODAY_NOTE, n: 1 }, pacedStep(2, [1])],
+    words: [ES_PACED, ES_REUSED, ES_TODAY_NOTE],
+  },
+  {
+    name: "the same room for an offer three weeks out: the send reaches the whole list, and how to pace it on its day",
+    intent: offer(),
+    world: esWorld({ messages: [monthsOfferMessage()], room: { open: 15, days: 14 } }),
+    steps: [noteStep(1), firstSend(2, [1])],
+    words: [ES_ROOM_TIGHT, ES_REMINDS(), ES_REUSED, ES_NOTE, ES_GOES],
+  },
+  {
+    name: "today with ten o'clock past, ending next year: the send at Approve, and the year said where it is not this one",
+    intent: offer({ from: "2026-10-11", until: "2027-01-05" }),
+    world: esWorld({ messages: [monthsOfferMessage()], now: new Date("2026-10-11T16:00:00Z") }),
+    steps: [noteStep(1, "Oct 11", "Jan 5, 2027", "2027-01-05"), atApprove(firstSend(2, [1]))],
+    words: [
+      ES_REMINDS("30 de octubre"),
+      ES_REUSED,
+      "Avisa a la recepcionista de la oferta, hasta el 5 de enero de 2027.",
+      "La oferta va a «Pueden recibir ofertas» cuando la apruebes, porque hoy ya pasaron las 10:00.",
+    ],
+  },
+  {
+    name: "the one message that fits waits on WhatsApp's review: it goes by email, and the words say why",
+    intent: offer(),
+    world: esWorld({ messages: [monthsOfferMessage({ versions: PENDING_WA })] }),
+    steps: [noteStep(1), firstSend(2, [1], { template_id: V(2), channels: ["email"] })],
+    words: [
+      "Va sin WhatsApp: WhatsApp aún revisa la versión de WhatsApp de «this_months_offer».",
+      ES_REMINDS(),
+      ES_REUSED,
+      ES_NOTE,
+      ES_GOES,
+    ],
+  },
+  {
+    name: "a paced campaign by email too on a WhatsApp version in review: its WhatsApp people wait for the review",
+    intent: offer(TODAY),
+    world: esWorld({ messages: [monthsOfferMessage({ versions: PENDING_WA })], room: { open: 15, days: 14 } }),
+    steps: [{ ...TODAY_NOTE, n: 1 }, pacedStep(2, [1], { template_id: V(1) })],
+    words: [
+      ES_PACED,
+      "Su versión de WhatsApp espera la revisión de WhatsApp, que puede seguir en el primer envío: quien la reciba por WhatsApp espera a que termine.",
+      ES_REUSED,
+      ES_TODAY_NOTE,
+    ],
+  },
+  {
+    name: "the receptionist already has the offer's note: no note step, and the words say so",
+    intent: offer(),
+    world: esWorld({
+      messages: [monthsOfferMessage()],
+      notes: [{ title: `Offer: ${WORDS}`, text: "Anything.", until: "2026-11-30" }],
+    }),
+    steps: [firstSend(1, [])],
+    words: ["La recepcionista ya tiene una nota sobre la oferta.", ES_REMINDS(), ES_REUSED, ES_GOES],
+  },
+  {
+    name: "an operator, email not set up, a new WhatsApp message, the month's offer running and a tight later room: what no card carries first",
+    intent: offer(),
+    world: esWorld({
+      channels: { whatsapp: OPEN, email: NO_MAILBOX },
+      playbooks: [esMonthsOffer()],
+      room: { open: 15, days: 14 },
+      canNote: false,
+    }),
+    steps: [WRITTEN({ whatsapp: { body: WA_BODY } }), pauseStep(2), writtenSend(3, [1, 2], { channels: ["whatsapp"] })],
+    words: [
+      ES_NO_MAILBOX,
+      ES_NOTE_LEFT_OUT,
+      ES_PAUSES(),
+      ES_ROOM_TIGHT,
+      ES_REMINDS(),
+      ES_REVIEW_FIRST,
+      ES_WRITES("WhatsApp"),
+      ES_GOES,
+    ],
+    pastTheCap: true,
+  },
+  {
+    name: "the same operator's world with the month's offer under a long name: the reminder still whole within the cap",
+    intent: offer(),
+    world: esWorld({
+      channels: { whatsapp: OPEN, email: NO_MAILBOX },
+      playbooks: [esMonthsOffer({ name: LONG_MONTHS_OFFER })],
+      room: { open: 15, days: 14 },
+      canNote: false,
+    }),
+    steps: [WRITTEN({ whatsapp: { body: WA_BODY } }), pauseStep(2), writtenSend(3, [1, 2], { channels: ["whatsapp"] })],
+    words: [
+      ES_NO_MAILBOX,
+      ES_NOTE_LEFT_OUT,
+      ES_PAUSES(LONG_MONTHS_OFFER),
+      ES_ROOM_TIGHT,
+      ES_REMINDS(),
+      ES_REVIEW_FIRST,
+      ES_WRITES("WhatsApp"),
+      ES_GOES,
+    ],
+    pastTheCap: true,
+  },
+  {
+    name: "a refusal is the plan's English, which the model reads and says in the question's language",
+    intent: offer(),
+    world: esWorld({ channels: { whatsapp: NO_NUMBER, email: NO_MAILBOX } }),
+    refused: `Nothing here can carry this offer. WhatsApp cannot: ${C.CHANNEL_WORDS.noWhatsApp} Email cannot: ${C.CHANNEL_WORDS.noMailbox} ${C.CHANNEL_WORDS.noOffersByText} Say so, and what to set up first.`,
+  },
+];
+
+for (const row of ES_ROWS) {
+  test(`in Spanish: ${row.name}`, () => {
+    const out = planOf(row.intent, row.world);
+    if (row.refused) {
+      assert.deepEqual(out, { refused: row.refused });
+      return;
+    }
+    assert.ok("steps" in out, `planned, not refused: ${JSON.stringify(out)}`);
+    assert.deepEqual(shape(out.steps), row.steps);
+    assert.equal(out.words, row.words.join(" "));
+    assert.equal(out.lead ?? null, null);
+    // Spanish throughout: past the names it quotes (a message's, a list's, a campaign's), no English word is said.
+    const said = out.words.replace(/«[^»]*»/g, "«»");
+    assert.doesNotMatch(said, /\b(?:the|and|to|of|on|it|goes|sends?|offer|approve|until|after|calendar)\b/i, said);
+  });
+}
+
+test("in Spanish too, what no card carries comes first: the answer's detail, cut at its 700 characters, keeps the reminder whole and the review after it", () => {
+  const cap = C.ASK_ANSWER_CAPS.detail;
+  const worlds = [
+    ...ES_ROWS.filter((r) => r.pastTheCap).map((r) => [r.name, r.intent, r.world]),
+    [
+      "both channels open, a new message, the month's offer running and a tight later room",
+      offer(),
+      esWorld({ playbooks: [esMonthsOffer()], room: { open: 15, days: 14 } }),
+    ],
+  ];
+  assert.equal(worlds.length, 3);
+  for (const [name, intent, w] of worlds) {
+    const out = planOf(intent, w);
+    assert.ok("words" in out, `${name}: planned`);
+    const detail = C.clip(out.words, cap);
+    assert.ok(out.words.length > cap, `${name}: past the cap (${out.words.length}), so the cut is what is proved`);
+    assert.ok(detail.includes(ES_REMINDS()), `${name}: the reminder whole in ${detail}`);
+    if (out.words.includes(ES_REVIEW_FIRST))
+      assert.ok(out.words.indexOf(ES_REVIEW_FIRST) > out.words.indexOf(ES_REMINDS()), `${name}: the review after it`);
+    assert.ok(detail.includes("Pausa la oferta del mes"), `${name}: the pause to resume whole`);
+  }
+});
+
+test("every reason contracts writes for an offer's channel is said in Spanish; one of Meta's own is said as it was written", () => {
+  const ES = C.OFFER_PLAN_WORDS.es;
+  const B = C.OFFERS_BY_EMAIL_WORDS;
+  const ours = [
+    C.CHANNEL_WORDS.noWhatsApp,
+    C.CHANNEL_WORDS.noMailbox,
+    C.CHANNEL_WORDS.noEmailDomain,
+    C.CHANNEL_WORDS.unchecked,
+    C.CHANNEL_WORDS.noOffersByEmailYet,
+    B.noCampaignsDomain,
+    B.noAddress,
+    B.paused,
+    US_PAUSED,
+  ];
+  for (const why of ours) {
+    const said = ES.reason(why);
+    assert.notEqual(said, why, why);
+    assert.match(said, /^[A-ZÁÉÍÓÚÑ¿¡].*\.$/u, said);
+  }
+  assert.equal(ES.reason(null), ES.reason(C.CHANNEL_WORDS.unchecked), "no reason given is not checked");
+  assert.equal(EN.reason(null), C.CHANNEL_WORDS.unchecked);
+  const meta = "Meta has stopped this number from sending: the display name was rejected.";
+  assert.equal(ES.reason(meta), meta);
+  // The English and Spanish words say the same sentences.
+  assert.deepEqual(Object.keys(ES).sort(), Object.keys(EN).sort());
+});
+
 /** The review ask as the Library reads it: WhatsApp's version and email's, approved. */
 function reviewAsk(over = {}) {
   return {
@@ -1154,7 +1418,7 @@ test("the review refusal's advice holds whichever versions the message in review
     assert.ok("steps" in out, `${what}: ${JSON.stringify(out)}`);
     const send = out.steps.at(-1);
     assert.deepEqual([send.kind, send.input.channels], ["broadcast", ["email"]], what);
-    assert.ok(!out.words.includes(REVIEW_FIRST) && !out.words.includes(W.whatsappReview), `${what}: ${out.words}`);
+    assert.ok(!out.words.includes(REVIEW_FIRST) && !out.words.includes(EN.whatsappReview), `${what}: ${out.words}`);
   }
   const left = planOf(offer(), world({ messages: [waOnly] }));
   assert.ok("steps" in left && left.words.includes(REVIEW_FIRST), JSON.stringify(left));
@@ -1164,17 +1428,25 @@ test("the refusals and the words the brief names are words, and the pace is the 
   for (const k of ["fromAfterUntil", "fromPast", "noChannelNamed", "noOffersList"])
     assert.equal(typeof W[k], "string", k);
   assert.equal(typeof W.noChannel([], []), "string", "noChannel says the channels it is given");
-  assert.match(W.paced({ open: 15, days: 14 }, 40), /15 open slots in the next 14 days for 40 people.*up to 2 a day/);
-  assert.match(W.paced({ open: 9, days: 1 }, 40), /9 open slots in the next 1 day for 40 people.*up to 9 a day/);
-  assert.match(W.paced({ open: 0, days: 14 }, 3), /no open slot in the next 14 days for 3 people.*up to 1 a day/);
+  // The pace: today's offer on a tight room goes as a campaign of the open slots a day, rounded up, at least one.
+  for (const [room, audience, cap, said] of [
+    [{ open: 15, days: 14 }, 40, 2, /15 open slots in the next 14 days for 40 people.*up to 2 a day/],
+    [{ open: 9, days: 1 }, 40, 9, /9 open slots in the next 1 day for 40 people.*up to 9 a day/],
+    [{ open: 0, days: 14 }, 3, 1, /no open slot in the next 14 days for 3 people.*up to 1 a day/],
+  ]) {
+    const out = planOf(offer(TODAY), world({ messages: [monthsOfferMessage()], room, lists: [offersList(audience)] }));
+    assert.ok("steps" in out, JSON.stringify(out));
+    assert.equal(out.steps.at(-1).input.cap_per_run, cap, JSON.stringify(room));
+    assert.match(out.words, said);
+  }
   // A tight room for a later offer: the send reaches the whole list on its day, so pacing it is dismissing the send.
   assert.equal(
-    W.roomTight({ open: 1, days: 14 }, 40, "Nov 1"),
+    EN.roomTight({ open: 1, days: 14 }, 40, "Nov 1"),
     "The calendar has 1 open slot in the next 14 days for 40 people, and the send goes to the whole list at once: to pace the offer to the room instead, dismiss the send and ask again on Nov 1.",
   );
   // A send its review holds says so whenever it goes; the paced campaign by email too says its WhatsApp people wait.
-  assert.equal(W.reviewFirst, REVIEW_FIRST);
-  assert.notEqual(W.reviewFirst, W.whatsappReview);
+  assert.equal(EN.reviewFirst, REVIEW_FIRST);
+  assert.notEqual(EN.reviewFirst, EN.whatsappReview);
   // The channels' own reasons are said, never a sentence of the plan's about a missing number.
   for (const r of ROWS.filter((x) => !x.refused))
     assert.ok(!planOf(r.intent, r.world).words.includes("no WhatsApp number is connected"), r.name);
@@ -1371,7 +1643,7 @@ test("the message one plan writes is the message the next plan sends, with that 
     next.words,
     [
       "It goes without WhatsApp: WhatsApp is still reviewing the WhatsApp version of “offer”.",
-      W.reminderAsk("Oct 18", "Can receive offers"),
+      EN.reminderAsk("Oct 18", "Can receive offers"),
       "Sends “offer”, already in the Library, with the offer in its words.",
       "Tells the receptionist about the offer, until Oct 18.",
       "The offer goes to “Can receive offers” on Oct 17 at 10:00 AM.",

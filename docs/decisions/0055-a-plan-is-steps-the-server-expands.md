@@ -87,7 +87,8 @@ And, ruled while building:
   (`packages/contracts/src/ask/ask-answer.ts:741`). This is the spec's D3.
 - **A plan's words are its answer's detail.** The round that made the plan answers with them, what no card carries
   first, cut at the answer's 700 characters (`packages/contracts/src/ask/ask-answer.ts:725`, `answerForCards`). They are
-  English, so a Spanish answer carries them in English.
+  said in the question's language (16 Oct 2026: a setup's in `packages/contracts/src/journey/journey-plan.ts`, an
+  offer's in `packages/contracts/src/broadcasts/offer-plan-words.ts`); the refusals the model reads stay English.
 - **A held send never goes on a WhatsApp version still in review.** A broadcast that ticks WhatsApp, and a campaign by
   WhatsApp alone, wait for WhatsApp's approval before they can be approved
   (`packages/contracts/src/ask/plan-steps.ts:142`, `sendWaitsForReview`). Where the one message that fits an offer

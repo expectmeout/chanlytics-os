@@ -30,3 +30,7 @@ export const capitalize = (s: string): string => (s ? s[0].toUpperCase() + s.sli
 /** Words as a list in a sentence: "a", "a and b", "a, b and c". An empty list is an empty string. */
 export const joinWords = (items: readonly string[]): string =>
   items.length <= 1 ? (items[0] ?? "") : `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`;
+
+/** The same in a Spanish sentence: "a", "a y b", "a, b y c". */
+export const joinWordsEs = (items: readonly string[]): string =>
+  items.length <= 1 ? (items[0] ?? "") : `${items.slice(0, -1).join(", ")} y ${items[items.length - 1]}`;

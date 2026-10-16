@@ -31,6 +31,8 @@ const { buildProposal, newToolContext, runTool } = await import(at("apps/dashboa
 // Read as a module, so a name contracts does not export yet is a failing assertion, not a file that will not load.
 const C = await import("@chanlytics/contracts");
 const { PLAN_WORDS: W, PLAYBOOK_PATCH_WORDS, PROPOSAL_SPECS, planOf, stepToken } = C;
+/** What an offer's plan says to the person, in English (a Spanish question's words are its own rows). */
+const EN = C.OFFER_PLAN_WORDS.en;
 const { readerCache, stableJson } = await import(at("apps/dashboard/src/server/readers/index.ts"));
 const { emailWire } = await import(at("apps/dashboard/src/server/connections/email-readiness.ts"));
 const { runAskTurn } = await import(at("apps/dashboard/src/server/ask/loop.ts"));
@@ -582,7 +584,7 @@ test("a change to the campaign an earlier step makes (no plan names one today) t
 
 test("an operator's November offer: no note for the receptionist, which is an owner's or a partner's to approve, and the words say the receptionist is not told until one of them adds it; the rest of the plan is the operator's, renumbered; an owner's plan has the note as before", async () => {
   // The words name who may approve a note: the settings card's role (contracts settingsSpec).
-  assert.equal(PROPOSAL_SPECS.settings.needs, "partner", "W.noteLeftOut names an owner or a partner");
+  assert.equal(PROPOSAL_SPECS.settings.needs, "partner", "EN.noteLeftOut names an owner or a partner");
   const intent = offer();
   const op = await plan(intent, tables(), "operator");
   const { cards } = cardsAreSteps(op, intent, worldOf({ canNote: false }));
@@ -595,7 +597,7 @@ test("an operator's November offer: no note for the receptionist, which is an ow
     "the pause and the send, stamped 1..2, the send waiting for the pause alone",
   );
   assert.equal(cards[1].payload.template_id, OFFER_EMAIL);
-  assert.ok(said(op).words.includes(W.noteLeftOut), said(op).words);
+  assert.ok(said(op).words.includes(EN.noteLeftOut), said(op).words);
   assert.ok(!said(op).words.includes("Tells the receptionist"), "no note said made");
   // An owner's: the note, as before.
   const owner = await plan(intent, tables(), "owner");
@@ -603,7 +605,7 @@ test("an operator's November offer: no note for the receptionist, which is an ow
     owner.proposals.map((p) => p.kind),
     ["settings", "playbook_change", "broadcast"],
   );
-  assert.ok(!said(owner).words.includes(W.noteLeftOut));
+  assert.ok(!said(owner).words.includes(EN.noteLeftOut));
 });
 
 test("a step its handler refuses is the plan's refusal, naming the step in its words; the plan's own refusal is planOf's", async () => {
@@ -645,7 +647,7 @@ test("a US number, read through the channels' real reader: the plan says WhatsAp
   const r = await plan(offer(), rows);
   assert.equal(r.isError, false, r.result);
   const words = said(r).words;
-  assert.ok(words.includes(W.without("whatsapp", C.whatsappOffersOpen(US).why)), words);
+  assert.ok(words.includes(EN.without("whatsapp", C.whatsappOffersOpen(US).why)), words);
   assert.ok(!words.includes(C.CHANNEL_WORDS.noWhatsApp) && !/no WhatsApp number/i.test(words), words);
   const send = r.proposals.at(-1);
   assert.deepEqual([send.kind, send.payload.channels, send.payload.template_id], ["broadcast", ["email"], OFFER_EMAIL]);
@@ -675,7 +677,7 @@ test("the one message that fits still in WhatsApp's review: a broadcast, built b
   const send = r.proposals.at(-1);
   // The card names the message by its anchor (its WhatsApp version, as every broadcast card does), and goes by email.
   assert.deepEqual([send.kind, send.payload.channels, send.payload.template_id], ["broadcast", ["email"], OFFER_WA]);
-  assert.ok(said(r).words.includes(W.without("whatsapp", W.reviewing("this_months_offer"))), said(r).words);
+  assert.ok(said(r).words.includes(EN.without("whatsapp", EN.reviewing("this_months_offer"))), said(r).words);
   assert.ok(!r.proposals.some((p) => p.kind === "message"), "no twin of it is written");
   // WhatsApp the one channel that carries offers (no mailbox), and a room tight today: the paced campaign goes by
   // WhatsApp alone, which core holds for the review, so the plan refuses it itself.
@@ -802,7 +804,7 @@ test("the receptionist's notes are the settings read's own (the notes in force t
     held.proposals.map((p) => p.kind),
     ["playbook_change", "broadcast"],
   );
-  assert.ok(said(held).words.includes(W.noteKnown));
+  assert.ok(said(held).words.includes(EN.noteKnown));
   // A configuration that does not parse: not "no notes", which would make a second note over the first.
   const broken = tables({ tenant_config: withNotes("not a list") });
   refusedFor(await plan(offer(), broken), W.notesUnread);
@@ -821,7 +823,7 @@ test("the receptionist's notes are the settings read's own (the notes in force t
   );
   assert.equal(full.isError, false, full.result);
   assert.ok(!full.proposals.some((p) => p.kind === "settings"), "the offer's note, last, is held");
-  assert.ok(said(full).words.includes(W.noteKnown));
+  assert.ok(said(full).words.includes(EN.noteKnown));
   // One past what a profile holds does not parse (the profile's own limit), so it is unread, never planned on.
   refusedFor(
     await plan(offer(), tables({ tenant_config: withNotes([...others(C.PROFILE_LIMITS.notes), offersNote]) })),
@@ -1041,11 +1043,29 @@ test("the loop keeps every card one call made: a plan's three cards are the turn
   readerCache.clear();
   const words = await planWordsOf(offer());
   assert.equal(r.answer.say.detail, words, "the plan's words whole, in place of the press sentence");
-  assert.ok(words.includes(W.monthsOfferPaused("This month's offer", "Nov 30")), words);
-  assert.ok(words.includes(W.without("whatsapp", C.CHANNEL_WORDS.noWhatsApp)), words);
+  assert.ok(words.includes(EN.monthsOfferPaused("This month's offer", "Nov 30")), words);
+  assert.ok(words.includes(EN.without("whatsapp", C.CHANNEL_WORDS.noWhatsApp)), words);
   assert.ok(r.answer.say.detail.length <= C.ASK_ANSWER_CAPS.detail);
   // The offer's journey and Library ride in before round 1 (cross-page.ts OFFER_ASKED), then the plan.
   assert.deepEqual(r.tools, ["sequences.journey", "sequences.messages", "propose_plan.offer"]);
+});
+
+test("asked in Spanish, an offer's plan answers in Spanish throughout: the headline counts its steps, and the detail is the plan's own words in the question's language, what no card carries first (16 Oct 2026)", async () => {
+  const ES = C.OFFER_PLAN_WORDS.es;
+  const r = await planTurn([PLAN_CALL], {
+    text: "Quiero ofrecer un 10% de descuento en todo noviembre",
+    language: "es",
+  });
+  assert.equal(r.failed, false, JSON.stringify(r));
+  // The message is the customers' (the person's language, where the business names none): a Spanish one is written.
+  assert.equal(r.answer.say.headline, "Un plan de 4 pasos para revisar: 3 no envían nada y luego 1 envía.");
+  assert.equal(r.proposals.find((p) => p.kind === "message")?.payload.language, "es");
+  const detail = r.answer.say.detail;
+  assert.ok(detail.startsWith(ES.without("whatsapp", C.CHANNEL_WORDS.noWhatsApp)), detail);
+  assert.ok(detail.includes(ES.writeMessage("offer", ["email"])), detail);
+  assert.ok(detail.includes(ES.monthsOfferPaused("This month's offer", "30 de noviembre")), detail);
+  // Past the names it quotes, no English word is said.
+  assert.doesNotMatch(detail.replace(/«[^»]*»/g, "«»"), /\b(?:the|and|goes|sends?|offer|approve|until)\b/i, detail);
 });
 
 test("with a calendar, the plan alone in its round says when to ask for the reminder (its own question on the day), and an operator's plan says the receptionist is not told of the offer until an owner or a partner adds a note: words no card carries", async () => {
@@ -1053,13 +1073,13 @@ test("with a calendar, the plan alone in its round says when to ask for the remi
   const r = await planTurn([PLAN_CALL], { ctx: ctxOf(rows()) });
   assert.equal(r.failed, false, JSON.stringify(r));
   const detail = r.answer.say.detail;
-  assert.ok(detail.includes(W.monthsOfferPaused("This month's offer", "Nov 30")), detail);
-  assert.ok(detail.includes(W.reminderAsk("Nov 20", "Can receive offers")), detail);
+  assert.ok(detail.includes(EN.monthsOfferPaused("This month's offer", "Nov 30")), detail);
+  assert.ok(detail.includes(EN.reminderAsk("Nov 20", "Can receive offers")), detail);
   assert.ok(detail.length <= C.ASK_ANSWER_CAPS.detail, `${detail.length}`);
   readerCache.clear();
   const op = await planTurn([PLAN_CALL], { role: "operator" });
   assert.equal(op.failed, false, JSON.stringify(op));
-  assert.ok(op.answer.say.detail.includes(W.noteLeftOut), op.answer.say.detail);
+  assert.ok(op.answer.say.detail.includes(EN.noteLeftOut), op.answer.say.detail);
 });
 
 /** Harbor with a calendar open one hour on Mondays (four slots in the next fourteen days), the month's offer running. */
@@ -1075,8 +1095,8 @@ const TEN = Array.from({ length: 10 }, (_, i) =>
   row(i, { id: `aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaab${String(i).padStart(2, "0")}` }),
 );
 /** The November offer's room, tight for the ten: its broadcast reaches the whole list on Nov 1. */
-const ROOM_TIGHT = W.roomTight({ open: 4, days: 14 }, 10, "Nov 1");
-const REMINDS = W.reminderAsk("Nov 20", "Can receive offers");
+const ROOM_TIGHT = EN.roomTight({ open: 4, days: 14 }, 10, "Nov 1");
+const REMINDS = EN.reminderAsk("Nov 20", "Can receive offers");
 
 test("a US number, the month's offer running and a tight room for a later offer: the plan's words pass the answer's 700 characters, and the detail keeps whole what no card carries, the reminder last of it, losing only what the cards show (fix round of batch P)", async () => {
   const US = "+12125550123";
@@ -1089,13 +1109,13 @@ test("a US number, the month's offer running and a tight room for a later offer:
   const detail = r.answer.say.detail;
   assert.ok(detail.length <= C.ASK_ANSWER_CAPS.detail, `${detail.length}`);
   for (const unseen of [
-    W.without("whatsapp", C.whatsappOffersOpen(US).why),
-    W.monthsOfferPaused("This month's offer", "Nov 30"),
+    EN.without("whatsapp", C.whatsappOffersOpen(US).why),
+    EN.monthsOfferPaused("This month's offer", "Nov 30"),
     ROOM_TIGHT,
     REMINDS,
   ])
     assert.ok(detail.includes(unseen), `whole: ${unseen}\nin: ${detail}`);
-  assert.ok(detail.indexOf(REMINDS) < detail.indexOf(W.reuseMessage("this_months_offer")), detail);
+  assert.ok(detail.indexOf(REMINDS) < detail.indexOf(EN.reuseMessage("this_months_offer")), detail);
 });
 
 test("an operator's offer with email not set up, a new WhatsApp message, the month's offer running and a tight later room: the detail keeps what no card carries whole, the note left out, the room and the reminder (fix round of batch P)", async () => {
@@ -1111,7 +1131,7 @@ test("an operator's offer with email not set up, a new WhatsApp message, the mon
   assert.ok(words.length > C.ASK_ANSWER_CAPS.detail, `past the cap: ${words.length}`);
   const detail = op.answer.say.detail;
   assert.ok(detail.length <= C.ASK_ANSWER_CAPS.detail, `${detail.length}`);
-  for (const unseen of [W.noteLeftOut, ROOM_TIGHT, REMINDS])
+  for (const unseen of [EN.noteLeftOut, ROOM_TIGHT, REMINDS])
     assert.ok(detail.includes(unseen), `whole: ${unseen}\nin: ${detail}`);
 });
 

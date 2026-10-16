@@ -1783,6 +1783,48 @@
     }
   },
   {
+    "id": "offer_next_month_es",
+    "text": "Quiero ofrecer un 10% de descuento en todos los servicios durante todo el mes que viene",
+    "surface": "campaigns",
+    "needs": ["offers_yes", "offers_channel"],
+    "context": {
+      "surface": "campaigns",
+      "route": "campaigns",
+      "view": "playbooks",
+      "rows": "GET playbooks:40"
+    },
+    "expect": {
+      "tools_order": ["propose_plan.offer"],
+      "proposals_any": ["message", "broadcast", "playbook"],
+      "proposals_max": 6,
+      "language": "es",
+      "card_fields": {
+        "message": { "language": "es" }
+      },
+      "card_fields_absent": {
+        "message": ["versions.sms"]
+      },
+      "includes_any": [
+        "La oferta va a",
+        "Envía «",
+        "Escribe un mensaje para ofertas",
+        "Va sin",
+        "Pausa la oferta del mes"
+      ],
+      "excludes": [
+        "The offer goes",
+        "Writes a message for offers",
+        "already in the Library",
+        "Tells the receptionist",
+        "It goes without",
+        "ask me to send a reminder",
+        "Pauses the month's offer",
+        "The calendar has"
+      ],
+      "no_write": true
+    }
+  },
+  {
     "id": "offer_no_offers_channel",
     "text": "I want to offer 15% off everything next month",
     "surface": "campaigns",
