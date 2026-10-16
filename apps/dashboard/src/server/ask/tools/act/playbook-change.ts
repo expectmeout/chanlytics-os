@@ -12,6 +12,7 @@ import {
   PLAYBOOK_STATES,
   PLAYBOOK_VETO_DELAY_WORDS,
   campaignDayWords,
+  clockHour,
   effectiveMode,
   isPlaybookState,
   noteRows,
@@ -19,6 +20,7 @@ import {
   trialDayWords,
   triggerOf,
   type PlaybookPatch,
+  type PlaybookPatchKey,
   type PlaybookPolicyClass,
 } from "@chanlytics/contracts";
 import { checkPlaybookPatch, untilOf } from "@chanlytics/core";
@@ -74,6 +76,41 @@ function changeParts(
   if (set.until !== undefined) parts.push(W.until(set.until && campaignDayWords(set.until, at.tz, at.now)));
   if (set.trial_until !== undefined) parts.push(trialSaid(set, how, at));
   return parts;
+}
+
+/**
+ * What a change asked that the campaign already holds: the keys asked that its judgement (core checkPlaybookPatch) left
+ * out of `set`, each with the value asked, which is the one it holds. The card leaves them as they are and says so.
+ */
+function heldAlready(given: PlaybookPatch, set: PlaybookPatch): PlaybookPatch {
+  const held: PlaybookPatch = { ...given };
+  for (const k of PLAYBOOK_PATCH_KEYS) if (given[k] === undefined || k in set) delete held[k];
+  return held;
+}
+
+/** Each part a campaign already holds, as the campaign stands (the value asked, which is its own). */
+const ALREADY: Record<PlaybookPatchKey, (held: PlaybookPatch) => string> = {
+  state: (h) => (h.state === "paused" ? "is already paused" : "is already running"),
+  name: (h) => `is already named “${h.name ?? ""}”`,
+  run_hour: (h) => `already runs at ${clockHour(h.run_hour ?? 0)}`,
+  cap_per_run: (h) => `already reaches up to ${h.cap_per_run ?? 0} people a run`,
+  gap_days: (h) => `already waits ${h.gap_days ?? 0} days before reaching a person again`,
+  cadence_days: (h) => `already runs every ${h.cadence_days ?? 0} days`,
+  params: () => "already says those words",
+  until: (h) => (h.until ? "already ends that day" : "already has no last day"),
+  trial_until: (h) => (h.trial_until ? "is already on trial until then" : "is already off trial"),
+};
+
+/**
+ * What a change asked that the campaign already holds, in one sentence, said on its card and beside it (the operator
+ * stress run, 15 Oct 2026: "pause the Win-back and make it send twice as often", of a Win-back already paused, made the
+ * gap's card and never said so). Null where it holds none of it.
+ */
+function alreadyHeldWords(name: string, held: PlaybookPatch): string | null {
+  const parts = PLAYBOOK_PATCH_KEYS.filter((k) => k in held).map((k) => ALREADY[k](held));
+  const last = parts.pop();
+  if (last === undefined) return null;
+  return `“${name}” ${parts.length ? `${parts.join(", ")} and ${last}` : last}`;
 }
 
 /** A change as the model asks it: the patch's keys, its message's values as slot text (as action moment takes them). */
@@ -163,6 +200,8 @@ async function proposePlaybookChange(t: ToolContext, input: ChangeAsked): Promis
   }
   const { set, was } = judged;
   if (Object.keys(set).length === 0) return refuse(PLAYBOOK_PATCH_WORDS.same(row.name));
+  // A part asked that it holds already (a pause of one paused) is no part of the card, and is said on it and beside it.
+  const noted = alreadyHeldWords(row.name, heldAlready(given, set)) ?? undefined;
   // The table's check holds the class to the set (playbooks.policy_class).
   const cls = PLAYBOOK_CLASS_LABEL[row.policy_class as PlaybookPolicyClass];
   // The mode its runs go under, read for a resume, which says it (D7: under auto a resume sends on its own), for a
@@ -179,26 +218,32 @@ async function proposePlaybookChange(t: ToolContext, input: ChangeAsked): Promis
   const classMode = policies ? (policies.find((r) => r.class === row.policy_class)?.mode ?? "ask") : null;
   const mode = classMode === null ? null : effectiveMode({ ...row, ...set }, classMode, t.now);
   const waits = row.waiting ? row.waiting.recipient_count : null;
-  return propose({
-    kind: "playbook_change",
-    title: PLAYBOOK_PATCH_WORDS.title(set, row.name),
-    summary: changeParts(
-      set,
-      was,
-      { cls, mode: mode ?? "ask", classMode: classMode ?? "ask", waits },
-      { tz: t.timezone, now: t.now },
-    ).join(" · "),
-    payload: {
-      playbook_id: row.id,
-      playbook_name: row.name,
-      ...set,
-      was,
-      run_waits: row.waiting !== null,
-      timezone: t.timezone,
-      // A pause's undo resumes it: the mode it would resume under, as read now (contracts playbookChangeSpec's undo).
-      ...(set.state === "paused" ? { mode } : {}),
+  return propose(
+    {
+      kind: "playbook_change",
+      title: PLAYBOOK_PATCH_WORDS.title(set, row.name),
+      summary: [
+        ...changeParts(
+          set,
+          was,
+          { cls, mode: mode ?? "ask", classMode: classMode ?? "ask", waits },
+          { tz: t.timezone, now: t.now },
+        ),
+        ...(noted ? [noted] : []),
+      ].join(" · "),
+      payload: {
+        playbook_id: row.id,
+        playbook_name: row.name,
+        ...set,
+        was,
+        run_waits: row.waiting !== null,
+        timezone: t.timezone,
+        // A pause's undo resumes it: the mode it would resume under, as read now (contracts playbookChangeSpec's undo).
+        ...(set.state === "paused" ? { mode } : {}),
+      },
     },
-  });
+    noted,
+  );
 }
 
 /** A playbook that exists, changed in place: propose_sequence's action change. */
@@ -222,6 +267,6 @@ export const playbookChangeAction = actAction({
     { playbook_id: "f6a7b8c9-d0e1-4f2a-8b3c-4d5e6f7a8b9c", params: ["@first_name", "15% off"], until: "2026-11-30" },
   ],
   label: "Preparing a campaign's change",
-  words: `Action change takes playbook_id, a playbook that exists, as ${PLAYBOOK_FROM} gives it (or the page's rows), and only what they asked to change: state (paused stops its next runs; running starts them again under its class's autonomy mode), name (at most ${PLAYBOOK_NAME_MAX} characters), run_hour (${PLAYBOOK_LIMITS.run_hour.min} to ${PLAYBOOK_LIMITS.run_hour.max} by the business's clock), cap_per_run (${PLAYBOOK_LIMITS.cap_per_run.min} to ${PLAYBOOK_LIMITS.cap_per_run.max} people a run), gap_days (${PLAYBOOK_LIMITS.gap_days.min} to ${PLAYBOOK_LIMITS.gap_days.max} days before a person is reached again), cadence_days (${PLAYBOOK_LIMITS.cadence_days.min} to ${PLAYBOOK_LIMITS.cadence_days.max}, the month's offer alone), params (its message's values in order, as action moment takes them: new text in the same message, never a new message), until (its last day, YYYY-MM-DD by the business's clock, today or later; it runs nothing after) or trial_until (an ISO time still to come, with its offset, until which each run its class would send on its own waits ${PLAYBOOK_VETO_DELAY_WORDS} for a Stop, or null to end its trial now). Nothing else about it moves: its moment, message and list are its drawer's, and its channels are action channels'. A run already waiting for approval stays waiting after a pause, and the card says so: propose action batch with verb skip beside it when they want that run gone. A reach-out's step, a value outside its bounds and a playbook that already reads so are refused in words.`,
+  words: `Action change takes playbook_id, a playbook that exists, as ${PLAYBOOK_FROM} gives it (or the page's rows), and only what they asked to change: state (paused stops its next runs; running starts them again under its class's autonomy mode), name (at most ${PLAYBOOK_NAME_MAX} characters), run_hour (${PLAYBOOK_LIMITS.run_hour.min} to ${PLAYBOOK_LIMITS.run_hour.max} by the business's clock), cap_per_run (${PLAYBOOK_LIMITS.cap_per_run.min} to ${PLAYBOOK_LIMITS.cap_per_run.max} people a run), gap_days (${PLAYBOOK_LIMITS.gap_days.min} to ${PLAYBOOK_LIMITS.gap_days.max} days before a person is reached again), cadence_days (${PLAYBOOK_LIMITS.cadence_days.min} to ${PLAYBOOK_LIMITS.cadence_days.max}, the month's offer alone), params (its message's values in order, as action moment takes them: new text in the same message, never a new message), until (its last day, YYYY-MM-DD by the business's clock, today or later; it runs nothing after) or trial_until (an ISO time still to come, with its offset, until which each run its class would send on its own waits ${PLAYBOOK_VETO_DELAY_WORDS} for a Stop, or null to end its trial now). Nothing else about it moves: its moment, message and list are its drawer's, and its channels are action channels'. A run already waiting for approval stays waiting after a pause, and the card says so: propose action batch with verb skip beside it when they want that run gone. A reach-out's step, a value outside its bounds and a playbook that already reads so are refused in words; a part of the change it already holds (a pause of one paused) is left off the card, which says so, and the answer says it too.`,
   build: proposePlaybookChange,
 });

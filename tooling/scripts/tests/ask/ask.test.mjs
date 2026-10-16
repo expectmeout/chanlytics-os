@@ -1461,7 +1461,7 @@ test("cards: an act tool never acts, a proposal names its door and its undo, the
     "an act tool becomes a proposal, never an action",
   );
   assert.ok(
-    loop.includes("if (!args) return cutOff(b);"),
+    loop.includes("if (!args) return cutOff(b, input.tenantId);"),
     "a call whose arguments did not arrive whole is told so, not judged as a plan with every field missing",
   );
   const prompt = readCode("apps/dashboard/src/server/ask/prompt.ts");

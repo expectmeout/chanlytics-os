@@ -157,17 +157,24 @@ async function proposePersonDetails(
     return refuse(`already their ${(["name", "email"] as const).filter((k) => asked[k] !== undefined).join(" and ")}`);
   const to = Object.fromEntries(changed.map((k) => [k, asked[k] as string]));
   const previous = Object.fromEntries(changed.map((k) => [k, person[k]]));
-  return propose({
-    kind: "person_details",
-    title: `Details for ${person.who}`,
-    summary: changed
-      .map((k) => {
-        const was = person[k] ?? PERSON_DETAIL_WORDS.none[k](person.shows);
-        return `${PERSON_DETAIL_WORDS.label[k]}: ${was} → ${to[k]}`;
-      })
-      .join(" · "),
-    payload: { contact_id: person.id, who: person.who, ...to, previous },
-  });
+  // A field asked that already says it is left off the card, and said beside it.
+  const same = (["name", "email"] as const).filter((k) => asked[k] !== undefined && !changed.includes(k));
+  return propose(
+    {
+      kind: "person_details",
+      title: `Details for ${person.who}`,
+      summary: changed
+        .map((k) => {
+          const was = person[k] ?? PERSON_DETAIL_WORDS.none[k](person.shows);
+          return `${PERSON_DETAIL_WORDS.label[k]}: ${was} → ${to[k]}`;
+        })
+        .join(" · "),
+      payload: { contact_id: person.id, who: person.who, ...to, previous },
+    },
+    same.length
+      ? `the ${same.join(" and ")} asked ${same.length > 1 ? "are" : "is"} already ${person.who}'s`
+      : undefined,
+  );
 }
 
 /** The two questions a person is asked, in the words a model is given them. */

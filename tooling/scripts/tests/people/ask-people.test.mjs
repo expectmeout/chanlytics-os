@@ -1307,3 +1307,21 @@ test("people.search says the People row's state, for every state and a teammate'
     assert.equal(line.state, label, `${who}: Ask's search says the People row's state`);
   }
 });
+
+test("a field asked that already says it is left off the details card, and said beside it: the outcome carries it for the turn's answer, and the model is told (the operator stress run, 15 Oct 2026: no part of an ask dropped in silence)", async () => {
+  const supabase = fakeDb(cardWorld("operator"), {}, {});
+  const t = newToolContext({ supabase, userId: USER, email: "ada@example.com", params: {} }, A, "operator", TZ, NOW);
+  const out = await buildProposal(t, "propose_person", {
+    action: "details",
+    contact_id: QUINN,
+    name: "Quinn Walker",
+    email: "quinn@example.com",
+  });
+  assert.equal(out.noted, "the email asked is already Quinn W's");
+  assert.equal(
+    JSON.parse(out.result).left_out,
+    "the email asked is already Quinn W's: say so in the answer beside the card",
+  );
+  const both = await buildProposal(t, "propose_person", { action: "details", contact_id: QUINN, name: "Quinn Walker" });
+  assert.equal(both.noted, undefined, "nothing asked held already");
+});

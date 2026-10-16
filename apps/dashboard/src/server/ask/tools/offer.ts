@@ -1,6 +1,6 @@
 import "server-only";
-import { MEMBERSHIP_ROLES, type MembershipRole } from "@chanlytics/contracts";
-import { NO_ACTION, type ActTool, type ReadTool, type Tool, type ToolDef } from "./context";
+import { MEMBERSHIP_ROLES, PROPOSAL_SPECS, type MembershipRole } from "@chanlytics/contracts";
+import { NO_ACTION, offeredTo, type ActTool, type ReadTool, type Tool, type ToolDef } from "./context";
 import { ACT_DEFS, CORE_TOOLS, READ_DEFS, inputOf, offeredActions, toolSchema } from "./registry";
 import { ANSWER_TOOL } from "./answer";
 
@@ -52,6 +52,34 @@ const OFFER = new Map<MembershipRole, ToolDef[]>(
       .sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0)),
   ]),
 );
+
+/**
+ * What a role's tools leave out because a role above it approves them, said in its turn's words (prompt.ts turnWords):
+ * the operator stress run (15 Oct 2026) heard an operator asking for a lead search told the tool "isn't available", and
+ * one asking for the receptionist off for a person given a thread's take-over with no word that it differs, since a role
+ * is never offered an action above it (D2). Each card an action makes that the role is not offered, by what it does (its
+ * spec's `doing`, the words proposalBelowNeeds says), the owner's apart from the partner's. None for an owner, and none
+ * for a viewer, who is offered no card at all (the rules say what to tell one).
+ */
+export function aboveRoleWords(role: MembershipRole): string | null {
+  if (role === "owner" || role === "viewer") return null;
+  const above = { owner: new Set<string>(), partner: new Set<string>() };
+  for (const t of ACT_DEFS)
+    for (const def of Object.values(t.actions)) {
+      if (offeredTo(def, role)) continue;
+      for (const kind of [def.kind, ...(def.makes ?? [])]) {
+        const spec = PROPOSAL_SPECS[kind];
+        if (spec.needs !== "operator" && spec.doing) above[spec.needs].add(spec.doing);
+      }
+    }
+  const said = (doings: Set<string>) => [...doings].join(", ");
+  const whose = [
+    above.owner.size ? `only an owner can ${said(above.owner)}` : "",
+    above.partner.size ? `only an owner or the workspace's partner can ${said(above.partner)}` : "",
+  ].filter(Boolean);
+  if (!whose.length) return null;
+  return `Above their role, so no tool of yours proposes it: ${whose.join("; ")}. When they ask for one, say who can do it and that they can ask that person, never that a tool is not available; where something of theirs comes near it, propose that, and say in the answer beside its card who can do what they asked and how this differs (a thread taken over is that one thread, for now).`;
+}
 
 /**
  * The server tool that finds a deferred tool by what it is for (the operator, 15 Oct 2026, D11): BM25 over each tool's

@@ -107,6 +107,11 @@ export interface ProposalOutcome {
   lead?: PlanLead;
   /** Why nothing was proposed (refuse), as the model is told it: read by a plan of its step's refusal (act/plan.ts). */
   refusal?: string;
+  /**
+   * What was asked that the card leaves out because it already reads so ("Win-back is already paused"), as the model is
+   * told it: the turn's answer says it (loop.ts), never only the card's count.
+   */
+  noted?: string;
 }
 
 /**
@@ -486,7 +491,7 @@ export const refuse = (why: string): ProposalOutcome => ({
  * either (D7). A builder whose kind needs more than an operator refuses a member below it first, in its route's words
  * (`roleAtLeast`, `proposalBelowNeeds`).
  */
-export const propose = (p: Omit<AskProposal, "id" | "needs" | "undo" | "made_at">): ProposalOutcome => {
+export const propose = (p: Omit<AskProposal, "id" | "needs" | "undo" | "made_at">, noted?: string): ProposalOutcome => {
   const spec = PROPOSAL_SPECS[p.kind];
   const proposal: AskProposal = {
     id: nextId(),
@@ -499,11 +504,13 @@ export const propose = (p: Omit<AskProposal, "id" | "needs" | "undo" | "made_at"
   return {
     proposal,
     isError: false,
+    ...(noted ? { noted } : {}),
     result: JSON.stringify({
       proposed: true,
       id: proposal.id,
       card: proposal.title,
       summary: proposal.summary,
+      ...(noted ? { left_out: `${noted}: say so in the answer beside the card` } : {}),
       note: "Nothing has happened yet. This is a card the person can approve, edit or dismiss. Say what you proposed; never say it is done.",
     }),
   };

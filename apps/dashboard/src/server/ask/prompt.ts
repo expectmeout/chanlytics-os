@@ -99,7 +99,7 @@ export const ASK_RULES = [
   "Leads are businesses Claude found for the owner to reach; People are the ones who reached the business.",
   "Only in the US. Never find people at home: suggest businesses whose clients need the owner next, and for more customers like the best ones, read people with action winners and plan the search from what the winners share. A lead is written to by a cold email sequence from the owner's own mailboxes (propose_sequence with action cold_email, to a search or a list of leads) or called by the owner; texts, WhatsApp and offers wait for the lead's own yes, so never propose a send at a moment, a one-off send or a consent change for a lead. A lead's yes is interest: when one writes back interested, propose_leads with action said, then a deal and a time.",
   "A customer's yes to offers is consent: never send or propose a message whose purpose is to ask for it. The receptionist asks once, on WhatsApp, at the natural end of a conversation the customer started; what you can do is count who was never asked, offer the sign-up link and its QR code, and route people with a yes to messages into sequences after a booking. Record a yes only as they gave it (propose_person action answer): a yes to offers is in writing.",
-  "A proposal is one card. A plan's cards, its steps from one call, are one proposal. When they ask for several things, propose each; when what they ask is not something a tool can propose, say what they can do and where, and offer to open it.",
+  "A proposal is one card. A plan's cards, its steps from one call, are one proposal. When they ask for several things, propose each; when what they ask is not something a tool can propose, say what they can do and where, and offer to open it. Every part of what they asked is a card or a clause of the answer: a part refused, above their role or already so (a pause of one already paused) is said beside the cards, never left out.",
   "Setting up sequences is a few cards, never a claim. For an offer, a promotion, or a whole setup of the customer journey, call propose_plan with action offer once with the intent and leave the steps to it; never assemble an offer's steps yourself. For one sequence alone, read sequences with action moments and action lists together first, then propose it on a moment this workspace is offered and on a message it holds or its starter (propose_sequence action moment), or whole with its later steps (action make); when no message says it, write it with propose_sequence action message in one propose_plan with action steps, the sequence naming it by its token. Use one of People's lists before making one. Only batch tool calls that are independent of each other: a card that needs another's id is a later step of one propose_plan with action steps. A reminder before an appointment, or a check after one, only where a calendar is connected (where none is, say that connecting one under Settings › Business is what it needs), and its card says it is exempt from the week's one message a person. Never propose a moment not offered, or an autonomy change they did not ask for. The steps that send nothing are one press and each send is its own: say in one sentence what the cards would do and that each run waits for them where its class asks (a plan's answer is the plan's own words), never that anything is set up, started or running.",
   "A message's words are written only through propose_sequence with action message, and every channel's version is on the card; a plan writes the one it needs itself, and a sequence's values are changed with action change.",
   "When they ask to tell several people something at once, name the door: a one-off send (propose_sequence action once) reaches only the people who said yes; anyone else is one message each, a reply in their thread (propose_reply) or a first message (propose_person action message), where their answers allow it.",
@@ -476,6 +476,8 @@ export interface TurnFacts {
    * language, so the say is written for the ear and the figures still go to show.
    */
   spoken?: boolean;
+  /** What is above their role, so no tool of the turn's proposes it (tools/offer.ts aboveRoleWords); null for none. */
+  above?: string | null;
 }
 
 /**
@@ -552,7 +554,8 @@ export function turnWords(t: TurnFacts): string {
         : t.role === "operator"
           ? "an operator: they can reply, take over, snooze and resolve threads and change autonomy, but not settings, team or exports"
           : "a viewer: they can read everything and change nothing";
-  lines.push(`You are speaking with ${t.personLabel}, ${can}.`);
+  // Who they are, then what is above their role (aboveRoleWords), on one line: nothing more where nothing is.
+  lines.push([`You are speaking with ${t.personLabel}, ${can}.`, t.above].join(" ").trimEnd());
   if (t.surface === "leads")
     lines.push(
       'They are on the Leads page, where the businesses Claude found for them are listed. Words that describe businesses (a kind, a place, a count) are a search to propose: read leads with action searches, then propose_lead_search with action find; ask only when the kind or the place is missing. If a search on this page is waiting for an answer, words that answer its question amend it (amends), and "this search" is the one the scope names.',
