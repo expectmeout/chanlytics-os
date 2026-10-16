@@ -8,7 +8,8 @@
  * Two questions, kept apart because they are two facts:
  *   - SAID YES: they gave the answer this kind of message asks (answeredYes). It is what they said, on whatever channel and
  *     whether the workspace can send on it or not, so it does not move with the workspace's lines; it is the word People's
- *     columns say. (The send screen's count, broadcast-audience.ts saidYesOnAny, is the yes one send's channels need.)
+ *     columns say. (The send screen's count, broadcast-audience.ts saidYesOnAny, is that answer where it covers a channel
+ *     one send goes by, whether or not that channel can carry it now.)
  *   - CAN RECEIVE: reachFor over every channel, against what the workspace can send on now. Offers go by WhatsApp, and by
  *     email once the workspace can send them (reach-for.ts channelRefuses: texts carry none); a message about a visit goes by
  *     whichever of the three their yes covers and they have a way to reach: a number, or an address that has not bounced.

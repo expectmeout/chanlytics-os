@@ -8,15 +8,19 @@
  */
 import "server-only";
 import {
+  CONSENT_CHANNELS,
+  NO_CHANNEL_REACH,
   PLAYBOOK_CARD_REFUSALS,
   PLAYBOOK_CARD_WORDS,
   PLAYBOOK_CLASS_LABEL,
   PLAYBOOK_VETO_DELAY_WORDS,
+  channelRefuses,
   dealPaceOf,
   heldBackOfOneRun,
   playbookRunReach,
   proposalChannelsWords,
   runReadingOf,
+  saidYesWords,
   triggerWords,
   type triggerOf,
   type AskedPurpose,
@@ -25,6 +29,7 @@ import {
   type ConsentChannel,
   type ListRef,
   type MessageAbout,
+  type RunReach,
   type RunReading,
 } from "@chanlytics/contracts";
 import { campaignHow } from "@chanlytics/core";
@@ -113,6 +118,25 @@ export function playbookChannelsSaid(
     goes: ` · ${proposalChannelsWords(by.channels, reachByChannel(byChannel))}`,
     waiting: `${waiting.join("")}${held}`,
   };
+}
+
+/**
+ * Who on the list said yes, as a new campaign's card says it (contracts saidYesWords): who a run reaches; and where it
+ * reaches nobody, how many said the yes it needs (`saidYes`, saidYesOnAny) and what they lack: a number, or, where no
+ * channel it goes by can carry it, each one's own reason (Meta's pause on offers to US numbers), else the pages' sentence
+ * for no channel. It said "0 people on the list said yes to offers" over 26 who had, on a US number (the operator stress
+ * run, 15 Oct 2026), and nothing of the pause.
+ */
+export function yesSaid(purpose: AskedPurpose, drawn: { reach: RunReach; saidYes: number }, how: CampaignHow): string {
+  const refused = [
+    ...new Set(
+      CONSENT_CHANNELS.filter((c) => how.channels.includes(c)).flatMap(
+        (c) => channelRefuses(c, purpose, how.about, how.ready) ?? [],
+      ),
+    ),
+  ];
+  const noChannel = (drawn.reach.no_channel ?? 0) > 0 ? refused.join(" ") || NO_CHANNEL_REACH : null;
+  return saidYesWords("the list", purpose, drawn.reach.will, drawn.saidYes, noChannel);
 }
 
 /** Who a run reaches on each channel, none where the reach said nothing of them. */

@@ -46,6 +46,7 @@ import {
   playbookReach,
   playbookReachDoor,
   playbookNoNumberWords,
+  NO_CHANNEL_REACH,
   GET_YES_ROUTE,
 } from "@chanlytics/contracts";
 import { readCode, readRaw, importSrc } from "../_source.mjs";
@@ -693,6 +694,18 @@ test("REGRESSION: a playbook whose yes has no number to send to is not one nobod
     "nobody said it: '0 on the list said yes' is true",
   );
   assert.equal(playbookNoNumberWords(card("reengage", 0, 0), null), null, "not known");
+});
+
+test("REGRESSION: on a US WhatsApp number a playbook's card says how many said yes and that no channel can carry it, with no door to their yes -- Meta's pause read as nobody's yes (the operator stress run, 15 Oct 2026)", () => {
+  // Everyone the moment names said yes and has a number; no channel it goes by can carry an offer (the run's no_channel).
+  const named = { pool: 26, saidYes: 26, noChannel: 26 };
+  const card = { policy_class: "reengage", candidates: 0, held: 0 };
+  assert.equal(playbookReachDoor("nobody", named), null, "the QR would ask for an answer they gave");
+  assert.equal(
+    playbookNoNumberWords(card, named),
+    `26 people on the list said yes to offers, none can be sent an offer — ${NO_CHANNEL_REACH}`,
+    "a channel is missing, never a number",
+  );
 });
 
 test("Ask knows playbooks: read as the page shows them, proposed as a card, committed through the app's route, undone by deleting; Today says what ran; a run's thread names its playbook", async () => {

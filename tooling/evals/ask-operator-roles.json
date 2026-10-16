@@ -1,0 +1,37 @@
+[
+  {
+    "id": "role_operator_lead_search",
+    "why": "An operator asks for a lead search, a partner's card: refused in words that name who can",
+    "text": "find 50 dentists in Miami with a website",
+    "surface": "today",
+    "expect": { "proposals_not": ["lead_search"], "includes_any": ["owner", "partner"], "no_write": true }
+  },
+  {
+    "id": "role_operator_person_mode",
+    "why": "An operator asks to switch the receptionist off for someone, an owner's card",
+    "text": "turn the receptionist off for Robin Example",
+    "surface": "today",
+    "expect": { "proposals_not": ["person_mode"], "includes_any": ["owner"], "no_write": true }
+  },
+  {
+    "id": "role_operator_settings",
+    "why": "An operator asks to change what the receptionist knows, a partner's card",
+    "text": "tell the receptionist we're closed next Monday for the holiday",
+    "surface": "today",
+    "expect": { "proposals_not": ["settings"], "no_write": true }
+  },
+  {
+    "id": "role_operator_note",
+    "why": "An operator's own card: a note",
+    "text": "add a note to Casey Example that she prefers text over calls",
+    "surface": "today",
+    "expect": { "proposals_any": ["note"], "no_write": true }
+  },
+  {
+    "id": "role_operator_goal",
+    "why": "An operator asks to keep the owner's goal",
+    "text": "our goal is fifty bookings a week, remember that",
+    "surface": "today",
+    "expect": { "no_write": true }
+  }
+]
