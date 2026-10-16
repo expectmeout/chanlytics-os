@@ -6,7 +6,8 @@
  *     every other conflict is a person's.
  *   - `check:local` runs everything after the build side by side (runTogether), and says each check's own result.
  *   - CI's tests run as four parts at once, each a quarter of the files, and the lint and the format check start from
- *     main's cache, which main's own lint writes afresh.
+ *     main's cache, which main's own lint writes afresh. The dashboard's build, the dist against its sources and the
+ *     typecheck run side by side, each against the committed dist (repo/settings/workflow-rules.test.mjs holds it).
  *   - The edge's functions are built here (tooling/scripts/edge-functions.mjs, in seconds) and Vercel deploys them as
  *     they are, with the settings its own builder gave each, where it once compiled them one by one for seven minutes.
  *     CI's typecheck still reads the edge's own tsconfig, every function in it.
@@ -18,9 +19,11 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { ESLint } from "eslint";
 import ts from "typescript";
 import { isWritten, WRITERS } from "../../../land.mjs";
 import { FIRST, LOCAL_CHECKS, runTogether } from "../../../checks/checked-locally.mjs";
+import { cacheOptions } from "../../../checks/lint.mjs";
 import { buildEdge, edgeFunctions, functionFiles, nodeMajor, ROUTES, vcConfig } from "../../../edge-functions.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../../..");
@@ -107,6 +110,32 @@ test("CI's tests run as four parts at once, and lint and format start from main'
     },
   );
   assert.equal(picker.status, 0, picker.stderr);
+});
+
+test("main's fresh lint keeps the cache the pull requests start from: emptied first, never turned off", async () => {
+  assert.deepEqual(
+    [cacheOptions({ LINT_CACHE: "0" }).fresh, cacheOptions({ LINT_CACHE: "0" }).cache],
+    [true, true],
+    "main lints every file afresh, and writes what it found",
+  );
+  assert.deepEqual([cacheOptions({}).fresh, cacheOptions({}).cache], [false, true]);
+  // Why never off: ESLint deletes its cache file when the cache is off.
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "lint-cache-"));
+  try {
+    fs.writeFileSync(path.join(dir, "a.js"), "export const a = 1;\n");
+    const cacheLocation = path.join(dir, ".cache/");
+    const lint = (cache) =>
+      new ESLint({ cwd: dir, overrideConfigFile: true, cache, cacheLocation, cacheStrategy: "content" }).lintFiles([
+        "a.js",
+      ]);
+    const files = () => (fs.existsSync(cacheLocation) ? fs.readdirSync(cacheLocation) : []);
+    await lint(true);
+    assert.equal(files().length, 1, "a run with the cache on writes it");
+    await lint(false);
+    assert.equal(files().length, 0, "a run with it off deletes it: main left the pull requests nothing to start from");
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test("Vercel deploys the edge's functions as they are built here, and runs no builder of its own over them", () => {

@@ -179,13 +179,7 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      # workspace packages build to dist first; apps typecheck against the built types
-      - run: pnpm --filter "./packages/*" build
-      # dist-drift guard: the edge executes committed dist, so stale dist is stale production
-      - run: git diff --exit-code -- packages/*/dist
-      - if: needs.scope.outputs.checked != 'true'
-        run: pnpm -r typecheck
-      # database.types.ts freshness is proved in database.yml, where a database exists to regenerate from.
+      # Against the committed dist, as Vercel builds: `dist` (below) holds it to the sources, side by side with this.
       # The production build, the way Vercel runs it for the dashboard (Root
       # Directory apps/dashboard, `next build`, on Node 24 like this job). Nothing
       # above compiles a page: typecheck skips src/legacy, the ported JSX shell,
@@ -266,6 +260,44 @@ jobs:
           name: bundle-record
           path: .bundle/record.json
           retention-days: 35
+
+  # The packages' dist is committed and is what everything else here reads (the dashboard's build, the typecheck, the
+  # tests) and what the edge runs, so stale dist is stale production: built afresh, it must be what was committed. Its
+  # own job, side by side with the build and the typecheck that read the committed one (16 Oct 2026: the three in a row
+  # were five minutes, the longest part of CI); a drift fails here whatever they said.
+  dist:
+    name: The dist matches the sources
+    needs: scope
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter "./packages/*" build
+      - run: git diff --exit-code -- packages/*/dist
+
+  # Every project's types, against the committed dist (`dist` above holds it to the sources). database.types.ts
+  # freshness is proved in database.yml, where a database exists to regenerate from.
+  types:
+    name: Types
+    needs: scope
+    if: needs.scope.outputs.checked != 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm -r typecheck
 
   lint:
     name: Lint
@@ -392,7 +424,7 @@ jobs:
   # because the tree was checked locally, or because the event runs no tests (a push to main), is not a failure.
   typecheck:
     name: Typecheck
-    needs: [scope, build, lint, hygiene, tests]
+    needs: [scope, build, dist, types, lint, hygiene, tests]
     if: ${{ always() }}
     runs-on: ubuntu-latest
     timeout-minutes: 5

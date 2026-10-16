@@ -69,23 +69,31 @@ export function bankWarnings(now, baseline, { raise = false } = {}) {
   return out;
 }
 
+/**
+ * ESLint's cache. A file whose content and the config are as they were last time is not linted again: its result,
+ * warnings and all, comes from the cache (by content, so a fresh checkout in CI hits too). A typed rule can turn on a
+ * file that did not change when a type it reads did, and the cache cannot see that, so `LINT_CACHE=0` lints every file
+ * afresh: main's own run after a merge does (ci.yml), and its result is the cache the pull requests start from. Afresh
+ * is the cache emptied first and kept on, never turned off: ESLint deletes its cache file when the cache is off, and
+ * main then left the pull requests none (16 Oct 2026: four minutes of lint on every one).
+ */
+export function cacheOptions(env = process.env) {
+  return {
+    fresh: env.LINT_CACHE === "0",
+    cache: true,
+    cacheLocation: path.join(ROOT, "node_modules/.cache/eslint/"),
+    cacheStrategy: "content",
+  };
+}
+
 async function main() {
   const update = process.argv.includes("--update");
   const raise = process.argv.includes("--raise");
   const fix = process.argv.includes("--fix");
 
-  // A file whose content and the config are as they were last time is not linted again: its result, warnings and all,
-  // comes from the cache (by content, so a fresh checkout in CI hits too). A typed rule can turn on a file that did not
-  // change when a type it reads did, and the cache cannot see that, so `LINT_CACHE=0` lints every file afresh: main's
-  // own run after a merge does (ci.yml), and its result is the cache the pull requests start from.
-  const cache = process.env.LINT_CACHE !== "0";
-  const eslint = new ESLint({
-    cwd: ROOT,
-    fix,
-    cache,
-    cacheLocation: path.join(ROOT, "node_modules/.cache/eslint/"),
-    cacheStrategy: "content",
-  });
+  const { fresh, ...cache } = cacheOptions();
+  if (fresh) fs.rmSync(cache.cacheLocation, { recursive: true, force: true });
+  const eslint = new ESLint({ cwd: ROOT, fix, ...cache });
   const results = await eslint.lintFiles(["."]);
   if (fix) await ESLint.outputFixes(results);
   const stylish = await eslint.loadFormatter("stylish");
