@@ -4468,6 +4468,11 @@ async function memberViewsOf(db, p) {
   const views = data?.views;
   return views && typeof views === "object" && !Array.isArray(views) ? views : {};
 }
+async function ownAddressIn(db, p) {
+  const { data, error } = await db.from("memberships").select("user_id").eq("tenant_id", p.tenantId).eq("user_id", p.userId).maybeSingle();
+  if (error) throw new Error(`cannot read who is in the workspace: ${error.message}`);
+  return data ? memberEmailOf(db, p.userId) : null;
+}
 
 // src/repositories/campaigns/workspace.ts
 async function workspacePaused(db, tenantId) {
@@ -7003,6 +7008,7 @@ export {
   ourLastWire,
   outreachFactsOf,
   outreachModeOf,
+  ownAddressIn,
   ownLineOf,
   ownVersionsFiled,
   ownerSendFactsOf,

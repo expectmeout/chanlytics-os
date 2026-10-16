@@ -50,6 +50,7 @@ after(() => {
 const A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const DOORS = [
   "email/alert-test",
+  "email/test-to-self",
   "email/wire",
   "eval",
   "hand-over",

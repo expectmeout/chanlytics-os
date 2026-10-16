@@ -1677,6 +1677,13 @@
       "rate": "playbook",
       "spend": false
     },
+    "POST sequences/[id]/steps/[step]/test": {
+      "kind": "write",
+      "scope": "row",
+      "role": "operator",
+      "rate": "step_test",
+      "spend": false
+    },
     "POST sequences/[id]/steps": {
       "kind": "write",
       "scope": "row",
