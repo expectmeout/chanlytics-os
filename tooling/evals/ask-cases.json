@@ -1857,6 +1857,11 @@
       "card_fields_absent": {
         "message": ["versions.sms"]
       },
+      "card_fields_each": {
+        "message": {
+          "language": ["en_US", "es"]
+        }
+      },
       "no_write": true
     }
   },
