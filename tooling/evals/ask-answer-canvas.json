@@ -64,5 +64,63 @@
     "text": "现在谁需要我？",
     "surface": "today",
     "expect": { "includes_any": ["需要", "没有", "人", "等"], "no_write": true }
+  },
+  {
+    "id": "canvas_plan_offer_fr",
+    "text": "Je veux offrir 10 % de réduction sur toutes les colorations pendant tout le mois prochain",
+    "surface": "campaigns",
+    "needs": ["offers_yes", "offers_channel"],
+    "context": {
+      "surface": "campaigns",
+      "route": "campaigns",
+      "view": "playbooks",
+      "rows": "GET playbooks:40"
+    },
+    "expect": {
+      "tools_order": ["propose_plan.offer"],
+      "proposals_any": ["message", "broadcast"],
+      "proposals_max": 6,
+      "includes_any": ["offre", "réduction"],
+      "excludes": [
+        "A plan of",
+        "to review",
+        "The offer goes",
+        "Writes a message for offers",
+        "It goes without",
+        "Tells the receptionist",
+        "Pauses the month's offer"
+      ],
+      "no_write": true,
+      "card_text_excludes": {
+        "broadcast": ["mois prochain", "Je veux"],
+        "playbook": ["mois prochain", "Je veux"]
+      }
+    }
+  },
+  {
+    "id": "canvas_plan_setup_pt",
+    "text": "Somos uma consultoria B2B online: primeiro uma chamada, depois quase sempre uma proposta. Configure as minhas campanhas.",
+    "surface": "campaigns",
+    "context": {
+      "surface": "campaigns",
+      "route": "campaigns",
+      "view": "playbooks",
+      "rows": "GET playbooks:40"
+    },
+    "expect": {
+      "proposals_any_or_says": ["playbook"],
+      "includes_any": ["proposta"],
+      "excludes": [
+        "A plan of",
+        "to review",
+        "The offer goes",
+        "Writes a message for offers",
+        "It goes without",
+        "Tells the receptionist",
+        "Pauses the month's offer"
+      ],
+      "no_write": true,
+      "proposals_max": 4
+    }
   }
 ]

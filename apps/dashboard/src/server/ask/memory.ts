@@ -394,7 +394,7 @@ export function replayFor<W>(
 }
 
 /** The round a turn ended on: the request as it went out, what the model wrote, what its calls answered, when it began. */
-interface LastRound {
+export interface LastRound {
   request: {
     model: string;
     system: unknown[];

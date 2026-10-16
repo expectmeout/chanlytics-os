@@ -4,14 +4,10 @@ import {
   ASK_MAX_ROUNDS,
   ASK_SPOKEN_TURN_BUDGET_MS,
   ASK_TURN_BUDGET_MS,
-  answerForCards,
   answerWords,
-  claimsWrite,
   failedAnswer,
   isUngrounded,
-  normalizeAnswer,
   noteRows,
-  messageLanguagesNext,
   partialSay,
   answerSoFar,
   proseAnswer,
@@ -25,7 +21,6 @@ import {
   type AskShowPreview,
   type AskTurnShape,
   type PageContext,
-  type PlanLead,
 } from "@chanlytics/contracts";
 import type { AskModelProfile, EffortMessage, MembershipRole } from "@chanlytics/contracts";
 import type { RouteContext } from "../with-route";
@@ -53,8 +48,31 @@ import { shape as shapeReader } from "../readers/shape";
 import { argsOf, cutOff, replayBlocks, resultBlocks, runRound, type RoundBlock } from "./round";
 import { askModel } from "./model";
 import { turnEffort } from "./effort";
-import { foldHistory, replayFor, tellNext, withMarkers, type Chain, type RawTurn, type TurnEnd } from "./memory";
-import { finishTurn, turnMeter, turnUnmade } from "./turn-end";
+import {
+  foldHistory,
+  replayFor,
+  tellNext,
+  withMarkers,
+  type Chain,
+  type LastRound,
+  type RawTurn,
+  type TurnEnd,
+} from "./memory";
+import {
+  DROPPED_WORDS,
+  PLAN_ANSWER_WORDS,
+  besideActs,
+  cardsAnswer,
+  finishTurn,
+  planAnswerOwed,
+  planFallback,
+  roundPlan,
+  turnMeter,
+  turnUnmade,
+  writtenAnswer,
+  type PlanOwed,
+  type PlanSaid,
+} from "./turn-end";
 import { LAST_ROUND_WORDS, answerInput, everyCallAnswered, roundAnswer } from "./tools/answer";
 
 /**
@@ -291,64 +309,10 @@ export function turnHead(model: AskModelProfile, role: MembershipRole, facts: Wo
   };
 }
 
-/**
- * An answer beside the turn's cards that claims a write (contracts claimsWrite: "I've set up", "I paused"): nothing is
- * done until a person presses a card, so its headline is the cards' own count sentence and its detail stays. Logged,
- * since the rule the model is told did not hold (the moment spec, A4). An answer with no card beside it is left as it
- * is: the eval judges it (`no_write`).
- */
-function withoutClaimedWrite(
-  answer: AskAnswer,
-  input: Pick<TurnInput, "language" | "tenantId">,
-  made: readonly AskProposal[],
-): AskAnswer {
-  if (made.length === 0 || !claimsWrite(answer.say.headline)) return answer;
-  log.warn("ask_answer_claimed_write", { cards: made.length, tenant_id: input.tenantId });
-  return { ...answer, say: { ...answer.say, headline: answerForCards(made, input.language, null, null).say.headline } };
-}
-
-/** A plan's words as its call said them (ProposalOutcome), and what a setup's answer leads with (PlanLead). */
-type PlanSaid = { words: string; lead?: PlanLead };
-
-/** A round of cards alone, every one made, that made a plan: its words, its answer; a lone plan's lead leads it. */
-const roundPlan = (calls: unknown[], acts: unknown[], refused: boolean, said: PlanSaid[]): PlanSaid | null =>
-  acts.length === calls.length && !refused && said.length > 0
-    ? { words: said.map((s) => s.words).join(" "), lead: said.length === 1 ? said.at(0)?.lead : undefined }
-    : null;
-
-/** The answer of cards alone: a plan's words and lead where it made one; messages alone ask for other languages. */
-function cardsAnswer(cards: readonly AskProposal[], input: TurnInput, plan: PlanSaid | null) {
-  const answer = answerForCards(cards, input.language, plan?.words ?? null, plan?.lead ?? null);
-  const next = messageLanguagesNext(cards, input.facts.languages, input.language);
-  return next.length ? { ...answer, do: { ...answer.do, next } } : answer;
-}
-
-/**
- * An answer beside a round's acts, which stands where every card was made (an act only checks), or "" where it is set
- * aside, its Say taken back: beside a card refused or cut off it claims a card that is not there, so the model answers
- * again knowing why (logged); beside a plan's cards it was written before the plan's words came back (roundPlan); beside
- * a card that leaves out a part asked because it already holds (ProposalOutcome.noted), before it knew that.
- */
-function besideActs(
-  written: string,
-  r: { refused: boolean; leftOut: boolean; planned: PlanSaid | null; unsay(): void; log(): void },
-) {
-  if (!written || (!r.refused && !r.leftOut && r.planned === null)) return written;
-  if (r.refused) r.log();
-  r.unsay();
-  return "";
-}
-
 /** The turn's own time ran out (budgetOf): ours to say, never the question's. */
 const TIME_UP_WORDS = {
   en: "I ran out of time on that one. Try again, or ask about one thing at a time.",
   es: "Se me acabó el tiempo con esta. Inténtalo de nuevo, o pregunta por una cosa a la vez.",
-};
-
-/** The model's stream broke: the connection's, never the question's. */
-const DROPPED_WORDS = {
-  en: "The connection to the model dropped. Try again.",
-  es: "Se cortó la conexión con el modelo. Inténtalo de nuevo.",
 };
 
 /** The model's stream ends at the turn's own time, or at the person's Stop. */
@@ -508,9 +472,15 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
       promptHash: systemHash(system),
     });
   };
-  /** A turn that could not be answered: its sentence, in the person's language, is the answer's headline. */
+  let planOwed: PlanOwed | null = null; // a plan made, whose answer the next round writes (planAnswerOwed)
+  let answering = false; // that round: it may call no tool
+  /** A turn that could not be answered: its sentence, in the person's language, heads it; once a plan is made, its words. */
   const fail = (sentence: string, failure: string, rounds: number) =>
-    done({ answer: failedAnswer(sentence, input.language), failed: true, failure, rounds });
+    done(
+      planOwed
+        ? planFallback(planOwed, input, rounds)
+        : { answer: failedAnswer(sentence, input.language), failed: true, failure, rounds },
+    );
   const signal = halted(controller.signal, input.signal); // what ends the model's stream: the turn's time, or the Stop
   /** A round ended by the person's Stop (turn.ts words it) or, where it `cut` the round, by the turn's own time. */
   const timedOut = (rounds: number) => fail(TIME_UP_WORDS[es ? "es" : "en"], "timeout", rounds);
@@ -596,7 +566,7 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
   try {
     for (let round = 1; round <= ASK_MAX_ROUNDS + Number(closing); round++) {
       const last = round >= ASK_MAX_ROUNDS;
-      const noTool = model.answerTool ? closing : last;
+      const noTool = answering || (model.answerTool ? closing : last);
       const request = { ...requestOf(messages, anchor, noTool), diagnostics: meter.follows(live, input.chain) };
 
       const roundAt = Date.now();
@@ -719,47 +689,31 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
       });
       const ordered = everyCallAnswered(used, outcomes, answered, !!written);
       // The round as it went out and came back: a turn that ends on it keeps it as the turn it was (memory.ts).
-      const lastRound = { request, blocks, outcomes: ordered, roundAt, streamError };
+      const lastRound: LastRound = { request, blocks, outcomes: ordered, roundAt, streamError };
 
       if (written) {
         answerIn = split.via;
-        let answer: AskAnswer;
-        if (written.startsWith("{")) {
-          const shaped = normalizeAnswer(written, tc.read, input.language);
-          if (!shaped.ok) {
-            log.error("ask_answer_unparsed", {
-              error: shaped.error.slice(0, 200),
-              stop: stopReason,
-              tenant_id: input.tenantId,
-            });
-            // An answer cut off by a broken stream says so: the connection dropped, not the shape.
-            if (streamError) return fail(DROPPED_WORDS[es ? "es" : "en"], streamError, round);
-            return fail(
-              es ? "No pude dar forma a la respuesta. Pregunta de nuevo." : "I could not shape the answer. Ask again.",
-              `answer: ${shaped.error}`,
-              round,
-            );
-          }
-          if (shaped.dropped) log.warn("ask_sources_dropped", { dropped: shaped.dropped, tenant_id: input.tenantId });
-          answer = withoutClaimedWrite(shaped.answer, input, proposals);
-        } else {
-          // Words with no shape: the format was refused (D15), or words came where the JSON should have.
-          if (offer.format) log.warn("ask_answer_not_json", { chars: written.length, tenant_id: input.tenantId });
-          answer = withoutClaimedWrite(proseAnswer(written, input.language), input, proposals);
-        }
-        return done({
-          answer,
-          ungrounded: isUngrounded(answerWords(answer), reads + proposals.length),
-          failed: false,
-          failure: null,
-          rounds: round,
-          lastRound,
-        });
+        const from = { read: tc.read, proposals, format: offer.format, stopReason, streamError, owed: planOwed };
+        const w = writtenAnswer(written, input, from);
+        if (!w.ok) return fail(w.sentence, w.failure, round);
+        const ungrounded = isUngrounded(answerWords(w.answer), reads + proposals.length);
+        return done({ answer: w.answer, ungrounded, failed: false, failure: null, rounds: round, lastRound });
       }
 
-      // Cards alone, every one of them made: they are the Do, said in a sentence (a plan's in its words), with no second
-      // round -- unless part of what was asked is no card, which the next round says (turn-end.ts turnUnmade).
+      // Cards alone, every one of them made: they are the Do, said in a sentence (a plan's by the model, from its result,
+      // in the round after it), with no second round -- unless part of what was asked is no card, which the next round
+      // says (turn-end.ts turnUnmade).
       const alone = unmade.alone({ acts: acts.length, calls: calls.length, refused, made: proposals.length > before });
+      if (
+        planAnswerOwed(alone, planned, { answerTool: model.answerTool, last, leftMs: budgetMs - (Date.now() - t0) })
+      ) {
+        planOwed = { cards: proposals.slice(before), plan: planned, lastRound };
+        answering = true;
+        messages.push({ role: "assistant", content: replayBlocks(blocks) });
+        messages.push({ role: "user", content: resultBlocks(ordered) });
+        tellNext(messages, PLAN_ANSWER_WORDS);
+        continue;
+      }
       if (alone === "answer") {
         const answer = cardsAnswer(proposals.slice(before), input, planned);
         meter.said();

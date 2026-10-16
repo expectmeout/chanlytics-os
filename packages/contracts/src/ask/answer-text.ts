@@ -116,13 +116,14 @@ export const unquoted = (s: string | null | undefined): string =>
  * What an answer may never say: that it did something. Ask proposes and a person approves (spec §7), so a sentence
  * that says a message went, a setting changed, a card was approved, a campaign was set up, started, paused or renamed,
  * or someone was added, merged, recorded, replied to or enrolled (the operator's verbs, 15 Oct 2026) is a claim no turn
- * can make true. "I", "I have" and "I've" alike; the Spanish "he …" and "aprobé".
+ * can make true. "I", "I have" and "I've" alike; the Spanish "he …" and "aprobé"; and "Done" opening a sentence, never a
+ * step still to come ("once that's done, ask me again": a plan's answer as the model wrote it, 16 Oct 2026).
  */
 const WRITE_CLAIMS = [
   /\bI(?: have|['’]ve)? (?:sent|changed|updated|closed|snoozed|resolved|archived|invited|paused|deleted|approved|resumed|renamed|started|set up|turned on|scheduled|added|merged|recorded|replied|enrolled)\b/i,
   /\bhe (?:enviado|cambiado|actualizado|cerrado|aprobado|pausado|iniciado|configurado|programado|añadido|agregado|fusionado|registrado|respondido|inscrito)\b/i,
   /(?<![\p{L}\p{N}])aprob[eé](?![\p{L}\p{N}])/iu,
-  /\bdone[,.!]/i,
+  /(?:^|[.!?]\s+)(?:all\s+)?done[,.!]/i,
 ];
 
 /**

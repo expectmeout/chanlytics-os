@@ -428,11 +428,13 @@ export function judge(c, r) {
   const kinds = (m.proposals ?? []).map((p) => p.kind);
   if (e.proposals_any && !e.proposals_any.some((k) => kinds.includes(k)))
     fails.push(`proposals ${JSON.stringify(kinds)} include none of ${e.proposals_any.join("/")}`);
-  // Since the Line, the pointer may be the door itself: a row or an Open that opens a thread.
+  // Since the Line, the pointer may be the door itself: a row or an Open that opens a thread. A card of the kind's family
+  // is the kind's (a playbook_change is a playbook's card), whatever language the words around it are in: the words
+  // matched are English, and a Spanish setup's "la tarjeta de arriba" beside its playbook_change failed here (16 Oct).
   const doors = m.answer ? [...m.answer.show.items.map((i) => i.source.to), m.answer.do.open?.to] : [];
   if (
     e.proposals_any_or_says &&
-    !e.proposals_any_or_says.some((k) => kinds.includes(k)) &&
+    !e.proposals_any_or_says.some((k) => kinds.some((kind) => kind === k || kind.startsWith(`${k}_`))) &&
     !/card|propos|approve|Inbox|thread/i.test(text) &&
     !doors.some((to) => to && /^inbox(\/|$)/.test(to))
   )

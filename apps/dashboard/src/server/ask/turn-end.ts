@@ -7,17 +7,25 @@ import "server-only";
  */
 
 import {
+  answerForCards,
   answerText,
   cacheHitOf,
+  claimsWrite,
+  messageLanguagesNext,
+  normalizeAnswer,
+  proseAnswer,
+  type AskAnswer,
   type AskModelProfile,
   type AskProposal,
+  type AskReadSet,
   type AskTurnShape,
   type ModelSpeed,
+  type PlanLead,
 } from "@chanlytics/contracts";
 import { calledName, type ToolRun } from "./tools";
 import type { BuiltContext, SearchResultBlock } from "./context";
 import { argsOf, type RoundBlock, type RoundResult } from "./round";
-import { chainEnd, rawTurn, type TurnEnd } from "./memory";
+import { chainEnd, rawTurn, type LastRound, type TurnEnd } from "./memory";
 import type { TurnInput, TurnResult } from "./loop";
 import { log } from "@/server/log";
 
@@ -237,4 +245,158 @@ export function turnUnmade() {
       return `Part of what they asked is no card: ${parts.join("; ")}. Propose what you still can, then answer: what the cards do and, in a short clause each, what was not made and why, or what already holds, and what they can do instead. Never leave one out.`;
     },
   };
+}
+
+/* --------------------------------------------------- what a turn of cards says */
+
+/**
+ * An answer beside the turn's cards that claims a write (contracts claimsWrite: "I've set up", "I paused"): nothing is
+ * done until a person presses a card, so its headline is the cards' own count sentence and its detail stays. Logged,
+ * since the rule the model is told did not hold (the moment spec, A4). An answer with no card beside it is left as it
+ * is: the eval judges it (`no_write`).
+ */
+function withoutClaimedWrite(
+  answer: AskAnswer,
+  input: Pick<TurnInput, "language" | "tenantId">,
+  made: readonly AskProposal[],
+): AskAnswer {
+  if (made.length === 0 || !claimsWrite(answer.say.headline)) return answer;
+  log.warn("ask_answer_claimed_write", { cards: made.length, tenant_id: input.tenantId });
+  return { ...answer, say: { ...answer.say, headline: answerForCards(made, input.language, null, null).say.headline } };
+}
+
+/** A plan's words as its call said them (ProposalOutcome), and what a setup's answer leads with (PlanLead). */
+export type PlanSaid = { words: string; lead?: PlanLead };
+
+/** A round of cards alone, every one made, that made a plan: its words, its answer; a lone plan's lead leads it. */
+export const roundPlan = (calls: unknown[], acts: unknown[], refused: boolean, said: PlanSaid[]): PlanSaid | null =>
+  acts.length === calls.length && !refused && said.length > 0
+    ? { words: said.map((s) => s.words).join(" "), lead: said.length === 1 ? said.at(0)?.lead : undefined }
+    : null;
+
+/** The answer of cards alone: a plan's words and lead where it made one; messages alone ask for other languages. */
+export function cardsAnswer(cards: readonly AskProposal[], input: TurnInput, plan: PlanSaid | null) {
+  const answer = answerForCards(cards, input.language, plan?.words ?? null, plan?.lead ?? null);
+  const next = messageLanguagesNext(cards, input.facts.languages, input.language);
+  return next.length ? { ...answer, do: { ...answer.do, next } } : answer;
+}
+
+/**
+ * An answer beside a round's acts, which stands where every card was made (an act only checks), or "" where it is set
+ * aside, its Say taken back: beside a card refused or cut off it claims a card that is not there, so the model answers
+ * again knowing why (logged); beside a plan's cards it was written before the plan's words came back (roundPlan); beside
+ * a card that leaves out a part asked because it already holds (ProposalOutcome.noted), before it knew that.
+ */
+export function besideActs(
+  written: string,
+  r: { refused: boolean; leftOut: boolean; planned: PlanSaid | null; unsay(): void; log(): void },
+) {
+  if (!written || (!r.refused && !r.leftOut && r.planned === null)) return written;
+  if (r.refused) r.log();
+  r.unsay();
+  return "";
+}
+
+/**
+ * A plan's answer as the model wrote it from the plan's result (the answer canvas, phase B: every sentence a person reads
+ * as Ask's is the model's, in their language), with what the server decides kept: a setup that waits on something opens
+ * where that is set (PlanLead), in the model's words where its own Open went there, and message cards ask for the other
+ * language. The questions next are the model's, the lead's only where it wrote none: the lead's are English or Spanish,
+ * and a Portuguese setup's answer stood over "How do I connect my calendar in Settings?" (16 Oct 2026).
+ */
+function withPlanFacts(answer: AskAnswer, cards: readonly AskProposal[], input: TurnInput, plan: PlanSaid) {
+  const lead = plan.lead;
+  const own = answer.do.open;
+  const asked = messageLanguagesNext(cards, input.facts.languages, input.language);
+  const next = asked.length ? asked : answer.do.next.length ? answer.do.next : (lead?.next ?? []);
+  if (!lead) return { ...answer, do: { open: own, next } };
+  const label = own?.to === lead.open.to ? own.label : lead.open.label;
+  return { ...answer, do: { open: { to: lead.open.to, label, now: false }, next } };
+}
+
+/**
+ * Said after a plan's result, for the round that writes its answer: the plan's facts are its result's, the words the
+ * model's, in the person's language. The room a turn keeps for it: with less, the plan's own words answer.
+ */
+export const PLAN_ANSWER_WORDS =
+  "The plan above is proposed as its cards. Now write the answer, in the person's language, from its result alone: the headline says what the plan does, and the detail says first what no card carries (what must be connected or turned on first, a campaign paused, the room, the day a reminder goes) before anything the cards already show; where something must come first, the first question next asks how to do it. Never say any of it is done, sent or set up.";
+const PLAN_ANSWER_ROOM_MS = 12_000;
+
+/** A plan made, its answer owed by the round after it (PLAN_ANSWER_WORDS): its cards, its words, the round that made it. */
+export interface PlanOwed {
+  cards: AskProposal[];
+  plan: PlanSaid;
+  lastRound: LastRound;
+}
+
+/**
+ * Whether a round of cards alone that made a plan leaves its answer to the model, written from the plan's result in one
+ * more round with no tool: where there is that round, and the time for it. The answer tool's turn keeps the plan's own
+ * words, as it always did.
+ */
+export const planAnswerOwed = (
+  alone: "answer" | "owed" | null,
+  planned: PlanSaid | null,
+  turn: { answerTool: boolean; last: boolean; leftMs: number },
+): planned is PlanSaid =>
+  alone === "answer" && planned !== null && !turn.answerTool && !turn.last && turn.leftMs > PLAN_ANSWER_ROOM_MS;
+
+/** A plan's answer round that failed or was stopped: the plan's cards stand, and its own words answer, as before. */
+export const planFallback = (owed: PlanOwed, input: TurnInput, rounds: number): TurnEnd => ({
+  answer: cardsAnswer(owed.cards, input, owed.plan),
+  failed: false,
+  failure: null,
+  rounds,
+  lastRound: owed.lastRound,
+});
+
+/** The model's stream broke: the connection's, never the question's. */
+export const DROPPED_WORDS = {
+  en: "The connection to the model dropped. Try again.",
+  es: "Se cortó la conexión con el modelo. Inténtalo de nuevo.",
+};
+
+/**
+ * The answer a round wrote, as the turn ends on it: its JSON shaped (normalizeAnswer), or words with no shape read as
+ * prose (the format refused, D15, or words where the JSON should have been); a write it claims beside cards taken back
+ * (withoutClaimedWrite), and the plan's facts kept where it answers a plan (withPlanFacts). Or why it cannot be read:
+ * the sentence the person is told, and the failure kept.
+ */
+export function writtenAnswer(
+  written: string,
+  input: TurnInput,
+  from: {
+    read: AskReadSet;
+    proposals: readonly AskProposal[];
+    format: boolean;
+    stopReason: string | null;
+    streamError: string | null;
+    owed: PlanOwed | null;
+  },
+): { ok: true; answer: AskAnswer } | { ok: false; sentence: string; failure: string } {
+  const es = input.language === "es";
+  if (!written.startsWith("{")) {
+    if (from.format) log.warn("ask_answer_not_json", { chars: written.length, tenant_id: input.tenantId });
+    return { ok: true, answer: withoutClaimedWrite(proseAnswer(written, input.language), input, from.proposals) };
+  }
+  const shaped = normalizeAnswer(written, from.read, input.language);
+  if (!shaped.ok) {
+    log.error("ask_answer_unparsed", {
+      error: shaped.error.slice(0, 200),
+      stop: from.stopReason,
+      tenant_id: input.tenantId,
+    });
+    // An answer cut off by a broken stream says so: the connection dropped, not the shape.
+    if (from.streamError) return { ok: false, sentence: DROPPED_WORDS[es ? "es" : "en"], failure: from.streamError };
+    return {
+      ok: false,
+      sentence: es
+        ? "No pude dar forma a la respuesta. Pregunta de nuevo."
+        : "I could not shape the answer. Ask again.",
+      failure: `answer: ${shaped.error}`,
+    };
+  }
+  if (shaped.dropped) log.warn("ask_sources_dropped", { dropped: shaped.dropped, tenant_id: input.tenantId });
+  const answer = withoutClaimedWrite(shaped.answer, input, from.proposals);
+  return { ok: true, answer: from.owed ? withPlanFacts(answer, from.owed.cards, input, from.owed.plan) : answer };
 }

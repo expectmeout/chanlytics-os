@@ -13161,7 +13161,7 @@ var WRITE_CLAIMS = [
   /\bI(?: have|['’]ve)? (?:sent|changed|updated|closed|snoozed|resolved|archived|invited|paused|deleted|approved|resumed|renamed|started|set up|turned on|scheduled|added|merged|recorded|replied|enrolled)\b/i,
   /\bhe (?:enviado|cambiado|actualizado|cerrado|aprobado|pausado|iniciado|configurado|programado|añadido|agregado|fusionado|registrado|respondido|inscrito)\b/i,
   /(?<![\p{L}\p{N}])aprob[eé](?![\p{L}\p{N}])/iu,
-  /\bdone[,.!]/i
+  /(?:^|[.!?]\s+)(?:all\s+)?done[,.!]/i
 ];
 var claimsWrite = (text) => WRITE_CLAIMS.some((re) => re.test(unquoted(text)));
 var INLINE = /\*\*(.+?)\*\*|__(.+?)__|(?<![\p{L}\p{N}*])\*(?!\s)(.+?)(?<!\s)\*(?![\p{L}\p{N}*])|(?<![\p{L}\p{N}_])_(?!\s)(.+?)(?<!\s)_(?![\p{L}\p{N}_])|\[([^\]\n]+)\]\([^)\s]*\)|`([^`\n]+)`/gu;
