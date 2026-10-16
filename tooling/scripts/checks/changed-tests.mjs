@@ -24,6 +24,10 @@
  *   node tooling/scripts/checks/changed-tests.mjs --list <base> <head>   say what would run
  *   node tooling/scripts/checks/changed-tests.mjs --db <base> <head>     their database suites, against the stack
  *                                                                        (database.yml, on a pull request)
+ *   node tooling/scripts/checks/changed-tests.mjs <base> <head> --test-shard=2/4
+ *                                                                        one part of them: a flag of Node's runner
+ *                                                                        (--test-*) goes through as it is, so ci.yml
+ *                                                                        runs the four parts on four runners at once
  */
 import { execFileSync, spawn } from "node:child_process";
 import path from "node:path";
@@ -147,6 +151,8 @@ function main() {
   const list = args.includes("--list");
   const db = args.includes("--db");
   const [base, head] = args.filter((a) => !a.startsWith("--"));
+  // Node's own flags for the run, such as the shard a runner takes (ci.yml's tests job).
+  const runner = args.filter((a) => a.startsWith("--test-"));
   if (!base || !head) {
     console.error("usage: node tooling/scripts/checks/changed-tests.mjs [--list | --db] <base> <head>");
     process.exit(2);
@@ -164,7 +170,7 @@ function main() {
   if (list) return;
   const child = spawn(
     process.execPath,
-    [path.join(ROOT, "tooling/scripts/checks/test.mjs"), ...(db ? ["--db"] : []), ...targets],
+    [path.join(ROOT, "tooling/scripts/checks/test.mjs"), ...(db ? ["--db"] : []), ...runner, ...targets],
     { cwd: ROOT, stdio: "inherit" },
   );
   child.on("exit", (code, signal) => process.exit(signal ? 1 : (code ?? 1)));

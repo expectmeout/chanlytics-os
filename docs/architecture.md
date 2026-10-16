@@ -751,6 +751,7 @@ tooling/scripts/
   gen/
   mobile/
   ops/
+  ship/
   tests/
   voice/
 e2e/

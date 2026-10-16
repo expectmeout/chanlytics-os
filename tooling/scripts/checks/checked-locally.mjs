@@ -22,7 +22,7 @@
  *
  * In --ci the answer is never an exit code: a git that fails is a crash, and the run goes red rather than skip.
  */
-import { execFileSync, spawnSync } from "node:child_process";
+import { execFileSync, spawn, spawnSync } from "node:child_process";
 import { createRequire } from "node:module";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -102,8 +102,10 @@ export function formatOfChanged() {
 }
 
 /**
- * What the laptop runs, in the order a failure is cheapest to learn: each a name, and a command for the shell or a
- * function that answers an exit status.
+ * What the laptop runs: each a name, and a command for the shell or a function that answers an exit status. The first
+ * `FIRST` run one after the other (the build, and the dist it wrote against the sources); everything after them reads
+ * only what they wrote, so it runs side by side (runTogether). In a row they took fourteen minutes on 16 Oct 2026, of
+ * which the tests were six and the lint four.
  */
 export const LOCAL_CHECKS = [
   ["the packages' build", 'corepack pnpm --filter "./packages/*" build'],
@@ -116,6 +118,37 @@ export const LOCAL_CHECKS = [
   ["production licences", "corepack pnpm licenses list --prod --json | node tooling/scripts/checks/licences.mjs"],
   ["the tests of what the branch changes", "node tooling/scripts/checks/changed-tests.mjs origin/main HEAD"],
 ];
+export const FIRST = 2;
+
+/**
+ * Checks side by side. A function check runs first, in this process (the formatting of a few dozen files); each
+ * command's output is held and said when it ends, with how long it took, so two never interleave: the last lines of
+ * one that passed, all of one that failed. Answers the names of the checks that failed.
+ */
+export async function runTogether(checks, cwd = ROOT, say = (text) => process.stderr.write(text)) {
+  const failed = [];
+  for (const [name, check] of checks.filter(([, c]) => typeof c === "function")) {
+    say(`\ncheck:local: ${name}\n`);
+    if (check() !== 0) failed.push(name);
+  }
+  const one = ([name, command]) =>
+    new Promise((resolve) => {
+      const started = Date.now();
+      const child = spawn(command, { cwd, shell: true });
+      let out = "";
+      child.stdout.on("data", (d) => (out += d));
+      child.stderr.on("data", (d) => (out += d));
+      child.on("close", (code) => {
+        const secs = Math.round((Date.now() - started) / 1000);
+        const shown = code === 0 ? out.trimEnd().split("\n").slice(-3).join("\n") : out;
+        say(`\ncheck:local: ${name} (${secs}s${code === 0 ? "" : ", failed"})\n${shown}\n`);
+        if (code !== 0) failed.push(name);
+        resolve();
+      });
+    });
+  await Promise.all(checks.filter(([, c]) => typeof c !== "function").map(one));
+  return failed;
+}
 
 function refuse(why) {
   console.error(`check:local: ${why}`);
@@ -124,7 +157,7 @@ function refuse(why) {
 
 const uncommitted = () => git("status", "--porcelain", "--untracked-files=no").trim();
 
-function stamp() {
+async function stamp() {
   if (uncommitted()) refuse("commit first: the line vouches for the committed tree, and this one has changes");
   git("fetch", "--quiet", "origin", "main");
   try {
@@ -135,12 +168,14 @@ function stamp() {
     );
   }
   const tree = git("rev-parse", "HEAD^{tree}").trim();
-  for (const [name, check] of LOCAL_CHECKS) {
+  for (const [name, check] of LOCAL_CHECKS.slice(0, FIRST)) {
     console.error(`\ncheck:local: ${name}`);
     const status =
       typeof check === "function" ? check() : spawnSync(check, { cwd: ROOT, shell: true, stdio: "inherit" }).status;
     if (status !== 0) refuse(`${name} failed, so nothing is stamped`);
   }
+  const failed = await runTogether(LOCAL_CHECKS.slice(FIRST));
+  if (failed.length) refuse(`${failed.join(", ")} failed, so nothing is stamped`);
   if (uncommitted() || git("rev-parse", "HEAD^{tree}").trim() !== tree)
     refuse("a check changed the tree it checked: commit what it wrote and run again");
   git("commit", "--allow-empty", "--quiet", "-m", "Checked locally", "-m", `${TRAILER}: ${tree}`);
@@ -151,5 +186,5 @@ function stamp() {
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   if (process.argv.includes("--ci")) ci();
-  else stamp();
+  else await stamp();
 }
