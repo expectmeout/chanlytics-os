@@ -4,7 +4,9 @@ import {
   AppError,
   LEAD_CARDS,
   LEAD_LIST_MAX,
+  LEAD_MAX_PLACES,
   LeadSearchPlanSchema,
+  PEOPLE_COUNT_MAX,
   addressOf,
   ProposeAnySearchSchema,
   peopleEstimateUsd,
@@ -122,7 +124,12 @@ const LeadSearchPlanInput = z.preprocess((raw) => shapeAsk(raw as LeadSearchAskI
  * Named people at companies (the people card, 00430), as a card: its own plan, its own facts and its own door. It never
  * stops to ask, so nothing answers one; and while the card finds no leads (lead_card_live) it is said in words instead.
  */
-async function proposePeopleSearch(t: ToolContext, ask: ProposePeopleSearch, amends: string): Promise<ProposalOutcome> {
+async function proposePeopleSearch(
+  t: ToolContext,
+  ask: ProposePeopleSearch,
+  amends: string,
+  capped: string | null,
+): Promise<ProposalOutcome> {
   if (amends) return refuse("a people search does not stop to ask; propose a new one instead");
   // The people card finds leads only once its calibration run proved it (00430 lead_card_live): until then it is not
   // offered, and the owner is told so rather than shown a card the door would refuse.
@@ -146,7 +153,7 @@ async function proposePeopleSearch(t: ToolContext, ask: ProposePeopleSearch, ame
   return propose({
     kind: "people_search",
     title: p.view.title,
-    summary: `${peoplePlanSentence(p.plan)}. ${month} ${brief?.rights ?? ""}`.trim(),
+    summary: summaryCapped(`${peoplePlanSentence(p.plan)}. ${month} ${brief?.rights ?? ""}`.trim(), capped),
     payload: {
       plan: p.plan,
       view: p.view,
@@ -169,7 +176,9 @@ async function proposeLeadSearch(t: ToolContext, input: LeadSearchAskInput): Pro
   // The lead finder is the owner's and the partner's who sets the workspace up (0012): the card needs a partner, by the
   // one predicate the registry offers it by (context.ts offeredTo).
   if (!offeredTo(leadSearchAct, t.role)) return refuse(proposalBelowNeeds("lead_search"));
-  const shaped = LeadSearchPlanInput.safeParse(input);
+  // A count past what one search finds is planned at the most, and said (cappedCount).
+  const capped = cappedCount(input);
+  const shaped = LeadSearchPlanInput.safeParse(capped ? { ...input, count: searchMost(input) } : input);
   if (!shaped.success)
     return refuse(
       `the plan is not complete: ${shaped.error.issues[0]?.path.join(".")} ${shaped.error.issues[0]?.message}`,
@@ -177,7 +186,8 @@ async function proposeLeadSearch(t: ToolContext, input: LeadSearchAskInput): Pro
   const amends = str(input.amends, 40);
   // Named people at companies (the people card, 00430): its own plan and its own card. A people search never stops to
   // ask, so nothing answers one.
-  if (shaped.data.looking_for === "people_at_companies") return proposePeopleSearch(t, shaped.data, amends);
+  if (shaped.data.looking_for === "people_at_companies")
+    return withCapWords(await proposePeopleSearch(t, shaped.data, amends, capped), capped);
   let row: SearchViewRow | null = null;
   let question: string | null = null;
   if (amends) {
@@ -209,10 +219,10 @@ async function proposeLeadSearch(t: ToolContext, input: LeadSearchAskInput): Pro
   // one read, `planFacts` in server/leads.ts. It lives there and not here
   // because this module reads and never writes a door of its own (a test holds
   // it to that), and the plan card is drawn from exactly what it answers.
-  return propose({
+  const made = propose({
     kind: "lead_search",
     title: r.view.title,
-    summary: answer ? `Answers “${answer.question}”: ${planSentence(plan)}` : planSentence(plan),
+    summary: answer ? `Answers “${answer.question}”: ${planSentence(plan)}` : summaryCapped(planSentence(plan), capped),
     payload: {
       plan,
       view: r.view,
@@ -220,7 +230,31 @@ async function proposeLeadSearch(t: ToolContext, input: LeadSearchAskInput): Pro
       ...(answer ? { amends: answer } : {}),
     },
   });
+  // An answer is planned at the count its search reserved, never the model's: nothing it asked is cut.
+  return withCapWords(made, answer ? null : capped);
 }
+
+/** How many one search finds at most: places, or companies for named people at companies. */
+const searchMost = (input: Pick<LeadSearchAskInput, "looking_for">): number =>
+  input.looking_for === "people_at_companies" ? PEOPLE_COUNT_MAX : LEAD_MAX_PLACES;
+
+/**
+ * A count past what one search finds, planned at the most and said: asked for 5,000 nail salons, the count was refused,
+ * the model asked again at 1,000, and the answer was "One card to review: Find 1000 nail salons" (the operator stress
+ * run, 15 Oct 2026). The words ride on the card's summary and as the answer's words; null where nothing was cut.
+ */
+function cappedCount(input: LeadSearchAskInput): string | null {
+  const most = searchMost(input);
+  if (input.count <= most) return null;
+  return `One search finds at most ${most.toLocaleString("en-US")}; you asked for ${input.count.toLocaleString("en-US")}. More of the same can follow once it finishes.`;
+}
+
+/** A card's summary with the cap said after it, where a count was cut. */
+const summaryCapped = (summary: string, capped: string | null): string => (capped ? `${summary} ${capped}` : summary);
+
+/** A card planned at the most one search finds answers with the cap's words, which its round says (loop.ts). */
+const withCapWords = (made: ProposalOutcome, capped: string | null): ProposalOutcome =>
+  capped && made.proposal ? { ...made, words: capped } : made;
 
 /** propose_lead_search's description, said whole: it takes no action. */
 const LEAD_SEARCH_DESCRIPTION = `Action find proposes a search for businesses in the US the owner could reach, as a plan card they approve; nothing is searched or spent before that. For named people at companies (marketing managers at agencies), looking_for is people_at_companies: terms their titles (one to five), region their US states or US, who a name for it, count how many companies, and when said seniority (owner, founder, c_suite, partner, vp, head, director, manager, senior, entry), industries (the directory's own names, as Marketing & Advertising, Accounting, Construction, Real Estate; a name it lacks comes back with the nearest) and company_sizes (1 - 10, 11 - 50, 51 - 200, 201 - 500, 501 - 1000, 1001 - 5000, 5001 - 10000, 10001+); nothing else is read. The plan: what kind (who, plural, and who_one, one of them, with category_key as one lowercase word), how many (count: 50, 100, 200 or 500 unless they said a number), where (city with its two-letter region, a zip, or a region alone), the contact standard (contact: phone, or email checked), up to three terms (widest first), the criteria each with whether it is seen or likely and whether it is required, who to leave_out (chains, other kinds; short chips in plain words), looking_for (local_businesses, or people, online_sellers or other when that is what was asked: those are answered in words, not searched), and asked, the owner's words. seen is only for what a listing shows (a rating or review count, a website, an email, a phone that matches the site, open or closed) and is judged from those facts alone; what a business is or does (its kind, who owns it, what it serves or sells, who it treats) is likely, never seen, because a listing's name and category do not count as seeing it, and the kind of business itself is checked on every search without being written as a criterion. Read leads with action searches first, so a plan is not repeated: one plan, never a search. amends is the id of a search that stopped to ask (leads with action searches shows its question) when the plan is that search with the owner's answer applied and everything else kept as it was; the card then answers that search instead of starting a new one. Say the plan in one sentence; never promise how many will be found, and never say a search has started until the card is approved. ${approvalWords("lead_search")}.`;

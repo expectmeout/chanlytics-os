@@ -869,6 +869,18 @@ test("cover_journey where the Google listing keeps a review link and the Library
   assert.equal(PROPOSAL_SPECS.playbook.commit(cards[0], { settings: null }).body.starter_key, "after_visit_review");
 });
 
+test("REGRESSION: cover_journey with the win-back paused on its moment resumes it by a card of its own, built by propose_sequence action change -- the setup told the owner to resume it from its drawer (the operator stress run, 15 Oct 2026)", async () => {
+  const intent = { intent: "cover_journey", stages: ["quiet"] };
+  const paused = { name: "Win-back", trigger: "lapsed", state: "paused", template_name: "winback_reply" };
+  const r = await plan(intent, withCalendar({ playbooks: [pbRow(MONTHLY, { ...paused, cadence_days: null })] }));
+  const { cards } = cardsAreSteps(r, intent, calendarWorld({ playbooks: [{ id: MONTHLY, ...paused, until: null }] }));
+  assert.deepEqual(
+    cards.map((p) => [p.kind, p.title, p.payload.playbook_id, p.payload.state]),
+    [["playbook_change", "Resume: Win-back", MONTHLY, "running"]],
+  );
+  assert.equal(said(r).words, "Resumes “Win-back”, paused on its moment, on a card of its own.");
+});
+
 test("an offer starting today on a calendar with less room than half its audience, and no message that fits: the campaign's card goes by the message step 1 writes, named by its token, says so and quotes the offer its values type (the owner's phrasing), and ends with the offer", async () => {
   const intent = offer({ from: "2026-10-11", until: "2026-11-15" }, OWN_SAY);
   // One hour on Mondays: four half-hour slots in the next fourteen days, for ten people who can receive offers.

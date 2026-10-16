@@ -17,6 +17,7 @@ import {
   ASK_CITATION_KINDS,
   ASK_MAX_TOKENS,
   ASK_PAGES,
+  ASK_GUIDE_PAGES,
   ASK_PAGE_ROUTES,
   ASK_SCOPE_KINDS,
   ASK_SURFACES,
@@ -1092,6 +1093,27 @@ test("the loop and its reads: several at once, the stable block cached, through 
     assert.ok(read[0].includes(words), words);
 });
 
+test("REGRESSION: the rules say what stays on a page and where, from the guide's own table, and which yes a one-off send reaches -- asked to delete everyone, Ask said to look for a delete option; of a reminder, it said a one-off send reaches only the yes to offers (the operator stress run, 15 Oct 2026)", () => {
+  const one = ASK_RULES.find((r) => r.startsWith("A proposal is one card."));
+  // Every act the guide leaves to its page, with its page and why, in the rule that says to name where.
+  for (const p of ASK_GUIDE_PAGES)
+    for (const x of p.pageOnly) assert.ok(one.includes(`${x.what} (${p.page}: ${x.why})`), `${p.page}: ${x.what}`);
+  assert.ok(
+    one.includes(
+      "Delete a person (People: it erases a person for good, which is asked for and confirmed on their page)",
+    ),
+  );
+  // A one-off send reaches the yes its message asks for, as the send counts it (broadcastReach by its purpose).
+  const door = ASK_RULES.find((r) => r.includes("a one-off send (propose_sequence action once)"));
+  assert.ok(
+    door.includes(
+      "reaches only the people whose yes covers its message: a reminder or a confirmation reaches the yes to messages, an offer or news the yes to offers",
+    ),
+    door,
+  );
+  assert.ok(!/reaches only the people who said yes[;,]/.test(ASK_RULES.join("\n")), "never which yes left unsaid");
+});
+
 test("the gateway: the key stays on the edge, Ask's tokens have their own event kind and their own cap; the dashboard signs for the door and holds no key", () => {
   // The door itself -- the knock, purpose 'ask', the budget refused at the
   // cap, the request streamed, the stream forwarded and metered -- runs in
@@ -2050,7 +2072,7 @@ test("the speed pass, four: the page's data before the words needs no second rea
   assert.ok(!bare.includes("search results") && !bare.includes("read://"), "nothing rode in: nothing is said of it");
   assert.ok(
     readCode("apps/dashboard/src/server/ask/prompt.ts").includes(
-      "name the door: a one-off send (propose_sequence action once) reaches only the people who said yes",
+      "name the door: a one-off send (propose_sequence action once) reaches only the people whose yes covers its message",
     ),
     "a message to many is a one-off send or one message each",
   );

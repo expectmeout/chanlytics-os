@@ -1484,9 +1484,9 @@ var ListFactSchema = z.discriminatedUnion("field", [
 ]);
 var AnySchema = z.strictObject({ any: z.array(ListFactSchema).check(z.minLength(2), z.maxLength(LIST_ANY_MAX)) });
 var ListConditionSchema = z.union([AnySchema, ListFactSchema]);
+var isDayFact = (f) => f.field === "last_visit" || f.field === "next_visit" || f.field === "missed_visit" || f.field === "last_heard" || f.field === "first_contact";
 function factProblem(f) {
-  if (f.field !== "last_visit" && f.field !== "next_visit" && f.field !== "missed_visit" && f.field !== "last_heard" && f.field !== "first_contact")
-    return null;
+  if (!isDayFact(f)) return null;
   if ((f.op === "more_than" || f.op === "within") && f.days === void 0) return `${f.field} ${f.op} needs days`;
   if (f.op === "this_week" && f.field !== "next_visit") return "only the next one on the calendar can be this week";
   return null;
