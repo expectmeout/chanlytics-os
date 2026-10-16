@@ -21,7 +21,7 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { ESLint } from "eslint";
 import ts from "typescript";
-import { isWritten, WRITERS } from "../../../land.mjs";
+import { isWritten, migrationsAdded, WRITERS } from "../../../land.mjs";
 import { FIRST, LOCAL_CHECKS, runTogether } from "../../../checks/checked-locally.mjs";
 import { cacheOptions } from "../../../checks/lint.mjs";
 import { buildEdge, edgeFunctions, functionFiles, nodeMajor, ROUTES, vcConfig } from "../../../edge-functions.mjs";
@@ -64,6 +64,26 @@ test("land takes main's side only of what a command writes, and has a command fo
     WRITERS.at(-1)[1],
     /--filter "\.\/packages\/\*" build/,
     "the dist last, from the sources the others read",
+  );
+});
+
+test("a pull request that adds a migration never merges itself: land holds its auto-merge until it is applied", () => {
+  assert.deepEqual(
+    migrationsAdded([
+      "supabase/migrations/00453_a_visit_says_where_it_came_from.sql",
+      "apps/dashboard/src/surfaces/calendar/visit-sheet.tsx",
+      "supabase/schema.sql",
+      "supabase/migrations/README.md",
+      "tooling/scripts/tests/fixtures/00453_a_visit_says_where_it_came_from.sql",
+      "",
+    ]),
+    ["supabase/migrations/00453_a_visit_says_where_it_came_from.sql"],
+    "a migration file, and nothing else the branch adds",
+  );
+  assert.deepEqual(
+    migrationsAdded(["apps/edge/api/cron/notes.ts", "docs/decisions/0063-a.md"]),
+    [],
+    "none: it merges itself",
   );
 });
 
