@@ -197,3 +197,15 @@ test("Run now runs the first step through the campaign's own door, says what cam
   assert.equal(run.undo.record(c, { outcome: "held", broadcast_id: RUN }, TAB), null);
   assert.equal(run.undo.record(c, { outcome: "empty" }, TAB), null);
 });
+
+test("Send me a test mails the step's message to whoever pressed it: the door's call, its receipt naming the address, no undo", () => {
+  assert.deepEqual(commit("sequence_test", { sequence_id: SEQ, step_id: STEP }), {
+    route: "POST sequences/[id]/steps/[step]/test",
+    params: { id: SEQ, step: STEP },
+  });
+  assert.ok("refused" in commit("sequence_test", { sequence_id: SEQ }), "no step named, nothing is mailed");
+  const t = verbSpec("sequence_test");
+  assert.equal(t.receipt(null, { to: "ada@example.com" }), "Test sent to ada@example.com");
+  assert.equal(t.undo, undefined, "nothing reached a customer and nothing was kept");
+  assert.equal(t.open({ payload: { sequence_id: SEQ } }, null), `campaigns/sequences/${SEQ}`);
+});

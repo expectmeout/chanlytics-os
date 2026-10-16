@@ -110,6 +110,8 @@ export const RATE = {
   alert_choice: { limit: 60, windowMs: MIN_MS, noun: "alert changes" },
   /** A test emails every alert address: a few an hour proves them, more is a mailbox flooded. */
   alert_test: { limit: 3, windowMs: HOUR_MS, noun: "test alerts" },
+  /** A step's message mailed to the member who pressed Send me a test: enough to check each step twice, never a flood. */
+  step_test: { limit: 10, windowMs: HOUR_MS, noun: "tests" },
   /** A member's own seen and unread marks on people: one as each thread or person is opened. */
   seen_mark: { limit: 240, windowMs: MIN_MS, noun: "read marks" },
   setup_request: { limit: 5, windowMs: HOUR_MS, noun: "setup requests" },

@@ -317,6 +317,7 @@ export {
   membersPushedFor,
   pushNamesFor,
   memberViewsOf,
+  ownAddressIn,
 } from "./repositories/notices/member-alerts";
 export type { MemberAlertsRow } from "./repositories/notices/member-alerts";
 export { threadIdsWaitingOnYou } from "./repositories/waiting-on-you";

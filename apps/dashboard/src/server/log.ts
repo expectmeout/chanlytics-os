@@ -198,6 +198,7 @@ export const DASHBOARD_LOG_EVENTS = [
   "signup_code_not_sent",
   "signup_failed",
   "signup_notify_failed",
+  "step_test_failed",
   "tenant_config_unreadable",
   "today_calls_fetch_failed",
   "today_email_line_read_failed",

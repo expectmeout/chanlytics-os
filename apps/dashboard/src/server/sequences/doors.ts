@@ -61,7 +61,7 @@ async function valuesOf(
 }
 
 /** A step of this sequence, as its reader says it, or 404: a step of another sequence is not one of this. */
-async function stepOfSequence(ctx: RouteContext, seq: Sequence, stepId: string) {
+export async function stepOfSequence(ctx: RouteContext, seq: Sequence, stepId: string) {
   const id = requireUuid(stepId, "step");
   const step = (await sequenceStepsOf(ctx.supabase, seq.tenant_id, seq.id)).find((s) => s.id === id);
   if (!step) throw new AppError("not_found", "Step not found.", 404);

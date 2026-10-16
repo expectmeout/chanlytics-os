@@ -75,6 +75,8 @@ export type {
 } from "./sequence-tab-words";
 export { SEQUENCE_ACT_WORDS, sequenceRunsNow, sequenceResumeAsk } from "./sequence-acts";
 export type { SequenceResumeAsk } from "./sequence-acts";
+export { SEQUENCE_TEST_LIMITS, SEQUENCE_TEST_WORDS, stepTestMail } from "./sequence-test";
+export type { StepTestMail, StepTestMessage } from "./sequence-test";
 export {
   SEQUENCES_ROUTE,
   isSequencesParam,
