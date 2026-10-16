@@ -492,6 +492,30 @@ test("the same offer with no message that fits: a message card first, written fo
   assert.ok(s2.summary.includes(STEP_SAYS), s2.summary);
 });
 
+test("a plan's message is written in its customers' language where the model names none (16 Oct 2026): the business's own off its profile, the one the person writes in where the business speaks it or names none, never English for want of a word", async () => {
+  const speaking = (languages) => {
+    const rows = tables({ templates: [], playbooks: [] });
+    const [cfg] = rows.tenant_config;
+    const profile = { ...PROFILE, ...(languages ? { languages } : {}) };
+    rows.tenant_config = [{ ...cfg, config: { ...cfg.config, brain: { ...cfg.config.brain, profile } } }];
+    return rows;
+  };
+  const written = async (rows, language) => {
+    const t = { ...newToolContext(ctxOf(rows, USER, PEOPLE, {}), A, "owner", TZ, NOW), language };
+    const r = await buildProposal(t, ...routed({ action: "plan", ...offer() }));
+    return r.proposals.find((p) => p.kind === "message")?.payload.language;
+  };
+  assert.equal(await written(speaking(["Spanish"]), "en"), "es", "a Spanish-speaking business, asked in English");
+  assert.equal(await written(speaking(["English", "español"]), "es"), "es", "asked in Spanish, a language it speaks");
+  assert.equal(await written(speaking(["English", "español"]), "en"), "en_US");
+  assert.equal(await written(speaking(null), "es"), "es", "no languages named: the person's own");
+  assert.equal(await written(speaking(null), "en"), "en_US");
+  // Named by the model, the model's word stands.
+  const t = { ...newToolContext(ctxOf(speaking(["Spanish"]), USER, PEOPLE, {}), A, "owner", TZ, NOW), language: "es" };
+  const named = await buildProposal(t, ...routed({ action: "plan", ...offer(), language: "en" }));
+  assert.equal(named.proposals.find((p) => p.kind === "message")?.payload.language, "en_US");
+});
+
 test("a token outside a plan, or naming a step that is not an earlier one, names nothing: the send's template_id is refused as any other non-id", async () => {
   const send = (template_id) => ({
     action: "broadcast",

@@ -45,7 +45,13 @@ export type {
   AskSurface,
   MessageRead,
 } from "./ask";
-export { detectLanguage, ASK_LANGUAGES } from "./ask-language";
+export {
+  detectLanguage,
+  messageLanguageOf,
+  messageLanguagesNext,
+  messageLanguagesOf,
+  ASK_LANGUAGES,
+} from "./ask-language";
 export type { AskLanguage } from "./ask-language";
 export {
   cleanAnswer,

@@ -674,6 +674,32 @@ test("an answer beside its cards that claims a write is said as the cards' own s
   assert.equal(r3.answer.say.headline, "I paused the win-back.");
 });
 
+test("a message card alone asks next for the business's other languages, in the turn's language, and only where the business names them (16 Oct 2026): the other card is a tap away, never assumed", async () => {
+  const message = (language) => ({
+    id: `p-${language}`,
+    kind: "message",
+    title: "New message",
+    summary: "s",
+    payload: { language },
+  });
+  const asked = async (cards, { language = "en", languages = ["English", "Spanish"] } = {}) => {
+    const s = scripted([ROUND(cards.map((_, i) => tool("propose_sequence", { action: "message" }, `t-message-${i}`)))]);
+    const queue = [...cards];
+    const propose = async () => ({ proposal: queue.shift(), result: "{}", isError: false });
+    // Words that ask for a draft, so its round is asked at the draft's effort and never set aside (#1627 DRAFT_CALLS).
+    const text = "write a win-back message for people who have not been in since summer";
+    const facts = { ...turn(ctxFor()).input.facts, languages };
+    const { input } = turn(ctxFor(), { ...AN_OWNER, language, text, facts });
+    return runAskTurn(input, ports(s.round, { propose }));
+  };
+  assert.deepEqual((await asked([message("en_US")])).answer.do.next, ["Can you write it in Spanish too?"]);
+  assert.deepEqual((await asked([message("es")], { language: "es" })).answer.do.next, [
+    "¿Puedes escribirlo también en inglés?",
+  ]);
+  assert.deepEqual((await asked([message("en_US"), message("es")])).answer.do.next, []);
+  assert.deepEqual((await asked([message("en_US")], { languages: [] })).answer.do.next, []);
+});
+
 test("cards alone are the answer: every card made, no second round, the cards said in a sentence; a refused proposal keeps the round and the model must say why", async () => {
   const alone = scripted([ROUND([tool("propose_person", ADD_ADA)])]);
   const { input, events } = turn(ctxFor(), AN_OWNER);
