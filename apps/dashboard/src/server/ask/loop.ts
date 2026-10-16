@@ -24,6 +24,7 @@ import {
   type AskShowPreview,
   type AskTurnShape,
   type PageContext,
+  type PlanLead,
 } from "@chanlytics/contracts";
 import type { AskModelProfile, EffortMessage, MembershipRole } from "@chanlytics/contracts";
 import type { RouteContext } from "../with-route";
@@ -212,7 +213,10 @@ export function askPorts(): AskPorts {
  * page's, another page's, a tool's -- replaces its ref with the fresh one.
  */
 function toolContextOf(input: TurnInput, now: Date): ToolContext {
-  const tc = newToolContext(input.ctx, input.tenantId, input.role, input.timezone, now, input.rc);
+  const tc = {
+    ...newToolContext(input.ctx, input.tenantId, input.role, input.timezone, now, input.rc),
+    language: input.language,
+  };
   noteRows(tc.read, input.cited ?? []);
   return tc;
 }
@@ -293,19 +297,28 @@ function withoutClaimedWrite(
 ): AskAnswer {
   if (made.length === 0 || !claimsWrite(answer.say.headline)) return answer;
   log.warn("ask_answer_claimed_write", { cards: made.length, tenant_id: input.tenantId });
-  return { ...answer, say: { ...answer.say, headline: answerForCards(made, input.language, null).say.headline } };
+  return { ...answer, say: { ...answer.say, headline: answerForCards(made, input.language, null, null).say.headline } };
 }
 
-/** A round of cards alone, every one made, that made a plan: the plan's words (ProposalOutcome.words), its answer. */
-const roundPlan = (calls: unknown[], acts: unknown[], refused: boolean, words: string[]): string | null =>
-  acts.length === calls.length && !refused && words.length > 0 ? words.join(" ") : null;
+/** A plan's words as its call said them (ProposalOutcome), and what a setup's answer leads with (PlanLead). */
+type PlanSaid = { words: string; lead?: PlanLead };
+
+/** A round of cards alone, every one made, that made a plan: its words, its answer; a lone plan's lead leads it. */
+const roundPlan = (calls: unknown[], acts: unknown[], refused: boolean, said: PlanSaid[]): PlanSaid | null =>
+  acts.length === calls.length && !refused && said.length > 0
+    ? { words: said.map((s) => s.words).join(" "), lead: said.length === 1 ? said.at(0)?.lead : undefined }
+    : null;
+
+/** The answer of a round of cards alone: the cards' own, said in a plan's words and led by its lead where it made one. */
+const cardsAnswer = (cards: readonly AskProposal[], language: AskLanguage, planned: PlanSaid | null): AskAnswer =>
+  answerForCards(cards, language, planned?.words ?? null, planned?.lead ?? null);
 
 /**
  * An answer beside a round's acts, which stands where every card was made (an act only checks), or "" where it is set
  * aside, its Say taken back: beside a card refused or cut off it claims a card that is not there, so the model answers
  * again knowing why (logged); beside a plan's cards it was written before the plan's words came back (roundPlan).
  */
-function besideActs(written: string, r: { refused: boolean; planned: string | null; unsay(): void; log(): void }) {
+function besideActs(written: string, r: { refused: boolean; planned: PlanSaid | null; unsay(): void; log(): void }) {
   if (!written || (!r.refused && r.planned === null)) return written;
   if (r.refused) r.log();
   r.unsay();
@@ -343,7 +356,7 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
   const es = input.language === "es";
   const tc = toolContextOf(input, now);
   const toolsUsed: string[] = [];
-  const [proposals, planWords]: [AskProposal[], string[]] = [[], []]; // its cards, and its plans' words (roundPlan)
+  const [proposals, planWords]: [AskProposal[], PlanSaid[]] = [[], []]; // its cards, and its plans' words (roundPlan)
   let reads = 0;
   // Where the time went and what the model was fed (AskTurnShape, turn-end.ts): only the loop sees all of it.
   const meter = turnMeter(t0);
@@ -551,7 +564,7 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
     return timed(calledName(b.name, args), async () => {
       const p = await ports.propose(tc, b.name, args);
       proposals.push(...cardsOf(p));
-      if (p.words) planWords.push(p.words);
+      if (p.words) planWords.push({ words: p.words, lead: p.lead });
       return { result: p.result, isError: p.isError };
     });
   };
@@ -750,7 +763,7 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
       // Cards alone, every one of them made: they are the Do, said in a sentence (a plan's in its words), with no second
       // round. A refused or failed proposal keeps the round -- the model must say why and what the person can do instead.
       if (acts.length === calls.length && !refused && proposals.length > before) {
-        const answer = answerForCards(proposals.slice(before), input.language, planned);
+        const answer = cardsAnswer(proposals.slice(before), input.language, planned);
         meter.said();
         input.emit({ t: "say", headline: answer.say.headline, detail: answer.say.detail });
         return done({ answer, failed: false, failure: null, rounds: round, lastRound });

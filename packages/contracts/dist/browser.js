@@ -6061,6 +6061,7 @@ function versionsOf(rows2, name) {
   }
   return out;
 }
+var LIVE_VERSION_STATES = /* @__PURE__ */ new Set(["approved", "pending"]);
 
 // src/reach-out/reach-out-hand.ts
 var HAND_KINDS = ["call", "note"];
@@ -20138,8 +20139,8 @@ function skillsAsked(question) {
 
 // src/ask/ask-language.ts
 var ASK_LANGUAGES = ["en", "es", "other"];
-var ES_HINT = /[áéíóúñ¿¡]|\b(qué|que|quién|quien|cómo|como|cuándo|cuando|dónde|donde|hoy|mañana|hola|gracias|abierto|libre|cita|cliente|llam[oó]|llamaron|necesita|espera|por favor|el|la|los|las|una?|est[aá]n?)\b/i;
-var EN_HINT = /\b(what|who|when|where|how|did|does|is|are|open|today|tomorrow|call|called|needs|waiting|the|a|an|please|tell)\b/i;
+var ES_HINT = /[áéíóúñ¿¡]|(?<!\p{L})(qué|que|quién|quien|cómo|como|cuándo|cuando|dónde|donde|hoy|mañana|hola|gracias|abierto|libre|cita|cliente|llam[oó]|llamaron|necesita|espera|por favor|el|la|los|las|una?|est[aá]n?)(?!\p{L})/giu;
+var EN_HINT = /(?<!\p{L})(what|who|when|where|how|did|does|is|are|open|today|tomorrow|call|called|needs|waiting|the|a|an|please|tell)(?!\p{L})/giu;
 function detectLanguage(text) {
   const es = (text.match(ES_HINT) || []).length;
   const en = (text.match(EN_HINT) || []).length;
@@ -21054,18 +21055,22 @@ function answerWords(a) {
   ].filter(Boolean).join(" ");
 }
 var sentence = (s) => /[.!?]$/.test(s) ? s : `${s}.`;
-function answerForCards(cards, language, words2) {
+function answerForCards(cards, language, words2, lead) {
   const es = language === "es";
   const n = cards.length;
   const plan = planCountWords(cards, language, words2);
   const a = structured(
-    plan.headline ?? (n === 1 ? es ? sentence(`Una tarjeta para revisar: ${cards[0].title}`) : sentence(`One card to review: ${cards[0].title}`) : es ? `${n} tarjetas para revisar.` : `${n} cards to review.`),
+    lead?.headline ?? plan.headline ?? (n === 1 ? es ? sentence(`Una tarjeta para revisar: ${cards[0].title}`) : sentence(`One card to review: ${cards[0].title}`) : es ? `${n} tarjetas para revisar.` : `${n} cards to review.`),
     language
   );
   a.say.detail = clip(
     plan.detail ?? (n === 1 ? es ? "Apru\xE9bala, c\xE1mbiala o desc\xE1rtala: nada pasa hasta que lo hagas." : "Approve it, change it or dismiss it: nothing happens until you do." : es ? "Cada una se aprueba por separado: apru\xE9bala, c\xE1mbiala o desc\xE1rtala; nada pasa hasta que lo hagas." : "Each is its own press: approve, change or dismiss each one; nothing happens until you do."),
     ASK_ANSWER_CAPS.detail
   );
+  if (lead) {
+    a.do.open = { ...lead.open, now: false };
+    a.do.next = lead.next.slice(0, ASK_ANSWER_CAPS.next);
+  }
   return a;
 }
 function failedAnswer(sentenceText, language) {
@@ -22255,12 +22260,192 @@ function cacheHitOf(t) {
   return fed > 0 ? t.cache_read / fed : null;
 }
 
+// src/journey/journey-plan.ts
+var STAGE_WORDS = {
+  first_contact: "at first contact",
+  before: "the day before a booked time",
+  after: "the day after a booked time",
+  proposal: "while a proposal waits",
+  quiet: "once they go quiet"
+};
+var JOURNEY_PLAN_WORDS = {
+  journeyUnread: "The journey could not be read just now, so which moments are covered is not known: say so, and try again in a moment.",
+  nothingToCover: "Every moment asked for is covered already or not offered here (an appointment's moments need a calendar connected, a proposal's needs deals on): say so, and propose nothing.",
+  notOffered: (stages) => `Not offered here: ${joinWords(stages)}.`,
+  pausedOn: (name) => `\u201C${name}\u201D stands paused on its moment: resume it from its drawer.`,
+  whyStage: (id) => `Nobody hears from you ${STAGE_WORDS[id]} yet.`
+};
+function setupSteps() {
+  const steps = [];
+  const add = (input, why) => {
+    const n = steps.length + 1;
+    steps.push({ n, kind: "playbook", silent: false, input, why, after: [] });
+    return n;
+  };
+  return { steps, add };
+}
+var REVIEW_STARTER = "after_visit_review";
+var CHECK_STARTER = "after_visit_check";
+function stageInput(id, moment2, world) {
+  if (id !== "after") return { trigger: moment2 };
+  const reviews = world.messages.filter((m) => m.name === REVIEW_STARTER);
+  if (!world.reviewLink) return reviews.length ? { trigger: moment2, starter: CHECK_STARTER } : { trigger: moment2 };
+  const review = reviews.find((m) => languageBase(m.language) === world.language);
+  const goes = (review?.versions ?? []).filter(
+    (v) => LIVE_VERSION_STATES.has(v.state) && (v.channel !== "whatsapp" || world.whatsappSends)
+  );
+  const version = goes.find((v) => v.channel === "whatsapp") ?? goes.at(0);
+  return version ? { trigger: moment2, template_id: version.id } : { trigger: moment2, starter: REVIEW_STARTER };
+}
+var SETTINGS_BUSINESS_ROUTE = "admin/workspace";
+var APPOINTMENT_ES = {
+  appointment: "cita",
+  visit: "visita",
+  meeting: "reuni\xF3n",
+  session: "sesi\xF3n",
+  lesson: "clase"
+};
+var joinEs = (items) => items.length <= 1 ? items[0] ?? "" : `${items.slice(0, -1).join(", ")} y ${items[items.length - 1]}`;
+var SETUP_WORDS = {
+  en: {
+    starts: {
+      before: "a reminder the day before a booked time",
+      after: "a follow-up the day after a booked time",
+      proposal: "a follow-up while a proposal waits",
+      quiet: "a win-back once they go quiet"
+    },
+    named: {
+      before: "the reminder",
+      after: "the follow-up",
+      proposal: "the proposal follow-up",
+      quiet: "the win-back"
+    },
+    gets: { before: "a reminder the day before", after: "a follow-up the day after" },
+    join: joinWords,
+    thing: (word) => appointmentWords(word).one,
+    cover: (n, what) => `Starts ${plural(n, "campaign")} now${n > 1 ? ", each its own card" : ""}: ${what}.`,
+    calendar: (feed, each, gets) => feed ? `First, connect your calendar's feed under Settings \u203A Business (booking emails alone cannot time a campaign), so each ${each} gets ${gets}.` : `First, connect your calendar under Settings \u203A Business, so each ${each} gets ${gets}.`,
+    proposals: (first) => `${first ? "First" : "Then"}, under Settings \u203A Business, answer ${SELLS_BY_QUESTION} with \u201C${SELLS_BY_WORDS.proposal.label}\u201D, so each proposal that waits gets a follow-up.`,
+    nobody: (named, one) => `${capitalize(named)} ${one ? "reaches" : "reach"} nobody today; ${one ? "its card says" : "each card says"} why.`,
+    again: (more2, needs2) => `Ask me again once ${onceOf(needs2, "en")}, and I'll add ${more2 === 1 ? "it" : "them"}.`,
+    headline: (needs2, now, more2) => `${needs2.size === 2 ? "Connect your calendar and turn on proposals" : needs2.has("calendar") ? "Connect your calendar" : "Turn on proposals"} first: ${plural(now, "campaign")} can start now, ${more2} more once ${onceOf(needs2, "en")}.`,
+    open: (needs2) => needs2.has("calendar") ? "Connect a calendar" : "Open Business settings",
+    next: (needs2) => needs2.has("calendar") ? "How do I connect my calendar in Settings?" : "How do I turn on proposals in Settings?"
+  },
+  es: {
+    starts: {
+      before: "un recordatorio el d\xEDa antes de cada cita",
+      after: "un seguimiento el d\xEDa despu\xE9s de cada cita",
+      proposal: "un seguimiento mientras espera una propuesta",
+      quiet: "una recuperaci\xF3n para quien se queda en silencio"
+    },
+    named: {
+      before: "el recordatorio",
+      after: "el seguimiento",
+      proposal: "el seguimiento de propuestas",
+      quiet: "la recuperaci\xF3n"
+    },
+    gets: { before: "un recordatorio el d\xEDa antes", after: "un seguimiento el d\xEDa despu\xE9s" },
+    join: joinEs,
+    thing: (word) => APPOINTMENT_ES[word],
+    cover: (n, what) => `Empieza ${n === 1 ? "1 campa\xF1a" : `${n} campa\xF1as`} ya${n > 1 ? ", cada una en su tarjeta" : ""}: ${what}.`,
+    calendar: (feed, each, gets) => feed ? `Primero, conecta el feed de tu calendario en Ajustes \u203A Negocio (los correos de reserva no bastan para programar una campa\xF1a), para que cada ${each} tenga ${gets}.` : `Primero, conecta tu calendario en Ajustes \u203A Negocio, para que cada ${each} tenga ${gets}.`,
+    proposals: (first) => `${first ? "Primero" : "Luego"}, en Ajustes \u203A Negocio, responde a \xABC\xF3mo compran tus clientes\xBB con \xABAlgunos reciben antes una propuesta\xBB, para que cada propuesta que espera tenga un seguimiento.`,
+    nobody: (named, one) => `${capitalize(named)} no ${one ? "llega" : "llegan"} a nadie hoy; ${one ? "su tarjeta dice" : "cada tarjeta dice"} por qu\xE9.`,
+    again: (more2, needs2) => `P\xEDdemelo otra vez cuando ${onceOf(needs2, "es")} y ${more2 === 1 ? "la a\xF1ado" : "las a\xF1ado"}.`,
+    headline: (needs2, now, more2) => `${needs2.size === 2 ? "Conecta tu calendario y activa las propuestas" : needs2.has("calendar") ? "Conecta tu calendario" : "Activa las propuestas"} primero: ${now === 1 ? "1 campa\xF1a puede" : `${now} campa\xF1as pueden`} empezar ya, ${more2} m\xE1s cuando ${onceOf(needs2, "es")}.`,
+    open: (needs2) => needs2.has("calendar") ? "Conectar un calendario" : "Abrir Ajustes del negocio",
+    next: (needs2) => needs2.has("calendar") ? "\xBFC\xF3mo conecto mi calendario en Ajustes?" : "\xBFC\xF3mo activo las propuestas en Ajustes?"
+  }
+};
+function onceOf(needs2, says) {
+  if (needs2.size === 2) return says === "es" ? "est\xE9n los dos" : "both are on";
+  if (needs2.has("calendar")) return says === "es" ? "est\xE9 conectado" : "it is connected";
+  return says === "es" ? "est\xE9n activas" : "they are on";
+}
+function bookedThing(books, world) {
+  const said = (books ?? "").trim().replace(/^(?:a|an|the|their|our|un|una|el|la|los|las|sus?|nuestras?)\s+/i, "").replace(/[.!?…,;:]+$/, "").trim();
+  return said ? clip(said, 40) : SETUP_WORDS[world.says].thing(world.shape.word);
+}
+function needOf(id, world) {
+  if (id === "before" || id === "after") return world.shape.calendar === "feed" ? null : "calendar";
+  if (id === "proposal") return world.shape.dealsOn ? null : "proposals";
+  return null;
+}
+function momentsOf(intent, world) {
+  const named = intent.stages;
+  return JOURNEY_STAGE_IDS.filter(
+    (id) => id !== "first_contact" && (!named || named.includes(id)) && (id !== "proposal" || world.shape.dealsOn || intent.proposals === true || !!named?.includes(id))
+  );
+}
+function needLines(needs2, later, books, world) {
+  const S = SETUP_WORDS[world.says];
+  const lines = [];
+  if (needs2.has("calendar")) {
+    const gets = later.flatMap((id) => id === "before" || id === "after" ? [S.gets[id]] : []);
+    lines.push(S.calendar(world.shape.calendar === "email", bookedThing(books, world), S.join(gets)));
+  }
+  if (needs2.has("proposals")) lines.push(S.proposals(!needs2.has("calendar")));
+  return lines;
+}
+function journeyPlan(intent, world) {
+  const journey = world.journey;
+  if (!journey) return { refused: JOURNEY_PLAN_WORDS.journeyUnread };
+  const S = SETUP_WORDS[world.says];
+  const { steps, add } = setupSteps();
+  const missing = [];
+  const paused = [];
+  const needs2 = /* @__PURE__ */ new Set();
+  const later = [];
+  const started = [];
+  for (const id of momentsOf(intent, world)) {
+    const stage = journey.find((s) => s.id === id);
+    if (!stage) {
+      const need = needOf(id, world);
+      if (need) {
+        needs2.add(need);
+        later.push(id);
+      } else if (intent.stages) missing.push(STAGE_WORDS[id]);
+      continue;
+    }
+    if (stage.covered || !stage.moment) continue;
+    const held = world.playbooks.find((p) => p.state === "paused" && journeyStageOf(p.trigger) === id);
+    if (held) paused.push(JOURNEY_PLAN_WORDS.pausedOn(held.name));
+    else {
+      add(stageInput(id, stage.moment, world), JOURNEY_PLAN_WORDS.whyStage(id));
+      started.push(id);
+    }
+  }
+  const said = [...missing.length ? [JOURNEY_PLAN_WORDS.notOffered(missing)] : [], ...paused];
+  if (steps.length === 0) {
+    const first = needLines(needs2, later, intent.books, { ...world, says: "en" });
+    return { refused: [JOURNEY_PLAN_WORDS.nothingToCover, ...first, ...said].join(" ") };
+  }
+  const nobody = started.filter((id) => {
+    const moment2 = journey.find((s) => s.id === id)?.moment;
+    return !!moment2 && world.reach[moment2] === 0;
+  });
+  const words2 = [
+    ...needLines(needs2, later, intent.books, world),
+    S.cover(started.length, S.join(started.map((id) => S.starts[id]))),
+    ...nobody.length ? [S.nobody(S.join(nobody.map((id) => S.named[id])), nobody.length === 1)] : [],
+    ...said,
+    ...needs2.size ? [S.again(later.length, needs2)] : []
+  ];
+  const lead = needs2.size ? {
+    headline: S.headline(needs2, started.length, later.length),
+    open: { to: needs2.has("calendar") ? CALENDAR_SETTING_ROUTE : SETTINGS_BUSINESS_ROUTE, label: S.open(needs2) },
+    next: [S.next(needs2)]
+  } : null;
+  return { steps, words: words2.join(" "), lead };
+}
+
 // src/ask/plan.ts
 var SEND_HOUR = PLAYBOOK_DEFAULTS.runHour;
 var REMINDER_AFTER_DAYS = 19;
 var OFFER_CHANNELS = ["whatsapp", "email"];
 var PER_PERSON = /* @__PURE__ */ new Set(["first_name", "business_name", "booking_link", "review_link"]);
-var LIVE = /* @__PURE__ */ new Set(["approved", "pending"]);
+var LIVE = LIVE_VERSION_STATES;
 var SENDS_NOW = /* @__PURE__ */ new Set(["approved"]);
 var WRITTEN_NAME = /^offer(?:_\d+)?$/;
 var SILENT = {
@@ -22269,13 +22454,6 @@ var SILENT = {
   change: true,
   broadcast: false,
   playbook: false
-};
-var STAGE_WORDS = {
-  first_contact: "at first contact",
-  before: "the day before a booked time",
-  after: "the day after a booked time",
-  proposal: "while a proposal waits",
-  quiet: "once they go quiet"
 };
 var OFFER_MESSAGE = {
   en: {
@@ -22317,14 +22495,14 @@ var PLAN_WORDS = {
   /** Texts asked for alone: never a channel an offer goes by, whatever the workspace can send. */
   textOnly: `${CHANNEL_WORDS.noOffersByText} An offer goes by WhatsApp or email: say so, and name either, or leave channels out for every one the workspace sends offers on.`,
   noOffersList: "who is not a list this workspace has: name one people with action lists gives, or leave who out for everyone who can receive offers.",
-  journeyUnread: "The journey could not be read just now, so which moments are covered is not known: say so, and try again in a moment.",
+  journeyUnread: JOURNEY_PLAN_WORDS.journeyUnread,
   /** A read the plan is made against that failed (Task 17's world): never a plan on a guess of what it would have said. */
   channelsUnread: unreadWords("Which channels can send"),
   libraryUnread: unreadWords("The message library"),
   playbooksUnread: unreadWords("The campaigns, and so whether the month's offer runs,"),
   listsUnread: unreadWords("The lists an offer goes to"),
   notesUnread: unreadWords("The receptionist's notes"),
-  nothingToCover: "Every moment asked for is covered already or not offered here (an appointment's moments need a calendar connected, a proposal's needs deals on): say so, and propose nothing.",
+  nothingToCover: JOURNEY_PLAN_WORDS.nothingToCover,
   /** What an offer is called: the receptionist's note, the send and the campaign. */
   offerTitle: (words2) => `Offer: ${words2}`,
   /** What the receptionist's note says: the offer as the message says it, its dates, and what it is for. */
@@ -22356,9 +22534,8 @@ var PLAN_WORDS = {
   whatsappReview: "Its WhatsApp version waits on WhatsApp's review, which may still be running at the first send: whoever it reaches on WhatsApp waits for it.",
   /** The reminder, its own question on its day (who has booked is known then); short, to fit the answer whole. */
   reminderAsk: (day, list2) => `On ${day}, ask me to send a reminder to whoever on \u201C${list2}\u201D has not booked by then.`,
-  cover: (n) => `Starts ${plural(n, "campaign")}, one on each moment not covered yet, each its own card.`,
-  notOffered: (stages) => `Not offered here: ${joinWords(stages)}.`,
-  pausedOn: (name) => `\u201C${name}\u201D stands paused on its moment: resume it from its drawer.`,
+  notOffered: JOURNEY_PLAN_WORDS.notOffered,
+  pausedOn: JOURNEY_PLAN_WORDS.pausedOn,
   /**
    * What a card says of what an earlier step of its plan makes, named by its token (`@step:n`): not filed yet, so not
    * quoted, and filled in by the commit once that step is approved.
@@ -22375,7 +22552,7 @@ var PLAN_WORDS = {
     pause: "So nobody gets the month's offer and this one.",
     first: "The offer, on its first day.",
     paced: "The offer, as fast as the calendar can take it.",
-    stage: (id) => `Nobody hears from you ${STAGE_WORDS[id]} yet.`
+    stage: JOURNEY_PLAN_WORDS.whyStage
   }
 };
 var SAY = PLAN_WORDS;
@@ -22626,43 +22803,8 @@ function offerPlan(r2, world) {
   ];
   return { steps, words: words2.join(" ") };
 }
-var REVIEW_STARTER = "after_visit_review";
-var CHECK_STARTER = "after_visit_check";
-function stageInput(id, moment2, world) {
-  if (id !== "after") return { trigger: moment2 };
-  const reviews = world.messages.filter((m) => m.name === REVIEW_STARTER);
-  if (!world.reviewLink) return reviews.length ? { trigger: moment2, starter: CHECK_STARTER } : { trigger: moment2 };
-  const review = reviews.find((m) => languageBase(m.language) === world.language);
-  const goes = (review?.versions ?? []).filter(
-    (v) => LIVE.has(v.state) && (v.channel !== "whatsapp" || world.whatsappSends)
-  );
-  const version = goes.find((v) => v.channel === "whatsapp") ?? goes.at(0);
-  return version ? { trigger: moment2, template_id: version.id } : { trigger: moment2, starter: REVIEW_STARTER };
-}
-function journeyPlan(stages, world) {
-  const journey = world.journey;
-  if (!journey) return { refused: SAY.journeyUnread };
-  const { steps, add } = planSteps();
-  const missing = [];
-  const paused = [];
-  for (const id of JOURNEY_STAGE_IDS) {
-    if (id === "first_contact" || stages && !stages.includes(id)) continue;
-    const stage = journey.find((s) => s.id === id);
-    if (!stage) {
-      if (stages) missing.push(STAGE_WORDS[id]);
-      continue;
-    }
-    if (stage.covered || !stage.moment) continue;
-    const held = world.playbooks.find((p) => p.state === "paused" && journeyStageOf(p.trigger) === id);
-    if (held) paused.push(SAY.pausedOn(held.name));
-    else add("playbook", stageInput(id, stage.moment, world), SAY.why.stage(id));
-  }
-  const said = [...missing.length ? [SAY.notOffered(missing)] : [], ...paused];
-  if (steps.length === 0) return { refused: [SAY.nothingToCover, ...said].join(" ") };
-  return { steps, words: [SAY.cover(steps.length), ...said].join(" ") };
-}
 function planOf(intent, world) {
-  if (intent.intent === "cover_journey") return journeyPlan(intent.stages, world);
+  if (intent.intent === "cover_journey") return journeyPlan(intent, world);
   const read = offerRead(intent.offer, intent.say, world);
   return "refused" in read ? read : offerPlan(read, world);
 }
@@ -44173,7 +44315,7 @@ var checkFactsOf = (i) => ({
   bookingPage: bookingPageOffered(i.google?.bookingPage, i.business.bookingLink)
 });
 var forwardingOwedOf = (i, later) => !!i.want && !forwardedLineOf(i.lines) && !later.has(KEEP_ROW);
-function setupSteps(i, nowMs = Date.now()) {
+function setupSteps2(i, nowMs = Date.now()) {
   const later = new Set(i.later ?? []);
   const ctx = rowContextOf(i, nowMs);
   const { wa, voice, waReady, voiceReady, answering, waNum, voiceNum, texting } = ctx;
@@ -50404,7 +50546,7 @@ export {
   setupCardOf,
   setupLaterOf,
   setupPhoneWantOf,
-  setupSteps,
+  setupSteps2 as setupSteps,
   shadowPortOf,
   shareSaid,
   shareWords,
