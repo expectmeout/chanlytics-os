@@ -20191,6 +20191,35 @@ function detectLanguage(text) {
   if (!es && !en) return "other";
   return es > en ? "es" : "en";
 }
+var MESSAGE_LANGUAGES = ["en", "es"];
+var SPANISH_NAMES = { ingles: "en", castellano: "es" };
+function messageLanguagesOf(names3) {
+  const out = [];
+  for (const word of names3.flatMap((n) => String(n).split(/[,/&]|\s(?:and|y)\s/i))) {
+    const bare = word.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase().trim();
+    const base = SPANISH_NAMES[bare] ?? languageBase(findLanguages(word.trim())[0]?.id);
+    const language = MESSAGE_LANGUAGES.find((l) => l === base);
+    if (word.trim() && language && !out.includes(language)) out.push(language);
+  }
+  return out;
+}
+function messageLanguageOf(business, turn) {
+  const asked = MESSAGE_LANGUAGES.find((l) => l === turn);
+  if (asked && (business.length === 0 || business.includes(asked))) return asked;
+  return business[0] ?? asked ?? "en";
+}
+var ALSO_IN = {
+  en: { en: "Can you write it in English too?", es: "Can you write it in Spanish too?" },
+  es: { en: "\xBFPuedes escribirlo tambi\xE9n en ingl\xE9s?", es: "\xBFPuedes escribirlo tambi\xE9n en espa\xF1ol?" }
+};
+function messageLanguagesNext(cards, names3, turn) {
+  const business = messageLanguagesOf(names3);
+  if (business.length < 2 || !cards.length || cards.some((c) => c.kind !== "message" || c.plan)) return [];
+  const written = new Set(
+    cards.map((c) => languageBase(typeof c.payload.language === "string" ? c.payload.language : ""))
+  );
+  return business.filter((l) => !written.has(l)).map((l) => ALSO_IN[turn === "es" ? "es" : "en"][l]);
+}
 
 // src/ask/answer-text.ts
 var TAG_CUT = /<\/answer>|<\/?parameter\b|<\/?invoke\b|<\/?function_calls\b|<\/?tool_call\b/i;
@@ -50072,6 +50101,9 @@ export {
   messageHolds,
   messageLanguageChoices,
   messageLanguageCode,
+  messageLanguageOf,
+  messageLanguagesNext,
+  messageLanguagesOf,
   messageStandingWords,
   messageStatusLabel,
   messageText,
