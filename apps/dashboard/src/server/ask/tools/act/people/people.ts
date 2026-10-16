@@ -14,6 +14,7 @@ import {
   plural,
   proposalBelowNeeds,
 } from "@chanlytics/contracts";
+import { personReplyModes } from "@chanlytics/db";
 import { poolList } from "../../../../people/audience";
 import { load } from "../../../../readers";
 import { audiencePool } from "../../../../readers/audience-pool";
@@ -108,6 +109,30 @@ export async function selected(
   return { ids, said };
 }
 
+/**
+ * A selection split by whether each person already holds what its card would set (the operator stress run, 15 Oct 2026:
+ * a part of an ask already so is said, never proposed as a change): the card acts on the rest and says how many already
+ * do (ProposalOutcome.noted); where every one of them does, nothing is proposed and the model says so. `holds(n)` says
+ * what they hold, agreeing with how many ("is on VIP", "are on VIP").
+ */
+function notAlready(
+  ids: readonly string[],
+  already: (id: string) => boolean,
+  holds: (n: number) => string,
+): { ids: string[]; noted?: string } | { refusal: string } {
+  const rest = ids.filter((id) => !already(id));
+  const held = ids.length - rest.length;
+  if (!held) return { ids: [...ids] };
+  if (!rest.length)
+    return {
+      refusal: `${held === 1 ? "that person" : `all ${held}`} ${holds(held)} already: say so, and change nothing`,
+    };
+  return {
+    ids: rest,
+    noted: `${held} of the ${ids.length} ${holds(held)} already, so the card leaves them as they are`,
+  };
+}
+
 const QUESTIONS = { messages: "conversational", offers: "marketing" } as const;
 const ANSWERS = { yes: "opted_in", no: "opted_out", not_asked: "unknown" } as const;
 // A selection is never "in their own message": one message is not every person's (OWN_MESSAGE_REFUSALS.batch).
@@ -136,20 +161,36 @@ async function proposeAnswers(
   }
   const who = await selected(t, input);
   if ("refusal" in who) return refuse(who.refusal);
+  // Who already has this answer on record (their People row's answer to that question), left as they are and said.
+  const rows = new Map((await load(t.rc, audiencePool, undefined)).data.people.map((r) => [r.id, r]));
+  const answerOf = (id: string) => {
+    const r = rows.get(id);
+    return (purpose === "marketing" ? r?.marketing_consent : r?.consent) ?? "unknown";
+  };
+  const acts = notAlready(
+    who.ids,
+    (id) => answerOf(id) === consent,
+    (n) => `${n === 1 ? "has" : "have"} that answer on record`,
+  );
+  if ("refusal" in acts) return refuse(acts.refusal);
   const how = source ? (CONSENT_SOURCES.find((x) => x.id === source)?.label ?? source) : null;
-  return propose({
-    kind: "answer_many",
-    title: `${plural(who.ids.length, "person's answer", "people's answers")}`,
-    summary: `${plural(who.ids.length, "person", "people")} (${who.said}) ${answerSaidOf(purpose, consent)}${how ? ` · ${how}` : ""}`,
-    payload: {
-      ids: who.ids,
-      purpose,
-      consent,
-      ...(source ? { source } : {}),
-      ...(input.note?.trim() ? { note: input.note.trim().slice(0, 280) } : {}),
-      count: who.ids.length,
+  const n = acts.ids.length;
+  return propose(
+    {
+      kind: "answer_many",
+      title: `${plural(n, "person's answer", "people's answers")}`,
+      summary: `${plural(n, "person", "people")} (${who.said}) ${answerSaidOf(purpose, consent)}${how ? ` · ${how}` : ""}`,
+      payload: {
+        ids: acts.ids,
+        purpose,
+        consent,
+        ...(source ? { source } : {}),
+        ...(input.note?.trim() ? { note: input.note.trim().slice(0, 280) } : {}),
+        count: n,
+      },
     },
-  });
+    acts.noted,
+  );
 }
 
 async function proposeModes(
@@ -159,12 +200,24 @@ async function proposeModes(
   if (!offeredTo(modesAction, t.role)) return refuse(proposalBelowNeeds("person_mode_many"));
   const who = await selected(t, input);
   if ("refusal" in who) return refuse(who.refusal);
-  return propose({
-    kind: "person_mode_many",
-    title: `Receptionist for ${plural(who.ids.length, "person", "people")}`,
-    summary: `${PERSON_MODE_WORDS[input.mode] ?? input.mode} · ${who.said}`,
-    payload: { ids: who.ids, mode: input.mode, count: who.ids.length },
-  });
+  // Each one's own mode, as the person page's control reads it (none follows the workspace): who has it already is left.
+  const modes = await personReplyModes(t.ctx.supabase, t.tenantId, who.ids);
+  const words = PERSON_MODE_WORDS[input.mode] ?? input.mode;
+  const acts = notAlready(
+    who.ids,
+    (id) => (modes.get(id) ?? "inherit") === input.mode,
+    (n) => `${n === 1 ? "has" : "have"} “${words}”`,
+  );
+  if ("refusal" in acts) return refuse(acts.refusal);
+  return propose(
+    {
+      kind: "person_mode_many",
+      title: `Receptionist for ${plural(acts.ids.length, "person", "people")}`,
+      summary: `${words} · ${who.said}`,
+      payload: { ids: acts.ids, mode: input.mode, count: acts.ids.length },
+    },
+    acts.noted,
+  );
 }
 
 async function proposeNotes(t: ToolContext, input: Selection & { text: string }): Promise<ProposalOutcome> {
@@ -194,17 +247,31 @@ async function proposeOnList(
   const who = await selected(t, input);
   if ("refusal" in who) return refuse(who.refusal);
   const on = input.put === "on";
-  return propose({
-    kind: "list_member",
-    title: `${on ? "Put" : "Take"} ${plural(who.ids.length, "person", "people")} ${on ? "on" : "off"} ${target.name}`,
-    summary: `${who.said} ${on ? "joins" : "leaves"} ${target.name}`,
-    payload: {
-      list_id: target.id,
-      name: target.name,
-      ...(on ? { add: who.ids } : { remove: who.ids }),
-      count: who.ids.length,
+  // Who is on it already (putting on) or not on it (taking off) is left as they are, and said.
+  const members = new Set(target.ids);
+  const acts = notAlready(
+    who.ids,
+    (id) => members.has(id) === on,
+    (n) => `${n === 1 ? "is" : "are"} ${on ? "on" : "off"} ${target.name}`,
+  );
+  if ("refusal" in acts) return refuse(acts.refusal);
+  const n = acts.ids.length;
+  return propose(
+    {
+      kind: "list_member",
+      title: `${on ? "Put" : "Take"} ${plural(n, "person", "people")} ${on ? "on" : "off"} ${target.name}`,
+      summary: acts.noted
+        ? `${plural(n, "person", "people")} ${n === 1 ? (on ? "joins" : "leaves") : on ? "join" : "leave"} ${target.name}`
+        : `${who.said} ${on ? "joins" : "leaves"} ${target.name}`,
+      payload: {
+        list_id: target.id,
+        name: target.name,
+        ...(on ? { add: acts.ids } : { remove: acts.ids }),
+        count: n,
+      },
     },
-  });
+    acts.noted,
+  );
 }
 
 /** The receptionist for many: an owner's, as its batch door is, named so its builder asks its role. */
