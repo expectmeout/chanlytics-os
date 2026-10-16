@@ -81,21 +81,27 @@ export interface ModelTakes {
   fast: boolean;
   /** An effort message (ai/effort.ts, per-message effort): the API refuses one to a model without ("per-turn effort"). */
   effortMessages: boolean;
+  /**
+   * A words message (ai/words-message.ts, a mid-conversation system message): the models the API's guide names, read
+   * 16 Oct 2026; another is refused one ("role 'system' is not supported on this model") and is sent the words in the
+   * person's turn instead.
+   */
+  systemMessages: boolean;
 }
 
 const { OPUS_5_5, OPUS_5, SONNET_5_5, SONNET_5, HAIKU_5_5, HAIKU_4_5 } = MODELS;
 
 export const MODEL_TAKES: Record<ModelId, ModelTakes> = {
   // Thinking can't be turned off on Opus 5.5: effort is its only control.
-  [OPUS_5_5]: { thinking: ["adaptive"], fast: true, effortMessages: true },
-  [OPUS_5]: { thinking: ["adaptive", "disabled"], fast: true, effortMessages: true },
+  [OPUS_5_5]: { thinking: ["adaptive"], fast: true, effortMessages: true, systemMessages: true },
+  [OPUS_5]: { thinking: ["adaptive", "disabled"], fast: true, effortMessages: true, systemMessages: true },
   // Sonnet 5.5 takes an effort message only while it thinks: never beside `between_tools`, which no route sends.
-  [SONNET_5_5]: { thinking: ["adaptive", "between_tools"], fast: false, effortMessages: true },
-  [SONNET_5]: { thinking: ["adaptive", "disabled"], fast: false, effortMessages: false },
+  [SONNET_5_5]: { thinking: ["adaptive", "between_tools"], fast: false, effortMessages: true, systemMessages: true },
+  [SONNET_5]: { thinking: ["adaptive", "disabled"], fast: false, effortMessages: false, systemMessages: false },
   // Haiku 5.5 takes `disabled` at effort high or below; no route sends it either.
-  [HAIKU_5_5]: { thinking: ["adaptive", "disabled"], fast: false, effortMessages: true },
+  [HAIKU_5_5]: { thinking: ["adaptive", "disabled"], fast: false, effortMessages: true, systemMessages: false },
   // Haiku 4.5 thinks only on a token budget, which no route sends: it runs without.
-  [HAIKU_4_5]: { thinking: ["disabled"], fast: false, effortMessages: false },
+  [HAIKU_4_5]: { thinking: ["disabled"], fast: false, effortMessages: false, systemMessages: false },
 };
 
 /** What a model takes; null for one the registry does not list (a variable's), which is sent what it is asked. */

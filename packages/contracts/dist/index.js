@@ -7949,15 +7949,15 @@ var THINKING_TYPES = ["adaptive", "between_tools", "disabled"];
 var { OPUS_5_5, OPUS_5, SONNET_5_5, SONNET_5, HAIKU_5_5, HAIKU_4_5 } = MODELS;
 var MODEL_TAKES = {
   // Thinking can't be turned off on Opus 5.5: effort is its only control.
-  [OPUS_5_5]: { thinking: ["adaptive"], fast: true, effortMessages: true },
-  [OPUS_5]: { thinking: ["adaptive", "disabled"], fast: true, effortMessages: true },
+  [OPUS_5_5]: { thinking: ["adaptive"], fast: true, effortMessages: true, systemMessages: true },
+  [OPUS_5]: { thinking: ["adaptive", "disabled"], fast: true, effortMessages: true, systemMessages: true },
   // Sonnet 5.5 takes an effort message only while it thinks: never beside `between_tools`, which no route sends.
-  [SONNET_5_5]: { thinking: ["adaptive", "between_tools"], fast: false, effortMessages: true },
-  [SONNET_5]: { thinking: ["adaptive", "disabled"], fast: false, effortMessages: false },
+  [SONNET_5_5]: { thinking: ["adaptive", "between_tools"], fast: false, effortMessages: true, systemMessages: true },
+  [SONNET_5]: { thinking: ["adaptive", "disabled"], fast: false, effortMessages: false, systemMessages: false },
   // Haiku 5.5 takes `disabled` at effort high or below; no route sends it either.
-  [HAIKU_5_5]: { thinking: ["adaptive", "disabled"], fast: false, effortMessages: true },
+  [HAIKU_5_5]: { thinking: ["adaptive", "disabled"], fast: false, effortMessages: true, systemMessages: false },
   // Haiku 4.5 thinks only on a token budget, which no route sends: it runs without.
-  [HAIKU_4_5]: { thinking: ["disabled"], fast: false, effortMessages: false }
+  [HAIKU_4_5]: { thinking: ["disabled"], fast: false, effortMessages: false, systemMessages: false }
 };
 function modelTakes(model) {
   return MODEL_TAKES[model] ?? null;
@@ -8078,6 +8078,36 @@ function foldEffortMessages(body) {
   if (effort === null) return body;
   const own = isPlainObject(body.output_config) ? body.output_config : {};
   return { ...body, messages: messages.filter((m) => !isEffortMessage(m)), output_config: { ...own, effort } };
+}
+
+// src/ai/words-message.ts
+function wordsMessage(block) {
+  return { role: "system", content: [block] };
+}
+var isPlainObject2 = (v) => !!v && typeof v === "object" && !Array.isArray(v);
+var isWordsBlock = (b) => isPlainObject2(b) && b.type === "text" && typeof b.text === "string" && Object.keys(b).every((k) => k === "type" || k === "text" || k === "cache_control");
+function isWordsMessage(m) {
+  if (!isPlainObject2(m)) return false;
+  const { role, content, ...rest } = m;
+  return role === "system" && Object.keys(rest).length === 0 && Array.isArray(content) && content.length > 0 && content.every(isWordsBlock);
+}
+function foldWordsMessages(body) {
+  const messages = Array.isArray(body.messages) ? body.messages : [];
+  if (!messages.some(isWordsMessage)) return body;
+  const out = [];
+  for (const m of messages) {
+    if (!isWordsMessage(m)) {
+      out.push(m);
+      continue;
+    }
+    let at3 = out.length - 1;
+    while (at3 >= 0 && !(isPlainObject2(out.at(at3)) && out.at(at3).role === "user")) at3--;
+    const turn = out.at(at3);
+    if (at3 < 0 || !isPlainObject2(turn)) continue;
+    const content = Array.isArray(turn.content) ? turn.content : [{ type: "text", text: String(turn.content ?? "") }];
+    out[at3] = { ...turn, content: [...content.slice(0, -1), ...m.content, ...content.slice(-1)] };
+  }
+  return { ...body, messages: out };
 }
 
 // src/ai/system-one.ts
@@ -59549,6 +59579,7 @@ export {
   fmtSeconds,
   foldEffortMessages,
   foldName,
+  foldWordsMessages,
   followUpDue,
   followUpIsFor,
   followUpKey,
@@ -59772,6 +59803,7 @@ export {
   isVoiceEndReason,
   isWaitRefusal,
   isWinBack,
+  isWordsMessage,
   isYes,
   itemFocus,
   itemOfAppointment,
@@ -61011,6 +61043,7 @@ export {
   withoutWrongPerson,
   wordCount,
   wordsIssueWords,
+  wordsMessage,
   wordsNeedOpening,
   worksAtOf,
   workspaceInitials,
