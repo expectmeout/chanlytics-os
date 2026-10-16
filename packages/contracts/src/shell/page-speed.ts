@@ -152,6 +152,51 @@ export interface PageSpeedVM {
   taps: PageSpeedSpotVM[];
   paints: PageSpeedSpotVM[];
   shifts: PageSpeedSpotVM[];
+  /** What the card of the steps put off says above its lines. */
+  deferredSentence: string;
+  /** Each step of decision 0053 put off on the numbers: its number against the line that takes it. */
+  deferred: PageSpeedPartVM[];
+}
+
+/**
+ * The steps of decision 0053 put off on the numbers, each with the page's moves that take it past a line (16 Oct 2026:
+ * step 3 waited on a number nobody read). Step 3, People and Pipeline as projections, is taken when People's moves pass
+ * 500 ms three in four, or a workspace passes 500 people, which no read here holds: 0053 keeps that one.
+ */
+const DEFERRED_STEPS = [
+  {
+    key: "people-projection",
+    label: "Step 3, People without everyone",
+    page: "people",
+    line: 500,
+    also: "or when a workspace passes 500 people (decision 0053)",
+  },
+] as const;
+
+const DEFERRED_SAID = "A speed step put off until its number passes its line: each number against its line.";
+
+/** Each step put off: its page's moves three in four against its line, warn once past it, and not yet where too few. */
+function deferredLines(at: Lookup): PageSpeedPartVM[] {
+  return DEFERRED_STEPS.map((s) => {
+    const move = at("READY", s.page, "", "move");
+    const taken = `Taken when ${pageSpeedLabel(s.page)}'s moves pass ${msWords(s.line)}, three in four, ${s.also}`;
+    if (!move)
+      return {
+        key: s.key,
+        label: s.label,
+        value: "too few moves",
+        tone: "ok",
+        hint: `${taken}. Too few moves to say yet.`,
+      };
+    const past = move.p75 > s.line;
+    return {
+      key: s.key,
+      label: s.label,
+      value: `${msWords(move.p75)} of ${msWords(s.line)}`,
+      tone: past ? "warn" : "ok",
+      hint: past ? `${taken}. Past its line: take it.` : `${taken}.`,
+    };
+  });
 }
 
 /** The rows by what they are of, for the card's lookups. */
@@ -311,6 +356,8 @@ export function pageSpeedWords(
     shifts: [],
     partsSentence: PARTS_SAID,
     spotsSentence: SPOTS_SAID,
+    deferredSentence: DEFERRED_SAID,
+    deferred: [],
   };
   if (speed === null) return { sentence: "Where the pages' time goes could not be read just now.", ...none };
   const at = indexOf(speed.rows);
@@ -333,5 +380,7 @@ export function pageSpeedWords(
     taps: spotLines(speed.spots, "INP", 6, "tap"),
     paints: spotLines(speed.spots, "LCP", 4, "paint"),
     shifts: spotLines(speed.spots, "CLS", 4, "shift"),
+    deferredSentence: DEFERRED_SAID,
+    deferred: deferredLines(at),
   };
 }

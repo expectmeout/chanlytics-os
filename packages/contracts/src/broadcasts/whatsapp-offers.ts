@@ -17,7 +17,8 @@ const PLUS_ONE = /^\+1\d{10}$/;
  * The tick's reason, the note's clause and the composer's refusal: one sentence, with what still goes (an offer's plan
  * says it in Spanish too, offer-plan-words.ts).
  */
-export const US_PAUSED = "Meta has paused offers on WhatsApp to US numbers. Appointment messages and replies still go.";
+export const US_PAUSED =
+  "Meta has paused offers on WhatsApp to US numbers. Reminders, confirmations and replies still go.";
 
 /** Whether Meta's pause holds for the offers this WhatsApp number sends: a US number's customers are in the US. */
 function whatsappOffersPaused(e164: string | null | undefined): boolean {

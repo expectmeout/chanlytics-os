@@ -4917,7 +4917,7 @@ test("REGRESSION: on a US WhatsApp number a proposed playbook's card says 26 sai
   assert.ok(!summary.includes("0 people on the list said yes"), `REGRESSION: ${summary}`);
   assert.ok(
     summary.includes(
-      " · 26 people on the list said yes to offers, none can be sent an offer — Meta has paused offers on WhatsApp to US numbers. Appointment messages and replies still go. · ",
+      " · 26 people on the list said yes to offers, none can be sent an offer — Meta has paused offers on WhatsApp to US numbers. Reminders, confirmations and replies still go. · ",
     ),
     summary,
   );
