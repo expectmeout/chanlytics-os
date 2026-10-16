@@ -159,4 +159,98 @@ const AskRows = ({ sections, sel, setSel, onActivate, onDelete, t, empty }) => {
   );
 };
 
-window.AskHome = { buildLineRows, AskRows, flatRows, AskNowPills, ahAgo };
+/* -------------------------------------------- what stands around an answer */
+
+const useHomeState = React.useState;
+const useHomeEffect = React.useEffect;
+
+// What Ask has read, under the three while it reads (D12): the turn's last reads (the Line keeps three, live.traces),
+// a read again said once where it was last, the earlier dim after a small square, the newest live after the reading
+// dot; "Thinking…" before the first. From the fourth second the newest line says how long the turn has run (`since`,
+// when it was asked), so a long think reads as work going on, not as a stall (Ruben's recording, 16 Oct 2026: 12 and 16
+// seconds of "Thinking…" alone).
+const ASK_ELAPSED_FROM_S = 4;
+const ASK_ELAPSED_TICK_MS = 1000;
+const useAskElapsed = (since) => {
+  const [now, setNow] = useHomeState(() => Date.now());
+  useHomeEffect(() => {
+    if (!since) return undefined;
+    const tick = setInterval(() => setNow(Date.now()), ASK_ELAPSED_TICK_MS);
+    return () => clearInterval(tick);
+  }, [since, setNow]);
+  const s = since ? Math.floor((now - since) / 1000) : 0;
+  return s >= ASK_ELAPSED_FROM_S ? `${s}s` : "";
+};
+const AskReads = ({ traces, since = null, t }) => {
+  const reads = traces.filter((r, k) => traces.lastIndexOf(r) === k);
+  const shown = reads.length ? reads : [t.thinking];
+  const elapsed = useAskElapsed(since);
+  return (
+    <div className="ask-reading" aria-live="polite" data-testid="ask-reading">
+      {shown.map((r, k) => {
+        const now = k === shown.length - 1;
+        return (
+          <p key={r} className={`ask-read ${now ? "now" : "done"}`}>
+            <span className={now ? "ask-reading-dot" : "ask-read-tile"} aria-hidden="true" />
+            {r}
+            {now && elapsed ? <span className="ask-read-time" aria-hidden="true" data-testid="ask-read-time">{elapsed}</span> : null}
+          </p>
+        );
+      })}
+    </div>
+  );
+};
+
+// An answer's two acts (D14): Copy its words and Read them aloud. A desktop draws them at the field's end beside Clear;
+// a phone under the newest answer, never under an earlier one and never while one is written. `words` are the
+// answer's say, its headline then its detail, then its list a line an entry with its marks (contracts answerText): what
+// Copy takes. `spoken` are the same written for the ear, the list an entry a sentence (contracts answerSpoken): what
+// Read aloud speaks in Ask's one voice (the one-way speech, legacy-bridge/ask/speech.ts through AskHooks.useAskSpeech;
+// docs/superpowers/specs/2026-10-03-ask-spoken-design.md, §3.5 as amended 4 Oct 2026); the figures and rows are
+// drawn, never read. Nobody speaks back: a follow-up is typed, or said with the mic held. Between the press and the first word
+// the button says it is getting the voice, and a press then stops the wait; where the clip could not be made the
+// button says why, in the server's words.
+const AskActs = ({ words, spoken, speech, flash, t }) => {
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(words);
+      flash({ msg: <>{t.copied}</> });
+    } catch {
+      flash({ tone: "danger", msg: <>{t.copyFailed}</> });
+    }
+  };
+  const reading = speech.speakingId === "line";
+  const loading = speech.loading === "line";
+  const read = () => {
+    speech.toggle(spoken || words, "answer").then((why) => {
+      if (why !== null) flash({ tone: "danger", msg: <>{why || t.readFailed}</> });
+    });
+  };
+  const word = reading ? t.stop : loading ? t.reading : t.read;
+  // Each says its word beside its glyph on a desk, where two bare glyphs were missed (ask.css `.ask-act-word`).
+  return (
+    <span className="ask-acts" data-testid="ask-acts">
+      <button type="button" className="ask-line-btn quiet" onClick={copy} aria-label={t.copy} title={t.copy} data-testid="ask-copy">
+        <Icon name="copy" size={14} />
+        <span className="ask-act-word" aria-hidden="true">{t.copyWord}</span>
+      </button>
+      {speech.canSpeak ? (
+        <button
+          type="button"
+          className={`ask-line-btn quiet${reading || loading ? " on" : ""}`}
+          onClick={read}
+          aria-label={word}
+          aria-pressed={reading}
+          aria-busy={loading || undefined}
+          title={word}
+          data-testid="ask-read"
+        >
+          <Icon name={reading ? "pause" : "headphones"} size={14} />
+          <span className="ask-act-word" aria-hidden="true">{word}</span>
+        </button>
+      ) : null}
+    </span>
+  );
+};
+
+window.AskHome = { buildLineRows, AskRows, flatRows, AskNowPills, ahAgo, AskReads, AskActs };

@@ -61,7 +61,15 @@ export {
   FOLLOWUP_ECHO,
   claimsWrite,
   unquoted,
+  answerBlocks,
+  answerRuns,
+  answerPlain,
+  answerText,
+  answerCopy,
+  answerSpoken,
+  listSpoken,
 } from "./answer-text";
+export type { AnswerBlock, AnswerList, AnswerRun } from "./answer-text";
 export { askJump, askPages, ASK_PAGES } from "./ask-jump";
 export type { JumpEntry } from "./ask-jump";
 export { buildAskSuggestions } from "./ask-suggestions";
@@ -97,10 +105,6 @@ export { rightNowLine, rightNowCounts } from "./ask-waiting";
 export type { AskWaiting } from "./ask-waiting";
 export type { AskModelProfile } from "./ask-model";
 export {
-  answerText,
-  answerCopy,
-  answerSpoken,
-  listSpoken,
   storedAnswer,
   oneDoor,
   answerFromV1,

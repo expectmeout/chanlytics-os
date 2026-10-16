@@ -1294,7 +1294,7 @@ for (const row of ES_ROWS) {
 }
 
 test("in Spanish too, what no card carries comes first: the answer's detail, cut at its 700 characters, keeps the reminder whole and the review after it", () => {
-  const cap = C.ASK_ANSWER_CAPS.detail;
+  const cap = C.ASK_ANSWER_CAPS.plan;
   const worlds = [
     ...ES_ROWS.filter((r) => r.pastTheCap).map((r) => [r.name, r.intent, r.world]),
     [
@@ -1387,7 +1387,7 @@ for (const row of ROWS) {
 }
 
 test("what no card carries comes first, so the answer's detail, cut at its own 700 characters, keeps the reminder whole, and the review after it: the worlds measured past the cap (batch P's reviews and the final cleanup)", () => {
-  const cap = C.ASK_ANSWER_CAPS.detail;
+  const cap = C.ASK_ANSWER_CAPS.plan;
   const both = world({ playbooks: [monthsOffer()], room: { open: 15, days: 14 } });
   const worlds = [
     ...ROWS.filter((r) => r.pastTheCap).map((r) => [r.name, r.intent, r.world]),

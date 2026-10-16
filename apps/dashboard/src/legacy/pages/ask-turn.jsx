@@ -414,13 +414,94 @@ const AskBreakdown = ({ b, t, onNav }) => {
   );
 };
 
+// A line of the answer's words as runs (contracts answerRuns): bold, italic or plain, each one text. Nothing the model
+// wrote is ever drawn as markup.
+const AskRuns = ({ runs }) =>
+  runs.map((r, k) =>
+    r.bold ? <strong key={k}>{r.text}</strong> : r.italic ? <em key={k}>{r.text}</em> : <React.Fragment key={k}>{r.text}</React.Fragment>,
+  );
+const atRuns = (s) => (window.__ask && window.__ask.answerRuns ? window.__ask.answerRuns(s) : [{ text: s }]);
+
+// A list in the answer's words, nested up to three deep as the words wrote it.
+const AskWordsList = ({ list }) => {
+  const Tag = list.ordered ? "ol" : "ul";
+  return (
+    <Tag className="ask-words-list">
+      {list.items.map((it, k) => (
+        <li key={k}>
+          <AskRuns runs={it.runs} />
+          {it.sub ? <AskWordsList list={it.sub} /> : null}
+        </li>
+      ))}
+    </Tag>
+  );
+};
+
+// The answer's words as the Line draws them (contracts answerBlocks): paragraphs with each line its own, a heading over a
+// part, lists, and a table that scrolls sideways where it is wider than the answer. A streaming answer's cursor follows
+// its last block. Without the bridge (the mockup) the words are one paragraph, as they always were.
+const AskWords = ({ text, className, cursor = null }) => {
+  const A = window.__ask;
+  const blocks = A && A.answerBlocks ? A.answerBlocks(text) : [{ kind: "text", lines: [[{ text }]] }];
+  const last = blocks.length - 1;
+  return (
+    <div className={`ask-words ${className}`} data-testid="ask-words">
+      {blocks.map((b, k) => {
+        const tail = k === last ? cursor : null;
+        if (b.kind === "heading")
+          return (
+            <h4 key={k} className="ask-words-head">
+              <AskRuns runs={b.runs} />
+              {tail}
+            </h4>
+          );
+        if (b.kind === "list")
+          return (
+            <React.Fragment key={k}>
+              <AskWordsList list={b.list} />
+              {tail}
+            </React.Fragment>
+          );
+        if (b.kind === "table")
+          return (
+            <div key={k} className="ask-words-table" data-testid="ask-words-table">
+              <table>
+                <thead>
+                  <tr>{b.head.map((c, i) => <th key={i} className={b.right[i] ? "ask-words-num" : undefined}><AskRuns runs={c} /></th>)}</tr>
+                </thead>
+                <tbody>
+                  {b.rows.map((r, j) => (
+                    <tr key={j}>{r.map((c, i) => <td key={i} className={b.right[i] ? "ask-words-num" : undefined}><AskRuns runs={c} /></td>)}</tr>
+                  ))}
+                </tbody>
+              </table>
+              {tail}
+            </div>
+          );
+        return (
+          <p key={k}>
+            {b.lines.map((l, i) => (
+              <React.Fragment key={i}>
+                {i ? <br /> : null}
+                <AskRuns runs={l} />
+              </React.Fragment>
+            ))}
+            {tail}
+          </p>
+        );
+      })}
+    </div>
+  );
+};
+
 // What they asked to see as a list, and steps to follow (contracts AskList): a real list, numbered for steps, the page's
-// own bullet, or one entry to a line with no mark; the entries never carry a mark of their own (normalizeAnswer).
+// own bullet, or one entry to a line with no mark; the entries never carry a mark of their own (normalizeAnswer), and
+// keep the emphasis they were written with.
 const AskListPart = ({ l }) => {
   const Tag = l.style === "numbers" ? "ol" : "ul";
   return (
     <Tag className={`ask-list ${l.style}`} data-testid="ask-list" data-style={l.style}>
-      {l.entries.map((e, k) => <li key={k}>{e}</li>)}
+      {l.entries.map((e, k) => <li key={k}><AskRuns runs={atRuns(e)} /></li>)}
     </Tag>
   );
 };
@@ -504,7 +585,7 @@ const AskAnswer = ({ answer, cardOpen, cards, messageId, retry, walk = false, se
       <div className="ask-part say" data-testid="ask-say">
         <div className="ask-say">
           {a.say.headline ? <p className="ask-headline">{a.say.headline}</p> : null}
-          {a.say.detail ? <p className={a.say.headline ? "ask-detail" : "ask-prose"}>{a.say.detail}</p> : null}
+          {a.say.detail ? <AskWords text={a.say.detail} className={a.say.headline ? "ask-detail" : "ask-prose"} /> : null}
         </div>
       </div>
       {hasShow ? <AskShow a={a} itemMove={itemMove} moveProps={moveProps} t={t} onNav={onNav} /> : null}
@@ -574,7 +655,7 @@ const AskTurn = ({ m, q, quick, say, latest = false, streaming = false, walk = f
           {say ? (
             <div className="ask-say">
               {say.headline ? <p className="ask-headline">{say.headline}{say.detail ? null : cursor}</p> : null}
-              {say.detail ? <p className={say.headline ? "ask-detail" : "ask-prose"}>{say.detail}{cursor}</p> : null}
+              {say.detail ? <AskWords text={say.detail} className={say.headline ? "ask-detail" : "ask-prose"} cursor={cursor} /> : null}
             </div>
           ) : (
             <p className="ask-prose">{m.text}{cursor}</p>
@@ -668,94 +749,5 @@ const AskLatest = ({ t, overNext, onPress }) => (
   </button>
 );
 
-// What Ask has read, under the three while it reads (D12): the turn's last reads (the Line keeps three, live.traces),
-// a read again said once where it was last, the earlier dim after a small square, the newest live after the reading
-// dot; "Thinking…" before the first. From the fourth second the newest line says how long the turn has run (`since`,
-// when it was asked), so a long think reads as work going on, not as a stall (Ruben's recording, 16 Oct 2026: 12 and 16
-// seconds of "Thinking…" alone).
-const ASK_ELAPSED_FROM_S = 4;
-const ASK_ELAPSED_TICK_MS = 1000;
-const useAskElapsed = (since) => {
-  const [now, setNow] = useAtState(() => Date.now());
-  useAtEffect(() => {
-    if (!since) return undefined;
-    const tick = setInterval(() => setNow(Date.now()), ASK_ELAPSED_TICK_MS);
-    return () => clearInterval(tick);
-  }, [since, setNow]);
-  const s = since ? Math.floor((now - since) / 1000) : 0;
-  return s >= ASK_ELAPSED_FROM_S ? `${s}s` : "";
-};
-const AskReads = ({ traces, since = null, t }) => {
-  const reads = traces.filter((r, k) => traces.lastIndexOf(r) === k);
-  const shown = reads.length ? reads : [t.thinking];
-  const elapsed = useAskElapsed(since);
-  return (
-    <div className="ask-reading" aria-live="polite" data-testid="ask-reading">
-      {shown.map((r, k) => {
-        const now = k === shown.length - 1;
-        return (
-          <p key={r} className={`ask-read ${now ? "now" : "done"}`}>
-            <span className={now ? "ask-reading-dot" : "ask-read-tile"} aria-hidden="true" />
-            {r}
-            {now && elapsed ? <span className="ask-read-time" aria-hidden="true" data-testid="ask-read-time">{elapsed}</span> : null}
-          </p>
-        );
-      })}
-    </div>
-  );
-};
-
-// An answer's two acts (D14): Copy its words and Read them aloud. A desktop draws them at the field's end beside Clear;
-// a phone under the newest answer, never under an earlier one and never while one is written. `words` are the
-// answer's say, its headline then its detail, then its list a line an entry with its marks (contracts answerText): what
-// Copy takes. `spoken` are the same written for the ear, the list an entry a sentence (contracts answerSpoken): what
-// Read aloud speaks in Ask's one voice (the one-way speech, legacy-bridge/ask/speech.ts through AskHooks.useAskSpeech;
-// docs/superpowers/specs/2026-10-03-ask-spoken-design.md, §3.5 as amended 4 Oct 2026); the figures and rows are
-// drawn, never read. Nobody speaks back: a follow-up is typed, or said with the mic held. Between the press and the first word
-// the button says it is getting the voice, and a press then stops the wait; where the clip could not be made the
-// button says why, in the server's words.
-const AskActs = ({ words, spoken, speech, flash, t }) => {
-  const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(words);
-      flash({ msg: <>{t.copied}</> });
-    } catch {
-      flash({ tone: "danger", msg: <>{t.copyFailed}</> });
-    }
-  };
-  const reading = speech.speakingId === "line";
-  const loading = speech.loading === "line";
-  const read = () => {
-    speech.toggle(spoken || words, "answer").then((why) => {
-      if (why !== null) flash({ tone: "danger", msg: <>{why || t.readFailed}</> });
-    });
-  };
-  const word = reading ? t.stop : loading ? t.reading : t.read;
-  // Each says its word beside its glyph on a desk, where two bare glyphs were missed (ask.css `.ask-act-word`).
-  return (
-    <span className="ask-acts" data-testid="ask-acts">
-      <button type="button" className="ask-line-btn quiet" onClick={copy} aria-label={t.copy} title={t.copy} data-testid="ask-copy">
-        <Icon name="copy" size={14} />
-        <span className="ask-act-word" aria-hidden="true">{t.copyWord}</span>
-      </button>
-      {speech.canSpeak ? (
-        <button
-          type="button"
-          className={`ask-line-btn quiet${reading || loading ? " on" : ""}`}
-          onClick={read}
-          aria-label={word}
-          aria-pressed={reading}
-          aria-busy={loading || undefined}
-          title={word}
-          data-testid="ask-read"
-        >
-          <Icon name={reading ? "pause" : "headphones"} size={14} />
-          <span className="ask-act-word" aria-hidden="true">{word}</span>
-        </button>
-      ) : null}
-    </span>
-  );
-};
-
-window.AskAnswerKit = { AskTurn, AskAnswer, AskCard, AskPlan, answerMoves, freshNext, askKindGlyph, AskQuestion, AskThread, AskNextRow, AskListen, AskLatest, AskReads, AskActs };
+window.AskAnswerKit = { AskTurn, AskAnswer, AskCard, AskPlan, answerMoves, freshNext, askKindGlyph, AskQuestion, AskThread, AskNextRow, AskListen, AskLatest };
 Object.assign(window, { AskTurn, AskCard });

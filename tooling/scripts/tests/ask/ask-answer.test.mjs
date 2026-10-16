@@ -36,6 +36,8 @@ import {
   rightNowLine,
   storedAnswer,
   v1FromAnswer,
+  answerBlocks,
+  answerPlain,
 } from "@chanlytics/contracts";
 
 const ID = "11111111-1111-4111-8111-111111111111";
@@ -620,7 +622,7 @@ test("every string is one line of words without tags, and every string and list 
   const threads = Array.from({ length: 7 }, (_, i) => `5555555${i}-5555-4555-8555-555555555555`);
   const a = read1(
     written({
-      say: { headline: '<answer>Nora is\n\n waiting.</answer><parameter name="citations">[]', detail: long(400) },
+      say: { headline: '<answer>Nora is\n\n waiting.</answer><parameter name="citations">[]', detail: long(800) },
       show: {
         figures: Array.from({ length: 6 }, (_, i) => ({ value: `${i + 1}`, label: long(40), note: "", source: NONE })),
         items: threads.map((id, i) => ({
@@ -646,11 +648,11 @@ test("every string is one line of words without tags, and every string and list 
   assert.equal(a.do.open, null, "kind none is no Open");
 });
 
-test("a list is read as the Line draws it: its style one of three (bullets for any other), each entry one point without the bullet or number the model wrote, no emphasis marks, empty entries gone, at most its caps", () => {
+test("a list is read as the Line draws it: its style one of three (bullets for any other), each entry one point without the bullet or number the model wrote, its emphasis kept for the Line to draw, empty entries gone, at most its caps", () => {
   const list = (l) => read1(withShow({ list: l })).answer.show.list;
   assert.deepEqual(
     list({ style: "numbers", entries: ["1. Open Settings.", "2) Paste the link.", "- Save it.", "• **Done**."] }),
-    { style: "numbers", entries: ["Open Settings.", "Paste the link.", "Save it.", "Done."] },
+    { style: "numbers", entries: ["Open Settings.", "Paste the link.", "Save it.", "**Done**."] },
   );
   assert.deepEqual(list({ style: "lines", entries: ["thanks", " ", "for"] }), {
     style: "lines",
@@ -669,7 +671,7 @@ test("a list is read as the Line draws it: its style one of three (bullets for a
   );
   const long = list({
     style: "bullets",
-    entries: Array.from({ length: 20 }, (_, i) => `point ${i} ${"word ".repeat(60)}`),
+    entries: Array.from({ length: 40 }, (_, i) => `point ${i} ${"word ".repeat(60)}`),
   });
   assert.equal(long.entries.length, C.entries);
   assert.ok(long.entries.every((e) => e.length <= C.entry && e.endsWith("…")));
@@ -1254,7 +1256,7 @@ test("a round that made a plan answers with the plan's words as its detail, in p
     ["Un plan de 3 pasos para revisar: 2 no envían nada y luego 1 envía.", palabras],
   );
   // Words past the detail's cap end on a whole word, with an ellipsis, within it.
-  const long = Array.from({ length: 250 }, (_, i) => `word${i}`).join(" ");
+  const long = Array.from({ length: 600 }, (_, i) => `word${i}`).join(" ");
   assert.ok(long.length > ASK_ANSWER_CAPS.detail, "longer than the detail holds");
   const cut = answerForCards([stamp(1, true), stamp(3, false)], "en", long).say.detail;
   assert.ok(cut.length <= ASK_ANSWER_CAPS.detail, `${cut.length}`);
@@ -1367,4 +1369,134 @@ test("a write claimed is one predicate (the moment spec, A4): what the eval judg
     'Here is the reply, ready to approve: "I\'ve set up your visit."',
   ])
     assert.equal(claimsWrite(said), false, said);
+});
+
+/* ------------------------------------------------------- the words' formatting */
+
+const runs = (t) => t.map((r) => (r.bold ? `**${r.text}**` : r.italic ? `_${r.text}_` : r.text)).join("");
+
+test("the answer's words read as blocks: headings, nested lists, a table with its number columns set right, and paragraphs a line each", () => {
+  const blocks = answerBlocks(
+    [
+      "### This week",
+      "1. Open **Needs you** first.",
+      "2. For each one:",
+      "  - add the *missing* fact",
+      "  - take it over",
+      "    - when it needs a person",
+      "",
+      "| Channel | Booked | Median reply |",
+      "|---|---:|---|",
+      "| WhatsApp | 18 | 1 min |",
+      "| Calls | 9 | 0 min |",
+      "",
+      "Text books least.",
+      "See [the report](reports) for `more`.",
+    ].join("\n"),
+  );
+  assert.deepEqual(
+    blocks.map((b) => b.kind),
+    ["heading", "list", "table", "text"],
+  );
+  assert.equal(runs(blocks[0].runs), "This week");
+  const list = blocks[1].list;
+  assert.equal(list.ordered, true);
+  assert.deepEqual(
+    list.items.map((it) => runs(it.runs)),
+    ["Open **Needs you** first.", "For each one:"],
+  );
+  const sub = list.items[1].sub;
+  assert.equal(sub.ordered, false, "a point nested under a step keeps its own bullet");
+  assert.deepEqual(
+    sub.items.map((it) => runs(it.runs)),
+    ["add the _missing_ fact", "take it over"],
+  );
+  assert.equal(runs(sub.items[1].sub.items[0].runs), "when it needs a person", "three levels deep");
+  const table = blocks[2];
+  assert.deepEqual(table.head.map(runs), ["Channel", "Booked", "Median reply"]);
+  assert.deepEqual(
+    table.rows.map((r) => r.map(runs)),
+    [
+      ["WhatsApp", "18", "1 min"],
+      ["Calls", "9", "0 min"],
+    ],
+  );
+  assert.deepEqual(table.right, [false, true, true], "a column of numbers is set right");
+  assert.deepEqual(
+    blocks[3].lines.map(runs),
+    ["Text books least.", "See the report for more."],
+    "a link is its words, never a link (the model never writes a route), and code is its words",
+  );
+});
+
+test("words with no marks are one paragraph of their lines, as the detail always was; nothing in them is ever markup", () => {
+  assert.deepEqual(answerBlocks("Most came in after hours.\nTwo were on Sunday."), [
+    { kind: "text", lines: [[{ text: "Most came in after hours." }], [{ text: "Two were on Sunday." }]] },
+  ]);
+  const odd = answerBlocks("5 * 3 = 15, and 2*4 is 8; a_b_c stays; <b>no</b> tag is drawn");
+  assert.equal(odd.length, 1);
+  assert.equal(
+    odd[0].lines[0].map((r) => r.text).join(""),
+    "5 * 3 = 15, and 2*4 is 8; a_b_c stays; <b>no</b> tag is drawn",
+    "a star or an underscore inside words is the words; a tag is text, drawn as text",
+  );
+  assert.ok(!odd[0].lines[0].some((r) => r.bold || r.italic));
+  assert.equal(answerBlocks("| a | b |\nno rule under it").length, 1, "a bar line with no rule is a paragraph");
+});
+
+test("the formatting read as plain words: Copy keeps bullets and a table's rows, a voice hears phrases with no marks", () => {
+  const detail = "### Today\n- answer **Ana**\n  - then Sam\n\n| Channel | Booked |\n|---|---|\n| WhatsApp | 18 |";
+  assert.equal(answerPlain(detail), "Today\n• answer Ana\n  • then Sam\nChannel · Booked\nWhatsApp · 18");
+  assert.equal(answerPlain(detail, true), "Today\nanswer Ana\nthen Sam\nChannel, Booked\nWhatsApp, 18");
+});
+
+test("the detail keeps its formatting and its indents; the headline is one plain sentence; an entry keeps its bold", () => {
+  const read = normalizeAnswer(
+    JSON.stringify({
+      say: { headline: "**Two** need you.", detail: "1. Answer Ana\n  - she waited **3 days**\n2. Then Sam" },
+      show: { figures: [], items: [], breakdown: null, list: { style: "bullets", entries: ["- call **Sam** back"] } },
+      do: { open: { source: { kind: "none", id: "", label: "" }, label: "", now: false }, next: [] },
+      language: "en",
+    }),
+    emptyReadSet(),
+    "en",
+  );
+  assert.equal(read.ok, true);
+  assert.equal(read.answer.say.headline, "Two need you.");
+  assert.equal(read.answer.say.detail, "1. Answer Ana\n  - she waited **3 days**\n2. Then Sam");
+  assert.deepEqual(read.answer.show.list.entries, ["call **Sam** back"]);
+  assert.equal(
+    answerText(read.answer),
+    "Two need you.\n1. Answer Ana\n  • she waited 3 days\n2. Then Sam\n• call Sam back",
+    "Copy's words: a detail that opens with a list starts on its own line, the marks read as plain words",
+  );
+  assert.equal(
+    answerSpoken(read.answer),
+    "Two need you. 1. Answer Ana. she waited 3 days. 2. Then Sam. call Sam back.",
+  );
+});
+
+test("REGRESSION (the A1 eval): a headline's second sentence opens the detail as a paragraph of its own above a table, so the table keeps its first row", () => {
+  const read = normalizeAnswer(
+    JSON.stringify({
+      say: {
+        headline: "WhatsApp brought the most. Bookings can't be counted yet.",
+        detail: "| Channel | People |\n|---|---|\n| WhatsApp | 3 |",
+      },
+      show: { figures: [], items: [], breakdown: null, list: { style: "bullets", entries: [] } },
+      do: { open: { source: { kind: "none", id: "", label: "" }, label: "", now: false }, next: [] },
+      language: "en",
+    }),
+    emptyReadSet(),
+    "en",
+  );
+  assert.equal(read.answer.say.headline, "WhatsApp brought the most.");
+  assert.equal(
+    read.answer.say.detail,
+    "Bookings can't be counted yet.\n\n| Channel | People |\n|---|---|\n| WhatsApp | 3 |",
+  );
+  assert.deepEqual(
+    answerBlocks(read.answer.say.detail).map((b) => b.kind),
+    ["text", "table"],
+  );
 });

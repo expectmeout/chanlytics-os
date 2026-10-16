@@ -33,11 +33,11 @@ export const ASK_ANSWER_FORMAT = {
       properties: {
         headline: {
           type: "string",
-          description: `The answer itself in one sentence, the finding first and never a preamble; under 20 words and at most ${C.headline} characters.`,
+          description: `The answer itself in one short plain sentence, the finding first and never a preamble; at most ${C.headline} characters.`,
         },
         detail: {
           type: "string",
-          description: `Only what the headline needs, in sentences: empty when the headline is enough; at most two short sentences, or five when they asked why, how, for a summary or for detail, or the length they asked for; a list goes in show.list, never here; at most ${C.detail} characters.`,
+          description: `The body under the headline, as long as the question needs and no longer: empty when the headline says it whole, a sentence or two for a reason or a condition, more for why, how, a comparison, steps or a plan. Markdown where it helps the reader: **bold** for the number or name that matters, a short ### heading over each part of a long answer, - bullets and 1. numbered steps (two spaces nest a point under another), and a table (a header row, its |---| rule, then its rows) for rows compared on the same columns. No links and no HTML: a place to open is an item or Open. At most ${C.detail} characters.`,
         },
       },
       required: ["headline", "detail"],
@@ -115,7 +115,7 @@ export const ASK_ANSWER_FORMAT = {
         list: {
           type: "object",
           description:
-            "What they asked to see as a list (bullets, numbered, steps, one per line), and steps to follow: points in words, never the rows items hold; entries empty when nothing is a list.",
+            "A flat list of points when the answer is one (bullets, numbered, steps, one per line): points in words, never the rows items hold; entries empty when nothing is a list. A list nested under headings, or set beside a table, goes in say.detail instead.",
           properties: {
             style: {
               type: "string",
@@ -125,7 +125,7 @@ export const ASK_ANSWER_FORMAT = {
             },
             entries: {
               type: "array",
-              description: `At most ${C.entries}, each one point of at most ${C.entry} characters, with no bullet or number of its own: the page draws them.`,
+              description: `At most ${C.entries}, each one point of at most ${C.entry} characters, with no bullet or number of its own (the page draws them); **bold** where a word matters.`,
               items: { type: "string" },
             },
           },

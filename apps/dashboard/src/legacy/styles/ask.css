@@ -171,6 +171,22 @@ body.ask-open .tb-ask .tb-ask-face { visibility: hidden; }
 .ask-headline { margin: 0; font-size: 19px; font-weight: 500; line-height: 1.35; letter-spacing: -0.012em; color: var(--ink); text-wrap: pretty; }
 .ask-detail { margin: 0; font-size: var(--text-base); line-height: 1.5; color: var(--ink-muted); white-space: pre-wrap; overflow-wrap: anywhere; }
 .ask-prose { margin: 0; font-size: var(--text-md); line-height: 1.55; color: var(--ink); white-space: pre-wrap; overflow-wrap: anywhere; }
+/* The answer's words, formatted (AskWords over contracts answerBlocks): paragraphs, a heading over a part, lists nested
+   three deep, and a table that scrolls sideways where it is wider than the answer. The detail's and the prose's own
+   type and ink stay theirs; each line is its own element, so the words keep no white space of their own. */
+.ask-words { display: flex; flex-direction: column; gap: 8px; min-width: 0; white-space: normal; }
+.ask-words > p { margin: 0; }
+.ask-words strong { font-weight: 600; color: var(--ink); }
+.ask-words-head { margin: 0; font-size: inherit; font-weight: 600; line-height: 1.4; color: var(--ink); }
+.ask-words-list { display: flex; flex-direction: column; gap: 4px; margin: 0; padding: 0 0 0 22px; }
+.ask-words-list .ask-words-list { padding-top: 4px; }
+.ask-words-list > li::marker { color: var(--ink-dim); font-variant-numeric: tabular-nums; }
+.ask-words-table { max-width: 100%; overflow-x: auto; overscroll-behavior-x: contain; }
+.ask-words-table table { border-collapse: collapse; font-size: var(--text-sm); font-variant-numeric: tabular-nums; }
+.ask-words-table th, .ask-words-table td { min-width: 56px; overflow-wrap: normal; padding: 6px 14px 6px 0; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+.ask-words-table th { font-weight: 600; color: var(--ink-muted); }
+/* Words wrap inside their cell, so a table fits the panel where it can; a number never breaks. */
+.ask-words-table .ask-words-num { text-align: right; white-space: nowrap; }
 .ask-turn.failed .ask-prose, .ask-turn.failed .ask-headline { font-size: var(--text-md); font-weight: 400; line-height: 1.55; letter-spacing: 0; color: var(--ink-dim); }
 .ask-cursor { display: inline-block; width: 2px; height: 18px; margin-left: 2px; vertical-align: -3px; background: var(--accent); border-radius: 1px; animation: ask-blink 1s steps(2, start) infinite; }
 @keyframes ask-blink { to { visibility: hidden; } }

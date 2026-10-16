@@ -14,7 +14,9 @@
  */
 import {
   PROPOSAL_GATE,
+  answerBlocks,
   answerCopy,
+  answerRuns,
   answerSpoken,
   answerText,
   askUndoOpen,
@@ -78,6 +80,10 @@ export type AskApi = ReturnType<typeof askPalette> &
     quick(question: string): Promise<AskAnswer> | null;
     /** An answer's words, for a folded turn: its list a line an entry, each with its mark. */
     answerText: typeof answerText;
+    /** An answer's words as the Line draws them: paragraphs, headings, nested lists and tables, never markup. */
+    answerBlocks: typeof answerBlocks;
+    /** One line of an answer's words as runs: bold, italic or plain (a list's entry). */
+    answerRuns: typeof answerRuns;
     /** An answer as Copy takes it: its words, then its parts, figures and rows, a line each. */
     answerCopy: typeof answerCopy;
     /** An answer's words as Read aloud and a spoken question's answer say them: its list an entry a sentence. */
@@ -196,6 +202,8 @@ export function installAsk(win: Window = window, storage: Storage | null = safeS
     undoOpen: askUndoOpen,
     quick: quickAnswer(palette, api.openings),
     answerText,
+    answerBlocks,
+    answerRuns,
     answerCopy,
     answerSpoken,
     cardOpenRoute,

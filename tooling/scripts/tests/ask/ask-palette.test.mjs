@@ -23,7 +23,9 @@ import {
   ASK_PAGES,
   ASK_PAGE_ROUTES,
   ASK_SCOPE_KINDS,
+  answerBlocks,
   answerCopy,
+  answerRuns,
   answerSpoken,
   answerText,
   askJump,
@@ -366,6 +368,8 @@ const ask = (threads = []) => {
     ...askSpeech(globalThis.window, { api: { speech: async () => new Blob() } }),
     quick: quickAnswer(palette, openings),
     answerText,
+    answerBlocks,
+    answerRuns,
     answerCopy,
     answerSpoken,
     cardOpenRoute,
@@ -2590,7 +2594,8 @@ test("a reply's card draws the message as the bubble it will be, the undo's word
 });
 
 test("the reads say Thinking before the first and a repeat once, at its newest; a send's clock stands where its window is, and its end takes the ring and the Undo with it (D12, D16)", () => {
-  const { AskReads, AskCard } = globalThis.window.AskAnswerKit;
+  const { AskCard } = globalThis.window.AskAnswerKit;
+  const { AskReads } = globalThis.window.AskHome;
   const t = globalThis.window.askText("en");
   const readsOf = (traces) => byClass(render(AskReads, { traces, t }), "ask-read");
   assert.deepEqual(
@@ -5250,7 +5255,7 @@ test("the newest answer offers no next question the conversation already asked o
 });
 
 test("a long think says how long it has run: from its fourth second the newest read carries the seconds", () => {
-  const { AskReads } = globalThis.window.AskAnswerKit;
+  const { AskReads } = globalThis.window.AskHome;
   const t = globalThis.window.askText("en");
   const reads = (ago) => {
     cells = new Map();
@@ -5262,7 +5267,8 @@ test("a long think says how long it has run: from its fourth second the newest r
 });
 
 test("a figure's source is its value's tooltip, and Copy and Read aloud say their words beside their glyphs", () => {
-  const { AskAnswer, AskActs } = globalThis.window.AskAnswerKit;
+  const { AskAnswer } = globalThis.window.AskAnswerKit;
+  const { AskActs } = globalThis.window.AskHome;
   const t = globalThis.window.askText("en");
   const answer = {
     v: 2,
@@ -5290,4 +5296,68 @@ test("a figure's source is its value's tooltip, and Copy and Read aloud say thei
   const speech = { speakingId: null, loading: null, canSpeak: true, toggle: async () => null };
   const acts = draw(AskActs, { words: "6 of 16 went unanswered.", spoken: "", speech, flash() {}, t });
   assert.deepEqual(byClass(acts, "ask-act-word").map(textOf), ["Copy", "Read aloud"]);
+});
+
+/* ------------------------------ the answer's words, formatted (the answer canvas, phase A1) ------------------------------ */
+
+test("an answer's formatting is drawn from its blocks: a heading, steps with points nested under them, a table whose number column is set right, bold as strong; never as markup", async () => {
+  ask([]);
+  const { AskAnswer } = globalThis.window.AskAnswerKit;
+  const t = globalThis.window.askText("en");
+  const answer = {
+    v: 2,
+    form: "structured",
+    language: "en",
+    say: {
+      headline: "WhatsApp booked the most this month.",
+      detail:
+        "### This week\n1. Answer **Ana** first.\n  - she waited 3 days\n2. Then Sam.\n\n| Channel | Booked |\n|---|---|\n| WhatsApp | **18** |\n| Text | 3 |\n\n<b>Tags</b> stay text.",
+    },
+    show: {
+      figures: [],
+      items: [],
+      breakdown: null,
+      list: { style: "bullets", entries: ["Call **Sam** back"] },
+    },
+    do: { open: null, next: [] },
+  };
+  cells = new Map();
+  const tree = draw(AskAnswer, { answer, cardOpen: {}, cards: [], messageId: "m-w", t, onNav() {}, onFollow() {} });
+  const words = byTestId(tree, "ask-words");
+  assert.ok(words.props.className.split(" ").includes("ask-detail"), "the detail's own class, as the paragraph had");
+  assert.equal(textOf(find(words, (n) => n.type === "h4")), "This week");
+  const steps = find(words, (n) => n.type === "ol");
+  assert.equal(all(steps, (n) => n.type === "li").length, 3, "two steps and the point nested under the first");
+  assert.equal(
+    textOf(
+      find(
+        find(steps, (n) => n.type === "ul"),
+        (n) => n.type === "li",
+      ),
+    ),
+    "she waited 3 days",
+  );
+  assert.deepEqual(all(words, (n) => n.type === "strong").map(textOf), ["Ana", "18"]);
+  const table = byTestId(words, "ask-words-table");
+  assert.deepEqual(all(table, (n) => n.type === "th").map(textOf), ["Channel", "Booked"]);
+  assert.deepEqual(
+    all(table, (n) => n.type === "td").map((n) => [textOf(n), n.props.className ?? ""]),
+    [
+      ["WhatsApp", ""],
+      ["18", "ask-words-num"],
+      ["Text", ""],
+      ["3", "ask-words-num"],
+    ],
+    "a column of numbers is set right",
+  );
+  assert.ok(textOf(words).includes("<b>Tags</b> stay text."), "a tag in the words is text, never an element");
+  assert.equal(
+    find(words, (n) => n.type === "b"),
+    null,
+  );
+  assert.deepEqual(
+    all(byTestId(tree, "ask-list"), (n) => n.type === "strong").map(textOf),
+    ["Sam"],
+    "a list's entry keeps its bold",
+  );
 });

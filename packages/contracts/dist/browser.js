@@ -20690,6 +20690,159 @@ var WRITE_CLAIMS = [
   /\bdone[,.!]/i
 ];
 var claimsWrite = (text) => WRITE_CLAIMS.some((re) => re.test(unquoted(text)));
+var INLINE = /\*\*(.+?)\*\*|__(.+?)__|(?<![\p{L}\p{N}*])\*(?!\s)(.+?)(?<!\s)\*(?![\p{L}\p{N}*])|(?<![\p{L}\p{N}_])_(?!\s)(.+?)(?<!\s)_(?![\p{L}\p{N}_])|\[([^\]\n]+)\]\([^)\s]*\)|`([^`\n]+)`/gu;
+function answerRuns(line) {
+  const out = [];
+  let at3 = 0;
+  const plain2 = (s) => {
+    if (s) out.push({ text: s });
+  };
+  for (const m of line.matchAll(INLINE)) {
+    plain2(line.slice(at3, m.index));
+    const [, b1, b2, i1, i2, link, code2] = m;
+    if (b1 ?? b2) out.push({ text: b1 ?? b2 ?? "", bold: true });
+    else if (i1 ?? i2) out.push({ text: i1 ?? i2 ?? "", italic: true });
+    else plain2(link ?? code2 ?? "");
+    at3 = (m.index ?? 0) + m[0].length;
+  }
+  plain2(line.slice(at3));
+  return out;
+}
+var LIST_LINE = /^(\s*)(?:([-*•])|(\d{1,2})[.)])\s+(.*)$/;
+var HEADING = /^#{1,6}\s+(.+?)\s*#*$/;
+var TABLE_LINE = /^\s*\|.*\|\s*$/;
+var TABLE_RULE = /^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$/;
+var NUMBER_CELL = /^[-+]?[$€£]?\d[\d,.\s]*(%|[kKmM]|\s?(?:min|h|s))?$/;
+var LIST_DEPTH = 3;
+var cells = (line) => line.trim().replace(/^\|/, "").replace(/\|$/, "").split(/(?<!\\)\|/).map((c) => c.replace(/\\\|/g, "|").trim());
+function listPointOf(line) {
+  const m = LIST_LINE.exec(line);
+  if (!m) return null;
+  const [, lead = "", , number2, words2 = ""] = m;
+  return { indent: lead.replace(/\t/g, "  ").length, ordered: !!number2, words: words2 };
+}
+function wordsListOf(lines) {
+  const root = { ordered: false, items: [] };
+  const stack = [];
+  for (const raw of lines) {
+    const point = listPointOf(raw);
+    if (!point) {
+      const last = stack.at(-1)?.list.items.at(-1);
+      if (last) last.runs.push({ text: " " }, ...answerRuns(raw.trim()));
+      continue;
+    }
+    const { indent, ordered } = point;
+    while ((stack.at(-1)?.indent ?? -1) > indent) stack.pop();
+    const top = stack.at(-1);
+    const parent = top?.list.items.at(-1);
+    let list2;
+    if (!top) {
+      list2 = root;
+      if (!root.items.length) root.ordered = ordered;
+      stack.push({ indent, list: list2 });
+    } else if (indent > top.indent && parent && stack.length < LIST_DEPTH) {
+      parent.sub = parent.sub ?? { ordered, items: [] };
+      list2 = parent.sub;
+      stack.push({ indent, list: list2 });
+    } else list2 = top.list;
+    list2.items.push({ runs: answerRuns(point.words), sub: null });
+  }
+  return root;
+}
+function tableOf(headLine, bodyLines) {
+  const head = cells(headLine);
+  const rows2 = bodyLines.map((line) => {
+    const r2 = cells(line);
+    return head.map((_, k) => answerRuns(r2[k] ?? ""));
+  });
+  const right = head.map((_, k) => rows2.length > 0 && rows2.every((r2) => NUMBER_CELL.test(runsText(r2[k] ?? []).trim())));
+  return { kind: "table", head: head.map(answerRuns), rows: rows2, right };
+}
+function answerBlocks(text) {
+  const lines = text.replace(/\r\n?/g, "\n").split("\n");
+  const at3 = (i) => lines[i] ?? "";
+  const blocks = [];
+  let para = [];
+  const endPara = () => {
+    if (para.length) blocks.push({ kind: "text", lines: para });
+    para = [];
+  };
+  for (let i = 0; i < lines.length; ) {
+    const line = at3(i);
+    const heading = HEADING.exec(line.trim())?.[1];
+    const first = listPointOf(line);
+    if (!line.trim()) {
+      endPara();
+      i++;
+    } else if (heading) {
+      endPara();
+      blocks.push({ kind: "heading", runs: answerRuns(heading) });
+      i++;
+    } else if (TABLE_LINE.test(line) && TABLE_RULE.test(at3(i + 1))) {
+      endPara();
+      const body = [];
+      for (i += 2; i < lines.length && TABLE_LINE.test(at3(i)); i++) body.push(at3(i));
+      blocks.push(tableOf(line, body));
+    } else if (first) {
+      endPara();
+      const otherKind = (p) => !!p && p.indent <= first.indent && p.ordered !== first.ordered;
+      const run = [];
+      for (; i < lines.length && at3(i).trim() && (LIST_LINE.test(at3(i)) || /^\s+\S/.test(at3(i))) && !(run.length && otherKind(listPointOf(at3(i)))); i++)
+        run.push(at3(i));
+      blocks.push({ kind: "list", list: wordsListOf(run) });
+    } else {
+      para.push(answerRuns(line.trim()));
+      i++;
+    }
+  }
+  endPara();
+  return blocks;
+}
+var opensWithBlock = (s) => /^\s*(?:#|[-*•]\s|\d{1,2}[.)]\s|\|)/.test(s);
+var runsText = (runs) => runs.map((r2) => r2.text).join("");
+function listPlain(l, depth, spoken) {
+  return l.items.flatMap((it, k) => {
+    const mark = l.ordered ? `${k + 1}. ` : spoken ? "" : "\u2022 ";
+    const pad = spoken ? "" : "  ".repeat(depth);
+    return [`${pad}${mark}${runsText(it.runs)}`, ...it.sub ? listPlain(it.sub, depth + 1, spoken) : []];
+  });
+}
+function answerPlain(text, spoken = false) {
+  const sep = spoken ? ", " : " \xB7 ";
+  return answerBlocks(text).flatMap((b) => {
+    if (b.kind === "text") return b.lines.map(runsText);
+    if (b.kind === "heading") return [runsText(b.runs)];
+    if (b.kind === "list") return listPlain(b.list, 0, spoken);
+    return [b.head.map(runsText).join(sep), ...b.rows.map((r2) => r2.map(runsText).join(sep))];
+  }).join("\n");
+}
+var NO_LIST = { style: "bullets", entries: [] };
+function listLines(l) {
+  return l.entries.map((e, i) => l.style === "numbers" ? `${i + 1}. ${e}` : l.style === "bullets" ? `\u2022 ${e}` : e);
+}
+function answerText(a) {
+  const own = a.form === "prose" || opensWithBlock(a.say.detail);
+  const say2 = [a.say.headline, a.say.detail].filter(Boolean).join(own ? "\n" : " ");
+  return answerPlain([say2, ...listLines(a.show.list ?? NO_LIST)].filter(Boolean).join("\n"));
+}
+function answerCopy(a) {
+  const b = a.show.breakdown;
+  return [
+    answerText(a),
+    ...b ? [`${b.total} ${b.label}: ${b.parts.map((p) => `${p.label} ${p.value}`).join(", ")}`] : [],
+    ...a.show.figures.map((f) => `${[f.value, f.label].filter(Boolean).join(" ")}${f.note ? ` (${f.note})` : ""}`),
+    ...a.show.items.map((it) => [it.title, it.meta, it.line].filter(Boolean).join(" \xB7 "))
+  ].filter(Boolean).join("\n");
+}
+var sentences = (lines) => lines.map((l) => l.trim()).filter(Boolean).map((l) => /[.!?…:;,]$/.test(l) ? l : `${l}.`).join(" ");
+function listSpoken(l) {
+  return sentences(l.entries.map((e, i) => l.style === "numbers" ? `${i + 1}. ${e}` : e));
+}
+function answerSpoken(a) {
+  const l = a.show.list ?? NO_LIST;
+  const said = sentences([a.say.headline, ...answerPlain(a.say.detail, true).split("\n")]);
+  return [said, listSpoken({ ...l, entries: l.entries.map((e) => answerPlain(e, true)) })].filter(Boolean).join(" ");
+}
 
 // src/journey/journey.ts
 var JOURNEY_STAGE_IDS = ["first_contact", "before", "after", "proposal", "quiet"];
@@ -21157,12 +21310,12 @@ function appLink(slug, route = "", query) {
 var ASK_LIST_STYLES = ["bullets", "numbers", "lines"];
 var ASK_ANSWER_CAPS = {
   headline: 160,
-  detail: 700,
+  detail: 3e3,
   figures: 4,
   items: 5,
   parts: 4,
-  entries: 15,
-  entry: 160,
+  entries: 25,
+  entry: 240,
   next: 2,
   value: 24,
   label: 60,
@@ -21170,7 +21323,9 @@ var ASK_ANSWER_CAPS = {
   title: 80,
   meta: 60,
   line: 160,
-  question: 90
+  question: 90,
+  /** A plan's words, which the server writes (decision 0055): what no card carries comes first, so a cut keeps it. */
+  plan: 700
 };
 var noList = () => ({ style: "bullets", entries: [] });
 function storedAnswer(a) {
@@ -21184,7 +21339,10 @@ var cutAt = (t, n) => {
 };
 var clip = (s, n) => cutAt((s ?? "").replace(/\s+/g, " ").trim(), n);
 var clipLines = (s, n) => cutAt(
-  (s ?? "").replace(/\r\n?/g, "\n").split("\n").map((l) => l.replace(/\s+/g, " ").trim()).join("\n").replace(/\n{3,}/g, "\n\n").trim(),
+  (s ?? "").replace(/\r\n?/g, "\n").split("\n").map((l) => {
+    const said = l.replace(/\s+/g, " ").trim();
+    return said ? `${/^\s*/.exec(l.replace(/\t/g, "  "))?.[0] ?? ""}${said}` : "";
+  }).join("\n").replace(/\n{3,}/g, "\n\n").trim(),
   n
 );
 var structured = (headline, language) => ({
@@ -21195,29 +21353,6 @@ var structured = (headline, language) => ({
   do: { open: null, next: [] },
   language
 });
-function listLines(l) {
-  return l.entries.map((e, i) => l.style === "numbers" ? `${i + 1}. ${e}` : l.style === "bullets" ? `\u2022 ${e}` : e);
-}
-function answerText(a) {
-  const say2 = [a.say.headline, a.say.detail].filter(Boolean).join(a.form === "prose" ? "\n" : " ");
-  return [say2, ...listLines(a.show.list ?? noList())].filter(Boolean).join("\n");
-}
-function answerCopy(a) {
-  const b = a.show.breakdown;
-  return [
-    answerText(a),
-    ...b ? [`${b.total} ${b.label}: ${b.parts.map((p) => `${p.label} ${p.value}`).join(", ")}`] : [],
-    ...a.show.figures.map((f) => `${[f.value, f.label].filter(Boolean).join(" ")}${f.note ? ` (${f.note})` : ""}`),
-    ...a.show.items.map((it) => [it.title, it.meta, it.line].filter(Boolean).join(" \xB7 "))
-  ].filter(Boolean).join("\n");
-}
-var sentences = (lines) => lines.map((l) => l.trim()).filter(Boolean).map((l) => /[.!?…:;,]$/.test(l) ? l : `${l}.`).join(" ");
-function listSpoken(l) {
-  return sentences(l.entries.map((e, i) => l.style === "numbers" ? `${i + 1}. ${e}` : e));
-}
-function answerSpoken(a) {
-  return [sentences([a.say.headline, ...a.say.detail.split("\n")]), listSpoken(a.show.list ?? noList())].filter(Boolean).join(" ");
-}
 function nextQuestions(next, places) {
   const out = [];
   for (const raw of next) {
@@ -21431,13 +21566,14 @@ var asArr = (v) => Array.isArray(v) ? v : [];
 var unbold = (s) => s.replace(/\*\*(.+?)\*\*|__(.+?)__/g, "$1$2");
 var drawnText = (v) => unbold(cleanAnswer(typeof v === "string" ? v : ""));
 var words = (v, n) => clip(drawnText(v), n);
-var entry = (v) => words(typeof v === "string" ? v.replace(/^\s*(?:[-*•·–]|\d{1,2}[.)])\s+/, "") : "", C.entry);
+var entry = (v) => clip(cleanAnswer(typeof v === "string" ? v.replace(/^\s*(?:[-*•·–]|\d{1,2}[.)])\s+/, "") : ""), C.entry);
 function sayAsDrawn(say2) {
   const [headline, more2] = firstSentence(drawnText(say2.headline).replace(/\s+/g, " ").trim());
-  const detail = drawnText(say2.detail);
+  const detail = cleanAnswer(typeof say2.detail === "string" ? say2.detail : "");
+  const apart = opensWithBlock(detail) ? "\n\n" : " ";
   return {
     headline: clip(headline, C.headline),
-    detail: clipLines(more2 && detail ? `${more2} ${detail}` : more2 || detail, C.detail)
+    detail: clipLines(more2 && detail ? `${more2}${apart}${detail}` : more2 || detail, C.detail)
   };
 }
 var num = (v) => typeof v === "number" && Number.isFinite(v) ? v : Number.NaN;
@@ -21556,7 +21692,7 @@ function answerForCards(cards, language, words2, lead) {
   );
   a.say.detail = clip(
     plan.detail ?? (n === 1 ? es ? "Apru\xE9bala, c\xE1mbiala o desc\xE1rtala: nada pasa hasta que lo hagas." : "Approve it, change it or dismiss it: nothing happens until you do." : es ? "Cada una se aprueba por separado: apru\xE9bala, c\xE1mbiala o desc\xE1rtala; nada pasa hasta que lo hagas." : "Each is its own press: approve, change or dismiss each one; nothing happens until you do."),
-    ASK_ANSWER_CAPS.detail
+    ASK_ANSWER_CAPS.plan
   );
   if (lead) {
     a.do.open = { ...lead.open, now: false };
@@ -21617,11 +21753,11 @@ var ASK_ANSWER_FORMAT = {
       properties: {
         headline: {
           type: "string",
-          description: `The answer itself in one sentence, the finding first and never a preamble; under 20 words and at most ${ASK_ANSWER_CAPS.headline} characters.`
+          description: `The answer itself in one short plain sentence, the finding first and never a preamble; at most ${ASK_ANSWER_CAPS.headline} characters.`
         },
         detail: {
           type: "string",
-          description: `Only what the headline needs, in sentences: empty when the headline is enough; at most two short sentences, or five when they asked why, how, for a summary or for detail, or the length they asked for; a list goes in show.list, never here; at most ${ASK_ANSWER_CAPS.detail} characters.`
+          description: `The body under the headline, as long as the question needs and no longer: empty when the headline says it whole, a sentence or two for a reason or a condition, more for why, how, a comparison, steps or a plan. Markdown where it helps the reader: **bold** for the number or name that matters, a short ### heading over each part of a long answer, - bullets and 1. numbered steps (two spaces nest a point under another), and a table (a header row, its |---| rule, then its rows) for rows compared on the same columns. No links and no HTML: a place to open is an item or Open. At most ${ASK_ANSWER_CAPS.detail} characters.`
         }
       },
       required: ["headline", "detail"],
@@ -21698,7 +21834,7 @@ var ASK_ANSWER_FORMAT = {
         },
         list: {
           type: "object",
-          description: "What they asked to see as a list (bullets, numbered, steps, one per line), and steps to follow: points in words, never the rows items hold; entries empty when nothing is a list.",
+          description: "A flat list of points when the answer is one (bullets, numbered, steps, one per line): points in words, never the rows items hold; entries empty when nothing is a list. A list nested under headings, or set beside a table, goes in say.detail instead.",
           properties: {
             style: {
               type: "string",
@@ -21707,7 +21843,7 @@ var ASK_ANSWER_FORMAT = {
             },
             entries: {
               type: "array",
-              description: `At most ${ASK_ANSWER_CAPS.entries}, each one point of at most ${ASK_ANSWER_CAPS.entry} characters, with no bullet or number of its own: the page draws them.`,
+              description: `At most ${ASK_ANSWER_CAPS.entries}, each one point of at most ${ASK_ANSWER_CAPS.entry} characters, with no bullet or number of its own (the page draws them); **bold** where a word matters.`,
               items: { type: "string" }
             }
           },
@@ -21843,8 +21979,9 @@ var ASK_STOPPED_WORDS = {
 };
 function stoppedAnswer(said, language) {
   const a = failedAnswer(ASK_STOPPED_WORDS[language === "es" ? "es" : "en"], language);
-  const so = [said?.headline, said?.detail].filter(Boolean).join(" ");
-  return { ...a, say: { ...a.say, detail: clip(so, ASK_ANSWER_CAPS.detail) } };
+  const own = opensWithBlock(said?.detail ?? "");
+  const so = [said?.headline, said?.detail].filter(Boolean).join(own ? "\n" : " ");
+  return { ...a, say: { ...a.say, detail: clipLines(so, ASK_ANSWER_CAPS.detail) } };
 }
 
 // src/conversations/call-dto.ts
@@ -26003,11 +26140,11 @@ function leadImportColumns(rows2) {
 }
 var leadImportReady = (r2) => !!r2.name && !!r2.email;
 function leadImportPlanOf(text) {
-  const cells = parseCsv(text || "");
-  const { columns, header } = leadImportColumns(cells);
+  const cells2 = parseCsv(text || "");
+  const { columns, header } = leadImportColumns(cells2);
   const cell = (r2, i) => i === null ? "" : (r2[i] ?? "").trim();
   const words2 = (v, max) => Array.from(v.replace(/\s+/g, " ")).slice(0, max).join("").trim() || null;
-  const rows2 = (header ? cells.slice(1) : cells).map((r2, n) => {
+  const rows2 = (header ? cells2.slice(1) : cells2).map((r2, n) => {
     const carried = r2.line;
     return {
       line: carried ?? n + (header ? 2 : 1),
@@ -26023,7 +26160,7 @@ function leadImportPlanOf(text) {
   return {
     columns,
     header,
-    headers: header ? cells[0] ?? [] : [],
+    headers: header ? cells2[0] ?? [] : [],
     rows: rows2,
     counts: {
       rows: rows2.length,
@@ -49919,9 +50056,12 @@ export {
   allowedPrices,
   amountTotalsWords,
   amountWords,
+  answerBlocks,
   answerCopy,
   answerForCards,
   answerFromV1,
+  answerPlain,
+  answerRuns,
   answerSaidOf,
   answerSoFar,
   answerSpoken,
