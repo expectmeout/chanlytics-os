@@ -17734,25 +17734,25 @@ function leadAddresseeOf(l) {
 }
 var LEAD_COMPANY_WORDS = {
   head: (n) => n === 1 ? "Named at this company" : `Named at this company \xB7 ${n}`,
-  writesTo: "Your reach-out writes to them",
+  writesTo: "Your sequence writes to them",
   size: (s) => `${s} people`,
   profile: "Profile"
 };
 var LEAD_ADDRESSEE_WORDS = {
   door: "Write to them instead",
   /** What a role that may not is told it cannot do here (gateTitle). */
-  gated: "choose who a reach-out writes to",
+  gated: "choose who a sequence writes to",
   choosing: "Choosing\u2026",
   /** Chosen: whom the business's reach-out writes to now, and whether their address is checked first or was already. */
-  done: (name, business, checking) => checking ? `${business}'s reach-out writes to ${name} now. Their address is being checked first, which takes a few minutes.` : `${business}'s reach-out writes to ${name} now. Their address was checked already.`,
+  done: (name, business, checking) => checking ? `Your sequence writes to ${name} at ${business} now. Their address is being checked first, which takes a few minutes.` : `Your sequence writes to ${name} at ${business} now. Their address was checked already.`,
   refused: {
     gone: "This lead is gone.",
     not_a_company: "Only a company has people to choose from.",
     no_person: "They are no longer named at this company. Reload and try again.",
-    already: "Its reach-out writes to them already.",
+    already: "Its sequence writes to them already.",
     closed: "This lead is closed, or already one of your people: who it writes to stays.",
     written: "It was written to already: who it writes to stays.",
-    in_reach_out: "A reach-out has already planned or sent its email: who it writes to stays.",
+    in_reach_out: "A sequence has already planned or sent its email: who it writes to stays.",
     checking: "Its address is being checked. Choose once the check is done.",
     no_address: "They have no work address to write to.",
     suppressed: "Their address is on the never-again list.",
@@ -17856,6 +17856,17 @@ function reachOutEmailOf(words2, lead, workspace, opening2 = null) {
   if (texts.some((t) => slotHoles(REACH_OUT_SLOT_SET, t, values))) return { ok: false, reason: "missing_value" };
   const email = renderOwnVersion("email", words2, values, REACH_OUT_LANGUAGE, REACH_OUT_SLOT_SET);
   return { ok: true, subject: words2.subject === null ? null : email.subject, body: email.body };
+}
+var REACH_OUT_OPENING_MARK = "\uE000";
+function reachOutCardEmailOf(words2, lead, workspace) {
+  const values = reachOutValues(lead, workspace, REACH_OUT_OPENING_MARK);
+  const texts = words2.subject === null ? [words2.body] : [words2.subject, words2.body];
+  const written = [...new Set(texts.flatMap((t) => slotsWritten(REACH_OUT_SLOT_SET, t).keys))];
+  const holes = written.filter((k) => (slotValueOf(REACH_OUT_SLOT_SET, k, values) ?? null) === null);
+  const named = leadAddresseeOf(lead)?.first_name;
+  const fellBack = !named && written.includes("first name") ? ["first name"] : [];
+  const email = renderOwnVersion("email", words2, values, REACH_OUT_LANGUAGE, REACH_OUT_SLOT_SET);
+  return { subject: words2.subject === null ? null : email.subject, body: email.body, holes, fellBack };
 }
 var EXAMPLE_LEAD = {
   business_name: "Lakeside Bakery",
@@ -25697,7 +25708,7 @@ var LEAD_IMPORT_WORDS = {
    */
   importLine: "A name and an email on each row.",
   importMore: "What a row can hold",
-  importRest: "A phone, a website, a city or a state, where you have them. Every address is checked before a reach-out may write to it.",
+  importRest: "A phone, a website, a city or a state, where you have them. Every address is checked before a sequence may write to it.",
   file: "Choose a CSV file",
   paste: "Or paste the rows",
   pastePlaceholder: "Business,Email,Website,City,State\nZilker Kettlebell Club,hello@example.com,example.com,Austin,TX",
@@ -25712,7 +25723,7 @@ var LEAD_IMPORT_WORDS = {
   nothing: "No row has both a business name and an email address, so there is nothing to import.",
   failed: "The list could not be imported. Nothing was written.",
   write: "Write to them",
-  writeHint: "The chosen leads become a list of their own, and the reach-out's sheet opens on it.",
+  writeHint: "The chosen leads become a list of their own, and a sequence opens on it.",
   writing: "Making the list\u2026",
   searchAgain: "A list of your own is not searched again. Start a new search to find more businesses."
 };
@@ -26230,15 +26241,15 @@ var REACH_OUT_SAID_WORDS = {
     switch (intent) {
       case "interested":
       case "question":
-        return `${business} is Talking now, and your reach-out stops for them.`;
+        return `${business} is Talking now, and your sequence stops for them.`;
       case "not_now": {
         const at3 = back.at ? Date.parse(back.at) : NaN;
-        return Number.isFinite(at3) ? `Your reach-out stops for ${business}. They're back in Leads on ${clockDate(at3, back.tz, back.nowMs)}.` : `Your reach-out stops for ${business}. They come back in Leads later.`;
+        return Number.isFinite(at3) ? `Your sequence stops for ${business}. They're back in Leads on ${clockDate(at3, back.tz, back.nowMs)}.` : `Your sequence stops for ${business}. They come back in Leads later.`;
       }
       case "no":
         return `${business} said no: nothing more will be written to them.`;
       case "wrong_person":
-        return referTo ? `Your reach-out stops for ${business}. A step to write to ${referTo} is on Today.` : `Your reach-out stops for ${business}. A step to find who to write to instead is on Today.`;
+        return referTo ? `Your sequence stops for ${business}. A step to write to ${referTo} is on Today.` : `Your sequence stops for ${business}. A step to find who to write to instead is on Today.`;
     }
   },
   /** The note the owner's word is on the person's thread, in their own words. */
@@ -26250,7 +26261,7 @@ var REACH_OUT_SAID_WORDS = {
 var REACH_OUT_STOP_WORDS = {
   door: "Stop writing to them",
   ask: (business) => `Stop writing to ${business}?`,
-  detail: "No reach-out writes to them again: an email not yet with the mail provider is held back too. They stay in your leads, and you can still write to them yourself from the Inbox.",
+  detail: "No sequence writes to them again: an email not yet with the mail provider is held back too. They stay in your leads, and you can still write to them yourself from the Inbox.",
   yes: "Stop writing",
   done: (business) => `Stopped: nothing more will be written to ${business}`,
   already: (business) => `${business} was already stopped`,
@@ -26274,9 +26285,9 @@ var intentWords = (intent) => isReplyIntent(intent) ? REPLY_INTENT_WORDS[intent]
 var personAnswered = (r2) => !!r2 && !r2.undone && r2.claim !== "auto_reply";
 function writtenWords(l, tz, nowMs) {
   const parts2 = [`Written ${near2(l.first_sent_at, tz, nowMs)}`];
-  if (l.sent > 1) parts2.push(`nudged ${near2(l.last_sent_at, tz, nowMs)}`);
-  if (l.held) parts2.push("a nudge waits for your say");
-  else if ((l.drafted ?? 0) > 0) parts2.push("a nudge is handed to you to send");
+  if (l.sent > 1) parts2.push(`followed up ${near2(l.last_sent_at, tz, nowMs)}`);
+  if (l.held) parts2.push("a follow-up waits for your OK");
+  else if ((l.drafted ?? 0) > 0) parts2.push("a follow-up is handed to you to send");
   else if (l.next_at) parts2.push(`next ${near2(l.next_at, tz, nowMs)}`);
   return parts2.join(" \xB7 ");
 }
@@ -26304,7 +26315,7 @@ function reachOutLineOf(l, nowMs, tz) {
   if (l.sent > 0 && away !== null && away > nowMs)
     return `Written ${near2(l.first_sent_at, tz, nowMs)} \xB7 away until ${clockDate(away, tz, nowMs)}`;
   if (l.sent > 0) return writtenWords(l, tz, nowMs);
-  if (l.held) return "Held for your say";
+  if (l.held) return "Held for your OK";
   if ((l.drafted ?? 0) > 0) return "Drafted for you \xB7 to send from your inbox";
   const next = at2(l.next_at);
   if (next !== null) return capitalize(clockNearWhen(next, tz, nowMs));
@@ -26323,7 +26334,7 @@ function reachOutStripOf(s, chain, nowMs, tz) {
     parts2.push(`next ${when}${s.next.business ? `, ${s.next.business}` : ""}`);
     if (s.next.from || s.next.host) parts2.push(`from ${s.next.from ?? s.next.host}`);
   } else parts2.push("nothing more planned yet");
-  if (s.held > 0) parts2.push(`${s.held} held for your say`);
+  if (s.held > 0) parts2.push(`${s.held} held for your OK`);
   if ((s.to_send ?? 0) > 0) parts2.push(`${s.to_send} to send from your inbox`);
   return {
     title: running ? `Writing to ${plural(s.written_to, "business", "businesses")}` : `Paused \xB7 ${plural(s.written_to, "business", "businesses")} written to`,
@@ -26332,7 +26343,7 @@ function reachOutStripOf(s, chain, nowMs, tz) {
     progress: share2 > 0 ? Math.min(1, s.today / share2) : null,
     going: { label: "How it's going", to: `outbound/${s.chain.root_id}` },
     toggle: running ? { label: "Pause", pause: true } : { label: "Resume", pause: false },
-    waiting: s.waiting_run_id ? { label: "A run waits for you", to: `broadcasts/run:${s.waiting_run_id}` } : null
+    waiting: s.waiting_run_id ? { label: "Waits for your OK", to: `broadcasts/run:${s.waiting_run_id}` } : null
   };
 }
 function emailWords(s) {
@@ -26342,7 +26353,7 @@ function emailWords(s) {
   return "sent";
 }
 var skippedWords = (reason) => reason === "run_canceled" || reason === "owner_took_back" ? null : skippedReasonWords(reason ?? "");
-var stepName = (n, hand) => n === null ? "A step since removed" : stepLabelOf({ n, hand: hand ? { kind: hand } : null });
+var stepName = (n, hand) => n === null ? "A step since removed" : hand ? stepLabelOf({ n, hand: { kind: hand } }) : `Email ${n + 1}`;
 function sendLine(s, tz, nowMs) {
   const name = stepName(s.n, s.hand);
   const t = at2(s.sent_at) ?? at2(s.send_at);
@@ -26360,7 +26371,7 @@ function sendLine(s, tz, nowMs) {
   }
   if (s.state === "handed") return line(`${name} \xB7 handed to you`);
   if (s.state === "drafted") return line(`${name} \xB7 handed to you to send`);
-  if (s.state === "held") return line(`${name} \xB7 waits for your say`);
+  if (s.state === "held") return line(`${name} \xB7 waits for your OK`);
   if (s.state === "planned" || s.state === "claimed" || s.state === "queued") return line(`${name} \xB7 planned`);
   if (s.state === "failed") return line(`${name} \xB7 could not be sent`);
   const why = skippedWords(s.reason);
@@ -26386,7 +26397,7 @@ function reachOutTimelineOf(t, nowMs, tz) {
   const ownerSent = t.sends.some((s) => s.left && s.said === true);
   const answered = t.readings.some((r2) => !r2.undone && r2.claim !== "auto_reply");
   return {
-    label: `Reach out \xB7 ${t.chain?.name ?? t.search?.name ?? "a reach-out"}`,
+    label: `Sequence \xB7 ${t.chain?.name ?? t.search?.name ?? "a sequence"}`,
     lines,
     stopped: stopped !== null ? `You stopped writing to them ${clockNear(stopped, tz, nowMs)}` : null,
     read: t.conversation_id ? { label: "Read what went out", to: `inbox/th-${t.conversation_id}` } : null,
@@ -26399,9 +26410,9 @@ function reachOutTimelineOf(t, nowMs, tz) {
 function readingEffect(r2) {
   if (r2.undone) return "undone";
   if (r2.said_no) return "nothing more will be written";
-  if (r2.convert) return "the chain stopped \xB7 Talking";
-  if (r2.stops) return "the chain stopped";
-  if (r2.claim === "auto_reply" && r2.intent === "away" && r2.until_at) return "the chain waits";
+  if (r2.convert) return "the sequence stopped \xB7 Talking";
+  if (r2.stops) return "the sequence stopped";
+  if (r2.claim === "auto_reply" && r2.intent === "away" && r2.until_at) return "the sequence waits";
   return "nothing changed";
 }
 var stageWords = (stage) => stage in LEAD_STAGE_WORDS ? LEAD_STAGE_WORDS[stage] : stage;
@@ -26415,7 +26426,7 @@ function reachOutPersonOf(t, nowMs, tz) {
     if (s.from || s.host) parts2.push(`from ${s.from ?? s.host}`);
     else if (s.said) parts2.push("from your inbox");
     parts2.push(emailWords(s));
-    emails.set(s.message_id, { who: chain ? `Reach out \xB7 ${chain}` : "Your reach-out", sub: parts2.join(" \xB7 ") });
+    emails.set(s.message_id, { who: chain ? `Sequence \xB7 ${chain}` : "Your sequence", sub: parts2.join(" \xB7 ") });
   }
   const readings = /* @__PURE__ */ new Map();
   for (const r2 of t.readings)
@@ -26443,16 +26454,16 @@ var standing = (words2, tone, stop) => ({
   stop
 });
 function reachOutWhenOf(c, nowMs, tz) {
-  if (c.waiting_run_id) return "a run waits for your say";
+  if (c.waiting_run_id) return "waits for your OK";
   if (c.state !== "running") return "nothing goes while it is paused";
   const hour = c.run_hour ?? PLAYBOOK_HOURS.min;
   const now = new Date(nowMs);
   const h = localHour(tz, now);
-  const say2 = c.fed_by === "list" ? ", after your say" : "";
+  const say2 = c.fed_by === "list" ? ", after your OK" : "";
   if (c.last_run_for === localDate(tz, now) || h > PLAYBOOK_HOURS.max)
-    return `goes with tomorrow's ${clockHour(hour)} run${say2}`;
-  if (h < hour) return `goes with today's ${clockHour(hour)} run${say2}`;
-  return `goes with the next run, within the hour${say2}`;
+    return `goes tomorrow from ${clockHour(hour)}${say2}`;
+  if (h < hour) return `goes today from ${clockHour(hour)}${say2}`;
+  return `goes within the hour${say2}`;
 }
 function answerStanding(r2, tz, nowMs, resume) {
   if (r2.said_no || r2.intent === "no")
@@ -26460,7 +26471,7 @@ function answerStanding(r2, tz, nowMs, resume) {
   if (r2.intent === "not_now" && resume !== null && resume <= nowMs)
     return standing(`asked to hear from you ${askedDayOf(resume, tz, nowMs)} \xB7 write to them yourself`, "warn", false);
   const what = `wrote back ${near2(r2.read_at, tz, nowMs)} \xB7 ${intentWords(r2.intent)}`;
-  return standing(r2.stops || r2.convert ? `${what} \xB7 the reach-out stopped` : what, "good", false);
+  return standing(r2.stops || r2.convert ? `${what} \xB7 the sequence stopped` : what, "good", false);
 }
 var nextPlanned = (t) => {
   const times = t.sends.filter((s) => s.state === "planned").map((s) => at2(s.send_at)).filter((x) => x !== null);
@@ -26473,7 +26484,7 @@ function writtenStanding(t, tz, nowMs) {
   const drafted2 = t.sends.some((s) => s.state === "drafted");
   const planned = nextPlanned(t);
   if (left.length === 0) {
-    if (held) return standing("email 1 waits for your say", "warn", false);
+    if (held) return standing("email 1 waits for your OK", "warn", false);
     if (drafted2) return standing("email 1 is handed to you to send", "warn", false);
     if (planned !== null) return standing(`email 1 goes ${clockNearWhen(planned, tz, nowMs)}`, "plain", false);
     return null;
@@ -26481,7 +26492,7 @@ function writtenStanding(t, tz, nowMs) {
   const last = left.at(-1);
   const k = (last?.n ?? 0) + 1;
   const parts2 = [`${steps >= k ? `email ${k} of ${steps} sent` : "written"} ${near2(last?.sent_at ?? null, tz, nowMs)}`];
-  if (held) parts2.push("the next waits for your say");
+  if (held) parts2.push("the next waits for your OK");
   else if (drafted2) parts2.push("the next is handed to you to send");
   else if (planned !== null) parts2.push(`next ${clockNearWhen(planned, tz, nowMs)}`);
   else if (steps > k) parts2.push("the next if nothing comes back");
@@ -26507,7 +26518,7 @@ function reachOutStandingOf(t, nowMs, tz) {
   const away = t.readings.find((r2) => !r2.undone && r2.intent === "away" && at2(r2.until_at) !== null);
   const back = away ? at2(away.until_at) : null;
   if (back !== null && back > nowMs)
-    return standing(`away until ${clockDate(back, tz, nowMs)} \xB7 the reach-out waits`, "plain", t.can_stop);
+    return standing(`away until ${clockDate(back, tz, nowMs)} \xB7 the sequence waits`, "plain", t.can_stop);
   const written = writtenStanding(t, tz, nowMs);
   if (written) return written;
   const added = t.added_at ? `added ${near2(t.added_at, tz, nowMs)} \xB7 ` : "";
@@ -26544,12 +26555,12 @@ var REACH_OUT_WHY_NOT_WORDS = {
   unchecked: "with an address not checked yet",
   already: "already on it",
   not_counted: "still in Needs review",
-  elsewhere: "with another reach-out"
+  elsewhere: "in another sequence"
 };
 var REACH_OUT_ADD_WORDS = {
-  listGone: "That reach-out's list was removed, so nothing can be added to it.",
-  fedBySearch: "That reach-out writes to its search's leads as they're found, so leads aren't added to it by hand.",
-  door: "Add to its reach-out",
+  listGone: "That sequence's list was removed, so nothing can be added to it.",
+  fedBySearch: "That sequence writes to its search's leads as they're found, so leads aren't added to it by hand.",
+  door: "Add to its sequence",
   takenBack: (n) => `Took ${plural(n, "lead", "leads")} back off the list`,
   onItsWay: "Its email is already on its way, so it stays. Stop writing to them instead.",
   sent: "Its email was already sent, so it stays. Stop writing to them instead.",
@@ -26592,14 +26603,14 @@ function reachOutCameWords(p) {
 var REACH_OUT_SOURCE_WORDS = {
   addTitle: "Leads you add",
   addSub: "Pick them on Leads, one at a time or from the table, then write to them",
-  failed: "the searches and lists a reach-out could start from",
-  none: "Every search and list with someone to write to has its reach-out. Find more businesses on Leads.",
+  failed: "the searches and lists a sequence could start from",
+  none: "Every search and list with someone to write to has its sequence. Find more businesses on Leads.",
   find: "Find businesses"
 };
 function reachOutSourceOf(s) {
   const include = s.ready === 0;
   const reach = include ? `${s.with_unconfirmed} unconfirmed` : `${s.ready} ready`;
-  const what = s.via === "chosen" ? "A list you made on the Leads table" : s.via === "import" ? "A list you imported" : "A search with no reach-out yet";
+  const what = s.via === "chosen" ? "A list you made on the Leads table" : s.via === "import" ? "A list you imported" : "A search with no sequence yet";
   return { title: `${s.name} \xB7 ${reach}`, sub: what, include };
 }
 var reachOutPeopleRoute = (rootId) => `${addressOf({ kind: "reach_out", id: rootId })}:people`;
@@ -32322,6 +32333,164 @@ function journeyGuide(input) {
   ];
 }
 
+// src/leads/lead-card.ts
+var LEAD_CARD_WORDS = {
+  emailOf: (k, of) => of > 1 ? `Email ${k} of ${of}` : "Email 1",
+  fromInbox: "from your own inbox",
+  fromBoxes: "from your mailboxes",
+  to: "To",
+  subject: "Subject",
+  opening: "A line about them, written when its batch is planned. You read it before it goes.",
+  greets: (fallback) => `Nobody is named here, so it greets them as \u201C${fallback}\u201D.`,
+  noAddress: "No address to write to, so Add is off. Their phone is on Reach.",
+  badAddress: "Their address bounced, so Add is off.",
+  holes: (labels) => `Its words need ${labels.join(" and ")}, which this lead doesn't have, so Add is off. Change the words in the sequence.`,
+  firstPile: "You write their email once, when you write to them all at the end.",
+  after: (days) => `${days ?? "?"} days after, if nothing comes back`,
+  emailsTitle: "What they would get",
+  noEmails: "This sequence has no email to show yet."
+};
+var LEAD_CARD_TABS = [
+  { id: "why", label: "Why" },
+  { id: "reach", label: "Reach" },
+  { id: "emails", label: "Emails" },
+  { id: "about", label: "About" },
+  { id: "activity", label: "Activity" }
+];
+var LEAD_SHEET_WORDS = {
+  tabs: "About this lead",
+  raise: "Show everything about them",
+  lower: "Back to the card"
+};
+var slotLabel = (key) => {
+  const at3 = REACH_OUT_SLOT_SET.keys.indexOf(key);
+  return (REACH_OUT_SLOT_SET.labels[at3] || key).toLowerCase();
+};
+function gapsOf(text) {
+  const parts2 = [];
+  let from = 0;
+  for (const m of slotMentions(REACH_OUT_SLOT_SET, text)) {
+    if (m.index > from) parts2.push({ kind: "text", text: text.slice(from, m.index) });
+    parts2.push({ kind: "gap", label: slotLabel(m.key) });
+    from = m.index + m.written.length;
+  }
+  if (from < text.length) parts2.push({ kind: "text", text: text.slice(from) });
+  return parts2;
+}
+function leadCardPartsOf(text) {
+  const pieces = text.split(REACH_OUT_OPENING_MARK);
+  return pieces.flatMap((piece, i) => {
+    const words2 = piece.replace(i > 0 ? /^\n+/ : /^/, "").replace(i < pieces.length - 1 ? /\n+$/ : /$/, "");
+    return [...i > 0 ? [{ kind: "opening" }] : [], ...words2 ? gapsOf(words2) : []];
+  });
+}
+var signedAs = (chain, w) => ({ ...w, yourName: chain.signed_by });
+var emailSteps = (chain) => chain.steps.filter((s) => !s.hand).sort((a, b) => a.n - b.n);
+function fromWords(chain) {
+  if (chain.owner_sends) return LEAD_CARD_WORDS.fromInbox;
+  const one = chainPaceOf(chain).from;
+  if (one) return `from ${one}`;
+  return chain.mailboxes.length > 1 ? LEAD_CARD_WORDS.fromBoxes : null;
+}
+function blockedOf(lead, holes) {
+  if (!lead.to || lead.emailState === "none") return LEAD_CARD_WORDS.noAddress;
+  if (lead.emailState === "invalid") return LEAD_CARD_WORDS.badAddress;
+  return holes.length ? LEAD_CARD_WORDS.holes(holes.map(slotLabel)) : null;
+}
+function leadCardEmailOf(p) {
+  const steps = emailSteps(p.chain);
+  const first = steps[0];
+  if (!first) return null;
+  const email = reachOutCardEmailOf(
+    { subject: first.subject ?? "", body: first.body },
+    p.lead,
+    signedAs(p.chain, p.workspace)
+  );
+  const from = fromWords(p.chain);
+  const when = reachOutWhenOf(
+    {
+      root_id: p.chain.root_id,
+      name: p.chain.name,
+      state: p.chain.state,
+      fed_by: p.chain.fed_by,
+      run_hour: p.chain.next.run_hour,
+      last_run_for: p.chain.next.last_run_for,
+      waiting_run_id: p.chain.next.waiting_run_id
+    },
+    p.nowMs,
+    p.tz
+  );
+  return {
+    head: [LEAD_CARD_WORDS.emailOf(1, steps.length), from].filter(Boolean).join(" \xB7 "),
+    to: p.lead.to,
+    subject: email.subject === null ? null : leadCardPartsOf(email.subject),
+    body: leadCardPartsOf(email.body),
+    when: capitalize(when),
+    note: email.fellBack.includes("first name") ? LEAD_CARD_WORDS.greets("there") : null,
+    blocked: blockedOf(p.lead, email.holes)
+  };
+}
+function leadCardStepsOf(p) {
+  const w = signedAs(p.chain, p.workspace);
+  return emailSteps(p.chain).map((s, i) => {
+    const email = reachOutCardEmailOf({ subject: i === 0 ? s.subject ?? "" : null, body: s.body }, p.lead, w);
+    return {
+      id: s.id,
+      label: `Email ${i + 1}`,
+      after: i === 0 ? null : LEAD_CARD_WORDS.after(s.after_days),
+      subject: email.subject === null ? null : leadCardPartsOf(email.subject),
+      body: leadCardPartsOf(email.body),
+      gap: email.holes.length > 0
+    };
+  });
+}
+var LEAD_CARD_REASON_WORDS = {
+  lowShare: (share2) => `${capitalize(share2)} of its reviews are 1 or 2 stars`,
+  unclaimed: "nobody has claimed its listing",
+  both: (low) => `${low}, and nobody has claimed its listing.`,
+  fromListing: "Seen on its listing: the spread of its reviews and its claim mark.",
+  fromJudge: "Claude's reading of its listing and its website. A reading, not a fact on the page.",
+  fromCompany: "What its source says of the company."
+};
+function leadCardReasonOf(vm) {
+  const low = vm.rated?.low ?? null;
+  const share2 = low ? low.replace(/\s*at 1.2 stars?$/i, "").trim() : null;
+  const unclaimed = !!vm.claimedNote && !vm.company;
+  if (share2 && unclaimed)
+    return {
+      text: LEAD_CARD_REASON_WORDS.both(LEAD_CARD_REASON_WORDS.lowShare(share2)),
+      from: LEAD_CARD_REASON_WORDS.fromListing,
+      how: "seen"
+    };
+  if (share2)
+    return {
+      text: `${LEAD_CARD_REASON_WORDS.lowShare(share2)}.`,
+      from: LEAD_CARD_REASON_WORDS.fromListing,
+      how: "seen"
+    };
+  if (unclaimed)
+    return {
+      text: `${capitalize(LEAD_CARD_REASON_WORDS.unclaimed)}.`,
+      from: LEAD_CARD_REASON_WORDS.fromListing,
+      how: "seen"
+    };
+  const sentence2 = vm.fit.sentence.trim();
+  if (!sentence2) return null;
+  return {
+    text: sentence2,
+    from: vm.company ? LEAD_CARD_REASON_WORDS.fromCompany : LEAD_CARD_REASON_WORDS.fromJudge,
+    how: vm.company ? "seen" : "read"
+  };
+}
+var LEAD_CARD_MARKS_MAX = 4;
+function leadCardMarksOf(vm) {
+  const all = vm.groups.flatMap(
+    (g) => g.checks.filter((c) => c.answer !== "no").map((c) => ({ key: c.key, label: c.label, how: g.how, answer: c.answer, from: c.source }))
+  );
+  const rank = (m) => m.answer === "unknown" ? 0 : m.how === "seen" ? 1 : 2;
+  return all.sort((a, b) => rank(a) - rank(b)).slice(0, LEAD_CARD_MARKS_MAX);
+}
+
 // src/leads/lead-ideas.ts
 var LEAD_IDEAS_MAX = 4;
 var LEAD_SUGGEST_RETRY_MS = 10 * MIN_MS;
@@ -32813,7 +32982,7 @@ function ideaAreaPhrase(label) {
 // src/leads/lead-pile.ts
 var LEAD_PILE_WORDS = {
   start: "Go through them",
-  startTip: "One lead at a time: add it to a reach-out, put it off, or say it isn't a fit.",
+  startTip: "One lead at a time: add it to a sequence, put it off, or say it isn't a fit.",
   head: (search) => `Going through \u201C${search}\u201D`,
   target: "Adds go to",
   newList: "A new list",
@@ -32825,7 +32994,6 @@ var LEAD_PILE_WORDS = {
   hold: "Add to a new list",
   held: (n) => `${plural(n, "lead", "leads")} for a new list`,
   writeHeld: (n) => `Write to the ${n}`,
-  details: "Details",
   leave: "Done for now",
   end: "That's the pile",
   endSub: (later) => later > 0 ? `${plural(later, "lead", "leads")} put off for later. Go through them now?` : "Every lead here is decided.",
@@ -45378,7 +45546,7 @@ function eraseSlot(text, start, end, way, set = { kind: "numbered" }) {
   return null;
 }
 var slotKnown = (set, slot) => set.keys.includes(String(slot));
-function slotLabel(set, slot) {
+function slotLabel2(set, slot) {
   const key = String(slot);
   const own = set.labels[set.keys.indexOf(key)]?.trim();
   return own || (set.kind === "numbered" ? `Value ${key}` : key);
@@ -45389,8 +45557,8 @@ function namesJoined(names3) {
 function namedRefusal(text, set) {
   const extra = slotOutside(set, text);
   if (extra === null) return null;
-  const name = slotLabel(set, extra);
-  return set.keys.length === 0 ? `This message fills no values, so ${name} has nothing to take.` : `${name} is not one of this message's values: it has ${namesJoined(set.keys.map((k) => slotLabel(set, k)))}.`;
+  const name = slotLabel2(set, extra);
+  return set.keys.length === 0 ? `This message fills no values, so ${name} has nothing to take.` : `${name} is not one of this message's values: it has ${namesJoined(set.keys.map((k) => slotLabel2(set, k)))}.`;
 }
 function namedProblem(check, words2, set) {
   if (check.ok) return null;
@@ -48561,6 +48729,9 @@ export {
   LEAD_CALL_OUTCOME_WORDS,
   LEAD_CALL_QUESTION,
   LEAD_CARDS,
+  LEAD_CARD_MARKS_MAX,
+  LEAD_CARD_TABS,
+  LEAD_CARD_WORDS,
   LEAD_CHECK_CENTS_EACH,
   LEAD_CHECK_KEYS,
   LEAD_CHECK_UNSURE,
@@ -48647,6 +48818,7 @@ export {
   LEAD_RUN_STATES,
   LEAD_SEARCH_VIAS,
   LEAD_SENT_QUESTION,
+  LEAD_SHEET_WORDS,
   LEAD_SLOT_WORDS,
   LEAD_SORTS,
   LEAD_SOURCES,
@@ -49960,6 +50132,11 @@ export {
   leadAreaFrom,
   leadAskedFor,
   leadBand,
+  leadCardEmailOf,
+  leadCardMarksOf,
+  leadCardPartsOf,
+  leadCardReasonOf,
+  leadCardStepsOf,
   leadCheckAgainCents,
   leadCheckWord,
   leadChooseAnswerWords,
@@ -50766,7 +50943,7 @@ export {
   slotChoices,
   slotCount,
   slotKnown,
-  slotLabel,
+  slotLabel2 as slotLabel,
   slotLabels,
   slotLong,
   slotShort,

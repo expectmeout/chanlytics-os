@@ -1,16 +1,18 @@
 /**
  * The pile on the Leads page (the lead workbench, 00426): whether it is on for the search the address names, the lead
- * that is up, what the page draws (the pile where the rows stand, or the door into it under the search), the keys its
- * one listener hands it, and, on a desk, the peek following the lead that is up so its details stand beside it.
+ * that is up and its card, what the page draws (on a desk the pile where the rows stand, on a phone its sheet over
+ * them; or the door into it under the search), the keys its one listener hands it, and, on a desk, the peek following
+ * the lead that is up so its details stand beside it.
  *
- * The door is offered under a search whose leads no reach-out of its own writes to (a search with one is written to as
+ * The door is offered under a search whose leads no sequence of its own writes to (a search with one is written to as
  * its leads are found: there is nothing to decide but Not a fit, which the rows already offer), to a member who may act.
  */
 import { useEffect, useRef } from "react";
 import { leadPileRailOf, type LeadClass, type LeadRowVM, type LeadSearchDto } from "@chanlytics/contracts";
 import { canDo } from "../../legacy-verbs";
 import type { LeadsSurface } from "../surface";
-import { LeadPileDoor, LeadPileView } from "./pile";
+import { leadCardFor } from "./card";
+import { LeadPileDoor, LeadPileView, pileAddBlocked, type PileViewProps } from "./pile";
 import { usePileUp, type LeadPile } from "./use-pile";
 
 /** What the page's one listener hands the pile: a press of the rail by its key, Undo, and the way out. */
@@ -56,30 +58,35 @@ export function useLeadPileView(a: {
     !on && openSearch && !a.hasChain && a.cls !== "excluded" && canDo("approve") ? (
       <LeadPileDoor onStart={() => void pile.start(openSearch.id, cls)} />
     ) : null;
-  const node =
-    on && openSearch ? (
-      <LeadPileView
-        pile={pile}
-        up={up}
-        later={later}
-        counts={leads.pile}
-        searchName={openSearch.name}
-        phone={phone}
-        onDetails={(id) => a.setPeekId(id)}
-        onWriteHeld={a.writeHeld}
-      />
-    ) : null;
+  // The card of the lead that is up: its reason, its marks and the first email of the sequence its adds go to.
+  const card = on && up ? leadCardFor(up, pile.target ? pile.target.chain : null, leads.tz) : null;
+  const view: PileViewProps | null =
+    on && openSearch
+      ? {
+          pile,
+          up,
+          later,
+          counts: leads.pile,
+          searchName: openSearch.name,
+          card,
+          onWriteHeld: a.writeHeld,
+        }
+      : null;
   const keys: PileKeys | null = on
     ? {
         press: (key) => {
           const slot = leadPileRailOf({ cls: pile.cls, target: pile.target ? pile.target.name : null }).find(
             (s) => s.key === key,
           );
+          // A key does what its press does: Add that would come to nothing is off for it too.
+          if (slot && slot.act === "add" && pileAddBlocked(card)) return;
           if (up && slot && canDo(slot.right)) void pile.act(up, slot.act);
         },
         undo: () => void pile.undo(),
         leave: pile.stop,
       }
     : null;
-  return { on, node, door, keys };
+  // A desk draws the pile where the rows stand; a phone's is a sheet over them, which the scope draws with the peek's
+  // acts its tabs share (scope.tsx).
+  return { on, node: view && !phone ? <LeadPileView {...view} /> : null, sheet: phone ? view : null, door, keys };
 }

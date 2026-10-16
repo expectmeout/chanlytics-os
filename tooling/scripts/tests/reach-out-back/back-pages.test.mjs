@@ -349,10 +349,10 @@ const drawPeek = async () => {
 test("the peek's block tells the lead's story, and Read what went out opens its thread", async () => {
   world({ story: storyDto() });
   const { tree } = await drawPeek();
-  assert.equal(textOf(byTestId(tree, "peek-reach-out-label")), "Reach out · Trainers in Austin");
+  assert.equal(textOf(byTestId(tree, "peek-reach-out-label")), "Sequence · Trainers in Austin");
   assert.match(
     textOf(byTestId(tree, "peek-reach-out-lines")),
-    /Your email · from mail\.example\.com · angle: their rating · delivered/,
+    /Email 1 · from mail\.example\.com · angle: their rating · delivered/,
   );
   went.length = 0;
   press(byTestId(tree, "peek-reach-out-read"));

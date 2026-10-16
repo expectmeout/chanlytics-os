@@ -217,7 +217,7 @@ export interface LeadCompanyVM {
 
 export const LEAD_COMPANY_WORDS = {
   head: (n: number) => (n === 1 ? "Named at this company" : `Named at this company · ${n}`),
-  writesTo: "Your reach-out writes to them",
+  writesTo: "Your sequence writes to them",
   size: (s: string) => `${s} people`,
   profile: "Profile",
 } as const;
@@ -229,21 +229,21 @@ export const LEAD_COMPANY_WORDS = {
 export const LEAD_ADDRESSEE_WORDS = {
   door: "Write to them instead",
   /** What a role that may not is told it cannot do here (gateTitle). */
-  gated: "choose who a reach-out writes to",
+  gated: "choose who a sequence writes to",
   choosing: "Choosing…",
   /** Chosen: whom the business's reach-out writes to now, and whether their address is checked first or was already. */
   done: (name: string, business: string, checking: boolean) =>
     checking
-      ? `${business}'s reach-out writes to ${name} now. Their address is being checked first, which takes a few minutes.`
-      : `${business}'s reach-out writes to ${name} now. Their address was checked already.`,
+      ? `Your sequence writes to ${name} at ${business} now. Their address is being checked first, which takes a few minutes.`
+      : `Your sequence writes to ${name} at ${business} now. Their address was checked already.`,
   refused: {
     gone: "This lead is gone.",
     not_a_company: "Only a company has people to choose from.",
     no_person: "They are no longer named at this company. Reload and try again.",
-    already: "Its reach-out writes to them already.",
+    already: "Its sequence writes to them already.",
     closed: "This lead is closed, or already one of your people: who it writes to stays.",
     written: "It was written to already: who it writes to stays.",
-    in_reach_out: "A reach-out has already planned or sent its email: who it writes to stays.",
+    in_reach_out: "A sequence has already planned or sent its email: who it writes to stays.",
     checking: "Its address is being checked. Choose once the check is done.",
     no_address: "They have no work address to write to.",
     suppressed: "Their address is on the never-again list.",
