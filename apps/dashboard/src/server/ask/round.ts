@@ -2,6 +2,7 @@ import "server-only";
 import { fenced, type ModelSpeed } from "@chanlytics/contracts";
 import { streamModel, type GatewayCall } from "./gateway";
 import type { GatewayBlockStart } from "./sse";
+import { log } from "@/server/log";
 
 /**
  * One model round: the request goes out, the stream comes back, the content
@@ -194,7 +195,7 @@ export function parseInput(json: string): Record<string, unknown> {
  * had just written. It reads that as its own mistake -- on the lead finder it
  * told the owner it "hit a formatting snag" and gave up -- when what happened
  * is that the round hit max_tokens mid-argument. The loop says that instead
- * (loop.ts cutOff), so the retry is a shorter call rather than a guess at a
+ * (cutOff, below), so the retry is a shorter call rather than a guess at a
  * field that was never wrong.
  */
 export function argsOf(b: RoundBlock): Record<string, unknown> | null {
@@ -204,6 +205,18 @@ export function argsOf(b: RoundBlock): Record<string, unknown> | null {
   } catch {
     return null;
   }
+}
+
+/** A call whose arguments did not arrive whole (argsOf): the round hit its cap mid-argument, and is told so. */
+export function cutOff(b: RoundBlock, tenantId: string): { result: string; isError: true } {
+  log.error("ask_tool_input_cut_off", { tool: b.name, bytes: b.json.length, tenant_id: tenantId });
+  return {
+    result: JSON.stringify({
+      error:
+        "your call was cut off before its arguments were complete, so nothing was read; call it again with shorter values",
+    }),
+    isError: true,
+  };
 }
 
 /**

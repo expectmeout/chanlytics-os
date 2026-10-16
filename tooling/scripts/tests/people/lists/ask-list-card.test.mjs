@@ -6,7 +6,9 @@
  * rule as People's chips, who it holds today as people.lists counts a list, and what the vocabulary could not say. Then
  * the card walked end to end -- built, approved through the palette's commit walk, undone -- against the real lists
  * routes: made, then deleted; made, then archived because a playbook came to run on it; and refused in the route's own
- * words when a list of that name was made in between.
+ * words when a list of that name was made in between. A list kept by hand (the operator stress run, 15 Oct 2026: "put
+ * her on a new list called Mornings" was refused, so dropped) is made as People's New list makes one, the people named
+ * put on it after.
  */
 import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
@@ -189,10 +191,63 @@ const LIST_CALLS = [
     [],
   ],
   [
-    "no condition at all",
+    "no condition at all, and nobody named: never a list of everyone",
     { name: "Everybody", all: [], cannot: "" },
-    { error: "all needs a condition: a list of everyone is Everyone, which People has" },
+    {
+      error:
+        "name who is on it: all, conditions for a list that keeps itself current, or ids, the people a read returned, for one kept by hand ([] for an empty one they fill on People); a list of everyone is Everyone, which People has",
+    },
     [],
+  ],
+  [
+    "a rule and people at once: a list is kept one way",
+    { name: "Mixed", all: TALKERS, ids: [HARBOR[0].id], cannot: "" },
+    { error: "a list keeps itself by its rule (all) or is kept by hand (ids), never both: make one of them" },
+    [],
+  ],
+  [
+    "someone who is not in People, refused before a card names them",
+    { name: "Family", ids: [HARBOR[0].id, "abababab-abab-4aba-8aba-abababababa9"], cannot: "" },
+    { error: "1 id is not people in this workspace" },
+    null,
+  ],
+  [
+    "a list kept by hand with the people they named: each by name on the card, put on it once it is made",
+    { name: "Family", ids: [HARBOR[0].id, HARBOR[1].id, HARBOR[0].id], cannot: "" },
+    {
+      kind: "list",
+      needs: "operator",
+      title: "List: Family",
+      summary: "Kept by hand: Rosa, Quinn",
+      payload: {
+        name: "Family",
+        kept: "hand",
+        ids: [HARBOR[0].id, HARBOR[1].id],
+        names: ["Rosa", "Quinn"],
+        count: 2,
+      },
+      undo: "Delete it",
+    },
+    null,
+  ],
+  [
+    "an empty list kept by hand, as People's New list makes one: the lists read, nobody counted",
+    { name: "VIP", ids: [], cannot: "" },
+    {
+      kind: "list",
+      needs: "operator",
+      title: "List: VIP",
+      summary: "Kept by hand, with nobody on it yet: people are put on it from their page or People",
+      payload: { name: "VIP", kept: "hand", ids: [], names: [], count: 0 },
+      undo: "Delete it",
+    },
+    LISTS_READ,
+  ],
+  [
+    "a list kept by hand by a name a live list has: refused as a rule's is",
+    { name: "regulars", ids: [HARBOR[1].id], cannot: "" },
+    { error: `${LIST_NAME_TAKEN} Read people with action lists: it may say this already, or take another name` },
+    LISTS_READ,
   ],
   [
     "a fact the vocabulary has no field for (what they asked about)",
@@ -378,7 +433,7 @@ test("the rule the model is shown is the drafter's own: all as LIST_DRAFT_JSON_S
   for (const role of ["operator", "partner", "owner"]) {
     const t = toApiTools(role, true).find((x) => x.name === "propose_list");
     assert.deepEqual(t.input_schema.properties.action.enum, ["make", "change", "delete"]);
-    assert.deepEqual(Object.keys(t.input_schema.properties), ["action", "name", "all", "cannot", "list_id"]);
+    assert.deepEqual(Object.keys(t.input_schema.properties), ["action", "name", "all", "ids", "cannot", "list_id"]);
     assert.deepEqual(t.input_schema.required, ["action"], "each action's own zod requires its fields");
     assert.deepEqual(canonical(t.input_schema.properties.all), canonical(LIST_DRAFT_JSON_SCHEMA.properties.all));
     assert.ok(!JSON.stringify(t.input_schema).includes('"in_list"'), "a draft never reads another list");
@@ -399,6 +454,7 @@ const envelope = (data) =>
 /** The routes a list card reaches, by method and path: each the real route module, run as the server runs it. */
 const CARD_ROUTES = [
   ["POST", /^\/api\/v1\/segments$/, listsRoute.POST, () => ({})],
+  ["PUT", /^\/api\/v1\/segments\/([^/]+)$/, listRoute.PUT, (m) => ({ id: m[1] })],
   ["DELETE", /^\/api\/v1\/segments\/([^/]+)$/, listRoute.DELETE, (m) => ({ id: m[1] })],
 ];
 
@@ -485,6 +541,73 @@ test("a list card, walked end to end: the model's call makes it, Approve makes t
     ["make_list", "list"],
     ["delete_list", "list"],
   ]);
+});
+
+test("a list kept by hand, walked end to end: Approve makes it through the lists route as People's New list does, puts the people named on it by the id the route answered, says who it starts with, and Delete it takes it away with the people staying", async () => {
+  const tables = world();
+  const tab = tabOver(tables);
+  const built = await buildProposal(tab.t, "propose_list", {
+    action: "make",
+    name: "Family",
+    ids: [HARBOR[0].id, HARBOR[1].id],
+    cannot: "",
+  });
+  assert.equal(built.isError, false, built.result);
+  const card = built.proposal;
+  const done = await commitProposal(tab.win, card, tab.client);
+  const made = tables.segments.find((s) => s.name === "Family");
+  assert.ok(made, "the list is made");
+  assert.deepEqual([made.tenant_id, made.rule ?? null], [A, null], "kept by hand: no rule");
+  assert.deepEqual(
+    tables.segment_members.filter((m) => m.segment_id === made.id).map((m) => m.contact_id),
+    [HARBOR[0].id, HARBOR[1].id],
+    "the people named are on it",
+  );
+  assert.deepEqual(done, {
+    ok: true,
+    receipt: "Family made, with Rosa and Quinn on it.",
+    undo: { list_id: made.id },
+    made: { id: made.id, kind: "list" },
+  });
+  assert.deepEqual(tab.sent, [
+    { key: "POST /api/v1/segments", body: { name: "Family" } },
+    { key: `PUT /api/v1/segments/${made.id}`, body: { add: [HARBOR[0].id, HARBOR[1].id] } },
+  ]);
+  assert.equal(cardOpenRoute({ ...card, outcome: doneWith(done) }), `clients/list:${made.id}`, "Open: the list");
+  const undone = await undoProposal(tab.win, card, doneWith(done), tab.client);
+  assert.deepEqual(undone, { ok: true, receipt: "Deleted. The people stay.", undo: null });
+  assert.ok(!tables.segments.some((s) => s.id === made.id), "the list it made is gone");
+});
+
+test("a list kept by hand whose people the route refused: the list stands, and the receipt says nobody is on it yet and why; an empty one makes the list alone", async () => {
+  const spec = PROPOSAL_SPECS.list;
+  const card = (payload) => ({ id: "p-1", kind: "list", payload, step: null, summary: "", plan: null });
+  const family = card({ name: "Family", kept: "hand", ids: [HARBOR[0].id], names: ["Rosa"], count: 1 });
+  assert.deepEqual(spec.commit(family, { settings: null }), { route: "POST segments", body: { name: "Family" } });
+  assert.deepEqual(spec.then(family, { id: L_HAND }), {
+    route: "PUT segments/[id]",
+    params: { id: L_HAND },
+    body: { add: [HARBOR[0].id] },
+    events: [{ type: "surface:clients" }],
+  });
+  assert.deepEqual(spec.then(family, {}), {
+    refused: "the list came back without its id; put them on it from People",
+  });
+  assert.equal(spec.receipt(family, { name: "Family" }, { ok: true }), "Family made, with Rosa on it.");
+  assert.equal(
+    spec.receipt(family, { name: "Family" }, { ok: false, message: "At most 500 people at a time." }),
+    "Family made, with nobody on it yet: At most 500 people at a time.",
+  );
+  const empty = card({ name: "VIP", kept: "hand", ids: [], names: [], count: 0 });
+  assert.equal(spec.then(empty, { id: L_HAND }), null, "nobody to put on it");
+  assert.equal(spec.receipt(empty, { name: "VIP" }), "VIP made. Put people on it from their page or People.");
+  const many = card({ name: "Class", kept: "hand", ids: HARBOR.map((p) => p.id), names: [], count: 5 });
+  assert.equal(spec.receipt(many, { name: "Class" }, { ok: true }), "Class made, with 5 people on it.");
+  assert.deepEqual(
+    spec.commit(card({ name: "Odd" }), { settings: null }),
+    { refused: "This card cannot be approved from here." },
+    "a card with neither a rule nor kept by hand is none",
+  );
 });
 
 test("a list card undone after a playbook came to run on it: the route archives it rather than delete it, the playbook pauses, and the undo's receipt says so in People's words", async () => {
