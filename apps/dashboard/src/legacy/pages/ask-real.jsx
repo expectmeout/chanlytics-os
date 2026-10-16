@@ -43,17 +43,6 @@ const arScopeIcon = (s) => window.AskAnswerKit.askKindGlyph(s.kind);
 
 const arFailed = (id, text) => ({ id, role: "assistant", text, failed: true, citations: [], followups: [], proposals: [], atMs: Date.now() });
 
-/** A conversation as its questions and the turns that answered them, in order. */
-const arTurns = (messages) => {
-  const out = [];
-  for (const m of messages) {
-    if (m.role === "user") out.push({ q: m, a: null });
-    else if (out.length && !out[out.length - 1].a) out[out.length - 1].a = m;
-    else out.push({ q: null, a: m });
-  }
-  return out;
-};
-
 /** The newest question's key: a phone's thread stands it at the top once each (the spec 2026-09-27-ask-chat-on-a-phone, D5). */
 const arNowKey = (active, quick) => {
   const q = active ? [...active.messages].reverse().find((m) => m.role === "user") : null;
@@ -389,7 +378,7 @@ const useArWalk = ({ H, query, active, open, view, quick, live, setSel, setMove,
 
 /** Going somewhere, a question back in the field, leaving the turn in flight, Clear, a card's outcome, a conversation opened or deleted, and Stop. */
 const arActs = (ln) => {
-  const { A, M, onClose, pushed, active, setActive, live, setLive, turnSeq, setQuery, setQuick, setView, setUnfolded, setFoldAll, setScope, setThreads, setDoomed, speech, flash, t, inputRef } = ln;
+  const { A, M, onClose, pushed, active, setActive, live, setLive, turnSeq, lang, setQuery, setQuick, setView, setUnfolded, setFoldAll, setScope, setThreads, setDoomed, speech, flash, t, inputRef } = ln;
   // Going somewhere closes the Line; ⌘K brings the conversation back. On a phone the place takes the takeover's entry
   // (replaced, never pushed over it and then gone back from), so Back from there is the page Ask was opened over.
   const nav = (to) => {
@@ -449,11 +438,11 @@ const arActs = (ln) => {
     flash({ msg: <>{t.deleted}</> });
   };
 
-  // Stop: the Line stops waiting for the turn in flight and says so; what the stream sends after changes nothing.
+  // Stop: the Line lets go of the turn, whose server keeps it as stopped, and says so with what its Say had written, as the thread will.
   const stop = () => {
     if (!live) return;
-    moveOn();
-    setActive((prev) => (prev ? { ...prev, messages: [...prev.messages, arFailed("s-" + Date.now(), t.stopped)] } : prev));
+    moveOn(); live.turn.ctl.abort();
+    setActive((prev) => (prev ? { ...prev, messages: [...prev.messages, A.stoppedTurn(live.say, lang)] } : prev));
   };
   return { nav, editWords, moveOn, clearLine, noteOutcome, openThread, askDelete, removeThread, stop };
 };
@@ -508,16 +497,16 @@ const arSubmitter = (ln) => {
     // The page, as it is now: the rows on screen and the row the words name, if they name one -- in the thread it joins, by its last answer's items first (legacy-bridge/ask/context.ts). A page that cannot say what it holds sends none: the question still goes.
     let context = null;
     try { context = A.context ? A.context(arRoute(), q, base && base.messages) : null; } catch (e) { context = null; }
-    await A.send({ text: q, threadId: turn.threadId, scope: thread.scope, surface, openedMs: openedAt.current ? Date.now() - openedAt.current : null, context }, (ev) => arTurnHeard(ln, turn, ev));
+    await A.send({ text: q, threadId: turn.threadId, scope: thread.scope, surface, openedMs: openedAt.current ? Date.now() - openedAt.current : null, context, signal: turn.ctl.signal }, (ev) => arTurnHeard(ln, turn, ev));
     arTurnLanded(ln, turn);
   };
   return submit;
 };
 
-/** What the stream sends, while the turn is still the current one: its thread, a read that landed, the Say so far, the words, the end. */
+/** What the stream sends: its thread, named on the conversation it began while that is open (stopped too: the next question carries on in it); then, while the turn is the current one, a read that landed, the Say so far, the words, the end. */
 const arTurnHeard = ({ M, turnSeq, setActive, setLive }, turn, ev) => {
+  if (ev.t === "thread") { turn.threadId = ev.id; setActive((prev) => (prev && prev.messages.some((m) => m.id === turn.qid) ? { ...prev, id: ev.id, title: prev.title || ev.title } : prev)); return; }
   if (turn.mine !== turnSeq.current) return;
-  if (ev.t === "thread") { turn.threadId = ev.id; setActive((prev) => (prev ? { ...prev, id: ev.id, title: prev.title || ev.title } : prev)); return; }
   if (ev.t === "trace") {
     setLive((prev) => (prev ? { ...prev, traces: [...prev.traces, ev.text].slice(-3) } : prev));
     // a read that landed: the three's orbit surges and a light runs down them (mascot mood.ts pulse)
@@ -579,16 +568,16 @@ const arBeginTurn = ({ turnSeq, setActive, setLive }, q, chip, base, how) => {
   const userMsg = { id: "u-" + Date.now(), role: "user", text: q, atMs: Date.now(), citations: [], followups: [], proposals: [] };
   const thread = base ? { ...base, messages: [...base.messages, userMsg], scope: chip || base.scope || null } : { id: null, title: q, messages: [userMsg], scope: chip || null }; // asked with the chip's scope, else the thread's own, which it then holds (the Phase 5 plan, D9)
   setActive(thread);
-  const mine = ++turnSeq.current;
-  setLive({ q, text: "", say: null, traces: [] });
-  return { thread, turn: { mine, threadId: thread.id, final: null, spoke: false, said: 0, spoken: !!how.spoken } };
+  const turn = { mine: ++turnSeq.current, threadId: thread.id, qid: userMsg.id, ctl: new AbortController(), final: null, spoke: false, said: 0, spoken: !!how.spoken };
+  setLive({ q, text: "", say: null, traces: [], turn }); // the turn in flight: Stop lets go of it (ctl), its thread is named on its question's conversation (qid)
+  return { thread, turn };
 };
 
 // ---- what is under the line, and the keys that walk it ----
 
 /** The conversation's turns and folds, whether the rows show (and are drawn: not while a phone's field is in use), the rows, and the answer drawn with its moves and words. */
 const arUnder = ({ A, t, lang, query, surface, scope, threads, view, phone, active, foldAll, talk, live, quick, composing, buildLineRows, flatRows, answerMoves }) => {
-  const turns = active ? arTurns(active.messages) : [];
+  const turns = active ? A.turns(active.messages) : []; // its questions and their answers, in order (palette.ts)
   const latest = turns.length ? turns[turns.length - 1] : null;
   const folded = turns.slice(0, -1).filter((tn) => tn.q && tn.a);
   const shownFolds = foldAll ? folded : folded.slice(-AR_FOLDED);
@@ -635,10 +624,13 @@ const arActivate = ({ openThread, setView, nav, setQuery, inputRef, submit }) =>
   return activate;
 };
 
-/** The line's keys: Esc, the arrows over the rows or the answer's moves, Delete on a conversation, Enter. */
+/** A key the field keeps as a field's: Shift with Enter breaks a line, and the arrows move between its lines once it has several. */
+const arFieldKey = (e, query) => (e.key === "Enter" && e.shiftKey) || ((e.key === "ArrowDown" || e.key === "ArrowUp") && query.includes("\n"));
+
+/** The line's keys: Esc, the arrows over the rows or the answer's moves, Delete on a conversation, Enter; the field's own first (arFieldKey). */
 const arOnKey = ({ hold, live, stop, onClose, showRows, rows, moves, sel, setSel, move, setMove, active, query, setQuery, askDelete, view, activate, submit }) => {
   const onKey = (e) => {
-    if (hold.onKeyDown(e)) return;
+    if (hold.onKeyDown(e) || arFieldKey(e, query)) return;
     if (e.key === "Escape") {
       e.preventDefault();
       if (live) stop();
@@ -854,8 +846,8 @@ const arFoot = ({ phone, talk, typing, t, liftMic }) =>
     </div>
   ) : null;
 
-// The band (spec 4.1, 4.2): the three at 84px beside the field, the largest face in the app; under the field,
-// while Ask reads, one line in coral ink saying what it reads. On a phone the face and the line are the hero's,
+// The band (spec 4.1, 4.2): the three at 84px beside the field, the largest face in the app; under the field, while Ask
+// reads, one line in coral ink saying what it reads, then Writing… as the Say begins. On a phone the face and the line are the hero's,
 // and the band is the field at the foot (ask.css orders it last), hidden under the pill to let go of while it
 // listens.
 const arStage = ({ H, talk, live, stageRef, phone, faceRef, AskFace, scope, setScope, setActive, t, inputRef, active, surface, query, setQuery, composing, M, onKey, hold, slideFrom, heroRef, setComposing, rowsDrawn, rows, showRows, sel, move, right }) => {
@@ -875,8 +867,9 @@ const arStage = ({ H, talk, live, stageRef, phone, faceRef, AskFace, scope, setS
             <button type="button" onClick={() => { setScope(null); setActive((a) => (a && a.scope ? { ...a, scope: null } : a)); }} aria-label={t.clearScope}><Icon name="x" size={9} /></button>{/* the open thread's scope too, so its next question goes with none (the Phase 5 plan, D9) */}
           </span>
         ) : null}
-        <input
+        <textarea
           ref={inputRef}
+          rows={1}
           className="ask-line-input"
           placeholder={talk.listening ? t.listening : active ? t.follow : surface === "leads" ? t.describeLeads : surface === "campaigns" ? t.describeCampaigns : t.placeholder}
           value={query}
@@ -890,7 +883,7 @@ const arStage = ({ H, talk, live, stageRef, phone, faceRef, AskFace, scope, setS
           aria-controls={rowsDrawn ? "ask-rows" : undefined}
           aria-activedescendant={activeId}
           aria-autocomplete="list"
-          aria-label="Ask Chanlytics"
+          aria-label={t.dialogName}
           data-testid="ask-input"
           maxLength={1000}
           enterKeyHint="send"
@@ -903,7 +896,7 @@ const arStage = ({ H, talk, live, stageRef, phone, faceRef, AskFace, scope, setS
       {live && !phone ? (
         <p className="ask-reading" aria-live="polite" data-testid="ask-reading">
           <span className="ask-reading-dot" aria-hidden="true" />
-          {live.traces.length ? live.traces[live.traces.length - 1] : t.thinking}
+          {live.say || live.text ? t.writing : live.traces.length ? live.traces[live.traces.length - 1] : t.thinking}
         </p>
       ) : null}
     </div>
@@ -958,7 +951,7 @@ const arLineView = (ln) => {
         role="dialog"
         aria-modal="true"
         tabIndex={-1}
-        aria-label="Ask Chanlytics"
+        aria-label={t.dialogName}
         data-testid="ask-real"
         {...(window.touchSwipe ? window.touchSwipe({ onDown: onClose, onBack: onClose, onAway: onClose, when: arPhone }) : {})}
       >
@@ -1019,7 +1012,7 @@ const AskReal = ({ open, onClose }) => {
   useArMemory(ln);
   useArFocus(ln);
   useArSeedKeys(ln);
-  useArWalk(ln);
+  useArWalk(ln); H.useAskGrow(ln.inputRef, ln.query, open); // the field grows with its words, to six lines (ask-hooks.jsx)
   ln.below = H.useAskLatest(ln.bodyRef, open && arPhone() && ln.view === "rows" && !!(ln.active || ln.quick));
 
   if (!open || !A) return null;

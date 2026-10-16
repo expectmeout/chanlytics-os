@@ -31,7 +31,7 @@ import type { RouteContext } from "../with-route";
 import { load, type ReaderContext } from "../readers";
 import { log } from "@/server/log";
 import { GatewayRefused } from "./gateway";
-import { DROP_EVENTS, dropFor, letGo, refusalText, type Offer } from "./refusals";
+import { DROP_EVENTS, dropFor, letGo, refusalSaid, type Offer } from "./refusals";
 import {
   ACT_TOOL_NAMES,
   buildProposal,
@@ -138,6 +138,8 @@ export interface TurnInput {
   now?: Date;
   /** The route's reader context, so the turn's reads share its cache; a test may omit it. */
   rc?: ReaderContext;
+  /** The person's Stop (the route's stream let go of): the turn ends at once, as "stopped", which turn.ts keeps. */
+  signal?: AbortSignal;
 }
 
 export interface TurnResult {
@@ -323,6 +325,16 @@ function besideActs(written: string, r: { refused: boolean; planned: PlanSaid | 
   return "";
 }
 
+/** The turn's own time ran out (budgetOf): ours to say, never the question's. */
+const TIME_UP_WORDS = {
+  en: "I ran out of time on that one. Try again, or ask about one thing at a time.",
+  es: "Se me acabó el tiempo con esta. Inténtalo de nuevo, o pregunta por una cosa a la vez.",
+};
+
+/** The model's stream ends at the turn's own time, or at the person's Stop. */
+const halted = (time: AbortSignal, stop: AbortSignal | undefined): AbortSignal =>
+  stop ? AbortSignal.any([time, stop]) : time;
+
 /**
  * A typed turn's whole budget (the operator, 15 Oct 2026: a plan of several cards over many reads); a spoken one keeps
  * the budget a listener waits through.
@@ -478,6 +490,11 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
   /** A turn that could not be answered: its sentence, in the person's language, is the answer's headline. */
   const fail = (sentence: string, failure: string, rounds: number) =>
     done({ answer: failedAnswer(sentence, input.language), failed: true, failure, rounds });
+  const signal = halted(controller.signal, input.signal); // what ends the model's stream: the turn's time, or the Stop
+  /** A round ended by the person's Stop (turn.ts words it) or, where it `cut` the round, by the turn's own time. */
+  const timedOut = (rounds: number) => fail(TIME_UP_WORDS[es ? "es" : "en"], "timeout", rounds);
+  const endedEarly = (rounds: number, cut: boolean) =>
+    input.signal?.aborted ? fail("", "stopped", rounds) : cut && controller.signal.aborted ? timedOut(rounds) : null;
 
   // Say while the answer is written (spec 7.4): read from the JSON so far --
   // the model may write it with the format refused too -- sent only when it
@@ -578,13 +595,16 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
       let streamError: string | null;
       try {
         const r = await ports.round(
-          { tenantId: input.tenantId, userId: input.ctx.userId, request, signal: controller.signal },
+          { tenantId: input.tenantId, userId: input.ctx.userId, request, signal },
           onText,
           answerInput(onText),
         );
         ({ blocks, stopReason, streamError } = r);
         meter.round(r, roundAt);
       } catch (e) {
+        // The person's Stop, or the turn's own time run out: whatever the round threw for it (a gateway unreached).
+        const early = endedEarly(round, true);
+        if (early) return early;
         if (e instanceof GatewayRefused) {
           // Something the turn can do without, refused (refusals.ts): the same round is asked again without it, once
           // each. Without the page's data, their reads leave the count and the words stop pointing at them; without
@@ -612,24 +632,14 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
             round--;
             continue;
           }
-          log.error("ask_gateway_refused", {
-            kind: e.refusal.kind,
-            tenant_id: input.tenantId,
-            message: "message" in e.refusal ? String(e.refusal.message).slice(0, 300) : undefined,
-          });
-          return fail(refusalText(e.refusal, es), e.refusal.kind, round);
-        }
-        if (controller.signal.aborted) {
-          return fail(
-            es
-              ? "Tardé demasiado en leer. Pregunta algo más concreto."
-              : "That took too long to read. Ask something more specific.",
-            "timeout",
-            round,
-          );
+          return fail(refusalSaid(e.refusal, es, { tenant_id: input.tenantId, round }), e.refusal.kind, round);
         }
         throw e;
       }
+
+      // A stream the turn's own time cut is the time's, not a dropped connection.
+      const ended = endedEarly(round, !!streamError);
+      if (ended) return ended;
 
       if (streamError && !blocks.length) {
         return fail(
@@ -675,9 +685,10 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
         continue;
       }
 
+      // A round that wrote nothing and called nothing is a glitch of ours, not an empty read.
       if (!written && !calls.length) {
         return fail(
-          es ? "No encontré nada que leer para esa pregunta." : "I found nothing to read for that question.",
+          es ? "Perdí el hilo. Pregúntamelo de nuevo." : "I lost my train of thought. Ask me again.",
           stopReason === "max_tokens" ? "cap" : "no_tool_no_text",
           round,
         );

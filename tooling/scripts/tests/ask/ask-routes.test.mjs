@@ -422,6 +422,155 @@ test("a quick answer kept: a new thread titled by its question, the question and
   assert.equal(tables.ask_messages.length, 6, "the follow-up joined the thread");
 });
 
+test("Stop reaches the turn: the stream let go of cuts the model, the thread keeps the turn as stopped with what its Say had written, and the next question's history says it was stopped before its answer", async () => {
+  const tables = {
+    memberships: both("viewer", "operator"),
+    tenants: [{ id: A, name: "Harbor", timezone: "America/New_York" }],
+    tenant_config: [{ tenant_id: A, config: {}, version: 1 }],
+    policies: [],
+    ask_threads: [],
+    ask_messages: [],
+  };
+  const none = { kind: "none", id: "", label: "" };
+  const written = JSON.stringify({
+    say: { headline: "Four calls this week.", detail: "" },
+    show: { figures: [], items: [], breakdown: { label: "", total: 0, parts: [], source: none } },
+    do: { open: { source: none, label: "", now: false }, next: [] },
+    language: "en",
+  });
+  const requests = [];
+  setAskPorts({
+    round: async (call, onText) => {
+      requests.push(call.request);
+      if (requests.length > 1) {
+        onText(written);
+        return { blocks: [{ type: "text", id: "", name: "", text: written, json: "" }], stopReason: "end_turn" };
+      }
+      // The first answer is half written when the person stops it; the model's stream runs until its signal ends it.
+      onText('{"say":{"headline":"Three people wrote this week.","detail":"Rosa asked about');
+      await new Promise((r) => (call.signal.aborted ? r() : call.signal.addEventListener("abort", r, { once: true })));
+      return { blocks: [], stopReason: null, streamError: "This operation was aborted" };
+    },
+    shape: async () => "",
+  });
+  try {
+    const res = await ask.POST.run(
+      send("POST", { text: "Who wrote this week?", surface: "today" }, inA),
+      ctxFor(tables),
+    );
+    const reader = res.body.getReader();
+    let got = "";
+    while (!got.includes('"t":"say"')) got += new TextDecoder().decode((await reader.read()).value);
+    // The Line's Stop: the request let go of, which cancels the route's stream.
+    await reader.cancel();
+    for (let i = 0; i < 400 && tables.ask_messages.length < 2; i++) await new Promise((r) => setTimeout(r, 5));
+    assert.equal(requests.length, 1, "the model is asked nothing more");
+    const thread = tables.ask_threads[0];
+    const stored = tables.ask_messages[1].content;
+    assert.deepEqual(
+      [tables.ask_messages[1].role, stored.failed, stored.failure, stored.proposals, stored.raw ?? null],
+      ["assistant", true, "stopped", [], null],
+    );
+    assert.deepEqual(stored.answer.say, {
+      headline: "Stopped before the answer was finished.",
+      detail: "Three people wrote this week. Rosa asked about",
+    });
+    assert.equal(stored.text, "Stopped before the answer was finished. Three people wrote this week. Rosa asked about");
+
+    // The next question in the thread: its history says the turn was stopped, never the half it had written.
+    await (
+      await ask.POST.run(send("POST", { text: "How many calls this week?", thread_id: thread.id }, inA), ctxFor(tables))
+    ).text();
+    const history = JSON.stringify(requests[1].messages);
+    assert.ok(history.includes("(This turn failed.) Stopped before the answer was finished."), history);
+    assert.ok(!history.includes("Rosa asked about"), "the half answer is not replayed as said");
+    assert.deepEqual(
+      tables.ask_messages.map((m) => [m.role, m.content.failure ?? null]),
+      [
+        ["user", null],
+        ["assistant", "stopped"],
+        ["user", null],
+        ["assistant", null],
+      ],
+      "question, stopped answer, question, answer: the thread pairs in order",
+    );
+  } finally {
+    setAskPorts(null);
+  }
+});
+
+test("REGRESSION: a question asked while the thread's last is still being answered waits for that answer, so the thread is stored in order -- a stopped turn saved after the next question paired them wrong; the question keeps its lines", async () => {
+  const fresh = (row) => ({ ...row, created_at: new Date(Date.now() - 1_000).toISOString() });
+  const tables = {
+    memberships: both("viewer", "operator"),
+    tenants: [{ id: A, name: "Harbor", timezone: "America/New_York" }],
+    tenant_config: [{ tenant_id: A, config: {}, version: 1 }],
+    policies: [],
+    ask_threads: [threadRow(T1, A, { title: "Summarize every conversation this week." })],
+    ask_messages: [fresh(turn(M1, T1, A, "user", { text: "Summarize every conversation this week." }))],
+  };
+  const none = { kind: "none", id: "", label: "" };
+  const written = JSON.stringify({
+    say: { headline: "Four calls this week.", detail: "" },
+    show: { figures: [], items: [], breakdown: { label: "", total: 0, parts: [], source: none } },
+    do: { open: { source: none, label: "", now: false }, next: [] },
+    language: "en",
+  });
+  setAskPorts({
+    round: async (_call, onText) => {
+      onText(written);
+      return { blocks: [{ type: "text", id: "", name: "", text: written, json: "" }], stopReason: "end_turn" };
+    },
+    shape: async () => "",
+  });
+  try {
+    // The stopped turn's answer lands while the next question waits.
+    const stopped = { text: "Stopped before the answer was finished.", failed: true, failure: "stopped" };
+    setTimeout(() => tables.ask_messages.push(fresh(turn(T2, T1, A, "assistant", stopped))), 100);
+    const asked = "Never  mind.\n\n  How many   calls this week?";
+    await (await ask.POST.run(send("POST", { text: asked, thread_id: T1 }, inA), ctxFor(tables))).text();
+    assert.deepEqual(
+      tables.ask_messages.map((m) => [m.role, m.content.text]),
+      [
+        ["user", "Summarize every conversation this week."],
+        ["assistant", "Stopped before the answer was finished."],
+        ["user", "Never mind.\n\n How many calls this week?"],
+        ["assistant", "Four calls this week."],
+      ],
+      "question, answer, question, answer; the question's lines kept, runs of spaces within a line made one",
+    );
+  } finally {
+    setAskPorts(null);
+  }
+});
+
+test("a question asked while the thread's last is still being answered, and no answer comes, is refused in our words and nothing is saved", async (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  const tables = {
+    memberships: both("viewer", "operator"),
+    tenants: [{ id: A, name: "Harbor", timezone: "America/New_York" }],
+    tenant_config: [{ tenant_id: A, config: {}, version: 1 }],
+    policies: [],
+    ask_threads: [threadRow(T1, A)],
+    ask_messages: [
+      { ...turn(M1, T1, A, "user", { text: "Who booked this week?" }), created_at: new Date().toISOString() },
+    ],
+  };
+  const refusal = ask.POST.run(send("POST", { text: "And last week?", thread_id: T1 }, inA), ctxFor(tables));
+  let settled = false;
+  refusal.then(
+    () => (settled = true),
+    () => (settled = true),
+  );
+  // The wait runs on the turn's own clock: three seconds, looked at four times a second.
+  for (let i = 0; i < 40 && !settled; i++) {
+    await new Promise((r) => setImmediate(r));
+    t.mock.timers.tick(250);
+  }
+  await refused(refusal, "conflict", 409, "Ask is still answering your last question here. Ask again in a moment.");
+  assert.equal(tables.ask_messages.length, 1, "the question is not saved");
+});
+
 test("a turn reads back as it was stored: one made since the Line with its answer, one made before with its v1 fields alone", async () => {
   const answer = {
     v: 2,

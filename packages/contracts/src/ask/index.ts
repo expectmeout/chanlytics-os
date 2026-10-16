@@ -123,7 +123,7 @@ export type {
   AskAnswerRead,
 } from "./ask-answer";
 export { ASK_ANSWER_FORMAT } from "./answer-format";
-export { partialSay, answerSoFar } from "./answer-stream";
+export { partialSay, answerSoFar, stoppedAnswer } from "./answer-stream";
 export type { AskSayPreview, AskShowPreview } from "./answer-stream";
 export { planOf, PLAN_WORDS } from "./plan";
 export type { PlanIntent, PlanWorld, PlanStep } from "./plan";

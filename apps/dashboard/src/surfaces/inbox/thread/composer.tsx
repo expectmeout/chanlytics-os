@@ -316,9 +316,11 @@ function listenToComposer(k: ComposerKeys) {
       doSend();
     }
   };
-  // A card's "Edit in the composer" arrives with the words; a plain focus
+  // A card's "Edit in the composer" arrives with the words, naming its thread (no other box takes them); a plain focus
   // request arrives with none and leaves what is typed alone.
   const onFocus = (e: Event) => {
+    const at = detailField(e, "threadId");
+    if (typeof at === "string" && at !== threadId) return;
     const said = detailField(e, "text");
     const words = typeof said === "string" ? said : null;
     if (words) setText(words);
