@@ -96,6 +96,9 @@ async function proposePersonMode(
     never: "stays silent with them",
     inherit: "follows the workspace rule",
   };
+  // A mode they have already is no change: said, never a card that changes nothing (the operator stress run).
+  if ((pol?.mode ?? "inherit") === mode)
+    return refuse(`for ${person.who} the receptionist already ${LABEL[mode]}: say so, and change nothing`);
   return propose({
     kind: "person_mode",
     title: `Receptionist for ${person.who}`,
