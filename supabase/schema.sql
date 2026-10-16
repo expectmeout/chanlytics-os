@@ -5050,6 +5050,239 @@ COMMENT ON FUNCTION public.expire_stale_pauses() IS 'Ends what has run out on a 
 
 
 --
+-- Name: fact_candidates(integer); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.fact_candidates(p_limit integer DEFAULT 20) RETURNS TABLE(id uuid, tenant_id uuid, conversation_id uuid, source text, words text, said text, asked jsonb, known jsonb, notes_count integer, workspace_today integer)
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+begin
+  return query
+  with found as (
+    select * from public.fact_corrections(p_limit)
+  ),
+  -- Stamped as they are handed over: a `nothing` row each, so a look is taken once; a second sweep at the same moment
+  -- finds the row there and takes nothing.
+  picked as (
+    insert into fact_suggestions (tenant_id, conversation_id, source, source_message_id)
+    select f.tenant_id, f.conversation_id, f.source, f.message_id from found f
+    on conflict (source_message_id) do nothing
+    returning fact_suggestions.id, fact_suggestions.tenant_id, fact_suggestions.conversation_id,
+              fact_suggestions.source, fact_suggestions.source_message_id
+  )
+  select p.id, p.tenant_id, p.conversation_id, p.source, f.words, f.said,
+         -- The customer's words before the correction: their last three texts of the day before it, oldest first.
+         coalesce((
+           select jsonb_agg(q.body order by q.created_at)
+             from (
+               select m.body, m.created_at from messages m
+                where m.conversation_id = p.conversation_id and m.direction = 'inbound' and m.sender = 'customer'
+                  and m.type = 'text' and coalesce(m.body, '') <> ''
+                  and m.created_at < f.made_at and m.created_at > f.made_at - interval '1 day'
+                order by m.created_at desc
+                limit 3
+             ) q
+         ), '[]'::jsonb),
+         -- What the business's notes and services already say, as the receptionist is told them.
+         coalesce((
+           select jsonb_agg(k.said)
+             from (
+               select concat_ws('. ', nullif(btrim(n->>'title'), ''), nullif(btrim(n->>'text'), '')) as said
+                 from jsonb_array_elements(case when jsonb_typeof(tc.config->'brain'->'profile'->'notes') = 'array'
+                                                then tc.config->'brain'->'profile'->'notes' else '[]'::jsonb end) n
+               union all
+               select btrim(s->>'name')
+                 from jsonb_array_elements(case when jsonb_typeof(tc.config->'brain'->'profile'->'services') = 'array'
+                                                then tc.config->'brain'->'profile'->'services' else '[]'::jsonb end) s
+             ) k
+            where coalesce(k.said, '') <> ''
+         ), '[]'::jsonb),
+         (case when jsonb_typeof(tc.config->'brain'->'profile'->'notes') = 'array'
+               then jsonb_array_length(tc.config->'brain'->'profile'->'notes') else 0 end)::integer,
+         (select count(*)::integer from fact_suggestions s
+           where s.tenant_id = p.tenant_id and s.state <> 'nothing' and s.created_at > now() - interval '1 day')
+    from picked p
+    join found f on f.message_id = p.source_message_id
+    left join tenant_config tc on tc.tenant_id = p.tenant_id;
+end $$;
+
+
+--
+-- Name: FUNCTION fact_candidates(p_limit integer); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.fact_candidates(p_limit integer) IS 'The note sweep''s batch of corrections (decision 0063): fact_corrections, each stamped as it is handed over (a nothing row in fact_suggestions, so it is looked at once), with the owner''s words, what the receptionist said, the customer''s last texts before it, what the notes and services already say, how many notes there are, and the workspace''s suggestions of the last day. Service role only.';
+
+
+--
+-- Name: fact_corrections(integer); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.fact_corrections(p_limit integer DEFAULT 20) RETURNS TABLE(message_id uuid, tenant_id uuid, conversation_id uuid, source text, made_at timestamp with time zone, words text, said text)
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+  -- Each active workspace's own last three days, through its own rows (messages_tenant_created): no scan of every
+  -- workspace's messages, and no new index on a table that is always being written.
+  select c.message_id, c.tenant_id, c.conversation_id, c.source, c.made_at, c.words, c.said
+    from tenants t
+    cross join lateral (
+      -- A held draft rewritten to the owner's instruction: the instruction, and the draft it replaced.
+      select m.id as message_id, m.tenant_id, m.conversation_id, 'steer'::text as source, m.created_at as made_at,
+             btrim(m.meta->>'steer') as words,
+             (select d.body from messages d
+               where d.tenant_id = m.tenant_id and d.id::text = m.meta->>'steered_from') as said
+        from messages m
+       where m.tenant_id = t.id and m.created_at > now() - interval '3 days'
+         and m.direction = 'outbound' and m.sender = 'ai' and m.meta->>'source' = 'steered'
+         and coalesce(btrim(m.meta->>'steer'), '') <> ''
+      union all
+      -- The owner's first text after a hold the receptionist opened for something it could not answer itself, while
+      -- that hold was open: their words, and what the receptionist said last before it.
+      select m.id, m.tenant_id, m.conversation_id, 'reply', m.created_at, btrim(m.body),
+             (select a.body from messages a
+               where a.conversation_id = m.conversation_id and a.direction = 'outbound' and a.sender = 'ai'
+                 and a.type = 'text' and a.status in ('sent', 'delivered', 'read') and a.created_at < m.created_at
+               order by a.created_at desc limit 1)
+        from messages m
+        join lateral (
+          select e.created_at from escalations e
+           where e.tenant_id = m.tenant_id and e.conversation_id = m.conversation_id
+             and e.reason in ('human_token', 'policy_ask', 'booking_reply')
+             and e.created_at <= m.created_at
+             and (e.state = 'open' or e.resolved_at >= m.created_at)
+           order by e.created_at desc limit 1
+        ) e on true
+       where m.tenant_id = t.id and m.created_at > now() - interval '3 days'
+         and m.direction = 'outbound' and m.sender = 'human' and m.type = 'text'
+         and m.status in ('sent', 'delivered', 'read')
+         and coalesce(btrim(m.body), '') <> ''
+         and not exists (
+           select 1 from messages p
+            where p.conversation_id = m.conversation_id and p.direction = 'outbound' and p.sender = 'human'
+              and p.created_at > e.created_at and p.created_at < m.created_at
+         )
+    ) c
+   where t.status = 'active'
+     and c.conversation_id is not null
+     and not exists (select 1 from fact_suggestions f where f.source_message_id = c.message_id)
+   order by c.made_at
+   limit least(greatest(coalesce(p_limit, 20), 1), 50)
+$$;
+
+
+--
+-- Name: FUNCTION fact_corrections(p_limit integer); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.fact_corrections(p_limit integer) IS 'The owner''s corrections of the last three days not yet looked at (decision 0063), oldest first: a held draft rewritten to their instruction (steer), and their first text after a hold opened for human_token, policy_ask or booking_reply while it was open (reply), in active workspaces. Each with the owner''s words and what the receptionist said. The clock and the batch read the same rows. Service role only.';
+
+
+--
+-- Name: fact_suggest(uuid, text, text, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.fact_suggest(p_id uuid, p_title text, p_body text, p_quote text) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_title text := nullif(btrim(coalesce(p_title, '')), '');
+  v_body  text := nullif(btrim(coalesce(p_body, '')), '');
+  v_quote text := nullif(btrim(coalesce(p_quote, '')), '');
+  v_row   public.fact_suggestions%rowtype;
+begin
+  if v_title is null or v_body is null or v_quote is null then
+    return jsonb_build_object('error', 'empty');
+  end if;
+  if char_length(v_title) > 80 or char_length(v_body) > 400 or char_length(v_quote) > 400 then
+    return jsonb_build_object('error', 'too_long');
+  end if;
+  update fact_suggestions set state = 'suggested', title = v_title, body = v_body, quote = v_quote
+   where id = p_id and state = 'nothing'
+  returning * into v_row;
+  if not found then
+    return jsonb_build_object('error', 'not_found');
+  end if;
+  insert into events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (v_row.tenant_id, 'settings.fact_suggested', 'settings', 'workspace', v_row.tenant_id,
+          jsonb_build_object('suggestion_id', v_row.id, 'source', v_row.source, 'chars', char_length(v_body)));
+  -- The bell says there is one and where; the words stay on the pane.
+  insert into notifications (tenant_id, kind, title, body, route, subject_type, subject_id)
+  values (v_row.tenant_id, 'note_to_keep',
+          case when v_row.source = 'steer' then 'The receptionist can learn from your rewrite'
+               else 'The receptionist can learn from your reply' end,
+          'Keep it as a note for the receptionist, or dismiss it.',
+          'admin/autonomy', 'fact_suggestion', v_row.id::text);
+  return jsonb_build_object('suggestion', jsonb_build_object('id', v_row.id, 'state', v_row.state));
+end $$;
+
+
+--
+-- Name: FUNCTION fact_suggest(p_id uuid, p_title text, p_body text, p_quote text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.fact_suggest(p_id uuid, p_title text, p_body text, p_quote text) IS 'The note sweep suggests a note for the receptionist from an owner''s correction (decision 0063): a look handed over by fact_candidates becomes a suggestion, with settings.fact_suggested (never the words) and a note_to_keep line on the bell that opens Settings › Autonomy. Answers {suggestion} or {error}: empty, too_long, not_found (no such look, or one already said). Service role only.';
+
+
+--
+-- Name: fact_suggestion_answer(uuid, boolean, integer); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.fact_suggestion_answer(p_id uuid, p_keep boolean, p_config_version integer DEFAULT NULL::integer) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_actor uuid := auth.uid();
+  v_row   public.fact_suggestions%rowtype;
+  v_state text;
+begin
+  -- The caller is auth.uid(), read here, never a parameter (00021's rule): the answer is theirs.
+  if v_actor is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_keep is null then
+    raise exception 'fact_suggestion_answer: keep, or not' using errcode = '22004';
+  end if;
+  select * into v_row from public.fact_suggestions where id = p_id for update;
+  -- One the caller does not act in is one they cannot see: a stranger learns nothing.
+  if not found or v_row.state = 'nothing' or not public.is_acting_member(v_row.tenant_id) then
+    raise exception 'Suggestion not found.' using errcode = 'P0002';
+  end if;
+  if v_row.state <> 'suggested' then
+    return jsonb_build_object('error', 'answered', 'state', v_row.state);
+  end if;
+  v_state := case when p_keep then 'kept' else 'dismissed' end;
+  update public.fact_suggestions
+     set state = v_state, decided_by = v_actor, decided_at = now(),
+         config_version = case when p_keep then p_config_version end
+   where id = v_row.id;
+  -- Its line on the bell asked for this answer, so it ends for everyone, through the one door that closes rows (00421).
+  perform public.notifications_close_about(v_row.tenant_id, array['note_to_keep'], 'fact_suggestion', v_row.id::text);
+  if p_keep then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (v_row.tenant_id, 'settings.fact_kept', 'settings', 'workspace', v_row.tenant_id,
+            jsonb_build_object('suggestion_id', v_row.id, 'source', v_row.source, 'by', v_actor,
+                               'version', p_config_version));
+  else
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (v_row.tenant_id, 'settings.fact_dismissed', 'settings', 'workspace', v_row.tenant_id,
+            jsonb_build_object('suggestion_id', v_row.id, 'source', v_row.source, 'by', v_actor));
+  end if;
+  return jsonb_build_object('suggestion', jsonb_build_object('id', v_row.id, 'state', v_state));
+end $$;
+
+
+--
+-- Name: FUNCTION fact_suggestion_answer(p_id uuid, p_keep boolean, p_config_version integer); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.fact_suggestion_answer(p_id uuid, p_keep boolean, p_config_version integer) IS 'A member answers a note suggested from an owner''s correction (decision 0063): kept, with the settings version the note was written in (the note itself is the settings write''s), or dismissed; settings.fact_kept or settings.fact_dismissed as theirs. A refusal is {error: answered} with its state. Returns the suggestion''s id and state.';
+
+
+--
 -- Name: first_replies(uuid, timestamp with time zone); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -5628,6 +5861,73 @@ $$;
 --
 
 COMMENT ON FUNCTION public.has_relationship(c public.contacts) IS 'Whether a person has a relationship with the business on record (spec 4.1): they wrote (a spoken message of theirs, with words and a moment, that a person wrote: not an automatic reply or a list''s mail), they called (a call they placed that connected), or they have a deal. What contracts'' relationshipOnRecord reads of People''s columns, in SQL, for the rows the send door reads. A function of the contacts row, so PostgREST serves it as a column.';
+
+
+--
+-- Name: held_draft_outcome(text, jsonb); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.held_draft_outcome(p_status text, p_error jsonb) RETURNS text
+    LANGUAGE sql IMMUTABLE
+    SET search_path TO 'public'
+    AS $$
+  select case
+           when p_status in ('sent', 'delivered', 'read') then 'sent'
+           when p_status = 'queued' then 'waiting'
+           when p_status = 'canceled' then
+             case
+               when p_error is null or jsonb_typeof(p_error) = 'null' then 'canceled'
+               when p_error->>'reason' = 'steered' then 'steered'
+               when p_error->>'reason' = 'superseded_by_newer_message' then 'overtaken'
+               when p_error->>'reason' = 'superseded_by_human' then 'person_first'
+               else 'other'
+             end
+           else 'other'
+         end
+$$;
+
+
+--
+-- Name: FUNCTION held_draft_outcome(p_status text, p_error jsonb); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.held_draft_outcome(p_status text, p_error jsonb) IS 'What became of one of the receptionist''s held drafts (decision 0063), from its status and its error: sent, waiting, canceled (the owner stopped it), steered (rewritten to their instruction), overtaken (a newer customer message), person_first (a person wrote first), else other. The rule receptionist_series (00380) spells for its hold.';
+
+
+--
+-- Name: held_drafts_by_intent(uuid, integer); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.held_drafts_by_intent(p_tenant_id uuid, p_days integer DEFAULT 30) RETURNS TABLE(intent text, held integer, sent integer, steered integer, canceled integer, person_first integer)
+    LANGUAGE sql STABLE
+    SET search_path TO 'public'
+    AS $$
+  with held as (
+    select coalesce(nullif(m.meta->>'intent', ''), 'other') as intent,
+           public.held_draft_outcome(m.status, m.error) as outcome
+      from messages m
+     where m.tenant_id = p_tenant_id
+       and m.created_at >= now() - make_interval(days => least(greatest(coalesce(p_days, 30), 1), 90))
+       and m.direction = 'outbound' and m.sender = 'ai'
+       and m.meta->>'source' in ('veto_window', 'low_confidence')
+       and coalesce(m.meta->>'backfill', 'false') <> 'true'
+  )
+  select h.intent,
+         count(*)::integer,
+         (count(*) filter (where h.outcome = 'sent'))::integer,
+         (count(*) filter (where h.outcome = 'steered'))::integer,
+         (count(*) filter (where h.outcome = 'canceled'))::integer,
+         (count(*) filter (where h.outcome = 'person_first'))::integer
+    from held h
+   group by h.intent
+$$;
+
+
+--
+-- Name: FUNCTION held_drafts_by_intent(p_tenant_id uuid, p_days integer); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.held_drafts_by_intent(p_tenant_id uuid, p_days integer) IS 'The Autonomy pane''s evidence (decision 0063): the receptionist''s drafts held for the owner over the last p_days (1 to 90, default 30), by the intent the model stamped (other where none), with how many were sent as written, rewritten to an instruction, stopped by the owner, or answered by a person first (held_draft_outcome). SECURITY INVOKER: the caller''s RLS decides.';
 
 
 --
@@ -28485,7 +28785,7 @@ begin
         where v.last_inbound_at < now() - interval '6 hours'
           and v.last_inbound_at > now() - interval '7 days'
           and (v.note_checked_at is null or v.note_checked_at < v.last_inbound_at)
-     ) then
+     ) or exists (select 1 from public.fact_corrections(1)) then
     return public.request_sweep('notes', '/api/cron/notes');
   end if;
   insert into public.sweep_status (sweep, requested_at) values ('notes', now())
@@ -28498,7 +28798,7 @@ end $$;
 -- Name: FUNCTION trigger_notes_sweep(); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.trigger_notes_sweep() IS 'The note sweep''s clock (0007). Calls the edge (/api/cron/notes) only when a call or a quiet conversation is waiting for its look; otherwise records that it looked.';
+COMMENT ON FUNCTION public.trigger_notes_sweep() IS 'The note sweep''s clock (0007, 0063). Calls the edge (/api/cron/notes) only when a call, a quiet conversation or an owner''s correction is waiting for its look; otherwise records that it looked.';
 
 
 --
@@ -30034,6 +30334,42 @@ COMMENT ON TABLE public.events_default IS 'Catch-all so a lapsed partition precr
 
 
 --
+-- Name: fact_suggestions; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.fact_suggestions (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    tenant_id uuid NOT NULL,
+    conversation_id uuid,
+    source text NOT NULL,
+    source_message_id uuid NOT NULL,
+    state text DEFAULT 'nothing'::text NOT NULL,
+    title text,
+    body text,
+    quote text,
+    config_version integer,
+    decided_by uuid,
+    decided_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT fact_suggestions_body_check CHECK (((body IS NULL) OR ((char_length(body) >= 1) AND (char_length(body) <= 400)))),
+    CONSTRAINT fact_suggestions_decided CHECK (((state = ANY (ARRAY['kept'::text, 'dismissed'::text])) = (decided_at IS NOT NULL))),
+    CONSTRAINT fact_suggestions_quote_check CHECK (((quote IS NULL) OR ((char_length(quote) >= 1) AND (char_length(quote) <= 400)))),
+    CONSTRAINT fact_suggestions_says_it CHECK ((((state = 'nothing'::text) AND (title IS NULL) AND (body IS NULL) AND (quote IS NULL)) OR ((state <> 'nothing'::text) AND (title IS NOT NULL) AND (body IS NOT NULL) AND (quote IS NOT NULL)))),
+    CONSTRAINT fact_suggestions_source_check CHECK ((source = ANY (ARRAY['steer'::text, 'reply'::text]))),
+    CONSTRAINT fact_suggestions_state_check CHECK ((state = ANY (ARRAY['nothing'::text, 'suggested'::text, 'kept'::text, 'dismissed'::text]))),
+    CONSTRAINT fact_suggestions_title_check CHECK (((title IS NULL) OR ((char_length(title) >= 1) AND (char_length(title) <= 80))))
+);
+
+
+--
+-- Name: TABLE fact_suggestions; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.fact_suggestions IS 'An owner''s correction, looked at once by the note sweep (decision 0063): a rewritten draft''s instruction or the owner''s own text after a hold. Most end as nothing; a lasting fact about the business waits on Today as a note to Keep or Dismiss.';
+
+
+--
 -- Name: google_connections; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -31344,7 +31680,7 @@ CREATE TABLE public.notifications (
     mail_due_at timestamp with time zone,
     closed_at timestamp with time zone,
     CONSTRAINT notifications_body_check CHECK ((char_length(body) <= 4000)),
-    CONSTRAINT notifications_kind_check CHECK ((kind = ANY (ARRAY['handoff'::text, 'deadman'::text, 'call'::text, 'number'::text, 'sweep'::text, 'job_failed'::text, 'playbook'::text, 'calendar_people'::text, 'alert'::text, 'review'::text, 'billing'::text, 'template_ready'::text, 'template_blocked'::text, 'broadcast_sent'::text, 'broadcast_stopped'::text, 'leads_ready'::text, 'leads_question'::text, 'note_for_you'::text, 'reach_out_replied'::text, 'reach_out_day'::text, 'booking_notice'::text, 'opted_out'::text, 'booking'::text, 'member_joined'::text, 'member_left'::text]))),
+    CONSTRAINT notifications_kind_check CHECK ((kind = ANY (ARRAY['handoff'::text, 'deadman'::text, 'call'::text, 'number'::text, 'sweep'::text, 'job_failed'::text, 'playbook'::text, 'calendar_people'::text, 'alert'::text, 'review'::text, 'billing'::text, 'template_ready'::text, 'template_blocked'::text, 'broadcast_sent'::text, 'broadcast_stopped'::text, 'leads_ready'::text, 'leads_question'::text, 'note_for_you'::text, 'reach_out_replied'::text, 'reach_out_day'::text, 'booking_notice'::text, 'opted_out'::text, 'booking'::text, 'member_joined'::text, 'member_left'::text, 'note_to_keep'::text]))),
     CONSTRAINT notifications_title_check CHECK (((char_length(title) >= 1) AND (char_length(title) <= 200)))
 );
 
@@ -33417,6 +33753,22 @@ ALTER TABLE ONLY public.events_default
 
 
 --
+-- Name: fact_suggestions fact_suggestions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.fact_suggestions
+    ADD CONSTRAINT fact_suggestions_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: fact_suggestions fact_suggestions_source_message_one; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.fact_suggestions
+    ADD CONSTRAINT fact_suggestions_source_message_one UNIQUE (source_message_id);
+
+
+--
 -- Name: google_connections google_connections_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -34671,6 +35023,20 @@ CREATE INDEX events_tenant_subject ON ONLY public.events USING btree (tenant_id,
 --
 
 CREATE INDEX events_default_tenant_id_subject_type_subject_id_created_at_idx ON public.events_default USING btree (tenant_id, subject_type, subject_id, created_at);
+
+
+--
+-- Name: fact_suggestions_tenant_created; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX fact_suggestions_tenant_created ON public.fact_suggestions USING btree (tenant_id, created_at);
+
+
+--
+-- Name: fact_suggestions_waiting; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX fact_suggestions_waiting ON public.fact_suggestions USING btree (tenant_id, created_at DESC) WHERE (state = 'suggested'::text);
 
 
 --
@@ -36099,6 +36465,13 @@ CREATE TRIGGER events_note_first_touch AFTER INSERT ON public.events FOR EACH RO
 --
 
 CREATE TRIGGER events_outbox_copy AFTER INSERT ON public.events FOR EACH ROW EXECUTE FUNCTION public.events_outbox_copy();
+
+
+--
+-- Name: fact_suggestions fact_suggestions_set_updated_at; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER fact_suggestions_set_updated_at BEFORE UPDATE ON public.fact_suggestions FOR EACH ROW EXECUTE FUNCTION extensions.moddatetime('updated_at');
 
 
 --
@@ -37737,6 +38110,38 @@ ALTER TABLE ONLY public.event_outbox
 
 
 --
+-- Name: fact_suggestions fact_suggestions_conversation_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.fact_suggestions
+    ADD CONSTRAINT fact_suggestions_conversation_id_same_workspace FOREIGN KEY (tenant_id, conversation_id) REFERENCES public.conversations(tenant_id, id) ON DELETE SET NULL (conversation_id);
+
+
+--
+-- Name: fact_suggestions fact_suggestions_decided_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.fact_suggestions
+    ADD CONSTRAINT fact_suggestions_decided_by_fkey FOREIGN KEY (decided_by) REFERENCES auth.users(id) ON DELETE SET NULL;
+
+
+--
+-- Name: fact_suggestions fact_suggestions_source_message_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.fact_suggestions
+    ADD CONSTRAINT fact_suggestions_source_message_id_same_workspace FOREIGN KEY (tenant_id, source_message_id) REFERENCES public.messages(tenant_id, id) ON DELETE CASCADE;
+
+
+--
+-- Name: fact_suggestions fact_suggestions_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.fact_suggestions
+    ADD CONSTRAINT fact_suggestions_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+
+--
 -- Name: google_connections google_connections_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -39299,6 +39704,21 @@ CREATE POLICY events_default_member_select ON public.events_default FOR SELECT T
 CREATE POLICY events_member_select ON public.events FOR SELECT TO authenticated USING (((tenant_id IN ( SELECT m.tenant_id
    FROM public.memberships m
   WHERE (m.user_id = ( SELECT auth.uid() AS uid)))) AND ((kind <> ALL (ARRAY['partner.earned'::text, 'partner.reversed'::text, 'partner.paid'::text])) OR public.caller_has_permission(tenant_id, 'billing'::text))));
+
+
+--
+-- Name: fact_suggestions; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.fact_suggestions ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: fact_suggestions fact_suggestions_member_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY fact_suggestions_member_select ON public.fact_suggestions FOR SELECT TO authenticated USING ((tenant_id IN ( SELECT m.tenant_id
+   FROM public.memberships m
+  WHERE (m.user_id = ( SELECT auth.uid() AS uid)))));
 
 
 --
@@ -41191,6 +41611,39 @@ GRANT ALL ON FUNCTION public.expire_stale_pauses() TO service_role;
 
 
 --
+-- Name: FUNCTION fact_candidates(p_limit integer); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.fact_candidates(p_limit integer) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.fact_candidates(p_limit integer) TO service_role;
+
+
+--
+-- Name: FUNCTION fact_corrections(p_limit integer); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.fact_corrections(p_limit integer) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.fact_corrections(p_limit integer) TO service_role;
+
+
+--
+-- Name: FUNCTION fact_suggest(p_id uuid, p_title text, p_body text, p_quote text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.fact_suggest(p_id uuid, p_title text, p_body text, p_quote text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.fact_suggest(p_id uuid, p_title text, p_body text, p_quote text) TO service_role;
+
+
+--
+-- Name: FUNCTION fact_suggestion_answer(p_id uuid, p_keep boolean, p_config_version integer); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.fact_suggestion_answer(p_id uuid, p_keep boolean, p_config_version integer) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.fact_suggestion_answer(p_id uuid, p_keep boolean, p_config_version integer) TO authenticated;
+GRANT ALL ON FUNCTION public.fact_suggestion_answer(p_id uuid, p_keep boolean, p_config_version integer) TO service_role;
+
+
+--
 -- Name: FUNCTION first_replies(p_tenant_id uuid, p_start timestamp with time zone); Type: ACL; Schema: public; Owner: -
 --
 
@@ -41296,6 +41749,24 @@ GRANT SELECT(notes) ON TABLE public.contacts TO authenticated;
 REVOKE ALL ON FUNCTION public.has_relationship(c public.contacts) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.has_relationship(c public.contacts) TO authenticated;
 GRANT ALL ON FUNCTION public.has_relationship(c public.contacts) TO service_role;
+
+
+--
+-- Name: FUNCTION held_draft_outcome(p_status text, p_error jsonb); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.held_draft_outcome(p_status text, p_error jsonb) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.held_draft_outcome(p_status text, p_error jsonb) TO authenticated;
+GRANT ALL ON FUNCTION public.held_draft_outcome(p_status text, p_error jsonb) TO service_role;
+
+
+--
+-- Name: FUNCTION held_drafts_by_intent(p_tenant_id uuid, p_days integer); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.held_drafts_by_intent(p_tenant_id uuid, p_days integer) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.held_drafts_by_intent(p_tenant_id uuid, p_days integer) TO authenticated;
+GRANT ALL ON FUNCTION public.held_drafts_by_intent(p_tenant_id uuid, p_days integer) TO service_role;
 
 
 --
@@ -45590,6 +46061,14 @@ GRANT ALL ON TABLE public.events TO service_role;
 --
 
 GRANT ALL ON TABLE public.events_default TO service_role;
+
+
+--
+-- Name: TABLE fact_suggestions; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.fact_suggestions TO service_role;
+GRANT SELECT ON TABLE public.fact_suggestions TO authenticated;
 
 
 --

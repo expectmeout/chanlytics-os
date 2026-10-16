@@ -158,6 +158,7 @@ export const ROUTES = {
   "POST conversations/[id]/take-over": { method: "POST", path: "/api/v1/conversations/[id]/take-over" },
   "POST conversations/[id]/wake": { method: "POST", path: "/api/v1/conversations/[id]/wake" },
   "POST escalations/[id]/resolve": { method: "POST", path: "/api/v1/escalations/[id]/resolve" },
+  "POST fact-suggestions/[id]": { method: "POST", path: "/api/v1/fact-suggestions/[id]" },
   "POST google/link": { method: "POST", path: "/api/v1/google/link" },
   "POST google/locations": { method: "POST", path: "/api/v1/google/locations" },
   "POST google/refresh": { method: "POST", path: "/api/v1/google/refresh" },
@@ -439,6 +440,7 @@ export type Routes = {
   "POST conversations/[id]/take-over": typeof import("../../app/api/v1/conversations/[id]/take-over/route").POST;
   "POST conversations/[id]/wake": typeof import("../../app/api/v1/conversations/[id]/wake/route").POST;
   "POST escalations/[id]/resolve": typeof import("../../app/api/v1/escalations/[id]/resolve/route").POST;
+  "POST fact-suggestions/[id]": typeof import("../../app/api/v1/fact-suggestions/[id]/route").POST;
   "POST google/link": typeof import("../../app/api/v1/google/link/route").POST;
   "POST google/locations": typeof import("../../app/api/v1/google/locations/route").POST;
   "POST google/refresh": typeof import("../../app/api/v1/google/refresh/route").POST;

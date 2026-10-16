@@ -240,6 +240,7 @@ export interface AskProposal {
     | "sequence_discard"
     | "playbook_run"
     | "booking_request"
+    | "fact_suggestion"
     | "call_hand_over"
     | "lead_stage"
     | "lead_mark"

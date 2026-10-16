@@ -189,6 +189,10 @@ export const ERASURE_STRATEGIES: Readonly<Record<string, Readonly<Record<string,
     data: scrubbedBy("events_trigger"),
     ...all(NOT_PERSONAL, "kind", "category", "subject_type", "request_id"),
   },
+  // A note suggested from an owner's correction (00448): its key is the correction's message, in the person's thread, so
+  // the row goes with it when erase_contact deletes their messages (on delete cascade). A note once kept is the business's
+  // own, in its settings, and no longer a suggestion.
+  fact_suggestions: all(withPerson("erase_contact"), "title", "body", "quote"),
   // A member's own Google account, connected for the workspace's profile: the row goes at disconnect, and with the
   // workspace. The profile's and Google's names and ids, and the sync's error, are nobody's.
   google_connections: {

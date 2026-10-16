@@ -1,4 +1,7 @@
-/** Notes on a person (decision 0007): a note, when the receptionist suggests one, a next step and its sheet. */
+/**
+ * Notes on a person (decision 0007): a note, when the receptionist suggests one, a next step and its sheet. And a note for
+ * the receptionist an owner's correction suggests (decision 0063).
+ */
 export {
   customerWords,
   whyNotLook,
@@ -11,6 +14,19 @@ export {
   NOTE_SUGGEST_SCHEMA,
 } from "./note-suggest";
 export type { NoteSuggestKind, NoteTurn, NoteLookFacts, NoteCheck } from "./note-suggest";
+export {
+  whyNotFactLook,
+  factSuggestSystemPrompt,
+  factSuggestUserContent,
+  checkFactSuggestion,
+  factAlreadyNoted,
+  FACT_SUGGEST_MODEL,
+  FACT_SUGGEST_LIMITS,
+  FACT_SUGGEST_SCHEMA,
+} from "./fact-suggest";
+export type { FactLookFacts, FactCorrection, FactCheck } from "./fact-suggest";
+export { factNoteChange, FACT_SUGGEST_WORDS } from "./fact-words";
+export type { CorrectionSource, FactSuggestionDto } from "./fact-words";
 export {
   stepDayOf,
   stepIsDue,

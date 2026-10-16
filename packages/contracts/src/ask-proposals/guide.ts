@@ -32,6 +32,8 @@ const WHY = {
   erase: "it erases a person for good, which is asked for and confirmed on their page",
   team: "it changes who is on the team, which the owner does in Settings › Team",
   draft: "Ask writes the draft itself in the conversation, so it never needs the page's drafter",
+  learned:
+    "a note the owner's correction suggested is kept beside what they wrote, on Settings › Autonomy; Ask adds a note of its own with a settings card",
 } as const;
 
 export const ASK_GUIDE_PAGES: readonly GuidePage[] = [
@@ -152,7 +154,7 @@ export const ASK_GUIDE_PAGES: readonly GuidePage[] = [
     page: "Settings",
     route: "admin/workspace",
     for: "What the receptionist knows and may do alone, your goal, connections, notifications, team and billing.",
-    verbs: ["settings", "policy", "invite", "follow_up"],
+    verbs: ["settings", "policy", "invite", "follow_up", "fact_suggestion"],
     pageOnly: [
       { what: "Connect WhatsApp, Google, a mailbox or a phone line", why: WHY.signIn },
       { what: "Billing and the plan", why: WHY.money },
@@ -169,4 +171,5 @@ export const ASK_GUIDE_PAGES: readonly GuidePage[] = [
 export const ASK_PAGE_ONLY_VERBS: Readonly<Partial<Record<Kind, string>>> = {
   invite: WHY.team,
   sequence_draft: WHY.draft,
+  fact_suggestion: WHY.learned,
 };

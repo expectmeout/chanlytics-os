@@ -615,6 +615,10 @@ var ERASURE_STRATEGIES = {
     data: scrubbedBy("events_trigger"),
     ...all(NOT_PERSONAL, "kind", "category", "subject_type", "request_id")
   },
+  // A note suggested from an owner's correction (00448): its key is the correction's message, in the person's thread, so
+  // the row goes with it when erase_contact deletes their messages (on delete cascade). A note once kept is the business's
+  // own, in its settings, and no longer a suggestion.
+  fact_suggestions: all(withPerson("erase_contact"), "title", "body", "quote"),
   // A member's own Google account, connected for the workspace's profile: the row goes at disconnect, and with the
   // workspace. The profile's and Google's names and ids, and the sync's error, are nobody's.
   google_connections: {
@@ -6730,6 +6734,77 @@ async function dismissAppointmentNotice(db, tenantId, id) {
   if (error) throw new Error(`appointment_notice_dismiss: ${error.message}`);
   return (data?.length ?? 0) > 0;
 }
+
+// src/repositories/facts/fact-suggestions.ts
+var texts = (v) => Array.isArray(v) ? v.filter((x) => typeof x === "string" && x.trim() !== "") : [];
+async function factCorrectionsBatch(db, limit) {
+  const { data, error } = await db.rpc("fact_candidates", { p_limit: limit });
+  if (error) throw new Error(`fact_candidates: ${error.message}`);
+  return (data ?? []).flatMap(
+    (r) => r.source === "steer" || r.source === "reply" ? [
+      {
+        id: r.id,
+        tenant_id: r.tenant_id,
+        conversation_id: r.conversation_id ?? null,
+        source: r.source,
+        words: r.words ?? "",
+        said: r.said ?? null,
+        asked: texts(r.asked),
+        known: texts(r.known),
+        notes_count: r.notes_count ?? 0,
+        workspace_today: r.workspace_today ?? 0
+      }
+    ] : []
+  );
+}
+async function suggestFact(db, p) {
+  const { data, error } = await db.rpc("fact_suggest", {
+    p_id: p.id,
+    p_title: p.title,
+    p_body: p.body,
+    p_quote: p.quote
+  });
+  if (error) throw new Error(`fact_suggest: ${error.message}`);
+  const refused = data?.error;
+  return { refused: typeof refused === "string" ? refused : null };
+}
+var WAITING_MAX = 20;
+async function factSuggestionsWaiting(db, tenantId) {
+  const { data, error } = await db.from("fact_suggestions").select("id, source, title, body, quote, conversation_id, created_at").eq("tenant_id", tenantId).eq("state", "suggested").order("created_at", { ascending: false }).limit(WAITING_MAX);
+  if (error) throw new Error(`fact_suggestions_waiting: ${error.message}`);
+  return (data ?? []).flatMap(
+    (r) => (r.source === "steer" || r.source === "reply") && r.title && r.body && r.quote ? [{ ...r, source: r.source, title: r.title, body: r.body, quote: r.quote }] : []
+  );
+}
+async function factSuggestionById(db, id) {
+  const { data, error } = await db.from("fact_suggestions").select("id, tenant_id, state, source, title, body, quote, conversation_id, created_at").eq("id", id).maybeSingle();
+  if (error) throw new Error(`fact_suggestion_by_id: ${error.message}`);
+  if (!data || data.source !== "steer" && data.source !== "reply" || !data.title || !data.body || !data.quote)
+    return null;
+  return { ...data, source: data.source, title: data.title, body: data.body, quote: data.quote };
+}
+async function answerFactSuggestion(db, p) {
+  const { data, error } = await db.rpc("fact_suggestion_answer", {
+    p_id: p.id,
+    p_keep: p.keep,
+    ...p.configVersion !== null ? { p_config_version: p.configVersion } : {}
+  });
+  return { data, error };
+}
+
+// src/repositories/facts/held-drafts.ts
+async function heldDraftsByIntent(db, tenantId, days) {
+  const { data, error } = await db.rpc("held_drafts_by_intent", { p_tenant_id: tenantId, p_days: days });
+  if (error) throw new Error(`held_drafts_by_intent: ${error.message}`);
+  return (data ?? []).map((r) => ({
+    intent: r.intent ?? "other",
+    held: r.held ?? 0,
+    sent: r.sent ?? 0,
+    steered: r.steered ?? 0,
+    canceled: r.canceled ?? 0,
+    person_first: r.person_first ?? 0
+  }));
+}
 export {
   AnswerNotKept,
   CALL_CONTROL_S,
@@ -6756,6 +6831,7 @@ export {
   adoptPersonName,
   aiFailuresHour,
   answerBookingRequest,
+  answerFactSuggestion,
   answeredReachOutEmail,
   applyBilling,
   applyReplyReading,
@@ -6846,6 +6922,9 @@ export {
   everyoneIn,
   everyoneOnceIn,
   exportSectionPages,
+  factCorrectionsBatch,
+  factSuggestionById,
+  factSuggestionsWaiting,
   failIdeas,
   failQueuedSend,
   failStrandedRun,
@@ -6879,6 +6958,7 @@ export {
   handBackThread,
   handRun,
   hasNewerCopy,
+  heldDraftsByIntent,
   heldMessageOf,
   heldNoticeDue,
   heldNoticeKeys,
@@ -7183,6 +7263,7 @@ export {
   subjectsWith,
   subscribeWorkspaceChanges,
   subscriptionPaused,
+  suggestFact,
   suppressEmailOf,
   syncFeedAppointments,
   takeCheckAttempt,

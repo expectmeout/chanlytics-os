@@ -2,9 +2,12 @@
  * Settings › Autonomy's policy matrix (moved from legacy/pages/settings.jsx, decision 0015 step 11): one row per action
  * class and a column per mode, a table on a desktop and one line per class on a phone. The rows are the bridge's
  * (policy-store.ts uiRows: contracts' classes, the modes each honours, and the workspace's stored mode); every word a
- * mode says is contracts' POLICY_MODE_WORDS, through UI_MODE_WORDS.
+ * mode says is contracts' POLICY_MODE_WORDS, through UI_MODE_WORDS. Under the rows a held draft belongs to (Replies, Bookings,
+ * Questions), how often the owner changed what the receptionist wrote (decision 0063, contracts heldDraftsLine): the
+ * evidence for the row's mode, and no advice.
  */
 import { useEffect, useState } from "react";
+import { heldDraftsLine, type HeldDraftsClass, type HeldDraftsCount } from "@chanlytics/contracts";
 import { UI_MODES, UI_MODE_WORDS, type UiMode, type UiRow } from "@/legacy-bridge/policy-store";
 import { Icon } from "../../kit/icon/icon";
 import { MoreMenu } from "../../kit/more-menu/more-menu";
@@ -29,6 +32,13 @@ export const polMode = (m: UiMode | null): ModeWords => (m ? UI_MODE_WORDS[m] : 
 
 /** What a press of a mode asks for: the row, and the mode as the database spells it. */
 type PutMode = (r: UiRow, mode: string) => void;
+
+/** The held drafts by the row they belong to (contracts heldDraftsByClass); empty where none were read. */
+type HeldByClass = Partial<Record<HeldDraftsClass, HeldDraftsCount>>;
+
+/** A row's line of held drafts, or null: only the rows a draft can belong to, and only with one held. */
+const heldLineOf = (r: UiRow, held: HeldByClass): string | null =>
+  r.cls === "reply" || r.cls === "booking" || r.cls === "faq" ? heldDraftsLine(held[r.cls]) : null;
 
 function PolModeHead({ m }: { m: UiMode }) {
   const w = polMode(m);
@@ -86,7 +96,17 @@ export function useSetPhone(): boolean {
  * there -- 107px a row, the four captions repeated seven times down the screen. A locked class says so and opens
  * nothing. A desktop keeps the matrix, where four columns read at a glance.
  */
-export function PolPhoneRows({ rows, put, busy }: { rows: UiRow[]; put: PutMode; busy: string | null }) {
+export function PolPhoneRows({
+  rows,
+  put,
+  busy,
+  held = {},
+}: {
+  rows: UiRow[];
+  put: PutMode;
+  busy: string | null;
+  held?: HeldByClass;
+}) {
   return (
     <div className="pol-phone" data-testid="pol-phone">
       {rows.map((r) => {
@@ -98,6 +118,7 @@ export function PolPhoneRows({ rows, put, busy }: { rows: UiRow[]; put: PutMode;
             key={r.id}
             id={`pol-${r.id}`}
             testid={`pol-phone-${r.id}`}
+            hint={heldLineOf(r, held)}
             label={
               <>
                 {r.label}
@@ -174,7 +195,17 @@ function modeCell(r: UiRow, m: UiMode, put: PutMode, busy: string | null) {
 }
 
 /** The matrix on a desktop: a column per mode, headed by what the mode does, and a row per class. */
-export function PolicyTable({ rows, put, busy }: { rows: UiRow[]; put: PutMode; busy: string | null }) {
+export function PolicyTable({
+  rows,
+  put,
+  busy,
+  held = {},
+}: {
+  rows: UiRow[];
+  put: PutMode;
+  busy: string | null;
+  held?: HeldByClass;
+}) {
   return (
     <table className="pol-table">
       <thead>
@@ -198,6 +229,11 @@ export function PolicyTable({ rows, put, busy }: { rows: UiRow[]; put: PutMode; 
                   <RecordTip text={r.note} label={`What each mode does for ${r.label}: ${r.note}`} />
                 )}
               </span>
+              {heldLineOf(r, held) && (
+                <span className="pol-held" data-testid={`pol-held-${r.cls}`}>
+                  {heldLineOf(r, held)}
+                </span>
+              )}
             </td>
             {r.locked ? (
               <PolLockedCells span={UI_MODES.length} note={r.note} />

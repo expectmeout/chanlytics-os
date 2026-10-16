@@ -113,6 +113,8 @@ const AWAY_NOUN: Record<string, [one: string, many: string]> = {
   // Two invitations accepted the same morning read as a team that grew.
   member_joined: ["teammate joined", "teammates joined"],
   member_left: ["teammate left", "teammates left"],
+  // A morning's corrections can suggest several notes: one pile, each kept or dismissed on the Autonomy pane.
+  note_to_keep: ["note to keep for the receptionist", "notes to keep for the receptionist"],
 };
 
 /**
