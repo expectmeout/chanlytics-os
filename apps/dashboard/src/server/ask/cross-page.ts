@@ -285,7 +285,7 @@ export function scopedRead(scope: AskScope | null, route?: string | null): ToolR
  * before the model is asked as the reads above are, so the turn that drafts a customer message knows what the writer
  * behind its card needs from it. None for most questions, and nothing else changes then.
  */
-export function skillGuidesFor(text: string): string | null {
+function skillGuidesFor(text: string): string | null {
   const ids = skillsAsked(text.replace(/\s+/g, " ").trim());
   return ids.length ? ids.map(skillGuide).join("\n\n") : null;
 }

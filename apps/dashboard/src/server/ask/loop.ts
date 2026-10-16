@@ -230,7 +230,8 @@ function toolContextOf(input: TurnInput, now: Date, endsAt: number): ToolContext
  * This turn's words, as the text block before the question (prompt.ts turnWords): who is asking, where, when, the row
  * their words point at and whether the read set holds it, and -- while the question still carries it (`dataDropped`
  * false) -- that the data before them is read already: the page's, the reads made for another page, the scope's row.
- * A live turn's also say what happened since (D8). Made once the read set holds every read before the model's.
+ * A live turn's also say what happened since (D8). Made once the read set holds every read before the model's. The guide
+ * of a skill the question asks for follows them (cross-page.ts withSkillGuides).
  */
 function wordsBlock(
   input: TurnInput,
@@ -257,7 +258,7 @@ function wordsBlock(
     spoken: input.spoken ?? false,
     above: aboveRoleWords(input.role),
   };
-  return (live: boolean, dataDropped: boolean) => ({
+  const words = (live: boolean, dataDropped: boolean) => ({
     type: "text",
     text: turnWords({
       ...facts,
@@ -268,6 +269,7 @@ function wordsBlock(
       scopeRead: !dataDropped && !!rode.scopedRow,
     }),
   });
+  return withSkillGuides(words, input.text);
 }
 
 /**
@@ -446,10 +448,7 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
   // Whether the question still carries the data blocks: a request the API refuses for them is asked once more without
   // them (D14), and the words stop pointing at them (wordsBlock).
   let dataDropped = pageBlocks.length === 0 && crossBlocks.length === 0;
-  const sayWords = withSkillGuides(
-    wordsBlock(input, now, { built, crossBlocks, scopedRow, read: tc.read }),
-    input.text,
-  );
+  const sayWords = wordsBlock(input, now, { built, crossBlocks, scopedRow, read: tc.read });
   const question = { type: "text", text: input.text };
   // The tools (registry.ts), the same bytes every round, and the answer's format, until the API refuses a part of the
   // offer: then it is let go (refusals.ts letGo) and the same round asked again. No tool is strict: the API takes twenty

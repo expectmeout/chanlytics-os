@@ -108,7 +108,7 @@ export function validateCases(cases) {
       }
       // A pattern that matches nothing at all ("$", once its backslash was lost) passes or fails every message, and a
       // control character is an escape that was eaten ("\b" read as a backspace): either judges nothing.
-      if (re.test("") || /[\u0000-\u001f]/.test(p))
+      if (re.test("") || [...p].some((ch) => ch.charCodeAt(0) < 0x20))
         problems.push(`${c.id}: the pattern ${JSON.stringify(p)} matches any words, or lost an escape`);
     }
   }

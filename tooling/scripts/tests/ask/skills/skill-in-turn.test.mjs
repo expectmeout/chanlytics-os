@@ -20,7 +20,7 @@ delete process.env.ASK_MODEL;
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { runAskTurn } = await import(at("apps/dashboard/src/server/ask/loop.ts"));
-const { skillGuidesFor, withSkillGuides } = await import(at("apps/dashboard/src/server/ask/cross-page.ts"));
+const { withSkillGuides } = await import(at("apps/dashboard/src/server/ask/cross-page.ts"));
 const { workspaceFacts } = await import(at("apps/dashboard/src/server/ask/prompt.ts"));
 const { readerCache } = await import(at("apps/dashboard/src/server/readers/index.ts"));
 const { guideTool } = await import(at("apps/dashboard/src/server/ask/tools/read/guide.ts"));
@@ -139,7 +139,7 @@ test("the guide rides every form of the turn's words, and a question in Spanish 
   ])
     assert.equal(guided(live, dropped).text, `words ${live} ${dropped}\n\n${GUIDE}`);
   assert.equal(withSkillGuides(words, "¿quién me escribió hoy?"), words, "no skill asked: the words as they were");
-  assert.equal(skillGuidesFor("how did last week go?"), null);
+  assert.equal(withSkillGuides(words, "how did last week go?"), words);
 });
 
 /** A round that calls propose_sequence's action message: what a card's tool is handed is captured. */
