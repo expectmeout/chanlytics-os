@@ -323,7 +323,6 @@ export const PLAN_WORDS = {
   reminderAsk: (day: string, list: string): string =>
     `On ${day}, ask me to send a reminder to whoever on “${list}” has not booked by then.`,
   notOffered: JOURNEY_PLAN_WORDS.notOffered,
-  pausedOn: JOURNEY_PLAN_WORDS.pausedOn,
   /**
    * What a card says of what an earlier step of its plan makes, named by its token (`@step:n`): not filed yet, so not
    * quoted, and filled in by the commit once that step is approved.
@@ -342,6 +341,7 @@ export const PLAN_WORDS = {
     first: "The offer, on its first day.",
     paced: "The offer, as fast as the calendar can take it.",
     stage: JOURNEY_PLAN_WORDS.whyStage,
+    resume: JOURNEY_PLAN_WORDS.whyResume,
   },
 } as const;
 const SAY = PLAN_WORDS;

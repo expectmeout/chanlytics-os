@@ -4125,6 +4125,81 @@ test("Ask reaches any list by its reference: a People list or one of the workspa
   assert.match(JSON.parse(toCal.result).error, /can't be counted here: This list reads a calendar link/);
 });
 
+test("REGRESSION: a quiet rule says who it leaves out for want of a date -- asked to turn the receptionist off for everyone who had not written in six months, Ask said nobody, of 76 people never heard from (the operator stress run, 15 Oct 2026)", async () => {
+  const DAY = 86_400_000;
+  // Imported, or met at the desk: in People, with no message or call on record.
+  const neverHeard = (id, name) =>
+    peopleListRow({
+      id,
+      display_name: name,
+      channels: [],
+      conversation_count: 0,
+      last_message_at: null,
+      last_message_direction: null,
+      last_message_sender: null,
+      last_inbound_text: null,
+      last_inbound_at: null,
+    });
+  const quiet = peopleListRow({
+    id: LUIS,
+    display_name: "Luis Mora",
+    last_message_at: iso(NOW.getTime() - 200 * DAY),
+    last_inbound_at: iso(NOW.getTime() - 200 * DAY),
+  });
+  const SIX_MONTHS = [{ field: "last_heard", op: "more_than", days: 180 }];
+  // A query matches a name, as people_list matches it in SQL.
+  const world = (people) =>
+    newToolContext(
+      ctxFor(tables(), {
+        ...RPCS,
+        people_list: (args) => people.filter((p) => !args?.p_query || p.display_name.includes(args.p_query)),
+      }),
+      A,
+      "owner",
+      TZ,
+      NOW,
+    );
+  const search = async (tc, input) =>
+    JSON.parse((await runTool(tc, { name: "people", input: { action: "search", ...input } })).result);
+
+  const both = world([quiet, neverHeard(ANA, "Ana Reyes"), neverHeard(ROSA, "Rosa Diaz")]);
+  const found = await search(both, { all: SIX_MONTHS });
+  assert.deepEqual(
+    [found.matches, found.people.map((p) => p.name), found.not_on_record],
+    [1, ["Luis Mora"], [{ condition: "Never heard from", people: 2 }]],
+    "the two never heard from are not quiet, and are named apart",
+  );
+  // A query narrows who is said apart to whom it matched.
+  assert.deepEqual((await search(both, { all: SIX_MONTHS, query: "Ana" })).not_on_record, [
+    { condition: "Never heard from", people: 1 },
+  ]);
+  // Everyone has written lately: nothing is said apart.
+  const heard = await search(world([peopleListRow({ id: LUIS, display_name: "Luis Mora" })]), { all: SIX_MONTHS });
+  assert.deepEqual([heard.matches, heard.not_on_record], [0, undefined]);
+
+  // Nobody quiet, two never heard from: the selection of nobody says them, never that nobody is in People.
+  const none = world([neverHeard(ANA, "Ana Reyes"), neverHeard(ROSA, "Rosa Diaz")]);
+  assert.deepEqual((await search(none, { all: SIX_MONTHS })).not_on_record, [
+    { condition: "Never heard from", people: 2 },
+  ]);
+  const off = await buildProposal(none, "propose_people", { action: "mode", mode: "never", all: SIX_MONTHS });
+  assert.equal(off.isError, true);
+  assert.match(
+    JSON.parse(off.result).error,
+    /^nobody is in that selection today, but 2 people meet the rest with no date for it \(Never heard from\): say them apart, never that nobody is in People/,
+  );
+  // Read as never, the condition holds them: the card the owner can be offered.
+  const asked = await buildProposal(none, "propose_people", {
+    action: "mode",
+    mode: "never",
+    all: [{ field: "last_heard", op: "never" }],
+  });
+  assert.equal(asked.isError, false, asked.result);
+  assert.equal(asked.proposal.payload.count, 2);
+  // The card says who, in People's chips: the local probe's card for the 76 read "who the conditions hold today".
+  assert.equal(asked.proposal.summary, "Never · everyone matching “Never heard from”");
+});
+
 test("a gated list's refusal names the condition that failed: with a calendar and deals on but no consult-first service, Consultation booked is refused for the service alone", async () => {
   const { forgetFeeds } = await import(at("apps/dashboard/src/server/ask/openings.ts"));
   const ICS = [
@@ -7432,7 +7507,7 @@ test("a rule that described one tool is that tool's description now, and out of 
     "You never act.",
     "Answer from it when it is enough, in one round.",
     "Read only for what it does not hold: a whole conversation or transcript, a person's profile",
-    "name the door: a one-off send (propose_sequence action once) reaches only the people who said yes",
+    "name the door: a one-off send (propose_sequence action once) reaches only the people whose yes covers its message",
     "Leads are businesses Claude found for the owner to reach",
     "Only in the US.",
   ])

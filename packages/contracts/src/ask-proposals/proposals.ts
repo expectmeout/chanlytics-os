@@ -43,30 +43,8 @@ export const PROPOSAL_SPECS = /* @__PURE__ */ (() => {
   return { ...PAGE_SPECS, ...ASK_ONLY_SPECS } satisfies Record<AskProposal["kind"], ProposalSpec>;
 })();
 
-/**
- * The kinds whose Approve reaches outside the workspace's own records -- a message to a customer, a post on Google, money
- * spent on a search or an address, a call handed over, something that starts sending on its own -- each pressed on its own
- * in a plan, never among its silent steps (the marketing manager's spec §5.4; the operator, 15 Oct 2026). Every other
- * kind changes only what the workspace keeps (a list, a note, a draft, a setting), and a plan approves those together.
- */
-export const ASK_SENDS: ReadonlySet<AskProposal["kind"]> = /* @__PURE__ */ (() =>
-  new Set<AskProposal["kind"]>([
-    "reply",
-    "whisper",
-    "broadcast",
-    "playbook",
-    "run",
-    "lead_search",
-    "people_search",
-    "person_message",
-    "sequence_start",
-    "call_hand_over",
-    "leads_check",
-    "lead_addressee",
-    "lead_search_more",
-    "reach_out_make",
-    "review_reply",
-  ]))();
+/** The kinds a plan presses on their own, as the server names them: spec.ts holds them, beside a plan's count. */
+export { ASK_SENDS } from "./spec";
 
 /** The kinds above operator, whose refusal below `needs` is said in words (person_mode, settings, invite, lead_search). */
 export type ProposalKindAboveOperator = {

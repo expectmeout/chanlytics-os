@@ -13418,9 +13418,9 @@ var ListFactSchema = z3.discriminatedUnion("field", [
 ]);
 var AnySchema = z3.strictObject({ any: z3.array(ListFactSchema).check(z3.minLength(2), z3.maxLength(LIST_ANY_MAX)) });
 var ListConditionSchema = z3.union([AnySchema, ListFactSchema]);
+var isDayFact = (f) => f.field === "last_visit" || f.field === "next_visit" || f.field === "missed_visit" || f.field === "last_heard" || f.field === "first_contact";
 function factProblem(f) {
-  if (f.field !== "last_visit" && f.field !== "next_visit" && f.field !== "missed_visit" && f.field !== "last_heard" && f.field !== "first_contact")
-    return null;
+  if (!isDayFact(f)) return null;
   if ((f.op === "more_than" || f.op === "within") && f.days === void 0) return `${f.field} ${f.op} needs days`;
   if (f.op === "this_week" && f.field !== "next_visit") return "only the next one on the calendar can be this week";
   return null;
@@ -13641,6 +13641,13 @@ function listRuleParts(rule2, listName) {
 }
 function listRuleWhy(rule2, v, listName) {
   return rule2.all.map((c) => "any" in c ? c.any.find((f) => holds(f, v, noLists)) ?? c.any[0] : c).map((f) => listFactWords(f, listName)).join(" \xB7 ");
+}
+function ruleUndated(rule2) {
+  return rule2.all.flatMap((c, i) => {
+    if ("any" in c || !isDayFact(c) || c.op !== "more_than") return [];
+    const never = { field: c.field, op: "never" };
+    return [{ words: listFactWords(never), rule: { ...rule2, all: rule2.all.map((x, k) => k === i ? never : x) } }];
+  });
 }
 function listDraftFieldLines() {
   const ops = {
@@ -14766,6 +14773,23 @@ var PROPOSAL_WORDS = {
   /** A plan's silent steps, stopped at step n by its refusal (`why`, in the refusal's own words): nothing after it was done. */
   planStopped: (n, why) => `Stopped at step ${n}: ${/[.!?…]$/.test(why.trim()) ? why.trim() : `${why.trim()}.`} The steps after it were not done.`
 };
+var ASK_SENDS = /* @__PURE__ */ (() => /* @__PURE__ */ new Set([
+  "reply",
+  "whisper",
+  "broadcast",
+  "playbook",
+  "run",
+  "lead_search",
+  "people_search",
+  "person_message",
+  "sequence_start",
+  "call_hand_over",
+  "leads_check",
+  "lead_addressee",
+  "lead_search_more",
+  "reach_out_make",
+  "review_reply"
+]))();
 var asText = (v) => v == null ? "" : String(v);
 var rec = (v) => v && typeof v === "object" ? v : {};
 var decisionOf = (data) => {
@@ -22433,12 +22457,14 @@ function planCountWords(cards, language, words3) {
   const id = cards[0]?.plan?.id;
   if (id === void 0 || cards.some((p) => p.plan?.id !== id)) return { headline: null, detail: said };
   const silent = cards.filter((p) => p.plan?.silent).length;
-  const sends2 = cards.length - silent;
+  const sends2 = cards.filter((p) => !p.plan?.silent && ASK_SENDS.has(p.kind)).length;
+  const waiting = cards.length - silent - sends2;
   const es = language === "es";
   const one = (n, singular, plural3) => `${n} ${n === 1 ? singular : plural3}`;
   const parts2 = [
     ...silent > 0 ? [es ? one(silent, "no env\xEDa nada", "no env\xEDan nada") : one(silent, "sends nothing", "send nothing")] : [],
-    ...sends2 > 0 ? [es ? one(sends2, "env\xEDa", "env\xEDan") : one(sends2, "sends", "send")] : []
+    ...sends2 > 0 ? [es ? one(sends2, "env\xEDa", "env\xEDan") : one(sends2, "sends", "send")] : [],
+    ...waiting > 0 ? [es ? one(waiting, "espera un env\xEDo", "esperan un env\xEDo") : one(waiting, "waits for a send", "wait for a send")] : []
   ];
   const headline2 = es ? `Un plan de ${one(cards.length, "paso", "pasos")} para revisar: ${parts2.join(" y luego ")}.` : `A plan of ${one(cards.length, "step", "steps")} to review: ${parts2.join(", then ")}.`;
   if (said !== null || silent === 0) return { headline: headline2, detail: said };
@@ -22968,7 +22994,7 @@ function answerForCards(cards, language, words3, lead) {
   const plan = planCountWords(cards, language, words3);
   const a = structured(
     lead?.headline ?? plan.headline ?? (n === 1 ? es ? sentence(`Una tarjeta para revisar: ${cards[0].title}`) : sentence(`One card to review: ${cards[0].title}`) : es ? `${n} tarjetas para revisar.` : `${n} cards to review.`),
-    language
+    es ? "es" : "en"
   );
   a.say.detail = clip(
     plan.detail ?? (n === 1 ? es ? "Apru\xE9bala, c\xE1mbiala o desc\xE1rtala: nada pasa hasta que lo hagas." : "Approve it, change it or dismiss it: nothing happens until you do." : es ? "Cada una se aprueba por separado: apru\xE9bala, c\xE1mbiala o desc\xE1rtala; nada pasa hasta que lo hagas." : "Each is its own press: approve, change or dismiss each one; nothing happens until you do."),
@@ -24730,17 +24756,20 @@ var JOURNEY_PLAN_WORDS = {
   journeyUnread: "The journey could not be read just now, so which moments are covered is not known: say so, and try again in a moment.",
   nothingToCover: "Every moment asked for is covered already or not offered here (an appointment's moments need a calendar connected, a proposal's needs deals on): say so, and propose nothing.",
   notOffered: (stages) => `Not offered here: ${joinWords(stages)}.`,
-  pausedOn: (name) => `\u201C${name}\u201D stands paused on its moment: resume it from its drawer.`,
-  whyStage: (id) => `Nobody hears from you ${STAGE_WORDS[id]} yet.`
+  whyStage: (id) => `Nobody hears from you ${STAGE_WORDS[id]} yet.`,
+  /** A campaign paused on a moment the setup covers: resumed by a card of its own, never doubled. */
+  whyResume: (name) => `\u201C${name}\u201D stands paused on its moment: resumed, never doubled.`
 };
 function setupSteps() {
   const steps = [];
-  const add = (input, why) => {
+  const push = (kind, input, why) => {
     const n = steps.length + 1;
-    steps.push({ n, kind: "playbook", silent: false, input, why, after: [] });
+    steps.push({ n, kind, silent: false, input, why, after: [] });
     return n;
   };
-  return { steps, add };
+  const add = (input, why) => push("playbook", input, why);
+  const resume = (playbookId, why) => push("change", { playbook_id: playbookId, state: "running" }, why);
+  return { steps, add, resume };
 }
 var REVIEW_STARTER = "after_visit_review";
 var CHECK_STARTER = "after_visit_check";
@@ -24785,6 +24814,7 @@ var SETUP_WORDS = {
     calendar: (feed, each, gets) => feed ? `First, connect your calendar's feed under Settings \u203A Business (booking emails alone cannot time a campaign), so each ${each} gets ${gets}.` : `First, connect your calendar under Settings \u203A Business, so each ${each} gets ${gets}.`,
     proposals: (first) => `${first ? "First" : "Then"}, under Settings \u203A Business, answer ${SELLS_BY_QUESTION} with \u201C${SELLS_BY_WORDS.proposal.label}\u201D, so each proposal that waits gets a follow-up.`,
     nobody: (named, one) => `${capitalize(named)} ${one ? "reaches" : "reach"} nobody today; ${one ? "its card says" : "each card says"} why.`,
+    resume: (names3) => `Resumes ${joinWords(names3.map((n) => `\u201C${n}\u201D`))}, paused on ${names3.length === 1 ? "its moment, on a card of its own" : "their moments, a card each"}.`,
     again: (more2, needs2) => `Ask me again once ${onceOf(needs2, "en")}, and I'll add ${more2 === 1 ? "it" : "them"}.`,
     headline: (needs2, now, more2) => `${needs2.size === 2 ? "Connect your calendar and turn on proposals" : needs2.has("calendar") ? "Connect your calendar" : "Turn on proposals"} first: ${plural(now, "campaign")} can start now, ${more2} more once ${onceOf(needs2, "en")}.`,
     open: (needs2) => needs2.has("calendar") ? "Connect a calendar" : "Open Business settings",
@@ -24810,6 +24840,7 @@ var SETUP_WORDS = {
     calendar: (feed, each, gets) => feed ? `Primero, conecta el feed de tu calendario en Ajustes \u203A Negocio (los correos de reserva no bastan para programar una campa\xF1a), para que cada ${each} tenga ${gets}.` : `Primero, conecta tu calendario en Ajustes \u203A Negocio, para que cada ${each} tenga ${gets}.`,
     proposals: (first) => `${first ? "Primero" : "Luego"}, en Ajustes \u203A Negocio, responde a \xABC\xF3mo compran tus clientes\xBB con \xABAlgunos reciben antes una propuesta\xBB, para que cada propuesta que espera tenga un seguimiento.`,
     nobody: (named, one) => `${capitalize(named)} no ${one ? "llega" : "llegan"} a nadie hoy; ${one ? "su tarjeta dice" : "cada tarjeta dice"} por qu\xE9.`,
+    resume: (names3) => `Reanuda ${joinEs(names3.map((n) => `\xAB${n}\xBB`))}, en pausa en ${names3.length === 1 ? "su momento, en su propia tarjeta" : "sus momentos, en una tarjeta cada una"}.`,
     again: (more2, needs2) => `P\xEDdemelo otra vez cuando ${onceOf(needs2, "es")} y ${more2 === 1 ? "la a\xF1ado" : "las a\xF1ado"}.`,
     headline: (needs2, now, more2) => `${needs2.size === 2 ? "Conecta tu calendario y activa las propuestas" : needs2.has("calendar") ? "Conecta tu calendario" : "Activa las propuestas"} primero: ${now === 1 ? "1 campa\xF1a puede" : `${now} campa\xF1as pueden`} empezar ya, ${more2} m\xE1s cuando ${onceOf(needs2, "es")}.`,
     open: (needs2) => needs2.has("calendar") ? "Conectar un calendario" : "Abrir Ajustes del negocio",
@@ -24850,7 +24881,7 @@ function journeyPlan(intent, world) {
   const journey = world.journey;
   if (!journey) return { refused: JOURNEY_PLAN_WORDS.journeyUnread };
   const S = SETUP_WORDS[world.says];
-  const { steps, add } = setupSteps();
+  const { steps, add, resume } = setupSteps();
   const missing = [];
   const paused = [];
   const needs2 = /* @__PURE__ */ new Set();
@@ -24868,16 +24899,18 @@ function journeyPlan(intent, world) {
     }
     if (stage.covered || !stage.moment) continue;
     const held = world.playbooks.find((p) => p.state === "paused" && journeyStageOf(p.trigger) === id);
-    if (held) paused.push(JOURNEY_PLAN_WORDS.pausedOn(held.name));
-    else {
+    if (held) {
+      resume(held.id, JOURNEY_PLAN_WORDS.whyResume(held.name));
+      paused.push(held.name);
+    } else {
       add(stageInput(id, stage.moment, world), JOURNEY_PLAN_WORDS.whyStage(id));
       started2.push(id);
     }
   }
-  const said = [...missing.length ? [JOURNEY_PLAN_WORDS.notOffered(missing)] : [], ...paused];
+  const notOffered = missing.length ? [JOURNEY_PLAN_WORDS.notOffered(missing)] : [];
   if (steps.length === 0) {
     const first = needLines(needs2, later, intent.books, { ...world, says: "en" });
-    return { refused: [JOURNEY_PLAN_WORDS.nothingToCover, ...first, ...said].join(" ") };
+    return { refused: [JOURNEY_PLAN_WORDS.nothingToCover, ...first, ...notOffered].join(" ") };
   }
   const nobody = started2.filter((id) => {
     const moment2 = journey.find((s) => s.id === id)?.moment;
@@ -24885,13 +24918,14 @@ function journeyPlan(intent, world) {
   });
   const words3 = [
     ...needLines(needs2, later, intent.books, world),
-    S.cover(started2.length, S.join(started2.map((id) => S.starts[id]))),
+    ...started2.length ? [S.cover(started2.length, S.join(started2.map((id) => S.starts[id])))] : [],
     ...nobody.length ? [S.nobody(S.join(nobody.map((id) => S.named[id])), nobody.length === 1)] : [],
-    ...said,
+    ...notOffered,
+    ...paused.length ? [S.resume(paused)] : [],
     ...needs2.size ? [S.again(later.length, needs2)] : []
   ];
   const lead = needs2.size ? {
-    headline: S.headline(needs2, started2.length, later.length),
+    headline: S.headline(needs2, started2.length + paused.length, later.length),
     open: { to: needs2.has("calendar") ? CALENDAR_SETTING_ROUTE : SETTINGS_BUSINESS_ROUTE, label: S.open(needs2) },
     next: [S.next(needs2)]
   } : null;
@@ -24993,7 +25027,6 @@ var PLAN_WORDS = {
   /** The reminder, its own question on its day (who has booked is known then); short, to fit the answer whole. */
   reminderAsk: (day, list2) => `On ${day}, ask me to send a reminder to whoever on \u201C${list2}\u201D has not booked by then.`,
   notOffered: JOURNEY_PLAN_WORDS.notOffered,
-  pausedOn: JOURNEY_PLAN_WORDS.pausedOn,
   /**
    * What a card says of what an earlier step of its plan makes, named by its token (`@step:n`): not filed yet, so not
    * quoted, and filled in by the commit once that step is approved.
@@ -25010,7 +25043,8 @@ var PLAN_WORDS = {
     pause: "So nobody gets the month's offer and this one.",
     first: "The offer, on its first day.",
     paced: "The offer, as fast as the calendar can take it.",
-    stage: JOURNEY_PLAN_WORDS.whyStage
+    stage: JOURNEY_PLAN_WORDS.whyStage,
+    resume: JOURNEY_PLAN_WORDS.whyResume
   }
 };
 var SAY = PLAN_WORDS;
@@ -27032,23 +27066,6 @@ var PROPOSAL_SPECS = /* @__PURE__ */ (() => {
   addProposalSpecs(ASK_ONLY_SPECS);
   return { ...PAGE_SPECS, ...ASK_ONLY_SPECS };
 })();
-var ASK_SENDS = /* @__PURE__ */ (() => /* @__PURE__ */ new Set([
-  "reply",
-  "whisper",
-  "broadcast",
-  "playbook",
-  "run",
-  "lead_search",
-  "people_search",
-  "person_message",
-  "sequence_start",
-  "call_hand_over",
-  "leads_check",
-  "lead_addressee",
-  "lead_search_more",
-  "reach_out_make",
-  "review_reply"
-]))();
 function proposalBelowNeeds(kind) {
   const { needs: needs2, doing } = PROPOSAL_SPECS[kind];
   return needs2 === "partner" ? `only an owner or the workspace's partner can ${doing}; say so, and that one of them can ask` : `only an owner can ${doing}; say so, and that an owner can ask`;
@@ -29697,7 +29714,8 @@ function reachOutWhenOf(c, nowMs, tz) {
   const now = new Date(nowMs);
   const h = localHour(tz, now);
   const say2 = c.fed_by === "list" ? ", after your OK" : "";
-  if (c.last_run_for === localDate(tz, now) || h > PLAYBOOK_HOURS.max) return `goes tomorrow from ${clockHour(hour)}${say2}`;
+  if (c.last_run_for === localDate(tz, now) || h > PLAYBOOK_HOURS.max)
+    return `goes tomorrow from ${clockHour(hour)}${say2}`;
   if (h < hour) return `goes today from ${clockHour(hour)}${say2}`;
   return `goes within the hour${say2}`;
 }
@@ -37564,7 +37582,11 @@ function leadCardEmailOf(p) {
   const steps = emailSteps(p.chain);
   const first = steps[0];
   if (!first) return null;
-  const email = reachOutCardEmailOf({ subject: first.subject ?? "", body: first.body }, p.lead, signedAs(p.chain, p.workspace));
+  const email = reachOutCardEmailOf(
+    { subject: first.subject ?? "", body: first.body },
+    p.lead,
+    signedAs(p.chain, p.workspace)
+  );
   const from = fromWords(p.chain);
   const when = reachOutWhenOf(
     {
@@ -37616,10 +37638,23 @@ function leadCardReasonOf(vm) {
   const share2 = low ? low.replace(/\s*at 1.2 stars?$/i, "").trim() : null;
   const unclaimed = !!vm.claimedNote && !vm.company;
   if (share2 && unclaimed)
-    return { text: LEAD_CARD_REASON_WORDS.both(LEAD_CARD_REASON_WORDS.lowShare(share2)), from: LEAD_CARD_REASON_WORDS.fromListing, how: "seen" };
-  if (share2) return { text: `${LEAD_CARD_REASON_WORDS.lowShare(share2)}.`, from: LEAD_CARD_REASON_WORDS.fromListing, how: "seen" };
+    return {
+      text: LEAD_CARD_REASON_WORDS.both(LEAD_CARD_REASON_WORDS.lowShare(share2)),
+      from: LEAD_CARD_REASON_WORDS.fromListing,
+      how: "seen"
+    };
+  if (share2)
+    return {
+      text: `${LEAD_CARD_REASON_WORDS.lowShare(share2)}.`,
+      from: LEAD_CARD_REASON_WORDS.fromListing,
+      how: "seen"
+    };
   if (unclaimed)
-    return { text: `${capitalize(LEAD_CARD_REASON_WORDS.unclaimed)}.`, from: LEAD_CARD_REASON_WORDS.fromListing, how: "seen" };
+    return {
+      text: `${capitalize(LEAD_CARD_REASON_WORDS.unclaimed)}.`,
+      from: LEAD_CARD_REASON_WORDS.fromListing,
+      how: "seen"
+    };
   const sentence2 = vm.fit.sentence.trim();
   if (!sentence2) return null;
   return {
@@ -59721,6 +59756,7 @@ export {
   ruleNeedsViewer,
   ruleParts,
   ruleStrength,
+  ruleUndated,
   rulesKept,
   rulesLine,
   rulesWithoutFieldsWords,
