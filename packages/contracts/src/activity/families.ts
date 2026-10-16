@@ -96,6 +96,7 @@ const VERB_FAMILY: Record<DecisionVerb, ActivityFamily> = {
   mark_visit: "calendar",
   change_step: "campaigns",
   leave_sequence: "campaigns",
+  return_to_sequence: "campaigns",
   make_sequence: "campaigns",
   discard_sequence: "campaigns",
   answer_booking_request: "calendar",

@@ -169,6 +169,7 @@ const WORDS: Record<string, string> = {
   mark_visit: "Said whether they came",
   change_step: "Changed a sequence's step",
   leave_sequence: "Took people out of a sequence",
+  return_to_sequence: "Put people back in a sequence",
   make_sequence: "Made a sequence",
   discard_sequence: "Let a sequence go",
   answer_booking_request: "Answered a request to book",

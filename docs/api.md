@@ -13,7 +13,7 @@ once per key for a day: the same request sent again is given the first answer an
 another request (another method, path or body) is refused with 422, and one that arrives while the first still runs
 with 409 (decision 0035). A write that keeps its own key, or has no workspace to keep one in, says so.
 
-279 handlers in 50 domains.
+282 handlers in 50 domains.
 
 ## activity
 
@@ -2049,6 +2049,20 @@ Reads; for a member of the row's own workspace; counts against the `aggregate` r
 
 Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/sequences/[id]/people/route.ts`).
 
+### `GET /api/v1/sequences/[id]/replies`
+
+Reads; for a member of the row's own workspace; counts against the `aggregate` rate; spends nothing.
+
+| Query field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `period` | one of `"30"`, `"90"`, `"all"` | no |  |
+
+### `POST /api/v1/sequences/[id]/return`
+
+Writes; for a member of the row's own workspace, operator or above; counts against the `playbook` rate; spends nothing.
+
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/sequences/[id]/return/route.ts`).
+
 ### `POST /api/v1/sequences/[id]/steps`
 
 Writes; for a member of the row's own workspace, operator or above; counts against the `playbook` rate; spends nothing.
@@ -2288,6 +2302,18 @@ Writes; for a member of the workspace the request names, operator or above; coun
 Writes; for a member of the row's own workspace, operator or above; counts against the `settings` rate; spends nothing.
 
 Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/templates/versions/[id]/route.ts`).
+
+### `POST /api/v1/templates/versions/rewrite`
+
+Writes; for a member of the workspace the request names, operator or above; counts against the `ask` rate; spends nothing.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `channel` | one of `"email"`, `"sms"` | yes |  |
+| `language` | string | yes |  |
+| `subject` | string or null | no |  |
+| `body` | string | yes | at least 1 characters; at most 4000 characters |
+| `tone` | one of `"warmer"`, `"shorter"` | yes |  |
 
 ## today
 

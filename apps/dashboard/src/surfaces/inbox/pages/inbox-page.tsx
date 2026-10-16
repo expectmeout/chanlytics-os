@@ -14,6 +14,7 @@ import { useEffect, useState } from "react";
 import { EmptyState } from "../../kit/empty/empty";
 import { usePartShown, useSurface } from "../../use-surface";
 import { InboxAgentRail } from "./agent-rail";
+import { SequenceRepliesLine, onlyThreadsOf, type SequenceRepliesRead } from "./inbox-from";
 import { ixHoldAll } from "./hold-all";
 import { inboxBulkActs, inboxRealBulk, type InboxRealBulk } from "./inbox-bulk";
 import { inboxDecide, inboxReply, inboxThreadActs, type InboxActs } from "./inbox-acts";
@@ -46,10 +47,12 @@ type AfterBulk = InboxSoFar & InboxActs & InboxRealBulk & ReturnType<typeof inbo
 const inboxOnScreen = (
   { threads, listedHere, activeThreadId, keepOpenId, shownRef }: AfterBulk,
   initialThreadId: string | null,
+  only: ReadonlySet<string> | null = null,
 ) => {
   // The bucket's rows, in the one order (ixRank): a reply about to send, then what needs you, then the threads you
-  // have, then a teammate's. A thread whose own reply is on its way out stands in Needs you while it counts down.
-  const visible = threads.filter(listedHere).sort((a, b) => ixRank(a) - ixRank(b));
+  // have, then a teammate's. A thread whose own reply is on its way out stands in Needs you while it counts down. A
+  // sequence's replies the address names are the rows in place of the bucket's (inbox-from.tsx).
+  const visible = threads.filter((t) => (only ? only.has(t.id) : listedHere(t))).sort((a, b) => ixRank(a) - ixRank(b));
   // Scoped to the VISIBLE list: an id left over from another bucket used to
   // keep a customer (with a live Snooze button) on screen beside a list that
   // said "0 threads".
@@ -212,6 +215,8 @@ interface InboxProps {
   initialThreadId?: string | null;
   /** The thread the link names is being read by its id (use-named-record.ts): say it is on its way, never that it is not here. */
   opening?: boolean;
+  /** A sequence's replies the address names (inbox-from.tsx): the list holds them and nothing else, with its line. */
+  replies?: SequenceRepliesRead | null;
 }
 
 /** A link to a thread outside the loaded list, while it is read by its id: say it is on its way, and open nobody else's in its place. */
@@ -370,11 +375,13 @@ const inboxPage = (
     showAgentRail,
     onOpenClient,
     opening,
+    replies,
   }: {
     density: Density;
     showAgentRail: boolean;
     onOpenClient: NonNullable<InboxProps["onOpenClient"]>;
     opening: boolean;
+    replies: SequenceRepliesRead | null;
   },
 ) => {
   const {
@@ -435,6 +442,7 @@ const inboxPage = (
         stake={stake}
         density={density}
         sendingIn={vetoRemaining}
+        fromLine={replies ? <SequenceRepliesLine read={replies} held={threads} /> : null}
       />
       {ixOnPhone() && !phoneThreadOpen
         ? // On a phone the list and the thread take turns on the screen (mobile.css hides the pane until the page wears
@@ -466,6 +474,7 @@ export const Inbox = ({
   onOpenClient = () => {},
   initialThreadId = null,
   opening = false,
+  replies = null,
 }: InboxProps) => {
   // The page draws again when the Inbox surface moves, as the frame drew it again; its list is the page's first part
   // (client/page-speed.ts), drawn once the Inbox's read is in, the empty Inbox included.
@@ -493,7 +502,7 @@ export const Inbox = ({
   const withReply = Object.assign(withThreadActs, inboxReply(withThreadActs));
   const withRealBulk = Object.assign(withReply, inboxRealBulk(withReply));
   const withBulkActs = Object.assign(withRealBulk, inboxBulkActs(withRealBulk));
-  const withScreen = Object.assign(withBulkActs, inboxOnScreen(withBulkActs, initialThreadId));
+  const withScreen = Object.assign(withBulkActs, inboxOnScreen(withBulkActs, initialThreadId, onlyThreadsOf(replies)));
   useInboxKeys(withScreen);
   // The thread on screen is read (surfaces/seen.ts): beside the list on a desk, and on a phone while it is the screen.
   // A link's notice is nobody's thread. And a row opened or put back, here or in Conversations, draws the list again.
@@ -511,5 +520,5 @@ export const Inbox = ({
     withBucketMoves,
     inboxCounts(withBucketMoves.threads, { INBOX_BUCKETS, INBOX_VIEWS, INBOX_BASELINE }),
   );
-  return inboxPage(full, { density, showAgentRail, onOpenClient, opening });
+  return inboxPage(full, { density, showAgentRail, onOpenClient, opening, replies });
 };

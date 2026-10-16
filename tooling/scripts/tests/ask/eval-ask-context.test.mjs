@@ -1181,7 +1181,7 @@ const SETUP_AND_CHANGE = [
   "change_pause_already_paused",
   "change_rename_and_hour",
   "change_hour_out_of_bounds",
-  "change_reach_out_refused",
+  "change_leads_pause",
   // A change's new fields (00416; the review after the merge, batch E): its words, its last day and its trial.
   "change_words",
   "change_last_day",
@@ -1202,7 +1202,7 @@ test("the setup and change cases (the moment spec, A8): seventeen, run only afte
   for (const c of cases) assert.ok(c.expect.no_write && (!c.then || c.then.expect.no_write), c.id);
   assert.deepEqual(
     cases.filter((c) => c.must_never).map((c) => c.id),
-    ["setup_leads_refused", "change_reach_out_refused"],
+    ["setup_leads_refused"],
   );
   // The turns whose setup reads ride in before round 1 (server/ask/cross-page.ts SETUP, as the loop plans them): a
   // request to set campaigns up in either language, on Campaigns or Today, asked again in the thread too. A reminder
@@ -1256,7 +1256,7 @@ test("the setup and change cases (the moment spec, A8): seventeen, run only afte
   // own keys, and the hour refused is under the bound the refusal says.
   // Each is asked only where the seed has been run (`needs: winback_seed`): on a workspace without it there is no
   // Win-back to change, and the case would fail whatever the model did.
-  for (const c of cases.filter((x) => x.id.startsWith("change_") && x.id !== "change_reach_out_refused")) {
+  for (const c of cases.filter((x) => x.id.startsWith("change_") && x.id !== "change_leads_pause")) {
     assert.match(c.text, new RegExp(WIN_BACK.name, "i"), c.id);
     assert.ok(c.needs?.includes("winback_seed"), `${c.id} needs the Win-back's seed`);
   }

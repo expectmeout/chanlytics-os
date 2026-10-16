@@ -162,6 +162,41 @@ export async function sequenceStepsOf(db: Db, tenantId: string, sequenceId: stri
   return readerRowsOf<SequenceStepDto>(data);
 }
 
+/** How many ids one `in` list carries: two hundred keeps the URL short (the run reader's own chunk). */
+const REPLIES_IN_CHUNK = 200;
+
+/**
+ * The conversations in which a lead answered an email of these batches, as a sequence's History counts a lead's reply
+ * (00442 sequence_batch_counts, leads_replied): a reading of a reply to the send, a person's or what its owner said, not
+ * undone. Under the caller's row security; a failed read throws.
+ */
+export async function leadRepliesOfBatches(db: Db, tenantId: string, batchIds: readonly string[]): Promise<string[]> {
+  const out = new Set<string>();
+  for (let i = 0; i < batchIds.length; i += REPLIES_IN_CHUNK) {
+    const chunk = batchIds.slice(i, i + REPLIES_IN_CHUNK);
+    const sends = await db
+      .from("sequence_sends")
+      .select("id")
+      .eq("tenant_id", tenantId)
+      .not("lead_id", "is", null)
+      .in("batch_id", [...chunk]);
+    if (sends.error) throw new Error(`cannot read the batches' emails: ${sends.error.message}`);
+    const ids = (sends.data ?? []).map((s) => s.id);
+    for (let j = 0; j < ids.length; j += REPLIES_IN_CHUNK) {
+      const replies = await db
+        .from("sequence_replies")
+        .select("conversation_id")
+        .eq("tenant_id", tenantId)
+        .in("send_id", ids.slice(j, j + REPLIES_IN_CHUNK))
+        .in("claim", ["person", "owner"])
+        .is("undone_at", null);
+      if (replies.error) throw new Error(`cannot read the replies: ${replies.error.message}`);
+      for (const r of replies.data ?? []) out.add(r.conversation_id);
+    }
+  }
+  return [...out];
+}
+
 /** Who is in a sequence, by where they stand (00442 sequence_people). */
 export async function sequencePeopleOf(
   db: Db,
@@ -202,6 +237,9 @@ export interface SequenceDoorAnswer {
   was?: Json;
   waits?: boolean;
   left?: number;
+  /** A leave undone (00450 sequence_return): how many came back, and how many sends the leave skipped stay out. */
+  back?: number;
+  sends_out?: number;
   removed?: number;
   /** A new sequence's state (sequence_create): 'draft' or 'on'; and how many steps it was made with, or went with. */
   state?: string;
@@ -275,6 +313,22 @@ export async function takeOutOfSequence(
     p_sequence_id: p.sequenceId,
     p_enrollment_ids: [...p.enrollmentIds],
     ...(p.why ? { p_why: p.why } : {}),
+    ...decided(p),
+  });
+  return answer<SequenceDoorAnswer>(data, error);
+}
+
+/**
+ * A leave undone (00450 sequence_return): the places the leave named by `undoOf` ended, put back with their next step where
+ * still out for its reason; the sends it skipped stay skipped.
+ */
+export async function putBackInSequence(
+  db: Db,
+  p: { tenantId: string; sequenceId: string } & DoorDecision,
+): Promise<DoorResult<SequenceDoorAnswer>> {
+  const { data, error } = await db.rpc("sequence_return", {
+    p_tenant_id: p.tenantId,
+    p_sequence_id: p.sequenceId,
     ...decided(p),
   });
   return answer<SequenceDoorAnswer>(data, error);

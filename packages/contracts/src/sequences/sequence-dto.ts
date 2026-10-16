@@ -187,6 +187,17 @@ export interface SequenceBatchDto {
   counts: Partial<SequenceBatchCountsDto>;
 }
 
+/**
+ * GET sequences/:id/replies: the conversations that answered a sequence over one of History's periods, by the rule its
+ * days open onto (a person's words within the reply window after a batch reached them; a lead's reply read as theirs).
+ */
+export interface SequenceRepliesDto {
+  sequence_id: string;
+  name: string;
+  period: "30" | "90" | "all";
+  conversation_ids: string[];
+}
+
 /** What a sequence sent, newest first (`sequence_history`). */
 export interface SequenceHistoryDto {
   batches: SequenceBatchDto[];

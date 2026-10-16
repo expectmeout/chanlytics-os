@@ -35,10 +35,12 @@ import { LinkButton } from "../../kit/link-button/link-button";
 import { Select } from "../../kit/select/select";
 import { gate, openAutonomy, routeDoor } from "../../legacy-verbs";
 import type { LegacyFlash } from "../../legacy-verbs";
+import { broadcasts } from "../broadcasts/verbs";
 import { FlowRow } from "./flow-row";
 import { LeadStepOpen } from "./lead-step";
 import { StepEditor } from "./step-editor";
 import { StepWords } from "./step-words";
+import { useSequenceRead } from "./use-record";
 import { pressed } from "./verbs";
 
 type Flash = (flash: LegacyFlash) => void;
@@ -266,6 +268,7 @@ function Step(p: StepProps) {
           sequenceId={rec.sequence.id}
           step={step}
           policyClass={rec.sequence.first?.policy_class ?? ""}
+          batchId={rec.sequence.needs.batches.find((x) => x.step_id === step.id)?.id ?? null}
           flash={flash}
           onDone={p.onDone}
           onCancel={p.onCancel}
@@ -289,6 +292,38 @@ function Step(p: StepProps) {
           onNo={() => setSure(false)}
           testid={`sq-step-remove-${step.place}`}
         />
+      ) : null}
+    </FlowRow>
+  );
+}
+
+/**
+ * A one-off's one step (the canvas's "1 · Our Halloween hours"): its batch's message, read from the batch as History reads
+ * a day, its words drawn as every step's are, and what it sent and drew back once it went. Its line alone until it is read.
+ */
+function DateStep({ rec, batch }: { rec: SequenceRecordDto; batch: string }) {
+  const read = useSequenceRead(batch, broadcasts.detail, broadcasts.peekDetail);
+  const b = read.state === "read" ? read.data.broadcast : null;
+  const went = b?.state === "sent";
+  return (
+    <FlowRow
+      node={went ? <Icon name="check" size={12} /> : 1}
+      tone={went ? "done" : null}
+      end={
+        b && went ? (
+          <p className="sq-fl-done tabular">
+            <b>{b.counts.sent}</b> {F.sent} · <b>{b.counts.replied}</b> {F.replied}
+          </p>
+        ) : null
+      }
+      testid="sq-step-1"
+    >
+      <p className="sq-fl-line">
+        <span className="sq-fl-name">{b?.name ?? rec.sequence.name}</span>
+        <span className="sq-fl-via">{sequenceChannelsWords(rec.sequence.channels)}</span>
+      </p>
+      {b ? (
+        <StepWords name={b.template_name} language={b.template_language} params={b.params} testid="sq-step-words-1" />
       ) : null}
     </FlowRow>
   );
@@ -352,6 +387,9 @@ export function SequenceSteps({ rec, flash, moved }: { rec: SequenceRecordDto; f
             onCancel={() => setEditing(null)}
           />
         ))}
+        {rec.sequence.starts === "date" && rec.sequence.date ? (
+          <DateStep rec={rec} batch={rec.sequence.date.batch_id} />
+        ) : null}
         {takesFollowUps(rec) ? (
           editing === "new" ? (
             <FlowRow node={rec.steps.length + 1} tone="now" open testid="sq-step-new">

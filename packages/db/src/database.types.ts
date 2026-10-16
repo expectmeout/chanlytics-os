@@ -10438,6 +10438,16 @@ export type Database = {
           written_at: string
         }[]
       }
+      sequence_return: {
+        Args: {
+          p_decision?: Json
+          p_sequence_id: string
+          p_tenant_id: string
+          p_undo_of?: string
+          p_via?: string
+        }
+        Returns: Json
+      }
       sequence_stale_sends: {
         Args: { p_before: string; p_limit: number; p_tenant_id?: string }
         Returns: {
@@ -10887,6 +10897,7 @@ export type Database = {
       trigger_reach_out_check_sweep: { Args: never; Returns: number }
       trigger_reach_out_sweep: { Args: never; Returns: number }
       trigger_registration_sweep: { Args: never; Returns: number }
+      trigger_sequences_clock: { Args: { p_at?: string }; Returns: undefined }
       trigger_sweep_health: { Args: never; Returns: number }
       wake_stale_snoozes: { Args: never; Returns: number }
       withdraw_ai_drafts: {

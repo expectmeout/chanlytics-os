@@ -25405,7 +25405,10 @@ CREATE FUNCTION public.sequence_leave(p_tenant_id uuid, p_sequence_id uuid, p_en
     AS $$
 declare
   v_actor uuid := auth.uid();
+  v_why text := left(coalesce(nullif(btrim(p_why), ''), 'removed'), 60);
   v_ids uuid[];
+  v_places jsonb;
+  v_sends int;
   v_n int;
 begin
   if v_actor is null then
@@ -25420,10 +25423,25 @@ begin
   if v_ids is null then
     raise exception 'Nobody of that sequence is in it.' using errcode = 'P0002';
   end if;
-  v_n := public.sequence_enrollments_leave(p_tenant_id, v_ids, coalesce(nullif(btrim(p_why), ''), 'removed'), v_actor);
+  -- What the leave is about to change, as it stands now (sequence_enrollments_leave's own choice of rows), kept in the
+  -- decision so its undo puts back exactly these places, and can say how many sends stay out.
+  select coalesce(jsonb_agg(jsonb_build_object('id', e.id, 'next_at', e.next_at)), '[]'::jsonb) into v_places
+    from public.sequence_enrollments e
+   where e.tenant_id = p_tenant_id and e.id = any (v_ids) and e.state = 'in';
+  select count(*) into v_sends
+    from public.sequence_enrollments e
+    join public.sequence_sends s
+      on s.tenant_id = p_tenant_id and s.sequence_id = e.sequence_id
+     and case when e.lead_id is null then s.lead_id is null and s.contact_id = e.contact_id
+              else s.lead_id = e.lead_id end
+   where e.tenant_id = p_tenant_id and e.id = any (v_ids) and e.state = 'in'
+     and s.state in ('planned', 'held', 'queued', 'drafted');
+  v_n := public.sequence_enrollments_leave(p_tenant_id, v_ids, v_why, v_actor);
   return jsonb_build_object('left', v_n, 'sequence_id', p_sequence_id)
     || public.team_decision(p_tenant_id, v_actor, 'sequence', p_sequence_id, 'leave_sequence',
-         coalesce(p_decision, '{}'::jsonb) || jsonb_build_object('left', v_n), p_via, p_undo_of);
+         coalesce(p_decision, '{}'::jsonb) || jsonb_build_object(
+           'left', v_n, 'put_back', jsonb_build_object('why', v_why, 'places', v_places, 'sends', v_sends)),
+         p_via, p_undo_of);
 end $$;
 
 
@@ -25431,7 +25449,7 @@ end $$;
 -- Name: FUNCTION sequence_leave(p_tenant_id uuid, p_sequence_id uuid, p_enrollment_ids uuid[], p_why text, p_decision jsonb, p_via text, p_undo_of uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.sequence_leave(p_tenant_id uuid, p_sequence_id uuid, p_enrollment_ids uuid[], p_why text, p_decision jsonb, p_via text, p_undo_of uuid) IS 'People taken out of a sequence by an acting member (0060): each still in it leaves with p_why (removed), a send of theirs not yet gone skipped with it, and the leave_sequence decision written in the same transaction. Answers how many left.';
+COMMENT ON FUNCTION public.sequence_leave(p_tenant_id uuid, p_sequence_id uuid, p_enrollment_ids uuid[], p_why text, p_decision jsonb, p_via text, p_undo_of uuid) IS 'People taken out of a sequence by an acting member (0060): each still in it leaves with p_why (removed), a send of theirs not yet gone skipped with it, and the leave_sequence decision written in the same transaction, keeping each place''s next step and how many sends it skipped (put_back, 00450) for sequence_return. Answers how many left.';
 
 
 --
@@ -25708,6 +25726,72 @@ $$;
 --
 
 COMMENT ON FUNCTION public.sequence_queued_outcomes(p_limit integer, p_tenant_id uuid) IS 'A lead''s queued sends with what became of their emails, the ones with an outcome to read first (00186 reach_out_queued_outcomes over sequence_sends). Service role only (0060).';
+
+
+--
+-- Name: sequence_return(uuid, uuid, jsonb, text, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.sequence_return(p_tenant_id uuid, p_sequence_id uuid, p_decision jsonb DEFAULT '{}'::jsonb, p_via text DEFAULT NULL::text, p_undo_of uuid DEFAULT NULL::uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_actor uuid := auth.uid();
+  v_left public.decisions%rowtype;
+  v_why text;
+  v_back int;
+  v_out int;
+begin
+  if v_actor is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or not public.is_acting_member(p_tenant_id) then
+    raise exception 'Workspace not found.' using errcode = 'P0002';
+  end if;
+  -- The leave this undoes: one of this sequence, in this workspace, and its own record of what it changed.
+  select d.* into v_left from public.decisions d
+   where d.id = p_undo_of and d.tenant_id = p_tenant_id and d.verb = 'leave_sequence'
+     and d.subject_type = 'sequence' and d.subject_id = p_sequence_id;
+  if not found then
+    raise exception 'That is not a leave of this sequence.' using errcode = 'P0002';
+  end if;
+  v_why := v_left.payload #>> '{put_back,why}';
+  if v_why is null then
+    raise exception 'That leave kept nothing to put back.' using errcode = 'P0001';
+  end if;
+  v_out := coalesce((v_left.payload #>> '{put_back,sends}')::int, 0);
+  -- Each place still out for this leave's reason, by the member who made it, since it was made, and nobody of theirs
+  -- back in the sequence since (one place in at a time: sequence_enrollments_one_in_*).
+  with was as (
+    select (x->>'id')::uuid as id, nullif(x->>'next_at', '')::timestamptz as next_at
+      from jsonb_array_elements(coalesce(v_left.payload #> '{put_back,places}', '[]'::jsonb)) x),
+  back as (
+    update public.sequence_enrollments e
+       set state = 'in', why = null, ended_at = null, left_by = null, next_at = w.next_at, moved_at = now()
+      from was w
+     where e.id = w.id and e.tenant_id = p_tenant_id and e.sequence_id = p_sequence_id
+       and e.state = 'left' and e.why = v_why and e.left_by is not distinct from v_left.actor_user_id
+       and e.ended_at >= v_left.created_at
+       and not exists (
+         select 1 from public.sequence_enrollments o
+          where o.sequence_id = e.sequence_id and o.state = 'in' and o.id <> e.id
+            and case when e.lead_id is null then o.lead_id is null and o.contact_id = e.contact_id
+                     else o.lead_id = e.lead_id end)
+    returning e.id)
+  select count(*) into v_back from back;
+  return jsonb_build_object('back', v_back, 'sends_out', case when v_back > 0 then v_out else 0 end,
+                            'sequence_id', p_sequence_id)
+    || public.team_decision(p_tenant_id, v_actor, 'sequence', p_sequence_id, 'return_to_sequence',
+         coalesce(p_decision, '{}'::jsonb) || jsonb_build_object('back', v_back), p_via, p_undo_of);
+end $$;
+
+
+--
+-- Name: FUNCTION sequence_return(p_tenant_id uuid, p_sequence_id uuid, p_decision jsonb, p_via text, p_undo_of uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.sequence_return(p_tenant_id uuid, p_sequence_id uuid, p_decision jsonb, p_via text, p_undo_of uuid) IS 'A leave undone (0060, 00450): of the places a leave_sequence decision (p_undo_of) ended, each still out for its reason, by its member, with nobody of theirs back in since, is put back with its next step. A send the leave skipped stays skipped (a skipped send is final). The return_to_sequence decision rides in the same transaction. Answers how many came back and how many sends stayed out.';
 
 
 --
@@ -28956,6 +29040,45 @@ COMMENT ON FUNCTION public.trigger_registration_sweep() IS 'Asks the edge to fin
 
 
 --
+-- Name: trigger_sequences_clock(timestamp with time zone); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.trigger_sequences_clock(p_at timestamp with time zone DEFAULT now()) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'extensions'
+    AS $$
+begin
+  -- The moments: once an hour, at five past, as playbooks-sweep ran.
+  if extract(minute from p_at)::int = 5 then
+    begin
+      perform public.trigger_playbooks_sweep();
+    exception when others then
+      raise warning 'sequences-clock: the moments were not asked: %', sqlerrm;
+    end;
+  end if;
+  -- The check before each cold email: every minute, asked only when a send waits for it.
+  begin
+    perform public.trigger_reach_out_check_sweep();
+  exception when others then
+    raise warning 'sequences-clock: the check was not asked: %', sqlerrm;
+  end;
+  -- The leads' send clock: every minute, asked only when a checked send is due or a run is ready to finish.
+  begin
+    perform public.trigger_reach_out_sweep();
+  exception when others then
+    raise warning 'sequences-clock: the send clock was not asked: %', sqlerrm;
+  end;
+end $$;
+
+
+--
+-- Name: FUNCTION trigger_sequences_clock(p_at timestamp with time zone); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.trigger_sequences_clock(p_at timestamp with time zone) IS 'The one clock every sequence runs on (0060, S2): each minute it asks the moments'' sweep (at five past the hour), the check and the leads'' send clock, each at its own speed and each recording its own sweep_status row; one part''s fault is a warning and never stops the others.';
+
+
+--
 -- Name: trigger_sweep_health(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -30130,7 +30253,7 @@ CREATE TABLE public.decisions (
     CONSTRAINT decisions_actor_type_check CHECK ((actor_type = ANY (ARRAY['user'::text, 'ai'::text, 'system'::text, 'owner_phone'::text]))),
     CONSTRAINT decisions_actor_user_id_check CHECK (((actor_type = 'user'::text) OR (actor_user_id IS NULL))),
     CONSTRAINT decisions_subject_type_check CHECK ((subject_type = ANY (ARRAY['conversation'::text, 'escalation'::text, 'draft'::text, 'lead'::text, 'message'::text, 'agent'::text, 'membership'::text, 'invitation'::text, 'contact'::text, 'call'::text, 'channel'::text, 'broadcast'::text, 'playbook'::text, 'review'::text, 'workspace'::text, 'deal'::text, 'list'::text, 'appointment'::text, 'sequence'::text]))),
-    CONSTRAINT decisions_verb_check CHECK ((verb = ANY (ARRAY['approve'::text, 'edit'::text, 'decline'::text, 'snooze'::text, 'wake'::text, 'take_over'::text, 'hand_back'::text, 'resolve'::text, 'archive'::text, 'reply'::text, 'cancel_send'::text, 'pause_agent'::text, 'resume_agent'::text, 'invite'::text, 'revoke_invite'::text, 'change_role'::text, 'remove_member'::text, 'erase'::text, 'whisper'::text, 'connect_channel'::text, 'consent_change'::text, 'send_broadcast'::text, 'cancel_broadcast'::text, 'start_playbook'::text, 'pause_playbook'::text, 'reply_review'::text, 'export'::text, 'end_call'::text, 'record_deal'::text, 'make_list'::text, 'rename_list'::text, 'change_list_rule'::text, 'add_to_list'::text, 'drop_from_list'::text, 'archive_list'::text, 'restore_list'::text, 'delete_list'::text, 'import'::text, 'open_recording'::text, 'merge'::text, 'change_playbook'::text, 'mark_visit'::text, 'change_step'::text, 'leave_sequence'::text, 'make_sequence'::text, 'discard_sequence'::text, 'answer_booking_request'::text])))
+    CONSTRAINT decisions_verb_check CHECK ((verb = ANY (ARRAY['approve'::text, 'edit'::text, 'decline'::text, 'snooze'::text, 'wake'::text, 'take_over'::text, 'hand_back'::text, 'resolve'::text, 'archive'::text, 'reply'::text, 'cancel_send'::text, 'pause_agent'::text, 'resume_agent'::text, 'invite'::text, 'revoke_invite'::text, 'change_role'::text, 'remove_member'::text, 'erase'::text, 'whisper'::text, 'connect_channel'::text, 'consent_change'::text, 'send_broadcast'::text, 'cancel_broadcast'::text, 'start_playbook'::text, 'pause_playbook'::text, 'reply_review'::text, 'export'::text, 'end_call'::text, 'record_deal'::text, 'make_list'::text, 'rename_list'::text, 'change_list_rule'::text, 'add_to_list'::text, 'drop_from_list'::text, 'archive_list'::text, 'restore_list'::text, 'delete_list'::text, 'import'::text, 'open_recording'::text, 'merge'::text, 'change_playbook'::text, 'mark_visit'::text, 'change_step'::text, 'leave_sequence'::text, 'make_sequence'::text, 'discard_sequence'::text, 'answer_booking_request'::text, 'return_to_sequence'::text])))
 );
 
 
@@ -44753,6 +44876,15 @@ GRANT ALL ON FUNCTION public.sequence_queued_outcomes(p_limit integer, p_tenant_
 
 
 --
+-- Name: FUNCTION sequence_return(p_tenant_id uuid, p_sequence_id uuid, p_decision jsonb, p_via text, p_undo_of uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.sequence_return(p_tenant_id uuid, p_sequence_id uuid, p_decision jsonb, p_via text, p_undo_of uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.sequence_return(p_tenant_id uuid, p_sequence_id uuid, p_decision jsonb, p_via text, p_undo_of uuid) TO authenticated;
+GRANT ALL ON FUNCTION public.sequence_return(p_tenant_id uuid, p_sequence_id uuid, p_decision jsonb, p_via text, p_undo_of uuid) TO service_role;
+
+
+--
 -- Name: FUNCTION sequence_sends_guard(); Type: ACL; Schema: public; Owner: -
 --
 
@@ -45413,6 +45545,14 @@ GRANT ALL ON FUNCTION public.trigger_reach_out_sweep() TO service_role;
 
 REVOKE ALL ON FUNCTION public.trigger_registration_sweep() FROM PUBLIC;
 GRANT ALL ON FUNCTION public.trigger_registration_sweep() TO service_role;
+
+
+--
+-- Name: FUNCTION trigger_sequences_clock(p_at timestamp with time zone); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.trigger_sequences_clock(p_at timestamp with time zone) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.trigger_sequences_clock(p_at timestamp with time zone) TO service_role;
 
 
 --

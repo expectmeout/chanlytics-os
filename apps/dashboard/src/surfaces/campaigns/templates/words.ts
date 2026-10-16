@@ -128,6 +128,13 @@ export const TPL_VERSION_WORDS = {
   save: "Save",
   saving: "Saving…",
   cancel: "Cancel",
+  /** Ask's two changes to the words in the box (the canvas's step editor): written again, every value kept, until Save. */
+  ask: "Ask",
+  warmer: "Warmer",
+  shorter: "Shorter",
+  asking: "Writing…",
+  /** The words as they were before Ask wrote them again. */
+  undo: "Undo",
   /** How long the subject is, against what an inbox shows. */
   subjectCount: (n: number, max: number): string => `${n} of ${max}`,
   /** What a text comes to on the wire, STOP line included. */

@@ -336,6 +336,8 @@ export {
   removeSequenceStep,
   setSequenceStepWords,
   takeOutOfSequence,
+  putBackInSequence,
+  leadRepliesOfBatches,
   cancelSequenceBatch,
   makeSequence,
   discardSequence,

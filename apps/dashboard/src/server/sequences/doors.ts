@@ -9,6 +9,7 @@ import {
   sequenceStepsOf,
   setSequenceStepWords,
   takeOutOfSequence,
+  putBackInSequence,
   type DoorResult,
   type Json,
   type SequenceDoorAnswer,
@@ -186,6 +187,17 @@ export async function changeSequenceWords(ctx: RouteContext, seq: Sequence, step
       params,
       ...decided(ctx, {}),
     }),
+  );
+}
+
+/**
+ * A leave undone: the people it took out put back, where still out for its reason, with their next step. It names the
+ * leave it undoes as every undo does (the x-undo-of header the verb walk sends); without one there is nothing to put back.
+ */
+export async function returnToSequenceNow(ctx: RouteContext, seq: Sequence) {
+  if (!ctx.undoOf) throw new AppError("validation", "Say which leave to undo.", 400);
+  return doorAnswer(
+    await putBackInSequence(ctx.supabase, { tenantId: seq.tenant_id, sequenceId: seq.id, ...decided(ctx, {}) }),
   );
 }
 

@@ -17,6 +17,7 @@ import {
   isPlaybookState,
   noteRows,
   planRun,
+  sequenceRoute,
   trialDayWords,
   triggerOf,
   type PlaybookPatch,
@@ -173,6 +174,42 @@ async function proposeChangeOnStep(t: ToolContext, input: ChangeAsked, step: num
   });
 }
 
+/** A sequence to leads asked for more than its state: the refusal, in the model's words; null where it asks its state alone. */
+function leadsPastState(id: string, input: ChangeAsked): string | null {
+  return PLAYBOOK_PATCH_KEYS.some((k) => k !== "state" && input[k] !== undefined)
+    ? `a sequence to leads is only paused or resumed here (state); its emails and steps are changed on its page: say so, and open ${sequenceRoute(id)}`
+    : null;
+}
+
+/**
+ * A sequence to leads paused or resumed (its state alone): said as its page says it (decision 0060), its pause with how
+ * its next emails wait, its resume as a reach-out's Resume says it (LIFECYCLE_WORDS.ledger.resume.chain), never in a
+ * class's autonomy mode, which a sequence to leads does not run under. The same card and undo as any change of state.
+ */
+function proposeLeadsState(
+  t: ToolContext,
+  row: { id: string; name: string; waiting: { recipient_count: number } | null },
+  { set, was }: { set: PlaybookPatch; was: PlaybookPatch },
+  noted: string | null | undefined,
+): ProposalOutcome {
+  const W = PLAYBOOK_PATCH_WORDS;
+  const said = set.state === "paused" ? W.paused : LIFECYCLE_WORDS.ledger.resume.chain;
+  return propose({
+    kind: "playbook_change",
+    title: W.title(set, row.name),
+    summary: [said, ...(noted ? [noted] : [])].join(" · "),
+    payload: {
+      playbook_id: row.id,
+      playbook_name: row.name,
+      ...set,
+      was,
+      run_waits: row.waiting !== null,
+      timezone: t.timezone,
+      ...(set.state === "paused" ? { mode: null } : {}),
+    },
+  });
+}
+
 /**
  * A playbook that exists, paused, resumed, renamed or retimed (the moment spec §4.9 A5), and since 00416 given new
  * words, a last day or a trial's end (D5: null ends its trial): what its drawer does, proposed as a card. It reads the
@@ -192,8 +229,11 @@ async function proposePlaybookChange(t: ToolContext, input: ChangeAsked): Promis
   if (!UUID.test(id)) return refuse(`playbook_id must be a playbook's id, as ${PLAYBOOK_FROM} gives it`);
   const read = await playbookForChange(t.ctx.supabase, t.tenantId, id);
   if (!read) return refuse(`no such playbook in this workspace; ${PLAYBOOK_FROM} names them`);
-  if (triggerOf(read.trigger)?.kind === "reach_out")
-    return refuse("a reach-out is changed on its own sheet: say so, and open campaigns");
+  // A sequence to leads is paused or resumed here, as its page's Pause and Turn on are (core checkPlaybookPatch: its state
+  // alone); its emails and steps are its own page's (decision 0060: Ask runs every sequence).
+  const leads = triggerOf(read.trigger)?.kind === "reach_out";
+  const pastState = leads ? leadsPastState(read.id, input) : null;
+  if (pastState) return refuse(pastState);
   // The table's check holds a state to the two; one it does not know is no row a change is judged against (the PUT's rule).
   if (!isPlaybookState(read.state))
     throw new Error(`playbook ${read.id} holds a state the check does not: ${read.state}`);
@@ -218,6 +258,7 @@ async function proposePlaybookChange(t: ToolContext, input: ChangeAsked): Promis
   // A part asked that it holds already (a pause of one paused) is no part of the card, and a change to a paused one's
   // runs waits for its resume: each said on the card and beside it.
   const noted = changeNoted(row, given, set);
+  if (leads) return proposeLeadsState(t, row, { set, was }, noted);
   // The table's check holds the class to the set (playbooks.policy_class).
   const cls = PLAYBOOK_CLASS_LABEL[row.policy_class as PlaybookPolicyClass];
   // The mode its runs go under, read for a resume, which says it (D7: under auto a resume sends on its own), for a
@@ -283,6 +324,6 @@ export const playbookChangeAction = actAction({
     { playbook_id: "f6a7b8c9-d0e1-4f2a-8b3c-4d5e6f7a8b9c", params: ["@first_name", "15% off"], until: "2026-11-30" },
   ],
   label: "Preparing a campaign's change",
-  words: `Action change takes playbook_id, a playbook that exists, as ${PLAYBOOK_FROM} gives it (or the page's rows), and only what they asked to change: state (paused stops its next runs; running starts them again under its class's autonomy mode), name (at most ${PLAYBOOK_NAME_MAX} characters), run_hour (${PLAYBOOK_LIMITS.run_hour.min} to ${PLAYBOOK_LIMITS.run_hour.max} by the business's clock), cap_per_run (${PLAYBOOK_LIMITS.cap_per_run.min} to ${PLAYBOOK_LIMITS.cap_per_run.max} people a run), gap_days (${PLAYBOOK_LIMITS.gap_days.min} to ${PLAYBOOK_LIMITS.gap_days.max} days before a person is reached again), cadence_days (${PLAYBOOK_LIMITS.cadence_days.min} to ${PLAYBOOK_LIMITS.cadence_days.max}, the month's offer alone), params (its message's values in order, as action moment takes them: new text in the same message, never a new message), until (its last day, YYYY-MM-DD by the business's clock, today or later; it runs nothing after) or trial_until (an ISO time still to come, with its offset, until which each run its class would send on its own waits ${PLAYBOOK_VETO_DELAY_WORDS} for a Stop, or null to end its trial now). Nothing else about it moves: its moment, message and list are its drawer's, and its channels are action channels'. A run already waiting for approval stays waiting after a pause, and the card says so: propose action batch with verb skip beside it when they want that run gone. A reach-out's step, a value outside its bounds and a playbook that already reads so are refused in words; a part of the change it already holds (a pause of one paused) is left off the card, which says so, and the answer says it too.`,
+  words: `Action change takes playbook_id, a playbook that exists, as ${PLAYBOOK_FROM} gives it (or the page's rows), and only what they asked to change: state (paused stops its next runs; running starts them again under its class's autonomy mode), name (at most ${PLAYBOOK_NAME_MAX} characters), run_hour (${PLAYBOOK_LIMITS.run_hour.min} to ${PLAYBOOK_LIMITS.run_hour.max} by the business's clock), cap_per_run (${PLAYBOOK_LIMITS.cap_per_run.min} to ${PLAYBOOK_LIMITS.cap_per_run.max} people a run), gap_days (${PLAYBOOK_LIMITS.gap_days.min} to ${PLAYBOOK_LIMITS.gap_days.max} days before a person is reached again), cadence_days (${PLAYBOOK_LIMITS.cadence_days.min} to ${PLAYBOOK_LIMITS.cadence_days.max}, the month's offer alone), params (its message's values in order, as action moment takes them: new text in the same message, never a new message), until (its last day, YYYY-MM-DD by the business's clock, today or later; it runs nothing after) or trial_until (an ISO time still to come, with its offset, until which each run its class would send on its own waits ${PLAYBOOK_VETO_DELAY_WORDS} for a Stop, or null to end its trial now). Nothing else about it moves: its moment, message and list are its drawer's, and its channels are action channels'. A run already waiting for approval stays waiting after a pause, and the card says so: propose action batch with verb skip beside it when they want that run gone. A sequence to leads (cold email) takes state alone here, its emails and steps being its page's; anything else asked of one, a value outside its bounds and a playbook that already reads so are refused in words; a part of the change it already holds (a pause of one paused) is left off the card, which says so, and the answer says it too.`,
   build: proposePlaybookChange,
 });

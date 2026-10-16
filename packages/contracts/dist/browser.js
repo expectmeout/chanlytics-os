@@ -563,8 +563,9 @@ var DECISION_VERBS = [
    * sequence_step_words; decision 0060): subject 'sequence', payload the step and what changed of it.
    */
   "change_step",
-  /** People taken out of a sequence by a member (00442 sequence_leave): subject 'sequence', payload how many left. */
+  /** People taken out of a sequence (00442 sequence_leave), and put back (00450 sequence_return): subject 'sequence'. */
   "leave_sequence",
+  "return_to_sequence",
   /**
    * A new sequence made whole, kept as a draft or started (00442 sequence_create, decision 0060 S4), and one that never
    * sent let go (sequence_discard): subject 'sequence', payload its steps and whether it started, or its name and state.
@@ -6097,6 +6098,12 @@ function versionsOf(rows2, name) {
   return out;
 }
 var LIVE_VERSION_STATES = /* @__PURE__ */ new Set(["approved", "pending"]);
+var valuesHeld = (w) => [...`${w.subject ?? ""} ${w.body}`.matchAll(/\{\{[^{}]+\}\}/g)].map((m) => m[0]).sort();
+function keepsValues(before, after) {
+  const a = valuesHeld(before);
+  const b = valuesHeld(after);
+  return a.length === b.length && a.every((x, i) => x === b[i]);
+}
 
 // src/reach-out/reach-out-hand.ts
 var HAND_KINDS = ["call", "note"];
@@ -8449,6 +8456,7 @@ var WORDS = {
   mark_visit: "Said whether they came",
   change_step: "Changed a sequence's step",
   leave_sequence: "Took people out of a sequence",
+  return_to_sequence: "Put people back in a sequence",
   make_sequence: "Made a sequence",
   discard_sequence: "Let a sequence go",
   answer_booking_request: "Answered a request to book",
@@ -8987,6 +8995,7 @@ var TONES = {
   cancel_send: "warn",
   cancel_broadcast: "warn",
   leave_sequence: "warn",
+  return_to_sequence: "ok",
   revoke_invite: "warn",
   snooze: "warn",
   // info -- it is on its way, or a person took it on
@@ -9083,6 +9092,7 @@ var VERB_FAMILY = {
   mark_visit: "calendar",
   change_step: "campaigns",
   leave_sequence: "campaigns",
+  return_to_sequence: "campaigns",
   make_sequence: "campaigns",
   discard_sequence: "campaigns",
   answer_booking_request: "calendar"
@@ -14739,16 +14749,19 @@ function resolveParams(specs, f) {
     }
   });
 }
+var exampleFacts = (businessName) => ({
+  businessName,
+  bookingLink: "your booking link",
+  reviewLink: "your review link",
+  visitWhen: "tomorrow at 2:00 PM",
+  visitService: "a consultation",
+  proposalLink: "their proposal's link"
+});
 function exampleParams(specs, businessName) {
-  return resolveParams(specs, {
-    firstName: "Dani",
-    businessName,
-    bookingLink: "your booking link",
-    reviewLink: "your review link",
-    visitWhen: "tomorrow at 2:00 PM",
-    visitService: "a consultation",
-    proposalLink: "their proposal's link"
-  });
+  return resolveParams(specs, { firstName: "Dani", ...exampleFacts(businessName) });
+}
+function exampleParamsFor(specs, businessName, firstName2) {
+  return resolveParams(specs, { firstName: firstName2, ...exampleFacts(businessName) });
 }
 var NOTHING = { playbooks: [], broadcasts: 0, recent: [], booking: false };
 function templateUsage(src) {
@@ -19813,6 +19826,11 @@ function sequenceLandingOf(route) {
   if (run?.[1]) return sequenceRoute(run[1], "history", run[1]);
   return null;
 }
+var sequenceRepliesRoute = (id, period = "30") => `inbox/from:${id}${period === "30" ? "" : `:${period}`}`;
+function sequenceRepliesOf(param) {
+  const m = param ? /^from:([0-9a-f-]{36})(?::(30|90|all))?$/i.exec(param) : null;
+  return m?.[1] ? { id: m[1].toLowerCase(), period: m[2] === "90" || m[2] === "all" ? m[2] : "30" } : null;
+}
 
 // src/shared/html.ts
 var escapeHtml = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
@@ -20204,6 +20222,26 @@ var sequenceLeaveSpec = {
   receipt: (_p, data) => {
     const n = Number(rec(data).left) || 0;
     return n === 0 ? "Nobody was still in it" : `${plural(n, "person", "people")} taken out`;
+  },
+  undo: {
+    label: () => "Put them back",
+    window: "ten_minutes",
+    record: (_p, data) => {
+      const id = asText(rec(data).sequence_id);
+      const decision = decisionOf(data);
+      return id && decision && (Number(rec(data).left) || 0) > 0 ? { sequence_id: id, decision_id: decision } : null;
+    },
+    call: (u) => {
+      const id = asText(u.sequence_id);
+      return id ? { route: "POST sequences/[id]/return", params: { id } } : refuseWith(PROPOSAL_WORDS.noUndo);
+    },
+    receipt: (data) => {
+      const back = Number(rec(data).back) || 0;
+      const out = Number(rec(data).sends_out) || 0;
+      if (back === 0) return "Nobody could be put back: they left or came back in since";
+      const said = `${plural(back, "person", "people")} put back`;
+      return out > 0 ? `${said} \xB7 ${plural(out, "email", "emails")} left out ${out === 1 ? "stays" : "stay"} out` : said;
+    }
   },
   open: openSequence
 };
@@ -41084,6 +41122,7 @@ var ROUTE_KEYS = [
   "GET sequences/[id]",
   "GET sequences/[id]/history",
   "GET sequences/[id]/people",
+  "GET sequences/[id]/replies",
   "GET settings",
   "GET setup",
   "GET team",
@@ -41224,6 +41263,7 @@ var ROUTE_KEYS = [
   "POST segments/draft",
   "POST sequences",
   "POST sequences/[id]/leave",
+  "POST sequences/[id]/return",
   "POST sequences/[id]/steps",
   "POST sequences/[id]/steps/[step]/test",
   "POST sequences/[id]/steps/[step]/words",
@@ -41240,6 +41280,7 @@ var ROUTE_KEYS = [
   "POST templates/starter",
   "POST templates/sync",
   "POST templates/versions",
+  "POST templates/versions/rewrite",
   "POST vitals",
   "POST workspaces/create",
   "POST workspaces/logo/lookup",
@@ -41410,7 +41451,8 @@ var SCHEMA_SETS = {
     "leave_sequence",
     "make_sequence",
     "discard_sequence",
-    "answer_booking_request"
+    "answer_booking_request",
+    "return_to_sequence"
   ],
   "escalations.reason": [
     "human_token",
@@ -41793,6 +41835,15 @@ var SEQUENCE_EDIT_WORDS = {
   previewAs: "As one person reads it",
   oneEach: "Each person gets one version, on the channel they are reached on.",
   inMessages: "Change the words in Messages",
+  /** The words written where the step is read (the canvas's step editor): the message's own pane, in place of its preview. */
+  editHere: "Edit the words here",
+  previewBack: "Back to the preview",
+  /** Who the preview is read as: the example, or someone of the batch that waits (the canvas's "As Ana Morales"). */
+  as: "As",
+  example: (name) => `${name}, an example`,
+  /** Who gets which: "Ana gets it on WhatsApp." */
+  getsIt: (name, on) => `${name} gets it ${on.charAt(0).toLowerCase()}${on.slice(1)}.`,
+  noFirstName: "No first name on file: the message opens \u201CHi there\u201D.",
   savedIn: (title) => `\u201C${title}\u201D, saved in Messages`,
   noMessages: "No message is ready to send yet. Write one in Messages first.",
   /** What a save reaches: a wait counts from each person's next send; new words go once WhatsApp approves them. */
@@ -41890,7 +41941,18 @@ var SEQUENCE_HISTORY_WORDS = {
   /** What a failed read could not read: "Couldn't read this day". */
   failed: "this day",
   /** How many days the counted batches went on: "26 days it sent". */
-  days: (n) => n === 0 ? "" : `${plural(n, "day")} it sent`
+  days: (n) => n === 0 ? "" : `${plural(n, "day")} it sent`,
+  /** The door to the Inbox over the same days (sequenceRepliesRoute): "All 41 replies in the Inbox". */
+  inInbox: (n) => n === 1 ? "Its reply in the Inbox" : `All ${n} replies in the Inbox`
+};
+var SEQUENCE_REPLIES_WORDS = {
+  period: { "30": "the last 30 days", "90": "the last 90 days", all: "since it began" },
+  line: (name, period, n) => n === 0 ? `Nobody wrote back to ${name} in ${SEQUENCE_REPLIES_WORDS.period[period]}` : `${plural(n, "reply", "replies")} to ${name}, ${SEQUENCE_REPLIES_WORDS.period[period]}`,
+  /** Some of them are older than the threads the Inbox holds: "9 of them are here; the rest are older". */
+  shown: (here, n) => here === n ? null : `${here} of them are here; the rest are older`,
+  reading: "Reading its replies\u2026",
+  failed: "its replies",
+  leave: "Show every thread"
 };
 var DEFINITIONS = {
   sent: "Messages that left, one a person a step. Held, skipped and failed sends are not counted.",
@@ -41983,6 +42045,8 @@ var SEQUENCE_WORDS = {
   filters: { all: "All", needs: "Needs you", off: "Paused or off" },
   groups: { needs: "Needs you", customers: "Your customers", leads: "Leads", dates: "Dates", drafts: "Drafts" },
   receptionist: "First contact is your receptionist\u2019s",
+  /** Where the receptionist's line opens: Settings › Business, as Campaigns' ledger row did (Ruben, 11 Oct 2026). */
+  receptionistRoute: "admin/workspace",
   tabs: { steps: "Steps", people: "People", leads: "Leads", history: "History" },
   addFollowUp: "Add a follow-up",
   approve: "Approve",
@@ -49660,6 +49724,7 @@ export {
   SEQUENCE_NEW_WORDS,
   SEQUENCE_PEOPLE_GROUPS,
   SEQUENCE_PEOPLE_WORDS,
+  SEQUENCE_REPLIES_WORDS,
   SEQUENCE_STARTS,
   SEQUENCE_STATES,
   SEQUENCE_STATE_WORDS,
@@ -50197,6 +50262,7 @@ export {
   estimateRoundUsd,
   eventText,
   exampleParams,
+  exampleParamsFor,
   exportLeftOut,
   exportLeftOutWords,
   exportedSections,
@@ -50480,6 +50546,7 @@ export {
   journeyGuide,
   journeyOf,
   journeyStageOf,
+  keepsValues,
   keptPhoneKind,
   keptUnreadOf,
   kindListDoor,
@@ -51263,6 +51330,8 @@ export {
   sequenceLandingOf,
   sequenceLeftWords,
   sequenceNotice,
+  sequenceRepliesOf,
+  sequenceRepliesRoute,
   sequenceResumeAsk,
   sequenceRoute,
   sequenceRowLine,

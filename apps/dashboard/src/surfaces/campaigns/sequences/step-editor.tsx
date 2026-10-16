@@ -4,7 +4,10 @@
  * message it sends, with a box for each value the message takes that is typed rather than filled by the run (contracts
  * defaultParamSpecs); a step's first has no wait and no condition, only its message. Right, that message as a person
  * reads it on each channel it holds a version for, a tab each (parts/preview-by.ts, the composers' one drawing), filled
- * for an example person, with the door to its words in Messages. The foot says what a save reaches. Saved through the
+ * for an example person, or read as someone of the batch that waits for this step (the canvas's "As Ana Morales"): their
+ * own first name and the channel they are reached on, and who gets which said under it. Its words are written in place
+ * (Edit the words here): the message's own pane, as Messages draws it (parts/message-in-place.tsx), where the preview
+ * stood, every channel's version and its languages with it. The foot says what a save reaches. Saved through the
  * sequence's own doors (00442): a new step at the end, or this one changed; its words changed apart, since a WhatsApp
  * version not yet approved waits while the step sends its own (`waits`). The server judges the values against the
  * message (core templateValues) and says what it refused in words. Inside a record, Cancel and Save stand in the pane's
@@ -14,11 +17,12 @@
 import { useContext, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import {
+  CONSENT_CHANNELS,
   PREVIEW_CHANNEL_WORDS,
   SEQUENCE_EDIT_WORDS as E,
-  addressOf,
   defaultParamSpecs,
   exampleParams,
+  exampleParamsFor,
   parseParamSpecs,
   messageAboutOfClass,
   slotLabels,
@@ -35,14 +39,16 @@ import { LinkButton } from "../../kit/link-button/link-button";
 import { StatePill } from "../../kit/pill/state-pill";
 import { Select } from "../../kit/select/select";
 import { SubTabs } from "../../kit/sub-tabs/sub-tabs";
-import { gate, routeDoor } from "../../legacy-verbs";
+import { gate } from "../../legacy-verbs";
 import type { LegacyFlash } from "../../legacy-verbs";
 import { useSurface } from "../../use-surface";
+import { broadcasts } from "../broadcasts/verbs";
+import { MessageInPlace } from "../parts/message-in-place";
 import { cmBusinessOf, cmOfferedFrom, cmStandInOf, type CmOffered } from "../parts/channels";
 import { MessagePreview } from "../parts/message-preview";
 import { cmOfferFoot, cmPreviewBy } from "../parts/preview-by";
 import { useCmPhone } from "../parts/split";
-import { RecordFootContext } from "./use-record";
+import { RecordFootContext, useSequenceRead } from "./use-record";
 import { pressed } from "./verbs";
 
 type Flash = (flash: LegacyFlash) => void;
@@ -88,13 +94,55 @@ const pickedOf = (offered: readonly CmOffered[], step: SequenceStepDto | null): 
   offered[0]?.id ??
   "";
 
-/** The message as one person reads it on each channel it holds a version for, a tab each (the canvas's right half). */
-function StepPreview({ picked, values, policyClass }: { picked: CmOffered; values: string[]; policyClass: string }) {
+/** Who the preview is read as: the example, or one of the batch that waits for the step (its first name, its channel). */
+interface ReadAs {
+  id: string;
+  name: string;
+  firstName: string | null;
+  channel: ConsentChannel | null;
+}
+
+/** Everyone the batch that waits for this step will reach, as its run reads them; none where nothing waits. */
+function useReadAs(batchId: string | null): ReadAs[] {
+  const read = useSequenceRead(batchId, broadcasts.detail, broadcasts.peekDetail);
+  if (read.state !== "read") return [];
+  return read.data.recipients
+    .filter((r) => r.state !== "skipped")
+    .map((r) => ({
+      id: r.contact_id,
+      name: r.name,
+      firstName: r.first_name,
+      channel: CONSENT_CHANNELS.find((c) => c === r.channel) ?? "whatsapp",
+    }));
+}
+
+const EXAMPLE = "example";
+
+/**
+ * The message as one person reads it on each channel it holds a version for, a tab each (the canvas's right half): the
+ * example's words, or someone's of the batch that waits, on the channel they are reached on, with who gets which said.
+ */
+function StepPreview(p: {
+  picked: CmOffered;
+  params: ParamSpec[];
+  policyClass: string;
+  batchId: string | null;
+  onEdit: () => void;
+}) {
+  const { picked, params, policyClass } = p;
   const settings = useSurface("settings");
   const business = cmBusinessOf(settings);
   const channels = picked.channels.length > 0 ? picked.channels : [cmStandInOf(picked)];
+  const people = useReadAs(p.batchId);
+  const [as, setAs] = useState(EXAMPLE);
+  const person = people.find((x) => x.id === as) ?? null;
   const [on, setOn] = useState<ConsentChannel>(channels[0] ?? "whatsapp");
-  const channel = channels.includes(on) ? on : (channels[0] ?? "whatsapp");
+  // Someone of the batch is read on the channel they are reached on, where the message holds it.
+  const wanted = person?.channel && channels.includes(person.channel) ? person.channel : on;
+  const channel = channels.includes(wanted) ? wanted : (channels[0] ?? "whatsapp");
+  const values = person
+    ? exampleParamsFor(params, business.businessName, person.firstName)
+    : exampleParams(params, business.businessName);
   const preview = cmPreviewBy(
     {
       body: picked.body_preview,
@@ -113,10 +161,37 @@ function StepPreview({ picked, values, policyClass }: { picked: CmOffered; value
       ...cmOfferFoot(picked.category, messageAboutOfClass(policyClass)),
     },
   );
+  const who = person
+    ? [E.getsIt(person.name, PREVIEW_CHANNEL_WORDS[channel]), person.firstName ? null : E.noFirstName]
+        .filter(Boolean)
+        .join(" ")
+    : E.oneEach;
   return (
     <div className="sq-ed-preview" data-testid="sq-editor-preview">
-      <p className="sq-ed-k">{E.previewAs}</p>
-      {channels.length > 1 ? (
+      <div className="sq-ed-preview-head">
+        <p className="sq-ed-k">{E.previewAs}</p>
+        <LinkButton onClick={p.onEdit} data-testid="sq-editor-edit-words" {...gate("approve")}>
+          {E.editHere}
+        </LinkButton>
+      </div>
+      {people.length > 0 ? (
+        <Field
+          label={E.as}
+          control={
+            <Select
+              value={person ? person.id : EXAMPLE}
+              onValueChange={setAs}
+              chevron={chevron}
+              options={[
+                { value: EXAMPLE, label: E.example("Dani") },
+                ...people.map((x) => ({ value: x.id, label: x.name })),
+              ]}
+              data-testid="sq-editor-as"
+            />
+          }
+        />
+      ) : null}
+      {channels.length > 1 && !person ? (
         <SubTabs
           dense
           label={E.previewAs}
@@ -126,22 +201,48 @@ function StepPreview({ picked, values, policyClass }: { picked: CmOffered; value
         />
       ) : null}
       <MessagePreview from={business.businessName} values={values} {...preview} via={null} />
-      <p className="sq-ed-note">{E.oneEach}</p>
+      <p className="sq-ed-note" data-testid="sq-editor-who">
+        {who}
+      </p>
     </div>
   );
 }
 
-/** Under the message's box: its name in Messages, its WhatsApp standing, and the door to its words there. */
+/** Under the message's box: its name in Messages and its WhatsApp standing. Its words are written in place, beside it. */
 function MessageFrom({ picked }: { picked: CmOffered }) {
   const approval = stepApprovalOf(picked.message?.versions.whatsapp?.status ?? null);
   return (
     <p className="sq-ed-from">
       <span>{E.savedIn(picked.title ?? picked.name)}</span>
       {approval ? <StatePill kind="tone" value={approval.tone} label={approval.label} /> : null}
-      <LinkButton {...routeDoor(addressOf({ kind: "template", name: picked.name }))} data-testid="sq-editor-words">
-        {E.inMessages} <Icon name="chevron" size={11} />
-      </LinkButton>
     </p>
+  );
+}
+
+/** The editor's right half: the message as one person reads it, or its own pane where its words are written. */
+function EditorRight(p: {
+  picked: CmOffered;
+  params: ParamSpec[];
+  policyClass: string;
+  batchId: string | null;
+  writing: boolean;
+  setWriting: (on: boolean) => void;
+  flash: Flash;
+}) {
+  if (p.writing)
+    return (
+      <div className="sq-ed-preview" data-testid="sq-editor-writing">
+        <MessageInPlace name={p.picked.name} flash={p.flash} onClose={() => p.setWriting(false)} />
+      </div>
+    );
+  return (
+    <StepPreview
+      picked={p.picked}
+      params={p.params}
+      policyClass={p.policyClass}
+      batchId={p.batchId}
+      onEdit={() => p.setWriting(true)}
+    />
   );
 }
 
@@ -223,15 +324,24 @@ interface StepEditorProps {
   step: SequenceStepDto | null;
   /** The class the sequence runs under: what its messages are about, which an email's foot says (cmOfferFoot). */
   policyClass: string;
+  /** The batch that waits for this step, whose people the preview may be read as; none where nothing waits. */
+  batchId?: string | null;
   flash: Flash;
   onDone: () => void;
   onCancel: () => void;
 }
 
-export function StepEditor({ sequenceId, step, policyClass, flash, onDone, onCancel }: StepEditorProps) {
+export function StepEditor({
+  sequenceId,
+  step,
+  policyClass,
+  batchId = null,
+  flash,
+  onDone,
+  onCancel,
+}: StepEditorProps) {
   const settings = useSurface("settings");
   const offered = useMemo(() => cmOfferedFrom(settings) ?? [], [settings]);
-  const business = cmBusinessOf(settings).businessName;
   const first = step?.place === 1;
   const [days, setDays] = useState(String(step?.after_days ?? 3));
   const [hold, setHold] = useState<Hold>(stepHoldOf(step?.only_if ?? ["no_booking"]));
@@ -243,6 +353,8 @@ export function StepEditor({ sequenceId, step, policyClass, flash, onDone, onCan
   const [was] = useState(() => typedOf(step));
   const [typed, setTyped] = useState<Record<number, string>>(was);
   const [busy, setBusy] = useState(false);
+  // The message's own pane, where the preview stood, while its words are written.
+  const [writing, setWriting] = useState(false);
   const params = specs.map((s, i) => (s.kind === "text" ? { kind: "text" as const, value: typed[i] ?? "" } : s));
   const wordsChanged = !step || picked?.name !== step.template_name || !sameTyped(typed, was);
   const waitChanged = !!step && !first && (days !== String(step.after_days ?? 3) || hold !== stepHoldOf(step.only_if));
@@ -349,9 +461,7 @@ export function StepEditor({ sequenceId, step, policyClass, flash, onDone, onCan
           )}
           {picked ? <MessageFrom picked={picked} /> : null}
         </div>
-        {picked ? (
-          <StepPreview picked={picked} values={exampleParams(params, business)} policyClass={policyClass} />
-        ) : null}
+        {picked ? <EditorRight {...{ picked, params, policyClass, batchId, writing, setWriting, flash }} /> : null}
       </div>
       <EditorFoot
         first={first}

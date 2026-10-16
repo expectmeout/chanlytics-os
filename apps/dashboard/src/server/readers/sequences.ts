@@ -2,14 +2,27 @@ import "server-only";
 import {
   AppError,
   addressOf,
+  historyCovers,
+  historyIn,
+  historySince,
   runDaysAt,
   sequenceWaitsNow,
+  type SequenceBatchDto,
   type SequenceHistoryDto,
+  type SequenceRepliesDto,
   type SequencePeopleDto,
   type SequenceRecordDto,
   type SequencesPageDto,
 } from "@chanlytics/contracts";
-import { sequenceHistoryOf, sequenceOfPart, sequenceOverview, sequencePeopleOf, sequenceStepsOf } from "@chanlytics/db";
+import {
+  leadRepliesOfBatches,
+  sequenceHistoryOf,
+  sequenceOfPart,
+  sequenceOverview,
+  sequencePeopleOf,
+  sequenceStepsOf,
+} from "@chanlytics/db";
+import { repliedConversationsOf } from "../campaigns/broadcasts";
 import { load, stamp, type Reader } from "./index";
 import * as readers from "./facts";
 
@@ -96,5 +109,48 @@ export const sequenceHistory: Reader<{ id: string; before?: string | null }, Seq
   async read(rc, { id, before }) {
     const data = await sequenceHistoryOf(rc.ctx.supabase, { tenantId: rc.tenantId, sequenceId: id, before });
     return { data, rows: [], stamp: stamp() };
+  },
+};
+
+/** How many of History's pages a period's replies read back through at most: "all" of a long-lived sequence stops here. */
+const REPLIES_PAGES_MAX = 20;
+
+/**
+ * GET sequences/:id/replies: the conversations that answered a sequence over one of History's periods, for the Inbox to
+ * list (contracts sequenceRepliesRoute). The batches are History's own, read back as far as the period asks (historyCovers,
+ * as History reads them), and their replies are its days' own: a customer's by a run sheet's rule (repliedConversationsOf),
+ * a lead's as History counts one (leadRepliesOfBatches).
+ */
+export const sequenceReplies: Reader<{ id: string; period: "30" | "90" | "all" }, SequenceRepliesDto> = {
+  name: "sequenceReplies",
+  async read(rc, { id, period }) {
+    const db = rc.ctx.supabase;
+    const [rows, facts] = await Promise.all([
+      sequenceOverview(db, rc.tenantId, id),
+      load(rc, readers.facts, undefined).then((r) => r.data),
+    ]);
+    const [row] = rows;
+    if (!row) throw new AppError("not_found", "Sequence not found.", 404);
+    const tz = facts.timezone;
+    const since = historySince(period, tz, rc.now.getTime());
+    const batches: SequenceBatchDto[] = [];
+    let page = await sequenceHistoryOf(db, { tenantId: rc.tenantId, sequenceId: id });
+    batches.push(...page.batches);
+    for (let n = 1; n < REPLIES_PAGES_MAX && !historyCovers({ batches, more: page.more }, since, tz); n += 1) {
+      const last = batches[batches.length - 1];
+      if (!last) break;
+      page = await sequenceHistoryOf(db, { tenantId: rc.tenantId, sequenceId: id, before: last.at });
+      batches.push(...page.batches);
+    }
+    const ids = historyIn(batches, since, tz).map((b) => b.id);
+    const [customers, leads] = await Promise.all([
+      repliedConversationsOf(rc.ctx, rc.tenantId, ids),
+      leadRepliesOfBatches(db, rc.tenantId, ids),
+    ]);
+    return {
+      data: { sequence_id: row.id, name: row.name, period, conversation_ids: [...new Set([...customers, ...leads])] },
+      rows: [cited(row)],
+      stamp: stamp(),
+    };
   },
 };

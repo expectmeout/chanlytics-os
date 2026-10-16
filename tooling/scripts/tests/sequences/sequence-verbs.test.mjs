@@ -64,6 +64,19 @@ test("a step taken away and people taken out say what the door did, and keep no 
   assert.equal(verbSpec("sequence_leave").receipt(null, { left: 0 }), "Nobody was still in it");
 });
 
+test("a leave's undo puts them back through its own door, and says what stays out (00450)", () => {
+  const u = verbSpec("sequence_leave").undo;
+  const c = card("sequence_leave", { sequence_id: SEQ, enrollment_ids: ["e1"] }).card;
+  assert.equal(u.label(c), "Put them back");
+  const kept = u.record(c, { left: 2, sequence_id: SEQ, decision_id: "d9" }, TAB);
+  assert.deepEqual(kept, { sequence_id: SEQ, decision_id: "d9" });
+  assert.deepEqual(u.call(kept, TAB), { route: "POST sequences/[id]/return", params: { id: SEQ } });
+  assert.equal(u.record(c, { left: 0, sequence_id: SEQ, decision_id: "d9" }, TAB), null, "nobody left: no undo");
+  assert.equal(u.receipt({ back: 2, sends_out: 0 }, kept), "2 people put back");
+  assert.equal(u.receipt({ back: 1, sends_out: 1 }, kept), "1 person put back · 1 email left out stays out");
+  assert.match(u.receipt({ back: 0, sends_out: 0 }, kept), /Nobody could be put back/);
+});
+
 test("a step's new words say whether they wait for WhatsApp, and the undo gives back the words it had", () => {
   const s = verbSpec("sequence_words");
   const c = card("sequence_words", {

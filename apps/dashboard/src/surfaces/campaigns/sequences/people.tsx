@@ -122,7 +122,12 @@ function GroupRows({ g, rows, whole, rec, busy, takeOut }: GroupProps) {
                 variant="quiet"
                 className={place}
                 disabled={busy !== null}
-                onClick={() => void takeOut(r.enrollment_id ?? "", [r.enrollment_id ?? ""])}
+                onClick={(e) => {
+                  // The row is a door to the person (rowDoor): the press takes them out, and opens nothing.
+                  e.preventDefault();
+                  e.stopPropagation();
+                  void takeOut(r.enrollment_id ?? "", [r.enrollment_id ?? ""]);
+                }}
                 data-testid={`sq-take-out-${r.enrollment_id}`}
                 {...gate("approve")}
               >

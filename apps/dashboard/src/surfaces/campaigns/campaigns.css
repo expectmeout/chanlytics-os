@@ -4786,6 +4786,16 @@ html.legacy-on .cm-pane-sub .bc-run-link {
   font-size: var(--text-sm);
   color: var(--ink-muted);
 }
+/* Ask's two changes under the words, and the Undo of the last: one quiet line of presses. */
+.tpl-ver-ask {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-3);
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--ink-muted);
+}
 /* A box of words with its slots drawn by their names (templates/slots/slot-box.tsx): a contenteditable standing in the
    kit's box, so it keeps the lines it holds, wraps where a word does not fit and grows with what is written, from the
    height of its lines. A slot in it is the bubble's tint, and one thing: the caret passes over it, Backspace takes it

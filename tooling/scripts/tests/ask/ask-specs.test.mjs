@@ -377,6 +377,8 @@ const ANSWER_ALL = {
 const ANSWERS = {
   sequence_step: { ...ANSWER_ALL, was: { after_days: 2 } },
   sequence_words: { ...ANSWER_ALL, was: { template_id: "t0", params: [] } },
+  // POST sequences/[id]/leave's (SequenceDoorAnswer): one taken out, which its undo puts back.
+  sequence_leave: { ...ANSWER_ALL, sequence_id: "q1", left: 1 },
 };
 const TAB = { settings: { config: { brain: {} }, version: 3 } };
 const TAB_AFTER = { settings: { config: { brain: {} }, version: 4 } };
@@ -716,7 +718,7 @@ test("every kind has a spec -- the twenty-one Ask proposed and every page's verb
     ],
     sequence_step_remove: ["DELETE sequences/[id]/steps/[step]"],
     sequence_words: ["POST sequences/[id]/steps/[step]/words"],
-    sequence_leave: ["POST sequences/[id]/leave"],
+    sequence_leave: ["POST sequences/[id]/leave", "POST sequences/[id]/return"],
     sequence_send_decide: ["POST reach-out-sends/[id]/decide"],
     sequence_send_said: ["POST reach-out-sends/[id]/said"],
     sequence_draft: ["POST sequences/draft"],

@@ -214,7 +214,7 @@ test("a campaign on trial goes as veto (00416): its resume card says veto's word
   );
 });
 
-test("a change is refused in words before any card: not an id, not this workspace's, a reach-out's step, a value out of bounds, a cadence off the month's offer, and nothing that would change", async () => {
+test("a change is refused in words before any card: not an id, not this workspace's, a sequence to leads past its state, a value out of bounds, a cadence off the month's offer, and nothing that would change", async () => {
   assert.match(said(await change({ playbook_id: "nope", state: "paused" })), /^playbook_id must be a playbook's id/);
   assert.match(
     said(await change({ playbook_id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb9", state: "paused" })),
@@ -223,10 +223,14 @@ test("a change is refused in words before any card: not an id, not this workspac
   const step = tables({
     playbooks: [playbookRow({ id: STEP, kind: "reach_out", trigger: "lead_first", name: "Movers" })],
   });
-  assert.match(
-    said(await change({ playbook_id: STEP, state: "paused" }, step)),
-    /reach-out is changed on its own sheet/,
+  // A sequence to leads is paused or resumed here as its page does it (decision 0060: Ask runs every sequence), in its
+  // page's words and never under a class's mode; anything else of it is its page's.
+  const paused = await change({ playbook_id: STEP, state: "paused" }, step);
+  assert.deepEqual(
+    [paused.proposal?.kind, paused.proposal?.summary, paused.proposal?.payload.state, paused.proposal?.payload.was],
+    ["playbook_change", PLAYBOOK_PATCH_WORDS.paused, "paused", { state: "running" }],
   );
+  assert.match(said(await change({ playbook_id: STEP, name: "Movers again" }, step)), /only paused or resumed here/);
   assert.equal(said(await change({ run_hour: 7 })), "The hour must be a whole number from 9 to 20.");
   assert.equal(said(await change({ name: "x".repeat(81) })), PLAYBOOK_PATCH_WORDS.nameLong(80));
   assert.equal(said(await change({ cadence_days: 14 })), PLAYBOOK_PATCH_WORDS.cadenceOffer("Win-back"));

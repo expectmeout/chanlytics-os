@@ -70,3 +70,17 @@ export function sequenceLandingOf(route: string): string | null {
   if (run?.[1]) return sequenceRoute(run[1], "history", run[1]);
   return null;
 }
+
+/**
+ * A sequence's replies in the Inbox (the canvas's History board: Replied is a door to the Inbox): `inbox/from:<id>` over
+ * History's own period (`from:<id>:90`, `from:<id>:all`; none says 30 days), a word of the Inbox's path, as a thread's
+ * `th-<id>` is. The Inbox lists the threads that answered the sequence in that period and nothing else, until it is left.
+ */
+export const sequenceRepliesRoute = (id: string, period: "30" | "90" | "all" = "30"): string =>
+  `inbox/from:${id}${period === "30" ? "" : `:${period}`}`;
+
+/** What an Inbox param of a sequence's replies names (`from:<id>[:<period>]`); null for any other param. */
+export function sequenceRepliesOf(param: string | null): { id: string; period: "30" | "90" | "all" } | null {
+  const m = param ? /^from:([0-9a-f-]{36})(?::(30|90|all))?$/i.exec(param) : null;
+  return m?.[1] ? { id: m[1].toLowerCase(), period: m[2] === "90" || m[2] === "all" ? m[2] : "30" } : null;
+}

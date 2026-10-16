@@ -19,6 +19,7 @@ export type {
   SequenceBatchCountsDto,
   SequenceBatchDto,
   SequenceHistoryDto,
+  SequenceRepliesDto,
   SequencesPageDto,
   SequenceRecordDto,
 } from "./sequence-dto";
@@ -58,6 +59,7 @@ export {
   SEQUENCE_PEOPLE_WORDS,
   SEQUENCE_HISTORY_PERIODS,
   SEQUENCE_HISTORY_WORDS,
+  SEQUENCE_REPLIES_WORDS,
   historySince,
   historyIn,
   historyCovers,
@@ -84,6 +86,8 @@ export {
   sequenceRoute,
   sequenceLandingOf,
   runSheetRoute,
+  sequenceRepliesOf,
+  sequenceRepliesRoute,
 } from "./sequence-address";
 export type { SequenceTab, SequencesPlace } from "./sequence-address";
 export {

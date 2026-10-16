@@ -116,11 +116,13 @@ test.describe("Campaigns › Sequences on a real workspace", () => {
     );
     const sent = historyFigures(historyIn(history.batches, since, list.timezone)).find((f) => f.id === "sent");
     await expect(record.getByTestId("sq-figure-sent")).toContainText(sent?.value ?? "0");
-    // A day opens in place, onto what came back and the door to its run.
+    // A day opens in place, onto what came back and the door to its run (which the open day holds: the first of the two).
     const day = history.batches.find((b) => b.state === "sent");
     if (!day) return;
     await record.getByTestId(`sq-batch-${day.id}`).click();
-    await expect(record.getByTestId(`sq-day-open-${day.id}`).or(record.getByTestId("sq-day-run"))).toBeVisible();
+    await expect(
+      record.getByTestId(`sq-day-open-${day.id}`).or(record.getByTestId("sq-day-run")).first(),
+    ).toBeVisible();
   });
 
   test("a run's address, as a bell row or Ask's card names it, lands on its sequence's History with that day open", async ({
@@ -154,9 +156,9 @@ test.describe("Campaigns › Sequences on a real workspace", () => {
     // Leads are the composer's on Write to leads.
     await pane.getByTestId("sq-new-on-leads").click();
     await expect(pane.getByTestId("sq-new-open-leads")).toBeVisible();
-    // A list asks which list before the line can be drafted.
+    // A list asks which list before the line can be drafted (its picker sits in the pane's body: the first of the two).
     await pane.getByTestId("sq-new-on-list").click();
-    await expect(pane.getByTestId("sq-new-list").or(pane.locator(".sq-new-body"))).toBeVisible();
+    await expect(pane.getByTestId("sq-new-list").or(pane.locator(".sq-new-body")).first()).toBeVisible();
     await pane.getByTestId("sq-new-words").fill("Thank them and invite them back in a month");
     await expect(pane.getByTestId("sq-new-draft")).toBeDisabled();
   });

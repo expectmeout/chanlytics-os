@@ -68,7 +68,8 @@ const EVERY_CLOCK = {
   lines: "lines-sweep",
   partitions: "events-partition-precreate",
   pauses: "expire-stale-pauses",
-  playbooks: "playbooks-sweep",
+  // The moments, the check and the leads' send clock run on one clock since 00449 (decision 0060, S2).
+  playbooks: "sequences-clock",
   purge_ask: "purge-ask",
   purge_cron_history: "purge-cron-history",
   purge_events: "purge-events",
@@ -87,11 +88,12 @@ const EVERY_CLOCK = {
   // paused or held, and records that it looked otherwise.
   mailboxes: "mailboxes-sweep",
   // The reach-out clock (00186): every minute, asking the edge only when a send is due, one is claimed or queued, a
-  // closed run keeps open sends, or a run is ready to finish, and recording that it looked otherwise.
-  reach_out: "reach-out-sweep",
-  // The reach-out check (00197): its own clock, every minute, asking the edge only when a send waits to be checked or a
-  // check_unavailable hold is an hour old, and recording that it looked otherwise.
-  reach_out_check: "reach-out-check-sweep",
+  // closed run keeps open sends, or a run is ready to finish, and recording that it looked otherwise. On the
+  // sequences' one clock since 00449.
+  reach_out: "sequences-clock",
+  // The reach-out check (00197): every minute, asking the edge only when a send waits to be checked or a
+  // check_unavailable hold is an hour old, and recording that it looked otherwise. On the sequences' one clock since 00449.
+  reach_out_check: "sequences-clock",
   // A partner's earnings (00203): a daily clock that makes a held share payable once its thirty days are up.
   partners: "partners-sweep",
   // The ledger's finished rows (00215): nightly, done and canceled after a week, failed after ninety days.
@@ -362,6 +364,11 @@ test(
                    now() - interval '2 hours');
       for r in select e.sweep, e.jobname from public.sweep_status e where e.judged_by = 'request' order by e.sweep loop
         select j.command into cmd from cron.job j where j.jobname = r.jobname;
+        -- The sequences' one clock asks the moments at five past the hour alone (00449): run it as it runs then.
+        if r.jobname = 'sequences-clock' then
+          cmd := replace(cmd, 'trigger_sequences_clock()',
+                         'trigger_sequences_clock(date_trunc(''hour'', now()) + interval ''5 minutes'')');
+        end if;
         execute cmd;
         select e.request_id, e.requested_at = now() as asked_now, e.note into st
           from public.sweep_status e where e.sweep = r.sweep;
@@ -381,5 +388,44 @@ test(
         { asked: true, timeout_ms: 65000 },
         `${sweep}: asked the edge, and pg_net waits past the sweep's own 60 s`,
       );
+  },
+);
+
+test(
+  "the sequences' one clock (00449) asks the moments at five past the hour alone, and the leads' two clocks every minute",
+  { skip },
+  () => {
+    // Each part records when it was asked (sweep_status.requested_at); a part not asked keeps the time it had.
+    const seen = rolledBack(`
+    declare
+      at6 timestamptz := date_trunc('hour', now()) + interval '6 minutes';
+      at5 timestamptz := date_trunc('hour', now()) + interval '5 minutes';
+      long_ago timestamptz := now() - interval '1 day';
+      tag text;
+    begin
+      delete from vault.secrets where name = 'edge_base_url';
+      perform vault.create_secret('http://edge.invalid', 'edge_base_url');
+      update public.sweep_status set requested_at = long_ago where sweep in ('playbooks', 'reach_out', 'reach_out_check');
+      perform public.trigger_sequences_clock(at6);
+      foreach tag in array array['playbooks', 'reach_out', 'reach_out_check'] loop
+        seen := seen || jsonb_build_object('six_' || tag,
+          (select e.requested_at > long_ago from public.sweep_status e where e.sweep = tag));
+      end loop;
+      update public.sweep_status set requested_at = long_ago where sweep = 'playbooks';
+      perform public.trigger_sequences_clock(at5);
+      seen := seen || jsonb_build_object('five_playbooks',
+        (select e.requested_at > long_ago from public.sweep_status e where e.sweep = 'playbooks'));
+      seen := seen || jsonb_build_object('jobs',
+        (select jsonb_agg(j.jobname order by j.jobname) from cron.job j
+          where j.jobname in ('sequences-clock', 'playbooks-sweep', 'reach-out-sweep', 'reach-out-check-sweep')));
+    end;
+  `);
+    assert.deepEqual(seen, {
+      six_playbooks: false,
+      six_reach_out: true,
+      six_reach_out_check: true,
+      five_playbooks: true,
+      jobs: ["sequences-clock"],
+    });
   },
 );

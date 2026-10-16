@@ -100,8 +100,8 @@ what the script writes.
 | [`sending_domains`](#sending_domains) | none | on, 1 policy |
 | [`sequence_batches`](#sequence_batches) | `packages/db/src/events.ts`, `packages/db/src/repositories/campaigns/calendar-runs.ts`, `packages/db/src/repositories/campaigns/campaign-channels.ts`, `packages/db/src/repositories/campaigns/email-offers.ts`, `packages/db/src/repositories/campaigns/reach-out-drafts.ts`, `packages/db/src/repositories/campaigns/sequences.ts`, `packages/db/src/repositories/campaigns/stranded-runs.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/touches.ts`, `packages/db/src/repositories/workspace-export.ts` | on, 1 policy |
 | [`sequence_enrollments`](#sequence_enrollments) | `packages/db/src/repositories/campaigns/sequences.ts` | on, 1 policy |
-| [`sequence_replies`](#sequence_replies) | `packages/db/src/repositories/outreach.ts`, `packages/db/src/repositories/people.ts`, `packages/db/src/repositories/workspace-export.ts` | on, 1 policy |
-| [`sequence_sends`](#sequence_sends) | `packages/db/src/repositories/campaigns/campaign-channels.ts`, `packages/db/src/repositories/campaigns/reach-out-check.ts`, `packages/db/src/repositories/campaigns/reach-out-drafts.ts`, `packages/db/src/repositories/outreach.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/touches.ts`, `packages/db/src/repositories/workspace-export.ts` | on, 2 policies |
+| [`sequence_replies`](#sequence_replies) | `packages/db/src/repositories/campaigns/sequences.ts`, `packages/db/src/repositories/outreach.ts`, `packages/db/src/repositories/people.ts`, `packages/db/src/repositories/workspace-export.ts` | on, 1 policy |
+| [`sequence_sends`](#sequence_sends) | `packages/db/src/repositories/campaigns/campaign-channels.ts`, `packages/db/src/repositories/campaigns/reach-out-check.ts`, `packages/db/src/repositories/campaigns/reach-out-drafts.ts`, `packages/db/src/repositories/campaigns/sequences.ts`, `packages/db/src/repositories/outreach.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/touches.ts`, `packages/db/src/repositories/workspace-export.ts` | on, 2 policies |
 | [`sequence_steps`](#sequence_steps) | `packages/db/src/events.ts`, `packages/db/src/repositories/campaigns/calendar-runs.ts`, `packages/db/src/repositories/campaigns/campaign-channels.ts`, `packages/db/src/repositories/campaigns/sequences.ts`, `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/lists.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/workspace-export.ts`, `packages/db/src/sweeps.ts` | on, 4 policies |
 | [`sequences`](#sequences) | `packages/db/src/repositories/campaigns/sequences.ts` | on, 1 policy |
 | [`sweep_status`](#sweep_status) | none | on, no policy, so only the service role reaches it |
@@ -2738,7 +2738,7 @@ Foreign keys:
 
 Decision 0060: one reading of one reply to a sequence's send, keyed by the message (reach_out_replies until 00440). The intent (or other, with why it could not be read), what the reading did (plan), and the draft it wrote.
 
-- Owned by: `packages/db/src/repositories/outreach.ts`, `packages/db/src/repositories/people.ts`, `packages/db/src/repositories/workspace-export.ts`
+- Owned by: `packages/db/src/repositories/campaigns/sequences.ts`, `packages/db/src/repositories/outreach.ts`, `packages/db/src/repositories/people.ts`, `packages/db/src/repositories/workspace-export.ts`
 - Primary key: `message_id`
 - Row-level security: on, 1 policy
 
@@ -2799,7 +2799,7 @@ Foreign keys:
 
 Decision 0060: one message of a sequence to one person. A customer's (contact_id, no lead_id): queued, then sent, skipped or failed, once. A lead's (lead_id): planned (a time and a mailbox), held while its check doubts it, claimed under the mailbox's day, queued as an email or drafted for its owner, then sent, skipped, failed or handed to the team.
 
-- Owned by: `packages/db/src/repositories/campaigns/campaign-channels.ts`, `packages/db/src/repositories/campaigns/reach-out-check.ts`, `packages/db/src/repositories/campaigns/reach-out-drafts.ts`, `packages/db/src/repositories/outreach.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/touches.ts`, `packages/db/src/repositories/workspace-export.ts`
+- Owned by: `packages/db/src/repositories/campaigns/campaign-channels.ts`, `packages/db/src/repositories/campaigns/reach-out-check.ts`, `packages/db/src/repositories/campaigns/reach-out-drafts.ts`, `packages/db/src/repositories/campaigns/sequences.ts`, `packages/db/src/repositories/outreach.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/touches.ts`, `packages/db/src/repositories/workspace-export.ts`
 - Primary key: `id`
 - Row-level security: on, 2 policies
 

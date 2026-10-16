@@ -407,17 +407,31 @@ export function resolveParams(specs: readonly ParamSpec[], f: ParamFacts): strin
   });
 }
 
+/** What an example fills the slots that are not a person's own with. */
+const exampleFacts = (businessName: string) => ({
+  businessName,
+  bookingLink: "your booking link",
+  reviewLink: "your review link",
+  visitWhen: "tomorrow at 2:00 PM",
+  visitService: "a consultation",
+  proposalLink: "their proposal's link",
+});
+
 /** Example words for a preview: what a real person would see. */
 export function exampleParams(specs: readonly ParamSpec[], businessName: string): string[] {
-  return resolveParams(specs, {
-    firstName: "Dani",
-    businessName,
-    bookingLink: "your booking link",
-    reviewLink: "your review link",
-    visitWhen: "tomorrow at 2:00 PM",
-    visitService: "a consultation",
-    proposalLink: "their proposal's link",
-  });
+  return resolveParams(specs, { firstName: "Dani", ...exampleFacts(businessName) });
+}
+
+/**
+ * The example words as one real person reads them: their own first name, by the wire's rule (firstNameOf: none is
+ * "there", as "Hi there"), and the example's for every other slot. What a step's preview shows as someone of its batch.
+ */
+export function exampleParamsFor(
+  specs: readonly ParamSpec[],
+  businessName: string,
+  firstName: string | null,
+): string[] {
+  return resolveParams(specs, { firstName, ...exampleFacts(businessName) });
 }
 
 /* ------------------------------ what sends it ----------------------------- */

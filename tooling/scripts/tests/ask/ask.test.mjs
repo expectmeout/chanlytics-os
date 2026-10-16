@@ -1651,9 +1651,13 @@ test("the eval checks that an Open asked for is followed, and what the words dec
       person_details_email: { person_details: { email: "jordan.reyes@example.com" } },
       run_approve: { run: { verb: "approve" } },
       run_skip: { run: { verb: "skip" } },
+      // A batch to leads is decided on Ask's run card as a customer's is (16 Oct 2026).
+      run_leads_batch: { run: { verb: "approve" } },
       // A campaign changed in place (the moment spec, A8): the fields its change card carries.
       change_resume_by_name: { playbook_change: { state: "running" } },
       change_rename_and_hour: { playbook_change: { name: "Past clients", run_hour: 9 } },
+      // A sequence to leads paused on Ask's change card: its state alone (16 Oct 2026).
+      change_leads_pause: { playbook_change: { state: "paused" } },
       // A reminder the day before, asked where a calendar is connected (the marketing manager's §8): its moment.
       remind_day_before: { playbook: { trigger: "visit_tomorrow" } },
       // A message asked for in Spanish, its language unnamed: its customers read what the person writes in (16 Oct 2026).

@@ -740,8 +740,9 @@ export const DECISION_VERBS = [
    * sequence_step_words; decision 0060): subject 'sequence', payload the step and what changed of it.
    */
   "change_step",
-  /** People taken out of a sequence by a member (00442 sequence_leave): subject 'sequence', payload how many left. */
+  /** People taken out of a sequence (00442 sequence_leave), and put back (00450 sequence_return): subject 'sequence'. */
   "leave_sequence",
+  "return_to_sequence",
   /**
    * A new sequence made whole, kept as a draft or started (00442 sequence_create, decision 0060 S4), and one that never
    * sent let go (sequence_discard): subject 'sequence', payload its steps and whether it started, or its name and state.

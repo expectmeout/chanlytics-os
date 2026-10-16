@@ -576,7 +576,7 @@ test(
 
 test("the check's clock is registered, and its trigger records that it looked", { skip }, async () => {
   const s = ok(await db.from("sweep_status").select("jobname, judged_by").eq("sweep", "reach_out_check").single());
-  assert.deepEqual([s.jobname, s.judged_by], ["reach-out-check-sweep", "request"]);
+  assert.deepEqual([s.jobname, s.judged_by], ["sequences-clock", "request"]);
   const { error } = await db.rpc("trigger_reach_out_check_sweep");
   assert.equal(error?.message ?? null, null);
 });

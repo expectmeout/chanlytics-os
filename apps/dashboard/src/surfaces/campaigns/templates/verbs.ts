@@ -98,6 +98,14 @@ export const syncTemplates = () => api()("POST templates/sync");
 export const templates = {
   sync: syncTemplates,
   draft: (body: DraftBody) => api()("POST templates/draft", { body }),
+  /** A version's words written again, warmer or shorter, every value kept: words handed back, never saved. */
+  rewrite: (body: {
+    channel: OwnVersionChannel;
+    language: string;
+    subject: string | null;
+    body: string;
+    tone: "warmer" | "shorter";
+  }) => api()("POST templates/versions/rewrite", { body }),
   create: (body: CreateBody) => api()("POST templates", { body }),
   remove: (id: string) => api()("DELETE templates/[id]", { params: { id } }),
   /** Out of the composers, or back in. The row stays; syncs keep it. */

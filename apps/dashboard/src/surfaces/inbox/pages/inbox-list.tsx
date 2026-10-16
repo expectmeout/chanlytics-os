@@ -14,7 +14,7 @@
  * (ixPlace) is place.ts, a row, with the words of confidence, is list-rows.tsx, and the pick -- the boxes, the bar
  * of acts over it, its keys -- is pick.tsx, which Conversations draws too.
  */
-import { useEffect, useState, type KeyboardEvent } from "react";
+import { useEffect, useState, type KeyboardEvent, type ReactNode } from "react";
 import { EmptyState, FailedRead } from "../../kit/empty/empty";
 import { Icon } from "../../kit/icon/icon";
 import { Search } from "../../kit/search/search";
@@ -64,6 +64,8 @@ interface InboxListProps {
   density?: Density;
   /** Seconds until a thread's own reply goes out, or null: the row says them where its time would be. */
   sendingIn?: (id: string) => number | null;
+  /** A sequence's replies the address names (inbox-from.tsx): their line above the rows, which says what is not here. */
+  fromLine?: ReactNode;
 }
 
 /** The props with what the caller left out filled in: what the destructuring's defaults did in the JSX. */
@@ -89,6 +91,7 @@ function listProps({
   stake = null,
   density = "medium",
   sendingIn = () => null,
+  fromLine = null,
 }: InboxListProps) {
   return {
     threads,
@@ -112,6 +115,7 @@ function listProps({
     stake,
     density,
     sendingIn,
+    fromLine,
   };
 }
 
@@ -253,9 +257,10 @@ export function InboxList(props: InboxListProps) {
       {archiveAsk(L)}
       {/* Threads */}
       <div className="ix-threads" ref={swap}>
-        {activeBucket === "escalated" && <InboxRunsWaiting />}
-        {unreadEscalated()}
-        {visible.length === 0 && emptyThreads(L)}
+        {L.fromLine}
+        {!L.fromLine && activeBucket === "escalated" && <InboxRunsWaiting />}
+        {!L.fromLine && unreadEscalated()}
+        {visible.length === 0 && !L.fromLine && emptyThreads(L)}
         {visible.length > 0 && (
           <div className="ix-thread-rows" role="listbox" aria-label="Conversations" aria-multiselectable="true">
             {visible.map((t, i) => threadRow(L, t, i))}

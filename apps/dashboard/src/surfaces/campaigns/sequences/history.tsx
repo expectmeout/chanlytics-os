@@ -2,7 +2,8 @@
  * A sequence's History (D3: Sent becomes History; the canvas's History board): what it sent over a period, then day by
  * day. Four figures over the period picked (the last 30 days, 90, or all of it), each with what it counts on its label,
  * counted from the same batches Reports counts (contracts historyFigures over 00442 sequence_batch_counts), with the door
- * to Reports over the same days. Then a row a batch, newest first: when, what it went to and what came of it, opened in
+ * to Reports over the same days, and Replied a door to the Inbox over them (contracts sequenceRepliesRoute: the threads that
+ * answered it, and nothing else), as is "All N replies in the Inbox" beside Day by day. Then a row a batch, newest first: when, what it went to and what came of it, opened in
  * place onto the replies it drew, each a door to its thread, everyone it went to under them, and the door to its run's
  * sheet in Sent. Older batches are read a page at a time, and as far back as the period asks. An address that names a day
  * (a run's, landed here: the parity review's W4) opens that day, read back to it, and brings it into view.
@@ -21,6 +22,7 @@ import {
   historySince,
   lensRoute,
   runSheetRoute,
+  sequenceRepliesRoute,
   zoneDayKey,
   type SequenceBatchDto,
   type SequenceHistoryPeriod,
@@ -231,6 +233,9 @@ export function SequenceHistory(p: { rec: SequenceRecordDto; again: number; move
   const inPeriod = historyIn(batches, since, tz);
   const figures = historyFigures(inPeriod);
   const reports = lensRoute("campaigns", since ? { from: since, to: zoneDayKey(nowMs, tz) } : null);
+  // The replies over the same days, in the Inbox: a door only where somebody wrote back.
+  const replied = Number(figures.find((f) => f.id === "replied")?.value ?? 0);
+  const inbox = replied > 0 ? routeDoor(sequenceRepliesRoute(rec.sequence.id, period)) : null;
   return (
     <div className="sq-history" data-testid="sq-history">
       <section className="sq-hist-sum" aria-label={H.period}>
@@ -263,6 +268,7 @@ export function SequenceHistory(p: { rec: SequenceRecordDto; again: number; move
               definition={f.definition}
               n={f.n}
               {...(f.minN === null ? {} : { minN: f.minN })}
+              {...(f.id === "replied" && inbox ? { door: inbox } : {})}
               className="sq-cell"
               data-testid={`sq-figure-${f.id}`}
             />
@@ -270,7 +276,14 @@ export function SequenceHistory(p: { rec: SequenceRecordDto; again: number; move
         </dl>
       </section>
       <section className="sq-days" aria-label={H.dayByDay}>
-        <h3 className="sq-group-name">{H.dayByDay}</h3>
+        <h3 className="sq-group-name">
+          {H.dayByDay}
+          {inbox ? (
+            <LinkButton className="sq-group-act" {...inbox} data-testid="sq-history-inbox">
+              {H.inInbox(replied)} <Icon name="chevron" size={11} />
+            </LinkButton>
+          ) : null}
+        </h3>
         {batches.map((b) => (
           <DayRow
             key={b.id}
