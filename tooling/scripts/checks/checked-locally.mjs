@@ -180,7 +180,7 @@ async function stamp() {
     refuse("a check changed the tree it checked: commit what it wrote and run again");
   git("commit", "--allow-empty", "--quiet", "-m", "Checked locally", "-m", `${TRAILER}: ${tree}`);
   console.error(
-    `\ncheck:local: every check passed; stamped ${tree.slice(0, 9)}. Push it: while main has not moved past the branch, CI runs the build and bundle and skips the rest.`,
+    `\ncheck:local: every check passed; stamped ${tree.slice(0, 9)}. Push it: while main has not moved past the branch, CI runs the build, the bundle and the dist check and skips the rest.`,
   );
 }
 
