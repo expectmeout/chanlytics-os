@@ -17,15 +17,15 @@
  *      once every required check passes, pinned to the commit pushed (`--match-head-commit`), so nothing pushed after
  *      it lands unchecked. Where the repository does not allow auto-merge, it says to merge once green.
  *
- *   node tooling/scripts/ship/land.mjs                                    merge main, write, push, auto-merge
- *   node tooling/scripts/ship/land.mjs --title "<title>" --body-file <f>  the same, opening the pull request first
- *   node tooling/scripts/ship/land.mjs --no-auto                          everything but the auto-merge
+ *   node tooling/scripts/land.mjs                                    merge main, write, push, auto-merge
+ *   node tooling/scripts/land.mjs --title "<title>" --body-file <f>  the same, opening the pull request first
+ *   node tooling/scripts/land.mjs --no-auto                          everything but the auto-merge
  */
 import { execFileSync, spawnSync } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 
 /** A file a command writes: main's side is taken in a conflict, and the command writes it again (WRITERS). */
 export function isWritten(file) {
