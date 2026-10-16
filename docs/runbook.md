@@ -1123,8 +1123,8 @@ the pages are", says the 75th percentile of each over the last seven days (00255
 ceiling answers to (`check:bundle -- --ceiling js=<bytes> css=<bytes> page=<bytes>`, the line no pull request crosses; set
 on 10 Oct 2026 at 800 KiB for the route's JS, 160 KiB for its CSS and 256 KiB for each page's own, with room for a month's
 work at the rate main grew in early October, read again with these numbers; the route's JS raised to 832 KiB on 13 Oct 2026
-by Ruben's word, #1579, docs/debt.md "Rises"): LCP for the page drawn, INP for a tap
-answered.
+by Ruben's word, #1579, and to 1 MiB with its CSS to 192 KiB on 16 Oct 2026 by his word, with p75 LCP 1.6 s and INP 102 ms
+that day, docs/debt.md "Rises"): LCP for the page drawn, INP for a tap answered.
 
 Since 00412 (decision 0053) a load also says where its time went. Each page, and each part of one a person waits for
 (Today's queue, the Inbox's list and thread, People's table, the Calendar's board…), reports `READY` when it is drawn
