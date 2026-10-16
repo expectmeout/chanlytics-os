@@ -102,10 +102,10 @@ async function run(tenant, ids) {
 }
 const states = async (tenant, broadcast) => {
   const { data, error } = await db
-    .from("broadcast_recipients")
+    .from("sequence_sends")
     .select("contact_id, state, reason")
     .eq("tenant_id", tenant)
-    .eq("broadcast_id", broadcast);
+    .eq("batch_id", broadcast);
   assert.equal(error, null, error?.message);
   return new Map(data.map((r) => [r.contact_id, [r.state, r.reason]]));
 };
@@ -144,9 +144,9 @@ test(
     const broadcast = await run(A, [one, two, three]);
     // The send reached the first before the hold was written: its row says sent.
     const sent = await db
-      .from("broadcast_recipients")
+      .from("sequence_sends")
       .update({ state: "sent", sent_at: new Date().toISOString() })
-      .eq("broadcast_id", broadcast)
+      .eq("batch_id", broadcast)
       .eq("contact_id", one);
     assert.equal(sent.error, null, sent.error?.message);
     const first = await holdRecipients(db, {

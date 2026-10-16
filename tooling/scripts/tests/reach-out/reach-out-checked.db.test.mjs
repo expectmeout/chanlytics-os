@@ -100,7 +100,7 @@ const newSearch = (tenant = A, name = "Other") =>
 /** A chain's root over a search of its own, in a workspace. */
 const rootOf = async (tenant, s, over = {}) =>
   one(
-    db.from("playbooks").insert({
+    db.from("sequence_steps").insert({
       tenant_id: tenant,
       kind: "reach_out",
       policy_class: "outreach",
@@ -120,7 +120,7 @@ let far = 0;
 const runOf = (tenant, rootId, state = "scheduled") => {
   far += 1;
   return one(
-    db.from("broadcasts").insert({
+    db.from("sequence_batches").insert({
       tenant_id: tenant,
       name: "Movers",
       template_id: template,
@@ -129,7 +129,7 @@ const runOf = (tenant, rootId, state = "scheduled") => {
       audience: { kind: "reach_out", root_id: rootId, step_id: rootId, search_id: search },
       state,
       scheduled_for: iso(Date.now()),
-      playbook_id: rootId,
+      step_id: rootId,
       run_for: new Date(Date.UTC(2099, 0, far)).toISOString().slice(0, 10),
     }),
   );
@@ -138,12 +138,12 @@ const runOf = (tenant, rootId, state = "scheduled") => {
 async function sendIn(over = {}) {
   const id = crypto.randomUUID();
   ok(
-    await db.from("reach_out_sends").insert({
+    await db.from("sequence_sends").insert({
       id,
       tenant_id: A,
-      broadcast_id: rootRun,
-      playbook_id: root,
-      root_id: root,
+      batch_id: rootRun,
+      step_id: root,
+      sequence_id: root,
       lead_id: over.lead_id ?? (await lead()),
       send_at: iso(Date.now() - MIN),
       ...over,
@@ -151,7 +151,14 @@ async function sendIn(over = {}) {
   );
   return id;
 }
-const row = async (id) => ok(await db.from("reach_out_sends").select("*").eq("id", id).single());
+const row = async (id) =>
+  ok(
+    await db
+      .from("sequence_sends")
+      .select("*, broadcast_id:batch_id, playbook_id:step_id, root_id:sequence_id")
+      .eq("id", id)
+      .single(),
+  );
 
 before(async () => {
   if (skip) return;
@@ -184,7 +191,7 @@ before(async () => {
 // Each case starts from no send: the sends to check are the workspace's, and a lease is a case's own.
 afterEach(async () => {
   if (skip || !A) return;
-  for (const t of [A, B]) ok(await db.from("reach_out_sends").delete().eq("tenant_id", t));
+  for (const t of [A, B]) ok(await db.from("sequence_sends").delete().eq("tenant_id", t));
   ok(await db.from("mailbox_connections").delete().eq("tenant_id", A));
 });
 after(async () => {
@@ -200,29 +207,29 @@ test(
     const id = await sendIn({ mailbox_id: d });
     assert.deepEqual(await claimSends(db, { mailboxId: d, cap: 30, at: new Date(), limit: 5 }), []);
     const byHand = await db
-      .from("reach_out_sends")
+      .from("sequence_sends")
       .update({ state: "claimed", claimed_at: iso(Date.now()) })
       .eq("id", id);
     assert.match(byHand.error?.message ?? "", /claimed only once it is checked/);
     assert.match(
-      (await db.from("reach_out_sends").update({ state: "held", reason: "nope" }).eq("id", id)).error?.message ?? "",
+      (await db.from("sequence_sends").update({ state: "held", reason: "nope" }).eq("id", id)).error?.message ?? "",
       /held_says_why/,
     );
     ok(
       await db
-        .from("reach_out_sends")
+        .from("sequence_sends")
         .update({ state: "held", reason: "chain", hold_detail: "site:3", checked_at: iso(Date.now()) })
         .eq("id", id),
     );
     assert.deepEqual(await claimSends(db, { mailboxId: d, cap: 30, at: new Date(), limit: 5 }), []);
     assert.match(
-      (await db.from("reach_out_sends").update({ state: "claimed" }).eq("id", id)).error?.message ?? "",
+      (await db.from("sequence_sends").update({ state: "claimed" }).eq("id", id)).error?.message ?? "",
       /held -> claimed refused/,
     );
     // Included: planned again, checked, and claimed.
     ok(
       await db
-        .from("reach_out_sends")
+        .from("sequence_sends")
         .update({ state: "planned", reason: null, included_for: ["chain"] })
         .eq("id", id),
     );
@@ -247,7 +254,7 @@ test("the claim's due mailboxes skip a send not yet checked (R8)", { skip }, asy
   assert.deepEqual(await due(), []);
   ok(
     await db
-      .from("reach_out_sends")
+      .from("sequence_sends")
       .update({ checked_at: iso(Date.now()) })
       .eq("id", id),
   );
@@ -260,7 +267,7 @@ test(
   async () => {
     const run = await runOf(A, root);
     const id = await sendIn({
-      broadcast_id: run,
+      batch_id: run,
       send_at: iso(Date.now() + MIN),
       state: "held",
       reason: "language",
@@ -269,7 +276,7 @@ test(
       created_at: iso(Date.now() - 15 * DAY),
     });
     const young = await sendIn({
-      broadcast_id: run,
+      batch_id: run,
       send_at: iso(Date.now() + MIN),
       state: "held",
       reason: "chain",
@@ -278,7 +285,7 @@ test(
     const finishable = ok(await db.rpc("reach_out_finishable", { p_limit: 500, p_tenant_id: A }));
     assert.ok(!finishable.includes(run), "a held send keeps its run open");
     const stale = ok(
-      await db.rpc("reach_out_held_stale", { p_before: iso(Date.now() - 14 * DAY), p_limit: 50, p_tenant_id: A }),
+      await db.rpc("sequence_held_stale", { p_before: iso(Date.now() - 14 * DAY), p_limit: 50, p_tenant_id: A }),
     );
     assert.deepEqual(
       stale.map((s) => s.id),
@@ -286,9 +293,9 @@ test(
       "by when it was planned, never by its last write",
     );
     assert.ok(!stale.some((s) => s.id === young));
-    ok(await db.from("broadcasts").update({ state: "canceled" }).eq("id", run));
+    ok(await db.from("sequence_batches").update({ state: "canceled" }).eq("id", run));
     const closed = ok(
-      await db.rpc("reach_out_closed_sends", { p_stuck_before: iso(Date.now()), p_limit: 50, p_tenant_id: A }),
+      await db.rpc("sequence_closed_sends", { p_stuck_before: iso(Date.now()), p_limit: 50, p_tenant_id: A }),
     );
     assert.ok(closed.some((c) => c.send.id === id) && closed.some((c) => c.send.id === young), "closed with its run");
   },
@@ -327,7 +334,7 @@ test(
 );
 
 test("a search has one chain; signed_by and include_unconfirmed are a root's alone", { skip }, async () => {
-  const again = await db.from("playbooks").insert({
+  const again = await db.from("sequence_steps").insert({
     tenant_id: A,
     kind: "reach_out",
     trigger: "lead_first",
@@ -341,13 +348,13 @@ test("a search has one chain; signed_by and include_unconfirmed are a root's alo
   });
   assert.match(again.error?.message ?? "", /sequence_steps_one_chain_per_search/);
   const step = await one(
-    db.from("playbooks").insert({
+    db.from("sequence_steps").insert({
       tenant_id: A,
       kind: "reach_out",
       trigger: "after_step",
       policy_class: "outreach",
       gap_minutes: 12,
-      after_playbook_id: root,
+      after_step_id: root,
       after_days: 3,
       name: "Nudge",
       template_id: template,
@@ -357,16 +364,16 @@ test("a search has one chain; signed_by and include_unconfirmed are a root's alo
   );
   for (const patch of [{ signed_by: "Sam" }, { include_unconfirmed: true }])
     assert.match(
-      (await db.from("playbooks").update(patch).eq("id", step)).error?.message ?? "",
+      (await db.from("sequence_steps").update(patch).eq("id", step)).error?.message ?? "",
       /sequence_steps_root_settings/,
     );
-  ok(await db.from("playbooks").update({ signed_by: "Sam", include_unconfirmed: true }).eq("id", root));
+  ok(await db.from("sequence_steps").update({ signed_by: "Sam", include_unconfirmed: true }).eq("id", root));
   assert.match(
-    (await db.from("playbooks").update({ signed_by: "   " }).eq("id", root)).error?.message ?? "",
+    (await db.from("sequence_steps").update({ signed_by: "   " }).eq("id", root)).error?.message ?? "",
     /sequence_steps_root_settings/,
   );
-  ok(await db.from("playbooks").update({ signed_by: null, include_unconfirmed: false }).eq("id", root));
-  ok(await db.from("playbooks").delete().eq("id", step));
+  ok(await db.from("sequence_steps").update({ signed_by: null, include_unconfirmed: false }).eq("id", root));
+  ok(await db.from("sequence_steps").delete().eq("id", step));
 });
 
 test(
@@ -426,7 +433,7 @@ test(
     const soon = await sendIn({ send_at: iso(Date.now() + H) });
     const later = await sendIn({ send_at: iso(Date.now() + 7 * DAY) });
     const waitingRun = await runOf(A, root, "pending_approval");
-    const waiting = await sendIn({ broadcast_id: waitingRun, send_at: iso(Date.now() + 7 * DAY) });
+    const waiting = await sendIn({ batch_id: waitingRun, send_at: iso(Date.now() + 7 * DAY) });
     const backing = await sendIn({ check_after: iso(Date.now() + 5 * MIN) });
     // A nudge to a lead the owner included past a chain on the first email: it inherits it (R7).
     const l = await lead();
@@ -439,13 +446,13 @@ test(
     });
     // The nudge is its chain's second step's: no lead has two first emails (00427).
     const nudge = await one(
-      db.from("playbooks").insert({
+      db.from("sequence_steps").insert({
         tenant_id: A,
         kind: "reach_out",
         trigger: "after_step",
         policy_class: "outreach",
         gap_minutes: 12,
-        after_playbook_id: root,
+        after_step_id: root,
         after_days: 3,
         name: "Nudge",
         template_id: template,
@@ -455,8 +462,8 @@ test(
     );
     const first = await sendIn({
       lead_id: l,
-      broadcast_id: await runOf(A, root),
-      playbook_id: nudge,
+      batch_id: await runOf(A, root),
+      step_id: nudge,
       send_at: iso(Date.now() + H),
     });
     const got = await take();
@@ -477,17 +484,17 @@ test(
     assert.deepEqual(await take(), []);
     ok(
       await db
-        .from("reach_out_sends")
+        .from("sequence_sends")
         .update({ check_started_at: iso(Date.now() - 3 * MIN) })
         .eq("tenant_id", A),
     );
     assert.ok((await take()).length >= 3, "a lease left two minutes is taken again");
     // A few of a workspace a tick, never its whole run (R2). (Asked of this workspace alone: a lease taken across every
     // workspace would be taken from the suites beside this one.)
-    ok(await db.from("reach_out_sends").update({ check_started_at: null }).eq("tenant_id", A));
+    ok(await db.from("sequence_sends").update({ check_started_at: null }).eq("tenant_id", A));
     assert.equal((await take({ perWorkspace: 2 })).length, 2);
-    ok(await db.from("reach_out_sends").delete().eq("playbook_id", nudge));
-    ok(await db.from("playbooks").delete().eq("id", nudge));
+    ok(await db.from("sequence_sends").delete().eq("step_id", nudge));
+    ok(await db.from("sequence_steps").delete().eq("id", nudge));
   },
 );
 
@@ -502,7 +509,7 @@ test(
     // The owner's edit moves the words on while the check writes.
     ok(
       await db
-        .from("reach_out_sends")
+        .from("sequence_sends")
         .update({ check_gen: u.check_gen + 1 })
         .eq("id", id),
     );

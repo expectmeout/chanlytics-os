@@ -64,15 +64,15 @@ function momentsSql() {
   return `
   insert into public.templates (id, tenant_id, channel, name, language, meta_status)
     values (tpl, t, 'whatsapp', 'scale_offer', 'en_US', 'approved');
-  insert into public.playbooks (id, tenant_id, name, trigger, template_id, template_name, template_language, policy_class)
+  insert into public.sequence_steps (id, tenant_id, name, trigger, template_id, template_name, template_language, policy_class)
     select ${moment("p")}, t, 'Moment ' || p, 'quiet_30', tpl, 'scale_offer', 'en_US', 'reengage'
       from ${MOMENTS};
   insert into public.contacts (id, tenant_id) select ${person("c")}, t from ${series(PEOPLE, "c")};
   insert into public.conversations (id, tenant_id, contact_id, state)
     select ${thread("c")}, t, ${person("c")}, case when c % 10 = 0 then 'needs_human' else 'open' end
       from ${series(PEOPLE, "c")};
-  insert into public.broadcasts (id, tenant_id, name, template_id, template_name, template_language, audience, state,
-                                 scheduled_for, recipient_count, playbook_id, run_for, created_at)
+  insert into public.sequence_batches (id, tenant_id, name, template_id, template_name, template_language, audience, state,
+                                 scheduled_for, recipient_count, step_id, run_for, created_at)
     select ${run("p", "j")}, t, 'Run ' || j, tpl, 'scale_offer', 'en_US',
            jsonb_build_object('kind', 'playbook', 'id', ${moment("p")}, 'label', 'Moment ' || p, 'trigger', 'quiet_30'),
            'sent', ${AT}, ${SCALE.people}, ${moment("p")}, (t0 + j * interval '1 day')::date, ${AT}
@@ -85,7 +85,7 @@ function momentsSql() {
            case when k = 23 then ${LATE_FAILURE_SQL} end,
            jsonb_build_object('source', 'broadcast'), ${AT} + k * interval '1 second'
       from ${MOMENTS}, ${RUNS}, ${series(sentTo, "k")};
-  insert into public.broadcast_recipients (broadcast_id, contact_id, tenant_id, state, reason, message_id, sent_at)
+  insert into public.sequence_sends (batch_id, contact_id, tenant_id, state, reason, message_id, sent_at)
     select ${run("p", "j")}, ${person(WHO)}, t,
            case when k < ${sentTo} then 'sent' else 'skipped' end,
            case when k < ${sentTo} then null else 'opted_out' end,
@@ -138,12 +138,12 @@ function reachOutSql() {
     values (rsearch, t, 'people', 'movers', 'Movers · Austin', 'movers in Austin', '{}'::jsonb);
   insert into public.templates (id, tenant_id, channel, name, language, meta_status)
     values (rtpl, t, 'email', 'reach_hello', 'en_US', 'approved');
-  insert into public.playbooks (id, tenant_id, kind, trigger, name, template_id, template_name, template_language, params,
+  insert into public.sequence_steps (id, tenant_id, kind, trigger, name, template_id, template_name, template_language, params,
                                 policy_class, gap_minutes, lead_search_id, state)
     values (${rs(0)}, t, 'reach_out', 'lead_first', 'Reach out · Movers', rtpl, 'reach_hello', 'en_US', '[]'::jsonb,
             'outreach', 12, rsearch, 'running');
-  insert into public.playbooks (id, tenant_id, kind, trigger, name, template_id, template_name, template_language, params,
-                                policy_class, gap_minutes, after_playbook_id, after_days, state)
+  insert into public.sequence_steps (id, tenant_id, kind, trigger, name, template_id, template_name, template_language, params,
+                                policy_class, gap_minutes, after_step_id, after_days, state)
     select ${rs("s")}, t, 'reach_out', 'after_step', 'Reach out · Movers · ' || (s + 1), rtpl, 'reach_hello', 'en_US',
            '[]'::jsonb, 'outreach', 12, ${rs("s - 1")}, 4, 'running'
       from ${series(3, "s", 1)};
@@ -158,8 +158,8 @@ function reachOutSql() {
            'business' || i || '@example.com', 'ok', 'nurture', ${contact("i")}
       from ${businesses};
   -- One run of a step for each day it wrote on, the sends hung on it.
-  insert into public.broadcasts (id, tenant_id, name, template_id, template_name, template_language, audience, state,
-                                 scheduled_for, started_at, recipient_count, playbook_id, run_for, created_at)
+  insert into public.sequence_batches (id, tenant_id, name, template_id, template_name, template_language, audience, state,
+                                 scheduled_for, started_at, recipient_count, step_id, run_for, created_at)
     select md5(t || ':ro:run:' || s || ':' || d)::uuid, t, 'Reach out · Movers', rtpl, 'reach_hello', 'en_US',
            jsonb_build_object('kind', 'reach_out', 'root_id', ${rs(0)}, 'step_id', ${rs("s")}),
            'sent', today - d * interval '1 day' + interval '10 hours', today - d * interval '1 day' + interval '10 hours',
@@ -176,7 +176,7 @@ function reachOutSql() {
                               'email', jsonb_build_object('message_id', '<ro-' || i || '-' || s || '@example.com>')),
            ${left}
       from ${emailed};
-  insert into public.reach_out_sends (id, tenant_id, broadcast_id, playbook_id, root_id, lead_id, contact_id, state, reason,
+  insert into public.sequence_sends (id, tenant_id, batch_id, step_id, sequence_id, lead_id, contact_id, state, reason,
                                       send_at, sent_at, angle, message_id)
     select md5(t || ':ro:send:' || i || ':' || s)::uuid, t, md5(t || ':ro:run:' || s || ':' || ${back})::uuid, ${rs("s")},
            ${rs(0)}, md5(t || ':ro:lead:' || i)::uuid, ${contact("i")},
@@ -191,7 +191,7 @@ function reachOutSql() {
            jsonb_build_object('email', jsonb_build_object('in_reply_to', '<ro-' || i || '-0@example.com>', 'claim', 'person')),
            today - (8 + (i % 92)) * interval '1 day' + interval '13 hours' + (i % 480) * interval '1 minute'
       from generate_series(0, ${lastBusiness}, 20) i;
-  insert into public.reach_out_replies (message_id, tenant_id, conversation_id, contact_id, lead_id, lead_contact_id, claim,
+  insert into public.sequence_replies (message_id, tenant_id, conversation_id, contact_id, lead_id, lead_contact_id, claim,
                                         intent, summary)
     select md5(t || ':ro:in:' || i)::uuid, t, md5(t || ':ro:thread:' || i)::uuid, ${contact("i")},
            md5(t || ':ro:lead:' || i)::uuid, ${contact("i")}, 'person', 'question', 'Asks what it costs'

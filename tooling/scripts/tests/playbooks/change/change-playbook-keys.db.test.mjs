@@ -95,7 +95,7 @@ async function operator() {
 const winBack = async (over = {}) =>
   ok(
     await db
-      .from("playbooks")
+      .from("sequence_steps")
       .insert({
         tenant_id: tenantId,
         name: "Win-back",
@@ -117,7 +117,7 @@ const winBack = async (over = {}) =>
   ).id;
 
 const row = async (id) =>
-  ok(await db.from("playbooks").select("state, params, until, trial_until").eq("id", id).single());
+  ok(await db.from("sequence_steps").select("state, params, until, trial_until").eq("id", id).single());
 const decisions = async (id) =>
   ok(
     await db
@@ -354,7 +354,9 @@ test(
     assert.deepEqual([none.trial_until, none.until], [null, null]);
     const bad = await start({ name: "Never started", trial_until: "next week" });
     assert.equal(bad.error?.code, "22007", bad.error?.message);
-    const named = ok(await db.from("playbooks").select("name").eq("tenant_id", tenantId).eq("name", "Never started"));
+    const named = ok(
+      await db.from("sequence_steps").select("name").eq("tenant_id", tenantId).eq("name", "Never started"),
+    );
     assert.deepEqual(named, []);
   },
 );

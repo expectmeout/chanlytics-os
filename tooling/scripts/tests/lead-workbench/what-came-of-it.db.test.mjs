@@ -99,18 +99,18 @@ async function sent(leadId) {
   const id = crypto.randomUUID();
   const at = new Date(Math.max(Date.now() - HOUR, todayBeganAt() + MINUTE)).toISOString();
   ok(
-    await db.from("reach_out_sends").insert({
+    await db.from("sequence_sends").insert({
       id,
       tenant_id: A,
-      broadcast_id: W.run,
-      playbook_id: W.root,
-      root_id: W.root,
+      batch_id: W.run,
+      step_id: W.root,
+      sequence_id: W.root,
       lead_id: leadId,
       state: "queued",
       send_at: at,
     }),
   );
-  ok(await db.from("reach_out_sends").update({ state: "sent", sent_at: at }).eq("id", id));
+  ok(await db.from("sequence_sends").update({ state: "sent", sent_at: at }).eq("id", id));
   return id;
 }
 
@@ -141,7 +141,7 @@ before(async () => {
     }),
   );
   W.root = await one(
-    db.from("playbooks").insert({
+    db.from("sequence_steps").insert({
       tenant_id: A,
       kind: "reach_out",
       name: "Studios in Austin",
@@ -156,12 +156,12 @@ before(async () => {
     }),
   );
   W.run = await one(
-    db.from("broadcasts").insert({
+    db.from("sequence_batches").insert({
       tenant_id: A,
       name: "Studios in Austin · today",
       state: "sending",
       scheduled_for: new Date(Date.now() - 2 * HOUR).toISOString(),
-      playbook_id: W.root,
+      step_id: W.root,
       run_for: new Date().toISOString().slice(0, 10),
       template_id: W.template,
       template_name: "fixture_came_1",

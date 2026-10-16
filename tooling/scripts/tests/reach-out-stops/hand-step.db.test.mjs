@@ -87,10 +87,10 @@ async function chainWithACall(ago = 5) {
     }),
   );
   const { template_id, template_name } = ok(
-    await db.from("playbooks").select("template_id, template_name").eq("id", root).single(),
+    await db.from("sequence_steps").select("template_id, template_name").eq("id", root).single(),
   );
   const run = await one(
-    db.from("broadcasts").insert({
+    db.from("sequence_batches").insert({
       tenant_id: A,
       name: "Movers · sent",
       template_id,
@@ -99,7 +99,7 @@ async function chainWithACall(ago = 5) {
       audience: { kind: "reach_out", root_id: root, step_id: root },
       state: "sent",
       scheduled_for: iso(Date.now() - ago * DAY),
-      playbook_id: root,
+      step_id: root,
       run_for: new Date(Date.now() - ago * DAY).toISOString().slice(0, 10),
     }),
   );
@@ -121,12 +121,12 @@ async function chainWithACall(ago = 5) {
     }),
   );
   ok(
-    await db.from("reach_out_sends").insert({
+    await db.from("sequence_sends").insert({
       id: crypto.randomUUID(),
       tenant_id: A,
-      broadcast_id: run,
-      playbook_id: root,
-      root_id: root,
+      batch_id: run,
+      step_id: root,
+      sequence_id: root,
       lead_id: lead,
       contact_id: person,
       state: "sent",
@@ -184,7 +184,7 @@ test(
     const c = await chainWithACall();
     const row = ok(
       await db
-        .from("playbooks")
+        .from("sequence_steps")
         .select("trigger, after_days, hand, template_id, template_name, name")
         .eq("id", c.hand)
         .single(),
@@ -206,38 +206,38 @@ test(
 
 test("the rows hold the shape of a hand step, and of its run", { skip }, async () => {
   const c = await chainWithACall();
-  const tpl = ok(await db.from("playbooks").select("template_id, template_name").eq("id", c.root).single());
+  const tpl = ok(await db.from("sequence_steps").select("template_id, template_name").eq("id", c.root).single());
   refusedWith(
     await db
-      .from("playbooks")
+      .from("sequence_steps")
       .update({ hand: { kind: "call", words: "x".repeat(281) } })
       .eq("id", c.hand),
     "23514",
   );
   refusedWith(
     await db
-      .from("playbooks")
+      .from("sequence_steps")
       .update({ hand: { kind: "visit", words: "x" } })
       .eq("id", c.hand),
     "23514",
   );
   refusedWith(
     await db
-      .from("playbooks")
+      .from("sequence_steps")
       .update({ hand: { ...CALL, extra: 1 } })
       .eq("id", c.hand),
     "23514",
   );
-  refusedWith(await db.from("playbooks").update({ hand: CALL }).eq("id", c.root), "23514", undefined);
+  refusedWith(await db.from("sequence_steps").update({ hand: CALL }).eq("id", c.root), "23514", undefined);
   refusedWith(
     await db
-      .from("playbooks")
+      .from("sequence_steps")
       .update({ template_id: tpl.template_id, template_name: tpl.template_name, template_language: "en" })
       .eq("id", c.hand),
     "23514",
   );
   refusedWith(
-    await db.from("broadcasts").insert({
+    await db.from("sequence_batches").insert({
       tenant_id: A,
       name: "No template",
       audience: { kind: "reach_out", root_id: c.root, step_id: c.root },
@@ -256,7 +256,7 @@ test("the hand step's run: one handed send and one step for the team, due that d
   assert.deepEqual(ok(await handRun(c, runId, [item])), { run_id: runId, made: 1, already: 0 });
   const run = ok(
     await db
-      .from("broadcasts")
+      .from("sequence_batches")
       .select("state, template_id, audience, recipient_count, run_for")
       .eq("id", runId)
       .single(),
@@ -266,7 +266,7 @@ test("the hand step's run: one handed send and one step for the team, due that d
     ["sent", null, "call", c.root, 1, today()],
   );
   const send = ok(
-    await db.from("reach_out_sends").select("state, sent_at, playbook_id").eq("id", item.send_id).single(),
+    await db.from("sequence_sends").select("state, sent_at, playbook_id:step_id").eq("id", item.send_id).single(),
   );
   assert.equal(send.state, "handed");
   assert.ok(send.sent_at);
@@ -281,7 +281,7 @@ test("the hand step's run: one handed send and one step for the team, due that d
     "a replay makes nothing",
   );
   assert.deepEqual(await followers(c), [], "a handed lead is on the step");
-  refusedWith(await db.from("reach_out_sends").update({ state: "planned" }).eq("id", item.send_id), "P0001");
+  refusedWith(await db.from("sequence_sends").update({ state: "planned" }).eq("id", item.send_id), "P0001");
   refusedWith(await handRun(c, crypto.randomUUID(), [itemFor(c)]), "23505", "This step has another run for that day.");
 });
 
@@ -293,7 +293,9 @@ test(
     assert.deepEqual(await followers(early), [], "the first email left a day ago; the call waits three");
     const c = await chainWithACall();
     ok(await handRun(c, crypto.randomUUID(), [itemFor(c)]));
-    const search = ok(await db.from("playbooks").select("lead_search_id").eq("id", c.root).single()).lead_search_id;
+    const search = ok(
+      await db.from("sequence_steps").select("lead_search_id").eq("id", c.root).single(),
+    ).lead_search_id;
     const edit = {
       ...chainOf(search, [
         { ...FIRST, id: c.root },

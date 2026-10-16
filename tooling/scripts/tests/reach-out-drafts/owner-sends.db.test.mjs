@@ -94,7 +94,7 @@ async function chain(ownerSends, label) {
   );
   const step = (over) =>
     one(
-      db.from("playbooks").insert({
+      db.from("sequence_steps").insert({
         tenant_id: A,
         kind: "reach_out",
         policy_class: "outreach",
@@ -115,18 +115,18 @@ async function chain(ownerSends, label) {
   const nudge = await step({
     name: `Gyms ${label} · a nudge`,
     trigger: "after_step",
-    after_playbook_id: root,
+    after_step_id: root,
     after_days: 4,
   });
   // A run a step a day: the first email's, and the nudge's.
   const runOf = (stepId, name) =>
     one(
-      db.from("broadcasts").insert({
+      db.from("sequence_batches").insert({
         tenant_id: A,
         name,
         state: "sending",
         scheduled_for: ago(HOUR),
-        playbook_id: stepId,
+        step_id: stepId,
         run_for: new Date().toISOString().slice(0, 10),
         template_id: template,
         template_name: `fixture_drafts_${label}_${stamp}`,
@@ -144,12 +144,12 @@ async function chain(ownerSends, label) {
 async function planned(c, leadId, over = {}) {
   const id = crypto.randomUUID();
   ok(
-    await db.from("reach_out_sends").insert({
+    await db.from("sequence_sends").insert({
       id,
       tenant_id: A,
-      broadcast_id: c.run,
-      playbook_id: c.root,
-      root_id: c.root,
+      batch_id: c.run,
+      step_id: c.root,
+      sequence_id: c.root,
       lead_id: leadId,
       state: "planned",
       send_at: ago(HOUR),
@@ -165,14 +165,14 @@ async function drafted(c, leadId, over = {}) {
   const id = await planned(c, leadId, over);
   ok(
     await db
-      .from("reach_out_sends")
+      .from("sequence_sends")
       .update({ state: "claimed", claimed_at: ago(0) })
       .eq("id", id),
   );
   const [{ email }] = ok(await db.from("leads").select("email").eq("id", leadId));
   ok(
     await db
-      .from("reach_out_sends")
+      .from("sequence_sends")
       .update({
         state: "drafted",
         drafted_at: over.drafted_at ?? ago(0),
@@ -183,7 +183,14 @@ async function drafted(c, leadId, over = {}) {
   return id;
 }
 
-const send = async (id) => ok(await db.from("reach_out_sends").select("*").eq("id", id).single());
+const send = async (id) =>
+  ok(
+    await db
+      .from("sequence_sends")
+      .select("*, broadcast_id:batch_id, playbook_id:step_id, root_id:sequence_id")
+      .eq("id", id)
+      .single(),
+  );
 
 let W;
 before(async () => {
@@ -215,7 +222,7 @@ test(
     const L = await lead();
     const id = await planned(W.owner, L);
     const refused = await db
-      .from("reach_out_sends")
+      .from("sequence_sends")
       .update({ state: "drafted", drafted_at: ago(0), draft: {} })
       .eq("id", id);
     assert.match(
@@ -225,34 +232,34 @@ test(
     );
     ok(
       await db
-        .from("reach_out_sends")
+        .from("sequence_sends")
         .update({ state: "claimed", claimed_at: ago(0) })
         .eq("id", id),
     );
-    const bare = await db.from("reach_out_sends").update({ state: "drafted" }).eq("id", id);
+    const bare = await db.from("sequence_sends").update({ state: "drafted" }).eq("id", id);
     assert.match(bare.error?.message ?? "", /drafted_is_whole/, "a draft without its words or its day is refused");
     ok(
       await db
-        .from("reach_out_sends")
+        .from("sequence_sends")
         .update({ state: "drafted", drafted_at: ago(0), draft: { to: "x@y.example" } })
         .eq("id", id),
     );
     for (const to of ["planned", "queued", "claimed"]) {
-      const back = await db.from("reach_out_sends").update({ state: to }).eq("id", id);
+      const back = await db.from("sequence_sends").update({ state: to }).eq("id", id);
       assert.match(back.error?.message ?? "", /drafted -> \w+ refused/, `a draft never goes back to ${to}`);
     }
-    ok(await db.from("reach_out_sends").update({ state: "skipped", reason: "kept_waiting" }).eq("id", id));
+    ok(await db.from("sequence_sends").update({ state: "skipped", reason: "kept_waiting" }).eq("id", id));
     // Handed over and skipped since: its owner's Sent is the truth, the email left their inbox.
     ok(
       await db
-        .from("reach_out_sends")
+        .from("sequence_sends")
         .update({ state: "sent", sent_at: ago(0) })
         .eq("id", id),
     );
     const never = await planned(W.owner, await lead());
-    ok(await db.from("reach_out_sends").update({ state: "skipped", reason: "run_canceled" }).eq("id", never));
+    ok(await db.from("sequence_sends").update({ state: "skipped", reason: "run_canceled" }).eq("id", never));
     const no = await db
-      .from("reach_out_sends")
+      .from("sequence_sends")
       .update({ state: "sent", sent_at: ago(0) })
       .eq("id", never);
     assert.match(no.error?.message ?? "", /skipped -> sent refused/, "a send never handed over is never sent");
@@ -266,8 +273,8 @@ test(
     const [l1, l2, l3, l4, l5] = [await lead(), await lead(), await lead(), await lead(), await lead()];
     const first = await planned(W.owner, l1, { send_at: ago(2 * HOUR) });
     const nudge = await planned(W.owner, l2, {
-      playbook_id: W.owner.nudge,
-      broadcast_id: W.owner.nudgeRun,
+      step_id: W.owner.nudge,
+      batch_id: W.owner.nudgeRun,
       send_at: ago(HOUR),
     });
     const unchecked = await planned(W.owner, l3, { checked_at: null });
@@ -275,13 +282,13 @@ test(
     const theirs = await planned(W.mailbox, l5);
     const at = new Date().toISOString();
     // Room for one: the nudge is taken before the first email, though the first was due sooner.
-    const one = ok(await db.rpc("reach_out_claim_drafts", { p_at: at, p_limit: 1, p_tenant_id: A }));
+    const one = ok(await db.rpc("sequence_claim_drafts", { p_at: at, p_limit: 1, p_tenant_id: A }));
     assert.deepEqual(
       one.map((s) => s.id),
       [nudge],
       "the nudge before the first email",
     );
-    const rest = ok(await db.rpc("reach_out_claim_drafts", { p_at: at, p_limit: 10, p_tenant_id: A }));
+    const rest = ok(await db.rpc("sequence_claim_drafts", { p_at: at, p_limit: 10, p_tenant_id: A }));
     assert.deepEqual(
       rest.map((s) => s.id),
       [first],
@@ -291,7 +298,7 @@ test(
     for (const id of [unchecked, ahead, theirs]) assert.equal((await send(id)).state, "planned");
     // Out of the way of the tests after this one.
     for (const id of [first, nudge, unchecked, ahead, theirs])
-      await db.from("reach_out_sends").update({ state: "skipped", reason: "run_canceled" }).eq("id", id);
+      await db.from("sequence_sends").update({ state: "skipped", reason: "run_canceled" }).eq("id", id);
   },
 );
 
@@ -365,7 +372,7 @@ test(
 
     // A draft the clock gave up on (kept_waiting) that went all the same: Sent records it; one its owner skipped does not.
     const late = await drafted(W.owner, await lead());
-    ok(await db.from("reach_out_sends").update({ state: "skipped", reason: "kept_waiting" }).eq("id", late));
+    ok(await db.from("sequence_sends").update({ state: "skipped", reason: "kept_waiting" }).eq("id", late));
     const went = ok(await as.owner.c.rpc("reach_out_send_said", { p_send_id: late, p_outcome: "sent" }));
     assert.deepEqual([went.said, went.state], [true, "sent"]);
     assert.equal((await send(late)).reason, null, "a skip's reason no longer says what it is");
@@ -406,7 +413,7 @@ test(
     });
     assert.equal(stranger.error?.code, "P0002", "only a member of the workspace");
     // Its nudge, handed to the owner and waiting: what they wrote back stops it.
-    const nudge = await drafted(W.owner, W.sentLead, { playbook_id: W.owner.nudge, broadcast_id: W.owner.nudgeRun });
+    const nudge = await drafted(W.owner, W.sentLead, { step_id: W.owner.nudge, batch_id: W.owner.nudgeRun });
     const plan = {
       stops: true,
       convert: true,
@@ -442,7 +449,7 @@ test(
       note.conversation_id,
       (await db.from("messages").select("conversation_id").eq("id", sent.message_id).single()).data.conversation_id,
     );
-    const [reading] = ok(await db.from("reach_out_replies").select("*").eq("message_id", r.message_id));
+    const [reading] = ok(await db.from("sequence_replies").select("*").eq("message_id", r.message_id));
     assert.deepEqual(
       [reading.claim, reading.intent, reading.said_by, reading.send_id],
       ["owner", "interested", as.owner.id, W.sentSend],
@@ -485,14 +492,14 @@ test(
     const old = await drafted(c, await lead(), { drafted_at: ago(15 * DAY) });
     const finishable = ok(await db.rpc("reach_out_finishable", { p_limit: 500, p_tenant_id: A }));
     assert.ok(!finishable.includes(c.run), "a run with a draft open is not finished");
-    const stale = ok(await db.rpc("reach_out_held_stale", { p_before: ago(14 * DAY), p_limit: 500, p_tenant_id: A }));
+    const stale = ok(await db.rpc("sequence_held_stale", { p_before: ago(14 * DAY), p_limit: 500, p_tenant_id: A }));
     assert.deepEqual(
-      stale.filter((s) => s.broadcast_id === c.run).map((s) => s.id),
+      stale.filter((s) => s.batch_id === c.run).map((s) => s.id),
       [old],
       "fourteen days from when it was handed over",
     );
-    ok(await db.from("broadcasts").update({ state: "canceled" }).eq("id", c.run));
-    const closed = ok(await db.rpc("reach_out_closed_sends", { p_stuck_before: ago(0), p_limit: 500, p_tenant_id: A }));
+    ok(await db.from("sequence_batches").update({ state: "canceled" }).eq("id", c.run));
+    const closed = ok(await db.rpc("sequence_closed_sends", { p_stuck_before: ago(0), p_limit: 500, p_tenant_id: A }));
     const ids = closed.map((x) => x.send.id);
     assert.ok(ids.includes(fresh) && ids.includes(old), "a canceled run's drafts close with it");
   },
@@ -564,10 +571,10 @@ test(
     assert.equal(report.can_remove, false);
 
     // Its owner hands the chain to its mailboxes: a nudge planned with no mailbox while they sent it is still theirs.
-    ok(await db.from("playbooks").update({ owner_sends: false }).eq("id", c.root));
-    const nudge = await planned(c, await lead(), { playbook_id: c.nudge, broadcast_id: c.nudgeRun, mailbox_id: null });
+    ok(await db.from("sequence_steps").update({ owner_sends: false }).eq("id", c.root));
+    const nudge = await planned(c, await lead(), { step_id: c.nudge, batch_id: c.nudgeRun, mailbox_id: null });
     const claimed = ok(
-      await db.rpc("reach_out_claim_drafts", { p_at: new Date().toISOString(), p_limit: 50, p_tenant_id: A }),
+      await db.rpc("sequence_claim_drafts", { p_at: new Date().toISOString(), p_limit: 50, p_tenant_id: A }),
     );
     assert.ok(
       claimed.some((x) => x.id === nudge),
@@ -601,10 +608,10 @@ test("a chain saves who sends it, its root's alone", { skip }, async () => {
       },
     }),
   );
-  const steps = ok(await db.from("playbooks").select("id, owner_sends").in("id", saved.step_ids));
+  const steps = ok(await db.from("sequence_steps").select("id, owner_sends").in("id", saved.step_ids));
   const by = new Map(steps.map((s) => [s.id, s.owner_sends]));
   assert.deepEqual([by.get(saved.step_ids[0]), by.get(saved.step_ids[1])], [true, false]);
-  const onAStep = await db.from("playbooks").update({ owner_sends: true }).eq("id", saved.step_ids[1]);
+  const onAStep = await db.from("sequence_steps").update({ owner_sends: true }).eq("id", saved.step_ids[1]);
   assert.match(onAStep.error?.message ?? "", /owner_sends_is_a_root_s/, "only a root says who sends its chain");
 });
 

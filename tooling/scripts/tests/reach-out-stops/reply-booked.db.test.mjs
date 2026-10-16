@@ -74,7 +74,7 @@ async function wroteTo() {
       .insert({ tenant_id: A, via: "people", card: "movers", name: "Movers", asked: "movers", plan: {} }),
   );
   const root = await one(
-    db.from("playbooks").insert({
+    db.from("sequence_steps").insert({
       tenant_id: A,
       kind: "reach_out",
       policy_class: "outreach",
@@ -91,7 +91,7 @@ async function wroteTo() {
     }),
   );
   const run = await one(
-    db.from("broadcasts").insert({
+    db.from("sequence_batches").insert({
       tenant_id: A,
       name: "Movers · sent",
       template_id: template,
@@ -100,17 +100,17 @@ async function wroteTo() {
       audience: { kind: "reach_out", root_id: root, step_id: root },
       state: "sent",
       scheduled_for: iso(Date.now() - 2 * DAY),
-      playbook_id: root,
+      step_id: root,
       run_for: new Date(Date.now() - (n + 2) * DAY).toISOString().slice(0, 10),
     }),
   );
   ok(
-    await db.from("reach_out_sends").insert({
+    await db.from("sequence_sends").insert({
       id: crypto.randomUUID(),
       tenant_id: A,
-      broadcast_id: run,
-      playbook_id: root,
-      root_id: root,
+      batch_id: run,
+      step_id: root,
+      sequence_id: root,
       lead_id: ro.lead,
       contact_id: ro.person,
       state: "sent",

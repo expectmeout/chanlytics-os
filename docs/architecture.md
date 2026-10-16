@@ -183,7 +183,7 @@ Haiku through `lib/model.ts` for the reply's intent, under the workspace's
 day of reads; hands contracts' `readingPlan` to one service-role door,
 `reach_out_reply_apply`, which applies it in one transaction (the lead
 Talking, a no through the consent door, a dated step, the reading kept in
-`reach_out_replies`); asks the receptionist's brain for a draft, kept on the
+`sequence_replies`); asks the receptionist's brain for a draft, kept on the
 reading and never as a message row (`apps/edge/lib/reach-out/reply-draft.ts`,
 decision 0017); and tells the workspace once, a claim then the mark only once
 `notifyOnce` answered. A reply that could not be read is scheduled again
@@ -256,8 +256,8 @@ Resume, keeps its ramp's days (10, 20, 30, 40 a day at 0, 7, 14 and 21 days
 sent, 20 at most on the business's customer domain, never past its owner's
 cap) and reads its DNS daily.
 
-A reach-out (Part 3) is a chain of `playbooks` rows over a lead search, and
-each lead in a step's run is a send (`reach_out_sends`). The run is planned
+A reach-out (Part 3) is a chain of `sequence_steps` rows over a lead search, and
+each lead in a step's run is a send (`sequence_sends`). The run is planned
 whole in SQL (00185); the reach-out clock (`/api/cron/reach-out`, every
 minute) reads what became of the emails it wrote, then claims what is due
 under each mailbox's lock (`reach_out_claim_from`, within its day) and writes

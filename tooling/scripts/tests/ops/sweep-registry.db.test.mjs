@@ -354,12 +354,12 @@ test(
       -- reach-out and its check: a send held two weeks, for a check that could not be made.
       insert into public.templates (tenant_id, channel, name, language)
            values (t, 'whatsapp', 'every_clock', 'en') returning id into tpl;
-      insert into public.playbooks (tenant_id, name, trigger, policy_class, template_id, template_name, template_language)
+      insert into public.sequence_steps (tenant_id, name, trigger, policy_class, template_id, template_name, template_language)
            values (t, 'Every clock', 'quiet_30', 'reengage', tpl, 'every_clock', 'en') returning id into pb;
-      insert into public.broadcasts (tenant_id, name, scheduled_for, state, audience)
+      insert into public.sequence_batches (tenant_id, name, scheduled_for, state, audience)
            values (t, 'Every clock', now(), 'scheduled', '{"kind":"reach_out","hand":"note"}') returning id into b;
       insert into public.leads (tenant_id) values (t) returning id into l;
-      insert into public.reach_out_sends (id, tenant_id, broadcast_id, root_id, lead_id, state, reason, created_at, updated_at)
+      insert into public.sequence_sends (id, tenant_id, batch_id, sequence_id, lead_id, state, reason, created_at, updated_at)
            values (gen_random_uuid(), t, b, pb, l, 'held', 'check_unavailable', now() - interval '15 days',
                    now() - interval '2 hours');
       for r in select e.sweep, e.jobname from public.sweep_status e where e.judged_by = 'request' order by e.sweep loop

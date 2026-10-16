@@ -167,15 +167,15 @@ const until = `${TODAY} + interval '1 day'`;
 /** The sends of the `days` days ending today and of the same number before them, counted off the rows. */
 function sendsDirectly(tenant, days) {
   return counted(`with sent as (
-      select r.broadcast_id, r.contact_id, r.sent_at,
+      select r.batch_id as broadcast_id, r.contact_id, r.sent_at,
              exists (select 1 from public.messages i
                       where i.conversation_id = m.conversation_id and i.direction = 'inbound' and i.sender = 'customer'
                         and i.created_at > r.sent_at
                         and i.created_at <= r.sent_at + interval '${REPLY_WINDOW_HOURS} hours') as replied
-        from public.broadcast_recipients r
+        from public.sequence_sends r
         join public.messages m on m.id = r.message_id
-       where r.tenant_id = '${tenant}' and r.state = 'sent'
-         and r.sent_at >= ${from(2 * days)} and r.sent_at < ${until})
+       where r.lead_id is null and ( r.tenant_id = '${tenant}' and r.state = 'sent'
+         and r.sent_at >= ${from(2 * days)} and r.sent_at < ${until}))
     select count(*) filter (where sent_at >= ${from(days)}) as sent,
            count(distinct contact_id) filter (where sent_at >= ${from(days)}) as sent_to,
            count(distinct broadcast_id) filter (where sent_at >= ${from(days)}) as runs,
@@ -194,18 +194,18 @@ function sendsDirectly(tenant, days) {
  */
 function failuresDirectly(tenant, days) {
   return counted(`select count(*) as failed
-      from public.broadcast_recipients r
+      from public.sequence_sends r
       join public.messages m on m.id = r.message_id
-     where r.tenant_id = '${tenant}' and m.status = 'failed'
-       and m.created_at >= ${from(days)} and m.created_at < ${until}`);
+     where r.lead_id is null and ( r.tenant_id = '${tenant}' and m.status = 'failed'
+       and m.created_at >= ${from(days)} and m.created_at < ${until})`);
 }
 
 /** The people a run held back and the approvals of the `days` days ending today, counted off the rows. */
 function holdsDirectly(tenant, days) {
   return counted(`select
-      (select count(*) from public.broadcast_recipients r join public.broadcasts b on b.id = r.broadcast_id
-        where r.tenant_id = '${tenant}' and r.state in ('skipped', 'failed')
-          and coalesce(b.started_at, b.scheduled_for) >= ${from(days)} and coalesce(b.started_at, b.scheduled_for) < ${until}) as held,
+      (select count(*) from public.sequence_sends r join public.sequence_batches b on b.id = r.batch_id
+        where r.lead_id is null and ( r.tenant_id = '${tenant}' and r.state in ('skipped', 'failed')
+          and coalesce(b.started_at, b.scheduled_for) >= ${from(days)} and coalesce(b.started_at, b.scheduled_for) < ${until})) as held,
       (select count(*) from public.decisions d
         where d.tenant_id = '${tenant}' and d.subject_type = 'broadcast' and d.verb = 'send_broadcast'
           and d.payload ->> 'approved' = 'true' and d.created_at >= ${from(days)} and d.created_at < ${until}) as approved`);
@@ -225,10 +225,10 @@ test(
       "a member's statement stops at 8 seconds, as production's do",
     );
     const rows = counted(`select
-        (select count(*) from public.broadcasts where tenant_id = '${tenant}'
+        (select count(*) from public.sequence_batches where tenant_id = '${tenant}'
             and audience ->> 'kind' = 'playbook') as runs,
-        (select count(*) from public.broadcast_recipients where tenant_id = '${tenant}') as recipients,
-        (select count(*) from public.broadcasts where tenant_id = '${tenant}'
+        (select count(*) from public.sequence_sends where sequence_sends.lead_id is null and ( tenant_id = '${tenant}')) as recipients,
+        (select count(*) from public.sequence_batches where tenant_id = '${tenant}'
             and audience ->> 'kind' = 'playbook' and scheduled_for >= ${from(30)}) as newest,
         (select count(*) from public.messages where tenant_id = '${tenant}' and direction = 'inbound'
             and body = 'Is Saturday free?') as before_the_first`);
@@ -366,15 +366,15 @@ test(
     const got = await asked(t, "campaign_stuck, as a viewer", () => own.rpc("campaign_stuck", { p_tenant_id: tenant }));
     // A thread waits when it is flagged and answered a moment's run in the last 30 days: one in ten is flagged.
     const waiting = counted(`select count(distinct m.conversation_id) as threads
-      from public.broadcast_recipients r
+      from public.sequence_sends r
       join public.messages m on m.id = r.message_id
       join public.conversations c on c.id = m.conversation_id
-     where r.tenant_id = '${tenant}' and r.state = 'sent' and r.sent_at >= now() - interval '30 days'
+     where r.lead_id is null and ( r.tenant_id = '${tenant}' and r.state = 'sent' and r.sent_at >= now() - interval '30 days'
        and c.state = 'needs_human'
        and exists (select 1 from public.messages i
                     where i.conversation_id = m.conversation_id and i.direction = 'inbound' and i.sender = 'customer'
                       and i.created_at > r.sent_at
-                      and i.created_at <= r.sent_at + interval '${REPLY_WINDOW_HOURS} hours')`);
+                      and i.created_at <= r.sent_at + interval '${REPLY_WINDOW_HOURS} hours'))`);
     assert.ok(waiting.threads > 0, "the world has threads that wait");
     assert.equal(got.replies.length, waiting.threads);
     assert.deepEqual([got.runs_waiting.length, got.runs_failed.length, got.templates.length], [0, 0, 0]);
@@ -416,13 +416,13 @@ test(
     );
     // An email that left, dated as the report dates it; a business once a chain, at its last email of the window.
     const emails = counted(`with em as (
-        select s.root_id, s.lead_id, l.contact_id,
+        select s.sequence_id as root_id, s.lead_id, l.contact_id,
                coalesce(s.sent_at, (m.meta -> 'status_at' ->> 'sent')::timestamptz) as at
-          from public.reach_out_sends s
+          from public.sequence_sends s
           join public.leads l on l.id = s.lead_id
           left join public.messages m on m.id = s.message_id
-         where s.tenant_id = '${tenant}'
-           and (s.state = 'sent' or (s.state = 'failed' and m.status = 'failed' and m.error ->> 'provider' in ('bounced', 'failed')))),
+         where s.lead_id is not null and ( s.tenant_id = '${tenant}'
+           and (s.state = 'sent' or (s.state = 'failed' and m.status = 'failed' and m.error ->> 'provider' in ('bounced', 'failed'))))),
       last as (select distinct on (root_id, lead_id) root_id, lead_id, contact_id from em
                 where at >= ${from(30)} and at < ${until} order by root_id, lead_id, at desc)
       select (select count(*) from em where at >= ${from(30)} and at < ${until}) as written,
@@ -432,7 +432,7 @@ test(
                  join public.conversations c on c.id = i.conversation_id
                 where i.tenant_id = '${tenant}' and c.contact_id = x.contact_id and i.direction = 'inbound'
                   and i.sender = 'customer')) as wrote_back,
-             (select count(*) from last x where exists (select 1 from public.reach_out_replies r
+             (select count(*) from last x where exists (select 1 from public.sequence_replies r
                 where r.tenant_id = '${tenant}' and r.lead_id = x.lead_id and r.intent in ('interested', 'question')
                   and r.claim <> 'auto_reply' and r.undone_at is null)) as interested`);
     assert.ok(emails.written > 1000 && emails.wrote_back > 0, "the chain wrote a thousand emails and was answered");

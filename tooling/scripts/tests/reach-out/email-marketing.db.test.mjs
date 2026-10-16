@@ -384,7 +384,7 @@ test(
     ).id;
     const run = ok(
       await db
-        .from("broadcasts")
+        .from("sequence_batches")
         .insert({
           tenant_id: A,
           name: "Fixture offer",
@@ -433,9 +433,9 @@ test(
           .single(),
       ).id;
       ok(
-        await db.from("broadcast_recipients").insert({
+        await db.from("sequence_sends").insert({
           tenant_id: A,
-          broadcast_id: run,
+          batch_id: run,
           contact_id: contact,
           message_id: message,
           state: "sent",

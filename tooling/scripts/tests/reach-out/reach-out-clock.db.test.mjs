@@ -78,7 +78,7 @@ async function leads(count, over = {}) {
 /** A run of the root in a state, for a day of its own. */
 const run = (state, day) =>
   one(
-    db.from("broadcasts").insert({
+    db.from("sequence_batches").insert({
       tenant_id: A,
       name: `Movers · ${day}`,
       template_id: template,
@@ -87,7 +87,7 @@ const run = (state, day) =>
       audience: { kind: "reach_out", root_id: root, step_id: root, search_id: search },
       state,
       scheduled_for: iso(Date.now()),
-      playbook_id: root,
+      step_id: root,
       run_for: day,
     }),
   );
@@ -96,16 +96,16 @@ async function planned(runId, leadIds, sendAt, over = {}) {
   const rows = leadIds.map((lead) => ({
     id: crypto.randomUUID(),
     tenant_id: A,
-    broadcast_id: runId,
-    playbook_id: root,
-    root_id: root,
+    batch_id: runId,
+    step_id: root,
+    sequence_id: root,
     lead_id: lead,
     mailbox_id: mailbox,
     send_at: iso(sendAt),
     checked_at: iso(Date.now() - MIN),
     ...over,
   }));
-  for (let i = 0; i < rows.length; i += 500) ok(await db.from("reach_out_sends").insert(rows.slice(i, i + 500)));
+  for (let i = 0; i < rows.length; i += 500) ok(await db.from("sequence_sends").insert(rows.slice(i, i + 500)));
   return rows.map((r) => r.id);
 }
 /** Moves sends along the guard's own path (planned → claimed → queued), each with its email written as `status`. */
@@ -130,13 +130,13 @@ async function queuedWith(sendIds, status) {
   for (const id of sendIds) {
     ok(
       await db
-        .from("reach_out_sends")
+        .from("sequence_sends")
         .update({ state: "claimed", claimed_at: iso(Date.now()) })
         .eq("id", id),
     );
     ok(
       await db
-        .from("reach_out_sends")
+        .from("sequence_sends")
         .update({ state: "queued", message_id: await sendMessageId(id, 0) })
         .eq("id", id),
     );
@@ -147,7 +147,7 @@ const states = async (ids) => {
   for (let i = 0; i < ids.length; i += 100)
     for (const r of ok(
       await db
-        .from("reach_out_sends")
+        .from("sequence_sends")
         .select("state")
         .in("id", ids.slice(i, i + 100)),
     ))
@@ -180,7 +180,7 @@ before(async () => {
     }),
   );
   root = await one(
-    db.from("playbooks").insert({
+    db.from("sequence_steps").insert({
       tenant_id: A,
       kind: "reach_out",
       policy_class: "outreach",
@@ -236,9 +236,9 @@ test(
     await planned(busy, await leads(1001), Date.now() + 2 * DAY);
     const done = await run("scheduled", "2026-09-03");
     const [x] = await planned(done, await leads(1), Date.now() + DAY);
-    ok(await db.from("reach_out_sends").update({ state: "skipped", reason: "outreach_wrote_back" }).eq("id", x));
+    ok(await db.from("sequence_sends").update({ state: "skipped", reason: "outreach_wrote_back" }).eq("id", x));
     await clock(db, new Date(), log({ test: "clock" }), Date.now(), A);
-    const rows = ok(await db.from("broadcasts").select("id, state, finished_at").in("id", [busy, done]));
+    const rows = ok(await db.from("sequence_batches").select("id, state, finished_at").in("id", [busy, done]));
     const by = Object.fromEntries(rows.map((b) => [b.id, b]));
     assert.equal(by[busy].state, "scheduled", "a thousand and one planned: not finished");
     assert.equal(by[done].state, "sent", "through its own moves: scheduled, sending, sent");
@@ -255,7 +255,7 @@ test(
     const goes = await run("sending", "2026-09-05");
     const [late] = await planned(goes, await leads(1), Date.now() - 30 * MIN);
     await clock(db, new Date(), log({ test: "clock" }), Date.now(), A);
-    const s = ok(await db.from("reach_out_sends").select("state, send_at").eq("id", late).single());
+    const s = ok(await db.from("sequence_sends").select("state, send_at").eq("id", late).single());
     assert.equal(s.state, "planned");
     assert.ok(Date.parse(s.send_at) > Date.now() - MIN, "planned again from now");
   },
@@ -270,7 +270,7 @@ test(
     // Claimed eleven minutes ago, its email written, never queued: the writer died between the two.
     ok(
       await db
-        .from("reach_out_sends")
+        .from("sequence_sends")
         .update({ state: "claimed", claimed_at: iso(Date.now() - 11 * MIN) })
         .eq("id", id),
     );
@@ -288,12 +288,12 @@ test(
         status: "queued",
       }),
     );
-    ok(await db.from("broadcasts").update({ state: "canceled" }).eq("id", r));
+    ok(await db.from("sequence_batches").update({ state: "canceled" }).eq("id", r));
     await clock(db, new Date(), log({ test: "clock" }), Date.now(), A);
     const m = ok(await db.from("messages").select("status, error").eq("id", mid).single());
     assert.deepEqual([m.status, m.error?.reason], ["canceled", "run_canceled"], "its email is withdrawn");
     await clock(db, new Date(), log({ test: "clock" }), Date.now(), A);
-    const s = ok(await db.from("reach_out_sends").select("state, reason").eq("id", id).single());
+    const s = ok(await db.from("sequence_sends").select("state, reason").eq("id", id).single());
     assert.deepEqual([s.state, s.reason], ["skipped", "run_canceled"]);
   },
 );
@@ -319,7 +319,7 @@ async function onItsWay(sendId) {
 }
 /** The email's job has its answer: it left. */
 const left = async (mid) => ok(await db.from("messages").update({ status: "sent" }).eq("id", mid));
-const sendNow = async (id) => ok(await db.from("reach_out_sends").select("state, message_id").eq("id", id).single());
+const sendNow = async (id) => ok(await db.from("sequence_sends").select("state, message_id").eq("id", id).single());
 
 test(
   "a canceled run's email its job has begun to send is not withdrawn: the send goes on as its email's, and is sent",
@@ -329,12 +329,12 @@ test(
     const [id] = await planned(r, await leads(1), Date.now() - MIN);
     ok(
       await db
-        .from("reach_out_sends")
+        .from("sequence_sends")
         .update({ state: "claimed", claimed_at: iso(Date.now() - 11 * MIN) })
         .eq("id", id),
     );
     const mid = await onItsWay(id);
-    ok(await db.from("broadcasts").update({ state: "canceled" }).eq("id", r));
+    ok(await db.from("sequence_batches").update({ state: "canceled" }).eq("id", r));
     await clock(db, new Date(), log({ test: "clock" }), Date.now(), A);
     const m = ok(await db.from("messages").select("status, error").eq("id", mid).single());
     assert.deepEqual([m.status, m.error], ["queued", null], "not called back under the job sending it");
@@ -353,19 +353,19 @@ test(
     const older = await planned(r, await leads(100), Date.now() - MIN);
     ok(
       await db
-        .from("reach_out_sends")
+        .from("sequence_sends")
         .update({ state: "claimed", claimed_at: iso(Date.now() - 30 * MIN) })
         .in("id", older),
     );
     const [id] = await planned(r, await leads(1), Date.now() - MIN);
     ok(
       await db
-        .from("reach_out_sends")
+        .from("sequence_sends")
         .update({ state: "claimed", claimed_at: iso(Date.now() - 11 * MIN) })
         .eq("id", id),
     );
     const mid = await onItsWay(id);
-    ok(await db.from("broadcasts").update({ state: "canceled" }).eq("id", r));
+    ok(await db.from("sequence_batches").update({ state: "canceled" }).eq("id", r));
     await clock(db, new Date(), log({ test: "clock" }), Date.now(), A);
     const m = ok(await db.from("messages").select("status, error").eq("id", mid).single());
     assert.deepEqual([m.status, m.error], ["queued", null], "not called back under the job sending it");
@@ -391,7 +391,7 @@ test(
       left.push(
         ...ok(
           await db
-            .from("reach_out_sends")
+            .from("sequence_sends")
             .select("id")
             .in("id", ids.slice(i, i + 100))
             .eq("send_at", iso(old)),
@@ -421,10 +421,14 @@ test(
     });
     const out = await clock(db, new Date(), log({ test: "clock" }), Date.now(), A);
     assert.ok(out.gave_up >= 1);
-    const g = ok(await db.from("reach_out_sends").select("state, reason").eq("id", gone).single());
+    const g = ok(await db.from("sequence_sends").select("state, reason").eq("id", gone).single());
     assert.deepEqual([g.state, g.reason], ["skipped", "kept_waiting"]);
-    const w = ok(await db.from("reach_out_sends").select("state, reason").eq("id", waits).single());
+    const w = ok(await db.from("sequence_sends").select("state, reason").eq("id", waits).single());
     assert.deepEqual([w.state, w.reason], ["held", "chain"], "its owner's to answer");
-    assert.equal(ok(await db.from("broadcasts").select("state").eq("id", r).single()).state, "sending", "kept open");
+    assert.equal(
+      ok(await db.from("sequence_batches").select("state").eq("id", r).single()).state,
+      "sending",
+      "kept open",
+    );
   },
 );

@@ -121,7 +121,7 @@ test(
         .single(),
     ).id;
     ok(
-      await db.from("playbooks").insert({
+      await db.from("sequence_steps").insert({
         tenant_id: tenantId,
         name: "Win-back",
         trigger: "saved_list",

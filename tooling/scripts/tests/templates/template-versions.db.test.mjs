@@ -336,7 +336,7 @@ test("a version a playbook still names is not removed: the owner is told, and th
   const mine = await save(owner, { p_language: "it" });
   assert.equal(mine.error, null, mine.error?.message);
   const pb = await db
-    .from("playbooks")
+    .from("sequence_steps")
     .insert({
       tenant_id: A,
       name: "Uses a version",
@@ -353,7 +353,7 @@ test("a version a playbook still names is not removed: the owner is told, and th
   assert.equal(r.error?.code, "P0001");
   assert.match(r.error.message, /still uses this version/);
   assert.ok(await rowOf(mine.data.id));
-  await db.from("playbooks").delete().eq("id", pb.data.id);
+  await db.from("sequence_steps").delete().eq("id", pb.data.id);
   assert.equal((await owner.client.rpc("remove_template_version", { p_template_id: mine.data.id })).error, null);
 });
 

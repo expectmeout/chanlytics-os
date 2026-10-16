@@ -726,7 +726,7 @@ test("a run backs the workspace up before it writes", async () => {
     "the ledger's rows a run replaces are not: they are the seed's own, written afresh",
   );
   assert.deepEqual(
-    ["broadcasts", "broadcast_recipients"].map((table) => backedUp.filter((r) => r.table === table).length),
+    ["sequence_batches", "sequence_sends"].map((table) => backedUp.filter((r) => r.table === table).length),
     [1, 3],
     "the run the Campaigns lens reads and its three people, which the run deletes and writes again",
   );
@@ -2393,14 +2393,14 @@ test("the Campaigns rows delete their own last night's before they are written, 
   // What a spec or a person could have left: a run of their own with a person on it, their cancel of it, an approval carrying
   // the seed's mark for a run that is gone, a stray in Casey's thread, a leftover with the seed's prefix in Robin's, and an
   // ordinary message in Robin's.
-  planted("broadcasts", {
+  planted("sequence_batches", {
     id: "their-run",
     name: "Spring note",
     state: "sent",
     scheduled_for: new Date(NOW).toISOString(),
   });
-  planted("broadcast_recipients", {
-    broadcast_id: "their-run",
+  planted("sequence_sends", {
+    batch_id: "their-run",
     contact_id: robin.id,
     state: "sent",
     channel: "whatsapp",

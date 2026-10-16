@@ -105,7 +105,7 @@ async function workspace(tag) {
   ).id;
   const run = ok(
     await admin
-      .from("broadcasts")
+      .from("sequence_batches")
       .insert({
         tenant_id: t,
         name: "A run",
@@ -197,11 +197,11 @@ test("a person's note, deal and thread name their own workspace's person, list, 
     "its own",
   );
   notMine(
-    await admin.from("broadcast_recipients").insert({ broadcast_id: b.run, contact_id: a.contact, tenant_id: a.t }),
+    await admin.from("sequence_sends").insert({ batch_id: b.run, contact_id: a.contact, tenant_id: a.t }),
     "a recipient on another workspace's run",
   );
   notMine(
-    await admin.from("broadcast_recipients").insert({ broadcast_id: a.run, contact_id: b.contact, tenant_id: a.t }),
+    await admin.from("sequence_sends").insert({ batch_id: a.run, contact_id: b.contact, tenant_id: a.t }),
     "another workspace's person on a run",
   );
 });
@@ -236,9 +236,9 @@ test(
     assert.equal(thread.contacts.phone_e164, "+15555550201");
     ok(
       await admin
-        .from("broadcast_recipients")
-        .select("broadcast_id, messages (conversation_id, status)")
-        .eq("broadcast_id", a.run),
+        .from("sequence_sends")
+        .select("broadcast_id:batch_id, messages (conversation_id, status)")
+        .eq("batch_id", a.run),
       "a run's people with their messages",
     );
     ok(

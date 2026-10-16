@@ -155,10 +155,17 @@ const other = async (u, init) => {
 
 const messageRow = async (id) => ok(await db.from("messages").select("*").eq("id", id).single());
 const leadOf = async (id) => ok(await db.from("leads").select("*").eq("id", id).single());
-const readingOf = async (id) => ok(await db.from("reach_out_replies").select("*").eq("message_id", id).maybeSingle());
-const sendsOf = async (runId) => ok(await db.from("reach_out_sends").select("*").eq("broadcast_id", runId));
+const readingOf = async (id) => ok(await db.from("sequence_replies").select("*").eq("message_id", id).maybeSingle());
+const sendsOf = async (runId) =>
+  ok(
+    await db
+      .from("sequence_sends")
+      .select("*, broadcast_id:batch_id, playbook_id:step_id, root_id:sequence_id")
+      .eq("batch_id", runId),
+  );
 // A step as the sweep hands it to its runner: its table's row (00440), its sequence named.
-const playbook = async (id) => ok(await db.from("sequence_steps").select("*").eq("id", id).single());
+const playbook = async (id) =>
+  ok(await db.from("sequence_steps").select("*, after_playbook_id:after_step_id").eq("id", id).single());
 const noticesOn = async (conversationId) =>
   ok(
     await db
@@ -242,7 +249,7 @@ const due = async (runId) => {
     if (s.state === "planned")
       ok(
         await db
-          .from("reach_out_sends")
+          .from("sequence_sends")
           .update({ send_at: iso(Date.now() - MIN) })
           .eq("id", s.id),
       );
@@ -353,7 +360,7 @@ async function makeChain() {
   const nudge = await template("replies_nudge", [{ type: "BODY", text: "Just following up, {{business}}." }]);
   const chain = { tenant_id: A, kind: "reach_out", policy_class: "outreach", gap_minutes: 5, template_language: "en" };
   root = await one(
-    db.from("playbooks").insert({
+    db.from("sequence_steps").insert({
       ...chain,
       params: [],
       name: "Movers",
@@ -364,12 +371,12 @@ async function makeChain() {
     }),
   );
   step = await one(
-    db.from("playbooks").insert({
+    db.from("sequence_steps").insert({
       ...chain,
       params: [],
       name: "Movers, a nudge",
       trigger: "after_step",
-      after_playbook_id: root,
+      after_step_id: root,
       after_days: 3,
       template_id: nudge,
       template_name: `replies_nudge_${stamp}`,
@@ -449,7 +456,9 @@ after(async () => {
 test("1. the chain writes to four businesses: planned, approved, claimed, sent, read sent", { skip }, async () => {
   const r1 = await stepRun(root);
   assert.deepEqual([r1.outcome, r1.reason, r1.planned], ["held", "waiting_for_you", 4]);
-  const run = ok(await db.from("broadcasts").select("*").eq("tenant_id", A).eq("playbook_id", root).single());
+  const run = ok(
+    await db.from("sequence_batches").select("*, playbook_id:step_id").eq("tenant_id", A).eq("step_id", root).single(),
+  );
   const ctx = ownerCtx({});
   assert.equal((await lib.approveRun(lib.approveRunPorts(ctx, A), { row: run, now: new Date() })).state, "scheduled");
   await due(run.id);
@@ -636,11 +645,11 @@ test(
   "4. the next step leaves the away business out until the day it is back, then writes to it",
   { skip },
   async () => {
-    const run1 = ok(await db.from("broadcasts").select("id").eq("tenant_id", A).eq("playbook_id", root).single());
+    const run1 = ok(await db.from("sequence_batches").select("id").eq("tenant_id", A).eq("step_id", root).single());
     for (const s of await sendsOf(run1.id))
       ok(
         await db
-          .from("reach_out_sends")
+          .from("sequence_sends")
           .update({ sent_at: iso(Date.now() - 4 * DAY) })
           .eq("id", s.id),
       );
@@ -649,14 +658,14 @@ test(
     // After the day they are back.
     ok(
       await db
-        .from("reach_out_replies")
+        .from("sequence_replies")
         .update({ until_at: iso(Date.now() - MIN) })
         .eq("message_id", replyOf.away.id),
     );
     assert.deepEqual(await followers(), [leads.away], "the next step takes the away business");
     const r = await stepRun(step);
     assert.deepEqual([r.outcome, r.planned], ["sent", 1], "a later run under veto goes ahead on its own");
-    const run2 = ok(await db.from("broadcasts").select("id").eq("tenant_id", A).eq("playbook_id", step).single());
+    const run2 = ok(await db.from("sequence_batches").select("id").eq("tenant_id", A).eq("step_id", step).single());
     assert.deepEqual(
       (await sendsOf(run2.id)).map((s) => [s.lead_id, s.state]),
       [[leads.away, "planned"]],

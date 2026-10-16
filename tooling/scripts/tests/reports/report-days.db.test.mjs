@@ -142,7 +142,7 @@ test(
         returning id into t;
       day0 := (date_trunc('day', now() at time zone 'UTC')) at time zone 'UTC';
       insert into public.templates (tenant_id, name, language, channel) values (t, 'campaign_days', 'en', 'whatsapp') returning id into tpl;
-      insert into public.broadcasts (tenant_id, name, template_id, template_name, template_language, scheduled_for)
+      insert into public.sequence_batches (tenant_id, name, template_id, template_name, template_language, scheduled_for)
         values (t, 'Campaign days', tpl, 'campaign_days', 'en', day0 - interval '5 days') returning id into b;
       -- Six sends: three today (read, delivered, sent; the read one answered an hour later), two three days ago, and
       -- one three days ago that failed and counts nowhere. The second's thread got a call's note and the third's an
@@ -159,7 +159,7 @@ test(
           values (t, conv, cid, case when i = 2 then 'email' else 'whatsapp' end, 'outbound', 'human', 'template', 'an offer', receipt,
                   day0 - make_interval(days => k) + make_interval(mins => i))
           returning id into mid;
-        insert into public.broadcast_recipients (tenant_id, broadcast_id, contact_id, message_id, state, sent_at, channel)
+        insert into public.sequence_sends (tenant_id, batch_id, contact_id, message_id, state, sent_at, channel)
           values (t, b, cid, mid, case when i = 6 then 'failed' else 'sent' end, day0 - make_interval(days => k) + make_interval(mins => i),
                   case when i = 2 then 'email' end);
         if i = 1 then
@@ -240,7 +240,7 @@ test(
         returning id into t;
       day0 := (date_trunc('day', now() at time zone 'UTC')) at time zone 'UTC';
       insert into public.templates (tenant_id, name, language, channel) values (t, 'campaign_channels', 'en', 'whatsapp') returning id into tpl;
-      insert into public.broadcasts (tenant_id, name, template_id, template_name, template_language, scheduled_for)
+      insert into public.sequence_batches (tenant_id, name, template_id, template_name, template_language, scheduled_for)
         values (t, 'Campaign channels', tpl, 'campaign_channels', 'en', day0 - interval '12 days') returning id into b;
       -- The channel the row names, the message's own, its receipt, how many days ago it went, and whether it was answered.
       for spec in select * from (values
@@ -259,7 +259,7 @@ test(
           values (t, conv, cid, spec.mc, 'outbound', 'human', 'text', 'an offer', spec.receipt,
                   day0 - make_interval(days => spec.k) + interval '1 minute')
           returning id into mid;
-        insert into public.broadcast_recipients (tenant_id, broadcast_id, contact_id, message_id, state, sent_at, channel)
+        insert into public.sequence_sends (tenant_id, batch_id, contact_id, message_id, state, sent_at, channel)
           values (t, b, cid, mid, 'sent', day0 - make_interval(days => spec.k) + interval '1 minute', spec.rc);
         if spec.answered then
           insert into public.messages (tenant_id, conversation_id, contact_id, channel, direction, sender, type, body, status, created_at)

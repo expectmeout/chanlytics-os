@@ -94,7 +94,7 @@ test(
     assert.deepEqual(r.approval, { n: 3, median_s: 5400, buckets: { h1: 1, h4: 1, h24: 1, over: 0 } });
 
     // A deleted playbook leaves its run looking like a one-off: the run keeps its kind from its audience (trap 10).
-    ok(await db.from("broadcasts").update({ playbook_id: null }).eq("id", runs.M1).select("id"));
+    ok(await db.from("sequence_batches").update({ step_id: null }).eq("id", runs.M1).select("id"));
     assert.deepEqual((await ledger(l)).runs, runsOf, "a moment whose playbook is gone is still a moment");
   },
 );
@@ -122,7 +122,7 @@ test("the funnel and this read count one set of sends", { skip }, async () => {
   const gone = await person(l);
   await send(l, runs.M1, gone, { at: dayAt(5, 9, 40) });
   await erase(l, gone);
-  const kept = ok(await db.from("broadcast_recipients").select("state, message_id").eq("contact_id", gone.contact));
+  const kept = ok(await db.from("sequence_sends").select("state, message_id").eq("contact_id", gone.contact));
   assert.deepEqual(kept, [{ state: "sent", message_id: null }], "the run's record of them survives, without a message");
   const later = await ledger(l);
   assert.deepEqual(later.people.now, {
@@ -448,9 +448,9 @@ test(
       at,
     });
     await insert("messages", { ...wireRow, status: "failed", error: { code: 131047 } });
-    await insert("broadcast_recipients", {
+    await insert("sequence_sends", {
       tenant_id: l.tenantId,
-      broadcast_id: R,
+      batch_id: R,
       contact_id: refused.contact,
       state: "failed",
       reason: "send_failed",

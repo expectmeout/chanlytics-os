@@ -575,7 +575,7 @@ begin
   end if;
   -- Only a run still waiting, and this workspace's: the row carries the time its job carries (00119). No row is a run
   -- that moved while the person looked (approved by someone else, skipped, canceled), and nothing else is written.
-  update public.broadcasts
+  update public.sequence_batches
      set state = 'scheduled', scheduled_for = p_send_at
    where id = p_broadcast_id and tenant_id = p_tenant_id and state = 'pending_approval'
   returning id into v_released;
@@ -684,11 +684,11 @@ begin
     raise exception 'assemble_broadcast: the template is not workspace %''s', p_tenant using errcode = '42501';
   end if;
   if (p_run->>'playbook_id') is not null and not exists (
-       select 1 from public.playbooks b where b.id = (p_run->>'playbook_id')::uuid and b.tenant_id = p_tenant) then
+       select 1 from public.sequence_steps b where b.id = (p_run->>'playbook_id')::uuid and b.tenant_id = p_tenant) then
     raise exception 'assemble_broadcast: the playbook is not workspace %''s', p_tenant using errcode = '42501';
   end if;
-  insert into public.broadcasts (tenant_id, name, template_id, template_name, template_language, params, audience,
-                                 state, scheduled_for, recipient_count, created_by, playbook_id, run_for, channels)
+  insert into public.sequence_batches (tenant_id, name, template_id, template_name, template_language, params, audience,
+                                 state, scheduled_for, recipient_count, created_by, step_id, run_for, channels)
   values (p_tenant, p_run->>'name', (p_run->>'template_id')::uuid, p_run->>'template_name',
           p_run->>'template_language', coalesce(p_run->'params', '[]'::jsonb), coalesce(p_run->'audience', '{}'::jsonb),
           p_run->>'state', (p_run->>'scheduled_for')::timestamptz, (p_run->>'recipient_count')::int,
@@ -705,7 +705,7 @@ begin
       using errcode = '22023';
   end if;
 
-  insert into public.broadcast_recipients (broadcast_id, contact_id, tenant_id, facts, channel)
+  insert into public.sequence_sends (batch_id, contact_id, tenant_id, facts, channel)
   select v_id, x.contact_id, p_tenant, x.facts, x.channel
     from jsonb_to_recordset(coalesce(p_recipients, '[]'::jsonb)) as x(contact_id uuid, facts jsonb, channel text)
    where exists (select 1 from public.contacts c
@@ -1298,28 +1298,28 @@ CREATE FUNCTION public.campaign_answers(p_tenant_id uuid, p_since timestamp with
   ),
   -- An event that carries a key belongs to the person's send that key names, and to no other.
   by_key as (
-    select r.broadcast_id, v.contact_id, v.id as event_id, v.created_at as at, v.ms, v.consent, v.purpose
+    select r.batch_id as broadcast_id, v.contact_id, v.id as event_id, v.created_at as at, v.ms, v.consent, v.purpose
       from ev v
-      join public.broadcast_recipients r
-        on r.tenant_id = p_tenant_id and r.contact_id = v.contact_id and r.state = 'sent'
-       and r.message_id::text = v.key_mail
+      join public.sequence_sends r
+        on r.lead_id is null and ( r.tenant_id = p_tenant_id and r.contact_id = v.contact_id and r.state = 'sent'
+       and r.message_id::text = v.key_mail)
      where v.key_mail is not null
     union all
-    select r.broadcast_id, v.contact_id, v.id, v.created_at, v.ms, v.consent, v.purpose
+    select r.batch_id as broadcast_id, v.contact_id, v.id, v.created_at, v.ms, v.consent, v.purpose
       from ev v
       join public.messages m
         on m.tenant_id = p_tenant_id and m.external_id = v.key_wire
-      join public.broadcast_recipients r
-        on r.tenant_id = p_tenant_id and r.contact_id = v.contact_id and r.state = 'sent' and r.message_id = m.id
+      join public.sequence_sends r
+        on r.lead_id is null and ( r.tenant_id = p_tenant_id and r.contact_id = v.contact_id and r.state = 'sent' and r.message_id = m.id)
      where v.key_wire is not null
   ),
   -- Every other event belongs to each send of the person it came after, within the reply window; an answer about offers
   -- by email, to a send that went by email.
   by_time as (
-    select r.broadcast_id, v.contact_id, v.id as event_id, v.created_at as at, v.ms, v.consent, v.purpose
+    select r.batch_id as broadcast_id, v.contact_id, v.id as event_id, v.created_at as at, v.ms, v.consent, v.purpose
       from ev v
-      join public.broadcast_recipients r
-        on r.tenant_id = p_tenant_id and r.contact_id = v.contact_id and r.state = 'sent'
+      join public.sequence_sends r
+        on r.lead_id is null and ( r.tenant_id = p_tenant_id and r.contact_id = v.contact_id and r.state = 'sent')
      where v.key_mail is null and v.key_wire is null
        and v.ms > date_trunc('milliseconds', r.sent_at)
        and v.ms <= date_trunc('milliseconds', r.sent_at) + public.campaign_reply_window()
@@ -1389,10 +1389,10 @@ begin
   runs_in_reach as (
     select b.id, b.state, b.failure, b.template_name, b.template_language,
            case when b.audience ->> 'kind' = 'reach_out' then 'reach_out'
-                when b.audience ->> 'kind' = 'playbook' or b.playbook_id is not null then 'moment'
+                when b.audience ->> 'kind' = 'playbook' or b.step_id is not null then 'moment'
                 else 'broadcast' end                            as kind,
            coalesce(b.started_at, b.scheduled_for)              as run_at
-      from broadcasts b
+      from sequence_batches b
      where b.tenant_id = p_tenant_id
        and b.created_at >= v_prior - public.campaign_run_lead()
        and b.created_at <  v_stop
@@ -1400,12 +1400,12 @@ begin
 
   -- Every recipient of those runs with the message they were sent, if any (a failed or erased one has none).
   rec as (
-    select r.broadcast_id, r.contact_id, r.state, r.reason, r.sent_at,
+    select r.batch_id as broadcast_id, r.contact_id, r.state, r.reason, r.sent_at,
            coalesce(r.channel, 'whatsapp')                      as channel,
            b.kind, b.run_at, b.template_name, b.template_language,
            m.conversation_id, m.status as message_status, m.error as message_error, m.created_at as message_at
       from runs_in_reach b
-      join broadcast_recipients r on r.broadcast_id = b.id and r.tenant_id = p_tenant_id
+      join sequence_sends r on r.lead_id is null and ( r.batch_id = b.id and r.tenant_id = p_tenant_id)
       left join messages m on m.id = r.message_id
   ),
 
@@ -1549,7 +1549,7 @@ begin
   approval_rows as (
     select extract(epoch from d.created_at - b.created_at)::double precision as seconds
       from decisions d
-      join broadcasts b on b.id = d.subject_id and b.tenant_id = d.tenant_id
+      join sequence_batches b on b.id = d.subject_id and b.tenant_id = d.tenant_id
      where d.tenant_id = p_tenant_id
        and d.subject_type = 'broadcast'
        and d.verb = 'send_broadcast'
@@ -1741,18 +1741,18 @@ begin
   -- Every message a broadcast or a playbook run actually sent in the span,
   -- with the receipt WhatsApp gave it and the thread it landed in.
   sent as (
-    select r.broadcast_id, r.contact_id, r.sent_at,
+    select r.batch_id as broadcast_id, r.contact_id, r.sent_at,
            -- The channel it went by (00298); a row from before channels went by WhatsApp, as every run then did.
            coalesce(r.channel, 'whatsapp') as channel,
            (r.sent_at at time zone v_tz)::date as day,
            m.status as message_status, m.conversation_id,
-           b.playbook_id, b.name as broadcast_name, b.template_name
-      from broadcast_recipients r
-      join broadcasts b on b.id = r.broadcast_id
+           b.step_id as playbook_id, b.name as broadcast_name, b.template_name
+      from sequence_sends r
+      join sequence_batches b on b.id = r.batch_id
       left join messages m on m.id = r.message_id
-     where r.tenant_id = p_tenant_id
+     where r.lead_id is null and ( r.tenant_id = p_tenant_id
        and r.state = 'sent'
-       and r.sent_at >= v_start and r.sent_at < v_stop
+       and r.sent_at >= v_start and r.sent_at < v_stop)
   ),
   -- Replied: the customer wrote in that thread after the message went out, in their own words: not a call's note
   -- (an inbound row the system wrote) and not a program writing from their address (message_is_a_persons_words, 00299).
@@ -1816,7 +1816,7 @@ begin
            count(*) filter (where s.replied)       as replied,
            max(s.sent_at)                          as last_at
       from sent_r s
-      left join playbooks p on p.id = s.playbook_id
+      left join sequence_steps p on p.id = s.playbook_id
      where s.day >= v_cur
      group by coalesce(s.playbook_id, s.broadcast_id), (s.playbook_id is not null)
   ),
@@ -1899,13 +1899,13 @@ begin
   with
   -- Waiting for an OK: the oldest 500, any kind. The kind comes from the audience (a deleted playbook's run keeps it).
   waiting as (
-    select b.id, b.name, b.playbook_id, b.run_for, b.created_at, b.recipient_count,
+    select b.id, b.name, b.step_id as playbook_id, b.run_for, b.created_at, b.recipient_count,
            case when b.audience ->> 'kind' = 'reach_out' then 'reach_out'
-                when b.audience ->> 'kind' = 'playbook' or b.playbook_id is not null then 'moment'
+                when b.audience ->> 'kind' = 'playbook' or b.step_id is not null then 'moment'
                 else 'broadcast' end       as kind,
            b.audience ->> 'trigger'        as run_trigger,
            b.audience ->> 'kind'           as audience_kind
-      from broadcasts b
+      from sequence_batches b
      where b.tenant_id = p_tenant_id
        and b.state = 'pending_approval'
      order by b.created_at, b.id
@@ -1916,11 +1916,11 @@ begin
   failed as (
     select b.id, b.name,
            case when b.audience ->> 'kind' = 'reach_out' then 'reach_out'
-                when b.audience ->> 'kind' = 'playbook' or b.playbook_id is not null then 'moment'
+                when b.audience ->> 'kind' = 'playbook' or b.step_id is not null then 'moment'
                 else 'broadcast' end       as kind,
            case when b.failure ~ '^[a-z_]+(:[a-z]+)?$' then b.failure else 'other' end as failure,
            coalesce(b.finished_at, b.updated_at) as finished_at
-      from broadcasts b
+      from sequence_batches b
      where b.tenant_id = p_tenant_id
        and b.state = 'failed'
        and b.created_at >= v_reach
@@ -1942,8 +1942,8 @@ begin
                (select e.reason from escalations e
                  where e.conversation_id = c.id and e.state = 'open'
                  order by e.created_at desc limit 1) as open_escalation_reason
-          from broadcasts b
-          join broadcast_recipients r on r.broadcast_id = b.id and r.tenant_id = p_tenant_id
+          from sequence_batches b
+          join sequence_sends r on r.lead_id is null and ( r.batch_id = b.id and r.tenant_id = p_tenant_id)
           join messages m on m.id = r.message_id
           join conversations c on c.id = m.conversation_id and c.tenant_id = p_tenant_id
          where b.tenant_id = p_tenant_id
@@ -2035,7 +2035,7 @@ CREATE FUNCTION public.change_playbook(p_tenant_id uuid, p_playbook_id uuid, p_s
 declare
   v_actor uuid := auth.uid();
   v_set   jsonb := case when jsonb_typeof(p_set) = 'object' then p_set else '{}'::jsonb end;
-  v_was   public.playbooks;
+  v_was   public.sequence_steps;
   v_diff  jsonb;
   v_rows  integer;
   v_verb  text;
@@ -2078,7 +2078,7 @@ begin
   -- The row as it stands, locked until the transaction ends, read on the caller's rights: a lock asks the update
   -- policy as well as the select policy, so another workspace's row, or one their seat may not change, is no row.
   select * into v_was
-    from public.playbooks
+    from public.sequence_steps
    where id = p_playbook_id and tenant_id = p_tenant_id
    for update;
   if not found then
@@ -2093,7 +2093,7 @@ begin
   if v_diff = '{}'::jsonb then
     return jsonb_build_object('id', p_playbook_id, 'was', '{}'::jsonb, 'decision_id', null, 'undo_dropped', false);
   end if;
-  update public.playbooks p
+  update public.sequence_steps p
      set state        = coalesce(v_diff ->> 'state', p.state),
          name         = coalesce(v_diff ->> 'name', p.name),
          run_hour     = coalesce((v_diff ->> 'run_hour')::integer, p.run_hour),
@@ -4527,7 +4527,7 @@ begin
    where erased_email_hash is not null and erased_email_hash not like 'h1:%' and (p_tenant_id is null or tenant_id = p_tenant_id);
   select count(*) into v_supp from lead_suppressions
    where hash not like 'h1:%' and (p_tenant_id is null or tenant_id = p_tenant_id);
-  select count(*) into v_replies from reach_out_replies o
+  select count(*) into v_replies from sequence_replies o
    where (p_tenant_id is null or o.tenant_id = p_tenant_id)
      and exists (select 1 from jsonb_array_elements(
                    case when jsonb_typeof(o.plan->'changed'->'holds') = 'array' then o.plan->'changed'->'holds' else '[]'::jsonb end
@@ -4559,7 +4559,7 @@ begin
      where s.id = t.id;
     drop table erasure_rekey_twins;
     -- Only the two lists a reply keeps for its undo, each where it is; the rest of the plan as it was.
-    update reach_out_replies o
+    update sequence_replies o
        set plan = o.plan || jsonb_build_object('changed', (o.plan->'changed')
              || case when o.plan->'changed' ? 'holds'
                      then jsonb_build_object('holds', public.erasure_rekey_hashes(o.plan->'changed'->'holds'))
@@ -6559,9 +6559,9 @@ begin
   if v_lead.contacted_at is not null then
     return jsonb_build_object('error', 'written');
   end if;
-  if exists (select 1 from public.reach_out_sends s
-              where s.tenant_id = v_lead.tenant_id and s.lead_id = v_lead.id
-                and not (s.state = 'skipped' and s.reason in ('run_canceled', 'owner_took_back'))) then
+  if exists (select 1 from public.sequence_sends s
+              where s.lead_id is not null and ( s.tenant_id = v_lead.tenant_id and s.lead_id = v_lead.id
+                and not (s.state = 'skipped' and s.reason in ('run_canceled', 'owner_took_back')))) then
     return jsonb_build_object('error', 'in_reach_out');
   end if;
   if v_lead.email_state = 'checking' then
@@ -6724,17 +6724,17 @@ begin
    where lead_id = p_lead_id;
   -- What a reach-out wrote from the lead's record, and the checker's note on it (00391). The send keeps its state, its
   -- reason and the digest of the words it checked.
-  update public.reach_out_sends
+  update public.sequence_sends
      set opening = null, angle = null, hold_detail = null
-   where tenant_id = v_tenant and lead_id = p_lead_id
-     and (opening is not null or angle is not null or hold_detail is not null);
+   where sequence_sends.lead_id is not null and ( tenant_id = v_tenant and lead_id = p_lead_id
+     and (opening is not null or angle is not null or hold_detail is not null));
   -- A draft handed to its owner names them and their address (00429): one still waiting to be sent is skipped as its
   -- lead gone, and every draft of theirs is cleared. The email they sent is a message, and goes as messages go.
-  update public.reach_out_sends
+  update public.sequence_sends
      set state = case when state = 'drafted' then 'skipped' else state end,
          reason = case when state = 'drafted' then 'lead_gone' else reason end,
          draft = null
-   where tenant_id = v_tenant and lead_id = p_lead_id and draft is not null;
+   where sequence_sends.lead_id is not null and ( tenant_id = v_tenant and lead_id = p_lead_id and draft is not null);
   -- A person still named for the business (a stand-in, 0052) keeps nothing of it: the name goes with the place, and
   -- their address or number is what names them again.
   update public.contacts
@@ -6971,12 +6971,12 @@ CREATE FUNCTION public.lead_chain_of(p_tenant_id uuid, p_lead_id uuid) RETURNS u
     SET search_path TO 'public'
     AS $$
   select coalesce(
-    (select s.root_id from public.reach_out_sends s
-      where s.tenant_id = p_tenant_id and s.lead_id = p_lead_id
-        and not (s.state = 'skipped' and s.reason in ('run_canceled', 'owner_took_back'))
+    (select s.sequence_id as root_id from public.sequence_sends s
+      where s.lead_id is not null and ( s.tenant_id = p_tenant_id and s.lead_id = p_lead_id
+        and not (s.state = 'skipped' and s.reason in ('run_canceled', 'owner_took_back')))
       order by s.created_at desc
       limit 1),
-    (select p.id from public.playbooks p
+    (select p.id from public.sequence_steps p
        join public.lead_search_members x on x.search_id = p.lead_search_id and x.lead_id = p_lead_id
       where p.tenant_id = p_tenant_id and p.kind = 'reach_out' and p.trigger = 'lead_first'
         and x.blanked_at is null and x.class = 'qualified' and x.counted
@@ -8383,11 +8383,11 @@ begin
   if v_e is null then
     return 0;
   end if;
-  update public.reach_out_sends
+  update public.sequence_sends
      set state = case when state = 'drafted' then 'skipped' else state end,
          reason = case when state = 'drafted' then 'lead_gone' else reason end,
          draft = null
-   where tenant_id = p_tenant_id and draft is not null and lower(btrim(coalesce(draft->>'to', ''))) = v_e;
+   where sequence_sends.lead_id is not null and ( tenant_id = p_tenant_id and draft is not null and lower(btrim(coalesce(draft->>'to', ''))) = v_e);
   update public.leads l
      set facts = jsonb_set(jsonb_set(l.facts, '{people}', (
                    select coalesce(jsonb_agg(x.p order by x.n), '[]'::jsonb)
@@ -10399,7 +10399,7 @@ CREATE FUNCTION public.lead_suggest_history(p_tenant_id uuid) RETURNS jsonb
     -- The reach-out to its leads: how many were emailed, and when the last email went.
     select k.search_id, count(distinct o.lead_id) as sent, max(o.sent_at) as last_sent_at
       from kept k
-      join public.reach_out_sends o on o.lead_id = k.lead_id and o.tenant_id = p_tenant_id
+      join public.sequence_sends o on o.lead_id is not null and ( o.lead_id = k.lead_id and o.tenant_id = p_tenant_id)
      where o.state = 'sent'
      group by k.search_id
   ),
@@ -10410,7 +10410,7 @@ CREATE FUNCTION public.lead_suggest_history(p_tenant_id uuid) RETURNS jsonb
            count(distinct p.lead_id) filter (where p.intent = 'interested') as interested,
            count(distinct p.lead_id) filter (where p.intent in ('no', 'wrong_person')) as declined
       from kept k
-      join public.reach_out_replies p on p.lead_id = k.lead_id and p.tenant_id = p_tenant_id
+      join public.sequence_replies p on p.lead_id = k.lead_id and p.tenant_id = p_tenant_id
      where p.undone_at is null and p.claim = 'person'
      group by k.search_id
   ),
@@ -10725,25 +10725,25 @@ begin
     -- (claimed or queued) or gone, it stays, and the answer says so: Stop writing is the true correction there.
     v_root := (op.after->>'root_id')::uuid;
     foreach v_lead in array op.lead_ids loop
-      if exists (select 1 from public.reach_out_sends s
-                  where s.tenant_id = op.tenant_id and s.root_id = v_root and s.lead_id = v_lead
-                    and s.state in ('claimed', 'queued')) then
+      if exists (select 1 from public.sequence_sends s
+                  where s.lead_id is not null and ( s.tenant_id = op.tenant_id and s.sequence_id = v_root and s.lead_id = v_lead
+                    and s.state in ('claimed', 'queued'))) then
         v_leaving := v_leaving + 1;
         continue;
       end if;
-      if exists (select 1 from public.reach_out_sends s
-                  where s.tenant_id = op.tenant_id and s.root_id = v_root and s.lead_id = v_lead
-                    and s.state in ('sent', 'handed', 'failed')) then
+      if exists (select 1 from public.sequence_sends s
+                  where s.lead_id is not null and ( s.tenant_id = op.tenant_id and s.sequence_id = v_root and s.lead_id = v_lead
+                    and s.state in ('sent', 'handed', 'failed'))) then
         v_sent := v_sent + 1;
         continue;
       end if;
       -- A draft handed over may have left its owner's inbox: withdrawn, it counts as written (00427's one-first rule).
-      update public.reach_out_sends s
+      update public.sequence_sends s
          set state = 'skipped', reason = case when s.state = 'drafted' then 'draft_withdrawn' else 'owner_took_back' end
-        from public.broadcasts b
-       where b.id = s.broadcast_id and b.state in ('pending_approval', 'scheduled', 'sending')
-         and s.tenant_id = op.tenant_id and s.root_id = v_root and s.lead_id = v_lead
-         and s.state in ('planned', 'held', 'drafted');
+        from public.sequence_batches b
+       where s.lead_id is not null and ( b.id = s.batch_id and b.state in ('pending_approval', 'scheduled', 'sending')
+         and s.tenant_id = op.tenant_id and s.sequence_id = v_root and s.lead_id = v_lead
+         and s.state in ('planned', 'held', 'drafted'));
       if coalesce(op.before->'back', '[]'::jsonb) ? v_lead::text then
         update public.lead_search_members set blanked_at = now(), version = version + 1
          where search_id = op.search_id and lead_id = v_lead and blanked_at is null;
@@ -11382,24 +11382,24 @@ CREATE FUNCTION public.mailbox_capacity(p_mailbox_id uuid, p_at timestamp with t
   gone as (
     -- What left the mailbox, or went and nobody knows how: by when it left, back 120 days at most.
     select coalesce(s.sent_at, public.email_sent_at(m.meta, m.status_updated_at, m.created_at)) as at
-      from public.reach_out_sends s
+      from public.sequence_sends s
       join b on b.id = s.mailbox_id
       join public.messages m on m.id = s.message_id and m.tenant_id = s.tenant_id
-     where s.state in ('sent', 'queued', 'failed')
+     where s.lead_id is not null and ( s.state in ('sent', 'queued', 'failed')
        and m.created_at >= p_at - interval '120 days'
        and (public.email_left(m.status, m.error)
-            or (m.status = 'failed' and coalesce(m.error->>'outcome', '') = 'unknown'))
+            or (m.status = 'failed' and coalesce(m.error->>'outcome', '') = 'unknown')))
   ),
   waiting as (
     -- Written and not yet gone, and claimed with no email yet: each counts against the day as it is spent.
     select coalesce(s.claimed_at, p_at) as at
-      from public.reach_out_sends s
+      from public.sequence_sends s
       join b on b.id = s.mailbox_id
       left join public.messages m on m.id = s.message_id and m.tenant_id = s.tenant_id
-     where s.state = 'claimed' or (s.state = 'queued' and (m.id is null or m.status = 'queued'))
+     where s.lead_id is not null and ( s.state = 'claimed' or (s.state = 'queued' and (m.id is null or m.status = 'queued')))
   ),
   planned as (
-    select s.send_at as at from public.reach_out_sends s join b on b.id = s.mailbox_id where s.state = 'planned'
+    select s.send_at as at from public.sequence_sends s join b on b.id = s.mailbox_id where s.lead_id is not null and ( s.state = 'planned')
   )
   select jsonb_build_object(
     'state', b.state,
@@ -11494,10 +11494,10 @@ CREATE FUNCTION public.mailbox_connection_counts(p_mailbox_id uuid, p_since time
     AS $$
   with ours as (
     select m.id, m.status, m.error, m.meta, m.created_at, s.tenant_id
-      from public.reach_out_sends s
+      from public.sequence_sends s
       join public.messages m on m.id = s.message_id and m.tenant_id = s.tenant_id
-     where s.mailbox_id = p_mailbox_id
-       and m.created_at >= now() - interval '90 days'
+     where s.lead_id is not null and ( s.mailbox_id = p_mailbox_id
+       and m.created_at >= now() - interval '90 days')
   ), recent as (
     select o.id, o.status, o.error, o.tenant_id from ours o
      where o.created_at >= coalesce(p_since, '-infinity'::timestamptz)
@@ -12075,7 +12075,7 @@ begin
     v_counts := v_counts || jsonb_build_object('messages', v_n);
     update calls set conversation_id = k_conv.id
      where tenant_id = v_tenant and conversation_id = m_conv.id;
-    update reach_out_replies set conversation_id = k_conv.id
+    update sequence_replies set conversation_id = k_conv.id
      where tenant_id = v_tenant and conversation_id = m_conv.id;
     -- The reply turn is the thread's own (one row per thread): a reply being written on the merged thread goes on
     -- as the kept thread's where the kept thread holds none, and the kept thread's own stands otherwise.
@@ -12153,9 +12153,9 @@ begin
         where h.contact_id = p_keep and h.source = 'reach_out' and h.source_id = n.source_id));
   get diagnostics v_n = row_count;
   v_counts := v_counts || jsonb_build_object('notes', v_n);
-  update reach_out_sends set contact_id = p_keep where tenant_id = v_tenant and contact_id = p_merge;
-  update reach_out_replies set contact_id = p_keep where tenant_id = v_tenant and contact_id = p_merge;
-  update reach_out_replies set lead_contact_id = p_keep where tenant_id = v_tenant and lead_contact_id = p_merge;
+  update sequence_sends set contact_id = p_keep where sequence_sends.lead_id is not null and ( tenant_id = v_tenant and contact_id = p_merge);
+  update sequence_replies set contact_id = p_keep where tenant_id = v_tenant and contact_id = p_merge;
+  update sequence_replies set lead_contact_id = p_keep where tenant_id = v_tenant and lead_contact_id = p_merge;
   -- A list holds a person once (segment_members_pkey): the kept person joins the lists they were not on.
   insert into segment_members (segment_id, contact_id, tenant_id, added_by, added_at)
   select s.segment_id, p_keep, s.tenant_id, s.added_by, s.added_at
@@ -12164,10 +12164,10 @@ begin
   on conflict (segment_id, contact_id) do nothing;
   delete from segment_members where tenant_id = v_tenant and contact_id = p_merge;
   -- A run names a person once (broadcast_recipients_pkey): a run both were on keeps the merged row's line as it is.
-  update broadcast_recipients r set contact_id = p_keep
-   where r.tenant_id = v_tenant and r.contact_id = p_merge
+  update sequence_sends r set contact_id = p_keep
+   where r.lead_id is null and ( r.tenant_id = v_tenant and r.contact_id = p_merge
      and not exists (
-       select 1 from broadcast_recipients h where h.broadcast_id = r.broadcast_id and h.contact_id = p_keep);
+       select 1 from sequence_sends h where h.lead_id is null and ( h.batch_id = r.batch_id and h.contact_id = p_keep)));
   -- A person's own receptionist mode, one per class. A policy row keeps
   -- its subject for life (00029's guard), so the kept person gets a row of their own and the merged one's goes.
   insert into policies (tenant_id, class, mode, subject_type, subject_id, limits)
@@ -13480,12 +13480,12 @@ CREATE FUNCTION public.outreach_lead_facts(p_tenant_id uuid, p_contact_id uuid, 
     'wrote_back', exists (select 1 from public.outreach_wrote_back(p_tenant_id, array[p_contact_id])),
     -- An automatic out-of-office (00222, G8) whose day is still ahead: from this person, or answering the send's lead
     -- from another address of the business. Two arms, so the first can use reach_out_replies_away.
-    'away', exists (select 1 from public.reach_out_replies r
+    'away', exists (select 1 from public.sequence_replies r
                      where r.tenant_id = p_tenant_id and r.contact_id = p_contact_id
                        and r.intent = 'away' and r.claim = 'auto_reply'
                        and r.until_at > now() and r.undone_at is null)
             or (p_lead_id is not null
-                and exists (select 1 from public.reach_out_replies r
+                and exists (select 1 from public.sequence_replies r
                              where r.tenant_id = p_tenant_id and r.lead_id = p_lead_id
                                and r.intent = 'away' and r.claim = 'auto_reply'
                                and r.until_at > now() and r.undone_at is null)),
@@ -13565,21 +13565,21 @@ CREATE FUNCTION public.outreach_wrote_back(p_tenant_id uuid, p_contact_ids uuid[
   select k.contact_id from public.calls k
    where k.tenant_id = p_tenant_id and k.contact_id = any (p_contact_ids) and k.direction = 'inbound'
   union
-  select rr.contact_id from public.reach_out_replies rr
+  select rr.contact_id from public.sequence_replies rr
    where rr.tenant_id = p_tenant_id and rr.contact_id = any (p_contact_ids)
      and rr.claim = 'auto_reply' and rr.intent in ('no', 'wrong_person') and rr.undone_at is null
   union
-  select rr.lead_contact_id from public.reach_out_replies rr
+  select rr.lead_contact_id from public.sequence_replies rr
    where rr.tenant_id = p_tenant_id and rr.lead_contact_id = any (p_contact_ids)
      and rr.claim = 'auto_reply' and rr.intent in ('no', 'wrong_person') and rr.undone_at is null
   -- What its owner said the business wrote back (00429), about an email they sent from their own inbox: whatever they
   -- wrote, for the person who was written to and the lead's, until the word is undone.
   union
-  select rr.contact_id from public.reach_out_replies rr
+  select rr.contact_id from public.sequence_replies rr
    where rr.tenant_id = p_tenant_id and rr.contact_id = any (p_contact_ids)
      and rr.claim = 'owner' and rr.undone_at is null
   union
-  select rr.lead_contact_id from public.reach_out_replies rr
+  select rr.lead_contact_id from public.sequence_replies rr
    where rr.tenant_id = p_tenant_id and rr.lead_contact_id = any (p_contact_ids)
      and rr.claim = 'owner' and rr.undone_at is null
 $$;
@@ -15215,7 +15215,7 @@ CREATE FUNCTION public.people_list(p_tenant_id uuid, p_contact_id uuid DEFAULT N
     -- A reply's signer offered as their name (0052), the newest: the reply's writer's alone, as the name's doors match
     -- it; offered rows are few, and found by reach_out_replies_signer_offered.
     select r.message_id, r.signer_name, r.signer_title, r.read_at
-      from reach_out_replies r
+      from sequence_replies r
      where r.tenant_id = p_tenant_id and r.signer_state = 'offered' and r.undone_at is null
        and r.contact_id = c.id
      order by r.read_at desc
@@ -16436,7 +16436,7 @@ begin
     raise exception 'Person not found.' using errcode = 'P0002';
   end if;
   perform 1 from public.contacts where id = p_contact_id for update;
-  update public.reach_out_replies r
+  update public.sequence_replies r
      set signer_state = 'declined', signer_settled_at = now(), signer_settled_by = v_user
    where r.message_id = p_message_id and r.tenant_id = v_tenant
      and r.contact_id = p_contact_id
@@ -16493,7 +16493,7 @@ CREATE FUNCTION public.person_name_take(p_tenant_id uuid, p_contact_id uuid, p_m
     AS $$
 declare
   v_person public.contacts%rowtype;
-  v_reply  public.reach_out_replies%rowtype;
+  v_reply  public.sequence_replies%rowtype;
 begin
   if p_via is null or p_via not in ('press', 'auto') then
     raise exception 'A signer''s name is taken by a press or automatically.' using errcode = '22023';
@@ -16504,7 +16504,7 @@ begin
   if not found then
     return jsonb_build_object('named', false, 'why', 'gone');
   end if;
-  select * into v_reply from public.reach_out_replies r
+  select * into v_reply from public.sequence_replies r
    where r.message_id = p_message_id and r.tenant_id = p_tenant_id
      and r.contact_id = p_contact_id
    for update;
@@ -16524,7 +16524,7 @@ begin
      set display_name = v_reply.signer_name, name_source = 'signature',
          name_settled_at = case when p_via = 'press' then now() end, updated_at = now()
    where id = p_contact_id;
-  update public.reach_out_replies
+  update public.sequence_replies
      set signer_state = 'adopted', signer_settled_at = now(), signer_settled_by = p_by,
          signer_was = coalesce(signer_was, case when v_person.display_name is null then 'none' else v_person.name_source end)
    where message_id = p_message_id;
@@ -16555,7 +16555,7 @@ declare
   v_user     uuid := auth.uid();
   v_tenant   uuid;
   v_person   public.contacts%rowtype;
-  v_reply    public.reach_out_replies%rowtype;
+  v_reply    public.sequence_replies%rowtype;
   v_business text;
   v_name     text;
   v_source   text;
@@ -16571,7 +16571,7 @@ begin
   if v_person.name_source is distinct from 'signature' then
     return jsonb_build_object('undone', false, 'why', 'not_a_signer');
   end if;
-  select * into v_reply from public.reach_out_replies r
+  select * into v_reply from public.sequence_replies r
    where r.tenant_id = v_tenant and r.contact_id = p_contact_id
      and r.signer_state = 'adopted'
    order by r.signer_settled_at desc
@@ -16591,7 +16591,7 @@ begin
   update public.contacts
      set display_name = v_name, name_source = v_source, name_settled_at = now(), updated_at = now()
    where id = p_contact_id;
-  update public.reach_out_replies
+  update public.sequence_replies
      set signer_state = 'undone', signer_settled_at = now(), signer_settled_by = v_user
    where message_id = v_reply.message_id;
   insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
@@ -17114,7 +17114,7 @@ CREATE FUNCTION public.person_signer_erase_on_contact() RETURNS trigger
     AS $$
 begin
   if new.erased_at is not null and old.erased_at is null then
-    update public.reach_out_replies
+    update public.sequence_replies
        set signer_name = null, signer_title = null, signer_state = null, signer_was = null,
            signer_settled_at = null, signer_settled_by = null
      where tenant_id = new.tenant_id and (contact_id = new.id or lead_contact_id = new.id) and signer_name is not null;
@@ -17883,11 +17883,11 @@ CREATE FUNCTION public.playbook_totals(p_tenant_id uuid, p_history integer DEFAU
     AS $$
   with runs as (
     -- Moments only: a reach-out step's runs share broadcasts and are never scanned.
-    select b.id, b.playbook_id, b.name, b.state, b.run_for, b.scheduled_for, b.recipient_count,
+    select b.id, b.step_id as playbook_id, b.name, b.state, b.run_for, b.scheduled_for, b.recipient_count,
            case when jsonb_typeof(b.audience -> 'trigger') = 'string' then b.audience ->> 'trigger' end as trigger,
-           row_number() over (partition by b.playbook_id order by b.created_at desc, b.id desc) as n
-      from public.broadcasts b
-      join public.playbooks p on p.id = b.playbook_id and p.tenant_id = b.tenant_id and p.kind = 'moment'
+           row_number() over (partition by b.step_id order by b.created_at desc, b.id desc) as n
+      from public.sequence_batches b
+      join public.sequence_steps p on p.id = b.step_id and p.tenant_id = b.tenant_id and p.kind = 'moment'
      where b.tenant_id = p_tenant_id
   ),
   counts as (
@@ -17938,36 +17938,6 @@ $$;
 --
 
 COMMENT ON FUNCTION public.playbook_totals(p_tenant_id uuid, p_history integer) IS 'Each moment playbook''s runs, sent, delivered, replied and held (its people skipped or failed), its newest run (last_run), the run waiting for a person (waiting, else null) and its newest p_history runs (history, newest first), by playbook id, from run_counts; a playbook with no run is absent, and a reach-out step''s runs are never scanned. One jsonb, which PostgREST''s row cap never cuts: what GET playbooks answers of every card (00374). Security invoker: row security decides what is read.';
-
-
---
--- Name: playbooks_due(text, timestamp with time zone, integer, integer, uuid); Type: FUNCTION; Schema: public; Owner: -
---
-
-CREATE FUNCTION public.playbooks_due(p_kind text, p_at timestamp with time zone, p_last_hour integer, p_limit integer, p_tenant_id uuid DEFAULT NULL::uuid) RETURNS TABLE(playbook jsonb, timezone text, due_total bigint)
-    LANGUAGE sql STABLE SECURITY DEFINER
-    SET search_path TO 'public'
-    AS $$
-  select to_jsonb(p), z.tz, count(*) over ()
-    from public.playbooks p
-    join public.tenants t on t.id = p.tenant_id
-    cross join lateral (select public.safe_zone(coalesce(nullif(btrim(t.timezone), ''), 'America/New_York')) as tz) z
-    cross join lateral (select p_at at time zone z.tz as clock) l
-   where p.state = 'running' and p.kind = p_kind
-     and t.status <> 'paused'
-     and (p_tenant_id is null or p.tenant_id = p_tenant_id)
-     and extract(hour from l.clock) between p.run_hour and p_last_hour
-     and p.last_run_for is distinct from l.clock::date
-   order by p.last_run_at nulls first, p.created_at, p.id
-   limit greatest(coalesce(p_limit, 0), 0)
-$$;
-
-
---
--- Name: FUNCTION playbooks_due(p_kind text, p_at timestamp with time zone, p_last_hour integer, p_limit integer, p_tenant_id uuid); Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON FUNCTION public.playbooks_due(p_kind text, p_at timestamp with time zone, p_last_hour integer, p_limit integer, p_tenant_id uuid) IS 'The running playbooks of one kind due at p_at by their workspace''s own clock (runDueNow''s rule), a paused workspace''s never, never run first, then least recently run, with due_total the count of all that were due. The playbooks sweep''s two pages (00245).';
 
 
 --
@@ -18811,7 +18781,7 @@ CREATE FUNCTION public.reach_out_add(p_root_id uuid, p_lead_ids uuid[], p_dry bo
     AS $$
 declare
   v_user      uuid := auth.uid();
-  r           public.playbooks;
+  r           public.sequence_steps;
   s           public.lead_searches;
   v_ids       uuid[];
   v_join      uuid[] := '{}';
@@ -18825,7 +18795,7 @@ begin
   if v_user is null then
     raise exception 'Sign in required.' using errcode = '28000';
   end if;
-  select * into r from public.playbooks where id = p_root_id and kind = 'reach_out' and trigger = 'lead_first';
+  select * into r from public.sequence_steps where id = p_root_id and kind = 'reach_out' and trigger = 'lead_first';
   if not found or not public.has_permission(v_user, r.tenant_id, 'approve') then
     raise exception 'Reach-out not found.' using errcode = 'P0002';
   end if;
@@ -18868,7 +18838,7 @@ begin
       from w
       -- Another reach-out whose search holds the lead: one reach-out per lead, whichever way it came in.
       left join lateral (
-        select p.id, p.name from public.playbooks p
+        select p.id, p.name from public.sequence_steps p
           join public.lead_search_members m on m.search_id = p.lead_search_id and m.lead_id = w.lead_id
          where p.tenant_id = r.tenant_id and p.kind = 'reach_out' and p.trigger = 'lead_first' and p.id <> r.id
            and m.blanked_at is null and m.class = 'qualified' and m.counted
@@ -19040,8 +19010,8 @@ begin
        and l.erased_at is null and l.blanked_at is null
        -- An appointment starting after an email of the reach-out left: one made before it was not the reach-out's.
        and exists (
-         select 1 from public.reach_out_sends x
-          where x.tenant_id = p_tenant_id and x.lead_id = m.id and x.state = 'sent' and x.sent_at < m.start_at)
+         select 1 from public.sequence_sends x
+          where x.lead_id is not null and ( x.tenant_id = p_tenant_id and x.lead_id = m.id and x.state = 'sent' and x.sent_at < m.start_at))
      group by m.id, l.stage
   loop
     -- The first appointment seen after an email of the reach-out left, whatever the lead's stage (00241, H2): a lead
@@ -19122,7 +19092,7 @@ CREATE FUNCTION public.reach_out_chain_people(p_tenant_id uuid, p_root_id uuid, 
     SET search_path TO 'public'
     AS $$
 declare
-  v_root public.playbooks%rowtype;
+  v_root public.sequence_steps%rowtype;
   v_q    public.lead_searches%rowtype;
   v_lim  integer := least(greatest(coalesce(p_limit, 50), 1), 200);
 begin
@@ -19131,7 +19101,7 @@ begin
           and (m.role <> 'partner' or public.session_shows_second_factor())) then
     raise exception 'Workspace not found.' using errcode = 'P0002';
   end if;
-  select * into v_root from public.playbooks
+  select * into v_root from public.sequence_steps
    where id = p_root_id and tenant_id = p_tenant_id and kind = 'reach_out' and trigger = 'lead_first';
   if not found then
     return null;
@@ -19197,23 +19167,23 @@ begin
           and (m.role <> 'partner' or public.session_shows_second_factor())) then
     raise exception 'Workspace not found.' using errcode = 'P0002';
   end if;
-  if not exists (select 1 from public.playbooks p
+  if not exists (select 1 from public.sequence_steps p
                   where p.id = p_root_id and p.tenant_id = p_tenant_id and p.kind = 'reach_out'
                     and p.trigger = 'lead_first') then
     raise exception 'Reach-out not found.' using errcode = 'P0002';
   end if;
   return (
     with recursive c as (
-      select p.id, 0 as n from public.playbooks p where p.id = p_root_id
+      select p.id, 0 as n from public.sequence_steps p where p.id = p_root_id
       union all
-      select p.id, c.n + 1 from public.playbooks p join c on p.after_playbook_id = c.id
+      select p.id, c.n + 1 from public.sequence_steps p join c on p.after_step_id = c.id
     ),
     -- Each lead's last send that left, in this chain: where its answer is counted.
     last_sent as (
-      select distinct on (s.lead_id) s.lead_id, s.playbook_id, s.contact_id, l.email, l.closed_reason, l.booked_at
-        from public.reach_out_sends s
+      select distinct on (s.lead_id) s.lead_id, s.step_id as playbook_id, s.contact_id, l.email, l.closed_reason, l.booked_at
+        from public.sequence_sends s
         join public.leads l on l.id = s.lead_id and l.tenant_id = s.tenant_id
-       where s.root_id = p_root_id and s.tenant_id = p_tenant_id and s.state = 'sent'
+       where s.lead_id is not null and ( s.sequence_id = p_root_id and s.tenant_id = p_tenant_id and s.state = 'sent')
        order by s.lead_id, s.sent_at desc
     ),
     -- Who of them wrote back, asked once for all (the send door's own reading).
@@ -19227,7 +19197,7 @@ begin
              count(*) filter (where ls.closed_reason = 'said_no') as said_no,
              -- Interested (00241, H1): a reading of the lead's reply, not undone, that wants more (Part 5's G6).
              count(*) filter (where exists (
-               select 1 from public.reach_out_replies r
+               select 1 from public.sequence_replies r
                 where r.tenant_id = p_tenant_id and r.lead_id = ls.lead_id and r.undone_at is null
                   and r.claim <> 'auto_reply' and r.intent in ('interested', 'question'))) as interested,
              -- Booked (00241, H2): an appointment seen after an email of the reach-out left.
@@ -19240,43 +19210,43 @@ begin
         'id', c.id,
         'n', c.n,
         -- An email that left (00241): sent, or failed by a receipt after it left (email_left), as Reports counts it.
-        'written', (select count(*) from public.reach_out_sends s left join public.messages m on m.id = s.message_id
-                     where s.playbook_id = c.id
-                       and (s.state = 'sent' or (s.state = 'failed' and public.email_left(m.status, m.error)))),
-        'delivered', (select count(*) from public.reach_out_sends s join public.messages m on m.id = s.message_id
-                       where s.playbook_id = c.id and s.state = 'sent' and m.status in ('delivered', 'read')),
-        'bounced', (select count(*) from public.reach_out_sends s join public.messages m on m.id = s.message_id
-                     where s.playbook_id = c.id and m.status = 'failed' and m.error->>'provider' = 'bounced'),
+        'written', (select count(*) from public.sequence_sends s left join public.messages m on m.id = s.message_id
+                     where s.lead_id is not null and ( s.step_id = c.id
+                       and (s.state = 'sent' or (s.state = 'failed' and public.email_left(m.status, m.error))))),
+        'delivered', (select count(*) from public.sequence_sends s join public.messages m on m.id = s.message_id
+                       where s.lead_id is not null and ( s.step_id = c.id and s.state = 'sent' and m.status in ('delivered', 'read'))),
+        'bounced', (select count(*) from public.sequence_sends s join public.messages m on m.id = s.message_id
+                     where s.lead_id is not null and ( s.step_id = c.id and m.status = 'failed' and m.error->>'provider' = 'bounced')),
         'wrote_back', coalesce((select a.wrote_back from answered a where a.playbook_id = c.id), 0),
         'said_no', coalesce((select a.said_no from answered a where a.playbook_id = c.id), 0),
         'interested', coalesce((select a.interested from answered a where a.playbook_id = c.id), 0),
         'booked', coalesce((select a.booked from answered a where a.playbook_id = c.id), 0),
-        'waiting', (select count(*) from public.reach_out_sends s
-                     where s.playbook_id = c.id and s.state in ('planned', 'claimed', 'queued')),
-        'held', (select count(*) from public.reach_out_sends s where s.playbook_id = c.id and s.state = 'held'),
-        'handed', (select count(*) from public.reach_out_sends s where s.playbook_id = c.id and s.state = 'handed'))
+        'waiting', (select count(*) from public.sequence_sends s
+                     where s.lead_id is not null and ( s.step_id = c.id and s.state in ('planned', 'claimed', 'queued'))),
+        'held', (select count(*) from public.sequence_sends s where s.lead_id is not null and ( s.step_id = c.id and s.state = 'held')),
+        'handed', (select count(*) from public.sequence_sends s where s.lead_id is not null and ( s.step_id = c.id and s.state = 'handed')))
         order by c.n) from c), '[]'::jsonb),
       'runs', coalesce((select jsonb_agg(r order by r->>'run_for' desc) from (
-        select jsonb_build_object('id', b.id, 'step_id', b.playbook_id, 'run_for', b.run_for, 'state', b.state,
+        select jsonb_build_object('id', b.id, 'step_id', b.step_id, 'run_for', b.run_for, 'state', b.state,
                                   'planned', b.recipient_count,
-                                  'written', (select count(*) from public.reach_out_sends s
+                                  'written', (select count(*) from public.sequence_sends s
                                                 left join public.messages m on m.id = s.message_id
-                                               where s.broadcast_id = b.id
+                                               where s.lead_id is not null and ( s.batch_id = b.id
                                                  and (s.state = 'sent' or (s.state = 'failed'
-                                                      and public.email_left(m.status, m.error)))),
-                                  'held', (select count(*) from public.reach_out_sends s
-                                            where s.broadcast_id = b.id and s.state = 'held'),
-                                  'handed', (select count(*) from public.reach_out_sends s
-                                              where s.broadcast_id = b.id and s.state = 'handed')) as r
-          from public.broadcasts b
+                                                      and public.email_left(m.status, m.error))))),
+                                  'held', (select count(*) from public.sequence_sends s
+                                            where s.lead_id is not null and ( s.batch_id = b.id and s.state = 'held')),
+                                  'handed', (select count(*) from public.sequence_sends s
+                                              where s.lead_id is not null and ( s.batch_id = b.id and s.state = 'handed'))) as r
+          from public.sequence_batches b
          where b.tenant_id = p_tenant_id and b.audience->>'kind' = 'reach_out'
            and b.audience->>'root_id' = p_root_id::text
          order by b.run_for desc
          limit 5) x), '[]'::jsonb),
-      'can_remove', not exists (select 1 from public.reach_out_sends s
-                                 where s.root_id = p_root_id
+      'can_remove', not exists (select 1 from public.sequence_sends s
+                                 where s.lead_id is not null and ( s.sequence_id = p_root_id
                                    and (s.state in ('claimed', 'queued', 'sent', 'failed', 'drafted')
-                                        or (s.state = 'skipped' and s.drafted_at is not null))))
+                                        or (s.state = 'skipped' and s.drafted_at is not null)))))
   );
 end $$;
 
@@ -19311,12 +19281,12 @@ begin
   return (
     -- An email that left (email_left), dated by when it left (email_sent_at), as reach_out_report counts it.
     with sent as (
-      select s.root_id, s.lead_id, s.contact_id,
+      select s.sequence_id as root_id, s.lead_id, s.contact_id,
              coalesce(s.sent_at, public.email_sent_at(m.meta, m.status_updated_at, m.created_at)) as sent_at
-        from public.reach_out_sends s
+        from public.sequence_sends s
         left join public.messages m on m.id = s.message_id
-       where s.tenant_id = p_tenant_id
-         and (s.state = 'sent' or (s.state = 'failed' and public.email_left(m.status, m.error)))
+       where s.lead_id is not null and ( s.tenant_id = p_tenant_id
+         and (s.state = 'sent' or (s.state = 'failed' and public.email_left(m.status, m.error))))
     ),
     period as (
       select x.* from sent x where x.sent_at >= v_since and x.sent_at < v_stop
@@ -19354,7 +19324,7 @@ begin
              'businesses', coalesce(n.businesses, 0),
              'wrote_back', coalesce(b.wrote_back, 0),
              'last_at', c.last_at)), '{}'::jsonb)
-      from public.playbooks r
+      from public.sequence_steps r
       left join per_chain c on c.root_id = r.id
       left join written_to n on n.root_id = r.id
       left join wrote_back b on b.root_id = r.id
@@ -19393,340 +19363,6 @@ end $$;
 
 
 --
--- Name: sequence_sends; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.sequence_sends (
-    id uuid DEFAULT gen_random_uuid() NOT NULL,
-    tenant_id uuid NOT NULL,
-    sequence_id uuid NOT NULL,
-    step_id uuid,
-    batch_id uuid NOT NULL,
-    contact_id uuid,
-    lead_id uuid,
-    state text NOT NULL,
-    reason text,
-    attempts integer DEFAULT 0 NOT NULL,
-    message_id uuid,
-    sent_at timestamp with time zone,
-    facts jsonb,
-    channel text,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    domain_id uuid,
-    send_at timestamp with time zone,
-    claimed_at timestamp with time zone,
-    opening text,
-    angle text,
-    facts_used text[] DEFAULT '{}'::text[] NOT NULL,
-    checked_at timestamp with time zone,
-    check_tries integer DEFAULT 0 NOT NULL,
-    hold_detail text,
-    check_after timestamp with time zone,
-    check_started_at timestamp with time zone,
-    check_first_at timestamp with time zone,
-    check_gen integer DEFAULT 0 NOT NULL,
-    checked_words text,
-    included_for text[] DEFAULT '{}'::text[] NOT NULL,
-    mailbox_id uuid,
-    drafted_at timestamp with time zone,
-    draft jsonb,
-    said_at timestamp with time zone,
-    said_by uuid,
-    CONSTRAINT sequence_sends_attempts_check CHECK (((attempts >= 0) AND ((lead_id IS NULL) OR (attempts <= 20)))),
-    CONSTRAINT sequence_sends_channel_check CHECK (((channel IS NULL) OR (channel = ANY (ARRAY['whatsapp'::text, 'sms'::text, 'email'::text])))),
-    CONSTRAINT sequence_sends_check_is_whole CHECK ((((opening IS NULL) OR ((char_length(opening) >= 1) AND (char_length(opening) <= 400))) AND ((angle IS NULL) OR ((char_length(angle) >= 1) AND (char_length(angle) <= 40))) AND ((hold_detail IS NULL) OR (char_length(hold_detail) <= 120)) AND ((checked_words IS NULL) OR ((char_length(checked_words) >= 1) AND (char_length(checked_words) <= 64))) AND ((check_tries >= 0) AND (check_tries <= 100)) AND (check_gen >= 0) AND (cardinality(facts_used) <= 12) AND (included_for <@ ARRAY['customer_domain'::text, 'chain'::text, 'language'::text, 'unbacked_fact'::text, 'reads_like_spam'::text, 'check_unavailable'::text, 'abroad'::text]))),
-    CONSTRAINT sequence_sends_customer_states CHECK (((lead_id IS NOT NULL) OR (state = ANY (ARRAY['queued'::text, 'sent'::text, 'skipped'::text, 'failed'::text])))),
-    CONSTRAINT sequence_sends_drafted_is_whole CHECK ((((state <> 'drafted'::text) OR ((drafted_at IS NOT NULL) AND (draft IS NOT NULL))) AND ((draft IS NULL) OR ((jsonb_typeof(draft) = 'object'::text) AND (octet_length((draft)::text) <= 16000))))),
-    CONSTRAINT sequence_sends_handed_is_dated CHECK (((state <> 'handed'::text) OR (sent_at IS NOT NULL))),
-    CONSTRAINT sequence_sends_held_says_why CHECK (((state <> 'held'::text) OR (reason = ANY (ARRAY['customer_domain'::text, 'chain'::text, 'language'::text, 'unbacked_fact'::text, 'reads_like_spam'::text, 'check_unavailable'::text, 'abroad'::text])))),
-    CONSTRAINT sequence_sends_planned_is_timed CHECK (((state <> 'planned'::text) OR (send_at IS NOT NULL))),
-    CONSTRAINT sequence_sends_reason_check CHECK (((lead_id IS NULL) OR (reason IS NULL) OR (char_length(reason) <= 60))),
-    CONSTRAINT sequence_sends_sent_is_dated CHECK (((lead_id IS NULL) OR (state <> 'sent'::text) OR (sent_at IS NOT NULL))),
-    CONSTRAINT sequence_sends_someone CHECK (((lead_id IS NOT NULL) OR (contact_id IS NOT NULL))),
-    CONSTRAINT sequence_sends_state_check CHECK ((state = ANY (ARRAY['planned'::text, 'held'::text, 'claimed'::text, 'queued'::text, 'drafted'::text, 'sent'::text, 'skipped'::text, 'failed'::text, 'handed'::text])))
-);
-
-
---
--- Name: TABLE sequence_sends; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON TABLE public.sequence_sends IS 'Decision 0060: one message of a sequence to one person. A customer''s (contact_id, no lead_id): queued, then sent, skipped or failed, once. A lead''s (lead_id): planned (a time and a mailbox), held while its check doubts it, claimed under the mailbox''s day, queued as an email or drafted for its owner, then sent, skipped, failed or handed to the team.';
-
-
---
--- Name: COLUMN sequence_sends.attempts; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.sequence_sends.attempts IS 'A customer''s send: how many times it was claimed and given back (throttled, not_taken), counted by the guard. A lead''s: how many times the clock tried it.';
-
-
---
--- Name: COLUMN sequence_sends.facts; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.sequence_sends.facts IS 'A customer''s send: the words its batch resolved for them when it was made (a visit''s time and service); the send fills the message''s slots from them. Cleared when the person is erased.';
-
-
---
--- Name: COLUMN sequence_sends.channel; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.sequence_sends.channel IS 'The channel this person is reached on, picked once at enrolment (contracts'' reachFor) from the batch''s channels. Null: a send kept from before the channels, which went by WhatsApp.';
-
-
---
--- Name: COLUMN sequence_sends.domain_id; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.sequence_sends.domain_id IS 'Retired (decision 0056): the sending domain a lead''s send left from on the cold Resend lane. Nothing writes it now; mailbox_id is the send''s.';
-
-
---
--- Name: COLUMN sequence_sends.mailbox_id; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.sequence_sends.mailbox_id IS 'A lead''s send: the mailbox it leaves from (00424), planned with it, claimed under its day, and kept by its lead for the whole sequence.';
-
-
---
--- Name: COLUMN sequence_sends.drafted_at; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.sequence_sends.drafted_at IS 'A lead''s send handed to its owner, written and checked (00429): its fourteen days to be sent start here.';
-
-
---
--- Name: COLUMN sequence_sends.draft; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.sequence_sends.draft IS 'The email handed to the owner (00429): {to, subject, body, text, parent_id?}, the words with their values in and, in text, with the foot.';
-
-
---
--- Name: COLUMN sequence_sends.said_at; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.sequence_sends.said_at IS 'When the owner said this drafted email went, or did not (00429).';
-
-
---
--- Name: COLUMN sequence_sends.said_by; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.sequence_sends.said_by IS 'The member who said it (00429).';
-
-
---
--- Name: reach_out_sends; Type: VIEW; Schema: public; Owner: -
---
-
-CREATE VIEW public.reach_out_sends WITH (security_invoker='true') AS
- SELECT id,
-    tenant_id,
-    batch_id AS broadcast_id,
-    step_id AS playbook_id,
-    sequence_id AS root_id,
-    lead_id,
-    contact_id,
-    domain_id,
-    send_at,
-    state,
-    reason,
-    attempts,
-    message_id,
-    claimed_at,
-    sent_at,
-    created_at,
-    updated_at,
-    opening,
-    angle,
-    facts_used,
-    checked_at,
-    check_tries,
-    hold_detail,
-    check_after,
-    check_started_at,
-    check_first_at,
-    check_gen,
-    checked_words,
-    included_for,
-    mailbox_id,
-    drafted_at,
-    draft,
-    said_at,
-    said_by
-   FROM public.sequence_sends s
-  WHERE (lead_id IS NOT NULL)
-  WITH CASCADED CHECK OPTION;
-
-
---
--- Name: VIEW reach_out_sends; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON VIEW public.reach_out_sends IS 'Decision 0060: a lead''s sequence_sends under its old name, while the code moves (step S6 drops it).';
-
-
---
--- Name: reach_out_claim(uuid, integer, timestamp with time zone, integer); Type: FUNCTION; Schema: public; Owner: -
---
-
-CREATE FUNCTION public.reach_out_claim(p_domain_id uuid, p_cap integer, p_at timestamp with time zone, p_limit integer) RETURNS SETOF public.reach_out_sends
-    LANGUAGE plpgsql SECURITY DEFINER
-    SET search_path TO 'public'
-    AS $$
-declare
-  v_room int;
-begin
-  -- No share, no limit, no moment: nothing is claimed (least() would read a null cap as none at all).
-  if p_domain_id is null or p_cap is null or p_limit is null or p_at is null or p_cap <= 0 or p_limit <= 0 then
-    return;
-  end if;
-  -- One claimer per domain at a time: the count below and the claim after it are one step (C7).
-  perform pg_advisory_xact_lock(hashtext('reach_out_claim:' || p_domain_id::text));
-  if not exists (select 1 from public.sending_domains where id = p_domain_id and state = 'verified') then return; end if;
-  v_room := least(p_limit, p_cap - (public.sending_domain_capacity(p_domain_id, p_at)->>'used')::int);
-  if v_room is null or v_room <= 0 then return; end if;
-  -- Picked once, then claimed: the pick is a materialized CTE, so it runs exactly once and the claim is at most
-  -- v_room rows (00213). Inside `where s.id in (...)`, a plan that evaluated the pick again after rows were claimed
-  -- skipped them (FOR UPDATE ... SKIP LOCKED) and took the next due ones, past the domain's day.
-  return query
-  with picked as materialized (
-     select s2.id from public.reach_out_sends s2
-       join public.playbooks p on p.id = s2.playbook_id
-       join public.playbooks r on r.id = s2.root_id
-       join public.broadcasts b on b.id = s2.broadcast_id
-      where s2.domain_id = p_domain_id and s2.state = 'planned' and s2.send_at <= p_at
-        -- Checked before it goes (F1): the check clock reads what the send says first.
-        and s2.checked_at is not null
-        -- The step running, and its chain: a paused root pauses every step of it.
-        and p.state = 'running' and r.state = 'running' and b.state in ('scheduled', 'sending')
-      order by s2.send_at
-      limit v_room
-      for update of s2 skip locked)
-  update public.reach_out_sends s
-     set state = 'claimed', claimed_at = p_at
-    from picked
-   where s.id = picked.id
-  returning s.*;
-end $$;
-
-
---
--- Name: reach_out_claim_drafts(timestamp with time zone, integer, uuid); Type: FUNCTION; Schema: public; Owner: -
---
-
-CREATE FUNCTION public.reach_out_claim_drafts(p_at timestamp with time zone, p_limit integer, p_tenant_id uuid DEFAULT NULL::uuid) RETURNS SETOF public.reach_out_sends
-    LANGUAGE plpgsql SECURITY DEFINER
-    SET search_path TO 'public'
-    AS $$
-begin
-  if p_at is null or p_limit is null or p_limit <= 0 then
-    return;
-  end if;
-  return query
-  with picked as materialized (
-     select s2.id from public.reach_out_sends s2
-       join public.playbooks p on p.id = s2.playbook_id
-       join public.playbooks r on r.id = s2.root_id
-       join public.broadcasts b on b.id = s2.broadcast_id
-      where s2.state = 'planned' and s2.send_at <= p_at and s2.checked_at is not null
-        and (p_tenant_id is null or s2.tenant_id = p_tenant_id)
-        and (r.owner_sends or (s2.mailbox_id is null and p.after_playbook_id is not null))
-        and p.state = 'running' and r.state = 'running' and b.state in ('scheduled', 'sending')
-      order by (p.after_playbook_id is null), s2.send_at
-      limit p_limit
-      for update of s2 skip locked)
-  update public.reach_out_sends s
-     set state = 'claimed', claimed_at = p_at, mailbox_id = null
-    from picked
-   where s.id = picked.id
-  returning s.*;
-end $$;
-
-
---
--- Name: FUNCTION reach_out_claim_drafts(p_at timestamp with time zone, p_limit integer, p_tenant_id uuid); Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON FUNCTION public.reach_out_claim_drafts(p_at timestamp with time zone, p_limit integer, p_tenant_id uuid) IS 'The due sends of reach-outs their owners send (00429), claimed to be drafted, at most p_limit: planned, checked and due, in a running chain and a run that goes ahead, a step after the first before a first email. Their mailbox is let go. A step after the first planned with no mailbox while its owner sent the chain is taken too, whoever sends it now. Service role only.';
-
-
---
--- Name: reach_out_claim_from(uuid, integer, timestamp with time zone, integer); Type: FUNCTION; Schema: public; Owner: -
---
-
-CREATE FUNCTION public.reach_out_claim_from(p_mailbox_id uuid, p_cap integer, p_at timestamp with time zone, p_limit integer) RETURNS SETOF public.reach_out_sends
-    LANGUAGE plpgsql SECURITY DEFINER
-    SET search_path TO 'public'
-    AS $$
-declare
-  v_room int;
-begin
-  if p_mailbox_id is null or p_cap is null or p_limit is null or p_at is null or p_cap <= 0 or p_limit <= 0 then
-    return;
-  end if;
-  -- One claimer per mailbox at a time: the count below and the claim after it are one step (C7).
-  perform pg_advisory_xact_lock(hashtext('reach_out_claim_mailbox:' || p_mailbox_id::text));
-  if not exists (select 1 from public.mailbox_connections
-                  where id = p_mailbox_id and state = 'connected'
-                    and (resting_until is null or resting_until <= p_at)) then
-    return;
-  end if;
-  v_room := least(p_limit, p_cap - (public.mailbox_capacity(p_mailbox_id, p_at)->>'used')::int);
-  if v_room is null or v_room <= 0 then
-    return;
-  end if;
-  -- Picked once, then claimed (00213): a materialized pick runs exactly once, so the claim is at most v_room rows.
-  return query
-  with picked as materialized (
-     select s2.id from public.reach_out_sends s2
-       join public.playbooks p on p.id = s2.playbook_id
-       join public.playbooks r on r.id = s2.root_id
-       join public.broadcasts b on b.id = s2.broadcast_id
-      where s2.mailbox_id = p_mailbox_id and s2.state = 'planned' and s2.send_at <= p_at
-        and s2.checked_at is not null
-        and not r.owner_sends
-        and p.state = 'running' and r.state = 'running' and b.state in ('scheduled', 'sending')
-      order by (p.after_playbook_id is null), s2.send_at
-      limit v_room
-      for update of s2 skip locked)
-  update public.reach_out_sends s
-     set state = 'claimed', claimed_at = p_at
-    from picked
-   where s.id = picked.id
-  returning s.*;
-end $$;
-
-
---
--- Name: FUNCTION reach_out_claim_from(p_mailbox_id uuid, p_cap integer, p_at timestamp with time zone, p_limit integer); Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON FUNCTION public.reach_out_claim_from(p_mailbox_id uuid, p_cap integer, p_at timestamp with time zone, p_limit integer) IS 'A connected mailbox''s due reach-out sends, claimed within its day (p_cap less what it has used), at most p_limit, under the mailbox''s lock (C7, 00424): a step after the first before a first email, and never a send of a reach-out its owner sends (00429). Nothing for a mailbox that is not connected, or resting. Service role only.';
-
-
---
--- Name: reach_out_closed_sends(timestamp with time zone, integer, uuid); Type: FUNCTION; Schema: public; Owner: -
---
-
-CREATE FUNCTION public.reach_out_closed_sends(p_stuck_before timestamp with time zone, p_limit integer, p_tenant_id uuid DEFAULT NULL::uuid) RETURNS TABLE(send jsonb, email_status text)
-    LANGUAGE sql STABLE SECURITY DEFINER
-    SET search_path TO 'public'
-    AS $$
-  select to_jsonb(s), m.status
-    from public.reach_out_sends s
-    join public.broadcasts b on b.id = s.broadcast_id
-    left join public.messages m on m.id = s.message_id
-   where b.state in ('canceled', 'failed') and (p_tenant_id is null or s.tenant_id = p_tenant_id)
-     and (s.state in ('planned', 'held', 'queued', 'drafted') or (s.state = 'claimed' and s.claimed_at < p_stuck_before))
-   limit greatest(coalesce(p_limit, 0), 0)
-$$;
-
-
---
 -- Name: reach_out_day_due(timestamp with time zone, integer); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -19740,39 +19376,39 @@ CREATE FUNCTION public.reach_out_day_due(p_now timestamp with time zone, p_limit
       from public.tenants t
      cross join lateral (select coalesce(nullif(t.timezone, ''), 'America/New_York') as tz) z
      where extract(hour from p_now at time zone z.tz) >= 18
-       and exists (select 1 from public.playbooks p
+       and exists (select 1 from public.sequence_steps p
                     where p.tenant_id = t.id and p.kind = 'reach_out' and p.trigger = 'lead_first')
   ), counted as (
     select h.id, h.day, jsonb_build_object(
-      'written', (select count(*) from public.reach_out_sends s left join public.messages m on m.id = s.message_id
-                   where s.tenant_id = h.id
+      'written', (select count(*) from public.sequence_sends s left join public.messages m on m.id = s.message_id
+                   where s.lead_id is not null and ( s.tenant_id = h.id
                      and (s.state = 'sent' or (s.state = 'failed' and public.email_left(m.status, m.error)))
                      and coalesce(s.sent_at, public.email_sent_at(m.meta, m.status_updated_at, m.created_at))
-                         between h.since and p_now),
-      'wrote_back', (select count(*) from public.reach_out_replies r
+                         between h.since and p_now)),
+      'wrote_back', (select count(*) from public.sequence_replies r
                       where r.tenant_id = h.id and r.read_at >= h.since and r.read_at <= p_now
                         and r.claim <> 'auto_reply'),
-      'interested', (select count(*) from public.reach_out_replies r
+      'interested', (select count(*) from public.sequence_replies r
                       where r.tenant_id = h.id and r.read_at >= h.since and r.read_at <= p_now
                         and r.claim <> 'auto_reply' and r.undone_at is null
                         and r.intent in ('interested', 'question')),
-      'said_no', (select count(*) from public.reach_out_replies r
+      'said_no', (select count(*) from public.sequence_replies r
                    where r.tenant_id = h.id and r.read_at >= h.since and r.read_at <= p_now
                      and r.undone_at is null and r.intent = 'no'),
       'booked', (select count(*) from public.appointments a
                   where a.tenant_id = h.id and a.created_at >= h.since and a.created_at <= p_now
                     and a.lead_id is not null and a.status <> 'cancelled'
-                    and exists (select 1 from public.reach_out_sends s
-                                 where s.tenant_id = h.id and s.lead_id = a.lead_id and s.state = 'sent'
-                                   and s.sent_at < a.starts_at)),
-      'bounced', (select count(*) from public.reach_out_sends s join public.messages m on m.id = s.message_id
-                   where s.tenant_id = h.id and s.state in ('sent', 'failed')
+                    and exists (select 1 from public.sequence_sends s
+                                 where s.lead_id is not null and ( s.tenant_id = h.id and s.lead_id = a.lead_id and s.state = 'sent'
+                                   and s.sent_at < a.starts_at))),
+      'bounced', (select count(*) from public.sequence_sends s join public.messages m on m.id = s.message_id
+                   where s.lead_id is not null and ( s.tenant_id = h.id and s.state in ('sent', 'failed')
                      and m.status = 'failed' and m.error->>'provider' = 'bounced'
                      and coalesce(s.sent_at, public.email_sent_at(m.meta, m.status_updated_at, m.created_at))
-                         between h.since and p_now),
-      'held', (select count(*) from public.reach_out_sends s join public.broadcasts b on b.id = s.broadcast_id
-                where s.tenant_id = h.id and s.state = 'held'
-                  and b.state in ('pending_approval', 'scheduled', 'sending'))) as numbers
+                         between h.since and p_now)),
+      'held', (select count(*) from public.sequence_sends s join public.sequence_batches b on b.id = s.batch_id
+                where s.lead_id is not null and ( s.tenant_id = h.id and s.state = 'held'
+                  and b.state in ('pending_approval', 'scheduled', 'sending')))) as numbers
       from here h
      where not exists (select 1 from public.notifications n
                         where n.tenant_id = h.id and n.created_at >= h.since - interval '1 day'
@@ -19828,13 +19464,13 @@ CREATE FUNCTION public.reach_out_drafts_waiting(p_limit integer, p_tenant_id uui
     LANGUAGE sql STABLE SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
-  select s.id, s.tenant_id, s.lead_id, s.broadcast_id, s.drafted_at,
+  select s.id, s.tenant_id, s.lead_id, s.batch_id as broadcast_id, s.drafted_at,
          public.reach_out_draft_facts(s.tenant_id, s.lead_id)
-    from public.reach_out_sends s
-   where s.state = 'drafted'
+    from public.sequence_sends s
+   where s.lead_id is not null and ( s.state = 'drafted'
      and (p_tenant_id is null or s.tenant_id = p_tenant_id)
-     and (p_run_id is null or s.broadcast_id = p_run_id)
-     and (p_after_at is null or (s.drafted_at, s.id) > (p_after_at, p_after_id))
+     and (p_run_id is null or s.batch_id = p_run_id)
+     and (p_after_at is null or (s.drafted_at, s.id) > (p_after_at, p_after_id)))
    order by s.drafted_at, s.id
    limit greatest(coalesce(p_limit, 0), 0)
 $$;
@@ -19845,44 +19481,6 @@ $$;
 --
 
 COMMENT ON FUNCTION public.reach_out_drafts_waiting(p_limit integer, p_tenant_id uuid, p_run_id uuid, p_after_at timestamp with time zone, p_after_id uuid) IS 'The drafts waiting for their owners (00429), oldest first, at most p_limit after the one named (p_after_at, p_after_id), of one workspace or every one, of one run or all, each with when it was handed and its lead''s facts (reach_out_draft_facts) for the send door''s rule (contracts draftRefusalOf). Service role only.';
-
-
---
--- Name: reach_out_due_domains(timestamp with time zone, integer, uuid, uuid[], uuid[]); Type: FUNCTION; Schema: public; Owner: -
---
-
-CREATE FUNCTION public.reach_out_due_domains(p_at timestamp with time zone, p_limit integer, p_tenant_id uuid DEFAULT NULL::uuid, p_skip_tenants uuid[] DEFAULT '{}'::uuid[], p_skip_domains uuid[] DEFAULT '{}'::uuid[]) RETURNS TABLE(id uuid, tenant_id uuid)
-    LANGUAGE sql STABLE SECURITY DEFINER
-    SET search_path TO 'public'
-    AS $$
-  select d.id, d.tenant_id
-    from public.sending_domains d
-    -- Its earliest due send that goes ahead: the domain's due sends in time order (reach_out_sends_due), the first
-    -- that passes, so a paused chain's backlog is walked only as far as the first that does.
-    cross join lateral (
-      select s.send_at as first_due
-        from public.reach_out_sends s
-        join public.broadcasts b on b.id = s.broadcast_id
-        join public.playbooks p on p.id = s.playbook_id
-        join public.playbooks r on r.id = s.root_id
-       where s.domain_id = d.id and s.state = 'planned' and s.send_at <= p_at and s.checked_at is not null
-         and b.state in ('scheduled', 'sending') and p.state = 'running' and r.state = 'running'
-       order by s.send_at
-       limit 1) due
-   where d.state = 'verified' and d.clean_since is not null
-     and (p_tenant_id is null or d.tenant_id = p_tenant_id)
-     and not (d.tenant_id = any (coalesce(p_skip_tenants, '{}')))
-     and not (d.id = any (coalesce(p_skip_domains, '{}')))
-   order by due.first_due, d.id
-   limit greatest(coalesce(p_limit, 0), 0)
-$$;
-
-
---
--- Name: FUNCTION reach_out_due_domains(p_at timestamp with time zone, p_limit integer, p_tenant_id uuid, p_skip_tenants uuid[], p_skip_domains uuid[]); Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON FUNCTION public.reach_out_due_domains(p_at timestamp with time zone, p_limit integer, p_tenant_id uuid, p_skip_tenants uuid[], p_skip_domains uuid[]) IS 'The verified, clean domains with a checked reach-out send due in a run that goes ahead on a running chain, longest waiting first, past the workspaces and domains the caller has done with this tick (00187, 00197). Service role only.';
 
 
 --
@@ -19898,12 +19496,12 @@ CREATE FUNCTION public.reach_out_due_mailboxes(p_at timestamp with time zone, p_
     -- Its earliest due send that goes ahead, so a paused chain's backlog is walked only as far as the first that does.
     cross join lateral (
       select s.send_at as first_due
-        from public.reach_out_sends s
-        join public.broadcasts r on r.id = s.broadcast_id
-        join public.playbooks p on p.id = s.playbook_id
-        join public.playbooks root on root.id = s.root_id
-       where s.mailbox_id = b.id and s.state = 'planned' and s.send_at <= p_at and s.checked_at is not null
-         and r.state in ('scheduled', 'sending') and p.state = 'running' and root.state = 'running'
+        from public.sequence_sends s
+        join public.sequence_batches r on r.id = s.batch_id
+        join public.sequence_steps p on p.id = s.step_id
+        join public.sequence_steps root on root.id = s.sequence_id
+       where s.lead_id is not null and ( s.mailbox_id = b.id and s.state = 'planned' and s.send_at <= p_at and s.checked_at is not null
+         and r.state in ('scheduled', 'sending') and p.state = 'running' and root.state = 'running')
        order by s.send_at
        limit 1) due
    where b.state = 'connected' and (b.resting_until is null or b.resting_until <= p_at)
@@ -19930,11 +19528,11 @@ CREATE FUNCTION public.reach_out_finishable(p_limit integer, p_tenant_id uuid DE
     LANGUAGE sql STABLE SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
-  select b.id from public.broadcasts b
+  select b.id from public.sequence_batches b
    where b.audience->>'kind' = 'reach_out' and b.state in ('scheduled', 'sending')
      and (p_tenant_id is null or b.tenant_id = p_tenant_id)
-     and not exists (select 1 from public.reach_out_sends s
-                      where s.broadcast_id = b.id and s.state in ('planned', 'held', 'claimed', 'queued', 'drafted'))
+     and not exists (select 1 from public.sequence_sends s
+                      where s.lead_id is not null and ( s.batch_id = b.id and s.state in ('planned', 'held', 'claimed', 'queued', 'drafted')))
    limit greatest(coalesce(p_limit, 0), 0)
 $$;
 
@@ -19953,18 +19551,18 @@ CREATE FUNCTION public.reach_out_followers(p_tenant_id uuid, p_step_id uuid, p_p
       select l.id as lead_id, s.contact_id, lower(btrim(l.email)) as email, l.region, l.hours,
              s.message_id as parent_message_id, s.sent_at, s.mailbox_id, l.country,
              public.outreach_lead_facts(p_tenant_id, s.contact_id, lower(btrim(l.email)), l.id) as facts,
-             exists (select 1 from public.reach_out_sends b join public.messages bm on bm.id = b.message_id
-                      where b.root_id = s.root_id and b.lead_id = l.id
-                        and bm.status = 'failed' and bm.error->>'provider' in ('bounced', 'failed')) as bounced
-        from public.reach_out_sends s
+             exists (select 1 from public.sequence_sends b join public.messages bm on bm.id = b.message_id
+                      where b.lead_id is not null and ( b.sequence_id = s.sequence_id and b.lead_id = l.id
+                        and bm.status = 'failed' and bm.error->>'provider' in ('bounced', 'failed'))) as bounced
+        from public.sequence_sends s
         join public.leads l on l.id = s.lead_id and l.tenant_id = s.tenant_id
         join public.messages m on m.id = s.message_id
-       where s.tenant_id = p_tenant_id and s.playbook_id = p_parent_id and s.state = 'sent'
+       where s.lead_id is not null and ( s.tenant_id = p_tenant_id and s.step_id = p_parent_id and s.state = 'sent'
          and s.sent_at <= now() - make_interval(days => p_after_days)
          and s.contact_id is not null
-         and not exists (select 1 from public.reach_out_sends x
-                          where x.playbook_id = p_step_id and x.lead_id = l.id
-                            and not (x.state = 'skipped' and x.reason = 'outreach_away'))
+         and not exists (select 1 from public.sequence_sends x
+                          where x.lead_id is not null and ( x.step_id = p_step_id and x.lead_id = l.id
+                            and not (x.state = 'skipped' and x.reason = 'outreach_away'))))
     ) f
    where f.facts->>'lead_stage' in ('ready', 'nurture')
      and not coalesce((f.facts->>'suppressed')::boolean, true)
@@ -20005,7 +19603,7 @@ CREATE FUNCTION public.reach_out_hand_run(p_tenant_id uuid, p_step_id uuid, p_ru
     SET search_path TO 'public'
     AS $$
 declare
-  v_step  public.playbooks%rowtype;
+  v_step  public.sequence_steps%rowtype;
   v_root  uuid;
   v_item  jsonb;
   v_send  uuid;
@@ -20015,28 +19613,28 @@ begin
   if p_items is null or jsonb_typeof(p_items) <> 'array' then
     raise exception 'The run''s leads are a list.' using errcode = '22023';
   end if;
-  select * into v_step from public.playbooks
+  select * into v_step from public.sequence_steps
    where id = p_step_id and tenant_id = p_tenant_id and kind = 'reach_out' and hand is not null;
   if not found then raise exception 'Step not found.' using errcode = 'P0002'; end if;
   -- Its chain's root: a chain is a few steps, and a walk longer than ten is a loop in the rows.
   with recursive up as (
-    select p.id, p.after_playbook_id, 0 as n from public.playbooks p where p.id = v_step.after_playbook_id
+    select p.id, p.after_step_id as after_playbook_id, 0 as n from public.sequence_steps p where p.id = v_step.after_step_id
     union all
-    select p.id, p.after_playbook_id, up.n + 1 from public.playbooks p join up on p.id = up.after_playbook_id
+    select p.id, p.after_step_id as after_playbook_id, up.n + 1 from public.sequence_steps p join up on p.id = up.after_playbook_id
      where up.n < 10
   )
   select id into v_root from up where after_playbook_id is null;
   if v_root is null then raise exception 'Reach-out not found.' using errcode = 'P0002'; end if;
 
-  insert into public.broadcasts (id, tenant_id, playbook_id, run_for, name, template_id, template_name,
+  insert into public.sequence_batches (id, tenant_id, step_id, run_for, name, template_id, template_name,
                                  template_language, state, scheduled_for, recipient_count, audience)
   values (p_run_id, p_tenant_id, p_step_id, p_day, left(v_step.name || ' · ' || p_day::text, 120), null, null, null,
           'sent', now(), 0,
           jsonb_build_object('kind', 'reach_out', 'root_id', v_root, 'step_id', p_step_id, 'search_id', null,
                              'hand', v_step.hand->>'kind'))
   on conflict do nothing;
-  if not exists (select 1 from public.broadcasts b where b.id = p_run_id and b.tenant_id = p_tenant_id
-                   and b.playbook_id = p_step_id) then
+  if not exists (select 1 from public.sequence_batches b where b.id = p_run_id and b.tenant_id = p_tenant_id
+                   and b.step_id = p_step_id) then
     raise exception 'This step has another run for that day.' using errcode = '23505';
   end if;
 
@@ -20049,7 +19647,7 @@ begin
       raise exception 'Lead not found.' using errcode = 'P0002';
     end if;
     v_send := null;
-    insert into public.reach_out_sends (id, tenant_id, broadcast_id, playbook_id, root_id, lead_id, contact_id, state,
+    insert into public.sequence_sends (id, tenant_id, batch_id, step_id, sequence_id, lead_id, contact_id, state,
                                         sent_at)
     values ((v_item->>'send_id')::uuid, p_tenant_id, p_run_id, p_step_id, v_root, (v_item->>'lead_id')::uuid,
             (v_item->>'contact_id')::uuid, 'handed', now())
@@ -20064,8 +19662,8 @@ begin
     v_made := v_made + 1;
   end loop;
 
-  update public.broadcasts b
-     set recipient_count = (select count(*) from public.reach_out_sends s where s.broadcast_id = b.id)
+  update public.sequence_batches b
+     set recipient_count = (select count(*) from public.sequence_sends s where s.lead_id is not null and ( s.batch_id = b.id))
    where b.id = p_run_id;
   return jsonb_build_object('run_id', p_run_id, 'made', v_made, 'already', v_already);
 end $$;
@@ -20076,22 +19674,6 @@ end $$;
 --
 
 COMMENT ON FUNCTION public.reach_out_hand_run(p_tenant_id uuid, p_step_id uuid, p_run_id uuid, p_day date, p_items jsonb) IS 'A reach-out''s hand step''s run for a day (Reach out Part 5, G20), written whole: the run (state sent, no template, audience.hand), a handed send per lead, and each lead''s dated step for the team (person_step_from_playbook, once per step and lead). Items are {send_id, lead_id, contact_id, words, source_id}. Answers {run_id, made, already}. Service role only.';
-
-
---
--- Name: reach_out_held_stale(timestamp with time zone, integer, uuid); Type: FUNCTION; Schema: public; Owner: -
---
-
-CREATE FUNCTION public.reach_out_held_stale(p_before timestamp with time zone, p_limit integer, p_tenant_id uuid DEFAULT NULL::uuid) RETURNS SETOF public.reach_out_sends
-    LANGUAGE sql STABLE SECURITY DEFINER
-    SET search_path TO 'public'
-    AS $$
-  select s.* from public.reach_out_sends s
-   where ((s.state = 'held' and s.created_at < p_before) or (s.state = 'drafted' and s.drafted_at < p_before))
-     and (p_tenant_id is null or s.tenant_id = p_tenant_id)
-   order by coalesce(s.drafted_at, s.created_at)
-   limit greatest(coalesce(p_limit, 0), 0)
-$$;
 
 
 --
@@ -20120,7 +19702,7 @@ begin
   if not found or v_lead.erased_at is not null or v_lead.blanked_at is not null then
     raise exception 'Lead not found.' using errcode = 'P0002';
   end if;
-  if not exists (select 1 from public.reach_out_sends s where s.tenant_id = v_lead.tenant_id and s.lead_id = p_lead_id) then
+  if not exists (select 1 from public.sequence_sends s where s.lead_id is not null and ( s.tenant_id = v_lead.tenant_id and s.lead_id = p_lead_id)) then
     raise exception 'Nothing has been written to them yet.' using errcode = '22023';
   end if;
   if v_lead.reach_out_stopped_at is not null then
@@ -20128,16 +19710,16 @@ begin
   end if;
   update public.leads set reach_out_stopped_at = now() where id = p_lead_id;
   with skipped as (
-    update public.reach_out_sends s
+    update public.sequence_sends s
        set state = 'skipped', reason = 'owner_stopped'
-      from public.broadcasts b
-     where b.id = s.broadcast_id and b.state in ('pending_approval', 'scheduled', 'sending')
-       and s.tenant_id = v_lead.tenant_id and s.lead_id = p_lead_id and s.state in ('planned', 'held', 'drafted')
+      from public.sequence_batches b
+     where s.lead_id is not null and ( b.id = s.batch_id and b.state in ('pending_approval', 'scheduled', 'sending')
+       and s.tenant_id = v_lead.tenant_id and s.lead_id = p_lead_id and s.state in ('planned', 'held', 'drafted'))
     returning 1
   )
   select count(*) into v_skipped from skipped;
-  select count(*) into v_leaving from public.reach_out_sends s
-   where s.tenant_id = v_lead.tenant_id and s.lead_id = p_lead_id and s.state in ('claimed', 'queued');
+  select count(*) into v_leaving from public.sequence_sends s
+   where s.lead_id is not null and ( s.tenant_id = v_lead.tenant_id and s.lead_id = p_lead_id and s.state in ('claimed', 'queued'));
   return jsonb_build_object('stopped', true, 'already', false, 'skipped', v_skipped, 'leaving', v_leaving);
 end $$;
 
@@ -20175,23 +19757,23 @@ begin
   if not found then
     return null;
   end if;
-  select s.root_id into v_root from public.reach_out_sends s
-   where s.tenant_id = p_tenant_id and s.lead_id = p_lead_id
-     and not (s.state = 'skipped' and s.reason in ('run_canceled', 'owner_took_back'))
+  select s.sequence_id as root_id into v_root from public.sequence_sends s
+   where s.lead_id is not null and ( s.tenant_id = p_tenant_id and s.lead_id = p_lead_id
+     and not (s.state = 'skipped' and s.reason in ('run_canceled', 'owner_took_back')))
    order by s.created_at desc
    limit 1;
   v_sent := v_root is not null;
   -- Not written yet: the reach-out whose search holds it (a list it was added to, or the search that found it), 00426.
   if v_root is null then
     select p.id, m.created_at into v_root, v_added
-      from public.playbooks p
+      from public.sequence_steps p
       join public.lead_search_members m on m.search_id = p.lead_search_id and m.lead_id = v_lead.id
      where p.tenant_id = p_tenant_id and p.kind = 'reach_out' and p.trigger = 'lead_first'
        and m.blanked_at is null and m.class = 'qualified' and m.counted
      order by m.created_at desc
      limit 1;
   end if;
-  select q.via into v_via from public.playbooks p join public.lead_searches q on q.id = p.lead_search_id
+  select q.via into v_via from public.sequence_steps p join public.lead_searches q on q.id = p.lead_search_id
    where p.id = v_root;
   return jsonb_build_object(
     'lead_id', v_lead.id,
@@ -20217,24 +19799,24 @@ begin
                 'root_id', p.id, 'name', p.name, 'state', p.state,
                 'fed_by', case when v_via in ('chosen', 'import') then 'list' else 'search' end,
                 'run_hour', p.run_hour, 'last_run_for', p.last_run_for,
-                'waiting_run_id', (select b.id from public.broadcasts b
+                'waiting_run_id', (select b.id from public.sequence_batches b
                                     where b.tenant_id = p_tenant_id and b.audience->>'kind' = 'reach_out'
                                       and b.audience->>'root_id' = p.id::text and b.state = 'pending_approval'
                                     order by b.created_at desc limit 1),
                 'steps', (with recursive c as (
-                            select x.id, x.after_days, x.hand, 0 as n from public.playbooks x where x.id = p.id
+                            select x.id, x.after_days, x.hand, 0 as n from public.sequence_steps x where x.id = p.id
                             union all
                             select x.id, x.after_days, x.hand, c.n + 1
-                              from public.playbooks x join c on x.after_playbook_id = c.id
+                              from public.sequence_steps x join c on x.after_step_id = c.id
                           )
                           select coalesce(jsonb_agg(jsonb_build_object('n', c.n, 'after_days', c.after_days,
                                                                        'hand', c.hand->>'kind') order by c.n), '[]'::jsonb)
                             from c))
-                from public.playbooks p where p.id = v_root and p.tenant_id = p_tenant_id),
+                from public.sequence_steps p where p.id = v_root and p.tenant_id = p_tenant_id),
     -- The chain's search when there is one, else the newest search that found the lead.
     'search', coalesce(
       (select jsonb_build_object('id', q.id, 'name', q.name, 'asked', q.asked, 'fit', sm.fit)
-         from public.playbooks p
+         from public.sequence_steps p
          join public.lead_searches q on q.id = p.lead_search_id and q.tenant_id = p_tenant_id
          left join public.lead_search_members sm on sm.search_id = q.id and sm.lead_id = v_lead.id
         where p.id = v_root),
@@ -20245,15 +19827,15 @@ begin
         order by sm.created_at desc
         limit 1)),
     -- The person's email thread: where the reach-out's emails, and the answers to them, are.
-    'conversation_id', (select m.conversation_id from public.reach_out_sends s join public.messages m on m.id = s.message_id
-                         where s.tenant_id = p_tenant_id and s.lead_id = v_lead.id and s.state = 'sent'
+    'conversation_id', (select m.conversation_id from public.sequence_sends s join public.messages m on m.id = s.message_id
+                         where s.lead_id is not null and ( s.tenant_id = p_tenant_id and s.lead_id = v_lead.id and s.state = 'sent')
                          order by s.sent_at desc
                          limit 1),
     'sends', coalesce((
       with recursive c as (
-        select p.id, 0 as n from public.playbooks p where p.id = v_root
+        select p.id, 0 as n from public.sequence_steps p where p.id = v_root
         union all
-        select p.id, c.n + 1 from public.playbooks p join c on p.after_playbook_id = c.id
+        select p.id, c.n + 1 from public.sequence_steps p join c on p.after_step_id = c.id
       )
       select jsonb_agg(jsonb_build_object(
                'id', s.id,
@@ -20272,12 +19854,12 @@ begin
                'email_status', m.status,
                'bounced', coalesce(m.status = 'failed' and m.error->>'provider' = 'bounced', false))
              order by coalesce(s.sent_at, s.send_at, s.created_at), s.id)
-        from (select * from public.reach_out_sends x
-               where x.tenant_id = p_tenant_id and x.lead_id = v_lead.id and x.root_id = v_root
+        from (select * from public.sequence_sends x
+               where x.lead_id is not null and ( x.tenant_id = p_tenant_id and x.lead_id = v_lead.id and x.sequence_id = v_root)
                order by x.created_at desc
                limit 20) s
-        left join c on c.id = s.playbook_id
-        left join public.playbooks p on p.id = s.playbook_id
+        left join c on c.id = s.step_id
+        left join public.sequence_steps p on p.id = s.step_id
         left join public.mailbox_connections b on b.id = s.mailbox_id
         left join public.messages m on m.id = s.message_id), '[]'::jsonb),
     'readings', coalesce((
@@ -20295,7 +19877,7 @@ begin
                'said_no', coalesce((r.plan->>'saidNo')::boolean, false),
                'can_undo', public.reach_out_reply_undoable(r.message_id) is null)
              order by r.read_at desc)
-        from (select * from public.reach_out_replies x
+        from (select * from public.sequence_replies x
                where x.tenant_id = p_tenant_id and x.lead_id = v_lead.id
                order by x.read_at desc
                limit 10) r), '[]'::jsonb),
@@ -20322,7 +19904,7 @@ CREATE FUNCTION public.reach_out_leave_out(p_root_id uuid, p_lead_id uuid) RETUR
     AS $$
 declare
   v_user    uuid := auth.uid();
-  r         public.playbooks;
+  r         public.sequence_steps;
   q         public.lead_searches;
   m         public.lead_search_members;
   v_skipped integer;
@@ -20331,7 +19913,7 @@ begin
   if v_user is null then
     raise exception 'Sign in required.' using errcode = '28000';
   end if;
-  select * into r from public.playbooks where id = p_root_id and kind = 'reach_out' and trigger = 'lead_first';
+  select * into r from public.sequence_steps where id = p_root_id and kind = 'reach_out' and trigger = 'lead_first';
   if not found or not public.has_permission(v_user, r.tenant_id, 'approve') then
     raise exception 'Reach-out not found.' using errcode = 'P0002';
   end if;
@@ -20352,24 +19934,24 @@ begin
     return jsonb_build_object('error', 'not_on_it');
   end if;
   -- What left, or is leaving, stays: Stop writing is the true correction there.
-  if exists (select 1 from public.reach_out_sends s
-              where s.tenant_id = r.tenant_id and s.root_id = r.id and s.lead_id = p_lead_id
-                and s.state in ('claimed', 'queued')) then
+  if exists (select 1 from public.sequence_sends s
+              where s.lead_id is not null and ( s.tenant_id = r.tenant_id and s.sequence_id = r.id and s.lead_id = p_lead_id
+                and s.state in ('claimed', 'queued'))) then
     return jsonb_build_object('error', 'on_its_way');
   end if;
-  if exists (select 1 from public.reach_out_sends s
-              where s.tenant_id = r.tenant_id and s.root_id = r.id and s.lead_id = p_lead_id
-                and s.state in ('sent', 'handed', 'failed')) then
+  if exists (select 1 from public.sequence_sends s
+              where s.lead_id is not null and ( s.tenant_id = r.tenant_id and s.sequence_id = r.id and s.lead_id = p_lead_id
+                and s.state in ('sent', 'handed', 'failed'))) then
     return jsonb_build_object('error', 'sent');
   end if;
   -- Planned, held or drafted (not sent yet) in a run still live: skipped as taken back, which its undo's next run plans
   -- again.
-  update public.reach_out_sends s
+  update public.sequence_sends s
      set state = 'skipped', reason = case when s.state = 'drafted' then 'draft_withdrawn' else 'owner_took_back' end
-    from public.broadcasts b
-   where b.id = s.broadcast_id and b.state in ('pending_approval', 'scheduled', 'sending')
-     and s.tenant_id = r.tenant_id and s.root_id = r.id and s.lead_id = p_lead_id
-     and s.state in ('planned', 'held', 'drafted');
+    from public.sequence_batches b
+   where s.lead_id is not null and ( b.id = s.batch_id and b.state in ('pending_approval', 'scheduled', 'sending')
+     and s.tenant_id = r.tenant_id and s.sequence_id = r.id and s.lead_id = p_lead_id
+     and s.state in ('planned', 'held', 'drafted'));
   get diagnostics v_skipped = row_count;
   update public.lead_search_members set blanked_at = now(), version = version + 1
    where id = m.id
@@ -20441,7 +20023,7 @@ begin
   end if;
   return coalesce((
     select jsonb_object_agg(r.id, c.counts)
-      from public.playbooks r
+      from public.sequence_steps r
      cross join lateral (
        select jsonb_build_object(
                 'waiting', count(*) filter (where p.grp = 'waiting'),
@@ -20468,7 +20050,7 @@ CREATE FUNCTION public.reach_out_people_of(p_tenant_id uuid, p_root_id uuid) RET
     SET search_path TO 'public'
     AS $$
   with root as (
-    select r.lead_search_id, r.include_unconfirmed from public.playbooks r
+    select r.lead_search_id, r.include_unconfirmed from public.sequence_steps r
      where r.id = p_root_id and r.tenant_id = p_tenant_id and r.kind = 'reach_out' and r.trigger = 'lead_first'
   ),
   rl as (
@@ -20599,12 +20181,12 @@ begin
   if p_run->'audience'->>'kind' is distinct from 'reach_out' then
     raise exception 'reach_out_plan_run: a run of a reach-out says so in its audience';
   end if;
-  if not exists (select 1 from public.playbooks where id = v_step and tenant_id = v_tenant and kind = 'reach_out')
-     or not exists (select 1 from public.playbooks where id = v_root and tenant_id = v_tenant and kind = 'reach_out') then
+  if not exists (select 1 from public.sequence_steps where id = v_step and tenant_id = v_tenant and kind = 'reach_out')
+     or not exists (select 1 from public.sequence_steps where id = v_root and tenant_id = v_tenant and kind = 'reach_out') then
     raise exception 'reach_out_plan_run: step % or root % is no reach-out of workspace %', v_step, v_root, v_tenant;
   end if;
   begin
-    insert into public.broadcasts (id, tenant_id, playbook_id, run_for, name, template_id, template_name,
+    insert into public.sequence_batches (id, tenant_id, step_id, run_for, name, template_id, template_name,
                                    template_language, state, scheduled_for, recipient_count, audience)
     values (v_run, v_tenant, v_step, (p_run->>'run_for')::date, p_run->>'name', (p_run->>'template_id')::uuid,
             p_run->>'template_name', p_run->>'template_language', p_run->>'state',
@@ -20612,7 +20194,7 @@ begin
   exception when unique_violation then
     return jsonb_build_object('exists', true);
   end;
-  insert into public.reach_out_sends (id, tenant_id, broadcast_id, playbook_id, root_id, lead_id, contact_id, mailbox_id,
+  insert into public.sequence_sends (id, tenant_id, batch_id, step_id, sequence_id, lead_id, contact_id, mailbox_id,
                                       send_at, state, reason)
   select x.id, v_tenant, v_run, v_step, v_root, x.lead_id, x.contact_id, x.mailbox_id, x.send_at,
          coalesce(x.state, 'planned'), x.reason
@@ -20633,25 +20215,6 @@ end $$;
 --
 
 COMMENT ON FUNCTION public.reach_out_plan_run(p_run jsonb, p_sends jsonb) IS 'A reach-out step''s run and its sends, written whole (core runReachOut): {id}, or {exists} when the step already has its run for the day. A send any unique rule refuses (a replay''s, or a lead another reach-out planned first, 00427) is left out, never the run. Service role only.';
-
-
---
--- Name: reach_out_queued_outcomes(integer, uuid); Type: FUNCTION; Schema: public; Owner: -
---
-
-CREATE FUNCTION public.reach_out_queued_outcomes(p_limit integer, p_tenant_id uuid DEFAULT NULL::uuid) RETURNS TABLE(send jsonb, status text, error jsonb, sent_at text, written_at timestamp with time zone)
-    LANGUAGE sql STABLE SECURITY DEFINER
-    SET search_path TO 'public'
-    AS $$
-  select to_jsonb(s), m.status, m.error, m.meta->'status_at'->>'sent', m.created_at
-    from public.reach_out_sends s
-    left join public.messages m on m.id = s.message_id
-   where s.state = 'queued' and (p_tenant_id is null or s.tenant_id = p_tenant_id)
-   order by (m.id is not null and (m.status = 'queued'
-                                   or (m.status = 'failed' and coalesce(m.error->>'outcome', '') = 'unknown'))),
-            s.updated_at
-   limit greatest(coalesce(p_limit, 0), 0)
-$$;
 
 
 --
@@ -20681,7 +20244,7 @@ begin
     'of', (select count(*) from public.lead_search_members sm
             where sm.tenant_id = p_tenant_id and sm.search_id = p_search_id
               and sm.class = 'qualified' and sm.counted and sm.blanked_at is null),
-    'chain', (select p.id from public.playbooks p
+    'chain', (select p.id from public.sequence_steps p
                where p.tenant_id = p_tenant_id and p.lead_search_id = p_search_id and p.kind = 'reach_out'));
 end $$;
 
@@ -20717,23 +20280,23 @@ CREATE FUNCTION public.reach_out_recheck(p_send_ids uuid[], p_tenant_id uuid DEF
     SET search_path TO 'public'
     AS $$
   with asked as (
-    select s.id, public.reach_out_given_up(s.created_at) as given_up from public.reach_out_sends s
-     where s.id = any (coalesce(p_send_ids, '{}')) and s.state in ('planned', 'held', 'claimed')
+    select s.id, public.reach_out_given_up(s.created_at) as given_up from public.sequence_sends s
+     where s.lead_id is not null and ( s.id = any (coalesce(p_send_ids, '{}')) and s.state in ('planned', 'held', 'claimed')
        and (p_from_state is null or s.state = p_from_state)
-       and (p_tenant_id is null or s.tenant_id = p_tenant_id)
+       and (p_tenant_id is null or s.tenant_id = p_tenant_id))
        for update
   ),
   gave_up as (
-    update public.reach_out_sends s set state = 'skipped', reason = 'kept_waiting'
-      from asked a where a.id = s.id and a.given_up
+    update public.sequence_sends s set state = 'skipped', reason = 'kept_waiting'
+      from asked a where s.lead_id is not null and ( a.id = s.id and a.given_up)
     returning 1
   ),
   done as (
-    update public.reach_out_sends s
+    update public.sequence_sends s
        set state = 'planned', reason = null, claimed_at = null, checked_at = null, check_gen = s.check_gen + 1,
            checked_words = null, check_tries = 0, check_first_at = null, check_after = null, check_started_at = null,
            opening = null, angle = null, facts_used = '{}', hold_detail = null
-      from asked a where a.id = s.id and not a.given_up
+      from asked a where s.lead_id is not null and ( a.id = s.id and not a.given_up)
     returning 1
   )
   select count(*)::int from done
@@ -20804,9 +20367,9 @@ CREATE FUNCTION public.reach_out_release_unavailable(p_before timestamp with tim
     SET search_path TO 'public'
     AS $$
   select public.reach_out_recheck(array(
-    select s.id from public.reach_out_sends s
-     where s.state = 'held' and s.reason = 'check_unavailable' and s.hold_detail is null
-       and s.updated_at < p_before and (p_tenant_id is null or s.tenant_id = p_tenant_id)))
+    select s.id from public.sequence_sends s
+     where s.lead_id is not null and ( s.state = 'held' and s.reason = 'check_unavailable' and s.hold_detail is null
+       and s.updated_at < p_before and (p_tenant_id is null or s.tenant_id = p_tenant_id))))
 $$;
 
 
@@ -20825,29 +20388,29 @@ begin
   if p_tenant_id is null or not public.is_acting_member(p_tenant_id) then
     raise exception 'Workspace not found.' using errcode = 'P0002';
   end if;
-  perform 1 from public.playbooks
+  perform 1 from public.sequence_steps
    where id = p_root_id and tenant_id = p_tenant_id and kind = 'reach_out' and trigger = 'lead_first' for update;
   if not found then raise exception 'Reach-out not found.' using errcode = 'P0002'; end if;
   with recursive c as (
-    select id from public.playbooks where id = p_root_id
+    select id from public.sequence_steps where id = p_root_id
     union all
-    select p.id from public.playbooks p join c on p.after_playbook_id = c.id
+    select p.id from public.sequence_steps p join c on p.after_step_id = c.id
   )
   select array_agg(id) into v_steps from c;
   -- Held against a claim while it is judged: a claim waits, or finds the chain gone.
-  perform 1 from public.reach_out_sends s where s.root_id = p_root_id for update;
-  if exists (select 1 from public.reach_out_sends s
-              where s.root_id = p_root_id
+  perform 1 from public.sequence_sends s where s.lead_id is not null and ( s.sequence_id = p_root_id) for update;
+  if exists (select 1 from public.sequence_sends s
+              where s.lead_id is not null and ( s.sequence_id = p_root_id
                 and (s.state in ('claimed', 'queued', 'sent', 'failed', 'drafted')
-                     or (s.state = 'skipped' and s.drafted_at is not null))) then
+                     or (s.state = 'skipped' and s.drafted_at is not null)))) then
     raise exception 'This reach-out has written already. Pause it instead.' using errcode = '23503';
   end if;
-  update public.broadcasts set state = 'canceled'
+  update public.sequence_batches set state = 'canceled'
    where tenant_id = p_tenant_id and audience->>'kind' = 'reach_out' and audience->>'root_id' = p_root_id::text
      and state in ('pending_approval', 'scheduled', 'sending');
   update public.templates set hidden_at = coalesce(hidden_at, now())
-   where id in (select p.template_id from public.playbooks p where p.id = any (v_steps));
-  delete from public.playbooks where id = p_root_id;
+   where id in (select p.template_id from public.sequence_steps p where p.id = any (v_steps));
+  delete from public.sequence_steps where id = p_root_id;
   return jsonb_build_object('root_id', p_root_id, 'removed', cardinality(v_steps));
 end $$;
 
@@ -20870,7 +20433,7 @@ declare
   v_until    timestamptz := nullif(p_plan->>'awayUntil', '')::timestamptz;
   v_tell     boolean := coalesce((p_plan->>'tell')::boolean, false);
   v_reread   int := coalesce(p_reread, 0);
-  v_row      public.reach_out_replies%rowtype;
+  v_row      public.sequence_replies%rowtype;
   v_lead     uuid;
   v_person   uuid;
   v_changed  jsonb := '{}'::jsonb;
@@ -20924,10 +20487,10 @@ begin
              'contact_id', coalesce(l.contact_id, s.contact_id),
              'claim', 'owner')
       into v_of
-      from public.reach_out_sends s
+      from public.sequence_sends s
       join public.leads l on l.id = s.lead_id and l.tenant_id = s.tenant_id
       join public.messages o on o.id = s.message_id and o.tenant_id = s.tenant_id
-     where s.id = nullif(p_said->>'send_id', '')::uuid and s.tenant_id = p_tenant_id and s.state = 'sent';
+     where s.lead_id is not null and ( s.id = nullif(p_said->>'send_id', '')::uuid and s.tenant_id = p_tenant_id and s.state = 'sent');
   else
     v_of := public.reach_out_reply_of(p_tenant_id, p_message_id, p_days);
   end if;
@@ -20954,7 +20517,7 @@ begin
 
   -- 1. The row: once.
   if v_reread = 0 then
-    insert into public.reach_out_replies (message_id, tenant_id, conversation_id, contact_id, lead_id, lead_contact_id,
+    insert into public.sequence_replies (message_id, tenant_id, conversation_id, contact_id, lead_id, lead_contact_id,
                                           send_id, answered_message_id, claim, intent, summary, named_day, refer_to,
                                           unread, until_at, plan, said_by)
     values (p_message_id, p_tenant_id, (v_of->>'conversation_id')::uuid, (v_of->>'contact_id')::uuid, v_lead, v_person,
@@ -20967,7 +20530,7 @@ begin
     end if;
   else
     -- A re-read, by compare-and-set: still unread, not undone, and at the re-read before this one.
-    select * into v_row from public.reach_out_replies r
+    select * into v_row from public.sequence_replies r
      where r.message_id = p_message_id and r.tenant_id = p_tenant_id
      for update;
     if v_row.message_id is null or v_row.unread is null or v_row.undone_at is not null
@@ -20978,7 +20541,7 @@ begin
     -- reading's words, when the reading before it was owed one the owner was never given (its mail failed). An owed
     -- notice keeps its claim: a run still telling it marks it told, and this stage then has nothing to tell.
     v_owed := coalesce((v_row.plan->>'tell')::boolean, false) and v_row.told_at is null;
-    update public.reach_out_replies r
+    update public.sequence_replies r
        set intent = v_intent, summary = left(v_summary, 160), named_day = v_day, refer_to = left(v_refer, 120),
            unread = v_unread, until_at = v_until, plan = coalesce(p_plan, '{}'::jsonb),
            rereads = v_reread, reread_at = now(),
@@ -21010,7 +20573,7 @@ begin
   -- (automatic naming, switched off until its evals pass). Only a first reading or a re-read that finally read the reply
   -- has one.
   if v_signer is not null and v_row.signer_name is null then
-    update public.reach_out_replies
+    update public.sequence_replies
        set signer_name = v_signer, signer_title = v_title, signer_state = 'offered',
            signer_was = (select case when c.display_name is null then 'none' else c.name_source end
                            from public.contacts c where c.id = v_writer)
@@ -21025,12 +20588,12 @@ begin
   -- (wrote back), so none waits for an owner.
   if p_plan->>'skipSends' = 'outreach_wrote_back' then
     with skipped as (
-      update public.reach_out_sends s
+      update public.sequence_sends s
          set state = 'skipped', reason = 'outreach_wrote_back'
-        from public.broadcasts b
-       where b.id = s.broadcast_id and b.tenant_id = s.tenant_id
+        from public.sequence_batches b
+       where s.lead_id is not null and ( b.id = s.batch_id and b.tenant_id = s.tenant_id
          and b.state in ('pending_approval', 'scheduled', 'sending')
-         and s.tenant_id = p_tenant_id and s.lead_id = v_lead and s.state in ('planned', 'held', 'drafted')
+         and s.tenant_id = p_tenant_id and s.lead_id = v_lead and s.state in ('planned', 'held', 'drafted'))
       returning 1
     )
     select count(*)::int into v_skipped from skipped;
@@ -21112,7 +20675,7 @@ begin
     v_changed := v_changed || jsonb_build_object('step', coalesce(v_step->'note'->>'id', v_step->>'error'));
   end if;
 
-  update public.reach_out_replies
+  update public.sequence_replies
      set plan = coalesce(p_plan, '{}'::jsonb) || jsonb_build_object('tell', v_tell, 'changed', v_changed)
    where message_id = p_message_id;
 
@@ -21146,7 +20709,7 @@ begin
   if p_state is null or p_state not in ('waiting', 'written', 'not_written') then
     raise exception 'a draft is waiting, written or not written' using errcode = '22023';
   end if;
-  update public.reach_out_replies
+  update public.sequence_replies
      set draft_state = p_state,
          draft = case when p_state = 'written' then left(p_draft, 4000) else draft end,
          draft_why = case when p_state = 'not_written' then left(p_why, 60) else draft_why end
@@ -21185,7 +20748,7 @@ CREATE FUNCTION public.reach_out_reply_of(p_tenant_id uuid, p_message_id uuid, p
        join public.messages o
          on o.tenant_id = p_tenant_id and o.channel = 'email' and o.direction = 'outbound'
         and o.meta->'email'->>'message_id' = any (cited.ids)
-       join public.reach_out_sends s on s.message_id = o.id and s.tenant_id = o.tenant_id
+       join public.sequence_sends s on s.lead_id is not null and ( s.message_id = o.id and s.tenant_id = o.tenant_id)
       where s.state = 'sent'
         and s.sent_at >= m.created_at - make_interval(days => greatest(coalesce(p_days, 0), 0))
       order by s.sent_at desc
@@ -21195,8 +20758,8 @@ CREATE FUNCTION public.reach_out_reply_of(p_tenant_id uuid, p_message_id uuid, p
     -- (reach_out_sends_contact)...
     (select s.id, 2 as how, s.sent_at
        from m
-       join public.reach_out_sends s
-         on s.tenant_id = p_tenant_id and s.contact_id = m.thread_contact and s.state = 'sent'
+       join public.sequence_sends s
+         on s.lead_id is not null and ( s.tenant_id = p_tenant_id and s.contact_id = m.thread_contact and s.state = 'sent')
       where s.sent_at >= m.created_at - make_interval(days => greatest(coalesce(p_days, 0), 0))
         and s.sent_at <= m.created_at
       order by s.sent_at desc
@@ -21206,7 +20769,7 @@ CREATE FUNCTION public.reach_out_reply_of(p_tenant_id uuid, p_message_id uuid, p
     (select s.id, 3 as how, s.sent_at
        from m
        join public.leads l on l.tenant_id = p_tenant_id and l.contact_id = m.thread_contact
-       join public.reach_out_sends s on s.tenant_id = l.tenant_id and s.lead_id = l.id and s.state = 'sent'
+       join public.sequence_sends s on s.lead_id is not null and ( s.tenant_id = l.tenant_id and s.lead_id = l.id and s.state = 'sent')
       where s.sent_at >= m.created_at - make_interval(days => greatest(coalesce(p_days, 0), 0))
         and s.sent_at <= m.created_at
       order by s.sent_at desc
@@ -21223,8 +20786,8 @@ CREATE FUNCTION public.reach_out_reply_of(p_tenant_id uuid, p_message_id uuid, p
     'lead_email', lower(btrim(l.email)),
     'lead_website', l.website_host,
     'lead_website_root', l.website_root,
-    'root_id', s.root_id,
-    'playbook_id', s.playbook_id,
+    'root_id', s.sequence_id,
+    'playbook_id', s.step_id,
     'answered_message_id', s.message_id,
     'answered_text', left(o.body, 600),
     -- The address the email went to, read off its frozen request as the consent door reads it.
@@ -21250,10 +20813,10 @@ CREATE FUNCTION public.reach_out_reply_of(p_tenant_id uuid, p_message_id uuid, p
     'text', m.body,
     'received_at', m.received_at)
     from one
-    join public.reach_out_sends s on s.id = one.id
+    join public.sequence_sends s on s.lead_id is not null and ( s.id = one.id)
     join public.leads l on l.id = s.lead_id and l.tenant_id = s.tenant_id
     left join public.messages o on o.id = s.message_id and o.tenant_id = s.tenant_id
-    left join public.playbooks root on root.id = s.root_id
+    left join public.sequence_steps root on root.id = s.sequence_id
     left join public.tenants t on t.id = s.tenant_id
     cross join m
 $$;
@@ -21297,16 +20860,16 @@ begin
     raise exception 'Lead not found.' using errcode = 'P0002';
   end if;
   select s.id, m.conversation_id, coalesce(s.contact_id, m.contact_id) into v_send, v_conv, v_contact
-    from public.reach_out_sends s
+    from public.sequence_sends s
     join public.messages m on m.id = s.message_id and m.tenant_id = s.tenant_id
-   where s.tenant_id = p_tenant_id and s.lead_id = p_lead_id and s.state = 'sent'
+   where s.lead_id is not null and ( s.tenant_id = p_tenant_id and s.lead_id = p_lead_id and s.state = 'sent')
    order by s.sent_at desc
    limit 1
    for update of s;
   if v_send is null then
     raise exception 'Nothing has been sent to them yet.' using errcode = '22023';
   end if;
-  if exists (select 1 from public.reach_out_replies r
+  if exists (select 1 from public.sequence_replies r
               where r.tenant_id = p_tenant_id and r.send_id = v_send and r.undone_at is null
                 and r.claim <> 'auto_reply') then
     return jsonb_build_object('applied', false, 'already', true, 'send_id', v_send);
@@ -21340,7 +20903,7 @@ CREATE FUNCTION public.reach_out_reply_tell_claim(p_tenant_id uuid, p_message_id
 declare
   v_at timestamptz;
 begin
-  update public.reach_out_replies
+  update public.sequence_replies
      set tell_claimed_at = clock_timestamp()
    where message_id = p_message_id and tenant_id = p_tenant_id and told_at is null
      and (tell_claimed_at is null or tell_claimed_at < p_stale_before)
@@ -21358,7 +20921,7 @@ CREATE FUNCTION public.reach_out_reply_told(p_tenant_id uuid, p_message_id uuid,
     SET search_path TO 'public'
     AS $$
 begin
-  update public.reach_out_replies set told_at = now()
+  update public.sequence_replies set told_at = now()
    where message_id = p_message_id and tenant_id = p_tenant_id and told_at is null
      and tell_claimed_at = p_claimed_at;
   return found;
@@ -21376,7 +20939,7 @@ CREATE FUNCTION public.reach_out_reply_undo(p_message_id uuid) RETURNS jsonb
 declare
   v_user     uuid := auth.uid();
   v_why      text;
-  v_row      public.reach_out_replies%rowtype;
+  v_row      public.sequence_replies%rowtype;
   v_others   int;
   v_res      jsonb;
   v_no       jsonb;
@@ -21405,18 +20968,18 @@ begin
     if v_why = 'moved' then raise exception 'They unsubscribed since, and that stays.' using errcode = '22023'; end if;
     if v_why is not null then raise exception 'That reply cannot be undone.' using errcode = '22023'; end if;
     exit when v_pass = 2;
-    select * into v_row from public.reach_out_replies where message_id = p_message_id;
+    select * into v_row from public.sequence_replies where message_id = p_message_id;
     perform 1 from public.contacts where id = v_row.lead_contact_id and tenant_id = v_row.tenant_id for update;
-    perform 1 from public.reach_out_replies where message_id = p_message_id for update;
+    perform 1 from public.sequence_replies where message_id = p_message_id for update;
   end loop;
 
-  update public.reach_out_replies
+  update public.sequence_replies
      set undone_at = now(), undone_by = v_user
    where message_id = p_message_id and undone_at is null
   returning * into v_row;
 
   -- Another no from the same person still holds their answer, their leads and their rows on the never-again list.
-  select count(*) into v_others from public.reach_out_replies o
+  select count(*) into v_others from public.sequence_replies o
    where o.tenant_id = v_row.tenant_id and o.lead_contact_id = v_row.lead_contact_id
      and o.intent = 'no' and o.undone_at is null;
 
@@ -21427,7 +20990,7 @@ begin
     -- theirs that changed their answer recorded both (consent_was, consent_named). The consent door holds it to the
     -- answer its own event kept, and refuses any other.
     select o.plan->'changed' into v_no
-      from public.reach_out_replies o
+      from public.sequence_replies o
      where o.tenant_id = v_row.tenant_id and o.lead_contact_id = v_row.lead_contact_id
        and o.intent = 'no' and o.undone_at is not null
        and coalesce((o.plan->'changed'->>'consent_changed')::boolean, false)
@@ -21448,13 +21011,13 @@ begin
     -- second lead's no keeps the domain), no person holding that address who unsubscribed or complained, no erased
     -- person who held it.
     for v_row_s in
-      select distinct x from public.reach_out_replies o
+      select distinct x from public.sequence_replies o
        cross join lateral jsonb_array_elements(coalesce(o.plan->'changed'->'holds', '[]'::jsonb)) x
        where o.tenant_id = v_row.tenant_id and o.lead_contact_id = v_row.lead_contact_id
          and o.intent = 'no' and o.undone_at is not null
     loop
       if not exists (
-           select 1 from public.reach_out_replies a
+           select 1 from public.sequence_replies a
             where a.tenant_id = v_row.tenant_id and a.intent = 'no'
               and coalesce(a.plan->'changed'->'suppressions', '[]'::jsonb) @> jsonb_build_array(v_row_s)) then
         continue;
@@ -21465,7 +21028,7 @@ begin
        where tenant_id = v_row.tenant_id and kind = v_row_s->>'kind' and hash = v_row_s->>'hash'
        for update;
       if exists (
-           select 1 from public.reach_out_replies o
+           select 1 from public.sequence_replies o
             where o.tenant_id = v_row.tenant_id and o.intent = 'no' and o.undone_at is null
               and coalesce(o.plan->'changed'->'holds', '[]'::jsonb) @> jsonb_build_array(v_row_s))
          or (v_row_s->>'kind' = 'email' and exists (
@@ -21489,7 +21052,7 @@ begin
     -- Every lead one of this person's noes closed, back to its stage before, at the version the no left it.
     for v_lead in
       select distinct on ((x->>'id')::uuid) (x->>'id')::uuid as id, x->>'stage' as stage, (x->>'version')::int as version
-        from public.reach_out_replies o
+        from public.sequence_replies o
        cross join lateral jsonb_array_elements(coalesce(o.plan->'changed'->'leads', '[]'::jsonb)) x
        where o.tenant_id = v_row.tenant_id and o.lead_contact_id = v_row.lead_contact_id
          and o.intent = 'no' and o.undone_at is not null
@@ -21553,7 +21116,7 @@ CREATE FUNCTION public.reach_out_reply_undoable(p_message_id uuid) RETURNS text
     else null
   end
     from (select p_message_id as id) asked
-    left join public.reach_out_replies r on r.message_id = asked.id
+    left join public.sequence_replies r on r.message_id = asked.id
     left join public.contacts c on c.id = r.lead_contact_id and c.tenant_id = r.tenant_id
     left join public.leads l on l.id = r.lead_id and l.tenant_id = r.tenant_id
 $$;
@@ -21607,24 +21170,24 @@ begin
     -- window's `sent` and the period before), so not materialized (00404): each read takes the rows it needs, and the
     -- tenant's whole history of emails is never held for the second.
     with left_ as not materialized (
-      select s.id, s.root_id, s.playbook_id, s.lead_id, s.contact_id, s.mailbox_id,
+      select s.id, s.sequence_id as root_id, s.step_id as playbook_id, s.lead_id, s.contact_id, s.mailbox_id,
              -- Sent from its owner's own inbox, on their word (00429): from no mailbox, as an email from before 00424 is.
              s.said_at is not null as yours,
              coalesce(s.sent_at, public.email_sent_at(m.meta, m.status_updated_at, m.created_at)) as sent_at,
              lower(nullif(btrim(s.angle), '')) as angle, m.status, m.error, m.meta
-        from public.reach_out_sends s
+        from public.sequence_sends s
         left join public.messages m on m.id = s.message_id and m.tenant_id = s.tenant_id
-       where s.tenant_id = p_tenant_id
-         and (s.state = 'sent' or (s.state = 'failed' and public.email_left(m.status, m.error)))
+       where s.lead_id is not null and ( s.tenant_id = p_tenant_id
+         and (s.state = 'sent' or (s.state = 'failed' and public.email_left(m.status, m.error))))
     ),
     sent as (
       select * from left_ x where x.sent_at >= v_since and x.sent_at < v_stop
     ),
     handed as (
-      select s.root_id, s.playbook_id, count(*) as n
-        from public.reach_out_sends s
-       where s.tenant_id = p_tenant_id and s.state = 'handed' and s.sent_at >= v_since and s.sent_at < v_stop
-       group by s.root_id, s.playbook_id
+      select s.sequence_id as root_id, s.step_id as playbook_id, count(*) as n
+        from public.sequence_sends s
+       where s.lead_id is not null and ( s.tenant_id = p_tenant_id and s.state = 'handed' and s.sent_at >= v_since and s.sent_at < v_stop)
+       group by s.sequence_id, s.step_id
     ),
     last_sent as (
       select distinct on (x.root_id, x.lead_id) x.root_id, x.playbook_id, x.lead_id, x.contact_id, x.angle,
@@ -21643,7 +21206,7 @@ begin
     answers as (
       select ls.root_id, ls.playbook_id, ls.lead_id, ls.angle,
              coalesce(ls.contact_id in (select contact_id from wrote), false) as wrote_back,
-             exists (select 1 from public.reach_out_replies r
+             exists (select 1 from public.sequence_replies r
                       where r.tenant_id = p_tenant_id and r.lead_id = ls.lead_id and r.undone_at is null
                         and r.claim <> 'auto_reply' and r.intent in ('interested', 'question')) as interested,
              ls.booked_at is not null as booked,
@@ -21677,7 +21240,7 @@ begin
       'today', v_today,
       'end', v_end,
       'since', v_end - (p_days - 1),
-      'has_reach_out', exists (select 1 from public.playbooks p
+      'has_reach_out', exists (select 1 from public.sequence_steps p
                                where p.tenant_id = p_tenant_id and p.kind = 'reach_out' and p.trigger = 'lead_first'),
       'totals', jsonb_build_object(
         'written', (select count(*) from sent),
@@ -21714,15 +21277,15 @@ begin
                      'search', (select jsonb_build_object('id', q.id, 'name', q.name)
                                   from public.lead_searches q where q.id = r.lead_search_id),
                      'last_at', (select max(x.sent_at) from sent x where x.root_id = r.id),
-                     'runs', (select count(*) from public.broadcasts b
+                     'runs', (select count(*) from public.sequence_batches b
                                where b.tenant_id = p_tenant_id and b.audience->>'kind' = 'reach_out'
                                  and b.audience->>'root_id' = r.id::text and b.run_for >= v_end - (p_days - 1)
                                  and b.run_for <= v_end),
                      'steps', (
                        with recursive c as (
-                         select p.id, 0 as n from public.playbooks p where p.id = r.id
+                         select p.id, 0 as n from public.sequence_steps p where p.id = r.id
                          union all
-                         select p.id, c.n + 1 from public.playbooks p join c on p.after_playbook_id = c.id
+                         select p.id, c.n + 1 from public.sequence_steps p join c on p.after_step_id = c.id
                        )
                        select coalesce(jsonb_agg(jsonb_build_object(
                          'id', c.id,
@@ -21741,8 +21304,8 @@ begin
                          'said_no', (select count(*) from answers a where a.playbook_id = c.id and a.said_no),
                          'handed', coalesce((select h.n from handed h where h.playbook_id = c.id), 0))
                          order by c.n), '[]'::jsonb)
-                         from c join public.playbooks p on p.id = c.id)) as body
-              from public.playbooks r
+                         from c join public.sequence_steps p on p.id = c.id)) as body
+              from public.sequence_steps r
              where r.tenant_id = p_tenant_id and r.kind = 'reach_out' and r.trigger = 'lead_first'
                and (exists (select 1 from sent x where x.root_id = r.id)
                     or exists (select 1 from handed h where h.root_id = r.id))
@@ -21794,12 +21357,12 @@ CREATE FUNCTION public.reach_out_root_lines(p_tenant_id uuid, p_root_id uuid) RE
                   then public.email_sent_at(m.meta, m.status_updated_at, m.created_at) end as left_at,
            coalesce(m.status = 'failed' and m.error->>'provider' = 'bounced', false) as bounced,
            b.state in ('pending_approval', 'scheduled', 'sending') as live
-      from public.reach_out_sends s
-      join public.broadcasts b on b.id = s.broadcast_id
+      from public.sequence_sends s
+      join public.sequence_batches b on b.id = s.batch_id
       left join public.messages m on m.id = s.message_id
-     where s.tenant_id = p_tenant_id and s.root_id = p_root_id
+     where s.lead_id is not null and ( s.tenant_id = p_tenant_id and s.sequence_id = p_root_id
        -- A send of a run its owner skipped, or one taken back, never happened as far as the lead's line is concerned.
-       and not (s.state = 'skipped' and s.reason in ('run_canceled', 'owner_took_back'))
+       and not (s.state = 'skipped' and s.reason in ('run_canceled', 'owner_took_back')))
   ),
   per as (
     select x.lead_id,
@@ -21823,7 +21386,7 @@ CREATE FUNCTION public.reach_out_root_lines(p_tenant_id uuid, p_root_id uuid) RE
     union all
     -- A list-fed reach-out's leads not written yet: on its list, with when each was added (00426).
     select m.lead_id, 0, null, null, null, false, false, 0, false, null, null, m.created_at
-      from public.playbooks r
+      from public.sequence_steps r
       join public.lead_searches q on q.id = r.lead_search_id and q.via in ('chosen', 'import') and q.removed_at is null
       join public.lead_search_members m on m.search_id = q.id and m.blanked_at is null and m.class = 'qualified' and m.counted
      where r.id = p_root_id and r.tenant_id = p_tenant_id
@@ -21835,11 +21398,11 @@ CREATE FUNCTION public.reach_out_root_lines(p_tenant_id uuid, p_root_id uuid) RE
            (select min(coalesce(d.decided_at, d.updated_at)) from public.deals d
              where d.tenant_id = p_tenant_id and d.lead_id = x.lead_id and d.stage = 'won') as won_at,
            (select jsonb_build_object('intent', r.intent, 'claim', r.claim, 'read_at', r.read_at, 'undone', r.undone_at is not null)
-              from public.reach_out_replies r
+              from public.sequence_replies r
              where r.tenant_id = p_tenant_id and r.lead_id = x.lead_id
              order by r.read_at desc
              limit 1) as reply,
-           (select max(r.until_at) from public.reach_out_replies r
+           (select max(r.until_at) from public.sequence_replies r
              where r.tenant_id = p_tenant_id and r.lead_id = x.lead_id and r.intent = 'away'
                and r.claim = 'auto_reply' and r.until_at > now() and r.undone_at is null) as away_until
       from per_lead x
@@ -21899,7 +21462,7 @@ declare
   v_state  text;
 begin
   if auth.uid() is null then raise exception 'Sign in required.' using errcode = '28000'; end if;
-  select tenant_id, state into v_tenant, v_state from public.broadcasts
+  select tenant_id, state into v_tenant, v_state from public.sequence_batches
    where id = p_broadcast_id and audience->>'kind' = 'reach_out';
   if not found or not public.is_acting_member(v_tenant) then
     raise exception 'Run not found.' using errcode = 'P0002';
@@ -21908,9 +21471,9 @@ begin
     raise exception 'That run is over.' using errcode = '22023';
   end if;
   return jsonb_build_object('broadcast_id', p_broadcast_id, 'rechecked', public.reach_out_recheck(array(
-    select s.id from public.reach_out_sends s
-     where s.broadcast_id = p_broadcast_id and s.state = 'held' and s.reason = 'check_unavailable'
-       and s.hold_detail is null), v_tenant));
+    select s.id from public.sequence_sends s
+     where s.lead_id is not null and ( s.batch_id = p_broadcast_id and s.state = 'held' and s.reason = 'check_unavailable'
+       and s.hold_detail is null)), v_tenant));
 end $$;
 
 
@@ -21976,15 +21539,15 @@ begin
       raise exception 'Search not found.' using errcode = 'P0002';
     end if;
   else
-    select lead_search_id, signed_by into v_search, v_signed_was from public.playbooks
+    select lead_search_id, signed_by into v_search, v_signed_was from public.sequence_steps
      where id = v_root and tenant_id = p_tenant_id and kind = 'reach_out' and trigger = 'lead_first'
        for update;
     if not found then raise exception 'Reach-out not found.' using errcode = 'P0002'; end if;
     -- The chain as it stands, root first.
     with recursive c as (
-      select id, 0 as n from public.playbooks where id = v_root
+      select id, 0 as n from public.sequence_steps where id = v_root
       union all
-      select p.id, c.n + 1 from public.playbooks p join c on p.after_playbook_id = c.id
+      select p.id, c.n + 1 from public.sequence_steps p join c on p.after_step_id = c.id
     )
     select array_agg(id order by n) into v_existing from c;
   end if;
@@ -22005,21 +21568,21 @@ begin
   if coalesce(cardinality(v_existing), 0) > v_n then
     v_dropped := v_existing[v_n + 1:];
     -- Held against a claim while it is judged: a claim waits, or finds them skipped.
-    perform 1 from public.reach_out_sends s where s.playbook_id = any (v_dropped) for update;
-    if exists (select 1 from public.reach_out_sends s
-                where s.playbook_id = any (v_dropped) and s.state in ('claimed', 'queued', 'sent', 'failed', 'handed')) then
+    perform 1 from public.sequence_sends s where s.lead_id is not null and ( s.step_id = any (v_dropped)) for update;
+    if exists (select 1 from public.sequence_sends s
+                where s.lead_id is not null and ( s.step_id = any (v_dropped) and s.state in ('claimed', 'queued', 'sent', 'failed', 'handed'))) then
       raise exception 'That step has written already. Pause the reach-out instead.' using errcode = '23503';
     end if;
-    update public.broadcasts set state = 'canceled'
-     where tenant_id = p_tenant_id and playbook_id = any (v_dropped)
+    update public.sequence_batches set state = 'canceled'
+     where tenant_id = p_tenant_id and step_id = any (v_dropped)
        and state in ('pending_approval', 'scheduled', 'sending');
-    update public.reach_out_sends set state = 'skipped', reason = 'step_removed'
-     where playbook_id = any (v_dropped) and state in ('planned', 'held', 'drafted');
+    update public.sequence_sends set state = 'skipped', reason = 'step_removed'
+     where sequence_sends.lead_id is not null and ( step_id = any (v_dropped) and state in ('planned', 'held', 'drafted'));
     -- Their words stay on file (a run of theirs names them: broadcasts.template_id), hidden from Templates.
     update public.templates set hidden_at = coalesce(hidden_at, now())
-     where id in (select p.template_id from public.playbooks p where p.id = any (v_dropped));
-    -- The first step dropped takes the ones after it (after_playbook_id cascades).
-    delete from public.playbooks where id = v_dropped[1];
+     where id in (select p.template_id from public.sequence_steps p where p.id = any (v_dropped));
+    -- The first step dropped takes the ones after it (after_step_id cascades).
+    delete from public.sequence_steps where id = v_dropped[1];
   end if;
 
   for v_i in 0 .. v_n - 1 loop
@@ -22048,7 +21611,7 @@ begin
                 left(left(v_name, 60 - char_length(v_label) - 3) || ' · ' || v_label, 60), p_user_id)
         returning id into v_template;
       end if;
-      insert into public.playbooks (id, tenant_id, kind, name, trigger, policy_class, lead_search_id, after_playbook_id,
+      insert into public.sequence_steps (id, tenant_id, kind, name, trigger, policy_class, lead_search_id, after_step_id,
                                     after_days, gap_minutes, mailbox_ids, owner_sends, signed_by, include_unconfirmed,
                                     template_id, template_name, template_language, hand, params, run_hour, cap_per_run,
                                     state, created_by)
@@ -22063,10 +21626,10 @@ begin
               case when v_hand is null then 'en' end,
               v_hand, '[]'::jsonb, 9, 200, 'running', p_user_id);
     else
-      select template_id, hand into v_template, v_was_hand from public.playbooks where id = v_id;
+      select template_id, hand into v_template, v_was_hand from public.sequence_steps where id = v_id;
       -- A step keeps what it is once it has run: an email that wrote, or a hand that handed, is itself for good.
       if (v_was_hand is null) <> (v_hand is null) then
-        if exists (select 1 from public.reach_out_sends s where s.playbook_id = v_id) then
+        if exists (select 1 from public.sequence_sends s where s.lead_id is not null and ( s.step_id = v_id)) then
           raise exception 'That step has run already. Add a new step instead.' using errcode = '23503';
         end if;
         if v_hand is null then
@@ -22076,19 +21639,19 @@ begin
                   'approved', v_parts, left(v_body, 1024),
                   left(left(v_name, 60 - char_length(v_label) - 3) || ' · ' || v_label, 60), p_user_id)
           returning id into v_template;
-          update public.playbooks
+          update public.sequence_steps
              set hand = null, template_id = v_template, template_name = 'reach_out_' || replace(v_id::text, '-', ''),
                  template_language = 'en'
            where id = v_id;
         else
           update public.templates set hidden_at = coalesce(hidden_at, now()) where id = v_template;
-          update public.playbooks
+          update public.sequence_steps
              set template_id = null, template_name = null, template_language = null, hand = v_hand
            where id = v_id;
           v_template := null;
         end if;
       elsif v_hand is not null then
-        update public.playbooks set hand = v_hand where id = v_id and hand is distinct from v_hand;
+        update public.sequence_steps set hand = v_hand where id = v_id and hand is distinct from v_hand;
       -- New words: what is planned or held for this step is checked again against them (R5).
       elsif (select components from public.templates where id = v_template) is distinct from v_parts then
         update public.templates set components = v_parts, body_preview = left(v_body, 1024) where id = v_template;
@@ -22100,7 +21663,7 @@ begin
          where id = v_template
            and title is distinct from left(left(v_name, 60 - char_length(v_label) - 3) || ' · ' || v_label, 60);
       end if;
-      update public.playbooks
+      update public.sequence_steps
          set name = case when v_i = 0 then v_name else left(v_name, 80 - char_length(v_label) - 3) || ' · ' || v_label end,
              gap_minutes = v_gap, mailbox_ids = v_mailboxes, domain_ids = '{}',
              owner_sends = v_i = 0 and v_owner,
@@ -22117,8 +21680,8 @@ begin
   if v_root is not null and v_signed is distinct from v_signed_was then v_changed := v_ids; end if;
   if cardinality(v_changed) > 0 then
     v_reset := public.reach_out_recheck(array(
-      select s.id from public.reach_out_sends s
-       where s.tenant_id = p_tenant_id and s.playbook_id = any (v_changed) and s.state in ('planned', 'held')),
+      select s.id from public.sequence_sends s
+       where s.lead_id is not null and ( s.tenant_id = p_tenant_id and s.step_id = any (v_changed) and s.state in ('planned', 'held'))),
       p_tenant_id);
   end if;
 
@@ -22183,7 +21746,7 @@ CREATE FUNCTION public.reach_out_search_lines(p_tenant_id uuid, p_search_id uuid
     SET search_path TO 'public'
     AS $$
 declare
-  v_root     public.playbooks%rowtype;
+  v_root     public.sequence_steps%rowtype;
   v_via      text;
   v_tz       text;
   v_midnight timestamptz;
@@ -22193,7 +21756,7 @@ begin
           and (m.role <> 'partner' or public.session_shows_second_factor())) then
     raise exception 'Workspace not found.' using errcode = 'P0002';
   end if;
-  select * into v_root from public.playbooks p
+  select * into v_root from public.sequence_steps p
    where p.tenant_id = p_tenant_id and p.kind = 'reach_out' and p.trigger = 'lead_first'
      and p.lead_search_id = p_search_id
    order by p.created_at desc
@@ -22212,10 +21775,10 @@ begin
                   when s.state = 'failed' and public.email_left(m.status, m.error)
                     then public.email_sent_at(m.meta, m.status_updated_at, m.created_at) end as left_at,
              b.state in ('pending_approval', 'scheduled', 'sending') as live
-        from public.reach_out_sends s
-        join public.broadcasts b on b.id = s.broadcast_id
+        from public.sequence_sends s
+        join public.sequence_batches b on b.id = s.batch_id
         left join public.messages m on m.id = s.message_id
-       where s.tenant_id = p_tenant_id and s.root_id = v_root.id
+       where s.lead_id is not null and ( s.tenant_id = p_tenant_id and s.sequence_id = v_root.id)
     ),
     rl as (
       select * from public.reach_out_root_lines(p_tenant_id, v_root.id)
@@ -22235,7 +21798,7 @@ begin
                 limit 1),
       'held', (select count(*) from sends where state = 'held' and live),
       'to_send', (select count(*) from sends where state = 'drafted' and live),
-      'waiting_run_id', (select b.id from public.broadcasts b
+      'waiting_run_id', (select b.id from public.sequence_batches b
                           where b.tenant_id = p_tenant_id and b.audience->>'kind' = 'reach_out'
                             and b.audience->>'root_id' = v_root.id::text and b.state = 'pending_approval'
                           order by b.created_at desc
@@ -22264,15 +21827,15 @@ CREATE FUNCTION public.reach_out_send_decide(p_send_id uuid, p_decision text) RE
     SET search_path TO 'public'
     AS $$
 declare
-  v_send public.reach_out_sends%rowtype;
+  v_send public.sequence_sends%rowtype;
   v_run  text;
 begin
   if auth.uid() is null then raise exception 'Sign in required.' using errcode = '28000'; end if;
-  select * into v_send from public.reach_out_sends where id = p_send_id for update;
+  select * into v_send from public.sequence_sends where sequence_sends.lead_id is not null and ( id = p_send_id) for update;
   if not found or not public.is_acting_member(v_send.tenant_id) then
     raise exception 'Email not found.' using errcode = 'P0002';
   end if;
-  select state into v_run from public.broadcasts where id = v_send.broadcast_id;
+  select state into v_run from public.sequence_batches where id = v_send.batch_id;
   if v_run is null or v_run not in ('pending_approval', 'scheduled', 'sending') then
     raise exception 'That run is over.' using errcode = '22023';
   end if;
@@ -22287,21 +21850,21 @@ begin
       if public.reach_out_given_up(v_send.created_at) then
         raise exception 'This email waited two weeks for your answer and was given up.' using errcode = '22023';
       end if;
-      update public.reach_out_sends
+      update public.sequence_sends
          set state = 'planned', reason = null, hold_detail = null,
              included_for = array(select distinct x from unnest(included_for || v_send.reason) x order by x)
-       where id = p_send_id;
+       where sequence_sends.lead_id is not null and ( id = p_send_id);
     when 'rewrite' then
       if public.reach_out_given_up(v_send.created_at) then
         raise exception 'This email waited two weeks for your answer and was given up.' using errcode = '22023';
       end if;
       perform public.reach_out_recheck(array[p_send_id], v_send.tenant_id);
     when 'skip' then
-      update public.reach_out_sends set state = 'skipped', reason = 'owner_skipped' where id = p_send_id;
+      update public.sequence_sends set state = 'skipped', reason = 'owner_skipped' where sequence_sends.lead_id is not null and ( id = p_send_id);
     when 'not_a_fit' then
       perform public.lead_set_stage(v_send.lead_id, 'archived', 'not_a_fit',
                                     case when v_send.reason = 'chain' then 'chain' else 'other' end);
-      update public.reach_out_sends set state = 'skipped', reason = 'not_a_fit' where id = p_send_id;
+      update public.sequence_sends set state = 'skipped', reason = 'not_a_fit' where sequence_sends.lead_id is not null and ( id = p_send_id);
     else
       raise exception 'Include, rewrite, skip or not a fit.' using errcode = '22023';
   end case;
@@ -22322,7 +21885,7 @@ declare
   v_at      timestamptz := now();
   v_tenant  uuid;
   v_lead_id uuid;
-  v_send    public.reach_out_sends%rowtype;
+  v_send    public.sequence_sends%rowtype;
   v_lead    public.leads%rowtype;
   v_to      text;
   v_since   text;
@@ -22339,12 +21902,12 @@ begin
     raise exception 'Sent, or not sent.' using errcode = '22023';
   end if;
   -- Whose it is first, and only then the locks: the lead, then the send.
-  select s.tenant_id, s.lead_id into v_tenant, v_lead_id from public.reach_out_sends s where s.id = p_send_id;
+  select s.tenant_id, s.lead_id into v_tenant, v_lead_id from public.sequence_sends s where s.lead_id is not null and ( s.id = p_send_id);
   if v_tenant is null or not public.is_acting_member(v_tenant) then
     raise exception 'Email not found.' using errcode = 'P0002';
   end if;
   select * into v_lead from public.leads where id = v_lead_id and tenant_id = v_tenant for update;
-  select * into v_send from public.reach_out_sends where id = p_send_id for update;
+  select * into v_send from public.sequence_sends where sequence_sends.lead_id is not null and ( id = p_send_id) for update;
   -- What its owner may still say: either word on a draft waiting, and Sent on one skipped since it was handed over
   -- that nobody has said went or did not.
   if not (v_send.state = 'drafted'
@@ -22354,9 +21917,9 @@ begin
   end if;
 
   if p_outcome = 'not_sent' then
-    update public.reach_out_sends
+    update public.sequence_sends
        set state = 'skipped', reason = v_why, said_at = v_at, said_by = v_user
-     where id = p_send_id;
+     where sequence_sends.lead_id is not null and ( id = p_send_id);
     return jsonb_build_object('said', true, 'state', 'skipped', 'reason', v_why);
   end if;
 
@@ -22409,17 +21972,17 @@ begin
                        || case when nullif(v_send.draft->>'parent_id', '') is not null
                                then jsonb_build_object('parent_id', v_send.draft->>'parent_id') else '{}'::jsonb end,
               'reach_out', jsonb_build_object('send_id', v_send.id, 'lead_id', v_send.lead_id, 'contact_id', v_contact,
-                                              'playbook_id', v_send.playbook_id, 'root_id', v_send.root_id,
-                                              'broadcast_id', v_send.broadcast_id, 'attempt', v_send.attempts)
+                                              'playbook_id', v_send.step_id, 'root_id', v_send.sequence_id,
+                                              'broadcast_id', v_send.batch_id, 'attempt', v_send.attempts)
                            || case when v_since is not null then jsonb_build_object('since', v_since)
                                    else '{}'::jsonb end));
   end if;
 
   -- Sent, with its email when there is one to keep; a skip's reason no longer says what it is.
-  update public.reach_out_sends
+  update public.sequence_sends
      set state = 'sent', sent_at = v_at, message_id = v_msg, contact_id = coalesce(v_contact, contact_id),
          reason = null, said_at = v_at, said_by = v_user
-   where id = p_send_id;
+   where sequence_sends.lead_id is not null and ( id = p_send_id);
 
   update public.leads
      set stage = case when stage = 'ready' then 'nurture' else stage end,
@@ -22474,7 +22037,7 @@ begin
                  'with_unconfirmed', (select count(*) from public.reach_out_audience(p_tenant_id, s.id, 5000, true))) as src
           from public.lead_searches s
          where s.tenant_id = p_tenant_id and s.removed_at is null
-           and not exists (select 1 from public.playbooks p
+           and not exists (select 1 from public.sequence_steps p
                             where p.tenant_id = p_tenant_id and p.lead_search_id = s.id and p.kind = 'reach_out')
          order by s.created_at desc
          limit v_lim) x
@@ -22487,100 +22050,6 @@ end $$;
 --
 
 COMMENT ON FUNCTION public.reach_out_sources(p_tenant_id uuid, p_limit integer) IS 'What a reach-out could start from (00426), for a member: the newest p_limit (1 to 50) searches and lists with no reach-out yet that have someone it would write to, each with its name, how it was made (via), when, and how many it would write to (ready, and with the unconfirmed). Campaigns'' New message, Write to leads, lists them.';
-
-
---
--- Name: reach_out_stale_sends(timestamp with time zone, integer, uuid); Type: FUNCTION; Schema: public; Owner: -
---
-
-CREATE FUNCTION public.reach_out_stale_sends(p_before timestamp with time zone, p_limit integer, p_tenant_id uuid DEFAULT NULL::uuid) RETURNS SETOF public.reach_out_sends
-    LANGUAGE sql STABLE SECURITY DEFINER
-    SET search_path TO 'public'
-    AS $$
-  select s.* from public.reach_out_sends s
-    join public.broadcasts b on b.id = s.broadcast_id
-    join public.playbooks p on p.id = s.playbook_id
-    join public.playbooks r on r.id = s.root_id
-   where s.state = 'planned' and s.send_at <= p_before and (p_tenant_id is null or s.tenant_id = p_tenant_id)
-     and b.state in ('scheduled', 'sending') and p.state = 'running' and r.state = 'running'
-   order by s.send_at
-   limit greatest(coalesce(p_limit, 0), 0)
-$$;
-
-
---
--- Name: reach_out_unchecked(integer, integer, integer, uuid); Type: FUNCTION; Schema: public; Owner: -
---
-
-CREATE FUNCTION public.reach_out_unchecked(p_limit integer, p_per_workspace integer, p_ahead_minutes integer, p_tenant_id uuid DEFAULT NULL::uuid) RETURNS TABLE(send jsonb, check_gen integer, template_id uuid, template_language text, signed_by text, included_for text[], business_name text, category text, city text, region text, rating numeric, reviews integer, website_host text, hours jsonb, about text, email text, why_it_fits text, what_you_asked text, site_listings integer, name_listings integer, email_domain_shared boolean, reviews_dist jsonb, claimed boolean)
-    LANGUAGE plpgsql SECURITY DEFINER
-    SET search_path TO 'public'
-    AS $$
-#variable_conflict use_column
-declare
-  v_ids uuid[];
-begin
-  if coalesce(p_limit, 0) <= 0 or coalesce(p_per_workspace, 0) <= 0 then
-    return;
-  end if;
-  with candidates as (
-    select s.id,
-           row_number() over (partition by s.tenant_id
-                              order by coalesce(s.check_after, s.created_at), s.send_at, s.id) as turn,
-           coalesce(s.check_after, s.created_at) as waiting_since
-      from public.reach_out_sends s
-      join public.broadcasts b on b.id = s.broadcast_id
-      join public.playbooks p on p.id = s.playbook_id
-      join public.playbooks r on r.id = s.root_id
-     where s.state = 'planned' and s.checked_at is null
-       and b.state in ('pending_approval', 'scheduled', 'sending') and p.state = 'running' and r.state = 'running'
-       and (s.check_after is null or s.check_after <= now())
-       and (s.check_started_at is null or s.check_started_at < now() - interval '2 minutes')
-       and (b.state = 'pending_approval'
-            or s.send_at <= now() + make_interval(mins => greatest(coalesce(p_ahead_minutes, 0), 0)))
-       and (p_tenant_id is null or s.tenant_id = p_tenant_id)
-  ), picked as (
-    select c.id from candidates c
-     where c.turn <= p_per_workspace
-     order by c.turn, c.waiting_since, c.id
-     limit p_limit
-  ), locked as (
-    select s.id from public.reach_out_sends s
-     where s.id in (select id from picked)
-     for update of s skip locked
-  ), leased as (
-    update public.reach_out_sends s
-       set check_started_at = now()
-      from locked
-     where s.id = locked.id and s.state = 'planned' and s.checked_at is null
-       and (s.check_started_at is null or s.check_started_at < now() - interval '2 minutes')
-    returning s.id
-  )
-  select coalesce(array_agg(id), '{}') into v_ids from leased;
-
-  return query
-  select to_jsonb(s), s.check_gen, p.template_id, p.template_language, r.signed_by,
-         array(select distinct x
-                 from public.reach_out_sends o, unnest(o.included_for) as x
-                where o.tenant_id = s.tenant_id and o.root_id = s.root_id and o.lead_id = s.lead_id
-                order by x),
-         rec.business_name, rec.category, rec.city, rec.region, rec.rating, rec.reviews, rec.website_host,
-         rec.hours, rec.about, rec.email, rec.why_it_fits, rec.what_you_asked,
-         rec.site_listings, rec.name_listings, rec.email_domain_shared, rec.reviews_dist, rec.claimed
-    from public.reach_out_sends s
-    join public.playbooks p on p.id = s.playbook_id
-    join public.playbooks r on r.id = s.root_id
-    cross join lateral public.reach_out_record(s.tenant_id, r.lead_search_id, s.lead_id) rec
-   where s.id = any (v_ids)
-   order by s.send_at, s.id;
-end $$;
-
-
---
--- Name: FUNCTION reach_out_unchecked(p_limit integer, p_per_workspace integer, p_ahead_minutes integer, p_tenant_id uuid); Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON FUNCTION public.reach_out_unchecked(p_limit integer, p_per_workspace integer, p_ahead_minutes integer, p_tenant_id uuid) IS 'The sends the check clock takes this tick (Reach out, Part 4), leased under their row locks, round-robin by workspace, each with its words'' step, the name its chain signs with, the holds its owner included it past and its business''s record (00197; the record''s signals, 00426). Service role only.';
 
 
 --
@@ -22615,9 +22084,9 @@ CREATE FUNCTION public.reach_out_why_not(p_tenant_id uuid, p_lead_ids uuid[], p_
                       and s.hash = public.lead_suppression_hash(l.tenant_id, l.phone_e164))))
         then 'suppressed'
       -- Never twice by the workspace: a send of any reach-out, bar one in a run its owner skipped or one taken back.
-      when exists (select 1 from public.reach_out_sends ro
-                    where ro.tenant_id = l.tenant_id and ro.lead_id = l.id
-                      and not (ro.state = 'skipped' and ro.reason in ('run_canceled', 'owner_took_back')))
+      when exists (select 1 from public.sequence_sends ro
+                    where ro.lead_id is not null and ( ro.tenant_id = l.tenant_id and ro.lead_id = l.id
+                      and not (ro.state = 'skipped' and ro.reason in ('run_canceled', 'owner_took_back'))))
         then 'written'
       -- One business written to once: the finder saw it share a number, an own-domain address or a site with another.
       when exists (select 1 from public.lead_search_members m
@@ -24153,14 +23622,14 @@ CREATE FUNCTION public.run_counts(p_tenant_id uuid, p_run_ids uuid[]) RETURNS js
     SET search_path TO ''
     AS $$
   with people as (
-    select r.broadcast_id, r.state, r.sent_at,
+    select r.batch_id as broadcast_id, r.state, r.sent_at,
            -- The channel it went by (00298); a row naming none went by WhatsApp, as every run before channels did.
            case when r.channel in ('sms', 'email') then r.channel else 'whatsapp' end as channel,
            m.status, m.conversation_id
-      from public.broadcast_recipients r
+      from public.sequence_sends r
       left join public.messages m on m.id = r.message_id
-     where r.tenant_id = p_tenant_id
-       and r.broadcast_id = any (p_run_ids)
+     where r.lead_id is null and ( r.tenant_id = p_tenant_id
+       and r.batch_id = any (p_run_ids))
   ),
   counted as (
     select p.broadcast_id,
@@ -24661,11 +24130,11 @@ CREATE FUNCTION public.sending_domain_capacity(p_domain_id uuid, p_at timestamp 
        and public.email_from_host(m.meta) = d.host
        and m.created_at >= p_at - interval '30 days'
     union all
-    select coalesce(s.claimed_at, p_at) from public.reach_out_sends s, d
-     where s.domain_id = d.id and s.state = 'claimed'
+    select coalesce(s.claimed_at, p_at) from public.sequence_sends s, d
+     where s.lead_id is not null and ( s.domain_id = d.id and s.state = 'claimed')
   ),
   planned as (
-    select s.send_at as at from public.reach_out_sends s, d where s.domain_id = d.id and s.state = 'planned'
+    select s.send_at as at from public.sequence_sends s, d where s.lead_id is not null and ( s.domain_id = d.id and s.state = 'planned')
   )
   select jsonb_build_object(
     'state', d.state,
@@ -25003,6 +24472,132 @@ begin
      and (q.name is distinct from NEW.name or q.state is distinct from v_state);
   return null;
 end $$;
+
+
+--
+-- Name: sequence_sends; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.sequence_sends (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    tenant_id uuid NOT NULL,
+    sequence_id uuid NOT NULL,
+    step_id uuid,
+    batch_id uuid NOT NULL,
+    contact_id uuid,
+    lead_id uuid,
+    state text NOT NULL,
+    reason text,
+    attempts integer DEFAULT 0 NOT NULL,
+    message_id uuid,
+    sent_at timestamp with time zone,
+    facts jsonb,
+    channel text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    domain_id uuid,
+    send_at timestamp with time zone,
+    claimed_at timestamp with time zone,
+    opening text,
+    angle text,
+    facts_used text[] DEFAULT '{}'::text[] NOT NULL,
+    checked_at timestamp with time zone,
+    check_tries integer DEFAULT 0 NOT NULL,
+    hold_detail text,
+    check_after timestamp with time zone,
+    check_started_at timestamp with time zone,
+    check_first_at timestamp with time zone,
+    check_gen integer DEFAULT 0 NOT NULL,
+    checked_words text,
+    included_for text[] DEFAULT '{}'::text[] NOT NULL,
+    mailbox_id uuid,
+    drafted_at timestamp with time zone,
+    draft jsonb,
+    said_at timestamp with time zone,
+    said_by uuid,
+    CONSTRAINT sequence_sends_attempts_check CHECK (((attempts >= 0) AND ((lead_id IS NULL) OR (attempts <= 20)))),
+    CONSTRAINT sequence_sends_channel_check CHECK (((channel IS NULL) OR (channel = ANY (ARRAY['whatsapp'::text, 'sms'::text, 'email'::text])))),
+    CONSTRAINT sequence_sends_check_is_whole CHECK ((((opening IS NULL) OR ((char_length(opening) >= 1) AND (char_length(opening) <= 400))) AND ((angle IS NULL) OR ((char_length(angle) >= 1) AND (char_length(angle) <= 40))) AND ((hold_detail IS NULL) OR (char_length(hold_detail) <= 120)) AND ((checked_words IS NULL) OR ((char_length(checked_words) >= 1) AND (char_length(checked_words) <= 64))) AND ((check_tries >= 0) AND (check_tries <= 100)) AND (check_gen >= 0) AND (cardinality(facts_used) <= 12) AND (included_for <@ ARRAY['customer_domain'::text, 'chain'::text, 'language'::text, 'unbacked_fact'::text, 'reads_like_spam'::text, 'check_unavailable'::text, 'abroad'::text]))),
+    CONSTRAINT sequence_sends_customer_states CHECK (((lead_id IS NOT NULL) OR (state = ANY (ARRAY['queued'::text, 'sent'::text, 'skipped'::text, 'failed'::text])))),
+    CONSTRAINT sequence_sends_drafted_is_whole CHECK ((((state <> 'drafted'::text) OR ((drafted_at IS NOT NULL) AND (draft IS NOT NULL))) AND ((draft IS NULL) OR ((jsonb_typeof(draft) = 'object'::text) AND (octet_length((draft)::text) <= 16000))))),
+    CONSTRAINT sequence_sends_handed_is_dated CHECK (((state <> 'handed'::text) OR (sent_at IS NOT NULL))),
+    CONSTRAINT sequence_sends_held_says_why CHECK (((state <> 'held'::text) OR (reason = ANY (ARRAY['customer_domain'::text, 'chain'::text, 'language'::text, 'unbacked_fact'::text, 'reads_like_spam'::text, 'check_unavailable'::text, 'abroad'::text])))),
+    CONSTRAINT sequence_sends_planned_is_timed CHECK (((state <> 'planned'::text) OR (send_at IS NOT NULL))),
+    CONSTRAINT sequence_sends_reason_check CHECK (((lead_id IS NULL) OR (reason IS NULL) OR (char_length(reason) <= 60))),
+    CONSTRAINT sequence_sends_sent_is_dated CHECK (((lead_id IS NULL) OR (state <> 'sent'::text) OR (sent_at IS NOT NULL))),
+    CONSTRAINT sequence_sends_someone CHECK (((lead_id IS NOT NULL) OR (contact_id IS NOT NULL))),
+    CONSTRAINT sequence_sends_state_check CHECK ((state = ANY (ARRAY['planned'::text, 'held'::text, 'claimed'::text, 'queued'::text, 'drafted'::text, 'sent'::text, 'skipped'::text, 'failed'::text, 'handed'::text])))
+);
+
+
+--
+-- Name: TABLE sequence_sends; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.sequence_sends IS 'Decision 0060: one message of a sequence to one person. A customer''s (contact_id, no lead_id): queued, then sent, skipped or failed, once. A lead''s (lead_id): planned (a time and a mailbox), held while its check doubts it, claimed under the mailbox''s day, queued as an email or drafted for its owner, then sent, skipped, failed or handed to the team.';
+
+
+--
+-- Name: COLUMN sequence_sends.attempts; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.sequence_sends.attempts IS 'A customer''s send: how many times it was claimed and given back (throttled, not_taken), counted by the guard. A lead''s: how many times the clock tried it.';
+
+
+--
+-- Name: COLUMN sequence_sends.facts; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.sequence_sends.facts IS 'A customer''s send: the words its batch resolved for them when it was made (a visit''s time and service); the send fills the message''s slots from them. Cleared when the person is erased.';
+
+
+--
+-- Name: COLUMN sequence_sends.channel; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.sequence_sends.channel IS 'The channel this person is reached on, picked once at enrolment (contracts'' reachFor) from the batch''s channels. Null: a send kept from before the channels, which went by WhatsApp.';
+
+
+--
+-- Name: COLUMN sequence_sends.domain_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.sequence_sends.domain_id IS 'Retired (decision 0056): the sending domain a lead''s send left from on the cold Resend lane. Nothing writes it now; mailbox_id is the send''s.';
+
+
+--
+-- Name: COLUMN sequence_sends.mailbox_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.sequence_sends.mailbox_id IS 'A lead''s send: the mailbox it leaves from (00424), planned with it, claimed under its day, and kept by its lead for the whole sequence.';
+
+
+--
+-- Name: COLUMN sequence_sends.drafted_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.sequence_sends.drafted_at IS 'A lead''s send handed to its owner, written and checked (00429): its fourteen days to be sent start here.';
+
+
+--
+-- Name: COLUMN sequence_sends.draft; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.sequence_sends.draft IS 'The email handed to the owner (00429): {to, subject, body, text, parent_id?}, the words with their values in and, in text, with the foot.';
+
+
+--
+-- Name: COLUMN sequence_sends.said_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.sequence_sends.said_at IS 'When the owner said this drafted email went, or did not (00429).';
+
+
+--
+-- Name: COLUMN sequence_sends.said_by; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.sequence_sends.said_by IS 'The member who said it (00429).';
 
 
 --
@@ -27583,13 +27178,13 @@ begin
   -- list and a message of this workspace), and its checks and unique indexes refuse what they refuse. The workspace,
   -- who made it and that it runs are said here, never by the caller; `kind` is the table's default, a moment. Its last
   -- day and its trial's end are the caller's (00416), each null where it names none.
-  insert into public.playbooks (tenant_id, name, trigger, list_id, list_key, template_id, template_name,
+  insert into public.sequence_steps (tenant_id, name, trigger, list_id, list_key, template_id, template_name,
                                 template_language, params, policy_class, state, run_hour, cap_per_run, gap_days,
                                 cadence_days, channels, until, trial_until, created_by)
   select p_tenant_id, r.name, r.trigger, r.list_id, r.list_key, r.template_id, r.template_name,
          r.template_language, r.params, r.policy_class, 'running', r.run_hour, r.cap_per_run, r.gap_days,
          r.cadence_days, r.channels, r.until, r.trial_until, v_actor
-    from jsonb_populate_record(null::public.playbooks, p_playbook) r
+    from jsonb_populate_record(null::public.sequence_steps, p_playbook) r
   returning id into v_id;
   return jsonb_build_object('id', v_id)
       || public.member_decision(p_tenant_id, 'playbook', v_id, 'start_playbook', p_decision, p_via, p_undo_of);
@@ -28364,11 +27959,11 @@ CREATE FUNCTION public.template_sends(p_tenant_id uuid) RETURNS jsonb
   with went as (
     -- A person a run marked sent: what left, apart from what was delivered (Reports counts "Messages sent" so).
     select b.template_name as name, r.sent_at as at
-      from public.broadcast_recipients r
-      join public.broadcasts b on b.id = r.broadcast_id and b.tenant_id = r.tenant_id
-     where r.tenant_id = p_tenant_id
+      from public.sequence_sends r
+      join public.sequence_batches b on b.id = r.batch_id and b.tenant_id = r.tenant_id
+     where r.lead_id is null and ( r.tenant_id = p_tenant_id
        and r.state = 'sent'
-       and coalesce(b.template_name, '') <> ''
+       and coalesce(b.template_name, '') <> '')
     union all
     -- A template the Inbox sent into a closed window, on its own message row, which left when WhatsApp took it (its
     -- wamid). A run's own messages name no template, so nothing above is counted again here.
@@ -28948,18 +28543,18 @@ CREATE FUNCTION public.trigger_reach_out_check_sweep() RETURNS bigint
     AS $$
 begin
   if exists (
-       select 1 from public.reach_out_sends s
-         join public.broadcasts b on b.id = s.broadcast_id
-         join public.playbooks p on p.id = s.playbook_id
-         join public.playbooks r on r.id = s.root_id
-        where s.state = 'planned' and s.checked_at is null
+       select 1 from public.sequence_sends s
+         join public.sequence_batches b on b.id = s.batch_id
+         join public.sequence_steps p on p.id = s.step_id
+         join public.sequence_steps r on r.id = s.sequence_id
+        where s.lead_id is not null and ( s.state = 'planned' and s.checked_at is null
           and b.state in ('pending_approval', 'scheduled', 'sending') and p.state = 'running' and r.state = 'running'
           and (s.check_after is null or s.check_after <= now())
           and (s.check_started_at is null or s.check_started_at < now() - interval '2 minutes')
-          and (b.state = 'pending_approval' or s.send_at <= now() + interval '2 hours'))
-     or exists (select 1 from public.reach_out_sends
-                 where state = 'held' and reason = 'check_unavailable' and hold_detail is null
-                   and updated_at < now() - interval '1 hour') then
+          and (b.state = 'pending_approval' or s.send_at <= now() + interval '2 hours')))
+     or exists (select 1 from public.sequence_sends
+                 where sequence_sends.lead_id is not null and ( state = 'held' and reason = 'check_unavailable' and hold_detail is null
+                   and updated_at < now() - interval '1 hour')) then
     return public.request_sweep('reach_out_check', '/api/cron/reach-out-check', 65000);
   end if;
   insert into public.sweep_status (sweep, requested_at) values ('reach_out_check', now())
@@ -28985,28 +28580,28 @@ CREATE FUNCTION public.trigger_reach_out_sweep() RETURNS bigint
     AS $$
 begin
   if exists (
-       select 1 from public.reach_out_sends s
-         join public.broadcasts b on b.id = s.broadcast_id
-         join public.playbooks p on p.id = s.playbook_id
-         join public.playbooks r on r.id = s.root_id
-        where s.state = 'planned' and s.send_at <= now() and s.checked_at is not null
-          and b.state in ('scheduled', 'sending') and p.state = 'running' and r.state = 'running')
-     or exists (select 1 from public.reach_out_sends where state in ('claimed', 'queued'))
-     or exists (select 1 from public.reach_out_sends where state = 'held' and created_at < now() - interval '14 days')
-     or exists (select 1 from public.reach_out_sends where state = 'drafted' and drafted_at < now() - interval '14 days')
+       select 1 from public.sequence_sends s
+         join public.sequence_batches b on b.id = s.batch_id
+         join public.sequence_steps p on p.id = s.step_id
+         join public.sequence_steps r on r.id = s.sequence_id
+        where s.lead_id is not null and ( s.state = 'planned' and s.send_at <= now() and s.checked_at is not null
+          and b.state in ('scheduled', 'sending') and p.state = 'running' and r.state = 'running'))
+     or exists (select 1 from public.sequence_sends where sequence_sends.lead_id is not null and ( state in ('claimed', 'queued')))
+     or exists (select 1 from public.sequence_sends where sequence_sends.lead_id is not null and ( state = 'held' and created_at < now() - interval '14 days'))
+     or exists (select 1 from public.sequence_sends where sequence_sends.lead_id is not null and ( state = 'drafted' and drafted_at < now() - interval '14 days'))
      -- A draft waiting: every quarter hour, so the clock judges it as the send door would (draftRefusalOf).
-     or (extract(minute from now())::int % 15 = 0 and exists (select 1 from public.reach_out_sends where state = 'drafted'))
+     or (extract(minute from now())::int % 15 = 0 and exists (select 1 from public.sequence_sends where sequence_sends.lead_id is not null and ( state = 'drafted')))
      or exists (
-       select 1 from public.broadcasts b
+       select 1 from public.sequence_batches b
         where b.audience->>'kind' = 'reach_out' and b.state in ('canceled', 'failed')
-          and exists (select 1 from public.reach_out_sends s
-                       where s.broadcast_id = b.id and s.state in ('planned', 'held', 'claimed', 'drafted')))
+          and exists (select 1 from public.sequence_sends s
+                       where s.lead_id is not null and ( s.batch_id = b.id and s.state in ('planned', 'held', 'claimed', 'drafted'))))
      or exists (
-       select 1 from public.broadcasts b
+       select 1 from public.sequence_batches b
         where b.audience->>'kind' = 'reach_out' and b.state in ('scheduled', 'sending')
-          and not exists (select 1 from public.reach_out_sends s
-                           where s.broadcast_id = b.id
-                             and s.state in ('planned', 'held', 'claimed', 'queued', 'drafted'))) then
+          and not exists (select 1 from public.sequence_sends s
+                           where s.lead_id is not null and ( s.batch_id = b.id
+                             and s.state in ('planned', 'held', 'claimed', 'queued', 'drafted')))) then
     return public.request_sweep('reach_out', '/api/cron/reach-out', 65000);
   end if;
   insert into public.sweep_status (sweep, requested_at) values ('reach_out', now())
@@ -29754,122 +29349,6 @@ COMMENT ON COLUMN public.billing_events.amount_cents IS 'What the invoice behind
 --
 
 COMMENT ON COLUMN public.billing_events.currency IS 'The invoice''s currency as Stripe spells it, three lowercase letters (K8); null where amount_cents is.';
-
-
---
--- Name: broadcast_recipients; Type: VIEW; Schema: public; Owner: -
---
-
-CREATE VIEW public.broadcast_recipients WITH (security_invoker='true') AS
- SELECT batch_id AS broadcast_id,
-    contact_id,
-    tenant_id,
-    state,
-    reason,
-    message_id,
-    sent_at,
-    facts,
-    channel,
-    attempts AS attempt
-   FROM public.sequence_sends s
-  WHERE (lead_id IS NULL)
-  WITH CASCADED CHECK OPTION;
-
-
---
--- Name: VIEW broadcast_recipients; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON VIEW public.broadcast_recipients IS 'Decision 0060: a customer''s sequence_sends under its old name, while the code moves (step S6 drops it).';
-
-
---
--- Name: sequence_batches; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.sequence_batches (
-    id uuid DEFAULT gen_random_uuid() NOT NULL,
-    tenant_id uuid NOT NULL,
-    name text NOT NULL,
-    template_id uuid,
-    template_name text,
-    template_language text,
-    params jsonb DEFAULT '[]'::jsonb NOT NULL,
-    audience jsonb DEFAULT '{}'::jsonb NOT NULL,
-    state text DEFAULT 'scheduled'::text NOT NULL,
-    scheduled_for timestamp with time zone NOT NULL,
-    started_at timestamp with time zone,
-    finished_at timestamp with time zone,
-    recipient_count integer DEFAULT 0 NOT NULL,
-    failure text,
-    created_by uuid,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    step_id uuid,
-    run_for date,
-    channels text[] DEFAULT '{whatsapp}'::text[] NOT NULL,
-    sequence_id uuid NOT NULL,
-    CONSTRAINT sequence_batches_channels_check CHECK (((channels <@ ARRAY['whatsapp'::text, 'sms'::text, 'email'::text]) AND ((cardinality(channels) >= 1) AND (cardinality(channels) <= 3)) AND (cardinality(channels) = ((((channels @> ARRAY['whatsapp'::text]))::integer + ((channels @> ARRAY['sms'::text]))::integer) + ((channels @> ARRAY['email'::text]))::integer)))),
-    CONSTRAINT sequence_batches_name_check CHECK (((length(name) >= 1) AND (length(name) <= 80))),
-    CONSTRAINT sequence_batches_state_check CHECK ((state = ANY (ARRAY['pending_approval'::text, 'scheduled'::text, 'sending'::text, 'sent'::text, 'canceled'::text, 'failed'::text]))),
-    CONSTRAINT sequence_batches_template_or_hand CHECK (COALESCE((((template_id IS NOT NULL) AND (template_name IS NOT NULL) AND (template_language IS NOT NULL)) OR ((template_id IS NULL) AND (template_name IS NULL) AND (template_language IS NULL) AND ((audience ->> 'kind'::text) = 'reach_out'::text) AND ((audience ->> 'hand'::text) = ANY (ARRAY['call'::text, 'note'::text])))), false))
-);
-
-
---
--- Name: TABLE sequence_batches; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON TABLE public.sequence_batches IS 'Decision 0060: what goes at one time in a sequence, the unit a person approves (broadcasts until 00440): a step''s run for a day (run_for), or a one-off''s only batch.';
-
-
---
--- Name: COLUMN sequence_batches.channels; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.sequence_batches.channels IS 'The channels this run ticked (whatsapp, sms, email, each once, at least one), written whole with its people by assemble_broadcast. WhatsApp alone by default, as every run was before (00298).';
-
-
---
--- Name: COLUMN sequence_batches.sequence_id; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.sequence_batches.sequence_id IS 'The sequence this batch is a day of (0060): its step''s, or a one-off''s own id.';
-
-
---
--- Name: broadcasts; Type: VIEW; Schema: public; Owner: -
---
-
-CREATE VIEW public.broadcasts WITH (security_invoker='true') AS
- SELECT id,
-    tenant_id,
-    name,
-    template_id,
-    template_name,
-    template_language,
-    params,
-    audience,
-    state,
-    scheduled_for,
-    started_at,
-    finished_at,
-    recipient_count,
-    failure,
-    created_by,
-    created_at,
-    updated_at,
-    step_id AS playbook_id,
-    run_for,
-    channels
-   FROM public.sequence_batches b;
-
-
---
--- Name: VIEW broadcasts; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON VIEW public.broadcasts IS 'Decision 0060: sequence_batches under its old name, while the code moves (step S6 drops it).';
 
 
 --
@@ -32458,6 +31937,489 @@ COMMENT ON COLUMN public.platform_metrics.intake_lag_ms IS 'How long after the p
 
 
 --
+-- Name: policies; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.policies (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    tenant_id uuid NOT NULL,
+    class text NOT NULL,
+    mode text NOT NULL,
+    subject_type text,
+    subject_id uuid,
+    limits jsonb DEFAULT '{}'::jsonb NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT policies_class_check CHECK ((class = ANY (ARRAY['reply'::text, 'booking'::text, 'faq'::text, 'reengage'::text, 'campaign'::text, 'reviews'::text, 'money'::text, 'follow_up'::text, 'outreach'::text]))),
+    CONSTRAINT policies_mode_check CHECK ((mode = ANY (ARRAY['auto'::text, 'veto'::text, 'ask'::text, 'never'::text]))),
+    CONSTRAINT policies_subject_type_check CHECK ((subject_type = ANY (ARRAY['segment'::text, 'contact'::text])))
+);
+
+
+--
+-- Name: profiles; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.profiles (
+    user_id uuid NOT NULL,
+    display_name text DEFAULT ''::text NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT profiles_display_name_check CHECK ((char_length(display_name) <= 80))
+);
+
+
+--
+-- Name: TABLE profiles; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.profiles IS 'A person''s own name. Readable by the members of any workspace they share; written only by them, through profile_set.';
+
+
+--
+-- Name: provider_events; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.provider_events (
+    provider text NOT NULL,
+    provider_event_id text NOT NULL,
+    door text NOT NULL,
+    url text NOT NULL,
+    tenant_id uuid,
+    verified boolean DEFAULT true NOT NULL,
+    headers jsonb DEFAULT '{}'::jsonb NOT NULL,
+    body text NOT NULL,
+    received_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT provider_events_headers_check CHECK ((jsonb_typeof(headers) = 'object'::text)),
+    CONSTRAINT provider_events_provider_check CHECK ((provider = ANY (ARRAY['meta'::text, 'twilio'::text, 'retell'::text, 'resend'::text, 'stripe'::text])))
+);
+
+
+--
+-- Name: TABLE provider_events; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.provider_events IS 'Every verified delivery a provider made to a door, as it came, under the provider''s own id (decision 0032): the door and url it came to, the headers its signature reads, the body, and the workspace the door knew at the time. Kept a week (purge_provider_events), scrubbed on erasure (provider_events_scrub), replayed by api/admin/intake/replay. RLS on with no policy: the service role alone.';
+
+
+--
+-- Name: push_devices; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.push_devices (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    user_id uuid NOT NULL,
+    token text NOT NULL,
+    platform text NOT NULL,
+    app_version text,
+    last_seen_at timestamp with time zone DEFAULT now() NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    activity_token text,
+    CONSTRAINT push_devices_activity_token_check CHECK ((char_length(activity_token) <= 200)),
+    CONSTRAINT push_devices_app_version_check CHECK ((char_length(app_version) <= 40)),
+    CONSTRAINT push_devices_platform_check CHECK ((platform = ANY (ARRAY['ios'::text, 'android'::text]))),
+    CONSTRAINT push_devices_token_check CHECK (((char_length(token) >= 1) AND (char_length(token) <= 200)))
+);
+
+
+--
+-- Name: TABLE push_devices; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.push_devices IS 'The phones people can be told on: one row per push token, owned by the person, registered and forgotten through two definer doors. The edge reads.';
+
+
+--
+-- Name: rate_hits; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE UNLOGGED TABLE public.rate_hits (
+    bucket text NOT NULL,
+    actor text NOT NULL,
+    at timestamp with time zone DEFAULT clock_timestamp() NOT NULL
+);
+
+
+--
+-- Name: reach_out_check_spend; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.reach_out_check_spend (
+    tenant_id uuid NOT NULL,
+    day date NOT NULL,
+    attempts integer DEFAULT 0 NOT NULL,
+    reads integer DEFAULT 0 NOT NULL,
+    CONSTRAINT reach_out_check_spend_attempts_check CHECK ((attempts >= 0)),
+    CONSTRAINT reach_out_check_spend_reads_check CHECK ((reads >= 0))
+);
+
+
+--
+-- Name: TABLE reach_out_check_spend; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.reach_out_check_spend IS 'Reach out, Part 4: the check''s model attempts per workspace and UTC day, under contracts REACH_OUT_CHECKS_PER_DAY. Written by reach_out_check_take only.';
+
+
+--
+-- Name: COLUMN reach_out_check_spend.reads; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.reach_out_check_spend.reads IS 'Reach out Part 5: the replies read by the model in this workspace''s UTC day, under contracts REACH_OUT_READS_PER_DAY (G4). Written by reach_out_read_take only.';
+
+
+--
+-- Name: reply_turns; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.reply_turns (
+    conversation_id uuid NOT NULL,
+    tenant_id uuid NOT NULL,
+    message_id uuid NOT NULL,
+    claimed_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: TABLE reply_turns; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.reply_turns IS 'Whose reply a thread is waiting on: the message claim_reply_turn() gave the turn to. Service role only (core inbound/turn.ts).';
+
+
+--
+-- Name: segment_members; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.segment_members (
+    segment_id uuid NOT NULL,
+    contact_id uuid NOT NULL,
+    tenant_id uuid NOT NULL,
+    added_by uuid,
+    added_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: segments; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.segments (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    tenant_id uuid NOT NULL,
+    name text NOT NULL,
+    created_by uuid,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    rule jsonb,
+    archived_at timestamp with time zone,
+    CONSTRAINT segments_name_check CHECK (((length(name) >= 1) AND (length(name) <= 60))),
+    CONSTRAINT segments_rule_is_an_object CHECK (((rule IS NULL) OR (jsonb_typeof(rule) = 'object'::text)))
+);
+
+
+--
+-- Name: COLUMN segments.rule; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.segments.rule IS 'A smart list''s rule, in contracts list-rules.ts''s vocabulary: who is on it is judged on every read. Null for a list kept by hand.';
+
+
+--
+-- Name: COLUMN segments.archived_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.segments.archived_at IS 'When the list was archived: it leaves People''s rail and still resolves for the playbooks that name it. Null for a live list.';
+
+
+--
+-- Name: sending_domain_days; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.sending_domain_days (
+    tenant_id uuid NOT NULL,
+    domain_id uuid NOT NULL,
+    day date NOT NULL,
+    host text NOT NULL,
+    state text NOT NULL,
+    held_why text,
+    sent integer,
+    bounced integer,
+    complaints integer,
+    sent_days integer,
+    checked_at timestamp with time zone,
+    kept_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT sending_domain_days_bounced_check CHECK (((bounced IS NULL) OR (bounced >= 0))),
+    CONSTRAINT sending_domain_days_complaints_check CHECK (((complaints IS NULL) OR (complaints >= 0))),
+    CONSTRAINT sending_domain_days_held_why_check CHECK (((held_why IS NULL) OR (char_length(held_why) <= 40))),
+    CONSTRAINT sending_domain_days_host_check CHECK (((char_length(host) >= 4) AND (char_length(host) <= 253))),
+    CONSTRAINT sending_domain_days_sent_check CHECK (((sent IS NULL) OR (sent >= 0))),
+    CONSTRAINT sending_domain_days_sent_days_check CHECK (((sent_days IS NULL) OR (sent_days >= 0))),
+    CONSTRAINT sending_domain_days_state_check CHECK ((state = ANY (ARRAY['verified'::text, 'held'::text])))
+);
+
+
+--
+-- Name: TABLE sending_domain_days; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.sending_domain_days IS 'Retired (decision 0056, 00423): each sending domain''s day, filed nightly until its clock was unscheduled. Kept inert until a later migration drops it (docs/debt.md).';
+
+
+--
+-- Name: sending_domains; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.sending_domains (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    tenant_id uuid NOT NULL,
+    host text NOT NULL,
+    from_local text NOT NULL,
+    from_name text NOT NULL,
+    provider_domain_id text,
+    records jsonb DEFAULT '[]'::jsonb NOT NULL,
+    state text DEFAULT 'records'::text NOT NULL,
+    provider_status text,
+    dmarc text,
+    held_why text,
+    held_at timestamp with time zone,
+    verified_at timestamp with time zone,
+    clean_since timestamp with time zone,
+    checked_at timestamp with time zone,
+    created_by uuid,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    sent_recent integer,
+    bounced_recent integer,
+    complaints integer,
+    counted_since timestamp with time zone,
+    sent_days integer,
+    resume_by text DEFAULT 'owner'::text NOT NULL,
+    CONSTRAINT sending_domains_dmarc_check CHECK ((dmarc = ANY (ARRAY['found'::text, 'missing'::text]))),
+    CONSTRAINT sending_domains_from_local_check CHECK (((char_length(from_local) <= 40) AND (from_local ~ '^[a-z0-9]+([.-][a-z0-9]+)*$'::text))),
+    CONSTRAINT sending_domains_from_name_check CHECK (((char_length(btrim(from_name)) >= 1) AND (char_length(btrim(from_name)) <= 80))),
+    CONSTRAINT sending_domains_held_is_whole CHECK ((((state = 'held'::text) = (held_why IS NOT NULL)) AND ((held_why IS NULL) = (held_at IS NULL)))),
+    CONSTRAINT sending_domains_held_why_check CHECK ((held_why = ANY (ARRAY['verification'::text, 'dmarc'::text, 'bounces'::text, 'complaint'::text, 'provider'::text, 'unsubscribes'::text]))),
+    CONSTRAINT sending_domains_host_check CHECK ((((char_length(host) >= 4) AND (char_length(host) <= 253)) AND (host ~ '^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$'::text))),
+    CONSTRAINT sending_domains_records_check CHECK ((jsonb_typeof(records) = 'array'::text)),
+    CONSTRAINT sending_domains_resume_by_check CHECK ((resume_by = ANY (ARRAY['owner'::text, 'platform'::text]))),
+    CONSTRAINT sending_domains_sending_is_dated CHECK (((state <> ALL (ARRAY['verified'::text, 'held'::text])) OR ((verified_at IS NOT NULL) AND (clean_since IS NOT NULL)))),
+    CONSTRAINT sending_domains_state_check CHECK ((state = ANY (ARRAY['records'::text, 'verifying'::text, 'verified'::text, 'held'::text])))
+);
+
+
+--
+-- Name: TABLE sending_domains; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.sending_domains IS 'Retired (decision 0056, 00423): the domains a second Resend account sent cold email from. Nothing reads or writes it now; kept inert until a later migration drops it (docs/debt.md).';
+
+
+--
+-- Name: COLUMN sending_domains.counted_since; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.sending_domains.counted_since IS 'Where the reputation count starts (bounces, complaints): set when the domain is first verified and when its owner resumes it, never by a DNS release. clean_since is the ramp''s clock (contracts domainDailyCap).';
+
+
+--
+-- Name: COLUMN sending_domains.sent_days; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.sending_domains.sent_days IS 'The days it sent on before today since it was clean, within the last 90 (sending_domain_capacity, D15), as the domains clock last wrote them: the ramp the send door and Connections read. Zero when clean again (a hold released, a first verify); null until written, read as none.';
+
+
+--
+-- Name: COLUMN sending_domains.resume_by; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.sending_domains.resume_by IS 'Who lifts its reputation hold: the owner (Resume), or the platform, when it was held for its reputation twice in thirty days (Reach out D16, 00188).';
+
+
+--
+-- Name: sequence_batches; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.sequence_batches (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    tenant_id uuid NOT NULL,
+    name text NOT NULL,
+    template_id uuid,
+    template_name text,
+    template_language text,
+    params jsonb DEFAULT '[]'::jsonb NOT NULL,
+    audience jsonb DEFAULT '{}'::jsonb NOT NULL,
+    state text DEFAULT 'scheduled'::text NOT NULL,
+    scheduled_for timestamp with time zone NOT NULL,
+    started_at timestamp with time zone,
+    finished_at timestamp with time zone,
+    recipient_count integer DEFAULT 0 NOT NULL,
+    failure text,
+    created_by uuid,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    step_id uuid,
+    run_for date,
+    channels text[] DEFAULT '{whatsapp}'::text[] NOT NULL,
+    sequence_id uuid NOT NULL,
+    CONSTRAINT sequence_batches_channels_check CHECK (((channels <@ ARRAY['whatsapp'::text, 'sms'::text, 'email'::text]) AND ((cardinality(channels) >= 1) AND (cardinality(channels) <= 3)) AND (cardinality(channels) = ((((channels @> ARRAY['whatsapp'::text]))::integer + ((channels @> ARRAY['sms'::text]))::integer) + ((channels @> ARRAY['email'::text]))::integer)))),
+    CONSTRAINT sequence_batches_name_check CHECK (((length(name) >= 1) AND (length(name) <= 80))),
+    CONSTRAINT sequence_batches_state_check CHECK ((state = ANY (ARRAY['pending_approval'::text, 'scheduled'::text, 'sending'::text, 'sent'::text, 'canceled'::text, 'failed'::text]))),
+    CONSTRAINT sequence_batches_template_or_hand CHECK (COALESCE((((template_id IS NOT NULL) AND (template_name IS NOT NULL) AND (template_language IS NOT NULL)) OR ((template_id IS NULL) AND (template_name IS NULL) AND (template_language IS NULL) AND ((audience ->> 'kind'::text) = 'reach_out'::text) AND ((audience ->> 'hand'::text) = ANY (ARRAY['call'::text, 'note'::text])))), false))
+);
+
+
+--
+-- Name: TABLE sequence_batches; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.sequence_batches IS 'Decision 0060: what goes at one time in a sequence, the unit a person approves (broadcasts until 00440): a step''s run for a day (run_for), or a one-off''s only batch.';
+
+
+--
+-- Name: COLUMN sequence_batches.channels; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.sequence_batches.channels IS 'The channels this run ticked (whatsapp, sms, email, each once, at least one), written whole with its people by assemble_broadcast. WhatsApp alone by default, as every run was before (00298).';
+
+
+--
+-- Name: COLUMN sequence_batches.sequence_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.sequence_batches.sequence_id IS 'The sequence this batch is a day of (0060): its step''s, or a one-off''s own id.';
+
+
+--
+-- Name: sequence_enrollments; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.sequence_enrollments (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    tenant_id uuid NOT NULL,
+    sequence_id uuid NOT NULL,
+    contact_id uuid,
+    lead_id uuid,
+    state text DEFAULT 'in'::text NOT NULL,
+    place integer DEFAULT 1 NOT NULL,
+    sent_at timestamp with time zone,
+    next_at timestamp with time zone,
+    why text,
+    left_by uuid,
+    entered_at timestamp with time zone DEFAULT now() NOT NULL,
+    moved_at timestamp with time zone DEFAULT now() NOT NULL,
+    ended_at timestamp with time zone,
+    CONSTRAINT sequence_enrollments_ended_is_dated CHECK (((state = 'in'::text) = (ended_at IS NULL))),
+    CONSTRAINT sequence_enrollments_left_says_why CHECK (((state <> 'left'::text) OR (why IS NOT NULL))),
+    CONSTRAINT sequence_enrollments_place_check CHECK (((place >= 1) AND (place <= 20))),
+    CONSTRAINT sequence_enrollments_someone CHECK (((lead_id IS NOT NULL) OR (contact_id IS NOT NULL))),
+    CONSTRAINT sequence_enrollments_state_check CHECK ((state = ANY (ARRAY['in'::text, 'done'::text, 'left'::text]))),
+    CONSTRAINT sequence_enrollments_why_check CHECK (((why IS NULL) OR ((char_length(why) >= 1) AND (char_length(why) <= 60))))
+);
+
+
+--
+-- Name: TABLE sequence_enrollments; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.sequence_enrollments IS 'Decision 0060: someone in a sequence. In while a step of theirs is to come; done when the last one went; left, with why (the reason of the send that went nowhere, booked, replied, removed). Kept by their sends as each is written and moves (sequence_sends_move_enrollment), and by the leave door. A customer enters again on a first step''s send of a new occasion; a lead enters once.';
+
+
+--
+-- Name: COLUMN sequence_enrollments.sent_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.sequence_enrollments.sent_at IS 'When their last step went.';
+
+
+--
+-- Name: COLUMN sequence_enrollments.next_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.sequence_enrollments.next_at IS 'A customer''s sequence: when their next step is due (their last step''s send and the next step''s wait). Null when none is.';
+
+
+--
+-- Name: sequence_replies; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.sequence_replies (
+    message_id uuid NOT NULL,
+    tenant_id uuid NOT NULL,
+    conversation_id uuid NOT NULL,
+    contact_id uuid,
+    lead_id uuid,
+    lead_contact_id uuid,
+    send_id uuid,
+    answered_message_id uuid,
+    claim text NOT NULL,
+    intent text NOT NULL,
+    summary text,
+    named_day date,
+    refer_to text,
+    unread text,
+    rereads integer DEFAULT 0 NOT NULL,
+    reread_at timestamp with time zone,
+    until_at timestamp with time zone,
+    plan jsonb DEFAULT '{}'::jsonb NOT NULL,
+    draft text,
+    draft_state text DEFAULT 'none'::text NOT NULL,
+    draft_why text,
+    tell_claimed_at timestamp with time zone,
+    told_at timestamp with time zone,
+    read_at timestamp with time zone DEFAULT now() NOT NULL,
+    undone_at timestamp with time zone,
+    undone_by uuid,
+    signer_name text,
+    signer_title text,
+    signer_state text,
+    signer_was text,
+    signer_settled_at timestamp with time zone,
+    signer_settled_by uuid,
+    said_by uuid,
+    CONSTRAINT sequence_replies_away_has_until CHECK (((until_at IS NULL) OR ((intent = 'away'::text) AND (claim = 'auto_reply'::text)))),
+    CONSTRAINT sequence_replies_claim_check CHECK ((claim = ANY (ARRAY['person'::text, 'automated'::text, 'auto_reply'::text, 'owner'::text]))),
+    CONSTRAINT sequence_replies_draft_check CHECK (((draft IS NULL) OR (char_length(draft) <= 4000))),
+    CONSTRAINT sequence_replies_draft_state_check CHECK ((draft_state = ANY (ARRAY['none'::text, 'waiting'::text, 'written'::text, 'not_written'::text]))),
+    CONSTRAINT sequence_replies_draft_why_check CHECK (((draft_why IS NULL) OR (char_length(draft_why) <= 60))),
+    CONSTRAINT sequence_replies_intent_check CHECK ((intent = ANY (ARRAY['interested'::text, 'question'::text, 'not_now'::text, 'no'::text, 'wrong_person'::text, 'away'::text, 'other'::text]))),
+    CONSTRAINT sequence_replies_refer_to_check CHECK (((refer_to IS NULL) OR (char_length(refer_to) <= 120))),
+    CONSTRAINT sequence_replies_rereads_check CHECK (((rereads >= 0) AND (rereads <= 3))),
+    CONSTRAINT sequence_replies_said_by_owner CHECK (((said_by IS NULL) OR (claim = 'owner'::text))),
+    CONSTRAINT sequence_replies_signer_check CHECK ((((signer_name IS NULL) OR ((char_length(signer_name) >= 1) AND (char_length(signer_name) <= 80))) AND ((signer_title IS NULL) OR ((signer_name IS NOT NULL) AND ((char_length(signer_title) >= 1) AND (char_length(signer_title) <= 80)))) AND ((signer_name IS NULL) = (signer_state IS NULL)) AND ((signer_state IS NULL) OR (signer_state = ANY (ARRAY['offered'::text, 'adopted'::text, 'declined'::text, 'undone'::text]))) AND ((signer_was IS NULL) OR (signer_was = ANY (ARRAY['none'::text, 'typed'::text, 'import'::text, 'calendar'::text, 'signature'::text, 'wire'::text, 'lead'::text]))) AND ((signer_settled_at IS NULL) = ((signer_state IS NULL) OR (signer_state = 'offered'::text))))),
+    CONSTRAINT sequence_replies_summary_check CHECK (((summary IS NULL) OR (char_length(summary) <= 160))),
+    CONSTRAINT sequence_replies_unread_check CHECK (((unread IS NULL) OR (unread = ANY (ARRAY['no_model'::text, 'may_not_spend'::text, 'day_spent'::text, 'model_failed'::text])))),
+    CONSTRAINT sequence_replies_unread_is_other CHECK (((unread IS NULL) OR (intent = 'other'::text)))
+);
+
+
+--
+-- Name: TABLE sequence_replies; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.sequence_replies IS 'Decision 0060: one reading of one reply to a sequence''s send, keyed by the message (reach_out_replies until 00440). The intent (or other, with why it could not be read), what the reading did (plan), and the draft it wrote.';
+
+
+--
+-- Name: COLUMN sequence_replies.signer_name; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.sequence_replies.signer_name IS 'Who signed the reply, as the reading found it in the writer''s own lines and the human-name gate let it through (contracts signerOf, 0052); null when nobody did. Cleared when the person is erased.';
+
+
+--
+-- Name: COLUMN sequence_replies.signer_state; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.sequence_replies.signer_state IS 'What became of the signer''s name (0052): offered (the notice "Use this name"), adopted (by a member''s press or automatically), declined, or undone.';
+
+
+--
+-- Name: COLUMN sequence_replies.said_by; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.sequence_replies.said_by IS 'For a reading its owner gave (claim owner, 00429): the member who said what the business wrote back. Its message_id is the note that says so on the person''s thread (reach_out_reply_said).';
+
+
+--
 -- Name: sequence_steps; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -32640,533 +32602,6 @@ COMMENT ON COLUMN public.sequence_steps.only_if IS 'A customer''s step after the
 --
 
 COMMENT ON COLUMN public.sequence_steps.next_template_id IS 'New words for this step that wait for WhatsApp to approve them (0060): the step keeps sending its message (template_*) until WhatsApp approves these, which then become its message. Null: nothing waits.';
-
-
---
--- Name: playbooks; Type: VIEW; Schema: public; Owner: -
---
-
-CREATE VIEW public.playbooks WITH (security_invoker='true') AS
- SELECT id,
-    tenant_id,
-    name,
-    trigger,
-    template_id,
-    template_name,
-    template_language,
-    params,
-    policy_class,
-    state,
-    run_hour,
-    cap_per_run,
-    gap_days,
-    cadence_days,
-    created_by,
-    last_run_for,
-    last_run_at,
-    created_at,
-    updated_at,
-    list_id,
-    list_key,
-    kind,
-    lead_search_id,
-    after_step_id AS after_playbook_id,
-    after_days,
-    gap_minutes,
-    domain_ids,
-    signed_by,
-    include_unconfirmed,
-    hand,
-    channels,
-    until,
-    trial_until,
-    mailbox_ids,
-    owner_sends
-   FROM public.sequence_steps s;
-
-
---
--- Name: VIEW playbooks; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON VIEW public.playbooks IS 'Decision 0060: sequence_steps under its old name, while the code moves (step S6 drops it).';
-
-
---
--- Name: policies; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.policies (
-    id uuid DEFAULT gen_random_uuid() NOT NULL,
-    tenant_id uuid NOT NULL,
-    class text NOT NULL,
-    mode text NOT NULL,
-    subject_type text,
-    subject_id uuid,
-    limits jsonb DEFAULT '{}'::jsonb NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT policies_class_check CHECK ((class = ANY (ARRAY['reply'::text, 'booking'::text, 'faq'::text, 'reengage'::text, 'campaign'::text, 'reviews'::text, 'money'::text, 'follow_up'::text, 'outreach'::text]))),
-    CONSTRAINT policies_mode_check CHECK ((mode = ANY (ARRAY['auto'::text, 'veto'::text, 'ask'::text, 'never'::text]))),
-    CONSTRAINT policies_subject_type_check CHECK ((subject_type = ANY (ARRAY['segment'::text, 'contact'::text])))
-);
-
-
---
--- Name: profiles; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.profiles (
-    user_id uuid NOT NULL,
-    display_name text DEFAULT ''::text NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT profiles_display_name_check CHECK ((char_length(display_name) <= 80))
-);
-
-
---
--- Name: TABLE profiles; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON TABLE public.profiles IS 'A person''s own name. Readable by the members of any workspace they share; written only by them, through profile_set.';
-
-
---
--- Name: provider_events; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.provider_events (
-    provider text NOT NULL,
-    provider_event_id text NOT NULL,
-    door text NOT NULL,
-    url text NOT NULL,
-    tenant_id uuid,
-    verified boolean DEFAULT true NOT NULL,
-    headers jsonb DEFAULT '{}'::jsonb NOT NULL,
-    body text NOT NULL,
-    received_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT provider_events_headers_check CHECK ((jsonb_typeof(headers) = 'object'::text)),
-    CONSTRAINT provider_events_provider_check CHECK ((provider = ANY (ARRAY['meta'::text, 'twilio'::text, 'retell'::text, 'resend'::text, 'stripe'::text])))
-);
-
-
---
--- Name: TABLE provider_events; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON TABLE public.provider_events IS 'Every verified delivery a provider made to a door, as it came, under the provider''s own id (decision 0032): the door and url it came to, the headers its signature reads, the body, and the workspace the door knew at the time. Kept a week (purge_provider_events), scrubbed on erasure (provider_events_scrub), replayed by api/admin/intake/replay. RLS on with no policy: the service role alone.';
-
-
---
--- Name: push_devices; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.push_devices (
-    id uuid DEFAULT gen_random_uuid() NOT NULL,
-    user_id uuid NOT NULL,
-    token text NOT NULL,
-    platform text NOT NULL,
-    app_version text,
-    last_seen_at timestamp with time zone DEFAULT now() NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    activity_token text,
-    CONSTRAINT push_devices_activity_token_check CHECK ((char_length(activity_token) <= 200)),
-    CONSTRAINT push_devices_app_version_check CHECK ((char_length(app_version) <= 40)),
-    CONSTRAINT push_devices_platform_check CHECK ((platform = ANY (ARRAY['ios'::text, 'android'::text]))),
-    CONSTRAINT push_devices_token_check CHECK (((char_length(token) >= 1) AND (char_length(token) <= 200)))
-);
-
-
---
--- Name: TABLE push_devices; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON TABLE public.push_devices IS 'The phones people can be told on: one row per push token, owned by the person, registered and forgotten through two definer doors. The edge reads.';
-
-
---
--- Name: rate_hits; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE UNLOGGED TABLE public.rate_hits (
-    bucket text NOT NULL,
-    actor text NOT NULL,
-    at timestamp with time zone DEFAULT clock_timestamp() NOT NULL
-);
-
-
---
--- Name: reach_out_check_spend; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.reach_out_check_spend (
-    tenant_id uuid NOT NULL,
-    day date NOT NULL,
-    attempts integer DEFAULT 0 NOT NULL,
-    reads integer DEFAULT 0 NOT NULL,
-    CONSTRAINT reach_out_check_spend_attempts_check CHECK ((attempts >= 0)),
-    CONSTRAINT reach_out_check_spend_reads_check CHECK ((reads >= 0))
-);
-
-
---
--- Name: TABLE reach_out_check_spend; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON TABLE public.reach_out_check_spend IS 'Reach out, Part 4: the check''s model attempts per workspace and UTC day, under contracts REACH_OUT_CHECKS_PER_DAY. Written by reach_out_check_take only.';
-
-
---
--- Name: COLUMN reach_out_check_spend.reads; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.reach_out_check_spend.reads IS 'Reach out Part 5: the replies read by the model in this workspace''s UTC day, under contracts REACH_OUT_READS_PER_DAY (G4). Written by reach_out_read_take only.';
-
-
---
--- Name: sequence_replies; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.sequence_replies (
-    message_id uuid NOT NULL,
-    tenant_id uuid NOT NULL,
-    conversation_id uuid NOT NULL,
-    contact_id uuid,
-    lead_id uuid,
-    lead_contact_id uuid,
-    send_id uuid,
-    answered_message_id uuid,
-    claim text NOT NULL,
-    intent text NOT NULL,
-    summary text,
-    named_day date,
-    refer_to text,
-    unread text,
-    rereads integer DEFAULT 0 NOT NULL,
-    reread_at timestamp with time zone,
-    until_at timestamp with time zone,
-    plan jsonb DEFAULT '{}'::jsonb NOT NULL,
-    draft text,
-    draft_state text DEFAULT 'none'::text NOT NULL,
-    draft_why text,
-    tell_claimed_at timestamp with time zone,
-    told_at timestamp with time zone,
-    read_at timestamp with time zone DEFAULT now() NOT NULL,
-    undone_at timestamp with time zone,
-    undone_by uuid,
-    signer_name text,
-    signer_title text,
-    signer_state text,
-    signer_was text,
-    signer_settled_at timestamp with time zone,
-    signer_settled_by uuid,
-    said_by uuid,
-    CONSTRAINT sequence_replies_away_has_until CHECK (((until_at IS NULL) OR ((intent = 'away'::text) AND (claim = 'auto_reply'::text)))),
-    CONSTRAINT sequence_replies_claim_check CHECK ((claim = ANY (ARRAY['person'::text, 'automated'::text, 'auto_reply'::text, 'owner'::text]))),
-    CONSTRAINT sequence_replies_draft_check CHECK (((draft IS NULL) OR (char_length(draft) <= 4000))),
-    CONSTRAINT sequence_replies_draft_state_check CHECK ((draft_state = ANY (ARRAY['none'::text, 'waiting'::text, 'written'::text, 'not_written'::text]))),
-    CONSTRAINT sequence_replies_draft_why_check CHECK (((draft_why IS NULL) OR (char_length(draft_why) <= 60))),
-    CONSTRAINT sequence_replies_intent_check CHECK ((intent = ANY (ARRAY['interested'::text, 'question'::text, 'not_now'::text, 'no'::text, 'wrong_person'::text, 'away'::text, 'other'::text]))),
-    CONSTRAINT sequence_replies_refer_to_check CHECK (((refer_to IS NULL) OR (char_length(refer_to) <= 120))),
-    CONSTRAINT sequence_replies_rereads_check CHECK (((rereads >= 0) AND (rereads <= 3))),
-    CONSTRAINT sequence_replies_said_by_owner CHECK (((said_by IS NULL) OR (claim = 'owner'::text))),
-    CONSTRAINT sequence_replies_signer_check CHECK ((((signer_name IS NULL) OR ((char_length(signer_name) >= 1) AND (char_length(signer_name) <= 80))) AND ((signer_title IS NULL) OR ((signer_name IS NOT NULL) AND ((char_length(signer_title) >= 1) AND (char_length(signer_title) <= 80)))) AND ((signer_name IS NULL) = (signer_state IS NULL)) AND ((signer_state IS NULL) OR (signer_state = ANY (ARRAY['offered'::text, 'adopted'::text, 'declined'::text, 'undone'::text]))) AND ((signer_was IS NULL) OR (signer_was = ANY (ARRAY['none'::text, 'typed'::text, 'import'::text, 'calendar'::text, 'signature'::text, 'wire'::text, 'lead'::text]))) AND ((signer_settled_at IS NULL) = ((signer_state IS NULL) OR (signer_state = 'offered'::text))))),
-    CONSTRAINT sequence_replies_summary_check CHECK (((summary IS NULL) OR (char_length(summary) <= 160))),
-    CONSTRAINT sequence_replies_unread_check CHECK (((unread IS NULL) OR (unread = ANY (ARRAY['no_model'::text, 'may_not_spend'::text, 'day_spent'::text, 'model_failed'::text])))),
-    CONSTRAINT sequence_replies_unread_is_other CHECK (((unread IS NULL) OR (intent = 'other'::text)))
-);
-
-
---
--- Name: TABLE sequence_replies; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON TABLE public.sequence_replies IS 'Decision 0060: one reading of one reply to a sequence''s send, keyed by the message (reach_out_replies until 00440). The intent (or other, with why it could not be read), what the reading did (plan), and the draft it wrote.';
-
-
---
--- Name: COLUMN sequence_replies.signer_name; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.sequence_replies.signer_name IS 'Who signed the reply, as the reading found it in the writer''s own lines and the human-name gate let it through (contracts signerOf, 0052); null when nobody did. Cleared when the person is erased.';
-
-
---
--- Name: COLUMN sequence_replies.signer_state; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.sequence_replies.signer_state IS 'What became of the signer''s name (0052): offered (the notice "Use this name"), adopted (by a member''s press or automatically), declined, or undone.';
-
-
---
--- Name: COLUMN sequence_replies.said_by; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.sequence_replies.said_by IS 'For a reading its owner gave (claim owner, 00429): the member who said what the business wrote back. Its message_id is the note that says so on the person''s thread (reach_out_reply_said).';
-
-
---
--- Name: reach_out_replies; Type: VIEW; Schema: public; Owner: -
---
-
-CREATE VIEW public.reach_out_replies WITH (security_invoker='true') AS
- SELECT message_id,
-    tenant_id,
-    conversation_id,
-    contact_id,
-    lead_id,
-    lead_contact_id,
-    send_id,
-    answered_message_id,
-    claim,
-    intent,
-    summary,
-    named_day,
-    refer_to,
-    unread,
-    rereads,
-    reread_at,
-    until_at,
-    plan,
-    draft,
-    draft_state,
-    draft_why,
-    tell_claimed_at,
-    told_at,
-    read_at,
-    undone_at,
-    undone_by,
-    signer_name,
-    signer_title,
-    signer_state,
-    signer_was,
-    signer_settled_at,
-    signer_settled_by,
-    said_by
-   FROM public.sequence_replies r;
-
-
---
--- Name: VIEW reach_out_replies; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON VIEW public.reach_out_replies IS 'Decision 0060: sequence_replies under its old name, while the code moves (step S6 drops it).';
-
-
---
--- Name: reply_turns; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.reply_turns (
-    conversation_id uuid NOT NULL,
-    tenant_id uuid NOT NULL,
-    message_id uuid NOT NULL,
-    claimed_at timestamp with time zone DEFAULT now() NOT NULL
-);
-
-
---
--- Name: TABLE reply_turns; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON TABLE public.reply_turns IS 'Whose reply a thread is waiting on: the message claim_reply_turn() gave the turn to. Service role only (core inbound/turn.ts).';
-
-
---
--- Name: segment_members; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.segment_members (
-    segment_id uuid NOT NULL,
-    contact_id uuid NOT NULL,
-    tenant_id uuid NOT NULL,
-    added_by uuid,
-    added_at timestamp with time zone DEFAULT now() NOT NULL
-);
-
-
---
--- Name: segments; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.segments (
-    id uuid DEFAULT gen_random_uuid() NOT NULL,
-    tenant_id uuid NOT NULL,
-    name text NOT NULL,
-    created_by uuid,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    rule jsonb,
-    archived_at timestamp with time zone,
-    CONSTRAINT segments_name_check CHECK (((length(name) >= 1) AND (length(name) <= 60))),
-    CONSTRAINT segments_rule_is_an_object CHECK (((rule IS NULL) OR (jsonb_typeof(rule) = 'object'::text)))
-);
-
-
---
--- Name: COLUMN segments.rule; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.segments.rule IS 'A smart list''s rule, in contracts list-rules.ts''s vocabulary: who is on it is judged on every read. Null for a list kept by hand.';
-
-
---
--- Name: COLUMN segments.archived_at; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.segments.archived_at IS 'When the list was archived: it leaves People''s rail and still resolves for the playbooks that name it. Null for a live list.';
-
-
---
--- Name: sending_domain_days; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.sending_domain_days (
-    tenant_id uuid NOT NULL,
-    domain_id uuid NOT NULL,
-    day date NOT NULL,
-    host text NOT NULL,
-    state text NOT NULL,
-    held_why text,
-    sent integer,
-    bounced integer,
-    complaints integer,
-    sent_days integer,
-    checked_at timestamp with time zone,
-    kept_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT sending_domain_days_bounced_check CHECK (((bounced IS NULL) OR (bounced >= 0))),
-    CONSTRAINT sending_domain_days_complaints_check CHECK (((complaints IS NULL) OR (complaints >= 0))),
-    CONSTRAINT sending_domain_days_held_why_check CHECK (((held_why IS NULL) OR (char_length(held_why) <= 40))),
-    CONSTRAINT sending_domain_days_host_check CHECK (((char_length(host) >= 4) AND (char_length(host) <= 253))),
-    CONSTRAINT sending_domain_days_sent_check CHECK (((sent IS NULL) OR (sent >= 0))),
-    CONSTRAINT sending_domain_days_sent_days_check CHECK (((sent_days IS NULL) OR (sent_days >= 0))),
-    CONSTRAINT sending_domain_days_state_check CHECK ((state = ANY (ARRAY['verified'::text, 'held'::text])))
-);
-
-
---
--- Name: TABLE sending_domain_days; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON TABLE public.sending_domain_days IS 'Retired (decision 0056, 00423): each sending domain''s day, filed nightly until its clock was unscheduled. Kept inert until a later migration drops it (docs/debt.md).';
-
-
---
--- Name: sending_domains; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.sending_domains (
-    id uuid DEFAULT gen_random_uuid() NOT NULL,
-    tenant_id uuid NOT NULL,
-    host text NOT NULL,
-    from_local text NOT NULL,
-    from_name text NOT NULL,
-    provider_domain_id text,
-    records jsonb DEFAULT '[]'::jsonb NOT NULL,
-    state text DEFAULT 'records'::text NOT NULL,
-    provider_status text,
-    dmarc text,
-    held_why text,
-    held_at timestamp with time zone,
-    verified_at timestamp with time zone,
-    clean_since timestamp with time zone,
-    checked_at timestamp with time zone,
-    created_by uuid,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    sent_recent integer,
-    bounced_recent integer,
-    complaints integer,
-    counted_since timestamp with time zone,
-    sent_days integer,
-    resume_by text DEFAULT 'owner'::text NOT NULL,
-    CONSTRAINT sending_domains_dmarc_check CHECK ((dmarc = ANY (ARRAY['found'::text, 'missing'::text]))),
-    CONSTRAINT sending_domains_from_local_check CHECK (((char_length(from_local) <= 40) AND (from_local ~ '^[a-z0-9]+([.-][a-z0-9]+)*$'::text))),
-    CONSTRAINT sending_domains_from_name_check CHECK (((char_length(btrim(from_name)) >= 1) AND (char_length(btrim(from_name)) <= 80))),
-    CONSTRAINT sending_domains_held_is_whole CHECK ((((state = 'held'::text) = (held_why IS NOT NULL)) AND ((held_why IS NULL) = (held_at IS NULL)))),
-    CONSTRAINT sending_domains_held_why_check CHECK ((held_why = ANY (ARRAY['verification'::text, 'dmarc'::text, 'bounces'::text, 'complaint'::text, 'provider'::text, 'unsubscribes'::text]))),
-    CONSTRAINT sending_domains_host_check CHECK ((((char_length(host) >= 4) AND (char_length(host) <= 253)) AND (host ~ '^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$'::text))),
-    CONSTRAINT sending_domains_records_check CHECK ((jsonb_typeof(records) = 'array'::text)),
-    CONSTRAINT sending_domains_resume_by_check CHECK ((resume_by = ANY (ARRAY['owner'::text, 'platform'::text]))),
-    CONSTRAINT sending_domains_sending_is_dated CHECK (((state <> ALL (ARRAY['verified'::text, 'held'::text])) OR ((verified_at IS NOT NULL) AND (clean_since IS NOT NULL)))),
-    CONSTRAINT sending_domains_state_check CHECK ((state = ANY (ARRAY['records'::text, 'verifying'::text, 'verified'::text, 'held'::text])))
-);
-
-
---
--- Name: TABLE sending_domains; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON TABLE public.sending_domains IS 'Retired (decision 0056, 00423): the domains a second Resend account sent cold email from. Nothing reads or writes it now; kept inert until a later migration drops it (docs/debt.md).';
-
-
---
--- Name: COLUMN sending_domains.counted_since; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.sending_domains.counted_since IS 'Where the reputation count starts (bounces, complaints): set when the domain is first verified and when its owner resumes it, never by a DNS release. clean_since is the ramp''s clock (contracts domainDailyCap).';
-
-
---
--- Name: COLUMN sending_domains.sent_days; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.sending_domains.sent_days IS 'The days it sent on before today since it was clean, within the last 90 (sending_domain_capacity, D15), as the domains clock last wrote them: the ramp the send door and Connections read. Zero when clean again (a hold released, a first verify); null until written, read as none.';
-
-
---
--- Name: COLUMN sending_domains.resume_by; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.sending_domains.resume_by IS 'Who lifts its reputation hold: the owner (Resume), or the platform, when it was held for its reputation twice in thirty days (Reach out D16, 00188).';
-
-
---
--- Name: sequence_enrollments; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.sequence_enrollments (
-    id uuid DEFAULT gen_random_uuid() NOT NULL,
-    tenant_id uuid NOT NULL,
-    sequence_id uuid NOT NULL,
-    contact_id uuid,
-    lead_id uuid,
-    state text DEFAULT 'in'::text NOT NULL,
-    place integer DEFAULT 1 NOT NULL,
-    sent_at timestamp with time zone,
-    next_at timestamp with time zone,
-    why text,
-    left_by uuid,
-    entered_at timestamp with time zone DEFAULT now() NOT NULL,
-    moved_at timestamp with time zone DEFAULT now() NOT NULL,
-    ended_at timestamp with time zone,
-    CONSTRAINT sequence_enrollments_ended_is_dated CHECK (((state = 'in'::text) = (ended_at IS NULL))),
-    CONSTRAINT sequence_enrollments_left_says_why CHECK (((state <> 'left'::text) OR (why IS NOT NULL))),
-    CONSTRAINT sequence_enrollments_place_check CHECK (((place >= 1) AND (place <= 20))),
-    CONSTRAINT sequence_enrollments_someone CHECK (((lead_id IS NOT NULL) OR (contact_id IS NOT NULL))),
-    CONSTRAINT sequence_enrollments_state_check CHECK ((state = ANY (ARRAY['in'::text, 'done'::text, 'left'::text]))),
-    CONSTRAINT sequence_enrollments_why_check CHECK (((why IS NULL) OR ((char_length(why) >= 1) AND (char_length(why) <= 60))))
-);
-
-
---
--- Name: TABLE sequence_enrollments; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON TABLE public.sequence_enrollments IS 'Decision 0060: someone in a sequence. In while a step of theirs is to come; done when the last one went; left, with why (the reason of the send that went nowhere, booked, replied, removed). Kept by their sends as each is written and moves (sequence_sends_move_enrollment), and by the leave door. A customer enters again on a first step''s send of a new occasion; a lead enters once.';
-
-
---
--- Name: COLUMN sequence_enrollments.sent_at; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.sequence_enrollments.sent_at IS 'When their last step went.';
-
-
---
--- Name: COLUMN sequence_enrollments.next_at; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.sequence_enrollments.next_at IS 'A customer''s sequence: when their next step is due (their last step''s send and the next step''s wait). Null when none is.';
 
 
 --
@@ -43721,14 +43156,6 @@ GRANT ALL ON FUNCTION public.playbook_totals(p_tenant_id uuid, p_history integer
 
 
 --
--- Name: FUNCTION playbooks_due(p_kind text, p_at timestamp with time zone, p_last_hour integer, p_limit integer, p_tenant_id uuid); Type: ACL; Schema: public; Owner: -
---
-
-REVOKE ALL ON FUNCTION public.playbooks_due(p_kind text, p_at timestamp with time zone, p_last_hour integer, p_limit integer, p_tenant_id uuid) FROM PUBLIC;
-GRANT ALL ON FUNCTION public.playbooks_due(p_kind text, p_at timestamp with time zone, p_last_hour integer, p_limit integer, p_tenant_id uuid) TO service_role;
-
-
---
 -- Name: FUNCTION profile_set(p_display_name text); Type: ACL; Schema: public; Owner: -
 --
 
@@ -44010,82 +43437,6 @@ GRANT ALL ON FUNCTION public.reach_out_check_take(p_tenant_id uuid, p_cap intege
 
 
 --
--- Name: TABLE sequence_sends; Type: ACL; Schema: public; Owner: -
---
-
-GRANT SELECT ON TABLE public.sequence_sends TO authenticated;
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.sequence_sends TO service_role;
-
-
---
--- Name: COLUMN sequence_sends.tenant_id; Type: ACL; Schema: public; Owner: -
---
-
-GRANT INSERT(tenant_id) ON TABLE public.sequence_sends TO authenticated;
-
-
---
--- Name: COLUMN sequence_sends.batch_id; Type: ACL; Schema: public; Owner: -
---
-
-GRANT INSERT(batch_id) ON TABLE public.sequence_sends TO authenticated;
-
-
---
--- Name: COLUMN sequence_sends.contact_id; Type: ACL; Schema: public; Owner: -
---
-
-GRANT INSERT(contact_id) ON TABLE public.sequence_sends TO authenticated;
-
-
---
--- Name: COLUMN sequence_sends.facts; Type: ACL; Schema: public; Owner: -
---
-
-GRANT INSERT(facts) ON TABLE public.sequence_sends TO authenticated;
-
-
---
--- Name: TABLE reach_out_sends; Type: ACL; Schema: public; Owner: -
---
-
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.reach_out_sends TO service_role;
-GRANT SELECT ON TABLE public.reach_out_sends TO authenticated;
-
-
---
--- Name: FUNCTION reach_out_claim(p_domain_id uuid, p_cap integer, p_at timestamp with time zone, p_limit integer); Type: ACL; Schema: public; Owner: -
---
-
-REVOKE ALL ON FUNCTION public.reach_out_claim(p_domain_id uuid, p_cap integer, p_at timestamp with time zone, p_limit integer) FROM PUBLIC;
-GRANT ALL ON FUNCTION public.reach_out_claim(p_domain_id uuid, p_cap integer, p_at timestamp with time zone, p_limit integer) TO service_role;
-
-
---
--- Name: FUNCTION reach_out_claim_drafts(p_at timestamp with time zone, p_limit integer, p_tenant_id uuid); Type: ACL; Schema: public; Owner: -
---
-
-REVOKE ALL ON FUNCTION public.reach_out_claim_drafts(p_at timestamp with time zone, p_limit integer, p_tenant_id uuid) FROM PUBLIC;
-GRANT ALL ON FUNCTION public.reach_out_claim_drafts(p_at timestamp with time zone, p_limit integer, p_tenant_id uuid) TO service_role;
-
-
---
--- Name: FUNCTION reach_out_claim_from(p_mailbox_id uuid, p_cap integer, p_at timestamp with time zone, p_limit integer); Type: ACL; Schema: public; Owner: -
---
-
-REVOKE ALL ON FUNCTION public.reach_out_claim_from(p_mailbox_id uuid, p_cap integer, p_at timestamp with time zone, p_limit integer) FROM PUBLIC;
-GRANT ALL ON FUNCTION public.reach_out_claim_from(p_mailbox_id uuid, p_cap integer, p_at timestamp with time zone, p_limit integer) TO service_role;
-
-
---
--- Name: FUNCTION reach_out_closed_sends(p_stuck_before timestamp with time zone, p_limit integer, p_tenant_id uuid); Type: ACL; Schema: public; Owner: -
---
-
-REVOKE ALL ON FUNCTION public.reach_out_closed_sends(p_stuck_before timestamp with time zone, p_limit integer, p_tenant_id uuid) FROM PUBLIC;
-GRANT ALL ON FUNCTION public.reach_out_closed_sends(p_stuck_before timestamp with time zone, p_limit integer, p_tenant_id uuid) TO service_role;
-
-
---
 -- Name: FUNCTION reach_out_day_due(p_now timestamp with time zone, p_limit integer); Type: ACL; Schema: public; Owner: -
 --
 
@@ -44107,14 +43458,6 @@ GRANT ALL ON FUNCTION public.reach_out_draft_facts(p_tenant_id uuid, p_lead_id u
 
 REVOKE ALL ON FUNCTION public.reach_out_drafts_waiting(p_limit integer, p_tenant_id uuid, p_run_id uuid, p_after_at timestamp with time zone, p_after_id uuid) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.reach_out_drafts_waiting(p_limit integer, p_tenant_id uuid, p_run_id uuid, p_after_at timestamp with time zone, p_after_id uuid) TO service_role;
-
-
---
--- Name: FUNCTION reach_out_due_domains(p_at timestamp with time zone, p_limit integer, p_tenant_id uuid, p_skip_tenants uuid[], p_skip_domains uuid[]); Type: ACL; Schema: public; Owner: -
---
-
-REVOKE ALL ON FUNCTION public.reach_out_due_domains(p_at timestamp with time zone, p_limit integer, p_tenant_id uuid, p_skip_tenants uuid[], p_skip_domains uuid[]) FROM PUBLIC;
-GRANT ALL ON FUNCTION public.reach_out_due_domains(p_at timestamp with time zone, p_limit integer, p_tenant_id uuid, p_skip_tenants uuid[], p_skip_domains uuid[]) TO service_role;
 
 
 --
@@ -44156,14 +43499,6 @@ GRANT ALL ON FUNCTION public.reach_out_given_up(p_created_at timestamp with time
 
 REVOKE ALL ON FUNCTION public.reach_out_hand_run(p_tenant_id uuid, p_step_id uuid, p_run_id uuid, p_day date, p_items jsonb) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.reach_out_hand_run(p_tenant_id uuid, p_step_id uuid, p_run_id uuid, p_day date, p_items jsonb) TO service_role;
-
-
---
--- Name: FUNCTION reach_out_held_stale(p_before timestamp with time zone, p_limit integer, p_tenant_id uuid); Type: ACL; Schema: public; Owner: -
---
-
-REVOKE ALL ON FUNCTION public.reach_out_held_stale(p_before timestamp with time zone, p_limit integer, p_tenant_id uuid) FROM PUBLIC;
-GRANT ALL ON FUNCTION public.reach_out_held_stale(p_before timestamp with time zone, p_limit integer, p_tenant_id uuid) TO service_role;
 
 
 --
@@ -44232,14 +43567,6 @@ GRANT ALL ON FUNCTION public.reach_out_person(p_tenant_id uuid, p_lead_id uuid) 
 
 REVOKE ALL ON FUNCTION public.reach_out_plan_run(p_run jsonb, p_sends jsonb) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.reach_out_plan_run(p_run jsonb, p_sends jsonb) TO service_role;
-
-
---
--- Name: FUNCTION reach_out_queued_outcomes(p_limit integer, p_tenant_id uuid); Type: ACL; Schema: public; Owner: -
---
-
-REVOKE ALL ON FUNCTION public.reach_out_queued_outcomes(p_limit integer, p_tenant_id uuid) FROM PUBLIC;
-GRANT ALL ON FUNCTION public.reach_out_queued_outcomes(p_limit integer, p_tenant_id uuid) TO service_role;
 
 
 --
@@ -44434,22 +43761,6 @@ GRANT ALL ON FUNCTION public.reach_out_send_said(p_send_id uuid, p_outcome text,
 REVOKE ALL ON FUNCTION public.reach_out_sources(p_tenant_id uuid, p_limit integer) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.reach_out_sources(p_tenant_id uuid, p_limit integer) TO authenticated;
 GRANT ALL ON FUNCTION public.reach_out_sources(p_tenant_id uuid, p_limit integer) TO service_role;
-
-
---
--- Name: FUNCTION reach_out_stale_sends(p_before timestamp with time zone, p_limit integer, p_tenant_id uuid); Type: ACL; Schema: public; Owner: -
---
-
-REVOKE ALL ON FUNCTION public.reach_out_stale_sends(p_before timestamp with time zone, p_limit integer, p_tenant_id uuid) FROM PUBLIC;
-GRANT ALL ON FUNCTION public.reach_out_stale_sends(p_before timestamp with time zone, p_limit integer, p_tenant_id uuid) TO service_role;
-
-
---
--- Name: FUNCTION reach_out_unchecked(p_limit integer, p_per_workspace integer, p_ahead_minutes integer, p_tenant_id uuid); Type: ACL; Schema: public; Owner: -
---
-
-REVOKE ALL ON FUNCTION public.reach_out_unchecked(p_limit integer, p_per_workspace integer, p_ahead_minutes integer, p_tenant_id uuid) FROM PUBLIC;
-GRANT ALL ON FUNCTION public.reach_out_unchecked(p_limit integer, p_per_workspace integer, p_ahead_minutes integer, p_tenant_id uuid) TO service_role;
 
 
 --
@@ -44763,6 +44074,42 @@ GRANT ALL ON FUNCTION public.sequence_batches_place() TO service_role;
 
 REVOKE ALL ON FUNCTION public.sequence_batches_say_sequence() FROM PUBLIC;
 GRANT ALL ON FUNCTION public.sequence_batches_say_sequence() TO service_role;
+
+
+--
+-- Name: TABLE sequence_sends; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT ON TABLE public.sequence_sends TO authenticated;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.sequence_sends TO service_role;
+
+
+--
+-- Name: COLUMN sequence_sends.tenant_id; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(tenant_id) ON TABLE public.sequence_sends TO authenticated;
+
+
+--
+-- Name: COLUMN sequence_sends.batch_id; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(batch_id) ON TABLE public.sequence_sends TO authenticated;
+
+
+--
+-- Name: COLUMN sequence_sends.contact_id; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(contact_id) ON TABLE public.sequence_sends TO authenticated;
+
+
+--
+-- Name: COLUMN sequence_sends.facts; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(facts) ON TABLE public.sequence_sends TO authenticated;
 
 
 --
@@ -45875,58 +45222,6 @@ GRANT ALL ON TABLE public.billing_events TO service_role;
 
 
 --
--- Name: TABLE broadcast_recipients; Type: ACL; Schema: public; Owner: -
---
-
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.broadcast_recipients TO service_role;
-GRANT SELECT ON TABLE public.broadcast_recipients TO authenticated;
-
-
---
--- Name: COLUMN broadcast_recipients.broadcast_id; Type: ACL; Schema: public; Owner: -
---
-
-GRANT INSERT(broadcast_id) ON TABLE public.broadcast_recipients TO authenticated;
-
-
---
--- Name: COLUMN broadcast_recipients.contact_id; Type: ACL; Schema: public; Owner: -
---
-
-GRANT INSERT(contact_id) ON TABLE public.broadcast_recipients TO authenticated;
-
-
---
--- Name: COLUMN broadcast_recipients.tenant_id; Type: ACL; Schema: public; Owner: -
---
-
-GRANT INSERT(tenant_id) ON TABLE public.broadcast_recipients TO authenticated;
-
-
---
--- Name: COLUMN broadcast_recipients.facts; Type: ACL; Schema: public; Owner: -
---
-
-GRANT INSERT(facts) ON TABLE public.broadcast_recipients TO authenticated;
-
-
---
--- Name: TABLE sequence_batches; Type: ACL; Schema: public; Owner: -
---
-
-GRANT SELECT,DELETE ON TABLE public.sequence_batches TO authenticated;
-GRANT ALL ON TABLE public.sequence_batches TO service_role;
-
-
---
--- Name: TABLE broadcasts; Type: ACL; Schema: public; Owner: -
---
-
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.broadcasts TO service_role;
-GRANT SELECT,DELETE ON TABLE public.broadcasts TO authenticated;
-
-
---
 -- Name: TABLE business_records; Type: ACL; Schema: public; Owner: -
 --
 
@@ -46707,6 +46002,219 @@ GRANT ALL ON TABLE public.platform_metrics TO service_role;
 
 
 --
+-- Name: TABLE policies; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT,DELETE,UPDATE ON TABLE public.policies TO authenticated;
+GRANT ALL ON TABLE public.policies TO service_role;
+
+
+--
+-- Name: COLUMN policies.tenant_id; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(tenant_id) ON TABLE public.policies TO authenticated;
+
+
+--
+-- Name: COLUMN policies.class; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(class) ON TABLE public.policies TO authenticated;
+
+
+--
+-- Name: COLUMN policies.mode; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(mode) ON TABLE public.policies TO authenticated;
+
+
+--
+-- Name: COLUMN policies.subject_type; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(subject_type) ON TABLE public.policies TO authenticated;
+
+
+--
+-- Name: COLUMN policies.subject_id; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(subject_id) ON TABLE public.policies TO authenticated;
+
+
+--
+-- Name: COLUMN policies.limits; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(limits) ON TABLE public.policies TO authenticated;
+
+
+--
+-- Name: TABLE profiles; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.profiles TO authenticated;
+GRANT ALL ON TABLE public.profiles TO service_role;
+
+
+--
+-- Name: TABLE provider_events; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.provider_events TO service_role;
+
+
+--
+-- Name: TABLE push_devices; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT ON TABLE public.push_devices TO authenticated;
+GRANT ALL ON TABLE public.push_devices TO service_role;
+
+
+--
+-- Name: TABLE rate_hits; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.rate_hits TO service_role;
+
+
+--
+-- Name: TABLE reach_out_check_spend; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.reach_out_check_spend TO service_role;
+
+
+--
+-- Name: TABLE reply_turns; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.reply_turns TO service_role;
+
+
+--
+-- Name: TABLE segment_members; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT,DELETE,UPDATE ON TABLE public.segment_members TO authenticated;
+GRANT ALL ON TABLE public.segment_members TO service_role;
+
+
+--
+-- Name: COLUMN segment_members.segment_id; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(segment_id) ON TABLE public.segment_members TO authenticated;
+
+
+--
+-- Name: COLUMN segment_members.contact_id; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(contact_id) ON TABLE public.segment_members TO authenticated;
+
+
+--
+-- Name: COLUMN segment_members.tenant_id; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(tenant_id) ON TABLE public.segment_members TO authenticated;
+
+
+--
+-- Name: COLUMN segment_members.added_by; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(added_by) ON TABLE public.segment_members TO authenticated;
+
+
+--
+-- Name: TABLE segments; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT,DELETE ON TABLE public.segments TO authenticated;
+GRANT ALL ON TABLE public.segments TO service_role;
+
+
+--
+-- Name: COLUMN segments.tenant_id; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(tenant_id) ON TABLE public.segments TO authenticated;
+
+
+--
+-- Name: COLUMN segments.name; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(name),UPDATE(name) ON TABLE public.segments TO authenticated;
+
+
+--
+-- Name: COLUMN segments.created_by; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(created_by) ON TABLE public.segments TO authenticated;
+
+
+--
+-- Name: COLUMN segments.rule; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(rule),UPDATE(rule) ON TABLE public.segments TO authenticated;
+
+
+--
+-- Name: COLUMN segments.archived_at; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT UPDATE(archived_at) ON TABLE public.segments TO authenticated;
+
+
+--
+-- Name: TABLE sending_domain_days; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.sending_domain_days TO service_role;
+GRANT SELECT ON TABLE public.sending_domain_days TO authenticated;
+
+
+--
+-- Name: TABLE sending_domains; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.sending_domains TO authenticated;
+GRANT ALL ON TABLE public.sending_domains TO service_role;
+
+
+--
+-- Name: TABLE sequence_batches; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT,DELETE ON TABLE public.sequence_batches TO authenticated;
+GRANT ALL ON TABLE public.sequence_batches TO service_role;
+
+
+--
+-- Name: TABLE sequence_enrollments; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT ON TABLE public.sequence_enrollments TO authenticated;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.sequence_enrollments TO service_role;
+
+
+--
+-- Name: TABLE sequence_replies; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.sequence_replies TO service_role;
+GRANT SELECT ON TABLE public.sequence_replies TO authenticated;
+
+
+--
 -- Name: TABLE sequence_steps; Type: ACL; Schema: public; Owner: -
 --
 
@@ -46901,360 +46409,6 @@ GRANT UPDATE(next_template_language) ON TABLE public.sequence_steps TO authentic
 --
 
 GRANT UPDATE(next_params) ON TABLE public.sequence_steps TO authenticated;
-
-
---
--- Name: TABLE playbooks; Type: ACL; Schema: public; Owner: -
---
-
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.playbooks TO service_role;
-GRANT SELECT,DELETE ON TABLE public.playbooks TO authenticated;
-
-
---
--- Name: COLUMN playbooks.tenant_id; Type: ACL; Schema: public; Owner: -
---
-
-GRANT INSERT(tenant_id) ON TABLE public.playbooks TO authenticated;
-
-
---
--- Name: COLUMN playbooks.name; Type: ACL; Schema: public; Owner: -
---
-
-GRANT INSERT(name),UPDATE(name) ON TABLE public.playbooks TO authenticated;
-
-
---
--- Name: COLUMN playbooks.trigger; Type: ACL; Schema: public; Owner: -
---
-
-GRANT INSERT(trigger),UPDATE(trigger) ON TABLE public.playbooks TO authenticated;
-
-
---
--- Name: COLUMN playbooks.template_id; Type: ACL; Schema: public; Owner: -
---
-
-GRANT INSERT(template_id),UPDATE(template_id) ON TABLE public.playbooks TO authenticated;
-
-
---
--- Name: COLUMN playbooks.template_name; Type: ACL; Schema: public; Owner: -
---
-
-GRANT INSERT(template_name),UPDATE(template_name) ON TABLE public.playbooks TO authenticated;
-
-
---
--- Name: COLUMN playbooks.template_language; Type: ACL; Schema: public; Owner: -
---
-
-GRANT INSERT(template_language),UPDATE(template_language) ON TABLE public.playbooks TO authenticated;
-
-
---
--- Name: COLUMN playbooks.params; Type: ACL; Schema: public; Owner: -
---
-
-GRANT INSERT(params),UPDATE(params) ON TABLE public.playbooks TO authenticated;
-
-
---
--- Name: COLUMN playbooks.policy_class; Type: ACL; Schema: public; Owner: -
---
-
-GRANT INSERT(policy_class),UPDATE(policy_class) ON TABLE public.playbooks TO authenticated;
-
-
---
--- Name: COLUMN playbooks.state; Type: ACL; Schema: public; Owner: -
---
-
-GRANT INSERT(state),UPDATE(state) ON TABLE public.playbooks TO authenticated;
-
-
---
--- Name: COLUMN playbooks.run_hour; Type: ACL; Schema: public; Owner: -
---
-
-GRANT INSERT(run_hour),UPDATE(run_hour) ON TABLE public.playbooks TO authenticated;
-
-
---
--- Name: COLUMN playbooks.cap_per_run; Type: ACL; Schema: public; Owner: -
---
-
-GRANT INSERT(cap_per_run),UPDATE(cap_per_run) ON TABLE public.playbooks TO authenticated;
-
-
---
--- Name: COLUMN playbooks.gap_days; Type: ACL; Schema: public; Owner: -
---
-
-GRANT INSERT(gap_days),UPDATE(gap_days) ON TABLE public.playbooks TO authenticated;
-
-
---
--- Name: COLUMN playbooks.cadence_days; Type: ACL; Schema: public; Owner: -
---
-
-GRANT INSERT(cadence_days),UPDATE(cadence_days) ON TABLE public.playbooks TO authenticated;
-
-
---
--- Name: COLUMN playbooks.created_by; Type: ACL; Schema: public; Owner: -
---
-
-GRANT INSERT(created_by) ON TABLE public.playbooks TO authenticated;
-
-
---
--- Name: COLUMN playbooks.list_id; Type: ACL; Schema: public; Owner: -
---
-
-GRANT INSERT(list_id),UPDATE(list_id) ON TABLE public.playbooks TO authenticated;
-
-
---
--- Name: COLUMN playbooks.list_key; Type: ACL; Schema: public; Owner: -
---
-
-GRANT INSERT(list_key),UPDATE(list_key) ON TABLE public.playbooks TO authenticated;
-
-
---
--- Name: COLUMN playbooks.channels; Type: ACL; Schema: public; Owner: -
---
-
-GRANT INSERT(channels),UPDATE(channels) ON TABLE public.playbooks TO authenticated;
-
-
---
--- Name: COLUMN playbooks.until; Type: ACL; Schema: public; Owner: -
---
-
-GRANT INSERT(until),UPDATE(until) ON TABLE public.playbooks TO authenticated;
-
-
---
--- Name: COLUMN playbooks.trial_until; Type: ACL; Schema: public; Owner: -
---
-
-GRANT INSERT(trial_until),UPDATE(trial_until) ON TABLE public.playbooks TO authenticated;
-
-
---
--- Name: TABLE policies; Type: ACL; Schema: public; Owner: -
---
-
-GRANT SELECT,DELETE,UPDATE ON TABLE public.policies TO authenticated;
-GRANT ALL ON TABLE public.policies TO service_role;
-
-
---
--- Name: COLUMN policies.tenant_id; Type: ACL; Schema: public; Owner: -
---
-
-GRANT INSERT(tenant_id) ON TABLE public.policies TO authenticated;
-
-
---
--- Name: COLUMN policies.class; Type: ACL; Schema: public; Owner: -
---
-
-GRANT INSERT(class) ON TABLE public.policies TO authenticated;
-
-
---
--- Name: COLUMN policies.mode; Type: ACL; Schema: public; Owner: -
---
-
-GRANT INSERT(mode) ON TABLE public.policies TO authenticated;
-
-
---
--- Name: COLUMN policies.subject_type; Type: ACL; Schema: public; Owner: -
---
-
-GRANT INSERT(subject_type) ON TABLE public.policies TO authenticated;
-
-
---
--- Name: COLUMN policies.subject_id; Type: ACL; Schema: public; Owner: -
---
-
-GRANT INSERT(subject_id) ON TABLE public.policies TO authenticated;
-
-
---
--- Name: COLUMN policies.limits; Type: ACL; Schema: public; Owner: -
---
-
-GRANT INSERT(limits) ON TABLE public.policies TO authenticated;
-
-
---
--- Name: TABLE profiles; Type: ACL; Schema: public; Owner: -
---
-
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.profiles TO authenticated;
-GRANT ALL ON TABLE public.profiles TO service_role;
-
-
---
--- Name: TABLE provider_events; Type: ACL; Schema: public; Owner: -
---
-
-GRANT ALL ON TABLE public.provider_events TO service_role;
-
-
---
--- Name: TABLE push_devices; Type: ACL; Schema: public; Owner: -
---
-
-GRANT SELECT ON TABLE public.push_devices TO authenticated;
-GRANT ALL ON TABLE public.push_devices TO service_role;
-
-
---
--- Name: TABLE rate_hits; Type: ACL; Schema: public; Owner: -
---
-
-GRANT ALL ON TABLE public.rate_hits TO service_role;
-
-
---
--- Name: TABLE reach_out_check_spend; Type: ACL; Schema: public; Owner: -
---
-
-GRANT ALL ON TABLE public.reach_out_check_spend TO service_role;
-
-
---
--- Name: TABLE sequence_replies; Type: ACL; Schema: public; Owner: -
---
-
-GRANT ALL ON TABLE public.sequence_replies TO service_role;
-GRANT SELECT ON TABLE public.sequence_replies TO authenticated;
-
-
---
--- Name: TABLE reach_out_replies; Type: ACL; Schema: public; Owner: -
---
-
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.reach_out_replies TO service_role;
-GRANT SELECT ON TABLE public.reach_out_replies TO authenticated;
-
-
---
--- Name: TABLE reply_turns; Type: ACL; Schema: public; Owner: -
---
-
-GRANT ALL ON TABLE public.reply_turns TO service_role;
-
-
---
--- Name: TABLE segment_members; Type: ACL; Schema: public; Owner: -
---
-
-GRANT SELECT,DELETE,UPDATE ON TABLE public.segment_members TO authenticated;
-GRANT ALL ON TABLE public.segment_members TO service_role;
-
-
---
--- Name: COLUMN segment_members.segment_id; Type: ACL; Schema: public; Owner: -
---
-
-GRANT INSERT(segment_id) ON TABLE public.segment_members TO authenticated;
-
-
---
--- Name: COLUMN segment_members.contact_id; Type: ACL; Schema: public; Owner: -
---
-
-GRANT INSERT(contact_id) ON TABLE public.segment_members TO authenticated;
-
-
---
--- Name: COLUMN segment_members.tenant_id; Type: ACL; Schema: public; Owner: -
---
-
-GRANT INSERT(tenant_id) ON TABLE public.segment_members TO authenticated;
-
-
---
--- Name: COLUMN segment_members.added_by; Type: ACL; Schema: public; Owner: -
---
-
-GRANT INSERT(added_by) ON TABLE public.segment_members TO authenticated;
-
-
---
--- Name: TABLE segments; Type: ACL; Schema: public; Owner: -
---
-
-GRANT SELECT,DELETE ON TABLE public.segments TO authenticated;
-GRANT ALL ON TABLE public.segments TO service_role;
-
-
---
--- Name: COLUMN segments.tenant_id; Type: ACL; Schema: public; Owner: -
---
-
-GRANT INSERT(tenant_id) ON TABLE public.segments TO authenticated;
-
-
---
--- Name: COLUMN segments.name; Type: ACL; Schema: public; Owner: -
---
-
-GRANT INSERT(name),UPDATE(name) ON TABLE public.segments TO authenticated;
-
-
---
--- Name: COLUMN segments.created_by; Type: ACL; Schema: public; Owner: -
---
-
-GRANT INSERT(created_by) ON TABLE public.segments TO authenticated;
-
-
---
--- Name: COLUMN segments.rule; Type: ACL; Schema: public; Owner: -
---
-
-GRANT INSERT(rule),UPDATE(rule) ON TABLE public.segments TO authenticated;
-
-
---
--- Name: COLUMN segments.archived_at; Type: ACL; Schema: public; Owner: -
---
-
-GRANT UPDATE(archived_at) ON TABLE public.segments TO authenticated;
-
-
---
--- Name: TABLE sending_domain_days; Type: ACL; Schema: public; Owner: -
---
-
-GRANT ALL ON TABLE public.sending_domain_days TO service_role;
-GRANT SELECT ON TABLE public.sending_domain_days TO authenticated;
-
-
---
--- Name: TABLE sending_domains; Type: ACL; Schema: public; Owner: -
---
-
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.sending_domains TO authenticated;
-GRANT ALL ON TABLE public.sending_domains TO service_role;
-
-
---
--- Name: TABLE sequence_enrollments; Type: ACL; Schema: public; Owner: -
---
-
-GRANT SELECT ON TABLE public.sequence_enrollments TO authenticated;
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.sequence_enrollments TO service_role;
 
 
 --

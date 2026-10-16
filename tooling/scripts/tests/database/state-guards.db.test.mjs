@@ -59,7 +59,7 @@ after(async () => {
 
 async function broadcast(state) {
   const { data, error } = await db
-    .from("broadcasts")
+    .from("sequence_batches")
     .insert({
       tenant_id: tenantId,
       name: `run ${state}`,
@@ -92,7 +92,7 @@ test("a broadcast takes every edge its writers take, and no other", { skip }, as
     ["sending", "canceled"],
   ];
   for (const [from, to] of allowed) {
-    const r = await move("broadcasts", await broadcast(from), { state: to });
+    const r = await move("sequence_batches", await broadcast(from), { state: to });
     assert.equal(r.error, null, `${from} -> ${to} is a move a writer makes: ${r.error?.message}`);
   }
   const refused = [
@@ -108,11 +108,11 @@ test("a broadcast takes every edge its writers take, and no other", { skip }, as
     ["sending", "pending_approval"],
   ];
   for (const [from, to] of refused) {
-    const r = await move("broadcasts", await broadcast(from), { state: to });
+    const r = await move("sequence_batches", await broadcast(from), { state: to });
     assert.match(r.error?.message ?? "", /refused/, `${from} -> ${to} must be refused`);
   }
   const same = await broadcast("sent");
-  const r = await move("broadcasts", same, { state: "sent", name: "renamed after sending" });
+  const r = await move("sequence_batches", same, { state: "sent", name: "renamed after sending" });
   assert.equal(r.error, null, `a same-state update is not a move: ${r.error?.message}`);
 });
 
@@ -182,19 +182,14 @@ test(
     const recipient = async (state) => {
       const contactId = await contact();
       const { error } = await db
-        .from("broadcast_recipients")
-        .insert({ tenant_id: tenantId, broadcast_id: broadcastId, contact_id: contactId, state });
+        .from("sequence_sends")
+        .insert({ tenant_id: tenantId, batch_id: broadcastId, contact_id: contactId, state });
       assert.equal(error, null, error?.message);
       return contactId;
     };
     // Keyed the way the handler keys it: the broadcast and the contact, no state filter.
     const mark = (contactId, patch) =>
-      db
-        .from("broadcast_recipients")
-        .update(patch)
-        .eq("broadcast_id", broadcastId)
-        .eq("contact_id", contactId)
-        .select("state");
+      db.from("sequence_sends").update(patch).eq("batch_id", broadcastId).eq("contact_id", contactId).select("state");
     for (const to of ["sent", "skipped", "failed"]) {
       const r = await mark(await recipient("queued"), { state: to, reason: to === "sent" ? null : to });
       assert.equal(r.error, null, `queued -> ${to} is the handler's move: ${r.error?.message}`);

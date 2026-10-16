@@ -43,7 +43,7 @@ export async function lab(slug, timezone = "UTC") {
     policy_class: "reengage",
     state: "running",
   };
-  return { ...w, messages, playbook: ok(await db.from("playbooks").insert(playbook).select("id").single()).id };
+  return { ...w, messages, playbook: ok(await db.from("sequence_steps").insert(playbook).select("id").single()).id };
 }
 
 /** A run: a `moment` (a playbook's), a one-off `broadcast` or a `reach_out` step, made at `created`, for `at`. */
@@ -82,10 +82,10 @@ export async function run(
     scheduled_for: iso(at),
     started_at: state === "sent" ? iso(startedAt) : null,
     created_at: iso(created),
-    playbook_id: playbook ? l.playbook : null,
+    step_id: playbook ? l.playbook : null,
     run_for: playbook ? ymd(at) : null,
   };
-  return ok(await db.from("broadcasts").insert(row).select("id").single(), `run ${name}`).id;
+  return ok(await db.from("sequence_batches").insert(row).select("id").single(), `run ${name}`).id;
 }
 
 /** A person with their one conversation. */
@@ -106,18 +106,15 @@ export async function send(
   const message = crypto.randomUUID();
   const row = messageRow(l, message, { conversation: p.conversation, contact: p.contact, channel, at });
   await insert("messages", { ...row, status, error });
-  await insert(
-    "broadcast_recipients",
-    recipientRow(l, { run: runId, contact: p.contact, message, at, channel: recipient }),
-  );
+  await insert("sequence_sends", recipientRow(l, { run: runId, contact: p.contact, message, at, channel: recipient }));
   return message;
 }
 
 /** A person a run did not send to: no message, no time of their own. */
 export const hold = (l, runId, p, { state = "skipped", reason = null, channel = "whatsapp" }) =>
-  insert("broadcast_recipients", {
+  insert("sequence_sends", {
     tenant_id: l.tenantId,
-    broadcast_id: runId,
+    batch_id: runId,
     contact_id: p.contact,
     state,
     reason,

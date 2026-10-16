@@ -245,7 +245,7 @@ async function broadcastTo(people, name, { resumes } = {}) {
   const when = new Date(Date.now() + 3_600_000);
   const id = ok(
     await db
-      .from("broadcasts")
+      .from("sequence_batches")
       .insert({
         tenant_id: T,
         name,
@@ -262,7 +262,7 @@ async function broadcastTo(people, name, { resumes } = {}) {
       .single(),
   ).id;
   for (const p of people)
-    ok(await db.from("broadcast_recipients").insert({ tenant_id: T, broadcast_id: id, contact_id: p.contactId }));
+    ok(await db.from("sequence_sends").insert({ tenant_id: T, batch_id: id, contact_id: p.contactId }));
   const { jobId } = await jobs.scheduleJob(db, {
     tenantId: T,
     kind: "broadcast_send",
@@ -272,11 +272,9 @@ async function broadcastTo(people, name, { resumes } = {}) {
   return { id, jobId };
 }
 const broadcastRow = async (id) =>
-  ok(await db.from("broadcasts").select("state, failure, started_at, finished_at").eq("id", id).single());
+  ok(await db.from("sequence_batches").select("state, failure, started_at, finished_at").eq("id", id).single());
 async function recipientsOf(id) {
-  const rows = ok(
-    await db.from("broadcast_recipients").select("contact_id, state, reason, message_id").eq("broadcast_id", id),
-  );
+  const rows = ok(await db.from("sequence_sends").select("contact_id, state, reason, message_id").eq("batch_id", id));
   return new Map(rows.map((r) => [r.contact_id, r]));
 }
 const messageOf = async (id) => ok(await db.from("messages").select("status, error, meta").eq("id", id).single());

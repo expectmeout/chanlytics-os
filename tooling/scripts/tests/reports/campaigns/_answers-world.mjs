@@ -142,7 +142,7 @@ export async function template(w) {
 export async function moment(w, tpl) {
   return ok(
     await db
-      .from("playbooks")
+      .from("sequence_steps")
       .insert({
         tenant_id: w.tenantId,
         name: "Win-back",
@@ -163,7 +163,7 @@ export async function moment(w, tpl) {
 export async function broadcast(w, tpl, { name, at, playbook = null }) {
   return ok(
     await db
-      .from("broadcasts")
+      .from("sequence_batches")
       .insert({
         tenant_id: w.tenantId,
         name,
@@ -172,7 +172,7 @@ export async function broadcast(w, tpl, { name, at, playbook = null }) {
         template_language: "en_US",
         scheduled_for: iso(at),
         state: "sent",
-        playbook_id: playbook,
+        step_id: playbook,
         run_for: playbook ? ymd(at) : null,
       })
       .select("id")
@@ -213,7 +213,7 @@ export const messageRow = (w, id, { conversation, contact, channel, at, external
 });
 export const recipientRow = (w, { run, contact, message, state = "sent", at, channel }) => ({
   tenant_id: w.tenantId,
-  broadcast_id: run,
+  batch_id: run,
   contact_id: contact,
   message_id: message,
   state,
@@ -237,7 +237,7 @@ export async function sentTo(w, run, at, channel = "whatsapp") {
   await insert("contacts", contactRow(w, contact));
   await insert("conversations", conversationRow(w, conversation, contact, at));
   await insert("messages", messageRow(w, message, { conversation, contact, channel, at }));
-  await insert("broadcast_recipients", recipientRow(w, { run, contact, message, at, channel }));
+  await insert("sequence_sends", recipientRow(w, { run, contact, message, at, channel }));
   return { contact, conversation, message };
 }
 
@@ -246,7 +246,7 @@ export async function sentAgain(w, run, person, at, channel = "whatsapp") {
   const { contact, conversation } = person;
   const message = crypto.randomUUID();
   await insert("messages", messageRow(w, message, { conversation, contact, channel, at }));
-  await insert("broadcast_recipients", recipientRow(w, { run, contact, message, at, channel }));
+  await insert("sequence_sends", recipientRow(w, { run, contact, message, at, channel }));
   return { contact, conversation, message };
 }
 
@@ -560,7 +560,7 @@ export async function buildWorld() {
   }
   await insert("conversations", rows.conversations);
   await insert("messages", rows.messages);
-  await insert("broadcast_recipients", rows.recipients);
+  await insert("sequence_sends", rows.recipients);
   await insert("events", rows.events);
 
   const key = (run, contact, event, consent, purpose, exact) =>
@@ -572,8 +572,8 @@ export async function buildWorld() {
 export async function readWorld(w) {
   const recipients = ok(
     await db
-      .from("broadcast_recipients")
-      .select("broadcast_id, contact_id, sent_at, channel, message_id")
+      .from("sequence_sends")
+      .select("broadcast_id:batch_id, contact_id, sent_at, channel, message_id")
       .eq("tenant_id", w.tenantId)
       .eq("state", "sent"),
   );

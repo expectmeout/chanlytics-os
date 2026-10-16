@@ -204,7 +204,7 @@ async function seed() {
   });
   // Their reply to a reach-out, read: it hangs on their message and their thread.
   ok(
-    await db.from("reach_out_replies").insert({
+    await db.from("sequence_replies").insert({
       message_id: message,
       tenant_id: T,
       conversation_id: conversation,
@@ -430,7 +430,7 @@ async function seed() {
     meta_status: "approved",
     components: [{ type: "BODY", text: "Hi {{business}}." }],
   });
-  const root = await insert("playbooks", {
+  const root = await insert("sequence_steps", {
     tenant_id: T,
     kind: "reach_out",
     policy_class: "outreach",
@@ -445,7 +445,7 @@ async function seed() {
     state: "running",
     signed_by: "Sam",
   });
-  const run = await insert("broadcasts", {
+  const run = await insert("sequence_batches", {
     tenant_id: T,
     name: "Needle reach-out · sent",
     template_id: template,
@@ -454,15 +454,15 @@ async function seed() {
     audience: { kind: "reach_out", root_id: root, step_id: root },
     state: "sent",
     scheduled_for: new Date().toISOString(),
-    playbook_id: root,
+    step_id: root,
   });
   ok(
-    await db.from("reach_out_sends").insert({
+    await db.from("sequence_sends").insert({
       id: crypto.randomUUID(),
       tenant_id: T,
-      broadcast_id: run,
-      playbook_id: root,
-      root_id: root,
+      batch_id: run,
+      step_id: root,
+      sequence_id: root,
       lead_id: lead,
       contact_id: A,
       state: "sent",
@@ -477,9 +477,9 @@ async function seed() {
     "reach_out_sends",
   );
   ok(
-    await db.from("broadcast_recipients").insert({
+    await db.from("sequence_sends").insert({
       tenant_id: T,
-      broadcast_id: run,
+      batch_id: run,
       contact_id: A,
       channel: "email",
       facts: { visit_when: WORDS, proposal_link: URL_WITH },
@@ -594,13 +594,17 @@ test(
     const [{ n: threads }] = query(`select count(*)::int as n from public.conversations where contact_id = '${A}'`);
     assert.equal(threads, 0, "the thread, with the call that held it, went with the person");
     // A run's rows are its counts: kept, with only the words gone.
-    const [send] = query(`select state, opening, angle, draft from public.reach_out_sends where tenant_id = '${T}'`);
+    const [send] = query(
+      `select state, opening, angle, draft from public.sequence_sends where sequence_sends.lead_id is not null and ( tenant_id = '${T}')`,
+    );
     assert.deepEqual(
       send,
       { state: "sent", opening: null, angle: null, draft: null },
       "the reach-out's send is kept, its words gone",
     );
-    const [row] = query(`select facts from public.broadcast_recipients where tenant_id = '${T}'`);
+    const [row] = query(
+      `select facts from public.sequence_sends where sequence_sends.lead_id is null and ( tenant_id = '${T}')`,
+    );
     assert.equal(row.facts, null, "the run's row for them is kept, the words it kept for them gone");
     // Their Ask threads are kept with the turns that are not theirs, the title and the scope cleared.
     const asks = query(

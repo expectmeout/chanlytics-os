@@ -108,12 +108,12 @@ async function sentFrom(mailbox, { contact = null, status = "sent", error = null
   );
   const send = crypto.randomUUID();
   ok(
-    await db.from("reach_out_sends").insert({
+    await db.from("sequence_sends").insert({
       id: send,
       tenant_id: A,
-      broadcast_id: run,
-      playbook_id: root,
-      root_id: root,
+      batch_id: run,
+      step_id: root,
+      sequence_id: root,
       lead_id: lead,
       mailbox_id: mailbox,
       send_at: iso(Date.now() - 60_000),
@@ -125,7 +125,7 @@ async function sentFrom(mailbox, { contact = null, status = "sent", error = null
     { state: "queued", message_id: id },
     { state: "sent", sent_at: iso(Date.now()) },
   ])
-    ok(await db.from("reach_out_sends").update(patch).eq("id", send));
+    ok(await db.from("sequence_sends").update(patch).eq("id", send));
   return id;
 }
 
@@ -148,7 +148,7 @@ before(async () => {
     }),
   );
   root = await one(
-    db.from("playbooks").insert({
+    db.from("sequence_steps").insert({
       tenant_id: A,
       kind: "reach_out",
       policy_class: "outreach",
@@ -167,7 +167,7 @@ before(async () => {
     }),
   );
   run = await one(
-    db.from("broadcasts").insert({
+    db.from("sequence_batches").insert({
       tenant_id: A,
       name: "Movers",
       template_id: template,
@@ -176,7 +176,7 @@ before(async () => {
       audience: { kind: "reach_out", root_id: root, step_id: root },
       state: "sending",
       scheduled_for: iso(Date.now()),
-      playbook_id: root,
+      step_id: root,
       run_for: "2026-10-13",
     }),
   );
@@ -507,7 +507,7 @@ test(
         },
       ],
       ["mailbox_capacity", { p_mailbox_id: id, p_at: at }],
-      ["reach_out_claim_from", { p_mailbox_id: id, p_cap: 1, p_at: at, p_limit: 1 }],
+      ["sequence_claim_from", { p_mailbox_id: id, p_cap: 1, p_at: at, p_limit: 1 }],
       ["reach_out_due_mailboxes", { p_at: at, p_limit: 1 }],
       ["outreach_mailbox_facts", { p_tenant_id: A, p_contact_id: id, p_to: "x@x.example", p_from: "y@y.example" }],
       ["mailbox_connection_counts", { p_mailbox_id: id, p_since: null }],

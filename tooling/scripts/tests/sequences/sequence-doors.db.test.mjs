@@ -106,7 +106,7 @@ after(async () => {
 const firstStep = async (name) =>
   ok(
     await db
-      .from("playbooks")
+      .from("sequence_steps")
       .insert({
         tenant_id: tenantId,
         name,
@@ -125,7 +125,7 @@ const firstStep = async (name) =>
 const batchOf = async (stepId, state, who = []) => {
   const id = ok(
     await db
-      .from("broadcasts")
+      .from("sequence_batches")
       .insert({
         tenant_id: tenantId,
         name: `run ${state}`,
@@ -134,7 +134,7 @@ const batchOf = async (stepId, state, who = []) => {
         template_language: "en_US",
         state,
         scheduled_for: new Date().toISOString(),
-        playbook_id: stepId,
+        step_id: stepId,
         run_for: "2026-10-02",
       })
       .select("id")
@@ -142,7 +142,7 @@ const batchOf = async (stepId, state, who = []) => {
     "the batch",
   ).id;
   for (const contactId of who)
-    ok(await db.from("broadcast_recipients").insert({ broadcast_id: id, contact_id: contactId, tenant_id: tenantId }));
+    ok(await db.from("sequence_sends").insert({ batch_id: id, contact_id: contactId, tenant_id: tenantId }));
   return id;
 };
 

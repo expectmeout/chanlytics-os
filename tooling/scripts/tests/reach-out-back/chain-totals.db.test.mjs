@@ -77,7 +77,7 @@ before(async () => {
         .insert({ tenant_id: A, via: "people", card: "movers", name: `Movers ${n}`, asked: `movers ${n}`, plan: {} }),
     );
     const root = await one(
-      db.from("playbooks").insert({
+      db.from("sequence_steps").insert({
         tenant_id: A,
         kind: "reach_out",
         trigger: "lead_first",
@@ -95,7 +95,7 @@ before(async () => {
     roots.push(root);
     if (n === 23) continue;
     const run = await one(
-      db.from("broadcasts").insert({
+      db.from("sequence_batches").insert({
         tenant_id: A,
         name: `Movers ${n}`,
         template_id: template,
@@ -104,7 +104,7 @@ before(async () => {
         audience: { kind: "reach_out", root_id: root, step_id: root },
         state: "sent",
         scheduled_for: new Date().toISOString(),
-        playbook_id: root,
+        step_id: root,
         run_for: "2097-01-01",
       }),
     );
@@ -124,12 +124,12 @@ before(async () => {
     );
     const at = new Date(n === 22 ? Date.now() - 40 * DAY : Date.now() - n * HOUR).toISOString();
     ok(
-      await db.from("reach_out_sends").insert({
+      await db.from("sequence_sends").insert({
         id: crypto.randomUUID(),
         tenant_id: A,
-        broadcast_id: run,
-        playbook_id: root,
-        root_id: root,
+        batch_id: run,
+        step_id: root,
+        sequence_id: root,
         lead_id: lead,
         contact_id: contact,
         state: "sent",

@@ -697,11 +697,11 @@ export async function snapshot(db, tenantId, userIds) {
       "calls",
       "escalations",
       "jobs",
-      "broadcasts",
-      "broadcast_recipients",
+      "sequence_batches",
+      "sequence_sends",
       "segments",
       "templates",
-      "playbooks",
+      "sequence_steps",
       "ask_threads",
       "invitations",
       "lead_searches",
@@ -937,9 +937,9 @@ export async function converge(
     "clearing calls",
   );
   // The people on every run go with their runs (the database cascades them; written out, so a run over a double clears them too).
-  must("clearing the runs' people", await db.from("broadcast_recipients").delete().eq("tenant_id", T));
+  must("clearing the runs' people", await db.from("sequence_sends").delete().eq("tenant_id", T));
   // A deal a spec recorded (0004, 0008), and the one a proposal link opens where deals are on: every run starts from none.
-  for (const table of ["escalations", "jobs", "broadcasts", "segments", "ask_threads", "deals"]) {
+  for (const table of ["escalations", "jobs", "sequence_batches", "segments", "ask_threads", "deals"]) {
     await deleteWhere(
       db,
       table,
@@ -2082,18 +2082,18 @@ export async function convergeCampaigns(db, T, ownerId, now) {
   );
   const earlier = must(
     "reading the run",
-    await db.from("broadcasts").select("id").eq("tenant_id", T).eq("name", CAMPAIGN_RUN),
+    await db.from("sequence_batches").select("id").eq("tenant_id", T).eq("name", CAMPAIGN_RUN),
   );
   await deleteWhere(
     db,
-    "broadcast_recipients",
-    "broadcast_id",
+    "sequence_sends",
+    "batch_id",
     earlier.map((b) => b.id),
     "clearing the run's people",
   );
   await deleteWhere(
     db,
-    "broadcasts",
+    "sequence_batches",
     "id",
     earlier.map((b) => b.id),
     "clearing the run",
@@ -2159,7 +2159,7 @@ export async function convergeCampaigns(db, T, ownerId, now) {
   const run = must(
     "the run",
     await db
-      .from("broadcasts")
+      .from("sequence_batches")
       .insert({
         tenant_id: T,
         name: CAMPAIGN_RUN,
@@ -2177,7 +2177,7 @@ export async function convergeCampaigns(db, T, ownerId, now) {
         created_by: ownerId,
         created_at: iso(made),
         updated_at: iso(finished),
-        playbook_id: null,
+        step_id: null,
         run_for: null,
         channels: ["whatsapp"],
       })
@@ -2268,7 +2268,7 @@ export async function convergeCampaigns(db, T, ownerId, now) {
   // The run's people: Casey and Sam sent to, each with the message and the time it went; Robin held back.
   const sentTo = (phone) => sends.find((m) => m.contact_id === idOf(phone));
   const recipient = (over) => ({
-    broadcast_id: run.id,
+    batch_id: run.id,
     tenant_id: T,
     state: "queued",
     reason: null,
@@ -2276,12 +2276,12 @@ export async function convergeCampaigns(db, T, ownerId, now) {
     sent_at: null,
     facts: null,
     channel: "whatsapp",
-    attempt: 0,
+    attempts: 0,
     ...over,
   });
   must(
     "the run's people",
-    await db.from("broadcast_recipients").insert([
+    await db.from("sequence_sends").insert([
       ...RUN_SENDS.map((s) =>
         recipient({
           contact_id: idOf(s.person),
@@ -2383,7 +2383,7 @@ async function convergeWinBack(db, T, ownerId, seed) {
   const [kept] = must(
     "reading the win-back",
     await db
-      .from("playbooks")
+      .from("sequence_steps")
       .select("id")
       .eq("tenant_id", T)
       .eq("trigger", WIN_BACK.trigger)
@@ -2392,11 +2392,11 @@ async function convergeWinBack(db, T, ownerId, seed) {
       .limit(1),
   );
   if (kept) {
-    must("putting the win-back back", await db.from("playbooks").update(row).eq("id", kept.id));
+    must("putting the win-back back", await db.from("sequence_steps").update(row).eq("id", kept.id));
     return "put the eval's Win-back back, paused";
   }
   if (!seed) return null;
-  must("adding the win-back", await db.from("playbooks").insert(row));
+  must("adding the win-back", await db.from("sequence_steps").insert(row));
   return "added the eval's Win-back, paused";
 }
 
@@ -2642,7 +2642,7 @@ export async function verify(db, T, ownerId) {
   // messages delivered or read, Casey Example's reply, the owner's approval and the message it sent. A run that is not sent is
   // a row in Today (waiting for a person) or a send job's, and a failed outbound message is one Today counts as a reply that
   // failed to deliver. (A queued message is named above, for every lens's rows.)
-  const runs = await read("the runs", db.from("broadcasts").select("id, name, state").eq("tenant_id", T));
+  const runs = await read("the runs", db.from("sequence_batches").select("id, name, state").eq("tenant_id", T));
   const unsent = runs.filter((r) => r.state !== "sent");
   if (unsent.length)
     problems.push(
@@ -2660,11 +2660,7 @@ export async function verify(db, T, ownerId) {
   const onRun = theRun
     ? await read(
         "the run's people",
-        db
-          .from("broadcast_recipients")
-          .select("contact_id, state, reason")
-          .eq("tenant_id", T)
-          .eq("broadcast_id", theRun.id),
+        db.from("sequence_sends").select("contact_id, state, reason").eq("tenant_id", T).eq("batch_id", theRun.id),
       )
     : [];
   const robinId = seeded.find((c) => c.phone_e164 === ROBIN.phone)?.id;
@@ -2726,7 +2722,7 @@ export async function verify(db, T, ownerId) {
   // nightly seeds none.
   const winBacks = await read(
     "the eval's Win-back",
-    db.from("playbooks").select("state").eq("tenant_id", T).eq("template_name", WIN_BACK.template),
+    db.from("sequence_steps").select("state").eq("tenant_id", T).eq("template_name", WIN_BACK.template),
   );
   if (winBacks.some((p) => p.state !== "paused"))
     problems.push("the eval's Win-back is running, and the hourly sweep would run it");

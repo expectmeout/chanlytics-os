@@ -100,7 +100,7 @@ async function passwordAlone(who) {
 const winBack = async (over = {}) =>
   ok(
     await db
-      .from("playbooks")
+      .from("sequence_steps")
       .insert({
         tenant_id: tenantId,
         name: "Win-back",
@@ -124,7 +124,7 @@ const winBack = async (over = {}) =>
 const row = async (id) =>
   ok(
     await db
-      .from("playbooks")
+      .from("sequence_steps")
       .select("name, state, run_hour, cap_per_run, gap_days, cadence_days")
       .eq("id", id)
       .single(),
@@ -341,7 +341,7 @@ test(
     });
     const run = ok(
       await db
-        .from("broadcasts")
+        .from("sequence_batches")
         .insert({
           tenant_id: tenantId,
           name: "Judged",
@@ -350,7 +350,7 @@ test(
           template_language: "en_US",
           state: "pending_approval",
           scheduled_for: new Date(Date.now() + 86_400_000).toISOString(),
-          playbook_id: id,
+          step_id: id,
           recipient_count: 12,
         })
         .select("id")
