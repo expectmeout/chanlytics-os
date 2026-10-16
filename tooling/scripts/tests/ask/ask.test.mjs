@@ -726,6 +726,21 @@ test("language, scope and settings changes", () => {
   assert.equal(detectLanguage("¿Quién llamó hoy?"), "es");
   assert.equal(detectLanguage("who called today?"), "en");
   assert.equal(detectLanguage("balayage"), "other");
+  // Every hint counted, and a word's edges any language's letters: the "a" closing "día" or "consultoría" is no English
+  // word, and one hint of each language no longer ties to English (the setup review, 15 Oct 2026).
+  for (const es of [
+    "Somos una consultoría B2B en línea: primero una llamada, luego casi siempre una propuesta. Prepara mis campañas.",
+    "¿Qué día tengo libre mañana?",
+    "¿qué le dijo la recepcionista a la última persona que escribió?",
+    "Envía una oferta a los clientes que no vienen hace un mes",
+  ])
+    assert.equal(detectLanguage(es), "es", es);
+  for (const en of [
+    "We're an online B2B consultancy: people book a discovery call, then most get a proposal. Set up my campaigns.",
+    "set up campaigns for a consultancy that sends proposals",
+    "send a reminder the day before the appointment",
+  ])
+    assert.equal(detectLanguage(en), "en", en);
   assert.deepEqual(scopeFromRoute("inbox", `th-${ID}`, "Dani"), { kind: "thread", id: ID, label: "Dani" });
   assert.deepEqual(scopeFromRoute("conversations", `cv-${ID}`, null), { kind: "call", id: ID, label: "this call" });
   assert.deepEqual(scopeFromRoute("clients", ID2, "Rosa"), { kind: "person", id: ID2, label: "Rosa" });

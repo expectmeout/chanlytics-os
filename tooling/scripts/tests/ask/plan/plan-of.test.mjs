@@ -114,7 +114,28 @@ const NO_MAILBOX = { ok: false, why: C.CHANNEL_WORDS.noMailbox };
 
 /** A setup's one campaign on the day after, its input the moment and `over` (its message or the starter it names). */
 const AFTER = (over) => ({ n: 1, kind: "playbook", silent: false, after: [], input: { trigger: "visited", ...over } });
-const COVERS_ONE = "Starts 1 campaign, one on each moment not covered yet, each its own card.";
+const COVERS_ONE = "Starts 1 campaign now: a follow-up the day after a booked time.";
+/** How a workspace with a calendar's feed and no deals works, as GET playbooks says it. */
+const SHAPE = { calendar: "feed", dealsOn: false, word: "appointment" };
+/** The same with no calendar connected: an appointment's two moments wait for one. */
+const NO_CALENDAR = { ...SHAPE, calendar: "none" };
+/** The journey such a workspace runs: first contact the receptionist's, and the win-back by silence. */
+const QUIET_ONLY = [
+  { id: "first_contact", covered: true, moment: null },
+  { id: "quiet", covered: false, moment: "quiet_30" },
+];
+/** What a setup with no calendar says first. */
+const CONNECT = (each = "appointment", gets = "a reminder the day before and a follow-up the day after") =>
+  `First, connect your calendar under Settings › Business, so each ${each} gets ${gets}.`;
+const TURN_ON =
+  "Then, under Settings › Business, answer How customers buy with “Some get a proposal first”, so each proposal that waits gets a follow-up.";
+const WIN_BACK = "Starts 1 campaign now: a win-back once they go quiet.";
+/** The answer a setup with no calendar leads with. */
+const CALENDAR_LEAD = (now, more) => ({
+  headline: `Connect your calendar first: ${now} campaign${now === 1 ? "" : "s"} can start now, ${more} more once it is connected.`,
+  open: { to: "admin/workspace/calendar", label: "Connect a calendar" },
+  next: ["How do I connect my calendar in Settings?"],
+});
 
 /** A workspace that can send offers on WhatsApp and by email, with a calendar, and nothing in its Library yet. */
 const world = (over = {}) => ({
@@ -132,6 +153,9 @@ const world = (over = {}) => ({
   journey: JOURNEY,
   offersList: OFFERS,
   canNote: true,
+  says: "en",
+  shape: SHAPE,
+  reach: {},
   ...over,
 });
 
@@ -804,7 +828,9 @@ const ROWS = [
       { n: 1, kind: "playbook", silent: false, after: [], input: { trigger: "visit_tomorrow" } },
       { n: 2, kind: "playbook", silent: false, after: [], input: { trigger: "visited" } },
     ],
-    words: ["Starts 2 campaigns, one on each moment not covered yet, each its own card."],
+    words: [
+      "Starts 2 campaigns now, each its own card: a reminder the day before a booked time and a follow-up the day after a booked time.",
+    ],
   },
   {
     name: "the day after sends the review ask the Library holds where the Google listing keeps a review link (ruling 9)",
@@ -815,7 +841,9 @@ const ROWS = [
       { n: 2, kind: "playbook", silent: false, after: [], input: { trigger: "visited", template_id: V(7) } },
       { n: 3, kind: "playbook", silent: false, after: [], input: { trigger: "lapsed" } },
     ],
-    words: ["Starts 3 campaigns, one on each moment not covered yet, each its own card."],
+    words: [
+      "Starts 3 campaigns now, each its own card: a reminder the day before a booked time, a follow-up the day after a booked time and a win-back once they go quiet.",
+    ],
   },
   {
     name: "a review link and nothing held: the day after names the review starter, which its Approve files",
@@ -884,24 +912,103 @@ const ROWS = [
       ],
     }),
     steps: [{ n: 1, kind: "playbook", silent: false, after: [], input: { trigger: "visited", template_id: V(8) } }],
-    words: ["Starts 1 campaign, one on each moment not covered yet, each its own card."],
+    words: [COVERS_ONE],
   },
   {
-    name: "cover the journey without a calendar: the win-back by silence alone",
+    name: "cover the journey without a calendar: the win-back by silence now, and the calendar to connect first for the day before and the day after, never dropped in silence (the setup review)",
     intent: { intent: "cover_journey" },
-    world: world({
-      journey: [
-        { id: "first_contact", covered: true, moment: null },
-        { id: "quiet", covered: false, moment: "quiet_30" },
-      ],
-    }),
+    world: world({ journey: QUIET_ONLY, shape: NO_CALENDAR }),
     steps: [{ n: 1, kind: "playbook", silent: false, after: [], input: { trigger: "quiet_30" } }],
-    words: ["Starts 1 campaign, one on each moment not covered yet, each its own card."],
+    words: [CONNECT(), WIN_BACK, "Ask me again once it is connected, and I'll add them."],
+    lead: CALENDAR_LEAD(1, 2),
+  },
+  {
+    name: "the owner's own business: a discovery call, then a proposal, no calendar and deals off; the calendar and proposals said first in their words, the win-back now and that it reaches nobody today (the setup review)",
+    intent: { intent: "cover_journey", books: "a discovery call", proposals: true },
+    world: world({ journey: QUIET_ONLY, shape: NO_CALENDAR, reach: { quiet_30: 0 } }),
+    steps: [{ n: 1, kind: "playbook", silent: false, after: [], input: { trigger: "quiet_30" } }],
+    words: [
+      CONNECT("discovery call"),
+      TURN_ON,
+      WIN_BACK,
+      "The win-back reaches nobody today; its card says why.",
+      "Ask me again once both are on, and I'll add them.",
+    ],
+    lead: {
+      headline: "Connect your calendar and turn on proposals first: 1 campaign can start now, 3 more once both are on.",
+      open: { to: "admin/workspace/calendar", label: "Connect a calendar" },
+      next: ["How do I connect my calendar in Settings?"],
+    },
+  },
+  {
+    name: "the same business asked in Spanish: every word of the setup in Spanish, theirs for what they book (the setup review)",
+    intent: { intent: "cover_journey", books: "una llamada de diagnóstico", proposals: true },
+    world: world({ journey: QUIET_ONLY, shape: NO_CALENDAR, reach: { quiet_30: 0 }, says: "es" }),
+    steps: [{ n: 1, kind: "playbook", silent: false, after: [], input: { trigger: "quiet_30" } }],
+    words: [
+      "Primero, conecta tu calendario en Ajustes › Negocio, para que cada llamada de diagnóstico tenga un recordatorio el día antes y un seguimiento el día después.",
+      "Luego, en Ajustes › Negocio, responde a «Cómo compran tus clientes» con «Algunos reciben antes una propuesta», para que cada propuesta que espera tenga un seguimiento.",
+      "Empieza 1 campaña ya: una recuperación para quien se queda en silencio.",
+      "La recuperación no llega a nadie hoy; su tarjeta dice por qué.",
+      "Pídemelo otra vez cuando estén los dos y las añado.",
+    ],
+    lead: {
+      headline:
+        "Conecta tu calendario y activa las propuestas primero: 1 campaña puede empezar ya, 3 más cuando estén los dos.",
+      open: { to: "admin/workspace/calendar", label: "Conectar un calendario" },
+      next: ["¿Cómo conecto mi calendario en Ajustes?"],
+    },
+  },
+  {
+    name: "a salon that never said proposals is never told to turn them on: the calendar alone, by its own word for an appointment (the setup review)",
+    intent: { intent: "cover_journey" },
+    world: world({ journey: QUIET_ONLY, shape: { ...NO_CALENDAR, word: "visit" }, reach: { quiet_30: 4 } }),
+    steps: [{ n: 1, kind: "playbook", silent: false, after: [], input: { trigger: "quiet_30" } }],
+    words: [CONNECT("visit"), WIN_BACK, "Ask me again once it is connected, and I'll add them."],
+    lead: CALENDAR_LEAD(1, 2),
+  },
+  {
+    name: "bookings by a booking tool's emails: the calendar's feed is what to connect, and why (the setup review)",
+    intent: { intent: "cover_journey", stages: ["before", "quiet"] },
+    world: world({ journey: QUIET_ONLY, shape: { ...NO_CALENDAR, calendar: "email" } }),
+    steps: [{ n: 1, kind: "playbook", silent: false, after: [], input: { trigger: "quiet_30" } }],
+    words: [
+      "First, connect your calendar's feed under Settings › Business (booking emails alone cannot time a campaign), so each appointment gets a reminder the day before.",
+      WIN_BACK,
+      "Ask me again once it is connected, and I'll add it.",
+    ],
+    lead: CALENDAR_LEAD(1, 1),
+  },
+  {
+    name: "proposals said with a calendar and deals off: proposals alone come first, the appointment moments start now (the setup review)",
+    intent: { intent: "cover_journey", proposals: true },
+    world: world({ journey: JOURNEY.map((s) => (s.id === "quiet" ? { ...s, covered: true } : s)) }),
+    steps: [
+      { n: 1, kind: "playbook", silent: false, after: [], input: { trigger: "visit_tomorrow" } },
+      { n: 2, kind: "playbook", silent: false, after: [], input: { trigger: "visited" } },
+    ],
+    words: [
+      "First, under Settings › Business, answer How customers buy with “Some get a proposal first”, so each proposal that waits gets a follow-up.",
+      "Starts 2 campaigns now, each its own card: a reminder the day before a booked time and a follow-up the day after a booked time.",
+      "Ask me again once they are on, and I'll add it.",
+    ],
+    lead: {
+      headline: "Turn on proposals first: 2 campaigns can start now, 1 more once they are on.",
+      open: { to: "admin/workspace", label: "Open Business settings" },
+      next: ["How do I turn on proposals in Settings?"],
+    },
+  },
+  {
+    name: "nothing to start but the calendar to connect: refused, with what comes first for the model to say (the setup review)",
+    intent: { intent: "cover_journey" },
+    world: world({ journey: QUIET_ONLY.map((s) => ({ ...s, covered: true })), shape: NO_CALENDAR }),
+    refused: `${W.nothingToCover} ${CONNECT()}`,
   },
   {
     name: "cover the journey with deals on: the proposal follow-up, in the journey's order",
     intent: { intent: "cover_journey" },
     world: world({
+      shape: { ...SHAPE, dealsOn: true, word: "meeting" },
       journey: [...JOURNEY.slice(0, 3), { id: "proposal", covered: false, moment: "proposal_waiting" }, JOURNEY[3]],
     }),
     steps: [
@@ -910,7 +1017,9 @@ const ROWS = [
       { n: 3, kind: "playbook", silent: false, after: [], input: { trigger: "proposal_waiting" } },
       { n: 4, kind: "playbook", silent: false, after: [], input: { trigger: "lapsed" } },
     ],
-    words: ["Starts 4 campaigns, one on each moment not covered yet, each its own card."],
+    words: [
+      "Starts 4 campaigns now, each its own card: a reminder the day before a booked time, a follow-up the day after a booked time, a follow-up while a proposal waits and a win-back once they go quiet.",
+    ],
   },
   {
     name: "a campaign paused on a moment is not doubled: the words say to resume it",
@@ -919,13 +1028,16 @@ const ROWS = [
       playbooks: [{ id: PB, name: "Win-back", trigger: "lapsed", state: "paused", template_name: null }],
     }),
     steps: [{ n: 1, kind: "playbook", silent: false, after: [], input: { trigger: "visited" } }],
-    words: [
-      "Starts 1 campaign, one on each moment not covered yet, each its own card.",
-      "“Win-back” stands paused on its moment: resume it from its drawer.",
-    ],
+    words: [COVERS_ONE, "“Win-back” stands paused on its moment: resume it from its drawer."],
   },
   {
-    name: "the day before asked for, with no calendar: nothing to cover, said",
+    name: "the day before asked for, with no calendar: nothing to cover, and the calendar to connect for it",
+    intent: { intent: "cover_journey", stages: ["before"] },
+    world: world({ journey: [{ id: "first_contact", covered: true, moment: null }], shape: NO_CALENDAR }),
+    refused: `${W.nothingToCover} ${CONNECT("appointment", "a reminder the day before")}`,
+  },
+  {
+    name: "a moment named that the workspace's shape cannot say why it lacks: not offered here",
     intent: { intent: "cover_journey", stages: ["before"] },
     world: world({ journey: [{ id: "first_contact", covered: true, moment: null }] }),
     refused: `${W.nothingToCover} Not offered here: the day before a booked time.`,
@@ -975,6 +1087,8 @@ for (const row of ROWS) {
     assert.ok("steps" in out, `planned, not refused: ${JSON.stringify(out)}`);
     assert.deepEqual(shape(out.steps), row.steps);
     assert.equal(out.words, row.words.join(" "));
+    // What the answer leads with: a setup that waits on something, none for every other plan.
+    assert.deepEqual(out.lead ?? null, row.lead ?? null);
     for (const s of out.steps) assert.ok(typeof s.why === "string" && s.why.length > 0, `step ${s.n} says why`);
   });
 }
