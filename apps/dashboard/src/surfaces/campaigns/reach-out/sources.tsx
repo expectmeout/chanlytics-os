@@ -15,7 +15,7 @@ import { FailedRead } from "../../kit/empty/empty";
 import { Icon } from "../../kit/icon/icon";
 import { ListRow } from "../../kit/list-row/list-row";
 import { canDo, gateTitle, keyPress, navigate } from "../../legacy-verbs";
-import { PILE_NEW_LIST, PILE_TARGET_KEY, reachOuts } from "./surface";
+import { PILE_NEW_LIST, pileAsk, reachOuts } from "./surface";
 
 /** A search a reach-out is to start on, as a row of Write to leads hands it over: with its unconfirmed, where the row says so. */
 export interface ReachOutStart {
@@ -25,11 +25,7 @@ export interface ReachOutStart {
 
 /** Leads you add: Leads, where the next pile holds what is added for a list of its own. */
 function addYourOwn() {
-  try {
-    window.sessionStorage.setItem(PILE_TARGET_KEY, PILE_NEW_LIST);
-  } catch {
-    /* a browser that will not keep it: the pile offers a new list where no reach-out takes more */
-  }
+  pileAsk.set(PILE_NEW_LIST);
   navigate(leadsRoute({ list: "all" }));
 }
 

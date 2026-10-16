@@ -13,12 +13,15 @@ import {
   leadCardEmailOf,
   leadCardMarksOf,
   leadCardReasonOf,
+  leadCardSlotsOf,
   leadCardStepsOf,
+  type LeadCardCheck,
   type LeadCardEmailVM,
   type LeadCardLead,
   type LeadCardMarkVM,
   type LeadCardPart,
   type LeadCardReasonVM,
+  type LeadCardSlotVM,
   type LeadCardStepVM,
   type LeadPeekVM,
   type LeadRowVM,
@@ -38,35 +41,65 @@ export interface LeadCardFacts {
   /** Email 1 of the sequence the adds go to; null on a first pile (none yet) or before the lead's record is in. */
   email: LeadCardEmailVM | null;
   steps: LeadCardStepVM[];
+  /** What fills their words, each with where it came from: the Emails tab's list. */
+  slots: LeadCardSlotVM[];
   /** The adds go to a list of the pile's own, written to at the end: its email is written then. */
   firstPile: boolean;
 }
 
-/** The card's facts for the lead that is up: its peek view model and record (surface.ts), and the target's emails. */
-export function leadCardFor(up: LeadRowVM, chain: ReachOutChainDto | null, tz: string): LeadCardFacts {
-  const peek = peekVMFor(up.id);
-  const dto = leadDtoFor(up.id);
+/** The workspace's slots, as Templates holds them. */
+export const leadCardWorkspace = () => {
   const own = tplOwn();
-  const workspace = { businessName: own.business_name, bookingLink: own.booking_link };
-  const lead: LeadCardLead | null = dto
-    ? {
-        business_name: dto.business_name,
-        city: dto.city,
-        kind: dto.kind ?? null,
-        facts: dto.facts ?? null,
-        to: peek ? peek.reach.email.address : dto.email,
-        emailState: dto.email_state,
-      }
-    : null;
+  return { businessName: own.business_name, bookingLink: own.booking_link };
+};
+
+/** What the card knows of a lead for its emails: its record's slots, its address, and the other ways to them. */
+function leadCardLeadOf(leadId: string): LeadCardLead | null {
+  const peek = peekVMFor(leadId);
+  const dto = leadDtoFor(leadId);
+  if (!dto) return null;
+  return {
+    business_name: dto.business_name,
+    city: dto.city,
+    kind: dto.kind ?? null,
+    facts: dto.facts ?? null,
+    to: peek ? peek.reach.email.address : dto.email,
+    emailState: dto.email_state,
+    canCall: !!(peek && peek.reach.phone && peek.reach.phone.tel),
+    canChoose: !!(peek && peek.company && peek.company.people.length > 1),
+  };
+}
+
+/**
+ * The card's facts for the lead that is up: its peek view model and record (surface.ts), the target's emails, and the
+ * add door's answer for it (use-pile.ts checkOf: absent until it has answered).
+ */
+export function leadCardFor(
+  up: LeadRowVM,
+  chain: ReachOutChainDto | null,
+  tz: string,
+  check: LeadCardCheck | undefined,
+): LeadCardFacts {
+  const peek = peekVMFor(up.id);
+  const lead = leadCardLeadOf(up.id);
+  const workspace = leadCardWorkspace();
   return {
     peek,
     reason: peek ? leadCardReasonOf(peek) : null,
     marks: peek ? leadCardMarksOf(peek) : [],
-    email: chain && lead ? leadCardEmailOf({ chain, lead, workspace, nowMs: Date.now(), tz }) : null,
+    email: chain && lead ? leadCardEmailOf({ chain, lead, workspace, nowMs: Date.now(), tz, check }) : null,
     steps: chain && lead ? leadCardStepsOf({ chain, lead, workspace }) : [],
+    slots: chain && lead ? leadCardSlotsOf({ chain, lead, workspace }) : [],
     firstPile: !chain,
   };
 }
+
+/** The bulk Add's leads (contracts leadCardBulkOf): each open lead as the card knows it, with the door's answer. */
+export const leadCardBulkLeadsOf = (rows: readonly LeadRowVM[], checkOf: (id: string) => LeadCardCheck | undefined) =>
+  rows.flatMap((r) => {
+    const lead = leadCardLeadOf(r.id);
+    return lead ? [{ id: r.id, lead, check: checkOf(r.id) }] : [];
+  });
 
 /** An email's words in parts: words, the opening still to come (a dashed line saying so), a slot with no value. */
 export const LeadCardParts = ({ parts }: { parts: LeadCardPart[] }) => (
@@ -110,13 +143,16 @@ export const LeadCardEmail = ({ email }: { email: LeadCardEmailVM }) => (
     <div className="ld-now-mail-body" data-testid="lead-card-body">
       <LeadCardParts parts={email.body} />
     </div>
-    <p className="ld-now-when" data-testid="lead-card-when">
-      {email.when}
-    </p>
+    {email.when ? (
+      <p className="ld-now-when" data-testid="lead-card-when">
+        {email.when}
+      </p>
+    ) : null}
     {email.note ? <p className="ld-now-note">{email.note}</p> : null}
     {email.blocked ? (
       <p className="ld-now-note ld-now-blocked" data-testid="lead-card-blocked">
         {email.blocked}
+        {email.instead === "choose" ? ` ${LEAD_CARD_WORDS.choose}` : null}
       </p>
     ) : null}
   </section>
@@ -149,6 +185,25 @@ const cardReachOf = (up: LeadRowVM) => (
       );
     })}
   </ul>
+);
+
+/**
+ * What fills their words: each slot the sequence's emails name, what it says for them, and where that came from, a
+ * fallback or a hole said as one (contracts leadCardSlotsOf). The phone's Emails tab lists it; a desk's card folds it
+ * under email 1.
+ */
+export const LeadCardSlots = ({ slots }: { slots: LeadCardSlotVM[] }) => (
+  <dl className="ld-now-fills-list" data-testid="lead-card-slots">
+    {slots.map((s) => (
+      <div key={s.key} className={s.look} data-testid={`lead-card-slot-${s.key.replace(/ /g, "-")}`}>
+        <dt>{s.label}</dt>
+        <dd>
+          {s.value ?? null}
+          <span className="ld-now-note">{s.from}</span>
+        </dd>
+      </div>
+    ))}
+  </dl>
 );
 
 /** Who they are: the face, the name and the line about where. */
@@ -184,10 +239,21 @@ export const LeadCardHead = ({ up, card }: { up: LeadRowVM; card: LeadCardFacts 
   </>
 );
 
-/** The email part of the card: email 1, or on a first pile the line saying it is written at the end. */
-export const LeadCardMail = ({ card }: { card: LeadCardFacts }) =>
+/**
+ * The email part of the card: email 1, or on a first pile the line saying it is written at the end. On a desk (`fills`)
+ * what fills its words is folded under it; a phone lists it on its Emails tab.
+ */
+export const LeadCardMail = ({ card, fills = false }: { card: LeadCardFacts; fills?: boolean }) =>
   card.email ? (
-    <LeadCardEmail email={card.email} />
+    <>
+      <LeadCardEmail email={card.email} />
+      {fills && card.slots.length ? (
+        <details className="ld-now-fills" data-testid="lead-card-fills">
+          <summary className="ld-now-mail-head">{LEAD_CARD_WORDS.slotsTitle}</summary>
+          <LeadCardSlots slots={card.slots} />
+        </details>
+      ) : null}
+    </>
   ) : card.firstPile ? (
     <p className="ld-now-note" data-testid="lead-card-first-pile">
       {LEAD_CARD_WORDS.firstPile}

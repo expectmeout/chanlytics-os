@@ -372,6 +372,7 @@ export {
   LEAD_BACK_WORDS,
   LEAD_PILE_UNDO_KEY,
   LEAD_PILE_WORDS,
+  LEAD_PILE_SAID,
   leadPileOpen,
   leadPileProgressOf,
   leadPileRailOf,
@@ -394,6 +395,9 @@ export {
   leadCardPartsOf,
   leadCardReasonOf,
   leadCardMarksOf,
+  leadCardSlotsOf,
+  leadCardBulkOf,
+  leadCardBulkDoorOf,
 } from "./lead-card";
 export type {
   LeadCardTab,
@@ -404,4 +408,9 @@ export type {
   LeadCardStepVM,
   LeadCardReasonVM,
   LeadCardMarkVM,
+  LeadCardCheck,
+  LeadCardInstead,
+  LeadCardSlotVM,
+  LeadCardBulkLead,
+  LeadCardBulkVM,
 } from "./lead-card";

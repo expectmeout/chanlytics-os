@@ -6,16 +6,24 @@
  * before anything goes. Every sentence the card and its tabs say is here.
  *
  *   leadCardEmailOf    email 1 for this lead: its parts, when it goes, and what Add would come to (a fallback said
- *                      first; a slot with no value, or no address, turns Add off and says why)
+ *                      first; the door's own answer, reach_out_why_not, or a slot with no value turns Add off and
+ *                      says why, and where an address is what is missing, the door that is left: Call, or someone
+ *                      else at the company)
  *   leadCardStepsOf    every email of the sequence for this lead, the same way: the Emails tab
+ *   leadCardSlotsOf    what fills their words for this lead, each with where it came from, or what stands in for it
  *   leadCardReasonOf   the reason up front: the listing's own signals where it gave some, else the judge's line
  *   leadCardMarksOf    what the reason rests on: each check as a mark, seen, read or couldn't tell
  */
 import { capitalize } from "../shared/words";
-import { REACH_OUT_OPENING_MARK, reachOutCardEmailOf } from "../reach-out/reach-out-rules";
+import { REACH_OUT_OPENING_MARK, reachOutCardEmailOf, reachOutCardSlotsOf } from "../reach-out/reach-out-rules";
 import type { SlotLead, SlotWorkspace } from "../reach-out/reach-out-rules";
 import { REACH_OUT_SLOT_SET } from "../reach-out/reach-out-words";
-import { reachOutWhenOf } from "../reach-out/reach-out-leads";
+import {
+  REACH_OUT_WHY_NOT_WORDS,
+  reachOutWhenOf,
+  type ReachOutAddLeadDto,
+  type ReachOutWhyNot,
+} from "../reach-out/reach-out-leads";
 import { chainPaceOf } from "../reach-out/reach-out-sheet";
 import { slotMentions } from "../templates/slot-sets";
 import type { ReachOutChainDto } from "../reach-out/reach-out-dtos";
@@ -31,12 +39,25 @@ export type LeadCardChain = Pick<
   "root_id" | "name" | "steps" | "state" | "next" | "fed_by" | "owner_sends" | "mailboxes" | "gap_minutes" | "signed_by"
 >;
 
-/** What the card knows of the lead for its email: the slots' facts, and where the email would go. */
+/** What the card knows of the lead for its email: the slots' facts, where the email would go, and the other ways to them. */
 export interface LeadCardLead extends SlotLead {
   /** The address it would be written to; null when it has none. */
   to: string | null;
   emailState: LeadEmailState;
+  /** A number to call that nobody marked wrong. */
+  canCall: boolean;
+  /** A company with someone else named at it, who could be written to instead (00430 lead_addressee_choose). */
+  canChoose: boolean;
 }
+
+/**
+ * The door's answer for this lead (00426 reach_out_add, dry: the one predicate, reach_out_why_not, then what only a list
+ * can say): why it would not be added, and the sequence that has it when another does. Null: it would be added.
+ */
+export type LeadCardCheck = Pick<ReachOutAddLeadDto, "why" | "chain_name"> | null;
+
+/** Where an address is what Add lacks, the door the card offers in its place: their phone, or someone else there. */
+export type LeadCardInstead = "call" | "choose" | null;
 
 /** Email 1 on the card: its head, where it goes, its words in parts, when it goes, and what Add would come to. */
 export interface LeadCardEmailVM {
@@ -45,12 +66,14 @@ export interface LeadCardEmailVM {
   to: string | null;
   subject: LeadCardPart[] | null;
   body: LeadCardPart[];
-  /** "Goes tomorrow from 9 AM, after your OK": the batch, never a minute. */
-  when: string;
+  /** "Goes tomorrow from 9 AM, after your OK": the batch, never a minute; null where Add is off (it would not go). */
+  when: string | null;
   /** A fallback said before Add: "Nobody is named here, so it greets them as “there”." */
   note: string | null;
-  /** Why Add would come to nothing, so it is off: no address, or a slot with no value here. */
+  /** Why Add would come to nothing, so it is off: the door's answer, or a slot with no value here. */
   blocked: string | null;
+  /** Where an address is what is missing: the door left to them (the rail's Call, or Reach's people). */
+  instead: LeadCardInstead;
 }
 
 /** One email of the sequence for this lead, as the Emails tab lists them. */
@@ -75,15 +98,40 @@ export const LEAD_CARD_WORDS = {
   subject: "Subject",
   opening: "A line about them, written when its batch is planned. You read it before it goes.",
   greets: (fallback: string) => `Nobody is named here, so it greets them as “${fallback}”.`,
-  noAddress: "No address to write to, so Add is off. Their phone is on Reach.",
-  badAddress: "Their address bounced, so Add is off.",
+  checking: "once their address checks out",
   holes: (labels: string[]) =>
     `Its words need ${labels.join(" and ")}, which this lead doesn't have, so Add is off. Change the words in the sequence.`,
   firstPile: "You write their email once, when you write to them all at the end.",
   after: (days: number | null) => `${days ?? "?"} days after, if nothing comes back`,
   emailsTitle: "What they would get",
   noEmails: "This sequence has no email to show yet.",
+  elsewhere: (name: string) =>
+    `They're with “${name}” already, and a lead is in one sequence at a time, so Add is off.`,
+  callTip: "No email can go to them, so the yes here is a call from your phone.",
+  choose: "Someone else named there can be written to instead: choose them on Reach.",
+  slotsTitle: "What fills their words",
 } as const;
+
+/** The door's reasons, as the card says them where Add is off (reach_out_why_not's set; Checking joins, never said). */
+const LEAD_CARD_WHY_NOT: Record<ReachOutWhyNot, string> = {
+  gone: "They're no longer in your leads, so Add is off.",
+  closed: "They were already worked, so Add is off.",
+  customer: "They're already a customer, so Add is off.",
+  suppressed: "They asked not to be written to, so Add is off.",
+  written: "They were already written to, and a business is written to once, so Add is off.",
+  shared: "They share a number or a site with another lead, and a business is written to once, so Add is off.",
+  no_email: "No address to write to, so Add is off.",
+  checking: "Their address is still being checked.",
+  unconfirmed: "Their address can't be confirmed, and this sequence writes only to confirmed ones, so Add is off.",
+  invalid: "Their address bounced, so Add is off.",
+  unchecked: "Their address hasn't been checked yet, so Add is off.",
+  already: "They're on this sequence's list already.",
+  not_counted: "They're still in Needs review: keep them first.",
+  elsewhere: "They're in another sequence already, and a lead is in one sequence at a time, so Add is off.",
+};
+
+/** The reasons that are an address: where the card offers the door that is left (a call, someone else there). */
+const ADDRESS_WHYS: ReadonlySet<ReachOutWhyNot> = new Set(["no_email", "invalid", "unconfirmed", "unchecked"]);
 
 /**
  * The pile's sheet on a phone (canvas B: decide at half height, read at full): its five tabs at full, Why first, and its
@@ -149,16 +197,30 @@ function fromWords(chain: LeadCardChain): string | null {
   return chain.mailboxes.length > 1 ? LEAD_CARD_WORDS.fromBoxes : null;
 }
 
-/** Why Add would come to nothing for this lead, by the send's own rules; null when it would go. */
-function blockedOf(lead: LeadCardLead, holes: string[]): string | null {
-  if (!lead.to || lead.emailState === "none") return LEAD_CARD_WORDS.noAddress;
-  if (lead.emailState === "invalid") return LEAD_CARD_WORDS.badAddress;
+/**
+ * Why Add would come to nothing for this lead: the door's own answer where it gave one (the one predicate, never a
+ * second reading of the address here), else a slot with no value, which the send would hold the email for. Null when
+ * it would go, and before the door has answered.
+ */
+function blockedOf(holes: string[], check: LeadCardCheck | undefined): string | null {
+  if (check)
+    return check.why === "elsewhere" && check.chain_name
+      ? LEAD_CARD_WORDS.elsewhere(check.chain_name)
+      : LEAD_CARD_WHY_NOT[check.why];
   return holes.length ? LEAD_CARD_WORDS.holes(holes.map(slotLabel)) : null;
+}
+
+/** The door left where the door said an address is what is missing: someone else at the company first, else a call. */
+function insteadOf(lead: LeadCardLead, check: LeadCardCheck | undefined): LeadCardInstead {
+  if (!check || !ADDRESS_WHYS.has(check.why)) return null;
+  if (lead.canChoose) return "choose";
+  return lead.canCall ? "call" : null;
 }
 
 /**
  * Email 1 of the sequence the pile adds to, for this lead: null when the sequence has no email step. When it goes is the
- * sequence's own line (reachOutWhenOf: its batch, never a minute).
+ * sequence's own line (reachOutWhenOf: its batch, never a minute), and an address still being checked goes once it
+ * checks out (reach_out_add lets it join). `check` is the door's answer for this lead: absent until it has answered.
  */
 export function leadCardEmailOf(p: {
   chain: LeadCardChain;
@@ -166,6 +228,7 @@ export function leadCardEmailOf(p: {
   workspace: SlotWorkspace;
   nowMs: number;
   tz: string;
+  check?: LeadCardCheck;
 }): LeadCardEmailVM | null {
   const steps = emailSteps(p.chain);
   const first = steps[0];
@@ -189,14 +252,18 @@ export function leadCardEmailOf(p: {
     p.nowMs,
     p.tz,
   );
+  const blocked = blockedOf(email.holes, p.check);
   return {
     head: [LEAD_CARD_WORDS.emailOf(1, steps.length), from].filter(Boolean).join(" · "),
     to: p.lead.to,
     subject: email.subject === null ? null : leadCardPartsOf(email.subject),
     body: leadCardPartsOf(email.body),
-    when: capitalize(when),
+    when: blocked
+      ? null
+      : capitalize(p.lead.emailState === "checking" && !p.check ? `${when}, ${LEAD_CARD_WORDS.checking}` : when),
     note: email.fellBack.includes("first name") ? LEAD_CARD_WORDS.greets("there") : null,
-    blocked: blockedOf(p.lead, email.holes),
+    blocked,
+    instead: insteadOf(p.lead, p.check),
   };
 }
 
@@ -218,6 +285,163 @@ export function leadCardStepsOf(p: {
       gap: email.holes.length > 0,
     };
   });
+}
+
+/** One slot their words name, as the Emails tab lists it: its label, what it says for this lead, and where that came from. */
+export interface LeadCardSlotVM {
+  key: string;
+  label: string;
+  /** What it says for them; null where they have no value for it (the send would hold the email) or it is written later. */
+  value: string | null;
+  /** Where the value came from, what stands in for it, or why there is none. */
+  from: string;
+  look: "value" | "fallback" | "gap" | "later";
+}
+
+/** Where each slot's value comes from, as the Emails tab says it. */
+const LEAD_CARD_SLOT_FROM = {
+  place: "From their listing",
+  company: "From their source",
+  person: "Of the person it writes to, from their source",
+  workspace: "Your workspace's name, in Settings",
+  signs: "The name this sequence signs with",
+  booking: "Your booking link, in Settings",
+  opening: "Written for them when its batch is planned, and read by you before it goes",
+  fallback: (said: string) => `Nobody is named here, so it says “${said}”`,
+  gap: "They have none, so the send would hold this email",
+} as const;
+
+/** Where a slot's value came from, by its key and the lead's kind. */
+function slotFromOf(key: string, company: boolean): string {
+  if (key === "your business") return LEAD_CARD_SLOT_FROM.workspace;
+  if (key === "your name") return LEAD_CARD_SLOT_FROM.signs;
+  if (key === "booking link") return LEAD_CARD_SLOT_FROM.booking;
+  if (key === "first name" || key === "title" || key === "role") return LEAD_CARD_SLOT_FROM.person;
+  return company ? LEAD_CARD_SLOT_FROM.company : LEAD_CARD_SLOT_FROM.place;
+}
+
+/**
+ * What fills the sequence's words for this lead (the Emails tab, canvas B: "every variable, with its source"): each slot
+ * its emails name, in the order first written, with the value the send's own fill gives it here and where it came from;
+ * a fallback said as one, a slot with no value as the hole that holds the email, the opening as still to be written.
+ */
+export function leadCardSlotsOf(p: {
+  chain: LeadCardChain;
+  lead: LeadCardLead;
+  workspace: SlotWorkspace;
+}): LeadCardSlotVM[] {
+  const texts = emailSteps(p.chain).flatMap((s, i) => (i === 0 ? [s.subject ?? "", s.body] : [s.body]));
+  const company = p.lead.kind === "company";
+  return reachOutCardSlotsOf(texts, p.lead, signedAs(p.chain, p.workspace)).map((s): LeadCardSlotVM => {
+    const label = capitalize(slotLabel(s.key));
+    if (s.key === "opening")
+      return { key: s.key, label, value: null, from: LEAD_CARD_SLOT_FROM.opening, look: "later" };
+    if (s.value === null) return { key: s.key, label, value: null, from: LEAD_CARD_SLOT_FROM.gap, look: "gap" };
+    if (s.fellBack)
+      return { key: s.key, label, value: s.value, from: LEAD_CARD_SLOT_FROM.fallback(s.value), look: "fallback" };
+    return { key: s.key, label, value: s.value, from: slotFromOf(s.key, company), look: "value" };
+  });
+}
+
+/* --------------------------------------------------------------------------------- Add them all (canvas B) -- */
+
+/** One lead a bulk Add would take: what the card knows of it, and the door's answer (absent until it has answered). */
+export interface LeadCardBulkLead {
+  id: string;
+  lead: LeadCardLead;
+  check: LeadCardCheck | undefined;
+}
+
+type LeadCardBulkKey = "goes" | "there" | "checking" | "elsewhere" | "cant";
+
+/** A bulk Add, before it is pressed: what each lead would come to, in buckets, and the leads the press adds. */
+export interface LeadCardBulkVM {
+  title: string;
+  /** The leads the press adds: those that go as they are, greeted “there”, or once their address checks out. */
+  ids: string[];
+  buckets: { key: LeadCardBulkKey; label: string; n: number; note: string | null; goes: boolean }[];
+  press: string;
+  /** How many the door has not answered for yet: the press waits for them. */
+  waiting: number;
+}
+
+const LEAD_CARD_BULK_WORDS = {
+  door: (n: number) => `Add all ${n}…`,
+  title: (target: string) => `Add them to “${target}”`,
+  goes: "Go as they are",
+  there: "Greeted as “there”: nobody is named",
+  checking: "Go once their address checks out",
+  elsewhere: "In another sequence already",
+  cant: "Can't be written to",
+  holes: "missing what its words need",
+  press: (n: number) => (n ? `Add the ${n}` : "None can be added"),
+  waiting: "Asking which of them can go…",
+} as const;
+
+/** The bulk door's label over the pile: "Add all 12…". */
+export const leadCardBulkDoorOf = (n: number): string => LEAD_CARD_BULK_WORDS.door(n);
+
+/** Counts as the door's words say them, most first: "2 with no email address, 1 already a customer". */
+const countsWords = (counts: Map<string, number>): string =>
+  [...counts]
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .map(([w, n]) => `${n} ${w}`)
+    .join(", ");
+
+/** Which bucket one lead falls in, and the words it is counted under where it can't go. */
+function bucketOf(chain: LeadCardChain, b: LeadCardBulkLead, w: SlotWorkspace): [LeadCardBulkKey, string | null] {
+  const c = b.check;
+  if (c) return c.why === "elsewhere" ? ["elsewhere", c.chain_name] : ["cant", REACH_OUT_WHY_NOT_WORDS[c.why]];
+  const first = emailSteps(chain)[0];
+  const email = first ? reachOutCardEmailOf({ subject: first.subject ?? "", body: first.body }, b.lead, w) : null;
+  if (email && email.holes.length) return ["cant", LEAD_CARD_BULK_WORDS.holes];
+  if (b.lead.emailState === "checking") return ["checking", null];
+  return email && email.fellBack.length ? ["there", null] : ["goes", null];
+}
+
+/**
+ * A bulk Add over the leads still open in the pile (canvas B: "Add N, with what each would come to"): the door's own
+ * answer for each (reach_out_add, dry), and for those it would take, the send's fill, so a greeting that falls back and
+ * a slot with no value are said before the press. The press adds the ones that would go.
+ */
+export function leadCardBulkOf(p: {
+  chain: LeadCardChain;
+  leads: readonly LeadCardBulkLead[];
+  workspace: SlotWorkspace;
+}): LeadCardBulkVM {
+  const w = signedAs(p.chain, p.workspace);
+  const ids: string[] = [];
+  const n = new Map<LeadCardBulkKey, number>();
+  const why = { elsewhere: new Map<string, number>(), cant: new Map<string, number>() };
+  let waiting = 0;
+  for (const b of p.leads) {
+    if (b.check === undefined) {
+      waiting += 1;
+      continue;
+    }
+    const [key, words] = bucketOf(p.chain, b, w);
+    n.set(key, (n.get(key) ?? 0) + 1);
+    if (key === "elsewhere" || key === "cant") {
+      const said = key === "elsewhere" ? (words ? `with “${words}”` : "with another") : (words ?? "");
+      why[key].set(said, (why[key].get(said) ?? 0) + 1);
+    } else ids.push(b.id);
+  }
+  const keys: LeadCardBulkKey[] = ["goes", "there", "checking", "elsewhere", "cant"];
+  return {
+    title: LEAD_CARD_BULK_WORDS.title(p.chain.name),
+    ids,
+    buckets: keys
+      .filter((k) => (n.get(k) ?? 0) > 0)
+      .map((k) => ({
+        key: k,
+        label: LEAD_CARD_BULK_WORDS[k],
+        n: n.get(k) ?? 0,
+        note: k === "elsewhere" || k === "cant" ? countsWords(why[k]) : null,
+        goes: k !== "elsewhere" && k !== "cant",
+      })),
+    press: waiting ? LEAD_CARD_BULK_WORDS.waiting : LEAD_CARD_BULK_WORDS.press(ids.length),
+    waiting,
+  };
 }
 
 /* ------------------------------------------------------------------------------------- the reason, up front -- */
