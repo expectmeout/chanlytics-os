@@ -147,10 +147,19 @@ test("a page-only module's names are in no page's entry, and in its own", () => 
   for (const name of ["addDays", "daysBetween", "parseAds", "adRoute", "ADS_WORDS"])
     assert.ok(current.names.includes(name), `${name} stays in the root entry for the frame's routes`);
   // Ask's cards: the whole table is the server's; a page carries the verbs it presses and their readings, and the cards
-  // only Ask proposes come by their own entry, which Ask's bridge loads.
-  for (const name of ["PROPOSAL_SPECS", "ASK_SENDS", "proposalBelowNeeds"])
+  // only Ask proposes come by their own entry, which Ask's bridge loads. Which kinds send (ASK_SENDS) is a reading a plan's
+  // count makes beside its words (plan-steps.ts planCountWords, 15 Oct 2026), so it rides with them.
+  for (const name of ["PROPOSAL_SPECS", "proposalBelowNeeds"])
     assert.ok(!current.names.includes(name), `${name} is the server's`);
-  for (const name of ["proposalSpec", "verbSpec", "PROPOSAL_GATE", "askUndoOpen", "cardOpenRoute", "addProposalSpecs"])
+  for (const name of [
+    "proposalSpec",
+    "verbSpec",
+    "PROPOSAL_GATE",
+    "askUndoOpen",
+    "cardOpenRoute",
+    "addProposalSpecs",
+    "ASK_SENDS",
+  ])
     assert.ok(current.names.includes(name), `${name} stays in the root entry for the pages' verbs`);
   const askOnly = fs.readFileSync(path.join(ROOT, "packages/contracts/dist/ask-only.js"), "utf8");
   assert.match(askOnly, /ASK_ONLY_SPECS/);
