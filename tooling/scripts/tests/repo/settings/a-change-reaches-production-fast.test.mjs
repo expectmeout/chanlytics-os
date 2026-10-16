@@ -7,18 +7,21 @@
  *   - `check:local` runs everything after the build side by side (runTogether), and says each check's own result.
  *   - CI's tests run as four parts at once, each a quarter of the files, and the lint and the format check start from
  *     main's cache, which main's own lint writes afresh.
- *   - Vercel's builder compiles each edge function from that function and its imports alone (apps/edge/api/tsconfig.json
- *     includes nothing), and CI's typecheck still reads the edge's own tsconfig, every function in it.
+ *   - The edge's functions are built here (tooling/scripts/edge-functions.mjs, in seconds) and Vercel deploys them as
+ *     they are, with the settings its own builder gave each, where it once compiled them one by one for seven minutes.
+ *     CI's typecheck still reads the edge's own tsconfig, every function in it.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import ts from "typescript";
 import { isWritten, WRITERS } from "../../../land.mjs";
 import { FIRST, LOCAL_CHECKS, runTogether } from "../../../checks/checked-locally.mjs";
+import { buildEdge, edgeFunctions, functionFiles, nodeMajor, ROUTES, vcConfig } from "../../../edge-functions.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../../..");
 const read = (rel) => fs.readFileSync(path.join(ROOT, rel), "utf8");
@@ -106,32 +109,82 @@ test("CI's tests run as four parts at once, and lint and format start from main'
   assert.equal(picker.status, 0, picker.stderr);
 });
 
-test("Vercel compiles each edge function from its own imports, and CI's typecheck still reads every function", () => {
+test("Vercel deploys the edge's functions as they are built here, and runs no builder of its own over them", () => {
   const vercel = JSON.parse(read("apps/edge/vercel.json"));
-  assert.equal(vercel.installCommand, undefined, "Vercel's own install");
-  assert.equal(vercel.buildCommand, undefined, "no build command: the edge's project has no output folder to find");
-  // The builder finds its tsconfig from the function it compiles first, walking up: the api folder's, for every function.
+  assert.deepEqual(Object.keys(vercel), ["builds"], "no `functions` beside `builds`: Vercel refuses the two together");
+  assert.equal(vercel.builds.length, 1, "one build: zero-config's Node builder would compile each api file again");
+  assert.deepEqual([vercel.builds[0].src, vercel.builds[0].use], ["package.json", "@vercel/static-build"]);
+  assert.equal(
+    JSON.parse(read("apps/edge/package.json")).scripts["vercel-build"],
+    "node ../../tooling/scripts/edge-functions.mjs",
+    "the static build runs the edge's vercel-build, then deploys the .vercel/output it leaves",
+  );
+  const doors = execFileSync("git", ["ls-files", "apps/edge/api"], { cwd: ROOT, encoding: "utf8" })
+    .split("\n")
+    .filter((f) => f.endsWith(".ts") && !f.endsWith(".d.ts"))
+    .map((f) => f.slice("apps/edge/".length));
+  assert.deepEqual(functionFiles(), doors.sort(), "every door is a function, and nothing else is");
+  for (const file of Object.keys(edgeFunctions())) assert.ok(doors.includes(file), `a limit for ${file}, a door`);
+  assert.deepEqual(vcConfig(60, "24"), {
+    handler: "index.js",
+    runtime: "nodejs24.x",
+    architecture: "x86_64",
+    maxDuration: 60,
+    environment: {},
+    shouldDisableAutomaticFetchInstrumentation: false,
+    launcherType: "Nodejs",
+    shouldAddHelpers: true,
+    shouldAddSourcemapSupport: true,
+    awsLambdaHandler: "",
+  });
+  assert.equal("maxDuration" in vcConfig(undefined, "24"), false, "no limit written: the project's own");
+  assert.equal(nodeMajor(), read(".nvmrc").trim(), "the functions run on the Node the project is set to (.nvmrc)");
   const slash = (p) => p.split(path.sep).join("/");
-  for (const fn of ["apps/edge/api/admin/billing.ts", "apps/edge/api/cron/notes.ts"]) {
-    const found = ts.findConfigFile(slash(path.join(ROOT, fn)), ts.sys.fileExists);
-    assert.equal(slash(path.relative(ROOT, found)), "apps/edge/api/tsconfig.json", fn);
+  const edge = ts.parseJsonConfigFileContent(
+    ts.readConfigFile(path.join(ROOT, "apps/edge/tsconfig.json"), ts.sys.readFile).config,
+    ts.sys,
+    path.join(ROOT, "apps/edge"),
+  );
+  for (const file of doors)
+    assert.ok(
+      edge.fileNames.some((f) => slash(f).endsWith(`apps/edge/${file}`)),
+      `CI's typecheck reads ${file}`,
+    );
+  assert.equal(fs.existsSync(path.join(ROOT, "apps/edge/api/tsconfig.json")), false, "an editor reads the edge's own");
+});
+
+test("a function built here loads, answers through its export, and carries the settings and limit Vercel needs", async () => {
+  const out = fs.mkdtempSync(path.join(os.tmpdir(), "edge-output-"));
+  try {
+    await buildEdge({ out, files: ["api/cron/notes.ts", "api/stripe-webhook.ts"] });
+    const fn = (file, name) => path.join(out, "functions", `${file.replace(/\.ts$/, "")}.func`, name);
+    const config = JSON.parse(fs.readFileSync(fn("api/cron/notes.ts", ".vc-config.json"), "utf8"));
+    assert.equal(config.maxDuration, 60, "the limit from vercel.json");
+    assert.equal(JSON.parse(fs.readFileSync(fn("api/stripe-webhook.ts", ".vc-config.json"), "utf8")).maxDuration, 30);
+    assert.equal(JSON.parse(fs.readFileSync(fn("api/cron/notes.ts", "package.json"), "utf8")).type, "module");
+    assert.ok(fs.existsSync(fn("api/cron/notes.ts", "index.js.map")), "a stack trace names the source");
+    const notes = await import(pathToFileURL(fn("api/cron/notes.ts", config.handler)).href);
+    assert.equal(typeof notes.POST, "function", "the door's export, bundled with all it imports");
+    // Without a database the door answers before it reads anything: its own refusal, from the bundle's own code.
+    const kept = { url: process.env.SUPABASE_URL, key: process.env.SUPABASE_SERVICE_ROLE_KEY };
+    delete process.env.SUPABASE_URL;
+    delete process.env.SUPABASE_SERVICE_ROLE_KEY;
+    let answer;
+    try {
+      answer = await notes.POST(new Request("https://edge.test/api/cron/notes", { method: "POST" }));
+    } finally {
+      if (kept.url !== undefined) process.env.SUPABASE_URL = kept.url;
+      if (kept.key !== undefined) process.env.SUPABASE_SERVICE_ROLE_KEY = kept.key;
+    }
+    assert.equal(answer.status, 503);
+    assert.deepEqual(await answer.json(), { ok: false, error: "no_database" });
+    assert.ok(fs.existsSync(path.join(out, "static/index.html")), "public/ is the static");
+    assert.deepEqual(JSON.parse(fs.readFileSync(path.join(out, "config.json"), "utf8")), {
+      version: 3,
+      routes: ROUTES,
+      crons: [],
+    });
+  } finally {
+    fs.rmSync(out, { recursive: true, force: true });
   }
-  const parse = (rel) => {
-    const file = path.join(ROOT, rel);
-    return ts.parseJsonConfigFileContent(ts.readConfigFile(file, ts.sys.readFile).config, ts.sys, path.dirname(file));
-  };
-  const builder = parse("apps/edge/api/tsconfig.json");
-  assert.deepEqual(builder.fileNames, [], "a function's program starts from the function alone");
-  assert.deepEqual(
-    builder.errors.map((e) => e.code).filter((c) => c !== 18002 && c !== 18003),
-    [],
-    "nothing but the empty list the builder ignores",
-  );
-  const edge = parse("apps/edge/tsconfig.json");
-  assert.equal(builder.options.module, edge.options.module, "the edge's own settings, inherited");
-  assert.equal(builder.options.isolatedModules, true, "each file emits alone, as a transpiler sees it");
-  assert.ok(
-    edge.fileNames.some((f) => slash(f).endsWith("apps/edge/api/admin/billing.ts")),
-    "CI's typecheck still reads every function",
-  );
 });

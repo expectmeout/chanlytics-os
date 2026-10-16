@@ -3,7 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "vercel-build": "node ../../tooling/scripts/edge-functions.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.131.0",

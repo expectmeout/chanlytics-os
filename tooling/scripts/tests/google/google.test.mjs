@@ -50,6 +50,7 @@ import {
   placesQueryOf,
 } from "@chanlytics/contracts";
 import { readCode, readRaw, importSrc } from "../_source.mjs";
+import { edgeFunctions } from "../../edge-functions.mjs";
 import { EVERY_EVENT, toldFor } from "../_live-feed.mjs";
 
 const NOW = Date.parse("2026-09-07T15:00:00Z");
@@ -951,9 +952,8 @@ test("the edge library: the key alone on the edge, one check routine, a failed r
   assert.ok(lib.includes('"google.reviews"'));
   // The sweep -- skipped without a key, forty listings a tick, never-read
   // first, a refusal left on its row -- runs in cron-doors-b.test.mjs.
-  const vercel = JSON.parse(readRaw("apps/edge/vercel.json"));
-  assert.equal(vercel.functions["api/admin/google.ts"].maxDuration, 60);
-  assert.equal(vercel.functions["api/cron/google.ts"].maxDuration, 60);
+  assert.equal(edgeFunctions()["api/admin/google.ts"].maxDuration, 60);
+  assert.equal(edgeFunctions()["api/cron/google.ts"].maxDuration, 60);
   // The edge keeps contracts' list rather than a copy (a copy turned 00134's new kinds into "alert"); that every
   // listed kind is stored as itself is run in notify-transport.test.mjs.
   assert.ok(
