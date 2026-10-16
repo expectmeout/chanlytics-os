@@ -305,18 +305,33 @@ async function warm(cookie, ws, context) {
  * one. The lines are read to the end, a torn one skipped as the bridge skips it (jsonLines).
  */
 async function ask(cookie, { text, surface, page = null, threadId = null, scope = null }, ws = null) {
-  const t0 = Date.now();
-  const res = await fetch(ws ? scopedUrl("/api/v1/ask", ws) : `${BASE}/api/v1/ask`, {
-    method: "POST",
-    headers: { "content-type": "application/json", cookie, origin: new URL(BASE).origin },
-    body: JSON.stringify({
-      text,
-      thread_id: threadId,
-      scope,
-      surface,
-      ...(page ? { context: page.context } : {}),
-    }),
-  });
+  let t0 = Date.now();
+  const send = () =>
+    fetch(ws ? scopedUrl("/api/v1/ask", ws) : `${BASE}/api/v1/ask`, {
+      method: "POST",
+      headers: { "content-type": "application/json", cookie, origin: new URL(BASE).origin },
+      body: JSON.stringify({
+        text,
+        thread_id: threadId,
+        scope,
+        surface,
+        ...(page ? { context: page.context } : {}),
+      }),
+    });
+  let res = await send();
+  // The route's own pace (the `ask` bucket, twenty a minute) refuses a run asked faster than a person asks: a refusal
+  // about the pace says nothing about the model, so the turn waits the time the route names and is asked again, five
+  // times at most, its clock started at the asking that was answered.
+  for (let tries = 0; res.status === 429 && tries < 5; tries++) {
+    const body = await res.json().catch(() => null);
+    if (body?.error?.code !== "rate_limited") {
+      res = new Response(JSON.stringify(body), { status: 429 });
+      break;
+    }
+    await new Promise((ok) => setTimeout(ok, ((body.error.details?.retry_after_s ?? 3) + 1) * 1000));
+    t0 = Date.now();
+    res = await send();
+  }
   if (!res.ok || !res.body) {
     const body = await res.text().catch(() => "");
     throw new Error(`ask ${res.status}: ${body.slice(0, 300)}`);
