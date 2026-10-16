@@ -289,6 +289,12 @@ export const SERVER_NOTIFICATION_KINDS = [
    * (core SUBSCRIBERS.team_notice, 00437). No mail, no phone.
    */
   "member_left",
+  /**
+   * The receptionist can keep what an owner said when they corrected it (decision 0063, 00448 fact_suggest): a line on the
+   * bell that opens Settings › Autonomy, where the note waits for Keep or Dismiss. Its words stay on the pane. No mail, no
+   * phone; the answer closes it.
+   */
+  "note_to_keep",
 ] as const;
 export type ServerNotificationKind = (typeof SERVER_NOTIFICATION_KINDS)[number];
 
@@ -541,6 +547,8 @@ const SERVER_LOOK: Record<string, ServerLook> = {
   member_joined: { icon: "users", tone: "ok", action: "Open Team", to: "admin/team" },
   /** A teammate left: news, neither good nor a warning, on the Team pane, where the seats are. */
   member_left: { icon: "users", tone: "", action: "Open Team", to: "admin/team" },
+  /** A note from a correction waits: news, on the Autonomy pane, where it is kept or dismissed. */
+  note_to_keep: { icon: "edit", tone: "", action: "Open Autonomy", to: "admin/autonomy" },
   alert: ALERT_LOOK,
 };
 

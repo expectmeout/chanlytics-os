@@ -241,6 +241,13 @@ export const EVENT_KINDS = [
   "workspace.created",
   /** The owner's controls changed: which config fields moved (never their values); a policy row's class, mode and the limit keys that moved. */
   "settings.changed",
+  /**
+   * A note for the receptionist suggested from an owner's correction, and the member's answer (00448, decision 0063):
+   * { suggestion_id, source }, never the words; a Keep's note is the settings.changed beside it.
+   */
+  "settings.fact_suggested",
+  "settings.fact_kept",
+  "settings.fact_dismissed",
   "policy.changed",
   "billing.updated",
   "billing.paused",

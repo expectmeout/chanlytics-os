@@ -161,6 +161,7 @@ export const ROUTE_KEYS = [
   "POST conversations/[id]/take-over",
   "POST conversations/[id]/wake",
   "POST escalations/[id]/resolve",
+  "POST fact-suggestions/[id]",
   "POST google/link",
   "POST google/locations",
   "POST google/refresh",

@@ -118,7 +118,9 @@ export function noteSuggestSystemPrompt(trade: string): string {
 // Every control and format character (bidi overrides, zero-width marks) and angle brackets: nothing rides into the
 // data blocks unseen, and nothing closes a tag.
 const CONTROL = /[\p{Cc}\p{Cf}]/gu;
-const clean = (s: string) => s.replace(CONTROL, " ").replace(/[<>]/g, " ").replace(/\s+/g, " ").trim();
+/** A text made safe to quote inside a data block: no control or format character, no angle bracket, one space between words. */
+export const noteClean = (s: string) => s.replace(CONTROL, " ").replace(/[<>]/g, " ").replace(/\s+/g, " ").trim();
+const clean = noteClean;
 
 /** The conversation (newest kept within the cap) and what the notes already say, as quoted JSON inside tags. */
 export function noteSuggestUserContent(turns: readonly NoteTurn[], known: readonly string[]): string {
@@ -152,7 +154,8 @@ export const NOTE_SUGGEST_SCHEMA = {
 
 /* ---------------------------------------------------------------- the check -- */
 
-const norm = (s: string) =>
+/** A text as words to compare: lower case, accents and punctuation gone, one space between words. */
+export const noteWords = (s: string) =>
   s
     .toLowerCase()
     .normalize("NFKD")
@@ -166,6 +169,11 @@ const norm = (s: string) =>
 const MONEY =
   /\b(price[sd]?|pricing|cost[s]?|charge[sd]?|deal|free|pay(?:s|ing|ment)?|paid|owe[sd]?|debt|tip|dollars?|bucks|percent|half off|\d+\s*off)\b|[$€£%]/i;
 const CONTACT_DETAIL = /https?:\/\/|www\.|@\S|\b\d{3}[\s.-]?\d{3}[\s.-]?\d{4}\b/i;
+
+/** Whether a note's words name money: the charter's words (namesMoney), a price (violatesNoPrices), or a note's own. */
+export const noteNamesMoney = (s: string) => MONEY.test(s) || namesMoney(s) || violatesNoPrices(s);
+/** Whether a note's words carry a link, an email address or a phone number. */
+export const noteNamesContact = (s: string) => CONTACT_DETAIL.test(s);
 const AIMED_AT_US =
   /\b(note that|make a note|write (that )?down|remember (that|this)|put (it|that) in|tell the (owner|manager|boss)|you (told|said|promised)|your (system|rules|policy))\b/i;
 const SENSITIVE =
@@ -173,12 +181,12 @@ const SENSITIVE =
 
 const wordSet = (s: string) =>
   new Set(
-    norm(s)
+    noteWords(s)
       .split(" ")
       .filter((w) => w.length > 2),
   );
 /** How much of the shorter one the other says: 1 is the same words. */
-function overlap(a: string, b: string): number {
+export function noteOverlap(a: string, b: string): number {
   const A = wordSet(a);
   const B = wordSet(b);
   if (!A.size || !B.size) return 0;
@@ -202,9 +210,9 @@ export function checkNoteSuggestion(answer: unknown, turns: readonly NoteTurn[],
   const body = typeof a.text === "string" ? a.text.replace(/\s+/g, " ").trim() : "";
   const quote = typeof a.quote === "string" ? a.quote.trim() : "";
   if (!body || body.length > NOTE_SUGGEST_LIMITS.bodyMax) return { ok: false, why: "length" };
-  const q = norm(quote);
+  const q = noteWords(quote);
   if (q.split(" ").filter(Boolean).length < 3) return { ok: false, why: "no_quote" };
-  const said = norm(
+  const said = noteWords(
     turns
       .filter((t) => t.who === "customer")
       .map((t) => t.text)
@@ -212,11 +220,11 @@ export function checkNoteSuggestion(answer: unknown, turns: readonly NoteTurn[],
   );
   if (!said.includes(q)) return { ok: false, why: "not_their_words" };
   for (const s of [body, quote]) {
-    if (MONEY.test(s) || namesMoney(s) || violatesNoPrices(s)) return { ok: false, why: "money" };
-    if (CONTACT_DETAIL.test(s)) return { ok: false, why: "contact_detail" };
+    if (noteNamesMoney(s)) return { ok: false, why: "money" };
+    if (noteNamesContact(s)) return { ok: false, why: "contact_detail" };
     if (SENSITIVE.test(s)) return { ok: false, why: "sensitive" };
   }
   if (AIMED_AT_US.test(quote)) return { ok: false, why: "aimed_at_us" };
-  if (known.some((k) => overlap(k, body) >= 0.6)) return { ok: false, why: "known" };
+  if (known.some((k) => noteOverlap(k, body) >= 0.6)) return { ok: false, why: "known" };
   return { ok: true, body, kind };
 }

@@ -834,6 +834,10 @@ p.set-team-compare-note { margin: 10px 0 0; font-size: var(--set-hint); text-wra
 /* The locked row is said by its words and its grey dot; the tinted band behind
    it ran edge to edge inside a card whose other rows have no background. */
 tr.pol-locked .pol-label{color:var(--ink-muted)}
+/* How often the owner changed what it wrote, under a row's name (decision 0063). */
+.pol-held{display:block;margin-top:2px;font-size:var(--set-hint);line-height:1.4;color:var(--ink-muted)}
+/* A suggested note's two presses, under what it would say (decision 0063). */
+.aut-fact-acts{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
 
 /* On a phone the matrix is a list: each class of action, and under it its four
    modes side by side, each named. As a table it was 520px wide inside a card that

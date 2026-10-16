@@ -131,6 +131,24 @@ before(async () => {
   });
   await seed("calls", { tenant_id: A, retell_call_id: "call_tenancy_1" });
   await seed("escalations", { tenant_id: A, conversation_id: ctx.conversation, reason: "manual", details: "tenancy" });
+  // An owner's correction looked at (00448, decision 0063): keyed by its message, so the stranger's attempt names another.
+  ctx.message2 = await seed("messages", {
+    tenant_id: A,
+    conversation_id: ctx.conversation2,
+    contact_id: ctx.contact2,
+    channel: "whatsapp",
+    direction: "outbound",
+    sender: "human",
+    type: "text",
+    body: "tenancy probe two",
+    status: "queued",
+  });
+  await seed("fact_suggestions", {
+    tenant_id: A,
+    conversation_id: ctx.conversation,
+    source: "reply",
+    source_message_id: ctx.message,
+  });
   await seed("decisions", {
     tenant_id: A,
     actor_type: "system",
@@ -565,6 +583,11 @@ const TENANT_TABLES = {
     }),
   ],
   calls: ["member", () => ({ tenant_id: A, retell_call_id: "call_tenancy_2" })],
+  // The notes an owner's corrections suggest (00448): members read their workspace's, and only the doors write.
+  fact_suggestions: [
+    "member",
+    () => ({ tenant_id: A, conversation_id: ctx.conversation2, source: "reply", source_message_id: ctx.message2 }),
+  ],
   escalations: [
     "member",
     () => ({ tenant_id: A, conversation_id: ctx.conversation2, reason: "manual", details: "stranger" }),

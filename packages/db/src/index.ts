@@ -694,4 +694,14 @@ export {
   dismissAppointmentNotice,
 } from "./repositories/calendar/notices";
 export type { AppointmentNoticeRow, AppointmentNoticeInsert } from "./repositories/calendar/notices";
+export {
+  factCorrectionsBatch,
+  suggestFact,
+  factSuggestionsWaiting,
+  factSuggestionById,
+  answerFactSuggestion,
+} from "./repositories/facts/fact-suggestions";
+export type { FactCorrectionRow, FactSuggestionRow } from "./repositories/facts/fact-suggestions";
+export { heldDraftsByIntent } from "./repositories/facts/held-drafts";
+export type { HeldDraftsRow } from "./repositories/facts/held-drafts";
 export type { Database, Json } from "./database.types";
