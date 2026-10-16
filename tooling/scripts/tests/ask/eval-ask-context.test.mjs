@@ -1674,6 +1674,31 @@ test("card_fields_present and proposals_not (the review after the merge, batch E
   ]);
 });
 
+test("card_fields_each (the effort sweep, 15 Oct 2026): every value named at a path is held by a card of the kind, so a message asked for in Spanish too is two cards, never the Spanish one alone", () => {
+  const card = (kind, payload) => ({ id: "p", kind, title: "t", summary: "s", payload });
+  const m = (...proposals) => ({ text: "", proposals, tools: [], answer: { do: { next: [] } } });
+  const both = { card_fields_each: { message: { language: ["en_US", "es"] } } };
+  assert.deepEqual(
+    setupCardsFails(both, m(card("message", { language: "es" }), card("message", { language: "en_US" }))),
+    [],
+  );
+  assert.deepEqual(setupCardsFails(both, m(card("message", { language: "es" }))), [
+    "no message card holding language “en_US”, which the words asked for",
+  ]);
+  // A value held by a card of another kind is not the kind's, and none at all fails each value.
+  assert.equal(
+    setupCardsFails(both, m(card("playbook", { language: "en_US" }), card("message", { language: "es" }))).length,
+    1,
+  );
+  assert.equal(setupCardsFails(both, m()).length, 2);
+  // A dotted path reads into the payload as card_fields_absent's does.
+  const dotted = { card_fields_each: { message: { "versions.whatsapp.body": ["Hola"] } } };
+  assert.deepEqual(setupCardsFails(dotted, m(card("message", { versions: { whatsapp: { body: "Hola" } } }))), []);
+  // The case it was made for asks for both languages of its message.
+  const spanishToo = CASES.find((c) => c.id === "write_winback_spanish");
+  assert.deepEqual(spanishToo.expect.card_fields_each, both.card_fields_each);
+});
+
 /* ---- X5-4: a thread snoozed between two warm turns, judged and woken ---- */
 
 const DANA = { kind: "thread", id: U(91), label: "Dana Example", to: `inbox/${U(91)}` };
