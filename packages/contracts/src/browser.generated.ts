@@ -59,6 +59,7 @@ export { dailyLimit, numberHealth, overLimitRefusal, LIMIT_TIERS } from "./broad
 export { renderTemplate, cleanParam, broadcastName, whenLabel, runLabelOf, toBroadcastVM, sentByWords, emptyAudienceRefusal, BROADCAST_STATES, RUN_GOING_STATES, RECIPIENT_STATES, REACH_OUT_SEND_STATES, BROADCAST_STATE_LABELS, BROADCAST_CHUNK, BROADCAST_GAP_MS, BROADCAST_THROTTLE_WAITS_MS, BROADCAST_HOLD_WAIT_MS, BROADCAST_MAX_RECIPIENTS, BROADCAST_PARAM_MAX, BROADCAST_SCHEDULE_MAX_DAYS, BROADCAST_NAME_MAX, OUTCOME_UNKNOWN, runCountsOf } from "./broadcasts/broadcasts";
 export { CHANNELS_DOOR, channelsStandingParts, channelsStandingWords } from "./broadcasts/channels-standing";
 export { OFFERS_BY_EMAIL_WORDS, OFFERS_PAUSED_WORDS, OFFERS_NOTICE_WORDS, OFFER_GATES, offerGate, offerPauseOf, emailOffersOpen, offersPausedLine } from "./broadcasts/email-offers";
+export { OFFER_PLAN_WORDS } from "./broadcasts/offer-plan-words";
 export { PREVIEW_WORDS, PREVIEW_CHANNEL_WORDS, previewOn, previewParts, previewSays, previewVersionsOf, reachBarParts, reachByWords, reachBarWords } from "./broadcasts/preview-by-channel";
 export { READY_WHATSAPP_ALONE, readyOrWhatsApp, answeredYes, personReachOf } from "./broadcasts/reach-any";
 export { DEFAULT_CAMPAIGN_CHANNELS, NEW_PLAYBOOK_TICKS_EVERY_CHANNEL, newCampaignChannels, CHANNEL_WORDS, CAMPAIGN_MONTH_ALLOWANCE, HELD_ON, channelRefuses, channelNeverCarries, offersNote, channelsReady, channelChoices, reachFor, reachSplit, reachSplitWords, heldByAllowance, allowanceRoom, pastAllowance, nextMonthStart, monthSentAt, allowanceBeforeSend, allowanceLine, allowanceLines } from "./broadcasts/reach-for";
@@ -112,7 +113,7 @@ export { describeNow, composeSystemPrompt, PROMPT_OPENINGS, notesInForce, noteAs
 export { DAYS, DAY_NAMES, isRealDate, dayProblems, MAX_INTERVALS_PER_DAY, MAX_CLOSURES, E164, isE164, INSTRUCTIONS_MAX, PROFILE_LIMITS, GUARDRAIL_KEYS, guardrailsInForce } from "./config/workspace-config/config-rules";
 export { isProductFallback, fallbackMessages, unknownDetails, FALLBACK_DETAILS, FALLBACK_DEFAULTS, EARLIER_FALLBACK_DEFAULTS } from "./config/workspace-config/fallbacks";
 export { offersAfterStart, offersFacts } from "./config/workspace-config/offers-ask";
-export { policyClassOfIntent, policyClassLabel, policyClassQuestion, policyAskClass, bookingHeld, policyRules, POLICY_CLASSES, POLICY_CLASS_WORDS, POLICY_COVERS, POLICY_MODES, POLICY_MODE_WORDS, POLICY_CLASS_MODES, policyModeOffered, policyModeRefusal } from "./config/workspace-config/policy-classes";
+export { policyClassOfIntent, policyClassLabel, policyClassQuestion, policyAskClass, bookingHeld, policyRules, POLICY_CLASSES, POLICY_CLASS_WORDS, POLICY_COVERS, POLICY_MODES, POLICY_MODE_WORDS, POLICY_CLASS_MODES, policyModeOffered, policyModeRefusal, heldDraftsByClass, heldDraftsLine, HELD_DRAFTS_DAYS } from "./config/workspace-config/policy-classes";
 export { allowedPrices, priceAllowance } from "./config/workspace-config/price-allowance";
 export { hoursRuns } from "./config/workspace-config/prompt-hours";
 export { instructionsDraft, hasProfile, resolveSystemPrompt, ownWordsOf, whoseWords, NO_FIELDS_COMPOSED_WORDS } from "./config/workspace-config/resolve";
@@ -213,6 +214,8 @@ export { NEW_CONVERSATION_WORDS, approvedWordsFor, newConversationOf, planNoteOf
 export { DRAFT_ABOUT_MAX, DRAFT_ANSWER_MAX, DRAFT_ASKS_MAX, DRAFT_HOWS, DRAFT_TONES, PERSON_DRAFT_JSON_SCHEMA, PLAN_NOTE_MAX } from "./new-conversation/person-draft";
 export { writeReachOf } from "./new-conversation/write-reach";
 export { defaultWriteWire, startsOn, wayOff, writeWaysOf, WRITE_HOLDS, WRITE_HOLD_WORDS, WRITE_WAY_REFUSED } from "./new-conversation/write-ways";
+export { whyNotFactLook, factSuggestSystemPrompt, factSuggestUserContent, checkFactSuggestion, factAlreadyNoted, FACT_SUGGEST_MODEL, FACT_SUGGEST_LIMITS, FACT_SUGGEST_SCHEMA } from "./notes/fact-suggest";
+export { factNoteChange, FACT_SUGGEST_WORDS } from "./notes/fact-words";
 export { customerWords, whyNotLook, noteSuggestSystemPrompt, noteSuggestUserContent, checkNoteSuggestion, NOTE_SUGGEST_MODEL, NOTE_SUGGEST_LIMITS, NOTE_SUGGEST_KINDS, NOTE_SUGGEST_SCHEMA } from "./notes/note-suggest";
 export { personNotesVM, NOTE_LINE_MAX, NOTE_MAX, NOTE_WORDS, NOTE_REFUSALS } from "./notes/person-notes";
 export { NO_DAY, noteManyLine, stepSheetFor, stepSheetBody, stepSheetDirty, stepSheetDone, stepSheetMerge, STEP_SHEET_WORDS } from "./notes/step-sheet";

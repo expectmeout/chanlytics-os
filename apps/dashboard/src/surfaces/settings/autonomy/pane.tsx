@@ -9,7 +9,7 @@
  * seeded twin (its own matrix, defaults and guardrails, kept in the browser) left with it.
  */
 import { useState, type ReactNode } from "react";
-import { MIN_MS, REPLY_DELAY_DEFAULT_MS, hardLimitsWords } from "@chanlytics/contracts";
+import { MIN_MS, REPLY_DELAY_DEFAULT_MS, hardLimitsWords, heldDraftsByClass } from "@chanlytics/contracts";
 import type { PolicyDials } from "@/legacy-bridge/inbox-verbs";
 import { modeLabel, uiRows, type UiRow } from "@/legacy-bridge/policy-store";
 import { FailedRead } from "../../kit/empty/empty";
@@ -17,6 +17,7 @@ import { RecordRow } from "../../kit/record/row";
 import { gate, type LegacyFlash } from "../../legacy-verbs";
 import { useSurface } from "../../use-surface";
 import { SetDial, SetRow } from "./controls";
+import { LearnedFromYou } from "./learned";
 import { PolPhoneRows, PolicyTable, polMode, useSetPhone } from "./matrix";
 import { autonomyVerbs } from "./verbs";
 
@@ -178,6 +179,8 @@ export const PaneAutonomyReal = ({ flash }: { flash: (f: LegacyFlash) => void })
   if (!policies) return null;
 
   const rows = uiRows(policies);
+  // How often the owner changed what it wrote, by the row a draft belongs to (decision 0063).
+  const held = heldDraftsByClass(policies.held ?? []);
   const reply = rows.find((r) => r.id === "reply");
   const limits = (reply && reply.limits) || {};
   const delayMs = Number(limits.reply_delay_ms) || REPLY_DELAY_DEFAULT_MS;
@@ -218,11 +221,13 @@ export const PaneAutonomyReal = ({ flash }: { flash: (f: LegacyFlash) => void })
           <span className="rec-card-sub">What it may do without you. Every row is one it consults before acting.</span>
         </div>
         {phone ? (
-          <PolPhoneRows rows={rows} put={putMode} busy={busy} />
+          <PolPhoneRows rows={rows} put={putMode} busy={busy} held={held} />
         ) : (
-          <PolicyTable rows={rows} put={putMode} busy={busy} />
+          <PolicyTable rows={rows} put={putMode} busy={busy} held={held} />
         )}
       </section>
+
+      <LearnedFromYou suggestions={policies.suggestions} flash={flash} />
 
       <section className="rec-card set-card">
         <div className="rec-card-head">

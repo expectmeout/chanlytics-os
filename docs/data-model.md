@@ -41,6 +41,7 @@ what the script writes.
 | [`event_outbox`](#event_outbox) | none | on, no policy, so only the service role reaches it |
 | [`event_subscriptions`](#event_subscriptions) | `packages/db/src/events.ts` | on, no policy, so only the service role reaches it |
 | [`events`](#events) | `packages/db/src/events.ts`, `packages/db/src/repositories/ingest.ts`, `packages/db/src/repositories/notices/notifications.ts` | on, 1 policy |
+| [`fact_suggestions`](#fact_suggestions) | `packages/db/src/repositories/facts/fact-suggestions.ts` | on, 1 policy |
 | [`google_connections`](#google_connections) | none | on, 1 policy |
 | [`google_listing_days`](#google_listing_days) | none | on, 1 policy |
 | [`google_listings`](#google_listings) | `packages/db/src/repositories/campaigns/workspace.ts` | on, 1 policy |
@@ -924,6 +925,42 @@ Who reacts to an event kind (decision 0032): a subscriber's name, the lane its d
 | Policy | For | To | Using | With check |
 | --- | --- | --- | --- | --- |
 | `events_member_select` | select | authenticated | `((tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE (m.user_id = auth.uid()))) AND ((kind <> ALL (ARRAY['partner.earned'::text, 'partner.reversed'::te…` |  |
+
+### fact_suggestions
+
+An owner's correction, looked at once by the note sweep (decision 0063): a rewritten draft's instruction or the owner's own text after a hold. Most end as nothing; a lasting fact about the business waits on Today as a note to Keep or Dismiss.
+
+- Owned by: `packages/db/src/repositories/facts/fact-suggestions.ts`
+- Primary key: `id`
+- Row-level security: on, 1 policy
+
+| Column | Type | Null | Default | Note |
+| --- | --- | --- | --- | --- |
+| `id` | uuid | no | `gen_random_uuid()` |  |
+| `tenant_id` | uuid | no |  |  |
+| `conversation_id` | uuid | yes |  |  |
+| `source` | text | no |  |  |
+| `source_message_id` | uuid | no |  |  |
+| `state` | text | no | `'nothing'::text` |  |
+| `title` | text | yes |  |  |
+| `body` | text | yes |  |  |
+| `quote` | text | yes |  |  |
+| `config_version` | integer | yes |  |  |
+| `decided_by` | uuid | yes |  |  |
+| `decided_at` | timestamp with time zone | yes |  |  |
+| `created_at` | timestamp with time zone | no | `now()` |  |
+| `updated_at` | timestamp with time zone | no | `now()` |  |
+
+Foreign keys:
+
+- `tenant_id`, `conversation_id` → [`conversations`](#conversations) (`tenant_id`, `id`), on delete set null
+- `decided_by` → `auth.users` (`id`), on delete set null
+- `tenant_id`, `source_message_id` → [`messages`](#messages) (`tenant_id`, `id`), on delete cascade
+- `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
+
+| Policy | For | To | Using | With check |
+| --- | --- | --- | --- | --- |
+| `fact_suggestions_member_select` | select | authenticated | `(tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE (m.user_id = auth.uid())))` |  |
 
 ### google_connections
 

@@ -191,6 +191,17 @@ async function seed() {
     details: WORDS,
     state: "open",
   });
+  // A note their thread's correction suggested (00448, decision 0063): keyed by the message, it goes with their messages.
+  await insert("fact_suggestions", {
+    tenant_id: T,
+    conversation_id: conversation,
+    source: "reply",
+    source_message_id: message,
+    state: "suggested",
+    title: WORDS.slice(0, 80),
+    body: WORDS,
+    quote: WORDS,
+  });
   // Their reply to a reach-out, read: it hangs on their message and their thread.
   ok(
     await db.from("reach_out_replies").insert({

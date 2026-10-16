@@ -634,6 +634,30 @@
       "where": null
     },
     {
+      "table": "fact_suggestions",
+      "name": "fact_suggestions_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "fact_suggestions",
+      "name": "fact_suggestions_source_message_one",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "source_message_id"
+        }
+      ],
+      "where": null
+    },
+    {
       "table": "google_connections",
       "name": "google_connections_pkey",
       "primary": true,

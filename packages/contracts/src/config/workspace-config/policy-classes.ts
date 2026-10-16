@@ -277,3 +277,62 @@ export interface PolicyRow {
   limits: PolicyLimits;
   updated_at: string;
 }
+
+/* ----------------------------------------------- how often the owner changes what it writes (0063) */
+
+/** The days the Autonomy pane counts the held drafts over. */
+export const HELD_DRAFTS_DAYS = 30;
+
+/** One intent's held drafts as the read answers them (00448 held_drafts_by_intent). */
+export interface HeldDraftsByIntent {
+  intent: string;
+  held: number;
+  sent: number;
+  steered: number;
+  canceled: number;
+  person_first: number;
+}
+
+/** The drafts held for the owner on one row: how many, and what became of them. */
+export type HeldDraftsCount = Omit<HeldDraftsByIntent, "intent">;
+
+/** The rows a held draft can belong to: its intent's (a booking, a question), else Replies. */
+export type HeldDraftsClass = "reply" | "booking" | "faq";
+
+/**
+ * The held drafts by the Autonomy row they belong to: a draft's row is its intent's (policyClassOfIntent), and every
+ * other draft, a money one among them (that row is the charter's, and has nothing to hold), is a reply's.
+ */
+export function heldDraftsByClass(
+  rows: readonly HeldDraftsByIntent[],
+): Partial<Record<HeldDraftsClass, HeldDraftsCount>> {
+  const out: Partial<Record<HeldDraftsClass, HeldDraftsCount>> = {};
+  for (const r of rows) {
+    const c = policyClassOfIntent(r.intent);
+    const cls: HeldDraftsClass = c === "booking" || c === "faq" ? c : "reply";
+    const was = out[cls] ?? { held: 0, sent: 0, steered: 0, canceled: 0, person_first: 0 };
+    out[cls] = {
+      held: was.held + r.held,
+      sent: was.sent + r.sent,
+      steered: was.steered + r.steered,
+      canceled: was.canceled + r.canceled,
+      person_first: was.person_first + r.person_first,
+    };
+  }
+  return out;
+}
+
+/**
+ * The row's line: the drafts held for the owner in the window, and how many went as written, then each way the owner
+ * changed one that happened at all. Null with none held: the row says nothing it has no evidence for.
+ */
+export function heldDraftsLine(c: HeldDraftsCount | undefined): string | null {
+  if (!c || c.held <= 0) return null;
+  const parts = [
+    `${c.sent} sent as written`,
+    c.steered > 0 ? `${c.steered} rewritten` : "",
+    c.canceled > 0 ? `${c.canceled} stopped` : "",
+    c.person_first > 0 ? `${c.person_first} you answered first` : "",
+  ].filter(Boolean);
+  return `${c.held} held for you in ${HELD_DRAFTS_DAYS} days: ${parts.join(", ")}`;
+}

@@ -4,6 +4,8 @@ import {
   POLICY_MODE_WORDS,
   policyClassOffered,
   policyModeOffered,
+  type FactSuggestionDto,
+  type HeldDraftsByIntent,
   type PolicyClass,
   type PolicyMode,
 } from "@chanlytics/contracts";
@@ -128,6 +130,10 @@ export interface PoliciesSurface {
   role: string | null;
   /** Deals are on here (dealsAreOn, 0008): the follow-ups' row is drawn only then (policyClassOffered). */
   dealsOn: boolean;
+  /** The drafts held for the owner, by intent (decision 0063): each row's line; null where the read failed or is old. */
+  held?: HeldDraftsByIntent[] | null;
+  /** The notes the owner's corrections suggest, waiting (decision 0063); null where the read failed or is old. */
+  suggestions?: FactSuggestionDto[] | null;
 }
 
 export interface UiRow extends UiRowMeta {

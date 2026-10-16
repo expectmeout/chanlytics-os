@@ -209,6 +209,8 @@ const ANNOUNCES = {
   member_joined: "Settings, which the row opens at Team, hears memberships and invitations (00408).",
   member_left:
     "Settings, which the row opens at Team, hears memberships: the one who left is gone from the roster (00437).",
+  note_to_keep:
+    "Settings, which the row opens at Autonomy, reads the notes waiting with its read; the feed does not tell of fact_suggestions, and a Keep or a Dismiss reads it again behind its verb (decision 0063).",
   // Not traced to the depth the others were (N2 says so): no read is owed until one is found to be.
   call: "Its page, the calls, is not traced to the depth the others were; the call's note lands in the thread.",
   job_failed:

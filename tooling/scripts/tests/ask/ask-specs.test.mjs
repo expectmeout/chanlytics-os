@@ -88,6 +88,7 @@ const KINDS = [
   "sequence_test",
   "playbook_run",
   "booking_request",
+  "fact_suggestion",
   "call_hand_over",
   "lead_stage",
   "lead_mark",
@@ -153,6 +154,8 @@ test("the gate each kind checks before Approve is the one it checked at a993b71d
     sequence_test: "approve",
     playbook_run: "approve",
     booking_request: "approve",
+    // A note kept for the receptionist is a change to the settings (decision 0063): the settings gate, a partner up.
+    fact_suggestion: "settings",
     call_hand_over: "approve",
     lead_stage: "approve",
     lead_mark: "find",
@@ -492,6 +495,10 @@ const SHAPES = {
     card("booking_request", { conversation_id: "c1", booked: true, who: "Rosa" }),
     card("booking_request", { conversation_id: "c1", booked: false, who: "Rosa" }),
   ],
+  fact_suggestion: [
+    card("fact_suggestion", { suggestion_id: "fs1", keep: true, title: "Mondays" }),
+    card("fact_suggestion", { suggestion_id: "fs1", keep: false, title: "Mondays" }),
+  ],
   call_hand_over: [card("call_hand_over", { call_id: "k1", who: "Rosa" })],
   lead_stage: [card("lead_stage", { lead_id: "ld1", search_id: "s1", input: { move: "ready" }, who: "Dock Dental" })],
   lead_mark: [
@@ -719,6 +726,7 @@ test("every kind has a spec -- the twenty-one Ask proposed and every page's verb
     sequence_test: ["POST sequences/[id]/steps/[step]/test"],
     playbook_run: ["POST playbooks/[id]/run"],
     booking_request: ["POST conversations/[id]/booking-request"],
+    fact_suggestion: ["POST fact-suggestions/[id]"],
     call_hand_over: ["POST calls/[id]/hand-over"],
     lead_stage: ["POST lead-operations/[id]/undo", "POST leads/[id]/stage"],
     lead_mark: ["POST leads/[id]/exclude", "POST leads/[id]/keep", "POST leads/[id]/put-back"],
@@ -764,6 +772,7 @@ test("a spec's `needs` is the policy role of every route it names; the exception
       .map(([k, s]) => [k, s.needs])
       .sort(([a], [b]) => a.localeCompare(b)),
     [
+      ["fact_suggestion", "partner"],
       ["invite", "owner"],
       ["lead_addressee", "partner"],
       ["lead_mark", "partner"],

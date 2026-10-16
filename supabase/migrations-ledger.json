@@ -449,6 +449,7 @@
     "00443_a_booking_the_receptionist_asks_for.sql": "72e9e4d03c9f6a80656acf43b8bc7c56cd331a3d9d87ce4e6cba28f5e3294e25",
     "00444_a_sequence_s_people_are_found_by_an_index.sql": "d3a7e06e55be0b45690076e888d57f9bd4f7def0cc9b793a16408a330204e17f",
     "00446_the_people_list_finds_each_person_s_door_by_its_own_index.sql": "d12a6b22c3a0d99a74b7a8de19a95c332960920d44a8288b389dcb97b3137cee",
-    "00447_who_is_in_a_sequence_says_the_email_to_send.sql": "9a746625573d47391d3fe62fd344771f96ab12ed7e53cbea3c7b8ec580159514"
+    "00447_who_is_in_a_sequence_says_the_email_to_send.sql": "9a746625573d47391d3fe62fd344771f96ab12ed7e53cbea3c7b8ec580159514",
+    "00448_an_owners_correction_is_kept.sql": "0e24dc4d3da927bcc2c70cba78429114ed9f2703dc54d0b091b32af9a234e30c"
   }
 }
