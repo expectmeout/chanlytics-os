@@ -172,7 +172,7 @@ async function proposePersonDetails(
       payload: { contact_id: person.id, who: person.who, ...to, previous },
     },
     same.length
-      ? `the ${same.join(" and ")} asked ${same.length > 1 ? "are" : "is"} already ${person.who}'s`
+      ? `the ${same.join(" and ")} asked ${same.length > 1 ? "are" : "is"} already ${person.who}'s, so the card leaves it as it is`
       : undefined,
   );
 }

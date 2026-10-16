@@ -99,7 +99,7 @@ const LIST = () =>
     payload: { name: "Mornings", kept: "hand", ids: [ROBIN], names: ["Robin"], count: 1 },
   });
 const STEP_REFUSED = "Step 3 (propose_list.make): name who is on it";
-const ALREADY = "“Win-back” is already paused";
+const ALREADY = "“Win-back” is paused, so none of this runs until it is resumed";
 const GAP = () =>
   propose(
     {
@@ -232,8 +232,8 @@ test("REGRESSION (the stress run's Win-back, 3 of 3): a card that leaves out a p
     [2, "Win-back is already paused; one card halves its wait, from 30 days to 15.", 1],
   );
   const back = model.requests[1].messages.at(-1).content;
-  assert.ok(back[0].content.includes(`"left_out":"${ALREADY}: say so in the answer beside the card"`), back[0].content);
-  assert.match(toldLast(model.requests[1]), /“Win-back” is already paused, so its card leaves that as it is/);
+  assert.ok(back[0].content.includes(`"also_say":"${ALREADY}: say so in the answer beside the card"`), back[0].content);
+  assert.ok(toldLast(model.requests[1]).includes(`Part of what they asked is no card: ${ALREADY}.`));
 
   const claimed = saying("I proposed pausing the Win-back and halving its wait.");
   const beside = modelSays([
@@ -274,7 +274,7 @@ test("what a turn owes, kept: a refusal until the same call makes its card, a pa
   assert.equal(u.alone(cards), "owed");
   assert.equal(
     u.words(),
-    `Part of what they asked is no card: ${ALREADY}, so its card leaves that as it is. Propose what you still can, then answer: what the cards do and, in a short clause each, what was not made and why, or what already holds, and what they can do instead. Never leave one out.`,
+    `Part of what they asked is no card: ${ALREADY}. Propose what you still can, then answer: what the cards do and, in a short clause each, what was not made and why, or what already holds, and what they can do instead. Never leave one out.`,
   );
 });
 

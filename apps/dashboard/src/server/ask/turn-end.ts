@@ -208,7 +208,8 @@ export function finishTurn(r: TurnEnd, soFar: TurnSoFar): TurnResult {
  * What a turn's cards leave out of what was asked (the operator stress run, 15 Oct 2026: "turn the receptionist off, add
  * a note that she prefers mornings, and put her on a new list called Mornings" made two cards, 4 times of 4, and "2 cards
  * to review" answered over the list's refusal a round before): a proposal refused, until a later call of the same tool
- * and action makes its card, and a part a card leaves out because it already reads so (ProposalOutcome.noted). While
+ * and action makes its card, and what a card says beside it (ProposalOutcome.noted: a part already so, a change to a
+ * paused campaign that waits for its resume). While
  * one stands, a turn never ends on its cards' count alone: the round goes back, and the model is told to say it.
  */
 export function turnUnmade() {
@@ -232,10 +233,7 @@ export function turnUnmade() {
     },
     /** What the round after cards alone is told: each part no card carries, and that the answer says it. */
     words(): string {
-      const parts = [
-        ...[...refused].map(([name, why]) => `${name} was refused (${why})`),
-        ...noted.map((n) => `${n}, so its card leaves that as it is`),
-      ];
+      const parts = [...[...refused].map(([name, why]) => `${name} was refused (${why})`), ...noted];
       return `Part of what they asked is no card: ${parts.join("; ")}. Propose what you still can, then answer: what the cards do and, in a short clause each, what was not made and why, or what already holds, and what they can do instead. Never leave one out.`;
     },
   };

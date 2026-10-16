@@ -1317,11 +1317,9 @@ test("a field asked that already says it is left off the details card, and said 
     name: "Quinn Walker",
     email: "quinn@example.com",
   });
-  assert.equal(out.noted, "the email asked is already Quinn W's");
-  assert.equal(
-    JSON.parse(out.result).left_out,
-    "the email asked is already Quinn W's: say so in the answer beside the card",
-  );
+  const said = "the email asked is already Quinn W's, so the card leaves it as it is";
+  assert.equal(out.noted, said);
+  assert.equal(JSON.parse(out.result).also_say, `${said}: say so in the answer beside the card`);
   const both = await buildProposal(t, "propose_person", { action: "details", contact_id: QUINN, name: "Quinn Walker" });
   assert.equal(both.noted, undefined, "nothing asked held already");
 });

@@ -102,15 +102,30 @@ const ALREADY: Record<PlaybookPatchKey, (held: PlaybookPatch) => string> = {
 };
 
 /**
- * What a change asked that the campaign already holds, in one sentence, said on its card and beside it (the operator
- * stress run, 15 Oct 2026: "pause the Win-back and make it send twice as often", of a Win-back already paused, made the
- * gap's card and never said so). Null where it holds none of it.
+ * What a change asked that the campaign already holds, in one sentence, said on its card and beside it. Null where it
+ * holds none of it.
  */
 function alreadyHeldWords(name: string, held: PlaybookPatch): string | null {
   const parts = PLAYBOOK_PATCH_KEYS.filter((k) => k in held).map((k) => ALREADY[k](held));
   const last = parts.pop();
   if (last === undefined) return null;
-  return `“${name}” ${parts.length ? `${parts.join(", ")} and ${last}` : last}`;
+  return `“${name}” ${parts.length ? `${parts.join(", ")} and ${last}` : last}, so the card leaves that as it is`;
+}
+
+/**
+ * What a change says beside its card besides what it changes (the operator stress run, 15 Oct 2026: "pause the Win-back
+ * and make it send twice as often", of a Win-back already paused, made the gap's card 3 of 3 and never said it was
+ * paused, and the model, seeing it paused, asked the gap alone): a part asked that it already holds, and that a campaign
+ * left paused runs none of a change to its runs until it is resumed. Undefined where there is nothing to say.
+ */
+function changeNoted(row: { name: string; state: string }, given: PlaybookPatch, set: PlaybookPatch) {
+  const held = alreadyHeldWords(row.name, heldAlready(given, set));
+  const runs = PLAYBOOK_PATCH_KEYS.some((k) => k !== "state" && k !== "name" && k in set);
+  const paused =
+    row.state === "paused" && given.state === undefined && runs
+      ? `“${row.name}” is paused, so none of this runs until it is resumed`
+      : null;
+  return [held, paused].filter((s) => s !== null).join("; ") || undefined;
 }
 
 /** A change as the model asks it: the patch's keys, its message's values as slot text (as action moment takes them). */
@@ -200,8 +215,9 @@ async function proposePlaybookChange(t: ToolContext, input: ChangeAsked): Promis
   }
   const { set, was } = judged;
   if (Object.keys(set).length === 0) return refuse(PLAYBOOK_PATCH_WORDS.same(row.name));
-  // A part asked that it holds already (a pause of one paused) is no part of the card, and is said on it and beside it.
-  const noted = alreadyHeldWords(row.name, heldAlready(given, set)) ?? undefined;
+  // A part asked that it holds already (a pause of one paused) is no part of the card, and a change to a paused one's
+  // runs waits for its resume: each said on the card and beside it.
+  const noted = changeNoted(row, given, set);
   // The table's check holds the class to the set (playbooks.policy_class).
   const cls = PLAYBOOK_CLASS_LABEL[row.policy_class as PlaybookPolicyClass];
   // The mode its runs go under, read for a resume, which says it (D7: under auto a resume sends on its own), for a

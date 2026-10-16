@@ -108,8 +108,9 @@ export interface ProposalOutcome {
   /** Why nothing was proposed (refuse), as the model is told it: read by a plan of its step's refusal (act/plan.ts). */
   refusal?: string;
   /**
-   * What was asked that the card leaves out because it already reads so ("Win-back is already paused"), as the model is
-   * told it: the turn's answer says it (loop.ts), never only the card's count.
+   * What the card leaves out because it already reads so, or what its change waits on ("Win-back is paused, so none of
+   * this runs until it is resumed"), as the model is told it: the turn's answer says it (loop.ts), never only the
+   * card's count.
    */
   noted?: string;
 }
@@ -510,7 +511,7 @@ export const propose = (p: Omit<AskProposal, "id" | "needs" | "undo" | "made_at"
       id: proposal.id,
       card: proposal.title,
       summary: proposal.summary,
-      ...(noted ? { left_out: `${noted}: say so in the answer beside the card` } : {}),
+      ...(noted ? { also_say: `${noted}: say so in the answer beside the card` } : {}),
       note: "Nothing has happened yet. This is a card the person can approve, edit or dismiss. Say what you proposed; never say it is done.",
     }),
   };
