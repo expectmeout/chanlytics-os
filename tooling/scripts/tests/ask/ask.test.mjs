@@ -1520,7 +1520,7 @@ test("cards: an act tool never acts, a proposal names its door and its undo, the
     loop.includes("if (!args) return cutOff(b, input.tenantId);"),
     "a call whose arguments did not arrive whole is told so, not judged as a plan with every field missing",
   );
-  const prompt = readCode("apps/dashboard/src/server/ask/prompt-rules.ts");
+  const prompt = ASK_RULES.join("\n");
   assert.ok(prompt.includes("You never act.") && prompt.includes("never say it was sent, changed or done"));
   const store = readCode("apps/dashboard/src/server/ask/store.ts");
   assert.ok(
@@ -1684,7 +1684,7 @@ test("context first: the page rides into every turn (ask-turn.test.mjs runs it),
     "the effort is the profile's, identical on every round (spec 5.11)",
   );
   assert.ok(
-    readCode("apps/dashboard/src/server/ask/prompt-rules.ts").includes(
+    ASK_RULES.join("\n").includes(
       "The business's hours, closures, services, notes, guardrails, booking notes and autonomy modes",
     ),
     "what the prompt already holds needs no read",
@@ -1696,7 +1696,7 @@ test("context first: the page rides into every turn (ask-turn.test.mjs runs it),
   // calls.list together reads the conversations at most twice and the calls once. The readers, and the Inbox's paged
   // messages, in readers.test.mjs.
   // The gateway passes a known effort through and nothing else: executed in ask-model.test.mjs.
-  const prompt = readCode("apps/dashboard/src/server/ask/prompt-rules.ts");
+  const prompt = ASK_RULES.join("\n");
   assert.ok(prompt.includes("Answer from it when it is enough, in one round."));
   const ev = readCode("tooling/scripts/eval-ask.mjs");
   assert.ok(ev.includes("one-round ${oneRound}/${results.length}"), "the eval measures the one-round share");
@@ -1857,10 +1857,7 @@ test("the speed pass: a fast model for a short answer, the autonomy modes in the
       prompt.includes("Autonomy, class by class (auto: on its own"),
     "the modes are facts in the stable block",
   );
-  assert.ok(
-    readCode("apps/dashboard/src/server/ask/prompt-rules.ts").includes("booking notes and autonomy modes"),
-    "and the rules say so",
-  );
+  assert.ok(ASK_RULES.join("\n").includes("booking notes and autonomy modes"), "and the rules say so");
   // The budget read once a minute -- kept per workspace, believed within the
   // minute over the table -- runs in llm-door.test.mjs.
 });
@@ -1872,9 +1869,7 @@ test("the speed pass, two: no definitions tool", () => {
     "the definitions are in the prompt; a tool for them was a round",
   );
   assert.ok(
-    readCode("apps/dashboard/src/server/ask/prompt-rules.ts").includes(
-      "the pages' words under Definitions: answer about them from there, without a read",
-    ),
+    ASK_RULES.join("\n").includes("the pages' words under Definitions: answer about them from there, without a read"),
   );
   // What the answer may hold is ASK_ANSWER_CAPS, said in the format's own words: ask-answer.test.mjs.
 });
@@ -2118,7 +2113,7 @@ test("the speed pass, four: the page's data before the words needs no second rea
   const bare = turnWords(facts);
   assert.ok(!bare.includes("search results") && !bare.includes("read://"), "nothing rode in: nothing is said of it");
   assert.ok(
-    readCode("apps/dashboard/src/server/ask/prompt-rules.ts").includes(
+    ASK_RULES.join("\n").includes(
       "To tell several people something at once, a one-off send reaches only the people whose yes covers its message",
     ),
     "a message to many is a one-off send or one message each",
