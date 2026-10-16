@@ -2925,6 +2925,7 @@ var PEOPLE_LISTS = BUILTIN_LISTS.map((l) => {
 });
 
 // src/ask-proposals/lists.ts
+var LIST_PART = 500;
 var namesIn = (d, k) => Array.isArray(d[k]) ? d[k].map(asText).filter(Boolean) : [];
 function listTakenDown(data) {
   const d = rec(data);
@@ -2934,14 +2935,46 @@ function listTakenDown(data) {
   const why = paused.length ? `${paused.join(", ")} paused` : readBy.length ? `${readBy.join(", ")} reads it` : "a campaign runs on it";
   return `Archived, not deleted: ${why}. It comes back from Archived under your lists.`;
 }
+var idsIn = (v) => Array.isArray(v) ? v.map(asText).filter(Boolean) : [];
+var byHand = (pl) => pl.kept === "hand";
+function startsWith(pl) {
+  const names = Array.isArray(pl.names) ? pl.names.map(asText).filter(Boolean) : [];
+  const n = idsIn(pl.ids).length;
+  if (names.length !== n || n === 0 || n > 3) return `${n} ${n === 1 ? "person" : "people"}`;
+  const [last, ...before] = [...names].reverse();
+  return before.length ? `${before.reverse().join(", ")} and ${last ?? ""}` : last ?? "";
+}
 var listSpec = {
   needs: "operator",
   gate: "approve",
-  // The route's body: the name and the rule the builder checked (cleanListRule), a list that keeps itself current. A
-  // card with no rule is none: a list kept by hand is made on People, where its people are picked.
-  commit: ({ payload: pl }) => !asText(pl.name) || !pl.rule || typeof pl.rule !== "object" ? refuseWith(PROPOSAL_WORDS.cannotApprove) : { route: "POST segments", body: { name: asText(pl.name), rule: pl.rule } },
-  // People's words for a list made by its rule, named as the route stored it.
-  receipt: ({ payload: pl }, data) => `${asText(rec(data).name ?? pl.name)} made. It keeps itself current.`,
+  // The route's body: the name and the rule the builder checked (cleanListRule), a list that keeps itself current; or,
+  // kept by hand, the name alone, as People's New list makes one, and the people the card names put on it after. A card
+  // that is neither is none.
+  commit: ({ payload: pl }) => !asText(pl.name) || !byHand(pl) && (!pl.rule || typeof pl.rule !== "object") ? refuseWith(PROPOSAL_WORDS.cannotApprove) : {
+    route: "POST segments",
+    body: byHand(pl) ? { name: asText(pl.name) } : { name: asText(pl.name), rule: pl.rule }
+  },
+  // The people a list kept by hand starts with, put on the list the route made (its id in the answer), as the person
+  // page's picker puts one on: the list stands either way, and the receipt says how this went.
+  then: ({ payload: pl }, data) => {
+    const ids = idsIn(pl.ids);
+    if (!byHand(pl) || !ids.length) return null;
+    const id = idIn(rec(data), "id");
+    if (!id) return refuseWith("the list came back without its id; put them on it from People");
+    return {
+      route: "PUT segments/[id]",
+      params: { id },
+      body: { add: ids.slice(0, LIST_PART) },
+      events: [PEOPLE_CHANGED]
+    };
+  },
+  // People's words for a list made by its rule, named as the route stored it; one kept by hand says who it starts with.
+  receipt: ({ payload: pl }, data, then) => {
+    const name = asText(rec(data).name ?? pl.name);
+    if (!byHand(pl)) return `${name} made. It keeps itself current.`;
+    if (!then) return `${name} made. Put people on it from their page or People.`;
+    return then.ok ? `${name} made, with ${startsWith(pl)} on it.` : `${name} made, with nobody on it yet: ${then.message}`;
+  },
   // The list it made, for a later step of Ask's plan that names it by its token (`@step:n`).
   made: (_p, data) => idIn(rec(data), "id"),
   undo: {
