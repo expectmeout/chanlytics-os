@@ -93,11 +93,15 @@ export function dropFor(message: string, still: Record<Dropped, boolean>): Dropp
   return still.format && featureRejected(message) ? "format" : null;
 }
 
-/** What a turn offers the API that it can do without: the tools' examples, the tool search and the answer's format. */
+/**
+ * What a turn offers the API that it can do without: the tools' examples, the tool search and the answer's format; and
+ * the answer tool (ASK_ANSWER_TOOL), which is never let go, so the tools it rebuilds keep it.
+ */
 export interface Offer {
   examples: boolean;
   search: boolean;
   format: boolean;
+  readonly answer: boolean;
 }
 
 /** A refused part of the offer let go (dropFor): its flag off, and the tools as the API takes them now. */
@@ -107,5 +111,5 @@ export function letGo(
   role: MembershipRole,
 ): ReturnType<typeof toApiTools> {
   offer[drop] = false;
-  return toApiTools(role, offer.examples, offer.search);
+  return toApiTools(role, offer.examples, offer.search, offer.answer);
 }
