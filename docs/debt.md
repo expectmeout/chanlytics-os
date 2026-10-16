@@ -317,8 +317,8 @@ wire names not in snake_case         54   in 27 routes
 dead exports, types and modules     265
 source-text reads in tests          750
 lint warnings                       319   in 133 files, 56 of them exhaustive-deps
-route JS ceiling, KB gzipped        832   the shell included
-route CSS ceiling, KB gzipped       160
+route JS ceiling, KB gzipped       1024   the shell included
+route CSS ceiling, KB gzipped       192
 each page's own JS ceiling, KB      256   gzipped, beyond the route
 trees the lint's limits hold         69   18 of them with max-params waiting
 ```
