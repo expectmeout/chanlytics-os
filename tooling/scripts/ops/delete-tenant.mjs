@@ -95,6 +95,8 @@ const TABLES = [
   "decisions",
   "escalations",
   "events",
+  // The notes an owner's corrections suggest keeping (00448, decision 0063).
+  "fact_suggestions",
   "google_connections",
   "google_listing_days",
   "google_listings",

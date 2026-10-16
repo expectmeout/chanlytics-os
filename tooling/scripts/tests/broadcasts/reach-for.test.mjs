@@ -695,7 +695,7 @@ test("offers on WhatsApp from a US number are held while Meta's pause holds: the
   const US_PAUSED = us.whatsapp.offers?.why;
   assert.match(
     US_PAUSED,
-    /^Meta has paused offers on WhatsApp to US numbers\. Appointment messages and replies still go\.$/,
+    /^Meta has paused offers on WhatsApp to US numbers\. Reminders, confirmations and replies still go\.$/,
   );
   assert.deepEqual(us.whatsapp, { ready: true, why: null, offers: { ok: false, why: US_PAUSED, paused: null } });
   assert.equal(channelRefuses("whatsapp", "marketing", "ours", us), US_PAUSED);

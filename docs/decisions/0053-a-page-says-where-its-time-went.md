@@ -125,6 +125,12 @@ production numbers, and the one whose page is slowest goes first.
    its workspaces, 29 in the biggest, so the read of everyone has never asked for a second page (it pages at 1,000),
    and a move to People drew its table in 214 ms at the median (27 moves). In SQL the lists' rules would be said twice
    for nothing yet. Taken when a workspace passes 500 people, or People's READY passes 500 ms at the 75th percentile.
+   **Read again 16 October 2026**: still 52 people and 29 in the biggest; a move to People at 170 ms median and 254 ms
+   three in four (357 moves in 14 days). Still deferred. The back office's speed cards now set People's moves against
+   the 500 ms line ("Steps waiting on their numbers", contracts `pageSpeedWords`), so passing it is seen where the
+   pages' time is read; the 500 people are not read there, and stay this note's to check. On main then the read of
+   everyone stood in five places (People, Sent's audience, a campaign's pools, the audience reader, the Calendar's week):
+   the step's reach is counted again when it is taken.
 4. **The Inbox's threads as a projection**, messages read on open, and a notice that names its row patches it in place.
 5. **A static shell** (built): the layout stops reading the session (the proxy and the routes verify), then
    `cacheComponents`. Its first part kept the moves warm that the frame already warmed, since every move asked the

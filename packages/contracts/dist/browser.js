@@ -732,7 +732,7 @@ var DELIVERY_REFUSALS = [
 var PURPOSE_REFUSALS = {
   opted_out: OPT_OUT_REFUSAL,
   not_opted_in: "This customer has not said yes to messages yet.",
-  no_marketing_consent: "This customer has not said yes to OFFERS. Appointment messages are fine; promotions are not.",
+  no_marketing_consent: "This customer has not said yes to offers. Reminders, confirmations and replies still go; promotions do not.",
   // The texting line's carrier registration covers replies and appointment
   // messages and nothing else -- an informational campaign, filed that way
   // after the fourth refusal (30896, 11 Sep 2026). A promotion by text would
@@ -742,7 +742,7 @@ var PURPOSE_REFUSALS = {
   // Email's, at the wire (deliver.ts). An offer by email leaves only once the deployment has its campaigns domain
   // verified and the workspace's offers are not paused; a suppression is a fact about the address.
   email_marketing_disabled: "Offers by email start once the campaigns domain is set up. This customer hears about offers on WhatsApp, once they have said yes to them there.",
-  email_offers_paused: "Offers by email are paused for your workspace while complaints and bounces settle. Appointment messages and replies keep going, and offers on WhatsApp are not affected.",
+  email_offers_paused: "Offers by email are paused for your workspace while complaints and bounces settle. Reminders, confirmations and replies keep going, and offers on WhatsApp are not affected.",
   email_suppressed: "Email to this address has stopped: it bounced for good, or the person marked a message as spam. Correct the address on their page, or reach them another way.",
   recipient_changed: "This person's email address changed after the reply was written, so it was not sent. Write it again and it goes to the address on file now.",
   // The door's own, said the way a person reads them in a thread.
@@ -12978,7 +12978,7 @@ function offerPauseOf(at3, reason) {
 }
 var pausedBecause = (reason) => reason === "complaints" ? "too many people marked offers as spam" : reason === "bounces" ? "too many offers went to addresses that did not accept them" : "complaints and bounces need a look";
 var OFFERS_PAUSED_WORDS = {
-  head: (reason) => `Offers and news by email are paused: ${pausedBecause(reason)}. Appointment messages and replies still go by email.`,
+  head: (reason) => `Offers and news by email are paused: ${pausedBecause(reason)}. Reminders, confirmations and replies still go by email.`,
   /** Where it is told once more, to the person who can do something about it. */
   fix: "Check your list for old or wrong addresses. We'll turn them back on once it looks right."
 };
@@ -13001,7 +13001,7 @@ function offersPausedLine(offers) {
 
 // src/broadcasts/whatsapp-offers.ts
 var PLUS_ONE = /^\+1\d{10}$/;
-var US_PAUSED = "Meta has paused offers on WhatsApp to US numbers. Appointment messages and replies still go.";
+var US_PAUSED = "Meta has paused offers on WhatsApp to US numbers. Reminders, confirmations and replies still go.";
 function whatsappOffersPaused(e164) {
   return typeof e164 === "string" && PLUS_ONE.test(e164.trim());
 }
@@ -33349,6 +33349,7 @@ function leadPileOpen(r2, pile) {
   const undecided = pile.cls === "review" ? r2.cls === "review" : r2.stage === "ready" && !r2.chainId;
   return undecided && (pile.pass === "first" ? !r2.laterAt : !!r2.laterAt);
 }
+var LEAD_PILE_UNDO_KEY = "z";
 function leadPileRailOf(p) {
   const later = {
     act: "later",
@@ -45605,6 +45606,38 @@ function speedVerdict(how, p75) {
 }
 var msWords = (v) => vitalValueWords("LCP", v);
 var countWords = (n, one, many = `${one}s`) => `${n.toLocaleString("en-US")} ${n === 1 ? one : many}`;
+var DEFERRED_STEPS = [
+  {
+    key: "people-projection",
+    label: "Step 3, People without everyone",
+    page: "people",
+    line: 500,
+    also: "or when a workspace passes 500 people (decision 0053)"
+  }
+];
+var DEFERRED_SAID = "A speed step put off until its number passes its line: each number against its line.";
+function deferredLines(at3) {
+  return DEFERRED_STEPS.map((s) => {
+    const move = at3("READY", s.page, "", "move");
+    const taken = `Taken when ${pageSpeedLabel(s.page)}'s moves pass ${msWords(s.line)}, three in four, ${s.also}`;
+    if (!move)
+      return {
+        key: s.key,
+        label: s.label,
+        value: "too few moves",
+        tone: "ok",
+        hint: `${taken}. Too few moves to say yet.`
+      };
+    const past = move.p75 > s.line;
+    return {
+      key: s.key,
+      label: s.label,
+      value: `${msWords(move.p75)} of ${msWords(s.line)}`,
+      tone: past ? "warn" : "ok",
+      hint: past ? `${taken}. Past its line: take it.` : `${taken}.`
+    };
+  });
+}
 function indexOf(rows2) {
   const by = /* @__PURE__ */ new Map();
   for (const r2 of rows2) by.set(`${r2.metric}|${r2.page ?? "*"}|${r2.part}|${r2.how}|${r2.device}|${r2.warm}`, r2);
@@ -45708,7 +45741,9 @@ function pageSpeedWords(speed) {
     paints: [],
     shifts: [],
     partsSentence: PARTS_SAID,
-    spotsSentence: SPOTS_SAID
+    spotsSentence: SPOTS_SAID,
+    deferredSentence: DEFERRED_SAID,
+    deferred: []
   };
   if (speed === null) return { sentence: "Where the pages' time goes could not be read just now.", ...none };
   const at3 = indexOf(speed.rows);
@@ -45726,7 +45761,9 @@ function pageSpeedWords(speed) {
     parts: partLines(speed.rows, PARTS_SHOWN),
     taps: spotLines(speed.spots, "INP", 6, "tap"),
     paints: spotLines(speed.spots, "LCP", 4, "paint"),
-    shifts: spotLines(speed.spots, "CLS", 4, "shift")
+    shifts: spotLines(speed.spots, "CLS", 4, "shift"),
+    deferredSentence: DEFERRED_SAID,
+    deferred: deferredLines(at3)
   };
 }
 
@@ -49201,6 +49238,7 @@ export {
   LEAD_OUTSIDE_US_LINE,
   LEAD_PAUSED_TITLE,
   LEAD_PEOPLE_MAX,
+  LEAD_PILE_UNDO_KEY,
   LEAD_PILE_WORDS,
   LEAD_PLACEHOLDER_LOCALS,
   LEAD_PLATFORM_DAY_CAP_USD,

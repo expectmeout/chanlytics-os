@@ -40,6 +40,13 @@ note and the code disagree, the code wins.
 7. **J4, later and its own spec.** The journey as references on `tenants.journey` (eight stages, three pinned lists,
    built-ins hideable but First contact), the word's Settings › Business row and its rename, Ask's journey action.
 
+   **Amended 16 October 2026, on main `1107b27c5`.** The journey half is gone: Sequences (decision 0060) replaced the
+   moments and their stages, and Campaigns no longer draws a journey, so there is nothing for `tenants.journey` to hold.
+   J4 is the word alone, and it waits on a workspace that needs it: production's seven read "appointment" or, where
+   deals are on, "meeting", which the derivation already gives them. It is taken when a workspace's trade says visit,
+   session or lesson, or an owner asks. When it is, pages are handed one word: the 30 places that work it out today (15
+   `appointmentWordWhere`, 8 `visitWordHere`, 7 `appointmentWordOf`) agree only while nothing is stored.
+
 ## Shape
 
 - `packages/contracts/src/journey/appointment-word.ts` and `journey.ts`; the view model reads them
@@ -53,8 +60,9 @@ note and the code disagree, the code wins.
 1. J1 to J3, in one pull request of four commit groups (the floors, the backend, the ledger, Ask). The journey and the
    word need no migration; the pull request's migrations (00373 to 00377) are the backend's counts and notices. Either
    deploy order works: the dashboard derives the word and the journey from what the database already holds.
-2. J4: one migration adding `tenants.journey` and `tenants.appointment_word`, their Settings row, the opt-in rename; the
-   dashboard reads the stored word where it is set and derives it where not, so either deploy order works there too.
+2. J4: one migration adding `tenants.appointment_word` (`tenants.journey` is not taken: item 7), its Settings row, the
+   opt-in rename; the dashboard reads the stored word where it is set and derives it where not, so either deploy order
+   works there too.
 
 ## Tests
 
