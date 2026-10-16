@@ -7,6 +7,7 @@
 // and AskTurn and AskCard on window.
 
 const useAtState = React.useState;
+const useAtEffect = React.useEffect;
 
 // Each kind a source names (contracts ASK_CITATION_KINDS) as the mark before its row, the page's own glyph where its
 // page has one: a thread or a conversation is a chat. A scope's run is the Broadcasts row a citation calls a broadcast.
@@ -52,6 +53,19 @@ const answerMoves = (a) => [
   ...(a.do.open ? [{ type: "open", to: a.do.open.to }] : []),
   ...a.do.next.map((q) => ({ type: "next", q })),
 ];
+// The newest answer's next questions, less any the conversation already asked or an earlier answer of it already
+// offered: one offered again under every answer reads as Ask not listening (Ruben's recording, 16 Oct 2026). They are
+// the last of answerMoves' order, so dropping one moves no other move's place.
+const atAsked = (s) => String(s || "").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+const freshNext = (A, drawn, turns) => {
+  const seen = new Set();
+  turns.forEach((tn, k) => {
+    if (tn.q) seen.add(atAsked(tn.q.text));
+    if (tn.a && k < turns.length - 1) for (const q of A.answer(tn.a).answer.do.next) seen.add(atAsked(q));
+  });
+  const next = drawn.answer.do.next.filter((q) => !seen.has(atAsked(q)));
+  return next.length === drawn.answer.do.next.length ? drawn : { ...drawn, answer: { ...drawn.answer, do: { ...drawn.answer.do, next } } };
+};
 
 // A card is who or what it touches, the change as it will land, what follows, then one act (the spec
 // 2026-09-27-ask-chat-on-a-phone, D16); these are its parts, and AskCard below holds its state and its verbs.
@@ -347,12 +361,13 @@ const AskPlan = ({ cards, messageId, t, onNav, onOutcome, onEdit, cardOpen }) =>
   );
 };
 
-// A figure as a tile: the value, what it counts, how it moved; where it comes from is inside the tile, shown on hover
-// (ask.css) or opened by a press on the value, with a door only where oneDoor left it one (spec S4).
+// A figure as one line: the value, what it counts, how it moved. Where it comes from is the value's tooltip, and a press
+// on the value opens it on a line of its own, with a door only where oneDoor left it one (spec S4). A pointer resting
+// on the line changes nothing on it, so the answer never shifts under the mouse (ask.css).
 const AskFigure = ({ f, open, onToggle, t, onNav }) => (
   <div className={`ask-tile${open ? " open" : ""}`} data-testid="ask-tile">
     {f.source ? (
-      <button type="button" className="ask-tile-value" aria-expanded={open} onClick={onToggle} data-testid="ask-figure">{f.value}</button>
+      <button type="button" className="ask-tile-value" aria-expanded={open} onClick={onToggle} title={`${t.from} ${f.source.label}`} data-testid="ask-figure">{f.value}</button>
     ) : (
       <span className="ask-tile-value plain">{f.value}</span>
     )}
@@ -433,7 +448,6 @@ const AskShow = ({ a, itemMove, moveProps, t, onNav }) => {
   );
   return (
     <div className="ask-part show" data-testid="ask-show">
-      <span className="ask-mark m2" aria-hidden="true" data-testid="ask-mark" />
       <div className="ask-show">
         {list.entries.length ? <AskListPart l={list} /> : null}
         {a.show.breakdown ? <AskBreakdown b={a.show.breakdown} t={t} onNav={onNav} /> : null}
@@ -488,7 +502,6 @@ const AskAnswer = ({ answer, cardOpen, cards, messageId, retry, walk = false, se
   return (
     <div className="ask-answer" data-testid="ask-answer">
       <div className="ask-part say" data-testid="ask-say">
-        <span className="ask-mark m1" aria-hidden="true" data-testid="ask-mark" />
         <div className="ask-say">
           {a.say.headline ? <p className="ask-headline">{a.say.headline}</p> : null}
           {a.say.detail ? <p className={a.say.headline ? "ask-detail" : "ask-prose"}>{a.say.detail}</p> : null}
@@ -497,7 +510,6 @@ const AskAnswer = ({ answer, cardOpen, cards, messageId, retry, walk = false, se
       {hasShow ? <AskShow a={a} itemMove={itemMove} moveProps={moveProps} t={t} onNav={onNav} /> : null}
       {hasDo ? (
         <div className="ask-part do" data-testid="ask-do">
-          <span className="ask-mark m3" aria-hidden="true" data-testid="ask-mark" />
           <div className="ask-do">
             {/* A plan's cards are one group, where its first card stood (contracts cardsInPlans); every other card on its own. */}
             {(A && A.cardsInPlans ? A.cardsInPlans(cards || []) : (cards || []).map((card) => ({ card }))).map((it) => it.plan ? (
@@ -559,7 +571,6 @@ const AskTurn = ({ m, q, quick, say, latest = false, streaming = false, walk = f
       <div className="ask-turn streaming" data-testid="ask-turn">
         {q ? <p className="ask-turn-q">{q}</p> : null}
         <div className="ask-part say" data-testid="ask-say">
-          <span className="ask-mark m1" aria-hidden="true" data-testid="ask-mark" />
           {say ? (
             <div className="ask-say">
               {say.headline ? <p className="ask-headline">{say.headline}{say.detail ? null : cursor}</p> : null}
@@ -659,10 +670,25 @@ const AskLatest = ({ t, overNext, onPress }) => (
 
 // What Ask has read, under the three while it reads (D12): the turn's last reads (the Line keeps three, live.traces),
 // a read again said once where it was last, the earlier dim after a small square, the newest live after the reading
-// dot; "Thinking…" before the first.
-const AskReads = ({ traces, t }) => {
+// dot; "Thinking…" before the first. From the fourth second the newest line says how long the turn has run (`since`,
+// when it was asked), so a long think reads as work going on, not as a stall (Ruben's recording, 16 Oct 2026: 12 and 16
+// seconds of "Thinking…" alone).
+const ASK_ELAPSED_FROM_S = 4;
+const ASK_ELAPSED_TICK_MS = 1000;
+const useAskElapsed = (since) => {
+  const [now, setNow] = useAtState(() => Date.now());
+  useAtEffect(() => {
+    if (!since) return undefined;
+    const tick = setInterval(() => setNow(Date.now()), ASK_ELAPSED_TICK_MS);
+    return () => clearInterval(tick);
+  }, [since, setNow]);
+  const s = since ? Math.floor((now - since) / 1000) : 0;
+  return s >= ASK_ELAPSED_FROM_S ? `${s}s` : "";
+};
+const AskReads = ({ traces, since = null, t }) => {
   const reads = traces.filter((r, k) => traces.lastIndexOf(r) === k);
   const shown = reads.length ? reads : [t.thinking];
+  const elapsed = useAskElapsed(since);
   return (
     <div className="ask-reading" aria-live="polite" data-testid="ask-reading">
       {shown.map((r, k) => {
@@ -671,6 +697,7 @@ const AskReads = ({ traces, t }) => {
           <p key={r} className={`ask-read ${now ? "now" : "done"}`}>
             <span className={now ? "ask-reading-dot" : "ask-read-tile"} aria-hidden="true" />
             {r}
+            {now && elapsed ? <span className="ask-read-time" aria-hidden="true" data-testid="ask-read-time">{elapsed}</span> : null}
           </p>
         );
       })}
@@ -704,10 +731,12 @@ const AskActs = ({ words, spoken, speech, flash, t }) => {
     });
   };
   const word = reading ? t.stop : loading ? t.reading : t.read;
+  // Each says its word beside its glyph on a desk, where two bare glyphs were missed (ask.css `.ask-act-word`).
   return (
     <span className="ask-acts" data-testid="ask-acts">
       <button type="button" className="ask-line-btn quiet" onClick={copy} aria-label={t.copy} title={t.copy} data-testid="ask-copy">
-        <Icon name="content" size={14} />
+        <Icon name="copy" size={14} />
+        <span className="ask-act-word" aria-hidden="true">{t.copyWord}</span>
       </button>
       {speech.canSpeak ? (
         <button
@@ -721,37 +750,12 @@ const AskActs = ({ words, spoken, speech, flash, t }) => {
           data-testid="ask-read"
         >
           <Icon name={reading ? "pause" : "headphones"} size={14} />
+          <span className="ask-act-word" aria-hidden="true">{word}</span>
         </button>
       ) : null}
     </span>
   );
 };
 
-// A desktop's conversation, folded above the band (the Line's spec, 6.4): a row per earlier answer, one opened at a
-// time, the rest behind "+N earlier" past three. A phone draws AskThread instead (D1). Moved here unchanged from
-// ask-real.jsx's arFolds.
-const AskFolds = ({ folded, shown, unfolded, setUnfolded, setFoldAll, t, A, lang, onNav, onFollow, onOutcome, onEdit }) => (
-  <div className="ask-folds" data-testid="ask-folds">
-    {folded.length > shown.length ? (
-      <button type="button" className="ask-fold-more" onClick={() => setFoldAll(true)}>{t.earlierFolded(folded.length - shown.length)}</button>
-    ) : null}
-    {shown.map((tn) => {
-      const k = folded.indexOf(tn);
-      const isOpen = unfolded === k;
-      return (
-        <div key={tn.q.id || k} className={`ask-fold${isOpen ? " open" : ""}`}>
-          <button type="button" className="ask-fold-row" aria-expanded={isOpen} onClick={() => setUnfolded(isOpen ? -1 : k)} data-testid="ask-fold">
-            <span className="ask-mark m1" aria-hidden="true" />
-            <span className="ask-fold-q">{tn.q.text}</span>
-            <span className="ask-fold-a">{A.answerText(A.answer(tn.a).answer)}</span>
-            <Icon name="chevron" size={12} className="ask-fold-chev" />
-          </button>
-          {isOpen ? <AskTurn m={tn.a} t={t} lang={lang} onNav={onNav} onFollow={onFollow} onOutcome={onOutcome} onEdit={() => onEdit(tn.q.text)} /> : null}
-        </div>
-      );
-    })}
-  </div>
-);
-
-window.AskAnswerKit = { AskTurn, AskAnswer, AskCard, AskPlan, answerMoves, askKindGlyph, AskQuestion, AskThread, AskNextRow, AskListen, AskLatest, AskFolds, AskReads, AskActs };
+window.AskAnswerKit = { AskTurn, AskAnswer, AskCard, AskPlan, answerMoves, freshNext, askKindGlyph, AskQuestion, AskThread, AskNextRow, AskListen, AskLatest, AskReads, AskActs };
 Object.assign(window, { AskTurn, AskCard });

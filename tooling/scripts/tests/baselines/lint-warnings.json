@@ -125,7 +125,7 @@
     "react-hooks/exhaustive-deps": 2
   },
   "apps/dashboard/src/legacy/pages/ask-real.jsx": {
-    "react-hooks/exhaustive-deps": 19
+    "react-hooks/exhaustive-deps": 18
   },
   "apps/dashboard/src/server/ask/context/pages.ts": {
     "@typescript-eslint/require-await": 1

@@ -54,13 +54,13 @@ tables with more than one writer     60   461 writers among them
 doors writing a record with no event   94   writing 107 tables (invariant 2)
 personal columns with no erasure strategy    2   in 1 table
 breakpoints outside the set          33   in 11 files
-literal style values                860   in 22 stylesheets
-primitives outside the kit         1665   selectors naming 690 classes
+literal style values                855   in 22 stylesheets
+primitives outside the kit         1645   selectors naming 688 classes
 inline style props                  195   in 49 files
 wire names not in snake_case         54   in 27 routes
 dead exports, types and modules     265
 source-text reads in tests          747
-lint warnings                       319   in 133 files, 56 of them exhaustive-deps
+lint warnings                       318   in 133 files, 55 of them exhaustive-deps
 route JS ceiling, KB gzipped       1024   the shell included
 route CSS ceiling, KB gzipped       192
 each page's own JS ceiling, KB      256   gzipped, beyond the route

@@ -78,11 +78,13 @@ const useHoldPress = ({ talk, onHold }) => {
 };
 
 // The input is the way on: focus comes back to it whenever `when` is true
-// and any of `deps` changes, so typing never lands on a chip just clicked.
-const useAskFocus = (ref, when, deps) => {
+// and any of `deps` changes, so typing never lands on a chip just clicked;
+// `may`, asked as it lands, can hold it back (a desk's page beside the panel,
+// where the member went to work).
+const useAskFocus = (ref, when, deps, may) => {
   useAhEffect(() => {
     if (!when) return;
-    const id = setTimeout(() => { if (ref.current) ref.current.focus(); }, 30);
+    const id = setTimeout(() => { if (ref.current && (!may || may())) ref.current.focus(); }, 30);
     return () => clearTimeout(id);
   }, deps);
 };
@@ -280,7 +282,107 @@ const useAskGrow = (ref, value, open) => {
   }, [ref, value, open]);
 };
 
+// Back closes a phone's takeover (S8): one entry with a null state and the same address, so the shell's hash router
+// never hears it and Next's app router, which reloads on a Back to a state it did not write (app-shell.jsx), ignores
+// it. Whether the entry is ours is `pushed`, not the popped state; closing any other way goes back over it.
+const useAskBack = (on, pushed, onClose) => {
+  // The close it calls is the latest one, while the entry is pushed once per opening, never again for a new function.
+  const close = useAhRef(onClose);
+  close.current = onClose;
+  useAhEffect(() => {
+    const h = typeof window !== "undefined" ? window.history : null;
+    if (!on || !h || !h.pushState) return undefined;
+    h.pushState(null, "", window.location.href);
+    pushed.current = true;
+    const onPop = () => { if (pushed.current) { pushed.current = false; close.current(); } };
+    window.addEventListener("popstate", onPop);
+    return () => {
+      window.removeEventListener("popstate", onPop);
+      if (pushed.current) { pushed.current = false; if (h.back) h.back(); }
+    };
+  }, [on, pushed, close]);
+};
+
+// A press outside the box closes it, and the press goes on to what it was on, since the page beside a desk's panel is
+// live: Inbox in the sidebar closes Ask and opens the Inbox. A press on what stands over it (`over`) is not outside.
+const useAskPressAway = (on, boxRef, over, onClose) => {
+  const close = useAhRef(onClose);
+  close.current = onClose;
+  useAhEffect(() => {
+    if (!on || typeof document === "undefined" || !document.addEventListener) return undefined;
+    const onDown = (e) => {
+      const box = boxRef.current;
+      const at = e.target;
+      if (!box || !at || !at.closest || box.contains(at) || at.closest(over)) return;
+      close.current();
+    };
+    document.addEventListener("pointerdown", onDown, true);
+    return () => document.removeEventListener("pointerdown", onDown, true);
+  }, [on, boxRef, over, close]);
+};
+
+// Whether focus is out of the box, in the page beside it (`away`), kept as it moves.
+const useAskAway = (on, boxRef, away) => {
+  useAhEffect(() => {
+    if (!on || typeof document === "undefined" || !document.addEventListener) return undefined;
+    away.current = false;
+    const onIn = (e) => { const box = boxRef.current; away.current = !!(box && e.target && !box.contains(e.target)); };
+    document.addEventListener("focusin", onIn);
+    return () => document.removeEventListener("focusin", onIn);
+  }, [on, boxRef, away]);
+};
+
+// As the box goes, focus goes back to what had it before it came, unless the member has put it somewhere since.
+const useAskGiveBack = (on, boxRef) => {
+  useAhEffect(() => {
+    if (!on || typeof document === "undefined") return undefined;
+    const from = document.activeElement;
+    const box = boxRef.current;
+    return () => {
+      const at = document.activeElement;
+      const lost = !at || at === document.body || (box && box.contains(at));
+      if (lost && from && from !== document.body && from.isConnected !== false && from.focus) from.focus({ preventScroll: true });
+    };
+  }, [on, boxRef]);
+};
+
+// A scroller's bar shows while it scrolls and a beat after (`data-scrolling`), never standing at rest beside what it
+// holds, and once scrolled what passes under the head fades at its top edge (`data-scrolled`; ask.css .ask-line-body).
+// Data attributes, which React leaves alone: a class set here would be wiped by the next className it writes.
+const AH_SCROLL_QUIET_MS = 900;
+const useAskScrollCues = (ref, on) => {
+  useAhEffect(() => {
+    const b = ref.current;
+    if (!on || !b || !b.addEventListener) return undefined;
+    let quiet = 0;
+    const onScroll = () => {
+      if (b.scrollTop > 0) b.dataset.scrolled = "true";
+      else delete b.dataset.scrolled;
+      b.dataset.scrolling = "true";
+      clearTimeout(quiet);
+      quiet = setTimeout(() => delete b.dataset.scrolling, AH_SCROLL_QUIET_MS);
+    };
+    b.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      clearTimeout(quiet);
+      b.removeEventListener("scroll", onScroll);
+    };
+  }, [on, ref]);
+};
+
+// A desk's panel keeps the keys pressed in it, since the page beside it is live and its own listeners (the Inbox's
+// A, D, E and ⌘↵, People's and a person's J and K) read the window: only the shell's chords (⌘K, ⌘B, ⌘1-9) and Ask's own
+// ⌘J go on. Esc, unless the line took it first, is the panel's (`escape`).
+const ahPanelKeys = (e, escape) => {
+  if ((e.metaKey || e.ctrlKey) && !e.altKey && /^[kbj1-9]$/i.test(e.key)) return;
+  e.stopPropagation();
+  if (e.key !== "Escape" || e.defaultPrevented) return;
+  e.preventDefault();
+  escape();
+};
+
 window.AskHooks = {
   useAskTalk, useHoldSpace, useHoldPress, useAskFocus, useAskSpeech, useAskWarm, useAskPin, useAskLatest, useAskGrow,
-  pinNow: ahPinNow, pinTop: ahPinTop, latestShown: ahLatestShown, slide: ahSlide, slideFrom: ahSlideFrom,
+  useAskBack, useAskPressAway, useAskAway, useAskGiveBack, useAskScrollCues,
+  pinNow: ahPinNow, pinTop: ahPinTop, latestShown: ahLatestShown, slide: ahSlide, slideFrom: ahSlideFrom, panelKeys: ahPanelKeys,
 };

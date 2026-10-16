@@ -91,7 +91,13 @@ test.describe("Ask on a real workspace", () => {
     const pal = page.getByTestId("ask-real");
     const now = pal.getByTestId("ask-row-now");
     await expect(now).toBeInViewport({ ratio: 1 });
-    await expect(now.getByTestId("ask-pill").filter({ hasText: /search/ })).toHaveText("1 search waiting");
+    // Its counts are the hero's pills, under the three (ask-real.jsx), on a desk as on a phone.
+    await expect(
+      pal
+        .getByTestId("ask-hero")
+        .getByTestId("ask-pill")
+        .filter({ hasText: /search/ }),
+    ).toHaveText("1 search waiting");
     // The search's clause of the sentence: first, capitalised, when nobody else is waiting; after a "; " otherwise.
     await expect(now.locator(".ask-row-label")).toContainText(
       new RegExp(`(^|; )[Yy]our search for ${WAITING_SEARCH_NAME} is waiting for your answer[.;]`),
@@ -193,15 +199,14 @@ test.describe("Ask on a real workspace", () => {
     const input = page.getByTestId("ask-input");
     await input.fill("open the transcript of the most recent call");
     await input.press("Enter");
-    // The answer lands and the app goes there by itself; the palette closes.
+    // The answer lands and the page beside the panel goes there by itself; on a desk Ask stays open beside it with
+    // the conversation (Ruben, 16 Oct 2026).
     await page.waitForURL(atRoute(/^conversations\/cv-/), { timeout: 120_000 });
-    await expect(page.getByTestId("ask-real")).toBeHidden();
-    // A call is drawn as its card: in its thread, opened there, or alone in the thread's frame (calls-in-the-thread).
-    await expect(page.getByTestId("tl-call").first()).toBeVisible({ timeout: 20_000 });
-    await page.screenshot({ path: "test-results/ask-clickthrough.png" });
-    // ⌘K brings the conversation back where it was.
-    await page.keyboard.press("Control+k");
+    await expect(page.getByTestId("ask-real")).toBeVisible();
     await expect(page.getByTestId("ask-turn").first()).toBeVisible();
+    // A call is drawn as its card: in its thread, opened there, or alone in the thread's frame (calls-in-the-thread).
+    await expect(page.getByTestId("tl-call").first()).toBeAttached({ timeout: 20_000 });
+    await page.screenshot({ path: "test-results/ask-clickthrough.png" });
   });
 
   test("the same question twice is one thread, not twins", async ({ page }) => {
@@ -242,7 +247,7 @@ test.describe("Ask on a real workspace", () => {
     await page.request.delete(scoped(`/api/v1/ask/threads/${first}`, ws), fromTheApp);
   });
 
-  test("the Line streams a turn and shows its answer or a plain failure, with Clear to end it", async ({ page }) => {
+  test("the Line streams a turn and shows its answer or a plain failure, with New to end it", async ({ page }) => {
     test.skip(!PAID, WHY_UNPAID);
     test.setTimeout(120_000);
     await page.goto("/#/inbox");
@@ -258,8 +263,8 @@ test.describe("Ask on a real workspace", () => {
     expect(text.length).toBeGreaterThan(10);
     for (const s of INVENTED) expect(text).not.toContain(s);
     await page.screenshot({ path: "test-results/ask-turn.png" });
-    // Clear ends the conversation; the Line is home again.
-    await page.getByTestId("ask-clear").click();
+    // New, in the head, ends the conversation; the Line is home again.
+    await page.getByTestId("ask-clear-head").click();
     await expect(page.getByTestId("ask-row-now")).toBeVisible();
   });
 });
