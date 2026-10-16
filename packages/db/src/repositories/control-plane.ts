@@ -217,6 +217,33 @@ export async function personReplyMode(db: Db, tenantId: string, contactId: strin
   return data?.mode ?? null;
 }
 
+/** How many people's ids one read of their modes carries: the URL's own limit, as the readers that page by id keep it. */
+const MODE_IDS_AT_ONCE = 200;
+
+/**
+ * The receptionist mode set for each of these people, by their id; one who follows the workspace has none (absent).
+ * What a card for many reads before it is proposed, so it says who already has the mode asked (Ask's bulk mode).
+ */
+export async function personReplyModes(
+  db: Db,
+  tenantId: string,
+  contactIds: readonly string[],
+): Promise<Map<string, string>> {
+  const out = new Map<string, string>();
+  for (let i = 0; i < contactIds.length; i += MODE_IDS_AT_ONCE) {
+    const { data, error } = await db
+      .from("policies")
+      .select("subject_id, mode")
+      .eq("tenant_id", tenantId)
+      .eq("class", "reply")
+      .eq("subject_type", "contact")
+      .in("subject_id", contactIds.slice(i, i + MODE_IDS_AT_ONCE));
+    if (error) throw new Error(error.message);
+    for (const r of data ?? []) if (r.subject_id) out.set(r.subject_id, r.mode);
+  }
+  return out;
+}
+
 /**
  * Set or clear one person's receptionist mode. `null` removes the row, so the
  * person follows the workspace policy again. Insert and delete are owner-only

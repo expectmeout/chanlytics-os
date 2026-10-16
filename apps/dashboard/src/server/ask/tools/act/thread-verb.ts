@@ -55,6 +55,11 @@ async function proposeThreadVerb(
   }
   if (verb === "wake" && conv.state !== "snoozed") return refuse("that thread is not snoozed");
   if (verb === "hand_back" && !conv.assignee_user_id) return refuse("nobody has taken that thread over");
+  // What the thread already is, said, never a card that changes nothing (the operator stress run, 15 Oct 2026).
+  if (verb === "take_over" && conv.assignee_user_id === t.ctx.userId)
+    return refuse(`${who}'s thread is already taken over by the person asking: say so, and change nothing`);
+  if (verb === "archive" && conv.state === "archived")
+    return refuse(`${who}'s thread is already archived: say so, and change nothing`);
   let until: string | null = null;
   if (verb === "snooze") {
     const raw = str(input.until, 40);

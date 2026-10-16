@@ -478,6 +478,7 @@ export {
   listPolicies,
   setPolicyMode,
   personReplyMode,
+  personReplyModes,
   setPersonReplyMode,
   workspaceAnswersOnItsOwn,
   workspaceOpenToCustomers,
