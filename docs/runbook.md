@@ -1399,6 +1399,10 @@ ledger with each version's name, whoever pushes and from wherever.
    this checkout carries and production lacks. Never `--include-all`: it applies a file below production's head after
    the ones above it.
 
+   A pull request that adds a migration never merges itself before it is applied: `node tooling/scripts/land.mjs`
+   pushes it and leaves it to merge by hand, and only `land.mjs --applied`, run once every migration it adds is on
+   production and read back, sets it to merge itself once green.
+
 5. **After the deploys, every other migration**: one either deploy order serves, or one that tightens something the
    old code still writes (a CHECK, a dropped column, a renamed function), which must wait until both apps run the code
    that stopped writing it. Merge, then start `.github/workflows/migrate.yml` by hand (Actions, Migrate production, Run
