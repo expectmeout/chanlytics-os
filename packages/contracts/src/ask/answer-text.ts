@@ -200,35 +200,54 @@ const cells = (line: string): string[] =>
     .split(/(?<!\\)\|/)
     .map((c) => c.replace(/\\\|/g, "|").trim());
 
+/** A list line read: its indent, whether it is numbered, and its words; null for a line that is no point. */
+function listPointOf(line: string): { indent: number; ordered: boolean; words: string } | null {
+  const m = LIST_LINE.exec(line);
+  if (!m) return null;
+  const [, lead = "", , number, words = ""] = m;
+  return { indent: lead.replace(/\t/g, "  ").length, ordered: !!number, words };
+}
+
 /** A run of list lines as one list, nested by indent; a line indented under a point and not a point itself continues it. */
 function wordsListOf(lines: string[]): AnswerList {
   const root: AnswerList = { ordered: false, items: [] };
   const stack: Array<{ indent: number; list: AnswerList }> = [];
   for (const raw of lines) {
-    const m = LIST_LINE.exec(raw);
-    if (!m) {
+    const point = listPointOf(raw);
+    if (!point) {
       const last = stack.at(-1)?.list.items.at(-1);
       if (last) last.runs.push({ text: " " }, ...answerRuns(raw.trim()));
       continue;
     }
-    const indent = m[1].replace(/\t/g, "  ").length;
-    const ordered = !!m[3];
-    while (stack.length && stack[stack.length - 1].indent > indent) stack.pop();
+    const { indent, ordered } = point;
+    while ((stack.at(-1)?.indent ?? -1) > indent) stack.pop();
     const top = stack.at(-1);
+    const parent = top?.list.items.at(-1);
     let list: AnswerList;
     if (!top) {
       list = root;
       if (!root.items.length) root.ordered = ordered;
       stack.push({ indent, list });
-    } else if (indent > top.indent && top.list.items.length && stack.length < LIST_DEPTH) {
-      const parent = top.list.items[top.list.items.length - 1];
+    } else if (indent > top.indent && parent && stack.length < LIST_DEPTH) {
       parent.sub = parent.sub ?? { ordered, items: [] };
       list = parent.sub;
       stack.push({ indent, list });
     } else list = top.list;
-    list.items.push({ runs: answerRuns(m[4]), sub: null });
+    list.items.push({ runs: answerRuns(point.words), sub: null });
   }
   return root;
+}
+
+/** A table from its header line and its body's lines: the cells as runs, and which columns hold numbers alone. */
+function tableOf(headLine: string, bodyLines: string[]): AnswerBlock {
+  const head = cells(headLine);
+  const rows = bodyLines.map((line) => {
+    const r = cells(line);
+    return head.map((_, k) => answerRuns(r[k] ?? ""));
+  });
+  // A number is read from the cell's words, its bold aside: "**18**" is a number.
+  const right = head.map((_, k) => rows.length > 0 && rows.every((r) => NUMBER_CELL.test(runsText(r[k] ?? []).trim())));
+  return { kind: "table", head: head.map(answerRuns), rows, right };
 }
 
 /**
@@ -239,6 +258,7 @@ function wordsListOf(lines: string[]): AnswerList {
  */
 export function answerBlocks(text: string): AnswerBlock[] {
   const lines = text.replace(/\r\n?/g, "\n").split("\n");
+  const at = (i: number) => lines[i] ?? "";
   const blocks: AnswerBlock[] = [];
   let para: AnswerRun[][] = [];
   const endPara = () => {
@@ -246,51 +266,41 @@ export function answerBlocks(text: string): AnswerBlock[] {
     para = [];
   };
   for (let i = 0; i < lines.length;) {
-    const line = lines[i];
+    const line = at(i);
+    const heading = HEADING.exec(line.trim())?.[1];
+    const first = listPointOf(line);
     if (!line.trim()) {
       endPara();
       i++;
-      continue;
-    }
-    const h = HEADING.exec(line.trim());
-    if (h) {
+    } else if (heading) {
       endPara();
-      blocks.push({ kind: "heading", runs: answerRuns(h[1]) });
+      blocks.push({ kind: "heading", runs: answerRuns(heading) });
       i++;
-      continue;
-    }
-    if (TABLE_LINE.test(line) && i + 1 < lines.length && TABLE_RULE.test(lines[i + 1])) {
+    } else if (TABLE_LINE.test(line) && TABLE_RULE.test(at(i + 1))) {
       endPara();
-      const head = cells(line);
-      const body: string[][] = [];
-      for (i += 2; i < lines.length && TABLE_LINE.test(lines[i]); i++) body.push(cells(lines[i]));
-      const width = head.length;
-      const rows = body.map((r) => Array.from({ length: width }, (_, k) => answerRuns(r[k] ?? "")));
-      // A number is read from the cell's words, its bold aside: "**18**" is a number.
-      const right = head.map((_, k) => rows.length > 0 && rows.every((r) => NUMBER_CELL.test(runsText(r[k]).trim())));
-      blocks.push({ kind: "table", head: head.map(answerRuns), rows, right });
-      continue;
-    }
-    const first = LIST_LINE.exec(line);
-    if (first) {
+      const body: string[] = [];
+      for (i += 2; i < lines.length && TABLE_LINE.test(at(i)); i++) body.push(at(i));
+      blocks.push(tableOf(line, body));
+    } else if (first) {
       endPara();
       // One list is one kind at its own level: a bullet after numbered steps, at their indent, starts a list of its own.
-      const kindAt = (m: RegExpExecArray | null) => !!m && m[1].length <= first[1].length && !!m[3] !== !!first[3];
+      const otherKind = (p: ReturnType<typeof listPointOf>) =>
+        !!p && p.indent <= first.indent && p.ordered !== first.ordered;
       const run: string[] = [];
       for (
         ;
         i < lines.length &&
-        lines[i].trim() &&
-        (LIST_LINE.test(lines[i]) || /^\s+\S/.test(lines[i])) &&
-        !(run.length && kindAt(LIST_LINE.exec(lines[i])));
+        at(i).trim() &&
+        (LIST_LINE.test(at(i)) || /^\s+\S/.test(at(i))) &&
+        !(run.length && otherKind(listPointOf(at(i))));
         i++
       )
-        run.push(lines[i]);
+        run.push(at(i));
       blocks.push({ kind: "list", list: wordsListOf(run) });
-      continue;
+    } else {
+      para.push(answerRuns(line.trim()));
+      i++;
     }
-    para.push(answerRuns(line.trim()));
-    i++;
   }
   endPara();
   return blocks;

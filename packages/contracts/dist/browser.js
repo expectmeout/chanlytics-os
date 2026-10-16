@@ -20715,37 +20715,52 @@ var TABLE_RULE = /^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$/;
 var NUMBER_CELL = /^[-+]?[$€£]?\d[\d,.\s]*(%|[kKmM]|\s?(?:min|h|s))?$/;
 var LIST_DEPTH = 3;
 var cells = (line) => line.trim().replace(/^\|/, "").replace(/\|$/, "").split(/(?<!\\)\|/).map((c) => c.replace(/\\\|/g, "|").trim());
+function listPointOf(line) {
+  const m = LIST_LINE.exec(line);
+  if (!m) return null;
+  const [, lead = "", , number2, words2 = ""] = m;
+  return { indent: lead.replace(/\t/g, "  ").length, ordered: !!number2, words: words2 };
+}
 function wordsListOf(lines) {
   const root = { ordered: false, items: [] };
   const stack = [];
   for (const raw of lines) {
-    const m = LIST_LINE.exec(raw);
-    if (!m) {
+    const point = listPointOf(raw);
+    if (!point) {
       const last = stack.at(-1)?.list.items.at(-1);
       if (last) last.runs.push({ text: " " }, ...answerRuns(raw.trim()));
       continue;
     }
-    const indent = m[1].replace(/\t/g, "  ").length;
-    const ordered = !!m[3];
-    while (stack.length && stack[stack.length - 1].indent > indent) stack.pop();
+    const { indent, ordered } = point;
+    while ((stack.at(-1)?.indent ?? -1) > indent) stack.pop();
     const top = stack.at(-1);
+    const parent = top?.list.items.at(-1);
     let list2;
     if (!top) {
       list2 = root;
       if (!root.items.length) root.ordered = ordered;
       stack.push({ indent, list: list2 });
-    } else if (indent > top.indent && top.list.items.length && stack.length < LIST_DEPTH) {
-      const parent = top.list.items[top.list.items.length - 1];
+    } else if (indent > top.indent && parent && stack.length < LIST_DEPTH) {
       parent.sub = parent.sub ?? { ordered, items: [] };
       list2 = parent.sub;
       stack.push({ indent, list: list2 });
     } else list2 = top.list;
-    list2.items.push({ runs: answerRuns(m[4]), sub: null });
+    list2.items.push({ runs: answerRuns(point.words), sub: null });
   }
   return root;
 }
+function tableOf(headLine, bodyLines) {
+  const head = cells(headLine);
+  const rows2 = bodyLines.map((line) => {
+    const r2 = cells(line);
+    return head.map((_, k) => answerRuns(r2[k] ?? ""));
+  });
+  const right = head.map((_, k) => rows2.length > 0 && rows2.every((r2) => NUMBER_CELL.test(runsText(r2[k] ?? []).trim())));
+  return { kind: "table", head: head.map(answerRuns), rows: rows2, right };
+}
 function answerBlocks(text) {
   const lines = text.replace(/\r\n?/g, "\n").split("\n");
+  const at3 = (i) => lines[i] ?? "";
   const blocks = [];
   let para = [];
   const endPara = () => {
@@ -20753,42 +20768,32 @@ function answerBlocks(text) {
     para = [];
   };
   for (let i = 0; i < lines.length; ) {
-    const line = lines[i];
+    const line = at3(i);
+    const heading = HEADING.exec(line.trim())?.[1];
+    const first = listPointOf(line);
     if (!line.trim()) {
       endPara();
       i++;
-      continue;
-    }
-    const h = HEADING.exec(line.trim());
-    if (h) {
+    } else if (heading) {
       endPara();
-      blocks.push({ kind: "heading", runs: answerRuns(h[1]) });
+      blocks.push({ kind: "heading", runs: answerRuns(heading) });
       i++;
-      continue;
-    }
-    if (TABLE_LINE.test(line) && i + 1 < lines.length && TABLE_RULE.test(lines[i + 1])) {
+    } else if (TABLE_LINE.test(line) && TABLE_RULE.test(at3(i + 1))) {
       endPara();
-      const head = cells(line);
       const body = [];
-      for (i += 2; i < lines.length && TABLE_LINE.test(lines[i]); i++) body.push(cells(lines[i]));
-      const width = head.length;
-      const rows2 = body.map((r2) => Array.from({ length: width }, (_, k) => answerRuns(r2[k] ?? "")));
-      const right = head.map((_, k) => rows2.length > 0 && rows2.every((r2) => NUMBER_CELL.test(runsText(r2[k]).trim())));
-      blocks.push({ kind: "table", head: head.map(answerRuns), rows: rows2, right });
-      continue;
-    }
-    const first = LIST_LINE.exec(line);
-    if (first) {
+      for (i += 2; i < lines.length && TABLE_LINE.test(at3(i)); i++) body.push(at3(i));
+      blocks.push(tableOf(line, body));
+    } else if (first) {
       endPara();
-      const kindAt = (m) => !!m && m[1].length <= first[1].length && !!m[3] !== !!first[3];
+      const otherKind = (p) => !!p && p.indent <= first.indent && p.ordered !== first.ordered;
       const run = [];
-      for (; i < lines.length && lines[i].trim() && (LIST_LINE.test(lines[i]) || /^\s+\S/.test(lines[i])) && !(run.length && kindAt(LIST_LINE.exec(lines[i]))); i++)
-        run.push(lines[i]);
+      for (; i < lines.length && at3(i).trim() && (LIST_LINE.test(at3(i)) || /^\s+\S/.test(at3(i))) && !(run.length && otherKind(listPointOf(at3(i)))); i++)
+        run.push(at3(i));
       blocks.push({ kind: "list", list: wordsListOf(run) });
-      continue;
+    } else {
+      para.push(answerRuns(line.trim()));
+      i++;
     }
-    para.push(answerRuns(line.trim()));
-    i++;
   }
   endPara();
   return blocks;
