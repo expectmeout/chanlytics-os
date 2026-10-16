@@ -222,16 +222,22 @@ export type ListAny = z.infer<typeof AnySchema>;
 export const ListConditionSchema = z.union([AnySchema, ListFactSchema]);
 export type ListCondition = ListFact | ListAny;
 
+/** A fact over a count of days since or until one of a person's dates (DAY_OPS). */
+type DayFact = Extract<
+  ListFact,
+  { field: "last_visit" | "next_visit" | "missed_visit" | "last_heard" | "first_contact" }
+>;
+
+const isDayFact = (f: ListFact): f is DayFact =>
+  f.field === "last_visit" ||
+  f.field === "next_visit" ||
+  f.field === "missed_visit" ||
+  f.field === "last_heard" ||
+  f.field === "first_contact";
+
 /** Whether a day fact's op carries its days, and whether `this_week` is said of a fact it fits. */
 function factProblem(f: ListFact): string | null {
-  if (
-    f.field !== "last_visit" &&
-    f.field !== "next_visit" &&
-    f.field !== "missed_visit" &&
-    f.field !== "last_heard" &&
-    f.field !== "first_contact"
-  )
-    return null;
+  if (!isDayFact(f)) return null;
   if ((f.op === "more_than" || f.op === "within") && f.days === undefined) return `${f.field} ${f.op} needs days`;
   if (f.op === "this_week" && f.field !== "next_visit") return "only the next one on the calendar can be this week";
   return null;
@@ -540,6 +546,20 @@ export function listRuleWhy(rule: ListRule, v: PersonRowVM, listName?: (token: s
     .map((c) => ("any" in c ? (c.any.find((f) => holds(f, v, noLists)) ?? c.any[0]) : c))
     .map((f) => listFactWords(f, listName))
     .join(" · ");
+}
+
+/**
+ * Who a rule leaves out for want of a date (the operator stress run, 15 Oct 2026): a day fact over more than N days
+ * holds only for someone with that date on record, so someone never heard from is not quiet (the Quiet list's rule) and
+ * someone never on the calendar has not been away from it. For each such condition, the rule with it read as never, and
+ * that condition's chip ("Never heard from"): whoever it holds is said apart, never as nobody.
+ */
+export function ruleUndated(rule: ListRule): { words: string; rule: ListRule }[] {
+  return rule.all.flatMap((c, i) => {
+    if ("any" in c || !isDayFact(c) || c.op !== "more_than") return [];
+    const never: DayFact = { field: c.field, op: "never" };
+    return [{ words: listFactWords(never), rule: { ...rule, all: rule.all.map((x, k) => (k === i ? never : x)) } }];
+  });
 }
 
 /**

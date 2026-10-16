@@ -8,6 +8,7 @@ import {
   OWN_MESSAGE_REFUSALS,
   PERSON_MODE_WORDS,
   answerSaidOf,
+  listRuleParts,
   offersYesRefusal,
   parseListToken,
   plural,
@@ -17,7 +18,7 @@ import { poolList } from "../../../../people/audience";
 import { load } from "../../../../readers";
 import { audiencePool } from "../../../../readers/audience-pool";
 import { lists as listsReader } from "../../../../readers/lists";
-import { ruleMembers } from "../../read/people";
+import { notOnRecordOf, ruleMembers } from "../../read/people";
 import {
   AUDIENCES_CALL,
   UUID,
@@ -51,19 +52,32 @@ const SELECTION = {
 };
 type Selection = { all?: unknown[]; list?: string; ids?: string[] };
 
-/** The people a selection names, each once, in People's order; or the refusal, in words the model says. */
-async function selected(t: ToolContext, s: Selection): Promise<{ ids: string[]; said: string } | { refusal: string }> {
+/**
+ * The people a selection names, each once, in People's order; or the refusal, in words the model says. A new list kept
+ * by hand takes its people by their ids too (act/people/list.ts).
+ */
+export async function selected(
+  t: ToolContext,
+  s: Selection,
+): Promise<{ ids: string[]; said: string } | { refusal: string }> {
   const named = [s.all?.length ? 1 : 0, s.list ? 1 : 0, s.ids?.length ? 1 : 0].reduce((a, b) => a + b, 0);
   if (named !== 1) return { refusal: "name who by exactly one of all (conditions), list (a token) or ids" };
   const pool = (await load(t.rc, audiencePool, undefined)).data;
   const inPool = new Set(pool.people.map((r) => r.id));
   let ids: string[];
   let said: string;
+  // Whom the conditions leave out for want of a date, said beside a selection of nobody (people.search's not_on_record).
+  let unrecorded: ReturnType<typeof notOnRecordOf> = null;
   if (s.all?.length) {
     const held = await ruleMembers(t, s.all);
     if ("error" in held) return { refusal: held.error };
     ids = pool.people.filter((r) => held.ids.has(r.id)).map((r) => r.id);
-    said = "who the conditions hold today";
+    // The conditions as People's chips say them, so the card says who: a selection of the 76 never heard from read
+    // "who the conditions hold today", and nothing on it said they had never written (the operator stress run).
+    said = `everyone matching ${listRuleParts(held.rule)
+      .map((c) => `“${c}”`)
+      .join(" and ")}`;
+    unrecorded = notOnRecordOf(held.notOnRecord);
   } else if (s.list) {
     const token = str(s.list, 60);
     const ref = parseListToken(token) ?? parseListToken(`list:${token}`) ?? parseListToken(`seg:${token}`);
@@ -82,6 +96,10 @@ async function selected(t: ToolContext, s: Selection): Promise<{ ids: string[]; 
     ids = asked;
     said = plural(ids.length, "person", "people");
   }
+  if (!ids.length && unrecorded)
+    return {
+      refusal: `nobody is in that selection today, but ${unrecorded.map((u) => `${plural(u.people, "person", "people")} ${u.people === 1 ? "meets" : "meet"} the rest with no date for it (${u.condition})`).join("; ")}: say them apart, never that nobody is in People, and offer the selection with that condition read as never`,
+    };
   if (!ids.length) return { refusal: "nobody is in that selection today: say so" };
   if (ids.length > ASK_SELECTION_MAX)
     return {

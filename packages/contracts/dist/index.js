@@ -13418,9 +13418,9 @@ var ListFactSchema = z3.discriminatedUnion("field", [
 ]);
 var AnySchema = z3.strictObject({ any: z3.array(ListFactSchema).check(z3.minLength(2), z3.maxLength(LIST_ANY_MAX)) });
 var ListConditionSchema = z3.union([AnySchema, ListFactSchema]);
+var isDayFact = (f) => f.field === "last_visit" || f.field === "next_visit" || f.field === "missed_visit" || f.field === "last_heard" || f.field === "first_contact";
 function factProblem(f) {
-  if (f.field !== "last_visit" && f.field !== "next_visit" && f.field !== "missed_visit" && f.field !== "last_heard" && f.field !== "first_contact")
-    return null;
+  if (!isDayFact(f)) return null;
   if ((f.op === "more_than" || f.op === "within") && f.days === void 0) return `${f.field} ${f.op} needs days`;
   if (f.op === "this_week" && f.field !== "next_visit") return "only the next one on the calendar can be this week";
   return null;
@@ -13641,6 +13641,13 @@ function listRuleParts(rule2, listName) {
 }
 function listRuleWhy(rule2, v, listName) {
   return rule2.all.map((c) => "any" in c ? c.any.find((f) => holds(f, v, noLists)) ?? c.any[0] : c).map((f) => listFactWords(f, listName)).join(" \xB7 ");
+}
+function ruleUndated(rule2) {
+  return rule2.all.flatMap((c, i) => {
+    if ("any" in c || !isDayFact(c) || c.op !== "more_than") return [];
+    const never = { field: c.field, op: "never" };
+    return [{ words: listFactWords(never), rule: { ...rule2, all: rule2.all.map((x, k) => k === i ? never : x) } }];
+  });
 }
 function listDraftFieldLines() {
   const ops = {
@@ -14766,6 +14773,23 @@ var PROPOSAL_WORDS = {
   /** A plan's silent steps, stopped at step n by its refusal (`why`, in the refusal's own words): nothing after it was done. */
   planStopped: (n, why) => `Stopped at step ${n}: ${/[.!?…]$/.test(why.trim()) ? why.trim() : `${why.trim()}.`} The steps after it were not done.`
 };
+var ASK_SENDS = /* @__PURE__ */ (() => /* @__PURE__ */ new Set([
+  "reply",
+  "whisper",
+  "broadcast",
+  "playbook",
+  "run",
+  "lead_search",
+  "people_search",
+  "person_message",
+  "sequence_start",
+  "call_hand_over",
+  "leads_check",
+  "lead_addressee",
+  "lead_search_more",
+  "reach_out_make",
+  "review_reply"
+]))();
 var asText = (v) => v == null ? "" : String(v);
 var rec = (v) => v && typeof v === "object" ? v : {};
 var decisionOf = (data) => {
@@ -14940,14 +14964,46 @@ function listTakenDown(data) {
   const why = paused.length ? `${paused.join(", ")} paused` : readBy.length ? `${readBy.join(", ")} reads it` : "a campaign runs on it";
   return `Archived, not deleted: ${why}. It comes back from Archived under your lists.`;
 }
+var idsIn = (v) => Array.isArray(v) ? v.map(asText).filter(Boolean) : [];
+var byHand = (pl) => pl.kept === "hand";
+function startsWith(pl) {
+  const names3 = Array.isArray(pl.names) ? pl.names.map(asText).filter(Boolean) : [];
+  const n = idsIn(pl.ids).length;
+  if (names3.length !== n || n === 0 || n > 3) return `${n} ${n === 1 ? "person" : "people"}`;
+  const [last, ...before] = [...names3].reverse();
+  return before.length ? `${before.reverse().join(", ")} and ${last ?? ""}` : last ?? "";
+}
 var listSpec = {
   needs: "operator",
   gate: "approve",
-  // The route's body: the name and the rule the builder checked (cleanListRule), a list that keeps itself current. A
-  // card with no rule is none: a list kept by hand is made on People, where its people are picked.
-  commit: ({ payload: pl }) => !asText(pl.name) || !pl.rule || typeof pl.rule !== "object" ? refuseWith(PROPOSAL_WORDS.cannotApprove) : { route: "POST segments", body: { name: asText(pl.name), rule: pl.rule } },
-  // People's words for a list made by its rule, named as the route stored it.
-  receipt: ({ payload: pl }, data) => `${asText(rec(data).name ?? pl.name)} made. It keeps itself current.`,
+  // The route's body: the name and the rule the builder checked (cleanListRule), a list that keeps itself current; or,
+  // kept by hand, the name alone, as People's New list makes one, and the people the card names put on it after. A card
+  // that is neither is none.
+  commit: ({ payload: pl }) => !asText(pl.name) || !byHand(pl) && (!pl.rule || typeof pl.rule !== "object") ? refuseWith(PROPOSAL_WORDS.cannotApprove) : {
+    route: "POST segments",
+    body: byHand(pl) ? { name: asText(pl.name) } : { name: asText(pl.name), rule: pl.rule }
+  },
+  // The people a list kept by hand starts with, put on the list the route made (its id in the answer), as the person
+  // page's picker puts one on: the list stands either way, and the receipt says how this went.
+  then: ({ payload: pl }, data) => {
+    const ids = idsIn(pl.ids);
+    if (!byHand(pl) || !ids.length) return null;
+    const id = idIn(rec(data), "id");
+    if (!id) return refuseWith("the list came back without its id; put them on it from People");
+    return {
+      route: "PUT segments/[id]",
+      params: { id },
+      body: { add: ids.slice(0, LIST_PART) },
+      events: [PEOPLE_CHANGED]
+    };
+  },
+  // People's words for a list made by its rule, named as the route stored it; one kept by hand says who it starts with.
+  receipt: ({ payload: pl }, data, then) => {
+    const name = asText(rec(data).name ?? pl.name);
+    if (!byHand(pl)) return `${name} made. It keeps itself current.`;
+    if (!then) return `${name} made. Put people on it from their page or People.`;
+    return then.ok ? `${name} made, with ${startsWith(pl)} on it.` : `${name} made, with nobody on it yet: ${then.message}`;
+  },
   // The list it made, for a later step of Ask's plan that names it by its token (`@step:n`).
   made: (_p, data) => idIn(rec(data), "id"),
   undo: {
@@ -14969,7 +15025,6 @@ var listSpec = {
     return id ? `clients/${listToken({ kind: "saved", id })}` : "clients";
   }
 };
-var idsIn = (v) => Array.isArray(v) ? v.map(asText).filter(Boolean) : [];
 var listMemberSpec = {
   needs: "operator",
   gate: "approve",
@@ -17389,8 +17444,8 @@ function templateUsage(src) {
       runs: p.runs ?? null
     });
   }
-  const byHand = src.broadcasts.filter((b) => !!b.template_name && !b.playbook_id).slice().sort((a, b) => String(b.created_at ?? "").localeCompare(String(a.created_at ?? "")));
-  for (const b of byHand) {
+  const byHand2 = src.broadcasts.filter((b) => !!b.template_name && !b.playbook_id).slice().sort((a, b) => String(b.created_at ?? "").localeCompare(String(a.created_at ?? "")));
+  for (const b of byHand2) {
     const u = at3(b.template_name);
     u.broadcasts += 1;
     if (b.name && u.recent.length < 2) u.recent.push(b.name);
@@ -22706,12 +22761,14 @@ function planCountWords(cards, language, words3) {
   const id = cards[0]?.plan?.id;
   if (id === void 0 || cards.some((p) => p.plan?.id !== id)) return { headline: null, detail: said };
   const silent = cards.filter((p) => p.plan?.silent).length;
-  const sends2 = cards.length - silent;
+  const sends2 = cards.filter((p) => !p.plan?.silent && ASK_SENDS.has(p.kind)).length;
+  const waiting = cards.length - silent - sends2;
   const es = language === "es";
   const one = (n, singular, plural3) => `${n} ${n === 1 ? singular : plural3}`;
   const parts2 = [
     ...silent > 0 ? [es ? one(silent, "no env\xEDa nada", "no env\xEDan nada") : one(silent, "sends nothing", "send nothing")] : [],
-    ...sends2 > 0 ? [es ? one(sends2, "env\xEDa", "env\xEDan") : one(sends2, "sends", "send")] : []
+    ...sends2 > 0 ? [es ? one(sends2, "env\xEDa", "env\xEDan") : one(sends2, "sends", "send")] : [],
+    ...waiting > 0 ? [es ? one(waiting, "espera un env\xEDo", "esperan un env\xEDo") : one(waiting, "waits for a send", "wait for a send")] : []
   ];
   const headline2 = es ? `Un plan de ${one(cards.length, "paso", "pasos")} para revisar: ${parts2.join(" y luego ")}.` : `A plan of ${one(cards.length, "step", "steps")} to review: ${parts2.join(", then ")}.`;
   if (said !== null || silent === 0) return { headline: headline2, detail: said };
@@ -23241,7 +23298,7 @@ function answerForCards(cards, language, words3, lead) {
   const plan = planCountWords(cards, language, words3);
   const a = structured(
     lead?.headline ?? plan.headline ?? (n === 1 ? es ? sentence(`Una tarjeta para revisar: ${cards[0].title}`) : sentence(`One card to review: ${cards[0].title}`) : es ? `${n} tarjetas para revisar.` : `${n} cards to review.`),
-    language
+    es ? "es" : "en"
   );
   a.say.detail = clip(
     plan.detail ?? (n === 1 ? es ? "Apru\xE9bala, c\xE1mbiala o desc\xE1rtala: nada pasa hasta que lo hagas." : "Approve it, change it or dismiss it: nothing happens until you do." : es ? "Cada una se aprueba por separado: apru\xE9bala, c\xE1mbiala o desc\xE1rtala; nada pasa hasta que lo hagas." : "Each is its own press: approve, change or dismiss each one; nothing happens until you do."),
@@ -25003,17 +25060,20 @@ var JOURNEY_PLAN_WORDS = {
   journeyUnread: "The journey could not be read just now, so which moments are covered is not known: say so, and try again in a moment.",
   nothingToCover: "Every moment asked for is covered already or not offered here (an appointment's moments need a calendar connected, a proposal's needs deals on): say so, and propose nothing.",
   notOffered: (stages) => `Not offered here: ${joinWords(stages)}.`,
-  pausedOn: (name) => `\u201C${name}\u201D stands paused on its moment: resume it from its drawer.`,
-  whyStage: (id) => `Nobody hears from you ${STAGE_WORDS[id]} yet.`
+  whyStage: (id) => `Nobody hears from you ${STAGE_WORDS[id]} yet.`,
+  /** A campaign paused on a moment the setup covers: resumed by a card of its own, never doubled. */
+  whyResume: (name) => `\u201C${name}\u201D stands paused on its moment: resumed, never doubled.`
 };
 function setupSteps() {
   const steps = [];
-  const add = (input, why) => {
+  const push = (kind, input, why) => {
     const n = steps.length + 1;
-    steps.push({ n, kind: "playbook", silent: false, input, why, after: [] });
+    steps.push({ n, kind, silent: false, input, why, after: [] });
     return n;
   };
-  return { steps, add };
+  const add = (input, why) => push("playbook", input, why);
+  const resume = (playbookId, why) => push("change", { playbook_id: playbookId, state: "running" }, why);
+  return { steps, add, resume };
 }
 var REVIEW_STARTER = "after_visit_review";
 var CHECK_STARTER = "after_visit_check";
@@ -25058,6 +25118,7 @@ var SETUP_WORDS = {
     calendar: (feed, each, gets) => feed ? `First, connect your calendar's feed under Settings \u203A Business (booking emails alone cannot time a campaign), so each ${each} gets ${gets}.` : `First, connect your calendar under Settings \u203A Business, so each ${each} gets ${gets}.`,
     proposals: (first) => `${first ? "First" : "Then"}, under Settings \u203A Business, answer ${SELLS_BY_QUESTION} with \u201C${SELLS_BY_WORDS.proposal.label}\u201D, so each proposal that waits gets a follow-up.`,
     nobody: (named, one) => `${capitalize(named)} ${one ? "reaches" : "reach"} nobody today; ${one ? "its card says" : "each card says"} why.`,
+    resume: (names3) => `Resumes ${joinWords(names3.map((n) => `\u201C${n}\u201D`))}, paused on ${names3.length === 1 ? "its moment, on a card of its own" : "their moments, a card each"}.`,
     again: (more2, needs2) => `Ask me again once ${onceOf(needs2, "en")}, and I'll add ${more2 === 1 ? "it" : "them"}.`,
     headline: (needs2, now, more2) => `${needs2.size === 2 ? "Connect your calendar and turn on proposals" : needs2.has("calendar") ? "Connect your calendar" : "Turn on proposals"} first: ${plural(now, "campaign")} can start now, ${more2} more once ${onceOf(needs2, "en")}.`,
     open: (needs2) => needs2.has("calendar") ? "Connect a calendar" : "Open Business settings",
@@ -25083,6 +25144,7 @@ var SETUP_WORDS = {
     calendar: (feed, each, gets) => feed ? `Primero, conecta el feed de tu calendario en Ajustes \u203A Negocio (los correos de reserva no bastan para programar una campa\xF1a), para que cada ${each} tenga ${gets}.` : `Primero, conecta tu calendario en Ajustes \u203A Negocio, para que cada ${each} tenga ${gets}.`,
     proposals: (first) => `${first ? "Primero" : "Luego"}, en Ajustes \u203A Negocio, responde a \xABC\xF3mo compran tus clientes\xBB con \xABAlgunos reciben antes una propuesta\xBB, para que cada propuesta que espera tenga un seguimiento.`,
     nobody: (named, one) => `${capitalize(named)} no ${one ? "llega" : "llegan"} a nadie hoy; ${one ? "su tarjeta dice" : "cada tarjeta dice"} por qu\xE9.`,
+    resume: (names3) => `Reanuda ${joinEs(names3.map((n) => `\xAB${n}\xBB`))}, en pausa en ${names3.length === 1 ? "su momento, en su propia tarjeta" : "sus momentos, en una tarjeta cada una"}.`,
     again: (more2, needs2) => `P\xEDdemelo otra vez cuando ${onceOf(needs2, "es")} y ${more2 === 1 ? "la a\xF1ado" : "las a\xF1ado"}.`,
     headline: (needs2, now, more2) => `${needs2.size === 2 ? "Conecta tu calendario y activa las propuestas" : needs2.has("calendar") ? "Conecta tu calendario" : "Activa las propuestas"} primero: ${now === 1 ? "1 campa\xF1a puede" : `${now} campa\xF1as pueden`} empezar ya, ${more2} m\xE1s cuando ${onceOf(needs2, "es")}.`,
     open: (needs2) => needs2.has("calendar") ? "Conectar un calendario" : "Abrir Ajustes del negocio",
@@ -25123,7 +25185,7 @@ function journeyPlan(intent, world) {
   const journey = world.journey;
   if (!journey) return { refused: JOURNEY_PLAN_WORDS.journeyUnread };
   const S = SETUP_WORDS[world.says];
-  const { steps, add } = setupSteps();
+  const { steps, add, resume } = setupSteps();
   const missing = [];
   const paused = [];
   const needs2 = /* @__PURE__ */ new Set();
@@ -25141,16 +25203,18 @@ function journeyPlan(intent, world) {
     }
     if (stage.covered || !stage.moment) continue;
     const held = world.playbooks.find((p) => p.state === "paused" && journeyStageOf(p.trigger) === id);
-    if (held) paused.push(JOURNEY_PLAN_WORDS.pausedOn(held.name));
-    else {
+    if (held) {
+      resume(held.id, JOURNEY_PLAN_WORDS.whyResume(held.name));
+      paused.push(held.name);
+    } else {
       add(stageInput(id, stage.moment, world), JOURNEY_PLAN_WORDS.whyStage(id));
       started2.push(id);
     }
   }
-  const said = [...missing.length ? [JOURNEY_PLAN_WORDS.notOffered(missing)] : [], ...paused];
+  const notOffered = missing.length ? [JOURNEY_PLAN_WORDS.notOffered(missing)] : [];
   if (steps.length === 0) {
     const first = needLines(needs2, later, intent.books, { ...world, says: "en" });
-    return { refused: [JOURNEY_PLAN_WORDS.nothingToCover, ...first, ...said].join(" ") };
+    return { refused: [JOURNEY_PLAN_WORDS.nothingToCover, ...first, ...notOffered].join(" ") };
   }
   const nobody = started2.filter((id) => {
     const moment2 = journey.find((s) => s.id === id)?.moment;
@@ -25158,13 +25222,14 @@ function journeyPlan(intent, world) {
   });
   const words3 = [
     ...needLines(needs2, later, intent.books, world),
-    S.cover(started2.length, S.join(started2.map((id) => S.starts[id]))),
+    ...started2.length ? [S.cover(started2.length, S.join(started2.map((id) => S.starts[id])))] : [],
     ...nobody.length ? [S.nobody(S.join(nobody.map((id) => S.named[id])), nobody.length === 1)] : [],
-    ...said,
+    ...notOffered,
+    ...paused.length ? [S.resume(paused)] : [],
     ...needs2.size ? [S.again(later.length, needs2)] : []
   ];
   const lead = needs2.size ? {
-    headline: S.headline(needs2, started2.length, later.length),
+    headline: S.headline(needs2, started2.length + paused.length, later.length),
     open: { to: needs2.has("calendar") ? CALENDAR_SETTING_ROUTE : SETTINGS_BUSINESS_ROUTE, label: S.open(needs2) },
     next: [S.next(needs2)]
   } : null;
@@ -25266,7 +25331,6 @@ var PLAN_WORDS = {
   /** The reminder, its own question on its day (who has booked is known then); short, to fit the answer whole. */
   reminderAsk: (day, list2) => `On ${day}, ask me to send a reminder to whoever on \u201C${list2}\u201D has not booked by then.`,
   notOffered: JOURNEY_PLAN_WORDS.notOffered,
-  pausedOn: JOURNEY_PLAN_WORDS.pausedOn,
   /**
    * What a card says of what an earlier step of its plan makes, named by its token (`@step:n`): not filed yet, so not
    * quoted, and filled in by the commit once that step is approved.
@@ -25283,7 +25347,8 @@ var PLAN_WORDS = {
     pause: "So nobody gets the month's offer and this one.",
     first: "The offer, on its first day.",
     paced: "The offer, as fast as the calendar can take it.",
-    stage: JOURNEY_PLAN_WORDS.whyStage
+    stage: JOURNEY_PLAN_WORDS.whyStage,
+    resume: JOURNEY_PLAN_WORDS.whyResume
   }
 };
 var SAY = PLAN_WORDS;
@@ -27305,23 +27370,6 @@ var PROPOSAL_SPECS = /* @__PURE__ */ (() => {
   addProposalSpecs(ASK_ONLY_SPECS);
   return { ...PAGE_SPECS, ...ASK_ONLY_SPECS };
 })();
-var ASK_SENDS = /* @__PURE__ */ (() => /* @__PURE__ */ new Set([
-  "reply",
-  "whisper",
-  "broadcast",
-  "playbook",
-  "run",
-  "lead_search",
-  "people_search",
-  "person_message",
-  "sequence_start",
-  "call_hand_over",
-  "leads_check",
-  "lead_addressee",
-  "lead_search_more",
-  "reach_out_make",
-  "review_reply"
-]))();
 function proposalBelowNeeds(kind) {
   const { needs: needs2, doing } = PROPOSAL_SPECS[kind];
   return needs2 === "partner" ? `only an owner or the workspace's partner can ${doing}; say so, and that one of them can ask` : `only an owner can ${doing}; say so, and that an owner can ask`;
@@ -59653,6 +59701,7 @@ export {
   ruleNeedsViewer,
   ruleParts,
   ruleStrength,
+  ruleUndated,
   rulesKept,
   rulesLine,
   rulesWithoutFieldsWords,

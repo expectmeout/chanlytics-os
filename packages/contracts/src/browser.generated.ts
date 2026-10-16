@@ -30,7 +30,7 @@ export { ASK_THREAD_ROUTES } from "./ask-proposals/inbox";
 export { PROPOSAL_GATE, addProposalSpecs, askUndoOpen, cardOpenRoute, proposalSpec, verbSpec } from "./ask-proposals/page-specs";
 export { answerSaidOf } from "./ask-proposals/people-verbs";
 export { PERSON_DETAIL_WORDS } from "./ask-proposals/person";
-export { PROPOSAL_WORDS } from "./ask-proposals/spec";
+export { ASK_SENDS, PROPOSAL_WORDS } from "./ask-proposals/spec";
 export { CUSTOMER_MESSAGE_SKILL } from "./ask-skills/customer-message/skill";
 export { ASK_SKILL_IDS, isAskSkillId, skillGuide, skillsAsked } from "./ask-skills/registry";
 export { SKILL_CRAFT_PURPOSES, SKILL_CRAFT_MAX_TOKENS, SKILL_GUIDE_MAX, craftSystem, guideBlock } from "./ask-skills/skill";
@@ -223,7 +223,7 @@ export { bookingArriving, bookingChanged, feedAdditionIsBooking, visitChangeNews
 export { personLikeOf, peopleVisitsOf, withVisitsOf, poolRowOf, poolRowsOf, consultFirstOf, poolListContext } from "./people/audience-pool";
 export { SAY_IT_DEAL_JSON_SCHEMA, SAY_IT_MAX, SAY_IT_NOTE_JSON_SCHEMA, SAY_IT_VERBS, SAY_IT_WORDS, dealFill, dealSheetFill, noteFill, noteSheetFill, sayItFilled } from "./people/doors/say-it";
 export { legacyErasedPhoneHash, legacyErasedEmailHash, legacyLeadSuppressionHash } from "./people/erasure";
-export { asListRule, draftListRule, ruleFacts, factNeeds, ruleNeeds, ruleLists, listRuleMatches, listFactWords, listConditionWords, listRuleParts, listRuleWhy, listDraftFieldLines, LIST_NEEDS, LIST_RULE_FIELDS, LIST_PURPOSES, LIST_STANDINGS, LIST_ASSIGNED, LIST_DEAL_STAGES, LIST_RULE_MAX, LIST_ANY_MAX, ListFactSchema, ListConditionSchema, ListRuleSchema, LIST_DRAFT_JSON_SCHEMA } from "./people/lists/list-rules";
+export { asListRule, draftListRule, ruleFacts, factNeeds, ruleNeeds, ruleLists, listRuleMatches, listFactWords, listConditionWords, listRuleParts, listRuleWhy, ruleUndated, listDraftFieldLines, LIST_NEEDS, LIST_RULE_FIELDS, LIST_PURPOSES, LIST_STANDINGS, LIST_ASSIGNED, LIST_DEAL_STAGES, LIST_RULE_MAX, LIST_ANY_MAX, ListFactSchema, ListConditionSchema, ListRuleSchema, LIST_DRAFT_JSON_SCHEMA } from "./people/lists/list-rules";
 export { listToken, parseListToken, unmetNeed, listMembers, savedListIds, savedListLookup, listNamer, listNeeds, listsFor, resolveList, membersOf, listUnknownWords, savedListTip, ruleNeedsViewer, pinTokens, todayPins, togglePin, PEOPLE_LIST_GROUPS, LIST_GROUP_WORDS, BUILTIN_LISTS, PEOPLE_LISTS, listAsks, viewerListWords, TODAY_PINS_MAX } from "./people/lists/lists";
 export { parsePeopleRoute, peopleRoute } from "./people/lists/people-route";
 export { peopleListAction, savedListAction, noNumberWords, noChannelWords, saidYesWords, peopleAggregates, GET_YES_ROUTE, NO_NUMBER_REACH, NO_CHANNEL_REACH } from "./people/people-lists";
