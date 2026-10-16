@@ -27,6 +27,7 @@ import {
   SERVER_NOTIFICATION_KINDS,
 } from "@chanlytics/contracts";
 import { readCode, readRaw } from "../_source.mjs";
+import { edgeFunctions } from "../../edge-functions.mjs";
 import { EVERY_EVENT, toldFor } from "../_live-feed.mjs";
 
 const NOW = Date.parse("2026-09-07T15:00:00Z");
@@ -441,8 +442,7 @@ test("the wiring: the migration, the webhook's order, the ops, the routes, the b
   const env = readRaw("apps/edge/.env.example");
   for (const v of ["STRIPE_SECRET_KEY=", "STRIPE_WEBHOOK_SECRET=", "STRIPE_PRICE_ID=", "BILLING_TRIAL_DAYS="])
     assert.ok(env.includes(v), v);
-  const vercel = JSON.parse(readRaw("apps/edge/vercel.json"));
-  assert.equal(vercel.functions["api/stripe-webhook.ts"].maxDuration, 30);
+  assert.equal(edgeFunctions()["api/stripe-webhook.ts"].maxDuration, 30);
   // The edge keeps contracts' list rather than a copy (a copy turned 00134's new kinds into "alert"); that every
   // listed kind is stored as itself is run in notify-transport.test.mjs.
   assert.ok(

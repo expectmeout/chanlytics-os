@@ -16,6 +16,28 @@ import {
 import { sellsByOf } from "../../../people/deals";
 import { actAction, propose, refuse, str, type ProposalOutcome, type ToolContext } from "../context";
 
+/**
+ * What a class's change asks that its row already holds (the operator stress run, 15 Oct 2026: a part of an ask already
+ * so is said, never proposed as a change): `all` where nothing of it would change, which is refused in words; else the
+ * part that holds, left off the card and said beside it. Null where nothing holds, or the class has no row of its own.
+ */
+function classHolds(
+  cls: PolicyClass,
+  asked: { mode: string; conf: number | null },
+  was: { mode: string | null; conf: number | null } | null,
+): { all: boolean; words: string } | null {
+  if (!was) return null;
+  const sameMode = !!asked.mode && was.mode === asked.mode;
+  const sameConf = asked.conf !== null && was.conf === asked.conf;
+  const holds = [
+    sameMode ? `is already ${POLICY_MODE_WORDS[asked.mode as PolicyMode].chip}` : null,
+    sameConf ? `already has its confidence dial at ${Math.round((asked.conf ?? 0) * 100)}%` : null,
+  ].filter((x): x is string => x !== null);
+  if (!holds.length) return null;
+  const all = (!asked.mode || sameMode) && (asked.conf === null || sameConf);
+  return { all, words: `“${POLICY_CLASS_WORDS[cls].name}” ${holds.join(" and ")}` };
+}
+
 async function proposePolicy(
   t: ToolContext,
   input: { class: string; mode: string; min_confidence?: number },
@@ -45,6 +67,12 @@ async function proposePolicy(
     .eq("class", cls)
     .is("subject_type", null)
     .maybeSingle();
+  const was = {
+    mode: row?.mode ?? null,
+    conf: (row?.limits as { min_confidence?: number } | null)?.min_confidence ?? null,
+  };
+  const held = classHolds(cls as PolicyClass, { mode, conf }, row ? was : null);
+  if (held?.all) return refuse(`${held.words}: say so, and change nothing`);
   // The Autonomy page's own words for the row and the mode, never a class id.
   const summary = [
     mode ? `${POLICY_CLASS_WORDS[cls as PolicyClass].name}: ${POLICY_MODE_WORDS[mode as PolicyMode].chip}` : null,
@@ -52,20 +80,20 @@ async function proposePolicy(
   ]
     .filter(Boolean)
     .join(" · ");
-  return propose({
-    kind: "policy",
-    title: `Autonomy: ${cls}`,
-    summary,
-    payload: {
-      class: cls,
-      mode: mode || null,
-      min_confidence: conf,
-      previous: {
-        mode: row?.mode ?? null,
-        min_confidence: (row?.limits as { min_confidence?: number } | null)?.min_confidence ?? null,
+  return propose(
+    {
+      kind: "policy",
+      title: `Autonomy: ${cls}`,
+      summary,
+      payload: {
+        class: cls,
+        mode: mode || null,
+        min_confidence: conf,
+        previous: { mode: was.mode, min_confidence: was.conf },
       },
     },
-  });
+    held ? `${held.words}, so the card leaves that as it is` : undefined,
+  );
 }
 
 /**

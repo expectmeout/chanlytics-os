@@ -2,23 +2,26 @@
  * A change reaches production in minutes (16 Oct 2026, Ruben: "from project done to uploaded live on Vercel within a few
  * minutes tops"). What holds the parts that make it so:
  *
- *   - `land` (tooling/scripts/ship/land.mjs) takes main's side only of files a command writes, and writes them again;
+ *   - `land` (tooling/scripts/land.mjs) takes main's side only of files a command writes, and writes them again;
  *     every other conflict is a person's.
  *   - `check:local` runs everything after the build side by side (runTogether), and says each check's own result.
  *   - CI's tests run as four parts at once, each a quarter of the files, and the lint and the format check start from
  *     main's cache, which main's own lint writes afresh.
- *   - The edge's install on Vercel turns TypeScript's checking off for the build alone (edge-build-no-check.mjs): only
- *     where VERCEL=1, and CI's typecheck, over the same tsconfig, still checks it.
+ *   - The edge's functions are built here (tooling/scripts/edge-functions.mjs, in seconds) and Vercel deploys them as
+ *     they are, with the settings its own builder gave each, where it once compiled them one by one for seven minutes.
+ *     CI's typecheck still reads the edge's own tsconfig, every function in it.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
-import { isWritten, WRITERS } from "../../../ship/land.mjs";
+import { fileURLToPath, pathToFileURL } from "node:url";
+import ts from "typescript";
+import { isWritten, WRITERS } from "../../../land.mjs";
 import { FIRST, LOCAL_CHECKS, runTogether } from "../../../checks/checked-locally.mjs";
-import { withNoCheck } from "../../../ship/edge-build-no-check.mjs";
+import { buildEdge, edgeFunctions, functionFiles, nodeMajor, ROUTES, vcConfig } from "../../../edge-functions.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../../..");
 const read = (rel) => fs.readFileSync(path.join(ROOT, rel), "utf8");
@@ -106,20 +109,82 @@ test("CI's tests run as four parts at once, and lint and format start from main'
   assert.equal(picker.status, 0, picker.stderr);
 });
 
-test("the edge's Vercel install turns checking off for the build alone, and only on Vercel", () => {
+test("Vercel deploys the edge's functions as they are built here, and runs no builder of its own over them", () => {
   const vercel = JSON.parse(read("apps/edge/vercel.json"));
-  assert.equal(vercel.installCommand, "pnpm install && node ../../tooling/scripts/ship/edge-build-no-check.mjs");
-  assert.equal(vercel.buildCommand, undefined, "no build command: the edge's project has no output folder to find");
-  const tsconfig = JSON.parse(read("apps/edge/tsconfig.json"));
-  assert.equal(tsconfig.compilerOptions.noCheck, undefined, "the committed tsconfig keeps CI's typecheck whole");
-  assert.deepEqual(withNoCheck(tsconfig).compilerOptions, { ...tsconfig.compilerOptions, noCheck: true });
-  assert.equal(withNoCheck(tsconfig).include, tsconfig.include);
-  const elsewhere = spawnSync(process.execPath, ["tooling/scripts/ship/edge-build-no-check.mjs"], {
-    cwd: ROOT,
-    encoding: "utf8",
-    env: { ...process.env, VERCEL: "" },
+  assert.deepEqual(Object.keys(vercel), ["builds"], "no `functions` beside `builds`: Vercel refuses the two together");
+  assert.equal(vercel.builds.length, 1, "one build: zero-config's Node builder would compile each api file again");
+  assert.deepEqual([vercel.builds[0].src, vercel.builds[0].use], ["package.json", "@vercel/static-build"]);
+  assert.equal(
+    JSON.parse(read("apps/edge/package.json")).scripts["vercel-build"],
+    "node ../../tooling/scripts/edge-functions.mjs",
+    "the static build runs the edge's vercel-build, then deploys the .vercel/output it leaves",
+  );
+  const doors = execFileSync("git", ["ls-files", "apps/edge/api"], { cwd: ROOT, encoding: "utf8" })
+    .split("\n")
+    .filter((f) => f.endsWith(".ts") && !f.endsWith(".d.ts"))
+    .map((f) => f.slice("apps/edge/".length));
+  assert.deepEqual(functionFiles(), doors.sort(), "every door is a function, and nothing else is");
+  for (const file of Object.keys(edgeFunctions())) assert.ok(doors.includes(file), `a limit for ${file}, a door`);
+  assert.deepEqual(vcConfig(60, "24"), {
+    handler: "index.js",
+    runtime: "nodejs24.x",
+    architecture: "x86_64",
+    maxDuration: 60,
+    environment: {},
+    shouldDisableAutomaticFetchInstrumentation: false,
+    launcherType: "Nodejs",
+    shouldAddHelpers: true,
+    shouldAddSourcemapSupport: true,
+    awsLambdaHandler: "",
   });
-  assert.equal(elsewhere.status, 0);
-  assert.match(elsewhere.stdout, /not on Vercel/);
-  assert.equal(JSON.parse(read("apps/edge/tsconfig.json")).compilerOptions.noCheck, undefined, "left as it was");
+  assert.equal("maxDuration" in vcConfig(undefined, "24"), false, "no limit written: the project's own");
+  assert.equal(nodeMajor(), read(".nvmrc").trim(), "the functions run on the Node the project is set to (.nvmrc)");
+  const slash = (p) => p.split(path.sep).join("/");
+  const edge = ts.parseJsonConfigFileContent(
+    ts.readConfigFile(path.join(ROOT, "apps/edge/tsconfig.json"), ts.sys.readFile).config,
+    ts.sys,
+    path.join(ROOT, "apps/edge"),
+  );
+  for (const file of doors)
+    assert.ok(
+      edge.fileNames.some((f) => slash(f).endsWith(`apps/edge/${file}`)),
+      `CI's typecheck reads ${file}`,
+    );
+  assert.equal(fs.existsSync(path.join(ROOT, "apps/edge/api/tsconfig.json")), false, "an editor reads the edge's own");
+});
+
+test("a function built here loads, answers through its export, and carries the settings and limit Vercel needs", async () => {
+  const out = fs.mkdtempSync(path.join(os.tmpdir(), "edge-output-"));
+  try {
+    await buildEdge({ out, files: ["api/cron/notes.ts", "api/stripe-webhook.ts"] });
+    const fn = (file, name) => path.join(out, "functions", `${file.replace(/\.ts$/, "")}.func`, name);
+    const config = JSON.parse(fs.readFileSync(fn("api/cron/notes.ts", ".vc-config.json"), "utf8"));
+    assert.equal(config.maxDuration, 60, "the limit from vercel.json");
+    assert.equal(JSON.parse(fs.readFileSync(fn("api/stripe-webhook.ts", ".vc-config.json"), "utf8")).maxDuration, 30);
+    assert.equal(JSON.parse(fs.readFileSync(fn("api/cron/notes.ts", "package.json"), "utf8")).type, "module");
+    assert.ok(fs.existsSync(fn("api/cron/notes.ts", "index.js.map")), "a stack trace names the source");
+    const notes = await import(pathToFileURL(fn("api/cron/notes.ts", config.handler)).href);
+    assert.equal(typeof notes.POST, "function", "the door's export, bundled with all it imports");
+    // Without a database the door answers before it reads anything: its own refusal, from the bundle's own code.
+    const kept = { url: process.env.SUPABASE_URL, key: process.env.SUPABASE_SERVICE_ROLE_KEY };
+    delete process.env.SUPABASE_URL;
+    delete process.env.SUPABASE_SERVICE_ROLE_KEY;
+    let answer;
+    try {
+      answer = await notes.POST(new Request("https://edge.test/api/cron/notes", { method: "POST" }));
+    } finally {
+      if (kept.url !== undefined) process.env.SUPABASE_URL = kept.url;
+      if (kept.key !== undefined) process.env.SUPABASE_SERVICE_ROLE_KEY = kept.key;
+    }
+    assert.equal(answer.status, 503);
+    assert.deepEqual(await answer.json(), { ok: false, error: "no_database" });
+    assert.ok(fs.existsSync(path.join(out, "static/index.html")), "public/ is the static");
+    assert.deepEqual(JSON.parse(fs.readFileSync(path.join(out, "config.json"), "utf8")), {
+      version: 3,
+      routes: ROUTES,
+      crons: [],
+    });
+  } finally {
+    fs.rmSync(out, { recursive: true, force: true });
+  }
 });
