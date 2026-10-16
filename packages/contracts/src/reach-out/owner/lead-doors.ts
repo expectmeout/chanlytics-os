@@ -37,19 +37,19 @@ export const REACH_OUT_SAID_WORDS = {
     switch (intent) {
       case "interested":
       case "question":
-        return `${business} is Talking now, and your reach-out stops for them.`;
+        return `${business} is Talking now, and your sequence stops for them.`;
       case "not_now": {
         const at = back.at ? Date.parse(back.at) : NaN;
         return Number.isFinite(at)
-          ? `Your reach-out stops for ${business}. They're back in Leads on ${clockDate(at, back.tz, back.nowMs)}.`
-          : `Your reach-out stops for ${business}. They come back in Leads later.`;
+          ? `Your sequence stops for ${business}. They're back in Leads on ${clockDate(at, back.tz, back.nowMs)}.`
+          : `Your sequence stops for ${business}. They come back in Leads later.`;
       }
       case "no":
         return `${business} said no: nothing more will be written to them.`;
       case "wrong_person":
         return referTo
-          ? `Your reach-out stops for ${business}. A step to write to ${referTo} is on Today.`
-          : `Your reach-out stops for ${business}. A step to find who to write to instead is on Today.`;
+          ? `Your sequence stops for ${business}. A step to write to ${referTo} is on Today.`
+          : `Your sequence stops for ${business}. A step to find who to write to instead is on Today.`;
     }
   },
   /** The note the owner's word is on the person's thread, in their own words. */
@@ -64,7 +64,7 @@ export const REACH_OUT_STOP_WORDS = {
   door: "Stop writing to them",
   ask: (business: string) => `Stop writing to ${business}?`,
   detail:
-    "No reach-out writes to them again: an email not yet with the mail provider is held back too. They stay in your leads, and you can still write to them yourself from the Inbox.",
+    "No sequence writes to them again: an email not yet with the mail provider is held back too. They stay in your leads, and you can still write to them yourself from the Inbox.",
   yes: "Stop writing",
   done: (business: string) => `Stopped: nothing more will be written to ${business}`,
   already: (business: string) => `${business} was already stopped`,

@@ -28,7 +28,7 @@ export interface LeadPileCountsDto {
 /** The pile's words. */
 export const LEAD_PILE_WORDS = {
   start: "Go through them",
-  startTip: "One lead at a time: add it to a reach-out, put it off, or say it isn't a fit.",
+  startTip: "One lead at a time: add it to a sequence, put it off, or say it isn't a fit.",
   head: (search: string) => `Going through “${search}”`,
   target: "Adds go to",
   newList: "A new list",
@@ -40,7 +40,6 @@ export const LEAD_PILE_WORDS = {
   hold: "Add to a new list",
   held: (n: number) => `${plural(n, "lead", "leads")} for a new list`,
   writeHeld: (n: number) => `Write to the ${n}`,
-  details: "Details",
   leave: "Done for now",
   end: "That's the pile",
   endSub: (later: number) =>

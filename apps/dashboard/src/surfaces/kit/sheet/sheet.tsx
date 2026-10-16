@@ -17,7 +17,9 @@
  * It leaves as it was: what it held as it closed, not what the page holds after (a step gone, a draft cleared).
  * On a phone a pull down from its top asks to close it as its Close does (data-bits touchSwipe, the house's one
  * reader of a thumb), following the finger, and its handle says so; it is as tall as what it holds, up to its cap, and
- * its height glides as what it holds changes (motion/use-height-glide). The kit writes none of the rest by hand.
+ * its height glides as what it holds changes (motion/use-height-glide). A record's sheet may instead have two rests on a
+ * phone (`rest`, rests.ts: the lead workbench's pile): one height, standing down at half and whole at full, its handle a
+ * button between them and a pull moving it, from half down to close. The kit writes none of the rest by hand.
  *
  * Open is the page's (`open`), and so is closed: `onClose` asks, and the page answers by setting `open`, so a page
  * that asks first about what was typed, or holds a save that is out, keeps it open. It is drawn in a portal on the
@@ -34,6 +36,7 @@ import { onAPhone, touchSwipe } from "../../legacy-verbs";
 import { useHeightGlide } from "../motion/use-height-glide";
 import { cx } from "../variants";
 import { useBackCloses } from "./back";
+import { restSwipe, type SheetRest } from "./rests";
 
 /** A step inside a job: the way back to the one it came from, named for a screen reader, its glyph drawn. */
 export type SheetBack = { label: string; glyph: ReactElement; onBack: () => void };
@@ -66,6 +69,13 @@ type SheetShape =
        * there, as a record sheet's does over its Cancel, and comes back for a keyboard.
        */
       footCloses?: boolean;
+      /**
+       * Two rests on a phone (kit.css "Two rests", rests.ts): at half it stands down by the rule's length, what it holds
+       * first over the page and its foot held still at the screen's foot; at full it stands whole. Where it stands is the
+       * page's (`at`), and `onRest` asks to move it: the handle is a button that turns it, named by `turn`, and a pull
+       * moves it, from half down to close. On a desk it is the side pane, and has none.
+       */
+      rest?: { at: SheetRest; onRest: (at: SheetRest) => void; turn: { up: string; down: string } };
       back?: undefined;
     }
   | {
@@ -78,6 +88,7 @@ type SheetShape =
       foot?: undefined;
       kicker?: undefined;
       footCloses?: undefined;
+      rest?: undefined;
     };
 
 /** A sheet: whether it is open, what asks it to close, its head, what it holds, and its shape's parts. */
@@ -158,6 +169,25 @@ function jobParts(p: SheetProps & { shape: "job" }) {
   );
 }
 
+/**
+ * The handle: a mark of the pull, or, on a sheet with two rests, a button that turns it to the other, said by where it
+ * goes.
+ */
+function handleOf(rest: SheetProps["rest"], testid: string | undefined) {
+  if (!rest) return <div className="sheet-handle" aria-hidden="true" />;
+  const to: SheetRest = rest.at === "half" ? "full" : "half";
+  return (
+    <button
+      type="button"
+      className="sheet-handle"
+      aria-label={to === "full" ? rest.turn.up : rest.turn.down}
+      aria-expanded={rest.at === "full"}
+      onClick={() => rest.onRest(to)}
+      data-testid={partId(testid, "handle")}
+    />
+  );
+}
+
 /** A modal sheet, over the page's wash, drawn on the document's body. */
 export function Sheet(props: SheetProps) {
   const { open, onClose, initialFocus, className, ref, testid, backCloses } = props;
@@ -198,13 +228,16 @@ export function Sheet(props: SheetProps) {
         <Dialog.Popup
           ref={place}
           initialFocus={initialFocus ?? firstFocus}
-          className={cx("sheet", shown.kicker && "sheet-kicker", className)}
+          className={cx("sheet", shown.kicker && "sheet-kicker", shown.rest && "sheet-rests", className)}
           data-foot-closes={shown.footCloses ? "true" : undefined}
+          data-rest={shown.rest ? shown.rest.at : undefined}
           data-testid={testid}
-          {...touchSwipe({ onDown: onClose, when: onAPhone })}
+          {...(shown.rest
+            ? restSwipe({ rest: shown.rest.at, onRest: shown.rest.onRest, onClose, when: onAPhone })
+            : touchSwipe({ onDown: onClose, when: onAPhone }))}
           render={(p, state) => <section {...p} data-leaving={closingWord(state)} />}
         >
-          <div className="sheet-handle" aria-hidden="true" />
+          {handleOf(shown.rest, testid)}
           {shown.shape === "job" ? jobParts(shown) : recordParts(shown)}
         </Dialog.Popup>
       </Dialog.Portal>

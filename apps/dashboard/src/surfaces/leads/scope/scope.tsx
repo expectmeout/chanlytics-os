@@ -7,7 +7,7 @@
  * and where each fact came from. Its parts are plain functions, never components, so its tree is the one it always drew.
  */
 import type { ReactElement } from "react";
-import { LEAD_WORDS, leadReviewGroups, type LeadRowVM } from "@chanlytics/contracts";
+import { LEAD_WORDS, leadReviewGroups, type LeadPeekVM, type LeadRowVM } from "@chanlytics/contracts";
 import { ReachOutDoor } from "../../campaigns/reach-out/door";
 import { FailedRead } from "../../kit/empty/empty";
 import { Icon } from "../../kit/icon/icon";
@@ -17,6 +17,7 @@ import { PeopleStanding } from "../../people/rail/standing";
 import { PeopleTable, type TableSection } from "../../people/table/table";
 import { LeadBand } from "../bench/band";
 import { LeadsBackToday } from "../pile/back-today";
+import { LeadPileSheet } from "../pile/sheet";
 import { LeadReviewBench } from "../bench/bench";
 import { LeadExcludedChips, LeadReviewGroups, ldExcludedChips } from "../bench/chips";
 import { LeadRowsCallMenu } from "../cells/call-menu";
@@ -378,10 +379,9 @@ const bulkBarOf = (p: P, phone: boolean) => (
  * LeadPeekActions and the acts it returns go to the peek. Call is the acts' own: it arms "How did the call go?" and then
  * hands the tel: to the browser, which is exactly what C over the rows does (callLead). The deck is a phone's (D5).
  */
-const peekOf = (p: P, phone: boolean) => {
-  if (!p.peek) return null;
-  const acts = LeadPeekActions({
-    vm: p.peek,
+const peekActsOf = (p: P, vm: LeadPeekVM) =>
+  LeadPeekActions({
+    vm,
     flash: p.flash,
     onOpenPerson: p.onOpenPerson,
     // Keep, Exclude, Put back and Copy are the scope's own (Task 11); the acts hand them on, so the peek has one shape of
@@ -400,6 +400,9 @@ const peekOf = (p: P, phone: boolean) => {
     // The photo, expanded (D5): the page's own lightbox state.
     expand: p.onExpandPhoto,
   });
+
+const peekOf = (p: P, phone: boolean) => {
+  if (!p.peek) return null;
   return (
     <LeadPeek
       vm={p.peek}
@@ -409,7 +412,26 @@ const peekOf = (p: P, phone: boolean) => {
       busy={p.bulkBusy}
       deck={phone ? p.deck : null}
       phone={phone}
-      {...acts}
+      {...peekActsOf(p, p.peek)}
+    />
+  );
+};
+
+/**
+ * The pile on a phone (the lead workbench, canvas B): its sheet over the rows, its tabs drawn from the peek's parts with
+ * the peek's own acts for the lead that is up, so a draft or a copy there is the peek's.
+ */
+const pileSheetOf = (p: P, phone: boolean) => {
+  const view = p.pileSheet;
+  if (!phone || !view) return null;
+  const vm = view.card ? view.card.peek : null;
+  return (
+    <LeadPileSheet
+      view={view}
+      acts={vm ? peekActsOf(p, vm) : null}
+      mode={p.peekMode}
+      draft={p.draft}
+      busy={p.bulkBusy}
     />
   );
 };
@@ -492,6 +514,7 @@ const mainOf = (p: P, phone: boolean, railRows: ReactElement, sections: Sections
       {phone ? planSheetOf(p) : null}
       {(p.selectMode || (p.sel.size > 0 && p.rows.some((l) => p.sel.has(l.id)))) && bulkBarOf(p, phone)}
       {peekOf(p, phone)}
+      {pileSheetOf(p, phone)}
       {/* The phone's rail, as a sheet from the bar's list button: the same rows, the same counts, the same searches and
           the same New search. People's, the kit's Sheet, in PL_OVERLAY while it is open, so the page's one listener holds
           still behind it. Last in the tree, after everything whose state a stub React keys by order. The photo,

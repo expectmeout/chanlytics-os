@@ -231,7 +231,7 @@ export const reachOutMakeSpec: ProposalSpec = {
       : refuseWith(PROPOSAL_WORDS.cannotApprove);
   },
   receipt: ({ payload: pl }) =>
-    `“${asText(rec(pl.chain).name)}” is saved. Its first run is planned now, and waits for your say before an email goes.`,
+    `“${asText(rec(pl.chain).name)}” is saved. Its first batch is planned now, and waits for your OK before an email goes.`,
   made: (_p, data) => idIn(rec(data), "root_id"),
   open: (_p, outcome) => (outcome?.made?.id ? `campaigns/moment:${outcome.made.id}` : "campaigns"),
 };
