@@ -20,6 +20,8 @@ import {
 } from "../calendar-words";
 import type { CalendarBlockVM } from "../calendar-vm";
 import { BOOKING_REQUEST_WORDS } from "./booking-request";
+import { leadsRoute } from "../../leads/lead-plan";
+import { sequenceRoute } from "../../sequences/sequence-address";
 import type { CalendarMomentDto } from "../calendar-runs";
 import { shiftKey } from "../day-keys";
 import { campaignEnded, campaignRunsOn } from "../../playbooks/playbook-schedule";
@@ -42,6 +44,8 @@ export const CALENDAR_VISIT_SHEET_WORDS = {
     reminder: "Reminder",
     step: "Step",
     last: "Last in touch",
+    /** Their person was found as a lead (00426), and the sequence that took it in. */
+    origin: "Found as a lead",
     next: "Next",
     /** A booking tool's facts the title does not say (who with, what it costs): a request's as much as a booking's. */
     booked: "Booking",
@@ -138,7 +142,8 @@ export interface VisitSheetVM {
   person: VisitSheetPerson | null;
   /** "Did Maria come yesterday?", with Kept and Missed, once the visit has begun and nobody has said. */
   ask: { question: string; line: VisitLineVM } | null;
-  rows: Array<{ key: keyof typeof SHEET_WORDS.rows; label: string; value: string }>;
+  /** Each with the address its value opens where it is a door (the lead's sequence), and none where it is a fact. */
+  rows: Array<{ key: keyof typeof SHEET_WORDS.rows; label: string; value: string; route?: string }>;
   footnote: string;
   primary: { act: VisitPrimaryAct; label: string; quiet: boolean } | null;
   /** The circles beside it: Message where it is not the lead act, Call where someone People holds has a number. */
@@ -251,21 +256,41 @@ function reminderOf(i: VisitSheetInput, ended: boolean): string | null {
   return runs ? SHEET_WORDS.reminder.rule(before.run_hour, name) : SHEET_WORDS.reminder.off(name);
 }
 
-/** The rows that say something the head does not: the reminder, their step, their last word, their next visit, the booking's facts, where, and the notes. */
+/**
+ * Where its person came from: the sequence that took in the lead they were found as, a door to its People (where the
+ * lead stands); the lead itself, a door to it on Leads, where no sequence took it. The lead's business is the person
+ * line's already (they work at it), so the row names the sequence alone. Null for a person not found as a lead.
+ */
+function originOf(b: VisitSheetInput["block"]): { value: string; route: string } | null {
+  const o = b.origin;
+  if (!o) return null;
+  return o.sequence
+    ? { value: o.sequence.name, route: sequenceRoute(o.sequence.id, "people") }
+    : { value: o.lead.name, route: leadsRoute({ peek: o.lead.id }) };
+}
+
+/**
+ * The rows that say something the head does not: the reminder, their step, their last word, where they came from, their
+ * next visit, the booking's facts, where, and the notes. A row with an address is a door.
+ */
 function visitRowsOf(i: VisitSheetInput, ended: boolean, facts: CalendarPersonVM | null): VisitSheetVM["rows"] {
   const b = i.block;
   // The service is the sheet's title where the tool named one (visitSheetOf), so the row says the rest.
   const booked = [b.staff ? `with ${b.staff}` : null, b.price].filter(Boolean).join(" · ");
-  const rows: Array<[keyof typeof SHEET_WORDS.rows, string | null]> = [
+  const origin = originOf(b);
+  const rows: Array<[keyof typeof SHEET_WORDS.rows, string | null, string?]> = [
     ["reminder", reminderOf(i, ended)],
     ["step", facts?.step ? `${facts.step.words} · ${facts.step.day.words}` : null],
     ["last", facts?.last ?? null],
+    ["origin", origin?.value ?? null, origin?.route],
     ["next", ended ? i.next : null],
     ["booked", b.tool && booked ? booked : null],
     ["where", b.location],
     ["notes", i.notes],
   ];
-  return rows.flatMap(([key, value]) => (value ? [{ key, label: SHEET_WORDS.rows[key], value }] : []));
+  return rows.flatMap(([key, value, route]) =>
+    value ? [{ key, label: SHEET_WORDS.rows[key], value, ...(route ? { route } : {}) }] : [],
+  );
 }
 
 /** Where the visit changes, by how it stands and where it came from. */

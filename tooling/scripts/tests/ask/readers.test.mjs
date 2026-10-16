@@ -2617,9 +2617,10 @@ const CALENDAR_ASKED_AT_MAIN = [
   ["tenant_config.select", "config"],
   // Since 00345: the record's rows over the span and the notices' health line (the latest, and the held count), read
   // beside the feed before everyone is (docs/plans/2026-10-07-bookings-arrive-by-email.md); since 00397 the span's
-  // record is two reads (visitsOver): the bookings whole, and the feed's rows as ids and statuses by key.
+  // record is two reads (visitsOver): the bookings whole, and the feed's rows as ids and statuses by key, with the lead
+  // each one's person was found as (00426), whose origin the sheet says. No visit here names a lead, so none is read.
   ["appointments.select", "*"],
-  ["appointments.select", "id, status, external_id, starts_at"],
+  ["appointments.select", "id, status, external_id, starts_at, lead_id"],
   ["appointment_notices.select", "tool, received_at"],
   ["appointment_notices.select", "id"],
   // The workspace's address the tool is to send to, and Gmail's pending confirmation of a forward here.
