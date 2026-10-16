@@ -123,7 +123,7 @@ export const LeadCardEmail = ({ email }: { email: LeadCardEmailVM }) => (
 );
 
 /** One mark the reason rests on: a check's own mark (a dashed ring where Claude read it), its words, its source as the tip. */
-const markOf = (m: LeadCardMarkVM) => (
+const cardSignOf = (m: LeadCardMarkVM) => (
   <li
     key={m.key}
     className={`ld-now-sign ${m.how}${m.answer === "unknown" ? " ask" : ""}`}
@@ -136,7 +136,7 @@ const markOf = (m: LeadCardMarkVM) => (
 );
 
 /** Whether they can be reached: the two slots as the row wears them, a word only where one is not as it should be. */
-const reachOf = (up: LeadRowVM) => (
+const cardReachOf = (up: LeadRowVM) => (
   <ul className="ld-now-reach" data-testid="lead-card-reach">
     {(["phone", "mailbox"] as const).map((k) => {
       const s = up.slots[k];
@@ -177,10 +177,10 @@ export const LeadCardHead = ({ up, card }: { up: LeadRowVM; card: LeadCardFacts 
     ) : null}
     {card.marks.length ? (
       <ul className="ld-now-signs" data-testid="lead-card-marks">
-        {card.marks.map(markOf)}
+        {card.marks.map(cardSignOf)}
       </ul>
     ) : null}
-    {reachOf(up)}
+    {cardReachOf(up)}
   </>
 );
 

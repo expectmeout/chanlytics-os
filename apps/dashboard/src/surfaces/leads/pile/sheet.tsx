@@ -42,7 +42,7 @@ interface PileSheetProps {
 }
 
 /** Why: the reason with where it came from written out, every check with its mark and source, and the people there. */
-const whyOf = (card: LeadCardFacts, vm: LeadPeekVM, on: PeekActs) => (
+const whyPaneOf = (card: LeadCardFacts, vm: LeadPeekVM, on: PeekActs) => (
   <>
     {card.reason ? (
       <div className="ld-now-reason" data-testid="lead-sheet-why">
@@ -82,7 +82,7 @@ function paneOf(tab: LeadCardTab, p: PileSheetProps, card: LeadCardFacts) {
   const on = p.acts;
   if (tab === "emails") return emailsOf(card);
   if (!vm || !on) return null;
-  if (tab === "why") return whyOf(card, vm, on);
+  if (tab === "why") return whyPaneOf(card, vm, on);
   if (tab === "reach")
     return p.mode === "draft" ? (
       <LeadDraftPane vm={vm} draft={p.draft} busy={p.busy} on={on} />
