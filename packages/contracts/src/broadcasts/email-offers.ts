@@ -97,7 +97,7 @@ const pausedBecause = (reason: OfferPauseReason | null): string =>
 /** The Campaigns head's and Connections' words for a pause: what it holds, why, and what it does not. */
 export const OFFERS_PAUSED_WORDS = {
   head: (reason: OfferPauseReason | null): string =>
-    `Offers and news by email are paused: ${pausedBecause(reason)}. Appointment messages and replies still go by email.`,
+    `Offers and news by email are paused: ${pausedBecause(reason)}. Reminders, confirmations and replies still go by email.`,
   /** Where it is told once more, to the person who can do something about it. */
   fix: "Check your list for old or wrong addresses. We'll turn them back on once it looks right.",
 } as const;

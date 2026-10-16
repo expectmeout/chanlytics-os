@@ -480,3 +480,35 @@ test("the card: each page by its moves and loads, slowest first; the parts drawn
     "Not enough pages have said where their time went in the last 7 days.",
   );
 });
+
+test("a step put off on the numbers says its number against its line, and warns once past it", () => {
+  const people = (p75, samples = PAGE_SPEED_MIN) => ({
+    metric: "READY",
+    page: "people",
+    part: "",
+    how: "move",
+    device: "all",
+    warm: "all",
+    samples,
+    p75,
+    waits_on: null,
+  });
+  const step3 = (rows) => pageSpeedWords({ rows, spots: [] }).deferred.find((d) => d.key === "people-projection");
+  const taken =
+    "Taken when People's moves pass 500 ms, three in four, or when a workspace passes 500 people (decision 0053).";
+  assert.deepEqual(step3([people(254)]), {
+    key: "people-projection",
+    label: "Step 3, People without everyone",
+    value: "254 ms of 500 ms",
+    tone: "ok",
+    hint: taken,
+  });
+  const past = step3([people(620)]);
+  assert.deepEqual(
+    [past.value, past.tone, past.hint],
+    ["620 ms of 500 ms", "warn", `${taken} Past its line: take it.`],
+  );
+  const few = step3([people(9000, PAGE_SPEED_MIN - 1)]);
+  assert.deepEqual([few.value, few.tone], ["too few moves", "ok"], "too few moves say nothing about the line");
+  assert.deepEqual(pageSpeedWords(null).deferred, [], "a read that failed holds no number to set against a line");
+});
