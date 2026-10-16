@@ -256,7 +256,7 @@ export async function visitsOver(
   toIso: string,
 ): Promise<{
   noted: AppointmentRow[];
-  feed: Array<{ id: string; status: string; external_id: string | null; starts_at: string }>;
+  feed: Array<{ id: string; status: string; external_id: string | null; starts_at: string; lead_id: string | null }>;
 }> {
   const [noted, feed] = await Promise.all([
     readAllRows<AppointmentRow>("visits_over_noted", (from, to) =>
@@ -272,10 +272,10 @@ export async function visitsOver(
         .order("id", { ascending: true })
         .range(from, to),
     ),
-    readAllRows<FeedRowWord>("visits_over_feed", (from, to) =>
+    readAllRows<FeedRowWord & Pick<AppointmentRow, "lead_id">>("visits_over_feed", (from, to) =>
       db
         .from("appointments")
-        .select("id, status, external_id, starts_at")
+        .select("id, status, external_id, starts_at, lead_id")
         .eq("tenant_id", tenantId)
         .eq("source", "calendar_feed")
         .is("vanished_at", null)
@@ -287,6 +287,62 @@ export async function visitsOver(
     ),
   ]);
   return { noted, feed };
+}
+
+/** A visit's person found as a lead (00426): the lead by its business's name, and the sequence that took it in last. */
+export interface VisitOriginRow {
+  lead_id: string;
+  lead_name: string;
+  sequence_id: string | null;
+  sequence_name: string | null;
+}
+
+/**
+ * Where the people of a board's visits came from (00426: a visit names the lead its person was found as): each lead
+ * that still stands (not erased, not blanked), by its business's name, with the sequence whose enrollment of it is the
+ * newest, or none. Three reads, the second beside the first, for the leads named alone. Throws with its read's name.
+ */
+export async function visitOrigins(db: Db, tenantId: string, leadIds: readonly string[]): Promise<VisitOriginRow[]> {
+  const ids = [...new Set(leadIds)];
+  if (!ids.length) return [];
+  const [leads, enrolled] = await Promise.all([
+    db
+      .from("leads")
+      .select("id, business_name")
+      .eq("tenant_id", tenantId)
+      .in("id", ids)
+      .is("erased_at", null)
+      .is("blanked_at", null),
+    db
+      .from("sequence_enrollments")
+      .select("lead_id, sequence_id, entered_at")
+      .eq("tenant_id", tenantId)
+      .in("lead_id", ids)
+      .order("entered_at", { ascending: false }),
+  ]);
+  if (leads.error) throw new Error(`visit_origins_leads: ${leads.error.message}`);
+  if (enrolled.error) throw new Error(`visit_origins_enrolled: ${enrolled.error.message}`);
+  const newest = new Map<string, string>();
+  for (const e of enrolled.data ?? []) if (e.lead_id && !newest.has(e.lead_id)) newest.set(e.lead_id, e.sequence_id);
+  const sequenceIds = [...new Set(newest.values())];
+  const named = new Map<string, string>();
+  if (sequenceIds.length) {
+    const seqs = await db.from("sequences").select("id, name").eq("tenant_id", tenantId).in("id", sequenceIds);
+    if (seqs.error) throw new Error(`visit_origins_sequences: ${seqs.error.message}`);
+    for (const q of seqs.data ?? []) named.set(q.id, q.name);
+  }
+  return (leads.data ?? [])
+    .filter((l) => l.business_name.trim())
+    .map((l) => {
+      const sequence = newest.get(l.id) ?? null;
+      const name = sequence ? (named.get(sequence) ?? null) : null;
+      return {
+        lead_id: l.id,
+        lead_name: l.business_name.trim(),
+        sequence_id: name ? sequence : null,
+        sequence_name: name,
+      };
+    });
 }
 
 /** The words a member says of a feed's visit (00397): what a reader lays on its event. A booked row says nothing. */

@@ -171,15 +171,23 @@ function VisitAskRow({ c }: { c: VisitCtx }) {
   );
 }
 
-/** The rows that say something the head does not, a key and its value each. */
+/** The rows that say something the head does not, a key and its value each; a value with an address is its door. */
 function visitRows(vm: VisitSheetVM) {
   if (!vm.rows.length) return null;
   return (
     <dl className="cal-visit-rows" data-testid="cal-visit-rows">
-      {vm.rows.map((r) => (
-        <div key={r.key} className="cal-visit-row" data-testid={`cal-visit-row-${r.key}`}>
-          <dt>{r.label}</dt>
-          <dd className={r.key === "notes" ? "cal-visit-notes" : undefined}>{r.value}</dd>
+      {vm.rows.map(({ key, label, value, route }) => (
+        <div key={key} className="cal-visit-row" data-testid={`cal-visit-row-${key}`}>
+          <dt>{label}</dt>
+          <dd className={key === "notes" ? "cal-visit-notes" : undefined}>
+            {route ? (
+              <LinkButton onClick={() => navigate(route)} data-testid={`cal-visit-row-${key}-door`}>
+                {value}
+              </LinkButton>
+            ) : (
+              value
+            )}
+          </dd>
         </div>
       ))}
     </dl>

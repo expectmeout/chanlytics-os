@@ -808,6 +808,46 @@
           "messages"
         ]
       }
+    },
+    {
+      "kind": "unfed",
+      "why": "Which sequence took in the lead a visit's person was found as (visitOrigins over sequence_enrollments, 00426), for the visit sheet's origin row. The feed tells no enrollment. The row rides with its visit: read again with the visits both surfaces hear (appointments) and with the board's five-minute read. Setup reads the calendar feed-only, which reads no visit and so none of this.",
+      "reads": {
+        "calendar": [
+          "sequence_enrollments"
+        ],
+        "setup": [
+          "sequence_enrollments"
+        ]
+      },
+      "heardWith": {
+        "calendar": [
+          "appointments"
+        ],
+        "setup": [
+          "appointments"
+        ]
+      }
+    },
+    {
+      "kind": "over-read",
+      "why": "The name of that sequence, on the visit sheet's origin row (visitOrigins over sequences): drawn only as it rides with its visit, which both surfaces hear (appointments); a sequence renamed shows on the board's next read. Setup reads the calendar feed-only, which reads no visit and so never this.",
+      "reads": {
+        "calendar": [
+          "sequences"
+        ],
+        "setup": [
+          "sequences"
+        ]
+      },
+      "heardWith": {
+        "calendar": [
+          "appointments"
+        ],
+        "setup": [
+          "appointments"
+        ]
+      }
     }
   ]
 }

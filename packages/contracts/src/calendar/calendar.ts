@@ -237,6 +237,7 @@ function toBlock(item: CalendarItemDto, tz: string, dayStartMs: number, dayEndMs
     end: item.end,
     visit: item.visit ?? null,
     ...(item.request ? { request: { threadId: item.request.thread_id, open: item.request.open } } : {}),
+    ...(item.origin ? { origin: item.origin } : {}),
     lane: 0,
     lanes: 1,
   };

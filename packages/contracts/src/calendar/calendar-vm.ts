@@ -3,7 +3,7 @@
  * windows, the feed as the pill and the bar say it, and the hours, closures, rules and services beside them.
  * Types only; calendar.ts builds it (toCalendarVM).
  */
-import type { VisitMark } from "./calendar-dto";
+import type { VisitMark, VisitOriginDto } from "./calendar-dto";
 import type { CalendarPersonFactsDto } from "./visit/calendar-person-facts";
 import type { MatchVia } from "./calendar-people";
 import type { BookingLinkAction } from "../people/person-reach";
@@ -66,6 +66,8 @@ export interface CalendarBlockVM {
   visit: VisitMark | null;
   /** A time a customer picked by text (decision 0061): the thread Booked it or Can't answers it in, while it is open. */
   request?: { threadId: string; open: boolean } | null;
+  /** The lead its person was found as, and its sequence (CalendarItemDto.origin): the sheet's row and its door. */
+  origin?: VisitOriginDto | null;
   /** Blocks that overlap in time sit side by side: this block's lane, and how many lanes its cluster needs. */
   lane: number;
   lanes: number;
