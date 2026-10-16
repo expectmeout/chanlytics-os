@@ -7,7 +7,8 @@
  * turns the card and brings it back to half. Pulled down from half, or its Close, it leaves the pile.
  *
  * Where it stands and which tab is open are this sheet's own, for the lead that is up; the pile, the card and the acts
- * are the page's, handed down (page-pile.tsx, scope.tsx).
+ * are the page's, handed down (page-pile.tsx, scope.tsx). A call from the rail asks how it went here, over the card,
+ * with the peek's own question and acts, so no second sheet opens over this one.
  */
 import { useState } from "react";
 import {
@@ -23,12 +24,21 @@ import { Icon } from "../../kit/icon/icon";
 import { Sheet } from "../../kit/sheet/sheet";
 import type { SheetRest } from "../../kit/sheet/rests";
 import { SubTabs } from "../../kit/sub-tabs/sub-tabs";
+import { LeadCallAsk } from "../peek/asks";
 import { LeadDraftPane } from "../peek/draft-pane";
 import { LeadPeekAbout } from "../peek/head";
 import { LeadPeekParts } from "../peek/info";
 import { LeadPeekCompany, LeadPeekPeople } from "../peek/people";
-import type { DraftState, PeekActs, PeekMode } from "../peek/types";
-import { LeadCardEmail, LeadCardHead, LeadCardMail, LeadCardParts, LeadCardWho, type LeadCardFacts } from "./card";
+import type { Armed, Deck, DraftState, PeekActs, PeekMode } from "../peek/types";
+import {
+  LeadCardEmail,
+  LeadCardHead,
+  LeadCardMail,
+  LeadCardParts,
+  LeadCardSlots,
+  LeadCardWho,
+  type LeadCardFacts,
+} from "./card";
 import { PileEnd, PileProgress, PileRail, PileTargets, type PileViewProps } from "./pile";
 
 /** What the sheet is handed: the pile's view, and the peek's acts and state its tabs share. */
@@ -39,6 +49,9 @@ interface PileSheetProps {
   mode: PeekMode | null;
   draft: DraftState | null;
   busy: boolean;
+  /** A call or a send waiting for its answer (the page's): a call to the lead that is up is asked about here. */
+  armed: Armed | null;
+  deck: Deck | null;
 }
 
 /** Why: the reason with where it came from written out, every check with its mark and source, and the people there. */
@@ -56,7 +69,7 @@ const whyPaneOf = (card: LeadCardFacts, vm: LeadPeekVM, on: PeekActs) => (
   </>
 );
 
-/** Emails: email 1 as they would read it, then each email after it in the same thread. */
+/** Emails: email 1 as they would read it, each email after it in the same thread, and what fills their words. */
 const emailsOf = (card: LeadCardFacts) =>
   card.email ? (
     <>
@@ -69,6 +82,10 @@ const emailsOf = (card: LeadCardFacts) =>
           </div>
         </section>
       ))}
+      <section className="ld-now-fills" aria-label={LEAD_CARD_WORDS.slotsTitle} data-testid="lead-sheet-slots">
+        <p className="ld-now-mail-head">{LEAD_CARD_WORDS.slotsTitle}</p>
+        <LeadCardSlots slots={card.slots} />
+      </section>
     </>
   ) : card.firstPile ? (
     <LeadCardMail card={card} />
@@ -135,6 +152,12 @@ const fullOf = (
   </div>
 );
 
+/** How the call to the lead that is up went: the peek's question, asked once the owner is back from their phone. */
+const callAskOf = (p: PileSheetProps, up: LeadRowVM) =>
+  p.acts && p.armed && p.armed.kind === "call" && p.armed.leadId === up.id && p.armed.asked ? (
+    <LeadCallAsk armed={p.armed} busy={p.busy} on={p.acts} deck={p.deck} />
+  ) : null;
+
 /** The pile as a sheet over the rows, with its two rests. */
 export function LeadPileSheet(p: PileSheetProps) {
   const { view } = p;
@@ -175,6 +198,7 @@ export function LeadPileSheet(p: PileSheetProps) {
           fullOf(up, card, p, { open, pick })
         ) : (
           <article key={up.id} className="ld-pile-now" aria-label={up.name} data-testid="lead-pile-lead">
+            {callAskOf(p, up)}
             <LeadCardHead up={up} card={card} />
             <LeadCardMail card={card} />
           </article>

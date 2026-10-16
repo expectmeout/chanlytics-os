@@ -17949,6 +17949,16 @@ function reachOutCardEmailOf(words2, lead, workspace) {
   const email = renderOwnVersion("email", words2, values, REACH_OUT_LANGUAGE, REACH_OUT_SLOT_SET);
   return { subject: words2.subject === null ? null : email.subject, body: email.body, holes, fellBack };
 }
+function reachOutCardSlotsOf(texts, lead, workspace) {
+  const values = reachOutValues(lead, workspace, null);
+  const named = !!leadAddresseeOf(lead)?.first_name;
+  const written = [...new Set(texts.flatMap((t) => slotsWritten(REACH_OUT_SLOT_SET, t).keys))];
+  return written.map((key) => ({
+    key,
+    value: slotValueOf(REACH_OUT_SLOT_SET, key, values) ?? null,
+    fellBack: key === "first name" && !named
+  }));
+}
 var EXAMPLE_LEAD = {
   business_name: "Lakeside Bakery",
   city: "Springfield",
@@ -24491,6 +24501,7 @@ function toBlock(item, tz, dayStartMs, dayEndMs, now) {
     end: item.end,
     visit: item.visit ?? null,
     ...item.request ? { request: { threadId: item.request.thread_id, open: item.request.open } } : {},
+    ...item.origin ? { origin: item.origin } : {},
     lane: 0,
     lanes: 1
   };
@@ -27745,6 +27756,8 @@ var CALENDAR_VISIT_SHEET_WORDS = {
     reminder: "Reminder",
     step: "Step",
     last: "Last in touch",
+    /** Their person was found as a lead (00426), and the sequence that took it in. */
+    origin: "Found as a lead",
     next: "Next",
     /** A booking tool's facts the title does not say (who with, what it costs): a request's as much as a booking's. */
     booked: "Booking",
@@ -27843,19 +27856,28 @@ function reminderOf(i, ended) {
   const runs = campaignRunsOn(before, { tz: i.tz, now: new Date(i.nowMs), dealsOn: i.dealsOn }) && !campaignEnded(before, shiftKey(i.day.key, -1));
   return runs ? SHEET_WORDS.reminder.rule(before.run_hour, name) : SHEET_WORDS.reminder.off(name);
 }
+function originOf(b) {
+  const o = b.origin;
+  if (!o) return null;
+  return o.sequence ? { value: o.sequence.name, route: sequenceRoute(o.sequence.id, "people") } : { value: o.lead.name, route: leadsRoute({ peek: o.lead.id }) };
+}
 function visitRowsOf(i, ended, facts) {
   const b = i.block;
   const booked = [b.staff ? `with ${b.staff}` : null, b.price].filter(Boolean).join(" \xB7 ");
+  const origin = originOf(b);
   const rows2 = [
     ["reminder", reminderOf(i, ended)],
     ["step", facts?.step ? `${facts.step.words} \xB7 ${facts.step.day.words}` : null],
     ["last", facts?.last ?? null],
+    ["origin", origin?.value ?? null, origin?.route],
     ["next", ended ? i.next : null],
     ["booked", b.tool && booked ? booked : null],
     ["where", b.location],
     ["notes", i.notes]
   ];
-  return rows2.flatMap(([key, value]) => value ? [{ key, label: SHEET_WORDS.rows[key], value }] : []);
+  return rows2.flatMap(
+    ([key, value, route]) => value ? [{ key, label: SHEET_WORDS.rows[key], value, ...route ? { route } : {} }] : []
+  );
 }
 function footnoteOf(i, nobody) {
   const b = i.block;
@@ -32835,14 +32857,34 @@ var LEAD_CARD_WORDS = {
   subject: "Subject",
   opening: "A line about them, written when its batch is planned. You read it before it goes.",
   greets: (fallback) => `Nobody is named here, so it greets them as \u201C${fallback}\u201D.`,
-  noAddress: "No address to write to, so Add is off. Their phone is on Reach.",
-  badAddress: "Their address bounced, so Add is off.",
+  checking: "once their address checks out",
   holes: (labels) => `Its words need ${labels.join(" and ")}, which this lead doesn't have, so Add is off. Change the words in the sequence.`,
   firstPile: "You write their email once, when you write to them all at the end.",
   after: (days) => `${days ?? "?"} days after, if nothing comes back`,
   emailsTitle: "What they would get",
-  noEmails: "This sequence has no email to show yet."
+  noEmails: "This sequence has no email to show yet.",
+  elsewhere: (name) => `They're with \u201C${name}\u201D already, and a lead is in one sequence at a time, so Add is off.`,
+  callTip: "No email can go to them, so the yes here is a call from your phone.",
+  choose: "Someone else named there can be written to instead: choose them on Reach.",
+  slotsTitle: "What fills their words"
 };
+var LEAD_CARD_WHY_NOT = {
+  gone: "They're no longer in your leads, so Add is off.",
+  closed: "They were already worked, so Add is off.",
+  customer: "They're already a customer, so Add is off.",
+  suppressed: "They asked not to be written to, so Add is off.",
+  written: "They were already written to, and a business is written to once, so Add is off.",
+  shared: "They share a number or a site with another lead, and a business is written to once, so Add is off.",
+  no_email: "No address to write to, so Add is off.",
+  checking: "Their address is still being checked.",
+  unconfirmed: "Their address can't be confirmed, and this sequence writes only to confirmed ones, so Add is off.",
+  invalid: "Their address bounced, so Add is off.",
+  unchecked: "Their address hasn't been checked yet, so Add is off.",
+  already: "They're on this sequence's list already.",
+  not_counted: "They're still in Needs review: keep them first.",
+  elsewhere: "They're in another sequence already, and a lead is in one sequence at a time, so Add is off."
+};
+var ADDRESS_WHYS = /* @__PURE__ */ new Set(["no_email", "invalid", "unconfirmed", "unchecked"]);
 var LEAD_CARD_TABS = [
   { id: "why", label: "Why" },
   { id: "reach", label: "Reach" },
@@ -32885,10 +32927,15 @@ function fromWords(chain) {
   if (one) return `from ${one}`;
   return chain.mailboxes.length > 1 ? LEAD_CARD_WORDS.fromBoxes : null;
 }
-function blockedOf(lead, holes) {
-  if (!lead.to || lead.emailState === "none") return LEAD_CARD_WORDS.noAddress;
-  if (lead.emailState === "invalid") return LEAD_CARD_WORDS.badAddress;
+function blockedOf(holes, check) {
+  if (check)
+    return check.why === "elsewhere" && check.chain_name ? LEAD_CARD_WORDS.elsewhere(check.chain_name) : LEAD_CARD_WHY_NOT[check.why];
   return holes.length ? LEAD_CARD_WORDS.holes(holes.map(slotLabel)) : null;
+}
+function insteadOf(lead, check) {
+  if (!check || !ADDRESS_WHYS.has(check.why)) return null;
+  if (lead.canChoose) return "choose";
+  return lead.canCall ? "call" : null;
 }
 function leadCardEmailOf(p) {
   const steps = emailSteps(p.chain);
@@ -32913,14 +32960,16 @@ function leadCardEmailOf(p) {
     p.nowMs,
     p.tz
   );
+  const blocked = blockedOf(email.holes, p.check);
   return {
     head: [LEAD_CARD_WORDS.emailOf(1, steps.length), from].filter(Boolean).join(" \xB7 "),
     to: p.lead.to,
     subject: email.subject === null ? null : leadCardPartsOf(email.subject),
     body: leadCardPartsOf(email.body),
-    when: capitalize(when),
+    when: blocked ? null : capitalize(p.lead.emailState === "checking" && !p.check ? `${when}, ${LEAD_CARD_WORDS.checking}` : when),
     note: email.fellBack.includes("first name") ? LEAD_CARD_WORDS.greets("there") : null,
-    blocked: blockedOf(p.lead, email.holes)
+    blocked,
+    instead: insteadOf(p.lead, p.check)
   };
 }
 function leadCardStepsOf(p) {
@@ -32936,6 +32985,93 @@ function leadCardStepsOf(p) {
       gap: email.holes.length > 0
     };
   });
+}
+var LEAD_CARD_SLOT_FROM = {
+  place: "From their listing",
+  company: "From their source",
+  person: "Of the person it writes to, from their source",
+  workspace: "Your workspace's name, in Settings",
+  signs: "The name this sequence signs with",
+  booking: "Your booking link, in Settings",
+  opening: "Written for them when its batch is planned, and read by you before it goes",
+  fallback: (said) => `Nobody is named here, so it says \u201C${said}\u201D`,
+  gap: "They have none, so the send would hold this email"
+};
+function slotFromOf(key, company) {
+  if (key === "your business") return LEAD_CARD_SLOT_FROM.workspace;
+  if (key === "your name") return LEAD_CARD_SLOT_FROM.signs;
+  if (key === "booking link") return LEAD_CARD_SLOT_FROM.booking;
+  if (key === "first name" || key === "title" || key === "role") return LEAD_CARD_SLOT_FROM.person;
+  return company ? LEAD_CARD_SLOT_FROM.company : LEAD_CARD_SLOT_FROM.place;
+}
+function leadCardSlotsOf(p) {
+  const texts = emailSteps(p.chain).flatMap((s, i) => i === 0 ? [s.subject ?? "", s.body] : [s.body]);
+  const company = p.lead.kind === "company";
+  return reachOutCardSlotsOf(texts, p.lead, signedAs(p.chain, p.workspace)).map((s) => {
+    const label = capitalize(slotLabel(s.key));
+    if (s.key === "opening")
+      return { key: s.key, label, value: null, from: LEAD_CARD_SLOT_FROM.opening, look: "later" };
+    if (s.value === null) return { key: s.key, label, value: null, from: LEAD_CARD_SLOT_FROM.gap, look: "gap" };
+    if (s.fellBack)
+      return { key: s.key, label, value: s.value, from: LEAD_CARD_SLOT_FROM.fallback(s.value), look: "fallback" };
+    return { key: s.key, label, value: s.value, from: slotFromOf(s.key, company), look: "value" };
+  });
+}
+var LEAD_CARD_BULK_WORDS = {
+  door: (n) => `Add all ${n}\u2026`,
+  title: (target) => `Add them to \u201C${target}\u201D`,
+  goes: "Go as they are",
+  there: "Greeted as \u201Cthere\u201D: nobody is named",
+  checking: "Go once their address checks out",
+  elsewhere: "In another sequence already",
+  cant: "Can't be written to",
+  holes: "missing what its words need",
+  press: (n) => n ? `Add the ${n}` : "None can be added",
+  waiting: "Asking which of them can go\u2026"
+};
+var leadCardBulkDoorOf = (n) => LEAD_CARD_BULK_WORDS.door(n);
+var countsWords = (counts) => [...counts].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([w, n]) => `${n} ${w}`).join(", ");
+function bucketOf(chain, b, w) {
+  const c = b.check;
+  if (c) return c.why === "elsewhere" ? ["elsewhere", c.chain_name] : ["cant", REACH_OUT_WHY_NOT_WORDS[c.why]];
+  const first = emailSteps(chain)[0];
+  const email = first ? reachOutCardEmailOf({ subject: first.subject ?? "", body: first.body }, b.lead, w) : null;
+  if (email && email.holes.length) return ["cant", LEAD_CARD_BULK_WORDS.holes];
+  if (b.lead.emailState === "checking") return ["checking", null];
+  return email && email.fellBack.length ? ["there", null] : ["goes", null];
+}
+function leadCardBulkOf(p) {
+  const w = signedAs(p.chain, p.workspace);
+  const ids = [];
+  const n = /* @__PURE__ */ new Map();
+  const why = { elsewhere: /* @__PURE__ */ new Map(), cant: /* @__PURE__ */ new Map() };
+  let waiting = 0;
+  for (const b of p.leads) {
+    if (b.check === void 0) {
+      waiting += 1;
+      continue;
+    }
+    const [key, words2] = bucketOf(p.chain, b, w);
+    n.set(key, (n.get(key) ?? 0) + 1);
+    if (key === "elsewhere" || key === "cant") {
+      const said = key === "elsewhere" ? words2 ? `with \u201C${words2}\u201D` : "with another" : words2 ?? "";
+      why[key].set(said, (why[key].get(said) ?? 0) + 1);
+    } else ids.push(b.id);
+  }
+  const keys = ["goes", "there", "checking", "elsewhere", "cant"];
+  return {
+    title: LEAD_CARD_BULK_WORDS.title(p.chain.name),
+    ids,
+    buckets: keys.filter((k) => (n.get(k) ?? 0) > 0).map((k) => ({
+      key: k,
+      label: LEAD_CARD_BULK_WORDS[k],
+      n: n.get(k) ?? 0,
+      note: k === "elsewhere" || k === "cant" ? countsWords(why[k]) : null,
+      goes: k !== "elsewhere" && k !== "cant"
+    })),
+    press: waiting ? LEAD_CARD_BULK_WORDS.waiting : LEAD_CARD_BULK_WORDS.press(ids.length),
+    waiting
+  };
 }
 var LEAD_CARD_REASON_WORDS = {
   lowShare: (share2) => `${capitalize(share2)} of its reviews are 1 or 2 stars`,
@@ -33484,6 +33620,7 @@ var LEAD_PILE_WORDS = {
   laterDone: "Put off for later",
   notFit: "Not a fit",
   add: (target) => `Add to \u201C${target}\u201D`,
+  call: "Call",
   hold: "Add to a new list",
   held: (n) => `${plural(n, "lead", "leads")} for a new list`,
   writeHeld: (n) => `Write to the ${n}`,
@@ -33492,7 +33629,26 @@ var LEAD_PILE_WORDS = {
   endSub: (later) => later > 0 ? `${plural(later, "lead", "leads")} put off for later. Go through them now?` : "Every lead here is decided.",
   laterAgain: "Go through the later ones",
   undo: "Undo",
-  undoGone: "That was already undone"
+  undoGone: "That was already undone",
+  /** A sequence's Add leads named where this pass's adds go: the door says so, and so does the page before a search. */
+  startFor: (target) => target ? `Pick leads for \u201C${target}\u201D` : "Pick leads for its sequence",
+  askSearch: (target) => `Open a search to pick its leads for ${target ? `\u201C${target}\u201D` : "the sequence you came from"}.`,
+  askLetGo: "Not now",
+  /** The end of the pile, with a sequence its adds went to: the way to it. */
+  openTarget: (target) => `Open \u201C${target}\u201D`,
+  /** The reason a Not a fit was last given, marked among the five. */
+  lastWhy: "Your last reason",
+  /** The pile's one line for a screen reader and the eye, after each press: what was done, and who is up. */
+  next: (name) => `Next: ${name}`,
+  lastOne: "That was the last one."
+};
+var LEAD_PILE_SAID = {
+  add: (lead, target) => `Added ${lead} to \u201C${target ?? ""}\u201D`,
+  hold: (lead) => `${lead} held for a new list`,
+  later: (lead) => `${lead} put off for later`,
+  not_a_fit: (lead) => `${lead} marked not a fit`,
+  keep: (lead) => `Kept ${lead}`,
+  exclude: (lead) => `Left ${lead} out`
 };
 function leadPileProgressOf(c) {
   const decided = c.added + (c.elsewhere ?? 0) + c.closed;
@@ -33522,7 +33678,7 @@ function leadPileRailOf(p) {
   return [
     { act: "not_a_fit", label: LEAD_PILE_WORDS.notFit, key: "n", look: "secondary", right: "approve" },
     later,
-    p.target ? { act: "add", label: LEAD_PILE_WORDS.add(p.target), key: "a", look: "primary", right: "approve" } : { act: "hold", label: LEAD_PILE_WORDS.hold, key: "a", look: "primary", right: "approve" }
+    p.call ? { act: "call", label: LEAD_PILE_WORDS.call, key: "a", look: "primary", right: "approve" } : p.target ? { act: "add", label: LEAD_PILE_WORDS.add(p.target), key: "a", look: "primary", right: "approve" } : { act: "hold", label: LEAD_PILE_WORDS.hold, key: "a", look: "primary", right: "approve" }
   ];
 }
 var LEAD_BACK_WORDS = {
@@ -49375,6 +49531,7 @@ export {
   LEAD_OUTSIDE_US_LINE,
   LEAD_PAUSED_TITLE,
   LEAD_PEOPLE_MAX,
+  LEAD_PILE_SAID,
   LEAD_PILE_UNDO_KEY,
   LEAD_PILE_WORDS,
   LEAD_PLACEHOLDER_LOCALS,
@@ -50731,10 +50888,13 @@ export {
   leadAreaFrom,
   leadAskedFor,
   leadBand,
+  leadCardBulkDoorOf,
+  leadCardBulkOf,
   leadCardEmailOf,
   leadCardMarksOf,
   leadCardPartsOf,
   leadCardReasonOf,
+  leadCardSlotsOf,
   leadCardStepsOf,
   leadCheckAgainCents,
   leadCheckWord,

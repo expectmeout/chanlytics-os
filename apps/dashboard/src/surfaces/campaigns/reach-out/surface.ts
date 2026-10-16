@@ -145,10 +145,58 @@ export const reachOutsOverride: SurfaceOverride = {
 /** The reaches read in this tab, by search, in memory: the first paint of a door or a sheet, read again behind it. */
 const reaches = readCache<ReachOutReachDto>("reach_out_reach");
 
-/** Where the viewer's next pile on Leads adds (00426): a reach-out's Add leads names it (a per-viewer convenience). */
-export const PILE_TARGET_KEY = "leads.pile.target";
-/** The same key's word for a list of the pile's own: New message's Leads you add (Write to the N makes it). */
+/** Where the viewer's next pile on Leads adds (00426): a sequence's Add leads names it (a per-viewer convenience). */
+const PILE_TARGET_KEY = "leads.pile.target";
+/** The word for a list of the pile's own: New message's Leads you add (Write to the N makes it). */
 export const PILE_NEW_LIST = "new";
+
+/** A sequence named for the pile's next pass, by its root (or PILE_NEW_LIST), and its name for the page's line. */
+export interface PileAsk {
+  id: string;
+  name: string | null;
+}
+
+/** An ask as it was kept: this shape, or a root alone, as it was kept before it carried a name. */
+function pileAskOf(raw: string | null): PileAsk | null {
+  if (!raw) return null;
+  try {
+    const v = JSON.parse(raw) as { id?: unknown; name?: unknown };
+    return typeof v.id === "string" ? { id: v.id, name: typeof v.name === "string" ? v.name : null } : null;
+  } catch {
+    return { id: raw, name: null };
+  }
+}
+
+/**
+ * Where the next pile adds, kept in the tab between Sequences (or a list's door) and Leads: named there, read by Leads'
+ * door and line while it stands, and let go as a pile starts or the page's Not now lets it go. A browser that will not
+ * keep it has none: the pile offers every sequence fed by a list anyway.
+ */
+export const pileAsk = {
+  set: (id: string, name: string | null = null) => {
+    try {
+      window.sessionStorage.setItem(PILE_TARGET_KEY, JSON.stringify({ id, name }));
+    } catch {
+      /* kept nowhere: see above */
+    }
+  },
+  peek: (): PileAsk | null => {
+    try {
+      return pileAskOf(window.sessionStorage.getItem(PILE_TARGET_KEY));
+    } catch {
+      return null;
+    }
+  },
+  take: (): PileAsk | null => {
+    const asked = pileAsk.peek();
+    try {
+      window.sessionStorage.removeItem(PILE_TARGET_KEY);
+    } catch {
+      /* kept nowhere: nothing to let go */
+    }
+    return asked;
+  },
+};
 
 /** The business's zone, as the shell's clock holds it. */
 const businessZone = (): string => (window.__clock ? window.__clock.zone() : "UTC");
