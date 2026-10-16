@@ -48,7 +48,7 @@ import {
 } from "./tools";
 import { stableSystem, systemBlocks, systemHash, turnWords, type WorkspaceFacts } from "./prompt";
 import { buildContext, shapeBlock, type BuiltContext, type SearchResultBlock } from "./context";
-import { crossPagePlan, readBlock, scopedRead } from "./cross-page";
+import { crossPagePlan, readBlock, scopedRead, withSkillGuides } from "./cross-page";
 import { shape as shapeReader } from "../readers/shape";
 import { argsOf, cutOff, replayBlocks, resultBlocks, runRound, type RoundBlock } from "./round";
 import { askModel } from "./model";
@@ -212,12 +212,15 @@ export function askPorts(): AskPorts {
 /**
  * What the turn's tools run with, as the person, its read set starting with the rows the thread's earlier answers cited
  * (the Phase 5 plan, D5): one of them is cited and opened without a read, and any read this turn makes of one -- the
- * page's, another page's, a tool's -- replaces its ref with the fresh one.
+ * page's, another page's, a tool's -- replaces its ref with the fresh one. A craft call reads the question in the
+ * person's own words and ends before the turn does (`endsAt`, the turn's budget from its start).
  */
-function toolContextOf(input: TurnInput, now: Date): ToolContext {
+function toolContextOf(input: TurnInput, now: Date, endsAt: number): ToolContext {
   const tc = {
     ...newToolContext(input.ctx, input.tenantId, input.role, input.timezone, now, input.rc),
     language: input.language,
+    question: input.text,
+    endsAt,
   };
   noteRows(tc.read, input.cited ?? []);
   return tc;
@@ -370,7 +373,7 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
   const model = askModel();
   const now = input.now ?? new Date();
   const es = input.language === "es";
-  const tc = toolContextOf(input, now);
+  const tc = toolContextOf(input, now, t0 + budgetMs);
   const toolsUsed: string[] = [];
   const [proposals, planWords]: [AskProposal[], PlanSaid[]] = [[], []]; // its cards, and its plans' words (roundPlan)
   const unmade = turnUnmade(); // what was asked that no card carries, which the answer must say
@@ -443,7 +446,10 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
   // Whether the question still carries the data blocks: a request the API refuses for them is asked once more without
   // them (D14), and the words stop pointing at them (wordsBlock).
   let dataDropped = pageBlocks.length === 0 && crossBlocks.length === 0;
-  const sayWords = wordsBlock(input, now, { built, crossBlocks, scopedRow, read: tc.read });
+  const sayWords = withSkillGuides(
+    wordsBlock(input, now, { built, crossBlocks, scopedRow, read: tc.read }),
+    input.text,
+  );
   const question = { type: "text", text: input.text };
   // The tools (registry.ts), the same bytes every round, and the answer's format, until the API refuses a part of the
   // offer: then it is let go (refusals.ts letGo) and the same round asked again. No tool is strict: the API takes twenty

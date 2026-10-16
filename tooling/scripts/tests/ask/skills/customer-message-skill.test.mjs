@@ -169,6 +169,23 @@ test("an English text is told its one part in plain characters, with no word of 
   );
 });
 
+test("the owner's own words ride in the brief, and a figure they gave may be said though the draft left it out", () => {
+  const asked = "Send our regulars 20% off the autumn package, this October only";
+  const b = brief({ message: { asked } });
+  assert.match(C.messageBriefText(b), new RegExp(`What the owner asked Ask, in their own words: "${asked}"`));
+  assert.doesNotMatch(C.messageBriefText(brief()), /What the owner asked Ask/, "no words, no line");
+  const withTheirs = {
+    ...GOOD,
+    whatsapp: { body: GOOD.whatsapp.body.replace("15% off this October", "20% off the autumn package, this October") },
+  };
+  assert.deepEqual(codes(withTheirs), ["whatsapp new_price", "whatsapp new_number"], "without their words: invented");
+  assert.deepEqual(codes(withTheirs, b), [], "with them: theirs");
+  assert.ok(
+    C.messageBriefText(brief({ message: { asked: "x".repeat(5_000) } })).length < 4_000,
+    "a question, never a document",
+  );
+});
+
 test("a plan's offer message is a shell: the writer is told to write around the offer's value", () => {
   const b = brief({
     message: {

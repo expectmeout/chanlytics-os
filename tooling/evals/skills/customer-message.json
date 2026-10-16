@@ -685,6 +685,34 @@
         "excludes": ["!!", "🎉🎉"],
         "includes": ["Reply STOP to opt out"]
       }
+    },
+    {
+      "id": "owner_fact_the_draft_dropped",
+      "note": "The owner gave the day they open again and Ask's draft dropped it: the writer says it, from their own words, and adds nothing else.",
+      "business": {
+        "name": "Lakeside Family Dental",
+        "tone": "Friendly and reassuring.",
+        "services": ["Check-ups", "Cleanings"],
+        "notes": [],
+        "word": "appointment"
+      },
+      "message": {
+        "name": "closed_for_training",
+        "category": "marketing",
+        "language": "en",
+        "values": [
+          { "position": 1, "label": "First name", "kind": "first_name" },
+          { "position": 2, "label": "Booking link", "kind": "booking_link" }
+        ],
+        "reused": false,
+        "asked": "Let everyone know we're closed Friday November 7 for staff training and we're back Monday November 10",
+        "draft": {
+          "whatsapp": {
+            "body": "Hi {{1}}, just so you know, we're closed Friday November 7 for staff training. Book here: {{2}}\n\nReply STOP to opt out"
+          }
+        }
+      },
+      "expect": { "includes": ["November 7", "10"], "excludes": ["\\b(8|9|11)\\b", "\\$", "%"] }
     }
   ]
 }

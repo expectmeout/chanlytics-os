@@ -8,7 +8,7 @@
 import { namesMoney, priceBreach, priceFigures } from "../../config/policy";
 import { EMAIL_BODY_MAX, EMAIL_SUBJECT_MAX, smsSegments, smsStopLine } from "../../templates/message-versions";
 import { placeholdersOf, templateBodyTooLong } from "../../templates/templates";
-import { CRAFT_CHANNELS, textAsSent, textPartsAllowed } from "./brief";
+import { CRAFT_CHANNELS, ownerWords, textAsSent, textPartsAllowed } from "./brief";
 import type { CraftChannel, CraftVersions, MessageBrief } from "./brief";
 
 /** What can be wrong with the writer's words, one code each. */
@@ -142,7 +142,8 @@ export function messageCraftIssues(
   missing: readonly CraftChannel[] = [],
 ): CraftIssue[] {
   const out: CraftIssue[] = missing.map((c) => ({ channel: c, code: "missing" as const, words: "left empty" }));
-  const draft = craftAllWords(b.message.draft);
+  // What the message may hold: the draft's words, and the owner's own where a turn asked (a figure they gave is theirs).
+  const draft = [craftAllWords(b.message.draft), ownerWords(b)].filter(Boolean).join("\n");
   const n = b.message.values.length;
   for (const c of CRAFT_CHANNELS) {
     const text = craftWordsOf(v, c);

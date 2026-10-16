@@ -131,6 +131,7 @@ export function briefOf(c) {
       language: c.message.language,
       values: c.message.values,
       reused: !!c.message.reused,
+      asked: c.message.asked ?? null,
       draft: c.message.draft,
     },
   };

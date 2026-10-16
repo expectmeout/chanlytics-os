@@ -48,8 +48,19 @@ export interface MessageBrief {
     /** A plan's offer message, which every later offer sends with its own words in the typed value. */
     reused: boolean;
     draft: CraftVersions;
+    /**
+     * What the owner asked, in their own words, where a turn asked it (the turn's question): Ask's draft is its reading of
+     * them, and a fact they gave may be said. Absent or null outside a turn.
+     */
+    asked?: string | null;
   };
 }
+
+/** The most of the owner's words a brief carries: a question, never a pasted document. */
+const ASKED_CHARS = 1_200;
+
+/** The owner's words as a brief holds them: trimmed, at most ASKED_CHARS; "" where none were given. */
+export const ownerWords = (b: MessageBrief): string => (b.message.asked ?? "").trim().slice(0, ASKED_CHARS);
 
 /** The channels the draft has a version on: the ones the writer writes, in the card's order. */
 const draftChannels = (b: MessageBrief): CraftChannel[] => CRAFT_CHANNELS.filter((c) => !!b.message.draft[c]);
@@ -174,9 +185,15 @@ export function messageBriefText(b: MessageBrief): string {
     ...(m.category === "marketing" && m.draft.whatsapp ? [`The opt-out line: ${smsStopLine(m.language)}`] : []),
     ...(m.draft.sms ? [craftRoomLine(b)] : []),
   ];
+  const owner = ownerWords(b);
   return [
     business.join("\n"),
     message.join("\n"),
+    ...(owner
+      ? [
+          `What the owner asked Ask, in their own words: "${owner}"\nA fact they give here may be said though the draft left it out, and how they want it to sound is theirs to ask.`,
+        ]
+      : []),
     `The first draft, written by Ask from what the owner asked:\n${fenced("record", craftDraftLines(m.draft))}`,
     `Write every version the draft has (${channels.join(", ")}), and leave the others empty.`,
   ].join("\n\n");

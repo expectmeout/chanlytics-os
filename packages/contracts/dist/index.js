@@ -27766,7 +27766,7 @@ var CUSTOMER_MESSAGE_SKILL = {
     {
       title: "The draft and its facts",
       lines: [
-        "The draft says what the owner wants said. Keep every fact in it: the offer and its exact figure, the days, the service, who it is for. Add none.",
+        "The draft says what the owner wants said: Ask wrote it from their words, which you are given too where they asked. Keep every fact in the draft (the offer and its exact figure, the days, the service, who it is for), and a fact of theirs the draft left out. Add none.",
         "A thin draft becomes a fuller message from the same facts. Fuller means clearer and warmer: a greeting, the point, the one call to act, a sign-off. It never adds what the draft does not say: a reason or a benefit ('a meeting gives us time to go through it'), an option or a service ('reply and we'll find you another time'), or how the person felt or how it went for them ('we had a great time with them').",
         "Its kind (marketing or utility), its language and its values are decided: write within them.",
         "Call an offer what the draft calls it. Words such as discount, coupon, promotion or free appear only where the draft has them."
@@ -27916,6 +27916,8 @@ function skillsAsked(question) {
 // src/ask-skills/customer-message/brief.ts
 import { z as z8 } from "zod";
 var CRAFT_CHANNELS = ["whatsapp", "email", "sms"];
+var ASKED_CHARS = 1200;
+var ownerWords = (b) => (b.message.asked ?? "").trim().slice(0, ASKED_CHARS);
 var draftChannels = (b) => CRAFT_CHANNELS.filter((c) => !!b.message.draft[c]);
 function craftValueLength(kind, business) {
   const typical = {
@@ -28001,9 +28003,14 @@ ${m.values.map(craftValueLine).join("\n")}` : "It has no values.",
     ...m.category === "marketing" && m.draft.whatsapp ? [`The opt-out line: ${smsStopLine(m.language)}`] : [],
     ...m.draft.sms ? [craftRoomLine(b)] : []
   ];
+  const owner = ownerWords(b);
   return [
     business.join("\n"),
     message.join("\n"),
+    ...owner ? [
+      `What the owner asked Ask, in their own words: "${owner}"
+A fact they give here may be said though the draft left it out, and how they want it to sound is theirs to ask.`
+    ] : [],
     `The first draft, written by Ask from what the owner asked:
 ${fenced("record", craftDraftLines(m.draft))}`,
     `Write every version the draft has (${channels.join(", ")}), and leave the others empty.`
@@ -28131,7 +28138,7 @@ function craftTextIssues(body, b) {
 }
 function messageCraftIssues(v, b, missing = []) {
   const out = missing.map((c) => ({ channel: c, code: "missing", words: "left empty" }));
-  const draft = craftAllWords(b.message.draft);
+  const draft = [craftAllWords(b.message.draft), ownerWords(b)].filter(Boolean).join("\n");
   const n = b.message.values.length;
   for (const c of CRAFT_CHANNELS) {
     const text = craftWordsOf(v, c);
@@ -28171,7 +28178,7 @@ var MESSAGE_RUBRIC = [
   {
     id: "facts",
     hard: true,
-    ask: "It holds no price, share, discount, free thing, date, deadline, number, promise or claim that the draft does not hold, and leaves out none of the draft's own facts (an offer, its figure, its days, who it is for)."
+    ask: "It holds no price, share, discount, free thing, date, deadline, number, promise, option or claim that neither the draft nor the owner's own words hold, and leaves out none of the draft's own facts (an offer, its figure, its days, who it is for)."
   },
   {
     id: "one_action",

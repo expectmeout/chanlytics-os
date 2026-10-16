@@ -62,7 +62,8 @@ type MessageWritten = { wrote: true; versions: CraftVersions } | { wrote: false;
  * the brief made, the craft call made in the turn's time left, and its words checked by the skill's checks. The words, or
  * why the card keeps its first draft (said once in the log, `ask_skill_crafted`, with how long it took, which is what says
  * whether a craft call fits a turn). A plan's step (`t.step`) writes the offer message its later offers reuse, so the
- * writer is told to write around the offer's value.
+ * writer is told to write around the offer's value. The writer reads what the owner asked in their own words too, and
+ * ends before the turn does (the loop's `endsAt`).
  */
 export async function writeCustomerMessage(t: ToolContext, asked: MessageAskedOf): Promise<MessageWritten> {
   const said = (r: MessageWritten & { ms: number; issues?: string[]; detail?: string }): MessageWritten => {
@@ -77,12 +78,14 @@ export async function writeCustomerMessage(t: ToolContext, asked: MessageAskedOf
     });
     return r.wrote ? { wrote: true, versions: r.versions } : { wrote: false, why: r.why };
   };
-  const deadline = turnDeadline(t.now);
+  const deadline = turnDeadline(t);
   // Too little of the turn left to write in: nothing is read or asked.
   if (deadline - Date.now() < CRAFT_MIN_MS) return said({ wrote: false, why: "late", ms: 0 });
   const business = await businessOf(t);
   if (!business) return said({ wrote: false, why: "unread", ms: 0 });
-  const brief: MessageBrief = { business, message: { ...asked, reused: t.step !== undefined } };
+  // The owner's own words beside Ask's draft of them, where a turn asked: what they gave is what the message may say.
+  const owner = t.question?.trim() || null;
+  const brief: MessageBrief = { business, message: { ...asked, reused: t.step !== undefined, asked: owner } };
   const made = await craftWith(CUSTOMER_MESSAGE_SKILL, {
     tenantId: t.tenantId,
     userId: t.ctx.userId,
