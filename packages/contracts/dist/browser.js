@@ -16111,7 +16111,8 @@ var WHY = {
   erase: "it erases a person for good, which is asked for and confirmed on their page",
   team: "it changes who is on the team, which the owner does in Settings \u203A Team",
   draft: "Ask writes the draft itself in the conversation, so it never needs the page's drafter",
-  learned: "a note the owner's correction suggested is kept beside what they wrote, on Settings \u203A Autonomy; Ask adds a note of its own with a settings card"
+  learned: "a note the owner's correction suggested is kept beside what they wrote, on Settings \u203A Autonomy; Ask adds a note of its own with a settings card",
+  test: "it mails a step's message to the member who presses it, beside the step on its page"
 };
 var ASK_GUIDE_PAGES = [
   {
@@ -16215,10 +16216,14 @@ var ASK_GUIDE_PAGES = [
       "sequence_send_said",
       "sequence_discard",
       "sequence_draft",
+      "sequence_test",
       "reach_out_make",
       "reach_out_add"
     ],
-    pageOnly: [{ what: "Draft a sequence from a line on the page", why: WHY.draft }]
+    pageOnly: [
+      { what: "Draft a sequence from a line on the page", why: WHY.draft },
+      { what: "Send yourself a test of a step's message", why: WHY.test }
+    ]
   },
   {
     page: "Reports",
@@ -16243,7 +16248,8 @@ var ASK_GUIDE_PAGES = [
 var ASK_PAGE_ONLY_VERBS = {
   invite: WHY.team,
   sequence_draft: WHY.draft,
-  fact_suggestion: WHY.learned
+  fact_suggestion: WHY.learned,
+  sequence_test: WHY.test
 };
 
 // src/ask/ask.ts
@@ -19807,6 +19813,277 @@ function sequenceLandingOf(route) {
   return null;
 }
 
+// src/shared/html.ts
+var escapeHtml = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+
+// src/templates/email-foot.ts
+var offerWhy = (w, who, why) => why === "asked" ? w.offerAsked(who) : w.offerCustomer(who);
+function offerParts(address, f) {
+  const parts2 = { address: address?.trim() ?? "", url: f.unsubscribeUrl.trim() };
+  if (!parts2.address || !parts2.url) throw new Error("emailFoot: an offer foot names where and how to stop");
+  return parts2;
+}
+function coldParts(business, address, f, link) {
+  const parts2 = {
+    why: f.why.trim(),
+    business: business.trim(),
+    address: address?.trim() ?? "",
+    url: f.unsubscribeUrl?.trim() ?? ""
+  };
+  if (!parts2.why || !parts2.business || !parts2.address || link && !parts2.url)
+    throw new Error("emailFoot: a cold foot names why, who, where and how to stop");
+  return parts2;
+}
+function emailFoot(business, address, foot, language) {
+  const w = senderWords(language);
+  if (foot.kind === "cold") {
+    const p = coldParts(business, address, foot, false);
+    return [p.why, w.marketing, `${p.business} \xB7 ${p.address}`, `${w.noThanks}.`].join("\n");
+  }
+  const who = business.trim() || w.us;
+  if (foot.kind === "offer") {
+    const p = offerParts(address, foot);
+    return [offerWhy(w, who, foot.why), `${who} \xB7 ${p.address}`, `${w.unsubscribe}: ${p.url}`].join("\n");
+  }
+  const where = address?.trim();
+  const facts = foot.facts;
+  const why = typeof facts.proposal_link === "string" ? w.visitProposal(who) : typeof facts.visit_when === "string" ? w.visitBooked(who) : w.visitInTouch(who);
+  return where ? `${why}
+${w.emailStop}
+${who} \xB7 ${where}` : `${why}
+${w.emailStop}`;
+}
+function emailFootHtml(business, address, foot, language) {
+  const w = senderWords(language);
+  if (foot.kind === "cold") {
+    const p2 = coldParts(business, address, foot, true);
+    return `<p>${escapeHtml(p2.why)}<br>${escapeHtml(w.marketing)}<br>${escapeHtml(p2.business)} \xB7 ${escapeHtml(p2.address)}<br>${escapeHtml(w.noThanks)} \xB7 <a href="${escapeHtml(p2.url)}">${escapeHtml(w.unsubscribe)}</a></p>`;
+  }
+  const who = business.trim() || w.us;
+  const p = offerParts(address, foot);
+  return `<p>${escapeHtml(offerWhy(w, who, foot.why))}<br>${escapeHtml(`${who} \xB7 ${p.address}`)}<br><a href="${escapeHtml(p.url)}">${escapeHtml(w.unsubscribe)}</a></p>`;
+}
+
+// src/broadcasts/preview-by-channel.ts
+var PREVIEW_WORDS = {
+  /** The quiet link on the To line that opens who is held back and why. */
+  heldBack: "Who's held back",
+  /** A stand-in on a playbook's walk: how many people the run reaches on a channel. */
+  people: (n) => `${n.toLocaleString("en-US")} ${n === 1 ? "person" : "people"}`,
+  /** What a held-back person's stand-in says of itself: they are drawn the message's words, and nothing goes to them. */
+  notSent: "Not sent",
+  /** Where an offer's foot puts the link, which is each person's own: the preview cannot make it. */
+  unsubscribeLink: "(their own unsubscribe link)",
+  /** The line under the business's name in the frame, as each channel's own app says it. */
+  kind: { whatsapp: "Business account", sms: "Text message", email: "Email" },
+  /** The two presses of the preview's stepper, to a screen reader: through the people a send reaches, or the channels a playbook does. */
+  walk: {
+    people: { before: "The person before this one", next: "The next person" },
+    channels: { before: "The channel before this one", next: "The next channel" }
+  }
+};
+var capitalised2 = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+var PREVIEW_CHANNEL_WORDS = {
+  whatsapp: capitalised2(CONSENT_CHANNEL_WORDS.whatsapp),
+  sms: capitalised2(CONSENT_CHANNEL_WORDS.sms),
+  email: capitalised2(CONSENT_CHANNEL_WORDS.email)
+};
+function previewVersionsOf(rows2, name, language) {
+  const out = {};
+  for (const channel of OWN_VERSION_CHANNELS) {
+    const row2 = rows2.find((r2) => r2.channel === channel && r2.name === name && r2.language === language);
+    if (row2) out[channel] = versionWords(row2);
+  }
+  return out;
+}
+function previewOn(channel, o) {
+  const label = PREVIEW_CHANNEL_WORDS[channel];
+  if (channel === "whatsapp") return { channel, label, version: null, foot: null, missing: null };
+  const version = o.versions[channel] ?? null;
+  if (!version) return { channel, label, version: null, foot: null, missing: noVersionWords(channel) };
+  if (channel === "email" && o.offer && !o.address?.trim())
+    return { channel, label, version: null, foot: null, missing: OFFERS_BY_EMAIL_WORDS.noAddress };
+  const foot = channel === "sms" ? smsStopLine(o.language) : emailFoot(
+    o.business,
+    o.address,
+    o.offer ? { kind: "offer", why: o.offer, unsubscribeUrl: PREVIEW_WORDS.unsubscribeLink } : { kind: "visit", facts: o.facts ?? {} },
+    o.language
+  );
+  return { channel, label, version, foot, missing: null };
+}
+var SAID_MIN = 60;
+function previewParts(channels, o) {
+  const parts2 = [];
+  for (const channel of CONSENT_CHANNELS.filter((c) => channels.includes(c))) {
+    const label = PREVIEW_CHANNEL_WORDS[channel];
+    if (channel === "whatsapp") {
+      parts2.push({ channel, label, subject: null, body: o.whatsapp });
+      continue;
+    }
+    const words2 = o.versions[channel];
+    if (!words2) return { missing: channel, why: noVersionWords(channel) };
+    const sent2 = renderOwnVersion(channel, words2, o.values, o.language);
+    parts2.push({ channel, label, subject: sent2.subject, body: sent2.body });
+  }
+  return { parts: parts2 };
+}
+function previewSays(channels, o) {
+  const drawn = previewParts(channels, o);
+  if ("missing" in drawn) return drawn;
+  const room = Math.max(SAID_MIN, Math.floor(o.limit / Math.max(1, drawn.parts.length)));
+  const clip2 = (words2) => {
+    const one = words2.replace(/\s+/g, " ").trim();
+    return one.length > room ? `${one.slice(0, room).trimEnd()}\u2026` : one;
+  };
+  return {
+    says: drawn.parts.map((p) => `${p.label}: ${p.subject ? `\u201C${p.subject}\u201D \u2014 ` : ""}${clip2(p.body)}`).join(" \xB7 ")
+  };
+}
+function reachBarParts(split) {
+  return CONSENT_CHANNELS.filter((c) => split.byChannel[c] > 0).map((channel) => ({
+    channel,
+    share: split.byChannel[channel],
+    words: `${split.byChannel[channel].toLocaleString("en-US")} ${CONSENT_CHANNEL_WORDS[channel]}`
+  }));
+}
+function reachByWords(split) {
+  return reachBarParts(split).map((p) => p.words).join(", ");
+}
+function reachBarWords(split) {
+  const parts2 = reachBarParts(split);
+  const [first] = parts2;
+  if (!first) return "Reaches nobody";
+  if (parts2.length === 1) return `Reaches ${first.words}`;
+  return `Reaches ${split.reached.toLocaleString("en-US")}: ${parts2.map((p) => p.words).join(", ")}`;
+}
+
+// src/sequences/follow-up.ts
+var FOLLOW_UP_CONDITIONS = ["no_booking", "no_reply"];
+function followUpStop(person, onlyIf, sentAtMs) {
+  if (onlyIf.includes("no_booking") && person.booked) return "booked";
+  if (onlyIf.includes("no_reply") && person.askedMs !== null && sentAtMs !== null && person.askedMs > sentAtMs)
+    return "replied";
+  return null;
+}
+function messageAboutOfClass(policyClass) {
+  return policyClass === "booking" || policyClass === "follow_up" ? "theirs" : "ours";
+}
+function followUpReach(due, step2) {
+  const purpose = enrolPurpose(step2.policy_class, step2.message);
+  const how = {
+    channels: step2.channels,
+    ready: step2.ready,
+    about: messageAboutOfClass(step2.policy_class)
+  };
+  const reach = {
+    pool: due.length,
+    will: 0,
+    noNumber: 0,
+    stopped: 0,
+    noYes: 0,
+    heardThis: 0,
+    heardAny: 0,
+    overCap: 0,
+    overLimit: 0,
+    no_address: 0,
+    address_stopped: 0,
+    no_channel: 0
+  };
+  const byChannel = { whatsapp: 0, sms: 0, email: 0 };
+  const channelOf2 = {};
+  const eligible = [];
+  const held = [];
+  for (const r2 of due) {
+    const pick = reachFor(r2, purpose, how);
+    if (pick.channel) {
+      channelOf2[r2.id] = pick.channel;
+      byChannel[pick.channel] += 1;
+      eligible.push(r2);
+      continue;
+    }
+    held.push({ id: r2.id, why: pick.held });
+    if (pick.held === "no_number") reach.noNumber += 1;
+    else if (pick.held === "stopped" || pick.held === "unsubscribed") reach.stopped += 1;
+    else if (pick.held === "no_yes") reach.noYes += 1;
+    else if (pick.held === "no_address") reach.no_address = (reach.no_address ?? 0) + 1;
+    else if (pick.held === "address_stopped") reach.address_stopped = (reach.address_stopped ?? 0) + 1;
+    else reach.no_channel = (reach.no_channel ?? 0) + 1;
+  }
+  reach.will = eligible.length;
+  reach.by_channel = byChannel;
+  return { eligible, reach, channelOf: channelOf2, held };
+}
+
+// src/sequences/sequence-test.ts
+var SEQUENCE_TEST_WORDS = {
+  press: "Send me a test",
+  sending: "Sending\u2026",
+  tip: "Emails this step's message to you alone, filled in for an example person",
+  sent: (to) => `Test sent to ${to}`,
+  /** A preview or a laptop mails nobody. */
+  notLive: "Tests go out from the live app only",
+  noAddress: "Your account has no email address to send a test to",
+  notSent: "The test didn't go. Try again in a minute",
+  /** Only a customer's step sends a message a test can show: a sequence to leads writes each email for its lead. */
+  notCustomer: "Only a customer's step can be tested: each lead's email is written for them",
+  noMessage: "This step sends no message",
+  subject: (what) => `Test: ${what}`,
+  stepName: (sequence, place) => `${sequence}, step ${place}`,
+  head: (business) => `A test of what ${business} sends, filled in for an example person, Dani. Nobody else got it.`,
+  subjectLine: (subject) => `Subject: ${subject}`,
+  button: (text) => `[${text}]`,
+  foot: "You got this because you pressed Send me a test."
+};
+var SEQUENCE_TEST_LIMITS = { subject: 200, text: 2e4 };
+function whatsappWords(row2, values) {
+  const parts2 = templateParts(row2.components);
+  const buttons = parts2.buttons.map((b) => SEQUENCE_TEST_WORDS.button(b.text)).join(" ");
+  return [
+    parts2.header ? renderTemplate(parts2.header, values) : null,
+    renderTemplate(row2.body, values),
+    parts2.footer,
+    buttons
+  ].filter((s) => !!s).join("\n\n");
+}
+function testChannelsOf(step2, m) {
+  const named = CONSENT_CHANNELS.filter((c) => step2.includes(c));
+  if (named.length > 0) return named;
+  return CONSENT_CHANNELS.filter((c) => c === "whatsapp" ? m.whatsapp !== null : !!m.versions[c]);
+}
+function stepTestMail(o) {
+  const W = SEQUENCE_TEST_WORDS;
+  const m = o.message;
+  const values = exampleParams(o.params, o.business);
+  const channels = testChannelsOf(o.channels, m);
+  if (channels.includes("whatsapp") && !m.whatsapp) return { missing: "whatsapp", why: noVersionWords("whatsapp") };
+  const drawn = previewParts(channels, {
+    whatsapp: m.whatsapp ? whatsappWords(m.whatsapp, values) : "",
+    versions: m.versions,
+    values,
+    language: m.language
+  });
+  if ("missing" in drawn) return drawn;
+  const about = messageAboutOfClass(o.policyClass);
+  const offer = isOfferByEmail({ channel: "email", purpose: purposeOfTemplate(m.category), proactive: true, about });
+  const email = previewOn("email", {
+    versions: m.versions,
+    language: m.language,
+    business: o.business,
+    address: o.address,
+    ...offer ? { offer: "customer" } : {}
+  });
+  if (channels.includes("email") && email.missing) return { missing: "email", why: email.missing };
+  const blocks = drawn.parts.map(
+    (p) => [p.label, p.subject ? W.subjectLine(p.subject) : null, p.body, p.channel === "email" ? email.foot : null].filter((s) => !!s).join("\n\n")
+  );
+  const subject = drawn.parts.find((p) => p.subject)?.subject ?? W.stepName(o.sequence, o.place);
+  return {
+    subject: W.subject(subject).slice(0, SEQUENCE_TEST_LIMITS.subject),
+    text: [W.head(o.business), ...blocks, `\u2014
+${W.foot}`].join("\n\n\n").slice(0, SEQUENCE_TEST_LIMITS.text)
+  };
+}
+
 // src/ask-proposals/sequences.ts
 var STEP_FIELDS = ["after_days", "only_if", "channels", "name", "params"];
 var stepFieldsOf = (pl) => Object.fromEntries(STEP_FIELDS.filter((k) => pl[k] !== void 0).map((k) => [k, pl[k]]));
@@ -19927,6 +20204,17 @@ var sequenceLeaveSpec = {
     const n = Number(rec(data).left) || 0;
     return n === 0 ? "Nobody was still in it" : `${plural(n, "person", "people")} taken out`;
   },
+  open: openSequence
+};
+var sequenceTestSpec = {
+  needs: "operator",
+  gate: "approve",
+  commit: ({ payload: pl }) => {
+    const id = idIn(pl, "sequence_id");
+    const step2 = idIn(pl, "step_id");
+    return id && step2 ? { route: "POST sequences/[id]/steps/[step]/test", params: { id, step: step2 } } : refuseWith(PROPOSAL_WORDS.cannotApprove);
+  },
+  receipt: (_p, data) => SEQUENCE_TEST_WORDS.sent(asText(rec(data).to) || "you"),
   open: openSequence
 };
 var sequenceMakeSpec = {
@@ -20075,6 +20363,8 @@ var PAGE_SPECS = {
   sequence_make: sequenceMakeSpec,
   sequence_start: sequenceStartSpec,
   sequence_discard: sequenceDiscardSpec,
+  // A step's message mailed to the member who pressed Send me a test, and to nobody else.
+  sequence_test: sequenceTestSpec,
   playbook_change: playbookChangeSpec,
   run: runSpec,
   // A campaign run now at the member's request: Run now, under a sequence's More.
@@ -23014,150 +23304,6 @@ function planOf(intent, world) {
   if (intent.intent === "cover_journey") return journeyPlan(intent, world);
   const read = offerRead(intent.offer, intent.say, world);
   return "refused" in read ? read : offerPlan(read, world);
-}
-
-// src/shared/html.ts
-var escapeHtml = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
-
-// src/templates/email-foot.ts
-var offerWhy = (w, who, why) => why === "asked" ? w.offerAsked(who) : w.offerCustomer(who);
-function offerParts(address, f) {
-  const parts2 = { address: address?.trim() ?? "", url: f.unsubscribeUrl.trim() };
-  if (!parts2.address || !parts2.url) throw new Error("emailFoot: an offer foot names where and how to stop");
-  return parts2;
-}
-function coldParts(business, address, f, link) {
-  const parts2 = {
-    why: f.why.trim(),
-    business: business.trim(),
-    address: address?.trim() ?? "",
-    url: f.unsubscribeUrl?.trim() ?? ""
-  };
-  if (!parts2.why || !parts2.business || !parts2.address || link && !parts2.url)
-    throw new Error("emailFoot: a cold foot names why, who, where and how to stop");
-  return parts2;
-}
-function emailFoot(business, address, foot, language) {
-  const w = senderWords(language);
-  if (foot.kind === "cold") {
-    const p = coldParts(business, address, foot, false);
-    return [p.why, w.marketing, `${p.business} \xB7 ${p.address}`, `${w.noThanks}.`].join("\n");
-  }
-  const who = business.trim() || w.us;
-  if (foot.kind === "offer") {
-    const p = offerParts(address, foot);
-    return [offerWhy(w, who, foot.why), `${who} \xB7 ${p.address}`, `${w.unsubscribe}: ${p.url}`].join("\n");
-  }
-  const where = address?.trim();
-  const facts = foot.facts;
-  const why = typeof facts.proposal_link === "string" ? w.visitProposal(who) : typeof facts.visit_when === "string" ? w.visitBooked(who) : w.visitInTouch(who);
-  return where ? `${why}
-${w.emailStop}
-${who} \xB7 ${where}` : `${why}
-${w.emailStop}`;
-}
-function emailFootHtml(business, address, foot, language) {
-  const w = senderWords(language);
-  if (foot.kind === "cold") {
-    const p2 = coldParts(business, address, foot, true);
-    return `<p>${escapeHtml(p2.why)}<br>${escapeHtml(w.marketing)}<br>${escapeHtml(p2.business)} \xB7 ${escapeHtml(p2.address)}<br>${escapeHtml(w.noThanks)} \xB7 <a href="${escapeHtml(p2.url)}">${escapeHtml(w.unsubscribe)}</a></p>`;
-  }
-  const who = business.trim() || w.us;
-  const p = offerParts(address, foot);
-  return `<p>${escapeHtml(offerWhy(w, who, foot.why))}<br>${escapeHtml(`${who} \xB7 ${p.address}`)}<br><a href="${escapeHtml(p.url)}">${escapeHtml(w.unsubscribe)}</a></p>`;
-}
-
-// src/broadcasts/preview-by-channel.ts
-var PREVIEW_WORDS = {
-  /** The quiet link on the To line that opens who is held back and why. */
-  heldBack: "Who's held back",
-  /** A stand-in on a playbook's walk: how many people the run reaches on a channel. */
-  people: (n) => `${n.toLocaleString("en-US")} ${n === 1 ? "person" : "people"}`,
-  /** What a held-back person's stand-in says of itself: they are drawn the message's words, and nothing goes to them. */
-  notSent: "Not sent",
-  /** Where an offer's foot puts the link, which is each person's own: the preview cannot make it. */
-  unsubscribeLink: "(their own unsubscribe link)",
-  /** The line under the business's name in the frame, as each channel's own app says it. */
-  kind: { whatsapp: "Business account", sms: "Text message", email: "Email" },
-  /** The two presses of the preview's stepper, to a screen reader: through the people a send reaches, or the channels a playbook does. */
-  walk: {
-    people: { before: "The person before this one", next: "The next person" },
-    channels: { before: "The channel before this one", next: "The next channel" }
-  }
-};
-var capitalised2 = (s) => s.charAt(0).toUpperCase() + s.slice(1);
-var PREVIEW_CHANNEL_WORDS = {
-  whatsapp: capitalised2(CONSENT_CHANNEL_WORDS.whatsapp),
-  sms: capitalised2(CONSENT_CHANNEL_WORDS.sms),
-  email: capitalised2(CONSENT_CHANNEL_WORDS.email)
-};
-function previewVersionsOf(rows2, name, language) {
-  const out = {};
-  for (const channel of OWN_VERSION_CHANNELS) {
-    const row2 = rows2.find((r2) => r2.channel === channel && r2.name === name && r2.language === language);
-    if (row2) out[channel] = versionWords(row2);
-  }
-  return out;
-}
-function previewOn(channel, o) {
-  const label = PREVIEW_CHANNEL_WORDS[channel];
-  if (channel === "whatsapp") return { channel, label, version: null, foot: null, missing: null };
-  const version = o.versions[channel] ?? null;
-  if (!version) return { channel, label, version: null, foot: null, missing: noVersionWords(channel) };
-  if (channel === "email" && o.offer && !o.address?.trim())
-    return { channel, label, version: null, foot: null, missing: OFFERS_BY_EMAIL_WORDS.noAddress };
-  const foot = channel === "sms" ? smsStopLine(o.language) : emailFoot(
-    o.business,
-    o.address,
-    o.offer ? { kind: "offer", why: o.offer, unsubscribeUrl: PREVIEW_WORDS.unsubscribeLink } : { kind: "visit", facts: o.facts ?? {} },
-    o.language
-  );
-  return { channel, label, version, foot, missing: null };
-}
-var SAID_MIN = 60;
-function previewParts(channels, o) {
-  const parts2 = [];
-  for (const channel of CONSENT_CHANNELS.filter((c) => channels.includes(c))) {
-    const label = PREVIEW_CHANNEL_WORDS[channel];
-    if (channel === "whatsapp") {
-      parts2.push({ channel, label, subject: null, body: o.whatsapp });
-      continue;
-    }
-    const words2 = o.versions[channel];
-    if (!words2) return { missing: channel, why: noVersionWords(channel) };
-    const sent2 = renderOwnVersion(channel, words2, o.values, o.language);
-    parts2.push({ channel, label, subject: sent2.subject, body: sent2.body });
-  }
-  return { parts: parts2 };
-}
-function previewSays(channels, o) {
-  const drawn = previewParts(channels, o);
-  if ("missing" in drawn) return drawn;
-  const room = Math.max(SAID_MIN, Math.floor(o.limit / Math.max(1, drawn.parts.length)));
-  const clip2 = (words2) => {
-    const one = words2.replace(/\s+/g, " ").trim();
-    return one.length > room ? `${one.slice(0, room).trimEnd()}\u2026` : one;
-  };
-  return {
-    says: drawn.parts.map((p) => `${p.label}: ${p.subject ? `\u201C${p.subject}\u201D \u2014 ` : ""}${clip2(p.body)}`).join(" \xB7 ")
-  };
-}
-function reachBarParts(split) {
-  return CONSENT_CHANNELS.filter((c) => split.byChannel[c] > 0).map((channel) => ({
-    channel,
-    share: split.byChannel[channel],
-    words: `${split.byChannel[channel].toLocaleString("en-US")} ${CONSENT_CHANNEL_WORDS[channel]}`
-  }));
-}
-function reachByWords(split) {
-  return reachBarParts(split).map((p) => p.words).join(", ");
-}
-function reachBarWords(split) {
-  const parts2 = reachBarParts(split);
-  const [first] = parts2;
-  if (!first) return "Reaches nobody";
-  if (parts2.length === 1) return `Reaches ${first.words}`;
-  return `Reaches ${split.reached.toLocaleString("en-US")}: ${parts2.map((p) => p.words).join(", ")}`;
 }
 
 // src/broadcasts/run-answers.ts
@@ -41020,6 +41166,7 @@ var ROUTE_KEYS = [
   "POST sequences",
   "POST sequences/[id]/leave",
   "POST sequences/[id]/steps",
+  "POST sequences/[id]/steps/[step]/test",
   "POST sequences/[id]/steps/[step]/words",
   "POST sequences/draft",
   "POST settings/receptionist",
@@ -41462,63 +41609,6 @@ var SCHEMA_SETS = {
   "tenants.sells_by": ["booking", "proposal"],
   "tenants.status": ["active", "paused", "test"]
 };
-
-// src/sequences/follow-up.ts
-var FOLLOW_UP_CONDITIONS = ["no_booking", "no_reply"];
-function followUpStop(person, onlyIf, sentAtMs) {
-  if (onlyIf.includes("no_booking") && person.booked) return "booked";
-  if (onlyIf.includes("no_reply") && person.askedMs !== null && sentAtMs !== null && person.askedMs > sentAtMs)
-    return "replied";
-  return null;
-}
-function messageAboutOfClass(policyClass) {
-  return policyClass === "booking" || policyClass === "follow_up" ? "theirs" : "ours";
-}
-function followUpReach(due, step2) {
-  const purpose = enrolPurpose(step2.policy_class, step2.message);
-  const how = {
-    channels: step2.channels,
-    ready: step2.ready,
-    about: messageAboutOfClass(step2.policy_class)
-  };
-  const reach = {
-    pool: due.length,
-    will: 0,
-    noNumber: 0,
-    stopped: 0,
-    noYes: 0,
-    heardThis: 0,
-    heardAny: 0,
-    overCap: 0,
-    overLimit: 0,
-    no_address: 0,
-    address_stopped: 0,
-    no_channel: 0
-  };
-  const byChannel = { whatsapp: 0, sms: 0, email: 0 };
-  const channelOf2 = {};
-  const eligible = [];
-  const held = [];
-  for (const r2 of due) {
-    const pick = reachFor(r2, purpose, how);
-    if (pick.channel) {
-      channelOf2[r2.id] = pick.channel;
-      byChannel[pick.channel] += 1;
-      eligible.push(r2);
-      continue;
-    }
-    held.push({ id: r2.id, why: pick.held });
-    if (pick.held === "no_number") reach.noNumber += 1;
-    else if (pick.held === "stopped" || pick.held === "unsubscribed") reach.stopped += 1;
-    else if (pick.held === "no_yes") reach.noYes += 1;
-    else if (pick.held === "no_address") reach.no_address = (reach.no_address ?? 0) + 1;
-    else if (pick.held === "address_stopped") reach.address_stopped = (reach.address_stopped ?? 0) + 1;
-    else reach.no_channel = (reach.no_channel ?? 0) + 1;
-  }
-  reach.will = eligible.length;
-  reach.by_channel = byChannel;
-  return { eligible, reach, channelOf: channelOf2, held };
-}
 
 // src/sequences/sequence.ts
 var SEQUENCE_STARTS = ["moment", "list", "leads", "date"];
@@ -49513,6 +49603,8 @@ export {
   SEQUENCE_STARTS,
   SEQUENCE_STATES,
   SEQUENCE_STATE_WORDS,
+  SEQUENCE_TEST_LIMITS,
+  SEQUENCE_TEST_WORDS,
   SEQUENCE_WAIT_DAYS,
   SEQUENCE_WORDS,
   SERVED_AT_HEADER,
@@ -51227,6 +51319,7 @@ export {
   stepSheetDone,
   stepSheetFor,
   stepSheetMerge,
+  stepTestMail,
   stepToken,
   stepWhenWords,
   stepsStopSentence,

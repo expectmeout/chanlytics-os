@@ -9,6 +9,7 @@ import { plural } from "../shared/words";
 import { REACH_OUT_DECISIONS, REACH_OUT_SAID_OUTCOMES } from "../reach-out/reach-out-dtos";
 import { toSendSaidWords } from "../reach-out/reach-out-approval";
 import { SEQUENCES_ROUTE, sequenceRoute } from "../sequences/sequence-address";
+import { SEQUENCE_TEST_WORDS } from "../sequences/sequence-test";
 import {
   asText,
   decisionOf,
@@ -173,6 +174,25 @@ export const sequenceLeaveSpec: ProposalSpec = {
     const n = Number(rec(data).left) || 0;
     return n === 0 ? "Nobody was still in it" : `${plural(n, "person", "people")} taken out`;
   },
+  open: openSequence,
+};
+
+/**
+ * Send me a test (W5): a customer step's message mailed to the member who pressed it, at their own address, filled for an
+ * example person. Nothing reaches a customer and nothing is kept, so there is nothing to undo; the receipt names the
+ * address it went to.
+ */
+export const sequenceTestSpec: ProposalSpec = {
+  needs: "operator",
+  gate: "approve",
+  commit: ({ payload: pl }) => {
+    const id = idIn(pl, "sequence_id");
+    const step = idIn(pl, "step_id");
+    return id && step
+      ? { route: "POST sequences/[id]/steps/[step]/test", params: { id, step } }
+      : refuseWith(PROPOSAL_WORDS.cannotApprove);
+  },
+  receipt: (_p, data) => SEQUENCE_TEST_WORDS.sent(asText(rec(data).to) || "you"),
   open: openSequence,
 };
 

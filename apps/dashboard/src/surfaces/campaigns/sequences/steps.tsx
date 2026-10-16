@@ -14,6 +14,7 @@ import {
   PLAYBOOK_HOURS,
   POLICY_MODE_WORDS,
   SEQUENCE_FLOW_WORDS as F,
+  SEQUENCE_TEST_WORDS as T,
   SEQUENCE_WORDS,
   addressOf,
   clockTime,
@@ -189,12 +190,31 @@ function Step(p: StepProps) {
     setBusy(false);
     setSure(false);
   };
+  // Send me a test mails the step's message to the member alone: nothing on the page moves, so nothing is read again.
+  const [testing, setTesting] = useState(false);
+  const test = async () => {
+    setTesting(true);
+    await pressed("sequence_test", { sequence_id: rec.sequence.id, step_id: step.id }, flash, () => undefined);
+    setTesting(false);
+  };
   // A step's acts are words under its bubble, as its message's name is (the kit's LinkButton, at the line's own size).
   const acts = editable ? (
     <>
       <LinkButton onClick={p.onEdit} data-testid={`sq-step-edit-${step.place}`} {...gate("approve")}>
         {SEQUENCE_WORDS.edit}
       </LinkButton>
+      {step.template_id ? (
+        <LinkButton
+          onClick={() => void test()}
+          disabled={testing}
+          aria-busy={testing}
+          title={T.tip}
+          data-testid={`sq-step-test-${step.place}`}
+          {...gate("approve")}
+        >
+          {testing ? T.sending : T.press}
+        </LinkButton>
+      ) : null}
       {later ? (
         <LinkButton
           tone="danger"
