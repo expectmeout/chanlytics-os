@@ -1487,6 +1487,8 @@
       "language": "en",
       "no_write": true,
       "excludes": ["is running", "are running", "i set up", "i've set up", "i started", "is live", "all set"],
+      "includes_all": ["calendar", "proposal", "discovery call"],
+      "next_any": ["settings"],
       "proposals_max": 4,
       "card_fields_not": {
         "playbook": {
@@ -1510,6 +1512,7 @@
       "tools_any": ["sequences.moments", "propose_sequence.moment"],
       "proposals_any_or_says": ["playbook"],
       "language": "es",
+      "includes_any": ["propuesta"],
       "no_write": true,
       "proposals_max": 4
     }
@@ -1522,6 +1525,7 @@
       "tools_any": ["sequences.moments"],
       "tools_also_any": ["sequences.lists", "propose_sequence.moment"],
       "proposals_any_or_says": ["playbook"],
+      "includes_any": ["proposal"],
       "no_write": true
     }
   },
@@ -1833,6 +1837,7 @@
           "trigger": ["visit_tomorrow", "visited"]
         }
       },
+      "includes_any": ["calendar"],
       "next_any": ["settings"],
       "no_write": true
     }
@@ -1852,6 +1857,35 @@
       "card_fields_absent": {
         "message": ["versions.sms"]
       },
+      "card_fields_each": {
+        "message": {
+          "language": ["en_US", "es"]
+        }
+      },
+      "no_write": true
+    }
+  },
+  {
+    "id": "write_winback_es_unnamed",
+    "text": "Escribe un mensaje para recuperar a los clientes que no vienen desde el verano",
+    "surface": "campaigns",
+    "context": {
+      "surface": "campaigns",
+      "route": "campaigns",
+      "view": "playbooks",
+      "rows": "GET playbooks:40"
+    },
+    "expect": {
+      "proposals_any": ["message"],
+      "card_fields": {
+        "message": {
+          "language": "es"
+        }
+      },
+      "card_fields_absent": {
+        "message": ["versions.sms"]
+      },
+      "language": "es",
       "no_write": true
     }
   },

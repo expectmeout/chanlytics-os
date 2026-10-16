@@ -130,6 +130,7 @@ export const ASK_GUIDE_PAGES: readonly GuidePage[] = [
       "sequence_step_remove",
       "sequence_words",
       "sequence_start",
+      "playbook_run",
       "sequence_leave",
       "sequence_send_decide",
       "sequence_send_said",

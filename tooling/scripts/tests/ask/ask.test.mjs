@@ -34,9 +34,16 @@ import {
   dayFromQuestion,
   describeSettingsChange,
   detectLanguage,
+  messageLanguageOf,
+  messageLanguagesNext,
+  messageLanguagesOf,
   emptyReadSet,
   noteRows,
   askIntent,
+  callsAnswer,
+  needsAnswer,
+  openingsAnswer,
+  quickAnswerOf,
   groundCitations,
   isUngrounded,
   scopeFromRoute,
@@ -46,6 +53,7 @@ import {
 } from "@chanlytics/contracts";
 import { readCode, readRaw } from "../_source.mjs";
 import { fromContext } from "../../eval-ask-context.mjs";
+import { MODEL_QUESTIONS, QUICK_FORMS } from "./quick-path/_questions.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
@@ -643,10 +651,128 @@ test("the three quick questions are told by their words; the answers are ask-ans
   assert.equal(askIntent("tell rosa we are running late", NOW, TZ), null);
 });
 
+test("REGRESSION (the review's A1): only a short form, word for word, is quick -- an act, another period, a name, a format or a second ask is the model's", () => {
+  const TZ = "America/New_York";
+  for (const q of MODEL_QUESTIONS) assert.equal(askIntent(q, NOW, TZ), null, q);
+  for (const [q, kind] of QUICK_FORMS) assert.equal(askIntent(q, NOW, TZ)?.kind, kind, q);
+  // Each rule on its own, over a form that is otherwise quick.
+  assert.equal(askIntent("who needs me right now on WhatsApp or by email", NOW, TZ), null, "past eight words");
+  assert.equal(askIntent("reply to who needs me", NOW, TZ), null, "an act");
+  assert.equal(askIntent("any missed calls yesterday?", NOW, TZ), null, "a day but today: the answer is today's");
+  assert.equal(askIntent("what's open this weekend?", NOW, TZ), null, "a span, not a day");
+  assert.equal(askIntent("what's open friday for Ana", NOW, TZ), null, "a name");
+  assert.equal(
+    askIntent("¿Quién tiene una propuesta pendiente?", NOW, TZ),
+    null,
+    "a chip of the model's (it was caught)",
+  );
+  assert.equal(askIntent("¿Por qué espera Rosa?", NOW, TZ), null, "the why chip names someone (it was caught)");
+  assert.equal(askIntent("¿Qué hay libre pasado mañana?", NOW, TZ), null, "not tomorrow: the day after");
+});
+
+test("a quick answer as POST ask/quick keeps it: the answer the Line drew, cut to its caps, its doors pages of the app; any other shape is no answer", () => {
+  const waiting = {
+    people: [
+      {
+        kind: "thread",
+        id: ID,
+        who: "Nora",
+        channel: "WhatsApp",
+        when: "waited 2h",
+        line: `“${"Can I come at 3? ".repeat(20)}”`,
+        to: `inbox/${ID}`,
+      },
+    ],
+    more: 0,
+    runs: [],
+    searches: [],
+    windows: [],
+  };
+  const drawn = needsAnswer(waiting, "en");
+  const kept = quickAnswerOf(JSON.parse(JSON.stringify(drawn)));
+  assert.equal(kept.say.headline, drawn.say.headline);
+  assert.deepEqual(kept.show.items[0].source, drawn.show.items[0].source, "the row and its door, as drawn");
+  assert.ok(drawn.show.items[0].line.length > 160 && kept.show.items[0].line.length <= 160, "a line cut to its cap");
+  const calls = callsAnswer([{ callId: ID2, who: "Robin" }], [], "es");
+  assert.deepEqual(quickAnswerOf(calls), calls, "a calls answer kept whole");
+  const open = openingsAnswer(
+    { state: "ok", days: [{ key: "2026-09-06", label: "Sat, Sep 6", windows: ["9:00"] }] },
+    "en",
+    "sat",
+  );
+  assert.deepEqual(quickAnswerOf(open), open, "an openings answer kept whole");
+  // Parts a quick answer never has are not kept.
+  const extra = quickAnswerOf({
+    ...calls,
+    show: { ...calls.show, figures: [{ value: "9" }], list: { style: "numbers", entries: ["Call Robin"] } },
+    do: { ...calls.do, next: ["Why?"] },
+  });
+  assert.deepEqual([extra.show.figures, extra.show.list, extra.do.next], [[], { style: "bullets", entries: [] }, []]);
+  // Shapes the Line never draws.
+  const item = (over) => ({
+    ...open,
+    show: { ...open.show, items: [{ ...open.show.items[0], source: { ...open.show.items[0].source, ...over } }] },
+  });
+  assert.equal(quickAnswerOf(null), null);
+  assert.equal(quickAnswerOf({ ...open, say: { headline: " ", detail: "" } }), null, "no headline");
+  assert.equal(quickAnswerOf({ ...open, form: "prose" }), null, "a model's prose");
+  assert.equal(quickAnswerOf(item({ to: "https://example.com/x" })), null, "a door off the app");
+  assert.equal(quickAnswerOf(item({ to: "javascript:alert(1)" })), null);
+  assert.equal(quickAnswerOf(item({ to: "//example.com" })), null);
+  assert.equal(quickAnswerOf(item({ to: "/calendar" })), null, "a path from the root");
+  assert.equal(quickAnswerOf(item({ kind: "secret" })), null, "a kind no citation has");
+  assert.equal(quickAnswerOf(item({ id: "" })), null, "a row with no id");
+  assert.equal(quickAnswerOf({ ...open, do: { open: { to: "https://example.com", label: "x" }, next: [] } }), null);
+});
+
+test("a message is written in the language its customers read (16 Oct 2026): the business's languages read off its profile in any spelling; none named, the one the person writes in where the business speaks it, else the business's first; a round of messages alone asks next for each of its languages none is written in, and never where it names none", () => {
+  assert.deepEqual(messageLanguagesOf(["Spanish", "English"]), ["es", "en"]);
+  assert.deepEqual(messageLanguagesOf(["español", "Inglés", "es", "Français"]), ["es", "en"]);
+  assert.deepEqual(messageLanguagesOf(["English and Spanish"]), ["en", "es"]);
+  assert.deepEqual(messageLanguagesOf(["English (US)", "castellano"]), ["en", "es"]);
+  assert.deepEqual(messageLanguagesOf([]), []);
+  // None named: the person's own where the business speaks it or names none; else the business's first.
+  assert.deepEqual(
+    [messageLanguageOf([], "es"), messageLanguageOf([], "en"), messageLanguageOf([], "other")],
+    ["es", "en", "en"],
+  );
+  assert.equal(messageLanguageOf(["es"], "en"), "es", "an English owner of a Spanish-speaking business");
+  assert.deepEqual([messageLanguageOf(["en", "es"], "es"), messageLanguageOf(["en", "es"], "en")], ["es", "en"]);
+  assert.equal(messageLanguageOf(["es", "en"], "other"), "es");
+  // The next question, in the turn's language: one tap writes the other card.
+  const card = (language, over = {}) => ({ kind: "message", payload: { language }, ...over });
+  const both = ["English", "Spanish"];
+  assert.deepEqual(messageLanguagesNext([card("en_US")], both, "en"), ["Can you write it in Spanish too?"]);
+  assert.deepEqual(messageLanguagesNext([card("es")], both, "es"), ["¿Puedes escribirlo también en inglés?"]);
+  assert.deepEqual(messageLanguagesNext([card("es")], both, "other"), ["Can you write it in English too?"]);
+  assert.deepEqual(messageLanguagesNext([card("en_US"), card("es")], both, "en"), []);
+  // Never assumed: a business that names no languages, or one, is asked nothing; nor a round with more than messages,
+  // nor a plan's message, which its plan sends.
+  assert.deepEqual(messageLanguagesNext([card("en_US")], [], "en"), []);
+  assert.deepEqual(messageLanguagesNext([card("en_US")], ["English"], "en"), []);
+  assert.deepEqual(messageLanguagesNext([card("en_US"), { kind: "playbook", payload: {} }], both, "en"), []);
+  assert.deepEqual(messageLanguagesNext([card("en_US", { plan: { id: "plan-1", step: 1, of: 2 } })], both, "en"), []);
+});
+
 test("language, scope and settings changes", () => {
   assert.equal(detectLanguage("¿Quién llamó hoy?"), "es");
   assert.equal(detectLanguage("who called today?"), "en");
   assert.equal(detectLanguage("balayage"), "other");
+  // Every hint counted, and a word's edges any language's letters: the "a" closing "día" or "consultoría" is no English
+  // word, and one hint of each language no longer ties to English (the setup review, 15 Oct 2026).
+  for (const es of [
+    "Somos una consultoría B2B en línea: primero una llamada, luego casi siempre una propuesta. Prepara mis campañas.",
+    "¿Qué día tengo libre mañana?",
+    "¿qué le dijo la recepcionista a la última persona que escribió?",
+    "Envía una oferta a los clientes que no vienen hace un mes",
+  ])
+    assert.equal(detectLanguage(es), "es", es);
+  for (const en of [
+    "We're an online B2B consultancy: people book a discovery call, then most get a proposal. Set up my campaigns.",
+    "set up campaigns for a consultancy that sends proposals",
+    "send a reminder the day before the appointment",
+  ])
+    assert.equal(detectLanguage(en), "en", en);
   assert.deepEqual(scopeFromRoute("inbox", `th-${ID}`, "Dani"), { kind: "thread", id: ID, label: "Dani" });
   assert.deepEqual(scopeFromRoute("conversations", `cv-${ID}`, null), { kind: "call", id: ID, label: "this call" });
   assert.deepEqual(scopeFromRoute("clients", ID2, "Rosa"), { kind: "person", id: ID2, label: "Rosa" });
@@ -929,12 +1055,13 @@ test("the turn route: same-origin POST, a rate bucket, the thread saved before t
     "the question is saved before the answer is attempted",
   );
   assert.ok(
-    r.includes("const prepared = await prepareAskTurn(ctx, member, {") && r.includes("await finishAskTurn(prepared, "),
+    r.includes("const prepared = await prepareAskTurn(ctx, member, {") &&
+      r.includes("new Response(turnStream(prepared, "),
     "the route keeps the thread before its stream opens, and streams the turn's second half",
   );
   assert.ok(r.includes('"content-type": "application/x-ndjson; charset=utf-8"'));
   assert.ok(r.includes('"cache-control": "private, no-store"'));
-  assert.ok(turn.includes("const result = await runAskTurn({"));
+  assert.ok(turn.includes("const ran = await runAskTurn({"));
   assert.ok(
     ![r, memory, turn].some((code) => code.includes("service")),
     "the turn and the thread it keeps run on the session client, never the service role",
@@ -1289,6 +1416,7 @@ test("cards: an act tool never acts, a proposal names its door and its undo, the
     sequence_make: "approve",
     sequence_start: "approve",
     sequence_discard: "approve",
+    playbook_run: "approve",
     booking_request: "approve",
     call_hand_over: "approve",
     lead_stage: "approve",
@@ -1341,6 +1469,7 @@ test("cards: an act tool never acts, a proposal names its door and its undo, the
           "step_remove",
           "words",
           "start",
+          "run_now",
           "change",
           "channels",
           "batch",
@@ -1503,6 +1632,8 @@ test("the eval checks that an Open asked for is followed, and what the words dec
       change_rename_and_hour: { playbook_change: { name: "Past clients", run_hour: 9 } },
       // A reminder the day before, asked where a calendar is connected (the marketing manager's §8): its moment.
       remind_day_before: { playbook: { trigger: "visit_tomorrow" } },
+      // A message asked for in Spanish, its language unnamed: its customers read what the person writes in (16 Oct 2026).
+      write_winback_es_unnamed: { message: { language: "es" } },
     },
   );
   assert.deepEqual(

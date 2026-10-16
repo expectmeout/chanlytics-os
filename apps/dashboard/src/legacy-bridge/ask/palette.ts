@@ -8,6 +8,7 @@
 import {
   ROLE_PERMS,
   answerFromV1,
+  answerText,
   askIntent,
   askJump,
   askPages,
@@ -30,6 +31,7 @@ import {
   sameQuestion,
   sequencesPreviewOf,
   scopeFromRoute,
+  stoppedAnswer,
   type AskAnswer,
   type AskLanguage,
   type AskMessageVM,
@@ -318,6 +320,52 @@ export function askPalette(win: Window, storage: Storage | null) {
     /** What an answer shows, decided once: the Line's answer (plan 3) or today's read back, with one door per place. */
     answer: (m: AskMessageVM): { answer: AskAnswer; cardOpen: Record<string, boolean> } =>
       oneDoor(m.answer ?? answerFromV1(m), m.proposals ?? []),
+    /**
+     * A conversation as its questions and the answers to them, in order. A run of questions is paired with the run of
+     * answers after it, oldest with oldest: a turn saved after the next question was asked (a Stop that reached no
+     * server, before 15 Oct 2026) answers its own question, never the newer one. Fewer answers than questions go to the
+     * newest, and an older question whose turn never landed stands unanswered.
+     */
+    turns: <M extends { role: string }>(messages: readonly M[]): Array<{ q: M | null; a: M | null }> => {
+      const out: Array<{ q: M | null; a: M | null }> = [];
+      for (let i = 0; i < messages.length;) {
+        let j = i;
+        while (j < messages.length && messages[j]?.role === "user") j++;
+        let k = j;
+        while (k < messages.length && messages[k]?.role !== "user") k++;
+        const [qs, as] = [messages.slice(i, j), messages.slice(j, k)];
+        const unanswered = Math.max(0, qs.length - as.length);
+        qs.forEach((q, n) => out.push({ q, a: n < unanswered ? null : (as[n - unanswered] ?? null) }));
+        for (const a of as.slice(qs.length)) out.push({ q: null, a });
+        i = k;
+      }
+      return out;
+    },
+    /**
+     * A turn the person stopped, as the Line draws it the moment Stop is pressed: what its Say had written under the
+     * words that say it stopped, the answer the server keeps on the thread (contracts stoppedAnswer).
+     */
+    stoppedTurn: (said: { headline: string; detail: string } | null, lang?: AskLanguage): AskMessageVM => {
+      const answer = stoppedAnswer(said, lang ?? lastLanguage());
+      const at = new Date();
+      return {
+        id: `s-${at.getTime()}`,
+        role: "assistant",
+        text: answerText(answer),
+        at: at.toISOString(),
+        atMs: at.getTime(),
+        citations: [],
+        followups: [],
+        navigate: null,
+        proposals: [],
+        language: answer.language,
+        ungrounded: false,
+        tools: [],
+        latencyMs: null,
+        failed: true,
+        answer,
+      };
+    },
     // A reach-out's drawer is told from a campaign's by the chains the page read (contracts scopeFromRoute); a person on
     // any of their tabs is named by their People row (personLabelOf).
     scopeFor: (page: string, param: string | null, label?: string | null) => {

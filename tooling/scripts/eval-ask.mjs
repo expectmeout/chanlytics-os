@@ -16,7 +16,13 @@
  * apology for the format: shapeAskedFails), and no line the preview drew lost
  * when the answer landed (previewJudged).
  * Each run times the first words (a `say` or a v1 `delta`) and the final,
- * and reads what the run cost from Ask's own usage rows (usage.ask_tokens,
+ * keeps every `say` with when it came, and checks how the answer streamed
+ * (ask-stats.mjs streamOf: how many previews, whether the last one met the
+ * final or jumped, a preview that showed JSON or an escape, the last
+ * preview's wait for the final; by round count, since text after a read
+ * arrives in one burst on Opus 5.5 and the answer tool's input streams, with
+ * how each answer was written from its stored shape), and reads what the run
+ * cost from Ask's own usage rows (usage.ask_tokens,
  * one per model round, written by the edge): the tokens, the dollars per
  * answered turn at the models' list prices, the rounds that stopped at the
  * cap, and which model answered (the model gate, spec 8.3). The usage rows
@@ -86,7 +92,7 @@
  */
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { ASK_TOKENS_DAY, BUILTIN_LISTS, cardOpenRoute, oneDoor, priceOf } from "@chanlytics/contracts";
-import { spread, wilson, pct } from "./ask-stats.mjs";
+import { spread, wilson, pct, streamOf, streamSummary } from "./ask-stats.mjs";
 import { askSpoken, spokenFails } from "./eval-ask-spoken.mjs";
 import { usedAny } from "../evals/rename-ask-tools.mjs";
 import {
@@ -343,9 +349,18 @@ async function ask(cookie, { text, surface, page = null, threadId = null, scope 
   // and when the model first decided anything: the first `trace` (a read or a card starting).
   let firstMs = null;
   let firstTraceMs = null;
+  // Every Say as it came (the stream checks, streamOf): its words and when, an empty one a Say taken back.
+  const says = [];
   const lines = jsonLines((e) => {
     if (firstMs === null && (e.t === "delta" || e.t === "say")) firstMs = Date.now() - t0;
     if (firstTraceMs === null && e.t === "trace") firstTraceMs = Date.now() - t0;
+    if (e.t === "say")
+      says.push({
+        ms: Date.now() - t0,
+        headline: e.headline ?? "",
+        detail: e.detail ?? "",
+        shown: (e.show?.figures?.length ?? 0) + (e.show?.items?.length ?? 0),
+      });
     events.push(e);
   });
   for (;;) {
@@ -367,6 +382,7 @@ async function ask(cookie, { text, surface, page = null, threadId = null, scope 
     firstMs: firstMs ?? ms,
     firstTraceMs,
     deltas: events.filter((e) => e.t === "delta" || e.t === "say").length,
+    says,
   };
 }
 
@@ -397,6 +413,9 @@ export function judge(c, r) {
   if (e.no_write && claimsWrite(text)) fails.push(`the answer claims a write: “${text.slice(0, 120)}”`);
   if (e.includes_any && !e.includes_any.some((s) => text.toLowerCase().includes(s.toLowerCase())))
     fails.push(`answer lacks all of ${e.includes_any.join("/")}`);
+  // Each of them, in any order: what a setup must say first (the calendar to connect, proposals to turn on).
+  for (const s of e.includes_all ?? [])
+    if (!text.toLowerCase().includes(s.toLowerCase())) fails.push(`answer lacks “${s}”`);
   for (const s of e.excludes ?? [])
     if (text.toLowerCase().includes(s.toLowerCase())) fails.push(`answer contains “${s}”`);
   // A row's id is a uuid a read returned, but a People list's, which is its name (contracts BUILTIN_LISTS: quiet).
@@ -558,9 +577,9 @@ process.stderr.write(
 // still be on its way (the edge writes it after its stream settles), so the window opens no earlier than this.
 const startedAt = new Date(Date.now() - 1_000).toISOString();
 const results = [];
-/** The loop's own refusal sentences (loop.ts refusalText): the key, its credit, the model or the edge, never the case. */
+/** The turn's own refusal sentences (refusals.ts refusalSaid): the key, its credit, the model or the edge, never the case. */
 const REFUSED =
-  /refused the question|rechazó la pregunta|not connected to a model|no está conectado|could not reach the model|No pude llegar al modelo/;
+  /went wrong on our side|falló de nuestro lado|not connected to a model|no está conectado|could not reach the model|No pude llegar al modelo/;
 let refusals = 0;
 let stopped = null;
 /** A turn's name in the log: its case, which turn a second one is, and its repetition. */
@@ -613,6 +632,8 @@ function rowOf(q, rep, turn, r, warmed, j) {
     first_trace_ms: r.firstTraceMs,
     final_ms: r.ms,
     deltas: r.deltas,
+    // How the answer streamed (ask-stats.mjs streamOf); none for a turn that never answered or was spoken.
+    stream: r.says && r.final ? streamOf(r.says, r.ms, r.final.answer?.say ?? null) : null,
     threadId: r.threadId ?? null,
     ...j,
   };
@@ -930,6 +951,19 @@ for (const s of surfaces) {
       ` · first words ${f.median} ms (p90 ${f.p90}) · final ${w.median} ms (p90 ${w.p90})`,
   );
 }
+// How the answers streamed, by round count (ask-stats.mjs streamSummary): text after a read arrives in one burst on
+// Opus 5.5, so a turn of two rounds or more streams only through the answer tool (ASK_ANSWER_TOOL).
+const streamed = streamSummary(answered);
+const bandLine = (name, b) =>
+  `  stream, ${name}: ${b.n} turns · previews median ${b.previews ?? "—"} · 3+ previews ${b.streamed}/${b.n}` +
+  ` · first words ${b.first.median ?? "—"} ms (p90 ${b.first.p90 ?? "—"}) · last preview to final ${b.tail.median ?? "—"} ms (p90 ${b.tail.p90 ?? "—"})`;
+console.log(
+  `${bandLine("one round", streamed.one)}\n${bandLine("two rounds or more", streamed.more)}` +
+    `\n  stream checks: last preview jumped from the final ${streamed.jumps} · previews showing JSON or an escape ${streamed.leaks}` +
+    ` · line breaks lost at the final ${streamed.lines_lost} · Show drawn while writing ${streamed.show_streamed}` +
+    ` · answered through the answer tool ${streamed.via.tool}, as text ${streamed.via.text}, none ${streamed.via.none}` +
+    (streamed.via.unread ? ` (${streamed.via.unread} shapes unread)` : ""),
+);
 for (const [model, m] of Object.entries(usage.byModel))
   console.log(
     `  ${model}: ${m.rounds} rounds${m.fast_rounds ? ` (${m.fast_rounds} fast)` : ""} · input ${m.input.toLocaleString("en-US")} · output ${m.output.toLocaleString("en-US")}` +

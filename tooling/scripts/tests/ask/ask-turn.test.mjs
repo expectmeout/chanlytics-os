@@ -51,6 +51,7 @@ import {
   clockStamp,
   emptyReadSet,
   failedAnswer,
+  stoppedAnswer,
   normalizeAnswer,
   proseAnswer,
   v1FromAnswer,
@@ -309,11 +310,11 @@ const tool = (name, input, id = `t-${input?.action ? `${name}.${input.action}` :
 /** The model, scripted: each call takes the next round; the requests are kept for the assertions. */
 function scripted(rounds) {
   const requests = [];
-  const round = async (c, onText) => {
+  const round = async (c, onText, onInput) => {
     requests.push(c.request);
     const r = rounds.shift();
     if (!r) throw new Error("the loop asked for a round the script does not have");
-    return typeof r === "function" ? r(c, onText) : r;
+    return typeof r === "function" ? r(c, onText, onInput) : r;
   };
   return { round, requests };
 }
@@ -673,6 +674,32 @@ test("an answer beside its cards that claims a write is said as the cards' own s
   assert.equal(r3.answer.say.headline, "I paused the win-back.");
 });
 
+test("a message card alone asks next for the business's other languages, in the turn's language, and only where the business names them (16 Oct 2026): the other card is a tap away, never assumed", async () => {
+  const message = (language) => ({
+    id: `p-${language}`,
+    kind: "message",
+    title: "New message",
+    summary: "s",
+    payload: { language },
+  });
+  const asked = async (cards, { language = "en", languages = ["English", "Spanish"] } = {}) => {
+    const s = scripted([ROUND(cards.map((_, i) => tool("propose_sequence", { action: "message" }, `t-message-${i}`)))]);
+    const queue = [...cards];
+    const propose = async () => ({ proposal: queue.shift(), result: "{}", isError: false });
+    // Words that ask for a draft, so its round is asked at the draft's effort and never set aside (#1627 DRAFT_CALLS).
+    const text = "write a win-back message for people who have not been in since summer";
+    const facts = { ...turn(ctxFor()).input.facts, languages };
+    const { input } = turn(ctxFor(), { ...AN_OWNER, language, text, facts });
+    return runAskTurn(input, ports(s.round, { propose }));
+  };
+  assert.deepEqual((await asked([message("en_US")])).answer.do.next, ["Can you write it in Spanish too?"]);
+  assert.deepEqual((await asked([message("es")], { language: "es" })).answer.do.next, [
+    "¿Puedes escribirlo también en inglés?",
+  ]);
+  assert.deepEqual((await asked([message("en_US"), message("es")])).answer.do.next, []);
+  assert.deepEqual((await asked([message("en_US")], { languages: [] })).answer.do.next, []);
+});
+
 test("cards alone are the answer: every card made, no second round, the cards said in a sentence; a refused proposal keeps the round and the model must say why", async () => {
   const alone = scripted([ROUND([tool("propose_person", ADD_ADA)])]);
   const { input, events } = turn(ctxFor(), AN_OWNER);
@@ -701,7 +728,7 @@ test("cards alone are the answer: every card made, no second round, the cards sa
   assert.match(back.content, /missing the @/);
 });
 
-test("every refusal of the gateway ends the turn in its sentence, in the person's language, and says why in the result", async () => {
+test("every refusal of the gateway ends the turn in its sentence, in the person's language, and says why in the result; a request refused is ours, never the question's, and logged on its own name", async () => {
   const cases = [
     [
       { kind: "preview" },
@@ -721,16 +748,25 @@ test("every refusal of the gateway ends the turn in its sentence, in the person'
     ],
     [
       { kind: "bad_request", message: "400 messages: too long" },
-      "The model refused the question. Try it another way.",
-      "El modelo rechazó la pregunta. Inténtalo de otra forma.",
+      "Something went wrong on our side, not with your question. Try again.",
+      "Algo falló de nuestro lado, no con tu pregunta. Inténtalo de nuevo.",
     ],
   ];
   for (const [refusal, en, es] of cases) {
-    const r = await runAskTurn(
-      turn(ctxFor()).input,
-      ports(async () => {
-        throw new GatewayRefused(refusal);
-      }),
+    // Our own request refused is said loudly on its own name; every other refusal is the gateway's.
+    const event = refusal.kind === "bad_request" ? "ask_request_refused" : "ask_gateway_refused";
+    const { result: r, lines } = await logged(event, () =>
+      runAskTurn(
+        turn(ctxFor()).input,
+        ports(async () => {
+          throw new GatewayRefused(refusal);
+        }),
+      ),
+    );
+    assert.deepEqual(
+      lines.map((l) => JSON.parse(l)).map((l) => [l.kind, l.round, l.message]),
+      [[refusal.kind, 1, refusal.message]],
+      `${refusal.kind} is logged once, as ${event}`,
     );
     assert.deepEqual([r.text, r.failed, r.failure, r.rounds], [en, true, refusal.kind, 1], refusal.kind);
     assert.deepEqual([r.answer.form, r.answer.say.headline], ["structured", en], "the sentence is the headline");
@@ -742,6 +778,83 @@ test("every refusal of the gateway ends the turn in its sentence, in the person'
     );
     assert.equal(r2.text, es, `${refusal.kind} in Spanish`);
   }
+});
+
+/** A model stream as the gateway reads it: it runs until the signal it was given ends it. */
+const cutBy = (signal) =>
+  new Promise((r) => (signal.aborted ? r() : signal.addEventListener("abort", r, { once: true })));
+/** What the gateway throws for a request whose signal ended before it was answered (gateway.ts streamModel). */
+const unreached = () => new GatewayRefused({ kind: "unreachable", message: "This operation was aborted" });
+
+test("Stop reaches the model: the person's signal cuts the round's stream, no round is asked after it, and the turn ends as stopped, never as a refusal or a dropped connection", async () => {
+  const stop = new AbortController();
+  const s = scripted([
+    async (c, onText) => {
+      onText(answerJson("Three people wrote this week.").slice(0, 40));
+      stop.abort();
+      await cutBy(c.signal);
+      return { blocks: [], stopReason: null, streamError: "This operation was aborted" };
+    },
+  ]);
+  const t = turn(ctxFor(), { signal: stop.signal });
+  const { result: r, lines } = await logged("ask_gateway_refused", () => runAskTurn(t.input, ports(s.round)));
+  assert.deepEqual([r.failed, r.failure, r.rounds, s.requests.length], [true, "stopped", 1, 1]);
+  assert.ok(
+    t.events.some((e) => e.t === "say" && e.headline.startsWith("Three")),
+    "the Say was written before the Stop",
+  );
+  assert.equal(lines.length, 0, "a Stop is no refusal");
+});
+
+test("Stop while a read runs: the next round is never answered, and the turn ends as stopped, not as a model that could not be reached", async () => {
+  const stop = new AbortController();
+  const s = scripted([
+    ROUND([tool("inbox", { action: "list", filter: "recent" })]),
+    async (c) => {
+      assert.ok(c.signal.aborted, "the round after the Stop is asked with its signal already ended");
+      throw unreached();
+    },
+  ]);
+  // The person stops while the model's own read runs (not the page's reads made before the first round).
+  const read = async (_tc, run) => {
+    if (run.name === "inbox") stop.abort();
+    return { result: "{}", isError: false };
+  };
+  const t = turn(ctxFor(), { signal: stop.signal });
+  const { result: r, lines } = await logged("ask_gateway_refused", () =>
+    runAskTurn(t.input, ports(s.round, { tool: read })),
+  );
+  assert.deepEqual([r.failed, r.failure, r.rounds], [true, "stopped", 2]);
+  assert.equal(lines.length, 0);
+});
+
+test("the turn's own time run out is said as ours, before the stream as within it: never 'could not reach the model' or 'the connection dropped', and never the question's fault", async (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  const ranOut = async (round, language = "en") =>
+    runAskTurn(turn(ctxFor(), { language }).input, ports(scripted([round]).round));
+  // Before the model answered: the gateway throws for the request its signal ended.
+  const before = async (c) => {
+    t.mock.timers.tick(ASK_TURN_BUDGET_MS);
+    await cutBy(c.signal);
+    throw unreached();
+  };
+  const r = await ranOut(before);
+  assert.deepEqual(
+    [r.text, r.failed, r.failure],
+    ["I ran out of time on that one. Try again, or ask about one thing at a time.", true, "timeout"],
+  );
+  assert.equal(
+    (await ranOut(before, "es")).text,
+    "Se me acabó el tiempo con esta. Inténtalo de nuevo, o pregunta por una cosa a la vez.",
+  );
+  // Within the stream: what it had written is cut, and the time is still what ended it.
+  const within = await ranOut(async (c, onText) => {
+    onText(answerJson("Three people").slice(0, 30));
+    t.mock.timers.tick(ASK_TURN_BUDGET_MS);
+    await cutBy(c.signal);
+    return { blocks: [prose(answerJson("Three").slice(0, 30))], stopReason: null, streamError: "aborted" };
+  });
+  assert.deepEqual([within.failed, within.failure], [true, "timeout"]);
 });
 
 test("a format the API refuses is dropped and the same round asked again: words that come back are prose, JSON is read as JSON, and a second refusal is the turn's", async () => {
@@ -779,7 +892,7 @@ test("a format the API refuses is dropped and the same round asked again: words 
   const always = await refusing(["400 schema too complex", "400 schema too complex"], answer("Never read."));
   assert.deepEqual(
     [always.r.text, always.r.failed, always.r.failure, always.requests.length],
-    ["The model refused the question. Try it another way.", true, "bad_request", 2],
+    ["Something went wrong on our side, not with your question. Try again.", true, "bad_request", 2],
     "with nothing left to drop, the refusal is the turn's",
   );
   const other = await refusing(["400 messages: too long"], answer("Never read."));
@@ -866,8 +979,10 @@ test("an answer that does not shape is a stated failure -- JSON cut off by the c
   const nothing = await one([], { stopReason: "end_turn" });
   assert.deepEqual(
     [nothing.text, nothing.failed, nothing.failure],
-    ["I found nothing to read for that question.", true, "no_tool_no_text"],
+    ["I lost my train of thought. Ask me again.", true, "no_tool_no_text"],
+    "a round with nothing in it is our glitch, never an empty read the question asked for",
   );
+  assert.equal((await one([], { stopReason: "end_turn" }, "es")).text, "Perdí el hilo. Pregúntamelo de nuevo.");
 });
 
 test("Say streams from the answer's JSON as it is written: only what changed, at most every 50ms, never an empty one; the final message is the answer", async () => {
@@ -2723,7 +2838,7 @@ test("REGRESSION: the assistant's people search says when someone was last in to
   assert.equal(row.route, `clients/${row.contact_id}`, "a person says where they open");
 });
 
-test("the round gathers the stream: blocks in order, the text so far handed on as it grows, the stop reason, and an error after the start kept beside the blocks", async () => {
+test("the round gathers the stream: blocks in order, the text so far and each call's input so far handed on as they grow, the stop reason, and an error after the start kept beside the blocks", async () => {
   async function* stream() {
     yield { type: "block_start", index: 0, block: { type: "tool_use", id: "t1", name: "inbox" } };
     yield { type: "input_json", index: 0, partial: '{"action": "list", "filter": "rec' };
@@ -2736,7 +2851,13 @@ test("the round gathers the stream: blocks in order, the text so far handed on a
     yield { type: "stop", stopReason: "end_turn" };
   }
   const seen = [];
-  const r = await runRound({ tenantId: A, userId: USER, request: {} }, (s) => seen.push(s), stream);
+  const grew = [];
+  const r = await runRound(
+    { tenantId: A, userId: USER, request: {} },
+    (s) => seen.push(s),
+    (b) => grew.push([b.name, b.json]),
+    stream,
+  );
   assert.deepEqual(
     r.blocks.map((b) => [b.type, b.name, b.text, b.json]),
     [
@@ -2750,12 +2871,25 @@ test("the round gathers the stream: blocks in order, the text so far handed on a
     ['{"say": {"headline": "Two thr', '{"say": {"headline": "Two threads wait"'],
     "the text so far, as it grows; a tool call's arguments are not words",
   );
+  assert.deepEqual(
+    grew,
+    [
+      ["inbox", '{"action": "list", "filter": "rec'],
+      ["inbox", '{"action": "list", "filter": "recent"}'],
+    ],
+    "a call's input so far, as it grows, with the call it belongs to (the answer tool's Say is read from it)",
+  );
   async function* broken() {
     yield { type: "block_start", index: 0, block: { type: "tool_use", id: "t1", name: "inbox" } };
     yield { type: "input_json", index: 0, partial: "{}" };
     yield { type: "error", message: "connection reset" };
   }
-  const b = await runRound({ tenantId: A, userId: USER, request: {} }, () => {}, broken);
+  const b = await runRound(
+    { tenantId: A, userId: USER, request: {} },
+    () => {},
+    () => {},
+    broken,
+  );
   assert.deepEqual(
     [b.blocks.length, b.blocks[0].name, b.streamError, b.stopReason],
     [1, "inbox", "connection reset", null],
@@ -2776,7 +2910,12 @@ test("the round keeps a thinking block whole -- its words and its signature, or 
     yield { type: "block_stop", index: 2 };
     yield { type: "stop", stopReason: "tool_use" };
   }
-  const r = await runRound({ tenantId: A, userId: USER, request: {} }, () => {}, stream);
+  const r = await runRound(
+    { tenantId: A, userId: USER, request: {} },
+    () => {},
+    () => {},
+    stream,
+  );
   assert.deepEqual(
     r.blocks.map((b) => [b.type, b.thinking, b.signature, b.data, b.name]),
     [
@@ -8878,12 +9017,18 @@ test("an earlier answer, as a cold turn's history says it (the Phase 5 plan, D4)
   // A turn that failed says so first, and keeps the cards it made before it failed.
   const failed = answered({
     failed: true,
-    answer: failedAnswer("The model refused the question. Try it another way.", "en"),
+    answer: failedAnswer("Something went wrong on our side, not with your question. Try again.", "en"),
     proposals: [cardOf("p-1", "Reply to Rosa")],
   });
   assert.equal(
     answerLine(failed, TURN_CHARS),
-    "(This turn failed.) The model refused the question. Try it another way. Cards: p-1 · reply · Reply to Rosa · not pressed yet.",
+    "(This turn failed.) Something went wrong on our side, not with your question. Try again. Cards: p-1 · reply · Reply to Rosa · not pressed yet.",
+  );
+  // A turn the person stopped says it was stopped before its answer, and never the half it had written.
+  const halfSaid = { headline: "Three people wrote this week.", detail: "Rosa asked about" };
+  assert.equal(
+    answerLine(answered({ failed: true, answer: stoppedAnswer(halfSaid, "en") }), TURN_CHARS),
+    "(This turn failed.) Stopped before the answer was finished.",
   );
   // At the caps: four long cards and five long rows would pass the history's cut; the rows the line has no room for go
   // whole into "and N more", so the cut never lands inside an id.
@@ -9525,4 +9670,304 @@ test("a spoken turn (the voice door, spec 2026-10-03 §3.4): the listening line 
   assert.equal(r2.failed, false, r2.failure ?? "");
   assert.ok(!JSON.stringify(typed.requests[0].messages).includes(SPOKEN_LINE), "a typed turn: no line");
   assert.equal(r2.shape.spoken, false);
+});
+
+/* ---- the answer as a tool (ASK_ANSWER_TOOL, 15 Oct 2026): its input streams where text after a read does not ---- */
+
+/** Runs `fn` with ASK_ANSWER_TOOL set to `value` (undefined: unset), as a deployment sets it, and puts it back. */
+async function withAnswerTool(value, fn) {
+  const was = process.env.ASK_ANSWER_TOOL;
+  if (value === undefined) delete process.env.ASK_ANSWER_TOOL;
+  else process.env.ASK_ANSWER_TOOL = value;
+  try {
+    return await fn();
+  } finally {
+    if (was === undefined) delete process.env.ASK_ANSWER_TOOL;
+    else process.env.ASK_ANSWER_TOOL = was;
+  }
+}
+/** The answer tool's call, its input the answer's JSON (ASK_ANSWER_FORMAT). */
+const answerCall = (headline, over, id = "t-answer") => ({
+  ...tool("answer", {}, id),
+  json: answerJson(headline, over),
+});
+/** A round whose answer call is streamed into the loop as the API sends it: its input JSON in pieces of `step`. */
+const streamedAnswer =
+  (call, step = 12) =>
+  async (_c, _onText, onInput) => {
+    const growing = { ...call, json: "" };
+    for (let i = 0; i < call.json.length; i += step) {
+      growing.json = call.json.slice(0, i + step);
+      onInput(growing, []);
+      await new Promise((r) => setTimeout(r, 60)); // past SAY_EVERY_MS, so each piece is said
+    }
+    return ROUND([call]);
+  };
+
+test("the answer tool on: every round offers it first with its input streamed, the prompt says to answer through it, and the switch off sends exactly what it did", async () => {
+  const facts = workspaceFacts("Harbor", TZ, null, NOW, []);
+  await withAnswerTool("on", async () => {
+    const s = scripted([
+      ROUND([tool("inbox", { action: "list", filter: "recent" })]),
+      ROUND([answerCall("Nobody waits.")]),
+    ]);
+    const r = await runAskTurn(turn(ctxFor()).input, ports(s.round));
+    assert.equal(r.failed, false, r.failure ?? "");
+    for (const req of s.requests) {
+      assert.equal(req.tools[0].name, "answer", "first, as its name sorts");
+      assert.equal(req.tools[0].eager_input_streaming, true);
+      assert.deepEqual(req.tools[0].input_schema, ASK_ANSWER_FORMAT, "its input is the answer's format");
+      assert.deepEqual(req.tools.slice(1), toApiTools("operator", true), "then the role's tools, as they were");
+      assert.deepEqual(req.output_config.format.schema, ASK_ANSWER_FORMAT, "the format stays: a text answer reads");
+      assert.ok(req.system[0].text.includes("Every answer is written by calling the answer tool once"));
+    }
+    assert.equal(JSON.stringify(s.requests[0].tools), JSON.stringify(s.requests[1].tools), "one prefix, every round");
+    assert.equal(s.requests[0].system[0].text, stableSystem(facts, true));
+  });
+  await withAnswerTool(undefined, async () => {
+    const s = scripted([ROUND([answer("Nobody waits.")])]);
+    await runAskTurn(turn(ctxFor()).input, ports(s.round));
+    assert.deepEqual(s.requests[0].tools, toApiTools("operator", true), "off: no answer tool");
+    assert.equal(s.requests[0].system[0].text, stableSystem(facts, false));
+    assert.ok(!stableSystem(facts, false).includes("answer tool"), "off: the rules as they were, byte for byte");
+  });
+});
+
+test("an answer through the tool after a read: its Say streams from the input as it grows, the final is the input normalized, its call is answered as shown, and the shape says so", async () => {
+  await withAnswerTool("on", async () => {
+    const rosa = { kind: "thread", id: C1, label: "Rosa" };
+    const call = answerCall("Rosa asked about Saturday; nobody else is waiting.", {
+      say: { detail: "She wrote this morning." },
+      show: { items: [{ title: "Rosa", meta: "WhatsApp", line: "Asked about Saturday.", source: rosa }] },
+    });
+    const s = scripted([ROUND([tool("inbox", { action: "list", filter: "recent" })]), streamedAnswer(call)]);
+    const t = turn(ctxFor());
+    const r = await runAskTurn(t.input, ports(s.round));
+    assert.equal(r.failed, false, r.failure ?? "");
+    assert.deepEqual(
+      [r.text, r.rounds, r.tools],
+      ["Rosa asked about Saturday; nobody else is waiting. She wrote this morning.", 2, ["inbox.list"]],
+    );
+    assert.deepEqual(
+      r.answer.show.items.map((i) => i.source.id),
+      [C1],
+      "a row the read returned, grounded as ever",
+    );
+    const says = t.events.filter((e) => e.t === "say");
+    assert.ok(says.length >= 4, `the Say streamed: ${says.length} previews`);
+    const size = (e) => e.headline.length + e.detail.length;
+    assert.ok(
+      says.every((e, i) => i === 0 || size(e) >= size(says[i - 1])),
+      "each preview grows",
+    );
+    assert.deepEqual(
+      [says.at(-1).headline, says.at(-1).detail],
+      [r.answer.say.headline, r.answer.say.detail],
+      "the last preview is the final's Say",
+    );
+    assert.ok(!says.some((e) => /[{}\\"]/.test(e.headline + e.detail)), "no JSON or escape in a preview");
+    assert.deepEqual([r.shape.answer_tool, r.shape.answer_in], [true, "tool"]);
+    assert.deepEqual(
+      r.raw.results.at(-1),
+      {
+        type: "tool_result",
+        tool_use_id: "t-answer",
+        content: `<record>\n${JSON.stringify({ shown: true })}\n</record>`,
+        is_error: false,
+      },
+      "the next turn opens with the answer call's result: a tool_use is never left unanswered",
+    );
+  });
+});
+
+test("an answer call beside a read is set aside and told so: never said when the read came first in the round, taken back when it came after; the model answers next round, and a text answer still reads with the tool on", async () => {
+  await withAnswerTool("on", async () => {
+    // The read written first: the answer's Say is held, so nothing is shown and nothing taken back.
+    const settings = tool("workspace", { action: "settings" });
+    const held = answerCall("We open at nine.", {}, "t-held");
+    const first = scripted([
+      async (_c, _onText, onInput) => {
+        onInput(held, [settings]);
+        return ROUND([settings, held]);
+      },
+      ROUND([answerCall("Monday 9:00 to 17:00; the other days are not set.")]),
+    ]);
+    const t1 = turn(ctxFor());
+    const r1 = await runAskTurn(t1.input, ports(first.round));
+    assert.deepEqual([r1.rounds, r1.failed], [2, false]);
+    assert.deepEqual(
+      t1.events.filter((e) => e.t === "say").map((e) => e.headline),
+      [],
+      "the answer beside the read was never said, so never taken back",
+    );
+
+    // The answer written first: it was on screen before the read was known, so it is said, then taken back.
+    const early = answerCall("We open at nine.", {}, "t-early");
+    const s = scripted([
+      async (_c, _onText, onInput) => {
+        onInput(early, []);
+        return ROUND([tool("workspace", { action: "settings" }), early]);
+      },
+      ROUND([answerCall("Monday 9:00 to 17:00; the other days are not set.")]),
+    ]);
+    const t = turn(ctxFor());
+    const r = await runAskTurn(t.input, ports(s.round));
+    assert.deepEqual(
+      [r.text, r.rounds, r.tools],
+      ["Monday 9:00 to 17:00; the other days are not set.", 2, ["workspace.settings"]],
+    );
+    assert.deepEqual(
+      t.events
+        .filter((e) => e.t === "say")
+        .map((e) => e.headline)
+        .slice(0, 2),
+      ["We open at nine.", ""],
+      "said as it was written, then taken back",
+    );
+    const results = s.requests[1].messages.at(-1).content.filter((b) => b.type === "tool_result");
+    assert.deepEqual(
+      results.map((b) => [b.tool_use_id, b.is_error]),
+      [
+        ["t-workspace.settings", false],
+        ["t-early", true],
+      ],
+      "every call answered, in the order of the calls",
+    );
+    assert.match(results[1].content, /not shown: answer again/);
+    assert.equal(r.shape.answer_in, "tool");
+
+    const text = scripted([ROUND([answer("Nobody is waiting.")])]);
+    const r2 = await runAskTurn(turn(ctxFor()).input, ports(text.round));
+    assert.deepEqual(
+      [r2.text, r2.failed, r2.shape.answer_in, r2.shape.answer_tool],
+      ["Nobody is waiting.", false, "text", true],
+    );
+  });
+});
+
+test("the answer tool on, the last round may still call it: it is told it is the last, and a read it makes anyway is answered before one closing round that may call none", async () => {
+  const N = ASK_MAX_ROUNDS;
+  const filters = ["recent", "needs_you", "all", "waiting", "snoozed", "done", "held", "new", "old"];
+  // `n` reads in a row, each its own call, then what `last` says.
+  const reads = (n) =>
+    filters.slice(0, n).map((filter, k) => ROUND([tool("inbox", { action: "list", filter }, `t-${k}`)]));
+  const autos = (n) => Array.from({ length: n }, () => "auto");
+  await withAnswerTool("on", async () => {
+    const s = scripted([...reads(N), ROUND([answer("Two threads wait.")])]);
+    const r = await runAskTurn(turn(ctxFor()).input, ports(s.round));
+    assert.equal(r.failed, false, r.failure ?? "");
+    assert.deepEqual(
+      s.requests.map((q) => q.tool_choice.type),
+      [...autos(N), "none"],
+      "the last round keeps its tools; the closing round has none",
+    );
+    assert.equal(
+      s.requests[N - 1].messages.at(-1).content.at(-1).text,
+      "This is the last round: answer now through the answer tool, with what you have.",
+    );
+    assert.deepEqual([r.rounds, r.shape.answer_in], [N + 1, "text"]);
+
+    const answered = scripted([...reads(N - 1), ROUND([answerCall("Two threads wait.")])]);
+    const r2 = await runAskTurn(turn(ctxFor()).input, ports(answered.round));
+    assert.deepEqual([r2.rounds, r2.shape.answer_in], [N, "tool"], "the last round answered through the tool");
+  });
+  await withAnswerTool(undefined, async () => {
+    const s = scripted([...reads(N - 1), ROUND([answer("Two threads wait.")])]);
+    await runAskTurn(turn(ctxFor()).input, ports(s.round));
+    assert.deepEqual(
+      s.requests.map((q) => q.tool_choice.type),
+      [...autos(N - 1), "none"],
+      "off: as it was",
+    );
+    assert.ok(
+      !JSON.stringify(s.requests.at(-1).messages).includes("last round"),
+      "off: nothing said of the last round",
+    );
+  });
+});
+
+test("an answer call cut off, or empty, is no answer: the turn says it could not shape one, never a half answer", async () => {
+  await withAnswerTool("on", async () => {
+    const cut = { ...answerCall("Two threads wait."), json: '{"say": {"headline": "Two thr' };
+    const r = await runAskTurn(
+      turn(ctxFor()).input,
+      ports(scripted([ROUND([cut], { stopReason: "max_tokens" })]).round),
+    );
+    assert.deepEqual([r.failed, r.shape.answer_in], [true, null]);
+    assert.match(r.failure, /^answer: not JSON/);
+    const empty = { ...answerCall("x"), json: "" };
+    const r2 = await runAskTurn(turn(ctxFor()).input, ports(scripted([ROUND([empty])]).round));
+    assert.deepEqual([r2.failed, r2.failure], [true, "answer: no headline"]);
+  });
+});
+
+test("Show while it writes (contracts answerSoFar): a figure or a row draws once its object closes, grounded as the final grounds it -- a row not read never draws -- and a brace or a key inside a string is only words", async () => {
+  const { answerSoFar, noteRows } = await import("@chanlytics/contracts");
+  const read = emptyReadSet();
+  noteRows(read, [{ kind: "thread", id: C1, route: `inbox/th-${C1}`, label: "Rosa" }]);
+  const rosa = { kind: "thread", id: C1, label: "Rosa" };
+  const stranger = { kind: "thread", id: C2, label: "nobody" };
+  const json = answerJson("Two threads wait.", {
+    show: {
+      figures: [{ value: "2", label: 'threads "items": {waiting}', note: "", source: NONE }],
+      items: [
+        { title: "Rosa", meta: "WhatsApp", line: "Asked about Saturday.", source: rosa },
+        { title: "Nobody", meta: "", line: "", source: stranger },
+      ],
+    },
+  });
+  const say = { headline: "Two threads wait.", detail: "" };
+  const at = (needle) => json.indexOf(needle);
+  assert.deepEqual(
+    answerSoFar(say, json.slice(0, at('"items"')), read, "en"),
+    {
+      headline: "Two threads wait.",
+      detail: "",
+      show: { figures: [{ value: "2", label: 'threads "items": {waiting}', note: "", source: null }], items: [] },
+    },
+    "the figure, whole, before any row; the words inside its label are words",
+  );
+  const halfRow = answerSoFar(say, json.slice(0, at('"Asked about')), read, "en");
+  assert.deepEqual(halfRow.show.items, [], "a row half written is not drawn");
+  const whole = answerSoFar(say, json, read, "en");
+  assert.deepEqual(
+    whole.show.items.map((i) => [i.title, i.source.to]),
+    [["Rosa", `inbox/th-${C1}`]],
+    "the row that was read, with its route; the one that was not never draws",
+  );
+  assert.deepEqual(
+    answerSoFar(say, json.slice(0, at('"show"')), read, "en"),
+    say,
+    "no Show before it begins: Say alone",
+  );
+  assert.deepEqual(
+    answerSoFar({ headline: "Hi there", detail: "One\nTwo" }, "", read, "en"),
+    { headline: "Hi there", detail: "One\nTwo" },
+    "words with no shape: Say alone, as partialSay or a prose answer drew it (its lines kept)",
+  );
+});
+
+test("the turn sends Show as it is written: the answer tool's input grows, each say carries the rows closed so far, and the last preview's rows are the final's", async () => {
+  await withAnswerTool("on", async () => {
+    const rosa = { kind: "thread", id: C1, label: "Rosa" };
+    const call = answerCall("Rosa asked about Saturday.", {
+      show: { items: [{ title: "Rosa", meta: "WhatsApp", line: "Asked about Saturday.", source: rosa }] },
+    });
+    const s = scripted([ROUND([tool("inbox", { action: "list", filter: "recent" })]), streamedAnswer(call, 24)]);
+    const t = turn(ctxFor());
+    const r = await runAskTurn(t.input, ports(s.round));
+    assert.equal(r.failed, false, r.failure ?? "");
+    const says = t.events.filter((e) => e.t === "say");
+    const first = says.findIndex((e) => e.show);
+    assert.ok(first > 0, "Say first, then Show once a row closed");
+    assert.ok(
+      says.slice(0, first).every((e) => !e.show),
+      "no Show before its row closed",
+    );
+    assert.deepEqual(
+      says.at(-1).show.items.map((i) => [i.title, i.source.id]),
+      r.answer.show.items.map((i) => [i.title, i.source.id]),
+      "the last preview's rows are the final's",
+    );
+  });
 });

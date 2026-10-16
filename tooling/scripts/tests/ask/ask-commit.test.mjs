@@ -32,6 +32,7 @@ const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { createApi } = await import(at("apps/dashboard/src/client/api.ts"));
 const { commitProposal, undoProposal, editReply } = await import(at("apps/dashboard/src/legacy-bridge/ask/commit.ts"));
 const { recordDecision } = await import(at("apps/dashboard/src/server/verbs.ts"));
+const { installTabMemory } = await import(at("apps/dashboard/src/legacy-bridge/tab-memory.ts"));
 
 const A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const C1 = "cccccccc-cccc-4ccc-8ccc-ccccccccccc1";
@@ -1031,11 +1032,21 @@ test("the server's refusal is the card's answer, in the server's words", async (
   );
 });
 
-test("edit in the composer: the thread's route, then the words handed to the composer", () => {
+test("REGRESSION: edit in the composer leaves the words as the thread's reply draft, which its box opens with, and hands them to a box already open on that thread -- sent by event 400 ms after a second navigation, an Inbox that mounted later lost them", () => {
   const t = tab();
+  const kept = new Map();
+  t.win.sessionStorage = {
+    getItem: (k) => kept.get(k) ?? null,
+    setItem: (k, v) => kept.set(k, String(v)),
+    removeItem: (k) => kept.delete(k),
+  };
+  installTabMemory(t.win);
+  const heard = [];
+  t.win.dispatchEvent = (e) => heard.push([e.type, e.detail]);
   editReply(t.win, card("reply", { conversation_id: C1, text: "On our way." }));
-  assert.equal(t.win.location.pathname, `/w/harbor/inbox/th-${C1}`);
-  assert.ok(t.events.includes("event:inbox:focus-composer"));
+  assert.equal(t.win.__tabMemory.draft("reply", `th-${C1}`), "On our way.", "the draft the thread's box opens with");
+  assert.deepEqual(heard, [["inbox:focus-composer", { text: "On our way.", threadId: `th-${C1}` }]]);
+  assert.equal(t.win.location.pathname, "/w/harbor", "nothing navigates here: the card's own press opens the thread");
 });
 
 test("the ledger writer: an undo that names a decision the database does not have keeps the row without the link, and says so, rather than failing the verb", async () => {

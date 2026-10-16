@@ -23,6 +23,12 @@ export interface AskTurnShape {
   prompt_hash: string;
   effort: string;
   /**
+   * A draft, asked harder than `effort` (15 Oct 2026, ask-model.ts ASK_DRAFT_EFFORT): the effort it was raised to, and
+   * what found it -- its question's words, or a round at `effort` that began one, set aside and asked again. Null for a
+   * turn asked at `effort` throughout; a turn stored before it has no such key.
+   */
+  draft: { effort: string; by: "question" | "call" } | null;
+  /**
    * The speed the rounds ran at, as the edge said each one went (15 Oct 2026, fast mode on): fast mode, standard, or
    * mixed when fast mode's limit slowed some of them to standard. A turn stored before it has no such key: standard,
    * since nothing ran fast before.
@@ -59,7 +65,10 @@ export interface AskTurnShape {
   /** The reads the question named of another page, made before the first round (cross-page.ts). */
   cross_page: string[];
   rounds: number;
-  /** Each round's time from its request to its last event. */
+  /**
+   * Each round's time from its request to its last event: a round set aside for a draft (`draft.by` "call") and asked
+   * again is two here and one in `rounds`.
+   */
   rounds_ms: number[];
   /**
    * The calls that ran, each with its name and time, in order. A call cut off before its arguments ran nothing and
@@ -95,10 +104,17 @@ export interface AskTurnShape {
    * model's, as the edge's server-timing said them; null when it said nothing, or no round came back.
    */
   hop_ms: number | null;
-  /** Rounds that stopped at ASK_MAX_TOKENS. */
+  /** Rounds that stopped at their ceiling (askRoundCap: ASK_MAX_TOKENS, or a draft's ASK_DRAFT_MAX_TOKENS). */
   cap_hits: number;
   /** Whether the answer's format held for the turn (false once the API refused it, D15). */
   format: boolean;
+  /**
+   * Whether the answer tool was offered (ASK_ANSWER_TOOL on, 15 Oct 2026), and how the answer that ended the turn was
+   * written: through the tool, as text, or null where the model wrote none (cards alone, a failure). A turn stored
+   * before has neither key: no tool, and text where it answered.
+   */
+  answer_tool: boolean;
+  answer_in: "tool" | "text" | null;
   failed: boolean;
 }
 

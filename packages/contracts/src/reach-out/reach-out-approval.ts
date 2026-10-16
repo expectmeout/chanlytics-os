@@ -11,7 +11,7 @@ import { plural } from "../shared/words";
 import { runDraftedEmails, runHeldEmails } from "../waits/waits";
 import { RUN_WAITING_WORDS } from "../shell/campaign-rooms";
 import { composeLinksOf, type ComposeLinks } from "./owner/compose";
-import type { ReachOutRunDto } from "./reach-out-dtos";
+import type { ReachOutDraftedSend, ReachOutRunDto } from "./reach-out-dtos";
 import { holdDoors, HOLD_DOOR_WORDS, type ReachOutHold } from "./reach-out-words";
 import { reachOutRootOf } from "./reach-out-rules";
 import { approvalWordsOf, chainPaceOf, leadDoorOf, stepLabel } from "./reach-out-sheet";
@@ -175,20 +175,28 @@ export function toSendWordsOf(r: ReachOutRunDto, p: { timezone: string; now: num
   return {
     head: `To send · ${drafted.length}`,
     note: REACH_OUT_TO_SEND_LABELS.note,
-    rows: drafted.map((d): ToSendRowVM => ({
-      id: d.send_id,
-      leadId: d.lead_id,
-      followUp: d.follow_up === true,
-      name: d.business_name,
-      to: leadDoorOf(d.lead_id),
-      angle: d.angle,
-      address: d.to,
-      subject: d.subject,
-      text: d.text,
-      since: `handed to you ${clockNear(Date.parse(d.drafted_at), p.timezone, p.now)}`,
-      links: composeLinksOf({ to: d.to, subject: d.subject, text: d.text }),
-    })),
+    rows: drafted.map((d) => toSendRowOf(d, p)),
     labels: REACH_OUT_TO_SEND_LABELS,
+  };
+}
+
+/**
+ * One email handed to its owner, as every To send draws it: a run's (toSendWordsOf) and a sequence's People (contracts
+ * peopleNeedsOf), so a row reads and acts the same wherever it is laid out.
+ */
+export function toSendRowOf(d: ReachOutDraftedSend, p: { timezone: string; now: number }): ToSendRowVM {
+  return {
+    id: d.send_id,
+    leadId: d.lead_id,
+    followUp: d.follow_up === true,
+    name: d.business_name,
+    to: leadDoorOf(d.lead_id),
+    angle: d.angle,
+    address: d.to,
+    subject: d.subject,
+    text: d.text,
+    since: `handed to you ${clockNear(Date.parse(d.drafted_at), p.timezone, p.now)}`,
+    links: composeLinksOf({ to: d.to, subject: d.subject, text: d.text }),
   };
 }
 
@@ -206,8 +214,8 @@ const SENT_SINCE_WORDS: Record<string, string> = {
   no_address: "Their address is gone, so nothing more is written to them.",
 };
 
-/** The To send list's own acts and what each says once done. */
-const REACH_OUT_TO_SEND_LABELS = {
+/** The To send list's own acts and what each says once done: every To send's (a run's, a sequence's People). */
+export const REACH_OUT_TO_SEND_LABELS = {
   /**
    * How the list is worked, and what Skip does: the owner's word that it did not go counts as the business's first email
    * (00427's one-first rule; 0059's Risks), so neither this reach-out nor another writes to them after it.
@@ -227,6 +235,8 @@ const REACH_OUT_TO_SEND_LABELS = {
   gated: "say whether an email went",
   read: "Read it",
   hide: "Hide it",
+  /** The row's More, which holds Gmail, Outlook, Copy and its words. */
+  more: (name: string) => `More for the email to ${name}`,
   /** Asked once the owner opened or copied one, as the lead's own draft asks (LEAD_SENT_QUESTION). */
   asked: "Did it go?",
   /** A step after the first, asked at its Sent: the business may have answered the email before in the owner's inbox. */

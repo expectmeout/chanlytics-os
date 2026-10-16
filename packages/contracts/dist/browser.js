@@ -2857,8 +2857,8 @@ function violatesNoPrices(text) {
 function canonicalNumber(run) {
   const m = /^(\d{1,3}(?:[.,]\d{3})+|\d+)(?:[.,](\d{1,2}))?$/.exec(run);
   if (!m) return run.replace(/[.,]0+$/, "");
-  const [, whole = "", cents = ""] = m;
-  const int3 = String(Number(whole.replace(/[.,]/g, "")));
+  const [, whole2 = "", cents = ""] = m;
+  const int3 = String(Number(whole2.replace(/[.,]/g, "")));
   const dec = cents.replace(/0+$/, "");
   return dec ? `${int3}.${dec}` : int3;
 }
@@ -2902,15 +2902,15 @@ function numberOfWords(words2) {
 var CURRENCY_WORDS = new RegExp(String.raw`\b${COUNTRY}(?:${CODES}|${NAMES}|quid)\b`, "gi");
 var PERCENT_SIGN = new RegExp(PERCENT, "i");
 var DEAL = /\b(?:2\s?x\s?1|dos por uno)\b/i;
-function figureOf(whole) {
-  if (DEAL.test(whole)) return "2x1";
-  const percent = PERCENT_SIGN.test(whole) ? "%" : "";
-  const run = /\d+(?:[.,]\d+)*/.exec(whole)?.[0];
+function figureOf(whole2) {
+  if (DEAL.test(whole2)) return "2x1";
+  const percent = PERCENT_SIGN.test(whole2) ? "%" : "";
+  const run = /\d+(?:[.,]\d+)*/.exec(whole2)?.[0];
   if (run) return `${canonicalNumber(run)}${percent}`;
   const spelled = numberOfWords(
-    whole.replace(CURRENCY_WORDS, " ").replace(PERCENT_SIGN, " ").replace(/\b(?:off|discount)\b/gi, " ")
+    whole2.replace(CURRENCY_WORDS, " ").replace(PERCENT_SIGN, " ").replace(/\b(?:off|discount)\b/gi, " ")
   );
-  return spelled !== null ? `${spelled}${percent}` : whole.toLowerCase().replace(/\s+/g, " ").trim();
+  return spelled !== null ? `${spelled}${percent}` : whole2.toLowerCase().replace(/\s+/g, " ").trim();
 }
 var NOT_A_PRICE_AFTER = String.raw`(?!\d|[.,]\d|-\d|\s*(?::|%|-?\s*(?:am|pm|a\.m|p\.m|o'clock|min|mins|minutes?|hours?|hrs?|people|persons?|guests?|days?|weeks?|months?|years?|minutos?|horas?|personas?|d[ií]as?|semanas?|meses|años?)\b))`;
 var RANGE_TOP = new RegExp(
@@ -5856,7 +5856,7 @@ function fillSlots(text, values, set) {
   const kind = set ?? { kind: "numbered" };
   return text.replace(
     patternOf(kind),
-    (whole, inner) => slotValueOf(set, keyInSet(kind, inner), values) ?? whole
+    (whole2, inner) => slotValueOf(set, keyInSet(kind, inner), values) ?? whole2
   );
 }
 function slotValues(set, known) {
@@ -6061,6 +6061,7 @@ function versionsOf(rows2, name) {
   }
   return out;
 }
+var LIVE_VERSION_STATES = /* @__PURE__ */ new Set(["approved", "pending"]);
 
 // src/reach-out/reach-out-hand.ts
 var HAND_KINDS = ["call", "note"];
@@ -6489,14 +6490,15 @@ var THINKING_TYPES = ["adaptive", "between_tools", "disabled"];
 var { OPUS_5_5, OPUS_5, SONNET_5_5, SONNET_5, HAIKU_5_5, HAIKU_4_5 } = MODELS;
 var MODEL_TAKES = {
   // Thinking can't be turned off on Opus 5.5: effort is its only control.
-  [OPUS_5_5]: { thinking: ["adaptive"], fast: true },
-  [OPUS_5]: { thinking: ["adaptive", "disabled"], fast: true },
-  [SONNET_5_5]: { thinking: ["adaptive", "between_tools"], fast: false },
-  [SONNET_5]: { thinking: ["adaptive", "disabled"], fast: false },
-  // Haiku 5.5 takes `disabled` at effort high or below, which is every effort the gateway lets through.
-  [HAIKU_5_5]: { thinking: ["adaptive", "disabled"], fast: false },
+  [OPUS_5_5]: { thinking: ["adaptive"], fast: true, effortMessages: true },
+  [OPUS_5]: { thinking: ["adaptive", "disabled"], fast: true, effortMessages: true },
+  // Sonnet 5.5 takes an effort message only while it thinks: never beside `between_tools`, which no route sends.
+  [SONNET_5_5]: { thinking: ["adaptive", "between_tools"], fast: false, effortMessages: true },
+  [SONNET_5]: { thinking: ["adaptive", "disabled"], fast: false, effortMessages: false },
+  // Haiku 5.5 takes `disabled` at effort high or below; no route sends it either.
+  [HAIKU_5_5]: { thinking: ["adaptive", "disabled"], fast: false, effortMessages: true },
   // Haiku 4.5 thinks only on a token budget, which no route sends: it runs without.
-  [HAIKU_4_5]: { thinking: ["disabled"], fast: false }
+  [HAIKU_4_5]: { thinking: ["disabled"], fast: false, effortMessages: false }
 };
 function modelTakes(model) {
   return MODEL_TAKES[model] ?? null;
@@ -6504,7 +6506,7 @@ function modelTakes(model) {
 function hasFastMode(model) {
   return modelTakes(model)?.fast === true;
 }
-var MODEL_EFFORTS = ["low", "medium", "high"];
+var MODEL_EFFORTS = ["low", "medium", "high", "xhigh", "max"];
 var MODEL_PURPOSES = [
   "receptionist",
   "reply_draft",
@@ -8583,8 +8585,8 @@ function settingsChangedWords(p) {
   const from = textAt(p, "from");
   const to = textAt(p, "to");
   if (from && to) return `renamed from \u201C${from}\u201D to \u201C${to}\u201D`;
-  const fields = Array.isArray(p.fields) ? p.fields.filter((f) => typeof f === "string") : [];
-  return fields.length ? fields.slice(0, 4).join(", ") : null;
+  const fields2 = Array.isArray(p.fields) ? p.fields.filter((f) => typeof f === "string") : [];
+  return fields2.length ? fields2.slice(0, 4).join(", ") : null;
 }
 function importWords(p) {
   const n = (k) => numberAt(p, k) ?? 0;
@@ -8775,8 +8777,8 @@ var exportedWords = (what) => what === "workspace" ? "the records" : what === "p
 function activityWords(kind, payload) {
   const p = payload && typeof payload === "object" && !Array.isArray(payload) ? payload : {};
   const base = kind === "take_over" && textAt(p, "how") === "transfer" ? "Took over a call" : WORDS[kind] ?? humanize(kind);
-  const whole = WHOLE_SENTENCE.get(kind);
-  if (whole) return whole(p, base);
+  const whole2 = WHOLE_SENTENCE.get(kind);
+  if (whole2) return whole2(p, base);
   const bits2 = [];
   switch (kind) {
     case "take_over": {
@@ -9593,8 +9595,8 @@ var NAMES_A_PLACE = /^\s+(?:in|near|around|within|across|throughout)\s+(?:[A-Z]|
 function planWho(plan) {
   const a = plan.area;
   const known = new Set(bits(`${a.label} ${a.query} ${a.zip ?? ""} ${a.state} ${US_NAMES[a.state] ?? ""}`));
-  const whole = SAYS_WHERE.test(plan.name) && bits(plan.name).some((w) => known.has(w));
-  let cut = whole ? "" : plan.name.trim();
+  const whole2 = SAYS_WHERE.test(plan.name) && bits(plan.name).some((w) => known.has(w));
+  let cut = whole2 ? "" : plan.name.trim();
   const m = PLACE_CLAUSE.exec(cut);
   if (m && (bits(m[0]).some((w) => known.has(w)) || NAMES_A_PLACE.test(m[0]))) cut = cut.slice(0, m.index).trim();
   const said = new Set(plan.criteria.flatMap((c) => bits(c.text)));
@@ -12371,6 +12373,38 @@ function adWith(ad, read, patch) {
   return { ...next, endDay, budget: { ...ad.budget, amountMinor }, aboutADayMinor };
 }
 
+// src/ai/effort.ts
+var EFFORT_MESSAGE_BETA = "mid-conversation-output-config-2026-07-01";
+function effortMessage(effort) {
+  return { role: "system", content: [], output_config: { effort } };
+}
+var isPlainObject = (v) => !!v && typeof v === "object" && !Array.isArray(v);
+function isEffortMessage(m) {
+  if (!isPlainObject(m)) return false;
+  const { role, content, output_config: oc, ...rest } = m;
+  if (role !== "system" || !Array.isArray(content) || content.length > 0 || Object.keys(rest).length > 0) return false;
+  if (!isPlainObject(oc)) return false;
+  const { effort, ...more2 } = oc;
+  return Object.keys(more2).length === 0 && MODEL_EFFORTS.includes(effort);
+}
+function effortInForce(messages, base) {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i];
+    if (isEffortMessage(m)) return m.output_config.effort;
+  }
+  return base;
+}
+function effortAbove(a, b) {
+  return MODEL_EFFORTS.indexOf(a) > MODEL_EFFORTS.indexOf(b);
+}
+function foldEffortMessages(body) {
+  const messages = Array.isArray(body.messages) ? body.messages : [];
+  const effort = effortInForce(messages, null);
+  if (effort === null) return body;
+  const own = isPlainObject(body.output_config) ? body.output_config : {};
+  return { ...body, messages: messages.filter((m) => !isEffortMessage(m)), output_config: { ...own, effort } };
+}
+
 // src/ai/flags.ts
 var FLAG_MECHANISMS = [
   "edge_env",
@@ -12558,6 +12592,13 @@ var FLAGS = [
     owner: "Ruben",
     sunset: null,
     kept: "Fast mode is a research preview at twice the price: the switch off is a variable, never a code change."
+  },
+  {
+    name: "ASK_ANSWER_TOOL",
+    mechanism: "dashboard_env",
+    does: "Ask writes its answer through the answer tool, whose input streams after a read; empty is off, on turns it on (ask-model.ts).",
+    owner: "Ruben",
+    sunset: "2026-11-30"
   },
   {
     name: "EDGE_PROVIDERS",
@@ -15854,6 +15895,38 @@ var runSpec = {
     return id ? `broadcasts/run:${id}` : "broadcasts";
   }
 };
+var playbookRunSpec = {
+  needs: "operator",
+  gate: "approve",
+  commit: ({ payload: pl }) => {
+    const id = idIn(pl, "playbook_id");
+    return id ? { route: "POST playbooks/[id]/run", params: { id } } : refuseWith(PROPOSAL_WORDS.cannotApprove);
+  },
+  receipt: ({ payload: pl }, data) => {
+    const d = rec(data);
+    const name = asText(d.name ?? pl.name) || LIFECYCLE_TOAST.nameless;
+    const n = Number(d.eligible) || 0;
+    const people = `${n} ${n === 1 ? "person" : "people"}`;
+    if (d.outcome === "sent") return `${name} \u2014 ${people}, ${runGoes(pl, data)}`;
+    if (d.outcome === "held") return `${name} \u2014 ${people} waiting for your approval`;
+    return `${name} \u2014 nobody new to send to right now`;
+  },
+  undo: {
+    label: () => "Cancel it, if it has not finished",
+    window: "ten_minutes",
+    record: (_p, data) => {
+      const d = rec(data);
+      const id = asText(d.broadcast_id);
+      return d.outcome === "sent" && id ? { broadcast_id: id, decision_id: decisionOf(data) } : null;
+    },
+    call: cancelCall,
+    receipt: canceled
+  },
+  open: ({ payload }) => {
+    const id = idIn(payload, "playbook_id");
+    return id ? `campaigns/moment:${id}` : "outbound";
+  }
+};
 var whatsappFiledWords = (state) => {
   const at3 = metaStatusOf(state);
   const where = `(see ${CAMPAIGN_ROOMS.home} \u203A ${CAMPAIGN_ROOMS.library})`;
@@ -16067,6 +16140,7 @@ var ASK_GUIDE_PAGES = [
       "sequence_step_remove",
       "sequence_words",
       "sequence_start",
+      "playbook_run",
       "sequence_leave",
       "sequence_send_decide",
       "sequence_send_said",
@@ -16698,10 +16772,10 @@ function manySaid(data, verb) {
   const why = asText(rec(failedRows[0]).message) || (skipped2.length ? "no longer in this workspace" : "");
   return { done, failed, said: failed ? `${failed} could not be ${verb}${why ? ` \u2014 ${why}` : ""}` : "" };
 }
-function manyCalls(route, pl, fields) {
+function manyCalls(route, pl, fields2) {
   const ids = uniqueIds(pl.ids);
   if (!ids.length) return refuseWith("Pick at least one person.");
-  const rest = fieldsOf(pl, fields);
+  const rest = fieldsOf(pl, fields2);
   const calls = inBatches(ids).map((part) => ({ route, body: { ...rest, ids: part }, events: [PEOPLE_CHANGED] }));
   return oneOrMany(calls);
 }
@@ -19431,20 +19505,23 @@ function toSendWordsOf(r2, p) {
   return {
     head: `To send \xB7 ${drafted2.length}`,
     note: REACH_OUT_TO_SEND_LABELS.note,
-    rows: drafted2.map((d) => ({
-      id: d.send_id,
-      leadId: d.lead_id,
-      followUp: d.follow_up === true,
-      name: d.business_name,
-      to: leadDoorOf(d.lead_id),
-      angle: d.angle,
-      address: d.to,
-      subject: d.subject,
-      text: d.text,
-      since: `handed to you ${clockNear(Date.parse(d.drafted_at), p.timezone, p.now)}`,
-      links: composeLinksOf({ to: d.to, subject: d.subject, text: d.text })
-    })),
+    rows: drafted2.map((d) => toSendRowOf(d, p)),
     labels: REACH_OUT_TO_SEND_LABELS
+  };
+}
+function toSendRowOf(d, p) {
+  return {
+    id: d.send_id,
+    leadId: d.lead_id,
+    followUp: d.follow_up === true,
+    name: d.business_name,
+    to: leadDoorOf(d.lead_id),
+    angle: d.angle,
+    address: d.to,
+    subject: d.subject,
+    text: d.text,
+    since: `handed to you ${clockNear(Date.parse(d.drafted_at), p.timezone, p.now)}`,
+    links: composeLinksOf({ to: d.to, subject: d.subject, text: d.text })
   };
 }
 var SENT_SINCE_WORDS = {
@@ -19476,6 +19553,8 @@ var REACH_OUT_TO_SEND_LABELS = {
   gated: "say whether an email went",
   read: "Read it",
   hide: "Hide it",
+  /** The row's More, which holds Gmail, Outlook, Copy and its words. */
+  more: (name) => `More for the email to ${name}`,
   /** Asked once the owner opened or copied one, as the lead's own draft asks (LEAD_SENT_QUESTION). */
   asked: "Did it go?",
   /** A step after the first, asked at its Sent: the business may have answered the email before in the owner's inbox. */
@@ -19584,21 +19663,25 @@ var isSequencesParam = (param) => param === "sequences";
 var isTab = (word) => SEQUENCE_TABS.some((t) => t === word);
 function parseSequencesRoute(route) {
   const [path = ""] = route.split("?");
-  const [root, view, id, tab] = path.split("/");
+  const [root, view, id, tab, day] = path.split("/");
   if (root !== "campaigns" || view !== "sequences") return null;
   if (!id) return { view: "list" };
   if (id === "new") return { view: "new" };
-  return { view: "record", id, tab: isTab(tab) ? tab : "steps" };
+  const on = isTab(tab) ? tab : "steps";
+  return { view: "record", id, tab: on, ...on === "history" && day ? { day } : {} };
 }
-var sequenceRoute = (id, tab = "steps") => tab === "steps" ? `${SEQUENCES_ROUTE}/${id}` : `${SEQUENCES_ROUTE}/${id}/${tab}`;
+var sequenceRoute = (id, tab = "steps", day) => tab === "steps" ? `${SEQUENCES_ROUTE}/${id}` : `${SEQUENCES_ROUTE}/${id}/${tab}${tab === "history" && day ? `/${day}` : ""}`;
+var runSheetRoute = (id) => `broadcasts/run:${id}/sheet`;
 function sequenceLandingOf(route) {
   const [path = ""] = route.split("?");
-  const [root, param = ""] = path.split("/");
+  const [root, param = "", rest] = path.split("/");
   if (root === "campaigns") {
     if (param === "" || param.startsWith("in:")) return SEQUENCES_ROUTE;
     const moment2 = /^moment:([^:/]+)(:people)?$/.exec(param);
     if (moment2?.[1]) return sequenceRoute(moment2[1], moment2[2] ? "people" : "steps");
   }
+  const run = root === "broadcasts" && rest === void 0 ? /^run:([^:/]+)$/.exec(param) : null;
+  if (run?.[1]) return sequenceRoute(run[1], "history", run[1]);
   return null;
 }
 
@@ -19872,6 +19955,8 @@ var PAGE_SPECS = {
   sequence_discard: sequenceDiscardSpec,
   playbook_change: playbookChangeSpec,
   run: runSpec,
+  // A campaign run now at the member's request: Run now, under a sequence's More.
+  playbook_run: playbookRunSpec,
   // A booking the receptionist asked for, answered on Today, in the Inbox and on the Calendar (decision 0061).
   booking_request: bookingRequestSpec
 };
@@ -20098,13 +20183,42 @@ function skillsAsked(question) {
 
 // src/ask/ask-language.ts
 var ASK_LANGUAGES = ["en", "es", "other"];
-var ES_HINT = /[áéíóúñ¿¡]|\b(qué|que|quién|quien|cómo|como|cuándo|cuando|dónde|donde|hoy|mañana|hola|gracias|abierto|libre|cita|cliente|llam[oó]|llamaron|necesita|espera|por favor|el|la|los|las|una?|est[aá]n?)\b/i;
-var EN_HINT = /\b(what|who|when|where|how|did|does|is|are|open|today|tomorrow|call|called|needs|waiting|the|a|an|please|tell)\b/i;
+var ES_HINT = /[áéíóúñ¿¡]|(?<!\p{L})(qué|que|quién|quien|cómo|como|cuándo|cuando|dónde|donde|hoy|mañana|hola|gracias|abierto|libre|cita|cliente|llam[oó]|llamaron|necesita|espera|por favor|el|la|los|las|una?|est[aá]n?)(?!\p{L})/giu;
+var EN_HINT = /(?<!\p{L})(what|who|when|where|how|did|does|is|are|open|today|tomorrow|call|called|needs|waiting|the|a|an|please|tell)(?!\p{L})/giu;
 function detectLanguage(text) {
   const es = (text.match(ES_HINT) || []).length;
   const en = (text.match(EN_HINT) || []).length;
   if (!es && !en) return "other";
   return es > en ? "es" : "en";
+}
+var MESSAGE_LANGUAGES = ["en", "es"];
+var SPANISH_NAMES = { ingles: "en", castellano: "es" };
+function messageLanguagesOf(names3) {
+  const out = [];
+  for (const word of names3.flatMap((n) => String(n).split(/[,/&]|\s(?:and|y)\s/i))) {
+    const bare = word.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase().trim();
+    const base = SPANISH_NAMES[bare] ?? languageBase(findLanguages(word.trim())[0]?.id);
+    const language = MESSAGE_LANGUAGES.find((l) => l === base);
+    if (word.trim() && language && !out.includes(language)) out.push(language);
+  }
+  return out;
+}
+function messageLanguageOf(business, turn) {
+  const asked = MESSAGE_LANGUAGES.find((l) => l === turn);
+  if (asked && (business.length === 0 || business.includes(asked))) return asked;
+  return business[0] ?? asked ?? "en";
+}
+var ALSO_IN = {
+  en: { en: "Can you write it in English too?", es: "Can you write it in Spanish too?" },
+  es: { en: "\xBFPuedes escribirlo tambi\xE9n en ingl\xE9s?", es: "\xBFPuedes escribirlo tambi\xE9n en espa\xF1ol?" }
+};
+function messageLanguagesNext(cards, names3, turn) {
+  const business = messageLanguagesOf(names3);
+  if (business.length < 2 || !cards.length || cards.some((c) => c.kind !== "message" || c.plan)) return [];
+  const written = new Set(
+    cards.map((c) => languageBase(typeof c.payload.language === "string" ? c.payload.language : ""))
+  );
+  return business.filter((l) => !written.has(l)).map((l) => ALSO_IN[turn === "es" ? "es" : "en"][l]);
 }
 
 // src/ask/answer-text.ts
@@ -20969,9 +21083,9 @@ function normalizeAnswer(raw, read, fallback) {
   const b = asObj(show.breakdown);
   const parts2 = asArr(b.parts).map(asObj).map((p) => ({ label: words(p.label, C.label), value: num(p.value), warn: p.warn === true }));
   const total = num(b.total);
-  const whole = words(b.label, C.label);
-  const adds = !!whole && parts2.length >= 2 && parts2.length <= C.parts && parts2.every((p) => p.label && Number.isFinite(p.value) && p.value >= 0) && Number.isFinite(total) && Math.abs(parts2.reduce((s, p) => s + p.value, 0) - total) < 1e-9;
-  const breakdown = adds ? { label: whole, total, parts: parts2, source: ground(b.source) } : null;
+  const whole2 = words(b.label, C.label);
+  const adds = !!whole2 && parts2.length >= 2 && parts2.length <= C.parts && parts2.every((p) => p.label && Number.isFinite(p.value) && p.value >= 0) && Number.isFinite(total) && Math.abs(parts2.reduce((s, p) => s + p.value, 0) - total) < 1e-9;
+  const breakdown = adds ? { label: whole2, total, parts: parts2, source: ground(b.source) } : null;
   const l = asObj(show.list);
   const list2 = {
     style: ASK_LIST_STYLES.find((x) => x === l.style) ?? "bullets",
@@ -21014,18 +21128,22 @@ function answerWords(a) {
   ].filter(Boolean).join(" ");
 }
 var sentence = (s) => /[.!?]$/.test(s) ? s : `${s}.`;
-function answerForCards(cards, language, words2) {
+function answerForCards(cards, language, words2, lead) {
   const es = language === "es";
   const n = cards.length;
   const plan = planCountWords(cards, language, words2);
   const a = structured(
-    plan.headline ?? (n === 1 ? es ? sentence(`Una tarjeta para revisar: ${cards[0].title}`) : sentence(`One card to review: ${cards[0].title}`) : es ? `${n} tarjetas para revisar.` : `${n} cards to review.`),
+    lead?.headline ?? plan.headline ?? (n === 1 ? es ? sentence(`Una tarjeta para revisar: ${cards[0].title}`) : sentence(`One card to review: ${cards[0].title}`) : es ? `${n} tarjetas para revisar.` : `${n} cards to review.`),
     language
   );
   a.say.detail = clip(
     plan.detail ?? (n === 1 ? es ? "Apru\xE9bala, c\xE1mbiala o desc\xE1rtala: nada pasa hasta que lo hagas." : "Approve it, change it or dismiss it: nothing happens until you do." : es ? "Cada una se aprueba por separado: apru\xE9bala, c\xE1mbiala o desc\xE1rtala; nada pasa hasta que lo hagas." : "Each is its own press: approve, change or dismiss each one; nothing happens until you do."),
     ASK_ANSWER_CAPS.detail
   );
+  if (lead) {
+    a.do.open = { ...lead.open, now: false };
+    a.do.next = lead.next.slice(0, ASK_ANSWER_CAPS.next);
+  }
   return a;
 }
 function failedAnswer(sentenceText, language) {
@@ -21252,6 +21370,63 @@ function partialSay(prefix) {
   if (at3 < 0) return null;
   const rest = prefix.slice(at3);
   return sayAsDrawn({ headline: partialField(rest, "headline"), detail: partialField(rest, "detail") });
+}
+function stringEnd(s, at3) {
+  for (let i = at3 + 1; i < s.length; i++) {
+    if (s[i] === "\\") i++;
+    else if (s[i] === '"') return i;
+  }
+  return -1;
+}
+function closedShowEntries(prefix) {
+  const got = { figures: [], items: [] };
+  const stack = [];
+  for (let i = 0; i < prefix.length; i++) {
+    const c = prefix[i];
+    const top = stack.at(-1);
+    if (c === '"') {
+      const end = stringEnd(prefix, i);
+      if (end < 0) break;
+      if (top?.open === "{" && top.expectsKey) {
+        top.key = String(JSON.parse(prefix.slice(i, end + 1)));
+        top.expectsKey = false;
+      }
+      i = end;
+    } else if (c === "{" || c === "[") {
+      const name = top ? top.open === "{" ? top.key : "[]" : null;
+      stack.push({ open: c, name, start: i, key: null, expectsKey: c === "{" });
+    } else if (c === "}" || c === "]") {
+      const done = stack.pop();
+      const [, show, list2] = stack;
+      const at3 = stack.length === 3 && show?.name === "show" && list2?.open === "[" ? list2.name : null;
+      if (done?.open === "{" && (at3 === "figures" || at3 === "items")) {
+        try {
+          got[at3].push(JSON.parse(prefix.slice(done.start, i + 1)));
+        } catch {
+        }
+      }
+    } else if (c === "," && top?.open === "{") top.expectsKey = true;
+  }
+  return got;
+}
+function partialShow(prefix, read, language) {
+  const { figures, items } = closedShowEntries(prefix);
+  if (!figures.length && !items.length) return { figures: [], items: [] };
+  const shaped = normalizeAnswer({ say: { headline: "-" }, show: { figures, items }, language }, read, language);
+  return shaped.ok ? { figures: shaped.answer.show.figures, items: shaped.answer.show.items } : { figures: [], items: [] };
+}
+function answerSoFar(say2, json, read, language) {
+  const show = json ? partialShow(json, read, language) : null;
+  return show && (show.figures.length || show.items.length) ? { ...say2, show } : say2;
+}
+var ASK_STOPPED_WORDS = {
+  en: "Stopped before the answer was finished.",
+  es: "Detenido antes de terminar la respuesta."
+};
+function stoppedAnswer(said, language) {
+  const a = failedAnswer(ASK_STOPPED_WORDS[language === "es" ? "es" : "en"], language);
+  const so = [said?.headline, said?.detail].filter(Boolean).join(" ");
+  return { ...a, say: { ...a.say, detail: clip(so, ASK_ANSWER_CAPS.detail) } };
 }
 
 // src/conversations/call-dto.ts
@@ -21781,9 +21956,71 @@ function toLiveVM(calls, channels, tz, now = /* @__PURE__ */ new Date()) {
 }
 
 // src/ask/ask-fast-paths.ts
-var NEEDS_RE = /\b(who needs me|who needs my|needs? (my|me)\b|what('s| is| do i have)? waiting|waiting (on|for) me|anyone waiting|qui[eé]n me necesita|qu[eé] (me )?espera|qu[eé] (hay )?pendiente|pendientes?)\b/i;
-var CALLS_RE = /\b((did|has|have) (anyone|someone|anybody|somebody) (call|called|rang|phoned)|missed calls?|who called|any calls?|llam[oó] alguien|llamaron|llamadas? perdidas?|qui[eé]n llam[oó]|alguna llamada)\b/i;
-var OPEN_RE = /\b(what('s| is) open|what('s| is) free|openings?|availab|free (slot|slots|time)|any (slots?|room|space|time)|qu[eé] (hay|tengo) (libre|disponible)|disponibilidad|disponibles?|huecos?|espacios? libres?|cu[aá]ndo (hay|tienen) (libre|espacio))\b/i;
+var QUICK_WORDS = 8;
+var FILLER = "(?:(?:hey|ok|okay|so|and|oye|bueno|y) )?";
+var NOW = "(?: (?:right now|now|today|so far today|ahora(?: mismo)?|hoy))?";
+var CALLED_WHEN = "(?: (?:today|so far today|while i was (?:busy|out|away)|hoy|mientras estaba ocupad[oa]))?";
+var DAY_FORM = "(?:today|tomorrow|hoy|ma\xF1ana|(?:(?:on|this|el|este) )?(?:mon|monday|tue|tues|tuesday|wed|wednesday|thu|thur|thursday|fri|friday|sat|saturday|sun|sunday|lunes|martes|mi[e\xE9]rcoles|jueves|viernes|s[a\xE1]bado|domingo))";
+var FOR_SERVICE = "(?:for|para) (?:an? |un |una )?[a-z\xE0-\xFF'-]+(?: [a-z\xE0-\xFF'-]+){0,2}";
+var whole = (forms, tail) => new RegExp(`^${FILLER}(?:${forms.join("|")})${tail}$`);
+var NEEDS_RE = whole(
+  [
+    "who needs (?:me|my (?:attention|answer|reply|help))",
+    "what needs (?:me|my (?:attention|answer|reply))",
+    "(?:who|what)(?:'s|s| is) waiting(?: (?:on|for) me)?",
+    "(?:is )?(?:anyone|anybody|someone) waiting(?: (?:on|for) me)?",
+    "what do i have waiting",
+    "(?:is )?anything (?:waiting|pending)(?: (?:on|for) me)?",
+    "qui[e\xE9]n me (?:necesita|espera)",
+    "qu[e\xE9] me espera",
+    "qu[e\xE9] (?:hay|tengo) pendientes?",
+    "(?:hay )?alguien (?:me espera|esperando)",
+    "(?:algo )?pendientes?"
+  ],
+  NOW
+);
+var CALLS_RE = whole(
+  [
+    "(?:did|has|have) (?:anyone|someone|anybody|somebody) (?:call|called|rang|rung|phoned)(?: me| us)?",
+    "(?:any|were there any) (?:missed )?calls?",
+    "missed calls?",
+    "did (?:i|we) (?:miss|get|have) any (?:missed )?calls?",
+    "did (?:i|we) miss (?:a|any) calls?",
+    "how many (?:missed )?calls(?: did (?:i|we) (?:miss|get))?",
+    "who called(?: me| us)?",
+    "(?:me )?llam[o\xF3] alguien",
+    "alguien (?:me )?(?:llam[o\xF3]|ha llamado)",
+    "qui[e\xE9]n (?:me )?(?:llam[o\xF3]|ha llamado)",
+    "(?:me )?llamaron",
+    "(?:alguna|hay|hubo) llamadas? perdidas?",
+    "alguna llamada",
+    "(?:cu[a\xE1]ntas )?llamadas? perdidas?"
+  ],
+  CALLED_WHEN
+);
+var OPEN_RE = whole(
+  [
+    "what(?:'s|s| is) (?:open|free|available)",
+    "(?:is there )?anything (?:open|free|available)",
+    "(?:any|are there any) (?:openings?|availability|slots?|room|space|free (?:slots?|times?|spots?)|open (?:slots?|times?|spots?))",
+    "(?:do|does) (?:i|we) have (?:any )?(?:openings?|availability|room|space|free (?:time|slots?))",
+    "openings?",
+    "availability",
+    "qu[e\xE9] (?:hay|tengo|tenemos) (?:libre|disponible)",
+    "(?:hay )?(?:disponibilidad|huecos?|espacios? libres?|algo libre|horas? libres?)",
+    "cu[a\xE1]ndo (?:hay|tienen|tenemos|tengo) (?:libre|espacio|hueco|disponibilidad)"
+  ],
+  `(?: ${DAY_FORM})?(?: ${FOR_SERVICE})?(?: ${DAY_FORM})?`
+);
+var ACT_RE = /\b(draft|write|send|set ?up|make|turn|create|reply|respond|text|email|book|schedule|cancel|remind|tell|redacta|escribe|env[ií]a|manda|configura|crea|haz|responde|apaga|enciende|programa|reserva|agenda|cancela|recu[eé]rdame|dile)\b/i;
+var PERIOD_RE = /\b(yesterday|last|next|week|weekend|month|year|since|between|compare|vs|versus|ayer|anoche|semana|mes|año|pasad[oa]|pr[oó]xim[oa]|desde|entre|compara)\b/i;
+var NOT_A_NAME2 = /^(mon|tue|tues|wed|thu|thur|thurs|fri|sat|sun)(day|sday|nesday|rsday|urday)?$|^(today|tomorrow|hoy|mañana|lunes|martes|mi[eé]rcoles|jueves|viernes|s[aá]bado|domingo)$/i;
+function namesSomeone(question) {
+  return question.split(/\s+/).map((w) => w.replace(/^[^\p{L}]+|[^\p{L}]+$/gu, "")).slice(1).some((w) => /^\p{Lu}\p{Ll}/u.test(w) && !NOT_A_NAME2.test(w));
+}
+function quickWords(question) {
+  return question.replace(/[’‘`´]/g, "'").toLowerCase().replace(/[¿¡?!.,;:]+/g, " ").replace(/\s+/g, " ").trim();
+}
 var DAY_WORDS = [
   [/\b(mon|monday|lunes)\b/i, "mon"],
   [/\b(tue|tues|tuesday|martes)\b/i, "tue"],
@@ -21819,11 +22056,49 @@ function dayFromQuestion(q, now, tz) {
 }
 function askIntent(question, now, tz) {
   const q = question.trim();
-  if (!q || q.length > 160) return null;
-  if (NEEDS_RE.test(q)) return { kind: "needs" };
-  if (CALLS_RE.test(q)) return { kind: "calls" };
-  if (OPEN_RE.test(q)) return { kind: "openings", day: dayFromQuestion(q, now, tz), service: q };
+  const words2 = quickWords(q);
+  if (!words2 || q.length > 160 || words2.split(" ").length > QUICK_WORDS) return null;
+  if (ACT_RE.test(words2) || PERIOD_RE.test(words2) || namesSomeone(q)) return null;
+  if (NEEDS_RE.test(words2)) return { kind: "needs" };
+  if (CALLS_RE.test(words2)) return { kind: "calls" };
+  if (OPEN_RE.test(words2)) return { kind: "openings", day: dayFromQuestion(q, now, tz), service: q };
   return null;
+}
+var C2 = ASK_ANSWER_CAPS;
+var CITATION_KINDS = new Set(ASK_CITATION_KINDS);
+var fields = (v) => v && typeof v === "object" && !Array.isArray(v) ? v : {};
+var capTo = (v, n) => clip(typeof v === "string" ? v : "", n);
+var appRoute = (v) => typeof v === "string" && v.length <= 300 && /^[a-z][a-z0-9-]*(?:\/[^\s\\]*)?$/i.test(v) && !v.includes("//") ? v : null;
+function quickAnswerOf(raw) {
+  const a = fields(raw);
+  const say2 = fields(a.say);
+  const headline = capTo(say2.headline, C2.headline);
+  if (a.v !== 2 || a.form !== "structured" || !headline) return null;
+  const rows2 = fields(a.show).items;
+  const items = [];
+  for (const it of (Array.isArray(rows2) ? rows2 : []).slice(0, C2.items).map(fields)) {
+    const s = fields(it.source);
+    const title = capTo(it.title, C2.title);
+    const to = appRoute(s.to);
+    if (!title || !to || typeof s.kind !== "string" || !CITATION_KINDS.has(s.kind) || typeof s.id !== "string")
+      return null;
+    if (!s.id || s.id.length > 300) return null;
+    const label = capTo(s.label, C2.label) || title;
+    const source = { kind: s.kind, id: s.id, label, to, door: s.door !== false };
+    items.push({ title, meta: capTo(it.meta, C2.meta), line: capTo(it.line, C2.line), source });
+  }
+  const o = fields(a.do).open;
+  const openTo = o ? appRoute(fields(o).to) : null;
+  if (o && !openTo) return null;
+  const open = openTo ? { to: openTo, label: capTo(fields(o).label, C2.label), now: false } : null;
+  return {
+    v: 2,
+    form: "structured",
+    say: { headline, detail: capTo(say2.detail, C2.detail) },
+    show: { figures: [], items, breakdown: null, list: { style: "bullets", entries: [] } },
+    do: { open, next: [] },
+    language: a.language === "es" || a.language === "en" ? a.language : "other"
+  };
 }
 function callsToday(calls, now, tz) {
   const today = dayKey(now, tz);
@@ -21965,15 +22240,28 @@ function askJump(query, index, limit = 6) {
 var ASK_MODEL = MODEL_ROUTES.ask.model;
 var ASK_EFFORT = "low";
 var ASK_SPEED = "fast";
-function askModelProfile(name, effort, speed) {
+var ANSWER_TOOL_ON = "on";
+var ASK_DRAFT_EFFORT = "high";
+var ASK_DRAFT_MAX_TOKENS = 32e3;
+function askRoundCap(effort) {
+  return effort !== null && effortAbove(effort, "medium") ? ASK_DRAFT_MAX_TOKENS : ASK_MAX_TOKENS;
+}
+var effortOf = (raw) => {
+  const asked = (raw ?? "").trim();
+  return MODEL_EFFORTS.includes(asked) ? asked : null;
+};
+function askModelProfile(name, effort, speed, draft, answer) {
   const named = (name ?? "").trim();
   const id = readsAsModel(named) ? named : ASK_MODEL;
-  const asked = (effort ?? "").trim();
   const wanted = (speed ?? "").trim() === "standard" ? "standard" : ASK_SPEED;
+  const at3 = effortOf(effort) ?? ASK_EFFORT;
+  const drafted2 = (draft ?? "").trim() === "off" ? null : effortOf(draft) ?? ASK_DRAFT_EFFORT;
   return {
     id,
-    effort: MODEL_EFFORTS.includes(asked) ? asked : ASK_EFFORT,
-    speed: wanted === "fast" && hasFastMode(id) ? "fast" : "standard"
+    effort: at3,
+    speed: wanted === "fast" && hasFastMode(id) ? "fast" : "standard",
+    draft: drafted2 && effortAbove(drafted2, at3) && modelTakes(id)?.effortMessages === true ? drafted2 : null,
+    answerTool: (answer ?? "").trim() === ANSWER_TOOL_ON
   };
 }
 
@@ -22045,12 +22333,192 @@ function cacheHitOf(t) {
   return fed > 0 ? t.cache_read / fed : null;
 }
 
+// src/journey/journey-plan.ts
+var STAGE_WORDS = {
+  first_contact: "at first contact",
+  before: "the day before a booked time",
+  after: "the day after a booked time",
+  proposal: "while a proposal waits",
+  quiet: "once they go quiet"
+};
+var JOURNEY_PLAN_WORDS = {
+  journeyUnread: "The journey could not be read just now, so which moments are covered is not known: say so, and try again in a moment.",
+  nothingToCover: "Every moment asked for is covered already or not offered here (an appointment's moments need a calendar connected, a proposal's needs deals on): say so, and propose nothing.",
+  notOffered: (stages) => `Not offered here: ${joinWords(stages)}.`,
+  pausedOn: (name) => `\u201C${name}\u201D stands paused on its moment: resume it from its drawer.`,
+  whyStage: (id) => `Nobody hears from you ${STAGE_WORDS[id]} yet.`
+};
+function setupSteps() {
+  const steps = [];
+  const add = (input, why) => {
+    const n = steps.length + 1;
+    steps.push({ n, kind: "playbook", silent: false, input, why, after: [] });
+    return n;
+  };
+  return { steps, add };
+}
+var REVIEW_STARTER = "after_visit_review";
+var CHECK_STARTER = "after_visit_check";
+function stageInput(id, moment2, world) {
+  if (id !== "after") return { trigger: moment2 };
+  const reviews = world.messages.filter((m) => m.name === REVIEW_STARTER);
+  if (!world.reviewLink) return reviews.length ? { trigger: moment2, starter: CHECK_STARTER } : { trigger: moment2 };
+  const review = reviews.find((m) => languageBase(m.language) === world.language);
+  const goes = (review?.versions ?? []).filter(
+    (v) => LIVE_VERSION_STATES.has(v.state) && (v.channel !== "whatsapp" || world.whatsappSends)
+  );
+  const version = goes.find((v) => v.channel === "whatsapp") ?? goes.at(0);
+  return version ? { trigger: moment2, template_id: version.id } : { trigger: moment2, starter: REVIEW_STARTER };
+}
+var SETTINGS_BUSINESS_ROUTE = "admin/workspace";
+var APPOINTMENT_ES = {
+  appointment: "cita",
+  visit: "visita",
+  meeting: "reuni\xF3n",
+  session: "sesi\xF3n",
+  lesson: "clase"
+};
+var joinEs = (items) => items.length <= 1 ? items[0] ?? "" : `${items.slice(0, -1).join(", ")} y ${items[items.length - 1]}`;
+var SETUP_WORDS = {
+  en: {
+    starts: {
+      before: "a reminder the day before a booked time",
+      after: "a follow-up the day after a booked time",
+      proposal: "a follow-up while a proposal waits",
+      quiet: "a win-back once they go quiet"
+    },
+    named: {
+      before: "the reminder",
+      after: "the follow-up",
+      proposal: "the proposal follow-up",
+      quiet: "the win-back"
+    },
+    gets: { before: "a reminder the day before", after: "a follow-up the day after" },
+    join: joinWords,
+    thing: (word) => appointmentWords(word).one,
+    cover: (n, what) => `Starts ${plural(n, "campaign")} now${n > 1 ? ", each its own card" : ""}: ${what}.`,
+    calendar: (feed, each, gets) => feed ? `First, connect your calendar's feed under Settings \u203A Business (booking emails alone cannot time a campaign), so each ${each} gets ${gets}.` : `First, connect your calendar under Settings \u203A Business, so each ${each} gets ${gets}.`,
+    proposals: (first) => `${first ? "First" : "Then"}, under Settings \u203A Business, answer ${SELLS_BY_QUESTION} with \u201C${SELLS_BY_WORDS.proposal.label}\u201D, so each proposal that waits gets a follow-up.`,
+    nobody: (named, one) => `${capitalize(named)} ${one ? "reaches" : "reach"} nobody today; ${one ? "its card says" : "each card says"} why.`,
+    again: (more2, needs2) => `Ask me again once ${onceOf(needs2, "en")}, and I'll add ${more2 === 1 ? "it" : "them"}.`,
+    headline: (needs2, now, more2) => `${needs2.size === 2 ? "Connect your calendar and turn on proposals" : needs2.has("calendar") ? "Connect your calendar" : "Turn on proposals"} first: ${plural(now, "campaign")} can start now, ${more2} more once ${onceOf(needs2, "en")}.`,
+    open: (needs2) => needs2.has("calendar") ? "Connect a calendar" : "Open Business settings",
+    next: (needs2) => needs2.has("calendar") ? "How do I connect my calendar in Settings?" : "How do I turn on proposals in Settings?"
+  },
+  es: {
+    starts: {
+      before: "un recordatorio el d\xEDa antes de cada cita",
+      after: "un seguimiento el d\xEDa despu\xE9s de cada cita",
+      proposal: "un seguimiento mientras espera una propuesta",
+      quiet: "una recuperaci\xF3n para quien se queda en silencio"
+    },
+    named: {
+      before: "el recordatorio",
+      after: "el seguimiento",
+      proposal: "el seguimiento de propuestas",
+      quiet: "la recuperaci\xF3n"
+    },
+    gets: { before: "un recordatorio el d\xEDa antes", after: "un seguimiento el d\xEDa despu\xE9s" },
+    join: joinEs,
+    thing: (word) => APPOINTMENT_ES[word],
+    cover: (n, what) => `Empieza ${n === 1 ? "1 campa\xF1a" : `${n} campa\xF1as`} ya${n > 1 ? ", cada una en su tarjeta" : ""}: ${what}.`,
+    calendar: (feed, each, gets) => feed ? `Primero, conecta el feed de tu calendario en Ajustes \u203A Negocio (los correos de reserva no bastan para programar una campa\xF1a), para que cada ${each} tenga ${gets}.` : `Primero, conecta tu calendario en Ajustes \u203A Negocio, para que cada ${each} tenga ${gets}.`,
+    proposals: (first) => `${first ? "Primero" : "Luego"}, en Ajustes \u203A Negocio, responde a \xABC\xF3mo compran tus clientes\xBB con \xABAlgunos reciben antes una propuesta\xBB, para que cada propuesta que espera tenga un seguimiento.`,
+    nobody: (named, one) => `${capitalize(named)} no ${one ? "llega" : "llegan"} a nadie hoy; ${one ? "su tarjeta dice" : "cada tarjeta dice"} por qu\xE9.`,
+    again: (more2, needs2) => `P\xEDdemelo otra vez cuando ${onceOf(needs2, "es")} y ${more2 === 1 ? "la a\xF1ado" : "las a\xF1ado"}.`,
+    headline: (needs2, now, more2) => `${needs2.size === 2 ? "Conecta tu calendario y activa las propuestas" : needs2.has("calendar") ? "Conecta tu calendario" : "Activa las propuestas"} primero: ${now === 1 ? "1 campa\xF1a puede" : `${now} campa\xF1as pueden`} empezar ya, ${more2} m\xE1s cuando ${onceOf(needs2, "es")}.`,
+    open: (needs2) => needs2.has("calendar") ? "Conectar un calendario" : "Abrir Ajustes del negocio",
+    next: (needs2) => needs2.has("calendar") ? "\xBFC\xF3mo conecto mi calendario en Ajustes?" : "\xBFC\xF3mo activo las propuestas en Ajustes?"
+  }
+};
+function onceOf(needs2, says) {
+  if (needs2.size === 2) return says === "es" ? "est\xE9n los dos" : "both are on";
+  if (needs2.has("calendar")) return says === "es" ? "est\xE9 conectado" : "it is connected";
+  return says === "es" ? "est\xE9n activas" : "they are on";
+}
+function bookedThing(books, world) {
+  const said = (books ?? "").trim().replace(/^(?:a|an|the|their|our|un|una|el|la|los|las|sus?|nuestras?)\s+/i, "").replace(/[.!?…,;:]+$/, "").trim();
+  return said ? clip(said, 40) : SETUP_WORDS[world.says].thing(world.shape.word);
+}
+function needOf(id, world) {
+  if (id === "before" || id === "after") return world.shape.calendar === "feed" ? null : "calendar";
+  if (id === "proposal") return world.shape.dealsOn ? null : "proposals";
+  return null;
+}
+function momentsOf(intent, world) {
+  const named = intent.stages;
+  return JOURNEY_STAGE_IDS.filter(
+    (id) => id !== "first_contact" && (!named || named.includes(id)) && (id !== "proposal" || world.shape.dealsOn || intent.proposals === true || !!named?.includes(id))
+  );
+}
+function needLines(needs2, later, books, world) {
+  const S = SETUP_WORDS[world.says];
+  const lines = [];
+  if (needs2.has("calendar")) {
+    const gets = later.flatMap((id) => id === "before" || id === "after" ? [S.gets[id]] : []);
+    lines.push(S.calendar(world.shape.calendar === "email", bookedThing(books, world), S.join(gets)));
+  }
+  if (needs2.has("proposals")) lines.push(S.proposals(!needs2.has("calendar")));
+  return lines;
+}
+function journeyPlan(intent, world) {
+  const journey = world.journey;
+  if (!journey) return { refused: JOURNEY_PLAN_WORDS.journeyUnread };
+  const S = SETUP_WORDS[world.says];
+  const { steps, add } = setupSteps();
+  const missing = [];
+  const paused = [];
+  const needs2 = /* @__PURE__ */ new Set();
+  const later = [];
+  const started = [];
+  for (const id of momentsOf(intent, world)) {
+    const stage = journey.find((s) => s.id === id);
+    if (!stage) {
+      const need = needOf(id, world);
+      if (need) {
+        needs2.add(need);
+        later.push(id);
+      } else if (intent.stages) missing.push(STAGE_WORDS[id]);
+      continue;
+    }
+    if (stage.covered || !stage.moment) continue;
+    const held = world.playbooks.find((p) => p.state === "paused" && journeyStageOf(p.trigger) === id);
+    if (held) paused.push(JOURNEY_PLAN_WORDS.pausedOn(held.name));
+    else {
+      add(stageInput(id, stage.moment, world), JOURNEY_PLAN_WORDS.whyStage(id));
+      started.push(id);
+    }
+  }
+  const said = [...missing.length ? [JOURNEY_PLAN_WORDS.notOffered(missing)] : [], ...paused];
+  if (steps.length === 0) {
+    const first = needLines(needs2, later, intent.books, { ...world, says: "en" });
+    return { refused: [JOURNEY_PLAN_WORDS.nothingToCover, ...first, ...said].join(" ") };
+  }
+  const nobody = started.filter((id) => {
+    const moment2 = journey.find((s) => s.id === id)?.moment;
+    return !!moment2 && world.reach[moment2] === 0;
+  });
+  const words2 = [
+    ...needLines(needs2, later, intent.books, world),
+    S.cover(started.length, S.join(started.map((id) => S.starts[id]))),
+    ...nobody.length ? [S.nobody(S.join(nobody.map((id) => S.named[id])), nobody.length === 1)] : [],
+    ...said,
+    ...needs2.size ? [S.again(later.length, needs2)] : []
+  ];
+  const lead = needs2.size ? {
+    headline: S.headline(needs2, started.length, later.length),
+    open: { to: needs2.has("calendar") ? CALENDAR_SETTING_ROUTE : SETTINGS_BUSINESS_ROUTE, label: S.open(needs2) },
+    next: [S.next(needs2)]
+  } : null;
+  return { steps, words: words2.join(" "), lead };
+}
+
 // src/ask/plan.ts
 var SEND_HOUR = PLAYBOOK_DEFAULTS.runHour;
 var REMINDER_AFTER_DAYS = 19;
 var OFFER_CHANNELS = ["whatsapp", "email"];
 var PER_PERSON = /* @__PURE__ */ new Set(["first_name", "business_name", "booking_link", "review_link"]);
-var LIVE = /* @__PURE__ */ new Set(["approved", "pending"]);
+var LIVE = LIVE_VERSION_STATES;
 var SENDS_NOW = /* @__PURE__ */ new Set(["approved"]);
 var WRITTEN_NAME = /^offer(?:_\d+)?$/;
 var SILENT = {
@@ -22059,13 +22527,6 @@ var SILENT = {
   change: true,
   broadcast: false,
   playbook: false
-};
-var STAGE_WORDS = {
-  first_contact: "at first contact",
-  before: "the day before a booked time",
-  after: "the day after a booked time",
-  proposal: "while a proposal waits",
-  quiet: "once they go quiet"
 };
 var OFFER_MESSAGE = {
   en: {
@@ -22107,14 +22568,14 @@ var PLAN_WORDS = {
   /** Texts asked for alone: never a channel an offer goes by, whatever the workspace can send. */
   textOnly: `${CHANNEL_WORDS.noOffersByText} An offer goes by WhatsApp or email: say so, and name either, or leave channels out for every one the workspace sends offers on.`,
   noOffersList: "who is not a list this workspace has: name one people with action lists gives, or leave who out for everyone who can receive offers.",
-  journeyUnread: "The journey could not be read just now, so which moments are covered is not known: say so, and try again in a moment.",
+  journeyUnread: JOURNEY_PLAN_WORDS.journeyUnread,
   /** A read the plan is made against that failed (Task 17's world): never a plan on a guess of what it would have said. */
   channelsUnread: unreadWords("Which channels can send"),
   libraryUnread: unreadWords("The message library"),
   playbooksUnread: unreadWords("The campaigns, and so whether the month's offer runs,"),
   listsUnread: unreadWords("The lists an offer goes to"),
   notesUnread: unreadWords("The receptionist's notes"),
-  nothingToCover: "Every moment asked for is covered already or not offered here (an appointment's moments need a calendar connected, a proposal's needs deals on): say so, and propose nothing.",
+  nothingToCover: JOURNEY_PLAN_WORDS.nothingToCover,
   /** What an offer is called: the receptionist's note, the send and the campaign. */
   offerTitle: (words2) => `Offer: ${words2}`,
   /** What the receptionist's note says: the offer as the message says it, its dates, and what it is for. */
@@ -22146,9 +22607,8 @@ var PLAN_WORDS = {
   whatsappReview: "Its WhatsApp version waits on WhatsApp's review, which may still be running at the first send: whoever it reaches on WhatsApp waits for it.",
   /** The reminder, its own question on its day (who has booked is known then); short, to fit the answer whole. */
   reminderAsk: (day, list2) => `On ${day}, ask me to send a reminder to whoever on \u201C${list2}\u201D has not booked by then.`,
-  cover: (n) => `Starts ${plural(n, "campaign")}, one on each moment not covered yet, each its own card.`,
-  notOffered: (stages) => `Not offered here: ${joinWords(stages)}.`,
-  pausedOn: (name) => `\u201C${name}\u201D stands paused on its moment: resume it from its drawer.`,
+  notOffered: JOURNEY_PLAN_WORDS.notOffered,
+  pausedOn: JOURNEY_PLAN_WORDS.pausedOn,
   /**
    * What a card says of what an earlier step of its plan makes, named by its token (`@step:n`): not filed yet, so not
    * quoted, and filled in by the commit once that step is approved.
@@ -22165,7 +22625,7 @@ var PLAN_WORDS = {
     pause: "So nobody gets the month's offer and this one.",
     first: "The offer, on its first day.",
     paced: "The offer, as fast as the calendar can take it.",
-    stage: (id) => `Nobody hears from you ${STAGE_WORDS[id]} yet.`
+    stage: JOURNEY_PLAN_WORDS.whyStage
   }
 };
 var SAY = PLAN_WORDS;
@@ -22416,43 +22876,8 @@ function offerPlan(r2, world) {
   ];
   return { steps, words: words2.join(" ") };
 }
-var REVIEW_STARTER = "after_visit_review";
-var CHECK_STARTER = "after_visit_check";
-function stageInput(id, moment2, world) {
-  if (id !== "after") return { trigger: moment2 };
-  const reviews = world.messages.filter((m) => m.name === REVIEW_STARTER);
-  if (!world.reviewLink) return reviews.length ? { trigger: moment2, starter: CHECK_STARTER } : { trigger: moment2 };
-  const review = reviews.find((m) => languageBase(m.language) === world.language);
-  const goes = (review?.versions ?? []).filter(
-    (v) => LIVE.has(v.state) && (v.channel !== "whatsapp" || world.whatsappSends)
-  );
-  const version = goes.find((v) => v.channel === "whatsapp") ?? goes.at(0);
-  return version ? { trigger: moment2, template_id: version.id } : { trigger: moment2, starter: REVIEW_STARTER };
-}
-function journeyPlan(stages, world) {
-  const journey = world.journey;
-  if (!journey) return { refused: SAY.journeyUnread };
-  const { steps, add } = planSteps();
-  const missing = [];
-  const paused = [];
-  for (const id of JOURNEY_STAGE_IDS) {
-    if (id === "first_contact" || stages && !stages.includes(id)) continue;
-    const stage = journey.find((s) => s.id === id);
-    if (!stage) {
-      if (stages) missing.push(STAGE_WORDS[id]);
-      continue;
-    }
-    if (stage.covered || !stage.moment) continue;
-    const held = world.playbooks.find((p) => p.state === "paused" && journeyStageOf(p.trigger) === id);
-    if (held) paused.push(SAY.pausedOn(held.name));
-    else add("playbook", stageInput(id, stage.moment, world), SAY.why.stage(id));
-  }
-  const said = [...missing.length ? [SAY.notOffered(missing)] : [], ...paused];
-  if (steps.length === 0) return { refused: [SAY.nothingToCover, ...said].join(" ") };
-  return { steps, words: [SAY.cover(steps.length), ...said].join(" ") };
-}
 function planOf(intent, world) {
-  if (intent.intent === "cover_journey") return journeyPlan(intent.stages, world);
+  if (intent.intent === "cover_journey") return journeyPlan(intent, world);
   const read = offerRead(intent.offer, intent.say, world);
   return "refused" in read ? read : offerPlan(read, world);
 }
@@ -22824,12 +23249,12 @@ function publicObjectSrc(supabaseUrl, bucket, path) {
 // src/deals/deal-amount.ts
 function amountWords(cents, per, currency = "USD") {
   if (cents === null || cents === void 0 || !Number.isFinite(cents)) return null;
-  const whole = cents % 100 === 0;
+  const whole2 = cents % 100 === 0;
   const money2 = numberFormat("en-US", {
     style: "currency",
     currency: currency.toUpperCase(),
-    minimumFractionDigits: whole ? 0 : 2,
-    maximumFractionDigits: whole ? 0 : 2
+    minimumFractionDigits: whole2 ? 0 : 2,
+    maximumFractionDigits: whole2 ? 0 : 2
   }).format(cents / 100);
   const p = per && DEAL_PERS.includes(per) ? DEAL_PER_WORDS[per] : null;
   return p && per !== "once" ? `${money2} ${p}` : money2;
@@ -23396,9 +23821,9 @@ function visitServiceOf(title, names3) {
   return service;
 }
 function visitTitleWithout(title, names3) {
-  const whole = title.trim();
-  const service = visitServiceOf(whole, names3);
-  return /[\p{L}\p{N}]/u.test(service) ? service : whole;
+  const whole2 = title.trim();
+  const service = visitServiceOf(whole2, names3);
+  return /[\p{L}\p{N}]/u.test(service) ? service : whole2;
 }
 
 // src/calendar/calendar.ts
@@ -28269,10 +28694,10 @@ var SERVICE_CHIPS = CHIPS_SHOWN;
 function lengthWords(minutes) {
   const m = typeof minutes === "string" ? Number(minutes.trim()) : minutes;
   if (typeof m !== "number" || !Number.isFinite(m) || m <= 0) return null;
-  const whole = Math.round(m);
-  if (whole < 60) return `${whole} min`;
-  const h = Math.floor(whole / 60);
-  const rest = whole % 60;
+  const whole2 = Math.round(m);
+  if (whole2 < 60) return `${whole2} min`;
+  const h = Math.floor(whole2 / 60);
+  const rest = whole2 % 60;
   return rest ? `${h} h ${rest} min` : `${h} h`;
 }
 var SERVICE_PRICE_EMPTY = "At consult";
@@ -34594,13 +35019,13 @@ function planNoteOf(day, how, about) {
 function writeReachOf(r2, at3) {
   const { ready, mode, facts, now = /* @__PURE__ */ new Date() } = at3;
   const ways = writeWaysOf(r2, ready, now);
-  const C2 = NEW_CONVERSATION_WORDS.call;
+  const C3 = NEW_CONVERSATION_WORDS.call;
   return {
     person: { id: r2.id, name: personName(r2), phone: r2.phone_e164, email: r2.email },
     thread: r2.latest_conversation_id ? `th-${r2.latest_conversation_id}` : null,
     ways,
     default_wire: defaultWriteWire(ways, r2.last_inbound_channel),
-    call: !r2.phone_e164 ? { ok: false, tel: null, why: C2.noNumber } : r2.dnc ? { ok: false, tel: null, why: C2.doNotContact } : { ok: true, tel: r2.phone_e164, why: null },
+    call: !r2.phone_e164 ? { ok: false, tel: null, why: C3.noNumber } : r2.dnc ? { ok: false, tel: null, why: C3.doNotContact } : { ok: true, tel: r2.phone_e164, why: null },
     receptionist: { answers: mode !== "ask" && mode !== "never" },
     offers_ok: r2.marketing_consent === "opted_in",
     fills: facts ? {
@@ -36954,7 +37379,7 @@ function toPersonVM(d, tz, now = /* @__PURE__ */ new Date(), viewerId = null, pa
     // The one rule's answer, wire by wire, over People's own row for them (the sheet asks the same of the same row).
     ways: writeWaysOf(ctx.row, page2?.ready ?? null, now)
   };
-  const whole = {
+  const whole2 = {
     ...vm,
     proposal: ctx.proposal,
     proposalAction: proposalAction(
@@ -36962,7 +37387,7 @@ function toPersonVM(d, tz, now = /* @__PURE__ */ new Date(), viewerId = null, pa
       ctx.sentWords
     )
   };
-  const withActs = { ...whole, acts: personActs(whole) };
+  const withActs = { ...whole2, acts: personActs(whole2) };
   return { ...withActs, ...personPageOf(withActs, d, tz, now) };
 }
 function callLength2(seconds2) {
@@ -37196,7 +37621,7 @@ function refusalOf(input) {
   const status = Number.isFinite(input.status) ? input.status : 0;
   const said = typeof input.message === "string" ? input.message.trim() : "";
   const retryAfterS = retryAfterOf(input.details, input.retryAfter, input.nowMs ?? Date.now());
-  const fields = fieldsOf2(input.details);
+  const fields2 = fieldsOf2(input.details);
   const code2 = typeof input.code === "string" && input.code ? input.code : null;
   const aside = asideOf(input.details, status);
   const refusal = (c, title, message) => ({
@@ -37205,7 +37630,7 @@ function refusalOf(input) {
     title,
     message,
     retryAfterS,
-    fields,
+    fields: fields2,
     ...aside
   });
   if (!code2) {
@@ -37494,12 +37919,12 @@ function runCapOf(p) {
 }
 var noOne = () => ({ whatsapp: 0, sms: 0, email: 0 });
 function runReadingOf(drawn, trigger, caps) {
-  const whole = drawn.reach.by_channel ?? noOne();
-  const reading = { candidates: drawn.reach.will, by_channel: whole };
+  const whole2 = drawn.reach.by_channel ?? noOne();
+  const reading = { candidates: drawn.reach.will, by_channel: whole2 };
   const below = new Set(
     caps.map((cap) => runCapOf({ trigger, cap_per_run: cap })).filter((cap) => cap >= 1 && cap < reading.candidates)
   );
-  if (below.size === 0 || CONSENT_CHANNELS.filter((c) => whole[c] > 0).length < 2) return reading;
+  if (below.size === 0 || CONSENT_CHANNELS.filter((c) => whole2[c] > 0).length < 2) return reading;
   const last = Math.max(...below);
   const counts = noOne();
   const run_split = {};
@@ -37514,13 +37939,13 @@ function runReadingOf(drawn, trigger, caps) {
   return { ...reading, run_split };
 }
 function oneRunByChannel(reading, run) {
-  const whole = reading.by_channel;
-  if (!whole) return null;
+  const whole2 = reading.by_channel;
+  if (!whole2) return null;
   const cap = runCapOf(run);
-  if (cap === 0 || cap >= reading.candidates) return whole;
+  if (cap === 0 || cap >= reading.candidates) return whole2;
   const atCap = reading.run_split?.[String(cap)];
   if (atCap) return atCap;
-  const carrying = CONSENT_CHANNELS.filter((c) => whole[c] > 0);
+  const carrying = CONSENT_CHANNELS.filter((c) => whole2[c] > 0);
   const [only] = carrying;
   return carrying.length === 1 && only ? { ...noOne(), [only]: cap } : null;
 }
@@ -37602,6 +38027,13 @@ function nextShare(p) {
   const all = p.candidates ?? 0;
   const cap = runCapOf(p);
   return cap > 0 ? Math.min(all, cap) : all;
+}
+function resumeDetailOf(p, at3) {
+  const W = LIFECYCLE_WORDS.ledger.resume;
+  const when = nextRunLabel({ ...p, state: "running" }, at3.tz, new Date(at3.nowMs), at3.paused);
+  const auto = at3.mode === "auto" && !p.trial;
+  const detail = W.detail(when, p.candidates === null ? null : nextShare(p));
+  return auto ? `${detail}. ${W.auto}` : detail;
 }
 function workspacePausedOf(input) {
   return input.playbooks?.ready?.paused === true || input.broadcasts?.ready?.paused === true;
@@ -37927,21 +38359,14 @@ function rowWaitingOf(p, at3) {
 }
 function resumeOf(p, input) {
   const W = LIFECYCLE_WORDS.ledger.resume;
-  const when = nextRunLabel(
-    { ...p, state: "running" },
-    input.tz,
-    new Date(input.nowMs),
-    workspacePausedOf(input)
-  );
   const cls = p.policy_class ?? triggerOf(p.trigger)?.cls ?? null;
-  const auto = cls !== null && input.playbooks?.modes?.[cls] === "auto" && !p.trial;
-  const detail = W.detail(when, p.candidates === null ? null : nextShare(p));
-  return {
-    kind: "resume",
-    label: W.label,
-    playbookId: p.id,
-    ask: { question: W.question(p.name), detail: auto ? `${detail}. ${W.auto}` : detail }
-  };
+  const detail = resumeDetailOf(p, {
+    tz: input.tz,
+    nowMs: input.nowMs,
+    paused: workspacePausedOf(input),
+    mode: cls === null ? null : input.playbooks?.modes?.[cls]
+  });
+  return { kind: "resume", label: W.label, playbookId: p.id, ask: { question: W.question(p.name), detail } };
 }
 function playbookRow(p, at3) {
   const s = lifecycleStateOf(p);
@@ -40076,6 +40501,7 @@ var ROUTE_KEYS = [
   "PATCH workspaces",
   "POST ask",
   "POST ask/messages/[id]/proposals/[pid]",
+  "POST ask/quick",
   "POST ask/speech",
   "POST ask/voice",
   "POST ask/voice/end",
@@ -40705,6 +41131,33 @@ function sequencesPreviewOf(config2) {
   return typeof features === "object" && features !== null && "sequences_preview" in features && features.sequences_preview === true;
 }
 
+// src/sequences/sequence-acts.ts
+var SEQUENCE_ACT_WORDS = {
+  more: (name) => `More for ${name}`,
+  askAbout: "Ask about it",
+  runNow: "Run now",
+  runNowTip: "Runs its first step now, at your request: it waits for your OK where you approve its batches, and outside the sending hours it goes when they open",
+  rename: "Rename",
+  name: "Name",
+  save: "Save",
+  cancel: "Cancel",
+  resumeAsk: (name) => `Turn ${name} on?`,
+  resumeYes: "Yes, turn it on"
+};
+function sequenceRunsNow(row2, at3) {
+  const first = row2.first;
+  if (!first || row2.starts !== "moment" && row2.starts !== "list" || row2.needs.waiting > 0) return false;
+  return campaignRunsOn(first, { tz: at3.tz, now: new Date(at3.nowMs), dealsOn: true });
+}
+function sequenceResumeAsk(row2, playbooks, at3) {
+  const W = LIFECYCLE_WORDS.ledger.resume;
+  const id = row2.first?.id;
+  const first = id ? playbooks?.rows.find((p) => p.id === id) : void 0;
+  const paused = workspacePausedOf({ playbooks: playbooks ?? void 0, broadcasts: void 0 });
+  const detail = row2.starts === "leads" ? W.chain : first ? resumeDetailOf(first, { ...at3, paused }) : null;
+  return { question: SEQUENCE_ACT_WORDS.resumeAsk(row2.name), detail, yes: SEQUENCE_ACT_WORDS.resumeYes };
+}
+
 // src/sequences/sequence-draft.ts
 var SEQUENCE_DRAFT_WORDS_MAX = 500;
 var SEQUENCE_DRAFT_THEN_MAX = 3;
@@ -40809,8 +41262,50 @@ var SEQUENCE_NEEDS_WORDS = {
   oneByOne: "Send them one by one",
   reading: "Reading what it holds\u2026",
   /** What a failed read could not read: "Couldn't read this batch's emails". */
-  failed: "this batch\u2019s emails"
+  failed: "this batch\u2019s emails",
+  /** A batch whose emails to send this read carries no draft of: its run's sheet in Sent lays them out. */
+  inSent: "Open them in Sent"
 };
+function peopleNeedsOf(rows2, at3) {
+  const held = rows2.flatMap((r2) => {
+    const reason = r2.why;
+    if (r2.group !== "held" || !r2.send_id || !isReachOutHold(reason)) return [];
+    return [
+      {
+        id: r2.send_id,
+        name: r2.name ?? SEQUENCE_PEOPLE_WORDS.someone,
+        to: r2.lead_id ? leadDoorOf(r2.lead_id) : null,
+        why: holdWords(reason, r2.hold_detail),
+        doors: holdDoors(reason).map((d) => [d, HOLD_DOOR_WORDS[d]]),
+        batchId: r2.batch_id
+      }
+    ];
+  });
+  const handed = rows2.filter((r2) => r2.group === "to_send" && r2.send_id && r2.lead_id);
+  const toSend = handed.flatMap(
+    (r2) => r2.draft && r2.send_id && r2.lead_id ? [
+      {
+        ...toSendRowOf(
+          {
+            send_id: r2.send_id,
+            lead_id: r2.lead_id,
+            business_name: r2.name ?? SEQUENCE_PEOPLE_WORDS.someone,
+            angle: r2.draft.angle,
+            to: r2.draft.to,
+            subject: r2.draft.subject,
+            text: r2.draft.text,
+            drafted_at: r2.draft.drafted_at,
+            follow_up: r2.draft.follow_up
+          },
+          at3
+        ),
+        batchId: r2.batch_id
+      }
+    ] : []
+  );
+  const unread = [...new Set(handed.filter((r2) => !r2.draft && r2.batch_id).map((r2) => r2.batch_id ?? ""))];
+  return { held, asIs: held.filter((h) => h.doors.some(([d]) => d === "include")), toSend, unread };
+}
 var SEQUENCE_PEOPLE_WORDS = {
   nobody: "Nobody is in it yet.",
   failed: "who is in it",
@@ -42846,19 +43341,19 @@ function firstRunOf(vm, at3, who) {
   const final = def === last;
   const google = rowOf(vm, "google");
   const find = shown.key === "business" && !!who?.owner && vm.findable && !!google && (findAsked || !google.later);
-  const C2 = FIRST_RUN_WORDS.check;
+  const C3 = FIRST_RUN_WORDS.check;
   const onCheck = shown.key === "business" && !find && vm.check.receptionist !== "broken";
   const made = vm.check.receptionist === "set";
   const check = onCheck ? {
     made,
     make: !made && who?.owner ? {
-      sentence: vm.check.listed ? C2.makeListed : C2.makeNamed(businessNameOf(null, who.workspaceName)),
-      cta: C2.make,
-      busy: C2.making
+      sentence: vm.check.listed ? C3.makeListed : C3.makeNamed(businessNameOf(null, who.workspaceName)),
+      cta: C3.make,
+      busy: C3.making
     } : null,
-    waiting: !made && !who?.owner ? C2.ownerSetsUp : null,
+    waiting: !made && !who?.owner ? C3.ownerSetsUp : null,
     unsure: made ? unsureHoursWords(vm.check.unsure) : null,
-    find: vm.findable && who?.owner ? { label: C2.findIt, to: FIRST_RUN_FIND_ROUTE } : null,
+    find: vm.findable && who?.owner ? { label: C3.findIt, to: FIRST_RUN_FIND_ROUTE } : null,
     type: vm.check.type,
     bookingPage: vm.check.bookingPage
   } : null;
@@ -42869,10 +43364,10 @@ function firstRunOf(vm, at3, who) {
     lead: who?.receptionistName ? F.leadOnRecord : F.lead,
     onward: null
   } : check ? {
-    heading: vm.check.listed ? C2.found : C2.basics,
-    lead: vm.check.listed ? C2.foundLead : C2.basicsLead,
+    heading: vm.check.listed ? C3.found : C3.basics,
+    lead: vm.check.listed ? C3.foundLead : C3.basicsLead,
     onward: made ? {
-      label: C2.looksRight,
+      label: C3.looksRight,
       to: FIRST_RUN_ROUTE,
       leaves: false,
       held: shown.state === "done" ? null : facts?.sentence ?? null
@@ -43962,7 +44457,7 @@ var checkFactsOf = (i) => ({
   bookingPage: bookingPageOffered(i.google?.bookingPage, i.business.bookingLink)
 });
 var forwardingOwedOf = (i, later) => !!i.want && !forwardedLineOf(i.lines) && !later.has(KEEP_ROW);
-function setupSteps(i, nowMs = Date.now()) {
+function setupSteps2(i, nowMs = Date.now()) {
   const later = new Set(i.later ?? []);
   const ctx = rowContextOf(i, nowMs);
   const { wa, voice, waReady, voiceReady, answering, waNum, voiceNum, texting } = ctx;
@@ -44520,8 +45015,8 @@ function indexOf(rows2) {
     return r2 && r2.samples >= PAGE_SPEED_MIN ? r2 : null;
   };
 }
-function share(part, whole) {
-  return `${Math.round(part / whole * 10)} in 10`;
+function share(part, whole2) {
+  return `${Math.round(part / whole2 * 10)} in 10`;
 }
 function pageLine(at3, page2) {
   const load = at3("READY", page2, "", "load");
@@ -47708,6 +48203,8 @@ export {
   ASK_CONTEXT_MAX_ROWS,
   ASK_CONTEXT_ROW_KINDS,
   ASK_CORE_TOOLS_CHARS_CEILING,
+  ASK_DRAFT_EFFORT,
+  ASK_DRAFT_MAX_TOKENS,
   ASK_EFFORT,
   ASK_FOLLOW_UPS_MAX,
   ASK_GUIDE_PAGES,
@@ -47913,6 +48410,7 @@ export {
   E1642 as E164,
   EARLIER_FALLBACK_DEFAULTS,
   EDGE_ERROR_CODES,
+  EFFORT_MESSAGE_BETA,
   EMAILED_NOTIFICATION_KINDS,
   EMAIL_ALWAYS_KINDS,
   EMAIL_BODY_MAX,
@@ -48471,6 +48969,7 @@ export {
   REACH_OUT_STEPS_MAX,
   REACH_OUT_STOP_WORDS,
   REACH_OUT_SUBJECT_MAX,
+  REACH_OUT_TO_SEND_LABELS,
   REACH_OUT_UNDO_WORDS,
   REACH_OUT_WHY_NOT,
   REACH_OUT_WHY_NOT_WORDS,
@@ -48573,6 +49072,7 @@ export {
   SEND_WHEN_WORDS,
   SEND_WINDOW_MARGIN_MIN,
   SEQUENCES_ROUTE,
+  SEQUENCE_ACT_WORDS,
   SEQUENCE_DRAFT_JSON_SCHEMA,
   SEQUENCE_DRAFT_THEN_MAX,
   SEQUENCE_DRAFT_WORDS_MAX,
@@ -48757,6 +49257,7 @@ export {
   answerForCards,
   answerFromV1,
   answerSaidOf,
+  answerSoFar,
   answerSpoken,
   answerText,
   answerWireOf,
@@ -48788,6 +49289,7 @@ export {
   askJump,
   askModelProfile,
   askPages,
+  askRoundCap,
   askUndoOpen,
   askedDayOf,
   asksTheFeed,
@@ -49081,6 +49583,9 @@ export {
   durationWords,
   earlierVisitsOf,
   effectiveMode,
+  effortAbove,
+  effortInForce,
+  effortMessage,
   eligibleFor,
   eligibleForPlaybook,
   emailDomainOf,
@@ -49164,6 +49669,7 @@ export {
   fmtClock,
   fmtDay,
   fmtSeconds,
+  foldEffortMessages,
   foldName,
   followUpDue,
   followUpIsFor,
@@ -49314,6 +49820,7 @@ export {
   isDealStage,
   isDraftWhy,
   isE164,
+  isEffortMessage,
   isEmailStopped,
   isForReader,
   isForwardingMode,
@@ -49594,6 +50101,9 @@ export {
   messageHolds,
   messageLanguageChoices,
   messageLanguageCode,
+  messageLanguageOf,
+  messageLanguagesNext,
+  messageLanguagesOf,
   messageStandingWords,
   messageStatusLabel,
   messageText,
@@ -49782,6 +50292,7 @@ export {
   peopleEstimateUsd,
   peopleFromItems,
   peopleListAction,
+  peopleNeedsOf,
   peopleNowOf,
   peoplePlanFrom,
   peoplePlanOf,
@@ -49944,6 +50455,7 @@ export {
   pushesFor,
   quantile,
   questionAfterProbe,
+  quickAnswerOf,
   ratingWords,
   reachAfterBreath,
   reachBarParts,
@@ -50109,6 +50621,7 @@ export {
   runLabelOf,
   runMarkShown,
   runReadingOf,
+  runSheetRoute,
   runStillMoving,
   runStopWords,
   runStoppedWords,
@@ -50159,8 +50672,10 @@ export {
   sequenceLandingOf,
   sequenceLeftWords,
   sequenceNotice,
+  sequenceResumeAsk,
   sequenceRoute,
   sequenceRowLine,
+  sequenceRunsNow,
   sequenceStartWords,
   sequenceStartsSentence,
   sequenceStateTone,
@@ -50182,7 +50697,7 @@ export {
   setupCardOf,
   setupLaterOf,
   setupPhoneWantOf,
-  setupSteps,
+  setupSteps2 as setupSteps,
   shadowPortOf,
   shareSaid,
   shareWords,
@@ -50278,6 +50793,7 @@ export {
   stepsStopSentence,
   stopRequestQuestion,
   stopToldBesideState,
+  stoppedAnswer,
   stoppedRunFix,
   storedAnswer,
   suggestLocalPart,
@@ -50354,6 +50870,7 @@ export {
   toRunReportVM,
   toSendAllOf,
   toSendEveryOf,
+  toSendRowOf,
   toSendRunsOf,
   toSendSaidWords,
   toSendWordsOf,

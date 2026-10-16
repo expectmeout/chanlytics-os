@@ -112,6 +112,7 @@ export const ROUTES = {
   "PATCH workspaces": { method: "PATCH", path: "/api/v1/workspaces" },
   "POST ask": { method: "POST", path: "/api/v1/ask" },
   "POST ask/messages/[id]/proposals/[pid]": { method: "POST", path: "/api/v1/ask/messages/[id]/proposals/[pid]" },
+  "POST ask/quick": { method: "POST", path: "/api/v1/ask/quick" },
   "POST ask/speech": { method: "POST", path: "/api/v1/ask/speech" },
   "POST ask/voice": { method: "POST", path: "/api/v1/ask/voice" },
   "POST ask/voice/end": { method: "POST", path: "/api/v1/ask/voice/end" },
@@ -392,6 +393,7 @@ export type Routes = {
   "PATCH workspaces": typeof import("../../app/api/v1/workspaces/route").PATCH;
   "POST ask": typeof import("../../app/api/v1/ask/route").POST;
   "POST ask/messages/[id]/proposals/[pid]": typeof import("../../app/api/v1/ask/messages/[id]/proposals/[pid]/route").POST;
+  "POST ask/quick": typeof import("../../app/api/v1/ask/quick/route").POST;
   "POST ask/speech": typeof import("../../app/api/v1/ask/speech/route").POST;
   "POST ask/voice": typeof import("../../app/api/v1/ask/voice/route").POST;
   "POST ask/voice/end": typeof import("../../app/api/v1/ask/voice/end/route").POST;

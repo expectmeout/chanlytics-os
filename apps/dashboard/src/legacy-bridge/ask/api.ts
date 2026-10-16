@@ -1,33 +1,35 @@
 /**
  * The Ask routes, from the browser: threads, one thread, a deletion, the
- * openings fast path, a card's outcome, and the turn itself as a stream of
+ * openings fast path, a quick answer kept, a card's outcome, and the turn itself as a stream of
  * JSON lines. Every call goes through the typed client, which names the
  * workspace, reads the envelope and signs the tab out on a 401; a card's
  * commit is marked `via: "ask"`, which the client sends as the x-via header
  * the ledger reads. Nothing here knows what the palette does with it.
  */
 import type {
+  AskAnswer,
   AskMessageVM,
   AskProposalOutcome,
   AskScope,
+  AskShowPreview,
   AskSurface,
   AskThreadVM,
   PageContext,
   VoiceEndReason,
 } from "@chanlytics/contracts";
-import { MIN_MS, refusalOf, type AskOpeningsView, type SpeechPurpose } from "@chanlytics/contracts";
+import { MIN_MS, detectLanguage, refusalOf, type AskOpeningsView, type SpeechPurpose } from "@chanlytics/contracts";
 import { api } from "../api";
 import { unwrap, type Api } from "../../client/api";
 
 /**
- * A turn's lines. `say` is the answer's Say as written so far, a preview the final message replaces (an empty one takes
- * back an answer the server set aside); `delta` is a v1 turn's words, from a server before the Line (spec 7.5). The
- * Line reads both.
+ * A turn's lines. `say` is the answer's Say as written so far, with Show's figures and rows once each has closed
+ * (contracts answer-stream.ts), a preview the final message replaces (an empty one takes back an answer the server set
+ * aside); `delta` is a v1 turn's words, from a server before the Line (spec 7.5). The Line reads both.
  */
 export type SendEvent =
   | { t: "thread"; id: string; title: string }
   | { t: "trace"; text: string }
-  | { t: "say"; headline: string; detail: string }
+  | { t: "say"; headline: string; detail: string; show?: AskShowPreview }
   | { t: "delta"; text: string }
   | { t: "final"; message: AskMessageVM }
   | { t: "error"; text: string };
@@ -58,6 +60,21 @@ export async function readLines(body: ReadableStream<Uint8Array>, on: (line: str
 
 /** The stream lasts as long as the turn: the server's own ceiling ends it, not the client's write timeout. */
 const TURN_MS = 300_000;
+
+/**
+ * What the Line says of a turn whose stream broke before its answer, in the question's language: the wait run out
+ * (TURN_MS), or the connection gone. Neither is the question's doing.
+ */
+function brokenWords(e: unknown, question: string): string {
+  const es = detectLanguage(question) === "es";
+  if ((e as { name?: unknown } | null)?.name === "TimeoutError")
+    return es
+      ? "La respuesta tardó demasiado en llegar. Inténtalo de nuevo."
+      : "The answer took too long to arrive. Try again.";
+  return es
+    ? "Se cortó la conexión antes de la respuesta. Inténtalo de nuevo."
+    : "The connection dropped before the answer came. Try again.";
+}
 
 export type { VoiceEndReason };
 /** What the browser measured, from the tap: to the connection, and to the first audio it heard (null: none came). */
@@ -150,6 +167,30 @@ function speechCalls(client: Api) {
   };
 }
 
+/**
+ * A quick answer kept as a turn (POST ask/quick): the question and the answer the Line drew without a model, in the
+ * thread named or a new one. The thread it landed in, or null where it could not be kept: the answer stays drawn, and
+ * the next question opens a conversation of its own.
+ */
+function quickCalls(client: Api) {
+  return {
+    keepQuick: async (input: {
+      text: string;
+      answer: AskAnswer;
+      threadId: string | null;
+    }): Promise<{ id: string; title: string } | null> => {
+      try {
+        const r = await client("POST ask/quick", {
+          body: { text: input.text, answer: input.answer, ...(input.threadId ? { thread_id: input.threadId } : {}) },
+        });
+        return r.ok ? r.data.thread : null;
+      } catch {
+        return null;
+      }
+    },
+  };
+}
+
 /** The clip's whole wait: the route's own ceiling is a minute; a brief streams in well under ten seconds. */
 const SPEECH_MS = MIN_MS;
 
@@ -238,87 +279,126 @@ export function askApi(client: Api = api()) {
       }
     },
     warmModel: head.warmModel,
+    ...quickCalls(client),
     ...voiceCalls(client),
     ...speechCalls(client),
-    send: async (
-      input: {
-        text: string;
-        threadId: string | null;
-        /**
-         * The turn's scope, which its thread then keeps: the Line's chip, or none (null, which clears the thread's).
-         * Omitted by a caller with no opinion (the Leads answer row), so the thread keeps its own.
-         */
-        scope?: AskScope | null;
-        surface: AskSurface;
-        /** The search whose question the text answers (the Leads answer row): the route reads it and tells the model. */
-        answering?: { searchId: string } | null;
-        /** How long the Line was open before this question, in ms (AskTurnShape.opened_ms); omitted when unknown. */
-        openedMs?: number | null;
-        /** The page the question is asked on (contracts PageContext; ask/context.ts); omitted when the page gave none. */
-        context?: PageContext | null;
-      },
-      on: (ev: SendEvent) => void,
-    ): Promise<void> => {
-      head.sent();
-      let res: Response;
-      try {
-        res = await client.raw("POST ask", {
-          body: {
-            text: input.text,
-            thread_id: input.threadId,
-            ...(input.scope !== undefined ? { scope: input.scope } : {}),
-            surface: input.surface,
-            ...(input.answering ? { answering: { search_id: input.answering.searchId } } : {}),
-            ...(typeof input.openedMs === "number" && input.openedMs >= 0
-              ? { opened_ms: Math.round(input.openedMs) }
-              : {}),
-            ...(input.context ? { context: input.context } : {}),
-          },
-          timeoutMs: TURN_MS,
-        });
-      } catch (e) {
-        // A question that never left asked nothing; one that timed out may still be answered.
-        const name = (e as { name?: unknown } | null)?.name;
-        on({
-          t: "error",
-          text:
-            name === "TimeoutError" || name === "AbortError"
-              ? "Chanlytics took too long to answer — ask again in a moment."
-              : "Network error — nothing was asked.",
-        });
-        return;
-      }
-      // The client has already signed the tab out on its way back.
-      if (res.status === 401) return;
-      if (!res.ok || !res.body) {
-        const j = (await res.json().catch(() => null)) as {
-          error?: { code?: string; message?: string; details?: unknown };
-        } | null;
-        // The server's sentence, in our words where it gave none (contracts refusalOf); a page
-        // that was not ours used to read "Ask failed (502)." and gets a sentence of ours.
-        on({
-          t: "error",
-          text: j?.error
-            ? refusalOf({
-                code: j.error.code,
-                status: res.status,
-                message: j.error.message,
-                details: j.error.details,
-                retryAfter: res.headers.get("retry-after"),
-                write: true,
-              }).message
-            : "Chanlytics didn't answer — ask again in a moment.",
-        });
-        return;
-      }
+    send: turnCall(client, head),
+  };
+}
+
+/**
+ * The turn (POST ask): its lines handed on as they come, a stream that breaks before its answer said as an error line,
+ * and the person's Stop, which lets go of the request once the turn's thread is named.
+ */
+function turnCall(client: Api, head: { sent(): void }) {
+  return async (
+    input: {
+      text: string;
+      threadId: string | null;
+      /**
+       * The turn's scope, which its thread then keeps: the Line's chip, or none (null, which clears the thread's).
+       * Omitted by a caller with no opinion (the Leads answer row), so the thread keeps its own.
+       */
+      scope?: AskScope | null;
+      surface: AskSurface;
+      /** The search whose question the text answers (the Leads answer row): the route reads it and tells the model. */
+      answering?: { searchId: string } | null;
+      /** How long the Line was open before this question, in ms (AskTurnShape.opened_ms); omitted when unknown. */
+      openedMs?: number | null;
+      /** The page the question is asked on (contracts PageContext; ask/context.ts); omitted when the page gave none. */
+      context?: PageContext | null;
+      /**
+       * The person's Stop: the request is let go of, and the route stops the turn and keeps it as stopped. Not before
+       * the turn's thread is named, which is passed on so the next question carries on in it, never in a second
+       * thread; nothing else is passed on once stopped, since the Line has said so.
+       */
+      signal?: AbortSignal;
+    },
+    on: (ev: SendEvent) => void,
+  ): Promise<void> => {
+    head.sent();
+    const stopped = () => !!input.signal?.aborted;
+    const letGo = new AbortController();
+    let named = false;
+    const stopNow = () => {
+      if (named) letGo.abort();
+    };
+    input.signal?.addEventListener("abort", stopNow, { once: true });
+    let res: Response;
+    try {
+      res = await client.raw("POST ask", {
+        body: {
+          text: input.text,
+          thread_id: input.threadId,
+          ...(input.scope !== undefined ? { scope: input.scope } : {}),
+          surface: input.surface,
+          ...(input.answering ? { answering: { search_id: input.answering.searchId } } : {}),
+          ...(typeof input.openedMs === "number" && input.openedMs >= 0
+            ? { opened_ms: Math.round(input.openedMs) }
+            : {}),
+          ...(input.context ? { context: input.context } : {}),
+        },
+        timeoutMs: TURN_MS,
+        signal: letGo.signal,
+      });
+    } catch (e) {
+      if (stopped()) return;
+      // A question that never left asked nothing; one that timed out may still be answered.
+      const name = (e as { name?: unknown } | null)?.name;
+      on({
+        t: "error",
+        text:
+          name === "TimeoutError" || name === "AbortError"
+            ? "Chanlytics took too long to answer — ask again in a moment."
+            : "Network error — nothing was asked.",
+      });
+      return;
+    }
+    // The client has already signed the tab out on its way back.
+    if (res.status === 401 || (stopped() && !res.ok)) return;
+    if (!res.ok || !res.body) {
+      const j = (await res.json().catch(() => null)) as {
+        error?: { code?: string; message?: string; details?: unknown };
+      } | null;
+      // The server's sentence, in our words where it gave none (contracts refusalOf); a page
+      // that was not ours used to read "Ask failed (502)." and gets a sentence of ours.
+      on({
+        t: "error",
+        text: j?.error
+          ? refusalOf({
+              code: j.error.code,
+              status: res.status,
+              message: j.error.message,
+              details: j.error.details,
+              retryAfter: res.headers.get("retry-after"),
+              write: true,
+            }).message
+          : "Chanlytics didn't answer — ask again in a moment.",
+      });
+      return;
+    }
+    // Whether the turn has said how it ended: once it has, a stream that breaks after changes nothing.
+    let ended = false;
+    try {
       await readLines(res.body, (line) => {
         try {
-          on(JSON.parse(line) as SendEvent);
+          const ev = JSON.parse(line) as SendEvent;
+          if (stopped() && ev.t !== "thread") return;
+          if (ev.t === "final" || ev.t === "error") ended = true;
+          on(ev);
+          if (ev.t !== "thread") return;
+          named = true;
+          if (stopped()) letGo.abort();
         } catch {
           /* a torn line at the end of a broken stream */
         }
       });
-    },
+    } catch (e) {
+      // The stream broke under the answer: a network that changed, a laptop that slept, the wait run out. The Line is
+      // told, so it stops waiting for words that will not come (the turn is kept as stopped where it was cut).
+      if (ended || stopped()) return;
+      on({ t: "error", text: brokenWords(e, input.text) });
+    }
   };
 }
 

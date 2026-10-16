@@ -582,6 +582,8 @@ function heldAt(payload, at) {
  * in a setup); `card_fields_absent` fails a card of the kind that holds anything at a path into its payload, dotted
  * (`versions.sms`: a message written with a text version, which an offer never has), and `card_fields_present` one that
  * holds nothing there (`until`: a change asked to end on a day that names none), null holding nothing either way;
+ * `card_fields_each` fails each value named at a path that no card of the kind holds (`language` en_US and es: a message
+ * asked for "in Spanish too" is two cards, never the Spanish one alone);
  * `next_any` fails unless one of the answer's next questions holds one of the words (a campaign on a list made in the
  * same answer waits for a next question, A2). `e` is a case's expect, `m` the turn's final message. It judges every
  * case's cards, not a setup's alone: an offer's, a written message's, a change's and a text refused are held by the same
@@ -611,6 +613,11 @@ export function setupCardsFails(e, m) {
       for (const at of paths)
         if (heldAt(p.payload, at) === null)
           fails.push(`a ${kind} card holding nothing at ${at}, which the words named`);
+  for (const [kind, fields] of Object.entries(e.card_fields_each ?? {}))
+    for (const [at, values] of Object.entries(fields))
+      for (const v of values)
+        if (!cards.some((p) => p.kind === kind && heldAt(p.payload, at) === v))
+          fails.push(`no ${kind} card holding ${at} “${v}”, which the words asked for`);
   if (Array.isArray(e.next_any)) {
     const next = (m?.answer?.do?.next ?? m?.followups ?? []).map((q) => String(q).toLowerCase());
     if (!e.next_any.some((w) => next.some((q) => q.includes(w.toLowerCase()))))
@@ -1136,7 +1143,7 @@ export async function usageRows(rest, tenantId, since) {
  * kind, its cache hit, whether it followed another turn and how long after, and how its history was sent, once PR 5.4
  * records that (`replay`).
  */
-const SHAPE_FIELDS = ["tokens", "cache_hit", "follow_up", "since_last_ms", "replay"];
+const SHAPE_FIELDS = ["tokens", "cache_hit", "follow_up", "since_last_ms", "replay", "answer_tool", "answer_in"];
 /** Message ids named in one read: a much longer `in.(…)` list is a URI PostgREST refuses (about two hundred ids). */
 const IDS_PER_READ = 50;
 

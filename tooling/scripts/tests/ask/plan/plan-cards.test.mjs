@@ -375,6 +375,10 @@ const worldOf = (over = {}) => ({
   offersList: OFFERS,
   // An owner asks: a note for the receptionist is theirs to approve.
   canNote: true,
+  says: "en",
+  // No calendar and no deals, as GET playbooks says Harbor works; nobody counted for a moment the setups below start.
+  shape: { calendar: "none", dealsOn: false, word: "appointment" },
+  reach: {},
   ...over,
 });
 
@@ -486,6 +490,30 @@ test("the same offer with no message that fits: a message card first, written fo
   const s2 = owned.proposals.at(-1);
   assert.equal(s2.payload.params[2].value, `${OWN_SAY}.`);
   assert.ok(s2.summary.includes(STEP_SAYS), s2.summary);
+});
+
+test("a plan's message is written in its customers' language where the model names none (16 Oct 2026): the business's own off its profile, the one the person writes in where the business speaks it or names none, never English for want of a word", async () => {
+  const speaking = (languages) => {
+    const rows = tables({ templates: [], playbooks: [] });
+    const [cfg] = rows.tenant_config;
+    const profile = { ...PROFILE, ...(languages ? { languages } : {}) };
+    rows.tenant_config = [{ ...cfg, config: { ...cfg.config, brain: { ...cfg.config.brain, profile } } }];
+    return rows;
+  };
+  const written = async (rows, language) => {
+    const t = { ...newToolContext(ctxOf(rows, USER, PEOPLE, {}), A, "owner", TZ, NOW), language };
+    const r = await buildProposal(t, ...routed({ action: "plan", ...offer() }));
+    return r.proposals.find((p) => p.kind === "message")?.payload.language;
+  };
+  assert.equal(await written(speaking(["Spanish"]), "en"), "es", "a Spanish-speaking business, asked in English");
+  assert.equal(await written(speaking(["English", "español"]), "es"), "es", "asked in Spanish, a language it speaks");
+  assert.equal(await written(speaking(["English", "español"]), "en"), "en_US");
+  assert.equal(await written(speaking(null), "es"), "es", "no languages named: the person's own");
+  assert.equal(await written(speaking(null), "en"), "en_US");
+  // Named by the model, the model's word stands.
+  const t = { ...newToolContext(ctxOf(speaking(["Spanish"]), USER, PEOPLE, {}), A, "owner", TZ, NOW), language: "es" };
+  const named = await buildProposal(t, ...routed({ action: "plan", ...offer(), language: "en" }));
+  assert.equal(named.proposals.find((p) => p.kind === "message")?.payload.language, "en_US");
 });
 
 test("a token outside a plan, or naming a step that is not an earlier one, names nothing: the send's template_id is refused as any other non-id", async () => {
@@ -819,6 +847,10 @@ const calendarWorld = (over = {}) =>
     messages: [],
     playbooks: [],
     journey: CALENDAR_JOURNEY,
+    shape: { calendar: "feed", dealsOn: false, word: "appointment" },
+    // Who GET playbooks counts on each moment of Harbor today: nobody has a visit tomorrow or had one yesterday, and
+    // nobody has lapsed.
+    reach: { visit_tomorrow: 0, visited: 0, lapsed: 0 },
     ...over,
   });
 
@@ -934,10 +966,10 @@ const saidBeside = (headline, detail) => ({
   }),
 });
 /**
- * The November offer asked for (or `text`), the model's one round scripted as `blocks`, the plan's tool run for real
- * over `ctx`, asked by a member of `role`.
+ * The November offer asked for (or `text`, in `language`), the model's one round scripted as `blocks`, the plan's tool
+ * run for real over `ctx`, asked by a member of `role`.
  */
-const planTurn = (blocks, { text = `I want to offer ${WORDS}`, role = "owner", ctx = null } = {}) => {
+const planTurn = (blocks, { text = `I want to offer ${WORDS}`, role = "owner", ctx = null, language = "en" } = {}) => {
   const rounds = [{ blocks, stopReason: "tool_use", streamError: null }];
   const events = [];
   return runAskTurn(
@@ -948,7 +980,7 @@ const planTurn = (blocks, { text = `I want to offer ${WORDS}`, role = "owner", c
       facts: workspaceFacts("Harbor", TZ, null, NOW, []),
       timezone: TZ,
       personLabel: "ada@example.com (owner)",
-      language: "en",
+      language,
       scope: null,
       surface: "campaigns",
       history: [],
@@ -1084,7 +1116,36 @@ test("a setup's plan alone in its round: its campaigns are plain cards (D3), so 
     ],
   );
   assert.equal(r.answer.say.headline, "3 cards to review.");
-  assert.equal(r.answer.say.detail, W.cover(3));
+  assert.equal(
+    r.answer.say.detail,
+    "Starts 3 campaigns now, each its own card: a reminder the day before a booked time, a follow-up the day after a booked time and a win-back once they go quiet. The reminder, the follow-up and the win-back reach nobody today; each card says why.",
+  );
+  // A calendar connected and nothing else waited on: no lead, so no Open and no next question of the plan's.
+  assert.deepEqual([r.answer.do.open, r.answer.do.next], [null, []]);
+});
+
+test("a setup with no calendar, asked in Spanish by a business that books a call and sends proposals: the answer leads with what to connect first, in Spanish, opens the calendar's row and asks how next; the win-back is the one card (the setup review)", async () => {
+  const intent = { intent: "cover_journey", books: "llamada de diagnóstico", proposals: true };
+  const setup = { ...PLAN_CALL, json: JSON.stringify({ action: "offer", ...intent }) };
+  const r = await planTurn([setup], { text: "Prepara mis campañas", language: "es" });
+  assert.equal(r.failed, false, JSON.stringify(r));
+  assert.deepEqual(
+    r.proposals.map((p) => [p.kind, p.payload.trigger]),
+    [["playbook", "quiet_30"]],
+  );
+  assert.equal(
+    r.answer.say.headline,
+    "Conecta tu calendario y activa las propuestas primero: 1 campaña puede empezar ya, 3 más cuando estén los dos.",
+  );
+  assert.ok(
+    r.answer.say.detail.startsWith(
+      "Primero, conecta tu calendario en Ajustes › Negocio, para que cada llamada de diagnóstico",
+    ),
+    r.answer.say.detail,
+  );
+  assert.deepEqual(r.answer.do.open, { to: "admin/workspace/calendar", label: "Conectar un calendario", now: false });
+  assert.deepEqual(r.answer.do.next, ["¿Cómo conecto mi calendario en Ajustes?"]);
+  assert.equal(r.answer.language, "es");
 });
 
 test("an offer's journey and Library read before round 1 are the plan's own reads, answered from the turn's cache (readers/index.ts TurnCache): the plan's call after them asks the database for nothing more than the same call with nothing read ahead, and makes the same cards", async () => {
@@ -1101,9 +1162,14 @@ test("an offer's journey and Library read before round 1 are the plan's own read
   const r = await planTurn([PLAN_CALL], { ctx: ahead });
   assert.deepEqual(r.tools, ["sequences.journey", "sequences.messages", "propose_plan.offer"]);
   readerCache.clear();
-  // Words that name nothing to read ahead, the same call.
+  // Words that name nothing to read ahead, the same call. They name no draft either, and a plan begun at the turn's own
+  // effort is set aside and asked again at the draft's (server/ask/effort.ts): this counts the database's asks, so the
+  // draft's effort is off for it.
   const bare = ctxOf(tables());
-  const r2 = await planTurn([PLAN_CALL], { text: "Make it so", ctx: bare });
+  process.env.ASK_DRAFT_EFFORT = "off";
+  const r2 = await planTurn([PLAN_CALL], { text: "Make it so", ctx: bare }).finally(() => {
+    delete process.env.ASK_DRAFT_EFFORT;
+  });
   assert.deepEqual(r2.tools, ["propose_plan.offer"]);
   assert.deepEqual(asked(ahead), asked(bare));
   // The Library and the campaigns whole, which the reads ahead and the plan share, were asked once (a step's own read of

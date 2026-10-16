@@ -258,6 +258,9 @@ const surfaceAct = (act, openAsk) => {
  * `crumbs`, `pane` (false unless the row says), `primaryAction` (null unless the row says), `content`, and `mountKey`,
  * what the view is mounted under (the row's `mount`, else the route's own key).
  */
+// A pane at this address where the route's own says otherwise (Campaigns' Sequences view, a list and a record).
+const paneAsked = (chrome) => (chrome && typeof chrome.pane === "boolean" ? { pane: chrome.pane } : {});
+
 const drawRoute = (r) => {
   const row = SHELL_ROUTES.find((x) => x.page === r.page && (!x.when || x.when(r.param, r)));
   // A route that has left the shell (an App Router page, src/surfaces/routes.ts) has no row for the addresses its page
@@ -275,6 +278,7 @@ const drawRoute = (r) => {
   const answer = surface
     ? {
         ...surface,
+        ...paneAsked(chrome),
         activeNav: asked(surface.activeNav),
         crumbs: chrome ? chrome.crumbs : asked(surface.crumbs),
         // The top bar's Ask in the address's words, where the chrome says some (a person's page: "Ask about Emily").

@@ -77,6 +77,7 @@ export async function warmAskModel(
         },
       },
       () => {},
+      () => {},
     );
     log.info("ask_model_warmed", {
       tenant_id: tenantId,

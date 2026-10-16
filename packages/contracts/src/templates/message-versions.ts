@@ -397,3 +397,9 @@ export function versionsOf<T extends { name: string; channel: string }>(
   }
   return out;
 }
+
+/**
+ * The states of a message's version a send can go by: approved, or in WhatsApp's review (a campaign by email too holds
+ * its WhatsApp people until it is approved). What a plan reuses a message by (contracts ask/plan.ts, journey-plan.ts).
+ */
+export const LIVE_VERSION_STATES: ReadonlySet<string> = new Set(["approved", "pending"]);

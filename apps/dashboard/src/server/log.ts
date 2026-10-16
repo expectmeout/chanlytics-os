@@ -49,6 +49,7 @@ export const DASHBOARD_LOG_EVENTS = [
   "ask_replay_malformed",
   "ask_replay_rejected",
   "ask_replay_unread",
+  "ask_request_refused",
   "ask_round_hit_cap",
   "ask_save_failed",
   "ask_say_not_first",

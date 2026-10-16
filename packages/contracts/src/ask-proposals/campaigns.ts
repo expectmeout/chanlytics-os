@@ -435,6 +435,45 @@ export const runSpec: ProposalSpec = {
   },
 };
 
+/**
+ * A campaign run now, at the member's request (POST playbooks/:id/run, the hourly sweep's own run): it sends, waits for
+ * their OK where its class asks, or finds nobody new, which the receipt says by the route's `outcome`. A sequence's More
+ * presses it on its first step. A run that sends is canceled as an approved one is, while it has not finished; one that
+ * waits is the notice's to approve or skip.
+ */
+export const playbookRunSpec: ProposalSpec = {
+  needs: "operator",
+  gate: "approve",
+  commit: ({ payload: pl }) => {
+    const id = idIn(pl, "playbook_id");
+    return id ? { route: "POST playbooks/[id]/run", params: { id } } : refuseWith(PROPOSAL_WORDS.cannotApprove);
+  },
+  receipt: ({ payload: pl }, data) => {
+    const d = rec(data);
+    const name = asText(d.name ?? pl.name) || LIFECYCLE_TOAST.nameless;
+    const n = Number(d.eligible) || 0;
+    const people = `${n} ${n === 1 ? "person" : "people"}`;
+    if (d.outcome === "sent") return `${name} — ${people}, ${runGoes(pl, data)}`;
+    if (d.outcome === "held") return `${name} — ${people} waiting for your approval`;
+    return `${name} — nobody new to send to right now`;
+  },
+  undo: {
+    label: () => "Cancel it, if it has not finished",
+    window: "ten_minutes",
+    record: (_p, data) => {
+      const d = rec(data);
+      const id = asText(d.broadcast_id);
+      return d.outcome === "sent" && id ? { broadcast_id: id, decision_id: decisionOf(data) } : null;
+    },
+    call: cancelCall,
+    receipt: canceled,
+  },
+  open: ({ payload }) => {
+    const id = idIn(payload, "playbook_id");
+    return id ? `campaigns/moment:${id}` : "outbound";
+  },
+};
+
 /* ------------------------------------------------ a message written for the Library (the marketing manager, §5.2) */
 
 /**

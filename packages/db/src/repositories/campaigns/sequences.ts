@@ -136,6 +136,25 @@ export async function sequenceOverview(db: Db, tenantId: string, sequenceId?: st
   return readerRowsOf<SequenceRowDto>(data);
 }
 
+/**
+ * The sequence a part of it belongs to, by the part's id: a batch's (a run's address, broadcasts/run:<id>) or a step's.
+ * An address that names a part opens its sequence, which then names its own. Null where no part of this workspace has
+ * the id. Under the caller's row security, as the readers are.
+ */
+export async function sequenceOfPart(db: Db, tenantId: string, id: string): Promise<string | null> {
+  const [batch, step] = await Promise.all([
+    db.from("sequence_batches").select("sequence_id").eq("tenant_id", tenantId).eq("id", id).maybeSingle(),
+    db.from("sequence_steps").select("sequence_id").eq("tenant_id", tenantId).eq("id", id).maybeSingle(),
+  ]);
+  if (batch.error) throw new Error(`cannot read the batch's sequence: ${batch.error.message}`);
+  if (step.error) throw new Error(`cannot read the step's sequence: ${step.error.message}`);
+  const of = (r: unknown): string | null => {
+    const v = r && typeof r === "object" ? (r as { sequence_id?: unknown }).sequence_id : null;
+    return typeof v === "string" ? v : null;
+  };
+  return of(batch.data) ?? of(step.data);
+}
+
 /** A sequence's steps in their places, with what each sent in the last 30 days (00442 sequence_steps_of). */
 export async function sequenceStepsOf(db: Db, tenantId: string, sequenceId: string): Promise<SequenceStepDto[]> {
   const { data, error } = await db.rpc("sequence_steps_of", { p_tenant_id: tenantId, p_sequence_id: sequenceId });

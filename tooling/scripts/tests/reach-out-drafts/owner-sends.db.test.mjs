@@ -634,3 +634,31 @@ test("Reports names the emails their owner sent from their own inbox apart from 
   assert.equal(yours[0].delivered, 0, "nobody can know an owner's own email landed");
   assert.ok(report.mailboxes.every((m) => m.yours === true || m.yours === false));
 });
+
+test(
+  "a sequence's People reads each email handed to its owner with its draft, whole, and no other row carries one (00447)",
+  { skip },
+  async () => {
+    const L = await lead({ business_name: "People Fixture Gym" });
+    const id = await drafted(W.owner, L);
+    const [{ email }] = ok(await db.from("leads").select("email").eq("id", L));
+    const inIt = ok(
+      await as.owner.c.rpc("sequence_people", { p_tenant_id: A, p_sequence_id: W.owner.root, p_limit: 200 }),
+    );
+    const row = inIt.rows.find((r) => r.send_id === id);
+    assert.equal(row?.group, "to_send");
+    const { drafted_at: handed, ...draft } = row.draft;
+    assert.deepEqual(draft, {
+      to: email,
+      subject: "A quick one",
+      text: "Hello there.\n\nThe foot.",
+      follow_up: false,
+      angle: null,
+    });
+    assert.ok(Number.isFinite(Date.parse(handed)), "when it was handed over");
+    assert.ok(
+      inIt.rows.filter((r) => r.group !== "to_send").every((r) => r.draft === null),
+      "a row with nothing to send carries no draft",
+    );
+  },
+);

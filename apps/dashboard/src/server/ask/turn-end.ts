@@ -16,7 +16,7 @@ import {
 } from "@chanlytics/contracts";
 import { calledName, type ToolRun } from "./tools";
 import type { BuiltContext, SearchResultBlock } from "./context";
-import type { RoundResult } from "./round";
+import { argsOf, type RoundBlock, type RoundResult } from "./round";
 import { chainEnd, rawTurn, type TurnEnd } from "./memory";
 import type { TurnInput, TurnResult } from "./loop";
 import { log } from "@/server/log";
@@ -42,6 +42,22 @@ export function turnMeter(t0: number) {
     hopMs: null as number | null,
     /** The speed each round that came back went at, as the edge said it (null where it said none). */
     speeds: [] as Array<ModelSpeed | null>,
+    /** A draft, asked harder than the turn's own effort, and what found it (effort.ts); null while there is none. */
+    draft: null as AskTurnShape["draft"],
+    /**
+     * A round that stopped at its ceiling: counted and said, since whatever it wrote may be half-written, and a tool
+     * call or an answer that is half-written does not parse at all (caught where it is used: argsOf, normalizeAnswer).
+     * A turn that keeps hitting the cap is a budget that is too small, not a model that keeps changing its mind.
+     */
+    capped(stopReason: string | null, round: number, blocks: RoundBlock[], tenantId: string): void {
+      if (stopReason !== "max_tokens") return;
+      meter.capHits++;
+      log.error("ask_round_hit_cap", {
+        round,
+        tools: blocks.filter((b) => b.type === "tool_use").map((b) => calledName(b.name, argsOf(b))),
+        tenant_id: tenantId,
+      });
+    },
     /** A round that came back, begun at `roundAt`: its time, and its stream's first byte and text from the turn's start. */
     round(r: RoundResult, roundAt: number): void {
       meter.roundsMs.push(r.timing?.totalMs ?? Date.now() - roundAt);
@@ -108,6 +124,8 @@ interface TurnSoFar {
   plan: ToolRun[];
   meter: ReturnType<typeof turnMeter>;
   format: boolean;
+  /** How the answer that ended the turn was written: the answer tool's input, as text, or null where none was. */
+  answerIn: "tool" | "text" | null;
   toolsUsed: string[];
   proposals: AskProposal[];
   /** Where the question sits in every request of the turn: a later round only appends. */
@@ -136,6 +154,7 @@ export function finishTurn(r: TurnEnd, soFar: TurnSoFar): TurnResult {
     answered_by: soFar.meter.answeredBy,
     prompt_hash: soFar.promptHash,
     effort: model.effort,
+    draft: soFar.meter.draft,
     speed: speedOfTurn(speeds),
     surface: input.surface,
     scope_kind: input.scope?.kind ?? null,
@@ -164,6 +183,8 @@ export function finishTurn(r: TurnEnd, soFar: TurnSoFar): TurnResult {
     hop_ms: hopMs,
     cap_hits: capHits,
     format,
+    answer_tool: model.answerTool,
+    answer_in: r.failed ? null : soFar.answerIn,
     failed: r.failed,
   };
   log.info("ask_turn_shape", { tenant_id: input.tenantId, ...shape, tools: toolsUsed, form: r.answer.form });

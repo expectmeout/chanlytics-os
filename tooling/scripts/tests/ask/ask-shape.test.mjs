@@ -90,7 +90,12 @@ test("a round keeps its timing (first event, first text, the whole) and its usag
     yield { type: "block_stop", index: 0 };
     yield { type: "stop", stopReason: "end_turn", outputTokens: 42 };
   }
-  const r = await runRound({ tenantId: A, userId: USER, request: {} }, () => {}, stream);
+  const r = await runRound(
+    { tenantId: A, userId: USER, request: {} },
+    () => {},
+    () => {},
+    stream,
+  );
   assert.deepEqual(r.usage, {
     messageId: "msg_01",
     model: "claude-opus-5-5",
@@ -112,7 +117,12 @@ test("a round keeps its timing (first event, first text, the whole) and its usag
     yield { type: "block_stop", index: 0 };
     yield { type: "stop", stopReason: "tool_use", outputTokens: null };
   }
-  const s = await runRound({ tenantId: A, userId: USER, request: {} }, () => {}, silent);
+  const s = await runRound(
+    { tenantId: A, userId: USER, request: {} },
+    () => {},
+    () => {},
+    silent,
+  );
   assert.equal(s.usage, null, "no usage frame, no usage: never a row of zeros");
   assert.equal(s.timing.hopMs, null, "no server-timing, no hop: never a guess");
   assert.equal(s.timing.firstTextMs, null, "a round that wrote no text has no first text");
@@ -121,7 +131,12 @@ test("a round keeps its timing (first event, first text, the whole) and its usag
   async function* nothing() {
     yield { type: "error", message: "gone" };
   }
-  const n = await runRound({ tenantId: A, userId: USER, request: {} }, () => {}, nothing);
+  const n = await runRound(
+    { tenantId: A, userId: USER, request: {} },
+    () => {},
+    () => {},
+    nothing,
+  );
   assert.deepEqual([n.streamError, n.usage, n.timing.firstTextMs], ["gone", null, null]);
 });
 

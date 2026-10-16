@@ -1,18 +1,19 @@
 /* global React */
 // Ask's hooks: hold to talk, a held Space that talks, a held press that
-// talks, focus that returns to the line, and reading aloud. Each does one thing and knows nothing about
+// talks, focus that returns to the line, a field that grows with its words, and reading aloud. Each does one thing and knows nothing about
 // the Line's state. Published as window.AskHooks.
 
 const useAhState = React.useState;
 const useAhEffect = React.useEffect;
 const useAhRef = React.useRef;
+const useAhLayout = React.useLayoutEffect;
 
 // Hold to talk is the kit's (surfaces/kit/talk/use-hold-to-talk.ts, published as window.useHoldToTalk): press starts the
 // browser's own recogniser, release stops it, and what was heard is handed back on its own, interim words as they come,
 // so the input shows them. Nothing is recorded or uploaded. What it adds here is the Line's language: Spanish where the
-// Line speaks it. Words heard for a Line that is gone (Ask closed while it listened) are dropped by the kit's.
+// Line speaks it, as the US speaks it (es-US: the businesses' customers, more of them heard right than as Spain's). Words heard for a Line that is gone (Ask closed while it listened) are dropped by the kit's.
 const useAskTalk = ({ lang, onWords, onHeard, disabled }) =>
-  window.useHoldToTalk({ lang: lang === "es" ? "es-ES" : undefined, onWords, onHeard, disabled });
+  window.useHoldToTalk({ lang: lang === "es" ? "es-US" : undefined, onWords, onHeard, disabled });
 
 // A Space held on an empty line talks (the Line, 6.6): held 300ms it starts
 // listening, and letting go asks. A tap does nothing, because an empty line
@@ -268,7 +269,18 @@ const useAskWarm = ({ A, open, query }) => {
   }, [A, open, query]);
 };
 
+// The Line's field grows with what is written, a line at a time, before it is painted; ask.css caps it at six lines, and
+// past them it scrolls. Measured again as the words change and as the Line opens (a seeded question, a kept draft).
+const useAskGrow = (ref, value, open) => {
+  useAhLayout(() => {
+    const el = ref.current;
+    if (!open || !el || !el.style || el.value !== value) return; // measured once the open field holds these words
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
+  }, [ref, value, open]);
+};
+
 window.AskHooks = {
-  useAskTalk, useHoldSpace, useHoldPress, useAskFocus, useAskSpeech, useAskWarm, useAskPin, useAskLatest,
+  useAskTalk, useHoldSpace, useHoldPress, useAskFocus, useAskSpeech, useAskWarm, useAskPin, useAskLatest, useAskGrow,
   pinNow: ahPinNow, pinTop: ahPinTop, latestShown: ahLatestShown, slide: ahSlide, slideFrom: ahSlideFrom,
 };

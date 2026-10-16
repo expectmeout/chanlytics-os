@@ -1,6 +1,6 @@
 /**
  * A step's words as one person reads them (the canvas's Steps board, "its words in a chat bubble with each person's words
- * tinted"): the app's one drawing of a message (parts/message-preview.tsx), compact and bare, filled for an example person
+ * tinted"): the app's one drawing of a message (parts/message-preview.tsx), its bubble plain on the flow's ground, filled for an example person
  * the way every composer previews one (contracts exampleParams), under the message's own name, which opens it in Messages,
  * and its WhatsApp standing. The message is the workspace's offered one of the step's name and language (the settings
  * read, parts/channels.ts cmOfferedFrom), so the words are the ones it sends; a step whose message is not offered here says
@@ -52,7 +52,7 @@ export function StepWords({ name, language, params, acts = null, testid }: StepW
   return (
     <div className="sq-msg" data-testid={testid}>
       {message?.body_preview ? (
-        <MessagePreview compact bare from={business} body={message.body_preview} values={values} />
+        <MessagePreview compact plain from={business} body={message.body_preview} values={values} />
       ) : (
         <p className="sq-msg-none">{name ?? F.noMessage}</p>
       )}

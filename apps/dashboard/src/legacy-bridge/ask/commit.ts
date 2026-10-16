@@ -44,7 +44,6 @@ import {
 import type { Api } from "../../client/api";
 import { apiFor } from "../api";
 import { isRefusal, saidHere, specOf, undoVerb, walkVerb } from "../verbs/commit";
-import { goToRoute } from "../workspace";
 
 /** What a commit did: its receipt, what its undo keeps, and the id it made that a later step of a plan names, or null. */
 export type CommitResult =
@@ -213,13 +212,15 @@ export async function undoProposal(
   return saidHere(r) ? { ok: false, message: r.message } : r;
 }
 
-/** "Edit in the composer": open the thread with the words ready to change. */
+/**
+ * "Edit in the composer": the card's press opens the thread (its Open), and the words wait for it as the member's draft
+ * of the thread's reply, which its box opens with (tab-memory.ts); a box already open on that thread takes them now.
+ * Sent by event 400 ms after a second navigation, they were lost to an Inbox that mounted later.
+ */
 export function editReply(win: Window, p: AskProposal): void {
   const pl = p.payload;
   const text = (v: unknown): string => (v == null ? "" : String(v));
-  goToRoute(`inbox/th-${text(pl.conversation_id)}`, {}, win);
-  win.setTimeout(
-    () => win.dispatchEvent(new CustomEvent("inbox:focus-composer", { detail: { text: text(pl.text) } })),
-    400,
-  );
+  const threadId = `th-${text(pl.conversation_id)}`;
+  win.__tabMemory?.keepDraft("reply", text(pl.text), threadId);
+  win.dispatchEvent(new CustomEvent("inbox:focus-composer", { detail: { text: text(pl.text), threadId } }));
 }

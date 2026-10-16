@@ -78,7 +78,7 @@ function campaignsViews(picked: "sequences" | "messages" | "ads"): SurfaceViews 
  * Sequences' crumbs (decision 0060): Campaigns, then Sequences, and under it the sequence open, named once the list holds
  * it, or a new one. Every address is the one mount of Campaigns, the page following its own address.
  */
-function sequencesChrome(): { crumbs: Crumb[]; mount: string; act: null; views: SurfaceViews } {
+function sequencesChrome(): { crumbs: Crumb[]; mount: string; act: null; views: SurfaceViews; pane: true } {
   const route = typeof window === "undefined" ? null : routeOfPath(window.location.pathname);
   const place = route ? parseSequencesRoute(route) : null;
   const list = surfaceValue("sequences");
@@ -93,6 +93,8 @@ function sequencesChrome(): { crumbs: Crumb[]; mount: string; act: null; views: 
     mount: "campaigns",
     act: null,
     views: campaignsViews("sequences"),
+    // A list and a record beside it, as Sent is: each scrolls inside itself, and a record's foot stands at the screen's edge.
+    pane: true,
   };
 }
 
@@ -126,6 +128,7 @@ export function campaignsChrome({ param }: { param: string | null }): {
   mount: string;
   act: null;
   views?: SurfaceViews;
+  pane?: boolean;
 } {
   const demo = inDemo();
   if (demo && param && isAdsParam(param)) return adsChrome(param);

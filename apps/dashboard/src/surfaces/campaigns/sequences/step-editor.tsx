@@ -7,9 +7,12 @@
  * for an example person, with the door to its words in Messages. The foot says what a save reaches. Saved through the
  * sequence's own doors (00442): a new step at the end, or this one changed; its words changed apart, since a WhatsApp
  * version not yet approved waits while the step sends its own (`waits`). The server judges the values against the
- * message (core templateValues) and says what it refused in words.
+ * message (core templateValues) and says what it refused in words. Inside a record, Cancel and Save stand in the pane's
+ * foot (use-record.ts RecordFootContext), with what a save reaches beside them on a desk and over the fields' end on a
+ * phone, so the press is at the thumb however long the step's fields run.
  */
-import { useMemo, useState } from "react";
+import { useContext, useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   PREVIEW_CHANNEL_WORDS,
   SEQUENCE_EDIT_WORDS as E,
@@ -38,6 +41,8 @@ import { useSurface } from "../../use-surface";
 import { cmBusinessOf, cmOfferedFrom, cmStandInOf, type CmOffered } from "../parts/channels";
 import { MessagePreview } from "../parts/message-preview";
 import { cmOfferFoot, cmPreviewBy } from "../parts/preview-by";
+import { useCmPhone } from "../parts/split";
+import { RecordFootContext } from "./use-record";
 import { pressed } from "./verbs";
 
 type Flash = (flash: LegacyFlash) => void;
@@ -137,6 +142,78 @@ function MessageFrom({ picked }: { picked: CmOffered }) {
         {E.inMessages} <Icon name="chevron" size={11} />
       </LinkButton>
     </p>
+  );
+}
+
+interface EditorFootProps {
+  first: boolean;
+  byWhatsApp: boolean;
+  /** A new step, whose press says Add the step. */
+  adding: boolean;
+  /** Whether Save may be pressed: a message picked, something changed, nothing on its way. */
+  ready: boolean;
+  onCancel: () => void;
+  onSave: () => void;
+}
+
+/**
+ * What a save reaches, and Cancel and Save. Inside a record they stand in the pane's foot (use-record.ts
+ * RecordFootContext), which the editor holds while it is open: what a save reaches beside them on a desk, and over the
+ * fields' end on a phone, where the foot is a thumb's pair. Anywhere else, under the fields.
+ */
+function EditorFoot({ first, byWhatsApp, adding, ready, onCancel, onSave }: EditorFootProps) {
+  const foot = useContext(RecordFootContext);
+  const phone = useCmPhone();
+  const holdFoot = foot?.hold;
+  useEffect(() => {
+    if (!holdFoot) return undefined;
+    holdFoot(true);
+    return () => holdFoot(false);
+  }, [holdFoot]);
+  const reach = (
+    <p className="sq-ed-reach">
+      <b>{E.reaches(first)}</b>
+      {byWhatsApp ? <span> · {E.whatsAppFirst}</span> : null}
+    </p>
+  );
+  const presses = (
+    <>
+      <Button size="sm" className="sq-foot-act" onClick={onCancel} data-testid="sq-editor-cancel">
+        {E.cancel}
+      </Button>
+      <Button
+        size="sm"
+        variant="primary"
+        className="sq-foot-act"
+        onClick={onSave}
+        disabled={!ready}
+        data-testid="sq-editor-save"
+        {...gate("approve")}
+      >
+        {adding ? E.add : E.save}
+      </Button>
+    </>
+  );
+  if (!foot)
+    return (
+      <div className="sq-ed-foot">
+        {reach}
+        {presses}
+      </div>
+    );
+  return (
+    <>
+      {phone ? reach : null}
+      {foot.el
+        ? createPortal(
+            <>
+              {phone ? null : reach}
+              {presses}
+            </>,
+            foot.el,
+          )
+        : null}
+    </>
   );
 }
 
@@ -276,25 +353,14 @@ export function StepEditor({ sequenceId, step, policyClass, flash, onDone, onCan
           <StepPreview picked={picked} values={exampleParams(params, business)} policyClass={policyClass} />
         ) : null}
       </div>
-      <div className="sq-ed-foot">
-        <p className="sq-ed-reach">
-          <b>{E.reaches(first)}</b>
-          {byWhatsApp ? <span> · {E.whatsAppFirst}</span> : null}
-        </p>
-        <Button size="sm" onClick={onCancel} data-testid="sq-editor-cancel">
-          {E.cancel}
-        </Button>
-        <Button
-          size="sm"
-          variant="primary"
-          onClick={() => void save()}
-          disabled={busy || !picked || !changed}
-          data-testid="sq-editor-save"
-          {...gate("approve")}
-        >
-          {step ? E.save : E.add}
-        </Button>
-      </div>
+      <EditorFoot
+        first={first}
+        byWhatsApp={byWhatsApp}
+        adding={!step}
+        ready={!busy && !!picked && changed}
+        onCancel={onCancel}
+        onSave={() => void save()}
+      />
     </div>
   );
 }

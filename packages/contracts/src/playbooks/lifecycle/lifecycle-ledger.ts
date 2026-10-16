@@ -32,9 +32,8 @@ import {
   playbookChannelsRead,
   type PlaybookMessage,
 } from "../playbook-channels";
-import { nextRunLabel } from "../playbook-schedule";
 import { PLAYBOOK_DEFAULTS, triggerOf, triggerWords } from "../playbook-triggers";
-import { nextRunLine, nextShare, waitingOffer, workspacePausedOf } from "./lifecycle-tiles";
+import { nextRunLine, resumeDetailOf, waitingOffer, workspacePausedOf } from "./lifecycle-tiles";
 import type {
   LifecycleAct,
   LifecycleChains,
@@ -263,30 +262,17 @@ function rowWaitingOf(p: LifecyclePlaybook, at: RowAt): LifecycleWaiting | null 
   return { runId: run.id, people: run.recipient_count, refusal: offer.kind === "skip" ? offer.why : null };
 }
 
-/**
- * Resume, asked in place: when its next run would be, to about how many, and, where its class sends without asking
- * (`auto`, GET playbooks' `modes`) and it is not on trial, that in full (decision 7). Unread, the mode is not guessed: when
- * and how many alone.
- * A moment that could not be counted (`candidates` null) says when alone: never "about 0 people" nobody counted.
- */
+/** Resume, asked in place (resumeDetailOf), with the class's mode as GET playbooks' `modes` says it. */
 function resumeOf(p: LifecyclePlaybook, input: LifecycleInput): LifecycleAct {
   const W = LIFECYCLE_WORDS.ledger.resume;
-  const when = nextRunLabel(
-    { ...p, state: "running" as const },
-    input.tz,
-    new Date(input.nowMs),
-    workspacePausedOf(input),
-  );
   const cls = p.policy_class ?? triggerOf(p.trigger)?.cls ?? null;
-  // On trial (00416), a run of an auto class still waits for a person: it does not send on its own until the trial ends.
-  const auto = cls !== null && input.playbooks?.modes?.[cls] === "auto" && !p.trial;
-  const detail = W.detail(when, p.candidates === null ? null : nextShare(p));
-  return {
-    kind: "resume",
-    label: W.label,
-    playbookId: p.id,
-    ask: { question: W.question(p.name), detail: auto ? `${detail}. ${W.auto}` : detail },
-  };
+  const detail = resumeDetailOf(p, {
+    tz: input.tz,
+    nowMs: input.nowMs,
+    paused: workspacePausedOf(input),
+    mode: cls === null ? null : input.playbooks?.modes?.[cls],
+  });
+  return { kind: "resume", label: W.label, playbookId: p.id, ask: { question: W.question(p.name), detail } };
 }
 
 /** A campaign on a moment, on a list, or the month's offer. */

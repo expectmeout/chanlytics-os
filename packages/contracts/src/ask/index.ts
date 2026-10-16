@@ -45,7 +45,13 @@ export type {
   AskSurface,
   MessageRead,
 } from "./ask";
-export { detectLanguage, ASK_LANGUAGES } from "./ask-language";
+export {
+  detectLanguage,
+  messageLanguageOf,
+  messageLanguagesNext,
+  messageLanguagesOf,
+  ASK_LANGUAGES,
+} from "./ask-language";
 export type { AskLanguage } from "./ask-language";
 export {
   cleanAnswer,
@@ -60,7 +66,7 @@ export { askJump, askPages, ASK_PAGES } from "./ask-jump";
 export type { JumpEntry } from "./ask-jump";
 export { buildAskSuggestions } from "./ask-suggestions";
 export type { AskSuggestion, SuggestionInput } from "./ask-suggestions";
-export { dayFromQuestion, askIntent, callsToday } from "./ask-fast-paths";
+export { dayFromQuestion, askIntent, callsToday, quickAnswerOf } from "./ask-fast-paths";
 export type { FastCall, AskIntent } from "./ask-fast-paths";
 export { callJumpSub, askCallOutcome } from "./ask-calls";
 export { applySettingsChange, describeSettingsChange } from "./ask-settings-change";
@@ -78,7 +84,15 @@ export {
 export type { AskCitationKind, AskCitation, AskReadSet, AskRowRef } from "./citations";
 export { cacheHitOf } from "./ask-shape";
 export type { AskTurnShape, AskTurnTokens } from "./ask-shape";
-export { askModelProfile, ASK_EFFORT, ASK_MODEL, ASK_SPEED } from "./ask-model";
+export {
+  askModelProfile,
+  askRoundCap,
+  ASK_DRAFT_EFFORT,
+  ASK_DRAFT_MAX_TOKENS,
+  ASK_EFFORT,
+  ASK_MODEL,
+  ASK_SPEED,
+} from "./ask-model";
 export { rightNowLine, rightNowCounts } from "./ask-waiting";
 export type { AskWaiting } from "./ask-waiting";
 export type { AskModelProfile } from "./ask-model";
@@ -115,7 +129,8 @@ export type {
   AskAnswerRead,
 } from "./ask-answer";
 export { ASK_ANSWER_FORMAT } from "./answer-format";
-export { partialSay } from "./answer-stream";
+export { partialSay, answerSoFar, stoppedAnswer } from "./answer-stream";
+export type { AskSayPreview, AskShowPreview } from "./answer-stream";
 export { planOf, PLAN_WORDS } from "./plan";
 export type { PlanIntent, PlanWorld, PlanStep } from "./plan";
 export { planMadeOf, resolveSteps, stepToken, STEP_TOKEN, planWaits, cardsInPlans, planGroupOf } from "./plan-steps";

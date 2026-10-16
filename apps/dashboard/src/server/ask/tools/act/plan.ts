@@ -9,6 +9,8 @@ import {
   STEP_TOKEN,
   channelChoices,
   listToken,
+  messageLanguageOf,
+  messageLanguagesOf,
   notesInForce,
   parseTenantConfigResult,
   planOf,
@@ -77,12 +79,20 @@ interface PlanAsked {
   offer?: Extract<PlanIntent, { intent: "offer" }>["offer"];
   say?: string;
   stages?: Extract<PlanIntent, { intent: "cover_journey" }>["stages"];
+  books?: string;
+  proposals?: boolean;
   language?: "en" | "es";
 }
 
 /** The intent as planOf takes it, or why not: an offer with nothing of it named. */
 function intentOf(asked: PlanAsked): PlanIntent | { refusal: string } {
-  if (asked.intent === "cover_journey") return { intent: "cover_journey", stages: asked.stages };
+  if (asked.intent === "cover_journey")
+    return {
+      intent: "cover_journey",
+      ...(asked.stages ? { stages: asked.stages } : {}),
+      ...(asked.books?.trim() ? { books: asked.books } : {}),
+      ...(asked.proposals === true ? { proposals: true } : {}),
+    };
   if (!asked.offer) return { refusal: PLAN_WORDS.noOffer };
   return { intent: "offer", offer: asked.offer, ...(asked.say ? { say: asked.say } : {}) };
 }
@@ -97,10 +107,11 @@ async function worldReads(t: ToolContext) {
     orNull(t, "messages", readMessages(t)),
     orNull(t, "lists", listLists(t)),
     orNull(t, "journey", readJourney(t)),
+    // The campaigns, and with them how the business works and who each moment reaches today (GET playbooks' answer).
     orNull(
       t,
       "playbooks",
-      load(t.rc, playbooks, undefined).then((r) => r.data.playbooks),
+      load(t.rc, playbooks, undefined).then((r) => r.data),
     ),
     orNull(t, "room", getRoom(t)),
     // Null where the channels could not be read (campaigns/channels-ready.ts channelsReadyOrNull): never "WhatsApp alone".
@@ -142,6 +153,17 @@ function notesOf(r: Awaited<ReturnType<typeof worldReads>>, now: Date): PlanWorl
 }
 
 /**
+ * The language a plan's message is written in where the model named none: its customers' (contracts messageLanguageOf),
+ * by the languages the business's profile says its receptionist answers in and the one the person asked in. A profile
+ * that could not be read names none.
+ */
+function customersLanguage(r: Awaited<ReturnType<typeof worldReads>>, t: ToolContext): PlanWorld["language"] {
+  const parsed = parseTenantConfigResult(r.settings?.row?.config ?? null);
+  const names = parsed.ok ? (parsed.config.brain?.profile?.languages ?? []) : [];
+  return messageLanguageOf(messageLanguagesOf(names), t.language);
+}
+
+/**
  * The workspace as a plan is made against (contracts PlanWorld), each part read by the read Ask's own action of it makes,
  * so what the plan reuses, counts and covers is what those actions say: the Library (sequences.messages), the lists and
  * their counts (people.lists: People's offered here and the workspace's own), the journey (sequences.journey, as
@@ -162,7 +184,7 @@ function notesOf(r: Awaited<ReturnType<typeof worldReads>>, now: Date): PlanWorl
 async function planWorld(
   t: ToolContext,
   intent: PlanIntent["intent"],
-  language: PlanWorld["language"],
+  language: PlanWorld["language"] | null,
 ): Promise<PlanWorld | { refusal: string }> {
   const r = await worldReads(t);
   const offer = intent === "offer";
@@ -187,7 +209,18 @@ async function planWorld(
   return {
     now: t.now,
     tz: t.timezone,
-    language,
+    language: language ?? customersLanguage(r, t),
+    // A setup's words are said in the question's language; anything but Spanish is said in English.
+    says: t.language === "es" ? "es" : "en",
+    // How the business works, as Campaigns says it (contracts lifecycle-inputs businessShapeOf): a calendar connected,
+    // readable now or not, is the feed; else its booking tool's emails, else none.
+    shape: {
+      calendar: r.pb.calendar !== "none" ? "feed" : r.pb.bookings_by_email ? "email" : "none",
+      dealsOn: r.pb.deals_on,
+      word: r.pb.appointment_word,
+    },
+    // Who a run on each moment would pick now, the Playbooks page's own count; a moment not counted is null.
+    reach: Object.fromEntries(Object.entries(r.pb.pools).map(([k, v]) => [k, v ? v.candidates : null])),
     channels: { whatsapp: offerOn("whatsapp"), email: offerOn("email") },
     // A message about their own appointment (the review ask) goes on WhatsApp where it sends, whatever offers may.
     whatsappSends: r.ready.whatsapp.ready,
@@ -201,7 +234,7 @@ async function planWorld(
         count: "count" in l ? (l.count ?? null) : null,
       })),
     ],
-    playbooks: r.pb.map((p) => ({
+    playbooks: r.pb.playbooks.map((p) => ({
       id: p.id,
       name: p.name,
       trigger: p.trigger,
@@ -250,7 +283,7 @@ async function stepCard(t: ToolContext, step: PlanStep): Promise<AskProposal | {
 async function proposePlan(t: ToolContext, asked: PlanAsked): Promise<ProposalOutcome> {
   const intent = intentOf(asked);
   if ("refusal" in intent) return refuse(intent.refusal);
-  const world = await planWorld(t, intent.intent, asked.language ?? "en");
+  const world = await planWorld(t, intent.intent, asked.language ?? null);
   if ("refusal" in world) return refuse(world.refusal);
   const planned = planOf(intent, world);
   if ("refused" in planned) return refuse(planned.refused);
@@ -264,7 +297,7 @@ async function proposePlan(t: ToolContext, asked: PlanAsked): Promise<ProposalOu
     cards.push(id ? { ...card, plan: { id, step: s.n, of, silent: s.silent, after: s.after } } : card);
   }
   const steps = planned.steps.map((s, i) => ({ n: s.n, kind: s.kind, card: cards[i]?.title ?? "", silent: s.silent }));
-  return proposeMany(cards, id ? { plan: id, steps } : { steps }, planned.words);
+  return proposeMany(cards, id ? { plan: id, steps } : { steps }, planned.words, planned.lead ?? null);
 }
 
 /** An offer or a whole setup, made into its cards from one call: propose_plan's action offer. */
@@ -285,6 +318,8 @@ const planAction = actAction({
       .optional(),
     say: z.string().optional(),
     stages: z.array(z.enum(JOURNEY_STAGE_IDS)).optional(),
+    books: z.string().optional(),
+    proposals: z.boolean().optional(),
     language: z.enum(["en", "es"]).optional(),
   }),
   examples: [
@@ -293,10 +328,11 @@ const planAction = actAction({
       offer: { words: "10% off every service all November", from: "2026-11-01", until: "2026-11-30" },
     },
     { intent: "cover_journey" },
+    { intent: "cover_journey", books: "discovery call", proposals: true },
   ],
   label: "Making a plan",
   words:
-    "Action offer makes every card an offer or a whole setup takes, from one call: intent offer, with offer (words, the offer in their words; from and until, its first and last day, YYYY-MM-DD by the business's calendar; service, who as a list token, and channels, each optional) and say, their own phrasing where they gave one; or intent cover_journey, with optional stages, for a campaign on each moment of the journey not covered yet. Name what they asked for and the days they gave, never an id or a time to send: the plan reads the Library, the lists, the campaigns, the notes, the calendar's room and the channels itself, and reuses a message that fits or writes one in language (en or es, the one their customers read; en where none is named). It comes back as the plan's words and its steps, each its own card in order: those that send nothing (a message, a note for the receptionist, a pause) are approved together, and each send on its own after them; say the plan's words, and never that any of it is done.",
+    "Action offer makes every card an offer or a whole setup takes, from one call: intent offer, with offer (words, the offer in their words; from and until, its first and last day, YYYY-MM-DD by the business's calendar; service, who as a list token, and channels, each optional) and say, their own phrasing where they gave one; or intent cover_journey, with optional stages, for a campaign on each moment of the journey not covered yet, and what they told you of their business: books, what their customers book in their own words (“discovery call”), and proposals true where they said some customers get a proposal before they buy. The plan says what must be connected or turned on first for the moments it cannot start yet, and leads the answer with it. Name what they asked for and the days they gave, never an id or a time to send: the plan reads the Library, the lists, the campaigns, the notes, the calendar's room and the channels itself, and reuses a message that fits or writes one in language (en or es, as the rule for a message's language says; left out, the business's). It comes back as the plan's words and its steps, each its own card in order: those that send nothing (a message, a note for the receptionist, a pause) are approved together, and each send on its own after them; say the plan's words, and never that any of it is done.",
   build: proposePlan,
 });
 
@@ -400,7 +436,7 @@ async function proposeSteps(
   const words =
     asked.words?.trim() ||
     `${of} steps: ${stamped.filter((c) => c.plan.silent).length} that change only what you keep, approved together, then each send on its own.`;
-  return proposeMany(stamped, { plan: id, steps }, words);
+  return proposeMany(stamped, { plan: id, steps }, words, null);
 }
 
 const stepsAction = actAction({

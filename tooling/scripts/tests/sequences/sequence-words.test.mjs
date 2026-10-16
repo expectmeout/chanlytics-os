@@ -12,6 +12,7 @@ import {
   needsCount,
   needsWords,
   parseSequencesRoute,
+  runSheetRoute,
   sequenceGroupOf,
   sequenceLandingOf,
   sequenceNotice,
@@ -177,15 +178,26 @@ test("an address is read and written by one parser and one writer: the list, a r
   });
   assert.equal(parseSequencesRoute("campaigns/moment:s1"), null);
   assert.equal(sequenceRoute("s1", "people"), "campaigns/sequences/s1/people");
+  // A day of History open is the address's own: written and read back.
+  assert.equal(sequenceRoute("s1", "history", "b1"), "campaigns/sequences/s1/history/b1");
+  assert.equal(sequenceRoute("s1", "people", "b1"), "campaigns/sequences/s1/people", "a day is History's alone");
+  assert.deepEqual(parseSequencesRoute(sequenceRoute("s1", "history", "b1")), {
+    view: "record",
+    id: "s1",
+    tab: "history",
+    day: "b1",
+  });
 });
 
 test("where Sequences is drawn, an older address lands on what it names; the composer, a message and Sent stay", () => {
   assert.equal(sequenceLandingOf("campaigns"), SEQUENCES_ROUTE);
+  // A run a link names lands on its sequence's History, that day open (W4); its sheet stays where Open the run goes.
+  assert.equal(sequenceLandingOf("broadcasts/run:b1"), "campaigns/sequences/b1/history/b1");
+  assert.equal(sequenceLandingOf(runSheetRoute("b1")), null);
   assert.equal(sequenceLandingOf("campaigns/in:before"), SEQUENCES_ROUTE);
   assert.equal(sequenceLandingOf("campaigns/moment:s1"), "campaigns/sequences/s1");
   assert.equal(sequenceLandingOf("campaigns/moment:s1:people"), "campaigns/sequences/s1/people");
   for (const stays of [
-    "broadcasts/run:b1",
     "campaigns/new",
     "campaigns/new:every",
     "campaigns/message:come_back",

@@ -3,12 +3,15 @@
  * to be changed, what needs you in it, and what it sent over a period, day by day. Pure: the clock is an argument, and
  * every number is counted from what the readers answer (sequence-dto.ts), so a figure here is the one Reports says.
  */
+import { toSendRowOf, type ToSendRowVM } from "../reach-out/reach-out-approval";
+import { leadDoorOf } from "../reach-out/reach-out-sheet";
+import { HOLD_DOOR_WORDS, holdDoors, holdWords, isReachOutHold, type HoldDoor } from "../reach-out/reach-out-words";
 import { REPORT_MIN_N } from "../reports/report-tiles";
 import { zoneDayKey } from "../shared/clock";
 import { pct } from "../shared/numbers";
 import { plural } from "../shared/words";
 import { DAY_MS } from "../shared/time";
-import type { SequenceBatchDto, SequenceHistoryDto } from "./sequence-dto";
+import type { SequenceBatchDto, SequenceHistoryDto, SequencePersonDto } from "./sequence-dto";
 
 /** A step opened to be changed (the canvas's Editor board): its fields, what a save reaches, and its preview. */
 export const SEQUENCE_EDIT_WORDS = {
@@ -52,7 +55,83 @@ export const SEQUENCE_NEEDS_WORDS = {
   reading: "Reading what it holds…",
   /** What a failed read could not read: "Couldn't read this batch's emails". */
   failed: "this batch’s emails",
+  /** A batch whose emails to send this read carries no draft of: its run's sheet in Sent lays them out. */
+  inSent: "Open them in Sent",
 } as const;
+
+/** An email the check held, as People lays it out: whose, why, and its answers in their own words (holdDoors). */
+export interface SequenceHeldVM {
+  id: string;
+  name: string;
+  /** Its lead, where the name opens it (leadDoorOf). */
+  to: string | null;
+  why: string;
+  doors: [HoldDoor, string][];
+  /** The batch it waits in: what its answer's Open goes to. */
+  batchId: string | null;
+}
+
+/** What needs you on People, from its one read: the held, the emails to send, and the batches whose rows say no draft. */
+export interface SequenceNeedsVM {
+  held: SequenceHeldVM[];
+  /** The held whose answers include sending it as written: what "Send all N as they are" sends. */
+  asIs: SequenceHeldVM[];
+  toSend: (ToSendRowVM & { batchId: string | null })[];
+  /** Batches holding an email to send that this read carries no draft of (a server before 00447): their run's sheet lays them out. */
+  unread: string[];
+}
+
+/**
+ * What needs you on a sequence's People, from who is in it (00442 sequence_people, the drafts 00447's): the emails the
+ * check held, each with why and its answers in their own words (contracts holdWords, holdDoors, as the run's sheet in Sent
+ * says them), and those handed to you to send, each the row every To send draws (toSendRowOf). A held send whose reason
+ * is none of the check's is not answerable here and is left out, as the run's sheet leaves it.
+ */
+export function peopleNeedsOf(
+  rows: readonly SequencePersonDto[],
+  at: { timezone: string; now: number },
+): SequenceNeedsVM {
+  const held = rows.flatMap((r): SequenceHeldVM[] => {
+    const reason = r.why;
+    if (r.group !== "held" || !r.send_id || !isReachOutHold(reason)) return [];
+    return [
+      {
+        id: r.send_id,
+        name: r.name ?? SEQUENCE_PEOPLE_WORDS.someone,
+        to: r.lead_id ? leadDoorOf(r.lead_id) : null,
+        why: holdWords(reason, r.hold_detail),
+        doors: holdDoors(reason).map((d): [HoldDoor, string] => [d, HOLD_DOOR_WORDS[d]]),
+        batchId: r.batch_id,
+      },
+    ];
+  });
+  const handed = rows.filter((r) => r.group === "to_send" && r.send_id && r.lead_id);
+  const toSend = handed.flatMap((r) =>
+    r.draft && r.send_id && r.lead_id
+      ? [
+          {
+            ...toSendRowOf(
+              {
+                send_id: r.send_id,
+                lead_id: r.lead_id,
+                business_name: r.name ?? SEQUENCE_PEOPLE_WORDS.someone,
+                angle: r.draft.angle,
+                to: r.draft.to,
+                subject: r.draft.subject,
+                text: r.draft.text,
+                drafted_at: r.draft.drafted_at,
+                follow_up: r.draft.follow_up,
+              },
+              at,
+            ),
+            batchId: r.batch_id,
+          },
+        ]
+      : [],
+  );
+  const unread = [...new Set(handed.filter((r) => !r.draft && r.batch_id).map((r) => r.batch_id ?? ""))];
+  return { held, asIs: held.filter((h) => h.doors.some(([d]) => d === "include")), toSend, unread };
+}
 
 /** The People tab's own words: its rows, its folds and taking someone out. */
 export const SEQUENCE_PEOPLE_WORDS = {

@@ -24,6 +24,14 @@
  * at standard whatever it says. The warm asks at the turn's speed, since a
  * cache written at one speed is not read at the other.
  *
+ * The answer may be written through a tool (ASK_ANSWER_TOOL=on, off by default
+ * until its eval arm says on; 15 Oct 2026): an `answer` tool whose input is the
+ * answer's format, its input streamed as it is written (server/ask/tools
+ * answer.ts). On Opus 5.5 text written after a tool result arrives in one burst
+ * at the end of the round, so a turn that read before answering never streamed
+ * its Say; a tool's input streams. The format stays on beside it, so an answer
+ * written as text is read as it always was.
+ *
  * A model the registry prices (ai/usage.ts MODEL_PRICES) has its dollars in
  * the ledger; one it does not is run all the same and its dollars are left
  * unsaid, never guessed. The day's cap counts tokens, so it holds either way.
@@ -38,24 +46,35 @@
  * exactly those conditions; a must-never case that fails on one model and
  * passes on another is reported the day it is seen, never reverted in silence.
  *
+ * A draft is asked harder (Ruben, 15 Oct 2026: "for crafting generating big
+ * things like campaigns etc we should use the maximum effort level whereas
+ * for other things low or medium"): a turn that sets campaigns up, makes an
+ * offer or writes a message or a plan is asked at ASK_DRAFT_EFFORT, said in
+ * its messages after the question (ai/effort.ts), so the request's own
+ * effort, and the cache, stay as every other turn's (the dashboard's
+ * server/ask/effort.ts). ASK_DRAFT_EFFORT=off asks drafts at ASK_EFFORT too.
+ *
  * What the loop guarantees, so that any current Claude model takes its
  * requests: tool_choice is auto or none and never any or a named tool (a 400
  * on Opus 5.5 and Sonnet 5.5); no `thinking` field is sent, so each model
  * thinks as it does by default, and its thinking blocks go back exactly as
- * they came (round.ts replayBlocks); the effort is the same on every round;
- * no sampling parameter is sent; the round ceiling is one number the edge
- * also clamps to (ASK_MAX_TOKENS). A thread whose earlier turns ran on
- * another model is replayed as words, never as that model's blocks
- * (memory.ts replayFor).
+ * they came (round.ts replayBlocks); the request's own effort is the same on
+ * every round, a draft's said in its messages; no sampling parameter is
+ * sent; the round ceiling is one rule the edge also clamps to (askRoundCap).
+ * A thread whose earlier turns ran on another model is replayed as words,
+ * never as that model's blocks (memory.ts replayFor).
  */
+import { effortAbove } from "../ai/effort";
 import {
   MODEL_EFFORTS,
   MODEL_ROUTES,
   hasFastMode,
+  modelTakes,
   readsAsModel,
   type ModelEffort,
   type ModelSpeed,
 } from "../ai/models";
+import { ASK_MAX_TOKENS } from "./ask";
 
 export interface AskModelProfile {
   /** The model's id as the API takes it: the registry's, or any other a deployment names. */
@@ -64,6 +83,13 @@ export interface AskModelProfile {
   effort: ModelEffort;
   /** The speed every round is asked at: fast mode where the model runs it and ASK_SPEED does not say standard. */
   speed: ModelSpeed;
+  /**
+   * The effort a draft is asked at, said in its messages (ai/effort.ts); null where drafts are asked at `effort`: off,
+   * no higher than it, or a model that takes no effort message.
+   */
+  draft: ModelEffort | null;
+  /** The answer is written through the answer tool, its input streamed (ASK_ANSWER_TOOL on), else as text in its format. */
+  answerTool: boolean;
 }
 
 /** The default model: the one a deployment runs when its environment names none (the registry's, ai/models.ts). */
@@ -72,24 +98,54 @@ export const ASK_MODEL = MODEL_ROUTES.ask.model;
 export const ASK_EFFORT: ModelEffort = "low";
 /** The default speed: fast, on a model that runs it (Ruben, 15 Oct 2026). ASK_SPEED=standard is the switch off. */
 export const ASK_SPEED: ModelSpeed = "fast";
+/** The answer tool's switch, as ASK_ANSWER_TOOL says it: on writes the answer through the tool; anything else is off. */
+const ANSWER_TOOL_ON = "on";
+
+/** The default effort of a draft (the effort sweep, 15 Oct 2026). ASK_DRAFT_EFFORT=off is the switch off. */
+export const ASK_DRAFT_EFFORT: ModelEffort = "high";
 
 /**
- * The profile three variables pick: the model `name` reads as, else the default; the effort `effort` is, else the
- * default; fast mode unless `speed` says standard, on a model that runs it. Never a throw: a variable that reads as
- * nothing runs the default, and the caller says so.
+ * The most one round asked above medium may write: a draft's thinking counts toward its ceiling, and at high and above
+ * Opus 5.5 thinks past ASK_MAX_TOKENS before its card's arguments are written (the effort sweep, 15 Oct 2026).
+ */
+export const ASK_DRAFT_MAX_TOKENS = 32_000;
+
+/**
+ * The most a round may write at the effort in force at its messages' end (ai/effort.ts effortInForce): ASK_MAX_TOKENS
+ * at low or medium, or with none said; ASK_DRAFT_MAX_TOKENS above. One rule, the loop's request and the edge's clamp.
+ */
+export function askRoundCap(effort: ModelEffort | null): number {
+  return effort !== null && effortAbove(effort, "medium") ? ASK_DRAFT_MAX_TOKENS : ASK_MAX_TOKENS;
+}
+
+const effortOf = (raw: string | null | undefined): ModelEffort | null => {
+  const asked = (raw ?? "").trim();
+  return (MODEL_EFFORTS as readonly string[]).includes(asked) ? (asked as ModelEffort) : null;
+};
+
+/**
+ * The profile five variables pick: the model `name` reads as, else the default; the effort `effort` is, else the
+ * default; fast mode unless `speed` says standard, on a model that runs it; a draft's effort `draft` is, none for
+ * "off", else the default, kept only above the turn's effort on a model that takes an effort message; the answer tool
+ * where `answer` says on. Never a throw: a variable that reads as nothing runs the default, and the caller says so.
  */
 export function askModelProfile(
   name: string | null | undefined,
   effort?: string | null,
   speed?: string | null,
+  draft?: string | null,
+  answer?: string | null,
 ): AskModelProfile {
   const named = (name ?? "").trim();
   const id = readsAsModel(named) ? named : ASK_MODEL;
-  const asked = (effort ?? "").trim();
   const wanted: ModelSpeed = (speed ?? "").trim() === "standard" ? "standard" : ASK_SPEED;
+  const at = effortOf(effort) ?? ASK_EFFORT;
+  const drafted = (draft ?? "").trim() === "off" ? null : (effortOf(draft) ?? ASK_DRAFT_EFFORT);
   return {
     id,
-    effort: (MODEL_EFFORTS as readonly string[]).includes(asked) ? (asked as ModelEffort) : ASK_EFFORT,
+    effort: at,
     speed: wanted === "fast" && hasFastMode(id) ? "fast" : "standard",
+    draft: drafted && effortAbove(drafted, at) && modelTakes(id)?.effortMessages === true ? drafted : null,
+    answerTool: (answer ?? "").trim() === ANSWER_TOOL_ON,
   };
 }

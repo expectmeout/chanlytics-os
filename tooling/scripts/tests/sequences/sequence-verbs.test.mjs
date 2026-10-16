@@ -174,3 +174,26 @@ test("an email the check held is decided, and one handed over said of, through o
     "a second word says how it already stands",
   );
 });
+
+test("Run now runs the first step through the campaign's own door, says what came of it, and cancels a run that sends", () => {
+  const RUN = "55555555-5555-4555-8555-555555555555";
+  assert.deepEqual(commit("playbook_run", { playbook_id: SEQ, name: "Welcome" }), {
+    route: "POST playbooks/[id]/run",
+    params: { id: SEQ },
+  });
+  assert.ok("refused" in commit("playbook_run", { name: "Welcome" }), "no campaign named, nothing runs");
+  const run = verbSpec("playbook_run");
+  const c = card("playbook_run", { playbook_id: SEQ, name: "Welcome", timezone: "America/New_York" }).card;
+  const at = "2026-10-15T15:00:00Z";
+  assert.match(
+    run.receipt(c, { outcome: "sent", eligible: 12, broadcast_id: RUN, scheduled_for: at, moved_from: null }),
+    /^Welcome — 12 people, /,
+  );
+  assert.equal(run.receipt(c, { outcome: "held", eligible: 1 }), "Welcome — 1 person waiting for your approval");
+  assert.equal(run.receipt(c, { outcome: "empty", eligible: 0 }), "Welcome — nobody new to send to right now");
+  // A run that sends is canceled as an approved one is; one that waits, or found nobody, keeps no undo.
+  const kept = run.undo.record(c, { outcome: "sent", broadcast_id: RUN, decision_id: "d6" }, TAB);
+  assert.deepEqual(run.undo.call(kept, TAB), { route: "POST broadcasts/[id]/cancel", params: { id: RUN } });
+  assert.equal(run.undo.record(c, { outcome: "held", broadcast_id: RUN }, TAB), null);
+  assert.equal(run.undo.record(c, { outcome: "empty" }, TAB), null);
+});

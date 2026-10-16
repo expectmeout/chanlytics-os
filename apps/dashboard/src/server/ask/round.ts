@@ -5,8 +5,9 @@ import type { GatewayBlockStart } from "./sse";
 
 /**
  * One model round: the request goes out, the stream comes back, the content
- * blocks are gathered. The answer is written as text, so the text so far is
- * handed on as it grows, and the Line draws its Say while the rest of the
+ * blocks are gathered. The answer is written as text, or as the answer tool's
+ * input (tools/answer.ts), so the text so far and each call's input so far are
+ * handed on as they grow, and the Line draws its Say while the rest of the
  * turn is still being written. Nothing here knows what a tool does or what a
  * turn is; the loop decides what to do with the blocks.
  */
@@ -66,7 +67,6 @@ export interface RoundResult {
   timing?: RoundTiming;
 }
 
-/** `stream` is the gateway unless a test hands in its own events, so the gathering runs without a model. */
 /**
  * A block as its start opens it: a call's id and name where it is one (ours, or the tool search's own), and what its
  * kind carries back unmodified (a thinking block's signature, a redacted one's data, a search's result).
@@ -85,9 +85,14 @@ function opened(b: GatewayBlockStart["block"]): RoundBlock {
   };
 }
 
+/**
+ * `onInput` hears a tool call's block each time its input grows (its `json` so far), with the blocks the round wrote
+ * before it. `stream` is the gateway unless a test hands in its own events, so the gathering runs without a model.
+ */
 export async function runRound(
   call: GatewayCall,
   onText: (textSoFar: string) => void,
+  onInput: (call: RoundBlock, earlier: RoundBlock[]) => void,
   stream: typeof streamModel = streamModel,
 ): Promise<RoundResult> {
   const t0 = Date.now();
@@ -118,7 +123,12 @@ export async function runRound(
       }
       case "input_json": {
         const b = blocks.get(ev.index);
-        if (b) b.json += ev.partial;
+        if (!b) break;
+        b.json += ev.partial;
+        onInput(
+          b,
+          [...blocks.values()].filter((x) => x !== b),
+        );
         break;
       }
       case "thinking": {
@@ -172,6 +182,27 @@ export function parseInput(json: string): Record<string, unknown> {
     return json ? (JSON.parse(json) as Record<string, unknown>) : {};
   } catch {
     return {};
+  }
+}
+
+/**
+ * A tool call's arguments, or null when they did not arrive whole.
+ *
+ * `parseInput` answers {} for JSON it cannot read, which is the right shape
+ * but the wrong fact: every required field then looks missing, and the model
+ * is told "the plan is not complete: looking_for Required" about a field it
+ * had just written. It reads that as its own mistake -- on the lead finder it
+ * told the owner it "hit a formatting snag" and gave up -- when what happened
+ * is that the round hit max_tokens mid-argument. The loop says that instead
+ * (loop.ts cutOff), so the retry is a shorter call rather than a guess at a
+ * field that was never wrong.
+ */
+export function argsOf(b: RoundBlock): Record<string, unknown> | null {
+  if (!b.json) return {};
+  try {
+    return JSON.parse(b.json) as Record<string, unknown>;
+  } catch {
+    return null;
   }
 }
 

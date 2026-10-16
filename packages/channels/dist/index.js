@@ -654,9 +654,12 @@ async function imageBytes(fetchImpl, url, timeoutMs, maxBytes) {
 
 // src/models/anthropic.ts
 import {
+  EFFORT_MESSAGE_BETA,
   FAST_MODE_BETA,
   MIN_MS,
   fallbackModel,
+  foldEffortMessages,
+  isEffortMessage,
   modelRoute,
   modelTakes,
   usageOf,
@@ -699,14 +702,17 @@ function formatRejected(r) {
 }
 function sentFor(ask, model, slowed) {
   const takes = modelTakes(model);
-  const { speed, thinking, ...body } = ask.body;
+  const { speed, thinking, ...asked } = ask.body;
   const fast = speed === "fast" && !slowed && (takes?.fast ?? true);
   const type = thinking && typeof thinking === "object" ? thinking.type : void 0;
   const thinks = thinking !== void 0 && (!takes || takes.thinking.includes(type));
-  const betas = (ask.betas ?? []).filter((b) => b !== FAST_MODE_BETA);
+  const said = Array.isArray(asked.messages) && asked.messages.some(isEffortMessage);
+  const told = said && (takes?.effortMessages ?? true);
+  const body = said && !told ? foldEffortMessages(asked) : asked;
+  const betas = (ask.betas ?? []).filter((b) => b !== FAST_MODE_BETA && b !== EFFORT_MESSAGE_BETA);
   return {
     body: { ...body, ...thinks ? { thinking } : {}, ...fast ? { speed: "fast" } : {} },
-    betas: fast ? [...betas, FAST_MODE_BETA] : betas,
+    betas: [...betas, ...told ? [EFFORT_MESSAGE_BETA] : [], ...fast ? [FAST_MODE_BETA] : []],
     speed: fast ? "fast" : "standard"
   };
 }

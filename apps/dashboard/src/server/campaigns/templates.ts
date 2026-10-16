@@ -195,6 +195,7 @@ async function askOnce(
         signal: AbortSignal.timeout(DRAFT_TIMEOUT_MS),
       },
       () => {},
+      () => {},
     );
     const text = r.blocks
       .filter((b) => b.type === "text")
