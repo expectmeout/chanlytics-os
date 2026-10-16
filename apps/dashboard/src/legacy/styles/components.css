@@ -1912,6 +1912,11 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
   box-shadow: var(--selected-depth);
   font-weight: var(--weight-semibold);
 }
+/* On the light side the picked place's glyph is the tab's coral, as the phone's tab bar lights its picked place (kit.css
+   .tab-bar-glyph); the dark side keeps its white lozenge alone. */
+:where([data-theme="light"]) .nav-item.active > :first-child:not(span) {
+  color: var(--tab-ink);
+}
 /* A place's count is the neutral count, filled, as the canvases' sidebar draws it: never a warning's colour. */
 .nav-badge {
   min-width: 20px;

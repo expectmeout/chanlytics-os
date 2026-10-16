@@ -66,7 +66,8 @@ const StatCell = ({ label, value, valueSize, meta, metaTone = "", spark, tip, ch
 const toastShapeOf = (p) => (window.__chrome && window.__chrome.toast)
   ? window.__chrome.toast(p)
   : { tone: p.tone || "ok", icon: p.icon || "check", role: "status", ms: p.ms || 6000 };
-const usePPToast = () => {
+// `place`: a class of the caller's own on the stack, so its toasts can stand somewhere of its own (Ask's desk panel).
+const usePPToast = (place) => {
   const [toasts, setToasts] = React.useState([]);
   const timers = React.useRef({});
   React.useEffect(() => () => Object.values(timers.current).forEach((t) => window.clearTimeout(t.handle)), []);
@@ -117,7 +118,7 @@ const usePPToast = () => {
     // stopPropagation: portal events bubble through the REACT tree, so a toast
     // rendered inside an overlay (Ask modal, dialogs) would otherwise trigger
     // the overlay's close-on-click and kill the undo.
-    <div className="pp-toast-stack" role="presentation" onClick={(e) => e.stopPropagation()}>
+    <div className={`pp-toast-stack${place ? ` ${place}` : ""}`} role="presentation" onClick={(e) => e.stopPropagation()}>
       {toasts.map((toast) => (
         <div
           key={toast.id}
@@ -518,11 +519,14 @@ const touchSwipe = ({ onLeft = null, onRight = null, onDown = null, onBack = nul
 // development, a draw that never showed). The fold's sheet has its own (record-fold.jsx recSheetLeaves).
 const stillCopy = (node) => {
   const copy = node.cloneNode(true);
+  // A canvas clones blank: what it drew (Ask's three, a chart) is painted into its copy, or it would vanish the moment
+  // the leaving began while all round it played out. One it cannot read stays blank.
+  const blank = copy.querySelectorAll ? copy.querySelectorAll("canvas") : [];
+  (node.querySelectorAll ? Array.from(node.querySelectorAll("canvas")) : []).forEach((c, k) => {
+    try { if (blank[k] && c.width && c.height) blank[k].getContext("2d").drawImage(c, 0, 0); } catch { /* not readable */ }
+  });
   const all = [copy].concat(copy.querySelectorAll ? Array.from(copy.querySelectorAll("*")) : []);
-  for (const n of all) {
-    n.removeAttribute("id");
-    n.removeAttribute("data-testid");
-  }
+  for (const n of all) { n.removeAttribute("id"); n.removeAttribute("data-testid"); }
   for (const k of ["role", "aria-modal", "aria-label", "aria-labelledby", "aria-describedby", "aria-busy"]) copy.removeAttribute(k);
   copy.setAttribute("aria-hidden", "true");
   copy.setAttribute("inert", "");
@@ -532,11 +536,7 @@ const stillCopy = (node) => {
 const LEAVE_FALLBACK_MS = 420;
 const playOut = (copy) => {
   let gone = false;
-  const go = () => {
-    if (gone) return;
-    gone = true;
-    copy.remove();
-  };
+  const go = () => { if (!gone) { gone = true; copy.remove(); } };
   copy.addEventListener("animationend", (e) => { if (e.target === copy) go(); });
   setTimeout(go, LEAVE_FALLBACK_MS);
 };
