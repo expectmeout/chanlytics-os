@@ -455,6 +455,19 @@ function peekFoot(vm: LeadPeekVM, on: PeekActs) {
   );
 }
 
+/**
+ * The peek's own parts, which a phone's pile sheet lays out as its tabs (pile/sheet.tsx): drawn from here, never a
+ * second time.
+ */
+export const LeadPeekParts = {
+  checks: (vm: LeadPeekVM) => checkList(vm, "open"),
+  reach: peekReach,
+  others: peekOthers,
+  found: peekFound,
+  week: peekWeek,
+  links: peekLinks,
+};
+
 export const LeadPeekInfo = (p: InfoProps) => {
   const { vm, armed, busy, on, deck } = p;
   return (
@@ -470,7 +483,7 @@ export const LeadPeekInfo = (p: InfoProps) => {
         {on.reachOut}
         {peekDecide(vm, on)}
         {peekReach(vm, on)}
-        <LeadPeekCompany key={vm.id} company={vm.company} lead={vm} on={on} />
+        <LeadPeekCompany key={`${vm.id}-company`} company={vm.company} lead={vm} on={on} />
         <LeadPeekPeople lead={vm} on={on} />
         {peekOthers(vm)}
         {peekFound(vm)}

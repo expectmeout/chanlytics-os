@@ -12,13 +12,15 @@
  *                       the one fill every email takes (templates/slot-sets.ts); a slot with no value holds the email
  *                       (missing_value, the reason that exists: broadcast.ts). The send, the sheet's preview and the
  *                       approval's first email read it.
+ *   reachOutCardEmailOf the same fill for a lead's card before anything is written: the opening left as a mark, the
+ *                       slots with no value named (the lead workbench's decide card).
  *   reachOutExampleValues  the same slots, made up for what changes from business to business: the Templates page's preview.
  *   REACH_OUT_MONTH_EMAILS   the month's allowance per workspace (§4.8's number; the price is Ruben's to set).
  *   REACH_OUT_CHECKS_PER_DAY the check's daily ceiling per workspace (Part 4, R12).
  */
 import type { DeliveryRefusal } from "../consent/consent";
 import { renderOwnVersion } from "../templates/message-versions";
-import { slotHoles, slotValues } from "../templates/slot-sets";
+import { slotHoles, slotValueOf, slotValues, slotsWritten } from "../templates/slot-sets";
 import { LEAD_ROLE_WORDS, leadAddresseeOf } from "../leads/lead-kind";
 import { REACH_OUT_SLOT_FALLBACKS, REACH_OUT_SLOT_SET } from "./reach-out-words";
 
@@ -202,6 +204,44 @@ export function reachOutEmailOf(
   if (texts.some((t) => slotHoles(REACH_OUT_SLOT_SET, t, values))) return { ok: false, reason: "missing_value" };
   const email = renderOwnVersion("email", words, values, REACH_OUT_LANGUAGE, REACH_OUT_SLOT_SET);
   return { ok: true, subject: words.subject === null ? null : email.subject, body: email.body };
+}
+
+/**
+ * Where the opening stands in a card's email (canvas B's decide card): a character no words hold, which the card draws as
+ * the line still to be written. It is written for each business when its batch is planned, never before.
+ */
+export const REACH_OUT_OPENING_MARK = "";
+
+/** A step's email as one lead's card shows it before anything is written, by the send's own fill. */
+interface ReachOutCardEmail {
+  subject: string | null;
+  /** The opening is REACH_OUT_OPENING_MARK; a slot with no value here stays as it is written ({{title}}). */
+  body: string;
+  /** The slots with no value for this lead, by key: the send would hold the email (missing_value). */
+  holes: string[];
+  /** The slots that said their fallback for this lead ("first name" greets "there" where nobody is named). */
+  fellBack: string[];
+}
+
+/**
+ * A step's email as a lead's card shows it (the lead workbench, canvas B): the same values and the same fill as the
+ * send (reachOutValues, renderOwnVersion), with no model call. The opening is the mark, drawn as still to come; a slot
+ * with no value is named in `holes` and left as written, so the card says why Add would come to nothing before it is
+ * pressed; a person slot that fell back says so in `fellBack`.
+ */
+export function reachOutCardEmailOf(
+  words: { subject: string | null; body: string },
+  lead: SlotLead,
+  workspace: SlotWorkspace,
+): ReachOutCardEmail {
+  const values = reachOutValues(lead, workspace, REACH_OUT_OPENING_MARK);
+  const texts = words.subject === null ? [words.body] : [words.subject, words.body];
+  const written = [...new Set(texts.flatMap((t) => slotsWritten(REACH_OUT_SLOT_SET, t).keys))];
+  const holes = written.filter((k) => (slotValueOf(REACH_OUT_SLOT_SET, k, values) ?? null) === null);
+  const named = leadAddresseeOf(lead)?.first_name;
+  const fellBack = !named && written.includes("first name") ? ["first name"] : [];
+  const email = renderOwnVersion("email", words, values, REACH_OUT_LANGUAGE, REACH_OUT_SLOT_SET);
+  return { subject: words.subject === null ? null : email.subject, body: email.body, holes, fellBack };
 }
 
 /** What the slots a business changes hold in a preview made before any business is chosen: made-up, and said to be. */

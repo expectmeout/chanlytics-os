@@ -1989,7 +1989,7 @@ var reachOutMakeSpec = {
     const chain = rec(pl.chain);
     return asText(chain.name) && asText(chain.search_id) && Array.isArray(chain.steps) && chain.steps.length ? { route: "POST reach-outs", body: chain } : refuseWith(PROPOSAL_WORDS.cannotApprove);
   },
-  receipt: ({ payload: pl }) => `\u201C${asText(rec(pl.chain).name)}\u201D is saved. Its first run is planned now, and waits for your say before an email goes.`,
+  receipt: ({ payload: pl }) => `\u201C${asText(rec(pl.chain).name)}\u201D is saved. Its first batch is planned now, and waits for your OK before an email goes.`,
   made: (_p, data) => idIn(rec(data), "root_id"),
   open: (_p, outcome) => outcome?.made?.id ? `campaigns/moment:${outcome.made.id}` : "campaigns"
 };
@@ -2021,7 +2021,7 @@ var LEAD_IMPORT_WORDS = {
    */
   importLine: "A name and an email on each row.",
   importMore: "What a row can hold",
-  importRest: "A phone, a website, a city or a state, where you have them. Every address is checked before a reach-out may write to it.",
+  importRest: "A phone, a website, a city or a state, where you have them. Every address is checked before a sequence may write to it.",
   file: "Choose a CSV file",
   paste: "Or paste the rows",
   pastePlaceholder: "Business,Email,Website,City,State\nZilker Kettlebell Club,hello@example.com,example.com,Austin,TX",
@@ -2036,7 +2036,7 @@ var LEAD_IMPORT_WORDS = {
   nothing: "No row has both a business name and an email address, so there is nothing to import.",
   failed: "The list could not be imported. Nothing was written.",
   write: "Write to them",
-  writeHint: "The chosen leads become a list of their own, and the reach-out's sheet opens on it.",
+  writeHint: "The chosen leads become a list of their own, and a sequence opens on it.",
   writing: "Making the list\u2026",
   searchAgain: "A list of your own is not searched again. Start a new search to find more businesses."
 };
@@ -2255,8 +2255,8 @@ var reachOutAddSpec = {
   }),
   receipt: ({ payload: pl }, data) => {
     const added = Number(rec(data).added ?? 0);
-    const name = asText(pl.name) || "the reach-out";
-    return added > 0 ? `Added ${added === 1 ? "1 lead" : `${added} leads`} to \u201C${name}\u201D. Its next run waits for your say before anything goes.` : `None could be added to \u201C${name}\u201D.`;
+    const name = asText(pl.name) || "the sequence";
+    return added > 0 ? `Added ${added === 1 ? "1 lead" : `${added} leads`} to \u201C${name}\u201D. Nothing goes to them until you give its next batch your OK.` : `None could be added to \u201C${name}\u201D.`;
   },
   undo: {
     label: () => "Take them back",
