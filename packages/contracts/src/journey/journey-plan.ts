@@ -37,22 +37,27 @@ export const JOURNEY_PLAN_WORDS = {
   nothingToCover:
     "Every moment asked for is covered already or not offered here (an appointment's moments need a calendar connected, a proposal's needs deals on): say so, and propose nothing.",
   notOffered: (stages: readonly string[]): string => `Not offered here: ${joinWords(stages)}.`,
-  pausedOn: (name: string): string => `“${name}” stands paused on its moment: resume it from its drawer.`,
   whyStage: (id: JourneyStageId): string => `Nobody hears from you ${STAGE_WORDS[id]} yet.`,
+  /** A campaign paused on a moment the setup covers: resumed by a card of its own, never doubled. */
+  whyResume: (name: string): string => `“${name}” stands paused on its moment: resumed, never doubled.`,
 } as const;
 
 /**
- * A setup's steps, numbered as they are added: each a campaign, a send of its own with nothing silent before it, so
- * none waits for another (planOf's offer numbers its silent steps first).
+ * A setup's steps, numbered as they are added: each a campaign started, or one paused on its moment resumed (a change,
+ * as propose_sequence action change makes it), a card of its own with nothing silent before it, so none waits for
+ * another (planOf's offer numbers its silent steps first).
  */
 function setupSteps() {
   const steps: PlanStep[] = [];
-  const add = (input: Record<string, unknown>, why: string): number => {
+  const push = (kind: "playbook" | "change", input: Record<string, unknown>, why: string): number => {
     const n = steps.length + 1;
-    steps.push({ n, kind: "playbook", silent: false, input, why, after: [] });
+    steps.push({ n, kind, silent: false, input, why, after: [] });
     return n;
   };
-  return { steps, add };
+  const add = (input: Record<string, unknown>, why: string): number => push("playbook", input, why);
+  const resume = (playbookId: string, why: string): number =>
+    push("change", { playbook_id: playbookId, state: "running" }, why);
+  return { steps, add, resume };
 }
 
 /** The day after's starters by their keys: the thank-you with a review ask, and the one that asks how it went. */
@@ -145,6 +150,8 @@ const SETUP_WORDS = {
       `${first ? "First" : "Then"}, under Settings › Business, answer ${SELLS_BY_QUESTION} with “${SELLS_BY_WORDS.proposal.label}”, so each proposal that waits gets a follow-up.`,
     nobody: (named: string, one: boolean) =>
       `${capitalize(named)} ${one ? "reaches" : "reach"} nobody today; ${one ? "its card says" : "each card says"} why.`,
+    resume: (names: readonly string[]) =>
+      `Resumes ${joinWords(names.map((n) => `“${n}”`))}, paused on ${names.length === 1 ? "its moment, on a card of its own" : "their moments, a card each"}.`,
     again: (more: number, needs: ReadonlySet<Need>) =>
       `Ask me again once ${onceOf(needs, "en")}, and I'll add ${more === 1 ? "it" : "them"}.`,
     headline: (needs: ReadonlySet<Need>, now: number, more: number) =>
@@ -179,6 +186,8 @@ const SETUP_WORDS = {
       `${first ? "Primero" : "Luego"}, en Ajustes › Negocio, responde a «Cómo compran tus clientes» con «Algunos reciben antes una propuesta», para que cada propuesta que espera tenga un seguimiento.`,
     nobody: (named: string, one: boolean) =>
       `${capitalize(named)} no ${one ? "llega" : "llegan"} a nadie hoy; ${one ? "su tarjeta dice" : "cada tarjeta dice"} por qué.`,
+    resume: (names: readonly string[]) =>
+      `Reanuda ${joinEs(names.map((n) => `«${n}»`))}, en pausa en ${names.length === 1 ? "su momento, en su propia tarjeta" : "sus momentos, en una tarjeta cada una"}.`,
     again: (more: number, needs: ReadonlySet<Need>) =>
       `Pídemelo otra vez cuando ${onceOf(needs, "es")} y ${more === 1 ? "la añado" : "las añado"}.`,
     headline: (needs: ReadonlySet<Need>, now: number, more: number) =>
@@ -248,12 +257,12 @@ function needLines(needs: ReadonlySet<Need>, later: readonly Moment[], books: st
 
 /**
  * A setup of the journey (the setup review, 15 Oct 2026): a campaign on each moment of the business's journey that this
- * workspace runs and nothing covers yet, on its action's pick (stageInput); a campaign paused on its moment said to
- * resume, never doubled. A moment it does not run yet is said with what it needs first, never dropped in silence: an
- * appointment's two need the calendar connected, a proposal's needs deals on, which the owner's own words make a moment
- * of their journey (`proposals`). The words say what must come first, then what the cards start, then whoever they reach
- * nobody of today, then what to resume, and to ask again once it is set up; the answer leads with it (PlanLead). With
- * nothing to start, the plan is refused with what comes first, for the model to say.
+ * workspace runs and nothing covers yet, on its action's pick (stageInput); a campaign paused on its moment resumed by a
+ * card of its own, never doubled. A moment it does not run yet is said with what it needs first, never dropped in
+ * silence: an appointment's two need the calendar connected, a proposal's needs deals on, which the owner's own words
+ * make a moment of their journey (`proposals`). The words say what must come first, then what the cards start, then
+ * whoever they reach nobody of today, then what they resume, and to ask again once it is set up; the answer leads with
+ * it (PlanLead). With nothing to start or resume, the plan is refused with what comes first, for the model to say.
  */
 export function journeyPlan(
   intent: Cover,
@@ -262,7 +271,7 @@ export function journeyPlan(
   const journey = world.journey;
   if (!journey) return { refused: JOURNEY_PLAN_WORDS.journeyUnread };
   const S = SETUP_WORDS[world.says];
-  const { steps, add } = setupSteps();
+  const { steps, add, resume } = setupSteps();
   const missing: string[] = [];
   const paused: string[] = [];
   const needs = new Set<Need>();
@@ -279,19 +288,22 @@ export function journeyPlan(
       continue;
     }
     if (stage.covered || !stage.moment) continue;
-    // A campaign paused on the moment is resumed from its drawer, never doubled.
+    // A campaign paused on the moment is resumed by a card of its own, never doubled: the setup said to resume it "from
+    // its drawer", where propose_sequence action change makes that card (the operator stress run, 15 Oct 2026).
     const held = world.playbooks.find((p) => p.state === "paused" && journeyStageOf(p.trigger) === id);
-    if (held) paused.push(JOURNEY_PLAN_WORDS.pausedOn(held.name));
-    else {
+    if (held) {
+      resume(held.id, JOURNEY_PLAN_WORDS.whyResume(held.name));
+      paused.push(held.name);
+    } else {
       add(stageInput(id, stage.moment, world), JOURNEY_PLAN_WORDS.whyStage(id));
       started.push(id);
     }
   }
-  const said = [...(missing.length ? [JOURNEY_PLAN_WORDS.notOffered(missing)] : []), ...paused];
+  const notOffered = missing.length ? [JOURNEY_PLAN_WORDS.notOffered(missing)] : [];
   if (steps.length === 0) {
     // The refusal is the model's to say, in the question's language: what comes first, in English.
     const first = needLines(needs, later, intent.books, { ...world, says: "en" });
-    return { refused: [JOURNEY_PLAN_WORDS.nothingToCover, ...first, ...said].join(" ") };
+    return { refused: [JOURNEY_PLAN_WORDS.nothingToCover, ...first, ...notOffered].join(" ") };
   }
   // Whom a card reaches today, by its moment's own count: null is not counted, never nobody.
   const nobody = started.filter((id) => {
@@ -300,14 +312,16 @@ export function journeyPlan(
   });
   const words = [
     ...needLines(needs, later, intent.books, world),
-    S.cover(started.length, S.join(started.map((id) => S.starts[id]))),
+    ...(started.length ? [S.cover(started.length, S.join(started.map((id) => S.starts[id])))] : []),
     ...(nobody.length ? [S.nobody(S.join(nobody.map((id) => S.named[id])), nobody.length === 1)] : []),
-    ...said,
+    ...notOffered,
+    ...(paused.length ? [S.resume(paused)] : []),
     ...(needs.size ? [S.again(later.length, needs)] : []),
   ];
+  // A campaign resumed starts again now, as one started does.
   const lead = needs.size
     ? {
-        headline: S.headline(needs, started.length, later.length),
+        headline: S.headline(needs, started.length + paused.length, later.length),
         open: { to: needs.has("calendar") ? CALENDAR_SETTING_ROUTE : SETTINGS_BUSINESS_ROUTE, label: S.open(needs) },
         next: [S.next(needs)],
       }

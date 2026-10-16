@@ -1124,6 +1124,7 @@ test("cards only: the cards are the Do, said in a sentence, in English and Spani
 test("a plan's cards are said as a plan (the marketing manager's spec §5.8): every card a step, as each card's head counts them, and how many send nothing and how many send, in English and Spanish; cards of no one plan are counted as cards", () => {
   const stamp = (step, silent, id = "plan-1") => ({
     title: `Step ${step}`,
+    kind: silent ? "list" : "broadcast",
     plan: { id, step, of: 6, silent, after: silent ? [] : [1, 2, 3, 4] },
   });
   const six = [1, 2, 3, 4].map((n) => stamp(n, true)).concat([stamp(5, false), stamp(6, false)]);
@@ -1177,9 +1178,61 @@ test("a plan's cards are said as a plan (the marketing manager's spec §5.8): ev
   );
 });
 
+test("REGRESSION: a step pressed after a send is not a send -- a lead search and the follow-up that waits for it read 'A plan of 2 steps to review: 2 send' (the operator stress run, 15 Oct 2026)", () => {
+  // As act/plan.ts stamps them: the search a send, the follow-up naming its result and so pressed after it.
+  const search = {
+    title: "Find 100 plumbers",
+    kind: "lead_search",
+    plan: { id: "p", step: 1, of: 2, silent: false, after: [] },
+  };
+  const later = {
+    title: "Write to the best",
+    kind: "follow_up",
+    plan: { id: "p", step: 2, of: 2, silent: false, after: [1] },
+  };
+  const words = "Find 100 plumbers in Austin, then come back with the best.";
+  assert.deepEqual(
+    [
+      answerForCards([search, later], "en", words).say.headline,
+      answerForCards([search, later], "es", words).say.headline,
+    ],
+    [
+      "A plan of 2 steps to review: 1 sends, then 1 waits for a send.",
+      "Un plan de 2 pasos para revisar: 1 envía y luego 1 espera un envío.",
+    ],
+  );
+  // A send that names a send's result is a send: a cold email to the leads a search found.
+  const email = {
+    title: "Cold email",
+    kind: "reach_out_make",
+    plan: { id: "p", step: 2, of: 2, silent: false, after: [1] },
+  };
+  assert.equal(answerForCards([search, email], "en", words).say.headline, "A plan of 2 steps to review: 2 send.");
+  // A silent step, a send, and a step after it.
+  const list = { title: "List", kind: "list", plan: { id: "q", step: 1, of: 3, silent: true, after: [] } };
+  const three = [
+    list,
+    { ...search, plan: { ...search.plan, id: "q", step: 2, of: 3, after: [1] } },
+    { ...later, plan: { ...later.plan, id: "q", step: 3, of: 3, after: [1, 2] } },
+  ];
+  assert.equal(
+    answerForCards(three, "en", words).say.headline,
+    "A plan of 3 steps to review: 1 sends nothing, then 1 sends, then 1 waits for a send.",
+  );
+});
+
+test("REGRESSION: an answer of cards alone is kept in the language its words are written in -- a question with no hint of English ('find 5,000 nail salons across Texas') was kept as other beside an English answer (the operator stress run, 15 Oct 2026)", () => {
+  const card = { title: "Find 1000 nail salons", kind: "lead_search" };
+  assert.deepEqual(
+    ["other", "en", "es"].map((l) => answerForCards([card], l, null).language),
+    ["en", "en", "es"],
+  );
+});
+
 test("a round that made a plan answers with the plan's words as its detail, in place of the press sentence: stamped or not (a setup with no silent step, D3), in English in a Spanish answer (Task 18), cut on a whole word at the detail's cap", () => {
   const stamp = (step, silent) => ({
     title: `Step ${step}`,
+    kind: silent ? "playbook_change" : "broadcast",
     plan: { id: "plan-1", step, of: 3, silent, after: silent ? [] : [1, 2] },
   });
   const words =

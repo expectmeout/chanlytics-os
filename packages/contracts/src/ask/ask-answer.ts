@@ -710,10 +710,12 @@ const sentence = (s: string) => (/[.!?]$/.test(s) ? s : `${s}.`);
  * plan's cards are counted as its steps, and a plan's words are the detail, cut on a whole word (plan-steps.ts
  * planCountWords; `words` null for a round that made no plan); the loop's headline for an answer that claimed a write is
  * this one's too. A setup that waits on something leads with it (`lead`, journey-plan.ts PlanLead): its headline, an Open to
- * where it is set and the question that asks how; null for every other round.
+ * where it is set and the question that asks how; null for every other round. Its language is the one its words are
+ * written in, Spanish or English: a question with no hint of either ("find 5,000 nail salons across Texas") was kept as
+ * `other` beside an English answer (the operator stress run, 15 Oct 2026).
  */
 export function answerForCards(
-  cards: ReadonlyArray<Pick<AskProposal, "title" | "plan">>,
+  cards: ReadonlyArray<Pick<AskProposal, "title" | "kind" | "plan">>,
   language: AskLanguage,
   words: string | null,
   lead: PlanLead | null,
@@ -731,7 +733,7 @@ export function answerForCards(
         : es
           ? `${n} tarjetas para revisar.`
           : `${n} cards to review.`),
-    language,
+    es ? "es" : "en",
   );
   a.say.detail = clip(
     plan.detail ??

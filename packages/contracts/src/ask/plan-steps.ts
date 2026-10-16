@@ -7,7 +7,7 @@
  */
 import type { AskPlanStamp, AskProposal } from "./ask";
 import type { AskLanguage } from "./ask-language";
-import { PROPOSAL_WORDS, rec } from "../ask-proposals/spec";
+import { ASK_SENDS, PROPOSAL_WORDS, rec } from "../ask-proposals/spec";
 
 /**
  * Every step of a plan committed so far, by step, as a card's commit fills its tokens from it and a press of the plan
@@ -198,15 +198,18 @@ export function planGroupOf<P extends HeldCard>(
 /**
  * The answer's sentences for a round's cards (ask-answer.ts answerForCards: the round that proposed and said nothing else,
  * and the headline an answer that claimed a write is said as, the marketing manager's spec §5.8). The headline counts a
- * plan's cards as steps, as each card's head does ("Step 6 of 6"), and says how many send nothing and how many send ("A
- * plan of 6 steps to review: 4 send nothing, then 2 send."), a part that is none left out; null where the cards are not
- * every one a step of one plan, which are counted as cards. The detail is the plan's own words where the round made a
- * plan (`words`, its steps unstamped too, D3: what it pauses, leaves out and asks to be asked again, said nowhere else),
- * in English as the plan says them (Task 18); else, for a plan with steps that send nothing, how its cards are approved,
- * the sends' own press said only where there is a send; else null, each card its own press as several cards are.
+ * plan's cards as steps, as each card's head does ("Step 6 of 6"), and says how many send nothing, how many send (a kind
+ * of ASK_SENDS) and how many wait for a send, pressed after it though they send nothing themselves, as a follow-up after
+ * a lead search ("A plan of 6 steps to review: 4 send nothing, then 2 send."), a part that is none left out: a lead search
+ * and its follow-up read "2 send" while it called every step pressed on its own a send (the operator stress run, 15 Oct
+ * 2026). Null where the cards are not every one a step of one plan, which are counted as cards. The detail is the plan's
+ * own words where the round made a plan (`words`, its steps unstamped too, D3: what it pauses, leaves out and asks to be
+ * asked again, said nowhere else), in English as the plan says them (Task 18); else, for a plan with steps that send
+ * nothing, how its cards are approved, the sends' own press said only where there is a send; else null, each card its
+ * own press as several cards are.
  */
 export function planCountWords(
-  cards: readonly Pick<AskProposal, "plan">[],
+  cards: readonly Pick<AskProposal, "kind" | "plan">[],
   language: AskLanguage,
   words: string | null,
 ): { headline: string | null; detail: string | null } {
@@ -215,7 +218,8 @@ export function planCountWords(
   const id = cards[0]?.plan?.id;
   if (id === undefined || cards.some((p) => p.plan?.id !== id)) return { headline: null, detail: said };
   const silent = cards.filter((p) => p.plan?.silent).length;
-  const sends = cards.length - silent;
+  const sends = cards.filter((p) => !p.plan?.silent && ASK_SENDS.has(p.kind)).length;
+  const waiting = cards.length - silent - sends;
   const es = language === "es";
   const one = (n: number, singular: string, plural: string): string => `${n} ${n === 1 ? singular : plural}`;
   const parts = [
@@ -223,6 +227,9 @@ export function planCountWords(
       ? [es ? one(silent, "no envía nada", "no envían nada") : one(silent, "sends nothing", "send nothing")]
       : []),
     ...(sends > 0 ? [es ? one(sends, "envía", "envían") : one(sends, "sends", "send")] : []),
+    ...(waiting > 0
+      ? [es ? one(waiting, "espera un envío", "esperan un envío") : one(waiting, "waits for a send", "wait for a send")]
+      : []),
   ];
   const headline = es
     ? `Un plan de ${one(cards.length, "paso", "pasos")} para revisar: ${parts.join(" y luego ")}.`

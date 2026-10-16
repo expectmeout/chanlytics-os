@@ -150,6 +150,33 @@ export const PROPOSAL_WORDS = {
     `Stopped at step ${n}: ${/[.!?…]$/.test(why.trim()) ? why.trim() : `${why.trim()}.`} The steps after it were not done.`,
 } as const;
 
+/**
+ * The kinds whose Approve reaches outside the workspace's own records -- a message to a customer, a post on Google, money
+ * spent on a search or an address, a call handed over, something that starts sending on its own -- each pressed on its own
+ * in a plan, never among its silent steps (the marketing manager's spec §5.4; the operator, 15 Oct 2026). Every other
+ * kind changes only what the workspace keeps (a list, a note, a draft, a setting), and a plan approves those together.
+ * Here, beside the words, so a plan's count (plan-steps.ts planCountWords) calls only these a send; the server's table
+ * names it (proposals.ts).
+ */
+export const ASK_SENDS: ReadonlySet<AskProposal["kind"]> = /* @__PURE__ */ (() =>
+  new Set<AskProposal["kind"]>([
+    "reply",
+    "whisper",
+    "broadcast",
+    "playbook",
+    "run",
+    "lead_search",
+    "people_search",
+    "person_message",
+    "sequence_start",
+    "call_hand_over",
+    "leads_check",
+    "lead_addressee",
+    "lead_search_more",
+    "reach_out_make",
+    "review_reply",
+  ]))();
+
 /* ------------------------------------------------------------ shared by the families */
 
 /** A payload field as the route's string param: the proposal carries ids as JSON, the route takes them as text. */
