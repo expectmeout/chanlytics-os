@@ -6,7 +6,7 @@
  *   node tooling/scripts/evals/customer-message.mjs                     # dry: builds every brief and asks nothing
  *   node tooling/scripts/evals/customer-message.mjs --live              # writes each case twice, and judges each
  *   node tooling/scripts/evals/customer-message.mjs --live --baseline   # judges the first drafts too: what the skill adds
- *   node tooling/scripts/evals/customer-message.mjs --live --repeats 3 --only reminder_en_whatsapp_text
+ *   node tooling/scripts/evals/customer-message.mjs --live --only reminder_en_whatsapp_text,winback_es_whatsapp   # some cases, by id
  *
  * Each case (tooling/evals/skills/customer-message.json) is a business and the message Ask's card asked for, its versions
  * the first draft as the palette writes one today. The writer is asked as the dashboard asks it (server/ask/skills: the
@@ -99,11 +99,17 @@ export function validateCases(cases) {
     if (channels.length === 0) problems.push(`${c.id}: the draft has no version`);
     if (m.category === "marketing" && m.draft?.sms) problems.push(`${c.id}: a text never carries an offer`);
     for (const p of [...(c.expect?.includes ?? []), ...(c.expect?.excludes ?? [])]) {
+      let re;
       try {
-        new RegExp(p, "iu");
+        re = new RegExp(p, "iu");
       } catch {
         problems.push(`${c.id}: bad pattern ${p}`);
+        continue;
       }
+      // A pattern that matches nothing at all ("$", once its backslash was lost) passes or fails every message, and a
+      // control character is an escape that was eaten ("\b" read as a backspace): either judges nothing.
+      if (re.test("") || /[\u0000-\u001f]/.test(p))
+        problems.push(`${c.id}: the pattern ${JSON.stringify(p)} matches any words, or lost an escape`);
     }
   }
   return problems;
@@ -227,7 +233,7 @@ async function main() {
     console.log(`The cases are not well formed:\n${problems.join("\n")}`);
     process.exit(1);
   }
-  const cases = only ? all.filter((c) => c.id === only) : all;
+  const cases = only ? all.filter((c) => only.split(",").includes(c.id)) : all;
   if (!live) {
     for (const c of cases) {
       const text = messageBriefText(briefOf(c));

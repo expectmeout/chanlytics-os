@@ -212,6 +212,8 @@ test("WhatsApp's own rules: every value, none at an edge or side by side, its le
   assert.deepEqual(wa(`Hi {{1}}, from {{2}}: 15% off this October.${stop}`), ["whatsapp values"]);
   assert.deepEqual(wa(`{{1}}, from {{2}}: 15% off this October. Book: {{3}}${stop}`), ["whatsapp value_at_edge"]);
   assert.deepEqual(wa(`Hi {{1}} {{2}}: 15% off this October. Book: {{3}}${stop}`), ["whatsapp values_side_by_side"]);
+  assert.deepEqual(wa(`Hi {{1}}, from {{2}}: {{3}} 15% off this October.${stop}`), ["whatsapp values_side_by_side"]);
+  assert.deepEqual(wa(`Hi {{1}}, all of us at {{2}} have this: 15% off this October. Book: {{3}}${stop}`), []);
   assert.deepEqual(wa(`Hi {{1}}, from {{2}}: 15% off this October. Book: {{3}} today`), ["whatsapp opt_out"]);
   assert.deepEqual(wa(`Hi {{1}}, from {{2}}: 15% off this October.\n\n\nBook: {{3}}${stop}`), ["whatsapp blank_lines"]);
   assert.deepEqual(wa(`Hi {{1}}, from {{2}}: 15% off this October. ${"Book soon. ".repeat(100)}{{3}}${stop}`), [
@@ -389,4 +391,9 @@ test("the eval's cases are well formed, each makes a brief, and its patterns rea
     "must not say /estimate/",
   ]);
   assert.deepEqual(validateCases([{ id: "x", business: {}, message: { values: [{ position: 2 }] } }]).length > 0, true);
+  // A pattern that lost its escape judges nothing: "$" matches every message, "\b" read as a backspace matches none.
+  const lost = (p) => validateCases([{ ...strict, expect: { excludes: [p] } }]);
+  assert.deepEqual(lost("\\$"), []);
+  assert.match(lost("$").join(" "), /matches any words, or lost an escape/);
+  assert.match(lost("(?<!feel )\bfree\b").join(" "), /matches any words, or lost an escape/);
 });

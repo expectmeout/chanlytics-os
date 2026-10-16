@@ -294,7 +294,7 @@ test("a plan's message step is written too, as the shell its later offers reuse:
   const written = {
     ...WRITTEN,
     whatsapp: {
-      body: "Hi {{1}}, something from all of us at {{2}}: {{3}}\n\nPick a time here: {{4}}, or reply with a day that suits you.\n\nReply STOP to opt out",
+      body: "Hi {{1}}, all of us at {{2}} have something for you this time: {{3}}\n\nPick a time here: {{4}}, or reply with a day that suits you.\n\nReply STOP to opt out",
     },
     email: { subject: "", body: "" },
   };

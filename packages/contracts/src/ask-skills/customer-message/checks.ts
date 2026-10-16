@@ -94,7 +94,10 @@ function craftWhatsappIssues(body: string, b: MessageBrief): CraftIssue[] {
       `values ${got.map((n) => `{{${n}}}`).join(" ") || "none"}, asked ${want.map((n) => `{{${n}}}`).join(" ") || "none"}`,
     );
   if (/^\s*\{\{\d+\}\}|\{\{\d+\}\}\s*$/.test(body)) at("value_at_edge", "a value at the very start or end");
-  if (/\}\}\s*\{\{/.test(body)) at("values_side_by_side", "two values side by side");
+  // Side by side: nothing but a space or a mark between two values ("{{2}}: {{3}}"), which WhatsApp's reviewers read as
+  // a message whose point is all in its values.
+  if (/\}\}[\s\p{P}]*\{\{/u.test(body))
+    at("values_side_by_side", "two values with only a space or a mark between them");
   if (templateBodyTooLong(body)) at("too_long", "over WhatsApp's 1,024 characters");
   if (/\n[^\S\n]*\n[^\S\n]*\n/.test(body)) at("blank_lines", "more than one blank line in a row");
   const stop = smsStopLine(b.message.language);

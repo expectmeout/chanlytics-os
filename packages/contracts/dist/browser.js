@@ -20425,7 +20425,7 @@ var CUSTOMER_MESSAGE_SKILL = {
       title: "The draft and its facts",
       lines: [
         "The draft says what the owner wants said. Keep every fact in it: the offer and its exact figure, the days, the service, who it is for. Add none.",
-        "A thin draft becomes a fuller message from the same facts, never from new ones.",
+        "A thin draft becomes a fuller message from the same facts. Fuller means clearer and warmer: a greeting, the point, the one call to act, a sign-off. It never adds what the draft does not say: a reason or a benefit ('a meeting gives us time to go through it'), an option or a service ('reply and we'll find you another time'), or how the person felt or how it went for them ('we had a great time with them').",
         "Its kind (marketing or utility), its language and its values are decided: write within them.",
         "Call an offer what the draft calls it. Words such as discount, coupon, promotion or free appear only where the draft has them."
       ]
@@ -20449,7 +20449,7 @@ var CUSTOMER_MESSAGE_SKILL = {
       lines: [
         "WhatsApp's reviewers read it before it can be sent; then the customer reads it on their phone.",
         "Under 600 characters reads best; never over 1,024.",
-        "Every value given appears in it, with words around it: never at the very start or the very end, never two values side by side.",
+        "Every value given appears in it, with words around it: never at the very start or the very end, never two values with only a space or a mark between them ('{{2}}: {{3}}').",
         "Marketing (an offer, news, an invitation): its last line, after a blank line, is exactly the opt-out line given, and nothing follows it.",
         "Utility (about their own booking, order or account): about that one thing. No offer, no news, no 'while you are here', no opt-out line. WhatsApp moves a utility message that promotes anything to marketing, or refuses it.",
         "Specific: its point is in its own words, never only in its values. Line breaks between ideas, never more than one blank line in a row."
@@ -20491,6 +20491,7 @@ var CUSTOMER_MESSAGE_SKILL = {
   ],
   never: [
     "A price, a percentage, a discount, a free thing, a date, a deadline, a countdown, a number of places left or a promise the draft does not hold.",
+    "An option, a service or a reason the draft does not give (rescheduling by reply, a callback, why it is worth booking), or a claim about how the person felt or how it went for them.",
     "A number the draft does not hold, written in figures or in words.",
     "A claim about health, results or safety.",
     "Asking for a card number, a password or any payment detail.",
@@ -20523,12 +20524,12 @@ var CUSTOMER_MESSAGE_SKILL = {
         "The business calls a booking: appointment (in Spanish, cita).",
         "Values: {{1}} their first name; {{2}} the business's name; {{3}} their booked time.",
         "Text room: about 75 characters besides its values.",
-        "Draft WhatsApp: Hola {{1}}! Te esperamos en {{2}} el {{3}}. Aprovecha y pregunta por nuestras novedades!",
+        "Draft WhatsApp: Hola {{1}}! Te esperamos en {{2}} el {{3}}. Si necesitas cambiarla, responde a este mensaje. Aprovecha y pregunta por nuestras novedades!",
         "Draft text: Hola {{1}}, recuerda tu cita en {{2}} el {{3}}."
       ].join("\n"),
       answer: [
-        "WhatsApp: Hola {{1}}, le recordamos su cita en {{2}} el {{3}}.\\n\\nSi necesita cambiarla, responda a este mensaje y le ofrecemos otro horario.",
-        "Text: {{2}}: {{1}}, le recordamos su cita el {{3}}. Para cambiarla, responda a este mensaje.",
+        "WhatsApp: Hola {{1}}, le recordamos su cita en {{2}} el {{3}}.\\n\\nSi necesita cambiarla, responda a este mensaje.",
+        "Text: {{2}}: hola {{1}}, le recordamos su cita el {{3}}. Para cambiarla, responda a este mensaje.",
         "could_not: Dej\xE9 fuera la invitaci\xF3n a preguntar por novedades: un recordatorio no puede promocionar nada."
       ].join("\n")
     },
@@ -20542,7 +20543,7 @@ var CUSTOMER_MESSAGE_SKILL = {
         "Draft WhatsApp: Hi {{1}}, an offer from {{2}}: {{3}} Book here: {{4}} or reply with a day that suits you.\\n\\nReply STOP to opt out"
       ].join("\n"),
       answer: [
-        "WhatsApp: Hi {{1}}, something from all of us at {{2}}: {{3}}\\n\\nPick a time here: {{4}}, or reply with a day that suits you.\\n\\nReply STOP to opt out",
+        "WhatsApp: Hi {{1}}, all of us at {{2}} have something for you this time: {{3}}\\n\\nPick a time here: {{4}}, or reply with a day that suits you.\\n\\nReply STOP to opt out",
         "could_not: (empty)"
       ].join("\n")
     }
