@@ -2060,10 +2060,10 @@ test("a person a reach-out found reads its emails, how their reply was read, whe
   const email = vm.timeline.find((t) => t.id === "m-m-out");
   assert.deepEqual(
     [email.who, email.sub],
-    ["Reach out · Salons in Miami", "Your email · angle: their reviews · from mail.example.com · delivered"],
+    ["Sequence · Salons in Miami", "Email 1 · angle: their reviews · from mail.example.com · delivered"],
   );
   const reply = vm.timeline.find((t) => t.id === "m-m1");
-  assert.equal(reply.sub, "Read as a question · the chain stopped · Talking");
+  assert.equal(reply.sub, "Read as a question · the sequence stopped · Talking");
   const found = vm.timeline.find((t) => t.id === "found");
   assert.deepEqual(
     [found.who, found.text, found.link && found.link.to],

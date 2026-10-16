@@ -87,19 +87,19 @@ const reading = (over = {}) => ({
 });
 const line = (t, now = NOW) => reachOutStandingOf(t, now, TZ)?.line;
 
-test("when a lead nothing was written to goes: with its reach-out's run, never at a minute", () => {
+test("when a lead nothing was written to goes: with its sequence's batch, never at a minute", () => {
   const c = story().chain;
   const search = { ...c, fed_by: "search" };
-  assert.equal(reachOutWhenOf(search, Date.parse("2026-10-13T12:00:00Z"), TZ), "goes with today's 9:00 AM run");
-  assert.equal(reachOutWhenOf(search, NOW, TZ), "goes with the next run, within the hour", "today's not made yet");
-  assert.equal(reachOutWhenOf({ ...search, last_run_for: "2026-10-13" }, NOW, TZ), "goes with tomorrow's 9:00 AM run");
+  assert.equal(reachOutWhenOf(search, Date.parse("2026-10-13T12:00:00Z"), TZ), "goes today from 9:00 AM");
+  assert.equal(reachOutWhenOf(search, NOW, TZ), "goes within the hour", "today's not made yet");
+  assert.equal(reachOutWhenOf({ ...search, last_run_for: "2026-10-13" }, NOW, TZ), "goes tomorrow from 9:00 AM");
   assert.equal(
     reachOutWhenOf({ ...search, last_run_for: null }, Date.parse("2026-10-14T03:30:00Z"), TZ),
-    "goes with tomorrow's 9:00 AM run",
+    "goes tomorrow from 9:00 AM",
     "past the day's last hour",
   );
-  assert.equal(reachOutWhenOf(c, NOW, TZ), "goes with the next run, within the hour, after your say", "a list asks");
-  assert.equal(reachOutWhenOf({ ...c, waiting_run_id: "run-1" }, NOW, TZ), "a run waits for your say");
+  assert.equal(reachOutWhenOf(c, NOW, TZ), "goes within the hour, after your OK", "a list asks");
+  assert.equal(reachOutWhenOf({ ...c, waiting_run_id: "run-1" }, NOW, TZ), "waits for your OK");
   assert.equal(reachOutWhenOf({ ...c, state: "paused" }, NOW, TZ), "nothing goes while it is paused");
 });
 
@@ -107,7 +107,7 @@ test("where a lead stands: one line, the first that holds", () => {
   assert.equal(reachOutStandingOf(story({ chain: null }), NOW, TZ), null, "no reach-out, no line");
   assert.equal(
     line(story({ added_at: "2026-10-13T14:00:00Z" })),
-    "Added today · not written yet · goes with the next run, within the hour, after your say",
+    "Added today · not written yet · goes within the hour, after your OK",
   );
   const written = story({
     can_stop: true,
@@ -131,17 +131,17 @@ test("where a lead stands: one line, the first that holds", () => {
     line(
       story({ sends: [send(), send({ id: "s2", n: 1, state: "held", sent_at: null, left: false, message_id: null })] }),
     ),
-    "Email 1 of 3 sent Fri · the next waits for your say",
+    "Email 1 of 3 sent Fri · the next waits for your OK",
   );
   assert.equal(
     line(story({ sends: [send({ state: "held", sent_at: null, left: false })] })),
-    "Email 1 waits for your say",
+    "Email 1 waits for your OK",
   );
   // An answer: never "still writing" after it (the person page's old line said so while it could stop).
   const answered = reachOutStandingOf(story({ can_stop: true, sends: [send()], readings: [reading()] }), NOW, TZ);
   assert.deepEqual(
     [answered.line, answered.tone, answered.stop],
-    ["Wrote back yesterday · interested · the reach-out stopped", "good", false],
+    ["Wrote back yesterday · interested · the sequence stopped", "good", false],
   );
   // An automatic reply is not an answer: away only pauses it.
   const away = reading({
@@ -153,7 +153,7 @@ test("where a lead stands: one line, the first that holds", () => {
   });
   assert.match(
     line(story({ can_stop: true, sends: [send()], readings: [away] })),
-    /^Away until .* · the reach-out waits$/,
+    /^Away until .* · the sequence waits$/,
   );
   assert.equal(
     line(story({ sends: [send()], readings: [reading({ intent: "no", said_no: true })] })),
@@ -168,7 +168,7 @@ test("where a lead stands: one line, the first that holds", () => {
   assert.match(line(story({ stopped_at: "2026-10-12T15:00:00Z", sends: [send()] })), /^You stopped writing to them /);
   assert.equal(
     line(story({ chain: { ...story().chain, waiting_run_id: "run-1" } })),
-    "Not written yet · a run waits for your say",
+    "Not written yet · waits for your OK",
   );
 });
 
@@ -176,7 +176,7 @@ test("a person's page says the same line, never its own", () => {
   const t = story({ can_stop: true, sends: [send()], readings: [reading()] });
   assert.equal(
     reachOutPersonOf(t, NOW, TZ).about,
-    "Early gyms · Ready · wrote back yesterday · interested · the reach-out stopped",
+    "Early gyms · Ready · wrote back yesterday · interested · the sequence stopped",
   );
 });
 
