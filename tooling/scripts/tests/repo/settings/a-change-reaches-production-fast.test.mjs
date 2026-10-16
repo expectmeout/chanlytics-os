@@ -2,13 +2,13 @@
  * A change reaches production in minutes (16 Oct 2026, Ruben: "from project done to uploaded live on Vercel within a few
  * minutes tops"). What holds the parts that make it so:
  *
- *   - `land` (tooling/scripts/ship/land.mjs) takes main's side only of files a command writes, and writes them again;
+ *   - `land` (tooling/scripts/land.mjs) takes main's side only of files a command writes, and writes them again;
  *     every other conflict is a person's.
  *   - `check:local` runs everything after the build side by side (runTogether), and says each check's own result.
  *   - CI's tests run as four parts at once, each a quarter of the files, and the lint and the format check start from
  *     main's cache, which main's own lint writes afresh.
- *   - The edge's install on Vercel turns TypeScript's checking off for the build alone (edge-build-no-check.mjs): only
- *     where VERCEL=1, and CI's typecheck, over the same tsconfig, still checks it.
+ *   - Vercel's builder compiles each edge function from that function and its imports alone (apps/edge/api/tsconfig.json
+ *     includes nothing), and CI's typecheck still reads the edge's own tsconfig, every function in it.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -16,9 +16,9 @@ import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { isWritten, WRITERS } from "../../../ship/land.mjs";
+import ts from "typescript";
+import { isWritten, WRITERS } from "../../../land.mjs";
 import { FIRST, LOCAL_CHECKS, runTogether } from "../../../checks/checked-locally.mjs";
-import { withNoCheck } from "../../../ship/edge-build-no-check.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../../..");
 const read = (rel) => fs.readFileSync(path.join(ROOT, rel), "utf8");
@@ -106,20 +106,32 @@ test("CI's tests run as four parts at once, and lint and format start from main'
   assert.equal(picker.status, 0, picker.stderr);
 });
 
-test("the edge's Vercel install turns checking off for the build alone, and only on Vercel", () => {
+test("Vercel compiles each edge function from its own imports, and CI's typecheck still reads every function", () => {
   const vercel = JSON.parse(read("apps/edge/vercel.json"));
-  assert.equal(vercel.installCommand, "pnpm install && node ../../tooling/scripts/ship/edge-build-no-check.mjs");
+  assert.equal(vercel.installCommand, undefined, "Vercel's own install");
   assert.equal(vercel.buildCommand, undefined, "no build command: the edge's project has no output folder to find");
-  const tsconfig = JSON.parse(read("apps/edge/tsconfig.json"));
-  assert.equal(tsconfig.compilerOptions.noCheck, undefined, "the committed tsconfig keeps CI's typecheck whole");
-  assert.deepEqual(withNoCheck(tsconfig).compilerOptions, { ...tsconfig.compilerOptions, noCheck: true });
-  assert.equal(withNoCheck(tsconfig).include, tsconfig.include);
-  const elsewhere = spawnSync(process.execPath, ["tooling/scripts/ship/edge-build-no-check.mjs"], {
-    cwd: ROOT,
-    encoding: "utf8",
-    env: { ...process.env, VERCEL: "" },
-  });
-  assert.equal(elsewhere.status, 0);
-  assert.match(elsewhere.stdout, /not on Vercel/);
-  assert.equal(JSON.parse(read("apps/edge/tsconfig.json")).compilerOptions.noCheck, undefined, "left as it was");
+  // The builder finds its tsconfig from the function it compiles first, walking up: the api folder's, for every function.
+  const slash = (p) => p.split(path.sep).join("/");
+  for (const fn of ["apps/edge/api/admin/billing.ts", "apps/edge/api/cron/notes.ts"]) {
+    const found = ts.findConfigFile(slash(path.join(ROOT, fn)), ts.sys.fileExists);
+    assert.equal(slash(path.relative(ROOT, found)), "apps/edge/api/tsconfig.json", fn);
+  }
+  const parse = (rel) => {
+    const file = path.join(ROOT, rel);
+    return ts.parseJsonConfigFileContent(ts.readConfigFile(file, ts.sys.readFile).config, ts.sys, path.dirname(file));
+  };
+  const builder = parse("apps/edge/api/tsconfig.json");
+  assert.deepEqual(builder.fileNames, [], "a function's program starts from the function alone");
+  assert.deepEqual(
+    builder.errors.map((e) => e.code).filter((c) => c !== 18002 && c !== 18003),
+    [],
+    "nothing but the empty list the builder ignores",
+  );
+  const edge = parse("apps/edge/tsconfig.json");
+  assert.equal(builder.options.module, edge.options.module, "the edge's own settings, inherited");
+  assert.equal(builder.options.isolatedModules, true, "each file emits alone, as a transpiler sees it");
+  assert.ok(
+    edge.fileNames.some((f) => slash(f).endsWith("apps/edge/api/admin/billing.ts")),
+    "CI's typecheck still reads every function",
+  );
 });

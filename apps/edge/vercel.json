@@ -1,5 +1,4 @@
 {
-  "installCommand": "pnpm install && node ../../tooling/scripts/ship/edge-build-no-check.mjs",
   "functions": {
     "api/admin/billing.ts": {
       "maxDuration": 30
