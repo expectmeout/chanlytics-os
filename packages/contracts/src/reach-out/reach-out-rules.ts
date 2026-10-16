@@ -244,6 +244,33 @@ export function reachOutCardEmailOf(
   return { subject: words.subject === null ? null : email.subject, body: email.body, holes, fellBack };
 }
 
+/** One slot a step's words name, as a lead's card lists it: its value for this lead, or none, and whether it said its fallback. */
+interface ReachOutCardSlot {
+  key: string;
+  /** Null where this lead has no value for it (a hole), and for the opening, which is written later. */
+  value: string | null;
+  fellBack: boolean;
+}
+
+/**
+ * The slots a sequence's words name, as one lead's card lists them (the Emails tab): each with the value the send's fill
+ * gives it for this lead (reachOutValues), in the order they are first written.
+ */
+export function reachOutCardSlotsOf(
+  texts: readonly string[],
+  lead: SlotLead,
+  workspace: SlotWorkspace,
+): ReachOutCardSlot[] {
+  const values = reachOutValues(lead, workspace, null);
+  const named = !!leadAddresseeOf(lead)?.first_name;
+  const written = [...new Set(texts.flatMap((t) => slotsWritten(REACH_OUT_SLOT_SET, t).keys))];
+  return written.map((key) => ({
+    key,
+    value: slotValueOf(REACH_OUT_SLOT_SET, key, values) ?? null,
+    fellBack: key === "first name" && !named,
+  }));
+}
+
 /** What the slots a business changes hold in a preview made before any business is chosen: made-up, and said to be. */
 const EXAMPLE_LEAD = {
   business_name: "Lakeside Bakery",

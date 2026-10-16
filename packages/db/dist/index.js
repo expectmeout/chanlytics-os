@@ -6582,7 +6582,7 @@ async function visitsOver(db, tenantId, fromIso, toIso) {
     ),
     readAllRows(
       "visits_over_feed",
-      (from, to) => db.from("appointments").select("id, status, external_id, starts_at").eq("tenant_id", tenantId).eq("source", "calendar_feed").is("vanished_at", null).gt("ends_at", fromIso).lt("starts_at", toIso).order("starts_at", { ascending: true }).order("id", { ascending: true }).range(from, to)
+      (from, to) => db.from("appointments").select("id, status, external_id, starts_at, lead_id").eq("tenant_id", tenantId).eq("source", "calendar_feed").is("vanished_at", null).gt("ends_at", fromIso).lt("starts_at", toIso).order("starts_at", { ascending: true }).order("id", { ascending: true }).range(from, to)
     )
   ]);
   return { noted, feed };
@@ -6591,7 +6591,7 @@ var SAID_STATUSES = ["kept", "missed", "cancelled"];
 async function feedWordsOver(db, tenantId, fromIso, toIso) {
   return readAllRows(
     "appointments_feed_words",
-    (from, to) => db.from("appointments").select("id, status, external_id, starts_at").eq("tenant_id", tenantId).eq("source", "calendar_feed").is("vanished_at", null).in("status", [...SAID_STATUSES]).gt("ends_at", fromIso).lt("starts_at", toIso).order("starts_at", { ascending: true }).order("id", { ascending: true }).range(from, to)
+    (from, to) => db.from("appointments").select("id, status, external_id, starts_at, lead_id").eq("tenant_id", tenantId).eq("source", "calendar_feed").is("vanished_at", null).in("status", [...SAID_STATUSES]).gt("ends_at", fromIso).lt("starts_at", toIso).order("starts_at", { ascending: true }).order("id", { ascending: true }).range(from, to)
   );
 }
 async function recordOver(db, tenantId, fromIso, toIso) {

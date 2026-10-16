@@ -11,7 +11,7 @@
  * rung from the member's phone and logged, never a bare tel: link), and Add to People the door "Add a person" uses.
  * Nothing about the booking itself changes here: the calendar or the tool keeps it, as the footnote says.
  */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ADD_TO_PEOPLE_WORDS,
   BOOKING_REQUEST_WORDS,
@@ -22,9 +22,11 @@ import {
   addressOf,
   appointmentWords,
   formatPhoneDisplay,
+  visitOriginOf,
   type AppointmentWord,
   type CalendarBlockVM,
   type VisitMoreAct,
+  type VisitOriginVM,
   type VisitSheetVM,
   type VisitWord,
 } from "@chanlytics/contracts";
@@ -40,7 +42,8 @@ import { LinkButton } from "../../kit/link-button/link-button";
 import { Menu, type MenuItem } from "../../kit/menu/menu";
 import { StatePill } from "../../kit/pill/state-pill";
 import { StoppedMark } from "../../kit/pill/stopped-mark";
-import { gate, navigate, openDealSheet, type DealSheetAsk } from "../../legacy-verbs";
+import { reachOuts } from "../../campaigns/reach-out/surface";
+import { gate, navigate, openDealSheet, routeDoor, type DealSheetAsk } from "../../legacy-verbs";
 import { openStepSheet } from "../../people/deal/deal-verbs";
 import { sayVisit } from "../../visit-line";
 import { answerRequest } from "../../booking-request";
@@ -51,6 +54,8 @@ export interface VisitCtx {
   vm: VisitSheetVM;
   word: AppointmentWord;
   bookingLink: string | null;
+  /** The business's zone, for the day a line names. */
+  tz: string;
   /** Close the sheet or the peek (the address goes back with it). */
   close: () => void;
   /** Say something once, at the foot of the page (the board's toast). */
@@ -182,6 +187,37 @@ function visitRows(vm: VisitSheetVM) {
           <dd className={r.key === "notes" ? "cal-visit-notes" : undefined}>{r.value}</dd>
         </div>
       ))}
+    </dl>
+  );
+}
+
+/**
+ * Where the visit came from (00426): the sequence that wrote to the lead its person was made from, and its email, as a
+ * door to the lead on Leads. Read as the visit opens, from the lead's own story (the one its peek reads); nothing is
+ * drawn until it is in, or where it could not be read.
+ */
+function VisitOrigin({ leadId, tz }: { leadId: string; tz: string }) {
+  const [origin, setOrigin] = useState<{ leadId: string; vm: VisitOriginVM } | null>(null);
+  useEffect(() => {
+    let live = true;
+    void reachOuts.leadTimeline(leadId).then((t) => {
+      if (live && t) setOrigin({ leadId, vm: visitOriginOf(t, tz, Date.now()) });
+    });
+    return () => {
+      live = false;
+    };
+  }, [leadId, tz]);
+  if (!origin || origin.leadId !== leadId) return null;
+  return (
+    <dl className="cal-visit-rows" data-testid="cal-visit-origin">
+      <div className="cal-visit-row">
+        <dt>{origin.vm.label}</dt>
+        <dd>
+          <LinkButton {...routeDoor(origin.vm.route)} data-testid="cal-visit-origin-lead">
+            {origin.vm.text}
+          </LinkButton>
+        </dd>
+      </div>
     </dl>
   );
 }
@@ -474,6 +510,7 @@ export function VisitBody({ c }: { c: VisitCtx }) {
       {visitPersonLine(c)}
       <VisitAskRow c={c} />
       {visitRows(vm)}
+      {c.b.visit && c.b.visit.lead_id ? <VisitOrigin leadId={c.b.visit.lead_id} tz={c.tz} /> : null}
       <p className="cal-visit-foot-note" data-testid="cal-visit-footnote">
         {vm.footnote}
       </p>

@@ -1,9 +1,10 @@
 /**
  * The pile's card (canvas B v2's decide card, cm-lead-card), run: email 1 of the sequence its adds go to, filled by the
  * send's own fill with the opening left as the line still to come (leadCardEmailOf, leadCardPartsOf); when it goes, by
- * the sequence's own line; what Add would come to (a fallback said first, a slot with no value or no address turns it
- * off and says why); every email after it for the Emails tab (leadCardStepsOf); the reason up front (leadCardReasonOf)
- * and the marks it rests on (leadCardMarksOf).
+ * the sequence's own line; what Add would come to (a fallback said first; the add door's own answer, or a slot with no
+ * value, turns it off and says why, and where an address is what is missing, the door left: Call, or someone else);
+ * every email after it for the Emails tab (leadCardStepsOf) and what fills their words (leadCardSlotsOf); Add them all's
+ * buckets (leadCardBulkOf); the reason up front (leadCardReasonOf) and the marks it rests on (leadCardMarksOf).
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -11,11 +12,15 @@ import {
   LEAD_CARD_TABS,
   LEAD_CARD_WORDS,
   LEAD_CARD_MARKS_MAX,
+  LEAD_PILE_WORDS,
+  leadCardBulkOf,
   leadCardEmailOf,
   leadCardMarksOf,
   leadCardPartsOf,
   leadCardReasonOf,
+  leadCardSlotsOf,
   leadCardStepsOf,
+  leadPileRailOf,
 } from "@chanlytics/contracts";
 
 const TZ = "America/New_York";
@@ -62,6 +67,8 @@ const place = (over = {}) => ({
   facts: {},
   to: "hello@luxelane.example.com",
   emailState: "ok",
+  canCall: true,
+  canChoose: false,
   ...over,
 });
 
@@ -123,26 +130,139 @@ test("a value the email needs and the lead lacks is a gap where it would stand, 
   assert.equal(gaps.length, 1);
   assert.equal(text(e.body), "Hi there,[opening]We answer calls for salons in [their city].\n\nRae");
   assert.equal(e.blocked, LEAD_CARD_WORDS.holes(["their city"]));
+  // An email that would not go says no time it goes.
+  assert.equal(e.when, null);
 });
 
-test("no address, or one that bounced, turns Add off before any word is weighed", () => {
-  const none = leadCardEmailOf({
-    chain: chain(),
-    lead: place({ to: null, emailState: "none" }),
-    workspace: WS,
-    nowMs: NOW,
-    tz: TZ,
+const emailWith = (lead, check) => leadCardEmailOf({ chain: chain(), lead, workspace: WS, nowMs: NOW, tz: TZ, check });
+
+test("Add is off by the add door's own answer, said in the card's words; before it answers only a hole turns it off", () => {
+  // The door said nothing yet: the card reads no address itself (the one predicate is the door's).
+  const asking = emailWith(place({ to: null, emailState: "none" }), undefined);
+  assert.equal(asking.blocked, null);
+  assert.equal(asking.to, null);
+  assert.equal(emailWith(place(), null).blocked, null);
+  assert.equal(
+    emailWith(place(), { why: "customer", chain_name: null }).blocked,
+    "They're already a customer, so Add is off.",
+  );
+  assert.equal(
+    emailWith(place(), { why: "invalid", chain_name: null }).blocked,
+    "Their address bounced, so Add is off.",
+  );
+  assert.equal(
+    emailWith(place(), { why: "elsewhere", chain_name: "Gyms · Astoria" }).blocked,
+    LEAD_CARD_WORDS.elsewhere("Gyms · Astoria"),
+  );
+  // The door's answer wins over a hole: it is why the add would come to nothing.
+  assert.equal(
+    emailWith(place({ city: null }), { why: "written", chain_name: null }).blocked,
+    "They were already written to, and a business is written to once, so Add is off.",
+  );
+});
+
+test("where an address is what is missing, the card offers the door left: someone else at a company, else a call", () => {
+  assert.equal(emailWith(place(), { why: "no_email", chain_name: null }).instead, "call");
+  assert.equal(emailWith(place({ canCall: false }), { why: "invalid", chain_name: null }).instead, null);
+  assert.equal(emailWith(place({ canChoose: true }), { why: "invalid", chain_name: null }).instead, "choose");
+  // A reason that is no address offers nothing in Add's place.
+  assert.equal(emailWith(place(), { why: "customer", chain_name: null }).instead, null);
+  assert.equal(emailWith(place(), null).instead, null);
+  // The rail's yes is then a call, in Add's place and on its key.
+  const rail = leadPileRailOf({ cls: "qualified", target: "Salon owners · Queens", call: true });
+  assert.deepEqual(
+    rail.map((s) => [s.act, s.key]),
+    [
+      ["not_a_fit", "n"],
+      ["later", "l"],
+      ["call", "a"],
+    ],
+  );
+  assert.equal(rail[2].label, LEAD_PILE_WORDS.call);
+});
+
+test("an address still being checked joins, and goes once it checks out", () => {
+  const e = emailWith(place({ emailState: "checking" }), undefined);
+  assert.equal(e.when, `Goes tomorrow from 9:00 AM, after your OK, ${LEAD_CARD_WORDS.checking}`);
+  assert.equal(e.blocked, null);
+});
+
+test("what fills their words: each slot with its value and where it came from, a fallback and a hole said as such", () => {
+  const slots = leadCardSlotsOf({ chain: chain(), lead: place({ city: null }), workspace: WS });
+  const by = Object.fromEntries(slots.map((x) => [x.key, x]));
+  assert.deepEqual(
+    slots.map((x) => x.key),
+    ["business", "first name", "opening", "city", "your name", "booking link"],
+  );
+  assert.equal(by.business.value, "Luxe Lane Salon");
+  assert.equal(by.business.from, "From their listing");
+  assert.equal(by["first name"].look, "fallback");
+  assert.equal(by["first name"].value, "there");
+  assert.equal(by.opening.look, "later");
+  assert.equal(by.city.look, "gap");
+  assert.equal(by.city.value, null);
+  assert.equal(by["your name"].value, "Rae");
+  assert.equal(by["your name"].from, "The name this sequence signs with");
+  assert.equal(by["booking link"].value, "https://example.com/book");
+});
+
+test("Add them all: each lead in its bucket by the door's answer and the send's fill; the press adds those that go", () => {
+  const named = place({
+    business_name: "Brightline Studio",
+    kind: "company",
+    facts: {
+      people: [
+        {
+          name: "Maya Ortiz",
+          first_name: "Maya",
+          title: null,
+          role: null,
+          email: "m@b.example.com",
+          profile_url: null,
+        },
+      ],
+      addressee: 0,
+    },
   });
-  assert.equal(none.blocked, LEAD_CARD_WORDS.noAddress);
-  assert.equal(none.to, null);
-  const bad = leadCardEmailOf({
+  const bulk = leadCardBulkOf({
     chain: chain(),
-    lead: place({ emailState: "invalid" }),
     workspace: WS,
-    nowMs: NOW,
-    tz: TZ,
+    leads: [
+      { id: "a", lead: named, check: null },
+      { id: "b", lead: place(), check: null },
+      { id: "c", lead: place({ emailState: "checking" }), check: null },
+      { id: "d", lead: place(), check: { why: "elsewhere", chain_name: "Gyms" } },
+      { id: "e", lead: place(), check: { why: "no_email", chain_name: null } },
+      { id: "f", lead: place(), check: { why: "no_email", chain_name: null } },
+      { id: "g", lead: place({ city: null }), check: null },
+    ],
   });
-  assert.equal(bad.blocked, LEAD_CARD_WORDS.badAddress);
+  assert.deepEqual(bulk.ids, ["a", "b", "c"]);
+  assert.deepEqual(
+    bulk.buckets.map((b) => [b.key, b.n, b.goes]),
+    [
+      ["goes", 1, true],
+      ["there", 1, true],
+      ["checking", 1, true],
+      ["elsewhere", 1, false],
+      ["cant", 3, false],
+    ],
+  );
+  assert.equal(bulk.buckets.find((b) => b.key === "elsewhere").note, "1 with “Gyms”");
+  assert.equal(
+    bulk.buckets.find((b) => b.key === "cant").note,
+    "2 with no email address, 1 missing what its words need",
+  );
+  assert.equal(bulk.press, "Add the 3");
+  assert.equal(bulk.title, "Add them to “Salon owners · Queens”");
+  // A lead the door has not answered for holds the press.
+  const waiting = leadCardBulkOf({
+    chain: chain(),
+    workspace: WS,
+    leads: [{ id: "a", lead: place(), check: undefined }],
+  });
+  assert.equal(waiting.waiting, 1);
+  assert.deepEqual(waiting.ids, []);
 });
 
 test("a sequence with no email step has no email 1; a mailbox it sends from is named in the head", () => {

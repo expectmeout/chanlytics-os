@@ -275,7 +275,7 @@ export async function visitsOver(
     readAllRows<FeedRowWord>("visits_over_feed", (from, to) =>
       db
         .from("appointments")
-        .select("id, status, external_id, starts_at")
+        .select("id, status, external_id, starts_at, lead_id")
         .eq("tenant_id", tenantId)
         .eq("source", "calendar_feed")
         .is("vanished_at", null)
@@ -293,7 +293,7 @@ export async function visitsOver(
 const SAID_STATUSES = ["kept", "missed", "cancelled"] as const;
 
 /** A feed row as a reader lays it on its event: its id, its word, its key, and the start the word was said of. */
-type FeedRowWord = Pick<AppointmentRow, "id" | "status" | "external_id" | "starts_at">;
+type FeedRowWord = Pick<AppointmentRow, "id" | "status" | "external_id" | "starts_at" | "lead_id">;
 
 /**
  * The feed's rows over a span a member said a word of and the calendar still names, read whole: a select answers a
@@ -303,7 +303,7 @@ export async function feedWordsOver(db: Db, tenantId: string, fromIso: string, t
   return readAllRows<FeedRowWord>("appointments_feed_words", (from, to) =>
     db
       .from("appointments")
-      .select("id, status, external_id, starts_at")
+      .select("id, status, external_id, starts_at, lead_id")
       .eq("tenant_id", tenantId)
       .eq("source", "calendar_feed")
       .is("vanished_at", null)

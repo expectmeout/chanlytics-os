@@ -85,7 +85,7 @@ export { sameListed, matchService, needsConsultation, offerFor, offerLead, foldN
 export { BOOKING_REQUEST_INSTRUCTION, BOOKING_REQUEST_REFUSALS, BOOKING_REQUEST_SCHEMA_FIELDS, bookingRequestRefusalOf, BOOKING_REQUEST_WORDS, requestedBookingOf, slotLong, slotShort, takesBookingRequests } from "./calendar/visit/booking-request";
 export { calendarPersonFactsOf, calendarPersonOf } from "./calendar/visit/calendar-person-facts";
 export { visitTitleWithout } from "./calendar/visit/visit-service";
-export { visitSheetOf, CALENDAR_VISIT_SHEET_WORDS } from "./calendar/visit/visit-sheet";
+export { visitSheetOf, visitOriginOf, CALENDAR_VISIT_SHEET_WORDS } from "./calendar/visit/visit-sheet";
 export { zoneOffsetMs, localToUtcMs, clockInZone, dayInZone, dayPlusInZone, WEEKDAY_KEYS } from "./calendar/zone-math";
 export { brainMetaOf, replyWhy, BRAIN_INTENTS, BRAIN_LANGUAGES, BRAIN_OUTPUT_JSON_SCHEMA, brainOutputSchemaFor, CONFIDENCE_STEPS } from "./config/brain";
 export { abilityRows, cannotRows } from "./config/business-tab/abilities";
@@ -168,14 +168,14 @@ export { reviewReplyModeOf, reviewReplyPrompt, cleanDraft, autoReplyCandidates, 
 export { APPOINTMENT_WORDS, appointmentWordOf, appointmentWordWhere, appointmentWords, isAppointmentWord } from "./journey/appointment-word";
 export { JOURNEY_STAGE_IDS, journeyOf, journeyStageOf } from "./journey/journey";
 export { journeyGuide } from "./journey/journey-guide";
-export { LEAD_CARD_WORDS, LEAD_CARD_TABS, LEAD_SHEET_WORDS, LEAD_CARD_MARKS_MAX, leadCardEmailOf, leadCardStepsOf, leadCardPartsOf, leadCardReasonOf, leadCardMarksOf } from "./leads/lead-card";
+export { LEAD_CARD_WORDS, LEAD_CARD_TABS, LEAD_SHEET_WORDS, LEAD_CARD_MARKS_MAX, leadCardEmailOf, leadCardStepsOf, leadCardPartsOf, leadCardReasonOf, leadCardMarksOf, leadCardSlotsOf, leadCardBulkOf, leadCardBulkDoorOf } from "./leads/lead-card";
 export { LEAD_CHECK_KEYS } from "./leads/lead-dtos";
 export { leadTodayLine, leadHoursShort, leadWhere, leadUndoable, leadExclusionWord, leadCheckWord, leadSlots, leadTintOf, leadTileSrc, LEAD_UNDO_MS, LEAD_SLOT_WORDS, LEAD_TILE_PX } from "./leads/lead-facts";
 export { LEAD_SUGGEST_RETRY_MS, LEAD_IDEAS_SYSTEM, ideaHistoryOf, ideaBasisOf, ideaPacket, ideaPacketText, ideaJsonSchema, ideaPassed, ideaPassedOf } from "./leads/lead-ideas";
 export { LEAD_IMPORT_MAX_BYTES, LEAD_LIST_MAX, LEAD_LIST_VIAS, LEAD_IMPORT_WORDS, isLeadList, leadChooseAnswerWords, leadChooseNameOf, leadImportAnswerWords, leadImportColumnWords, leadImportColumns, leadImportCountWords, leadImportEstimateUsd, leadImportNameOf, leadImportPlanOf, leadImportReady, leadImportSaveLabel, leadListEmptyOf, leadListStripOf, regionOf, websiteHostOf } from "./leads/lead-import";
 export { LEAD_KINDS, LEAD_SOURCES, LEAD_ROLE_WORDS, LEAD_PEOPLE_MAX, leadRoleOf, leadFoundWords, LEAD_DIRECTORY_WORDS, leadAddresseeOf, leadCompanyOf, LEAD_COMPANY_WORDS, LEAD_ADDRESSEE_WORDS, leadAddresseeRefusal, leadNamedPeople } from "./leads/lead-kind";
 export { leadWeekSummary, leadWeekBars, toLeadPeekVM, leadPeekMenu, leadSearchWords, LEAD_REMOVE_KEEPS } from "./leads/lead-peek";
-export { LEAD_BACK_WORDS, LEAD_PILE_UNDO_KEY, LEAD_PILE_WORDS, leadPileOpen, leadPileProgressOf, leadPileRailOf } from "./leads/lead-pile";
+export { LEAD_BACK_WORDS, LEAD_PILE_UNDO_KEY, LEAD_PILE_WORDS, LEAD_PILE_SAID, leadPileOpen, leadPileProgressOf, leadPileRailOf } from "./leads/lead-pile";
 export { stageArgs, leadsRoute, parseLeadsRoute, leadDraftFooter, leadQuestionMail, leadPlanLikely, leadPlanFacts, leadPlanFactLine, leadMonthPlanFacts, leadPlanAsk, LEAD_DRAFT_JSON_SCHEMA, leadQuestionTitle, LEAD_QUESTION_WAIT_LINE, leadQuestionRoute, LEAD_PRIOR_MIN_PLACES } from "./leads/lead-plan";
 export { leadReviewCosts, leadAskedFor, leadReviewGroups, leadMapPlot, leadMapNote, leadLowerFirst, LEAD_REVIEW_GROUP_WORDS, LEAD_REVIEW_ACT_WORDS, LEAD_REVIEW_GROUP_WHY, LEAD_CHECK_CENTS_EACH, leadCheckAgainCents, LEAD_MAP_MAX_SPAN_M, leadMapAcross, leadAreaFrom } from "./leads/lead-review";
 export { leadBand, leadMarkSrc, toLeadRowVM, leadRowOf, leadRail, leadsStanding, LEAD_MARKS_BUCKET, LEAD_MARK_PATH } from "./leads/lead-row";

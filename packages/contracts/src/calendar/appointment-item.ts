@@ -37,6 +37,8 @@ export interface AppointmentLike {
   source?: string | null;
   /** The thread a request the receptionist took came from (00443): where it is answered. */
   conversation_id?: string | null;
+  /** The lead its person was made from (00426). Absent on an older read. */
+  lead_id?: string | null;
 }
 
 /** The words the block carries: the service and the client, as the notice gave them; the title the row kept; else this. */
@@ -98,10 +100,13 @@ export function personOfAppointment(row: AppointmentLike, people: PersonLike[]):
   };
 }
 
-/** The row's id and status as the board carries them: null for a status the record does not hold. */
-function visitMarkOf(row: Pick<AppointmentLike, "id" | "status">): VisitMark | null {
+/**
+ * The row's id and status as the board carries them, and the lead its person was made from where there is one: null for
+ * a status the record does not hold.
+ */
+function visitMarkOf(row: Pick<AppointmentLike, "id" | "status" | "lead_id">): VisitMark | null {
   return (APPOINTMENT_STATUSES as readonly string[]).includes(row.status)
-    ? { id: row.id, status: row.status as AppointmentStatus }
+    ? { id: row.id, status: row.status as AppointmentStatus, ...(row.lead_id ? { lead_id: row.lead_id } : {}) }
     : null;
 }
 
@@ -115,7 +120,13 @@ export interface FeedMark extends VisitMark {
  * row by (appointmentKeyOf), so a member's word on it is said there. Pure.
  */
 export function feedMarksOf(
-  rows: ReadonlyArray<{ id: string; status: string; external_id: string | null; starts_at: string }>,
+  rows: ReadonlyArray<{
+    id: string;
+    status: string;
+    external_id: string | null;
+    starts_at: string;
+    lead_id?: string | null;
+  }>,
 ): Map<string, FeedMark> {
   const marks = new Map<string, FeedMark>();
   for (const r of rows) {
@@ -135,7 +146,9 @@ export function markOn(
   it: Pick<FeedItem, "uid" | "start" | "occurrence">,
 ): VisitMark | null {
   const m = marks?.get(appointmentKeyOf(it));
-  return m && m.start === it.start ? { id: m.id, status: m.status } : null;
+  return m && m.start === it.start
+    ? { id: m.id, status: m.status, ...(m.lead_id ? { lead_id: m.lead_id } : {}) }
+    : null;
 }
 
 /**

@@ -63,6 +63,17 @@ What it built (00426, 00427; the plan in `docs/superpowers/plans/2026-10-13-the-
   answers are drawn on its presses instead (A, L and N on the rail, Z on Undo). A visit's origin on the Calendar's
   sheet is still owed: `appointments.lead_id` is stamped and nothing draws it (none is stamped in production yet), and
   it names the visit's sequence.
+- **The card at canvas B's parity, 16 October 2026 (cm-lead-parity):** the card asks the add door itself, dry
+  (`reach_out_add` with `p_dry`, the one predicate), once per lead and sequence in one batch, and says its reason where
+  Add is off, never a second reading of the address; where an address is what is missing it offers the door left (Call
+  in Add's place on the rail and its key, or someone else named at a company). An address still being checked joins and
+  "goes once it checks out". Add them all says what each open lead would come to, in buckets, before one press and one
+  Undo. The Emails tab (and a desk card, folded) lists what fills the words, each with its source. A press is said in
+  the pile's own live line, not a toast over the next card; the last Not a fit reason is marked; the end of the pile
+  opens the sequence. A sequence's Add leads opens Leads with the pile set to add to it (a list-fed one; a search-fed one
+  opens its search), and Needs review can be gone through under any search. The visit's origin is drawn: its record's
+  row carries `lead_id` to the board, and the sheet says the sequence and the last email it sent, as a door to the
+  lead, from the lead's own story.
 - **Call 8, as built (00430, 13 October 2026):**
   - What a lead is: `leads.kind` (place | company), `source` (the card or a file), `source_key` (a company's domain,
     one lead per workspace and source), and `facts` (the people a source named, five at most, and the addressee).

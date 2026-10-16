@@ -171,7 +171,7 @@ export { visitTitleWithout } from "./visit/visit-service";
 export { spanForView, windowFor, coversSpan, frameOf } from "./calendar-views";
 export type { CalendarView } from "./calendar-views";
 export { calendarPersonFactsOf, calendarPersonOf } from "./visit/calendar-person-facts";
-export { visitSheetOf, CALENDAR_VISIT_SHEET_WORDS } from "./visit/visit-sheet";
+export { visitSheetOf, visitOriginOf, CALENDAR_VISIT_SHEET_WORDS } from "./visit/visit-sheet";
 export {
   BOOKING_REQUEST_INSTRUCTION,
   BOOKING_REQUEST_REFUSALS,
@@ -193,6 +193,7 @@ export type {
   VisitSheetState,
   VisitPrimaryAct,
   VisitMoreAct,
+  VisitOriginVM,
 } from "./visit/visit-sheet";
 export type { CalendarPersonFactsDto, CalendarPersonVM } from "./visit/calendar-person-facts";
 export { calendarRunMarksOf, runMarkShown, CALENDAR_SHOW_WORDS, CALENDAR_RUN_SHEET_WORDS } from "./calendar-runs";

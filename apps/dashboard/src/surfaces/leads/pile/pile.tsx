@@ -5,13 +5,16 @@
  * through and where its adds go; under it, how far through it is, and Undo for the last three. At the end, the later
  * ones, or the leads held for a new list and the one press that writes to them. On a desk the pile stands where the
  * rows stand and the lead's details are the peek beside it, which follows the lead that is up; on a phone the pile is
- * a sheet over the rows (sheet.tsx), its card at half height and its five tabs at full.
+ * a sheet over the rows (sheet.tsx), its card at half height and its five tabs at full. What a press did is the pile's
+ * own line under it (a live region), never a toast over the next card; where no email can go to the lead and they have
+ * a number, the yes is a call; over the pile, Add them all (bulk.tsx).
  *
  * Hookless: the page holds the pile (use-pile.ts) and hands it down. Every word is contracts' (LEAD_PILE_WORDS,
  * leadPileRailOf, LEAD_NOT_A_FIT_WORDS, LEAD_CARD_WORDS); the keys are the page's one listener's
  * (people/hooks/keyboard.ts) and listed in the ? sheet (SHORTCUTS), never drawn here.
  */
 import {
+  LEAD_CARD_WORDS,
   LEAD_NOT_A_FIT_TITLE,
   LEAD_NOT_A_FIT_WHYS,
   LEAD_NOT_A_FIT_WORDS,
@@ -19,11 +22,14 @@ import {
   LEAD_PILE_WORDS,
   leadPileProgressOf,
   leadPileRailOf,
+  sequenceRoute,
   type LeadPileCountsDto,
+  type LeadPileSlot,
   type LeadRowVM,
 } from "@chanlytics/contracts";
 import { Button } from "../../kit/button/button";
-import { gate } from "../../legacy-verbs";
+import { gate, navigate } from "../../legacy-verbs";
+import { PileBulk, type PileBulkFacts } from "./bulk";
 import { LeadCardHead, LeadCardMail, type LeadCardFacts } from "./card";
 import type { LeadPile } from "./use-pile";
 
@@ -33,6 +39,18 @@ import type { LeadPile } from "./use-pile";
  */
 export const pileAddBlocked = (card: LeadCardFacts | null): string | null =>
   card && card.email ? card.email.blocked : null;
+
+/** Whether the rail's yes is a call: the add door said no email can go to them, and they have a number. */
+export const pileCalls = (card: LeadCardFacts | null): boolean =>
+  !!(card && card.email && card.email.instead === "call");
+
+/** What a press of one of the rail's places does, and what it says at the control: Add that would come to nothing is off. */
+function slotPressOf(p: PileViewProps, l: LeadRowVM, s: LeadPileSlot) {
+  const off = s.act === "add" ? pileAddBlocked(p.card) : null;
+  const press = () => (s.act === "call" ? p.onCall(l.id) : void p.pile.act(l, s.act));
+  const title = off ?? (s.act === "call" ? LEAD_CARD_WORDS.callTip : null);
+  return { off, press, says: title ? { title } : gate(s.right, s.label.toLowerCase()) };
+}
 
 /**
  * The rail: three presses, or the five whys of Not a fit in their place. Each press names its key to a screen reader,
@@ -49,7 +67,14 @@ const railOf = (p: PileViewProps, l: LeadRowVM, keys: boolean) => {
         data-testid="lead-pile-whys"
       >
         {LEAD_NOT_A_FIT_WHYS.map((w) => (
-          <Button key={w} size="sm" onClick={() => void pile.act(l, "not_a_fit", w)} data-testid={`lead-pile-why-${w}`}>
+          <Button
+            key={w}
+            size="sm"
+            onClick={() => void pile.act(l, "not_a_fit", w)}
+            data-testid={`lead-pile-why-${w}`}
+            {...(pile.lastWhy === w ? { title: LEAD_PILE_WORDS.lastWhy, "data-last": "" } : {})}
+          >
+            {pile.lastWhy === w ? <span className="ld-now-dot" aria-hidden="true" /> : null}
             {LEAD_NOT_A_FIT_WORDS[w]}
           </Button>
         ))}
@@ -58,21 +83,25 @@ const railOf = (p: PileViewProps, l: LeadRowVM, keys: boolean) => {
         </Button>
       </div>
     );
-  const blocked = pileAddBlocked(p.card);
+  const rail = leadPileRailOf({
+    cls: pile.cls,
+    target: pile.target ? pile.target.name : null,
+    call: pileCalls(p.card),
+  });
   return (
     <div className="ld-pile-rail" data-testid="lead-pile-rail">
-      {leadPileRailOf({ cls: pile.cls, target: pile.target ? pile.target.name : null }).map((s) => {
+      {rail.map((s) => {
         // Add that would come to nothing is off, and says why at the control (the card says it too).
-        const off = s.act === "add" && blocked;
+        const { off, press, says } = slotPressOf(p, l, s);
         return (
           <Button
             key={s.act}
             variant={s.look}
             disabled={pile.busy || !!off}
-            onClick={() => void pile.act(l, s.act)}
+            onClick={press}
             aria-keyshortcuts={s.key.toUpperCase()}
             data-testid={`lead-pile-${s.act}`}
-            {...(off ? { title: off } : gate(s.right, s.label.toLowerCase()))}
+            {...says}
           >
             {s.label}
             {keys ? (
@@ -90,13 +119,13 @@ const railOf = (p: PileViewProps, l: LeadRowVM, keys: boolean) => {
 /** The rail, for the phone's sheet, which holds it still at its foot. */
 export const PileRail = ({ p, l }: { p: PileViewProps; l: LeadRowVM }) => railOf(p, l, false);
 
-/** The lead that is up, on a desk: its card, then the rail. */
+/** The lead that is up, on a desk: its card, then the rail. Keyed by the lead, so the next one turns in (leads.css). */
 const pileLeadOf = (p: PileViewProps, l: LeadRowVM) => (
   <article key={l.id} className="ld-pile-lead" aria-label={l.name} data-testid="lead-pile-lead">
     {p.card ? (
       <>
         <LeadCardHead up={l} card={p.card} />
-        <LeadCardMail card={p.card} />
+        <LeadCardMail card={p.card} fills />
       </>
     ) : null}
     {railOf(p, l, true)}
@@ -126,11 +155,23 @@ const targetsOf = (p: PileViewProps) => {
           {x.name}
         </Button>
       ))}
+      {p.bulk ? <PileBulk bulk={p.bulk} busy={pile.busy} /> : null}
     </div>
   );
 };
 
-/** The end of the pile: the later ones to go through, or the leads held for a new list and the press that writes to them. */
+/** The sequence the pile's adds went to, on Sequences: who is in it now. The pile is left as it is opened. */
+const openTarget = (p: PileViewProps) => {
+  if (!p.pile.target) return;
+  const to = sequenceRoute(p.pile.target.rootId, "people");
+  p.pile.stop();
+  navigate(to);
+};
+
+/**
+ * The end of the pile: the later ones to go through, the leads held for a new list and the press that writes to them,
+ * and the sequence its adds went to.
+ */
 const pileEndOf = (p: PileViewProps, later: number) => (
   <div className="ld-pile-end" data-testid="lead-pile-end">
     <h3>{LEAD_PILE_WORDS.end}</h3>
@@ -146,11 +187,26 @@ const pileEndOf = (p: PileViewProps, later: number) => (
           {LEAD_PILE_WORDS.writeHeld(p.pile.held.length)}
         </Button>
       ) : null}
+      {p.pile.target ? (
+        <Button onClick={() => openTarget(p)} data-testid="lead-pile-open-target">
+          {LEAD_PILE_WORDS.openTarget(p.pile.target.name)}
+        </Button>
+      ) : null}
       <Button variant="quiet" onClick={p.pile.stop} data-testid="lead-pile-leave">
         {LEAD_PILE_WORDS.leave}
       </Button>
     </div>
   </div>
+);
+
+/**
+ * The pile's one line after a press, for the eye and a screen reader (a polite live region): what was done, and who is
+ * up now or that it was the last. Nothing is said before the first press.
+ */
+const saidOf = (p: PileViewProps) => (
+  <p className="ld-pile-said" role="status" aria-live="polite" data-testid="lead-pile-said">
+    {p.pile.said ? `${p.pile.said} · ${p.up ? LEAD_PILE_WORDS.next(p.up.name) : LEAD_PILE_WORDS.lastOne}` : null}
+  </p>
 );
 
 /**
@@ -162,6 +218,7 @@ const progressOf = (p: PileViewProps, leave: boolean) => {
   const line = counts ? leadPileProgressOf(counts) : null;
   return (
     <div className="ld-pile-progress" data-testid="lead-pile-progress">
+      {saidOf(p)}
       {line ? <span data-testid="lead-pile-progress-line">{line.text}</span> : null}
       {pile.held.length ? <span>{LEAD_PILE_WORDS.held(pile.held.length)}</span> : null}
       {pile.canUndo ? (
@@ -202,6 +259,10 @@ export interface PileViewProps {
   card: LeadCardFacts | null;
   /** Writes to the leads held for a new list: the list made of them, and its sequence (the bar's Write to them). */
   onWriteHeld: (ids: string[]) => void;
+  /** The rail's call, where it is the yes: the owner's own phone dials, and the call's question is asked. */
+  onCall: (id: string) => void;
+  /** Add them all, over a Ready pile with a sequence and more than one lead open; null otherwise. */
+  bulk: PileBulkFacts | null;
 }
 
 /** The pile's parts the phone's sheet places itself: where adds go, the end of the pile, the progress line. */
@@ -221,11 +282,30 @@ export const LeadPileView = (p: PileViewProps) => (
   </section>
 );
 
-/** The door into the pile, under an open search: for a search whose leads no reach-out of its own writes to. */
-export const LeadPileDoor = ({ onStart }: { onStart: () => void }) => (
+/**
+ * The door into the pile, under an open search: for a search whose leads no reach-out of its own writes to, or its
+ * Needs review. Where a sequence's Add leads named the target, the door names it.
+ */
+export const LeadPileDoor = ({ onStart, target }: { onStart: () => void; target?: string | null }) => (
   <div className="ld-pile-door">
-    <Button size="sm" onClick={onStart} title={LEAD_PILE_WORDS.startTip} data-testid="lead-pile-start">
-      {LEAD_PILE_WORDS.start}
+    <Button
+      size="sm"
+      variant={target === undefined ? "secondary" : "primary"}
+      onClick={onStart}
+      title={LEAD_PILE_WORDS.startTip}
+      data-testid="lead-pile-start"
+    >
+      {target === undefined ? LEAD_PILE_WORDS.start : LEAD_PILE_WORDS.startFor(target)}
+    </Button>
+  </div>
+);
+
+/** With a sequence's Add leads standing and no search open: the line asking for one, and Not now, which lets it go. */
+export const LeadPileAsk = ({ name, onLetGo }: { name: string | null; onLetGo: () => void }) => (
+  <div className="ld-pile-door" data-testid="lead-pile-ask">
+    <p>{LEAD_PILE_WORDS.askSearch(name)}</p>
+    <Button size="sm" variant="quiet" onClick={onLetGo} data-testid="lead-pile-ask-let-go">
+      {LEAD_PILE_WORDS.askLetGo}
     </Button>
   </div>
 );

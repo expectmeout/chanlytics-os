@@ -37,6 +37,7 @@ export const LEAD_PILE_WORDS = {
   laterDone: "Put off for later",
   notFit: "Not a fit",
   add: (target: string) => `Add to “${target}”`,
+  call: "Call",
   hold: "Add to a new list",
   held: (n: number) => `${plural(n, "lead", "leads")} for a new list`,
   writeHeld: (n: number) => `Write to the ${n}`,
@@ -49,7 +50,29 @@ export const LEAD_PILE_WORDS = {
   laterAgain: "Go through the later ones",
   undo: "Undo",
   undoGone: "That was already undone",
+  /** A sequence's Add leads named where this pass's adds go: the door says so, and so does the page before a search. */
+  startFor: (target: string | null) => (target ? `Pick leads for “${target}”` : "Pick leads for its sequence"),
+  askSearch: (target: string | null) =>
+    `Open a search to pick its leads for ${target ? `“${target}”` : "the sequence you came from"}.`,
+  askLetGo: "Not now",
+  /** The end of the pile, with a sequence its adds went to: the way to it. */
+  openTarget: (target: string) => `Open “${target}”`,
+  /** The reason a Not a fit was last given, marked among the five. */
+  lastWhy: "Your last reason",
+  /** The pile's one line for a screen reader and the eye, after each press: what was done, and who is up. */
+  next: (name: string) => `Next: ${name}`,
+  lastOne: "That was the last one.",
 } as const;
+
+/** What one press did, in the pile's line (never a toast over the next card): the lead, and where it went. */
+export const LEAD_PILE_SAID: Record<LeadPileAct, (lead: string, target: string | null) => string> = {
+  add: (lead, target) => `Added ${lead} to “${target ?? ""}”`,
+  hold: (lead) => `${lead} held for a new list`,
+  later: (lead) => `${lead} put off for later`,
+  not_a_fit: (lead) => `${lead} marked not a fit`,
+  keep: (lead) => `Kept ${lead}`,
+  exclude: (lead) => `Left ${lead} out`,
+};
 
 /** The pile's progress line: "12 of 40 decided · 3 for later", and how far through it is, 0 to 1. */
 export interface LeadPileProgressVM {
@@ -94,7 +117,8 @@ export type LeadPileAct = "not_a_fit" | "later" | "add" | "hold" | "keep" | "exc
 
 /** One of the rail's three places: its act, its words, its key, how it looks, and the right it asks for. */
 export interface LeadPileSlot {
-  act: LeadPileAct;
+  /** A pile's act, or a call: the yes for a lead no email can go to, dialled from the owner's own phone. */
+  act: LeadPileAct | "call";
   label: string;
   key: "n" | "l" | "a";
   look: "secondary" | "primary";
@@ -105,9 +129,10 @@ export interface LeadPileSlot {
 /**
  * The rail's three places, left to right: no, not now, yes. A Needs review pile leaves out, puts off or keeps; a
  * Ready pile says Not a fit, puts off, or adds to its reach-out (to a new list when it has none yet: held, and written
- * to together at the end).
+ * to together at the end). Where the add's door said no email can go to the lead and they have a number (`call`, the
+ * card's `instead`), the yes is a call: the same place and the same key.
  */
-export function leadPileRailOf(p: { cls: LeadClass; target: string | null }): LeadPileSlot[] {
+export function leadPileRailOf(p: { cls: LeadClass; target: string | null; call?: boolean }): LeadPileSlot[] {
   const later: LeadPileSlot = {
     act: "later",
     label: LEAD_PILE_WORDS.later,
@@ -124,9 +149,11 @@ export function leadPileRailOf(p: { cls: LeadClass; target: string | null }): Le
   return [
     { act: "not_a_fit", label: LEAD_PILE_WORDS.notFit, key: "n", look: "secondary", right: "approve" },
     later,
-    p.target
-      ? { act: "add", label: LEAD_PILE_WORDS.add(p.target), key: "a", look: "primary", right: "approve" }
-      : { act: "hold", label: LEAD_PILE_WORDS.hold, key: "a", look: "primary", right: "approve" },
+    p.call
+      ? { act: "call", label: LEAD_PILE_WORDS.call, key: "a", look: "primary", right: "approve" }
+      : p.target
+        ? { act: "add", label: LEAD_PILE_WORDS.add(p.target), key: "a", look: "primary", right: "approve" }
+        : { act: "hold", label: LEAD_PILE_WORDS.hold, key: "a", look: "primary", right: "approve" },
   ];
 }
 

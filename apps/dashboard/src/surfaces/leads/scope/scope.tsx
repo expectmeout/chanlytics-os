@@ -432,6 +432,8 @@ const pileSheetOf = (p: P, phone: boolean) => {
       mode={p.peekMode}
       draft={p.draft}
       busy={p.bulkBusy}
+      armed={p.armed}
+      deck={p.deck}
     />
   );
 };
