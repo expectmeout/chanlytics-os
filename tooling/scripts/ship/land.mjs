@@ -93,6 +93,9 @@ function main() {
   const branch = git("rev-parse", "--abbrev-ref", "HEAD");
   if (branch === "main" || branch === "HEAD") stop("land a branch, not main or a detached head");
 
+  // A title is judged before anything is pushed: a push with a title that breaks the rule is a run spent for nothing.
+  if (title && run(`node tooling/scripts/checks/pr-title.mjs ${JSON.stringify(title)}`) !== 0)
+    stop("the title breaks the rule");
   const made = merging || mergeMain();
   if (made) {
     write();
@@ -111,8 +114,6 @@ function main() {
   }).stdout.trim();
   if (!pr) {
     if (!title || !bodyFile) stop("pushed; there is no pull request yet: run again with --title and --body-file");
-    if (run(`node tooling/scripts/checks/pr-title.mjs ${JSON.stringify(title)}`) !== 0)
-      stop("the title breaks the rule");
     const made = spawnSync(
       "gh",
       ["pr", "create", "--base", "main", "--head", branch, "--title", title, "--body-file", bodyFile],
