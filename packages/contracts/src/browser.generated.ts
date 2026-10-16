@@ -85,7 +85,7 @@ export { sameListed, matchService, needsConsultation, offerFor, offerLead, foldN
 export { BOOKING_REQUEST_INSTRUCTION, BOOKING_REQUEST_REFUSALS, BOOKING_REQUEST_SCHEMA_FIELDS, bookingRequestRefusalOf, BOOKING_REQUEST_WORDS, requestedBookingOf, slotLong, slotShort, takesBookingRequests } from "./calendar/visit/booking-request";
 export { calendarPersonFactsOf, calendarPersonOf } from "./calendar/visit/calendar-person-facts";
 export { visitTitleWithout } from "./calendar/visit/visit-service";
-export { visitSheetOf, visitOriginOf, CALENDAR_VISIT_SHEET_WORDS } from "./calendar/visit/visit-sheet";
+export { visitSheetOf, CALENDAR_VISIT_SHEET_WORDS } from "./calendar/visit/visit-sheet";
 export { zoneOffsetMs, localToUtcMs, clockInZone, dayInZone, dayPlusInZone, WEEKDAY_KEYS } from "./calendar/zone-math";
 export { brainMetaOf, replyWhy, BRAIN_INTENTS, BRAIN_LANGUAGES, BRAIN_OUTPUT_JSON_SCHEMA, brainOutputSchemaFor, CONFIDENCE_STEPS } from "./config/brain";
 export { abilityRows, cannotRows } from "./config/business-tab/abilities";

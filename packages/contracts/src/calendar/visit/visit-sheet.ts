@@ -31,9 +31,6 @@ import { UP_NEXT_WORDS } from "../../person-page/next";
 import { PERSON_PEEK_WORDS } from "../../person-page/words";
 import { personTabRoute } from "../../person-page/route";
 import { formatPhoneDisplay } from "../../shared/phone";
-import { clockDate } from "../../shared/clock";
-import { addressOf } from "../../activity/record-address";
-import type { ReachOutLeadTimelineDto } from "../../reach-out/reach-out-leads";
 import type { PersonState } from "../../people/person-state";
 
 /** The sheet's own words: its rows, its acts, its footnotes. */
@@ -178,54 +175,6 @@ export interface VisitSheetInput {
   next: string | null;
   /** The campaigns, for the reminder line (calendar_runs), or null before they are read. */
   moments: readonly CalendarMomentDto[] | null;
-}
-
-/* ------------------------------------------------------------------- where a visit came from (00426, canvas B) -- */
-
-/** Where a visit came from, as its sheet says it: the sequence that wrote to the lead its person was made from. */
-export interface VisitOriginVM {
-  label: string;
-  /** "“Early gyms” · email 2 on Oct 12". */
-  text: string;
-  /** The lead, open on Leads. */
-  route: string;
-}
-
-const VISIT_ORIGIN_WORDS = {
-  label: "Came from",
-  sent: (name: string, n: number, day: string) => `“${name}” · email ${n} on ${day}`,
-  chain: (name: string) => `“${name}”`,
-  found: (search: string) => `A lead found in “${search}”`,
-  lead: (name: string) => `${name}, a lead`,
-} as const;
-
-/**
- * Where a visit came from (appointments.lead_id, 00426): the lead its person was made from, by its story (the one the
- * lead's peek reads, reach_out_lead_timeline): the sequence and the last email it sent them before they booked, else
- * the sequence it had them in, else the search they were found in. The line opens the lead on Leads.
- */
-export function visitOriginOf(
-  t: Pick<ReachOutLeadTimelineDto, "lead_id" | "business_name" | "chain" | "search" | "sends">,
-  tz: string,
-  nowMs: number,
-): VisitOriginVM {
-  const sent = t.sends
-    .flatMap((s) => (s.sent_at && s.n !== null && !s.hand ? [{ n: s.n, at: Date.parse(s.sent_at) }] : []))
-    .filter((s) => Number.isFinite(s.at))
-    .sort((a, b) => a.at - b.at)
-    .at(-1);
-  const text = t.chain
-    ? sent
-      ? VISIT_ORIGIN_WORDS.sent(t.chain.name, sent.n + 1, clockDate(sent.at, tz, nowMs))
-      : VISIT_ORIGIN_WORDS.chain(t.chain.name)
-    : t.search
-      ? VISIT_ORIGIN_WORDS.found(t.search.name)
-      : VISIT_ORIGIN_WORDS.lead(t.business_name);
-  return {
-    label: VISIT_ORIGIN_WORDS.label,
-    text,
-    route: addressOf({ kind: "lead", id: t.lead_id, searchId: t.search ? t.search.id : null }),
-  };
 }
 
 /** A name's first word, as an act says it ("Message Maria"). */

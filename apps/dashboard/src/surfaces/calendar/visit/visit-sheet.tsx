@@ -92,7 +92,7 @@ function ctxOf(p: OpenVisitProps): VisitCtx {
     next: nextVisitOf(b, p.days),
     moments: p.moments,
   });
-  return { b, vm, word, bookingLink: p.bookingLink, tz: p.tz, close: p.onClose, flash: p.flash };
+  return { b, vm, word, bookingLink: p.bookingLink, close: p.onClose, flash: p.flash };
 }
 
 /** The desk's walk: "‹ 2 of 4 ›" through the day's visits, each step opening the next in this one's place. */

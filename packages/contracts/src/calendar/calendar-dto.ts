@@ -14,11 +14,6 @@ import type { CalendarPersonFactsDto } from "./visit/calendar-person-facts";
 export interface VisitMark {
   id: string;
   status: AppointmentStatus;
-  /**
-   * The lead its person was made from (00426 appointments_lead_stamp): the visit came of a sequence's writing to them,
-   * which its sheet says (and opens the lead). Absent for anyone else's, and on an older read.
-   */
-  lead_id?: string | null;
 }
 
 /**

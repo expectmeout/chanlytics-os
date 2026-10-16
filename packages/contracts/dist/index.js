@@ -29428,7 +29428,7 @@ function personOfAppointment(row2, people) {
   };
 }
 function visitMarkOf(row2) {
-  return APPOINTMENT_STATUSES.includes(row2.status) ? { id: row2.id, status: row2.status, ...row2.lead_id ? { lead_id: row2.lead_id } : {} } : null;
+  return APPOINTMENT_STATUSES.includes(row2.status) ? { id: row2.id, status: row2.status } : null;
 }
 function feedMarksOf(rows2) {
   const marks = /* @__PURE__ */ new Map();
@@ -29440,7 +29440,7 @@ function feedMarksOf(rows2) {
 }
 function markOn(marks, it) {
   const m = marks?.get(appointmentKeyOf(it));
-  return m && m.start === it.start ? { id: m.id, status: m.status, ...m.lead_id ? { lead_id: m.lead_id } : {} } : null;
+  return m && m.start === it.start ? { id: m.id, status: m.status } : null;
 }
 function feedWithRecord(items, record2, own) {
   if (!record2) return [...items];
@@ -31082,22 +31082,6 @@ var CALENDAR_VISIT_SHEET_WORDS = {
   close: "Close"
 };
 var SHEET_WORDS = CALENDAR_VISIT_SHEET_WORDS;
-var VISIT_ORIGIN_WORDS = {
-  label: "Came from",
-  sent: (name, n, day) => `\u201C${name}\u201D \xB7 email ${n} on ${day}`,
-  chain: (name) => `\u201C${name}\u201D`,
-  found: (search) => `A lead found in \u201C${search}\u201D`,
-  lead: (name) => `${name}, a lead`
-};
-function visitOriginOf(t, tz, nowMs) {
-  const sent = t.sends.flatMap((s) => s.sent_at && s.n !== null && !s.hand ? [{ n: s.n, at: Date.parse(s.sent_at) }] : []).filter((s) => Number.isFinite(s.at)).sort((a, b) => a.at - b.at).at(-1);
-  const text = t.chain ? sent ? VISIT_ORIGIN_WORDS.sent(t.chain.name, sent.n + 1, clockDate(sent.at, tz, nowMs)) : VISIT_ORIGIN_WORDS.chain(t.chain.name) : t.search ? VISIT_ORIGIN_WORDS.found(t.search.name) : VISIT_ORIGIN_WORDS.lead(t.business_name);
-  return {
-    label: VISIT_ORIGIN_WORDS.label,
-    text,
-    route: addressOf({ kind: "lead", id: t.lead_id, searchId: t.search ? t.search.id : null })
-  };
-}
 var firstOf = (name) => name.trim().split(/\s+/)[0] || name;
 function initialsOfName(name) {
   const words3 = (name ?? "").trim().split(/\s+/).filter(Boolean);
@@ -60950,7 +60934,6 @@ export {
   visitMomentDay,
   visitNews,
   visitOnDay,
-  visitOriginOf,
   visitRoute,
   visitSheetOf,
   visitStands,

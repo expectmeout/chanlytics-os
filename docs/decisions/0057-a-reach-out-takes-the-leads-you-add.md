@@ -71,9 +71,8 @@ What it built (00426, 00427; the plan in `docs/superpowers/plans/2026-10-13-the-
   Undo. The Emails tab (and a desk card, folded) lists what fills the words, each with its source. A press is said in
   the pile's own live line, not a toast over the next card; the last Not a fit reason is marked; the end of the pile
   opens the sequence. A sequence's Add leads opens Leads with the pile set to add to it (a list-fed one; a search-fed one
-  opens its search), and Needs review can be gone through under any search. The visit's origin is drawn: its record's
-  row carries `lead_id` to the board, and the sheet says the sequence and the last email it sent, as a door to the
-  lead, from the lead's own story.
+  opens its search), and Needs review can be gone through under any search. The visit's origin was drawn beside it, on
+  its own (#1654: the visit sheet's "Found as a lead").
 - **Call 8, as built (00430, 13 October 2026):**
   - What a lead is: `leads.kind` (place | company), `source` (the card or a file), `source_key` (a company's domain,
     one lead per workspace and source), and `facts` (the people a source named, five at most, and the addressee).

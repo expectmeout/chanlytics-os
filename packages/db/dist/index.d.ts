@@ -47286,7 +47286,7 @@ declare function visitsOver(db: Db$3, tenantId: string, fromIso: string, toIso: 
     }>;
 }>;
 /** A feed row as a reader lays it on its event: its id, its word, its key, and the start the word was said of. */
-type FeedRowWord = Pick<AppointmentRow, "id" | "status" | "external_id" | "starts_at" | "lead_id">;
+type FeedRowWord = Pick<AppointmentRow, "id" | "status" | "external_id" | "starts_at">;
 /**
  * The feed's rows over a span a member said a word of and the calendar still names, read whole: a select answers a
  * thousand rows at most (paged.ts), and a season of a busy calendar is more. What a reader of the feed lays on it.
