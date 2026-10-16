@@ -225,27 +225,36 @@ test("Typecheck, the check branch protection requires, is a gate over parts that
   const y = workflow("ci.yml");
   const gate = job(y, "typecheck");
   assert.ok(gate.includes("name: Typecheck"), "the name branch protection matches");
-  assert.ok(gate.includes("needs: [scope, build, lint, hygiene, tests]"), "every part");
+  assert.ok(gate.includes("needs: [scope, build, dist, types, lint, hygiene, tests]"), "every part");
   assert.ok(gate.includes("if: ${{ always() }}"), "a gate that ran nothing would read as a pass");
   assert.ok(gate.includes('.result == "failure" or .result == "cancelled"'));
-  for (const part of ["build", "lint", "hygiene", "tests"]) assert.ok(job(y, part).includes("needs: scope"), part);
+  for (const part of ["build", "dist", "types", "lint", "hygiene", "tests"])
+    assert.ok(job(y, part).includes("needs: scope"), part);
 });
 
-test("a tree checked locally skips lint, hygiene, the tests and the typecheck, never the build and the bundle", () => {
+test("a tree checked locally skips lint, hygiene, the tests and the typecheck, never the build, the bundle and the dist", () => {
   const y = workflow("ci.yml");
   const scope = job(y, "scope");
   assert.ok(scope.includes("fetch-depth: 2"), "the merge commit's second parent is the pull request's head");
   assert.ok(scope.includes('run: node tooling/scripts/checks/checked-locally.mjs --ci >> "$GITHUB_OUTPUT"'));
   assert.ok(scope.includes("run: node tooling/scripts/checks/pr-title.mjs"), "the title fails first");
-  for (const part of ["lint", "hygiene"])
+  for (const part of ["lint", "hygiene", "types"])
     assert.ok(job(y, part).includes("if: needs.scope.outputs.checked != 'true'"), part);
   assert.ok(job(y, "tests").includes("needs.scope.outputs.checked != 'true' ||"));
+  // The build, the dist against its sources and the typecheck run side by side, each against the committed dist,
+  // where one job ran them in a row (16 Oct 2026: five minutes, the longest part of CI).
   const build = job(y, "build");
+  const dist = job(y, "dist");
   assert.ok(!/\n {4}if:/.test(build), "the build job runs for every change");
-  assert.ok(build.includes("- if: needs.scope.outputs.checked != 'true'\n        run: pnpm -r typecheck"));
+  assert.ok(!/\n {4}if:/.test(dist), "and so does the dist's");
+  assert.ok(job(y, "types").includes("- run: pnpm -r typecheck"));
   assert.ok(
-    build.includes("run: git diff --exit-code -- packages/*/dist"),
+    dist.includes('- run: pnpm --filter "./packages/*" build\n      - run: git diff --exit-code -- packages/*/dist'),
     "what the other parts read is the source's",
+  );
+  assert.ok(
+    !/- run: pnpm -r typecheck|- run: pnpm --filter "\.\/packages\/\*" build/.test(build),
+    "the build waits on neither",
   );
   assert.ok(build.includes("run: pnpm --filter @chanlytics/dashboard build") && build.includes("pnpm check:bundle"));
 });

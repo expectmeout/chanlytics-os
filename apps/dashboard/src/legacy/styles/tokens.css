@@ -208,11 +208,12 @@
      down from white so it does not glare out of a dark list. */
   --mark-plate: oklch(0.94 0.004 260);
 
-  --shadow-sm: 0 1px 2px 0 oklch(0 0 0 / 0.3);
-  --shadow-md: 0 2px 6px -2px oklch(0 0 0 / 0.4),
-               0 4px 12px -4px oklch(0 0 0 / 0.5);
-  --shadow-lg: 0 4px 12px -2px oklch(0 0 0 / 0.5),
-               0 12px 32px -8px oklch(0 0 0 / 0.6);
+  /* Shadows of the scene's own indigo, not holes of pure black (16 Oct 2026). */
+  --shadow-sm: 0 1px 2px 0 oklch(0.1 0.025 280 / 0.3);
+  --shadow-md: 0 2px 6px -2px oklch(0.1 0.025 280 / 0.4),
+               0 4px 12px -4px oklch(0.1 0.025 280 / 0.5);
+  --shadow-lg: 0 4px 12px -2px oklch(0.1 0.025 280 / 0.5),
+               0 12px 32px -8px oklch(0.1 0.025 280 / 0.6);
 
   --focus-ring: 0 0 0 2px var(--bg), 0 0 0 4px var(--accent);
 
@@ -241,6 +242,11 @@
    rim lit from the top left; panes clear; inside a pane everything an inset, a plain fill with a hairline and no blur
    (never glass on glass); and what pops over the page opaque. Coral is the primary act (decision 5), the live call,
    the Now line and the picked tab; amber the one warning; a count is neutral; green is what is open, checked or won.
+   The light side, balanced (Ruben, 16 Oct 2026, toward the marketing site's light greys, the lilac ground kept): panes
+   nearly opaque white cards on the lit ground; the control layer (the sidebar, the bars, the capsules, the tab bar)
+   white glass; an inset, a secondary act and a face a well, a pointer's row a lighter one and a pick a deeper one, each
+   a grey of the ground's own lilac hue, so the page is one family of colour; and the picked place's glyph the coral
+   (components.css). The dark side is unchanged.
    The first block is the light side and sets everything; the dark side sets every colour again, since a [data-look]
    rule weighs what a [data-theme] rule weighs and would otherwise lend a dark root its light colours. A value no
    canvas gives is derived from theirs and says so. The roles Classic lacks (the page's light, a surface's blur, rim
@@ -314,8 +320,8 @@
   --text-figure: 34px;
   /* The canvases track sans text a touch tighter than nothing; Classic tighter still. */
   --tracking-normal: -0.003em;
-  /* A person's face on a row: the canvases' avatar, a step whiter than an inset. */
-  --face-fill: oklch(1 0 0 / 0.72);
+  /* A person's face on a row: a well of the ground's lilac grey, as an inset is, on a white card. */
+  --face-fill: oklch(0.5 0.02 275 / 0.08);
   /* A lead's tile and its peek's band: six tints, one per kind of business (contracts leadTintOf), the gradients
      the canvas paints (L1), the initials in white on them. Classic keeps its one quiet ground. */
   --tile-tint-1: linear-gradient(135deg, oklch(0.738 0.071 67), oklch(0.551 0.063 64));
@@ -334,8 +340,8 @@
   /* The hairline, the canvases' edge; the strong one derived from it. */
   --line: oklch(0.304 0.046 275 / 0.1);
   --line-strong: oklch(0.304 0.046 275 / 0.18);
-  /* Theirs is an inset, ours a tint of the edge's colour, with no hairline of its own. */
-  --bubble-them-bg: oklch(1 0 0 / 0.62);
+  /* Theirs is white on the card with the hairline, ours a tint of the edge's colour, with no hairline of its own. */
+  --bubble-them-bg: oklch(1 0 0);
   --bubble-them-line: oklch(0.304 0.046 275 / 0.1);
   --bubble-us-bg: oklch(0.304 0.046 275 / 0.09);
   --bubble-us-line: transparent;
@@ -395,7 +401,8 @@
 
   /* The control layer: its glass, the sheen over its top, how far it blurs, its rim, its specular edge and contour
      with the depth under it, and the sidebar's corner (a capsule's is half its height, --radius-full). */
-  --surface-control-fill: oklch(1 0 0 / 0.5);
+  /* White glass, solid enough to read white on the lit ground (it was half clear, which read as the ground). */
+  --surface-control-fill: oklch(1 0 0 / 0.78);
   --surface-control-sheen: linear-gradient(180deg, oklch(1 0 0 / 0.33), transparent 42%);
   --surface-control-blur: blur(var(--blur-lg)) saturate(var(--saturate-lg)) brightness(1.03);
   /* A clear pane blurs the page's light a little (the canvases' section), on a desk: kit.css and the pages' sheets read
@@ -413,8 +420,9 @@
     0 22px 44px -26px oklch(0.274 0.063 274 / 0.36), 0 1px 2px oklch(0.274 0.063 274 / 0.06);
   --surface-control-radius: 30px;
 
-  /* A pane: clear, a thinner rim, a shallow shadow, and no hairline: its rim is its edge. */
-  --surface-pane-fill: oklch(1 0 0 / 0.26);
+  /* A pane: a white card on the lit ground (it was clear, which read as the ground itself), a thinner rim, a shallow
+     shadow, and no hairline: its rim is its edge. */
+  --surface-pane-fill: oklch(1 0 0 / 0.82);
   --surface-pane-edge: transparent;
   --surface-pane-rim: linear-gradient(
     135deg,
@@ -428,9 +436,9 @@
     0 16px 36px -28px oklch(0.274 0.063 274 / 0.3), 0 1px 1.5px oklch(0.274 0.063 274 / 0.05);
   --surface-pane-radius: 30px;
 
-  /* An inset, inside a pane: a plain fill, the hairline, the specular top edge, and a corner concentric with the
-     pane's (30px round 16px of padding: 14px). */
-  --surface-inset-fill: oklch(1 0 0 / 0.62);
+  /* An inset, inside a pane: a well of the ground's lilac grey in the white card, the hairline, the specular top edge,
+     and a corner concentric with the pane's (30px round 16px of padding: 14px). */
+  --surface-inset-fill: oklch(0.5 0.02 275 / 0.06);
   --surface-inset-edge: oklch(0.304 0.046 275 / 0.1);
   --surface-inset-depth: inset 0 1px 0 oklch(1 0 0 / 0.95);
   --surface-inset-radius: 14px;
@@ -470,12 +478,13 @@
   --control-h-touch: 44px;
   --control-radius: var(--radius-full);
   --control-radius-sm: var(--radius-full);
-  --selected-fill: oklch(1 0 0 / 0.82);
-  --selected-depth: inset 0 1px 0 oklch(1 0 0 / 0.95), 0 2px 6px -3px oklch(0 0 0 / 0.22);
-  /* A row under a pointer: the selected fill at half strength, so the lozenge it becomes when pressed is the same
-     glass a step up. Read by the Inbox's, Conversations' and People's rows, and written once: a mix of the selected
-     fill, so the dark side and the opaque fallbacks below follow it. */
-  --hover-fill: color-mix(in oklab, var(--selected-fill) 55%, transparent);
+  /* A pick: a soft lozenge of the ground's lilac grey on the white sidebar, bar, capsule or card, flat (a shadow list
+     that draws nothing, since some rules lay the focus ring over it). */
+  --selected-fill: oklch(0.5 0.02 275 / 0.1);
+  --selected-depth: 0 0 0 0 transparent;
+  /* A row under a pointer: a lighter lilac grey than the pick. Read by the Inbox's, Conversations' and People's rows;
+     the dark side keeps the selected fill at half strength (its block, below). */
+  --hover-fill: oklch(0.5 0.02 275 / 0.05);
   /* The canvases' accent text on the lozenge (#B93A26): a step brighter than the accent's ink (0.45), which read as a dark
      brown on the white lozenge. */
   --tab-ink: oklch(0.532 0.167 31.7);
@@ -491,7 +500,7 @@
   --primary-ink: oklch(1 0 0);
   --primary-hover: oklch(from var(--primary-fill) calc(l - 0.04) c h);
   --primary-depth: 0 8px 18px -10px oklch(0.6 0.185 31), inset 0 1px 0 oklch(1 0 0 / 0.35);
-  --secondary-fill: oklch(1 0 0 / 0.62);
+  --secondary-fill: oklch(0.5 0.02 275 / 0.08);
 
   /* A count beside what it counts, on a nav row or an icon: neutral, never a warning's colour. */
   --count-fill: oklch(0.227 0.008 275);
@@ -499,25 +508,29 @@
 
   /* The fills the glass falls back on where there is no blur or transparency is to be reduced (the two blocks at the
      end): each translucent fill laid over what it sits on, opaque. */
-  --surface-control-solid: oklch(0.981 0.003 275);
-  --surface-pane-solid: oklch(0.972 0.004 275);
-  --surface-inset-solid: oklch(0.989 0.002 275);
-  --selected-solid: oklch(0.997 0.001 265);
+  --surface-control-solid: oklch(0.993 0.002 275);
+  --surface-pane-solid: oklch(0.995 0.001 275);
+  --surface-inset-solid: oklch(0.955 0.005 275);
+  --selected-solid: oklch(0.93 0.007 275);
   --surface-pop-solid: oklch(1 0 0);
   --surface-island-solid: oklch(0.202 0.008 286);
 }
 
 [data-theme="dark"] {
+  /* Refined (Ruben, 16 Oct 2026: "enhance the dark mode ... very subtle refinements"), the glass kept as it was: its
+     tints, hairlines, bubbles and counts are the ink's own moonlit white (oklch 0.97 0.014 285) at the alphas they had,
+     where they were neutral white beside a lilac ink; its shadows the scene's indigo, not pure black; a touch more light
+     in the pools; and a calmer green. The specular rims stay pure white, light catching an edge. */
   --bg: oklch(0.174 0.008 274);
   --bg-sunken: oklch(0.15 0.008 274);
   --bg-raised: oklch(0.238 0.01 277);
   --bg-hover: oklch(0.23 0.009 275);
   --bg-active: oklch(0.26 0.009 275);
-  --line: oklch(1 0 0 / 0.09);
-  --line-strong: oklch(1 0 0 / 0.16);
-  --bubble-them-bg: oklch(1 0 0 / 0.075);
-  --bubble-them-line: oklch(1 0 0 / 0.09);
-  --bubble-us-bg: oklch(1 0 0 / 0.14);
+  --line: oklch(0.97 0.014 285 / 0.09);
+  --line-strong: oklch(0.97 0.014 285 / 0.16);
+  --bubble-them-bg: oklch(0.97 0.014 285 / 0.075);
+  --bubble-them-line: oklch(0.97 0.014 285 / 0.09);
+  --bubble-us-bg: oklch(0.97 0.014 285 / 0.14);
   --bubble-us-line: transparent;
 
   --ink: oklch(0.968 0.003 286);
@@ -532,16 +545,16 @@
   --warn: oklch(0.801 0.138 77);
   --warn-soft: oklch(0.801 0.138 77 / 0.15);
   --warn-ink: oklch(0.842 0.12 81);
-  --ok: oklch(0.783 0.162 155);
-  --ok-soft: oklch(0.783 0.162 155 / 0.13);
+  --ok: oklch(0.77 0.135 155);
+  --ok-soft: oklch(0.77 0.135 155 / 0.13);
   /* Classic's red words read 4.2:1 on this lighter ground and 2.7 on the glass of a control over the pool; these read
      4.8 there. Blue's are Classic's, set again over the light side's. */
   --danger-ink: oklch(0.74 0.15 27);
   --info-ink: oklch(0.72 0.12 235);
 
-  --pool-a-tint: oklch(0.737 0.103 267 / 0.17);
+  --pool-a-tint: oklch(0.737 0.103 267 / 0.2);
   --pool-b-tint: oklch(0.955 0.026 55 / 0.05);
-  --pool-c-tint: oklch(0.76 0.135 293 / 0.1);
+  --pool-c-tint: oklch(0.76 0.135 293 / 0.12);
   --surface-page-light:
     radial-gradient(39% 40% at var(--pool-a-x) var(--pool-a-y), var(--pool-a-tint), transparent),
     radial-gradient(43% 36% at var(--pool-b-x) var(--pool-b-y), var(--pool-b-tint), transparent),
@@ -549,8 +562,8 @@
   --title-veil: 0.4;
   --title-fill: 0.9;
 
-  --surface-control-fill: oklch(1 0 0 / 0.085);
-  --surface-control-sheen: linear-gradient(180deg, oklch(1 0 0 / 0.042), transparent 42%);
+  --surface-control-fill: oklch(0.97 0.014 285 / 0.085);
+  --surface-control-sheen: linear-gradient(180deg, oklch(0.97 0.014 285 / 0.042), transparent 42%);
   --surface-control-rim: linear-gradient(
     135deg,
     oklch(1 0 0 / 0.42) 0%,
@@ -559,10 +572,10 @@
     oklch(1 0 0 / 0.22) 100%
   );
   --surface-control-depth:
-    inset 0 1px 0 oklch(1 0 0 / 0.2), 0 0 0 1px oklch(0 0 0 / 0.3), 0 28px 60px -32px oklch(0 0 0 / 0.8),
-    0 2px 8px -4px oklch(0 0 0 / 0.5);
+    inset 0 1px 0 oklch(1 0 0 / 0.2), 0 0 0 1px oklch(0.1 0.025 280 / 0.3), 0 28px 60px -32px oklch(0.1 0.025 280 / 0.8),
+    0 2px 8px -4px oklch(0.1 0.025 280 / 0.5);
 
-  --surface-pane-fill: oklch(1 0 0 / 0.035);
+  --surface-pane-fill: oklch(0.97 0.014 285 / 0.035);
   --surface-control-blur: blur(var(--blur-lg)) saturate(var(--saturate-lg));
   --surface-pane-blur: blur(var(--blur-md)) saturate(var(--saturate-md));
   --surface-pane-rim: linear-gradient(
@@ -573,24 +586,27 @@
     oklch(1 0 0 / 0.22) 100%
   );
   --surface-pane-depth:
-    inset 0 1px 0 oklch(1 0 0 / 0.2), 0 0 0 1px oklch(0 0 0 / 0.3), 0 20px 44px -30px oklch(0 0 0 / 0.7),
-    0 1px 2px oklch(0 0 0 / 0.3);
+    inset 0 1px 0 oklch(1 0 0 / 0.2), 0 0 0 1px oklch(0.1 0.025 280 / 0.3), 0 20px 44px -30px oklch(0.1 0.025 280 / 0.7),
+    0 1px 2px oklch(0.1 0.025 280 / 0.3);
 
-  --surface-inset-fill: oklch(1 0 0 / 0.075);
-  --surface-inset-edge: oklch(1 0 0 / 0.09);
+  --surface-inset-fill: oklch(0.97 0.014 285 / 0.075);
+  --surface-inset-edge: oklch(0.97 0.014 285 / 0.09);
   --surface-inset-depth: inset 0 1px 0 oklch(1 0 0 / 0.2);
-  --face-fill: oklch(1 0 0 / 0.11);
+  --face-fill: oklch(0.97 0.014 285 / 0.11);
 
   --surface-pop-fill: oklch(0.238 0.01 277);
-  --surface-pop-edge: oklch(1 0 0 / 0.09);
-  --surface-pop-depth: inset 0 1px 0 oklch(1 0 0 / 0.2), 0 24px 48px -16px oklch(0 0 0 / 0.55);
+  --surface-pop-edge: oklch(0.97 0.014 285 / 0.09);
+  --surface-pop-depth: inset 0 1px 0 oklch(1 0 0 / 0.2), 0 24px 48px -16px oklch(0.1 0.025 280 / 0.55);
   --surface-scrim: oklch(0.123 0.006 286 / 0.55);
 
   --surface-island-fill: oklch(0.146 0.004 286 / 0.92);
-  --surface-island-depth: inset 0 0 0 1px oklch(1 0 0 / 0.1), 0 10px 26px -12px oklch(0 0 0 / 0.7);
+  --surface-island-depth: inset 0 0 0 1px oklch(1 0 0 / 0.1), 0 10px 26px -12px oklch(0.1 0.025 280 / 0.7);
 
-  --selected-fill: oklch(1 0 0 / 0.13);
-  --selected-depth: inset 0 1px 0 oklch(1 0 0 / 0.2), 0 2px 6px -3px oklch(0 0 0 / 0.22);
+  --selected-fill: oklch(0.97 0.014 285 / 0.13);
+  --selected-depth: inset 0 1px 0 oklch(1 0 0 / 0.2), 0 2px 6px -3px oklch(0.1 0.025 280 / 0.22);
+  /* A row under a pointer: the selected fill at half strength, so the lozenge it becomes when pressed is the same glass a
+     step up, and the opaque fallbacks follow it (the light side's is a well, above). */
+  --hover-fill: color-mix(in oklab, var(--selected-fill) 55%, transparent);
   /* The canvases' accent text on the lozenge (#FF8A7C): coral, a step deeper than the accent's ink (0.82), which read as a
      pale salmon on the dark lozenge. */
   --tab-ink: oklch(0.759 0.144 28.1);
@@ -601,9 +617,9 @@
   --primary-ink: oklch(0.171 0.027 33);
   --primary-hover: oklch(from var(--primary-fill) calc(l + 0.04) c h);
   --primary-depth: 0 8px 18px -10px oklch(0.719 0.175 29), inset 0 1px 0 oklch(1 0 0 / 0.35);
-  --secondary-fill: oklch(1 0 0 / 0.075);
+  --secondary-fill: oklch(0.97 0.014 285 / 0.075);
 
-  --count-fill: oklch(1 0 0 / 0.92);
+  --count-fill: oklch(0.97 0.014 285 / 0.92);
   --count-ink: oklch(0.209 0.006 271);
 
   --surface-control-solid: oklch(0.262 0.007 275);

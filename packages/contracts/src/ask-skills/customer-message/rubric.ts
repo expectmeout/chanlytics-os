@@ -32,7 +32,7 @@ export const MESSAGE_RUBRIC = [
   {
     id: "facts",
     hard: true,
-    ask: "It holds no price, share, discount, free thing, date, deadline, number, promise or claim that the draft does not hold, and leaves out none of the draft's own facts (an offer, its figure, its days, who it is for).",
+    ask: "It holds no price, share, discount, free thing, date, deadline, number, promise, option or claim that neither the draft nor the owner's own words hold, and leaves out none of the draft's own facts (an offer, its figure, its days, who it is for).",
   },
   {
     id: "one_action",

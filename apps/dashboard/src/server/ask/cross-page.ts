@@ -1,4 +1,11 @@
-import { fenced, parseLeadsRoute, type AskScope, type AskSurface } from "@chanlytics/contracts";
+import {
+  fenced,
+  parseLeadsRoute,
+  skillGuide,
+  skillsAsked,
+  type AskScope,
+  type AskSurface,
+} from "@chanlytics/contracts";
 import type { SearchResultBlock } from "./context";
 import { calledName, type ToolRun } from "./tools";
 
@@ -271,6 +278,32 @@ export function scopedRead(scope: AskScope | null, route?: string | null): ToolR
   if (scope?.kind === "run") return { name: "sequences", input: { action: "batch", broadcast_id: scope.id } };
   if (scope?.kind === "playbook") return { name: "sequences", input: { action: "moments" } };
   return null;
+}
+
+/**
+ * The guides of the skills a question asks for (contracts skillsAsked: a message to write, in either language), put in
+ * before the model is asked as the reads above are, so the turn that drafts a customer message knows what the writer
+ * behind its card needs from it. None for most questions, and nothing else changes then.
+ */
+function skillGuidesFor(text: string): string | null {
+  const ids = skillsAsked(text.replace(/\s+/g, " ").trim());
+  return ids.length ? ids.map(skillGuide).join("\n\n") : null;
+}
+
+/** A turn's words block (loop.ts wordsBlock), as it is asked. */
+type WordsOf<W extends { text: string }> = (live: boolean, dataDropped: boolean) => W;
+
+/**
+ * The turn's words with the guides its question asks for after them (skillGuidesFor): instructions, so in the turn's own
+ * words rather than a data block, and in every form the words take (live, cold, with the data dropped).
+ */
+export function withSkillGuides<W extends { text: string }>(words: WordsOf<W>, question: string): WordsOf<W> {
+  const guides = skillGuidesFor(question);
+  if (!guides) return words;
+  return (live, dataDropped) => {
+    const w = words(live, dataDropped);
+    return { ...w, text: `${w.text}\n\n${guides}` };
+  };
 }
 
 /**

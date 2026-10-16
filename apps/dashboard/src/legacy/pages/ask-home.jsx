@@ -1,7 +1,7 @@
 /* global React, Icon */
-// The rows under the Line (ask-real.jsx; the Stage, spec 4.3): at rest, Right now with its pills and Brief me, three
-// questions about the page as chips and three earlier conversations; while typing, the words as a question, the jumps
-// and the questions that match; Earlier (⌘J), every conversation. Pure of state: buildLineRows turns what the bridge
+// The rows under the three (ask-real.jsx; the Stage, spec 4.3, 5.2): at rest, Right now with Brief me and three
+// questions about the page as chips; while typing, the words as a question, the jumps and the questions that match;
+// Earlier (the head's, or ⌘J), every conversation. Pure of state: buildLineRows turns what the bridge
 // holds into rows, AskRows draws them as one listbox. No key symbol is drawn (the Line, D17). Published as window.AskHome.
 
 const ahAgo = (ms) => {
@@ -14,7 +14,7 @@ const ahAgo = (ms) => {
 };
 
 // Every row carries what activating it does: a route, words to ask, words to finish on the line, or a thread to open.
-const buildLineRows = ({ A, t, lang, query, surface, scope, threads, view, phone = false }) => {
+const buildLineRows = ({ A, t, lang, query, surface, scope, threads, view }) => {
   const q = query.trim();
   // A conversation is one 36px line: its question, and its time at the right (spec 4.3).
   const thread = (th) => ({ type: "thread", label: th.title, meta: ahAgo(th.lastAtMs), th });
@@ -34,16 +34,17 @@ const buildLineRows = ({ A, t, lang, query, surface, scope, threads, view, phone
         key: "match",
         items: hits.map((s) => ({ type: s.kind === "act" ? "act" : "sug", label: s.label || s.q, q: s.q, compose: s.compose, meta: s.kind === "act" ? t.tagCard : undefined })),
       });
-    return sections;
+    // The words as a question are a row only beside somewhere to jump or a question that matches, where Enter has to say
+    // which it means; alone they only said the field again, under it.
+    return sections.length > 1 ? sections : [];
   }
-  // At rest: Right now is the first row, with the counts its sentence was built from as pills, and ↵ on the empty line
-  // asks who needs you (the quick answer). On a phone Earlier is the head's, not a section here (spec 5.2).
+  // At rest: Right now is the first row, and ↵ on the empty line asks who needs you (the quick answer). The counts its
+  // sentence was built from are the hero's pills, under the three (ask-real.jsx); Earlier is the head's (spec 5.2).
   const parts = A.rightNowParts ? A.rightNowParts(lang) : { sentence: A.rightNow(lang), people: 0, runs: 0, searches: 0 };
   const sections = [
     {
       key: "now",
-      // On a phone the standing pills are the hero's, under the three (ask-real.jsx), so the row draws them on a desk only.
-      items: [{ type: "now", label: parts.sentence, q: t.needsQ, people: parts.people, runs: parts.runs, searches: parts.searches, pills: !phone }],
+      items: [{ type: "now", label: parts.sentence, q: t.needsQ, people: parts.people, runs: parts.runs, searches: parts.searches }],
     },
   ];
   const asks = A.suggestions(surface, scope, lang).filter((s) => s.kind !== "act" && s.q !== t.needsQ).slice(0, 3);
@@ -55,11 +56,6 @@ const buildLineRows = ({ A, t, lang, query, surface, scope, threads, view, phone
       items: asks.map((s) => ({ type: "sug", label: s.label || s.q, q: s.q })),
       note: surface === "leads" ? t.leadsConsent : null,
     });
-  if (threads.length && !phone) {
-    const items = threads.slice(0, 3).map(thread);
-    if (threads.length > 3) items.push({ type: "all", label: t.allEarlier });
-    sections.push({ key: "earlier", label: t.earlier, items });
-  }
   return sections;
 };
 
@@ -67,10 +63,10 @@ const buildLineRows = ({ A, t, lang, query, surface, scope, threads, view, phone
 const flatRows = (sections) => sections.flatMap((sec) => sec.items);
 
 // A question, an act and the door to every conversation are chips; the rest are rows.
-const ahChip = (it) => it.type === "sug" || it.type === "act" || it.type === "all";
+const ahChip = (it) => it.type === "sug" || it.type === "act";
 
-// The standing pills: who needs you, the runs and the searches waiting. Right now's row draws them on a desk; on a phone
-// they are the hero's, under the three, so they stay while the field is in use (the Stage's 5.9).
+// The standing pills: who needs you, the runs and the searches waiting. They are the hero's, under the three, so they
+// stay while a phone's field is in use (the Stage's 5.9).
 const AskNowPills = ({ people, runs, searches, t }) => (
   <span className="ask-now-pills">
     {people ? <span className="pill pill-warn" data-testid="ask-pill">{t.needYou(people)}</span> : null}
@@ -102,8 +98,7 @@ const AskRows = ({ sections, sel, setSel, onActivate, onDelete, t, empty }) => {
     if (it.type === "now") {
       const waiting = !!(it.people || it.runs || it.searches);
       return (
-        <div key={i} {...shared} className={`ask-row now${sel ? " sel" : ""}`}>
-          {waiting && it.pills ? <AskNowPills people={it.people} runs={it.runs} searches={it.searches} t={t} /> : null}
+        <div key={i} {...shared} className={`ask-row now${waiting ? " waiting" : ""}${sel ? " sel" : ""}`}>
           <span className="ask-row-label">{it.label}</span>
           {waiting ? <span className="btn btn-sm ask-now-brief" data-testid="ask-row-brief">{t.briefMe}</span> : null}
         </div>
@@ -112,10 +107,9 @@ const AskRows = ({ sections, sel, setSel, onActivate, onDelete, t, empty }) => {
     // One tab stop: the keys walk the list from the line (aria-activedescendant), so a chip is never reached by Tab.
     if (ahChip(it))
       return (
-        <button key={i} type="button" tabIndex={-1} {...shared} className={`ask-chip${it.type === "all" ? " door" : ""}${sel ? " sel" : ""}`}>
+        <button key={i} type="button" tabIndex={-1} {...shared} className={`ask-chip${sel ? " sel" : ""}`}>
           <span>{it.label}</span>
           {it.meta ? <span className="ask-chip-meta">{it.meta}</span> : null}
-          {it.type === "all" ? <Icon name="arrow-right" size={12} /> : null}
         </button>
       );
     return (
@@ -134,7 +128,8 @@ const AskRows = ({ sections, sel, setSel, onActivate, onDelete, t, empty }) => {
       </div>
     );
   };
-  // A section's items in runs, in the order the keys walk them: rows as they are, each run of chips in one wrap.
+  // A section's items in runs, in the order the keys walk them: rows as they are, each run of chips in one wrap. A
+  // section that holds rows (Earlier, the jumps) is a `list`: its label keeps their left edge, not the home's centre.
   const runs = (items) =>
     items.reduce((out, it) => {
       const chip = ahChip(it);
@@ -146,7 +141,7 @@ const AskRows = ({ sections, sel, setSel, onActivate, onDelete, t, empty }) => {
   return (
     <div className="ask-rows" role="listbox" id="ask-rows" aria-label={t.rowsLabel}>
       {sections.map((sec) => (
-        <div key={sec.key} className="ask-rows-sec" role="presentation">
+        <div key={sec.key} className={`ask-rows-sec${sec.items.some((it) => it.type !== "now" && !ahChip(it)) ? " list" : ""}`} role="presentation">
           {sec.label ? <div className="ask-rows-label" role="presentation">{sec.label}</div> : null}
           {runs(sec.items).map((run, k) =>
             run.chip ? (

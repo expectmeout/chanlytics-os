@@ -6,9 +6,11 @@
  * room and the pace, WhatsApp's review, the day to ask for a reminder, and the send's day and hour. A channel's reason is
  * channelChoices' own, said in Spanish where contracts wrote it (reach-for.ts, email-offers.ts, whatsapp-offers.ts); one
  * of Meta's own words, or of a number's standing, is said as it was written. The plan's refusals stay English (PLAN_WORDS):
- * the model reads them and says them in the question's language.
+ * the model reads them and says them in the question's language. And what the owner's own words may not carry into a
+ * message read on a later day: a day said from today, or the ask itself (planOf's offerValue).
  */
 import type { PlanWorld } from "../ask/plan";
+import { mondayOf, shiftKey } from "../calendar/day-keys";
 import { campaignDayWords, localDate } from "../playbooks/playbook-schedule";
 import { clockHour } from "../shared/clock";
 import { dateFormat } from "../shared/time";
@@ -156,6 +158,72 @@ const ES: OfferWords = {
   reminderAsk: (day, list) =>
     `El ${day}, pídeme que envíe un recordatorio a quien de «${list}» no haya reservado para entonces.`,
 };
+
+/** Letter-edged and in any case, as detectLanguage's hints are: "Monday" holds no "mon", "consultoría" no "a". */
+const edged = (alternatives: readonly string[]): RegExp =>
+  new RegExp(`(?<![\\p{L}\\p{N}])(?:${alternatives.join("|")})(?![\\p{L}\\p{N}])`, "iu");
+
+/**
+ * A day said from today that never reads true on an offer's first day, in English or Spanish: one after it or before
+ * it ("next month" read on Nov 1 is December, "tomorrow" read on Nov 1 is Nov 2). "Por la mañana" is a time of day,
+ * never tomorrow.
+ */
+const AWAY = edged([
+  "tomorrow",
+  "yesterday",
+  "(?:next|coming) (?:week|weekend|month|year)",
+  "in (?:a|one|two|three|\\d+) (?:days?|weeks?|months?)",
+  "pasado mañana",
+  "(?<!(?:la|de|por|esta) )mañana",
+  "ayer",
+  "(?:el |la )?próxim[oa] (?:semana|fin de semana|mes|año)",
+  "(?:la semana|el fin de semana|el mes|el año) que viene",
+  "dentro de (?:un|una|dos|tres|\\d+) (?:días?|semanas?|meses?)",
+]);
+
+/** A span an offer may lie within, as a day key's calendar counts it (Monday the week's first day). */
+type Span = "day" | "week" | "weekend" | "month" | "year";
+
+/** Whether an offer from `from` to `until` lies within the span its first day reads a "this" as. */
+const WITHIN: Record<Span, (from: string, until: string) => boolean> = {
+  day: (from, until) => from === until,
+  week: (from, until) => mondayOf(from) === mondayOf(until),
+  // A weekend's days are its week's Friday to Sunday.
+  weekend: (from, until) => mondayOf(from) === mondayOf(until) && from >= shiftKey(mondayOf(from), 4),
+  month: (from, until) => from.slice(0, 7) === until.slice(0, 7),
+  year: (from, until) => from.slice(0, 4) === until.slice(0, 4),
+};
+
+/** "This" spans, in English or Spanish: true on the offer's first day only where the offer lies within that span. */
+const THIS: readonly [Span, RegExp][] = [
+  ["day", edged(["today", "tonight", "this (?:morning|afternoon|evening)", "hoy", "esta (?:noche|tarde|mañana)"])],
+  ["weekend", edged(["this weekend", "este fin de semana"])],
+  ["week", edged(["this week", "esta semana"])],
+  ["month", edged(["this month", "este mes"])],
+  ["year", edged(["this year", "este año"])],
+];
+
+/** The ask itself, not the offer: what a customer must never read in its message. */
+const THE_ASK =
+  /^\s*(?:i want|i'd like|i would like|we want|we'd like|let's|can you|please|quiero|queremos|me gustaría|nos gustaría|puedes|por favor)\b/iu;
+
+/**
+ * The first day an offer's own words say from today that reads wrong on its first day, `from`, when its customers first
+ * read it: one after or before it ("next month"), or a "this" span the offer does not lie within ("this weekend" for an
+ * offer that runs all November); null where every one reads true then ("this weekend" for Saturday and Sunday).
+ */
+export function dayReadWrong(text: string, from: string, until: string): string | null {
+  const away = AWAY.exec(text)?.[0];
+  if (away) return away;
+  for (const [span, words] of THIS) {
+    const said = words.exec(text)?.[0];
+    if (said && !WITHIN[span](from, until)) return said;
+  }
+  return null;
+}
+
+/** Whether the owner's phrasing is the ask itself ("I want to offer…", "Quiero ofrecer…"), not the offer. */
+export const isTheAsk = (text: string): boolean => THE_ASK.test(text);
 
 /** An offer's plan's words, by the language of the question (PlanWorld.says). */
 export const OFFER_PLAN_WORDS: Readonly<Record<PlanWorld["says"], OfferWords>> = { en: EN, es: ES };

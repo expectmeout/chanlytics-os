@@ -18,6 +18,9 @@
  *                 words that fit any dated offer), so the next offer reuses it, with a version per channel the
  *                 workspace sends offers on (channelChoices' own verdict; never a text: texts carry no offers), and the
  *                 words say each left out with its reason; every send types the owner's words into its offer
+ *   the offer's   what a send types is read on its own day, not the day it was asked: the owner's phrasing (`say`)
+ *   value         where it names no day from today and is not the ask itself, else the offer's words; words that
+ *                 name one ("next month", "el mes que viene") are refused, but for an offer of today alone
  *   the note      "Offer: {words}", with the dates, until the offer's last day, unless the receptionist has it, or
  *                 the member asking may not approve one (the words say who may)
  *   the send      at ten on the business's clock on `from` (at Approve where ten has passed today)
@@ -50,7 +53,7 @@ import type { Note } from "../config/workspace-config/business-profile";
 import { PROFILE_LIMITS } from "../config/workspace-config/config-rules";
 import type { ConsentChannel } from "../consent/consent-channels";
 import { BROADCAST_NAME_MAX } from "../broadcasts/broadcasts";
-import { OFFER_PLAN_WORDS } from "../broadcasts/offer-plan-words";
+import { OFFER_PLAN_WORDS, dayReadWrong, isTheAsk } from "../broadcasts/offer-plan-words";
 import { CHANNEL_WORDS } from "../broadcasts/reach-for";
 import type { AppointmentWord } from "../journey/appointment-word";
 import type { JourneyStageId } from "../journey/journey";
@@ -249,6 +252,9 @@ export const PLAN_WORDS = {
   noOffer:
     "intent offer takes offer: its words, from and until, the offer's first and last day. Ask what the offer is and when it runs.",
   noWords: "words is the offer in the owner's words: ask what the offer is.",
+  /** The offer's words say a day from today that its message, note and send, first read on its first day, misread. */
+  dayFromToday: (phrase: string, from: string): string =>
+    `“${phrase}” is said from today, and the offer is first read on ${from}, when it means another day: give words (and say) its days as a customer reads them then (“all November”, never “next month”), and call again.`,
   notADay: "from and until are days on the business's calendar, written YYYY-MM-DD: ask for them again.",
   fromAfterUntil: "until comes before from: an offer's last day is its first day or later. Ask which dates they meant.",
   fromPast:
@@ -404,6 +410,19 @@ const offerLine = (words: string): string => {
   const t = words.trim();
   return /[.!?…]$/.test(t) ? t : `${t}.`;
 };
+
+/**
+ * The offer's value as a message read on its first day says it: the owner's phrasing where every day it says reads true
+ * then and it is not the ask itself, else the offer's words. Words that say a day reading wrong then ("next month") are
+ * refused, by name: they title its note and its send too (broadcasts/offer-plan-words.ts dayReadWrong).
+ */
+function offerValue(offer: Offer, say: string | undefined, dates: OfferDates): { line: string } | { refused: string } {
+  const wrong = (text: string) => dayReadWrong(text, dates.from, dates.until);
+  const day = wrong(offer.words);
+  if (day) return { refused: SAY.dayFromToday(day, dates.fromWords) };
+  const own = say?.trim();
+  return { line: offerLine(own && !isTheAsk(own) && !wrong(own) ? own : offer.words) };
+}
 
 /** A message's values in order: the offer where it types one, each other filled per person. */
 const valuesOf = (slots: readonly Slot[], line: string): string[] =>
@@ -624,7 +643,9 @@ function offerRead(offer: Offer, say: string | undefined, world: PlanWorld): Off
   const audience = world.lists.find((l) => l.token === (offer.who ?? world.offersList));
   const to = audience ? audienceOf(audience.token) : null;
   if (!audience || !to) return { refused: SAY.noOffersList };
-  const line = offerLine(say?.trim() ? say : offer.words);
+  const value = offerValue(offer, say, dates);
+  if ("refused" in value) return value;
+  const { line } = value;
   const room = world.room;
   // Room not known is never full (calendar.room's none, or a calendar with no slot either way).
   const tight =
