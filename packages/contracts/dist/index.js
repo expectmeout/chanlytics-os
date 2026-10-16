@@ -25210,6 +25210,45 @@ var ES = {
   whatsappReview: "Su versi\xF3n de WhatsApp espera la revisi\xF3n de WhatsApp, que puede seguir en el primer env\xEDo: quien la reciba por WhatsApp espera a que termine.",
   reminderAsk: (day, list2) => `El ${day}, p\xEDdeme que env\xEDe un recordatorio a quien de \xAB${list2}\xBB no haya reservado para entonces.`
 };
+var edged = (alternatives) => new RegExp(`(?<![\\p{L}\\p{N}])(?:${alternatives.join("|")})(?![\\p{L}\\p{N}])`, "iu");
+var AWAY = edged([
+  "tomorrow",
+  "yesterday",
+  "(?:next|coming) (?:week|weekend|month|year)",
+  "in (?:a|one|two|three|\\d+) (?:days?|weeks?|months?)",
+  "pasado ma\xF1ana",
+  "(?<!(?:la|de|por|esta) )ma\xF1ana",
+  "ayer",
+  "(?:el |la )?pr\xF3xim[oa] (?:semana|fin de semana|mes|a\xF1o)",
+  "(?:la semana|el fin de semana|el mes|el a\xF1o) que viene",
+  "dentro de (?:un|una|dos|tres|\\d+) (?:d\xEDas?|semanas?|meses?)"
+]);
+var WITHIN = {
+  day: (from, until) => from === until,
+  week: (from, until) => mondayOf(from) === mondayOf(until),
+  // A weekend's days are its week's Friday to Sunday.
+  weekend: (from, until) => mondayOf(from) === mondayOf(until) && from >= shiftKey(mondayOf(from), 4),
+  month: (from, until) => from.slice(0, 7) === until.slice(0, 7),
+  year: (from, until) => from.slice(0, 4) === until.slice(0, 4)
+};
+var THIS = [
+  ["day", edged(["today", "tonight", "this (?:morning|afternoon|evening)", "hoy", "esta (?:noche|tarde|ma\xF1ana)"])],
+  ["weekend", edged(["this weekend", "este fin de semana"])],
+  ["week", edged(["this week", "esta semana"])],
+  ["month", edged(["this month", "este mes"])],
+  ["year", edged(["this year", "este a\xF1o"])]
+];
+var THE_ASK = /^\s*(?:i want|i'd like|i would like|we want|we'd like|let's|can you|please|quiero|queremos|me gustaría|nos gustaría|puedes|por favor)\b/iu;
+function dayReadWrong(text, from, until) {
+  const away = AWAY.exec(text)?.[0];
+  if (away) return away;
+  for (const [span2, words3] of THIS) {
+    const said = words3.exec(text)?.[0];
+    if (said && !WITHIN[span2](from, until)) return said;
+  }
+  return null;
+}
+var isTheAsk = (text) => THE_ASK.test(text);
 var OFFER_PLAN_WORDS = { en: EN, es: ES };
 
 // src/journey/journey-plan.ts
@@ -25439,6 +25478,8 @@ var unreadWords = (what) => `${what} could not be read just now, so nothing was 
 var PLAN_WORDS = {
   noOffer: "intent offer takes offer: its words, from and until, the offer's first and last day. Ask what the offer is and when it runs.",
   noWords: "words is the offer in the owner's words: ask what the offer is.",
+  /** The offer's words say a day from today that its message, note and send, first read on its first day, misread. */
+  dayFromToday: (phrase, from) => `\u201C${phrase}\u201D is said from today, and the offer is first read on ${from}, when it means another day: give words (and say) its days as a customer reads them then (\u201Call November\u201D, never \u201Cnext month\u201D), and call again.`,
   notADay: "from and until are days on the business's calendar, written YYYY-MM-DD: ask for them again.",
   fromAfterUntil: "until comes before from: an offer's last day is its first day or later. Ask which dates they meant.",
   fromPast: "from is a day already past on the business's calendar: an offer starts today or later. Ask when it starts.",
@@ -25547,6 +25588,13 @@ var offerLine = (words3) => {
   const t = words3.trim();
   return /[.!?…]$/.test(t) ? t : `${t}.`;
 };
+function offerValue(offer, say2, dates) {
+  const wrong = (text) => dayReadWrong(text, dates.from, dates.until);
+  const day = wrong(offer.words);
+  if (day) return { refused: SAY.dayFromToday(day, dates.fromWords) };
+  const own = say2?.trim();
+  return { line: offerLine(own && !isTheAsk(own) && !wrong(own) ? own : offer.words) };
+}
 var valuesOf = (slots, line) => [...slots].sort((a, b) => a.position - b.position).map((s) => s.kind === "text" ? line : `@${s.kind}`);
 function offerSlots(language) {
   const starter = starterByName("this_months_offer");
@@ -25656,7 +25704,9 @@ function offerRead(offer, say2, world) {
   const audience = world.lists.find((l) => l.token === (offer.who ?? world.offersList));
   const to = audience ? audienceOf(audience.token) : null;
   if (!audience || !to) return { refused: SAY.noOffersList };
-  const line = offerLine(say2?.trim() ? say2 : offer.words);
+  const value = offerValue(offer, say2, dates);
+  if ("refused" in value) return value;
+  const { line } = value;
   const room = world.room;
   const tight = room && audience.count !== null && room.open * 2 < audience.count ? { room, audience: audience.count } : null;
   const cap2 = tight && dates.from === dates.today ? capOf(tight.room) : null;
