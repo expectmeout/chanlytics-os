@@ -135,6 +135,23 @@ export interface SequencePersonDto {
   /** Why they were held or left (a send's reason, booked, replied, removed). */
   why: string | null;
   hold_detail: string | null;
+  /**
+   * On a to_send row, the email as it was handed to its owner (00447): what their mail app opens with. Null on every other
+   * row, and absent from a server before 00447, where the run's sheet in Sent lays it out instead.
+   */
+  draft?: SequencePersonDraftDto | null;
+}
+
+/** The email handed to its owner to send from their own inbox (00429), as a to_send row carries it (00447). */
+export interface SequencePersonDraftDto {
+  to: string;
+  subject: string;
+  /** The whole email as it reads, its foot included: what the owner sends. */
+  text: string;
+  /** A step after the first: it answers an email the business may have answered in the owner's own inbox. */
+  follow_up: boolean;
+  angle: string | null;
+  drafted_at: string;
 }
 
 /** Who is in a sequence: each group's count whole, and its first rows. */

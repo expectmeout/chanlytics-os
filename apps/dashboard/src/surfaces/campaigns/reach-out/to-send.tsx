@@ -1,17 +1,20 @@
 /**
- * Broadcasts: the To send list of a reach-out its owner sends (00429), in its run's block (approval.tsx). Each email
- * handed to them, oldest first: its business (its lead's door), its subject, its address and when it was handed over;
- * its doors into a mail client (Gmail, Outlook, their mail app), Copy, and its words to read; then the owner's word on
- * it, Sent or Skip. Opening or copying one asks "Did it go?" at its Sent, as the lead's own draft asks; a link too long
- * to carry the words copies them as it opens. A step after the first answers an email the business may have answered in
- * the owner's own inbox, which nothing here reads: its Sent asks first whether they did, and They wrote back… stands
- * beside it (the peek's, read as a reply is). Each word is said at the list's head, or at its row when refused, and the
- * run is read again behind it. Sent's one To send (to-send-all.tsx) draws the same list `bare`, a part of its pane under
- * the run's name, and says each word at the pane's head instead. Every sentence is contracts' (toSendWordsOf,
+ * Every To send's rows (00429): a reach-out's run in Sent (approval.tsx), Sent's one To send (to-send-all.tsx) and a
+ * sequence's People (sequences/needs.tsx) lay out the same row. Each email handed to its owner, oldest first: its business
+ * (its lead's door), its subject, its address and when it was handed over; then on one line their mail app, the door a
+ * phone and a desk both send from, with Gmail, Outlook, Copy and its words to read under its More, and the owner's word on
+ * it at the line's end, Sent or Skip (the parity review of 15 Oct 2026: seven presses on a line a phone wrapped three
+ * times). Opening or copying one asks "Did it go?" at its Sent, as the lead's own draft asks; a link too long to carry the
+ * words copies them as it opens. A step after the first answers an email the business may have answered in the owner's
+ * own inbox, which nothing here reads: its Sent asks first whether they did, and They wrote back… stands under its More
+ * (the peek's, read as a reply is). Each word is the `sequence_send_said` verb, said at the list's head, or at its row
+ * when refused, and the run is read again behind it. Sent's one To send draws a run's list `bare`, a part of its pane
+ * under the run's name, and says each word at the pane's head instead. Every sentence is contracts' (toSendRowOf,
  * toSendSaidWords); never a fetch here.
  */
 import { useState } from "react";
 import {
+  REACH_OUT_TO_SEND_LABELS,
   TO_SEND_ALL_WORDS,
   TO_SEND_ROUTE,
   toSendEveryOf,
@@ -25,16 +28,17 @@ import { canDo, gateTitle, navigate } from "../../legacy-verbs";
 import { surfaceValue } from "../../surface-values";
 import { Button } from "../../kit/button/button";
 import { CopiedWords, useCopied } from "../../kit/copy-button/copy-button";
+import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
-import { useCmPhone } from "../parts/split";
+import { Menu, type MenuItem } from "../../kit/menu/menu";
 import { RoSaidAsk, type SaidMore } from "./said-ask";
 import { reachOuts } from "./surface";
 
-type ToSend = NonNullable<ReturnType<typeof reachOuts.toSend>>;
+type Labels = typeof REACH_OUT_TO_SEND_LABELS;
 
 interface RowProps {
   row: ToSendRowVM;
-  L: ToSend["labels"];
+  L: Labels;
   may: boolean;
   busy: boolean;
   said: string | null;
@@ -43,7 +47,7 @@ interface RowProps {
   onTell: (row: ToSendRowVM, intent: OwnerSaidIntent, more: SaidMore) => void;
 }
 
-/** One email handed over: who, what, its doors into a mail client, and the owner's word on it. */
+/** One email handed over: who, what, its mail app with the rest under More, and the owner's word on it at the end. */
 function RoToSendRow({ row, L, may, busy, said, onSay, onTell }: RowProps) {
   const [copied, copy] = useCopied();
   const [asked, setAsked] = useState(false);
@@ -57,13 +61,27 @@ function RoToSendRow({ row, L, may, busy, said, onSay, onTell }: RowProps) {
     if (!row.links.bodyInLinks) copy(row.text);
     setAsked(true);
   };
-  const door = { size: "sm" as const, onClick: opening };
-  const phone = useCmPhone();
-  const app = (
-    <Button {...door} href={row.links.mailto} data-testid="ro-to-send-app">
-      {L.app}
-    </Button>
-  );
+  // Gmail's and Outlook's compose pages, in a tab of their own.
+  const onWeb = (url: string) => () => {
+    opening();
+    window.open(url, "_blank", "noopener,noreferrer");
+  };
+  const more: MenuItem[] = [
+    { label: L.gmail, glyph: <Icon name="external" size={13} />, onSelect: onWeb(row.links.gmail) },
+    { label: L.outlook, glyph: <Icon name="external" size={13} />, onSelect: onWeb(row.links.outlook) },
+    {
+      label: L.copy,
+      glyph: <Icon name="copy" size={13} />,
+      onSelect: () => {
+        copy(row.text);
+        setAsked(true);
+      },
+    },
+    { label: reading ? L.hide : L.read, glyph: <Icon name="mail" size={13} />, onSelect: () => setReading((v) => !v) },
+    ...(may && row.followUp
+      ? [{ label: SW.door, glyph: <Icon name="chat" size={13} />, onSelect: () => setTelling(true) }]
+      : []),
+  ];
   return (
     <div className="ro-send" data-testid="ro-to-send-row">
       <div className="ro-send-line">
@@ -79,41 +97,36 @@ function RoToSendRow({ row, L, may, busy, said, onSay, onTell }: RowProps) {
         </span>
       </div>
       <div className="ro-send-acts">
-        {/* On a phone the mail app leads: Gmail's and Outlook's compose pages open an inbox there, not the email. */}
-        {phone && app}
-        <Button
-          {...door}
-          href={row.links.gmail}
-          target="_blank"
-          rel="noopener noreferrer"
-          data-testid="ro-to-send-gmail"
-        >
-          {L.gmail}
+        <Button size="sm" href={row.links.mailto} onClick={opening} data-testid="ro-to-send-app">
+          <Icon name="mail" size={12} /> {L.app}
         </Button>
-        <Button
-          {...door}
-          href={row.links.outlook}
-          target="_blank"
-          rel="noopener noreferrer"
-          data-testid="ro-to-send-outlook"
-        >
-          {L.outlook}
-        </Button>
-        {!phone && app}
-        <Button
-          size="sm"
-          variant="quiet"
-          onClick={() => {
-            copy(row.text);
-            setAsked(true);
-          }}
-          data-testid="ro-to-send-copy"
-        >
-          {copied ? <CopiedWords said={L.copied} /> : L.copy}
-        </Button>
-        <LinkButton aria-expanded={reading} onClick={() => setReading((v) => !v)} data-testid="ro-to-send-read">
-          {reading ? L.hide : L.read}
-        </LinkButton>
+        <Menu
+          label={L.more(row.name)}
+          trigger={
+            <Button variant="quiet" size="sm" iconOnly aria-label={L.more(row.name)} data-testid="ro-to-send-more">
+              <Icon name="more" size={14} />
+            </Button>
+          }
+          groups={[{ items: more }]}
+        />
+        {copied ? <CopiedWords said={L.copied} /> : null}
+        {may && !checking && !telling ? (
+          <span className="ro-send-word">
+            {asked && <span className="bc-person-words">{L.asked}</span>}
+            <Button
+              size="sm"
+              variant={asked ? "primary" : "secondary"}
+              disabled={busy}
+              onClick={() => (row.followUp ? setChecking(true) : onSay(row, "sent"))}
+              data-testid="ro-to-send-sent"
+            >
+              {busy ? L.saying : L.sent}
+            </Button>
+            <LinkButton disabled={busy} onClick={() => onSay(row, "not_sent")} data-testid="ro-to-send-skip">
+              {L.skip}
+            </LinkButton>
+          </span>
+        ) : null}
       </div>
       {!row.links.bodyInLinks && (
         <span className="pb-note" data-testid="ro-to-send-paste">
@@ -123,28 +136,6 @@ function RoToSendRow({ row, L, may, busy, said, onSay, onTell }: RowProps) {
       {reading && (
         <div className="em-frame" data-testid="ro-to-send-words">
           <p className="em-frame-body">{row.text}</p>
-        </div>
-      )}
-      {may && !checking && !telling && (
-        <div className="ro-send-acts">
-          {asked && <span className="bc-person-words">{L.asked}</span>}
-          <Button
-            size="sm"
-            variant={asked ? "primary" : "secondary"}
-            disabled={busy}
-            onClick={() => (row.followUp ? setChecking(true) : onSay(row, "sent"))}
-            data-testid="ro-to-send-sent"
-          >
-            {busy ? L.saying : L.sent}
-          </Button>
-          <LinkButton disabled={busy} onClick={() => onSay(row, "not_sent")} data-testid="ro-to-send-skip">
-            {L.skip}
-          </LinkButton>
-          {row.followUp && (
-            <LinkButton disabled={busy} onClick={() => setTelling(true)} data-testid="ro-to-send-wrote">
-              {SW.door}
-            </LinkButton>
-          )}
         </div>
       )}
       {may && checking && !telling && (
@@ -188,6 +179,65 @@ function RoToSendRow({ row, L, may, busy, said, onSay, onTell }: RowProps) {
   );
 }
 
+interface RowsProps {
+  rows: readonly ToSendRowVM[];
+  /** The run each email waits in: what the word's Open goes to. */
+  runOf: (row: ToSendRowVM) => string | null;
+  /** What was said, once it is: the page reads again behind it. */
+  onSaid: (said: string) => void;
+}
+
+/**
+ * The rows of a To send, each with the owner's word on it through its verb (`sequence_send_said`) and what the business
+ * wrote back as the peek says it; a refusal said at its row. A run's list (RoToSend) and a sequence's People draw them.
+ */
+export function RoToSendRows({ rows, runOf, onSaid }: RowsProps) {
+  const [busy, setBusy] = useState<string | null>(null);
+  const [refused, setRefused] = useState<{ id: string; text: string } | null>(null);
+  const may = canDo("approve");
+  const say = async (row: ToSendRowVM, outcome: ReachOutSaidOutcome) => {
+    if (busy) return;
+    setBusy(row.id);
+    setRefused(null);
+    // Its receipt says what it did (contracts toSendSaidWords).
+    const r = await commitVerb("sequence_send_said", { send_id: row.id, outcome, name: row.name, run_id: runOf(row) });
+    setBusy(null);
+    if (r.ok) onSaid(r.receipt);
+    else setRefused({ id: row.id, text: r.message || "" });
+  };
+  // What the business wrote back to the email before, said as the peek says it: its drafts go with its waiting sends.
+  const tell = async (row: ToSendRowVM, intent: OwnerSaidIntent, more: SaidMore) => {
+    if (busy) return;
+    setBusy(row.id);
+    setRefused(null);
+    const r = await reachOuts.sayReply(row.leadId, { intent, ...more });
+    setBusy(null);
+    if (r && r.ok)
+      onSaid(
+        r.data.already
+          ? reachOuts.words.REACH_OUT_SAID_WORDS.already(row.name)
+          : reachOuts.saidReplyWords(row.name, intent, r.data.resume_at, more.refer_to ?? null),
+      );
+    else setRefused({ id: row.id, text: (r && r.message) || "" });
+  };
+  return (
+    <>
+      {rows.map((row) => (
+        <RoToSendRow
+          key={row.id}
+          row={row}
+          L={REACH_OUT_TO_SEND_LABELS}
+          may={may}
+          busy={busy === row.id}
+          said={refused && refused.id === row.id ? refused.text : null}
+          onSay={(x, o) => void say(x, o)}
+          onTell={(x, i, more) => void tell(x, i, more)}
+        />
+      ))}
+    </>
+  );
+}
+
 /**
  * The run's To send list; nothing where no email waits to be sent from the owner's inbox. `bare` draws its rows alone,
  * for a pane that says the head, the note and each word itself: what was said is handed to `onSaid`, which reads again.
@@ -202,8 +252,6 @@ export function RoToSend({
   bare?: boolean;
 }) {
   const vm = reachOuts.toSend(d);
-  const [busy, setBusy] = useState<string | null>(null);
-  const [refused, setRefused] = useState<{ id: string; text: string } | null>(null);
   const [own, setDone] = useState<string | null>(null);
   const done = bare ? null : own;
   // The last word said stays said once the list empties behind it: the run is read again, and nothing is left to send.
@@ -214,51 +262,17 @@ export function RoToSend({
       </p>
     ) : null;
   const may = canDo("approve");
-  const say = async (row: ToSendRowVM, outcome: ReachOutSaidOutcome) => {
-    if (busy) return;
-    setBusy(row.id);
-    setRefused(null);
-    // The owner's word is the `sequence_send_said` verb: its receipt says what it did (contracts toSendSaidWords).
-    const r = await commitVerb("sequence_send_said", {
-      send_id: row.id,
-      outcome,
-      name: row.name,
-      run_id: d.broadcast.id,
-    });
-    setBusy(null);
-    if (r.ok) {
-      setDone(r.receipt);
-      onSaid(r.receipt);
-    } else setRefused({ id: row.id, text: r.message || "" });
-  };
-  // What the business wrote back to the email before, said as the peek says it: its drafts go with its waiting sends.
-  const tell = async (row: ToSendRowVM, intent: OwnerSaidIntent, more: SaidMore) => {
-    if (busy) return;
-    setBusy(row.id);
-    setRefused(null);
-    const r = await reachOuts.sayReply(row.leadId, { intent, ...more });
-    setBusy(null);
-    if (r && r.ok) {
-      const said = r.data.already
-        ? reachOuts.words.REACH_OUT_SAID_WORDS.already(row.name)
-        : reachOuts.saidReplyWords(row.name, intent, r.data.resume_at, more.refer_to ?? null);
-      setDone(said);
-      onSaid(said);
-    } else setRefused({ id: row.id, text: (r && r.message) || "" });
-  };
-  const rows = vm.rows.map((row) => (
-    <RoToSendRow
-      key={row.id}
-      row={row}
-      L={vm.labels}
-      may={may}
-      busy={busy === row.id}
-      said={refused && refused.id === row.id ? refused.text : null}
-      onSay={(x, o) => void say(x, o)}
-      onTell={(x, i, more) => void tell(x, i, more)}
+  const rows = (
+    <RoToSendRows
+      rows={vm.rows}
+      runOf={() => d.broadcast.id}
+      onSaid={(said) => {
+        setDone(said);
+        onSaid(said);
+      }}
     />
-  ));
-  if (bare) return <>{rows}</>;
+  );
+  if (bare) return rows;
   // Other runs hand emails over too: the door to all of them, the one list (Sent's To send).
   const every = toSendEveryOf(surfaceValue("broadcasts")?.rows ?? []);
   return (

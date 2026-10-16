@@ -67,6 +67,7 @@ export const ADDED_SINCE = [
   "propose_sequence.discard",
   "propose_sequence.leave",
   "propose_sequence.make",
+  "propose_sequence.run_now",
   "propose_sequence.sent_by_hand",
   "propose_sequence.start",
   "propose_sequence.step",

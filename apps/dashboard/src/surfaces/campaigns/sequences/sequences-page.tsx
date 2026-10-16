@@ -21,7 +21,7 @@ export function SequencesPage({ route }: { route: string }) {
   const place = parseSequencesRoute(route) ?? { view: "list" as const };
   const open =
     place.view === "record" ? (
-      <SequenceRecord id={place.id} tab={place.tab} />
+      <SequenceRecord id={place.id} tab={place.tab} day={place.day ?? null} />
     ) : place.view === "new" ? (
       <NewSequence />
     ) : null;

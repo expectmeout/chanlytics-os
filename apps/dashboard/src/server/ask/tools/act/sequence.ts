@@ -15,6 +15,7 @@ import {
   SEQUENCE_DRAFT_THEN_MAX,
   plural,
   sequenceRoute,
+  sequenceRunsNow,
   type SequenceRecordDto,
   AppError,
 } from "@chanlytics/contracts";
@@ -355,6 +356,30 @@ async function proposeSendSaid(
   });
 }
 
+/**
+ * A sequence run now, at the member's request (the page's Run now, POST playbooks/:id/run): its first step's run, the
+ * hourly sweep's own, which waits for an OK where its class asks. Only where it runs on the business's day and no batch
+ * waits for an OK (contracts sequenceRunsNow, the page's own rule); a batch that waits is action batch's.
+ */
+async function proposeRunNow(t: ToolContext, input: { sequence_id: string }): Promise<ProposalOutcome> {
+  const rec = await sequenceOnCard(t, input.sequence_id);
+  if (isRefusal(rec)) return refuse(rec.refusal);
+  const row = rec.sequence;
+  if (row.needs.waiting > 0)
+    return refuse(`${row.name} has a batch waiting for an OK: approve or skip it with action batch`);
+  if (!row.first || !sequenceRunsNow(row, { tz: t.timezone, nowMs: t.now.getTime() }))
+    return refuse(
+      `${row.name} runs nothing today: only a sequence that is on, on a moment or a list and before its last day, runs now`,
+    );
+  return propose({
+    kind: "playbook_run",
+    title: `Run ${row.name} now`,
+    summary:
+      "Its first step runs now, as its hourly run would: it waits for an OK where its class asks, and outside the sending hours it goes when they open.",
+    payload: { playbook_id: row.first.id, name: row.name, timezone: t.timezone },
+  });
+}
+
 async function proposeDiscard(t: ToolContext, input: { sequence_id: string }): Promise<ProposalOutcome> {
   const rec = await sequenceOnCard(t, input.sequence_id);
   if (isRefusal(rec)) return refuse(rec.refusal);
@@ -534,6 +559,15 @@ export const propose_sequence = defineActions({
       words:
         "Action start turns a draft on: its first step runs from its next run. A paused one is resumed with action change.",
       build: proposeStart,
+    }),
+    run_now: actAction({
+      kind: "playbook_run",
+      input: z.object({ sequence_id: SEQUENCE_ID }),
+      examples: [{ sequence_id: "f6a7b8c9-d0e1-4f2a-8b3c-4d5e6f7a8b9c" }],
+      label: "Preparing the run",
+      words:
+        "Action run_now runs a sequence's first step now, as its hourly run would: it waits for an OK where its class asks.",
+      build: proposeRunNow,
     }),
     change: playbookChangeAction,
     channels: playbookChannelsAction,

@@ -19213,6 +19213,38 @@ var runSpec = {
     return id ? `broadcasts/run:${id}` : "broadcasts";
   }
 };
+var playbookRunSpec = {
+  needs: "operator",
+  gate: "approve",
+  commit: ({ payload: pl }) => {
+    const id = idIn(pl, "playbook_id");
+    return id ? { route: "POST playbooks/[id]/run", params: { id } } : refuseWith(PROPOSAL_WORDS.cannotApprove);
+  },
+  receipt: ({ payload: pl }, data) => {
+    const d = rec(data);
+    const name = asText(d.name ?? pl.name) || LIFECYCLE_TOAST.nameless;
+    const n = Number(d.eligible) || 0;
+    const people = `${n} ${n === 1 ? "person" : "people"}`;
+    if (d.outcome === "sent") return `${name} \u2014 ${people}, ${runGoes(pl, data)}`;
+    if (d.outcome === "held") return `${name} \u2014 ${people} waiting for your approval`;
+    return `${name} \u2014 nobody new to send to right now`;
+  },
+  undo: {
+    label: () => "Cancel it, if it has not finished",
+    window: "ten_minutes",
+    record: (_p, data) => {
+      const d = rec(data);
+      const id = asText(d.broadcast_id);
+      return d.outcome === "sent" && id ? { broadcast_id: id, decision_id: decisionOf(data) } : null;
+    },
+    call: cancelCall,
+    receipt: canceled
+  },
+  open: ({ payload }) => {
+    const id = idIn(payload, "playbook_id");
+    return id ? `campaigns/moment:${id}` : "outbound";
+  }
+};
 var whatsappFiledWords = (state) => {
   const at3 = metaStatusOf(state);
   const where = `(see ${CAMPAIGN_ROOMS.home} \u203A ${CAMPAIGN_ROOMS.library})`;
@@ -21803,20 +21835,23 @@ function toSendWordsOf(r2, p) {
   return {
     head: `To send \xB7 ${drafted2.length}`,
     note: REACH_OUT_TO_SEND_LABELS.note,
-    rows: drafted2.map((d) => ({
-      id: d.send_id,
-      leadId: d.lead_id,
-      followUp: d.follow_up === true,
-      name: d.business_name,
-      to: leadDoorOf(d.lead_id),
-      angle: d.angle,
-      address: d.to,
-      subject: d.subject,
-      text: d.text,
-      since: `handed to you ${clockNear(Date.parse(d.drafted_at), p.timezone, p.now)}`,
-      links: composeLinksOf({ to: d.to, subject: d.subject, text: d.text })
-    })),
+    rows: drafted2.map((d) => toSendRowOf(d, p)),
     labels: REACH_OUT_TO_SEND_LABELS
+  };
+}
+function toSendRowOf(d, p) {
+  return {
+    id: d.send_id,
+    leadId: d.lead_id,
+    followUp: d.follow_up === true,
+    name: d.business_name,
+    to: leadDoorOf(d.lead_id),
+    angle: d.angle,
+    address: d.to,
+    subject: d.subject,
+    text: d.text,
+    since: `handed to you ${clockNear(Date.parse(d.drafted_at), p.timezone, p.now)}`,
+    links: composeLinksOf({ to: d.to, subject: d.subject, text: d.text })
   };
 }
 var SENT_SINCE_WORDS = {
@@ -21848,6 +21883,8 @@ var REACH_OUT_TO_SEND_LABELS = {
   gated: "say whether an email went",
   read: "Read it",
   hide: "Hide it",
+  /** The row's More, which holds Gmail, Outlook, Copy and its words. */
+  more: (name) => `More for the email to ${name}`,
   /** Asked once the owner opened or copied one, as the lead's own draft asks (LEAD_SENT_QUESTION). */
   asked: "Did it go?",
   /** A step after the first, asked at its Sent: the business may have answered the email before in the owner's inbox. */
@@ -21956,21 +21993,25 @@ var isSequencesParam = (param) => param === "sequences";
 var isTab = (word) => SEQUENCE_TABS.some((t) => t === word);
 function parseSequencesRoute(route) {
   const [path = ""] = route.split("?");
-  const [root, view, id, tab] = path.split("/");
+  const [root, view, id, tab, day] = path.split("/");
   if (root !== "campaigns" || view !== "sequences") return null;
   if (!id) return { view: "list" };
   if (id === "new") return { view: "new" };
-  return { view: "record", id, tab: isTab(tab) ? tab : "steps" };
+  const on = isTab(tab) ? tab : "steps";
+  return { view: "record", id, tab: on, ...on === "history" && day ? { day } : {} };
 }
-var sequenceRoute = (id, tab = "steps") => tab === "steps" ? `${SEQUENCES_ROUTE}/${id}` : `${SEQUENCES_ROUTE}/${id}/${tab}`;
+var sequenceRoute = (id, tab = "steps", day) => tab === "steps" ? `${SEQUENCES_ROUTE}/${id}` : `${SEQUENCES_ROUTE}/${id}/${tab}${tab === "history" && day ? `/${day}` : ""}`;
+var runSheetRoute = (id) => `broadcasts/run:${id}/sheet`;
 function sequenceLandingOf(route) {
   const [path = ""] = route.split("?");
-  const [root, param = ""] = path.split("/");
+  const [root, param = "", rest] = path.split("/");
   if (root === "campaigns") {
     if (param === "" || param.startsWith("in:")) return SEQUENCES_ROUTE;
     const moment2 = /^moment:([^:/]+)(:people)?$/.exec(param);
     if (moment2?.[1]) return sequenceRoute(moment2[1], moment2[2] ? "people" : "steps");
   }
+  const run = root === "broadcasts" && rest === void 0 ? /^run:([^:/]+)$/.exec(param) : null;
+  if (run?.[1]) return sequenceRoute(run[1], "history", run[1]);
   return null;
 }
 
@@ -22244,6 +22285,8 @@ var PAGE_SPECS = {
   sequence_discard: sequenceDiscardSpec,
   playbook_change: playbookChangeSpec,
   run: runSpec,
+  // A campaign run now at the member's request: Run now, under a sequence's More.
+  playbook_run: playbookRunSpec,
   // A booking the receptionist asked for, answered on Today, in the Inbox and on the Calendar (decision 0061).
   booking_request: bookingRequestSpec
 };
@@ -27078,6 +27121,7 @@ var ASK_GUIDE_PAGES = [
       "sequence_step_remove",
       "sequence_words",
       "sequence_start",
+      "playbook_run",
       "sequence_leave",
       "sequence_send_decide",
       "sequence_send_said",
@@ -43143,6 +43187,13 @@ function nextShare(p) {
   const cap2 = runCapOf(p);
   return cap2 > 0 ? Math.min(all, cap2) : all;
 }
+function resumeDetailOf(p, at3) {
+  const W = LIFECYCLE_WORDS.ledger.resume;
+  const when = nextRunLabel({ ...p, state: "running" }, at3.tz, new Date(at3.nowMs), at3.paused);
+  const auto = at3.mode === "auto" && !p.trial;
+  const detail = W.detail(when, p.candidates === null ? null : nextShare(p));
+  return auto ? `${detail}. ${W.auto}` : detail;
+}
 function workspacePausedOf(input) {
   return input.playbooks?.ready?.paused === true || input.broadcasts?.ready?.paused === true;
 }
@@ -43467,21 +43518,14 @@ function rowWaitingOf(p, at3) {
 }
 function resumeOf(p, input) {
   const W = LIFECYCLE_WORDS.ledger.resume;
-  const when = nextRunLabel(
-    { ...p, state: "running" },
-    input.tz,
-    new Date(input.nowMs),
-    workspacePausedOf(input)
-  );
   const cls = p.policy_class ?? triggerOf(p.trigger)?.cls ?? null;
-  const auto = cls !== null && input.playbooks?.modes?.[cls] === "auto" && !p.trial;
-  const detail = W.detail(when, p.candidates === null ? null : nextShare(p));
-  return {
-    kind: "resume",
-    label: W.label,
-    playbookId: p.id,
-    ask: { question: W.question(p.name), detail: auto ? `${detail}. ${W.auto}` : detail }
-  };
+  const detail = resumeDetailOf(p, {
+    tz: input.tz,
+    nowMs: input.nowMs,
+    paused: workspacePausedOf(input),
+    mode: cls === null ? null : input.playbooks?.modes?.[cls]
+  });
+  return { kind: "resume", label: W.label, playbookId: p.id, ask: { question: W.question(p.name), detail } };
 }
 function playbookRow(p, at3) {
   const s = lifecycleStateOf(p);
@@ -45062,8 +45106,50 @@ var SEQUENCE_NEEDS_WORDS = {
   oneByOne: "Send them one by one",
   reading: "Reading what it holds\u2026",
   /** What a failed read could not read: "Couldn't read this batch's emails". */
-  failed: "this batch\u2019s emails"
+  failed: "this batch\u2019s emails",
+  /** A batch whose emails to send this read carries no draft of: its run's sheet in Sent lays them out. */
+  inSent: "Open them in Sent"
 };
+function peopleNeedsOf(rows2, at3) {
+  const held = rows2.flatMap((r2) => {
+    const reason = r2.why;
+    if (r2.group !== "held" || !r2.send_id || !isReachOutHold(reason)) return [];
+    return [
+      {
+        id: r2.send_id,
+        name: r2.name ?? SEQUENCE_PEOPLE_WORDS.someone,
+        to: r2.lead_id ? leadDoorOf(r2.lead_id) : null,
+        why: holdWords2(reason, r2.hold_detail),
+        doors: holdDoors(reason).map((d) => [d, HOLD_DOOR_WORDS[d]]),
+        batchId: r2.batch_id
+      }
+    ];
+  });
+  const handed = rows2.filter((r2) => r2.group === "to_send" && r2.send_id && r2.lead_id);
+  const toSend = handed.flatMap(
+    (r2) => r2.draft && r2.send_id && r2.lead_id ? [
+      {
+        ...toSendRowOf(
+          {
+            send_id: r2.send_id,
+            lead_id: r2.lead_id,
+            business_name: r2.name ?? SEQUENCE_PEOPLE_WORDS.someone,
+            angle: r2.draft.angle,
+            to: r2.draft.to,
+            subject: r2.draft.subject,
+            text: r2.draft.text,
+            drafted_at: r2.draft.drafted_at,
+            follow_up: r2.draft.follow_up
+          },
+          at3
+        ),
+        batchId: r2.batch_id
+      }
+    ] : []
+  );
+  const unread = [...new Set(handed.filter((r2) => !r2.draft && r2.batch_id).map((r2) => r2.batch_id ?? ""))];
+  return { held, asIs: held.filter((h) => h.doors.some(([d]) => d === "include")), toSend, unread };
+}
 var SEQUENCE_PEOPLE_WORDS = {
   nobody: "Nobody is in it yet.",
   failed: "who is in it",
@@ -45182,6 +45268,33 @@ function historyDayWords(b, place) {
     end: b.state === "sending" ? "Going out" : b.state === "failed" ? "Failed" : `${c.sent ?? 0} sent`,
     said: [place, parts2.join(" \xB7 "), b.failure].filter(Boolean).join(" \xB7 ")
   };
+}
+
+// src/sequences/sequence-acts.ts
+var SEQUENCE_ACT_WORDS = {
+  more: (name) => `More for ${name}`,
+  askAbout: "Ask about it",
+  runNow: "Run now",
+  runNowTip: "Runs its first step now, at your request: it waits for your OK where you approve its batches, and outside the sending hours it goes when they open",
+  rename: "Rename",
+  name: "Name",
+  save: "Save",
+  cancel: "Cancel",
+  resumeAsk: (name) => `Turn ${name} on?`,
+  resumeYes: "Yes, turn it on"
+};
+function sequenceRunsNow(row2, at3) {
+  const first = row2.first;
+  if (!first || row2.starts !== "moment" && row2.starts !== "list" || row2.needs.waiting > 0) return false;
+  return campaignRunsOn(first, { tz: at3.tz, now: new Date(at3.nowMs), dealsOn: true });
+}
+function sequenceResumeAsk(row2, playbooks, at3) {
+  const W = LIFECYCLE_WORDS.ledger.resume;
+  const id = row2.first?.id;
+  const first = id ? playbooks?.rows.find((p) => p.id === id) : void 0;
+  const paused = workspacePausedOf({ playbooks: playbooks ?? void 0, broadcasts: void 0 });
+  const detail = row2.starts === "leads" ? W.chain : first ? resumeDetailOf(first, { ...at3, paused }) : null;
+  return { question: SEQUENCE_ACT_WORDS.resumeAsk(row2.name), detail, yes: SEQUENCE_ACT_WORDS.resumeYes };
 }
 
 // src/sequences/sequence-draft.ts
@@ -57628,6 +57741,7 @@ export {
   REACH_OUT_STEPS_MAX,
   REACH_OUT_STOP_WORDS,
   REACH_OUT_SUBJECT_MAX,
+  REACH_OUT_TO_SEND_LABELS,
   REACH_OUT_UNDO_WORDS,
   REACH_OUT_WHY_NOT,
   REACH_OUT_WHY_NOT_WORDS,
@@ -57746,6 +57860,7 @@ export {
   SEND_WINDOW_MARGIN_MIN,
   SENTENCE,
   SEQUENCES_ROUTE,
+  SEQUENCE_ACT_WORDS,
   SEQUENCE_DRAFT_JSON_SCHEMA,
   SEQUENCE_DRAFT_THEN_MAX,
   SEQUENCE_DRAFT_WORDS_MAX,
@@ -59076,6 +59191,7 @@ export {
   peopleEstimateUsd,
   peopleFromItems,
   peopleListAction,
+  peopleNeedsOf,
   peopleNowOf,
   peoplePlanFrom,
   peoplePlanOf,
@@ -59427,6 +59543,7 @@ export {
   runLabelOf,
   runMarkShown,
   runReadingOf,
+  runSheetRoute,
   runStillMoving,
   runStopWords,
   runStoppedWords,
@@ -59478,8 +59595,10 @@ export {
   sequenceLandingOf,
   sequenceLeftWords,
   sequenceNotice,
+  sequenceResumeAsk,
   sequenceRoute,
   sequenceRowLine,
+  sequenceRunsNow,
   sequenceStartWords,
   sequenceStartsSentence,
   sequenceStateTone,
@@ -59697,6 +59816,7 @@ export {
   toRunReportVM,
   toSendAllOf,
   toSendEveryOf,
+  toSendRowOf,
   toSendRunsOf,
   toSendSaidWords,
   toSendWordsOf,

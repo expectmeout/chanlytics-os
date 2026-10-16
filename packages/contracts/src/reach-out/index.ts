@@ -208,6 +208,8 @@ export {
   toSendRunsOf,
   toSendSaidWords,
   toSendWordsOf,
+  toSendRowOf,
+  REACH_OUT_TO_SEND_LABELS,
   waitingRunsDoor,
 } from "./reach-out-approval";
 export type { ToSendCount, ToSendRowVM, ToSendRunLike } from "./reach-out-approval";

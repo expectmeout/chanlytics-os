@@ -4570,6 +4570,19 @@ async function sequenceOverview(db, tenantId, sequenceId) {
   if (error) throw new Error(`cannot read the sequences: ${error.message}`);
   return readerRowsOf(data);
 }
+async function sequenceOfPart(db, tenantId, id) {
+  const [batch, step] = await Promise.all([
+    db.from("sequence_batches").select("sequence_id").eq("tenant_id", tenantId).eq("id", id).maybeSingle(),
+    db.from("sequence_steps").select("sequence_id").eq("tenant_id", tenantId).eq("id", id).maybeSingle()
+  ]);
+  if (batch.error) throw new Error(`cannot read the batch's sequence: ${batch.error.message}`);
+  if (step.error) throw new Error(`cannot read the step's sequence: ${step.error.message}`);
+  const of = (r) => {
+    const v = r && typeof r === "object" ? r.sequence_id : null;
+    return typeof v === "string" ? v : null;
+  };
+  return of(batch.data) ?? of(step.data);
+}
 async function sequenceStepsOf(db, tenantId, sequenceId) {
   const { data, error } = await db.rpc("sequence_steps_of", { p_tenant_id: tenantId, p_sequence_id: sequenceId });
   if (error) throw new Error(`cannot read the sequence's steps: ${error.message}`);
@@ -7131,6 +7144,7 @@ export {
   sentEmailOf,
   sentEmailWithMessageId,
   sequenceHistoryOf,
+  sequenceOfPart,
   sequenceOverview,
   sequencePeopleOf,
   sequenceRow,

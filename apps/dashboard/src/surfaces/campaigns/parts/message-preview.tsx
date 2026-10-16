@@ -152,9 +152,18 @@ export interface MessagePreviewProps {
    * bubble says who reads it and the sheet's head already says who sends it (Ruben, 11 Oct 2026, "Option B").
    */
   bare?: boolean;
+  /**
+   * The bubble alone on the page's own ground, with no chat drawn round it and no head: a message said where it stands in
+   * a flow (a sequence's step, sequences/step-words.tsx), whose line already says what it is and who reads it.
+   */
+  plain?: boolean;
   children?: ReactNode;
   testid?: string | null;
 }
+
+/** How the chat is drawn round the bubble: whole, bare (no head), or plain (the bubble alone, which is bare too). */
+const lookOf = (p: { bare?: boolean; plain?: boolean }): { bare: boolean; cls: string | null } =>
+  p.plain ? { bare: true, cls: "mp-plain" } : { bare: !!p.bare, cls: p.bare ? "mp-bare" : null };
 
 /** What a screen reader says of the bubble: one label, so the preview is heard as a preview. */
 function bubbleLabel(m: {
@@ -368,10 +377,12 @@ export function MessagePreview({
   mail = null,
   note = null,
   slot = null,
-  bare,
+  bare: bareOwn,
+  plain,
   children = null,
   testid = null,
 }: MessagePreviewProps) {
+  const look = lookOf({ bare: bareOwn, plain });
   const parts = useMemo(() => mpParts(body, values), [body, values]);
   const stamp = mpStamp(at);
   const day = mpDay(at);
@@ -381,13 +392,13 @@ export function MessagePreview({
   const keyer = () => `l${seq++}`;
   return (
     <div
-      className={cx("mp", compact && "mp-compact", held && "mp-held", bare && "mp-bare")}
+      className={cx("mp", compact && "mp-compact", held && "mp-held", look.cls)}
       data-testid={testid || "message-preview"}
     >
       {mpVia(via)}
       {mail ? (
         <MailFrame
-          bare={!!bare}
+          bare={look.bare}
           from={from}
           kind={kind}
           mail={mail}
@@ -400,7 +411,7 @@ export function MessagePreview({
         />
       ) : (
         <BubbleFrame
-          bare={!!bare}
+          bare={look.bare}
           from={from}
           kind={kind}
           header={header}

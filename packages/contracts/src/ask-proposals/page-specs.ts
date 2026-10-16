@@ -20,7 +20,7 @@ import {
   personModeManySpec,
 } from "./people-verbs";
 import { dealSpec, noteSpec, personModeSpec } from "./person";
-import { playbookChangeSpec, runSpec } from "./campaigns";
+import { playbookChangeSpec, playbookRunSpec, runSpec } from "./campaigns";
 import {
   sequenceDiscardSpec,
   sequenceDraftSpec,
@@ -64,6 +64,8 @@ export const PAGE_SPECS = {
   sequence_discard: sequenceDiscardSpec,
   playbook_change: playbookChangeSpec,
   run: runSpec,
+  // A campaign run now at the member's request: Run now, under a sequence's More.
+  playbook_run: playbookRunSpec,
   // A booking the receptionist asked for, answered on Today, in the Inbox and on the Calendar (decision 0061).
   booking_request: bookingRequestSpec,
 } satisfies Record<Exclude<AskProposal["kind"], AskOnlyKind>, ProposalSpec>;
