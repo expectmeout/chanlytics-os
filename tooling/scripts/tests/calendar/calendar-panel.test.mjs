@@ -462,3 +462,39 @@ test("(decision 0061) a time a customer picked by text leads with Booked it, kee
   });
   assert.equal(cant.footnote, "Asked for by text · you couldn't take it");
 });
+
+test("(00426) a visit whose person was found as a lead says where they came from: its sequence, a door to its People; else the lead, a door to it on Leads", async () => {
+  const { leadsRoute, sequenceRoute } = await import("@chanlytics/contracts");
+  const lead = { id: "ld-1", name: "Ruiz Design" };
+  const fromSequence = sheet(AHEAD, {
+    ...booked,
+    origin: { lead, sequence: { id: "sq-1", name: "Design studios · Queens" } },
+  });
+  assert.deepEqual(
+    fromSequence.rows.find((r) => r.key === "origin"),
+    {
+      key: "origin",
+      label: "Found as a lead",
+      value: "Design studios · Queens",
+      route: sequenceRoute("sq-1", "people"),
+    },
+    "the sequence alone: the lead's business is the person line's already",
+  );
+  const keys = fromSequence.rows.map((r) => r.key);
+  assert.ok(keys.indexOf("origin") > keys.indexOf("last"), "after who they are and when they were last in touch");
+  assert.ok(
+    fromSequence.rows.filter((r) => r.key !== "origin").every((r) => !("route" in r)),
+    "only a row with an address is a door",
+  );
+  const onLeads = sheet(AHEAD, { ...booked, origin: { lead, sequence: null } }).rows.find((r) => r.key === "origin");
+  assert.deepEqual(
+    [onLeads.value, onLeads.route],
+    ["Ruiz Design", leadsRoute({ peek: "ld-1" })],
+    "no sequence took it in",
+  );
+  assert.equal(
+    sheet(AHEAD, booked).rows.some((r) => r.key === "origin"),
+    false,
+    "a person not found as a lead has no such row",
+  );
+});

@@ -661,6 +661,7 @@ export {
   updateAppointment,
   appointmentsBetween,
   visitsOver,
+  visitOrigins,
   recordOver,
   notedOver,
   feedWordsOver,
@@ -681,6 +682,7 @@ export {
 } from "./repositories/calendar/appointments";
 export type {
   AppointmentRow,
+  VisitOriginRow,
   AppointmentInsert,
   AppointmentUpdate,
   AppointmentSync,

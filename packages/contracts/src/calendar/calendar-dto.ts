@@ -93,6 +93,17 @@ export interface CalendarItemDto {
   visit?: VisitMark | null;
   /** A time a customer picked by text (00443, decision 0061): the thread it is answered in, and whether it waits on an answer. */
   request?: { thread_id: string; open: boolean } | null;
+  /** Where its person came from: the lead they were found as (00426 appointments_lead_stamp), and its sequence. */
+  origin?: VisitOriginDto | null;
+}
+
+/**
+ * A visit's person was found as a lead (00426: `appointments.lead_id`, stamped when a visit names a person made from a
+ * lead): that lead, by the name it stands under, and the sequence that last took it in, null where none did.
+ */
+export interface VisitOriginDto {
+  lead: { id: string; name: string };
+  sequence: { id: string; name: string } | null;
 }
 
 export interface CalendarDayDto {

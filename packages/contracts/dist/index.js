@@ -29776,6 +29776,7 @@ function toBlock(item, tz, dayStartMs, dayEndMs, now) {
     end: item.end,
     visit: item.visit ?? null,
     ...item.request ? { request: { threadId: item.request.thread_id, open: item.request.open } } : {},
+    ...item.origin ? { origin: item.origin } : {},
     lane: 0,
     lanes: 1
   };
@@ -31040,6 +31041,8 @@ var CALENDAR_VISIT_SHEET_WORDS = {
     reminder: "Reminder",
     step: "Step",
     last: "Last in touch",
+    /** Their person was found as a lead (00426), and the sequence that took it in. */
+    origin: "Found as a lead",
     next: "Next",
     /** A booking tool's facts the title does not say (who with, what it costs): a request's as much as a booking's. */
     booked: "Booking",
@@ -31138,19 +31141,28 @@ function reminderOf(i, ended) {
   const runs = campaignRunsOn(before, { tz: i.tz, now: new Date(i.nowMs), dealsOn: i.dealsOn }) && !campaignEnded(before, shiftKey(i.day.key, -1));
   return runs ? SHEET_WORDS.reminder.rule(before.run_hour, name) : SHEET_WORDS.reminder.off(name);
 }
+function originOf(b) {
+  const o = b.origin;
+  if (!o) return null;
+  return o.sequence ? { value: o.sequence.name, route: sequenceRoute(o.sequence.id, "people") } : { value: o.lead.name, route: leadsRoute({ peek: o.lead.id }) };
+}
 function visitRowsOf(i, ended, facts) {
   const b = i.block;
   const booked = [b.staff ? `with ${b.staff}` : null, b.price].filter(Boolean).join(" \xB7 ");
+  const origin = originOf(b);
   const rows2 = [
     ["reminder", reminderOf(i, ended)],
     ["step", facts?.step ? `${facts.step.words} \xB7 ${facts.step.day.words}` : null],
     ["last", facts?.last ?? null],
+    ["origin", origin?.value ?? null, origin?.route],
     ["next", ended ? i.next : null],
     ["booked", b.tool && booked ? booked : null],
     ["where", b.location],
     ["notes", i.notes]
   ];
-  return rows2.flatMap(([key, value]) => value ? [{ key, label: SHEET_WORDS.rows[key], value }] : []);
+  return rows2.flatMap(
+    ([key, value, route]) => value ? [{ key, label: SHEET_WORDS.rows[key], value, ...route ? { route } : {} }] : []
+  );
 }
 function footnoteOf(i, nobody) {
   const b = i.block;

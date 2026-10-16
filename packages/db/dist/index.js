@@ -6582,10 +6582,39 @@ async function visitsOver(db, tenantId, fromIso, toIso) {
     ),
     readAllRows(
       "visits_over_feed",
-      (from, to) => db.from("appointments").select("id, status, external_id, starts_at").eq("tenant_id", tenantId).eq("source", "calendar_feed").is("vanished_at", null).gt("ends_at", fromIso).lt("starts_at", toIso).order("starts_at", { ascending: true }).order("id", { ascending: true }).range(from, to)
+      (from, to) => db.from("appointments").select("id, status, external_id, starts_at, lead_id").eq("tenant_id", tenantId).eq("source", "calendar_feed").is("vanished_at", null).gt("ends_at", fromIso).lt("starts_at", toIso).order("starts_at", { ascending: true }).order("id", { ascending: true }).range(from, to)
     )
   ]);
   return { noted, feed };
+}
+async function visitOrigins(db, tenantId, leadIds) {
+  const ids = [...new Set(leadIds)];
+  if (!ids.length) return [];
+  const [leads, enrolled] = await Promise.all([
+    db.from("leads").select("id, business_name").eq("tenant_id", tenantId).in("id", ids).is("erased_at", null).is("blanked_at", null),
+    db.from("sequence_enrollments").select("lead_id, sequence_id, entered_at").eq("tenant_id", tenantId).in("lead_id", ids).order("entered_at", { ascending: false })
+  ]);
+  if (leads.error) throw new Error(`visit_origins_leads: ${leads.error.message}`);
+  if (enrolled.error) throw new Error(`visit_origins_enrolled: ${enrolled.error.message}`);
+  const newest = /* @__PURE__ */ new Map();
+  for (const e of enrolled.data ?? []) if (e.lead_id && !newest.has(e.lead_id)) newest.set(e.lead_id, e.sequence_id);
+  const sequenceIds = [...new Set(newest.values())];
+  const named = /* @__PURE__ */ new Map();
+  if (sequenceIds.length) {
+    const seqs = await db.from("sequences").select("id, name").eq("tenant_id", tenantId).in("id", sequenceIds);
+    if (seqs.error) throw new Error(`visit_origins_sequences: ${seqs.error.message}`);
+    for (const q of seqs.data ?? []) named.set(q.id, q.name);
+  }
+  return (leads.data ?? []).filter((l) => l.business_name.trim()).map((l) => {
+    const sequence = newest.get(l.id) ?? null;
+    const name = sequence ? named.get(sequence) ?? null : null;
+    return {
+      lead_id: l.id,
+      lead_name: l.business_name.trim(),
+      sequence_id: name ? sequence : null,
+      sequence_name: name
+    };
+  });
 }
 var SAID_STATUSES = ["kept", "missed", "cancelled"];
 async function feedWordsOver(db, tenantId, fromIso, toIso) {
@@ -7338,6 +7367,7 @@ export {
   updateAppointment,
   updatePlaybook,
   usageMonth,
+  visitOrigins,
   visitsOver,
   waitingPlaybookRuns,
   waitingRunsOf,
