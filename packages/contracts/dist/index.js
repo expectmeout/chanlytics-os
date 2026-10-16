@@ -13157,7 +13157,7 @@ var FOLLOWUP_ECHO = [
 ];
 var unquoted = (s) => (s ?? "").replace(/“[^”]*”|"[^"]*"|«[^»]*»/g, "\u2026").replace(/(^|[\s:(])'[^']*\s[^']*'/g, "$1\u2026");
 var WRITE_CLAIMS = [
-  /\bI(?: have|['’]ve)? (?:sent|changed|updated|closed|snoozed|resolved|archived|invited|paused|deleted|approved|resumed|renamed|started|set up|turned on|scheduled|added|merged|recorded|replied|enrolled)\b/i,
+  /(?<!\b(?:should|shall|can|could|may|might|will|would|do|did)\s)\bI(?: have|['’]ve)? (?:sent|changed|updated|closed|snoozed|resolved|archived|invited|paused|deleted|approved|resumed|renamed|started|set up|turned on|scheduled|added|merged|recorded|replied|enrolled)\b(?!\s+(?:nothing|none|no)\b)/i,
   /\bhe (?:enviado|cambiado|actualizado|cerrado|aprobado|pausado|iniciado|configurado|programado|añadido|agregado|fusionado|registrado|respondido|inscrito)\b/i,
   /(?<![\p{L}\p{N}])aprob[eé](?![\p{L}\p{N}])/iu,
   /(?:^|[.!?]\s+)(?:all\s+)?done[,.!]/i
