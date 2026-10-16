@@ -24625,6 +24625,15 @@ function answerSoFar(say2, json, read, language) {
   const show = json ? partialShow(json, read, language) : null;
   return show && (show.figures.length || show.items.length) ? { ...say2, show } : say2;
 }
+var ASK_STOPPED_WORDS = {
+  en: "Stopped before the answer was finished.",
+  es: "Detenido antes de terminar la respuesta."
+};
+function stoppedAnswer(said, language) {
+  const a = failedAnswer(ASK_STOPPED_WORDS[language === "es" ? "es" : "en"], language);
+  const so = [said?.headline, said?.detail].filter(Boolean).join(" ");
+  return { ...a, say: { ...a.say, detail: clip(so, ASK_ANSWER_CAPS.detail) } };
+}
 
 // src/journey/journey-plan.ts
 var STAGE_WORDS = {
@@ -59597,6 +59606,7 @@ export {
   stepsStopSentence,
   stopRequestQuestion,
   stopToldBesideState,
+  stoppedAnswer,
   stoppedRunFix,
   storedAnswer,
   suggestLocalPart,

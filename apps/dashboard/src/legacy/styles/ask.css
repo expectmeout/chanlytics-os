@@ -30,7 +30,8 @@ body.ask-open .tb-ask .tb-ask-face { visibility: hidden; }
 .ask-stage-row { display: flex; align-items: center; gap: 12px; min-height: 68px; }
 .ask-stage-face { flex: none; display: block; width: 84px; height: 68px; }
 .ask-stage-canvas { display: block; width: 84px; height: 68px; }
-.ask-line-input { flex: 1; min-width: 0; height: 44px; border: 0; outline: 0; background: transparent; font: inherit; font-size: 20px; letter-spacing: -0.012em; color: var(--ink); }
+/* A field that grows with its words (ask-hooks.jsx useAskGrow), from one line to six, then scrolls: a pasted message keeps its lines. */
+.ask-line-input { flex: 1; min-width: 0; box-sizing: border-box; min-height: 44px; max-height: 164px; padding: 10px 0; line-height: 24px; resize: none; overflow-y: auto; border: 0; outline: 0; background: transparent; font: inherit; font-size: 20px; letter-spacing: -0.012em; color: var(--ink); }
 .ask-line-input::placeholder { color: var(--ink-dim); }
 .ask-stage.listening .ask-line-input::placeholder { color: var(--accent); }
 .ask-line-right { flex: none; display: flex; align-items: center; gap: 4px; }
@@ -127,7 +128,7 @@ body.ask-open .tb-ask .tb-ask-face { visibility: hidden; }
 /* ---- The answer: Say, Show and Do on a rail of the three's squares (spec S3) ---- */
 .ask-turn { display: flex; flex-direction: column; gap: 10px; padding: 16px 20px 18px; }
 .ask-fold .ask-turn { padding: 6px 20px 16px; }
-.ask-turn-q { margin: 0 0 2px 30px; font-size: 13px; color: var(--ink-dim); overflow-wrap: anywhere; }
+.ask-turn-q { margin: 0 0 2px 30px; font-size: 13px; color: var(--ink-dim); overflow-wrap: anywhere; white-space: pre-line; }
 .ask-answer { display: flex; flex-direction: column; gap: 22px; }
 .ask-part { position: relative; display: grid; grid-template-columns: 12px minmax(0, 1fr); column-gap: 18px; align-items: start; }
 .ask-part:not(:last-child)::before { content: ""; position: absolute; left: 5.5px; top: 22px; bottom: -22px; width: 1px; background: var(--line); }
@@ -402,7 +403,7 @@ body.ask-open .tb-ask .tb-ask-face { visibility: hidden; }
   /* While it listens the band stays drawn under the pill, hidden: the button in it holds the finger until the lift. */
   .ask-line .ask-stage.listening { display: none; }
   .ask-stage-row { min-height: 56px; gap: 8px; }
-  .ask-line-input { font-size: var(--field-text-touch); height: 44px; }
+  .ask-line-input { font-size: var(--field-text-touch); min-height: 44px; }
   .ask-send { width: 36px; height: 36px; }
   /* While it listens: "Let go to ask" where the field was, where the finger that held the mic lifts (spec 5.3). */
   .ask-letgo-wrap { order: 9; display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 0 16px 12px; }
@@ -422,7 +423,7 @@ body.ask-open .tb-ask .tb-ask-face { visibility: hidden; }
   .ask-line-body.thread .ask-now { display: flex; flex-direction: column; min-height: 100%; padding-top: 14px; }
   .ask-thread-turn { display: flex; flex-direction: column; padding-top: 14px; }
   /* Your words (D2): at the right, in the Inbox's own sent bubble; the answers are open. */
-  .ask-q { align-self: flex-end; max-width: 80%; margin: 0 16px 0 56px; padding: 10px 14px; border-radius: var(--radius-2xl) var(--radius-2xl) var(--radius-sm) var(--radius-2xl); border: 1px solid var(--bubble-us-line); background: var(--bubble-us-bg); font-size: 15px; line-height: 1.45; color: var(--ink); overflow-wrap: anywhere; }
+  .ask-q { align-self: flex-end; max-width: 80%; margin: 0 16px 0 56px; padding: 10px 14px; border-radius: var(--radius-2xl) var(--radius-2xl) var(--radius-sm) var(--radius-2xl); border: 1px solid var(--bubble-us-line); background: var(--bubble-us-bg); font-size: 15px; line-height: 1.45; color: var(--ink); overflow-wrap: anywhere; white-space: pre-line; }
   /* The three leading the newest answer (D3, D11): large while Ask reads; the moment its words arrive they stand at the
      answer's start, speaking (`sig speaking`), and stay there, still, once it is whole. One move: the stage narrows from
      the full width to the mark at its left edge as it shrinks, and the canvas fits its box every frame, so the three

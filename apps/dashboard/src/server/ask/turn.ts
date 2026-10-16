@@ -1,8 +1,12 @@
 import "server-only";
 import {
+  AppError,
+  MIN_MS,
+  answerText,
   dealsAreOn,
   detectLanguage,
   policyClassOffered,
+  stoppedAnswer,
   v1FromAnswer,
   type AskLanguage,
   type AskMessageVM,
@@ -90,13 +94,40 @@ export async function turnFacts(rc: ReaderContext): Promise<{ facts: WorkspaceFa
   return { facts: workspaceFacts(name, timezone, cfg?.config ?? null, rc.now, offered), timezone };
 }
 
+/** How long a question waits for the thread's last question to be answered, and how often it looks again. */
+const TURN_WAIT_MS = 3_000;
+const TURN_WAIT_STEP_MS = 250;
+
+/**
+ * Whether the thread's last row is a question still being answered: asked within the route's minute (a turn's own
+ * ceiling) with no answer after it. An older one never had an answer coming.
+ */
+const stillAnswering = (kept: { history: Array<{ role: string }>; sinceLastMs: number | null }): boolean =>
+  kept.history.at(-1)?.role === "user" && kept.sinceLastMs !== null && kept.sinceLastMs < MIN_MS;
+
+const BUSY_WORDS = {
+  en: "Ask is still answering your last question here. Ask again in a moment.",
+  es: "Ask todavía está respondiendo tu última pregunta aquí. Pregunta de nuevo en un momento.",
+};
+
 export async function prepareAskTurn(ctx: RouteContext, member: Member, ask: AskTurnAsk): Promise<PreparedTurn> {
   const { text, threadId, answering } = ask;
   const tenantId = member.tenantId;
 
   // The thread, before anything else: a question that could not be saved is
   // not answered, so a person never sees an answer they cannot find again.
-  const kept = await threadForTurn(ctx, { tenantId, threadId, text, scope: ask.scope, answering });
+  const asked = { tenantId, threadId, text, scope: ask.scope, answering };
+  let kept = await threadForTurn(ctx, asked);
+  // A question asked while the thread's last one is still being answered (another tab, or a question sent the moment
+  // after a Stop, before the stopped turn is saved) waits for that answer, so the thread is stored question, answer,
+  // question, answer, and this turn's history holds it. Still unanswered, it is refused in our words and nothing is
+  // saved. A spoken turn is the voice door's to order.
+  for (let waited = 0; !ask.spoken && stillAnswering(kept); waited += TURN_WAIT_STEP_MS) {
+    if (waited >= TURN_WAIT_MS)
+      throw new AppError("conflict", BUSY_WORDS[detectLanguage(text) === "es" ? "es" : "en"], 409);
+    await new Promise((resolve) => setTimeout(resolve, TURN_WAIT_STEP_MS));
+    kept = await threadForTurn(ctx, asked);
+  }
   // The thread's earlier turns: their lines, what they told and cited, the time since, and the chain while warm.
   const { thread, scope, ...earlier } = kept;
   await appendMessage(ctx, thread.id, tenantId, "user", { text, ...(answering ? { answering } : {}) });
@@ -110,12 +141,42 @@ export async function prepareAskTurn(ctx: RouteContext, member: Member, ask: Ask
   return { ctx, member, tenantId, ask, thread, scope, earlier, rc, facts, timezone, language, personLabel };
 }
 
-export async function finishAskTurn(p: PreparedTurn, emit: (ev: AskTurnLine) => void): Promise<AskTurnDone> {
+/**
+ * A turn the person stopped (the route's `stop`), however far it got: kept as stopped, with what its Say had written as
+ * the person read it (contracts stoppedAnswer), and none of what it made after (its cards, the turn as the model was
+ * sent it), so the thread opened again shows what they saw and the next question's history says it was stopped.
+ */
+function stoppedTurn(
+  result: TurnResult,
+  said: { headline: string; detail: string } | null,
+  language: AskLanguage,
+): TurnResult {
+  const answer = stoppedAnswer(said, language);
+  return {
+    ...result,
+    answer,
+    text: answerText(answer),
+    ungrounded: false,
+    proposals: [],
+    failed: true,
+    failure: "stopped",
+    shape: { ...result.shape, failed: true },
+    raw: null,
+  };
+}
+
+export async function finishAskTurn(
+  p: PreparedTurn,
+  emit: (ev: AskTurnLine) => void,
+  stop?: AbortSignal,
+): Promise<AskTurnDone> {
   const { ctx, member, tenantId, ask, thread: turn, scope, earlier, rc, facts, timezone, language, personLabel } = p;
   const { text, surface, context, openedMs, answering } = ask;
   emit({ t: "thread", id: turn.id, title: turn.title });
   const t0 = Date.now();
-  const result = await runAskTurn({
+  // The Say as the person last read it: an empty one took the answer back (loop.ts unsay).
+  let said: { headline: string; detail: string } | null = null;
+  const ran = await runAskTurn({
     ctx,
     tenantId,
     role: member.role,
@@ -130,11 +191,18 @@ export async function finishAskTurn(p: PreparedTurn, emit: (ev: AskTurnLine) => 
     openedMs,
     context,
     spoken: ask.spoken ?? false,
-    emit,
+    emit: (ev) => {
+      if (ev.t === "say")
+        said = ev.headline || ev.detail ? { headline: ev.headline ?? "", detail: ev.detail ?? "" } : null;
+      emit(ev);
+    },
     // One clock for the turn: the tools' today is the readers' today.
     now: rc.now,
     rc,
+    signal: stop,
   });
+  // Stopped, even past its last round: what the person saw is what the thread keeps.
+  const result = stop?.aborted ? stoppedTurn(ran, said, language) : ran;
   // The answer as the Line draws it, beside the v1 fields it gives (spec 5.8): the history, copy and search
   // read `text`, and the erase hook finds a person by the ids the sources carry.
   const v1 = v1FromAnswer(result.answer);

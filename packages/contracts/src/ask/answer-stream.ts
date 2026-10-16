@@ -4,9 +4,19 @@
  * figures and rows as each one closes (the end-to-end review, C1). With the answer tool (ASK_ANSWER_TOOL) the answer's
  * JSON streams on every round, so a figure or a row can be drawn the moment its object is whole rather than when the
  * final lands. Each is grounded exactly as the final will ground it (normalizeAnswer), so a row the turn did not read is
- * never drawn, not even for a moment. A preview: the final message is the truth. Pure.
+ * never drawn, not even for a moment. A preview: the final message is the truth. And the answer of a turn the person
+ * stopped while it was written (stoppedAnswer). Pure.
  */
-import { normalizeAnswer, sayAsDrawn, type AskFigure, type AskItem } from "./ask-answer";
+import {
+  ASK_ANSWER_CAPS,
+  clip,
+  failedAnswer,
+  normalizeAnswer,
+  sayAsDrawn,
+  type AskAnswer,
+  type AskFigure,
+  type AskItem,
+} from "./ask-answer";
 import type { AskLanguage } from "./ask-language";
 import type { AskReadSet } from "./citations";
 
@@ -150,4 +160,28 @@ export function answerSoFar(
 ): AskSayPreview {
   const show = json ? partialShow(json, read, language) : null;
   return show && (show.figures.length || show.items.length) ? { ...say, show } : say;
+}
+
+/* ------------------------------------------------------------- a stopped turn */
+
+/*
+ * A turn the person stopped (the Line's Stop): the Line draws it the moment Stop is pressed, and the turn's door keeps
+ * the same answer on the thread (the dashboard's server/ask/turn.ts), so the conversation opened again shows what the
+ * person saw, and the next question's history says the turn was stopped before its answer.
+ */
+
+/** What a stopped turn says, as its headline: to the person, and to the model reading the thread's history. */
+const ASK_STOPPED_WORDS = {
+  en: "Stopped before the answer was finished.",
+  es: "Detenido antes de terminar la respuesta.",
+} as const;
+
+/**
+ * A stopped turn's answer: marked failed by its message, the headline saying it was stopped, and what its Say had
+ * written so far under it, as the person read it. Nothing written yet leaves the headline alone.
+ */
+export function stoppedAnswer(said: { headline: string; detail: string } | null, language: AskLanguage): AskAnswer {
+  const a = failedAnswer(ASK_STOPPED_WORDS[language === "es" ? "es" : "en"], language);
+  const so = [said?.headline, said?.detail].filter(Boolean).join(" ");
+  return { ...a, say: { ...a.say, detail: clip(so, ASK_ANSWER_CAPS.detail) } };
 }

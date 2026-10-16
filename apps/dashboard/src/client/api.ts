@@ -60,6 +60,8 @@ interface Options<K extends RouteKey> {
   /** An undo names the decision it reverses (its id, from the commit's receipt); the ledger links the two rows. */
   undoOf?: string;
   timeoutMs?: number;
+  /** The caller's own way to end the request before its time: the Line's Stop. The timeout holds beside it. */
+  signal?: AbortSignal;
   /**
    * After a 2xx: re-read the surfaces the map names, and answer once they have landed (the default); a bulk verb
    * passes false and re-reads once at its end. "behind" re-reads them all the same but answers when the server
@@ -273,6 +275,21 @@ function oldestShared(inFlight: InFlight, t: number): number {
   return from;
 }
 
+/**
+ * A signal that ends the request at whichever comes first: its time, or the caller's own. A browser without
+ * AbortSignal.any (Safari before 17.4) is given one that follows both.
+ */
+function eitherSignal(timeout: AbortSignal, own: AbortSignal | undefined): AbortSignal {
+  if (!own) return timeout;
+  if (typeof AbortSignal.any === "function") return AbortSignal.any([timeout, own]);
+  const both = new AbortController();
+  for (const s of [timeout, own]) {
+    if (s.aborted) both.abort(s.reason);
+    else s.addEventListener("abort", () => both.abort(s.reason), { once: true });
+  }
+  return both.signal;
+}
+
 /** What a request is sent as: its method, its headers, its body, and how long it may take. */
 function initFor<K extends RouteKey>(key: K, opts: ApiOptions<K>): RequestInit {
   const { method } = ROUTES[key];
@@ -285,7 +302,10 @@ function initFor<K extends RouteKey>(key: K, opts: ApiOptions<K>): RequestInit {
     method,
     headers,
     ...(opts.body !== undefined ? { body: JSON.stringify(opts.body) } : {}),
-    signal: AbortSignal.timeout(opts.timeoutMs ?? (method === "GET" ? READ_TIMEOUT_MS : WRITE_TIMEOUT_MS)),
+    signal: eitherSignal(
+      AbortSignal.timeout(opts.timeoutMs ?? (method === "GET" ? READ_TIMEOUT_MS : WRITE_TIMEOUT_MS)),
+      opts.signal,
+    ),
   };
 }
 
