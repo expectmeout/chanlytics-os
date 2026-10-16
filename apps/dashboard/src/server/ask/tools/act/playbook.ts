@@ -27,7 +27,6 @@ import {
   proposalChannelsWords,
   purposeOfPlaybook,
   readyOrWhatsApp,
-  saidYesWords,
   scheduleLine,
   slotLabels,
   starterByKey,
@@ -87,6 +86,7 @@ import {
   trialOf,
   underMode,
   wordedMoment,
+  yesSaid,
   type Trigger,
 } from "./playbook-card";
 import { cardSays, stepSays } from "./says";
@@ -448,14 +448,8 @@ async function proposeOnStarter(
     gap_days: PLAYBOOK_DEFAULTS.gapDays,
     cadence_days: PLAYBOOK_DEFAULTS.cadenceDays,
   };
-  const reach = await reachNow(
-    t,
-    trig,
-    listRef,
-    { category: starter.category },
-    { channels, ready: read.ready, about: read.about },
-    clock.cap_per_run,
-  );
+  const how = { channels, ready: read.ready, about: read.about };
+  const reach = await reachNow(t, trig, listRef, { category: starter.category }, how, clock.cap_per_run);
   if ("refusal" in reach) return refuse(reach.refusal);
   const { drawn, reading, policies, listLabel } = reach;
   const held = await allowanceHeld(t, channels, reading, clock, purposeOfPlaybook(cls));
@@ -471,7 +465,7 @@ async function proposeOnStarter(
   return propose({
     kind: "playbook",
     title: `Campaign: ${name || moment.label}`,
-    summary: `${listLabel ? `On ${listLabel}` : `${moment.label} — ${moment.hint.toLowerCase()}`} · ${scheduleLine(clock, word)}${breathSaid(trig)}${endSaid(t, input.until)} · ${LIBRARY_STARTER_WORDS.addsFirst(starter.title)} · ${proposalChannelsWords(channels, reachByChannel(drawn.reach.by_channel))}${waits} · ${held}${saidYesWords("the list", purposeOfPlaybook(cls), drawn.reach.will, drawn.saidYes)} · ${trial.said}${under.said}`,
+    summary: `${listLabel ? `On ${listLabel}` : `${moment.label} — ${moment.hint.toLowerCase()}`} · ${scheduleLine(clock, word)}${breathSaid(trig)}${endSaid(t, input.until)} · ${LIBRARY_STARTER_WORDS.addsFirst(starter.title)} · ${proposalChannelsWords(channels, reachByChannel(drawn.reach.by_channel))}${waits} · ${held}${yesSaid(purposeOfPlaybook(cls), drawn, how)} · ${trial.said}${under.said}`,
     payload: {
       ...clock,
       trigger_label: moment.label,
@@ -571,7 +565,7 @@ async function proposeOnStep(
   return propose({
     kind: "playbook",
     title: `Campaign: ${name ?? moment.label}`,
-    summary: `${listLabel ? `On ${listLabel}` : `${moment.label} — ${moment.hint.toLowerCase()}`} · ${scheduleLine(clock, word)}${breathSaid(trig)}${endSaid(t, input.until)}${goes} · ${waiting}${saidYesWords("the list", purposeOfPlaybook(cls), drawn.reach.will, drawn.saidYes)} · ${trial.said}${under.said} Says: ${stepSays(step, specs)}`,
+    summary: `${listLabel ? `On ${listLabel}` : `${moment.label} — ${moment.hint.toLowerCase()}`} · ${scheduleLine(clock, word)}${breathSaid(trig)}${endSaid(t, input.until)}${goes} · ${waiting}${yesSaid(purposeOfPlaybook(cls), drawn, how)} · ${trial.said}${under.said} Says: ${stepSays(step, specs)}`,
     payload: {
       ...clock,
       trigger_label: moment.label,
@@ -660,7 +654,7 @@ async function proposePlaybook(t: ToolContext, proposed: PlaybookProposed): Prom
   return propose({
     kind: "playbook",
     title: `Campaign: ${checked.name}`,
-    summary: `${listLabel ? `On ${listLabel}` : `${moment.label} — ${moment.hint.toLowerCase()}`} · ${scheduleLine(checked, word)}${breathSaid(trig)}${endSaid(t, input.until)}${goes} · ${waiting}${saidYesWords("the list", purposeOfPlaybook(cls), drawn.reach.will, drawn.saidYes)} · ${trial.said}${under.said} Says: ${said.says}`,
+    summary: `${listLabel ? `On ${listLabel}` : `${moment.label} — ${moment.hint.toLowerCase()}`} · ${scheduleLine(checked, word)}${breathSaid(trig)}${endSaid(t, input.until)}${goes} · ${waiting}${yesSaid(purposeOfPlaybook(cls), drawn, how)} · ${trial.said}${under.said} Says: ${said.says}`,
     payload: {
       trigger: trig.id,
       trigger_label: moment.label,

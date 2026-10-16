@@ -57,6 +57,7 @@ import {
   v1FromAnswer,
   EVERYONE_LABEL,
   NO_NUMBER_REACH,
+  noChannelWords,
   noNumberWords,
   toPersonVM,
   toPersonRowVM,
@@ -4831,6 +4832,97 @@ test("REGRESSION: a proposed playbook's card says who said yes apart from who a 
   assert.ok(reaches.includes(" · 1 person on the list said yes to offers · "), reaches);
 });
 
+/**
+ * The operator stress run's workspace (15 Oct 2026): a US WhatsApp number, where Meta has paused offers (contracts
+ * whatsapp-offers.ts), and 26 people, each with a number and both yeses. People said 26 had said yes to offers; Ask said 0.
+ */
+const usNumberWorld = () => {
+  const people = Array.from({ length: 26 }, (_, i) =>
+    peopleListRow({
+      id: `cccccccc-cccc-4ccc-8ccc-${String(i).padStart(12, "0")}`,
+      display_name: `Person ${i + 1}`,
+      phone_e164: `+155555501${String(i).padStart(2, "0")}`,
+      marketing_consent: "opted_in",
+      marketing_consent_source: "customer_message",
+      marketing_consent_updated_at: iso(NOW.getTime() - 20 * 86_400_000),
+    }),
+  );
+  const t = tables({
+    tenant_channels: [{ ...WHATSAPP_NUMBER, number_e164: "+19295550198" }],
+    templates: [
+      {
+        id: TPL,
+        tenant_id: A,
+        channel: "whatsapp",
+        name: "saturday_hours",
+        language: "en",
+        meta_status: "approved",
+        category: "MARKETING",
+        variables: [],
+        body_preview: "We are open Saturday 9 to 5.",
+        hidden_at: null,
+      },
+    ],
+  });
+  return newToolContext(ctxFor(t, { ...RPCS, people_list: () => people }), A, "owner", TZ, NOW);
+};
+
+test("REGRESSION: on a US WhatsApp number the lists read says 26 said yes to offers and none can be sent one, and what is missing -- it read 'said_yes_to_offers: 0', and Ask told the owner nobody had said yes", async () => {
+  const tc = usNumberWorld();
+  const out = await runTool(tc, { name: "sequences", input: { action: "lists" } });
+  assert.equal(out.isError, false, out.result);
+  const read = JSON.parse(out.result);
+  const everyone = read.audiences.find((x) => x.label === EVERYONE_LABEL);
+  assert.deepEqual(
+    [
+      everyone.said_yes_to_offers,
+      everyone.can_be_sent_offers,
+      everyone.said_yes_to_messages,
+      everyone.can_be_sent_messages,
+    ],
+    [26, 0, 26, 26],
+    "REGRESSION: a yes counted only where a channel could carry it, so Meta's pause read as nobody's yes",
+  );
+  // What they lack is a channel, never a yes and never a number: People's own words, and the Broadcasts page's sentence
+  // naming each channel.
+  assert.equal(everyone.why_none_offers, noChannelWords(`“${EVERYONE_LABEL}”`, "marketing"));
+  assert.ok(!("why_none_messages" in everyone), "a message reaches all 26: nothing is missing");
+  assert.match(read.offers_go_by, /Meta has paused offers on WhatsApp to US numbers/);
+  // One fact, one count: the winners read counts the same yes.
+  const winners = await runTool(tc, { name: "people", input: { action: "winners" } });
+  assert.equal(winners.isError, false, winners.result);
+  assert.equal(JSON.parse(winners.result).groups.said_yes_to_offers, 26);
+});
+
+test("REGRESSION: on a US WhatsApp number the moments read says 26 said yes to the month's offer and a run reaches none -- it read 'said_yes_now: 0', the Playbooks page's chip, which offered the owner a yes they had", async () => {
+  const out = await runTool(usNumberWorld(), { name: "sequences", input: { action: "moments" } });
+  assert.equal(out.isError, false, out.result);
+  const monthly = JSON.parse(out.result).triggers.find((x) => x.trigger === "everyone_monthly");
+  assert.deepEqual(
+    [monthly.said_yes_now, monthly.can_be_sent_now],
+    [26, 0],
+    "REGRESSION: the pause read as nobody's yes",
+  );
+});
+
+test("REGRESSION: on a US WhatsApp number a proposed playbook's card says 26 said yes and names the channel that holds them -- it said '0 people on the list said yes to offers'", async () => {
+  const r = await buildProposal(usNumberWorld(), "propose_sequence", {
+    action: "moment",
+    trigger: "everyone_monthly",
+    template_id: TPL,
+    params: [],
+  });
+  assert.equal(r.isError, false, r.result);
+  const { summary } = r.proposal;
+  assert.ok(!summary.includes("0 people on the list said yes"), `REGRESSION: ${summary}`);
+  assert.ok(
+    summary.includes(
+      " · 26 people on the list said yes to offers, none can be sent an offer — Meta has paused offers on WhatsApp to US numbers. Appointment messages and replies still go. · ",
+    ),
+    summary,
+  );
+});
+
 test("what the model reads before any send tells nobody's yes from a yes with no number to send to: since PR 3.3 the rule is the lists read's and propose_sequence's descriptions (once campaigns.audiences' and propose_campaign.broadcast's), and no rule of the prompt's", () => {
   assert.ok(!ASK_RULES.some((r) => r.includes("never propose a send to nobody")), "out of the rules");
   const audiences = READ_TOOLS.find((d) => d.name === "sequences").description;
@@ -7009,12 +7101,18 @@ test("a read the page tolerates, Ask tolerates as the page does and says so: a f
   assert.deepEqual(without(s, "channels", "could_not_read"), without(settings, "channels"), "the rest still answers");
   const a = parsed(noChannels.out["sequences.lists"]);
   assert.equal(noChannels.out["sequences.lists"].isError, false, noChannels.out["sequences.lists"].result);
+  // Which channels carry offers is said of the channels too (offers_go_by): unread, it is not said, never guessed.
+  assert.ok(typeof listing.offers_go_by === "string", listing.offers_go_by);
   assert.deepEqual(
-    [a.number, a.could_not_read],
-    [null, ["The WhatsApp number's state could not be read just now."]],
+    [a.number, a.could_not_read, a.offers_go_by],
+    [null, ["The WhatsApp number's state could not be read just now."], undefined],
     "no number known, never 'no number'",
   );
-  assert.deepEqual(without(a, "number", "could_not_read"), without(listing, "number"), "the audiences still answer");
+  assert.deepEqual(
+    without(a, "number", "could_not_read"),
+    without(listing, "number", "offers_go_by"),
+    "the audiences still answer",
+  );
   assert.equal(
     noChannels.ctx.supabase.seen.filter((q) => q.table === "tenant_channels" && q.op === "select").length,
     3,

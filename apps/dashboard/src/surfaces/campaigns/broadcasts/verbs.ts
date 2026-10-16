@@ -14,6 +14,8 @@ import {
   broadcastFailureWords,
   heardWords,
   noNumberWords,
+  noChannelWords,
+  NO_CHANNEL_REACH,
   saidYesWords,
   toApprovalVM,
   toRunReportVM,
@@ -67,6 +69,10 @@ export const broadcasts = {
   failureWords: broadcastFailureWords,
   /** Why nobody on an audience can be sent it when somebody on it said yes -- no number to send to -- in People's words. */
   noNumberWords,
+  /** The same, where what they lack is a channel the send can go by now (Meta's pause on offers to US numbers). */
+  noChannelWords,
+  /** Why, in the pages' one sentence, after the count of who said yes when no channel can carry it. */
+  NO_CHANNEL_REACH,
   /** How many on an audience said yes, as the line under it says it: the reach, and who said yes when nobody can be sent it. */
   saidYesWords,
   /** How many of those it reaches heard from a run this week, in the composer's words: left out while it breathes. */

@@ -9,7 +9,15 @@ import { saidYesTo } from "../people/person-consent";
 import type { PersonRowVM } from "../people/person-row";
 import type { RunReach } from "../playbooks/playbooks";
 import { firstNameOf } from "../templates/templates";
-import { type ChannelsReady, channelRefuses, type HeldOn, reachFor, type ReachSplit, reachSplit } from "./reach-for";
+import { answeredYes } from "./reach-any";
+import {
+  type ChannelsReady,
+  channelNeverCarries,
+  type HeldOn,
+  reachFor,
+  type ReachSplit,
+  reachSplit,
+} from "./reach-for";
 import type { HeardTouch } from "./run-words";
 
 export type AudienceKind = "everyone" | "list" | "saved" | "playbook";
@@ -141,16 +149,20 @@ export function enrolFor(
 }
 
 /**
- * Whether a person said the yes this message needs on any channel the send could reach them on, a way to reach them
- * on it or not: the half of reaching them that is an answer they gave (#663's rule, per channel).
+ * Whether a person said the yes this message needs on any channel the send goes by that ever carries it, a way to reach
+ * them on it or not, and whether or not the workspace can send it there now: the half of reaching them that is an answer
+ * they gave (#663's rule, per channel). It asked the workspace too, so under Meta's pause on offers to US numbers every
+ * yes read as none, and every page sent the owner to get yeses they had (the operator stress run, 15 Oct 2026). The answer
+ * itself is asked (answeredYes, People's column), so a channel that asks no yes (an email about their visit) never makes
+ * someone who gave none read as a yes.
  */
 export function saidYesOnAny(r: PersonRowVM, purpose: AskedPurpose, how: CampaignHow): boolean {
-  return CONSENT_CHANNELS.some(
-    (c) =>
-      how.channels.includes(c) &&
-      how.ready[c].ready &&
-      channelRefuses(c, purpose, how.about, how.ready) === null &&
-      saidYesTo(r, purpose, c, how.about),
+  return (
+    answeredYes(r, purpose) &&
+    CONSENT_CHANNELS.some(
+      (c) =>
+        how.channels.includes(c) && channelNeverCarries(c, purpose) === null && saidYesTo(r, purpose, c, how.about),
+    )
   );
 }
 
@@ -256,9 +268,10 @@ export interface AudiencePreview {
   sending: number;
   held: number;
   /**
-   * How many in the list said yes to what this message needs, a number to send it to or not: `sending` is those
-   * with one. When nobody can be sent it, this tells the two causes apart -- nobody said yes (get their yes), or the
-   * ones who did have no number, whom a door to "get their yes" would ask for an answer they gave (#663's rule).
+   * How many in the list said yes to what this message needs, a number to send it to or not, a channel open to carry
+   * it now or not (saidYesOnAny): `sending` is those it reaches. When nobody can be sent it, this tells the causes apart
+   * -- nobody said yes (get their yes), or the ones who did have no number, or no channel can carry it now (`split`'s
+   * no_channel), whom a door to "get their yes" would ask for an answer they gave (#663's rule).
    */
   saidYes: number;
   /**
