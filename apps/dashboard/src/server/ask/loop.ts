@@ -48,7 +48,7 @@ import {
 } from "./tools";
 import { stableSystem, systemBlocks, systemHash, turnWords, type WorkspaceFacts } from "./prompt";
 import { buildContext, shapeBlock, type BuiltContext, type SearchResultBlock } from "./context";
-import { crossPagePlan, readBlock, scopedRead } from "./cross-page";
+import { crossPagePlan, readBlock, scopedRead, withSkillGuides } from "./cross-page";
 import { shape as shapeReader } from "../readers/shape";
 import { argsOf, cutOff, replayBlocks, resultBlocks, runRound, type RoundBlock } from "./round";
 import { askModel } from "./model";
@@ -212,12 +212,15 @@ export function askPorts(): AskPorts {
 /**
  * What the turn's tools run with, as the person, its read set starting with the rows the thread's earlier answers cited
  * (the Phase 5 plan, D5): one of them is cited and opened without a read, and any read this turn makes of one -- the
- * page's, another page's, a tool's -- replaces its ref with the fresh one.
+ * page's, another page's, a tool's -- replaces its ref with the fresh one. A craft call reads the question in the
+ * person's own words and ends before the turn does (`endsAt`, the turn's budget from its start).
  */
-function toolContextOf(input: TurnInput, now: Date): ToolContext {
+function toolContextOf(input: TurnInput, now: Date, endsAt: number): ToolContext {
   const tc = {
     ...newToolContext(input.ctx, input.tenantId, input.role, input.timezone, now, input.rc),
     language: input.language,
+    question: input.text,
+    endsAt,
   };
   noteRows(tc.read, input.cited ?? []);
   return tc;
@@ -227,7 +230,8 @@ function toolContextOf(input: TurnInput, now: Date): ToolContext {
  * This turn's words, as the text block before the question (prompt.ts turnWords): who is asking, where, when, the row
  * their words point at and whether the read set holds it, and -- while the question still carries it (`dataDropped`
  * false) -- that the data before them is read already: the page's, the reads made for another page, the scope's row.
- * A live turn's also say what happened since (D8). Made once the read set holds every read before the model's.
+ * A live turn's also say what happened since (D8). Made once the read set holds every read before the model's. The guide
+ * of a skill the question asks for follows them (cross-page.ts withSkillGuides).
  */
 function wordsBlock(
   input: TurnInput,
@@ -254,7 +258,7 @@ function wordsBlock(
     spoken: input.spoken ?? false,
     above: aboveRoleWords(input.role),
   };
-  return (live: boolean, dataDropped: boolean) => ({
+  const words = (live: boolean, dataDropped: boolean) => ({
     type: "text",
     text: turnWords({
       ...facts,
@@ -265,6 +269,7 @@ function wordsBlock(
       scopeRead: !dataDropped && !!rode.scopedRow,
     }),
   });
+  return withSkillGuides(words, input.text);
 }
 
 /**
@@ -370,7 +375,7 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
   const model = askModel();
   const now = input.now ?? new Date();
   const es = input.language === "es";
-  const tc = toolContextOf(input, now);
+  const tc = toolContextOf(input, now, t0 + budgetMs);
   const toolsUsed: string[] = [];
   const [proposals, planWords]: [AskProposal[], PlanSaid[]] = [[], []]; // its cards, and its plans' words (roundPlan)
   const unmade = turnUnmade(); // what was asked that no card carries, which the answer must say

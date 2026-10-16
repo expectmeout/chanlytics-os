@@ -274,6 +274,26 @@ test("a workspace whose settings cannot be read keeps the first draft: no words 
   assert.equal(calls.length, 0);
 });
 
+test("in a turn the writer reads the owner's own words, and ends before the turn the loop hands it", async () => {
+  modelSays(WRITTEN);
+  const question = "Send our regulars 15% off everything this October";
+  const t = { ...contextOf(world()), question, endsAt: Date.now() + C.ASK_TURN_BUDGET_MS };
+  const made = await messageAction.build(t, messageAction.input.parse(ASKED));
+  assert.equal(made.isError, false, made.result);
+  assert.match(
+    calls[0].request.messages[0].content,
+    new RegExp(`What the owner asked Ask, in their own words: "${question}"`),
+  );
+
+  readerCache.clear();
+  calls = [];
+  // A turn whose end is near (a spoken one, or one far along): too little left to write in, nothing asked.
+  const late = { ...contextOf(world()), question, endsAt: Date.now() + 15_000 };
+  const kept = await messageAction.build(late, messageAction.input.parse(ASKED));
+  assert.deepEqual(kept.proposal.payload.versions, ASKED.versions);
+  assert.equal(calls.length, 0);
+});
+
 test("a plan's message step is written too, as the shell its later offers reuse: around the offer's value, its values kept", async () => {
   const shell = {
     name: "offer",
@@ -294,7 +314,7 @@ test("a plan's message step is written too, as the shell its later offers reuse:
   const written = {
     ...WRITTEN,
     whatsapp: {
-      body: "Hi {{1}}, something from all of us at {{2}}: {{3}}\n\nPick a time here: {{4}}, or reply with a day that suits you.\n\nReply STOP to opt out",
+      body: "Hi {{1}}, all of us at {{2}} have something for you this time: {{3}}\n\nPick a time here: {{4}}, or reply with a day that suits you.\n\nReply STOP to opt out",
     },
     email: { subject: "", body: "" },
   };

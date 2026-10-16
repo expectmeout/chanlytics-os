@@ -1,6 +1,6 @@
 import "server-only";
 import { z } from "zod";
-import { ASK_GUIDE_PAGES, type AskProposal } from "@chanlytics/contracts";
+import { ASK_GUIDE_PAGES, ASK_SKILL_IDS, isAskSkillId, skillGuide, type AskProposal } from "@chanlytics/contracts";
 import { load } from "../../../readers";
 import { connections } from "../../../readers/connections";
 import { NO_ACTION, defineRead, offeredTo, unread, type ActTool, type ToolContext } from "../context";
@@ -54,7 +54,17 @@ function kindsAsked(t: ToolContext): Map<AskProposal["kind"], string[]> {
   return out;
 }
 
-async function readGuide(t: ToolContext): Promise<unknown> {
+/**
+ * One of Ask's skills, by its id (contracts ask-skills): its guide, what Ask hands the skill and decides itself. A name
+ * that is no skill is said with the names there are, never answered with the product's guide in its place.
+ */
+function skillRead(skill: string): unknown {
+  if (!isAskSkillId(skill)) return { error: `No skill is called ${skill}. The skills: ${ASK_SKILL_IDS.join(", ")}.` };
+  return { skill, guide: skillGuide(skill) };
+}
+
+async function readGuide(t: ToolContext, input: { skill?: string | undefined }): Promise<unknown> {
+  if (input.skill) return skillRead(input.skill);
   const asked = kindsAsked(t);
   const setup = await load(t.rc, connections, undefined).then((r) => r.data.setup, unread(t, "guide", "setup"));
   const missing: string[] = [];
@@ -104,8 +114,8 @@ async function readGuide(t: ToolContext): Promise<unknown> {
 export const guideTool = defineRead({
   name: "guide",
   description:
-    "How Chanlytics works, page by page, for this member: what each page is for, what you can do there for them by card (tool and action), what stays on the page and why, and what Setup says is missing and what each missing piece stops. Read it when they ask what you can do, where something is, or how to start; for a new owner, before anything else. It takes nothing and changes nothing.",
-  input: z.object({}),
+    "How Chanlytics works, page by page, for this member: what each page is for, what you can do there for them by card (tool and action), what stays on the page and why, and what Setup says is missing and what each missing piece stops. Read it when they ask what you can do, where something is, or how to start; for a new owner, before anything else. With skill customer_message it answers that skill's guide instead: what to hand the writer that rewrites a message's words for customers. It changes nothing.",
+  input: z.object({ skill: z.string().optional() }),
   label: "Reading how it works",
   run: readGuide,
 });

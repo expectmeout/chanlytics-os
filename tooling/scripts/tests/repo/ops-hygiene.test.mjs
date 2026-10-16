@@ -16,6 +16,7 @@ import fs from "node:fs";
 import path from "node:path";
 import ts from "typescript";
 import { ROOT, readRaw } from "../_source.mjs";
+import { edgeFunctions } from "../../edge-functions.mjs";
 import { importsOf, parse, repoFiles, stringsIn } from "../_ast.mjs";
 import {
   LEASE_SECONDS,
@@ -173,8 +174,8 @@ test("the nightly checks Ask's day against its lines (the Ask Rewired Phase 6 pl
   assert.ok(y.includes("issues: write"));
 });
 
-/** The edge's time limits, from where Vercel reads them. */
-const FUNCTIONS = JSON.parse(readRaw("apps/edge/vercel.json")).functions;
+/** The edge's time limits, from where the edge's build reads them (apps/edge/vercel.json). */
+const FUNCTIONS = edgeFunctions();
 
 test("a claimed job's lease outlives the function that runs it", () => {
   // api/jobs/tick.ts claims a job and runs it inside one function. A lease

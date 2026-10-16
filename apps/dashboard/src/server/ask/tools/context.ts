@@ -84,6 +84,16 @@ export interface ToolContext {
    * step stands in for an id that step makes (stepNamed). Absent everywhere else, where a token names nothing.
    */
   step?: number;
+  /**
+   * What the person asked, in their own words (the turn's question), where a turn runs the tool: what a skill's craft
+   * call reads beside the card's own draft (ask/skills). Absent outside a turn.
+   */
+  question?: string;
+  /**
+   * When the turn's own time runs out (loop.ts budgetOf, a typed turn's or a spoken one's, from its start), where a turn
+   * runs the tool: a craft call made inside the turn ends before it. Absent outside a turn.
+   */
+  endsAt?: number;
 }
 
 export interface ToolOutcome {

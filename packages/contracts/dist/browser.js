@@ -20424,8 +20424,8 @@ var CUSTOMER_MESSAGE_SKILL = {
     {
       title: "The draft and its facts",
       lines: [
-        "The draft says what the owner wants said. Keep every fact in it: the offer and its exact figure, the days, the service, who it is for. Add none.",
-        "A thin draft becomes a fuller message from the same facts, never from new ones.",
+        "The draft says what the owner wants said: Ask wrote it from their words, which you are given too where they asked. Keep every fact in the draft (the offer and its exact figure, the days, the service, who it is for), and a fact of theirs the draft left out. Add none.",
+        "A thin draft becomes a fuller message from the same facts. Fuller means clearer and warmer: a greeting, the point, the one call to act, a sign-off. It never adds what the draft does not say: a reason or a benefit ('a meeting gives us time to go through it'), an option or a service ('reply and we'll find you another time'), or how the person felt or how it went for them ('we had a great time with them').",
         "Its kind (marketing or utility), its language and its values are decided: write within them.",
         "Call an offer what the draft calls it. Words such as discount, coupon, promotion or free appear only where the draft has them."
       ]
@@ -20449,7 +20449,7 @@ var CUSTOMER_MESSAGE_SKILL = {
       lines: [
         "WhatsApp's reviewers read it before it can be sent; then the customer reads it on their phone.",
         "Under 600 characters reads best; never over 1,024.",
-        "Every value given appears in it, with words around it: never at the very start or the very end, never two values side by side.",
+        "Every value given appears in it, with words around it: never at the very start or the very end, never two values with only a space or a mark between them ('{{2}}: {{3}}').",
         "Marketing (an offer, news, an invitation): its last line, after a blank line, is exactly the opt-out line given, and nothing follows it.",
         "Utility (about their own booking, order or account): about that one thing. No offer, no news, no 'while you are here', no opt-out line. WhatsApp moves a utility message that promotes anything to marketing, or refuses it.",
         "Specific: its point is in its own words, never only in its values. Line breaks between ideas, never more than one blank line in a row."
@@ -20491,6 +20491,7 @@ var CUSTOMER_MESSAGE_SKILL = {
   ],
   never: [
     "A price, a percentage, a discount, a free thing, a date, a deadline, a countdown, a number of places left or a promise the draft does not hold.",
+    "An option, a service or a reason the draft does not give (rescheduling by reply, a callback, why it is worth booking), or a claim about how the person felt or how it went for them.",
     "A number the draft does not hold, written in figures or in words.",
     "A claim about health, results or safety.",
     "Asking for a card number, a password or any payment detail.",
@@ -20523,12 +20524,12 @@ var CUSTOMER_MESSAGE_SKILL = {
         "The business calls a booking: appointment (in Spanish, cita).",
         "Values: {{1}} their first name; {{2}} the business's name; {{3}} their booked time.",
         "Text room: about 75 characters besides its values.",
-        "Draft WhatsApp: Hola {{1}}! Te esperamos en {{2}} el {{3}}. Aprovecha y pregunta por nuestras novedades!",
+        "Draft WhatsApp: Hola {{1}}! Te esperamos en {{2}} el {{3}}. Si necesitas cambiarla, responde a este mensaje. Aprovecha y pregunta por nuestras novedades!",
         "Draft text: Hola {{1}}, recuerda tu cita en {{2}} el {{3}}."
       ].join("\n"),
       answer: [
-        "WhatsApp: Hola {{1}}, le recordamos su cita en {{2}} el {{3}}.\\n\\nSi necesita cambiarla, responda a este mensaje y le ofrecemos otro horario.",
-        "Text: {{2}}: {{1}}, le recordamos su cita el {{3}}. Para cambiarla, responda a este mensaje.",
+        "WhatsApp: Hola {{1}}, le recordamos su cita en {{2}} el {{3}}.\\n\\nSi necesita cambiarla, responda a este mensaje.",
+        "Text: {{2}}: hola {{1}}, le recordamos su cita el {{3}}. Para cambiarla, responda a este mensaje.",
         "could_not: Dej\xE9 fuera la invitaci\xF3n a preguntar por novedades: un recordatorio no puede promocionar nada."
       ].join("\n")
     },
@@ -20542,7 +20543,7 @@ var CUSTOMER_MESSAGE_SKILL = {
         "Draft WhatsApp: Hi {{1}}, an offer from {{2}}: {{3}} Book here: {{4}} or reply with a day that suits you.\\n\\nReply STOP to opt out"
       ].join("\n"),
       answer: [
-        "WhatsApp: Hi {{1}}, something from all of us at {{2}}: {{3}}\\n\\nPick a time here: {{4}}, or reply with a day that suits you.\\n\\nReply STOP to opt out",
+        "WhatsApp: Hi {{1}}, all of us at {{2}} have something for you this time: {{3}}\\n\\nPick a time here: {{4}}, or reply with a day that suits you.\\n\\nReply STOP to opt out",
         "could_not: (empty)"
       ].join("\n")
     }
@@ -22823,6 +22824,45 @@ var ES = {
   whatsappReview: "Su versi\xF3n de WhatsApp espera la revisi\xF3n de WhatsApp, que puede seguir en el primer env\xEDo: quien la reciba por WhatsApp espera a que termine.",
   reminderAsk: (day, list2) => `El ${day}, p\xEDdeme que env\xEDe un recordatorio a quien de \xAB${list2}\xBB no haya reservado para entonces.`
 };
+var edged = (alternatives) => new RegExp(`(?<![\\p{L}\\p{N}])(?:${alternatives.join("|")})(?![\\p{L}\\p{N}])`, "iu");
+var AWAY = edged([
+  "tomorrow",
+  "yesterday",
+  "(?:next|coming) (?:week|weekend|month|year)",
+  "in (?:a|one|two|three|\\d+) (?:days?|weeks?|months?)",
+  "pasado ma\xF1ana",
+  "(?<!(?:la|de|por|esta) )ma\xF1ana",
+  "ayer",
+  "(?:el |la )?pr\xF3xim[oa] (?:semana|fin de semana|mes|a\xF1o)",
+  "(?:la semana|el fin de semana|el mes|el a\xF1o) que viene",
+  "dentro de (?:un|una|dos|tres|\\d+) (?:d\xEDas?|semanas?|meses?)"
+]);
+var WITHIN = {
+  day: (from, until) => from === until,
+  week: (from, until) => mondayOf(from) === mondayOf(until),
+  // A weekend's days are its week's Friday to Sunday.
+  weekend: (from, until) => mondayOf(from) === mondayOf(until) && from >= shiftKey(mondayOf(from), 4),
+  month: (from, until) => from.slice(0, 7) === until.slice(0, 7),
+  year: (from, until) => from.slice(0, 4) === until.slice(0, 4)
+};
+var THIS = [
+  ["day", edged(["today", "tonight", "this (?:morning|afternoon|evening)", "hoy", "esta (?:noche|tarde|ma\xF1ana)"])],
+  ["weekend", edged(["this weekend", "este fin de semana"])],
+  ["week", edged(["this week", "esta semana"])],
+  ["month", edged(["this month", "este mes"])],
+  ["year", edged(["this year", "este a\xF1o"])]
+];
+var THE_ASK = /^\s*(?:i want|i'd like|i would like|we want|we'd like|let's|can you|please|quiero|queremos|me gustaría|nos gustaría|puedes|por favor)\b/iu;
+function dayReadWrong(text, from, until) {
+  const away = AWAY.exec(text)?.[0];
+  if (away) return away;
+  for (const [span2, words2] of THIS) {
+    const said = words2.exec(text)?.[0];
+    if (said && !WITHIN[span2](from, until)) return said;
+  }
+  return null;
+}
+var isTheAsk = (text) => THE_ASK.test(text);
 var OFFER_PLAN_WORDS = { en: EN, es: ES };
 
 // src/journey/journey-plan.ts
@@ -23052,6 +23092,8 @@ var unreadWords = (what) => `${what} could not be read just now, so nothing was 
 var PLAN_WORDS = {
   noOffer: "intent offer takes offer: its words, from and until, the offer's first and last day. Ask what the offer is and when it runs.",
   noWords: "words is the offer in the owner's words: ask what the offer is.",
+  /** The offer's words say a day from today that its message, note and send, first read on its first day, misread. */
+  dayFromToday: (phrase, from) => `\u201C${phrase}\u201D is said from today, and the offer is first read on ${from}, when it means another day: give words (and say) its days as a customer reads them then (\u201Call November\u201D, never \u201Cnext month\u201D), and call again.`,
   notADay: "from and until are days on the business's calendar, written YYYY-MM-DD: ask for them again.",
   fromAfterUntil: "until comes before from: an offer's last day is its first day or later. Ask which dates they meant.",
   fromPast: "from is a day already past on the business's calendar: an offer starts today or later. Ask when it starts.",
@@ -23160,6 +23202,13 @@ var offerLine = (words2) => {
   const t = words2.trim();
   return /[.!?…]$/.test(t) ? t : `${t}.`;
 };
+function offerValue(offer, say2, dates) {
+  const wrong = (text) => dayReadWrong(text, dates.from, dates.until);
+  const day = wrong(offer.words);
+  if (day) return { refused: SAY.dayFromToday(day, dates.fromWords) };
+  const own = say2?.trim();
+  return { line: offerLine(own && !isTheAsk(own) && !wrong(own) ? own : offer.words) };
+}
 var valuesOf = (slots, line) => [...slots].sort((a, b) => a.position - b.position).map((s) => s.kind === "text" ? line : `@${s.kind}`);
 function offerSlots(language) {
   const starter = starterByName("this_months_offer");
@@ -23269,7 +23318,9 @@ function offerRead(offer, say2, world) {
   const audience = world.lists.find((l) => l.token === (offer.who ?? world.offersList));
   const to = audience ? audienceOf(audience.token) : null;
   if (!audience || !to) return { refused: SAY.noOffersList };
-  const line = offerLine(say2?.trim() ? say2 : offer.words);
+  const value = offerValue(offer, say2, dates);
+  if ("refused" in value) return value;
+  const { line } = value;
   const room = world.room;
   const tight = room && audience.count !== null && room.open * 2 < audience.count ? { room, audience: audience.count } : null;
   const cap = tight && dates.from === dates.today ? capOf(tight.room) : null;
