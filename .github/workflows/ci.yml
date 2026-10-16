@@ -281,11 +281,23 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      # ESLint's cache (tooling/scripts/checks/lint.mjs): a file whose content and config are as main last linted them
+      # is not linted again, which takes the job from about four minutes to seconds. Main's own run after a merge lints
+      # every file afresh (LINT_CACHE=0: a typed rule can turn on an unchanged file when a type it reads moved) and its
+      # result is the cache a pull request starts from; a pull request's run saves its own for its next push.
+      - uses: actions/cache@v6
+        with:
+          path: node_modules/.cache/eslint
+          key: eslint-${{ hashFiles('pnpm-lock.yaml', 'eslint.config.mjs') }}-${{ github.sha }}
+          restore-keys: |
+            eslint-${{ hashFiles('pnpm-lock.yaml', 'eslint.config.mjs') }}-
       # Static analysis across the WHOLE workspace. It covered only the
       # dashboard until apps/edge — the 1,600 lines a real customer message
       # travels through — turned out to be the one unlinted thing in the repo.
       # Warnings may only fall, per file and rule (baselines/lint-warnings.json).
       - run: pnpm lint
+        env:
+          LINT_CACHE: ${{ github.event_name == 'push' && '0' || '1' }}
 
   hygiene:
     name: Audit, licences, dead exports and format
@@ -317,11 +329,18 @@ jobs:
       # baseline (docs/debt.md).
       - run: pnpm check:dead-exports
       # Formatting is checked, never fixed, here: the pre-commit hook formats
-      # what is staged, and this step catches a commit made with the hook off.
+      # what is staged, and this step catches a commit made with the hook off. Prettier's cache (package.json's
+      # format:check) keeps what main last found formatted, by content.
+      - uses: actions/cache@v6
+        with:
+          path: node_modules/.cache/prettier
+          key: prettier-${{ hashFiles('pnpm-lock.yaml', '.prettierrc*', '.prettierignore') }}-${{ github.sha }}
+          restore-keys: |
+            prettier-${{ hashFiles('pnpm-lock.yaml', '.prettierrc*', '.prettierignore') }}-
       - run: pnpm format:check
 
   tests:
-    name: Tests of what changed
+    name: Tests of what changed (${{ matrix.shard }}/4)
     needs: scope
     # The `suite` label asks for the whole suite whatever the laptop ran.
     if: >-
@@ -329,6 +348,13 @@ jobs:
       (needs.scope.outputs.checked != 'true' || contains(github.event.pull_request.labels.*.name, 'suite'))
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    # Four runners at once, each a quarter of the files (Node's --test-shard): one runner took seven to eight minutes
+    # for a change that named 369 test files (16 Oct 2026), the longest wait of a push. A part that fails does not stop
+    # the others, so one run says every failure. Typecheck, below, needs them all.
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
     steps:
       # Two commits deep: on a pull request the checkout is the merge commit GitHub tests, whose first parent is the
       # base, so HEAD^1..HEAD is what the pull request changes (the changed tests, below).
@@ -356,10 +382,10 @@ jobs:
       # request ran no test, and five ratchets went red on main unseen between
       # 29 Sep and 3 Oct. The nightly runs the whole suite.
       - if: contains(github.event.pull_request.labels.*.name, 'suite') || github.event_name == 'workflow_dispatch'
-        run: pnpm test
+        run: pnpm test -- --test-shard=${{ matrix.shard }}/4
       - name: The tests of what the pull request changed
         if: github.event_name == 'pull_request' && !contains(github.event.pull_request.labels.*.name, 'suite')
-        run: node tooling/scripts/checks/changed-tests.mjs HEAD^1 HEAD
+        run: node tooling/scripts/checks/changed-tests.mjs HEAD^1 HEAD --test-shard=${{ matrix.shard }}/4
 
   # The check branch protection requires by name. Renamed, it would leave every pull request waiting for a check that
   # never reports. It runs whatever the parts said (always()), and fails when one failed or was cancelled; a part skipped

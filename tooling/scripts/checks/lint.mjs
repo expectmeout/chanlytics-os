@@ -74,7 +74,18 @@ async function main() {
   const raise = process.argv.includes("--raise");
   const fix = process.argv.includes("--fix");
 
-  const eslint = new ESLint({ cwd: ROOT, fix });
+  // A file whose content and the config are as they were last time is not linted again: its result, warnings and all,
+  // comes from the cache (by content, so a fresh checkout in CI hits too). A typed rule can turn on a file that did not
+  // change when a type it reads did, and the cache cannot see that, so `LINT_CACHE=0` lints every file afresh: main's
+  // own run after a merge does (ci.yml), and its result is the cache the pull requests start from.
+  const cache = process.env.LINT_CACHE !== "0";
+  const eslint = new ESLint({
+    cwd: ROOT,
+    fix,
+    cache,
+    cacheLocation: path.join(ROOT, "node_modules/.cache/eslint/"),
+    cacheStrategy: "content",
+  });
   const results = await eslint.lintFiles(["."]);
   if (fix) await ESLint.outputFixes(results);
   const stylish = await eslint.loadFormatter("stylish");

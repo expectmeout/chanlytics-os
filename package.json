@@ -20,7 +20,7 @@
     "check:local": "node tooling/scripts/checks/checked-locally.mjs",
     "lint": "node --max-old-space-size=5120 tooling/scripts/checks/lint.mjs",
     "format": "prettier --write .",
-    "format:check": "prettier --check .",
+    "format:check": "prettier --check . --cache --cache-strategy content --cache-location node_modules/.cache/prettier/.prettier-cache",
     "prepare": "node tooling/scripts/prepare-hooks.mjs",
     "e2e": "playwright test",
     "e2e:local": "node tooling/scripts/e2e-harness/run.mjs",
