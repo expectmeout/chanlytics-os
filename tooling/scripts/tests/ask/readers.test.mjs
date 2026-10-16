@@ -5884,14 +5884,15 @@ test("the autonomy matrix, for the page: GET policies answers its reader's paylo
     const r = await kernel.load(memberIn(ctx, tenant, role), autonomy, undefined);
     assert.deepEqual(r.data, page, "the route's payload");
     assert.equal(JSON.stringify(r.data), JSON.stringify(page), "byte for byte");
-    assert.deepEqual(Object.keys(r.data), ["policies", "role", "deals_on"]);
+    assert.deepEqual(Object.keys(r.data), ["policies", "role", "deals_on", "held", "suggestions"]);
     assert.deepEqual(
       [r.data.policies.map((p) => p.class), r.data.role, r.data.deals_on],
       [classes, role, false],
       "the workspace's rows, by class; a person's own row is not the matrix",
     );
     assert.deepEqual(r.rows, []);
-    assert.deepEqual(asked(ctx), ["tenants.select", "policies.select"]);
+    // And what the owner's corrections show (decision 0063): the held drafts are a function, the suggestions a table.
+    assert.deepEqual(asked(ctx), ["tenants.select", "policies.select", "fact_suggestions.select"]);
   }
   const agency = matrixWorld({
     tenants: [{ id: A, name: "Harbor", timezone: "America/New_York", sells_by: "proposal" }],
@@ -5909,7 +5910,12 @@ test("the autonomy matrix, for the page: GET policies answers its reader's paylo
   await Promise.all([kernel.load(turn, policies, undefined), kernel.load(turn, sellsBy, undefined)]);
   const held = turn.ctx.supabase.seen.length;
   await kernel.load(turn, autonomy, undefined);
-  assert.equal(turn.ctx.supabase.seen.length, held, "the turn's own reads");
+  // What it reads beyond them is the learning loop's own (decision 0063): the held drafts and the notes waiting.
+  const beyond = turn.ctx.supabase.seen.slice(held);
+  assert.ok(
+    beyond.every((q) => q.table === "fact_suggestions" || q.rpc === "held_drafts_by_intent"),
+    "the turn's own reads",
+  );
 });
 
 const TP1 = "77777777-7777-4777-8777-777777777771";

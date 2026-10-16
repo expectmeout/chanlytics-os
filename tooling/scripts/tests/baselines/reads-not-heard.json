@@ -245,6 +245,20 @@
     },
     {
       "kind": "unfed",
+      "why": "The notes an owner's corrections suggest (decision 0063), which Settings › Autonomy lists. The note sweep writes them at most every thirty minutes, the feed does not tell of fact_suggestions, and each is told on the bell instead (a note_to_keep line, which opens the pane). A Keep or a Dismiss reads Settings again behind its verb.",
+      "reads": {
+        "settings": [
+          "fact_suggestions"
+        ]
+      },
+      "rereadAfter": {
+        "settings": [
+          "POST fact-suggestions/[id]"
+        ]
+      }
+    },
+    {
+      "kind": "unfed",
       "why": "Teammates' names from the roster (team_roster): the Team pane's rows (Settings), and who wrote a note and who a step is for (People and Sent, through GET contacts: server/people/person-notes.ts teamNames). Whoever holds a thread is named from Settings' team read (surfaces/holder-names.ts). Profiles belong to a sign-in, not to one workspace, so the feed does not tell of them. A member renaming themselves re-reads Settings in their own tab (and the shell); People and Sent read the new name on their next read.",
       "reads": {
         "broadcasts": [

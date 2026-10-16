@@ -2286,6 +2286,79 @@ export type Database = {
         }
         Relationships: []
       }
+      fact_suggestions: {
+        Row: {
+          body: string | null
+          config_version: number | null
+          conversation_id: string | null
+          created_at: string
+          decided_at: string | null
+          decided_by: string | null
+          id: string
+          quote: string | null
+          source: string
+          source_message_id: string
+          state: string
+          tenant_id: string
+          title: string | null
+          updated_at: string
+        }
+        Insert: {
+          body?: string | null
+          config_version?: number | null
+          conversation_id?: string | null
+          created_at?: string
+          decided_at?: string | null
+          decided_by?: string | null
+          id?: string
+          quote?: string | null
+          source: string
+          source_message_id: string
+          state?: string
+          tenant_id: string
+          title?: string | null
+          updated_at?: string
+        }
+        Update: {
+          body?: string | null
+          config_version?: number | null
+          conversation_id?: string | null
+          created_at?: string
+          decided_at?: string | null
+          decided_by?: string | null
+          id?: string
+          quote?: string | null
+          source?: string
+          source_message_id?: string
+          state?: string
+          tenant_id?: string
+          title?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fact_suggestions_conversation_id_same_workspace"
+            columns: ["tenant_id", "conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "fact_suggestions_source_message_id_same_workspace"
+            columns: ["tenant_id", "source_message_id"]
+            isOneToOne: false
+            referencedRelation: "messages"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "fact_suggestions_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       google_connections: {
         Row: {
           account_name: string
@@ -7788,6 +7861,41 @@ export type Database = {
         Returns: number
       }
       expire_stale_pauses: { Args: never; Returns: number }
+      fact_candidates: {
+        Args: { p_limit?: number }
+        Returns: {
+          asked: Json
+          conversation_id: string
+          id: string
+          known: Json
+          notes_count: number
+          said: string
+          source: string
+          tenant_id: string
+          words: string
+          workspace_today: number
+        }[]
+      }
+      fact_corrections: {
+        Args: { p_limit?: number }
+        Returns: {
+          conversation_id: string
+          made_at: string
+          message_id: string
+          said: string
+          source: string
+          tenant_id: string
+          words: string
+        }[]
+      }
+      fact_suggest: {
+        Args: { p_body: string; p_id: string; p_quote: string; p_title: string }
+        Returns: Json
+      }
+      fact_suggestion_answer: {
+        Args: { p_config_version?: number; p_id: string; p_keep: boolean }
+        Returns: Json
+      }
       first_replies: {
         Args: { p_start: string; p_tenant_id: string }
         Returns: {
@@ -7833,6 +7941,21 @@ export type Database = {
       has_relationship: {
         Args: { c: Database["public"]["Tables"]["contacts"]["Row"] }
         Returns: boolean
+      }
+      held_draft_outcome: {
+        Args: { p_error: Json; p_status: string }
+        Returns: string
+      }
+      held_drafts_by_intent: {
+        Args: { p_days?: number; p_tenant_id: string }
+        Returns: {
+          canceled: number
+          held: number
+          intent: string
+          person_first: number
+          sent: number
+          steered: number
+        }[]
       }
       holds_reply_turn: {
         Args: { p_conversation: string; p_message: string }

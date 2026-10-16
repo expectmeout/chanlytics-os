@@ -506,6 +506,13 @@
       "rate": "person_create",
       "spend": false
     },
+    "POST fact-suggestions/[id]": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "partner",
+      "rate": "settings",
+      "spend": false
+    },
     "POST conversations/[id]/booking-request": {
       "kind": "write",
       "scope": "row",

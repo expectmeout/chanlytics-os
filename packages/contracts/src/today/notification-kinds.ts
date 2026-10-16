@@ -61,6 +61,8 @@ const NOTIFICATION_DELIVERY = {
   member_joined: "bell",
   // A teammate who left: the same, the other way (00437).
   member_left: "bell",
+  // A note from an owner's correction, to keep or dismiss on the Autonomy pane (00448): a line on the bell, no more.
+  note_to_keep: "bell",
 } as const satisfies Record<ServerNotificationKind, "email" | "bell">;
 
 /** A kept kind that is emailed. */
@@ -292,6 +294,7 @@ export const BELL_LINE_KINDS = [
   "booking",
   "member_joined",
   "member_left",
+  "note_to_keep",
 ] as const satisfies readonly ServerNotificationKind[];
 
 /** The kinds the business may turn off by email: every kind of a topic whose email is a choice. */

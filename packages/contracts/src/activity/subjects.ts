@@ -84,6 +84,10 @@ export const ACTIVITY_SUBJECT_HOMES = {
 const WORKSPACE_CHANGE_DOORS: ReadonlyMap<string, string> = new Map([
   ["policy.changed", addressOf({ kind: "rules" })],
   ["settings.changed", addressOf({ kind: "facts" })],
+  // A note from a correction waits, and is answered, on Settings › Autonomy (decision 0063).
+  ["settings.fact_suggested", addressOf({ kind: "rules" })],
+  ["settings.fact_kept", addressOf({ kind: "rules" })],
+  ["settings.fact_dismissed", addressOf({ kind: "rules" })],
   ["capability.activated", CONNECTIONS],
   ["capability.deactivated", CONNECTIONS],
   ["member.left", addressOf({ kind: "team" })],

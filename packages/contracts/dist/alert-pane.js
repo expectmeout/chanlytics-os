@@ -163,7 +163,9 @@ var NOTIFICATION_DELIVERY = {
   booking: "bell",
   member_joined: "bell",
   // A teammate who left: the same, the other way (00437).
-  member_left: "bell"
+  member_left: "bell",
+  // A note from an owner's correction, to keep or dismiss on the Autonomy pane (00448): a line on the bell, no more.
+  note_to_keep: "bell"
 };
 var EMAILED_NOTIFICATION_KINDS = Object.keys(NOTIFICATION_DELIVERY).filter((k) => NOTIFICATION_DELIVERY[k] === "email");
 var ALERT_GROUP_TITLES = {

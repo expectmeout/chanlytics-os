@@ -283,6 +283,8 @@ const LIST_DOORS = {
   booking: "calendar",
   member_joined: "admin/team",
   member_left: "admin/team",
+  // A note from an owner's correction waits on the Autonomy pane, where the notes waiting are listed (decision 0063).
+  note_to_keep: "admin/autonomy",
 };
 
 test("a group whose rows point at different records opens the list that holds them; one record, that record", () => {

@@ -448,6 +448,10 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   // The first receptionist is a settings write too, from what is known (its profile carries the hours): the same surfaces read
   // again. It takes the workspace's name and renames nothing, so the workspace is not read again.
   "POST settings/receptionist": settingsWrite,
+  // A note from an owner's correction kept or dismissed (decision 0063): the settings read carries both the notes the
+  // receptionist reads (Keep adds one, through the settings' own write) and the Autonomy pane's list of what waits (each
+  // answer leaves it one shorter), so Settings reads again. A note is read by nothing else a page draws.
+  "POST fact-suggestions/[id]": settings,
   // A booking email held for a look and dismissed (00345): the Calendar's read carries the held list and its count, which the
   // Business tab's fold and the board's card both draw from, so the list says what is left at once. (Read again is a job: below.)
   "POST calendar/notices/[id]/dismiss": () => [calendarOverride],

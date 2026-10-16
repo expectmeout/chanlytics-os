@@ -1,7 +1,7 @@
 {
-  "rows": 131,
+  "rows": 132,
   "same": 2,
-  "differ": 129,
+  "differ": 130,
   "writes": {
     "DELETE capabilities/[kind]": {
       "changes": "capability_activations UPDATE"
@@ -826,6 +826,25 @@
         "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
         "reports_people": "reports/people",
         "setup": "admin/integrations, clients/leads, leads, start, today",
+        "today_pins": "today"
+      }
+    },
+    "POST fact-suggestions/[id]": {
+      "changes": "fact_suggestions UPDATE · notifications UPDATE · tenant_config UPDATE",
+      "tells": "notifications · tenant_config",
+      "missing": {
+        "broadcasts": "broadcasts, campaigns",
+        "calendar": "every page",
+        "notifications": "every page",
+        "people": "clients, segments",
+        "person": "clients/person",
+        "playbooks": "campaigns, outbound",
+        "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
+        "reports_headline": "today",
+        "reports_people": "reports/people",
+        "reports_receptionist": "reports/receptionist",
+        "sequences": "campaigns/sequences",
+        "setup": "admin/integrations, start, today",
         "today_pins": "today"
       }
     },

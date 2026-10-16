@@ -52,9 +52,19 @@ export {
   POLICY_CLASS_MODES,
   policyModeOffered,
   policyModeRefusal,
+  heldDraftsByClass,
+  heldDraftsLine,
+  HELD_DRAFTS_DAYS,
 } from "./workspace-config/policy-classes";
 export { PolicyLimitsSchema } from "./workspace-config/policy-limits-schema";
-export type { PolicyClass, PolicyMode, PolicyRow } from "./workspace-config/policy-classes";
+export type {
+  PolicyClass,
+  PolicyMode,
+  PolicyRow,
+  HeldDraftsByIntent,
+  HeldDraftsCount,
+  HeldDraftsClass,
+} from "./workspace-config/policy-classes";
 export type { PolicyLimits } from "./workspace-config/policy-limits-schema";
 export { tokenCapOf, tokenBudgetSpent, TOKENS_DAY_DEFAULT } from "./limits";
 export {

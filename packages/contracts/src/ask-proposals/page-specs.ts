@@ -10,6 +10,7 @@
 import { ASK_UNDO_MS, type AskProposal } from "../ask/ask";
 import type { AskOnlyKind } from "./ask-only";
 import { bookingRequestSpec } from "./inbox";
+import { factSuggestionSpec } from "./autonomy";
 import { listMemberSpec } from "./lists";
 import {
   answerManySpec,
@@ -71,6 +72,8 @@ export const PAGE_SPECS = {
   playbook_run: playbookRunSpec,
   // A booking the receptionist asked for, answered on Today, in the Inbox and on the Calendar (decision 0061).
   booking_request: bookingRequestSpec,
+  // A note suggested from an owner's correction, kept or dismissed on Settings › Autonomy (decision 0063).
+  fact_suggestion: factSuggestionSpec,
 } satisfies Record<Exclude<AskProposal["kind"], AskOnlyKind>, ProposalSpec>;
 
 /** A verb a page presses: commitVerb takes no other. */
