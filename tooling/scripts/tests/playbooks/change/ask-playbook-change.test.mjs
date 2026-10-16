@@ -236,6 +236,44 @@ test("a change is refused in words before any card: not an id, not this workspac
   assert.ok(REACH_OUT_IS_NOT_A_MOMENT);
 });
 
+test("a part asked that the campaign already holds is left off the card and said, on the card and to the model (the operator stress run, 15 Oct 2026: a pause of a Win-back already paused, beside a new gap, made the gap's card and never said so); what it leaves as it is never rides in the payload", async () => {
+  const paused = tables({ playbooks: [playbookRow({ state: "paused" })] });
+  const made = await change({ state: "paused", gap_days: 45 }, paused);
+  assert.equal(made.isError, false, made.result);
+  const already = "“Win-back” is already paused, so the card leaves that as it is";
+  assert.equal(made.noted, already, "the outcome carries it, for the turn's answer");
+  assert.equal(made.proposal.title, "Change: Win-back", "a change, never a pause");
+  assert.equal(made.proposal.summary, [PLAYBOOK_PATCH_WORDS.gap_days(45, 90), already].join(" · "));
+  assert.deepEqual(
+    [made.proposal.payload.state, made.proposal.payload.gap_days, made.proposal.payload.was],
+    [undefined, 45, { gap_days: 90 }],
+  );
+  assert.equal(JSON.parse(made.result).also_say, `${already}: say so in the answer beside the card`);
+  // Each part that holds already, in the card's order and the campaign's words.
+  const two = await change({ state: "running", run_hour: 10, name: "Back again" });
+  assert.equal(
+    two.noted,
+    "“Win-back” is already running and already runs at 10:00 AM, so the card leaves that as it is",
+  );
+  const three = await change({ state: "running", run_hour: 10, gap_days: 90, cap_per_run: 30 });
+  assert.equal(
+    three.noted,
+    "“Win-back” is already running, already runs at 10:00 AM and already waits 90 days before reaching a person again, so the card leaves that as it is",
+  );
+  // Nothing held already: nothing noted.
+  const plain = await change({ gap_days: 45 });
+  assert.deepEqual([plain.noted, "also_say" in JSON.parse(plain.result)], [undefined, false]);
+  // REGRESSION (the run of 16 Oct, 3 of 3): the model saw the Win-back paused and asked the gap alone. A change to a
+  // paused campaign's runs says it waits for the resume; a rename runs nothing, and a resume beside it says nothing.
+  const gapOnly = await change({ gap_days: 45 }, paused);
+  assert.equal(gapOnly.noted, "“Win-back” is paused, so none of this runs until it is resumed");
+  assert.equal(gapOnly.proposal.summary, [PLAYBOOK_PATCH_WORDS.gap_days(45, 90), gapOnly.noted].join(" · "));
+  const renamed = await change({ name: "Past clients" }, paused);
+  assert.equal(renamed.noted, undefined, "a rename runs nothing");
+  const resumed = await change({ state: "running", gap_days: 45 }, paused);
+  assert.equal(resumed.noted, undefined, "resumed in the same card");
+});
+
 test("a card approved after somebody else made the same change writes nothing, and offers no undo of what it did not do", async () => {
   const rows = tables();
   const p = (await change({ state: "paused" }, rows)).proposal;
