@@ -34,6 +34,9 @@ import {
   dayFromQuestion,
   describeSettingsChange,
   detectLanguage,
+  messageLanguageOf,
+  messageLanguagesNext,
+  messageLanguagesOf,
   emptyReadSet,
   noteRows,
   askIntent,
@@ -720,6 +723,35 @@ test("a quick answer as POST ask/quick keeps it: the answer the Line drew, cut t
   assert.equal(quickAnswerOf(item({ kind: "secret" })), null, "a kind no citation has");
   assert.equal(quickAnswerOf(item({ id: "" })), null, "a row with no id");
   assert.equal(quickAnswerOf({ ...open, do: { open: { to: "https://example.com", label: "x" }, next: [] } }), null);
+});
+
+test("a message is written in the language its customers read (16 Oct 2026): the business's languages read off its profile in any spelling; none named, the one the person writes in where the business speaks it, else the business's first; a round of messages alone asks next for each of its languages none is written in, and never where it names none", () => {
+  assert.deepEqual(messageLanguagesOf(["Spanish", "English"]), ["es", "en"]);
+  assert.deepEqual(messageLanguagesOf(["español", "Inglés", "es", "Français"]), ["es", "en"]);
+  assert.deepEqual(messageLanguagesOf(["English and Spanish"]), ["en", "es"]);
+  assert.deepEqual(messageLanguagesOf(["English (US)", "castellano"]), ["en", "es"]);
+  assert.deepEqual(messageLanguagesOf([]), []);
+  // None named: the person's own where the business speaks it or names none; else the business's first.
+  assert.deepEqual(
+    [messageLanguageOf([], "es"), messageLanguageOf([], "en"), messageLanguageOf([], "other")],
+    ["es", "en", "en"],
+  );
+  assert.equal(messageLanguageOf(["es"], "en"), "es", "an English owner of a Spanish-speaking business");
+  assert.deepEqual([messageLanguageOf(["en", "es"], "es"), messageLanguageOf(["en", "es"], "en")], ["es", "en"]);
+  assert.equal(messageLanguageOf(["es", "en"], "other"), "es");
+  // The next question, in the turn's language: one tap writes the other card.
+  const card = (language, over = {}) => ({ kind: "message", payload: { language }, ...over });
+  const both = ["English", "Spanish"];
+  assert.deepEqual(messageLanguagesNext([card("en_US")], both, "en"), ["Can you write it in Spanish too?"]);
+  assert.deepEqual(messageLanguagesNext([card("es")], both, "es"), ["¿Puedes escribirlo también en inglés?"]);
+  assert.deepEqual(messageLanguagesNext([card("es")], both, "other"), ["Can you write it in English too?"]);
+  assert.deepEqual(messageLanguagesNext([card("en_US"), card("es")], both, "en"), []);
+  // Never assumed: a business that names no languages, or one, is asked nothing; nor a round with more than messages,
+  // nor a plan's message, which its plan sends.
+  assert.deepEqual(messageLanguagesNext([card("en_US")], [], "en"), []);
+  assert.deepEqual(messageLanguagesNext([card("en_US")], ["English"], "en"), []);
+  assert.deepEqual(messageLanguagesNext([card("en_US"), { kind: "playbook", payload: {} }], both, "en"), []);
+  assert.deepEqual(messageLanguagesNext([card("en_US", { plan: { id: "plan-1", step: 1, of: 2 } })], both, "en"), []);
 });
 
 test("language, scope and settings changes", () => {
@@ -1600,6 +1632,8 @@ test("the eval checks that an Open asked for is followed, and what the words dec
       change_rename_and_hour: { playbook_change: { name: "Past clients", run_hour: 9 } },
       // A reminder the day before, asked where a calendar is connected (the marketing manager's §8): its moment.
       remind_day_before: { playbook: { trigger: "visit_tomorrow" } },
+      // A message asked for in Spanish, its language unnamed: its customers read what the person writes in (16 Oct 2026).
+      write_winback_es_unnamed: { message: { language: "es" } },
     },
   );
   assert.deepEqual(

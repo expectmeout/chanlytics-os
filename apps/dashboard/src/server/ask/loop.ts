@@ -11,6 +11,7 @@ import {
   isUngrounded,
   normalizeAnswer,
   noteRows,
+  messageLanguagesNext,
   partialSay,
   answerSoFar,
   proseAnswer,
@@ -311,9 +312,12 @@ const roundPlan = (calls: unknown[], acts: unknown[], refused: boolean, said: Pl
     ? { words: said.map((s) => s.words).join(" "), lead: said.length === 1 ? said.at(0)?.lead : undefined }
     : null;
 
-/** The answer of a round of cards alone: the cards' own, said in a plan's words and led by its lead where it made one. */
-const cardsAnswer = (cards: readonly AskProposal[], language: AskLanguage, planned: PlanSaid | null): AskAnswer =>
-  answerForCards(cards, language, planned?.words ?? null, planned?.lead ?? null);
+/** The answer of cards alone: a plan's words and lead where it made one; messages alone ask for other languages. */
+function cardsAnswer(cards: readonly AskProposal[], input: TurnInput, plan: PlanSaid | null) {
+  const answer = answerForCards(cards, input.language, plan?.words ?? null, plan?.lead ?? null);
+  const next = messageLanguagesNext(cards, input.facts.languages, input.language);
+  return next.length ? { ...answer, do: { ...answer.do, next } } : answer;
+}
 
 /**
  * An answer beside a round's acts, which stands where every card was made (an act only checks), or "" where it is set
@@ -753,7 +757,7 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
       // round -- unless part of what was asked is no card, which the next round says (turn-end.ts turnUnmade).
       const alone = unmade.alone({ acts: acts.length, calls: calls.length, refused, made: proposals.length > before });
       if (alone === "answer") {
-        const answer = cardsAnswer(proposals.slice(before), input.language, planned);
+        const answer = cardsAnswer(proposals.slice(before), input, planned);
         meter.said();
         input.emit({ t: "say", headline: answer.say.headline, detail: answer.say.detail });
         return done({ answer, failed: false, failure: null, rounds: round, lastRound });
