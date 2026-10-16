@@ -35,6 +35,7 @@ import { GatewayRefused } from "./gateway";
 import { DROP_EVENTS, dropFor, letGo, refusalSaid, type Offer } from "./refusals";
 import {
   ACT_TOOL_NAMES,
+  aboveRoleWords,
   buildProposal,
   calledName,
   cardsOf,
@@ -49,11 +50,11 @@ import { stableSystem, systemBlocks, systemHash, turnWords, type WorkspaceFacts 
 import { buildContext, shapeBlock, type BuiltContext, type SearchResultBlock } from "./context";
 import { crossPagePlan, readBlock, scopedRead } from "./cross-page";
 import { shape as shapeReader } from "../readers/shape";
-import { argsOf, replayBlocks, resultBlocks, runRound, type RoundBlock } from "./round";
+import { argsOf, cutOff, replayBlocks, resultBlocks, runRound, type RoundBlock } from "./round";
 import { askModel } from "./model";
 import { turnEffort } from "./effort";
 import { foldHistory, replayFor, tellNext, withMarkers, type Chain, type RawTurn, type TurnEnd } from "./memory";
-import { finishTurn, turnMeter } from "./turn-end";
+import { finishTurn, turnMeter, turnUnmade } from "./turn-end";
 import { LAST_ROUND_WORDS, answerInput, everyCallAnswered, roundAnswer } from "./tools/answer";
 
 /**
@@ -251,6 +252,7 @@ function wordsBlock(
     scopeOnPage: input.scope?.kind === "page" && input.scope.id === input.context?.route,
     now,
     spoken: input.spoken ?? false,
+    above: aboveRoleWords(input.role),
   };
   return (live: boolean, dataDropped: boolean) => ({
     type: "text",
@@ -320,10 +322,14 @@ function cardsAnswer(cards: readonly AskProposal[], input: TurnInput, plan: Plan
 /**
  * An answer beside a round's acts, which stands where every card was made (an act only checks), or "" where it is set
  * aside, its Say taken back: beside a card refused or cut off it claims a card that is not there, so the model answers
- * again knowing why (logged); beside a plan's cards it was written before the plan's words came back (roundPlan).
+ * again knowing why (logged); beside a plan's cards it was written before the plan's words came back (roundPlan); beside
+ * a card that leaves out a part asked because it already holds (ProposalOutcome.noted), before it knew that.
  */
-function besideActs(written: string, r: { refused: boolean; planned: PlanSaid | null; unsay(): void; log(): void }) {
-  if (!written || (!r.refused && r.planned === null)) return written;
+function besideActs(
+  written: string,
+  r: { refused: boolean; leftOut: boolean; planned: PlanSaid | null; unsay(): void; log(): void },
+) {
+  if (!written || (!r.refused && !r.leftOut && r.planned === null)) return written;
   if (r.refused) r.log();
   r.unsay();
   return "";
@@ -333,6 +339,12 @@ function besideActs(written: string, r: { refused: boolean; planned: PlanSaid | 
 const TIME_UP_WORDS = {
   en: "I ran out of time on that one. Try again, or ask about one thing at a time.",
   es: "Se me acabó el tiempo con esta. Inténtalo de nuevo, o pregunta por una cosa a la vez.",
+};
+
+/** The model's stream broke: the connection's, never the question's. */
+const DROPPED_WORDS = {
+  en: "The connection to the model dropped. Try again.",
+  es: "Se cortó la conexión con el modelo. Inténtalo de nuevo.",
 };
 
 /** The model's stream ends at the turn's own time, or at the person's Stop. */
@@ -361,6 +373,7 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
   const tc = toolContextOf(input, now);
   const toolsUsed: string[] = [];
   const [proposals, planWords]: [AskProposal[], PlanSaid[]] = [[], []]; // its cards, and its plans' words (roundPlan)
+  const unmade = turnUnmade(); // what was asked that no card carries, which the answer must say
   let reads = 0;
   // Where the time went and what the model was fed (AskTurnShape, turn-end.ts): only the loop sees all of it.
   const meter = turnMeter(t0);
@@ -539,18 +552,6 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
     input.emit({ t: "say", headline: "", detail: "" });
   };
 
-  // A call whose arguments did not arrive whole (round.ts argsOf): the round hit its cap mid-argument, and is told so.
-  const cutOff = (b: RoundBlock) => {
-    log.error("ask_tool_input_cut_off", { tool: b.name, bytes: b.json.length, tenant_id: input.tenantId });
-    return {
-      result: JSON.stringify({
-        error:
-          "your call was cut off before its arguments were complete, so nothing was read; call it again with shorter values",
-      }),
-      isError: true,
-    };
-  };
-
   /** A tool call's time, kept in the order the calls ran. */
   const timed = async <T>(name: string, run: () => Promise<T>): Promise<T> => {
     const t = Date.now();
@@ -564,19 +565,20 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
   const propose = async (b: RoundBlock) => {
     const args = argsOf(b);
     toolsUsed.push(calledName(b.name, args));
-    if (!args) return cutOff(b);
+    if (!args) return cutOff(b, input.tenantId);
     return timed(calledName(b.name, args), async () => {
       const p = await ports.propose(tc, b.name, args);
       proposals.push(...cardsOf(p));
       if (p.words) planWords.push({ words: p.words, lead: p.lead });
-      return { result: p.result, isError: p.isError };
+      unmade.heard(calledName(b.name, args), p);
+      return { result: p.result, isError: p.isError, noted: !!p.noted };
     });
   };
 
   const read = async (b: RoundBlock) => {
     const args = argsOf(b);
     toolsUsed.push(calledName(b.name, args));
-    if (!args) return cutOff(b);
+    if (!args) return cutOff(b, input.tenantId);
     return timed(calledName(b.name, args), async () => {
       const out = await ports.tool(tc, { name: b.name, input: args });
       if (!out.isError) reads++;
@@ -645,15 +647,7 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
       const ended = endedEarly(round, !!streamError);
       if (ended) return ended;
 
-      if (streamError && !blocks.length) {
-        return fail(
-          es
-            ? "Se cortó la conexión con el modelo. Inténtalo de nuevo."
-            : "The connection to the model dropped. Try again.",
-          streamError,
-          round,
-        );
-      }
+      if (streamError && !blocks.length) return fail(DROPPED_WORDS[es ? "es" : "en"], streamError, round);
       // The cap was reached: what the round wrote may be half-written, and it is recorded (turn-end.ts capped).
       meter.capped(stopReason, round, blocks, input.tenantId);
       if (stopReason === "refusal") {
@@ -705,10 +699,12 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
         calls.map(async (b) => ({ block: b, out: ACT_TOOL_NAMES.has(b.name) ? await propose(b) : await read(b) })),
       );
       const refused = outcomes.some(({ out }) => out.isError);
+      const leftOut = outcomes.some(({ out }) => "noted" in out && out.noted);
 
       const planned = roundPlan(calls, acts, refused, planWords.slice(saidBefore));
       written = besideActs(written, {
         refused,
+        leftOut,
         planned,
         unsay,
         log: () =>
@@ -733,14 +729,7 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
               tenant_id: input.tenantId,
             });
             // An answer cut off by a broken stream says so: the connection dropped, not the shape.
-            if (streamError)
-              return fail(
-                es
-                  ? "Se cortó la conexión con el modelo. Inténtalo de nuevo."
-                  : "The connection to the model dropped. Try again.",
-                streamError,
-                round,
-              );
+            if (streamError) return fail(DROPPED_WORDS[es ? "es" : "en"], streamError, round);
             return fail(
               es ? "No pude dar forma a la respuesta. Pregunta de nuevo." : "I could not shape the answer. Ask again.",
               `answer: ${shaped.error}`,
@@ -765,8 +754,9 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
       }
 
       // Cards alone, every one of them made: they are the Do, said in a sentence (a plan's in its words), with no second
-      // round. A refused or failed proposal keeps the round -- the model must say why and what the person can do instead.
-      if (acts.length === calls.length && !refused && proposals.length > before) {
+      // round -- unless part of what was asked is no card, which the next round says (turn-end.ts turnUnmade).
+      const alone = unmade.alone({ acts: acts.length, calls: calls.length, refused, made: proposals.length > before });
+      if (alone === "answer") {
         const answer = cardsAnswer(proposals.slice(before), input, planned);
         meter.said();
         input.emit({ t: "say", headline: answer.say.headline, detail: answer.say.detail });
@@ -774,6 +764,7 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
       }
       messages.push({ role: "assistant", content: replayBlocks(blocks) });
       messages.push({ role: "user", content: resultBlocks(ordered) });
+      if (alone === "owed") tellNext(messages, unmade.words());
       if (Date.now() - t0 > budgetMs - 8_000 && !last) {
         // Not enough time for another read: the next round is the last, and
         // answers with what there is.

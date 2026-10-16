@@ -52,8 +52,14 @@ const SELECTION = {
 };
 type Selection = { all?: unknown[]; list?: string; ids?: string[] };
 
-/** The people a selection names, each once, in People's order; or the refusal, in words the model says. */
-async function selected(t: ToolContext, s: Selection): Promise<{ ids: string[]; said: string } | { refusal: string }> {
+/**
+ * The people a selection names, each once, in People's order; or the refusal, in words the model says. A new list kept
+ * by hand takes its people by their ids too (act/people/list.ts).
+ */
+export async function selected(
+  t: ToolContext,
+  s: Selection,
+): Promise<{ ids: string[]; said: string } | { refusal: string }> {
   const named = [s.all?.length ? 1 : 0, s.list ? 1 : 0, s.ids?.length ? 1 : 0].reduce((a, b) => a + b, 0);
   if (named !== 1) return { refusal: "name who by exactly one of all (conditions), list (a token) or ids" };
   const pool = (await load(t.rc, audiencePool, undefined)).data;

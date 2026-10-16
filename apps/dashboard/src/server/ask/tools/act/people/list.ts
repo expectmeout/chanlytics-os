@@ -12,6 +12,7 @@ import {
   ruleLists,
 } from "@chanlytics/contracts";
 import {
+  LIST_BATCH_MAX,
   LIST_NAME_MAX,
   LIST_NAME_TAKEN,
   LIST_RULE_LINES,
@@ -31,6 +32,7 @@ import {
   type ToolContext,
   nullsLeftOut,
 } from "../../context";
+import { selected } from "./people";
 
 /** What they asked that the vocabulary cannot say, kept as the drafter keeps it: a few words, trimmed. */
 const LEFT_OUT = ListDraftAnswerSchema.shape.cannot;
@@ -44,6 +46,10 @@ function guard<T>(check: () => T): { ok: T } | { refused: string } {
     throw e;
   }
 }
+
+/** A new list that names nobody: neither its rule nor its people. */
+const NO_ONE_NAMED =
+  "name who is on it: all, conditions for a list that keeps itself current, or ids, the people a read returned, for one kept by hand ([] for an empty one they fill on People); a list of everyone is Everyone, which People has";
 
 /** A rule the model wrote, read strictly as a stored rule is, its nulls aside; or the refusal in the vocabulary's words. */
 function ruleOf(all: unknown[]): { rule: NonNullable<ReturnType<typeof asListRule>> } | { refusal: string } {
@@ -131,9 +137,35 @@ async function proposeListDelete(t: ToolContext, input: { list_id: string }): Pr
   });
 }
 
+/**
+ * A new list kept by hand, as People's New list makes one: its name, and the people a read returned put on it once it is
+ * made (contracts listSpec's `then`), each named on the card; none, a list they fill from People later.
+ */
+async function proposeHandList(t: ToolContext, name: string, asked: string[]): Promise<ProposalOutcome> {
+  if (asked.length > LIST_BATCH_MAX)
+    return refuse(`a new list kept by hand starts with at most ${LIST_BATCH_MAX}; put the rest on it after`);
+  const who = asked.length ? await selected(t, { ids: asked }) : { ids: [] as string[] };
+  if ("refusal" in who) return refuse(who.refusal);
+  const pool = who.ids.length ? (await load(t.rc, audiencePool, undefined)).data : null;
+  const byId = new Map((pool?.rows ?? []).map((r) => [r.id, r.name]));
+  const names = who.ids.map((id) => byId.get(id) ?? "").filter(Boolean);
+  // A few people by name, as a card names whom it acts on; more, how many.
+  const named = names.length === who.ids.length && names.length <= 3;
+  return propose({
+    kind: "list",
+    title: `List: ${name}`,
+    summary: !who.ids.length
+      ? "Kept by hand, with nobody on it yet: people are put on it from their page or People"
+      : named
+        ? `Kept by hand: ${names.join(", ")}`
+        : `Kept by hand, starting with ${plural(who.ids.length, "person", "people")}`,
+    payload: { name, kept: "hand", ids: who.ids, names, count: who.ids.length },
+  });
+}
+
 async function proposeList(
   t: ToolContext,
-  input: { name: string; all: unknown[]; cannot: string },
+  input: { name: string; all?: unknown[]; ids?: string[]; cannot: string },
 ): Promise<ProposalOutcome> {
   const named = guard(() => cleanListName(input.name));
   if ("refused" in named) return refuse(named.refused);
@@ -141,19 +173,27 @@ async function proposeList(
   const left = LEFT_OUT.safeParse(input.cannot);
   if (!left.success) return refuse(`cannot is a few words, at most ${LEFT_OUT.maxLength} characters`);
   const cannot = left.data;
+  const all = input.all ?? [];
+  const ids = [...new Set((input.ids ?? []).map((x) => str(x, 40)).filter(Boolean))];
+  if (all.length && ids.length)
+    return refuse("a list keeps itself by its rule (all) or is kept by hand (ids), never both: make one of them");
+  // Neither said: no list of everyone (People has Everyone), and an empty one kept by hand only where ids says so.
+  if (!all.length && input.ids === undefined) return refuse(NO_ONE_NAMED);
   // The rule this turn's model wrote, read strictly as a stored rule is (contracts asListRule), its nulls aside. No second
   // model call (the Phase 4 plan, D10). Not as the drafter's answer is (draftListRule, which cuts each fact to the keys
   // its field reads): the drafter's structured output holds it to the schema, and Ask's tools are not strict, so a key a
   // field does not take ("service": "balayage") or a fact beside an any group would be dropped into a broader list.
   // A draft never reads another list: the vocabulary's own rule, which its schema says by leaving the field out.
-  const r = ruleOf(input.all);
-  if ("refusal" in r) return refuse(r.refusal);
-  const rule = r.rule;
+  const r = all.length ? ruleOf(all) : null;
+  if (r && "refusal" in r) return refuse(r.refusal);
   // The workspace's own lists, as People's rail reads them (readers/lists.ts), once a turn: a name a live one has is the
-  // route's refusal (00169: an archived list's name is free), and the rule is checked against them as the route checks it.
+  // route's refusal (00169: an archived list's name is free), and a rule is checked against them as the route checks it.
   const kept = (await load(t.rc, listsReader, undefined)).data.lists;
   if (kept.some((l) => !l.archived_at && l.name.toLowerCase() === name.toLowerCase()))
     return refuse(`${LIST_NAME_TAKEN} Read people with action lists: it may say this already, or take another name`);
+  // No rule: kept by hand, as People's New list makes one, with the people they named.
+  if (!r) return proposeHandList(t, name, ids);
+  const rule = r.rule;
   const checked = guard(() => cleanListRule(rule, kept));
   if ("refused" in checked) return refuse(checked.refused);
   // Who is on it today, counted as people.lists counts the workspace's own lists: over the audience pool (everyone, for
@@ -184,15 +224,16 @@ const LIST_ID = z.string().describe("A list of the workspace's own: its id from 
 const ALL = z.array(z.unknown()).meta(LIST_DRAFT_JSON_SCHEMA.properties.all);
 
 /**
- * People's lists (D11, the operator, 15 Oct 2026): a new list that keeps itself current by its rule (make, the one
- * definition before), one of the workspace's own renamed or its rule changed (change), or taken down (delete). Putting
- * people on or off a list kept by hand is propose_people's.
+ * People's lists (D11, the operator, 15 Oct 2026): a new list (make, the one definition before), kept current by its rule
+ * or, since the operator stress run (15 Oct 2026: "put her on a new list called Mornings" was dropped), kept by hand with
+ * the people named, as People's New list makes one; one of the workspace's own renamed or its rule changed (change), or
+ * taken down (delete). Putting people on or off a list kept by hand that is there is propose_people's.
  */
 export const propose_list = defineActions({
   name: "propose_list",
   description: [
     [
-      "Propose a list on People, as a card the person asking approves, by action: a new list that keeps itself current by its rule, one of the workspace's own renamed or its rule changed, or one taken down. Nothing is made until they approve.",
+      "Propose a list on People, as a card the person asking approves, by action: a new list, one that keeps itself current by its rule or one kept by hand with the people they name, one of the workspace's own renamed or its rule changed, or one taken down. Nothing is made until they approve.",
       "A list is an audience a sequence or a send can go to, and a line on People's rail; who is on it is counted over everyone in People, as a send counts it, and the card says how many are on it today.",
       "A rule is written in the list vocabulary:",
     ].join(" "),
@@ -209,7 +250,11 @@ export const propose_list = defineActions({
           .string()
           .describe(`What People calls the list, at most ${LIST_NAME_MAX} characters, one no list of theirs has.`),
         // The drafter's own schema for the rule, shown to the model as it is; the builder reads it strictly (asListRule).
-        all: ALL,
+        all: ALL.optional(),
+        ids: z
+          .array(z.string())
+          .optional()
+          .describe("A list kept by hand: the ids of the people a read returned who start on it, in place of all."),
         cannot: z
           .string()
           .describe("What they asked that the rule cannot say, in a few words; empty when nothing was left out."),
@@ -229,10 +274,15 @@ export const propose_list = defineActions({
           ],
           cannot: "",
         },
+        {
+          name: "Family",
+          ids: ["a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d", "b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e"],
+          cannot: "",
+        },
       ],
       label: "Preparing a list",
       words:
-        "Action make takes name, all (its rule) and cannot, and proposes a new list that keeps itself current. Call it when they want a group of people kept together, to look at or to send to later.",
+        "Action make takes name and either all (its rule) and cannot, for a new list that keeps itself current, or ids, for a new list kept by hand that starts with the people a read returned ([] for an empty one they fill on People), as People's New list makes one. Call it when they want a group of people kept together, to look at or to send to later: by a rule where what they describe is one, by hand where they name the people.",
       build: proposeList,
     }),
     change: actAction({
