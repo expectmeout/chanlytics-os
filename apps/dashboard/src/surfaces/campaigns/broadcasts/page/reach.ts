@@ -38,7 +38,9 @@ import { BC_SAYS, BC_TEXT, bcFooter, bcKey, bcSlots } from "./words";
 
 /**
  * Nobody on the list is reached: no channel the send ticks can carry this message, so the whole list is held on that. The
- * list's size is the reading it was made from (reached and held are the whole of it, whatever channels).
+ * list's size is the reading it was made from (reached and held are the whole of it, whatever channels), and so is who on
+ * it said yes, which a closed channel does not take back: it read 0 under Meta's pause on offers to US numbers, and the
+ * line under the list said nobody had said yes (the operator stress run, 15 Oct 2026).
  */
 function bcNobodyOn(base: AudiencePreview): AudiencePreview {
   const pool = base.sending + base.held;
@@ -47,7 +49,7 @@ function bcNobodyOn(base: AudiencePreview): AudiencePreview {
     split: { reached: 0, byChannel: { whatsapp: 0, sms: 0, email: 0 }, held: pool, heldBy: { no_channel: pool } },
     sending: 0,
     held: pool,
-    saidYes: 0,
+    saidYes: base.saidYes,
     heardTouches: [],
   };
 }
@@ -380,19 +382,30 @@ export function bcPeopleOf({
   const people = sample ? sample.people : BC_NONE;
   // Everyone it reaches, those left out among them: who said yes and can be reached is no fewer for having heard.
   const reaches = activeCount + leftOut;
-  // Nobody on it can be sent this, and somebody on it said yes: the ones who did have no number to send to. Said in
-  // People's words (#663), with no door -- asking for their yes would ask for an answer they gave. A send that ticks email
-  // is said as the route refuses it (contracts emptyAudienceRefusal): what each ticked channel asks, never "a number".
+  // Nobody on it can be sent this, and somebody on it said yes: the ones who did have no number to send to, or no channel
+  // the send goes by can carry it now (the reading holds them all on no_channel). Said in People's words (#663), with no
+  // door -- asking for their yes would ask for an answer they gave. A send that ticks email is said as the route refuses it
+  // (contracts emptyAudienceRefusal): what each ticked channel asks, never "a number".
+  const noChannel = (sample?.split?.heldBy.no_channel ?? 0) > 0;
   const noNumber =
     active && reaches === 0 && sample && sample.saidYes > 0
-      ? on.includes("email")
-        ? emptyAudienceRefusal(purpose, active.label, [], { channels: on, about: "ours" })
-        : broadcasts.noNumberWords(`“${active.label}”`, purpose)
+      ? noChannel
+        ? broadcasts.noChannelWords(`“${active.label}”`, purpose)
+        : on.includes("email")
+          ? emptyAudienceRefusal(purpose, active.label, [], { channels: on, about: "ours" })
+          : broadcasts.noNumberWords(`“${active.label}”`, purpose)
       : null;
   // How many on it said yes, for the line under the audience (contracts saidYesWords): who it reaches, and who said
-  // yes when nobody can be sent it -- "0 people … said yes" stood right over the no-number line, and was false.
+  // yes when nobody can be sent it, with what they lack -- "0 people … said yes" stood right over the no-number line,
+  // and was false.
   const yesWords = active
-    ? broadcasts.saidYesWords(`“${active.label}”`, purpose, reaches, (sample && sample.saidYes) || 0)
+    ? broadcasts.saidYesWords(
+        `“${active.label}”`,
+        purpose,
+        reaches,
+        (sample && sample.saidYes) || 0,
+        noChannel ? broadcasts.NO_CHANNEL_REACH : null,
+      )
     : null;
   // Said only where the send goes by more than WhatsApp alone: for WhatsApp alone the line is what it always was. Of who
   // it sends to (`split`, those left out taken off their channel), as the count beside it is.
