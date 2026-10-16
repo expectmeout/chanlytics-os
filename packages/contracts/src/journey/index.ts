@@ -11,3 +11,4 @@ export { JOURNEY_STAGE_IDS, journeyOf, journeyStageOf } from "./journey";
 export type { JourneyGlyph, JourneyStage, JourneyStageId } from "./journey";
 export { journeyGuide } from "./journey-guide";
 export type { GuideRow } from "./journey-guide";
+export type { PlanLead } from "./journey-plan";

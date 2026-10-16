@@ -14,6 +14,7 @@ import {
   readyForMessage,
   roleAtLeast,
   type AskCitationKind,
+  type AskLanguage,
   type AskProposal,
   type AskReadSet,
   type CampaignHow,
@@ -22,6 +23,7 @@ import {
   type ConsentChannel,
   type MembershipRole,
   type NumberHealth,
+  type PlanLead,
   type ProposalKindAboveOperator,
 } from "@chanlytics/contracts";
 import { parseChannels, readCampaignMessage, type TemplateValuesPorts } from "@chanlytics/core";
@@ -62,6 +64,11 @@ export interface ToolContext {
   role: MembershipRole;
   /** The business's zone: "tomorrow at ten" is its ten, never the server's. */
   timezone: string;
+  /**
+   * The language the question was asked in (turn.ts detectLanguage), which a plan's setup words are said in
+   * (act/plan.ts); English where a tool runs outside a turn.
+   */
+  language: AskLanguage;
   read: AskReadSet;
   now: Date;
   /**
@@ -96,6 +103,8 @@ export interface ProposalOutcome {
   isError: boolean;
   /** A plan's own words for the person (proposeMany): a round that made it answers with them (loop.ts). */
   words?: string;
+  /** What a setup's answer leads with where something comes first (contracts journey-plan.ts PlanLead): the round answers with it. */
+  lead?: PlanLead;
   /** Why nothing was proposed (refuse), as the model is told it: read by a plan of its step's refusal (act/plan.ts). */
   refusal?: string;
 }
@@ -440,7 +449,7 @@ export function newToolContext(
   now = new Date(),
   rc: ReaderContext = readerContext(ctx, { tenantId, role }, now),
 ): ToolContext {
-  return { ctx, tenantId, role, timezone, read: emptyReadSet(), now, rc };
+  return { ctx, tenantId, role, timezone, language: "en", read: emptyReadSet(), now, rc };
 }
 
 /**
@@ -512,14 +521,17 @@ export const proposeMany = (
   proposals: AskProposal[],
   said: Record<string, unknown>,
   words: string | null,
+  lead: PlanLead | null,
 ): ProposalOutcome => ({
   proposal: null,
   proposals,
   isError: false,
   ...(words ? { words } : {}),
+  ...(lead ? { lead } : {}),
   result: JSON.stringify({
     proposed: true,
     ...said,
+    ...(lead ? { headline: lead.headline } : {}),
     ...(words ? { words } : {}),
     note: "Nothing has happened yet. These are cards the person approves, edits or dismisses; a plan's steps that send nothing are one press, and each send its own after them. Say what you proposed; never say any of it is done.",
   }),
