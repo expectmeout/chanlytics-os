@@ -44,7 +44,7 @@ const askedSequence = (asked: PileAsk | null): PileAsk | null => (asked && asked
  * The door into the pile, or with a sequence's Add leads standing and no search open, the line asking for one. A Ready
  * pile is offered where no sequence of the search's own writes to it; Needs review is, under any search.
  */
-function doorOf(a: PileViewArgs, asked: PileAsk | null, letGo: () => void) {
+function pileDoorOf(a: PileViewArgs, asked: PileAsk | null, letGo: () => void) {
   const { pile, openSearch } = a;
   if (pile.on) return null;
   const named = askedSequence(asked);
@@ -102,7 +102,7 @@ export function useLeadPileView(a: PileViewArgs) {
   useEffect(() => {
     if (asking) void pile.check(asking.split(","));
   }, [asking, target ? target.rootId : null]); // eslint-disable-line react-hooks/exhaustive-deps
-  const door = doorOf(a, asked, () => {
+  const door = pileDoorOf(a, asked, () => {
     pileAsk.take();
     setAsked(null);
   });

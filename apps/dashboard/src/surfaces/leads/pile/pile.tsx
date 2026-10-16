@@ -203,7 +203,7 @@ const pileEndOf = (p: PileViewProps, later: number) => (
  * The pile's one line after a press, for the eye and a screen reader (a polite live region): what was done, and who is
  * up now or that it was the last. Nothing is said before the first press.
  */
-const saidOf = (p: PileViewProps) => (
+const pileSaidOf = (p: PileViewProps) => (
   <p className="ld-pile-said" role="status" aria-live="polite" data-testid="lead-pile-said">
     {p.pile.said ? `${p.pile.said} · ${p.up ? LEAD_PILE_WORDS.next(p.up.name) : LEAD_PILE_WORDS.lastOne}` : null}
   </p>
@@ -218,7 +218,7 @@ const progressOf = (p: PileViewProps, leave: boolean) => {
   const line = counts ? leadPileProgressOf(counts) : null;
   return (
     <div className="ld-pile-progress" data-testid="lead-pile-progress">
-      {saidOf(p)}
+      {pileSaidOf(p)}
       {line ? <span data-testid="lead-pile-progress-line">{line.text}</span> : null}
       {pile.held.length ? <span>{LEAD_PILE_WORDS.held(pile.held.length)}</span> : null}
       {pile.canUndo ? (
