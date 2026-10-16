@@ -270,6 +270,7 @@ function useLeadsPage(v: ReturnType<typeof useLeadsView>, onOpenProfile: (id: st
     reachOut,
     lists,
     pileNode: piled.node,
+    pileSheet: piled.sheet,
     pileDoor: piled.door,
   };
 }

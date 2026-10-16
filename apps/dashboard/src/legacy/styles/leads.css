@@ -1772,12 +1772,38 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
 .ld-pile-lead { display: flex; flex-direction: column; gap: 12px; padding: 18px; border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--bg-raised); box-shadow: var(--shadow-sm); animation: ld-pile-in var(--duration-base) var(--ease-out); }
 @keyframes ld-pile-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { .ld-pile-lead { animation: none; } }
-.ld-pile-who { display: grid; grid-template-columns: 56px minmax(0, 1fr); gap: 14px; align-items: center; }
-.ld-pile-name h3 { margin: 0; font-size: var(--text-xl); font-weight: var(--weight-semibold); color: var(--ink); overflow-wrap: anywhere; }
+.ld-pile-who { display: grid; grid-template-columns: 48px minmax(0, 1fr); gap: 12px; align-items: center; }
+.ld-pile-name h3 { margin: 0; font-size: var(--text-lg); font-weight: var(--weight-semibold); color: var(--ink); overflow-wrap: anywhere; }
 .ld-pile-name p { margin: 2px 0 0; font-size: var(--text-sm); color: var(--ink-dim); }
-.ld-pile-why { margin: 0; font-size: var(--text-sm); color: var(--ink-muted); line-height: 1.5; }
-.ld-pile-why strong { font-weight: var(--weight-semibold); color: var(--ink); }
-.ld-pile-facts { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 0; padding: 0; list-style: none; font-size: var(--text-xs); color: var(--ink-muted); }
+/* The lead that is up (canvas B's decide card, pile/card.tsx): the reason in large type, at most three lines, what it
+   rests on as quiet signs (a dashed ring where Claude read it, an open ring where it couldn't tell), the two ways to
+   reach them, and the first email they would get, its opening a dashed line still to be written and a value it lacks
+   marked where it would stand. */
+.ld-now-why { margin: 0; font-size: var(--text-xl); font-weight: var(--weight-medium); line-height: var(--leading-snug); color: var(--ink); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.ld-now-why[data-tip] { cursor: help; }
+.ld-now-signs { display: flex; flex-wrap: wrap; gap: 4px 12px; margin: 0; padding: 0; list-style: none; font-size: var(--text-xs); color: var(--ink-muted); }
+.ld-now-sign { display: inline-flex; align-items: center; gap: 5px; cursor: help; }
+.ld-now-sign.ask { color: var(--warn-ink); }
+.ld-now-reach { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 0; padding: 0; list-style: none; font-size: var(--text-sm); color: var(--ink); }
+.ld-now-reach li { display: inline-flex; align-items: center; gap: 6px; min-width: 0; overflow-wrap: anywhere; }
+.ld-now-reach-word { color: var(--ink-dim); font-size: var(--text-xs); }
+.ld-now-mail { display: flex; flex-direction: column; gap: 6px; padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--bg-sunken); font-size: var(--text-sm); color: var(--ink); }
+.ld-now-mail-head { margin: 0; font-size: var(--text-xs); font-weight: var(--weight-medium); color: var(--ink-dim); }
+.ld-now-mail-meta { display: flex; flex-direction: column; gap: 2px; margin: 0; }
+.ld-now-mail-meta > div { display: grid; grid-template-columns: 56px minmax(0, 1fr); gap: 8px; }
+.ld-now-mail-meta dt { color: var(--ink-dim); font-size: var(--text-xs); line-height: inherit; }
+.ld-now-mail-meta dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.ld-now-mail-body { white-space: pre-line; line-height: var(--leading-normal); overflow-wrap: anywhere; }
+.ld-now-opening { display: block; margin: 4px 0; padding: 4px 8px; border: 1px dashed var(--line-strong); border-radius: var(--radius-sm); color: var(--ink-dim); font-size: var(--text-xs); white-space: normal; }
+.ld-now-gap { padding: 0 4px; border-radius: var(--radius-xs); background: var(--warn-soft); color: var(--warn-ink); }
+.ld-now-when { margin: 0; font-size: var(--text-xs); color: var(--ink-muted); }
+.ld-now-note { margin: 0; font-size: var(--text-xs); color: var(--ink-dim); }
+.ld-now-blocked { color: var(--warn-ink); }
+/* On a phone the card is the pile's sheet at half height (pile/sheet.tsx), and at full its tabs: the same parts, the
+   page's own gaps. */
+.ld-pile-now, .ld-now-full { display: flex; flex-direction: column; gap: 12px; padding: 4px 0 12px; }
+.ld-now-pane { display: flex; flex-direction: column; gap: 12px; }
+.ld-now-reason { display: flex; flex-direction: column; gap: 4px; }
 .ld-pile-rail { display: flex; flex-wrap: wrap; gap: 8px; }
 .ld-pile-rail > * { flex: 1 1 auto; justify-content: center; }
 .ld-pile-progress { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; font-size: var(--text-xs); color: var(--ink-dim); font-variant-numeric: tabular-nums; }
@@ -1786,7 +1812,7 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
 .ld-pile-end p { margin: 0; font-size: var(--text-sm); color: var(--ink-muted); }
 .ld-pile-door { display: flex; padding: 4px var(--gutter-page) 8px; }
 /* On a desk the lead's details are the peek beside the pile (408px, .pk): the pile keeps clear of it. Under 900px the
-   peek is the whole screen, opened from Details, and the pile takes the page's width. */
+   pile is a sheet over the rows (pile/sheet.tsx) and draws nothing where they stand. */
 .ld-pile { margin-right: 408px; }
 @media (max-width: 900px) {
   .ld-pile { margin-right: 0; max-width: none; }

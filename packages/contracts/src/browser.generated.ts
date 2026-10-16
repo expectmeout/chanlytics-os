@@ -167,6 +167,7 @@ export { reviewReplyModeOf, reviewReplyPrompt, cleanDraft, autoReplyCandidates, 
 export { APPOINTMENT_WORDS, appointmentWordOf, appointmentWordWhere, appointmentWords, isAppointmentWord } from "./journey/appointment-word";
 export { JOURNEY_STAGE_IDS, journeyOf, journeyStageOf } from "./journey/journey";
 export { journeyGuide } from "./journey/journey-guide";
+export { LEAD_CARD_WORDS, LEAD_CARD_TABS, LEAD_SHEET_WORDS, LEAD_CARD_REASON_WORDS, LEAD_CARD_MARKS_MAX, leadCardEmailOf, leadCardStepsOf, leadCardPartsOf, leadCardReasonOf, leadCardMarksOf } from "./leads/lead-card";
 export { LEAD_CHECK_KEYS } from "./leads/lead-dtos";
 export { leadTodayLine, leadHoursShort, leadWhere, leadUndoable, leadExclusionWord, leadCheckWord, leadSlots, leadTintOf, leadTileSrc, LEAD_UNDO_MS, LEAD_SLOT_WORDS, LEAD_TILE_PX } from "./leads/lead-facts";
 export { LEAD_SUGGEST_RETRY_MS, LEAD_IDEAS_SYSTEM, ideaHistoryOf, ideaBasisOf, ideaPacket, ideaPacketText, ideaJsonSchema, ideaPassed, ideaPassedOf } from "./leads/lead-ideas";

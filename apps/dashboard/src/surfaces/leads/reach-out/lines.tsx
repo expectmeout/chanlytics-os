@@ -126,7 +126,7 @@ export const ReachOutLeadsStrip = ({ leads }: { leads: ReachOutLines | null }) =
             <ResumeAct
               act={resume}
               onAct={() => void toggle()}
-              gated={busy ? { disabled: true } : gate("approve", "resume a reach-out")}
+              gated={busy ? { disabled: true } : gate("approve", "resume a sequence")}
               testid="strip-resume"
             />
           ) : null

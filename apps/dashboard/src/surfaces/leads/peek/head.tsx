@@ -138,27 +138,32 @@ function peekBand({ vm, onClose, onExpand, deck }: HeadProps) {
   );
 }
 
-/** Who they are: the name, the sub-line with today's hours, what people say, their own words, and where they are. */
-function peekIdentity(vm: LeadPeekVM, onOpenPerson?: (id: string) => void) {
+/**
+ * Who they are: the name, the sub-line with today's hours, what people say, their own words, and where they are. A pile
+ * sheet's About says it without the name, which its card's head already says.
+ */
+function peekIdentity(vm: LeadPeekVM, onOpenPerson?: (id: string) => void, named = true) {
   const person = vm.contactId;
   return (
     <div className="pk-identity" data-testid="peek-identity">
-      <h2 className="pk-name" data-testid="peek-name">
-        {/* A lead that became a person: the name is the way to them in People, as the person's page has the way back
+      {named ? (
+        <h2 className="pk-name" data-testid="peek-name">
+          {/* A lead that became a person: the name is the way to them in People, as the person's page has the way back
             ("Open the lead"). A lead that has not, or a page that cannot open one, is the name alone. */}
-        {person && onOpenPerson ? (
-          <LinkButton
-            size="inherit"
-            onClick={() => onOpenPerson(person)}
-            title={W.openPerson}
-            data-testid="peek-name-person"
-          >
-            {vm.name}
-          </LinkButton>
-        ) : (
-          vm.name
-        )}
-      </h2>
+          {person && onOpenPerson ? (
+            <LinkButton
+              size="inherit"
+              onClick={() => onOpenPerson(person)}
+              title={W.openPerson}
+              data-testid="peek-name-person"
+            >
+              {vm.name}
+            </LinkButton>
+          ) : (
+            vm.name
+          )}
+        </h2>
+      ) : null}
       <div className="pk-sub-line">
         <span className="pk-sub" data-testid="peek-sub">
           {vm.sub}
@@ -240,6 +245,9 @@ function peekIdentity(vm: LeadPeekVM, onOpenPerson?: (id: string) => void) {
     </div>
   );
 }
+
+/** Who they are as a pile sheet's About tab says it: the peek's identity, without the name the card's head says. */
+export const LeadPeekAbout = ({ vm }: { vm: LeadPeekVM }) => peekIdentity(vm, undefined, false);
 
 export const LeadPeekHead = ({ vm, onClose, onExpand, onOpenPerson, deck }: HeadProps) => (
   <>

@@ -26,6 +26,7 @@ import type { usePlPlace } from "../../people/hooks/use-place";
 import type { PeopleRead, TableEmpty } from "../../people/types";
 import type { ReviewDoors } from "../bench/types";
 import type { LeadCellCtx } from "../cells/types";
+import type { PileViewProps } from "../pile/pile";
 import {
   bulkLeads,
   checkLeadsAgain,
@@ -77,8 +78,12 @@ export type LeadsPage = Controls &
     cellCtxLeads: LeadCellCtx;
     reachOut: ReachOutLines | null;
     lists: LeadLists;
-    /** The pile where the rows stand while it is on, and the door into it under a search (00426). */
+    /**
+     * The pile where the rows stand while it is on (a desk's), its sheet over them (a phone's, drawn by the scope with
+     * the peek's acts its tabs share), and the door into it under a search (00426).
+     */
     pileNode: ReactNode;
+    pileSheet: PileViewProps | null;
     pileDoor: ReactNode;
   };
 
@@ -161,6 +166,7 @@ export const leadsListProps = (p: LeadsPage) => {
       (!isOwnList(openSearch) ? p.ldStrip(openSearch, new Date(), { offered: leads.offered }) : null),
     reachOutStrip: openSearch && reachOut ? <ReachOutLeadsStrip leads={reachOut} /> : null,
     pile: p.pileNode,
+    pileSheet: p.pileSheet,
     pileDoor: p.pileDoor,
     rows: leadShown,
     swapRef: p.swap,
