@@ -1,12 +1,13 @@
 /* global React, Icon, Confirm */
-// AskReal: Ask as the Line (docs/superpowers/specs/2026-09-23-ask-the-line-design.md, section 6). One band over the
-// page with the three standing in it beside the field, and while Ask reads, one line under the field saying what it
-// reads (docs/superpowers/specs/2026-09-23-ask-the-stage-design.md, 4.1, 4.2); under the band the rows (home, typing,
-// Earlier), the question while Ask reads, or the answer, Say · Show · Do (ask-turn.jsx); a desktop's conversation folds
-// above it. Reopening resumes the conversation and the words typed until New; the tab keeps both across a reload (S9).
-// On a phone the Line is the whole screen (the Stage's spec, section 5): a head, the three large in a hero that a held
-// press talks to, the rows at home or a conversation as one thread (the spec 2026-09-27-ask-chat-on-a-phone), the
-// field at the foot; ×, Esc, a pull down and Back close it.
+// AskReal: Ask as the Line (docs/superpowers/specs/2026-09-23-ask-the-line-design.md, section 6, and the Stage's,
+// docs/superpowers/specs/2026-09-23-ask-the-stage-design.md, section 5), one layout everywhere: a head, the three large in
+// a hero that a held press talks to, the rows (home, typing, Earlier) or a conversation as one thread (the spec
+// 2026-09-27-ask-chat-on-a-phone), each answer Say · Show · Do (ask-turn.jsx), and the field at the foot. Reopening
+// resumes the conversation and the words typed until New; the tab keeps both across a reload (S9).
+// On a phone it is the whole screen, and ×, Esc, a pull down and Back close it. On a desk it is a panel of glass docked
+// at the right, the sidebar's twin, over a page that keeps its layout and stays the member's (Ruben, 16 Oct 2026): ×, Esc
+// and a press outside close it, that press going on to what it was on; an answer that opens a place moves the page there
+// with Ask still open; and the keys pressed in either are that one's own.
 // This file is the shell: the state of one open Line, its keys and the turn runner. The rows are ask-home.jsx's, the
 // words ask-text.jsx's and the hooks ask-hooks.jsx's; everything that talks to the workspace goes through window.__ask.
 // No key symbol is drawn (D17): the shortcuts sheet lists the keys (contracts SHORTCUTS), opened by ? or the account menu.
@@ -16,8 +17,6 @@ const useArEffect = React.useEffect;
 const useArLayout = React.useLayoutEffect || React.useEffect;
 const useArRef = React.useRef;
 
-/** Folded turns shown above the line before "+N earlier in this conversation". */
-const AR_FOLDED = 3;
 // A hold's lift that makes no click on the button (the finger let go elsewhere) is forgotten after this.
 const AR_LIFT_MS = 400;
 
@@ -43,7 +42,7 @@ const arScopeIcon = (s) => window.AskAnswerKit.askKindGlyph(s.kind);
 
 const arFailed = (id, text) => ({ id, role: "assistant", text, failed: true, citations: [], followups: [], proposals: [], atMs: Date.now() });
 
-/** The newest question's key: a phone's thread stands it at the top once each (the spec 2026-09-27-ask-chat-on-a-phone, D5). */
+/** The newest question's key: the thread stands it at the top once each (the spec 2026-09-27-ask-chat-on-a-phone, D5). */
 const arNowKey = (active, quick) => {
   const q = active ? [...active.messages].reverse().find((m) => m.role === "user") : null;
   return q ? q.id : quick ? `quick:${quick.q}` : "";
@@ -75,8 +74,6 @@ const useArLine = (A, H) => {
   const [lang, setLang] = useArState(() => (A ? A.language() : "en"));
   const [tick, setTick] = useArState(0);
   const [view, setView] = useArState("rows"); // "rows", or "earlier": every conversation
-  const [unfolded, setUnfolded] = useArState(-1);
-  const [foldAll, setFoldAll] = useArState(false);
   // The conversation a × or the Delete key asked to delete, waiting for a yes (N5).
   const [doomed, setDoomed] = useArState(null);
   // A phone's field in use (focused, so its keyboard is up): the takeover composes. The rows (Right now, Brief me, the
@@ -87,7 +84,7 @@ const useArLine = (A, H) => {
   // Where the field and the three stood as the field was focused (H.slideFrom), until the slide has run.
   const slideFrom = useArRef(null);
   const speech = H.useAskSpeech(A);
-  const [toastNode, flash] = window.usePPToast();
+  const [toastNode, flash] = window.usePPToast("ask-flash");
   const inputRef = useArRef(null);
   const faceRef = useArRef(null);
   const heroRef = useArRef(null);
@@ -109,11 +106,13 @@ const useArLine = (A, H) => {
   const openedAt = useArRef(0);
   // Whether the takeover's Back entry is in the history (useArClose pushes it on a phone, nav takes it for a place).
   const pushed = useArRef(false);
+  // On a desk, whether the member has gone to work in the page beside the panel (focus left it): the field stops taking
+  // focus back as answers land until they come back to the panel (useArFocus).
+  const away = useArRef(false);
   return {
     query, setQuery, threads, setThreads, active, setActive, live, setLive, quick, setQuick, scope, setScope, sel, setSel,
-    move, setMove, lang, setLang, tick, setTick, view, setView, unfolded, setUnfolded, foldAll, setFoldAll, doomed,
-    setDoomed, composing, setComposing, slideFrom, speech, toastNode, flash, inputRef, faceRef, heroRef, stageRef, bodyRef,
-    dialogRef, typing, threadsReady, turnSeq, asked, held, openedAt, pushed,
+    move, setMove, lang, setLang, tick, setTick, view, setView, doomed, setDoomed, composing, setComposing, slideFrom, speech, toastNode, flash, inputRef, faceRef, heroRef, stageRef, bodyRef,
+    dialogRef, typing, threadsReady, turnSeq, asked, held, openedAt, pushed, away,
   };
 };
 
@@ -184,7 +183,7 @@ const useArSlide = ({ H, open, composing, setComposing, slideFrom, stageRef, her
     const id = requestAnimationFrame(() => H.slide(from, stageRef.current, heroRef.current));
     return () => cancelAnimationFrame(id);
   }, [composing]);
-  useArEffect(() => { if (!open) setComposing(false); }, [open]);
+  useArEffect(() => { if (!open) setComposing(false); }, [open, setComposing]);
 };
 
 /** What opening does: the route's scope, the threads and the surfaces the rows read, and the three coming in from the button. */
@@ -225,37 +224,42 @@ const useArOpen = ({ open, A, route, openedAt, setScope, threadsReady, setThread
     if (from && to && to.animate && !arStill()) {
       const a = from.getBoundingClientRect();
       const b = to.getBoundingClientRect();
-      // Centre to centre, since a box scales about its centre.
-      const dx = a.left + a.width / 2 - (b.left + b.width / 2);
+      // Centre to centre, since a box scales about its centre, less the way a desk's panel has still to slide in; and
+      // scaled by the three's own size in each box (the mascot's fitSide), since the hero's stage is far wider than they
+      // are, and its width alone started them smaller than the button's and popped them up.
+      const box = to.closest ? to.closest(".ask-line") : null;
+      const slid = box && window.getComputedStyle ? parseFloat(String(window.getComputedStyle(box).translate || "0").split(" ")[0]) || 0 : 0;
+      const fit = (window.__mascot && window.__mascot.fitSide) || ((w, h) => Math.min(w / 3.8, h / 3.2));
+      const dx = a.left + a.width / 2 - (b.left - slid + b.width / 2);
       const dy = a.top + a.height / 2 - (b.top + b.height / 2);
-      if (b.width)
+      const k = b.width && b.height ? fit(a.width, a.height) / fit(b.width, b.height) : 0;
+      if (k)
         to.animate(
-          [{ translate: `${dx}px ${dy}px`, scale: `${a.width / b.width}` }, { translate: "0 0", scale: "1" }],
+          [{ translate: `${dx}px ${dy}px`, scale: `${k}` }, { translate: "0 0", scale: "1" }],
           { duration: 220, easing: "cubic-bezier(0.22, 1, 0.36, 1)" },
         );
     }
     return () => { if (body && body.classList) body.classList.remove("ask-open"); };
   }, [open]);
+
+  // On a desk the page beside the panel is live: as it moves (a press there, or an answer's Open), the scope follows it,
+  // so the next question is about what is on screen. A phone's takeover covers the page, which does not move under it.
+  useArEffect(() => {
+    if (!open || !A || arPhone()) return;
+    setScope(A.scopeFor(route.page, route.param, arScopeLabel(route.page, route.param)));
+  }, [route.page, route.param]);
 };
 
-/** Closing: Back on a phone, and what the Line forgets once closed. */
-const useArClose = ({ open, onClose, setQuick, setDoomed, setView, speech, pushed }) => {
-  // Back closes the takeover (S8): one entry with a null state and the same address, so the shell's hash router
-  // never hears it and Next's app router, which reloads on a Back to a state it did not write (app-shell.jsx), ignores
-  // it. Whether the entry is ours is `pushed` (useArLine), not the popped state. Closing any other way goes back over
-  // it; going somewhere takes it for the place (nav).
-  useArEffect(() => {
-    const h = typeof window !== "undefined" ? window.history : null;
-    if (!open || !arPhone() || !h || !h.pushState) return;
-    h.pushState(null, "", window.location.href);
-    pushed.current = true;
-    const onPop = () => { if (pushed.current) { pushed.current = false; onClose(); } };
-    window.addEventListener("popstate", onPop);
-    return () => {
-      window.removeEventListener("popstate", onPop);
-      if (pushed.current) { pushed.current = false; if (h.back) h.back(); }
-    };
-  }, [open]);
+/** What Ask puts over the page itself, whose presses are not a press outside a desk's panel: its toasts, a card's menu, pop or sheet, and the top bar's Ask, which toggles it. */
+const AR_OVER_ASK = '[role="dialog"], [role="alertdialog"], [role="menu"], .pop-place, .pp-toast-stack, .tb-ask';
+
+/** Closing: Back on a phone, a press outside a desk's panel, and what the Line forgets once closed. */
+const useArClose = ({ H, open, onClose, setQuick, setDoomed, setView, speech, pushed, dialogRef }) => {
+  // Back closes the takeover (S8); whether the entry is ours is `pushed` (useArLine), and going somewhere takes it for
+  // the place (nav). A desk's panel closes on a press outside it, which goes on to what it was on (Ruben, 16 Oct 2026:
+  // "users can click away and it closes"). Both are ask-hooks.jsx's.
+  H.useAskBack(open && arPhone(), pushed, onClose);
+  H.useAskPressAway(open && !arPhone(), dialogRef, AR_OVER_ASK, onClose);
 
   // Closed: nothing keeps reading or talking and the rows are home again; the words typed and an open conversation
   // come back until Clear (D14, S9).
@@ -301,13 +305,20 @@ const useArMemory = ({ open, A, query, setQuery, active, asked, openThread }) =>
   }, [active && active.id]);
 };
 
-/** Where focus goes: the field on a desktop, the dialog on a phone or any touch screen, the field again after "Type instead"; the dialog holds it (trapFocus). */
-const useArFocus = ({ A, H, open, doomed, live, active, view, quick, inputRef, dialogRef, talk, typing }) => {
+/** Where focus goes: the field on a desktop, the dialog on a phone or any touch screen, the field again after "Type instead"; a phone's dialog holds it (trapFocus), a desk's panel shares it with the page beside it. */
+const useArFocus = ({ A, H, open, doomed, live, active, view, quick, inputRef, dialogRef, talk, typing, away }) => {
+  const phone = arPhone();
   // The field with a mouse and keys; else the dialog, so no keyboard rises until a tap asks (S10; focusAsDrawn).
-  const field = !arPhone() && (!A || !A.focusAsDrawn || A.focusAsDrawn());
-  H.useAskFocus(inputRef, open && !doomed && field, [open, live, active, doomed, view, quick]);
+  const field = !phone && (!A || !A.focusAsDrawn || A.focusAsDrawn());
+  // On a desk, once the member works in the page (focus left the panel) the field leaves them there as answers land,
+  // until they come back to the panel (ask-hooks.jsx useAskAway).
+  H.useAskAway(open && !phone, dialogRef, away);
+  H.useAskFocus(inputRef, open && !doomed && field, [open, live, active, doomed, view, quick], () => !away.current);
   H.useAskFocus(dialogRef, open && !field, [open]);
-  useArEffect(() => (open && window.trapFocus ? window.trapFocus(dialogRef.current) : undefined), [open, dialogRef]);
+  // A phone's takeover keeps Tab inside it; a desk's panel lets Tab go on to the page, and as it closes gives focus back
+  // to what had it before it opened, unless the member has put it somewhere since (ask-hooks.jsx useAskGiveBack).
+  useArEffect(() => (open && phone && window.trapFocus ? window.trapFocus(dialogRef.current) : undefined), [open, phone, dialogRef]);
+  H.useAskGiveBack(open && !phone, dialogRef);
   // Listening ended after "Type instead": the words heard are in the field, and the field takes focus to finish them.
   useArEffect(() => {
     if (talk.listening || !typing.current) return;
@@ -316,8 +327,15 @@ const useArFocus = ({ A, H, open, doomed, live, active, view, quick, inputRef, d
   }, [talk.listening]);
 };
 
+/** Esc, wherever it is the Line's: a turn in flight stops, else Earlier steps back to the rows, else Ask closes. */
+const arEscape = ({ live, stop, view, setView, onClose }) => {
+  if (live) stop();
+  else if (view === "earlier") setView("rows");
+  else onClose();
+};
+
 /** What the shell sends as it opens the Line, and the keys anywhere in it. */
-const useArSeedKeys = ({ open, A, onClose, live, asked, setTick, setView, setScope, setActive, setQuick, setQuery, stop, openThread, submit }) => {
+const useArSeedKeys = ({ open, A, onClose, live, view, asked, setTick, setView, setScope, setActive, setQuick, setQuery, stop, openThread, submit }) => {
   // What the shell sends as it opens the Line: a question to ask or to finish, or a thread to open (`askAbout({ thread })`, any caller). The
   // shell opens and sends in the same moment, so the Line listens while closed too and keeps the last request.
   useArEffect(() => {
@@ -329,16 +347,16 @@ const useArSeedKeys = ({ open, A, onClose, live, asked, setTick, setView, setSco
   useArEffect(() => {
     if (!open || !A) return;
     // Anywhere in the Line, not only on the line: ⌘J (or Ctrl J) opens Earlier, before the browser's Downloads can;
-    // Esc stops a turn in flight, else closes (the line takes Esc first when it has focus, onKey).
+    // Esc stops a turn in flight, else steps back out of Earlier, else closes (the line takes Esc first when it has
+    // focus, onKey). On a desk an Esc pressed in the page beside the panel is the page's: the panel takes its own
+    // (ask-hooks.jsx panelKeys).
     const onKeys = (e) => {
       if ((e.metaKey || e.ctrlKey) && !e.altKey && (e.key === "j" || e.key === "J")) {
         e.preventDefault();
         setView((v) => (v === "earlier" ? "rows" : "earlier"));
         return;
       }
-      if (e.key !== "Escape" || e.defaultPrevented) return;
-      if (live) stop();
-      else onClose();
+      if (e.key === "Escape" && !e.defaultPrevented && arPhone()) arEscape({ live, stop, view, setView, onClose });
     };
     window.addEventListener("keydown", onKeys);
     // Taken once open, after the route's own scope, so a request's scope wins.
@@ -358,11 +376,11 @@ const useArSeedKeys = ({ open, A, onClose, live, asked, setTick, setView, setSco
 const useArWalk = ({ H, query, active, open, view, quick, live, setSel, setMove, bodyRef, sel, move }) => {
   // A new place to stand whenever what is under the line changes; not on every piece of a streaming answer.
   useArEffect(() => { setSel(0); setMove(-1); }, [query, active, open, view, quick, !!live]);
-  // A new answer, Earlier and the home start at their top; in a phone's thread the newest question stands at its top, once
-  // per question or conversation, never again as its answer lands (D5, D10). The row or move the keys stand on stays in sight.
-  const fromTop = !arPhone() || view !== "rows" || !(active || quick);
+  // Earlier and the home start at their top; in a thread the newest question stands at its top, once per question or
+  // conversation, never again as its answer lands (D5, D10). The row or move the keys stand on stays in sight.
+  const fromTop = view !== "rows" || !(active || quick);
   useArEffect(() => { if (bodyRef.current && fromTop) bodyRef.current.scrollTop = 0; }, [active && active.messages.length, quick, view, fromTop]);
-  H.useAskPin(bodyRef, arNowKey(active, quick), open && arPhone() && view === "rows" && !!(active || quick));
+  H.useAskPin(bodyRef, arNowKey(active, quick), open && view === "rows" && !!(active || quick));
   useArEffect(() => {
     const b = bodyRef.current;
     if (!b || !b.querySelector) return;
@@ -372,22 +390,26 @@ const useArWalk = ({ H, query, active, open, view, quick, live, setSel, setMove,
     if (top < b.scrollTop) b.scrollTop = Math.max(0, top - 8);
     else if (top + h > b.scrollTop + b.clientHeight) b.scrollTop = top + h - b.clientHeight + 8;
   }, [sel, move]);
+  H.useAskScrollCues(bodyRef, open); // its bar while it scrolls, its top edge faded once scrolled (ask-hooks.jsx)
 };
 
 // ---- The Line's acts and the turn, made before the hooks that call them ---------------------------------------------
 
 /** Going somewhere, a question back in the field, leaving the turn in flight, Clear, a card's outcome, a conversation opened or deleted, and Stop. */
 const arActs = (ln) => {
-  const { A, M, onClose, pushed, active, setActive, live, setLive, turnSeq, lang, setQuery, setQuick, setView, setUnfolded, setFoldAll, setScope, setThreads, setDoomed, speech, flash, t, inputRef } = ln;
-  // Going somewhere closes the Line; ⌘K brings the conversation back. On a phone the place takes the takeover's entry
-  // (replaced, never pushed over it and then gone back from), so Back from there is the page Ask was opened over.
-  const nav = (to) => {
+  const { A, M, onClose, pushed, active, setActive, live, setLive, turnSeq, lang, setQuery, setQuick, setView, setScope, setThreads, setDoomed, speech, flash, t, inputRef } = ln;
+  // Going somewhere: on a desk the page beside the panel goes there and Ask stays open beside it, the conversation and
+  // all (`stay`); a place jumped to from the words typed is a launcher's, and closes it. On a phone, and for a jump,
+  // the Line closes; ⌘K brings the conversation back. On a phone the place takes the takeover's entry (replaced, never
+  // pushed over it and then gone back from), so Back from there is the page Ask was opened over.
+  const nav = (to, how) => {
     if (pushed.current && window.appNavigate) { pushed.current = false; onClose(); window.appNavigate(to, { replace: true }); return; }
+    if (!(how && how.leave) && !arPhone()) { window.CHANLY.nav(to); return; }
     onClose();
     window.CHANLY.nav(to);
   };
-  // "Change what I asked" on a card: the turn's own question back in the field, to change (spec F4). A fold hands
-  // its turn's question; the latest turn's card takes the last one asked.
+  // "Change what I asked" on a card: the turn's own question back in the field, to change (spec F4). An earlier turn
+  // hands its own question; the latest turn's card takes the last one asked.
   const editWords = (text) => {
     const last = active ? [...active.messages].reverse().find((m) => m.role === "user") : null;
     setQuery(typeof text === "string" ? text : last ? last.text : "");
@@ -402,11 +424,11 @@ const arActs = (ln) => {
   // Clear: the conversation ends, spoken or typed, and the Line is home again; the thread stays in Earlier.
   const clearLine = () => {
     moveOn();
-    setActive(null); setQuery(""); setQuick(null); setView("rows"); setUnfolded(-1); setFoldAll(false);
+    setActive(null); setQuery(""); setQuick(null); setView("rows");
     speech.stop();
   };
-  // What became of a card, kept on the conversation the Line holds, so the card drawn again (a fold, the answer back
-  // under the line) says "Sent" and never offers Send twice. The route keeps it too (AskCard `record`).
+  // What became of a card, kept on the conversation the Line holds, so the card drawn again (an earlier turn, the
+  // answer back in the thread) says "Sent" and never offers Send twice. The route keeps it too (AskCard `record`).
   const noteOutcome = (messageId, pid, o) =>
     setActive((prev) =>
       prev
@@ -423,7 +445,7 @@ const arActs = (ln) => {
     const opened = { id: full.thread.id, title: full.thread.title, messages: full.messages, scope: full.thread.scope };
     setActive(opened);
     if (full.thread.scope) setScope(full.thread.scope);
-    setQuery(""); setQuick(null); setView("rows"); setUnfolded(-1); setFoldAll(false);
+    setQuery(""); setQuick(null); setView("rows");
     return opened;
   };
 
@@ -472,7 +494,7 @@ const arKept = async (c) => { const th = await c.kept; return { ...c, kept: null
 // stream writes and the landing reads: its thread's id, the final message, and what it has said. Asking (as opening
 // another conversation does) stops an answer read aloud, which went on over the next one (D14).
 const arSubmitter = (ln) => {
-  const { A, query, live, active, threads, threadsReady, turnSeq, scope, surface, openedAt, inputRef, speech, setQuery, setView, setUnfolded, setLang, setQuick, setScope, openThread } = ln;
+  const { A, query, live, active, threads, threadsReady, turnSeq, scope, surface, openedAt, inputRef, speech, setQuery, setView, setLang, setQuick, setScope, openThread } = ln;
   const submit = async (qArg, chipArg, how) => {
     const q = (typeof qArg === "string" ? qArg : query).trim(), chip = chipArg !== undefined ? chipArg : scope; // a seed names its opening's chip; `how.spoken` marks a question the recogniser heard
     if (!q || live) return;
@@ -480,7 +502,6 @@ const arSubmitter = (ln) => {
     const spoken = !!(how && how.spoken);
     setQuery("");
     setView("rows");
-    setUnfolded(-1);
     setLang(A.language(q));
     const pending = active ? null : A.quick(q);
     if (pending) return arQuickTurn(ln, q, pending, spoken);
@@ -569,43 +590,44 @@ const arBeginTurn = ({ turnSeq, setActive, setLive }, q, chip, base, how) => {
   const thread = base ? { ...base, messages: [...base.messages, userMsg], scope: chip || base.scope || null } : { id: null, title: q, messages: [userMsg], scope: chip || null }; // asked with the chip's scope, else the thread's own, which it then holds (the Phase 5 plan, D9)
   setActive(thread);
   const turn = { mine: ++turnSeq.current, threadId: thread.id, qid: userMsg.id, ctl: new AbortController(), final: null, spoke: false, said: 0, spoken: !!how.spoken };
-  setLive({ q, text: "", say: null, traces: [], turn }); // the turn in flight: Stop lets go of it (ctl), its thread is named on its question's conversation (qid)
+  setLive({ q, text: "", say: null, traces: [], turn, at: Date.now() }); // the turn in flight: Stop lets go of it (ctl), its thread is named on its question's conversation (qid)
   return { thread, turn };
 };
 
 // ---- what is under the line, and the keys that walk it ----
 
-/** The conversation's turns and folds, whether the rows show (and are drawn: not while a phone's field is in use), the rows, and the answer drawn with its moves and words. */
-const arUnder = ({ A, t, lang, query, surface, scope, threads, view, phone, active, foldAll, talk, live, quick, composing, buildLineRows, flatRows, answerMoves }) => {
+/** The conversation's turns, whether the rows show (and are drawn: not while a phone's field is in use), the rows, and the answer drawn with its moves and words. */
+const arUnder = ({ A, t, lang, query, surface, scope, threads, view, active, talk, live, quick, composing, buildLineRows, flatRows, answerMoves, freshNext }) => {
   const turns = active ? A.turns(active.messages) : []; // its questions and their answers, in order (palette.ts)
   const latest = turns.length ? turns[turns.length - 1] : null;
-  const folded = turns.slice(0, -1).filter((tn) => tn.q && tn.a);
-  const shownFolds = foldAll ? folded : folded.slice(-AR_FOLDED);
+  const folded = turns.slice(0, -1).filter((tn) => tn.q && tn.a); // the thread's earlier turns, each drawn in full
   const answerMsg = latest && latest.a ? latest.a : null;
-  const showRows = arShowRows({ talk, view, query, phone, active, quick, live, answerMsg });
+  const showRows = arShowRows({ talk, view, query, active, quick, live, answerMsg });
   // A phone's field in use with rows under the three (the home, or the words' own): the middle composes (spec 5.9).
   const composingRows = composing && showRows;
   // The rows on screen: not while the field is in use (with the keyboard up there is no room for them, the words' own
-  // rows and the jumps included, and Enter sends), so nothing is built or walked.
-  const rowsDrawn = showRows && !composing;
-  const sections = rowsDrawn ? buildLineRows({ A, t, lang, query, surface, scope, threads, view, phone }) : [];
+  // rows and the jumps included, and Enter sends), so nothing is built or walked; nor for words typed that find no place
+  // to jump to and no question that matches (buildLineRows draws them none), which the field holds and Enter asks.
+  const rowsShown = showRows && !composing;
+  const sections = rowsShown ? buildLineRows({ A, t, lang, query, surface, scope, threads, view }) : [];
   const rows = flatRows(sections);
-  const drawn = showRows || talk.listening || live || quick || !answerMsg ? null : A.answer(answerMsg);
+  const rowsDrawn = rowsShown && (view === "earlier" || !query.trim() || rows.length > 0);
+  const drawn = showRows || talk.listening || live || quick || !answerMsg ? null : freshNext(A, A.answer(answerMsg), active ? turns : []);
   const moves = drawn ? answerMoves(drawn.answer) : [];
   const [words, spoken] = drawn ? [A.answerCopy(drawn.answer), A.answerSpoken(drawn.answer)] : ["", ""];
-  const th = arThreadOf({ phone, view, active, quick, showRows, composing, talk, live, latest });
-  return { latest, folded, shownFolds, answerMsg, showRows, composingRows: composingRows && !th.thread, rowsDrawn, sections, rows, drawn, moves, words, spoken, ...th };
+  const th = arThreadOf({ view, active, quick, showRows, composing, talk, live, latest });
+  return { latest, folded, answerMsg, showRows, composingRows: composingRows && !th.thread, rowsDrawn, sections, rows, drawn, moves, words, spoken, ...th };
 };
 
-/** Whether the rows show: Earlier, words typed (a phone conversation's draft keeps its thread, D1), or nothing to answer yet. */
-const arShowRows = ({ talk, view, query, phone, active, quick, live, answerMsg }) =>
-  !talk.listening && (view === "earlier" || (!!query && !(phone && (active || quick))) || (!live && !quick && !answerMsg));
+/** Whether the rows show: Earlier, words typed outside a conversation (a conversation's draft keeps its thread, D1), or nothing to answer yet. */
+const arShowRows = ({ talk, view, query, active, quick, live, answerMsg }) =>
+  !talk.listening && (view === "earlier" || (!!query && !(active || quick)) || (!live && !quick && !answerMsg));
 
-/** A phone's thread (the spec 2026-09-27-ask-chat-on-a-phone, D1, D4): whether the middle is one, whether the three come forward over the field to listen, and the newest question. */
-const arThreadOf = ({ phone, view, active, quick, showRows, composing, talk, live, latest }) => {
-  // A conversation or a quick answer, every turn in full, unless its words were left in the field for their rows or
-  // Earlier is open; the field in use or a held mic keeps it, dimmed, with the three come forward over the field.
-  const thread = phone && view === "rows" && (!!active || !!quick) && (!showRows || composing || talk.listening);
+/** The thread (the spec 2026-09-27-ask-chat-on-a-phone, D1, D4): whether the middle is one, whether the three come forward over the field to listen, and the newest question. */
+const arThreadOf = ({ view, active, quick, showRows, composing, talk, live, latest }) => {
+  // A conversation or a quick answer, every turn in full, unless Earlier is open; a phone's field in use or a held mic
+  // keeps it, dimmed, with the three come forward over the field.
+  const thread = view === "rows" && (!!active || !!quick) && (!showRows || composing || talk.listening);
   const listen = thread && (composing || talk.listening) && !live && !(quick && quick.pending);
   const nowQ = live ? live.q : quick ? quick.q : latest && latest.q ? latest.q.text : "";
   return { thread, listen, nowQ };
@@ -616,8 +638,8 @@ const arActivate = ({ openThread, setView, nav, setQuery, inputRef, submit }) =>
   const activate = (it) => {
     if (!it) return;
     if (it.type === "thread") { openThread(it.th); return; }
-    if (it.type === "all") { setView("earlier"); return; }
-    if (it.type === "jump" || it.type === "item" || it.type === "open") { nav(it.to); return; }
+    if (it.type === "jump") { nav(it.to, { leave: true }); return; }
+    if (it.type === "item" || it.type === "open") { nav(it.to); return; }
     if (it.compose) { setQuery(it.q); setTimeout(() => inputRef.current && inputRef.current.focus(), 20); return; }
     submit(it.q);
   };
@@ -628,15 +650,10 @@ const arActivate = ({ openThread, setView, nav, setQuery, inputRef, submit }) =>
 const arFieldKey = (e, query) => (e.key === "Enter" && e.shiftKey) || ((e.key === "ArrowDown" || e.key === "ArrowUp") && query.includes("\n"));
 
 /** The line's keys: Esc, the arrows over the rows or the answer's moves, Delete on a conversation, Enter; the field's own first (arFieldKey). */
-const arOnKey = ({ hold, live, stop, onClose, showRows, rows, moves, sel, setSel, move, setMove, active, query, setQuery, askDelete, view, activate, submit }) => {
+const arOnKey = ({ hold, live, stop, onClose, showRows, rows, moves, sel, setSel, move, setMove, active, query, setQuery, askDelete, view, setView, activate, submit }) => {
   const onKey = (e) => {
     if (hold.onKeyDown(e) || arFieldKey(e, query)) return;
-    if (e.key === "Escape") {
-      e.preventDefault();
-      if (live) stop();
-      else onClose();
-      return;
-    }
+    if (e.key === "Escape") { e.preventDefault(); arEscape({ live, stop, view, setView, onClose }); return; }
     if (e.key === "ArrowDown") {
       if (showRows && rows.length) { e.preventDefault(); setSel((s) => Math.min(rows.length - 1, s + 1)); }
       else if (moves.length) { e.preventDefault(); setMove((m) => Math.min(moves.length - 1, m + 1)); }
@@ -666,9 +683,9 @@ const arOnKey = ({ hold, live, stop, onClose, showRows, rows, moves, sel, setSel
   return onKey;
 };
 
-/** The field's end: the one button (the mic held to talk, Send, or Stop), with Copy, Read aloud and Clear before it beside a desktop's answer. */
+/** The field's end: the one button (the mic held to talk, Send, or Stop). */
 const arLineEnd = (ln) => {
-  const { words, spoken, flash, t, phone, buzz, talk, held, speech, query, live, stop, submit, drawn, lang, clearLine, AskActs, begin, end } = ln;
+  const { t, phone, buzz, talk, held, speech, query, live, stop, submit, begin, end } = ln;
   // Held to talk. The button keeps the finger (pointer capture), so the lift reaches it even once a phone's foot has
   // turned into "Let go to ask" over it; a phone buzzes as it starts (S16). The recogniser may end on its own before
   // the finger lifts (a pause ends it on Android Chrome and iOS Safari) and the words heard are asked then, so by the
@@ -722,20 +739,8 @@ const arLineEnd = (ln) => {
       <Icon key={icon} name={icon} size={icon === "stop" ? 14 : 15} />
     </button>
   );
-  // With an answer drawn on a desktop, Copy and Read aloud (the kit's AskActs) and Clear stand before it (keyed, so it
-  // stays the same element); a phone's foot keeps only the one button, its acts under the answer, Clear the head's.
-  const right = drawn && !phone ? (
-    <>
-      <AskActs key="acts" words={words} spoken={spoken} speech={speech} flash={flash} t={t} />
-      <button key="clear" type="button" className="ask-line-btn quiet" onClick={clearLine} aria-label={t.clear} title={t.clear} data-testid="ask-clear">
-        <Icon name="x" size={14} />
-      </button>
-      {oneButton}
-    </>
-  ) : (
-    <>{oneButton}</>
-  );
-  return { liftMic, right };
+  // The foot keeps only the one button: an answer's acts are under it in the thread, and New is the head's.
+  return { liftMic, right: oneButton };
 };
 
 // ---- What the Line draws: plain functions, not components, making its elements in the order AskReal always did ----
@@ -790,35 +795,39 @@ const arBody = ({ rowsDrawn, sections, sel, setSel, activate, askDelete, t, view
   return null;
 };
 
-/** A phone's hero as it stands: shrunk with the question under it, at rest, and the standing pills. */
-const arHeroState = ({ live, answerMsg, quick, latest, talk, showRows, view, query, phone, A, lang, composingRows, thread }) => {
-  const heroSmall = !!(live && (live.say || live.text)) || !!answerMsg;
-  // In a phone's thread the three lead the newest answer (D3), its question the bubble over them, not a line under.
+/** The hero as it stands: shrunk with the question under it, at rest, and the standing pills. */
+const arHeroState = ({ live, answerMsg, quick, latest, talk, showRows, view, query, A, lang, composing, composingRows, thread }) => {
+  // Small once an answer is written, and while words are typed at home with the field not composing (a desk's, or a
+  // phone's left with words once its keyboard went), so their rows stand under the three and not a screen below them.
+  const typed = showRows && view === "rows" && !!query.trim() && !composing;
+  const heroSmall = !!(live && (live.say || live.text)) || !!answerMsg || typed;
+  // In the thread the three lead the newest answer (D3), its question the bubble over them, not a line under.
   const heroMode = arHeroModeOf({ thread, heroSmall, live, quick });
   const heroQ = !heroSmall || thread ? null : live ? live.q : latest && latest.q ? latest.q.text : null;
   const restful = !thread && (talk.listening || (showRows && view === "rows" && !query));
-  // The standing pills (who needs you, the runs and searches waiting) are the hero's on a phone: under the three at
-  // rest, and still there while the field is in use, since they are what a person came to see (spec 5.9).
-  const parts = phone && A.rightNowParts ? A.rightNowParts(lang) : null;
+  // The standing pills (who needs you, the runs and searches waiting) are the hero's: under the three at rest, and
+  // still there while a phone's field is in use, since they are what a person came to see (spec 5.9).
+  const parts = A.rightNowParts ? A.rightNowParts(lang) : null;
   const standing = !!parts && !!(parts.people || parts.runs || parts.searches) && !talk.listening && (composingRows || restful);
   return { heroSmall, heroMode, heroQ, restful, parts, standing };
 };
 
-/** The three in a phone's thread (D3, D11): large while Ask reads; at the answer's start, speaking, the moment its words arrive, in one move; still there once it is whole. */
+/** The three in the thread (D3, D11): large while Ask reads; at the answer's start, speaking, the moment its words arrive, in one move; still there once it is whole. */
 const arHeroModeOf = ({ thread, heroSmall, live, quick }) => {
   if (!thread) return heroSmall ? " small" : "";
   const reading = (!!live && !(live.say || live.text)) || !!(quick && quick.pending);
   return reading ? " thinking" : live ? " sig speaking" : " sig";
 };
 
-// A phone's hero (spec 5.2-5.5): the three at 232px (ask.css `.ask-hero-stage`), what they hear while held, the
-// question and what Ask reads until the first words; once an answer is written they shrink to the top with its
-// question under them, said once (ask.css hides the turn's own copy on a phone). In a phone's thread they lead the
-// newest answer under its question's bubble (`heroMode`, D3), with what Ask has read under them while it reads
-// (AskReads, D12), and a held mic's words are the band's (AskListen).
-const arHero =({ phone, heroSmall, heroMode, thread, heroRef, faceRef, holdThree, AskFace, standing, parts, t, AskNowPills, AskReads, talk, query, live, quick, heroQ }) =>
-  phone ? (
-    <div className={`ask-hero${heroMode}`} ref={heroRef} data-testid="ask-hero">
+// The hero (spec 5.2-5.5): the three at 232px (ask.css `.ask-hero-stage`), what they hear while held, the question and
+// what Ask reads until the first words; once an answer is written they shrink to the top with its question under them,
+// said once (ask.css hides the turn's own copy). In the thread they lead the newest answer under its question's bubble
+// (`heroMode`, D3), with what Ask has read under them while it reads (AskReads, D12), and a held mic's words are the
+// band's (AskListen).
+// In Earlier the three step aside (`away`, drawn but not laid out, so they are not drawn afresh on the way back) and the
+// conversations take the middle.
+const arHero = ({ heroSmall, heroMode, thread, heroRef, faceRef, holdThree, AskFace, standing, parts, t, AskNowPills, AskReads, talk, query, live, quick, heroQ, view }) => (
+    <div className={`ask-hero${heroMode}${view === "earlier" ? " away" : ""}`} ref={heroRef} data-testid="ask-hero">
       <span className="ask-hero-stage" ref={faceRef} {...holdThree} data-testid="ask-hero-stage">
         {AskFace ? <AskFace className="ask-hero-canvas" testId="ask-line-face" /> : null}
       </span>
@@ -828,13 +837,13 @@ const arHero =({ phone, heroSmall, heroMode, thread, heroRef, faceRef, holdThree
       ) : (live || (quick && quick.pending)) && !heroSmall ? (
         <>
           {thread ? null : <p className="ask-turn-q">{live ? live.q : quick.q}</p>}
-          <AskReads traces={live ? live.traces : []} t={t} />
+          <AskReads traces={live ? live.traces : []} since={live ? live.at : null} t={t} />
         </>
       ) : heroQ ? (
         <p className="ask-turn-q">{heroQ}</p>
       ) : null}
     </div>
-  ) : null;
+);
 
 // While a phone listens its foot is the pill to let go of, over the band (still drawn, hidden, so the mic that holds
 // the finger is there for the lift), with a way back to typing that keeps the words heard (spec 5.3).
@@ -846,20 +855,13 @@ const arFoot = ({ phone, talk, typing, t, liftMic }) =>
     </div>
   ) : null;
 
-// The band (spec 4.1, 4.2): the three at 84px beside the field, the largest face in the app; under the field, while Ask
-// reads, one line in coral ink saying what it reads, then Writing… as the Say begins. On a phone the face and the line are the hero's,
-// and the band is the field at the foot (ask.css orders it last), hidden under the pill to let go of while it
-// listens.
-const arStage = ({ H, talk, live, stageRef, phone, faceRef, AskFace, scope, setScope, setActive, t, inputRef, active, surface, query, setQuery, composing, M, onKey, hold, slideFrom, heroRef, setComposing, rowsDrawn, rows, showRows, sel, move, right }) => {
+// The band: the field at the foot (ask.css orders it last), the scope and the one button in it; the three and what Ask
+// reads are the hero's. On a phone it is hidden under the pill to let go of while it listens.
+const arStage = ({ H, talk, live, stageRef, scope, setScope, setActive, t, inputRef, active, surface, query, setQuery, composing, M, onKey, hold, slideFrom, heroRef, setComposing, rowsDrawn, rows, showRows, sel, move, right }) => {
   const activeId = showRows ? (rows.length ? `ask-row-${sel}` : undefined) : move >= 0 ? `ask-move-${move}` : undefined;
   return (
     <div className={`ask-stage${talk.listening ? " listening" : ""}${live ? " live" : ""}`} ref={stageRef} data-testid="ask-line">
       <div className="ask-stage-row">
-        {!phone ? (
-          <span className="ask-stage-face" ref={faceRef}>
-            {AskFace ? <AskFace className="ask-stage-canvas" testId="ask-line-face" /> : null}
-          </span>
-        ) : null}
         {scope ? (
           <span className="ask-scope" title={`${scope.kind}: ${scope.label}`} data-testid="ask-scope">
             <Icon name={arScopeIcon(scope)} size={10} />
@@ -893,90 +895,84 @@ const arStage = ({ H, talk, live, stageRef, phone, faceRef, AskFace, scope, setS
         />
         <span className="ask-line-right">{right}</span>
       </div>
-      {live && !phone ? (
-        <p className="ask-reading" aria-live="polite" data-testid="ask-reading">
-          <span className="ask-reading-dot" aria-hidden="true" />
-          {live.say || live.text ? t.writing : live.traces.length ? live.traces[live.traces.length - 1] : t.thinking}
-        </p>
-      ) : null}
     </div>
   );
 };
 
-// A phone's middle is one scroller (spec 5.1, 5.5): on the home, the hero and the rows; in a conversation, the thread
-// (the spec 2026-09-27-ask-chat-on-a-phone, D1): every earlier turn in full, then the newest question, the three and
-// its answer (`ask-now`, one element throughout, so the three are never drawn afresh), with Copy and Read aloud under
-// it once it is whole (D14). A desktop's is the rows or the answer. At rest, while it listens at home and while the
-// field is in use there, what it holds stands centred (`rest`, `composing`; spec 5.2, 5.9); a thread dims under the
-// three come forward (`dim`, D4).
-const arMiddle = ({ phone, thread, listen, restful, composingRows, bodyRef, body, hero, folded, nowQ, drawn, words, spoken, speech, flash, t, lang, nav, submit, noteOutcome, editWords, AskThread, AskQuestion, AskActs }) => (
+// The middle is one scroller (spec 5.1, 5.5): on the home, the hero and the rows; in a conversation, the thread (the
+// spec 2026-09-27-ask-chat-on-a-phone, D1): every earlier turn in full, then the newest question, the three and its
+// answer (`ask-now`, one element throughout, so the three are never drawn afresh), with Copy and Read aloud under it
+// once it is whole (D14). At rest, while it listens at home and while a phone's field is in use there, what it holds
+// stands centred (`rest`, `composing`; spec 5.2, 5.9); a thread dims under the three come forward (`dim`, D4).
+const arMiddle = ({ thread, listen, restful, composingRows, bodyRef, body, hero, folded, nowQ, drawn, words, spoken, speech, flash, t, lang, nav, submit, noteOutcome, editWords, AskThread, AskQuestion, AskActs }) => (
   <div className={`ask-line-body${restful ? " rest" : ""}${composingRows ? " composing" : ""}${thread ? " thread" : ""}${listen ? " dim" : ""}`} ref={bodyRef}>
     {thread ? <AskThread turns={folded} t={t} lang={lang} onNav={nav} onFollow={submit} onOutcome={noteOutcome} onEdit={editWords} /> : null}
-    {phone ? (
-      <div className="ask-now">
-        {thread && nowQ ? <AskQuestion text={nowQ} now /> : null}
-        {hero}
-        {body}
-        {thread && drawn ? <AskActs words={words} spoken={spoken} speech={speech} flash={flash} t={t} /> : null}
-      </div>
-    ) : body}
+    <div className="ask-now">
+      {thread && nowQ ? <AskQuestion text={nowQ} now /> : null}
+      {hero}
+      {body}
+      {thread && drawn ? <AskActs words={words} spoken={spoken} speech={speech} flash={flash} t={t} /> : null}
+    </div>
   </div>
 );
 
-// Over a phone's field in a conversation: the three come forward to listen (D4), the newest answer's next questions
+// Over the field in a conversation: the three come forward to listen (D4), the newest answer's next questions
 // (D6), and Latest once its question is out of sight, over them (D7).
 const arOverField = ({ H, thread, listen, composing, talk, live, drawn, move, query, t, submit, below, bodyRef, AskFace, AskListen, AskNextRow, AskLatest }) => {
   const nextRow = thread && !composing && !talk.listening && !live && drawn && drawn.answer.do.next.length ? <AskNextRow answer={drawn.answer} sel={move} onFollow={submit} /> : null;
+  // While an answer is on its way its next questions' room is held, so the thread does not jump up as they arrive.
+  const held = thread && !composing && !talk.listening && live ? <div className="ask-next-row hold" aria-hidden="true" /> : null;
   return (
     <>
       {listen ? <AskListen AskFace={AskFace} heard={talk.listening ? query || t.listening : ""} /> : null}
-      {nextRow}
+      {nextRow || held}
       {thread && below && !listen ? <AskLatest t={t} overNext={!!nextRow} onPress={() => H.pinNow(bodyRef.current)} /> : null}
     </>
   );
 };
 
-/** The Line: the scrim, the dialog, what a screen reader hears, the head, the folds, the foot, the band, the question before a delete, and the middle. */
+/** The Line: the scrim, the dialog, what a screen reader hears, the head, the foot, the band, the question before a delete, what stands over the field, and the middle. */
 const arLineView = (ln) => {
-  const { onClose, tick, dialogRef, drawn, view, live, setView, t, active, quick, clearLine, phone, folds, foot, doomed, removeThread, setDoomed, body, toastNode } = ln;
+  const { onClose, tick, dialogRef, drawn, view, live, setView, t, active, quick, clearLine, foot, doomed, removeThread, setDoomed, toastNode, phone } = ln;
   // What a screen reader hears: the answer's headline (or a prose answer's words) once it is whole (spec 6.10).
   const said = drawn ? drawn.answer.say.headline || drawn.answer.say.detail : "";
   return (
-    // It goes the way it came as it closes (data-bits leaving), and on a phone, where it is the whole screen (ask.css),
-    // a thumb pulls it down or takes it across to either side (touchSwipe). ask-overlay and ask-modal carry the motion.
+    // It goes the way it came as it closes (data-bits leaving): a desk's panel back out to the right, a phone's screen
+    // fading, where a thumb also pulls it down or takes it across to either side (touchSwipe). ask-overlay and ask-modal
+    // carry the motion.
     <div className="ask-overlay ask-line-scrim" role="presentation" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }} data-tick={tick} ref={window.leaving ? window.leaving("ask") : undefined}>
       <div
         ref={dialogRef}
         className="ask-modal ask-real ask-line"
-        role="dialog"
-        aria-modal="true"
+        role={phone ? "dialog" : "complementary"}
+        aria-modal={phone ? "true" : undefined}
         tabIndex={-1}
         aria-label={t.dialogName}
         data-testid="ask-real"
         {...(window.touchSwipe ? window.touchSwipe({ onDown: onClose, onBack: onClose, onAway: onClose, when: arPhone }) : {})}
+        onKeyDown={phone ? undefined : (e) => H.panelKeys(e, () => arEscape(ln))}
       >
         <p className="ask-said" role="status" aria-live="polite" data-testid="ask-said">{said}</p>
-        {/* A phone's head: Earlier, New in a conversation or over a quick answer (a preset question is answered
-            without one, and was left with no way home but ×; it ends the conversation as Clear did, D9), and a close
-            within the thumb's reach; both wait while a turn runs (spec 5.1, 5.4). A desktop draws none. */}
+        {/* The head: Earlier, New in a conversation or over a quick answer (a preset question is answered without
+            one, and was left with no way home but ×; it ends the conversation as Clear did, D9), and a close within the
+            thumb's reach; both wait while a turn runs (spec 5.1, 5.4). */}
         <div className="ask-line-head">
           <button type="button" className="btn btn-ghost" aria-pressed={view === "earlier"} disabled={!!live} onClick={() => setView((v) => (v === "earlier" ? "rows" : "earlier"))} data-testid="ask-earlier">
             <Icon name="chat" size={13} />
             {t.earlier}
           </button>
           {active || quick ? <button type="button" className="btn btn-ghost" disabled={!!live} onClick={clearLine} data-testid="ask-clear-head"><Icon name="plus" size={13} />{t.newChat}</button> : null}
-          <button type="button" className="ask-line-btn quiet" onClick={onClose} aria-label={t.close} title={t.close} data-testid="ask-close">
+          <button type="button" className="btn btn-ghost btn-icon ask-line-close" onClick={onClose} aria-label={t.close} title={t.close} data-testid="ask-close">
             <Icon name="x" size={14} />
           </button>
         </div>
-        {!phone ? folds : null}
         {foot}
         {arStage(ln)}
         {doomed ? (
           <Confirm question={t.deleteAsk} detail={doomed.title} yes={t.deleteYes} no={t.deleteKeep} danger block className="ask-confirm" onYes={() => removeThread(doomed)} onNo={() => setDoomed(null)} testid="ask-delete" />
         ) : null}
-        {phone ? arOverField(ln) : null}
-        {body || phone ? arMiddle(ln) : null}
+        {arOverField(ln)}
+        {arMiddle(ln)}
       </div>
       {toastNode}
     </div>
@@ -991,11 +987,11 @@ const AskReal = ({ open, onClose }) => {
   const A = window.__ask;
   const H = window.AskHooks;
   const { buildLineRows, AskRows, flatRows, AskNowPills } = window.AskHome;
-  const { AskTurn, answerMoves, AskThread, AskQuestion, AskNextRow, AskListen, AskLatest, AskFolds, AskReads, AskActs } = window.AskAnswerKit;
+  const { AskTurn, answerMoves, freshNext, AskThread, AskQuestion, AskNextRow, AskListen, AskLatest, AskReads, AskActs } = window.AskAnswerKit;
   // Ask's face: the one mood every face follows (legacy-bridge/mascot mood.ts), standing in the line.
   const M = window.__mascot || null;
   const AskFace = window.AskFace || null;
-  const kit = { AskTurn, answerMoves, AskThread, AskQuestion, AskNextRow, AskListen, AskLatest, AskReads, AskActs };
+  const kit = { AskTurn, answerMoves, freshNext, AskThread, AskQuestion, AskNextRow, AskListen, AskLatest, AskReads, AskActs };
   const ln = { open, onClose, A, H, M, AskFace, buildLineRows, AskRows, flatRows, AskNowPills, ...kit, ...useArLine(A, H) };
   ln.t = window.askText(ln.lang);
   const route = arRoute();
@@ -1013,7 +1009,7 @@ const AskReal = ({ open, onClose }) => {
   useArFocus(ln);
   useArSeedKeys(ln);
   useArWalk(ln); H.useAskGrow(ln.inputRef, ln.query, open); // the field grows with its words, to six lines (ask-hooks.jsx)
-  ln.below = H.useAskLatest(ln.bodyRef, open && arPhone() && ln.view === "rows" && !!(ln.active || ln.quick));
+  ln.below = H.useAskLatest(ln.bodyRef, open && ln.view === "rows" && !!(ln.active || ln.quick));
 
   if (!open || !A) return null;
   ln.phone = arPhone();
@@ -1024,8 +1020,6 @@ const AskReal = ({ open, onClose }) => {
   ln.body = arBody(ln);
   Object.assign(ln, arHeroState(ln));
   ln.hero = arHero(ln);
-  // A desktop's conversation folds above the band (AskAnswerKit.AskFolds); a phone draws its thread instead (D1).
-  ln.folds = !ln.phone && ln.view === "rows" && ln.folded.length ? <AskFolds folded={ln.folded} shown={ln.shownFolds} unfolded={ln.unfolded} setUnfolded={ln.setUnfolded} setFoldAll={ln.setFoldAll} t={ln.t} A={A} lang={ln.lang} onNav={ln.nav} onFollow={ln.submit} onOutcome={ln.noteOutcome} onEdit={ln.editWords} /> : null;
   ln.foot = arFoot(ln);
   return arLineView(ln);
 };

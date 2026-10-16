@@ -241,7 +241,7 @@ const moved = (was, now) => {
  * it is not.
  */
 let intervalsUnreffed = false;
-function unrefIntervals() {
+export function unrefIntervals() {
   if (intervalsUnreffed) return;
   intervalsUnreffed = true;
   const real = globalThis.setInterval;

@@ -649,7 +649,7 @@ const appChrome = (s) => {
           theme={theme}
           themePref={themePref}
           onTheme={onTheme}
-          onAsk={openAsk}
+          onAsk={askOpen ? () => setAskOpen(false) : openAsk /* open, it closes, as ⌘K does */}
           askLabel={ask || null}
           onMenu={() => setNavOpen(true)}
           right={glass ? null : primaryAction}
