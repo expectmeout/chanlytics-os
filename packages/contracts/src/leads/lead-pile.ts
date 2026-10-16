@@ -86,6 +86,9 @@ export function leadPileOpen(
   return undecided && (pile.pass === "first" ? !r.laterAt : !!r.laterAt);
 }
 
+/** The key that undoes the pile's last act, beside the rail's three (each slot's `key`): the listener's, and the hint's. */
+export const LEAD_PILE_UNDO_KEY = "z";
+
 /** What a press of the pile's rail does. */
 export type LeadPileAct = "not_a_fit" | "later" | "add" | "hold" | "keep" | "exclude";
 

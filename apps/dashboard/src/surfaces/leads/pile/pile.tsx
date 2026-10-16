@@ -15,6 +15,7 @@ import {
   LEAD_NOT_A_FIT_TITLE,
   LEAD_NOT_A_FIT_WHYS,
   LEAD_NOT_A_FIT_WORDS,
+  LEAD_PILE_UNDO_KEY,
   LEAD_PILE_WORDS,
   leadPileProgressOf,
   leadPileRailOf,
@@ -33,8 +34,11 @@ import type { LeadPile } from "./use-pile";
 export const pileAddBlocked = (card: LeadCardFacts | null): string | null =>
   card && card.email ? card.email.blocked : null;
 
-/** The rail: three presses, or the five whys of Not a fit in their place. */
-const railOf = (p: PileViewProps, l: LeadRowVM) => {
+/**
+ * The rail: three presses, or the five whys of Not a fit in their place. Each press names its key to a screen reader,
+ * and on a desk (`keys`) shows it too, the house's key (`.kbd`, light on the filled one): a phone has none to press.
+ */
+const railOf = (p: PileViewProps, l: LeadRowVM, keys: boolean) => {
   const { pile } = p;
   if (pile.asking)
     return (
@@ -66,10 +70,16 @@ const railOf = (p: PileViewProps, l: LeadRowVM) => {
             variant={s.look}
             disabled={pile.busy || !!off}
             onClick={() => void pile.act(l, s.act)}
+            aria-keyshortcuts={s.key.toUpperCase()}
             data-testid={`lead-pile-${s.act}`}
             {...(off ? { title: off } : gate(s.right, s.label.toLowerCase()))}
           >
             {s.label}
+            {keys ? (
+              <kbd className={s.look === "primary" ? "kbd kbd-on-dark" : "kbd"} aria-hidden="true">
+                {s.key.toUpperCase()}
+              </kbd>
+            ) : null}
           </Button>
         );
       })}
@@ -78,7 +88,7 @@ const railOf = (p: PileViewProps, l: LeadRowVM) => {
 };
 
 /** The rail, for the phone's sheet, which holds it still at its foot. */
-export const PileRail = ({ p, l }: { p: PileViewProps; l: LeadRowVM }) => railOf(p, l);
+export const PileRail = ({ p, l }: { p: PileViewProps; l: LeadRowVM }) => railOf(p, l, false);
 
 /** The lead that is up, on a desk: its card, then the rail. */
 const pileLeadOf = (p: PileViewProps, l: LeadRowVM) => (
@@ -89,7 +99,7 @@ const pileLeadOf = (p: PileViewProps, l: LeadRowVM) => (
         <LeadCardMail card={p.card} />
       </>
     ) : null}
-    {railOf(p, l)}
+    {railOf(p, l, true)}
   </article>
 );
 
@@ -144,8 +154,8 @@ const pileEndOf = (p: PileViewProps, later: number) => (
 );
 
 /**
- * How far through it is, what is held, Undo for the last three, and the way out (a desk's; a phone's sheet closes by
- * its own pull and Close).
+ * How far through it is, what is held, Undo for the last three (its key shown on a desk, as the rail's are), and the way
+ * out (a desk's; a phone's sheet closes by its own pull and Close).
  */
 const progressOf = (p: PileViewProps, leave: boolean) => {
   const { pile, counts } = p;
@@ -160,9 +170,15 @@ const progressOf = (p: PileViewProps, leave: boolean) => {
           variant="quiet"
           disabled={pile.busy}
           onClick={() => void pile.undo()}
+          aria-keyshortcuts={LEAD_PILE_UNDO_KEY.toUpperCase()}
           data-testid="lead-pile-undo"
         >
           {LEAD_PILE_WORDS.undo}
+          {leave ? (
+            <kbd className="kbd" aria-hidden="true">
+              {LEAD_PILE_UNDO_KEY.toUpperCase()}
+            </kbd>
+          ) : null}
         </Button>
       ) : null}
       {leave ? (

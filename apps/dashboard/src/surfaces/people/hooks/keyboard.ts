@@ -5,6 +5,7 @@
  * never with a modifier, never behind a menu or a sheet. The cursor's row shows its actions, as a hovered row does
  * (clients.css).
  */
+import { LEAD_PILE_UNDO_KEY } from "@chanlytics/contracts";
 import { PL_CONTROL, PL_OVERLAY, plTyping } from "../words";
 
 /** What the listener reads, left by the view as its draw ends: this draw's rows, cursor and doors, and the view's own. */
@@ -38,7 +39,7 @@ export interface KeyDoors {
 function pileKey(k: NonNullable<KeyDoors["pile"]>, e: KeyboardEvent): boolean {
   const key = e.key.toLowerCase();
   if (key === "a" || key === "l" || key === "n") k.press(key);
-  else if (key === "z") k.undo();
+  else if (key === LEAD_PILE_UNDO_KEY) k.undo();
   else if (key === "escape") k.leave();
   else return false;
   e.preventDefault();

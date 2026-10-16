@@ -308,6 +308,14 @@ function PlatformSpeedCards({ P, problem }: { P: PlatformApi; problem: string | 
           testid="platform-speed-spots"
         />
       )}
+      {where.deferred.length > 0 && (
+        <SpeedCard
+          title="Steps waiting on their numbers"
+          sentence={where.deferredSentence}
+          lines={where.deferred.map((d) => ({ ...d, label: `${d.label} · ${d.value}` }))}
+          testid="platform-speed-deferred"
+        />
+      )}
     </>
   );
 }

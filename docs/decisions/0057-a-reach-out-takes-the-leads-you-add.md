@@ -55,6 +55,14 @@ What it built (00426, 00427; the plan in `docs/superpowers/plans/2026-10-13-the-
   companies with people named on them (call 8: built with them, 00430, below); a visit's origin drawn on the Calendar's
   visit sheet (the data is stamped); Today's "N added since your last approval" on a list-fed run; the card's
   first-email preview and the place's signals.
+- **Where those stand, 16 October 2026 (main `1107b27c5`):** the card's first email and the place's signals (its marks:
+  seen, read by Claude, couldn't tell) were built with the lead card (#1638). "N added since your last approval" is
+  not built and not needed: a sequence's batch says how many wait for your OK and the press is "Approve the N", and
+  Today's bell says how many a waiting run reaches. The desk's three columns are not built either: on a desk the pile
+  already stands beside the lead's details, and a third column would repeat the rows it stands in for; the keys it
+  answers are drawn on its presses instead (A, L and N on the rail, Z on Undo). A visit's origin on the Calendar's
+  sheet is still owed: `appointments.lead_id` is stamped and nothing draws it (none is stamped in production yet), and
+  it names the visit's sequence.
 - **Call 8, as built (00430, 13 October 2026):**
   - What a lead is: `leads.kind` (place | company), `source` (the card or a file), `source_key` (a company's domain,
     one lead per workspace and source), and `facts` (the people a source named, five at most, and the addressee).

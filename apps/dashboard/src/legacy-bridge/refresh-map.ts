@@ -586,7 +586,7 @@ export const REFRESHES_NOTHING: Partial<Record<RouteKey, string>> = {
     "what an add would do (00426, dry): nothing is written; the caller says the answer",
   // Ask keeps its own thread and its cards; a card's own call goes through its verb's route, and that route's refresh.
   "POST ask": "a question: Ask draws its answer from the turn it streams",
-  "POST ask/quick": "a quick answer kept as a turn: the Line already drew it, and the thread reads it back as it opens",
+  "POST ask/quick": "a quick answer kept as a turn: the Line holds the answer it drew and the thread it landed in",
   "POST ask/warm": "a warm read of the page before a question; it changes nothing",
   "POST ask/warm/model": "the model's cache, written before a question; it changes nothing a page shows",
   "POST ask/speech": "a clip of the words the page already shows, read aloud in Ask's voice; nothing on screen moves",
@@ -635,8 +635,6 @@ export const REFRESHES_NOTHING: Partial<Record<RouteKey, string>> = {
   "POST templates/draft": "a draft of a template's words",
   "POST templates/versions/rewrite":
     "a version's words written again, handed back to the editor; only its Save keeps them",
-  "POST sequences/[id]/steps/[step]/test":
-    "a test of a step's message to the member's own address: no customer, run or count moves",
   "POST leads/check-again": "the checks are scheduled; each row moves as its check lands, through the live feed",
   // Somewhere else: the page leaves, or the provider's page opens.
   "POST billing/checkout": "Stripe's checkout opens; the return reads Billing again (billing.ts outcome)",
@@ -654,6 +652,7 @@ export const REFRESHES_NOTHING: Partial<Record<RouteKey, string>> = {
   "DELETE me/devices": "this device's push registration",
   "PUT me/alerts": "published from the answer (notifications/verbs.ts)",
   "POST notifications/test": "a test email; nothing moves",
+  "POST sequences/[id]/steps/[step]/test": "a test of a step's message to the member's own address; nothing moves",
   "PUT views/[page]": "the member's saved view, which the page already shows",
   "POST vitals": "the page's field data, kept for the back office",
   "POST client-errors": "an error a boundary caught, told to the server's log; nothing on screen moves",

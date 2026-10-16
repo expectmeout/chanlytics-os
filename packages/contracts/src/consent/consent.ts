@@ -311,7 +311,8 @@ export type DeliveryRefusal = (typeof DELIVERY_REFUSALS)[number];
 export const PURPOSE_REFUSALS: Record<DeliveryRefusal, string> & Record<string, string> = {
   opted_out: OPT_OUT_REFUSAL,
   not_opted_in: "This customer has not said yes to messages yet.",
-  no_marketing_consent: "This customer has not said yes to OFFERS. Appointment messages are fine; promotions are not.",
+  no_marketing_consent:
+    "This customer has not said yes to offers. Reminders, confirmations and replies still go; promotions do not.",
   // The texting line's carrier registration covers replies and appointment
   // messages and nothing else -- an informational campaign, filed that way
   // after the fourth refusal (30896, 11 Sep 2026). A promotion by text would
@@ -325,7 +326,7 @@ export const PURPOSE_REFUSALS: Record<DeliveryRefusal, string> & Record<string, 
   email_marketing_disabled:
     "Offers by email start once the campaigns domain is set up. This customer hears about offers on WhatsApp, once they have said yes to them there.",
   email_offers_paused:
-    "Offers by email are paused for your workspace while complaints and bounces settle. Appointment messages and replies keep going, and offers on WhatsApp are not affected.",
+    "Offers by email are paused for your workspace while complaints and bounces settle. Reminders, confirmations and replies keep going, and offers on WhatsApp are not affected.",
   email_suppressed:
     "Email to this address has stopped: it bounced for good, or the person marked a message as spam. Correct the address on their page, or reach them another way.",
   recipient_changed:
