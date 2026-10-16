@@ -32,7 +32,7 @@ import { LeadCardEmail, LeadCardHead, LeadCardMail, LeadCardParts, LeadCardWho, 
 import { PileEnd, PileProgress, PileRail, PileTargets, type PileViewProps } from "./pile";
 
 /** What the sheet is handed: the pile's view, and the peek's acts and state its tabs share. */
-export interface PileSheetProps {
+interface PileSheetProps {
   view: PileViewProps;
   /** The peek's acts for the lead that is up (scope.tsx peekActsOf); null before its view model is read. */
   acts: PeekActs | null;

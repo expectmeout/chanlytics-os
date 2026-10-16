@@ -231,7 +231,7 @@ export interface LeadCardReasonVM {
   how: "seen" | "read";
 }
 
-export const LEAD_CARD_REASON_WORDS = {
+const LEAD_CARD_REASON_WORDS = {
   lowShare: (share: string) => `${capitalize(share)} of its reviews are 1 or 2 stars`,
   unclaimed: "nobody has claimed its listing",
   both: (low: string) => `${low}, and nobody has claimed its listing.`,

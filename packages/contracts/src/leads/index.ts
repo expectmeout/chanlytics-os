@@ -381,7 +381,6 @@ export {
   LEAD_CARD_WORDS,
   LEAD_CARD_TABS,
   LEAD_SHEET_WORDS,
-  LEAD_CARD_REASON_WORDS,
   LEAD_CARD_MARKS_MAX,
   leadCardEmailOf,
   leadCardStepsOf,
