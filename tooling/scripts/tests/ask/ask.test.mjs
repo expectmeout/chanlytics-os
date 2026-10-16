@@ -1513,7 +1513,7 @@ test("cards: an act tool never acts, a proposal names its door and its undo, the
   // A viewer is never offered an act tool: ask-turn.test.mjs, on the request itself.
   const loop = readCode("apps/dashboard/src/server/ask/loop.ts");
   assert.ok(
-    loop.includes("const p = await ports.propose(tc, b.name, args);"),
+    loop.includes("const p = notAgain(await ports.propose(tc, b.name, args), input.waiting);"),
     "an act tool becomes a proposal, never an action",
   );
   assert.ok(

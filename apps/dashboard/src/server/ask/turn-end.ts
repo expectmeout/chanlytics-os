@@ -22,7 +22,7 @@ import {
   type ModelSpeed,
   type PlanLead,
 } from "@chanlytics/contracts";
-import { calledName, type ToolRun } from "./tools";
+import { calledName, cardsOf, type ProposalOutcome, type ToolRun } from "./tools";
 import type { BuiltContext, SearchResultBlock } from "./context";
 import { argsOf, type RoundBlock, type RoundResult } from "./round";
 import { chainEnd, rawTurn, type LastRound, type TurnEnd } from "./memory";
@@ -248,6 +248,27 @@ export function turnUnmade() {
 }
 
 /* --------------------------------------------------- what a turn of cards says */
+
+/** Whether two cards make the same change: the same kind and the same payload, whatever their ids. */
+const sameChange = (a: AskProposal, b: AskProposal): boolean =>
+  a.kind === b.kind && JSON.stringify(a.payload) === JSON.stringify(b.payload);
+
+/**
+ * A call whose every card the thread already holds, waiting for the person's press (memory.ts threadForTurn): nothing is
+ * made again, and the model is told which are above, to name them (the evals, 16 Oct 2026: "set up my campaigns" asked
+ * twice in one thread proposed its Win-back card a second time, 6 times in 8, on the rules before and after their
+ * sections). A call with any card that is new keeps all of them: a plan's steps name each other, so none is taken out.
+ */
+export function notAgain(o: ProposalOutcome, waiting: readonly AskProposal[] | undefined): ProposalOutcome {
+  const cards = cardsOf(o);
+  if (o.isError || !cards.length || !cards.every((c) => waiting?.some((w) => sameChange(c, w)))) return o;
+  const titles = cards.map((c) => `“${c.title}”`).join(", ");
+  return {
+    proposal: null,
+    result: `Already above in this thread, waiting for their press: ${titles}. Nothing new was made: name each by its title and say it is one press above, with what still comes first.`,
+    isError: false,
+  };
+}
 
 /**
  * An answer beside the turn's cards that claims a write (contracts claimsWrite: "I've set up", "I paused"): nothing is
