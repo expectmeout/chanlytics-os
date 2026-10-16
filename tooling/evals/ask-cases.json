@@ -1809,13 +1809,7 @@
       "card_fields_absent": {
         "message": ["versions.sms"]
       },
-      "includes_any": [
-        "La oferta va a",
-        "Envía «",
-        "Escribe un mensaje para ofertas",
-        "Va sin",
-        "Pausa la oferta del mes"
-      ],
+      "includes_any": ["WhatsApp", "correo", "recepcionista"],
       "excludes": [
         "The offer goes",
         "Writes a message for offers",
@@ -1890,7 +1884,7 @@
         }
       },
       "includes_any": ["calendar"],
-      "next_any": ["settings"],
+      "next_any": ["calendar", "settings"],
       "no_write": true
     }
   },

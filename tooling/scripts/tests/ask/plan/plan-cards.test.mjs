@@ -965,9 +965,9 @@ const PLAN_CALL = {
   text: "",
   json: JSON.stringify({ action: "offer", ...offer() }),
 };
-/** An answer the model writes beside its calls (ASK_ANSWER_FORMAT): its Say, and nothing shown or offered. */
+/** An answer the model writes beside its calls (ASK_ANSWER_FORMAT): its Say and its `next` questions, nothing shown. */
 const NO_SOURCE = { kind: "none", id: "", label: "" };
-const saidBeside = (headline, detail) => ({
+const saidBeside = (headline, detail, next = []) => ({
   type: "text",
   id: "",
   name: "",
@@ -975,16 +975,26 @@ const saidBeside = (headline, detail) => ({
   text: JSON.stringify({
     say: { headline, detail },
     show: { figures: [], items: [], breakdown: { label: "", total: 0, parts: [], source: NO_SOURCE } },
-    do: { open: { source: NO_SOURCE, label: "", now: false }, next: [] },
+    do: { open: { source: NO_SOURCE, label: "", now: false }, next },
     language: "en",
   }),
 });
+/** Each request a planTurn's rounds were asked with, in order: the last turn's. */
+const planRequests = [];
 /**
  * The November offer asked for (or `text`, in `language`), the model's one round scripted as `blocks`, the plan's tool
- * run for real over `ctx`, asked by a member of `role`.
+ * run for real over `ctx`, asked by a member of `role`; `then` scripts the round after a plan, which writes its answer.
+ * With none, that round has nothing to say and the plan's own words answer (loop.ts fail, while a plan's answer is owed).
  */
-const planTurn = (blocks, { text = `I want to offer ${WORDS}`, role = "owner", ctx = null, language = "en" } = {}) => {
-  const rounds = [{ blocks, stopReason: "tool_use", streamError: null }];
+const planTurn = (
+  blocks,
+  { text = `I want to offer ${WORDS}`, role = "owner", ctx = null, language = "en", then = null } = {},
+) => {
+  planRequests.length = 0;
+  const rounds = [
+    { blocks, stopReason: "tool_use", streamError: null },
+    ...(then ? [{ blocks: then, stopReason: "end_turn", streamError: null }] : []),
+  ];
   const events = [];
   return runAskTurn(
     {
@@ -1003,7 +1013,8 @@ const planTurn = (blocks, { text = `I want to offer ${WORDS}`, role = "owner", c
       now: NOW,
     },
     {
-      round: async () => {
+      round: async (c) => {
+        planRequests.push(c.request);
         const next = rounds.shift();
         if (!next) throw new Error("the loop asked for a round the script does not have");
         return next;
@@ -1329,4 +1340,53 @@ test("POST playbooks takes until: judged by core's judge of an end at the route'
     [templates, before],
     "no starter filed, nothing started",
   );
+});
+
+/* ------------------------------ a plan's answer is the model's (the answer canvas, phase B) ------------------------------ */
+
+test("a plan's answer is the model's, written from the plan's result in one more round with no tool, in the person's language: the plan's words reach it as the result, and the cards stand as made", async () => {
+  // The model's words, in whatever language it answers in: Portuguese here (the question's own is the routing's, not this).
+  const words = "Pausa a oferta do mês até 30 de novembro e envia a oferta por e-mail.";
+  const r = await planTurn([PLAN_CALL], { then: [saidBeside("Um plano de 3 passos para revisar.", words)] });
+  assert.equal(r.failed, false, JSON.stringify(r));
+  assert.deepEqual(
+    r.proposals.map((p) => p.kind),
+    ["settings", "playbook_change", "broadcast"],
+  );
+  assert.deepEqual([r.answer.say.headline, r.answer.say.detail], ["Um plano de 3 passos para revisar.", words]);
+  assert.equal(planRequests.length, 2, "one more round, for the answer");
+  assert.deepEqual(planRequests[1].tool_choice, { type: "none" }, "which may call no tool");
+  const told = JSON.stringify(planRequests[1].messages);
+  readerCache.clear();
+  const planWords = await planWordsOf(offer());
+  assert.ok(told.includes(JSON.stringify(planWords).slice(1, 40)), "the plan's words reach it, in its result");
+  assert.ok(told.includes("Now write the answer, in the person's language, from its result alone"), told.slice(-400));
+});
+
+test("a plan's answer round that writes nothing the format reads answers with the plan's own words, as before: its cards stand", async () => {
+  const garbled = { type: "text", id: "", name: "", json: "", text: "{not json" };
+  const r = await planTurn([PLAN_CALL], { then: [garbled] });
+  assert.equal(r.failed, false, JSON.stringify(r));
+  assert.equal(r.answer.say.headline, "A plan of 3 steps to review: 2 send nothing, then 1 sends.");
+  readerCache.clear();
+  assert.equal(r.answer.say.detail, await planWordsOf(offer()));
+});
+
+test("a setup's answer the model writes in Portuguese keeps the door the setup waits on, and its own question next, in its language, over the lead's English one; the button keeps the lead's words where the model's Open went elsewhere", async () => {
+  const intent = { intent: "cover_journey", books: "chamada de diagnóstico", proposals: true };
+  const setup = { ...PLAN_CALL, json: JSON.stringify({ action: "offer", ...intent }) };
+  const asked = "Como ligo o meu calendário?";
+  readerCache.clear();
+  const r = await planTurn([setup], {
+    // Asked in English: a Portuguese question is no draft by its words, so its first round would be asked again (effort.ts).
+    text: "Set up my campaigns",
+    then: [saidBeside("Primeiro ligue o calendário: 1 campanha pode começar já.", "Ligue o calendário.", [asked])],
+  });
+  assert.equal(r.failed, false, JSON.stringify(r));
+  assert.equal(r.answer.say.headline, "Primeiro ligue o calendário: 1 campanha pode começar já.");
+  assert.equal(r.answer.do.open?.to, "admin/workspace/calendar", "the door is the lead's");
+  assert.equal(r.answer.do.open?.label, "Connect a calendar");
+  assert.equal(r.answer.do.open?.now, false);
+  assert.deepEqual(r.answer.do.next, [asked]);
+  assert.equal(r.proposals.length, 1, "the win-back, the one card");
 });

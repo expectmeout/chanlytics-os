@@ -1360,11 +1360,15 @@ test("a write claimed is one predicate (the moment spec, A4): what the eval judg
     "He configurado tus campañas.",
     "He pausado la campaña.",
     "I sent it.",
+    "Done, it's on.",
+    "All set. All done!",
   ])
     assert.equal(claimsWrite(said), true, said);
   for (const said of [
     "Two cards to review: a win-back and a follow-up.",
     "Once you approve it, it starts running.",
+    "You connect it under Settings › Business. Once that's done, ask me again and I'll add both.",
+    "When that's done, the reminder can go.",
     "The card is waiting for your approval.",
     'Here is the reply, ready to approve: "I\'ve set up your visit."',
   ])
