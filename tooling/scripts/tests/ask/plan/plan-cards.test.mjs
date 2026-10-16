@@ -1045,7 +1045,7 @@ test("the loop keeps every card one call made: a plan's three cards are the turn
   assert.equal(r.answer.say.detail, words, "the plan's words whole, in place of the press sentence");
   assert.ok(words.includes(EN.monthsOfferPaused("This month's offer", "Nov 30")), words);
   assert.ok(words.includes(EN.without("whatsapp", C.CHANNEL_WORDS.noWhatsApp)), words);
-  assert.ok(r.answer.say.detail.length <= C.ASK_ANSWER_CAPS.detail);
+  assert.ok(r.answer.say.detail.length <= C.ASK_ANSWER_CAPS.plan);
   // The offer's journey and Library ride in before round 1 (cross-page.ts OFFER_ASKED), then the plan.
   assert.deepEqual(r.tools, ["sequences.journey", "sequences.messages", "propose_plan.offer"]);
 });
@@ -1075,7 +1075,7 @@ test("with a calendar, the plan alone in its round says when to ask for the remi
   const detail = r.answer.say.detail;
   assert.ok(detail.includes(EN.monthsOfferPaused("This month's offer", "Nov 30")), detail);
   assert.ok(detail.includes(EN.reminderAsk("Nov 20", "Can receive offers")), detail);
-  assert.ok(detail.length <= C.ASK_ANSWER_CAPS.detail, `${detail.length}`);
+  assert.ok(detail.length <= C.ASK_ANSWER_CAPS.plan, `${detail.length}`);
   readerCache.clear();
   const op = await planTurn([PLAN_CALL], { role: "operator" });
   assert.equal(op.failed, false, JSON.stringify(op));
@@ -1105,9 +1105,9 @@ test("a US number, the month's offer running and a tight room for a later offer:
   assert.equal(r.failed, false, JSON.stringify(r));
   readerCache.clear();
   const words = said(await call({ action: "plan", ...offer() }, rows(), "owner", TEN)).words;
-  assert.ok(words.length > C.ASK_ANSWER_CAPS.detail, `past the cap: ${words.length}`);
+  assert.ok(words.length > C.ASK_ANSWER_CAPS.plan, `past the cap: ${words.length}`);
   const detail = r.answer.say.detail;
-  assert.ok(detail.length <= C.ASK_ANSWER_CAPS.detail, `${detail.length}`);
+  assert.ok(detail.length <= C.ASK_ANSWER_CAPS.plan, `${detail.length}`);
   for (const unseen of [
     EN.without("whatsapp", C.whatsappOffersOpen(US).why),
     EN.monthsOfferPaused("This month's offer", "Nov 30"),
@@ -1128,9 +1128,9 @@ test("an operator's offer with email not set up, a new WhatsApp message, the mon
   );
   readerCache.clear();
   const words = said(await call({ action: "plan", ...offer() }, rows(), "operator", TEN)).words;
-  assert.ok(words.length > C.ASK_ANSWER_CAPS.detail, `past the cap: ${words.length}`);
+  assert.ok(words.length > C.ASK_ANSWER_CAPS.plan, `past the cap: ${words.length}`);
   const detail = op.answer.say.detail;
-  assert.ok(detail.length <= C.ASK_ANSWER_CAPS.detail, `${detail.length}`);
+  assert.ok(detail.length <= C.ASK_ANSWER_CAPS.plan, `${detail.length}`);
   for (const unseen of [EN.noteLeftOut, ROOM_TIGHT, REMINDS])
     assert.ok(detail.includes(unseen), `whole: ${unseen}\nin: ${detail}`);
 });

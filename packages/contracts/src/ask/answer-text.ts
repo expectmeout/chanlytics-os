@@ -1,9 +1,11 @@
 /**
  * The rules an answer's text passes before the Line draws it: tag-shaped junk out (cleanAnswer), a figure with nothing
  * read behind it (isUngrounded), whether two questions are one thread, the Open button's words, a next question that
- * echoes a place already offered, whether its own words claim a write (claimsWrite), and where its headline's first
- * sentence ends (firstSentence). The answer's shape and its normaliser are ask-answer.ts's.
+ * echoes a place already offered, whether its own words claim a write (claimsWrite), where its headline's first
+ * sentence ends (firstSentence), and the formatting its words may carry, read as blocks the Line draws (answerBlocks)
+ * and as the plain words Copy and a voice take (answerPlain). The answer's shape and its normaliser are ask-answer.ts's.
  */
+import type { AskAnswer, AskList } from "./ask-answer";
 import type { AskLanguage } from "./ask-language";
 
 /* ------------------------------------------------------------- the answer */
@@ -130,3 +132,257 @@ const WRITE_CLAIMS = [
  */
 export const claimsWrite = (text: string | null | undefined): boolean =>
   WRITE_CLAIMS.some((re) => re.test(unquoted(text)));
+
+/* ------------------------------------------------------- the words' formatting */
+
+/**
+ * A run of words and how it is set: bold, italic, or neither. A link's words are a run of their own with no link: the
+ * model never writes a route (D5), so a place is an item or Open, never a link inside the words.
+ */
+export interface AnswerRun {
+  text: string;
+  bold?: true;
+  italic?: true;
+}
+/** A list as the words wrote it: numbered or bulleted, each point with the list under it, if any. */
+export interface AnswerList {
+  ordered: boolean;
+  items: Array<{ runs: AnswerRun[]; sub: AnswerList | null }>;
+}
+/**
+ * The answer's words as the Line draws them: paragraphs, a few headings, lists nested up to three deep, and tables. The
+ * Line draws each from its parts as text, never as markup, so nothing the model writes is ever parsed as HTML.
+ */
+export type AnswerBlock =
+  | { kind: "text"; lines: AnswerRun[][] }
+  | { kind: "heading"; runs: AnswerRun[] }
+  | { kind: "list"; list: AnswerList }
+  | { kind: "table"; head: AnswerRun[][]; rows: AnswerRun[][][]; right: boolean[] };
+
+/** Inline marks: `**bold**`, `__bold__`, `*italic*`, `_italic_`, a `[link](anywhere)`, and `code` as its words. */
+const INLINE =
+  /\*\*(.+?)\*\*|__(.+?)__|(?<![\p{L}\p{N}*])\*(?!\s)(.+?)(?<!\s)\*(?![\p{L}\p{N}*])|(?<![\p{L}\p{N}_])_(?!\s)(.+?)(?<!\s)_(?![\p{L}\p{N}_])|\[([^\]\n]+)\]\([^)\s]*\)|`([^`\n]+)`/gu;
+
+/** A line's words as runs: its marks read, each mark's words a run of their own; the marks themselves are never shown. */
+export function answerRuns(line: string): AnswerRun[] {
+  const out: AnswerRun[] = [];
+  let at = 0;
+  const plain = (s: string) => {
+    if (s) out.push({ text: s });
+  };
+  for (const m of line.matchAll(INLINE)) {
+    plain(line.slice(at, m.index));
+    const [, b1, b2, i1, i2, link, code] = m;
+    if (b1 ?? b2) out.push({ text: b1 ?? b2 ?? "", bold: true });
+    else if (i1 ?? i2) out.push({ text: i1 ?? i2 ?? "", italic: true });
+    else plain(link ?? code ?? "");
+    at = (m.index ?? 0) + m[0].length;
+  }
+  plain(line.slice(at));
+  return out;
+}
+
+const LIST_LINE = /^(\s*)(?:([-*•])|(\d{1,2})[.)])\s+(.*)$/;
+const HEADING = /^#{1,6}\s+(.+?)\s*#*$/;
+const TABLE_LINE = /^\s*\|.*\|\s*$/;
+const TABLE_RULE = /^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$/;
+/** A cell that is a number, a sum, a share or a length of time: its column is set right. */
+const NUMBER_CELL = /^[-+]?[$€£]?\d[\d,.\s]*(%|[kKmM]|\s?(?:min|h|s))?$/;
+/** How deep a list may go: past three levels a point stays at the third. */
+const LIST_DEPTH = 3;
+
+/** A table row's cells, `\|` kept as a bar inside a cell. */
+const cells = (line: string): string[] =>
+  line
+    .trim()
+    .replace(/^\|/, "")
+    .replace(/\|$/, "")
+    .split(/(?<!\\)\|/)
+    .map((c) => c.replace(/\\\|/g, "|").trim());
+
+/** A run of list lines as one list, nested by indent; a line indented under a point and not a point itself continues it. */
+function wordsListOf(lines: string[]): AnswerList {
+  const root: AnswerList = { ordered: false, items: [] };
+  const stack: Array<{ indent: number; list: AnswerList }> = [];
+  for (const raw of lines) {
+    const m = LIST_LINE.exec(raw);
+    if (!m) {
+      const last = stack.at(-1)?.list.items.at(-1);
+      if (last) last.runs.push({ text: " " }, ...answerRuns(raw.trim()));
+      continue;
+    }
+    const indent = m[1].replace(/\t/g, "  ").length;
+    const ordered = !!m[3];
+    while (stack.length && stack[stack.length - 1].indent > indent) stack.pop();
+    const top = stack.at(-1);
+    let list: AnswerList;
+    if (!top) {
+      list = root;
+      if (!root.items.length) root.ordered = ordered;
+      stack.push({ indent, list });
+    } else if (indent > top.indent && top.list.items.length && stack.length < LIST_DEPTH) {
+      const parent = top.list.items[top.list.items.length - 1];
+      parent.sub = parent.sub ?? { ordered, items: [] };
+      list = parent.sub;
+      stack.push({ indent, list });
+    } else list = top.list;
+    list.items.push({ runs: answerRuns(m[4]), sub: null });
+  }
+  return root;
+}
+
+/**
+ * The answer's words as blocks: a heading line (`#`, at any level, drawn as one), a run of list lines (`-`, `*`, `•`,
+ * `1.`, `1)`, nested by indent), a table (a header row, its rule `|---|`, then its rows; a column whose every body cell
+ * is a number is set right), and paragraphs, a blank line between two, each line its own. Words with no marks are one
+ * paragraph of their lines, as the detail always was.
+ */
+export function answerBlocks(text: string): AnswerBlock[] {
+  const lines = text.replace(/\r\n?/g, "\n").split("\n");
+  const blocks: AnswerBlock[] = [];
+  let para: AnswerRun[][] = [];
+  const endPara = () => {
+    if (para.length) blocks.push({ kind: "text", lines: para });
+    para = [];
+  };
+  for (let i = 0; i < lines.length;) {
+    const line = lines[i];
+    if (!line.trim()) {
+      endPara();
+      i++;
+      continue;
+    }
+    const h = HEADING.exec(line.trim());
+    if (h) {
+      endPara();
+      blocks.push({ kind: "heading", runs: answerRuns(h[1]) });
+      i++;
+      continue;
+    }
+    if (TABLE_LINE.test(line) && i + 1 < lines.length && TABLE_RULE.test(lines[i + 1])) {
+      endPara();
+      const head = cells(line);
+      const body: string[][] = [];
+      for (i += 2; i < lines.length && TABLE_LINE.test(lines[i]); i++) body.push(cells(lines[i]));
+      const width = head.length;
+      const rows = body.map((r) => Array.from({ length: width }, (_, k) => answerRuns(r[k] ?? "")));
+      // A number is read from the cell's words, its bold aside: "**18**" is a number.
+      const right = head.map((_, k) => rows.length > 0 && rows.every((r) => NUMBER_CELL.test(runsText(r[k]).trim())));
+      blocks.push({ kind: "table", head: head.map(answerRuns), rows, right });
+      continue;
+    }
+    const first = LIST_LINE.exec(line);
+    if (first) {
+      endPara();
+      // One list is one kind at its own level: a bullet after numbered steps, at their indent, starts a list of its own.
+      const kindAt = (m: RegExpExecArray | null) => !!m && m[1].length <= first[1].length && !!m[3] !== !!first[3];
+      const run: string[] = [];
+      for (
+        ;
+        i < lines.length &&
+        lines[i].trim() &&
+        (LIST_LINE.test(lines[i]) || /^\s+\S/.test(lines[i])) &&
+        !(run.length && kindAt(LIST_LINE.exec(lines[i])));
+        i++
+      )
+        run.push(lines[i]);
+      blocks.push({ kind: "list", list: wordsListOf(run) });
+      continue;
+    }
+    para.push(answerRuns(line.trim()));
+    i++;
+  }
+  endPara();
+  return blocks;
+}
+
+/**
+ * Whether words open with a block of their own (a heading, a list or a table), which starts on its own line when words
+ * are put before it: the headline's extra sentence, a stopped turn's headline, Copy's headline.
+ */
+export const opensWithBlock = (s: string): boolean => /^\s*(?:#|[-*•]\s|\d{1,2}[.)]\s|\|)/.test(s);
+
+/** The runs' words, the marks gone. */
+const runsText = (runs: AnswerRun[]) => runs.map((r) => r.text).join("");
+
+function listPlain(l: AnswerList, depth: number, spoken: boolean): string[] {
+  return l.items.flatMap((it, k) => {
+    const mark = l.ordered ? `${k + 1}. ` : spoken ? "" : "• ";
+    const pad = spoken ? "" : "  ".repeat(depth);
+    return [`${pad}${mark}${runsText(it.runs)}`, ...(it.sub ? listPlain(it.sub, depth + 1, spoken) : [])];
+  });
+}
+
+/**
+ * The answer's words with their formatting read as plain text, a line each: what Copy puts on the clipboard (bullets
+ * kept, a table's cells one row to a line, set apart by " · ") and, `spoken`, what a voice reads (no bullets or indents,
+ * a table's header said once, then each row's cells set apart by commas, so each is a phrase of its own).
+ */
+export function answerPlain(text: string, spoken = false): string {
+  const sep = spoken ? ", " : " · ";
+  return answerBlocks(text)
+    .flatMap((b): string[] => {
+      if (b.kind === "text") return b.lines.map(runsText);
+      if (b.kind === "heading") return [runsText(b.runs)];
+      if (b.kind === "list") return listPlain(b.list, 0, spoken);
+      return [b.head.map(runsText).join(sep), ...b.rows.map((r) => r.map(runsText).join(sep))];
+    })
+    .join("\n");
+}
+
+/* ------------------------------------------------- the answer's words, read */
+
+/** No list: what an answer stored before the list part reads as. */
+const NO_LIST: AskList = { style: "bullets", entries: [] };
+
+/** A list's entries as lines of text, each with its mark: "• ", "1. ", or none. */
+function listLines(l: AskList): string[] {
+  return l.entries.map((e, i) => (l.style === "numbers" ? `${i + 1}. ${e}` : l.style === "bullets" ? `• ${e}` : e));
+}
+
+/**
+ * The answer's words, for copy, a folded turn and the history: the headline, then the detail, then the list, a line
+ * each, their formatting read as plain words (answerPlain). A detail that opens with a heading, a list or a table starts
+ * on its own line.
+ */
+export function answerText(a: AskAnswer): string {
+  const own = a.form === "prose" || opensWithBlock(a.say.detail);
+  const say = [a.say.headline, a.say.detail].filter(Boolean).join(own ? "\n" : " ");
+  return answerPlain([say, ...listLines(a.show.list ?? NO_LIST)].filter(Boolean).join("\n"));
+}
+
+/** The answer as Copy takes it: its words (answerText), then its parts, each figure and each row, a line each. */
+export function answerCopy(a: AskAnswer): string {
+  const b = a.show.breakdown;
+  return [
+    answerText(a),
+    ...(b ? [`${b.total} ${b.label}: ${b.parts.map((p) => `${p.label} ${p.value}`).join(", ")}`] : []),
+    ...a.show.figures.map((f) => `${[f.value, f.label].filter(Boolean).join(" ")}${f.note ? ` (${f.note})` : ""}`),
+    ...a.show.items.map((it) => [it.title, it.meta, it.line].filter(Boolean).join(" · ")),
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
+/** Lines said one after another: each ends as a sentence does, so a voice pauses between them. */
+const sentences = (lines: string[]) =>
+  lines
+    .map((l) => l.trim())
+    .filter(Boolean)
+    .map((l) => (/[.!?…:;,]$/.test(l) ? l : `${l}.`))
+    .join(" ");
+
+/** A list as a voice reads it: each entry its own sentence, a numbered one with its number; nothing for no entries. */
+export function listSpoken(l: AskList): string {
+  return sentences(l.entries.map((e, i) => (l.style === "numbers" ? `${i + 1}. ${e}` : e)));
+}
+
+/**
+ * The answer's words as a voice reads them (Read aloud, a spoken question, the voice door): the headline, the detail's
+ * lines, then the list (listSpoken). The figures and rows are drawn, never read.
+ */
+export function answerSpoken(a: AskAnswer): string {
+  const l = a.show.list ?? NO_LIST;
+  const said = sentences([a.say.headline, ...answerPlain(a.say.detail, true).split("\n")]);
+  return [said, listSpoken({ ...l, entries: l.entries.map((e) => answerPlain(e, true)) })].filter(Boolean).join(" ");
+}

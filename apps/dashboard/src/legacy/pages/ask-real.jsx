@@ -986,8 +986,8 @@ const arLineView = (ln) => {
 const AskReal = ({ open, onClose }) => {
   const A = window.__ask;
   const H = window.AskHooks;
-  const { buildLineRows, AskRows, flatRows, AskNowPills } = window.AskHome;
-  const { AskTurn, answerMoves, freshNext, AskThread, AskQuestion, AskNextRow, AskListen, AskLatest, AskReads, AskActs } = window.AskAnswerKit;
+  const { buildLineRows, AskRows, flatRows, AskNowPills, AskReads, AskActs } = window.AskHome;
+  const { AskTurn, answerMoves, freshNext, AskThread, AskQuestion, AskNextRow, AskListen, AskLatest } = window.AskAnswerKit;
   // Ask's face: the one mood every face follows (legacy-bridge/mascot mood.ts), standing in the line.
   const M = window.__mascot || null;
   const AskFace = window.AskFace || null;
