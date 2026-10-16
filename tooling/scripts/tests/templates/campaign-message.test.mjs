@@ -606,7 +606,7 @@ test("what a campaign says of a message whose WhatsApp version cannot go says th
   // What to do: the version resubmitted, or the message written for a channel that needs no review; a broadcast's page and a
   // playbook's run say the same, whoever reached how many.
   const FIX =
-    "Open it in the Library — its WhatsApp version can be resubmitted, or the message written as an email or a text.";
+    "Open it in Messages — its WhatsApp version can be resubmitted, or the message written as an email or a text.";
   assert.equal(broadcastFailureFix("template_not_approved"), FIX);
   assert.equal(broadcastFailureFix("template_not_approved", 5), FIX, "however far it got");
   const playbookRun = { playbook_id: "p1", trigger: "quiet_30" };
@@ -638,7 +638,7 @@ test("what a campaign says of a message whose WhatsApp version cannot go says th
 });
 
 test("a starter's line says where its WhatsApp version stands in the Library's words, once: in review waits for approval, anything else points at the Library, and adding it says what it writes", () => {
-  const library = "Campaigns › Library";
+  const library = "Campaigns › Messages";
   assert.equal(
     STARTER_LINE_WORDS.standing("pending"),
     "has its WhatsApp version in review — it appears here once approved, usually within minutes.",

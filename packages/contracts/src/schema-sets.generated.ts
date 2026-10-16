@@ -63,7 +63,7 @@ export const SCHEMA_SETS = {
     "record_deal", "make_list", "rename_list", "change_list_rule", "add_to_list", "drop_from_list",
     "archive_list", "restore_list", "delete_list", "import", "open_recording", "merge",
     "change_playbook", "mark_visit", "change_step", "leave_sequence", "make_sequence",
-    "discard_sequence", "answer_booking_request",
+    "discard_sequence", "answer_booking_request", "return_to_sequence",
   ],
   "escalations.reason": [
     "human_token", "non_text", "refusal", "rate_cap", "policy_block", "send_failed", "deadman",

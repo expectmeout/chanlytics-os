@@ -102,7 +102,6 @@ export {
 export type { AddressParts } from "./address";
 export {
   CAMPAIGN_ROOMS,
-  PLAYBOOK_DELETE_WORDS,
   NO_TEMPLATE_WORDS,
   noMessageWords,
   LIBRARY_WORDS,

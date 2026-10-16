@@ -76,7 +76,7 @@ before(async () => {
     }),
   );
   const root = await one(
-    db.from("playbooks").insert({
+    db.from("sequence_steps").insert({
       tenant_id: A,
       kind: "reach_out",
       trigger: "lead_first",
@@ -92,7 +92,7 @@ before(async () => {
     }),
   );
   const run = await one(
-    db.from("broadcasts").insert({
+    db.from("sequence_batches").insert({
       tenant_id: A,
       name: "Movers",
       template_id: template,
@@ -101,7 +101,7 @@ before(async () => {
       audience: { kind: "reach_out", root_id: root, step_id: root },
       state: "sent",
       scheduled_for: new Date().toISOString(),
-      playbook_id: root,
+      step_id: root,
       run_for: "2097-01-01",
     }),
   );
@@ -120,12 +120,12 @@ before(async () => {
     );
   const sent = async (n, at) =>
     ok(
-      await db.from("reach_out_sends").insert({
+      await db.from("sequence_sends").insert({
         id: crypto.randomUUID(),
         tenant_id: A,
-        broadcast_id: run,
-        playbook_id: root,
-        root_id: root,
+        batch_id: run,
+        step_id: root,
+        sequence_id: root,
         lead_id: await lead(n),
         state: "sent",
         send_at: new Date(at).toISOString(),

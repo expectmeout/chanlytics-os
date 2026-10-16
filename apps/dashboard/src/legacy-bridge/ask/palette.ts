@@ -29,7 +29,6 @@ import {
   runLabelOf,
   runsThatWait,
   sameQuestion,
-  sequencesPreviewOf,
   scopeFromRoute,
   stoppedAnswer,
   type AskAnswer,
@@ -153,7 +152,6 @@ export function jumpIndexFrom(win: Window): JumpEntry[] {
   const out: JumpEntry[] = askPages({
     dealsOn: !!w.__PEOPLE?.dealsOn,
     platformAdmin: !!w.__ME?.platform_admin,
-    sequences: sequencesPreviewOf(w.__SETTINGS?.config),
   });
   for (const t of w.INBOX_DATA?.THREADS ?? []) {
     if (!t.real) continue;

@@ -91,7 +91,7 @@ async function playbook() {
       .insert({ tenant_id: A, via: "people", card: "movers", name: "Movers", asked: "movers", plan: {} }),
   );
   return one(
-    db.from("playbooks").insert({
+    db.from("sequence_steps").insert({
       tenant_id: A,
       kind: "reach_out",
       policy_class: "outreach",
@@ -110,7 +110,7 @@ async function playbook() {
 }
 const runOf = (pb, state) =>
   one(
-    db.from("broadcasts").insert({
+    db.from("sequence_batches").insert({
       tenant_id: A,
       name: `Movers · ${state}`,
       template_id: template,
@@ -119,7 +119,7 @@ const runOf = (pb, state) =>
       audience: { kind: "reach_out", root_id: pb, step_id: pb },
       state,
       scheduled_for: iso(Date.now()),
-      playbook_id: pb,
+      step_id: pb,
       run_for: new Date(Date.now() - (days += 1) * DAY).toISOString().slice(0, 10),
     }),
   );
@@ -162,12 +162,12 @@ async function wroteTo() {
     }),
   );
   ok(
-    await db.from("reach_out_sends").insert({
+    await db.from("sequence_sends").insert({
       id: crypto.randomUUID(),
       tenant_id: A,
-      broadcast_id: await runOf(root, "sent"),
-      playbook_id: root,
-      root_id: root,
+      batch_id: await runOf(root, "sent"),
+      step_id: root,
+      sequence_id: root,
       lead_id: lead,
       contact_id: person,
       state: "sent",
@@ -202,7 +202,7 @@ async function away(ro, { until, by = "person", undone = false }) {
     }),
   );
   ok(
-    await db.from("reach_out_replies").insert({
+    await db.from("sequence_replies").insert({
       message_id: message,
       tenant_id: A,
       conversation_id: thread,
@@ -237,12 +237,12 @@ const followers = async (ro) =>
   ).map((f) => f.lead_id);
 async function skippedOnStep(ro, reason) {
   ok(
-    await db.from("reach_out_sends").insert({
+    await db.from("sequence_sends").insert({
       id: crypto.randomUUID(),
       tenant_id: A,
-      broadcast_id: await runOf(ro.step, "sent"),
-      playbook_id: ro.step,
-      root_id: ro.root,
+      batch_id: await runOf(ro.step, "sent"),
+      step_id: ro.step,
+      sequence_id: ro.root,
       lead_id: ro.lead,
       contact_id: ro.person,
       state: "skipped",
@@ -337,7 +337,7 @@ test("only an automatic reply's reading carries a day to wait for (N1)", { skip 
       status: "received",
     }),
   );
-  const res = await db.from("reach_out_replies").insert({
+  const res = await db.from("sequence_replies").insert({
     message_id: message,
     tenant_id: A,
     conversation_id: ro.thread,
@@ -370,12 +370,15 @@ test("the re-created bodies are 00220's and 00185's, but for the away", { skip }
     .replace(/\(select 1 from public\.reach_out_sends x\n\s+where/, "(select 1 from public.reach_out_sends x where");
   assert.equal(back, f185);
   // 00241 re-creates both whole with the stop (Reach out Part 6), and what-comes-back.db.test.mjs holds it to these;
-  // 00424 makes the followers again with each one's mailbox (a cold email leaves from a connected mailbox, 0056).
-  const now = migration("00241");
-  assert.equal(liveBody("outreach_lead_facts"), bodyIn(now, "create or replace function public.outreach_lead_facts("));
+  // 00424 makes the followers again with each one's mailbox (a cold email leaves from a connected mailbox, 0056); 00451
+  // writes both again over the sequence tables, which is what the database holds now.
+  assert.equal(
+    liveBody("outreach_lead_facts"),
+    bodyIn(migration("00451"), "create or replace function public.outreach_lead_facts("),
+  );
   assert.equal(
     liveBody("reach_out_followers"),
-    bodyIn(migration("00424"), "create function public.reach_out_followers("),
+    bodyIn(migration("00451"), "create or replace function public.reach_out_followers("),
   );
 });
 

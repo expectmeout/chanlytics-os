@@ -116,17 +116,17 @@ test(
       policy_class: "follow_up",
       ...over,
     });
-    const made = await db.from("playbooks").insert(row()).select("trigger, policy_class").single();
+    const made = await db.from("sequence_steps").insert(row()).select("trigger, policy_class").single();
     assert.equal(made.error, null, made.error?.message);
     assert.deepEqual([made.data.trigger, made.data.policy_class], ["proposal_waiting", "follow_up"]);
-    const trigger = await db.from("playbooks").insert(row({ trigger: "proposal_forever" }));
+    const trigger = await db.from("sequence_steps").insert(row({ trigger: "proposal_forever" }));
     assert.match(trigger.error?.message ?? "", /sequence_steps_trigger_check/, "a trigger nobody wrote");
-    const cls = await db.from("playbooks").insert(row({ policy_class: "money" }));
+    const cls = await db.from("sequence_steps").insert(row({ policy_class: "money" }));
     assert.match(cls.error?.message ?? "", /sequence_steps_policy_class_check/, "a playbook never runs under money");
     const policy = await db.from("policies").insert({ tenant_id: tenantId, class: "nudges", mode: "ask" });
     assert.match(policy.error?.message ?? "", /policies_class_check/, "a class nobody wrote");
     // One follow-up per workspace: a second would owe every proposal a second nudge.
-    const second = await db.from("playbooks").insert(row({ name: "Proposal follow-up, again" }));
+    const second = await db.from("sequence_steps").insert(row({ name: "Proposal follow-up, again" }));
     assert.equal(second.error?.code, "23505", second.error?.message);
     assert.match(second.error?.message ?? "", /sequence_steps_one_follow_up/, "the name the route says it in words by");
   },
@@ -152,7 +152,7 @@ test(
     const now = new Date();
     const run = async (params, state, contactId, recipientState) => {
       const made = await db
-        .from("broadcasts")
+        .from("sequence_batches")
         .insert({
           tenant_id: tenantId,
           name: `A run, ${state}`,
@@ -166,9 +166,9 @@ test(
         .select("id")
         .single();
       assert.equal(made.error, null, made.error?.message);
-      const r = await db.from("broadcast_recipients").insert({
+      const r = await db.from("sequence_sends").insert({
         tenant_id: tenantId,
-        broadcast_id: made.data.id,
+        batch_id: made.data.id,
         contact_id: contactId,
         state: recipientState,
         sent_at: recipientState === "sent" ? now.toISOString() : null,

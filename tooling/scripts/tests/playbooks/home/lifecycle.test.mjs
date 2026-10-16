@@ -481,7 +481,7 @@ test("the stage names the playbook the owner made when there is one, and the mom
 
 /* ------------------------------------------------- the head -------------------------------------------------- */
 
-test("the head: the page's line with the moments covered and who can hear, and the Library with its count", () => {
+test("the head: the page's line with the moments covered and who can hear, and Messages with its count", () => {
   const h = home();
   assert.equal(h.head.title, "Campaigns");
   // Facts alone: what the lede explained every visit ("What goes out on its own as a customer reaches a moment, and what
@@ -494,7 +494,7 @@ test("the head: the page's line with the moments covered and who can hear, and t
     " people can hear from you",
     ".",
   ]);
-  assert.deepEqual(h.head.library, { label: "Library", count: 3 });
+  assert.deepEqual(h.head.library, { label: "Messages", count: 3 });
   assert.equal(h.head.newMessage, "New message");
   const noReach = home({ broadcasts: undefined });
   assert.deepEqual(
@@ -568,18 +568,12 @@ test("the library's count is the Library page's own: a message for each language
   assert.equal(home({ messages: null }).head.library.count, null, "messages that could not be read are no zero");
 });
 
-test("the toasts the home raises are contracts' words: a name in the page's emphasis, a new playbook's run said where it now is, a phrase a browser would not copy said whole", () => {
+test("the toasts Campaigns raises are contracts' words: a name in the page's emphasis, a new campaign said running as its sequence opens, a phrase a browser would not copy said whole", () => {
   const T = C.LIFECYCLE_TOAST;
   assert.deepEqual(T.resumed("Win-back"), [{ b: "Win-back" }, " resumed"]);
   assert.deepEqual(T.changed("Win-back"), [{ b: "Win-back" }, " changed"]);
-  const running = T.running("Win-back");
-  assert.deepEqual(running[0], { b: "Win-back" });
-  assert.match(
-    running[1],
-    /its next run is under Coming up, by your clock/,
-    "there is no card now: the run is in Coming up",
-  );
-  assert.ok(!/card/.test(running[1]), "nothing points at a card the page no longer has");
+  // Its sequence opens as this is said (campaigns/home/sheets.tsx), its next batch on it: the toast points at nothing else.
+  assert.deepEqual(T.running("Win-back"), [{ b: "Win-back" }, " is running"]);
   assert.equal(T.phraseCopied, "Phrase copied");
   assert.equal(T.copyFailed("YES OFFERS"), "Couldn't copy, the phrase is: YES OFFERS");
   assert.equal(T.nameless, "It");
@@ -1240,7 +1234,7 @@ test("a read that failed is said where its data would be, in contracts' words, w
   // The library is made of the templates, which are the settings read's, the one read of them (task 3.3): its Retry reads that.
   assert.deepEqual(home({ library: null }).failed.templates, {
     what: "your templates",
-    body: "The call's text and the Library's count show once they read. Everything else here is current.",
+    body: "The call's text and your messages show once they read. Everything else here is current.",
     surface: "settings",
   });
   assert.deepEqual(home({ playbooks: playbooks({ countsRead: false }) }).failed.counts, {

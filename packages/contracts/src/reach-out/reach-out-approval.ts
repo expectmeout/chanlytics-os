@@ -361,7 +361,7 @@ export function waitingRunsDoor(waiting: readonly WaitingToSend[]): string {
 
 /** The block's own acts. */
 const REACH_OUT_RUN_LABELS = {
-  back: "Back to Sent",
+  back: "Back to Sequences",
   approving: "Approving…",
   skip: "Skip this run",
   skipYes: "Yes, skip it",
@@ -411,6 +411,6 @@ export function heldNoticeWords(p: { name: string; held: number; reasons: ReachO
   const say = doors.length > 1 ? `${doors.slice(0, -1).join(", ")} or ${doors[doors.length - 1]}` : (doors[0] ?? "");
   return {
     subject: `The check held ${plural(p.held, "email", "emails")} in ${p.name}`,
-    body: `${p.held === 1 ? "It waits" : "They wait"} for your say on the run in Sent${say ? `: ${say}` : ""}. The rest of the run goes as planned.`,
+    body: `${p.held === 1 ? "It waits" : "They wait"} for your say on its run${say ? `: ${say}` : ""}. The rest of the run goes as planned.`,
   };
 }

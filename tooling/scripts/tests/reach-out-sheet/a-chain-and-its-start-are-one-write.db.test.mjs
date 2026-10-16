@@ -101,10 +101,10 @@ const save = (chain, over = {}) =>
 /** What the workspace holds of a chain over this search: its steps, and the start decisions on its root. */
 async function heldFor(search) {
   const { data: steps } = await db
-    .from("playbooks")
-    .select("id, trigger, after_playbook_id")
+    .from("sequence_steps")
+    .select("id, trigger, after_playbook_id:after_step_id")
     .eq("tenant_id", A)
-    .or(`lead_search_id.eq.${search},after_playbook_id.not.is.null`);
+    .or(`lead_search_id.eq.${search},after_step_id.not.is.null`);
   const roots = (steps ?? []).filter((s) => s.trigger === "lead_first").map((s) => s.id);
   const chain = (steps ?? []).filter((s) => roots.includes(s.id) || roots.includes(s.after_playbook_id));
   const { data: decisions } = roots.length
@@ -208,7 +208,7 @@ test("a decision that cannot be written takes the chain with it: no steps, no wo
       seen := seen || jsonb_build_object('raised', true, 'message', sqlerrm);
     end;
     seen := seen || jsonb_build_object(
-      'steps', (select count(*) from public.playbooks p where p.tenant_id = '${A}' and p.lead_search_id = '${s}'),
+      'steps', (select count(*) from public.sequence_steps p where p.tenant_id = '${A}' and p.lead_search_id = '${s}'),
       'words_after', (select count(*) from public.templates where tenant_id = '${A}' and name like 'reach_out_%'));
   `);
   assert.equal(seen.raised, true, `a ledger that refuses the row must refuse the chain (${JSON.stringify(seen)})`);

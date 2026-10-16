@@ -188,8 +188,8 @@ const hearsOrHear = (n: number): string => (n === 1 ? "hears" : "hear");
 /**
  * Who of a moment's people the breath holds, in words: another message reaches them within a week of today, one already
  * sent or one due, so they wait for a later run. `who` is how they are counted where it is said ("2" on Coming up's row, "2
- * people more" on the moment's own line); `n` is how many, for the verbs. The one spelling of it: Campaigns' rail
- * (lifecycle-tiles.ts) and a moment's drawer (card-detail.tsx) both say it through here.
+ * people more" on the moment's own line); `n` is how many, for the verbs. The one spelling of it: Campaigns' tiles
+ * (lifecycle-tiles.ts) say it through here.
  */
 export function breathWaitWords(n: number, who: string): string {
   return `${who} ${hearsOrHear(n)} from you within a week of today and ${n === 1 ? "waits" : "wait"}`;

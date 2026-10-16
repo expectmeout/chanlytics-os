@@ -70,12 +70,12 @@ const lead = async (tenant = A) =>
 const send = async (over = {}) => {
   const id = crypto.randomUUID();
   ok(
-    await db.from("reach_out_sends").insert({
+    await db.from("sequence_sends").insert({
       id,
       tenant_id: A,
-      broadcast_id: run,
-      playbook_id: root,
-      root_id: root,
+      batch_id: run,
+      step_id: root,
+      sequence_id: root,
       lead_id: await lead(),
       mailbox_id: mailbox,
       send_at: new Date().toISOString(),
@@ -86,7 +86,7 @@ const send = async (over = {}) => {
   );
   return id;
 };
-const move = (id, patch) => db.from("reach_out_sends").update(patch).eq("id", id).select("state");
+const move = (id, patch) => db.from("sequence_sends").update(patch).eq("id", id).select("state");
 
 before(async () => {
   if (skip) return;
@@ -154,10 +154,10 @@ before(async () => {
       .select("id")
       .single(),
   ).id;
-  root = ok(await db.from("playbooks").insert(rootRow()).select("id").single()).id;
+  root = ok(await db.from("sequence_steps").insert(rootRow()).select("id").single()).id;
   run = ok(
     await db
-      .from("broadcasts")
+      .from("sequence_batches")
       .insert({
         tenant_id: A,
         name: "Movers in Austin",
@@ -167,7 +167,7 @@ before(async () => {
         audience: { kind: "reach_out", root_id: root, step_id: root, search_id: search },
         state: "scheduled",
         scheduled_for: new Date().toISOString(),
-        playbook_id: root,
+        step_id: root,
         run_for: "2026-09-28",
       })
       .select("id")
@@ -185,14 +185,14 @@ test(
   { skip },
   async () => {
     const refused = async (row, why) => {
-      const r = await db.from("playbooks").insert(row);
+      const r = await db.from("sequence_steps").insert(row);
       assert.match(r.error?.message ?? "", /sequence_steps_shape/, why);
     };
     await refused(rootRow({ lead_search_id: null }), "a root without its search");
     await refused(rootRow({ gap_minutes: null }), "a reach-out without its pace");
     await refused(rootRow({ policy_class: "campaign" }), "a reach-out under a moment's class");
     await refused(
-      rootRow({ trigger: "after_step", lead_search_id: null, after_playbook_id: root, after_days: 1 }),
+      rootRow({ trigger: "after_step", lead_search_id: null, after_step_id: root, after_days: 1 }),
       "a step a day after: two at least",
     );
     await refused(
@@ -201,15 +201,15 @@ test(
     );
     const step = ok(
       await db
-        .from("playbooks")
-        .insert(rootRow({ trigger: "after_step", lead_search_id: null, after_playbook_id: root, after_days: 3 }))
+        .from("sequence_steps")
+        .insert(rootRow({ trigger: "after_step", lead_search_id: null, after_step_id: root, after_days: 3 }))
         .select("id")
         .single(),
     ).id;
     assert.ok(step);
     const second = await db
-      .from("playbooks")
-      .insert(rootRow({ trigger: "after_step", lead_search_id: null, after_playbook_id: root, after_days: 5 }));
+      .from("sequence_steps")
+      .insert(rootRow({ trigger: "after_step", lead_search_id: null, after_step_id: root, after_days: 5 }));
     assert.match(second.error?.message ?? "", /playbooks_one_next|duplicate key/, "a chain, not a tree");
   },
 );
@@ -282,23 +282,23 @@ test(
   "a planned send knows when (its mailbox may be one that was removed), and one lead is in a run once",
   { skip },
   async () => {
-    const noTime = await db.from("reach_out_sends").insert({
+    const noTime = await db.from("sequence_sends").insert({
       id: crypto.randomUUID(),
       tenant_id: A,
-      broadcast_id: run,
-      playbook_id: root,
-      root_id: root,
+      batch_id: run,
+      step_id: root,
+      sequence_id: root,
       lead_id: await lead(),
     });
     assert.match(noTime.error?.message ?? "", /sequence_sends_planned_is_timed/);
     const l = await lead();
     await send({ lead_id: l });
-    const twice = await db.from("reach_out_sends").insert({
+    const twice = await db.from("sequence_sends").insert({
       id: crypto.randomUUID(),
       tenant_id: A,
-      broadcast_id: run,
-      playbook_id: root,
-      root_id: root,
+      batch_id: run,
+      step_id: root,
+      sequence_id: root,
       lead_id: l,
       mailbox_id: mailbox,
       send_at: new Date().toISOString(),
@@ -318,21 +318,21 @@ test("a member reads their own workspace's sends and nobody else's, and no sessi
   const member = createClient(URL_, ANON, { auth: { persistSession: false, autoRefreshToken: false } });
   ok(await member.auth.signInWithPassword({ email, password }));
   assert.deepEqual(
-    ok(await member.from("reach_out_sends").select("id").eq("tenant_id", A)),
+    ok(await member.from("sequence_sends").select("id").eq("tenant_id", A)),
     [],
     "A's sends, to a member of B",
   );
   ok(await db.from("memberships").insert({ tenant_id: A, user_id: made.data.user.id, role: "owner" }));
   assert.ok(
-    ok(await member.from("reach_out_sends").select("id").eq("tenant_id", A)).length > 0,
+    ok(await member.from("sequence_sends").select("id").eq("tenant_id", A)).length > 0,
     "their own workspace's",
   );
-  const write = await member.from("reach_out_sends").insert({
+  const write = await member.from("sequence_sends").insert({
     id: crypto.randomUUID(),
     tenant_id: A,
-    broadcast_id: run,
-    playbook_id: root,
-    root_id: root,
+    batch_id: run,
+    step_id: root,
+    sequence_id: root,
     lead_id: await lead(),
     mailbox_id: mailbox,
     send_at: new Date().toISOString(),
@@ -378,12 +378,12 @@ test(
         .update({ state: "removed", removed_at: new Date().toISOString() })
         .eq("id", gone),
     );
-    assert.deepEqual(ok(await db.from("reach_out_sends").select("state, mailbox_id").eq("id", planned)), [
+    assert.deepEqual(ok(await db.from("sequence_sends").select("state, mailbox_id").eq("id", planned)), [
       { state: "planned", mailbox_id: gone },
     ]);
     // And its row deleted outright (its workspace's erasure): the send stays planned, with no mailbox.
     ok(await db.from("mailbox_connections").delete().eq("id", gone));
-    assert.deepEqual(ok(await db.from("reach_out_sends").select("state, mailbox_id").eq("id", planned)), [
+    assert.deepEqual(ok(await db.from("sequence_sends").select("state, mailbox_id").eq("id", planned)), [
       { state: "planned", mailbox_id: null },
     ]);
 
@@ -425,9 +425,7 @@ test(
     ok(await move(queued, { state: "claimed" }));
     ok(await move(queued, { state: "queued", message_id: m2 }));
     ok(await db.from("messages").delete().in("id", [m1, m2]));
-    const after = ok(
-      await db.from("reach_out_sends").select("id, state, message_id, sent_at").in("id", [sent, queued]),
-    );
+    const after = ok(await db.from("sequence_sends").select("id, state, message_id, sent_at").in("id", [sent, queued]));
     const by = Object.fromEntries(after.map((r) => [r.id, r]));
     assert.deepEqual([by[sent].state, by[sent].message_id, !!by[sent].sent_at], ["sent", null, true]);
     assert.deepEqual([by[queued].state, by[queued].message_id], ["queued", null]);
@@ -446,11 +444,11 @@ test(
     ok(await db.from("memberships").insert({ tenant_id: A, user_id: made.data.user.id, role: "owner" }));
     const member = createClient(URL_, ANON, { auth: { persistSession: false, autoRefreshToken: false } });
     ok(await member.auth.signInWithPassword({ email, password }));
-    const insert = await member.from("playbooks").insert(rootRow({ created_by: made.data.user.id }));
+    const insert = await member.from("sequence_steps").insert(rootRow({ created_by: made.data.user.id }));
     assert.ok(insert.error, "no session inserts a reach-out until its sheet's door exists (Part 4)");
     const moment = ok(
       await db
-        .from("playbooks")
+        .from("sequence_steps")
         .insert({
           tenant_id: A,
           name: "Win-back",
@@ -466,18 +464,14 @@ test(
     ).id;
     for (const patch of [
       { kind: "reach_out" },
-      { after_playbook_id: root },
+      { after_step_id: root },
       { lead_search_id: search },
       { gap_minutes: 12 },
     ]) {
-      const r = await member.from("playbooks").update(patch).eq("id", moment).select("id");
+      const r = await member.from("sequence_steps").update(patch).eq("id", moment).select("id");
       assert.ok(r.error, `${Object.keys(patch)[0]} is no session's to write`);
     }
-    const sendUpdate = await member
-      .from("reach_out_sends")
-      .update({ state: "skipped" })
-      .eq("tenant_id", A)
-      .select("id");
+    const sendUpdate = await member.from("sequence_sends").update({ state: "skipped" }).eq("tenant_id", A).select("id");
     assert.ok(sendUpdate.error || sendUpdate.data.length === 0, "no session moves a send");
     // A step under another workspace's root: the composite key refuses it, whoever writes it.
     // Over a search of its own: a search has one chain (00197).
@@ -490,13 +484,13 @@ test(
     ).id;
     const loneRoot = ok(
       await db
-        .from("playbooks")
+        .from("sequence_steps")
         .insert(rootRow({ name: "Another chain", lead_search_id: another }))
         .select("id")
         .single(),
     ).id;
-    const across = await db.from("playbooks").insert({
-      ...rootRow({ trigger: "after_step", lead_search_id: null, after_playbook_id: loneRoot, after_days: 3 }),
+    const across = await db.from("sequence_steps").insert({
+      ...rootRow({ trigger: "after_step", lead_search_id: null, after_step_id: loneRoot, after_days: 3 }),
       tenant_id: B,
       template_id: template,
     });

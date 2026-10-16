@@ -20,12 +20,7 @@ import {
   toBroadcastVM,
   toTodayVM,
   stateOf,
-  fmtDay,
   PLAYBOOK_TRIGGERS,
-  POLICY_CLASS_WORDS,
-  POLICY_MODE_WORDS,
-  MESSAGE_GONE_WORDS,
-  LIFECYCLE_WORDS,
   campaignMessagesOf,
   starterForTrigger,
 } from "@chanlytics/contracts";
@@ -173,33 +168,6 @@ const settingsOf = (rows) => ({
   templateVersions: rows.filter((r) => r.channel !== "whatsapp"),
   messages: campaignMessagesOf(rows),
 });
-const playbooksSurface = (over = {}) => ({
-  rows: [playbook()],
-  templates: [TEMPLATE],
-  triggers: [
-    {
-      id: "quiet_30",
-      label: "Quiet 30 days",
-      hint: "anyone quiet for a month",
-      cls: "reengage",
-      list: "quiet_30",
-      kind: "list",
-      offered: true,
-      candidates: 4,
-      held: 0,
-      named: { pool: 6, noYes: 2, stopped: 0, noNumber: 0, saidYes: 4 },
-    },
-  ],
-  timezone: ZONE,
-  calendar: "none",
-  // How the business works (the surface's shape, 9 Oct 2026): the words this file pins are the word "visit"'s.
-  shape: { calendar: "none", dealsOn: false, word: "visit" },
-  number: { present: true, health: { canSend: true } },
-  businessName: "Northside Studio",
-  bookingLink: false,
-  fetchedAt: NOW,
-  ...over,
-});
 /** Two broadcasts the Broadcasts surface lists: one sending now, one sent. */
 const SENDING = dto({
   id: "b-sending",
@@ -299,22 +267,12 @@ const { AgentCommand } = await import(`${S}/surfaces/today/pages/queue.tsx`);
 const { TodayBriefPane } = await import(`${S}/surfaces/today/pages/brief-pane.tsx`);
 // The moved surfaces: TSX, drawn over the values the seam holds, their verbs imported.
 const { BroadcastsPage } = await import(`${S}/surfaces/campaigns/broadcasts/broadcasts-page.tsx`);
-const { CampaignsHome } = await import(`${S}/surfaces/campaigns/home/home-page.tsx`);
-const { PlaybookPane } = await import(`${S}/surfaces/campaigns/playbooks/card-detail.tsx`);
+const { CampaignsSheets } = await import(`${S}/surfaces/campaigns/home/sheets.tsx`);
 const { playbooksSample } = await import(`${S}/surfaces/campaigns/playbooks/sample.ts`);
-const { Menu } = await import(`${S}/surfaces/kit/menu/menu.tsx`);
 const { Picker } = await import(`${S}/surfaces/kit/picker/picker.tsx`);
 /** One of the composer's choices, the kit's Picker (surfaces/kit/picker/), by its test id. */
 const pickerOf = (tree, testid) => find(tree, (n) => n.type === Picker && n.props["data-testid"] === testid);
-/** The kit menu's item by its words (the ⋯ beside Pause and Edit, where Run now and Delete live): what a press does. */
-const moreItem = (tree, label) => {
-  const menu = find(tree, (n) => n.type === Menu);
-  const item = menu && menu.props.groups.flatMap((g) => g.items || []).find((i) => i.label === label);
-  assert.ok(item, `the ⋯ menu offers ${label}`);
-  return item;
-};
 const { broadcasts } = await import(`${S}/surfaces/campaigns/broadcasts/verbs.ts`);
-const { playbooks } = await import(`${S}/surfaces/campaigns/playbooks/verbs.ts`);
 const { playbooksOverride } = await import(`${S}/surfaces/campaigns/playbooks/surface.ts`);
 // The broadcasts surface's module declares where its value is mirrored (`window.__BROADCASTS`, which Today's queue reads);
 // the app loads it with every override, and no page this file draws imports it any more.
@@ -352,76 +310,28 @@ const page = (props) => {
   return BroadcastsPage(props);
 };
 const again = (props) => drawAgain(() => BroadcastsPage(props));
-/** A playbook's detail as the home's drawer draws it (home/drawer.tsx): the pane, its body the card's own words and verbs. */
-const paneOf = (p) => PlaybookPane({ p, canAct: true, onEdit() {}, flash: (t) => toasts.push(t), onClose() {} });
-const pane = (p) => {
-  fresh();
-  return paneOf(p);
-};
-const redraw = (p) => drawAgain(() => paneOf(p));
 /**
- * Campaigns' home at an address (`campaigns/<param>`, null for the home), read at the clock the file runs at. Only the
- * playbooks are read here: the broadcasts, the reach-outs and the library are not, and their sections are left out.
+ * Campaigns' sheets at an address (`campaigns/<param>`), read at the clock the file runs at. Only the playbooks are read
+ * here: the broadcasts, the reach-outs and the library are not.
  */
 const homeAt = (param = null, broadcasts = undefined) => {
   for (const key of ["reach_outs", "settings"]) setSurfaceValue(key, undefined);
   setSurfaceValue("broadcasts", broadcasts);
   fresh();
-  return drawAgain(() => CampaignsHome({ param, nowMs: NOW }));
+  return drawAgain(() => CampaignsSheets({ param, nowMs: NOW }));
 };
 
 /* ------------------------------- a run's own door ------------------------------- */
 
-test("REGRESSION (C9): each of a playbook's runs opens that run -- the runs were dead text, and the one door opened every broadcast", () => {
-  setSurfaceValue("playbooks", playbooksSurface());
-  const tree = pane(playbook());
-  // The kit's LinkButton (surfaces/kit/link-button/) and the host button it draws carry the id: the doors are the hosts.
-  const doors = all(tree, (n) => n.type === "button" && n.props?.["data-testid"] === "pb-run-open");
-  assert.equal(doors.length, 2, "REGRESSION: a run was a line of text");
-  assert.ok(
-    doors.every((d) => d.type === "button"),
-    "a door a keyboard reaches",
-  );
-  press(doors[1]);
-  assert.deepEqual(went, ["broadcasts/run:b-run-1"]);
-  assert.equal(
-    all(tree, (n) => n.type === "button" && textOf(n).includes("Its runs in Broadcasts")).length,
-    0,
-    "REGRESSION: the door to every broadcast, which could name none of them",
-  );
-  assert.equal(byTestId(tree, "pb-history-more"), null, "every run is in its detail");
-  const busy = pane(
-    playbook({ totals: { ...playbook().totals, runs: 14, history: Array.from({ length: 10 }, (_, i) => runOf(i)) } }),
-  );
-  assert.equal(
-    textOf(byTestId(busy, "pb-history-more")),
-    "The newest 10 of 14 runs",
-    "a detail that lists some of its runs says so",
-  );
-});
-
-test("REGRESSION (C9): a link to a run opens it on Broadcasts -- its report on a screen of its own, as the canvas draws it, whether the list holds it or not", async () => {
+test("REGRESSION (C9): a link to a run opens it on its sheet -- its report on a screen of its own, as the canvas draws it, whether the read holds it or not", async () => {
   setSurfaceValue("broadcasts", broadcastsSurface());
   answers.set("b-sent", [{ ok: true, data: detailOf(dto()) }]);
-  // The ledger's own doors: a row's name and its Open (the chevron, named "Open <run>" for a screen reader) are links
-  // to the run.
-  let tree = page({ initialSegment: null, initialRun: null });
-  // A row is `bc-row-<id>` now: the pane beside the list holds `bc-run-<id>`, and one id is one element.
-  const card = find(tree, (n) => n.props?.id === "bc-row-b-sent");
-  press(byTestId(card, "bc-open-who"));
-  press(find(card, (n) => n.type === "button" && /^Open /.test(n.props?.["aria-label"] || "")));
-  assert.deepEqual(
-    went,
-    ["broadcasts/run:b-sent", "broadcasts/run:b-sent"],
-    "REGRESSION: nothing named one broadcast, so nothing opened one",
-  );
-  press(byTestId(tree, "bc-open-who"));
-  assert.equal(went.at(-1), "broadcasts/run:b-sending", "a scheduled or sending broadcast opens by its link too");
-
+  // A run is opened from its sequence's History, a bell row, Today or Ask's card, each a link to its sheet's address
+  // (contracts runSheetRoute); Sent's list, whose rows linked to it too, went to the sequences' History (decision 0060, D3).
   const listed = { initialSegment: null, initialRun: "b-sent" };
   page(listed);
   await settle();
-  tree = again(listed);
+  let tree = again(listed);
   const details = all(tree, (n) => n.props?.["data-testid"] === "bc-detail");
   assert.equal(details.length, 1);
   assert.equal(
@@ -429,9 +339,9 @@ test("REGRESSION (C9): a link to a run opens it on Broadcasts -- its report on a
     "bc-run-b-sent",
     "the screen a link lands on carries the run's anchor",
   );
-  // The layout is the Inbox's list + pane (Claude Video/docs/2026-10-02-campaigns-on-the-kit.md §3.1): the ledger stays the
-  // list, and the report is the pane beside it, its head (a CmPane's) saying the run's name and state.
-  assert.ok(byTestId(tree, "bc-runs"), "the report is a pane: the ledger stays the list beside it");
+  // The layout is the Inbox's list + pane (Claude Video/docs/2026-10-02-campaigns-on-the-kit.md §3.1): Sequences' list,
+  // and the report the pane beside it, its head (a CmPane's) saying the run's name and state.
+  assert.ok(String(byTestId(tree, "broadcasts-real").props.className).includes("sq-page"), "beside Sequences' list");
   assert.equal(byTestId(tree, "bc-composer"), null);
   const solo0 = byTestId(tree, "bc-run-solo");
   assert.equal(paneTitle(tree), "Win-back · 2026-09-10", "the run's name is the pane's title");
@@ -443,8 +353,8 @@ test("REGRESSION (C9): a link to a run opens it on Broadcasts -- its report on a
   press(byTestId(tree, "bc-detail-close"));
   assert.deepEqual(
     went.at(-1),
-    "broadcasts",
-    "closing is a link too, so the address never names a run that is not open",
+    "campaigns/sequences",
+    "closing is a link too, onto Sequences, so the address never names a run that is not open",
   );
 
   answers.set("b-old", [{ ok: true, data: detailOf(dto({ id: "b-old", name: "Win-back · 2026-06-01" })) }]);
@@ -690,96 +600,8 @@ test("REGRESSION (A21): Today's run rows open the run -- a run waiting for you o
 
 /* ------------------------- what a playbook's detail shows ------------------------- */
 
-test("REGRESSION (C10): a playbook's detail shows the words its runs send -- it named the template and never showed the message", () => {
-  setSurfaceValue("playbooks", playbooksSurface());
-  let tree = pane(playbook());
-  const words = byTestId(tree, "pb-words");
-  assert.ok(words, "REGRESSION: the template's name, and no words");
-  assert.ok(
-    textOf(words).includes("Hi Dani, it's been a while at Northside Studio. Come back for 10% off this week."),
-    textOf(words),
-  );
-  // The whole message, with no press. It was two clamped lines behind a "Show the
-  // whole message" toggle, under the trigger, the schedule, the audience, the
-  // template's name and the next run -- the least prominent thing on a card whose
-  // subject it is.
-  assert.ok(byTestId(byTestId(tree, "pb-words"), "message-preview"), "the whole message, as the customer sees it");
-  assert.equal(byTestId(tree, "pb-words-toggle"), null, "and nothing to press to see it");
-
-  setSurfaceValue("playbooks", playbooksSurface({ templates: [] }));
-  tree = pane(playbook());
-  assert.equal(byTestId(tree, "pb-words"), null);
-  assert.equal(
-    textOf(byTestId(tree, "pb-template-gone")),
-    MESSAGE_GONE_WORDS.card,
-    "a message with no version a run can send is said, in contracts' words, true of a message on any channel: the runs skip it",
-  );
-
-  // A read of the templates that failed is not "no longer approved": the detail shows no words and calls nothing withdrawn.
-  setSurfaceValue("playbooks", playbooksSurface({ templates: null }));
-  tree = pane(playbook());
-  assert.equal(byTestId(tree, "pb-words"), null);
-  assert.equal(byTestId(tree, "pb-template-gone"), null, "a failed read does not call its template withdrawn");
-});
-
-test("REGRESSION (C16): Skip this run asks first, as Broadcasts does -- it skipped on one click", async () => {
-  const skipped = [];
-  const skipKept = playbooks.skipRun;
-  playbooks.skipRun = async (id) => {
-    skipped.push(id);
-    return { ok: true, data: {} };
-  };
-  setSurfaceValue("playbooks", playbooksSurface());
-  const p = playbook({
-    totals: { ...playbook().totals, waiting: { id: "b-wait", recipient_count: 3, name: "Win-back · 2026-09-15" } },
-  });
-  let tree = pane(p);
-  // One word per act (decision 19): Skip, and Approve with its count, as on the run's row of the ledger.
-  assert.equal(textOf(byTestId(tree, "pb-skip")).trim(), "Skip");
-  assert.match(textOf(byTestId(tree, "pb-approve")), /Approve · 3 people$/);
-  press(byTestId(tree, "pb-skip"));
-  assert.deepEqual(skipped, [], "REGRESSION: one click skipped the run");
-  tree = redraw(p);
-  assert.ok(textOf(byTestId(tree, "pb-skip-confirm")).includes("Skip this run of Win-back?"));
-  assert.equal(byTestId(tree, "pb-approve"), null, "while it asks, Approve steps aside");
-  assert.equal(byTestId(tree, "pb-delete-confirm"), null, "and the delete's question stays its own");
-  await press(byTestId(tree, "pb-skip-yes"));
-  playbooks.skipRun = skipKept;
-  assert.deepEqual(skipped, ["b-wait"]);
-});
-
-test("REGRESSION (C18): a visit reminder's detail shows its policy chip -- its class, booking, was looked up as a row id", () => {
-  globalThis.window.__POLICIES = { role: "owner", rows: [{ class: "booking", mode: "auto", limits: {} }] };
-  try {
-    setSurfaceValue("playbooks", playbooksSurface());
-    const tree = pane(
-      playbook({
-        id: "pb-v",
-        name: "Visit reminder",
-        trigger: "visit_tomorrow",
-        policy_class: "booking",
-        triggerLabel: "Visit tomorrow",
-      }),
-    );
-    // The rule's word in the drawer's sentence (Ruben, 11 Oct 2026): what the mode does to a run, found by its class.
-    const rule = find(tree, (n) => n.props?.["data-testid"] === "pb-rules-line");
-    assert.ok(rule, "REGRESSION: no rule at all");
-    assert.equal(
-      textOf(rule),
-      LIFECYCLE_WORDS.compose.sentence.rule.auto,
-      "the word says what the mode does, not how it is filed",
-    );
-    assert.ok(
-      POLICY_MODE_WORDS.auto.chip && POLICY_CLASS_WORDS.booking.short,
-      "(the matrix's own words stay Autonomy's)",
-    );
-  } finally {
-    delete globalThis.window.__POLICIES;
-  }
-});
-
 test("REGRESSION (C19): with no approved template, the composer's hint opens Messages -- it named the page in plain words", () => {
-  // A workspace with no playbook and no approved template, and the home's composer on Every time a moment comes.
+  // A workspace with no playbook and no approved template, and Campaigns' composer on Every time a moment comes.
   setSurfaceValue("playbooks", { ...playbooksSample(new Date(NOW)), rows: [], templates: [] });
   // A moment with no message of its own: one that has one offers it, to add as Turn on starts (Ruben, 11 Oct 2026).
   const bare = PLAYBOOK_TRIGGERS.find((t) => !starterForTrigger(t.id) && t.kind !== "reach_out");
@@ -794,139 +616,6 @@ test("REGRESSION (C19): with no approved template, the composer's hint opens Mes
   assert.match(door.props.href, /messages$/, "the Library's own address, for a new tab or a long press");
   press(door);
   assert.deepEqual(went, ["messages"]);
-});
-
-test("REGRESSION (C7): Run now says when the run really goes -- it said 'sending now' over a run the server moved to nine", async () => {
-  setSurfaceValue("playbooks", playbooksSurface());
-  const runKept = playbooks.runNow;
-  playbooks.runNow = async () => ({
-    ok: true,
-    data: {
-      id: "pb-1",
-      outcome: "sent",
-      eligible: 3,
-      broadcast_id: "b-new",
-      name: "Win-back",
-      scheduled_for: iso(10 * H),
-      moved_from: iso(0),
-    },
-  });
-  toasts.length = 0;
-  moreItem(pane(playbook()), "Run now").onSelect();
-  await settle();
-  let said = textOf(toasts.at(-1).msg);
-  assert.ok(said.includes("scheduled for"), `REGRESSION: ${said}`);
-  assert.ok(!said.includes("sending now"), said);
-
-  // A dashboard deployed ahead of its edge gets no time back, and does not claim one.
-  playbooks.runNow = async () => ({
-    ok: true,
-    data: { id: "pb-1", outcome: "sent", eligible: 3, broadcast_id: "b-new", name: "Win-back" },
-  });
-  moreItem(pane(playbook()), "Run now").onSelect();
-  await settle();
-  said = textOf(toasts.at(-1).msg);
-  playbooks.runNow = runKept;
-  assert.ok(!/\bnow\b/.test(said), said);
-});
-
-/** What one part of the drawer says (its next-run line, a callout), or null where it draws none. */
-const lineOf = (tree, id) => {
-  const line = byTestId(tree, id);
-  if (!line) return null;
-  return textOf(line).replace(/\s+/g, " ").trim();
-};
-
-test("A playbook's detail says what its runs earned on one line over them, and nothing when it has not run", () => {
-  setSurfaceValue("playbooks", playbooksSurface());
-  // What they earned in all, over the newest runs, each of which says its own (Ruben, 11 Oct 2026: the drawer's lines).
-  const words = textOf(byTestId(pane(playbook()), "pb-results"))
-    .replace(/\s+/g, " ")
-    .trim();
-  assert.equal(words, "2 runs · 6 sent · 4 delivered · 1 replied");
-  // A held-back count only when there is one to say.
-  const held = textOf(byTestId(pane(playbook({ totals: { ...playbook().totals, held: 3 } })), "pb-results"));
-  assert.ok(held.includes("3 held back"), held);
-  // And a playbook that has never run claims no numbers at all.
-  assert.equal(byTestId(pane(playbook({ totals: { ...playbook().totals, runs: 0 } })), "pb-results"), null);
-});
-
-test("A playbook's detail is its next run over its sentence, and the message it sends under them; the people are a word of it that opens them", () => {
-  setSurfaceValue("playbooks", playbooksSurface());
-  const tree = pane(playbook());
-  // When it runs next and who that run reaches, then the sentence, then the message (Ruben, 11 Oct 2026, "Option B"): the
-  // facts stood a line each, and before that as five chips and a meta line above the message.
-  assert.ok(lineOf(tree, "pb-next").startsWith("Next run"), lineOf(tree, "pb-next"));
-  assert.ok(byTestId(tree, "pb-recipe"), "the sentence");
-  const text = textOf(tree);
-  assert.ok(
-    text.indexOf("Next run") < text.indexOf(textOf(byTestId(tree, "pb-words"))),
-    "the next run over the message",
-  );
-  // The moment is said by the sentence and the sheet's kicker: no line under the name says its condition again.
-  assert.equal(
-    find(tree, (n) => String(n.props?.className || "") === "cm-pane-sub"),
-    null,
-  );
-  assert.equal(byTestId(tree, "pb-facts"), null, "no lines of facts");
-  // The people are a word of the sentence, a door to them.
-  assert.match(byTestId(tree, "pb-audience").props["data-tip"], /^The list this campaign watches — /);
-  press(byTestId(tree, "pb-audience"));
-  assert.match(went.at(-1), /^clients\/seg:/);
-});
-
-test("REGRESSION: a playbook whose yes has no number says so and offers no QR -- its card said '0 people on the list said yes' and sent the owner for an answer they had", async () => {
-  // The chain, run: the route's pools (server/campaigns/playbook-pools.ts triggerPools), the surface the bridge builds from them,
-  // the words and the door the detail imports (playbooks/words.tsx), and the pane that draws them.
-  const empty = { candidates: 0, held: 0, pool: 0, noYes: 0, stopped: 0, noNumber: 0, saidYes: 0 };
-  const pools = {
-    ...Object.fromEntries(PLAYBOOK_TRIGGERS.map((t) => [t.id, empty])),
-    // One wrote by email and said yes to offers; the other has a number and never said it: nobody can be sent a run.
-    quiet_30: { ...empty, pool: 2, noYes: 1, noNumber: 1, saidYes: 1 },
-    // Two with numbers, and neither said yes to offers.
-    new_week: { ...empty, pool: 2, noYes: 2 },
-  };
-  // The route's row: the fixture less what the surface adds to it (its words and its pools).
-  const surfaceOnly = new Set(["triggerLabel", "triggerHint", "schedule", "next", "candidates", "held"]);
-  const route = Object.fromEntries(Object.entries(playbook()).filter(([k]) => !surfaceOnly.has(k)));
-  const rows = [
-    { ...route, id: "pb-quiet", trigger: "quiet_30" },
-    { ...route, id: "pb-new", name: "Welcome", trigger: "new_week", policy_class: "campaign" },
-    // Nobody the moment names at all.
-    { ...route, id: "pb-phoned", name: "Save our number", trigger: "phoned_only" },
-  ];
-  const answer = (data) =>
-    new Response(JSON.stringify({ ok: true, data }), { status: 200, headers: { "content-type": "application/json" } });
-  const kept = globalThis.fetch;
-  globalThis.fetch = async (url) => {
-    const path = new URL(String(url), "https://app.chanlytics.com").pathname;
-    if (path === "/api/v1/playbooks") return answer({ playbooks: rows, pools, timezone: ZONE, calendar: "none" });
-    if (path === "/api/v1/channels") return answer({ channels: [] });
-    return answer({ config: { brain: { business_name: "Northside Studio" } }, version: 1 });
-  };
-  try {
-    setSurfaceValue("settings", settingsOf([TEMPLATE]));
-    await playbooksOverride.apply();
-    const drawn = (id) => pane(surfaceValue("playbooks").rows.find((p) => p.id === id));
-    const noNumber = drawn("pb-quiet");
-    assert.equal(
-      lineOf(noNumber, "pb-no-number"),
-      "1 person on the list said yes to offers, with no number to send to",
-      "REGRESSION: a yes with no number is said as one, over the sentence",
-    );
-    assert.ok(/ · nobody to send to$/.test(lineOf(noNumber, "pb-next")), lineOf(noNumber, "pb-next"));
-    assert.equal(byTestId(noNumber, "pb-reach-door"), null, "REGRESSION: the QR asked for an answer they had given");
-    // Nobody on it said yes: its count is true, and the door to that yes stands.
-    const noYes = drawn("pb-new");
-    assert.ok(/ · nobody to send to · Get their yes$/.test(lineOf(noYes, "pb-next")), lineOf(noYes, "pb-next"));
-    assert.equal(textOf(byTestId(noYes, "pb-reach-door")), "Get their yes");
-    press(byTestId(noYes, "pb-reach-door"));
-    assert.equal(went.at(-1), "broadcasts/get-yes", "and getting it is one press from the playbook's detail");
-    // Nobody on it at all: there is no yes to get.
-    assert.equal(byTestId(drawn("pb-phoned"), "pb-reach-door"), null);
-  } finally {
-    globalThis.fetch = kept;
-  }
 });
 
 test("REGRESSION: a playbook's list that could not be read is not called deleted, and one of People's is named by contracts (decision 0009)", async () => {
@@ -964,74 +653,7 @@ test("REGRESSION: a playbook's list that could not be read is not called deleted
   }
 });
 
-test("a playbook on an archived list says so in its detail, one press from its list coming back, and no new playbook is offered the list (00169)", async () => {
-  const empty = { candidates: 0, held: 0, pool: 0, noYes: 0, stopped: 0, noNumber: 0, saidYes: 0 };
-  const pools = {
-    ...Object.fromEntries(PLAYBOOK_TRIGGERS.map((t) => [t.id, empty])),
-    "list:l1": empty,
-    "list:l2": empty,
-  };
-  const surfaceOnly = new Set(["triggerLabel", "triggerHint", "schedule", "next", "candidates", "held"]);
-  const route = Object.fromEntries(Object.entries(playbook()).filter(([k]) => !surfaceOnly.has(k)));
-  const rows = [
-    {
-      ...route,
-      id: "pb-vip",
-      name: "VIP offer",
-      trigger: "saved_list",
-      list_id: "l1",
-      list_key: null,
-      state: "paused",
-    },
-  ];
-  const kept = [
-    { id: "l1", name: "VIP", smart: false, archived: true },
-    { id: "l2", name: "Regulars", smart: false, archived: false },
-    // About whoever is looking: a playbook's run has no one looking, so it is offered to none.
-    { id: "l3", name: "Mine", smart: true, archived: false, viewer: true },
-  ];
-  const answer = (data) =>
-    new Response(JSON.stringify({ ok: true, data }), { status: 200, headers: { "content-type": "application/json" } });
-  const fetchKept = globalThis.fetch;
-  globalThis.fetch = async (url) => {
-    const path = new URL(String(url), "https://app.chanlytics.com").pathname;
-    if (path === "/api/v1/playbooks")
-      return answer({ playbooks: rows, pools, timezone: ZONE, calendar: "none", lists: kept, people_lists: [] });
-    if (path === "/api/v1/channels") return answer({ channels: [] });
-    return answer({ config: { brain: { business_name: "Northside Studio" } }, version: 1 });
-  };
-  const restored = [];
-  globalThis.window.__lists = {
-    restore: async (id) => {
-      restored.push(id);
-      return { ok: true, data: {} };
-    },
-  };
-  try {
-    setSurfaceValue("settings", settingsOf([TEMPLATE]));
-    await playbooksOverride.apply();
-    const P = surfaceValue("playbooks");
-    assert.equal(P.rows[0].listArchived, true);
-    assert.deepEqual(
-      P.lists.filter((l) => !l.builtin).map((l) => l.id),
-      ["list:l2"],
-      "an archived list is offered to no new playbook",
-    );
-    const drawn = pane(P.rows[0]);
-    const sentence = lineOf(drawn, "pb-next");
-    assert.ok(sentence.includes("Paused — its list, VIP, is archived."), sentence);
-    assert.ok(sentence.includes(", or edit the campaign to run on another."), sentence);
-    await press(byTestId(drawn, "pb-list-restore"));
-    await settle();
-    assert.deepEqual(restored, ["l1"]);
-    assert.match(textOf(toasts.at(-1).msg), /^VIP is back; resume the campaign when you want it running/);
-  } finally {
-    delete globalThis.window.__lists;
-    globalThis.fetch = fetchKept;
-  }
-});
-
-test("REGRESSION: counts that could not be read are said as such, and nothing draws a zero it never counted -- a People read that failed drew '0 of 0', 'nobody to send to' and the QR on every card", async () => {
+test("REGRESSION: counts that could not be read draw no zero in the composer -- a People read that failed drew '0 of 0' and 'nobody to send to'", async () => {
   // The route's answer when its People read failed (server/campaigns/playbook-pools.ts triggerPools): no moment was counted.
   const pools = Object.fromEntries(PLAYBOOK_TRIGGERS.map((t) => [t.id, null]));
   const surfaceOnly = new Set(["triggerLabel", "triggerHint", "schedule", "next", "candidates", "held"]);
@@ -1048,24 +670,7 @@ test("REGRESSION: counts that could not be read are said as such, and nothing dr
   try {
     setSurfaceValue("settings", settingsOf([TEMPLATE]));
     await playbooksOverride.apply();
-    // The home says what it knows -- its moments, and the win-back's next run -- and draws no figure it never counted: a
-    // moment has "—" where it has no number, and its next run says it could not be counted, never "Nobody".
-    // (Its Coming up is made of the broadcasts' read too, here read and holding no run: unread, it would say it is reading.)
-    const home = homeAt(null, broadcastsSurface({ rows: [], number: { present: true } }));
-    const stages = all(home, (n) => n.props?.["data-testid"] === "cmh-stage");
-    assert.ok(stages.length > 0);
-    for (const s of stages) assert.equal(textOf(byTestId(s, "cmh-people")), "—", `REGRESSION: ${textOf(s)}`);
-    const coming = textOf(byTestId(home, "cmh-coming"));
-    assert.ok(coming.includes("Who it reaches could not be counted"), coming);
-    assert.ok(!/nobody|\b0 of\b/i.test(coming), `REGRESSION: ${coming}`);
-    // The playbook's detail says what it knows -- the moment, the clock, the next run -- and no count, no reach, no door.
-    const opened = pane(surfaceValue("playbooks").rows[0]);
-    const said = textOf(byTestId(opened, "pb-detail")).replace(/\s+/g, " ");
-    assert.ok(/Next run/.test(said), said);
-    assert.equal(byTestId(opened, "pb-who-line"), null, "no Who line where nobody was counted");
-    assert.ok(!said.includes("on the list said yes") && !said.includes("nobody to send to"), `REGRESSION: ${said}`);
-    assert.equal(byTestId(opened, "pb-reach-door"), null);
-    // Nor does the composer, where a moment is picked by who it reaches.
+    // The composer, where a moment is picked by who it reaches, draws no figure it never counted.
     const composing = homeAt("new:every");
     // Its sentence, and no reach line under it (the sheet around it is the record kit's, not loaded here).
     const who = byTestId(composing, "pb-composer");
@@ -1076,238 +681,6 @@ test("REGRESSION: counts that could not be read are said as such, and nothing dr
     assert.ok(options.length > 0, "the moments are listed");
     for (const o of options)
       assert.ok(!/nobody today|\d+ today/i.test(`${o.label} ${o.sub ?? ""} ${o.meta ?? ""}`), `REGRESSION: ${o.meta}`);
-  } finally {
-    globalThis.fetch = kept;
-  }
-});
-
-test("A paused playbook says it is paused, and a run's day is words", () => {
-  setSurfaceValue("playbooks", playbooksSurface());
-  // `nextRunLabel` returns the literal "paused" when it is, and the card read
-  // "Next run paused" -- seen in production on the month's offer.
-  const off = lineOf(pane(playbook({ state: "paused", next: "paused" })), "pb-next");
-  assert.equal(off, "Paused — nothing runs until you resume it");
-  assert.ok(!off.includes("paused"), off);
-
-  // A run's day is a calendar day, not an instant: it was printed as its raw key. One run says when it ran over its row.
-  const once = { ...playbook().totals, runs: 1 };
-  const on = textOf(byTestId(pane(playbook({ last_run_for: "2026-08-25", totals: once })), "pb-history"));
-  assert.ok(on.includes(`Last ran ${fmtDay("2026-08-25")}`), on);
-  assert.ok(!on.includes("2026-08-25"), on);
-  // And in every row of its history, which said the key too.
-  const hist = textOf(byTestId(pane(playbook()), "pb-history"));
-  assert.ok(!/\d{4}-\d{2}-\d{2}/.test(hist), hist);
-
-  // A list with people on it that offers nobody says why: one message per person
-  // per week, across playbooks. A bare "0 people" read as broken.
-  const held = lineOf(pane(playbook({ candidates: 0, held: 2 })), "pb-next");
-  assert.ok(held.endsWith(" · waiting out the week's gap"), held);
-  // And one that reaches some says how many, and who waits: a message within a week of today holds them, one already
-  // sent or one due, so the words say both sides, never "this week".
-  const some = lineOf(pane(playbook({ candidates: 7, held: 2 })), "pb-next");
-  assert.ok(some.endsWith(" · 7 people · 2 people more hear from you within a week of today and wait"), some);
-  const one = lineOf(pane(playbook({ candidates: 7, held: 1 })), "pb-next");
-  assert.ok(one.endsWith(" · 7 people · 1 person more hears from you within a week of today and waits"), one);
-});
-
-test("a proposal follow-up's detail (0006): where deals are on, who it reaches with a proposal waiting; where they are off, why it runs nothing, and no count it never took", async () => {
-  const { FOLLOW_UP_NEEDS_DEALS } = await import("@chanlytics/contracts");
-  const empty = { candidates: 0, held: 0, pool: 0, noYes: 0, stopped: 0, noNumber: 0, saidYes: 0 };
-  const surfaceOnly = new Set(["triggerLabel", "triggerHint", "schedule", "next", "candidates", "held"]);
-  const route = Object.fromEntries(Object.entries(playbook()).filter(([k]) => !surfaceOnly.has(k)));
-  const follow = {
-    ...route,
-    id: "pb-follow",
-    name: "Proposal follow-up",
-    trigger: "proposal_waiting",
-    policy_class: "follow_up",
-    params: [{ kind: "first_name" }, { kind: "business_name" }, { kind: "proposal_link" }],
-  };
-  const answer = (data) =>
-    new Response(JSON.stringify({ ok: true, data }), { status: 200, headers: { "content-type": "application/json" } });
-  const kept = globalThis.fetch;
-  // The route's answer (server/campaigns/playbook-pools.ts triggerPools): the moment counted where deals are on, and not where they
-  // are off, when it runs nothing.
-  const read = async (dealsOn) => {
-    const pools = {
-      ...Object.fromEntries(PLAYBOOK_TRIGGERS.map((t) => [t.id, empty])),
-      proposal_waiting: dealsOn ? { ...empty, pool: 3, candidates: 2, noYes: 1, saidYes: 2 } : null,
-    };
-    globalThis.fetch = async (url) => {
-      const path = new URL(String(url), "https://app.chanlytics.com").pathname;
-      if (path === "/api/v1/playbooks")
-        return answer({ playbooks: [follow], pools, timezone: ZONE, calendar: "none", deals_on: dealsOn });
-      if (path === "/api/v1/channels") return answer({ channels: [] });
-      return answer({ config: { brain: { business_name: "Northside Studio" } }, version: 1 });
-    };
-    setSurfaceValue("settings", settingsOf([TEMPLATE]));
-    await playbooksOverride.apply();
-    return surfaceValue("playbooks");
-  };
-  try {
-    const sentence = (tree) => textOf(byTestId(tree, "pb-detail")).replace(/\s+/g, " ");
-    const on = await read(true);
-    assert.ok(
-      on.triggers.some((t) => t.id === "proposal_waiting"),
-      "offered where deals are on",
-    );
-    const drawnOn = sentence(pane(on.rows[0]));
-    assert.ok(drawnOn.includes(" · 2 people"), drawnOn);
-    assert.ok(drawnOn.includes("One message per proposal") && /Next run/.test(drawnOn), drawnOn);
-    const off = await read(false);
-    assert.deepEqual(
-      [off.triggers.some((t) => t.id === "proposal_waiting"), off.countsRead],
-      [false, true],
-      "not offered, and no moment said to be uncounted",
-    );
-    assert.equal(off.rows[0].off, FOLLOW_UP_NEEDS_DEALS);
-    const drawnOff = sentence(pane(off.rows[0]));
-    assert.ok(
-      drawnOff.includes(FOLLOW_UP_NEEDS_DEALS) && !/Next run|nobody to send to/.test(drawnOff),
-      `why it runs nothing, never a zero it did not count: ${drawnOff}`,
-    );
-  } finally {
-    globalThis.fetch = kept;
-  }
-});
-
-test("a playbook's card does not approve a run whose day has passed: the verb would refuse it, and Skip is the act left", async () => {
-  const approved = [];
-  const keep = playbooks.approveRun;
-  playbooks.approveRun = async (id) => {
-    approved.push(id);
-    return { ok: true, data: { recipient_count: 3, scheduled_for: iso(0), moved_from: null } };
-  };
-  setSurfaceValue("playbooks", playbooksSurface());
-  // The list read carries the waiting run's own day and moment (server playbooks.ts): what the verb's rule reads.
-  const waitingFor = (run_for) =>
-    playbook({
-      totals: {
-        ...playbook().totals,
-        waiting: { id: "b-wait", recipient_count: 3, name: "Win-back · 2026-09-15", run_for, trigger: "quiet_30" },
-      },
-    });
-  try {
-    let tree = pane(waitingFor("2026-09-10"));
-    press(byTestId(tree, "pb-approve"));
-    await settle();
-    assert.deepEqual(approved, [], "REGRESSION: Approve on a run made for a day that has passed, answered 409");
-    assert.ok(byTestId(tree, "pb-skip"), "Skip is still offered");
-    tree = pane(waitingFor(globalThis.window.__clock.dayKey(Date.now())));
-    press(byTestId(tree, "pb-approve"));
-    await settle();
-    assert.deepEqual(approved, ["b-wait"], "today's run is approved as ever");
-    // A read from before the list carried the run's day says nothing of it, and is approved as it was.
-    approved.length = 0;
-    tree = pane(waitingFor(undefined));
-    press(byTestId(tree, "pb-approve"));
-    await settle();
-    assert.deepEqual(approved, ["b-wait"]);
-  } finally {
-    playbooks.approveRun = keep;
-  }
-});
-
-test("a playbook's card does not approve a run while the workspace is paused, and its skip says what the server stopped", async () => {
-  const approved = [];
-  const keepApprove = playbooks.approveRun;
-  const keepSkip = playbooks.skipRun;
-  playbooks.approveRun = async (id) => {
-    approved.push(id);
-    return { ok: true, data: { recipient_count: 3, scheduled_for: iso(0), moved_from: null } };
-  };
-  const open = {
-    whatsapp: { ready: true, why: null },
-    sms: { ready: false, why: "x" },
-    email: { ready: false, why: "y" },
-  };
-  const waiting = playbook({
-    totals: {
-      ...playbook().totals,
-      waiting: {
-        id: "b-wait",
-        recipient_count: 3,
-        name: "Win-back · 2026-09-15",
-        run_for: globalThis.window.__clock.dayKey(Date.now()),
-        trigger: "quiet_30",
-      },
-    },
-  });
-  try {
-    // Paused for billing: the approve door answers 402, so the card's Approve presses nothing (it says the pause, as a
-    // late run's says its day), and Skip is the act left. The one reading Coming up's line reads (waitingRunOffer).
-    setSurfaceValue("playbooks", playbooksSurface({ ready: { ...open, paused: true } }));
-    let tree = pane(waiting);
-    press(byTestId(tree, "pb-approve"));
-    await settle();
-    assert.deepEqual(approved, [], "an Approve the server would refuse with 402");
-    assert.ok(byTestId(tree, "pb-skip"), "Skip is still offered");
-    // Not paused: today's run is approved as ever.
-    setSurfaceValue("playbooks", playbooksSurface({ ready: open }));
-    tree = pane(waiting);
-    press(byTestId(tree, "pb-approve"));
-    await settle();
-    assert.deepEqual(approved, ["b-wait"]);
-    // The skip's receipt is the server's answer: a run that waited closes unsent; one a teammate approved a moment
-    // before is going, and the card does not say nothing will send of it.
-    for (const [was, said] of [
-      ["pending_approval", "Win-back skipped — nothing will send"],
-      ["sending", "Win-back stops after this batch"],
-    ]) {
-      playbooks.skipRun = async () => ({ ok: true, data: { was } });
-      toasts.length = 0;
-      tree = pane(waiting);
-      press(byTestId(tree, "pb-skip"));
-      tree = redraw(waiting);
-      await press(byTestId(tree, "pb-skip-yes"));
-      await settle();
-      assert.equal(textOf(toasts.at(-1).msg), said);
-    }
-  } finally {
-    playbooks.approveRun = keepApprove;
-    playbooks.skipRun = keepSkip;
-  }
-});
-
-test("a playbook's detail finds its message by its name and language through the surface's own read: a WhatsApp version added since moved the id the message is offered by", async () => {
-  const empty = { candidates: 0, held: 0, pool: 0, noYes: 0, stopped: 0, noNumber: 0, saidYes: 0 };
-  const pools = Object.fromEntries(PLAYBOOK_TRIGGERS.map((t) => [t.id, empty]));
-  const surfaceOnly = new Set(["triggerLabel", "triggerHint", "schedule", "next", "candidates", "held"]);
-  const route = Object.fromEntries(Object.entries(playbook()).filter(([k]) => !surfaceOnly.has(k)));
-  // Made when the message had an email version alone, its stored template_id that row's. A WhatsApp version added since is the
-  // message's anchor, so the composers' read offers it by the WhatsApp row's id.
-  const stored = { ...route, id: "pb-quiet", trigger: "quiet_30", template_id: "tpl-email" };
-  const version = (channel) => ({
-    ...TEMPLATE,
-    id: `tpl-${channel === "whatsapp" ? "wa" : channel}`,
-    channel,
-    header: channel === "email" ? "Come back" : null,
-    blocked: null,
-    hidden_at: null,
-    source: "chanlytics",
-  });
-  const rows = [version("whatsapp"), version("email")];
-  const answer = (data) =>
-    new Response(JSON.stringify({ ok: true, data }), { status: 200, headers: { "content-type": "application/json" } });
-  const kept = globalThis.fetch;
-  globalThis.fetch = async (url) => {
-    const path = new URL(String(url), "https://app.chanlytics.com").pathname;
-    if (path === "/api/v1/playbooks") return answer({ playbooks: [stored], pools, timezone: ZONE, calendar: "none" });
-    if (path === "/api/v1/channels") return answer({ channels: [] });
-    return answer({ config: { brain: { business_name: "Northside Studio" } }, version: 1 });
-  };
-  try {
-    setSurfaceValue("settings", settingsOf(rows));
-    await playbooksOverride.apply();
-    const P = surfaceValue("playbooks");
-    assert.deepEqual(
-      P.templates.map((t) => [t.id, t.name, t.channels]),
-      [["tpl-wa", "winback_offer", ["whatsapp", "email"]]],
-      "one message, offered by its anchor's id, holding both its versions",
-    );
-    const tree = pane(P.rows[0]);
-    assert.ok(byTestId(tree, "pb-words"), "its words are drawn: the message is found by its name and language");
-    assert.equal(byTestId(tree, "pb-template-gone"), null, "and it is not called gone for an id that moved");
   } finally {
     globalThis.fetch = kept;
   }

@@ -96,6 +96,7 @@ export const ROUTES = {
   "GET sequences/[id]": { method: "GET", path: "/api/v1/sequences/[id]" },
   "GET sequences/[id]/history": { method: "GET", path: "/api/v1/sequences/[id]/history" },
   "GET sequences/[id]/people": { method: "GET", path: "/api/v1/sequences/[id]/people" },
+  "GET sequences/[id]/replies": { method: "GET", path: "/api/v1/sequences/[id]/replies" },
   "GET settings": { method: "GET", path: "/api/v1/settings" },
   "GET setup": { method: "GET", path: "/api/v1/setup" },
   "GET team": { method: "GET", path: "/api/v1/team" },
@@ -236,6 +237,7 @@ export const ROUTES = {
   "POST segments/draft": { method: "POST", path: "/api/v1/segments/draft" },
   "POST sequences": { method: "POST", path: "/api/v1/sequences" },
   "POST sequences/[id]/leave": { method: "POST", path: "/api/v1/sequences/[id]/leave" },
+  "POST sequences/[id]/return": { method: "POST", path: "/api/v1/sequences/[id]/return" },
   "POST sequences/[id]/steps": { method: "POST", path: "/api/v1/sequences/[id]/steps" },
   "POST sequences/[id]/steps/[step]/test": { method: "POST", path: "/api/v1/sequences/[id]/steps/[step]/test" },
   "POST sequences/[id]/steps/[step]/words": { method: "POST", path: "/api/v1/sequences/[id]/steps/[step]/words" },
@@ -252,6 +254,7 @@ export const ROUTES = {
   "POST templates/starter": { method: "POST", path: "/api/v1/templates/starter" },
   "POST templates/sync": { method: "POST", path: "/api/v1/templates/sync" },
   "POST templates/versions": { method: "POST", path: "/api/v1/templates/versions" },
+  "POST templates/versions/rewrite": { method: "POST", path: "/api/v1/templates/versions/rewrite" },
   "POST vitals": { method: "POST", path: "/api/v1/vitals" },
   "POST workspaces/create": { method: "POST", path: "/api/v1/workspaces/create" },
   "POST workspaces/logo/lookup": { method: "POST", path: "/api/v1/workspaces/logo/lookup" },
@@ -379,6 +382,7 @@ export type Routes = {
   "GET sequences/[id]": typeof import("../../app/api/v1/sequences/[id]/route").GET;
   "GET sequences/[id]/history": typeof import("../../app/api/v1/sequences/[id]/history/route").GET;
   "GET sequences/[id]/people": typeof import("../../app/api/v1/sequences/[id]/people/route").GET;
+  "GET sequences/[id]/replies": typeof import("../../app/api/v1/sequences/[id]/replies/route").GET;
   "GET settings": typeof import("../../app/api/v1/settings/route").GET;
   "GET setup": typeof import("../../app/api/v1/setup/route").GET;
   "GET team": typeof import("../../app/api/v1/team/route").GET;
@@ -519,6 +523,7 @@ export type Routes = {
   "POST segments/draft": typeof import("../../app/api/v1/segments/draft/route").POST;
   "POST sequences": typeof import("../../app/api/v1/sequences/route").POST;
   "POST sequences/[id]/leave": typeof import("../../app/api/v1/sequences/[id]/leave/route").POST;
+  "POST sequences/[id]/return": typeof import("../../app/api/v1/sequences/[id]/return/route").POST;
   "POST sequences/[id]/steps": typeof import("../../app/api/v1/sequences/[id]/steps/route").POST;
   "POST sequences/[id]/steps/[step]/test": typeof import("../../app/api/v1/sequences/[id]/steps/[step]/test/route").POST;
   "POST sequences/[id]/steps/[step]/words": typeof import("../../app/api/v1/sequences/[id]/steps/[step]/words/route").POST;
@@ -535,6 +540,7 @@ export type Routes = {
   "POST templates/starter": typeof import("../../app/api/v1/templates/starter/route").POST;
   "POST templates/sync": typeof import("../../app/api/v1/templates/sync/route").POST;
   "POST templates/versions": typeof import("../../app/api/v1/templates/versions/route").POST;
+  "POST templates/versions/rewrite": typeof import("../../app/api/v1/templates/versions/rewrite/route").POST;
   "POST vitals": typeof import("../../app/api/v1/vitals/route").POST;
   "POST workspaces/create": typeof import("../../app/api/v1/workspaces/create/route").POST;
   "POST workspaces/logo/lookup": typeof import("../../app/api/v1/workspaces/logo/lookup/route").POST;

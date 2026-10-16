@@ -85,7 +85,7 @@ after(async () => {
 const firstStep = async (over = {}) =>
   ok(
     await db
-      .from("playbooks")
+      .from("sequence_steps")
       .insert({
         tenant_id: tenantId,
         name: "Win-back",
@@ -125,7 +125,7 @@ const laterStep = (after, over = {}) =>
 const batchOf = async (stepId, runFor) =>
   ok(
     await db
-      .from("broadcasts")
+      .from("sequence_batches")
       .insert({
         tenant_id: tenantId,
         name: `run ${runFor}`,
@@ -134,7 +134,7 @@ const batchOf = async (stepId, runFor) =>
         template_language: "en_US",
         state: "sending",
         scheduled_for: new Date().toISOString(),
-        playbook_id: stepId,
+        step_id: stepId,
         run_for: runFor,
       })
       .select("id")
@@ -145,7 +145,7 @@ const batchOf = async (stepId, runFor) =>
 /** A customer's send on a batch, written through the old name as assemble_broadcast writes one. */
 const sendTo = async (batchId, contactId) => {
   ok(
-    await db.from("broadcast_recipients").insert({ broadcast_id: batchId, contact_id: contactId, tenant_id: tenantId }),
+    await db.from("sequence_sends").insert({ batch_id: batchId, contact_id: contactId, tenant_id: tenantId }),
     "the send",
   );
 };
@@ -173,7 +173,7 @@ test(
     const next = ok(await laterStep(root), "the step after");
     assert.deepEqual([next.sequence_id, next.place], [root, 2]);
 
-    ok(await db.from("playbooks").update({ name: "Win-back, autumn", state: "paused" }).eq("id", root));
+    ok(await db.from("sequence_steps").update({ name: "Win-back, autumn", state: "paused" }).eq("id", root));
     assert.deepEqual(ok(await db.from("sequences").select("name, state").eq("id", root).single()), {
       name: "Win-back, autumn",
       state: "paused",
@@ -181,7 +181,7 @@ test(
     const moved = await db.from("sequence_steps").update({ place: 3 }).eq("id", next.id);
     assert.match(moved.error?.message ?? "", /stays in its sequence and its place/);
     ok(await db.from("sequence_steps").delete().eq("id", next.id));
-    ok(await db.from("playbooks").delete().eq("id", root));
+    ok(await db.from("sequence_steps").delete().eq("id", root));
     assert.equal(
       ok(await db.from("sequences").select("id").eq("id", root)).length,
       0,
@@ -211,7 +211,7 @@ test(
       .update({ only_if: ["no_booking"] })
       .eq("id", root);
     assert.match(onRoot.error?.message ?? "", /sequence_steps_only_if_check/, "a first step goes on its moment alone");
-    ok(await db.from("playbooks").delete().eq("id", root));
+    ok(await db.from("sequence_steps").delete().eq("id", root));
   },
 );
 
@@ -230,9 +230,9 @@ test(
     const sentAt = "2026-10-01T14:00:00.000Z";
     ok(
       await db
-        .from("broadcast_recipients")
+        .from("sequence_sends")
         .update({ state: "sent", sent_at: sentAt })
-        .eq("broadcast_id", b1)
+        .eq("batch_id", b1)
         .eq("contact_id", people.ana),
     );
     ana = await enrollmentOf(root, people.ana);
@@ -242,9 +242,9 @@ test(
 
     ok(
       await db
-        .from("broadcast_recipients")
+        .from("sequence_sends")
         .update({ state: "skipped", reason: "no_consent" })
-        .eq("broadcast_id", b1)
+        .eq("batch_id", b1)
         .eq("contact_id", people.bo),
     );
     const bo = await enrollmentOf(root, people.bo);
@@ -256,9 +256,9 @@ test(
     assert.deepEqual([ana.state, ana.place, ana.next_at], ["in", 2, null], "at the step after");
     ok(
       await db
-        .from("broadcast_recipients")
+        .from("sequence_sends")
         .update({ state: "sent", sent_at: "2026-10-05T14:00:00.000Z" })
-        .eq("broadcast_id", b2)
+        .eq("batch_id", b2)
         .eq("contact_id", people.ana),
     );
     ana = await enrollmentOf(root, people.ana);
@@ -284,9 +284,9 @@ test(
     await sendTo(b1, people.cy);
     ok(
       await db
-        .from("broadcast_recipients")
+        .from("sequence_sends")
         .update({ state: "sent", sent_at: "2026-10-01T22:30:00.000Z" })
-        .eq("broadcast_id", b1)
+        .eq("batch_id", b1)
         .eq("contact_id", people.cy),
     );
     const due = async (day) => ok(await db.rpc("sequence_follow_ups_due", { p_step_id: next, p_run_for: day }));
@@ -308,7 +308,7 @@ test(
         }),
       ).map((r) => r.step.id);
     assert.ok((await dueSteps()).includes(next), "due while its sequence is on");
-    ok(await db.from("playbooks").update({ state: "paused" }).eq("id", root));
+    ok(await db.from("sequence_steps").update({ state: "paused" }).eq("id", root));
     assert.ok(!(await dueSteps()).includes(next), "never while its first step is paused");
   },
 );
@@ -331,11 +331,7 @@ test(
       ["left", "removed"],
     );
     const sends = ok(
-      await db
-        .from("broadcast_recipients")
-        .select("contact_id, state, reason")
-        .eq("broadcast_id", b1)
-        .order("contact_id"),
+      await db.from("sequence_sends").select("contact_id, state, reason").eq("batch_id", b1).order("contact_id"),
     );
     const byPerson = Object.fromEntries(sends.map((s) => [s.contact_id, [s.state, s.reason]]));
     assert.deepEqual(byPerson[people.ana], ["skipped", "removed"]);

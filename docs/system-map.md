@@ -96,7 +96,7 @@ door in practice. The endpoint warns about exactly this on every request.
   four Retell endpoints, `health`, `diag`
 - **21 key-guarded back-office doors** under `admin/`
 - **8 cron sweeps** — `calendar`, `calls`, `deadman`, `google`, `health`,
-  `lines`, `playbooks`, `registrations`
+  `lines`, `sequence_steps`, `registrations`
 - **1 job endpoint** — `jobs/tick`
 
 Two of those are retired but still reachable: `admin/backfill.ts` and

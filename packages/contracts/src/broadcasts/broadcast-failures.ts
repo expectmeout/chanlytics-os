@@ -111,7 +111,7 @@ export function wireFailure(code: WireFailure, channel: ConsentChannel): string 
  * or a text, which needs no review.
  */
 const WHATSAPP_VERSION_FIX_WORDS =
-  "Open it in the Library — its WhatsApp version can be resubmitted, or the message written as an email or a text.";
+  "Open it in Messages — its WhatsApp version can be resubmitted, or the message written as an email or a text.";
 
 /**
  * How to get past each reason a run stops, in one sentence: a failed run says

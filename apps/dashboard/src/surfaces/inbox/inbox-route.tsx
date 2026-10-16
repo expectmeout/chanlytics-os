@@ -6,13 +6,14 @@
  */
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { isUuid, newConversationOf, routeOfPath } from "@chanlytics/contracts";
+import { isUuid, newConversationOf, routeOfPath, sequenceRepliesOf } from "@chanlytics/contracts";
 import { loadPrefs } from "@/legacy-bridge/device-prefs";
 import { recordNamedBy, useReadNamedRecord } from "../use-named-record";
 import { useSurface } from "../use-surface";
 import { NewConversationAct } from "./new-conversation/act";
 import { openNewConversation } from "./new-conversation/store";
 import { useInboxStanding } from "./pages/inbox-head";
+import { useSequenceReplies } from "./pages/inbox-from";
 import { Inbox } from "./pages/inbox-page";
 import { ixRouteThread } from "./rules";
 import { appNavigate, navigate } from "./shell";
@@ -40,7 +41,10 @@ export function InboxRoute() {
   }, [askedFor]);
   // The id is passed on even when that thread is not loaded: the Inbox says it is missing, rather than opening the
   // first thread in its place.
-  const threadParam = ixRouteThread(asked ? null : param, inboxData().THREADS).id;
+  // `inbox/from:<sequence>` lists that sequence's replies (contracts sequenceRepliesOf): a filter, never a thread.
+  const from = asked ? null : sequenceRepliesOf(param);
+  const replies = useSequenceReplies(from);
+  const threadParam = from ? null : ixRouteThread(asked ? null : param, inboxData().THREADS).id;
   // A thread older than the newest hundred is read by its id (the surface does it as it is read; this is for a link taken after:
   // a bell row, a person's "Open the thread"), so the Inbox opens the thread a link names and the notice is for one that is not
   // this workspace's (finding A2c).
@@ -57,6 +61,7 @@ export function InboxRoute() {
         density={prefs.inboxDensity}
         showAgentRail={prefs.showInboxAgentRail}
         initialThreadId={threadParam}
+        replies={replies}
         opening={opening}
         onOpenClient={(clientId) => navigate(clientId ? `clients/${clientId}` : "clients")}
       />

@@ -686,9 +686,9 @@ function bookedReason(calendar) {
   if (calendar === "unavailable") return "Your calendar could not be read.";
   return null;
 }
-function linkLine(sent2, booked, calendar) {
-  if (sent2 === 0) return "Nobody was sent the booking link in this period.";
-  const was = `${sent2} ${sent2 === 1 ? "person was" : "people were"} sent the booking link`;
+function linkLine(sent, booked, calendar) {
+  if (sent === 0) return "Nobody was sent the booking link in this period.";
+  const was = `${sent} ${sent === 1 ? "person was" : "people were"} sent the booking link`;
   if (booked !== null) return `${was}; ${booked} ${booked === 1 ? "has" : "have"} booked since.`;
   const reason = bookedReason(calendar);
   return reason === null ? `${was}.` : `${was}. ${reason}`;
@@ -1858,7 +1858,7 @@ var REPORT_LENSES = [
     empty: (r2) => ({
       title: "Nothing went out",
       body: `No broadcast or campaign run reached anyone between ${r2.since} and ${r2.until}, and nobody said yes or asked to stop.`,
-      door: { label: "Open Sent", to: "broadcasts" }
+      door: { label: "Open Sequences", to: "campaigns/sequences" }
     })
   },
   {
@@ -2288,23 +2288,16 @@ var isCount = (v) => typeof v === "number" && Number.isInteger(v) && v >= 0;
 // src/shell/campaign-rooms.ts
 var CAMPAIGN_ROOMS = {
   home: "Campaigns",
-  sent: "Sent",
-  library: "Library",
+  library: "Messages",
   newMessage: "New message"
 };
-var { sent, library } = CAMPAIGN_ROOMS;
-var PLAYBOOK_DELETE_WORDS = {
-  /** The toast's tail, after the playbook's name. */
-  done: `deleted \u2014 its runs stay in ${sent} with their numbers`,
-  /** The question's detail. */
-  detail: `Its runs stay in ${sent} with their numbers.`
-};
+var { library } = CAMPAIGN_ROOMS;
 var LIBRARY_WORDS = {
   title: library,
-  demo: `The ${library} reads a real workspace \u2014 the messages it holds, by email, text and WhatsApp.`,
-  reading: `Reading the ${library}\u2026`,
-  failed: `The ${library} couldn\u2019t be loaded right now`,
-  failedWhat: `the ${library}`,
+  demo: `${library} reads a real workspace \u2014 the messages it holds, by email, text and WhatsApp.`,
+  reading: "Reading your messages\u2026",
+  failed: "Your messages couldn\u2019t be loaded right now",
+  failedWhat: "your messages",
   failedBody: "The receptionist keeps sending; this page just can't show what it holds at the moment.",
   /** The count's hover: what the Library holds is every message, on each channel it goes by, whoever writes its versions. */
   headTip: "What the receptionist and your campaigns send, as the customer sees it. A WhatsApp version is approved by WhatsApp, usually within minutes, whether it is written here or in WhatsApp Manager; an email or a text is ready the moment it is saved. A marketing message can only go to people who said yes to offers.",
@@ -2313,10 +2306,6 @@ var LIBRARY_WORDS = {
   writeNeedsNumber: "Connect a WhatsApp number first \u2014 templates belong to a number's account.",
   /** Why a WhatsApp version, or a language of one, cannot be added with no number; an email or a text needs none. */
   addNeedsNumber: "Connect a WhatsApp number to add a WhatsApp version."
-};
-var OFFERS_IN_WRITING_WORDS = {
-  lead: "The carriers require it: their own message, or a sign-up form they signed \u2014 ",
-  link: `print one in ${sent}`
 };
 
 // src/templates/templates.ts
@@ -2667,8 +2656,8 @@ function mailboxStateWords(d, nowMs, tz) {
   if (d.state === "reconnect") return "Signed out: reconnect it";
   return "Paused";
 }
-function mailboxCell(n, sent2, share) {
-  return shareSaid(share(n, sent2), n, sent2) ?? DASH;
+function mailboxCell(n, sent, share) {
+  return shareSaid(share(n, sent), n, sent) ?? DASH;
 }
 function mailboxRows(dto, nowMs) {
   return dto.mailboxes.map(
@@ -3643,9 +3632,9 @@ function peopleHeadWords({ messages, people, runs, wroteBack, before, range }) {
   const was = hadPeople ? ` (${before.wroteBack === 0 ? "none" : before.wroteBack} ${beforeWords(range)})` : "";
   return `${sentence}; ${wroteBack} of ${people} wrote back${was}.`;
 }
-function sendsHeadWords(sent2) {
-  const sentence = `${plural(sent2.messages, "message")} over ${plural(sent2.runs, "run")}`;
-  return sent2.messages >= REPORT_MIN_N ? `${sentence}; people wrote back to ${sent2.replied} of them.` : `${sentence}.`;
+function sendsHeadWords(sent) {
+  const sentence = `${plural(sent.messages, "message")} over ${plural(sent.runs, "run")}`;
+  return sent.messages >= REPORT_MIN_N ? `${sentence}; people wrote back to ${sent.replied} of them.` : `${sentence}.`;
 }
 var NO_MESSAGE_SENT = "no message went out in this period";
 var NOTHING_SENT = "nothing sent";
@@ -3656,8 +3645,8 @@ function sentToMeta(messages, runs) {
   if (messages === null) return plural(runs, "run");
   return messages === 0 ? NO_MESSAGE_SENT : `${plural(messages, "message")} over ${plural(runs, "run")}`;
 }
-function deliveredMeta(delivered, sent2) {
-  return sent2 === 0 ? NOTHING_SENT : `${delivered} of ${sent2} \xB7 ${DELIVERY_RECEIPTS_WORDS}`;
+function deliveredMeta(delivered, sent) {
+  return sent === 0 ? NOTHING_SENT : `${delivered} of ${sent} \xB7 ${DELIVERY_RECEIPTS_WORDS}`;
 }
 function wroteBackMeta(facts) {
   if (facts.people === 0) return NOBODY_SENT_TO;
@@ -3677,7 +3666,7 @@ var HELD_EMPTY = "Nobody was held back in this period.";
 var HELD_OTHER = "Another reason";
 var heldKeyOf = (key) => ownWord(HELD_REASONS, key) === void 0 ? "other" : key;
 var heldReasonWords = (key) => capitalize(ownWord(HELD_REASONS, key) ?? HELD_OTHER);
-var heldBackLine = (held, sent2) => `${held} of the ${plural(sent2 + held, "message")} planned ${wasWere(held)} held back or could not be sent.`;
+var heldBackLine = (held, sent) => `${held} of the ${plural(sent + held, "message")} planned ${wasWere(held)} held back or could not be sent.`;
 var REACH_OUTS_UNDER = "A reach-out's runs are not counted here.";
 var STOPPED_EMPTY = `No run failed or was canceled in this period. ${REACH_OUTS_UNDER}`;
 var CANCELED_KEY = "canceled";
@@ -3819,8 +3808,8 @@ function runsOf({ runs }) {
 }
 function isQuiet(report, series) {
   if (report === null) return false;
-  const { sent: sent2, optIns, optOuts } = report.totals;
-  if (sent2 + optIns + optOuts > 0) return false;
+  const { sent, optIns, optOuts } = report.totals;
+  if (sent + optIns + optOuts > 0) return false;
   if (series === null) return true;
   const { held, stopped, failed_sends, approval, people } = series;
   return [held.total, stopped.failed, stopped.canceled, failed_sends.total, approval.n, people.now.wrote_back].every(
@@ -3828,17 +3817,17 @@ function isQuiet(report, series) {
   );
 }
 function campaignHead(report, series, reach) {
-  const { sent: sent2, replied, sends } = report.totals;
-  if (sent2 === 0) {
+  const { sent, replied, sends } = report.totals;
+  if (sent === 0) {
     return `${NOTHING_WENT_OUT}${reach === null ? "" : reachOutsWroteWords(reach.totals.written, reach.totals.businesses)}`;
   }
   const people = series === null ? null : reachedPeopleOf(series);
   const runs = series === null ? null : runsOf(series).total;
   if (series === null || people === null || people.sentTo === null || runs === null) {
-    return sendsHeadWords({ messages: sent2, runs: sends, replied });
+    return sendsHeadWords({ messages: sent, runs: sends, replied });
   }
   return peopleHeadWords({
-    messages: sent2,
+    messages: sent,
     people: people.sentTo,
     runs,
     wroteBack: people.wroteBack,
@@ -3933,15 +3922,15 @@ function sumUnder(counts, keyOf2) {
 }
 function funnelPart(report) {
   if (report === null) return noMix(null);
-  const { sent: sent2, delivered, read, readOf, replied } = report.totals;
-  if (sent2 === 0) return noMix(NO_MESSAGE_WENT_OUT);
+  const { sent, delivered, read, readOf, replied } = report.totals;
+  if (sent === 0) return noMix(NO_MESSAGE_WENT_OUT);
   const entries = [
-    ["sent", "Sent", sent2],
+    ["sent", "Sent", sent],
     ["delivered", "Delivered", delivered]
   ];
   if (readOf > 0) entries.push(["read", "Read", read]);
   entries.push(["replied", "Answered", replied]);
-  return { rows: barsOf(entries), line: funnelLine({ sent: sent2, delivered, read, readOf, replied }), empty: null };
+  return { rows: barsOf(entries), line: funnelLine({ sent, delivered, read, readOf, replied }), empty: null };
 }
 function heldPart(report, series) {
   if (series === null) return noMix(null);

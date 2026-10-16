@@ -112,7 +112,7 @@ async function chain() {
       .insert({ tenant_id: A, via: "people", card: "movers", name: "Movers", asked: "movers", plan: {} }),
   );
   return one(
-    db.from("playbooks").insert({
+    db.from("sequence_steps").insert({
       tenant_id: A,
       kind: "reach_out",
       policy_class: "outreach",
@@ -139,7 +139,7 @@ async function stepAfter(root) {
     nextSteps.set(
       root,
       await one(
-        db.from("playbooks").insert({
+        db.from("sequence_steps").insert({
           tenant_id: A,
           kind: "reach_out",
           policy_class: "outreach",
@@ -150,7 +150,7 @@ async function stepAfter(root) {
           params: [],
           name: "Movers · a nudge",
           trigger: "after_step",
-          after_playbook_id: root,
+          after_step_id: root,
           after_days: 3,
           state: "running",
         }),
@@ -162,7 +162,7 @@ let days = 0;
 /** A run of the chain: each on a day of its own, as a chain has one run a day (sequence_batches_step_run). */
 const run = (root, state) =>
   one(
-    db.from("broadcasts").insert({
+    db.from("sequence_batches").insert({
       tenant_id: A,
       name: `Movers · ${state}`,
       template_id: template,
@@ -171,7 +171,7 @@ const run = (root, state) =>
       audience: { kind: "reach_out", root_id: root, step_id: root },
       state,
       scheduled_for: iso(Date.now()),
-      playbook_id: root,
+      step_id: root,
       run_for: new Date(Date.now() - (days += 1) * DAY).toISOString().slice(0, 10),
     }),
   );
@@ -228,12 +228,12 @@ async function wroteTo({
   );
   const send = crypto.randomUUID();
   ok(
-    await db.from("reach_out_sends").insert({
+    await db.from("sequence_sends").insert({
       id: send,
       tenant_id: A,
-      broadcast_id: first,
-      playbook_id: root,
-      root_id: root,
+      batch_id: first,
+      step_id: root,
+      sequence_id: root,
       lead_id: lead,
       contact_id: person,
       state: "sent",
@@ -251,12 +251,12 @@ async function wroteTo({
       const next = await run(root, "scheduled");
       const id = crypto.randomUUID();
       ok(
-        await db.from("reach_out_sends").insert({
+        await db.from("sequence_sends").insert({
           id,
           tenant_id: A,
-          broadcast_id: next,
-          playbook_id: await stepAfter(root),
-          root_id: root,
+          batch_id: next,
+          step_id: await stepAfter(root),
+          sequence_id: root,
           lead_id: lead,
           contact_id: person,
           state,
@@ -272,7 +272,7 @@ async function wroteTo({
 
 /** A later step's email to the same business, in a run of its own: what a reply may answer instead of the first. */
 async function sentAgain(ro) {
-  const root = ok(await db.from("reach_out_sends").select("root_id").eq("id", ro.send).single()).root_id;
+  const root = ok(await db.from("sequence_sends").select("root_id:sequence_id").eq("id", ro.send).single()).root_id;
   const next = await run(root, "sent");
   const messageId = `<ro-${stamp}-${(n += 1)}-again@${SEND_HOST}>`;
   const sent = await one(
@@ -291,12 +291,12 @@ async function sentAgain(ro) {
     }),
   );
   ok(
-    await db.from("reach_out_sends").insert({
+    await db.from("sequence_sends").insert({
       id: crypto.randomUUID(),
       tenant_id: A,
-      broadcast_id: next,
-      playbook_id: await stepAfter(root),
-      root_id: root,
+      batch_id: next,
+      step_id: await stepAfter(root),
+      sequence_id: root,
       lead_id: ro.lead,
       contact_id: ro.person,
       state: "sent",
@@ -391,7 +391,7 @@ async function readAs(messageId, answer, { reread = 0, unread = "model_failed", 
   return { res, plan };
 }
 const reading = async (messageId) =>
-  ok(await db.from("reach_out_replies").select("*").eq("message_id", messageId).maybeSingle());
+  ok(await db.from("sequence_replies").select("*").eq("message_id", messageId).maybeSingle());
 const leadRow = async (id) => ok(await db.from("leads").select("*").eq("id", id).single());
 const consentOf = async (contact) =>
   ok(await db.from("contacts").select("email_marketing, email_marketing_source").eq("id", contact).single());
@@ -506,7 +506,7 @@ test(
       (await eventsOf(ro.lead, "lead.converted")).map((d) => [d.how, d.message_id]),
       [["reply", msg]],
     );
-    const sends = ok(await db.from("reach_out_sends").select("id, state, reason").in("id", ro.waiting));
+    const sends = ok(await db.from("sequence_sends").select("id, state, reason").in("id", ro.waiting));
     assert.deepEqual(
       sends.map((s) => [s.state, s.reason]),
       [
@@ -698,7 +698,7 @@ test(
     assert.equal(awayPlan.skipSends, "outreach_away");
     const awayRow = await reading(away);
     assert.equal(awayRow.until_at !== null, true, "recorded: 00226's pause reads it");
-    const sends = ok(await db.from("reach_out_sends").select("state").in("id", ro.waiting));
+    const sends = ok(await db.from("sequence_sends").select("state").in("id", ro.waiting));
     assert.deepEqual(
       sends.map((s) => s.state).sort(),
       ["held", "planned"],
@@ -717,7 +717,7 @@ test(
     assert.equal(await wroteBack(writer), true, "and so did the address that wrote");
     assert.equal((await leadRow(ro.lead)).closed_reason, "said_no");
     assert.equal(await held(`noreply@${host}`), true);
-    const now = ok(await db.from("reach_out_sends").select("state, reason").in("id", ro.waiting));
+    const now = ok(await db.from("sequence_sends").select("state, reason").in("id", ro.waiting));
     assert.deepEqual(
       now.map((s) => s.reason),
       ["outreach_wrote_back", "outreach_wrote_back"],
@@ -893,7 +893,7 @@ test("the undo: who may, for how long, and refused after an unsubscribe", { skip
 
   ok(
     await db
-      .from("reach_out_replies")
+      .from("sequence_replies")
       .update({ read_at: iso(Date.now() - 8 * DAY) })
       .eq("message_id", msg),
   );
@@ -901,7 +901,7 @@ test("the undo: who may, for how long, and refused after an unsubscribe", { skip
   await refused(owner.c, "It's been more than seven days.");
   ok(
     await db
-      .from("reach_out_replies")
+      .from("sequence_replies")
       .update({ read_at: iso(Date.now()) })
       .eq("message_id", msg),
   );
@@ -1104,7 +1104,16 @@ test(
       /^\s*-- What its owner said[^\n]*\n[^\n]*\n\s*union\s+select rr\.contact_id from public\.reach_out_replies rr[\s\S]*rr\.claim = 'owner' and rr\.undone_at is null\s+union\s+select rr\.lead_contact_id from public\.reach_out_replies rr[\s\S]*rr\.claim = 'owner' and rr\.undone_at is null\s*$/,
     );
     const [proc] = query("select prosrc from pg_proc where proname = 'outreach_wrote_back'");
-    assert.equal(proc.prosrc, owners, "and pg_proc runs what 00429 wrote");
+    // 00451 read the replies from sequence_replies, the table the old name was a view of, and changed nothing else.
+    assert.equal(
+      owners.replaceAll("public.reach_out_replies", "public.sequence_replies"),
+      bodyIn(migration("00451"), "create or replace function public.outreach_wrote_back("),
+    );
+    assert.equal(
+      proc.prosrc,
+      bodyIn(migration("00451"), "create or replace function public.outreach_wrote_back("),
+      "and pg_proc runs what 00451 wrote",
+    );
 
     const rows = query(
       `select p.proname, has_function_privilege('anon', p.oid, 'execute') as anon,
@@ -1132,7 +1141,7 @@ test(
       "no insert or update policy",
     );
     const denied = await owner.c
-      .from("reach_out_replies")
+      .from("sequence_replies")
       .update({ intent: "other" })
       .eq("tenant_id", A)
       .select("message_id");

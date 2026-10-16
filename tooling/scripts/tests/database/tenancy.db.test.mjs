@@ -209,7 +209,7 @@ before(async () => {
     name: "tenancy_tpl_1",
     language: "en_US",
   });
-  ctx.broadcast = await seed("broadcasts", {
+  ctx.broadcast = await seed("sequence_batches", {
     tenant_id: A,
     name: "tenancy run",
     template_id: ctx.template,
@@ -217,8 +217,8 @@ before(async () => {
     template_language: "en_US",
     scheduled_for: new Date().toISOString(),
   });
-  await seed("broadcast_recipients", { tenant_id: A, broadcast_id: ctx.broadcast, contact_id: ctx.contact }, null);
-  ctx.playbook = await seed("playbooks", {
+  await seed("sequence_sends", { tenant_id: A, batch_id: ctx.broadcast, contact_id: ctx.contact }, null);
+  ctx.playbook = await seed("sequence_steps", {
     tenant_id: A,
     name: "tenancy playbook",
     policy_class: "reengage",
@@ -363,7 +363,7 @@ before(async () => {
   );
   ctx.lead = await seed("leads", { tenant_id: A, place_id: "ChIJtenancy0001", business_name: "Tenancy Salon" });
   // A reach-out's root (00183) and a send of it: the service role writes both, members read them.
-  ctx.reachRoot = await seed("playbooks", {
+  ctx.reachRoot = await seed("sequence_steps", {
     tenant_id: A,
     kind: "reach_out",
     name: "tenancy reach-out",
@@ -394,18 +394,18 @@ before(async () => {
   );
   // A reply's reading (00222): the service role's doors write it, members read it.
   await seed(
-    "reach_out_replies",
+    "sequence_replies",
     { message_id: ctx.message, tenant_id: A, conversation_id: ctx.conversation, claim: "person", intent: "other" },
     null,
   );
   await seed(
-    "reach_out_sends",
+    "sequence_sends",
     {
       id: crypto.randomUUID(),
       tenant_id: A,
-      broadcast_id: ctx.broadcast,
-      playbook_id: ctx.reachRoot,
-      root_id: ctx.reachRoot,
+      batch_id: ctx.broadcast,
+      step_id: ctx.reachRoot,
+      sequence_id: ctx.reachRoot,
       lead_id: ctx.lead,
       mailbox_id: ctx.mailbox,
       send_at: new Date().toISOString(),
@@ -656,53 +656,10 @@ const TENANT_TABLES = {
     () => ({ tenant_id: A, email: "invited-2@example.com", invited_by: ctx.strangerId, role: "viewer" }),
   ],
   templates: ["member", () => ({ tenant_id: A, channel: "whatsapp", name: "tenancy_tpl_2", language: "en_US" })],
-  broadcasts: [
-    "member",
-    () => ({
-      tenant_id: A,
-      name: "stranger run",
-      template_id: ctx.template,
-      template_name: "tenancy_tpl_1",
-      template_language: "en_US",
-      scheduled_for: new Date().toISOString(),
-    }),
-  ],
-  broadcast_recipients: ["member", () => ({ tenant_id: A, broadcast_id: ctx.broadcast, contact_id: ctx.contact2 })],
-  // Reach out (00183): members read a workspace's sends; only the edge's service role writes them.
-  reach_out_sends: [
-    "member",
-    () => ({
-      id: crypto.randomUUID(),
-      tenant_id: A,
-      broadcast_id: ctx.broadcast,
-      playbook_id: ctx.reachRoot,
-      root_id: ctx.reachRoot,
-      lead_id: ctx.lead,
-      mailbox_id: ctx.mailbox,
-      send_at: new Date().toISOString(),
-    }),
-  ],
   // Reach out (00197): the check's spend is the service role's, read by no member.
   reach_out_check_spend: ["none", () => ({ tenant_id: A, day: "2026-09-27" })],
-  // Reach out, Part 5 (00222): members read a reply's reading; only its doors write one.
-  reach_out_replies: [
-    "member",
-    () => ({ message_id: ctx.message, tenant_id: A, conversation_id: ctx.conversation, claim: "person", intent: "no" }),
-  ],
-  playbooks: [
-    "member",
-    () => ({
-      tenant_id: A,
-      name: "stranger playbook",
-      policy_class: "reengage",
-      template_id: ctx.template,
-      template_language: "en_US",
-      template_name: "tenancy_tpl_1",
-      trigger: "new_week",
-    }),
-  ],
-  // Decision 0060 (00440): a sequence, its steps, its batches, its sends and its replies are each the workspace's. The five
-  // names above are views of them, under the caller's own rights; these are the tables.
+  // Decision 0060 (00440): a sequence, its steps, its batches, its sends (a customer's and a lead's) and its replies are each
+  // the workspace's; the five old names that were views of them went in 00452.
   sequences: ["member", () => ({ tenant_id: A, name: "stranger sequence", starts: "date" })],
   sequence_steps: [
     "member",

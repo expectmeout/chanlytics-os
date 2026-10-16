@@ -13,7 +13,6 @@
   "apps/dashboard/src/surfaces/campaigns/ads/drawer/days.tsx": 1,
   "apps/dashboard/src/surfaces/campaigns/broadcasts/run-sheet.tsx": 2,
   "apps/dashboard/src/surfaces/campaigns/broadcasts/run.tsx": 1,
-  "apps/dashboard/src/surfaces/campaigns/parts/reach.tsx": 2,
   "apps/dashboard/src/surfaces/campaigns/reach-out/sheet-fields.tsx": 2,
   "apps/dashboard/src/surfaces/campaigns/templates/composer-forms.tsx": 1,
   "apps/dashboard/src/surfaces/inbox/pages/agent-rail.tsx": 2,

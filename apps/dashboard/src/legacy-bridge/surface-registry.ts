@@ -67,14 +67,13 @@ export const SURFACE_STATES: Record<string, SurfaceState> = {
   fleet: "demo",
   store: "demo",
   studio: "demo",
-  campaigns: "real", // Campaigns' home (canvas A, "Lifecycle"): the moments around a customer over the playbooks' surface, and who can hear you, what is coming and what came back over the broadcasts', the library's templates and the reach-outs'
+  campaigns: "real", // Campaigns: Sequences (decision 0060) and the sheets it opens over it, the composer and a message, over the playbooks', broadcasts', library's and reach-outs' surfaces
   outbound: "real", // the old Playbooks list, a door now: it lands on campaigns (contracts doorOf), and a playbook is campaigns/moment:<id>
-  // Campaigns › Sequences (decision 0060): everything sent on its own, one list and a record, over the sequences surface;
-  // drawn where its preview is on, the home elsewhere (campaigns/sequences/shown.ts).
+  // Campaigns › Sequences (decision 0060): everything sent on its own, one list and a record, over the sequences surface.
   "campaigns/sequences": "real",
   content: "demo",
-  broadcasts: "real", // Campaigns › Sent: the runs, and the send screen where an audience is named; SMS and email stay not available
-  messages: "real", // Campaigns › Library: what the receptionist and the campaigns send, as the customer sees it, a reach-out's emails included (drawn from the reach_outs surface's chains, each count read as its row opens)
+  broadcasts: "real", // Sent's sheets (a run's, To send, Get their yes) beside Sequences' list; its own address lands on Sequences
+  messages: "real", // Campaigns › Messages: what the receptionist and the campaigns send, as the customer sees it, a reach-out's emails included (drawn from the reach_outs surface's chains, each count read as its row opens)
   start: "real", // the first run: Setup's rows a step at a time, read from the workspace (contracts/first-run.ts)
   // Settings, the page itself. Every pane it draws is classified below, and one nobody has listed is not a pane: Settings
   // opens Profile for it (settings/frame/tabs.ts SET_TAB), which the settings read feeds. It was "demo" once, as the honest
@@ -126,8 +125,8 @@ export const ROUTE_SURFACE: Record<string, string> = {
   reports: "reports",
   live: "live",
   broadcasts: "broadcasts",
-  // Campaigns' home is the playbooks' moments first; the broadcasts, the library and the reach-outs fill in beside it (ROUTE_DRAWS).
-  campaigns: "playbooks",
+  // Campaigns is Sequences' list (decision 0060): the gate waits for it; the sheets it opens over it read theirs (ROUTE_DRAWS).
+  campaigns: "sequences",
   // Its Sequences view (0060) is its own list: the gate waits for it, never the home's moments.
   "campaigns/sequences": "sequences",
   // The templates ride on the settings surface; the page waits for it like Settings does.
@@ -229,19 +228,19 @@ export const ROUTE_DRAWS: Record<string, readonly string[]> = {
   // surface, read beside each page's own.
   // And the number a moment goes out on, its standing and its opt-in: the channels read, which the composers are made of.
   outbound: ["reach_outs", "channels"],
-  // Campaigns' home draws Sent's runs (Coming up, a row's waiting run, who can hear you) from the broadcasts, its own 30
-  // days from campaign_results (read on demand: no other page's boot pays for them), and the reach-outs as rows. The call's
-  // text and the Library's count are made of the templates, which are the settings read's, the one read of them
-  // (surfaces/offered-templates.ts), so Settings is drawn here, last: the home's first draw would otherwise add its line after
-  // the rest, and say nothing of the call's text until the boot's second pass.
-  campaigns: ["broadcasts", "campaign_results", "reach_outs", "settings", "channels"],
+  // The sheets Campaigns opens over Sequences (home/sheets.tsx): the composer is made of the playbooks' moments, Sent's runs
+  // and who they reach (the broadcasts), Campaigns' own 30 days (campaign_results, read on demand: no other page's boot pays
+  // for them) and the reach-outs; a message's drawer and the composers' messages of the templates, which are the settings
+  // read's, the one read of them (surfaces/offered-templates.ts); and the number they go out on, the channels read.
+  campaigns: ["playbooks", "broadcasts", "campaign_results", "reach_outs", "settings", "channels"],
   // Sequences (0060) draws its own list, read as the view comes on screen (onDemand), and the settings read: its preview's
   // switch, and the messages a step may send (offered-templates.ts).
   "campaigns/sequences": ["sequences", "settings"],
   // Templates says which playbooks send each template (messages.jsx), and Broadcasts names a run's playbook. The Library's
   // number notice and a message's drawer are made of the channels read.
   messages: ["reach_outs", "playbooks", "channels"],
-  broadcasts: ["playbooks", "channels"],
+  // Sent's sheets stand beside Sequences' list (decision 0060, D3), and a run's names its playbook.
+  broadcasts: ["sequences", "playbooks", "channels"],
   // Live's line, its number and its switch: the channels read, which Live is made of beside its calls.
   live: ["channels"],
   // A search's reach-out sheet (Part 4 PR 6) writes from Setup's connected mailboxes and checks Settings' booking link: both

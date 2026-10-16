@@ -284,6 +284,13 @@
   gap: var(--space-3);
   min-width: 0;
 }
+/* The preview's head: what it is, and the door to writing its words in place. */
+.sq-ed-preview-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
 .sq-editor-row {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));

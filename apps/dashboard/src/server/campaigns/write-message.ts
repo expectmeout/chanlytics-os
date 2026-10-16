@@ -86,7 +86,7 @@ export interface WriteMessageAnswer {
 }
 
 /** A version that could not be filed for a reason no one meant a person to read (a fault, not a refusal). */
-const NOT_FILED = "This version could not be filed just now. Write it again from the Library.";
+const NOT_FILED = "This version could not be filed just now. Write it again from Messages.";
 
 /**
  * The words a refusal says, or, for a fault, the plain sentence, the fault itself logged: the answer still arrives (the

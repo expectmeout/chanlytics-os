@@ -1670,7 +1670,7 @@ test("a message begun as an email is written by ONE request -- an offer, with it
   assert.ok(rowOf(tree, "spring_offer"), "and its row is in the list");
   assert.equal(
     textOf(toasts.at(-1).msg),
-    "Spring offer is in the Library: the email version in English (US) is saved",
+    "Spring offer is in Messages: the email version in English (US) is saved",
     "the page's toast voice",
   );
   assert.equal(toasts.length, 1);

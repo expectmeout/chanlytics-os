@@ -57,7 +57,7 @@ const workspace = (slug, name) => one(db.from("tenants").insert({ slug, name, ti
 /** A chain over a search of its own: a search has one chain (00197). */
 const chain = async (tenant, state = "running", tpl = template) =>
   one(
-    db.from("playbooks").insert({
+    db.from("sequence_steps").insert({
       tenant_id: tenant,
       kind: "reach_out",
       policy_class: "outreach",
@@ -120,7 +120,7 @@ async function leads(tenant, count) {
 }
 const run = (tenant, root, day, state = "scheduled") =>
   one(
-    db.from("broadcasts").insert({
+    db.from("sequence_batches").insert({
       tenant_id: tenant,
       name: `Movers · ${day}`,
       template_id: template,
@@ -129,7 +129,7 @@ const run = (tenant, root, day, state = "scheduled") =>
       audience: { kind: "reach_out", root_id: root, step_id: root, search_id: search },
       state,
       scheduled_for: iso(Date.now()),
-      playbook_id: root,
+      step_id: root,
       run_for: day,
     }),
   );
@@ -138,9 +138,9 @@ async function planned(tenant, runId, root, mailboxId, leadIds, sendAt, check = 
   const rows = leadIds.map((lead) => ({
     id: crypto.randomUUID(),
     tenant_id: tenant,
-    broadcast_id: runId,
-    playbook_id: root,
-    root_id: root,
+    batch_id: runId,
+    step_id: root,
+    sequence_id: root,
     lead_id: lead,
     mailbox_id: mailboxId,
     send_at: iso(sendAt),
@@ -148,7 +148,7 @@ async function planned(tenant, runId, root, mailboxId, leadIds, sendAt, check = 
     checked_words: checkedWordsOf(WORDS, null, false),
     ...check,
   }));
-  for (let i = 0; i < rows.length; i += 500) ok(await db.from("reach_out_sends").insert(rows.slice(i, i + 500)));
+  for (let i = 0; i < rows.length; i += 500) ok(await db.from("sequence_sends").insert(rows.slice(i, i + 500)));
   return rows.map((r) => r.id);
 }
 
@@ -239,7 +239,7 @@ test(
     );
     assert.deepEqual(ok(await dueMailboxes({ p_skip_tenants: [A] })), [], "a workspace held is none of the page");
     // Tidy, so the writer's case below starts from nothing due, and the workspace keeps well within its ten mailboxes.
-    ok(await db.from("reach_out_sends").delete().eq("tenant_id", A));
+    ok(await db.from("sequence_sends").delete().eq("tenant_id", A));
     ok(await db.from("mailbox_connections").delete().in("id", [unchecked, pausedBox, resting]));
   },
 );
@@ -324,7 +324,13 @@ test(
     assert.deepEqual([out.claimed, out.written, out.errors, out.skipped], [1, 1, 0, 0]);
 
     const id = await sendMessageId(sendId, 0);
-    const send = ok(await db.from("reach_out_sends").select("*").eq("id", sendId).single());
+    const send = ok(
+      await db
+        .from("sequence_sends")
+        .select("*, broadcast_id:batch_id, playbook_id:step_id, root_id:sequence_id")
+        .eq("id", sendId)
+        .single(),
+    );
     const l = ok(await db.from("leads").select("contact_id").eq("id", lead).single());
     assert.deepEqual([send.state, send.message_id, send.contact_id], ["queued", id, l.contact_id]);
     const m = ok(await db.from("messages").select("*").eq("id", id).single());
@@ -339,7 +345,7 @@ test(
       jobs.map((j) => [j.kind, j.state, j.payload.purpose, j.payload.proactive, j.payload.conversation_id]),
       [["outbound_send", "scheduled", "outreach", true, m.conversation_id]],
     );
-    assert.equal(ok(await db.from("broadcasts").select("state").eq("id", runId).single()).state, "sending");
+    assert.equal(ok(await db.from("sequence_batches").select("state").eq("id", runId).single()).state, "sending");
     // The mailbox's capacity counts the queued email (its send), so the day's share already knows it.
     const cap = ok(await db.rpc("mailbox_capacity", { p_mailbox_id: dom, p_at: iso(Date.now()) }));
     assert.equal(cap.used, 1);
@@ -367,7 +373,7 @@ test(
     // The dead tick: claimed six minutes ago, its email written, then nothing.
     ok(
       await db
-        .from("reach_out_sends")
+        .from("sequence_sends")
         .update({ state: "claimed", claimed_at: iso(Date.now() - 6 * MIN) })
         .eq("id", sendId),
     );
@@ -392,7 +398,7 @@ test(
       }),
     );
     // The owner cancels the run.
-    ok(await db.from("broadcasts").update({ state: "canceled" }).eq("id", runId));
+    ok(await db.from("sequence_batches").update({ state: "canceled" }).eq("id", runId));
 
     const lane = {
       unsubscribeSecret: "unsubscribe-seal-for-this-suite",
@@ -403,13 +409,13 @@ test(
     assert.equal(out.rewritten, 1);
     const m = ok(await db.from("messages").select("status, error").eq("id", id).single());
     assert.deepEqual([m.status, m.error], ["canceled", { reason: "run_canceled" }], "withdrawn: its job sends nothing");
-    const adopted = ok(await db.from("reach_out_sends").select("state, message_id").eq("id", sendId).single());
+    const adopted = ok(await db.from("sequence_sends").select("state, message_id").eq("id", sendId).single());
     assert.deepEqual([adopted.state, adopted.message_id], ["queued", id], "adopted: the send is its email's");
     const jobs = ok(await db.from("jobs").select("id").eq("tenant_id", A).eq("payload->>message_id", id));
     assert.equal(jobs.length, 0, "no job for a withdrawn email");
 
     await reachOutClock(db, new Date(), L, Date.now(), A);
-    const done = ok(await db.from("reach_out_sends").select("state, reason").eq("id", sendId).single());
+    const done = ok(await db.from("sequence_sends").select("state, reason").eq("id", sendId).single());
     assert.deepEqual([done.state, done.reason], ["skipped", "run_canceled"]);
   },
 );
@@ -470,7 +476,13 @@ test(
         .single(),
     );
     assert.match(m.body, /^A 4\.9 from 16 reviews says people find you\.\n\nHi Fixture Movers \d+\.$/);
-    const back = ok(await db.from("reach_out_sends").select("*").eq("id", again).single());
+    const back = ok(
+      await db
+        .from("sequence_sends")
+        .select("*, broadcast_id:batch_id, playbook_id:step_id, root_id:sequence_id")
+        .eq("id", again)
+        .single(),
+    );
     assert.deepEqual(
       [back.state, back.checked_at, back.check_gen, back.opening, back.claimed_at],
       ["planned", null, 4, null, null],

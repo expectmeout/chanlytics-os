@@ -11,7 +11,7 @@
  *   (3 Oct 2026, which replaced that list) hosts it in a sheet over a rail that stays where it was.
  * The composer is drawn directly (PlaybookComposer, TSX since decision 0015) on a stub React, over the surface the seam
  * hands it and the starter library it imports, as the home hands it one (home/new-message.tsx): the moment a Turn on was
- * pressed for, or the playbook being changed. A playbook's detail is PlaybookPane, and the home is CampaignsHome.
+ * pressed for, or the playbook being changed. The composer stands in Campaigns' sheets over Sequences (home/sheets.tsx).
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -163,9 +163,8 @@ Object.assign(globalThis, {
   gateTitle: (perm, doing) => `Only an owner or operator can ${doing}.`,
 });
 const { PlaybookComposer } = await import(`${SRC}/surfaces/campaigns/playbooks/composer.tsx`);
-const { PlaybookPane } = await import(`${SRC}/surfaces/campaigns/playbooks/card-detail.tsx`);
 const { playbooksSample } = await import(`${SRC}/surfaces/campaigns/playbooks/sample.ts`);
-const { CampaignsHome } = await import(`${SRC}/surfaces/campaigns/home/home-page.tsx`);
+const { CampaignsSheets } = await import(`${SRC}/surfaces/campaigns/home/sheets.tsx`);
 const { PaneSheet } = await import(`${SRC}/surfaces/campaigns/home/pane-sheet.tsx`);
 const { pbGuardWords } = await import(`${SRC}/surfaces/campaigns/playbooks/words.tsx`);
 const { playbooks } = await import(`${SRC}/surfaces/campaigns/playbooks/verbs.ts`);
@@ -173,7 +172,6 @@ const { setSurfaceValue } = await import(`${SRC}/surfaces/surface-values.ts`);
 const { Picker } = await import(`${SRC}/surfaces/kit/picker/picker.tsx`);
 const { CmSlot } = await import(`${SRC}/surfaces/campaigns/parts/slot.tsx`);
 const { CmReachLine } = await import(`${SRC}/surfaces/campaigns/parts/reach.tsx`);
-const { CmRuleWord } = await import(`${SRC}/surfaces/campaigns/parts/rule.tsx`);
 const { templates: templateVerbs } = await import(`${SRC}/surfaces/campaigns/templates/verbs.ts`);
 const { Popover } = await import(`${SRC}/surfaces/kit/popover/popover.tsx`);
 
@@ -240,12 +238,6 @@ const composing = (over = {}, moment = null, changing = null) => {
   fresh();
   Object.assign(open, { data, moment, editing: changing ? data.rows.find((p) => p.id === changing) : null });
   return page();
-};
-/** A playbook's detail, as the home's sheet hosts it (home/drawer.tsx), over the surface it reads its message and moment from. */
-const paneOf = (p, over = {}, acts = {}) => {
-  setSurfaceValue("playbooks", surface({ rows: [p], ...over }));
-  fresh();
-  return again(() => PlaybookPane({ p, canAct: true, onEdit() {}, flash() {}, onClose() {}, ...acts }));
 };
 /** Each slot as the composer lists it: what fills it, and what else it offers (nothing, when it has no choice). */
 const fillsOf = (tree) =>
@@ -447,21 +439,8 @@ test("words to write hold Start until they are written, and the name is the rout
   assert.equal(named.cap_per_run, 100);
 });
 
-test("REGRESSION: a playbook stored with its first name filled by the booking link is put right when it is changed, and its detail says so until then", async () => {
+test("REGRESSION: a playbook stored with its first name filled by the booking link is put right when it is changed", async () => {
   const broken = playbook({ params: [{ kind: "booking_link" }, { kind: "business_name" }, { kind: "booking_link" }] });
-  const edited = [];
-  const pane = paneOf(broken, {}, { onEdit: (p) => edited.push(p) });
-  const wrong = byTestId(pane, "pb-slot-wrong");
-  assert.ok(textOf(wrong).includes("“First name” is filled with the booking link"), textOf(wrong));
-  press(byTestId(pane, "pb-slot-wrong-edit"));
-  press(byTestId(pane, "pb-edit"));
-  assert.deepEqual(edited, [broken, broken], "Edit, in the sentence or at the head, opens the composer on it");
-  assert.equal(
-    byTestId(paneOf(playbook()), "pb-slot-wrong"),
-    null,
-    "and a playbook whose slots are right says nothing",
-  );
-
   // Changed: the first name is each person's own again, and Save sends it so.
   let tree = composing({ rows: [broken] }, null, "pb-1");
   assert.equal(fillsOf(tree)[0].kind, "first_name");
@@ -487,41 +466,6 @@ test("a playbook whose message has no version a run can send says so when change
 });
 
 /* ---------------------------------- the page under it ---------------------------------- */
-
-test("REGRESSION: opening the composer moves nothing on the page -- the unset moments stood down and the cards moved down under a panel; on the home it is a sheet over a rail and a ledger that stay", () => {
-  setSurfaceValue("playbooks", playbooksSample(new Date(NOW)));
-  const home = (param) => {
-    fresh();
-    return again(() => CampaignsHome({ param, nowMs: NOW }));
-  };
-  const rail = (t) => allByTestId(t, "cmh-stage").map((s) => [s.props["data-stage"], s.props["data-state"]]);
-  const lines = (t) => allByTestId(t, "cmh-row").map((s) => s.props["data-row"]);
-  const before = home(null);
-  assert.ok(rail(before).length >= 4, "the moments are on the rail");
-  assert.ok(lines(before).length >= 3, "and every campaign is a row of the ledger under them");
-  assert.equal(
-    find(before, (n) => n.type === PlaybookComposer),
-    null,
-    "no composer until one is opened",
-  );
-  const after = home("new:every");
-  assert.ok(
-    find(after, (n) => n.type === PlaybookComposer),
-    "the sheet is open",
-  );
-  assert.deepEqual(rail(after), rail(before), "every moment is where it was, in the state it was");
-  assert.deepEqual(lines(after), lines(before), "and every row of the ledger under them");
-  // The composer is hosted in the kit's sheet over the page (home/pane-sheet.tsx): the page behind it stays drawn, and
-  // Cancel is the composer's own, which asks first where there are words, then closes the sheet to the home.
-  const sheet = find(after, (n) => n.type === PaneSheet);
-  assert.equal(sheet.props.open, true);
-  assert.ok(
-    find(sheet, (n) => n.type === PlaybookComposer),
-    "the composer is what the sheet holds",
-  );
-  press(byTestId(after, "pb-cancel"));
-  assert.deepEqual(replaced, ["campaigns"], "Cancel closes it to the home");
-});
 
 /* ---------------------------------- the rules, in contracts ---------------------------------- */
 
@@ -575,23 +519,7 @@ test("slotChoices: what keeps a known slot true, anything for a guessed one; tem
   );
 });
 
-test("the detail says what it keeps to: the workspace's mode for its class, and for a visit trigger the day's visits and one message each", () => {
-  // Once four source pins on outbound-real.jsx; run here since the detail and its words are their own files (Reach out
-  // Part 2.5).
-  const pane = paneOf(playbook());
-  const rule = find(pane, (n) => n.type === CmRuleWord);
-  assert.equal(rule?.props.cls, "reengage", "the rule's word is the playbook's class, which opens Settings › Autonomy");
-
-  const visit = paneOf(
-    playbook({ id: "pb-v", name: "The day before", trigger: "visit_tomorrow", policy_class: "booking" }),
-  );
-  const tip = find(
-    visit,
-    (n) => typeof n.props?.["data-tip"] === "string" && n.props["data-tip"].includes("the day's visits"),
-  );
-  assert.ok(tip, "a visit playbook's count says the day's visits are picked from the people who said yes");
-  assert.match(tip.props["data-tip"], /^Everyone with a recorded yes — the day's visits are picked from them/);
-
+test("a campaign's guardrails say what it keeps to: for a visit trigger the day's visits and one message each", () => {
   // The guardrails: who it reaches for the channels it goes by (contracts consentGuardWords), the moment's own rule, and
   // who the wire holds back (contracts heldBackWords). WhatsApp's reach is a recorded yes and a phone number.
   const guard = pbGuardWords({ kind: "visit", word: "visit" }, ["whatsapp"], "conversational");
@@ -621,7 +549,7 @@ test("the detail says what it keeps to: the workspace's mode for its class, and 
   assert.match(byMail, /have no email address that works/);
 });
 
-test("the drawer and the composer say the workspace's own word for an appointment, never a visit written in (spec §4.8)", () => {
+test("the composer says the workspace's own word for an appointment, never a visit written in (spec §4.8)", () => {
   const session = { shape: { calendar: "feed", dealsOn: false, word: "session" } };
   const W = contracts.appointmentWords("session");
   // The composer's sentence, on each moment of the appointment: the moment is the people it names.
@@ -638,13 +566,6 @@ test("the drawer and the composer say the workspace's own word for an appointmen
     pbGuardWords({ kind: "visit", word: "session" }, ["whatsapp"], "conversational"),
     "Only people with a recorded yes to hearing from you and a phone number. One message per session. People who asked to stop, have no phone number, or are mid-thread with a person are held back at the wire.",
   );
-  // The drawer's count: the day's sessions are picked from the people who said yes.
-  const pane = paneOf(
-    playbook({ id: "pb-v", name: "The day before", trigger: "visit_tomorrow", policy_class: "booking" }),
-    session,
-  );
-  const tip = find(pane, (n) => n.props?.["data-testid"] === "pb-audience");
-  assert.match(tip.props["data-tip"], /^Everyone with a recorded yes — the day's sessions are picked from them/);
 });
 
 /* ------------------------------- Send by (One message, every channel, step 3) ------------------------------- */
@@ -1110,8 +1031,6 @@ const reminderOnAll = (over = {}) =>
     ...over,
   });
 const checkedOf = (tree) => ["whatsapp", "sms", "email"].map((c) => viaOf(tree)[c].props.checked);
-/** Lets a press that awaits its verb finish. */
-const settled = () => new Promise((done) => setImmediate(done));
 
 test("REGRESSION: a press on one switch never lets go a channel that waits -- it started from what was on, and a playbook lost a channel nobody had switched off", async () => {
   const tree = composing(viaSurface({ rows: [reminderOnAll()], ready: NO_LINE }), null, "pb-visit");
@@ -1121,64 +1040,6 @@ test("REGRESSION: a press on one switch never lets go a channel that waits -- it
   assert.deepEqual(checkedOf(page()), [true, true, false], "Email off: the text it keeps is kept");
   await press(byTestId(page(), "pb-save"));
   assert.deepEqual(said.at(-1)[2].channels, ["whatsapp", "sms"], "and saved");
-});
-
-test("the drawer's Goes by row: a press sends the channels it keeps, alone; one that waits is never let go; and the page says what it goes by now", async () => {
-  const flashed = [];
-  const draw = (p, over = {}, acts = {}) =>
-    paneOf(p, { ...viaSurface({ rows: [p], ...over }) }, { flash: (t) => flashed.push(t), ...acts });
-  let pane = draw(reminderOnAll(), { ready: NO_LINE });
-  assert.equal(byTestId(pane, "pb-via").props["aria-label"], "Goes by", "named to a screen reader as it is labelled");
-  assert.deepEqual(checkedOf(pane), [true, true, true]);
-  assert.equal(reasonsOf(pane).sms, `${contracts.CHANNEL_WORDS.noTextLine} It sends once it can.`);
-  viaOf(pane).email.props.onCheckedChange(false);
-  await settled();
-  assert.deepEqual(said.at(-1), ["channels", "pb-visit", ["whatsapp", "sms"]], "the channels, and nothing else of it");
-  assert.deepEqual(
-    flashed.at(-1).msg.props.parts,
-    contracts.LIFECYCLE_TOAST.channels("Visit reminder", ["whatsapp", "sms"], false),
-    "said in the page's sentence: Visit reminder goes by WhatsApp and Text now",
-  );
-  assert.equal(
-    said.some(([verb]) => verb === "update"),
-    false,
-    "never the playbook whole: a copy of the rest wrote over whatever had been edited since",
-  );
-
-  // A run of it already waits: it was made with the channels the playbook had, and the receipt says so.
-  const waiting = reminderOnAll({
-    channels: ["whatsapp", "email"],
-    totals: {
-      ...playbook().totals,
-      waiting: { id: "b-1", recipient_count: 4, run_for: "2026-10-08", trigger: "visit_tomorrow" },
-    },
-  });
-  pane = draw(waiting);
-  viaOf(pane).email.props.onCheckedChange(false);
-  await settled();
-  assert.deepEqual(said.at(-1), ["channels", "pb-visit", ["whatsapp"]]);
-  assert.deepEqual(
-    flashed.at(-1).msg.props.parts,
-    contracts.LIFECYCLE_TOAST.channels("Visit reminder", ["whatsapp"], true),
-  );
-
-  // What was not read is not guessed: without its message (the templates could not be read, or it was deleted) the row
-  // shows what it keeps, says no reason of a message nobody read, and takes no press.
-  for (const templates of [null, []]) {
-    pane = draw(reminderOnAll({ channels: ["whatsapp", "email"] }), { templates });
-    assert.deepEqual(checkedOf(pane), [true, false, true], "what it keeps");
-    assert.deepEqual(reasonsOf(pane), {}, "no reason invented");
-    assert.deepEqual(
-      ["whatsapp", "sms", "email"].map((c) => viaOf(pane)[c].props.readOnly),
-      [true, true, true],
-    );
-  }
-  // A role that may not change it sees the switches still.
-  pane = draw(reminderOnAll({ channels: ["whatsapp", "email"] }), {}, { canAct: false });
-  assert.deepEqual(
-    ["whatsapp", "sms", "email"].map((c) => viaOf(pane)[c].props.readOnly),
-    [true, true, true],
-  );
 });
 
 test("a new playbook's ticks follow the message in view until a switch is pressed, then they are the owner's", () => {
@@ -1517,19 +1378,12 @@ test("a playbook made on a message's email version is changed on that message by
   assert.equal(textOf(byTestId(gone, "pb-template-lost")), contracts.MESSAGE_GONE_WORDS.composer("Visit reminder"));
 });
 
-test("the words for a message no run can send are contracts', said once, in the composer and on the card, and true of a message on any channel", () => {
-  // The same words in the composer and on the card, from contracts, true of an email's message as of a WhatsApp one.
-  assert.equal(
-    contracts.MESSAGE_GONE_WORDS.card,
-    "Its message has no version its runs can send, so they are skipped until it has one again or the campaign sends another.",
-  );
+test("the words for a message no run can send are contracts', said in the composer, and true of a message on any channel", () => {
+  // From contracts, true of an email's message as of a WhatsApp one.
   assert.equal(
     contracts.MESSAGE_GONE_WORDS.composer("Autumn offer"),
     "Its message, Autumn offer, has no version its runs can send any more. Pick another to save a change.",
   );
-  const mine = playbook({ template_id: "tpl-gone", template_name: "old_offer" });
-  const tree = paneOf(mine, { templates: [] });
-  assert.equal(textOf(byTestId(tree, "pb-template-gone")), contracts.MESSAGE_GONE_WORDS.card);
 });
 
 test("the moment's own message waiting on WhatsApp says where its WhatsApp version stands in contracts' words, and Turn on adds one not added yet", async () => {
@@ -1545,7 +1399,7 @@ test("the moment's own message waiting on WhatsApp says where its WhatsApp versi
   assert.ok(line.includes(contracts.STARTER_LINE_WORDS.standing("pending")), line);
   assert.ok(line.includes("has its WhatsApp version in review"), line);
   assert.equal(byTestId(tree, "pb-add-starter"), null);
-  // Refused, paused or disabled: the Library's word for the standing, and the Library to look at it in.
+  // Refused, paused or disabled: Messages' word for the standing, and Messages to look at it in.
   for (const [status, word] of [
     ["rejected", "refused"],
     ["paused", "paused"],
@@ -1553,7 +1407,7 @@ test("the moment's own message waiting on WhatsApp says where its WhatsApp versi
   ]) {
     tree = withVersion(status);
     assert.ok(
-      textOf(byTestId(tree, "pb-starter")).includes(`has its WhatsApp version ${word} — see Campaigns › Library.`),
+      textOf(byTestId(tree, "pb-starter")).includes(`has its WhatsApp version ${word} — see Campaigns › Messages.`),
       status,
     );
     assert.ok(!/template/i.test(textOf(byTestId(tree, "pb-starter"))), status);
@@ -1592,7 +1446,7 @@ test("a Turn on opens a sheet titled for its moment, with no kind switch; New me
   fresh();
   // The sample holds no campaign on the day after: its Turn on names the campaign it would start.
   const turnOn = find(
-    again(() => CampaignsHome({ param: "new:moment:visited", nowMs: NOW })),
+    again(() => CampaignsSheets({ param: "new:moment:visited", nowMs: NOW })),
     (n) => n.type === PaneSheet,
   );
   assert.equal(turnOn.props.title, contracts.LIFECYCLE_WORDS.compose.turnOnShort, "Turn on, as the sheet's kicker");
@@ -1602,13 +1456,13 @@ test("a Turn on opens a sheet titled for its moment, with no kind switch; New me
   fresh();
   // A moment that already holds one (the sample's Win-back): no second campaign's title is its name.
   const holding = find(
-    again(() => CampaignsHome({ param: "new:moment:quiet_30", nowMs: NOW })),
+    again(() => CampaignsSheets({ param: "new:moment:quiet_30", nowMs: NOW })),
     (n) => n.type === PaneSheet,
   );
   assert.equal(holding.props.title, "New message");
   fresh();
   const plain = find(
-    again(() => CampaignsHome({ param: "new", nowMs: NOW })),
+    again(() => CampaignsSheets({ param: "new", nowMs: NOW })),
     (n) => n.type === PaneSheet,
   );
   assert.equal(plain.props.title, "New message");
@@ -1618,7 +1472,7 @@ test("a Turn on opens a sheet titled for its moment, with no kind switch; New me
 test("a Turn on's title follows the moment its field holds: another moment chosen in the sheet is the title's", () => {
   setSurfaceValue("playbooks", playbooksSample(new Date(NOW)));
   fresh();
-  const draw = () => again(() => CampaignsHome({ param: "new:moment:visited", nowMs: NOW }));
+  const draw = () => again(() => CampaignsSheets({ param: "new:moment:visited", nowMs: NOW }));
   const titleOf = (tree) => find(tree, (n) => n.type === PaneSheet).props.title;
   let tree = draw();
   assert.equal(titleOf(tree), contracts.LIFECYCLE_WORDS.compose.turnOnShort);
@@ -1637,10 +1491,11 @@ test("a Turn on's title follows the moment its field holds: another moment chose
   tree = draw();
   assert.equal(titleOf(tree), contracts.LIFECYCLE_WORDS.compose.turnOnShort);
   assert.equal(find(tree, (n) => n.type === PlaybookComposer).props.initialTrigger, "visited", "the sheet stays open");
-  // A choice is the sheet's it was made in: closed and opened again by the same Turn on, it is titled for its moment.
+  // A choice is the sheet's it was made in: closed (Campaigns' sheets draw none, so it is unmounted with its choice) and
+  // opened again by the same Turn on, it is titled for its moment.
   pickerOf(tree, "pb-moment").props.onValueChange("lapsed");
-  again(() => CampaignsHome({ param: null, nowMs: NOW }));
-  again(() => CampaignsHome({ param: null, nowMs: NOW }));
+  assert.equal(titleOf(draw()), "New message");
+  fresh();
   assert.equal(titleOf(draw()), contracts.LIFECYCLE_WORDS.compose.turnOnShort);
 });
 

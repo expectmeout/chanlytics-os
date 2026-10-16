@@ -212,7 +212,8 @@ test("the words: a sentence per kind, the one or two fields a reader wants, noth
 // 62: the cold lane's four toned domain kinds went (decision 0056); a mailbox connected, resumed and writing again are
 // ok, and one held or signed out is warn.
 // 63: people taken out of a sequence by a member are warn (decision 0060); a step changed is plain.
-const TONED_KINDS = 63;
+// 64: people put back in a sequence, a leave undone (00450), are ok.
+const TONED_KINDS = 64;
 test("the tone: said only where the product knows one, and never for a kind that does not exist", () => {
   // A log where every line is the same grey is read rather than scanned, and
   // the line an owner opens it to find is the one that went wrong.
@@ -1234,7 +1235,7 @@ test("what the ledgers never kept is said in an owner's words: a thread handed o
   );
   assert.equal(
     activityWords("template.removed", { name: "spring_offer", language: "en", by: "u1" }),
-    "A message was deleted from the Library · spring_offer",
+    "A message was deleted from Messages · spring_offer",
   );
   assert.equal(
     activityWords("capability.activated", { capability: "voice", by: "u1" }),
@@ -1548,7 +1549,7 @@ test("(1.6) a message sent to WhatsApp opens its drawer in the Library by name w
     r.rows.map((x) => x.text),
     [
       "A message was sent to WhatsApp for approval · spring_offer",
-      "A message was deleted from the Library · spring_offer",
+      "A message was deleted from Messages · spring_offer",
       "A message was sent to WhatsApp for approval · spring_offer",
     ],
     "the words are the data's, whatever the subject is",

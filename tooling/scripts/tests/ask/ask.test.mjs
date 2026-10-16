@@ -218,14 +218,14 @@ const REACHED = {
   // People › Lists is People's rail; `segments/<id>` still lands there.
   segments: ["Lists", "clients"],
   calendar: ["Calendar", "calendar"],
-  // Campaigns' home; the old Playbooks list, `outbound`, is a door to it (contracts doorOf), so its jump is the home's.
+  // Campaigns, which is Sequences (decision 0060); the old Playbooks list, `outbound`, is a door to it (contracts doorOf).
   campaigns: ["Campaigns", "campaigns"],
   outbound: ["Campaigns", "campaigns"],
-  // Campaigns › Sequences (decision 0060), a jump where its preview is on (askPages `sequences`).
   "campaigns/sequences": ["Sequences", "campaigns/sequences"],
-  // Campaigns' rooms: Sent and the Library, each still found by the name it went by (ask-palette.test.mjs).
-  broadcasts: ["Sent", "broadcasts"],
-  messages: ["Library", "messages"],
+  // Sent's list went to each sequence's History (D3): its sheets stay at their addresses, and its jump is Sequences'.
+  broadcasts: ["Sequences", "campaigns/sequences"],
+  // Messages (D4: it was the Library), still found by the names it went by (ask-palette.test.mjs).
+  messages: ["Messages", "messages"],
   start: ["Setting up", "start"],
   "admin/profile": ["Profile", "admin/profile"],
   "admin/workspace": ["Settings", "admin/workspace"],
@@ -254,8 +254,8 @@ for (const lens of REPORT_LENSES.filter((l) => l.id !== "overview" && l.shownWhe
   SCOPES.push(lensRoute(lens.id));
 }
 
-/** Every page, for a workspace with deals on, the Sequences preview on, and a person on Chanlytics' staff. */
-const EVERY = askPages({ dealsOn: true, platformAdmin: true, sequences: true });
+/** Every page, for a workspace with deals on and a person on Chanlytics' staff. */
+const EVERY = askPages({ dealsOn: true, platformAdmin: true });
 const where = (to) => {
   const [page, ...rest] = to.split("/");
   return [page, rest.length ? rest.join("/") : null];
@@ -1651,9 +1651,13 @@ test("the eval checks that an Open asked for is followed, and what the words dec
       person_details_email: { person_details: { email: "jordan.reyes@example.com" } },
       run_approve: { run: { verb: "approve" } },
       run_skip: { run: { verb: "skip" } },
+      // A batch to leads is decided on Ask's run card as a customer's is (16 Oct 2026).
+      run_leads_batch: { run: { verb: "approve" } },
       // A campaign changed in place (the moment spec, A8): the fields its change card carries.
       change_resume_by_name: { playbook_change: { state: "running" } },
       change_rename_and_hour: { playbook_change: { name: "Past clients", run_hour: 9 } },
+      // A sequence to leads paused on Ask's change card: its state alone (16 Oct 2026).
+      change_leads_pause: { playbook_change: { state: "paused" } },
       // A reminder the day before, asked where a calendar is connected (the marketing manager's §8): its moment.
       remind_day_before: { playbook: { trigger: "visit_tomorrow" } },
       // A message asked for in Spanish, its language unnamed: its customers read what the person writes in (16 Oct 2026).

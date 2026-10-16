@@ -540,7 +540,7 @@ The routes, grouped here by domain (`route-policy.json` lists every one). The wr
 | Conversations       | `conversations` (with `/:id`, `/export`); the verbs `reply`, `take-over`, `hand-back`, `snooze`, `wake`, `archive`; `escalations` and `/:id/resolve`; `messages/:id/cancel-send`, `/steer`, `/media`                                                                                                                                                                                                                       | members                  | operator                           |
 | People              | `contacts` (list — paged and searched on the server, 00112 — and add); `/:id` (profile; delete: owner); `/consent`, `/marketing-consent`, `/details`, `/notes`, `/notes/remove`, `/notes/decide` (operator); `/receptionist` (owner); the batch doors `contacts/consent`, `/marketing-consent`, `/notes`, `/receptionist` (fifty at a time); `contacts/export` (owner); `segments` and `/:id`; `consent/qr`; `views/:page` | members                  | operator, or owner where noted     |
 | Calls               | `calls`, `/:id/recording`, `/:id/export`, `/:id/whisper`, `/:id/hand-over`, `/:id/end`                                                                                                                                                                                                                                                                                                                                     | members                  | operator                           |
-| Campaigns           | `templates` (with `/:id`, `/draft`, `/starter`, `/sync`); `broadcasts` (with `/:id`, `/approve`, `/cancel`); `playbooks` (with `/:id`, `/run`)                                                                                                                                                                                                                                                                             | members                  | operator                           |
+| Campaigns           | `templates` (with `/:id`, `/draft`, `/starter`, `/sync`); `sequence_batches` (with `/:id`, `/approve`, `/cancel`); `sequence_steps` (with `/:id`, `/run`)                                                                                                                                                                                                                                                                  | members                  | operator                           |
 | Reach out           | `reach-outs` (the chains; POST saves a new one and starts it), `/:id` (its report and its search's reach; edit; remove), `/preview` (one business's email as it would read: spend), `/reach`; `reach-out-sends/:id/decide` (include, rewrite, skip, not a fit); `broadcasts/:id/recheck`; `reach-out-replies` (the readings of replies, 00222), `/:id/undo` ("read as no · undo")                                          | members                  | operator                           |
 | Numbers and reports | `metrics`, `reports`, `reports/campaigns`, `reports/campaigns/ledger`, `reports/reach-outs`, `reports/headline`, `reports/people`, `reports/receptionist`, `reports/reviews`, `calendar`, `calendar/preview`, `activity` (both ledgers)                                                                                                                                                                                    | members; activity: owner | preview: operator                  |
 | Workspace           | `settings` (owner, versioned), `policies` (operator), `team`, `/invite`, `/invite/:id/resend`, `/:id` (owner), `/leave` (members), `me`, `workspaces` and `/create`, `notifications`, `export` (everything, owner), `vitals` (a page load's timings, from the shell)                                                                                                                                                       | members                  | as noted                           |
@@ -665,7 +665,7 @@ Realtime goes through one wrapper, `packages/db/src/realtime.ts`. The database t
 
 ### 11.4 Chrome, and how the interface speaks
 
-The sidebar carries the workspace menu, the navigation (Today · Inbox · People · Calendar · Campaigns · Reports · Settings — Agents only in a demo), the shell's one status line and the account menu. Merged surfaces are tabs above the page (`SurfaceTabs`), drawn only when a group has two real tabs: Inbox — Needs you, Conversations, Live (they read the same `GET conversations`, so one door with three views rather than two nav items, #655); People has one real tab, so no strip, and Campaigns has none since 3 Oct 2026: its home is one page, and Sent (the route `broadcasts`) and the Library (`messages`, the path's `templates`) are rooms reached from it (#658). A call in progress is a bar across the top of the shell, above the status line, that opens Live (#660). The top bar holds Ask and the bell and cycles three themes; ⌘K opens Ask, ⌘B the rail, `?` the shortcuts sheet, which is the one place a key is written: no button, tip, foot or legend names one (23 Sep 2026). At phone width a tab bar replaces the sidebar — Today · Inbox · Calendar · People · More (#660; Live gave its slot to Calendar) — with ✦ for Ask, the top bar says each thing once, and the app installs to a home screen (`app/manifest.ts`).
+The sidebar carries the workspace menu, the navigation (Today · Inbox · People · Calendar · Campaigns · Reports · Settings — Agents only in a demo), the shell's one status line and the account menu. Merged surfaces are tabs above the page (`SurfaceTabs`), drawn only when a group has two real tabs: Inbox — Needs you, Conversations, Live (they read the same `GET conversations`, so one door with three views rather than two nav items, #655); People has one real tab, so no strip, and Campaigns has none since 3 Oct 2026: its home is one page, and Sent (the route `sequence_batches`) and the Library (`messages`, the path's `templates`) are rooms reached from it (#658). A call in progress is a bar across the top of the shell, above the status line, that opens Live (#660). The top bar holds Ask and the bell and cycles three themes; ⌘K opens Ask, ⌘B the rail, `?` the shortcuts sheet, which is the one place a key is written: no button, tip, foot or legend names one (23 Sep 2026). At phone width a tab bar replaces the sidebar — Today · Inbox · Calendar · People · More (#660; Live gave its slot to Calendar) — with ✦ for Ask, the top bar says each thing once, and the app installs to a home screen (`app/manifest.ts`).
 
 The words and states come from one place each: **tones** (`contracts/tone.ts`: accent is live, warn needs a person, info is on its way, ok is done, danger failed, plain neutral) drawn by one `StatePill`; **one Confirm** for every act that asks, with one danger button; **one `EmptyState`** for nothing here and **one `FailedRead`** for could not read, which are never confused; **one toast**, with tones decided in contracts and an Undo that lives as long as the undo does; **refusals** in the owner's words and **gates** that say who may before the press; **every time by the business's clock**; and, on a phone, **the work first** — no title, sub-headline, stat cards or control rows above the content; counts as one line; rules behind a tap. Those rules were applied surface by surface in the interface plan of 12 September and the passes that followed (S-12).
 
@@ -915,7 +915,7 @@ put nothing of an older copy back; its class is not re-derived. What the card sa
 the drawer and the rail make: one it keeps and cannot go by yet waits, with the reason (no line, no version of its
 message there, offers by email not open), its runs holding those people until it can; and where a run of it already
 waits for approval, the card and the receipt say that run keeps the channels it was made with. The receipt is the
-drawer's own sentence (`LIFECYCLE_TOAST.channels`). `campaigns` with action `playbooks` says the channels each playbook
+drawer's own sentence (`LIFECYCLE_TOAST.channels`). `campaigns` with action `sequence_steps` says the channels each playbook
 goes by now, since a change must name them whole. A playbook that already goes by those channels gets no card, and a
 reach-out's step is changed on its own sheet. Not recorded as a decision, as the drawer's change is not.
 
@@ -940,21 +940,21 @@ Campaigns: Ask in the head between the Library and New message from 721px up (`c
 "Set up my campaigns" beside the first day's hinted Turn on for a role that may approve, sent as Ask opens so no field
 takes the focus, and "Ask about this campaign" in a drawer's More, which closes the drawer and opens Ask over the home
 on that campaign. A campaign open in its drawer (`campaigns/moment:<id>`) is the scope Ask is asked about, kind
-`playbook`, read by `campaigns` with action `playbooks`; a reach-out open there is the page at that address, named for
+`playbook`, read by `campaigns` with action `sequence_steps`; a reach-out open there is the page at that address, named for
 it. What Ask is told is on screen is the ledger's rows: those it counts as campaigns, in its order, forty at most,
 reach-outs and one-off sends among them, under the view they are under (`playbooks:<status>[:in:<group>][:search]`, on
 which the kept context is keyed), each read again by the server under the person's RLS, a campaign with its last 30
 days; before the ledger draws, the campaigns the surface read. On Campaigns the turn's words say what a sentence there
-is; a request to set campaigns up has `campaigns` with actions `playbooks` and `audiences` ride into the first round,
+is; a request to set campaigns up has `campaigns` with actions `sequence_steps` and `audiences` ride into the first round,
 on any page; after an approval the next turn reads the campaigns again; and a headline claiming a write beside cards is
 said as the cards' own sentence (`claimsWrite`, contracts), and logged. Ask's twelve setup and change cases are written
 and not run, and the eval workspace's paused Win-back is seeded only by hand (`e2e-workspace.mjs --seed-win-back`),
 never by the nightly.
 
-**A campaign's last day, and a new one on trial** (12 October 2026, decision 0055, 00416): `playbooks.until` is the
+**A campaign's last day, and a new one on trial** (12 October 2026, decision 0055, 00416): `sequence_steps.until` is the
 last day a campaign runs, by the business's calendar. A run on that day goes; a run on a day after it sends nothing and
 records `ended` (contracts `campaignEnded`), and the campaign stays running and says "Ended Oct 1".
-`playbooks.trial_until` ends a new campaign's trial: before it, a run its class would send by itself (auto) goes as
+`sequence_steps.trial_until` ends a new campaign's trial: before it, a run its class would send by itself (auto) goes as
 veto, 30 minutes with a Stop, and its notice says so (contracts `effectiveMode`); under ask, veto and never it changes
 nothing. While it lasts the campaign's state says "On trial until Oct 9". Only Ask sets either. Its card for a new
 campaign under an auto class carries `trial: true`, and `POST playbooks` counts the week from its own clock at Approve
@@ -1047,15 +1047,15 @@ chain end with a call or a note for the team.
   none, or has no database) or any redirect pages the platform (`email_unsubscribe_links_broken`); anything else is
   asked once more and pages as unreachable if it stays so. The page logs a link no key of its own made as
   `unsubscribe_bad_link`, at once and then once a minute at most per instance, with how many since its last line.
-- **The chain** (Part 3, 00183). A reach-out is a chain of `playbooks` rows of `kind = 'reach_out'`: its root
+- **The chain** (Part 3, 00183). A reach-out is a chain of `sequence_steps` rows of `kind = 'reach_out'`: its root
   (`trigger = 'lead_first'`, over a lead search, `lead_search_id`) and its steps (`after_step`, `after_playbook_id`,
   `after_days`), each with its email template (HEADER the subject, BODY the words), `gap_minutes` and `mailbox_ids` (00424; none is
   every live one). The root says who sends it (`owner_sends`, 00429): its mailboxes, or its owner from their own inbox,
   each email handed to them as a draft (`drafted`) and said sent or not on the run's To send (`reach_out_send_said`);
   what the business wrote back is the owner's to say on the lead (`reach_out_reply_said`, claim `owner`). Decision 0059.
   Policy class `outreach` (veto by default): a chain's first run waits for its owner, a later one goes ahead.
-- **The sends** (`reach_out_sends`, 00183): one lead in one step's run, `planned → claimed → queued → sent`, or
-  `skipped`/`failed` with a reason; `attempts` counts the emails written for it. A step's run is a `broadcasts`
+- **The sends** (`sequence_sends`, 00183): one lead in one step's run, `planned → claimed → queued → sent`, or
+  `skipped`/`failed` with a reason; `attempts` counts the emails written for it. A step's run is a `sequence_batches`
   row (`audience.kind = 'reach_out'`, id v5(step, day)), written whole with its sends (00185 `reach_out_plan_run`);
   the audience and a step's followers are 00184's SQL, and the timetable (contracts) places each send in its lead's
   own hours and zone, 9 to 5 (00429, call 10), spaced on its mailbox, within the mailbox's day. Each send names its mailbox (`mailbox_id`, 00424),
@@ -1121,7 +1121,7 @@ chain end with a call or a note for the team.
   days, is scheduled for reading once per message, and the intake tells nobody itself. Haiku 4.5 reads it as
   `interested`, `question`, `not_now`, `no`, `wrong_person`, `away` or `other`, with a summary of at most 12 words, a day
   and whom to write to; a workspace reads at most 200 a UTC day, only while it may spend. The reading is kept in
-  `reach_out_replies`, one row per message, and applied through one door, `reach_out_reply_apply`, which executes
+  `sequence_replies`, one row per message, and applied through one door, `reach_out_reply_apply`, which executes
   contracts' `readingPlan` in one transaction: Talking (`lead_convert_by`) for interested and a question; for not now,
   `leads.resume_at` and a dated step; for a no, Said no through `set_email_marketing` (`reply`), the exact addresses on
   the never-again list and the business's own domain when the address is at its website's host (N6,
@@ -1154,7 +1154,7 @@ chain end with a call or a note for the team.
   numbers; a lead a reach-out wrote to that is on one starting after its first email converts (`how: 'booking'`). A
   deal opened for a person converts that person's `ready` and `nurture` leads (`deals_convert_leads`). The door's lead
   stage then stops them.
-- **A call or a note for you** (Part 5, 00228). A chain's last step may be a hand step (`playbooks.hand`, a call or a
+- **A call or a note for you** (Part 5, 00228). A chain's last step may be a hand step (`sequence_steps.hand`, a call or a
   note, its words at most 280 characters, no template), added on the sheet. Its run (`reach_out_hand_run`, from
   `lib/reach-out/run-step.ts` through core `runHandStep`) reaches an email step's followers, less any lead the door
   would refuse, and writes the day's run, one send per lead in state `handed`, and one dated step per lead through
@@ -1221,7 +1221,7 @@ as the owner's marketing manager through `propose_campaign`'s actions and three 
   business of this kind sends at each, contracts `journeyGuide`), action `messages` (every message of the Library with
   each channel's version and its state, one in WhatsApp's review included, and the campaigns that send it), and
   `calendar` with action `room` (open slots in the days ahead, by day, up to the booking window's fourteen). `campaigns`
-  with action `playbooks` says each campaign's last day and its trial, and reads a campaign on trial under auto as veto.
+  with action `sequence_steps` says each campaign's last day and its trial, and reads a campaign on trial under auto as veto.
 - **A message** (action `message`, card `message`): a name, a language, a category and a version per channel, each
   quoted whole on the card, judged before Approve as the door judges it (texts carry no offers; WhatsApp needs a number;
   email a mailbox; a message of the same name and language is refused), and filed by one door,
@@ -1294,8 +1294,8 @@ Every table has RLS. Writers: **E** the edge (service role), **S** the dashboard
 |               | `rate_hits`                                                                      | Shared rate limiting                                                                                                           | D (`take_rate`)                     |
 |               | `operator_pages`                                                                 | The pager's memory: when each condition last paged, and how many times (00105)                                                 | E                                   |
 | Campaigns     | `templates`                                                                      | A message's versions, one a channel and language: WhatsApp's as Meta holds them, an email's and a text's as written here       | E; D (email and text)               |
-|               | `broadcasts`, `broadcast_recipients`                                             | What was sent, and who got it; states guarded (00106, 00116; a claim settles, 00182)                                           | S, J                                |
-|               | `playbooks`                                                                      | Standing rules                                                                                                                 | S                                   |
+|               | `sequence_batches`, `sequence_sends`                                             | What was sent, and who got it; states guarded (00106, 00116; a claim settles, 00182)                                           | S, J                                |
+|               | `sequence_steps`                                                                 | Standing rules                                                                                                                 | S                                   |
 |               | `segments`, `segment_members`                                                    | Lists kept by hand                                                                                                             | S                                   |
 | Integrations  | `google_listings`, `google_reviews`, `google_listing_days`, `google_connections` | Google                                                                                                                         | E                                   |
 |               | `billing_accounts`, `billing_events`                                             | Billing                                                                                                                        | E                                   |

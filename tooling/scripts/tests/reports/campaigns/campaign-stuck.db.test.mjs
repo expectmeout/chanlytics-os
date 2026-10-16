@@ -79,7 +79,7 @@ async function lab(slug) {
     policy_class: "reengage",
     state: "running",
   };
-  return { ...w, template, playbook: ok(await db.from("playbooks").insert(playbook).select("id").single()).id };
+  return { ...w, template, playbook: ok(await db.from("sequence_steps").insert(playbook).select("id").single()).id };
 }
 
 /** A teammate: a member of the workspace a thread may be assigned to. */
@@ -136,13 +136,13 @@ function runRow(l, spec) {
     created_at: iso(created),
     updated_at: iso(spec.updatedAt ?? created),
     recipient_count: count,
-    playbook_id: playbook ? l.playbook : null,
+    step_id: playbook ? l.playbook : null,
     run_for: runFor,
   };
 }
 async function makeRun(l, spec) {
   const row = runRow(l, spec);
-  await insert("broadcasts", row);
+  await insert("sequence_batches", row);
   return row.id;
 }
 
@@ -175,10 +175,7 @@ async function sendTo(l, runId, p, at, { source = "broadcast" } = {}) {
   const message = crypto.randomUUID();
   const row = messageRow(l, message, { conversation: p.conversation, contact: p.contact, channel: "whatsapp", at });
   await insert("messages", { ...row, meta: { source } });
-  await insert(
-    "broadcast_recipients",
-    recipientRow(l, { run: runId, contact: p.contact, message, at, channel: "whatsapp" }),
-  );
+  await insert("sequence_sends", recipientRow(l, { run: runId, contact: p.contact, message, at, channel: "whatsapp" }));
   return message;
 }
 
@@ -596,7 +593,7 @@ test("each list stops at its cap, the waiting oldest first", { skip }, async () 
       created: T0 - 20 * DAY + Math.min(i, 499) * 1000,
     }),
   );
-  await insert("broadcasts", waiting);
+  await insert("sequence_batches", waiting);
   // 502 runs failed, one a minute, newest listed first, but the three oldest finished at one instant.
   const failed = Array.from({ length: 502 }, (_, i) =>
     runRow(l, {
@@ -608,7 +605,7 @@ test("each list stops at its cap, the waiting oldest first", { skip }, async () 
       finishedAt: T0 - 25 * DAY + Math.max(i, 2) * 60_000,
     }),
   );
-  await insert("broadcasts", failed);
+  await insert("sequence_batches", failed);
 
   // 502 threads that answered, each flagged; the replies come one a minute.
   const run = await makeRun(l, { name: "Spring note", state: "sent", created: T0 - 12 * DAY });
@@ -639,7 +636,7 @@ test("each list stops at its cap, the waiting oldest first", { skip }, async () 
     ),
   );
   await insert(
-    "broadcast_recipients",
+    "sequence_sends",
     many.map((p) =>
       recipientRow(l, { run, contact: p.contact, message: p.message, at: sentAt(p.i), channel: "whatsapp" }),
     ),

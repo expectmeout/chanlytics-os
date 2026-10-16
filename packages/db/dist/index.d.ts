@@ -5575,13 +5575,6 @@ type Database = {
                         foreignKeyName: "sequence_batches_step_id_same_workspace";
                         columns: ["tenant_id", "step_id"];
                         isOneToOne: false;
-                        referencedRelation: "playbooks";
-                        referencedColumns: ["tenant_id", "id"];
-                    },
-                    {
-                        foreignKeyName: "sequence_batches_step_id_same_workspace";
-                        columns: ["tenant_id", "step_id"];
-                        isOneToOne: false;
                         referencedRelation: "sequence_steps";
                         referencedColumns: ["tenant_id", "id"];
                     },
@@ -5834,13 +5827,6 @@ type Database = {
                         foreignKeyName: "sequence_replies_send_id_same_workspace";
                         columns: ["tenant_id", "send_id"];
                         isOneToOne: false;
-                        referencedRelation: "reach_out_sends";
-                        referencedColumns: ["tenant_id", "id"];
-                    },
-                    {
-                        foreignKeyName: "sequence_replies_send_id_same_workspace";
-                        columns: ["tenant_id", "send_id"];
-                        isOneToOne: false;
                         referencedRelation: "sequence_sends";
                         referencedColumns: ["tenant_id", "id"];
                     },
@@ -5973,13 +5959,6 @@ type Database = {
                         foreignKeyName: "sequence_sends_batch_id_same_workspace";
                         columns: ["tenant_id", "batch_id"];
                         isOneToOne: false;
-                        referencedRelation: "broadcasts";
-                        referencedColumns: ["tenant_id", "id"];
-                    },
-                    {
-                        foreignKeyName: "sequence_sends_batch_id_same_workspace";
-                        columns: ["tenant_id", "batch_id"];
-                        isOneToOne: false;
                         referencedRelation: "sequence_batches";
                         referencedColumns: ["tenant_id", "id"];
                     },
@@ -6023,13 +6002,6 @@ type Database = {
                         columns: ["tenant_id", "sequence_id"];
                         isOneToOne: false;
                         referencedRelation: "sequences";
-                        referencedColumns: ["tenant_id", "id"];
-                    },
-                    {
-                        foreignKeyName: "sequence_sends_step_id_same_workspace";
-                        columns: ["tenant_id", "step_id"];
-                        isOneToOne: false;
-                        referencedRelation: "playbooks";
                         referencedColumns: ["tenant_id", "id"];
                     },
                     {
@@ -6182,13 +6154,6 @@ type Database = {
                     updated_at?: string;
                 };
                 Relationships: [
-                    {
-                        foreignKeyName: "sequence_steps_after_same_workspace";
-                        columns: ["tenant_id", "after_step_id"];
-                        isOneToOne: false;
-                        referencedRelation: "playbooks";
-                        referencedColumns: ["tenant_id", "id"];
-                    },
                     {
                         foreignKeyName: "sequence_steps_after_same_workspace";
                         columns: ["tenant_id", "after_step_id"];
@@ -6607,179 +6572,6 @@ type Database = {
             };
         };
         Views: {
-            broadcast_recipients: {
-                Row: {
-                    attempt: number | null;
-                    broadcast_id: string | null;
-                    channel: string | null;
-                    contact_id: string | null;
-                    facts: Json | null;
-                    message_id: string | null;
-                    reason: string | null;
-                    sent_at: string | null;
-                    state: string | null;
-                    tenant_id: string | null;
-                };
-                Insert: {
-                    attempt?: number | null;
-                    broadcast_id?: string | null;
-                    channel?: string | null;
-                    contact_id?: string | null;
-                    facts?: Json | null;
-                    message_id?: string | null;
-                    reason?: string | null;
-                    sent_at?: string | null;
-                    state?: string | null;
-                    tenant_id?: string | null;
-                };
-                Update: {
-                    attempt?: number | null;
-                    broadcast_id?: string | null;
-                    channel?: string | null;
-                    contact_id?: string | null;
-                    facts?: Json | null;
-                    message_id?: string | null;
-                    reason?: string | null;
-                    sent_at?: string | null;
-                    state?: string | null;
-                    tenant_id?: string | null;
-                };
-                Relationships: [
-                    {
-                        foreignKeyName: "sequence_sends_batch_id_same_workspace";
-                        columns: ["tenant_id", "broadcast_id"];
-                        isOneToOne: false;
-                        referencedRelation: "broadcasts";
-                        referencedColumns: ["tenant_id", "id"];
-                    },
-                    {
-                        foreignKeyName: "sequence_sends_batch_id_same_workspace";
-                        columns: ["tenant_id", "broadcast_id"];
-                        isOneToOne: false;
-                        referencedRelation: "sequence_batches";
-                        referencedColumns: ["tenant_id", "id"];
-                    },
-                    {
-                        foreignKeyName: "sequence_sends_contact_id_same_workspace";
-                        columns: ["tenant_id", "contact_id"];
-                        isOneToOne: false;
-                        referencedRelation: "contacts";
-                        referencedColumns: ["tenant_id", "id"];
-                    },
-                    {
-                        foreignKeyName: "sequence_sends_message_id_same_workspace";
-                        columns: ["tenant_id", "message_id"];
-                        isOneToOne: false;
-                        referencedRelation: "messages";
-                        referencedColumns: ["tenant_id", "id"];
-                    },
-                    {
-                        foreignKeyName: "sequence_sends_tenant_id_fkey";
-                        columns: ["tenant_id"];
-                        isOneToOne: false;
-                        referencedRelation: "tenants";
-                        referencedColumns: ["id"];
-                    }
-                ];
-            };
-            broadcasts: {
-                Row: {
-                    audience: Json | null;
-                    channels: string[] | null;
-                    created_at: string | null;
-                    created_by: string | null;
-                    failure: string | null;
-                    finished_at: string | null;
-                    id: string | null;
-                    name: string | null;
-                    params: Json | null;
-                    playbook_id: string | null;
-                    recipient_count: number | null;
-                    run_for: string | null;
-                    scheduled_for: string | null;
-                    started_at: string | null;
-                    state: string | null;
-                    template_id: string | null;
-                    template_language: string | null;
-                    template_name: string | null;
-                    tenant_id: string | null;
-                    updated_at: string | null;
-                };
-                Insert: {
-                    audience?: Json | null;
-                    channels?: string[] | null;
-                    created_at?: string | null;
-                    created_by?: string | null;
-                    failure?: string | null;
-                    finished_at?: string | null;
-                    id?: string | null;
-                    name?: string | null;
-                    params?: Json | null;
-                    playbook_id?: string | null;
-                    recipient_count?: number | null;
-                    run_for?: string | null;
-                    scheduled_for?: string | null;
-                    started_at?: string | null;
-                    state?: string | null;
-                    template_id?: string | null;
-                    template_language?: string | null;
-                    template_name?: string | null;
-                    tenant_id?: string | null;
-                    updated_at?: string | null;
-                };
-                Update: {
-                    audience?: Json | null;
-                    channels?: string[] | null;
-                    created_at?: string | null;
-                    created_by?: string | null;
-                    failure?: string | null;
-                    finished_at?: string | null;
-                    id?: string | null;
-                    name?: string | null;
-                    params?: Json | null;
-                    playbook_id?: string | null;
-                    recipient_count?: number | null;
-                    run_for?: string | null;
-                    scheduled_for?: string | null;
-                    started_at?: string | null;
-                    state?: string | null;
-                    template_id?: string | null;
-                    template_language?: string | null;
-                    template_name?: string | null;
-                    tenant_id?: string | null;
-                    updated_at?: string | null;
-                };
-                Relationships: [
-                    {
-                        foreignKeyName: "sequence_batches_step_id_same_workspace";
-                        columns: ["tenant_id", "playbook_id"];
-                        isOneToOne: false;
-                        referencedRelation: "playbooks";
-                        referencedColumns: ["tenant_id", "id"];
-                    },
-                    {
-                        foreignKeyName: "sequence_batches_step_id_same_workspace";
-                        columns: ["tenant_id", "playbook_id"];
-                        isOneToOne: false;
-                        referencedRelation: "sequence_steps";
-                        referencedColumns: ["tenant_id", "id"];
-                    },
-                    {
-                        foreignKeyName: "sequence_batches_template_id_same_workspace";
-                        columns: ["tenant_id", "template_id"];
-                        isOneToOne: false;
-                        referencedRelation: "templates";
-                        referencedColumns: ["tenant_id", "id"];
-                    },
-                    {
-                        foreignKeyName: "sequence_batches_tenant_id_fkey";
-                        columns: ["tenant_id"];
-                        isOneToOne: false;
-                        referencedRelation: "tenants";
-                        referencedColumns: ["id"];
-                    }
-                ];
-            };
             lead_searches_view: {
                 Row: {
                     answered: string | null;
@@ -6834,531 +6626,6 @@ type Database = {
                         isOneToOne: false;
                         referencedRelation: "ask_threads";
                         referencedColumns: ["tenant_id", "id"];
-                    }
-                ];
-            };
-            playbooks: {
-                Row: {
-                    after_days: number | null;
-                    after_playbook_id: string | null;
-                    cadence_days: number | null;
-                    cap_per_run: number | null;
-                    channels: string[] | null;
-                    created_at: string | null;
-                    created_by: string | null;
-                    domain_ids: string[] | null;
-                    gap_days: number | null;
-                    gap_minutes: number | null;
-                    hand: Json | null;
-                    id: string | null;
-                    include_unconfirmed: boolean | null;
-                    kind: string | null;
-                    last_run_at: string | null;
-                    last_run_for: string | null;
-                    lead_search_id: string | null;
-                    list_id: string | null;
-                    list_key: string | null;
-                    mailbox_ids: string[] | null;
-                    name: string | null;
-                    owner_sends: boolean | null;
-                    params: Json | null;
-                    policy_class: string | null;
-                    run_hour: number | null;
-                    signed_by: string | null;
-                    state: string | null;
-                    template_id: string | null;
-                    template_language: string | null;
-                    template_name: string | null;
-                    tenant_id: string | null;
-                    trial_until: string | null;
-                    trigger: string | null;
-                    until: string | null;
-                    updated_at: string | null;
-                };
-                Insert: {
-                    after_days?: number | null;
-                    after_playbook_id?: string | null;
-                    cadence_days?: number | null;
-                    cap_per_run?: number | null;
-                    channels?: string[] | null;
-                    created_at?: string | null;
-                    created_by?: string | null;
-                    domain_ids?: string[] | null;
-                    gap_days?: number | null;
-                    gap_minutes?: number | null;
-                    hand?: Json | null;
-                    id?: string | null;
-                    include_unconfirmed?: boolean | null;
-                    kind?: string | null;
-                    last_run_at?: string | null;
-                    last_run_for?: string | null;
-                    lead_search_id?: string | null;
-                    list_id?: string | null;
-                    list_key?: string | null;
-                    mailbox_ids?: string[] | null;
-                    name?: string | null;
-                    owner_sends?: boolean | null;
-                    params?: Json | null;
-                    policy_class?: string | null;
-                    run_hour?: number | null;
-                    signed_by?: string | null;
-                    state?: string | null;
-                    template_id?: string | null;
-                    template_language?: string | null;
-                    template_name?: string | null;
-                    tenant_id?: string | null;
-                    trial_until?: string | null;
-                    trigger?: string | null;
-                    until?: string | null;
-                    updated_at?: string | null;
-                };
-                Update: {
-                    after_days?: number | null;
-                    after_playbook_id?: string | null;
-                    cadence_days?: number | null;
-                    cap_per_run?: number | null;
-                    channels?: string[] | null;
-                    created_at?: string | null;
-                    created_by?: string | null;
-                    domain_ids?: string[] | null;
-                    gap_days?: number | null;
-                    gap_minutes?: number | null;
-                    hand?: Json | null;
-                    id?: string | null;
-                    include_unconfirmed?: boolean | null;
-                    kind?: string | null;
-                    last_run_at?: string | null;
-                    last_run_for?: string | null;
-                    lead_search_id?: string | null;
-                    list_id?: string | null;
-                    list_key?: string | null;
-                    mailbox_ids?: string[] | null;
-                    name?: string | null;
-                    owner_sends?: boolean | null;
-                    params?: Json | null;
-                    policy_class?: string | null;
-                    run_hour?: number | null;
-                    signed_by?: string | null;
-                    state?: string | null;
-                    template_id?: string | null;
-                    template_language?: string | null;
-                    template_name?: string | null;
-                    tenant_id?: string | null;
-                    trial_until?: string | null;
-                    trigger?: string | null;
-                    until?: string | null;
-                    updated_at?: string | null;
-                };
-                Relationships: [
-                    {
-                        foreignKeyName: "sequence_steps_after_same_workspace";
-                        columns: ["tenant_id", "after_playbook_id"];
-                        isOneToOne: false;
-                        referencedRelation: "playbooks";
-                        referencedColumns: ["tenant_id", "id"];
-                    },
-                    {
-                        foreignKeyName: "sequence_steps_after_same_workspace";
-                        columns: ["tenant_id", "after_playbook_id"];
-                        isOneToOne: false;
-                        referencedRelation: "sequence_steps";
-                        referencedColumns: ["tenant_id", "id"];
-                    },
-                    {
-                        foreignKeyName: "sequence_steps_list_id_same_workspace";
-                        columns: ["tenant_id", "list_id"];
-                        isOneToOne: false;
-                        referencedRelation: "segments";
-                        referencedColumns: ["tenant_id", "id"];
-                    },
-                    {
-                        foreignKeyName: "sequence_steps_search_same_workspace";
-                        columns: ["tenant_id", "lead_search_id"];
-                        isOneToOne: false;
-                        referencedRelation: "lead_searches";
-                        referencedColumns: ["tenant_id", "id"];
-                    },
-                    {
-                        foreignKeyName: "sequence_steps_search_same_workspace";
-                        columns: ["tenant_id", "lead_search_id"];
-                        isOneToOne: false;
-                        referencedRelation: "lead_searches_view";
-                        referencedColumns: ["tenant_id", "id"];
-                    },
-                    {
-                        foreignKeyName: "sequence_steps_template_id_same_workspace";
-                        columns: ["tenant_id", "template_id"];
-                        isOneToOne: false;
-                        referencedRelation: "templates";
-                        referencedColumns: ["tenant_id", "id"];
-                    },
-                    {
-                        foreignKeyName: "sequence_steps_tenant_id_fkey";
-                        columns: ["tenant_id"];
-                        isOneToOne: false;
-                        referencedRelation: "tenants";
-                        referencedColumns: ["id"];
-                    }
-                ];
-            };
-            reach_out_replies: {
-                Row: {
-                    answered_message_id: string | null;
-                    claim: string | null;
-                    contact_id: string | null;
-                    conversation_id: string | null;
-                    draft: string | null;
-                    draft_state: string | null;
-                    draft_why: string | null;
-                    intent: string | null;
-                    lead_contact_id: string | null;
-                    lead_id: string | null;
-                    message_id: string | null;
-                    named_day: string | null;
-                    plan: Json | null;
-                    read_at: string | null;
-                    refer_to: string | null;
-                    reread_at: string | null;
-                    rereads: number | null;
-                    said_by: string | null;
-                    send_id: string | null;
-                    signer_name: string | null;
-                    signer_settled_at: string | null;
-                    signer_settled_by: string | null;
-                    signer_state: string | null;
-                    signer_title: string | null;
-                    signer_was: string | null;
-                    summary: string | null;
-                    tell_claimed_at: string | null;
-                    tenant_id: string | null;
-                    told_at: string | null;
-                    undone_at: string | null;
-                    undone_by: string | null;
-                    unread: string | null;
-                    until_at: string | null;
-                };
-                Insert: {
-                    answered_message_id?: string | null;
-                    claim?: string | null;
-                    contact_id?: string | null;
-                    conversation_id?: string | null;
-                    draft?: string | null;
-                    draft_state?: string | null;
-                    draft_why?: string | null;
-                    intent?: string | null;
-                    lead_contact_id?: string | null;
-                    lead_id?: string | null;
-                    message_id?: string | null;
-                    named_day?: string | null;
-                    plan?: Json | null;
-                    read_at?: string | null;
-                    refer_to?: string | null;
-                    reread_at?: string | null;
-                    rereads?: number | null;
-                    said_by?: string | null;
-                    send_id?: string | null;
-                    signer_name?: string | null;
-                    signer_settled_at?: string | null;
-                    signer_settled_by?: string | null;
-                    signer_state?: string | null;
-                    signer_title?: string | null;
-                    signer_was?: string | null;
-                    summary?: string | null;
-                    tell_claimed_at?: string | null;
-                    tenant_id?: string | null;
-                    told_at?: string | null;
-                    undone_at?: string | null;
-                    undone_by?: string | null;
-                    unread?: string | null;
-                    until_at?: string | null;
-                };
-                Update: {
-                    answered_message_id?: string | null;
-                    claim?: string | null;
-                    contact_id?: string | null;
-                    conversation_id?: string | null;
-                    draft?: string | null;
-                    draft_state?: string | null;
-                    draft_why?: string | null;
-                    intent?: string | null;
-                    lead_contact_id?: string | null;
-                    lead_id?: string | null;
-                    message_id?: string | null;
-                    named_day?: string | null;
-                    plan?: Json | null;
-                    read_at?: string | null;
-                    refer_to?: string | null;
-                    reread_at?: string | null;
-                    rereads?: number | null;
-                    said_by?: string | null;
-                    send_id?: string | null;
-                    signer_name?: string | null;
-                    signer_settled_at?: string | null;
-                    signer_settled_by?: string | null;
-                    signer_state?: string | null;
-                    signer_title?: string | null;
-                    signer_was?: string | null;
-                    summary?: string | null;
-                    tell_claimed_at?: string | null;
-                    tenant_id?: string | null;
-                    told_at?: string | null;
-                    undone_at?: string | null;
-                    undone_by?: string | null;
-                    unread?: string | null;
-                    until_at?: string | null;
-                };
-                Relationships: [
-                    {
-                        foreignKeyName: "sequence_replies_answered_message_id_same_workspace";
-                        columns: ["tenant_id", "answered_message_id"];
-                        isOneToOne: false;
-                        referencedRelation: "messages";
-                        referencedColumns: ["tenant_id", "id"];
-                    },
-                    {
-                        foreignKeyName: "sequence_replies_contact_id_same_workspace";
-                        columns: ["tenant_id", "contact_id"];
-                        isOneToOne: false;
-                        referencedRelation: "contacts";
-                        referencedColumns: ["tenant_id", "id"];
-                    },
-                    {
-                        foreignKeyName: "sequence_replies_conversation_id_same_workspace";
-                        columns: ["tenant_id", "conversation_id"];
-                        isOneToOne: false;
-                        referencedRelation: "conversations";
-                        referencedColumns: ["tenant_id", "id"];
-                    },
-                    {
-                        foreignKeyName: "sequence_replies_lead_contact_id_same_workspace";
-                        columns: ["tenant_id", "lead_contact_id"];
-                        isOneToOne: false;
-                        referencedRelation: "contacts";
-                        referencedColumns: ["tenant_id", "id"];
-                    },
-                    {
-                        foreignKeyName: "sequence_replies_lead_id_same_workspace";
-                        columns: ["tenant_id", "lead_id"];
-                        isOneToOne: false;
-                        referencedRelation: "leads";
-                        referencedColumns: ["tenant_id", "id"];
-                    },
-                    {
-                        foreignKeyName: "sequence_replies_message_id_same_workspace";
-                        columns: ["tenant_id", "message_id"];
-                        isOneToOne: false;
-                        referencedRelation: "messages";
-                        referencedColumns: ["tenant_id", "id"];
-                    },
-                    {
-                        foreignKeyName: "sequence_replies_send_id_same_workspace";
-                        columns: ["tenant_id", "send_id"];
-                        isOneToOne: false;
-                        referencedRelation: "reach_out_sends";
-                        referencedColumns: ["tenant_id", "id"];
-                    },
-                    {
-                        foreignKeyName: "sequence_replies_send_id_same_workspace";
-                        columns: ["tenant_id", "send_id"];
-                        isOneToOne: false;
-                        referencedRelation: "sequence_sends";
-                        referencedColumns: ["tenant_id", "id"];
-                    },
-                    {
-                        foreignKeyName: "sequence_replies_tenant_id_fkey";
-                        columns: ["tenant_id"];
-                        isOneToOne: false;
-                        referencedRelation: "tenants";
-                        referencedColumns: ["id"];
-                    }
-                ];
-            };
-            reach_out_sends: {
-                Row: {
-                    angle: string | null;
-                    attempts: number | null;
-                    broadcast_id: string | null;
-                    check_after: string | null;
-                    check_first_at: string | null;
-                    check_gen: number | null;
-                    check_started_at: string | null;
-                    check_tries: number | null;
-                    checked_at: string | null;
-                    checked_words: string | null;
-                    claimed_at: string | null;
-                    contact_id: string | null;
-                    created_at: string | null;
-                    domain_id: string | null;
-                    draft: Json | null;
-                    drafted_at: string | null;
-                    facts_used: string[] | null;
-                    hold_detail: string | null;
-                    id: string | null;
-                    included_for: string[] | null;
-                    lead_id: string | null;
-                    mailbox_id: string | null;
-                    message_id: string | null;
-                    opening: string | null;
-                    playbook_id: string | null;
-                    reason: string | null;
-                    root_id: string | null;
-                    said_at: string | null;
-                    said_by: string | null;
-                    send_at: string | null;
-                    sent_at: string | null;
-                    state: string | null;
-                    tenant_id: string | null;
-                    updated_at: string | null;
-                };
-                Insert: {
-                    angle?: string | null;
-                    attempts?: number | null;
-                    broadcast_id?: string | null;
-                    check_after?: string | null;
-                    check_first_at?: string | null;
-                    check_gen?: number | null;
-                    check_started_at?: string | null;
-                    check_tries?: number | null;
-                    checked_at?: string | null;
-                    checked_words?: string | null;
-                    claimed_at?: string | null;
-                    contact_id?: string | null;
-                    created_at?: string | null;
-                    domain_id?: string | null;
-                    draft?: Json | null;
-                    drafted_at?: string | null;
-                    facts_used?: string[] | null;
-                    hold_detail?: string | null;
-                    id?: string | null;
-                    included_for?: string[] | null;
-                    lead_id?: string | null;
-                    mailbox_id?: string | null;
-                    message_id?: string | null;
-                    opening?: string | null;
-                    playbook_id?: string | null;
-                    reason?: string | null;
-                    root_id?: string | null;
-                    said_at?: string | null;
-                    said_by?: string | null;
-                    send_at?: string | null;
-                    sent_at?: string | null;
-                    state?: string | null;
-                    tenant_id?: string | null;
-                    updated_at?: string | null;
-                };
-                Update: {
-                    angle?: string | null;
-                    attempts?: number | null;
-                    broadcast_id?: string | null;
-                    check_after?: string | null;
-                    check_first_at?: string | null;
-                    check_gen?: number | null;
-                    check_started_at?: string | null;
-                    check_tries?: number | null;
-                    checked_at?: string | null;
-                    checked_words?: string | null;
-                    claimed_at?: string | null;
-                    contact_id?: string | null;
-                    created_at?: string | null;
-                    domain_id?: string | null;
-                    draft?: Json | null;
-                    drafted_at?: string | null;
-                    facts_used?: string[] | null;
-                    hold_detail?: string | null;
-                    id?: string | null;
-                    included_for?: string[] | null;
-                    lead_id?: string | null;
-                    mailbox_id?: string | null;
-                    message_id?: string | null;
-                    opening?: string | null;
-                    playbook_id?: string | null;
-                    reason?: string | null;
-                    root_id?: string | null;
-                    said_at?: string | null;
-                    said_by?: string | null;
-                    send_at?: string | null;
-                    sent_at?: string | null;
-                    state?: string | null;
-                    tenant_id?: string | null;
-                    updated_at?: string | null;
-                };
-                Relationships: [
-                    {
-                        foreignKeyName: "sequence_sends_batch_id_same_workspace";
-                        columns: ["tenant_id", "broadcast_id"];
-                        isOneToOne: false;
-                        referencedRelation: "broadcasts";
-                        referencedColumns: ["tenant_id", "id"];
-                    },
-                    {
-                        foreignKeyName: "sequence_sends_batch_id_same_workspace";
-                        columns: ["tenant_id", "broadcast_id"];
-                        isOneToOne: false;
-                        referencedRelation: "sequence_batches";
-                        referencedColumns: ["tenant_id", "id"];
-                    },
-                    {
-                        foreignKeyName: "sequence_sends_contact_id_same_workspace";
-                        columns: ["tenant_id", "contact_id"];
-                        isOneToOne: false;
-                        referencedRelation: "contacts";
-                        referencedColumns: ["tenant_id", "id"];
-                    },
-                    {
-                        foreignKeyName: "sequence_sends_domain_id_same_workspace";
-                        columns: ["tenant_id", "domain_id"];
-                        isOneToOne: false;
-                        referencedRelation: "sending_domains";
-                        referencedColumns: ["tenant_id", "id"];
-                    },
-                    {
-                        foreignKeyName: "sequence_sends_lead_id_same_workspace";
-                        columns: ["tenant_id", "lead_id"];
-                        isOneToOne: false;
-                        referencedRelation: "leads";
-                        referencedColumns: ["tenant_id", "id"];
-                    },
-                    {
-                        foreignKeyName: "sequence_sends_mailbox_id_same_workspace";
-                        columns: ["tenant_id", "mailbox_id"];
-                        isOneToOne: false;
-                        referencedRelation: "mailbox_connections";
-                        referencedColumns: ["tenant_id", "id"];
-                    },
-                    {
-                        foreignKeyName: "sequence_sends_message_id_same_workspace";
-                        columns: ["tenant_id", "message_id"];
-                        isOneToOne: false;
-                        referencedRelation: "messages";
-                        referencedColumns: ["tenant_id", "id"];
-                    },
-                    {
-                        foreignKeyName: "sequence_sends_sequence_id_same_workspace";
-                        columns: ["tenant_id", "root_id"];
-                        isOneToOne: false;
-                        referencedRelation: "sequences";
-                        referencedColumns: ["tenant_id", "id"];
-                    },
-                    {
-                        foreignKeyName: "sequence_sends_step_id_same_workspace";
-                        columns: ["tenant_id", "playbook_id"];
-                        isOneToOne: false;
-                        referencedRelation: "playbooks";
-                        referencedColumns: ["tenant_id", "id"];
-                    },
-                    {
-                        foreignKeyName: "sequence_sends_step_id_same_workspace";
-                        columns: ["tenant_id", "playbook_id"];
-                        isOneToOne: false;
-                        referencedRelation: "sequence_steps";
-                        referencedColumns: ["tenant_id", "id"];
-                    },
-                    {
-                        foreignKeyName: "sequence_sends_tenant_id_fkey";
-                        columns: ["tenant_id"];
-                        isOneToOne: false;
-                        referencedRelation: "tenants";
-                        referencedColumns: ["id"];
                     }
                 ];
             };
@@ -10060,20 +9327,6 @@ type Database = {
                 };
                 Returns: Json;
             };
-            playbooks_due: {
-                Args: {
-                    p_at: string;
-                    p_kind: string;
-                    p_last_hour: number;
-                    p_limit: number;
-                    p_tenant_id?: string;
-                };
-                Returns: {
-                    due_total: number;
-                    playbook: Json;
-                    timezone: string;
-                }[];
-            };
             profile_set: {
                 Args: {
                     p_display_name: string;
@@ -10311,166 +9564,6 @@ type Database = {
                 };
                 Returns: boolean;
             };
-            reach_out_claim: {
-                Args: {
-                    p_at: string;
-                    p_cap: number;
-                    p_domain_id: string;
-                    p_limit: number;
-                };
-                Returns: {
-                    angle: string | null;
-                    attempts: number | null;
-                    broadcast_id: string | null;
-                    check_after: string | null;
-                    check_first_at: string | null;
-                    check_gen: number | null;
-                    check_started_at: string | null;
-                    check_tries: number | null;
-                    checked_at: string | null;
-                    checked_words: string | null;
-                    claimed_at: string | null;
-                    contact_id: string | null;
-                    created_at: string | null;
-                    domain_id: string | null;
-                    draft: Json | null;
-                    drafted_at: string | null;
-                    facts_used: string[] | null;
-                    hold_detail: string | null;
-                    id: string | null;
-                    included_for: string[] | null;
-                    lead_id: string | null;
-                    mailbox_id: string | null;
-                    message_id: string | null;
-                    opening: string | null;
-                    playbook_id: string | null;
-                    reason: string | null;
-                    root_id: string | null;
-                    said_at: string | null;
-                    said_by: string | null;
-                    send_at: string | null;
-                    sent_at: string | null;
-                    state: string | null;
-                    tenant_id: string | null;
-                    updated_at: string | null;
-                }[];
-                SetofOptions: {
-                    from: "*";
-                    to: "reach_out_sends";
-                    isOneToOne: false;
-                    isSetofReturn: true;
-                };
-            };
-            reach_out_claim_drafts: {
-                Args: {
-                    p_at: string;
-                    p_limit: number;
-                    p_tenant_id?: string;
-                };
-                Returns: {
-                    angle: string | null;
-                    attempts: number | null;
-                    broadcast_id: string | null;
-                    check_after: string | null;
-                    check_first_at: string | null;
-                    check_gen: number | null;
-                    check_started_at: string | null;
-                    check_tries: number | null;
-                    checked_at: string | null;
-                    checked_words: string | null;
-                    claimed_at: string | null;
-                    contact_id: string | null;
-                    created_at: string | null;
-                    domain_id: string | null;
-                    draft: Json | null;
-                    drafted_at: string | null;
-                    facts_used: string[] | null;
-                    hold_detail: string | null;
-                    id: string | null;
-                    included_for: string[] | null;
-                    lead_id: string | null;
-                    mailbox_id: string | null;
-                    message_id: string | null;
-                    opening: string | null;
-                    playbook_id: string | null;
-                    reason: string | null;
-                    root_id: string | null;
-                    said_at: string | null;
-                    said_by: string | null;
-                    send_at: string | null;
-                    sent_at: string | null;
-                    state: string | null;
-                    tenant_id: string | null;
-                    updated_at: string | null;
-                }[];
-                SetofOptions: {
-                    from: "*";
-                    to: "reach_out_sends";
-                    isOneToOne: false;
-                    isSetofReturn: true;
-                };
-            };
-            reach_out_claim_from: {
-                Args: {
-                    p_at: string;
-                    p_cap: number;
-                    p_limit: number;
-                    p_mailbox_id: string;
-                };
-                Returns: {
-                    angle: string | null;
-                    attempts: number | null;
-                    broadcast_id: string | null;
-                    check_after: string | null;
-                    check_first_at: string | null;
-                    check_gen: number | null;
-                    check_started_at: string | null;
-                    check_tries: number | null;
-                    checked_at: string | null;
-                    checked_words: string | null;
-                    claimed_at: string | null;
-                    contact_id: string | null;
-                    created_at: string | null;
-                    domain_id: string | null;
-                    draft: Json | null;
-                    drafted_at: string | null;
-                    facts_used: string[] | null;
-                    hold_detail: string | null;
-                    id: string | null;
-                    included_for: string[] | null;
-                    lead_id: string | null;
-                    mailbox_id: string | null;
-                    message_id: string | null;
-                    opening: string | null;
-                    playbook_id: string | null;
-                    reason: string | null;
-                    root_id: string | null;
-                    said_at: string | null;
-                    said_by: string | null;
-                    send_at: string | null;
-                    sent_at: string | null;
-                    state: string | null;
-                    tenant_id: string | null;
-                    updated_at: string | null;
-                }[];
-                SetofOptions: {
-                    from: "*";
-                    to: "reach_out_sends";
-                    isOneToOne: false;
-                    isSetofReturn: true;
-                };
-            };
-            reach_out_closed_sends: {
-                Args: {
-                    p_limit: number;
-                    p_stuck_before: string;
-                    p_tenant_id?: string;
-                };
-                Returns: {
-                    email_status: string;
-                    send: Json;
-                }[];
-            };
             reach_out_day_due: {
                 Args: {
                     p_limit: number;
@@ -10503,19 +9596,6 @@ type Database = {
                     facts: Json;
                     id: string;
                     lead_id: string;
-                    tenant_id: string;
-                }[];
-            };
-            reach_out_due_domains: {
-                Args: {
-                    p_at: string;
-                    p_limit: number;
-                    p_skip_domains?: string[];
-                    p_skip_tenants?: string[];
-                    p_tenant_id?: string;
-                };
-                Returns: {
-                    id: string;
                     tenant_id: string;
                 }[];
             };
@@ -10576,55 +9656,6 @@ type Database = {
                 };
                 Returns: Json;
             };
-            reach_out_held_stale: {
-                Args: {
-                    p_before: string;
-                    p_limit: number;
-                    p_tenant_id?: string;
-                };
-                Returns: {
-                    angle: string | null;
-                    attempts: number | null;
-                    broadcast_id: string | null;
-                    check_after: string | null;
-                    check_first_at: string | null;
-                    check_gen: number | null;
-                    check_started_at: string | null;
-                    check_tries: number | null;
-                    checked_at: string | null;
-                    checked_words: string | null;
-                    claimed_at: string | null;
-                    contact_id: string | null;
-                    created_at: string | null;
-                    domain_id: string | null;
-                    draft: Json | null;
-                    drafted_at: string | null;
-                    facts_used: string[] | null;
-                    hold_detail: string | null;
-                    id: string | null;
-                    included_for: string[] | null;
-                    lead_id: string | null;
-                    mailbox_id: string | null;
-                    message_id: string | null;
-                    opening: string | null;
-                    playbook_id: string | null;
-                    reason: string | null;
-                    root_id: string | null;
-                    said_at: string | null;
-                    said_by: string | null;
-                    send_at: string | null;
-                    sent_at: string | null;
-                    state: string | null;
-                    tenant_id: string | null;
-                    updated_at: string | null;
-                }[];
-                SetofOptions: {
-                    from: "*";
-                    to: "reach_out_sends";
-                    isOneToOne: false;
-                    isSetofReturn: true;
-                };
-            };
             reach_out_lead_stop: {
                 Args: {
                     p_lead_id: string;
@@ -10684,19 +9715,6 @@ type Database = {
                     p_sends: Json;
                 };
                 Returns: Json;
-            };
-            reach_out_queued_outcomes: {
-                Args: {
-                    p_limit: number;
-                    p_tenant_id?: string;
-                };
-                Returns: {
-                    error: Json;
-                    send: Json;
-                    sent_at: string;
-                    status: string;
-                    written_at: string;
-                }[];
             };
             reach_out_reach: {
                 Args: {
@@ -10902,88 +9920,6 @@ type Database = {
                     p_tenant_id: string;
                 };
                 Returns: Json;
-            };
-            reach_out_stale_sends: {
-                Args: {
-                    p_before: string;
-                    p_limit: number;
-                    p_tenant_id?: string;
-                };
-                Returns: {
-                    angle: string | null;
-                    attempts: number | null;
-                    broadcast_id: string | null;
-                    check_after: string | null;
-                    check_first_at: string | null;
-                    check_gen: number | null;
-                    check_started_at: string | null;
-                    check_tries: number | null;
-                    checked_at: string | null;
-                    checked_words: string | null;
-                    claimed_at: string | null;
-                    contact_id: string | null;
-                    created_at: string | null;
-                    domain_id: string | null;
-                    draft: Json | null;
-                    drafted_at: string | null;
-                    facts_used: string[] | null;
-                    hold_detail: string | null;
-                    id: string | null;
-                    included_for: string[] | null;
-                    lead_id: string | null;
-                    mailbox_id: string | null;
-                    message_id: string | null;
-                    opening: string | null;
-                    playbook_id: string | null;
-                    reason: string | null;
-                    root_id: string | null;
-                    said_at: string | null;
-                    said_by: string | null;
-                    send_at: string | null;
-                    sent_at: string | null;
-                    state: string | null;
-                    tenant_id: string | null;
-                    updated_at: string | null;
-                }[];
-                SetofOptions: {
-                    from: "*";
-                    to: "reach_out_sends";
-                    isOneToOne: false;
-                    isSetofReturn: true;
-                };
-            };
-            reach_out_unchecked: {
-                Args: {
-                    p_ahead_minutes: number;
-                    p_limit: number;
-                    p_per_workspace: number;
-                    p_tenant_id?: string;
-                };
-                Returns: {
-                    about: string;
-                    business_name: string;
-                    category: string;
-                    check_gen: number;
-                    city: string;
-                    claimed: boolean;
-                    email: string;
-                    email_domain_shared: boolean;
-                    hours: Json;
-                    included_for: string[];
-                    name_listings: number;
-                    rating: number;
-                    region: string;
-                    reviews: number;
-                    reviews_dist: Json;
-                    send: Json;
-                    signed_by: string;
-                    site_listings: number;
-                    template_id: string;
-                    template_language: string;
-                    website_host: string;
-                    what_you_asked: string;
-                    why_it_fits: string;
-                }[];
             };
             reach_out_why_not: {
                 Args: {
@@ -11489,6 +10425,16 @@ type Database = {
                     status: string;
                     written_at: string;
                 }[];
+            };
+            sequence_return: {
+                Args: {
+                    p_decision?: Json;
+                    p_sequence_id: string;
+                    p_tenant_id: string;
+                    p_undo_of?: string;
+                    p_via?: string;
+                };
+                Returns: Json;
             };
             sequence_stale_sends: {
                 Args: {
@@ -12072,6 +11018,12 @@ type Database = {
             trigger_registration_sweep: {
                 Args: never;
                 Returns: number;
+            };
+            trigger_sequences_clock: {
+                Args: {
+                    p_at?: string;
+                };
+                Returns: undefined;
             };
             trigger_sweep_health: {
                 Args: never;
@@ -18299,12 +17251,6 @@ declare function builderOf<T extends TenantTable>(db: Db$J, table: T): _supabase
                 foreignKeyName: "sequence_batches_step_id_same_workspace";
                 columns: ["tenant_id", "step_id"];
                 isOneToOne: false;
-                referencedRelation: "playbooks";
-                referencedColumns: ["tenant_id", "id"];
-            }, {
-                foreignKeyName: "sequence_batches_step_id_same_workspace";
-                columns: ["tenant_id", "step_id"];
-                isOneToOne: false;
                 referencedRelation: "sequence_steps";
                 referencedColumns: ["tenant_id", "id"];
             }, {
@@ -18542,12 +17488,6 @@ declare function builderOf<T extends TenantTable>(db: Db$J, table: T): _supabase
                 foreignKeyName: "sequence_replies_send_id_same_workspace";
                 columns: ["tenant_id", "send_id"];
                 isOneToOne: false;
-                referencedRelation: "reach_out_sends";
-                referencedColumns: ["tenant_id", "id"];
-            }, {
-                foreignKeyName: "sequence_replies_send_id_same_workspace";
-                columns: ["tenant_id", "send_id"];
-                isOneToOne: false;
                 referencedRelation: "sequence_sends";
                 referencedColumns: ["tenant_id", "id"];
             }, {
@@ -18677,12 +17617,6 @@ declare function builderOf<T extends TenantTable>(db: Db$J, table: T): _supabase
                 foreignKeyName: "sequence_sends_batch_id_same_workspace";
                 columns: ["tenant_id", "batch_id"];
                 isOneToOne: false;
-                referencedRelation: "broadcasts";
-                referencedColumns: ["tenant_id", "id"];
-            }, {
-                foreignKeyName: "sequence_sends_batch_id_same_workspace";
-                columns: ["tenant_id", "batch_id"];
-                isOneToOne: false;
                 referencedRelation: "sequence_batches";
                 referencedColumns: ["tenant_id", "id"];
             }, {
@@ -18720,12 +17654,6 @@ declare function builderOf<T extends TenantTable>(db: Db$J, table: T): _supabase
                 columns: ["tenant_id", "sequence_id"];
                 isOneToOne: false;
                 referencedRelation: "sequences";
-                referencedColumns: ["tenant_id", "id"];
-            }, {
-                foreignKeyName: "sequence_sends_step_id_same_workspace";
-                columns: ["tenant_id", "step_id"];
-                isOneToOne: false;
-                referencedRelation: "playbooks";
                 referencedColumns: ["tenant_id", "id"];
             }, {
                 foreignKeyName: "sequence_sends_step_id_same_workspace";
@@ -18875,12 +17803,6 @@ declare function builderOf<T extends TenantTable>(db: Db$J, table: T): _supabase
                 updated_at?: string;
             };
             Relationships: [{
-                foreignKeyName: "sequence_steps_after_same_workspace";
-                columns: ["tenant_id", "after_step_id"];
-                isOneToOne: false;
-                referencedRelation: "playbooks";
-                referencedColumns: ["tenant_id", "id"];
-            }, {
                 foreignKeyName: "sequence_steps_after_same_workspace";
                 columns: ["tenant_id", "after_step_id"];
                 isOneToOne: false;
@@ -19280,168 +18202,6 @@ declare function builderOf<T extends TenantTable>(db: Db$J, table: T): _supabase
         };
     };
     Views: {
-        broadcast_recipients: {
-            Row: {
-                attempt: number | null;
-                broadcast_id: string | null;
-                channel: string | null;
-                contact_id: string | null;
-                facts: Json | null;
-                message_id: string | null;
-                reason: string | null;
-                sent_at: string | null;
-                state: string | null;
-                tenant_id: string | null;
-            };
-            Insert: {
-                attempt?: number | null;
-                broadcast_id?: string | null;
-                channel?: string | null;
-                contact_id?: string | null;
-                facts?: Json | null;
-                message_id?: string | null;
-                reason?: string | null;
-                sent_at?: string | null;
-                state?: string | null;
-                tenant_id?: string | null;
-            };
-            Update: {
-                attempt?: number | null;
-                broadcast_id?: string | null;
-                channel?: string | null;
-                contact_id?: string | null;
-                facts?: Json | null;
-                message_id?: string | null;
-                reason?: string | null;
-                sent_at?: string | null;
-                state?: string | null;
-                tenant_id?: string | null;
-            };
-            Relationships: [{
-                foreignKeyName: "sequence_sends_batch_id_same_workspace";
-                columns: ["tenant_id", "broadcast_id"];
-                isOneToOne: false;
-                referencedRelation: "broadcasts";
-                referencedColumns: ["tenant_id", "id"];
-            }, {
-                foreignKeyName: "sequence_sends_batch_id_same_workspace";
-                columns: ["tenant_id", "broadcast_id"];
-                isOneToOne: false;
-                referencedRelation: "sequence_batches";
-                referencedColumns: ["tenant_id", "id"];
-            }, {
-                foreignKeyName: "sequence_sends_contact_id_same_workspace";
-                columns: ["tenant_id", "contact_id"];
-                isOneToOne: false;
-                referencedRelation: "contacts";
-                referencedColumns: ["tenant_id", "id"];
-            }, {
-                foreignKeyName: "sequence_sends_message_id_same_workspace";
-                columns: ["tenant_id", "message_id"];
-                isOneToOne: false;
-                referencedRelation: "messages";
-                referencedColumns: ["tenant_id", "id"];
-            }, {
-                foreignKeyName: "sequence_sends_tenant_id_fkey";
-                columns: ["tenant_id"];
-                isOneToOne: false;
-                referencedRelation: "tenants";
-                referencedColumns: ["id"];
-            }];
-        };
-        broadcasts: {
-            Row: {
-                audience: Json | null;
-                channels: string[] | null;
-                created_at: string | null;
-                created_by: string | null;
-                failure: string | null;
-                finished_at: string | null;
-                id: string | null;
-                name: string | null;
-                params: Json | null;
-                playbook_id: string | null;
-                recipient_count: number | null;
-                run_for: string | null;
-                scheduled_for: string | null;
-                started_at: string | null;
-                state: string | null;
-                template_id: string | null;
-                template_language: string | null;
-                template_name: string | null;
-                tenant_id: string | null;
-                updated_at: string | null;
-            };
-            Insert: {
-                audience?: Json | null;
-                channels?: string[] | null;
-                created_at?: string | null;
-                created_by?: string | null;
-                failure?: string | null;
-                finished_at?: string | null;
-                id?: string | null;
-                name?: string | null;
-                params?: Json | null;
-                playbook_id?: string | null;
-                recipient_count?: number | null;
-                run_for?: string | null;
-                scheduled_for?: string | null;
-                started_at?: string | null;
-                state?: string | null;
-                template_id?: string | null;
-                template_language?: string | null;
-                template_name?: string | null;
-                tenant_id?: string | null;
-                updated_at?: string | null;
-            };
-            Update: {
-                audience?: Json | null;
-                channels?: string[] | null;
-                created_at?: string | null;
-                created_by?: string | null;
-                failure?: string | null;
-                finished_at?: string | null;
-                id?: string | null;
-                name?: string | null;
-                params?: Json | null;
-                playbook_id?: string | null;
-                recipient_count?: number | null;
-                run_for?: string | null;
-                scheduled_for?: string | null;
-                started_at?: string | null;
-                state?: string | null;
-                template_id?: string | null;
-                template_language?: string | null;
-                template_name?: string | null;
-                tenant_id?: string | null;
-                updated_at?: string | null;
-            };
-            Relationships: [{
-                foreignKeyName: "sequence_batches_step_id_same_workspace";
-                columns: ["tenant_id", "playbook_id"];
-                isOneToOne: false;
-                referencedRelation: "playbooks";
-                referencedColumns: ["tenant_id", "id"];
-            }, {
-                foreignKeyName: "sequence_batches_step_id_same_workspace";
-                columns: ["tenant_id", "playbook_id"];
-                isOneToOne: false;
-                referencedRelation: "sequence_steps";
-                referencedColumns: ["tenant_id", "id"];
-            }, {
-                foreignKeyName: "sequence_batches_template_id_same_workspace";
-                columns: ["tenant_id", "template_id"];
-                isOneToOne: false;
-                referencedRelation: "templates";
-                referencedColumns: ["tenant_id", "id"];
-            }, {
-                foreignKeyName: "sequence_batches_tenant_id_fkey";
-                columns: ["tenant_id"];
-                isOneToOne: false;
-                referencedRelation: "tenants";
-                referencedColumns: ["id"];
-            }];
-        };
         lead_searches_view: {
             Row: {
                 answered: string | null;
@@ -19494,501 +18254,6 @@ declare function builderOf<T extends TenantTable>(db: Db$J, table: T): _supabase
                 isOneToOne: false;
                 referencedRelation: "ask_threads";
                 referencedColumns: ["tenant_id", "id"];
-            }];
-        };
-        playbooks: {
-            Row: {
-                after_days: number | null;
-                after_playbook_id: string | null;
-                cadence_days: number | null;
-                cap_per_run: number | null;
-                channels: string[] | null;
-                created_at: string | null;
-                created_by: string | null;
-                domain_ids: string[] | null;
-                gap_days: number | null;
-                gap_minutes: number | null;
-                hand: Json | null;
-                id: string | null;
-                include_unconfirmed: boolean | null;
-                kind: string | null;
-                last_run_at: string | null;
-                last_run_for: string | null;
-                lead_search_id: string | null;
-                list_id: string | null;
-                list_key: string | null;
-                mailbox_ids: string[] | null;
-                name: string | null;
-                owner_sends: boolean | null;
-                params: Json | null;
-                policy_class: string | null;
-                run_hour: number | null;
-                signed_by: string | null;
-                state: string | null;
-                template_id: string | null;
-                template_language: string | null;
-                template_name: string | null;
-                tenant_id: string | null;
-                trial_until: string | null;
-                trigger: string | null;
-                until: string | null;
-                updated_at: string | null;
-            };
-            Insert: {
-                after_days?: number | null;
-                after_playbook_id?: string | null;
-                cadence_days?: number | null;
-                cap_per_run?: number | null;
-                channels?: string[] | null;
-                created_at?: string | null;
-                created_by?: string | null;
-                domain_ids?: string[] | null;
-                gap_days?: number | null;
-                gap_minutes?: number | null;
-                hand?: Json | null;
-                id?: string | null;
-                include_unconfirmed?: boolean | null;
-                kind?: string | null;
-                last_run_at?: string | null;
-                last_run_for?: string | null;
-                lead_search_id?: string | null;
-                list_id?: string | null;
-                list_key?: string | null;
-                mailbox_ids?: string[] | null;
-                name?: string | null;
-                owner_sends?: boolean | null;
-                params?: Json | null;
-                policy_class?: string | null;
-                run_hour?: number | null;
-                signed_by?: string | null;
-                state?: string | null;
-                template_id?: string | null;
-                template_language?: string | null;
-                template_name?: string | null;
-                tenant_id?: string | null;
-                trial_until?: string | null;
-                trigger?: string | null;
-                until?: string | null;
-                updated_at?: string | null;
-            };
-            Update: {
-                after_days?: number | null;
-                after_playbook_id?: string | null;
-                cadence_days?: number | null;
-                cap_per_run?: number | null;
-                channels?: string[] | null;
-                created_at?: string | null;
-                created_by?: string | null;
-                domain_ids?: string[] | null;
-                gap_days?: number | null;
-                gap_minutes?: number | null;
-                hand?: Json | null;
-                id?: string | null;
-                include_unconfirmed?: boolean | null;
-                kind?: string | null;
-                last_run_at?: string | null;
-                last_run_for?: string | null;
-                lead_search_id?: string | null;
-                list_id?: string | null;
-                list_key?: string | null;
-                mailbox_ids?: string[] | null;
-                name?: string | null;
-                owner_sends?: boolean | null;
-                params?: Json | null;
-                policy_class?: string | null;
-                run_hour?: number | null;
-                signed_by?: string | null;
-                state?: string | null;
-                template_id?: string | null;
-                template_language?: string | null;
-                template_name?: string | null;
-                tenant_id?: string | null;
-                trial_until?: string | null;
-                trigger?: string | null;
-                until?: string | null;
-                updated_at?: string | null;
-            };
-            Relationships: [{
-                foreignKeyName: "sequence_steps_after_same_workspace";
-                columns: ["tenant_id", "after_playbook_id"];
-                isOneToOne: false;
-                referencedRelation: "playbooks";
-                referencedColumns: ["tenant_id", "id"];
-            }, {
-                foreignKeyName: "sequence_steps_after_same_workspace";
-                columns: ["tenant_id", "after_playbook_id"];
-                isOneToOne: false;
-                referencedRelation: "sequence_steps";
-                referencedColumns: ["tenant_id", "id"];
-            }, {
-                foreignKeyName: "sequence_steps_list_id_same_workspace";
-                columns: ["tenant_id", "list_id"];
-                isOneToOne: false;
-                referencedRelation: "segments";
-                referencedColumns: ["tenant_id", "id"];
-            }, {
-                foreignKeyName: "sequence_steps_search_same_workspace";
-                columns: ["tenant_id", "lead_search_id"];
-                isOneToOne: false;
-                referencedRelation: "lead_searches";
-                referencedColumns: ["tenant_id", "id"];
-            }, {
-                foreignKeyName: "sequence_steps_search_same_workspace";
-                columns: ["tenant_id", "lead_search_id"];
-                isOneToOne: false;
-                referencedRelation: "lead_searches_view";
-                referencedColumns: ["tenant_id", "id"];
-            }, {
-                foreignKeyName: "sequence_steps_template_id_same_workspace";
-                columns: ["tenant_id", "template_id"];
-                isOneToOne: false;
-                referencedRelation: "templates";
-                referencedColumns: ["tenant_id", "id"];
-            }, {
-                foreignKeyName: "sequence_steps_tenant_id_fkey";
-                columns: ["tenant_id"];
-                isOneToOne: false;
-                referencedRelation: "tenants";
-                referencedColumns: ["id"];
-            }];
-        };
-        reach_out_replies: {
-            Row: {
-                answered_message_id: string | null;
-                claim: string | null;
-                contact_id: string | null;
-                conversation_id: string | null;
-                draft: string | null;
-                draft_state: string | null;
-                draft_why: string | null;
-                intent: string | null;
-                lead_contact_id: string | null;
-                lead_id: string | null;
-                message_id: string | null;
-                named_day: string | null;
-                plan: Json | null;
-                read_at: string | null;
-                refer_to: string | null;
-                reread_at: string | null;
-                rereads: number | null;
-                said_by: string | null;
-                send_id: string | null;
-                signer_name: string | null;
-                signer_settled_at: string | null;
-                signer_settled_by: string | null;
-                signer_state: string | null;
-                signer_title: string | null;
-                signer_was: string | null;
-                summary: string | null;
-                tell_claimed_at: string | null;
-                tenant_id: string | null;
-                told_at: string | null;
-                undone_at: string | null;
-                undone_by: string | null;
-                unread: string | null;
-                until_at: string | null;
-            };
-            Insert: {
-                answered_message_id?: string | null;
-                claim?: string | null;
-                contact_id?: string | null;
-                conversation_id?: string | null;
-                draft?: string | null;
-                draft_state?: string | null;
-                draft_why?: string | null;
-                intent?: string | null;
-                lead_contact_id?: string | null;
-                lead_id?: string | null;
-                message_id?: string | null;
-                named_day?: string | null;
-                plan?: Json | null;
-                read_at?: string | null;
-                refer_to?: string | null;
-                reread_at?: string | null;
-                rereads?: number | null;
-                said_by?: string | null;
-                send_id?: string | null;
-                signer_name?: string | null;
-                signer_settled_at?: string | null;
-                signer_settled_by?: string | null;
-                signer_state?: string | null;
-                signer_title?: string | null;
-                signer_was?: string | null;
-                summary?: string | null;
-                tell_claimed_at?: string | null;
-                tenant_id?: string | null;
-                told_at?: string | null;
-                undone_at?: string | null;
-                undone_by?: string | null;
-                unread?: string | null;
-                until_at?: string | null;
-            };
-            Update: {
-                answered_message_id?: string | null;
-                claim?: string | null;
-                contact_id?: string | null;
-                conversation_id?: string | null;
-                draft?: string | null;
-                draft_state?: string | null;
-                draft_why?: string | null;
-                intent?: string | null;
-                lead_contact_id?: string | null;
-                lead_id?: string | null;
-                message_id?: string | null;
-                named_day?: string | null;
-                plan?: Json | null;
-                read_at?: string | null;
-                refer_to?: string | null;
-                reread_at?: string | null;
-                rereads?: number | null;
-                said_by?: string | null;
-                send_id?: string | null;
-                signer_name?: string | null;
-                signer_settled_at?: string | null;
-                signer_settled_by?: string | null;
-                signer_state?: string | null;
-                signer_title?: string | null;
-                signer_was?: string | null;
-                summary?: string | null;
-                tell_claimed_at?: string | null;
-                tenant_id?: string | null;
-                told_at?: string | null;
-                undone_at?: string | null;
-                undone_by?: string | null;
-                unread?: string | null;
-                until_at?: string | null;
-            };
-            Relationships: [{
-                foreignKeyName: "sequence_replies_answered_message_id_same_workspace";
-                columns: ["tenant_id", "answered_message_id"];
-                isOneToOne: false;
-                referencedRelation: "messages";
-                referencedColumns: ["tenant_id", "id"];
-            }, {
-                foreignKeyName: "sequence_replies_contact_id_same_workspace";
-                columns: ["tenant_id", "contact_id"];
-                isOneToOne: false;
-                referencedRelation: "contacts";
-                referencedColumns: ["tenant_id", "id"];
-            }, {
-                foreignKeyName: "sequence_replies_conversation_id_same_workspace";
-                columns: ["tenant_id", "conversation_id"];
-                isOneToOne: false;
-                referencedRelation: "conversations";
-                referencedColumns: ["tenant_id", "id"];
-            }, {
-                foreignKeyName: "sequence_replies_lead_contact_id_same_workspace";
-                columns: ["tenant_id", "lead_contact_id"];
-                isOneToOne: false;
-                referencedRelation: "contacts";
-                referencedColumns: ["tenant_id", "id"];
-            }, {
-                foreignKeyName: "sequence_replies_lead_id_same_workspace";
-                columns: ["tenant_id", "lead_id"];
-                isOneToOne: false;
-                referencedRelation: "leads";
-                referencedColumns: ["tenant_id", "id"];
-            }, {
-                foreignKeyName: "sequence_replies_message_id_same_workspace";
-                columns: ["tenant_id", "message_id"];
-                isOneToOne: false;
-                referencedRelation: "messages";
-                referencedColumns: ["tenant_id", "id"];
-            }, {
-                foreignKeyName: "sequence_replies_send_id_same_workspace";
-                columns: ["tenant_id", "send_id"];
-                isOneToOne: false;
-                referencedRelation: "reach_out_sends";
-                referencedColumns: ["tenant_id", "id"];
-            }, {
-                foreignKeyName: "sequence_replies_send_id_same_workspace";
-                columns: ["tenant_id", "send_id"];
-                isOneToOne: false;
-                referencedRelation: "sequence_sends";
-                referencedColumns: ["tenant_id", "id"];
-            }, {
-                foreignKeyName: "sequence_replies_tenant_id_fkey";
-                columns: ["tenant_id"];
-                isOneToOne: false;
-                referencedRelation: "tenants";
-                referencedColumns: ["id"];
-            }];
-        };
-        reach_out_sends: {
-            Row: {
-                angle: string | null;
-                attempts: number | null;
-                broadcast_id: string | null;
-                check_after: string | null;
-                check_first_at: string | null;
-                check_gen: number | null;
-                check_started_at: string | null;
-                check_tries: number | null;
-                checked_at: string | null;
-                checked_words: string | null;
-                claimed_at: string | null;
-                contact_id: string | null;
-                created_at: string | null;
-                domain_id: string | null;
-                draft: Json | null;
-                drafted_at: string | null;
-                facts_used: string[] | null;
-                hold_detail: string | null;
-                id: string | null;
-                included_for: string[] | null;
-                lead_id: string | null;
-                mailbox_id: string | null;
-                message_id: string | null;
-                opening: string | null;
-                playbook_id: string | null;
-                reason: string | null;
-                root_id: string | null;
-                said_at: string | null;
-                said_by: string | null;
-                send_at: string | null;
-                sent_at: string | null;
-                state: string | null;
-                tenant_id: string | null;
-                updated_at: string | null;
-            };
-            Insert: {
-                angle?: string | null;
-                attempts?: number | null;
-                broadcast_id?: string | null;
-                check_after?: string | null;
-                check_first_at?: string | null;
-                check_gen?: number | null;
-                check_started_at?: string | null;
-                check_tries?: number | null;
-                checked_at?: string | null;
-                checked_words?: string | null;
-                claimed_at?: string | null;
-                contact_id?: string | null;
-                created_at?: string | null;
-                domain_id?: string | null;
-                draft?: Json | null;
-                drafted_at?: string | null;
-                facts_used?: string[] | null;
-                hold_detail?: string | null;
-                id?: string | null;
-                included_for?: string[] | null;
-                lead_id?: string | null;
-                mailbox_id?: string | null;
-                message_id?: string | null;
-                opening?: string | null;
-                playbook_id?: string | null;
-                reason?: string | null;
-                root_id?: string | null;
-                said_at?: string | null;
-                said_by?: string | null;
-                send_at?: string | null;
-                sent_at?: string | null;
-                state?: string | null;
-                tenant_id?: string | null;
-                updated_at?: string | null;
-            };
-            Update: {
-                angle?: string | null;
-                attempts?: number | null;
-                broadcast_id?: string | null;
-                check_after?: string | null;
-                check_first_at?: string | null;
-                check_gen?: number | null;
-                check_started_at?: string | null;
-                check_tries?: number | null;
-                checked_at?: string | null;
-                checked_words?: string | null;
-                claimed_at?: string | null;
-                contact_id?: string | null;
-                created_at?: string | null;
-                domain_id?: string | null;
-                draft?: Json | null;
-                drafted_at?: string | null;
-                facts_used?: string[] | null;
-                hold_detail?: string | null;
-                id?: string | null;
-                included_for?: string[] | null;
-                lead_id?: string | null;
-                mailbox_id?: string | null;
-                message_id?: string | null;
-                opening?: string | null;
-                playbook_id?: string | null;
-                reason?: string | null;
-                root_id?: string | null;
-                said_at?: string | null;
-                said_by?: string | null;
-                send_at?: string | null;
-                sent_at?: string | null;
-                state?: string | null;
-                tenant_id?: string | null;
-                updated_at?: string | null;
-            };
-            Relationships: [{
-                foreignKeyName: "sequence_sends_batch_id_same_workspace";
-                columns: ["tenant_id", "broadcast_id"];
-                isOneToOne: false;
-                referencedRelation: "broadcasts";
-                referencedColumns: ["tenant_id", "id"];
-            }, {
-                foreignKeyName: "sequence_sends_batch_id_same_workspace";
-                columns: ["tenant_id", "broadcast_id"];
-                isOneToOne: false;
-                referencedRelation: "sequence_batches";
-                referencedColumns: ["tenant_id", "id"];
-            }, {
-                foreignKeyName: "sequence_sends_contact_id_same_workspace";
-                columns: ["tenant_id", "contact_id"];
-                isOneToOne: false;
-                referencedRelation: "contacts";
-                referencedColumns: ["tenant_id", "id"];
-            }, {
-                foreignKeyName: "sequence_sends_domain_id_same_workspace";
-                columns: ["tenant_id", "domain_id"];
-                isOneToOne: false;
-                referencedRelation: "sending_domains";
-                referencedColumns: ["tenant_id", "id"];
-            }, {
-                foreignKeyName: "sequence_sends_lead_id_same_workspace";
-                columns: ["tenant_id", "lead_id"];
-                isOneToOne: false;
-                referencedRelation: "leads";
-                referencedColumns: ["tenant_id", "id"];
-            }, {
-                foreignKeyName: "sequence_sends_mailbox_id_same_workspace";
-                columns: ["tenant_id", "mailbox_id"];
-                isOneToOne: false;
-                referencedRelation: "mailbox_connections";
-                referencedColumns: ["tenant_id", "id"];
-            }, {
-                foreignKeyName: "sequence_sends_message_id_same_workspace";
-                columns: ["tenant_id", "message_id"];
-                isOneToOne: false;
-                referencedRelation: "messages";
-                referencedColumns: ["tenant_id", "id"];
-            }, {
-                foreignKeyName: "sequence_sends_sequence_id_same_workspace";
-                columns: ["tenant_id", "root_id"];
-                isOneToOne: false;
-                referencedRelation: "sequences";
-                referencedColumns: ["tenant_id", "id"];
-            }, {
-                foreignKeyName: "sequence_sends_step_id_same_workspace";
-                columns: ["tenant_id", "playbook_id"];
-                isOneToOne: false;
-                referencedRelation: "playbooks";
-                referencedColumns: ["tenant_id", "id"];
-            }, {
-                foreignKeyName: "sequence_sends_step_id_same_workspace";
-                columns: ["tenant_id", "playbook_id"];
-                isOneToOne: false;
-                referencedRelation: "sequence_steps";
-                referencedColumns: ["tenant_id", "id"];
-            }, {
-                foreignKeyName: "sequence_sends_tenant_id_fkey";
-                columns: ["tenant_id"];
-                isOneToOne: false;
-                referencedRelation: "tenants";
-                referencedColumns: ["id"];
             }];
         };
         usage_ledger: {
@@ -22689,20 +20954,6 @@ declare function builderOf<T extends TenantTable>(db: Db$J, table: T): _supabase
             };
             Returns: Json;
         };
-        playbooks_due: {
-            Args: {
-                p_at: string;
-                p_kind: string;
-                p_last_hour: number;
-                p_limit: number;
-                p_tenant_id?: string;
-            };
-            Returns: {
-                due_total: number;
-                playbook: Json;
-                timezone: string;
-            }[];
-        };
         profile_set: {
             Args: {
                 p_display_name: string;
@@ -22940,166 +21191,6 @@ declare function builderOf<T extends TenantTable>(db: Db$J, table: T): _supabase
             };
             Returns: boolean;
         };
-        reach_out_claim: {
-            Args: {
-                p_at: string;
-                p_cap: number;
-                p_domain_id: string;
-                p_limit: number;
-            };
-            Returns: {
-                angle: string | null;
-                attempts: number | null;
-                broadcast_id: string | null;
-                check_after: string | null;
-                check_first_at: string | null;
-                check_gen: number | null;
-                check_started_at: string | null;
-                check_tries: number | null;
-                checked_at: string | null;
-                checked_words: string | null;
-                claimed_at: string | null;
-                contact_id: string | null;
-                created_at: string | null;
-                domain_id: string | null;
-                draft: Json | null;
-                drafted_at: string | null;
-                facts_used: string[] | null;
-                hold_detail: string | null;
-                id: string | null;
-                included_for: string[] | null;
-                lead_id: string | null;
-                mailbox_id: string | null;
-                message_id: string | null;
-                opening: string | null;
-                playbook_id: string | null;
-                reason: string | null;
-                root_id: string | null;
-                said_at: string | null;
-                said_by: string | null;
-                send_at: string | null;
-                sent_at: string | null;
-                state: string | null;
-                tenant_id: string | null;
-                updated_at: string | null;
-            }[];
-            SetofOptions: {
-                from: "*";
-                to: "reach_out_sends";
-                isOneToOne: false;
-                isSetofReturn: true;
-            };
-        };
-        reach_out_claim_drafts: {
-            Args: {
-                p_at: string;
-                p_limit: number;
-                p_tenant_id?: string;
-            };
-            Returns: {
-                angle: string | null;
-                attempts: number | null;
-                broadcast_id: string | null;
-                check_after: string | null;
-                check_first_at: string | null;
-                check_gen: number | null;
-                check_started_at: string | null;
-                check_tries: number | null;
-                checked_at: string | null;
-                checked_words: string | null;
-                claimed_at: string | null;
-                contact_id: string | null;
-                created_at: string | null;
-                domain_id: string | null;
-                draft: Json | null;
-                drafted_at: string | null;
-                facts_used: string[] | null;
-                hold_detail: string | null;
-                id: string | null;
-                included_for: string[] | null;
-                lead_id: string | null;
-                mailbox_id: string | null;
-                message_id: string | null;
-                opening: string | null;
-                playbook_id: string | null;
-                reason: string | null;
-                root_id: string | null;
-                said_at: string | null;
-                said_by: string | null;
-                send_at: string | null;
-                sent_at: string | null;
-                state: string | null;
-                tenant_id: string | null;
-                updated_at: string | null;
-            }[];
-            SetofOptions: {
-                from: "*";
-                to: "reach_out_sends";
-                isOneToOne: false;
-                isSetofReturn: true;
-            };
-        };
-        reach_out_claim_from: {
-            Args: {
-                p_at: string;
-                p_cap: number;
-                p_limit: number;
-                p_mailbox_id: string;
-            };
-            Returns: {
-                angle: string | null;
-                attempts: number | null;
-                broadcast_id: string | null;
-                check_after: string | null;
-                check_first_at: string | null;
-                check_gen: number | null;
-                check_started_at: string | null;
-                check_tries: number | null;
-                checked_at: string | null;
-                checked_words: string | null;
-                claimed_at: string | null;
-                contact_id: string | null;
-                created_at: string | null;
-                domain_id: string | null;
-                draft: Json | null;
-                drafted_at: string | null;
-                facts_used: string[] | null;
-                hold_detail: string | null;
-                id: string | null;
-                included_for: string[] | null;
-                lead_id: string | null;
-                mailbox_id: string | null;
-                message_id: string | null;
-                opening: string | null;
-                playbook_id: string | null;
-                reason: string | null;
-                root_id: string | null;
-                said_at: string | null;
-                said_by: string | null;
-                send_at: string | null;
-                sent_at: string | null;
-                state: string | null;
-                tenant_id: string | null;
-                updated_at: string | null;
-            }[];
-            SetofOptions: {
-                from: "*";
-                to: "reach_out_sends";
-                isOneToOne: false;
-                isSetofReturn: true;
-            };
-        };
-        reach_out_closed_sends: {
-            Args: {
-                p_limit: number;
-                p_stuck_before: string;
-                p_tenant_id?: string;
-            };
-            Returns: {
-                email_status: string;
-                send: Json;
-            }[];
-        };
         reach_out_day_due: {
             Args: {
                 p_limit: number;
@@ -23132,19 +21223,6 @@ declare function builderOf<T extends TenantTable>(db: Db$J, table: T): _supabase
                 facts: Json;
                 id: string;
                 lead_id: string;
-                tenant_id: string;
-            }[];
-        };
-        reach_out_due_domains: {
-            Args: {
-                p_at: string;
-                p_limit: number;
-                p_skip_domains?: string[];
-                p_skip_tenants?: string[];
-                p_tenant_id?: string;
-            };
-            Returns: {
-                id: string;
                 tenant_id: string;
             }[];
         };
@@ -23205,55 +21283,6 @@ declare function builderOf<T extends TenantTable>(db: Db$J, table: T): _supabase
             };
             Returns: Json;
         };
-        reach_out_held_stale: {
-            Args: {
-                p_before: string;
-                p_limit: number;
-                p_tenant_id?: string;
-            };
-            Returns: {
-                angle: string | null;
-                attempts: number | null;
-                broadcast_id: string | null;
-                check_after: string | null;
-                check_first_at: string | null;
-                check_gen: number | null;
-                check_started_at: string | null;
-                check_tries: number | null;
-                checked_at: string | null;
-                checked_words: string | null;
-                claimed_at: string | null;
-                contact_id: string | null;
-                created_at: string | null;
-                domain_id: string | null;
-                draft: Json | null;
-                drafted_at: string | null;
-                facts_used: string[] | null;
-                hold_detail: string | null;
-                id: string | null;
-                included_for: string[] | null;
-                lead_id: string | null;
-                mailbox_id: string | null;
-                message_id: string | null;
-                opening: string | null;
-                playbook_id: string | null;
-                reason: string | null;
-                root_id: string | null;
-                said_at: string | null;
-                said_by: string | null;
-                send_at: string | null;
-                sent_at: string | null;
-                state: string | null;
-                tenant_id: string | null;
-                updated_at: string | null;
-            }[];
-            SetofOptions: {
-                from: "*";
-                to: "reach_out_sends";
-                isOneToOne: false;
-                isSetofReturn: true;
-            };
-        };
         reach_out_lead_stop: {
             Args: {
                 p_lead_id: string;
@@ -23313,19 +21342,6 @@ declare function builderOf<T extends TenantTable>(db: Db$J, table: T): _supabase
                 p_sends: Json;
             };
             Returns: Json;
-        };
-        reach_out_queued_outcomes: {
-            Args: {
-                p_limit: number;
-                p_tenant_id?: string;
-            };
-            Returns: {
-                error: Json;
-                send: Json;
-                sent_at: string;
-                status: string;
-                written_at: string;
-            }[];
         };
         reach_out_reach: {
             Args: {
@@ -23531,88 +21547,6 @@ declare function builderOf<T extends TenantTable>(db: Db$J, table: T): _supabase
                 p_tenant_id: string;
             };
             Returns: Json;
-        };
-        reach_out_stale_sends: {
-            Args: {
-                p_before: string;
-                p_limit: number;
-                p_tenant_id?: string;
-            };
-            Returns: {
-                angle: string | null;
-                attempts: number | null;
-                broadcast_id: string | null;
-                check_after: string | null;
-                check_first_at: string | null;
-                check_gen: number | null;
-                check_started_at: string | null;
-                check_tries: number | null;
-                checked_at: string | null;
-                checked_words: string | null;
-                claimed_at: string | null;
-                contact_id: string | null;
-                created_at: string | null;
-                domain_id: string | null;
-                draft: Json | null;
-                drafted_at: string | null;
-                facts_used: string[] | null;
-                hold_detail: string | null;
-                id: string | null;
-                included_for: string[] | null;
-                lead_id: string | null;
-                mailbox_id: string | null;
-                message_id: string | null;
-                opening: string | null;
-                playbook_id: string | null;
-                reason: string | null;
-                root_id: string | null;
-                said_at: string | null;
-                said_by: string | null;
-                send_at: string | null;
-                sent_at: string | null;
-                state: string | null;
-                tenant_id: string | null;
-                updated_at: string | null;
-            }[];
-            SetofOptions: {
-                from: "*";
-                to: "reach_out_sends";
-                isOneToOne: false;
-                isSetofReturn: true;
-            };
-        };
-        reach_out_unchecked: {
-            Args: {
-                p_ahead_minutes: number;
-                p_limit: number;
-                p_per_workspace: number;
-                p_tenant_id?: string;
-            };
-            Returns: {
-                about: string;
-                business_name: string;
-                category: string;
-                check_gen: number;
-                city: string;
-                claimed: boolean;
-                email: string;
-                email_domain_shared: boolean;
-                hours: Json;
-                included_for: string[];
-                name_listings: number;
-                rating: number;
-                region: string;
-                reviews: number;
-                reviews_dist: Json;
-                send: Json;
-                signed_by: string;
-                site_listings: number;
-                template_id: string;
-                template_language: string;
-                website_host: string;
-                what_you_asked: string;
-                why_it_fits: string;
-            }[];
         };
         reach_out_why_not: {
             Args: {
@@ -24118,6 +22052,16 @@ declare function builderOf<T extends TenantTable>(db: Db$J, table: T): _supabase
                 status: string;
                 written_at: string;
             }[];
+        };
+        sequence_return: {
+            Args: {
+                p_decision?: Json;
+                p_sequence_id: string;
+                p_tenant_id: string;
+                p_undo_of?: string;
+                p_via?: string;
+            };
+            Returns: Json;
         };
         sequence_stale_sends: {
             Args: {
@@ -24701,6 +22645,12 @@ declare function builderOf<T extends TenantTable>(db: Db$J, table: T): _supabase
         trigger_registration_sweep: {
             Args: never;
             Returns: number;
+        };
+        trigger_sequences_clock: {
+            Args: {
+                p_at?: string;
+            };
+            Returns: undefined;
         };
         trigger_sweep_health: {
             Args: never;
@@ -30105,12 +28055,6 @@ declare function builderOf<T extends TenantTable>(db: Db$J, table: T): _supabase
             foreignKeyName: "sequence_batches_step_id_same_workspace";
             columns: ["tenant_id", "step_id"];
             isOneToOne: false;
-            referencedRelation: "playbooks";
-            referencedColumns: ["tenant_id", "id"];
-        }, {
-            foreignKeyName: "sequence_batches_step_id_same_workspace";
-            columns: ["tenant_id", "step_id"];
-            isOneToOne: false;
             referencedRelation: "sequence_steps";
             referencedColumns: ["tenant_id", "id"];
         }, {
@@ -30348,12 +28292,6 @@ declare function builderOf<T extends TenantTable>(db: Db$J, table: T): _supabase
             foreignKeyName: "sequence_replies_send_id_same_workspace";
             columns: ["tenant_id", "send_id"];
             isOneToOne: false;
-            referencedRelation: "reach_out_sends";
-            referencedColumns: ["tenant_id", "id"];
-        }, {
-            foreignKeyName: "sequence_replies_send_id_same_workspace";
-            columns: ["tenant_id", "send_id"];
-            isOneToOne: false;
             referencedRelation: "sequence_sends";
             referencedColumns: ["tenant_id", "id"];
         }, {
@@ -30483,12 +28421,6 @@ declare function builderOf<T extends TenantTable>(db: Db$J, table: T): _supabase
             foreignKeyName: "sequence_sends_batch_id_same_workspace";
             columns: ["tenant_id", "batch_id"];
             isOneToOne: false;
-            referencedRelation: "broadcasts";
-            referencedColumns: ["tenant_id", "id"];
-        }, {
-            foreignKeyName: "sequence_sends_batch_id_same_workspace";
-            columns: ["tenant_id", "batch_id"];
-            isOneToOne: false;
             referencedRelation: "sequence_batches";
             referencedColumns: ["tenant_id", "id"];
         }, {
@@ -30526,12 +28458,6 @@ declare function builderOf<T extends TenantTable>(db: Db$J, table: T): _supabase
             columns: ["tenant_id", "sequence_id"];
             isOneToOne: false;
             referencedRelation: "sequences";
-            referencedColumns: ["tenant_id", "id"];
-        }, {
-            foreignKeyName: "sequence_sends_step_id_same_workspace";
-            columns: ["tenant_id", "step_id"];
-            isOneToOne: false;
-            referencedRelation: "playbooks";
             referencedColumns: ["tenant_id", "id"];
         }, {
             foreignKeyName: "sequence_sends_step_id_same_workspace";
@@ -30681,12 +28607,6 @@ declare function builderOf<T extends TenantTable>(db: Db$J, table: T): _supabase
             updated_at?: string;
         };
         Relationships: [{
-            foreignKeyName: "sequence_steps_after_same_workspace";
-            columns: ["tenant_id", "after_step_id"];
-            isOneToOne: false;
-            referencedRelation: "playbooks";
-            referencedColumns: ["tenant_id", "id"];
-        }, {
             foreignKeyName: "sequence_steps_after_same_workspace";
             columns: ["tenant_id", "after_step_id"];
             isOneToOne: false;
@@ -36436,12 +34356,6 @@ declare function builderOf<T extends TenantTable>(db: Db$J, table: T): _supabase
             foreignKeyName: "sequence_batches_step_id_same_workspace";
             columns: ["tenant_id", "step_id"];
             isOneToOne: false;
-            referencedRelation: "playbooks";
-            referencedColumns: ["tenant_id", "id"];
-        }, {
-            foreignKeyName: "sequence_batches_step_id_same_workspace";
-            columns: ["tenant_id", "step_id"];
-            isOneToOne: false;
             referencedRelation: "sequence_steps";
             referencedColumns: ["tenant_id", "id"];
         }, {
@@ -36679,12 +34593,6 @@ declare function builderOf<T extends TenantTable>(db: Db$J, table: T): _supabase
             foreignKeyName: "sequence_replies_send_id_same_workspace";
             columns: ["tenant_id", "send_id"];
             isOneToOne: false;
-            referencedRelation: "reach_out_sends";
-            referencedColumns: ["tenant_id", "id"];
-        }, {
-            foreignKeyName: "sequence_replies_send_id_same_workspace";
-            columns: ["tenant_id", "send_id"];
-            isOneToOne: false;
             referencedRelation: "sequence_sends";
             referencedColumns: ["tenant_id", "id"];
         }, {
@@ -36814,12 +34722,6 @@ declare function builderOf<T extends TenantTable>(db: Db$J, table: T): _supabase
             foreignKeyName: "sequence_sends_batch_id_same_workspace";
             columns: ["tenant_id", "batch_id"];
             isOneToOne: false;
-            referencedRelation: "broadcasts";
-            referencedColumns: ["tenant_id", "id"];
-        }, {
-            foreignKeyName: "sequence_sends_batch_id_same_workspace";
-            columns: ["tenant_id", "batch_id"];
-            isOneToOne: false;
             referencedRelation: "sequence_batches";
             referencedColumns: ["tenant_id", "id"];
         }, {
@@ -36857,12 +34759,6 @@ declare function builderOf<T extends TenantTable>(db: Db$J, table: T): _supabase
             columns: ["tenant_id", "sequence_id"];
             isOneToOne: false;
             referencedRelation: "sequences";
-            referencedColumns: ["tenant_id", "id"];
-        }, {
-            foreignKeyName: "sequence_sends_step_id_same_workspace";
-            columns: ["tenant_id", "step_id"];
-            isOneToOne: false;
-            referencedRelation: "playbooks";
             referencedColumns: ["tenant_id", "id"];
         }, {
             foreignKeyName: "sequence_sends_step_id_same_workspace";
@@ -37012,12 +34908,6 @@ declare function builderOf<T extends TenantTable>(db: Db$J, table: T): _supabase
             updated_at?: string;
         };
         Relationships: [{
-            foreignKeyName: "sequence_steps_after_same_workspace";
-            columns: ["tenant_id", "after_step_id"];
-            isOneToOne: false;
-            referencedRelation: "playbooks";
-            referencedColumns: ["tenant_id", "id"];
-        }, {
             foreignKeyName: "sequence_steps_after_same_workspace";
             columns: ["tenant_id", "after_step_id"];
             isOneToOne: false;
@@ -42767,12 +40657,6 @@ declare function builderOf<T extends TenantTable>(db: Db$J, table: T): _supabase
             foreignKeyName: "sequence_batches_step_id_same_workspace";
             columns: ["tenant_id", "step_id"];
             isOneToOne: false;
-            referencedRelation: "playbooks";
-            referencedColumns: ["tenant_id", "id"];
-        }, {
-            foreignKeyName: "sequence_batches_step_id_same_workspace";
-            columns: ["tenant_id", "step_id"];
-            isOneToOne: false;
             referencedRelation: "sequence_steps";
             referencedColumns: ["tenant_id", "id"];
         }, {
@@ -43010,12 +40894,6 @@ declare function builderOf<T extends TenantTable>(db: Db$J, table: T): _supabase
             foreignKeyName: "sequence_replies_send_id_same_workspace";
             columns: ["tenant_id", "send_id"];
             isOneToOne: false;
-            referencedRelation: "reach_out_sends";
-            referencedColumns: ["tenant_id", "id"];
-        }, {
-            foreignKeyName: "sequence_replies_send_id_same_workspace";
-            columns: ["tenant_id", "send_id"];
-            isOneToOne: false;
             referencedRelation: "sequence_sends";
             referencedColumns: ["tenant_id", "id"];
         }, {
@@ -43145,12 +41023,6 @@ declare function builderOf<T extends TenantTable>(db: Db$J, table: T): _supabase
             foreignKeyName: "sequence_sends_batch_id_same_workspace";
             columns: ["tenant_id", "batch_id"];
             isOneToOne: false;
-            referencedRelation: "broadcasts";
-            referencedColumns: ["tenant_id", "id"];
-        }, {
-            foreignKeyName: "sequence_sends_batch_id_same_workspace";
-            columns: ["tenant_id", "batch_id"];
-            isOneToOne: false;
             referencedRelation: "sequence_batches";
             referencedColumns: ["tenant_id", "id"];
         }, {
@@ -43188,12 +41060,6 @@ declare function builderOf<T extends TenantTable>(db: Db$J, table: T): _supabase
             columns: ["tenant_id", "sequence_id"];
             isOneToOne: false;
             referencedRelation: "sequences";
-            referencedColumns: ["tenant_id", "id"];
-        }, {
-            foreignKeyName: "sequence_sends_step_id_same_workspace";
-            columns: ["tenant_id", "step_id"];
-            isOneToOne: false;
-            referencedRelation: "playbooks";
             referencedColumns: ["tenant_id", "id"];
         }, {
             foreignKeyName: "sequence_sends_step_id_same_workspace";
@@ -43343,12 +41209,6 @@ declare function builderOf<T extends TenantTable>(db: Db$J, table: T): _supabase
             updated_at?: string;
         };
         Relationships: [{
-            foreignKeyName: "sequence_steps_after_same_workspace";
-            columns: ["tenant_id", "after_step_id"];
-            isOneToOne: false;
-            referencedRelation: "playbooks";
-            referencedColumns: ["tenant_id", "id"];
-        }, {
             foreignKeyName: "sequence_steps_after_same_workspace";
             columns: ["tenant_id", "after_step_id"];
             isOneToOne: false;
@@ -46381,6 +44241,12 @@ declare function sequenceOverview(db: Db$m, tenantId: string, sequenceId?: strin
 declare function sequenceOfPart(db: Db$m, tenantId: string, id: string): Promise<string | null>;
 /** A sequence's steps in their places, with what each sent in the last 30 days (00442 sequence_steps_of). */
 declare function sequenceStepsOf(db: Db$m, tenantId: string, sequenceId: string): Promise<SequenceStepDto[]>;
+/**
+ * The conversations in which a lead answered an email of these batches, as a sequence's History counts a lead's reply
+ * (00442 sequence_batch_counts, leads_replied): a reading of a reply to the send, a person's or what its owner said, not
+ * undone. Under the caller's row security; a failed read throws.
+ */
+declare function leadRepliesOfBatches(db: Db$m, tenantId: string, batchIds: readonly string[]): Promise<string[]>;
 /** Who is in a sequence, by where they stand (00442 sequence_people). */
 declare function sequencePeopleOf(db: Db$m, p: {
     tenantId: string;
@@ -46401,6 +44267,9 @@ interface SequenceDoorAnswer {
     was?: Json;
     waits?: boolean;
     left?: number;
+    /** A leave undone (00450 sequence_return): how many came back, and how many sends the leave skipped stay out. */
+    back?: number;
+    sends_out?: number;
     removed?: number;
     /** A new sequence's state (sequence_create): 'draft' or 'on'; and how many steps it was made with, or went with. */
     state?: string;
@@ -46438,6 +44307,14 @@ declare function takeOutOfSequence(db: Db$m, p: {
     sequenceId: string;
     enrollmentIds: readonly string[];
     why?: string;
+} & DoorDecision): Promise<DoorResult<SequenceDoorAnswer>>;
+/**
+ * A leave undone (00450 sequence_return): the places the leave named by `undoOf` ended, put back with their next step where
+ * still out for its reason; the sends it skipped stay skipped.
+ */
+declare function putBackInSequence(db: Db$m, p: {
+    tenantId: string;
+    sequenceId: string;
 } & DoorDecision): Promise<DoorResult<SequenceDoorAnswer>>;
 /**
  * A new customer's sequence made whole (00442 sequence_create, S4): its first step as start_playbook takes one, and the
@@ -49673,4 +47550,4 @@ interface HeldDraftsRow {
 /** The workspace's held drafts of the last `days`, by intent. */
 declare function heldDraftsByIntent(db: Db, tenantId: string, days: number): Promise<HeldDraftsRow[]>;
 
-export { type ActivitySubject, type ActivitySubjects, type AiFailures, AnswerNotKept, type AppointmentInsert, type AppointmentNoticeInsert, type AppointmentNoticeRow, type AppointmentRow, type AppointmentSync, type AppointmentUpdate, type AssembleDecision, type AudienceLead, type BillingExpectation, type BillingPatch, type BookingRequestOpen, CALL_CONTROL_S, type CalledBack, type ChannelLookup, type ConnectRefusal, type ControlHolder, type ControlOutcome, type CreateWorkspaceArgs, DB_REQUEST_HEADER, DEFAULT_ROW_CAP, type Database, type DbLog, type DbObserver, type DbTouch, type DealMove, type DeliveredEvent, type DeliveryProvider, type DeliveryRow, type DoorResult, type DraftLoad, type DraftWaitingRow, type DueCalendar, type DueMailbox, type DuePage, type DueStep, ERASURE_LEGS, ERASURE_STRATEGIES, type EarlierVisitRow, type EmittedKind, type ErasureLeg, type ErasureStrategy, type EventData, type ExportPage, type ExportSectionPages, type FactCorrectionRow, type FactSuggestionRow, type FollowerLead, HISTORY_COLUMNS, type HandItem, type HandedBack, type HandoverInvite, type HandoverResult, type HandoverSent, type HandoverWorkspace, type HeldDraftsRow, type HeldNoticeMark, type HeldNoticeRun, IDS_PER_READ, type IdeasKept, type IdempotencyClaim, type IdempotencyHold, type InboundEmailFacts, type IngestCallResult, type IngestEmailParams, type IngestInboundParams, type IngestResult, type JobToRequeue, type Json, type KeptDelivery, type KeptDeliveryRow, type KeptNotice, type LateCarrierStop, type LeadContext, type LeadOneLead, type LeadOneMember, type LeadReplyFacts, type LineForwardingArgs, type ListRow, MAX_ROWS, type MailboxCapacity, type MailboxConnectionRow, type MailboxRow, type MemberAlertsRow, type MessageHit, type MessageInsert, type MessageSender, type MessageVariable, type MessageVersionRow, type MigrationHead, type ModelTurnKept, type MomentScheduleRow, type NewVoiceSession, type NormalizedCallInput, type OpenHandover, type OpenToCustomersRead, type OutboundTarget, type OutreachFactsRow, type OutreachMode, type OwnerSendFacts, PEOPLE_PAGE, PERSON_FORGOTTEN, type Page, type ParentEmail, type PartnerBalanceLine, type PartnerHandoverLine, type PartnerInvitation, type PartnerInviteMail, type PartnerInviteSent, type PartnerJoined, type PartnerOverviewRow, type PartnerPayoutAnswer, type PartnerPublicRow, type PartnerRow, type PartnerTenantRow, type PartnerVerbResult, type PartnerWorkspaceMoneyLine, type PeopleCursor, type PersonCallArgs, type PersonExportPages, type PersonForSend, type PersonNameAnswer, type PgThreadState, type PlatformDayPromises, type PlatformPartnerBalanceLine, type PlatformPartnerWorkspaceLine, type PlaybookPatch, type PlaybookToStart, type PolicyRecord, type PublicWorkspaceRead, type PutTenantConfigResult, type QueuedOutcome, type ReachOutAddAnswer, type ReachOutDayDue, type ReachOutRecordRow, type ReachOutReplyOf, type ReachOutRunSend, type ReachOutSaved, type ReachOutSendInsert, type ReachOutSendRow, type ReachOutStepRow, type ReplyListRow, type ReplyReadingRow, type ReplySaidAnswer, type ReportWindow, ReportWindowNotReadable, type ResolvePersonInput, type ResolvedPerson, type RoutedChannel, type SavedListRow, type SendSaidAnswer, type SendStanding, type SequenceDoorAnswer, type ServiceClientConfig, type SpanRunRow, type StrandedRun, type SubscribeOptions, type TakenOver, type TemplateRow, type TemplateToSend, type TenantConfigRow, type TenantDb, type ThreadTurn, type Touch, type TouchIndex, type UncheckedSend, type Unsubscribed, type UsageMonthRow, type VersionRef, type VoiceSessionRow, type WaitingPlaybookRun, type WaitingRunRow, type WhatsappNumber, type WhatsappNumberRow, type WithdrawReason, type WorkspacePartner, type WriteError, type WrittenEmail, type YesRow, acceptHandover, acceptPartnerInvite, activeWhatsappNumbers, activitySubjects, activityTokensOf, addPersonByHand, addPersonNote, addToList, addToWaitlist, addressesSuppressed, adoptPersonName, aiFailuresHour, answerBookingRequest, answerFactSuggestion, answeredReachOutEmail, applyBilling, applyReplyReading, appointmentByClientStart, appointmentByKey, appointmentNoticeById, appointmentNoticeOf, appointmentNoticesOf, appointmentStates, appointmentWorkspace, appointmentsBetween, appointmentsForClient, appointmentsScrub, approveBroadcast, archiveConversation, archiveList, assembleBroadcast, assembleHistory, becomePartner, bookedVisitsOf, businessOnRecordOf, callBackMessage, callerNameOf, callersOf, callsOwedAnAnalysis, campaignLedger, campaignMonthSent, campaignSeries, campaignStuck, cancelBroadcastFrom, cancelSequenceBatch, chainDraftLoad, claimCallActivity, claimCallNotification, claimControl, claimDrafts, claimIdeas, claimIdempotencyKey, claimQueuedSend, claimReplyTell, claimReplyTurn, claimSends, claimVoiceTurn, clearForwardingConfirmation, closeMendedNotices, closedRunSends, connectMailbox, contactEmailOf, contactIdByEmail, contactIdByPhone, contactSeen, countSentToday, createList, createMessageVersion, createServiceClient, createWorkspaceFn, createWorkspaceForBusiness, declineHandover, declinePartnerInvite, declinePersonName, deleteList, deleteSecondFactor, deliveryOf, describeLead, discardSequence, dismissAppointmentNotice, dismissPersonDoubt, doubtOn, draftFactsOf, draftsWaiting, dropFromList, dropMailboxCredentials, dueCalendars, dueMailboxes, duePlaybooks, earlierVisitRows, emailOfferCounts, emailOffersPause, emailWordsByTemplate, emailWordsFrom, emailWordsOf, emitEvent, endMailboxSync, endVoiceSession, erasureDigests, eventOfDelivery, eventTold, everyoneIn, everyoneOnceIn, exportSectionPages, factCorrectionsBatch, factSuggestionById, factSuggestionsWaiting, failIdeas, failQueuedSend, failStrandedRun, failedMessageErrors, feedAdditionsWith, feedWordsOver, filedNamesOf, finishableRuns, firstReplies, followUpOnFile, followUpTouchesSince, followUpsDue, forgetActivityTokens, forgetEveryPhone, forgetNotification, getHandoverInvite, getMailboxCredentials, getOpenHandovers, getOwnPartner, getPartnerBalance, getPartnerBroughtCount, getPartnerHandovers, getPartnerInvitations, getPartnerInviteMail, getPartnerLetters, getPartnerWorkspaces, getPlatformPartners, getTenantConfig, getTenantConfigAsMember, getWorkspacePartner, handBackThread, handRun, hasNewerCopy, heldDraftsByIntent, heldMessageOf, heldNoticeDue, heldNoticeKeys, heldNoticesOf, heldStale, holdFactsOf, holdRecipients, holdTold, holdsReplyTurn, ideasBasis, ideasClockAndLanguage, ingestCall, ingestInbound, ingestInboundEmail, insertAppointment, insertQueuedEmail, insertVoiceSession, invitePartner, inviteUserByEmail, isMissingDoor, isWorkspaceCall, joinPersonToLead, keepAppointmentNotice, keepChannelQuality, keepChannelStanding, keepForwardingConfirmation, keepIdeas, keepIdempotencyReceipt, keepInvoiceAmount, keepMailboxWatch, keepMessageCost, keepModelTurn, keepProviderEvent, keptPersonOf, knownThreads, lastInboundEmail, lastOutboundEmailSubject, leadAddressBounced, leadAddresseeChoose, leadCardsLive, leadCompanyUpsert, leadCountriesOf, leadMemberLater, leadNamesByIds, leadPeopleSearchCreate, leadPileCounts, leadReplyFactsOf, leadSlotsOf, leadWritten, leadsBackToday, leavePersonLead, leaveSequence, lineForwardingSet, linkCallMessage, listMemberIds, listPolicies, listRow, listSecondFactors, liveMailboxByAddress, liveMailboxByWatch, logPersonCall, mailSent, mailboxById, mailboxCapacityFrom, mailboxCapacityOf, mailboxConnectionById, mailboxConnectionOf, mailboxConnectionsOf, mailboxCountsOf, mailboxFor, mailboxOfTenant, mailboxesToTend, makeSequence, markCalendarFeedKept, markContact, markHeldNotice, markPartnerPaid, markProcessed, markReplyDraft, markReplyTold, markVisit, markWaitlistInvited, memberAlertsOf, memberEmailOf, memberHasAddress, memberJoinedOf, memberViewsOf, memberWithdrawDrafts, memberWithdrawMessage, membersPushedFor, membershipCountOf, mergePeople, messageByExternalId, messageSenders, messageSlots, messageVersionRowsOf, migrationHead, momentSchedules, monthSent, moveSend, moveVoiceSessionContext, namedFetch, namesOfPeople, narrowedUpdates, notePageVitals, notedOver, notesForReceptionist, noticeFor, noticeKept, observeDb, offerLanguageOf, offersAnswerOf, offersEmailReach, olderUnreadFor, oldestActiveChannel, openBookingRequest, openConversation, openDoubtsOf, openEscalation, openRequestOfThread, optOutTold, ourLastWire, outreachFactsOf, outreachModeOf, ownAddressIn, ownLineOf, ownVersionsFiled, ownerSendFactsOf, pageSpeed, pageSpots, pageVitalsP75, parentEmailOf, patchMailboxConnection, pauseConversation, pauseEmailOffers, peopleAtLead, peopleCursorOf, peoplePage, peopleSeries, personDecisions, personExportPages, personFactsOf, personReplyMode, personReplyModes, personRow, platformDay, platformWide, playbookChannels, playbookForChange, playbookForChannels, playbookTotals, playbooksOnList, providerEventOf, publicWorkspaceBySlug, purgeAiUsage, pushNamesFor, putMailboxCredentials, putTenantConfig, queuedOutcomes, queuedRecipients, reachOutAdd, reachOutAudience, reachOutBookedFrom, reachOutChainPeople, reachOutChainTotals, reachOutDayDue, reachOutFedByOf, reachOutFollowers, reachOutLeaveOut, reachOutPeopleCounts, reachOutPerson, reachOutRecord, reachOutReplyOf, reachOutReport, reachOutRootOf, reachOutRunSendsOf, reachOutSendRefOf, reachOutSources, reachOutStepsOf, readAllRows, readAllRowsByKey, readDealForPhone, readIdeaHistory, readJobToRequeue, readLeadContext, readLeadOne, readThreadState, readVoiceSession, readVoiceSessionByConversation, recentTouches, receptionistSeries, recheckSends, recordActivation, recordCallNote, recordCarrierOptOut, recordCheck, recordConsent, recordDeal, recordEchoAndPause, recordEmailNo, recordEmailStatus, recordEvent, recordLateCarrierOptOut, recordModelUsage, recordOutbound, recordOver, recordPartnerSecondFactorReset, recordStatusByExternalId, recordSystemDecision, recordWhatsAppOffersStop, refreshWaitlistRow, relayEvents, releaseControl, releaseIdempotencyKey, releaseQueuedSend, releaseUnavailableHolds, removePlaybook, removeSequenceStep, removeTemplateVersion, renameList, repliedTo, repliesFor, replyReadingOf, replyReadingRefOf, replySaid, replyUndoableOf, reportSeries, resendHandover, resolveChannel, resolveChannelDetailed, resolveEscalationByReason, resolveOutboundTarget, resolveOutboundTargetForContact, resolvePerson, reviewLinkOf, reviewRowsByGoogleId, reviewsLedger, reviewsNamed, runCounts, runGoesByOthers, runHanded, runSending, runWaitingCounts, runningTwins, runsInSpan, runsNamed, runsWaitingOf, saveIdeasLine, saveReachOutChain, saveSequenceStep, saveTemplateVersion, savedListFor, savedListsFor, scrubModelTurns, scrubPersonNotes, scrubProviderEvents, searchMessages, searchesByIds, seePersonNote, sendJobScheduled, sendNow, sendSaid, sendStanding, sentEmailIdByMessageId, sentEmailOf, sentEmailWithMessageId, sequenceHistoryOf, sequenceOfPart, sequenceOverview, sequencePeopleOf, sequenceRow, sequenceStepsOf, sequencesOfPerson, sessionHoldsPartnerSeat, setCallRecording, setEmailOffersYes, setEmailUnsubscribed, setListRule, setMemberPushOff, setPartnerLetters, setPartnerStanding, setPartnerStatus, setPersonReplyMode, setPolicyMode, setSequenceStepWords, setTemplateQuality, setWorkspaceLogo, settleDelivery, signUpOnPublicKey, signersOf, staleSends, stampEmailComplaint, stampEmailFromMailbox, stampEmailLeftAs, stampEmailSent, stampHandled, stampMailboxReceived, stampPlaybooksTried, stampReachOutStep, startPlaybook, stopAllMessages, strandedRuns, stuckClaims, subjectsWith, subscribeWorkspaceChanges, subscriptionPaused, suggestFact, suppressEmailOf, syncFeedAppointments, takeCheckAttempt, takeIdempotencyKey, takeMailboxSync, takeOutOfSequence, takeOverThread, takeReplyRead, templateIdOf, templateSends, templateStatusOf, templatesFor, templatesNamed, templatesToSend, tenantDb, tenantZoneOf, textLineFacts, textReached, threadIdsWaitingOnYou, touchIndex, touchOfCall, touchesSince, twinTold, uncheckedSends, uncheckedWaiting, undoPersonName, undoReplyReading, unreadOfReaders, updateAppointment, updatePlaybook, usageMonth, visitsOver, waitingPlaybookRuns, waitingRunsOf, waitlistWaiting, watchedEvents, watchedTables, whatsappChannelFacts, whatsappLineOf, whatsappNumberOf, whatsappNumbersToRead, wireRowOf, withdrawAiDrafts, withdrawEmail, withdrawPartnerInvite, withdrawQueued, workspaceAbout, workspaceAnswersOnItsOwn, workspaceIdsOf, workspaceMaySpend, workspaceMayUseModels, workspaceNameAndConfig, workspaceNamed, workspaceOpenToCustomers, workspacePaused, workspacePublicSlug, workspaceZoneOf, writePlaybookChange, writtenEmail, writtenEmails, yesesSince };
+export { type ActivitySubject, type ActivitySubjects, type AiFailures, AnswerNotKept, type AppointmentInsert, type AppointmentNoticeInsert, type AppointmentNoticeRow, type AppointmentRow, type AppointmentSync, type AppointmentUpdate, type AssembleDecision, type AudienceLead, type BillingExpectation, type BillingPatch, type BookingRequestOpen, CALL_CONTROL_S, type CalledBack, type ChannelLookup, type ConnectRefusal, type ControlHolder, type ControlOutcome, type CreateWorkspaceArgs, DB_REQUEST_HEADER, DEFAULT_ROW_CAP, type Database, type DbLog, type DbObserver, type DbTouch, type DealMove, type DeliveredEvent, type DeliveryProvider, type DeliveryRow, type DoorResult, type DraftLoad, type DraftWaitingRow, type DueCalendar, type DueMailbox, type DuePage, type DueStep, ERASURE_LEGS, ERASURE_STRATEGIES, type EarlierVisitRow, type EmittedKind, type ErasureLeg, type ErasureStrategy, type EventData, type ExportPage, type ExportSectionPages, type FactCorrectionRow, type FactSuggestionRow, type FollowerLead, HISTORY_COLUMNS, type HandItem, type HandedBack, type HandoverInvite, type HandoverResult, type HandoverSent, type HandoverWorkspace, type HeldDraftsRow, type HeldNoticeMark, type HeldNoticeRun, IDS_PER_READ, type IdeasKept, type IdempotencyClaim, type IdempotencyHold, type InboundEmailFacts, type IngestCallResult, type IngestEmailParams, type IngestInboundParams, type IngestResult, type JobToRequeue, type Json, type KeptDelivery, type KeptDeliveryRow, type KeptNotice, type LateCarrierStop, type LeadContext, type LeadOneLead, type LeadOneMember, type LeadReplyFacts, type LineForwardingArgs, type ListRow, MAX_ROWS, type MailboxCapacity, type MailboxConnectionRow, type MailboxRow, type MemberAlertsRow, type MessageHit, type MessageInsert, type MessageSender, type MessageVariable, type MessageVersionRow, type MigrationHead, type ModelTurnKept, type MomentScheduleRow, type NewVoiceSession, type NormalizedCallInput, type OpenHandover, type OpenToCustomersRead, type OutboundTarget, type OutreachFactsRow, type OutreachMode, type OwnerSendFacts, PEOPLE_PAGE, PERSON_FORGOTTEN, type Page, type ParentEmail, type PartnerBalanceLine, type PartnerHandoverLine, type PartnerInvitation, type PartnerInviteMail, type PartnerInviteSent, type PartnerJoined, type PartnerOverviewRow, type PartnerPayoutAnswer, type PartnerPublicRow, type PartnerRow, type PartnerTenantRow, type PartnerVerbResult, type PartnerWorkspaceMoneyLine, type PeopleCursor, type PersonCallArgs, type PersonExportPages, type PersonForSend, type PersonNameAnswer, type PgThreadState, type PlatformDayPromises, type PlatformPartnerBalanceLine, type PlatformPartnerWorkspaceLine, type PlaybookPatch, type PlaybookToStart, type PolicyRecord, type PublicWorkspaceRead, type PutTenantConfigResult, type QueuedOutcome, type ReachOutAddAnswer, type ReachOutDayDue, type ReachOutRecordRow, type ReachOutReplyOf, type ReachOutRunSend, type ReachOutSaved, type ReachOutSendInsert, type ReachOutSendRow, type ReachOutStepRow, type ReplyListRow, type ReplyReadingRow, type ReplySaidAnswer, type ReportWindow, ReportWindowNotReadable, type ResolvePersonInput, type ResolvedPerson, type RoutedChannel, type SavedListRow, type SendSaidAnswer, type SendStanding, type SequenceDoorAnswer, type ServiceClientConfig, type SpanRunRow, type StrandedRun, type SubscribeOptions, type TakenOver, type TemplateRow, type TemplateToSend, type TenantConfigRow, type TenantDb, type ThreadTurn, type Touch, type TouchIndex, type UncheckedSend, type Unsubscribed, type UsageMonthRow, type VersionRef, type VoiceSessionRow, type WaitingPlaybookRun, type WaitingRunRow, type WhatsappNumber, type WhatsappNumberRow, type WithdrawReason, type WorkspacePartner, type WriteError, type WrittenEmail, type YesRow, acceptHandover, acceptPartnerInvite, activeWhatsappNumbers, activitySubjects, activityTokensOf, addPersonByHand, addPersonNote, addToList, addToWaitlist, addressesSuppressed, adoptPersonName, aiFailuresHour, answerBookingRequest, answerFactSuggestion, answeredReachOutEmail, applyBilling, applyReplyReading, appointmentByClientStart, appointmentByKey, appointmentNoticeById, appointmentNoticeOf, appointmentNoticesOf, appointmentStates, appointmentWorkspace, appointmentsBetween, appointmentsForClient, appointmentsScrub, approveBroadcast, archiveConversation, archiveList, assembleBroadcast, assembleHistory, becomePartner, bookedVisitsOf, businessOnRecordOf, callBackMessage, callerNameOf, callersOf, callsOwedAnAnalysis, campaignLedger, campaignMonthSent, campaignSeries, campaignStuck, cancelBroadcastFrom, cancelSequenceBatch, chainDraftLoad, claimCallActivity, claimCallNotification, claimControl, claimDrafts, claimIdeas, claimIdempotencyKey, claimQueuedSend, claimReplyTell, claimReplyTurn, claimSends, claimVoiceTurn, clearForwardingConfirmation, closeMendedNotices, closedRunSends, connectMailbox, contactEmailOf, contactIdByEmail, contactIdByPhone, contactSeen, countSentToday, createList, createMessageVersion, createServiceClient, createWorkspaceFn, createWorkspaceForBusiness, declineHandover, declinePartnerInvite, declinePersonName, deleteList, deleteSecondFactor, deliveryOf, describeLead, discardSequence, dismissAppointmentNotice, dismissPersonDoubt, doubtOn, draftFactsOf, draftsWaiting, dropFromList, dropMailboxCredentials, dueCalendars, dueMailboxes, duePlaybooks, earlierVisitRows, emailOfferCounts, emailOffersPause, emailWordsByTemplate, emailWordsFrom, emailWordsOf, emitEvent, endMailboxSync, endVoiceSession, erasureDigests, eventOfDelivery, eventTold, everyoneIn, everyoneOnceIn, exportSectionPages, factCorrectionsBatch, factSuggestionById, factSuggestionsWaiting, failIdeas, failQueuedSend, failStrandedRun, failedMessageErrors, feedAdditionsWith, feedWordsOver, filedNamesOf, finishableRuns, firstReplies, followUpOnFile, followUpTouchesSince, followUpsDue, forgetActivityTokens, forgetEveryPhone, forgetNotification, getHandoverInvite, getMailboxCredentials, getOpenHandovers, getOwnPartner, getPartnerBalance, getPartnerBroughtCount, getPartnerHandovers, getPartnerInvitations, getPartnerInviteMail, getPartnerLetters, getPartnerWorkspaces, getPlatformPartners, getTenantConfig, getTenantConfigAsMember, getWorkspacePartner, handBackThread, handRun, hasNewerCopy, heldDraftsByIntent, heldMessageOf, heldNoticeDue, heldNoticeKeys, heldNoticesOf, heldStale, holdFactsOf, holdRecipients, holdTold, holdsReplyTurn, ideasBasis, ideasClockAndLanguage, ingestCall, ingestInbound, ingestInboundEmail, insertAppointment, insertQueuedEmail, insertVoiceSession, invitePartner, inviteUserByEmail, isMissingDoor, isWorkspaceCall, joinPersonToLead, keepAppointmentNotice, keepChannelQuality, keepChannelStanding, keepForwardingConfirmation, keepIdeas, keepIdempotencyReceipt, keepInvoiceAmount, keepMailboxWatch, keepMessageCost, keepModelTurn, keepProviderEvent, keptPersonOf, knownThreads, lastInboundEmail, lastOutboundEmailSubject, leadAddressBounced, leadAddresseeChoose, leadCardsLive, leadCompanyUpsert, leadCountriesOf, leadMemberLater, leadNamesByIds, leadPeopleSearchCreate, leadPileCounts, leadRepliesOfBatches, leadReplyFactsOf, leadSlotsOf, leadWritten, leadsBackToday, leavePersonLead, leaveSequence, lineForwardingSet, linkCallMessage, listMemberIds, listPolicies, listRow, listSecondFactors, liveMailboxByAddress, liveMailboxByWatch, logPersonCall, mailSent, mailboxById, mailboxCapacityFrom, mailboxCapacityOf, mailboxConnectionById, mailboxConnectionOf, mailboxConnectionsOf, mailboxCountsOf, mailboxFor, mailboxOfTenant, mailboxesToTend, makeSequence, markCalendarFeedKept, markContact, markHeldNotice, markPartnerPaid, markProcessed, markReplyDraft, markReplyTold, markVisit, markWaitlistInvited, memberAlertsOf, memberEmailOf, memberHasAddress, memberJoinedOf, memberViewsOf, memberWithdrawDrafts, memberWithdrawMessage, membersPushedFor, membershipCountOf, mergePeople, messageByExternalId, messageSenders, messageSlots, messageVersionRowsOf, migrationHead, momentSchedules, monthSent, moveSend, moveVoiceSessionContext, namedFetch, namesOfPeople, narrowedUpdates, notePageVitals, notedOver, notesForReceptionist, noticeFor, noticeKept, observeDb, offerLanguageOf, offersAnswerOf, offersEmailReach, olderUnreadFor, oldestActiveChannel, openBookingRequest, openConversation, openDoubtsOf, openEscalation, openRequestOfThread, optOutTold, ourLastWire, outreachFactsOf, outreachModeOf, ownAddressIn, ownLineOf, ownVersionsFiled, ownerSendFactsOf, pageSpeed, pageSpots, pageVitalsP75, parentEmailOf, patchMailboxConnection, pauseConversation, pauseEmailOffers, peopleAtLead, peopleCursorOf, peoplePage, peopleSeries, personDecisions, personExportPages, personFactsOf, personReplyMode, personReplyModes, personRow, platformDay, platformWide, playbookChannels, playbookForChange, playbookForChannels, playbookTotals, playbooksOnList, providerEventOf, publicWorkspaceBySlug, purgeAiUsage, pushNamesFor, putBackInSequence, putMailboxCredentials, putTenantConfig, queuedOutcomes, queuedRecipients, reachOutAdd, reachOutAudience, reachOutBookedFrom, reachOutChainPeople, reachOutChainTotals, reachOutDayDue, reachOutFedByOf, reachOutFollowers, reachOutLeaveOut, reachOutPeopleCounts, reachOutPerson, reachOutRecord, reachOutReplyOf, reachOutReport, reachOutRootOf, reachOutRunSendsOf, reachOutSendRefOf, reachOutSources, reachOutStepsOf, readAllRows, readAllRowsByKey, readDealForPhone, readIdeaHistory, readJobToRequeue, readLeadContext, readLeadOne, readThreadState, readVoiceSession, readVoiceSessionByConversation, recentTouches, receptionistSeries, recheckSends, recordActivation, recordCallNote, recordCarrierOptOut, recordCheck, recordConsent, recordDeal, recordEchoAndPause, recordEmailNo, recordEmailStatus, recordEvent, recordLateCarrierOptOut, recordModelUsage, recordOutbound, recordOver, recordPartnerSecondFactorReset, recordStatusByExternalId, recordSystemDecision, recordWhatsAppOffersStop, refreshWaitlistRow, relayEvents, releaseControl, releaseIdempotencyKey, releaseQueuedSend, releaseUnavailableHolds, removePlaybook, removeSequenceStep, removeTemplateVersion, renameList, repliedTo, repliesFor, replyReadingOf, replyReadingRefOf, replySaid, replyUndoableOf, reportSeries, resendHandover, resolveChannel, resolveChannelDetailed, resolveEscalationByReason, resolveOutboundTarget, resolveOutboundTargetForContact, resolvePerson, reviewLinkOf, reviewRowsByGoogleId, reviewsLedger, reviewsNamed, runCounts, runGoesByOthers, runHanded, runSending, runWaitingCounts, runningTwins, runsInSpan, runsNamed, runsWaitingOf, saveIdeasLine, saveReachOutChain, saveSequenceStep, saveTemplateVersion, savedListFor, savedListsFor, scrubModelTurns, scrubPersonNotes, scrubProviderEvents, searchMessages, searchesByIds, seePersonNote, sendJobScheduled, sendNow, sendSaid, sendStanding, sentEmailIdByMessageId, sentEmailOf, sentEmailWithMessageId, sequenceHistoryOf, sequenceOfPart, sequenceOverview, sequencePeopleOf, sequenceRow, sequenceStepsOf, sequencesOfPerson, sessionHoldsPartnerSeat, setCallRecording, setEmailOffersYes, setEmailUnsubscribed, setListRule, setMemberPushOff, setPartnerLetters, setPartnerStanding, setPartnerStatus, setPersonReplyMode, setPolicyMode, setSequenceStepWords, setTemplateQuality, setWorkspaceLogo, settleDelivery, signUpOnPublicKey, signersOf, staleSends, stampEmailComplaint, stampEmailFromMailbox, stampEmailLeftAs, stampEmailSent, stampHandled, stampMailboxReceived, stampPlaybooksTried, stampReachOutStep, startPlaybook, stopAllMessages, strandedRuns, stuckClaims, subjectsWith, subscribeWorkspaceChanges, subscriptionPaused, suggestFact, suppressEmailOf, syncFeedAppointments, takeCheckAttempt, takeIdempotencyKey, takeMailboxSync, takeOutOfSequence, takeOverThread, takeReplyRead, templateIdOf, templateSends, templateStatusOf, templatesFor, templatesNamed, templatesToSend, tenantDb, tenantZoneOf, textLineFacts, textReached, threadIdsWaitingOnYou, touchIndex, touchOfCall, touchesSince, twinTold, uncheckedSends, uncheckedWaiting, undoPersonName, undoReplyReading, unreadOfReaders, updateAppointment, updatePlaybook, usageMonth, visitsOver, waitingPlaybookRuns, waitingRunsOf, waitlistWaiting, watchedEvents, watchedTables, whatsappChannelFacts, whatsappLineOf, whatsappNumberOf, whatsappNumbersToRead, wireRowOf, withdrawAiDrafts, withdrawEmail, withdrawPartnerInvite, withdrawQueued, workspaceAbout, workspaceAnswersOnItsOwn, workspaceIdsOf, workspaceMaySpend, workspaceMayUseModels, workspaceNameAndConfig, workspaceNamed, workspaceOpenToCustomers, workspacePaused, workspacePublicSlug, workspaceZoneOf, writePlaybookChange, writtenEmail, writtenEmails, yesesSince };

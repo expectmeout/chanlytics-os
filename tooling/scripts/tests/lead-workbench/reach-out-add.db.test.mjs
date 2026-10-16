@@ -127,7 +127,7 @@ const search = (name, asked, via = "people") =>
   one(db.from("lead_searches").insert({ tenant_id: A, via, card: "local_businesses", name, asked, plan: {} }));
 const chain = (searchId, name) =>
   one(
-    db.from("playbooks").insert({
+    db.from("sequence_steps").insert({
       tenant_id: A,
       kind: "reach_out",
       name,
@@ -175,7 +175,7 @@ async function planRun(root, searchId, runFor, sends, state = "pending_approval"
   return id;
 }
 const sendsOf = async (runId) =>
-  ok(await db.from("reach_out_sends").select("id, lead_id, state, reason").eq("broadcast_id", runId));
+  ok(await db.from("sequence_sends").select("id, lead_id, state, reason").eq("batch_id", runId));
 const whyNot = async (ids) =>
   Object.fromEntries(
     ok(await db.rpc("reach_out_why_not", { p_tenant_id: A, p_lead_ids: ids })).map((r) => [r.lead_id, r.why]),
@@ -522,9 +522,9 @@ test(
     const move = async (state, over = {}) =>
       ok(
         await db
-          .from("reach_out_sends")
+          .from("sequence_sends")
           .update({ state, ...over })
-          .eq("broadcast_id", run)
+          .eq("batch_id", run)
           .eq("lead_id", ly),
       );
     await move("claimed", { checked_at: new Date().toISOString() });
@@ -591,12 +591,12 @@ test(
     const add = ok(await as.operator.c.rpc("reach_out_add", { p_root_id: W.RL, p_lead_ids: [W.l11] }));
     const sendId = crypto.randomUUID();
     ok(
-      await db.from("reach_out_sends").insert({
+      await db.from("sequence_sends").insert({
         id: sendId,
         tenant_id: A,
-        broadcast_id: tomorrow,
-        playbook_id: W.RL,
-        root_id: W.RL,
+        batch_id: tomorrow,
+        step_id: W.RL,
+        sequence_id: W.RL,
         lead_id: W.l11,
         state: "queued",
         send_at: new Date().toISOString(),
@@ -607,7 +607,7 @@ test(
       leaving: 1,
       sent: 0,
     });
-    ok(await db.from("reach_out_sends").update({ state: "sent", sent_at: new Date().toISOString() }).eq("id", sendId));
+    ok(await db.from("sequence_sends").update({ state: "sent", sent_at: new Date().toISOString() }).eq("id", sendId));
     assert.deepEqual(ok(await as.operator.c.rpc("lead_undo", { p_op_id: add.op_id, p_version: 1 })), {
       error: "sent",
       leaving: 0,
@@ -642,7 +642,7 @@ test(
     );
 
     const rows = ok(
-      await db.rpc("reach_out_unchecked", { p_limit: 20, p_per_workspace: 20, p_ahead_minutes: 2880, p_tenant_id: A }),
+      await db.rpc("sequence_unchecked", { p_limit: 20, p_per_workspace: 20, p_ahead_minutes: 2880, p_tenant_id: A }),
     );
     const l1 = rows.find((r) => r.send.lead_id === W.l1);
     assert.ok(l1, "tomorrow's planned send is read by the check");
@@ -669,7 +669,7 @@ test("the doors are a signed-in member's; the predicate, the lines and the recor
     why: "reach_out_why_not(uuid, uuid[], boolean)",
     lines: "reach_out_root_lines(uuid, uuid)",
     record: "reach_out_record(uuid, uuid, uuid)",
-    unchecked: "reach_out_unchecked(integer, integer, integer, uuid)",
+    unchecked: "sequence_unchecked(integer, integer, integer, uuid)",
     rule: "reach_out_people_of(uuid, uuid)",
   };
   const cols = [

@@ -10,6 +10,10 @@
  * when the editor opens again, as the template composer's do (the unsaved-work rule); Cancel asks first when something
  * was written.
  *
+ * Ask's two changes stand under the words (the canvas's step editor): Warmer and Shorter write them again, every value
+ * kept (POST templates/versions/rewrite), into the boxes as if typed, so the check reads them and Save stays the person's;
+ * Undo puts back the words they replaced.
+ *
  * A reach-out's email is written here too (step 5): the same editor over its own slot set (six named slots) and its own
  * rules (`rules`: a subject only on the first step, the cold email's limits, its own sentences), the one check and the one
  * preview reading both.
@@ -20,12 +24,14 @@ import type { EmailRules, OwnVersionChannel, SlotSet, SlotValue, VersionWords } 
 import type { ApiResult } from "@/client/api";
 import { gate } from "../../legacy-verbs";
 import { Button } from "../../kit/button/button";
+import { LinkButton } from "../../kit/link-button/link-button";
 import { FieldError } from "../../kit/field-error/field-error";
 import { UnsavedAsk, tabDraft, useUnsavedWork } from "../../kit/record/work";
 import { useSlotSeats } from "./slots/slot-seats";
 import type { BoxName } from "./slots/slot-seats";
 import { ValuesMenu, WordsField } from "./slots/words-field";
 import { VersionPreview } from "./version-preview";
+import { templates as templateVerbs } from "./verbs";
 import type { VersionDraft } from "./verbs";
 import { TPL_VERSION_WORDS as WORDS } from "./words";
 
@@ -112,7 +118,18 @@ export function VersionEditor(p: VersionEditorProps) {
     setSaving(false);
     setProblem(r ? r.message : null);
   };
-  const box = { slots, readOnly: saving, seats };
+  /**
+   * The words in the boxes as if typed: each box drawn again with them (the seats' put, which keeps its undo), so the
+   * check reads them, and a composer holding them is told them whole.
+   */
+  const put = (words: VersionWords) => {
+    const subjectNow = words.subject ?? "";
+    if (hasSubject) seats.put("subject", { text: subjectNow, caret: subjectNow.length });
+    seats.put("body", { text: words.body, caret: words.body.length });
+    within?.onWords({ subject: hasSubject ? subjectNow : null, body: words.body });
+  };
+  const ask = useAskRewrite({ channel, language, written, saving, put, onProblem: setProblem });
+  const box = { slots, readOnly: saving || ask.asking !== null, seats };
   return (
     <div className="tpl-ver-edit" data-testid="template-version-editor" data-channel={channel}>
       <div className="tpl-ver-split">
@@ -142,6 +159,7 @@ export function VersionEditor(p: VersionEditorProps) {
               <ValuesMenu channel={channel} slots={slots} values={values} onPick={seats.add} />
             </div>
           ) : null}
+          <RewriteLine ask={ask} disabled={saving || busy} />
         </div>
         <div className="tpl-ver-see">
           <p className="tpl-ver-caption">{WORDS.previewCaption}</p>
@@ -185,5 +203,71 @@ export function VersionEditor(p: VersionEditorProps) {
         )}
       </div>
     </div>
+  );
+}
+
+type Tone = "warmer" | "shorter";
+
+/**
+ * Ask writing the words again (Warmer, Shorter): the words in the boxes sent, every value kept (POST
+ * templates/versions/rewrite), and put back into the boxes as if typed; the words they replaced kept for Undo. A refusal
+ * is said where the check's sentence is.
+ */
+function useAskRewrite(o: {
+  channel: OwnVersionChannel;
+  language: string;
+  written: VersionWords;
+  saving: boolean;
+  put: (words: VersionWords) => void;
+  onProblem: (message: string) => void;
+}) {
+  const [asking, setAsking] = useState<Tone | null>(null);
+  const [before, setBefore] = useState<VersionWords | null>(null);
+  const rewrite = async (tone: Tone) => {
+    if (asking || o.saving || !o.written.body.trim()) return;
+    setAsking(tone);
+    const was = o.written;
+    const r = await templateVerbs
+      .rewrite({ channel: o.channel, language: o.language, subject: was.subject, body: was.body, tone })
+      .catch(() => ({ ok: false as const, message: WORDS.saveFailed }));
+    setAsking(null);
+    if (!r.ok) {
+      o.onProblem(r.message);
+      return;
+    }
+    setBefore(was);
+    o.put({ subject: r.data.subject, body: r.data.body });
+  };
+  const undo = () => {
+    if (!before) return;
+    o.put(before);
+    setBefore(null);
+  };
+  return { asking, canUndo: before !== null, rewrite, undo };
+}
+
+/** Ask's two changes under the words, and the Undo of the last: one quiet line of presses. */
+function RewriteLine({ ask, disabled }: { ask: ReturnType<typeof useAskRewrite>; disabled: boolean }) {
+  return (
+    <p className="tpl-ver-ask" data-testid="template-version-ask">
+      <span>{WORDS.ask}</span>
+      {(["warmer", "shorter"] as const).map((tone) => (
+        <LinkButton
+          key={tone}
+          onClick={() => void ask.rewrite(tone)}
+          disabled={ask.asking !== null || disabled}
+          aria-busy={ask.asking === tone}
+          data-testid={`template-version-${tone}`}
+          {...gate("approve", "ask for new words")}
+        >
+          {ask.asking === tone ? WORDS.asking : WORDS[tone]}
+        </LinkButton>
+      ))}
+      {ask.canUndo ? (
+        <LinkButton onClick={ask.undo} data-testid="template-version-undo">
+          {WORDS.undo}
+        </LinkButton>
+      ) : null}
+    </p>
   );
 }

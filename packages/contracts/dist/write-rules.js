@@ -392,8 +392,6 @@ var FeaturesConfigSchema = z3.object({
   vision: z3.boolean().optional(),
   /** Campaigns › Ads, its sample drawn in this workspace as a demo session draws it (contracts ads/address.ts). */
   ads_preview: z3.boolean().optional(),
-  /** Campaigns › Sequences (decision 0060), drawn in this workspace before it replaces the home (contracts sequences). */
-  sequences_preview: z3.boolean().optional(),
   /**
    * Booking requests (decision 0061): where the team confirms its own bookings, a time a customer picks by text is held
    * for the owner as a request (Booked it or Can't). Off, the conversation is a person's to read, as before.

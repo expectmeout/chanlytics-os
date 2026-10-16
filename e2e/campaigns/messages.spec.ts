@@ -1,8 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { signIn, HAVE_SESSION, WHY_SKIPPED } from "../session";
 import { dealsAreOn, startersOffered } from "../../packages/contracts/src/index";
-import { HOME_GIVES_WAY, sequencesShownIn } from "./shown";
-import { atRoute, routeOf } from "../address";
 import { apiGet } from "../workspace";
 import { libraryRows, messagesOf, type TemplatesRead } from "./offered";
 
@@ -11,21 +9,14 @@ async function expectRoomNamed(page: Page, name: string) {
   await expect(page.locator(".pg-head .pg-title")).toHaveText(name);
 }
 
-/** A room's way back to Campaigns' home, which every room has: the head's "‹ Campaigns". */
-async function backToCampaigns(page: Page) {
-  const back = page.locator(".pg-back");
-  await expect(back).toContainText("Campaigns");
-  await back.click();
-}
-
 /**
- * Campaigns › Library (the Templates page, a room of Campaigns' home), on a real workspace: one row per message, whatever
- * channels it has a version on, opening beside the list on the bubble the customer sees with its languages, reached from
- * the home, and never Meta's sample. A message needs no WhatsApp row and the page needs no WhatsApp number: the starter
+ * Campaigns › Messages (the Templates page; decision 0060, D4: it was the Library), on a real workspace: one row per message,
+ * whatever channels it has a version on, opening beside the list on the bubble the customer sees with its languages, in
+ * Campaigns' strip beside Sequences, and never Meta's sample. A message needs no WhatsApp row and the page needs no WhatsApp number: the starter
  * set is offered, a new message is written, and a quiet line says where the number is missing. Read-only except for
  * opening the composer and a message's menu; nothing here submits, hides or deletes a message.
  */
-test.describe("The Library on a real workspace", () => {
+test.describe("Messages on a real workspace", () => {
   test.skip(!HAVE_SESSION, WHY_SKIPPED);
   test.beforeEach(async ({ page }) => {
     await signIn(page);
@@ -38,9 +29,10 @@ test.describe("The Library on a real workspace", () => {
     await page.waitForLoadState("networkidle");
     const real = page.getByTestId("messages-real");
     await expect(real).toBeVisible();
-    // No strip of tabs: the Library is a room of the home, and its head says so.
-    await expect(page.locator(".stabs-campaigns")).toHaveCount(0);
-    await expectRoomNamed(page, "Library");
+    // Campaigns' strip, Sequences | Messages, with this one lit, and its head says so.
+    await expect(page.getByTestId("campaigns-view-messages")).toHaveAttribute("aria-current", "page");
+    await expect(page.getByTestId("campaigns-view-sequences")).toBeVisible();
+    await expectRoomNamed(page, "Messages");
 
     const [res, ch] = await Promise.all([apiGet(page, "/api/v1/templates?all=1"), apiGet(page, "/api/v1/channels")]);
     expect(res.status()).toBe(200);
@@ -125,87 +117,5 @@ test.describe("The Library on a real workspace", () => {
     }
     await real.getByTestId("tpl-close").click();
     await expect(real.getByTestId("messages-composer")).toHaveCount(0);
-  });
-
-  test("Campaigns is one home with two rooms: the Library and Sent are reached from it, and each goes back to it", async ({
-    page,
-  }) => {
-    test.skip(await sequencesShownIn(page), HOME_GIVES_WAY);
-    await page.goto("/#/campaigns");
-    await page.waitForLoadState("networkidle");
-    await expect(page.getByTestId("campaigns-home")).toBeVisible();
-    // No strip of tabs: the three doors of the old strip are the home, and its two rooms.
-    await expect(page.locator(".stabs-campaigns")).toHaveCount(0);
-    // The route is still `messages`: only what a person reads changed.
-    await page.getByTestId("cmh-library").click();
-    await expect(page).toHaveURL(atRoute(/^messages/));
-    await expect(page.getByTestId("messages-real")).toBeVisible();
-    // Every room's way back, Campaigns, goes to the home.
-    await backToCampaigns(page);
-    await expect(page).toHaveURL(atRoute(/^campaigns$/));
-    await expect(page.getByTestId("campaigns-home")).toBeVisible();
-    // Sent is the Broadcasts page: its runs, one press from "What came back".
-    await page.goto("/#/broadcasts");
-    await expect(page.getByTestId("broadcasts-real")).toBeVisible();
-    await expect(page.locator(".stabs-campaigns")).toHaveCount(0);
-    await expectRoomNamed(page, "Sent");
-    await backToCampaigns(page);
-    await expect(page).toHaveURL(atRoute(/^campaigns$/));
-  });
-
-  /**
-   * Campaigns are three pages of their own (decision 0015, step 7): App Router pages at /w/<slug>/campaigns, /w/<slug>/broadcasts
-   * and /w/<slug>/templates, the frame around each. The path says the product's word where the shell's route says another
-   * (`messages`), and the old names, in a path and in a hash, move for ever: the Library to its word, and the old Playbooks
-   * list (`outbound`, `playbooks`) to the home.
-   */
-  test("Campaigns are pages of their own on their paths: each boots there, the old names move, and the router walks them", async ({
-    page,
-  }) => {
-    test.skip(await sequencesShownIn(page), HOME_GIVES_WAY);
-    await page.goto("/");
-    await page.waitForURL(/\/w\/[^/?#]+/, { timeout: 30_000 });
-    const slug = /\/w\/([^/?#]+)/.exec(new URL(page.url()).pathname)?.[1];
-    if (!slug) throw new Error(`the home sent this tab somewhere with no workspace in it: ${page.url()}`);
-    const pages = [
-      ["campaigns", "campaigns", "campaigns-home"],
-      ["broadcasts", "broadcasts", "broadcasts-real"],
-      ["templates", "messages", "messages-real"],
-    ] as const;
-
-    // A load of each path boots the frame with Campaigns lit and the page drawn inside it.
-    for (const [word, route, testid] of pages) {
-      await page.goto("/api/version");
-      await page.goto(`/w/${slug}/${word}`);
-      await expect(page.getByTestId("sidebar")).toBeVisible({ timeout: 30_000 });
-      await expect(page.locator('.nav-item[aria-current="page"]')).toContainText("Campaigns");
-      await expect(page.getByTestId(testid)).toBeVisible();
-      expect(routeOf(page.url())).toBe(route);
-    }
-
-    // The old names still land, and move to the word: a path, and a hash.
-    await page.goto(`/w/${slug}/outbound`);
-    await expect.poll(() => new URL(page.url()).pathname).toBe(`/w/${slug}/campaigns`);
-    await expect(page.getByTestId("campaigns-home")).toBeVisible();
-    await page.goto(`/w/${slug}/playbooks`);
-    await expect.poll(() => new URL(page.url()).pathname).toBe(`/w/${slug}/campaigns`);
-    await page.goto(`/w/${slug}#/messages`);
-    await expect.poll(() => new URL(page.url()).pathname).toBe(`/w/${slug}/templates`);
-    await expect(page.getByTestId("messages-real")).toBeVisible();
-
-    // A move from the home to a room walks the router, and Back lands on the page before it.
-    await page.goto(`/w/${slug}/campaigns`);
-    await expect(page.getByTestId("campaigns-home")).toBeVisible();
-    await page.getByTestId("cmh-library").click();
-    await expect.poll(() => new URL(page.url()).pathname).toBe(`/w/${slug}/templates`);
-    await expect(page.getByTestId("messages-real")).toBeVisible();
-    await page.goBack();
-    await expect.poll(() => new URL(page.url()).pathname).toBe(`/w/${slug}/campaigns`);
-    await expect(page.getByTestId("campaigns-home")).toBeVisible();
-
-    // Templates has one address: an address under it is not a page of Campaigns.
-    await page.goto(`/w/${slug}/templates/anything`);
-    await expect(page.getByTestId("sidebar")).toBeVisible({ timeout: 30_000 });
-    await expect(page.getByTestId("messages-real")).toHaveCount(0);
   });
 });

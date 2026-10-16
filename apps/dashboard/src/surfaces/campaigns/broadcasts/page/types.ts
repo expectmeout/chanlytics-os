@@ -140,10 +140,6 @@ export interface BcBase {
   work: UnsavedWork;
   who: number;
   setWho: Setter<number>;
-  origin: string | null;
-  setOrigin: Setter<string | null>;
-  band: string | null;
-  setBand: Setter<string | null>;
   now: number;
   armed: boolean;
   setArmed: Setter<boolean>;
@@ -152,6 +148,8 @@ export interface BcBase {
   openRun: (id: string | null, keep?: boolean) => void;
   yesOpen: boolean;
   setYesOpen: Setter<boolean>;
+  /** Get their yes's pane closed, onto Sequences. */
+  closeYes: () => void;
   yesDoor: ReactNode;
   /** The same door as a link on its own, for the fold under "Who's held back" (state.tsx useBcYes). */
   yesLink: ReactNode;
@@ -286,21 +284,14 @@ export interface BcSendActs {
   addStarters: () => Promise<void>;
 }
 
-/** The ledger's runs: what is open, what went, the list under the band, and the run the address opens. */
-export interface BcLedgerOf {
+/** The runs a sheet reads: every run, those still to go out in their order, and the run the address opens. */
+export interface BcRunsOf {
   rows: BroadcastVM[];
-  open: BroadcastVM[];
-  history: BroadcastVM[];
-  shownHistory: BroadcastVM[];
   openRows: BroadcastVM[];
-  recent: BroadcastVM[];
-  runs: BroadcastVM[];
-  sentN: number;
-  runCard: (row: BroadcastVM) => ReactNode;
   openRow: BroadcastVM | null;
 }
 
-/** Everything the send screen and the ledger read, as the page has worked it out by the time it draws. */
+/** Everything the send screen and Sent's sheets read, as the page has worked it out by the time it draws. */
 export type BcV = BcBase &
   BcReach &
   BcSlotChoices &
@@ -310,7 +301,7 @@ export type BcV = BcBase &
   BcApproving &
   BcRunActs &
   BcSendActs &
-  BcLedgerOf & {
+  BcRunsOf & {
     sheetFor: (row: BroadcastVM | null) => BcSheet | null;
     againFor: (b: BroadcastDto) => ReactNode;
   };

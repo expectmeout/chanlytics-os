@@ -403,3 +403,20 @@ export function versionsOf<T extends { name: string; channel: string }>(
  * its WhatsApp people until it is approved). What a plan reuses a message by (contracts ask/plan.ts, journey-plan.ts).
  */
 export const LIVE_VERSION_STATES: ReadonlySet<string> = new Set(["approved", "pending"]);
+
+/** Each `{{…}}` a version's words hold, sorted: what a rewrite of them must keep, one for one. */
+const valuesHeld = (w: { subject: string | null; body: string }): string[] =>
+  [...`${w.subject ?? ""} ${w.body}`.matchAll(/\{\{[^{}]+\}\}/g)].map((m) => m[0]).sort();
+
+/**
+ * Whether words written again keep every value the words before held (`{{1}}`, a reach-out's `{{opening}}`): the same
+ * ones, none dropped, none added, the subject's counted with the body's. What Ask's Warmer and Shorter are held to.
+ */
+export function keepsValues(
+  before: { subject: string | null; body: string },
+  after: { subject: string | null; body: string },
+): boolean {
+  const a = valuesHeld(before);
+  const b = valuesHeld(after);
+  return a.length === b.length && a.every((x, i) => x === b[i]);
+}

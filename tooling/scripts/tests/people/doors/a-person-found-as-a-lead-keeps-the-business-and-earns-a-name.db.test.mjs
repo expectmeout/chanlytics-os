@@ -67,7 +67,7 @@ const contactRow = async (id) =>
 const replyRow = async (messageId) =>
   ok(
     await db
-      .from("reach_out_replies")
+      .from("sequence_replies")
       .select("signer_name, signer_state, signer_was, signer_settled_at, signer_settled_by")
       .eq("message_id", messageId)
       .single(),
@@ -104,7 +104,7 @@ async function signedReply(writer, signer, { lead = null, leadPerson = writer } 
     "message",
   );
   ok(
-    await db.from("reach_out_replies").insert({
+    await db.from("sequence_replies").insert({
       message_id: message,
       tenant_id: tenantId,
       conversation_id: thread,

@@ -6,18 +6,19 @@
  * name, commit-then-Undo, and nothing at all on the most destructive act on
  * Settings -- removing a teammate fired straight from a menu item (the
  * audit's D13). One primitive now (the kit's Confirm, surfaces/kit/confirm),
- * pure, so every harness draws it. Run here: its shape, then the three doors
- * the audit named -- the Team row, a broadcast's stop, a playbook's delete --
- * each mounted over a fake React and pressed.
+ * pure, so every harness draws it. Run here: its shape, then the doors the
+ * audit named that stand -- the Team row and a broadcast's stop (a playbook's
+ * delete went with its card, decision 0060's S6) -- each mounted over a fake
+ * React and pressed.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { stateOf } from "@chanlytics/contracts";
-import { installLegacyReact, fresh, again, find, byTestId, textOf, classes, settle } from "../_legacy-react.mjs";
+import { installLegacyReact, fresh, again, find, byTestId, textOf, classes } from "../_legacy-react.mjs";
 
 /* ------------------------------ the harness ------------------------------ */
 
-const calls = { flash: [], remove: [], cancel: [], arm: [], pbRemove: [], nav: [] };
+const calls = { flash: [], remove: [], cancel: [], arm: [], nav: [] };
 installLegacyReact({
   StatStrip: "StatStrip",
   StatCell: "StatCell",
@@ -45,28 +46,7 @@ await import(`${S}/legacy/components/data-bits.jsx`);
 const { Confirm, MoreMenu } = globalThis;
 // The Broadcasts and Playbooks pages are TSX (decision 0015): their verbs are imported, and their surfaces are the seam's.
 const { BcRunVerbs } = await import(`${S}/surfaces/campaigns/broadcasts/run.tsx`);
-const { BcRunCard } = await import(`${S}/surfaces/campaigns/broadcasts/ledger.tsx`);
-const { PlaybookPane } = await import(`${S}/surfaces/campaigns/playbooks/card-detail.tsx`);
-const { Menu } = await import(`${S}/surfaces/kit/menu/menu.tsx`);
-/** The kit menu's item by its words (the ⋯ beside Pause and Edit, where Run now and Delete live): what a press does. */
-const moreItem = (tree, label) => {
-  const menu = find(tree, (n) => n.type === Menu);
-  const item = menu && menu.props.groups.flatMap((g) => g.items || []).find((i) => i.label === label);
-  assert.ok(item, `the ⋯ menu offers ${label}`);
-  return item;
-};
-const { playbooks } = await import(`${S}/surfaces/campaigns/playbooks/verbs.ts`);
 const { setSurfaceValue } = await import(`${S}/surfaces/surface-values.ts`);
-setSurfaceValue("playbooks", {
-  rows: [],
-  triggers: [],
-  // How the business works (the surface's shape, 9 Oct 2026), which the playbook's drawer says its word from.
-  shape: { calendar: "none", dealsOn: false, word: "appointment" },
-});
-playbooks.remove = async (id) => {
-  calls.pbRemove.push(id);
-  return { ok: true, data: {} };
-};
 // The broadcast's own door, as the run's verbs are handed it.
 const cancelBroadcast = async (id) => {
   calls.cancel.push(id);
@@ -309,7 +289,7 @@ test("revoking an invitation asks in its own words", () => {
 
 /* ------------------- Broadcasts: three verbs, each armed ------------------ */
 
-// The run's card on the ledger (BcRunCard, ledger.tsx), where the stop now lives.
+// A run as its report's verbs read it (BcRunVerbs, run.tsx), where the stop lives.
 const broadcast = (state) => ({
   id: `b-${state}`,
   name: "September offer",
@@ -363,83 +343,6 @@ test("a broadcast's stop is armed and named for what it does: Stop a send, Skip 
   await byTestId(draw("sending", true), "bc-stop-yes").props.onClick();
   assert.deepEqual(calls.cancel, ["b-sending"]);
   assert.equal(byTestId(draw("sending", false, false), "bc-stop"), null, "a viewer has no stop to arm");
-  // On the ledger only a run waiting on the owner carries its acts -- Approve, and Skip armed the same way, on its
-  // row. A run to come or going out is cancelled or stopped from its report (23 Sep, Campaigns made compact).
-  const row = (state, armed = false) =>
-    again(() =>
-      BcRunCard({
-        row: broadcast(state),
-        now: Date.now(),
-        canSend: true,
-        onOpen() {},
-        armed,
-        onArm: (on) => calls.arm.push(on),
-        stopping: false,
-        approve() {},
-        cancel() {},
-      }),
-    );
-  assert.ok(
-    byTestId(row("pending_approval"), "bc-approve"),
-    "unarmed, a run waiting for approval still offers Approve",
-  );
-  assert.equal(textOf(byTestId(row("pending_approval"), "bc-stop")), "Skip");
-  assert.ok(textOf(byTestId(row("pending_approval", true), "bc-stop-confirm")).includes("Skip September offer?"));
-  for (const state of ["sending", "scheduled"]) {
-    assert.equal(byTestId(row(state), "bc-stop"), null, `${state}: its stop is its report's`);
-  }
-});
-
-/* ---------------- Playbooks: the delete that was two clicks --------------- */
-
-const playbook = {
-  id: "pb-1",
-  name: "Win-back",
-  state: "running",
-  trigger: "winback",
-  triggerLabel: "Quiet 30 days",
-  triggerHint: "",
-  schedule: "daily at 10:00 AM",
-  next: "tomorrow 10:00 AM",
-  policy_class: "marketing",
-  template_name: "winback_offer",
-  template_language: "en_US",
-  candidates: 3,
-  last_run_for: null,
-  totals: { waiting: null, runs: 2, sent: 10, delivered: 9, replied: 1, held: 0, history: [] },
-};
-
-test("a playbook's delete asks through the one Confirm -- it used to relabel its own button and fire on the second click", async () => {
-  fresh();
-  const draw = () => again(() => PlaybookPane({ p: playbook, canAct: true, onEdit() {}, flash, onClose() {} }));
-  let tree = draw();
-  // Delete is the kit menu's red item, behind the ⋯ beside Pause and Edit (it was a red button among four).
-  const del = moreItem(tree, "Delete…");
-  assert.equal(del.tone, "danger");
-  del.onSelect();
-  assert.deepEqual(calls.pbRemove, [], "the first press arms");
-  tree = draw();
-  assert.equal(
-    find(tree, (n) => n.type === Menu),
-    null,
-    "the menu gives way to the question",
-  );
-  const ask = byTestId(tree, "pb-delete-confirm");
-  assert.ok(ask);
-  assert.ok(textOf(ask).includes("Delete Win-back?") && textOf(ask).includes("Its runs stay in Sent"), textOf(ask));
-  byTestId(tree, "pb-delete-no").props.onClick();
-  tree = draw();
-  assert.ok(
-    find(tree, (n) => n.type === Menu),
-    "No brings the menu back",
-  );
-  moreItem(tree, "Delete…").onSelect();
-  tree = draw();
-  await byTestId(tree, "pb-delete-yes").props.onClick();
-  // Said once the server has taken it and the rows are read again (card-detail.tsx `remove`): after the drawer closes.
-  await settle();
-  assert.deepEqual(calls.pbRemove, ["pb-1"]);
-  tree = draw();
-  assert.equal(byTestId(tree, "pb-delete-confirm"), null, "disarmed after the act");
-  assert.ok(textOf(calls.flash.at(-1).msg).includes("deleted"));
+  // Unarmed, a run waiting for approval offers Approve beside its Skip.
+  assert.ok(byTestId(draw("pending_approval", false), "bc-approve"));
 });

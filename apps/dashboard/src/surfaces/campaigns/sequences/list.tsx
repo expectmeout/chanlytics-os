@@ -3,7 +3,9 @@
  * you first, then your customers, leads and dates, contracts SEQUENCE_GROUPS), each a row with its kind's glyph, its name,
  * its state's pill and its line, narrowed by a search and a filter (all, what needs you, what is off). A row opens its
  * record beside the list. Every word is contracts' (sequence-words.ts); the list composes them. On a phone the search
- * takes the line and New is a round + beside it, a thumb's size, as a phone's list draws its one act.
+ * takes the line and New is a round + beside it, a thumb's size, as a phone's list draws its one act. First contact is no
+ * sequence (D7: the receptionist leaves the list): one line at the foot of Your customers says so and opens its settings,
+ * under All with nothing searched, since it neither needs you nor pauses.
  */
 import { useMemo, useState } from "react";
 import {
@@ -139,6 +141,15 @@ export function SequencesList({ page, openId }: SequencesListProps) {
                 {...routeDoor(sequenceRoute(row.id))}
               />
             ))}
+            {group === "customers" && filter === "all" && words === "" ? (
+              <ListRow
+                mark={<Icon name="chat" size={13} />}
+                name={SEQUENCE_WORDS.receptionist}
+                end={(place) => <Icon name="chevron" size={11} className={place} />}
+                data-testid="sq-receptionist"
+                {...routeDoor(SEQUENCE_WORDS.receptionistRoute)}
+              />
+            ) : null}
           </section>
         ))}
       </div>

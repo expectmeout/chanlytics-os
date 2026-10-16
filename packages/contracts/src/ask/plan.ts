@@ -303,7 +303,7 @@ export const PLAN_WORDS = {
   stepChangeOnly: (n: number): string =>
     `A change to the campaign made by step ${n} takes state paused, params or until: the rest is the step's own to say.`,
   why: {
-    message: "No message in the Library carries an offer on every channel this one goes by.",
+    message: "None of your messages carries an offer on every channel this one goes by.",
     // What the note does, never what the receptionist will say of it: a discount in a reply is a person's whatever the
     // price switch says (decision 0051, price-allowance.ts), so the reply that names it may be held for one.
     note: "So the receptionist knows the offer and when it runs.",

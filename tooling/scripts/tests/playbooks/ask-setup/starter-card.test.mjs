@@ -366,7 +366,7 @@ test("a starter the workspace hid is never added back, and the card says it is h
   assert.ok(said(hidden).startsWith(LIBRARY_STARTER_WORDS.hiddenInLibrary(STARTER.title)), said(hidden));
   assert.equal(
     LIBRARY_STARTER_WORDS.hiddenInLibrary(STARTER.title),
-    `The “${STARTER.title}” starter is hidden in this workspace's Library: show it again under Campaigns › Library, or name another message.`,
+    `The “${STARTER.title}” starter is hidden in this workspace: show it again under Campaigns › Messages, or name another message.`,
   );
   assert.ok(!/no version|starter set/.test(said(hidden)), said(hidden));
 });

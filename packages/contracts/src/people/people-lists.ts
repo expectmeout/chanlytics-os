@@ -62,7 +62,7 @@ const LIST_STEPS: Record<
   new_week: {
     cta: "Get their yes",
     to: GET_YES_ROUTE,
-    text: "Their yes to offers is the phrase and the QR under Get their yes in Sent.",
+    text: "Their yes to offers is the phrase and the QR under Get their yes.",
     answered: { cta: USE_IN_A_BROADCAST, to: "broadcasts/new_week" },
   },
   booked_week: { cta: "See the week", to: "calendar", text: "Their bookings are on the Calendar." },

@@ -1,26 +1,27 @@
 import "server-only";
 import { z } from "zod";
 import {
-  TEMPLATE_BODY_MAX,
-  TEMPLATE_BUTTON_TEXT_MAX,
-  TEMPLATE_FOOTER_MAX,
-  TEMPLATE_LABEL_MAX,
   defaultSlotKinds,
+  keepsValues,
   languageLabel,
+  MIN_MS,
+  MODEL_ROUTES,
   parseTenantConfig,
   placeholdersOf,
   slotLabels,
   starterByKey,
   starterByName,
   starterText,
+  TEMPLATE_BODY_MAX,
+  TEMPLATE_BUTTON_TEXT_MAX,
+  TEMPLATE_FOOTER_MAX,
+  TEMPLATE_LABEL_MAX,
   templateBlocked,
   templateLanguage,
   templateLinkButton,
   templateParts,
   templateUntranslatable,
   validateTemplateDraft,
-  MIN_MS,
-  MODEL_ROUTES,
   type TemplateCategoryChoice,
   type TemplateDraft,
 } from "@chanlytics/contracts";
@@ -586,4 +587,87 @@ export async function translateTemplate(
     });
   }
   return out;
+}
+
+/* ---------------------------- warmer, shorter ---------------------------- */
+
+/** What a version's words are written again as: Ask's two changes where words are written (the Inbox composer's too). */
+export const VERSION_TONES = ["warmer", "shorter"] as const;
+type VersionTone = (typeof VERSION_TONES)[number];
+
+/** How a rewrite is asked, in the Inbox composer's own words for the same two presses (new-conversation/person-draft.ts). */
+const TONE_ASKED: Record<VersionTone, string> = {
+  shorter: "Make it shorter. The same ask, fewer words.",
+  warmer: "Make it warmer. The same length, the same ask.",
+};
+
+const RewriteSchema = z.object({ subject: z.string().nullable().optional(), body: z.string().min(1) });
+
+type RewriteOutcome =
+  | { ok: true; subject: string | null; body: string }
+  | { ok: false; reason: "refused" | "malformed" | "invalid"; message: string };
+
+/**
+ * A version's words written again, warmer or shorter (Ask's changes where an email or a text version is written: the
+ * Library's editor, and a sequence's step where its words are written in place): the same message in the business's
+ * voice, every value it holds (`{{1}}`, `{{opening}}`) kept as it is, one for one, in the same language. Words handed back,
+ * never saved: the editor holds them, its own check runs on them as on typed words, and its Save is the person's. A
+ * rewrite that dropped or added a value, or came back malformed, is refused in words.
+ */
+export async function rewriteVersion(
+  ctx: RouteContext,
+  tenantId: string,
+  input: { channel: "email" | "sms"; language: string; subject: string | null; body: string; tone: VersionTone },
+): Promise<RewriteOutcome> {
+  const { facts } = await workspaceFor(ctx, tenantId);
+  const email = input.channel === "email";
+  const system = [
+    `You rewrite a message ${facts.businessName}, a small business, sends its customers, in its own voice: warm, brief, specific, never salesy.`,
+    facts.guardrails.length ? `Rules the business follows: ${facts.guardrails.join(" ")}` : "",
+    writeIn(input.language),
+    "Keep its meaning, what it asks of the person, and every value written in double braces ({{1}}, {{first_name}}) exactly as it is: the same ones, none added, none dropped.",
+    email ? "It is an email: a subject line and its words." : "It is a text message: plain words, no subject.",
+    "Answer with one JSON object and nothing else, no code fence:",
+    email ? '{"subject": "the subject", "body": "the words"}' : '{"body": "the words"}',
+  ]
+    .filter(Boolean)
+    .join("\n");
+  const user = [
+    email && input.subject ? `Subject: ${input.subject}` : null,
+    `Words:\n${input.body}`,
+    TONE_ASKED[input.tone],
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+  const turn = await askOnce(ctx, tenantId, system, user, "draft");
+  if (!turn.ok) return turn;
+  const out = rewrittenVersion(input, extractJson(turn.text));
+  if (!out.ok && out.reason === "malformed")
+    log.error("draft_malformed", {
+      tenant_id: tenantId,
+      blocks: turn.blockTypes,
+      stop: turn.stopReason,
+      stream_error: turn.streamError,
+      output: turn.text.slice(0, 400),
+    });
+  return out;
+}
+
+/**
+ * What a rewrite answered, judged (pure, as translatedDraft is): its words, an email's subject kept where none came back,
+ * and every value the words held (`{{1}}`, `{{opening}}`) kept one for one, else refused in words.
+ */
+function rewrittenVersion(
+  input: { channel: "email" | "sms"; subject: string | null; body: string },
+  raw: unknown,
+): RewriteOutcome {
+  const parsed = RewriteSchema.safeParse(raw);
+  if (!parsed.success)
+    return { ok: false, reason: "malformed", message: "The words did not come back well-formed. Try again." };
+  const email = input.channel === "email";
+  const subject = email ? parsed.data.subject?.trim() || input.subject : null;
+  const body = parsed.data.body.trim();
+  if (!keepsValues({ subject: input.subject, body: input.body }, { subject, body }))
+    return { ok: false, reason: "invalid", message: "The rewrite changed the message's values. Try again." };
+  return { ok: true, subject, body };
 }

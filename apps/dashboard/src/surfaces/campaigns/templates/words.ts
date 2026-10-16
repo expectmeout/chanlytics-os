@@ -128,6 +128,13 @@ export const TPL_VERSION_WORDS = {
   save: "Save",
   saving: "Saving…",
   cancel: "Cancel",
+  /** Ask's two changes to the words in the box (the canvas's step editor): written again, every value kept, until Save. */
+  ask: "Ask",
+  warmer: "Warmer",
+  shorter: "Shorter",
+  asking: "Writing…",
+  /** The words as they were before Ask wrote them again. */
+  undo: "Undo",
   /** How long the subject is, against what an inbox shows. */
   subjectCount: (n: number, max: number): string => `${n} of ${max}`,
   /** What a text comes to on the wire, STOP line included. */
@@ -139,7 +146,7 @@ export const TPL_VERSION_WORDS = {
     `${title}: the ${lower(channel)} version in ${language} is saved`,
   removed: (title: string, channel: string, language: string): string =>
     `${title}: the ${lower(channel)} version in ${language} is removed`,
-  /** A message begun here: it is in the Library, with the version it began as. */
+  /** A message begun here: it is in Messages, with the version it began as. */
   began: (title: string, channel: string, language: string): string =>
-    `${title} is in the ${CAMPAIGN_ROOMS.library}: the ${lower(channel)} version in ${language} is saved`,
+    `${title} is in ${CAMPAIGN_ROOMS.library}: the ${lower(channel)} version in ${language} is saved`,
 };

@@ -139,7 +139,7 @@ async function template(tenant, name, channel = "whatsapp") {
 async function moment(tenant, tpl, { name, trigger, policy_class, template_name }) {
   return ok(
     await db
-      .from("playbooks")
+      .from("sequence_steps")
       .insert({
         tenant_id: tenant,
         name,
@@ -240,7 +240,7 @@ async function salon() {
   ).id;
   const chain = ok(
     await db
-      .from("playbooks")
+      .from("sequence_steps")
       .insert({
         tenant_id: tenant,
         kind: "reach_out",
@@ -277,7 +277,7 @@ async function salon() {
       state: "sent",
       scheduled_for: iso(at),
       recipient_count: 0,
-      playbook_id: playbook,
+      step_id: playbook,
       run_for: dayOf(at),
       created_at: iso(at),
       ...over,
@@ -290,7 +290,7 @@ async function salon() {
     const sent = status ? message(tenant, who, sentAt, { status, channel: channel ?? "whatsapp" }) : null;
     if (sent) messages.push(sent);
     recipients.push({
-      broadcast_id: run.id,
+      batch_id: run.id,
       contact_id: who.contact,
       tenant_id: tenant,
       state,
@@ -397,7 +397,7 @@ async function salon() {
   });
   on(chainRun, fresh(), "sent", { sentAt: T0 + 5 * HOUR, status: "delivered", channel: "email" });
   const oneOff = runOf(null, 300, T0 + 7 * HOUR, {
-    playbook_id: null,
+    step_id: null,
     run_for: null,
     audience: { kind: "everyone", id: null, label: "Everyone" },
   });
@@ -414,9 +414,9 @@ async function salon() {
   messages.push(
     message(tenant, inboxWho, T0 + 31 * DAY, { meta: {}, status: "queued", template_name: "winback_offer" }),
   ); // still in its veto window: not sent
-  await insertAll("broadcasts", runs);
+  await insertAll("sequence_batches", runs);
   await insertAll("messages", messages);
-  await insertAll("broadcast_recipients", recipients);
+  await insertAll("sequence_sends", recipients);
   return {
     tenant,
     winback,
@@ -426,7 +426,7 @@ async function salon() {
     runs,
     slots,
     T0,
-    run: (playbook, i) => runs.find((r) => r.playbook_id === playbook && r.name === `Run ${i}`),
+    run: (playbook, i) => runs.find((r) => r.step_id === playbook && r.name === `Run ${i}`),
   };
 }
 
@@ -464,7 +464,7 @@ async function shop() {
       state: "sent",
       scheduled_for: iso(at),
       recipient_count: count,
-      playbook_id: playbook,
+      step_id: playbook,
       run_for: runFor,
       created_at: iso(at),
     });
@@ -474,7 +474,7 @@ async function shop() {
     const at = T0 + i * MIN;
     const id = runOf(big, `Big ${i}`, at, dayOf(T0 - i * DAY), 1);
     recipients.push({
-      broadcast_id: id,
+      batch_id: id,
       contact_id: alone.contact,
       tenant_id: tenant,
       state: "sent",
@@ -485,10 +485,10 @@ async function shop() {
     const at = T0 + (1100 + j) * MIN;
     const id = runOf(wide, `Wide ${j}`, at, dayOf(T0 - j * DAY), 2000);
     for (const p of crowd)
-      recipients.push({ broadcast_id: id, contact_id: p.contact, tenant_id: tenant, state: "sent", sent_at: iso(at) });
+      recipients.push({ batch_id: id, contact_id: p.contact, tenant_id: tenant, state: "sent", sent_at: iso(at) });
   }
-  await insertAll("broadcasts", runs);
-  await insertAll("broadcast_recipients", recipients);
+  await insertAll("sequence_batches", runs);
+  await insertAll("sequence_sends", recipients);
   return { tenant, big, wide };
 }
 
@@ -512,7 +512,7 @@ async function studio() {
   await insertAll("conversations", [{ id: thread, tenant_id: tenant, contact_id: early }]);
   const T = NOW - 10 * DAY;
   const run = uuid();
-  await insertAll("broadcasts", [
+  await insertAll("sequence_batches", [
     {
       id: run,
       tenant_id: tenant,
@@ -524,7 +524,7 @@ async function studio() {
       state: "sent",
       scheduled_for: iso(T),
       recipient_count: 2,
-      playbook_id: pb,
+      step_id: pb,
       run_for: dayOf(T),
       created_at: iso(T),
     },
@@ -540,10 +540,10 @@ async function studio() {
     meta: {},
   });
   await insertAll("messages", [first, second, reply]);
-  await insertAll("broadcast_recipients", [
-    { broadcast_id: run, contact_id: early, tenant_id: tenant, state: "sent", message_id: first.id, sent_at: iso(T) },
+  await insertAll("sequence_sends", [
+    { batch_id: run, contact_id: early, tenant_id: tenant, state: "sent", message_id: first.id, sent_at: iso(T) },
     {
-      broadcast_id: run,
+      batch_id: run,
       contact_id: late,
       tenant_id: tenant,
       state: "sent",
@@ -589,14 +589,14 @@ begin
   insert into public.tenants (id, slug, name, timezone) values (t, 'totals-scale-${RUN}', 'Totals at scale', 'UTC');
   insert into public.templates (id, tenant_id, channel, name, language, meta_status)
     values (tpl, t, 'whatsapp', 'scale_offer', 'en_US', 'approved');
-  insert into public.playbooks (id, tenant_id, name, trigger, template_id, template_name, template_language, policy_class)
+  insert into public.sequence_steps (id, tenant_id, name, trigger, template_id, template_name, template_language, policy_class)
     select md5(t || ':moment:' || p)::uuid, t, 'Moment ' || p, 'quiet_30', tpl, 'scale_offer', 'en_US', 'reengage'
       from generate_series(0, ${SCALE.moments - 1}) p;
   insert into public.contacts (id, tenant_id) select ${person("c")}, t from generate_series(0, 599) c;
   insert into public.conversations (id, tenant_id, contact_id)
     select ${thread("c")}, t, ${person("c")} from generate_series(0, 599) c;
-  insert into public.broadcasts (id, tenant_id, name, template_id, template_name, template_language, audience, state,
-                                 scheduled_for, recipient_count, playbook_id, run_for, created_at)
+  insert into public.sequence_batches (id, tenant_id, name, template_id, template_name, template_language, audience, state,
+                                 scheduled_for, recipient_count, step_id, run_for, created_at)
     select md5(t || ':run:' || p || ':' || j)::uuid, t, 'Run ' || j, tpl, 'scale_offer', 'en_US',
            jsonb_build_object('kind', 'playbook', 'id', md5(t || ':moment:' || p)::uuid, 'label', 'Moment ' || p,
                               'trigger', 'quiet_30'),
@@ -610,7 +610,7 @@ begin
            jsonb_build_object('source', 'broadcast'), ${at} + k * interval '1 second'
       from generate_series(0, ${SCALE.moments - 1}) p, generate_series(0, ${SCALE.runs - 1}) j,
            generate_series(0, ${SCALE.people - 2}) k;
-  insert into public.broadcast_recipients (broadcast_id, contact_id, tenant_id, state, reason, message_id, sent_at)
+  insert into public.sequence_sends (batch_id, contact_id, tenant_id, state, reason, message_id, sent_at)
     select md5(t || ':run:' || p || ':' || j)::uuid, ${person(who)}, t,
            case when k < ${SCALE.people - 1} then 'sent' else 'skipped' end,
            case when k < ${SCALE.people - 1} then null else 'opted_out' end,
@@ -877,13 +877,13 @@ test(
     }
     // The same, counted straight off the rows.
     const [direct] = query(
-      `select count(distinct r.broadcast_id) as runs,
+      `select count(distinct r.batch_id) as runs,
               count(*) filter (where r.state = 'sent') as sent,
               count(*) filter (where m.status in ('delivered', 'read')) as delivered,
               count(*) filter (where r.state in ('skipped', 'failed')) as held,
               (select count(*) from public.messages i where i.tenant_id = '${tenant}' and i.direction = 'inbound') as replies
-         from public.broadcast_recipients r left join public.messages m on m.id = r.message_id
-        where r.tenant_id = '${tenant}'`,
+         from public.sequence_sends r left join public.messages m on m.id = r.message_id
+        where r.lead_id is null and r.tenant_id = '${tenant}'`,
     );
     const sum = (k) => Object.values(got).reduce((n, x) => n + x[k], 0);
     assert.deepEqual(
@@ -1006,11 +1006,12 @@ test(
   { skip },
   async () => {
     const w = await world();
-    const rows = async (table) => ok(await db.from(table).select("*").eq("tenant_id", w.A.tenant), table);
+    // The fake's twins read a run's step and a send's batch by their old names: the new tables, aliased back.
+    const rows = async (table, cols = "*") => ok(await db.from(table).select(cols).eq("tenant_id", w.A.tenant), table);
     const tables = {
-      playbooks: await rows("playbooks"),
-      broadcasts: await rows("broadcasts"),
-      broadcast_recipients: await rows("broadcast_recipients"),
+      playbooks: await rows("sequence_steps", "*, after_playbook_id:after_step_id"),
+      broadcasts: await rows("sequence_batches", "*, playbook_id:step_id"),
+      broadcast_recipients: await rows("sequence_sends", "*, broadcast_id:batch_id, attempt:attempts"),
       messages: await rows("messages"),
     };
     const fake = fakeDb(tables);

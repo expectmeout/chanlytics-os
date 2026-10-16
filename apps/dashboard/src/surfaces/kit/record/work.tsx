@@ -27,6 +27,14 @@ export const tabDraft = (kind: string, key?: string | null) => {
   return mem ? mem.draft(kind, key == null ? undefined : key) : null;
 };
 
+/**
+ * Work handed to a composer that is not open yet, kept as its own words would be: the composer opens on it where it reads
+ * tabDraft(kind, key) (Sent's Send it again, filling Campaigns' composer with what a run sent).
+ */
+export const keepTabDraft = (kind: string, value: unknown, key?: string | null) => {
+  tabMemory()?.keepDraft(kind, value, key == null ? undefined : key);
+};
+
 /** What a composer says of its words: what to keep, whether there are any, and where Cancel goes. */
 interface UnsavedWorkOptions {
   value: unknown;

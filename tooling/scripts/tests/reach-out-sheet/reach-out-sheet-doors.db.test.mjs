@@ -131,9 +131,9 @@ const save = (chain, userId = as.operator.id) =>
 let far = 0;
 const runOf = async (rootId, stepId, state = "scheduled") => {
   far += 1;
-  const { template_id } = ok(await db.from("playbooks").select("template_id").eq("id", stepId).single());
+  const { template_id } = ok(await db.from("sequence_steps").select("template_id").eq("id", stepId).single());
   return one(
-    db.from("broadcasts").insert({
+    db.from("sequence_batches").insert({
       tenant_id: A,
       name: "Movers",
       template_id,
@@ -142,7 +142,7 @@ const runOf = async (rootId, stepId, state = "scheduled") => {
       audience: { kind: "reach_out", root_id: rootId, step_id: stepId },
       state,
       scheduled_for: iso(Date.now()),
-      playbook_id: stepId,
+      step_id: stepId,
       run_for: new Date(Date.UTC(2098, 0, far)).toISOString().slice(0, 10),
     }),
   );
@@ -150,12 +150,12 @@ const runOf = async (rootId, stepId, state = "scheduled") => {
 const sendIn = async (run, rootId, stepId, over = {}) => {
   const id = crypto.randomUUID();
   ok(
-    await db.from("reach_out_sends").insert({
+    await db.from("sequence_sends").insert({
       id,
       tenant_id: A,
-      broadcast_id: run,
-      playbook_id: stepId,
-      root_id: rootId,
+      batch_id: run,
+      step_id: stepId,
+      sequence_id: rootId,
       lead_id: over.lead_id ?? (await lead()),
       send_at: iso(Date.now() + MIN),
       ...over,
@@ -163,7 +163,14 @@ const sendIn = async (run, rootId, stepId, over = {}) => {
   );
   return id;
 };
-const sendRow = async (id) => ok(await db.from("reach_out_sends").select("*").eq("id", id).single());
+const sendRow = async (id) =>
+  ok(
+    await db
+      .from("sequence_sends")
+      .select("*, broadcast_id:batch_id, playbook_id:step_id, root_id:sequence_id")
+      .eq("id", id)
+      .single(),
+  );
 
 before(async () => {
   if (skip) return;
@@ -196,8 +203,10 @@ test(
     assert.equal(saved.step_ids.length, 2);
     const rows = ok(
       await db
-        .from("playbooks")
-        .select("id, kind, trigger, after_playbook_id, after_days, gap_minutes, signed_by, template_id, created_by")
+        .from("sequence_steps")
+        .select(
+          "id, kind, trigger, after_playbook_id:after_step_id, after_days, gap_minutes, signed_by, template_id, created_by",
+        )
         .in("id", saved.step_ids),
     );
     const root = rows.find((r) => r.id === saved.root_id);
@@ -279,7 +288,7 @@ test("a step dropped takes its work with it before it goes; one that wrote is ke
   } = ok(await save(chainOf(s)));
   const run2 = await runOf(root, step2);
   const planned = await sendIn(run2, root, step2);
-  const tpl = ok(await db.from("playbooks").select("template_id").eq("id", step2).single()).template_id;
+  const tpl = ok(await db.from("sequence_steps").select("template_id").eq("id", step2).single()).template_id;
   const only = { ...chainOf(s, { steps: [{ ...chainOf(s).steps[0], id: root }] }), root_id: root };
   const sent = await sendIn(await runOf(root, step2), root, step2, {
     state: "sent",
@@ -287,10 +296,10 @@ test("a step dropped takes its work with it before it goes; one that wrote is ke
     checked_at: iso(Date.now()),
   });
   refusedWith(await save(only), "23503", REACH_OUT_REFUSALS.stepWrote);
-  ok(await db.from("reach_out_sends").delete().eq("id", sent));
+  ok(await db.from("sequence_sends").delete().eq("id", sent));
   ok(await save(only));
-  assert.equal(ok(await db.from("playbooks").select("id").eq("id", step2)).length, 0);
-  assert.equal(ok(await db.from("broadcasts").select("state").eq("id", run2).single()).state, "canceled");
+  assert.equal(ok(await db.from("sequence_steps").select("id").eq("id", step2)).length, 0);
+  assert.equal(ok(await db.from("sequence_batches").select("state").eq("id", run2).single()).state, "canceled");
   const gone = await sendRow(planned);
   assert.deepEqual([gone.state, gone.reason, gone.playbook_id], ["skipped", "step_removed", null]);
   assert.ok(
@@ -359,7 +368,7 @@ test(
     assert.deepEqual([(await sendRow(fit)).state, (await sendRow(fit)).reason], ["skipped", "not_a_fit"]);
     refusedWith(await decide(fit, "skip"), "22023", REACH_OUT_REFUSALS.gone);
 
-    ok(await db.from("broadcasts").update({ state: "canceled" }).eq("id", run));
+    ok(await db.from("sequence_batches").update({ state: "canceled" }).eq("id", run));
     refusedWith(await decide(await sendRow(inc).then((x) => x.id), "skip"), "22023", REACH_OUT_REFUSALS.runOver);
   },
 );
@@ -518,10 +527,10 @@ test(
     const { root_id: root, step_ids } = ok(await save(chainOf(s)));
     const run = await runOf(root, root, "pending_approval");
     await sendIn(run, root, root);
-    const tpls = ok(await db.from("playbooks").select("template_id").in("id", step_ids)).map((p) => p.template_id);
+    const tpls = ok(await db.from("sequence_steps").select("template_id").in("id", step_ids)).map((p) => p.template_id);
     ok(await as.operator.c.rpc("reach_out_remove", { p_tenant_id: A, p_root_id: root }));
-    assert.equal(ok(await db.from("playbooks").select("id").in("id", step_ids)).length, 0);
-    assert.equal(ok(await db.from("broadcasts").select("state").eq("id", run).single()).state, "canceled");
+    assert.equal(ok(await db.from("sequence_steps").select("id").in("id", step_ids)).length, 0);
+    assert.equal(ok(await db.from("sequence_batches").select("state").eq("id", run).single()).state, "canceled");
     for (const t of ok(await db.from("templates").select("hidden_at").in("id", tpls))) assert.ok(t.hidden_at);
     refusedWith(
       await as.operator.c.rpc("reach_out_remove", { p_tenant_id: A, p_root_id: root }),
@@ -534,10 +543,10 @@ test(
 test("a session deletes moments only: a chain's rows go through its door (R16)", { skip }, async () => {
   const s = await newSearch("Movers I");
   const { root_id: root } = ok(await save(chainOf(s)));
-  const gone = await as.operator.c.from("playbooks").delete({ count: "exact" }).eq("id", root);
+  const gone = await as.operator.c.from("sequence_steps").delete({ count: "exact" }).eq("id", root);
   assert.equal(gone.error, null);
   assert.equal(gone.count, 0, "RLS hides the row from the delete");
-  assert.equal(ok(await db.from("playbooks").select("id").eq("id", root)).length, 1);
+  assert.equal(ok(await db.from("sequence_steps").select("id").eq("id", root)).length, 1);
 });
 
 test(
@@ -600,7 +609,7 @@ test("a chain renamed renames its words in Templates too", { skip }, async () =>
   const edit = { ...chainOf(s, { name: "Reach out · Office movers" }), root_id: root };
   edit.steps = edit.steps.map((x, i) => ({ ...x, id: step_ids[i] }));
   ok(await save(edit));
-  const tpls = ok(await db.from("playbooks").select("n:name, template_id").in("id", step_ids));
+  const tpls = ok(await db.from("sequence_steps").select("n:name, template_id").in("id", step_ids));
   const titles = ok(
     await db
       .from("templates")
@@ -637,6 +646,6 @@ test(
     ok(await as.partner.c.rpc("reach_out_send_decide", { p_send_id: id, p_decision: "skip" }));
     assert.equal((await sendRow(id)).reason, "owner_skipped");
     ok(await as.partner.c.rpc("reach_out_remove", { p_tenant_id: A, p_root_id: root }));
-    assert.equal(ok(await db.from("playbooks").select("id").eq("id", root)).length, 0);
+    assert.equal(ok(await db.from("sequence_steps").select("id").eq("id", root)).length, 0);
   },
 );

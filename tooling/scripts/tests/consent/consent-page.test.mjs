@@ -327,7 +327,7 @@ test("the wiring: public by one prefix, read by slug, writes nothing, and the ow
   );
   // What the reader reads (one load, every read thrown, only selects) and what the page draws (no field, no form) are run
   // in public/a-paused-workspace-asks-nobody-for-a-yes.test.mjs, over the real readers and the drawn pages.
-  // The owner's Broadcasts page names that address, and says why it is there: drawn (the ledger's Get their yes section,
+  // The owner's Get their yes names that address, and says why it is there: drawn (its pane at broadcasts/get-yes,
   // surfaces/campaigns/broadcasts) over a surface that holds it, from this test's workspace.
   const { installLegacyReact, fresh, byTestId, textOf } = await import("../_legacy-react.mjs");
   installLegacyReact({
@@ -368,7 +368,7 @@ test("the wiring: public by one prefix, read by slug, writes nothing, and the ow
     fetchedAt: 1,
   });
   fresh();
-  const line = textOf(byTestId(BroadcastsPage({}), "bc-optin-page"));
+  const line = textOf(byTestId(BroadcastsPage({ initialYes: true }), "bc-optin-page"));
   assert.ok(
     line.includes("app.chanlytics.com/yes/marisas") && line.includes("the wording the phone carriers ask for"),
     line,

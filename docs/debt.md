@@ -309,13 +309,13 @@ edge statements naming no workspace   27   in 14 files
 doors importing db or channels        0   imports in 0 files
 unnamed durations                    56   in 27 files
 event-shaped clocks                   5   of the registered clocks (invariant 6)
-tables with more than one writer     60   461 writers among them
-doors writing a record with no event   94   writing 107 tables (invariant 2)
+tables with more than one writer     60   458 writers among them
+doors writing a record with no event   91   writing 104 tables (invariant 2)
 personal columns with no erasure strategy    2   in 1 table
 breakpoints outside the set          33   in 11 files
-literal style values                855   in 22 stylesheets
-primitives outside the kit         1645   selectors naming 688 classes
-inline style props                  195   in 49 files
+literal style values                850   in 22 stylesheets
+primitives outside the kit         1632   selectors naming 682 classes
+inline style props                  193   in 48 files
 wire names not in snake_case         54   in 27 routes
 dead exports, types and modules     265
 source-text reads in tests          747

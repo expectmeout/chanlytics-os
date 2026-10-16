@@ -192,7 +192,6 @@ test("every schedule the watchdog depends on is present and active", { skip }, a
     "registration-sweep",
     "calendar-people-sweep",
     "google-listings-sweep",
-    "playbooks-sweep",
     "wake-stale-snoozes",
     // 00098: the ledger's heartbeat, and the lines sweep 00097 left unwatched.
     "jobs-tick",
@@ -205,10 +204,8 @@ test("every schedule the watchdog depends on is present and active", { skip }, a
     "purge-rate-hits",
     // 00423: the mailboxes a business connected, read every five minutes.
     "mailboxes-sweep",
-    // 00186: the reach-out clock, every minute.
-    "reach-out-sweep",
-    // 00197: the reach-out check, its own clock, every minute.
-    "reach-out-check-sweep",
+    // 00449: the sequences' one clock, every minute: the moments at :05, the reach-out check and its send clock.
+    "sequences-clock",
   ]) {
     assert.ok(byName.has(n), `no cron job named ${n}`);
     assert.equal(byName.get(n).active, true, `${n} is disabled`);

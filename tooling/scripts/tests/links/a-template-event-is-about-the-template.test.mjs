@@ -40,6 +40,6 @@ test("a template sent to WhatsApp and one deleted are written on the template, w
   );
   assert.equal(
     activityWords("template.removed", world.events[1].data),
-    "A message was deleted from the Library · spring_offer",
+    "A message was deleted from Messages · spring_offer",
   );
 });

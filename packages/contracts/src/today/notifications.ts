@@ -398,7 +398,7 @@ export type JobEnd = "failed" | "unfinished" | "unknown_kind";
  */
 const JOB_WORK: Record<JobKind, { stopped: string; to: string }> = {
   outbound_send: { stopped: "A message may not have been sent", to: "inbox" },
-  broadcast_send: { stopped: "A broadcast stopped partway", to: "broadcasts" },
+  broadcast_send: { stopped: "A broadcast stopped partway", to: "campaigns/sequences" },
   line_provision: { stopped: "Setting up a phone line stopped", to: "admin/integrations" },
   email_ingest: { stopped: "An email could not be taken in", to: "inbox" },
   lead_round_start: { stopped: "A search could not start", to: "clients/leads" },
@@ -507,15 +507,15 @@ const SERVER_LOOK: Record<string, ServerLook> = {
    * a change is belongs to the change (waba-events.ts describeWabaChange), and
    * how it should read belongs here. Never inferred from the title.
    */
-  template_ready: { icon: "check", tone: "ok", action: "Open Library", to: "messages" },
-  template_blocked: { icon: "alert", tone: "warn", action: "Open Library", to: "messages" },
+  template_ready: { icon: "check", tone: "ok", action: "Open Messages", to: "messages" },
+  template_blocked: { icon: "alert", tone: "warn", action: "Open Messages", to: "messages" },
   sweep: { icon: "alert", tone: "warn", action: "Open Connections", to: "admin/integrations" },
   /** A JOB that did not finish, and nothing else. See JobNewsKind. */
   job_failed: { icon: "alert", tone: "warn", action: "Open the Inbox", to: "inbox" },
   /** A broadcast that ran to completion: good news, on the page it happened on. */
-  broadcast_sent: { icon: "check", tone: "ok", action: "Open Sent", to: "broadcasts" },
+  broadcast_sent: { icon: "check", tone: "ok", action: "Open Sequences", to: "campaigns/sequences" },
   /** A broadcast that did not go out, or stopped partway. */
-  broadcast_stopped: { icon: "alert", tone: "warn", action: "Open Sent", to: "broadcasts" },
+  broadcast_stopped: { icon: "alert", tone: "warn", action: "Open Sequences", to: "campaigns/sequences" },
   /**
    * A run waits for the owner's word, or a reach-out holds an email for their call: a decision, so a warning, as the topic
    * says it ("needs you", ALERT_TOPICS playbook), never good news sorted below the warnings. Once the run is settled the
@@ -592,7 +592,7 @@ const ROUTE_VERBS: Array<[RegExp, string]> = [
   [/^inbox/, "Open the Inbox"],
   [/^conversations\/phone/, "Open the calls"],
   [/^live/, "Open Live"],
-  // The old Playbooks list (`outbound`) is Campaigns' home now, and Sent and the Library its rooms: the door says the name.
+  // The old Playbooks list (`outbound`) lands on Sequences, which is Campaigns now (decision 0060): the door says the name.
   [/^outbound/, "Open Campaigns"],
   // A message open in its own drawer over Campaigns (a template's notice: refused, paused, approved): the door says what it opens.
   [/^campaigns\/message:/, "Open the message"],
@@ -601,9 +601,11 @@ const ROUTE_VERBS: Array<[RegExp, string]> = [
   [/^broadcasts\/run:/, "Open the run"],
   // Every email handed to its owner, from each reach-out they send themselves (00429): one list.
   [/^broadcasts\/to-send$/, "Open To send"],
-  [/^broadcasts/, "Open Sent"],
-  // The route is still `messages`; the page is the Library (a room of Campaigns), and the door says the page's name.
-  [/^messages/, "Open Library"],
+  [/^broadcasts\/get-yes/, "Open Get their yes"],
+  // Sent's list went to each sequence's History (decision 0060, D3): its address, and a row kept before, land on Sequences.
+  [/^broadcasts/, "Open Sequences"],
+  // The route is still `messages`; the page is Messages (a room of Campaigns), and the door says the page's name.
+  [/^messages/, "Open Messages"],
   [/^calendar/, "Open Calendar"],
   // One person's page, by their id: the row is about them, so its door says so.
   [/^clients\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/, "Open their page"],

@@ -145,10 +145,10 @@ async function reachOut(w, name, steps = 2) {
   const runs = [];
   for (const step of saved.step_ids) {
     far += 1;
-    const { template_id } = ok(await db.from("playbooks").select("template_id").eq("id", step).single());
+    const { template_id } = ok(await db.from("sequence_steps").select("template_id").eq("id", step).single());
     runs.push(
       await one(
-        db.from("broadcasts").insert({
+        db.from("sequence_batches").insert({
           tenant_id: w.tenant,
           name,
           template_id,
@@ -157,7 +157,7 @@ async function reachOut(w, name, steps = 2) {
           audience: { kind: "reach_out", root_id: saved.root_id, step_id: step },
           state: "sent",
           scheduled_for: iso(Date.now()),
-          playbook_id: step,
+          step_id: step,
           run_for: new Date(Date.UTC(2097, 0, 1 + far)).toISOString().slice(0, 10),
         }),
       ),
@@ -209,12 +209,12 @@ async function write(w, r, step, b, at, { angle = null, status = "delivered", bo
     }),
   );
   ok(
-    await db.from("reach_out_sends").insert({
+    await db.from("sequence_sends").insert({
       id: crypto.randomUUID(),
       tenant_id: w.tenant,
-      broadcast_id: r.runs[r.steps.indexOf(step)],
-      playbook_id: step,
-      root_id: r.root,
+      batch_id: r.runs[r.steps.indexOf(step)],
+      step_id: step,
+      sequence_id: r.root,
       lead_id: b.lead,
       contact_id: b.contact,
       state: bounced ? "failed" : "sent",
@@ -248,7 +248,7 @@ const wroteBack = async (w, b) =>
 /** The reading of a business's reply: a question is interested. */
 const question = async (w, b, message) =>
   ok(
-    await db.from("reach_out_replies").insert({
+    await db.from("sequence_replies").insert({
       message_id: message,
       tenant_id: w.tenant,
       conversation_id: b.thread,
@@ -558,12 +558,12 @@ test(
 
     // A send cannot lack its business: a send names a lead or a person (sequence_sends_someone, 0060), and a lead's removal
     // takes its sends.
-    const lost = await db.from("reach_out_sends").insert({
+    const lost = await db.from("sequence_sends").insert({
       id: crypto.randomUUID(),
       tenant_id: w.tenant,
-      broadcast_id: first.runs[0],
-      playbook_id: S1,
-      root_id: first.root,
+      batch_id: first.runs[0],
+      step_id: S1,
+      sequence_id: first.root,
       lead_id: null,
       state: "sent",
       send_at: iso(dayAt(1)),

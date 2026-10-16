@@ -211,12 +211,12 @@ function world() {
       insert into public.templates (tenant_id, channel, name, language, meta_status)
         values (a, 'whatsapp', 'told_offer', 'en_US', 'approved') returning id into tpl;
       ${told("template_made")}
-      insert into public.playbooks (tenant_id, name, trigger, template_id, template_name, template_language, policy_class)
+      insert into public.sequence_steps (tenant_id, name, trigger, template_id, template_name, template_language, policy_class)
         values (a, 'Win-back', 'quiet_30', tpl, 'told_offer', 'en_US', 'reengage');
       ${told("playbook_made")}
-      update public.playbooks set state = 'paused' where tenant_id = a;
+      update public.sequence_steps set state = 'paused' where tenant_id = a;
       ${told("playbook_paused")}
-      delete from public.playbooks where tenant_id = a;
+      delete from public.sequence_steps where tenant_id = a;
       ${told("playbook_removed")}
 
       -- The records that were silent (00408), each told to its workspace alone: the table and the event, never the row.

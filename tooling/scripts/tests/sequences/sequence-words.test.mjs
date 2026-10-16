@@ -189,8 +189,10 @@ test("an address is read and written by one parser and one writer: the list, a r
   });
 });
 
-test("where Sequences is drawn, an older address lands on what it names; the composer, a message and Sent stay", () => {
+test("an older address lands on what it names: the home and Sent's list on Sequences; the composer, a message and Sent's sheets stay", () => {
   assert.equal(sequenceLandingOf("campaigns"), SEQUENCES_ROUTE);
+  // Sent's list is History now (D3): its bare address is Sequences' list.
+  assert.equal(sequenceLandingOf("broadcasts"), SEQUENCES_ROUTE);
   // A run a link names lands on its sequence's History, that day open (W4); its sheet stays where Open the run goes.
   assert.equal(sequenceLandingOf("broadcasts/run:b1"), "campaigns/sequences/b1/history/b1");
   assert.equal(sequenceLandingOf(runSheetRoute("b1")), null);
@@ -203,8 +205,8 @@ test("where Sequences is drawn, an older address lands on what it names; the com
     "campaigns/message:come_back",
     "campaigns/ads",
     "campaigns/sequences/s1",
-    "broadcasts",
     "broadcasts/get-yes",
+    "broadcasts/to-send",
     "messages",
   ])
     assert.equal(sequenceLandingOf(stays), null, stays);

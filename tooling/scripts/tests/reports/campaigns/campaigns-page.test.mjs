@@ -352,7 +352,7 @@ test("the by-message bar greys at four mature sends and not at five, as the kit'
   }
 });
 
-test("a quiet period is the lens's own card, in place of the strip and every card of the window, with the registry's words and its door to Sent", () => {
+test("a quiet period is the lens's own card, in place of the strip and every card of the window, with the registry's words and its door to Sequences", () => {
   const R = surface({ report: quiet() });
   const tree = draw({ R, own: held(dtoWith(QUIET), "7d", { campaigns: CAMPAIGNS_QUIET }) });
   assert.equal(foldOf({ campaigns: CAMPAIGNS_QUIET, ledger: dtoWith(QUIET) }).quiet, true, "the world is a quiet one");
@@ -364,8 +364,8 @@ test("a quiet period is the lens's own card, in place of the strip and every car
   const door = find(card, (n) => n.type === "button");
   assert.equal(textOf(door).trim(), words.door.label);
   press(door);
-  assert.deepEqual(navigated, [words.door.to], "to Sent");
-  assert.equal(words.door.to, "broadcasts");
+  assert.deepEqual(navigated, [words.door.to], "to Sequences");
+  assert.equal(words.door.to, "campaigns/sequences");
   assert.deepEqual(present(tree, ORDER), no(ORDER), "no strip and none of the window's cards");
   assert.equal(
     byTestId(tree, "reports-empty"),

@@ -363,7 +363,10 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   "DELETE sequences/[id]/steps/[step]": () => [...runsAndChains(), sequencesOverride],
   "POST sequences/[id]/steps/[step]/words": () => [...runsAndChains(), sequencesOverride, ...templates()],
   "POST sequences/[id]/leave": () => [...runsAndChains(), sequencesOverride, peopleOverride, leadsOverride],
-  // A new sequence is a campaign the old home lists too, until S6; a discarded one leaves both.
+  // A person taken out and put back (00450) is their enrollment alone: the sends their leaving withdrew stay withdrawn, and
+  // the clock writes their next; the Sequences page reads its record again behind the press.
+  "POST sequences/[id]/return": () => [sequencesOverride],
+  // A new sequence's first step is a campaign the playbooks surface reads too; a discarded one leaves both.
   "POST sequences": () => [...runsAndChains(), sequencesOverride],
   "DELETE sequences/[id]": () => [...runsAndChains(), sequencesOverride],
   // A reach-out is a chain of playbooks over a search's leads (Part 4): its runs are broadcasts, its answers move leads,
@@ -630,6 +633,8 @@ export const REFRESHES_NOTHING: Partial<Record<RouteKey, string>> = {
   "POST segments/draft": "a draft of a list's rule",
   "POST sequences/draft": "a draft of a new sequence, shown in the pane that asked; nothing is made until it is kept",
   "POST templates/draft": "a draft of a template's words",
+  "POST templates/versions/rewrite":
+    "a version's words written again, handed back to the editor; only its Save keeps them",
   "POST leads/check-again": "the checks are scheduled; each row moves as its check lands, through the live feed",
   // Somewhere else: the page leaves, or the provider's page opens.
   "POST billing/checkout": "Stripe's checkout opens; the return reads Billing again (billing.ts outcome)",

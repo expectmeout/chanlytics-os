@@ -102,21 +102,15 @@ export { campaignsHomeOf, lifecycleKicker } from "./lifecycle/lifecycle";
 export { lifecyclePlaybooksOf, whatsappLineOf } from "./lifecycle/lifecycle-inputs";
 export type { LifecycleAnswer, LifecycleAnswerRead } from "./lifecycle/lifecycle-inputs";
 export {
-  LEDGER_SORTS,
   LEDGER_STATUSES,
   chainResultsOf,
   chainResumeOf,
-  rowResumeOf,
   isLedgerCampaign,
-  ledgerOrder,
-  ledgerPeopleWords,
-  ledgerPhoneLine,
-  ledgerPhoneWhat,
   ledgerRowIn,
   lifecycleChainsOf,
   sentResultsOfSource,
 } from "./lifecycle/lifecycle-ledger";
-export type { LedgerSort, LedgerStatus, LifecycleResume } from "./lifecycle/lifecycle-ledger";
+export type { LedgerStatus, LifecycleResume } from "./lifecycle/lifecycle-ledger";
 export { reachCountsOf } from "./lifecycle/lifecycle-tiles";
 export {
   LIFECYCLE_WORDS,

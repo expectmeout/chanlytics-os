@@ -3,7 +3,7 @@
  * surface, and Ask reads two things only (OW6, R2 C): the typed store, which a surface publishes its value to
  * (`surfaceValue`: Today's queue, Conversations' rows, Live's calls, Leads' rows, the playbooks, the broadcasts, the
  * messages), and, where the rows on screen are the page's own state (the Inbox's bucket, People's list and search, the
- * Pipeline's box, the Calendar's span, Campaigns' ledger), what the page said it drew (on-screen.ts, written at draw time).
+ * Pipeline's box, the Calendar's span), what the page said it drew (on-screen.ts, written at draw time).
  * No provider reads a window name of a page's own. Identities and words only: a row is its kind and id, and its label
  * stays in the tab, where the words that name a row are matched. The server reads every id again under the person's RLS
  * and believes nothing else the tab says.
@@ -17,6 +17,7 @@ import {
   itemFocus,
   parseLeadsRoute,
   parsePipelineRoute,
+  parseSequencesRoute,
   scopeFromRoute,
   type AskContextRowKind,
   type AskScope,
@@ -125,23 +126,39 @@ const reports: Provider = () => {
   return { view: shown.period === null ? shown.key : String(shown.days), rows: [] };
 };
 
+/** A sequence as Ask is told it (decision 0060): by what it is stored as, a one-off its run, one to leads its reach-out. */
+const sequenceRow = (q: { id: string; name: string; starts: string }): Row => ({
+  kind: q.starts === "date" ? "run" : q.starts === "leads" ? "reach_out" : "playbook",
+  id: q.id,
+  label: q.name,
+});
+
 /**
- * Campaigns is its home, whose rows are the ledger's (or, before it draws, the playbooks), and two rooms, Sent and the
- * Library: the page is the view, and its rows are that page's.
+ * A sequence open beside the list, the scope of a turn asked over it: the row it is stored as, one to leads the page at its
+ * address (a reach-out's scope, as contracts scopeFromRoute says one open in the home's drawer was).
+ */
+const sequenceFocus = (q: { id: string; name: string; starts: string }, at: string): AskScope =>
+  q.starts === "leads"
+    ? { kind: "page", id: at, label: q.name }
+    : { kind: q.starts === "date" ? "run" : "playbook", id: q.id, label: q.name };
+
+/**
+ * Campaigns is Sequences (decision 0060), whose rows are its list's, forty at most in its order, and a sequence open beside
+ * it the scope; before the list is read, the playbooks the surface read. Sent's sheets and Messages are their own views,
+ * each with its own rows.
  */
 const campaigns: Provider = (w, route) => {
   if (route.page === "outbound" || route.page === "campaigns") {
-    // The ledger says what it shows (surfaces/campaigns/home/ask-on-campaigns.tsx): its rows in its order, forty at most,
-    // a one-off send's run spelled `run:<id>` and a reach-out `reach_out:<id>`, under the view it is set to. Before it has
-    // drawn, the playbooks the surface read.
-    if (askOnScreenOf(w)?.key === "campaigns") {
-      const got = drawn(w, "campaigns", "playbook");
-      const spelled = (r: Row): Row => {
-        for (const kind of ["run", "reach_out"] as const)
-          if (r.id.startsWith(`${kind}:`)) return { ...r, kind, id: r.id.slice(kind.length + 1) };
-        return r;
+    const listed = surfaceValue("sequences")?.sequences;
+    if (Array.isArray(listed)) {
+      const at = `campaigns/${route.param ?? ""}`;
+      const place = parseSequencesRoute(at);
+      const open = place?.view === "record" ? listed.find((q) => q.id === place.id) : undefined;
+      return {
+        view: "sequences",
+        rows: listed.slice(0, 40).map(sequenceRow),
+        ...(open ? { focus: sequenceFocus(open, at) } : {}),
       };
-      return { view: got.view ?? "playbooks", rows: got.rows.map(spelled) };
     }
     return {
       view: "playbooks",

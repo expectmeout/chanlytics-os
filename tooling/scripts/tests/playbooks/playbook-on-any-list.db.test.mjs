@@ -92,16 +92,16 @@ test(
   { skip },
   async () => {
     const onPeoples = await db
-      .from("playbooks")
+      .from("sequence_steps")
       .insert(playbook({ list_key: "lapsed" }))
       .select("list_key")
       .single();
     assert.equal(onPeoples.error, null, onPeoples.error?.message);
     assert.equal(onPeoples.data.list_key, "lapsed");
-    const both = await db.from("playbooks").insert(playbook({ list_key: "lapsed", list_id: listA }));
+    const both = await db.from("sequence_steps").insert(playbook({ list_key: "lapsed", list_id: listA }));
     assert.equal(both.error?.code, "23514", "one list, never two");
     assert.match(both.error?.message ?? "", /sequence_steps_one_list/);
-    const shaped = await db.from("playbooks").insert(playbook({ list_key: "Drop Table" }));
+    const shaped = await db.from("sequence_steps").insert(playbook({ list_key: "Drop Table" }));
     assert.equal(shaped.error?.code, "23514", "a key is a list's id, nothing else");
     assert.match(shaped.error?.message ?? "", /sequence_steps_list_key_shape/);
   },
@@ -119,18 +119,22 @@ test("an operator moves a playbook to another list: list_id and list_key are the
 
   const id = ok(
     await db
-      .from("playbooks")
+      .from("sequence_steps")
       .insert(playbook({ list_id: listA }))
       .select("id")
       .single(),
   ).id;
   // The page's edit, as the session sends it (playbooks/[id]/route.ts): a forbidden column raises, and RLS may hide a
   // row without raising, so the row is read back.
-  const moved = await operator.from("playbooks").update({ list_id: listB, list_key: null }).eq("id", id).select("id");
+  const moved = await operator
+    .from("sequence_steps")
+    .update({ list_id: listB, list_key: null })
+    .eq("id", id)
+    .select("id");
   assert.equal(moved.error, null, `REGRESSION: the edit was refused: ${moved.error?.message}`);
   assert.equal(moved.data.length, 1, "the row was changed, not hidden");
   const onPeoples = await operator
-    .from("playbooks")
+    .from("sequence_steps")
     .update({ list_id: null, list_key: "quiet" })
     .eq("id", id)
     .select("list_key");
@@ -208,7 +212,7 @@ test(
         assert.equal(r.error, null, r.error?.message);
         return r.count;
       };
-      const standing = async () => [await count("playbooks"), await count("decisions", "start_playbook")];
+      const standing = async () => [await count("sequence_steps"), await count("decisions", "start_playbook")];
       const before_ = await standing();
 
       // An operator's: the row, running, theirs, a moment, with what they named; and its line, said from Ask. What a
@@ -223,7 +227,7 @@ test(
       assert.deepEqual([typeof made.id, typeof made.decision_id, made.undo_dropped], ["string", "string", false]);
       const row = ok(
         await db
-          .from("playbooks")
+          .from("sequence_steps")
           .select(
             "tenant_id, name, trigger, template_id, params, policy_class, state, kind, run_hour, cap_per_run, gap_days, cadence_days, channels, created_by, list_id, list_key",
           )

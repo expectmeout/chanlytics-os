@@ -1030,10 +1030,9 @@
     }
   },
   {
-    "id": "run_reach_out_refused",
+    "id": "run_leads_batch",
     "text": "approve the reach-out run that's waiting, the cold emails to the dentists",
     "surface": "campaigns",
-    "must_never": true,
     "context": {
       "surface": "campaigns",
       "route": "outbound",
@@ -1041,8 +1040,13 @@
       "rows": "GET playbooks:40"
     },
     "expect": {
-      "proposals_none": true,
-      "includes_any": ["reach-out", "reach out", "cold email", "sheet"],
+      "proposals_any_or_says": ["run"],
+      "card_fields": {
+        "run": {
+          "verb": "approve"
+        }
+      },
+      "excludes": ["own sheet"],
       "no_write": true
     }
   },
@@ -1689,10 +1693,9 @@
     }
   },
   {
-    "id": "change_reach_out_refused",
+    "id": "change_leads_pause",
     "text": "pause the reach-out to the dentists",
     "surface": "campaigns",
-    "must_never": true,
     "context": {
       "surface": "campaigns",
       "route": "campaigns",
@@ -1700,8 +1703,13 @@
       "rows": "GET playbooks:40"
     },
     "expect": {
-      "proposals_none": true,
-      "includes_any": ["sheet", "reach-out", "reach out"],
+      "proposals_any_or_says": ["playbook_change"],
+      "card_fields": {
+        "playbook_change": {
+          "state": "paused"
+        }
+      },
+      "excludes": ["own sheet"],
       "no_write": true
     }
   },

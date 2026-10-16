@@ -688,7 +688,12 @@ test(
     // 00426 gave a lead on a list, before any send, its chain and when it was added (lead-workbench/reach-out-add.db.test.mjs);
     // 00430 says what the lead is and where it came from (kind, source), and nothing else.
     const live = bodyIn(migration("00430"), "create or replace function public.reach_out_lead_timeline(");
-    assert.equal(liveBody("reach_out_lead_timeline"), live, "the database runs 00430's");
+    // 00451 read it from the sequence tables, the ones the old names were views of, and changed nothing else.
+    assert.equal(
+      liveBody("reach_out_lead_timeline"),
+      bodyIn(migration("00451"), "create or replace function public.reach_out_lead_timeline("),
+      "the database runs 00451's",
+    );
     assert.equal(
       live.replace(
         / {4}-- What the lead is and where it came from \(00430\)[^\n]*\n {4}-- a list's either\.\n {4}'kind', v_lead\.kind,\n {4}'source', v_lead\.source,\n/,

@@ -143,12 +143,12 @@ const member = (leadId, over = {}) =>
 async function sendIn(over = {}, to = "planned", at = {}) {
   const id = crypto.randomUUID();
   ok(
-    await db.from("reach_out_sends").insert({
+    await db.from("sequence_sends").insert({
       id,
       tenant_id: A,
-      broadcast_id: rootRun,
-      playbook_id: root,
-      root_id: root,
+      batch_id: rootRun,
+      step_id: root,
+      sequence_id: root,
       send_at: iso(Date.now() - 60_000),
       checked_at: iso(Date.now() - 60_000),
       ...over,
@@ -162,7 +162,7 @@ async function sendIn(over = {}, to = "planned", at = {}) {
         : s === "queued"
           ? { state: s, message_id: at.messageId ?? null }
           : { state: s, sent_at: iso(at.sentAt ?? Date.now()) };
-    const r = ok(await db.from("reach_out_sends").update(patch).eq("id", id).select("state"));
+    const r = ok(await db.from("sequence_sends").update(patch).eq("id", id).select("state"));
     assert.deepEqual(r, [{ state: s }], `moved to ${s}`);
   }
   return id;
@@ -224,16 +224,18 @@ before(async () => {
     params: [],
   };
   root = await one(
-    db.from("playbooks").insert({ ...chain, name: "Movers in Austin", trigger: "lead_first", lead_search_id: search }),
+    db
+      .from("sequence_steps")
+      .insert({ ...chain, name: "Movers in Austin", trigger: "lead_first", lead_search_id: search }),
   );
   step = await one(
     db
-      .from("playbooks")
-      .insert({ ...chain, name: "Nudge", trigger: "after_step", after_playbook_id: root, after_days: 3 }),
+      .from("sequence_steps")
+      .insert({ ...chain, name: "Nudge", trigger: "after_step", after_step_id: root, after_days: 3 }),
   );
   const run = (playbook, day, over = {}) =>
     one(
-      db.from("broadcasts").insert({
+      db.from("sequence_batches").insert({
         tenant_id: A,
         name: "Movers in Austin",
         template_id: template,
@@ -242,7 +244,7 @@ before(async () => {
         audience: { kind: "reach_out", root_id: root, step_id: playbook, search_id: search },
         state: "scheduled",
         scheduled_for: iso(Date.now()),
-        playbook_id: playbook,
+        step_id: playbook,
         run_for: day,
         ...over,
       }),
@@ -481,7 +483,7 @@ test(
     const skipped = await lead();
     await member(skipped, { fit: "long" });
     const s = await sendIn({ lead_id: skipped, mailbox_id: await mailboxRow() });
-    ok(await db.from("reach_out_sends").update({ state: "skipped", reason: "run_canceled" }).eq("id", s));
+    ok(await db.from("sequence_sends").update({ state: "skipped", reason: "run_canceled" }).eq("id", s));
     want.push(skipped);
 
     const rows = ok(
@@ -651,8 +653,8 @@ test(
     const early = await sentTo({ daysAgo: 2 });
     const already = await sentTo({ daysAgo: 4 });
     await sendIn({
-      broadcast_id: stepRun,
-      playbook_id: step,
+      batch_id: stepRun,
+      step_id: step,
       lead_id: already.lead,
       contact_id: already.contact_id,
       mailbox_id: d,
@@ -740,7 +742,7 @@ test(
     // Each claim at its own moment, after its sends were planned a minute ago.
     const claim = async (mailbox, cap, limit = 10) =>
       ok(
-        await db.rpc("reach_out_claim_from", {
+        await db.rpc("sequence_claim_from", {
           p_mailbox_id: mailbox,
           p_cap: cap,
           p_at: new Date().toISOString(),
@@ -767,7 +769,7 @@ test(
     const d3 = await mailboxRow();
     const notDue = await sendIn({ mailbox_id: d3, lead_id: await lead(), send_at: iso(Date.now() + H) });
     const paused = await one(
-      db.from("playbooks").insert({
+      db.from("sequence_steps").insert({
         tenant_id: A,
         kind: "reach_out",
         policy_class: "outreach",
@@ -788,7 +790,7 @@ test(
       }),
     );
     const pausedRun = await one(
-      db.from("broadcasts").insert({
+      db.from("sequence_batches").insert({
         tenant_id: A,
         name: "Paused",
         template_id: template,
@@ -797,19 +799,19 @@ test(
         audience: { kind: "reach_out", root_id: paused, step_id: paused, search_id: search },
         state: "scheduled",
         scheduled_for: iso(Date.now()),
-        playbook_id: paused,
+        step_id: paused,
         run_for: "2026-09-28",
       }),
     );
     await sendIn({
       mailbox_id: d3,
       lead_id: await lead(),
-      broadcast_id: pausedRun,
-      playbook_id: paused,
-      root_id: paused,
+      batch_id: pausedRun,
+      step_id: paused,
+      sequence_id: paused,
     });
     const waiting = await one(
-      db.from("broadcasts").insert({
+      db.from("sequence_batches").insert({
         tenant_id: A,
         name: "Waiting",
         template_id: template,
@@ -818,13 +820,13 @@ test(
         audience: { kind: "reach_out", root_id: root, step_id: root, search_id: search },
         state: "pending_approval",
         scheduled_for: iso(Date.now()),
-        playbook_id: root,
+        step_id: root,
         run_for: "2026-09-29",
       }),
     );
-    await sendIn({ mailbox_id: d3, lead_id: await lead(), broadcast_id: waiting });
+    await sendIn({ mailbox_id: d3, lead_id: await lead(), batch_id: waiting });
     assert.equal((await claim(d3, 30)).length, 0);
-    assert.equal(ok(await db.from("reach_out_sends").select("state").eq("id", notDue).single()).state, "planned");
+    assert.equal(ok(await db.from("sequence_sends").select("state").eq("id", notDue).single()).state, "planned");
     const held = await mailboxRow({ state: "held", held_why: "bounces", held_at: iso(Date.now()) });
     await sendIn({ mailbox_id: held, lead_id: await lead() });
     assert.equal((await claim(held, 30)).length, 0, "a held mailbox claims nothing");
@@ -842,7 +844,7 @@ test(
     // A step still running under a paused root: the chain is paused, every step of it.
     const d4 = await mailboxRow();
     const pausedStep = await one(
-      db.from("playbooks").insert({
+      db.from("sequence_steps").insert({
         tenant_id: A,
         kind: "reach_out",
         policy_class: "outreach",
@@ -853,12 +855,12 @@ test(
         params: [],
         name: "Paused's nudge",
         trigger: "after_step",
-        after_playbook_id: paused,
+        after_step_id: paused,
         after_days: 3,
       }),
     );
     const pausedStepRun = await one(
-      db.from("broadcasts").insert({
+      db.from("sequence_batches").insert({
         tenant_id: A,
         name: "Paused's nudge",
         template_id: template,
@@ -867,16 +869,16 @@ test(
         audience: { kind: "reach_out", root_id: paused, step_id: pausedStep, search_id: search },
         state: "scheduled",
         scheduled_for: iso(Date.now()),
-        playbook_id: pausedStep,
+        step_id: pausedStep,
         run_for: "2026-10-01",
       }),
     );
     await sendIn({
       mailbox_id: d4,
       lead_id: await lead(),
-      broadcast_id: pausedStepRun,
-      playbook_id: pausedStep,
-      root_id: paused,
+      batch_id: pausedStepRun,
+      step_id: pausedStep,
+      sequence_id: paused,
     });
     assert.equal((await claim(d4, 30)).length, 0, "a paused root holds its steps");
 

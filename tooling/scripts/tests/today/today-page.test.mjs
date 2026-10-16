@@ -1013,7 +1013,10 @@ test("a waiting run whose day has passed is opened from the queue, never approve
   assert.deepEqual(approvals, []);
   // The bell's row about one run says where it goes.
   const { verbForRoute } = await import("@chanlytics/contracts");
-  assert.deepEqual([verbForRoute("broadcasts/run:b-wait"), verbForRoute("broadcasts")], ["Open the run", "Open Sent"]);
+  assert.deepEqual(
+    [verbForRoute("broadcasts/run:b-wait"), verbForRoute("broadcasts")],
+    ["Open the run", "Open Sequences"],
+  );
 });
 
 test("four rows: people take three while a run wants the fourth, and all four when none does", () => {

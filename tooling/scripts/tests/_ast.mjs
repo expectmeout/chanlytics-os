@@ -1386,7 +1386,7 @@ export function needsHumanReads(sf) {
 
 /** Where a campaign's and a reach-out's Resume are sent (the playbooks' verbs, the chains' surface), and where it is asked. */
 const RESUME_VERBS = /(^|\/)(playbooks\/verbs|reach-out\/surface)$/;
-const RESUME_ASKED = /(^|\/)ledger\/ledger-acts$/;
+const RESUME_ASKED = /(^|\/)home\/resume-act$/;
 const RESUME_QUESTION = new Set(["ResumeQuestion", "ResumeAct", "useResumeAsk"]);
 
 /** +1 for a test that an act is a Resume (`act.kind === "resume"`), -1 for one that it is not, else 0. */
@@ -1409,7 +1409,7 @@ function heldAs(fn) {
 
 /**
  * Whether a Resume's call runs only once a Resume act was answered: behind `act.kind === "resume"`, or in a function
- * every use of which is (the Campaigns home's runner, whose acts come from the ledger's ResumeAct, which asks).
+ * every use of which is (a runner whose acts come from Campaigns' ResumeAct, home/resume-act.tsx, which asks).
  */
 function resumeAnswered(call, sf) {
   if (behind(call, resumeSide)) return true;

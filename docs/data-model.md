@@ -100,8 +100,8 @@ what the script writes.
 | [`sending_domains`](#sending_domains) | none | on, 1 policy |
 | [`sequence_batches`](#sequence_batches) | `packages/db/src/events.ts`, `packages/db/src/repositories/campaigns/calendar-runs.ts`, `packages/db/src/repositories/campaigns/campaign-channels.ts`, `packages/db/src/repositories/campaigns/email-offers.ts`, `packages/db/src/repositories/campaigns/reach-out-drafts.ts`, `packages/db/src/repositories/campaigns/sequences.ts`, `packages/db/src/repositories/campaigns/stranded-runs.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/touches.ts`, `packages/db/src/repositories/workspace-export.ts` | on, 1 policy |
 | [`sequence_enrollments`](#sequence_enrollments) | `packages/db/src/repositories/campaigns/sequences.ts` | on, 1 policy |
-| [`sequence_replies`](#sequence_replies) | `packages/db/src/repositories/outreach.ts`, `packages/db/src/repositories/people.ts`, `packages/db/src/repositories/workspace-export.ts` | on, 1 policy |
-| [`sequence_sends`](#sequence_sends) | `packages/db/src/repositories/campaigns/campaign-channels.ts`, `packages/db/src/repositories/campaigns/reach-out-check.ts`, `packages/db/src/repositories/campaigns/reach-out-drafts.ts`, `packages/db/src/repositories/outreach.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/touches.ts`, `packages/db/src/repositories/workspace-export.ts` | on, 2 policies |
+| [`sequence_replies`](#sequence_replies) | `packages/db/src/repositories/campaigns/sequences.ts`, `packages/db/src/repositories/outreach.ts`, `packages/db/src/repositories/people.ts`, `packages/db/src/repositories/workspace-export.ts` | on, 1 policy |
+| [`sequence_sends`](#sequence_sends) | `packages/db/src/repositories/campaigns/campaign-channels.ts`, `packages/db/src/repositories/campaigns/reach-out-check.ts`, `packages/db/src/repositories/campaigns/reach-out-drafts.ts`, `packages/db/src/repositories/campaigns/sequences.ts`, `packages/db/src/repositories/outreach.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/touches.ts`, `packages/db/src/repositories/workspace-export.ts` | on, 2 policies |
 | [`sequence_steps`](#sequence_steps) | `packages/db/src/events.ts`, `packages/db/src/repositories/campaigns/calendar-runs.ts`, `packages/db/src/repositories/campaigns/campaign-channels.ts`, `packages/db/src/repositories/campaigns/sequences.ts`, `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/lists.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/workspace-export.ts`, `packages/db/src/sweeps.ts` | on, 4 policies |
 | [`sequences`](#sequences) | `packages/db/src/repositories/campaigns/sequences.ts` | on, 1 policy |
 | [`sweep_status`](#sweep_status) | none | on, no policy, so only the service role reaches it |
@@ -111,12 +111,7 @@ what the script writes.
 | [`tenant_config_versions`](#tenant_config_versions) | none | on, no policy, so only the service role reaches it |
 | [`tenants`](#tenants) | `packages/db/src/ai-usage.ts`, `packages/db/src/ops.ts`, `packages/db/src/repositories/campaigns/stranded-runs.ts`, `packages/db/src/repositories/campaigns/workspace.ts`, `packages/db/src/repositories/control-plane.ts`, `packages/db/src/repositories/leads.ts`, `packages/db/src/repositories/notices/member-alerts.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/touches.ts`, `packages/db/src/tenant-db.type-test.ts` | on, 2 policies |
 | [`waitlist`](#waitlist) | `packages/db/src/waitlist.ts` | on, no policy, so only the service role reaches it |
-| [`broadcast_recipients`](#broadcast_recipients) (view) | none | |
-| [`broadcasts`](#broadcasts) (view) | none | |
 | [`lead_searches_view`](#lead_searches_view) (view) | none | |
-| [`playbooks`](#playbooks) (view) | none | |
-| [`reach_out_replies`](#reach_out_replies) (view) | none | |
-| [`reach_out_sends`](#reach_out_sends) (view) | none | |
 | [`usage_ledger`](#usage_ledger) (view) | none | |
 
 ## Tables
@@ -2738,7 +2733,7 @@ Foreign keys:
 
 Decision 0060: one reading of one reply to a sequence's send, keyed by the message (reach_out_replies until 00440). The intent (or other, with why it could not be read), what the reading did (plan), and the draft it wrote.
 
-- Owned by: `packages/db/src/repositories/outreach.ts`, `packages/db/src/repositories/people.ts`, `packages/db/src/repositories/workspace-export.ts`
+- Owned by: `packages/db/src/repositories/campaigns/sequences.ts`, `packages/db/src/repositories/outreach.ts`, `packages/db/src/repositories/people.ts`, `packages/db/src/repositories/workspace-export.ts`
 - Primary key: `message_id`
 - Row-level security: on, 1 policy
 
@@ -2799,7 +2794,7 @@ Foreign keys:
 
 Decision 0060: one message of a sequence to one person. A customer's (contact_id, no lead_id): queued, then sent, skipped or failed, once. A lead's (lead_id): planned (a time and a mailbox), held while its check doubts it, claimed under the mailbox's day, queued as an email or drafted for its owner, then sent, skipped, failed or handed to the team.
 
-- Owned by: `packages/db/src/repositories/campaigns/campaign-channels.ts`, `packages/db/src/repositories/campaigns/reach-out-check.ts`, `packages/db/src/repositories/campaigns/reach-out-drafts.ts`, `packages/db/src/repositories/outreach.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/touches.ts`, `packages/db/src/repositories/workspace-export.ts`
+- Owned by: `packages/db/src/repositories/campaigns/campaign-channels.ts`, `packages/db/src/repositories/campaigns/reach-out-check.ts`, `packages/db/src/repositories/campaigns/reach-out-drafts.ts`, `packages/db/src/repositories/campaigns/sequences.ts`, `packages/db/src/repositories/outreach.ts`, `packages/db/src/repositories/reach-out-sheet.ts`, `packages/db/src/repositories/reach-out.ts`, `packages/db/src/repositories/touches.ts`, `packages/db/src/repositories/workspace-export.ts`
 - Primary key: `id`
 - Row-level security: on, 2 policies
 
@@ -3149,39 +3144,9 @@ Foreign keys:
 
 Each view's definition is in `supabase/schema.sql`.
 
-### broadcast_recipients
-
-Decision 0060: a customer's sequence_sends under its old name, while the code moves (step S6 drops it).
-
-- Owned by: none
-
-### broadcasts
-
-Decision 0060: sequence_batches under its old name, while the code moves (step S6 drops it).
-
-- Owned by: none
-
 ### lead_searches_view
 
 Every column of lead_searches with its latest round (round_id, seq, purpose, state, ending, ending_pending, question, answered, target, plan_version, judge_tokens, cost_usd -- what that round has spent, so cost per Qualified lead is read from here -- waiting_since and ended_at) and its counts over the members: qualified, review, excluded, counted, emails_checked (a qualified lead whose address was checked and answered) and with_phone (a qualified lead with a number nobody has marked wrong). Excluded members stay counted after their details are blanked, so "40 left out" stays 40. undo_op_id and undo_version name the operation this search's Undo takes while its twenty-four hours run, and are null once it is undone or the day is out. nearby (00145): where to look next when the round ran dry, the nearest ZIP centres past its area, nearest first; [] otherwise. strong, look and long (00146): the qualified members by fit band, for the band bar over the table. thread_id (00172): the Ask thread the search was planned in, or null.
-
-- Owned by: none
-
-### playbooks
-
-Decision 0060: sequence_steps under its old name, while the code moves (step S6 drops it).
-
-- Owned by: none
-
-### reach_out_replies
-
-Decision 0060: sequence_replies under its old name, while the code moves (step S6 drops it).
-
-- Owned by: none
-
-### reach_out_sends
-
-Decision 0060: a lead's sequence_sends under its old name, while the code moves (step S6 drops it).
 
 - Owned by: none
 

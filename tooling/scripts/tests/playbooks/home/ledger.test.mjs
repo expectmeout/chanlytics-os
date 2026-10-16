@@ -477,12 +477,6 @@ test("a reach-out's People cell is who is in it now (00426): its waiting and wri
   const at = (id) => row(l, id);
   assert.deepEqual(at("ro-list").people, { n: 26, unit: "businesses", words: "17 waiting · 9 writing" });
   assert.equal(at("ro-list").hint, "Its own list · 3 emails and a call", "a list its owner adds to");
-  assert.equal(
-    C.ledgerPeopleWords(at("ro-list").people),
-    "17 waiting · 9 writing",
-    "the phone's line and the fold say it",
-  );
-  assert.match(C.ledgerPhoneLine(at("ro-list"), "Reach-outs"), /17 waiting · 9 writing$/);
   assert.equal(at("ro-search").people.words, "5 writing", "nobody waiting: not said");
   assert.equal(at("ro-search").hint, "Cold email to Trainers · 2 emails", "a search's says the search");
   assert.equal(at("ro-done").people.words, "4 done");
@@ -491,55 +485,7 @@ test("a reach-out's People cell is who is in it now (00426): its waiting and wri
   assert.equal(at("ro-none").hint, "Cold email to Trainers · 1 email and 2 calls");
   for (const id of ["ro-failed", "ro-old"]) {
     assert.deepEqual(at(id).people, { n: null, unit: "businesses" }, `${id}: never a zero nobody counted`);
-    assert.equal(C.ledgerPeopleWords(at(id).people), null);
   }
-});
-
-test("the sort keys: Next puts a waiting run first, then the soonest, paused last; Name; People now; Replied", () => {
-  const mk = (id, over) => ({
-    id,
-    name: id,
-    status: "on",
-    people: { n: 1, unit: "people" },
-    results: "none",
-    next: { words: "", atMs: 10 },
-    ...over,
-  });
-  const rows = [
-    mk("paused", { status: "paused", next: { words: "Paused", atMs: null } }),
-    mk("later", {
-      next: { words: "", atMs: 20 },
-      people: { n: 9, unit: "people" },
-      results: { kind: "sent", sent: 10, replied: 5 },
-    }),
-    mk("waiting", { status: "waiting", next: { words: "Waiting on you", atMs: 30 } }),
-    mk("soon", { people: { n: null, unit: "people" }, results: "uncounted" }),
-    mk("chain", {
-      results: { kind: "written", written: 40, businesses: 18, wroteBack: 6 },
-      next: { words: "—", atMs: null },
-    }),
-  ];
-  const ids = (by) => [...rows].sort(C.ledgerOrder(by)).map((r) => r.id);
-  assert.deepEqual([...C.LEDGER_SORTS], ["next", "name", "people", "replied"]);
-  assert.deepEqual(ids("next"), ["waiting", "soon", "later", "chain", "paused"]);
-  assert.deepEqual(ids("name"), ["chain", "later", "paused", "soon", "waiting"]);
-  assert.deepEqual(
-    ids("people"),
-    ["later", "chain", "paused", "waiting", "soon"],
-    "the most first, one not counted last",
-  );
-  assert.deepEqual(
-    ids("replied"),
-    ["chain", "later", "paused", "waiting", "soon"],
-    "a chain's wrote back beside replied",
-  );
-  // The sort reads wrote back, never the businesses a chain wrote to: more businesses, fewer answers, sorts after.
-  const wide = mk("wide", { results: { kind: "written", written: 300, businesses: 100, wroteBack: 2 } });
-  const narrow = mk("narrow", { results: { kind: "written", written: 20, businesses: 8, wroteBack: 5 } });
-  assert.deepEqual(
-    [wide, narrow].sort(C.ledgerOrder("replied")).map((r) => r.id),
-    ["narrow", "wide"],
-  );
 });
 
 test("without a calendar the appointment groups say they need one, with its door and no Turn on; a campaign made there before runs nothing here", () => {
@@ -653,55 +599,6 @@ test("how many campaigns is one count: the receptionist, the call's text and an 
       .map((r) => r.kind)
       .sort(),
     ["call_text", "offer", "receptionist"],
-  );
-});
-
-test("a phone row says its moment, its next run and who is at it, in one line; a run that waits says so once, on its pill", () => {
-  const rows = [
-    playbook({ id: "pb-v", name: "Reminder", trigger: "visit_tomorrow", named: { pool: 7, saidYes: 7 } }),
-    playbook(),
-    playbook({ id: "pb-p", state: "paused", next: "paused" }),
-    playbook({ id: "pb-w", trigger: "lapsed", totals: { waiting: { id: "r-1", recipient_count: 7 } } }),
-  ];
-  const l = ledger({ playbooks: playbooks(rows), broadcasts: broadcasts([run({ playbook_id: "pb-w" })]) });
-  const line = (id) => {
-    const g = l.groups.find((x) => x.rows.some((r) => r.id === id));
-    return C.ledgerPhoneLine(row(l, id), g.caps);
-  };
-  assert.equal(line("pb-v"), "Appointment tomorrow · tomorrow 10:00 AM · 7 people");
-  assert.equal(
-    line("pb-p"),
-    "Quiet or lapsed · Paused · 5 people",
-    "a paused row's end is its Resume: the line says it rests",
-  );
-  assert.equal(line("pb-w"), "Quiet or lapsed · 5 people", "Waiting for your approval is the pill's, said once");
-  assert.equal(
-    line("receptionist"),
-    `First contact · ${row(l, "receptionist").people.n} this week`,
-    "no next run: none said",
-  );
-  // A figure nobody counted is no figure: the line leaves it out, never "0 people".
-  const uncounted = ledger({
-    shape: { calendar: "none", dealsOn: true, word: "appointment" },
-    playbooks: playbooks([playbook({ id: "pb-r", name: "Reminder", trigger: "visit_tomorrow" })]),
-  });
-  assert.equal(C.ledgerPhoneLine(row(uncounted, "pb-r"), "Appointment tomorrow"), "Appointment tomorrow");
-});
-
-test("who is at a row's moment is said one way, on a phone's line and a desk's fold: one person is a person", () => {
-  assert.equal(C.ledgerPeopleWords({ n: 1, unit: "people" }), "1 person");
-  assert.equal(C.ledgerPeopleWords({ n: 7, unit: "people" }), "7 people");
-  assert.equal(C.ledgerPeopleWords({ n: 0, unit: "people" }), "0 people", "a zero counted is a zero");
-  assert.equal(C.ledgerPeopleWords({ n: 3, unit: "this week" }), "3 this week", "a moment's own unit as it says it");
-  assert.equal(C.ledgerPeopleWords({ n: null, unit: "people" }), null, "nobody counted: nothing said, never a 0");
-  const one = ledger({
-    playbooks: playbooks([
-      playbook({ id: "pb-v", name: "Reminder", trigger: "visit_tomorrow", named: { pool: 1, saidYes: 1 } }),
-    ]),
-  });
-  assert.equal(
-    C.ledgerPhoneLine(row(one, "pb-v"), "Appointment tomorrow"),
-    "Appointment tomorrow · tomorrow 10:00 AM · 1 person",
   );
 });
 

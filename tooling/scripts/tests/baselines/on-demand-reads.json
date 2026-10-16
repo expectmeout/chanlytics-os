@@ -68,6 +68,11 @@
     "fresh": "Read as a sequence's People tab opens, painted from the last answer and read again behind; then each time the Sequences list is read, and after each press on it.",
     "why": "Where people stand moves with each batch and its sends; the list hears the batches, and a press on the tab reads it again."
   },
+  "apps/dashboard/src/surfaces/inbox/pages/inbox-from.tsx GET sequences/[id]/replies": {
+    "kind": "on-open",
+    "fresh": "Read as the Inbox opens on a sequence's replies (inbox/from:<id>, History's door), and again when the address names another sequence or period.",
+    "why": "It names which threads answered; the threads themselves are the Inbox surface's, heard as ever. A reply that comes in while it is open joins the filter when the door is pressed again, and the line says its count as read."
+  },
   "apps/dashboard/src/surfaces/inbox/held-threads.ts GET conversations": {
     "kind": "surface",
     "fresh": "Read inside the Inbox's and Today's own reads: the threads of open holds past the newest hundred, by their ids.",

@@ -4597,6 +4597,22 @@ async function sequenceStepsOf(db, tenantId, sequenceId) {
   if (error) throw new Error(`cannot read the sequence's steps: ${error.message}`);
   return readerRowsOf(data);
 }
+var REPLIES_IN_CHUNK = 200;
+async function leadRepliesOfBatches(db, tenantId, batchIds) {
+  const out = /* @__PURE__ */ new Set();
+  for (let i = 0; i < batchIds.length; i += REPLIES_IN_CHUNK) {
+    const chunk = batchIds.slice(i, i + REPLIES_IN_CHUNK);
+    const sends = await db.from("sequence_sends").select("id").eq("tenant_id", tenantId).not("lead_id", "is", null).in("batch_id", [...chunk]);
+    if (sends.error) throw new Error(`cannot read the batches' emails: ${sends.error.message}`);
+    const ids = (sends.data ?? []).map((s) => s.id);
+    for (let j = 0; j < ids.length; j += REPLIES_IN_CHUNK) {
+      const replies = await db.from("sequence_replies").select("conversation_id").eq("tenant_id", tenantId).in("send_id", ids.slice(j, j + REPLIES_IN_CHUNK)).in("claim", ["person", "owner"]).is("undone_at", null);
+      if (replies.error) throw new Error(`cannot read the replies: ${replies.error.message}`);
+      for (const r of replies.data ?? []) out.add(r.conversation_id);
+    }
+  }
+  return [...out];
+}
 async function sequencePeopleOf(db, p) {
   const { data, error } = await db.rpc("sequence_people", {
     p_tenant_id: p.tenantId,
@@ -4656,6 +4672,14 @@ async function takeOutOfSequence(db, p) {
     p_sequence_id: p.sequenceId,
     p_enrollment_ids: [...p.enrollmentIds],
     ...p.why ? { p_why: p.why } : {},
+    ...decided(p)
+  });
+  return answer(data, error);
+}
+async function putBackInSequence(db, p) {
+  const { data, error } = await db.rpc("sequence_return", {
+    p_tenant_id: p.tenantId,
+    p_sequence_id: p.sequenceId,
     ...decided(p)
   });
   return answer(data, error);
@@ -7020,6 +7044,7 @@ export {
   leadNamesByIds,
   leadPeopleSearchCreate,
   leadPileCounts,
+  leadRepliesOfBatches,
   leadReplyFactsOf,
   leadSlotsOf,
   leadWritten,
@@ -7130,6 +7155,7 @@ export {
   publicWorkspaceBySlug,
   purgeAiUsage,
   pushNamesFor,
+  putBackInSequence,
   putMailboxCredentials,
   putTenantConfig,
   queuedOutcomes,

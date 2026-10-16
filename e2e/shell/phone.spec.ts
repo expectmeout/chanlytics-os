@@ -266,96 +266,33 @@ test.describe("Phone shell on a real workspace", () => {
     await expect(page.locator(".cv-list")).toBeVisible();
   });
   /**
-   * Broadcasts had no phone case at all, and its primary control was off the
-   * screen: .bc-actions is a flex row with no wrap, its children need 491px, the
-   * page column is 283px, and .main-scroll is overflow-x: hidden -- so "Send
-   * now" sat 208px past the right edge with no scrollbar to reach it. A case
-   * that only looks for the button would have passed the whole time.
-   *
-   * The page opens on the ledger, and the send is the home's New message, in a sheet at its own address, so both are
-   * measured: the ledger, with its act on the first screen (in Glass, the default look, that act is drawn in the frame's head,
-   * outside the page's own element, so it is found on the page), then the send. Links too, since the ledger's "Print a desk
-   * sign" and "Download QR" are links drawn as buttons.
+   * Campaigns on a phone is Sequences (decision 0060; Sent's list and the home that stood here went in its S6): the list,
+   * every control of it inside the screen, its New whole on the first screen. The one-off composer a date opens, in a
+   * sheet from the bottom at its own address, holds nothing past the edge either: Broadcasts' "Send now" once sat 208px
+   * past it (.bc-actions, a flex row with no wrap in a 283px column, under .main-scroll's overflow-x: hidden), where a case
+   * that only looked for the button would have passed the whole time. Read-only: New and its date are pressed, and the
+   * composer is left unsaved.
    */
-  test("Campaigns: every control on Sent is inside the screen, and the page opens on the work", async ({ page }) => {
-    await page.goto("/#/broadcasts");
-    await page.waitForLoadState("networkidle");
-    const real = page.getByTestId("broadcasts-real");
-    await expect(real).toBeVisible();
-    // The work first: New message whole on the first screen, and not the
-    // seeded page's title block (.ct-h2) under a top bar that already says Broadcasts.
-    await expect(page.getByTestId("bc-new")).toBeInViewport({ ratio: 1 });
-    await expect(page.locator(".ct-h2")).toHaveCount(0);
-    await controlsInsideTheScreen(page, real);
-    await page.getByTestId("bc-new").click();
-    await expect(page).toHaveURL(atRoute(/^campaigns\/new$/));
-    const composer = page.getByTestId("cmh-composer").getByTestId("bc-composer");
-    await expect(composer).toBeVisible();
-    await controlsInsideTheScreen(page, composer);
-  });
-
-  /**
-   * Campaigns' home on a phone (decision 16 of the spec of 9 October 2026): the moments are the one list's spine, each
-   * moment's head on the line, one under another, its campaigns under it; the tiles are one column; every control is
-   * inside the screen; and New message, the page's act, is whole on the first screen. Its composer, in a sheet from the
-   * bottom, holds nothing past the edge either. Read-only: nothing here is pressed but New message, and its sheet is left
-   * unsaved.
-   */
-  test("Campaigns: every control on the home is inside the screen, the moments' heads stand down a line with their campaigns under them, and the page opens on the work", async ({
+  test("Campaigns: every control on Sequences is inside the screen, New on the first screen, and a one-off's composer too", async ({
     page,
   }) => {
     await page.goto("/#/campaigns");
     await page.waitForLoadState("networkidle");
-    const home = page.getByTestId("campaigns-home");
-    await expect(home).toBeVisible();
-    await expect(home).toHaveAttribute("data-phone", "true");
-    await expect(page.getByTestId("cmh-new")).toBeInViewport({ ratio: 1 });
-    // Heads on the line: each moment's head is below the one before it, never two on one line. The journey holds four
-    // moments, or five where deals are on (contracts journeyOf): how many is playbooks.spec's, read from the answer.
-    const heads = home.locator('[data-testid="cmh-group-head"][data-stage]');
-    expect(await heads.count()).toBeGreaterThanOrEqual(4);
-    const tops = await heads.evaluateAll((els) => els.map((el) => el.getBoundingClientRect().top));
-    expect(tops, "the moments stand one under another").toEqual([...tops].sort((a, b) => a - b));
-    expect(new Set(tops.map(Math.round)).size, "no two moments on one line").toBe(tops.length);
-    // Rows under them: every campaign of a group stands below its group's head.
-    const underTheirHeads = await home.getByTestId("cmh-group").evaluateAll((groups) =>
-      groups.every((g) => {
-        const head = g.querySelector('[data-testid="cmh-group-head"]');
-        if (!head) return false;
-        const foot = head.getBoundingClientRect().bottom;
-        return [...g.querySelectorAll('[data-testid="cmh-row"]')].every(
-          (r) => r.getBoundingClientRect().top >= foot - 1,
-        );
-      }),
-    );
-    expect(underTheirHeads, "each group's campaigns stand under its head").toBe(true);
-    // Who can hear you is one line in the moments' head, inside their pane: nothing of the page's own stands above it.
-    const rail = home.getByTestId("cmh-rail");
-    await expect(rail.getByTestId("cmh-reach")).toBeVisible();
-    await expect(home.getByTestId("cmh-reach")).toHaveCount(1);
-    await expect(home.getByTestId("cmh-also")).toHaveCount(0);
-    const railTop = (await rail.boundingBox())?.y ?? 0;
-    for (const id of ["cmh-coming", "cmh-results"]) {
-      const box = await home.getByTestId(id).first().boundingBox();
-      if (box) expect(box.y, `${id} stands under the moments`).toBeGreaterThan(railTop);
-    }
-    // The marks a campaign goes by (8 Oct 2026): on a phone each keeps its word beside its dot, inside the screen, and
-    // the whole says itself to a screen reader. Which campaigns carry marks is playbooks.spec's, against the API.
-    const width = page.viewportSize()?.width ?? 0;
-    const marks = home.getByTestId("cmh-row").locator(".cmh-chans");
-    for (let i = 0; i < (await marks.count()); i++) {
-      const m = marks.nth(i);
-      await expect(m).toHaveAttribute("aria-label", /Goes by |waits?\b/);
-      await expect(m.locator(".cmh-chan").first()).toBeVisible();
-      for (const word of await m.locator(".cmh-chan-word").all()) await expect(word).toBeVisible();
-      const box = await m.boundingBox();
-      expect(box, "the marks are drawn").not.toBeNull();
-      expect(box!.x + box!.width, "the marks stay inside the screen").toBeLessThanOrEqual(width);
-    }
-    await controlsInsideTheScreen(page, home);
-    await page.getByTestId("cmh-new").click();
+    await expect(page).toHaveURL(atRoute(/^campaigns\/sequences$/));
+    const list = page.getByTestId("sq-page");
+    await expect(list).toBeVisible();
+    const open = page.getByTestId("sq-new-open");
+    await expect(open).toBeInViewport({ ratio: 1 });
+    await controlsInsideTheScreen(page, list);
+    await open.click();
+    await expect(page).toHaveURL(atRoute(/^campaigns\/sequences\/new$/));
+    const pane = page.getByTestId("sq-new");
+    await expect(pane).toBeVisible();
+    await controlsInsideTheScreen(page, pane);
+    await pane.getByTestId("sq-new-on-date").click();
+    await pane.getByTestId("sq-new-open-date").click();
     await expect(page).toHaveURL(atRoute(/^campaigns\/new$/));
-    const composer = page.getByTestId("cmh-composer");
+    const composer = page.getByTestId("cmh-composer").getByTestId("bc-composer");
     await expect(composer).toBeVisible();
     await controlsInsideTheScreen(page, composer);
   });
@@ -394,10 +331,9 @@ test.describe("Phone shell on a real workspace", () => {
   });
 
   test("Campaigns: Send now asks before it sends", async ({ page }) => {
-    await page.goto("/#/broadcasts");
+    // The send is Campaigns' composer, a sheet over Sequences at its own address.
+    await page.goto("/#/campaigns/new");
     await page.waitForLoadState("networkidle");
-    // The send is the home's New message, a sheet at its own address.
-    await page.getByTestId("bc-new").click();
     const send = page.getByTestId("bc-send");
     test.skip(!(await send.isEnabled().catch(() => false)), "nothing approved to send in this workspace");
     await send.click();
@@ -671,7 +607,7 @@ test.describe("Phone shell on a real workspace", () => {
    * side at 12px where the rows' gutter is 16; and Campaigns' underline was ink where theirs is the accent. Ruben kept
    * Campaigns' spacing and the others' accent. This holds them to one strip: its height and side, a tab's height
    * and where its words sit, the step to the next tab, and the underline under the one picked. Campaigns' three tabs
-   * went with its strip (3 Oct 2026: its home is one page, and Sent and the Library are rooms reached from it).
+   * went with its strip (3 Oct 2026), and its strip came back as Sequences | Messages (decision 0060), the same strip.
    */
   test("the section tabs are one strip: the Inbox's views, People's scopes and Settings' sections", async ({
     page,
@@ -768,9 +704,9 @@ test.describe("Phone shell on a real workspace", () => {
       ["clients", ".cl-main-scroll"],
       ["clients/leads", ".cl-main-scroll"],
       ["clients/pipeline", ".cl-main-scroll"],
-      // Sent's list is the pane that scrolls itself, as the Library's is (parts/split.tsx CmSplit).
-      ["broadcasts", ".bc-page > .cm-list"],
-      // The Library's list is the pane that scrolls itself (parts/split.tsx CmSplit: .cm-list), where .rp-body is its failed state.
+      // Sequences' list is the pane that scrolls itself, as Messages' is (parts/split.tsx CmSplit).
+      ["campaigns/sequences", ".sq-page > .cm-list"],
+      // Messages' list is the pane that scrolls itself (parts/split.tsx CmSplit: .cm-list), where .rp-body is its failed state.
       ["messages", ".tpl-page > .cm-list"],
     ] as const) {
       await page.goto(`/#/${hash}`);
@@ -1091,13 +1027,12 @@ test.describe("Phone shell on a real workspace", () => {
     // The address is the tab's own route: the Leads view draws its strip once Leads is read.
     await expect(page).toHaveURL(atRoute(/^clients\/leads/));
 
-    // Campaigns draws no strip (3 Oct 2026): a swipe across its home goes nowhere, and moves nothing.
+    // Campaigns is Sequences, its strip Sequences | Messages (decision 0060): its address lands on the first tab, lit.
     await page.goto("/#/campaigns");
     await page.waitForLoadState("networkidle");
-    await expect(page.locator(".stabs.stabs-campaigns")).toHaveCount(0);
-    await swipe(300, 90);
-    await page.waitForTimeout(800);
-    await expect(page).toHaveURL(atRoute(/^campaigns$/));
+    await expect(page).toHaveURL(atRoute(/^campaigns\/sequences$/));
+    await expect(page.locator(".stabs.stabs-campaigns")).toBeVisible();
+    await expect(page.getByTestId("campaigns-view-sequences")).toHaveAttribute("aria-current", "page");
 
     // Settings' sections are the same strip on a phone (25 Sep): Business, then Team.
     await page.goto("/#/admin/workspace");

@@ -116,11 +116,11 @@ const runWith = async (name, people) => {
 };
 const move = (broadcastId, contactId, patch) =>
   db
-    .from("broadcast_recipients")
+    .from("sequence_sends")
     .update(patch)
-    .eq("broadcast_id", broadcastId)
+    .eq("batch_id", broadcastId)
     .eq("contact_id", contactId)
-    .select("state, reason, attempt")
+    .select("state, reason, attempt:attempts")
     .single();
 
 test("the guard counts every release of a claim as a new attempt, and nothing else", async (t) => {

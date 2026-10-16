@@ -2,8 +2,9 @@
  * Campaigns' ledger (spec 2026-10-09 §4.1; canvas A, "Ledger", picked 9 Oct 2026): every campaign of the workspace in
  * one list, grouped by the moment it stands on in the journey's order (journey.ts), then Lists & offers, Reach-outs and,
  * past the threshold, the one-off sends; each row with its last 30 days as the database counts them (campaign_series'
- * `sources`, a chain's own totals), its next run, and the one act its state asks. Pure: one builder per kind of row, the
- * order a sort asks (`ledgerOrder`) and the counts the status tabs say; every word is LIFECYCLE_WORDS.ledger's.
+ * `sources`, a chain's own totals), its next run, and the one act its state asks. Pure: one builder per kind of row, and
+ * the counts; every word is LIFECYCLE_WORDS.ledger's. The page that drew it went with decision 0060's S6: Ask's journey
+ * reads it now (server/ask/tools/read/campaigns.ts), and the composer its moments.
  *
  * A number not counted is "uncounted" ("—"), never a zero; one counted where nothing went is "none" ("Nothing sent").
  * The receptionist and the call's text are First contact's rows of their own kind (the glossary's Campaign) and are
@@ -39,7 +40,6 @@ import type {
   LifecycleChains,
   LifecycleChannelMark,
   LifecycleGroup,
-  LifecycleHome,
   LifecycleInput,
   LifecycleLedger,
   LifecycleNeeds,
@@ -57,10 +57,6 @@ import { LIFECYCLE_WORDS, lifecycleChainStateOf, lifecycleStateOf, tallyWords } 
 
 /** Campaigns before the tools: under seven, no tool line, tabs, heads, phone strip or search (decision 15, a judgment). */
 const LEDGER_TOOLS_AT = 7;
-
-/** The orders a desk may sort the rows by: Next (waiting first, then soonest, paused last), Name, People now, Replied. */
-export const LEDGER_SORTS = ["next", "name", "people", "replied"] as const;
-export type LedgerSort = (typeof LEDGER_SORTS)[number];
 
 /** The period every number of the ledger is over: "Last 30 days". */
 // periodWords takes (days, until) since main's #1526; null is a window ending today ("Last 30 days").
@@ -450,16 +446,6 @@ export function chainResumeOf(c: Pick<ReachOutChainDto, "name" | "root_id">): Li
   };
 }
 
-/**
- * A campaign's Resume as its row on the home asks it (resumeOf: when it runs next, to about how many, and an `auto` mode
- * in full), for the drawer that opens it, which pressed Resume with no question (the wiring's second audit, R11 S9-2).
- * Null where its row offers no Resume, or the home holds no row of that id.
- */
-export function rowResumeOf(home: Pick<LifecycleHome, "ledger">, id: string): LifecycleResume | null {
-  const act = home.ledger.groups.flatMap((g) => g.rows).find((r) => r.id === id)?.act;
-  return act?.kind === "resume" ? act : null;
-}
-
 function chainRow(
   c: ReachOutChainDto,
   at: { input: LifecycleInput; ready: ChannelsReady | null; caps: string },
@@ -715,68 +701,4 @@ export function lifecycleLedger(at: {
         : null,
     ...said,
   };
-}
-
-/** Where a status sorts under Next: a run waiting first, then what runs, then what does not, paused last. */
-const NEXT_RANK: Record<LifecycleRow["status"], number> = {
-  waiting: 0,
-  on: 1,
-  always: 2,
-  off: 2,
-  not_here: 2,
-  paused: 3,
-};
-
-/** A row's replies, or a chain's wrote back, to sort by: nothing sent is 0, not counted last. */
-function repliedOf(r: LifecycleRow): number {
-  if (r.results === "uncounted") return -1;
-  if (r.results === "none") return 0;
-  return r.results.kind === "sent" ? r.results.replied : r.results.wroteBack;
-}
-
-/** How a desk sorts the rows (decision 8): ties by name. */
-export function ledgerOrder(by: LedgerSort): (a: LifecycleRow, b: LifecycleRow) => number {
-  const byName = (a: LifecycleRow, b: LifecycleRow) => a.name.localeCompare(b.name);
-  if (by === "name") return byName;
-  if (by === "people") return (a, b) => (b.people.n ?? -1) - (a.people.n ?? -1) || byName(a, b);
-  if (by === "replied") return (a, b) => repliedOf(b) - repliedOf(a) || byName(a, b);
-  const at = (r: LifecycleRow) => r.next.atMs ?? Number.MAX_SAFE_INTEGER;
-  return (a, b) => NEXT_RANK[a.status] - NEXT_RANK[b.status] || at(a) - at(b) || byName(a, b);
-}
-
-/**
- * A row's one line on a phone (spec 2026-10-09 §4.4): its moment, its next run and who is at it now ("Appointment
- * tomorrow · tomorrow 10:00 AM · 7 people"), each said where it is known. A run that waits says so on the row's pill, so
- * the line leaves it out; a paused row's end is its Resume, so the line says it rests. A figure not counted is left out,
- * never said as a zero.
- */
-/**
- * What a row that is not a campaign does, said first on its phone line: the receptionist answers whoever writes, the
- * call's text is sent when a caller asks for it, the month's offer goes every so often. Null for a campaign, whose line is
- * its next run and its people.
- */
-export function ledgerPhoneWhat(r: LifecycleRow): string | null {
-  if (r.kind === "receptionist") return r.hint;
-  if (r.kind === "call_text") return LIFECYCLE_WORDS.callText.when;
-  // The month's offer, not made yet: how often it would go, and to whom ("Every 30 days, to a yes to offers").
-  if (r.kind === "offer" && r.status === "off") return r.hint;
-  return null;
-}
-
-export function ledgerPhoneLine(r: LifecycleRow, caps: string): string {
-  const dash = LIFECYCLE_WORDS.ledger.dash;
-  const next = r.status === "waiting" || r.next.words === dash ? null : r.next.words;
-  return [caps, next, ledgerPeopleWords(r.people)].filter((p): p is string => !!p).join(" · ");
-}
-
-/**
- * Who is at a row's moment now, with what they are counted as: "1 person", "7 people", a moment's own unit as it says
- * it ("3 this week"). Said one way on a phone's line and a desk's fold (ledger-row.tsx); null where nobody was counted,
- * never a zero.
- */
-export function ledgerPeopleWords(people: LifecycleRow["people"]): string | null {
-  if (people.words) return people.words;
-  if (people.n === null) return null;
-  if (people.unit === "people") return plural(people.n, "person", "people");
-  return `${people.n} ${people.unit}`.trim();
 }

@@ -223,13 +223,12 @@ Object.assign(globalThis, {
   gateTitle: (perm, doing) => `Only an owner or operator can ${doing}.`,
   __surfaceState: () => "live",
 });
-const { BroadcastsPage } = await import(`${SRC}/surfaces/campaigns/broadcasts/broadcasts-page.tsx`);
+const { BroadcastsPage, BroadcastSend } = await import(`${SRC}/surfaces/campaigns/broadcasts/broadcasts-page.tsx`);
 const { bcWhenNote, BcWhenPick } = await import(`${SRC}/surfaces/campaigns/broadcasts/when.tsx`);
 const { BroadcastDetail, BcRunVerbs } = await import(`${SRC}/surfaces/campaigns/broadcasts/run.tsx`);
 // The receipt's sentence is words alone, apart from the picker, so the shell that publishes it carries no picker.
 const { bcWhenWords, bcOpensOnItsSheet } = await import(`${SRC}/surfaces/campaigns/broadcasts/when-words.ts`);
 const { PlaybookComposer } = await import(`${SRC}/surfaces/campaigns/playbooks/composer.tsx`);
-const { PlaybookPane } = await import(`${SRC}/surfaces/campaigns/playbooks/card-detail.tsx`);
 const { CmSlot } = await import(`${SRC}/surfaces/campaigns/parts/slot.tsx`);
 const { TemplatesPage } = await import(`${SRC}/surfaces/campaigns/templates/templates-page.tsx`);
 const { TemplateComposer } = await import(`${SRC}/surfaces/campaigns/templates/composer.tsx`);
@@ -271,19 +270,6 @@ const { Face } = await import(`${SRC}/surfaces/kit/face/face.tsx`);
 
 /** A run's name as its pane's head says it (CmPane's title, an h2's first child; its state is the second): where the page's h1 was. */
 const paneTitle = (tree) => textOf(find(byTestId(tree, "bc-run-solo"), (n) => n.type === "h2").props.children[0]);
-/**
- * The runs by state, as the list's head draws them: the kit's sub-tabs (their Base UI parts draw nothing here, so the strip's
- * props are what a test reads). `tab(id)` is one tab as the strip was given it, `pick(id)` presses it.
- */
-const bandOf = (tree) => {
-  const strip = find(byTestId(tree, "bc-band"), (n) => n.type === SubTabs);
-  return {
-    value: strip.props.value,
-    tab: (id) => strip.props.tabs.find((t) => t.id === id),
-    ids: strip.props.tabs.map((t) => t.id),
-    pick: (id) => strip.props.onSelect(id),
-  };
-};
 
 /**
  * A language chip is the kit's Picker (surfaces/kit/picker/), drawn as a token: its face says the letters of the language
@@ -367,6 +353,35 @@ const again = (props) => drawAgain(() => BroadcastsPage(props));
 const writing = (props) => {
   page({ ...props, initialSegment: props.initialSegment ?? "no-such-list" });
   return again(props);
+};
+/**
+ * Send it again goes to Campaigns' composer (`campaigns/new`), its send kept in the tab as a send half-written is
+ * (page/runs.tsx bcAgainOf): the tab's memory, as the shell keeps it (legacy-bridge/tab-memory.ts), held for a test that
+ * hands a send on and taken away after it, so no other test's composer opens on what it kept.
+ */
+const withTabMemory = async (fn) => {
+  const kept = new Map();
+  const at = (kind, key) => `${kind}:${key ?? ""}`;
+  globalThis.window.__tabMemory = {
+    place: () => null,
+    keepPlace() {},
+    draft: (kind, key) => kept.get(at(kind, key)) ?? null,
+    keepDraft: (kind, value, key) => void kept.set(at(kind, key), value),
+    dropDraft: (kind, key) => void kept.delete(at(kind, key)),
+  };
+  try {
+    await fn();
+  } finally {
+    delete globalThis.window.__tabMemory;
+  }
+};
+/** Campaigns' composer as Send it again opens it: the send screen (BroadcastSend), on what the tab kept. */
+const sentAgain = () => {
+  const props = { data: surfaceValue("broadcasts"), flash() {}, onDone() {}, onYes() {} };
+  fresh();
+  BroadcastSend(props);
+  drawAgain(() => BroadcastSend(props));
+  return drawAgain(() => BroadcastSend(props));
 };
 /**
  * The playbook composer, as Campaigns' home hosts it under "Every time a moment comes" (home/new-message.tsx Held): the
@@ -686,47 +701,48 @@ test("REGRESSION: a starter's first name is each person's own on a broadcast and
   assert.deepEqual(sent.at(-1).params, [{ kind: "first_name" }, "Northside Studio", { kind: "booking_link" }]);
 });
 
-test("REGRESSION: Send it again puts right a slot a run filled with what it cannot take -- the composer took a run's sources as they were", async () => {
-  // Sent by hand with the old free choice: the first name filled by the booking link, the business name typed, and a link the workspace has since removed.
-  const wrong = dto({
-    id: "b-wrong",
-    name: "Win-back by hand",
-    playbook_id: null,
-    run_for: null,
-    template_id: "tpl-winback_offer",
-    template_name: "winback_offer",
-    audience: { kind: "saved", id: "s1", label: "Regulars" },
-    params: [{ kind: "booking_link" }, { kind: "text", value: "Northside" }, { kind: "booking_link" }],
-  });
-  setSurfaceValue(
-    "broadcasts",
-    broadcastsSurface({
-      templates: [starterTemplate("winback_offer")],
-      number: healthyNumber,
-      rows: [toBroadcastVM(wrong, ZONE)],
-    }),
-  );
-  answers.set("b-wrong", [{ ok: true, data: detailOf(wrong) }]);
-  const props = { initialSegment: null, initialRun: "b-wrong" };
-  page(props);
-  await settle();
-  press(byTestId(again(props), "bc-again"));
-  again({ initialSegment: null, initialRun: null });
-  const tree = again({ initialSegment: null, initialRun: null });
-  assert.deepEqual(
-    slotsOf(tree),
-    [
-      { kind: "first_name", offers: [] },
-      { kind: "text", offers: ["business_name", "text"] },
-      { kind: "text", offers: [] },
-    ],
-    "each person's own name; the words it said, where words may go; a link with none on file can only be typed",
-  );
-  assert.deepEqual(
-    typedOf(tree).map((x) => x.props.typed),
-    ["Northside", ""],
-  );
-});
+test("REGRESSION: Send it again puts right a slot a run filled with what it cannot take -- the composer took a run's sources as they were", () =>
+  withTabMemory(async () => {
+    // Sent by hand with the old free choice: the first name filled by the booking link, the business name typed, and a link the workspace has since removed.
+    const wrong = dto({
+      id: "b-wrong",
+      name: "Win-back by hand",
+      playbook_id: null,
+      run_for: null,
+      template_id: "tpl-winback_offer",
+      template_name: "winback_offer",
+      audience: { kind: "saved", id: "s1", label: "Regulars" },
+      params: [{ kind: "booking_link" }, { kind: "text", value: "Northside" }, { kind: "booking_link" }],
+    });
+    setSurfaceValue(
+      "broadcasts",
+      broadcastsSurface({
+        templates: [starterTemplate("winback_offer")],
+        number: healthyNumber,
+        rows: [toBroadcastVM(wrong, ZONE)],
+      }),
+    );
+    answers.set("b-wrong", [{ ok: true, data: detailOf(wrong) }]);
+    const props = { initialSegment: null, initialRun: "b-wrong" };
+    page(props);
+    await settle();
+    press(byTestId(again(props), "bc-again"));
+    assert.equal(went.at(-1), "campaigns/new", "Campaigns' composer, filled with what the run sent");
+    const tree = sentAgain();
+    assert.deepEqual(
+      slotsOf(tree),
+      [
+        { kind: "first_name", offers: [] },
+        { kind: "text", offers: ["business_name", "text"] },
+        { kind: "text", offers: [] },
+      ],
+      "each person's own name; the words it said, where words may go; a link with none on file can only be typed",
+    );
+    assert.deepEqual(
+      typedOf(tree).map((x) => x.props.typed),
+      ["Northside", ""],
+    );
+  }));
 
 test("the review ask's review-link slot is the Google listing's link on a broadcast only where the listing keeps one; with none it can only be typed, as a booking link with none on file", () => {
   for (const [reviewLink, last] of [
@@ -748,23 +764,10 @@ test("the review ask's review-link slot is the Google listing's link on a broadc
 
 /* ------------------------------ a broadcast's state ------------------------------ */
 
-test("REGRESSION (C12): a failed broadcast says why, in its row and in its detail -- it read '· failed' with the reason on file", async () => {
+test("REGRESSION (C12): a failed broadcast says why in its detail -- it read '· failed' with the reason on file", async () => {
   const failed = dto({ id: "b-failed", name: "September offer", state: "failed", failure: "template_not_approved" });
-  const unexplained = dto({ id: "b-failed-2", name: "August offer", state: "failed", failure: null });
-  setSurfaceValue(
-    "broadcasts",
-    broadcastsSurface({
-      rows: [failed, unexplained].map((b) => toBroadcastVM(b, ZONE)),
-    }),
-  );
+  setSurfaceValue("broadcasts", broadcastsSurface({ rows: [toBroadcastVM(failed, ZONE)] }));
   answers.set("b-failed", [{ ok: true, data: detailOf(failed, []) }]);
-  const rows = all(page({ initialSegment: null, initialRun: null }), (n) => n.props?.["data-testid"] === "bc-history");
-  // The card says it failed (its state) and why (its line), where the row said "· failed" and stopped.
-  assert.ok(
-    textOf(rows[0]).includes("Failed") && textOf(rows[0]).includes("its WhatsApp version is no longer approved"),
-    `REGRESSION: ${textOf(rows[0])}`,
-  );
-  assert.ok(textOf(rows[1]).includes("no reason was recorded"), textOf(rows[1]));
   const props = { initialSegment: null, initialRun: "b-failed" };
   page(props);
   await settle();
@@ -773,103 +776,103 @@ test("REGRESSION (C12): a failed broadcast says why, in its row and in its detai
   // And, opened, how to get past it -- never "something went wrong".
   assert.ok(
     textOf(byTestId(tree, "bc-stopped")).includes(
-      "Open it in the Library — its WhatsApp version can be resubmitted, or the message written as an email or a text.",
+      "Open it in Messages — its WhatsApp version can be resubmitted, or the message written as an email or a text.",
     ),
     textOf(byTestId(tree, "bc-stopped")),
   );
 });
 
-test("an opened run is sent again from its own head: the send screen, filled with its template, its list and its values -- and no button when one of them cannot go", async () => {
-  const note = {
-    id: "tpl-note",
-    channel: "whatsapp",
-    name: "a_quick_note",
-    language: "en_US",
-    meta_status: "approved",
-    category: "utility",
-    purpose: "conversational",
-    body_preview: "Hi {{1}}",
-    variables: [{ position: 1, label: "First name", example: "Dani" }],
-  };
-  const offer = {
-    id: "tpl-offer",
-    channel: "whatsapp",
-    name: "autumn_offer",
-    language: "en_US",
-    meta_status: "approved",
-    category: "marketing",
-    purpose: "marketing",
-    body_preview: "Hi {{1}}, {{2}}",
-    variables: [
-      { position: 1, label: "First name", example: "Dani" },
-      { position: 2, label: "The offer", example: "20% off" },
-    ],
-  };
-  const byHand = dto({
-    id: "b-hand",
-    name: "Autumn colour",
-    playbook_id: null,
-    run_for: null,
-    template_id: "tpl-offer",
-    template_name: "autumn_offer",
-    audience: { kind: "saved", id: "s1", label: "Regulars" },
-    params: [{ kind: "first_name" }, { kind: "text", value: "20% off colour" }],
-  });
-  setSurfaceValue(
-    "broadcasts",
-    broadcastsSurface({
-      templates: [note, offer],
-      number: healthyNumber,
-      rows: [byHand, dto()].map((b) => toBroadcastVM(b, ZONE)),
-    }),
-  );
-  answers.set("b-hand", [{ ok: true, data: detailOf(byHand) }]);
-  const props = { initialSegment: null, initialRun: "b-hand" };
-  page(props);
-  await settle();
-  let tree = again(props);
-  press(byTestId(tree, "bc-again"));
-  assert.equal(went.at(-1), "broadcasts", "the run closes");
-  again({ initialSegment: null, initialRun: null });
-  tree = again({ initialSegment: null, initialRun: null });
-  assert.ok(byTestId(tree, "bc-composer"), "onto the send screen");
-  assert.ok(audienceOf(tree).startsWith("Regulars"), "its list");
-  assert.ok(
-    pickerOf(tree, "bc-template").props.value === "autumn_offer" && faceOf(tree, "bc-template").includes("Autumn"),
-    "its template, not the one the screen opens on",
-  );
-  assert.deepEqual(
-    slotElements(tree).map((x) => x.props.kind),
-    ["first_name", "text"],
-    "its values, by what fills them",
-  );
-  assert.equal(typedOf(tree)[0].props.typed, "20% off colour", "and the words it said");
+test("an opened run is sent again from its own head: Campaigns' composer, filled with its template, its list and its values -- and no button when one of them cannot go", () =>
+  withTabMemory(async () => {
+    const note = {
+      id: "tpl-note",
+      channel: "whatsapp",
+      name: "a_quick_note",
+      language: "en_US",
+      meta_status: "approved",
+      category: "utility",
+      purpose: "conversational",
+      body_preview: "Hi {{1}}",
+      variables: [{ position: 1, label: "First name", example: "Dani" }],
+    };
+    const offer = {
+      id: "tpl-offer",
+      channel: "whatsapp",
+      name: "autumn_offer",
+      language: "en_US",
+      meta_status: "approved",
+      category: "marketing",
+      purpose: "marketing",
+      body_preview: "Hi {{1}}, {{2}}",
+      variables: [
+        { position: 1, label: "First name", example: "Dani" },
+        { position: 2, label: "The offer", example: "20% off" },
+      ],
+    };
+    const byHand = dto({
+      id: "b-hand",
+      name: "Autumn colour",
+      playbook_id: null,
+      run_for: null,
+      template_id: "tpl-offer",
+      template_name: "autumn_offer",
+      audience: { kind: "saved", id: "s1", label: "Regulars" },
+      params: [{ kind: "first_name" }, { kind: "text", value: "20% off colour" }],
+    });
+    setSurfaceValue(
+      "broadcasts",
+      broadcastsSurface({
+        templates: [note, offer],
+        number: healthyNumber,
+        rows: [byHand, dto()].map((b) => toBroadcastVM(b, ZONE)),
+      }),
+    );
+    answers.set("b-hand", [{ ok: true, data: detailOf(byHand) }]);
+    const props = { initialSegment: null, initialRun: "b-hand" };
+    page(props);
+    await settle();
+    let tree = again(props);
+    press(byTestId(tree, "bc-again"));
+    assert.equal(went.at(-1), "campaigns/new", "onto Campaigns' composer, pushed, so Back returns to the run");
+    tree = sentAgain();
+    assert.ok(byTestId(tree, "bc-composer"), "onto the send screen");
+    assert.ok(audienceOf(tree).startsWith("Regulars"), "its list");
+    assert.ok(
+      pickerOf(tree, "bc-template").props.value === "autumn_offer" && faceOf(tree, "bc-template").includes("Autumn"),
+      "its template, not the one the screen opens on",
+    );
+    assert.deepEqual(
+      slotElements(tree).map((x) => x.props.kind),
+      ["first_name", "text"],
+      "its values, by what fills them",
+    );
+    assert.equal(typedOf(tree)[0].props.typed, "20% off colour", "and the words it said");
 
-  // A playbook's run is sent again by its playbook, and a template WhatsApp no longer approves cannot go at all.
-  answers.set("b-sent", [{ ok: true, data: detailOf(dto()) }]);
-  page({ initialSegment: null, initialRun: "b-sent" });
-  await settle();
-  assert.equal(
-    byTestId(again({ initialSegment: null, initialRun: "b-sent" }), "bc-again"),
-    null,
-    "a playbook's run is sent again by its playbook",
-  );
-  setSurfaceValue(
-    "broadcasts",
-    broadcastsSurface({
-      templates: [note],
-      number: healthyNumber,
-      rows: [byHand].map((b) => toBroadcastVM(b, ZONE)),
-    }),
-  );
-  page(props);
-  await settle();
-  assert.equal(
-    byTestId(again(props), "bc-again"),
-    null,
-    "REGRESSION-IN-WAITING: a send screen quietly filled with another template",
-  );
-});
+    // A playbook's run is sent again by its playbook, and a template WhatsApp no longer approves cannot go at all.
+    answers.set("b-sent", [{ ok: true, data: detailOf(dto()) }]);
+    page({ initialSegment: null, initialRun: "b-sent" });
+    await settle();
+    assert.equal(
+      byTestId(again({ initialSegment: null, initialRun: "b-sent" }), "bc-again"),
+      null,
+      "a playbook's run is sent again by its playbook",
+    );
+    setSurfaceValue(
+      "broadcasts",
+      broadcastsSurface({
+        templates: [note],
+        number: healthyNumber,
+        rows: [byHand].map((b) => toBroadcastVM(b, ZONE)),
+      }),
+    );
+    page(props);
+    await settle();
+    assert.equal(
+      byTestId(again(props), "bc-again"),
+      null,
+      "REGRESSION-IN-WAITING: a send screen quietly filled with another template",
+    );
+  }));
 
 test("a run waiting on you opens as the sheet the canvas draws -- where it sits in the queue, who it reaches by the rules that made it, the words, and Approve alone at the foot -- and approving opens the next one", async () => {
   const today = globalThis.window.__clock.dayKey(Date.now());
@@ -994,7 +997,7 @@ test("a run waiting on you opens as the sheet the canvas draws -- where it sits 
     // Approved, the next run waiting opens.
     await press(byTestId(tree, "bc-sheet-approve"));
     assert.deepEqual(approved, ["b-wait"]);
-    assert.equal(went.at(-1), "broadcasts/run:b-wait-2", "a queue of two is two presses");
+    assert.equal(went.at(-1), "broadcasts/run:b-wait-2/sheet", "a queue of two is two presses");
 
     // Skip arms before it acts, as every stop on the page does (D13).
     const skipped = [];
@@ -1017,7 +1020,7 @@ test("a run waiting on you opens as the sheet the canvas draws -- where it sits 
     );
     await press(byTestId(tree, "bc-sheet-skip-yes"));
     assert.deepEqual(skipped, ["b-wait"]);
-    assert.equal(went.at(-1), "broadcasts/run:b-wait-2");
+    assert.equal(went.at(-1), "broadcasts/run:b-wait-2/sheet");
 
     // A run whose day has passed is refused by approveRun: the sheet says why, and offers the skip.
     const stale = { ...first, run_for: "2020-01-01" };
@@ -1222,151 +1225,23 @@ test("a run that kept who it left out opens as the board's card: of how many, th
   assert.equal(went.at(-1), "broadcasts/get-yes");
 });
 
-test("Broadcasts is one ledger: the runs waiting on you said at the head, the states as the filter of the runs, the week ahead, and the composer a pane beside it", () => {
-  const sent = (i) =>
-    dto({
-      id: `b-s${i}`,
-      name: `Sent ${i}`,
-      state: "sent",
-      scheduled_for: iso(-(i + 1) * D),
-      counts: { queued: 0, sent: 3, skipped: 0, failed: 0, delivered: 3, read: 1, replied: 1 },
-    });
-  const waiting = dto({
-    id: "b-wait",
-    name: "The month's offer",
-    state: "pending_approval",
-    started_at: null,
-    finished_at: null,
-    scheduled_for: iso(2 * H),
-    playbook_id: "pb-1",
-    counts: quiet,
-  });
-  const soon = dto({
-    id: "b-soon",
-    name: "Autumn colour",
-    state: "scheduled",
-    started_at: null,
-    finished_at: null,
-    scheduled_for: iso(20 * 60_000),
-    playbook_id: null,
-    audience: { kind: "saved", id: "s1", label: "Regulars" },
-    counts: quiet,
-  });
-  const going = dto({
-    id: "b-going",
-    name: "Offers",
-    state: "sending",
-    started_at: iso(-60_000),
-    finished_at: null,
-    counts: { queued: 6, sent: 3, skipped: 1, failed: 0, delivered: 2, read: 0, replied: 0 },
-  });
-  setSurfaceValue(
-    "broadcasts",
-    broadcastsSurface({
-      rows: [soon, going, waiting, ...Array.from({ length: 7 }, (_, i) => sent(i))].map((b) => toBroadcastVM(b, ZONE)),
-    }),
-  );
-  setSurfaceValue(
-    "playbooks",
-    playbooksSurface({
-      rows: [
-        playbook({
-          id: "pb-9",
-          name: "Welcome",
-          trigger: "new_week",
-          state: "running",
-          run_hour: 10,
-          last_run_for: null,
-        }),
-      ],
-    }),
-  );
+test("Sent's list went to each sequence's History (decision 0060, D3): its page is Sequences' list, with what its address opens beside it, and nothing at rest", () => {
+  setSurfaceValue("broadcasts", broadcastsSurface());
   const props = { initialSegment: null, initialRun: null };
   let tree = page(props);
-  // The list's head says what waits on you once -- its state's tab, the strip's first words after All, the one that is
-  // warn -- and the page's act is beside it. A flag at the right said "1 waiting on you" a second time over the same
-  // filter (23 Sep, Campaigns made compact). The strip is the kit's sub-tabs, in the list (it was the frame's sentence,
-  // a div in a <p>), counted: every run on All, each state that has runs after it.
-  let band = bandOf(tree);
-  assert.deepEqual(band.ids, ["all", "pending_approval", "scheduled", "sending", "sent"]);
-  assert.equal(band.value, "all", "no band is the whole ledger");
-  assert.deepEqual([band.tab("all").label, band.tab("all").count], ["All", 10]);
-  assert.deepEqual(
-    [band.tab("pending_approval").label, band.tab("pending_approval").count, band.tab("pending_approval").tone],
-    ["Waiting for your approval", 1, "warn"],
-  );
-  assert.deepEqual([band.tab("sending").label, band.tab("sending").count], ["Sending", 1]);
-  assert.equal(band.tab("sent").tone, undefined, "only the run that waits on you is warn");
-  assert.equal(band.tab("sending").testid, "bc-band-sending", "each tab keeps its test id");
-  assert.equal(byTestId(tree, "bc-waiting"), null, "said once");
-  assert.ok(headed(tree, "bc-new"), "New message");
-  assert.equal(byTestId(tree, "bc-composer"), null, "nothing is open beside the ledger at rest");
-  // Everything open, what waits on you first, then what is going out, then what is to come; then the latest five gone.
-  const cards = () =>
-    all(tree, (n) => ["bc-open", "bc-history"].includes(n.props?.["data-testid"])).map((n) => n.props.id);
-  assert.deepEqual(cards(), [
-    "bc-row-b-wait",
-    "bc-row-b-going",
-    "bc-row-b-soon",
-    "bc-row-b-s0",
-    "bc-row-b-s1",
-    "bc-row-b-s2",
-    "bc-row-b-s3",
-    "bc-row-b-s4",
-  ]);
-  const urgent = find(tree, (n) => n.props?.id === "bc-row-b-wait");
-  assert.ok(
-    String(urgent.props.className).includes("is-urgent"),
-    "a run waiting on you carries the urgency edge (legacy/CLAUDE.md)",
-  );
-  assert.ok(byTestId(urgent, "bc-approve"), "and Approve");
-  assert.match(
-    textOf(
-      byTestId(
-        find(tree, (n) => n.props?.id === "bc-row-b-soon"),
-        "bc-soon",
-      ),
-    ),
-    /^\d+:\d\d$/,
-    "a run under an hour away counts down",
-  );
-  assert.ok(textOf(byTestId(tree, "bc-runs-more")).includes("All 7 sent"), "and the way to the rest of what went");
-  // The strip is the list's filter: pick a band, the runs are that band's; pick All, all of them.
-  band.pick("sent");
-  tree = again(props);
-  assert.equal(cards().length, 7, "the seven sent");
-  band = bandOf(tree);
-  assert.equal(band.value, "sent", "the picked band is the strip's value");
-  band.pick("all");
-  tree = again(props);
-  assert.equal(bandOf(tree).value, "all", "All clears the band");
-  assert.equal(cards().length, 8);
-  // The week ahead: seven days from today, a mark per run at its hour, and a running playbook's runs to come.
-  const days = all(tree, (n) => n.props?.["data-testid"] === "bc-week-day");
-  assert.equal(days.length, 7);
-  assert.ok(textOf(days[0]).startsWith("Today"), textOf(days[0]));
-  assert.ok(
-    all(days[1], (n) => String(n.props?.className || "").includes("is-projected")).length === 1,
-    "the Welcome playbook's run tomorrow, at its hour",
-  );
-  // New message is Campaigns' one door to the composer: the Sent room's act goes to its address, and the page opens nothing of
-  // its own, so there is one name and one host (the home's sheet), and Back closes it.
-  assert.equal(textOf(headed(tree, "bc-new")).trim(), "New message", "one name for the one door");
-  went.length = 0;
-  press(headed(tree, "bc-new"));
-  assert.deepEqual(went, ["campaigns/new"]);
-  tree = again(props);
-  assert.equal(byTestId(tree, "bc-composer"), null, "the ledger opened no composer beside itself");
-  // A link that names a list is asking to write one: the composer opens on that list in the pane beside the ledger, which stays
-  // the list; Cancel closes the pane. (The app moves such a link to the home's composer, contracts doorOf.)
+  const split = byTestId(tree, "broadcasts-real");
+  assert.ok(String(split.props.className).includes("sq-page"), "Sequences' page, its list on the left");
+  assert.equal(byTestId(tree, "bc-band"), null, "no list of runs: a run is a day of its sequence's History");
+  assert.equal(byTestId(tree, "bc-run-solo"), null, "nothing open beside the list at rest");
+  assert.equal(byTestId(tree, "bc-composer"), null);
+  // A link that names a list is asking to write one: the composer opens on that list in the pane beside the list, and Cancel
+  // closes the pane. (The app moves such a link to Campaigns' composer, contracts doorOf.)
   tree = page({ initialSegment: "s1", initialRun: null });
   assert.ok(byTestId(tree, "bc-composer"), "People's 'broadcast to this list' lands on the composer");
-  assert.ok(byTestId(tree, "bc-band"), "with the ledger still the list beside it");
   assert.equal(byTestId(tree, "bc-compose-close").props["aria-label"], "Cancel", "its Close is the composer's Cancel");
   press(byTestId(tree, "bc-compose-close"));
   tree = again({ initialSegment: "s1", initialRun: null });
   assert.equal(byTestId(tree, "bc-composer"), null);
-  setSurfaceValue("playbooks", undefined);
 });
 
 test("REGRESSION: the send screen's 'nobody has said yes' is a door to the QR -- it said 'the phrase and QR below', and since the send became its own screen nothing is below it", () => {
@@ -1383,10 +1258,7 @@ test("REGRESSION: the send screen's 'nobody has said yes' is a door to the QR --
   ];
   const offer = templateRow({ id: "tpl-offer", name: "fall_offer", purpose: "marketing" });
   const note = templateRow({ id: "tpl-note", name: "hours_note", category: "utility", purpose: "conversational" });
-  const scrolled = [];
-  const keep = globalThis.document.getElementById;
-  globalThis.document.getElementById = (id) => (id === "bc-optin" ? { scrollIntoView: () => scrolled.push(id) } : null);
-  try {
+  {
     setSurfaceValue(
       "broadcasts",
       broadcastsSurface({
@@ -1410,9 +1282,8 @@ test("REGRESSION: the send screen's 'nobody has said yes' is a door to the QR --
       "get their yes with the phrase and the QR",
       "the way to their yes is the door, in the sentence that names it",
     );
-    assert.deepEqual(scrolled, [], "nothing moves before it is pressed");
 
-    // Pressed: the send screen closes onto the ledger, which is where the card is, and the QR is brought into view.
+    // Pressed: the send screen closes onto Get their yes, its pane beside Sequences' list, where the QR is.
     press(door);
     assert.equal(went.at(-1), contracts.GET_YES_ROUTE, "where every other 'nobody has said yes' goes (#663)");
     tree = again(props);
@@ -1421,8 +1292,7 @@ test("REGRESSION: the send screen's 'nobody has said yes' is a door to the QR --
       null,
       "REGRESSION: navigating while the send screen was up kept it up, and the card undrawn",
     );
-    assert.ok(byTestId(tree, "bc-optin"), "the ledger, with the card the door is for");
-    assert.deepEqual(scrolled, ["bc-optin"], "and the QR brought into view");
+    assert.ok(byTestId(tree, "bc-optin"), "the pane the door is for");
     // Then the shell follows the address it went to, broadcasts/get-yes, which names no list: the send stays shut.
     tree = again({ ...props, initialYes: true });
     assert.equal(byTestId(tree, "bc-composer"), null);
@@ -1440,29 +1310,6 @@ test("REGRESSION: the send screen's 'nobody has said yes' is a door to the QR --
     tree = again({ initialSegment: null, initialRun: null, initialYes: true });
     assert.equal(byTestId(tree, "bc-composer"), null, "the address it lands on does not reopen the list's send");
     assert.ok(byTestId(tree, "bc-optin"));
-
-    // Written from broadcasts/get-yes itself, where the address does not change when the door is pressed: the door
-    // brings the QR into view on its own, rather than leaving the ledger wherever the send screen was scrolled to.
-    scrolled.length = 0;
-    const yes = { initialSegment: null, initialRun: null, initialYes: true };
-    // The send is open on the page as a link that names a list opens it, while the address is get-yes.
-    tree = page({ ...yes, initialSegment: "no-such-list" });
-    assert.deepEqual(scrolled, ["bc-optin"], "the landing, as #663 made it");
-    tree = again(yes);
-    press(byTestId(tree, "bc-nobody-door"));
-    tree = again(yes);
-    assert.equal(byTestId(tree, "bc-composer"), null);
-    assert.deepEqual(
-      scrolled,
-      ["bc-optin", "bc-optin"],
-      "REGRESSION: with no change of address, nothing brought it into view",
-    );
-    // And again, on the same page: every press lands, not only the first.
-    tree = again({ ...yes, initialSegment: "no-such-list" });
-    tree = again(yes);
-    press(byTestId(tree, "bc-nobody-door"));
-    tree = again(yes);
-    assert.deepEqual(scrolled, ["bc-optin", "bc-optin", "bc-optin"], "a second press lands too");
 
     // A message for everyone who said yes to messages says so, and has the same door.
     setSurfaceValue(
@@ -1511,8 +1358,6 @@ test("REGRESSION: the send screen's 'nobody has said yes' is a door to the QR --
     tree = writing(props);
     assert.equal(byTestId(tree, "bc-nobody-door"), null, "never a door to #/undefined");
     assert.ok(textOf(byTestId(tree, "bc-nobody")).endsWith("on their profile."));
-  } finally {
-    globalThis.document.getElementById = keep;
   }
 });
 
@@ -1786,16 +1631,19 @@ test("an approve or a stop is said the moment the server takes it, with what it 
     moved_from: null,
   });
   broadcasts.cancel = acceptThenRead({ was: "pending_approval" });
-  const props = { initialSegment: null, initialRun: null };
+  answers.set("b-wait", [{ ok: true, data: detailOf(waiting, []) }]);
+  // The run waiting on you, open on its sheet beside Sequences' list, where it is approved.
+  const props = { initialSegment: null, initialRun: "b-wait" };
   try {
     toasts.length = 0;
-    press(byTestId(page(props), "bc-approve"));
+    page(props);
+    await settle();
+    press(byTestId(again(props), "bc-sheet-approve"));
     await settle();
     assert.equal(toasts.length, 1, "said at acceptance, while the surfaces are read again");
     assert.match(textOf(toasts[0].msg), /approved — 3 people/);
-    assert.equal(
-      textOf(byTestId(again(props), "bc-approve")).trim(),
-      "Approve · 3 people",
+    assert.ok(
+      !textOf(byTestId(again(props), "bc-sheet-approve")).includes("Approving…"),
       "the button is back when the server took it",
     );
     while (reread.length) reread.shift()();
@@ -1806,16 +1654,7 @@ test("an approve or a stop is said the moment the server takes it, with what it 
   }
 });
 
-test("REGRESSION (C14): a send in flight draws its progress, Approve says it is approving and cannot approve twice, and Scheduled counts by state -- 'N queued' counted runs waiting for you", async () => {
-  const sending = dto({
-    id: "b-sending",
-    name: "Offers · 2026-09-15",
-    state: "sending",
-    started_at: iso(-60_000),
-    finished_at: null,
-    recipient_count: 10,
-    counts: { queued: 6, sent: 3, skipped: 1, failed: 0, delivered: 2, read: 0, replied: 0 },
-  });
+test("REGRESSION (C14): Approve says it is approving and cannot approve twice -- a second press approved again, and the server refused it", async () => {
   const waiting = dto({
     id: "b-wait",
     name: "Win-back · 2026-09-15",
@@ -1827,52 +1666,35 @@ test("REGRESSION (C14): a send in flight draws its progress, Approve says it is 
     run_for: globalThis.window.__clock.dayKey(Date.now()),
     counts: quiet,
   });
-  setSurfaceValue(
-    "broadcasts",
-    broadcastsSurface({
-      rows: [sending, waiting, dto()].map((b) => toBroadcastVM(b, ZONE)),
-      more: true,
-    }),
-  );
+  setSurfaceValue("broadcasts", broadcastsSurface({ rows: [waiting, dto()].map((b) => toBroadcastVM(b, ZONE)) }));
+  answers.set("b-wait", [{ ok: true, data: detailOf(waiting, []) }]);
   let release = () => {};
   const approvals = [];
+  const keep = broadcasts.approve;
   broadcasts.approve = (id) => {
     approvals.push(id);
     return new Promise((r) => {
       release = () => r({ ok: true, data: { recipient_count: 3, scheduled_for: iso(0), moved_from: null } });
     });
   };
-  const props = { initialSegment: null, initialRun: null };
-  let tree = page(props);
-  const bar = find(tree, (n) => n.props?.role === "progressbar");
-  assert.ok(bar, "REGRESSION: progress as prose, no bar");
-  assert.equal(bar.props["aria-valuenow"], 40, "four of ten attempted");
-  // The band counts by state -- one sending, one waiting on you -- where a line said "2 queued" (its tabs are the kit's
-  // sub-tabs now: a word and a count each, which a test reads off the strip's props).
-  const band = bandOf(tree);
-  assert.deepEqual([band.tab("sending").label, band.tab("sending").count], ["Sending", 1], "REGRESSION: '2 queued'");
-  assert.deepEqual(
-    [band.tab("pending_approval").label, band.tab("pending_approval").count],
-    ["Waiting for your approval", 1],
-  );
-  assert.match(
-    textOf(byTestId(tree, "bc-standing")),
-    /the latest 50 broadcasts/,
-    "past fifty, the ledger says its numbers are not all of them",
-  );
-
-  const approve = byTestId(tree, "bc-approve");
-  press(approve);
-  press(approve);
-  assert.deepEqual(approvals, ["b-wait"], "REGRESSION: a second press approved again, and the server refused it");
-  tree = again(props);
-  const busy = byTestId(tree, "bc-approve");
-  assert.equal(textOf(busy).trim(), "Approving…");
-  assert.equal(busy.props.disabled, true);
-  release();
-  await settle();
-  tree = again(props);
-  assert.equal(textOf(byTestId(tree, "bc-approve")).trim(), "Approve · 3 people");
+  const props = { initialSegment: null, initialRun: "b-wait" };
+  try {
+    page(props);
+    await settle();
+    let tree = again(props);
+    const approve = byTestId(tree, "bc-sheet-approve");
+    press(approve);
+    press(approve);
+    assert.deepEqual(approvals, ["b-wait"], "REGRESSION: a second press approved again, and the server refused it");
+    tree = again(props);
+    const busy = byTestId(tree, "bc-sheet-approve");
+    assert.ok(textOf(busy).includes("Approving…"));
+    assert.equal(busy.props.disabled, true);
+    release();
+    await settle();
+  } finally {
+    broadcasts.approve = keep;
+  }
 });
 
 test("REGRESSION (C15): the sending hours and the pace are the published ones -- they were typed into the pages beside the constants", async () => {
@@ -1922,12 +1744,6 @@ test("REGRESSION (C15): the sending hours and the pace are the published ones --
 
     setSurfaceValue("playbooks", playbooksSurface());
     fresh();
-    const cardTree = PlaybookPane({ p: playbook(), canAct: true, onEdit() {}, flash() {}, onClose() {} });
-    // Run now is the pane's menu's (the kit's Menu, behind the ⋯): what it does is its item's words on hover.
-    const runNow = find(cardTree, (n) => n.type === Menu)
-      .props.groups.flatMap((g) => g.items || [])
-      .find((i) => i.label === "Run now");
-    assert.ok(runNow.title.includes("outside 8:00–19:59 it goes at 8:00"), "REGRESSION: 'outside nine to twenty'");
     const composer = composerOf(playbooksSurface());
     assert.deepEqual(
       optionsOf(pickerOf(composer, "pb-hour")).map((o) => Number(o.value)),
@@ -2131,7 +1947,7 @@ test("REGRESSION: the send screen's foot says the first thing that keeps Send fr
   );
 });
 
-test("REGRESSION: the send screen and the ledger draw the kit's parts by import, not through the window's doors -- where the frame had not published them a Confirm drew nothing, and an armed Send had no Yes to press", async () => {
+test("REGRESSION: the send screen draws the kit's parts by import, not through the window's doors -- where the frame had not published them a Confirm drew nothing, and an armed Send had no Yes to press", async () => {
   // What the shell publishes for the pages it still holds. Taken away, as it is wherever Campaigns is drawn outside it.
   const published = ["Confirm", "StatePill", "PolicyChip", "UnsavedAsk", "RecordSheet", "FieldError", "useUnsavedWork"];
   const held = Object.fromEntries(published.map((name) => [name, globalThis[name]]));
@@ -2146,12 +1962,6 @@ test("REGRESSION: the send screen and the ledger draw the kit's parts by import,
     tree = again(props);
     assert.ok(byTestId(tree, "bc-send-confirm"), "the question the Send foot asks");
     assert.ok(byTestId(tree, "bc-send-yes") && byTestId(tree, "bc-send-no"), "with its two answers");
-    // A run's row says its state in the kit's pill.
-    const ledger = page(props);
-    assert.ok(
-      all(ledger, (n) => /^pill\b/.test(String(n.props?.className || ""))).length > 0,
-      "a state, drawn as a pill",
-    );
   } finally {
     Object.assign(globalThis, held);
   }
@@ -2218,86 +2028,31 @@ test("each run opens on a pane of its own: the open run's filter and expanded ro
   assert.equal(second.props.key, "b-sent-2");
 });
 
-test("REGRESSION: a run opened by a link is brought into view in the list when its row was scrolled past, and a row in view stays put -- the landing scroll ran once, for listed runs only", () => {
-  // The report is the pane beside the list and always in view; what lands is the list, on the run's row (`bc-row-<id>`).
-  setSurfaceValue(
-    "broadcasts",
-    broadcastsSurface({
-      rows: [dto(), dto({ id: "b-sent-2", name: "Win-back · 2026-09-11" })].map((b) => toBroadcastVM(b, ZONE)),
-    }),
-  );
-  const scrolled = [];
-  const where = { "bc-row-b-sent": 200, "bc-row-b-sent-2": -900 };
-  const keep = globalThis.document.getElementById;
-  globalThis.document.getElementById = (id) =>
-    id in where
-      ? {
-          getBoundingClientRect: () => ({ top: where[id], bottom: where[id] + 40 }),
-          scrollIntoView: () => scrolled.push(id),
-        }
-      : null;
-  // The page follows a link through its state, so it is drawn a second time for the run to be open when it lands.
-  const link = (run) => {
-    again({ initialSegment: null, initialRun: run });
-    return again({ initialSegment: null, initialRun: run });
-  };
-  try {
-    page({ initialSegment: null, initialRun: null });
-    link("b-sent");
-    assert.deepEqual(scrolled, [], "a row pressed in view stays where it is");
-    link("b-old");
-    assert.deepEqual(scrolled, [], "a run older than the list has no row to bring into view");
-    const tree = link("b-sent-2");
-    assert.deepEqual(
-      scrolled,
-      ["bc-row-b-sent-2"],
-      "REGRESSION: a run opened first on a list scrolled past it stayed out of sight",
-    );
-    assert.equal(
-      byTestId(tree, "bc-run-solo").props.id,
-      "bc-run-b-sent-2",
-      "the pane a link lands on carries the run's anchor",
-    );
-  } finally {
-    globalThis.document.getElementById = keep;
-  }
-});
-
-test("the run open beside the list is the address's: opening and closing it replace the entry, a link out pushes one, and New message goes to the home's composer", async () => {
+test("the run open beside Sequences' list is the address's: closing it replaces the entry with Sequences, and a link out pushes one", async () => {
   setSurfaceValue("broadcasts", broadcastsSurface());
   answers.set("b-sent", [{ ok: true, data: detailOf(dto()) }]);
   const calls = [];
   const keep = globalThis.appNavigate;
   globalThis.appNavigate = (to, opts) => calls.push([to, opts && opts.replace ? "replace" : "push"]);
   try {
-    const props = { initialSegment: null, initialRun: null };
-    let tree = page(props);
-    assert.equal(byTestId(tree, "bc-run-solo"), null, "nothing is open beside the ledger at rest");
-    // The page's own openings are the Inbox's rule: the address says what is open, replaced as it opens and closes, so
-    // Back leaves the page rather than replaying every run read.
-    press(byTestId(tree, "bc-open-who"));
-    assert.deepEqual(calls.at(-1), ["broadcasts/run:b-sent", "replace"]);
-    tree = again(props);
-    assert.ok(byTestId(tree, "bc-run-solo"), "the pane opens at once, before the address's props follow it");
-    assert.ok(byTestId(tree, "bc-runs"), "and the ledger stays the list beside it");
+    const props = { initialSegment: null, initialRun: "b-sent" };
+    page(props);
     await settle();
-    tree = again(props);
+    let tree = again(props);
+    assert.ok(byTestId(tree, "bc-run-solo"), "the run's pane, beside the list");
     // A door out of the page is a link: it pushes, as every link does.
     const door = find(byTestId(tree, "bc-run-solo"), (n) => n.props?.className === "bc-run-link");
     assert.ok(door, "the run's playbook is a link in the pane's head");
     assert.match(textOf(door), / campaign$/, "said as a campaign to its reader (decision 19)");
     const before = calls.length;
     press(door);
-    assert.equal(went.at(-1), "campaigns/moment:pb-1", "its drawer on Campaigns' home, by its own address");
+    assert.equal(went.at(-1), "campaigns/moment:pb-1", "its sequence, by the address a campaign's always was");
     assert.equal(calls.length, before, "and it did not replace the run's entry");
-    // New message, with a run open, is the home's door: it pushes the composer's address and leaves the run where it is.
-    const entries = calls.length;
-    press(headed(tree, "bc-new"));
-    assert.equal(went.at(-1), "campaigns/new");
-    assert.equal(calls.length, entries, "the page moved no entry of its own");
+    // Closed: the address is Sequences', replaced, so Back leaves rather than replaying the run.
+    press(byTestId(tree, "bc-detail-close"));
+    assert.deepEqual(calls.at(-1), ["campaigns/sequences", "replace"]);
     tree = again(props);
-    assert.equal(byTestId(tree, "bc-composer"), null, "and wrote nothing in the run's place");
-    assert.ok(byTestId(tree, "bc-run-solo"), "the run stays open");
+    assert.equal(byTestId(tree, "bc-run-solo"), null, "the pane closes at once, before the address follows it");
   } finally {
     globalThis.appNavigate = keep;
   }
@@ -3582,27 +3337,6 @@ test("One chip per message, its languages inside it -- the starter set in two dr
   assert.equal(opened(rows), opened(rows.slice().reverse()), "the picker opens on the same language either way");
 });
 
-test("A playbook's card says which message it sends AND in which language -- the language was in a data-tip, which no finger reaches", () => {
-  // The card draws the message it sends, so its template has to be among the
-  // approved ones the surface carries -- an empty list is "no longer approved".
-  const es = templateRow({ id: "tpl-1", name: "winback_offer", language: "es", body_preview: "Hola {{1}}." });
-  setSurfaceValue("playbooks", playbooksSurface({ templates: [es] }));
-  fresh();
-  const card = PlaybookPane({
-    p: playbook({ template_id: "tpl-1", template_language: "es" }),
-    canAct: true,
-    onEdit() {},
-    flash() {},
-    onClose() {},
-  });
-  const caption = byTestId(card, "pb-template-name");
-  assert.ok(caption, "the message is captioned with the message it is");
-  assert.ok(textOf(caption).includes("Spanish"), textOf(caption));
-  assert.equal(caption.props["data-tip"], undefined, "and not only on hover");
-  press(caption);
-  assert.equal(went.at(-1), "messages", "and it opens where that message is kept");
-});
-
 test("The template a composer opens on does not depend on the order the rows arrived in", () => {
   // The page sorts before it asks, so the rendered picker is steady either way --
   // but `defaultTemplate` is what a caller that does NOT sort gets, and it used
@@ -3949,75 +3683,6 @@ test("The preview draws the heading and the buttons, which are the message too",
   // A screen reader hears the whole message, not the words alone.
   const said = String(find(preview, (n) => n.props?.className === "mp-bubble").props["aria-label"]);
   assert.ok(said.includes("This week at Luna Studio") && said.includes("Book now"), said);
-});
-
-test("History says whether a playbook or a person sent each broadcast, and the split filters it", () => {
-  // `broadcasts.playbook_id` is on every row and nothing drew it, so a playbook's
-  // automatic run sat beside a hand-sent blast with no way to tell them apart --
-  // while Playbooks summed the same runs again on its own tab.
-  const run = (over = {}) =>
-    toBroadcastVM(
-      dto({
-        id: "b-run",
-        name: "Win-back · 2026-09-10",
-        playbook_id: "pb-1",
-        audience: { kind: "playbook", id: "pb-1", label: "Win-back" },
-        ...over,
-      }),
-      ZONE,
-    );
-  const byHand = toBroadcastVM(
-    dto({
-      id: "b-hand",
-      name: "Spring offer",
-      playbook_id: null,
-      audience: { kind: "list", id: "quiet", label: "Lapsed 60+ days" },
-    }),
-    ZONE,
-  );
-  setSurfaceValue("broadcasts", broadcastsSurface({ rows: [run(), byHand] }));
-  let tree = page({ initialSegment: null, initialRun: null });
-
-  const rowWords = () =>
-    all(tree, (n) => n.props?.["data-testid"] === "bc-history").map((n) => textOf(n).replace(/\s+/g, " "));
-  let words = rowWords();
-  assert.equal(words.length, 2);
-  // Each card says which kind sent it, first on its line: a campaign's run, or a broadcast a person sent.
-  assert.ok(
-    words.some((w) => w.includes("Campaign · Win-back")),
-    words.join(" || "),
-  );
-  assert.ok(
-    words.some((w) => w.includes("Broadcast · Lapsed 60+ days")),
-    words.join(" || "),
-  );
-  // The playbook's name is said ONCE: it is the audience cell, and that cell opens it.
-  const run0 = all(tree, (n) => n.props?.["data-testid"] === "bc-history")[0];
-  assert.equal(
-    textOf(run0).match(/Win-back/g).length,
-    2,
-    "the run's own name, and the audience — not a third time in the origin",
-  );
-  assert.match(byTestId(run0, "bc-history-playbook").props["aria-label"], /^Campaign Win-back/);
-  press(byTestId(run0, "bc-history-playbook"));
-  assert.equal(went.at(-1), "campaigns/moment:pb-1", "and it opens the drawer of the campaign that made it");
-
-  // The line splits them, and each count is its own filter.
-  const line = byTestId(tree, "bc-standing");
-  assert.ok(textOf(line).includes("by a campaign") && textOf(line).includes("by hand"), textOf(line));
-  press(byTestId(line, "bc-origin-hand"));
-  tree = again({ initialSegment: null, initialRun: null });
-  words = rowWords();
-  assert.equal(words.length, 1, words.join(" || "));
-  assert.ok(words[0].includes("Spring offer"), words[0]);
-  // Pressing the one in force clears it, as the Playbooks line's taps do.
-  press(byTestId(byTestId(tree, "bc-standing"), "bc-origin-hand"));
-  tree = again({ initialSegment: null, initialRun: null });
-  assert.equal(rowWords().length, 2);
-
-  // One kind only: nothing to split, so no taps.
-  setSurfaceValue("broadcasts", broadcastsSurface({ rows: [byHand] }));
-  assert.equal(byTestId(page({ initialSegment: null, initialRun: null }), "bc-origin-playbook"), null);
 });
 
 test("A message written here can carry a Book now button, and it is the one kind that sends", () => {
@@ -5497,11 +5162,13 @@ test("a waiting run whose day has passed is not offered an Approve the route ref
     approvals.push(id);
     return { ok: true, data: {} };
   };
-  const props = { initialSegment: null, initialRun: null };
+  const acts = { canSend: true, armed: false, onArm() {}, stopping: false, cancel() {} };
+  const verbs = () =>
+    BcRunVerbs({ row: toBroadcastVM(stale, ZONE), ...acts, approve: (row) => void broadcasts.approve(row.id) });
   try {
     // Where the shell gates a control (data-bits gatedProps), the button carries the verb's own sentence.
     globalThis.window.gatedProps = (reason) => ({ "aria-disabled": true, "data-tip": reason, onClick() {} });
-    let approve = byTestId(page(props), "bc-approve");
+    let approve = byTestId(verbs(), "bc-approve");
     assert.equal(approve.props["aria-disabled"], true);
     assert.match(
       approve.props["data-tip"],
@@ -5512,15 +5179,13 @@ test("a waiting run whose day has passed is not offered an Approve the route ref
     assert.deepEqual(approvals, [], "REGRESSION: Approve on a run the verb refuses");
     // And where it does not (the standalone page), the press still approves nothing.
     delete globalThis.window.gatedProps;
-    approve = byTestId(page(props), "bc-approve");
+    approve = byTestId(verbs(), "bc-approve");
     press(approve);
     await settle();
     assert.deepEqual(approvals, [], "no gate, and still no approve");
 
     // A reach-out's run has no day to pass: approveRun takes it to its own verb before it asks the day (decision D6), so
-    // the predicate says nothing of it (runApprovalRefusal, exemption and all). Nor is it approved from a row at all: the
-    // run's offer (contracts waitingRunOffer) is its sheet, where each email's check is shown, so Sent's row says
-    // "Open the run" in place of Approve and Skip, as Today's row and the ledger's door do (D1-run-reachout-approve).
+    // the predicate says nothing of it (runApprovalRefusal, exemption and all).
     const reach = dto({
       id: "b-reach",
       name: "Dentists · 2026-09-10",
@@ -5535,28 +5200,13 @@ test("a waiting run whose day has passed is not offered an Approve the route ref
     const days = { today: "2026-10-05", sendsOn: "2026-10-05" };
     assert.equal(runApprovalRefusal(reach, days), null, "the predicate itself");
     assert.match(runApprovalRefusal(stale, days), /that day has passed/);
-    setSurfaceValue("broadcasts", broadcastsSurface({ rows: [reach].map((b) => toBroadcastVM(b, ZONE)) }));
-    globalThis.window.gatedProps = (reason) => ({ "aria-disabled": true, "data-tip": reason, onClick() {} });
-    const row = find(page(props), (n) => n.props?.id === "bc-row-b-reach");
-    assert.equal(
-      byTestId(row, "bc-approve"),
-      null,
-      "D1-run-reachout-approve: no one-tap approval of a reach-out's run",
-    );
-    assert.equal(byTestId(row, "bc-stop"), null, "nor a Skip: both are decided on its sheet");
-    const open = byTestId(row, "bc-open-run");
-    assert.equal(textOf(open).trim(), contracts.LIFECYCLE_WORDS.ledger.openRun);
-    assert.equal(open.props["aria-disabled"], undefined, "and the door is never gated by a day");
-    press(open);
-    await settle();
-    assert.deepEqual(approvals, [], "opening the run approves nothing");
   } finally {
     delete globalThis.window.gatedProps;
     broadcasts.approve = keep;
   }
 });
 
-test("a run decided on its sheet alone is opened from its row, never approved or skipped there, and the pane that is its sheet draws none of it (D1-run-reachout-approve)", () => {
+test("a run decided on its sheet alone is never approved or skipped from its pane's head: the pane that is its sheet draws none of it (D1-run-reachout-approve)", () => {
   // The rule is the run's offer (contracts waitingRunOffer), asked once: a reach-out's run is `open`; a playbook's own is
   // approved in place, and one whose day has passed is `skip`, which a row still draws (its Approve says why it cannot).
   const waiting = {
@@ -5587,24 +5237,13 @@ test("a run decided on its sheet alone is opened from its row, never approved or
     "a run whose day has passed is skipped from its row: its offer is skip",
   );
   const acts = { canSend: true, armed: false, onArm() {}, stopping: false, approve() {}, cancel() {} };
-  let opened = 0;
-  // Its row: one door, in the ledger's word, and the Approve and the Skip beside it are gone.
-  const row = BcRunVerbs({ row: reach, ...acts, onOpen: () => (opened += 1) });
-  assert.equal(byTestId(row, "bc-approve"), null);
-  assert.equal(byTestId(row, "bc-stop"), null);
-  const door = byTestId(row, "bc-open-run");
-  assert.equal(textOf(door).trim(), "Open the run");
-  press(door);
-  assert.equal(opened, 1);
-  // Asked to Skip on its sheet (the arm is the page's, shared), the row does not hold the question open or draw it.
-  assert.equal(byTestId(BcRunVerbs({ row: reach, ...acts, armed: true, onOpen: () => {} }), "bc-stop"), null);
-  // Its pane is the sheet: Approve and Skip are the sheet's own, so the head's verbs draw nothing for it.
+  // Its pane is the sheet: Approve and Skip are the sheet's own, so the head's verbs draw nothing for it, asked or not.
   assert.equal(BcRunVerbs({ row: reach, ...acts }), null);
+  assert.equal(BcRunVerbs({ row: reach, ...acts, armed: true }), null);
   // A playbook's own run keeps both, and a run that is not waiting keeps its stop.
-  const mine = BcRunVerbs({ row: own, ...acts, onOpen: () => {} });
+  const mine = BcRunVerbs({ row: own, ...acts });
   assert.ok(byTestId(mine, "bc-approve"));
   assert.ok(byTestId(mine, "bc-stop"));
-  assert.equal(byTestId(mine, "bc-open-run"), null);
   const going = toBroadcastVM(
     dto({ id: "b-going", state: "scheduled", audience: reach.audience, counts: quiet }),
     ZONE,
@@ -5720,73 +5359,74 @@ test("a WhatsApp version still in review with an email beside it is offered, and
   assert.ok(byTestId(alone, "bc-no-template"));
 });
 
-test("Send it again finds the message a run sent by its name and language: a WhatsApp version added since moved the id the picker lists it by", async () => {
-  // The run went out when the message had an email version alone, so its template_id is that row's. A WhatsApp version added
-  // since is the message's anchor: the composer lists the message by that row's id.
-  const rows = [
-    versionRow("whatsapp", {
-      id: "tpl-offer-whatsapp",
-      name: "autumn_offer",
-      category: "marketing",
-      body_preview: "Hi {{1}}, {{2}}",
-      variables: [
-        { position: 1, label: "First name", example: "Dani" },
-        { position: 2, label: "The offer", example: "20% off" },
-      ],
-    }),
-    versionRow("email", {
-      id: "tpl-offer-email",
-      name: "autumn_offer",
-      category: "marketing",
-      header: "Autumn",
-      body_preview: "Hi {{1}}, {{2}}",
-      variables: [
-        { position: 1, label: "First name", example: "Dani" },
-        { position: 2, label: "The offer", example: "20% off" },
-      ],
-    }),
-  ];
-  const offered = offeredOf(...rows);
-  assert.equal(offered[0].id, "tpl-offer-whatsapp", "the picker's id is the WhatsApp version's");
-  const byHand = dto({
-    id: "b-hand",
-    name: "Autumn colour",
-    playbook_id: null,
-    run_for: null,
-    template_id: "tpl-offer-email",
-    template_name: "autumn_offer",
-    audience: { kind: "saved", id: "s1", label: "Regulars" },
-    params: [{ kind: "first_name" }, { kind: "text", value: "20% off colour" }],
-  });
-  setSurfaceValue(
-    "broadcasts",
-    broadcastsSurface({ templates: offered, number: healthyNumber, rows: [toBroadcastVM(byHand, ZONE)] }),
-  );
-  answers.set("b-hand", [{ ok: true, data: detailOf(byHand) }]);
-  const props = { initialSegment: null, initialRun: "b-hand" };
-  page(props);
-  await settle();
-  let tree = again(props);
-  assert.ok(byTestId(tree, "bc-again"), "the run can be sent again: its message is still there, by name");
-  press(byTestId(tree, "bc-again"));
-  again({ initialSegment: null, initialRun: null });
-  tree = again({ initialSegment: null, initialRun: null });
-  assert.ok(byTestId(tree, "bc-composer"), "onto the send screen");
-  assert.equal(pickerOf(tree, "bc-template").props.value, "autumn_offer", "on its message");
-  assert.equal(
-    typedOf(tree)[0].props.typed,
-    "20% off colour",
-    "and the words it said, under the id the picker lists it by",
-  );
-  // The message gone from the picker (no version left a broadcast can send): no button, as before.
-  setSurfaceValue(
-    "broadcasts",
-    broadcastsSurface({ templates: [], number: healthyNumber, rows: [toBroadcastVM(byHand, ZONE)] }),
-  );
-  page(props);
-  await settle();
-  assert.equal(byTestId(again(props), "bc-again"), null, "no composer quietly filled with something else");
-});
+test("Send it again finds the message a run sent by its name and language: a WhatsApp version added since moved the id the picker lists it by", () =>
+  withTabMemory(async () => {
+    // The run went out when the message had an email version alone, so its template_id is that row's. A WhatsApp version added
+    // since is the message's anchor: the composer lists the message by that row's id.
+    const rows = [
+      versionRow("whatsapp", {
+        id: "tpl-offer-whatsapp",
+        name: "autumn_offer",
+        category: "marketing",
+        body_preview: "Hi {{1}}, {{2}}",
+        variables: [
+          { position: 1, label: "First name", example: "Dani" },
+          { position: 2, label: "The offer", example: "20% off" },
+        ],
+      }),
+      versionRow("email", {
+        id: "tpl-offer-email",
+        name: "autumn_offer",
+        category: "marketing",
+        header: "Autumn",
+        body_preview: "Hi {{1}}, {{2}}",
+        variables: [
+          { position: 1, label: "First name", example: "Dani" },
+          { position: 2, label: "The offer", example: "20% off" },
+        ],
+      }),
+    ];
+    const offered = offeredOf(...rows);
+    assert.equal(offered[0].id, "tpl-offer-whatsapp", "the picker's id is the WhatsApp version's");
+    const byHand = dto({
+      id: "b-hand",
+      name: "Autumn colour",
+      playbook_id: null,
+      run_for: null,
+      template_id: "tpl-offer-email",
+      template_name: "autumn_offer",
+      audience: { kind: "saved", id: "s1", label: "Regulars" },
+      params: [{ kind: "first_name" }, { kind: "text", value: "20% off colour" }],
+    });
+    setSurfaceValue(
+      "broadcasts",
+      broadcastsSurface({ templates: offered, number: healthyNumber, rows: [toBroadcastVM(byHand, ZONE)] }),
+    );
+    answers.set("b-hand", [{ ok: true, data: detailOf(byHand) }]);
+    const props = { initialSegment: null, initialRun: "b-hand" };
+    page(props);
+    await settle();
+    let tree = again(props);
+    assert.ok(byTestId(tree, "bc-again"), "the run can be sent again: its message is still there, by name");
+    press(byTestId(tree, "bc-again"));
+    assert.equal(went.at(-1), "campaigns/new", "onto Campaigns' composer");
+    tree = sentAgain();
+    assert.ok(byTestId(tree, "bc-composer"), "onto the send screen");
+    assert.equal(pickerOf(tree, "bc-template").props.value, "autumn_offer", "on its message");
+    assert.equal(
+      typedOf(tree)[0].props.typed,
+      "20% off colour",
+      "and the words it said, under the id the picker lists it by",
+    );
+    // The message gone from the picker (no version left a broadcast can send): no button, as before.
+    setSurfaceValue(
+      "broadcasts",
+      broadcastsSurface({ templates: [], number: healthyNumber, rows: [toBroadcastVM(byHand, ZONE)] }),
+    );
+    page(props);
+    await settle();
+    assert.equal(byTestId(again(props), "bc-again"), null, "no composer quietly filled with something else");
+  }));
 
 test("a person held back is drawn as the message's own words, marked Not sent: an email's, for a message with an email version and no WhatsApp row", () => {
   const email = offeredOf(versionRow("email"));
@@ -5842,12 +5482,4 @@ test("with nothing to send yet and the starters' WhatsApp versions in review, th
   const none = openVia({ templates: [] });
   assert.ok(textOf(byTestId(none, "bc-no-template")).startsWith(contracts.NO_TEMPLATE_WORDS.lead));
   assert.ok(byTestId(none, "bc-add-starters"));
-});
-
-test("the Sent room's standing line says what a broadcast is in contracts' words: one message, on the channels it holds", async () => {
-  const { BcHistoryStats } = await import(`${SRC}/surfaces/campaigns/broadcasts/ledger.tsx`);
-  fresh();
-  const lead = find(BcHistoryStats({ rows: [] }), (n) => n.props?.className === "cm-standing-lead");
-  assert.equal(lead.props["data-tip"], contracts.BROADCAST_WORDS.tip);
-  assert.ok(lead.props["data-tip"].startsWith("One message, on the channels it holds, to the people who said yes."));
 });

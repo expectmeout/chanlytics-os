@@ -82,12 +82,12 @@ export const LIFECYCLE_WORDS = {
   onTrial: (day: string): string => `On trial until ${day}`,
   gone: {
     title: "That campaign isn't here any more.",
-    body: "Its runs stay in Sent, with their numbers.",
+    body: "Its runs are still counted in Reports, with their numbers.",
   },
   /** A message's own drawer over the home (`campaigns/message:<name>`) whose name leads to no message any more. */
   messageGone: {
     title: "That message isn't here any more.",
-    body: "Every message you keep is in the Library.",
+    body: "Every message you keep is in Messages.",
   },
   compose: {
     title: CAMPAIGN_ROOMS.newMessage,
@@ -183,10 +183,10 @@ export const LIFECYCLE_WORDS = {
       /** An edit's changes, counted in its foot: "2 changes · from the next run". */
       changes: (n: number): string => `${plural(n, "change", "changes")} · from the next run`,
       /** The foot of a Turn on whose moment's own message is not in the Library yet: the one press adds it, then starts. */
-      addsFirst: (title: string): string => `Adds ${title} to your Library, then turns it on.`,
+      addsFirst: (title: string): string => `Adds ${title} to your messages, then turns it on.`,
       /** The message under its preview: "Visit reminder · written for you", and its door. */
       writtenForYou: "written for you",
-      /** Beside the moment's own message, not added yet: the word that picks one of the Library's instead. */
+      /** Beside the moment's own message, not added yet: the word that picks another of your messages instead. */
       another: "another message",
       change: "Change",
       open: "Open",
@@ -249,7 +249,7 @@ export const LIFECYCLE_WORDS = {
     // The templates are the settings read's, the one read of them (apps/dashboard offered-templates.ts): its Retry reads that.
     templates: {
       what: "your templates",
-      body: "The call's text and the Library's count show once they read. Everything else here is current.",
+      body: "The call's text and your messages show once they read. Everything else here is current.",
       surface: "settings",
     },
     counts: {
@@ -393,8 +393,6 @@ export const LIFECYCLE_WORDS = {
   coming: {
     title: "Coming up",
     window: "next 7 days",
-    // Its door goes to Sent's week (spec 2026-10-09 §4.3), where every run is read.
-    link: CAMPAIGN_ROOMS.sent,
     rules: `Sends wait for ${SENDING_HOURS_WORDS.range} · one a week per person, across every moment`,
     empty: "Nothing is set to go out in the next 7 days.",
     nobody: "Nobody",
@@ -448,11 +446,8 @@ export const LIFECYCLE_TOAST = {
   resumed: (name: string): LifecycleSentence => [{ b: name }, " resumed"],
   paused: (name: string): LifecycleSentence => [{ b: name }, " paused"],
   changed: (name: string): LifecycleSentence => [{ b: name }, " changed"],
-  // A new playbook's next run is under Coming up, by the business's clock; there is no card to look on any more.
-  running: (name: string): LifecycleSentence => [
-    { b: name },
-    " is running — its next run is under Coming up, by your clock",
-  ],
+  // A new campaign is running: its sequence opens as this is said (campaigns/home/sheets.tsx), its next batch on it.
+  running: (name: string): LifecycleSentence => [{ b: name }, " is running"],
   /** The name of a line the page has no row for, where a toast must name it. */
   nameless: "It",
   /**

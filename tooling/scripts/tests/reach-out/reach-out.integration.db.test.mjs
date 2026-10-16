@@ -123,7 +123,12 @@ async function connect(tenantId, address) {
 }
 
 async function sendsOf(runId) {
-  return ok(await db.from("reach_out_sends").select("*").eq("broadcast_id", runId));
+  return ok(
+    await db
+      .from("sequence_sends")
+      .select("*, broadcast_id:batch_id, playbook_id:step_id, root_id:sequence_id")
+      .eq("batch_id", runId),
+  );
 }
 async function leadOf(id) {
   return ok(await db.from("leads").select("*").eq("id", id).single());
@@ -250,7 +255,7 @@ before(async () => {
     params: [],
   };
   root = await one(
-    db.from("playbooks").insert({
+    db.from("sequence_steps").insert({
       ...chain,
       name: "Movers",
       trigger: "lead_first",
@@ -260,11 +265,11 @@ before(async () => {
     }),
   );
   step = await one(
-    db.from("playbooks").insert({
+    db.from("sequence_steps").insert({
       ...chain,
       name: "Movers, a nudge",
       trigger: "after_step",
-      after_playbook_id: root,
+      after_step_id: root,
       after_days: 3,
       template_id: nudge,
       template_name: `reach_nudge_${stamp}`,
@@ -312,9 +317,17 @@ after(async () => {
 });
 
 // A step as the sweep hands it to its runner: its table's row (00440), its sequence named.
-const playbook = async (id) => ok(await db.from("sequence_steps").select("*").eq("id", id).single());
+const playbook = async (id) =>
+  ok(await db.from("sequence_steps").select("*, after_playbook_id:after_step_id").eq("id", id).single());
 const runOf = async (stepId) =>
-  ok(await db.from("broadcasts").select("*").eq("tenant_id", A).eq("playbook_id", stepId).single());
+  ok(
+    await db
+      .from("sequence_batches")
+      .select("*, playbook_id:step_id")
+      .eq("tenant_id", A)
+      .eq("step_id", stepId)
+      .single(),
+  );
 const stepRun = async (stepId) => {
   const now = new Date();
   const ctx = await lib.reachOutRunContext(db, await playbook(stepId), now);
@@ -327,7 +340,7 @@ const due = async (runId) => {
     if (s.state === "planned")
       ok(
         await db
-          .from("reach_out_sends")
+          .from("sequence_sends")
           .update({ send_at: iso(Date.now() - MIN) })
           .eq("id", s.id),
       );
@@ -414,7 +427,7 @@ test(
       const lead = await leadOf(s.lead_id);
       assert.deepEqual([lead.stage, lead.last_outcome], ["nurture", "emailed"]);
     }
-    const state = async (id) => ok(await db.from("broadcasts").select("state").eq("id", id).single()).state;
+    const state = async (id) => ok(await db.from("sequence_batches").select("state").eq("id", id).single()).state;
     assert.equal(await state(run1.id), "sent", "the first run finished: every send in it went");
 
     // 6. Three days on. The Texas business wrote back, answering the first email: it is not written to again. The
@@ -422,7 +435,7 @@ test(
     for (const s of await sendsOf(run1.id))
       ok(
         await db
-          .from("reach_out_sends")
+          .from("sequence_sends")
           .update({ sent_at: iso(Date.now() - 4 * DAY) })
           .eq("id", s.id),
       );
@@ -508,7 +521,7 @@ test(
     // 8. The clock reads the bounce (its send failed), then finishes the nudge's run; the first stays finished.
     await tick();
     await tick();
-    const after = ok(await db.from("reach_out_sends").select("state, reason").eq("id", nudgeSend.id).single());
+    const after = ok(await db.from("sequence_sends").select("state, reason").eq("id", nudgeSend.id).single());
     assert.deepEqual([after.state, after.reason], ["failed", "bounced"]);
     for (const id of [run1.id, run2.id]) assert.equal(await state(id), "sent", id);
 
@@ -568,7 +581,7 @@ test(
     // By hand, at the share: the send claimed and its email written as the writer writes one.
     ok(
       await db
-        .from("reach_out_sends")
+        .from("sequence_sends")
         .update({ state: "claimed", claimed_at: iso(Date.now()) })
         .eq("id", sendId),
     );
@@ -621,7 +634,7 @@ test(
     });
     ok(
       await db
-        .from("reach_out_sends")
+        .from("sequence_sends")
         .update({ state: "queued", message_id: messageId, contact_id: person.contact_id })
         .eq("id", sendId),
     );
@@ -632,7 +645,7 @@ test(
     assert.deepEqual([refused.status, refused.error], ["canceled", { reason: "sending_mailbox_at_cap" }]);
     await tick();
     const waiting = ok(
-      await db.from("reach_out_sends").select("state, reason, attempts, message_id").eq("id", sendId).single(),
+      await db.from("sequence_sends").select("state, reason, attempts, message_id").eq("id", sendId).single(),
     );
     assert.deepEqual(
       [waiting.state, waiting.reason, waiting.attempts, waiting.message_id],
@@ -818,7 +831,7 @@ test(
     // 2. Start: the first step's run, planned now, waiting for its owner.
     const started = await lib.runReachOutStep(db, await playbook(root), new Date(), "America/Chicago", L);
     assert.deepEqual([started.outcome, started.reason, started.planned], ["held", "waiting_for_you", 2]);
-    const run = ok(await db.from("broadcasts").select("*").eq("id", started.runId).single());
+    const run = ok(await db.from("sequence_batches").select("*, playbook_id:step_id").eq("id", started.runId).single());
     assert.equal(run.state, "pending_approval");
     const sendFor = async (leadId) => (await sendsOf(run.id)).find((x) => x.lead_id === leadId);
     for (const id of [ids.austin, ids.fresno]) {
@@ -937,6 +950,6 @@ test(
     const removed = await session.rpc("reach_out_remove", { p_tenant_id: B, p_root_id: root });
     assert.equal(removed.error?.code, "23503", removed.error?.message);
     assert.equal(removed.error.message, REACH_OUT_REFUSALS.wrote);
-    assert.equal(ok(await db.from("playbooks").select("id").eq("id", root)).length, 1, "the chain stands");
+    assert.equal(ok(await db.from("sequence_steps").select("id").eq("id", root)).length, 1, "the chain stands");
   },
 );

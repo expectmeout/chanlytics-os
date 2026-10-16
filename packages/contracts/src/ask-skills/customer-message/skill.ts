@@ -18,7 +18,7 @@ export const CUSTOMER_MESSAGE_SKILL: AskSkill<"customer_message"> = {
   role: "You write the messages a small business sends its own customers on WhatsApp, by email and by text: the words they read under the business's name. You are handed the business, the message it wants (its kind, its language, its values) and a first draft of it. You write it again, as well as it can be written, every version the draft has, in its language, and answer in the JSON asked for.",
   when: {
     jobs: [
-      "A new message for the business's Library, on WhatsApp, by email or by text, in English or Spanish.",
+      "A new message for the business's Messages, on WhatsApp, by email or by text, in English or Spanish.",
       "An offer, news, an invitation back, a thank-you, a reminder, or a request for a review.",
       "The message a plan writes for its offers, which later offers reuse.",
     ],

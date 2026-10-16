@@ -22,16 +22,15 @@ import { GET_YES_HASH, expectLeaksWellFormed, expectQrInView } from "../signals"
 
 /**
  * The send screen says it too: nobody on the audience it opens on has said yes
- * to offers. The send has been its own screen since #758 and the QR's card is on
- * the ledger, so its "the phrase and QR below" pointed at nothing. Its door
- * closes the send and lands on the QR. Where no channel ticked can carry the
- * message at all, the line says that and is no door.
+ * to offers. The send has been its own screen since #758 and the QR is a pane of
+ * its own (broadcasts/get-yes), so its "the phrase and QR below" pointed at
+ * nothing. Its door closes the send and lands on the QR. Where no channel ticked
+ * can carry the message at all, the line says that and is no door.
  */
 async function sendScreenDoorLandsOnTheQr(page: Page): Promise<void> {
-  await page.goto("/#/broadcasts");
+  // The send is Campaigns' composer, a sheet over Sequences at its own address (campaigns/new): a date's New opens it.
+  await page.goto("/#/campaigns/new");
   await page.waitForLoadState("networkidle");
-  // New message is the home's composer, a sheet at its own address (campaigns/new).
-  await page.getByTestId("bc-new").click();
   const nobody = page.getByTestId("bc-nobody");
   await expect(nobody).toBeVisible();
   await expect(nobody).not.toContainText("below");

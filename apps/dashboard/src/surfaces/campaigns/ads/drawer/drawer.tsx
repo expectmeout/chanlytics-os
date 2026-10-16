@@ -19,7 +19,7 @@ import { Icon } from "../../../kit/icon/icon";
 import { Menu } from "../../../kit/menu/menu";
 import type { MenuItem } from "../../../kit/menu/menu";
 import { gate } from "../../../legacy-verbs";
-import { useKept } from "../../home/drawer";
+import { useKept } from "../../home/pane-sheet";
 import { PaneSheet } from "../../home/pane-sheet";
 import { CmPreviewFold } from "../../parts/preview-fold";
 import { CmPane } from "../../parts/split";

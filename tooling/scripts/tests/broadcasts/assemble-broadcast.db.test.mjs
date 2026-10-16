@@ -104,13 +104,13 @@ const assemble = (client, tenant, r, recipients, sendAt) =>
 /** What the database holds of a run by its name: the row, its people, its jobs. */
 async function heldFor(name) {
   const { data: rows } = await db
-    .from("broadcasts")
+    .from("sequence_batches")
     .select("id, created_by, state")
     .eq("tenant_id", A)
     .eq("name", name);
   const ids = (rows ?? []).map((r) => r.id);
   const { data: recips } = ids.length
-    ? await db.from("broadcast_recipients").select("contact_id, state").in("broadcast_id", ids)
+    ? await db.from("sequence_sends").select("contact_id, state").in("batch_id", ids)
     : { data: [] };
   const { data: jobs } = await db
     .from("jobs")
@@ -193,7 +193,7 @@ test("a template or a playbook of another workspace refuses the run whole, for e
     .single();
   assert.equal(theirs.error, null, theirs.error?.message);
   const other = await db
-    .from("playbooks")
+    .from("sequence_steps")
     .insert({
       tenant_id: B,
       name: "Win-back",
@@ -295,7 +295,7 @@ test("a claim goes back to the queue as not_taken when WhatsApp was never reache
   ]);
   assert.equal(error, null, error?.message);
   const mark = (contact, patch) =>
-    db.from("broadcast_recipients").update(patch).eq("broadcast_id", id).eq("contact_id", contact).select("state");
+    db.from("sequence_sends").update(patch).eq("batch_id", id).eq("contact_id", contact).select("state");
   // Claimed before the wire (00182), then given back: nothing left.
   assert.equal((await mark(people.a1, { state: "failed", reason: "outcome_unknown" })).error, null);
   const back = await mark(people.a1, { state: "queued", reason: "not_taken" });
@@ -374,7 +374,7 @@ test("a run that waited is released, its send job written and the approval recor
   assert.equal(Date.parse(held.jobs[0].due_at), Date.parse(when), "due when the run says it goes");
   assert.deepEqual(held.jobs[0].payload, { request_id: "req-1", broadcast_id: id }, "the run is named by the door");
   assert.equal(held.jobs[0].lane, 2);
-  const { data: row } = await db.from("broadcasts").select("scheduled_for").eq("id", id).single();
+  const { data: row } = await db.from("sequence_batches").select("scheduled_for").eq("id", id).single();
   assert.equal(Date.parse(row.scheduled_for), Date.parse(when), "the row carries the time its job carries");
   assert.deepEqual(await decisionsOf(id), [
     {

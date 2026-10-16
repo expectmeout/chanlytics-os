@@ -106,7 +106,7 @@ after(async () => {
 const firstStep = async (name) =>
   ok(
     await db
-      .from("playbooks")
+      .from("sequence_steps")
       .insert({
         tenant_id: tenantId,
         name,
@@ -125,7 +125,7 @@ const firstStep = async (name) =>
 const batchOf = async (stepId, state, who = []) => {
   const id = ok(
     await db
-      .from("broadcasts")
+      .from("sequence_batches")
       .insert({
         tenant_id: tenantId,
         name: `run ${state}`,
@@ -134,7 +134,7 @@ const batchOf = async (stepId, state, who = []) => {
         template_language: "en_US",
         state,
         scheduled_for: new Date().toISOString(),
-        playbook_id: stepId,
+        step_id: stepId,
         run_for: "2026-10-02",
       })
       .select("id")
@@ -142,7 +142,7 @@ const batchOf = async (stepId, state, who = []) => {
     "the batch",
   ).id;
   for (const contactId of who)
-    ok(await db.from("broadcast_recipients").insert({ broadcast_id: id, contact_id: contactId, tenant_id: tenantId }));
+    ok(await db.from("sequence_sends").insert({ batch_id: id, contact_id: contactId, tenant_id: tenantId }));
   return id;
 };
 
@@ -360,6 +360,69 @@ test("the leave door takes out only their places in the sequence named, with its
   });
   assert.equal(asViewer.error?.code, "P0002");
 });
+
+test(
+  "a leave is undone (00450): each place comes back with its next step; the sends it skipped stay skipped, and are counted",
+  { skip },
+  async () => {
+    const sendOf = async (batch, contactId) =>
+      ok(await db.from("sequence_sends").select("state").eq("batch_id", batch).eq("contact_id", contactId).single());
+    const seq = await firstStep("Put back");
+    const waits = await batchOf(seq, "scheduled", [people.ana, people.bo]);
+    const ana = await enrollmentOf(seq, people.ana);
+    const bo = await enrollmentOf(seq, people.bo);
+
+    const left = ok(
+      await operator.rpc("sequence_leave", {
+        p_tenant_id: tenantId,
+        p_sequence_id: seq,
+        p_enrollment_ids: [ana.id, bo.id],
+      }),
+    );
+    assert.equal(left.left, 2);
+    const kept = (await decisionOf(left.decision_id)).payload.put_back;
+    assert.deepEqual([kept.why, kept.places.length, kept.sends], ["removed", 2, 2], "each place it ended, kept");
+
+    const asViewer = await viewer.rpc("sequence_return", {
+      p_tenant_id: tenantId,
+      p_sequence_id: seq,
+      p_undo_of: left.decision_id,
+    });
+    assert.equal(asViewer.error?.code, "P0002");
+
+    const back = ok(
+      await operator.rpc("sequence_return", { p_tenant_id: tenantId, p_sequence_id: seq, p_undo_of: left.decision_id }),
+    );
+    assert.deepEqual([back.back, back.sends_out], [2, 2]);
+    assert.deepEqual(
+      [(await enrollmentOf(seq, people.ana)).state, (await enrollmentOf(seq, people.bo)).state],
+      ["in", "in"],
+    );
+    assert.deepEqual(
+      [(await sendOf(waits, people.ana)).state, (await sendOf(waits, people.bo)).state],
+      ["skipped", "skipped"],
+      "a skipped send is final: the batch goes without them",
+    );
+    const d = ok(
+      await db.from("decisions").select("verb, subject_id, undo_of, payload").eq("id", back.decision_id).single(),
+    );
+    assert.deepEqual(
+      [d.verb, d.subject_id, d.undo_of, d.payload.back],
+      ["return_to_sequence", seq, left.decision_id, 2],
+    );
+
+    const again = ok(
+      await operator.rpc("sequence_return", { p_tenant_id: tenantId, p_sequence_id: seq, p_undo_of: left.decision_id }),
+    );
+    assert.deepEqual([again.back, again.sends_out], [0, 0], "nothing is put back twice");
+    const notALeave = await operator.rpc("sequence_return", {
+      p_tenant_id: tenantId,
+      p_sequence_id: seq,
+      p_undo_of: back.decision_id,
+    });
+    assert.equal(notALeave.error?.code, "P0002", "only a leave of this sequence is undone");
+  },
+);
 
 test(
   "a batch is canceled through its door, only from the state it was read in; a member no longer writes its row",

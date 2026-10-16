@@ -129,7 +129,7 @@ test(
   async () => {
     const run = (client, over) =>
       client
-        .from("broadcasts")
+        .from("sequence_batches")
         .insert({
           tenant_id: w.t,
           name: "Spring reminder",
@@ -153,8 +153,8 @@ test(
     const made1 = ok(await run(admin, {}), "a run as its door writes it");
     const recipient = (over) =>
       me.session
-        .from("broadcast_recipients")
-        .insert({ broadcast_id: made1[0].id, contact_id: w.contact, tenant_id: w.t, ...over });
+        .from("sequence_sends")
+        .insert({ batch_id: made1[0].id, contact_id: w.contact, tenant_id: w.t, ...over });
     noPrivilege(await recipient({ state: "sent" }), "a recipient born sent");
     noPrivilege(await recipient({ sent_at: new Date().toISOString() }), "a delivery time");
     ok(await recipient({}), "a recipient as the product writes it");
@@ -167,7 +167,7 @@ test(
   async () => {
     const playbook = (over) =>
       me.session
-        .from("playbooks")
+        .from("sequence_steps")
         .insert({
           tenant_id: w.t,
           name: "Reminders",

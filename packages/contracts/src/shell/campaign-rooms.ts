@@ -1,26 +1,18 @@
 /**
- * Campaigns' rooms, said once (3 Oct 2026). Campaigns is one page, its home, and two rooms hang off it: Sent (every run, the
- * send screen, and Get their yes) and the Library (the wording the receptionist and the campaigns send). Broadcasts,
- * Templates and Playbooks are what the routes, the code and the database call them, and what people typed before; a sentence
- * a person reads, on a page, in a toast, a notice or an email, names a room from here, so a word changes in one place. New
- * message is the verb, whichever room it starts from.
+ * Campaigns' rooms, said once (3 Oct 2026; decision 0060's S6). Campaigns is Sequences, with Messages beside it (D4: the
+ * Library is Messages, the wording the receptionist and the campaigns send); Sent's list became each sequence's History
+ * (D3), its sheets (a run's, To send, Get their yes, the send screen) kept at their addresses. Broadcasts, Templates and
+ * Playbooks are what the routes, the code and the database call them, and what people typed before; a sentence a person
+ * reads, on a page, in a toast, a notice or an email, names a room from here, so a word changes in one place. New message
+ * is the verb, whichever room it starts from.
  */
 export const CAMPAIGN_ROOMS = {
   home: "Campaigns",
-  sent: "Sent",
-  library: "Library",
+  library: "Messages",
   newMessage: "New message",
 } as const;
 
-const { sent, library } = CAMPAIGN_ROOMS;
-
-/** What a playbook's delete says: the rule goes, and the runs it sent stay where every run is read. */
-export const PLAYBOOK_DELETE_WORDS = {
-  /** The toast's tail, after the playbook's name. */
-  done: `deleted — its runs stay in ${sent} with their numbers`,
-  /** The question's detail. */
-  detail: `Its runs stay in ${sent} with their numbers.`,
-} as const;
+const { library } = CAMPAIGN_ROOMS;
 
 /** A message picker with nothing to pick: what to do, and the Library, which opens as a link after the lead. */
 export interface NoMessageWords {
@@ -30,14 +22,14 @@ export interface NoMessageWords {
 
 /** The send screen's picker: no message it can send, whichever channel a message is written for. */
 export const NO_TEMPLATE_WORDS: NoMessageWords = {
-  lead: "No message to send yet — add the starter set, or write one in the",
+  lead: "No message to send yet — add the starter set, or write one in",
   link: library,
 };
 
 /** A playbook composer's picker: no message, for this moment where the moment has a starter. */
 export function noMessageWords(forThisMoment: boolean): NoMessageWords {
   return {
-    lead: `No message ${forThisMoment ? "for this moment " : ""}yet — write one in the`,
+    lead: `No message ${forThisMoment ? "for this moment " : ""}yet — write one in`,
     link: library,
   };
 }
@@ -48,10 +40,10 @@ export function noMessageWords(forThisMoment: boolean): NoMessageWords {
  */
 export const LIBRARY_WORDS = {
   title: library,
-  demo: `The ${library} reads a real workspace — the messages it holds, by email, text and WhatsApp.`,
-  reading: `Reading the ${library}…`,
-  failed: `The ${library} couldn’t be loaded right now`,
-  failedWhat: `the ${library}`,
+  demo: `${library} reads a real workspace — the messages it holds, by email, text and WhatsApp.`,
+  reading: "Reading your messages…",
+  failed: "Your messages couldn’t be loaded right now",
+  failedWhat: "your messages",
   failedBody: "The receptionist keeps sending; this page just can't show what it holds at the moment.",
   /** The count's hover: what the Library holds is every message, on each channel it goes by, whoever writes its versions. */
   headTip:
@@ -113,16 +105,16 @@ export const LIBRARY_STARTER_WORDS = {
   pickAChannel: "Pick at least one channel: WhatsApp, email or text.",
   /** A new campaign named by a starter that is not its moment's own, or by no starter the set has (A0). */
   notThisMoment: (moment: string): string =>
-    `That starter is not one “${moment}” goes by: name the moment's own starter, or a message from the Library.`,
+    `That starter is not one “${moment}” goes by: name the moment's own starter, or one of your messages.`,
   /** A starter whose words are the owner's to write (the month's offer): it is started from the composer. */
   takesOwnWords: (title: string): string =>
     `The “${title}” starter takes words of its own: write them in the composer and start it there.`,
   /**
-   * A starter the workspace hid in its Library: it has a version, and no card adds it back, so the way out is to show it
+   * A starter the workspace hid in its messages: it has a version, and no card adds it back, so the way out is to show it
    * again or to go by another message, never the starter set, which leaves a hidden one hidden.
    */
   hiddenInLibrary: (title: string): string =>
-    `The “${title}” starter is hidden in this workspace's ${library}: show it again under ${CAMPAIGN_ROOMS.home} › ${library}, or name another message.`,
+    `The “${title}” starter is hidden in this workspace: show it again under ${CAMPAIGN_ROOMS.home} › ${library}, or name another message.`,
   /** What a new campaign's card does first where the workspace does not hold its moment's starter (A0). */
   addsFirst: (title: string): string => `adds the “${title}” starter first`,
   /**
@@ -149,13 +141,13 @@ export const LIBRARY_STARTER_WORDS = {
       : `The “${title}” starter can send nothing ${on} until WhatsApp approves its WhatsApp version: start the campaign once WhatsApp has.`,
   /** The starter was judged and filing it failed, so no campaign was started (a version refused, or none to send). */
   notAdded:
-    "The starter message could not be added just now, so nothing was started. Try again, or add it from the Library.",
+    "The starter message could not be added just now, so nothing was started. Try again, or add it from Messages.",
   /**
    * The same, where its WhatsApp version did reach WhatsApp (sent for review, or found in the number's account): that
    * version is in the Library and stays there, and a second press sends nothing to WhatsApp again.
    */
   notAddedSentForReview:
-    "The starter's WhatsApp version went to WhatsApp for review and is in the Library, but the campaign could not be started just now. Try again: nothing is sent to WhatsApp twice.",
+    "The starter's WhatsApp version went to WhatsApp for review and is in Messages, but the campaign could not be started just now. Try again: nothing is sent to WhatsApp twice.",
 } as const;
 
 /** What a broadcast is, said where a page defines it (the Sent room's standing line, on hover): one message, and where it goes. */
@@ -247,9 +239,9 @@ export function runStopWords(state: string): RunStopWords {
 
 /**
  * Why a yes to offers must be in writing, on a person's page: the carriers' rule, and the paper form that answers it, which is
- * under Get their yes in Sent. The link opens it (GET_YES_ROUTE).
+ * under Get their yes. The link opens it (GET_YES_ROUTE).
  */
 export const OFFERS_IN_WRITING_WORDS = {
   lead: "The carriers require it: their own message, or a sign-up form they signed — ",
-  link: `print one in ${sent}`,
+  link: "print one from Get their yes",
 } as const;

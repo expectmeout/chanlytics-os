@@ -168,7 +168,7 @@ test(
   async () => {
     const run = (client, over) =>
       client
-        .from("broadcasts")
+        .from("sequence_batches")
         .insert({
           tenant_id: mine.t,
           name: "Reminder",
@@ -191,8 +191,8 @@ test(
 
     const recipient = (over) =>
       me.session
-        .from("broadcast_recipients")
-        .insert({ tenant_id: mine.t, broadcast_id: own[0].id, contact_id: mine.contact, ...over });
+        .from("sequence_sends")
+        .insert({ tenant_id: mine.t, batch_id: own[0].id, contact_id: mine.contact, ...over });
     // A recipient's message is the edge's to write when it sends (00278 grants a session no such column), so a session
     // names none: another workspace's is refused, and so is its own; the policy stands under the grant.
     refused(await recipient({ message_id: theirs.message }), "a recipient naming another workspace's message");
@@ -204,7 +204,7 @@ test(
 test("a moment is on their own workspace's list and template, made or moved", { skip }, async () => {
   const moment = (over) =>
     me.session
-      .from("playbooks")
+      .from("sequence_steps")
       .insert({
         tenant_id: mine.t,
         name: `Moment ${Math.random().toString(36).slice(2, 7)}`,
@@ -225,7 +225,7 @@ test("a moment is on their own workspace's list and template, made or moved", { 
   refused(await moment({ list_id: theirs.list, template_id: mine.template }), "a moment on another workspace's list");
   refused(await moment({ list_id: mine.list, template_id: theirs.template }), "another workspace's template");
 
-  const move = (patch) => me.session.from("playbooks").update(patch).eq("id", own[0].id).select("id");
+  const move = (patch) => me.session.from("sequence_steps").update(patch).eq("id", own[0].id).select("id");
   refused(await move({ list_id: theirs.list }), "moved onto another workspace's list");
   refused(await move({ template_id: theirs.template }), "moved onto another workspace's template");
   const moved = ok(await move({ name: "Renamed" }), "their own edit");

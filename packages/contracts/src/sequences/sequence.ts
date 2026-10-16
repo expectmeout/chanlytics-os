@@ -16,20 +16,4 @@ export type SequenceStart = (typeof SEQUENCE_STARTS)[number];
  * first step was removed after it sent). `sequences.state` holds the same four.
  */
 export const SEQUENCE_STATES = ["draft", "on", "paused", "ended"] as const;
-/**
- * Whether a workspace's config turns Campaigns › Sequences on (`features.sequences_preview`, the flag registry's): the one
- * page for everything it sends on its own (0060), drawn before it replaces Campaigns' home, Sent and the Library (the
- * plan's S6). Read off the config as stored, so anything but `true` is off.
- */
-export function sequencesPreviewOf(config: unknown): boolean {
-  if (typeof config !== "object" || config === null || !("features" in config)) return false;
-  const features: unknown = config.features;
-  return (
-    typeof features === "object" &&
-    features !== null &&
-    "sequences_preview" in features &&
-    features.sequences_preview === true
-  );
-}
-
 export type SequenceState = (typeof SEQUENCE_STATES)[number];

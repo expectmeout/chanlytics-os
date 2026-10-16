@@ -20,6 +20,8 @@ export const SEQUENCE_WORDS = {
   filters: { all: "All", needs: "Needs you", off: "Paused or off" },
   groups: { needs: "Needs you", customers: "Your customers", leads: "Leads", dates: "Dates", drafts: "Drafts" },
   receptionist: "First contact is your receptionist’s",
+  /** Where the receptionist's line opens: Settings › Business, as Campaigns' ledger row did (Ruben, 11 Oct 2026). */
+  receptionistRoute: "admin/workspace",
   tabs: { steps: "Steps", people: "People", leads: "Leads", history: "History" },
   addFollowUp: "Add a follow-up",
   approve: "Approve",

@@ -15,6 +15,7 @@ export {
   firstNameOf,
   resolveParams,
   exampleParams,
+  exampleParamsFor,
   templateUsage,
   templateUseWords,
   templateUseNote,
@@ -95,6 +96,7 @@ export {
   reachOutStepOf,
   versionsOf,
   versionWord,
+  keepsValues,
   noVersionWords,
 } from "./message-versions";
 export type {

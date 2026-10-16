@@ -230,6 +230,28 @@ async function repliedThreads(
   return firstReplies(threads, await inboundOn(ctx, tenantId, [...threads.keys()], since, words !== null), words);
 }
 
+/**
+ * The conversations a reply came back on to any of these runs, by a run sheet's own rule (firstReplies: a person's words
+ * within the reply window after the run reached the thread), each run judged by its own send. What a sequence's replies
+ * in the Inbox list (readers/sequences.ts sequenceReplies), so they are the replies its History's days open onto.
+ */
+export async function repliedConversationsOf(ctx: RouteContext, tenantId: string, runIds: string[]): Promise<string[]> {
+  if (runIds.length === 0) return [];
+  const { threadsOf } = countRecipients(await peopleOnRuns(ctx, tenantId, runIds), runIds);
+  const every = new Map<string, string>();
+  for (const threads of threadsOf.values())
+    for (const [conversation, sentAt] of threads) {
+      const had = every.get(conversation);
+      if (!had || sentAt < had) every.set(conversation, sentAt);
+    }
+  const since = [...every.values()].sort()[0];
+  if (since === undefined) return [];
+  const inbound = await inboundOn(ctx, tenantId, [...every.keys()], since, false);
+  const replied = new Set<string>();
+  for (const threads of threadsOf.values()) for (const c of firstReplies(threads, inbound).keys()) replied.add(c);
+  return [...replied];
+}
+
 /** A reply's words as a list line shows them: the whitespace folded, cut at a length no row needs more of. Null for none. */
 function previewLine(body: string | null | undefined): string | null {
   const t = typeof body === "string" ? body.replace(/\s+/g, " ").trim() : "";

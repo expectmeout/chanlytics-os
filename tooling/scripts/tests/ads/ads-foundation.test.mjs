@@ -242,19 +242,28 @@ test("New ad starts from an ad: a copy keeps its door and platform, Google keeps
   assert.equal(page.newAdFrom(near, "again", read).door, "call");
 });
 
-test("a real workspace's Campaigns chrome has no strip, and an Ads address is the home's", () => {
-  // No window stands here: a real workspace's answer, exactly what it was before Ads.
-  assert.deepEqual(campaignsChrome({ param: null }), { crumbs: ["Campaigns"], mount: "campaigns", act: null });
-  assert.deepEqual(campaignsChrome({ param: "ads" }), campaignsChrome({ param: null }));
-  assert.deepEqual(campaignsChrome({ param: "ads:ad:abc" }), campaignsChrome({ param: null }));
-  assert.ok(!("views" in campaignsChrome({ param: "new" })), "no strip in a real workspace");
-  // A demo session has the strip, and the Ads crumbs.
-  globalThis.window = { __DEMO_MODE: true };
+test("a real workspace's Campaigns has no Ads tab, and an Ads address is Sequences'", () => {
+  // No window stands here: a real workspace's answer, Sequences with Messages beside it (decision 0060).
+  const home = campaignsChrome({ param: null });
+  assert.deepEqual(home.crumbs, ["Campaigns"]);
+  assert.deepEqual(
+    home.views?.tabs.map((t) => t.id),
+    ["sequences", "messages"],
+    "no Ads tab in a real workspace",
+  );
+  assert.deepEqual(campaignsChrome({ param: "ads" }), home);
+  assert.deepEqual(campaignsChrome({ param: "ads:ad:abc" }), home);
+  // A demo session has the Ads tab, and the Ads crumbs.
+  globalThis.window = { __DEMO_MODE: true, location: { pathname: "/w/demo/campaigns" } };
   try {
-    assert.equal(campaignsChrome({ param: null }).views?.picked, "messages");
+    assert.equal(campaignsChrome({ param: null }).views?.picked, "sequences");
+    assert.deepEqual(
+      campaignsChrome({ param: null }).views?.tabs.map((t) => t.id),
+      ["sequences", "messages", "ads"],
+    );
     const at = campaignsChrome({ param: "ads" });
     assert.equal(at.views?.picked, "ads");
-    assert.deepEqual(at.crumbs, [{ label: "Campaigns", to: "campaigns" }, "Ads"]);
+    assert.deepEqual(at.crumbs, [{ label: "Campaigns", to: "campaigns/sequences" }, "Ads"]);
     assert.deepEqual(campaignsChrome({ param: "ads:new" }).crumbs.at(-1), "New ad");
   } finally {
     delete globalThis.window;

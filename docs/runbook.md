@@ -770,7 +770,7 @@ schedules one `reply_read` job instead of telling anyone itself. The job reads
 the reply with the model, applies what the reading means through
 `reach_out_reply_apply`, drafts an answer when the reading asks one, and tells
 the workspace once (`reach_out_replied`). The readings are rows of
-`reach_out_replies`, one per message.
+`sequence_replies`, one per message.
 
 - **Once per message and stage.** A partial unique index,
   `jobs_reply_read_once`, holds one live `reply_read` per message and stage;
@@ -1307,7 +1307,7 @@ waiting who is not a customer, then bulk, each workspace taking its turn at bulk
   and fails as never run after a day, which is longer than any deploy takes.
 - **A broadcast that says it stopped.** "WhatsApp could not be reached" is a connection that never opened: nobody was
   written to, the run waited through its waits and stopped. A run by email or text says its own provider
-  (`wire_unavailable:email`, `throttled:sms`, `stalled:email` in `broadcasts.failure`; a code with no channel is WhatsApp's,
+  (`wire_unavailable:email`, `throttled:sms`, `stalled:email` in `sequence_batches.failure`; a code with no channel is WhatsApp's,
   as every run before 00298 was). "Its people or its number's credentials could not be read" is thirty minutes of failed
   reads. "The day's sending hours ran out" is a run that had waited (a throttle, a stall) and woke past the last hour, or
   a visit's run, whose words name the day; any other run still going at 21:00 is not stopped, it waits for nine the next
@@ -1358,7 +1358,7 @@ ledger with each version's name, whoever pushes and from wherever.
    lands is recorded again by the same command, which also lets go of the reserved gaps the new number now covers.
 
    **An index on a table that is always being written** (`messages`, `events`, `calls`, `contacts`,
-   `broadcast_recipients`, `jobs`, `conversations`) is built `CONCURRENTLY`, in a file that holds that one statement and nothing else,
+   `sequence_sends`, `jobs`, `conversations`) is built `CONCURRENTLY`, in a file that holds that one statement and nothing else,
    not even a `lock_timeout`: a plain build holds every write to the table for as long as it takes, and an index made
    concurrently cannot share a transaction, which is how the runner sends a file of several statements
    (`00355_a_person_s_runs_are_found_by_the_person.sql` is the shape; `database/migrations.test.mjs` fails any other).

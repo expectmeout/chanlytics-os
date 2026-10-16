@@ -387,7 +387,7 @@ test("(c2) WhatsApp refusing the version in its answer to the filing is filed as
   const said = PROPOSAL_SPECS.message.receipt({ kind: "message", payload: { name: "spring_colour" } }, r);
   assert.equal(
     said,
-    `“spring_colour” is in the Library — its email version is ready; its WhatsApp version was refused by WhatsApp (see ${CAMPAIGN_ROOMS.home} › ${CAMPAIGN_ROOMS.library})`,
+    `“spring_colour” is in Messages — its email version is ready; its WhatsApp version was refused by WhatsApp (see ${CAMPAIGN_ROOMS.home} › ${CAMPAIGN_ROOMS.library})`,
   );
   assert.doesNotMatch(said, /for review/);
 });
@@ -566,7 +566,7 @@ test("a fault once a version is filed is answered in one plain sentence and logg
   );
   assert.deepEqual(r.refused, {
     channel: "whatsapp",
-    words: "This version could not be filed just now. Write it again from the Library.",
+    words: "This version could not be filed just now. Write it again from Messages.",
   });
   assert.deepEqual(w.meta.calls, [], "the submission stopped at its read: nothing reached Meta");
   const line = lines.find((l) => l.event === "message_version_not_filed");

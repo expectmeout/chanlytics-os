@@ -102,7 +102,7 @@ test("it pages a real query builder, ordered so nothing repeats or is skipped", 
   const rows = Array.from({ length: 1200 }, (_, i) => ({ id: String(i).padStart(5, "0"), tenant_id: "t1" }));
   const db = fakeDb({ broadcasts: rows });
   const got = await readAllRows("broadcasts", (from, to) =>
-    db.from("broadcasts").select("id").eq("tenant_id", "t1").order("id").range(from, to),
+    db.from("sequence_batches").select("id").eq("tenant_id", "t1").order("id").range(from, to),
   );
   assert.equal(got.length, 1200);
   assert.equal(new Set(got.map((r) => r.id)).size, 1200, "no row twice");

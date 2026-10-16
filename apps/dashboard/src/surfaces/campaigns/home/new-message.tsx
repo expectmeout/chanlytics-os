@@ -26,9 +26,8 @@ import { WriteToLeads } from "../reach-out/sources";
 import type { ReachOutStart } from "../reach-out/sources";
 import type { PlaybookCardVM, PlaybooksSurface } from "../playbooks/surface";
 import type { HomeAddress } from "./address";
-import { useKept } from "./drawer";
 import { HomeFailed, HomeReading } from "./failed";
-import { PaneSheet } from "./pane-sheet";
+import { PaneSheet, useKept } from "./pane-sheet";
 
 type Compose = NonNullable<HomeAddress["compose"]>;
 
@@ -39,7 +38,7 @@ interface NewMessageProps {
   playbooks: PlaybooksSurface | undefined;
   /** The broadcasts: undefined before they are read, null where they could not be. */
   broadcasts: BroadcastsSurface | null | undefined;
-  /** The chains: a change to one is its own sheet (home-page.tsx), so an id that is no playbook's waits on them. */
+  /** The chains: a change to one is its own sheet (sheets.tsx), so an id that is no playbook's waits on them. */
   reachOuts: readonly ReachOutChainDto[] | null | undefined;
   /** The home's toast host: it stays while the sheet closes over what a send says. */
   flash: Flash;

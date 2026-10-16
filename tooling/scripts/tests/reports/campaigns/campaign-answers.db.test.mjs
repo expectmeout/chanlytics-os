@@ -340,7 +340,7 @@ test(
       await insert("contacts", contactRow(w, contact));
       await insert("conversations", conversationRow(w, conversation, contact, sent));
       await insert("messages", messageRow(w, message, { conversation, contact, channel: "whatsapp", at: sent }));
-      await insert("broadcast_recipients", {
+      await insert("sequence_sends", {
         ...recipientRow(w, { run, contact, message, at: sent, channel: "whatsapp" }),
         sent_at: stamp(sent, 700),
       });

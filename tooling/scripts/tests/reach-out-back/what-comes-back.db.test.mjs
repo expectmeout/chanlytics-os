@@ -154,9 +154,9 @@ const chainOf = (s) => ({
 let far = 0;
 const runOf = async (rootId, stepId, state = "scheduled") => {
   far += 1;
-  const { template_id } = ok(await db.from("playbooks").select("template_id").eq("id", stepId).single());
+  const { template_id } = ok(await db.from("sequence_steps").select("template_id").eq("id", stepId).single());
   return one(
-    db.from("broadcasts").insert({
+    db.from("sequence_batches").insert({
       tenant_id: A,
       name: "Movers",
       template_id,
@@ -165,7 +165,7 @@ const runOf = async (rootId, stepId, state = "scheduled") => {
       audience: { kind: "reach_out", root_id: rootId, step_id: stepId },
       state,
       scheduled_for: iso(Date.now()),
-      playbook_id: stepId,
+      step_id: stepId,
       run_for: new Date(Date.UTC(2097, 0, far)).toISOString().slice(0, 10),
     }),
   );
@@ -173,12 +173,12 @@ const runOf = async (rootId, stepId, state = "scheduled") => {
 const sendIn = async (run, rootId, stepId, over) => {
   const id = crypto.randomUUID();
   ok(
-    await db.from("reach_out_sends").insert({
+    await db.from("sequence_sends").insert({
       id,
       tenant_id: A,
-      broadcast_id: run,
-      playbook_id: stepId,
-      root_id: rootId,
+      batch_id: run,
+      step_id: stepId,
+      sequence_id: rootId,
       send_at: iso(Date.now() + 3_600_000),
       ...over,
     }),
@@ -302,7 +302,7 @@ async function build() {
     }),
   );
   ok(
-    await db.from("reach_out_replies").insert({
+    await db.from("sequence_replies").insert({
       message_id: inbound,
       tenant_id: A,
       conversation_id: W0.threads.interested,
@@ -395,9 +395,9 @@ test(
     // Its first email on its way: left alone here, said as leaving, and refused at the door by the stop.
     const l = ok(await as.operator.c.rpc("reach_out_lead_stop", { p_lead_id: w.leads.leaving }));
     assert.deepEqual(l, { stopped: true, already: false, skipped: 0, leaving: 1 });
-    const queued = ok(await db.from("reach_out_sends").select("state").eq("id", w.leavingSend).single());
+    const queued = ok(await db.from("sequence_sends").select("state").eq("id", w.leavingSend).single());
     assert.equal(queued.state, "queued");
-    const planned = ok(await db.from("reach_out_sends").select("state, reason").eq("id", w.plannedSend).single());
+    const planned = ok(await db.from("sequence_sends").select("state, reason").eq("id", w.plannedSend).single());
     assert.deepEqual(planned, { state: "skipped", reason: "owner_stopped" });
     const facts = ok(
       await db.rpc("outreach_lead_facts", {
@@ -612,7 +612,7 @@ test("the day's numbers are due at 6 PM in the workspace's zone, and once told, 
     }),
   );
   ok(
-    await db.from("reach_out_replies").insert({
+    await db.from("sequence_replies").insert({
       message_id: inbound,
       tenant_id: A,
       conversation_id: w.threads.quiet,
@@ -699,14 +699,14 @@ test("each function re-created whole is its source's body but for the lines it m
   for (const name of ["outreach_lead_facts", "reach_out_booked"])
     assert.equal(
       liveBody(name),
-      bodyIn(now, `create or replace function public.${name}(`),
-      `${name}: the database runs 00241's`,
+      bodyIn(migration("00451"), `create or replace function public.${name}(`),
+      `${name}: the database runs 00451's (00241's, read from the sequence tables)`,
     );
   // 00424 made the followers a step's from its lead's own mailbox (decision 0056): the database runs that one.
   assert.equal(
     liveBody("reach_out_followers"),
-    bodyIn(migration("00424"), "create function public.reach_out_followers("),
-    "reach_out_followers: the database runs 00424's",
+    bodyIn(migration("00451"), "create or replace function public.reach_out_followers("),
+    "reach_out_followers: the database runs 00451's (00424's, read from the sequence tables)",
   );
   // 00261 gave the report's membership guard a partner's second factor (0013), and changed nothing else.
   const gated = bodyIn(migration("00261"), "create or replace function public.reach_out_chain_report(");
@@ -725,7 +725,11 @@ test("each function re-created whole is its source's body but for the lines it m
     ),
     gated,
   );
-  assert.equal(liveBody("reach_out_chain_report"), handed, "reach_out_chain_report: the database runs 00429's");
+  assert.equal(
+    liveBody("reach_out_chain_report"),
+    bodyIn(migration("00451"), "create or replace function public.reach_out_chain_report("),
+    "reach_out_chain_report: the database runs 00451's (00429's, read from the sequence tables)",
+  );
 });
 
 test(

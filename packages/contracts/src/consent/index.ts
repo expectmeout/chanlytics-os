@@ -37,6 +37,7 @@ export {
   deskSignVM,
   deskSignMetadata,
   notTakingSignUps,
+  GET_YES_NO_NUMBER_WORDS,
   GET_YES_PAUSED_WORDS,
   YES_WHILE_PAUSED,
   CONSENT_PHRASE,

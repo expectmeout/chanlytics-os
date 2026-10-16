@@ -121,12 +121,12 @@ before(async () => {
     params: [],
   };
   root = await one(
-    db.from("playbooks").insert({ ...chain, name: "Movers", trigger: "lead_first", lead_search_id: search }),
+    db.from("sequence_steps").insert({ ...chain, name: "Movers", trigger: "lead_first", lead_search_id: search }),
   );
   step = await one(
     db
-      .from("playbooks")
-      .insert({ ...chain, name: "Nudge", trigger: "after_step", after_playbook_id: root, after_days: 3 }),
+      .from("sequence_steps")
+      .insert({ ...chain, name: "Nudge", trigger: "after_step", after_step_id: root, after_days: 3 }),
   );
   host = `run-${stamp}.example`;
   mailbox = await one(
@@ -156,7 +156,11 @@ test("a run and its sends are written whole, under the run's own id, the sends t
   ];
   assert.deepEqual(ok(await plan(run, sends)), { id: run.id });
   const b0 = ok(
-    await db.from("broadcasts").select("id, state, playbook_id, run_for, audience").eq("id", run.id).single(),
+    await db
+      .from("sequence_batches")
+      .select("id, state, playbook_id:step_id, run_for, audience")
+      .eq("id", run.id)
+      .single(),
   );
   assert.deepEqual(
     [b0.state, b0.playbook_id, b0.run_for, b0.audience.kind],
@@ -164,9 +168,11 @@ test("a run and its sends are written whole, under the run's own id, the sends t
   );
   const rows = ok(
     await db
-      .from("reach_out_sends")
-      .select("id, tenant_id, broadcast_id, playbook_id, root_id, lead_id, state, reason, mailbox_id")
-      .eq("broadcast_id", run.id)
+      .from("sequence_sends")
+      .select(
+        "id, tenant_id, broadcast_id:batch_id, playbook_id:step_id, root_id:sequence_id, lead_id, state, reason, mailbox_id",
+      )
+      .eq("batch_id", run.id)
       .order("state"),
   );
   assert.equal(rows.length, 3);
@@ -182,7 +188,7 @@ test("a run and its sends are written whole, under the run's own id, the sends t
   // A replay (the same id) and another tick's run for the step's day (another id) meet what was made, and add nothing.
   assert.deepEqual(ok(await plan(run, [planned(await lead())])), { exists: true });
   assert.deepEqual(ok(await plan(runRow(), [planned(await lead())])), { exists: true });
-  assert.equal(ok(await db.from("reach_out_sends").select("id").eq("broadcast_id", run.id)).length, 3);
+  assert.equal(ok(await db.from("sequence_sends").select("id").eq("batch_id", run.id)).length, 3);
 });
 
 test(
@@ -193,7 +199,7 @@ test(
     // A planned send with no time breaks sequence_sends_planned_is_timed: the whole call fails.
     const r = await plan(run, [planned(await lead()), planned(await lead(), { send_at: null })]);
     assert.match(r.error?.message ?? "", /sequence_sends_planned_is_timed/);
-    assert.deepEqual(ok(await db.from("broadcasts").select("id").eq("id", run.id)), [], "no run left behind");
+    assert.deepEqual(ok(await db.from("sequence_batches").select("id").eq("id", run.id)), [], "no run left behind");
     // And the next tick makes it whole.
     assert.deepEqual(ok(await plan(run, [planned(await lead())])), { id: run.id });
   },
@@ -218,7 +224,7 @@ test(
     const run = runRow({ run_for: "2026-09-30" });
     ok(await plan(run, [planned(mine), planned(theirs), planned(await lead(), { mailbox_id: theirMailbox })]));
     assert.deepEqual(
-      ok(await db.from("reach_out_sends").select("lead_id").eq("broadcast_id", run.id)).map((r) => r.lead_id),
+      ok(await db.from("sequence_sends").select("lead_id").eq("batch_id", run.id)).map((r) => r.lead_id),
       [mine],
     );
     const across = await plan(runRow({ tenant_id: B, run_for: "2026-10-01" }), [planned(theirs)]);
@@ -270,12 +276,12 @@ test(
       );
       const s = crypto.randomUUID();
       ok(
-        await db.from("reach_out_sends").insert({
+        await db.from("sequence_sends").insert({
           id: s,
           tenant_id: A,
-          broadcast_id: firstRun.id,
-          playbook_id: root,
-          root_id: root,
+          batch_id: firstRun.id,
+          step_id: root,
+          sequence_id: root,
           lead_id: l,
           contact_id: p.contact_id,
           mailbox_id: mailbox,
@@ -289,7 +295,7 @@ test(
         { state: "queued", message_id: id },
         { state: "sent", sent_at: iso(Date.now() - daysAgo * DAY) },
       ])
-        ok(await db.from("reach_out_sends").update(patch).eq("id", s));
+        ok(await db.from("sequence_sends").update(patch).eq("id", s));
       if (over.stage) ok(await db.from("leads").update({ stage: over.stage, closed_reason: "not_a_fit" }).eq("id", l));
       if (over.wrote)
         ok(

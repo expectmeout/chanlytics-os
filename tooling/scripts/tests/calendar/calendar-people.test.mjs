@@ -1815,7 +1815,7 @@ test("the journey from visits: Booked this week and Lapsed, in three groups; eac
   assert.deepEqual(
     peopleListAction("new_week", []),
     {
-      text: "Their yes to offers is the phrase and the QR under Get their yes in Sent.",
+      text: "Their yes to offers is the phrase and the QR under Get their yes.",
       cta: "Get their yes",
       to: GET_YES_ROUTE,
       enabled: false,

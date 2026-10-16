@@ -2124,8 +2124,7 @@ export const FAMILIES = [
       "a row with a page of its own, a link that keeps the row's colours with no underline. People's and Leads' phone " +
       "rows draw it (surfaces/people/cells/row-card.tsx); and a row whose first column is its kind, the kit's mark in " +
       "the face's place; and a row with nothing in its first column, its lines from its start, where what the rows " +
-      "are is said around them (Campaigns' phone list, each row on its moment's line: " +
-      "surfaces/campaigns/home/ledger/ledger-phone.tsx).",
+      "are is said around them (as Campaigns' phone list drew each row on its moment's line, until decision 0060).",
     entries: [
       { id: "list-row", html: listRow() },
       { id: "list-row-two", html: listRow({ said: false }) },

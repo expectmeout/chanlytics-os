@@ -136,10 +136,10 @@ const assemble = (client, name, over = {}) =>
 
 /** What the database holds of a run by its name: the row, its people, its jobs, its decisions. */
 async function heldFor(name) {
-  const { data: rows } = await db.from("broadcasts").select("id, state").eq("tenant_id", A).eq("name", name);
+  const { data: rows } = await db.from("sequence_batches").select("id, state").eq("tenant_id", A).eq("name", name);
   const ids = (rows ?? []).map((r) => r.id);
   const { data: recips } = ids.length
-    ? await db.from("broadcast_recipients").select("contact_id").in("broadcast_id", ids)
+    ? await db.from("sequence_sends").select("contact_id").in("batch_id", ids)
     : { data: [] };
   const { data: jobs } = await db.from("jobs").select("payload").eq("tenant_id", A).eq("kind", "broadcast_send");
   const { data: decisions } = ids.length
@@ -257,9 +257,9 @@ test("a decision that cannot be written takes the run with it: no row, no people
       seen := seen || jsonb_build_object('raised', true, 'message', sqlerrm);
     end;
     seen := seen || jsonb_build_object(
-      'runs', (select count(*) from public.broadcasts b where b.tenant_id = '${A}' and b.name = 'Unledgered'),
+      'runs', (select count(*) from public.sequence_batches b where b.tenant_id = '${A}' and b.name = 'Unledgered'),
       'orphan_jobs', (select count(*) from public.jobs j where j.tenant_id = '${A}' and j.kind = 'broadcast_send'
-                        and not exists (select 1 from public.broadcasts b where b.id::text = j.payload ->> 'broadcast_id')));
+                        and not exists (select 1 from public.sequence_batches b where b.id::text = j.payload ->> 'broadcast_id')));
   `);
   assert.equal(seen.raised, true, `a ledger that refuses the row must refuse the run (${JSON.stringify(seen)})`);
   assert.match(seen.message, /ledger is unavailable/, "it was the decision that failed, after the run was written");

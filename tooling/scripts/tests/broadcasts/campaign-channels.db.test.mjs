@@ -119,10 +119,10 @@ const assemble = (r, recipients, sendAt) =>
 
 /** What the database holds of a run by its name: the row, its people with their channels, its jobs. */
 async function heldFor(name) {
-  const rows = ok(await db.from("broadcasts").select("id, channels").eq("tenant_id", A).eq("name", name));
+  const rows = ok(await db.from("sequence_batches").select("id, channels").eq("tenant_id", A).eq("name", name));
   const ids = rows.map((r) => r.id);
   const recips = ids.length
-    ? ok(await db.from("broadcast_recipients").select("contact_id, channel").in("broadcast_id", ids))
+    ? ok(await db.from("sequence_sends").select("contact_id, channel").in("batch_id", ids))
     : [];
   const jobs = ok(await db.from("jobs").select("payload").eq("tenant_id", A).eq("kind", "broadcast_send")).filter((j) =>
     ids.includes(j.payload?.broadcast_id),
@@ -135,7 +135,7 @@ test("a playbook and a run default to WhatsApp alone, and each CHECK refuses wha
   if (skip) return t.skip(skip);
   const playbook = ok(
     await db
-      .from("playbooks")
+      .from("sequence_steps")
       .insert({
         tenant_id: A,
         name: "Reminders",
@@ -152,7 +152,7 @@ test("a playbook and a run default to WhatsApp alone, and each CHECK refuses wha
   );
   assert.deepEqual(playbook.channels, ["whatsapp"], "nothing made before changes: WhatsApp alone");
   const kept = await db
-    .from("playbooks")
+    .from("sequence_steps")
     .update({ channels: ["email", "whatsapp"] })
     .eq("id", playbook.id)
     .select("channels");
@@ -163,7 +163,7 @@ test("a playbook and a run default to WhatsApp alone, and each CHECK refuses wha
   );
 
   const broadcast = (channels) =>
-    db.from("broadcasts").insert({
+    db.from("sequence_batches").insert({
       tenant_id: A,
       name: "Run",
       template_id: template,
@@ -174,7 +174,7 @@ test("a playbook and a run default to WhatsApp alone, and each CHECK refuses wha
       ...(channels ? { channels } : {}),
     });
   assert.equal((await broadcast()).error, null, "a run that names none");
-  const made = ok(await db.from("broadcasts").select("channels").eq("tenant_id", A).eq("name", "Run"));
+  const made = ok(await db.from("sequence_batches").select("channels").eq("tenant_id", A).eq("name", "Run"));
   assert.deepEqual(made.at(0).channels, ["whatsapp"]);
   assert.equal((await broadcast(["whatsapp", "sms", "email"])).error, null, "all three, once each");
 
@@ -187,14 +187,14 @@ test("a playbook and a run default to WhatsApp alone, and each CHECK refuses wha
     [["WhatsApp"], "a channel in another case"],
   ]) {
     checkRefused(
-      await db.from("playbooks").update({ channels: bad }).eq("id", playbook.id).select("id"),
+      await db.from("sequence_steps").update({ channels: bad }).eq("id", playbook.id).select("id"),
       "sequence_steps_channels_check",
       `a playbook with ${why}`,
     );
     checkRefused(await broadcast(bad), "sequence_batches_channels_check", `a run with ${why}`);
   }
   assert.deepEqual(
-    ok(await db.from("playbooks").select("channels").eq("id", playbook.id).single()).channels,
+    ok(await db.from("sequence_steps").select("channels").eq("id", playbook.id).single()).channels,
     ["email", "whatsapp"],
     "a refused edit leaves the ticks as they were",
   );
@@ -204,7 +204,7 @@ test("a recipient has no channel (a person written before the channels, who is W
   if (skip) return t.skip(skip);
   const id = ok(
     await db
-      .from("broadcasts")
+      .from("sequence_batches")
       .insert({
         tenant_id: A,
         name: "People",
@@ -219,8 +219,8 @@ test("a recipient has no channel (a person written before the channels, who is W
   ).id;
   const person = (contact, channel) =>
     db
-      .from("broadcast_recipients")
-      .insert({ broadcast_id: id, contact_id: contact, tenant_id: A, ...(channel === undefined ? {} : { channel }) })
+      .from("sequence_sends")
+      .insert({ batch_id: id, contact_id: contact, tenant_id: A, ...(channel === undefined ? {} : { channel }) })
       .select("channel");
   assert.equal(ok(await person(people.a1)).at(0).channel, null, "none given is none: a person before the channels");
   for (const [contact, channel] of [

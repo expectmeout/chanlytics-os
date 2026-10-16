@@ -1,7 +1,8 @@
 # 0060 · Everything that sends on its own is a sequence
 
-**Status:** Approved by Ruben "as recommended" on 15 October 2026 (the Sequences canvas, D1 to D8). Being built on the
-lane `sequences/one-model` from main's `7c9fbc91a`; its steps and where each stands are in
+**Status:** Approved by Ruben "as recommended" on 15 October 2026 (the Sequences canvas, D1 to D8). Built on the lanes
+`sequences/one-model` (from main's `7c9fbc91a`), `sequences/the-rest` and `sequences/finish`, the last (#1644) retiring the
+pages it replaced and the old names (00451, 00452); its steps and where each stands are in
 `docs/plans/2026-10-15-sequences.md`. Where this note and the code disagree, the code wins.
 
 ## Context

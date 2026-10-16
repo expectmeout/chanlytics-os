@@ -33,6 +33,15 @@ export const SEQUENCE_EDIT_WORDS = {
   previewAs: "As one person reads it",
   oneEach: "Each person gets one version, on the channel they are reached on.",
   inMessages: "Change the words in Messages",
+  /** The words written where the step is read (the canvas's step editor): the message's own pane, in place of its preview. */
+  editHere: "Edit the words here",
+  previewBack: "Back to the preview",
+  /** Who the preview is read as: the example, or someone of the batch that waits (the canvas's "As Ana Morales"). */
+  as: "As",
+  example: (name: string) => `${name}, an example`,
+  /** Who gets which: "Ana gets it on WhatsApp." */
+  getsIt: (name: string, on: string) => `${name} gets it ${on.charAt(0).toLowerCase()}${on.slice(1)}.`,
+  noFirstName: "No first name on file: the message opens “Hi there”.",
   savedIn: (title: string) => `“${title}”, saved in Messages`,
   noMessages: "No message is ready to send yet. Write one in Messages first.",
   /** What a save reaches: a wait counts from each person's next send; new words go once WhatsApp approves them. */
@@ -56,7 +65,7 @@ export const SEQUENCE_NEEDS_WORDS = {
   /** What a failed read could not read: "Couldn't read this batch's emails". */
   failed: "this batch’s emails",
   /** A batch whose emails to send this read carries no draft of: its run's sheet in Sent lays them out. */
-  inSent: "Open them in Sent",
+  inSent: "Open their run",
 } as const;
 
 /** An email the check held, as People lays it out: whose, why, and its answers in their own words (holdDoors). */
@@ -177,6 +186,25 @@ export const SEQUENCE_HISTORY_WORDS = {
   failed: "this day",
   /** How many days the counted batches went on: "26 days it sent". */
   days: (n: number) => (n === 0 ? "" : `${plural(n, "day")} it sent`),
+  /** The door to the Inbox over the same days (sequenceRepliesRoute): "All 41 replies in the Inbox". */
+  inInbox: (n: number) => (n === 1 ? "Its reply in the Inbox" : `All ${n} replies in the Inbox`),
+} as const;
+
+/**
+ * What the Inbox says while it lists one sequence's replies (sequenceRepliesRoute): whose, over which days, how many, and
+ * how many of them are among the threads the Inbox holds (its newest hundred), never a thread that is not there.
+ */
+export const SEQUENCE_REPLIES_WORDS = {
+  period: { "30": "the last 30 days", "90": "the last 90 days", all: "since it began" } as const,
+  line: (name: string, period: "30" | "90" | "all", n: number) =>
+    n === 0
+      ? `Nobody wrote back to ${name} in ${SEQUENCE_REPLIES_WORDS.period[period]}`
+      : `${plural(n, "reply", "replies")} to ${name}, ${SEQUENCE_REPLIES_WORDS.period[period]}`,
+  /** Some of them are older than the threads the Inbox holds: "9 of them are here; the rest are older". */
+  shown: (here: number, n: number) => (here === n ? null : `${here} of them are here; the rest are older`),
+  reading: "Reading its replies…",
+  failed: "its replies",
+  leave: "Show every thread",
 } as const;
 
 /** What a figure counts, and what it does not: said on the label's tooltip. */

@@ -19,7 +19,16 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { pageTitle, shellStatusLine, toBillingVM, toLiveVM, LOOK_OPTIONS, LOOK_OFFERED } from "@chanlytics/contracts";
+import {
+  pageTitle,
+  shellStatusLine,
+  toBillingVM,
+  toLiveVM,
+  LOOK_OPTIONS,
+  LOOK_OFFERED,
+  doorOf,
+  sequenceLandingOf,
+} from "@chanlytics/contracts";
 import { importSrc } from "../../_source.mjs";
 import { hookFrames } from "../../_hook-frames.mjs";
 import { keysDrawn } from "../../_keys.mjs";
@@ -666,12 +675,13 @@ test("on a real workspace a crumb, and so the tab, never names the demo's people
     rows: [],
     audiences: [{ kind: "list", id: "lapsed", label: "Lapsed", counts: null, hint: "" }],
   });
+  // Sent's sheets go back to Campaigns (decision 0060, D3: its list went to each sequence's History).
   assert.equal(
     mount("#/broadcasts/lapsed").title,
-    "Lapsed · Sent · Campaigns · Chanlytics",
+    "Lapsed · Campaigns · Chanlytics",
     "a real audience by its own name",
   );
-  assert.equal(mount("#/broadcasts/lapsed-60").title, "Sent · Campaigns · Chanlytics");
+  assert.equal(mount("#/broadcasts/lapsed-60").title, "Campaigns · Chanlytics");
 
   setPeople({ rows: [], lists: [{ id: "opted_in", label: "Opted in" }], saved: [] });
   assert.equal(mount("#/clients/seg:opted_in").title, "Opted in · People · Chanlytics");
@@ -1075,28 +1085,27 @@ test("REGRESSION: a person's Back returns to the list they were opened from -- i
   }
 });
 
-test("REGRESSION (C13): a link to a playbook opens Campaigns' home on it, named in the crumbs -- the route dropped the id", () => {
+test("REGRESSION (C13): a link to a playbook lands on its sequence, named in the crumbs -- the route dropped the id", () => {
   shell.installShell(win);
   const keepGate = win.gate;
   win.gate = win.gate || (() => ({}));
-  setSurfaceValue("playbooks", { rows: [{ id: "pb-1", name: "Win-back" }] });
+  setSurfaceValue("sequences", { sequences: [{ id: "pb-1", name: "Win-back", starts: "moment" }] });
   try {
     const crumbs = (hash) => find(mount(hash).tree, (n) => n.type === "Topbar").props.crumbs;
-    // The old Playbooks list is a door (contracts doorOf): `outbound/<id>` is `campaigns/moment:<id>`, which the frame names.
+    // The old Playbooks list is a door (contracts doorOf): `outbound/<id>` is `campaigns/moment:<id>`, which lands on its
+    // sequence (decision 0060: sequenceLandingOf), which the frame names.
+    assert.equal(sequenceLandingOf(doorOf("outbound/pb-1")), "campaigns/sequences/pb-1");
     assert.equal(
-      crumbs("#/campaigns/moment:pb-1").at(-1),
+      crumbs("#/campaigns/sequences/pb-1").at(-1),
       "Win-back",
       "REGRESSION: the route dropped the playbook's id",
     );
-    assert.deepEqual(crumbs("#/campaigns/moment:pb-1")[0], { label: "Campaigns", to: "campaigns" }, "back to the home");
+    const back = { label: "Campaigns", to: "campaigns/sequences" };
+    assert.deepEqual(crumbs("#/campaigns/sequences/pb-1")[0], back, "back to Sequences");
     assert.deepEqual(crumbs("#/campaigns"), ["Campaigns"]);
-    assert.equal(
-      crumbs("#/campaigns/moment:pb-gone").at(-1),
-      "Campaign",
-      "a campaign since deleted is still named for what it was",
-    );
+    assert.deepEqual(crumbs("#/campaigns/sequences/pb-gone"), ["Campaigns"], "one the list does not hold names none");
   } finally {
-    setSurfaceValue("playbooks", undefined);
+    setSurfaceValue("sequences", undefined);
     win.gate = keepGate;
   }
 });
@@ -1126,8 +1135,7 @@ test("REGRESSION (N10): a real workspace's Calendar and Campaigns offer no prima
     setSurfaceValue("calendar", { vm: { bookingLink: "https://book.example/luna" }, fetchedAt: 1 });
     // A ready Calendar has none either: its booking link is in the page's own options menu (calendar/chrome.ts).
     assert.equal(right("#/calendar"), null, "a ready Calendar keeps its link in the page's menu, not the top bar");
-    // Ready, New message is the page's own, in the head of Campaigns' home (surfaces/campaigns/home), and the top bar
-    // carries none: the page draws only once the playbooks are read.
+    // Ready, New is the page's own, in the head of Sequences (surfaces/campaigns/sequences), and the top bar carries none.
     setSurfaceValue("playbooks", { rows: [] });
     assert.equal(right("#/campaigns"), null, "a ready Campaigns keeps its act on the page, not in the top bar");
   } finally {
@@ -1599,12 +1607,12 @@ test("Conversations and Live are views of the Inbox: the strip is drawn over all
   delete globalThis.LiveMonitorPage;
 });
 
-test("Campaigns' Library is the room on the route that is still `messages` -- the word `message` meant three things across one nav", () => {
+test("Campaigns › Messages is the room on the route that is still `messages`, named as Campaigns' strip names it (decision 0060, D4: it was the Library)", () => {
   const { tree, title } = mount("#/messages");
   assert.equal(
     title,
-    "Library · Campaigns · Chanlytics",
-    "REGRESSION: the trail said Messages, beside an Inbox full of them",
+    "Messages · Campaigns · Chanlytics",
+    "under Campaigns in the trail, as the strip beside Sequences says it, never a page of the Inbox's",
   );
   const strip = find(tree, (n) => n.type === "SurfaceTabs");
   assert.equal(strip.props.page, "messages", "the route is untouched: every deep link still works");

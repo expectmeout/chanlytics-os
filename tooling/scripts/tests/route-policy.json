@@ -1642,6 +1642,13 @@
       "rate": "aggregate",
       "spend": false
     },
+    "GET sequences/[id]/replies": {
+      "kind": "read",
+      "scope": "row",
+      "role": null,
+      "rate": "aggregate",
+      "spend": false
+    },
     "POST sequences/[id]/leave": {
       "kind": "write",
       "scope": "row",
@@ -1671,6 +1678,13 @@
       "spend": false
     },
     "DELETE sequences/[id]/steps/[step]": {
+      "kind": "write",
+      "scope": "row",
+      "role": "operator",
+      "rate": "playbook",
+      "spend": false
+    },
+    "POST sequences/[id]/return": {
       "kind": "write",
       "scope": "row",
       "role": "operator",
@@ -1899,6 +1913,13 @@
       "scope": "workspace",
       "role": "operator",
       "rate": "playbook",
+      "spend": false
+    },
+    "POST templates/versions/rewrite": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "operator",
+      "rate": "ask",
       "spend": false
     },
     "GET today": {
