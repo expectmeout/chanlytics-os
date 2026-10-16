@@ -22,6 +22,7 @@ import {
   savedListLookup,
   toPersonVM,
   unmetNeed,
+  type ListRule,
   type PersonRowDto,
   type PersonRowVM,
   type VisitDto,
@@ -131,7 +132,7 @@ export function notOnRecordOf(left: NotOnRecord, on: (id: string) => boolean = (
 export async function ruleMembers(
   t: ToolContext,
   all: unknown[],
-): Promise<{ ids: Set<string>; pool: AudiencePool; notOnRecord: NotOnRecord } | { error: string }> {
+): Promise<{ ids: Set<string>; pool: AudiencePool; rule: ListRule; notOnRecord: NotOnRecord } | { error: string }> {
   const rule = asListRule({ all: withoutNullsDeep(all) });
   if (!rule)
     return {
@@ -146,7 +147,7 @@ export async function ruleMembers(
     const left = listMembers({ ids: [], rule: u.rule }, pool.rows, pool.listCtx, lookup);
     return left.state === "ok" ? [{ condition: u.words, ids: left.ids }] : [];
   });
-  return { ids: on.ids, pool, notOnRecord };
+  return { ids: on.ids, pool, rule, notOnRecord };
 }
 
 /** A value with every key the model wrote as null left out, all the way down (the flat schema shows every key). */

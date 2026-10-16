@@ -8,6 +8,7 @@ import {
   OWN_MESSAGE_REFUSALS,
   PERSON_MODE_WORDS,
   answerSaidOf,
+  listRuleParts,
   offersYesRefusal,
   parseListToken,
   plural,
@@ -65,7 +66,11 @@ async function selected(t: ToolContext, s: Selection): Promise<{ ids: string[]; 
     const held = await ruleMembers(t, s.all);
     if ("error" in held) return { refusal: held.error };
     ids = pool.people.filter((r) => held.ids.has(r.id)).map((r) => r.id);
-    said = "who the conditions hold today";
+    // The conditions as People's chips say them, so the card says who: a selection of the 76 never heard from read
+    // "who the conditions hold today", and nothing on it said they had never written (the operator stress run).
+    said = `everyone matching ${listRuleParts(held.rule)
+      .map((c) => `“${c}”`)
+      .join(" and ")}`;
     unrecorded = notOnRecordOf(held.notOnRecord);
   } else if (s.list) {
     const token = str(s.list, 60);

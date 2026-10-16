@@ -4196,6 +4196,8 @@ test("REGRESSION: a quiet rule says who it leaves out for want of a date -- aske
   });
   assert.equal(asked.isError, false, asked.result);
   assert.equal(asked.proposal.payload.count, 2);
+  // The card says who, in People's chips: the local probe's card for the 76 read "who the conditions hold today".
+  assert.equal(asked.proposal.summary, "Never · everyone matching “Never heard from”");
 });
 
 test("a gated list's refusal names the condition that failed: with a calendar and deals on but no consult-first service, Consultation booked is refused for the service alone", async () => {
