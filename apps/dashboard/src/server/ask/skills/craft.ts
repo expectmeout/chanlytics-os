@@ -21,11 +21,12 @@ export const CRAFT_MIN_MS = 12_000;
 const CRAFT_MAX_MS = MODEL_ROUTES.template_draft.timeoutMs;
 
 /**
- * When a craft call made in a turn must have answered: the turn's own end (from its clock, the tool context's `now`, which
- * the loop sets at the turn's start) less what a last round needs. The loop's own deadline is not handed to a tool yet;
- * once it is (the design note's section 5), this reads it instead.
+ * When a craft call made in a turn must have answered: the turn's own end, as the loop hands it to its tools
+ * (ToolContext.endsAt: a typed turn's budget or a spoken one's), less what a last round needs. A tool run outside a turn
+ * has none, and is given a typed turn's from its clock.
  */
-export const turnDeadline = (turnStart: Date): number => turnStart.getTime() + ASK_TURN_BUDGET_MS - TURN_RESERVE_MS;
+export const turnDeadline = (t: { now: Date; endsAt?: number | undefined }): number =>
+  (t.endsAt ?? t.now.getTime() + ASK_TURN_BUDGET_MS) - TURN_RESERVE_MS;
 
 /** Why a craft call's words were not used: each a reason the card keeps its first draft. */
 export type CraftKept = "late" | "budget" | "paused" | "unavailable" | "refused" | "unreadable" | "unread" | "checks";

@@ -24489,6 +24489,11 @@ interface MessageBrief {
         /** A plan's offer message, which every later offer sends with its own words in the typed value. */
         reused: boolean;
         draft: CraftVersions;
+        /**
+         * What the owner asked, in their own words, where a turn asked it (the turn's question): Ask's draft is its reading of
+         * them, and a fact they gave may be said. Absent or null outside a turn.
+         */
+        asked?: string | null;
     };
 }
 /**
@@ -24620,7 +24625,7 @@ declare const MESSAGE_RUBRIC: readonly [{
 }, {
     readonly id: "facts";
     readonly hard: true;
-    readonly ask: "It holds no price, share, discount, free thing, date, deadline, number, promise or claim that the draft does not hold, and leaves out none of the draft's own facts (an offer, its figure, its days, who it is for).";
+    readonly ask: "It holds no price, share, discount, free thing, date, deadline, number, promise, option or claim that neither the draft nor the owner's own words hold, and leaves out none of the draft's own facts (an offer, its figure, its days, who it is for).";
 }, {
     readonly id: "one_action";
     readonly hard: false;

@@ -169,6 +169,23 @@ test("an English text is told its one part in plain characters, with no word of 
   );
 });
 
+test("the owner's own words ride in the brief, and a figure they gave may be said though the draft left it out", () => {
+  const asked = "Send our regulars 20% off the autumn package, this October only";
+  const b = brief({ message: { asked } });
+  assert.match(C.messageBriefText(b), new RegExp(`What the owner asked Ask, in their own words: "${asked}"`));
+  assert.doesNotMatch(C.messageBriefText(brief()), /What the owner asked Ask/, "no words, no line");
+  const withTheirs = {
+    ...GOOD,
+    whatsapp: { body: GOOD.whatsapp.body.replace("15% off this October", "20% off the autumn package, this October") },
+  };
+  assert.deepEqual(codes(withTheirs), ["whatsapp new_price", "whatsapp new_number"], "without their words: invented");
+  assert.deepEqual(codes(withTheirs, b), [], "with them: theirs");
+  assert.ok(
+    C.messageBriefText(brief({ message: { asked: "x".repeat(5_000) } })).length < 4_000,
+    "a question, never a document",
+  );
+});
+
 test("a plan's offer message is a shell: the writer is told to write around the offer's value", () => {
   const b = brief({
     message: {
@@ -212,6 +229,8 @@ test("WhatsApp's own rules: every value, none at an edge or side by side, its le
   assert.deepEqual(wa(`Hi {{1}}, from {{2}}: 15% off this October.${stop}`), ["whatsapp values"]);
   assert.deepEqual(wa(`{{1}}, from {{2}}: 15% off this October. Book: {{3}}${stop}`), ["whatsapp value_at_edge"]);
   assert.deepEqual(wa(`Hi {{1}} {{2}}: 15% off this October. Book: {{3}}${stop}`), ["whatsapp values_side_by_side"]);
+  assert.deepEqual(wa(`Hi {{1}}, from {{2}}: {{3}} 15% off this October.${stop}`), ["whatsapp values_side_by_side"]);
+  assert.deepEqual(wa(`Hi {{1}}, all of us at {{2}} have this: 15% off this October. Book: {{3}}${stop}`), []);
   assert.deepEqual(wa(`Hi {{1}}, from {{2}}: 15% off this October. Book: {{3}} today`), ["whatsapp opt_out"]);
   assert.deepEqual(wa(`Hi {{1}}, from {{2}}: 15% off this October.\n\n\nBook: {{3}}${stop}`), ["whatsapp blank_lines"]);
   assert.deepEqual(wa(`Hi {{1}}, from {{2}}: 15% off this October. ${"Book soon. ".repeat(100)}{{3}}${stop}`), [
@@ -389,4 +408,9 @@ test("the eval's cases are well formed, each makes a brief, and its patterns rea
     "must not say /estimate/",
   ]);
   assert.deepEqual(validateCases([{ id: "x", business: {}, message: { values: [{ position: 2 }] } }]).length > 0, true);
+  // A pattern that lost its escape judges nothing: "$" matches every message, "\b" read as a backspace matches none.
+  const lost = (p) => validateCases([{ ...strict, expect: { excludes: [p] } }]);
+  assert.deepEqual(lost("\\$"), []);
+  assert.match(lost("$").join(" "), /matches any words, or lost an escape/);
+  assert.match(lost("(?<!feel )\bfree\b").join(" "), /matches any words, or lost an escape/);
 });
