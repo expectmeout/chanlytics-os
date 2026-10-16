@@ -32,6 +32,7 @@ const WHY = {
   erase: "it erases a person for good, which is asked for and confirmed on their page",
   team: "it changes who is on the team, which the owner does in Settings › Team",
   draft: "Ask writes the draft itself in the conversation, so it never needs the page's drafter",
+  test: "it mails a step's message to the member who presses it, beside the step on its page",
 } as const;
 
 export const ASK_GUIDE_PAGES: readonly GuidePage[] = [
@@ -136,10 +137,14 @@ export const ASK_GUIDE_PAGES: readonly GuidePage[] = [
       "sequence_send_said",
       "sequence_discard",
       "sequence_draft",
+      "sequence_test",
       "reach_out_make",
       "reach_out_add",
     ],
-    pageOnly: [{ what: "Draft a sequence from a line on the page", why: WHY.draft }],
+    pageOnly: [
+      { what: "Draft a sequence from a line on the page", why: WHY.draft },
+      { what: "Send yourself a test of a step's message", why: WHY.test },
+    ],
   },
   {
     page: "Reports",
@@ -169,4 +174,5 @@ export const ASK_GUIDE_PAGES: readonly GuidePage[] = [
 export const ASK_PAGE_ONLY_VERBS: Readonly<Partial<Record<Kind, string>>> = {
   invite: WHY.team,
   sequence_draft: WHY.draft,
+  sequence_test: WHY.test,
 };

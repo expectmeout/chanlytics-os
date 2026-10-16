@@ -7,6 +7,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../../database.types";
+import { memberEmailOf } from "./notifications";
 
 type Db = SupabaseClient<Database>;
 
@@ -174,4 +175,20 @@ export async function memberViewsOf(db: Db, p: { tenantId: string; userId: strin
   if (error) throw new Error(error.message);
   const views = data?.views;
   return views && typeof views === "object" && !Array.isArray(views) ? views : {};
+}
+
+/**
+ * A member's own sign-in address, where they belong to this workspace (Send me a test: a step's message mailed to the
+ * member who pressed it, and to no one else). On the service role, which reads every membership and the identity store;
+ * null for someone not in the workspace, or an account with no address. A failed read throws.
+ */
+export async function ownAddressIn(db: Db, p: { tenantId: string; userId: string }): Promise<string | null> {
+  const { data, error } = await db
+    .from("memberships")
+    .select("user_id")
+    .eq("tenant_id", p.tenantId)
+    .eq("user_id", p.userId)
+    .maybeSingle();
+  if (error) throw new Error(`cannot read who is in the workspace: ${error.message}`);
+  return data ? memberEmailOf(db, p.userId) : null;
 }

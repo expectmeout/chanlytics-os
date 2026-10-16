@@ -31,6 +31,7 @@ import {
   sequenceStartSpec,
   sequenceStepRemoveSpec,
   sequenceStepSpec,
+  sequenceTestSpec,
   sequenceWordsSpec,
 } from "./sequences";
 import type { ProposalGate, ProposalSpec } from "./spec";
@@ -62,6 +63,8 @@ export const PAGE_SPECS = {
   sequence_make: sequenceMakeSpec,
   sequence_start: sequenceStartSpec,
   sequence_discard: sequenceDiscardSpec,
+  // A step's message mailed to the member who pressed Send me a test, and to nobody else.
+  sequence_test: sequenceTestSpec,
   playbook_change: playbookChangeSpec,
   run: runSpec,
   // A campaign run now at the member's request: Run now, under a sequence's More.

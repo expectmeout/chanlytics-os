@@ -1438,6 +1438,7 @@ test("cards: an act tool never acts, a proposal names its door and its undo, the
     sequence_make: "approve",
     sequence_start: "approve",
     sequence_discard: "approve",
+    sequence_test: "approve",
     playbook_run: "approve",
     booking_request: "approve",
     call_hand_over: "approve",

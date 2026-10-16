@@ -48,5 +48,7 @@ a `broadcasts` row. Production on 15 October 2026 held 7 moment playbooks in one
 - **Readers and verbs (S3):** `sequence_overview`, `sequence_record`, `sequence_people`, `sequence_history`, read by the
   page, the badge, Today, the Calendar, Reports and Ask; one verb spec per press, shared by the page and Ask.
 - **The page (S4):** Campaigns › Sequences · Messages · Ads, the record's Steps, People and History, the step editor,
-  New with Ask, the phone, drawn with the kit's parts.
+  New with Ask, the phone, drawn with the kit's parts. A customer's step's Send me a test mails its message, filled for
+  an example person, to the member who pressed it at their own sign-in address and to nobody else: member mail through
+  the edge (`api/admin/email/test-to-self`), never the customer's send door (Ruben, 15 Oct 2026).
 - **Every page's door (S5)** and **retiring what the page replaced (S6)**, the old tables last, after the deploy.
