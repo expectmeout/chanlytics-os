@@ -9,10 +9,12 @@ import {
   PLAYBOOK_VETO_DELAY_WORDS,
   REPLY_WINDOW_MS,
   appointmentWords,
+  audienceMembers,
   audiencePreview,
   campaignChannelsOf,
   campaignDayWords,
   campaignsHomeOf,
+  cannotBeSentWords,
   clockStamp,
   compareTemplates,
   effectiveMode,
@@ -28,6 +30,7 @@ import {
   noteRows,
   numberHealth,
   numberHealthWithStanding,
+  offersNote,
   optInLink,
   takesSignUps,
   type ChannelDto,
@@ -44,6 +47,7 @@ import {
   triggerWords,
   unmetNeed,
   whatsappLineOf,
+  type AskedPurpose,
   type AudienceKind,
   type BroadcastDto,
   type ListRef,
@@ -160,7 +164,7 @@ function numberFactsOf(chans: ChannelDto[] | null) {
  * assistant says is the number the card will carry.
  */
 async function listAudiences(t: ToolContext): Promise<unknown> {
-  const [pool, lists, tplRead, chans, touched] = await Promise.all([
+  const [pool, lists, tplRead, chans, touched, ready] = await Promise.all([
     load(t.rc, audiencePool, undefined).then((r) => r.data),
     // The workspace's own lists as People's rail reads them (readers/lists.ts), once a turn.
     load(t.rc, listsReader, undefined).then((r) => r.data.lists),
@@ -175,6 +179,8 @@ async function listAudiences(t: ToolContext): Promise<unknown> {
     // one read (context.ts touchesThisWeek, the cards' own): a broadcast leaves them out, so the count said here is the
     // card's. Null where it could not be read, which is said in the log there and to the model below.
     touchesThisWeek(t, "sequences.lists"),
+    // Every channel the workspace can send on now, as People's rows were judged (readers/facts.ts): offers_go_by below.
+    load(t.rc, readers.channelsReady, undefined).then((r) => r.data),
   ]);
   const tpls = tplRead ? tplRead.data.templates : null;
   const messages = tplRead ? tplRead.data.messages : null;
@@ -186,25 +192,36 @@ async function listAudiences(t: ToolContext): Promise<unknown> {
   // report "nobody said yes" about a utility template that could reach everybody
   // who had ever texted START; and `said_yes_to_offers` was the REACH, so a list
   // whose one yes to offers had no number read as nobody's yes. The send screen's
-  // own counts (audiencePreview): `sending` is the number on its chip.
+  // own counts (audiencePreview): `sending` is the number on its chip. Who said yes is People's column (the rows' saidYes,
+  // answeredYes), as the winners read counts it: the send screen's asks the channel too, and under Meta's pause on offers
+  // to US numbers read 0 over 26 who had (the stress run, 15 Oct 2026). What they lack, in People's words: why_none_*.
   // The number it goes out on and how a proposal that names no channel counts (numberFactsOf, above).
   const { how, number } = numberFactsOf(chans);
   // Who it can be sent is who a broadcast that goes now goes to: those it reaches, less whoever hears from you within a
   // week of now, either side, whom it leaves out (contracts heardFor, the card's and the route's rule), said beside it where any is. Where
   // who heard could not be read, no count is given that the card would not carry: the card itself is refused until it can be.
   const now = t.now.getTime();
-  const sizes = (kind: AudienceKind, id: string | null, ids: Set<string> | null) => {
-    const offers = audiencePreview(rows, kind, id, ids, "marketing", how, 5, touched ?? undefined);
-    const messages = audiencePreview(rows, kind, id, ids, "conversational", how, 5, touched ?? undefined);
+  const sizes = (label: string, kind: AudienceKind, ids: Set<string> | null = null) => {
+    const offers = audiencePreview(rows, kind, null, ids, "marketing", how, 5, touched ?? undefined);
+    const messages = audiencePreview(rows, kind, null, ids, "conversational", how, 5, touched ?? undefined);
     const offersOut = heardFor(offers.heardTouches, now, now).heard;
     const messagesOut = heardFor(messages.heardTouches, now, now).heard;
+    const members = audienceMembers(rows, kind, null, ids);
+    const saidOffers = members.filter((r) => r.saidYes.offers);
+    const saidMessages = members.filter((r) => r.saidYes.messages);
+    const whyNone = (purpose: AskedPurpose, said: typeof members, sending: number) =>
+      sending > 0 ? null : cannotBeSentWords(`“${label}”`, purpose, said);
+    const whyOffers = whyNone("marketing", saidOffers, offers.sending);
+    const whyMessages = whyNone("conversational", saidMessages, messages.sending);
     return {
-      said_yes_to_offers: offers.saidYes,
+      said_yes_to_offers: saidOffers.length,
       can_be_sent_offers: touched ? offers.sending - offersOut : null,
       ...(offersOut > 0 ? { left_out_offers: offersOut } : {}),
-      said_yes_to_messages: messages.saidYes,
+      ...(whyOffers ? { why_none_offers: whyOffers } : {}),
+      said_yes_to_messages: saidMessages.length,
       can_be_sent_messages: touched ? messages.sending - messagesOut : null,
       ...(messagesOut > 0 ? { left_out_messages: messagesOut } : {}),
+      ...(whyMessages ? { why_none_messages: whyMessages } : {}),
     };
   };
   // Every list the pool can offer (contracts listsFor): People's lists this workspace can count, then its own. Each
@@ -217,7 +234,7 @@ async function listAudiences(t: ToolContext): Promise<unknown> {
   // Every list it offers is a row an answer may cite by its audience_id, opened on People at that list.
   for (const d of offered) noteRow(t, "list", d.ref.id, d.label, `clients/${d.token}`);
   const audiences = [
-    { kind: "everyone", audience_id: null, list: null, label: EVERYONE_LABEL, ...sizes("everyone", null, null) },
+    { kind: "everyone", audience_id: null, list: null, label: EVERYONE_LABEL, ...sizes(EVERYONE_LABEL, "everyone") },
     ...offered.map((d) => {
       const m = membersOf(d, rows, pool.listCtx, lists);
       const head = {
@@ -227,7 +244,7 @@ async function listAudiences(t: ToolContext): Promise<unknown> {
         label: d.label,
       };
       return m.state === "ok"
-        ? { ...head, ...sizes("saved", null, m.ids) }
+        ? { ...head, ...sizes(d.label, "saved", m.ids) }
         : { ...head, cannot_count: listUnknownWords(m.reason, pool.listCtx.calendar) };
     }),
   ];
@@ -270,8 +287,10 @@ async function listAudiences(t: ToolContext): Promise<unknown> {
     templates: offeredList,
     cannot_send: split?.why ?? null,
     number,
+    // The Broadcasts page's sentence on which channels carry offers now (offersNote); none where they could not be read.
+    ...(ready ? { offers_go_by: offersNote(ready) } : {}),
     ...(couldNotRead.length ? { could_not_read: couldNotRead } : {}),
-    note: `Two consents, two counts each, all by WhatsApp. can_be_sent_offers is who a promotional template reaches on WhatsApp and can_be_sent_messages who a utility or authentication one reaches, because ${NO_NUMBER_REACH}; said_yes_to_offers and said_yes_to_messages count everyone who gave that yes, a number or not. A message whose channels hold email or sms is proposed with channels naming them, and its card then counts the people those channels reach: a 0 in these counts does not mean nobody can be reached for it.${leftOutSaid}`,
+    note: `Two consents, two counts each. can_be_sent_offers is who a promotional template reaches on WhatsApp and can_be_sent_messages who a utility or authentication one reaches, because ${NO_NUMBER_REACH}; said_yes_to_offers and said_yes_to_messages count everyone who gave that yes, as People counts it, whether or not a number or a channel can carry it now. Where some said yes and WhatsApp reaches none of them, why_none_offers or why_none_messages says what they lack, in People's words: a number to send to, or a channel that can carry it, and offers_go_by says which channels carry offers now (Meta's pause on offers to US numbers among them). Say how many said yes and what they lack, and never send the owner to get a yes they already have. A message whose channels hold email or sms is proposed with channels naming them, and its card then counts the people those channels reach: a 0 in these counts does not mean nobody can be reached for it.${leftOutSaid}`,
   };
 }
 
@@ -701,7 +720,7 @@ export const sequencesTool = defineActions({
   name: "sequences",
   description:
     "Everything that sends on its own, as Campaigns reads it (every such thing is a sequence), by action: the sequences, one sequence's steps and people, the moments of the customer journey a sequence can start at, who a send can go to and the messages it may use, the Library, what went out and how it did, the journey, and cold email to leads.",
-  tail: "Read action lists before a send, and to say who a message would reach; action moments to say what is running, and before a new sequence at a moment. Pick the message first, then quote its can_be_sent count as who it reaches, never a larger one, for a message that goes by WhatsApp; for a message whose channels hold email or sms, propose it with channels naming them and quote the card's count, since the can_be_sent counts are by WhatsApp alone and a 0 there does not mean nobody can be reached; when a WhatsApp message's count is 0 and its said_yes is not, and its channels hold no other, the ones who said yes have no number to send to: say so, and never send the owner to get a yes they already have. When a moment's can_be_sent_now is 0 and said_yes_now is not, the ones who said yes have no number to send to, or hear from you within a week of today: say so the same way. A list that cannot be counted here carries cannot_count and no counts; a null count means the page could not count it just now, and nothing has run because it was read. A person reads campaign or sequence, never playbook or broadcast; the fields keep those names.",
+  tail: "Read action lists before a send, and to say who a message would reach; action moments to say what is running, and before a new sequence at a moment. Pick the message first, then quote its can_be_sent count as who it reaches, never a larger one, for a message that goes by WhatsApp; for a message whose channels hold email or sms, propose it with channels naming them and quote the card's count, since the can_be_sent counts are by WhatsApp alone and a 0 there does not mean nobody can be reached; when a WhatsApp message's count is 0 and its said_yes is not, and its channels hold no other, the ones who said yes cannot be sent it: say how many said yes and what they lack, as the audience's why_none words say it (a number to send to, or a channel that can carry it, which offers_go_by names), and never send the owner to get a yes they already have. When a moment's can_be_sent_now is 0 and said_yes_now is not, the ones who said yes have no number to send to, no channel that can carry it now (action lists' offers_go_by names which), or hear from you within a week of today: say so the same way. A list that cannot be counted here carries cannot_count and no counts; a null count means the page could not count it just now, and nothing has run because it was read. A person reads campaign or sequence, never playbook or broadcast; the fields keep those names.",
   actions: {
     list: readAction({
       input: z.object({}),
@@ -731,7 +750,7 @@ export const sequencesTool = defineActions({
       input: z.object({}),
       examples: [{}],
       label: "Reading the lists and messages",
-      words: `Action lists, read before any send, lists who a send may go to: everyone who said yes, every People list this workspace can count, and every list of the workspace's own, each with its kind and audience_id (what propose_sequence with action once takes), its list token (what people with action search takes), and four counts, all by WhatsApp, because there are two consents and a yes needs a number to send to: can_be_sent_offers and can_be_sent_messages (who a promotional, or a utility or authentication, message reaches on WhatsApp) and said_yes_to_offers and said_yes_to_messages (everyone who gave that yes, a number or not). It also lists, under templates, the messages a send may use, each with its template_id (any of its versions' ids names the message), category, channels (true for each of whatsapp, email and sms it can be sent on now; a message that holds email or sms is proposed with channels naming them, and its card then counts the people those channels reach, so a 0 in the four counts above does not mean nobody can be reached), values and body, why a WhatsApp version this product cannot send whole is left out (cannot_send), and whether the number may send and its daily limit, since ${NO_NUMBER_REACH}.`,
+      words: `Action lists, read before any send, lists who a send may go to: everyone who said yes, every People list this workspace can count, and every list of the workspace's own, each with its kind and audience_id (what propose_sequence with action once takes), its list token (what people with action search takes), and four counts, because there are two consents and a yes needs a number to send to and a channel to carry it: can_be_sent_offers and can_be_sent_messages (who a promotional, or a utility or authentication, message reaches on WhatsApp) and said_yes_to_offers and said_yes_to_messages (everyone who gave that yes, as People counts it, whether or not a number or a channel can carry it now), with why_none_offers or why_none_messages where some said yes and WhatsApp reaches none of them, saying what they lack in People's words. It says which channels carry offers now (offers_go_by), and also lists, under templates, the messages a send may use, each with its template_id (any of its versions' ids names the message), category, channels (true for each of whatsapp, email and sms it can be sent on now; a message that holds email or sms is proposed with channels naming them, and its card then counts the people those channels reach, so a 0 in the four counts above does not mean nobody can be reached), values and body, why a WhatsApp version this product cannot send whole is left out (cannot_send), and whether the number may send and its daily limit, since ${NO_NUMBER_REACH}.`,
       run: listAudiences,
     }),
     messages: readAction({

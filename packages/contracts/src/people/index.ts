@@ -68,6 +68,7 @@ export {
   savedListAction,
   noNumberWords,
   noChannelWords,
+  cannotBeSentWords,
   saidYesWords,
   peopleAggregates,
   GET_YES_ROUTE,

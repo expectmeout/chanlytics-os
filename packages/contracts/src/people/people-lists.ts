@@ -152,17 +152,43 @@ export function noChannelWords(who: string, purpose: AskedPurpose): string {
 }
 
 /**
+ * Why nobody on a list can be sent this kind of message while somebody on it said the yes it needs, in People's words:
+ * no channel the workspace can send it on now, where any who said it is held for that (`noChannelWords`), else no number
+ * to send it to (`noNumberWords`). `said` is who on it said that yes (the rows' `saidYes`); null where one of them can be
+ * sent it, or nobody said yes. People's list step says it of a list, and Ask's lists read of each audience.
+ */
+export function cannotBeSentWords(
+  who: string,
+  purpose: AskedPurpose,
+  said: readonly Pick<PersonRowVM, "canReceive" | "whyNot">[],
+): string | null {
+  const kind = purpose === "marketing" ? "offers" : "messages";
+  if (said.length === 0 || said.some((m) => m.canReceive[kind])) return null;
+  return said.some((m) => m.whyNot[kind] === "no_channel") ? noChannelWords(who, purpose) : noNumberWords(who, purpose);
+}
+
+/**
  * How many on an audience said yes to what a message needs, as the send screen's line under the audience says it.
  * The number is who it reaches (`sending`: a yes and a number), in the shorthand People's list step uses ("N of M on
  * this list said yes to offers — an offer reaches them") -- except when that is 0 and somebody DID say yes
  * (`saidYes`, audiencePreview's): "0 people … said yes" stood over `noNumberWords` and was false, so it says how many
- * did, and what they are missing.
+ * did, and what they are missing: a number to send to, or, where `noChannel` gives the reason no channel it goes by can
+ * carry it (Meta's pause on offers to US numbers), that reason.
  */
-export function saidYesWords(who: string, purpose: AskedPurpose, sending: number, saidYes: number): string {
+export function saidYesWords(
+  who: string,
+  purpose: AskedPurpose,
+  sending: number,
+  saidYes: number,
+  noChannel: string | null = null,
+): string {
   const noNumber = sending === 0 && saidYes > 0;
   const n = noNumber ? saidYes : sending;
   const words = `${n} ${n === 1 ? "person" : "people"} on ${who} said yes to ${purpose === "marketing" ? "offers" : "messages"}`;
-  return noNumber ? `${words}, ${n === 1 ? "with no number" : "none with a number"} to send to` : words;
+  if (!noNumber) return words;
+  if (noChannel)
+    return `${words}, ${n === 1 ? "who can't" : "none can"} be sent ${purpose === "marketing" ? "an offer" : "a message"} — ${noChannel}`;
+  return `${words}, ${n === 1 ? "with no number" : "none with a number"} to send to`;
 }
 
 function broadcastStep(cta: string, to: string, members: PersonRowVM[]): PeopleListAction {
@@ -188,8 +214,7 @@ function broadcastStep(cta: string, to: string, members: PersonRowVM[]): PeopleL
         enabled: true,
       };
     }
-    const noChannel = said.some((m) => m.whyNot.offers === "no_channel");
-    const why = noChannel ? noChannelWords("this list", "marketing") : noNumberWords("this list", "marketing");
+    const why = cannotBeSentWords("this list", "marketing", said) ?? noNumberWords("this list", "marketing");
     return { text: members.length ? why : "Nobody here right now.", cta, to, enabled: false };
   }
   return {

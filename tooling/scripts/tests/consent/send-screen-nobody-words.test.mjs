@@ -27,9 +27,10 @@ const quiet = async (fn) => {
     console.error = e;
   }
 };
-const { bcPeopleOf } = await quiet(
+const { bcPeopleOf, bcReachOf } = await quiet(
   () => import("../../../../apps/dashboard/src/surfaces/campaigns/broadcasts/page/reach.ts"),
 );
+const { NO_CHANNEL_REACH, channelsReady, noChannelWords } = await import("@chanlytics/contracts");
 
 const regulars = { label: "Regulars" };
 const reading = { people: [], saidYes: 2 };
@@ -69,4 +70,42 @@ test("nobody can be sent it and somebody said yes: by WhatsApp a number is missi
       null,
       `${on}: the ones left out can be reached`,
     );
+});
+
+test("REGRESSION: on a US WhatsApp number an offer's line says how many said yes and that no channel can carry it -- it said '0 people on “Everyone” said yes to offers' (the operator stress run, 15 Oct 2026)", () => {
+  // Meta's pause on offers to US numbers closes WhatsApp to an offer, and nothing else carries one: the send goes by no
+  // channel, and the server's reading of the list (by WhatsApp alone) counts the 26 who said yes.
+  const ready = channelsReady({
+    whatsapp: { canSend: true, refusal: null, number: "+13055550100" },
+    textLine: null,
+    email: { mailbox: false, domain: false },
+  });
+  const nobody = { sending: 0, held: 26, saidYes: 26, people: [], heardTouches: [] };
+  const base = { ...nobody, split: { reached: 0, byChannel: { whatsapp: 0, sms: 0, email: 0 }, held: 26, heldBy: {} } };
+  const everyone = {
+    kind: "everyone",
+    id: null,
+    label: "Everyone",
+    counts: { marketing: 0, conversational: 26 },
+    preview: { marketing: base, conversational: base },
+  };
+  const reach = bcReachOf({
+    audiences: [everyone],
+    aud: "everyone:",
+    templates: [],
+    tplId: "",
+    data: { ready, number: null },
+    channels: ["whatsapp"],
+    heardTooFor: null,
+    setHeardTooFor() {},
+    whenAt: null,
+  });
+  assert.deepEqual(reach.on, [], "no channel carries an offer here");
+  assert.equal(reach.reading.saidYes, 26, "REGRESSION: the list's yes was read as none where no channel was open");
+  const said = bcPeopleOf({ ...reach, active: everyone });
+  assert.equal(
+    said.yesWords,
+    `26 people on “Everyone” said yes to offers, none can be sent an offer — ${NO_CHANNEL_REACH}`,
+  );
+  assert.equal(said.noNumber, noChannelWords("“Everyone”", "marketing"), "a channel is missing, never a number");
 });
