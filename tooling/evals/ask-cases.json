@@ -2211,8 +2211,8 @@
     "text": "write to the ready businesses in my newest search with three emails, four days apart",
     "surface": "today",
     "expect": {
-      "tools_any": ["leads.searches", "leads.leads", "sequences.cold_emails"],
-      "proposals_any_or_says": ["reach_out_make", "lead_list"],
+      "includes_any": ["mailbox"],
+      "proposals_not": ["reach_out_make", "lead_list"],
       "no_write": true
     }
   },

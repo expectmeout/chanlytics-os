@@ -11,7 +11,7 @@ import { dayPlusInZone } from "../calendar/zone-math";
 import { fullNameKey } from "../calendar/visit/visit-service";
 import { purposeOfPlaybook } from "../consent/consent";
 import type { DealPaceVM } from "../deals/deal-waits";
-import { GET_YES_ROUTE, saidYesWords } from "../people/people-lists";
+import { GET_YES_ROUTE, NO_CHANNEL_REACH, saidYesWords } from "../people/people-lists";
 import type { PersonRowVM } from "../people/person-row";
 
 import { followUpCovers, followUpDealOf, followUpKey, type FollowUpsHad } from "./playbook-follow-ups";
@@ -239,10 +239,12 @@ function visitIsTheirs(
 
 /**
  * The run as drawn: who it reaches, its reach, and `saidYes` -- how many the
- * moment names who said the yes its messages need, a number to send to or not.
+ * moment names who said the yes its messages need, a number to send to or not,
+ * a channel open to carry it now or not (saidYesOnAny).
  * `reach.noNumber` cannot say that, because no number is the first rule and it
- * counts everyone without one, yes or no. A moment whose yes has no number
- * reaches nobody while somebody on it said yes (#663's rule).
+ * counts everyone without one, yes or no. A moment whose yes has no number, or
+ * no channel to go by (Meta's pause on offers to US numbers), reaches nobody
+ * while somebody on it said yes (#663's rule).
  */
 export function playbookRunReach(
   rows: PersonRowVM[],
@@ -450,17 +452,20 @@ export function playbookReachDoor(
 /**
  * How many on a playbook's list said yes, as its card says it when nobody can be
  * sent a run and somebody said the yes it needs: how many did, and what they are
- * missing, in the send screen's words (saidYesWords). Null otherwise, and the
- * card's own count stands -- who a run reaches now, the shorthand People uses.
- * It read "0 people on the list said yes" about a list whose yes had no number.
+ * missing, in the send screen's words (saidYesWords): a number to send to, or,
+ * where the run holds them for want of a channel (`noChannel`, the reach's
+ * no_channel: Meta's pause on offers to US numbers), a channel. Null otherwise,
+ * and the card's own count stands -- who a run reaches now, the shorthand People
+ * uses. It read "0 people on the list said yes" about a list whose yes had no number.
  */
 export function playbookNoNumberWords(
   p: Pick<PlaybookDto, "policy_class"> & { candidates: number | null; held: number | null },
-  named: { saidYes: number } | null,
+  named: { saidYes: number; noChannel?: number } | null,
 ): string | null {
   if (!named || named.saidYes === 0 || p.candidates === null || p.held === null || p.candidates + p.held > 0)
     return null;
-  return saidYesWords("the list", purposeOfPlaybook(p.policy_class), 0, named.saidYes);
+  const noChannel = (named.noChannel ?? 0) > 0 ? NO_CHANNEL_REACH : null;
+  return saidYesWords("the list", purposeOfPlaybook(p.policy_class), 0, named.saidYes, noChannel);
 }
 
 /** The few words beside the state, when the schedule is not the whole truth; null when it is. */

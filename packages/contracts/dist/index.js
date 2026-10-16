@@ -14589,11 +14589,19 @@ var NO_CHANNEL_REACH = "a broadcast needs a channel you can send on, and none ca
 function noChannelWords(who, purpose) {
   return `Nobody on ${who} can be sent ${purpose === "marketing" ? "an offer" : "a message"} yet \u2014 ${NO_CHANNEL_REACH}.`;
 }
-function saidYesWords(who, purpose, sending, saidYes) {
+function cannotBeSentWords(who, purpose, said) {
+  const kind = purpose === "marketing" ? "offers" : "messages";
+  if (said.length === 0 || said.some((m) => m.canReceive[kind])) return null;
+  return said.some((m) => m.whyNot[kind] === "no_channel") ? noChannelWords(who, purpose) : noNumberWords(who, purpose);
+}
+function saidYesWords(who, purpose, sending, saidYes, noChannel = null) {
   const noNumber = sending === 0 && saidYes > 0;
   const n = noNumber ? saidYes : sending;
   const words3 = `${n} ${n === 1 ? "person" : "people"} on ${who} said yes to ${purpose === "marketing" ? "offers" : "messages"}`;
-  return noNumber ? `${words3}, ${n === 1 ? "with no number" : "none with a number"} to send to` : words3;
+  if (!noNumber) return words3;
+  if (noChannel)
+    return `${words3}, ${n === 1 ? "who can't" : "none can"} be sent ${purpose === "marketing" ? "an offer" : "a message"} \u2014 ${noChannel}`;
+  return `${words3}, ${n === 1 ? "with no number" : "none with a number"} to send to`;
 }
 function broadcastStep(cta, to, members) {
   const offersYes = members.filter((m) => m.canReceive.offers).length;
@@ -14607,8 +14615,7 @@ function broadcastStep(cta, to, members) {
         enabled: true
       };
     }
-    const noChannel = said.some((m) => m.whyNot.offers === "no_channel");
-    const why = noChannel ? noChannelWords("this list", "marketing") : noNumberWords("this list", "marketing");
+    const why = cannotBeSentWords("this list", "marketing", said) ?? noNumberWords("this list", "marketing");
     return { text: members.length ? why : "Nobody here right now.", cta, to, enabled: false };
   }
   return {
@@ -19502,6 +19509,30 @@ var REACH_OUT_PREVIEW_INDEX_MAX = 199;
 var REACH_OUT_DECISIONS = ["include", "rewrite", "skip", "not_a_fit"];
 var REACH_OUT_SAID_OUTCOMES = ["sent", "not_sent"];
 
+// src/broadcasts/reach-any.ts
+var READY_WHATSAPP_ALONE = {
+  whatsapp: { ready: true, why: null },
+  sms: { ready: false, why: CHANNEL_WORDS.unchecked },
+  email: { ready: false, why: CHANNEL_WORDS.unchecked }
+};
+function readyOrWhatsApp(read) {
+  return read ?? READY_WHATSAPP_ALONE;
+}
+function answeredYes(r2, purpose) {
+  return (purpose === "marketing" ? r2.consent.marketing : r2.consent.state) === "opted_in";
+}
+function personReachOf(r2, ready) {
+  const how = { channels: CONSENT_CHANNELS, ready: readyOrWhatsApp(ready), about: "theirs" };
+  const offers = reachFor(r2, "marketing", how).held;
+  const visit = reachFor(r2, "conversational", how);
+  return {
+    saidYes: { offers: answeredYes(r2, "marketing"), messages: answeredYes(r2, "conversational") },
+    canReceive: { offers: offers === null, messages: visit.held === null },
+    whyNot: { offers, messages: visit.held },
+    reachedOn: visit.channel
+  };
+}
+
 // src/broadcasts/broadcast-audience.ts
 var AUDIENCE_KINDS = ["everyone", "list", "saved"];
 function audienceTrigger(audience) {
@@ -19529,8 +19560,8 @@ function enrolFor(rows2, kind, id, savedIds, purpose, how) {
   return out;
 }
 function saidYesOnAny(r2, purpose, how) {
-  return CONSENT_CHANNELS.some(
-    (c) => how.channels.includes(c) && how.ready[c].ready && channelRefuses(c, purpose, how.about, how.ready) === null && saidYesTo(r2, purpose, c, how.about)
+  return answeredYes(r2, purpose) && CONSENT_CHANNELS.some(
+    (c) => how.channels.includes(c) && channelNeverCarries(c, purpose) === null && saidYesTo(r2, purpose, c, how.about)
   );
 }
 function heldWords(held, purpose) {
@@ -20448,30 +20479,6 @@ function broadcastFailureFix(failure, reached = 0, run) {
   }
   const after = reached > 0 ? BROADCAST_FAILURE_FIX_AFTER[read.code] : void 0;
   return after ? after(reached, read.channel) : wordsFor(BROADCAST_FAILURE_FIX[read.code], read.channel) || null;
-}
-
-// src/broadcasts/reach-any.ts
-var READY_WHATSAPP_ALONE = {
-  whatsapp: { ready: true, why: null },
-  sms: { ready: false, why: CHANNEL_WORDS.unchecked },
-  email: { ready: false, why: CHANNEL_WORDS.unchecked }
-};
-function readyOrWhatsApp(read) {
-  return read ?? READY_WHATSAPP_ALONE;
-}
-function answeredYes(r2, purpose) {
-  return (purpose === "marketing" ? r2.consent.marketing : r2.consent.state) === "opted_in";
-}
-function personReachOf(r2, ready) {
-  const how = { channels: CONSENT_CHANNELS, ready: readyOrWhatsApp(ready), about: "theirs" };
-  const offers = reachFor(r2, "marketing", how).held;
-  const visit = reachFor(r2, "conversational", how);
-  return {
-    saidYes: { offers: answeredYes(r2, "marketing"), messages: answeredYes(r2, "conversational") },
-    canReceive: { offers: offers === null, messages: visit.held === null },
-    whyNot: { offers, messages: visit.held },
-    reachedOn: visit.channel
-  };
 }
 
 // src/broadcasts/broadcast-number.ts
@@ -35131,7 +35138,8 @@ function playbookReachDoor(reach, named) {
 function playbookNoNumberWords(p, named) {
   if (!named || named.saidYes === 0 || p.candidates === null || p.held === null || p.candidates + p.held > 0)
     return null;
-  return saidYesWords("the list", purposeOfPlaybook(p.policy_class), 0, named.saidYes);
+  const noChannel = (named.noChannel ?? 0) > 0 ? NO_CHANNEL_REACH : null;
+  return saidYesWords("the list", purposeOfPlaybook(p.policy_class), 0, named.saidYes, noChannel);
 }
 var PLAYBOOK_REACH_WORDS = {
   waiting: null,
@@ -58701,6 +58709,7 @@ export {
   campaignMessagesOf,
   campaignRunsOn,
   campaignsHomeOf,
+  cannotBeSentWords,
   cannotRows,
   canonicalRoute,
   capabilityStatus,
