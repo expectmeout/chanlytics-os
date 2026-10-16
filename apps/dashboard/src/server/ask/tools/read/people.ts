@@ -18,9 +18,11 @@ import {
   personName,
   poolRowOf,
   ruleNeeds,
+  ruleUndated,
   savedListLookup,
   toPersonVM,
   unmetNeed,
+  type ListRule,
   type PersonRowDto,
   type PersonRowVM,
   type VisitDto,
@@ -105,15 +107,32 @@ function personLine(r: PersonRowDto, vm: PersonRowVM, tz: string, nowMs: number)
   };
 }
 
+/** Whom a rule leaves out for want of a date, by the chip that holds them ("Never heard from"). */
+type NotOnRecord = { condition: string; ids: Set<string> }[];
+
+/**
+ * Whom a rule left out for want of a date, among `on` where only some of the pool are asked about (a list, a query), as
+ * the model is told it: each chip and how many it holds; null where there is none.
+ */
+export function notOnRecordOf(left: NotOnRecord, on: (id: string) => boolean = () => true) {
+  const said = left.flatMap((u) => {
+    const people = [...u.ids].filter(on).length;
+    return people > 0 ? [{ condition: u.condition, people }] : [];
+  });
+  return said.length > 0 ? said : null;
+}
+
 /**
  * Who a rule in the lists' vocabulary holds today, over the audience pool (everyone, as a send counts them): the ids, or
  * why it cannot be counted here, in the rail's words. The one way a search by condition and a selection by rule are
- * answered (the operator, 15 Oct 2026), so "said yes to offers and no visit in 90 days" is one shape everywhere.
+ * answered (the operator, 15 Oct 2026), so "said yes to offers and no visit in 90 days" is one shape everywhere. Beside
+ * them, whom each "more than N days" condition leaves out for having no such date (contracts ruleUndated): asked who had
+ * not written in six months, Ask said nobody, of 76 people never heard from.
  */
 export async function ruleMembers(
   t: ToolContext,
   all: unknown[],
-): Promise<{ ids: Set<string>; pool: AudiencePool } | { error: string }> {
+): Promise<{ ids: Set<string>; pool: AudiencePool; rule: ListRule; notOnRecord: NotOnRecord } | { error: string }> {
   const rule = asListRule({ all: withoutNullsDeep(all) });
   if (!rule)
     return {
@@ -121,10 +140,14 @@ export async function ruleMembers(
         "all is not a rule the list vocabulary reads: one to twelve conditions, each one fact with only the keys its field takes, or { any: [two to six facts] }",
     };
   const pool = (await load(t.rc, audiencePool, undefined)).data;
-  const kept = (await load(t.rc, listsReader, undefined)).data.lists;
-  const on = listMembers({ ids: [], rule }, pool.rows, pool.listCtx, savedListLookup(kept));
+  const lookup = savedListLookup((await load(t.rc, listsReader, undefined)).data.lists);
+  const on = listMembers({ ids: [], rule }, pool.rows, pool.listCtx, lookup);
   if (on.state !== "ok") return { error: listUnknownWords(on.reason, pool.calendar.state) };
-  return { ids: on.ids, pool };
+  const notOnRecord = ruleUndated(rule).flatMap((u) => {
+    const left = listMembers({ ids: [], rule: u.rule }, pool.rows, pool.listCtx, lookup);
+    return left.state === "ok" ? [{ condition: u.words, ids: left.ids }] : [];
+  });
+  return { ids: on.ids, pool, rule, notOnRecord };
 }
 
 /** A value with every key the model wrote as null left out, all the way down (the flat schema shows every key). */
@@ -175,18 +198,23 @@ async function searchPeople(
   // that can't be counted here says why, in the page's words, and names the condition that failed.
   let pool: AudiencePool | null = null;
   let members: Set<string> | null = null;
+  // Whom the conditions leave out for want of a date, and who of them the list and the words keep in view.
+  let left: NotOnRecord = [];
+  let inView = (_id: string) => true;
   // Conditions in the lists' vocabulary (all): who they hold today, crossed with a list where one is named too.
   if (input.all && input.all.length) {
     const held = await ruleMembers(t, input.all);
     if ("error" in held) return { error: held.error, people: [] };
     pool = held.pool;
     members = held.ids;
+    left = held.notOnRecord;
   }
   if (ref) {
     const listed = await listMembersOf(t, ref);
     if ("error" in listed) return { error: listed.error, people: [] };
     pool = listed.pool;
     members = members ? new Set([...members].filter((id) => listed.ids.has(id))) : listed.ids;
+    inView = (id) => listed.ids.has(id);
   }
   const on = members;
   const viewer = t.ctx.userId ?? null;
@@ -207,6 +235,9 @@ async function searchPeople(
     const page = (await load(t.rc, people, { q: q || null, offset: 0 })).data;
     hits = on ? page.people.filter((r) => on.has(r.id)) : page.people;
     matches = on ? hits.length : page.page.total;
+    const listed = inView;
+    const named = new Set(page.people.map((r) => r.id));
+    inView = (id) => listed(id) && named.has(id);
     // Each person said, as the People page builds their row (legacy-bridge/surface-data.ts personRowOf): for the member
     // asking, with no deal where deals are off, and their reach judged against what the workspace sends on (the turn's
     // own read: a search page carries none) -- built for the rows said alone, never the whole page.
@@ -222,6 +253,7 @@ async function searchPeople(
     visitRow(t, r.visits?.next, tz, personName(r));
     visitRow(t, r.visits?.last, tz, personName(r));
   }
+  const unrecorded = notOnRecordOf(left, inView);
   return {
     query: q,
     // A People list by its id, as it was asked for; one of the workspace's own by its token.
@@ -229,6 +261,9 @@ async function searchPeople(
     ...(input.all && input.all.length ? { by_rule: true } : {}),
     // Counted before the cap: everyone the query matches, as the page counts them; on a list, who is on it.
     matches,
+    // Who meets the rest of the conditions but has no date for one over N days: never heard from is not quiet (the
+    // Quiet list's rule), so they are not matches, and they are said apart, never as nobody or as not in People.
+    ...(unrecorded ? { not_on_record: unrecorded } : {}),
     people: picked.map((r) => personLine(r, rowOf(r), t.timezone, t.now.getTime())),
   };
 }
@@ -558,7 +593,7 @@ export const peopleTool = defineActions({
         },
       ],
       label: "Looking through People",
-      words: `Action search takes query and an optional list and finds people by name, WhatsApp name, address or three or more digits of a phone number, as the People page searches them; each row says their state in the pages' words, their last contact and last message, their conversation id, channels, consent, receptionist mode, how many calls, their next and last appointment when the calendar is connected, and their next step when they have one. No query lists the most recent people; all finds who conditions hold today, in the lists' vocabulary (who said yes, when they last booked, how they came, a channel, a deal's stage, and the rest propose_list names), counted over everyone; list narrows to one list, given as the token sequences with action lists gives (seg:<id> for People's lists, list:<id> for the workspace's own) or as a People list's bare id: ${BUILTIN_LISTS.map((l) => `${l.id} (${l.label})`).join(", ")}. Call it to find someone, or to see who is on a list; it returns at most ${ASK_CAPS.people} people, with matches counted before the cap, and a list that cannot be counted here says why.`,
+      words: `Action search takes query and an optional list and finds people by name, WhatsApp name, address or three or more digits of a phone number, as the People page searches them; each row says their state in the pages' words, their last contact and last message, their conversation id, channels, consent, receptionist mode, how many calls, their next and last appointment when the calendar is connected, and their next step when they have one. No query lists the most recent people; all finds who conditions hold today, in the lists' vocabulary (who said yes, when they last booked, how they came, a channel, a deal's stage, and the rest propose_list names), counted over everyone; list narrows to one list, given as the token sequences with action lists gives (seg:<id> for People's lists, list:<id> for the workspace's own) or as a People list's bare id: ${BUILTIN_LISTS.map((l) => `${l.id} (${l.label})`).join(", ")}. Call it to find someone, or to see who is on a list; it returns at most ${ASK_CAPS.people} people, with matches counted before the cap, and a list that cannot be counted here says why. A condition over more than N days holds only for someone with that date on record (never heard from is not quiet): not_on_record counts who meets the rest with no such date, by its chip, and is said apart, never as nobody or as not in People.`,
       run: searchPeople,
     }),
     get: readAction({

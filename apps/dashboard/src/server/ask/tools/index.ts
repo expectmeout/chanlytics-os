@@ -11,7 +11,7 @@ export {
   toolLabel,
   toolSchema,
 } from "./registry";
-export { toApiTools } from "./offer";
+export { aboveRoleWords, toApiTools } from "./offer";
 export { cardsOf, newToolContext } from "./context";
 export type { ProposalOutcome, ToolContext, ToolDef, ToolOutcome, ToolRun } from "./context";
 export { THREAD_VERBS } from "./act/thread-verb";

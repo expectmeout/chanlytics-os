@@ -28,6 +28,7 @@ const {
   listRuleParts,
   listUnknownWords,
   ruleNeeds,
+  ruleUndated,
   savedListIds,
   savedListLookup,
   playbookRunReach,
@@ -241,6 +242,37 @@ test("a rule is read strictly and said in the page's words; what it needs comes 
     LIST_RULE_FIELDS.map((f) => f.id).filter((id) => id !== "in_list"),
     "the model is offered exactly the fields a rule may name, and never another list",
   );
+});
+
+test("who a rule leaves out for want of a date: each condition over more than N days, read as never, with its chip, so the people with no such date are said apart (the operator stress run, 15 Oct 2026)", () => {
+  const quiet = rule(
+    { field: "last_heard", op: "more_than", days: 180 },
+    { field: "said_yes", op: "is", to: "messages", yes: true },
+    { field: "last_visit", op: "more_than", days: 90 },
+    { field: "last_visit", op: "within", days: 365 },
+    {
+      any: [
+        { field: "missed_visit", op: "more_than", days: 7 },
+        { field: "booked", op: "is", yes: false },
+      ],
+    },
+  );
+  const left = ruleUndated(quiet);
+  // Within, a fact of no day and a condition of "any" are left alone: none of them leaves out someone for no date.
+  assert.deepEqual(
+    left.map((u) => u.words),
+    ["Never heard from", "Never on the calendar"],
+  );
+  assert.deepEqual(left[0].rule.all, [{ field: "last_heard", op: "never" }, ...quiet.all.slice(1)]);
+  assert.deepEqual(left[1].rule.all[2], { field: "last_visit", op: "never" });
+  assert.deepEqual(left[1].rule.all[0], quiet.all[0], "each condition read as never alone");
+  // Each is a rule the vocabulary reads, holding the people the first left out.
+  const never = vm("1", { heardDays: null, lastVisitDays: null });
+  const sixMonths = rule({ field: "last_heard", op: "more_than", days: 180 });
+  assert.equal(listRuleMatches(sixMonths, never), false, "never heard from is not quiet");
+  assert.ok(asListRule(ruleUndated(sixMonths)[0].rule));
+  assert.equal(listRuleMatches(ruleUndated(sixMonths)[0].rule, never), true);
+  assert.deepEqual(ruleUndated(rule({ field: "channel", op: "is", channel: "sms" })), []);
 });
 
 test("who is on a list: the ids kept on it, or who its rule holds for today; unknown, with its reason, when it can't be counted", () => {

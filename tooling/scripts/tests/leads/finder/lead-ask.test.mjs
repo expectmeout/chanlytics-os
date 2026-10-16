@@ -271,6 +271,22 @@ test("what a model writes and the plan means the same thing: a Title-Case key, a
   assert.equal(abroad.isError, true, "and a country that is not the US is still a refusal in words");
 });
 
+test("REGRESSION: a count past what one search finds is planned at the most and said, on the card and as the answer's words -- 5,000 nail salons became a 1,000 card with no word of the cap (the operator stress run, 15 Oct 2026)", async () => {
+  const t = toolContext({ role: "owner", tables: world() });
+  const CAP = "One search finds at most 1,000; you asked for 5,000. More of the same can follow once it finishes.";
+  const huge = await buildProposal(t, "propose_lead_search", { ...MODEL_INPUT, count: 5000 });
+  assert.equal(huge.isError, false, huge.result);
+  assert.equal(huge.proposal.payload.plan.count, 1000);
+  assert.equal(huge.proposal.title, "Find 1000 personal trainers");
+  assert.ok(huge.proposal.summary.endsWith(` ${CAP}`), huge.proposal.summary);
+  assert.equal(huge.words, CAP, "a round of this card alone answers with it (loop.ts)");
+  assert.equal(JSON.parse(huge.result).summary, huge.proposal.summary, "the model reads it too");
+  // At the most, or under it, nothing is said.
+  const most = await buildProposal(t, "propose_lead_search", { ...MODEL_INPUT, count: 1000 });
+  assert.deepEqual([most.proposal.payload.plan.count, most.words], [1000, undefined]);
+  assert.ok(!most.proposal.summary.includes("at most"));
+});
+
 test("the card carries the facts under the sentence: what a search would skip, what is left this month, and what past searches for this kind measured", async () => {
   const t = toolContext({ role: "owner", tables: world() });
   const out = await buildProposal(t, "propose_lead_search", MODEL_INPUT);
