@@ -76,6 +76,12 @@ flowchart LR
 The two apps deploy independently from `main`. A change both must agree on
 ships in a shape that works whichever deploys first.
 
+The edge's functions are built by `tooling/scripts/edge-functions.mjs`
+(esbuild, every function in seconds) in the Build Output API's shape, and
+Vercel deploys that output as it is: `apps/edge/vercel.json` has one static
+build, which runs it, and holds each function's time limit. Its types are CI's
+typecheck's to check.
+
 `packages/*/dist` is committed and the edge imports it by relative path through
 `apps/edge/lib/packages/*.ts`, because Vercel's function bundler does not
 follow pnpm workspace symlinks. Rebuild `dist` whenever a package changes; CI
@@ -751,7 +757,6 @@ tooling/scripts/
   gen/
   mobile/
   ops/
-  ship/
   tests/
   voice/
 e2e/
