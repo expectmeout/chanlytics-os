@@ -108,9 +108,9 @@ export const reachOutAddSpec: ProposalSpec = {
   }),
   receipt: ({ payload: pl }, data) => {
     const added = Number(rec(data).added ?? 0);
-    const name = asText(pl.name) || "the reach-out";
+    const name = asText(pl.name) || "the sequence";
     return added > 0
-      ? `Added ${added === 1 ? "1 lead" : `${added} leads`} to “${name}”. Its next run waits for your say before anything goes.`
+      ? `Added ${added === 1 ? "1 lead" : `${added} leads`} to “${name}”. Nothing goes to them until you give its next batch your OK.`
       : `None could be added to “${name}”.`;
   },
   undo: {

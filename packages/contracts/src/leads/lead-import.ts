@@ -205,7 +205,7 @@ export const LEAD_IMPORT_WORDS = {
   importLine: "A name and an email on each row.",
   importMore: "What a row can hold",
   importRest:
-    "A phone, a website, a city or a state, where you have them. Every address is checked before a reach-out may write to it.",
+    "A phone, a website, a city or a state, where you have them. Every address is checked before a sequence may write to it.",
   file: "Choose a CSV file",
   paste: "Or paste the rows",
   pastePlaceholder: "Business,Email,Website,City,State\nZilker Kettlebell Club,hello@example.com,example.com,Austin,TX",
@@ -220,7 +220,7 @@ export const LEAD_IMPORT_WORDS = {
   nothing: "No row has both a business name and an email address, so there is nothing to import.",
   failed: "The list could not be imported. Nothing was written.",
   write: "Write to them",
-  writeHint: "The chosen leads become a list of their own, and the reach-out's sheet opens on it.",
+  writeHint: "The chosen leads become a list of their own, and a sequence opens on it.",
   writing: "Making the list…",
   searchAgain: "A list of your own is not searched again. Start a new search to find more businesses.",
 } as const;

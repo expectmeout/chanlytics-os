@@ -765,6 +765,16 @@ async function peekAgain(): Promise<void> {
 }
 
 /**
+ * One lead's record as this tab holds it, on a page loaded or as the peek read it on its own: for what only the record
+ * says, the slots a pile's card fills its email with (its city, a company's people). Null while neither holds it.
+ */
+export function leadDtoFor(leadId: string): LeadRowDto | null {
+  const L = leadsLoaded;
+  if (!L || erased.has(leadId)) return null;
+  return L.rows.find((r) => r.id === leadId) ?? peeked.get(peekKey(leadId, L.view.searchId ?? null)) ?? null;
+}
+
+/**
  * The peek's view model for one lead: the DTO, its search, the workspace's zone (§9.2). A lead on a page loaded is
  * drawn at once; one on no page is the one the peek read on its own for this view, or null while that read is out --
  * the read is asked for here, once, and the page is told when it lands.

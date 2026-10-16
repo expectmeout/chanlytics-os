@@ -329,6 +329,48 @@ function SheetKitJob() {
   );
 }
 
+/** The sheet with two rests: a kicker's head over rows and a foot, standing at half, its handle a button to full. */
+function SheetKitRests() {
+  const [open, setOpen] = useState(false);
+  const [at, setAt] = useState<"half" | "full">("half");
+  return (
+    <Figure id="sheet-kit-rests" about="the kit's Sheet with two rests">
+      <Button data-testid="sheet-rests-open" onClick={() => setOpen(true)}>
+        Go through them
+      </Button>
+      <Sheet
+        open={open}
+        onClose={() => setOpen(false)}
+        title="Going through"
+        close={{ label: "Close", glyph: glyph("x", 13) }}
+        kicker
+        rest={{ at, onRest: setAt, turn: { up: "Show all of it", down: "Back to half" } }}
+        foot={
+          <div data-foot-pair="">
+            <Button variant="quiet" size="sm">
+              Later
+            </Button>
+            <Button variant="primary" size="sm">
+              Add
+            </Button>
+          </div>
+        }
+      >
+        <div>
+          {SHEET_SERVICES.map(([name, long]) => (
+            <div key={name} className="rec-row" data-empty="false">
+              <span className="rec-row-key">{name}</span>
+              <div className="rec-row-val">
+                <span className="rec-row-value">{long}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </Sheet>
+    </Figure>
+  );
+}
+
 /** The sheet with its title a kicker over one pane of rows that carry their own name, its foot's Cancel the act that closes it. */
 function SheetKitKicker() {
   const [open, setOpen] = useState(false);
@@ -896,6 +938,7 @@ export const ENTRIES: { id: string; Draw: () => ReactElement; closed: boolean }[
   { id: "sheet-kit", Draw: SheetKit, closed: false },
   { id: "sheet-kit-job", Draw: SheetKitJob, closed: false },
   { id: "sheet-kit-kicker", Draw: SheetKitKicker, closed: false },
+  { id: "sheet-kit-rests", Draw: SheetKitRests, closed: false },
   { id: "sheet-kit-mark", Draw: SheetKitMark, closed: false },
   { id: "menu-kit", Draw: MenuKit, closed: false },
   { id: "menu-kit-caption", Draw: MenuKitCaption, closed: false },

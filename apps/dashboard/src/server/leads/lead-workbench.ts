@@ -89,7 +89,7 @@ export async function chainPeopleOf(
 ): Promise<ReachOutChainPeopleDto> {
   const { data, error } = await reachOutChainPeople(ctx.supabase, { tenantId, rootId, ...(limit ? { limit } : {}) });
   if (error) throw dbRefusal(error);
-  if (!data) throw new AppError("not_found", "That reach-out is not in your workspace.", 404);
+  if (!data) throw new AppError("not_found", "That sequence is not in your workspace.", 404);
   return data;
 }
 

@@ -23,11 +23,15 @@ import { refusalToast } from "../../legacy-verbs";
 import type { Flash } from "../../people/types";
 import { excludeLead, keepLead, laterLead, setLeadStage, undoLeadOperation } from "../surface";
 
-/** Where the pile's adds go: a reach-out fed by a list, by its first step, and that list. */
+/**
+ * Where the pile's adds go: a sequence fed by a list, by its first step, and that list; and the sequence as its read
+ * answered it, whose first email the card fills for the lead that is up.
+ */
 interface PileTarget {
   rootId: string;
   name: string;
   listId: string;
+  chain: ReachOutChainDto;
 }
 
 /** One thing done in the pile: the lead, the act, and the operation that undoes it (none for a lead held). */
@@ -48,7 +52,7 @@ const pileTargetsOf = (chains: readonly ReachOutChainDto[], searches: readonly L
         c.search && (c.fed_by ? c.fed_by === "list" : isLeadList(searches.find((s) => s.id === c.search?.id) ?? null)),
     )
     .sort((a, b) => b.created_at.localeCompare(a.created_at))
-    .map((c) => ({ rootId: c.root_id, name: c.name, listId: c.search?.id ?? "" }));
+    .map((c) => ({ rootId: c.root_id, name: c.name, listId: c.search?.id ?? "", chain: c }));
 
 /** The reach-out a drawer's Add leads named for the next pass (Campaigns, people.tsx), read once and let go. */
 function preferredTarget(): string | null {
