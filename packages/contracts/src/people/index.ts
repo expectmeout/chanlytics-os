@@ -104,6 +104,7 @@ export {
   listConditionWords,
   listRuleParts,
   listRuleWhy,
+  ruleUndated,
   listDraftFieldLines,
   LIST_NEEDS,
   LIST_RULE_FIELDS,

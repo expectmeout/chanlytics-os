@@ -1022,13 +1022,42 @@ const ROWS = [
     ],
   },
   {
-    name: "a campaign paused on a moment is not doubled: the words say to resume it",
+    name: "a campaign paused on a moment is not doubled: a card of its own resumes it, as propose_sequence action change makes it (it was 'resume it from its drawer': the operator stress run, 15 Oct 2026)",
     intent: { intent: "cover_journey", stages: ["after", "quiet"] },
     world: world({
       playbooks: [{ id: PB, name: "Win-back", trigger: "lapsed", state: "paused", template_name: null }],
     }),
-    steps: [{ n: 1, kind: "playbook", silent: false, after: [], input: { trigger: "visited" } }],
-    words: [COVERS_ONE, "“Win-back” stands paused on its moment: resume it from its drawer."],
+    steps: [
+      { n: 1, kind: "playbook", silent: false, after: [], input: { trigger: "visited" } },
+      { n: 2, kind: "change", silent: false, after: [], input: { playbook_id: PB, state: "running" } },
+    ],
+    words: [COVERS_ONE, "Resumes “Win-back”, paused on its moment, on a card of its own."],
+  },
+  {
+    name: "everything set up for a goal with no calendar and the win-back paused: the resume is the card, the calendar comes first, never 'nothing to set up' (the operator stress run, 15 Oct 2026)",
+    intent: { intent: "cover_journey" },
+    world: world({
+      journey: QUIET_ONLY,
+      shape: NO_CALENDAR,
+      playbooks: [{ id: PB, name: "Win-back", trigger: "quiet_30", state: "paused", template_name: null }],
+    }),
+    steps: [{ n: 1, kind: "change", silent: false, after: [], input: { playbook_id: PB, state: "running" } }],
+    words: [
+      CONNECT(),
+      "Resumes “Win-back”, paused on its moment, on a card of its own.",
+      "Ask me again once it is connected, and I'll add them.",
+    ],
+    lead: CALENDAR_LEAD(1, 2),
+  },
+  {
+    name: "a setup in Spanish resumes in Spanish",
+    intent: { intent: "cover_journey", stages: ["quiet"] },
+    world: world({
+      says: "es",
+      playbooks: [{ id: PB, name: "Win-back", trigger: "lapsed", state: "paused", template_name: null }],
+    }),
+    steps: [{ n: 1, kind: "change", silent: false, after: [], input: { playbook_id: PB, state: "running" } }],
+    words: ["Reanuda «Win-back», en pausa en su momento, en su propia tarjeta."],
   },
   {
     name: "the day before asked for, with no calendar: nothing to cover, and the calendar to connect for it",
