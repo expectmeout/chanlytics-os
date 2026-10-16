@@ -1035,6 +1035,30 @@ function withChannels(frozen) {
 }
 
 /**
+ * 15 Oct 2026 (the operator stress run): sequences.lists counts who said yes as People does (the rows' saidYes), whether or
+ * not a number or a channel can carry it now, where it counted a yes only where one could, so Meta's pause on offers to US
+ * numbers read 0 over 26 who had said yes. It says what they lack where WhatsApp reaches none of them (why_none_offers,
+ * why_none_messages: none in this world, whose counts are as they were) and, before its note, which channels carry offers
+ * now (offers_go_by: the Broadcasts page's sentence, of this world's UK number and no texting line or email). Its note
+ * says so: the one change to its bytes beside that field.
+ */
+function withTheYesItself(frozen) {
+  const { note, ...said } = JSON.parse(frozen);
+  if (typeof note !== "string") return frozen;
+  const offersGoBy =
+    "Offers and news go by WhatsApp only. The text line is registered with the carriers for replies and appointment messages, so nothing promotional is sent by text; someone who has only ever texted you hears about offers once they say yes on WhatsApp.";
+  const yes =
+    "said_yes_to_offers and said_yes_to_messages count everyone who gave that yes, as People counts it, whether or not a number or a channel can carry it now. Where some said yes and WhatsApp reaches none of them, why_none_offers or why_none_messages says what they lack, in People's words: a number to send to, or a channel that can carry it, and offers_go_by says which channels carry offers now (Meta's pause on offers to US numbers among them). Say how many said yes and what they lack, and never send the owner to get a yes they already have.";
+  return JSON.stringify({
+    ...said,
+    offers_go_by: offersGoBy,
+    note: note
+      .replace("Two consents, two counts each, all by WhatsApp.", "Two consents, two counts each.")
+      .replace("said_yes_to_offers and said_yes_to_messages count everyone who gave that yes, a number or not.", yes),
+  });
+}
+
+/**
  * 7 Oct 2026 (lane 1, T6): Ask reads the message a proposal names through core's readCampaignMessage, the verb the routes
  * read it by, and says what it refuses in its own sentence: a template the workspace does not hold is "Template not found."
  * (the broadcast's and the playbook's, which said it was not approved by WhatsApp, the playbook's adding "or the workspace
@@ -1227,7 +1251,7 @@ test("every old tool's call, made by its new name and action, answers the bytes 
     if (old === "get_today") result = withTheOneCount(result);
     if (old === "list_threads" || old === "get_thread") result = withNoHeldDraft(result);
     if (NAMES[old] === "calls.list" || NAMES[old] === "calls.get") result = withCallDirection(result);
-    if (NAMES[old] === "sequences.lists") result = withHeldListWord(withChannels(result));
+    if (NAMES[old] === "sequences.lists") result = withTheYesItself(withHeldListWord(withChannels(result)));
     if (NAMES[old].startsWith("propose_sequence.")) result = withTheVerbsWords(result);
     // 8 Oct 2026: a playbook's hour by the product's clock (withTheClocksHour): the campaigns' own answers and cards,
     // in their result and in the card they propose.

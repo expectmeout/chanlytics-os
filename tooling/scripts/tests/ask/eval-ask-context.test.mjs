@@ -1507,6 +1507,15 @@ test("a setup's keys (the moment spec, A8): proposals_max fails more cards, card
     setupCardsFails({ proposals_max: 1 }, m({ proposals: [card("playbook", {}), card("playbook", {})] }))[0],
     /2 cards/,
   );
+  // Several asks in one message: a card of every kind named, none dropped (the operator's stress run, 15 Oct 2026).
+  const three = { proposals_all: ["person_mode", "note", "list"] };
+  assert.deepEqual(
+    setupCardsFails(three, m({ proposals: [card("note", {}), card("person_mode", {}), card("list", {})] })),
+    [],
+  );
+  assert.deepEqual(setupCardsFails(three, m({ proposals: [card("note", {}), card("person_mode", {})] })), [
+    'no list card among ["note","person_mode"]',
+  ]);
   const ruled = { card_fields_not: { playbook: { trigger: ["visit_tomorrow", "visited"] } } };
   assert.deepEqual(setupCardsFails(ruled, m({ proposals: [card("playbook", { trigger: "quiet_30" })] })), []);
   assert.match(

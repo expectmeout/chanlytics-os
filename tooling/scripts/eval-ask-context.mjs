@@ -576,6 +576,8 @@ function heldAt(payload, at) {
 /**
  * A setup's cards (the moment spec, A8): `proposals_max` fails more cards than N (four is near where presses go reflex);
  * `proposals_not` fails a card of any kind it names (an offer no channel carries makes no send and no campaign);
+ * `proposals_all` fails unless there is a card of every kind it names (several asks in one message are several cards,
+ * none dropped: the operator's stress run, 15 Oct 2026);
  * `card_fields_not` fails a card of the kind whose field holds a value the words ruled out (a reminder of an appointment
  * in a setup); `card_fields_absent` fails a card of the kind that holds anything at a path into its payload, dotted
  * (`versions.sms`: a message written with a text version, which an offer never has), and `card_fields_present` one that
@@ -594,6 +596,9 @@ export function setupCardsFails(e, m) {
     fails.push(`${cards.length} cards, where at most ${e.proposals_max} were expected`);
   const barred = [...new Set(cards.map((p) => p.kind))].filter((k) => (e.proposals_not ?? []).includes(k));
   if (barred.length) fails.push(`a ${barred.join("/")} card, which the words ruled out`);
+  const kinds = new Set(cards.map((p) => p.kind));
+  const missing = (e.proposals_all ?? []).filter((k) => !kinds.has(k));
+  if (missing.length) fails.push(`no ${missing.join("/")} card among ${JSON.stringify([...kinds])}`);
   for (const [kind, fields] of Object.entries(e.card_fields_not ?? {}))
     for (const p of cards.filter((x) => x.kind === kind))
       for (const [k, banned] of Object.entries(fields))

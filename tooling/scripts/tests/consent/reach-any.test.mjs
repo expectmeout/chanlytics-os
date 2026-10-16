@@ -189,6 +189,36 @@ test("an offer still needs WhatsApp: texts carry none, and email's wait for thei
   assert.deepEqual([unread.canReceive.offers, unread.whyNot.offers], [true, null]);
 });
 
+test("REGRESSION: a send's 'said yes' is the yes itself, on a channel it goes by, whether or not that channel can carry it now -- under Meta's pause on offers to US numbers every page counted 0 over people who had said yes (the operator stress run, 15 Oct 2026)", () => {
+  const { audiencePreview } = contracts;
+  const us = channelsReady({
+    whatsapp: { ...WA, number: "+13055550100" },
+    textLine: null,
+    email: { mailbox: false, domain: false },
+  });
+  const yes = personRow({ ...OFFERS_YES, phone_e164: "+15555550101" }, { ready: us });
+  const no = personRow({ phone_e164: "+15555550102", marketing_consent: "unknown" }, { ready: us });
+  const offer = audiencePreview([yes, no], "everyone", null, null, "marketing", {
+    channels: ["whatsapp"],
+    ready: us,
+    about: "ours",
+  });
+  assert.deepEqual(
+    [offer.sending, offer.saidYes, offer.split.heldBy],
+    [0, 1, { no_channel: 2 }],
+    "REGRESSION: nobody can be sent an offer, and the one who said yes is counted",
+  );
+  // A channel that asks no yes adds nobody who gave none: a visit's email, ticked where email is not set up, never makes
+  // someone who never answered read as a yes.
+  const never = personRow(emailOnly({ consent: "unknown", consent_source: null }), { ready: ready() });
+  const visit = audiencePreview([never], "everyone", null, null, "conversational", {
+    channels: ["whatsapp", "email"],
+    ready: ready(),
+    about: "theirs",
+  });
+  assert.deepEqual([visit.sending, visit.saidYes], [0, 0]);
+});
+
 test("the rows' facts are one derivation: reachability, the answer given, and why not, from the same call", () => {
   for (const over of [
     {},

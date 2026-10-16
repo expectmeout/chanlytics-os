@@ -942,8 +942,14 @@ test("campaigns.audiences says its counts are by WhatsApp: with no number a mess
     { whatsapp: false, email: true, sms: false },
     "and the message is held by its email",
   );
-  // The listing says what its counts are by, and what a zero in them is not.
-  assert.ok(read.note.startsWith("Two consents, two counts each, all by WhatsApp."), read.note);
+  // The listing says what its counts are by, and what a zero in them is not. Since 15 Oct 2026 (the operator stress run)
+  // who said yes is People's count, by no channel, and only who can be sent is by WhatsApp.
+  assert.ok(
+    read.note.startsWith(
+      "Two consents, two counts each. can_be_sent_offers is who a promotional template reaches on WhatsApp and can_be_sent_messages who a utility or authentication one reaches,",
+    ),
+    read.note,
+  );
   assert.ok(
     read.note.includes(
       "A message whose channels hold email or sms is proposed with channels naming them, and its card then counts the people those channels reach: a 0 in these counts does not mean nobody can be reached for it.",
@@ -958,11 +964,11 @@ test("campaigns.audiences says its counts are by WhatsApp: with no number a mess
   const { toApiTools } = await import(at("apps/dashboard/src/server/ask/tools/index.ts"));
   const listing = toApiTools("owner", true).find((x) => x.name === "sequences").description;
   for (const words of [
-    "four counts, all by WhatsApp,",
+    "four counts, because there are two consents and a yes needs a number to send to and a channel to carry it:",
     "(who a promotional, or a utility or authentication, message reaches on WhatsApp)",
     "a message that holds email or sms is proposed with channels naming them, and its card then counts the people those channels reach, so a 0 in the four counts above does not mean nobody can be reached",
     "never a larger one, for a message that goes by WhatsApp; for a message whose channels hold email or sms, propose it with channels naming them and quote the card's count, since the can_be_sent counts are by WhatsApp alone and a 0 there does not mean nobody can be reached;",
-    "when a WhatsApp message's count is 0 and its said_yes is not, and its channels hold no other, the ones who said yes have no number to send to",
+    "when a WhatsApp message's count is 0 and its said_yes is not, and its channels hold no other, the ones who said yes cannot be sent it: say how many said yes and what they lack",
   ])
     assert.ok(listing.includes(words), words);
   assert.ok(
