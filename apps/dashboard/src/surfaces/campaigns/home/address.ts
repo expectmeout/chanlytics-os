@@ -1,12 +1,13 @@
 /**
- * Campaigns' home addresses (`campaigns/<param>`): the page, the group its ledger shows, a moment open beside it, and the
- * composer.
+ * Campaigns' addresses (`campaigns/<param>`) beside Sequences' own (contracts sequence-address.ts): the sheets Campaigns opens
+ * over Sequences (home/sheets.tsx), and the home's addresses, which went with it in decision 0060's S6 and are read here so a
+ * link kept from before still says what it named (surfaces/addresses.ts) as it lands on Sequences (contracts
+ * sequenceLandingOf).
  *
- *   campaigns                        the home, every group
- *   campaigns/in:<group>             the ledger narrowed to one group: a journey stage's word-free id (`before`), `lists`,
- *                                    `reach_out` or `sent_once` (decision 46); a card's press or a phone's chip replaces it
- *   campaigns/moment:<id>            a playbook (or a reach-out) open in the drawer, the address every old `outbound/<id>` lands on
- *   campaigns/moment:<id>:people     a reach-out open at who is in it (00426): where Today, the bell and Leads link
+ *   campaigns                        the home: lands on Sequences
+ *   campaigns/in:<group>             the ledger narrowed to one group (`before`, `lists`, `reach_out`, `sent_once`): the same
+ *   campaigns/moment:<id>            a playbook (or a reach-out) open in the drawer: lands on its sequence
+ *   campaigns/moment:<id>:people     a reach-out open at who is in it (00426): lands on its sequence's People
  *   campaigns/message:<name>         a message open in a drawer of its own, by its name (the call's text; a playbook's message)
  *   campaigns/new                    the composer, on Send once
  *   campaigns/new:to:<audience>      the same, on the list or audience it was asked for (every old `broadcasts/<audience>` lands here)
@@ -15,11 +16,10 @@
  *   campaigns/new:moment:<trigger>   the same, on the moment a Turn on was pressed for
  *   campaigns/new:edit:<id>          the same, changing the playbook the drawer showed; a reach-out's id opens its own sheet
  *
- * The drawer and the composer are the address's, as the Inbox's thread is: opened by the page, pushed so Back closes it;
- * arrived at by a link, replaced when closed. A composer opened over a drawer is pushed over it, so Back, and Cancel, return to
- * the detail it came from. The group is replaced, never pushed (decision 11), and one param holds either it or a sheet, so
- * while a sheet stands the page keeps the group it had (use-home.ts useKeptGroup). A word the page does not know is the
- * home (a link must never land on nothing).
+ * A message's drawer and the composer are the address's, as the Inbox's thread is: opened by the page, pushed so Back closes
+ * it; arrived at by a link, replaced with Sequences when closed. A composer opened over a drawer is pushed over it, so Back,
+ * and Cancel, return to the drawer it came from. A word the page does not know is the home, so it lands on Sequences (a link
+ * must never land on nothing).
  */
 
 /** What the address asks of the page: the group its ledger shows, a moment open, and the composer. */
@@ -43,7 +43,7 @@ export interface HomeAddress {
     | { mode: "leads" };
 }
 
-/** The home itself. Read here alone: use-home.ts closes to `groupRoute(null)`, so an export would be a dead one. */
+/** Campaigns' own route, which every address here is spelled under. */
 const HOME_ROUTE = "campaigns";
 
 const NONE: HomeAddress = { group: null, moment: null, message: null, compose: null };
@@ -91,26 +91,13 @@ export function parseHome(param: string | null): HomeAddress {
   return compose ? { ...NONE, compose } : NONE;
 }
 
-/** The route an address is spelled as: the shell's, `campaigns/moment:<id>`. */
-function homeRoute(a: HomeAddress): string {
-  if (a.moment) return `${HOME_ROUTE}/moment:${a.moment}${a.part ? `:${a.part}` : ""}`;
-  if (a.message) return `${HOME_ROUTE}/message:${a.message}`;
-  const c = a.compose;
-  if (!c) return a.group ? `${HOME_ROUTE}/in:${a.group}` : HOME_ROUTE;
+/** The route a composer is spelled as: the shell's, `campaigns/new…`. */
+function composerRoute(c: NonNullable<HomeAddress["compose"]>): string {
   if (c.mode === "once") return c.to ? `${HOME_ROUTE}/new:to:${c.to}` : `${HOME_ROUTE}/new`;
   if (c.mode === "leads") return `${HOME_ROUTE}/new:leads`;
   if (c.edit) return `${HOME_ROUTE}/new:edit:${c.edit}`;
   return c.moment ? `${HOME_ROUTE}/new:moment:${c.moment}` : `${HOME_ROUTE}/new:every`;
 }
-
-/** A moment open in the drawer. */
-export const momentRoute = (id: string): string => homeRoute({ ...NONE, moment: id });
-
-/** A message open in its own drawer, by its name. */
-export const messageRoute = (name: string): string => homeRoute({ ...NONE, message: name });
-
-/** The ledger narrowed to one group, or every group for null: what a card's press and a phone's chip replace the address with. */
-export const groupRoute = (group: string | null): string => homeRoute({ ...NONE, group });
 
 /** What the composer is opened on: the audience a send is for, the moment a Turn on was pressed for, the playbook being changed. */
 interface ComposeOn {
@@ -124,12 +111,10 @@ interface ComposeOn {
  * to leads.
  */
 export const composeRoute = (mode: "once" | "every" | "leads", on: ComposeOn = {}): string =>
-  homeRoute({
-    ...NONE,
-    compose:
-      mode === "once"
-        ? { mode, to: on.to ?? null }
-        : mode === "leads"
-          ? { mode }
-          : { mode, moment: on.moment ?? null, edit: on.edit ?? null },
-  });
+  composerRoute(
+    mode === "once"
+      ? { mode, to: on.to ?? null }
+      : mode === "leads"
+        ? { mode }
+        : { mode, moment: on.moment ?? null, edit: on.edit ?? null },
+  );

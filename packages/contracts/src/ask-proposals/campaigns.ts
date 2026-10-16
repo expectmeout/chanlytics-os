@@ -549,7 +549,7 @@ export const MESSAGE_WORDS = {
     );
     if (said.length === 0) return `“${name}” was not filed${refused ? `: ${refused.words}` : ""}`;
     const not = refused ? ` · its ${versionWord(refused.channel)} version was not filed: ${refused.words}` : "";
-    return `“${name}” is in the ${CAMPAIGN_ROOMS.library} — ${said.join("; ")}${not}`;
+    return `“${name}” is in ${CAMPAIGN_ROOMS.library} — ${said.join("; ")}${not}`;
   },
   /** The undo's button: the email and text versions it deletes; none where the card writes none. */
   undo: (own: readonly OwnVersionChannel[]): string | null =>

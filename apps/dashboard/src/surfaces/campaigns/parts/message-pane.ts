@@ -6,8 +6,18 @@
  * (8 to 10 KB gzipped on Campaigns, Sent, People and Messages; #1644).
  */
 import { createContext } from "react";
-import type { ComponentType } from "react";
+import type { ComponentType, Context } from "react";
 import type { MessageInPlaceProps } from "./message-in-place";
 
-/** The pane, where the route hands it down; null where nothing does, and a view then offers no Edit. */
-export const MessagePaneContext = createContext<ComponentType<MessageInPlaceProps> | null>(null);
+type Pane = ComponentType<MessageInPlaceProps> | null;
+let made: Context<Pane> | null = null;
+
+/**
+ * The pane's context, where the route hands it down; null where nothing does, and a view then offers no Edit. Made the
+ * first time it is asked for, never as the module loads: the page tests' React (its react-server build) has no
+ * createContext, and a test that imports the drawer draws neither.
+ */
+export function messagePaneContext(): Context<Pane> {
+  made ??= createContext<Pane>(null);
+  return made;
+}

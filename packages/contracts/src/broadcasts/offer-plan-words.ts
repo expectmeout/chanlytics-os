@@ -70,7 +70,7 @@ const EN: OfferWords = {
   noText: CHANNEL_WORDS.noOffersByText,
   without: (channel, why) => `It goes without ${versionWord(channel)}: ${reasonEn(why)}`,
   reviewing: (name) => `WhatsApp is still reviewing the WhatsApp version of “${name}”.`,
-  reuseMessage: (name) => `Sends “${name}”, already in the Library, with the offer in its words.`,
+  reuseMessage: (name) => `Sends “${name}”, already in your messages, with the offer in its words.`,
   writeMessage: (name, on) =>
     `Writes a message for offers, “${name}”, for ${joinWords(on.map(versionWord))}: this offer goes in its words, and the next offer can send it too.`,
   noteMade: (until) => `Tells the receptionist about the offer, until ${until}.`,

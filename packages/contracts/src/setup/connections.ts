@@ -392,7 +392,7 @@ function signupLeftOpenNotes(startedAt: string | null | undefined, nowMs: number
 }
 
 /** The WhatsApp row's own verb: the Library, what the receptionist and the campaigns send on the number. */
-const LIBRARY: ConnectionVerb = { label: "Library", to: "messages", who: "operator" };
+const LIBRARY: ConnectionVerb = { label: "Messages", to: "messages", who: "operator" };
 
 /**
  * The row of a connected number. What Meta holds against it comes first (channel.standing, 00338, in contracts' words: a

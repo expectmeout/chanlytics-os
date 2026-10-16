@@ -1,17 +1,17 @@
 /**
- * What Campaigns' home reads and how it moves: the four surfaces its view model is made from (the playbooks' rows, pools,
- * shape and templates, Sent's runs and reach, Campaigns' own 30 days, the reach-outs' chains), read through the seam and
- * handed to contracts as they are (campaignsHomeOf); and the address, which opens a moment or the composer.
+ * What Campaigns' sheets read and how they move (sheets.tsx; the home they stood over went with decision 0060's S6): the four
+ * surfaces the composer's view model is made from (the playbooks' rows, pools, shape and templates, Sent's runs and reach,
+ * Campaigns' own 30 days, the reach-outs' chains), read through the seam and handed to contracts as they are
+ * (campaignsHomeOf); and the address, which opens the composer or a message.
  *
  * A real workspace draws its own surfaces; a demo session draws the samples the Playbooks and Broadcasts pages drew; without
- * either the page draws nothing. A surface not read yet is undefined and its tiles say they are reading; one that could not
+ * either the sheets draw nothing. A surface not read yet is undefined and its tiles say they are reading; one that could not
  * be read is null and says so (a surface that answers nothing is told from one that failed by the seam's own status,
  * `useSurfaceFailed`, which the shell's route gate reads), so a week it could not see is never "nothing is set to go out".
  */
 import { useEffect, useMemo, useRef, useState } from "react";
-import { MIN_MS, campaignsHomeOf } from "@chanlytics/contracts";
+import { MIN_MS, SEQUENCES_ROUTE, campaignsHomeOf } from "@chanlytics/contracts";
 import type { LifecycleHome } from "@chanlytics/contracts";
-import { tabDraft } from "../../kit/record/work";
 import { demoSession, navigate, replaceRoute } from "../../legacy-verbs";
 import { useSurface, useSurfaceFailed } from "../../use-surface";
 import { broadcastsSample, campaignResultsSample } from "../broadcasts/sample";
@@ -19,7 +19,6 @@ import type { BroadcastsSurface } from "../broadcasts/surface";
 import { playbooksSample } from "../playbooks/sample";
 import type { PlaybooksSurface } from "../playbooks/surface";
 import type { ReachOutsSurface } from "../reach-out/surface";
-import { composeRoute, groupRoute } from "./address";
 import type { HomeAddress } from "./address";
 import type { CampaignResultsSurface } from "./results-surface";
 
@@ -99,24 +98,13 @@ export function useHomeData(nowMs?: number): HomeData {
 }
 
 /**
- * The group the ledger shows: the address's while it names no sheet, and the one it had while a sheet stands, since one
- * param holds either (address.ts). A drawer opened from one group leaves the ledger behind it narrowed as it was.
- */
-export function useKeptGroup(address: HomeAddress): string | null {
-  const kept = useRef<string | null>(address.group);
-  if (address.moment === null && address.message === null && address.compose === null) kept.current = address.group;
-  return kept.current;
-}
-
-/**
  * Opening and closing what the address names. Opening pushes an entry, so Back closes it (a peek's rule: Leads', the
- * Pipeline's); changing one thing for another, and narrowing the ledger, replace it. A sheet that opened over the home the
- * page stood on has the home behind it, whoever pushed it (a bell row, Ask's card, a door the page drew): closing goes
- * back. One the page swapped in, or a link arrived at, has no entry of the page's behind it: closing replaces the address
- * with the home, narrowed to the group it kept.
+ * Pipeline's); changing one thing for another replaces it. A sheet that opened over the page it stood on has that page
+ * behind it, whoever pushed it (a bell row, Ask's card, a door the page drew): closing goes back. One the page swapped in,
+ * or a link arrived at, has no entry of the page's behind it: closing replaces the address with Sequences.
  */
-export function useHomeNav(address: HomeAddress, group: string | null) {
-  // How many entries stand over the home: the drawer, and a composer opened over it.
+export function useHomeNav(address: HomeAddress) {
+  // How many entries stand over the page: a message's drawer, and a composer opened over it.
   const pushed = useRef(0);
   const swapped = useRef(false);
   const open = address.moment !== null || address.message !== null || address.compose !== null;
@@ -135,38 +123,11 @@ export function useHomeNav(address: HomeAddress, group: string | null) {
     swapped.current = true;
     replaceRoute(route);
   };
-  // The ledger narrowed, or let go: the home's own address replaced, which opens no sheet, so it marks no swap (a mark
-  // left by it would make the next sheet a bell row pushes close past the home).
-  const narrow = (to: string | null) => replaceRoute(groupRoute(to));
   const close = () => {
     if (pushed.current > 0 && typeof window !== "undefined" && window.history) {
       pushed.current -= 1;
       window.history.back();
-    } else replaceRoute(groupRoute(group));
+    } else replaceRoute(SEQUENCES_ROUTE);
   };
-  return { push, swap, narrow, close };
-}
-
-/**
- * Words half-written when the page was left come back as the page does (the tab kept them, useUnsavedWork): a send under
- * "new", a playbook under "new:every", a change to a playbook under its own address. Once, on arrival at the home itself,
- * swapped in (`swap`), so its sheet has no home behind it to go back to.
- */
-export function useReopenDrafts(
-  address: HomeAddress,
-  playbooks: PlaybooksSurface | undefined,
-  swap: (route: string) => void,
-) {
-  const asked = useRef(false);
-  useEffect(() => {
-    if (asked.current || !playbooks) return;
-    asked.current = true;
-    if (address.moment !== null || address.message !== null || address.compose !== null) return;
-    if (tabDraft("broadcast")) swap(composeRoute("once"));
-    else if (tabDraft("playbook", "new")) swap(composeRoute("every"));
-    else {
-      const editing = playbooks.rows.find((p) => !!tabDraft("playbook", p.id));
-      if (editing) swap(composeRoute("every", { edit: editing.id }));
-    }
-  }, [playbooks]); // eslint-disable-line react-hooks/exhaustive-deps -- once, when the first read lands
+  return { push, swap, close };
 }

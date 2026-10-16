@@ -659,6 +659,6 @@ test("D1-template-marks: a kept template notice opens the message it is about in
   assert.equal(by["n:t1"].to, "campaigns/message:winback_offer", "not the bare Library, at its top");
   assert.equal(by["n:t1"].action, "Open the message");
   assert.deepEqual(by["n:t1"].about, { type: "template", id: "winback_offer" });
-  assert.deepEqual([by["n:t0"].to, by["n:t0"].action], ["messages", "Open Library"]);
-  assert.deepEqual([by["n:t2"].to, by["n:t2"].action], ["messages", "Open Library"]);
+  assert.deepEqual([by["n:t0"].to, by["n:t0"].action], ["messages", "Open Messages"]);
+  assert.deepEqual([by["n:t2"].to, by["n:t2"].action], ["messages", "Open Messages"]);
 });

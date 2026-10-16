@@ -6037,15 +6037,15 @@ function validateSmsVersion(d, slots, language) {
   if (!body) return { ok: false, error: "Write the text." };
   const refusal = versionSlotsRefusal(body, slots);
   if (refusal) return { ok: false, error: refusal };
-  const sent2 = smsVersionSegments(body, language);
-  if (sent2.segments > SMS_SEGMENTS_MAX)
+  const sent = smsVersionSegments(body, language);
+  if (sent.segments > SMS_SEGMENTS_MAX)
     return {
       ok: false,
-      error: `With the STOP line this text takes ${sent2.segments} parts; keep it to ${SMS_SEGMENTS_MAX}.`
+      error: `With the STOP line this text takes ${sent.segments} parts; keep it to ${SMS_SEGMENTS_MAX}.`
     };
   const warnings = [];
-  if (sent2.segments > SMS_SEGMENTS_WARN)
-    warnings.push(`With the STOP line this text goes as ${sent2.segments} parts, and each part is billed.`);
+  if (sent.segments > SMS_SEGMENTS_WARN)
+    warnings.push(`With the STOP line this text goes as ${sent.segments} parts, and each part is billed.`);
   return { ok: true, value: { subject: null, body }, warnings };
 }
 function validateOwnVersion(channel, d, slots, language) {
@@ -8507,7 +8507,7 @@ var WORDS = {
   "playbook.run": "A campaign ran",
   "playbook.changed": "A campaign was edited",
   "template.submitted": "A message was sent to WhatsApp for approval",
-  "template.removed": "A message was deleted from the Library",
+  "template.removed": "A message was deleted from Messages",
   "member.joined": "Joined the workspace",
   "member.left": "Left the workspace",
   "reach_out.lead_stopped": "A reach-out stopped writing to a lead",
@@ -8705,15 +8705,15 @@ function sendFailedWords(p, base) {
 }
 function runEndWords(kind, p, base) {
   const bits2 = [];
-  const sent2 = numberAt(p, "sent");
+  const sent = numberAt(p, "sent");
   if (kind === "broadcast.sent") {
     const held = numberAt(p, "held");
-    if (sent2 !== null) bits2.push(`${sent2} got it`);
+    if (sent !== null) bits2.push(`${sent} got it`);
     if (held) bits2.push(`${held} held`);
   } else {
     const failure = textAt(p, "failure");
     if (failure) bits2.push(broadcastFailureWords(failure));
-    if (sent2 !== null) bits2.push(sent2 ? `${sent2} got it first` : "nobody got it");
+    if (sent !== null) bits2.push(sent ? `${sent} got it first` : "nobody got it");
   }
   return [base, ...bits2].join(" \xB7 ");
 }
@@ -11867,7 +11867,7 @@ var REPORT_LENSES = [
     empty: (r2) => ({
       title: "Nothing went out",
       body: `No broadcast or campaign run reached anyone between ${r2.since} and ${r2.until}, and nobody said yes or asked to stop.`,
-      door: { label: "Open Sent", to: "broadcasts" }
+      door: { label: "Open Sequences", to: "campaigns/sequences" }
     })
   },
   {
@@ -12685,13 +12685,6 @@ var FLAGS = [
     sunset: "2026-12-31"
   },
   {
-    name: "sequences_preview",
-    mechanism: "workspace_feature",
-    does: "Campaigns \u203A Sequences, the one page for everything the workspace sends on its own (0060), drawn in this workspace before it replaces Campaigns' home, Sent and the Library.",
-    owner: "Ruben",
-    sunset: "2026-12-31"
-  },
-  {
     name: "ANTHROPIC_EVAL_KEY",
     mechanism: "ci_secret",
     does: "Runs the nightly evals (nightly-evals.yml) on a sandbox key; unset, the job says it skipped.",
@@ -12720,13 +12713,13 @@ var FLAGS = [
 // src/ai/turn.ts
 var MODEL_TURN_WRITE_MS = 1500;
 var MODEL_TURN_TEXT_MAX = 2e4;
-function modelTurnRequestOf(sent2) {
+function modelTurnRequestOf(sent) {
   return {
-    now: sent2.now ?? null,
-    who: sent2.who ?? null,
-    steer: sent2.steer ?? null,
-    messages: sent2.messages.map((m) => ({ role: m.role, content: m.content })),
-    photo: sent2.photoType ?? null
+    now: sent.now ?? null,
+    who: sent.who ?? null,
+    steer: sent.steer ?? null,
+    messages: sent.messages.map((m) => ({ role: m.role, content: m.content })),
+    photo: sent.photoType ?? null
   };
 }
 function modelTurnResponseOf(stopReason, record2, text) {
@@ -13156,12 +13149,12 @@ function monthSentAt(read, at3) {
   if (next && at3 >= next.from) return next.sent;
   return read.month_sent ?? null;
 }
-function allowanceRoom(channel, sent2) {
-  return Math.max(0, CAMPAIGN_MONTH_ALLOWANCE[channel] - sent2);
+function allowanceRoom(channel, sent) {
+  return Math.max(0, CAMPAIGN_MONTH_ALLOWANCE[channel] - sent);
 }
-function pastAllowance(people, sent2, trigger, purpose) {
+function pastAllowance(people, sent, trigger, purpose) {
   if (!heldByAllowance(trigger, purpose)) return [];
-  const room = { email: allowanceRoom("email", sent2.email), sms: allowanceRoom("sms", sent2.sms) };
+  const room = { email: allowanceRoom("email", sent.email), sms: allowanceRoom("sms", sent.sms) };
   const past = [];
   for (const p of people) {
     if (p.channel === "whatsapp") continue;
@@ -13175,11 +13168,11 @@ function sends(channel, n) {
   return `${n.toLocaleString("en-US")} ${n === 1 ? one : `${one}s`}`;
 }
 var peopleWord = (n) => `${n.toLocaleString("en-US")} ${n === 1 ? "person" : "people"}`;
-function allowanceBeforeSend(byChannel, sent2, trigger, purpose) {
-  if (!sent2 || !heldByAllowance(trigger, purpose)) return null;
+function allowanceBeforeSend(byChannel, sent, trigger, purpose) {
+  if (!sent || !heldByAllowance(trigger, purpose)) return null;
   const lines = [];
   for (const channel of ["email", "sms"]) {
-    const room = allowanceRoom(channel, sent2[channel]);
+    const room = allowanceRoom(channel, sent[channel]);
     const past = byChannel[channel] - room;
     if (past <= 0) continue;
     lines.push(
@@ -13194,9 +13187,9 @@ function allowanceLine(channel, used) {
   const noun = channel === "email" ? "emails" : "texts";
   return `${used.toLocaleString("en-US")} of ${of.toLocaleString("en-US")} ${noun} used this month`;
 }
-function allowanceLines(sent2) {
-  if (!sent2) return [];
-  return ["email", "sms"].flatMap((channel) => allowanceLine(channel, sent2[channel]) ?? []);
+function allowanceLines(sent) {
+  if (!sent) return [];
+  return ["email", "sms"].flatMap((channel) => allowanceLine(channel, sent[channel]) ?? []);
 }
 
 // src/ask/ask-suggestions.ts
@@ -13917,33 +13910,26 @@ function calendarLinkNote(withWhat, bookingLink) {
 // src/shell/campaign-rooms.ts
 var CAMPAIGN_ROOMS = {
   home: "Campaigns",
-  sent: "Sent",
-  library: "Library",
+  library: "Messages",
   newMessage: "New message"
 };
-var { sent, library } = CAMPAIGN_ROOMS;
-var PLAYBOOK_DELETE_WORDS = {
-  /** The toast's tail, after the playbook's name. */
-  done: `deleted \u2014 its runs stay in ${sent} with their numbers`,
-  /** The question's detail. */
-  detail: `Its runs stay in ${sent} with their numbers.`
-};
+var { library } = CAMPAIGN_ROOMS;
 var NO_TEMPLATE_WORDS = {
-  lead: "No message to send yet \u2014 add the starter set, or write one in the",
+  lead: "No message to send yet \u2014 add the starter set, or write one in",
   link: library
 };
 function noMessageWords(forThisMoment) {
   return {
-    lead: `No message ${forThisMoment ? "for this moment " : ""}yet \u2014 write one in the`,
+    lead: `No message ${forThisMoment ? "for this moment " : ""}yet \u2014 write one in`,
     link: library
   };
 }
 var LIBRARY_WORDS = {
   title: library,
-  demo: `The ${library} reads a real workspace \u2014 the messages it holds, by email, text and WhatsApp.`,
-  reading: `Reading the ${library}\u2026`,
-  failed: `The ${library} couldn\u2019t be loaded right now`,
-  failedWhat: `the ${library}`,
+  demo: `${library} reads a real workspace \u2014 the messages it holds, by email, text and WhatsApp.`,
+  reading: "Reading your messages\u2026",
+  failed: "Your messages couldn\u2019t be loaded right now",
+  failedWhat: "your messages",
   failedBody: "The receptionist keeps sending; this page just can't show what it holds at the moment.",
   /** The count's hover: what the Library holds is every message, on each channel it goes by, whoever writes its versions. */
   headTip: "What the receptionist and your campaigns send, as the customer sees it. A WhatsApp version is approved by WhatsApp, usually within minutes, whether it is written here or in WhatsApp Manager; an email or a text is ready the moment it is saved. A marketing message can only go to people who said yes to offers.",
@@ -13984,14 +13970,14 @@ var LIBRARY_STARTER_WORDS = {
   /** The route's refusal when the channels it is asked for are none it knows. */
   pickAChannel: "Pick at least one channel: WhatsApp, email or text.",
   /** A new campaign named by a starter that is not its moment's own, or by no starter the set has (A0). */
-  notThisMoment: (moment2) => `That starter is not one \u201C${moment2}\u201D goes by: name the moment's own starter, or a message from the Library.`,
+  notThisMoment: (moment2) => `That starter is not one \u201C${moment2}\u201D goes by: name the moment's own starter, or one of your messages.`,
   /** A starter whose words are the owner's to write (the month's offer): it is started from the composer. */
   takesOwnWords: (title) => `The \u201C${title}\u201D starter takes words of its own: write them in the composer and start it there.`,
   /**
-   * A starter the workspace hid in its Library: it has a version, and no card adds it back, so the way out is to show it
+   * A starter the workspace hid in its messages: it has a version, and no card adds it back, so the way out is to show it
    * again or to go by another message, never the starter set, which leaves a hidden one hidden.
    */
-  hiddenInLibrary: (title) => `The \u201C${title}\u201D starter is hidden in this workspace's ${library}: show it again under ${CAMPAIGN_ROOMS.home} \u203A ${library}, or name another message.`,
+  hiddenInLibrary: (title) => `The \u201C${title}\u201D starter is hidden in this workspace: show it again under ${CAMPAIGN_ROOMS.home} \u203A ${library}, or name another message.`,
   /** What a new campaign's card does first where the workspace does not hold its moment's starter (A0). */
   addsFirst: (title) => `adds the \u201C${title}\u201D starter first`,
   /**
@@ -14012,12 +13998,12 @@ var LIBRARY_STARTER_WORDS = {
    */
   waitsForWhatsApp: (title, on, could) => could ? `The \u201C${title}\u201D starter can send nothing ${on} until WhatsApp approves its WhatsApp version: let the campaign go ${could} too, or start it once WhatsApp has.` : `The \u201C${title}\u201D starter can send nothing ${on} until WhatsApp approves its WhatsApp version: start the campaign once WhatsApp has.`,
   /** The starter was judged and filing it failed, so no campaign was started (a version refused, or none to send). */
-  notAdded: "The starter message could not be added just now, so nothing was started. Try again, or add it from the Library.",
+  notAdded: "The starter message could not be added just now, so nothing was started. Try again, or add it from Messages.",
   /**
    * The same, where its WhatsApp version did reach WhatsApp (sent for review, or found in the number's account): that
    * version is in the Library and stays there, and a second press sends nothing to WhatsApp again.
    */
-  notAddedSentForReview: "The starter's WhatsApp version went to WhatsApp for review and is in the Library, but the campaign could not be started just now. Try again: nothing is sent to WhatsApp twice."
+  notAddedSentForReview: "The starter's WhatsApp version went to WhatsApp for review and is in Messages, but the campaign could not be started just now. Try again: nothing is sent to WhatsApp twice."
 };
 var BROADCAST_WORDS = {
   tip: "One message, on the channels it holds, to the people who said yes. Replies land in the Inbox, where the receptionist answers them."
@@ -14061,7 +14047,7 @@ function runStopWords(state) {
 }
 var OFFERS_IN_WRITING_WORDS = {
   lead: "The carriers require it: their own message, or a sign-up form they signed \u2014 ",
-  link: `print one in ${sent}`
+  link: "print one from Get their yes"
 };
 
 // src/playbooks/lifecycle/lifecycle-words.ts
@@ -14117,12 +14103,12 @@ var LIFECYCLE_WORDS = {
   onTrial: (day) => `On trial until ${day}`,
   gone: {
     title: "That campaign isn't here any more.",
-    body: "Its runs stay in Sent, with their numbers."
+    body: "Its runs are still counted in Reports, with their numbers."
   },
   /** A message's own drawer over the home (`campaigns/message:<name>`) whose name leads to no message any more. */
   messageGone: {
     title: "That message isn't here any more.",
-    body: "Every message you keep is in the Library."
+    body: "Every message you keep is in Messages."
   },
   compose: {
     title: CAMPAIGN_ROOMS.newMessage,
@@ -14213,10 +14199,10 @@ var LIFECYCLE_WORDS = {
       /** An edit's changes, counted in its foot: "2 changes · from the next run". */
       changes: (n) => `${plural(n, "change", "changes")} \xB7 from the next run`,
       /** The foot of a Turn on whose moment's own message is not in the Library yet: the one press adds it, then starts. */
-      addsFirst: (title) => `Adds ${title} to your Library, then turns it on.`,
+      addsFirst: (title) => `Adds ${title} to your messages, then turns it on.`,
       /** The message under its preview: "Visit reminder · written for you", and its door. */
       writtenForYou: "written for you",
-      /** Beside the moment's own message, not added yet: the word that picks one of the Library's instead. */
+      /** Beside the moment's own message, not added yet: the word that picks another of your messages instead. */
       another: "another message",
       change: "Change",
       open: "Open",
@@ -14276,7 +14262,7 @@ var LIFECYCLE_WORDS = {
     // The templates are the settings read's, the one read of them (apps/dashboard offered-templates.ts): its Retry reads that.
     templates: {
       what: "your templates",
-      body: "The call's text and the Library's count show once they read. Everything else here is current.",
+      body: "The call's text and your messages show once they read. Everything else here is current.",
       surface: "settings"
     },
     counts: {
@@ -14405,8 +14391,6 @@ var LIFECYCLE_WORDS = {
   coming: {
     title: "Coming up",
     window: "next 7 days",
-    // Its door goes to Sent's week (spec 2026-10-09 §4.3), where every run is read.
-    link: CAMPAIGN_ROOMS.sent,
     rules: `Sends wait for ${SENDING_HOURS_WORDS.range} \xB7 one a week per person, across every moment`,
     empty: "Nothing is set to go out in the next 7 days.",
     nobody: "Nobody",
@@ -14457,11 +14441,8 @@ var LIFECYCLE_TOAST = {
   resumed: (name) => [{ b: name }, " resumed"],
   paused: (name) => [{ b: name }, " paused"],
   changed: (name) => [{ b: name }, " changed"],
-  // A new playbook's next run is under Coming up, by the business's clock; there is no card to look on any more.
-  running: (name) => [
-    { b: name },
-    " is running \u2014 its next run is under Coming up, by your clock"
-  ],
+  // A new campaign is running: its sequence opens as this is said (campaigns/home/sheets.tsx), its next batch on it.
+  running: (name) => [{ b: name }, " is running"],
   /** The name of a line the page has no row for, where a toast must name it. */
   nameless: "It",
   /**
@@ -15724,7 +15705,7 @@ var MESSAGE_BEGIN_WORDS = {
    * Its own sentence, since customIsAnOffer (POST templates/versions's) is not true of this door.
    */
   utilityNeedsWhatsapp: `A message ${THEIRS_WORDS}, needs a WhatsApp version, which WhatsApp reviews.`,
-  starterNeedsItsOwnWords: "A starter begins with its own words. Add the starter set, then change the words in the Library.",
+  starterNeedsItsOwnWords: "A starter begins with its own words. Add the starter set, then change the words in Messages.",
   doorNotSwitchedOn: "Writing a message with no WhatsApp version is not switched on here yet.",
   /**
    * A message written whole in a language of a message already on file in another, said as something else (POST
@@ -16060,7 +16041,7 @@ var MESSAGE_WORDS = {
     );
     if (said.length === 0) return `\u201C${name}\u201D was not filed${refused ? `: ${refused.words}` : ""}`;
     const not = refused ? ` \xB7 its ${versionWord(refused.channel)} version was not filed: ${refused.words}` : "";
-    return `\u201C${name}\u201D is in the ${CAMPAIGN_ROOMS.library} \u2014 ${said.join("; ")}${not}`;
+    return `\u201C${name}\u201D is in ${CAMPAIGN_ROOMS.library} \u2014 ${said.join("; ")}${not}`;
   },
   /** The undo's button: the email and text versions it deletes; none where the card writes none. */
   undo: (own) => own.length > 0 ? `Delete its ${versionsWords(own)}` : null,
@@ -17613,7 +17594,7 @@ var LIST_STEPS = {
   new_week: {
     cta: "Get their yes",
     to: GET_YES_ROUTE,
-    text: "Their yes to offers is the phrase and the QR under Get their yes in Sent.",
+    text: "Their yes to offers is the phrase and the QR under Get their yes.",
     answered: { cta: USE_IN_A_BROADCAST, to: "broadcasts/new_week" }
   },
   booked_week: { cta: "See the week", to: "calendar", text: "Their bookings are on the Calendar." },
@@ -18369,7 +18350,7 @@ var OUTLASTS_TOMORROW = /* @__PURE__ */ new Set(["provider_limit", "template_not
 function wireFailure(code2, channel) {
   return channel === "whatsapp" ? code2 : `${code2}:${channel}`;
 }
-var WHATSAPP_VERSION_FIX_WORDS = "Open it in the Library \u2014 its WhatsApp version can be resubmitted, or the message written as an email or a text.";
+var WHATSAPP_VERSION_FIX_WORDS = "Open it in Messages \u2014 its WhatsApp version can be resubmitted, or the message written as an email or a text.";
 var BROADCAST_FAILURE_FIX = {
   paused: "Unpause it under Settings, then send it again.",
   template_not_approved: WHATSAPP_VERSION_FIX_WORDS,
@@ -18477,9 +18458,9 @@ var STATUS_WORDS = {
 };
 function receiptWords(r2, clock3) {
   const parts2 = [];
-  const sent2 = clock3(r2.sent_at);
+  const sent = clock3(r2.sent_at);
   parts2.push(
-    sent2 ? `sent ${sent2}` : r2.message_status && STATUS_WORDS[r2.message_status] || r2.message_status || "sent"
+    sent ? `sent ${sent}` : r2.message_status && STATUS_WORDS[r2.message_status] || r2.message_status || "sent"
   );
   const delivered = clock3(r2.delivered_at);
   const read = clock3(r2.read_at);
@@ -18518,14 +18499,14 @@ function cutOffWordsOf(state) {
 function runFactsOf(d, opts) {
   const clock3 = opts.clock ?? ((iso) => iso);
   const reached = d.recipients.filter((r2) => r2.state === "sent");
-  const sent2 = reached.length;
+  const sent = reached.length;
   const delivered = reached.filter((r2) => r2.message_status === "delivered" || r2.message_status === "read");
   const replied = reached.filter((r2) => r2.replied);
   const waiting = replied.filter((r2) => r2.waiting_on_you).length;
   const yes = reached.filter((r2) => r2.consent_after === "opted_in");
   const stopped = reached.filter((r2) => r2.consent_after === "opted_out");
   const { start, spanH, step: step2 } = barSpanOf(reached, opts);
-  const never = sent2 - delivered.length;
+  const never = sent - delivered.length;
   const greets = (d.broadcast?.params ?? []).some((p) => p && p.kind === "first_name");
   const cutOff = cutOffWordsOf(d.broadcast?.state);
   const channelsSaid = d.recipients.some((r2) => {
@@ -18536,7 +18517,7 @@ function runFactsOf(d, opts) {
     d,
     clock: clock3,
     reached,
-    sent: sent2,
+    sent,
     delivered,
     replied,
     waiting,
@@ -18561,7 +18542,7 @@ function barsOf({ start, step: step2 }, stamps) {
   }
   return out;
 }
-var pctOf = ({ sent: sent2 }, n) => n > 0 ? pct(n, sent2) : null;
+var pctOf = ({ sent }, n) => n > 0 ? pct(n, sent) : null;
 var PERSON_PILLS = [
   // A STOP is the one pill and the one tone everywhere (consent.ts STOP_WORDS): it was amber here, grey on People.
   (r2, { out }) => r2.consent_after === "opted_out" && out ? { label: STOP_WORDS.pill, tone: STOP_WORDS.tone } : null,
@@ -18652,12 +18633,12 @@ function repliesOf({ replied, clock: clock3 }) {
     to: r2.conversation_id ? `inbox/th-${r2.conversation_id}` : null
   }));
 }
-function runStopOf({ d, sent: sent2 }) {
+function runStopOf({ d, sent }) {
   const failed = d.broadcast?.state === "failed";
   const code2 = d.broadcast?.failure ?? null;
   return failed ? {
     words: broadcastFailureWords(code2),
-    fix: broadcastFailureFix(code2, sent2, {
+    fix: broadcastFailureFix(code2, sent, {
       playbook_id: d.broadcast?.playbook_id ?? null,
       trigger: audienceTrigger(d.broadcast?.audience)
     }),
@@ -19766,7 +19747,7 @@ function waitingRunsDoor(waiting) {
   return toSend && toSend.runs.length === waiting.length ? TO_SEND_ROUTE : "broadcasts";
 }
 var REACH_OUT_RUN_LABELS = {
-  back: "Back to Sent",
+  back: "Back to Sequences",
   approving: "Approving\u2026",
   skip: "Skip this run",
   skipYes: "Yes, skip it",
@@ -19794,7 +19775,7 @@ function heldNoticeWords(p) {
   const say2 = doors.length > 1 ? `${doors.slice(0, -1).join(", ")} or ${doors[doors.length - 1]}` : doors[0] ?? "";
   return {
     subject: `The check held ${plural(p.held, "email", "emails")} in ${p.name}`,
-    body: `${p.held === 1 ? "It waits" : "They wait"} for your say on the run in Sent${say2 ? `: ${say2}` : ""}. The rest of the run goes as planned.`
+    body: `${p.held === 1 ? "It waits" : "They wait"} for your say on its run${say2 ? `: ${say2}` : ""}. The rest of the run goes as planned.`
   };
 }
 
@@ -19822,6 +19803,7 @@ function sequenceLandingOf(route) {
     const moment2 = /^moment:([^:/]+)(:people)?$/.exec(param);
     if (moment2?.[1]) return sequenceRoute(moment2[1], moment2[2] ? "people" : "steps");
   }
+  if (root === "broadcasts" && param === "") return SEQUENCES_ROUTE;
   const run = root === "broadcasts" && rest === void 0 ? /^run:([^:/]+)$/.exec(param) : null;
   if (run?.[1]) return sequenceRoute(run[1], "history", run[1]);
   return null;
@@ -19941,8 +19923,8 @@ function previewParts(channels, o) {
     }
     const words2 = o.versions[channel];
     if (!words2) return { missing: channel, why: noVersionWords(channel) };
-    const sent2 = renderOwnVersion(channel, words2, o.values, o.language);
-    parts2.push({ channel, label, subject: sent2.subject, body: sent2.body });
+    const sent = renderOwnVersion(channel, words2, o.values, o.language);
+    parts2.push({ channel, label, subject: sent.subject, body: sent.body });
   }
   return { parts: parts2 };
 }
@@ -20452,7 +20434,7 @@ var CUSTOMER_MESSAGE_SKILL = {
   role: "You write the messages a small business sends its own customers on WhatsApp, by email and by text: the words they read under the business's name. You are handed the business, the message it wants (its kind, its language, its values) and a first draft of it. You write it again, as well as it can be written, every version the draft has, in its language, and answer in the JSON asked for.",
   when: {
     jobs: [
-      "A new message for the business's Library, on WhatsApp, by email or by text, in English or Spanish.",
+      "A new message for the business's Messages, on WhatsApp, by email or by text, in English or Spanish.",
       "An offer, news, an invitation back, a thank-you, a reminder, or a request for a review.",
       "The message a plan writes for its offers, which later offers reuse."
     ],
@@ -20866,7 +20848,7 @@ var ASK_PAGE_ROUTES = [
   "live",
   "calendar",
   "campaigns",
-  // Campaigns › Sequences (decision 0060): drawn where its preview is on, the home elsewhere, so either way a page.
+  // Campaigns › Sequences (decision 0060): everything that sends on its own.
   "campaigns/sequences",
   "outbound",
   "broadcasts",
@@ -22588,8 +22570,8 @@ var ASK_PAGES2 = [
   { label: "Conversations", to: "conversations", kind: "page" },
   { label: "Calls", to: "live", kind: "page", sub: "live and recent" },
   { label: "Calendar", to: "calendar", kind: "page", sub: "taken, open and closed times" },
-  // Campaigns' home (3 Oct 2026): the moments that go out on their own, and what is sent by hand. The old Playbooks list was
-  // `outbound`, which lands here; the name it went by still finds it.
+  // Campaigns (3 Oct 2026), which is Sequences (decision 0060): what goes out on its own, and what is sent by hand. The old
+  // Playbooks list was `outbound`, which lands here; the name it went by still finds it.
   {
     label: "Campaigns",
     to: "campaigns",
@@ -22597,21 +22579,22 @@ var ASK_PAGES2 = [
     sub: "what goes out on its own, and what you send yourself",
     also: ["playbooks", "moments"]
   },
-  // Campaigns' rooms: Sent (the runs, and the send screen) and the Library (the wording). Each is still found by the name it
-  // went by, which people learned and still type.
+  // Campaigns › Sequences by its own name, and by what the old pages were called: Sent's list went to each sequence's
+  // History (D3), so its names find it.
   {
-    label: "Sent",
-    to: "broadcasts",
+    label: "Sequences",
+    to: "campaigns/sequences",
     kind: "page",
-    sub: "one message to the people who said yes",
-    also: ["broadcasts"]
+    sub: "everything that sends on its own",
+    also: ["automations", "follow-ups", "drip", "sent", "broadcasts"]
   },
+  // Campaigns' Messages (D4: it was the Library), found too by the names it went by, which people learned and still type.
   {
-    label: "Library",
+    label: "Messages",
     to: "messages",
     kind: "page",
     sub: "the wording the receptionist and the campaigns send",
-    also: ["templates", "messages", "wording"]
+    also: ["templates", "library", "wording"]
   },
   { label: "Reports", to: "reports", kind: "page" },
   ...LENS_JUMPS,
@@ -22642,13 +22625,6 @@ var ASK_PAGES2 = [
     also: ["ai memory"]
   }
 ];
-var SEQUENCES = {
-  label: "Sequences",
-  to: "campaigns/sequences",
-  kind: "page",
-  sub: "everything that sends on its own",
-  also: ["automations", "follow-ups", "drip"]
-};
 var PIPELINE = {
   label: "Pipeline",
   to: "clients/pipeline",
@@ -22668,7 +22644,6 @@ function askPages(has3) {
   for (const p of ASK_PAGES2) {
     out.push(p);
     if (p.to === "clients/leads" && has3.dealsOn) out.push(PIPELINE);
-    if (p.to === "campaigns" && has3.sequences) out.push(SEQUENCES);
     if (p.to === lastLens && has3.dealsOn) out.push(...DEALS_LENS_JUMPS);
   }
   if (has3.platformAdmin) out.push(BACK_OFFICE);
@@ -22798,7 +22773,7 @@ var EN = {
   noText: CHANNEL_WORDS.noOffersByText,
   without: (channel, why) => `It goes without ${versionWord(channel)}: ${reasonEn(why)}`,
   reviewing: (name) => `WhatsApp is still reviewing the WhatsApp version of \u201C${name}\u201D.`,
-  reuseMessage: (name) => `Sends \u201C${name}\u201D, already in the Library, with the offer in its words.`,
+  reuseMessage: (name) => `Sends \u201C${name}\u201D, already in your messages, with the offer in its words.`,
   writeMessage: (name, on) => `Writes a message for offers, \u201C${name}\u201D, for ${joinWords(on.map(versionWord))}: this offer goes in its words, and the next offer can send it too.`,
   noteMade: (until) => `Tells the receptionist about the offer, until ${until}.`,
   noteKnown: "The receptionist already has a note about the offer.",
@@ -23128,7 +23103,7 @@ var PLAN_WORDS = {
   /** A change to a campaign a step makes: what is said without the campaign's row (its other fields are its step's). */
   stepChangeOnly: (n) => `A change to the campaign made by step ${n} takes state paused, params or until: the rest is the step's own to say.`,
   why: {
-    message: "No message in the Library carries an offer on every channel this one goes by.",
+    message: "None of your messages carries an offer on every channel this one goes by.",
     // What the note does, never what the receptionist will say of it: a discount in a reply is a person's whatever the
     // price switch says (decision 0051, price-allowance.ts), so the reply that names it may be held for one.
     note: "So the receptionist knows the offer and when it runs.",
@@ -24113,24 +24088,24 @@ function proposalMessage(url) {
 function proposalAction(reach, sentWords2) {
   const { via, window: win } = reach;
   const again = sentWords2 ? " again" : "";
-  const sent2 = sentWords2 ? ` \xB7 sent ${sentWords2}` : "";
+  const sent = sentWords2 ? ` \xB7 sent ${sentWords2}` : "";
   const notReady = (title) => ({ label: "Send the proposal", title, ready: false });
   if (via === "Email")
     return reach.emailStopped ? notReady(EMAIL_CANT_REACH) : {
       label: `Email the proposal${again}`,
-      title: `Opens the thread with the proposal link ready to send by email${sent2}`,
+      title: `Opens the thread with the proposal link ready to send by email${sent}`,
       ready: true
     };
   if (via === "Text")
     return {
       label: `Text the proposal${again}`,
-      title: `Opens the thread with the proposal link ready to send as a text${sent2}`,
+      title: `Opens the thread with the proposal link ready to send as a text${sent}`,
       ready: true
     };
   if (win && win.open)
     return {
       label: `Send the proposal${again}`,
-      title: `Opens the thread with the proposal link ready to send \xB7 any message for ${win.hoursLeft}h more${sent2}`,
+      title: `Opens the thread with the proposal link ready to send \xB7 any message for ${win.hoursLeft}h more${sent}`,
       ready: true
     };
   return notReady("Only an approved message reaches them until they write again, so the proposal waits until they do");
@@ -24634,7 +24609,7 @@ function failedMark(r2, name, tz) {
   };
 }
 function wentMark(day, runs) {
-  const sent2 = runs.reduce((n, x) => n + x.r.sent, 0);
+  const sent = runs.reduce((n, x) => n + x.r.sent, 0);
   const one = runs.length === 1 ? runs[0] : void 0;
   return {
     key: `campaigns:${day}`,
@@ -24642,7 +24617,7 @@ function wentMark(day, runs) {
     t: null,
     time: "",
     name: one ? one.name : RUN_WORDS.many,
-    words: RUN_WORDS.sent(sent2),
+    words: RUN_WORDS.sent(sent),
     tone: "plain",
     ahead: false,
     cold: false,
@@ -24657,10 +24632,10 @@ function wentMark(day, runs) {
   };
 }
 function coldMark(day, playbookId, name, runs, todayKey) {
-  const sent2 = runs.reduce((n, r2) => n + r2.sent, 0);
+  const sent = runs.reduce((n, r2) => n + r2.sent, 0);
   const planned = runs.filter((r2) => r2.state === "scheduled").reduce((n, r2) => n + r2.recipient_count, 0);
   const waiting = runs.some((r2) => r2.state === "pending_approval") && day >= todayKey;
-  const words2 = waiting ? RUN_WAITING_WORDS : sent2 ? RUN_WORDS.written(sent2) : RUN_WORDS.planned(planned);
+  const words2 = waiting ? RUN_WAITING_WORDS : sent ? RUN_WORDS.written(sent) : RUN_WORDS.planned(planned);
   const first = runs[0];
   return {
     key: `cold:${playbookId}:${day}`,
@@ -24670,7 +24645,7 @@ function coldMark(day, playbookId, name, runs, todayKey) {
     name,
     words: words2,
     tone: waiting ? "warn" : "plain",
-    ahead: waiting || !sent2 && planned > 0,
+    ahead: waiting || !sent && planned > 0,
     cold: true,
     route: runs.length === 1 && first ? addressOf({ kind: "send", id: first.id }) : "broadcasts",
     door: CALENDAR_RUN_DOORS.sent,
@@ -27460,10 +27435,10 @@ function dealNextAct(p, nowMs, deal = p.deal) {
   if (!url) return act("edit");
   if (deal.proposal?.sending) return act("won");
   const send = dealSendOf(p);
-  const sent2 = sentOf(p, deal);
+  const sent = sentOf(p, deal);
   const words2 = (text) => send.can ? { text } : { hint: DEAL_ACT_HINTS.approved };
-  if (!sent2 && send.reach) return act("send", words2(proposalMessage(url)));
-  if (sent2 && send.reach && followUpOn(p, deal)?.kind !== "will" && waitingOnProposal({ deal, askedMs: p.askedMs ?? null }, nowMs, p.dealPace ?? null))
+  if (!sent && send.reach) return act("send", words2(proposalMessage(url)));
+  if (sent && send.reach && followUpOn(p, deal)?.kind !== "will" && waitingOnProposal({ deal, askedMs: p.askedMs ?? null }, nowMs, p.dealPace ?? null))
     return act("follow-up", words2(proposalFollowUp(url)));
   return act("won");
 }
@@ -29824,6 +29799,11 @@ var GET_YES_PAUSED_WORDS = {
   note: "not taking sign-ups while the workspace is paused",
   body: `${WORKSPACE_PAUSED_FACT}. Meanwhile your sign-up page, desk sign and paper form tell customers you are not taking sign-ups, and there is no code or link to hand out. Resume it from Settings \u203A Billing.`
 };
+var GET_YES_NO_NUMBER_WORDS = {
+  note: "no code without a WhatsApp number",
+  body: "The code, the phrase and the desk sign come with your WhatsApp number. Until it is connected, record a customer's yes on their profile.",
+  door: { label: "Open Connections", to: "admin/integrations" }
+};
 var YES_WHILE_PAUSED = {
   details: "The customer said yes while the workspace is paused, so the confirmation of their yes was not sent. When the workspace runs again, send it from the Inbox.",
   answered: "(the confirmation of their yes waits: the workspace is paused)"
@@ -30911,12 +30891,12 @@ function invitationExpired(inv, nowMs) {
 }
 function invitationWords(inv, tz, nowMs) {
   const sentAt = inv.createdAt ? Date.parse(inv.createdAt) : NaN;
-  const sent2 = Number.isNaN(sentAt) ? null : `invited ${clockDate(sentAt, tz, nowMs)}`;
+  const sent = Number.isNaN(sentAt) ? null : `invited ${clockDate(sentAt, tz, nowMs)}`;
   const at3 = inv.expiresAt ? Date.parse(inv.expiresAt) : NaN;
-  if (Number.isNaN(at3)) return { expired: false, sent: sent2, left: null };
-  if (invitationExpired(inv, nowMs)) return { expired: true, sent: sent2, left: null };
+  if (Number.isNaN(at3)) return { expired: false, sent, left: null };
+  if (invitationExpired(inv, nowMs)) return { expired: true, sent, left: null };
   const days = Math.ceil((at3 - nowMs) / DAY_MS);
-  return { expired: false, sent: sent2, left: days <= 1 ? "expires today" : `${days} days left` };
+  return { expired: false, sent, left: days <= 1 ? "expires today" : `${days} days left` };
 }
 function youJoinedWords(names3) {
   if (!names3.length) return null;
@@ -31451,10 +31431,10 @@ var DEAL_CARD_WORDS = {
   sending: "Sending",
   openLink: "Open the proposal in a new tab"
 };
-function sentWords(sent2, tz, nowMs) {
-  const at3 = Date.parse(sent2.at);
+function sentWords(sent, tz, nowMs) {
+  const at3 = Date.parse(sent.at);
   const day = Number.isFinite(at3) ? ` ${clockDate(at3, tz, nowMs)}` : "";
-  const on = sent2.via === "WhatsApp" ? " on WhatsApp" : sent2.via === "Email" ? " by email" : sent2.via === "Text" ? " as a text" : "";
+  const on = sent.via === "WhatsApp" ? " on WhatsApp" : sent.via === "Email" ? " by email" : sent.via === "Text" ? " as a text" : "";
   return `Sent${day}${on}`;
 }
 function consultationWas(atMs, tz, nowMs) {
@@ -31513,13 +31493,13 @@ function cardOf2(p, deal, nowMs, tz, consultation) {
   const facts = [];
   const flags = [];
   if (!won) {
-    const sent2 = sentOf(p, deal);
+    const sent = sentOf(p, deal);
     facts.push(
-      !deal.proposal ? DEAL_CARD_WORDS.noLink : deal.proposal.sending ? DEAL_CARD_WORDS.sending : sent2 ? sentWords(sent2, tz, nowMs) : DEAL_CARD_WORDS.notSent
+      !deal.proposal ? DEAL_CARD_WORDS.noLink : deal.proposal.sending ? DEAL_CARD_WORDS.sending : sent ? sentWords(sent, tz, nowMs) : DEAL_CARD_WORDS.notSent
     );
     if (deal.validUntil && !deal.validUntil.lapsed) facts.push(deal.validUntil.words);
     if (deal.validUntil?.lapsed) flags.push({ words: deal.validUntil.words, tone: "warn" });
-    if ((sent2 || !deal.proposal) && waitingOnProposal({ deal, askedMs: p.askedMs ?? null }, nowMs, p.dealPace ?? null)) {
+    if ((sent || !deal.proposal) && waitingOnProposal({ deal, askedMs: p.askedMs ?? null }, nowMs, p.dealPace ?? null)) {
       const fu = followUpOn(p, deal);
       flags.push(
         fu?.kind === "will" ? { words: followUpWords(fu, tz, nowMs), tone: "info" } : { words: `Nothing back in ${deal.waitingDays ?? 0} days`, tone: "warn" }
@@ -36498,8 +36478,8 @@ function dealsListOf(d, tz, nowMs) {
   return (d.deals ?? []).map((x) => toDealVM(x, tz, nowMs)).filter((x) => !!x).map((x) => {
     if (!x.proposal) return x;
     const url = x.proposal.url;
-    const sent2 = proposalSent(d.conversations, url);
-    return { ...x, proposal: { ...x.proposal, sent: sent2, sending: proposalSending(d.conversations, url) } };
+    const sent = proposalSent(d.conversations, url);
+    return { ...x, proposal: { ...x.proposal, sent, sending: proposalSending(d.conversations, url) } };
   });
 }
 function firstChannelOf(d, base) {
@@ -38081,7 +38061,7 @@ function personPageOf(p, d, tz, now) {
   const visitsSeen = p.timeline.filter((t) => t.kind === "visit").length;
   const earlier = d.visits?.earlier;
   const earlierSaid = (earlier?.kept ?? 0) + (earlier?.missed ?? 0);
-  const sent2 = reachOut ? reachOut.sends.filter((x) => !!x.sent_at).length : 0;
+  const sent = reachOut ? reachOut.sends.filter((x) => !!x.sent_at).length : 0;
   const figures = personFiguresOf({
     thin,
     last: p.lastContact.ts !== null ? { value: clockDate(p.lastContact.ts, tz, nowMs), sub: p.lastContact.by } : null,
@@ -38095,7 +38075,7 @@ function personPageOf(p, d, tz, now) {
       toMark: p.visitTab.head.toMark,
       any: p.calendar === "ok" && (p.comingUp.length > 0 || visitsSeen > 0 || earlierSaid > 0)
     },
-    emails: reachOut ? { out: sent2, back: reachOut.readings.filter((r2) => !r2.undone).length } : null,
+    emails: reachOut ? { out: sent, back: reachOut.readings.filter((r2) => !r2.undone).length } : null,
     dealsOn: p.dealsOn
   });
   const tabFacts = {
@@ -38507,7 +38487,7 @@ function todayRunWords(r2) {
   const one = r2.recipient_count === 1;
   const people = reach ? `${r2.recipient_count} ${one ? "business" : "businesses"}` : `${r2.recipient_count} ${one ? "person" : "people"}`;
   const kind = reach ? "Reach-out" : "Campaign";
-  const sent2 = `${r2.counts.sent} sent`;
+  const sent = `${r2.counts.sent} sent`;
   const held = `${heldEmailsWords(r2.held ?? 0)}. The rest of the run goes as planned.`;
   const drafted2 = `${plural(r2.drafted ?? 0, "email", "emails")} to send from your inbox, each written and checked.`;
   const waiting = `${people}. Nothing sends until you say so.`;
@@ -38526,7 +38506,7 @@ function todayRunWords(r2) {
       sentence: `${people}. ${runStopWords("scheduled").verb} it if you'd rather not.`,
       status: ["Scheduled", `sends ${r2.when}`]
     },
-    done: { counts: r2.counts.replied ? `${sent2}, ${r2.counts.replied} replied` : sent2, still: r2.state === "sending" },
+    done: { counts: r2.counts.replied ? `${sent}, ${r2.counts.replied} replied` : sent, still: r2.state === "sending" },
     held: {
       meta: `${kind} \xB7 going`,
       sentence: held,
@@ -38586,9 +38566,9 @@ function oneRunByChannel(reading, run) {
   const [only] = carrying;
   return carrying.length === 1 && only ? { ...noOne(), [only]: cap } : null;
 }
-function heldBackOfOneRun(reading, run, sent2, purpose) {
+function heldBackOfOneRun(reading, run, sent, purpose) {
   const split = oneRunByChannel(reading, run) ?? reading.by_channel;
-  return split ? allowanceBeforeSend(split, sent2, run.trigger, purpose) : null;
+  return split ? allowanceBeforeSend(split, sent, run.trigger, purpose) : null;
 }
 
 // src/playbooks/lifecycle/lifecycle-tiles.ts
@@ -38899,7 +38879,6 @@ function lifecycleResults(input) {
 
 // src/playbooks/lifecycle/lifecycle-ledger.ts
 var LEDGER_TOOLS_AT = 7;
-var LEDGER_SORTS = ["next", "name", "people", "replied"];
 var LEDGER_PERIOD = periodWords(fixedDaysOf(CAMPAIGNS_RESULTS_PERIOD), null).now;
 var SENT_ROUTE = "broadcasts";
 var LEADS_ROUTE = "clients/leads";
@@ -39137,10 +39116,6 @@ function chainResumeOf(c) {
     ask: { question: W.question(c.name), detail: W.chain }
   };
 }
-function rowResumeOf(home, id) {
-  const act2 = home.ledger.groups.flatMap((g) => g.rows).find((r2) => r2.id === id)?.act;
-  return act2?.kind === "resume" ? act2 : null;
-}
 function chainRow(c, at3) {
   const W = LIFECYCLE_WORDS.ledger;
   const paused = c.state !== "running";
@@ -39323,44 +39298,6 @@ function lifecycleLedger(at3) {
     sentOnce: !tools && once.length > 0 ? { n: once.length, open: { kind: "route", label: LIFECYCLE_WORDS.ledger.sentOnce.open, route: SENT_ROUTE } } : null,
     ...said
   };
-}
-var NEXT_RANK = {
-  waiting: 0,
-  on: 1,
-  always: 2,
-  off: 2,
-  not_here: 2,
-  paused: 3
-};
-function repliedOf(r2) {
-  if (r2.results === "uncounted") return -1;
-  if (r2.results === "none") return 0;
-  return r2.results.kind === "sent" ? r2.results.replied : r2.results.wroteBack;
-}
-function ledgerOrder(by) {
-  const byName = (a, b) => a.name.localeCompare(b.name);
-  if (by === "name") return byName;
-  if (by === "people") return (a, b) => (b.people.n ?? -1) - (a.people.n ?? -1) || byName(a, b);
-  if (by === "replied") return (a, b) => repliedOf(b) - repliedOf(a) || byName(a, b);
-  const at3 = (r2) => r2.next.atMs ?? Number.MAX_SAFE_INTEGER;
-  return (a, b) => NEXT_RANK[a.status] - NEXT_RANK[b.status] || at3(a) - at3(b) || byName(a, b);
-}
-function ledgerPhoneWhat(r2) {
-  if (r2.kind === "receptionist") return r2.hint;
-  if (r2.kind === "call_text") return LIFECYCLE_WORDS.callText.when;
-  if (r2.kind === "offer" && r2.status === "off") return r2.hint;
-  return null;
-}
-function ledgerPhoneLine(r2, caps) {
-  const dash = LIFECYCLE_WORDS.ledger.dash;
-  const next = r2.status === "waiting" || r2.next.words === dash ? null : r2.next.words;
-  return [caps, next, ledgerPeopleWords(r2.people)].filter((p) => !!p).join(" \xB7 ");
-}
-function ledgerPeopleWords(people) {
-  if (people.words) return people.words;
-  if (people.n === null) return null;
-  if (people.unit === "people") return plural(people.n, "person", "people");
-  return `${people.n} ${people.unit}`.trim();
 }
 
 // src/playbooks/lifecycle/lifecycle.ts
@@ -41714,11 +41651,6 @@ var SCHEMA_SETS = {
 // src/sequences/sequence.ts
 var SEQUENCE_STARTS = ["moment", "list", "leads", "date"];
 var SEQUENCE_STATES = ["draft", "on", "paused", "ended"];
-function sequencesPreviewOf(config2) {
-  if (typeof config2 !== "object" || config2 === null || !("features" in config2)) return false;
-  const features = config2.features;
-  return typeof features === "object" && features !== null && "sequences_preview" in features && features.sequences_preview === true;
-}
 
 // src/sequences/sequence-acts.ts
 var SEQUENCE_ACT_WORDS = {
@@ -41862,7 +41794,7 @@ var SEQUENCE_NEEDS_WORDS = {
   /** What a failed read could not read: "Couldn't read this batch's emails". */
   failed: "this batch\u2019s emails",
   /** A batch whose emails to send this read carries no draft of: its run's sheet in Sent lays them out. */
-  inSent: "Open them in Sent"
+  inSent: "Open their run"
 };
 function peopleNeedsOf(rows2, at3) {
   const held = rows2.flatMap((r2) => {
@@ -41977,23 +41909,23 @@ function historyCovers(h, since, tz) {
 function historyFigures(batches) {
   const went = batches.filter(batchWent);
   const sum2 = (k) => went.reduce((n, b) => n + (b.counts[k] ?? 0), 0);
-  const sent2 = sum2("sent");
+  const sent = sum2("sent");
   const delivered = sum2("delivered");
   const read = sum2("read");
   const replied = sum2("replied");
   const share2 = (n) => {
-    const p = pct(n, sent2);
+    const p = pct(n, sent);
     return p === null ? "\u2014" : `${p}%`;
   };
   return [
-    { id: "sent", label: "Sent", value: String(sent2), meta: null, definition: DEFINITIONS.sent, n: null, minN: null },
+    { id: "sent", label: "Sent", value: String(sent), meta: null, definition: DEFINITIONS.sent, n: null, minN: null },
     {
       id: "delivered",
       label: "Delivered",
       value: share2(delivered),
-      meta: sent2 > 0 ? `${delivered} of ${sent2}` : null,
+      meta: sent > 0 ? `${delivered} of ${sent}` : null,
       definition: DEFINITIONS.delivered,
-      n: sent2,
+      n: sent,
       minN: REPORT_MIN_N
     },
     {
@@ -42009,7 +41941,7 @@ function historyFigures(batches) {
       id: "replied",
       label: "Replied",
       value: String(replied),
-      meta: sent2 > 0 ? `${share2(replied)} of those sent` : null,
+      meta: sent > 0 ? `${share2(replied)} of those sent` : null,
       definition: DEFINITIONS.replied,
       n: null,
       minN: null
@@ -42102,9 +42034,9 @@ function stepApprovalOf(status) {
   if (status === "paused" || status === "disabled") return { label: "Paused by WhatsApp", tone: "danger" };
   return null;
 }
-function leadStepStand(place, sent2, now) {
+function leadStepStand(place, sent, now) {
   if (now !== null && place === now) return "now";
-  if (now !== null ? place < now : sent2 > 0) return "done";
+  if (now !== null ? place < now : sent > 0) return "done";
   return "later";
 }
 var SEQUENCE_GROUPS = ["needs", "customers", "leads", "dates", "drafts"];
@@ -44319,7 +44251,7 @@ function signupLeftOpenNotes(startedAt, nowMs) {
   const age = startedAt ? nowMs - Date.parse(startedAt) : Number.NaN;
   return age >= 0 && age < SIGNUP_LEFT_OPEN_WITHIN_MS ? [{ text: SIGNUP_LEFT_OPEN_NOTE, live: true }] : [];
 }
-var LIBRARY = { label: "Library", to: "messages", who: "operator" };
+var LIBRARY = { label: "Messages", to: "messages", who: "operator" };
 function whatsappNumberRow(base, wa, nowMs) {
   const row2 = { ...base, detail: wa.number };
   if (!wa.on) return { ...row2, state: "off", stateWords: "Off", sentence: wa.healthLabel, verb: LIBRARY };
@@ -44969,7 +44901,7 @@ function yesRow(i) {
     title: "The first yes",
     state: "not_started",
     required: false,
-    sentence: "Nobody has said yes to offers yet. The keyword and the QR are under Get their yes in Sent.",
+    sentence: "Nobody has said yes to offers yet. The keyword and the QR are under Get their yes.",
     details: alsoTalk,
     verb: { label: "Get their yes", to: GET_YES_ROUTE }
   };
@@ -45774,15 +45706,16 @@ var PREFETCH_READS = {
   // own surface's (reports_campaigns), made where the lens is drawn and not by the head.
   reports: ["reports?period=30d"],
   live: ["calls", "channels"],
-  // Sent: the runs, who an audience reaches, and the channels read the composers are made of (surfaces/channels/surface.ts). The
-  // messages a composer offers, the business's name and its links are the settings read's, which Sent draws when it is composing
-  // and reads in the boot's second pass.
-  broadcasts: ["broadcasts", "contacts", "segments", "channels"],
+  // Sent's sheets: the runs, who an audience reaches, and the channels read the composers are made of
+  // (surfaces/channels/surface.ts), beside Sequences' list (decision 0060, D3), its own read. The messages a composer offers,
+  // the business's name and its links are the settings read's, which the boot's second pass reads.
+  broadcasts: ["broadcasts", "contacts", "segments", "channels", "sequences"],
   outbound: ["playbooks", "channels"],
-  // Campaigns' home is the playbooks' moments first (surface-registry ROUTE_SURFACE), and beside them Sent's runs, its own
-  // 30 days (campaign_results, the period named once), the reach-outs' chains and the settings read (ROUTE_DRAWS), which holds the
-  // templates: its call's text and the Library's count, and the messages a composer offers. Each surface's first reads.
+  // Campaigns is Sequences' list first (surface-registry ROUTE_SURFACE), and the sheets it opens over it (ROUTE_DRAWS): the
+  // playbooks' moments, Sent's runs, Campaigns' own 30 days (campaign_results, the period named once), the reach-outs' chains
+  // and the settings read, which holds the messages a composer offers. Each surface's first reads.
   campaigns: [
+    "sequences",
     "playbooks",
     "channels",
     "settings",
@@ -46719,7 +46652,7 @@ function settledRow(row2) {
 }
 var JOB_WORK = {
   outbound_send: { stopped: "A message may not have been sent", to: "inbox" },
-  broadcast_send: { stopped: "A broadcast stopped partway", to: "broadcasts" },
+  broadcast_send: { stopped: "A broadcast stopped partway", to: "campaigns/sequences" },
   line_provision: { stopped: "Setting up a phone line stopped", to: "admin/integrations" },
   email_ingest: { stopped: "An email could not be taken in", to: "inbox" },
   lead_round_start: { stopped: "A search could not start", to: "clients/leads" },
@@ -46781,15 +46714,15 @@ var SERVER_LOOK = {
    * a change is belongs to the change (waba-events.ts describeWabaChange), and
    * how it should read belongs here. Never inferred from the title.
    */
-  template_ready: { icon: "check", tone: "ok", action: "Open Library", to: "messages" },
-  template_blocked: { icon: "alert", tone: "warn", action: "Open Library", to: "messages" },
+  template_ready: { icon: "check", tone: "ok", action: "Open Messages", to: "messages" },
+  template_blocked: { icon: "alert", tone: "warn", action: "Open Messages", to: "messages" },
   sweep: { icon: "alert", tone: "warn", action: "Open Connections", to: "admin/integrations" },
   /** A JOB that did not finish, and nothing else. See JobNewsKind. */
   job_failed: { icon: "alert", tone: "warn", action: "Open the Inbox", to: "inbox" },
   /** A broadcast that ran to completion: good news, on the page it happened on. */
-  broadcast_sent: { icon: "check", tone: "ok", action: "Open Sent", to: "broadcasts" },
+  broadcast_sent: { icon: "check", tone: "ok", action: "Open Sequences", to: "campaigns/sequences" },
   /** A broadcast that did not go out, or stopped partway. */
-  broadcast_stopped: { icon: "alert", tone: "warn", action: "Open Sent", to: "broadcasts" },
+  broadcast_stopped: { icon: "alert", tone: "warn", action: "Open Sequences", to: "campaigns/sequences" },
   /**
    * A run waits for the owner's word, or a reach-out holds an email for their call: a decision, so a warning, as the topic
    * says it ("needs you", ALERT_TOPICS playbook), never good news sorted below the warnings. Once the run is settled the
@@ -46849,7 +46782,7 @@ var ROUTE_VERBS = [
   [/^inbox/, "Open the Inbox"],
   [/^conversations\/phone/, "Open the calls"],
   [/^live/, "Open Live"],
-  // The old Playbooks list (`outbound`) is Campaigns' home now, and Sent and the Library its rooms: the door says the name.
+  // The old Playbooks list (`outbound`) lands on Sequences, which is Campaigns now (decision 0060): the door says the name.
   [/^outbound/, "Open Campaigns"],
   // A message open in its own drawer over Campaigns (a template's notice: refused, paused, approved): the door says what it opens.
   [/^campaigns\/message:/, "Open the message"],
@@ -46858,9 +46791,11 @@ var ROUTE_VERBS = [
   [/^broadcasts\/run:/, "Open the run"],
   // Every email handed to its owner, from each reach-out they send themselves (00429): one list.
   [/^broadcasts\/to-send$/, "Open To send"],
-  [/^broadcasts/, "Open Sent"],
-  // The route is still `messages`; the page is the Library (a room of Campaigns), and the door says the page's name.
-  [/^messages/, "Open Library"],
+  [/^broadcasts\/get-yes/, "Open Get their yes"],
+  // Sent's list went to each sequence's History (decision 0060, D3): its address, and a row kept before, land on Sequences.
+  [/^broadcasts/, "Open Sequences"],
+  // The route is still `messages`; the page is Messages (a room of Campaigns), and the door says the page's name.
+  [/^messages/, "Open Messages"],
   [/^calendar/, "Open Calendar"],
   // One person's page, by their id: the row is about them, so its door says so.
   [/^clients\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/, "Open their page"],
@@ -49101,6 +49036,7 @@ export {
   FORWARDING_MODE_WORDS,
   FORWARDING_TEST_WINDOW_MS,
   FORWARD_IS_HANDOFF,
+  GET_YES_NO_NUMBER_WORDS,
   GET_YES_PAUSED_WORDS,
   GET_YES_ROUTE,
   GMAIL_FORWARD_NOTE,
@@ -49262,7 +49198,6 @@ export {
   LEAD_UNREACHABLE_WORD,
   LEAD_VIEW_SORTS,
   LEAD_WORDS,
-  LEDGER_SORTS,
   LEDGER_STATUSES,
   LEFT_OUT_FACTS,
   LENS_ROUTES,
@@ -49521,7 +49456,6 @@ export {
   PLAYBOOK_CARD_WORDS,
   PLAYBOOK_CLASS_LABEL,
   PLAYBOOK_DEFAULTS,
-  PLAYBOOK_DELETE_WORDS,
   PLAYBOOK_HOURS,
   PLAYBOOK_LIMITS,
   PLAYBOOK_NAME_MAX,
@@ -50645,10 +50579,6 @@ export {
   leadWhere,
   leadsRoute,
   leadsStanding,
-  ledgerOrder,
-  ledgerPeopleWords,
-  ledgerPhoneLine,
-  ledgerPhoneWhat,
   ledgerRowIn,
   leftOutBy,
   leftOutByFacts,
@@ -51257,7 +51187,6 @@ export {
   routeOfPath,
   routePrefetchScript,
   rowReachWords,
-  rowResumeOf,
   ruleFacts,
   ruleLists,
   ruleNeeds,
@@ -51343,7 +51272,6 @@ export {
   sequenceStopsSentence,
   sequenceWaitWords,
   sequenceWaitsNow,
-  sequencesPreviewOf,
   serverNotificationRows,
   serviceLineWords,
   serviceNamedIn,

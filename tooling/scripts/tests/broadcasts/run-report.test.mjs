@@ -723,7 +723,7 @@ test("a failed run's report says why it stopped and how to get past it, in the c
     );
   assert.deepEqual(run("template_not_approved").stop, {
     words: "its WhatsApp version is no longer approved",
-    fix: "Open it in the Library — its WhatsApp version can be resubmitted, or the message written as an email or a text.",
+    fix: "Open it in Messages — its WhatsApp version can be resubmitted, or the message written as an email or a text.",
     tone: "danger",
   });
   assert.equal(run("paused").stop.tone, "warn");

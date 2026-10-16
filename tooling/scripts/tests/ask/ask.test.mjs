@@ -218,14 +218,14 @@ const REACHED = {
   // People › Lists is People's rail; `segments/<id>` still lands there.
   segments: ["Lists", "clients"],
   calendar: ["Calendar", "calendar"],
-  // Campaigns' home; the old Playbooks list, `outbound`, is a door to it (contracts doorOf), so its jump is the home's.
+  // Campaigns, which is Sequences (decision 0060); the old Playbooks list, `outbound`, is a door to it (contracts doorOf).
   campaigns: ["Campaigns", "campaigns"],
   outbound: ["Campaigns", "campaigns"],
-  // Campaigns › Sequences (decision 0060), a jump where its preview is on (askPages `sequences`).
   "campaigns/sequences": ["Sequences", "campaigns/sequences"],
-  // Campaigns' rooms: Sent and the Library, each still found by the name it went by (ask-palette.test.mjs).
-  broadcasts: ["Sent", "broadcasts"],
-  messages: ["Library", "messages"],
+  // Sent's list went to each sequence's History (D3): its sheets stay at their addresses, and its jump is Sequences'.
+  broadcasts: ["Sequences", "campaigns/sequences"],
+  // Messages (D4: it was the Library), still found by the names it went by (ask-palette.test.mjs).
+  messages: ["Messages", "messages"],
   start: ["Setting up", "start"],
   "admin/profile": ["Profile", "admin/profile"],
   "admin/workspace": ["Settings", "admin/workspace"],
@@ -254,8 +254,8 @@ for (const lens of REPORT_LENSES.filter((l) => l.id !== "overview" && l.shownWhe
   SCOPES.push(lensRoute(lens.id));
 }
 
-/** Every page, for a workspace with deals on, the Sequences preview on, and a person on Chanlytics' staff. */
-const EVERY = askPages({ dealsOn: true, platformAdmin: true, sequences: true });
+/** Every page, for a workspace with deals on and a person on Chanlytics' staff. */
+const EVERY = askPages({ dealsOn: true, platformAdmin: true });
 const where = (to) => {
   const [page, ...rest] = to.split("/");
   return [page, rest.length ? rest.join("/") : null];

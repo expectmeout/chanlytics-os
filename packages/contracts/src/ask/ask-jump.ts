@@ -55,8 +55,8 @@ export const ASK_PAGES: JumpEntry[] = [
   { label: "Conversations", to: "conversations", kind: "page" },
   { label: "Calls", to: "live", kind: "page", sub: "live and recent" },
   { label: "Calendar", to: "calendar", kind: "page", sub: "taken, open and closed times" },
-  // Campaigns' home (3 Oct 2026): the moments that go out on their own, and what is sent by hand. The old Playbooks list was
-  // `outbound`, which lands here; the name it went by still finds it.
+  // Campaigns (3 Oct 2026), which is Sequences (decision 0060): what goes out on its own, and what is sent by hand. The old
+  // Playbooks list was `outbound`, which lands here; the name it went by still finds it.
   {
     label: "Campaigns",
     to: "campaigns",
@@ -64,21 +64,22 @@ export const ASK_PAGES: JumpEntry[] = [
     sub: "what goes out on its own, and what you send yourself",
     also: ["playbooks", "moments"],
   },
-  // Campaigns' rooms: Sent (the runs, and the send screen) and the Library (the wording). Each is still found by the name it
-  // went by, which people learned and still type.
+  // Campaigns › Sequences by its own name, and by what the old pages were called: Sent's list went to each sequence's
+  // History (D3), so its names find it.
   {
-    label: "Sent",
-    to: "broadcasts",
+    label: "Sequences",
+    to: "campaigns/sequences",
     kind: "page",
-    sub: "one message to the people who said yes",
-    also: ["broadcasts"],
+    sub: "everything that sends on its own",
+    also: ["automations", "follow-ups", "drip", "sent", "broadcasts"],
   },
+  // Campaigns' Messages (D4: it was the Library), found too by the names it went by, which people learned and still type.
   {
-    label: "Library",
+    label: "Messages",
     to: "messages",
     kind: "page",
     sub: "the wording the receptionist and the campaigns send",
-    also: ["templates", "messages", "wording"],
+    also: ["templates", "library", "wording"],
   },
   { label: "Reports", to: "reports", kind: "page" },
   ...LENS_JUMPS,
@@ -116,21 +117,7 @@ interface AskPagesHas {
   dealsOn: boolean;
   /** The person is Chanlytics staff: the rail draws the back office for them alone. */
   platformAdmin: boolean;
-  /** Campaigns › Sequences is drawn here (decision 0060): its preview is on (`features.sequences_preview`). */
-  sequences?: boolean;
 }
-
-/**
- * Campaigns › Sequences (decision 0060), where its preview is on: everything that sends on its own. Elsewhere its address
- * draws Campaigns' home, so it is no jump there; it answers to what the old pages were called.
- */
-const SEQUENCES: JumpEntry = {
-  label: "Sequences",
-  to: "campaigns/sequences",
-  kind: "page",
-  sub: "everything that sends on its own",
-  also: ["automations", "follow-ups", "drip"],
-};
 
 /**
  * The Pipeline: People's third scope where deals are on (0008, people.jsx plScopes). Where they are off its address
@@ -152,17 +139,13 @@ const BACK_OFFICE: JumpEntry = {
   sub: "every workspace, for Chanlytics staff",
 };
 
-/**
- * The pages this workspace has, for this person: every workspace's, the Pipeline after Leads, Sequences after Campaigns
- * where its preview is on, and the back office.
- */
+/** The pages this workspace has, for this person: every workspace's, the Pipeline after Leads, and the back office. */
 export function askPages(has: AskPagesHas): JumpEntry[] {
   const out: JumpEntry[] = [];
   const lastLens = LENS_JUMPS.at(-1)?.to;
   for (const p of ASK_PAGES) {
     out.push(p);
     if (p.to === "clients/leads" && has.dealsOn) out.push(PIPELINE);
-    if (p.to === "campaigns" && has.sequences) out.push(SEQUENCES);
     if (p.to === lastLens && has.dealsOn) out.push(...DEALS_LENS_JUMPS);
   }
   if (has.platformAdmin) out.push(BACK_OFFICE);

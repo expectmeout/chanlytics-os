@@ -65,7 +65,7 @@ export const SEQUENCE_NEEDS_WORDS = {
   /** What a failed read could not read: "Couldn't read this batch's emails". */
   failed: "this batch’s emails",
   /** A batch whose emails to send this read carries no draft of: its run's sheet in Sent lays them out. */
-  inSent: "Open them in Sent",
+  inSent: "Open their run",
 } as const;
 
 /** An email the check held, as People lays it out: whose, why, and its answers in their own words (holdDoors). */

@@ -38,7 +38,7 @@ export function bcLateWords(run: WaitingRun): string | null {
  * workspace is paused: `at.paused`), or open it (a reach-out's run, or one whose playbook the page does not hold:
  * `at.known`). A playbook's card reads it here; Coming up's line reads the same rule in contracts (lifecycle-tiles.ts).
  */
-export function bcRunOffer(run: WaitingRun, at: { paused: boolean; known: boolean }): WaitingRunOffer {
+function bcRunOffer(run: WaitingRun, at: { paused: boolean; known: boolean }): WaitingRunOffer {
   return waitingRunOffer(run, approvalDaysNow(), at);
 }
 

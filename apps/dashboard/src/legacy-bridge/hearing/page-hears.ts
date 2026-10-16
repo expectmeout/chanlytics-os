@@ -52,18 +52,19 @@ export const PAGE_HEARS: Readonly<Record<string, Readonly<Record<string, PageCel
   // The Calendar owns the campaign marks it draws over its days (surfaces/calendar/runs-surface.ts): a run made, approved or done,
   // a campaign saved or a class's mode changed is read again while the Calendar is open, and once as it comes back elsewhere.
   calendar: { calendar: true, calendar_runs: true },
-  // Campaigns' home is one page of four surfaces: the playbooks' moments, its own 30 days (campaign_results), the reach-outs'
-  // chains and the settings read's templates. Sent's runs are drawn there too: who can hear you, the pause on offers, the
-  // send-once composer and its Send by ticks. They hear here what moves those (a person's answer, the business's facts, the
-  // rules, a channel, the plan, a visit the audiences leave, a list To offers), and leave to Sent what moves a run's replies (a
-  // message, a thread, a hold): the home reads its replies from its own 30 days (spec 2026-10-09 §4.5), so a message here never
-  // re-reads the broadcasts and every page of People behind them (the wiring's second audit, W-review-facts-rules-2).
+  // Campaigns is Sequences' list (decision 0060), whole, and the sheets it opens over it, made of four surfaces: the
+  // playbooks' moments, its own 30 days (campaign_results), the reach-outs' chains and the settings read's templates. Sent's
+  // runs are drawn in them too: who can hear you, the pause on offers, the send-once composer and its Send by ticks. They hear
+  // here what moves those (a person's answer, the business's facts, the rules, a channel, the plan, a visit the audiences
+  // leave, a list To offers), and leave to Sent's sheets what moves a run's replies (a message, a thread, a hold), so a
+  // message here never re-reads the broadcasts and every page of People behind them (W-review-facts-rules-2).
   campaigns: {
+    sequences: true,
     playbooks: true,
     campaign_results: true,
     reach_outs: true,
-    // The call's text and the Library's count are made of the settings read's templates, and a message's drawer says what sends it
-    // (the Library's pane, from the playbooks and runs its read joins: W-campaign-run-template-reachout-2).
+    // A message's drawer is made of the settings read's templates, and says what sends it (Messages' pane, from the playbooks
+    // and runs its read joins: W-campaign-run-template-reachout-2).
     settings: true,
     broadcasts: ["person", "facts", "rules", "channel", "billing", "visit", "list"],
   },
@@ -73,7 +74,8 @@ export const PAGE_HEARS: Readonly<Record<string, Readonly<Record<string, PageCel
   // Campaigns › Sequences (decision 0060): its own list, whole, and the settings read its step editor offers messages from.
   "campaigns/sequences": { sequences: true, settings: true },
   messages: { settings: true },
-  broadcasts: { broadcasts: true, settings: ["review"] },
+  // Sent's sheets, beside Sequences' list (decision 0060, D3), whole.
+  broadcasts: { broadcasts: true, sequences: true, settings: ["review"] },
   clients: { people: true },
   segments: { people: true },
   // A person's page waits for who is looking and hears its own person (people-detail.ts personOverride): a rename, a stop, a

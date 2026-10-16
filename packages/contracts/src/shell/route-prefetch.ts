@@ -57,15 +57,16 @@ export const PREFETCH_READS: Readonly<Record<string, readonly string[]>> = {
   // own surface's (reports_campaigns), made where the lens is drawn and not by the head.
   reports: ["reports?period=30d"],
   live: ["calls", "channels"],
-  // Sent: the runs, who an audience reaches, and the channels read the composers are made of (surfaces/channels/surface.ts). The
-  // messages a composer offers, the business's name and its links are the settings read's, which Sent draws when it is composing
-  // and reads in the boot's second pass.
-  broadcasts: ["broadcasts", "contacts", "segments", "channels"],
+  // Sent's sheets: the runs, who an audience reaches, and the channels read the composers are made of
+  // (surfaces/channels/surface.ts), beside Sequences' list (decision 0060, D3), its own read. The messages a composer offers,
+  // the business's name and its links are the settings read's, which the boot's second pass reads.
+  broadcasts: ["broadcasts", "contacts", "segments", "channels", "sequences"],
   outbound: ["playbooks", "channels"],
-  // Campaigns' home is the playbooks' moments first (surface-registry ROUTE_SURFACE), and beside them Sent's runs, its own
-  // 30 days (campaign_results, the period named once), the reach-outs' chains and the settings read (ROUTE_DRAWS), which holds the
-  // templates: its call's text and the Library's count, and the messages a composer offers. Each surface's first reads.
+  // Campaigns is Sequences' list first (surface-registry ROUTE_SURFACE), and the sheets it opens over it (ROUTE_DRAWS): the
+  // playbooks' moments, Sent's runs, Campaigns' own 30 days (campaign_results, the period named once), the reach-outs' chains
+  // and the settings read, which holds the messages a composer offers. Each surface's first reads.
   campaigns: [
+    "sequences",
     "playbooks",
     "channels",
     "settings",

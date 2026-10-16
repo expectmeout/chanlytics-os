@@ -121,7 +121,7 @@ export { ROLES, ROLE_PERMS, ROLE_SAYS, TEAM_ROLES, roleSays, roleTable } from ".
 export { isOptedOutContact, mayRing, isOfferByEmail, mayMessageFor, relationshipOnRecord, consentChangeOf, purposeOfTemplate, purposeOfPlaybook, OPT_OUT_REFUSAL, optOutWords, STOP_WORDS, stopRequestQuestion, DELIVERY_REFUSALS, PURPOSE_REFUSALS } from "./consent/consent";
 export { yesAsked, consentGuardWords, consentRuleWords } from "./consent/consent-asks";
 export { CONSENT_CHANNELS, CONSENT_CHANNEL_WORDS, channelsOfYes, yesCovers, coveredChannels, channelsWords } from "./consent/consent-channels";
-export { policyLinks, optInConfirmation, confirmationNameOf, verbalOptInScript, consentPageVM, consentFormVM, consentPageMetadata, consentFormMetadata, deskSignVM, deskSignMetadata, notTakingSignUps, GET_YES_PAUSED_WORDS, YES_WHILE_PAUSED, CONSENT_PHRASE, CONSENT_PHRASE_ES, CONVERSATION_PHRASE, CONVERSATIONAL_ASK_TITLE } from "./consent/consent-page";
+export { policyLinks, optInConfirmation, confirmationNameOf, verbalOptInScript, consentPageVM, consentFormVM, consentPageMetadata, consentFormMetadata, deskSignVM, deskSignMetadata, notTakingSignUps, GET_YES_NO_NUMBER_WORDS, GET_YES_PAUSED_WORDS, YES_WHILE_PAUSED, CONSENT_PHRASE, CONSENT_PHRASE_ES, CONVERSATION_PHRASE, CONVERSATIONAL_ASK_TITLE } from "./consent/consent-page";
 export { offerUnsubscribeWords, STOP_ALL_REFUSALS } from "./consent/offers-unsubscribe";
 export { ABANDONED_MS, abandonedCall, callAttemptWords, missedCall, neverConnected, reachedVoicemail, DISCONNECTION_LABELS } from "./conversations/call-dto";
 export { callEndedWords, spokenDuration, toCallVM } from "./conversations/call-vm";
@@ -259,7 +259,7 @@ export { earlierVisitsOf, VISITS_TAB_WORDS } from "./person-page/visits";
 export { asNameSource, BUSINESS_DOOR_LABEL, CALL_FACT_WORDS, messagesSummaryOf, NAME_SOURCES, PERSON_ABOUT_WORDS, PERSON_LISTS_SHEET_WORDS, PERSON_NAME_WORDS, PERSON_PEEK_WORDS, PERSON_WALK_WORDS, PERSON_WASH_WORDS, receptionistKnowsOf, WORKS_AT_WORDS } from "./person-page/words";
 export { campaignsHomeOf, lifecycleKicker } from "./playbooks/lifecycle/lifecycle";
 export { lifecyclePlaybooksOf, whatsappLineOf } from "./playbooks/lifecycle/lifecycle-inputs";
-export { LEDGER_SORTS, LEDGER_STATUSES, chainResultsOf, chainResumeOf, rowResumeOf, isLedgerCampaign, ledgerOrder, ledgerPeopleWords, ledgerPhoneLine, ledgerPhoneWhat, ledgerRowIn, lifecycleChainsOf, sentResultsOfSource } from "./playbooks/lifecycle/lifecycle-ledger";
+export { LEDGER_STATUSES, chainResultsOf, chainResumeOf, isLedgerCampaign, ledgerRowIn, lifecycleChainsOf, sentResultsOfSource } from "./playbooks/lifecycle/lifecycle-ledger";
 export { reachCountsOf } from "./playbooks/lifecycle/lifecycle-tiles";
 export { LIFECYCLE_WORDS, LIFECYCLE_TOAST, channelsGoesByWords, lifecycleChainStateOf, lifecycleStateOf, momentHoldsWords } from "./playbooks/lifecycle/lifecycle-words";
 export { poolWords, reachLines, runDayPassed, runApprovalRefusal, runDaysAt, waitingRunOffer, toApprovalVM } from "./playbooks/playbook-approval";
@@ -316,7 +316,7 @@ export { toReviewsReportVM, REVIEWS_WAITING_SHOWN } from "./reports/review-repor
 export { ROUTE_KEYS } from "./route-keys.generated";
 export { SCHEMA_SETS } from "./schema-sets.generated";
 export { FOLLOW_UP_CONDITIONS, followUpStop, followUpReach, messageAboutOfClass } from "./sequences/follow-up";
-export { SEQUENCE_STARTS, SEQUENCE_STATES, sequencesPreviewOf } from "./sequences/sequence";
+export { SEQUENCE_STARTS, SEQUENCE_STATES } from "./sequences/sequence";
 export { SEQUENCE_ACT_WORDS, sequenceRunsNow, sequenceResumeAsk } from "./sequences/sequence-acts";
 export { SEQUENCES_ROUTE, isSequencesParam, parseSequencesRoute, sequenceRoute, sequenceLandingOf, runSheetRoute, sequenceRepliesOf, sequenceRepliesRoute } from "./sequences/sequence-address";
 export { SEQUENCE_DRAFT_WORDS_MAX, SEQUENCE_DRAFT_THEN_MAX, SEQUENCE_WAIT_DAYS, SEQUENCE_DRAFT_JSON_SCHEMA, SEQUENCE_NEW_WORDS, isListToken } from "./sequences/sequence-draft";
@@ -352,7 +352,7 @@ export { MIN_MS, HOUR_MS, DAY_MS, WEEK_MS, jittered, spanUnits, spanLabel, waite
 export { finiteOrNull, finiteOrZero, trimmedOrNull, nonBlankOrNull, recordOrNull, lineOrNull } from "./shared/unknown";
 export { plural } from "./shared/words";
 export { routeOfPath, routeOfHash, routeOfAddress, movedAddress, workspacePath, appLink, doorOf, canonicalRoute, ROUTE_WORDS } from "./shell/address";
-export { CAMPAIGN_ROOMS, PLAYBOOK_DELETE_WORDS, NO_TEMPLATE_WORDS, noMessageWords, LIBRARY_WORDS, NEW_MESSAGE_WORDS, LIBRARY_STARTER_WORDS, BROADCAST_WORDS, runStoppedWords, runApprovedTail, RUN_WAITING_WORDS, runsWaitingSentence, heldEmailsWords, runStopWords, OFFERS_IN_WRITING_WORDS } from "./shell/campaign-rooms";
+export { CAMPAIGN_ROOMS, NO_TEMPLATE_WORDS, noMessageWords, LIBRARY_WORDS, NEW_MESSAGE_WORDS, LIBRARY_STARTER_WORDS, BROADCAST_WORDS, runStoppedWords, runApprovedTail, RUN_WAITING_WORDS, runsWaitingSentence, heldEmailsWords, runStopWords, OFFERS_IN_WRITING_WORDS } from "./shell/campaign-rooms";
 export { nextThemePref, themeButtonWords, resolveTheme, themeColorOf, themeBootScript, inAppFrom, inAppBootScript, isTypingTarget, pageTitle, notFoundPageMetadata, shellStatusLine, shortcutGroups, toastShape, THEME_OPTIONS, isThemePref, DEFAULT_THEME_PREF, themePrefOf, LOOK_OPTIONS, isLookPref, DEFAULT_LOOK_PREF, lookPrefOf, LOOK_OFFERED, DEVICE_PREFS_STORAGE, THEME_COLORS, THEME_INK, THEME_COLOR_META, IN_APP_UA_RE, IN_APP_CLASS, APP_KEYS_RESIZE_CLASS, isSidebarPref, SHORTCUTS, TOAST_TONES, TOAST_MS, TOAST_UNDO_MS, TOAST_MIN_MS, TOAST_ICONS } from "./shell/chrome";
 export { CLIENT_ERROR_BOUNDARIES, CLIENT_ERROR_LIMITS, clientErrorOf } from "./shell/client-error";
 export { personInitials, identityWords, memberWords, cleanDisplayName, providerNameOf, invitationWords, joinedWords, youJoinedWords, TEAM_INVITE_DAYS, ROLE_WORDS, DISPLAY_NAME_MAX } from "./shell/identity";

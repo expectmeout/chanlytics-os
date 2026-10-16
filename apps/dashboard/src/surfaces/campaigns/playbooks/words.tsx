@@ -4,15 +4,11 @@
  */
 import {
   LIST_GROUP_WORDS,
-  PLAYBOOK_REACH_WORDS,
   appointmentWords,
   clockHour,
   consentGuardWords,
   heldBackWords,
   isWinBack,
-  playbookNoNumberWords,
-  playbookReach,
-  playbookReachDoor,
 } from "@chanlytics/contracts";
 import type {
   AppointmentWord,
@@ -20,15 +16,8 @@ import type {
   ConsentChannel,
   MessageAbout,
   ParamSourceKind,
-  PlaybookDto,
-  PlaybookReach,
 } from "@chanlytics/contracts";
-import type { TemplateDto } from "@/surfaces/inbox/types";
 import { pageClock } from "@/legacy-bridge/zone";
-import { surfaceValue } from "../../surface-values";
-import { bcWhenWords } from "../broadcasts/when-words";
-import { cmOfferedBy } from "../parts/channels";
-import { mpFill } from "../parts/message-preview";
 import { starters } from "../templates/verbs";
 import type { PlaybookTriggerOption } from "./surface";
 
@@ -59,28 +48,11 @@ export const pbHours = () => {
 /** An hour a run may start at, as the product's clock says a time: "10:00 AM" (contracts clockHour). */
 export const pbHour = (h: number) => clockHour(h);
 
-export const pbPeople = (n: number) => `${n} ${n === 1 ? "person" : "people"}`;
-
-// What the next run will actually do (contracts playbookReach): a running
-// playbook whose list is empty is not "running" in any sense the owner means.
-export const pbReach = playbookReach;
-
-export const pbReachWords = (r: PlaybookReach) => PLAYBOOK_REACH_WORDS[r];
-
-// The door only where a yes fixes it: somebody named and not one of them said it (contracts playbookReachDoor).
-export const pbReachDoor = playbookReachDoor;
-
-// A list whose yes has no number to send to, in the send screen's words; null keeps the card's own count.
-export const pbNoNumberWords = playbookNoNumberWords;
-
 // Words for people: a starter's title, or the name with its underscores made spaces.
 export const pbTitle = (name: string | null | undefined) => starters.title(name);
 
 // A language code as a person reads it.
 export const pbLangWords = (code: string) => starters.langWords(code);
-
-// A run's day as words ("Aug 25"): a calendar day, not an instant, so no zone.
-export const pbDay = (day: string | null | undefined) => (day ? pageClock().dayWords(day) : String(day || ""));
 
 export const pbOrder: typeof starters.compare = (a, b) => starters.compare(a, b);
 
@@ -107,67 +79,6 @@ export const pbExample = (kind: string, businessName: string | null | undefined)
       : kind === "booking_link"
         ? "your booking link"
         : PB_EXAMPLES[kind] || "";
-
-// A card's message: its message among the offered, found by its name and language (a WhatsApp version added since moves the
-// id the message is offered by; a stored id is the fallback), with the playbook's own values in the slots; null when it is
-// not among them. The body and the values
-// stay apart -- the preview marks what fills per person, and `words` is the same
-// thing joined up, for the one line a closed card shows.
-// A slot a playbook fills with what it cannot take (contracts slotChoices), in
-// words: the composer let any slot take any source, and a win-back set up with
-// its first name filled by the booking link greets everyone "Hi your booking
-// link" until it is changed. Null when every slot takes what it should. A link
-// the workspace has since removed is a different fault, and the route's.
-// The moments the surface offers are the caller's to pass: this reads no surface of its own.
-export const pbWrongSlot = (
-  p: Pick<PlaybookDto, "trigger" | "params">,
-  t: TemplateDto | null,
-  triggers: readonly PlaybookTriggerOption[] | undefined,
-) => {
-  if (!t || !Array.isArray(p.params)) return null;
-  const trig = (triggers || PB_NONE).find((x) => x.id === p.trigger) || null;
-  const choices = starters.slots(t, {
-    visits: !!(trig && trig.kind === "visit"),
-    bookingLink: true,
-    reviewLink: true,
-    proposal: !!(trig && trig.kind === "deal"),
-  });
-  if (!choices) return null;
-  const at = p.params.findIndex((s, i) => s && s.kind && choices[i] && !choices[i].includes(s.kind));
-  if (at < 0) return null;
-  const label = starters.slotLabels(t)[at] || `Value ${at + 1}`;
-  const s = p.params[at];
-  if (!s) return null;
-  return s.kind === "text"
-    ? `“${label}” says “${s.value}” to everyone, where each person's own belongs.`
-    : `“${label}” is filled with ${String(starters.sources[s.kind] || s.kind).toLowerCase()}.`;
-};
-
-export const pbMessage = (
-  p: Pick<PlaybookDto, "template_id" | "template_name" | "template_language" | "params">,
-  templates: readonly TemplateDto[],
-  businessName: string | null | undefined,
-) => {
-  const t =
-    cmOfferedBy(templates, p.template_name, p.template_language) ||
-    templates.find((x) => x.id === p.template_id) ||
-    null;
-  if (!t) return null;
-  const values = (p.params || PB_NONE).map((s) =>
-    s && s.kind === "text" ? s.value : s && s.kind ? pbExample(s.kind, businessName) : String(s ?? ""),
-  );
-  return { template: t, body: t.body_preview, values, words: mpFill(t.body_preview, values) };
-};
-
-// When a run a person asked for really goes (broadcasts/when.tsx bcWhenWords). An edge older than the dashboard gives no time back, and nothing claims one.
-// What a reply is, in the one window's words (contracts REPLY_WINDOW_WORDS, on the surface).
-export const pbReplyTip = () => {
-  const w = surfaceValue("playbooks")?.replyWindow;
-  return w ? `Threads that heard from the customer ${w} of a run` : "Threads that heard from the customer after a run";
-};
-
-export const pbSentWhen = (d: { scheduled_for?: string | null; moved_from?: string | null } | null | undefined) =>
-  d && d.scheduled_for ? bcWhenWords(d) : `on its way — sends go out ${pageClock().hours.between} by your clock`;
 
 // Each moment has its glyph: the arrow that comes back, a wave hello, the
 // phone that only ever rang, the gift, the calendar, the clock of the day

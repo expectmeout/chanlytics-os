@@ -884,7 +884,7 @@ test("a period with nothing in it: one card that says so, no Worth knowing, and 
   });
 });
 
-test("the campaign read failing leaves the receptionist's numbers standing, in the fold's words; nothing sent says so and opens Broadcasts", () => {
+test("the campaign read failing leaves the receptionist's numbers standing, in the fold's words; nothing sent says so and opens Sequences", () => {
   const failed = page({ campaigns: null });
   const words = card(failed, "campaigns-failed-campaigns");
   assert.ok(textOf(words).includes("Couldn't read the campaign numbers"), textOf(words));
@@ -900,7 +900,7 @@ test("the campaign read failing leaves the receptionist's numbers standing, in t
   assert.ok(textOf(c).includes("Nothing went out"));
   assert.equal(card(nothing, "chart-campaigns"), null, "and no days card of nothing");
   press(find(c, (n) => n.type === "button"));
-  assert.deepEqual(went, ["broadcasts"]);
+  assert.deepEqual(went, ["campaigns/sequences"]);
 });
 
 test("Worth knowing says the campaign that drew the most replies from the Campaigns lens's own read: absent before it lands, while it is of another period and where it failed, there once it is held", () => {

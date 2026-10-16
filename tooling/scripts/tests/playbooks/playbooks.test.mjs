@@ -29,7 +29,6 @@ import {
   planRun,
   runDueNow,
   scheduleLine,
-  stateOf,
   toBroadcastVM,
   triggerOf,
   FOLLOW_UP_NEEDS_DEALS,
@@ -50,7 +49,6 @@ import {
   GET_YES_ROUTE,
 } from "@chanlytics/contracts";
 import { readCode, readRaw, importSrc } from "../_source.mjs";
-import { installLegacyReact, fresh, all, find, byTestId, textOf } from "../_legacy-react.mjs";
 import { localDate as tzDate, visitFactsFor as visitFacts } from "@chanlytics/contracts";
 
 // The workspace's zone: every view model says its times by it (contracts clock.ts).
@@ -96,90 +94,6 @@ const base = { trigger: "quiet_30", cap_per_run: 25, gap_days: 90, cadence_days:
 const noTouch = { byThis: new Map(), byAny: new Map(), followUps: new Map(), followUpKeys: new Map() };
 
 /* ---- the page: Campaigns' home, TSX since decision 0015, drawn on the stub React over the surfaces the seam hands it ---- */
-
-installLegacyReact({
-  location: {
-    pathname: "/w/studio/campaigns",
-    hash: "",
-    origin: "https://app.chanlytics.com",
-    assign() {},
-    replace() {},
-    reload() {},
-  },
-  __WORKSPACES: [{ id: "t-studio", slug: "studio", name: "Northside Studio", status: "active", timezone: ZONE }],
-  __ACTIVE_WORKSPACE: "t-studio",
-  __DEMO_MODE: false,
-});
-const SRC = "../../../../apps/dashboard/src";
-const { installClock } = await import(`${SRC}/legacy-bridge/zone.ts`);
-installClock();
-// The shell's own components the page draws by name (StatePill, PolicyChip), loaded as the app loads them.
-await import(`${SRC}/legacy/components/data-bits.jsx`);
-Object.assign(globalThis, {
-  usePPToast: () => [null, () => {}],
-  CHANLY: { nav() {}, R: { admin: (pane) => `admin/${pane}` } },
-  appNavigate() {},
-  __chrome: { state: stateOf },
-  __ME: { role: "owner" },
-  canDo: () => true,
-  gate: () => ({}),
-  gateTitle: (perm, doing) => `Only an owner or operator can ${doing}.`,
-});
-const { CampaignsHome } = await import(`${SRC}/surfaces/campaigns/home/home-page.tsx`);
-const { playbooksSample } = await import(`${SRC}/surfaces/campaigns/playbooks/sample.ts`);
-const { broadcastsSample } = await import(`${SRC}/surfaces/campaigns/broadcasts/sample.ts`);
-const { setSurfaceValue } = await import(`${SRC}/surfaces/surface-values.ts`);
-const { standingSaid } = await import(`${SRC}/surfaces/kit/head/standing.ts`);
-const winback = (over = {}) => ({
-  id: "pb-1",
-  name: "Win-back",
-  trigger: "quiet_30",
-  template_id: "tpl-winback_offer",
-  template_name: "winback_offer",
-  template_language: "en_US",
-  params: [{ kind: "first_name" }],
-  policy_class: "reengage",
-  state: "running",
-  run_hour: 10,
-  cap_per_run: 25,
-  gap_days: 90,
-  cadence_days: 30,
-  last_run_for: null,
-  last_run_at: null,
-  created_at: "2026-08-01T00:00:00Z",
-  triggerLabel: "Win-back",
-  triggerHint: "Nothing heard in 30 days",
-  schedule: "Daily 10:00 AM · up to 25 · once per person, again after 90 days",
-  next: "tomorrow 10:00 AM",
-  candidates: 0,
-  held: 0,
-  named: null,
-  off: null,
-  totals: { runs: 0, sent: 0, delivered: 0, replied: 0, held: 0, lastRun: null, waiting: null, history: [] },
-  ...over,
-});
-/**
- * Campaigns' home over the playbooks surface the seam hands it: the Playbooks sample's moments, templates and counts (the
- * real surface's shape, the one a demo draws), with the rows and the moments' counts a test names. The broadcasts are
- * read as they are only where a test says so.
- */
-const drawHome = ({ rows, pools = {}, param = null, broadcasts } = {}) => {
-  const base = playbooksSample(new Date(NOW));
-  setSurfaceValue("playbooks", { ...base, rows: rows ?? base.rows, pools: { ...base.pools, ...pools } });
-  setSurfaceValue("broadcasts", broadcasts);
-  fresh();
-  return CampaignsHome({ param, nowMs: NOW });
-};
-/** What a moment's count reads as the route answers it. */
-const poolOf = (candidates, held = 0, pool = 5) => ({
-  candidates,
-  held,
-  pool,
-  noYes: 0,
-  stopped: 0,
-  noNumber: 0,
-  saidYes: pool,
-});
 
 test("a reminder is owed to everyone with a visit tomorrow: the cap is a fatigue limit for offers and does not apply; the list is in visit order", () => {
   const TZ = "America/New_York";
@@ -481,42 +395,12 @@ test("the migration and the sweep: one run per playbook per local day, touches n
   );
 });
 
-test("the page and its doors: Campaigns' home is real, and the old Outbound is its door; make, change, pause, resume, run now, delete through the app's routes; a waiting run on Today", async () => {
+test("the page and its doors: Campaigns is real (Sequences, decision 0060), and the old Outbound is its door; make, change, pause, resume, run now, delete through the app's routes; a waiting run on Today", async () => {
   const { SURFACE_STATES, ROUTE_SURFACE } = await importSrc("apps/dashboard/src/legacy-bridge/surface-registry.ts");
-  for (const route of ["campaigns", "outbound"]) {
-    assert.equal(SURFACE_STATES[route], "real", `${route}: flipped`);
-    assert.equal(ROUTE_SURFACE[route], "playbooks", `${route}: the gate waits on its surface`);
-  }
-  // The page is TSX (surfaces/campaigns/home/home-page.tsx), drawn here rather than scanned. A playbook's detail and its
-  // composer are card-detail.tsx and composer*.tsx (Reach out Part 2.5): their doors are drawn and pressed by
-  // playbook-composer, campaigns-drafts, runs-honest, reports-honest and confirm. That the home draws nothing before the
-  // playbooks are read, and the samples in a demo, is run in campaigns-home.test.mjs; the old Playbooks addresses that land
-  // on it, in campaigns-routes.test.mjs.
-  assert.equal(typeof CampaignsHome, "function", "the page is the module's export: the route draws it");
-  // A workspace that has made no playbook yet: the home is drawn, each moment it could run is one press from on, and the
-  // head offers a message. (It was the list's empty state, with "New playbook" on it.)
-  const none = drawHome({ rows: [] });
-  assert.ok(byTestId(none, "campaigns-home"));
-  const off = all(none, (n) => n.props?.["data-testid"] === "cmh-stage").filter((s) => s.props["data-state"] === "off");
-  assert.ok(off.length > 0, "a moment nothing is doing is off");
-  assert.ok(
-    off.every((s) => find(s, (n) => n.props?.["data-testid"] === "cmh-turn-on")),
-    "and says Turn on",
-  );
-  assert.ok(
-    find(standingSaid()?.act ?? null, (n) => n.props?.["data-testid"] === "cmh-new"),
-    "New message at the head: said to the frame's, which draws it",
-  );
-  // The home says no number the schema has no column for: the sample's runs, with every figure they carry, and a playbook's
-  // own detail beside them (the drawer), draw no money and no attribution.
-  const money = /\$[\d,]+|revenue|Attributed|booked/;
-  const sampleHome = drawHome({ broadcasts: broadcastsSample(new Date(NOW)) });
-  assert.ok(byTestId(sampleHome, "cmh-results"), "the sample's runs are on the page");
-  assert.ok(!money.test(textOf(sampleHome)), "no number the schema has no column for");
-  const drawer = drawHome({ param: "moment:pb-sample-winback" });
-  assert.ok(byTestId(drawer, "pb-detail"), "the playbook's detail is open");
-  assert.ok(!money.test(textOf(byTestId(drawer, "pb-pane"))), "nor in a playbook's own pane");
-  // The card's mode chip is run in playbook-composer.test.mjs.
+  for (const route of ["campaigns", "outbound"]) assert.equal(SURFACE_STATES[route], "real", `${route}: flipped`);
+  // The gate waits on what each draws first: Campaigns is Sequences' list; the old Outbound, a door, its playbooks.
+  assert.equal(ROUTE_SURFACE.campaigns, "sequences", "campaigns: the gate waits on Sequences' list");
+  assert.equal(ROUTE_SURFACE.outbound, "playbooks", "outbound: the gate waits on its surface");
   const routes = readCode("apps/dashboard/app/api/v1/playbooks/route.ts");
   assert.ok(
     routes.includes('role: "operator",') && routes.includes('rate: "playbook",'),
@@ -587,32 +471,6 @@ test("the page and its doors: Campaigns' home is real, and the old Outbound is i
   assert.ok(
     /broadcastsOverride,\s*playbooksOverride/.test(readCode("apps/dashboard/src/legacy-bridge/LegacyApp.tsx")),
     "booted with the rest",
-  );
-  // "Running · next run tomorrow 10:00 AM" is a promise the run cannot keep when the pool is empty: Coming up says what the next
-  // run will DO. The view model's words are run in lifecycle.test.mjs ("coming up: ..."); here the page draws them: the
-  // running playbook that has nobody to send to wears a "Nobody" pill on its line, one that reaches somebody says how many,
-  // and one whose people wait out the week says so, never "nobody".
-  const comingOf = (candidates, held = 0) => {
-    // The week's runs are the broadcasts' read: read, and holding no run, so the moments' own lines are what Coming up draws.
-    const read = { ...broadcastsSample(new Date(NOW)), rows: [] };
-    const tree = drawHome({
-      rows: [winback({ candidates, held })],
-      pools: { quiet_30: poolOf(candidates, held) },
-      broadcasts: read,
-    });
-    const line = all(tree, (n) => n.props?.["data-testid"] === "cmh-coming-line").find((l) =>
-      textOf(l).includes("Win-back"),
-    );
-    assert.ok(line, "the running playbook is a line of Coming up");
-    return textOf(line);
-  };
-  assert.match(comingOf(0), /0 will get itNobody$/, "a playbook that reaches nobody says so, in the line and its pill");
-  assert.match(comingOf(4), /4 will get it4 people$/, "one that reaches somebody says how many");
-  assert.ok(!/Nobody/.test(comingOf(4)), "and says nothing of the kind");
-  assert.match(
-    comingOf(0, 2),
-    /2 hear from you within a week of today and waitAll waiting$/,
-    "people waiting out the week are not nobody",
   );
 });
 
@@ -762,7 +620,7 @@ test("Ask knows playbooks: read as the page shows them, proposed as a card, comm
   const broadcastsTsx = [
     "broadcasts-page.tsx",
     "when.tsx",
-    ...["acts", "audience", "ledger-screen", "runs", "send-screen", "state"].map((f) => `page/${f}.tsx`),
+    ...["acts", "audience", "runs", "send-screen", "state", "yes-pane"].map((f) => `page/${f}.tsx`),
     ...["reach", "types", "words"].map((f) => `page/${f}.ts`),
   ];
   assert.ok(

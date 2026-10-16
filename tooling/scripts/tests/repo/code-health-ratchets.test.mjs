@@ -160,7 +160,7 @@ test("the resume measure counts a campaign's or a reach-out's Resume sent where 
   ];
   const lines = [...head, ...body];
   assert.equal(resumesUnasked(fixture("apps/dashboard/src/surfaces/x/page.tsx", lines)), marks(lines));
-  const asks = ['import { ResumeAct } from "../home/ledger/ledger-acts";', ...lines];
+  const asks = ['import { ResumeAct } from "../campaigns/home/resume-act";', ...lines];
   assert.equal(
     resumesUnasked(fixture("apps/dashboard/src/surfaces/x/page.tsx", asks)),
     0,

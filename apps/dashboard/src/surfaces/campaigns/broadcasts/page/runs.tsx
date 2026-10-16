@@ -1,15 +1,16 @@
 /**
- * The runs the broadcasts page lists and opens (moved from legacy/pages/broadcasts.jsx, decision 0015): the ledger's
- * runs and the list under the band, the sheet of a run waiting on you, the send screen filled with what a run sent, and
- * the run's own screen.
+ * The runs Sent's sheets open (moved from legacy/pages/broadcasts.jsx, decision 0015): the run the address opens and those
+ * still to go out, the sheet of a run waiting on you, Send it again, and the run's own screen. Sent's list went to each
+ * sequence's History (decision 0060, D3): a run is opened from there, or from a link, a bell row or Ask's card.
  */
 import type { BroadcastDto, BroadcastVM } from "@chanlytics/contracts";
 import { Button } from "../../../kit/button/button";
-import { gate } from "../../../legacy-verbs";
+import { keepTabDraft } from "../../../kit/record/work";
+import { gate, navigate } from "../../../legacy-verbs";
 import { surfaceValue } from "../../../surface-values";
-import { BcRunCard, bcOrigin } from "../ledger";
+import { composeRoute } from "../../home/address";
 import { BC_LIVE, BC_NONE, BcRunVerbs, BroadcastDetail } from "../run";
-import type { BcApproving, BcBase, BcLedgerOf, BcRunActs, BcSheet, BcV } from "./types";
+import type { BcApproving, BcBase, BcKept, BcRunActs, BcRunsOf, BcSheet, BcV } from "./types";
 import { cmOfferedBy } from "../../parts/channels";
 import { BC_TEXT, bcKey, bcSlots } from "./words";
 
@@ -18,66 +19,24 @@ type RunActsIn = Pick<BcBase, "canSend" | "armId" | "setArmId" | "stopping" | "o
   Pick<BcApproving, "approving"> &
   BcRunActs;
 
-// The ledger's runs: what is open, what went, the list under the band, and the run the address opens.
-export function bcLedgerOf({
-  data,
-  origin,
-  band,
-  canSend,
-  now,
-  openRun,
-  armId,
-  setArmId,
-  stopping,
-  approving,
-  approve,
-  cancel,
-  openId,
-}: Pick<BcBase, "data" | "origin" | "band" | "now" | "openId"> & RunActsIn): BcLedgerOf {
+// The runs a sheet reads: those still to go out, what waits on you first, then what is going out, then what is to come; and
+// the run the address opens, when the read holds it (a run older than the newest fifty is read by its id alone).
+export function bcRunsOf({ data, openId }: Pick<BcBase, "data" | "openId">): BcRunsOf {
   const rows = data.rows || [];
-  const open = rows.filter((r) => r.open);
-  const history = rows.filter((r) => !r.open);
-  const shownHistory = origin ? history.filter((r) => bcOrigin(r) === origin) : history;
-  // The list under the band: a band's runs when one is pressed; else everything
-  // open -- what waits on you first, then what is going out, then what is to come
-  // -- and the latest five gone, with the way to the rest.
   const RANK: Record<string, number> = { pending_approval: 0, sending: 1, scheduled: 2 };
-  const openRows = open
-    .slice()
+  const openRows = rows
+    .filter((r) => r.open)
     .sort(
       (a, b) =>
         (RANK[a.state] ?? 3) - (RANK[b.state] ?? 3) ||
         String(a.scheduled_for || "").localeCompare(String(b.scheduled_for || "")),
     );
-  const recent = shownHistory.slice(0, 5);
-  const runs = band
-    ? rows.filter((r) => r.state === band && (r.open || !origin || bcOrigin(r) === origin))
-    : [...openRows, ...recent];
-  const sentN = rows.filter((r) => r.state === "sent").length;
-  const runCard = (row: BroadcastVM) => (
-    <BcRunCard
-      key={row.id}
-      row={row}
-      canSend={canSend}
-      now={now}
-      open={openId === row.id}
-      onOpen={() => openRun(row.id)}
-      armed={armId === row.id}
-      onArm={(on) => setArmId(on ? row.id : null)}
-      stopping={stopping === row.id}
-      approving={approving === row.id}
-      approve={approve}
-      cancel={cancel}
-    />
-  );
-  // The run open on its own screen, when the list holds it: its verbs go at the head of its report. A run older than
-  // the newest fifty is read by its id alone, and has finished.
   const openRow = openId ? rows.find((r) => r.id === openId) || null : null;
-  return { rows, open, history, shownHistory, openRows, recent, runs, sentN, runCard, openRow };
+  return { rows, openRows, openRow };
 }
 
-// A run waiting on you, open: its sheet. Where it sits among the runs waiting (the ledger's order), its playbook
-// and its template for the words, and the acts -- which, when they land, open the next run waiting, or the ledger.
+// A run waiting on you, open: its sheet. Where it sits among the runs waiting (the order above), its playbook and its
+// template for the words, and the acts -- which, when they land, open the next run waiting, or close.
 export function bcSheetOf({
   openRows,
   data,
@@ -89,7 +48,7 @@ export function bcSheetOf({
   approving,
   approve,
   cancel,
-}: Pick<BcBase, "data"> & Pick<BcLedgerOf, "openRows"> & RunActsIn) {
+}: Pick<BcBase, "data"> & Pick<BcRunsOf, "openRows"> & RunActsIn) {
   const sheetFor = (row: BroadcastVM | null): BcSheet | null => {
     if (!row || row.state !== "pending_approval") return null;
     const queue = openRows.filter((r) => r.state === "pending_approval");
@@ -129,43 +88,14 @@ export function bcSheetOf({
   return { sheetFor };
 }
 
-/** What the "send it again" button sets on the send screen. */
-type AgainIn = Pick<
-  BcBase,
-  | "canSend"
-  | "templates"
-  | "audiences"
-  | "link"
-  | "review"
-  | "setAud"
-  | "setTplId"
-  | "setSources"
-  | "setParams"
-  | "setName"
-  | "setWhenAt"
-  | "setWriting"
-  | "openRun"
->;
+/** What Send it again reads of the page. */
+type AgainIn = Pick<BcBase, "canSend" | "templates" | "audiences" | "link" | "review">;
 
-// Send it again: the send screen, filled with what this run sent -- its template, its list and its values -- when
-// all three can still go. A message with no version a broadcast can send or fill, a list since deleted, or
-// a playbook's run (whose playbook sends it again) offers no button rather than a composer quietly filled with
-// something else.
-export function bcAgainOf({
-  canSend,
-  templates,
-  audiences,
-  link,
-  review,
-  setAud,
-  setTplId,
-  setSources,
-  setParams,
-  setName,
-  setWhenAt,
-  setWriting,
-  openRun,
-}: AgainIn) {
+// Send it again: Campaigns' composer (`campaigns/new`), filled with what this run sent -- its template, its list and its
+// values -- when all three can still go: kept as the tab keeps a send half-written, which the composer opens on
+// (state.tsx useBcList). A message with no version a broadcast can send or fill, a list since deleted, or a playbook's
+// run (whose playbook sends it again) offers no button rather than a composer quietly filled with something else.
+export function bcAgainOf({ canSend, templates, audiences, link, review }: AgainIn) {
   const againFor = (b: BroadcastDto) => {
     if (!canSend || b.playbook_id) return null;
     // The message it sent, by its name and language: a WhatsApp version added since moves the id the picker lists it by.
@@ -180,19 +110,20 @@ export function bcAgainOf({
       return p && c.includes(p.kind) ? p.kind : c[0];
     });
     const typedBack = (b.params || []).map((p, i) => (kinds[i] === "text" && p && p.kind === "text" ? p.value : ""));
+    const send: BcKept = {
+      aud: bcKey(a),
+      tplId: t.id,
+      sources: { [t.id]: kinds },
+      params: { [t.id]: typedBack },
+      name: "",
+      whenAt: null,
+    };
     return (
       <Button
         data-testid="bc-again"
         onClick={() => {
-          setAud(bcKey(a));
-          setTplId(t.id);
-          setSources((x) => ({ ...x, [t.id]: kinds }));
-          setParams((x) => ({ ...x, [t.id]: typedBack }));
-          setName("");
-          setWhenAt(null);
-          setWriting(true);
-          // The composer, never the To send a run was opened from.
-          openRun(null, false);
+          keepTabDraft("broadcast", send);
+          navigate(composeRoute("once"));
         }}
         {...gate("approve", "send a broadcast")}
       >
@@ -205,11 +136,11 @@ export function bcAgainOf({
 
 /** What the run's own screen reads of the page and of the acts above. */
 type SoloIn = Pick<BcBase, "openRun"> &
-  Pick<BcLedgerOf, "openRow"> &
+  Pick<BcRunsOf, "openRow"> &
   RunActsIn &
   Pick<BcV, "againFor" | "sheetFor"> & { openId: string };
 
-// The run's own pane beside the list (the report draws it, whatever state it is in): its verbs at its head while it is
+// The run's own pane beside Sequences' list (the report draws it, whatever state it is in): its verbs at its head while it is
 // still live, and the name its row has for it while the report is read.
 export function bcRunSolo({
   openId,

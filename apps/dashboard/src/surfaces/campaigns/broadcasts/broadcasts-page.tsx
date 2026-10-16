@@ -3,6 +3,11 @@
  * legacy/pages/broadcasts.jsx, decision 0015). Every number is a row's. Nothing here scores, estimates or invents: no
  * credits, no revenue, no "booked from broadcasts" — the schema has no column for it.
  *
+ * Sent's list went to each sequence's History (decision 0060, D3), and its own address lands on Sequences: what stays here
+ * is what its sheets open, each at its own address and beside Sequences' list, as a sequence's record stands -- a run's
+ * sheet (`broadcasts/run:<id>/sheet`, where a held email is decided), To send (`broadcasts/to-send`) and Get their yes
+ * (`broadcasts/get-yes`) -- and the send screen, which Campaigns' composer hosts (BroadcastSend).
+ *
  * The audience chips carry the count of people who may receive an offer (what
  * the channels it goes by ask of them), computed by the same contracts predicate the
  * route enrols with. The message is one with a version on a channel it goes by; its values are
@@ -13,7 +18,7 @@
  * A real workspace draws the bridge's own rows (`useSurface("broadcasts")`); a demo session draws the same page from
  * the sample (sample.ts); without either, nothing is drawn.
  */
-import { useEffect, useRef, useState } from "react";
+import { Suspense, lazy, useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import type { ConsentChannel } from "@chanlytics/contracts";
 import { canDo, demoSession, useLegacyToast } from "../../legacy-verbs";
@@ -22,11 +27,11 @@ import { surfaceValue } from "../../surface-values";
 import { useSurface } from "../../use-surface";
 import { cmDefaultChannels, cmReadyOf } from "../parts/channels";
 import { CmSplit } from "../parts/split";
-import { bcAgainOf, bcLedgerOf, bcRunSolo, bcSheetOf } from "./page/runs";
+import { bcAgainOf, bcRunSolo, bcRunsOf, bcSheetOf } from "./page/runs";
 import { bcRunActs, bcSendActs } from "./page/acts";
-import { bcLedger } from "./page/ledger-screen";
 import { bcPeopleOf, bcPreviewOf, bcReachOf, bcSlotChoicesOf, bcSlotWordsOf } from "./page/reach";
 import { bcComposerGlass } from "./page/send-screen";
+import { bcYesPane } from "./page/yes-pane";
 import { BcToSendAll } from "../reach-out/to-send-all";
 import {
   useBcArmed,
@@ -34,7 +39,6 @@ import {
   useBcNow,
   useBcOffered,
   useBcOpen,
-  useBcRunLanding,
   useBcWords,
   useBcYes,
   useUnknownAudienceNotice,
@@ -44,6 +48,12 @@ import { bcDefault, bcIsStarter } from "./page/words";
 import { BC_NONE } from "./run";
 import { broadcastsSample } from "./sample";
 import type { BroadcastsSurface } from "./surface";
+
+// Sequences' list, beside what a sheet opens: its own chunk, the one Campaigns fetches for Sequences, so a sheet's page carries
+// none of it until it draws, and a visit from Sequences has it already.
+const SequencesListPane = lazy(() =>
+  import("../sequences/sequences-page").then((m) => ({ default: m.SequencesListPane })),
+);
 
 interface BroadcastsPageProps {
   initialSegment?: string | null;
@@ -75,7 +85,7 @@ function bcWorked(base: BcBase, approving: BcApproving): BcV {
   const v6 = { ...v5, ...approving };
   const v7 = { ...v6, ...bcRunActs(v6) };
   const v8 = { ...v7, ...bcSendActs(v7) };
-  const v9 = { ...v8, ...bcLedgerOf(v8) };
+  const v9 = { ...v8, ...bcRunsOf(v8) };
   const v10 = { ...v9, ...bcSheetOf(v9) };
   return { ...v10, ...bcAgainOf(v10) };
 }
@@ -97,8 +107,8 @@ interface BroadcastsPageState extends BroadcastsRealProps {
 }
 
 // The page calls its hooks in the order it always has, each holding one concern (page/state.tsx); plain functions
-// (page/) work out what its screens say, on every draw as before, and return the elements they draw. It is one hook, so the
-// ledger's page and Campaigns' home, which hosts the send screen under New message, hold the one state.
+// (page/) work out what its screens say, on every draw as before, and return the elements they draw. It is one hook, so
+// Sent's sheets and Campaigns' composer, which hosts the send screen, hold the one state.
 function useBroadcastsPage({
   data,
   initialSegment = null,
@@ -146,20 +156,14 @@ function useBroadcastsPage({
   });
   // Which of the audience's people the preview is showing.
   const [who, setWho] = useState(0);
-  // Which half of the history is in view: a playbook's runs, the ones sent by
-  // hand, or both. Null is both.
-  const [origin, setOrigin] = useState<string | null>(null);
-  // The band the list is filtered to (a state), or none: everything open and the latest gone.
-  const [band, setBand] = useState<string | null>(null);
   const now = useBcNow(data);
   // Whether Send now has been pressed once and is asking: put away once it is not the question asked (useBcArmed).
   const { armed, setArmed } = useBcArmed({ tplId, aud, channels, whenAt, heardTooFor });
-  // What is open beside the list, by the address: a run, or the one To send (useBcOpen).
+  // What is open beside Sequences' list, by the address: a run, or the one To send (useBcOpen).
   const { openId, openRun, toSend } = useBcOpen(initialRun, initialToSend);
-  useBcRunLanding(openId);
   // Left by the door to the yes, a hosted screen has been moved on by its host: it is not "done" as a send or a Cancel is.
   const leftByDoor = useRef(false);
-  const { yesOpen, setYesOpen, yesDoor, yesLink } = useBcYes(
+  const { yesOpen, setYesOpen, closeYes, yesDoor, yesLink } = useBcYes(
     initialYes,
     data,
     setWriting,
@@ -206,10 +210,6 @@ function useBroadcastsPage({
     work,
     who,
     setWho,
-    origin,
-    setOrigin,
-    band,
-    setBand,
     now,
     armed,
     setArmed,
@@ -217,6 +217,7 @@ function useBroadcastsPage({
     openRun,
     yesOpen,
     setYesOpen,
+    closeYes,
     yesDoor,
     yesLink,
     armId,
@@ -237,28 +238,39 @@ function useBroadcastsPage({
 
 function BroadcastsReal(props: BroadcastsRealProps) {
   const { v, toastNode, writing, openId, toSend } = useBroadcastsPage(props);
-  // The ledger is always the list; beside it, in a pane, what is open (parts/split.tsx): a run, whether the list holds it
-  // or it is older than the list, else the one To send, else the send. The send is three questions -- who, what, when --
-  // and the one act that cannot be taken back alone at the foot: the audience, the words and the send button on one
-  // screen, never an owner scrolling past the preview to reach Send.
+  // Sequences' list, and beside it, in a pane, what the address opens (parts/split.tsx): a run, else the one To send, else
+  // Get their yes, else the send an audience's address asks for (`broadcasts/<list>`, which a link moves to Campaigns'
+  // composer, `campaigns/new:to:<list>`, before it lands: contracts doorOf). Its own address has nothing open, and lands on
+  // Sequences (route.tsx). Send it again goes to Campaigns' composer too.
   const open = openId ? (
     bcRunSolo({ ...v, openId })
   ) : toSend.open ? (
     <BcToSendAll rows={v.data.rows} onClose={toSend.close} onOpenRun={(id) => v.openRun(id, true)} />
+  ) : v.yesOpen ? (
+    bcYesPane(v)
   ) : writing ? (
     bcComposerGlass(v)
   ) : null;
   return (
     <>
-      <CmSplit className="bc-page" testid="broadcasts-real" list={bcLedger(v)} open={open} />
+      <CmSplit
+        className="sq-page"
+        testid="broadcasts-real"
+        list={
+          <Suspense fallback={<div className="sq-reading" aria-busy="true" />}>
+            <SequencesListPane />
+          </Suspense>
+        }
+        open={open}
+      />
       {toastNode}
     </>
   );
 }
 
 /**
- * The send screen on its own, for Campaigns' home (New message › Send once): the pane the ledger opens beside its list, held by
- * the same hook, so what is kept in the tab, the channels, the preview and the one Send are the page's. `initialSegment` is the
+ * The send screen on its own, for Campaigns' composer (Send once, and Send it again): held by the same hook as Sent's sheets,
+ * so what is kept in the tab, the channels, the preview and the one Send are the page's. `initialSegment` is the
  * audience it opens on ("message these people", from People or a list: `campaigns/new:to:<audience>`). `flash` is the home's
  * toast, not a host of the screen's own: a send closes the sheet at once, and the toast that says it is sending, with its Stop
  * and its "See who", must outlive it. `onDone` is told when the screen has been left, sent or scheduled or cancelled, which is

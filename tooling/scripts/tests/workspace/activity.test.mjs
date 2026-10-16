@@ -1235,7 +1235,7 @@ test("what the ledgers never kept is said in an owner's words: a thread handed o
   );
   assert.equal(
     activityWords("template.removed", { name: "spring_offer", language: "en", by: "u1" }),
-    "A message was deleted from the Library · spring_offer",
+    "A message was deleted from Messages · spring_offer",
   );
   assert.equal(
     activityWords("capability.activated", { capability: "voice", by: "u1" }),
@@ -1549,7 +1549,7 @@ test("(1.6) a message sent to WhatsApp opens its drawer in the Library by name w
     r.rows.map((x) => x.text),
     [
       "A message was sent to WhatsApp for approval · spring_offer",
-      "A message was deleted from the Library · spring_offer",
+      "A message was deleted from Messages · spring_offer",
       "A message was sent to WhatsApp for approval · spring_offer",
     ],
     "the words are the data's, whatever the subject is",

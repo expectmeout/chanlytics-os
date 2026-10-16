@@ -1,15 +1,15 @@
 /**
  * The hooks the broadcasts page calls, each holding one concern (moved from legacy/pages/broadcasts.jsx, decision
  * 0015): what can be offered, who a send goes to, the words of the send, the question Send now asks, the clock, what is
- * open beside the list, a link's landing, and the yes.
- * BroadcastsReal calls them in the order it always has.
+ * open beside Sequences' list, and the yes. BroadcastsReal and Campaigns' composer (BroadcastSend) call them in the
+ * order they always have.
  */
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   HOUR_MS,
+  SEQUENCES_ROUTE,
   TO_SEND_ROUTE,
   UNKNOWN_AUDIENCE_WORDS,
-  addressOf,
   doorNamesNoAudience,
   runSheetRoute,
 } from "@chanlytics/contracts";
@@ -19,7 +19,6 @@ import { navigate, replaceRoute } from "../../../legacy-verbs";
 import { tabDraft } from "../../../kit/record/work";
 import type { AudienceOption, BroadcastTemplate, BroadcastsSurface } from "../surface";
 import { starters } from "../../templates/verbs";
-import { sequencesShown } from "../../sequences/shown";
 import { BC_NONE } from "../run";
 import type { BcKept, Flash, Params, Setter, Sources } from "./types";
 import { bcKey, bcOrder, bcSlots } from "./words";
@@ -194,10 +193,11 @@ export function useBcNow(data: BroadcastsSurface) {
 }
 
 /**
- * What is open beside Sent's list, by the address, replaced as it opens and closes so a reload opens it again and the crumbs
- * name it: a run (`broadcasts/run:<id>`), or the one To send (`broadcasts/to-send`, 00429: every email handed to its owner).
- * Back leaves the page rather than replaying every run read (the Inbox's rule, and Playbooks'). A run opened from To send
- * closes back to it, the list being worked down; a link to either moves the page the same way.
+ * What is open beside Sequences' list, by the address, replaced as it opens and closes so a reload opens it again and the
+ * crumbs name it: a run (its sheet, `broadcasts/run:<id>/sheet`), or the one To send (`broadcasts/to-send`, 00429: every
+ * email handed to its owner). Back leaves the page rather than replaying every run read (the Inbox's rule). A run opened
+ * from To send closes back to it, the list being worked down; anything else closes onto Sequences (decision 0060, D3:
+ * Sent's list is each sequence's History).
  */
 export function useBcOpen(initialRun: string | null, initialToSend: boolean) {
   const [openId, setOpenId] = useState(initialRun);
@@ -218,79 +218,42 @@ export function useBcOpen(initialRun: string | null, initialToSend: boolean) {
     setOpenId(id);
     if (!under) setToSendOpen(false);
     followed.current = { run: id, toSend: !id && under };
-    // Where Sequences is drawn, a run's own address lands on its History (route.tsx): the sheet open here writes its
-    // sheet's, so a reload opens it here again.
-    replaceRoute(
-      id
-        ? sequencesShown()
-          ? runSheetRoute(id)
-          : addressOf({ kind: "send", id })
-        : under
-          ? TO_SEND_ROUTE
-          : "broadcasts",
-    );
+    // A run's own address lands on its History (route.tsx): the sheet open here writes its sheet's, so a reload opens it
+    // here again.
+    replaceRoute(id ? runSheetRoute(id) : under ? TO_SEND_ROUTE : SEQUENCES_ROUTE);
   };
   const close = () => {
     setToSendOpen(false);
     followed.current = { run: null, toSend: false };
-    replaceRoute("broadcasts");
+    replaceRoute(SEQUENCES_ROUTE);
   };
   return { openId, openRun, toSend: { open: toSendOpen, close } };
 }
 
-// A link lands on its run: its row brought into view in the list (the report is the pane beside it, always in view), when
-// the list was scrolled past where it stands.
-export function useBcRunLanding(openId: string | null) {
-  useEffect(() => {
-    const el =
-      openId && typeof document !== "undefined" && document.getElementById
-        ? document.getElementById(`bc-row-${openId}`)
-        : null;
-    if (!el || !el.getBoundingClientRect || !el.scrollIntoView) return;
-    const at = el.getBoundingClientRect();
-    if (at.top < 0 || at.top > window.innerHeight - 80) el.scrollIntoView({ block: "start" });
-  }, [openId]);
-}
-
-// The yes: the section that gets it, open where the address or a press asks for it, and the send screen's door to it. `goes` is
-// where the door's press goes where the host of the screen moves the page itself (Campaigns' home: its sheet is an address, which
-// the door replaces with the section's); the page's own screen goes there as every link does.
+// The yes: its pane, open where the address asks for it (`broadcasts/get-yes`, which every "nobody has said yes to offers"
+// door lands on), and the send screen's door to it. `goes` is where the door's press goes where the host of the screen moves
+// the page itself (Campaigns' composer: its sheet is an address, which the door replaces with the pane's); anywhere else it
+// goes there as every link does.
 export function useBcYes(
   initialYes: boolean,
   data: BroadcastsSurface,
   setWriting: Setter<boolean>,
   goes: (route: string) => void = navigate,
 ) {
-  // broadcasts/get-yes: the section that answers "nobody has said yes to
-  // offers", opened and brought into view -- it sits on the ledger under the runs,
-  // folded to its one line, where a person sent here to find the QR would otherwise
-  // have to scroll for it and open it.
   const [yesOpen, setYesOpen] = useState(!!initialYes);
-  const showYes = () => {
-    setYesOpen(true);
-    const el = typeof document !== "undefined" && document.getElementById ? document.getElementById("bc-optin") : null;
-    // Opened before it is brought into view: scrolled to while folded, the section is the page's last line, so the
-    // scroll stops at the page's end and it then opens below the screen's foot, under a phone's tab bar (#663).
-    // eslint-disable-next-line @typescript-eslint/no-deprecated -- the method named as a guard, as the JSX had it
-    const fold = el && el.querySelector ? el.querySelector("details") : null;
-    if (fold) fold.open = true;
-    if (el && el.scrollIntoView) el.scrollIntoView({ block: "start" });
-  };
+  // The page keeps its mount across its own addresses, so it follows them: a link to the yes opens it, any other puts it away.
   useEffect(() => {
-    if (initialYes) showYes();
+    setYesOpen(!!initialYes);
   }, [initialYes]);
-  // The send screen's own door to it: the ledger drawn in the send's place, then
-  // the section brought into view the same way. Counted, so that every press
-  // lands, whether or not the address changes -- a send written from
-  // broadcasts/get-yes keeps its address.
-  const [yesAsked, setYesAsked] = useState(0);
-  useEffect(() => {
-    if (yesAsked) showYes();
-  }, [yesAsked]);
   const toYes = () => {
     setWriting(false);
-    setYesAsked((n) => n + 1);
+    setYesOpen(true);
     goes(data.getYes);
+  };
+  // Closed, as every pane beside Sequences' list closes: onto Sequences.
+  const closeYes = () => {
+    setYesOpen(false);
+    replaceRoute(SEQUENCES_ROUTE);
   };
   // That door, in the sentence that says nobody has the yes: drawn when the
   // ledger draws the card, which takes a number to put in the QR. The sentence
@@ -310,5 +273,5 @@ export function useBcYes(
         </LinkButton>
       </>
     ) : null;
-  return { yesOpen, setYesOpen, yesDoor, yesLink };
+  return { yesOpen, setYesOpen, closeYes, yesDoor, yesLink };
 }

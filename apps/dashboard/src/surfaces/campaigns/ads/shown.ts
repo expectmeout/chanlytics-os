@@ -1,9 +1,9 @@
 /**
  * Whether Campaigns › Ads is drawn here (MOCKUP): in a demo session, or in a workspace whose config turns its Ads preview
  * on (`features.ads_preview`, contracts `adsPreviewOf`: Ruben's to set, per workspace, until the Ads read is wired, 0049).
- * Everywhere else, Campaigns is Messages alone, Reports has no Ads lens and Connections no Ad accounts card. The preview is
+ * Everywhere else, Campaigns is Sequences and Messages alone, Reports has no Ads lens and Connections no Ad accounts card. The preview is
  * read off the settings surface, which Campaigns and Settings open on (route-prefetch); `useAdsShown` draws again when it
- * lands, so a cold load of an Ads address shows the home for that beat and then the page.
+ * lands, so a cold load of an Ads address shows Sequences for that beat and then the page.
  */
 import { adsPreviewOf } from "@chanlytics/contracts";
 import { demoSession } from "../../legacy-verbs";

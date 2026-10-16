@@ -161,10 +161,6 @@ const OTHER_STATES = {
     n: 2,
     why: "A reach-out's chain as its reader answers it: on where its first step and the step are, which has no last day.",
   },
-  "apps/dashboard/src/surfaces/campaigns/reach-out/row.tsx": {
-    n: 1,
-    why: "A reach-out's row: its chain on or paused, which has no last day.",
-  },
   "apps/dashboard/src/surfaces/leads/finder/strip-view.tsx": {
     n: 1,
     why: "A lead search's round running, not a campaign.",

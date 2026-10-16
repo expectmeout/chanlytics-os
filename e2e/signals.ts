@@ -34,10 +34,10 @@ export const GET_YES_ROUTE = GET_YES_HASH.replace(/^#\//, "");
  * be scanned, so the image itself must be entirely in view.
  *
  * Since Glass the top bar holds the date and time where the crumbs stood, and the
- * frame head names the room the section is in (Campaigns' "Sent", its parts/head.tsx:
- * one name for every address of a room, no way back above it); the section's own
- * title says why the person is there. This read "Get their yes" off the top bar
- * until 7 Oct 2026.
+ * frame head names what is open, its last crumb: Get their yes, a pane beside
+ * Sequences' list since Sent's list went to each sequence's History (decision
+ * 0060, D3); the pane's own title says it too. This read "Get their yes" off the
+ * top bar until 7 Oct 2026, and "Sent" off the head until 16 Oct.
  */
 export async function expectQrInView(page: Page): Promise<void> {
   await expect.poll(() => routeOf(page.url())).toBe(GET_YES_ROUTE);
@@ -45,7 +45,7 @@ export async function expectQrInView(page: Page): Promise<void> {
   await expect(section).toBeVisible();
   await expect(section).toContainText("Get their yes");
   await expect(section.locator(".bc-optin-qr")).toBeInViewport({ ratio: 1 });
-  await expect(page.locator(".pg-head")).toContainText("Sent");
+  await expect(page.locator(".pg-head")).toContainText("Get their yes");
 }
 
 export interface LeakRow {

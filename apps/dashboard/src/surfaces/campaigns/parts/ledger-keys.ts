@@ -42,7 +42,7 @@ const SEARCH_ID = "cmh-ledger-search";
 const rowSelector = (id: string): string => `[data-row="${id.replace(/["\\]/g, "\\$&")}"]`;
 
 /** A row's opener, by its id: the name a press anywhere on the row presses (parts/head.tsx cmRowPress). */
-export const rowOpener = (id: string): string => `${rowSelector(id)} [data-row-open]`;
+const rowOpener = (id: string): string => `${rowSelector(id)} [data-row-open]`;
 
 /** The page's one element for a selector, where there is a document to ask. */
 function found(selector: string): HTMLElement | null {
@@ -173,7 +173,7 @@ const SEARCH_OR_CIRCLE = `[data-testid="${SEARCH_ID}"], [data-testid="cmh-phone-
 /** A row's opener by its id, where the row is drawn and has one (the receptionist has none). */
 const openerOf = (id: string | undefined): HTMLElement | null => (id === undefined ? null : found(rowOpener(id)));
 
-/** A moment's card's name on the rail, by its moment (rail.tsx Stage): the door to its lead's drawer. */
+/** A moment's card's name on a rail, by its moment (as Campaigns' home drew one until decision 0060): the door to its lead's drawer. */
 const cardOpener = (stage: string): string =>
   `.cmh-stage[data-stage="${stage.replace(/["\\]/g, "\\$&")}"] [data-row-open]`;
 
@@ -227,7 +227,7 @@ export function useFocusComesHome(open: string | null, ids: readonly string[]): 
 }
 
 /** What a row wears for its next draw: decided in place (it settles once), or arrived (scrolled to, washed once). */
-export type RowMark = { id: string; kind: "settled" | "arrived" } | null;
+type RowMark = { id: string; kind: "settled" | "arrived" } | null;
 
 /**
  * The page's marks: one row at a time, the last one marked, until it is let go of (`clear`). An arrival is only marked
@@ -279,17 +279,4 @@ export function useArrivalLands(mark: RowMark, ids: readonly string[]): void {
     landed.current = arrived;
     bringRowToView(arrived);
   }, [arrived, here]);
-}
-
-/**
- * Let go of something when a key changes after the first draw: the page lets go of a row's mark when the list's filter
- * changes (the status, the group and the words, as one key), so a row decided under a tab stays shown until then.
- */
-export function useLetGo(key: string, letGo: () => void): void {
-  const was = useRef(key);
-  useEffect(() => {
-    if (was.current === key) return;
-    was.current = key;
-    letGo();
-  }, [key]); // eslint-disable-line react-hooks/exhaustive-deps -- the key alone says when
 }

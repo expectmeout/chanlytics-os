@@ -370,8 +370,8 @@ test("the re-created bodies are 00220's and 00185's, but for the away", { skip }
     .replace(/\(select 1 from public\.reach_out_sends x\n\s+where/, "(select 1 from public.reach_out_sends x where");
   assert.equal(back, f185);
   // 00241 re-creates both whole with the stop (Reach out Part 6), and what-comes-back.db.test.mjs holds it to these;
-  // 00424 makes the followers again with each one's mailbox (a cold email leaves from a connected mailbox, 0056).
-  const now = migration("00241");
+  // 00424 makes the followers again with each one's mailbox (a cold email leaves from a connected mailbox, 0056); 00451
+  // writes both again over the sequence tables, which is what the database holds now.
   assert.equal(
     liveBody("outreach_lead_facts"),
     bodyIn(migration("00451"), "create or replace function public.outreach_lead_facts("),

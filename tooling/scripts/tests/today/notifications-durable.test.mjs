@@ -157,14 +157,14 @@ test("the wiring: the table and its doors, the route, the surface, the bell read
     /\{\s*kind: news\.kind,\s*route: news\.route,/.test(readCode("apps/edge/lib/ops/job-alert.ts")),
     "the job that raises the alert decides what it is; this file only decides who may be told",
   );
-  // The look and the door of a broadcast that finished: good news, on the page it happened on.
+  // The look and the door of a broadcast that finished: good news, on Sequences, where its run is a day of its History.
   const done = serverNotificationRows({
     seen_at: null,
     notifications: [row({ kind: "broadcast_sent", title: "Broadcast “Spring offer” sent", route: "broadcasts" })],
   });
   assert.deepEqual(
     [done[0].icon, done[0].tone, done[0].action, done[0].to],
-    ["check", "ok", "Open Sent", "broadcasts"],
+    ["check", "ok", "Open Sequences", "broadcasts"],
   );
   const stopped = serverNotificationRows({
     seen_at: null,
@@ -172,7 +172,7 @@ test("the wiring: the table and its doors, the route, the surface, the bell read
   });
   assert.deepEqual(
     [stopped[0].icon, stopped[0].tone, stopped[0].action, stopped[0].to],
-    ["alert", "warn", "Open Sent", "broadcasts"],
+    ["alert", "warn", "Open Sequences", "broadcasts"],
   );
   assert.ok(
     readCode("apps/edge/lib/playbooks.ts").includes('kind: "playbook",') &&

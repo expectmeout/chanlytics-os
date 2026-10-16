@@ -146,7 +146,7 @@ export const TPL_VERSION_WORDS = {
     `${title}: the ${lower(channel)} version in ${language} is saved`,
   removed: (title: string, channel: string, language: string): string =>
     `${title}: the ${lower(channel)} version in ${language} is removed`,
-  /** A message begun here: it is in the Library, with the version it began as. */
+  /** A message begun here: it is in Messages, with the version it began as. */
   began: (title: string, channel: string, language: string): string =>
-    `${title} is in the ${CAMPAIGN_ROOMS.library}: the ${lower(channel)} version in ${language} is saved`,
+    `${title} is in ${CAMPAIGN_ROOMS.library}: the ${lower(channel)} version in ${language} is saved`,
 };

@@ -14,9 +14,8 @@ import { CAMPAIGN_ROOMS, LIFECYCLE_WORDS, bookingTemplate } from "@chanlytics/co
 import type { useLegacyToast } from "../../legacy-verbs";
 import { useSurface } from "../../use-surface";
 import { MessageInPlace } from "../parts/message-in-place";
-import { MessagePaneContext } from "../parts/message-pane";
-import { useKept } from "./drawer";
-import { PaneSheet } from "./pane-sheet";
+import { messagePaneContext } from "../parts/message-pane";
+import { PaneSheet, useKept } from "./pane-sheet";
 
 interface MessageDrawerProps {
   /** The message's name the address holds, or null while none is open. */
@@ -48,5 +47,6 @@ export function MessageDrawer(p: MessageDrawerProps) {
  * chunks the Campaigns page loads, and it carried the kit's icons a second time (+7 KB gzipped, #1644).
  */
 export function MessagePaneProvider({ children }: { children: ReactNode }) {
-  return <MessagePaneContext.Provider value={MessageInPlace}>{children}</MessagePaneContext.Provider>;
+  const Pane = messagePaneContext();
+  return <Pane.Provider value={MessageInPlace}>{children}</Pane.Provider>;
 }

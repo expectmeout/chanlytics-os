@@ -363,7 +363,10 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   "DELETE sequences/[id]/steps/[step]": () => [...runsAndChains(), sequencesOverride],
   "POST sequences/[id]/steps/[step]/words": () => [...runsAndChains(), sequencesOverride, ...templates()],
   "POST sequences/[id]/leave": () => [...runsAndChains(), sequencesOverride, peopleOverride, leadsOverride],
-  // A new sequence is a campaign the old home lists too, until S6; a discarded one leaves both.
+  // A person taken out and put back (00450) is their enrollment alone: the sends their leaving withdrew stay withdrawn, and
+  // the clock writes their next; the Sequences page reads its record again behind the press.
+  "POST sequences/[id]/return": () => [sequencesOverride],
+  // A new sequence's first step is a campaign the playbooks surface reads too; a discarded one leaves both.
   "POST sequences": () => [...runsAndChains(), sequencesOverride],
   "DELETE sequences/[id]": () => [...runsAndChains(), sequencesOverride],
   // A reach-out is a chain of playbooks over a search's leads (Part 4): its runs are broadcasts, its answers move leads,
@@ -583,6 +586,7 @@ export const REFRESHES_NOTHING: Partial<Record<RouteKey, string>> = {
     "what an add would do (00426, dry): nothing is written; the caller says the answer",
   // Ask keeps its own thread and its cards; a card's own call goes through its verb's route, and that route's refresh.
   "POST ask": "a question: Ask draws its answer from the turn it streams",
+  "POST ask/quick": "a quick answer kept as a turn: the Line already drew it, and the thread reads it back as it opens",
   "POST ask/warm": "a warm read of the page before a question; it changes nothing",
   "POST ask/warm/model": "the model's cache, written before a question; it changes nothing a page shows",
   "POST ask/speech": "a clip of the words the page already shows, read aloud in Ask's voice; nothing on screen moves",
@@ -629,6 +633,10 @@ export const REFRESHES_NOTHING: Partial<Record<RouteKey, string>> = {
   "POST segments/draft": "a draft of a list's rule",
   "POST sequences/draft": "a draft of a new sequence, shown in the pane that asked; nothing is made until it is kept",
   "POST templates/draft": "a draft of a template's words",
+  "POST templates/versions/rewrite":
+    "a version's words written again, handed back to the editor; only its Save keeps them",
+  "POST sequences/[id]/steps/[step]/test":
+    "a test of a step's message to the member's own address: no customer, run or count moves",
   "POST leads/check-again": "the checks are scheduled; each row moves as its check lands, through the live feed",
   // Somewhere else: the page leaves, or the provider's page opens.
   "POST billing/checkout": "Stripe's checkout opens; the return reads Billing again (billing.ts outcome)",

@@ -211,7 +211,7 @@ test("a workspace that answers everywhere: nine of ten — the kept number is th
   const none = setupSteps({ ...live(), consent: { yes: 3, offers: 0, offersSaidYes: 0 } }, NOW);
   assert.equal(
     row(none, "yes").sentence,
-    "Nobody has said yes to offers yet. The keyword and the QR are under Get their yes in Sent.",
+    "Nobody has said yes to offers yet. The keyword and the QR are under Get their yes.",
   );
   assert.equal(row(none, "yes").state, "not_started", "three conversational yeses do not make this row ready");
   // The door lands on the QR itself (#663), as People's, Today's and Playbooks' do: the top of Broadcasts is the

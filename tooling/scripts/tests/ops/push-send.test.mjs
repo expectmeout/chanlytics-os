@@ -100,7 +100,7 @@ test("every member's every phone hears a workspace row, in the bell's words; ano
 test("a row kept with no route opens its kind's list on the phone, as it does on the bell (wiring task 1.7)", async () => {
   for (const [kind, opens] of [
     ["handoff", "inbox"],
-    ["broadcast_sent", "broadcasts"],
+    ["broadcast_sent", "campaigns/sequences"],
     ["number", "admin/integrations"],
     ["playbook", "outbound"],
   ]) {

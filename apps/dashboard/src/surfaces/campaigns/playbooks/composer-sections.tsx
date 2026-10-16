@@ -573,7 +573,7 @@ function messageCaption(x: SectionCtx) {
             inline
             note={
               langChoices.length < 2
-                ? "A run sends one language to everyone on it. Another is written in Campaigns › Library."
+                ? "A run sends one language to everyone on it. Another is written in Campaigns › Messages."
                 : "A run sends one language to everyone on it."
             }
             data-testid="pb-lang"

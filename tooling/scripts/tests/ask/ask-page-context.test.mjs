@@ -184,71 +184,66 @@ test("Reports: the period; Campaigns: the tab's own rows; Settings: the pane; St
   assert.equal(ctx({}, "start/phone").view, "phone");
 });
 
-test("Campaigns' home sends the rows its ledger shows and the view they are under (the moment spec, A2): a campaign as a playbook, a one-off send as its run; the playbooks the surface read only before the ledger has drawn; a drawer open is the scope", () => {
+test("Campaigns is Sequences (decision 0060): its rows are the list's in its order, a one-off as its run and one to leads as its reach-out; before the list is read, the playbooks the surface read; a sequence open beside it is the scope", () => {
   holding("playbooks", { rows: [{ id: U(9), name: "An older read" }] });
-  const g = {
-    __askOnScreen: {
-      key: "campaigns",
-      ids: [U(1), `run:${U(2)}`],
-      labels: ["Win back", "Monday offer"],
-      view: "playbooks:needs",
-    },
-  };
-  const out = ctx(g, "campaigns");
+  const before = ctx({}, "campaigns/sequences");
+  assert.deepEqual([before.view, before.rows], ["playbooks", [{ kind: "playbook", id: U(9) }]]);
+  holding("sequences", {
+    sequences: [
+      { id: U(1), name: "Win back", starts: "moment" },
+      { id: U(2), name: "Monday offer", starts: "date" },
+      { id: U(5), name: "Movers in Austin", starts: "leads" },
+      { id: U(7), name: "New this week", starts: "list" },
+    ],
+  });
+  const out = ctx({}, "campaigns/sequences");
   assert.deepEqual(
     [out.surface, out.view, out.rows],
     [
       "campaigns",
-      "playbooks:needs",
+      "sequences",
       [
         { kind: "playbook", id: U(1) },
         { kind: "run", id: U(2) },
+        { kind: "reach_out", id: U(5) },
+        { kind: "playbook", id: U(7) },
       ],
     ],
   );
   assert.ok(!JSON.stringify(out).includes("Monday offer"), "the labels stay in the tab");
-  // A row's name in the words is the row asked about: a campaign is a scope now.
-  assert.deepEqual(ctx(g, "campaigns", "Why is Win back waiting?").focus, {
+  assert.equal(out.focus, null, "the list alone names no row");
+  // A row's name in the words is the row asked about.
+  assert.deepEqual(ctx({}, "campaigns/sequences", "Why is Win back waiting?").focus, {
     kind: "playbook",
     id: U(1),
     label: "Win back",
   });
-  // Another page's on-screen is not believed: before the ledger draws, the surface's read stands in.
-  const before = ctx({ ...g, __askOnScreen: { key: "people", ids: [U(3)], labels: [], view: null } }, "campaigns");
-  assert.deepEqual([before.view, before.rows], ["playbooks", [{ kind: "playbook", id: U(9) }]]);
-  assert.deepEqual(ctx(g, `campaigns/moment:${U(1)}`).focus, { kind: "playbook", id: U(1), label: "this campaign" });
+  // A sequence open beside it is the turn's scope, named for it, on any of its tabs; one to leads is the page at its address.
+  assert.deepEqual(ctx({}, `campaigns/sequences/${U(1)}`).focus, { kind: "playbook", id: U(1), label: "Win back" });
+  assert.deepEqual(ctx({}, `campaigns/sequences/${U(2)}/history`).focus, {
+    kind: "run",
+    id: U(2),
+    label: "Monday offer",
+  });
+  assert.deepEqual(ctx({}, `campaigns/sequences/${U(5)}/people`).focus, {
+    kind: "page",
+    id: `campaigns/sequences/${U(5)}/people`,
+    label: "Movers in Austin",
+  });
+  assert.equal(ctx({}, `campaigns/sequences/${U(8)}`).focus, null, "one the list does not hold names none");
+  // A link kept from the home still names its campaign as it lands on its sequence (contracts scopeFromRoute).
+  assert.deepEqual(ctx({}, `campaigns/moment:${U(1)}`).focus, { kind: "playbook", id: U(1), label: "this campaign" });
 });
 
-test("Campaigns' reach-outs are rows of their own (A2): the ledger spells one `reach_out:<id>` and the page sends it so; a reach-out open in the drawer is the page over its row, named for its chain, never a campaign no read holds", () => {
-  const g = {
-    __askOnScreen: {
-      key: "campaigns",
-      ids: [`reach_out:${U(5)}`, `reach_out:${U(6)}`],
-      labels: ["Movers in Austin", "Gyms nearby"],
-      view: "playbooks:all:in:reach_out",
-    },
-  };
-  const out = ctx(g, "campaigns/in:reach_out");
-  assert.deepEqual(
-    [out.view, out.rows],
-    [
-      "playbooks:all:in:reach_out",
-      [
-        { kind: "reach_out", id: U(5) },
-        { kind: "reach_out", id: U(6) },
-      ],
-    ],
-  );
-  // The drawer's address names the chain's first step, which no campaigns read holds: the chains the page read say it is
-  // a reach-out, and its scope is the page at that address, named for it.
+test("a link kept from the home to a reach-out names the page at its address, for its chain, never a campaign no read holds", () => {
+  // The address names the chain's first step, which no campaigns read holds: the chains read say it is a reach-out.
   setSurfaceValue("reach_outs", [{ root_id: U(5), name: "Movers in Austin" }]);
   try {
     const drawer = { kind: "page", id: `campaigns/moment:${U(5)}`, label: "Movers in Austin" };
-    assert.deepEqual(ctx(g, `campaigns/moment:${U(5)}`).focus, drawer);
+    assert.deepEqual(ctx({}, `campaigns/moment:${U(5)}`).focus, drawer);
     // The Line's chip is the same scope (the palette's scopeFor, what a turn is asked with).
     assert.deepEqual(askPalette({}, null).scopeFor("campaigns", `moment:${U(5)}`, null), drawer);
-    // A campaign's drawer is its playbook still.
-    assert.deepEqual(ctx(g, `campaigns/moment:${U(1)}`).focus, { kind: "playbook", id: U(1), label: "this campaign" });
+    assert.deepEqual(ctx({}, `campaigns/moment:${U(1)}`).focus, { kind: "playbook", id: U(1), label: "this campaign" });
   } finally {
     setSurfaceValue("reach_outs", undefined);
   }

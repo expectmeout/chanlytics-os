@@ -74,6 +74,16 @@ export const GET_YES_PAUSED_WORDS = {
 } as const;
 
 /**
+ * Get their yes with no WhatsApp number to put in its code (`broadcasts/get-yes`): no code, desk sign or link to hand
+ * out, where the number comes from, and the yes a person can record meanwhile.
+ */
+export const GET_YES_NO_NUMBER_WORDS = {
+  note: "no code without a WhatsApp number",
+  body: "The code, the phrase and the desk sign come with your WhatsApp number. Until it is connected, record a customer's yes on their profile.",
+  door: { label: "Open Connections", to: "admin/integrations" },
+} as const;
+
+/**
  * A yes taken while the workspace is paused: its confirmation is refused by the send door (core deliver.ts `paused`), so
  * the hold says so in the words of a pause, not of a reply that failed (the hold's reason is `paused`).
  */

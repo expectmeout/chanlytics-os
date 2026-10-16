@@ -331,7 +331,7 @@ test("a surface's own tables reach it wherever the page is, and a thread's updat
   }
 });
 
-test("Campaigns' home owns what it draws but Sent's runs: a message re-reads the playbooks and its own 30 days, never the broadcasts and every page of People behind them; what passed is read once as it comes back", async () => {
+test("Campaigns owns what it draws but Sent's runs: a message re-reads Sequences' list, the playbooks and its own 30 days, never the broadcasts and every page of People behind them; what passed is read once as it comes back", async () => {
   win.location.hash = "#/campaigns";
   // Its own 30 days are read on demand and again once aged: held fresh, so what is asked is what a message moved.
   const r = await running({ fresh: ["campaign_results"] });
@@ -339,8 +339,8 @@ test("Campaigns' home owns what it draws but Sent's runs: a message re-reads the
     await r.message();
     assert.deepEqual(
       [...r.asked].sort(),
-      ["campaign_results", "conversations", "inbox", "playbooks", "today"],
-      "the home's own surface and its numbers: not the broadcasts, People, Reports or the Calendar",
+      ["campaign_results", "conversations", "inbox", "playbooks", "sequences", "today"],
+      "its own list and its sheets' numbers: not the broadcasts, People, Reports or the Calendar",
     );
     r.asked.length = 0;
 
@@ -367,19 +367,24 @@ test("Campaigns' home owns what it draws but Sent's runs: a message re-reads the
     win.location.hash = "#/campaigns";
     win.dispatchEvent({ type: "popstate" });
     await settle();
-    assert.deepEqual([...r.asked].sort(), ["campaign_results", "playbooks"], "read once, as the page it draws them on");
+    assert.deepEqual(
+      [...r.asked].sort(),
+      ["campaign_results", "playbooks", "sequences"],
+      "read once, as the page it draws them on",
+    );
     r.asked.length = 0;
-    win.location.hash = "#/campaigns/moment:pb-1";
+    win.location.hash = "#/campaigns/new";
     win.dispatchEvent({ type: "popstate" });
     await settle();
-    assert.deepEqual(r.asked, [], "a moment opened is the same page: nothing passed it");
+    assert.deepEqual(r.asked, [], "a sheet opened is the same page: nothing passed it");
     await r.message();
     assert.deepEqual(
       [...new Set(r.asked)].sort(),
-      ["campaign_results", "conversations", "inbox", "playbooks", "today"],
-      "and with a moment open the home still hears them",
+      ["campaign_results", "conversations", "inbox", "playbooks", "sequences", "today"],
+      "and at a sheet's address Campaigns still hears them",
     );
-    // Sent is the broadcasts' page: what passed them on Campaigns is read once as Sent comes on screen, and Sent hears messages.
+    // Sent's sheets are the broadcasts' page, beside Sequences' list: what passed them on Campaigns is read once as it comes on
+    // screen, and it hears messages.
     r.asked.length = 0;
     win.location.hash = "#/broadcasts";
     win.dispatchEvent({ type: "popstate" });
@@ -387,7 +392,7 @@ test("Campaigns' home owns what it draws but Sent's runs: a message re-reads the
     assert.ok(r.asked.includes("broadcasts"), "the replies Campaigns let pass are read once on Sent");
     r.asked.length = 0;
     await r.message();
-    assert.deepEqual([...new Set(r.asked)].sort(), ["broadcasts", "conversations", "inbox", "today"]);
+    assert.deepEqual([...new Set(r.asked)].sort(), ["broadcasts", "conversations", "inbox", "sequences", "today"]);
   } finally {
     r.stop();
     win.location.hash = "#/today";

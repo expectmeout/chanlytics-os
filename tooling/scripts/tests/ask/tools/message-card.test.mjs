@@ -458,7 +458,7 @@ test("the receipt says what the door filed and what it refused, from its answer"
   const p = card({ name: "thanks_for_coming", versions: THANKS.versions });
   assert.equal(
     spec.receipt(p, FILED),
-    "“thanks_for_coming” is in the Library — its email version is ready; its text version is ready; its WhatsApp version is with WhatsApp for review",
+    "“thanks_for_coming” is in Messages — its email version is ready; its text version is ready; its WhatsApp version is with WhatsApp for review",
   );
   const refused = {
     ...FILED,
@@ -467,19 +467,19 @@ test("the receipt says what the door filed and what it refused, from its answer"
   };
   assert.equal(
     spec.receipt(p, refused),
-    `“thanks_for_coming” is in the Library — its email version is ready; its text version is ready · its WhatsApp version was not filed: ${C.LIBRARY_WORDS.writeNeedsNumber}`,
+    `“thanks_for_coming” is in Messages — its email version is ready; its text version is ready · its WhatsApp version was not filed: ${C.LIBRARY_WORDS.writeNeedsNumber}`,
   );
   assert.equal(
     spec.receipt(p, { name: "thanks_for_coming", versions: [], refused: { channel: "email", words: "No." } }),
     "“thanks_for_coming” was not filed: No.",
   );
   const approved = { ...FILED, versions: [{ channel: "whatsapp", id: V(3), state: "approved" }] };
-  assert.equal(spec.receipt(p, approved), "“thanks_for_coming” is in the Library — its WhatsApp version is approved");
+  assert.equal(spec.receipt(p, approved), "“thanks_for_coming” is in Messages — its WhatsApp version is approved");
   // WhatsApp refused it in its answer to the filing: said so, never "with WhatsApp for review".
   const refusedAtOnce = { ...FILED, versions: [{ channel: "whatsapp", id: V(3), state: "rejected" }] };
   assert.equal(
     spec.receipt(p, refusedAtOnce),
-    `“thanks_for_coming” is in the Library — its WhatsApp version was refused by WhatsApp (see ${C.CAMPAIGN_ROOMS.home} › ${C.CAMPAIGN_ROOMS.library})`,
+    `“thanks_for_coming” is in Messages — its WhatsApp version was refused by WhatsApp (see ${C.CAMPAIGN_ROOMS.home} › ${C.CAMPAIGN_ROOMS.library})`,
   );
 });
 

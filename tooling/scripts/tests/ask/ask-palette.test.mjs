@@ -3729,9 +3729,12 @@ test("REGRESSION (N18): every page a real workspace ships is a jump away -- 'cal
   for (const [words, to] of [
     ["calendar", "calendar"],
     ["lists", "clients"],
-    ["playbooks", "campaigns"], // the Playbooks list is Campaigns' home (contracts doorOf); the old name still finds it
+    ["playbooks", "campaigns"], // the Playbooks list landed on Campaigns (contracts doorOf); the old name still finds it
     ["campaigns", "campaigns"],
-    ["broadcasts", "broadcasts"],
+    ["sequences", "campaigns/sequences"],
+    // Sent's list went to each sequence's History (decision 0060, D3): its names find Sequences.
+    ["sent", "campaigns/sequences"],
+    ["broadcasts", "campaigns/sequences"],
     ["messages", "messages"],
     ["setup", "start"],
     ["billing", "admin/billing"],
@@ -4161,19 +4164,19 @@ test("the disc reads no usage and draws no dot: nothing in the app sets a standi
 /* ------------------------------ the name a page went by ------------------------------ */
 
 test("a page is found by the name it goes by AND by the one it used to: 'library', 'templates' and 'messages' all land there", () => {
-  const byLabel = askJump("library", ASK_PAGES);
+  const byLabel = askJump("messages", ASK_PAGES);
   assert.equal(byLabel[0]?.to, "messages", "the label first");
-  assert.equal(byLabel[0]?.label, "Library");
-  // The Library was Templates, and before that Messages; Sent was Broadcasts: each name still finds its room (campaign rooms, 3 Oct).
+  assert.equal(byLabel[0]?.label, "Messages");
+  // Messages was the Library (decision 0060, D4), and before that Templates; Sent was Broadcasts, and its list went to each
+  // sequence's History (D3): each name still finds where it went (campaign rooms, 3 Oct).
   assert.equal(askJump("templates", ASK_PAGES)[0]?.to, "messages", "the name it went by");
-  const sent = askJump("sent", ASK_PAGES);
-  assert.deepEqual([sent[0]?.label, sent[0]?.to], ["Sent", "broadcasts"], "the label first");
-  assert.equal(askJump("broadcasts", ASK_PAGES)[0]?.to, "broadcasts", "the name it went by");
-  const byOldName = askJump("messages", ASK_PAGES);
+  const byOldName = askJump("library", ASK_PAGES);
   assert.ok(
     byOldName.some((j) => j.to === "messages"),
     "REGRESSION: renaming the tab lost everyone who still types the old word",
   );
+  for (const old of ["sent", "broadcasts"])
+    assert.equal(askJump(old, ASK_PAGES)[0]?.to, "campaigns/sequences", `${old}: the name Sent's list went by`);
   // The label always wins: a word listed under `also` never outranks a page's own name.
   assert.equal(askJump("lists", ASK_PAGES)[0]?.label, "Lists");
   assert.ok(

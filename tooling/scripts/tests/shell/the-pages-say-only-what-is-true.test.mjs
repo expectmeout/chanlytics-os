@@ -670,7 +670,6 @@ const { BcWhenPick, bcWhenNote } = await import(`${SRC}/surfaces/campaigns/broad
 const { bcWhenWords } = await import(`${SRC}/surfaces/campaigns/broadcasts/when-words.ts`);
 const { DatePicker } = await import(`${SRC}/surfaces/kit/datepicker/datepicker.tsx`);
 const { Picker } = await import(`${SRC}/surfaces/kit/picker/picker.tsx`);
-const { BcHistoryStats } = await import(`${SRC}/surfaces/campaigns/broadcasts/ledger.tsx`);
 
 /** A Tokyo workspace, with "now" pinned, for one page test: New York and UTC disagree with it about the day. */
 const inTokyo = (nowIso, fn) => {
@@ -786,29 +785,6 @@ test("REGRESSION (D5): Today's 'went out' line is the business's today, at the b
       `REGRESSION: yesterday in New York, so not said at all: ${said}`,
     );
   });
-});
-
-/* ------ Broadcasts: numbers over the latest fifty say they are the latest fifty ------ */
-
-test("REGRESSION (D12): past fifty broadcasts the header says its numbers are the latest fifty -- they read as everything", () => {
-  assert.equal(typeof BcHistoryStats, "function", "the history's numbers are one piece that can be drawn");
-  {
-    const row = (i) => ({
-      id: `b${i}`,
-      open: false,
-      state: "sent",
-      counts: { sent: 2, delivered: 1, replied: 1, skipped: 0, failed: 0 },
-    });
-    cells = [];
-    frames.begin();
-    const capped = textOf(BcHistoryStats({ rows: [row(1), row(2)], more: true }));
-    assert.ok(capped.includes("latest 50"), capped);
-    cells = [];
-    frames.begin();
-    const whole = textOf(BcHistoryStats({ rows: [row(1), row(2)], more: false }));
-    assert.ok(!whole.includes("latest 50"), whole);
-    assert.ok(whole.includes("4 messages"), whole);
-  }
 });
 
 /* -------------- Ask: an undo stays open only while it can still be true -------------- */
@@ -1053,16 +1029,13 @@ const campaignsWorld = async () => {
     clearInterval() {},
   });
   Object.assign(globalThis.window, kitPages);
-  const { PlaybookPane } = await import(`${SRC}/surfaces/campaigns/playbooks/card-detail.tsx`);
-  const { playbooks } = await import(`${SRC}/surfaces/campaigns/playbooks/verbs.ts`);
   const { TemplatesPage } = await import(`${SRC}/surfaces/campaigns/templates/templates-page.tsx`);
   const { setSurfaceValue } = await import(`${SRC}/surfaces/surface-values.ts`);
-  campaigns = { toasts, PlaybookPane, playbooks, TemplatesPage, setSurfaceValue };
+  campaigns = { toasts, TemplatesPage, setSurfaceValue };
   return campaigns;
 };
 
-test("REGRESSION: approving a run the server moved to nine says so -- the toast said 'sending now'", async () => {
-  const { toasts, PlaybookPane, playbooks } = await campaignsWorld();
+test("REGRESSION: a run the server moved to nine says so -- the toast said 'sending now'", () => {
   assert.equal(typeof bcWhenWords, "function", "one sentence for when a send really goes");
   const moved = bcWhenWords({
     scheduled_for: "2026-09-15T13:00:00Z",
@@ -1074,52 +1047,6 @@ test("REGRESSION: approving a run the server moved to nine says so -- the toast 
     bcWhenWords({ scheduled_for: new Date(Date.now() + 5_000).toISOString(), moved_from: null }),
     "sending now",
   );
-
-  const approveRun = playbooks.approveRun;
-  playbooks.approveRun = async () => ({
-    ok: true,
-    data: { recipient_count: 3, scheduled_for: "2026-09-15T13:00:00Z", moved_from: "2026-09-15T02:00:00Z" },
-  });
-  try {
-    const p = {
-      id: "pb-1",
-      name: "Win-back",
-      state: "running",
-      trigger: "winback",
-      triggerLabel: "Quiet 30 days",
-      triggerHint: "",
-      schedule: "daily at 10:00",
-      next: "tomorrow 10:00",
-      policy_class: "marketing",
-      template_name: "winback_offer",
-      template_language: "en_US",
-      candidates: 3,
-      last_run_for: null,
-      totals: {
-        waiting: { id: "b-w", recipient_count: 3 },
-        runs: 1,
-        sent: 0,
-        delivered: 0,
-        replied: 0,
-        held: 0,
-        history: [],
-      },
-    };
-    freshTree();
-    // The playbook open (the pane in Campaigns' sheet; it was a card under its row): a waiting run's Approve is in its foot.
-    const tree = PlaybookPane({ p, canAct: true, onEdit() {}, flash: (t) => toasts.push(t), onClose() {} });
-    let approve = null;
-    walk(tree, (n) => {
-      if (!approve && n.props?.["data-testid"] === "pb-approve") approve = n;
-    });
-    assert.ok(approve, "a waiting run offers Approve");
-    await approve.props.onClick();
-    const said = textOf(toasts.at(-1).msg);
-    assert.ok(!said.includes("sending now"), said);
-    assert.ok(said.includes("scheduled for"), said);
-  } finally {
-    playbooks.approveRun = approveRun;
-  }
 });
 
 /* ------ Messages: an unread number, and the business the preview names ------ */

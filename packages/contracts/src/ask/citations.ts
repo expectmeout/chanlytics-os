@@ -94,7 +94,7 @@ export const ASK_PAGE_ROUTES: readonly string[] = [
   "live",
   "calendar",
   "campaigns",
-  // Campaigns › Sequences (decision 0060): drawn where its preview is on, the home elsewhere, so either way a page.
+  // Campaigns › Sequences (decision 0060): everything that sends on its own.
   "campaigns/sequences",
   "outbound",
   "broadcasts",

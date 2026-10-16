@@ -44,7 +44,7 @@ import type { LegacyFlash } from "../../legacy-verbs";
 import { useSurface } from "../../use-surface";
 import { broadcasts } from "../broadcasts/verbs";
 import { cmBusinessOf, cmOfferedFrom, cmStandInOf, type CmOffered } from "../parts/channels";
-import { MessagePaneContext } from "../parts/message-pane";
+import { messagePaneContext } from "../parts/message-pane";
 import { MessagePreview } from "../parts/message-preview";
 import { cmOfferFoot, cmPreviewBy } from "../parts/preview-by";
 import { useCmPhone } from "../parts/split";
@@ -235,7 +235,7 @@ function EditorRight(p: {
   setWriting: (on: boolean) => void;
   flash: Flash;
 }) {
-  const Pane = useContext(MessagePaneContext);
+  const Pane = useContext(messagePaneContext());
   if (p.writing && Pane)
     return (
       <div className="sq-ed-preview" data-testid="sq-editor-writing">

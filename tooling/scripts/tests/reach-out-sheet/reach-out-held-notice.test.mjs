@@ -103,7 +103,7 @@ test("a live run holding sends is told once, through the real door, with its lin
     assert.equal(p.mails[0].subject, "The check held 2 emails in Reach out · Movers");
     assert.equal(
       p.mails[0].text,
-      "They wait for your say on the run in Sent: rewrite the opening, include or skip. The rest of the run goes as planned.",
+      "They wait for your say on its run: rewrite the opening, include or skip. The rest of the run goes as planned.",
       "the doors their holds offer (holdDoors), nothing they do not",
     );
     assert.deepEqual(

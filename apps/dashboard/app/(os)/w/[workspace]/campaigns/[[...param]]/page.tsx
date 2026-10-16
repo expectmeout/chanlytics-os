@@ -3,11 +3,11 @@
 import { CampaignsRoute } from "@/surfaces/campaigns/home/route";
 
 /**
- * /w/<slug>/campaigns, /w/<slug>/campaigns/moment:<playbook> and /w/<slug>/campaigns/new: what goes out on its own as a
- * customer reaches a moment, and what you send yourself. The home of Campaigns (canvas A, "Lifecycle"): its code is
- * `src/surfaces/campaigns/home/`, and the frame in the layout draws its chrome around this page. The old Playbooks list,
- * `/w/<slug>/playbooks` and the shell's `outbound`, lands here for ever (contracts doorOf); Broadcasts and Templates are its
- * rooms, Sent and the Library.
+ * /w/<slug>/campaigns and every address under it: Campaigns › Sequences (decision 0060), everything the workspace sends on
+ * its own, with the sheets Campaigns opens over it (`campaigns/new…`, `campaigns/message:<name>`) and the Ads view where
+ * it is drawn. Its code is `src/surfaces/campaigns/home/route.tsx`, and the frame in the layout draws its chrome around
+ * this page. The old addresses (`/w/<slug>/playbooks`, the shell's `outbound`, the home's own and a campaign's) land on
+ * Sequences for ever (contracts doorOf, sequenceLandingOf).
  */
 export default function Page() {
   return <CampaignsRoute />;

@@ -471,7 +471,7 @@ function yesRow(i: SetupInputs): SetupRowDraft {
           title: "The first yes",
           state: "not_started",
           required: false,
-          sentence: "Nobody has said yes to offers yet. The keyword and the QR are under Get their yes in Sent.",
+          sentence: "Nobody has said yes to offers yet. The keyword and the QR are under Get their yes.",
           details: alsoTalk,
           verb: { label: "Get their yes", to: GET_YES_ROUTE },
         };

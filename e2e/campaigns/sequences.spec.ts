@@ -11,23 +11,18 @@ import {
   type SequenceHistoryDto,
   type SequencesPageDto,
 } from "../../packages/contracts/src/index";
-import { sequencesShownIn } from "./shown";
 
 /**
- * Campaigns › Sequences (decision 0060) on a real workspace whose preview is on: everything it sends on its own as one
- * list, a sequence's record beside it on its three tabs, a run's address landing on its day of History, and a new one
- * drafted from a line. Every count is read from the API's answer and compared with what the page says; nothing is made,
- * changed or sent here (no draft is asked for, so no model is called), and a workspace whose preview is off steps aside,
- * where the home's specs walk Campaigns instead.
+ * Campaigns › Sequences (decision 0060), which is Campaigns: everything a workspace sends on its own as one list, a
+ * sequence's record beside it on its three tabs, a run's address landing on its day of History, the old addresses landing
+ * on it, and a new one started from what starts it, its composers over the page. Every count is read from the API's answer
+ * and compared with what the page says; nothing is made, changed or sent here (no draft is asked for, so no model is
+ * called).
  */
 test.describe("Campaigns › Sequences on a real workspace", () => {
   test.skip(!HAVE_SESSION, WHY_SKIPPED);
   test.beforeEach(async ({ page }) => {
     await signIn(page);
-    test.skip(
-      !(await sequencesShownIn(page)),
-      "Sequences' preview is off in this workspace: the home's specs walk Campaigns",
-    );
   });
 
   /** GET sequences, as the list reads it. */
@@ -66,6 +61,21 @@ test.describe("Campaigns › Sequences on a real workspace", () => {
     if (!first) throw new Error("a sequence was listed and is gone");
     await page.getByTestId("sq-search").fill(first.name.slice(0, 4));
     await expect(page.getByTestId(`sq-row-${first.id}`)).toBeVisible();
+  });
+
+  test("the old Playbooks and Sent addresses land on Sequences, and a campaign's on its sequence", async ({ page }) => {
+    for (const old of ["/#/outbound", "/#/playbooks", "/#/broadcasts"]) {
+      await page.goto(old);
+      await expect(page).toHaveURL(atRoute(/^campaigns\/sequences$/));
+      await expect(page.getByTestId("sq-page")).toBeVisible();
+    }
+    const list = await readList(page);
+    const moment = list.sequences.find((q) => q.starts === "moment" || q.starts === "list");
+    test.skip(!moment, "this workspace has no sequence on a moment or a list");
+    if (!moment) return;
+    await page.goto(`/#/campaigns/moment:${moment.id}`);
+    await expect(page).toHaveURL(atRoute(new RegExp(`^campaigns/sequences/${moment.id}$`)));
+    await expect(page.getByTestId("sq-record")).toContainText(moment.name);
   });
 
   test("a sequence opens beside the list on its three tabs, each an address Back walks", async ({ page }) => {
@@ -149,9 +159,15 @@ test.describe("Campaigns › Sequences on a real workspace", () => {
     // A moment is the default: the owner's line, and Draft it waits for one.
     await expect(pane.getByTestId("sq-new-words")).toBeVisible();
     await expect(pane.getByTestId("sq-new-draft")).toBeDisabled();
-    // A date is the one-off composer's.
+    // A date is the one-off composer's: it opens over Sequences, never over a page of its own, and closes back here.
     await pane.getByTestId("sq-new-on-date").click();
     await expect(pane.getByTestId("sq-new-open-date")).toBeVisible();
+    await pane.getByTestId("sq-new-open-date").click();
+    await expect(page).toHaveURL(atRoute(/^campaigns\/new$/));
+    await expect(page.getByTestId("cmh-composer")).toBeVisible();
+    await expect(page.getByTestId("sq-page")).toBeVisible();
+    await page.goBack();
+    await expect(page).toHaveURL(atRoute(/^campaigns\/sequences\/new$/));
     await expect(pane.getByTestId("sq-new-words")).toHaveCount(0);
     // Leads are the composer's on Write to leads.
     await pane.getByTestId("sq-new-on-leads").click();

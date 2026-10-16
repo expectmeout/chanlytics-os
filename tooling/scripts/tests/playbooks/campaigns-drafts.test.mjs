@@ -2,17 +2,12 @@
  * Campaigns, the loading standard's D and G: a playbook's act is said when the server takes it, and a composer's
  * words are kept in the tab, come back when it opens again, and are thrown away only after one question.
  *
- * - A playbook's Pause, Run now, Approve, Skip and Delete (the pane the home opens it in, PlaybookPane) waited for the
- *   write AND the refresh map's re-read of the playbooks and the broadcasts (the second reads every contact page) before
- *   saying anything. They say it from the server's answer (`onAccepted`), and the pane's buttons wait for the re-read: a
- *   Run now pressed twice before the first run's rows had landed would be two runs.
  * - The playbook composer's Escape dropped everything typed; the send screen's Cancel and a trip to another page lost a
  *   name, a typed value and a picked time; a template half-written, or a translation the assistant had just been paid
  *   to write, went with a Cancel. Each is kept per tab (tab-memory.ts) under one rule (record-fold.jsx
  *   useUnsavedWork), the registry holds the tab from closing over it, and Cancel asks once (UnsavedAsk).
- * - Words kept come back as the page does: Campaigns' home reopens a half-written send, playbook or change to a playbook
- *   by replacing its address (`campaigns/new`, `new:every`, `new:edit:<id>`, use-home.ts useReopenDrafts), and the
- *   composer it lands on opens on the words.
+ * - Words kept come back as their composer opens again (`campaigns/new`, `new:every`, `new:edit:<id>`, the sheets Campaigns
+ *   opens over Sequences, home/sheets.tsx), on the words.
  * Run against the pages and the composers on a stub React, with the tab's memory installed as the app installs it.
  */
 import { test, beforeEach } from "node:test";
@@ -77,21 +72,12 @@ Object.assign(globalThis, {
   __DEMO_MODE: false,
 });
 const { BroadcastsPage } = await import(`${SRC}/surfaces/campaigns/broadcasts/broadcasts-page.tsx`);
-const { CampaignsHome } = await import(`${SRC}/surfaces/campaigns/home/home-page.tsx`);
-const { PlaybookPane } = await import(`${SRC}/surfaces/campaigns/playbooks/card-detail.tsx`);
-const { Menu } = await import(`${SRC}/surfaces/kit/menu/menu.tsx`);
+const { CampaignsSheets } = await import(`${SRC}/surfaces/campaigns/home/sheets.tsx`);
 const { Field } = await import(`${SRC}/surfaces/kit/field/field.tsx`);
 const { Picker } = await import(`${SRC}/surfaces/kit/picker/picker.tsx`);
 const { CmSlot } = await import(`${SRC}/surfaces/campaigns/parts/slot.tsx`);
 /** One of the composer's choices, the kit's Picker (surfaces/kit/picker/), by its test id. */
 const pickerOf = (tree, testid) => find(tree, (n) => n.type === Picker && n.props["data-testid"] === testid);
-/** The kit menu's item by its words (the ⋯ beside Pause and Edit, where Run now and Delete live): what a press does. */
-const moreItem = (tree, label) => {
-  const menu = find(tree, (n) => n.type === Menu);
-  const item = menu && menu.props.groups.flatMap((g) => g.items || []).find((i) => i.label === label);
-  assert.ok(item, `the ⋯ menu offers ${label}`);
-  return item;
-};
 const { PlaybookComposer } = await import(`${SRC}/surfaces/campaigns/playbooks/composer.tsx`);
 const { TemplatesPage } = await import(`${SRC}/surfaces/campaigns/templates/templates-page.tsx`);
 const { TemplateComposer } = await import(`${SRC}/surfaces/campaigns/templates/composer.tsx`);
@@ -99,7 +85,6 @@ const { broadcasts } = await import(`${SRC}/surfaces/campaigns/broadcasts/verbs.
 const { playbooks } = await import(`${SRC}/surfaces/campaigns/playbooks/verbs.ts`);
 const { templates } = await import(`${SRC}/surfaces/campaigns/templates/verbs.ts`);
 const { setSurfaceValue, surfaceValue } = await import(`${SRC}/surfaces/surface-values.ts`);
-const { standingSaid } = await import(`${SRC}/surfaces/kit/head/standing.ts`);
 
 /* ---------------------------------- walking a tree ---------------------------------- */
 
@@ -301,8 +286,8 @@ const openByLink = () => {
 const typedSlots = (tree) => all(tree, (n) => n.type === CmSlot).filter((s) => s.props.kind === "text");
 /** The send's name box, by its name: the Name row's Field (the kit's, by its aria-label). */
 const nameBox = (tree) => find(tree, (n) => n.type === Field && n.props?.["aria-label"] === "Name this broadcast");
-/** Campaigns' home at an address's param (null: the home itself), as the route draws it. */
-const home = (param = null) => CampaignsHome({ param, nowMs: NOW });
+/** Campaigns' sheets at an address's param (null: none open), as the route draws them over Sequences. */
+const home = (param = null) => CampaignsSheets({ param, nowMs: NOW });
 /** What the composer was told: the sheet closes on Cancel and on a thrown-away draft, and says what it saved on a Save. */
 const closed = [];
 const saved = [];
@@ -339,77 +324,6 @@ beforeEach(() => {
 });
 
 /* ---------------------------------- D: an act is said when the server takes it ---------------------------------- */
-
-test("a playbook's act is said the moment the server takes it, with what it answered -- not after the playbooks, the broadcasts and every contact are read again -- and the pane's button waits for the re-read", async () => {
-  const keep = { ...playbooks };
-  const reread = [];
-  const acceptThenRead =
-    (data) =>
-    (_id, opts = {}) => {
-      if (opts.onAccepted) opts.onAccepted(data);
-      return new Promise((r) => reread.push(() => r({ ok: true, data })));
-    };
-  try {
-    playbooks.pause = acceptThenRead({ id: "pb-1", state: "paused" });
-    playbooks.runNow = acceptThenRead({
-      outcome: "sent",
-      eligible: 4,
-      scheduled_for: iso(0),
-      moved_from: null,
-    });
-    const draw = () =>
-      PlaybookPane({ p: playbook(), canAct: true, onEdit() {}, flash: (t) => toasts.push(t), onClose() {} });
-    let card = draw();
-    press(byTestId(card, "pb-pause"));
-    await settle();
-    assert.equal(toasts.length, 1, "said at acceptance, while the surfaces are read again");
-    assert.match(textOf(toasts[0].msg), /Win-back paused — nothing runs until you resume it/);
-    card = redraw(draw);
-    assert.equal(
-      byTestId(card, "pb-pause").props.disabled,
-      true,
-      "the pane's buttons wait for the re-read: a second press now would be a second act",
-    );
-    while (reread.length) reread.shift()();
-    await settle();
-    assert.equal(toasts.length, 1, "and said once");
-    card = redraw(draw);
-    assert.equal(byTestId(card, "pb-pause").props.disabled, false, "free once the re-read landed");
-
-    toasts.length = 0;
-    moreItem(card, "Run now").onSelect();
-    await settle();
-    assert.equal(toasts.length, 1, "Run now says what the run did from the server's answer, at acceptance");
-    assert.match(textOf(toasts[0].msg), /Win-back — 4 people/);
-    while (reread.length) reread.shift()();
-    await settle();
-    assert.equal(toasts.length, 1);
-
-    // A client that never says it was accepted (an older bridge): said once the write answers, as before.
-    toasts.length = 0;
-    playbooks.pause = async () => ({ ok: true, data: { id: "pb-1", state: "paused" } });
-    card = redraw(draw);
-    press(byTestId(card, "pb-pause"));
-    await settle();
-    assert.equal(toasts.length, 1, "said once, from the answer");
-    // A refusal is said as one, and nothing else.
-    toasts.length = 0;
-    playbooks.pause = async () => ({
-      ok: false,
-      code: "forbidden",
-      status: 403,
-      message: "Only an owner or operator can pause a playbook.",
-    });
-    card = redraw(draw);
-    press(byTestId(card, "pb-pause"));
-    await settle();
-    assert.equal(toasts.length, 1);
-    assert.equal(toasts[0].tone, "danger");
-    assert.match(textOf(toasts[0].msg), /Only an owner or operator/);
-  } finally {
-    Object.assign(playbooks, keep);
-  }
-});
 
 /* ---------------------------------- G: the playbook composer ---------------------------------- */
 
@@ -522,164 +436,6 @@ test("a playbook being changed is kept under its own id, and Save, taken, keeps 
   }
 });
 
-test("Edit in a playbook's pane pushes the composer on that playbook over the drawer, so Cancel returns to the detail, and the composer opens on its own words", () => {
-  const backs = [];
-  const keep = globalThis.history.back;
-  globalThis.history.back = () => backs.push("back");
-  try {
-    // The pane the home opens a playbook in: its Edit is pushed over the drawer (use-home.ts useHomeNav), not put in its place,
-    // so what the person came from is one Back away.
-    let tree = again(() => home("moment:pb-1"));
-    press(byTestId(tree, "pb-edit"));
-    assert.deepEqual(went, ["campaigns/new:edit:pb-1"], "pushed");
-    assert.deepEqual(replaced, [], "and never replaced");
-    // The address says it, so the home hosts the composer on that playbook and no choice of kind is drawn; the drawer's own
-    // address is gone, so it is closed.
-    const draw = () => again(() => home("new:edit:pb-1"));
-    tree = draw();
-    const drawer = find(tree, (n) => n.props?.testid === "cmh-drawer");
-    assert.equal(drawer.props.open, false, "the drawer is on its way out: its address has gone");
-    assert.equal(find(tree, (n) => n.type === PlaybookComposer).props.editing.id, "pb-1");
-    type(byTestId(tree, "pb-name"), "Win-back, gentler");
-    draw();
-    assert.equal(
-      TM.draft("playbook", "pb-1").name,
-      "Win-back, gentler",
-      "kept under the playbook's id, from the home's sheet too",
-    );
-    // Cancel (Escape, the sheet's Close) is a step Back: to the detail it was opened over, never to the home.
-    tree = draw();
-    press(byTestId(tree, "pb-cancel"));
-    press(byTestId(draw(), "pb-leave-yes"));
-    assert.deepEqual(backs, ["back"], "one entry back: the drawer's address");
-    assert.deepEqual(replaced, [], "the home is not where it lands");
-  } finally {
-    globalThis.history.back = keep;
-  }
-});
-
-/* ---------------------------------- G: the home reopens what was kept ---------------------------------- */
-
-/** Words typed into the composer's name box and kept in the tab (the draft is written as the composer draws again), then the page left. */
-const keepWords = (over, words) => {
-  unmount();
-  const draw = () => composer(over);
-  type(byTestId(draw(), "pb-name"), words);
-  redraw(draw);
-  unmount();
-};
-
-test("what the tab kept comes back as the home does: the address is replaced with the send, the new playbook or the change that was half-written", () => {
-  const nowhere = () => {
-    unmount();
-    fresh();
-    return home();
-  };
-  // Nothing kept: the home itself, and no address moved.
-  nowhere();
-  assert.deepEqual(replaced, [], "nothing kept, nothing reopened");
-
-  // A playbook half-written: on Every time a moment comes. The words are the composer's, and it opens on them.
-  keepWords({}, "Sunday quiet");
-  nowhere();
-  assert.deepEqual(replaced, ["campaigns/new:every"]);
-  fresh();
-  let tree = again(() => home("new:every"));
-  assert.equal(byTestId(tree, "pb-name").props.value, "Sunday quiet", "the composer it lands on opens on the words");
-  assert.deepEqual(replaced, [], "an address that already names the composer is left where it is");
-
-  // One of the playbooks being changed, under its own address.
-  clearTabMemory();
-  keepWords({ editing: playbook() }, "Win-back, gentler");
-  nowhere();
-  assert.deepEqual(replaced, ["campaigns/new:edit:pb-1"]);
-  fresh();
-  tree = again(() => home("new:edit:pb-1"));
-  assert.equal(byTestId(tree, "pb-name").props.value, "Win-back, gentler");
-
-  // A change to a playbook the workspace no longer has is nobody's to reopen: the home, and the words wait their day.
-  unmount();
-  setSurfaceValue("playbooks", playbooksSurface({ rows: [] }));
-  nowhere();
-  assert.deepEqual(replaced, [], "no such playbook, no change to reopen");
-  setSurfaceValue("playbooks", playbooksSurface());
-
-  // A send half-written wins over a playbook's words: it is the home's first, as it was the page's.
-  clearTabMemory();
-  keepWords({}, "Sunday quiet");
-  let send = openByLink();
-  typedSlots(send)[0].props.onTyped("20% off colour");
-  redraw(page);
-  assert.ok(TM.draft("broadcast"), "the send's words are kept");
-  nowhere();
-  assert.deepEqual(replaced, ["campaigns/new"]);
-  fresh();
-  tree = again(() => home("new"));
-  assert.ok(
-    find(tree, (n) => n.props?.["data-testid"] === "cmh-composer"),
-    "and the composer is on Send once",
-  );
-  assert.equal(typedSlots(tree)[0].props.typed, "20% off colour", "on the words that were typed");
-  assert.equal(replaced.length, 0);
-});
-
-test("the home reopens once, when the playbooks are first read, and never over an address that names something", () => {
-  // Words kept for a playbook.
-  keepWords({}, "Sunday quiet");
-  fresh();
-
-  // Not read yet: nothing drawn, nothing reopened; read, and the home goes where the words are.
-  setSurfaceValue("playbooks", undefined);
-  assert.equal(
-    again(() => home()),
-    null,
-    "the surface is not read yet: nothing drawn",
-  );
-  assert.deepEqual(replaced, []);
-  setSurfaceValue("playbooks", playbooksSurface());
-  again(() => home());
-  assert.deepEqual(replaced, ["campaigns/new:every"], "once the first read lands");
-  // Back on the home itself (the sheet closed with its words kept) and the playbooks read again, as every write has them:
-  // it is not reopened again over the same page.
-  setSurfaceValue("playbooks", playbooksSurface());
-  again(() => home());
-  assert.deepEqual(replaced, ["campaigns/new:every"], "once, on arrival");
-
-  // A link that names a playbook, or the send, is the address asked for: the words wait.
-  for (const param of ["moment:pb-1", "new"]) {
-    unmount();
-    fresh();
-    again(() => home(param));
-    assert.deepEqual(replaced, [], `${param}: never over an address that names something`);
-  }
-});
-
-test("a draft reopened over a narrowed ledger closes back to that group: replaced, never a step Back past the home", () => {
-  const backs = [];
-  const keep = globalThis.history.back;
-  globalThis.history.back = () => backs.push("back");
-  try {
-    keepWords({}, "Sunday quiet");
-    unmount();
-    fresh();
-    // Arrived at the home narrowed to a moment: the kept words swap the composer in, over nothing of the page's.
-    again(() => home("in:quiet"));
-    assert.deepEqual(replaced, ["campaigns/new:every"], "swapped in, never pushed");
-    const draw = () => again(() => home("new:every"));
-    let tree = draw();
-    assert.equal(byTestId(tree, "pb-name").props.value, "Sunday quiet");
-    // Closed (its words asked about first): nothing of the page's stands behind it, so the address is replaced with the
-    // home, still narrowed to the group the ledger had under the sheet.
-    press(byTestId(tree, "pb-cancel"));
-    tree = draw();
-    press(byTestId(tree, "pb-leave-yes"));
-    assert.deepEqual(backs, [], "no step Back: it would leave the page");
-    assert.equal(replaced.at(-1), "campaigns/in:quiet", "the home, narrowed as it was");
-  } finally {
-    globalThis.history.back = keep;
-  }
-});
-
 /* ---------------------------------- G: the send screen ---------------------------------- */
 
 test("the send screen keeps its words -- a name, a typed value, a picked time -- and opens again on them; a list or a message chosen alone keeps nothing; Cancel asks once and Yes clears it", () => {
@@ -773,7 +529,7 @@ test("a send the server took keeps nothing: the screen closes onto the ledger an
   assert.equal(typedSlots(tree)[0].props.typed, "", "the next one starts empty");
 });
 
-test("a send made from the home raises its toast on the home's own host: the screen draws none of its own, so the toast and its Stop outlive the sheet that closes over it", async () => {
+test("a send made in Campaigns' sheet raises its toast on the sheets' own host: the screen draws none of its own, so the toast and its Stop outlive the sheet that closes over it", async () => {
   const keepToast = globalThis.usePPToast;
   const keepSend = broadcasts.send;
   const keepCancel = broadcasts.cancel;
@@ -806,7 +562,7 @@ test("a send made from the home raises its toast on the home's own host: the scr
     const draw = () => redraw(() => home("new"));
     let tree = draw();
     const [page] = hosts;
-    assert.ok(textOf(tree).includes(page.node), "the home draws its toast host");
+    assert.ok(textOf(tree).includes(page.node), "the sheets draw their toast host");
     for (const own of hosts.slice(1))
       assert.ok(!textOf(tree).includes(own.node), "the send screen draws none of its own");
     typedSlots(tree)[0].props.onTyped("20% off colour");
@@ -814,7 +570,7 @@ test("a send made from the home raises its toast on the home's own host: the scr
     press(byTestId(tree, "bc-send"));
     tree = draw();
     await press(byTestId(tree, "bc-send-yes"));
-    // The toast is said on the home's host, with its Stop and its See who; the screen's own host was never asked.
+    // The toast is said on the sheets' host, with its Stop and its See who; the screen's own host was never asked.
     const said = page.said.at(-1);
     assert.equal(said.action.label, "Stop it");
     assert.equal(said.links[0].to, "broadcasts/run:b-new");
@@ -824,7 +580,7 @@ test("a send made from the home raises its toast on the home's own host: the scr
       [],
       "nothing was said on a host that would go with the sheet",
     );
-    // The sheet closes onto the home and the screen goes with it; the toast is the home's, and its Stop still stops the send.
+    // The sheet closes onto Sequences and the screen goes with it; the toast is the sheets', and its Stop still stops the send.
     unmount();
     await said.action.onClick();
     assert.deepEqual(stopped, ["b-new"], "Stop it, after the sheet is gone");
@@ -836,7 +592,7 @@ test("a send made from the home raises its toast on the home's own host: the scr
   }
 });
 
-test("the send screen's door to their yes, pressed in the home's sheet, replaces the sheet's address with the section's: the sheet is not closed past it, which a step Back would undo", () => {
+test("the send screen's door to their yes, pressed in Campaigns' sheet, replaces the sheet's address with the section's: the sheet is not closed past it, which a step Back would undo", () => {
   const backs = [];
   const keep = globalThis.history.back;
   globalThis.history.back = () => backs.push("back");
@@ -858,20 +614,16 @@ test("the send screen's door to their yes, pressed in the home's sheet, replaces
     );
     unmount();
     fresh();
-    // New message pushes the composer's address; its screen says nobody on the list has said yes, with the door to get it.
-    let tree = redraw(() => home());
-    // The home says its acts to the frame's head (kit/head/standing.ts): New message is pressed where it stands.
-    press(find(standingSaid()?.act ?? null, (n) => n.props?.["data-testid"] === "cmh-new"));
-    assert.deepEqual(went, ["campaigns/new"]);
-    tree = redraw(() => home("new"));
+    // Send once's screen says nobody on the list has said yes, with the door to get it.
+    const tree = redraw(() => home("new"));
     press(byTestId(tree, "bc-nobody-door"));
     assert.deepEqual(replaced, ["broadcasts/get-yes"], "the sheet's address becomes the section: one move");
     // The screen has been left, and the host was not told it was done: a close now would go Back over the move.
     redraw(() => home("new"));
     redraw(() => home("new"));
     assert.deepEqual(backs, [], "no step Back after the door");
-    assert.deepEqual(replaced, ["broadcasts/get-yes"], "and the address was not replaced with the home either");
-    assert.deepEqual(went, ["campaigns/new"]);
+    assert.deepEqual(replaced, ["broadcasts/get-yes"], "and the address was not replaced with Sequences either");
+    assert.deepEqual(went, []);
   } finally {
     globalThis.history.back = keep;
   }

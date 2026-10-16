@@ -45,7 +45,7 @@ const MANAGER = `https://business.facebook.com/wa/manage/phone-numbers/?business
 const MANAGER_ANYWHERE = "https://business.facebook.com/wa/manage/";
 /** The row's one act, a page of Meta's, as the verb carries it. */
 const act = (label, href) => ({ label, to: href, href, who: "owner" });
-const LIBRARY = { label: "Library", to: "messages", who: "operator" };
+const LIBRARY = { label: "Messages", to: "messages", who: "operator" };
 
 /** The row's sentences for the account's payment method: none on file, and one Meta reports a problem with. */
 const NEEDS_CARD = "Meta needs a payment method on your WhatsApp account before it delivers reminders and campaigns.";

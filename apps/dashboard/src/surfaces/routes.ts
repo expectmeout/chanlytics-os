@@ -12,7 +12,7 @@
  * route's params the page draws, and `chrome` names the crumbs an address has, as the row's `draw` did. An address the
  * page does not take stays with the frame's table, which draws its row or says it is not found.
  */
-import { CAMPAIGN_ROOMS, FIRST_RUN_WORDS } from "@chanlytics/contracts";
+import { CAMPAIGN_ROOMS, FIRST_RUN_WORDS, SEQUENCES_ROUTE } from "@chanlytics/contracts";
 import { broadcastsChrome, campaignsChrome, messagesChrome } from "./campaigns/routes";
 import { calendarChrome } from "./calendar/chrome";
 import { conversationsCrumbs, conversationsNav, inboxCrumbs } from "./inbox/routes";
@@ -124,32 +124,32 @@ export const SURFACE_ROUTES: Readonly<Record<string, SurfaceRoute>> = {
     params: true,
     mount: "conversations",
   },
-  // Campaigns' home (canvas A, "Lifecycle"): the page of moments, with a moment or the composer open over it. One mount for every
-  // address: opening a moment or the composer is no new page. An address it does not know is the home.
+  // Campaigns is Sequences (decision 0060): the list, a sequence open beside it, and the sheets Campaigns opens over it (the
+  // composer, a message). One mount for every address: opening any of them is no new page. An address it does not know, the
+  // home's and a campaign's among them, lands on Sequences. Its chrome says the rest (campaigns/routes.ts).
   campaigns: {
     activeNav: "campaigns",
     crumbs: [CAMPAIGN_ROOMS.home],
-    pane: false,
+    pane: true,
     takes: () => true,
     mount: "campaigns",
     chrome: campaignsChrome,
   },
   // The old Playbooks list, a door (3 Oct 2026): `outbound` lands on `campaigns` and `outbound/<id>` on `campaigns/moment:<id>`
-  // (contracts doorOf, applied where a route is written and where an address is moved on load); this draws only for an address
-  // that arrives some other way, which the page at `playbooks` replaces.
+  // (contracts doorOf, applied where a route is written and where an address is moved on load), and from there on Sequences;
+  // this draws only for an address that arrives some other way, which the page at `playbooks` replaces.
   outbound: { activeNav: "campaigns", crumbs: [CAMPAIGN_ROOMS.home], pane: false, takes: () => true },
-  // The Library: the messages the workspace sends, a room of Campaigns' home with no strip of its own.
+  // Campaigns › Messages (0060, D4: the Library is Messages), in the strip beside Sequences.
   messages: {
     activeNav: "messages",
-    crumbs: [{ label: CAMPAIGN_ROOMS.home, to: "campaigns" }, CAMPAIGN_ROOMS.library],
+    crumbs: [{ label: CAMPAIGN_ROOMS.home, to: SEQUENCES_ROUTE }, CAMPAIGN_ROOMS.library],
     pane: true,
-    // Campaigns › Messages beside Sequences where its preview is on (0060, D4); else the home's room, as above.
     chrome: () => messagesChrome(),
   },
-  // Sent: the runs, a room of Campaigns' home.
+  // Sent's sheets (a run's, To send, Get their yes, an audience's send): its list lands on Sequences (decision 0060, D3).
   broadcasts: {
     activeNav: "broadcasts",
-    crumbs: [{ label: CAMPAIGN_ROOMS.home, to: "campaigns" }, CAMPAIGN_ROOMS.sent],
+    crumbs: [CAMPAIGN_ROOMS.home],
     pane: true,
     takes: () => true,
     chrome: broadcastsChrome,

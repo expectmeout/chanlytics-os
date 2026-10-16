@@ -150,7 +150,7 @@ test("Ask at rest on Campaigns (the moment spec, A3): three ideas on the first d
     "Win back customers who went quiet",
     "What should go out this month?",
   ]);
-  // The chip and the page's own door (surfaces/campaigns/home/ask-on-campaigns.tsx SetUpAsk) say one sentence.
+  // The chip says the sentence the first day of Campaigns has always said (contracts LIFECYCLE_WORDS.ask.setUp).
   assert.equal(first[0], LIFECYCLE_WORDS.ask.setUp);
   const rows = [
     { name: "Win-back", trigger: "quiet_30", runs: true, waiting: true },

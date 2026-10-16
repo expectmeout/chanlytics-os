@@ -699,7 +699,6 @@ await import(`${SRC}/legacy/components/data-bits.jsx`);
 const { BroadcastsPage } = await import(`${SRC}/surfaces/campaigns/broadcasts/broadcasts-page.tsx`);
 const { setSurfaceValue } = await import(`${SRC}/surfaces/surface-values.ts`);
 const { Picker } = await import(`${SRC}/surfaces/kit/picker/picker.tsx`);
-const { standingSaid } = await import(`${SRC}/surfaces/kit/head/standing.ts`);
 const { SURFACE_ROUTES, routeHasPage } = await import(`${SRC}/surfaces/routes.ts`);
 
 const marketing = {
@@ -877,12 +876,7 @@ test("the surface and the page: Broadcasts is real, fed by the same rules, and t
   try {
     freshTree();
     const demo = BroadcastsPage({});
-    assert.ok(byTestId(demo, "broadcasts-real"), "the demo draws the page");
-    assert.ok(textOf(byTestId(demo, "bc-runs")).includes("A quick note"), "over the sample's runs");
-    assert.ok(
-      find(standingSaid()?.act ?? null, (n) => n.props?.["data-testid"] === "bc-new"),
-      "on its ledger, one press from a send",
-    );
+    assert.ok(byTestId(demo, "broadcasts-real"), "the demo draws the page, over the sample");
   } finally {
     globalThis.__DEMO_MODE = false;
   }
@@ -910,8 +904,8 @@ test("the surface and the page: Broadcasts is real, fed by the same rules, and t
     "Regulars 3",
     "a message reaches everyone whose yes covers it",
   );
-  // Nothing invented: no credits, no revenue, on the send screen or the ledger.
-  for (const tree of [composer, drawn()])
+  // Nothing invented: no credits, no revenue, on the send screen or Get their yes.
+  for (const tree of [composer, drawn({ initialYes: true })])
     assert.ok(!/credits|Booked from broadcasts|\$\d/.test(textOf(tree)), "nothing the schema has no column for");
 });
 
@@ -1021,14 +1015,19 @@ test("getting their yes while the workspace is paused: the card stays where its 
     pageUrl: null,
     open: "paused",
   };
-  const ledger = drawn({}, { optIn: paused });
+  const ledger = drawn({ initialYes: true }, { optIn: paused });
   const card = byTestId(ledger, "bc-optin");
-  assert.ok(card && card.props.id === "bc-optin", "the anchor every 'get their yes' door goes to");
+  assert.ok(card, "the pane every 'get their yes' door lands on");
   assert.equal(textOf(byTestId(ledger, "bc-optin-paused")), GET_YES_PAUSED_WORDS.body);
   for (const id of ["bc-optin-copy", "bc-optin-sign", "bc-optin-form"]) assert.ok(!byTestId(ledger, id), id);
   assert.ok(!find(ledger, (n) => n.props?.download === "say-yes-to-offers.svg"), "no code to download");
-  const none = drawn({}, { optIn: paused, number: { ...GOOD_NUMBER, present: false } });
-  assert.ok(!byTestId(none, "bc-optin"), "no number, no card, as before");
+  // No number: no code, sign or link either, and the pane says where the code comes from.
+  const none = drawn({ initialYes: true }, { optIn: paused, number: { ...GOOD_NUMBER, present: false } });
+  assert.equal(byTestId(none, "bc-optin-paused"), null);
+  const { GET_YES_NO_NUMBER_WORDS } = await import("@chanlytics/contracts");
+  assert.ok(textOf(byTestId(none, "bc-optin-no-number")).startsWith(GET_YES_NO_NUMBER_WORDS.body));
+  for (const id of ["bc-optin-copy", "bc-optin-sign", "bc-optin-form"]) assert.ok(!byTestId(none, id), id);
+  assert.ok(byTestId(none, "bc-optin-connect"), "and the door to Connections");
 });
 
 test("getting their yes: an unambiguous phrase the ingest records, a link that opens WhatsApp with it, a QR of that link, and a receptionist that thanks them", async () => {
@@ -1056,35 +1055,17 @@ test("getting their yes: an unambiguous phrase the ingest records, a link that o
   );
   // The card's code is the code's address only while there is a link: run in broadcast-counts-are-whole.test.mjs, for an
   // open, a paused and an ended workspace and an older server's answer.
-  const ledger = drawn();
+  // broadcasts/get-yes, where every "nobody has said yes" door lands: its pane beside Sequences' list (decision 0060, D3).
+  const ledger = drawn({ initialYes: true });
   const optIn = byTestId(ledger, "bc-optin");
-  assert.ok(optIn && byTestId(ledger, "bc-optin-copy"), "the section, and the link to copy");
+  assert.ok(optIn && byTestId(ledger, "bc-optin-copy"), "the pane, and the link to copy");
   assert.ok(
     find(ledger, (n) => n.props?.download === "say-yes-to-offers.svg"),
     "the QR downloads as the file the owner prints",
   );
-  // Five places said "the phrase and the QR are on Broadcasts" and none went there: two opened the TOP of the
-  // page, where the composer is and this section is below the fold, and three printed it beside a disabled
-  // button. broadcasts/get-yes lands on the section itself.
-  assert.ok(
-    optIn.props.id === "bc-optin" && String(optIn.props.className).includes("ct-section bc-optin"),
-    "the section carries the anchor the door goes to",
-  );
-  const scrolled = [];
-  const fold = { open: false };
-  const keep = globalThis.document.getElementById;
-  globalThis.document.getElementById = (id) =>
-    id === "bc-optin" ? { querySelector: () => fold, scrollIntoView: (o) => scrolled.push(o) } : null;
-  try {
-    drawn({ initialYes: true });
-  } finally {
-    globalThis.document.getElementById = keep;
-  }
-  assert.deepEqual(
-    [fold.open, scrolled],
-    [true, [{ block: "start" }]],
-    "the door lands on the QR, opened, not above it",
-  );
+  // Five places said "the phrase and the QR are on Broadcasts" and none went there: two opened the TOP of the page, and
+  // three printed it beside a disabled button. broadcasts/get-yes opens it, and nothing else, beside the list.
+  assert.equal(byTestId(drawn(), "bc-optin"), null, "the address names it, or nothing opens it");
   // And the QR reaches the desk: a bare code printed says nothing about whose messages or how to stop them, and
   // the .svg it downloaded as is a file most owners cannot open. The sign is the code with those words, one sheet.
   const sign = byTestId(ledger, "bc-optin-sign");
@@ -1097,7 +1078,7 @@ test("getting their yes: an unambiguous phrase the ingest records, a link that o
       (n) => typeof n.type === "string" && ["bc-optin-sign", "bc-optin-copy"].includes(n.props?.["data-testid"]),
     ).map((n) => n.props["data-testid"]),
     ["bc-optin-sign", "bc-optin-copy"],
-    "the section's first button prints the sign",
+    "the pane's first button prints the sign",
   );
 });
 

@@ -220,7 +220,7 @@ const WORDS: Record<string, string> = {
   "playbook.run": "A campaign ran",
   "playbook.changed": "A campaign was edited",
   "template.submitted": "A message was sent to WhatsApp for approval",
-  "template.removed": "A message was deleted from the Library",
+  "template.removed": "A message was deleted from Messages",
   "member.joined": "Joined the workspace",
   "member.left": "Left the workspace",
   "reach_out.lead_stopped": "A reach-out stopped writing to a lead",

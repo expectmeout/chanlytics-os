@@ -51,12 +51,13 @@ export const sequenceRoute = (id: string, tab: SequenceTab = "steps", day?: stri
 export const runSheetRoute = (id: string): string => `broadcasts/run:${id}/sheet`;
 
 /**
- * Where an older address of Campaigns lands where Sequences is drawn (the plan's S5, D1): Campaigns' home, or one of its
- * groups, on the list; a campaign open (`campaigns/moment:<id>`, its People at `:people`) on its sequence. The server reads
- * a sequence by the id of any of its parts (a step's, a batch's), and the record then names its own. Null where the address
- * stays: the composer, a message, Ads, and Sent itself. A run's address a link names (a bell row, Today, Ask's card:
- * `broadcasts/run:<id>`) lands on its sequence's History with that day open (the parity review's W4), where People and
- * History decide what it holds in place; its sheet stays at runSheetRoute's address, which no landing takes.
+ * Where an older address of Campaigns lands (the plan's S5 and S6, D1 and D3): Campaigns' home, or one of its groups, and
+ * Sent's list (`broadcasts`) on the list; a campaign open (`campaigns/moment:<id>`, its People at `:people`) on its sequence.
+ * The server reads a sequence by the id of any of its parts (a step's, a batch's), and the record then names its own. Null
+ * where the address stays: the composer, a message, Ads, and Sent's sheets (Get their yes, To send, an audience). A run's
+ * address a link names (a bell row, Today, Ask's card: `broadcasts/run:<id>`) lands on its sequence's History with that day
+ * open (the parity review's W4), where People and History decide what it holds in place; its sheet stays at
+ * runSheetRoute's address, which no landing takes.
  */
 export function sequenceLandingOf(route: string): string | null {
   const [path = ""] = route.split("?");
@@ -66,6 +67,7 @@ export function sequenceLandingOf(route: string): string | null {
     const moment = /^moment:([^:/]+)(:people)?$/.exec(param);
     if (moment?.[1]) return sequenceRoute(moment[1], moment[2] ? "people" : "steps");
   }
+  if (root === "broadcasts" && param === "") return SEQUENCES_ROUTE;
   const run = root === "broadcasts" && rest === undefined ? /^run:([^:/]+)$/.exec(param) : null;
   if (run?.[1]) return sequenceRoute(run[1], "history", run[1]);
   return null;

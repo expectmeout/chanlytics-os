@@ -245,7 +245,7 @@ const atApprove = (step) => {
   return { ...step, input };
 };
 
-const REUSED = "Sends “this_months_offer”, already in the Library, with the offer in its words.";
+const REUSED = "Sends “this_months_offer”, already in your messages, with the offer in its words.";
 const WRITES = (on) =>
   `Writes a message for offers, “offer”, for ${on}: this offer goes in its words, and the next offer can send it too.`;
 const NOTE = "Tells the receptionist about the offer, until Nov 30.";
@@ -395,7 +395,7 @@ const ROWS = [
     intent: offer(),
     world: world({ messages: [quickNote(), writtenOffer()] }),
     steps: [noteStep(1), firstSend(2, [1], { template_id: V(21) })],
-    words: [REMINDS, "Sends “offer”, already in the Library, with the offer in its words.", NOTE, GOES],
+    words: [REMINDS, "Sends “offer”, already in your messages, with the offer in its words.", NOTE, GOES],
   },
   {
     name: "with only a quick note in the Library, an offer message is written (ruling 2)",
@@ -1644,7 +1644,7 @@ test("the message one plan writes is the message the next plan sends, with that 
     [
       "It goes without WhatsApp: WhatsApp is still reviewing the WhatsApp version of “offer”.",
       EN.reminderAsk("Oct 18", "Can receive offers"),
-      "Sends “offer”, already in the Library, with the offer in its words.",
+      "Sends “offer”, already in your messages, with the offer in its words.",
       "Tells the receptionist about the offer, until Oct 18.",
       "The offer goes to “Can receive offers” on Oct 17 at 10:00 AM.",
     ].join(" "),

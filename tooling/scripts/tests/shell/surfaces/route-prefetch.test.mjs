@@ -646,18 +646,19 @@ test("what the head starts for a page is what its surfaces ask for first, no mor
   const paramOf = { admin: "workspace" };
   // What a page draws on its first screen from another page's surface, started with its own: Today's strip (the next
   // visit, the next opening) is the calendar's weeks, which the frame reads right after Today's own (ROUTE_DRAWS); and
-  // Campaigns' home draws Sent's runs, its own 30 days (campaign_results), the reach-outs' chains and the settings read, which holds
-  // the templates its call's text and Library count are made of (the one read of them, task 3.3); and the Calendar's campaign
-  // marks are their own span's read, started beside the board's (the Calendar's lane C).
+  // Campaigns, Sequences' list, opens its sheets over it, made of the playbooks' moments, Sent's runs, its own 30 days
+  // (campaign_results), the reach-outs' chains and the settings read, which holds the templates (the one read of them, task
+  // 3.3); Sent's sheets stand beside Sequences' list (decision 0060, D3); and the Calendar's campaign marks are their own
+  // span's read, started beside the board's (the Calendar's lane C).
   // And the channels read (surfaces/channels/surface.ts), which Live, both composers and the Library are made of: the one read
   // of the numbers, started with the page's own.
   const alsoDrawn = {
     today: ["calendar"],
-    campaigns: ["broadcasts", "campaign_results", "reach_outs", "settings", "channels"],
+    campaigns: ["playbooks", "broadcasts", "campaign_results", "reach_outs", "settings", "channels"],
     "campaigns/sequences": ["settings"],
     calendar: ["calendar_runs"],
     live: ["channels"],
-    broadcasts: ["channels"],
+    broadcasts: ["channels", "sequences"],
     outbound: ["channels"],
     messages: ["channels"],
   };

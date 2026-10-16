@@ -817,7 +817,7 @@ test("a starter begins only with its own words: a member's are refused in one se
   const { tables, w } = empty();
   const mail = starterEmailText(starterByName("visit_reminder"), "en_US");
   const sms = starterSmsText(starterByName("visit_reminder"), "en_US");
-  const sentence = "A starter begins with its own words. Add the starter set, then change the words in the Library.";
+  const sentence = "A starter begins with its own words. Add the starter set, then change the words in Messages.";
   assert.equal(MESSAGE_BEGIN_WORDS.starterNeedsItsOwnWords, sentence);
   for (const [why, over] of [
     [

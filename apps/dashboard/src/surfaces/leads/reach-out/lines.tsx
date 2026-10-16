@@ -12,7 +12,7 @@ import { useEffect, useMemo, useReducer, useState } from "react";
 import { chainResumeOf } from "@chanlytics/contracts";
 import type { LeadPeekVM, OwnerSaidIntent, ReachOutLeadTimelineDto, ReachOutLeadsDto } from "@chanlytics/contracts";
 import { replies } from "@/legacy-bridge/reach-out/replies";
-import { ResumeAct } from "../../campaigns/home/ledger/ledger-acts";
+import { ResumeAct } from "../../campaigns/home/resume-act";
 import { useReadAgain } from "../../campaigns/reach-out/read-again";
 import { RoSaidAsk, type SaidMore } from "../../campaigns/reach-out/said-ask";
 import { reachOuts } from "../../campaigns/reach-out/surface";

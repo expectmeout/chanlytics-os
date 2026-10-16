@@ -18,7 +18,6 @@ import { askAbout, navigate, openAsk } from "./frame-doors";
 import type { ViewPage } from "./kit/view-tabs/pager";
 import type { SetupSurface } from "./setup/surface";
 import { surfaceValue } from "./surface-values";
-import type { ApiResult } from "../client/api";
 
 /** What a toast says, as the shell's one flash takes it (data-bits `usePPToast`). */
 export interface LegacyFlash {
@@ -341,7 +340,7 @@ export interface SwipeHandlers {
 }
 
 /** What a link to a route spreads (data-bits `routeDoor`): the address in its href, the app's own way there on a plain press. */
-export interface RouteDoor {
+interface RouteDoor {
   href: string;
   onClick: (e?: MouseEvent<HTMLElement>) => void;
   onPointerEnter?: () => void;
@@ -508,14 +507,6 @@ export function refusalToast(r: Refusal | null | undefined, what?: string | null
     : { tone: "danger", msg: r?.message ?? "That didn't go through." };
 }
 
-/** The shell's hotkey hook (data-bits `useHotkey`): the matcher is asked on every keydown, with whether a field has the keys. */
-export function useLegacyHotkey(
-  matcher: (e: KeyboardEvent, typing: boolean) => boolean,
-  handler: (e: KeyboardEvent) => void,
-): void {
-  window.useHotkey?.(matcher, handler);
-}
-
 /*
  * What Ask is told is on screen (what Ask reads when it opens) is one ledger with one writer and one reader
  * (legacy-bridge/ask/on-screen.ts): a page says what it drew as it draws, and takes it back, only if it is its own, as it
@@ -570,14 +561,4 @@ export function surfaceFailed(page: string, param?: string | null): boolean {
   const failed = (window as Window & { __surfaceFailed?: (page: string, param?: string | null) => boolean })
     .__surfaceFailed;
   return !!(failed && failed(page, param));
-}
-
-/** People's list verbs (`window.__lists`): whether they are there, and an archived list put back on the rail. */
-export function canRestoreList(): boolean {
-  return !!window.__lists;
-}
-export function restoreList(id: string | null): Promise<ApiResult<unknown>> {
-  // The card offers it only where canRestoreList() says so; an id of null is the list the playbook lost, which the door refuses.
-  if (!window.__lists) return Promise.reject(new Error("People's lists are not read here"));
-  return window.__lists.restore(id as string);
 }
