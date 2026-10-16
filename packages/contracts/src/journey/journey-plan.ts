@@ -12,7 +12,7 @@ import { clip } from "../ask/ask-answer";
 import type { PlanIntent, PlanStep, PlanWorld } from "../ask/plan";
 import { SELLS_BY_QUESTION, SELLS_BY_WORDS } from "../deals/sells-by";
 import { CALENDAR_SETTING_ROUTE } from "../setup/calendar-source";
-import { capitalize, joinWords, plural } from "../shared/words";
+import { capitalize, joinWords, joinWordsEs, plural } from "../shared/words";
 import { LIVE_VERSION_STATES } from "../templates/message-versions";
 import { languageBase } from "../templates/template-languages";
 import { appointmentWords, type AppointmentWord } from "./appointment-word";
@@ -113,10 +113,6 @@ const APPOINTMENT_ES: Record<AppointmentWord, string> = {
   lesson: "clase",
 };
 
-/** Words as a list in a Spanish sentence: "a", "a y b", "a, b y c". */
-const joinEs = (items: readonly string[]): string =>
-  items.length <= 1 ? (items[0] ?? "") : `${items.slice(0, -1).join(", ")} y ${items[items.length - 1]}`;
-
 /**
  * A setup's words, by the language of the question (PlanWorld.says): what each campaign it starts sends, what an
  * appointment's moments and a proposal's need first and where that is set (Settings › Business: the calendar's row, and
@@ -174,7 +170,7 @@ const SETUP_WORDS = {
       quiet: "la recuperación",
     } satisfies Record<Moment, string>,
     gets: { before: "un recordatorio el día antes", after: "un seguimiento el día después" },
-    join: joinEs,
+    join: joinWordsEs,
     thing: (word: AppointmentWord) => APPOINTMENT_ES[word],
     cover: (n: number, what: string) =>
       `Empieza ${n === 1 ? "1 campaña" : `${n} campañas`} ya${n > 1 ? ", cada una en su tarjeta" : ""}: ${what}.`,
@@ -187,7 +183,7 @@ const SETUP_WORDS = {
     nobody: (named: string, one: boolean) =>
       `${capitalize(named)} no ${one ? "llega" : "llegan"} a nadie hoy; ${one ? "su tarjeta dice" : "cada tarjeta dice"} por qué.`,
     resume: (names: readonly string[]) =>
-      `Reanuda ${joinEs(names.map((n) => `«${n}»`))}, en pausa en ${names.length === 1 ? "su momento, en su propia tarjeta" : "sus momentos, en una tarjeta cada una"}.`,
+      `Reanuda ${joinWordsEs(names.map((n) => `«${n}»`))}, en pausa en ${names.length === 1 ? "su momento, en su propia tarjeta" : "sus momentos, en una tarjeta cada una"}.`,
     again: (more: number, needs: ReadonlySet<Need>) =>
       `Pídemelo otra vez cuando ${onceOf(needs, "es")} y ${more === 1 ? "la añado" : "las añado"}.`,
     headline: (needs: ReadonlySet<Need>, now: number, more: number) =>

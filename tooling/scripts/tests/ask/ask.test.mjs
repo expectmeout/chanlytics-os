@@ -1658,6 +1658,8 @@ test("the eval checks that an Open asked for is followed, and what the words dec
       remind_day_before: { playbook: { trigger: "visit_tomorrow" } },
       // A message asked for in Spanish, its language unnamed: its customers read what the person writes in (16 Oct 2026).
       write_winback_es_unnamed: { message: { language: "es" } },
+      // An offer asked for in Spanish: its message in Spanish too, and the plan's words (16 Oct 2026).
+      offer_next_month_es: { message: { language: "es" } },
     },
   );
   assert.deepEqual(

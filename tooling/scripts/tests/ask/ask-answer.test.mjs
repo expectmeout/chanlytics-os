@@ -1229,7 +1229,7 @@ test("REGRESSION: an answer of cards alone is kept in the language its words are
   );
 });
 
-test("a round that made a plan answers with the plan's words as its detail, in place of the press sentence: stamped or not (a setup with no silent step, D3), in English in a Spanish answer (Task 18), cut on a whole word at the detail's cap", () => {
+test("a round that made a plan answers with the plan's words as its detail, in place of the press sentence: stamped or not (a setup with no silent step, D3), in a Spanish answer the Spanish words the plan said (PlanWorld.says), cut on a whole word at the detail's cap", () => {
   const stamp = (step, silent) => ({
     title: `Step ${step}`,
     kind: silent ? "playbook_change" : "broadcast",
@@ -1245,11 +1245,13 @@ test("a round that made a plan answers with the plan's words as its detail, in p
   // A setup's campaigns, unstamped: counted as cards, the plan's words their detail.
   const setup = answerForCards([{ title: "a" }, { title: "b" }, { title: "c" }], "en", "Starts 3 campaigns.");
   assert.deepEqual([setup.say.headline, setup.say.detail], ["3 cards to review.", "Starts 3 campaigns."]);
-  // A Spanish answer counts in Spanish and carries the plan's words as the plan says them.
-  const es = answerForCards([stamp(1, true), stamp(2, true), stamp(3, false)], "es", words);
+  // A Spanish answer counts in Spanish and carries the plan's words as the plan says them, in the question's language.
+  const palabras =
+    "Pausa la oferta del mes, «Oferta del mes», desde que apruebes el plan, para que nadie reciba dos ofertas; reanúdala después del 30 de noviembre.";
+  const es = answerForCards([stamp(1, true), stamp(2, true), stamp(3, false)], "es", palabras);
   assert.deepEqual(
     [es.say.headline, es.say.detail],
-    ["Un plan de 3 pasos para revisar: 2 no envían nada y luego 1 envía.", words],
+    ["Un plan de 3 pasos para revisar: 2 no envían nada y luego 1 envía.", palabras],
   );
   // Words past the detail's cap end on a whole word, with an ellipsis, within it.
   const long = Array.from({ length: 250 }, (_, i) => `word${i}`).join(" ");

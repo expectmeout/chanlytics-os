@@ -33,7 +33,8 @@
  *   the words     what no card carries first (channels left out, a note left out or held, the pause to resume, the
  *                 room, WhatsApp's review of a paced campaign that also goes by email, the reminder), then what the
  *                 cards show (WhatsApp's review of a send it holds, the message, the note, the send's day): the answer's
- *                 detail is cut at 700 characters (answerForCards), so a cut loses what a card says
+ *                 detail is cut at 700 characters (answerForCards), so a cut loses what a card says; said in the
+ *                 question's language (broadcasts/offer-plan-words.ts), the refusals in English for the model to say
  *   the journey   a campaign on each moment not covered yet that the workspace can run, on its action's pick; the day
  *                 after's review ask only where the Google listing keeps a review link (stageInput); without one, the
  *                 check named only over a review ask the Library holds, else the action's pick, which may be the
@@ -49,6 +50,7 @@ import type { Note } from "../config/workspace-config/business-profile";
 import { PROFILE_LIMITS } from "../config/workspace-config/config-rules";
 import type { ConsentChannel } from "../consent/consent-channels";
 import { BROADCAST_NAME_MAX } from "../broadcasts/broadcasts";
+import { OFFER_PLAN_WORDS } from "../broadcasts/offer-plan-words";
 import { CHANNEL_WORDS } from "../broadcasts/reach-for";
 import type { AppointmentWord } from "../journey/appointment-word";
 import type { JourneyStageId } from "../journey/journey";
@@ -56,9 +58,8 @@ import { JOURNEY_PLAN_WORDS, journeyPlan, type PlanLead } from "../journey/journ
 import { parseListToken } from "../people/lists/lists";
 import { campaignDayWords, campaignRunsOn, localDate } from "../playbooks/playbook-schedule";
 import { PLAYBOOK_DEFAULTS, PLAYBOOK_LIMITS, PLAYBOOK_NAME_MAX } from "../playbooks/playbook-triggers";
-import { clockHour, wallClockAt } from "../shared/clock";
-import { joinWords, plural } from "../shared/words";
-import { LIVE_VERSION_STATES, VERSION_CHANNEL_WORDS, versionWord } from "../templates/message-versions";
+import { wallClockAt } from "../shared/clock";
+import { LIVE_VERSION_STATES, VERSION_CHANNEL_WORDS } from "../templates/message-versions";
 import { SENDER_WORDS } from "../templates/sender-words";
 import { starterByName, starterText } from "../templates/starter-lookup";
 import { messageLanguageCode } from "../templates/starter-templates";
@@ -109,10 +110,7 @@ export interface PlanWorld {
   tz: string;
   /** The language a message is written in, and a reused one is in. */
   language: "en" | "es";
-  /**
-   * The language a setup's words are said in: the question's (the turn's). An offer's words stay English, as decision
-   * 0055 says, so a Spanish answer carries them in English.
-   */
+  /** The language a plan's words are said in: the question's (the turn's). Its refusals are English, for the model. */
   says: "en" | "es";
   /**
    * How the business works, as GET playbooks says it: whether its appointments are read from a calendar's feed, from a
@@ -183,6 +181,8 @@ type ListEntry = PlanWorld["lists"][number];
 type Room = NonNullable<PlanWorld["room"]>;
 type Audience = { audience_kind: "list" | "saved"; audience_id: string };
 type Slot = { position: number; label: string; kind: string };
+/** An offer's words for the person, in the question's language. */
+type Said = (typeof OFFER_PLAN_WORDS)[PlanWorld["says"]];
 
 /** The hour a send goes at, by the business's clock: the hour a campaign runs at unless told otherwise. */
 const SEND_HOUR = PLAYBOOK_DEFAULTS.runHour;
@@ -226,12 +226,8 @@ const OFFER_MESSAGE: Record<PlanWorld["language"], { whatsapp: string; subject: 
   },
 };
 
-/** A channel's reason as channelChoices gives it, or "not checked just now" where it gives none. */
-const whyOf = (why: string | null): string => why ?? CHANNEL_WORDS.unchecked;
-
-/** "The calendar has 15 open slots in the next 14 days for 40 people". */
-const roomWords = (room: Room, audience: number): string =>
-  `The calendar has ${room.open > 0 ? plural(room.open, "open slot") : "no open slot"} in the next ${plural(room.days, "day")} for ${plural(audience, "person", "people")}`;
+/** A channel's reason as channelChoices gives it, in English, as the refusals say it. */
+const whyOf = (why: string | null): string => OFFER_PLAN_WORDS.en.reason(why);
 
 /** A campaign's pace: the open slots a day ahead, rounded up, within what a campaign's cap may be. */
 const capOf = (room: Room): number =>
@@ -245,8 +241,9 @@ const unreadWords = (what: string): string =>
   `${what} could not be read just now, so nothing was proposed: say so, and ask again in a moment.`;
 
 /**
- * What a plan says. Its refusals are the model's to say back (each ends on what to do); its words and each step's why
- * are the person's. WhatsApp's review is WhatsApp's.
+ * What a plan says in English: its refusals, the model's to say back in the question's language (each ends on what to
+ * do), what its cards are titled and its note says, and each step's why. Its words for the person are an offer's
+ * OFFER_PLAN_WORDS and a setup's own (journey-plan.ts), in the question's language. WhatsApp's review is WhatsApp's.
  */
 export const PLAN_WORDS = {
   noOffer:
@@ -286,42 +283,9 @@ export const PLAN_WORDS = {
   /** What the receptionist's note says: the offer as the message says it, its dates, and what it is for. */
   noteText: (line: string, from: string, until: string, service: string | null): string =>
     `The offer: ${line} It runs from ${from} to ${until}.${service ? ` It is for ${service}.` : ""}`,
-  reuseMessage: (name: string): string => `Sends “${name}”, already in the Library, with the offer in its words.`,
-  writeMessage: (name: string, on: readonly OfferChannel[]): string =>
-    `Writes a message for offers, “${name}”, for ${joinWords(on.map(versionWord))}: this offer goes in its words, and the next offer can send it too.`,
-  /** A channel the offer goes without, and channelChoices' why, as a card says a channel that waits (playbook-channels.ts). */
-  without: (channel: OfferChannel, why: string | null): string =>
-    `It goes without ${versionWord(channel)}: ${whyOf(why)}`,
-  /** Why it goes without WhatsApp where the one message that carries it waits on WhatsApp's review (a send it holds). */
-  reviewing: (name: string): string => `WhatsApp is still reviewing the WhatsApp version of “${name}”.`,
   /** That message, WhatsApp the one channel it goes by: no twin; email named where open (never channels left out). */
   reviewRefused: (name: string, emailOpen: boolean): string =>
     `“${name}”, the one message here that carries an offer, waits on WhatsApp's review of its WhatsApp version, and WhatsApp is the one channel ${emailOpen ? "asked for" : "this offer may go by"}: say so, and ${emailOpen ? "that email can carry it now (name it), or " : ""}ask again once WhatsApp has reviewed it.`,
-  noText: CHANNEL_WORDS.noOffersByText,
-  noteMade: (until: string): string => `Tells the receptionist about the offer, until ${until}.`,
-  noteKnown: "The receptionist already has a note about the offer.",
-  /** A note is an owner's or a partner's to approve (the settings card's role), and the member asking is neither. */
-  noteLeftOut: "The receptionist is not told about the offer until an owner or a partner adds a note about it.",
-  /** The pause is a silent step: it applies at the plan's Approve, not on the offer's first day. */
-  monthsOfferPaused: (name: string, until: string): string =>
-    `Pauses the month's offer, “${name}”, from when you approve it, so nobody gets two offers; resume it after ${until}.`,
-  firstSend: (list: string, day: string, at: string): string => `The offer goes to “${list}” on ${day} at ${at}.`,
-  firstAtApprove: (list: string, at: string): string =>
-    `The offer goes to “${list}” when you approve it, as ${at} today has passed.`,
-  /** An offer that starts today, on a calendar with less room than half its audience: a campaign, from its Approve. */
-  paced: (room: Room, audience: number): string =>
-    `${roomWords(room, audience)}, so the offer goes as a campaign: up to ${capOf(room)} a day, each person once, until it ends, starting when you approve it.`,
-  /** The same room for an offer that starts later: its send reaches the whole list, or is dismissed to pace it then. */
-  roomTight: (room: Room, audience: number, from: string): string =>
-    `${roomWords(room, audience)}, and the send goes to the whole list at once: to pace the offer to the room instead, dismiss the send and ask again on ${from}.`,
-  /** Its WhatsApp version unapproved, a send waits (sendWaitsForReview) at its press, whatever its day; its card says. */
-  reviewFirst: "The send can be approved once WhatsApp has reviewed its WhatsApp version.",
-  /** A paced campaign by email too: approved now, its WhatsApp people held until the version is approved. */
-  whatsappReview:
-    "Its WhatsApp version waits on WhatsApp's review, which may still be running at the first send: whoever it reaches on WhatsApp waits for it.",
-  /** The reminder, its own question on its day (who has booked is known then); short, to fit the answer whole. */
-  reminderAsk: (day: string, list: string): string =>
-    `On ${day}, ask me to send a reminder to whoever on “${list}” has not booked by then.`,
   notOffered: JOURNEY_PLAN_WORDS.notOffered,
   /**
    * What a card says of what an earlier step of its plan makes, named by its token (`@step:n`): not filed yet, so not
@@ -383,8 +347,12 @@ interface OfferDates {
   until: string;
   /** Ten o'clock on `from`, or null where that has passed (today, after ten): the send goes at Approve. */
   firstAt: number | null;
+  /** The first and last day as the receptionist's note says them. */
   fromWords: string;
   untilWords: string;
+  /** The same as the plan's words say them, in the question's language. */
+  fromSaid: string;
+  untilSaid: string;
 }
 
 /** The offer's days, judged on the business's calendar by the judge a campaign's end is (localDate), or the refusal. */
@@ -394,6 +362,7 @@ function offerDates(offer: Offer, world: PlanWorld): OfferDates | { refused: str
   const today = localDate(world.tz, world.now);
   if (offer.from < today) return { refused: SAY.fromPast };
   const at = wallClockAt(world.tz, offer.from, SEND_HOUR, 0);
+  const S = OFFER_PLAN_WORDS[world.says];
   return {
     today,
     from: offer.from,
@@ -401,6 +370,8 @@ function offerDates(offer: Offer, world: PlanWorld): OfferDates | { refused: str
     firstAt: at > world.now.getTime() ? at : null,
     fromWords: campaignDayWords(offer.from, world.tz, world.now),
     untilWords: campaignDayWords(offer.until, world.tz, world.now),
+    fromSaid: S.day(offer.from, world.tz, world.now),
+    untilSaid: S.day(offer.until, world.tz, world.now),
   };
 }
 
@@ -411,6 +382,7 @@ function offerDates(offer: Offer, world: PlanWorld): OfferDates | { refused: str
 function offerChannels(
   asked: readonly ConsentChannel[] | undefined,
   can: PlanWorld["channels"],
+  S: Said,
 ): { on: OfferChannel[]; unasked: OfferChannel[]; said: string[]; refused: string } {
   const want: readonly ConsentChannel[] = asked ?? OFFER_CHANNELS;
   const shut = OFFER_CHANNELS.filter((c) => want.includes(c) && !can[c].ok);
@@ -419,7 +391,7 @@ function offerChannels(
   return {
     on: OFFER_CHANNELS.filter((c) => want.includes(c) && can[c].ok),
     unasked,
-    said: [...(want.includes("sms") ? [SAY.noText] : []), ...shut.map((c) => SAY.without(c, can[c].why))],
+    said: [...(want.includes("sms") ? [S.noText] : []), ...shut.map((c) => S.without(c, can[c].why))],
     refused: SAY.noChannel(
       told.map((c) => ({ channel: c, why: can[c].why })),
       unasked,
@@ -552,10 +524,11 @@ function offerMessage(
   if (!waiting) return { message: writtenMessage(world, on, line), on, said: [] };
   const rest = on.filter((c) => c !== "whatsapp");
   if (rest.length === 0) return { refused: SAY.reviewRefused(waiting.name, unasked.includes("email")) };
+  const S = OFFER_PLAN_WORDS[world.says];
   return {
     message: reusedMessage(waiting, rest, line),
     on: rest,
-    said: [SAY.without("whatsapp", SAY.reviewing(waiting.name))],
+    said: [S.without("whatsapp", S.reviewing(waiting.name))],
   };
 }
 
@@ -584,7 +557,10 @@ function monthsOfferPauses(world: PlanWorld, until: string): { input: Record<str
   const at = { tz: world.tz, now: world.now, dealsOn: false };
   return world.playbooks
     .filter((p) => p.trigger === "everyone_monthly" && campaignRunsOn(p, at))
-    .map((p) => ({ input: { playbook_id: p.id, state: "paused" }, said: SAY.monthsOfferPaused(p.name, until) }));
+    .map((p) => ({
+      input: { playbook_id: p.id, state: "paused" },
+      said: OFFER_PLAN_WORDS[world.says].monthsOfferPaused(p.name, until),
+    }));
 }
 
 /**
@@ -630,9 +606,10 @@ function receptionistNote(
   dates: OfferDates,
   world: PlanWorld,
 ): { input: Record<string, unknown> | null; said: string } {
+  const S = OFFER_PLAN_WORDS[world.says];
   const input = offerNote(offer, line, dates, world.notes);
-  if (!input) return { input: null, said: SAY.noteKnown };
-  return world.canNote ? { input, said: SAY.noteMade(dates.untilWords) } : { input: null, said: SAY.noteLeftOut };
+  if (!input) return { input: null, said: S.noteKnown };
+  return world.canNote ? { input, said: S.noteMade(dates.untilSaid) } : { input: null, said: S.noteLeftOut };
 }
 
 function offerRead(offer: Offer, say: string | undefined, world: PlanWorld): OfferRead | { refused: string } {
@@ -642,7 +619,7 @@ function offerRead(offer: Offer, say: string | undefined, world: PlanWorld): Off
   if (offer.channels?.length === 0) return { refused: SAY.noChannelNamed };
   // Texts alone: no channel the workspace could set up would carry it, so not "nothing here can carry an offer".
   if (offer.channels?.every((c) => c === "sms")) return { refused: SAY.textOnly };
-  const channels = offerChannels(offer.channels, world.channels);
+  const channels = offerChannels(offer.channels, world.channels, OFFER_PLAN_WORDS[world.says]);
   if (channels.on.length === 0) return { refused: channels.refused };
   const audience = world.lists.find((l) => l.token === (offer.who ?? world.offersList));
   const to = audience ? audienceOf(audience.token) : null;
@@ -672,7 +649,7 @@ function offerRead(offer: Offer, say: string | undefined, world: PlanWorld): Off
     kind,
     reminder: reminderDay(world, dates, cap !== null),
     note: receptionistNote(offer, line, dates, world),
-    pauses: monthsOfferPauses(world, dates.untilWords),
+    pauses: monthsOfferPauses(world, dates.untilSaid),
   };
 }
 
@@ -681,28 +658,29 @@ const awaitsReview = (r: OfferRead): boolean => r.on.includes("whatsapp") && (r.
 
 /** What no card says of the send: the room, WhatsApp's review of a paced campaign by email too, the reminder's day. */
 function sendUnseen(r: OfferRead, world: PlanWorld): string[] {
+  const S = OFFER_PLAN_WORDS[world.says];
   const room = r.tight
     ? [
         r.cap !== null
-          ? SAY.paced(r.tight.room, r.tight.audience)
-          : SAY.roomTight(r.tight.room, r.tight.audience, r.dates.fromWords),
+          ? S.paced(r.tight.room, r.tight.audience, r.cap)
+          : S.roomTight(r.tight.room, r.tight.audience, r.dates.fromSaid),
       ]
     : [];
   return [
     ...room,
-    ...(awaitsReview(r) && !sendWaitsForReview(r.kind, r.on) ? [SAY.whatsappReview] : []),
-    ...(r.reminder ? [SAY.reminderAsk(campaignDayWords(r.reminder, world.tz, world.now), r.audience.name)] : []),
+    ...(awaitsReview(r) && !sendWaitsForReview(r.kind, r.on) ? [S.whatsappReview] : []),
+    ...(r.reminder ? [S.reminderAsk(S.day(r.reminder, world.tz, world.now), r.audience.name)] : []),
   ];
 }
 
 /** The broadcast's day and hour, which its card shows: none for the paced campaign, whose words say it starts at Approve. */
-function sendDay(r: OfferRead): string[] {
+function sendDay(r: OfferRead, S: Said): string[] {
   if (r.cap !== null) return [];
-  const hour = clockHour(SEND_HOUR);
+  const hour = S.hour(SEND_HOUR);
   return [
     r.dates.firstAt === null
-      ? SAY.firstAtApprove(r.audience.name, hour)
-      : SAY.firstSend(r.audience.name, r.dates.fromWords, hour),
+      ? S.firstAtApprove(r.audience.name, hour)
+      : S.firstSend(r.audience.name, r.dates.fromSaid, hour),
   ];
 }
 
@@ -741,16 +719,17 @@ function offerPlan(r: OfferRead, world: PlanWorld): { steps: PlanStep[]; words: 
       SAY.why.first,
     );
   // What no card carries first, then what the cards show: the answer's detail, cut at 700 characters, keeps the first.
+  const S = OFFER_PLAN_WORDS[world.says];
   const words = [
     ...r.onSaid,
     ...(r.note.input ? [] : [r.note.said]),
     ...r.pauses.map((p) => p.said),
     ...sendUnseen(r, world),
     // A send WhatsApp's review holds, approved once it is reviewed, as its card says too (plan-steps.ts reviewedStep).
-    ...(awaitsReview(r) && sendWaitsForReview(r.kind, r.on) ? [SAY.reviewFirst] : []),
-    r.message.made ? SAY.writeMessage(r.message.name, r.on) : SAY.reuseMessage(r.message.name),
+    ...(awaitsReview(r) && sendWaitsForReview(r.kind, r.on) ? [S.reviewFirst] : []),
+    r.message.made ? S.writeMessage(r.message.name, r.on) : S.reuseMessage(r.message.name),
     ...(r.note.input ? [r.note.said] : []),
-    ...sendDay(r),
+    ...sendDay(r, S),
   ];
   return { steps, words: words.join(" ") };
 }

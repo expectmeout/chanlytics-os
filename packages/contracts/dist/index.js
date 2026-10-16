@@ -268,6 +268,7 @@ var reviewsPhrase = (n) => groupedPlural(n, "review");
 var UNKNOWN_MEMBER_WORD = "Someone";
 var capitalize = (s) => s ? s[0].toUpperCase() + s.slice(1) : s;
 var joinWords = (items) => items.length <= 1 ? items[0] ?? "" : `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`;
+var joinWordsEs = (items) => items.length <= 1 ? items[0] ?? "" : `${items.slice(0, -1).join(", ")} y ${items[items.length - 1]}`;
 
 // src/ads/words.ts
 var DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -25136,6 +25137,81 @@ function stoppedAnswer(said, language) {
   return { ...a, say: { ...a.say, detail: clip(so, ASK_ANSWER_CAPS.detail) } };
 }
 
+// src/broadcasts/offer-plan-words.ts
+var reasonEn = (why) => why ?? CHANNEL_WORDS.unchecked;
+var roomEn = (room, audience) => `The calendar has ${room.open > 0 ? plural(room.open, "open slot") : "no open slot"} in the next ${plural(room.days, "day")} for ${plural(audience, "person", "people")}`;
+var EN = {
+  day: campaignDayWords,
+  hour: clockHour,
+  reason: reasonEn,
+  noText: CHANNEL_WORDS.noOffersByText,
+  without: (channel, why) => `It goes without ${versionWord(channel)}: ${reasonEn(why)}`,
+  reviewing: (name) => `WhatsApp is still reviewing the WhatsApp version of \u201C${name}\u201D.`,
+  reuseMessage: (name) => `Sends \u201C${name}\u201D, already in the Library, with the offer in its words.`,
+  writeMessage: (name, on) => `Writes a message for offers, \u201C${name}\u201D, for ${joinWords(on.map(versionWord))}: this offer goes in its words, and the next offer can send it too.`,
+  noteMade: (until) => `Tells the receptionist about the offer, until ${until}.`,
+  noteKnown: "The receptionist already has a note about the offer.",
+  noteLeftOut: "The receptionist is not told about the offer until an owner or a partner adds a note about it.",
+  monthsOfferPaused: (name, until) => `Pauses the month's offer, \u201C${name}\u201D, from when you approve it, so nobody gets two offers; resume it after ${until}.`,
+  firstSend: (list2, day, at3) => `The offer goes to \u201C${list2}\u201D on ${day} at ${at3}.`,
+  firstAtApprove: (list2, at3) => `The offer goes to \u201C${list2}\u201D when you approve it, as ${at3} today has passed.`,
+  paced: (room, audience, cap2) => `${roomEn(room, audience)}, so the offer goes as a campaign: up to ${cap2} a day, each person once, until it ends, starting when you approve it.`,
+  roomTight: (room, audience, from) => `${roomEn(room, audience)}, and the send goes to the whole list at once: to pace the offer to the room instead, dismiss the send and ask again on ${from}.`,
+  reviewFirst: "The send can be approved once WhatsApp has reviewed its WhatsApp version.",
+  whatsappReview: "Its WhatsApp version waits on WhatsApp's review, which may still be running at the first send: whoever it reaches on WhatsApp waits for it.",
+  reminderAsk: (day, list2) => `On ${day}, ask me to send a reminder to whoever on \u201C${list2}\u201D has not booked by then.`
+};
+var REASONS_ES = /* @__PURE__ */ new Map([
+  [CHANNEL_WORDS.noWhatsApp, "Conecta primero un n\xFAmero de WhatsApp."],
+  [CHANNEL_WORDS.noMailbox, "Configura primero el correo en Ajustes \u203A Conexiones."],
+  [CHANNEL_WORDS.noEmailDomain, "El correo a\xFAn no est\xE1 activado en esta instalaci\xF3n."],
+  [CHANNEL_WORDS.unchecked, "No se pudo comprobar ahora mismo."],
+  [
+    OFFERS_BY_EMAIL_WORDS.noCampaignsDomain,
+    "Las ofertas por correo empiezan cuando est\xE9 listo el dominio de campa\xF1as."
+  ],
+  [OFFERS_BY_EMAIL_WORDS.noAddress, "A\xF1ade la direcci\xF3n de tu negocio para enviar ofertas por correo."],
+  [OFFERS_BY_EMAIL_WORDS.paused, "Las ofertas por correo est\xE1n en pausa mientras se calman las quejas y los rebotes."],
+  [
+    US_PAUSED,
+    "Meta ha pausado las ofertas por WhatsApp a n\xFAmeros de EE. UU. Los mensajes sobre citas y las respuestas siguen saliendo."
+  ]
+]);
+var reasonEs = (why) => {
+  const said = reasonEn(why);
+  return REASONS_ES.get(said) ?? said;
+};
+var channelEs = (channel) => channel === "whatsapp" ? "WhatsApp" : "correo";
+var dayEs = (key, tz, now) => dateFormat("es", {
+  timeZone: "UTC",
+  day: "numeric",
+  month: "long",
+  ...key.slice(0, 4) === localDate(tz, now).slice(0, 4) ? {} : { year: "numeric" }
+}).format(/* @__PURE__ */ new Date(`${key}T12:00:00Z`));
+var roomEs = (room, audience) => `El calendario tiene ${room.open === 0 ? "ning\xFAn hueco libre" : room.open === 1 ? "1 hueco libre" : `${room.open} huecos libres`} en ${room.days === 1 ? "el pr\xF3ximo d\xEDa" : `los pr\xF3ximos ${room.days} d\xEDas`} para ${plural(audience, "persona")}`;
+var ES = {
+  day: dayEs,
+  hour: (hour) => `${(Math.floor(hour) % 24 + 24) % 24}:00`,
+  reason: reasonEs,
+  noText: "Los mensajes de texto no llevan ofertas.",
+  without: (channel, why) => `Va sin ${channelEs(channel)}: ${reasonEs(why)}`,
+  reviewing: (name) => `WhatsApp a\xFAn revisa la versi\xF3n de WhatsApp de \xAB${name}\xBB.`,
+  reuseMessage: (name) => `Env\xEDa \xAB${name}\xBB, que ya est\xE1 en la Biblioteca, con la oferta en su texto.`,
+  writeMessage: (name, on) => `Escribe un mensaje para ofertas, \xAB${name}\xBB, para ${joinWordsEs(on.map(channelEs))}: esta oferta va en su texto, y la pr\xF3xima tambi\xE9n podr\xE1 enviarlo.`,
+  noteMade: (until) => `Avisa a la recepcionista de la oferta, hasta el ${until}.`,
+  noteKnown: "La recepcionista ya tiene una nota sobre la oferta.",
+  noteLeftOut: "La recepcionista no sabe de la oferta hasta que un due\xF1o o un socio a\xF1ada una nota.",
+  monthsOfferPaused: (name, until) => `Pausa la oferta del mes, \xAB${name}\xBB, desde que apruebes el plan, para que nadie reciba dos ofertas; rean\xFAdala despu\xE9s del ${until}.`,
+  firstSend: (list2, day, at3) => `La oferta va a \xAB${list2}\xBB el ${day} a las ${at3}.`,
+  firstAtApprove: (list2, at3) => `La oferta va a \xAB${list2}\xBB cuando la apruebes, porque hoy ya pasaron las ${at3}.`,
+  paced: (room, audience, cap2) => `${roomEs(room, audience)}, as\xED que la oferta va como campa\xF1a: hasta ${cap2} al d\xEDa, cada persona una vez, hasta que termine, desde que la apruebes.`,
+  roomTight: (room, audience, from) => `${roomEs(room, audience)}, y el env\xEDo va a toda la lista a la vez: para ajustarla a los huecos, descarta el env\xEDo y p\xEDdemelo otra vez el ${from}.`,
+  reviewFirst: "El env\xEDo se puede aprobar cuando WhatsApp haya revisado su versi\xF3n de WhatsApp.",
+  whatsappReview: "Su versi\xF3n de WhatsApp espera la revisi\xF3n de WhatsApp, que puede seguir en el primer env\xEDo: quien la reciba por WhatsApp espera a que termine.",
+  reminderAsk: (day, list2) => `El ${day}, p\xEDdeme que env\xEDe un recordatorio a quien de \xAB${list2}\xBB no haya reservado para entonces.`
+};
+var OFFER_PLAN_WORDS = { en: EN, es: ES };
+
 // src/journey/journey-plan.ts
 var STAGE_WORDS = {
   first_contact: "at first contact",
@@ -25184,7 +25260,6 @@ var APPOINTMENT_ES = {
   session: "sesi\xF3n",
   lesson: "clase"
 };
-var joinEs = (items) => items.length <= 1 ? items[0] ?? "" : `${items.slice(0, -1).join(", ")} y ${items[items.length - 1]}`;
 var SETUP_WORDS = {
   en: {
     starts: {
@@ -25226,13 +25301,13 @@ var SETUP_WORDS = {
       quiet: "la recuperaci\xF3n"
     },
     gets: { before: "un recordatorio el d\xEDa antes", after: "un seguimiento el d\xEDa despu\xE9s" },
-    join: joinEs,
+    join: joinWordsEs,
     thing: (word) => APPOINTMENT_ES[word],
     cover: (n, what) => `Empieza ${n === 1 ? "1 campa\xF1a" : `${n} campa\xF1as`} ya${n > 1 ? ", cada una en su tarjeta" : ""}: ${what}.`,
     calendar: (feed, each, gets) => feed ? `Primero, conecta el feed de tu calendario en Ajustes \u203A Negocio (los correos de reserva no bastan para programar una campa\xF1a), para que cada ${each} tenga ${gets}.` : `Primero, conecta tu calendario en Ajustes \u203A Negocio, para que cada ${each} tenga ${gets}.`,
     proposals: (first) => `${first ? "Primero" : "Luego"}, en Ajustes \u203A Negocio, responde a \xABC\xF3mo compran tus clientes\xBB con \xABAlgunos reciben antes una propuesta\xBB, para que cada propuesta que espera tenga un seguimiento.`,
     nobody: (named, one) => `${capitalize(named)} no ${one ? "llega" : "llegan"} a nadie hoy; ${one ? "su tarjeta dice" : "cada tarjeta dice"} por qu\xE9.`,
-    resume: (names3) => `Reanuda ${joinEs(names3.map((n) => `\xAB${n}\xBB`))}, en pausa en ${names3.length === 1 ? "su momento, en su propia tarjeta" : "sus momentos, en una tarjeta cada una"}.`,
+    resume: (names3) => `Reanuda ${joinWordsEs(names3.map((n) => `\xAB${n}\xBB`))}, en pausa en ${names3.length === 1 ? "su momento, en su propia tarjeta" : "sus momentos, en una tarjeta cada una"}.`,
     again: (more2, needs2) => `P\xEDdemelo otra vez cuando ${onceOf(needs2, "es")} y ${more2 === 1 ? "la a\xF1ado" : "las a\xF1ado"}.`,
     headline: (needs2, now, more2) => `${needs2.size === 2 ? "Conecta tu calendario y activa las propuestas" : needs2.has("calendar") ? "Conecta tu calendario" : "Activa las propuestas"} primero: ${now === 1 ? "1 campa\xF1a puede" : `${now} campa\xF1as pueden`} empezar ya, ${more2} m\xE1s cuando ${onceOf(needs2, "es")}.`,
     open: (needs2) => needs2.has("calendar") ? "Conectar un calendario" : "Abrir Ajustes del negocio",
@@ -25355,8 +25430,7 @@ ${SENDER_WORDS.es.textStop}`,
     email: "Hola {{1}}:\n\nUna oferta de {{2}}: {{3}}\n\nReserva aqu\xED: {{4}}, o responde con el d\xEDa que mejor te venga."
   }
 };
-var whyOf = (why) => why ?? CHANNEL_WORDS.unchecked;
-var roomWords = (room, audience) => `The calendar has ${room.open > 0 ? plural(room.open, "open slot") : "no open slot"} in the next ${plural(room.days, "day")} for ${plural(audience, "person", "people")}`;
+var whyOf = (why) => OFFER_PLAN_WORDS.en.reason(why);
 var capOf = (room) => Math.min(
   PLAYBOOK_LIMITS.cap_per_run.max,
   Math.max(PLAYBOOK_LIMITS.cap_per_run.min, Math.ceil(room.open / Math.max(1, room.days)))
@@ -25391,33 +25465,8 @@ var PLAN_WORDS = {
   offerTitle: (words3) => `Offer: ${words3}`,
   /** What the receptionist's note says: the offer as the message says it, its dates, and what it is for. */
   noteText: (line, from, until, service) => `The offer: ${line} It runs from ${from} to ${until}.${service ? ` It is for ${service}.` : ""}`,
-  reuseMessage: (name) => `Sends \u201C${name}\u201D, already in the Library, with the offer in its words.`,
-  writeMessage: (name, on) => `Writes a message for offers, \u201C${name}\u201D, for ${joinWords(on.map(versionWord))}: this offer goes in its words, and the next offer can send it too.`,
-  /** A channel the offer goes without, and channelChoices' why, as a card says a channel that waits (playbook-channels.ts). */
-  without: (channel, why) => `It goes without ${versionWord(channel)}: ${whyOf(why)}`,
-  /** Why it goes without WhatsApp where the one message that carries it waits on WhatsApp's review (a send it holds). */
-  reviewing: (name) => `WhatsApp is still reviewing the WhatsApp version of \u201C${name}\u201D.`,
   /** That message, WhatsApp the one channel it goes by: no twin; email named where open (never channels left out). */
   reviewRefused: (name, emailOpen) => `\u201C${name}\u201D, the one message here that carries an offer, waits on WhatsApp's review of its WhatsApp version, and WhatsApp is the one channel ${emailOpen ? "asked for" : "this offer may go by"}: say so, and ${emailOpen ? "that email can carry it now (name it), or " : ""}ask again once WhatsApp has reviewed it.`,
-  noText: CHANNEL_WORDS.noOffersByText,
-  noteMade: (until) => `Tells the receptionist about the offer, until ${until}.`,
-  noteKnown: "The receptionist already has a note about the offer.",
-  /** A note is an owner's or a partner's to approve (the settings card's role), and the member asking is neither. */
-  noteLeftOut: "The receptionist is not told about the offer until an owner or a partner adds a note about it.",
-  /** The pause is a silent step: it applies at the plan's Approve, not on the offer's first day. */
-  monthsOfferPaused: (name, until) => `Pauses the month's offer, \u201C${name}\u201D, from when you approve it, so nobody gets two offers; resume it after ${until}.`,
-  firstSend: (list2, day, at3) => `The offer goes to \u201C${list2}\u201D on ${day} at ${at3}.`,
-  firstAtApprove: (list2, at3) => `The offer goes to \u201C${list2}\u201D when you approve it, as ${at3} today has passed.`,
-  /** An offer that starts today, on a calendar with less room than half its audience: a campaign, from its Approve. */
-  paced: (room, audience) => `${roomWords(room, audience)}, so the offer goes as a campaign: up to ${capOf(room)} a day, each person once, until it ends, starting when you approve it.`,
-  /** The same room for an offer that starts later: its send reaches the whole list, or is dismissed to pace it then. */
-  roomTight: (room, audience, from) => `${roomWords(room, audience)}, and the send goes to the whole list at once: to pace the offer to the room instead, dismiss the send and ask again on ${from}.`,
-  /** Its WhatsApp version unapproved, a send waits (sendWaitsForReview) at its press, whatever its day; its card says. */
-  reviewFirst: "The send can be approved once WhatsApp has reviewed its WhatsApp version.",
-  /** A paced campaign by email too: approved now, its WhatsApp people held until the version is approved. */
-  whatsappReview: "Its WhatsApp version waits on WhatsApp's review, which may still be running at the first send: whoever it reaches on WhatsApp waits for it.",
-  /** The reminder, its own question on its day (who has booked is known then); short, to fit the answer whole. */
-  reminderAsk: (day, list2) => `On ${day}, ask me to send a reminder to whoever on \u201C${list2}\u201D has not booked by then.`,
   notOffered: JOURNEY_PLAN_WORDS.notOffered,
   /**
    * What a card says of what an earlier step of its plan makes, named by its token (`@step:n`): not filed yet, so not
@@ -25467,16 +25516,19 @@ function offerDates(offer, world) {
   const today = localDate(world.tz, world.now);
   if (offer.from < today) return { refused: SAY.fromPast };
   const at3 = wallClockAt(world.tz, offer.from, SEND_HOUR, 0);
+  const S = OFFER_PLAN_WORDS[world.says];
   return {
     today,
     from: offer.from,
     until: offer.until,
     firstAt: at3 > world.now.getTime() ? at3 : null,
     fromWords: campaignDayWords(offer.from, world.tz, world.now),
-    untilWords: campaignDayWords(offer.until, world.tz, world.now)
+    untilWords: campaignDayWords(offer.until, world.tz, world.now),
+    fromSaid: S.day(offer.from, world.tz, world.now),
+    untilSaid: S.day(offer.until, world.tz, world.now)
   };
 }
-function offerChannels(asked, can) {
+function offerChannels(asked, can, S) {
   const want = asked ?? OFFER_CHANNELS;
   const shut = OFFER_CHANNELS.filter((c) => want.includes(c) && !can[c].ok);
   const unasked = OFFER_CHANNELS.filter((c) => !want.includes(c) && can[c].ok);
@@ -25484,7 +25536,7 @@ function offerChannels(asked, can) {
   return {
     on: OFFER_CHANNELS.filter((c) => want.includes(c) && can[c].ok),
     unasked,
-    said: [...want.includes("sms") ? [SAY.noText] : [], ...shut.map((c) => SAY.without(c, can[c].why))],
+    said: [...want.includes("sms") ? [S.noText] : [], ...shut.map((c) => S.without(c, can[c].why))],
     refused: SAY.noChannel(
       told.map((c) => ({ channel: c, why: can[c].why })),
       unasked
@@ -25560,10 +25612,11 @@ function offerMessage(world, on, line, kind, unasked) {
   if (!waiting) return { message: writtenMessage(world, on, line), on, said: [] };
   const rest = on.filter((c) => c !== "whatsapp");
   if (rest.length === 0) return { refused: SAY.reviewRefused(waiting.name, unasked.includes("email")) };
+  const S = OFFER_PLAN_WORDS[world.says];
   return {
     message: reusedMessage(waiting, rest, line),
     on: rest,
-    said: [SAY.without("whatsapp", SAY.reviewing(waiting.name))]
+    said: [S.without("whatsapp", S.reviewing(waiting.name))]
   };
 }
 function offerNote(offer, line, dates, notes) {
@@ -25575,7 +25628,10 @@ function offerNote(offer, line, dates, notes) {
 }
 function monthsOfferPauses(world, until) {
   const at3 = { tz: world.tz, now: world.now, dealsOn: false };
-  return world.playbooks.filter((p) => p.trigger === "everyone_monthly" && campaignRunsOn(p, at3)).map((p) => ({ input: { playbook_id: p.id, state: "paused" }, said: SAY.monthsOfferPaused(p.name, until) }));
+  return world.playbooks.filter((p) => p.trigger === "everyone_monthly" && campaignRunsOn(p, at3)).map((p) => ({
+    input: { playbook_id: p.id, state: "paused" },
+    said: OFFER_PLAN_WORDS[world.says].monthsOfferPaused(p.name, until)
+  }));
 }
 function reminderDay(world, dates, paced) {
   if (paced || !world.journey?.some((s) => s.id === "before" || s.id === "after")) return null;
@@ -25584,9 +25640,10 @@ function reminderDay(world, dates, paced) {
   return day > dates.from ? day : null;
 }
 function receptionistNote(offer, line, dates, world) {
+  const S = OFFER_PLAN_WORDS[world.says];
   const input = offerNote(offer, line, dates, world.notes);
-  if (!input) return { input: null, said: SAY.noteKnown };
-  return world.canNote ? { input, said: SAY.noteMade(dates.untilWords) } : { input: null, said: SAY.noteLeftOut };
+  if (!input) return { input: null, said: S.noteKnown };
+  return world.canNote ? { input, said: S.noteMade(dates.untilSaid) } : { input: null, said: S.noteLeftOut };
 }
 function offerRead(offer, say2, world) {
   if (!offer.words.trim()) return { refused: SAY.noWords };
@@ -25594,7 +25651,7 @@ function offerRead(offer, say2, world) {
   if ("refused" in dates) return dates;
   if (offer.channels?.length === 0) return { refused: SAY.noChannelNamed };
   if (offer.channels?.every((c) => c === "sms")) return { refused: SAY.textOnly };
-  const channels = offerChannels(offer.channels, world.channels);
+  const channels = offerChannels(offer.channels, world.channels, OFFER_PLAN_WORDS[world.says]);
   if (channels.on.length === 0) return { refused: channels.refused };
   const audience = world.lists.find((l) => l.token === (offer.who ?? world.offersList));
   const to = audience ? audienceOf(audience.token) : null;
@@ -25619,25 +25676,26 @@ function offerRead(offer, say2, world) {
     kind,
     reminder: reminderDay(world, dates, cap2 !== null),
     note: receptionistNote(offer, line, dates, world),
-    pauses: monthsOfferPauses(world, dates.untilWords)
+    pauses: monthsOfferPauses(world, dates.untilSaid)
   };
 }
 var awaitsReview = (r2) => r2.on.includes("whatsapp") && (r2.message.made || r2.message.inReview);
 function sendUnseen(r2, world) {
+  const S = OFFER_PLAN_WORDS[world.says];
   const room = r2.tight ? [
-    r2.cap !== null ? SAY.paced(r2.tight.room, r2.tight.audience) : SAY.roomTight(r2.tight.room, r2.tight.audience, r2.dates.fromWords)
+    r2.cap !== null ? S.paced(r2.tight.room, r2.tight.audience, r2.cap) : S.roomTight(r2.tight.room, r2.tight.audience, r2.dates.fromSaid)
   ] : [];
   return [
     ...room,
-    ...awaitsReview(r2) && !sendWaitsForReview(r2.kind, r2.on) ? [SAY.whatsappReview] : [],
-    ...r2.reminder ? [SAY.reminderAsk(campaignDayWords(r2.reminder, world.tz, world.now), r2.audience.name)] : []
+    ...awaitsReview(r2) && !sendWaitsForReview(r2.kind, r2.on) ? [S.whatsappReview] : [],
+    ...r2.reminder ? [S.reminderAsk(S.day(r2.reminder, world.tz, world.now), r2.audience.name)] : []
   ];
 }
-function sendDay(r2) {
+function sendDay(r2, S) {
   if (r2.cap !== null) return [];
-  const hour = clockHour(SEND_HOUR);
+  const hour = S.hour(SEND_HOUR);
   return [
-    r2.dates.firstAt === null ? SAY.firstAtApprove(r2.audience.name, hour) : SAY.firstSend(r2.audience.name, r2.dates.fromWords, hour)
+    r2.dates.firstAt === null ? S.firstAtApprove(r2.audience.name, hour) : S.firstSend(r2.audience.name, r2.dates.fromSaid, hour)
   ];
 }
 function offerPlan(r2, world) {
@@ -25674,16 +25732,17 @@ function offerPlan(r2, world) {
       },
       SAY.why.first
     );
+  const S = OFFER_PLAN_WORDS[world.says];
   const words3 = [
     ...r2.onSaid,
     ...r2.note.input ? [] : [r2.note.said],
     ...r2.pauses.map((p) => p.said),
     ...sendUnseen(r2, world),
     // A send WhatsApp's review holds, approved once it is reviewed, as its card says too (plan-steps.ts reviewedStep).
-    ...awaitsReview(r2) && sendWaitsForReview(r2.kind, r2.on) ? [SAY.reviewFirst] : [],
-    r2.message.made ? SAY.writeMessage(r2.message.name, r2.on) : SAY.reuseMessage(r2.message.name),
+    ...awaitsReview(r2) && sendWaitsForReview(r2.kind, r2.on) ? [S.reviewFirst] : [],
+    r2.message.made ? S.writeMessage(r2.message.name, r2.on) : S.reuseMessage(r2.message.name),
     ...r2.note.input ? [r2.note.said] : [],
-    ...sendDay(r2)
+    ...sendDay(r2, S)
   ];
   return { steps, words: words3.join(" ") };
 }
@@ -58057,6 +58116,7 @@ export {
   OFFERS_PAUSED_WORDS,
   OFFERS_YES_SOURCES,
   OFFER_GATES,
+  OFFER_PLAN_WORDS,
   OPENING_CHARS_MAX,
   OPENING_FACT_KEYS,
   OPENING_PROBLEMS,
