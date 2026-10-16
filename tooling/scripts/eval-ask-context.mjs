@@ -47,6 +47,7 @@ import {
   proposalSpec,
   scopeFromRoute,
   unquoted,
+  answerBlocks,
 } from "@chanlytics/contracts";
 import { readAllRows } from "@chanlytics/db";
 import { toolNow } from "../evals/rename-ask-tools.mjs";
@@ -657,8 +658,9 @@ const wordsIn = (s) =>
  * (`style`, at least `min` entries, exactly `count`, the `entries` themselves word for word, every entry carrying an
  * `emoji`; with `rows`, a list of rows read is the items, numbered by the list's style with no entries of its own, and
  * fewer than two of either asks for no style), `list_empty` (no entries), `headline_words` (at most that many words),
- * `detail_empty`, `all_caps` (no lower-case letter in the headline, the detail or the list), and `no_format_apology` (no
- * sentence spent on the format, FORMAT_APOLOGY). `e` is a case's expect, `m` the turn's final message.
+ * `detail_empty`, `all_caps` (no lower-case letter in the headline, the detail or the list), `detail_shape` and
+ * `detail_max_words` (detailShapeFails), and `no_format_apology` (no sentence spent on the format, FORMAT_APOLOGY). `e`
+ * is a case's expect, `m` the turn's final message.
  */
 export function shapeAskedFails(e, m) {
   const fails = [];
@@ -667,11 +669,20 @@ export function shapeAskedFails(e, m) {
     const said = FORMAT_APOLOGY.exec(m?.text ?? "");
     if (said) fails.push(`the answer apologizes for its shape: “${said[0]}”`);
   }
-  const keys = ["list", "list_empty", "headline_words", "detail_empty", "all_caps"];
+  const keys = ["list", "list_empty", "headline_words", "detail_empty", "all_caps", "detail_shape", "detail_max_words"];
   if (!keys.some((k) => e[k] !== undefined)) return fails;
   if (!a || a.form !== "structured")
     return [...fails, "a shape was asked for, and the answer has none (prose or no answer)"];
-  const list = a.show.list ?? { style: "bullets", entries: [] };
+  // A list is a list wherever the Line draws it: the list part, or the detail's own (contracts answerBlocks), whose
+  // points are the entries and whose numbers its style.
+  const own = a.show.list ?? { style: "bullets", entries: [] };
+  const written = own.entries.length ? null : answerBlocks(a.say.detail ?? "").find((b) => b.kind === "list");
+  const list = written
+    ? {
+        style: written.list.ordered ? "numbers" : "bullets",
+        entries: written.list.items.map((it) => it.runs.map((r) => r.text).join("")),
+      }
+    : own;
   const entries = list.entries;
   if (e.list && e.list.rows) {
     const n = Math.max(entries.length, a.show.items.length);
@@ -700,6 +711,56 @@ export function shapeAskedFails(e, m) {
     const low = [a.say.headline, a.say.detail, ...entries].find((s) => /\p{Ll}/u.test(s));
     if (low) fails.push(`lower case where capitals were asked: “${low.slice(0, 80)}”`);
   }
+  return [...fails, ...detailShapeFails(e, a)];
+}
+
+/** The parts of a list, nested ones included. */
+const listItems = (l) => l.items.flatMap((it) => [it, ...(it.sub ? listItems(it.sub) : [])]);
+
+/**
+ * What the detail draws (contracts answerBlocks, as the Line does): `detail_shape` names what it must hold, a `table`,
+ * `bold` (in the detail or the list's entries), a `heading`, a `nested` list, `numbered` steps, or `plain` for no
+ * structure (no table, heading or list: a bold name or number is still plain words); `detail_max_words` is the most
+ * words it may say (a turn asked to be shorter, or one that should be).
+ */
+export function detailShapeFails(e, a) {
+  const fails = [];
+  const want = e.detail_shape;
+  if (want) {
+    const blocks = answerBlocks(a.say.detail ?? "");
+    const lists = blocks.filter((b) => b.kind === "list").map((b) => b.list);
+    const runs = [
+      ...blocks.flatMap((b) =>
+        b.kind === "text"
+          ? b.lines.flat()
+          : b.kind === "heading"
+            ? b.runs
+            : b.kind === "table"
+              ? [...b.head.flat(), ...b.rows.flat(2)]
+              : lists.flatMap(listItems).flatMap((it) => it.runs),
+      ),
+      ...(a.show.list?.entries ?? []).flatMap((x) =>
+        answerBlocks(x).flatMap((b) => (b.kind === "text" ? b.lines.flat() : [])),
+      ),
+    ];
+    const has = {
+      table: blocks.some((b) => b.kind === "table"),
+      bold: runs.some((r) => r.bold),
+      heading: blocks.some((b) => b.kind === "heading"),
+      nested: lists.some((l) => l.items.some((it) => it.sub)),
+      numbered: lists.some((l) => l.ordered) || a.show.list?.style === "numbers",
+    };
+    for (const k of [].concat(want)) {
+      if (k === "plain") {
+        const lists = blocks.some((b) => b.kind === "list");
+        const any = ["table", "heading"].filter((x) => has[x]).concat(lists ? ["a list"] : []);
+        if (any.length) fails.push(`formatting where plain words were enough: ${any.join(", ")}`);
+      } else if (!has[k])
+        fails.push(`no ${k} in the detail where one was asked: “${String(a.say.detail).slice(0, 80)}”`);
+    }
+  }
+  if (typeof e.detail_max_words === "number" && wordsIn(a.say.detail ?? "").length > e.detail_max_words)
+    fails.push(`a detail of ${wordsIn(a.say.detail ?? "").length} words, where at most ${e.detail_max_words} fit`);
   return fails;
 }
 

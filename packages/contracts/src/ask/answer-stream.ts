@@ -9,7 +9,7 @@
  */
 import {
   ASK_ANSWER_CAPS,
-  clip,
+  clipLines,
   failedAnswer,
   normalizeAnswer,
   sayAsDrawn,
@@ -17,6 +17,7 @@ import {
   type AskFigure,
   type AskItem,
 } from "./ask-answer";
+import { opensWithBlock } from "./answer-text";
 import type { AskLanguage } from "./ask-language";
 import type { AskReadSet } from "./citations";
 
@@ -178,10 +179,12 @@ const ASK_STOPPED_WORDS = {
 
 /**
  * A stopped turn's answer: marked failed by its message, the headline saying it was stopped, and what its Say had
- * written so far under it, as the person read it. Nothing written yet leaves the headline alone.
+ * written so far under it, as the person read it, its lines kept (a table or a list stays one), the detail on a line of
+ * its own when it opens with one. Nothing written yet leaves the headline alone.
  */
 export function stoppedAnswer(said: { headline: string; detail: string } | null, language: AskLanguage): AskAnswer {
   const a = failedAnswer(ASK_STOPPED_WORDS[language === "es" ? "es" : "en"], language);
-  const so = [said?.headline, said?.detail].filter(Boolean).join(" ");
-  return { ...a, say: { ...a.say, detail: clip(so, ASK_ANSWER_CAPS.detail) } };
+  const own = opensWithBlock(said?.detail ?? "");
+  const so = [said?.headline, said?.detail].filter(Boolean).join(own ? "\n" : " ");
+  return { ...a, say: { ...a.say, detail: clipLines(so, ASK_ANSWER_CAPS.detail) } };
 }

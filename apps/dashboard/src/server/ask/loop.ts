@@ -247,7 +247,6 @@ function wordsBlock(
     personLabel: input.personLabel,
     scope: input.scope,
     surface: input.surface,
-    language: input.language,
     timezone: input.timezone,
     closures: input.facts.closures,
     focus,

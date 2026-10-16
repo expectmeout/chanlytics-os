@@ -5,7 +5,15 @@
  * answer-format.ts) and the server reads back through normalizeAnswer -- and one rule for the doors it offers. Pure.
  */
 import { ASK_CAPS, type AskMessageVM, type AskProposal } from "./ask";
-import { FOLLOWUP_ECHO, cleanAnswer, firstSentence, navigateLabel, sameQuestion } from "./answer-text";
+import {
+  FOLLOWUP_ECHO,
+  answerText,
+  cleanAnswer,
+  firstSentence,
+  navigateLabel,
+  opensWithBlock,
+  sameQuestion,
+} from "./answer-text";
 import type { AskLanguage } from "./ask-language";
 import { CALENDAR_SETTING_ROUTE } from "../setup/calendar-source";
 import type { FastCall } from "./ask-fast-paths";
@@ -82,15 +90,19 @@ export interface AskAnswer {
   language: AskLanguage;
 }
 
-/** One cap per part: read by the builders here and, from plan 3, by the format's words and its parser. */
+/**
+ * One cap per part: read by the builders here and by the format's words and its parser. The detail is the answer's
+ * body, as long as the question needs (a table, steps under headings), so its cap is the most a turn may say, never a
+ * length to aim at; the rest are what one line of the Line holds.
+ */
 export const ASK_ANSWER_CAPS = {
   headline: 160,
-  detail: 700,
+  detail: 3000,
   figures: 4,
   items: 5,
   parts: 4,
-  entries: 15,
-  entry: 160,
+  entries: 25,
+  entry: 240,
   next: 2,
   value: 24,
   label: 60,
@@ -99,6 +111,8 @@ export const ASK_ANSWER_CAPS = {
   meta: 60,
   line: 160,
   question: 90,
+  /** A plan's words, which the server writes (decision 0055): what no card carries comes first, so a cut keeps it. */
+  plan: 700,
 } as const;
 
 /** No list: what every answer carries until one is asked for, and what an answer stored before the list part reads as. */
@@ -125,16 +139,20 @@ const cutAt = (t: string, n: number) => {
 export const clip = (s: string | null | undefined, n: number) => cutAt((s ?? "").replace(/\s+/g, " ").trim(), n);
 
 /**
- * Words that keep their lines, in at most n characters: spaces run together within a line, each line trimmed, at most
- * one empty line between two, cut on a whole word as clip cuts. The detail is cut by it, while it streams and when it
- * lands, so the lines the preview showed are the lines the answer keeps.
+ * Words that keep their lines, in at most n characters: spaces run together within a line, each line trimmed but for
+ * the indent that nests a list's point under another, at most one empty line between two, cut on a whole word as clip
+ * cuts. The detail is cut by it, while it streams and when it lands, so the lines the preview showed are the lines the
+ * answer keeps.
  */
-const clipLines = (s: string | null | undefined, n: number) =>
+export const clipLines = (s: string | null | undefined, n: number) =>
   cutAt(
     (s ?? "")
       .replace(/\r\n?/g, "\n")
       .split("\n")
-      .map((l) => l.replace(/\s+/g, " ").trim())
+      .map((l) => {
+        const said = l.replace(/\s+/g, " ").trim();
+        return said ? `${/^\s*/.exec(l.replace(/\t/g, "  "))?.[0] ?? ""}${said}` : "";
+      })
       .join("\n")
       .replace(/\n{3,}/g, "\n\n")
       .trim(),
@@ -149,53 +167,6 @@ const structured = (headline: string, language: AskLanguage): AskAnswer => ({
   do: { open: null, next: [] },
   language,
 });
-
-/** A list's entries as lines of text, each with its mark: "• ", "1. ", or none. */
-function listLines(l: AskList): string[] {
-  return l.entries.map((e, i) => (l.style === "numbers" ? `${i + 1}. ${e}` : l.style === "bullets" ? `• ${e}` : e));
-}
-
-/** The answer's words, for copy, a folded turn and the history: the headline, then the detail, then the list, a line each. */
-export function answerText(a: AskAnswer): string {
-  const say = [a.say.headline, a.say.detail].filter(Boolean).join(a.form === "prose" ? "\n" : " ");
-  return [say, ...listLines(a.show.list ?? noList())].filter(Boolean).join("\n");
-}
-
-/** The answer as Copy takes it: its words (answerText), then its parts, each figure and each row, a line each. */
-export function answerCopy(a: AskAnswer): string {
-  const b = a.show.breakdown;
-  return [
-    answerText(a),
-    ...(b ? [`${b.total} ${b.label}: ${b.parts.map((p) => `${p.label} ${p.value}`).join(", ")}`] : []),
-    ...a.show.figures.map((f) => `${[f.value, f.label].filter(Boolean).join(" ")}${f.note ? ` (${f.note})` : ""}`),
-    ...a.show.items.map((it) => [it.title, it.meta, it.line].filter(Boolean).join(" · ")),
-  ]
-    .filter(Boolean)
-    .join("\n");
-}
-
-/** Lines said one after another: each ends as a sentence does, so a voice pauses between them. */
-const sentences = (lines: string[]) =>
-  lines
-    .map((l) => l.trim())
-    .filter(Boolean)
-    .map((l) => (/[.!?…:;,]$/.test(l) ? l : `${l}.`))
-    .join(" ");
-
-/** A list as a voice reads it: each entry its own sentence, a numbered one with its number; nothing for no entries. */
-export function listSpoken(l: AskList): string {
-  return sentences(l.entries.map((e, i) => (l.style === "numbers" ? `${i + 1}. ${e}` : e)));
-}
-
-/**
- * The answer's words as a voice reads them (Read aloud, a spoken question, the voice door): the headline, the detail's
- * lines, then the list (listSpoken). The figures and rows are drawn, never read.
- */
-export function answerSpoken(a: AskAnswer): string {
-  return [sentences([a.say.headline, ...a.say.detail.split("\n")]), listSpoken(a.show.list ?? noList())]
-    .filter(Boolean)
-    .join(" ");
-}
 
 /* ------------------------------------------------------------- one door */
 
@@ -525,9 +496,9 @@ const unbold = (s: string) => s.replace(/\*\*(.+?)\*\*|__(.+?)__/g, "$1$2");
 const drawnText = (v: unknown) => unbold(cleanAnswer(typeof v === "string" ? v : ""));
 /** A string as the Line may draw it: no tags (cleanAnswer), no emphasis marks, one line of words, at most its cap. */
 const words = (v: unknown, n: number) => clip(drawnText(v), n);
-/** A list's entry: its words, without the bullet or number the model now and then writes, since the Line draws its own. */
+/** A list's entry: its words and their emphasis, without the bullet or number the model now and then writes. */
 const entry = (v: unknown) =>
-  words(typeof v === "string" ? v.replace(/^\s*(?:[-*•·–]|\d{1,2}[.)])\s+/, "") : "", C.entry);
+  clip(cleanAnswer(typeof v === "string" ? v.replace(/^\s*(?:[-*•·–]|\d{1,2}[.)])\s+/, "") : ""), C.entry);
 
 /**
  * Say as the Line draws it, the same while it streams (partialSay) and when it lands (normalizeAnswer): the headline
@@ -536,10 +507,13 @@ const entry = (v: unknown) =>
  */
 export function sayAsDrawn(say: { headline?: unknown; detail?: unknown }): { headline: string; detail: string } {
   const [headline, more] = firstSentence(drawnText(say.headline).replace(/\s+/g, " ").trim());
-  const detail = drawnText(say.detail);
+  // The detail keeps its formatting, which answerBlocks reads; the headline is one plain sentence. Its words past that
+  // sentence open the detail, as a paragraph of their own where the detail opens with a table, a list or a heading.
+  const detail = cleanAnswer(typeof say.detail === "string" ? say.detail : "");
+  const apart = opensWithBlock(detail) ? "\n\n" : " ";
   return {
     headline: clip(headline, C.headline),
-    detail: clipLines(more && detail ? `${more} ${detail}` : more || detail, C.detail),
+    detail: clipLines(more && detail ? `${more}${apart}${detail}` : more || detail, C.detail),
   };
 }
 const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : Number.NaN);
@@ -744,7 +718,7 @@ export function answerForCards(
         : es
           ? "Cada una se aprueba por separado: apruébala, cámbiala o descártala; nada pasa hasta que lo hagas."
           : "Each is its own press: approve, change or dismiss each one; nothing happens until you do."),
-    ASK_ANSWER_CAPS.detail,
+    ASK_ANSWER_CAPS.plan,
   );
   // A setup that waits on something (journey-plan.ts PlanLead): Open goes where it is set, and the next question asks how.
   if (lead) {

@@ -1,0 +1,68 @@
+[
+  {
+    "id": "canvas_table_channels",
+    "text": "Compare my channels this week as a table: conversations, how many booked, and how fast they were answered.",
+    "surface": "reports",
+    "expect": { "detail_shape": ["table"], "no_format_apology": true, "language": "en", "no_write": true }
+  },
+  {
+    "id": "canvas_table_channels_es",
+    "text": "Compara mis canales de esta semana en una tabla: conversaciones, cuántas reservaron y qué tan rápido se respondieron.",
+    "surface": "reports",
+    "expect": { "detail_shape": ["table"], "no_format_apology": true, "language": "es", "no_write": true }
+  },
+  {
+    "id": "canvas_bold_paragraph",
+    "text": "Summarize how this week went in a short paragraph, with the key numbers in bold.",
+    "surface": "today",
+    "expect": { "detail_shape": ["bold"], "no_format_apology": true, "language": "en", "no_write": true }
+  },
+  {
+    "id": "canvas_nested_steps",
+    "text": "How do I get more of my customers to book on their own? Give me numbered steps, each with a couple of sub-points.",
+    "surface": "today",
+    "expect": {
+      "detail_shape": ["numbered", "nested"],
+      "no_format_apology": true,
+      "language": "en",
+      "proposals_none": true
+    }
+  },
+  {
+    "id": "canvas_headings_by_week",
+    "text": "Don't make any cards yet: explain how you'd win back quiet customers over the next two weeks, with a heading for each week.",
+    "surface": "today",
+    "expect": { "detail_shape": ["heading"], "no_format_apology": true, "language": "en", "proposals_none": true }
+  },
+  {
+    "id": "canvas_plain_hours",
+    "text": "What time do we open on Saturday?",
+    "surface": "today",
+    "expect": { "detail_shape": "plain", "detail_max_words": 70, "language": "en", "no_write": true }
+  },
+  {
+    "id": "canvas_shorter_from_now_on",
+    "text": "Explain how the receptionist decides when to hand a conversation over to me.",
+    "surface": "today",
+    "expect": { "language": "en", "no_write": true },
+    "then": {
+      "text": "Shorter from now on, please. How does the hold before a reply sends work?",
+      "expect": { "detail_max_words": 100, "no_format_apology": true, "language": "en", "no_write": true }
+    }
+  },
+  {
+    "id": "canvas_language_pt",
+    "text": "Quem precisa de mim agora?",
+    "surface": "today",
+    "expect": {
+      "includes_any": ["precisa", "ninguém", "Ninguém", "esper", "aguard", "pessoa", "você", "Você"],
+      "no_write": true
+    }
+  },
+  {
+    "id": "canvas_language_zh",
+    "text": "现在谁需要我？",
+    "surface": "today",
+    "expect": { "includes_any": ["需要", "没有", "人", "等"], "no_write": true }
+  }
+]

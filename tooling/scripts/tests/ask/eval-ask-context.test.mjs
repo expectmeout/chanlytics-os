@@ -54,6 +54,7 @@ import {
   secondTurn,
   setupCardsFails,
   shapeAskedFails,
+  detailShapeFails,
   previewJudged,
   skipFor,
   snoozeThenAsk,
@@ -1976,4 +1977,32 @@ test("the preview against the answer it led to: a line the preview drew and the 
   assert.deepEqual(previewJudged([say("Two", ""), say("", "")], m("Other.", "")), { fails: [], notes: [] });
   assert.deepEqual(previewJudged([say("Two", "a\nb")], m("Failed.", "", true)), { fails: [], notes: [] });
   assert.deepEqual(previewJudged([], m("No preview.", "")), { fails: [], notes: [] });
+});
+
+test("the detail's formatting, judged on the blocks the Line draws: a table, bold, a heading, nested points, numbered steps, plain words with no structure, a length; and a list written in the detail is a list", () => {
+  const a = (detail, entries = []) => ({
+    form: "structured",
+    say: { headline: "Two need you.", detail },
+    show: { figures: [], items: [], breakdown: null, list: { style: "bullets", entries } },
+  });
+  const rich = a(
+    "### Today\n1. Answer **Ana**\n  - she waited 3 days\n2. Then Sam\n\n| Who | Days |\n|---|---|\n| Ana | 3 |",
+  );
+  assert.deepEqual(detailShapeFails({ detail_shape: ["table", "bold", "heading", "nested", "numbered"] }, rich), []);
+  assert.match(detailShapeFails({ detail_shape: ["table"] }, a("No table here."))[0], /no table/);
+  assert.deepEqual(
+    detailShapeFails({ detail_shape: ["bold"] }, a("", ["call **Sam**"])),
+    [],
+    "bold in an entry counts",
+  );
+  assert.deepEqual(
+    detailShapeFails({ detail_shape: "plain" }, a("Open **Settings › Business**.")),
+    [],
+    "bold is plain",
+  );
+  assert.match(detailShapeFails({ detail_shape: "plain" }, rich)[0], /table, heading, a list/);
+  assert.match(detailShapeFails({ detail_max_words: 3 }, a("one two three four"))[0], /4 words, where at most 3/);
+  const m = { answer: a("Do this:\n1. Open the Calendar.\n2. Paste the link.") };
+  assert.deepEqual(shapeAskedFails({ list: { style: "numbers", min: 2 } }, m), [], "numbered steps in the detail");
+  assert.match(shapeAskedFails({ list: { style: "bullets" } }, m)[0], /asked as bullets, drawn as numbers/);
 });

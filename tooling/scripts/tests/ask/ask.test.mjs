@@ -2089,7 +2089,7 @@ test("the cross-page reads: what a question names plainly of another page is rea
   );
 });
 
-test("the speed pass, four: the page's data before the words needs no second read, said before the language line", async () => {
+test("the speed pass, four: the page's data before the words needs no second read; no line guesses their language", async () => {
   const { turnWords } = await import(
     pathToFileURL(path.join(here, "../../../../apps/dashboard/src/server/ask/prompt.ts")).href
   );
@@ -2107,8 +2107,8 @@ test("the speed pass, four: the page's data before the words needs no second rea
   assert.ok(w.includes("The page they are on is in the search results before these words"), w);
   assert.ok(w.includes("The reads made for this question are there too (read://)"), w);
   assert.ok(
-    w.indexOf("search results before these words") < w.indexOf("They wrote in Spanish"),
-    "before the language line",
+    !/They wrote in|answer in (English|Spanish)/.test(w),
+    "the model follows their words, never a guess said here",
   );
   const bare = turnWords(facts);
   assert.ok(!bare.includes("search results") && !bare.includes("read://"), "nothing rode in: nothing is said of it");

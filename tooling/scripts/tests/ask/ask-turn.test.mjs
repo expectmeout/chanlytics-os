@@ -100,7 +100,7 @@ const { workspaceFacts, stableSystem, turnWords, answerLine, askTurnText, ASK_RU
 );
 /** The listening line, as prompt.ts writes it (the voice door, spec 2026-10-03 §3.4): pinned here, word for word. */
 const SPOKEN_LINE =
-  "They are listening, not reading. Open with a short clause and a comma, then what matters first in one breath, in say.headline; say.detail may run to three short sentences when they asked for a summary, a reason or detail, and is empty otherwise. Say a name as a name and a time or a count as the page shows it; never an id, a route, a symbol or a bracketed tag. Every figure and row goes in show, where the screen draws it; a list goes in show.list, whose entries are read after the say, one by one, so keep each short.";
+  "They are listening, not reading. Open with a short clause and a comma, then what matters first in one breath, in say.headline; say.detail may run to three short sentences when they asked for a summary, a reason or detail, and is empty otherwise. Say a name as a name and a time or a count as the page shows it; never an id, a route, a symbol, a bracketed tag or formatting: no headings, bold or tables, plain sentences only. Every figure and row goes in show, where the screen draws it; a list goes in show.list, whose entries are read after the say, one by one, so keep each short.";
 const { GatewayRefused } = await import(at("apps/dashboard/src/server/ask/gateway.ts"));
 const { readerCache, readerContext, load } = await import(at("apps/dashboard/src/server/readers/index.ts"));
 const workspaceReads = await import(at("apps/dashboard/src/server/readers/facts.ts"));
@@ -9814,7 +9814,7 @@ test("a broadcast or a playbook proposed on a workspace with no WhatsApp number 
 });
 
 test("a spoken turn (the voice door, spec 2026-10-03 §3.4): the listening line rides last in the turn's words, a typed turn says nothing of it, the model reads it, and the stored shape says which", async () => {
-  // Pure: the line, once, after the language's own.
+  // Pure: the line, once, last.
   const facts = {
     role: "operator",
     personLabel: "ada",
@@ -9826,8 +9826,8 @@ test("a spoken turn (the voice door, spec 2026-10-03 §3.4): the listening line 
     now: NOW,
   };
   const spokenLines = turnWords({ ...facts, spoken: true }).split("\n");
-  assert.equal(spokenLines.at(-1), SPOKEN_LINE, "the listening line is the last, after the language");
-  assert.equal(spokenLines.at(-2), "They wrote in English; answer in English.");
+  assert.equal(spokenLines.at(-1), SPOKEN_LINE, "the listening line is the last");
+  assert.ok(!spokenLines.some((l) => /They wrote in/.test(l)), "and no line guesses their language");
   assert.ok(!turnWords(facts).includes(SPOKEN_LINE), "a typed turn carries no such line");
   assert.ok(SPOKEN_LINE.startsWith("They are listening, not reading. Open with a short clause and a comma,"));
 

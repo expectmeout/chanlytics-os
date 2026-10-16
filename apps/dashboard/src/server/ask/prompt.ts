@@ -95,10 +95,10 @@ export const ASK_RULES = [
   'Power users ask for many things at once: "everyone who said yes and has not booked in 90 days" is conditions in the lists\' vocabulary, the same shape for people with action search, propose_list and propose_people; count first with a read, then one card for all of them. When one ask takes several cards that build on each other (lists, then a sequence for the best one; a list of leads, a cold email to it and a follow-up), propose them as one propose_plan with action steps, a later step naming what an earlier one makes by its token, @step:n.',
   "When a card's result comes later (a lead search runs for minutes, a sequence or a cold email runs for weeks), offer a follow-up of your own in the same plan (propose_follow_up keep), and when one is due, do what it says and clear it beside the cards you make.",
   "Answer from the tools. Never state a name, a count, a time, a price or a quote you did not read this turn, but for a row an earlier answer in this thread named: it may be named, cited and opened by the kind, id and name the earlier turns give it, without a read, and anything about it (a count, a time, what was said, where it stands now) is read again. If a tool returns nothing, say so plainly. If you are not sure, say what you would need to check.",
-  "Answer in the person's language (Spanish if they wrote Spanish), in plain words unless they ask for a shape. No markdown, headings or tags in any string: the page draws every shape itself. The answer is written in its format, in three parts the page draws in order: say, show and do.",
-  'say.headline is the answer itself, in one sentence: the finding first ("6 of 16 customer messages went unanswered"), never a preamble ("Here is your week"). say.detail is empty unless the headline needs a reason or a condition that show cannot hold; it never repeats a number, a row or an entry that show has, and it grows only when they asked why, how, for a summary, for detail or for a length.',
+  "Answer in the language the person writes in, and follow them when they switch. Write as a sharp colleague would in a chat: plain sentences for a plain answer, and formatting where it helps the reader take the answer in, such as bold for the number or name that matters, a short heading over each part of a long answer, bullets, numbered steps with points nested under them, or a table when rows are compared on the same columns. The formatting goes in say.detail, and bold in a list's entries; the headline and every other field are plain words. The answer is written in its format, in three parts the page draws in order: say, show and do.",
+  'say.headline is the answer itself, in one sentence: the finding first ("6 of 16 customer messages went unanswered"), never a preamble ("Here is your week"). say.detail is as long as the question needs: empty when the headline says it whole, a sentence or two for a reason or a condition, and longer when they ask why or how, for a summary, a comparison, steps or a plan. It never repeats a number, a row or an entry that show has.',
   `show holds only what the headline rests on: figures for its numbers, items for the rows it names (${ASK_ROW_WORDS}), a breakdown for one whole in parts whose values add up exactly to its total, and a list for points in words. Leave a part empty rather than fill it for its own sake.`,
-  `Give the answer the shape they ask for, and never say a word about the format: no apology, no "I can't", no "here is your list". A list (bullet points, a numbered list, steps, one per line) is show.list: each entry one point with no bullet or number of its own, bullets unless they asked for numbers or one per line, and as many entries as they asked for. Steps to follow are a numbered list whether they asked or not. Rows read are items, never entries: a numbered list of rows is the items in that order, with show.list's style numbers and its entries empty. A length (one word, one sentence, fifty words) is the headline and the detail at that length and nothing else said: one word is the headline alone. Emoji or capitals when they ask for them. Bold, a heading or a table is the nearest shape the page has: the list, items, figures or a breakdown.`,
+  `Give the answer the shape they ask for, and when they ask for one (shorter, a table, bullets, bold the key numbers), keep to it for the rest of the conversation. Say nothing about the format itself: no apology and no "here is your list". A flat list of points is show.list: each entry one point with no bullet or number of its own, bullets unless they asked for numbers or one per line, and as many entries as they asked for; points nested under others, a list under headings or beside a table are written in say.detail. Steps to follow are numbered whether they asked or not. Rows read are items, never entries: a numbered list of rows is the items in that order, with show.list's style numbers and its entries empty. A length (one word, one sentence, fifty words) is the headline and the detail at that length and nothing else said: one word is the headline alone. Emoji or capitals when they ask for them.`,
   "Every source is a row or a page with the kind and the exact id it came with (a page's id is its route, such as reports, calendar or admin/autonomy). A batch that went out is kind broadcast; a list is kind list, with the audience_id sequences gave it. The page's data and the reads given with the question are read already: name their rows without calling their tools again. A page needs no read, so a fact from this prompt names its page, or kind none. An appointment is kind visit, by the visit_id it came with, and a Google review kind review, by its id. A row with no id of its own, such as an appointment the record has not kept yet, cites the page it came from.", // trade-word: visit is the citation kind's own name, which the model writes, never a sentence a person reads
   "do.open is the one place to open, when it helps; a row in items is already its own door. When they ask to open, show or see a transcript, a call, a thread or a profile, open that row with now true and answer in one sentence, from the row already read: reading it first only keeps them waiting, since the app goes there and the page has the rest (the call page has the transcript and the recording). do.next is the natural next question or two, never one about a place already offered, never padding.",
   "Already in this prompt, above: the hours, closures, services, notes, guardrails, booking notes and the autonomy modes (what the receptionist does on its own, class by class), and the definitions of the pages' words. Answer questions about those from here, without a read; a word the pages use is defined above, never read.",
@@ -136,9 +136,11 @@ const NO_LIST = { style: "bullets", entries: [] };
 const REPORTS = { kind: "page", id: "reports", label: "Reports, past 7 days" };
 
 /**
- * Answers as the format has them (spec 5.9): a count, a who, and an open answered from the row already read (the
- * eval set measured an open that read the call first: a round for nothing); then the shapes asked for, a numbered list
- * of rows (the items, numbered) and a list of words. The names are made up; an id is given.
+ * Answers as the format has them (spec 5.9), deliberately varied, since the model matches its examples' length and
+ * shape: a count, a who, and an open answered from the row already read (the eval set measured an open that read the
+ * call first: a round for nothing); the shapes asked for, a numbered list of rows (the items, numbered) and a list of
+ * words; and two long ones, a comparison as a table and a plan as steps with points under them. The names are made up;
+ * an id is given.
  */
 export const ASK_EXAMPLES = [
   [
@@ -262,6 +264,38 @@ export const ASK_EXAMPLES = [
         },
       },
       do: { open: { source: NOTHING, label: "", now: false }, next: [] },
+      language: "en",
+    },
+  ],
+  [
+    "Compare the channels this month as a table",
+    {
+      say: {
+        headline: "WhatsApp brought the most bookings this month; calls were answered fastest.",
+        detail:
+          "| Channel | Conversations | Booked | Median reply |\n|---|---|---|---|\n| WhatsApp | 42 | **18** | 1 min |\n| Calls | 25 | 9 | 0 min |\n| Text | 11 | 3 | 4 min |\n\nText books least: **3 of 11**, and most of the rest asked about prices.",
+      },
+      show: { figures: [], items: [], breakdown: NO_BREAKDOWN, list: NO_LIST },
+      do: {
+        open: { source: { kind: "page", id: "reports", label: "Reports" }, label: "Open Reports", now: false },
+        next: ["Why does text book less?"],
+      },
+      language: "en",
+    },
+  ],
+  [
+    "What should I do about the unanswered messages? Step by step",
+    {
+      say: {
+        headline: "Answer the oldest first, then give the receptionist what it was missing.",
+        detail:
+          "### Today\n1. Open **Needs you** in the Inbox and answer the oldest first.\n2. For each one the receptionist could not answer:\n  - add the missing fact to its notes, so it answers the next one itself\n  - take the thread over when it needs a person\n\n### This week\n- Check that the hours and services it answers from are right.",
+      },
+      show: { figures: [], items: [], breakdown: NO_BREAKDOWN, list: NO_LIST },
+      do: {
+        open: { source: { kind: "page", id: "inbox", label: "Inbox" }, label: "Open the Inbox", now: false },
+        next: ["Which facts was it missing?"],
+      },
       language: "en",
     },
   ],
@@ -400,7 +434,7 @@ export function stableSystem(f: WorkspaceFacts, answerTool: boolean): string {
     ASK_RULES.join("\n"),
     ...(answerTool ? ANSWER_TOOL_RULES : []),
     "",
-    "Answers, as examples:",
+    "Answers, as illustrations of the format: each answer takes the shape and length its own question needs.",
     ...ASK_EXAMPLES.map(([q, a]) => `"${q}"\n${JSON.stringify(a)}`),
     "",
     "Definitions (the workspace's own words):",
@@ -446,7 +480,6 @@ export interface TurnFacts {
   personLabel: string;
   scope: AskScope | null;
   surface: string | null;
-  language: "en" | "es" | "other";
   timezone: string;
   closures: WorkspaceFacts["closures"];
   now?: Date;
@@ -497,7 +530,7 @@ export interface TurnFacts {
  * stays as the page shows it; an id, a route, a symbol or a tag would be read aloud as nonsense.
  */
 const SPOKEN_LINE =
-  "They are listening, not reading. Open with a short clause and a comma, then what matters first in one breath, in say.headline; say.detail may run to three short sentences when they asked for a summary, a reason or detail, and is empty otherwise. Say a name as a name and a time or a count as the page shows it; never an id, a route, a symbol or a bracketed tag. Every figure and row goes in show, where the screen draws it; a list goes in show.list, whose entries are read after the say, one by one, so keep each short.";
+  "They are listening, not reading. Open with a short clause and a comma, then what matters first in one breath, in say.headline; say.detail may run to three short sentences when they asked for a summary, a reason or detail, and is empty otherwise. Say a name as a name and a time or a count as the page shows it; never an id, a route, a symbol, a bracketed tag or formatting: no headings, bold or tables, plain sentences only. Every figure and row goes in show, where the screen draws it; a list goes in show.list, whose entries are read after the say, one by one, so keep each short.";
 
 /**
  * A row as the turn's words name it: by the label the page gave it, which is often someone else's (a customer's name,
@@ -523,8 +556,9 @@ const AFTER_APPROVAL_LINE =
 /**
  * This turn's words, in the user's message after the page's data and before
  * the question: the clock, on a live turn what happened since, who is asking,
- * where they are and the row their words point at, the language, and that the
- * data before them needs no second read. They sit after the page's breakpoint (bp3), so words that change every
+ * where they are and the row their words point at, and that the data before
+ * them needs no second read. The language is the model's to follow from the
+ * person's words (the rules say so), never a guess said here. They sit after the page's breakpoint (bp3), so words that change every
  * turn never cost the page its cache; a request's last block carries the fourth
  * (bp4), so the turn's later rounds read them from the cache with the rest.
  */
@@ -591,8 +625,6 @@ export function turnWords(t: TurnFacts): string {
     : "read it first, to open or name it and for anything about it";
   if (f && (f.kind !== t.scope?.kind || f.id !== t.scope?.id))
     lines.push(`Their words point at ${rowName(f)} (${f.kind} ${f.id}): ${then}.`);
-  if (t.language === "es") lines.push("They wrote in Spanish; answer in Spanish.");
-  else if (t.language === "en") lines.push("They wrote in English; answer in English.");
   if (t.spoken) lines.push(SPOKEN_LINE);
   return lines.join("\n");
 }
