@@ -14,6 +14,7 @@ import { mayRing } from "../consent/consent";
 import { agentFor, answerWireOf, isChatMessage, writtenChannelOf, THREAD_CHANNEL_WORDS } from "./thread-channel";
 import { contactName, contactMeta, emailStoppedWords, initialsOf } from "./thread-contact";
 import { shortTime, bubbleTime, formatWaited } from "./thread-clock";
+import { clockDate, clockHistoryDay, clockTime } from "../shared/clock";
 import { mediaVM } from "./message-media";
 import { emailSubjectOf, emailLeftOutOf, splitQuotedReply } from "./message-email";
 import { replyLeftAsOf } from "../reach-out/reach-out-reply-words";
@@ -181,6 +182,41 @@ export function snoozedThreadWords(openRequest: string | null): string {
   return openRequest ? `${hidden} ${openRequest}. That's still waiting for you.` : hidden;
 }
 
+/**
+ * What an open thread says around the conversation, on a phone first (the phone thread's canvas, 16 Oct 2026): the bar's
+ * one fact about WhatsApp's window, the dock's acts over the reply box, the ask a hand back makes when what they wrote has
+ * no answer, a reply box's words, a message that did not send, and the template box's.
+ */
+export const THREAD_PANE_WORDS = {
+  /** WhatsApp's window, shut: the bar's one quiet fact, and why a press away. */
+  chatClosed: "Chat closed",
+  chatClosedWhy:
+    "A day after their last message, WhatsApp delivers only an approved message. Sending one reopens the chat.",
+  /** The dock's acts on a thread left unanswered (THREAD_PANE_WORDS.unanswered). "No reply needed" archives it. */
+  call: "Call",
+  noReplyNeeded: "No reply needed",
+  /** Asked in the dock before a hand back leaves what they wrote with nothing sent. */
+  handBackAsk: (first: string) => `${first}'s message has no answer yet.`,
+  handBackWhy: "Handing back sends nothing, and the receptionist won't come back to it.",
+  answerFirst: "Answer first",
+  handBackAnyway: "Hand back anyway",
+  /** A thread you have, as the dock says it, with the one act it takes. */
+  yours: "You have it.",
+  yoursFact: "The receptionist is quiet",
+  /** The reply box on a thread a teammate has: what a reply does. */
+  takeFrom: (name: string) => `Reply to take it from ${name}…`,
+  /** Our words that did not send: send them again as they were, or put them in the box. */
+  sendAgain: "Send again",
+  edit: "Edit",
+  /** The template box: what sending one does, what it is filled with, and its picker's head and groups. */
+  reopens: "Reopens the chat",
+  blank: (label: string) => label.toLowerCase(),
+  pickTitle: (first: string) => `Reopen the chat with ${first}`,
+  pickSub: "After a day, WhatsApp delivers only an approved message.",
+  fitsNow: "Fits now",
+  others: "Others",
+} as const;
+
 /** The wire one message travelled: a call's note is the phone, and words are the channel they were written on. */
 const wireOf = (m: Pick<MessageDto, "type" | "channel">): InboxThreadVM["primaryChannel"] =>
   m.type === "call_summary" ? "phone" : writtenChannelOf(m.channel);
@@ -256,8 +292,8 @@ export function toInboxThreadVM(
   const hasCalls = dto.messages.some((m) => m.type === "call_summary");
   const hasChat = !!dto.last_wa_inbound_at || dto.messages.some(isChatMessage);
   const primaryChannel: InboxThreadVM["primaryChannel"] = hasChat || !hasCalls ? chatChannel : "phone";
-  // Every wire the thread's written words travelled, the one a reply goes out on first: with more than one, each
-  // bubble says its own (the page names a bubble's channel only when a thread has several).
+  // Every wire the thread's written words travelled, the one a reply goes out on first: with more than one, a bubble
+  // that came another way than the reply goes says its own (the page names a bubble's channel only then).
   const written = [...new Set(dto.messages.filter(isChatMessage).map((m) => writtenChannelOf(m.channel)))];
   const channels = [
     ...(hasChat || !hasCalls ? [chatChannel, ...written.filter((c) => c !== chatChannel)] : []),
@@ -290,7 +326,7 @@ export function toInboxThreadVM(
       // An email's subject line, above its words.
       ...(subject ? { subject } : {}),
       ...(leftOut ? { leftOut } : {}),
-      at: bubbleTime(messageAt(m), tz, now),
+      ...bubbleWhen(messageAt(m), tz, now),
       body: said ? said.text : messageText(m),
       ...(said && said.quoted ? { quoted: said.quoted } : {}),
       ...(media ? { media } : {}),
@@ -338,8 +374,7 @@ export function toInboxThreadVM(
     : undefined;
   const ask = askOf(escalation, lastInbound);
 
-  // A quiet thread's one line: who had the last word, and whether a reply didn't send (lastWordOf, I1).
-  const lastWord = state === "done" && dto.state !== "archived" ? lastWordOf(dto) : null;
+  const { lastWord, unanswered } = quietWordsOf(dto, state, tz, now);
   const preview = previewOf(dto.messages);
 
   return {
@@ -362,6 +397,7 @@ export function toInboxThreadVM(
     ask,
     archived: dto.state === "archived",
     lastWord,
+    unanswered,
     heldDraft,
     ...(heldDraft
       ? {
@@ -421,24 +457,102 @@ export function toInboxThreadVM(
 }
 
 /**
+ * When a bubble was said, by the business's clock: its moment as the thread has always said it, and its day as the thread
+ * heads a day's run with its time alone ("Thu Sep 17", "10:13 AM"). The thread heads each day once and gives a bubble its
+ * time alone (the phone thread's canvas, D1): "Sep 17 · 10:13 AM" over every run said the day again and again.
+ */
+function bubbleWhen(iso: string, tz: string, now: Date): { at: string; day: string; time: string } {
+  const at = bubbleTime(iso, tz, now);
+  const ms = Date.parse(iso);
+  if (!Number.isFinite(ms)) return { at, day: "", time: "" };
+  return { at, day: clockHistoryDay(ms, tz, now.getTime()), time: clockTime(ms, tz) };
+}
+
+/**
+ * A quiet thread's one line: who had the last word, and whether a reply didn't send (lastWordOf, I1), or that what they
+ * wrote was held and closed with nothing sent (unansweredOf). None for a thread that is not quiet, or archived.
+ */
+function quietWordsOf(
+  dto: ConversationDto,
+  state: InboxThreadVM["state"],
+  tz: string,
+  now: Date,
+): Pick<InboxThreadVM, "lastWord" | "unanswered"> {
+  if (state !== "done" || dto.state === "archived") return { lastWord: null, unanswered: null };
+  const unanswered = unansweredOf(dto, tz, now);
+  return { lastWord: unanswered ? UNANSWERED_WORD : lastWordOf(dto, tz, now), unanswered };
+}
+
+/**
+ * Whether the customer had the last word: of the messages exchanged (lastExchanged), theirs is the newest. The threads the
+ * conversations read asks a closed hold for (LastHoldDto), and the first thing unansweredOf asks, so the two agree.
+ */
+export function theyWroteLast(messages: readonly MessageDto[]): boolean {
+  return lastExchanged(messages.filter(isChatMessage))?.direction === "inbound";
+}
+
+/** The bar's word for a thread whose customer was left with no answer (unansweredOf): amber, as Needs you is. */
+const UNANSWERED_WORD: NonNullable<InboxThreadVM["lastWord"]> = {
+  text: "They wrote last, and nobody has answered them.",
+  tone: "warn",
+  short: "Unanswered",
+};
+
+/** What a hold noted of their ask, as one line: its first sentence, clipped at a word. */
+const heldAskLine = (details: string | null): string => {
+  const text = details?.trim();
+  if (!text) return "They're waiting on an answer.";
+  const first = text.split(/(?<=[.!?])\s+/)[0] ?? text;
+  return clipAtWord(first, 100);
+};
+
+/**
+ * Whether what the customer last wrote was held for a person and the hold closed with nothing sent: their message is the
+ * last one exchanged (nothing of ours reached them after it), and the newest closed hold opened on or after it. Such a
+ * thread reads as Handled, and the receptionist never comes back to a message it held, so it waits for good unless a
+ * person answers (Daniela Reyes, 20 Sep 2026: a price question handed back the next day, unanswered 26 days on). Read only
+ * where the conversations read carried the hold (LastHoldDto); null everywhere else.
+ */
+function unansweredOf(dto: ConversationDto, tz: string, now: Date): InboxThreadVM["unanswered"] {
+  const hold = dto.last_hold;
+  if (!hold || !theyWroteLast(dto.messages)) return null;
+  const last = lastExchanged(dto.messages.filter(isChatMessage));
+  if (!last) return null;
+  if (!(Date.parse(hold.created_at) >= Date.parse(last.created_at))) return null;
+  const sinceMs = Date.parse(messageAt(last));
+  const closedMs = hold.resolved_at ? Date.parse(hold.resolved_at) : Number.NaN;
+  return {
+    line: heldAskLine(hold.details),
+    closed: Number.isFinite(closedMs)
+      ? `Closed ${clockDate(closedMs, tz, now.getTime())} without a reply`
+      : "Closed without a reply",
+    waited: formatWaited(Math.max(0, now.getTime() - sinceMs)),
+    sinceMs,
+  };
+}
+
+/**
  * A quiet thread's one line in the Inbox: who had the last word, in Conversations' words (lastWordLine), and
  * whether a later message of ours didn't send. Every quiet thread read "Answered by the receptionist — no one
  * asked for you": over a customer who wrote last, and over a reply that never left (I1). A reply someone
  * canceled is not a failure: the customer is simply waiting.
  */
-function lastWordOf(dto: ConversationDto): NonNullable<InboxThreadVM["lastWord"]> {
+function lastWordOf(dto: ConversationDto, tz: string, now: Date): NonNullable<InboxThreadVM["lastWord"]> {
   const chat = dto.messages.filter(isChatMessage);
   const last = lastExchanged(chat);
   // Our words after it that never left: the newest that failed (a reply someone canceled is not a failure).
   const failed =
     [...chat.slice(last ? chat.indexOf(last) + 1 : 0)].reverse().find((m) => m.status === "failed") ?? null;
   const failedBy = failed ? (messageAuthor(failed)?.words ?? "us") : null;
+  // When they were written, which the bar says beside "Didn't send" (the phone thread's canvas, A1).
+  const at = failed ? shortTime(messageAt(failed), tz, now) : "";
   if (!last) {
     if (failedBy)
       return {
         text: `Nothing has reached them — the message from ${failedBy} didn't send.`,
         tone: "danger",
         short: "Didn't send",
+        at,
       };
     return dto.messages.some((m) => m.type === "call_summary")
       ? { text: "The phone receptionist handled their call — no one asked for you.", tone: "ok", short: null }
@@ -450,11 +564,12 @@ function lastWordOf(dto: ConversationDto): NonNullable<InboxThreadVM["lastWord"]
           text: `They wrote last, and the reply from ${failedBy} didn't send — as far as they know, nobody answered.`,
           tone: "danger",
           short: "Didn't send",
+          at,
         }
       : { text: "They wrote last — no reply yet.", tone: "plain", short: null };
   }
   const said = lastWordLine(false, last, messageAuthor(last));
   return failedBy
-    ? { text: `${said} — the last message from ${failedBy} didn't send.`, tone: "warn", short: "Didn't send" }
+    ? { text: `${said} — the last message from ${failedBy} didn't send.`, tone: "warn", short: "Didn't send", at }
     : { text: `${said} — no one asked for you.`, tone: "ok", short: null };
 }

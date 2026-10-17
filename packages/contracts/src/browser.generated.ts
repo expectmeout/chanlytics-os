@@ -131,7 +131,7 @@ export { toConversationVM } from "./conversations/conversation-vm";
 export { ESCALATION_REASON_LABELS, ESCALATION_REASON_SHORT, ESCALATION_SUMMARIES, reasonShort, reasonLabelOf, reasonSummaryOf, ESCALATION_ACTS, HAND_BACK_REASONS, WAITING_REASONS, OPEN_HOLDS_READ_MAX, HOLD_ACT_WORDS, holdActOf, holdWaits, waitsOnAPerson } from "./conversations/escalations";
 export { REFERRAL_ID_MAX } from "./conversations/first-touch";
 export { HANDLED_OUTCOMES } from "./conversations/handled";
-export { threadStanding, conversationWaitsOnYou, threadsWaitingOnYou, threadWaitsOf, heldThreadIds, HELD_BY_ID_MAX, snoozedThreadWords, heldDraftWaits, toInboxThreadVM } from "./conversations/inbox-thread";
+export { threadStanding, conversationWaitsOnYou, threadsWaitingOnYou, threadWaitsOf, heldThreadIds, HELD_BY_ID_MAX, snoozedThreadWords, heldDraftWaits, THREAD_PANE_WORDS, theyWroteLast, toInboxThreadVM } from "./conversations/inbox-thread";
 export { EMAIL_CLAIMS, isAutomatedSend, isPersonsWords, messageVia, messageAuthor, messageWhy } from "./conversations/message-author";
 export { emailLeftOutOf, splitQuotedReply } from "./conversations/message-email";
 export { mediaKind, mediaVM } from "./conversations/message-media";
@@ -364,7 +364,7 @@ export { stateTone, stateLabel, stateOf, stateWordList, leadPinTone, leadMapLege
 export { PAGE_VITALS, PAGE_METRICS, PAGE_DEVICES, PAGE_PHONE_QUERY, PAGE_BUILD, PAGE_VITALS_PER_BEACON, PAGE_VITAL_BANDS, PAGE_VITAL_WORDS, PAGE_VITALS_READ, PAGE_VITALS_MIN_LOADS, PRIMARY_PART, PageVitalReport, vitalsPageOf, vitalValueWords, vitalVerdict, pageVitalsWords } from "./shell/vitals";
 export { campaignMessageOf, campaignMessagesOf, messageHolds, messageWhyNot, readyForMessage, messageStandingWords, metaStatusOf, variablesSlotCount, MESSAGE_GONE_WORDS, MESSAGE_BEGIN_WORDS, RUN_NOW_WITHOUT_VERSION_WORDS, STARTER_LINE_WORDS, whatsappStoppedRunWords } from "./templates/campaign-message";
 export { emailFoot, emailFootHtml } from "./templates/email-foot";
-export { inboxTemplates, inboxSlots, noTemplateWords, slotToWrite, templateHolds, templateOffered } from "./templates/inbox-templates";
+export { inboxBlankOf, inboxTemplateParts, inboxTemplates, inboxSlots, noTemplateWords, slotToWrite, TEMPLATE_WORDS_MAX, templateHolds, templateOffered, templateWords } from "./templates/inbox-templates";
 export { libraryCount, isLibrarySample } from "./templates/library-count";
 export { languageWords, languageLabels, LANGUAGE_GROUP_WORDS, messageLanguageChoices, templateUntranslatable } from "./templates/message-languages";
 export { toSlotParts, fromSlotParts, partWritten, insertSlot, eraseSlot, clampWords, slotLabel, slotKnown, namedProblem } from "./templates/message-version-slots";

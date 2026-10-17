@@ -170,7 +170,8 @@ test("the event names the usual cause rather than making someone guess", () => {
   // only way to make the guard pass would be to delete the rationale. Same
   // trap auth-gate.test.mjs documents.
   const verbs2 = readCode("apps/dashboard/src/surfaces/inbox/verbs.ts");
-  const thread = read("apps/dashboard/src/surfaces/inbox/thread/composer.tsx");
+  // The template reply box, where the composer offers what may go outside the window (template-box.tsx).
+  const thread = read("apps/dashboard/src/surfaces/inbox/thread/template-box.tsx");
 
   test("the approved templates are actually fetched", () => {
     // /api/v1/templates existed, was tenant-scoped and approved-only, and had

@@ -2448,11 +2448,8 @@ a.more-item {
   max-width: none;
   display: flex;
   flex-direction: column;
-  /* A sheet is the solid that pops (tokens.css, --surface-pop-fill), as the kit's Sheet is: one ground for every
-     sheet and dialog, where this one spelled the same colour as the raised ground with the older shadow. */
-  background: var(--surface-pop-fill);
-  border-left: 1px solid var(--line-strong);
-  box-shadow: var(--surface-pop-depth);
+  /* Its ground, edge and depth are the glass of everything that pops, as the kit's Sheet's are ("What pops over the
+     page", below). */
 }
 /* Focus lands on the sheet itself as it opens, so a screen reader names it; the ring belongs to the controls in it. */
 .rec-sheet:focus {
@@ -3810,9 +3807,6 @@ a.list-row {
   flex-direction: column;
   width: min(540px, 92vw);
   max-width: none;
-  background: var(--surface-pop-fill);
-  border-left: 1px solid var(--line-strong);
-  box-shadow: var(--surface-pop-depth);
   animation: side-in var(--sheet-in) var(--ease-out);
 }
 .sheet:focus {
@@ -3924,7 +3918,6 @@ a.list-row {
     min-height: min(var(--sheet-hold, 0px), calc(88dvh - var(--kb, 0px)));
     overflow: auto;
     overscroll-behavior-y: none;
-    border: 1px solid var(--surface-pop-edge);
     padding: 0 0 calc(16px + env(safe-area-inset-bottom, 0px));
     animation-name: sheet-in;
   }
@@ -4662,20 +4655,38 @@ a.list-row {
 }
 
 /* ---- What pops over the page (every canvas's popover) ----
-   One glass for everything that pops, written once: an action menu (Menu, MoreMenu) and a panel that pops from a
-   control (the Select's list, the Combobox's and the Picker's, the date picker's month, a popover). The control
+   One glass for everything that pops, written once: an action menu (Menu, MoreMenu), a panel that pops from a
+   control (the Select's list, the Combobox's and the Picker's, the date picker's month, a popover), and a sheet (the
+   kit's Sheet and the record kit's, a desk's side pane and a phone's from the bottom edge). The control
    layer's sheen, its blur, and its specular edge and depth in place of a shadow or a hairline (Ruben, 2 Oct 2026:
    "glassy"; 8 Oct, of Settings › Activity's lists: "the same glassy feel… without just the stroke"), on the pop's own
    ground, --surface-pop-glass (tokens.css): dense enough that neither the page's colour nor a log's coloured lines show
    through, light enough to read as glass (10 Oct 2026). Menus stood on the control layer's 8.5% and lists on 88%, two
-   looks for one job. The roles fall back to a solid fill and no blur where the reader asks for less transparency. */
+   looks for one job. A sheet stood on the solid with a hairline round it, so a phone's New conversation was a flat grey
+   box beside the account's menu, the same sheet from the same edge in glass (Ruben, 16 Oct 2026: "should look like the
+   official glassy sheet"). The roles fall back to a solid fill and no blur where the reader asks for less
+   transparency. The blur makes a sheet the box a fixed element inside it is placed in: what it opens is portaled
+   (Base UI's parts, a phone's MoreMenu), and a desk's escaped menu takes the sheet's offset back (more-menu.tsx). */
 .more-menu,
-.panel-pop {
+.panel-pop,
+.sheet,
+.rec-sheet {
   border: 0;
   background-color: var(--surface-pop-glass);
   background-image: var(--surface-control-sheen);
   backdrop-filter: var(--surface-control-blur);
   box-shadow: var(--surface-control-depth);
+}
+/* A menu drawn inside a sheet (a desk's MoreMenu: the Hours sheet's times; a phone draws it on the body): a blur inside
+   the sheet's own reads nothing, so the sheet's content showed through it, and it stands on the pop's solid, as the
+   glass does wherever no blur is to be had. Its wash is placed by the sheet too, so it reaches past the sheet's edges:
+   a press beside the sheet closes the menu, never the sheet. */
+:is(.sheet, .rec-sheet) .more-menu {
+  background-color: var(--surface-pop-fill);
+  backdrop-filter: none;
+}
+:is(.sheet, .rec-sheet) .more-backdrop {
+  inset: -100vmax;
 }
 /* What pops and scrolls (a long menu, a select's list) wears one scrollbar: thin, in the line's strong ink, on
    nothing. A list without it took the page's 10px bar, whose border is the page's ground: a dark box on the glass. */
@@ -4735,26 +4746,23 @@ a.list-row {
 }
 
 /* ---- A sheet, and the glass foot bar (campaigns3.py foot and composer, C2; deals3.py, the deal's pane, D2) ----
-   On a desk a side sheet stands clear of the window's edges at a pane's corner, opaque (what pops over the page is
-   near-opaque glass, --surface-pop-glass; a sheet is the solid itself),
-   over the page's wash; on a phone it rises from the bottom edge at the same corner. Its foot is a capsule of the
-   control layer's glass, standing clear of the sheet's edges: its line, then its acts at the canvases' height. The
-   rows scroll above it, never under it, and it stands on the sheet's opaque ground, so it has nothing to blur. It
-   names the look outright, over the record kit's phone foot (record.css). */
+   On a desk a side sheet stands clear of the window's edges at a pane's corner, in the glass of what pops ("What pops
+   over the page", above), over the page's wash; on a phone it rises from the bottom edge at the corner of every phone
+   sheet, a menu's among them (--radius-sheet). Its foot is a capsule of the control layer's glass, standing clear of
+   the sheet's edges: its line, then its acts at the canvases' height. The rows scroll above it, never under it, so it
+   has nothing of its own to blur. It names the look outright, over the record kit's phone foot (record.css). */
 @media (width > 900px) {
   .sheet,
   .rec-sheet {
     top: 14px;
     right: 14px;
     bottom: 14px;
-    border: 1px solid var(--surface-pop-edge);
     border-radius: var(--surface-pane-radius);
-    box-shadow: var(--surface-pop-depth);
   }
 }
 @media (max-width: 900px) {
   .sheet {
-    border-radius: var(--surface-pane-radius) var(--surface-pane-radius) 0 0;
+    border-radius: var(--radius-sheet) var(--radius-sheet) 0 0;
   }
 }
 /* The sheet's head as the composer boards draw it (C2, D2): its name a step up, Close a 34px circle of the control

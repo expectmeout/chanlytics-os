@@ -235,7 +235,9 @@ function realThread(
               verb(
                 t,
                 "reply-template",
-                typeof text.template === "object" ? { template: text.template } : undefined,
+                typeof text.template === "object"
+                  ? { template: { ...text.template, ...(text.words ? { words: text.words } : {}) } }
+                  : undefined,
                 typeof text.template === "object" ? `${text.template.name} on its way` : "booking link on its way",
                 true,
               )

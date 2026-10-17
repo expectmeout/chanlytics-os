@@ -5,281 +5,21 @@
  * The composer is a function per box, called by `Composer` and not drawn as a component of its own, so the tree is the
  * tree it was; its hooks stay in `Composer`, in the order they were, and each effect's body is a function beside it.
  */
-import { inboxTemplates, noTemplateWords, optOutWords, type TemplateHolds } from "@chanlytics/contracts";
-import { useEffect, useRef, useState, type Dispatch, type ReactNode, type RefObject, type SetStateAction } from "react";
-import { FailedRead } from "../../kit/empty/empty";
+import { optOutWords, THREAD_PANE_WORDS } from "@chanlytics/contracts";
+import { useEffect, useRef, useState, type Dispatch, type RefObject, type SetStateAction } from "react";
 import { Icon } from "../../kit/icon/icon";
-import { Menu, type MenuGroup } from "../../kit/menu/menu";
 import { FOCUS_COMPOSER_MS, SAVED_NOTICE_MS } from "../constants";
 import { ixInDialog } from "../keys";
 import { canDo, gate, tabMemory } from "../shell";
-import { inboxData } from "../store";
-import type { ApprovedTemplate, Thread } from "../types";
+import type { Thread } from "../types";
 import { takeCarriedReply } from "../carried-reply";
 import { useReplyDraftDoor } from "./reply-strip";
 import { detailField } from "./shell-thread";
+import { holderName } from "../../holder-names";
 import { ixBandCallBack } from "./band";
+import { growWithWords, isPromise, type OnSend } from "./send-words";
+import { TemplateComposer } from "./template-box";
 import { Button } from "../../kit/button/button";
-
-/** What a send carries: the words typed, or the template chosen (`true` where none was named). */
-export type SendWords = string | { template: ApprovedTemplate | true };
-
-/** The page's send: it may answer with a promise (a real thread), which the box waits on before it lets go of its words. */
-export type OnSend = (threadId: string, words: SendWords, approveAndSend?: boolean) => unknown;
-
-/** Whether a send answered with a promise. */
-const isPromise = (r: unknown): r is Promise<unknown> =>
-  typeof r === "object" && r !== null && "then" in r && typeof r.then === "function";
-
-// =============== COMPOSER ===============
-// Outside the 24-hour window WhatsApp will deliver exactly one thing: a
-// pre-approved template. This was referenced by the closed-window composer but
-// never actually written — so any escalated thread older than 24h crashed the
-// whole Inbox pane rather than offering the one send that would work.
-// Named after what it SENDS, not after the mechanism: the operator should know
-// what lands on their customer's phone before they click.
-// An explanation one tap away, never in the way (the house rule): which templates cannot go to this person, and why,
-// was a sentence of its own under the reply box -- thirty-one words to say that nothing could be sent.
-export const IxWhy = ({ said, testid = null }: { said: ReactNode; testid?: string | null }) => {
-  const [open, setOpen] = useState(false);
-  return (
-    <>
-      {" "}
-      <button type="button" className="ix-why" aria-expanded={open} onClick={() => setOpen(!open)}>
-        Why?
-      </button>
-      {open && (
-        <span className="ix-why-said" data-testid={testid || undefined}>
-          {said}
-        </span>
-      )}
-    </>
-  );
-};
-
-/** The templates this person can be sent: what the composer offers, which one is chosen, and its name. */
-interface TemplateChoice {
-  choice: ReturnType<typeof inboxTemplates<ApprovedTemplate>> | null;
-  list: ApprovedTemplate[] | null;
-  chosen: ApprovedTemplate | null;
-  chosenAt: number;
-  chosenTitle: string | null;
-}
-
-/**
- * The templates this person can be sent, in the owner's words, and why the rest are not offered: the composer offered
- * every approved one, and the reply route refuses a promotion to someone who has not said yes to offers and a template
- * with values the Inbox does not fill (I4).
- */
-function templateChoice(
-  real: boolean,
-  templates: ApprovedTemplate[] | null,
-  thread: Thread | null,
-  picked: number,
-): TemplateChoice {
-  const choice =
-    real && templates && thread ? inboxTemplates(templates, { who: thread.who, offersOk: !!thread.offersOk }) : null;
-  const list = real ? (choice ? choice.sendable.map((s) => s.template) : templates) : null;
-  const chosenAt = list && list.length ? Math.min(picked, list.length - 1) : -1;
-  const chosen = list && chosenAt >= 0 ? list[chosenAt] : null;
-  const chosenTitle = choice && chosenAt >= 0 ? choice.sendable[chosenAt].title : null;
-  return { choice, list, chosen, chosenAt, chosenTitle };
-}
-
-/**
- * What the send says where there is nothing it can send: no template approved, the read failed, or none can go to this
- * person; `undefined` where there is something to send. A caller with no WhatsApp thread whose call back the band offers
- * says nothing of what cannot be sent beneath it -- "No approved message can go to Emily Chen yet" under Call back.
- */
-function templateGap(p: {
-  real: boolean;
-  quiet: boolean;
-  thread: Thread | null;
-  readTemplates: ApprovedTemplate[] | null | undefined;
-  templates: ApprovedTemplate[] | null;
-  /** Why the messages left out of the picker were, where the read counted them. */
-  held: TemplateHolds | null | undefined;
-  have: TemplateChoice;
-}): ReactNode | undefined {
-  const { real, quiet, thread, readTemplates, templates, held, have } = p;
-  const { choice, list } = have;
-  // Nothing approved yet. Say so, rather than offering a send that cannot
-  // happen: outside the window this is the only thing WhatsApp will deliver,
-  // so an operator needs to know the gap is at Meta and not on this screen --
-  // and which gap, where the read counted them (noTemplateWords: waiting, refused,
-  // paused, hidden).
-  // The window itself is the bar's to say (ThreadBar): it was said here too.
-  if (real && templates && templates.length === 0) {
-    return quiet ? null : <span className="ix-tpl-none">{noTemplateWords(held)}</span>;
-  }
-  if (real && readTemplates === null) {
-    return quiet ? null : (
-      <FailedRead
-        kind="line"
-        title="Couldn't read your approved templates"
-        body="Outside the 24-hour window only an approved template sends, so none can be offered until they're read."
-        surface="settings"
-        testid="ix-tpl-failed"
-      />
-    );
-  }
-  if (real && choice && choice.sendable.length === 0) {
-    return quiet ? null : (
-      <span className="ix-tpl-none">
-        No approved message can go to {thread && thread.who} yet.
-        {choice.hidden ? <IxWhy said={choice.hidden} testid="ix-tpl-hidden" /> : null}
-      </span>
-    );
-  }
-  // Still being read: nothing yet. "Checking which templates are approved…" was the machinery talking.
-  if (real && !list) return null;
-  return undefined;
-}
-
-/** The templates the menu lists: the ones this person can be sent, else every one approved. */
-function templateOptions(have: TemplateChoice): Array<{ template: ApprovedTemplate; label: string }> {
-  const { choice, list } = have;
-  return choice ? choice.sendable : (list || []).map((t) => ({ template: t, label: `${t.name} · ${t.language}` }));
-}
-
-/**
- * What the chosen message's name opens: the other messages this person can be sent, the chosen one ticked, and under
- * them, in the menu's quiet heading, which were not offered and why -- it was a select over the button and a "Why?"
- * after it. A person who can be sent one message is offered no menu unless something was kept back.
- */
-function templateMenu(have: TemplateChoice, choose: (at: number) => void): MenuGroup[] {
-  const options = templateOptions(have);
-  const groups: MenuGroup[] = [];
-  if (options.length > 1) {
-    groups.push({
-      choose: {
-        value: String(have.chosenAt),
-        onChoose: (v) => choose(Number(v)),
-        tick: <Icon name="check" size={13} />,
-        options: options.map((o, at) => ({ value: String(at), label: o.label })),
-      },
-    });
-  }
-  if (have.choice && have.choice.hidden) groups.push({ header: have.choice.hidden, items: [] });
-  return groups;
-}
-
-/**
- * The template send, drawn as the reply box is: the one capsule, with the message to send where the words would go (its
- * name opens the others, where there are others) and Send at the right end. Outside the window the box says what it will
- * send instead of waiting for words, and the bottom of every thread is the same shape. `lead` is a call to offer above it.
- */
-const TemplateComposer = ({
-  onSend = () => {},
-  threadId,
-  real = false,
-  thread = null,
-  lead = null,
-}: {
-  onSend?: OnSend;
-  threadId: string;
-  real?: boolean;
-  thread?: Thread | null;
-  lead?: ReactNode;
-}) => {
-  const [sending, setSending] = useState(false);
-  // The workspace's OWN approved templates, published by the seam. The button
-  // used to name one by a hardcoded literal — booking_link_v1/en_US — which is
-  // right for exactly one workspace and a guaranteed failure for every other,
-  // including every newly created one, which has no template row at all.
-  // undefined: still being read. null: the read failed (surface-data.ts), which is not "none approved".
-  const readTemplates = inboxData().templates;
-  const templates = Array.isArray(readTemplates) ? readTemplates : null;
-  const [picked, setPicked] = useState(0);
-
-  // On a seeded thread there is nothing to look up and nothing to send; keep
-  // the mockup's own affordance.
-  const have = templateChoice(real, templates, thread, picked);
-  const { chosen, chosenTitle } = have;
-
-  const fire = () => {
-    if (sending || !canDo("approve")) return;
-    if (real && !chosen) return;
-    const r = onSend(threadId, chosen ? { template: chosen } : { template: true });
-    if (isPromise(r)) {
-      setSending(true);
-      void r.finally(() => setSending(false));
-    }
-  };
-
-  // A caller with no WhatsApp thread whose call back the band offers: the call is what to do, so the reply box says
-  // nothing of what cannot be sent beneath it -- "No approved message can go to Emily Chen yet" under Call back.
-  const quiet = real && !!thread && thread.hasChat === false && ixBandCallBack(thread);
-  const gap = templateGap({ real, quiet, thread, readTemplates, templates, held: inboxData().templatesHeld, have });
-  if (gap !== undefined) {
-    return (
-      <div className="ix-composer">
-        <div className="ix-composer-foot">
-          <div className="ix-composer-actions">
-            {lead}
-            {gap}
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  const more = templateMenu(have, setPicked);
-  const shown = chosenTitle || (chosen ? chosen.name : "Booking link");
-  const name = (
-    <>
-      <span className="ix-tpl-title">{shown}</span>
-      {more.length > 0 && <Icon name="chevron-down" size={12} />}
-    </>
-  );
-  const capsule = (
-    <div className="ix-composer ix-composer-row">
-      {more.length > 0 ? (
-        <Menu
-          label="Messages this person can be sent"
-          trigger={
-            <Button
-              variant="quiet"
-              className="ix-tpl-name"
-              aria-label={`Message to send: ${shown}. Choose another`}
-              title="Choose another message"
-            >
-              {name}
-            </Button>
-          }
-          groups={more}
-        />
-      ) : (
-        <span className="ix-tpl-name">{name}</span>
-      )}
-      <Button
-        variant="primary"
-        className="ix-composer-send"
-        onClick={fire}
-        disabled={sending}
-        title={
-          chosen
-            ? `Sends your approved template "${chosenTitle || chosen.name}" — the only message WhatsApp delivers outside the 24-hour window`
-            : "Sends your approved booking-link template — the only message WhatsApp delivers outside the 24-hour window"
-        }
-        {...gate("approve")}
-      >
-        {sending ? "Sending…" : "Send"}
-      </Button>
-    </div>
-  );
-  if (!lead) return capsule;
-  return (
-    <>
-      <div className="ix-composer ix-composer-lead">
-        <div className="ix-composer-foot">
-          <div className="ix-composer-actions">{lead}</div>
-        </div>
-      </div>
-      {capsule}
-    </>
-  );
-};
 
 type SetText = Dispatch<SetStateAction<string>>;
 type BoxRef = RefObject<HTMLTextAreaElement | null>;
@@ -352,14 +92,6 @@ function listenToComposer(k: ComposerKeys) {
   };
 }
 
-/** The field grows with what is in it, up to its cap: typed, carried in from a profile, or a draft filled in. */
-function growWithWords(taRef: BoxRef, real: boolean | undefined) {
-  const el = taRef.current;
-  if (!real || !el || !el.style) return;
-  el.style.height = "auto";
-  el.style.height = `${el.scrollHeight}px`;
-}
-
 interface ComposerProps {
   thread: Thread;
   reply: string;
@@ -423,14 +155,23 @@ function noChatComposer(thread: Thread, onSend: OnSend) {
         <Icon name="phone" size={12} /> Call back
       </Button>
     ) : null;
-  return <TemplateComposer onSend={onSend} threadId={thread.id} real={!!thread.real} thread={thread} lead={call} />;
+  return (
+    <TemplateComposer
+      key={thread.id}
+      onSend={onSend}
+      threadId={thread.id}
+      real={!!thread.real}
+      thread={thread}
+      lead={call}
+    />
+  );
 }
 
 // The window has closed: the bar under the header says so, and why (ThreadBar), and the header names the wire and
 // the person. What is left is the one send that works. It was a red block saying the window had closed, over a
 // line saying "WhatsApp · to Rosa Díaz" again, over the send: three rows at the foot of a phone.
 function closedComposer(thread: Thread, onSend: OnSend) {
-  return <TemplateComposer onSend={onSend} threadId={thread.id} real={!!thread.real} thread={thread} />;
+  return <TemplateComposer key={thread.id} onSend={onSend} threadId={thread.id} real={!!thread.real} thread={thread} />;
 }
 
 // A real thread's reply box is one line that grows, with Send beside it: it was a three-line field over a line
@@ -447,7 +188,13 @@ function realComposer(c: ComposerDraw) {
           write(e.target.value);
           if (onType) onType();
         }}
-        placeholder={`${thread.replyVia || "WhatsApp"} to ${thread.who}…`}
+        // A teammate's thread: what a reply does is the one thing left to say, and the box says it (the dock says
+        // nothing there).
+        placeholder={
+          thread.claimedByOther
+            ? THREAD_PANE_WORDS.takeFrom(holderName(thread.assigneeUserId ?? null) ?? "a teammate")
+            : `${thread.replyVia || "WhatsApp"} to ${thread.who}…`
+        }
         aria-label={`Reply to ${thread.who}`}
         rows={1}
       />

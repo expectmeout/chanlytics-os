@@ -1531,9 +1531,11 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
   /* Centred in what the phone shows over its keyboard (--kb, data-bits watchKeyboard). */
   position: fixed; z-index: 401; left: 50%; top: calc(50% - var(--kb, 0px) / 2); transform: translate(-50%, -50%);
   width: min(520px, calc(100vw - 32px)); max-height: calc(80vh - var(--kb, 0px)); max-height: calc(80dvh - var(--kb, 0px)); overflow: auto;
-  /* The solid every sheet and dialog wears (tokens.css, --surface-pop-fill), its edge, corners and depth. */
-  background: var(--surface-pop-fill); border: 1px solid var(--surface-pop-edge); border-radius: var(--surface-pop-radius);
-  box-shadow: var(--surface-pop-depth); padding: 14px 18px 18px;
+  /* The glass every sheet and menu wears (kit.css, "What pops over the page"): the pop's glass ground under the control
+     layer's sheen and blur, its specular edge and depth in place of a hairline. */
+  border: 0; border-radius: var(--surface-pop-radius); background-color: var(--surface-pop-glass);
+  background-image: var(--surface-control-sheen); backdrop-filter: var(--surface-control-blur);
+  box-shadow: var(--surface-control-depth); padding: 14px 18px 18px;
 }
 .sb-sheet-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
 .sb-sheet-title { font-size: 14px; font-weight: 600; color: var(--ink); }

@@ -68,7 +68,19 @@ export interface InboxThreadVM {
    * didn't send. Null unless the thread is Handled and not archived. Every quiet thread read "Answered by the
    * receptionist — no one asked for you", over a customer who wrote last and a reply that never left (I1).
    */
-  lastWord: { text: string; tone: "ok" | "plain" | "warn" | "danger"; short: string | null } | null;
+  lastWord: {
+    text: string;
+    tone: "ok" | "plain" | "warn" | "danger";
+    short: string | null;
+    /** When the words that didn't send were written, by the business's clock ("10:49 AM"): the bar says it beside the pill. */
+    at?: string;
+  } | null;
+  /**
+   * They wrote last and a hold on what they wrote closed with nothing sent (a hand back, a "Can't"): the receptionist does
+   * not come back to a message it held, so nobody will answer unless a person does (LastHoldDto). What the hold noted of
+   * their ask, when it closed, and how long they have waited since they wrote. Null on every other thread.
+   */
+  unanswered: { line: string; closed: string; waited: string; sinceMs: number } | null;
   /**
    * This thread is waiting on a human, and no human has it yet.
    *
@@ -160,6 +172,9 @@ export interface InboxThreadVM {
         from: "client" | "agent";
         channel: string;
         at: string;
+        /** Its day as the thread heads a day's run ("Today", "Thu", "Thu Sep 17"), and its time alone ("10:13 AM"). */
+        day: string;
+        time: string;
         body: string;
         /** An email's subject line; absent on every other wire. */
         subject?: string;

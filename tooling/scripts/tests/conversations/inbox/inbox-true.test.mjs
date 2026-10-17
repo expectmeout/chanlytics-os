@@ -160,6 +160,7 @@ test("a quiet thread says who had the last word, in the words Conversations uses
       text: "They wrote last, and the reply from the receptionist didn't send — as far as they know, nobody answered.",
       tone: "danger",
       short: "Didn't send",
+      at: "9:31 AM",
     },
     "REGRESSION: it read 'Answered by the receptionist — no one asked for you'",
   );
@@ -173,6 +174,7 @@ test("a quiet thread says who had the last word, in the words Conversations uses
       text: "Answered by the receptionist — the last message from your team didn't send.",
       tone: "warn",
       short: "Didn't send",
+      at: "9:50 AM",
     },
     "they were answered; what failed is a later word, and the line says both",
   );
@@ -180,6 +182,7 @@ test("a quiet thread says who had the last word, in the words Conversations uses
     text: "Nothing has reached them — the message from your team didn't send.",
     tone: "danger",
     short: "Didn't send",
+    at: "9:50 AM",
   });
   assert.deepEqual(
     word([wrote("m1", "Open Sunday?", 30), ours("m2", "ai", "Closed.", 29, "canceled")]),
@@ -317,7 +320,7 @@ const paneOf = (thread) => {
   return InboxThread({ thread, channelLabels: { whatsapp: "WhatsApp", phone: "Phone" } });
 };
 
-test("the pane: a quiet thread says its last word once, in its tone; the reply that didn't send says so; a call is a call", () => {
+test("the pane: a quiet thread's state is the row's pill, in its tone; the reply that didn't send says so; a call is a call", () => {
   const tree = paneOf(
     vmOf(
       quiet([
@@ -327,10 +330,17 @@ test("the pane: a quiet thread says its last word once, in its tone; the reply t
       ]),
     ),
   );
-  const word = find(tree, byTestId("ix-last-word"));
-  assert.ok(word, "the quiet thread's one line");
-  assert.match(textOf(word), /They wrote last, and the reply from the receptionist didn't send/);
-  assert.ok(hasClass("danger")(word), "in the tone of what it says");
+  // The pill the row in the list wears, in the bar under the header (the phone canvas, A1): a sentence of its own stood
+  // there, and said it again over the bubble that says it.
+  const standing = find(tree, byTestId("ix-th-standing"));
+  assert.ok(standing, "the quiet thread's state, named");
+  const pill = find(standing, (n) => n.props?.kind === "tone");
+  assert.deepEqual([pill?.props.value, pill?.props.label], ["danger", "Didn't send"], "in the tone of what it says");
+  assert.equal(
+    textOf(find(standing, hasClass("ix-th-standing-meta"))),
+    "· 9:31 AM",
+    "and when the words that didn't send were written, in the dim ink",
+  );
   assert.ok(
     !textOf(tree).includes("no one asked for you"),
     "REGRESSION: 'Answered by the receptionist — no one asked for you' over a reply that never left",
@@ -340,7 +350,10 @@ test("the pane: a quiet thread says its last word once, in its tone; the reply t
   const bubbles = all(tree, hasClass("tl-msg"));
   const failed = bubbles.find((b) => textOf(b).includes("3pm works"));
   assert.ok(hasClass("undelivered")(failed), "REGRESSION: drawn as a reply the customer read");
-  assert.match(textOf(failed), /Didn't send/);
+  assert.ok(
+    find(failed, (n) => n.props?.role === "img" && n.props?.["aria-label"] === "Didn't send"),
+    "and says so in its corner",
+  );
   // A call is part of the conversation, where it happened (calls-in-the-thread.test.mjs) -- never a bubble of words.
   assert.equal(
     bubbles.find((b) => textOf(b).includes("bridal trial")),
@@ -357,16 +370,13 @@ test("the pane: a quiet thread says its last word once, in its tone; the reply t
     ["Inbound call", "3 min", "asked about a bridal trial"],
   );
 
-  // A quiet thread's one sentence is the bar's under the header, in the tone of what it says.
-  const answered = find(
-    paneOf(vmOf(quiet([wrote("m1", "Open Sunday?", 30), ours("m2", "ai", "Closed Sundays.", 29, "read")]))),
-    hasClass("ix-th-standing-words"),
+  // Answered, nothing owed: no bar at all. Who had the last word is the conversation's last bubble, right there; a
+  // sentence for the ordinary state stood over every thread.
+  const answered = paneOf(
+    vmOf(quiet([wrote("m1", "Open Sunday?", 30), ours("m2", "ai", "Closed Sundays.", 29, "read")])),
   );
-  assert.equal(textOf(answered), "Answered by the receptionist — no one asked for you.");
-  assert.ok(
-    hasClass("ok")(answered) && !hasClass("danger")(answered) && !hasClass("warn")(answered),
-    "an answered thread keeps the plain green line",
-  );
+  assert.equal(find(answered, byTestId("ix-th-standing")), undefined, "nothing to say, so nothing said");
+  assert.ok(!textOf(answered).includes("no one asked for you"));
 });
 
 test("the pane: a reply that didn't send says why under its words, once, from the provider's own code", () => {
@@ -407,7 +417,7 @@ test("the pane: a thread you have says why it was flagged, where 'Where this sta
   assert.equal(textOf(find(tree, byTestId("ix-th-standing"))), "You have it", "the pill its row wears, in the bar");
   const owned = find(tree, byTestId("ix-yours"));
   assert.ok(owned, "the owned thread's line");
-  assert.match(textOf(owned), /^The receptionist stays quiet while you have it\./);
+  assert.match(textOf(owned), /^You have it\. · /, "on one line, with why it was flagged");
   assert.match(
     textOf(owned),
     /They asked for a person\. A holding message went out — they're waiting on you\./,
