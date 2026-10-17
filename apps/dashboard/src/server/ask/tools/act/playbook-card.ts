@@ -281,7 +281,8 @@ export function campaignSheet(p: {
 }): AskCardSheet {
   const rows = [
     { label: "Where", value: p.where },
-    { label: "Runs", value: p.runs },
+    // One fact, its parts by commas: "Daily 10:00 AM, up to 25, once per person".
+    { label: "Runs", value: p.runs.replaceAll(" · ", ", ") },
     { label: "One a week", value: p.breath },
     { label: "Last day", value: p.end },
     { label: "Goes", value: p.goes },
