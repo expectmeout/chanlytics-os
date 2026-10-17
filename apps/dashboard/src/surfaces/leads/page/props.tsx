@@ -26,7 +26,8 @@ import type { usePlPlace } from "../../people/hooks/use-place";
 import type { PeopleRead, TableEmpty } from "../../people/types";
 import type { ReviewDoors } from "../bench/types";
 import type { LeadCellCtx } from "../cells/types";
-import type { PileViewProps } from "../pile/pile";
+import type { SheetPileView } from "../sheet/sheet";
+import type { LeadAim } from "../sheet/use-aim";
 import {
   bulkLeads,
   checkLeadsAgain,
@@ -79,12 +80,14 @@ export type LeadsPage = Controls &
     reachOut: ReachOutLines | null;
     lists: LeadLists;
     /**
-     * The pile where the rows stand while it is on (a desk's), its sheet over them (a phone's, drawn by the scope with
-     * the peek's acts its tabs share), and the door into it under a search (00426).
+     * The pile while it is on, as the lead sheet draws it (its line, its mode, its end), the lead that is up, and the door
+     * into it under a search (00426).
      */
-    pileNode: ReactNode;
-    pileSheet: PileViewProps | null;
+    pileSheet: SheetPileView | null;
+    pileUp: LeadRowVM | null;
     pileDoor: ReactNode;
+    /** Where Add goes, for the lead sheet and the pile alike (sheet/use-aim.ts). */
+    aim: LeadAim;
   };
 
 /**
@@ -165,7 +168,6 @@ export const leadsListProps = (p: LeadsPage) => {
       lists.stripOf(openSearch) ||
       (!isOwnList(openSearch) ? p.ldStrip(openSearch, new Date(), { offered: leads.offered }) : null),
     reachOutStrip: openSearch && reachOut ? <ReachOutLeadsStrip leads={reachOut} /> : null,
-    pile: p.pileNode,
     pileSheet: p.pileSheet,
     pileDoor: p.pileDoor,
     rows: leadShown,
@@ -461,6 +463,28 @@ const finderProps = (p: LeadsPage) => {
 };
 
 /** A kept search's acts, the plan panel, and the peek. */
+/**
+ * What the lead sheet reads beside the peek's state (sheet/sheet.tsx): the row of the lead on screen (the pile's up
+ * where it is on), where Add goes, the open search's own sequence where it writes to every ready lead it finds, the
+ * list the open search is, the month's leads left for Keep, and Write to the N at a first pile's end.
+ */
+const sheetProps = (p: LeadsPage) => {
+  const open = p.openSearch;
+  const chain = p.reachOut ? p.reachOut.dto.chain : null;
+  // A search's own sequence writes to every ready lead it finds; a list's takes the leads added to it.
+  const writes = chain && open && (chain.fed_by ? chain.fed_by === "search" : !isLeadList(open));
+  const shown = p.peekId ? (p.leadShown.find((l) => l.id === p.peekId) ?? null) : null;
+  return {
+    sheetRow: p.pileSheet ? p.pileUp : shown,
+    aim: p.aim,
+    searchWrites: writes && chain ? { rootId: chain.root_id, name: chain.name, chain } : null,
+    listId: open && isLeadList(open) ? open.id : null,
+    monthLeft: p.leads.month ? p.leads.month.left : null,
+    tz: p.leads.tz,
+    writeHeld: p.lists.writeTo,
+  };
+};
+
 export const leadsPeekProps = (p: LeadsPage) => {
   const { peekId, shownIds, deckMove, setPeekId, setRemoveError, setRemoving, setRenaming, lightboxId, setLightboxId } =
     p;
@@ -521,6 +545,7 @@ export const leadsPeekProps = (p: LeadsPage) => {
     onCopy: p.copyLead,
     onCopyPhone: p.copyPhone,
     onLogCall: p.logLeadCall,
+    ...sheetProps(p),
   };
 };
 

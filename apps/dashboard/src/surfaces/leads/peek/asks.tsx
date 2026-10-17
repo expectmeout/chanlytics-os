@@ -1,14 +1,13 @@
 /**
- * What the peek asks, and the menu beside its stage (moved from legacy/pages/leads-peek.jsx, decision 0015): Not a fit's five
- * whys, whether to erase, "Did you send it?" once the owner is back at the tab, and "How did the call go?". The peek is
- * hookless: every answer goes out through the acts (`on.<name>`) the page's factory built.
+ * What the lead's panel asks (moved from legacy/pages/leads-peek.jsx, decision 0015), drawn now by the lead sheet
+ * (sheet/sheet.tsx) over its card: Not a fit's five whys for a selection, whether to erase, "Did you send it?" once the
+ * owner is back at the tab, and "How did the call go?". Hookless: every answer goes out through the acts (`on.<name>`)
+ * the page's factory built.
  */
 import { LEAD_WORDS as W } from "@chanlytics/contracts";
 import { Field } from "../../kit/field/field";
 import type { LeadPeekVM } from "@chanlytics/contracts";
 import { confirmPart } from "../../legacy-parts";
-import { Menu } from "../../kit/menu/menu";
-import { MenuInPlace, menuGroups, moreButton } from "../../people/menu-groups";
 import { PhoneSheetRow } from "../../people/sheets/phone-sheet";
 import type { Armed, Deck, PeekActs, PeekMode } from "./types";
 
@@ -58,30 +57,6 @@ export const LeadNotFitWhy = ({
       ))}
     </div>
   );
-
-/**
- * The lead's ⋯ (PR 9): what contracts' leadPeekMenu offers this member -- Erase, to the owner alone. A role that may
- * not press it is offered no menu at all, never a gated item (an item's secondary act stays out of sight). The kit's
- * Menu, drawn on the body, where the peek, which scrolls, cannot cut it off.
- */
-export const LeadPeekMore = ({ on }: { on: Pick<PeekActs, "menu" | "onEraseAsk"> }) => {
-  return on.menu && on.menu.length ? (
-    <MenuInPlace>
-      <Menu
-        label={W.more}
-        trigger={moreButton({ title: W.more, testid: "peek-more" })}
-        groups={menuGroups(
-          on.menu.map((m) => ({
-            label: m.label,
-            icon: "x",
-            danger: m.danger,
-            onClick: m.id === "erase" ? on.onEraseAsk : undefined,
-          })),
-        )}
-      />
-    </MenuInPlace>
-  ) : null;
-};
 
 interface AskProps {
   vm: LeadPeekVM;
