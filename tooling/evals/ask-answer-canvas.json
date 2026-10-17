@@ -38,7 +38,13 @@
     "id": "canvas_plain_hours",
     "text": "What time do we open on Saturday?",
     "surface": "today",
-    "expect": { "detail_shape": "plain", "detail_max_words": 70, "language": "en", "no_write": true }
+    "expect": {
+      "detail_shape": "plain",
+      "detail_max_words": 70,
+      "language": "en",
+      "no_write": true,
+      "chart_none": true
+    }
   },
   {
     "id": "canvas_shorter_from_now_on",
@@ -83,6 +89,18 @@
     "text": "How would reminders the day before an appointment work for us?",
     "surface": "today",
     "expect": { "detail_shape": ["callout"], "language": "en", "no_write": true, "includes_any": ["calendar"] }
+  },
+  {
+    "id": "canvas_chart_line",
+    "text": "How did customer messages go day by day over the last two weeks? Show me a chart.",
+    "surface": "reports",
+    "expect": { "chart": "line", "language": "en", "no_write": true }
+  },
+  {
+    "id": "canvas_chart_bars",
+    "text": "Compare my channels this month as a bar chart.",
+    "surface": "reports",
+    "expect": { "chart": "bars", "language": "en", "no_write": true }
   },
   {
     "id": "canvas_language_pt",
