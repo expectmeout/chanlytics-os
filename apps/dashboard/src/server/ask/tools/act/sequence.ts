@@ -4,7 +4,6 @@ import {
   CONSENT_CHANNELS,
   FOLLOW_UP_CONDITIONS,
   LEAD_LIST_MAX,
-  PLAYBOOK_CARD_WORDS,
   PROPOSAL_SPECS,
   REACH_OUT_AFTER_DAYS,
   REACH_OUT_DECISIONS,
@@ -473,7 +472,7 @@ export const propose_sequence = defineActions({
   name: "propose_sequence",
   description:
     "Propose what sends on its own, as a card the person approves (every such thing is a sequence): a message sent once, a sequence at a moment of the customer journey or on a list, a whole new sequence with its steps, a step added, changed, taken away or given new words, a draft started or let go, people taken out, a batch waiting for an OK approved or skipped, a sequence paused, resumed, renamed or retimed, its channels, a new saved message, and cold email to leads.",
-  tail: `For an offer, a promotion or a whole setup, call propose_plan with action offer instead. Read sequences first: action list and action sequence for what exists and its ids, action lists for who can be sent and the messages a send may use, action moments for the moments offered. When nobody can be sent a message, say why: nobody said yes (point to their profiles) or the ones who did have no number to send to, or no channel that can carry it now (the lists read says which); never propose a send to nobody. A card sent once includes nobody without a recorded yes and says how many it reaches; a starter the workspace does not hold yet is added at the card's Approve, a typed value left blank is refused in words, and a second running sequence on the same moment, list and message is refused unless they name it apart. A person reads campaign or sequence, never playbook or broadcast; the fields keep those names. Under a class that sends on its own a new sequence starts ${PLAYBOOK_CARD_WORDS.trial}.`,
+  tail: `For an offer, a promotion or a whole setup, call propose_plan with action offer instead. Read sequences first: action list and action sequence for what exists and its ids, action lists for who can be sent and the messages a send may use, action moments for the moments offered. When nobody can be sent a message, say why: nobody said yes (point to their profiles) or the ones who did have no number to send to, or no channel that can carry it now (the lists read says which); never propose a send to nobody. A starter the workspace does not hold yet is added at the card's Approve, a typed value left blank is refused in words, and a second running sequence on the same moment, list and message is refused unless they name it apart. A person reads campaign or sequence, never playbook or broadcast; the fields keep those names.`,
   actions: {
     once: broadcastAction,
     moment: playbookAction,
