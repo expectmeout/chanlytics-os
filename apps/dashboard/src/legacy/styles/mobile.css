@@ -768,6 +768,15 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
   :root {
     --bar-foot: max(14px, calc(env(safe-area-inset-bottom, 0px) - 13px));
   }
+  /* In a browser's tab on an iPhone (iOS 26) the browser draws its own glass capsule under the page, and keeps a margin
+     of its own over it: at 14 over that the bar stood 27pt over Safari's address, far from the thumb (Ruben, 17 Oct
+     2026). There it rests 4px over what the browser leaves the page; an app on the home screen has no browser bar
+     under it, and keeps the home bar's rest above. Only an iPhone's browsers say -webkit-touch-callout. */
+  @supports (-webkit-touch-callout: none) {
+    :root {
+      --bar-foot: max(4px, calc(env(safe-area-inset-bottom, 0px) - 13px));
+    }
+  }
 
   /* The tab bar (the kit's TabBar: its capsule, its places and the lozenge are kit.css's) floats over the page, 14px
      clear of its sides and of the home bar, with the room for Ask's circle at its right (liquid.py tabbar). */
@@ -886,24 +895,23 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
     z-index: 200;
     background-color: color-mix(in oklab, var(--bg) 12%, transparent);
   }
-  /* What it stands on once the page has gone under it (kit/head/frame-top.ts, `data-under`): the paper, fading out
-     over its last 14px over a deep frost, so the page comes out from under it rather than from behind an edge; up over
-     the phone's bar's room too. Paper, not glass, where it is whole: rows read through nine parts in ten of it. Nothing
-     at rest, so the light falls on the page's name as it did. */
+  /* What it stands on: the page's own ground and light, laid where the window's layer of light has them (.pg-light,
+     above: the screen's width by its height from its top), so the top reads the same over the page at rest and over
+     rows gone under it, and hides them; up over the phone's bar's room too. Over its last 14px it fades, and the rows
+     come out from under it rather than from behind an edge. It was the paper alone, turned on as the page moved, and the
+     head went a flat dark block over its light the moment a row passed under it (Ruben, 17 Oct 2026). */
   .frame-top::before {
     content: "";
     position: absolute;
     inset: calc(-1 * env(safe-area-inset-top, 0px)) 0 -14px;
     z-index: -1;
     pointer-events: none;
-    background: linear-gradient(var(--bg) calc(100% - 14px), transparent);
-    backdrop-filter: blur(var(--blur-lg));
+    background-color: var(--surface-page-fill);
+    background-image: var(--surface-page-top), var(--surface-page-light);
+    background-repeat: no-repeat;
+    background-size: 100vw 100vh;
+    background-size: 100vw 100dvh;
     mask-image: linear-gradient(#000 calc(100% - 14px), transparent);
-    opacity: 0;
-    transition: opacity var(--duration-fast) var(--ease-out);
-  }
-  .frame-top[data-under]::before {
-    opacity: 1;
   }
   /* The Inbox's sending strip floats over the frame's top, as it floated over the head before the top was a box of its
      own; while a dialog holds the page (the bell's sheet among them, drawn inside the top) it stands down. */
@@ -959,8 +967,8 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
     overflow: clip;
   }
   /* Settings' strip of panes stands over what scrolls, as every page's strip does (25 Sep; the others are the frame's
-     own, in its top): stuck under the frame's top, where it stood at rest, on the frame's frosted paper once the page
-     has gone under it (kit/head/frame-top.ts marks the frame's top; the stand reads the same scroll). */
+     own, in its top): stuck under the frame's top, where it stood at rest, on the same ground and light as the top,
+     laid for where it sticks. */
   .main-scroll.pane .set-strip-stand {
     display: block;
     position: sticky;
@@ -973,14 +981,13 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
     inset: 0 calc(-1 * var(--gutter-page)) -14px;
     z-index: -1;
     pointer-events: none;
-    background: linear-gradient(var(--bg) calc(100% - 14px), transparent);
-    backdrop-filter: blur(var(--blur-lg));
+    background-color: var(--surface-page-fill);
+    background-image: var(--surface-page-top), var(--surface-page-light);
+    background-repeat: no-repeat;
+    background-size: 100vw 100vh;
+    background-size: 100vw 100dvh;
+    background-position: 0 calc(-1 * var(--frame-top, 0px));
     mask-image: linear-gradient(#000 calc(100% - 14px), transparent);
-    opacity: 0;
-    transition: opacity var(--duration-fast) var(--ease-out);
-  }
-  .main:has(> .frame-top[data-under]) .set-strip-stand::before {
-    opacity: 1;
   }
   /* A page that holds still keeps what every page had: the screen's height under the top, and its own scroller. The
      Calendar's board shares the screen's height between its hours (8 Oct 2026), an open thread keeps its reply box at

@@ -59,7 +59,7 @@
         "*.mjs",
         "checks/*.mjs",
         "gen/*.mjs",
-        "ops/*.mjs",
+        "ops/**/*.mjs",
         "voice/*.mjs",
         "tests/**/*.mjs",
         "e2e-harness/**/*.{ts,mjs}",
