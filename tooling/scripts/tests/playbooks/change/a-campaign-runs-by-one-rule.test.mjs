@@ -130,8 +130,8 @@ const OTHER_STATES = {
     why: "Ask's change of a campaign: the resume it asks for and the mode it needs read first, the state written, not run.",
   },
   "apps/dashboard/src/server/campaigns/playbook-row.ts": {
-    n: 1,
-    why: "The event a pause or a resume records (start_playbook, pause_playbook): the state written, not whether it runs.",
+    n: 2,
+    why: "The event a pause or a resume records (start_playbook, pause_playbook), and whether a change turns a step on (a twin on its visit moment is refused there): the state written, not whether it runs.",
   },
   "apps/dashboard/src/server/people/list-write.ts": {
     n: 1,

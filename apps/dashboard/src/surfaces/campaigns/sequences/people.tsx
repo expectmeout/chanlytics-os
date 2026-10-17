@@ -10,17 +10,21 @@
 import { useState } from "react";
 import {
   PEOPLE_GROUP_WORDS,
+  SEQUENCE_NEEDS_WORDS as N,
   SEQUENCE_PEOPLE_WORDS as P,
   addressOf,
   clockStamp,
   clockWhen,
   sequenceLeftWords,
+  sequenceRepliesRoute,
   type SequencePeopleGroup,
   type SequencePersonDto,
   type SequenceRecordDto,
 } from "@chanlytics/contracts";
 import { Button } from "../../kit/button/button";
 import { FailedRead } from "../../kit/empty/empty";
+import { Icon } from "../../kit/icon/icon";
+import { LinkButton } from "../../kit/link-button/link-button";
 import { ListRow } from "../../kit/list-row/list-row";
 import { RecordDisclosure } from "../../kit/record/disclosure";
 import { gate, routeDoor } from "../../legacy-verbs";
@@ -161,10 +165,25 @@ export function SequencePeople(p: { rec: SequenceRecordDto; flash: Flash; again:
   const needs = (counts.held ?? 0) + (counts.to_send ?? 0);
   const waiting = of("waiting");
   const folded = FOLDED.filter((g) => (counts[g] ?? 0) > 0);
-  if (needs === 0 && waiting.length === 0 && folded.length === 0) return <p className="sq-none">{P.nobody}</p>;
+  if (needs === 0 && waiting.length === 0 && folded.length === 0 && rec.sequence.needs.replies === 0)
+    return <p className="sq-none">{P.nobody}</p>;
   return (
     <div className="sq-people" data-testid="sq-people">
       <SequenceNeeds rows={rows} count={needs} timezone={rec.timezone} flash={flash} onDecided={moved} />
+      {/* Leads who wrote back, answered where their threads are: the Inbox, its threads that answered this sequence. */}
+      {rec.sequence.needs.replies > 0 ? (
+        <h3 className="sq-group-name" data-testid="sq-people-replied">
+          {N.wroteBack}
+          <span className="tally tally-warn">{rec.sequence.needs.replies}</span>
+          <LinkButton
+            className="sq-group-act"
+            {...routeDoor(sequenceRepliesRoute(rec.sequence.id, "all"))}
+            data-testid="sq-people-inbox"
+          >
+            {N.inbox} <Icon name="chevron" size={11} />
+          </LinkButton>
+        </h3>
+      ) : null}
       {waiting.length > 0 ? (
         <section className="sq-group" aria-label={PEOPLE_GROUP_WORDS.waiting} data-testid="sq-people-waiting">
           <h3 className="sq-group-name">

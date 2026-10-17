@@ -1,8 +1,13 @@
 import { toSendRowOf } from "../reach-out/reach-out-approval.js";
 import { leadDoorOf } from "../reach-out/reach-out-sheet.js";
-import { HOLD_DOOR_WORDS, holdDoors, holdWords, isReachOutHold } from "../reach-out/reach-out-words.js";
+import {
+  HOLD_DOOR_WORDS,
+  holdDoors,
+  holdWords,
+  isReachOutHold
+} from "../reach-out/reach-out-words.js";
 import { REPORT_MIN_N } from "../reports/report-tiles.js";
-import { zoneDayKey } from "../shared/clock.js";
+import { clockHistoryDay, clockTime, clockWhen, zoneDayKey } from "../shared/clock.js";
 import { pct } from "../shared/numbers.js";
 import { plural } from "../shared/words.js";
 import { DAY_MS } from "../shared/time.js";
@@ -43,10 +48,14 @@ export const SEQUENCE_EDIT_WORDS = {
 export const SEQUENCE_NEEDS_WORDS = {
   title: "Needs you",
   held: "Held by the check",
-  sendAll: (n) => n === 1 ? "Send it as it is" : `Send all ${n} as they are`,
+  /** Over the held whose hold judged the lead, never the words (LEAD_HOLDS): what may go as written in one press. */
+  sendAll: (n) => `Send ${n} as written`,
   sending: "Sending\u2026",
   wentAll: (n) => n === 1 ? "1 email goes as it is" : `${n} emails go as they are`,
   toSend: "For you to send from your inbox",
+  /** Leads who wrote back, answered in the Inbox (its threads that answered the sequence). */
+  wroteBack: "Wrote back",
+  inbox: "Inbox",
   oneByOne: "Send them one by one",
   reading: "Reading what it holds\u2026",
   /** What a failed read could not read: "Couldn't read this batch's emails". */
@@ -54,6 +63,7 @@ export const SEQUENCE_NEEDS_WORDS = {
   /** A batch whose emails to send this read carries no draft of: its run's sheet in Sent lays them out. */
   inSent: "Open their run"
 };
+const LEAD_HOLDS = /* @__PURE__ */ new Set(["chain", "language", "abroad", "customer_domain"]);
 export function peopleNeedsOf(rows, at) {
   const held = rows.flatMap((r) => {
     const reason = r.why;
@@ -64,6 +74,7 @@ export function peopleNeedsOf(rows, at) {
         name: r.name ?? SEQUENCE_PEOPLE_WORDS.someone,
         to: r.lead_id ? leadDoorOf(r.lead_id) : null,
         why: holdWords(reason, r.hold_detail),
+        reason,
         doors: holdDoors(reason).map((d) => [d, HOLD_DOOR_WORDS[d]]),
         batchId: r.batch_id
       }
@@ -92,7 +103,8 @@ export function peopleNeedsOf(rows, at) {
     ] : []
   );
   const unread = [...new Set(handed.filter((r) => !r.draft && r.batch_id).map((r) => r.batch_id ?? ""))];
-  return { held, asIs: held.filter((h) => h.doors.some(([d]) => d === "include")), toSend, unread };
+  const asIs = held.filter((h) => LEAD_HOLDS.has(h.reason) && h.doors.some(([d]) => d === "include"));
+  return { held, asIs, toSend, unread };
 }
 export const SEQUENCE_PEOPLE_WORDS = {
   nobody: "Nobody is in it yet.",
@@ -114,7 +126,9 @@ export const SEQUENCE_HISTORY_PERIODS = [
 ];
 export const SEQUENCE_HISTORY_WORDS = {
   period: "Over",
-  inReports: "Open in Reports",
+  inReports: "Reports",
+  /** The batch to come, over the days that went: "Next · goes on its own", or waiting for an OK. */
+  upcoming: (waits) => waits ? "Next \xB7 waits for your OK" : "Next \xB7 goes on its own",
   dayByDay: "Day by day",
   nothing: "Nothing has gone out yet.",
   nothingIn: "Nothing went out in these days.",
@@ -206,6 +220,17 @@ export function historyFigures(batches) {
     }
   ];
 }
+export function historyStamp(atMs, tz, nowMs) {
+  const time = clockTime(atMs, tz);
+  if (atMs <= nowMs || zoneDayKey(atMs, tz) === zoneDayKey(nowMs, tz))
+    return `${clockHistoryDay(atMs, tz, nowMs)} \xB7 ${time}`;
+  const when = clockWhen(atMs, tz, nowMs);
+  return when.startsWith("tomorrow ") ? `Tomorrow \xB7 ${time}` : when;
+}
+export function historyUpcomingWords(people, mode) {
+  const goes = mode === "auto" || mode === "veto";
+  return { end: people ? plural(people, "person", "people") : "", said: SEQUENCE_HISTORY_WORDS.upcoming(!goes) };
+}
 export function historyDays(batches, tz) {
   return new Set(batches.filter(batchWent).map((b) => b.run_for ?? zoneDayKey(Date.parse(b.at), tz))).size;
 }
@@ -215,7 +240,7 @@ export function historyDayWords(b, place) {
   if (b.state === "pending_approval") return { end: SEQUENCE_HISTORY_WORDS.waits, said: forWhom };
   if (b.state === "scheduled") return { end: "Scheduled", said: forWhom };
   if (b.state === "canceled") return { end: "Canceled", said: [place].filter(Boolean).join(" \xB7 ") || "Nothing went" };
-  const parts = [`${c.delivered ?? 0} delivered`, `${c.read ?? 0} read`, `${c.replied ?? 0} replied`];
+  const parts = [`${c.read ?? 0} read`, (c.replied ?? 0) > 0 ? `${c.replied} replied` : "no replies"];
   if ((c.held ?? 0) > 0) parts.push(`${c.held} held`);
   if ((c.to_send ?? 0) > 0) parts.push(`${c.to_send} for you to send`);
   if ((c.failed ?? 0) > 0) parts.push(`${c.failed} failed`);

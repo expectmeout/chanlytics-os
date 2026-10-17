@@ -595,7 +595,8 @@ test("what sends a template says what that thing is doing: a playbook's clock, a
     "runs daily at 10:00 AM",
     "the clock, worded by the route from the playbook's own columns",
   );
-  assert.equal(C.templateUseWords(usedBy.winback_offer), "Win-back campaign", "one campaign alone says what it is");
+  assert.equal(C.templateUseWords(usedBy.winback_offer), "Win-back", "a sequence of one step, by its name alone");
+  assert.deepEqual(usedBy.winback_offer.sequences, [K1], "the one sequence its row's link opens");
   // A refusal with no name to quote says what still uses it in the reader's word (decision 19).
   assert.equal(
     C.playbooksStillSending([]),
@@ -612,15 +613,20 @@ test("what sends a template says what that thing is doing: a playbook's clock, a
     "a run is waiting for your approval",
     "which outranks its clock",
   );
-  assert.equal(C.templateUseWords(usedBy.save_our_number), "Save our number campaign", "paused, still named plainly");
   assert.equal(
-    C.templateUseNote(usedBy.save_our_number),
-    "paused — nothing goes out",
-    "and the line under it says it is paused",
+    C.templateUseWords(usedBy.save_our_number),
+    "Save our number (paused)",
+    "paused, said where it is named",
   );
+  assert.equal(C.templateUseNote(usedBy.save_our_number), null, "so the line under it has nothing to add");
   assert.equal(usedBy.quick_note.broadcasts, 3);
   assert.deepEqual(usedBy.quick_note.recent, ["VIP regulars", "Autumn colour"], "newest first, two at most");
-  assert.equal(C.templateUseNote(usedBy.quick_note), "VIP regulars, Autumn colour and 1 more");
+  assert.equal(
+    C.templateUseWords(usedBy.quick_note),
+    "VIP regulars, Autumn colour and 1 more",
+    "one-offs by the names they were given",
+  );
+  assert.equal(C.templateUseNote(usedBy.quick_note), null);
   assert.equal(C.templateUseNote(null), null, "nothing sends it: no line under it");
   assert.equal(
     C.runsWords({ trigger: "everyone_monthly", run_hour: 9, cadence_days: 30 }),
@@ -1606,8 +1612,19 @@ test("a playbook ticks channels: made with them, kept by an edit that names none
   assert.deepEqual(row.channels, ["whatsapp", "email"]);
   assert.deepEqual(tables.decisions.at(-1).payload.channels, ["whatsapp", "email"], "the ledger says the channels");
   // Naming none is WhatsApp alone, and the door is told so: it lands with its migration (00357), long after the column's
-  // (00298), so a start names every column it writes.
+  // (00298), so a start names every column it writes. A second reminder at the moment the first sends at is refused (a
+  // twin would message each person twice), so the first is paused before it.
+  await refused(playbooks.POST.run(send("POST", body, inB), ctxFor(tables)), "conflict", 409);
+  row.state = "paused";
   const plain = await playbooks.POST.run(send("POST", body, inB), ctxFor(tables));
+  // Turned on again while the second runs at its moment: refused the same way, and nothing written.
+  await refused(
+    playbook.PUT.run(send("PUT", { state: "running" }), ctxFor(tables, { id: made.id })),
+    "conflict",
+    409,
+    "already sends at this moment",
+  );
+  assert.equal(row.state, "paused", "still paused");
   const before = tables.playbooks.find((p) => p.id === plain.id);
   assert.deepEqual(before.channels, ["whatsapp"], "WhatsApp alone when none is named");
   assert.deepEqual(tables.decisions.at(-1).payload.channels, ["whatsapp"]);

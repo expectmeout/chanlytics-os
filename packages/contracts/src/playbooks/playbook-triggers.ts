@@ -259,6 +259,12 @@ export function triggerOf(id: string): (typeof PLAYBOOK_TRIGGERS)[number] | null
 }
 
 /**
+ * The moments a visit decides (the reminder the day before, the thank-you the day after): owed once per visit, so no two
+ * sequences run on one of them (the routes refuse a second, the run skips whom a twin reached; sequence-words.ts).
+ */
+export const VISIT_TRIGGERS: readonly string[] = PLAYBOOK_TRIGGERS.filter((t) => t.kind === "visit").map((t) => t.id);
+
+/**
  * Whether a moment is offered in a workspace (0006): every one, and a proposal's only where deals are on
  * (dealsAreOn, 0008). The Playbooks page, its counts, Ask and the check that makes a playbook all read it. A
  * reach-out's steps are never moments: the reach-out sheet makes them (Reach out, Part 4).

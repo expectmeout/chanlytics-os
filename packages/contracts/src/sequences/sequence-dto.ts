@@ -220,4 +220,9 @@ export interface SequenceRecordDto {
   timezone: string;
   /** What the workspace calls an appointment, which says when a moment's sequence starts. */
   word: AppointmentWord;
+  /**
+   * The business day its first step last ran (`sequence_steps.last_run_for`): when its next run goes (sequenceNextOf).
+   * Absent from a server before it, which then says no next run it cannot know.
+   */
+  last_run_for?: string | null;
 }

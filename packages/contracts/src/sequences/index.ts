@@ -27,13 +27,22 @@ export {
   SEQUENCE_WORDS,
   SEQUENCE_FLOW_WORDS,
   stepApprovalOf,
+  takesFollowUps,
   leadStepStand,
   SEQUENCE_GROUPS,
   PEOPLE_GROUP_WORDS,
   needsCount,
   sequenceWaitsNow,
   sequenceGroupOf,
-  isOff,
+  sequenceTwinOf,
+  visitTwinWords,
+  sequenceRowState,
+  sequenceSubLine,
+  sequenceNextOf,
+  sequenceNextWords,
+  sequencePausedDock,
+  sequenceWhoApprovesHint,
+  sequenceCancels,
   needsWords,
   sequenceStartWords,
   sequenceStateWords,
@@ -52,7 +61,7 @@ export {
   sequenceLeftWords,
   peopleTabWord,
 } from "./sequence-words";
-export type { SequenceGroup, SequenceNotice } from "./sequence-words";
+export type { SequenceGroup, SequenceNotice, SequenceTwin, SequenceNext } from "./sequence-words";
 export {
   SEQUENCE_EDIT_WORDS,
   SEQUENCE_NEEDS_WORDS,
@@ -66,6 +75,8 @@ export {
   historyFigures,
   historyDays,
   historyDayWords,
+  historyStamp,
+  historyUpcomingWords,
   batchWent,
   peopleNeedsOf,
 } from "./sequence-tab-words";

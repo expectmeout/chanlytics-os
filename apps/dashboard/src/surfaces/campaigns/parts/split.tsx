@@ -9,7 +9,7 @@
  * swapped for the list (a broadcast's composer, a run), a card over the list (a template's composer), a row that opened
  * under itself (a playbook, a reach-out, a template, an email) and an inline sheet of its own (a run's approval).
  */
-import type { ReactNode } from "react";
+import type { HTMLAttributes, ReactNode } from "react";
 import { useEffect, useState } from "react";
 import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
@@ -22,6 +22,23 @@ const CM_PHONE_QUERY = "(max-width: 900px)";
 
 const cmPhoneQuery = () =>
   typeof window !== "undefined" && typeof window.matchMedia === "function" ? window.matchMedia(CM_PHONE_QUERY) : null;
+
+/** The split each pane a thumb is carrying was grabbed in (cmGoing). */
+const goingHosts = new WeakMap<Element, Element>();
+
+/**
+ * While a thumb carries an open pane back to its list, the list is drawn under it (campaigns.css, data-going on the split),
+ * so what shows behind the pane is what it goes back to, as an open thread's list does in the Inbox.
+ */
+export const cmGoing = (el: Element, on: boolean) => {
+  // The pane is let go of after it has left (data-bits swipeLeave closes it first), when it has no parent: the split it
+  // was grabbed in is kept from the grab, so the mark always comes off.
+  const host = el.parentElement ?? goingHosts.get(el) ?? null;
+  if (!host) return;
+  if (on) goingHosts.set(el, host);
+  else goingHosts.delete(el);
+  host.toggleAttribute("data-going", on);
+};
 
 /** Whether the window is a phone's, kept current as it changes size. */
 export function useCmPhone(): boolean {
@@ -90,6 +107,11 @@ interface CmPaneProps {
   /** The pane's id, where a link lands on it (`bc-run-<id>`). */
   id?: string;
   className?: string;
+  /**
+   * A phone's swipe (data-bits touchSwipe's handlers, its onGrab cmGoing): on the pane's root, so the head, the body and
+   * the foot go back to the list together under the thumb.
+   */
+  swipe?: HTMLAttributes<HTMLElement>;
 }
 
 /**
@@ -100,17 +122,18 @@ interface CmPaneProps {
  */
 export function CmPane(p: CmPaneProps) {
   const { title, badge, sub, mark, tools, onClose, closeLabel = "Close", foot, children, testid, className } = p;
-  const { id, closeTestid = "cm-pane-close" } = p;
+  const { id, closeTestid = "cm-pane-close", swipe } = p;
   const phone = useCmPhone();
   useRecSheetEscape(true, onClose);
   return (
-    <Panel as="section" size="flush" className={cx("cm-pane", className)} id={id} data-testid={testid}>
+    <Panel {...swipe} as="section" size="flush" className={cx("cm-pane", className)} id={id} data-testid={testid}>
       <header className="cm-pane-head capsule">
+        {/* Back is a thumb's circle, as More beside the name is: the head's only two glyphs. */}
         {phone ? (
           <Button
             iconOnly
             variant="quiet"
-            size="sm"
+            size="touch"
             className="cm-pane-back"
             onClick={onClose}
             aria-label={closeLabel === "Close" ? "Back to the list" : closeLabel}

@@ -84,7 +84,7 @@ export function ReachOutEmailRow({ t, open = false, onOpen }: RowProps) {
         tag: null,
         words: inOneLine(t.body),
         channels: w.chip,
-        use: { words: w.sends, note: w.sendsNote, unused: false, playbook: t.root_id },
+        use: { words: w.sends, note: w.sendsNote, unused: false, sequence: t.root_id },
         present: [],
         // Said only once read: a count that was not read is no count, and a step that wrote none says so in words.
         sent: written === null ? null : templateSentWords({ count: written, lastAt: null }, "UTC", Date.now()),

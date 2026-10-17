@@ -1,11 +1,12 @@
 import "server-only";
-import { AppError, type ParamSpec } from "@chanlytics/contracts";
+import { AppError, SEQUENCE_FLOW_WORDS, takesFollowUps, type ParamSpec } from "@chanlytics/contracts";
 import { templateValues } from "@chanlytics/core";
 import {
   discardSequence,
   makeSequence,
   removeSequenceStep,
   saveSequenceStep,
+  sequenceOverview,
   sequenceStepsOf,
   setSequenceStepWords,
   takeOutOfSequence,
@@ -15,6 +16,7 @@ import {
   type SequenceDoorAnswer,
 } from "@chanlytics/db";
 import { checkPlaybookInput } from "@/server/campaigns/playbooks";
+import { visitTwinRefusal } from "@/server/campaigns/playbook-row";
 import { requireUuid } from "@/server/request-guards";
 import { templateValuePorts } from "@/server/ports/campaign-ports";
 import { dbRefusal, type RouteContext } from "@/server/with-route";
@@ -83,6 +85,9 @@ async function laterStepOf(ctx: RouteContext, seq: Sequence, stepId: string) {
  */
 export async function makeSequenceNow(ctx: RouteContext, tenantId: string, input: NewSequenceBody) {
   const v = await checkPlaybookInput(ctx, tenantId, input.first, null);
+  // Started on a visit moment another sequence already runs on: refused (a draft is kept; its start meets this again).
+  const twin = input.start ? await visitTwinRefusal(ctx, tenantId, { trigger: v.trigger }) : null;
+  if (twin) throw new AppError("conflict", twin, 409);
   const then = await Promise.all(
     input.then.map(async (t) => ({
       after_days: t.after_days,
@@ -123,8 +128,13 @@ export async function discardSequenceNow(ctx: RouteContext, seq: Sequence) {
   return doorAnswer(r);
 }
 
-/** A step after the last (D6). */
+/** A step after the last (D6), where the sequence takes one (contracts takesFollowUps: never after a reminder). */
 export async function addSequenceStep(ctx: RouteContext, seq: Sequence, input: NewStepBody) {
+  const [row] = await sequenceOverview(ctx.supabase, seq.tenant_id, seq.id);
+  // A customer's sequence that takes none is a reminder; any other kind is the door's own to refuse, in its words.
+  const customers = row?.starts === "moment" || row?.starts === "list";
+  if (row && customers && !takesFollowUps(row))
+    throw new AppError("validation", SEQUENCE_FLOW_WORDS.noFollowUpOnReminder, 422);
   const params = await valuesOf(ctx, seq.tenant_id, input.template_id, input.params);
   const step = {
     after_days: input.after_days,

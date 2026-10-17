@@ -22,7 +22,7 @@ import {
 } from "@chanlytics/contracts";
 // The database's count of the same sends (00374); contracts' templateSends is the fold it replaced, read below for a
 // database before it.
-import { templateSends as sendsByTemplate } from "@chanlytics/db";
+import { sequenceNamesOf, templateSends as sendsByTemplate } from "@chanlytics/db";
 import { load, stamp, type Reader, type ReaderContext } from "./index";
 import * as facts from "./facts";
 
@@ -165,19 +165,21 @@ async function templatesOf(rc: ReaderContext, all: boolean) {
   const runs = everyRow("broadcasts", (from, to) =>
     rc.ctx.supabase
       .from("sequence_batches")
-      .select("id, template_name, playbook_id:step_id, name, state, created_at")
+      .select("id, template_name, playbook_id:step_id, sequence_id, name, state, created_at")
       .eq("tenant_id", tenantId)
       .order("id")
       .range(from, to),
   );
-  const [pb, runRows, sends] = await Promise.all([
-    // Its clock, for the line under what sends it ("runs daily at 10:00"), and its last day.
+  const [pb, runRows, sends, sequences] = await Promise.all([
+    // Its clock, for the line under what sends it ("runs daily at 10:00"), its last day, and its sequence and place there
+    // ("VIP color clients · step 2").
     rc.ctx.supabase
       .from("sequence_steps")
-      .select("id, name, template_name, state, trigger, run_hour, cadence_days, until")
+      .select("id, name, template_name, state, trigger, run_hour, cadence_days, until, sequence_id, place")
       .eq("tenant_id", tenantId),
     runs,
     templateSendsRead(rc, runs),
+    sequenceNamesOf(rc.ctx.supabase, tenantId),
   ]);
   if (pb.error) throw new Error(pb.error.message);
   // A campaign past its last day by the business's day (the turn's zone) sends nothing more: said so, never its clock (S1-3).
@@ -194,6 +196,7 @@ async function templatesOf(rc: ReaderContext, all: boolean) {
       ended: today !== null && campaignEnded(p, today) !== null,
     })),
     broadcasts: runRows,
+    sequences,
     // The booking message is a WhatsApp template the receptionist sends: an email or a text of the same name is none.
     bookingName: booking?.name ?? null,
   });

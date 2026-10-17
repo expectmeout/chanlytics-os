@@ -3,8 +3,12 @@
  * groups and rows, a sequence's head and its one notice (D8), its flow (what starts it, each step, what stops it), and
  * where each person stands. Pure: the clock and the workspace's word for an appointment are arguments.
  */
+import { POLICY_CLASS_WORDS, type PolicyClass, type PolicyMode } from "../config/workspace-config/policy-classes";
 import { appointmentWords, type AppointmentWord } from "../journey/appointment-word";
-import { clockDate, clockTime, clockWhen } from "../shared/clock";
+import { campaignRunsOn, nextRunOf } from "../playbooks/playbook-schedule";
+import { triggerOf } from "../playbooks/playbook-triggers";
+import { clockDate, clockTime, clockWhen, wallClockAt, zoneDayKey } from "../shared/clock";
+import { DAY_MS } from "../shared/time";
 import { plural } from "../shared/words";
 import { runWaitsOnYou, type RunDays } from "../waits/waits";
 import type { SequenceNeedsDto, SequencePeopleGroup, SequenceRowDto, SequenceStepDto } from "./sequence-dto";
@@ -18,7 +22,14 @@ export const SEQUENCE_WORDS = {
   empty: "Nothing sends on its own yet. A sequence starts at a moment, when someone joins a list, or on a date.",
   failed: "The sequences couldn’t be loaded right now",
   filters: { all: "All", needs: "Needs you", off: "Paused or off" },
-  groups: { needs: "Needs you", customers: "Your customers", leads: "Leads", dates: "Dates", drafts: "Drafts" },
+  groups: {
+    needs: "Needs you",
+    customers: "Your customers",
+    leads: "Leads",
+    dates: "Dates",
+    off: "Paused or off",
+    drafts: "Drafts",
+  },
   receptionist: "First contact is your receptionist’s",
   /** Where the receptionist's line opens: Settings › Business, as Campaigns' ledger row did (Ruben, 11 Oct 2026). */
   receptionistRoute: "admin/workspace",
@@ -37,7 +48,34 @@ export const SEQUENCE_WORDS = {
   change: "Change",
   edit: "Edit",
   you: "You approve",
+  /** The record's line of what goes next: "Next tomorrow 10:00 AM · 3 people". */
+  next: "Next",
+  /** Who approves its batches, said in the record's More, where it is changed (Autonomy, for its whole class). */
+  whoApproves: "Who approves",
+  turnOff: "Turn this off",
+  /** A phone dock's Turn on: it asks first, so it says so. */
+  resumeAsk: "Turn on…",
+  review: "Review",
+  answer: "Answer",
 } as const;
+
+/**
+ * Who approves a sequence's batches, as its head line says it, by the mode its class runs under (the record's `mode`;
+ * none set is ask, as the policies read it). Said once, in the line under its name, and in its More, where it is changed.
+ */
+const SEQUENCE_APPROVAL_WORDS: Record<PolicyMode, string> = {
+  auto: "sends on its own",
+  veto: "holds each batch for you to stop",
+  ask: "asks you first",
+  never: "stays quiet",
+};
+
+const isApprovalMode = (mode: string | null): mode is PolicyMode =>
+  mode !== null && Object.prototype.hasOwnProperty.call(SEQUENCE_APPROVAL_WORDS, mode);
+
+/** Who approves, in the head's words: a mode it does not know is ask's, as the policies read one with no row. */
+const sequenceApprovalWords = (mode: string | null): string =>
+  isApprovalMode(mode) ? SEQUENCE_APPROVAL_WORDS[mode] : SEQUENCE_APPROVAL_WORDS.ask;
 
 /** The flow's own words (the canvas's Steps board): its keys, the step's lines, and what each part of it says. */
 export const SEQUENCE_FLOW_WORDS = {
@@ -65,14 +103,37 @@ export const SEQUENCE_FLOW_WORDS = {
   checked: "Each one is checked before it goes",
   takeAwayAsk: (place: number) => `Take step ${place} away?`,
   takeAwayDetail: "The steps after it go with it; nobody waiting for it hears more from this sequence.",
-  /** New words a step waits on WhatsApp for, and its answer where it said no. */
-  newWords: (name: string, rejected: boolean) =>
-    `New words “${name}” wait for WhatsApp${rejected ? ", which did not approve them" : ""}`,
+  /** New words a step waits on WhatsApp for, or that WhatsApp turned down: said without the message's stored name. */
+  newWords: (rejected: boolean) =>
+    rejected ? "WhatsApp turned down the new words" : "New words in review with WhatsApp",
+  /** Under a step whose new words wait or were turned down: what it sends meanwhile. */
+  keepsWords: "Keeps sending these words until new ones are approved",
+  /** A step whose message the workspace no longer offers (deleted, hidden, or never synced here). */
+  messageGone: "Its message isn’t in Messages anymore.",
+  pickMessage: "Pick a message",
+  /** A one-off that waits for its day, let go of (the run's cancel door), asked first. */
+  cancelSend: "Cancel this send…",
+  cancelAsk: "Cancel this send?",
+  cancelDetail: "Nobody gets it. To send it on another day, make it again.",
+  cancelYes: "Cancel the send",
+  /** A step after a reminder refused (the door): a reminder is said once, the day before; after the visit is its own moment. */
+  noFollowUpOnReminder:
+    "A reminder goes once, the day before. To write to them afterwards, start a sequence that sends after it.",
   sample: "The next one, as it reads",
   addLeads: "Add leads",
   /** When the step's next batch goes, with how many where they are counted: "next 9 tomorrow 9:00 AM". */
   next: (people: number, when: string) => (people > 0 ? `next ${people} ${when}` : `next ${when}`),
 } as const;
+
+/**
+ * Whether a sequence takes a step after its first (D6): a customer's, on a moment or a list, but never a reminder before a
+ * visit, which is said once (the phone review: its "if they haven't booked" could never hold for someone booked). The
+ * page offers Add a follow-up by it, and the door refuses by it.
+ */
+export function takesFollowUps(row: Pick<SequenceRowDto, "starts" | "first">): boolean {
+  if (row.starts !== "moment" && row.starts !== "list") return false;
+  return row.first?.trigger !== "visit_tomorrow";
+}
 
 /** A message's WhatsApp standing, as a step's line says it beside its words: the tone the kit's pill draws it in. */
 export function stepApprovalOf(
@@ -92,9 +153,51 @@ export function leadStepStand(place: number, sent: number, now: number | null): 
   return "later";
 }
 
-/** The groups the list draws, in their order: what needs you first, then by how each starts, and the drafts last. */
-export const SEQUENCE_GROUPS = ["needs", "customers", "leads", "dates", "drafts"] as const;
+/**
+ * The groups the list draws, in their order: what needs you first, then by how each starts, what is paused or ended, and
+ * the drafts last.
+ */
+export const SEQUENCE_GROUPS = ["needs", "customers", "leads", "dates", "off", "drafts"] as const;
 export type SequenceGroup = (typeof SEQUENCE_GROUPS)[number];
+
+/** Another sequence that sends at the same moment as this one, by its name: what a person would get twice. */
+export interface SequenceTwin {
+  id: string;
+  name: string;
+}
+
+/**
+ * The sequence running on the same visit moment as this one, where this one runs too (B1 of the phone review, 16 Oct
+ * 2026): a reminder the day before, or a thank-you the day after, is owed once per visit and skips the week's breath
+ * (playbook-reach.ts), so two running on one moment send each person both. The one made later is the twin, named by the
+ * one made first: it is the one that needs you (Turn this off), and the first keeps its place. Null for the first, for
+ * any other moment, whose breath and gap already keep a twin from reaching anyone twice, and where nothing else runs on it.
+ */
+export function sequenceTwinOf(rows: readonly SequenceRowDto[], row: SequenceRowDto): SequenceTwin | null {
+  const trigger = row.first?.trigger ?? null;
+  if (row.starts !== "moment" || row.state !== "on" || !trigger || triggerOf(trigger)?.kind !== "visit") return null;
+  const made = Date.parse(row.created_at);
+  const first = (r: SequenceRowDto) => {
+    const at = Date.parse(r.created_at);
+    return at < made || (at === made && r.id < row.id);
+  };
+  const twin = rows.find(
+    (r) => r.id !== row.id && r.starts === "moment" && r.state === "on" && r.first?.trigger === trigger && first(r),
+  );
+  return twin ? { id: twin.id, name: twin.name } : null;
+}
+
+/** What two sequences on one moment send each person, in a line: a reminder twice, a thank-you twice. */
+function twinLineOf(row: Pick<SequenceRowDto, "first">): string {
+  const trigger = row.first?.trigger;
+  if (trigger === "visit_tomorrow") return "Two reminders go to each person";
+  if (trigger === "visited") return "Two thank-yous go to each person";
+  return "Two messages go to each person";
+}
+
+/** Why a second sequence on a visit moment is refused (the routes that start one): in the owner's words, by its name. */
+export const visitTwinWords = (name: string): string =>
+  `“${name}” already sends at this moment, so each person would get two. Turn it off first.`;
 
 /** How many of a sequence's people or emails wait for you: the one count the list, the badge, Today and Ask say. */
 export function needsCount(n: SequenceNeedsDto): number {
@@ -125,18 +228,23 @@ export function sequenceWaitsNow(row: SequenceRowDto, days: RunDays): SequenceRo
   };
 }
 
-/** Which of the list's groups a sequence is drawn in. */
-export function sequenceGroupOf(row: SequenceRowDto): SequenceGroup {
+/** Whether a sequence is paused or off: the list's Paused or off group. */
+const isOff = (row: SequenceRowDto): boolean => row.state === "paused" || row.state === "ended";
+
+/**
+ * Which of the list's groups a sequence is drawn in: a draft under Drafts, what needs you (people or emails waiting, or a
+ * twin sending each person the same moment twice) first, a sequence paused or ended under Paused or off, and the rest by
+ * how it starts. A one-off that went stays among the Dates, where it is looked for.
+ */
+export function sequenceGroupOf(row: SequenceRowDto, twin: SequenceTwin | null = null): SequenceGroup {
   // A draft stays in the list under Drafts until it is started: nothing of it goes, so nothing of it needs you.
   if (row.state === "draft") return "drafts";
-  if (needsCount(row.needs) > 0) return "needs";
-  if (row.starts === "leads") return "leads";
+  if (needsCount(row.needs) > 0 || twin) return "needs";
   if (row.starts === "date") return "dates";
+  if (isOff(row)) return "off";
+  if (row.starts === "leads") return "leads";
   return "customers";
 }
-
-/** Whether a sequence is paused or off: the list's second filter. */
-export const isOff = (row: SequenceRowDto): boolean => row.state === "paused" || row.state === "ended";
 
 /** What needs you in a sequence, in a few words: "14 wait for your OK · 3 held · 2 wrote back". Empty when nothing does. */
 export function needsWords(n: SequenceNeedsDto): string {
@@ -213,17 +321,40 @@ export function sequenceStateTone(row: SequenceRowDto): "warn" | "ok" | "plain" 
 }
 
 /**
- * A list row's second line, after what starts it: what needs you where something does, else what comes next or what
- * went last. "Fri, Oct 30 · 186 people", "next tomorrow 9:00 AM", "Oct 12 · sent to 184 · 12 replied", "10 in it".
+ * The word a list row ends on, where its state is not the ordinary one (the phone review, 16 Oct 2026: a green On on
+ * every row said nothing): a sequence paused or ended, a one-off scheduled, going, canceled or failed. Null for one that
+ * runs, a draft (its group says it), a one-off that waits for you or went (its line says it).
  */
-export function sequenceRowLine(row: SequenceRowDto, tz: string, nowMs: number): string {
+export function sequenceRowState(row: SequenceRowDto): { label: string; tone: "plain" | "danger" } | null {
+  if (row.starts === "date" && row.date) {
+    const DATE: Record<string, string> = { scheduled: "Scheduled", sending: "Sending", canceled: "Canceled" };
+    if (row.date.state === "failed") return { label: "Failed", tone: "danger" };
+    const label = DATE[row.date.state];
+    return label ? { label, tone: "plain" } : null;
+  }
+  if (row.state === "paused" || row.state === "ended") return { label: SEQUENCE_STATE_WORDS[row.state], tone: "plain" };
+  return null;
+}
+
+/**
+ * A list row's second line, after what starts it: what needs you where something does, else what comes next or what
+ * went last. "Fri, Oct 30 · 186 people", "next tomorrow 9:00 AM", "Sent Oct 12 · 184 · 12 replied", "10 in it". A twin
+ * says so first (sequenceTwinOf).
+ */
+export function sequenceRowLine(
+  row: SequenceRowDto,
+  tz: string,
+  nowMs: number,
+  twin: SequenceTwin | null = null,
+): string {
   if (row.state === "draft") return SEQUENCE_WORDS.notStarted;
   const needs = needsWords(row.needs);
   if (needs) return needs;
+  if (twin) return twinLineOf(row);
   if (row.starts === "date" && row.date) {
     const at = Date.parse(row.date.at);
     if (row.last)
-      return `${clockDate(Date.parse(row.last.at), tz, nowMs)} · sent to ${row.last.sent} · ${row.last.replied} replied`;
+      return `Sent ${clockDate(Date.parse(row.last.at), tz, nowMs)} · ${row.last.sent} · ${row.last.replied} replied`;
     return `${clockDate(at, tz, nowMs)} · ${plural(row.date.people, "person", "people")}`;
   }
   if (row.state === "paused") return row.in_it > 0 ? `${row.in_it} waiting` : "Paused";
@@ -240,75 +371,234 @@ export function sequenceHeadLine(row: SequenceRowDto, word: AppointmentWord, tz:
   return `${sequenceStartWords(row, word)} · ${steps} · since ${clockDate(Date.parse(row.created_at), tz, nowMs)}`;
 }
 
-/** The one notice a sequence shows (D8): the most pressing thing that needs you, with its act. Null when nothing does. */
+/**
+ * The line under a record's name on its page (the phone review): what starts it and who approves its batches, each said
+ * once there, so the flow never repeats them and no box at its foot says them again. "Before a meeting · sends on its
+ * own"; a sequence to leads names its search and says it waits on your inbox where you send each one; a one-off says it
+ * is one message and where it stands, in its own tense: "One message · went Oct 13".
+ */
+export function sequenceSubLine(
+  row: SequenceRowDto,
+  rec: { word: AppointmentWord; timezone: string; mode: string | null },
+  nowMs: number,
+): string {
+  if (row.starts === "date" && row.date) {
+    const at = Date.parse(row.date.at);
+    const DATE: Record<string, string> = {
+      pending_approval: "waits for your OK",
+      scheduled: "goes on its own",
+      sending: "going out now",
+      sent: `went ${clockDate(row.last ? Date.parse(row.last.at) : at, rec.timezone, nowMs)}`,
+      canceled: "canceled",
+      failed: "didn’t go",
+    };
+    return `One message · ${DATE[row.date.state] ?? "goes on its own"}`;
+  }
+  if (row.starts === "leads") {
+    const from = row.first?.search_name ? `Leads from “${row.first.search_name}”` : "Leads";
+    return `${from} · ${row.first?.owner_sends ? "you send each one" : sequenceApprovalWords(rec.mode)}`;
+  }
+  return `${sequenceStartWords(row, rec.word)} · ${sequenceApprovalWords(rec.mode)}`;
+}
+
+/** When a sequence's next batch goes, and to how many where it is counted; `soon` when its hour has come and it is due. */
+export interface SequenceNext {
+  at: number;
+  people: number | null;
+  soon: boolean;
+}
+
+/**
+ * What goes next, for the line at the top of a record's Steps (the phone review: a reminder's record never said it): the
+ * batch already made (waiting, scheduled or going), else, for a sequence on a moment or a list that runs today, its
+ * first step's next run by its hour (contracts nextRunOf, the one rule every page asks), which a day's run makes at that
+ * hour: today's while it has not run, tomorrow's once it has. `lastRunFor` is the day its first step last ran
+ * (`sequence_steps.last_run_for`, the record's read); undefined where the read is from a server before it, which says
+ * nothing it cannot know. Null for one paused, ended, a draft, or a one-off (its Starts line says its day).
+ */
+export function sequenceNextOf(
+  row: SequenceRowDto,
+  lastRunFor: string | null | undefined,
+  tz: string,
+  nowMs: number,
+): SequenceNext | null {
+  if (row.state !== "on" || row.starts === "date") return null;
+  if (row.next)
+    return { at: Date.parse(row.next.at), people: row.next.people > 0 ? row.next.people : null, soon: false };
+  const first = row.first;
+  if (lastRunFor === undefined || !first || (row.starts !== "moment" && row.starts !== "list")) return null;
+  const now = new Date(nowMs);
+  if (!campaignRunsOn(first, { tz, now, dealsOn: true })) return null;
+  const run = nextRunOf({ run_hour: first.run_hour, last_run_for: lastRunFor }, tz, now);
+  const today = zoneDayKey(nowMs, tz);
+  const day = run.day === "today" ? today : zoneDayKey(wallClockAt(tz, today, 12, 0) + DAY_MS, tz);
+  return { at: wallClockAt(tz, day, run.hour, 0), people: null, soon: run.soon };
+}
+
+/** The next batch in words, after "Next": "tomorrow 10:00 AM · 3 people", "within the hour". */
+export function sequenceNextWords(next: SequenceNext, tz: string, nowMs: number): string {
+  const when = next.soon ? "within the hour" : clockWhen(next.at, tz, nowMs);
+  return next.people ? `${when} · ${plural(next.people, "person", "people")}` : when;
+}
+
+/**
+ * A paused sequence's dock on a phone (the canvas's Paused board): it says so, and how many wait for it where any do. Its
+ * act is Turn on, asked first. Null for any other, and for a one-off, whose state is its batch's.
+ */
+export function sequencePausedDock(row: SequenceRowDto): { line: string; fact: string | null } | null {
+  if (row.state !== "paused" || row.starts === "date") return null;
+  return {
+    line: SEQUENCE_STATE_WORDS.paused,
+    fact: row.in_it > 0 ? `${plural(row.in_it, "person waits", "people wait")} for it` : null,
+  };
+}
+
+const isPolicyClass = (c: string | null | undefined): c is PolicyClass =>
+  !!c && Object.prototype.hasOwnProperty.call(POLICY_CLASS_WORDS, c);
+
+/**
+ * Who approves a sequence's batches, under that item of its More, where it is changed for the whole class (Autonomy):
+ * how, and the row it is set on. "Asks you first · Re-engage quiet customers".
+ */
+export function sequenceWhoApprovesHint(mode: string | null, policyClass: string | null | undefined): string {
+  const how = sequenceApprovalWords(mode);
+  const said = how.charAt(0).toUpperCase() + how.slice(1);
+  return isPolicyClass(policyClass) ? `${said} · ${POLICY_CLASS_WORDS[policyClass].name}` : said;
+}
+
+/**
+ * Whether a one-off may still be let go of (the run's cancel door, asked first): one scheduled for its day. One waiting
+ * for an OK is skipped from its notice; one going, gone, canceled or failed has nothing left to cancel. No door moves a
+ * one-off to another day or other people: it is canceled and made again.
+ */
+export const sequenceCancels = (row: SequenceRowDto): boolean =>
+  row.starts === "date" && row.date?.state === "scheduled";
+
+/**
+ * The one notice a sequence shows (D8): the most pressing thing that needs you, with its act. Null when nothing does.
+ * `words` is the whole sentence (a desk's notice, Ask); `line` and `fact` are a phone's dock, its line and the one fact
+ * under it, so the dock says each once and stays one capsule high.
+ */
 export interface SequenceNotice {
-  kind: "waiting" | "held" | "to_send" | "replies" | "words";
+  kind: "waiting" | "twin" | "held" | "to_send" | "replies" | "words";
   words: string;
+  line: string;
+  fact: string | null;
   act: string | null;
   /** The batch it is about, when it is one. */
   batchId: string | null;
+  /** The step it is about, when it is one (new words turned down): its id and place. */
+  stepId: string | null;
 }
 
+const noticeOf = (n: Omit<SequenceNotice, "batchId" | "stepId"> & Partial<SequenceNotice>): SequenceNotice => ({
+  batchId: null,
+  stepId: null,
+  ...n,
+});
+
+/** A batch waiting for an OK, as the notice says it: its people and when they go, the step where there are several. */
+function waitingNotice(
+  steps: readonly SequenceStepDto[],
+  batch: SequenceNeedsDto["batches"][number],
+  clock: { tz: string; nowMs: number },
+): SequenceNotice {
+  const when = clockWhen(Date.parse(batch.at), clock.tz, clock.nowMs);
+  const people = batch.people;
+  const place = steps.length > 1 ? steps.find((s) => s.id === batch.step_id)?.place : undefined;
+  // A batch that names nobody yet (its people are counted as it is planned) is said as the batch, never as "0 people".
+  return noticeOf({
+    kind: "waiting",
+    words:
+      people > 0
+        ? `${plural(people, "person waits", "people wait")} for your OK · they go ${when}`
+        : `The next batch waits for your OK · it goes ${when}`,
+    line: people > 0 ? `${people} wait${people === 1 ? "s" : ""} for your OK` : "The next batch waits for your OK",
+    fact: `${place ? `Step ${place} · ` : ""}goes ${when}`,
+    act: people > 0 ? `${SEQUENCE_WORDS.approve} ${people}` : SEQUENCE_WORDS.approve,
+    batchId: batch.id,
+  });
+}
+
+/**
+ * The notice: a batch waiting for an OK first, then a twin on its moment (each person gets the same message twice), the
+ * emails the check held, those for you to send, the replies to answer, and new words WhatsApp turned down. `twin` is the
+ * list's to say (sequenceTwinOf): a reader with one row alone passes none. `clock` is the business's zone and now.
+ */
 export function sequenceNotice(
   row: SequenceRowDto,
   steps: readonly SequenceStepDto[],
-  tz: string,
-  nowMs: number,
+  clock: { tz: string; nowMs: number },
+  twin: SequenceTwin | null = null,
 ): SequenceNotice | null {
+  const { tz, nowMs } = clock;
   const n = row.needs;
   // The batch an OK goes to: the soonest of those an OK can still send (sequenceWaitsNow).
   const batch = n.waiting > 0 ? (n.batches[0] ?? null) : null;
-  if (batch) {
-    const when = clockWhen(Date.parse(batch.at), tz, nowMs);
-    const people = batch.people;
-    // A batch that names nobody yet (its people are counted as it is planned) is said as the batch, never as "0 people".
-    return {
-      kind: "waiting",
-      words:
-        people > 0
-          ? `${plural(people, "person waits", "people wait")} for your OK · they go ${when}`
-          : `The next batch waits for your OK · it goes ${when}`,
-      act: people > 0 ? `${SEQUENCE_WORDS.approve} the ${people}` : SEQUENCE_WORDS.approve,
-      batchId: batch.id,
-    };
-  }
+  if (batch) return waitingNotice(steps, batch, { tz, nowMs });
+  if (twin)
+    return noticeOf({
+      kind: "twin",
+      words: `${twinLineOf(row)}: “${twin.name}” sends one too`,
+      line: twinLineOf(row),
+      fact: `“${twin.name}” sends one too`,
+      act: SEQUENCE_WORDS.turnOff,
+    });
   if (n.held > 0)
-    return {
+    return noticeOf({
       kind: "held",
       words: `${plural(n.held, "email is", "emails are")} held by the check`,
-      act: null,
-      batchId: null,
-    };
+      line: `${n.held} held by the check`,
+      fact: null,
+      act: SEQUENCE_WORDS.review,
+    });
   if (n.to_send > 0)
-    return {
+    return noticeOf({
       kind: "to_send",
       words: `${plural(n.to_send, "email waits", "emails wait")} for you to send`,
-      act: null,
-      batchId: null,
-    };
+      line: `${n.to_send} for you to send`,
+      fact: "From your own inbox",
+      act: SEQUENCE_WORDS.review,
+    });
   if (n.replies > 0)
-    return {
+    return noticeOf({
       kind: "replies",
       words: `${plural(n.replies, "lead wrote back", "leads wrote back")} · answer them`,
-      act: null,
-      batchId: null,
-    };
+      line: `${n.replies} wrote back`,
+      fact: "Answer them in the Inbox",
+      act: SEQUENCE_WORDS.answer,
+    });
   const refused = steps.find((s) => s.next_words?.status === "rejected");
   if (refused)
-    return {
+    return noticeOf({
       kind: "words",
       words: `WhatsApp did not approve step ${refused.place}'s new words${refused.next_words?.rejected_reason ? `: ${refused.next_words.rejected_reason}` : ""}`,
-      act: SEQUENCE_WORDS.edit,
-      batchId: null,
-    };
+      line: `Step ${refused.place}’s new words turned down`,
+      fact: refused.next_words?.rejected_reason ? `WhatsApp: ${refused.next_words.rejected_reason}` : null,
+      act: `${SEQUENCE_WORDS.edit} step ${refused.place}`,
+      stepId: refused.id,
+    });
   return null;
+}
+
+/**
+ * A one-off's day, in its own tense (the phone review: one that went said "Oct 13 · 8:21 AM, for 3 people" as if to
+ * come): to come, "tomorrow 10:00 AM, to 186 people"; gone, "Went Oct 13 · 8:21 AM, to 3 people"; let go of, "Canceled ·
+ * it was for Oct 13 · 8:21 AM"; failed, "Didn't go · Oct 13 · 8:21 AM".
+ */
+function dateSentence(date: NonNullable<SequenceRowDto["date"]>, tz: string, nowMs: number): string {
+  const at = Date.parse(date.at);
+  const who = plural(date.people, "person", "people");
+  if (date.state === "sent") return `Went ${clockDate(at, tz, nowMs)} · ${clockTime(at, tz)}, to ${who}`;
+  if (date.state === "canceled") return `Canceled · it was for ${clockWhen(at, tz, nowMs)}`;
+  if (date.state === "failed") return `Didn’t go · ${clockWhen(at, tz, nowMs)}`;
+  return `${clockWhen(at, tz, nowMs)}, to ${who}`;
 }
 
 /** What starts a sequence, in a sentence the flow opens with: "The day before each visit, at 9:00 AM". */
 export function sequenceStartsSentence(row: SequenceRowDto, word: AppointmentWord, tz: string, nowMs: number): string {
   const f = row.first;
-  if (row.starts === "date" && row.date)
-    return `${clockWhen(Date.parse(row.date.at), tz, nowMs)}, for ${plural(row.date.people, "person", "people")}`;
+  if (row.starts === "date" && row.date) return dateSentence(row.date, tz, nowMs);
   if (row.starts === "leads") return f?.search_name ? `A lead joins ${f.search_name}` : "A lead joins the list";
   if (row.starts === "list") return listStartsSentence(f?.list_name ?? null, f?.run_hour ?? null);
   return momentStartsSentence(f?.trigger ?? null, f?.run_hour ?? null, word);
@@ -376,7 +666,8 @@ export function sequenceWaitWords(step: Pick<SequenceStepDto, "after_days" | "on
 export function sequenceChannelsWords(channels: readonly string[]): string {
   const WORD: Record<string, string> = { whatsapp: "WhatsApp", sms: "text", email: "email" };
   const named = channels.map((c) => WORD[c] ?? c);
-  if (named.length <= 1) return named[0] ?? "WhatsApp";
+  // None said is none known (a one-off's channels are its sends'): nothing guessed, where "WhatsApp" was said of any.
+  if (named.length <= 1) return named[0] ?? "";
   return `${named.slice(0, -1).join(", ")} or ${named[named.length - 1]}, one each`;
 }
 
