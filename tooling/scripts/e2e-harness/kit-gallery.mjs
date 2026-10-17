@@ -2124,7 +2124,9 @@ export const FAMILIES = [
       "a row with a page of its own, a link that keeps the row's colours with no underline. People's and Leads' phone " +
       "rows draw it (surfaces/people/cells/row-card.tsx); and a row whose first column is its kind, the kit's mark in " +
       "the face's place; and a row with nothing in its first column, its lines from its start, where what the rows " +
-      "are is said around them (as Campaigns' phone list drew each row on its moment's line, until decision 0060).",
+      "are is said around them (as Campaigns' phone list drew each row on its moment's line, until decision 0060). " +
+      "Two rows one after the other, as a list draws them: on a phone a hairline parts them, from under the name, " +
+      "or from a bare row's start.",
     entries: [
       { id: "list-row", html: listRow() },
       { id: "list-row-two", html: listRow({ said: false }) },
@@ -2132,6 +2134,8 @@ export const FAMILIES = [
       { id: "list-row-door", html: listRow({ note: true, door: true }) },
       { id: "list-row-mark", html: listRow({ said: false, mark: true }) },
       { id: "list-row-bare", html: listRow({ bare: true }) },
+      { id: "list-row-list", html: listRow() + listRow({ said: false }) },
+      { id: "list-row-bare-list", html: listRow({ bare: true }) + listRow({ bare: true }) },
     ],
   },
   {

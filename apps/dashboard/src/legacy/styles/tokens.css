@@ -119,6 +119,9 @@
   --row-said-line: 18px; /* what was said, at --text-sm */
   --row-facts: 11.5px; /* the facts under it, and how tall their line is */
   --row-facts-line: 17px;
+  /* Where the hairline between two rows starts: under the name, the face's column clear of it, as a phone's own lists
+     draw theirs (kit.css, the list row; mobile.css, the pages' rows). It ends at the row's far padding. */
+  --row-rule-start: calc(var(--row-pad-x) + var(--row-face) + var(--row-gap));
 
   /* ---------- Radii ---------- */
   --radius-xs: 4px;

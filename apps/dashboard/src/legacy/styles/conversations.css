@@ -380,7 +380,8 @@
   .conversations .cv-list-head {
     padding: 6px 12px 8px;
   }
-  /* The rows straight on the page, no hairline between them and none marked: the open one takes the screen. */
+  /* The rows straight on the page, none marked: the open one takes the screen. Their own border is clear; the hairline
+     between two is mobile.css's, from under the name. */
   .conversations .cv-rows {
     padding: 2px 4px;
   }
