@@ -3664,6 +3664,29 @@ html.legacy-on .cm-pane-sub .bc-run-link {
     margin: 0 var(--row-pad-x) var(--row-pad-y) calc(var(--row-pad-x) + var(--row-face) + var(--row-gap));
   }
 }
+/* On a phone a hairline parts two messages, as it parts every list's rows (mobile.css; kit.css, the list row): over each
+   message but the first, inside its lozenge, from under its title to the row's far padding, and never over the one open,
+   a lozenge of the inset's fill. Only where the row is the phone's (the narrow list above), so it starts under the title. */
+@media (max-width: 900px) {
+  @container cm-list (max-width: 640px) {
+    .msg-row + .msg-row > .msg-row-line {
+      position: relative;
+    }
+    .msg-row + .msg-row > .msg-row-line::after {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: var(--row-rule-start);
+      right: var(--row-pad-x);
+      height: 1px;
+      background: var(--line);
+      pointer-events: none;
+    }
+    .msg-row + .msg-row.is-open > .msg-row-line::after {
+      content: none;
+    }
+  }
+}
 
 /* One message, every channel (step 1): the channels a row says it has, quietly, under its words. */
 .msg-row-channels {
