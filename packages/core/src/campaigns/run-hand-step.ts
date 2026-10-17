@@ -5,19 +5,13 @@
  * written to: the same predicate (outreachRefusalOf). A bounced email is no reason not to call. Nothing is sent, so
  * nothing waits for approval or spends. The run, its handed sends and the steps are written whole by the door.
  */
-import { handStepWords, outreachRefusalOf } from "@chanlytics/contracts";
+import { handStepWords } from "@chanlytics/contracts";
 import { handStepIdFor, reachOutRunIdFor, sendIdFor } from "./reach-out-ids";
+import { followerRefusalOf } from "./reach-out-ports";
 import type { HandStep, HandStepPorts, ReachOutFollower, ReachOutRunOutcome } from "./reach-out-ports";
 
 /** Whether the send door would refuse to write to this lead: then the team is not handed them either. */
-const doorRefuses = (f: ReachOutFollower): boolean =>
-  outreachRefusalOf({
-    leadStage: f.facts.lead_stage,
-    suppressed: f.facts.suppressed,
-    wroteBack: f.facts.wrote_back,
-    away: f.facts.away === true,
-    stopped: f.facts.stopped === true,
-  }) !== null;
+const doorRefuses = (f: ReachOutFollower): boolean => followerRefusalOf(f, { bounced: false }) !== null;
 
 export async function runHandStep(
   ports: HandStepPorts,
@@ -25,7 +19,14 @@ export async function runHandStep(
   cmd: { runFor: string },
 ): Promise<ReachOutRunOutcome> {
   if (step.state !== "running") return { outcome: "off", reason: "paused", planned: 0 };
-  const leads = (await ports.followers(step)).filter((f) => !doorRefuses(f)).slice(0, step.cap_per_run);
+  const followers = await ports.followers(step);
+  // A lead the step refuses for good is passed over, its place ended with why (00455); someone away waits for the day.
+  const passed = followers.flatMap((f) => {
+    const why = followerRefusalOf(f, { bounced: false });
+    return why && why !== "outreach_away" ? [{ lead_id: f.lead_id, why }] : [];
+  });
+  if (passed.length > 0) await ports.passOver(step.root_id, passed);
+  const leads = followers.filter((f) => !doorRefuses(f)).slice(0, step.cap_per_run);
   if (leads.length === 0) return { outcome: "empty", reason: "nobody", planned: 0 };
 
   const names = await ports.businessNames(leads.map((l) => l.lead_id));

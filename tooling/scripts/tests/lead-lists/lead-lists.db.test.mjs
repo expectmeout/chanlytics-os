@@ -688,11 +688,22 @@ test(
     // 00426 gave a lead on a list, before any send, its chain and when it was added (lead-workbench/reach-out-add.db.test.mjs);
     // 00430 says what the lead is and where it came from (kind, source), and nothing else.
     const live = bodyIn(migration("00430"), "create or replace function public.reach_out_lead_timeline(");
-    // 00451 read it from the sequence tables, the ones the old names were views of, and changed nothing else.
+    // 00451 read it from the sequence tables, the ones the old names were views of, and changed nothing else; 00455 says
+    // their place in it (a leave between steps moves no send of theirs), and nothing else.
+    const placed = bodyIn(migration("00455"), "create or replace function public.reach_out_lead_timeline(");
+    assert.equal(liveBody("reach_out_lead_timeline"), placed, "the database runs 00455's");
     assert.equal(
-      liveBody("reach_out_lead_timeline"),
+      placed.replace(
+        "    'can_stop', v_sent and v_lead.reach_out_stopped_at is null,\n" +
+          "    -- Their place in it (00455), the one record of where they stand: a leave between steps moves no send of theirs.\n" +
+          "    'place', (select jsonb_build_object('id', e.id, 'state', e.state, 'why', e.why, 'next_at', e.next_at)\n" +
+          "                from public.sequence_enrollments e\n" +
+          "               where e.tenant_id = p_tenant_id and e.sequence_id = v_root and e.lead_id = v_lead.id\n" +
+          "               order by e.entered_at desc limit 1)\n",
+        "    'can_stop', v_sent and v_lead.reach_out_stopped_at is null\n",
+      ),
       bodyIn(migration("00451"), "create or replace function public.reach_out_lead_timeline("),
-      "the database runs 00451's",
+      "00455's is 00451's with their place",
     );
     assert.equal(
       live.replace(

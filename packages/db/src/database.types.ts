@@ -9367,10 +9367,15 @@ export type Database = {
         }
         Returns: Json
       }
+      sequence_leads_leave: {
+        Args: { p_leads: Json; p_sequence_id: string; p_tenant_id: string }
+        Returns: number
+      }
       sequence_leave: {
         Args: {
           p_decision?: Json
           p_enrollment_ids: string[]
+          p_lead_ids?: string[]
           p_sequence_id: string
           p_tenant_id: string
           p_undo_of?: string

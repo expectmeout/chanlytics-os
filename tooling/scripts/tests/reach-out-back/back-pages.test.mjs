@@ -215,13 +215,16 @@ const hooked = async (searchId) => {
   return got;
 };
 
-test("the open search's lines are read once, and say where each lead stands", async () => {
+/** A lead's place as the Stage cell says it: its group's word, and its line. */
+const placeWords = (p) => (p ? [p.word, p.line].filter(Boolean).join(" · ") : null);
+
+test("the open search's lines are read once, and say where each lead stands, in Sequences' words", async () => {
   const asked = world();
   const ro = await hooked("s1");
   assert.deepEqual(asked, [["lines", "s1"]]);
-  assert.equal(ro.lineOf("l1"), "Written Tue");
-  assert.equal(ro.lineOf("l2"), "Bounced Wed · address dropped");
-  assert.equal(ro.lineOf("elsewhere"), null);
+  assert.equal(placeWords(ro.placeOf("l1")), "In it · sent Tue");
+  assert.equal(placeWords(ro.placeOf("l2")), "Left · bounced");
+  assert.equal(ro.placeOf("elsewhere"), null);
   // No search open, or a search with no reach-out: nothing.
   world();
   assert.equal(await hooked(null), null);
@@ -229,14 +232,14 @@ test("the open search's lines are read once, and say where each lead stands", as
   assert.equal(await hooked("s2"), null);
 });
 
-test("the Stage column sits beside the name and says the lead's line under its stage", async () => {
+test("the Stage column sits beside the name and says the lead's place under its stage", async () => {
   const stage = LEAD_COLUMNS[1];
   assert.equal(stage.key, "stage");
   world();
   const ro = await hooked("s1");
   const row = { id: "l1", cls: "qualified", stage: "nurture", stageLabel: "Contacted" };
   const cell = stage.cell(row, { reachOut: ro });
-  assert.equal(textOf(byTestId(cell, "lead-reach-out-line")), "Written Tue");
+  assert.equal(textOf(byTestId(cell, "lead-reach-out-line")), "In it · sent Tue");
   assert.equal(byTestId(stage.cell(row, {}), "lead-reach-out-line"), null, "no reach-out, no line");
   assert.equal(byTestId(stage.cell({ ...row, cls: "excluded" }, { reachOut: ro }), "lead-reach-out-line"), null);
 });

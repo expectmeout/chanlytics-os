@@ -19,8 +19,17 @@ function _meterTakes(meter: RefObject<HTMLDivElement | null>, now: { held: boole
   type _Its = [
     Holds<Exactly<ComponentProps<typeof Meter>, MeterProps>>,
     Holds<Exactly<MeterProps["size"], "sm" | "md" | "lg" | undefined>>,
-    Holds<Exactly<MeterProps["parts"][number]["tone"], "ok" | "warn" | "rest" | undefined>>,
+    Holds<Exactly<MeterProps["parts"][number]["tone"], "ok" | "read" | "warn" | "rest" | undefined>>,
   ];
+  // A check read rather than seen: ok's green, softer (the lead sheet's fit).
+  Meter({
+    parts: [
+      { share: 3, tone: "ok" },
+      { share: 1, tone: "read" },
+    ],
+    size: "sm",
+    "aria-label": "3 seen · 1 read",
+  });
   // A part at rest: the strong hairline's colour, the kit's own, as the rest of the whole is drawn (a moment's paused share).
   Meter({
     parts: [

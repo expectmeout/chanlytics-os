@@ -2777,6 +2777,14 @@ type HandItem = {
 /** What a hand step's run reads and writes, over the database on the edge and arrays in tests. */
 interface HandStepPorts {
     followers(step: FollowedStep): Promise<ReachOutFollower[]>;
+    /**
+     * The leads a later step refuses, passed over (00455 sequence_leads_leave): each one's place in the chain ends with
+     * why, so the record says where they went, never "in it" for good. How many left.
+     */
+    passOver(rootId: string, leads: {
+        lead_id: string;
+        why: string;
+    }[]): Promise<number>;
     /** The businesses' names, by lead id: what the team's step calls each. */
     businessNames(leadIds: string[]): Promise<Map<string, string>>;
     /** The run, a handed send per lead and each lead's step, written whole: how many made, how many it had already. */
@@ -2872,6 +2880,14 @@ interface ReachOutRunPorts {
     chainState(rootId: string): Promise<"none" | "waiting" | "approved">;
     audience(step: ReachOutStep): Promise<ReachOutLead[]>;
     followers(step: FollowedStep): Promise<ReachOutFollower[]>;
+    /**
+     * The leads a later step refuses, passed over (00455 sequence_leads_leave): each one's place in the chain ends with
+     * why, so the record says where they went, never "in it" for good. How many left.
+     */
+    passOver(rootId: string, leads: {
+        lead_id: string;
+        why: string;
+    }[]): Promise<number>;
     /**
      * The mailboxes the step writes from (contracts reachOutWritesFrom), and those named in `also` (a later step's
      * leads' own, whichever the step names), each with its day's share now (0 for one that does not send today) and the

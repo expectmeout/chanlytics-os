@@ -292,8 +292,8 @@ test.describe("Leads on a real workspace", () => {
     // and no navigation for Playwright to read: what the nightly proves is that
     // the key reaches a lead with a number to dial, and that the peek shows it.
     // Stored canonical and dialled as stored, but drawn as the app writes numbers everywhere else (#770:
-    // toLeadPeekVM's reach.phone.value is formatPhoneDisplay's). The number and its ways to call are the Reach tab's.
-    await peek.getByTestId("lead-sheet-tab-reach").click();
+    // toLeadPeekVM's reach.phone.value is formatPhoneDisplay's). The number and its ways to call are the Contact tab's.
+    await peek.getByTestId("lead-sheet-tab-contact").click();
     await expect(peek.getByTestId("peek-phone-value")).toHaveText(/^\+1 \(512\) 555-010\d$/);
     await expect(peek.getByTestId("peek-act-call")).toBeEnabled();
     await page.keyboard.press("Escape");

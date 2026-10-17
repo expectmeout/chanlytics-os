@@ -78,7 +78,6 @@
   "sequence_create()": 2,
   "sequence_discard()": 1,
   "sequence_enrollments_leave()": 2,
-  "sequence_return()": 1,
   "sequence_sends_move_enrollment()": 1,
   "sequence_steps_first_gone()": 2,
   "sequence_steps_gone_ends_the_wait()": 1,

@@ -10,6 +10,11 @@
  * chain's row. The mailboxes and the booking link are Setup's and Settings' reads: until they are in, the sheet says it is
  * reading them and Start waits, never "none". Every sentence is contracts' (`reachOuts.words`); every act goes through
  * `reachOuts`. Never a fetch here. Its parts are sheet-fields.tsx and sheet-plan.tsx, its state sheet-draft.ts.
+ *
+ * Opened by Sequences for a lead (the lead sheet's hand-off, 17 Oct 2026), it writes a sequence on a list of its own: a new
+ * one, or a version of one, its steps, waits and mailboxes copied. The list is made as Start is pressed, holding the lead
+ * (lead_search_choose), so a sheet left without starting leaves nothing behind; until then who gets it is said by name,
+ * and there is no business of the list's to preview.
  */
 import { useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
@@ -31,7 +36,7 @@ import { UnsavedAsk } from "../../kit/record/work";
 import type { UnsavedWork } from "../../kit/record/work";
 import { useSurface } from "../../use-surface";
 import { useReachOutDraft } from "./sheet-draft";
-import { RoThen, RoWhat, RoWho } from "./sheet-fields";
+import { RoThen, RoWhat, RoWho, RoWhoNewList } from "./sheet-fields";
 import { RoBefore, RoFrom, RoPace } from "./sheet-plan";
 import { reachOuts } from "./surface";
 
@@ -215,22 +220,27 @@ interface ComposeProps {
   ask: (index: number) => ReachOutPreviewInput;
   reachN: number;
   stale: { key: string };
+  onList: SheetProps["onList"];
 }
 
 /** The sheet's parts, in the canvas's order. */
 function composeParts(p: ComposeProps) {
-  const { W, st, search, facts, ask, reachN, stale } = p;
+  const { W, st, search, facts, ask, reachN, stale, onList } = p;
   const { draft, setDraft } = st;
   const { issues, first, pace, mailboxes, providers, reads, unread, ownerSends } = facts;
   return (
     <div className="pb-compose ro-compose">
-      <RoWho
-        W={W}
-        search={search}
-        reach={st.reach}
-        include={draft.include_unconfirmed}
-        onInclude={(v) => setDraft((d) => ({ ...d, include_unconfirmed: v }))}
-      />
+      {onList ? (
+        <RoWhoNewList W={W} leadName={onList.leadName} version={onList.from ? onList.from.name : null} />
+      ) : (
+        <RoWho
+          W={W}
+          search={search}
+          reach={st.reach}
+          include={draft.include_unconfirmed}
+          onInclude={(v) => setDraft((d) => ({ ...d, include_unconfirmed: v }))}
+        />
+      )}
       <RoWhat
         W={W}
         draft={draft}
@@ -267,7 +277,14 @@ function composeParts(p: ComposeProps) {
         onPick={(ids) => setDraft((d) => ({ ...d, mailbox_ids: ids }))}
         onOwner={(on) => setDraft((d) => ({ ...d, owner_sends: on }))}
       />
-      <RoBefore W={W} ask={ask} of={W.reachOutPreviewOf(reachN)} stale={stale} />
+      {onList ? (
+        <section className="pb-sec" data-testid="ro-before-new">
+          <span className="pb-sec-k">{W.REACH_OUT_SHEET_PARTS.before}</span>
+          <p className="pb-when">{W.REACH_OUT_NEW_LIST_WORDS.before}</p>
+        </section>
+      ) : (
+        <RoBefore W={W} ask={ask} of={W.reachOutPreviewOf(reachN)} stale={stale} />
+      )}
     </div>
   );
 }
@@ -284,6 +301,11 @@ interface SheetProps {
    * then close it, which a close that is a step Back would undo.
    */
   onGo?: (route: string) => void;
+  /**
+   * A list of its own, made as Start is pressed (a new sequence for a lead, or a version): the leads it holds and how they
+   * are said, and the sequence it copies. `search` is then the list it will be, by name, with no id yet.
+   */
+  onList?: { leadIds: readonly string[]; leadName: string; name: string; from: ReachOutChainDto | null } | null;
 }
 
 /**
@@ -291,9 +313,10 @@ interface SheetProps {
  * a save the server took (the opener reads the search again behind it). Saved, the sheet stays and says what its first
  * run did (R14), with Close and the one door on; `onClose` closes it.
  */
-export function ReachOutSheet({ search, chain = null, includeUnconfirmed = false, onClose, onDone, onGo }: SheetProps) {
+export function ReachOutSheet(props: SheetProps) {
+  const { search, chain = null, includeUnconfirmed = false, onClose, onDone, onGo, onList = null } = props;
   const W = reachOuts.words;
-  const st = useReachOutDraft(W, { search, chain, includeUnconfirmed, onClose });
+  const st = useReachOutDraft(W, { search, chain, includeUnconfirmed, onClose, onList });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState<Saved | null>(null);
@@ -301,7 +324,14 @@ export function ReachOutSheet({ search, chain = null, includeUnconfirmed = false
   const { draft } = st;
   const facts = sheetFacts(W, draft, settings);
   const { unread, pace, ready } = facts;
-  const reachN = st.reach ? (draft.include_unconfirmed ? st.reach.with_unconfirmed : st.reach.ready) : 0;
+  // A list of its own holds its leads once Start is pressed: who it is for is the count until then.
+  const reachN = onList
+    ? onList.leadIds.length
+    : st.reach
+      ? draft.include_unconfirmed
+        ? st.reach.with_unconfirmed
+        : st.reach.ready
+      : 0;
   const say = error
     ? { tone: "danger", text: error }
     : {
@@ -328,7 +358,14 @@ export function ReachOutSheet({ search, chain = null, includeUnconfirmed = false
     if (!ready || busy) return;
     setBusy(true);
     setError(null);
-    const r = chain ? await reachOuts.update(chain.root_id, body) : await reachOuts.save(body);
+    // A list of its own is made first, holding its leads, and the sequence is written on it.
+    const made = onList ? await reachOuts.lists.chooseLeads({ name: body.name, lead_ids: [...onList.leadIds] }) : null;
+    if (made && !made.ok) {
+      setBusy(false);
+      return setError(made.message || "");
+    }
+    const on = made && made.ok ? { ...body, search_id: made.data.search_id } : body;
+    const r = chain ? await reachOuts.update(chain.root_id, on) : await reachOuts.save(on);
     setBusy(false);
     if (!r || !r.ok) return setError((r && r.message) || "");
     st.work.done();
@@ -360,7 +397,7 @@ export function ReachOutSheet({ search, chain = null, includeUnconfirmed = false
         />
       }
     >
-      {saved ? <RoSaved saved={saved} /> : composeParts({ W, st, search, facts, ask, reachN, stale })}
+      {saved ? <RoSaved saved={saved} /> : composeParts({ W, st, search, facts, ask, reachN, stale, onList })}
     </RecordSheet>
   );
 }

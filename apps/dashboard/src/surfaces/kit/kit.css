@@ -3764,6 +3764,10 @@ a.list-row {
 .meter-ok {
   background: var(--ok);
 }
+.meter-read {
+  background: var(--ok);
+  opacity: 0.55;
+}
 .meter-warn {
   background: var(--warn);
 }

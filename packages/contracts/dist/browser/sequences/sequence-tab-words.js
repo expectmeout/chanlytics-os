@@ -6,7 +6,9 @@ import {
   holdWords,
   isReachOutHold
 } from "../reach-out/reach-out-words.js";
+import { REPLY_INTENT_WORDS, isReplyIntent } from "../reach-out/reach-out-replies.js";
 import { REPORT_MIN_N } from "../reports/report-tiles.js";
+import { addressOf } from "../activity/record-address.js";
 import { clockHistoryDay, clockTime, clockWhen, zoneDayKey } from "../shared/clock.js";
 import { pct } from "../shared/numbers.js";
 import { plural } from "../shared/words.js";
@@ -56,6 +58,10 @@ export const SEQUENCE_NEEDS_WORDS = {
   /** Leads who wrote back, answered in the Inbox (its threads that answered the sequence). */
   wroteBack: "Wrote back",
   inbox: "Inbox",
+  /** A reply's own door: its thread in the Inbox, where the answer is written. */
+  answer: "Answer",
+  /** What they wrote, read: "Wrote back · a question". */
+  said: (intent) => `Wrote back \xB7 ${intent}`,
   oneByOne: "Send them one by one",
   reading: "Reading what it holds\u2026",
   /** What a failed read could not read: "Couldn't read this batch's emails". */
@@ -104,7 +110,21 @@ export function peopleNeedsOf(rows, at) {
   );
   const unread = [...new Set(handed.filter((r) => !r.draft && r.batch_id).map((r) => r.batch_id ?? ""))];
   const asIs = held.filter((h) => LEAD_HOLDS.has(h.reason) && h.doors.some(([d]) => d === "include"));
-  return { held, asIs, toSend, unread };
+  const replied = rows.filter((r) => r.group === "replied");
+  const wroteBack = replied.length > 0 || rows.some((r) => r.reply !== void 0) ? replied.map((r) => {
+    const intent = r.reply?.intent ?? r.why;
+    return {
+      key: r.lead_id ?? r.contact_id ?? r.enrollment_id ?? "",
+      name: r.name ?? SEQUENCE_PEOPLE_WORDS.someone,
+      said: SEQUENCE_NEEDS_WORDS.said(
+        isReplyIntent(intent) ? REPLY_INTENT_WORDS[intent] : REPLY_INTENT_WORDS.other
+      ),
+      summary: r.reply?.summary ?? null,
+      answer: r.reply?.conversation_id ? addressOf({ kind: "conversation", id: r.reply.conversation_id }) : null,
+      to: r.contact_id ? addressOf({ kind: "person", id: r.contact_id }) : r.lead_id ? addressOf({ kind: "lead", id: r.lead_id }) : null
+    };
+  }) : null;
+  return { held, asIs, toSend, unread, wroteBack };
 }
 export const SEQUENCE_PEOPLE_WORDS = {
   nobody: "Nobody is in it yet.",

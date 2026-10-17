@@ -460,7 +460,8 @@ function runPorts() {
     rejected_reason: null,
   };
   // The run, its people, its job and its decision, whole (00381): the run's id with the decision's.
-  const answer = { message: [row], alreadyRan: false, assemble: { id: "b1", decisionId: "d1" } };
+  // Who the sequence has reached already (db sequenceReached, #1691): nobody here, so the list goes to everyone on it.
+  const answer = { message: [row], alreadyRan: false, assemble: { id: "b1", decisionId: "d1" }, reached: new Set() };
   const ports = new Proxy(
     {},
     {

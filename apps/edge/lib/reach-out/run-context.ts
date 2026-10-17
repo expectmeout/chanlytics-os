@@ -9,6 +9,7 @@ import {
   emitEvent,
   handRun,
   leadNamesByIds,
+  leadsLeaveSequence,
   outreachModeOf,
   reachOutAudience,
   reachOutFedByOf,
@@ -94,6 +95,8 @@ const laterStepPorts = (db: Db, tenantId: string): HandStepPorts => ({
     }),
   businessNames: (leadIds) => leadNamesByIds(db, tenantId, leadIds),
   handRun: (p) => handRun(db, { tenantId, ...p }),
+  // The leads it refuses for good, passed over: their places end with why (00455).
+  passOver: (rootId, leads) => leadsLeaveSequence(db, { tenantId, sequenceId: rootId, leads }),
 });
 
 /**

@@ -57,6 +57,24 @@ export function reachOutDraftOf(p) {
     ]
   };
 }
+export function reachOutVersionDraftOf(chain, name, signedBy) {
+  const d = reachOutDraftOf({ chain, searchName: chain.name, signedBy });
+  return { ...d, name, steps: d.steps.map((s) => ({ ...s, id: null })) };
+}
+export const REACH_OUT_NEW_LIST_WORDS = {
+  title: "A list of its own",
+  goesOn: (lead) => `${lead} goes on it when you start`,
+  version: (name) => `A version of \u201C${name}\u201D: the same steps, waits and mailboxes. Change what's different.`,
+  /** A version's name until the owner names it. */
+  nameOf: (sequence, lead) => `${sequence}, for ${lead}`,
+  /** A new sequence's name for a lead, until the owner names it. */
+  forLead: (lead) => `For ${lead}`,
+  before: "Each lead's first email is written for them as their batch is planned; you see it before it goes.",
+  /** Back on the lead, once it started: the name it was given may not be the one it opened with, so the lead's is said. */
+  started: (lead) => `Started: ${lead} is on its own list`,
+  startedOn: (list) => `Started on \u201C${list}\u201D`,
+  someone: "this lead"
+};
 export function reachOutMayAddStep(d) {
   return d.steps.length < REACH_OUT_STEPS_MAX && !d.steps[d.steps.length - 1]?.hand;
 }

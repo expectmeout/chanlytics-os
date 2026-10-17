@@ -121,6 +121,16 @@ export async function readSequence(t: ToolContext, input: { sequence_id: string 
         stands: PEOPLE_GROUP_WORDS[r.group],
         ...(r.why || r.hold_detail ? { why: r.hold_detail ?? r.why } : {}),
       })),
+    // Who wrote back and waits for an answer (00455), answered in their thread: the Inbox's, never a sequence's.
+    wrote_back: people.rows
+      .filter((r) => r.group === "replied")
+      .slice(0, PEOPLE_CAP)
+      .map((r) => ({
+        name: r.name,
+        ...(r.reply?.intent ? { read_as: r.reply.intent } : {}),
+        ...(r.reply?.summary ? { said: r.reply.summary } : {}),
+        ...(r.reply?.conversation_id ? { conversation_id: r.reply.conversation_id } : {}),
+      })),
     in_it: inIt.map((r) => ({
       name: r.name,
       stands: PEOPLE_GROUP_WORDS[r.group],

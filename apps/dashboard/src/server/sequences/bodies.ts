@@ -51,10 +51,16 @@ export type StepChangeBody = z.infer<typeof STEP_CHANGE_BODY>;
 export const STEP_WORDS_BODY = z.strictObject({ template_id: anId("Which message?"), params: PARAMS.optional() });
 export type StepWordsBody = z.infer<typeof STEP_WORDS_BODY>;
 
-/** POST sequences/:id/leave: the people (their places in it) taken out. */
-export const LEAVE_BODY = z.strictObject({
-  enrollment_ids: z.array(anId("Who leaves?")).min(1, "Who leaves?").max(500, "At most 500 at once."),
-});
+/**
+ * POST sequences/:id/leave: the people taken out, by their places in it, and leads on its list that nothing has been
+ * planned for yet, by their ids (00455): at least one of the two.
+ */
+export const LEAVE_BODY = z
+  .strictObject({
+    enrollment_ids: z.array(anId("Who leaves?")).max(500, "At most 500 at once.").default([]),
+    lead_ids: z.array(anId("Which lead?")).max(500, "At most 500 at once.").default([]),
+  })
+  .refine((b) => b.enrollment_ids.length + b.lead_ids.length > 0, { message: "Who leaves?" });
 export type LeaveBody = z.infer<typeof LEAVE_BODY>;
 
 /** A step after the first, as a new sequence names it: its wait, what must still hold, its message and values. */
