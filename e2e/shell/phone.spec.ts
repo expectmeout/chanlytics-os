@@ -602,6 +602,56 @@ test.describe("Phone shell on a real workspace", () => {
   });
 
   /**
+   * A hairline between two rows (16 Oct 2026). The rows stood on the page as lozenges with nothing between them, and
+   * on a phone the eye had nothing to follow from a name to its time or its state (Ruben: "a divider between each row
+   * to make it easier to follow, a subtle one"). Every list draws one line, the kit's row's (kit.css) and the pages'
+   * own rows' (mobile.css): none over a list's first row, and over each one after it from under the name to the row's
+   * far padding, a hairline, in one colour on every list.
+   */
+  test("a hairline parts two rows of every list, from under the name, in one colour", async ({ page }) => {
+    type Rule = { first: string; left: number; right: number; height: number; colour: string; name: number };
+    const rules: Record<string, Rule> = {};
+    const read = async (hash: string, rowSel: string, nameSel: string, label: string) => {
+      await page.goto(`/#/${hash}`);
+      await page.waitForLoadState("networkidle");
+      // The first two rows of the list that stand one after the other: a group's head between two parts them itself.
+      const rule = await page.locator(rowSel).evaluateAll((els, name) => {
+        const at = els.findIndex((el, i) => els[i + 1]?.previousElementSibling === el);
+        if (at < 0) return null;
+        const row = els[at + 1];
+        const line = getComputedStyle(row, "::after");
+        const words = row.querySelector(name);
+        return {
+          first: getComputedStyle(els[0], "::after").content,
+          left: Math.round(Number.parseFloat(line.left)),
+          right: Math.round(Number.parseFloat(line.right)),
+          height: Number.parseFloat(line.height),
+          colour: line.backgroundColor,
+          name: words ? Math.round(words.getBoundingClientRect().left - row.getBoundingClientRect().left) : -1,
+        };
+      }, nameSel);
+      if (rule) rules[label] = rule; // a list of one row has nothing to part
+    };
+    await read("inbox", ".ix-thread", ".ix-thread-who", "the Inbox");
+    await read("conversations", ".cv-row", ".cv-row-who", "Conversations");
+    await read("live", ".lm-row", ".lm-row-who", "Live");
+    await read("clients", ".pl-table tbody tr.pl-card-row", ".list-row-name", "People");
+    await read("clients/leads", ".pl-table tbody tr.pl-card-row", ".list-row-name", "Leads");
+    await read("campaigns", ".sq-group > .list-row", ".list-row-name", "Sequences");
+    const seen = Object.entries(rules);
+    test.skip(seen.length === 0, "this workspace has no list of two rows");
+    const [first, firstRule] = seen[0];
+    for (const [label, rule] of seen) {
+      expect(rule.first, `${label}'s first row has no line over it`).toBe("none");
+      expect(rule.left, `${label}'s line starts under the name`).toBe(rule.name);
+      expect(rule.right, `${label}'s line ends at --row-pad-x`).toBe(16);
+      expect(rule.height, `${label}'s line is a hairline`).toBe(1);
+      expect(rule.colour, `${label}'s line is ${first}'s colour`).toBe(firstRule.colour);
+      expect(rule.colour, `${label}'s line is drawn`).not.toBe("rgba(0, 0, 0, 0)");
+    }
+  });
+
+  /**
    * One strip for every page's views (25 Sep). On a phone the Inbox's and People's tabs stood in a strip 4px taller
    * than Campaigns', 2px apart where Campaigns' were 4px, with their words a pixel above the middle and the strip's
    * side at 12px where the rows' gutter is 16; and Campaigns' underline was ink where theirs is the accent. Ruben kept
