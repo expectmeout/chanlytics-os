@@ -5,7 +5,7 @@
   "campaigns": "broadcasts channels playbooks reach_outs sequences settings workspace",
   "campaigns/ads": "settings",
   "campaigns/broadcasts": "broadcasts playbooks settings",
-  "campaigns/home": "broadcasts playbooks",
+  "campaigns/home": "broadcasts playbooks reach_outs",
   "campaigns/parts": "broadcasts channels playbooks settings",
   "campaigns/playbooks": "playbooks settings",
   "campaigns/reach-out": "broadcasts reach_outs settings",

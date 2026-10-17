@@ -27,8 +27,6 @@ export function sequenceLandingOf(route) {
     if (param === "new:every") return newSequenceRoute();
     const on = /^new:moment:([^:/]+)$/.exec(param);
     if (on?.[1]) return newSequenceRoute(on[1]);
-    const edit = /^new:edit:([^:/]+)$/.exec(param);
-    if (edit?.[1]) return sequenceRoute(edit[1]);
   }
   if (root === "broadcasts" && param === "") return SEQUENCES_ROUTE;
   const run = root === "broadcasts" && rest === void 0 ? /^run:([^:/]+)$/.exec(param) : null;

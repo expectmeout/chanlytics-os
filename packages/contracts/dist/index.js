@@ -17294,7 +17294,9 @@ var LIFECYCLE_WORDS = {
       what: "who and what you can send to",
       body: "Nothing goes out until it reads. Everything else here is current.",
       surface: "broadcasts"
-    }
+    },
+    // A reach-out's change opens on its chain, which the reach-outs read holds: said where it could not be, with its Retry.
+    chainFailed: { what: "your reach-out", body: "Its sheet opens once it reads.", surface: "reach_outs" }
   },
   phone: { moments: "Moments" },
   // The channels a campaign goes by: the row's word in the drawer, and what a mark that waits says of itself.
@@ -18019,8 +18021,6 @@ function sequenceLandingOf(route) {
     if (param === "new:every") return newSequenceRoute();
     const on = /^new:moment:([^:/]+)$/.exec(param);
     if (on?.[1]) return newSequenceRoute(on[1]);
-    const edit = /^new:edit:([^:/]+)$/.exec(param);
-    if (edit?.[1]) return sequenceRoute(edit[1]);
   }
   if (root === "broadcasts" && param === "") return SEQUENCES_ROUTE;
   const run = root === "broadcasts" && rest === void 0 ? /^run:([^:/]+)$/.exec(param) : null;
@@ -53602,8 +53602,8 @@ var PREFETCH_READS = {
   // read, which holds the messages a step may send and the business's name its preview is filled with (ROUTE_DRAWS).
   "campaigns/sequences": ["sequences", "settings", "team", "policies", "templates?all=1"],
   // The composer over Sequences' list (`campaigns/new…`, ROUTE_DRAWS): Send once, made of Sent's runs and who they reach,
-  // the channels read and the settings read, which holds the messages it offers. Write to leads reads its searches as it is
-  // chosen. Each surface's first reads.
+  // the channels read and the settings read, which holds the messages it offers; and the reach-outs' chains a change to one
+  // opens on. Write to leads reads its searches as it is chosen. Each surface's first reads.
   "campaigns/new": [
     "sequences",
     "channels",
@@ -53611,6 +53611,7 @@ var PREFETCH_READS = {
     "broadcasts",
     "contacts",
     "segments",
+    "reach-outs",
     "team",
     "policies",
     "templates?all=1"

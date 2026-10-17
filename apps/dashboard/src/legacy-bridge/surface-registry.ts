@@ -238,9 +238,9 @@ export const ROUTE_DRAWS: Record<string, readonly string[]> = {
   campaigns: ["settings"],
   // The composer Campaigns opens over Sequences (`campaigns/new…`, home/sheets.tsx): Send once, made of Sent's runs and who
   // they reach (the broadcasts); its messages of the templates, which are the settings read's, the one read of them
-  // (surfaces/offered-templates.ts); and the number they go out on, the channels read. Write to leads reads its searches
-  // itself, as it is chosen.
-  "campaigns/new": ["broadcasts", "settings", "channels"],
+  // (surfaces/offered-templates.ts); the number they go out on, the channels read; and the reach-outs' chains a change to
+  // one opens on (`new:edit:<root>`). Write to leads reads its searches itself, as it is chosen.
+  "campaigns/new": ["broadcasts", "reach_outs", "settings", "channels"],
   // A message in its drawer over Sequences (`campaigns/message:<name>`): the playbooks surface the sheets wait for, whose
   // library names the call's text, the settings read's templates its pane is drawn from, and the channels read's numbers.
   "campaigns/message": ["playbooks", "settings", "channels"],

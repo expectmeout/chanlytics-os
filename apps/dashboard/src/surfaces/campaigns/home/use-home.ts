@@ -2,7 +2,7 @@
  * What Campaigns' sheets read and how they move (sheets.tsx; the home they stood over went with decision 0060's S6): the
  * broadcasts the send screen is made of, read through the seam while the composer stands; and the address, which opens
  * the composer or a message. A moment's sequence is made in New sequence (the closed-loop audit of 17 Oct 2026, G), so
- * the composer no longer reads the playbooks, Campaigns' own 30 days or the reach-outs' chains.
+ * the composer no longer reads the playbooks or Campaigns' own 30 days; the reach-outs' chains it reads for a change to one.
  *
  * A real workspace draws its own; a demo session draws the sample the Broadcasts page drew. Not read yet is undefined, and
  * one that could not be read is null and says so (the seam's own status, `useSurfaceFailed`, which the shell's route gate
@@ -14,6 +14,7 @@ import { demoSession, navigate, replaceRoute } from "../../legacy-verbs";
 import { useSurface, useSurfaceFailed } from "../../use-surface";
 import { broadcastsSample } from "../broadcasts/sample";
 import type { BroadcastsSurface } from "../broadcasts/surface";
+import type { ReachOutsSurface } from "../reach-out/surface";
 import type { HomeAddress } from "./address";
 
 /** The broadcasts the send screen is made of: undefined before they are read, null where they could not be. */
@@ -23,6 +24,14 @@ export function useComposerData(open: boolean): { broadcasts: BroadcastsSurface 
   // A demo session's sample, made once for the page's life, and only once the composer is asked for.
   const [sample] = useState(() => (open && demoSession() ? broadcastsSample() : null));
   return { broadcasts: live ?? sample ?? (failed ? null : undefined) };
+}
+
+/**
+ * The reach-outs' chains, for a change to one: undefined before they are read, null where they could not be (the surface
+ * publishes its failure as null: reach-out/surface.ts).
+ */
+export function useChains(): ReachOutsSurface | undefined {
+  return useSurface("reach_outs");
 }
 
 /**

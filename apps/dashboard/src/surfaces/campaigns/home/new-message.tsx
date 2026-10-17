@@ -7,7 +7,8 @@
  *
  * Every time a moment comes went (the closed-loop audit of 17 Oct 2026, G): a moment's sequence is made in New sequence
  * (sequences/new.tsx), on the moment a door asks for, and changed on its own record. Its addresses land there (contracts
- * sequenceLandingOf).
+ * sequenceLandingOf). A reach-out's change (`new:edit:<root>`) is the reach-out's own sheet (sheets.tsx); this sheet only
+ * says so while the chains it opens on are read, or that they could not be.
  *
  * The address says what is open (`campaigns/new`, `new:to:<audience>`, `new:leads`), so a "message these people" lands on
  * the audience it named. The send screen draws nothing until the broadcasts it is made of are read, and says so (it
@@ -20,6 +21,7 @@ import { BroadcastSend } from "../broadcasts/broadcasts-page";
 import type { Flash } from "../broadcasts/page/types";
 import type { BroadcastsSurface } from "../broadcasts/surface";
 import { WriteToLeads } from "../reach-out/sources";
+import type { ReachOutsSurface } from "../reach-out/surface";
 import type { ReachOutStart } from "../reach-out/sources";
 import type { HomeAddress } from "./address";
 import { HomeFailed, HomeReading } from "./failed";
@@ -32,13 +34,15 @@ interface NewMessageProps {
   compose: Compose | null;
   /** The broadcasts: undefined before they are read, null where they could not be. */
   broadcasts: BroadcastsSurface | null | undefined;
+  /** The reach-outs' chains a change waits on: undefined before they are read, null where they could not be. */
+  chains: ReachOutsSurface | undefined;
   /** The sheets' toast host: it stays while the sheet closes over what a send says. */
   flash: Flash;
   onClose: () => void;
   /** The send screen's door to where their yes is got: the sheet's address is replaced by the section's, never closed past. */
   onYes: (route: string) => void;
   /** The choice at the head: Send once or Write to leads (the address is replaced, never pushed). */
-  onKind: (mode: Compose["mode"]) => void;
+  onKind: (mode: "once" | "leads") => void;
   /** Write to leads' search, chosen: the page opens the reach-out sheet over it in this sheet's place. */
   onWrite: (start: ReachOutStart) => void;
 }
@@ -60,10 +64,24 @@ function SendOnce({ compose, broadcasts, flash, onClose, onYes }: NewMessageProp
   return <HomeFailed failed={LIFECYCLE_WORDS.compose.failed} testid="cmh-composer-failed" />;
 }
 
+/** A reach-out's change while the chains it opens on are out, or could not be read: its own sheet takes over once they are. */
+function ChainWaiting({ chains }: { chains: ReachOutsSurface | undefined }) {
+  if (chains === undefined) return <HomeReading testid="cmh-composer-reading" />;
+  return chains === null ? (
+    <HomeFailed failed={LIFECYCLE_WORDS.compose.chainFailed} testid="cmh-composer-failed" />
+  ) : null;
+}
+
 export function NewMessage(p: NewMessageProps) {
   const compose = useKept(p.compose);
   if (compose === null) return null;
   const W = LIFECYCLE_WORDS.compose;
+  if (compose.mode === "change")
+    return (
+      <PaneSheet open={p.compose !== null} title={W.edit} onClose={p.onClose} wide testid="cmh-composer">
+        <ChainWaiting chains={p.chains} />
+      </PaneSheet>
+    );
   return (
     <PaneSheet
       open={p.compose !== null}

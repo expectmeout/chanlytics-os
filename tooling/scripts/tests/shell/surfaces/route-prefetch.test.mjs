@@ -652,15 +652,15 @@ test("what the head starts for a page is what its surfaces ask for first, no mor
   // What a page draws on its first screen from another page's surface, started with its own: Today's strip (the next
   // visit, the next opening) is the calendar's weeks, which the frame reads right after Today's own (ROUTE_DRAWS);
   // Campaigns, Sequences' list, draws the settings read beside it as Sequences does, and the sheets it opens over the list
-  // draw theirs at their own addresses: the composer Sent's runs and the settings read, which holds the templates (the one
-  // read of them, task 3.3), a message the playbooks' read and the settings read; Sent's sheets stand beside Sequences' list (decision 0060,
+  // draw theirs at their own addresses: the composer Sent's runs, the reach-outs' chains a change opens on and the settings
+  // read, which holds the templates (the one read of them, task 3.3), a message the playbooks' read and the settings read; Sent's sheets stand beside Sequences' list (decision 0060,
   // D3); and the Calendar's campaign marks are their own span's read, started beside the board's (the Calendar's lane C).
   // And the channels read (surfaces/channels/surface.ts), which Live, both composers and the Library are made of: the one read
   // of the numbers, started with the page's own.
   const alsoDrawn = {
     today: ["calendar"],
     campaigns: ["settings"],
-    "campaigns/new": ["broadcasts", "settings", "channels"],
+    "campaigns/new": ["broadcasts", "reach_outs", "settings", "channels"],
     "campaigns/message": ["playbooks", "settings", "channels"],
     "campaigns/sequences": ["settings"],
     calendar: ["calendar_runs"],
@@ -681,7 +681,7 @@ test("what the head starts for a page is what its surfaces ask for first, no mor
   }
   // Campaigns' landing draws none of its sheets' surfaces: a landing reads Sequences' alone (the phone review's Reads on landing).
   // And the composer draws no moment's since its Every time went (the closed-loop audit of 17 Oct 2026, G).
-  for (const k of ["playbooks", "reach_outs"])
+  for (const k of ["playbooks", "campaign_results"])
     for (const param of ["new", "new:leads", "new:to:list-1"])
       assert.ok(!registry.routeDrawsFor("campaigns", param).includes(k), `campaigns/${param} draws no ${k}`);
   for (const k of ["playbooks", "broadcasts", "reach_outs"])

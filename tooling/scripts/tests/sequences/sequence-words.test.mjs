@@ -241,16 +241,16 @@ test("an older address lands on what it names: the home and Sent's list on Seque
   assert.equal(sequenceLandingOf("campaigns/moment:s1"), "campaigns/sequences/s1");
   assert.equal(sequenceLandingOf("campaigns/moment:s1:people"), "campaigns/sequences/s1/people");
   // The composer's Every time went (the closed-loop audit of 17 Oct 2026, G): its addresses, in a bookmark or an old
-  // Ask card, land on New, on New on that moment, and on the sequence being changed.
+  // Ask card, land on New, and on New on that moment. A change (`new:edit:<root>`) stays: it is a reach-out's sheet.
   assert.equal(sequenceLandingOf("campaigns/new:every"), "campaigns/sequences/new");
   assert.equal(sequenceLandingOf("campaigns/new:moment:quiet_30"), "campaigns/sequences/new:moment:quiet_30");
-  assert.equal(sequenceLandingOf("campaigns/new:edit:s1"), "campaigns/sequences/s1");
   for (const stays of [
     "campaigns/new",
     "campaigns/new:to:list-1",
     "campaigns/new:leads",
     "campaigns/new:moment:",
     "campaigns/new:edit:",
+    "campaigns/new:edit:s1",
     "campaigns/message:come_back",
     "campaigns/ads",
     "campaigns/sequences/s1",

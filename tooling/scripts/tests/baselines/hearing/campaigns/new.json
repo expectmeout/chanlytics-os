@@ -1,7 +1,7 @@
 {
   "family": "campaigns/new",
   "route": "campaigns/new",
-  "owns": "broadcasts(billing channel facts list person rules visit) sequences settings",
+  "owns": "broadcasts(billing channel facts list person rules visit) reach_outs sequences settings",
   "notices": {
     "messages INSERT": "conversations inbox sequences today · 11 routes",
     "messages UPDATE sent": "conversations inbox · 5 routes",

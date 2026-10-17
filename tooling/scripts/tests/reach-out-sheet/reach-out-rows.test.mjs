@@ -6,8 +6,9 @@
  *
  * - Campaigns' sheets over Sequences (home/sheets.tsx; the home and its drawer went in decision 0060's S6, a chain being a
  *   sequence to leads there): Write to leads hands its search to them, which close New message and open the reach-out's
- *   sheet in its place. A chain's change (`campaigns/new:edit:<root>`) lands on its sequence since the composer's Every
- *   time went (the closed-loop audit of 17 Oct 2026, G; contracts sequenceLandingOf).
+ *   sheet in its place; a chain's change (`campaigns/new:edit:<root>`, a sequence to leads' step's Edit) is its own sheet,
+ *   and waits on the reach-outs' read; an id that is no chain's, once they are read, lands on its sequence (the composer's
+ *   Every time went: the closed-loop audit of 17 Oct 2026, G).
  * - Templates: a chain's emails are messages in the Templates list (reach-out-email-message.test.mjs: their rows, their
  *   pane and its editor, counted by contracts' emailTemplateRowsOf over the chains, which this file holds to the surface's
  *   reads).
@@ -16,7 +17,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as contracts from "@chanlytics/contracts";
-import { installLegacyReact, fresh, again, all, find, byTestId } from "../_legacy-react.mjs";
+import { installLegacyReact, fresh, again, all, find, byTestId, press } from "../_legacy-react.mjs";
 
 installLegacyReact({ __DEMO_MODE: false, __chrome: { state: contracts.stateOf } });
 const W = globalThis;
@@ -125,9 +126,11 @@ const verbs = (report = REPORT(), ok = true) => {
 
 /* ------------------------------ Campaigns' sheets ------------------------------ */
 
+/** The reach-outs not read yet: the surface holds nothing (a read that failed is null, and one that came back is its chains). */
+const UNREAD = "unread";
 /** Campaigns' sheets at an address (`campaigns/<param>`), over the reach-outs' own surface (the seam's "reach_outs"). */
 const homeAt = (param = null, chains = [chainOf()]) => {
-  setSurfaceValue("reach_outs", chains);
+  setSurfaceValue("reach_outs", chains === UNREAD ? undefined : chains);
   fresh();
   return again(() => CampaignsSheets({ param }));
 };
@@ -163,6 +166,73 @@ test("Write to leads hands its search to Campaigns' sheets, which close New mess
     find(tree, (n) => n.type === ReachOutSheet),
     null,
     "and closed, it is gone",
+  );
+});
+
+/** The surfaces a Retry was pressed for: the frame's runner (`window.__refreshSurface`), which a failed read's Retry reads through. */
+const refreshed = [];
+const withRetry = (run) => {
+  W.__refreshSurface = async (key) => {
+    refreshed.push(key);
+  };
+  try {
+    run();
+  } finally {
+    delete W.__refreshSurface;
+  }
+};
+
+test("a reach-out's change opens its sheet at an address of its own (`campaigns/new:edit:<root>`), by its root or any of its steps", async () => {
+  verbs();
+  went.length = 0;
+  // The address: the composer is not drawn, and the reach-out's sheet is the page's.
+  const at = homeAt(`new:edit:${ROOT}`);
+  const sheet = find(at, (n) => n.type === ReachOutSheet);
+  assert.ok(sheet, "the reach-out's sheet");
+  assert.equal(sheet.props.chain.root_id, ROOT);
+  assert.deepEqual(sheet.props.search, { id: "s1", name: "Personal trainers · Austin" });
+  const hosts = all(at, (n) => n.type === PaneSheet);
+  assert.equal(
+    hosts.find((n) => n.props.testid === "cmh-composer"),
+    undefined,
+    "and no composer is drawn for a reach-out's id",
+  );
+  // Closing it leaves the address (a link that arrived here replaces it with Sequences); the door it says on a save replaces it
+  // with where it goes, so a close that is a step Back does not undo the door.
+  went.length = 0;
+  sheet.props.onClose();
+  assert.deepEqual(went, ["campaigns/sequences"]);
+  went.length = 0;
+  sheet.props.onGo("broadcasts/run:b2");
+  assert.deepEqual(went, ["broadcasts/run:b2"]);
+});
+
+test("a change waits on the reach-outs: reading while they are out, failed where they could not be, and an id that is no chain's, once they are read, lands on its sequence", () => {
+  verbs();
+  const reading = homeAt(`new:edit:${ROOT}`, UNREAD);
+  assert.ok(byTestId(reading, "cmh-composer-reading"), "not known to be missing yet");
+  assert.equal(
+    find(reading, (n) => n.type === ReachOutSheet),
+    null,
+  );
+  withRetry(() => {
+    refreshed.length = 0;
+    const failed = homeAt(`new:edit:${ROOT}`, null);
+    assert.ok(byTestId(failed, "cmh-composer-failed"));
+    press(byTestId(failed, "cmh-composer-failed-retry"));
+    assert.deepEqual(refreshed, ["reach_outs"]);
+  });
+  went.length = 0;
+  const elsewhere = homeAt("new:edit:pb-7", []);
+  assert.equal(byTestId(elsewhere, "cmh-composer-reading"), null);
+  assert.equal(
+    find(elsewhere, (n) => n.type === ReachOutSheet),
+    null,
+  );
+  assert.deepEqual(
+    went,
+    ["campaigns/sequences/pb-7"],
+    "a moment's sequence, on its own record, in the address's place",
   );
 });
 

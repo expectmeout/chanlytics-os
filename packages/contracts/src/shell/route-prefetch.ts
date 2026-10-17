@@ -65,8 +65,8 @@ export const PREFETCH_READS: Readonly<Record<string, readonly string[]>> = {
   // read, which holds the messages a step may send and the business's name its preview is filled with (ROUTE_DRAWS).
   "campaigns/sequences": ["sequences", "settings", "team", "policies", "templates?all=1"],
   // The composer over Sequences' list (`campaigns/new…`, ROUTE_DRAWS): Send once, made of Sent's runs and who they reach,
-  // the channels read and the settings read, which holds the messages it offers. Write to leads reads its searches as it is
-  // chosen. Each surface's first reads.
+  // the channels read and the settings read, which holds the messages it offers; and the reach-outs' chains a change to one
+  // opens on. Write to leads reads its searches as it is chosen. Each surface's first reads.
   "campaigns/new": [
     "sequences",
     "channels",
@@ -74,6 +74,7 @@ export const PREFETCH_READS: Readonly<Record<string, readonly string[]>> = {
     "broadcasts",
     "contacts",
     "segments",
+    "reach-outs",
     "team",
     "policies",
     "templates?all=1",

@@ -4,8 +4,9 @@
  * Broadcasts sample). What is proved: nothing is drawn while the address names no sheet; the composer stands at its
  * addresses (Send once, Write to leads, a list's send) with its choice of kind replacing the address; the addresses of its
  * Every time, which went (the closed-loop audit of 17 Oct 2026, G), open no sheet here, since they land on New sequence
- * before the page is drawn; a read it is made of that has not landed, or failed, is said in the sheet; and the sheet hands
- * the send screen its own toast host.
+ * before the page is drawn; a reach-out's change (`new:edit:<root>`) is titled Edit, with no choice of kind, while the
+ * chains it opens on are read (reach-out-rows.test.mjs holds the rest of it); a read it is made of that has not landed, or
+ * failed, is said in the sheet; and the sheet hands the send screen its own toast host.
  */
 import { test, afterEach } from "node:test";
 import assert from "node:assert/strict";
@@ -91,10 +92,9 @@ test("nothing stands over Sequences while the address names no sheet: its list, 
     "sequences",
     "sequences/pb-sample-winback/history",
     "surprise",
-    // Each lands on New sequence, on its moment, or on the sequence being changed (contracts sequenceLandingOf).
+    // Each lands on New sequence, or on it on its moment (contracts sequenceLandingOf).
     "new:every",
     "new:moment:visited",
-    "new:edit:pb-sample-winback",
   ]) {
     fresh();
     assert.equal(sheet(page(param)), null, String(param));
@@ -134,6 +134,14 @@ test("the composer stands at its addresses: Send once and Write to leads, a choi
   );
   seg.props.onValueChange("once");
   assert.deepEqual(replaced, ["campaigns/new"]);
+});
+
+test("a reach-out's change, while its chains are read, is titled Edit and offers no choice of kind", () => {
+  surfaces();
+  fresh();
+  const s = sheet(page("new:edit:ro-1"));
+  assert.equal(s.props.title, "Edit");
+  assert.equal(s.props.tools, undefined, "changing one is not choosing a kind");
 });
 
 test("Send once says it is reading rather than draw a sheet with nothing in it; Write to leads needs no such read", () => {

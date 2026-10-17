@@ -883,9 +883,10 @@ test("the page that owns what it draws is an explicit one: the surface registry 
       `a run moves what sends a message, on ${route}`,
     );
   assert.equal(registry.ownsTable("settings", "sequence_batches", "today"), false, "and is kept for them elsewhere");
-  // Write to leads reads its searches itself, as it is chosen: the composer draws no reach-out's chain. Settings is drawn
-  // there: the templates Send once offers are the settings read's, the one read of them (surfaces/offered-templates.ts).
-  assert.equal(owns("reach_outs", "campaigns/new"), false);
+  // The reach-outs are drawn there for a change to one (`new:edit:<root>`); they have no table of their own to refresh on a
+  // message, but a route that draws them owns them for the refreshes that name a page. Settings is drawn there: the templates
+  // Send once offers are the settings read's, the one read of them (surfaces/offered-templates.ts).
+  assert.equal(owns("reach_outs", "campaigns/new"), true);
   assert.equal(owns("settings", "campaigns/new"), true);
   for (const key of ["people", "reports", "calendar"]) assert.equal(owns(key, "campaigns"), false, key);
   // Today draws a good many surfaces and owns its own, the headline its period line and Worth a look are printed from (it hears the
