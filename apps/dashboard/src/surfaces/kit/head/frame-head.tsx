@@ -13,6 +13,7 @@ import { useEffect, useLayoutEffect, useState, useSyncExternalStore } from "reac
 import { createPortal } from "react-dom";
 import { knownZone } from "@/legacy-bridge/zone";
 import { pageDatelineParts, useMinute } from "./dateline";
+import { watchFrameTop } from "./frame-top";
 import { PageHead } from "./page-head";
 import { crumbLabel, useCrumbsShown, useStandingSaid } from "./standing";
 import type { BackWay, ShownCrumb } from "./standing";
@@ -213,9 +214,13 @@ export function FrameHead({ look }: { look: string }) {
     watcher.observe(document.body, { childList: true, subtree: true });
     return () => watcher.disconnect();
   }, [look]);
+  // The bar's centre is laid over the top bar as the date's place is, in what holds the date's place: the frame's top
+  // (app-shell.jsx `.frame-top`), whose height and whether the page has gone under it are watched from here before it is
+  // painted (frame-top.ts), since the page under it starts that far down.
+  const column = places?.dateline?.parentElement ?? null;
+  // A stand-in document has no observer, and no top to measure.
+  useLayoutEffect(() => (column && typeof ResizeObserver === "function" ? watchFrameTop(column) : undefined), [column]);
   if (!places || !places.head) return null;
-  // The bar's centre is laid over the top bar as the date's place is, in the frame's column (`.main`).
-  const column = places.dateline?.parentElement ?? null;
   return (
     <>
       {places.dateline && createPortal(<PageDateline />, places.dateline)}

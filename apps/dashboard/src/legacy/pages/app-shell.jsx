@@ -173,16 +173,19 @@ const sideWarm = (e) => {
   if (item && a && a.warm) a.warm(NAV_ROUTE[item.dataset.nav] || item.dataset.nav);
 };
 /**
- * The page on screen back to its top: whatever scrolls in it, the route view itself (Today) or the list a page of panes
- * scrolls in (the Inbox's threads, People's table). The tab bar's place pressed again, and the phone app's tab (shell:top).
+ * The page on screen back to its top: whatever scrolls in it, the route view itself (Today), the list a page of panes
+ * scrolls in (the Inbox's threads, People's table), or on a phone the window. The tab bar's place pressed again, and the
+ * phone app's tab (shell:top).
  */
 const pageToTop = () => {
   const main = document.getElementById("main");
   if (!main) return;
   const still = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const behavior = still ? "auto" : "smooth";
   for (const el of [main, ...main.querySelectorAll("*")]) {
-    if (el.scrollTop > 0) el.scrollTo({ top: 0, behavior: still ? "auto" : "smooth" });
+    if (el.scrollTop > 0) el.scrollTo({ top: 0, behavior });
   }
+  if (window.scrollY > 0) window.scrollTo({ top: 0, behavior });
 };
 
 /**
@@ -639,26 +642,30 @@ const appChrome = (s) => {
         />
       </div>
       <div className="main">
-        {/* In Glass the top bar's row holds the date and time where the crumbs were (a place laid over the bar's left,
-            so the bar itself is as it was), and the page's act moves down to the row of views: the frame leaves the
-            places (pg-dateline, pg-head, pg-act) and the kit's head draws into them (surfaces/kit/head/frame-head.tsx,
-            the interface kit's step 5.4). Classic's tree is as it was. */}
-        {glass && <span className="pg-dateline-slot" id="pg-dateline" />}
-        <Topbar
-          crumbs={glass ? [] : crumbs}
-          theme={theme}
-          themePref={themePref}
-          onTheme={onTheme}
-          onAsk={askOpen ? () => setAskOpen(false) : openAsk /* open, it closes, as ⌘K does */}
-          askLabel={ask || null}
-          onMenu={() => setNavOpen(true)}
-          right={glass ? null : primaryAction}
-        />
-        {/* A call happening right now outranks a newer build or a stale surface:
-            it is the one thing on this line that stops being true by itself. */}
-        <LiveCallBar />
-        <ShellStatusBar />
-        {glassHead({ glass, pane, where: "over", page, param, views, navigate, primaryAction })}
+        {/* What stands over the page: no box on a desk; on a phone the one fixed over it as the window scrolls (mobile.css,
+            "The window scrolls"; its height is kit/head/frame-top.ts's to measure). */}
+        <div className="frame-top">
+          {/* In Glass the top bar's row holds the date and time where the crumbs were (a place laid over the bar's left,
+              so the bar itself is as it was), and the page's act moves down to the row of views: the frame leaves the
+              places (pg-dateline, pg-head, pg-act) and the kit's head draws into them (surfaces/kit/head/frame-head.tsx,
+              the interface kit's step 5.4). Classic's tree is as it was. */}
+          {glass && <span className="pg-dateline-slot" id="pg-dateline" />}
+          <Topbar
+            crumbs={glass ? [] : crumbs}
+            theme={theme}
+            themePref={themePref}
+            onTheme={onTheme}
+            onAsk={askOpen ? () => setAskOpen(false) : openAsk /* open, it closes, as ⌘K does */}
+            askLabel={ask || null}
+            onMenu={() => setNavOpen(true)}
+            right={glass ? null : primaryAction}
+          />
+          {/* A call happening right now outranks a newer build or a stale surface:
+              it is the one thing on this line that stops being true by itself. */}
+          <LiveCallBar />
+          <ShellStatusBar />
+          {glassHead({ glass, pane, where: "over", page, param, views, navigate, primaryAction })}
+        </div>
         {/* The view is the deck's to move: it registers as it mounts and says which side it arrives from. On a phone a
             swipe across it walks the strip over it (surface-tabs.jsx stripSwipe). */}
         <main

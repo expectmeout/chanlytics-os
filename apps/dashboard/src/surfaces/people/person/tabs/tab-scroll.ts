@@ -15,6 +15,8 @@ import { useCallback, useLayoutEffect, useRef } from "react";
 import type { RefObject } from "react";
 import type { PersonTab } from "@chanlytics/contracts";
 
+import { offsetIn, scrollerOf, shownHeight } from "../../../kit/motion/page-scroll";
+
 /** Where the strip stands in the scroller: the scroll at which it sticks, and the scroll now. */
 interface StripPlace {
   stickAt: number;
@@ -30,20 +32,26 @@ function stripParts(scroller: HTMLElement): { stand: HTMLElement; deck: HTMLElem
   return stand && deck ? { stand, deck } : null;
 }
 
-/** Where the strip sticks: the scroll at which the tab's panes begin right under it, stuck. */
+/**
+ * Where the strip sticks: the scroll at which the tab's panes begin right under it, stuck. Measured in what scrolls the
+ * page: the page's own box on a desk, the window on a phone (kit motion/page-scroll.ts), where the strip sticks under
+ * the frame's top (its `top` says so).
+ */
 function stripPlace(scroller: HTMLElement): StripPlace | null {
   const parts = stripParts(scroller);
   if (!parts) return null;
   const { stand, deck } = parts;
+  const box = scrollerOf(scroller, { self: true });
   const gap = px(getComputedStyle(deck.parentElement ?? deck).rowGap);
-  const deckAt = deck.getBoundingClientRect().top - scroller.getBoundingClientRect().top + scroller.scrollTop;
+  const deckAt = offsetIn(box, deck);
   const stickAt = Math.max(0, deckAt - gap - stand.offsetHeight - px(getComputedStyle(stand).top));
-  return { stickAt, top: scroller.scrollTop };
+  return { stickAt, top: box.scrollTop };
 }
 
 /**
- * The room under the stuck strip, said on the scroller as `--tab-room`: the scroller's height less where the strip sticks,
- * the strip, the gap under it and the page's foot. Called as the scroller's height changes (person-real.tsx useRailHeld).
+ * The room under the stuck strip, said on the scroller as `--tab-room`: the height of what it shows (the window's on a
+ * phone) less where the strip sticks, the strip, the gap under it and the page's foot. Called as the scroller's height
+ * changes (person-real.tsx useRailHeld).
  */
 export function holdTabRoom(scroller: HTMLElement): void {
   const parts = stripParts(scroller);
@@ -52,7 +60,12 @@ export function holdTabRoom(scroller: HTMLElement): void {
   const page = scroller.firstElementChild;
   const foot = page ? px(getComputedStyle(page).paddingBottom) : 0;
   const gap = px(getComputedStyle(deck.parentElement ?? deck).rowGap);
-  const room = scroller.clientHeight - px(getComputedStyle(stand).top) - stand.offsetHeight - gap - foot;
+  const room =
+    shownHeight(scrollerOf(scroller, { self: true })) -
+    px(getComputedStyle(stand).top) -
+    stand.offsetHeight -
+    gap -
+    foot;
   scroller.style.setProperty("--tab-room", `${Math.max(0, Math.round(room))}px`);
 }
 
@@ -70,7 +83,7 @@ export function useTabScroll(scroller: RefObject<HTMLElement | null>, tab: Perso
     const el = scroller.current;
     if (!was || !was.stuck || !el) return;
     const place = stripPlace(el);
-    if (place) el.scrollTop = place.stickAt + (depths.current.get(tab) ?? 0);
+    if (place) scrollerOf(el, { self: true }).scrollTop = place.stickAt + (depths.current.get(tab) ?? 0);
   }, [tab, scroller]);
   return useCallback(
     (from: PersonTab) => {
