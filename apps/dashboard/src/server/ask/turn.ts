@@ -6,6 +6,7 @@ import {
   answerText,
   dealsAreOn,
   detectLanguage,
+  nextNotAsked,
   policyClassOffered,
   stoppedAnswer,
   v1FromAnswer,
@@ -68,6 +69,8 @@ interface PreparedTurn {
   thread: { id: string; title: string; scope: AskScope | null };
   scope: AskScope | null;
   earlier: Pick<TurnInput, "history" | "sinceLastMs" | "chain" | "told" | "cited">;
+  /** The thread's questions and the next questions it offered, this question among them (nextNotAsked). */
+  offered: string[];
   rc: ReaderContext;
   facts: WorkspaceFacts;
   timezone: string;
@@ -131,7 +134,7 @@ export async function prepareAskTurn(ctx: RouteContext, member: Member, ask: Ask
     kept = await threadForTurn(ctx, asked);
   }
   // The thread's earlier turns: their lines, what they told and cited, the time since, and the chain while warm.
-  const { thread, scope, ...earlier } = kept;
+  const { thread, scope, offered, ...earlier } = kept;
   await appendMessage(ctx, thread.id, tenantId, "user", { text, ...(answering ? { answering } : {}) });
 
   // A turn keeps what may be kept across turns (the workspace's name and zone, five minutes): the next question of
@@ -140,7 +143,21 @@ export async function prepareAskTurn(ctx: RouteContext, member: Member, ask: Ask
   const { facts, timezone } = await turnFacts(rc);
   const language = detectLanguage(text);
   const personLabel = ctx.email ? `${ctx.email} (${member.role})` : member.role;
-  return { ctx, member, tenantId, ask, thread, scope, earlier, rc, facts, timezone, language, personLabel };
+  return {
+    ctx,
+    member,
+    tenantId,
+    ask,
+    thread,
+    scope,
+    earlier,
+    offered: [...offered, text],
+    rc,
+    facts,
+    timezone,
+    language,
+    personLabel,
+  };
 }
 
 /**
@@ -172,7 +189,21 @@ export async function finishAskTurn(
   emit: (ev: AskTurnLine) => void,
   stop?: AbortSignal,
 ): Promise<AskTurnDone> {
-  const { ctx, member, tenantId, ask, thread: turn, scope, earlier, rc, facts, timezone, language, personLabel } = p;
+  const {
+    ctx,
+    member,
+    tenantId,
+    ask,
+    thread: turn,
+    scope,
+    earlier,
+    offered,
+    rc,
+    facts,
+    timezone,
+    language,
+    personLabel,
+  } = p;
   const { text, surface, context, openedMs, answering } = ask;
   emit({ t: "thread", id: turn.id, title: turn.title });
   const t0 = Date.now();
@@ -209,7 +240,10 @@ export async function finishAskTurn(
     signal: stop,
   });
   // Stopped, even past its last round: what the person saw is what the thread keeps.
-  const result = stop?.aborted ? stoppedTurn(ran, said, language) : ran;
+  const ended = stop?.aborted ? stoppedTurn(ran, said, language) : ran;
+  // A next question the thread already asked or offered goes (the answer canvas, item 15): the chips offer what is new.
+  const next = nextNotAsked(ended.answer.do.next, offered);
+  const result = { ...ended, answer: { ...ended.answer, do: { ...ended.answer.do, next } } };
   // The answer as the Line draws it, beside the v1 fields it gives (spec 5.8): the history, copy and search
   // read `text`, and the erase hook finds a person by the ids the sources carry.
   const v1 = v1FromAnswer(result.answer);

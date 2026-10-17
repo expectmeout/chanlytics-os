@@ -28,7 +28,7 @@ export { ASK_SKILL_IDS, isAskSkillId, skillGuide, skillsAsked } from "./ask-skil
 export { SKILL_CRAFT_PURPOSES, SKILL_CRAFT_MAX_TOKENS, SKILL_GUIDE_MAX, craftSystem, guideBlock } from "./ask-skills/skill.js";
 export { ASK_ANSWER_FORMAT } from "./ask/answer-format.js";
 export { partialSay, answerSoFar, stoppedAnswer } from "./ask/answer-stream.js";
-export { cleanAnswer, isUngrounded, sameQuestion, navigateLabel, FOLLOWUP_ECHO, claimsWrite, unquoted, answerBlocks, answerRuns, answerPlain, answerText, answerCopy, answerSpoken, listSpoken } from "./ask/answer-text.js";
+export { cleanAnswer, isUngrounded, sameQuestion, nextNotAsked, navigateLabel, FOLLOWUP_ECHO, claimsWrite, unquoted, answerBlocks, answerRuns, answerPlain, answerText, answerCopy, answerSpoken, listSpoken } from "./ask/answer-text.js";
 export { scopeFromRoute, ASK_MAX_CHARS, ASK_MAX_ROUNDS, ASK_TURN_BUDGET_MS, ASK_SPOKEN_TURN_BUDGET_MS, ASK_TOOLS_CHARS_CEILING, ASK_CORE_TOOLS_CHARS_CEILING, ASK_SELECTION_MAX, ASK_VOICE_CLAIM_STALE_MS, ASK_VOICE_FIRST_WORDS_MS, ASK_VOICE_PULSE_MS, ASK_VOICE_TOKEN_MIN_MS, ASK_VOICE_ID, ASK_VOICE_MODEL, ASK_SPEECH_MAX_CHARS, SPEECH_PURPOSES, ASK_VOICE_TIMING_MAX_MS, ASK_VOICE_IDLE_MS, ASK_VOICE_UP_WAIT_MS, VOICE_END_REASONS, isVoiceEndReason, ASK_MAX_TOKENS, ASK_WARM_MAX_TOKENS, ASK_TOKENS_DAY, ASK_CAPS, ASK_THREAD_VERBS, ASK_UNDO_MS, askCardLapsed, ASK_SURFACES, ASK_SCOPE_KINDS } from "./ask/ask.js";
 export { storedAnswer, oneDoor, answerFromV1, needsAnswer, callsAnswer, openingsAnswer, normalizeAnswer, answerWords, answerForCards, failedAnswer, proseAnswer, v1FromAnswer, clip, ASK_ANSWER_CAPS } from "./ask/ask-answer.js";
 export { callJumpSub, askCallOutcome } from "./ask/ask-calls.js";
