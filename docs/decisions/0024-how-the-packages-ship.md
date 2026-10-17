@@ -153,3 +153,29 @@ wire changes.
   nothing. `shipping/browser-entry.test.mjs` holds the list, each path to a file, the names out of the entry and into their
   own, and the page-only entry free of the classic API. With the Receptionist lens added the workspace route's JS fell
   from 769,653 to 768,870 bytes gzipped, and the Reports page's own grew by 8,518.
+
+  **Each page loads its own, since 17 October 2026.** The browser's entry is no longer one module. A bundler cannot cut
+  a module across pages, so every value any page imported from contracts sat in the route's chunk: 339,619 of the
+  workspace route's 857,745 bytes gzipped at `f6e2b8b80`. Contracts' build now writes it a file per module,
+  `dist/browser/` (`tooling/scripts/contracts-browser.mjs`, after tsup), each relative import spelled out to the file it
+  names. The entry is `dist/browser/index.js`, a list of `export { … } from`, and `package.json`'s `sideEffects`
+  says that no file there runs anything as it loads but `zod-config.js`. A page's bundle therefore takes the modules it
+  imports and the ones they import, and nothing else. The two modules that build a zod/mini schema run zod's setting
+  first themselves, since a page may take them without the entry. The Reports and Ads page entries (`./report-window`,
+  `./report-lens`, `./ads-page`) are built the same way and their `browser` condition names their module there, so
+  they share modules with the rest of the page instead of each bundling its own copy. Ask's cards and Settings'
+  Notifications stay bundled (`./ask-only`, `./alert-pane`): built per module they cost every page a few KB more, since
+  Ask's loads with the shell and the pane's modules are the shell's too.
+
+  Measured on one build each of `f6e2b8b80` and of this change, as what a visitor to each page downloads (the runtime,
+  every segment's chunks and the page's loadable, gzipped):
+  - The workspace route's JS fell 9,625 bytes, to 848,120.
+  - Reports fell 53,066, Lists 31,189, Playbooks 31,184, Start 26,787, Broadcasts 25,283, Live 22,972, Calendar
+    21,597, Campaigns 18,459, Templates 18,356, Inbox 10,670, Today 9,635, People 8,370 and Conversations 5,478.
+  - Settings grew 8,513.
+
+  The shell, which every page loads through `next/dynamic`, still imports most of contracts, and its chunks are
+  worked out once for every page. So a module a page imports and the shell imports too arrives twice on that page,
+  which is Settings' growth. The bundle check's "page own" sums count those copies, and it read +4 to +40 KB on most
+  pages for this change while their visitors download less. The next lever is what the shell imports, not how
+  contracts ships.
