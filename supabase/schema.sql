@@ -4674,6 +4674,16 @@ begin
               jsonb_build_object('reason', p_reason));
       return 'opened';
     end if;
+    -- A customer writing while a person has the thread is the open hold's, whatever its reason (00454): nothing written.
+    if p_reason = 'wrote_while_held' then
+      select e.id into v_id
+        from public.escalations e
+       where e.tenant_id = p_tenant_id and e.conversation_id = p_conversation_id and e.state = 'open'
+         and e.reason is distinct from p_reason;
+      if v_id is not null then
+        return 'refreshed';
+      end if;
+    end if;
     -- One open escalation per thread (escalations_one_open): another reason replaces it, held by the row it updates.
     update public.escalations e
        set reason = p_reason, details = p_details
@@ -4699,7 +4709,7 @@ end $$;
 -- Name: FUNCTION escalation_open(p_tenant_id uuid, p_conversation_id uuid, p_reason text, p_details text); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.escalation_open(p_tenant_id uuid, p_conversation_id uuid, p_reason text, p_details text) IS 'The one door a thread is handed to a person by (00388): a new open escalation with its escalation.opened event (opened), the open one taking another reason (changed; escalations_note_change writes escalation.changed), or the same reason''s words moved (refreshed), in one transaction. An open one resolved in between leaves room, and a new one is opened. The service role''s.';
+COMMENT ON FUNCTION public.escalation_open(p_tenant_id uuid, p_conversation_id uuid, p_reason text, p_details text) IS 'The one door a thread is handed to a person by (00388): a new open escalation with its escalation.opened event (opened), the open one taking another reason (changed; escalations_note_change writes escalation.changed), or the same reason''s words moved (refreshed), in one transaction. A wrote_while_held asked of a thread already held never takes the open reason''s place: it writes nothing and answers refreshed (00454). An open one resolved in between leaves room, and a new one is opened. The service role''s.';
 
 
 --
@@ -29885,7 +29895,7 @@ CREATE TABLE public.escalations (
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     deadman_alerted_at timestamp with time zone,
     resolved_at timestamp with time zone,
-    CONSTRAINT escalations_reason_check CHECK ((reason = ANY (ARRAY['human_token'::text, 'non_text'::text, 'refusal'::text, 'rate_cap'::text, 'policy_block'::text, 'send_failed'::text, 'deadman'::text, 'brain_error'::text, 'manual'::text, 'opt_out'::text, 'state_unavailable'::text, 'stale'::text, 'person_hold'::text, 'budget'::text, 'policy_ask'::text, 'callback'::text, 'paused'::text, 'carriers'::text, 'email_review'::text, 'booking_request'::text, 'booking_reply'::text]))),
+    CONSTRAINT escalations_reason_check CHECK ((reason = ANY (ARRAY['human_token'::text, 'non_text'::text, 'refusal'::text, 'rate_cap'::text, 'policy_block'::text, 'send_failed'::text, 'deadman'::text, 'brain_error'::text, 'manual'::text, 'opt_out'::text, 'state_unavailable'::text, 'stale'::text, 'person_hold'::text, 'budget'::text, 'policy_ask'::text, 'callback'::text, 'paused'::text, 'carriers'::text, 'email_review'::text, 'booking_request'::text, 'booking_reply'::text, 'wrote_while_held'::text]))),
     CONSTRAINT escalations_state_check CHECK ((state = ANY (ARRAY['open'::text, 'resolved'::text])))
 );
 

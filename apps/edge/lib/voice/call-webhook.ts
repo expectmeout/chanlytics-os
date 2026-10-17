@@ -425,12 +425,16 @@ async function holdThread(db: Db, tenantId: string, s: Extract<CallStep, { kind:
 /** The caller handed to a person: the thread paused for the workspace's own hours, the one escalation with the to-do. */
 async function handToPerson(db: Db, routed: RoutedChannel, s: Extract<CallStep, { kind: "callback" }>): Promise<void> {
   const L = logger();
-  const rt = await loadTenantRuntime(db, routed);
-  const pauseMs = pauseMsOf(rt.policy["reply"]?.limits);
-  // Measured from the call's end, never from this delivery: Retell retries a slow delivery, and a pause measured
-  // from each one slid forward with every replay (docs/conversation-flow.md, G9). The same call ended once.
-  const from = s.endedAtIso ? Date.parse(s.endedAtIso) : Date.now();
-  await pauseConversation(db, routed.tenantId, s.conversationId, new Date(from + pauseMs).toISOString());
+  // A call the receptionist could not finish steps it aside on the thread for the workspace's pause; a call that reached
+  // no answer (missed, or left without a word) leaves it answering what they write.
+  if (s.pause) {
+    const rt = await loadTenantRuntime(db, routed);
+    const pauseMs = pauseMsOf(rt.policy["reply"]?.limits);
+    // Measured from the call's end, never from this delivery: Retell retries a slow delivery, and a pause measured
+    // from each one slid forward with every replay (docs/conversation-flow.md, G9). The same call ended once.
+    const from = s.endedAtIso ? Date.parse(s.endedAtIso) : Date.now();
+    await pauseConversation(db, routed.tenantId, s.conversationId, new Date(from + pauseMs).toISOString());
+  }
   const opened = await upsertEscalation(db, routed.tenantId, s.conversationId, "callback", s.details);
   L.info("call_callback_needed", { tenant_id: routed.tenantId, call: s.callId, escalation: opened });
 }

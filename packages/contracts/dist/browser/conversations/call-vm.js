@@ -12,6 +12,7 @@ import {
   abandonedCall,
   callAttemptWords,
   endedHowOf,
+  missedCall,
   neverConnected,
   reachedVoicemail,
   recordingStateOf
@@ -55,6 +56,15 @@ export function spokenDuration(ms) {
   const m = Math.floor(total / 60);
   const sec = total % 60;
   return m ? `${m} min ${sec} sec` : `${sec} sec`;
+}
+export function unansweredCallTodo(dto) {
+  if (missedCall({ missed: neverConnected(dto), direction: dto.direction })) {
+    return "Missed call: it rang and never connected. Call them back.";
+  }
+  if (abandonedCall(dto)) {
+    return `Hung up after ${spokenDuration(dto.duration_ms)} without a word. Call them back.`;
+  }
+  return null;
 }
 const CALL_MOOD = { Positive: "Sounded positive", Negative: "Sounded negative" };
 const RECORDING_NOTE = {

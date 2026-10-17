@@ -39,7 +39,7 @@ import type { SendPurpose } from "@chanlytics/contracts";
 import { ageVerdict, holdCopy } from "./steps";
 import { GO, type Answering } from "./context";
 import { unattendedHold } from "./reply-posture";
-import { escalationOf, handledOf, processedAfter, SET_ASIDE, type Asked } from "./handled";
+import { escalationOf, handledOf, processedAfter, type Asked } from "./handled";
 import { toldFromItsEvent } from "../subscribers";
 
 /**
@@ -253,7 +253,23 @@ export async function heldForThePerson(at: Answering, bodyText: string): Promise
   });
   if (held === "human_has_it") {
     L.info("wa_skip_paused", { paused_until: thread.pausedUntil });
-    await sink.processed(handledOf(SET_ASIDE));
+    // A person has the thread (a reply or a take-over claimed it), so the receptionist stays out. The message was set
+    // aside with nobody told, and the pause's end handed the thread back with it unanswered (the closed-loop audit of
+    // 17 Oct 2026, B). It is held for them now: one hold per stretch, refreshed by each message after the first, told
+    // once as it opens, resolved by their reply, watched by the deadman, and the pause cannot lapse past it (00454).
+    const asked = sink.escalate(
+      "wrote_while_held",
+      "They wrote again while your team had this thread, so the receptionist stayed out. Answer them, or hand the thread back.",
+    );
+    await Promise.all([
+      asked,
+      tell(asked, {
+        said: bodyText,
+        answered: "(no reply sent — a person on your team has this thread)",
+        why: "wrote while held",
+      }),
+      processedAfter(sink, asked, "none"),
+    ]);
     return;
   }
   if (held === "daily_cap") {

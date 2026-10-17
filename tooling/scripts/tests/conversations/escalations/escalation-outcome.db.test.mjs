@@ -250,6 +250,33 @@ test(
   },
 );
 
+test(
+  "a customer who writes while a person has the thread is the open hold's: it never takes another reason's place (00454)",
+  { skip },
+  async () => {
+    // No hold open (a person replied, which resolved it, or took the thread over): one opens, for that person.
+    const free = await thread("7");
+    assert.equal(await upsertEscalation(db, tenantId, free, "wrote_while_held", "They wrote again."), "opened");
+    assert.equal(await upsertEscalation(db, tenantId, free, "wrote_while_held", "And again."), "refreshed");
+    assert.deepEqual(await openRow(free), { reason: "wrote_while_held", details: "And again.", state: "open" });
+
+    // The receptionist handed the thread over and its hold is open: the message is that hold's, and nothing is written,
+    // so "asked for a person" stays what the thread is waiting on, in its own words.
+    const held = await thread("8");
+    assert.equal(await upsertEscalation(db, tenantId, held, "human_token", "Asked for a person."), "opened");
+    assert.equal(await upsertEscalation(db, tenantId, held, "wrote_while_held", "They wrote again."), "refreshed");
+    assert.deepEqual(
+      await openRow(held),
+      { reason: "human_token", details: "Asked for a person.", state: "open" },
+      "the open hold as it was",
+    );
+
+    // Any other reason still replaces a wrote_while_held: what the thread waits on is the newer, plainer thing.
+    assert.equal(await upsertEscalation(db, tenantId, free, "non_text", "A voice note."), "changed");
+    assert.equal((await openRow(free)).reason, "non_text");
+  },
+);
+
 test("two holds racing for one thread: one opens, the other is told what it found", { skip }, async () => {
   const id = await thread("3");
   const [a, b] = await Promise.all([

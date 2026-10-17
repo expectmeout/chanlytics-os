@@ -78,12 +78,12 @@ test("a caller with no WhatsApp thread: phone is the channel, no reply window, t
   );
   assert.equal(
     toInboxThreadVM(conv(), { ...callback, details: null }, ZONE, NOW).summary,
-    "They phoned and the receptionist couldn't finish it.",
+    "They phoned and are still owed a call: the call didn't connect, they hung up without a word, or the receptionist couldn't finish it.",
     "no to-do: the reason's sentence",
   );
   assert.equal(
     vm.timeline.find((e) => e.type === "event").body,
-    "Flagged for a human — Needs a call back — the phone receptionist could not finish it",
+    "Flagged for a human — Needs a call back — they phoned and are still owed a call",
     "the flag says why, not the to-do again",
   );
   assert.equal(vm.waited, "56m");

@@ -37,6 +37,7 @@ import {
   guardSpokenTurns,
   missedCall,
   neverConnected,
+  unansweredCallTodo,
 } from "../packages/contracts.js";
 import type { NotifyMessage } from "../ops/notify.js";
 import type { ForwardingCall } from "./forwarding.js";
@@ -93,7 +94,15 @@ export type CallStep =
       callId: string;
     }
   | { kind: "hold"; conversationId: string; retellCallId: string; over: boolean }
-  | { kind: "callback"; conversationId: string; details: string; callId: string; endedAtIso: string | null }
+  | {
+      kind: "callback";
+      conversationId: string;
+      details: string;
+      callId: string;
+      endedAtIso: string | null;
+      /** Whether the receptionist steps aside on the thread for the workspace's pause: a call it could not finish. */
+      pause: boolean;
+    }
   | {
       kind: "policy_block";
       conversationId: string;
@@ -303,6 +312,34 @@ export function planCallEvent(e: CallEvent, f: CallEventFacts): CallEventPlan {
       callId: res.call_id,
       // When the call ended, so the pause is measured from the call and not from this delivery (G9).
       endedAtIso: n.endedAtIso,
+      pause: true,
+    });
+    about = { type: "conversation", id: res.conversation_id };
+  }
+  // A customer's call that reached no answer: it never connected, or they hung up without a word. Each is owed a call
+  // back, so each opens the same hold as the call ends (a replay refreshes the one open hold), and a call
+  // back closes it (00422). Nothing paused: the receptionist still answers what they write (the closed-loop audit of
+  // 17 Oct 2026, C; distinct from the missed-call text declined on 11 Oct, since nothing is sent).
+  const unanswered =
+    event === "call_ended" && !res.skipped && res.conversation_id
+      ? unansweredCallTodo({
+          direction: n.direction,
+          status: n.status,
+          duration_ms: n.durationMs,
+          disconnection_reason: n.disconnectionReason,
+          in_voicemail: n.inVoicemail,
+          outcome: null,
+          transcript_object: n.transcriptObject,
+        })
+      : null;
+  if (unanswered && res.conversation_id && res.call_id) {
+    steps.push({
+      kind: "callback",
+      conversationId: res.conversation_id,
+      details: unanswered,
+      callId: res.call_id,
+      endedAtIso: n.endedAtIso,
+      pause: false,
     });
     about = { type: "conversation", id: res.conversation_id };
   }

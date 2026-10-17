@@ -420,8 +420,8 @@ test("a caller who needs a call back lands on Needs you: the reason exists every
   assert.equal(reasonShort("callback"), "needs a call back", "the strip's words, from the one vocabulary");
   const vm = readCode("packages/contracts/src/conversations/escalations.ts");
   assert.ok(
-    vm.includes('callback: "Needs a call back — the phone receptionist could not finish it",') &&
-      vm.includes('callback: "They phoned and the receptionist couldn\'t finish it.",'),
+    vm.includes('callback: "Needs a call back — they phoned and are still owed a call",') &&
+      vm.includes("They phoned and are still owed a call: the call didn't connect"),
     "the Inbox's label and the operator's first sentence",
   );
 });
