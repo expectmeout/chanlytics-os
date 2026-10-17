@@ -102,6 +102,8 @@ const PAGES = [
   "reports/campaigns",
   "reports/reviews",
   "campaigns",
+  // Campaigns' composer, where Campaigns' own 30 days and the playbooks' moments are drawn: its landing is Sequences' list.
+  "campaigns/new",
   "campaigns/sequences",
   "clients",
   "calendar",
@@ -602,7 +604,7 @@ test("each Reports page hears the tables it counts, on its page: the overview it
       "reports/campaigns",
       ["sequence_replies", "tenant_channels", "mailbox_connections", "mailboxes", "deals"],
     ],
-    ["campaign_results", "campaigns", ["sequence_replies", "deals", "mailboxes", "mailbox_connections"]],
+    ["campaign_results", "campaigns/new", ["sequence_replies", "deals", "mailboxes", "mailbox_connections"]],
   ];
   for (const [key, route, list] of WANTED)
     for (const table of list) {

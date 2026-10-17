@@ -228,11 +228,18 @@ export const ROUTE_DRAWS: Record<string, readonly string[]> = {
   // surface, read beside each page's own.
   // And the number a moment goes out on, its standing and its opt-in: the channels read, which the composers are made of.
   outbound: ["reach_outs", "channels"],
-  // The sheets Campaigns opens over Sequences (home/sheets.tsx): the composer is made of the playbooks' moments, Sent's runs
-  // and who they reach (the broadcasts), Campaigns' own 30 days (campaign_results, read on demand: no other page's boot pays
-  // for them) and the reach-outs; a message's drawer and the composers' messages of the templates, which are the settings
-  // read's, the one read of them (surfaces/offered-templates.ts); and the number they go out on, the channels read.
-  campaigns: ["playbooks", "broadcasts", "campaign_results", "reach_outs", "settings", "channels"],
+  // Campaigns is Sequences' list (decision 0060): its own address, a group's (`in:<group>`) and a campaign's (`moment:<id>`)
+  // land there, and draw what Sequences draws beside its list, the settings read. The sheets it opens over the list draw
+  // theirs at their own addresses (below), so a landing reads none of them (the Sequences phone review's Reads on landing).
+  campaigns: ["settings"],
+  // The composer Campaigns opens over Sequences (`campaigns/new…`, home/sheets.tsx): the playbooks' moments, Sent's runs and
+  // who they reach (the broadcasts), Campaigns' own 30 days (campaign_results, read on demand: no other address pays for
+  // them) and the reach-outs; its messages of the templates, which are the settings read's, the one read of them
+  // (surfaces/offered-templates.ts); and the number they go out on, the channels read.
+  "campaigns/new": ["playbooks", "broadcasts", "campaign_results", "reach_outs", "settings", "channels"],
+  // A message in its drawer over Sequences (`campaigns/message:<name>`): the playbooks surface the sheets wait for, whose
+  // library names the call's text, the settings read's templates its pane is drawn from, and the channels read's numbers.
+  "campaigns/message": ["playbooks", "settings", "channels"],
   // Sequences (0060) draws its own list, read as the view comes on screen (onDemand), and the settings read: its preview's
   // switch, and the messages a step may send (offered-templates.ts).
   "campaigns/sequences": ["sequences", "settings"],
@@ -297,10 +304,11 @@ function paneOf(page: string, param?: string | null): string | null | undefined 
     const at = reportsParamParts(param);
     if (at) return at.lens === "overview" ? null : at.lens;
   }
-  // A Settings pane's, and Campaigns' Sequences view (`campaigns/sequences/<id>/people`): the first word is what is fed.
-  return (page === "admin" || page === "campaigns") && param && param.includes("/")
-    ? param.slice(0, param.indexOf("/"))
-    : param;
+  // Campaigns' first word is what is fed: its Sequences view (`campaigns/sequences/<id>/people`), the composer
+  // (`campaigns/new:every`), a message (`campaigns/message:<name>`), a campaign that lands on its sequence (`moment:<id>`).
+  if (page === "campaigns" && param) return param.split(/[/:]/)[0] || param;
+  // A Settings pane's: the first word is what is fed.
+  return page === "admin" && param && param.includes("/") ? param.slice(0, param.indexOf("/")) : param;
 }
 
 /**

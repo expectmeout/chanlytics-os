@@ -25,7 +25,8 @@ import { pageClock } from "@/legacy-bridge/zone";
 import { policyStore } from "../../legacy-verbs";
 import { CM_NO_MESSAGE_YET, cmOfferedBy, cmReachBy, cmReadyOf, cmViaTicks } from "../parts/channels";
 import { starters } from "../templates/verbs";
-import { namedOf, readingFor } from "./surface";
+import { readingFor } from "@/lib/campaign-channels";
+import { namedOf } from "./surface";
 import type { PlaybookCardVM, PlaybookNamed, PlaybookTriggerOption, PlaybooksSurface } from "./surface";
 import { PB_NONE, PB_TEXT, pbExample, pbFirstFree, pbIcon, pbLabel, pbLangWords, pbOrder } from "./words";
 

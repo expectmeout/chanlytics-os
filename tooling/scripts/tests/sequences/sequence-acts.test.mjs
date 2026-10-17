@@ -1,8 +1,8 @@
 /**
  * What a sequence's head offers past its one act (decision 0060, contracts sequence-acts.ts), executed on rows as the
  * overview answers them: Run now only where its first step runs on the business's day and no batch waits for an OK, and
- * Turn on asked first, in the words a campaign's Resume asks (decision 7), from the playbooks surface's row of its first
- * step: when and to about how many, and that it sends on its own where its class does.
+ * Turn on asked first, in the words a campaign's Resume asks (decision 7), from the record's first step and its reach (GET
+ * sequences/:id/reach): when and to about how many, and that it sends on its own where its class does.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -54,44 +54,40 @@ test("Run now is offered while the first step runs on the business's day, and ne
 
 test("Turn on asks when it runs next and to about how many, and says an auto class in full", () => {
   const W = LIFECYCLE_WORDS.ledger.resume;
-  const pb = {
-    id: "p1",
-    name: "Thank you",
-    trigger: "visited",
-    state: "paused",
-    run_hour: 10,
-    cadence_days: 1,
-    cap_per_run: null,
+  // The record as GET sequences/:id answers it, and the reach GET sequences/:id/reach answers beside it.
+  const rec = (over = {}, firstOver = {}) => ({
+    sequence: row({ first: first({ state: "paused", ...firstOver }), ...over }),
     last_run_for: null,
-    next: "paused",
-    triggerLabel: "",
-    candidates: 14,
-    held: null,
-    named: null,
-    off: null,
-    totals: { waiting: null },
-  };
-  const surface = (rows, ready = null) => ({ rows, pools: {}, triggers: [], timezone: TZ, countsRead: true, ready });
+  });
+  const reach = (over = {}) => ({ candidates: 14, cap_per_run: null, paused: false, ...over });
   const at = { tz: TZ, nowMs: NOW, mode: "ask" };
-  const asked = sequenceResumeAsk(row(), surface([pb]), at);
+  const asked = sequenceResumeAsk(rec(), reach(), at);
   assert.equal(asked.question, SEQUENCE_ACT_WORDS.resumeAsk("Thank you"));
   assert.equal(asked.detail, "Next run today 10:00 AM, about 14 people");
   assert.equal(asked.yes, SEQUENCE_ACT_WORDS.resumeYes);
   assert.equal(
-    sequenceResumeAsk(row(), surface([pb]), { ...at, mode: "auto" }).detail,
+    sequenceResumeAsk(rec(), reach(), { ...at, mode: "auto" }).detail,
     `Next run today 10:00 AM, about 14 people. ${W.auto}`,
   );
-  // On trial, an auto class's run still waits for a person: it is not said to send on its own.
+  // A run sends its cap and no more: "about" counts the next run's share, as the home's rows do.
+  assert.equal(
+    sequenceResumeAsk(rec({}, { trigger: "quiet_30" }), reach({ cap_per_run: 5 }), at).detail,
+    "Next run today 10:00 AM, about 5 people",
+  );
+  // It ran today: its next run is tomorrow's, from the record's last_run_for.
+  assert.match(sequenceResumeAsk({ ...rec(), last_run_for: "2026-10-15" }, reach(), at).detail, /^Next run tomorrow/);
+  // On trial (the record's trial_until ahead), an auto class's run still waits for a person: it is not said to send on its own.
   assert.doesNotMatch(
-    sequenceResumeAsk(row(), surface([{ ...pb, trial: "Oct 20" }]), { ...at, mode: "auto" }).detail,
+    sequenceResumeAsk(rec({}, { trial_until: "2026-10-20T13:00:00Z" }), reach(), { ...at, mode: "auto" }).detail,
     /on its own/,
   );
-  assert.equal(sequenceResumeAsk(row(), surface([{ ...pb, candidates: null }]), at).detail, "Next run today 10:00 AM");
+  // A moment that could not be counted says when alone, never "about 0 people".
+  assert.equal(sequenceResumeAsk(rec(), reach({ candidates: null }), at).detail, "Next run today 10:00 AM");
   // A workspace paused for billing says so instead of a time, as the home's rows do.
-  assert.doesNotMatch(sequenceResumeAsk(row(), surface([pb], { paused: true }), at).detail, /10:00 AM/);
-  // Unread, or a surface that holds no row of it: the question alone, nothing guessed.
-  assert.equal(sequenceResumeAsk(row(), undefined, at).detail, null);
-  assert.equal(sequenceResumeAsk(row(), surface([{ ...pb, id: "p2" }]), at).detail, null);
-  // A sequence to leads says what a reach-out's Resume says.
-  assert.equal(sequenceResumeAsk(row({ starts: "leads" }), undefined, at).detail, W.chain);
+  assert.doesNotMatch(sequenceResumeAsk(rec(), reach({ paused: true }), at).detail, /10:00 AM/);
+  // Unread, or none to read: the question alone, nothing guessed.
+  assert.equal(sequenceResumeAsk(rec(), undefined, at).detail, null);
+  assert.equal(sequenceResumeAsk(rec(), null, at).detail, null);
+  // A sequence to leads says what a reach-out's Resume says, and reads no reach.
+  assert.equal(sequenceResumeAsk(rec({ starts: "leads" }), undefined, at).detail, W.chain);
 });

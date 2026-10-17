@@ -15,7 +15,6 @@
 import { Fragment, useState } from "react";
 import type { ReactNode } from "react";
 import {
-  CONSENT_CHANNELS,
   PLAYBOOK_HOURS,
   SEQUENCE_ACT_WORDS as A,
   SEQUENCE_FLOW_WORDS as F,
@@ -45,14 +44,11 @@ import { Menu } from "../../kit/menu/menu";
 import { Select } from "../../kit/select/select";
 import { gate, navigate, routeDoor } from "../../legacy-verbs";
 import type { LegacyFlash } from "../../legacy-verbs";
-import { broadcasts } from "../broadcasts/verbs";
 import { addLeadsTo } from "../reach-out/people";
-import { reachOuts } from "../reach-out/surface";
 import { FlowRow } from "./flow-row";
 import { LeadStepOpen } from "./lead-step";
 import { StepEditor } from "./step-editor";
 import { StepMessageName, StepWords, useStepMessage } from "./step-words";
-import { useSequenceRead } from "./use-record";
 import { pressed } from "./verbs";
 
 type Flash = (flash: LegacyFlash) => void;
@@ -72,11 +68,10 @@ const HOURS = Array.from({ length: PLAYBOOK_HOURS.max - PLAYBOOK_HOURS.min + 1 }
 
 /**
  * Add leads: a sequence fed by a list takes leads by hand, so Leads opens with the pile set to add to it (people.tsx);
- * one fed by its search writes to what the search finds, which opens. Which it is, the sequences' own read says.
+ * one fed by its search writes to what the search finds, which opens. Which it is, the record says (`fed_by`).
  */
-async function addLeadsOf(rootId: string, searchAt: string) {
-  const chain = (await reachOuts.chainsNow())?.find((c) => c.root_id === rootId) ?? null;
-  if (chain && chain.fed_by === "list") addLeadsTo(chain.root_id, chain.name);
+function addLeadsOf(rec: SequenceRecordDto, rootId: string, searchAt: string) {
+  if (rec.fed_by === "list") addLeadsTo(rootId, rec.sequence.name);
   else navigate(searchAt);
 }
 
@@ -125,11 +120,11 @@ function Starts({ rec, flash, moved }: { rec: SequenceRecordDto; flash: Flash; m
     setBusy(false);
     if (ok) setOpen(false);
   };
-  // Its search's address is the door's, which a new tab opens; a press asks which way the sequence takes leads.
+  // Its search's address is the door's, which a new tab opens; a press goes the way the sequence takes leads.
   const searchAt = first?.search_id ? addressOf({ kind: "lead", searchId: first.search_id }) : null;
   const addLeads =
     row.starts === "leads" && first && searchAt ? (
-      <LinkButton {...routeDoor(searchAt, () => void addLeadsOf(first.id, searchAt))} data-testid="sq-add-leads">
+      <LinkButton {...routeDoor(searchAt, () => addLeadsOf(rec, first.id, searchAt))} data-testid="sq-add-leads">
         {F.addLeads} <Icon name="chevron" size={11} />
       </LinkButton>
     ) : null;
@@ -447,32 +442,29 @@ function Step(p: StepProps) {
 }
 
 /**
- * A one-off's one message (the canvas's One-off board): its batch's message, read from the batch as History reads a day,
- * by its title, how it goes (its sends' channels, none guessed), its words as every step's are, and what it sent and
- * drew back once it went. Its line alone until it is read.
+ * A one-off's one message (the canvas's One-off board): its batch's message as the record reads it (`one_off`), by its
+ * title, how it goes (its sends' channels, none guessed), its words as every step's are, and what it sent and drew back
+ * once it went, as History counts its day (the row's last batch, which is this one). Its name alone where the record holds
+ * no message.
  */
-function DateStep({ rec, batch }: { rec: SequenceRecordDto; batch: string }) {
-  const read = useSequenceRead(batch, broadcasts.detail, broadcasts.peekDetail);
-  const b = read.state === "read" ? read.data.broadcast : null;
-  const message = useStepMessage(b?.template_name ?? null, b?.template_language ?? null);
-  const went = b?.state === "sent";
-  const channels =
-    read.state === "read"
-      ? CONSENT_CHANNELS.filter((c) => read.data.recipients.some((r) => r.state !== "skipped" && r.channel === c))
-      : [];
-  const via = sequenceChannelsWords(channels);
+function DateStep({ rec, date }: { rec: SequenceRecordDto; date: NonNullable<SequenceRecordDto["sequence"]["date"]> }) {
+  const m = rec.one_off?.template_name ? rec.one_off : null;
+  const message = useStepMessage(m?.template_name ?? null, m?.template_language ?? null);
+  const went = date.state === "sent";
+  const last = rec.sequence.last?.id === date.batch_id ? rec.sequence.last : null;
+  const via = sequenceChannelsWords(rec.one_off?.channels ?? []);
   return (
     <FlowRow node={went ? <Icon name="check" size={12} /> : 1} tone={went ? "done" : null} testid="sq-step-1">
       <p className="sq-fl-line">
-        {b ? (
-          <StepMessageName name={b.template_name} message={message} testid="sq-step-words-1" />
+        {m ? (
+          <StepMessageName name={m.template_name} message={message} testid="sq-step-words-1" />
         ) : (
           <span className="sq-fl-name">{rec.sequence.name}</span>
         )}
         {via ? <span className="sq-fl-via">{via}</span> : null}
       </p>
-      {b ? <StepWords name={b.template_name} message={message} params={b.params} testid="sq-step-words-1" /> : null}
-      {b && went ? <StepStats sent={b.counts.sent} replied={b.counts.replied} next={null} /> : null}
+      {m ? <StepWords name={m.template_name} message={message} params={m.params} testid="sq-step-words-1" /> : null}
+      {went && last ? <StepStats sent={last.sent} replied={last.replied} next={null} /> : null}
     </FlowRow>
   );
 }
@@ -538,7 +530,7 @@ export function SequenceSteps({ rec, flash, moved, editing, onEditing, onCancelS
             onCancel={() => onEditing(null)}
           />
         ))}
-        {row.starts === "date" && row.date ? <DateStep rec={rec} batch={row.date.batch_id} /> : null}
+        {row.starts === "date" && row.date ? <DateStep rec={rec} date={row.date} /> : null}
         {takesFollowUps(row) ? (
           editing === "new" ? (
             <FlowRow node={rec.steps.length + 1} tone="now" open testid="sq-step-new">

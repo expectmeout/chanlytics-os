@@ -147,9 +147,15 @@ test("every page opens on its own reads, named by the path's word or the hash's;
     // Every lens of Reports draws from the one report.
     ["reports", "reports"],
     ["reports/bookings", "reports"],
-    // Campaigns' home, and a moment open over it: the same page.
+    // Campaigns lands on Sequences' list, its own address, a group's and a campaign's alike, and opens on what Sequences does.
     ["campaigns", "campaigns"],
-    ["campaigns/new", "campaigns"],
+    ["campaigns/in:winback", "campaigns"],
+    ["campaigns/moment:3f6c1a52-0d1e-4b8a-9c2f-5e7d8a9b0c1d", "campaigns"],
+    // The composer and a message are sheets over that list, each opening on its own reads too.
+    ["campaigns/new", "campaigns/new"],
+    ["campaigns/new:every", "campaigns/new"],
+    ["campaigns/new:to:list-1", "campaigns/new"],
+    ["campaigns/message:hello", "campaigns/message"],
     // Sequences, its list, a record and a new one: its own read (decision 0060).
     ["campaigns/sequences", "campaigns/sequences"],
     ["campaigns/sequences/3f6c1a52-0d1e-4b8a-9c2f-5e7d8a9b0c1d/history", "campaigns/sequences"],
@@ -645,16 +651,19 @@ test("what the head starts for a page is what its surfaces ask for first, no mor
   // Settings is a page of panes, each drawn from the settings surface: asked about one of them.
   const paramOf = { admin: "workspace" };
   // What a page draws on its first screen from another page's surface, started with its own: Today's strip (the next
-  // visit, the next opening) is the calendar's weeks, which the frame reads right after Today's own (ROUTE_DRAWS); and
-  // Campaigns, Sequences' list, opens its sheets over it, made of the playbooks' moments, Sent's runs, its own 30 days
+  // visit, the next opening) is the calendar's weeks, which the frame reads right after Today's own (ROUTE_DRAWS);
+  // Campaigns, Sequences' list, draws the settings read beside it as Sequences does, and the sheets it opens over the list
+  // draw theirs at their own addresses: the composer the playbooks' moments, Sent's runs, Campaigns' own 30 days
   // (campaign_results), the reach-outs' chains and the settings read, which holds the templates (the one read of them, task
-  // 3.3); Sent's sheets stand beside Sequences' list (decision 0060, D3); and the Calendar's campaign marks are their own
-  // span's read, started beside the board's (the Calendar's lane C).
+  // 3.3), a message the playbooks' read and the settings read; Sent's sheets stand beside Sequences' list (decision 0060,
+  // D3); and the Calendar's campaign marks are their own span's read, started beside the board's (the Calendar's lane C).
   // And the channels read (surfaces/channels/surface.ts), which Live, both composers and the Library are made of: the one read
   // of the numbers, started with the page's own.
   const alsoDrawn = {
     today: ["calendar"],
-    campaigns: ["playbooks", "broadcasts", "campaign_results", "reach_outs", "settings", "channels"],
+    campaigns: ["settings"],
+    "campaigns/new": ["playbooks", "broadcasts", "campaign_results", "reach_outs", "settings", "channels"],
+    "campaigns/message": ["playbooks", "settings", "channels"],
     "campaigns/sequences": ["settings"],
     calendar: ["calendar_runs"],
     live: ["channels"],
@@ -662,10 +671,23 @@ test("what the head starts for a page is what its surfaces ask for first, no mor
     outbound: ["channels"],
     messages: ["channels"],
   };
-  for (const [route, drawn] of Object.entries(alsoDrawn))
-    for (const k of drawn) assert.ok(registry.ROUTE_DRAWS[route].includes(k), `${route} draws ${k} beside its own`);
+  // A key with a word after its page (`campaigns/new`) is that page at that address, as the registry reads one.
+  const pageAt = (route) => {
+    const [page, param] = route.split("/");
+    return { page, param: param ?? paramOf[route] ?? null };
+  };
+  for (const [route, drawn] of Object.entries(alsoDrawn)) {
+    const { page, param } = pageAt(route);
+    for (const k of drawn)
+      assert.ok(registry.routeDrawsFor(page, param).includes(k), `${route} draws ${k} beside its own`);
+  }
+  // Campaigns' landing draws none of its sheets' surfaces: a landing reads Sequences' alone (the phone review's Reads on landing).
+  for (const k of ["playbooks", "broadcasts", "campaign_results", "reach_outs"])
+    for (const param of [null, "in:winback", "moment:p-1", "sequences"])
+      assert.ok(!registry.routeDrawsFor("campaigns", param).includes(k), `campaigns/${param ?? ""} draws no ${k}`);
   for (const route of Object.keys(PREFETCH_READS)) {
-    const own = registry.routeSurfaceFor(route, paramOf[route] ?? null);
+    const { page, param } = pageAt(route);
+    const own = registry.routeSurfaceFor(page, param);
     const keys = [own, ...(registry.ROUTE_WAITS[route] ?? []), ...(alsoDrawn[route] ?? [])];
     assert.ok(
       keys.every((k) => overrides[k]),

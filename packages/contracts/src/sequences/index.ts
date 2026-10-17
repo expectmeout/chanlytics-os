@@ -22,6 +22,8 @@ export type {
   SequenceRepliesDto,
   SequencesPageDto,
   SequenceRecordDto,
+  SequenceOneOffDto,
+  SequenceReachDto,
 } from "./sequence-dto";
 export {
   SEQUENCE_WORDS,

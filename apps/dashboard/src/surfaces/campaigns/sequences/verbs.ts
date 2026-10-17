@@ -18,10 +18,12 @@ import type { LegacyFlash } from "../../legacy-verbs";
 type RecordAnswer = ApiResult<Output<"GET sequences/[id]">>;
 type PeopleAnswer = ApiResult<Output<"GET sequences/[id]/people">>;
 type HistoryAnswer = ApiResult<Output<"GET sequences/[id]/history">>;
+type ReachAnswer = ApiResult<Output<"GET sequences/[id]/reach">>;
 
 const records = readCache<RecordAnswer>("sequence", (r) => r.ok);
 const peoples = readCache<PeopleAnswer>("sequence_people", (r) => r.ok);
 const histories = readCache<HistoryAnswer>("sequence_history", (r) => r.ok);
+const reaches = readCache<ReachAnswer>("sequence_reach", (r) => r.ok);
 
 export const sequenceVerbs = {
   /** One sequence: its row, its steps, who approves its batches. */
@@ -36,6 +38,9 @@ export const sequenceVerbs = {
       ? api()("GET sequences/[id]/history", { params: { id }, query: { before } })
       : histories.through(id, () => api()("GET sequences/[id]/history", { params: { id } })),
   peekHistory: (id: string): HistoryAnswer | null => histories.peek(id),
+  /** What Turn on asks with beside the record: who its next run reaches, a run's most, the workspace's pause. */
+  reach: (id: string) => reaches.through(id, () => api()("GET sequences/[id]/reach", { params: { id } })),
+  peekReach: (id: string): ReachAnswer | null => reaches.peek(id),
 };
 
 /**

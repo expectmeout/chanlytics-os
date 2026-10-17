@@ -99,6 +99,7 @@ export const ROUTE_KEYS = [
   "GET sequences/[id]",
   "GET sequences/[id]/history",
   "GET sequences/[id]/people",
+  "GET sequences/[id]/reach",
   "GET sequences/[id]/replies",
   "GET settings",
   "GET setup",

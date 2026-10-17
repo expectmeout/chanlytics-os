@@ -39,7 +39,8 @@ import { StatePill } from "../../kit/pill/state-pill";
 import { askAbout, gate, navigate, openAutonomy, routeDoor } from "../../legacy-verbs";
 import type { LegacyFlash } from "../../legacy-verbs";
 import { useSurface } from "../../use-surface";
-import { pressed } from "./verbs";
+import { useSequenceRead } from "./use-record";
+import { pressed, sequenceVerbs as verbs } from "./verbs";
 
 type Flash = (flash: LegacyFlash) => void;
 
@@ -276,10 +277,15 @@ export function HeadActs({ a, phone }: { a: RecordActs; phone: boolean }) {
   );
 }
 
-/** Turn on, asked: when it runs next and to about how many, from the playbooks surface, read as the question opens. */
+/**
+ * Turn on, asked: when it runs next, from the record, and to about how many, from its reach (GET sequences/:id/reach), read
+ * as the question opens. A sequence to leads reads nothing more: its question says what a reach-out's Resume says.
+ */
 function TurnOnQuestion({ a }: { a: RecordActs }) {
-  const playbooks = useSurface("playbooks");
-  const ask = sequenceResumeAsk(a.row, playbooks, { tz: a.rec.timezone, nowMs: Date.now(), mode: a.rec.mode });
+  const counted = a.row.starts === "moment" || a.row.starts === "list";
+  const read = useSequenceRead(counted ? a.row.id : null, verbs.reach, verbs.peekReach);
+  const reach = read.state === "read" ? read.data : undefined;
+  const ask = sequenceResumeAsk(a.rec, reach, { tz: a.rec.timezone, nowMs: Date.now(), mode: a.rec.mode });
   return (
     <Confirm
       question={ask.question}

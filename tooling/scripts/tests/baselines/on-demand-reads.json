@@ -73,6 +73,12 @@
     "fresh": "Read as a sequence's People tab opens, painted from the last answer and read again behind; then each time the Sequences list is read, and after each press on it.",
     "why": "Where people stand moves with each batch and its sends; the list hears the batches, and a press on the tab reads it again."
   },
+  "apps/dashboard/src/surfaces/campaigns/sequences/verbs.ts GET sequences/[id]/reach": {
+    "kind": "follows",
+    "follows": "sequences",
+    "fresh": "Read as a paused sequence's Turn on question opens, painted from the last answer and read again behind; then each time the Sequences list is read while the question stands.",
+    "why": "Who a run reaches is a count over everyone, which nothing heard in a moment moves enough to change a question asked and answered in seconds; Turn on itself is a write, which empties the tab's answers."
+  },
   "apps/dashboard/src/surfaces/inbox/pages/inbox-from.tsx GET sequences/[id]/replies": {
     "kind": "on-open",
     "fresh": "Read as the Inbox opens on a sequence's replies (inbox/from:<id>, History's door), and again when the address names another sequence or period.",

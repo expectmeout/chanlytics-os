@@ -126,8 +126,8 @@ test("Live hears the calls, and the line's number and switch are the channels re
 
 test("the composers hear the channel, the line and the billing account on their own page, and read what they missed as it comes on screen", () => {
   for (const [o, home, away] of [
-    [playbooksOverride, "#/campaigns", "#/inbox"],
-    // Campaigns' home hears the channels for Sent's runs too (who can hear you, Send by): away is the Inbox.
+    [playbooksOverride, "#/campaigns/new", "#/inbox"],
+    // Campaigns' composer hears the channels for Sent's runs too (who can hear you, Send by): away is the Inbox.
     [broadcastsOverride, "#/broadcasts", "#/inbox"],
   ]) {
     for (const table of LINE_TABLES) {
@@ -163,12 +163,12 @@ test("the composers hear the channel, the line and the billing account on their 
     wantsRefresh(playbooksOverride, "billing_accounts", change("billing_accounts"));
     wantsRefresh(broadcastsOverride, "tenant_channels", change("tenant_channels"));
     assert.deepEqual(read, [], "nothing is read from the Inbox");
-    at("#/campaigns");
+    at("#/campaigns/new");
     win.on?.();
     assert.deepEqual(
       read,
       ["playbooks", "broadcasts"],
-      "Campaigns' home reads both once: a channel moves the playbooks' moments and Sent's runs it draws (who can hear you)",
+      "Campaigns' composer reads both once: a channel moves the playbooks' moments and Sent's runs it draws (who can hear you)",
     );
     at("#/broadcasts");
     win.on?.();
@@ -202,7 +202,7 @@ test("a mode saved reads the rules' own read, and what the page on screen draws 
     return read;
   };
   const settle = () => {
-    owedOn("#/campaigns");
+    owedOn("#/campaigns/new");
     owedOn("#/broadcasts");
     owedOn("#/clients", [peopleOverride]);
   };
@@ -216,9 +216,9 @@ test("a mode saved reads the rules' own read, and what the page on screen draws 
     "on Autonomy, where a mode is saved, the rules' own read alone",
   );
   assert.deepEqual(
-    owedOn("#/campaigns"),
+    owedOn("#/campaigns/new"),
     ["playbooks", "broadcasts"],
-    "both composers are read as Campaigns' home comes on screen: Sent's runs it draws hear the rules there",
+    "both composers are read as Campaigns' composer comes on screen: Sent's runs it draws hear the rules there",
   );
   assert.deepEqual(owedOn("#/broadcasts"), [], "and Sent owes nothing more");
   assert.deepEqual(
@@ -234,17 +234,17 @@ test("a mode saved reads the rules' own read, and what the page on screen draws 
     ["settings", "broadcasts"],
     "from the Inbox, the runs waiting for your word it draws beside the rules' own read",
   );
-  assert.deepEqual(owedOn("#/campaigns"), ["playbooks"], "the playbooks as Campaigns' home comes on screen");
+  assert.deepEqual(owedOn("#/campaigns/new"), ["playbooks"], "the playbooks as Campaigns' composer comes on screen");
   settle();
 
-  at("#/campaigns");
+  at("#/campaigns/new");
   assert.deepEqual(
     keysOf("PUT policies"),
     ["settings", "playbooks", "broadcasts"],
-    "on Campaigns' home both are read at once",
+    "on Campaigns' composer both are read at once",
   );
-  assert.deepEqual(owedOn("#/broadcasts"), [], "Sent owes nothing: its runs were read on the home");
-  assert.deepEqual(owedOn("#/campaigns"), [], "and the playbooks owe nothing: they were read");
+  assert.deepEqual(owedOn("#/broadcasts"), [], "Sent owes nothing: its runs were read in the composer");
+  assert.deepEqual(owedOn("#/campaigns/new"), [], "and the playbooks owe nothing: they were read");
   settle();
 
   at("#/broadcasts");
@@ -253,6 +253,8 @@ test("a mode saved reads the rules' own read, and what the page on screen draws 
     ["settings", "playbooks", "broadcasts"],
     "Sent draws a run's playbook beside its runs",
   );
+  at("#/campaigns");
+  assert.deepEqual(keysOf("PUT policies"), ["settings"], "Campaigns' landing, Sequences' list, draws neither composer");
   at("#/outbound");
   assert.deepEqual(keysOf("PUT policies"), ["settings", "playbooks"], "Campaigns' old address is the playbooks' too");
   at("#/clients");

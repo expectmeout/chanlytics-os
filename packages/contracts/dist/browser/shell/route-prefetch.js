@@ -40,10 +40,17 @@ export const PREFETCH_READS = {
   // the business's name and its links are the settings read's, which the boot's second pass reads.
   broadcasts: ["broadcasts", "contacts", "segments", "channels", "sequences"],
   outbound: ["playbooks", "channels"],
-  // Campaigns is Sequences' list first (surface-registry ROUTE_SURFACE), and the sheets it opens over it (ROUTE_DRAWS): the
-  // playbooks' moments, Sent's runs, Campaigns' own 30 days (campaign_results, the period named once), the reach-outs' chains
-  // and the settings read, which holds the messages a composer offers. Each surface's first reads.
-  campaigns: [
+  // Campaigns is Sequences' list (surface-registry ROUTE_SURFACE), where its own address, a group's and a campaign's land,
+  // and it opens on what Sequences opens on: the sheets it opens over the list read theirs at their own addresses (below).
+  // It opened on all of theirs too, the old pages' surfaces a landing may never draw (the Sequences phone review, 16 Oct 2026).
+  campaigns: ["sequences", "settings", "team", "policies", "templates?all=1"],
+  // Campaigns › Sequences (decision 0060), its list and a record open beside it: the sequences' own read, and the settings
+  // read, which holds the messages a step may send and the business's name its preview is filled with (ROUTE_DRAWS).
+  "campaigns/sequences": ["sequences", "settings", "team", "policies", "templates?all=1"],
+  // The composer over Sequences' list (`campaigns/new…`, ROUTE_DRAWS): the playbooks' moments, Sent's runs and who they reach,
+  // Campaigns' own 30 days (campaign_results, the period named once), the reach-outs' chains, the channels read and the
+  // settings read, which holds the messages a composer offers. Each surface's first reads.
+  "campaigns/new": [
     "sequences",
     "playbooks",
     "channels",
@@ -58,9 +65,9 @@ export const PREFETCH_READS = {
     "policies",
     "templates?all=1"
   ],
-  // Campaigns › Sequences (decision 0060), its list and a record open beside it: the sequences' own read, and the settings
-  // read, which holds the messages a step may send and the business's name its preview is filled with (ROUTE_DRAWS).
-  "campaigns/sequences": ["sequences", "settings", "team", "policies", "templates?all=1"],
+  // A message in its drawer over Sequences' list (`campaigns/message:<name>`): the playbooks' read the sheets wait for, the
+  // settings read its pane is drawn from and the channels read's numbers.
+  "campaigns/message": ["sequences", "playbooks", "channels", "settings", "team", "policies", "templates?all=1"],
   // Templates and every pane of Settings are drawn from the settings surface; the Library's number notice from the channels read,
   // which Connections draws too and asks for as its pane comes on screen.
   messages: ["settings", "team", "policies", "channels", "templates?all=1"],
@@ -106,8 +113,10 @@ export function routePrefetchScript() {
     `var s=${JSON.stringify(PREFETCH_ROUTE_OF_WORD)}[h[0]]||h[0]||"today",t=${JSON.stringify(PREFETCH_READS)},B=${JSON.stringify(PREFETCH_BESIDE)},O=Object.prototype.hasOwnProperty;`,
     // Leads is People's scope with a surface of its own: the scope alone opens on its own list.
     'if(s==="clients"&&l==="leads")s="leads";',
-    // Sequences is Campaigns' view with a surface of its own: its list, a record and a new one all open on its read.
+    // Sequences is Campaigns' view with a surface of its own: its list, a record and a new one all open on its read. The
+    // composer and a message are sheets over its list that open on theirs too (`campaigns/new:every`, `message:<name>`).
     'if(s==="campaigns"&&l==="sequences")s="campaigns/sequences";',
+    'if(s==="campaigns"&&/^(new|message)(:|$)/.test(l))s="campaigns/"+l.split(":")[0];',
     // A day the Calendar's address names is read by the weeks around that day, which the page works out: no read here. A
     // view's word or a visit with no day (`calendar/month`, `calendar/a-<id>`) opens on the weeks around today, as the
     // route alone does (contracts calendarParamParts).

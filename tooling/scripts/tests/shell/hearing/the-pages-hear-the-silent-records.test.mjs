@@ -50,7 +50,7 @@ globalThis.window.fetch = async (url) => {
 };
 
 const { wantsRefresh } = await importSrc("apps/dashboard/src/legacy-bridge/surface-realtime.ts");
-const { readWhatWasMissed } = await importSrc("apps/dashboard/src/legacy-bridge/surface-registry.ts");
+const { ownsTable, readWhatWasMissed } = await importSrc("apps/dashboard/src/legacy-bridge/surface-registry.ts");
 const { workspaceOverride } = await importSrc("apps/dashboard/src/legacy-bridge/surface-data.ts");
 const { settingsOverride } = await importSrc("apps/dashboard/src/legacy-bridge/surfaces/settings.ts");
 const { watchedTables } = await importSrc("packages/db/src/realtime.ts");
@@ -183,15 +183,20 @@ const ON_ITS_PAGE = [
       "tenant_config",
     ],
   ],
-  [playbooksOverride, "#/campaigns", "#/inbox", ["contacts", "templates", "mailboxes", "policies", "tenant_config"]],
+  [
+    playbooksOverride,
+    "#/campaigns/new",
+    "#/inbox",
+    ["contacts", "templates", "mailboxes", "policies", "tenant_config"],
+  ],
   // Sent's composer offers the settings read's messages (offered-templates.ts): it hears every other table the playbooks do. Away is
-  // the Inbox: Campaigns' home hears these for Sent's runs too (PAGE_HEARS, a cell of kinds; the test below).
+  // the Inbox: Campaigns' composer hears these for Sent's runs too (PAGE_HEARS, a cell of kinds; the test below).
   [broadcastsOverride, "#/broadcasts", "#/inbox", ["contacts", "mailboxes", "policies", "tenant_config"]],
   [reportsOverride, "#/reports", "#/inbox", ["contacts"]],
   [reportsHeadlineOverride, "#/today", "#/inbox", ["contacts"]],
   [reportsPeopleOverride, "#/reports/people", "#/inbox", ["contacts", "tenant_config"]],
   [receptionistOverride, "#/reports/receptionist", "#/inbox", ["contacts", "tenant_config"]],
-  [campaignResultsOverride, "#/campaigns", "#/inbox", ["sequence_replies"]],
+  [campaignResultsOverride, "#/campaigns/new", "#/inbox", ["sequence_replies"]],
 ];
 
 test("the heavy pages hear them on their own page alone: People, the composers, the Reports lenses and Campaigns' 30 days", () => {
@@ -328,11 +333,17 @@ test("a member whose seat in the workspace on screen is gone is sent to one of t
   }
 });
 
-test("on Campaigns' home Sent's runs hear what moves them there, a person, a channel, the rules, the facts, the plan, a visit, and leave a message to Sent; what passed is read where it is owned", () => {
-  // The home draws Sent's runs for who can hear you, the pause on offers and the send-once composer (the wiring's second audit,
-  // W-review-facts-rules-2): a STOP, a number Meta flagged or a rule saved moved them nowhere while the home was open. A message
-  // moves a run's replies, which the home reads from its own 30 days: it is Sent's, as it was.
-  at("#/campaigns");
+test("in Campaigns' composer Sent's runs hear what moves them there, a person, a channel, the rules, the facts, the plan, a visit, and leave a message to Sent; what passed is read where it is owned", () => {
+  // The composer draws Sent's runs for who can hear you, the pause on offers and the send-once composer (the wiring's second audit,
+  // W-review-facts-rules-2): a STOP, a number Meta flagged or a rule saved moved them nowhere while it was open. A message moves a
+  // run's replies, which the composer reads from Campaigns' own 30 days: it is Sent's, as it was. Campaigns' landing, Sequences'
+  // list, draws no run: there they are kept for the pages that draw them.
+  assert.equal(
+    ownsTable("broadcasts", "contacts", "campaigns"),
+    false,
+    "Campaigns' landing keeps a person for Sent's pages",
+  );
+  at("#/campaigns/new");
   for (const table of [
     "contacts",
     "tenant_channels",
@@ -343,7 +354,7 @@ test("on Campaigns' home Sent's runs hear what moves them there, a person, a cha
     "tenant_config",
     "appointments",
   ])
-    assert.equal(hears(broadcastsOverride, table), true, `broadcasts: ${table} on the home`);
+    assert.equal(hears(broadcastsOverride, table), true, `broadcasts: ${table} in the composer`);
   for (const [table, event] of [
     ["messages", "INSERT"],
     ["conversations", "UPDATE"],
@@ -363,24 +374,24 @@ test("on Campaigns' home Sent's runs hear what moves them there, a person, a cha
     hears(broadcastsOverride, "messages", "INSERT");
     at("#/inbox");
     win.on?.();
-    at("#/campaigns");
+    at("#/campaigns/new");
     win.on?.();
     assert.deepEqual(
       read,
       [],
-      "a message the home let pass is not read as the home comes back: it moves nothing drawn there",
+      "a message the composer let pass is not read as it comes back: it moves nothing drawn there",
     );
     at("#/broadcasts");
     win.on?.();
     assert.deepEqual(read, ["broadcasts"], "it is read once as Sent comes on screen");
     at("#/inbox");
     hears(broadcastsOverride, "contacts");
-    at("#/campaigns");
+    at("#/campaigns/new");
     win.on?.();
     assert.deepEqual(
       read,
       ["broadcasts", "broadcasts"],
-      "a person's answer passed on the Inbox is read as the home comes back",
+      "a person's answer passed on the Inbox is read as the composer comes back",
     );
   } finally {
     stop();

@@ -6,7 +6,6 @@
 
 import { read } from "@/legacy-bridge/api";
 import {
-  DEFAULT_CAMPAIGN_CHANNELS,
   REPLY_WINDOW_WORDS,
   type ChannelsReady,
   type ConsentChannel,
@@ -14,7 +13,6 @@ import {
   type NumberHealth,
   type RunSplit,
   lifecyclePlaybooksOf,
-  playbookPoolKey,
   scheduleLine,
   triggerOf,
   triggerWords,
@@ -27,7 +25,7 @@ import type { SurfaceOverride } from "@/legacy-bridge/surface-data";
 import { COUNTED_RECEIPTS, DEAR_READ_LONGEST_WAIT_MS, RECEIPTS_QUIET_MS } from "@/legacy-bridge/surface-realtime";
 import { declareReads } from "@/legacy-bridge/surface-registry";
 import type { SettingsSurface } from "@/legacy-bridge/surfaces/settings";
-import { sameChannels } from "@/lib/campaign-channels";
+import { playbookCountKey, readingFor, type PoolRead } from "@/lib/campaign-channels";
 import { callTextOf, followSettings } from "../../offered-templates";
 import { declareSurfaceValue, setSurfaceValue, shareUnchanged, surfaceValue } from "../../surface-values";
 import { channelsHeld, followChannels } from "../../channels/surface";
@@ -131,27 +129,6 @@ export interface PlaybookNamed {
   runSplit?: RunSplit;
 }
 
-/**
- * One moment's count as the route makes it (server/campaigns/playbook-pools.ts TriggerPool): the figures for WhatsApp alone,
- * as every playbook went before, and, beside them, the same figures for each other set of channels a playbook on it may
- * tick, so the composer reads the count for the set in front of it as the owner ticks and unticks.
- */
-export interface PoolRead {
-  candidates: number;
-  held: number;
-  pool: number;
-  noYes: number;
-  stopped: number;
-  noNumber: number;
-  saidYes: number;
-  no_address?: number;
-  address_stopped?: number;
-  no_channel?: number;
-  by_channel?: Record<ConsentChannel, number>;
-  run_split?: RunSplit;
-  by?: Array<Omit<PoolRead, "by"> & { channels: readonly string[] }>;
-}
-
 /** What a count says of who it names and who it leaves out: null where the moment could not be counted. */
 export function namedOf(x: Omit<PoolRead, "by"> | null | undefined): PlaybookNamed | null {
   return x && typeof x.pool === "number"
@@ -168,38 +145,6 @@ export function namedOf(x: Omit<PoolRead, "by"> | null | undefined): PlaybookNam
         ...(x.run_split ? { runSplit: x.run_split } : {}),
       }
     : null;
-}
-
-/**
- * A count for the channels a playbook goes by: the figures for WhatsApp alone where it ticks that, the widest set the
- * count kept that lies within what it ticks, and, where none can carry it (a channel it ticks is not open to its
- * message), everyone the moment names left out with no channel to go by. Null where the moment was not counted.
- */
-export function readingFor(
-  pool: PoolRead | null | undefined,
-  channels: readonly string[] | null | undefined,
-): Omit<PoolRead, "by"> | null {
-  if (!pool) return null;
-  // None named is a playbook made before channels: WhatsApp alone. An empty set is none: no channel can carry it.
-  const want = channels ?? DEFAULT_CAMPAIGN_CHANNELS;
-  if (sameChannels(want, DEFAULT_CAMPAIGN_CHANNELS)) return pool;
-  const within = (pool.by ?? []).filter((b) => b.channels.every((c) => want.includes(c)));
-  const widest = within.sort((a, b) => b.channels.length - a.channels.length)[0];
-  if (widest) return widest;
-  if (want.includes("whatsapp")) return pool;
-  return {
-    candidates: 0,
-    held: 0,
-    pool: pool.pool,
-    noYes: 0,
-    stopped: 0,
-    noNumber: 0,
-    saidYes: 0,
-    no_address: 0,
-    address_stopped: 0,
-    no_channel: pool.pool,
-    by_channel: { whatsapp: 0, sms: 0, email: 0 },
-  };
 }
 
 export interface PlaybookTriggerOption {
@@ -466,15 +411,8 @@ export const playbooksOverride: SurfaceOverride = {
     const home = lifecyclePlaybooksOf(pb, now);
     const { shape, timezone: tz } = home;
     const { word } = shape;
-    // A playbook on a list is counted by its list's token (`seg:<id>` or `list:<id>`, decision 0009).
     const listsKept = pb.lists ?? [];
     const peopleLists = pb.people_lists ?? [];
-    const momentKey = (p: { trigger: string; list_id?: string | null; list_key?: string | null }) =>
-      p.trigger !== "saved_list" ? p.trigger : p.list_key ? `seg:${p.list_key}` : `list:${p.list_id ?? ""}`;
-    // A playbook whose message is stricter than its moment's class (an After-the-visit one still sending its offer) is
-    // counted on its own: its run enrols by the message's yes (the route's strictMessagePools).
-    const keyOf = (p: { id: string; trigger: string; list_id?: string | null; list_key?: string | null }) =>
-      playbookPoolKey(p.id) in (pb.pools ?? {}) ? playbookPoolKey(p.id) : momentKey(p);
     setSurfaceValue("playbooks", {
       pools,
       shape,
@@ -482,11 +420,12 @@ export const playbooksOverride: SurfaceOverride = {
       month_sent: pb.month_sent ?? null,
       rows: home.cards.map(({ playbook: p, read: card }) => {
         const t = triggerOf(p.trigger);
-        // Its reach is the count for the channels it goes by.
-        const reading = readingFor(pools[keyOf(p)], p.channels);
+        // Its reach is the count for the channels it goes by, read from its own count, its list's or its moment's.
+        const poolKey = playbookCountKey(p, pools);
+        const reading = readingFor(pools[poolKey], p.channels);
         return {
           ...p,
-          poolKey: keyOf(p),
+          poolKey,
           listArchived: card.listArchived,
           triggerLabel: card.triggerLabel,
           triggerHint: t ? triggerWords(t, word).hint : "",

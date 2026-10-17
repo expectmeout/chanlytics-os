@@ -4527,6 +4527,7 @@ async function momentSchedules(db, tenantId) {
 }
 
 // src/repositories/campaigns/sequences.ts
+import { CONSENT_CHANNELS, isLeadList as isLeadList2 } from "../../contracts/dist/index.js";
 async function followUpsDue(db, stepId, runFor) {
   const { data, error } = await db.rpc("sequence_follow_ups_due", { p_step_id: stepId, p_run_for: runFor });
   if (error) throw new Error(`cannot read who the step is due to: ${error.message}`);
@@ -4606,6 +4607,29 @@ async function stepLastRunFor(db, tenantId, stepId) {
   const { data, error } = await db.from("sequence_steps").select("last_run_for").eq("tenant_id", tenantId).eq("id", stepId).maybeSingle();
   if (error) throw new Error(`cannot read when the step last ran: ${error.message}`);
   return data?.last_run_for ?? null;
+}
+async function oneOffMessageOf(db, tenantId, batchId) {
+  const [batch, ...by] = await Promise.all([
+    db.from("sequence_batches").select("template_name, template_language, params").eq("tenant_id", tenantId).eq("id", batchId).maybeSingle(),
+    ...CONSENT_CHANNELS.map(
+      (channel) => db.from("sequence_sends").select("id").eq("tenant_id", tenantId).eq("batch_id", batchId).is("lead_id", null).eq("channel", channel).neq("state", "skipped").limit(1)
+    )
+  ]);
+  if (batch.error) throw new Error(`cannot read the one-off's message: ${batch.error.message}`);
+  const failed = by.find((r) => r.error);
+  if (failed?.error) throw new Error(`cannot read how the one-off goes: ${failed.error.message}`);
+  if (!batch.data) return null;
+  return {
+    template_name: batch.data.template_name,
+    template_language: batch.data.template_language,
+    params: batch.data.params,
+    channels: CONSENT_CHANNELS.filter((_, i) => (by[i]?.data ?? []).length > 0)
+  };
+}
+async function leadsFedBy(db, tenantId, searchId) {
+  const { data, error } = await db.from("lead_searches").select("via").eq("tenant_id", tenantId).eq("id", searchId).maybeSingle();
+  if (error) throw new Error(`cannot read what the sequence writes to: ${error.message}`);
+  return isLeadList2(data) ? "list" : "search";
 }
 async function runningStepsOn(db, tenantId, triggers) {
   if (triggers.length === 0) return [];
@@ -7105,6 +7129,7 @@ export {
   leadSlotsOf,
   leadWritten,
   leadsBackToday,
+  leadsFedBy,
   leavePersonLead,
   leaveSequence,
   lineForwardingSet,
@@ -7170,6 +7195,7 @@ export {
   offersEmailReach,
   olderUnreadFor,
   oldestActiveChannel,
+  oneOffMessageOf,
   openBookingRequest,
   openConversation,
   openDoubtsOf,

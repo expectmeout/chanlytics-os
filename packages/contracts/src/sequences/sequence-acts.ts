@@ -1,14 +1,13 @@
 /**
  * What a sequence's head offers past its one act (decision 0060; the parity review of 15 Oct 2026): its More (Ask about it,
  * Run now, Rename, and on a phone Pause or Turn on and Skip), and Turn on asked first, as a campaign's Resume is (decision 7,
- * the wiring's second audit S9-2). Pure: the clock is an argument, and Turn on's when and how many are read off the
- * playbooks surface's row of the sequence's first step (lifecycle-tiles.ts resumeDetailOf), the one the home's rows ask.
+ * the wiring's second audit S9-2). Pure: the clock is an argument, and Turn on's when and how many are said by the rule the
+ * home's rows say a Resume by (lifecycle-tiles.ts resumeDetailOf), over the record's first step and its reach.
  */
-import { resumeDetailOf, workspacePausedOf } from "../playbooks/lifecycle/lifecycle-tiles";
-import type { LifecyclePlaybooks } from "../playbooks/lifecycle/lifecycle-types";
+import { resumeDetailOf } from "../playbooks/lifecycle/lifecycle-tiles";
 import { LIFECYCLE_WORDS } from "../playbooks/lifecycle/lifecycle-words";
-import { campaignRunsOn } from "../playbooks/playbook-schedule";
-import type { SequenceRowDto } from "./sequence-dto";
+import { campaignRunsOn, trialDayWords } from "../playbooks/playbook-schedule";
+import type { SequenceReachDto, SequenceRecordDto, SequenceRowDto } from "./sequence-dto";
 
 /** The head's words past its one act. */
 export const SEQUENCE_ACT_WORDS = {
@@ -49,20 +48,31 @@ export interface SequenceResumeAsk {
 
 /**
  * A paused sequence's Turn on, asked first (decision 7): a sequence on a moment or a list says when its first step runs
- * next and to about how many, from the playbooks surface's row of that step (undefined while the surface is read: the
- * question alone, nothing guessed), and that it sends on its own where its class does (`mode`, the record's own); a
- * workspace paused for billing says so instead of a time, as the home's rows do. A sequence to leads says what a
- * reach-out's Resume says.
+ * next, from the record (its hour, its last day, its trial and the day it last ran), and to about how many, from its reach
+ * (GET sequences/:id/reach; undefined while it is read: the question alone, nothing guessed), and that it sends on its own
+ * where its class does (`mode`, the record's own); a workspace paused for billing says so instead of a time, as the home's
+ * rows do. A sequence to leads says what a reach-out's Resume says.
  */
 export function sequenceResumeAsk(
-  row: Pick<SequenceRowDto, "name" | "starts" | "first">,
-  playbooks: LifecyclePlaybooks | null | undefined,
+  rec: { sequence: Pick<SequenceRowDto, "name" | "starts" | "first"> } & Pick<SequenceRecordDto, "last_run_for">,
+  reach: SequenceReachDto | null | undefined,
   at: { tz: string; nowMs: number; mode: string | null },
 ): SequenceResumeAsk {
   const W = LIFECYCLE_WORDS.ledger.resume;
-  const id = row.first?.id;
-  const first = id ? playbooks?.rows.find((p) => p.id === id) : undefined;
-  const paused = workspacePausedOf({ playbooks: playbooks ?? undefined, broadcasts: undefined });
-  const detail = row.starts === "leads" ? W.chain : first ? resumeDetailOf(first, { ...at, paused }) : null;
-  return { question: SEQUENCE_ACT_WORDS.resumeAsk(row.name), detail, yes: SEQUENCE_ACT_WORDS.resumeYes };
+  const { name, starts, first } = rec.sequence;
+  const step =
+    first && reach
+      ? {
+          run_hour: first.run_hour,
+          last_run_for: rec.last_run_for ?? null,
+          trigger: first.trigger,
+          until: first.until,
+          candidates: reach.candidates,
+          cap_per_run: reach.cap_per_run,
+          trial: trialDayWords(first, at.tz, new Date(at.nowMs)),
+        }
+      : null;
+  const detail =
+    starts === "leads" ? W.chain : step ? resumeDetailOf(step, { ...at, paused: reach?.paused === true }) : null;
+  return { question: SEQUENCE_ACT_WORDS.resumeAsk(name), detail, yes: SEQUENCE_ACT_WORDS.resumeYes };
 }

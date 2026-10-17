@@ -11,11 +11,14 @@ import {
   type SequenceHistoryDto,
   type SequenceRepliesDto,
   type SequencePeopleDto,
+  type SequenceReachDto,
   type SequenceRecordDto,
   type SequencesPageDto,
 } from "@chanlytics/contracts";
 import {
   leadRepliesOfBatches,
+  leadsFedBy,
+  oneOffMessageOf,
   sequenceHistoryOf,
   sequenceOfPart,
   sequenceOverview,
@@ -23,9 +26,11 @@ import {
   sequenceStepsOf,
   stepLastRunFor,
 } from "@chanlytics/db";
+import { playbookCountKey, readingFor } from "@/lib/campaign-channels";
 import { repliedConversationsOf } from "../campaigns/broadcasts";
-import { load, stamp, type Reader } from "./index";
+import { load, stamp, type Reader, type ReaderContext } from "./index";
 import * as readers from "./facts";
+import { playbooks as playbooksReader } from "./playbooks";
 
 /**
  * The Sequences page's reads (decision 0060), one reader each, which Ask's tools read too, so the number Ask says is the
@@ -62,8 +67,26 @@ export const sequences: Reader<undefined, SequencesPageDto> = {
 };
 
 /**
- * GET sequences/:id: one sequence, its steps in their places, and the mode its batches are approved under. An id that is
- * a part of one (a batch's: a run's address; a step's) reads the sequence it belongs to, whose own id the answer names.
+ * What the record says of a sequence beside its row, by how it starts: what a sequence to leads writes to (Add leads), and
+ * a one-off's one message (its flow's step). Neither for any other. Unreadable costs its line alone, never the record: what
+ * a sequence to leads writes to is then its search, as before it was read, and a one-off names itself.
+ */
+async function startsWith(
+  rc: ReaderContext,
+  row: Pick<SequenceRecordDto["sequence"], "starts" | "first" | "date">,
+): Promise<Pick<SequenceRecordDto, "fed_by" | "one_off">> {
+  const db = rc.ctx.supabase;
+  const search = row.starts === "leads" ? row.first?.search_id : null;
+  if (search) return { fed_by: await leadsFedBy(db, rc.tenantId, search).catch(() => "search" as const) };
+  if (row.starts === "date" && row.date)
+    return { one_off: await oneOffMessageOf(db, rc.tenantId, row.date.batch_id).catch(() => null) };
+  return {};
+}
+
+/**
+ * GET sequences/:id: one sequence, its steps in their places, and the mode its batches are approved under; what a sequence
+ * to leads writes to, and a one-off's message (startsWith). An id that is a part of one (a batch's: a run's address; a
+ * step's) reads the sequence it belongs to, whose own id the answer names.
  */
 export const sequence: Reader<{ id: string }, SequenceRecordDto> = {
   name: "sequence",
@@ -97,8 +120,36 @@ export const sequence: Reader<{ id: string }, SequenceRecordDto> = {
         timezone: facts.timezone,
         word: shape.word,
         ...(lastRunFor === undefined ? {} : { last_run_for: lastRunFor }),
+        ...(await startsWith(rc, row)),
       },
       rows: [cited(row)],
+      stamp: stamp(),
+    };
+  },
+};
+
+/**
+ * GET sequences/:id/reach: what Turn on asks with beside the record (contracts sequenceResumeAsk), for a sequence on a
+ * moment or a list, whose first step is a campaign's card on GET playbooks: who its next run reaches, read off that read's
+ * pools as the card reads it (its own count, its list's or its moment's, for the channels it goes by: lib
+ * campaign-channels.ts), the most one run sends, and whether the workspace is paused for billing. Read as the question
+ * opens, never with the record: the count is over everyone, as a run's is. A sequence with no such step is not found.
+ */
+export const sequenceReach: Reader<{ id: string }, SequenceReachDto> = {
+  name: "sequenceReach",
+  async read(rc, { id }) {
+    const pb = (await load(rc, playbooksReader, undefined)).data;
+    // A sequence's first step has the sequence's own id (00440).
+    const step = pb.playbooks.find((p) => p.id === id);
+    if (!step) throw new AppError("not_found", "This sequence does not start on a moment or a list.", 404);
+    const reading = readingFor(pb.pools[playbookCountKey(step, pb.pools)], step.channels);
+    return {
+      data: {
+        candidates: reading ? reading.candidates : null,
+        cap_per_run: step.cap_per_run ?? null,
+        paused: pb.ready?.paused === true,
+      },
+      rows: [cited(step)],
       stamp: stamp(),
     };
   },

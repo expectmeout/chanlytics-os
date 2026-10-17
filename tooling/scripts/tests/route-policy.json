@@ -1649,6 +1649,13 @@
       "rate": "aggregate",
       "spend": false
     },
+    "GET sequences/[id]/reach": {
+      "kind": "read",
+      "scope": "row",
+      "role": null,
+      "rate": "aggregate",
+      "spend": false
+    },
     "POST sequences/[id]/leave": {
       "kind": "write",
       "scope": "row",
