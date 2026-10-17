@@ -84,6 +84,14 @@ export function sameQuestion(a: string, b: string): boolean {
   return x.length > 0 && x === norm(b);
 }
 
+/**
+ * The next questions a thread has not asked or offered already, in their order (the answer canvas, item 15: a chip
+ * offered again, or the question just asked offered back, reads as Ask not listening).
+ */
+export function nextNotAsked(next: readonly string[], asked: readonly string[]): string[] {
+  return next.filter((q) => !asked.some((a) => sameQuestion(a, q)));
+}
+
 /** The Open button's words, by where it goes; the model's label only for a page. */
 export function navigateLabel(nav: { to: string; label: string } | null, language: AskLanguage): string | null {
   if (!nav || !nav.to) return null;

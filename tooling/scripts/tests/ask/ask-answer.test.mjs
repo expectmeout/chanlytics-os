@@ -26,6 +26,7 @@ import {
   failedAnswer,
   leadQuestionRoute,
   needsAnswer,
+  nextNotAsked,
   normalizeAnswer,
   noteRows,
   oneDoor,
@@ -1480,6 +1481,17 @@ test("the detail keeps its formatting and its indents; the headline is one plain
     answerSpoken(read.answer),
     "Two need you. 1. Answer Ana. she waited 3 days. 2. Then Sam. call Sam back.",
   );
+});
+
+test("nextNotAsked (the answer canvas, item 15): a next question the thread asked or offered goes, however it is cased or stopped; the rest keep their order", () => {
+  assert.deepEqual(
+    nextNotAsked(
+      ["Who called this week?", "Which list is biggest?", "What about next week?"],
+      ["who called this week", "Which list is biggest?!"],
+    ),
+    ["What about next week?"],
+  );
+  assert.deepEqual(nextNotAsked(["A?", "B?"], []), ["A?", "B?"]);
 });
 
 test("a customer's words quoted and a callout for what comes first (the answer canvas, C2): `>` lines are a quote, an alert's mark makes a callout, amber for what needs them; Copy quotes the words, a voice says them", () => {

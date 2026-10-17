@@ -13169,6 +13169,9 @@ function sameQuestion(a, b) {
   const x = norm(a);
   return x.length > 0 && x === norm(b);
 }
+function nextNotAsked(next, asked) {
+  return next.filter((q) => !asked.some((a) => sameQuestion(a, q)));
+}
 function navigateLabel(nav, language) {
   if (!nav || !nav.to) return null;
   const es = language === "es";
@@ -60866,6 +60869,7 @@ export {
   newSinceOf,
   newestPostFor,
   nextMonthStart,
+  nextNotAsked,
   nextOpenMoment,
   nextRunLabel,
   nextRunWords,

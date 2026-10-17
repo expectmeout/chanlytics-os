@@ -242,6 +242,8 @@ export async function threadForTurn(
   cited: AskRowRef[];
   /** The thread's cards no one has pressed yet: a call that would make one of them again makes nothing (turn-end.ts notAgain). */
   waiting: AskProposal[];
+  /** What the thread already asked and offered to ask next: a next question that says one again goes (turn.ts). */
+  offered: string[];
 }> {
   const { tenantId, threadId, text, answering } = asked;
   let { scope } = asked;
@@ -252,6 +254,7 @@ export async function threadForTurn(
   let told: string[] | null = null;
   let cited: AskRowRef[] = [];
   let waiting: AskProposal[] = [];
+  let offered: string[] = [];
   if (threadId) {
     const found = await readThread(ctx, threadId);
     if (found && found.tenantId === tenantId) {
@@ -260,6 +263,9 @@ export async function threadForTurn(
       told = history.length ? toldIn(found.messages) : null;
       cited = citedIn(found.messages);
       waiting = found.messages.flatMap((m) => m.proposals ?? []).filter((p) => !p.outcome);
+      offered = found.messages.flatMap((m) =>
+        m.role === "user" ? [m.text] : (m.answer?.do.next ?? m.followups ?? []),
+      );
       // The thread's previous turn, before this question is appended: how long the person waited to ask again. The
       // read holds the newest rows (readThread), so its last is the previous turn however long the thread is.
       const lastAt = found.messages.at(-1)?.atMs;
@@ -275,7 +281,7 @@ export async function threadForTurn(
     const created = await createThread(ctx, tenantId, title, scope ?? null);
     thread = { id: created.id, title: created.title, scope: scope ?? null };
   }
-  return { thread, history, sinceLastMs, scope: scope ?? null, chain, told, cited, waiting };
+  return { thread, history, sinceLastMs, scope: scope ?? null, chain, told, cited, waiting, offered };
 }
 
 /**
