@@ -278,8 +278,21 @@ export interface AskProposal {
   made_at?: string;
   /** The plan the card is a step of, where Ask's plan made it (AskPlanStamp); absent on a card of no plan. */
   plan?: AskPlanStamp;
+  /** The change as a sheet (AskCardSheet), where its maker gives one; a card without one draws its summary. */
+  sheet?: AskCardSheet;
   /** Set once the person acted on the card. */
   outcome?: AskProposalOutcome | null;
+}
+
+/**
+ * A card's change as a sheet (the answer canvas, C1, from the 13 Oct 2026 plan's decision 4; a campaign's card was one
+ * 678-character sentence): what holds it from sending, read first, then a row a fact in the order an owner checks them
+ * (where, when, who it reaches, how it goes, how it sends, its message). Made from the values its summary is made of,
+ * which stays its words for copy, reading aloud and a card stored before it.
+ */
+export interface AskCardSheet {
+  holds: string[];
+  rows: Array<{ label: string; value: string }>;
 }
 
 /**
