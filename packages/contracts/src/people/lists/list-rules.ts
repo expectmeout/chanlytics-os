@@ -14,6 +14,9 @@
 // The rule's grammar is read in the browser too (asListRule: People, Broadcasts, Playbooks), so it is written in
 // zod/mini, which the bundler cuts down to the parts it uses, where the classic API ships whole (89 KB gzipped). The
 // routes' and the model's schemas over it are list-schemas.ts's, in the classic API.
+// First, before this module builds a schema: zod-config.ts says why. A page's bundle takes this module alone
+// (contracts-browser.mjs), never the entry that imports the setting first.
+import "../../zod-config";
 import * as z from "zod/mini";
 import { PERSON_CAME_FROM_WORDS, PERSON_CHANNEL_WORDS, type PersonCameFrom, type PersonChannel } from "../person-words";
 import type { PersonRowVM } from "../person-row";

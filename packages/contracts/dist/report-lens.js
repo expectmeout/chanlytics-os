@@ -9,10 +9,6 @@ function formatterOnUse(locales, options) {
 }
 var DATE_FMT = formatterOnUse([], { month: "short", day: "numeric" });
 
-// src/playbooks/playbook-time.ts
-var PLAYBOOK_BREATH_MS = 7 * DAY_MS;
-var SWEEP_TICK_MS = 5 * MIN_MS;
-
 // src/broadcasts/run-words.ts
 var REPLY_WINDOW_HOURS = 72;
 var REPLY_WINDOW_MS = REPLY_WINDOW_HOURS * HOUR_MS;
@@ -108,144 +104,7 @@ var STOP_WORDS = {
 };
 var OPT_OUT_REFUSAL = `This customer ${STOP_WORDS.line}. They can text START to opt back in.`;
 
-// src/conversations/escalations.ts
-var ESCALATION_REASON_LABELS = {
-  human_token: "Customer asked for a person",
-  refusal: "Assistant declined to answer",
-  brain_error: "The receptionist hit an error \u2014 a holding message went out",
-  non_text: "Sent a voice note / photo",
-  send_failed: "Reply failed to deliver",
-  policy_block: "Held by your reply setting \u2014 nothing was sent",
-  policy_ask: "Set to Ask me first \u2014 a person answers this one",
-  person_hold: "You handle this person \u2014 the receptionist stays out",
-  rate_cap: "Too many replies too fast \u2014 the receptionist paused itself",
-  deadman: "Nobody picked this up \u2014 flagged after silence",
-  manual: "Flagged manually",
-  opt_out: STOP_WORDS.said(),
-  state_unavailable: "The receptionist could not read this thread \u2014 needs a human",
-  stale: "Arrived hours late \u2014 too old to answer automatically",
-  budget: "The day's model budget is used up \u2014 the receptionist paused itself",
-  callback: "Needs a call back \u2014 the phone receptionist could not finish it",
-  paused: "Held \u2014 the workspace is paused until billing resumes",
-  carriers: "Held \u2014 the carriers have not approved this line for texting yet",
-  email_review: "Wrote by email \u2014 a person answers",
-  booking_request: "Asked to book a time \u2014 confirm it or say you can't",
-  booking_reply: "Asked to book a time \u2014 reply to them"
-};
-var ESCALATION_REASON_SHORT = {
-  human_token: "asked for a person",
-  refusal: "the receptionist declined to answer",
-  brain_error: "the receptionist hit an error",
-  non_text: "sent a voice note or photo",
-  send_failed: "reply failed to deliver",
-  policy_block: "held by your reply setting",
-  policy_ask: "set to Ask me first",
-  person_hold: "you handle this person",
-  rate_cap: "too many replies too fast",
-  deadman: "nobody picked this up",
-  manual: "flagged by hand",
-  opt_out: STOP_WORDS.short,
-  state_unavailable: "the receptionist could not read this thread",
-  stale: "arrived hours late",
-  budget: "the day's model budget is used up",
-  callback: "needs a call back",
-  paused: "the workspace is paused until billing resumes",
-  carriers: "the carriers have not approved this line",
-  email_review: "wrote by email",
-  booking_request: "asked to book a time",
-  booking_reply: "asked to book a time"
-};
-var ESCALATION_REASON_WHY = {
-  human_token: "because a customer asked for a person",
-  refusal: "because it declined to answer",
-  brain_error: "because it hit an error",
-  non_text: "for something it can't read",
-  send_failed: "because a reply failed to send",
-  policy_block: "because your reply setting held it",
-  policy_ask: "for a booking or a question set to Ask me first",
-  person_hold: "because you handle this person",
-  rate_cap: "because the reply limit was reached",
-  deadman: "because no answer came in time",
-  manual: "because it was flagged by hand",
-  opt_out: `because they ${STOP_WORDS.short}`,
-  state_unavailable: "because it could not read the thread",
-  stale: "because a message arrived too late to answer",
-  budget: "because the day's model budget ran out",
-  callback: "because they need a call back",
-  paused: "because the workspace is paused",
-  carriers: "while waiting on carriers",
-  email_review: "because they wrote by email",
-  booking_request: "because they asked to book a time",
-  booking_reply: "because they asked to book a time"
-};
-var ESCALATION_SUMMARIES = {
-  human_token: "They asked for a person. A holding message went out \u2014 they're waiting on you.",
-  refusal: "The receptionist wouldn't answer this one. A holding message went out.",
-  brain_error: "The receptionist errored and sent a holding message. They're waiting on a real answer.",
-  non_text: "They sent a voice note or photo the receptionist can't read. Open it and reply yourself.",
-  send_failed: "The reply never reached them \u2014 as far as the customer knows, nobody answered.",
-  policy_block: "Your reply setting holds every message for a person. Nothing was sent \u2014 answer them yourself.",
-  policy_ask: "Your Autonomy setting hands bookings or service questions to a person. The receptionist told them someone will follow up \u2014 that someone is you.",
-  person_hold: "You set the receptionist to stay out of this person's thread. Nothing was sent \u2014 answer them yourself.",
-  rate_cap: "The receptionist hit its daily reply limit and stopped. NOTHING was sent \u2014 they're waiting in silence.",
-  deadman: "This sat unanswered long enough to flag. Nobody has replied.",
-  manual: "Flagged by hand for a human.",
-  opt_out: `${STOP_WORDS.said("They")}. Nothing was sent, and nothing may be.`,
-  state_unavailable: "The receptionist couldn't read this thread, so it stayed quiet. No reply went out.",
-  stale: "This reached us hours after they sent it, too late to answer automatically. NOTHING was sent \u2014 they have been waiting since.",
-  budget: "The day's model budget is used up, so the receptionist paused itself. NOTHING was sent \u2014 answer them yourself, or raise the budget under Settings \u203A Autonomy.",
-  callback: "They phoned and the receptionist couldn't finish it.",
-  paused: "The workspace is paused because billing stopped, so the receptionist did not answer. Resume from Settings \u203A Billing, or answer this one yourself.",
-  carriers: "This text arrived before the carriers approved your line for texting, so the receptionist did not answer. Answer it yourself, or wait for the approval on Setup.",
-  email_review: "They wrote by email. The receptionist does not answer email yet, so nothing was sent. Read it and reply from here.",
-  booking_request: "They picked a time the calendar shows open, and the receptionist told them the team will confirm it. That's you: Booked it, or Can't and reply.",
-  booking_reply: "They asked to book a time, and the receptionist told them the team will confirm. Reply with a time that works."
-};
-var ESCALATION_ACTS = {
-  human_token: "reply",
-  refusal: "reply",
-  brain_error: "reply",
-  non_text: "reply",
-  send_failed: "reply",
-  policy_block: "reply",
-  policy_ask: "reply",
-  person_hold: "reply",
-  rate_cap: "reply",
-  deadman: "reply",
-  manual: "reply",
-  opt_out: "hand_back",
-  state_unavailable: "reply",
-  stale: "reply",
-  budget: "reply",
-  callback: "call_back",
-  paused: "reply",
-  carriers: "reply",
-  email_review: "reply",
-  booking_request: "confirm",
-  booking_reply: "reply"
-};
-function holdActOf(reason) {
-  return ESCALATION_ACTS[reason ?? ""] ?? "reply";
-}
-var HAND_BACK_REASONS = Object.keys(ESCALATION_ACTS).filter((r2) => ESCALATION_ACTS[r2] === "hand_back");
-var WAITING_REASONS = Object.keys(ESCALATION_ACTS).filter(
-  (r2) => waitsOnAPerson(r2)
-);
-function waitsOnAPerson(reason) {
-  return holdActOf(reason) !== "hand_back";
-}
-
 // src/conversations/standing.ts
-var HELD_WORDS = {
-  yours: {
-    pill: "You have it",
-    sentence: "You're answering this one. The receptionist stays quiet until you hand it back."
-  },
-  theirs: {
-    pill: "A teammate has it",
-    sentence: "A teammate is answering this. The receptionist stays quiet until they hand it back."
-  }
-};
 var NEEDS_YOU_WORD = "Needs you";
 
 // src/reports/receptionist/receptionist-record.ts
@@ -389,8 +248,8 @@ function durationWords(seconds) {
   if (v < 60) return `${v}s`;
   if (v < 600) {
     const m2 = Math.floor(v / 60);
-    const r2 = v % 60;
-    return r2 ? `${m2}m ${r2}s` : `${m2}m`;
+    const r = v % 60;
+    return r ? `${m2}m ${r}s` : `${m2}m`;
   }
   const minutes = Math.round(v / 60);
   if (minutes < 60) return `${minutes}m`;
@@ -401,10 +260,6 @@ function durationWords(seconds) {
 
 // src/config/workspace-config/config-rules.ts
 var DAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
-
-// src/config/no-booking-link.ts
-var NO_LINK_DETAILS = "their name, what they need, and where and when";
-var NO_WAY_TO_SEND_LINK = `Booking: the booking link can only be sent by WhatsApp, and this business has no WhatsApp line, so never use send_booking_link and never promise a link or a message. When the caller wants to book, change or cancel a booking, take ${NO_LINK_DETAILS}, and say the team will follow up. If they would rather book themselves and a website is listed above, they can book there.`;
 
 // src/calendar/availability.ts
 function hhmm(s) {
@@ -514,7 +369,7 @@ var endedOn = (report) => report.end && report.end < report.today ? report.end :
 function dayPointOf(day) {
   return { day, label: fmtDay(day), short: String(dayDate(day).getDate()) };
 }
-var rangeLabelOf = (days) => REPORT_RANGES.find((r2) => r2.days === days)?.label ?? plural(days, "day");
+var rangeLabelOf = (days) => REPORT_RANGES.find((r) => r.days === days)?.label ?? plural(days, "day");
 var periodWords = (days, until) => {
   const rangeLabel = rangeLabelOf(days);
   const before = capitalize(beforeWords(rangeLabel));
@@ -574,45 +429,6 @@ var DISCONNECTION_LABELS = {
   transfer_cancelled: "Transfer did not go through"
 };
 
-// src/shared/email-address.ts
-var LABEL = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
-var LOCAL = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*";
-var SHAPE = new RegExp(`^(${LOCAL})@(${LABEL}(?:\\.${LABEL})+)$`);
-
-// src/config/workspace-config/alerts.ts
-var ALERT_ADDRESSES_MAX = 10;
-var ALERT_REFUSED_WORDS = {
-  last: "Someone has to get alerts. Add another address on Notifications first.",
-  full: `Alerts go to ${ALERT_ADDRESSES_MAX} addresses at most. Take one off on Notifications first.`,
-  address: "That doesn't look like an email address."
-};
-
-// src/calendar/calendar-people.ts
-var NEAR_VISIT_MS = 3 * DAY_MS;
-
-// src/calendar/booking-notice.ts
-var NOTICE_LENGTH_MAX_MS = 12 * HOUR_MS;
-var NOTICE_TIME_REACH_MS = 400 * DAY_MS;
-var SAME_VISIT_MS = 15 * MIN_MS;
-
-// src/calendar/calendar-words.ts
-var SHORT = new Intl.DateTimeFormat("en-US", { timeZone: "UTC", month: "short", day: "numeric" });
-var LONG = new Intl.DateTimeFormat("en-US", { timeZone: "UTC", weekday: "long", month: "long", day: "numeric" });
-
-// src/lines/caller-gets.ts
-var PAUSED_CALL = "calls are answered only to take a message";
-var WORKSPACE_ENDED_WORDS = `its receptionist stops replying to messages and ${PAUSED_CALL}, its plan is cancelled, and its public pages go offline`;
-var WORKSPACE_PAUSED = {
-  state: "workspace_paused",
-  tone: "danger",
-  gets: `${PAUSED_CALL}, and new messages wait in the Inbox for you to answer`
-};
-
-// src/workspace/billing.ts
-var WORKSPACE_PAUSED_FACT = "This workspace is paused, so nothing is sent until billing resumes";
-var CAMPAIGNS_PAUSED_WORDS = `${WORKSPACE_PAUSED_FACT}. Resume it from Settings \u203A Billing.`;
-var DATE_FMT2 = formatterOnUse("en-US", { month: "short", day: "numeric" });
-
 // src/lines/registration-path.ts
 var SOLE_PROP_LIMITS = {
   campaignsPerBrand: 1,
@@ -660,7 +476,7 @@ var HOLD_OUTCOMES = [
 ];
 var HOLD_EMPTY = "No reply waited in a hold in this period.";
 var holdEntries = (now) => HOLD_OUTCOMES.map(([key, label]) => [key, label, now[key]]).filter(([, , n]) => n > 0);
-function holdLine2(now) {
+function holdLine(now) {
   const out = `${now.sent} of ${now.total} went out as the hold ended.`;
   const n = now.low_confidence;
   return n > 0 ? `${out} ${n} ${n === 1 ? "was" : "were"} held back as not sure enough to send alone.` : out;
@@ -727,7 +543,7 @@ var heldBackEntries = (byReason) => rankedEntries(byReason, (key) => capitalize(
 
 // src/reports/receptionist/receptionist-report.ts
 function holdPart({ hold }) {
-  return hold.now.total === 0 ? noMix(HOLD_EMPTY) : mixOf(holdEntries(hold.now), holdLine2(hold.now));
+  return hold.now.total === 0 ? noMix(HOLD_EMPTY) : mixOf(holdEntries(hold.now), holdLine(hold.now));
 }
 function topicsPart({ topics }) {
   const empty = topicsEmpty(topics.of, topics.stamped);
@@ -1244,656 +1060,6 @@ var MAILBOX_CONNECT_WORDS = {
   failed: CONNECT_FAILED
 };
 
-// src/deals/deal-words.ts
-var DEAL_STAGE_WORDS = {
-  proposed: "Proposal out",
-  won: "Client",
-  lost: "Passed",
-  ended: "Ended"
-};
-
-// src/leads/search/plan.ts
-var US_STATES = {
-  alabama: "AL",
-  alaska: "AK",
-  arizona: "AZ",
-  arkansas: "AR",
-  california: "CA",
-  colorado: "CO",
-  connecticut: "CT",
-  delaware: "DE",
-  "district of columbia": "DC",
-  florida: "FL",
-  georgia: "GA",
-  hawaii: "HI",
-  idaho: "ID",
-  illinois: "IL",
-  indiana: "IN",
-  iowa: "IA",
-  kansas: "KS",
-  kentucky: "KY",
-  louisiana: "LA",
-  maine: "ME",
-  maryland: "MD",
-  massachusetts: "MA",
-  michigan: "MI",
-  minnesota: "MN",
-  mississippi: "MS",
-  missouri: "MO",
-  montana: "MT",
-  nebraska: "NE",
-  nevada: "NV",
-  "new hampshire": "NH",
-  "new jersey": "NJ",
-  "new mexico": "NM",
-  "new york": "NY",
-  "north carolina": "NC",
-  "north dakota": "ND",
-  ohio: "OH",
-  oklahoma: "OK",
-  oregon: "OR",
-  pennsylvania: "PA",
-  "rhode island": "RI",
-  "south carolina": "SC",
-  "south dakota": "SD",
-  tennessee: "TN",
-  texas: "TX",
-  utah: "UT",
-  vermont: "VT",
-  virginia: "VA",
-  washington: "WA",
-  "west virginia": "WV",
-  wisconsin: "WI",
-  wyoming: "WY"
-};
-var US_CODES = new Set(Object.values(US_STATES));
-
-// src/leads/search/sentence.ts
-var US_NAMES = Object.fromEntries(
-  Object.entries(US_STATES).map(([name, code]) => [code, name])
-);
-
-// src/leads/lead-words.ts
-var LEAD_VIEW_SORTS = ["fit", "found", "distance", "business", "rating", "stage"];
-var LEAD_SORTS = [...LEAD_VIEW_SORTS, "pile"];
-
-// src/people/lists/list-rules.ts
-import * as z from "zod/mini";
-var LIST_NEEDS = ["calendar", "consult", "deals", "viewer"];
-var LIST_RULE_FIELDS = [
-  {
-    id: "last_visit",
-    label: "Last on the calendar",
-    kind: "days",
-    needs: ["calendar"],
-    draft: "days since their last appointment on the calendar"
-  },
-  {
-    id: "next_visit",
-    label: "Next on the calendar",
-    kind: "days",
-    needs: ["calendar"],
-    draft: "days until their next appointment; op this_week is Monday to Sunday of this week"
-  },
-  {
-    id: "missed_visit",
-    label: "Missed one",
-    kind: "days",
-    needs: ["calendar"],
-    draft: "days since an appointment they did not come to, as a member marked it missed on the calendar"
-  },
-  { id: "booked", label: "Booked ahead", kind: "yesno", needs: ["calendar"], draft: "an appointment booked ahead" },
-  {
-    id: "asked_not_booked",
-    label: "Asked, never booked",
-    kind: "yesno",
-    needs: ["calendar"],
-    draft: "wrote or called in the last 30 days and nothing on the calendar answers it"
-  },
-  {
-    id: "last_heard",
-    label: "Last heard from",
-    kind: "days",
-    needs: [],
-    draft: "days since THEY last wrote or called"
-  },
-  { id: "first_contact", label: "First contact", kind: "days", needs: [], draft: "days since they first got in touch" },
-  {
-    id: "channel",
-    label: "Reaches you by",
-    kind: "channel",
-    needs: [],
-    draft: "a way they reach the business: whatsapp, sms, voice (phone calls) or email"
-  },
-  {
-    id: "came_from",
-    label: "Came from",
-    kind: "came_from",
-    needs: [],
-    draft: "how they first came: whatsapp, sms, email, call, calendar, manual, import or lead"
-  },
-  { id: "calls", label: "Calls", kind: "count", needs: [], draft: "how many calls" },
-  { id: "conversations", label: "Conversations", kind: "count", needs: [], draft: "how many conversations" },
-  {
-    id: "has_chat",
-    label: "Has written with you",
-    kind: "yesno",
-    needs: [],
-    draft: "a written conversation either way (no means they have only phoned)"
-  },
-  {
-    id: "said_yes",
-    label: "Said yes to",
-    kind: "purpose",
-    needs: [],
-    draft: "said yes to offers, or to messages (to: offers or messages)"
-  },
-  {
-    id: "can_receive",
-    label: "Can be sent",
-    kind: "purpose",
-    needs: [],
-    draft: "can be sent offers or messages: the yes and a number to send to (to: offers or messages)"
-  },
-  { id: "stopped", label: "Asked to stop", kind: "yesno", needs: [], draft: "asked to stop, or on do-not-contact" },
-  {
-    id: "standing",
-    label: "Standing",
-    kind: "standing",
-    needs: [],
-    draft: "value needs_you (waiting for a person) or waiting_on_you (a thread you have: you took it over, or your reply paused the receptionist)"
-  },
-  {
-    id: "assigned",
-    label: "Thread is with",
-    kind: "assigned",
-    needs: [],
-    draft: "who has their thread: value me, teammate or nobody"
-  },
-  {
-    id: "deal_stage",
-    label: "Deal",
-    kind: "deal_stage",
-    needs: ["deals"],
-    draft: "where they are on the way to a deal: value consultation, proposed, won, lost (passed) or ended"
-  },
-  {
-    id: "consultation",
-    label: "A consultation",
-    kind: "yesno",
-    needs: ["calendar", "consult"],
-    draft: "their next or last appointment is a consultation"
-  },
-  { id: "step_due", label: "A next step due", kind: "yesno", needs: [], draft: "a next step whose day has come" },
-  {
-    id: "in_list",
-    label: "On the list",
-    kind: "list",
-    needs: [],
-    draft: "on another list, by its token (list); never use it in a draft"
-  }
-];
-var FIELD_IDS = LIST_RULE_FIELDS.map((f) => f.id);
-var fieldOf = (id) => LIST_RULE_FIELDS.find((f) => f.id === id);
-var CHANNELS = ["whatsapp", "sms", "voice", "email"];
-var CAME_FROM = [
-  "whatsapp",
-  "sms",
-  "email",
-  "call",
-  "calendar",
-  "manual",
-  "import",
-  "lead"
-];
-var LIST_PURPOSES = ["offers", "messages"];
-var LIST_STANDINGS = ["needs_you", "waiting_on_you"];
-var LIST_ASSIGNED = ["me", "teammate", "nobody"];
-var LIST_DEAL_STAGES = ["consultation", "proposed", "won", "lost", "ended"];
-var LIST_RULE_MAX = 12;
-var LIST_ANY_MAX = 6;
-var DAY_OPS = ["more_than", "within", "never", "ever", "this_week"];
-var Days = { op: z.enum(DAY_OPS), days: z.optional(z.int().check(z.minimum(1), z.maximum(3650))) };
-var YesNo = { op: z.literal("is"), yes: z.boolean() };
-var Count = { op: z.enum(["at_least", "at_most"]), n: z.int().check(z.minimum(0), z.maximum(1e4)) };
-var IsOrNot = z.enum(["is", "is_not"]);
-var Token = z.string().check(z.regex(/^(seg:[a-z_]{1,40}|list:[0-9a-f-]{36})$/i));
-var fact = (shape) => z.strictObject(shape);
-var ListFactSchema = z.discriminatedUnion("field", [
-  fact({ field: z.literal("last_visit"), ...Days }),
-  fact({ field: z.literal("next_visit"), ...Days }),
-  fact({ field: z.literal("missed_visit"), ...Days }),
-  fact({ field: z.literal("booked"), ...YesNo }),
-  fact({ field: z.literal("asked_not_booked"), ...YesNo }),
-  fact({ field: z.literal("last_heard"), ...Days }),
-  fact({ field: z.literal("first_contact"), ...Days }),
-  fact({ field: z.literal("channel"), op: IsOrNot, channel: z.enum(CHANNELS) }),
-  fact({ field: z.literal("came_from"), op: IsOrNot, from: z.enum(CAME_FROM) }),
-  fact({ field: z.literal("calls"), ...Count }),
-  fact({ field: z.literal("conversations"), ...Count }),
-  fact({ field: z.literal("has_chat"), ...YesNo }),
-  fact({ field: z.literal("said_yes"), ...YesNo, to: z.enum(LIST_PURPOSES) }),
-  fact({ field: z.literal("can_receive"), ...YesNo, to: z.enum(LIST_PURPOSES) }),
-  fact({ field: z.literal("stopped"), ...YesNo }),
-  fact({ field: z.literal("standing"), op: IsOrNot, value: z.enum(LIST_STANDINGS) }),
-  fact({ field: z.literal("assigned"), op: IsOrNot, value: z.enum(LIST_ASSIGNED) }),
-  fact({ field: z.literal("deal_stage"), op: IsOrNot, value: z.enum(LIST_DEAL_STAGES) }),
-  fact({ field: z.literal("consultation"), ...YesNo }),
-  fact({ field: z.literal("step_due"), ...YesNo }),
-  fact({ field: z.literal("in_list"), op: IsOrNot, list: Token })
-]);
-var AnySchema = z.strictObject({ any: z.array(ListFactSchema).check(z.minLength(2), z.maxLength(LIST_ANY_MAX)) });
-var ListConditionSchema = z.union([AnySchema, ListFactSchema]);
-var isDayFact = (f) => f.field === "last_visit" || f.field === "next_visit" || f.field === "missed_visit" || f.field === "last_heard" || f.field === "first_contact";
-function factProblem(f) {
-  if (!isDayFact(f)) return null;
-  if ((f.op === "more_than" || f.op === "within") && f.days === void 0) return `${f.field} ${f.op} needs days`;
-  if (f.op === "this_week" && f.field !== "next_visit") return "only the next one on the calendar can be this week";
-  return null;
-}
-var ListRuleSchema = z.strictObject({
-  v: z.optional(z.literal(2)),
-  all: z.array(ListConditionSchema).check(z.minLength(1), z.maxLength(LIST_RULE_MAX))
-}).check(
-  z.superRefine((r2, ctx) => {
-    for (const f of r2.all.flatMap((c) => "any" in c ? c.any : [c])) {
-      const p = factProblem(f);
-      if (p) ctx.addIssue({ code: "custom", message: p });
-    }
-  })
-);
-function ruleFacts(rule) {
-  return rule.all.flatMap((c) => "any" in c ? c.any : [c]);
-}
-function factNeeds(f) {
-  const needs = new Set(fieldOf(f.field).needs);
-  if (f.field === "standing" && f.value === "waiting_on_you") needs.add("viewer");
-  if (f.field === "assigned" && f.value !== "nobody") needs.add("viewer");
-  if (f.field === "deal_stage" && f.value === "consultation") {
-    needs.add("calendar");
-    needs.add("consult");
-  }
-  return LIST_NEEDS.filter((n) => needs.has(n));
-}
-function ruleNeeds(rule) {
-  const needs = new Set(ruleFacts(rule).flatMap(factNeeds));
-  return LIST_NEEDS.filter((n) => needs.has(n));
-}
-function dayHolds(days, op, n) {
-  switch (op) {
-    case "never":
-      return days === null;
-    case "ever":
-      return days !== null;
-    case "within":
-      return days !== null && days <= (n ?? 0);
-    case "more_than":
-      return days !== null && days > (n ?? 0);
-    case "this_week":
-      return false;
-  }
-}
-function holds(f, v, inList) {
-  const is = "op" in f && f.op === "is";
-  switch (f.field) {
-    case "last_visit":
-      return dayHolds(v.lastVisitDays, f.op, f.days);
-    case "next_visit":
-      return f.op === "this_week" ? v.nextVisitThisWeek : dayHolds(v.nextVisitDays, f.op, f.days);
-    case "missed_visit":
-      return dayHolds(v.missedVisitDays, f.op, f.days);
-    case "last_heard":
-      return dayHolds(v.heardDays, f.op, f.days);
-    case "first_contact":
-      return f.op === "within" && !v.firstContact.evidence ? false : dayHolds(v.firstDays, f.op, f.days);
-    case "booked":
-      return v.booked === f.yes;
-    case "asked_not_booked":
-      return v.askedNotBooked === f.yes;
-    case "has_chat":
-      return v.hasChat === f.yes;
-    case "stopped":
-      return v.stopped === f.yes;
-    case "consultation":
-      return v.consultationVisit === f.yes;
-    case "step_due":
-      return v.stepDue === f.yes;
-    case "said_yes":
-      return v.saidYes[f.to] === f.yes;
-    case "can_receive":
-      return v.canReceive[f.to] === f.yes;
-    case "channel":
-      return v.channels.includes(f.channel) === is;
-    case "came_from":
-      return v.cameFrom?.key === f.from === is;
-    case "calls":
-      return f.op === "at_least" ? v.calls >= f.n : v.calls <= f.n;
-    case "conversations":
-      return f.op === "at_least" ? v.threads >= f.n : v.threads <= f.n;
-    case "standing":
-      return v.standing === f.value === is;
-    case "assigned":
-      return v.assigned === f.value === is;
-    case "deal_stage":
-      return v.dealStages.includes(f.value) === is;
-    case "in_list":
-      return inList(f.list, v.id) === is;
-  }
-}
-var noLists = () => false;
-function listRuleMatches(rule, v, inList = noLists) {
-  return rule.all.every((c) => "any" in c ? c.any.some((f) => holds(f, v, inList)) : holds(c, v, inList));
-}
-var STANDING_WORDS = {
-  needs_you: NEEDS_YOU_WORD,
-  waiting_on_you: HELD_WORDS.yours.pill
-};
-var LEAF_PROPERTIES = {
-  field: { type: "string", enum: FIELD_IDS.filter((id) => id !== "in_list") },
-  op: { type: "string", enum: [...DAY_OPS, "at_least", "at_most", "is", "is_not"] },
-  days: { type: "integer" },
-  n: { type: "integer" },
-  yes: { type: "boolean" },
-  channel: { type: "string", enum: [...CHANNELS] },
-  from: { type: "string", enum: [...CAME_FROM] },
-  to: { type: "string", enum: [...LIST_PURPOSES] },
-  value: { type: "string", enum: [.../* @__PURE__ */ new Set([...LIST_STANDINGS, ...LIST_ASSIGNED, ...LIST_DEAL_STAGES])] }
-};
-var LIST_DRAFT_JSON_SCHEMA = {
-  type: "object",
-  additionalProperties: false,
-  required: ["name", "all", "cannot"],
-  properties: {
-    name: { type: "string" },
-    cannot: { type: "string" },
-    all: {
-      type: "array",
-      items: {
-        type: "object",
-        additionalProperties: false,
-        properties: {
-          ...LEAF_PROPERTIES,
-          any: {
-            type: "array",
-            items: {
-              type: "object",
-              additionalProperties: false,
-              required: ["field", "op"],
-              properties: LEAF_PROPERTIES
-            }
-          }
-        }
-      }
-    }
-  }
-};
-
-// src/people/lists/lists.ts
-var r = (...all) => ({ v: 2, all });
-var BUILTIN_LISTS = [
-  {
-    id: "needs_you",
-    label: NEEDS_YOU_WORD,
-    tip: "An open escalation, or a thread waiting for a person",
-    group: "attention",
-    onProfile: false,
-    rule: r({ field: "standing", op: "is", value: "needs_you" })
-  },
-  // Yours by the one standing rule (standing.ts): you took it over, or your reply paused the receptionist.
-  {
-    id: "waiting_on_you",
-    label: HELD_WORDS.yours.pill,
-    tip: "Threads you have: you took them over, or your reply paused the receptionist. A teammate's waits on them",
-    group: "attention",
-    onProfile: false,
-    rule: r({ field: "standing", op: "is", value: "waiting_on_you" })
-  },
-  // Their next step's day has come (0007, amended): every workspace, deals or not. The page says the step itself.
-  {
-    id: "steps_due",
-    label: "Steps due",
-    tip: "Their next step's day has come, or gone by \u2014 a note with a day, for the team",
-    group: "attention",
-    onProfile: false,
-    rule: r({ field: "step_due", op: "is", yes: true })
-  },
-  // New by the date they first got in touch, whatever their standing: someone new who needs you is both.
-  {
-    id: "new_week",
-    label: "New this week",
-    tip: "First contact in the last 7 days, by evidence \u2014 imported history never counts",
-    group: "journey",
-    rule: r({ field: "first_contact", op: "within", days: 7 })
-  },
-  // This week, Monday to Sunday, by the workspace's clock.
-  {
-    id: "booked_week",
-    label: "Booked this week",
-    tip: "Booked this week, Monday to Sunday",
-    group: "journey",
-    rule: r({ field: "next_visit", op: "this_week" })
-  },
-  {
-    id: "booked",
-    label: "Booked",
-    tip: "Something ahead on your calendar \u2014 the booking is the conversion",
-    group: "journey",
-    rule: r({ field: "booked", op: "is", yes: true })
-  },
-  // Reports' rule (calendar-people.ts visitAnswersAsk): asked in 30 days and nothing on the calendar answers it.
-  {
-    id: "asked_never_booked",
-    label: "Asked, never booked",
-    tip: "Wrote or called in the last 30 days, and nothing on your calendar since answers it \u2014 the people you can still win",
-    group: "journey",
-    rule: r({ field: "asked_not_booked", op: "is", yes: true })
-  },
-  // Forty-five days since the chair, nothing ahead: the win-back list, from visits rather than silence.
-  {
-    id: "lapsed",
-    label: "Lapsed",
-    tip: "Forty-five days or more since they were last on the calendar, nothing ahead \u2014 the win-back list, from the calendar rather than silence",
-    group: "journey",
-    rule: r({ field: "booked", op: "is", yes: false }, { field: "last_visit", op: "more_than", days: 44 })
-  },
-  // The journey past the booking (0004), as the Pipeline groups it (deals.ts dealStageOf).
-  {
-    id: "consultation_booked",
-    label: "Consultations",
-    tip: "A consultation coming up, or one this past week with no proposal since \u2014 the Pipeline's Consultations",
-    group: "journey",
-    onProfile: false,
-    rule: r({ field: "deal_stage", op: "is", value: "consultation" })
-  },
-  {
-    id: "proposal_out",
-    // A stage's list says its stage's word (S9-9); Clients names the people, not the stage.
-    label: DEAL_STAGE_WORDS.proposed,
-    tip: "A proposal went out and is waiting on their answer",
-    group: "journey",
-    onProfile: false,
-    rule: r({ field: "deal_stage", op: "is", value: "proposed" })
-  },
-  {
-    id: "clients",
-    label: "Clients",
-    tip: "Said yes, or paid \u2014 the engagement is running",
-    group: "journey",
-    onProfile: false,
-    rule: r({ field: "deal_stage", op: "is", value: "won" })
-  },
-  {
-    id: "deal_passed",
-    label: DEAL_STAGE_WORDS.lost,
-    tip: "They passed on a proposal",
-    group: "journey",
-    onProfile: false,
-    rule: r({ field: "deal_stage", op: "is", value: "lost" })
-  },
-  {
-    id: "deal_ended",
-    label: DEAL_STAGE_WORDS.ended,
-    tip: "An engagement that ended \u2014 the win-back list for clients",
-    group: "journey",
-    onProfile: false,
-    rule: r({ field: "deal_stage", op: "is", value: "ended" })
-  },
-  // Heard from them, then nothing for thirty days: someone we never heard from is not quiet, and our own sends are
-  // not their word.
-  {
-    id: "quiet",
-    label: "Quiet 30+ days",
-    tip: "They haven't written or called in 30 days \u2014 your own messages don't count, and someone never heard from isn't quiet",
-    group: "reach",
-    rule: r({ field: "last_heard", op: "more_than", days: 30 })
-  },
-  {
-    id: "phoned_only",
-    label: "Phoned only",
-    tip: "Only ever phoned \u2014 no WhatsApp thread",
-    group: "reach",
-    rule: r({ field: "has_chat", op: "is", yes: false }, { field: "calls", op: "at_least", n: 1 })
-  },
-  // TWO LISTS, BECAUSE THERE ARE TWO ANSWERS. This one is the yes to hearing from the business, which says nothing
-  // about offers; the next is the promotional audience, who a marketing broadcast may reach: the yes AND a number.
-  {
-    id: "opted_in",
-    label: "Said yes to messages",
-    tip: "Said yes to messages \u2014 replies, reminders and confirmations",
-    group: "reach",
-    onProfile: false,
-    rule: r({ field: "said_yes", op: "is", to: "messages", yes: true })
-  },
-  {
-    id: "offers_ok",
-    label: "Can receive offers",
-    tip: "Said yes to OFFERS, separately, with a number to send to \u2014 the only people a promotional broadcast may reach",
-    group: "reach",
-    onProfile: false,
-    rule: r({ field: "can_receive", op: "is", to: "offers", yes: true })
-  },
-  // A fact, not the state: someone who opted out AND needs you is in both lists.
-  {
-    id: "opted_out",
-    label: STOP_WORDS.pill,
-    tip: "Asked to stop; the receptionist stays silent, offers included",
-    group: "reach",
-    onProfile: false,
-    rule: r({ field: "stopped", op: "is", yes: true })
-  }
-];
-var PEOPLE_LISTS = BUILTIN_LISTS.map((l) => {
-  const needs = ruleNeeds(l.rule);
-  return {
-    ...l,
-    ...needs.includes("calendar") ? { needsCalendar: true } : {},
-    ...needs.includes("consult") ? { needsConsultFirst: true } : {},
-    ...needs.includes("deals") ? { needsDeals: true } : {},
-    ...needs.includes("viewer") ? { needsViewer: true } : {},
-    test: (vm) => listRuleMatches(l.rule, vm)
-  };
-});
-
-// src/ads/address.ts
-var ADS_ROUTE = "campaigns/ads";
-function adsScopeKey(scope) {
-  if (scope.kind === "all") return "all";
-  return scope.kind === "platform" ? `platform:${scope.platform}` : `ad:${scope.id}`;
-}
-
-// src/reports/report-periods.ts
-var REPORT_PERIOD_IDS = REPORT_RANGES.map((r2) => r2.id);
-var MOST_DAYS = Math.max(...REPORT_RANGES.map((r2) => r2.days ?? 0));
-var reportRangeKey = (range) => typeof range === "string" ? range : `${range.from}~${range.to}`;
-
-// src/reports/lenses.ts
-var NOTHING_CAME_IN = (r2) => ({
-  title: "Nothing came in",
-  body: `Nobody wrote or called between ${r2.since} and ${r2.until}.`,
-  door: null
-});
-var REPORT_LENSES = [
-  {
-    id: "overview",
-    label: "Overview",
-    sub: "how the period went, and what needs a look",
-    shownWhen: "always",
-    role: "viewer",
-    empty: NOTHING_CAME_IN
-  },
-  {
-    id: "receptionist",
-    label: "Receptionist",
-    sub: "who answered, how fast, and why it stopped",
-    shownWhen: "always",
-    role: "viewer",
-    empty: NOTHING_CAME_IN
-  },
-  {
-    id: "people",
-    label: "People",
-    sub: "who reached you, whether you can reach them, and who is slipping away",
-    shownWhen: "always",
-    role: "viewer",
-    empty: NOTHING_CAME_IN
-  },
-  {
-    id: "pipeline",
-    label: "Pipeline",
-    sub: "proposals, and what became of them",
-    shownWhen: "deals_on",
-    role: "viewer",
-    empty: () => ({
-      title: "No proposals to report",
-      body: "Proposals you send, and what became of them, show here. Where your customers book directly, there is nothing to report.",
-      door: { label: "Open Settings", to: "admin/workspace" }
-    })
-  },
-  {
-    id: "campaigns",
-    label: "Campaigns",
-    sub: "did your messages reach people, did they answer, and what is stuck",
-    shownWhen: "always",
-    role: "viewer",
-    empty: (r2) => ({
-      title: "Nothing went out",
-      body: `No broadcast or campaign run reached anyone between ${r2.since} and ${r2.until}, and nobody said yes or asked to stop.`,
-      door: { label: "Open Sequences", to: "campaigns/sequences" }
-    })
-  },
-  {
-    id: "ads",
-    label: "Ads",
-    sub: "what your ads cost, who they brought, and who booked",
-    shownWhen: "ads_on",
-    role: "viewer",
-    empty: (r2) => ({
-      title: "No ads in this period",
-      body: `Nothing was spent on ads, and nobody got in touch through one, between ${r2.since} and ${r2.until}.`,
-      door: { label: "Open Ads", to: ADS_ROUTE }
-    })
-  },
-  {
-    id: "reviews",
-    label: "Reviews",
-    sub: "what customers say on Google",
-    shownWhen: "always",
-    role: "viewer",
-    empty: () => ({
-      title: "Find your business on Google once.",
-      body: "Its rating, its count and its newest reviews show here for the period, with a line on Today and a row on the bell when one lands.",
-      door: { label: "Find it", to: "start/find" }
-    })
-  }
-];
-var lensRoute = (id, days = null, scope = null) => {
-  const narrowed = id === "ads" && scope !== null && scope.kind !== "all" ? adsScopeKey(scope) : null;
-  if (days === null && narrowed === null) return id === "overview" ? "reports" : `reports/${id}`;
-  const rest = [days === null ? null : reportRangeKey(days), narrowed].filter((w) => w !== null).join(":");
-  return id === "overview" ? `reports/${rest}` : `reports/${id}:${rest}`;
-};
-var LENS_ROUTES = REPORT_LENSES.map((l) => lensRoute(l.id));
-
 // src/playbooks/playbook-triggers.ts
 var PLAYBOOK_TRIGGERS = [
   { id: "quiet_30", label: "Win-back", list: "quiet", cls: "reengage", kind: "list", hint: "Nothing heard in 30 days" },
@@ -2159,47 +1325,6 @@ function languageLabel(code) {
   return templateLanguage(code)?.label ?? languageName(code);
 }
 
-// src/config/policy.ts
-var CODES = "usd|eur|gbp|mxn|cad|aud|cop|ars|clp|pen|brl";
-var NAMES = "dollars?|bucks?|euros?|quid|pesos?|d[o\xF3]lares?|reales?";
-var COUNTRY = String.raw`(?:(?:u\.?s\.?|american|canadian|australian|mexican|argentine|colombian|chilean)\s+)?`;
-var EN_NUMBER = "(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand)";
-var ES_NUMBER = "(?:un|uno|una|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|once|doce|trece|catorce|quince|dieci[a-z\xE9]+|veinte|veinti[a-z\xE9\xE1\xED\xF3\xFA]+|treinta|cuarenta|cincuenta|sesenta|setenta|ochenta|noventa|cien|ciento|quinientos|[a-z]+cientos|mil)";
-var PERCENT = String.raw`(?:%|per\s?cent|percent|por\s+ciento)`;
-var PRICE_PATTERNS = [
-  /[$€£¥₹]\s?\d/,
-  /\d\s?[€£]/,
-  /\b\d+(?:[.,]\d{1,2})?\s?\$/,
-  new RegExp(String.raw`\b(?:${CODES})\s?\d`, "i"),
-  new RegExp(String.raw`\b\d+(?:[.,]\d{1,2})?\s?${COUNTRY}(?:${CODES}|${NAMES})\b`, "i"),
-  new RegExp(
-    String.raw`\b${EN_NUMBER}(?:[\s-]+(?:and[\s-]+)?${EN_NUMBER})*[\s-]+${COUNTRY}(?:dollars?|bucks?|euros?|pesos?|quid)\b`,
-    "i"
-  ),
-  new RegExp(String.raw`\b${ES_NUMBER}(?:\s+(?:y\s+)?${ES_NUMBER})*\s+(?:pesos?|d[oó]lares?|euros?)\b`, "i"),
-  new RegExp(String.raw`\b\d{1,3}\s?${PERCENT}\s?(?:off|discount|de descuento|descuento|menos)\b`, "i"),
-  new RegExp(String.raw`\b${EN_NUMBER}(?:[\s-]+${EN_NUMBER})*\s+${PERCENT}\s+(?:off|discount)\b`, "i"),
-  new RegExp(String.raw`\b(?:discount|descuento)\s+(?:of\s+|del?\s+)?\d{1,3}\s?${PERCENT}`, "i"),
-  /\b(?:half[\s-]price|half off|mitad de precio|2\s?x\s?1|dos por uno)\b/i
-];
-var CURRENCY_WORDS = new RegExp(String.raw`\b${COUNTRY}(?:${CODES}|${NAMES}|quid)\b`, "gi");
-var PERCENT_SIGN = new RegExp(PERCENT, "i");
-var NOT_A_PRICE_AFTER = String.raw`(?!\d|[.,]\d|-\d|\s*(?::|%|-?\s*(?:am|pm|a\.m|p\.m|o'clock|min|mins|minutes?|hours?|hrs?|people|persons?|guests?|days?|weeks?|months?|years?|minutos?|horas?|personas?|d[ií]as?|semanas?|meses|años?)\b))`;
-var RANGE_TOP = new RegExp(
-  String.raw`^\s*(?:-|–|—|to|a|hasta)\s*[$€£]?\s*(\d+(?:[.,]\d+)*)${NOT_A_PRICE_AFTER}`,
-  "i"
-);
-var BETWEEN_TOP = new RegExp(String.raw`^\s*(?:and|y)\s*[$€£]?\s*(\d+(?:[.,]\d+)*)${NOT_A_PRICE_AFTER}`, "i");
-var WA_WINDOW_MS = 24 * HOUR_MS;
-var REPLY_LIMITS = {
-  whatsapp: { max: 4096, refusal: "WhatsApp refuses a message over 4096 characters." },
-  sms: { max: 1600, refusal: "A text can be at most 1600 characters." },
-  email: { max: 2e4, refusal: "An email reply can be at most 20,000 characters." }
-};
-var REPLY_MAX_ANY = Math.max(...Object.values(REPLY_LIMITS).map((l) => l.max));
-var CALL_HEARTBEAT_MS = 10 * MIN_MS;
-var REPLY_DELAY_MAX_MS = 10 * MIN_MS;
-
 // src/templates/sender-words.ts
 var SENDER_WORDS = {
   en: {
@@ -2230,84 +1355,8 @@ var SENDER_WORDS = {
   }
 };
 
-// src/templates/slot-sets.ts
-function namedSlots(names, labels = names) {
-  return { kind: "named", keys: names, labels };
-}
-
-// src/reach-out/reach-out-words.ts
-var REACH_OUT_SLOTS = [
-  "opening",
-  "business",
-  "city",
-  "your name",
-  "your business",
-  "booking link",
-  // A company's addressee (00430), after the six: a slot's place is its number in a stored version ({{2}} is business),
-  // so a slot is only ever added at the end.
-  "first name",
-  "company",
-  "title",
-  "role"
-];
-var REACH_OUT_SLOT_FALLBACKS = {
-  "first name": "there"
-};
-var REACH_OUT_SLOT_WORDS = {
-  opening: "written for each business",
-  "first name": `the person's first name at a company; \u201C${REACH_OUT_SLOT_FALLBACKS["first name"]}\u201D where nobody is named`,
-  business: "their name on Google, or their company's",
-  company: "their company's name, or their business's",
-  title: "the person's title at a company; a business with nobody named is not written to with it",
-  role: "the person's role (owner, director, manager); a business with nobody named is not written to with it",
-  city: "their city",
-  "your name": "the name you sign with",
-  "your business": "your business's name",
-  "booking link": "your booking link"
-};
-var REACH_OUT_SLOT_LABELS = {
-  opening: "Opening",
-  "first name": "First name",
-  business: "Their business",
-  company: "Their company",
-  title: "Their title",
-  role: "Their role",
-  city: "Their city",
-  "your name": "Your name",
-  "your business": "Your business",
-  "booking link": "Booking link"
-};
-var REACH_OUT_SLOT_SET = namedSlots(
-  REACH_OUT_SLOTS,
-  REACH_OUT_SLOTS.map((s) => REACH_OUT_SLOT_LABELS[s])
-);
-var COUNTRY_NAMES = new Intl.DisplayNames(["en"], { type: "region" });
-
 // src/shared/unknown.ts
 var isCount = (v) => typeof v === "number" && Number.isInteger(v) && v >= 0;
-
-// src/shell/campaign-rooms.ts
-var CAMPAIGN_ROOMS = {
-  home: "Campaigns",
-  library: "Messages",
-  newMessage: "New message"
-};
-var { library } = CAMPAIGN_ROOMS;
-var LIBRARY_WORDS = {
-  title: library,
-  demo: `${library} reads a real workspace \u2014 the messages it holds, by email, text and WhatsApp.`,
-  reading: "Reading your messages\u2026",
-  failed: "Your messages couldn\u2019t be loaded right now",
-  failedWhat: "your messages",
-  failedBody: "The receptionist keeps sending; this page just can't show what it holds at the moment.",
-  /** The count's hover: what the Library holds is every message, on each channel it goes by, whoever writes its versions. */
-  headTip: "What the receptionist and your campaigns send, as the customer sees it. A WhatsApp version is approved by WhatsApp, usually within minutes, whether it is written here or in WhatsApp Manager; an email or a text is ready the moment it is saved. A marketing message can only go to people who said yes to offers.",
-  noNumber: "No WhatsApp number yet. Email and text versions are written here; WhatsApp versions wait until one is connected.",
-  /** A template is written to a number's account, which is the edge's own answer (no_channel) when it has none. */
-  writeNeedsNumber: "Connect a WhatsApp number first \u2014 templates belong to a number's account.",
-  /** Why a WhatsApp version, or a language of one, cannot be added with no number; an email or a text needs none. */
-  addNeedsNumber: "Connect a WhatsApp number to add a WhatsApp version."
-};
 
 // src/templates/templates.ts
 var TEMPLATE_STATUS_WORDS = {
@@ -2323,12 +1372,6 @@ var TEMPLATE_BODY_WORDS = `The message must be under ${TEMPLATE_BODY_MAX} charac
 // src/reach-out/reach-out-rules.ts
 var REACH_OUT_DRAFTS_PER_DAY = 30;
 var REACH_OUT_DRAFTS_OPEN_MAX = 2 * REACH_OUT_DRAFTS_PER_DAY;
-
-// src/reach-out/lead-hours.ts
-var NINE_TO_FIVE = [{ from: 9 * 60, to: 17 * 60 }];
-
-// src/reach-out/reach-out-timetable.ts
-var SEND_DAY_FRAME = { from: 9 * 60, to: 17 * 60 };
 
 // src/reach-out/reach-out-sheet.ts
 var REACH_OUT_SHEET_WORDS = {
@@ -3229,23 +2272,23 @@ var CAMPAIGN_CHANNELS = REPORT_CHANNELS.filter(
 var WHEN2 = formatterOnUse([], { month: "short", day: "numeric" });
 var campaignPriorHadAny = (before) => before.sent + before.optIns + before.optOuts > 0;
 function campaignChannelsOf(rows) {
-  return (rows ?? []).flatMap((r2) => {
-    const known = CAMPAIGN_CHANNELS.find((c) => c.key === r2.channel);
-    if (!known || !(r2.sent > 0)) return [];
+  return (rows ?? []).flatMap((r) => {
+    const known = CAMPAIGN_CHANNELS.find((c) => c.key === r.channel);
+    if (!known || !(r.sent > 0)) return [];
     const whatsapp = known.key === "whatsapp";
-    const deliveredPct = pct(r2.delivered, r2.sent);
+    const deliveredPct = pct(r.delivered, r.sent);
     return [
       {
         channel: known.key,
         label: known.label,
-        sent: r2.sent,
-        delivered: r2.delivered,
+        sent: r.sent,
+        delivered: r.delivered,
         deliveredPct,
-        read: whatsapp ? r2.read : null,
-        readPct: whatsapp ? pct(r2.read, r2.sent) : null,
-        replied: r2.replied,
-        repliedPct: pct(r2.replied, r2.sent),
-        display: `${r2.sent} \xB7 ${shareSaid(deliveredPct, r2.delivered, r2.sent) ?? "\u2014"} delivered`
+        read: whatsapp ? r.read : null,
+        readPct: whatsapp ? pct(r.read, r.sent) : null,
+        replied: r.replied,
+        repliedPct: pct(r.replied, r.sent),
+        display: `${r.sent} \xB7 ${shareSaid(deliveredPct, r.delivered, r.sent) ?? "\u2014"} delivered`
       }
     ];
   });
@@ -3399,119 +2442,6 @@ function broadcastFailureWords(failure) {
   const read = readFailure(failure);
   return read ? wordsFor(BROADCAST_FAILURE_WORDS[read.code], read.channel) : "it could not finish";
 }
-
-// src/config/workspace-config/policy-classes.ts
-var POLICY_CLASS_WORDS = {
-  reply: { name: "Replies to customers", short: "Replies", note: "every text the receptionist sends" },
-  faq: {
-    name: "Service & pricing questions",
-    short: "Questions",
-    note: "auto answers from your business profile \xB7 ask hands every service or pricing question to you, on WhatsApp and on the phone"
-  },
-  booking: {
-    name: "Book \xB7 reschedule",
-    short: "Bookings",
-    note: "auto sends your booking link \xB7 ask has a person confirm instead, on WhatsApp and on the phone"
-  },
-  reengage: {
-    name: "Re-engage quiet customers",
-    short: "Re-engage",
-    note: `the win-back and save-our-number campaigns \xB7 auto sends each run, veto sends it ${PLAYBOOK_VETO_DELAY_WORDS} later unless you stop it, ask leaves it waiting on Today, never runs nothing`
-  },
-  campaign: {
-    name: "Standing offers",
-    short: "Offers",
-    note: `the welcome and month's-offer campaigns \xB7 auto sends each run, veto sends it ${PLAYBOOK_VETO_DELAY_WORDS} later unless you stop it, ask leaves it waiting on Today, never runs nothing`
-  },
-  reviews: {
-    name: "Google reviews",
-    short: "Reviews",
-    note: "replies under new reviews on Google, through the connected Business Profile \xB7 auto answers each within the hour, ask drafts one for you to send, never leaves them all to you"
-  },
-  money: { name: "Refunds \xB7 rates \xB7 negotiation", short: "Money", note: "always goes to you" },
-  // 0006: one nudge per proposal, with its link, once it has waited past the workspace's pace with nothing back.
-  follow_up: {
-    name: "Proposal follow-ups",
-    short: "Follow-ups",
-    note: "the proposal follow-up campaign \xB7 one nudge per proposal, with its link, once it has waited with nothing back \xB7 auto sends each run, ask leaves it waiting on Today, never runs nothing"
-  },
-  // Reach out (Part 3): cold email to the businesses a search found. A chain's first run always waits for its owner.
-  outreach: {
-    name: "Cold email to businesses a search found",
-    short: "Reach-outs",
-    note: `every email a reach-out sends \xB7 its first run always waits for you; later runs send ${PLAYBOOK_VETO_DELAY_WORDS} after they are made unless you stop them \xB7 never sends none`
-  }
-};
-var POLICY_COVERS = {
-  booking: "someone wants to book, reschedule or cancel",
-  faq: "Service and pricing questions",
-  money: "a refund, a discount, a deposit, a payment plan or any change to what someone pays"
-};
-
-// src/config/brain.ts
-var BRAIN_INTENTS = [
-  "booking",
-  "pricing",
-  // A refund, a discount, a deposit, a payment plan, any negotiation of what someone pays: the Autonomy pane's locked
-  // money row (never), so a person answers whatever the words say (policy-classes.ts policyClassOfIntent; defect 5).
-  "money",
-  "hours",
-  "services",
-  "location",
-  "complaint",
-  "smalltalk",
-  "other"
-];
-var BRAIN_LANGUAGES = ["en", "es", "other"];
-var BRAIN_OUTPUT_JSON_SCHEMA = {
-  type: "object",
-  properties: {
-    reply: {
-      type: "string",
-      description: "Exactly what the customer receives, in their language, in the receptionist's voice. Nothing else goes here."
-    },
-    intent: {
-      type: "string",
-      enum: [...BRAIN_INTENTS],
-      description: `What the customer is after. money: ${POLICY_COVERS.money}.`
-    },
-    escalate: {
-      type: "boolean",
-      description: "True when a person should take over now: they asked for one, you cannot help, or a rule you were given says so."
-    },
-    reason: {
-      type: "string",
-      description: "One short sentence: why a person is needed, or why this answer might be wrong. Empty when neither applies."
-    },
-    confidence: {
-      type: "number",
-      description: "How sure you are that this reply is right and complete for this customer, from 0 to 1."
-    },
-    facts_used: {
-      type: "array",
-      items: { type: "string" },
-      description: "The business facts this reply relied on, each in a few words (an hour, a service, a note). Empty when none."
-    },
-    language: {
-      type: "string",
-      enum: [...BRAIN_LANGUAGES],
-      description: "The language the reply is written in."
-    }
-  },
-  required: ["reply", "intent", "escalate", "reason", "confidence", "facts_used", "language"],
-  additionalProperties: false
-};
-
-// src/conversations/message-author.ts
-var EMAIL_CLAIMS = [
-  { claim: "report", personsWords: false },
-  { claim: "booking_notice", personsWords: false },
-  { claim: "forwarding_confirmation", personsWords: false },
-  { claim: "auto_reply", personsWords: false },
-  { claim: "automated", personsWords: false },
-  { claim: "person", personsWords: true }
-];
-var NOT_A_PERSONS_CLAIMS = EMAIL_CLAIMS.filter((c) => !c.personsWords).map((c) => c.claim);
 
 // src/conversations/thread-channel.ts
 function writtenChannelOf(channel) {

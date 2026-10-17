@@ -8,7 +8,7 @@
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "browser": "./dist/browser.js",
+      "browser": "./dist/browser/index.js",
       "import": "./dist/index.js",
       "default": "./dist/index.js"
     },
@@ -19,16 +19,19 @@
     },
     "./report-window": {
       "types": "./dist/report-window.d.ts",
+      "browser": "./dist/browser/reports/report-window.js",
       "import": "./dist/report-window.js",
       "default": "./dist/report-window.js"
     },
     "./report-lens": {
       "types": "./dist/report-lens.d.ts",
+      "browser": "./dist/browser/reports/report-lens.js",
       "import": "./dist/report-lens.js",
       "default": "./dist/report-lens.js"
     },
     "./ads-page": {
       "types": "./dist/ads-page.d.ts",
+      "browser": "./dist/browser/ads/ads-page.js",
       "import": "./dist/ads-page.js",
       "default": "./dist/ads-page.js"
     },
@@ -44,8 +47,12 @@
     },
     "./phone-app": "./src/mobile/phone-app.ts"
   },
+  "sideEffects": [
+    "./dist/*.js",
+    "./dist/browser/zod-config.js"
+  ],
   "scripts": {
-    "build": "node ../../tooling/scripts/lf-sources.mjs && tsup",
+    "build": "node ../../tooling/scripts/lf-sources.mjs && tsup && node ../../tooling/scripts/contracts-browser.mjs",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
