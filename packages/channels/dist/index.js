@@ -659,7 +659,9 @@ import {
   MIN_MS,
   fallbackModel,
   foldEffortMessages,
+  foldWordsMessages,
   isEffortMessage,
+  isWordsMessage,
   modelRoute,
   modelTakes,
   usageOf,
@@ -708,7 +710,9 @@ function sentFor(ask, model, slowed) {
   const thinks = thinking !== void 0 && (!takes || takes.thinking.includes(type));
   const said = Array.isArray(asked.messages) && asked.messages.some(isEffortMessage);
   const told = said && (takes?.effortMessages ?? true);
-  const body = said && !told ? foldEffortMessages(asked) : asked;
+  const worded = Array.isArray(asked.messages) && asked.messages.some(isWordsMessage);
+  const folded = said && !told ? foldEffortMessages(asked) : asked;
+  const body = worded && !(takes?.systemMessages ?? true) ? foldWordsMessages(folded) : folded;
   const betas = (ask.betas ?? []).filter((b) => b !== FAST_MODE_BETA && b !== EFFORT_MESSAGE_BETA);
   return {
     body: { ...body, ...thinks ? { thinking } : {}, ...fast ? { speed: "fast" } : {} },

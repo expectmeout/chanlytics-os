@@ -110,6 +110,18 @@ const turn = (id, thread_id, tenant_id, role, content) => ({
   created_at: "2026-09-10T00:00:01Z",
 });
 
+/**
+ * Every block a question was asked with: the person's last turn, and the turn's words after it as the operator's (the
+ * answer canvas, A3). An effort message has none.
+ */
+const askedBlocks = (req) => {
+  const at = req.messages.findLastIndex((m) => m.role === "user");
+  return req.messages
+    .slice(at)
+    .filter((m) => m.role !== "assistant")
+    .flatMap((m) => (Array.isArray(m.content) ? m.content : [{ type: "text", text: String(m.content) }]));
+};
+
 test("the fourteen declare their policy: a question every member's and counted, the warm every member's and counted with the aggregates, the aggregates counted with their query declared, a person's own threads and cards on the account", () => {
   const open = { kind: "read", scope: "workspace", role: null, rate: null, spend: false };
   const own = { scope: "account", role: null, rate: null, spend: false };
@@ -195,13 +207,8 @@ test("a question answered: the thread is made before the model is asked, the per
   const systems = [];
   setAskPorts({
     round: async (call, onText) => {
-      const q = call.request.messages.at(-1).content;
-      systems.push(
-        [
-          ...call.request.system.map((b) => b.text),
-          ...(Array.isArray(q) ? q.map((c) => c.text ?? "") : [String(q)]),
-        ].join("\n"),
-      );
+      const q = askedBlocks(call.request);
+      systems.push([...call.request.system.map((b) => b.text), ...q.map((c) => c.text ?? "")].join("\n"));
       onText(written);
       return {
         blocks: [{ type: "text", id: "", name: "", text: written, json: "" }],
@@ -1010,9 +1017,9 @@ const leadWorld = (threads = [], messages = []) => ({
   ask_messages: messages,
   lead_searches_view: [waitingSearch()],
 });
-/** The question itself: the last text of the question's message, after the page's data and the turn's words. */
+/** The question itself: the last text of the question's message, after the page's data; the turn's words follow it. */
 const lastUser = (req) => {
-  const m = req.messages.at(-1);
+  const m = req.messages.findLast((x) => x.role === "user");
   return typeof m.content === "string" ? m.content : (m.content.filter((c) => c.type === "text").at(-1)?.text ?? "");
 };
 const linesOf = async (res) =>
@@ -1250,7 +1257,7 @@ test("a thread past thirty turns reads its newest sixty rows (MESSAGES_CAP): GET
   const requests = wordsOnly();
   try {
     await linesOf(await ask.POST.run(send("POST", { text: "And after that?", thread_id: T1 }, inA), ctxFor(tables)));
-    const history = requests[0].messages.slice(0, -1).map((m) => [m.role, m.content]);
+    const history = requests[0].messages.slice(0, -2).map((m) => [m.role, m.content]);
     assert.deepEqual(history.at(-1), ["assistant", "Answer 69."], "the model reads the thread up to its newest turn");
     assert.deepEqual(
       history,
@@ -1273,8 +1280,7 @@ test("the scope is each turn's (the Phase 5 plan, D9): a follow-up asked on anot
   });
   /** What a turn was asked about: the scope line in its words, and the rows read for it before the model. */
   const aboutOf = (req) => {
-    const q = req.messages.at(-1).content;
-    const blocks = Array.isArray(q) ? q : [];
+    const blocks = askedBlocks(req);
     const words = blocks
       .filter((b) => b.type === "text")
       .map((b) => b.text)
@@ -1453,7 +1459,11 @@ test("the turn as the model was sent it rides on the answer's row, at content.ra
       "read back, the last request's messages, byte for byte, less the cache's markers the request carried",
     );
     assert.ok(!raw.blocks.includes("cache_control"), "the row keeps no marker");
-    assert.deepEqual([blocks.base, blocks.rounds], [[], []], "a thread's first turn, one round");
+    assert.deepEqual(
+      [blocks.base, blocks.rounds.map((m) => m.role)],
+      [[], ["system"]],
+      "a thread's first turn, one round: the turn's words after the question, nothing more",
+    );
     assert.deepEqual(blocks.final, [
       { type: "thinking", thinking: "", signature: SIGNATURE },
       {
@@ -1612,9 +1622,9 @@ test("through the route a thread stays live turn after turn (the Phase 5 plan, P
     );
     assert.deepEqual(two.messages[one.messages.length], { role: "assistant", content: finalOf(answers[0]) });
     assert.deepEqual(
-      two.messages.at(-1).content.map((b) => b.tool_use_id ?? b.source ?? b.type),
-      ["t-card", "page://today", "text", "text"],
-      "the card's result, then the page's data, the words and the question: one message",
+      two.messages.findLast((m) => m.role === "user").content.map((b) => b.tool_use_id ?? b.source ?? b.type),
+      ["t-card", "page://today", "text"],
+      "the card's result, then the page's data and the question: one message, its words after it",
     );
     assert.equal(
       JSON.stringify(unmark(three.messages.slice(0, two.messages.length))),
@@ -1623,9 +1633,9 @@ test("through the route a thread stays live turn after turn (the Phase 5 plan, P
     );
     assert.deepEqual(three.messages[two.messages.length], { role: "assistant", content: finalOf(answers[1]) });
     assert.deepEqual(
-      three.messages.at(-1).content.map((b) => b.type),
-      ["text", "text"],
-      "turn 2 left no call unanswered",
+      three.messages.findLast((m) => m.role === "user").content.map((b) => b.type),
+      ["text"],
+      "turn 2 left no call unanswered: the question alone, its words after it",
     );
     const rawReads = third.supabase.seen.filter((q) => q.table === "ask_messages" && /\braw\b/.test(q.columns ?? ""));
     assert.deepEqual(
@@ -1808,7 +1818,7 @@ test("a cold follow-up through the route (the Phase 5 plan, PR 5.5): turn 1 -- a
 
     const line = `Rosa needs you. Cards: p-1 · reply · Reply to Rosa · not pressed yet. Rows, in order: 1. thread ${ROSA} Rosa.`;
     assert.deepEqual(
-      requests[1].messages.slice(0, -1).map((m) => [m.role, m.content]),
+      requests[1].messages.slice(0, -2).map((m) => [m.role, m.content]),
       [
         ["user", "Who needs me?"],
         ["assistant", line],
@@ -1821,7 +1831,7 @@ test("a cold follow-up through the route (the Phase 5 plan, PR 5.5): turn 1 -- a
     assert.deepEqual(second.content.raw.told, [], "nothing was recorded on turn 1's card when it read");
     assert.equal(
       JSON.stringify(JSON.parse(second.content.raw.blocks).base),
-      JSON.stringify(unmark(requests[1].messages.slice(0, -1))),
+      JSON.stringify(unmark(requests[1].messages.slice(0, -2))),
       "its base: the lines as sent, byte for byte",
     );
 
@@ -1978,7 +1988,7 @@ test("the Line's reads never select the raw turn (the Phase 5 plan, D11): GET as
     await linesOf(await ask.POST.run(send("POST", { text: "And tomorrow?", thread_id: T1 }, inA), asker));
     // The question in the person's words (modelTurnOf), the answer one line (answerLine, the Phase 5 plan, D4).
     assert.deepEqual(
-      requests[0].messages.slice(0, -1).map((m) => [m.role, m.content]),
+      requests[0].messages.slice(0, -2).map((m) => [m.role, m.content]),
       whole.map((r) =>
         r.role === "assistant"
           ? ["assistant", answerLine(toMessageVM(r), 1200)]

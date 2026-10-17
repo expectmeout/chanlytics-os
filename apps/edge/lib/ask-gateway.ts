@@ -34,6 +34,7 @@ import {
   askRoundCap,
   effortInForce,
   isEffortMessage,
+  isWordsMessage,
   readsAsModel,
   type ModelEffort,
   type ModelPurpose,
@@ -363,10 +364,11 @@ export function validateGatewayRequest(
   if (!Array.isArray(r.messages) || !r.messages.length || r.messages.length > GATEWAY_MAX_MESSAGES) {
     return badRequest(`messages: 1-${GATEWAY_MAX_MESSAGES} turns`);
   }
-  // A system message says an effort and nothing else (contracts ai/effort.ts): an instruction is the prompt's, never the
-  // messages'.
-  if (r.messages.some((m) => (m as { role?: unknown } | null)?.role === "system" && !isEffortMessage(m))) {
-    return badRequest("messages: a system message carries an effort alone");
+  // A system message says an effort (contracts ai/effort.ts) or the operator's words, text alone (ai/words-message.ts):
+  // nothing else rides in the messages as an instruction.
+  const system = (m: unknown) => (m as { role?: unknown } | null)?.role === "system";
+  if (r.messages.some((m) => system(m) && !isEffortMessage(m) && !isWordsMessage(m))) {
+    return badRequest("messages: a system message carries an effort or the operator's words alone");
   }
   if (r.tools !== undefined && (!Array.isArray(r.tools) || r.tools.length > GATEWAY_MAX_TOOLS)) {
     return badRequest(`tools: up to ${GATEWAY_MAX_TOOLS}`);
