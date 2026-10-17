@@ -23,7 +23,7 @@ import { gate } from "../../legacy-verbs";
 import type { LegacyFlash } from "../../legacy-verbs";
 import { pressed } from "./verbs";
 
-const W = SCHEDULE_WORDS.settings;
+const HOW_IT_RUNS = SCHEDULE_WORDS.settings;
 
 /** An hour as the sheet says it ("9:00 AM"), on the business's clock face. */
 const hourWords = (h: number) => clockTime(Date.UTC(2026, 0, 1, h), "UTC");
@@ -46,7 +46,7 @@ interface Values {
 }
 
 /** What the sheet opens with: the record's, as its first step holds them. */
-function valuesOf(rec: SequenceRecordDto): Values {
+function openingValues(rec: SequenceRecordDto): Values {
   const s = rec.settings;
   return {
     run_hour: String(rec.sequence.first?.run_hour ?? 10),
@@ -82,7 +82,7 @@ function SettingsFields(p: { rec: SequenceRecordDto; v: Values; set: (k: keyof V
   return (
     <div className="sq-settings-form">
       <Field
-        label={W.hour}
+        label={HOW_IT_RUNS.hour}
         control={
           <Select
             value={v.run_hour}
@@ -94,12 +94,12 @@ function SettingsFields(p: { rec: SequenceRecordDto; v: Values; set: (k: keyof V
         }
       />
       <Field
-        label={W.cap}
+        label={HOW_IT_RUNS.cap}
         control={
           <Select
             value={v.cap_per_run}
             onValueChange={(x) => set("cap_per_run", x)}
-            options={optionsOf(CAPS, Number(v.cap_per_run), W.people)}
+            options={optionsOf(CAPS, Number(v.cap_per_run), HOW_IT_RUNS.people)}
             chevron={chevron}
             data-testid="sq-settings-cap"
           />
@@ -107,12 +107,12 @@ function SettingsFields(p: { rec: SequenceRecordDto; v: Values; set: (k: keyof V
       />
       {takes.gap ? (
         <Field
-          label={W.gap}
+          label={HOW_IT_RUNS.gap}
           control={
             <Select
               value={v.gap_days}
               onValueChange={(x) => set("gap_days", x)}
-              options={optionsOf(GAPS, Number(v.gap_days), W.days)}
+              options={optionsOf(GAPS, Number(v.gap_days), HOW_IT_RUNS.days)}
               chevron={chevron}
               data-testid="sq-settings-gap"
             />
@@ -121,12 +121,12 @@ function SettingsFields(p: { rec: SequenceRecordDto; v: Values; set: (k: keyof V
       ) : null}
       {takes.every ? (
         <Field
-          label={W.every}
+          label={HOW_IT_RUNS.every}
           control={
             <Select
               value={v.cadence_days}
               onValueChange={(x) => set("cadence_days", x)}
-              options={optionsOf(EVERY, Number(v.cadence_days), W.days)}
+              options={optionsOf(EVERY, Number(v.cadence_days), HOW_IT_RUNS.days)}
               chevron={chevron}
               data-testid="sq-settings-every"
             />
@@ -134,21 +134,21 @@ function SettingsFields(p: { rec: SequenceRecordDto; v: Values; set: (k: keyof V
         />
       ) : null}
       <Field
-        label={W.until}
+        label={HOW_IT_RUNS.until}
         type="date"
         value={v.until}
         onValueChange={(x) => set("until", x)}
-        hint={W.untilHint}
+        hint={HOW_IT_RUNS.untilHint}
         data-testid="sq-settings-until"
       />
-      {rec.sequence.starts === "list" ? <p className="sq-settings-note">{W.onceEach}</p> : null}
+      {rec.sequence.starts === "list" ? <p className="sq-settings-note">{HOW_IT_RUNS.onceEach}</p> : null}
     </div>
   );
 }
 
 export function SettingsSheet({ open, rec, flash, moved, onClose }: SettingsSheetProps) {
   const row = rec.sequence;
-  const [was] = useState(() => valuesOf(rec));
+  const [was] = useState(() => openingValues(rec));
   const [v, setV] = useState(was);
   const [busy, setBusy] = useState(false);
   const change = changeOf(was, v);
@@ -162,15 +162,15 @@ export function SettingsSheet({ open, rec, flash, moved, onClose }: SettingsShee
     <Sheet
       open={open}
       onClose={onClose}
-      title={W.title}
+      title={HOW_IT_RUNS.title}
       sub={row.name}
-      close={{ label: W.cancel, glyph: <Icon name="x" size={13} /> }}
+      close={{ label: HOW_IT_RUNS.cancel, glyph: <Icon name="x" size={13} /> }}
       backCloses
       testid="sq-settings"
       foot={
         <div className="sq-stepfoot">
           <Button onClick={onClose} data-testid="sq-settings-cancel">
-            {W.cancel}
+            {HOW_IT_RUNS.cancel}
           </Button>
           <Button
             variant="primary"
@@ -181,7 +181,7 @@ export function SettingsSheet({ open, rec, flash, moved, onClose }: SettingsShee
             data-testid="sq-settings-save"
             {...gate("approve")}
           >
-            {W.save}
+            {HOW_IT_RUNS.save}
           </Button>
         </div>
       }

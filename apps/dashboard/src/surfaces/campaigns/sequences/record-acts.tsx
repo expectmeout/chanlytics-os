@@ -216,7 +216,7 @@ function phoneItems(a: RecordActs): MenuItem[] {
 
 /**
  * The head's More: on a phone its state, Skip and Discard first; then Cancel this send, Run now, Rename, Who approves
- * (how, and the Autonomy row it is set on for the whole class) and Ask about it.
+ * (how, and the Autonomy row it is set on for the whole class), End it, asked first, and Ask about it.
  */
 function More({ a, phone }: { a: RecordActs; phone: boolean }) {
   const row = a.row;
@@ -247,6 +247,13 @@ function More({ a, phone }: { a: RecordActs; phone: boolean }) {
       gate: allowed,
       onSelect: () => a.setRenaming(true),
     });
+  if (row.state !== "draft")
+    items.push({
+      label: SEQUENCE_WORDS.whoApproves,
+      glyph: <Icon name="shield" size={13} />,
+      hint: sequenceWhoApprovesHint(a.rec.mode, row.first?.policy_class),
+      onSelect: openAutonomy,
+    });
   if (ends(row))
     items.push({
       label: `${SEQUENCE_WORDS.end}…`,
@@ -255,13 +262,6 @@ function More({ a, phone }: { a: RecordActs; phone: boolean }) {
       disabled: a.busy,
       gate: allowed,
       onSelect: () => a.setAsking("end"),
-    });
-  if (row.state !== "draft")
-    items.push({
-      label: SEQUENCE_WORDS.whoApproves,
-      glyph: <Icon name="shield" size={13} />,
-      hint: sequenceWhoApprovesHint(a.rec.mode, row.first?.policy_class),
-      onSelect: openAutonomy,
     });
   return (
     <Menu
