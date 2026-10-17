@@ -567,7 +567,7 @@ test("the route takes the page's context: the turn reads it as data before the q
     // The two threads are no thread of this workspace's Inbox: the server read them again and found none, so the page
     // rides in as its figures alone.
     assert.deepEqual([carried.context_rows, carried.warm], [0, "miss"]);
-    const data = (r) => r.messages.at(-1).content.filter((c) => c.type === "search_result");
+    const data = (r) => r.messages.findLast((m) => m.role === "user").content.filter((c) => c.type === "search_result");
     assert.deepEqual(data(requests[0]), [], "no page, no data");
     assert.deepEqual(
       data(requests[1]).map((b) => [b.source, !!b.cache_control]),

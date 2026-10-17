@@ -23,6 +23,7 @@ import {
   saidYesWords,
   triggerWords,
   type triggerOf,
+  type AskCardSheet,
   type AskedPurpose,
   type CampaignHow,
   type CampaignMessage,
@@ -242,4 +243,54 @@ export async function allowanceHeld(
 export function underMode(cls: PlaybookInput["policy_class"], policies: readonly { class: string; mode: string }[]) {
   const mode = policies.find((r) => r.class === cls)?.mode ?? "ask";
   return { mode, said: `under “${PLAYBOOK_CLASS_LABEL[cls]}” (${mode}): ${MODE_WORDS[mode] ?? mode}.` };
+}
+
+/** A summary's piece as a sheet's row says it: no separator either side, its first letter a capital. */
+export const sheetWords = (s: string): string => {
+  const t = s
+    .replace(/^\s*·\s*/, "")
+    .replace(/\s*·\s*$/, "")
+    .trim();
+  return `${t.charAt(0).toUpperCase()}${t.slice(1)}`;
+};
+
+/** The waits a summary says, " · " between them (channelsWaitWords, allowanceHeld, a left-out line), one a sentence. */
+export const holdsOf = (...said: string[]): string[] =>
+  said
+    .join(" · ")
+    .split(" · ")
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .map(sheetWords);
+
+/**
+ * A new campaign's card as a sheet (contracts AskCardSheet), from the pieces its summary is made of, by each of its
+ * makers: where it runs, when, its week's breath and its last day, how it goes, who it reaches, how it sends, and its
+ * message; what holds it from sending apart, read first. A piece that is empty is no row.
+ */
+export function campaignSheet(p: {
+  where: string;
+  runs: string;
+  breath: string;
+  end: string;
+  goes: string;
+  reaches: string;
+  sends: string;
+  message: string;
+  waiting: string[];
+}): AskCardSheet {
+  const rows = [
+    { label: "Where", value: p.where },
+    // One fact, its parts by commas: "Daily 10:00 AM, up to 25, once per person".
+    { label: "Runs", value: p.runs.replaceAll(" · ", ", ") },
+    { label: "One a week", value: p.breath },
+    { label: "Last day", value: p.end },
+    { label: "Goes", value: p.goes },
+    { label: "Reaches", value: p.reaches },
+    { label: "Sends", value: p.sends },
+    { label: "Message", value: p.message },
+  ]
+    .map((r) => ({ label: r.label, value: sheetWords(r.value) }))
+    .filter((r) => r.value);
+  return { holds: holdsOf(...p.waiting), rows };
 }

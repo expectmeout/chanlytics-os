@@ -310,3 +310,25 @@ test("an effort said in the messages goes, with its beta, to a model that takes 
   await askModel(KEY, ask({ purpose: "ask", betas: [EFFORT_MESSAGE_BETA] }), { fetch: none.fetch, ...noWait });
   assert.equal(none.calls[0].headers["anthropic-beta"], undefined);
 });
+
+test("the operator's words said in the messages go to a model that takes them as a system message; its fallback that takes none (Sonnet 5) is told them in the person's turn, ahead of the question, with no system message left (contracts ai/words-message.ts)", async () => {
+  const data = { type: "search_result", source: "page://today", title: "Today", content: [] };
+  const question = { type: "text", text: "who needs me?" };
+  const q = { role: "user", content: [data, question] };
+  const words = { role: "system", content: [{ type: "text", text: "You are speaking with an owner." }] };
+  const raised = { role: "system", content: [], output_config: { effort: "high" } };
+  const body = { messages: [q, words, raised], output_config: { effort: "low" } };
+  const api = scripted(status(529, "Overloaded"), said("Here."));
+  const r = await askModel(KEY, ask({ purpose: "ask", body, betas: [EFFORT_MESSAGE_BETA] }), {
+    fetch: api.fetch,
+    ...noWait,
+  });
+  assert.equal(r.outcome, "ok");
+  assert.deepEqual(api.calls[0].body.messages, [q, words, raised], "Opus 5.5 is sent them where they stand");
+  assert.equal(api.calls[1].model, MODEL_ROUTES.ask.fallback);
+  assert.deepEqual(
+    api.calls[1].body.messages,
+    [{ role: "user", content: [data, words.content[0], question] }],
+    "Sonnet 5 hears the words in the person's turn, before the question, and no effort message",
+  );
+});

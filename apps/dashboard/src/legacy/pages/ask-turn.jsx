@@ -87,7 +87,19 @@ const AskCardHead = ({ p, t }) => {
   );
 };
 
-// The change as it will land, on the sunken ground: a reply as the sent bubble it will be, anything else its summary.
+// A card's change as a sheet (contracts AskCardSheet): what holds it first, in the warn tone, then a row a fact on a
+// key column, the way an owner checks a campaign before they press it (the answer canvas, C1).
+const AskSheet = ({ sheet }) => (
+  <div className="ask-spec" data-testid="ask-card-sheet">
+    {(sheet.holds || []).map((h, i) => <p key={i} className="ask-spec-hold">{h}</p>)}
+    <dl className="ask-spec-rows">
+      {sheet.rows.map((r) => <div key={r.label} className="ask-spec-row"><dt>{r.label}</dt><dd>{r.value}</dd></div>)}
+    </dl>
+  </div>
+);
+
+// The change as it will land, on the sunken ground: a reply as the sent bubble it will be, a campaign or a send as its
+// sheet, anything else its summary.
 // Before the act a reply's warnings stand under it, and while it can go as it is (its window open), its undo's own
 // words say what follows; with the window shut only a template can go, and the note says so instead.
 // A message the card writes is drawn whole, each version under its channel's word as the person reached on it reads
@@ -100,7 +112,7 @@ const AskCardChange = ({ p, t, idle }) => {
   return (
     <>
       <div className={`ask-card-change${reply ? " bubble" : ""}`}>
-        {written ? <div className="ask-card-said" data-testid="ask-card-versions">{written.map((v) => <p key={v.channel} className="ask-card-summary"><span className="ask-card-kind">{v.label}</span>{"\n"}{v.words}</p>)}</div> : <p className="ask-card-summary">{p.summary}</p>}
+        {written ? <div className="ask-card-said" data-testid="ask-card-versions">{written.map((v) => <p key={v.channel} className="ask-card-summary"><span className="ask-card-kind">{v.label}</span>{"\n"}{v.words}</p>)}</div> : p.sheet && p.sheet.rows && p.sheet.rows.length ? <AskSheet sheet={p.sheet} /> : <p className="ask-card-summary">{p.summary}</p>}
       </div>
       {written && pl.follows ? <p className="ask-card-foot">{pl.follows}</p> : null}
       {reply && idle && pl.price_warning ? <div className="ask-card-note">{t.priceNote}</div> : null}

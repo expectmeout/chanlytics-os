@@ -5364,3 +5364,46 @@ test("an answer's formatting is drawn from its blocks: a heading, steps with poi
     "a list's entry keeps its bold",
   );
 });
+
+test("a campaign's card draws its sheet (the answer canvas, C1): what holds it first, then a row a fact under its label; a card with no sheet, its summary as before", () => {
+  const sheet = {
+    holds: ["WhatsApp waits: its WhatsApp version goes to WhatsApp for review when you approve."],
+    rows: [
+      { label: "Where", value: "Quiet for 30 days — they stopped writing" },
+      { label: "Runs", value: "Every day at 10:00, 25 a run" },
+      { label: "Reaches", value: "26 people who said yes to offers" },
+    ],
+  };
+  const p = {
+    id: "p1",
+    kind: "playbook",
+    needs: "operator",
+    title: "Campaign: Win-back",
+    summary:
+      "Quiet for 30 days — they stopped writing · every day at 10:00, 25 a run · 26 people who said yes to offers",
+    payload: {},
+    sheet,
+    undo: null,
+  };
+  const { AskCard } = globalThis.window.AskAnswerKit;
+  const tree = render(AskCard, { p, t: globalThis.window.askText("en"), onNav() {} });
+  const drawn = byTestId(tree, "ask-card-sheet");
+  assert.ok(drawn, "the sheet, in the card's change");
+  assert.deepEqual(byClass(drawn, "ask-spec-hold").map(textOf), sheet.holds, "the holds first");
+  assert.deepEqual(
+    byClass(drawn, "ask-spec-row").map((r) => textOf(r)),
+    sheet.rows.map((r) => `${r.label}${r.value}`),
+    "a row a fact: its label, then its words",
+  );
+  assert.equal(
+    byClass(tree, "ask-card-summary").some((n) => textOf(n) === p.summary),
+    false,
+    "the summary is not drawn beside its sheet",
+  );
+  const bare = render(AskCard, { p: { ...p, sheet: undefined }, t: globalThis.window.askText("en"), onNav() {} });
+  assert.ok(!byTestId(bare, "ask-card-sheet"), "no sheet drawn");
+  assert.ok(
+    byClass(bare, "ask-card-summary").some((n) => textOf(n) === p.summary),
+    "no sheet: the summary",
+  );
+});
