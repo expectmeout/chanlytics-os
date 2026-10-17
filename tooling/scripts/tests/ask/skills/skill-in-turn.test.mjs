@@ -101,30 +101,31 @@ function turn(text, rounds) {
 }
 
 /**
- * Every text the person's message carries in a request: the turn's words and the question. A draft's turn has an effort
- * message after it (effort.ts), so it is the last of the user's, not the last of all.
+ * Every text the person's message carries in a request, the question last: the last of the user's, since the turn's
+ * words follow it (the answer canvas, A3) and a draft's effort message after them (effort.ts).
  */
 const textsOf = (request) =>
   (request.messages.findLast((m) => m.role === "user")?.content ?? [])
     .filter((b) => b.type === "text")
     .map((b) => String(b.text));
+/** The turn's words a request carries: the operator's system message after the question. */
+const wordsOf = (request) =>
+  String(request.messages.findLast((m) => m.role === "system" && m.content.length > 0)?.content[0]?.text ?? "");
 
 test("a question that asks for a message carries the writer's guide in the turn's words; one that does not, nothing more", async () => {
   const asked = turn("Write a win-back message for people we haven't seen since summer", [
     ROUND([answer("Here it is.")]),
   ]);
   await runAskTurn(asked.input, asked.ports);
-  const words = textsOf(asked.requests[0]);
-  assert.ok(
-    words.some((t) => t.endsWith(`\n\n${GUIDE}`)),
-    "the guide follows the turn's words, in the same block",
-  );
-  assert.equal(words.at(-1), asked.input.text, "the question itself stays last and untouched");
+  assert.ok(wordsOf(asked.requests[0]).endsWith(`\n\n${GUIDE}`), "the guide follows the turn's words, in their block");
+  assert.equal(textsOf(asked.requests[0]).at(-1), asked.input.text, "the question itself stays last and untouched");
 
   const plain = turn("Who needs me?", [ROUND([answer("Nobody.")])]);
   await runAskTurn(plain.input, plain.ports);
   assert.ok(
-    textsOf(plain.requests[0]).every((t) => !t.includes("Skill: Customer message writer")),
+    [...textsOf(plain.requests[0]), wordsOf(plain.requests[0])].every(
+      (t) => !t.includes("Skill: Customer message writer"),
+    ),
     "no guide where none was asked for",
   );
 });

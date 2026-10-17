@@ -98,8 +98,9 @@ function model(waitMs = 0, headline = HEADLINE, list = { style: "bullets", entri
   const asked = [];
   setAskPorts({
     round: async (call, onText) => {
-      // The question's message: the turn's words first (the clock, the person, the spoken register), the question last.
-      const q = call.request.messages.at(-1).content;
+      // The question's message: the person's last turn, the question last in it; the turn's words (the clock, the
+      // person, the spoken register) follow it as the operator's (the answer canvas, A3).
+      const q = call.request.messages.findLast((m) => m.role === "user").content;
       asked.push(Array.isArray(q) ? q.at(-1).text : String(q));
       if (waitMs) await sleep(waitMs);
       onText(written);

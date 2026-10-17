@@ -11,13 +11,14 @@ import {
   AppError,
   MIN_MS,
   isEffortMessage,
+  isWordsMessage,
+  wordsMessage,
   type AskAnswer,
   type AskMessageVM,
   type AskProposal,
   type AskRowRef,
   type AskScope,
   type AskTurnShape,
-  type EffortMessage,
 } from "@chanlytics/contracts";
 import type { RouteContext } from "../with-route";
 import { answerLine, titleFromQuestion, titleFromSearch, type CardOutcome, type SearchAnswering } from "./prompt";
@@ -127,7 +128,7 @@ function citedIn(rows: AskMessageVM[]): AskRowRef[] {
 export function foldHistory(history: TurnInput["history"], last: string | unknown[]): Msg[] {
   const questions = questionsOf(history);
   const from = questions[Math.max(0, questions.length - HISTORY_TURNS)] ?? history.length;
-  const messages: Array<Exclude<Msg, EffortMessage>> = [
+  const messages: Array<{ role: "user" | "assistant"; content: unknown }> = [
     ...history.slice(from).map((h) => ({ role: h.role, content: h.text.slice(0, HISTORY_CHARS) })),
     { role: "user", content: last },
   ];
@@ -143,6 +144,41 @@ export function foldHistory(history: TurnInput["history"], last: string | unknow
     }
   }
   return messages;
+}
+
+/**
+ * The question as a round asks it, the turn's words with it (the answer canvas, A3): after the person's turn, as the
+ * operator's system message (contracts wordsMessage), so nothing a customer wrote in the page's data can pass for them;
+ * or, where that was refused (refusals.ts, the drop "words"), in the person's turn ahead of the question, as before.
+ */
+export function withWords(messages: Msg[], words: { type: "text"; text: string }, asSystem: boolean): Msg[] {
+  if (asSystem) return [...messages, wordsMessage(words)];
+  const last = messages.at(-1);
+  if (!last || last.role !== "user" || !Array.isArray(last.content)) return messages;
+  const content: unknown[] = last.content;
+  return [...messages.slice(0, -1), { role: "user", content: [...content.slice(0, -1), words, ...content.slice(-1)] }];
+}
+
+/** Where the question sits: the person's last turn. */
+export function questionIn(messages: readonly Msg[]): number {
+  let at = messages.length - 1;
+  while (at > 0 && messages.at(at)?.role !== "user") at--;
+  return at;
+}
+
+/**
+ * The messages with the page's data taken out of the question (a request refused for its blocks, D14), and the turn's
+ * words said as `bare`, which stop pointing at them, wherever the words stand: in the question, or in the message after.
+ */
+export function withoutData(messages: Msg[], questionAt: number, words: unknown, bare: unknown): Msg[] {
+  const swap = (b: unknown) => (b === words ? bare : b);
+  return messages.map((m, i) => {
+    if (isEffortMessage(m) || !Array.isArray(m.content) || i < questionAt || i > questionAt + 1) return m;
+    // The question's data blocks, and the words wherever they stand: the question, or the words message after it.
+    const blocks: Array<{ type?: string }> = m.content;
+    const kept = i === questionAt ? blocks.filter((b) => b.type !== "search_result") : blocks;
+    return { ...m, content: kept.map(swap) } as Msg;
+  });
 }
 
 /** Where each turn of a history starts: a person's message, and what follows it until the next. */
@@ -307,9 +343,13 @@ interface Kept {
   final: unknown[];
   results: unknown[];
 }
-/** A message as a raw turn keeps it: the person's or the model's, or an effort said between them (effort.ts). */
+/**
+ * A message as a raw turn keeps it: the person's or the model's, or an effort said between them (effort.ts), or the
+ * turn's words after its question (contracts ai/words-message.ts).
+ */
 const isMsg = (m: unknown): m is Msg =>
   isEffortMessage(m) ||
+  isWordsMessage(m) ||
   (!!m && typeof m === "object" && "content" in m && "role" in m && (m.role === "user" || m.role === "assistant"));
 const messagesOf = (v: unknown): Msg[] | null => (Array.isArray(v) && v.every(isMsg) ? v : null);
 
@@ -359,7 +399,8 @@ function chainFrom(kept: Array<Kept | null>, ids: string[], now: number, rows: A
     sent.push({ role: "user", content: t.question }, ...t.rounds, { role: "assistant", content: t.final });
   if (sent.length > LIVE_MESSAGES) return null;
   const messages = sent.map(unmarked);
-  const asked = [...messages].reverse().find((m) => m.role === "user")?.content;
+  // Where the last request's cache write ended: its last block, the turn's words where they came last (A3).
+  const asked = [...messages].reverse().find((m) => m.role !== "assistant" && !isEffortMessage(m))?.content;
   const anchor = Array.isArray(asked) ? asked.at(-1) : undefined;
   const told = new Set(turns.flatMap((t) => t.told ?? []));
   const own = [...ids].reverse().flatMap((id) => rows.filter((r) => r.id === id));
@@ -380,14 +421,15 @@ function chainFrom(kept: Array<Kept | null>, ids: string[], now: number, rows: A
  * on as a cold turn's does, the anchor bpR. Live only when round one's request -- `round1`, over these messages marked
  * at the anchor -- names the chain's model, hashes to its prefix and stays within LIVE_REQUEST_CHARS; else null: cold.
  */
-export function replayFor<W>(
+export function replayFor<W extends { type: "text"; text: string }>(
   chain: Chain | null | undefined,
-  asked: { data: unknown[]; words: W; question: unknown },
+  asked: { data: unknown[]; words: W; question: unknown; asSystem: boolean },
   round1: (messages: Msg[], anchor: unknown) => LastRound["request"],
 ): { messages: Msg[]; anchor: unknown; words: W } | null {
   if (!chain) return null;
   const { data, words, question } = asked;
-  const messages: Msg[] = [...chain.messages, { role: "user", content: [...chain.results, ...data, words, question] }];
+  const turn: Msg = { role: "user", content: [...chain.results, ...data, question] };
+  const messages = withWords([...chain.messages, turn], words, asked.asSystem);
   const request = round1(messages, chain.anchor);
   // As round one sends it: the diagnostics name the chain's last message (the Phase 6 plan, D2), in the size, never the
   // prefix.
@@ -519,7 +561,7 @@ export function withMarkers(messages: Msg[], anchor: unknown): Msg[] {
     return {
       ...m,
       content: blocks.map((b, j) => (j === at || (i === last && j === blocks.length - 1) ? marked(b) : b)),
-    };
+    } as Msg;
   });
 }
 
@@ -531,7 +573,7 @@ function unmarkedBlock(b: unknown): unknown {
 }
 /** A message less the cache's markers a request carried on it (D10): the turn as it was sent, whoever marked it. */
 const unmarked = (m: Msg): Msg =>
-  !isEffortMessage(m) && Array.isArray(m.content) ? { ...m, content: m.content.map(unmarkedBlock) } : m;
+  !isEffortMessage(m) && Array.isArray(m.content) ? ({ ...m, content: m.content.map(unmarkedBlock) } as Msg) : m;
 
 /**
  * The turn as it was sent, from the round it ended on and where the question sits in that round's request, and what it
