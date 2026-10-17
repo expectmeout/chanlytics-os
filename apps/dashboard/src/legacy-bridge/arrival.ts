@@ -44,7 +44,7 @@ type Globals = {
 };
 
 /** Whether something needs you: people, runs or searches, as Ask says it, a follow-up of Ask's come due, or a notification not read yet. */
-const needsYouNow = (): boolean => {
+export const needsYouNow = (): boolean => {
   const w = window as unknown as Globals;
   const A = w.__ask;
   if (A && typeof A.rightNowParts === "function") {

@@ -164,7 +164,7 @@ export const memberViews: Reader<undefined, Record<string, unknown>> = {
  */
 
 /** The parts of the workspace a follow-up's wake is read from, each as its page reads it; null where it was not read. */
-export interface FollowUpParts {
+interface FollowUpParts {
   searches: ReadonlyArray<{ id: string; round?: { state?: string | null } | null }> | null;
   sequences: ReadonlyArray<{ id: string; needs: { replies: number } }> | null;
   nowMs: number;
@@ -173,7 +173,7 @@ export interface FollowUpParts {
 }
 
 /** A member's follow-ups, those due now and those still waiting, oldest first. */
-export interface FollowUpsNow {
+interface FollowUpsNow {
   due: AskFollowUp[];
   waiting: AskFollowUp[];
 }
