@@ -10170,6 +10170,12 @@ type Database = {
                 };
                 Returns: Json;
             };
+            sequence_batch_places_back: {
+                Args: {
+                    p_batch_id: string;
+                };
+                Returns: number;
+            };
             sequence_claim_drafts: {
                 Args: {
                     p_at: string;
@@ -21796,6 +21802,12 @@ declare function builderOf<T extends TenantTable>(db: Db$J, table: T): _supabase
                 p_tenant_id: string;
             };
             Returns: Json;
+        };
+        sequence_batch_places_back: {
+            Args: {
+                p_batch_id: string;
+            };
+            Returns: number;
         };
         sequence_claim_drafts: {
             Args: {

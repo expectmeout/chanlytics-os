@@ -86,7 +86,7 @@ export async function readSequence(t: ToolContext, input: { sequence_id: string 
   for (const r of inIt) notePerson(t, r.contact_id, r.name ?? "");
   const { sequence: row, steps, mode, word } = record.data;
   const nowMs = t.now.getTime();
-  const notice = sequenceNotice(row, steps, { tz: t.timezone, nowMs });
+  const notice = sequenceNotice(row, steps);
   return {
     ...sequenceLine(row, word, t.timezone, nowMs),
     head: sequenceHeadLine(row, word, t.timezone, nowMs),

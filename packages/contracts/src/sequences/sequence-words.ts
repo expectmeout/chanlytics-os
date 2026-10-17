@@ -50,6 +50,8 @@ export const SEQUENCE_WORDS = {
   you: "You approve",
   /** The record's line of what goes next: "Next tomorrow 10:00 AM · 3 people". */
   next: "Next",
+  /** How long a customer's batch waits for an OK: an OK sends it at once, and the sweep skips it once its day is gone. */
+  untilTonight: "until tonight",
   /** Who approves its batches, said in the record's More, where it is changed (Autonomy, for its whole class). */
   whoApproves: "Who approves",
   turnOff: "Turn this off",
@@ -497,24 +499,30 @@ const noticeOf = (n: Omit<SequenceNotice, "batchId" | "stepId"> & Partial<Sequen
   ...n,
 });
 
-/** A batch waiting for an OK, as the notice says it: its people and when they go, the step where there are several. */
-function waitingNotice(
-  steps: readonly SequenceStepDto[],
-  batch: SequenceNeedsDto["batches"][number],
-  clock: { tz: string; nowMs: number },
-): SequenceNotice {
-  const when = clockWhen(Date.parse(batch.at), clock.tz, clock.nowMs);
+/**
+ * Whether a batch waiting for an OK can wait only until its day is gone: a customer's (a moment's, a list's or a step
+ * after the first: its audience a playbook's), which the sweep skips once an OK could no longer send it on its day
+ * (contracts runApprovalRefusal). A sequence to leads' batch and a one-off wait until they are answered. Its `at` is
+ * when it was made, never when it goes: an OK sends it at once.
+ */
+export const batchWaitsUntilTonight = (batch: Pick<SequenceNeedsDto["batches"][number], "audience">): boolean =>
+  batch.audience?.kind === "playbook";
+
+/** A batch waiting for an OK, as the notice says it: its people and how long it waits, the step where there are several. */
+function waitingNotice(steps: readonly SequenceStepDto[], batch: SequenceNeedsDto["batches"][number]): SequenceNotice {
   const people = batch.people;
   const place = steps.length > 1 ? steps.find((s) => s.id === batch.step_id)?.place : undefined;
+  const until = batchWaitsUntilTonight(batch) ? ` · ${SEQUENCE_WORDS.untilTonight}` : "";
+  const fact = [place ? `Step ${place}` : null, until ? SEQUENCE_WORDS.untilTonight : null].filter(Boolean).join(" · ");
   // A batch that names nobody yet (its people are counted as it is planned) is said as the batch, never as "0 people".
   return noticeOf({
     kind: "waiting",
     words:
       people > 0
-        ? `${plural(people, "person waits", "people wait")} for your OK · they go ${when}`
-        : `The next batch waits for your OK · it goes ${when}`,
+        ? `${plural(people, "person waits", "people wait")} for your OK${until}`
+        : `The next batch waits for your OK${until}`,
     line: people > 0 ? `${people} wait${people === 1 ? "s" : ""} for your OK` : "The next batch waits for your OK",
-    fact: `${place ? `Step ${place} · ` : ""}goes ${when}`,
+    fact: fact || null,
     act: people > 0 ? `${SEQUENCE_WORDS.approve} ${people}` : SEQUENCE_WORDS.approve,
     batchId: batch.id,
   });
@@ -523,19 +531,17 @@ function waitingNotice(
 /**
  * The notice: a batch waiting for an OK first, then a twin on its moment (each person gets the same message twice), the
  * emails the check held, those for you to send, the replies to answer, and new words WhatsApp turned down. `twin` is the
- * list's to say (sequenceTwinOf): a reader with one row alone passes none. `clock` is the business's zone and now.
+ * list's to say (sequenceTwinOf): a reader with one row alone passes none.
  */
 export function sequenceNotice(
   row: SequenceRowDto,
   steps: readonly SequenceStepDto[],
-  clock: { tz: string; nowMs: number },
   twin: SequenceTwin | null = null,
 ): SequenceNotice | null {
-  const { tz, nowMs } = clock;
   const n = row.needs;
   // The batch an OK goes to: the soonest of those an OK can still send (sequenceWaitsNow).
   const batch = n.waiting > 0 ? (n.batches[0] ?? null) : null;
-  if (batch) return waitingNotice(steps, batch, { tz, nowMs });
+  if (batch) return waitingNotice(steps, batch);
   if (twin)
     return noticeOf({
       kind: "twin",

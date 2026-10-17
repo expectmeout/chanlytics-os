@@ -2,11 +2,13 @@ import { reachFor } from "../broadcasts/reach-for.js";
 import { enrolPurpose } from "../playbooks/playbook-purpose.js";
 export const FOLLOW_UP_CONDITIONS = ["no_booking", "no_reply"];
 export function followUpStop(person, onlyIf, sentAtMs) {
-  if (onlyIf.includes("no_booking") && person.booked) return "booked";
+  const cameIn = person.lastVisitMs !== null && sentAtMs !== null && person.lastVisitMs > sentAtMs;
+  if (onlyIf.includes("no_booking") && (person.booked || cameIn)) return "booked";
   if (onlyIf.includes("no_reply") && person.askedMs !== null && sentAtMs !== null && person.askedMs > sentAtMs)
     return "replied";
   return null;
 }
+export const followUpLeaves = (why) => why !== "no_channel";
 export function messageAboutOfClass(policyClass) {
   return policyClass === "booking" || policyClass === "follow_up" ? "theirs" : "ours";
 }
