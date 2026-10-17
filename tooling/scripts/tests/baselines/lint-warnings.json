@@ -392,9 +392,6 @@
   "packages/contracts/src/workspace/workspace.ts": {
     "@typescript-eslint/restrict-template-expressions": 1
   },
-  "packages/core/src/campaigns/run-playbook.ts": {
-    "@typescript-eslint/no-unsafe-assignment": 1
-  },
   "packages/core/src/html.ts": {
     "@typescript-eslint/no-unsafe-argument": 1
   },

@@ -13,13 +13,11 @@
 import { useState } from "react";
 import type { ReactNode } from "react";
 import {
-  PLAYBOOK_HOURS,
   SCHEDULE_WORDS as SW,
   SEQUENCE_FLOW_WORDS as F,
   SEQUENCE_WORDS,
   addressOf,
   clockDate,
-  clockTime,
   scheduleChannels,
   scheduleDays,
   scheduleEnd,
@@ -37,25 +35,20 @@ import {
 import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
-import { Select } from "../../kit/select/select";
 import { cx } from "../../kit/variants";
 import { gate, navigate, routeDoor } from "../../legacy-verbs";
 import type { LegacyFlash } from "../../legacy-verbs";
 import { addLeadsTo } from "../reach-out/people";
+import { SettingsSheet } from "./settings-sheet";
 import { StepSheet, type StepSheetTarget } from "./step-sheet";
 import { StepPreviewLine, StepWords, useStepMessageRead } from "./step-words";
 import { useSequenceRead } from "./use-record";
-import { pressed, sequenceVerbs as verbs } from "./verbs";
+import { sequenceVerbs as verbs } from "./verbs";
 
 type Flash = (flash: LegacyFlash) => void;
 
 /** What a step's state is said from, but whether its message is gone: each step's own read says that. */
 export type StepsCtx = Omit<ScheduleCtx, "gone">;
-
-/** An hour as the schedule says it ("9:00 AM"), on the business's clock face. */
-const hourWords = (h: number) => clockTime(Date.UTC(2026, 0, 1, h), "UTC");
-
-const HOURS = Array.from({ length: PLAYBOOK_HOURS.max - PLAYBOOK_HOURS.min + 1 }, (_, i) => PLAYBOOK_HOURS.min + i);
 
 /**
  * Add leads: a sequence fed by a list takes leads by hand, so Leads opens with the pile set to add to it (people.tsx);
@@ -96,58 +89,6 @@ function StartsOn({ rec, name }: { rec: SequenceRecordDto; name: string }) {
   );
 }
 
-/** The hour a sequence sends at, changed in place: a menu of hours, Cancel and Save. */
-function HourChange({
-  rec,
-  flash,
-  moved,
-  onDone,
-}: {
-  rec: SequenceRecordDto;
-  flash: Flash;
-  moved: () => void;
-  onDone: () => void;
-}) {
-  const row = rec.sequence;
-  const was = String(row.first?.run_hour ?? 10);
-  const [hour, setHour] = useState(was);
-  const [busy, setBusy] = useState(false);
-  const save = async () => {
-    setBusy(true);
-    const ok = await pressed(
-      "playbook_change",
-      { playbook_id: row.id, name: row.name, run_hour: Number(hour) },
-      flash,
-      moved,
-    );
-    setBusy(false);
-    if (ok) onDone();
-  };
-  return (
-    <div className="sq-fl-inline" data-testid="sq-starts-hour">
-      <Select
-        label={F.hour}
-        value={hour}
-        onValueChange={setHour}
-        options={HOURS.map((h) => ({ value: String(h), label: hourWords(h) }))}
-        chevron={<Icon name="chevron-down" size={12} />}
-      />
-      <Button size="sm" onClick={onDone}>
-        {F.cancel}
-      </Button>
-      <Button
-        size="sm"
-        variant="primary"
-        onClick={() => void save()}
-        disabled={busy || hour === was}
-        data-testid="sq-starts-save"
-      >
-        {F.saveHour}
-      </Button>
-    </div>
-  );
-}
-
 /**
  * Where it starts: what starts it, the list or search it starts on a door to it, and the line under (its hour and Change
  * where a moment or a list starts it, Add leads where a search does, a one-off's day and how it stands).
@@ -155,7 +96,9 @@ function HourChange({
 function StartRow({ rec, flash, moved }: { rec: SequenceRecordDto; flash: Flash; moved: () => void }) {
   const row = rec.sequence;
   const first = row.first;
+  // How it runs, in its own sheet; a new key each time it opens, so it opens on what the record holds now.
   const [open, setOpen] = useState(false);
+  const [opened, setOpened] = useState(0);
   const start = scheduleStart(row, rec.word, { tz: rec.timezone, nowMs: Date.now() });
   const changes = !!first && (row.starts === "moment" || row.starts === "list");
   // Its search's address is the door's, which a new tab opens; a press goes the way the sequence takes leads.
@@ -169,8 +112,15 @@ function StartRow({ rec, flash, moved }: { rec: SequenceRecordDto; flash: Flash;
         </span>
         <span className="sq-rail-sub">
           {start.sub}
-          {changes && !open ? (
-            <LinkButton onClick={() => setOpen(true)} data-testid="sq-starts-change" {...gate("approve")}>
+          {changes ? (
+            <LinkButton
+              onClick={() => {
+                setOpened((n) => n + 1);
+                setOpen(true);
+              }}
+              data-testid="sq-starts-change"
+              {...gate("approve")}
+            >
               {SEQUENCE_WORDS.change}
             </LinkButton>
           ) : null}
@@ -181,7 +131,9 @@ function StartRow({ rec, flash, moved }: { rec: SequenceRecordDto; flash: Flash;
           ) : null}
         </span>
       </div>
-      {open ? <HourChange rec={rec} flash={flash} moved={moved} onDone={() => setOpen(false)} /> : null}
+      {changes ? (
+        <SettingsSheet key={opened} open={open} rec={rec} flash={flash} moved={moved} onClose={() => setOpen(false)} />
+      ) : null}
     </RailRow>
   );
 }
@@ -406,6 +358,16 @@ export function SequenceSteps({ rec, flash, moved, again, editing, onEditing, on
   const [held, setHeld] = useState<StepSheetTarget | null>(null);
   const [open, setOpen] = useState(false);
   const target = editing ? sheetTargetOf(editing) : held;
+  // Ended (End it, or its first step gone): its steps went with it, so it says so, and History keeps what it sent.
+  if (row.state === "ended" && row.starts !== "date")
+    return (
+      <div className="sq-steps-body" data-testid="sq-steps">
+        <p className="sq-rail-note" data-testid="sq-ended">
+          <Icon name="info" size={13} />
+          <span>{SEQUENCE_WORDS.endedLine}</span>
+        </p>
+      </div>
+    );
   const ctx: StepsCtx = { tz: rec.timezone, nowMs: Date.now(), lastRunFor: rec.last_run_for, people };
   const days = scheduleDays(rec.steps);
   const span = scheduleSpan(row, rec.steps);

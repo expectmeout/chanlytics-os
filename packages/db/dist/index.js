@@ -4550,6 +4550,13 @@ async function leaveSequence(db, p) {
   if (error) throw new Error(`cannot take them out of the sequence: ${error.message}`);
   return typeof data === "number" ? data : 0;
 }
+async function sequenceReached(db, tenantId, sequenceId) {
+  const rows = await readAllRows(
+    "who the sequence reached",
+    (from, to) => db.from("sequence_enrollments").select("contact_id").eq("tenant_id", tenantId).eq("sequence_id", sequenceId).is("lead_id", null).or("state.eq.in,sent_at.not.is.null").order("id").range(from, to)
+  );
+  return new Set(rows.flatMap((r) => r.contact_id ? [r.contact_id] : []));
+}
 async function sequencesOfPerson(db, tenantId, contactId) {
   const { data, error } = await db.from("sequence_enrollments").select("sequence_id, place, next_at").eq("tenant_id", tenantId).eq("contact_id", contactId).eq("state", "in").order("next_at", { ascending: true, nullsFirst: false }).limit(20);
   if (error) throw new Error(`cannot read the sequences they are in: ${error.message}`);
@@ -4607,10 +4614,16 @@ async function sequenceOfPart(db, tenantId, id) {
   };
   return of(batch.data) ?? of(step.data);
 }
-async function stepLastRunFor(db, tenantId, stepId) {
-  const { data, error } = await db.from("sequence_steps").select("last_run_for").eq("tenant_id", tenantId).eq("id", stepId).maybeSingle();
-  if (error) throw new Error(`cannot read when the step last ran: ${error.message}`);
-  return data?.last_run_for ?? null;
+async function firstStepFacts(db, tenantId, stepId) {
+  const { data, error } = await db.from("sequence_steps").select("last_run_for, cap_per_run, gap_days, cadence_days").eq("tenant_id", tenantId).eq("id", stepId).maybeSingle();
+  if (error) throw new Error(`cannot read the first step's run: ${error.message}`);
+  return data;
+}
+async function lastRunSkipped(db, tenantId, stepId) {
+  const { data, error } = await db.from("events").select("data").eq("tenant_id", tenantId).eq("subject_type", "playbook").eq("subject_id", stepId).eq("kind", "playbook.run").order("created_at", { ascending: false }).limit(1).maybeSingle();
+  if (error) throw new Error(`cannot read the step's last run: ${error.message}`);
+  const said = data?.data;
+  return said && typeof said === "object" && !Array.isArray(said) && typeof said.skipped === "string" ? said.skipped : null;
 }
 async function oneOffMessageOf(db, tenantId, batchId) {
   const [batch, ...by] = await Promise.all([
@@ -7056,6 +7069,7 @@ export {
   filedNamesOf,
   finishableRuns,
   firstReplies,
+  firstStepFacts,
   followUpOnFile,
   followUpTouchesSince,
   followUpsDue,
@@ -7119,6 +7133,7 @@ export {
   lastClosedHolds,
   lastInboundEmail,
   lastOutboundEmailSubject,
+  lastRunSkipped,
   leadAddressBounced,
   leadAddresseeChoose,
   leadCardsLive,
@@ -7358,6 +7373,7 @@ export {
   sequenceOfPart,
   sequenceOverview,
   sequencePeopleOf,
+  sequenceReached,
   sequenceRow,
   sequenceStepsOf,
   sequencesOfPerson,
@@ -7389,7 +7405,6 @@ export {
   stampPlaybooksTried,
   stampReachOutStep,
   startPlaybook,
-  stepLastRunFor,
   stopAllMessages,
   strandedRuns,
   stuckClaims,

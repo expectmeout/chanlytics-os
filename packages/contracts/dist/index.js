@@ -23030,6 +23030,16 @@ var sequenceDiscardSpec = {
   receipt: () => "The draft is gone",
   open: () => SEQUENCES_ROUTE
 };
+var sequenceEndSpec = {
+  needs: "operator",
+  gate: "approve",
+  commit: ({ payload: pl }) => {
+    const id = idIn(pl, "sequence_id");
+    return id ? { route: "DELETE playbooks/[id]", params: { id } } : refuseWith(PROPOSAL_WORDS.cannotApprove);
+  },
+  receipt: ({ payload: pl }) => asText(pl.name) ? `\u201C${asText(pl.name)}\u201D has ended` : "It has ended",
+  open: openSequence
+};
 var openRun = ({ payload }) => {
   const run = idIn(payload, "run_id");
   return run ? `broadcasts/run:${run}` : null;
@@ -23099,6 +23109,7 @@ var PAGE_SPECS = {
   sequence_make: sequenceMakeSpec,
   sequence_start: sequenceStartSpec,
   sequence_discard: sequenceDiscardSpec,
+  sequence_end: sequenceEndSpec,
   // A step's message mailed to the member who pressed Send me a test, and to nobody else.
   sequence_test: sequenceTestSpec,
   playbook_change: playbookChangeSpec,
@@ -27955,7 +27966,8 @@ var WHY = {
   team: "it changes who is on the team, which the owner does in Settings \u203A Team",
   draft: "Ask writes the draft itself in the conversation, so it never needs the page's drafter",
   learned: "a note the owner's correction suggested is kept beside what they wrote, on Settings \u203A Autonomy; Ask adds a note of its own with a settings card",
-  test: "it mails a step's message to the member who presses it, beside the step on its page"
+  test: "it mails a step's message to the member who presses it, beside the step on its page",
+  end: "it ends a sequence for good, which is asked and confirmed on its page, beside the history it keeps"
 };
 var ASK_GUIDE_PAGES = [
   {
@@ -28058,6 +28070,7 @@ var ASK_GUIDE_PAGES = [
       "sequence_send_decide",
       "sequence_send_said",
       "sequence_discard",
+      "sequence_end",
       "sequence_draft",
       "sequence_test",
       "reach_out_make",
@@ -28065,7 +28078,8 @@ var ASK_GUIDE_PAGES = [
     ],
     pageOnly: [
       { what: "Draft a sequence from a line on the page", why: WHY.draft },
-      { what: "Send yourself a test of a step's message", why: WHY.test }
+      { what: "Send yourself a test of a step's message", why: WHY.test },
+      { what: "End a sequence for good", why: WHY.end }
     ]
   },
   {
@@ -28092,7 +28106,8 @@ var ASK_PAGE_ONLY_VERBS = {
   invite: WHY.team,
   sequence_draft: WHY.draft,
   fact_suggestion: WHY.learned,
-  sequence_test: WHY.test
+  sequence_test: WHY.test,
+  sequence_end: WHY.end
 };
 
 // src/ask-skills/skill.ts
@@ -46334,6 +46349,48 @@ var SEQUENCE_STATES = ["draft", "on", "paused", "ended"];
 // src/sequences/sequence-dto.ts
 var SEQUENCE_PEOPLE_GROUPS = ["waiting", "held", "to_send", "next", "in", "done", "left"];
 
+// src/sequences/sequence-run-off.ts
+var RUN_OFF_REASONS = [
+  "no_calendar",
+  "no_list",
+  "list_uncounted",
+  "template_not_approved",
+  "number_flagged",
+  "deals_off",
+  "never",
+  "ended"
+];
+var isRunOffReason = (why) => RUN_OFF_REASONS.includes(why);
+var RUN_OFF_WORDS = {
+  no_calendar: { said: "no calendar is connected", act: "Connect", mends: "door" },
+  no_list: { said: "its list is gone", act: null, mends: null },
+  list_uncounted: { said: "its list couldn\u2019t be counted", act: null, mends: null },
+  template_not_approved: { said: "WhatsApp hasn\u2019t approved its message", act: "Open it", mends: "door" },
+  number_flagged: { said: "WhatsApp has limited your number", act: "Channels", mends: "door" },
+  deals_off: { said: "deals are off", act: null, mends: null },
+  never: { said: "this kind of message is set to Never", act: "Who approves", mends: "autonomy" },
+  ended: { said: "its last day has passed", act: "End it", mends: "end" }
+};
+function sequenceRunOff(row2, lastRun, clock3) {
+  const why = lastRun.off;
+  if (row2.state !== "on" || row2.starts === "leads" || row2.starts === "date" || !why || !isRunOffReason(why))
+    return null;
+  const w = RUN_OFF_WORDS[why];
+  const day = lastRun.for ? clockDate(Date.parse(`${lastRun.for}T12:00:00Z`), clock3.tz, clock3.nowMs) : null;
+  const line = why === "ended" ? "Its last day has passed" : "Its last run did nothing";
+  const fact2 = why === "ended" ? "It sends nothing more" : `${w.said.charAt(0).toUpperCase()}${w.said.slice(1)}`;
+  const to = w.mends !== "door" ? null : why === "template_not_approved" && row2.first?.template_name ? addressOf({ kind: "template", name: row2.first.template_name }) : addressOf({ kind: "channel" });
+  return {
+    reason: why,
+    words: why === "ended" ? "Its last day has passed: it sends nothing more" : `Its last run${day ? ` (${day})` : ""} did nothing: ${w.said}`,
+    line,
+    fact: fact2,
+    act: w.act,
+    mends: w.mends,
+    to
+  };
+}
+
 // src/sequences/sequence-words.ts
 var SEQUENCE_WORDS = {
   title: "Sequences",
@@ -46347,9 +46404,18 @@ var SEQUENCE_WORDS = {
     customers: "Your customers",
     leads: "Leads",
     dates: "Dates",
-    off: "Paused or off",
-    drafts: "Drafts"
+    off: "Paused",
+    drafts: "Drafts",
+    ended: "Ended"
   },
+  /** The Ended group, folded at the list's foot: what it holds is history, opened when asked for. */
+  showEnded: (n) => `Show ${n} ended`,
+  hideEnded: "Hide ended",
+  /** End it (a customer's sequence that has sent), asked first in the record's More: it sends nothing more, its history stays. */
+  end: "End it",
+  endAsk: (name) => `End \u201C${name}\u201D?`,
+  endDetail: "It sends nothing more and nobody is added to it; what it sent stays in its History.",
+  endedLine: "Ended \xB7 it sends nothing more. What it sent stays in its History.",
   receptionist: "First contact is your receptionist\u2019s",
   /** Where the receptionist's line opens: Settings › How it answers, as Campaigns' ledger row does (Ruben, 11 Oct 2026). */
   receptionistRoute: "admin/receptionist",
@@ -46448,7 +46514,7 @@ function leadStepStand(place, sent, now) {
   if (now !== null ? place < now : sent > 0) return "done";
   return "later";
 }
-var SEQUENCE_GROUPS = ["needs", "customers", "leads", "dates", "off", "drafts"];
+var SEQUENCE_GROUPS = ["needs", "customers", "leads", "dates", "off", "drafts", "ended"];
 function sequenceTwinOf(rows2, row2) {
   const trigger = row2.first?.trigger ?? null;
   if (row2.starts !== "moment" || row2.state !== "on" || !trigger || triggerOf(trigger)?.kind !== "visit") return null;
@@ -46490,12 +46556,12 @@ function sequenceWaitsNow(row2, days) {
     }
   };
 }
-var isOff = (row2) => row2.state === "paused" || row2.state === "ended";
 function sequenceGroupOf(row2, twin = null) {
   if (row2.state === "draft") return "drafts";
   if (needsCount(row2.needs) > 0 || twin) return "needs";
   if (row2.starts === "date") return "dates";
-  if (isOff(row2)) return "off";
+  if (row2.state === "ended") return "ended";
+  if (row2.state === "paused") return "off";
   if (row2.starts === "leads") return "leads";
   return "customers";
 }
@@ -46662,10 +46728,20 @@ function waitingNotice(steps, batch) {
     batchId: batch.id
   });
 }
-function sequenceNotice(row2, steps, twin = null) {
+function sequenceNotice(row2, steps, twin = null, lastRun = null) {
   const n = row2.needs;
   const batch = n.waiting > 0 ? n.batches[0] ?? null : null;
   if (batch) return waitingNotice(steps, batch);
+  const off = lastRun ? sequenceRunOff(row2, lastRun, { tz: lastRun.tz, nowMs: lastRun.nowMs }) : null;
+  if (off)
+    return noticeOf({
+      kind: "off",
+      words: off.words,
+      line: off.line,
+      fact: off.fact,
+      act: off.act,
+      off: { reason: off.reason, mends: off.mends, to: off.to }
+    });
   if (twin)
     return noticeOf({
       kind: "twin",
@@ -47204,9 +47280,28 @@ var SCHEDULE_WORDS = {
   /** How a step to leads goes, and a call: on its box and in its sheet. */
   byEmail: "Email",
   byTask: "A task for you, on Today",
-  facts: { goes: "Goes", only: "Only to", by: "By", now: "Now", last30: "Last 30 days" }
+  facts: { goes: "Goes", only: "Only to", by: "By", now: "Now", last30: "Last 30 days" },
+  /** Start's Change: how a customer's sequence runs (the loop review's item 7), changed through the campaign's own verb. */
+  settings: {
+    title: "How it runs",
+    hour: "Sends at",
+    cap: "At most, each day",
+    people: (n) => `${n} people`,
+    gap: "Again to the same person after",
+    every: "Runs every",
+    days: (n) => `${n} days`,
+    until: "Runs until",
+    untilHint: "Leave it empty and it keeps running. On that day it stops.",
+    onceEach: "It goes once to each person: who is on the list now, then each who joins.",
+    save: "Save",
+    cancel: "Cancel"
+  }
 };
 var hourWords = (h) => clockTime(Date.UTC(2026, 0, 1, h), "UTC");
+function scheduleSettingsOf(row2) {
+  const kind = row2.first ? triggerOf(row2.first.trigger)?.kind : null;
+  return { gap: kind === "list", every: kind === "cadence" };
+}
 function scheduleDays(steps) {
   const out = /* @__PURE__ */ new Map();
   let day = 1;
@@ -47261,7 +47356,12 @@ function scheduleStart(row2, word, clock3) {
       name: f?.search_name ?? "the list",
       sub: "Each one is checked before it goes"
     };
-  if (row2.starts === "list") return { lead: "When someone joins ", name: f?.list_name ?? "the list", sub: at3 };
+  if (row2.starts === "list")
+    return {
+      lead: "When someone joins ",
+      name: f?.list_name ?? "the list",
+      sub: at3 ? `Once each \xB7 ${at3.charAt(0).toLowerCase()}${at3.slice(1)}` : "Once each"
+    };
   return { lead: momentStartsSentence(f?.trigger ?? null, null, word), name: null, sub: at3 };
 }
 function keptFor(step2) {
@@ -61729,6 +61829,7 @@ export {
   scheduleEnd,
   scheduleInLine,
   scheduleLine,
+  scheduleSettingsOf,
   scheduleSpan,
   scheduleStart,
   scheduleStepFacts,

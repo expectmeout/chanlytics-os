@@ -421,6 +421,18 @@
 .sq-fact .sq-needs {
   color: var(--warn-ink);
 }
+/* How it runs (settings-sheet.tsx, Start's Change): its fields one over another, and a list's once-each said under them. */
+.sq-settings-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+.sq-settings-note {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: 1.45;
+  color: var(--ink-dim);
+}
 .sq-stepfoot {
   display: flex;
   flex-wrap: wrap;

@@ -118,6 +118,7 @@ export type { SequenceDraftAnswer } from "./sequence-draft-schema";
 export {
   SCHEDULE_WORDS,
   scheduleDays,
+  scheduleSettingsOf,
   scheduleSpan,
   scheduleStart,
   scheduleWait,

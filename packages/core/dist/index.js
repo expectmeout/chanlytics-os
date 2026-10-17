@@ -2695,9 +2695,12 @@ async function allowed(r, message) {
   if (trig && !triggerOffered(trig, ctx.dealsOn)) return { ended: await r.off("deals_off") };
   return { ended: null, listIds, kept };
 }
-function draw(r, message, how, listIds) {
+function draw(r, message, how, among) {
+  const { listIds, reached } = among;
   const { p, ctx } = r;
   const byTwin = twinTouches(r);
+  const byThis = new Map(ctx.touches.byThis.get(p.id) ?? []);
+  for (const id of reached) byThis.set(id, ctx.now.getTime());
   const drawn = playbookRunReach(
     ctx.people,
     {
@@ -2709,7 +2712,7 @@ function draw(r, message, how, listIds) {
       ...how
     },
     {
-      byThis: ctx.touches.byThis.get(p.id) ?? /* @__PURE__ */ new Map(),
+      byThis,
       byAny: ctx.touches.byAny,
       followUps: ctx.touches.followUps,
       followUpKeys: ctx.touches.followUpKeys,
@@ -2788,7 +2791,13 @@ async function drawFollowUp(r, message, how) {
   }
 }
 async function drawOf(r, message, how, listIds) {
-  return isFollowUp(r.p) ? drawFollowUp(r, message, how) : draw(r, message, how, listIds);
+  if (isFollowUp(r.p)) return drawFollowUp(r, message, how);
+  if (listIds === null) return draw(r, message, how, { listIds: null, reached: /* @__PURE__ */ new Set() });
+  try {
+    return draw(r, message, how, { listIds, reached: await r.ports.reached(r.p.id) });
+  } catch (e) {
+    return { error: `reached: ${e instanceof Error ? e.message : String(e)}` };
+  }
 }
 async function pastTheRoom(r, message, drawn, goesAt) {
   try {

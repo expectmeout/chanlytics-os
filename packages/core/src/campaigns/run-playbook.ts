@@ -188,10 +188,14 @@ function draw(
   r: Run,
   message: Message["m"],
   how: CampaignHow,
-  listIds: ReadonlySet<string> | null,
+  among: { listIds: ReadonlySet<string> | null; reached: ReadonlySet<string> },
 ): { eligible: PersonRowVM[]; reach: RunReach; channelOf: Record<string, ConsentChannel>; dropped: number } {
+  const { listIds, reached } = among;
   const { p, ctx } = r;
   const byTwin = twinTouches(r);
+  // Whoever the sequence already reached heard from it, for good (a list's: once each), counted as heard from it.
+  const byThis = new Map(ctx.touches.byThis.get(p.id) ?? []);
+  for (const id of reached) byThis.set(id, ctx.now.getTime());
   const drawn = playbookRunReach(
     ctx.people,
     {
@@ -203,7 +207,7 @@ function draw(
       ...how,
     },
     {
-      byThis: ctx.touches.byThis.get(p.id) ?? new Map(),
+      byThis,
       byAny: ctx.touches.byAny,
       followUps: ctx.touches.followUps,
       followUpKeys: ctx.touches.followUpKeys,
@@ -312,14 +316,24 @@ async function drawFollowUp(
   }
 }
 
-/** Who the run reaches: a moment's people, or the people a step after the first is due to (D6). */
+/**
+ * Who the run reaches: a moment's people, or the people a step after the first is due to (D6). A sequence on a list goes
+ * once to each person (the loop review's item 6): the list's people when it starts, then each who joins, never again to
+ * anyone it already reached or holds. A read of who it reached that fails is this run failing: nothing is recorded.
+ */
 async function drawOf(
   r: Run,
   message: Message["m"],
   how: CampaignHow,
   listIds: ReadonlySet<string> | null,
 ): Promise<ReturnType<typeof withinTheNumbersDay> | { error: string }> {
-  return isFollowUp(r.p) ? drawFollowUp(r, message, how) : draw(r, message, how, listIds);
+  if (isFollowUp(r.p)) return drawFollowUp(r, message, how);
+  if (listIds === null) return draw(r, message, how, { listIds: null, reached: new Set() });
+  try {
+    return draw(r, message, how, { listIds, reached: await r.ports.reached(r.p.id) });
+  } catch (e) {
+    return { error: `reached: ${e instanceof Error ? e.message : String(e)}` };
+  }
 }
 
 /**

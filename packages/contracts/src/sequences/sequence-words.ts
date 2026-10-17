@@ -13,6 +13,7 @@ import { plural } from "../shared/words";
 import { runWaitsOnYou, type RunDays } from "../waits/waits";
 import type { SequenceNeedsDto, SequencePeopleGroup, SequenceRowDto, SequenceStepDto } from "./sequence-dto";
 import type { SequenceState } from "./sequence";
+import { sequenceRunOff, type RunOffReason } from "./sequence-run-off";
 
 /** The page's own words, said once. */
 export const SEQUENCE_WORDS = {
@@ -27,9 +28,18 @@ export const SEQUENCE_WORDS = {
     customers: "Your customers",
     leads: "Leads",
     dates: "Dates",
-    off: "Paused or off",
+    off: "Paused",
     drafts: "Drafts",
+    ended: "Ended",
   },
+  /** The Ended group, folded at the list's foot: what it holds is history, opened when asked for. */
+  showEnded: (n: number) => `Show ${n} ended`,
+  hideEnded: "Hide ended",
+  /** End it (a customer's sequence that has sent), asked first in the record's More: it sends nothing more, its history stays. */
+  end: "End it",
+  endAsk: (name: string) => `End “${name}”?`,
+  endDetail: "It sends nothing more and nobody is added to it; what it sent stays in its History.",
+  endedLine: "Ended · it sends nothing more. What it sent stays in its History.",
   receptionist: "First contact is your receptionist’s",
   /** Where the receptionist's line opens: Settings › How it answers, as Campaigns' ledger row does (Ruben, 11 Oct 2026). */
   receptionistRoute: "admin/receptionist",
@@ -159,7 +169,7 @@ export function leadStepStand(place: number, sent: number, now: number | null): 
  * The groups the list draws, in their order: what needs you first, then by how each starts, what is paused or ended, and
  * the drafts last.
  */
-export const SEQUENCE_GROUPS = ["needs", "customers", "leads", "dates", "off", "drafts"] as const;
+export const SEQUENCE_GROUPS = ["needs", "customers", "leads", "dates", "off", "drafts", "ended"] as const;
 export type SequenceGroup = (typeof SEQUENCE_GROUPS)[number];
 
 /** Another sequence that sends at the same moment as this one, by its name: what a person would get twice. */
@@ -230,20 +240,18 @@ export function sequenceWaitsNow(row: SequenceRowDto, days: RunDays): SequenceRo
   };
 }
 
-/** Whether a sequence is paused or off: the list's Paused or off group. */
-const isOff = (row: SequenceRowDto): boolean => row.state === "paused" || row.state === "ended";
-
 /**
  * Which of the list's groups a sequence is drawn in: a draft under Drafts, what needs you (people or emails waiting, or a
- * twin sending each person the same moment twice) first, a sequence paused or ended under Paused or off, and the rest by
- * how it starts. A one-off that went stays among the Dates, where it is looked for.
+ * twin sending each person the same moment twice) first, a sequence paused under Paused, one ended under Ended (folded at
+ * the list's foot), and the rest by how it starts. A one-off that went stays among the Dates, where it is looked for.
  */
 export function sequenceGroupOf(row: SequenceRowDto, twin: SequenceTwin | null = null): SequenceGroup {
   // A draft stays in the list under Drafts until it is started: nothing of it goes, so nothing of it needs you.
   if (row.state === "draft") return "drafts";
   if (needsCount(row.needs) > 0 || twin) return "needs";
   if (row.starts === "date") return "dates";
-  if (isOff(row)) return "off";
+  if (row.state === "ended") return "ended";
+  if (row.state === "paused") return "off";
   if (row.starts === "leads") return "leads";
   return "customers";
 }
@@ -482,7 +490,7 @@ export const sequenceCancels = (row: SequenceRowDto): boolean =>
  * under it, so the dock says each once and stays one capsule high.
  */
 export interface SequenceNotice {
-  kind: "waiting" | "twin" | "held" | "to_send" | "replies" | "words";
+  kind: "waiting" | "off" | "twin" | "held" | "to_send" | "replies" | "words";
   words: string;
   line: string;
   fact: string | null;
@@ -491,6 +499,8 @@ export interface SequenceNotice {
   batchId: string | null;
   /** The step it is about, when it is one (new words turned down): its id and place. */
   stepId: string | null;
+  /** A run that did nothing (`off`): why, and the door that mends it where it is one (sequence-run-off.ts). */
+  off?: { reason: RunOffReason; mends: "door" | "autonomy" | "end" | null; to: string | null };
 }
 
 const noticeOf = (n: Omit<SequenceNotice, "batchId" | "stepId"> & Partial<SequenceNotice>): SequenceNotice => ({
@@ -537,11 +547,23 @@ export function sequenceNotice(
   row: SequenceRowDto,
   steps: readonly SequenceStepDto[],
   twin: SequenceTwin | null = null,
+  lastRun: { off: string | null | undefined; for: string | null | undefined; tz: string; nowMs: number } | null = null,
 ): SequenceNotice | null {
   const n = row.needs;
   // The batch an OK goes to: the soonest of those an OK can still send (sequenceWaitsNow).
   const batch = n.waiting > 0 ? (n.batches[0] ?? null) : null;
   if (batch) return waitingNotice(steps, batch);
+  // On, and its last run did nothing: said with the door that mends it, until a run goes again (sequence-run-off.ts).
+  const off = lastRun ? sequenceRunOff(row, lastRun, { tz: lastRun.tz, nowMs: lastRun.nowMs }) : null;
+  if (off)
+    return noticeOf({
+      kind: "off",
+      words: off.words,
+      line: off.line,
+      fact: off.fact,
+      act: off.act,
+      off: { reason: off.reason, mends: off.mends, to: off.to },
+    });
   if (twin)
     return noticeOf({
       kind: "twin",
