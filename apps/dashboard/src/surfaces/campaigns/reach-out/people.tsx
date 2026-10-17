@@ -8,17 +8,14 @@
  */
 import { leadsRoute } from "@chanlytics/contracts";
 import { navigate } from "../../legacy-verbs";
-import { PILE_TARGET_KEY } from "./surface";
+import { pileAsk } from "./surface";
 
 /**
- * Add leads: Leads, with this reach-out remembered as where the next pile's adds go. The drawer's Add leads and Leads'
- * door on a list that feeds a reach-out (door.tsx) both press it.
+ * Add leads: Leads, with this sequence remembered as where the next pile's adds go, and its name for the page's line
+ * until a search is opened. Sequences' Add leads (sequences/steps.tsx) and Leads' door on a list that feeds a sequence
+ * (door.tsx) both press it.
  */
-export function addLeadsTo(rootId: string) {
-  try {
-    window.sessionStorage.setItem(PILE_TARGET_KEY, rootId);
-  } catch {
-    /* a browser that will not keep it: the pile offers every reach-out fed by a list anyway */
-  }
+export function addLeadsTo(rootId: string, name: string | null = null) {
+  pileAsk.set(rootId, name);
   navigate(leadsRoute({ list: "all" }));
 }

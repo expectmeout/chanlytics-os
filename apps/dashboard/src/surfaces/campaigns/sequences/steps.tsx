@@ -33,9 +33,11 @@ import { Confirm } from "../../kit/confirm/confirm";
 import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { Select } from "../../kit/select/select";
-import { gate, openAutonomy, routeDoor } from "../../legacy-verbs";
+import { gate, navigate, openAutonomy, routeDoor } from "../../legacy-verbs";
 import type { LegacyFlash } from "../../legacy-verbs";
 import { broadcasts } from "../broadcasts/verbs";
+import { addLeadsTo } from "../reach-out/people";
+import { reachOuts } from "../reach-out/surface";
 import { FlowRow } from "./flow-row";
 import { LeadStepOpen } from "./lead-step";
 import { StepEditor } from "./step-editor";
@@ -63,6 +65,16 @@ const hourWords = (h: number) => clockTime(Date.UTC(2026, 0, 1, h), "UTC");
 
 const HOURS = Array.from({ length: PLAYBOOK_HOURS.max - PLAYBOOK_HOURS.min + 1 }, (_, i) => PLAYBOOK_HOURS.min + i);
 
+/**
+ * Add leads: a sequence fed by a list takes leads by hand, so Leads opens with the pile set to add to it (people.tsx);
+ * one fed by its search writes to what the search finds, which opens. Which it is, the sequences' own read says.
+ */
+async function addLeadsOf(rootId: string, searchAt: string) {
+  const chain = (await reachOuts.chainsNow())?.find((c) => c.root_id === rootId) ?? null;
+  if (chain && chain.fed_by === "list") addLeadsTo(chain.root_id, chain.name);
+  else navigate(searchAt);
+}
+
 /** What starts it, with its hour, and its act: the hour changed where a moment or a list starts it, leads added to a search. */
 function Starts({ rec, flash, moved }: { rec: SequenceRecordDto; flash: Flash; moved: () => void }) {
   const row = rec.sequence;
@@ -87,9 +99,11 @@ function Starts({ rec, flash, moved }: { rec: SequenceRecordDto; flash: Flash; m
     setBusy(false);
     if (ok) setOpen(false);
   };
+  // Its search's address is the door's, which a new tab opens; a press asks which way the sequence takes leads.
+  const searchAt = first?.search_id ? addressOf({ kind: "lead", searchId: first.search_id }) : null;
   const addLeads =
-    row.starts === "leads" && first?.search_id ? (
-      <LinkButton {...routeDoor(addressOf({ kind: "lead", searchId: first.search_id }))} data-testid="sq-add-leads">
+    row.starts === "leads" && first && searchAt ? (
+      <LinkButton {...routeDoor(searchAt, () => void addLeadsOf(first.id, searchAt))} data-testid="sq-add-leads">
         {F.addLeads} <Icon name="chevron" size={11} />
       </LinkButton>
     ) : null;

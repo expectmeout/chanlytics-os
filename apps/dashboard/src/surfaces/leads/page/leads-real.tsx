@@ -193,6 +193,7 @@ function useLeadsPage(v: ReturnType<typeof useLeadsView>, onOpenProfile: (id: st
     phone: !!controls.phone,
     setPeekId,
     writeHeld: lists.writeTo,
+    call: callLead,
   });
   // What the keyboard's one listener reads (usePlPlace): Enter peeks the lead, and the Leads scope's own overlays.
   place.keysWith({

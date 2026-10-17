@@ -64,6 +64,7 @@ import {
   besideActs,
   cardsAnswer,
   finishTurn,
+  notAgain,
   planAnswerOwed,
   planFallback,
   roundPlan,
@@ -141,6 +142,8 @@ export interface TurnInput {
    * with them, so one is named, cited and opened without a read (the Phase 5 plan, D5); a fact about it is read again.
    */
   cited?: AskRowRef[];
+  /** The thread's cards no one has pressed yet (memory.ts threadForTurn): none is made a second time (turn-end.ts notAgain). */
+  waiting?: AskProposal[];
   text: string;
   /** From the palette opening to the question being sent, as the tab measured it; null from an older tab or a script. */
   openedMs?: number | null;
@@ -541,7 +544,7 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
     toolsUsed.push(calledName(b.name, args));
     if (!args) return cutOff(b, input.tenantId);
     return timed(calledName(b.name, args), async () => {
-      const p = await ports.propose(tc, b.name, args);
+      const p = notAgain(await ports.propose(tc, b.name, args), input.waiting);
       proposals.push(...cardsOf(p));
       if (p.words) planWords.push({ words: p.words, lead: p.lead });
       unmade.heard(calledName(b.name, args), p);

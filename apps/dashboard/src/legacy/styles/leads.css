@@ -1771,7 +1771,7 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
 .ld-pile-targets { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: var(--text-xs); color: var(--ink-dim); }
 .ld-pile-lead { display: flex; flex-direction: column; gap: 12px; padding: 18px; border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--bg-raised); box-shadow: var(--shadow-sm); animation: ld-pile-in var(--duration-base) var(--ease-out); }
 @keyframes ld-pile-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
-@media (prefers-reduced-motion: reduce) { .ld-pile-lead { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .ld-pile-lead, .ld-pile-now { animation: none; } }
 .ld-pile-who { display: grid; grid-template-columns: 48px minmax(0, 1fr); gap: 12px; align-items: center; }
 .ld-pile-name h3 { margin: 0; font-size: var(--text-lg); font-weight: var(--weight-semibold); color: var(--ink); overflow-wrap: anywhere; }
 .ld-pile-name p { margin: 2px 0 0; font-size: var(--text-sm); color: var(--ink-dim); }
@@ -1802,6 +1802,8 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
 /* On a phone the card is the pile's sheet at half height (pile/sheet.tsx), and at full its tabs: the same parts, the
    page's own gaps. */
 .ld-pile-now, .ld-now-full { display: flex; flex-direction: column; gap: 12px; padding: 4px 0 12px; }
+/* A decision turns the card on a phone as it does on a desk: the next one comes in. */
+.ld-pile-now { animation: ld-pile-in var(--duration-base) var(--ease-out); }
 .ld-now-pane { display: flex; flex-direction: column; gap: 12px; }
 .ld-now-reason { display: flex; flex-direction: column; gap: 4px; }
 .ld-pile-rail { display: flex; flex-wrap: wrap; gap: 8px; }
@@ -1810,7 +1812,31 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
 .ld-pile-end { display: flex; flex-direction: column; gap: 8px; padding: 22px 18px; border: 1px dashed var(--line); border-radius: var(--radius-lg); text-align: center; }
 .ld-pile-end h3 { margin: 0; font-size: var(--text-lg); font-weight: var(--weight-semibold); color: var(--ink); }
 .ld-pile-end p { margin: 0; font-size: var(--text-sm); color: var(--ink-muted); }
-.ld-pile-door { display: flex; padding: 4px var(--gutter-page) 8px; }
+.ld-pile-door { display: flex; align-items: center; gap: 8px; padding: 4px var(--gutter-page) 8px; }
+.ld-pile-door p { margin: 0; font-size: var(--text-sm); color: var(--ink-muted); }
+/* What a press did, the pile's one line: a live region, so it stands (empty) before the first press, to be heard after. */
+.ld-pile-said { flex-basis: 100%; margin: 0; color: var(--ink-muted); overflow-wrap: anywhere; }
+/* The reason a Not a fit was last given, marked among the five. */
+.ld-now-dot { flex: none; width: 6px; height: 6px; margin-right: 6px; border-radius: var(--radius-full); background: var(--accent); }
+/* What fills their words (pile/card.tsx LeadCardSlots): each slot, what it says for them and where that came from; a
+   fallback quieter, a hole in the warning's ink. */
+.ld-now-fills { display: flex; flex-direction: column; gap: 6px; }
+.ld-now-fills > summary { cursor: pointer; }
+.ld-now-fills-list { display: flex; flex-direction: column; gap: 6px; margin: 0; font-size: var(--text-sm); }
+.ld-now-fills-list > div { display: grid; grid-template-columns: 112px minmax(0, 1fr); gap: 8px; }
+.ld-now-fills-list dt { color: var(--ink-dim); font-size: var(--text-xs); line-height: inherit; }
+.ld-now-fills-list dd { display: flex; flex-direction: column; gap: 1px; margin: 0; min-width: 0; color: var(--ink); overflow-wrap: anywhere; }
+.ld-now-fills-list .fallback dd { color: var(--ink-muted); }
+.ld-now-fills-list .gap dd, .ld-now-fills-list .gap .ld-now-note { color: var(--warn-ink); }
+/* Add them all (pile/bulk.tsx): what each lead would come to, in buckets, and the one press. */
+.ld-pile-all { margin-left: auto; }
+.ld-pile-bulk { display: flex; flex-direction: column; gap: 10px; width: min(320px, calc(100vw - 32px)); }
+.ld-pile-bulk h3 { margin: 0; font-size: var(--text-sm); font-weight: var(--weight-semibold); color: var(--ink); overflow-wrap: anywhere; }
+.ld-pile-bulk ul { display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 0; list-style: none; font-size: var(--text-sm); color: var(--ink); }
+.ld-pile-bulk li { display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 8px; }
+.ld-pile-bulk li.stays { color: var(--ink-dim); }
+.ld-pile-bulk-n { text-align: right; font-weight: var(--weight-semibold); font-variant-numeric: tabular-nums; }
+.ld-pile-bulk-note { display: block; font-size: var(--text-xs); color: var(--ink-dim); }
 /* On a desk the lead's details are the peek beside the pile (408px, .pk): the pile keeps clear of it. Under 900px the
    pile is a sheet over the rows (pile/sheet.tsx) and draws nothing where they stand. */
 .ld-pile { margin-right: 408px; }

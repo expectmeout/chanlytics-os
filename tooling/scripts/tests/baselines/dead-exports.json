@@ -8,7 +8,7 @@
   "apps/dashboard/src/server/ask/round.ts": 1,
   "apps/dashboard/src/server/ask/store.ts": 3,
   "apps/dashboard/src/server/ask/tools/act/thread-verb.ts": 1,
-  "apps/dashboard/src/server/ask/tools/index.ts": 7,
+  "apps/dashboard/src/server/ask/tools/index.ts": 6,
   "apps/dashboard/src/server/auth/native-sign-in.ts": 1,
   "apps/dashboard/src/server/bearer.ts": 1,
   "apps/dashboard/src/server/calendar/calendar-week.ts": 2,
