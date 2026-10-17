@@ -308,8 +308,9 @@ export function turnHead(model: AskModelProfile, role: MembershipRole, facts: Wo
     model: model.id,
     ...(model.speed === "fast" ? { speed: "fast" as const } : {}),
     system: systemBlocks(stableSystem(facts, model.answerTool), shape),
-    // The tools as the API takes them (registry.ts), their examples with them, and the answer tool where it is on.
-    tools: toApiTools(role, true, true, model.answerTool),
+    // The tools as the API takes them (registry.ts), and the answer tool where it is on. Their examples stay home (the
+    // answer canvas, A4, 17 Oct 2026: the core cases 128/149 with them and 131/149 without, a tenth cheaper a turn).
+    tools: toApiTools(role, false, true, model.answerTool),
     tool_choice: { type: "auto" as const },
     output_config: {
       effort: model.effort,
@@ -426,7 +427,7 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
   // offer: then it is let go (refusals.ts letGo) and the same round asked again. No tool is strict: the API takes twenty
   // strict tools and twenty-four optional parameters across them (26 tools, then 31 parameters in the act tools alone,
   // were refused on every operator turn, 23 Sep), and the tools ran as they always had without it.
-  const offer: Offer = { examples: true, search: true, format: true, words: true, answer: model.answerTool };
+  const offer: Offer = { search: true, format: true, words: true, answer: model.answerTool };
   let { tools } = head;
   // A round's request: its messages a copy with the cache's markers (withMarkers), at `at` and on its last block.
   const requestOf = (msgs: Msg[], at: unknown, noTool: boolean) => ({

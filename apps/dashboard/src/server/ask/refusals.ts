@@ -40,19 +40,18 @@ export function refusalSaid(r: GatewayRefusal, es: boolean, at: { tenant_id: str
 
 /**
  * What a turn gives up when the API refuses its request for it, once each and in this order: the replay of the
- * thread's turns as sent (the Phase 5 plan, D12), the page's data blocks (the Phase 2 plan, D14), the tools' examples
- * (the Phase 3 plan, D9), tool search (the operator, D11: every tool is then loaded up front), the answer's format
+ * thread's turns as sent (the Phase 5 plan, D12), the page's data blocks (the Phase 2 plan, D14), tool search (the
+ * operator, D11: every tool is then loaded up front), the answer's format
  * (D15), and the turn's words as the operator's system message (the answer canvas, A3), which an edge from before it
  * refuses and a model without one cannot take: they are said in the question again. The same round is asked again
  * without it; a refusal that names none of them, or one already given up, is the turn's.
  */
-type Dropped = "replay" | "context" | "examples" | "search" | "format" | "words";
+type Dropped = "replay" | "context" | "search" | "format" | "words";
 
 /** The line each drop logs, once a turn: typed as the dashboard's log names, so tsc holds each to that set. */
 export const DROP_EVENTS: Record<Dropped, DashboardLogEvent> = {
   replay: "ask_replay_rejected",
   context: "ask_context_rejected",
-  examples: "ask_examples_rejected",
   search: "ask_tool_search_rejected",
   format: "ask_format_rejected",
   words: "ask_words_rejected",
@@ -71,11 +70,6 @@ function blocksRefused(message: string): boolean {
   return /^400\b/.test(message) && /search_result|citation|cache_control/i.test(message);
 }
 
-/** A refusal of the request for its tools' `input_examples` (D9). */
-function examplesRefused(message: string): boolean {
-  return /^400\b/.test(message) && /input_examples/.test(message);
-}
-
 /**
  * A refusal of the turn's words as a system message: the edge's before it took them (its own words, "a system message
  * carries an effort alone"), or the API's for a model that takes none.
@@ -90,27 +84,25 @@ function searchRefused(message: string): boolean {
 }
 
 /**
- * What to give up for this refusal, given what the turn still carries. A second examples refusal, with them already
- * gone, is the turn's -- never the format's, whose predicate would match the "input_schema" the real refusal names. The
- * replay is given up first, and only while the turn still replays (a live turn's round one).
+ * What to give up for this refusal, given what the turn still carries. The replay is given up first, and only while
+ * the turn still replays (a live turn's round one).
  */
 export function dropFor(message: string, still: Record<Dropped, boolean>): Dropped | null {
   if (!message) return null;
   if (wordsRefused(message)) return still.words ? "words" : null;
   if (still.replay && replayRefused(message)) return "replay";
   if (still.context && blocksRefused(message)) return "context";
-  if (examplesRefused(message)) return still.examples ? "examples" : null;
   if (searchRefused(message)) return still.search ? "search" : null;
   return still.format && featureRejected(message) ? "format" : null;
 }
 
 /**
- * What a turn offers the API that it can do without: the tools' examples, the tool search, the answer's format and its
- * words as the operator's system message; and the answer tool (ASK_ANSWER_TOOL), which is never let go, so the tools
- * it rebuilds keep it.
+ * What a turn offers the API that it can do without: the tool search, the answer's format and its words as the
+ * operator's system message; and the answer tool (ASK_ANSWER_TOOL), which is never let go, so the tools it rebuilds
+ * keep it. The tools' examples are never sent (the answer canvas, A4, 17 Oct 2026: the core cases did as well without
+ * them, a tenth cheaper a turn).
  */
 export interface Offer {
-  examples: boolean;
   search: boolean;
   format: boolean;
   words: boolean;
@@ -127,12 +119,12 @@ type Tools = ReturnType<typeof toApiTools>;
  */
 export function letGo<M>(
   offer: Offer,
-  drop: "examples" | "search" | "format" | "words",
+  drop: "search" | "format" | "words",
   role: MembershipRole,
   now: { tools: Tools; messages: M[] },
 ): { tools: Tools; messages: M[] } {
   offer[drop] = false;
   if (drop === "words")
     return { tools: now.tools, messages: foldWordsMessages({ messages: now.messages }).messages as M[] };
-  return { tools: toApiTools(role, offer.examples, offer.search, offer.answer), messages: now.messages };
+  return { tools: toApiTools(role, false, offer.search, offer.answer), messages: now.messages };
 }

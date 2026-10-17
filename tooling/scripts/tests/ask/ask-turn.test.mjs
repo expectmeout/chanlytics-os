@@ -494,7 +494,7 @@ test("each role is offered its tools, sorted by name, the tool search last: a vi
     const s = scripted([ROUND([answer("Nothing waiting.")])]);
     await runAskTurn(turn(ctxFor(), { role }).input, ports(s.round));
     offered[role] = s.requests[0].tools;
-    assert.deepEqual(s.requests[0].tools, toApiTools(role, true), `${role}: the registry's tools for the role`);
+    assert.deepEqual(s.requests[0].tools, toApiTools(role, false), `${role}: the registry's tools for the role`);
   }
   const acts = (role) => offered[role].map((t) => t.name).filter((n) => ACT_TOOL_NAMES.has(n));
   assert.deepEqual(
@@ -7426,7 +7426,7 @@ test("the bytes before the messages are the same on two pages and for two people
   assert.equal(new Set(Object.values(byRole)).size, 4, "four prefixes, one per role");
 });
 
-test("the request's tools are the registry's: the three fields, input_examples on the tools that carry them and no other, defer_loading on every tool outside the core, and the tool search last; the same bytes on every round of a turn", async () => {
+test("the request's tools are the registry's: the three fields and no examples (the answer canvas, A4), defer_loading on every tool outside the core, and the tool search last; the same bytes on every round of a turn", async () => {
   const s = scripted([
     ROUND([tool("inbox", { action: "list", filter: "recent" })]),
     ROUND([answer("Nobody is waiting on you.")]),
@@ -7434,7 +7434,7 @@ test("the request's tools are the registry's: the three fields, input_examples o
   const r = await runAskTurn(turn(ctxFor()).input, ports(s.round));
   assert.equal(r.failed, false, r.failure ?? "");
   // An operator's tools (D12), in the registry's order: sorted by name.
-  const registry = toApiTools("operator", true);
+  const registry = toApiTools("operator", false);
   assert.equal(s.requests[0].tools.length, registry.length);
   for (const [i, sent] of s.requests[0].tools.entries()) {
     const own = registry[i];
@@ -7458,79 +7458,15 @@ test("the request's tools are the registry's: the three fields, input_examples o
   }
   assert.equal(s.requests[0].tools.at(-1).name, "tool_search_tool_bm25", "the tool search last");
   const withExamples = s.requests[0].tools.filter((t) => t.input_examples).map((t) => t.name);
-  assert.ok(withExamples.includes("calendar") && withExamples.includes("propose_sequence"), withExamples);
-  assert.ok(
-    !withExamples.includes("today") && !withExamples.includes("signals") && !withExamples.includes("guide"),
-    "a plain input with no action has none",
-  );
+  assert.deepEqual(withExamples, [], "no tool's examples ride with it: the core cases did as well without them");
   assert.equal(JSON.stringify(s.requests[1].tools), JSON.stringify(s.requests[0].tools), "the second round, the same");
 });
 
-test("a request refused for its input_examples is asked once more without them: the same round, the schemas, the page's data and the answer's format kept; a second such refusal is the turn's, and only a 400 that names them is one", async () => {
-  const refusing = async (refusals, over = { context: PAGE }) => {
-    const requests = [];
-    const round = async (c) => {
-      requests.push(structuredClone(c.request));
-      const message = refusals.shift();
-      if (message) throw new GatewayRefused({ kind: "bad_request", message });
-      return ROUND([answer("2 people need you.")]);
-    };
-    const { result, lines } = await logged(
-      "ask_examples_rejected",
-      async () => await runAskTurn(turn(ctxFor(), over).input, ports(round)),
-    );
-    return { r: result, requests, said: lines.length };
-  };
-  const once = await refusing(["400 tools.3.input_examples.0: does not match the tool's input_schema"]);
-  assert.equal(once.r.failed, false, once.r.failure ?? "");
-  assert.deepEqual([once.requests.length, once.said], [2, 1], "asked again, once; said once");
-  const [first, retry] = once.requests;
-  assert.ok(
-    first.tools.some((t) => t.input_examples) && !retry.tools.some((t) => "input_examples" in t),
-    "the examples were sent, then dropped from every tool",
-  );
-  assert.deepEqual(
-    retry.tools.map((t) => ({ name: t.name, description: t.description, input_schema: t.input_schema })),
-    first.tools.map((t) => ({ name: t.name, description: t.description, input_schema: t.input_schema })),
-    "nothing else about the tools moved",
-  );
-  assert.ok(retry.output_config.format, "the answer's format kept");
-  assert.ok(JSON.stringify(retry.messages).includes("search_result"), "the page's data kept");
-  assert.equal(JSON.stringify(retry.messages), JSON.stringify(first.messages), "the same round");
-  assert.equal(once.r.shape.context_dropped, false);
-  // The real refusal names input_schema, which the format's predicate also matches: a second one, with the examples
-  // already gone, is the turn's and never the format's.
-  const twice = await refusing([
-    "400 tools.3.input_examples.0: does not match the tool's input_schema",
-    "400 tools.3.input_examples.0: does not match the tool's input_schema",
-  ]);
-  assert.deepEqual(
-    [twice.r.failure, twice.requests.length, twice.said],
-    ["bad_request", 2, 1],
-    "with the examples already gone, the refusal is the turn's",
-  );
-  assert.ok(twice.requests[1].output_config.format, "the format was never given up for it");
-  const other = await refusing(["500 input_examples upstream"]);
-  assert.deepEqual([other.r.failure, other.requests.length, other.said], ["bad_request", 1, 0], "a 400 only");
-  // The one decision the loop asks (refusals.ts): what to give up for this refusal, given what the turn still carries.
-  const all = { context: true, examples: true, format: true };
-  assert.equal(dropFor("400 tools.3.input_examples: Extra inputs are not permitted", all), "examples");
-  assert.equal(dropFor("400 tools: too many", all), null, "a refusal of the tools for something else");
-  assert.equal(dropFor("500 input_examples", all), null, "a 400 only");
-  const real = "400 tools.3.input_examples.0: does not match the tool's input_schema";
-  assert.equal(dropFor(real, all), "examples");
-  assert.equal(dropFor(real, { ...all, examples: false }), null, "a second is the turn's, never the format's");
-  assert.equal(dropFor("400 messages.0.content.0: search_result is not supported", all), "context");
-  assert.equal(dropFor("400 output_config.format: not supported", all), "format");
-  assert.equal(dropFor("400 output_config.format: not supported", { ...all, format: false }), null);
-  assert.equal(dropFor("", all), null, "no message, nothing to drop");
-});
-
-test("the three retries run in their order, each once: the page's data, then the examples, then the answer's format; the fourth request carries none of them and the turn answers", async () => {
+test("the retries run in their order, each once: the page's data, then the tool search, then the answer's format; the fourth request carries none of them and the turn answers", async () => {
   const requests = [];
   const refusals = [
     "400 messages.0.content.0: search_result is not supported here",
-    "400 tools.3.input_examples.0: does not match the tool's input_schema",
+    "400 tools.25: tool_search_tool_bm25 is not supported",
     "400 output_config.format.schema: too many properties",
   ];
   const round = async (c) => {
@@ -7556,18 +7492,18 @@ test("the three retries run in their order, each once: the page's data, then the
   assert.equal(requests.length, 4, "three retries, then the answer");
   const has = (q) => ({
     data: JSON.stringify(q.messages).includes("search_result"),
-    examples: q.tools.some((t) => t.input_examples),
+    search: q.tools.some((t) => t.name === "tool_search_tool_bm25"),
     format: !!q.output_config.format,
   });
   assert.deepEqual(requests.map(has), [
-    { data: true, examples: true, format: true },
-    { data: false, examples: true, format: true },
-    { data: false, examples: false, format: true },
-    { data: false, examples: false, format: false },
+    { data: true, search: true, format: true },
+    { data: false, search: true, format: true },
+    { data: false, search: false, format: true },
+    { data: false, search: false, format: false },
   ]);
   assert.deepEqual(
     said,
-    ["ask_context_rejected", "ask_examples_rejected", "ask_format_rejected"],
+    ["ask_context_rejected", "ask_tool_search_rejected", "ask_format_rejected"],
     "each said once, in that order",
   );
   assert.deepEqual([r.shape.context_dropped, r.shape.format], [true, false]);
@@ -8045,7 +7981,7 @@ test("cards alone, and an answer beside its cards: the round is the raw's final,
   sameBytes(messagesOf(b.raw), sentOf(both.requests.at(-1)), "an answer beside its card: the request's messages");
 });
 
-test("the prefix (the Phase 5 plan, D2): the sha256 of what the last request sent besides its messages -- system and tools as sent, the tool choice and the output config -- the same on another page, for another question, for another person of the role and on round two; another for another role, shape of the workspace, setting, note, hour or autonomy mode, once the examples or the format are refused, and on the last round, which may call no tool; the page's data a refusal drops is dropped from the raw's question too; a turn that fails keeps no raw", async () => {
+test("the prefix (the Phase 5 plan, D2): the sha256 of what the last request sent besides its messages -- system and tools as sent, the tool choice and the output config -- the same on another page, for another question, for another person of the role and on round two; another for another role, shape of the workspace, setting, note, hour or autonomy mode, once the tool search or the format is refused, and on the last round, which may call no tool; the page's data a refusal drops is dropped from the raw's question too; a turn that fails keeps no raw", async () => {
   const ask = async (over = {}, refusals = [], extra = {}) => {
     const requests = [];
     const round = async (c) => {
@@ -8082,7 +8018,7 @@ test("the prefix (the Phase 5 plan, D2): the sha256 of what the last request sen
     note: await ask({ facts: facts({ profile: { ...profile, notes: [{ title: "Parking", text: "Street only." }] } }) }),
     hour: await ask({ facts: facts({ profile: { ...profile, hours: { mon: { open: "09:00", close: "18:00" } } } }) }),
     autonomy: await ask({ facts: facts({}, [{ class: "reply", mode: "ask" }]) }),
-    examples: await ask({}, ["400 tools.3.input_examples.0: does not match the tool's input_schema"]),
+    search: await ask({}, ["400 tools.25: tool_search_tool_bm25 is not supported"]),
     format: await ask({}, ["400 output_config.format.schema: too many properties"]),
   };
   // The round a turn ended on: round two asks as round one does, with tool_choice auto; the last, which may call no
@@ -8103,7 +8039,7 @@ test("the prefix (the Phase 5 plan, D2): the sha256 of what the last request sen
   assert.deepEqual(changed.last.requests.at(-1).tool_choice, { type: "none" });
   const prefixes = [plain, set, ...Object.values(changed)].map((x) => x.r.raw.prefix);
   assert.equal(new Set(prefixes).size, prefixes.length, "each change, its own prefix");
-  assert.equal(changed.examples.requests.length, 2, "asked again without the examples");
+  assert.equal(changed.search.requests.length, 2, "asked again without the tool search");
   assert.equal(changed.format.r.shape.format, false, "and without the format");
 
   // The page's data refused: asked again without it, and the raw's question is the retry's, the words bare.
@@ -9070,13 +9006,13 @@ test("a replay the API refuses goes cold once (the Phase 5 plan, D12): round one
   sameBytes(r.raw.question, unmark(requests[1].messages).at(-2).content, "and its question, the cold one");
 
   // A cards drop on a live turn changes the tools, and the replay is refused for it next: the same round, then cold.
-  const examples = await second(await warm(), [
-    "400 tools.3.input_examples.0: does not match the tool's input_schema",
+  const searched = await second(await warm(), [
+    "400 tools.25: tool_search_tool_bm25 is not supported",
     BOUND,
     ROUND([answer("Fine.")]),
   ]);
-  assert.deepEqual(examples.said, ["ask_examples_rejected", "ask_replay_rejected"]);
-  assert.deepEqual([examples.r.failed, examples.r.shape.replay, examples.requests.length], [false, "rebuilt", 3]);
+  assert.deepEqual(searched.said, ["ask_tool_search_rejected", "ask_replay_rejected"]);
+  assert.deepEqual([searched.r.failed, searched.r.shape.replay, searched.requests.length], [false, "rebuilt", 3]);
 
   // Not a replay drop: the edge's size refusal, the binding refused past round one, or refused again once cold.
   for (const [why, rounds] of [
@@ -9091,7 +9027,7 @@ test("a replay the API refuses goes cold once (the Phase 5 plan, D12): round one
   }
 
   // The decision (refusals.ts): only while the turn replays, a 400 naming the signature or the binding.
-  const all = { replay: true, context: true, examples: true, format: true };
+  const all = { replay: true, context: true, search: true, format: true };
   assert.equal(dropFor(BOUND, all), "replay");
   assert.equal(
     dropFor("400 messages.1.content.0: Invalid `signature` in `thinking` block.", all),
@@ -10043,7 +9979,7 @@ test("the answer tool on: every round offers it first with its input streamed, t
       assert.equal(req.tools[0].name, "answer", "first, as its name sorts");
       assert.equal(req.tools[0].eager_input_streaming, true);
       assert.deepEqual(req.tools[0].input_schema, ASK_ANSWER_FORMAT, "its input is the answer's format");
-      assert.deepEqual(req.tools.slice(1), toApiTools("operator", true), "then the role's tools, as they were");
+      assert.deepEqual(req.tools.slice(1), toApiTools("operator", false), "then the role's tools, as they were");
       assert.deepEqual(req.output_config.format.schema, ASK_ANSWER_FORMAT, "the format stays: a text answer reads");
       assert.ok(req.system[0].text.includes("Every answer is written by calling the answer tool once"));
     }
@@ -10053,7 +9989,7 @@ test("the answer tool on: every round offers it first with its input streamed, t
   await withAnswerTool("off", async () => {
     const s = scripted([ROUND([answer("Nobody waits.")])]);
     await runAskTurn(turn(ctxFor()).input, ports(s.round));
-    assert.deepEqual(s.requests[0].tools, toApiTools("operator", true), "off: no answer tool");
+    assert.deepEqual(s.requests[0].tools, toApiTools("operator", false), "off: no answer tool");
     assert.equal(s.requests[0].system[0].text, stableSystem(facts, false));
     assert.ok(!stableSystem(facts, false).includes("answer tool"), "off: the rules as they were, byte for byte");
   });
