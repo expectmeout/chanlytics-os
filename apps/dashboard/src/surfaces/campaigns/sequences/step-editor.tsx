@@ -1,5 +1,6 @@
 /**
- * A customer's step opened in place (D6; the canvas's Editor board): its fields beside the message as one person reads it.
+ * A customer's step changed in its sheet (step-sheet.tsx; the canvas's Editor board): its fields beside the message as one
+ * person reads it.
  * Left, how long after the step before it, what must still be true (they haven't booked, haven't written back), and the
  * message it sends, with a box for each value the message takes that is typed rather than filled by the run (contracts
  * defaultParamSpecs); a step's first has no wait and no condition, only its message. Right, that message as a person
@@ -10,7 +11,7 @@
  * stood, every channel's version and its languages with it. The foot says what a save reaches. Saved through the
  * sequence's own doors (00442): a new step at the end, or this one changed; its words changed apart, since a WhatsApp
  * version not yet approved waits while the step sends its own (`waits`). The server judges the values against the
- * message (core templateValues) and says what it refused in words. Inside a record, Cancel and Save stand in the pane's
+ * message (core templateValues) and says what it refused in words. Inside the step's sheet, Cancel and Save stand in its
  * foot (use-record.ts RecordFootContext), with what a save reaches beside them on a desk and over the fields' end on a
  * phone, so the press is at the thumb however long the step's fields run.
  */
