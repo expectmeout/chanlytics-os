@@ -581,7 +581,9 @@
    Leads' rows, which are their pages' own: at the top of every row but a list's first, from under the name
    (--row-rule-start) to the row's far padding, inside the row, since a row out of sight is painted only inside its box
    (content-visibility). A row in a fill of its own (under a finger or the pointer, picked, a call going on) stands
-   clear of the lines on either side of it, which fade with the fill. Above 900px each list keeps the row it has. */
+   clear of the lines on either side of it, which fade with the fill. Above 900px each list keeps the row it has.
+   Messages' line is campaigns.css's, on the lozenge inside its row, and History's days say where they take none
+   (sequences.css). */
 @media (max-width: 900px) {
   .ix-thread + .ix-thread::after,
   .cv-row + .cv-row::after,
