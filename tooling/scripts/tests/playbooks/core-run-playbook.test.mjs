@@ -778,6 +778,53 @@ test("a person with a visit later today and another tomorrow is reminded of TOMO
   assert.deepEqual(before.of("assemble"), [], "nobody named, as before");
 });
 
+test("a second reminder on the same moment names nobody its twin reminded for this visit: the run reads its twins' touches (the phone review, 16 Oct 2026)", async () => {
+  const tomorrow = (h) => visit(`2026-09-07T${h}:00:00Z`, "Cut");
+  const readOf = (v) => ({ timezone: TZ, source: "calendar", state: "ok", next: v, last: null, near: [v] });
+  const reads = new Map([
+    ["a", readOf(tomorrow("18"))],
+    ["b", readOf(tomorrow("19"))],
+  ]);
+  const people = [...reads].map(([id, read]) => toPersonRowVM(dto(id, { visits: read }), TZ, NOW));
+  const reminder = playbook({
+    trigger: "visit_tomorrow",
+    policy_class: "booking",
+    template_name: "visit_reminder",
+    params: [{ kind: "visit_when" }],
+  });
+  // The twin, "p0", reminded a an hour ago for this same visit.
+  const touches = { byThis: new Map([["p0", new Map([["a", NOW.getTime() - 3_600_000]])]]), byAny: new Map() };
+  const run = async (twinsOf) => {
+    const f = fakes();
+    await runPlaybook(
+      f.ports,
+      cmd({
+        playbook: reminder,
+        ctx: context({
+          modes: new Map([["booking", "auto"]]),
+          calendar: "ok",
+          people,
+          visits: reads,
+          touches,
+          ...(twinsOf ? { twinsOf } : {}),
+        }),
+      }),
+    );
+    return f.of("assemble")[0][2].map((x) => x.contact_id);
+  };
+  const asked = [];
+  assert.deepEqual(
+    await run((stepId, trigger) => {
+      asked.push([stepId, trigger]);
+      return ["p0"];
+    }),
+    ["b"],
+    "a was reminded for this visit by the twin",
+  );
+  assert.deepEqual(asked, [["p1", "visit_tomorrow"]], "the run asks for the twins of its own moment");
+  assert.deepEqual((await run(null)).sort(), ["a", "b"], "a runtime that names no twins reaches both, as before");
+});
+
 test("two visits tomorrow, the first found by name alone and not surely theirs: the run names them for the second, and its words are the second's", async () => {
   // A person saved as "Maria" (a first name alone): an event titled "Maria Lopez" is found by name and is a guess, so it
   // never names them; their own visit, found by their number, does. The words were the first visit's of the day, the

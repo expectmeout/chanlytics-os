@@ -2161,6 +2161,7 @@ html.legacy-on .bc-nobody-door {
 }
 .msg-use-link {
   display: inline-block;
+  min-width: 0;
   max-width: 100%;
   padding: 0;
   border: 0;
@@ -2172,6 +2173,20 @@ html.legacy-on .bc-nobody-door {
   cursor: pointer;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* "Sent by" and what sends it: the column's heading says the first where the row is a table's; a stacked row says it
+   itself, in the caption grey, before the names it opens. */
+.msg-use-by {
+  display: inline-flex;
+  align-items: baseline;
+  min-width: 0;
+  max-width: 100%;
+}
+.msg-use-by-word {
+  display: none;
+  margin-right: 0.3em;
+  color: var(--ink-dim);
   white-space: nowrap;
 }
 .msg-use-link:hover {
@@ -2465,6 +2480,9 @@ html.legacy-on .msg-use-link {
   }
   .msg-row-use .msg-use-note {
     display: none;
+  }
+  .msg-use-by-word {
+    display: inline;
   }
   .msg-row-sent {
     grid-column: 3;
@@ -3176,6 +3194,22 @@ section:has(> .tpl-composer:not(.is-translate)) {
   .cm-pane-foot > .bc-foot > .bc-foot-say {
     padding: 8px 10px 0;
   }
+  /* What a sideways stroke carries (a tab walked by the thumb, components.css pan-y) slides; it never scrolls the body. */
+  .cm-pane-body {
+    overflow-x: hidden;
+  }
+  /* An open pane going back to its list under the thumb (split.tsx cmGoing, data-going): the list is drawn under it, so
+     what shows behind the pane is what it goes back to, as an open thread's list does in the Inbox. */
+  .cm-split[data-open][data-going] > .cm-list {
+    display: flex;
+    grid-area: 1 / 1;
+  }
+  .cm-split[data-open][data-going] > .cm-pane {
+    z-index: 1;
+    grid-area: 1 / 1;
+    background: var(--bg);
+    box-shadow: var(--shadow-lg);
+  }
 }
 
 /* ---- Playbooks in the split ---- */
@@ -3582,6 +3616,9 @@ html.legacy-on .cm-pane-sub .bc-run-link {
   }
   .msg-row-use .msg-use-note {
     display: none;
+  }
+  .msg-use-by-word {
+    display: inline;
   }
   .msg-row-sent {
     grid-column: 3;

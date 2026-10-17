@@ -23,6 +23,7 @@ import {
   touchIndex,
   touchesSince,
   recordOver,
+  runningStepsOn,
   whatsappChannelFacts,
   yesesSince,
   type Database,
@@ -64,6 +65,7 @@ import {
   type PersonVisitsDto,
   BOOKING_DEFAULTS,
   DAY_MS,
+  VISIT_TRIGGERS,
 } from "./packages/contracts.js";
 import { feedItemsFor } from "./calendar/availability.js";
 import { campaignsDomainVerified } from "./email/campaigns-domain.js";
@@ -232,43 +234,59 @@ export async function loadTenantRunContext(
   tenantId: string,
   now: Date,
 ): Promise<TenantRunContext | { error: string }> {
-  const [{ data: tenant }, { data: people, error: pErr }, policies, channels, touched, { data: cfgRow }, kept, yeses] =
-    await Promise.all([
-      // How its customers buy (0008): the proposal follow-up runs only where deals are on (0006).
-      db.from("tenants").select("timezone, status, sells_by").eq("id", tenantId).maybeSingle(),
-      allPeople(db, tenantId),
-      listPolicies(db, tenantId).catch(() => []),
-      channelFacts(db, tenantId),
-      // Every run, not only the playbooks': a message sent by hand is a touch too, and the week's breath is one
-      // message per person across all of them (packages/db touchesSince, which the Playbooks page reads too).
-      //
-      // Bounded by TIME, not by luck: nothing older than the longest gap a playbook may set can hold anybody back.
-      //
-      // The failure is CAUGHT to an error rather than to nobody touched, which re-messages everyone it can no longer
-      // see; and returned as this tenant's error, never thrown. The hourly sweep reads `{ error }` to count one
-      // workspace off and carry on (api/cron/playbooks.ts); a throw would end the tick for every workspace after it.
-      // How far back: contracts PLAYBOOK_TOUCH_WINDOW_MS, which the Playbooks page's follow-up count reads by too.
-      touchesSince(db, tenantId, new Date(now.getTime() - PLAYBOOK_TOUCH_WINDOW_MS), now).then(
-        (data) => ({ data, error: null as string | null }),
-        (e: unknown) => ({ data: null, error: e instanceof Error ? e.message : String(e) }),
-      ),
-      db.from("tenant_config").select("config").eq("tenant_id", tenantId).maybeSingle(),
-      // Every list the workspace keeps: a playbook on one runs on who is on it now. Unreadable is this tenant's
-      // error, never a list of nobody.
-      savedListsFor(db, tenantId).then(
-        (data) => ({ data, error: null as string | null }),
-        (e: unknown) => ({ data: null, error: e instanceof Error ? e.message : String(e) }),
-      ),
-      // The workspace's last year of yeses, for its pace (contracts dealPaceFrom): when a proposal waits for the
-      // follow-up. Unreadable is no pace -- a week's wait, as before one -- and said in the log, never this run's end.
-      yesesSince(db, tenantId, new Date(now.getTime() - PACE_WINDOW_DAYS * DAY_MS)).catch((e: unknown) => {
-        logger({ tenant_id: tenantId }).warn("playbooks_pace_read_failed", {
-          error: e instanceof Error ? e.message : String(e),
-        });
-        return null;
-      }),
-    ]);
+  const [
+    { data: tenant },
+    { data: people, error: pErr },
+    policies,
+    channels,
+    touched,
+    { data: cfgRow },
+    kept,
+    yeses,
+    onMoments,
+  ] = await Promise.all([
+    // How its customers buy (0008): the proposal follow-up runs only where deals are on (0006).
+    db.from("tenants").select("timezone, status, sells_by").eq("id", tenantId).maybeSingle(),
+    allPeople(db, tenantId),
+    listPolicies(db, tenantId).catch(() => []),
+    channelFacts(db, tenantId),
+    // Every run, not only the playbooks': a message sent by hand is a touch too, and the week's breath is one
+    // message per person across all of them (packages/db touchesSince, which the Playbooks page reads too).
+    //
+    // Bounded by TIME, not by luck: nothing older than the longest gap a playbook may set can hold anybody back.
+    //
+    // The failure is CAUGHT to an error rather than to nobody touched, which re-messages everyone it can no longer
+    // see; and returned as this tenant's error, never thrown. The hourly sweep reads `{ error }` to count one
+    // workspace off and carry on (api/cron/playbooks.ts); a throw would end the tick for every workspace after it.
+    // How far back: contracts PLAYBOOK_TOUCH_WINDOW_MS, which the Playbooks page's follow-up count reads by too.
+    touchesSince(db, tenantId, new Date(now.getTime() - PLAYBOOK_TOUCH_WINDOW_MS), now).then(
+      (data) => ({ data, error: null as string | null }),
+      (e: unknown) => ({ data: null, error: e instanceof Error ? e.message : String(e) }),
+    ),
+    db.from("tenant_config").select("config").eq("tenant_id", tenantId).maybeSingle(),
+    // Every list the workspace keeps: a playbook on one runs on who is on it now. Unreadable is this tenant's
+    // error, never a list of nobody.
+    savedListsFor(db, tenantId).then(
+      (data) => ({ data, error: null as string | null }),
+      (e: unknown) => ({ data: null, error: e instanceof Error ? e.message : String(e) }),
+    ),
+    // The workspace's last year of yeses, for its pace (contracts dealPaceFrom): when a proposal waits for the
+    // follow-up. Unreadable is no pace -- a week's wait, as before one -- and said in the log, never this run's end.
+    yesesSince(db, tenantId, new Date(now.getTime() - PACE_WINDOW_DAYS * DAY_MS)).catch((e: unknown) => {
+      logger({ tenant_id: tenantId }).warn("playbooks_pace_read_failed", {
+        error: e instanceof Error ? e.message : String(e),
+      });
+      return null;
+    }),
+    // What runs on each visit moment: a reminder a twin already sent for a visit is not sent again (core twinsOf). An
+    // unreadable list is this tenant's error, as the touches' is: read as none, a twin would remind everyone twice.
+    runningStepsOn(db, tenantId, VISIT_TRIGGERS).then(
+      (data) => ({ data, error: null as string | null }),
+      (e: unknown) => ({ data: null, error: e instanceof Error ? e.message : String(e) }),
+    ),
+  ]);
   if (pErr) return { error: pErr.message };
+  if (onMoments.error) return { error: `moments: ${onMoments.error}` };
   if (channels.error) return { error: `channels: ${channels.error}` };
   if (touched.error) return { error: touched.error };
   if (kept.error) return { error: `lists: ${kept.error}` };
@@ -336,6 +354,8 @@ export async function loadTenantRunContext(
     touches: { byThis, byAny, followUps, followUpKeys },
     dealsOn,
     pace: dealsOn && yeses ? dealPaceOf(dealPaceFrom(yeses, now.getTime())) : null,
+    twinsOf: (stepId, trigger) =>
+      (onMoments.data ?? []).filter((s) => s.trigger === trigger && s.id !== stepId).map((s) => s.id),
   };
 }
 

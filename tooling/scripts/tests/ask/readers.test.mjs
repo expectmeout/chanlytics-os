@@ -6021,7 +6021,11 @@ const TEMPLATES_ALL_ASKED_AT_MAIN = [
 const TEMPLATES_ALL_ASKED = [
   "templates.select",
   "rpc:template_sends",
-  ...TEMPLATES_ALL_ASKED_AT_MAIN.slice(1).filter((k) => k !== "sequence_sends.select" && k !== "messages.select"),
+  "sequence_batches.select",
+  // 17 Oct 2026 (the Sequences phone review): the sequences' names, so a message says which sends it ("VIP color clients
+  // · step 2"), read beside its steps.
+  "sequences.select",
+  ...TEMPLATES_ALL_ASKED_AT_MAIN.slice(2).filter((k) => k !== "sequence_sends.select" && k !== "messages.select"),
   // 14 Oct 2026 (the wiring's second audit, S1-3): the business's zone, so a campaign past its last day reads ended.
   "tenants.select",
 ];

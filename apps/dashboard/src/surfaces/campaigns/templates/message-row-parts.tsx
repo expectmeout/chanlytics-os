@@ -7,7 +7,13 @@
  */
 import type { ReactNode } from "react";
 import type { TemplateDto } from "@/surfaces/inbox/types";
-import { VERSION_CHANNELS, refusedWords } from "@chanlytics/contracts";
+import {
+  SEQUENCES_ROUTE,
+  TEMPLATE_UNUSED_WORDS,
+  VERSION_CHANNELS,
+  refusedWords,
+  sequenceRoute,
+} from "@chanlytics/contracts";
 import type { CampaignMessage, TemplateSentWords, VersionChannel } from "@chanlytics/contracts";
 import { editorBox, focusAsDrawn, gate, navigate } from "../../legacy-verbs";
 import { Button } from "../../kit/button/button";
@@ -40,7 +46,7 @@ export interface LineCtx {
   words: string;
   /** The channels it has a version on, as a row says them ("WhatsApp · Email · Text"); null where it has none. */
   channels: string | null;
-  use: { words: string; note: string | null; unused: boolean; playbook: string | null } | null;
+  use: { words: string; note: string | null; unused: boolean; sequence: string | null } | null;
   present: PresentRow[];
   sent: TemplateSentWords | null;
   open: boolean;
@@ -180,32 +186,33 @@ export function closedLine(c: LineCtx) {
           )}
         </span>
       </LinkButton>
-      {/* What sends it -- every source, not only the playbooks -- and under it,
-          what that thing is doing: "runs daily at 10:00", "a run is waiting on
-          you", the latest two broadcasts a person sent with it. The server joins
-          the three (a playbook names its template, a broadcast names its
-          template, the Inbox books by rule) and hands down both lines, so
-          "Nothing sends it" is a reading rather than a guess about what it
-          could not see. A name missing from the map is usage unread: say nothing. */}
+      {/* What sends it -- every source -- and under it, what that thing is doing: "runs daily at 10:00", "a run is
+          waiting on you". The server joins the three (a sequence's step names its template, so does a one-off a person
+          sent, the Inbox books by rule) and hands down both lines, so "Not used" is a reading rather than a guess about
+          what it could not see. Its link opens the one sequence that sends it, else the list. A stacked row has no
+          column heading, so it says "Sent by" itself. A name missing from the map is usage unread: say nothing. */}
       <span className="msg-row-use">
         {use &&
           (use.unused ? (
             <>
               <span className="msg-use-none" data-testid="template-users">
                 <span className="msg-use-ring" aria-hidden="true" />
-                Nothing sends it
+                {TEMPLATE_UNUSED_WORDS}
               </span>
               {!present.length && g.starter && <span className="msg-use-note">not on WhatsApp yet</span>}
             </>
           ) : (
             <>
-              <LinkButton
-                className="msg-use-link"
-                onClick={() => navigate(use.playbook ? `outbound/${use.playbook}` : "outbound")}
-                data-testid="template-users"
-              >
-                {use.words}
-              </LinkButton>
+              <span className="msg-use-by">
+                <span className="msg-use-by-word">Sent by </span>
+                <LinkButton
+                  className="msg-use-link"
+                  onClick={() => navigate(use.sequence ? sequenceRoute(use.sequence) : SEQUENCES_ROUTE)}
+                  data-testid="template-users"
+                >
+                  {use.words}
+                </LinkButton>
+              </span>
               {use.note && <span className="msg-use-note">{use.note}</span>}
             </>
           ))}

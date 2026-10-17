@@ -14,7 +14,7 @@
  * writes them through the page's acts. The head's menu is the WhatsApp message's own, so it is drawn on WhatsApp alone.
  */
 import { useState } from "react";
-import { VERSION_CHANNELS, VERSION_CHANNEL_WORDS } from "@chanlytics/contracts";
+import { TEMPLATE_UNUSED_WORDS, VERSION_CHANNELS, VERSION_CHANNEL_WORDS } from "@chanlytics/contracts";
 import type { VersionChannel } from "@chanlytics/contracts";
 import type { ApiResult } from "@/client/api";
 import type { TemplateDto } from "@/surfaces/inbox/types";
@@ -64,7 +64,7 @@ const CHANNEL_OPTIONS = VERSION_CHANNELS.map((value) => ({
 
 /** What sends it, in the words its row says: the one line under the pane's name. */
 const sendsWords = (use: LineCtx["use"]) =>
-  use ? (use.unused ? "Nothing sends it" : `${use.words}${use.note ? ` · ${use.note}` : ""}`) : null;
+  use ? (use.unused ? TEMPLATE_UNUSED_WORDS : `Sent by ${use.words}${use.note ? ` · ${use.note}` : ""}`) : null;
 
 export function TemplatePane(p: PaneProps) {
   const { g, langs, bizName, canAct, canAdd = false, addWhy = null, busy, doing = null, S, onClose } = p;

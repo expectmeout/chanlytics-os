@@ -155,6 +155,52 @@ export async function sequenceOfPart(db: Db, tenantId: string, id: string): Prom
   return of(batch.data) ?? of(step.data);
 }
 
+/**
+ * The business day a step last ran (`sequence_steps.last_run_for`, written by the run's record): when its next run goes
+ * (contracts sequenceNextOf). Null where it never ran, or names no step of this workspace. Under the caller's row security.
+ */
+export async function stepLastRunFor(db: Db, tenantId: string, stepId: string): Promise<string | null> {
+  const { data, error } = await db
+    .from("sequence_steps")
+    .select("last_run_for")
+    .eq("tenant_id", tenantId)
+    .eq("id", stepId)
+    .maybeSingle();
+  if (error) throw new Error(`cannot read when the step last ran: ${error.message}`);
+  return data?.last_run_for ?? null;
+}
+
+/**
+ * The steps running on any of these moments (`trigger`), by id, name and moment: who else sends at a visit's moment, so a
+ * second reminder is refused where it would start (the routes) and reaches nobody a twin reached (the run's `twinsOf`).
+ * Under the caller's client: the member's session on the page's routes, the service role in the sweep.
+ */
+export async function runningStepsOn(
+  db: Db,
+  tenantId: string,
+  triggers: readonly string[],
+): Promise<{ id: string; name: string; trigger: string }[]> {
+  if (triggers.length === 0) return [];
+  const { data, error } = await db
+    .from("sequence_steps")
+    .select("id, name, trigger")
+    .eq("tenant_id", tenantId)
+    .eq("state", "running")
+    .in("trigger", [...triggers]);
+  if (error) throw new Error(`cannot read what runs at this moment: ${error.message}`);
+  return data ?? [];
+}
+
+/**
+ * Every sequence of the workspace by id and name: what Messages names as sending a message ("VIP color clients · step 2",
+ * contracts templateUseWords) beside its steps' places. Under the caller's row security.
+ */
+export async function sequenceNamesOf(db: Db, tenantId: string): Promise<{ id: string; name: string }[]> {
+  const { data, error } = await db.from("sequences").select("id, name").eq("tenant_id", tenantId);
+  if (error) throw new Error(`cannot read the sequences' names: ${error.message}`);
+  return data ?? [];
+}
+
 /** A sequence's steps in their places, with what each sent in the last 30 days (00442 sequence_steps_of). */
 export async function sequenceStepsOf(db: Db, tenantId: string, sequenceId: string): Promise<SequenceStepDto[]> {
   const { data, error } = await db.rpc("sequence_steps_of", { p_tenant_id: tenantId, p_sequence_id: sequenceId });

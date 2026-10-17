@@ -229,49 +229,71 @@ export function templateUsage(src) {
   const asking = new Set(
     src.broadcasts.filter((b) => b.playbook_id && b.state === "pending_approval").map((b) => b.playbook_id)
   );
+  const names = new Map((src.sequences ?? []).map((q) => [q.id, q.name]));
+  const steps = /* @__PURE__ */ new Map();
+  for (const p of src.playbooks) if (p.sequence_id) steps.set(p.sequence_id, (steps.get(p.sequence_id) ?? 0) + 1);
+  const sendsBy = (u, id) => {
+    if (id && !(u.sequences ??= []).includes(id)) u.sequences.push(id);
+  };
   for (const p of src.playbooks) {
     if (!p.template_name) continue;
-    at(p.template_name).playbooks.push({
+    const u = at(p.template_name);
+    const name = p.sequence_id ? names.get(p.sequence_id) : void 0;
+    u.playbooks.push({
       id: p.id,
       name: p.name,
       paused: p.state === "paused",
       ended: p.ended === true,
       waiting: asking.has(p.id),
-      runs: p.runs ?? null
+      runs: p.runs ?? null,
+      ...p.sequence_id && name !== void 0 ? {
+        sequence: {
+          id: p.sequence_id,
+          name,
+          step: (steps.get(p.sequence_id) ?? 0) > 1 && typeof p.place === "number" ? p.place : null
+        }
+      } : {}
     });
+    sendsBy(u, p.sequence_id);
   }
   const byHand = src.broadcasts.filter((b) => !!b.template_name && !b.playbook_id).slice().sort((a, b) => String(b.created_at ?? "").localeCompare(String(a.created_at ?? "")));
   for (const b of byHand) {
     const u = at(b.template_name);
     u.broadcasts += 1;
     if (b.name && u.recent.length < 2) u.recent.push(b.name);
+    sendsBy(u, b.sequence_id);
   }
   if (src.bookingName) at(src.bookingName).booking = true;
   return out;
 }
 const sayList = (parts) => parts.length < 2 ? parts[0] ?? "" : `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}`;
 const capital = (s) => s ? s[0].toUpperCase() + s.slice(1) : s;
+const sequenceStepWords = (p) => p.sequence ? p.sequence.step ? `${p.sequence.name} \xB7 step ${p.sequence.step}` : p.sequence.name : p.name;
+export const TEMPLATE_UNUSED_WORDS = "Not used";
 export function templateUseWords(use) {
   const u = use ?? NOTHING;
   const parts = [];
-  for (const p of u.playbooks) parts.push(p.paused ? `${p.name} (paused)` : p.ended ? `${p.name} (ended)` : p.name);
-  if (u.broadcasts > 0) parts.push(`${u.broadcasts} broadcast${u.broadcasts === 1 ? "" : "s"}`);
+  for (const p of u.playbooks)
+    parts.push(
+      p.paused ? `${sequenceStepWords(p)} (paused)` : p.ended ? `${sequenceStepWords(p)} (ended)` : sequenceStepWords(p)
+    );
+  if (u.broadcasts > 0) {
+    parts.push(...u.recent);
+    const more = u.broadcasts - u.recent.length;
+    if (more > 0) parts.push(u.recent.length ? `${more} more` : `${more} one-off${more === 1 ? "" : "s"}`);
+  }
   if (u.booking) parts.push("the Inbox");
-  if (parts.length === 0) return "Nothing sends it";
-  if (parts.length === 1 && u.playbooks.length === 1) return `${u.playbooks[0].name} campaign`;
+  if (parts.length === 0) return TEMPLATE_UNUSED_WORDS;
   return capital(sayList(parts));
 }
 export function templateUseNote(use) {
   const u = use ?? NOTHING;
   if (u.playbooks.some((p) => p.waiting)) return `a run is ${RUN_WAITING_WORDS.toLowerCase()}`;
   const [only] = u.playbooks;
-  if (only && u.playbooks.length === 1)
-    return only.paused ? "paused \u2014 nothing goes out" : only.ended ? "ended \u2014 nothing more goes out" : only.runs;
+  if (only && u.playbooks.length === 1) return only.paused || only.ended ? null : only.runs;
   if (u.playbooks.length > 1)
     return u.playbooks.every((p) => p.paused) ? "all paused \u2014 nothing goes out" : u.playbooks.every((p) => p.paused || p.ended) ? "none runs \u2014 nothing goes out" : null;
-  if (u.recent.length > 0)
-    return u.broadcasts > u.recent.length ? `${u.recent.join(", ")} and ${u.broadcasts - u.recent.length} more` : u.recent.join(", ");
-  if (u.booking) return "what the receptionist sends to book";
+  if (u.booking && u.broadcasts === 0) return "what the receptionist sends to book";
   return null;
 }
 export function templateUnused(use) {

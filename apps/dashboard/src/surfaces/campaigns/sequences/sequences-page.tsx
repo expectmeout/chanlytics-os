@@ -5,11 +5,15 @@
  * went, their addresses landing here and on Messages). Its list is the `sequences` surface; a record reads
  * its own (verbs.ts), each following the list. The address says what is open (contracts parseSequencesRoute), so Back
  * walks the list, a record and its tabs. The list's pane is drawn by Sent's sheets too, a run's, To send and Get their
- * yes standing beside it at their own addresses (broadcasts/broadcasts-page.tsx).
+ * yes standing beside it at their own addresses (broadcasts/broadcasts-page.tsx). Its head is Campaigns' own, as Messages'
+ * is: the name, the strip of views, and New beside it (a phone's round + by the strip), the list keeping its search alone.
  */
-import { SEQUENCES_ROUTE, SEQUENCE_WORDS, parseSequencesRoute } from "@chanlytics/contracts";
+import { CAMPAIGN_ROOMS, SEQUENCES_ROUTE, SEQUENCE_WORDS, parseSequencesRoute } from "@chanlytics/contracts";
+import { Button } from "../../kit/button/button";
 import { EmptyState, FailedRead } from "../../kit/empty/empty";
-import { gate } from "../../legacy-verbs";
+import { useStanding } from "../../kit/head/standing";
+import { Icon } from "../../kit/icon/icon";
+import { gate, routeDoor } from "../../legacy-verbs";
 import { useSurface } from "../../use-surface";
 import { CmSplit } from "../parts/split";
 import { SequencesList } from "./list";
@@ -42,8 +46,21 @@ export function SequencesListPane({ openId = null }: { openId?: string | null })
   );
 }
 
+/** New sequence, the head's act: its words on a desk, its mark alone on a phone (campaigns.css cm-act-noun). */
+const newAct = () => (
+  <Button {...routeDoor(`${SEQUENCES_ROUTE}/new`)} data-testid="sq-new-open" {...gate("approve")}>
+    <Icon name="plus" size={12} />{" "}
+    <span>
+      New<span className="cm-act-noun"> sequence</span>
+    </span>
+  </Button>
+);
+
 export function SequencesPage({ route }: { route: string }) {
   const place = parseSequencesRoute(route) ?? { view: "list" as const };
+  // Campaigns' head, the view's name in the strip under it: no way back above it, and New beside the strip until one is
+  // being made.
+  useStanding({ title: CAMPAIGN_ROOMS.home, back: null, act: place.view === "new" ? null : newAct() });
   const open =
     place.view === "record" ? (
       <SequenceRecord id={place.id} tab={place.tab} day={place.day ?? null} />

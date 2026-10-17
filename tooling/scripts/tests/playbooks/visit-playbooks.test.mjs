@@ -376,6 +376,28 @@ test("after the visit: yesterday's visit with nothing booked next; the gap and t
   );
 });
 
+test("a second reminder on the same moment reaches nobody its twin reached for this visit, and says so (the phone review, 16 Oct 2026)", () => {
+  const p = { trigger: "visit_tomorrow", cap_per_run: 25, gap_days: 90, cadence_days: 30, ...HOW };
+  const a = withVisits("a", visit("2026-09-07T19:00:00Z", "Cut"), null);
+  const b = withVisits("b", visit("2026-09-07T20:00:00Z", "Color"), null);
+  const twinToday = { ...untouched, byTwin: new Map([["a", nowMs - 1 * H]]) };
+  const drawn = playbookRunReach([a, b], p, twinToday, nowMs, null);
+  assert.deepEqual(
+    drawn.eligible.map((r) => r.id),
+    ["b"],
+    "the twin's reminder an hour ago was this visit's",
+  );
+  assert.equal(drawn.reach.heardThis, 1, "counted as heard, never dropped in silence");
+  const lastWeek = { ...untouched, byTwin: new Map([["a", nowMs - 7 * D]]) };
+  assert.deepEqual(
+    playbookRunReach([a, b], p, lastWeek, nowMs, null)
+      .eligible.map((r) => r.id)
+      .sort(),
+    ["a", "b"],
+    "a twin's reminder for an earlier visit is not this one's",
+  );
+});
+
 /* ---- A visit found by name alone is a guess: a message is never sent on one (the 4 Oct 2026 wiring review, P1 1) ---- */
 
 /** The visit as the calendar matched it: by `via`, which the receptionist says to a person and a run must weigh. */

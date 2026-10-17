@@ -2,21 +2,9 @@
    the page's own words alone; every value a token (tokens.css), every primitive the kit's. Loaded with the page's own
    chunk (sequences-page.tsx), so no other page pays for it. */
 
-/* The list: its search and filters over the groups, which scroll. */
+/* The list: its search over the groups, which scroll; the groups are its filter. */
 .sq-list-head {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
   padding: var(--space-4) var(--space-4) var(--space-2);
-}
-.sq-list-top {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-}
-.sq-list-top > :first-child {
-  flex: 1 1 auto;
-  min-width: 0;
 }
 .sq-list-rows {
   display: flex;
@@ -41,6 +29,13 @@
 .sq-group-act {
   margin-left: auto;
 }
+/* First contact's line at the foot of Your customers: a quiet door to its settings, a thumb tall. */
+.sq-foot-link {
+  align-self: flex-start;
+  min-height: var(--control-h-touch);
+  padding: 0 var(--space-2);
+  color: var(--ink-dim);
+}
 .sq-reading {
   min-height: var(--space-20);
 }
@@ -51,12 +46,40 @@
   color: var(--ink-dim);
 }
 
-/* A record's Steps: the flow, read top to bottom on one line that joins its nodes (the canvas's Steps board). */
+/* A record's Steps: what goes next, then the flow, read top to bottom on one line that joins its nodes (the canvas's
+   Steps board). */
 .sq-steps-body {
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
   padding-top: var(--space-3);
+}
+/* What goes next: a capsule a thumb tall on the inset's fill, the whole of it the door to who it goes to (People). */
+.sq-next {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--control-h-touch);
+  padding: 0 var(--space-3);
+  border-radius: var(--surface-inset-radius);
+  background: var(--surface-inset-fill);
+  font-size: var(--text-base);
+  color: var(--ink);
+  text-decoration: none;
+}
+.sq-next-k {
+  color: var(--ink-dim);
+}
+.sq-next-w {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sq-next > svg {
+  flex: none;
+  color: var(--ink-dim);
 }
 .sq-flow {
   position: relative;
@@ -158,10 +181,19 @@
   font-weight: var(--weight-semibold);
   color: var(--accent-ink);
 }
+/* New words waiting on WhatsApp, or turned down (amber), and what the step sends meanwhile. */
 .sq-fl-next {
-  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
   font-size: var(--text-sm);
-  color: var(--warn-ink);
+  color: var(--ink-muted);
+}
+.sq-fl-next > p {
+  margin: 0;
+}
+.sq-fl-keeps {
+  color: var(--ink-dim);
 }
 .sq-fl-end {
   padding-top: var(--space-1);
@@ -170,8 +202,6 @@
   margin: 0;
   font-size: var(--text-sm);
   color: var(--ink-dim);
-  text-align: right;
-  white-space: nowrap;
 }
 .sq-fl-done b {
   font-weight: var(--weight-medium);
@@ -181,28 +211,35 @@
   display: block;
   font-size: var(--text-xs);
 }
-/* The wait before a step, on its own line: a quiet, dashed capsule, one line however narrow (its words cut short, said
-   whole on hover). */
+/* The wait before a step, on its own line over it: a quiet, dashed tag, its words whole however many lines they take
+   (a step's when is never cut short). */
 .sq-fl-wait {
   display: inline-flex;
-  align-items: center;
-  align-self: center;
+  align-items: baseline;
+  align-self: flex-start;
   gap: var(--space-1);
-  min-width: 0;
   max-width: 100%;
-  min-height: 22px;
-  padding: 0 var(--space-2);
+  margin: 0;
+  padding: 3px var(--space-2);
   border: 1px dashed var(--line-strong);
-  border-radius: var(--radius-full);
+  border-radius: var(--radius-md);
   background: var(--surface-pane-fill);
   font-size: var(--text-xs);
   color: var(--ink-dim);
 }
-.sq-fl-wait-words {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.sq-fl-wait > svg {
+  flex: none;
+  align-self: center;
+}
+/* A step's acts under its words, and a one-off's Cancel at its flow's end, under the steps' column. */
+.sq-acts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+.sq-flow-end {
+  padding-left: calc(28px + var(--space-3));
 }
 .sq-fl-add {
   justify-self: start;
@@ -229,6 +266,13 @@
   margin: 0;
   font-size: var(--text-sm);
   color: var(--ink-muted);
+}
+/* A step whose message is gone: said in a dashed box where its words stood, with the act that picks another. */
+.sq-msg-gone {
+  align-items: flex-start;
+  padding: var(--space-3);
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--surface-inset-radius);
 }
 .sq-msg-meta {
   display: flex;
@@ -583,6 +627,38 @@
   flex: 1 1 auto;
   min-width: 0;
 }
+/* The dock's words (record-acts.tsx phoneFootOf): its one line, amber where it needs you, and its one fact under it. */
+.sq-dock-said {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+  padding-left: var(--space-2);
+}
+.sq-dock-line,
+.sq-dock-fact {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sq-dock-line {
+  font-size: var(--text-base);
+  font-weight: var(--weight-medium);
+  color: var(--ink);
+}
+.sq-dock-line.sq-needs {
+  color: var(--warn-ink);
+}
+.sq-dock-fact {
+  font-size: var(--text-xs);
+  color: var(--ink-dim);
+}
+/* History's batch to come, over the days that went: dashed, as what has not happened yet. */
+.sq-day-next {
+  margin: var(--space-1) 0 var(--space-2);
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--surface-inset-radius);
+}
 
 /* A phone (the kit's one breakpoint): a line's key stands over its words, so the words take the width. The flow's column
    of numbers narrows so a step's words take the screen; what a step did stands under its words, not in a column of its
@@ -615,15 +691,26 @@
     grid-column: 2;
     padding-top: var(--space-1);
   }
-  .sq-fl-done {
-    text-align: left;
-    white-space: normal;
+  .sq-flow-end {
+    padding-left: calc(24px + var(--space-2));
   }
-  .sq-fl-done .sq-fl-span {
-    display: inline;
+  /* A tab carried by the thumb travels its own width to the record's phone edge (CM_PHONE_QUERY), past tokens.css's
+     720px, as People's strip does to 900px. */
+  .sq-rec {
+    --view-travel: 100%;
   }
-  .sq-fl-done .sq-fl-span::before {
-    content: " · ";
+  /* History's head is its period and its door to Reports; its four figures stand on one line. */
+  .sq-hist-head > .sq-fl-span {
+    display: none;
+  }
+  .sq-hist-door {
+    margin-left: auto;
+  }
+  .sq-figures {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+  .sq-cell {
+    padding: var(--space-2) var(--space-3);
   }
   .sq-strip-stand {
     position: sticky;

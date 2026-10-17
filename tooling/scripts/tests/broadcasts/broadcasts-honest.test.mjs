@@ -2943,28 +2943,28 @@ test("Messages says what sends each message -- every source, so 'nothing sends i
   const offer = [templateRow({ name: "offer", language: "en_US" })];
   let tree = messages({
     templatesAll: offer,
-    templateUse: { offer: { words: "Win-back and 2 broadcasts", unused: false, playbook: "pb-1" } },
+    templateUse: { offer: { words: "Win-back · step 2 and Labor Day hours", unused: false, sequence: "sq-1" } },
   });
   const users = byTestId(tree, "template-users");
-  assert.ok(textOf(users).includes("Win-back and 2 broadcasts"), textOf(users));
+  assert.ok(textOf(users).includes("Win-back · step 2 and Labor Day hours"), textOf(users));
   press(users);
-  assert.equal(went.at(-1), "outbound/pb-1", "and it opens that playbook's card");
+  assert.equal(went.at(-1), "campaigns/sequences/sq-1", "and it opens the one sequence that sends it");
 
   // The answer the page could not give while it read the playbooks alone: a
   // message two broadcasts had gone out with read the same as a dead one.
   tree = messages({
     templatesAll: offer,
-    templateUse: { offer: { words: "Nothing sends it", unused: true, playbook: null } },
+    templateUse: { offer: { words: "Not used", unused: true, sequence: null } },
   });
-  assert.equal(textOf(byTestId(tree, "template-users")).trim(), "Nothing sends it");
+  assert.equal(textOf(byTestId(tree, "template-users")).trim(), "Not used");
 
-  // More than one playbook: the line still says them, and opens the list.
+  // More than one sequence: the line still says them, and opens the list.
   tree = messages({
     templatesAll: offer,
-    templateUse: { offer: { words: "Win-back and Welcome", unused: false, playbook: null } },
+    templateUse: { offer: { words: "Win-back and Welcome", unused: false, sequence: null } },
   });
   press(byTestId(tree, "template-users"));
-  assert.equal(went.at(-1), "outbound", "no single playbook to open, so the list");
+  assert.equal(went.at(-1), "campaigns/sequences", "no single sequence to open, so the list");
 
   // A usage read that has not landed is not "nothing sends it".
   tree = messages({ templatesAll: offer, templateUse: undefined });

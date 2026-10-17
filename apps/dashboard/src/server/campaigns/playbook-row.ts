@@ -17,10 +17,12 @@ import {
   PLAYBOOK_PATCH_WORDS,
   REACH_OUT_IS_NOT_A_MOMENT,
   REACH_OUT_REFUSALS,
+  VISIT_TRIGGERS,
   isPlaybookState,
   newCampaignTrialUntil,
   triggerOf,
   twinRunsWords,
+  visitTwinWords,
   type PlaybookPatch,
 } from "@chanlytics/contracts";
 import { checkPlaybookPatch, playbookNameAsked, trialUntilOf, untilOf } from "@chanlytics/core";
@@ -28,6 +30,7 @@ import {
   emitEvent,
   playbookForChange,
   removePlaybook,
+  runningStepsOn,
   runningTwins,
   startPlaybook,
   updatePlaybook,
@@ -151,6 +154,24 @@ export async function twinRefusal(
 }
 
 /**
+ * A second sequence on a visit moment, refused where it would start or turn on (the phone review's B1, 16 Oct 2026): a
+ * reminder the day before or a thank-you the day after is owed once per visit and skips the week's breath, so two running
+ * on one moment would each send every person theirs, whatever their names or messages (twinRefusal's rule is for the
+ * other moments, whose breath keeps a twin from reaching anyone twice). In the owner's words, by the one that runs; null
+ * for any other moment, and where nothing else runs on it. `id` is the step turning on, never its own twin.
+ */
+export async function visitTwinRefusal(
+  ctx: Pick<RouteContext, "supabase">,
+  tenantId: string,
+  on: { id?: string | null; trigger: string },
+): Promise<string | null> {
+  if (!VISIT_TRIGGERS.includes(on.trigger)) return null;
+  const running = await runningStepsOn(ctx.supabase, tenantId, [on.trigger]);
+  const twin = running.find((s) => s.id !== (on.id ?? null));
+  return twin ? visitTwinWords(twin.name) : null;
+}
+
+/**
  * A new playbook (POST /api/v1/playbooks): everything it names checked the way the send route checks a broadcast
  * (checkPlaybookInput, in its own words, so the body is this verb's to read), then started with its line in the
  * ledger in one transaction (00357 start_playbook). The door runs on the member's own session, so the table's policy
@@ -180,7 +201,9 @@ export async function startNewPlaybook(ctx: RouteContext, req: Request, member: 
   // A starter named and no message (A0): the starter is filed first, and the playbook goes by it.
   const { body, starter } = await withStarterMessage(ctx, member, asked);
   const v = await checkPlaybookInput(ctx, tenantId, body, null);
-  const twin = ctx.via === "ask" ? await twinRefusal(ctx, tenantId, v, asked?.name, twinRunsWords) : null;
+  const twin =
+    (await visitTwinRefusal(ctx, tenantId, { trigger: v.trigger })) ??
+    (ctx.via === "ask" ? await twinRefusal(ctx, tenantId, v, asked?.name, twinRunsWords) : null);
   if (twin) throw new AppError("conflict", twin, 409);
   const { data: made, error } = await startPlaybook(ctx.supabase, {
     tenantId,
@@ -253,6 +276,11 @@ async function patchPlaybook(ctx: RouteContext, asked: Record<string, unknown>, 
   });
   // Nothing differs: nothing written and no line, answered as the door answers its own no-op (was empty, decision_id null).
   if (Object.keys(set).length === 0) return { id: p.id, name: row.name, state: row.state, was: {}, decision_id: null };
+  // Turned on (a draft started, a pause ended, a pause undone) where another runs on its visit moment: refused, in words.
+  if (set.state === "running") {
+    const twin = await visitTwinRefusal(ctx, p.tenant_id, { id: p.id, trigger: p.trigger });
+    if (twin) throw new AppError("conflict", twin, 409);
+  }
   const name = set.name ?? row.name;
   const wrote = await writePlaybookChange(ctx.supabase, {
     tenantId: p.tenant_id,

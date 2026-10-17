@@ -291,7 +291,7 @@ test("a question answered: the thread is made before the model is asked, the per
     );
     await onLeads.text();
     assert.ok(systems[2].includes("They are on the Leads page"), "Leads is a surface the route accepts");
-    assert.ok(systems[2].includes("propose_lead_search"), "and the prompt steers a search there");
+    assert.ok(systems[2].includes("are a lead search to propose"), "and the prompt steers a search there");
     assert.equal(tables.ask_threads[1].title, "100 nail salons in Queens, NY", "titled by the owner's own words");
     const elsewhere = await ask.POST.run(send("POST", { text: "And more?", surface: "clients" }, inA), ctxFor(tables));
     await elsewhere.text();

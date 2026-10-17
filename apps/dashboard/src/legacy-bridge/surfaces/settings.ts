@@ -70,10 +70,13 @@ export interface SettingsRecord {
 export type TeamMember = Output<"GET team">["members"][number];
 export type TeamInvite = Output<"GET team">["invites"][number];
 
-/** What each template is used by, as the card says it (`__TEMPLATE_USE`), by the template's name. */
+/**
+ * What each template is used by, as the card says it (`__TEMPLATE_USE`), by the template's name: the words after "Sent by",
+ * the line under them, and the one sequence that sends it, where its link opens (null: several, or none, so the list).
+ */
 export type TemplateUse = Record<
   string,
-  { words: string; note: string | null; unused: boolean; playbook: string | null; running: boolean }
+  { words: string; note: string | null; unused: boolean; sequence: string | null; running: boolean }
 >;
 
 /**
@@ -292,7 +295,7 @@ export const settingsOverride: SurfaceOverride = {
               words: templateUseWords(u),
               note: templateUseNote(u),
               unused: templateUnused(u),
-              playbook: u.playbooks.length === 1 ? u.playbooks[0].id : null,
+              sequence: u.sequences?.length === 1 ? u.sequences[0] : null,
               // Running is on and not past its last day (S1-3).
               running: u.playbooks.some((p) => !p.paused && !p.ended),
             },
