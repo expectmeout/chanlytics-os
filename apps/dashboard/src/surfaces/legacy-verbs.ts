@@ -328,7 +328,8 @@ interface SwipeOptions {
   pages?: ((el: Element, from: EventTarget | null) => SwipePage | null) | null;
   min?: number;
   when?: (() => boolean) | null;
-  onGrab?: ((el: Element, on: boolean) => void) | null;
+  /** Grabbed (`on`, with the way it moves) or let go: what is under it can show while it moves. */
+  onGrab?: ((el: Element, on: boolean, way?: "down" | "back" | "away") => void) | null;
 }
 
 /** The handlers a swipe spreads onto the element it is on. */
