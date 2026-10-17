@@ -28,7 +28,7 @@ import {
 import { plLayoutChoices, plOrdered, type LayoutChoices } from "../table/layout";
 import { usePlColumnLayout } from "../table/use-layout";
 import type { ColCtx, PeopleRead, TableColumn, TableCtx, TableRow } from "../types";
-import { ldScroller } from "./scroller";
+import { heardListScroll } from "./scroller";
 import { plLoadView, plSaveView, plViewSaver } from "./view-store";
 
 /** How long after a list stops scrolling it stops being said to (the pane's data-scrolling, which hides the hover tips). */
@@ -228,10 +228,10 @@ function useSavedView<R extends TableRow, X extends TableCtx>({
 
 /**
  * The words in the box, and the pane that scrolls. D5: a list that is moving shows no hover: the pane carries
- * data-scrolling while the list scrolls, and the tips and cards hide under it (leads.css). Heard on the pane in the
- * capture phase: a scroll does not bubble, and on a desktop the box that scrolls is the table's own, inside the pane, so
- * the pane's own scroll never came and the cards stayed up over a moving list. Only the list's box counts (ldScroller): a
- * menu scrolling inside the pane is not the list moving. One listener for the page's life, taken down with it.
+ * data-scrolling while the list scrolls, and the tips and cards hide under it (leads.css). Heard where the list's box
+ * scrolls (heardListScroll): on a desktop the table's own, inside the pane, whose scroll the pane never heard, so the
+ * cards stayed up over a moving list; on a phone the window. A menu scrolling inside the pane is not the list moving. One
+ * listener for the page's life, taken down with it.
  */
 function useSearchAndScroll() {
   const [q, setQ] = useState("");
@@ -241,15 +241,13 @@ function useSearchAndScroll() {
     const el = scrollRef.current;
     if (!el || !el.addEventListener) return undefined;
     let t: ReturnType<typeof setTimeout> | null = null;
-    const on = (e: Event) => {
-      if (!e || !e.target || e.target !== ldScroller(el)) return;
+    const stop = heardListScroll(el, () => {
       el.setAttribute("data-scrolling", "1");
       if (t) clearTimeout(t);
       t = setTimeout(() => el.removeAttribute("data-scrolling"), SCROLLING_CLEARS_MS);
-    };
-    el.addEventListener("scroll", on, { passive: true, capture: true });
+    });
     return () => {
-      el.removeEventListener("scroll", on, { capture: true });
+      stop();
       if (t) clearTimeout(t);
     };
   }, []);

@@ -100,8 +100,10 @@
   scrollbar-color: var(--line-strong) transparent;
 }
 @media (prefers-reduced-motion: reduce) { .set-pane { animation: none; } }
-/* The sections as every page's strip is a phone's (settings.jsx, mobile.css); a desk has the rail. */
+/* The sections as every page's strip is a phone's (settings.jsx, mobile.css); a desk has the rail. The strip's stand is no
+   box but on a phone, where it sticks under the frame's top (mobile.css, "The window scrolls"). */
 .stabs-settings { display: none; }
+.set-strip-stand { display: contents; }
 /* A section opened after another arrives by the deck every change of view moves by (surfaces/kit/motion/view-deck.ts;
    the pane says its side, settings/frame/page.tsx), and plays no entrance of its own. On a phone it travels its own
    width, as a page from the tab beside does. On a desk the sections are a rail, one under another, and nothing goes

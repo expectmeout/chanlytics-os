@@ -20,7 +20,7 @@ import type { Place } from "../shell-verbs";
 import { usePlRowWindow } from "../table/row-window";
 import { onPageKey } from "./keyboard";
 import type { KeyDoors } from "./keyboard";
-import { ldScroller } from "./scroller";
+import { heardListScroll, ldScroller } from "./scroller";
 
 /** How long a scroll is left to settle before the view's place is kept. */
 const PLACE_SAVE_DELAY_MS = 200;
@@ -183,15 +183,13 @@ function usePlaceKeeper(
     const sc = ldScroller(scrollRef.current);
     if (sc) sc.scrollTop = due.top;
   }, [view, landed, q]); // eslint-disable-line react-hooks/exhaustive-deps
-  // How far the list is scrolled, heard on the pane in the capture phase: a scroll does not bubble, and on a desktop the
-  // box that scrolls is the table's own, inside the pane. Saved once it settles, with the place as last drawn.
+  // How far the list is scrolled, heard where its box scrolls (heardListScroll: the table's own on a desktop, the
+  // window on a phone). Saved once it settles, with the place as last drawn.
   useEffect(() => {
     const el = scrollRef.current;
     if (!el || !el.addEventListener) return undefined;
     let t: ReturnType<typeof setTimeout> | null = null;
-    const on = (e: Event) => {
-      const sc = e && (e.target as HTMLElement | null);
-      if (!sc || sc !== ldScroller(el)) return;
+    const stop = heardListScroll(el, (sc) => {
       if (t) clearTimeout(t);
       t = setTimeout(() => {
         const now = placeNow.current;
@@ -200,10 +198,9 @@ function usePlaceKeeper(
         placeTop.current = sc.scrollTop;
         placeSave(page, now.view, { ...now.place, top: sc.scrollTop });
       }, PLACE_SAVE_DELAY_MS);
-    };
-    el.addEventListener("scroll", on, { passive: true, capture: true });
+    });
     return () => {
-      el.removeEventListener("scroll", on, { capture: true });
+      stop();
       if (t) clearTimeout(t);
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
