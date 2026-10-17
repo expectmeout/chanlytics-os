@@ -119,7 +119,6 @@ export {
   channelsGoesByWords,
   lifecycleChainStateOf,
   lifecycleStateOf,
-  momentHoldsWords,
 } from "./lifecycle/lifecycle-words";
 export type { LifecycleState } from "./lifecycle/lifecycle-words";
 export type {

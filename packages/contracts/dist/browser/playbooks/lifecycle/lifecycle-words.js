@@ -1,7 +1,5 @@
 import { SET_UP_CAMPAIGNS } from "../../ask/ask-suggestions.js";
-import { CHANNELS_DOOR } from "../../broadcasts/channels-standing.js";
 import { appointmentWords } from "../../journey/appointment-word.js";
-import { CALENDAR_SETTING_ROUTE } from "../../setup/calendar-source.js";
 import { clockHour } from "../../shared/clock.js";
 import {
   CAMPAIGN_ROOMS,
@@ -13,7 +11,7 @@ import {
 import { joinWords, plural } from "../../shared/words.js";
 import { VERSION_CHANNEL_WORDS } from "../../templates/message-versions.js";
 import { WORKSPACE_PAUSED_FACT } from "../../workspace/billing.js";
-import { SENDING_HOURS_WORDS, isWinBack, triggerOf } from "../playbook-triggers.js";
+import { SENDING_HOURS_WORDS, triggerOf } from "../playbook-triggers.js";
 export const channelsGoesByWords = (channels) => joinWords(channels.map((c) => VERSION_CHANNEL_WORDS[c]));
 const NEEDS_CALENDAR = {
   none: "Needs your calendar",
@@ -77,33 +75,10 @@ export const LIFECYCLE_WORDS = {
     title: CAMPAIGN_ROOMS.newMessage,
     kind: "What kind of message",
     once: "Send once",
-    // Beside "Send once" at the sheet's head; the moment it comes on is the To row's (Ruben, 11 Oct 2026: shorter words).
-    every: "Every time",
-    /** The third (00426, canvas B): a reach-out to leads, from a search, a list, or the ones the pile adds. */
+    /** Beside "Send once" (00426, canvas B): a reach-out to leads, from a search, a list, or the ones the pile adds. */
     leads: "Write to leads",
-    /** The sheet a moment's Turn on opens, titled for the campaign it starts (spec §4.2): "Turn on Appointment reminder". */
-    turnOn: (name) => `Turn on ${name}`,
-    /**
-     * The same sheet on the home, where the campaign's own name stands under it to rename in place (Ruben, 11 Oct 2026:
-     * "Turn on Win-back" over "Win-back" said the name twice).
-     */
-    turnOnShort: "Turn on",
-    /** The same sheet changing a campaign the drawer showed: its kicker, over the campaign's own name. */
+    /** A reach-out's change (`campaigns/new:edit:<root>`): its sheet's kicker while its chain is read. */
     edit: "Edit",
-    /** A campaign the moment already holds, said as the composer opens on it (decision 20): "Win-back · On". */
-    holds: (name, paused) => `${name} \xB7 ${paused ? "Paused" : "On"}`,
-    /**
-     * The composer's two sentences that name a setting, each with its door to it (spec §4.2): the calendar's is the one
-     * "Needs your calendar" opens (Settings › Business, the calendar's row), with its words; the number's is Connections.
-     */
-    calendar: {
-      words: "This moment reads your calendar: a run can send once it is connected.",
-      door: { label: NEEDS_CALENDAR.door, to: CALENDAR_SETTING_ROUTE }
-    },
-    number: {
-      words: "No WhatsApp number is connected yet: a run cannot send by WhatsApp until one is.",
-      door: { label: "Open Connections", to: CHANNELS_DOOR }
-    },
     /**
      * The composers and a campaign's drawer as one sentence of words to press (Ruben, 11 Oct 2026, "Option B"): the words
      * round its tokens, the one line under it saying who it reaches now, what happens next, and what an edit changes.
@@ -440,11 +415,6 @@ export const LIFECYCLE_TOAST = {
   /** The browser would not copy it: the toast shows the phrase, to be typed or copied by hand. */
   copyFailed: (phrase) => `Couldn't copy, the phrase is: ${phrase}`
 };
-export function momentHoldsWords(rows, trigger, editing) {
-  if (triggerOf(trigger)?.kind === "saved") return [];
-  const same = (t) => t === trigger || isWinBack(t) && isWinBack(trigger);
-  return rows.filter((p) => p.id !== editing && same(p.trigger)).map((p) => LIFECYCLE_WORDS.compose.holds(p.name, p.state !== "running"));
-}
 function lifecycleClock(p) {
   return p.trigger === "everyone_monthly" ? `every ${p.cadence_days} days` : `daily ${clockHour(p.run_hour)}`;
 }

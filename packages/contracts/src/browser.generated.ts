@@ -264,7 +264,7 @@ export { campaignsHomeOf, lifecycleKicker } from "./playbooks/lifecycle/lifecycl
 export { lifecyclePlaybooksOf, whatsappLineOf } from "./playbooks/lifecycle/lifecycle-inputs";
 export { LEDGER_STATUSES, chainResultsOf, chainResumeOf, isLedgerCampaign, ledgerRowIn, lifecycleChainsOf, sentResultsOfSource } from "./playbooks/lifecycle/lifecycle-ledger";
 export { reachCountsOf } from "./playbooks/lifecycle/lifecycle-tiles";
-export { LIFECYCLE_WORDS, LIFECYCLE_TOAST, channelsGoesByWords, lifecycleChainStateOf, lifecycleStateOf, momentHoldsWords } from "./playbooks/lifecycle/lifecycle-words";
+export { LIFECYCLE_WORDS, LIFECYCLE_TOAST, channelsGoesByWords, lifecycleChainStateOf, lifecycleStateOf } from "./playbooks/lifecycle/lifecycle-words";
 export { poolWords, reachLines, runDayPassed, runApprovalRefusal, runDaysAt, waitingRunOffer, toApprovalVM } from "./playbooks/playbook-approval";
 export { WHATSAPP_VERSION_ALONE, campaignChannelsOf, playbookChannelsRead } from "./playbooks/playbook-channels";
 export { PLAYBOOK_CALENDAR_UNREAD, playbookFailedAbout, playbookFailedWords } from "./playbooks/playbook-failed";

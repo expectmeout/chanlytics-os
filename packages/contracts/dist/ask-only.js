@@ -365,6 +365,40 @@ var T = {
   }
 };
 
+// src/shell/campaign-rooms.ts
+var CAMPAIGN_ROOMS = {
+  home: "Campaigns",
+  library: "Messages",
+  newMessage: "New message"
+};
+var { library } = CAMPAIGN_ROOMS;
+var LIBRARY_WORDS = {
+  title: library,
+  demo: `${library} reads a real workspace \u2014 the messages it holds, by email, text and WhatsApp.`,
+  reading: "Reading your messages\u2026",
+  failed: "Your messages couldn\u2019t be loaded right now",
+  failedWhat: "your messages",
+  failedBody: "The receptionist keeps sending; this page just can't show what it holds at the moment.",
+  /** The count's hover: what the Library holds is every message, on each channel it goes by, whoever writes its versions. */
+  headTip: "What the receptionist and your campaigns send, as the customer sees it. A WhatsApp version is approved by WhatsApp, usually within minutes, whether it is written here or in WhatsApp Manager; an email or a text is ready the moment it is saved. A marketing message can only go to people who said yes to offers.",
+  noNumber: "No WhatsApp number yet. Email and text versions are written here; WhatsApp versions wait until one is connected.",
+  /** A template is written to a number's account, which is the edge's own answer (no_channel) when it has none. */
+  writeNeedsNumber: "Connect a WhatsApp number first \u2014 templates belong to a number's account.",
+  /** Why a WhatsApp version, or a language of one, cannot be added with no number; an email or a text needs none. */
+  addNeedsNumber: "Connect a WhatsApp number to add a WhatsApp version."
+};
+function runStoppedWords(was) {
+  if (was === "sending") return "stops after this batch";
+  return was === "pending_approval" ? "skipped \u2014 nothing will send" : "canceled \u2014 nothing will send";
+}
+function runApprovedTail(people, when) {
+  return `approved \u2014 ${people} ${people === 1 ? "person" : "people"}, ${when}`;
+}
+var RUN_WAITING_WORDS = "Waiting for your approval";
+function heldEmailsWords(n) {
+  return `${n} ${n === 1 ? "email waits" : "emails wait"} for your say`;
+}
+
 // src/templates/template-languages.ts
 var L = (id, name, region, native) => ({
   id,
@@ -520,81 +554,6 @@ var WORKSPACE_PAUSED_FACT = "This workspace is paused, so nothing is sent until 
 var CAMPAIGNS_PAUSED_WORDS = `${WORKSPACE_PAUSED_FACT}. Resume it from Settings \u203A Billing.`;
 var DATE_FMT2 = formatterOnUse("en-US", { month: "short", day: "numeric" });
 
-// src/broadcasts/channels-standing.ts
-var CHANNELS_DOOR = "admin/integrations";
-var NO_DOOR = [
-  CHANNEL_WORDS.unchecked,
-  CHANNEL_WORDS.noEmailDomain,
-  CHANNEL_WORDS.textLineNotActive,
-  CHANNEL_WORDS.textLineMock
-];
-
-// src/lines/registration-path.ts
-var SOLE_PROP_LIMITS = {
-  campaignsPerBrand: 1,
-  numbersPerCampaign: 1,
-  messagesPerSecond: 1,
-  perDayTMobile: 1e3,
-  perMinuteAtt: 15,
-  mobileUsesEver: 3,
-  emailUsesEver: 10,
-  addressUsesEver: 10
-};
-var REGISTRATION_COST_WORDS = {
-  standard: "Filing costs about $19 once and a few dollars a month, and cannot be undone.",
-  sole_proprietor: `Filing costs a few dollars once and a few dollars a month, and cannot be undone. You are filing as a sole proprietor: one number, one campaign, about ${SOLE_PROP_LIMITS.messagesPerSecond} message a second.`
-};
-
-// src/setup/setup.ts
-var PROVISIONING_DEADLINE_MS = 5 * MIN_MS;
-var SETUP_STATE_WORDS = {
-  not_started: "Not started",
-  waiting_you: "Waiting on you",
-  waiting_them: "Waiting on us",
-  ready: "Ready"
-};
-var SOLE_PROP_CEILING_SENTENCE = `This is the sole-proprietor registration: one number, and about ${SOLE_PROP_LIMITS.messagesPerSecond} message a second, so a large send goes out over minutes rather than all at once.`;
-var SOLE_PROP_TEXTING_SENTENCE = `Texting is on. ${SOLE_PROP_CEILING_SENTENCE}`;
-
-// src/setup/calendar-source.ts
-var CALENDAR_OWED_WORD = SETUP_STATE_WORDS.waiting_you;
-var CALENDAR_SETTING_ROUTE = "admin/workspace/calendar";
-var FORWARD_CONFIRM_SHOWN_MS = 3 * DAY_MS;
-
-// src/shell/campaign-rooms.ts
-var CAMPAIGN_ROOMS = {
-  home: "Campaigns",
-  library: "Messages",
-  newMessage: "New message"
-};
-var { library } = CAMPAIGN_ROOMS;
-var LIBRARY_WORDS = {
-  title: library,
-  demo: `${library} reads a real workspace \u2014 the messages it holds, by email, text and WhatsApp.`,
-  reading: "Reading your messages\u2026",
-  failed: "Your messages couldn\u2019t be loaded right now",
-  failedWhat: "your messages",
-  failedBody: "The receptionist keeps sending; this page just can't show what it holds at the moment.",
-  /** The count's hover: what the Library holds is every message, on each channel it goes by, whoever writes its versions. */
-  headTip: "What the receptionist and your campaigns send, as the customer sees it. A WhatsApp version is approved by WhatsApp, usually within minutes, whether it is written here or in WhatsApp Manager; an email or a text is ready the moment it is saved. A marketing message can only go to people who said yes to offers.",
-  noNumber: "No WhatsApp number yet. Email and text versions are written here; WhatsApp versions wait until one is connected.",
-  /** A template is written to a number's account, which is the edge's own answer (no_channel) when it has none. */
-  writeNeedsNumber: "Connect a WhatsApp number first \u2014 templates belong to a number's account.",
-  /** Why a WhatsApp version, or a language of one, cannot be added with no number; an email or a text needs none. */
-  addNeedsNumber: "Connect a WhatsApp number to add a WhatsApp version."
-};
-function runStoppedWords(was) {
-  if (was === "sending") return "stops after this batch";
-  return was === "pending_approval" ? "skipped \u2014 nothing will send" : "canceled \u2014 nothing will send";
-}
-function runApprovedTail(people, when) {
-  return `approved \u2014 ${people} ${people === 1 ? "person" : "people"}, ${when}`;
-}
-var RUN_WAITING_WORDS = "Waiting for your approval";
-function heldEmailsWords(n) {
-  return `${n} ${n === 1 ? "email waits" : "emails wait"} for your say`;
-}
-
 // src/playbooks/lifecycle/lifecycle-words.ts
 var channelsGoesByWords = (channels) => joinWords(channels.map((c) => VERSION_CHANNEL_WORDS[c]));
 var NEEDS_CALENDAR = {
@@ -659,33 +618,10 @@ var LIFECYCLE_WORDS = {
     title: CAMPAIGN_ROOMS.newMessage,
     kind: "What kind of message",
     once: "Send once",
-    // Beside "Send once" at the sheet's head; the moment it comes on is the To row's (Ruben, 11 Oct 2026: shorter words).
-    every: "Every time",
-    /** The third (00426, canvas B): a reach-out to leads, from a search, a list, or the ones the pile adds. */
+    /** Beside "Send once" (00426, canvas B): a reach-out to leads, from a search, a list, or the ones the pile adds. */
     leads: "Write to leads",
-    /** The sheet a moment's Turn on opens, titled for the campaign it starts (spec §4.2): "Turn on Appointment reminder". */
-    turnOn: (name) => `Turn on ${name}`,
-    /**
-     * The same sheet on the home, where the campaign's own name stands under it to rename in place (Ruben, 11 Oct 2026:
-     * "Turn on Win-back" over "Win-back" said the name twice).
-     */
-    turnOnShort: "Turn on",
-    /** The same sheet changing a campaign the drawer showed: its kicker, over the campaign's own name. */
+    /** A reach-out's change (`campaigns/new:edit:<root>`): its sheet's kicker while its chain is read. */
     edit: "Edit",
-    /** A campaign the moment already holds, said as the composer opens on it (decision 20): "Win-back · On". */
-    holds: (name, paused) => `${name} \xB7 ${paused ? "Paused" : "On"}`,
-    /**
-     * The composer's two sentences that name a setting, each with its door to it (spec §4.2): the calendar's is the one
-     * "Needs your calendar" opens (Settings › Business, the calendar's row), with its words; the number's is Connections.
-     */
-    calendar: {
-      words: "This moment reads your calendar: a run can send once it is connected.",
-      door: { label: NEEDS_CALENDAR.door, to: CALENDAR_SETTING_ROUTE }
-    },
-    number: {
-      words: "No WhatsApp number is connected yet: a run cannot send by WhatsApp until one is.",
-      door: { label: "Open Connections", to: CHANNELS_DOOR }
-    },
     /**
      * The composers and a campaign's drawer as one sentence of words to press (Ruben, 11 Oct 2026, "Option B"): the words
      * round its tokens, the one line under it saying who it reaches now, what happens next, and what an edit changes.
