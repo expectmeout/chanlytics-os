@@ -294,7 +294,23 @@ const facts = (over = {}) => ({
  * resolveFacts). `config` replaces parts of the config beside the brain (the calendar's address), and `zone` is the
  * workspace's, which the settings read resolved the preview in. `sellsBy` is the workspace's answer to how its
  * customers buy (0008), as the workspace list carries it: null, never asked, unless a test says otherwise.
+ *
+ * The record is three pages of Settings since 17 Oct 2026 (Details, Hours & booking, How it answers), with two of its
+ * rows on Autonomy's Limits. What is drawn here is the record whole, as one page of the three parts in their order
+ * (BusinessTab takes several), and the two limit rows after it (BusinessLimitRows), so a test finds every row where the
+ * page it asks about puts it; `part` draws one page alone, as Settings does.
  */
+const WHOLE_RECORD = ["workspace", "hours", "receptionist"];
+const recordPage = (flash, part) =>
+  part === WHOLE_RECORD
+    ? W.React.createElement(
+        W.React.Fragment,
+        null,
+        W.React.createElement(W.BusinessTab, { flash, part }),
+        W.React.createElement(W.BusinessLimitRows, { flash }),
+      )
+    : W.React.createElement(W.BusinessTab, { flash, part });
+let drawnPart = WHOLE_RECORD;
 const drawTab = ({
   profile = marisa,
   conflicts = [],
@@ -308,7 +324,9 @@ const drawTab = ({
   setup = SETUP(),
   policies = POLICIES(),
   templates = TEMPLATES(),
+  part = WHOLE_RECORD,
 } = {}) => {
+  drawnPart = part;
   W.__SETTINGS = settings(profile, config, brain, zone);
   // What it can do reads three more surfaces: the connections the abilities run on, the Autonomy
   // matrix they are held by, and the templates a call sends the booking link as. Each is reset with
@@ -330,10 +348,10 @@ const drawTab = ({
   // The workspace's own doors outlive the page too, and a zone or an answer the last test left out is not this record's.
   W.__businessTabSave.zone.reset();
   W.__businessTabSave.sellsBy.reset();
-  return W.React.createElement(W.BusinessTab, { flash });
+  return recordPage(flash, part);
 };
 /** The same page again, over the same hook cells, as React draws it after a state change. */
-const redrawTab = (flash = () => {}) => again(() => W.React.createElement(W.BusinessTab, { flash }));
+const redrawTab = (flash = () => {}) => again(() => recordPage(flash, drawnPart));
 /** Press a row's act, which is what opens it. */
 const openFold = (tree, row) => press(byTestId(tree, `rec-row-act-${row}`));
 
@@ -449,6 +467,7 @@ const dayOf = (tree, d) => byTestId(tree, `rec-hours-day-${d}`);
 const written = (config) => structuredClone(config);
 
 export {
+  WHOLE_RECORD,
   KNOWN,
   POLICIES,
   SETUP,

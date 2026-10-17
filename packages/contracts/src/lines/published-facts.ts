@@ -217,8 +217,8 @@ export const PUBLIC_FIELD_MARK = "public";
 /** What the form says of the page, before it publishes and once it does, and the link to it. */
 export const BUSINESS_PAGE_NOTE = {
   before:
-    "Boxes marked public go on your business's own page once the name and the address are saved, beside the number customers reach you on and the services you list under Settings › Business. Anyone can open the page, and search engines list it.",
-  live: "Boxes marked public are on your business's own page, beside the number customers reach you on and the services you list under Settings › Business. Anyone can open the page, and search engines list it.",
+    "Boxes marked public go on your business's own page once the name and the address are saved, beside the number customers reach you on and the services you list under Settings › Details. Anyone can open the page, and search engines list it.",
+  live: "Boxes marked public are on your business's own page, beside the number customers reach you on and the services you list under Settings › Details. Anyone can open the page, and search engines list it.",
   open: "Open your page",
 } as const;
 

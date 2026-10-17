@@ -450,8 +450,9 @@ test("REGRESSION (one gate): Notifications offers its Add to a role that may not
 });
 
 test("REGRESSION (one gate): Your data keeps its download on the card for a role that may not take it, gated -- the link was absent", () => {
+  // Your data is Billing's since 17 Oct 2026, under the plan: the account's own page.
   workspace("operator");
-  const tree = settings("workspace");
+  const tree = settings("billing");
   const link = byTestId(tree, "set-export-all");
   assert.ok(link, "REGRESSION: the download was not on the page");
   assert.equal(link.props["aria-disabled"], true);
@@ -459,7 +460,7 @@ test("REGRESSION (one gate): Your data keeps its download on the card for a role
   assert.ok(press(link).prevented, "a gated link downloads nothing");
 
   workspace("owner");
-  const own = byTestId(settings("workspace"), "set-export-all");
+  const own = byTestId(settings("billing"), "set-export-all");
   assert.equal(own.props["aria-disabled"], undefined);
   assert.equal(own.props.href, "/api/v1/export?workspace=studio");
 });

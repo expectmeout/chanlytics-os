@@ -74,6 +74,8 @@ function SequenceRow(p: {
 
 export function SequencesList({ page, openId }: SequencesListProps) {
   const [search, setSearch] = useState("");
+  // Ended sequences are history: folded at the list's foot, opened when asked for (a search shows them).
+  const [endedOpen, setEndedOpen] = useState(false);
   const words = search.trim().toLowerCase();
   const groups = useMemo(() => {
     const by = new Map<SequenceGroup, { row: SequenceRowDto; twin: SequenceTwin | null }[]>();
@@ -96,8 +98,18 @@ export function SequencesList({ page, openId }: SequencesListProps) {
             <h3 className="sq-group-name">
               {SEQUENCE_WORDS.groups[group]}
               <span className={group === "needs" ? "tally tally-warn" : "tally"}>{rows.length}</span>
+              {group === "ended" && words === "" ? (
+                <LinkButton
+                  className="sq-group-act"
+                  onClick={() => setEndedOpen((v) => !v)}
+                  aria-expanded={endedOpen}
+                  data-testid="sq-ended-toggle"
+                >
+                  {endedOpen ? SEQUENCE_WORDS.hideEnded : SEQUENCE_WORDS.showEnded(rows.length)}
+                </LinkButton>
+              ) : null}
             </h3>
-            {rows.map(({ row, twin }) => (
+            {(group === "ended" && words === "" && !endedOpen ? [] : rows).map(({ row, twin }) => (
               <SequenceRow
                 key={row.id}
                 row={row}

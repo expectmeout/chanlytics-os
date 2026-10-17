@@ -2,7 +2,8 @@
  * A step opened (the Steps redesign, his pick of A, refined, 17 Oct 2026): the kit's sheet, from the bottom on a phone and
  * a side pane on a desk, holding everything of one step: its words as one person reads them (a lead's next email as it
  * reads, a call's task), what it is in rows (when it goes, who it keeps going, how, what it is doing, what it did:
- * contracts scheduleStepFacts), and its acts in the foot: Edit, Send me a test, Take away (asked first, in the foot).
+ * contracts scheduleStepFacts), and its acts in the foot: Edit, Send me a test, Take away (asked first, in the foot); a
+ * sequence to leads' Edit opens its own sheet, where its emails, waits, mailboxes and pace are written whole.
  * Edit changes the step in the same sheet (step-editor.tsx), its Cancel and Save in the sheet's foot (the editor's
  * RecordFootContext); Add a step opens it on the step to come. Open and closed are the schedule's (steps.tsx), so the
  * sheet leaves holding what it held.
@@ -23,7 +24,8 @@ import { Button } from "../../kit/button/button";
 import { Confirm } from "../../kit/confirm/confirm";
 import { Icon } from "../../kit/icon/icon";
 import { Sheet } from "../../kit/sheet/sheet";
-import { gate } from "../../legacy-verbs";
+import { gate, routeDoor } from "../../legacy-verbs";
+import { composeRoute } from "../home/address";
 import type { LegacyFlash } from "../../legacy-verbs";
 import { LeadStepOpen } from "./lead-step";
 import { StepEditor } from "./step-editor";
@@ -146,7 +148,20 @@ function StepFoot(p: {
         testid={`sq-step-remove-${step.place}`}
       />
     );
-  if (!ownsWords(step)) return null;
+  // A sequence to leads is written whole in its own sheet (its emails, its waits, its mailboxes and pace): Edit opens it.
+  if (!ownsWords(step))
+    return rec.sequence.starts === "leads" ? (
+      <div className="sq-stepfoot">
+        <Button
+          variant="primary"
+          {...routeDoor(composeRoute("every", { edit: rec.sequence.id }))}
+          data-testid={`sq-step-edit-${step.place}`}
+          {...gate("approve")}
+        >
+          <Icon name="pencil" size={13} /> {SEQUENCE_WORDS.edit}
+        </Button>
+      </div>
+    ) : null;
   return (
     <div className="sq-stepfoot">
       <Button variant="primary" onClick={p.onEdit} data-testid={`sq-step-edit-${step.place}`} {...gate("approve")}>

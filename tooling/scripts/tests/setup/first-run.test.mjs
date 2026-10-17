@@ -420,7 +420,7 @@ test("the receptionist card: every value is Setup's or the settings read's, the 
       ["through", "Puts through to", "+1 (305) 555-0100"],
     ],
   );
-  assert.equal(card.foot, "Fills in as you go. You can change any of it later in Settings › Business.");
+  assert.equal(card.foot, "Fills in as you go. You can change any of it later in Settings.");
 
   const bare = receptionistCardOf({
     setup: empty(),
@@ -708,7 +708,7 @@ test("Check with nothing on Google asks for the basics, and offers Find again wh
   const basics = firstRunOf(putOff, null, OWNER);
   assert.equal(basics.find, false, "not on Google, said");
   assert.equal(basics.heading, "Tell us the basics");
-  assert.equal(basics.lead, "Your receptionist answers from this. You can add more later in Settings › Business.");
+  assert.equal(basics.lead, "Your receptionist answers from this. You can add more later in Settings.");
   assert.deepEqual(basics.check.find, { label: "On Google after all? Find it", to: "start/find" });
   assert.equal(
     firstRunOf(putOff, null, { ...OWNER, owner: false }).check.find,

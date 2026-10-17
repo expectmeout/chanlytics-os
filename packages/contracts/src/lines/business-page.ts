@@ -382,7 +382,7 @@ export function registrationPreflight(f: PreflightFacts): PreflightProblem[] {
     out.push({
       id: "name_mismatch",
       what: `The carriers will be told this business is called “${f.workspaceName}”, but the business on record is “${f.tradeName?.trim() || f.legalName}”.`,
-      fix: "Save the business's name under Settings › Business as it is on record, or put that name on record as its trading name, before filing. The name goes into the confirmation message customers receive, and that message cannot be changed after a filing without registering a new campaign.",
+      fix: "Save the business's name under Settings › Details as it is on record, or put that name on record as its trading name, before filing. The name goes into the confirmation message customers receive, and that message cannot be changed after a filing without registering a new campaign.",
     });
   }
 
@@ -393,7 +393,7 @@ export function registrationPreflight(f: PreflightFacts): PreflightProblem[] {
     out.push({
       id: "names_differ",
       what: `Your receptionist introduces the business as “${(f.receptionistName ?? "").trim()}”, but your sign-up page and this filing call it “${f.workspaceName}”.`,
-      fix: "Save the name customers know you by under Settings › Business: an owner's save renames your sign-up page and your sign too, so customers read one name.",
+      fix: "Save the name customers know you by under Settings › Details: an owner's save renames your sign-up page and your sign too, so customers read one name.",
     });
   }
 

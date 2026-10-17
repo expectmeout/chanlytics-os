@@ -88,7 +88,7 @@ const FACT_HOURS = {
   icon: "clock",
   text: "Set your business hours to see what came in while you were closed",
   sub: "",
-  door: { label: "Open Settings", to: "admin/workspace" },
+  door: { label: "Open Settings", to: "admin/hours" },
 };
 const factIds = (vm) => reportFacts(vm, null).map((f) => f.id);
 

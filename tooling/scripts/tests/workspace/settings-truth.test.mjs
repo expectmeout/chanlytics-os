@@ -58,7 +58,7 @@ test("F32: a config the parser refuses is its own state, and no form can save ov
   const business = frame["workspace.tsx"];
   assert.ok(business.includes("if (settings && settings.broken) return <BrokenConfig"));
   assert.ok(
-    business.indexOf("if (settings && settings.broken)") < business.indexOf("if (real) {"),
+    business.indexOf("if (settings && settings.broken)") < business.indexOf("if (real) return"),
     "the broken branch wins over the record",
   );
   // Every notifications write is closed on a broken config, and says why: drawn, in settings-owner-panes.test.mjs ("F32:
@@ -200,12 +200,17 @@ test("Settings is ordered you, then the business, then the people", () => {
     /\{ id: "profile",\s+label: "Profile",\s+icon: "user",\s+group: "You" \}/,
     "you come first",
   );
-  assert.match(frame["tabs.ts"], /\{ id: "workspace",\s+label: "Business",/, "and the business is called what it is");
+  assert.match(
+    frame["tabs.ts"],
+    /\{ id: "workspace",\s+label: "Details",\s+icon: "home",\s+group: "Business" \}/,
+    "and the business is called what it is, its details first",
+  );
   assert.match(frame["tabs.ts"], /\{ id: "team",\s+label: "Team",/, "with the people on their own tab");
   // The route id stays `workspace`: the label is what a person reads, and
   // renaming the id would break bookmarks, an Ask answer and four e2e specs.
   assert.ok(
-    frame["page.tsx"].includes('{id === "workspace" && <PaneWorkspace flash={flash} row={row} />}'),
+    frame["page.tsx"].includes('(id === "workspace" || id === "hours" || id === "receptionist")') &&
+      frame["page.tsx"].includes("<PaneWorkspace flash={flash} row={row} part={id} />"),
     "the old route still lands on the business",
   );
 

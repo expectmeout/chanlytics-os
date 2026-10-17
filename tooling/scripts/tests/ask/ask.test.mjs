@@ -229,13 +229,15 @@ const REACHED = {
   start: ["Setting up", "start"],
   "admin/profile": ["Profile", "admin/profile"],
   "admin/workspace": ["Settings", "admin/workspace"],
+  "admin/hours": ["Hours & booking", "admin/hours"],
+  "admin/receptionist": ["How it answers", "admin/receptionist"],
   "admin/team": ["Team", "admin/team"],
   "admin/autonomy": ["Autonomy", "admin/autonomy"],
   "admin/notifications": ["Notifications", "admin/notifications"],
   "admin/integrations": ["Connections", "admin/integrations"],
   "admin/billing": ["Billing", "admin/billing"],
-  // The pane says it is not built and points at Business: Memory's jump lands there, never on it (#417).
-  "admin/memory": ["Receptionist memory", "admin/workspace"],
+  // The pane says it is not built and points at How it answers: Memory's jump lands there, never on it (#417).
+  "admin/memory": ["Receptionist memory", "admin/receptionist"],
   "admin/activity": ["Activity", "admin/activity"],
   "admin/platform": ["Back office", "admin/platform"],
   "admin/partner": ["Partner", "admin/partner"],
@@ -331,8 +333,8 @@ test("the bridge's jump index reads the two bits the pages draw those doors by, 
   assert.equal(first("back office", off), null, "not staff: no back office");
   assert.equal(first("pipe", {}), null, "before People is read, nothing is claimed");
   for (const w of [on, off]) {
-    assert.equal(first("memory", w), "admin/workspace", "Memory lands on Business");
-    assert.equal(first("ai memory", w), "admin/workspace", "and so does the pane's own name");
+    assert.equal(first("memory", w), "admin/receptionist", "Memory lands on How it answers");
+    assert.equal(first("ai memory", w), "admin/receptionist", "and so does the pane's own name");
     assert.equal(first("partner", w), "admin/partner");
     assert.equal(first("setting up", w), "start", "the first run is a jump away");
   }
@@ -1438,6 +1440,7 @@ test("cards: an act tool never acts, a proposal names its door and its undo, the
     sequence_draft: "approve",
     sequence_make: "approve",
     sequence_start: "approve",
+    sequence_end: "approve",
     sequence_discard: "approve",
     sequence_test: "approve",
     playbook_run: "approve",

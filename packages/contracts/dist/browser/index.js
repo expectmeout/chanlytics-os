@@ -80,7 +80,7 @@ export { visitTitleWithout } from "./calendar/visit/visit-service.js";
 export { visitSheetOf, CALENDAR_VISIT_SHEET_WORDS } from "./calendar/visit/visit-sheet.js";
 export { zoneOffsetMs, localToUtcMs, clockInZone, dayInZone, dayPlusInZone, WEEKDAY_KEYS } from "./calendar/zone-math.js";
 export { brainMetaOf, replyWhy, BRAIN_INTENTS, BRAIN_LANGUAGES, BRAIN_OUTPUT_JSON_SCHEMA, brainOutputSchemaFor, CONFIDENCE_STEPS } from "./config/brain.js";
-export { abilityRows, cannotRows } from "./config/business-tab/abilities.js";
+export { abilityRows, cannotFoldWords, cannotRows } from "./config/business-tab/abilities.js";
 export { bookingRulesWords, bookingRuleRefusal, BOOKING_RULE_HINTS } from "./config/business-tab/booking-rules-words.js";
 export { bookingLinkRowWords, businessGap } from "./config/business-tab/business-gap.js";
 export { chipsMoreWords, CHIPS_SHOWN } from "./config/business-tab/counts.js";
@@ -315,7 +315,7 @@ export { SEQUENCE_ACT_WORDS, sequenceRunsNow, sequenceResumeAsk } from "./sequen
 export { SEQUENCES_ROUTE, isSequencesParam, parseSequencesRoute, sequenceNewLeadsRoute, sequenceRouteBack, sequenceRoute, sequenceLandingOf, runSheetRoute, sequenceRepliesOf, sequenceRepliesRoute } from "./sequences/sequence-address.js";
 export { SEQUENCE_DRAFT_WORDS_MAX, SEQUENCE_DRAFT_THEN_MAX, SEQUENCE_WAIT_DAYS, SEQUENCE_DRAFT_JSON_SCHEMA, SEQUENCE_NEW_WORDS, isListToken } from "./sequences/sequence-draft.js";
 export { SEQUENCE_PEOPLE_GROUPS } from "./sequences/sequence-dto.js";
-export { SCHEDULE_WORDS, scheduleDays, scheduleSpan, scheduleStart, scheduleWait, scheduleEnd, scheduleChannels, scheduleInLine, scheduleStepState, scheduleStepSub, scheduleStepFacts } from "./sequences/sequence-schedule.js";
+export { SCHEDULE_WORDS, scheduleDays, scheduleSettingsOf, scheduleSpan, scheduleStart, scheduleWait, scheduleEnd, scheduleChannels, scheduleInLine, scheduleStepState, scheduleStepSub, scheduleStepFacts } from "./sequences/sequence-schedule.js";
 export { SEQUENCE_EDIT_WORDS, SEQUENCE_NEEDS_WORDS, SEQUENCE_PEOPLE_WORDS, SEQUENCE_HISTORY_PERIODS, SEQUENCE_HISTORY_WORDS, SEQUENCE_REPLIES_WORDS, historySince, historyIn, historyCovers, historyFigures, historyDays, historyDayWords, historyStamp, historyUpcomingWords, batchWent, peopleNeedsOf } from "./sequences/sequence-tab-words.js";
 export { SEQUENCE_TEST_LIMITS, SEQUENCE_TEST_WORDS, stepTestMail } from "./sequences/sequence-test.js";
 export { SEQUENCE_WORDS, SEQUENCE_FLOW_WORDS, stepApprovalOf, takesFollowUps, leadStepStand, SEQUENCE_GROUPS, PEOPLE_GROUP_WORDS, needsCount, sequenceWaitsNow, sequenceGroupOf, sequenceTwinOf, visitTwinWords, sequenceRowState, sequenceSubLine, sequenceNextOf, sequenceNextWords, sequencePausedDock, sequenceWhoApprovesHint, sequenceCancels, needsWords, sequenceStartWords, sequenceStateWords, sequenceStateTone, sequenceRowLine, sequenceHeadLine, sequenceNotice, batchWaitsUntilTonight, sequenceStartsSentence, momentStartsSentence, listStartsSentence, SEQUENCE_STATE_WORDS, sequenceWaitWords, sequenceChannelsWords, sequenceStopsSentence, stepsStopSentence, sequenceLeftWords, peopleTabWord } from "./sequences/sequence-words.js";

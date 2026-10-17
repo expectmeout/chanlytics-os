@@ -135,7 +135,7 @@ export function whyNotAHandoff(
 export const HANDOFF_FORWARDS_BACK =
   "That number sends the calls nobody picks up to your receptionist, so a caller put through to it would come straight back. Use a mobile or another line a person answers.";
 export const FORWARD_IS_HANDOFF =
-  "Your receptionist puts callers through to this number. Change the transfer number in Settings › Business first — once this number forwards to the receptionist, a caller put through to it would come straight back.";
+  "Your receptionist puts callers through to this number. Change the transfer number in Settings › Details first — once this number forwards to the receptionist, a caller put through to it would come straight back.";
 
 /** The same loop from forwarding's side: returns the owner's sentence, or null when the number may forward. */
 export function whyNotForward(number: string | null | undefined, handoff: string | null | undefined): string | null {

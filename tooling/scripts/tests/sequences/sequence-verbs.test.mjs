@@ -234,3 +234,14 @@ test("Send me a test mails the step's message to whoever pressed it: the door's 
   assert.equal(t.undo, undefined, "nothing reached a customer and nothing was kept");
   assert.equal(t.open({ payload: { sequence_id: SEQ } }, null), `campaigns/sequences/${SEQ}`);
 });
+
+test("End it ends a customer's sequence through the campaign's own door, says so, and keeps no undo: its steps are gone", () => {
+  assert.deepEqual(commit("sequence_end", { sequence_id: SEQ, name: "Win-back" }), {
+    route: "DELETE playbooks/[id]",
+    params: { id: SEQ },
+  });
+  assert.ok("refused" in commit("sequence_end", {}), "no sequence named, nothing ended");
+  const c = card("sequence_end", { sequence_id: SEQ, name: "Win-back" });
+  assert.equal(c.spec.receipt(c.card, { deleted: true, id: SEQ }), "“Win-back” has ended");
+  assert.equal(c.spec.undo, undefined);
+});

@@ -16,6 +16,7 @@ import { FailedRead } from "../../kit/empty/empty";
 import { RecordRow } from "../../kit/record/row";
 import { gate, type LegacyFlash } from "../../legacy-verbs";
 import { useSurface } from "../../use-surface";
+import { BusinessLimitRows } from "../business/tab";
 import { SetDial, SetRow } from "./controls";
 import { LearnedFromYou } from "./learned";
 import { PolPhoneRows, PolicyTable, polMode, useSetPhone } from "./matrix";
@@ -158,7 +159,7 @@ function dialRow(
   );
 }
 
-export const PaneAutonomyReal = ({ flash }: { flash: (f: LegacyFlash) => void }) => {
+export const PaneAutonomyReal = ({ flash, row = null }: { flash: (f: LegacyFlash) => void; row?: string | null }) => {
   const read = useSurface("settings");
   const [busy, setBusy] = useState<string | null>(null);
   const phone = useSetPhone();
@@ -263,7 +264,7 @@ export const PaneAutonomyReal = ({ flash }: { flash: (f: LegacyFlash) => void })
 
       <section className="rec-card set-card">
         <div className="rec-card-head">
-          <h2 className="rec-card-title">Hard limits</h2>
+          <h2 className="rec-card-title">Limits</h2>
           <span className="rec-card-sub">{hard.sub}</span>
         </div>
         <RecordRow id="aut-hard-stop" label="Asked to stop" value="Never messaged" />
@@ -272,6 +273,9 @@ export const PaneAutonomyReal = ({ flash }: { flash: (f: LegacyFlash) => void })
           label="Refunds, rates, negotiation"
           value="Always go to you — locked in the database"
         />
+        {/* The business's two limits, its own rows saved through its record (17 Oct 2026: a rule about prices lived on
+            two tabs): the rules it always keeps, and when it hands you a customer. */}
+        <BusinessLimitRows flash={flash} open={row} />
         {/* The last two were Chanlytics' and could not be changed here (S6): the owner's dials now, through the same
             door as the three above. */}
         {[

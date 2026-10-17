@@ -246,6 +246,16 @@ export const sequenceDiscardSpec = {
   receipt: () => "The draft is gone",
   open: () => SEQUENCES_ROUTE
 };
+export const sequenceEndSpec = {
+  needs: "operator",
+  gate: "approve",
+  commit: ({ payload: pl }) => {
+    const id = idIn(pl, "sequence_id");
+    return id ? { route: "DELETE playbooks/[id]", params: { id } } : refuseWith(PROPOSAL_WORDS.cannotApprove);
+  },
+  receipt: ({ payload: pl }) => asText(pl.name) ? `\u201C${asText(pl.name)}\u201D has ended` : "It has ended",
+  open: openSequence
+};
 const openRun = ({ payload }) => {
   const run = idIn(payload, "run_id");
   return run ? `broadcasts/run:${run}` : null;

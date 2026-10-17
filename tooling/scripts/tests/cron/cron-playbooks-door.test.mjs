@@ -1286,7 +1286,7 @@ test("a calendar that could not be read all day tells the owner what failed and 
       const [notice] = bellOf(w, A);
       const name = w.tables.playbooks[0].name;
       assert.equal(notice.title, `“${name}” could not read your calendar today`);
-      assert.ok(notice.body.includes("Settings › Business"), `it says where the link is: ${notice.body}`);
+      assert.ok(notice.body.includes("Settings › Hours & booking"), `it says where the link is: ${notice.body}`);
       assert.equal(mailTo(line, OWNER).length, 1, "and the owner has it by mail too");
     });
   } finally {

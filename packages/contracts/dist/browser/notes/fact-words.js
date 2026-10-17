@@ -13,7 +13,7 @@ export const FACT_SUGGEST_WORDS = {
   alreadyKept: (title) => `Your notes already say this: \u201C${title}\u201D`,
   dismissed: "Dismissed",
   gate: "Only the owner and a partner change what the receptionist reads.",
-  notesFull: `Your notes are full (${PROFILE_LIMITS.notes}). Take one away in Settings \u203A Business, then keep this.`,
+  notesFull: `Your notes are full (${PROFILE_LIMITS.notes}). Take one away in Settings \u203A How it answers, then keep this.`,
   answered: "This was answered already.",
   moved: "The settings changed while this was kept. Try again."
 };

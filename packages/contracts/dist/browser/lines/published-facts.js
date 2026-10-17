@@ -112,8 +112,8 @@ export const RECORD_REVIEW_CONFIRM = {
 };
 export const PUBLIC_FIELD_MARK = "public";
 export const BUSINESS_PAGE_NOTE = {
-  before: "Boxes marked public go on your business's own page once the name and the address are saved, beside the number customers reach you on and the services you list under Settings \u203A Business. Anyone can open the page, and search engines list it.",
-  live: "Boxes marked public are on your business's own page, beside the number customers reach you on and the services you list under Settings \u203A Business. Anyone can open the page, and search engines list it.",
+  before: "Boxes marked public go on your business's own page once the name and the address are saved, beside the number customers reach you on and the services you list under Settings \u203A Details. Anyone can open the page, and search engines list it.",
+  live: "Boxes marked public are on your business's own page, beside the number customers reach you on and the services you list under Settings \u203A Details. Anyone can open the page, and search engines list it.",
   open: "Open your page"
 };
 export const SERVICES_ON_PUBLIC_PAGE = "The business's own page lists these, with how long each takes and its price, once the business is on record under Settings \u203A Connections. Anyone can open it.";

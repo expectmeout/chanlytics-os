@@ -37,6 +37,7 @@ import { useRecordFold } from "../../kit/record/hooks";
 import { recFolds } from "../../kit/record/registry";
 import { RecordSheet } from "../../kit/record/sheet";
 import { RecordToggleGroup } from "../../kit/record/field";
+import { paneOfRow, settingsRowRoute } from "../frame/tabs";
 import { composedPrompt } from "./shell";
 
 type PromptChannel = "whatsapp" | "voice";
@@ -131,18 +132,24 @@ export const BtPromptTold = ({ prompt }: { prompt: BtPromptHold | null }) => {
 };
 
 /**
- * A block's door back to the row that wrote it. A row of this page is asked for through the registry, which closes
- * this sheet and opens that row's fold, inline editor or sheet; the fold takes focus as it opens. The Autonomy tab's
- * rules go to that tab. A role that may not change the business is offered none, as no row of this page offers it an
- * act: the editor behind it would not open.
+ * A block's door back to the row that wrote it. A row this page draws (`here`, the business's pages it draws: How it
+ * answers) is asked for through the registry, which closes this sheet and opens that row's fold, inline editor or
+ * sheet; the fold takes focus as it opens. A row on another of the business's pages, or on Autonomy, is opened there,
+ * its address naming it (frame/tabs.ts), and the Autonomy tab's rules go to that tab. A role that may not change the
+ * business is offered none, as no row of this page offers it an act: the editor behind it would not open.
  */
-const btpDoor = (block: PromptBlock, prompt: BtPromptHold, canEdit: boolean): ReactNode => {
+const btpDoor = (block: PromptBlock, prompt: BtPromptHold, canEdit: boolean, here: readonly string[]): ReactNode => {
   const door = canEdit ? BTP_DOORS[block.row] : null;
   if (!door) return null;
   const go = () => {
     if ("to" in door) {
       prompt.close();
       navigate(door.to);
+      return;
+    }
+    if (!here.includes(paneOfRow(door.id))) {
+      prompt.close();
+      navigate(settingsRowRoute(door.id));
       return;
     }
     recFolds.request(door.id);
@@ -207,10 +214,13 @@ export const BtPromptSheet = ({
   prompt,
   brain,
   canEdit = true,
+  here = ["receptionist"],
 }: {
   prompt: BtPromptHold;
   brain: PromptFrom;
   canEdit?: boolean;
+  /** The business's pages drawn where the sheet is: a block's row on one of them opens in place. */
+  here?: readonly string[];
 }) => {
   const tab = BUSINESS_TAB;
   const channel = prompt.channel;
@@ -230,7 +240,7 @@ export const BtPromptSheet = ({
           label={btpLine(b, total)}
           testid={`rec-prompt-block-${b.id}`}
         >
-          {btpDoor(b, prompt, canEdit)}
+          {btpDoor(b, prompt, canEdit, here)}
           <p className="bt-prompt-block-text">{b.text}</p>
         </RecordDisclosure>
       ))}

@@ -106,15 +106,15 @@ test("a missing voice is named in the gap line, and the link opens its row", () 
   );
 });
 
-test("Who you are draws eight rows, in the spec's order: the logo after the name (00407)", () => {
+test("Who you are draws seven rows, in the spec's order: the logo after the name (00407)", () => {
   const card = byTestId(drawTab({ profile: marisa }), "rec-card-who");
   const keys = all(card, (n) => classes(n).includes("rec-row-key")).map(textOf);
+  // The booking link is Booking's, on Hours & booking (17 Oct 2026).
   assert.deepEqual(keys, [
     "Name",
     "Logo",
     "Address",
     "Website",
-    "Booking link",
     "Answers on",
     "Tells customers to call",
     "Transfer number",
@@ -2345,7 +2345,8 @@ test("on a phone the sheet slot is still the page's last child: a row's sheet is
   try {
     const at = (t) =>
       ["rec-row-tone", "rec-row-services", "rec-row-booking_rules"].map((id) => textOf(byTestId(t, id)));
-    let tree = drawTab();
+    // The three pages as one, so the slot is the page's own last child (the record whole adds Autonomy's rows after it).
+    let tree = drawTab({ part: ["workspace", "hours", "receptionist"] });
     const rest = at(tree);
     openFold(tree, "hours");
     tree = redrawTab();

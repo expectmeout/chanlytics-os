@@ -89,7 +89,7 @@ export { visitTitleWithout } from "./calendar/visit/visit-service";
 export { visitSheetOf, CALENDAR_VISIT_SHEET_WORDS } from "./calendar/visit/visit-sheet";
 export { zoneOffsetMs, localToUtcMs, clockInZone, dayInZone, dayPlusInZone, WEEKDAY_KEYS } from "./calendar/zone-math";
 export { brainMetaOf, replyWhy, BRAIN_INTENTS, BRAIN_LANGUAGES, BRAIN_OUTPUT_JSON_SCHEMA, brainOutputSchemaFor, CONFIDENCE_STEPS } from "./config/brain";
-export { abilityRows, cannotRows } from "./config/business-tab/abilities";
+export { abilityRows, cannotFoldWords, cannotRows } from "./config/business-tab/abilities";
 export { bookingRulesWords, bookingRuleRefusal, BOOKING_RULE_HINTS } from "./config/business-tab/booking-rules-words";
 export { bookingLinkRowWords, businessGap } from "./config/business-tab/business-gap";
 export { chipsMoreWords, CHIPS_SHOWN } from "./config/business-tab/counts";
@@ -324,7 +324,7 @@ export { SEQUENCE_ACT_WORDS, sequenceRunsNow, sequenceResumeAsk } from "./sequen
 export { SEQUENCES_ROUTE, isSequencesParam, parseSequencesRoute, sequenceNewLeadsRoute, sequenceRouteBack, sequenceRoute, sequenceLandingOf, runSheetRoute, sequenceRepliesOf, sequenceRepliesRoute } from "./sequences/sequence-address";
 export { SEQUENCE_DRAFT_WORDS_MAX, SEQUENCE_DRAFT_THEN_MAX, SEQUENCE_WAIT_DAYS, SEQUENCE_DRAFT_JSON_SCHEMA, SEQUENCE_NEW_WORDS, isListToken } from "./sequences/sequence-draft";
 export { SEQUENCE_PEOPLE_GROUPS } from "./sequences/sequence-dto";
-export { SCHEDULE_WORDS, scheduleDays, scheduleSpan, scheduleStart, scheduleWait, scheduleEnd, scheduleChannels, scheduleInLine, scheduleStepState, scheduleStepSub, scheduleStepFacts } from "./sequences/sequence-schedule";
+export { SCHEDULE_WORDS, scheduleDays, scheduleSettingsOf, scheduleSpan, scheduleStart, scheduleWait, scheduleEnd, scheduleChannels, scheduleInLine, scheduleStepState, scheduleStepSub, scheduleStepFacts } from "./sequences/sequence-schedule";
 export { SEQUENCE_EDIT_WORDS, SEQUENCE_NEEDS_WORDS, SEQUENCE_PEOPLE_WORDS, SEQUENCE_HISTORY_PERIODS, SEQUENCE_HISTORY_WORDS, SEQUENCE_REPLIES_WORDS, historySince, historyIn, historyCovers, historyFigures, historyDays, historyDayWords, historyStamp, historyUpcomingWords, batchWent, peopleNeedsOf } from "./sequences/sequence-tab-words";
 export { SEQUENCE_TEST_LIMITS, SEQUENCE_TEST_WORDS, stepTestMail } from "./sequences/sequence-test";
 export { SEQUENCE_WORDS, SEQUENCE_FLOW_WORDS, stepApprovalOf, takesFollowUps, leadStepStand, SEQUENCE_GROUPS, PEOPLE_GROUP_WORDS, needsCount, sequenceWaitsNow, sequenceGroupOf, sequenceTwinOf, visitTwinWords, sequenceRowState, sequenceSubLine, sequenceNextOf, sequenceNextWords, sequencePausedDock, sequenceWhoApprovesHint, sequenceCancels, needsWords, sequenceStartWords, sequenceStateWords, sequenceStateTone, sequenceRowLine, sequenceHeadLine, sequenceNotice, batchWaitsUntilTonight, sequenceStartsSentence, momentStartsSentence, listStartsSentence, SEQUENCE_STATE_WORDS, sequenceWaitWords, sequenceChannelsWords, sequenceStopsSentence, stepsStopSentence, sequenceLeftWords, peopleTabWord } from "./sequences/sequence-words";

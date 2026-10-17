@@ -114,7 +114,7 @@ test("where it starts names what it starts on apart, so the page makes it a door
   assert.deepEqual(scheduleStart(row(), "visit", { tz: TZ, nowMs: NOW }), {
     lead: "When someone joins ",
     name: "VIP regulars",
-    sub: "Sends at 10:00 AM",
+    sub: "Once each · sends at 10:00 AM",
   });
   const leads = row({ starts: "leads", first: { ...FIRST, kind: "reach_out", search_name: "Florists · Park Slope" } });
   assert.deepEqual(scheduleStart(leads, "visit", { tz: TZ, nowMs: NOW }), {

@@ -323,7 +323,7 @@ function receptionistRow(stage: LifecycleStage): LifecycleRow {
     people: { n: stage.people, unit: stage.unit },
     results: "uncounted",
     next: NO_NEXT,
-    open: { kind: "route", label: "Open", route: "admin/workspace" },
+    open: { kind: "route", label: "Open", route: "admin/receptionist" },
     waiting: null,
     act: null,
     search: rowSearchOf(stage.name, stage.caps),

@@ -162,7 +162,7 @@ export function calendarSourceFacts(c) {
     bookingLink: !!c.booking_link
   };
 }
-export const BOOKED_NEEDS_A_LINK = "Add a calendar link under Settings \u203A Business to see who booked.";
+export const BOOKED_NEEDS_A_LINK = "Add a calendar link under Settings \u203A Hours & booking to see who booked.";
 export const BOOKS_WITH_CALENDAR = "calendar";
 export const BOOKS_BY_HAND = "hand";
 export function booksWithOptions() {

@@ -818,7 +818,7 @@ test("Setup's Google row: absent until the platform can look listings up; then F
     "Checked 3h ago",
     "Business Profile connected — every review, replies from Reports",
   ]);
-  assert.deepEqual(row(noAddress, "google").details, ["Add your address in Settings › Business for a surer match"]);
+  assert.deepEqual(row(noAddress, "google").details, ["Add your address in Settings › Details for a surer match"]);
   const linked = setup({
     ready: true,
     listing: {

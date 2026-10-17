@@ -164,7 +164,7 @@ export function previewRefusedWords(reason) {
     case "missing_value":
       return "This business is missing a value your words name, so its email would be skipped.";
     case "no_business_address":
-      return "Add your business's address in Settings \u203A Business: every email carries it at the foot.";
+      return "Add your business's address in Settings \u203A Details: every email carries it at the foot.";
     default:
       return "These words can't go as they are.";
   }

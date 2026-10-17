@@ -312,7 +312,7 @@ export function calendarSourceFacts(c: {
  * move onto the record (docs/plans/2026-10-07-bookings-arrive-by-email.md, G), so it asks for a link by that name: a
  * business whose bookings arrive by email has a calendar, and "Connect your calendar" told it otherwise.
  */
-export const BOOKED_NEEDS_A_LINK = "Add a calendar link under Settings › Business to see who booked.";
+export const BOOKED_NEEDS_A_LINK = "Add a calendar link under Settings › Hours & booking to see who booked.";
 
 /* ---------------------------------------------------------------- the Business row that holds all of it */
 

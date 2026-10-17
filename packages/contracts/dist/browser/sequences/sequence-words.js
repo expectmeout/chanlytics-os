@@ -6,6 +6,7 @@ import { clockDate, clockTime, clockWhen, wallClockAt, zoneDayKey } from "../sha
 import { DAY_MS } from "../shared/time.js";
 import { plural } from "../shared/words.js";
 import { runWaitsOnYou } from "../waits/waits.js";
+import { sequenceRunOff } from "./sequence-run-off.js";
 export const SEQUENCE_WORDS = {
   title: "Sequences",
   newSequence: "New sequence",
@@ -20,12 +21,21 @@ export const SEQUENCE_WORDS = {
     customers: "Your customers",
     leads: "Leads",
     dates: "Dates",
-    off: "Paused or off",
-    drafts: "Drafts"
+    off: "Paused",
+    drafts: "Drafts",
+    ended: "Ended"
   },
+  /** The Ended group, folded at the list's foot: what it holds is history, opened when asked for. */
+  showEnded: (n) => `Show ${n} ended`,
+  hideEnded: "Hide ended",
+  /** End it (a customer's sequence that has sent), asked first in the record's More: it sends nothing more, its history stays. */
+  end: "End it",
+  endAsk: (name) => `End \u201C${name}\u201D?`,
+  endDetail: "It sends nothing more and nobody is added to it; what it sent stays in its History.",
+  endedLine: "Ended \xB7 it sends nothing more. What it sent stays in its History.",
   receptionist: "First contact is your receptionist\u2019s",
-  /** Where the receptionist's line opens: Settings › Business, as Campaigns' ledger row did (Ruben, 11 Oct 2026). */
-  receptionistRoute: "admin/workspace",
+  /** Where the receptionist's line opens: Settings › How it answers, as Campaigns' ledger row does (Ruben, 11 Oct 2026). */
+  receptionistRoute: "admin/receptionist",
   tabs: { steps: "Steps", people: "People", leads: "Leads", history: "History" },
   addFollowUp: "Add a follow-up",
   approve: "Approve",
@@ -121,7 +131,7 @@ export function leadStepStand(place, sent, now) {
   if (now !== null ? place < now : sent > 0) return "done";
   return "later";
 }
-export const SEQUENCE_GROUPS = ["needs", "customers", "leads", "dates", "off", "drafts"];
+export const SEQUENCE_GROUPS = ["needs", "customers", "leads", "dates", "off", "drafts", "ended"];
 export function sequenceTwinOf(rows, row) {
   const trigger = row.first?.trigger ?? null;
   if (row.starts !== "moment" || row.state !== "on" || !trigger || triggerOf(trigger)?.kind !== "visit") return null;
@@ -163,12 +173,12 @@ export function sequenceWaitsNow(row, days) {
     }
   };
 }
-const isOff = (row) => row.state === "paused" || row.state === "ended";
 export function sequenceGroupOf(row, twin = null) {
   if (row.state === "draft") return "drafts";
   if (needsCount(row.needs) > 0 || twin) return "needs";
   if (row.starts === "date") return "dates";
-  if (isOff(row)) return "off";
+  if (row.state === "ended") return "ended";
+  if (row.state === "paused") return "off";
   if (row.starts === "leads") return "leads";
   return "customers";
 }
@@ -335,10 +345,20 @@ function waitingNotice(steps, batch) {
     batchId: batch.id
   });
 }
-export function sequenceNotice(row, steps, twin = null) {
+export function sequenceNotice(row, steps, twin = null, lastRun = null) {
   const n = row.needs;
   const batch = n.waiting > 0 ? n.batches[0] ?? null : null;
   if (batch) return waitingNotice(steps, batch);
+  const off = lastRun ? sequenceRunOff(row, lastRun, { tz: lastRun.tz, nowMs: lastRun.nowMs }) : null;
+  if (off)
+    return noticeOf({
+      kind: "off",
+      words: off.words,
+      line: off.line,
+      fact: off.fact,
+      act: off.act,
+      off: { reason: off.reason, mends: off.mends, to: off.to }
+    });
   if (twin)
     return noticeOf({
       kind: "twin",

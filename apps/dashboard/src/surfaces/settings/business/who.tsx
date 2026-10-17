@@ -528,8 +528,9 @@ const BtTransferRow = ({ shared, brain, numbers }: { shared: RowShared; brain: B
 };
 
 /**
- * Who you are (spec §4.2): the seven facts a customer asks for by name, each with where it came from, and the
+ * Who you are (spec §4.2): the facts a customer asks for by name, each with where it came from, and the
  * disagreements factConflicts finds drawn on the row each is about, where the banner above the card used to hold them.
+ * The booking link is Hours & booking's (offer.tsx BtBookingCard), with what the business books with, since 17 Oct 2026.
  *
  * The Workspace row is gone. It printed the business's name a second time whenever the workspace's name differed: two
  * names for one business, on the one card that exists to say which name customers hear.
@@ -557,8 +558,6 @@ export const BtWhoCard = ({ brain, base = null, canEdit, flash, saver }: RowShar
       <BtAddressRow {...shared} />
 
       <BtWebsiteRow {...shared} />
-
-      <BtBookingLinkRow {...shared} />
 
       {/* THREE numbers, named for what each one does. They were one row called "Phone line" showing a typed string,
           which is how a salon came to publish the number it transfers to as the number to call. The line it answers

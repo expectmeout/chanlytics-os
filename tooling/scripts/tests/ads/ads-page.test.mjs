@@ -79,7 +79,7 @@ test("no-calendar: Booked is a dash that says why, with a door to where the link
   const booked = vm.figures.find((f) => f.id === "booked");
   assert.equal(booked?.value, "—");
   assert.equal(booked?.meta, page.FIGURES.needsLink);
-  assert.deepEqual(vm.link, { words: "Open Settings › Business", to: "admin/workspace/calendar" });
+  assert.deepEqual(vm.link, { words: "Open Settings › Hours & booking", to: "admin/workspace/calendar" });
   assert.equal(vm.figures.find((f) => f.id === "each")?.label, "For each person in touch");
   const spring = rowOf(vm, SPRING);
   assert.deepEqual([spring.booked.value, spring.each.value], ["—", "—"]);

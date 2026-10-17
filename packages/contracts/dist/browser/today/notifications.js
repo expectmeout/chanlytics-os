@@ -237,7 +237,7 @@ const SERVER_LOOK = {
    */
   playbook: { icon: "bolt", tone: "warn", action: "Open Campaigns", to: "outbound" },
   calendar_people: { icon: "users", tone: "ok", action: "Open People", to: "clients" },
-  /** A booking tool's email that could not be read as a booking (00345): a person looks, under Settings › Business. */
+  /** A booking tool's email that could not be read as a booking (00345): a person looks, under Settings › Hours & booking. */
   booking_notice: { icon: "calendar", tone: "warn", action: "Open Settings", to: "admin/workspace" },
   /** A search that finished: good news, on the page the leads are on. */
   leads_ready: { icon: "users", tone: "ok", action: "Open Leads", to: "clients/leads" },

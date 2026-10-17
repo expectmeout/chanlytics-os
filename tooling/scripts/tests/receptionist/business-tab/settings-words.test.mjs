@@ -532,10 +532,11 @@ test("REGRESSION (S8): the broken card asks for the repair from the card, then s
   assert.match(textOf(byTestId(tree, "settings-broken-requested")), /a person at Chanlytics will repair/);
 });
 
-test("REGRESSION (S19): the AI memory pane points at Business by name -- it said 'Open Workspace'", () => {
+test("REGRESSION (S19): the AI memory pane points at How it answers by name -- it said 'Open Workspace'", () => {
   workspace();
   const tree = settings("memory");
-  assert.ok(buttonSaying(tree, "Open Business"), "REGRESSION: the button named the route, not the page");
+  // What the receptionist knows beyond the business's details is How it answers' since 17 Oct 2026.
+  assert.ok(buttonSaying(tree, "Open How it answers"), "REGRESSION: the button named the route, not the page");
   assert.ok(!textOf(tree).includes("Workspace:"), "nor does the sentence");
   // And it names what Business holds in the tab's own row names (spec §10): "notes" and "extra instructions" are
   // nothing an owner finds there.
