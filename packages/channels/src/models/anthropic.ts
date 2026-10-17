@@ -39,7 +39,9 @@ import {
   MIN_MS,
   fallbackModel,
   foldEffortMessages,
+  foldWordsMessages,
   isEffortMessage,
+  isWordsMessage,
   modelRoute,
   modelTakes,
   usageOf,
@@ -204,8 +206,9 @@ interface Sent {
  * was `slowed` (fast mode refused it, or the model is held), the beta with it; a thinking type only for a model that
  * accepts it, which otherwise thinks as it does by default; an effort said in the messages (contracts ai/effort.ts),
  * with its beta, only to a model that takes one, and for one that does not, the effort they ended on as the request's
- * own (foldEffortMessages): Opus 5.5's draft falls back to Sonnet 5 asked as hard. A model the registry does not list
- * is sent what it was asked.
+ * own (foldEffortMessages): Opus 5.5's draft falls back to Sonnet 5 asked as hard; and the operator's words said in the
+ * messages (contracts ai/words-message.ts) as a system message only to a model that takes one, else in the person's
+ * turn before them (foldWordsMessages). A model the registry does not list is sent what it was asked.
  */
 function sentFor(ask: ModelAsk, model: string, slowed: boolean): Sent {
   const takes = modelTakes(model);
@@ -215,7 +218,9 @@ function sentFor(ask: ModelAsk, model: string, slowed: boolean): Sent {
   const thinks = thinking !== undefined && (!takes || (takes.thinking as readonly unknown[]).includes(type));
   const said = Array.isArray(asked.messages) && asked.messages.some(isEffortMessage);
   const told = said && (takes?.effortMessages ?? true);
-  const body = said && !told ? foldEffortMessages(asked) : asked;
+  const worded = Array.isArray(asked.messages) && asked.messages.some(isWordsMessage);
+  const folded = said && !told ? foldEffortMessages(asked) : asked;
+  const body = worded && !(takes?.systemMessages ?? true) ? foldWordsMessages(folded) : folded;
   const betas = (ask.betas ?? []).filter((b) => b !== FAST_MODE_BETA && b !== EFFORT_MESSAGE_BETA);
   return {
     body: { ...body, ...(thinks ? { thinking } : {}), ...(fast ? { speed: "fast" } : {}) },

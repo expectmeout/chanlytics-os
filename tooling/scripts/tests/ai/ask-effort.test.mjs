@@ -154,15 +154,21 @@ test("a draft its question names is asked at the draft's effort: an effort messa
   assert.equal(ASK_DRAFT_EFFORT, "high");
   const [first] = s.requests;
   assert.deepEqual(first.messages.at(-1), effortMessage(ASK_DRAFT_EFFORT), "said after the question");
-  assert.equal(first.messages.at(-2).role, "user", "the question, before it");
+  assert.equal(first.messages.at(-2).role, "system", "the turn's words, before it (the answer canvas, A3)");
+  assert.equal(first.messages.at(-3).role, "user", "and the question before them");
   assert.equal(first.output_config.effort, ASK_EFFORT, "the request's own effort is every turn's: the cache's key");
   assert.ok(first.output_config.format, "beside the answer's format");
   assert.equal(first.max_tokens, ASK_DRAFT_MAX_TOKENS, "a draft's thinking counts toward its ceiling");
   assert.deepEqual(first.betas, [EFFORT_MESSAGE_BETA]);
-  assert.ok(marked(first.messages.at(-2)), "bp4 on the question's last block: the effort message has none");
+  assert.ok(marked(first.messages.at(-2)), "bp4 on the words' block: the effort message has none");
   assert.equal(first.messages.filter(marked).length, 1, "and nowhere else in the messages");
   assert.deepEqual(r.shape.draft, { effort: ASK_DRAFT_EFFORT, by: "question" });
-  assert.deepEqual(r.raw.rounds, [effortMessage(ASK_DRAFT_EFFORT)], "kept where it stood, after the question");
+  assert.deepEqual(r.raw.rounds.at(-1), effortMessage(ASK_DRAFT_EFFORT), "kept where it stood, after the question");
+  assert.deepEqual(
+    r.raw.rounds.map((m) => m.role),
+    ["system", "system"],
+    "the turn's words, then the effort",
+  );
 });
 
 test("a question that names no draft is asked at the turn's own effort: no message, Ask's own ceiling, no beta", async () => {
@@ -170,7 +176,8 @@ test("a question that names no draft is asked at the turn's own effort: no messa
   const r = await runAskTurn(turn().input, ports(s.round));
   assert.equal(r.failed, false, r.failure ?? "");
   const [first] = s.requests;
-  assert.equal(first.messages.at(-1).role, "user", "the question is the request's last message");
+  assert.equal(first.messages.at(-1).role, "system", "the turn's words after the question, nothing after them");
+  assert.ok(first.messages.at(-1).content.length > 0, "the words, never an effort message");
   assert.equal(first.max_tokens, ASK_MAX_TOKENS);
   assert.equal(first.betas, undefined);
   assert.equal(r.shape.draft, null);
@@ -220,7 +227,7 @@ test("a draft its question did not name is found by the round that begins one: i
     // Off, a draft its question names is asked as every other turn is too.
     const named = sentAs([ANSWERED("Here.")]);
     await runAskTurn(turn({ text: "Set up my campaigns." }).input, ports(named.round));
-    assert.equal(named.requests[0].messages.at(-1).role, "user");
+    assert.ok(named.requests[0].messages.at(-1).content.length > 0, "the words last, no effort message");
   } finally {
     delete process.env.ASK_DRAFT_EFFORT;
   }
@@ -245,7 +252,7 @@ test("a spoken turn is never raised: a listener waits on silence", async () => {
   const s = sentAs([ANSWERED("Two campaigns to review.")]);
   const r = await runAskTurn(turn({ text: "Set up my campaigns.", spoken: true }).input, ports(s.round));
   assert.equal(r.failed, false, r.failure ?? "");
-  assert.equal(s.requests[0].messages.at(-1).role, "user");
+  assert.ok(s.requests[0].messages.at(-1).content.length > 0, "the words last, no effort message");
   assert.equal(s.requests[0].max_tokens, ASK_MAX_TOKENS);
   assert.equal(r.shape.draft, null);
 });
@@ -284,7 +291,11 @@ test("the next turn of a replayed draft that is none sets the effort back after 
   const sent1 = unmark(t1.requests[0].messages);
   assert.deepEqual(sent.slice(0, sent1.length), sent1, "turn 1's request, its effort message included, byte for byte");
   assert.deepEqual(sent.at(-1), effortMessage(ASK_EFFORT), "set back after the new question");
-  assert.equal(sent.at(-2).role, "user");
+  assert.deepEqual(
+    sent.slice(-3, -1).map((m) => m.role),
+    ["user", "system"],
+    "after the new question and its words",
+  );
   assert.equal(t2.requests[0].max_tokens, ASK_MAX_TOKENS, "the ceiling falls with it");
   assert.deepEqual(t2.requests[0].betas, [EFFORT_MESSAGE_BETA], "the messages still carry effort messages");
   assert.equal(r2.shape.draft, null);

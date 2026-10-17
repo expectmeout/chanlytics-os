@@ -22,7 +22,7 @@ import {
   type AskTurnShape,
   type PageContext,
 } from "@chanlytics/contracts";
-import type { AskModelProfile, EffortMessage, MembershipRole } from "@chanlytics/contracts";
+import type { AskModelProfile, EffortMessage, MembershipRole, WordsMessage } from "@chanlytics/contracts";
 import type { RouteContext } from "../with-route";
 import { load, type ReaderContext } from "../readers";
 import { log } from "@/server/log";
@@ -50,6 +50,7 @@ import { askModel } from "./model";
 import { turnEffort } from "./effort";
 import {
   foldHistory,
+  questionIn,
   replayFor,
   tellNext,
   withMarkers,
@@ -57,6 +58,8 @@ import {
   type LastRound,
   type RawTurn,
   type TurnEnd,
+  withWords,
+  withoutData,
 } from "./memory";
 import {
   DROPPED_WORDS,
@@ -194,7 +197,7 @@ export interface TurnResult {
 }
 
 /** A message as a request carries it: the person's or the model's, or an effort said between them (effort.ts). */
-export type Msg = { role: "user" | "assistant"; content: unknown } | EffortMessage;
+export type Msg = { role: "user" | "assistant"; content: unknown } | EffortMessage | WordsMessage;
 
 /**
  * Everything the turn reaches outside itself, as one object: the model
@@ -279,7 +282,7 @@ function wordsBlock(
     above: aboveRoleWords(input.role),
   };
   const words = (live: boolean, dataDropped: boolean) => ({
-    type: "text",
+    type: "text" as const,
     text: turnWords({
       ...facts,
       since: live ? input.chain?.since : undefined,
@@ -420,7 +423,7 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
   // offer: then it is let go (refusals.ts letGo) and the same round asked again. No tool is strict: the API takes twenty
   // strict tools and twenty-four optional parameters across them (26 tools, then 31 parameters in the act tools alone,
   // were refused on every operator turn, 23 Sep), and the tools ran as they always had without it.
-  const offer: Offer = { examples: true, search: true, format: true, answer: model.answerTool };
+  const offer: Offer = { examples: true, search: true, format: true, words: true, answer: model.answerTool };
   let { tools } = head;
   // A round's request: its messages a copy with the cache's markers (withMarkers), at `at` and on its last block.
   const requestOf = (msgs: Msg[], at: unknown, noTool: boolean) => ({
@@ -439,15 +442,21 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
   const cold = () => {
     const words = sayWords(false, dataDropped);
     const data = dataDropped ? [] : [...pageBlocks, ...crossBlocks];
-    return { messages: foldHistory(input.history, [...data, words, question]), anchor: pageBlocks.at(-1), words };
+    const messages = withWords(foldHistory(input.history, [...data, question]), words, offer.words);
+    return { messages, anchor: pageBlocks.at(-1), words };
   };
-  const asked = { data: [...pageBlocks, ...crossBlocks], words: sayWords(true, dataDropped), question };
+  const asked = {
+    data: [...pageBlocks, ...crossBlocks],
+    words: sayWords(true, dataDropped),
+    question,
+    asSystem: offer.words,
+  };
   const replayed = replayFor(input.chain, asked, (msgs, at) => requestOf(msgs, at, false));
   let { messages, anchor, words } = replayed ?? cold();
   // A replay the API refuses (D12) is asked again cold, once: the turn then keeps its words history, the next base.
   let live = !!replayed;
-  // Where the question sits in every request of the turn: a later round only appends.
-  let questionAt = messages.length - 1;
+  // Where the question sits in every request of the turn, its words after it: a later round only appends.
+  let questionAt = questionIn(messages);
   effort.open(messages);
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), budgetMs);
@@ -476,7 +485,6 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
     });
   };
   let planOwed: PlanOwed | null = null; // a plan made, whose answer the next round writes (planAnswerOwed)
-  let answering = false; // that round: it may call no tool
   /** A turn that could not be answered: its sentence, in the person's language, heads it; once a plan is made, its words. */
   const fail = (sentence: string, failure: string, rounds: number) =>
     done(
@@ -544,7 +552,7 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
     toolsUsed.push(calledName(b.name, args));
     if (!args) return cutOff(b, input.tenantId);
     return timed(calledName(b.name, args), async () => {
-      const p = notAgain(await ports.propose(tc, b.name, args), input.waiting);
+      const p = notAgain(await ports.propose(tc, b.name, args), [...(input.waiting ?? []), ...proposals]);
       proposals.push(...cardsOf(p));
       if (p.words) planWords.push({ words: p.words, lead: p.lead });
       unmade.heard(calledName(b.name, args), p);
@@ -569,7 +577,7 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
   try {
     for (let round = 1; round <= ASK_MAX_ROUNDS + Number(closing); round++) {
       const last = round >= ASK_MAX_ROUNDS;
-      const noTool = answering || (model.answerTool ? closing : last);
+      const noTool = model.answerTool ? closing : last;
       const request = { ...requestOf(messages, anchor, noTool), diagnostics: meter.follows(live, input.chain) };
 
       const roundAt = Date.now();
@@ -599,19 +607,13 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
             if (drop === "replay") {
               ({ messages, anchor, words } = cold());
               live = false;
-              questionAt = messages.length - 1;
+              questionAt = questionIn(messages);
               effort.open(messages);
             } else if (drop === "context") {
               dataDropped = true;
               reads -= (pageRead ? 1 : 0) + prefetched.length + (scopedRow ? 1 : 0);
-              const bare = sayWords(live, dataDropped);
-              messages[questionAt] = {
-                role: "user",
-                content: (messages[questionAt].content as Array<{ type?: string }>)
-                  .filter((b) => b.type !== "search_result")
-                  .map((b) => (b === words ? bare : b)),
-              };
-            } else tools = letGo(offer, drop, input.role);
+              messages = withoutData(messages, questionAt, words, sayWords(live, dataDropped));
+            } else ({ tools, messages } = letGo(offer, drop, input.role, { tools, messages }));
             round--;
             continue;
           }
@@ -711,7 +713,6 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
         planAnswerOwed(alone, planned, { answerTool: model.answerTool, last, leftMs: budgetMs - (Date.now() - t0) })
       ) {
         planOwed = { cards: proposals.slice(before), plan: planned, lastRound };
-        answering = true;
         messages.push({ role: "assistant", content: replayBlocks(blocks) });
         messages.push({ role: "user", content: resultBlocks(ordered) });
         tellNext(messages, PLAN_ANSWER_WORDS);
