@@ -455,6 +455,7 @@
     "00450_a_person_taken_out_can_be_put_back.sql": "d4a271d2275b7377f232cd57cbfde41317c47a60e251f6802b2a42399415a6e2",
     "00451_every_sequence_function_reads_the_sequence_tables.sql": "0bf74f94de34baa98d2b1c3bf549cc726624823ddf47f5a23d7a0185ab4cc71d",
     "00452_the_old_names_go.sql": "ad3f0423e269f911469efe81910f4da59aef61625e9f6d41eddef3efe0bf6c1a",
-    "00453_a_sequence_keeps_its_people_and_its_settings.sql": "fd1e4035d04273cffa5fd7a8ab8b93132c669d776e368e2a1c7faefdc43e5ff5"
+    "00453_a_sequence_keeps_its_people_and_its_settings.sql": "fd1e4035d04273cffa5fd7a8ab8b93132c669d776e368e2a1c7faefdc43e5ff5",
+    "00454_a_customer_who_writes_while_a_person_has_the_thread_is_held_for_them.sql": "cf90453a0ed5821637f9da23035ff30cabdd24ec3468be144b38f93421fd7584"
   }
 }

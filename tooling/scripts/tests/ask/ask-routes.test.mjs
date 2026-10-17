@@ -28,6 +28,8 @@ const proposals = await import(at("apps/dashboard/app/api/v1/ask/messages/[id]/p
 const openings = await import(at("apps/dashboard/app/api/v1/ask/openings/route.ts"));
 const quick = await import(at("apps/dashboard/app/api/v1/ask/quick/route.ts"));
 const threads = await import(at("apps/dashboard/app/api/v1/ask/threads/route.ts"));
+const followUpsRoute = await import(at("apps/dashboard/app/api/v1/ask/follow-ups/route.ts"));
+const { followUpsNow } = await import(at("apps/dashboard/src/server/readers/notifications.ts"));
 const thread = await import(at("apps/dashboard/app/api/v1/ask/threads/[id]/route.ts"));
 const metrics = await import(at("apps/dashboard/app/api/v1/metrics/route.ts"));
 const reports = await import(at("apps/dashboard/app/api/v1/reports/route.ts"));
@@ -136,6 +138,7 @@ test("the fourteen declare their policy: a question every member's and counted, 
   assert.deepEqual(proposals.POST.policy, { kind: "write", ...own });
   assert.deepEqual(openings.GET.policy, { ...open, rate: "aggregate" });
   assert.deepEqual(threads.GET.policy, open);
+  assert.deepEqual(followUpsRoute.GET.policy, open);
   assert.deepEqual(thread.GET.policy, { kind: "read", ...own });
   assert.deepEqual(thread.DELETE.policy, { kind: "write", ...own });
   assert.deepEqual(metrics.GET.policy, { ...open, rate: "aggregate" });
@@ -828,6 +831,167 @@ test("the openings and the threads answer the workspace the tab named; one threa
     404,
     "not yours or is already gone",
   );
+});
+
+/* ---------------------------------------- Ask's follow-ups, come due (the closed-loop read, 17 Oct 2026) */
+
+/** A follow-up as the member's views keep it (contracts AskFollowUp): a day's on the 17th, an event's on its subject. */
+const kept = (id, wake, over = {}) => ({
+  id,
+  said: `When ${id} comes, I'll look at it`,
+  prompt: `${id} came: look at it and propose what fits.`,
+  wake,
+  subject: wake === "date" ? null : `subject-${id}`,
+  on: wake === "date" ? "2026-10-17" : null,
+  made_at: "2026-10-15T09:00:00Z",
+  ...over,
+});
+/** The caller's membership in harbor, with their views, the workspace's clock beside it as the sign-in reads it. */
+const keeping = (views) => [
+  {
+    user_id: USER,
+    tenant_id: A,
+    role: "owner",
+    tenants: { slug: "harbor", name: "Harbor", timezone: "America/New_York" },
+    created_at: "2026-01-01T00:00:00Z",
+    views,
+  },
+];
+
+test("a follow-up is due by what its pages say now, decided once for Ask's signals and its home: a search that ended or stopped to ask, replies waiting on its sequence, its day come by the business's calendar; one whose part was not read waits, never due", () => {
+  // 11 PM on the 16th in New York, already the 17th in UTC: the business's day is the 16th.
+  const nowMs = Date.parse("2026-10-17T03:00:00Z");
+  const follow = [
+    kept("ended", "search_done"),
+    kept("asking", "search_done"),
+    kept("running", "search_done"),
+    kept("replied", "replies"),
+    kept("quiet", "replies"),
+    kept("tomorrow", "date"),
+    kept("today", "date", { on: "2026-10-16" }),
+  ];
+  const parts = {
+    searches: [
+      { id: "subject-ended", round: { state: "ended" } },
+      { id: "subject-asking", round: { state: "waiting_on_owner" } },
+      { id: "subject-running", round: { state: "running" } },
+    ],
+    sequences: [
+      { id: "subject-replied", needs: { replies: 2 } },
+      { id: "subject-quiet", needs: { replies: 0 } },
+    ],
+    nowMs,
+    zone: "America/New_York",
+  };
+  const { due, waiting } = followUpsNow(follow, parts);
+  assert.deepEqual(
+    due.map((f) => f.id),
+    ["ended", "asking", "replied", "today"],
+  );
+  assert.deepEqual(
+    waiting.map((f) => f.id),
+    ["running", "quiet", "tomorrow"],
+    "the 17th has not come where the business is",
+  );
+  const blind = followUpsNow(follow, { searches: null, sequences: null, nowMs, zone: null });
+  assert.deepEqual(blind.due, [], "nothing read, nothing due: not a guess");
+  assert.equal(blind.waiting.length, follow.length);
+});
+
+test("GET ask/follow-ups answers the caller's own that came due, with what Ask will ask itself, and how many still wait; a member who holds none costs their views alone, and a part that cannot be read leaves its follow-up waiting", async () => {
+  const at17 = (views) => ({ memberships: keeping(views), tenants: [], tenant_config: [] });
+  const ctx = ctxFor(at17({}));
+  assert.deepEqual(await followUpsRoute.GET.run(get(inA), ctx), { due: [], waiting: 0 });
+  assert.deepEqual(
+    [...new Set(ctx.supabase.seen.map((x) => x.table ?? x.rpc))],
+    ["memberships"],
+    "their membership and nothing else",
+  );
+  // A day that came and one still ahead, and a search the database in memory cannot read: it waits.
+  const held = {
+    ask: {
+      follow_ups: [
+        kept("monday", "date", { on: "2026-01-05" }),
+        kept("later", "date", { on: "2099-01-01" }),
+        kept("plumbers", "search_done"),
+      ],
+    },
+  };
+  const answer = await followUpsRoute.GET.run(get(inA), ctxFor(at17(held)));
+  assert.deepEqual(answer, {
+    due: [
+      {
+        id: "monday",
+        said: "When monday comes, I'll look at it",
+        prompt: "monday came: look at it and propose what fits.",
+      },
+    ],
+    waiting: 2,
+  });
+});
+
+test("a question from Ask's home's row comes back to its follow-up: once the question is kept the follow-up leaves the caller's views (member_view_set, the page's view whole), before the model is asked; one they no longer hold clears nothing", async () => {
+  const views = { ask: { follow_ups: [kept("plumbers", "search_done"), kept("monday", "date")] } };
+  const tables = {
+    memberships: keeping(views),
+    tenants: [{ id: A, name: "Harbor", timezone: "America/New_York" }],
+    tenant_config: [{ tenant_id: A, config: {}, version: 1 }],
+    policies: [],
+    ask_threads: [],
+    ask_messages: [],
+  };
+  const order = [];
+  const rpcs = {
+    member_view_set: (args) => {
+      order.push(`view_set ${args.p_page}`);
+      tables.memberships[0].views = { ...tables.memberships[0].views, [args.p_page]: args.p_view };
+      return tables.memberships[0].views;
+    },
+  };
+  const none = { kind: "none", id: "", label: "" };
+  const written = JSON.stringify({
+    say: { headline: "The plumbers search finished: here are the best five.", detail: "" },
+    show: { figures: [], items: [], breakdown: { label: "", total: 0, parts: [], source: none } },
+    do: { open: { source: none, label: "", now: false }, next: [] },
+    language: "en",
+  });
+  setAskPorts({
+    round: async (_call, onText) => {
+      order.push("model");
+      onText(written);
+      return {
+        blocks: [{ type: "text", id: "", name: "", text: written, json: "" }],
+        stopReason: "end_turn",
+        streamError: null,
+      };
+    },
+    shape: async () => "",
+  });
+  try {
+    const text = "plumbers came: look at it and propose what fits.";
+    const res = await ask.POST.run(
+      send("POST", { text, following: { id: "plumbers" } }, inA),
+      ctxFor(tables, {}, rpcs),
+    );
+    await res.text();
+    assert.deepEqual(order, ["view_set ask", "model"], "cleared before the model was asked");
+    assert.deepEqual(
+      tables.memberships[0].views.ask.follow_ups,
+      [kept("monday", "date")],
+      "the other follow-up kept, whole",
+    );
+    assert.equal(tables.ask_messages[0].content.text, text, "the thread keeps what they asked");
+    // Another tab came back to it already: nothing to clear, and the question is still asked.
+    order.length = 0;
+    const again = await ask.POST.run(
+      send("POST", { text, following: { id: "plumbers" } }, inA),
+      ctxFor(tables, {}, rpcs),
+    );
+    await again.text();
+    assert.deepEqual(order, ["model"], "no view written");
+  } finally {
+    setAskPorts(null);
+  }
 });
 
 test("the warm (D6): a viewer may warm; it answers the build's stamp and nothing it read, and fills the minute's cache, so the question's build right after reads nothing; a context that is not one is a 400 in words, and nothing is read for it", async () => {

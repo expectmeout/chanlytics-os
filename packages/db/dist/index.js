@@ -4482,6 +4482,10 @@ async function memberViewsOf(db, p) {
   const views = data?.views;
   return views && typeof views === "object" && !Array.isArray(views) ? views : {};
 }
+async function setMemberView(db, p) {
+  const { error } = await db.rpc("member_view_set", { p_tenant_id: p.tenantId, p_page: p.page, p_view: p.view });
+  if (error) throw new Error(error.message);
+}
 async function ownAddressIn(db, p) {
   const { data, error } = await db.from("memberships").select("user_id").eq("tenant_id", p.tenantId).eq("user_id", p.userId).maybeSingle();
   if (error) throw new Error(`cannot read who is in the workspace: ${error.message}`);
@@ -7379,6 +7383,7 @@ export {
   setEmailUnsubscribed,
   setListRule,
   setMemberPushOff,
+  setMemberView,
   setPartnerLetters,
   setPartnerStanding,
   setPartnerStatus,

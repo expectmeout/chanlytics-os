@@ -10,9 +10,12 @@ import {
   HOUR_MS,
 } from "@chanlytics/contracts";
 import { after } from "next/server";
-import { write, workspace } from "@/server/route";
+import { write, workspace, type Member } from "@/server/route";
 import { log } from "@/server/log";
 import { requireUuid } from "@/server/request-guards";
+import { readerContext } from "@/server/readers";
+import type { RouteContext } from "@/server/with-route";
+import { clearFollowUp } from "@/server/ask/tools/act/follow-up";
 import type { SearchAnswering } from "@/server/ask/prompt";
 import { finishAskTurn, prepareAskTurn, type AskTurnLine } from "@/server/ask/turn";
 import { searchRow } from "@/server/leads/leads";
@@ -20,7 +23,7 @@ import { searchRow } from "@/server/leads/leads";
 /**
  * POST /api/v1/ask — one turn of the workspace assistant.
  *
- * Body: { text, thread_id?, scope?, surface?, answering?, workspace? }. The response is a
+ * Body: { text, thread_id?, scope?, surface?, answering?, following?, workspace? }. The response is a
  * stream of JSON lines: {t:"thread", id} first, then {t:"trace"} while a read
  * runs, {t:"say", headline, detail} as the answer's Say is written (a
  * preview), and {t:"final", message} last, with the answer as the Line draws
@@ -43,6 +46,11 @@ import { searchRow } from "@/server/leads/leads";
  * planned in; a thread that is not the caller's -- a teammate planned it, or
  * it is gone -- is not an error for an answer: it starts one of the caller's
  * own, titled by the search's name (titleFromSearch).
+ *
+ * `following: { id }` is Ask's home's row for a follow-up of the caller's that came due: the text is what Ask said it
+ * would ask itself then, and once the question is kept the follow-up is cleared from the caller's views
+ * (clearFollowUp), before the turn reads anything, so Ask never offers a card to clear what they came back to. One they
+ * no longer hold (another tab came back to it) clears nothing, and a clear that fails is logged, never a refused question.
  *
  * The answer's row also keeps the turn as the model was sent it, at
  * `content.raw` (server/ask/memory.ts, storedRaw; the Phase 5 plan, D11), for
@@ -149,6 +157,37 @@ function scopeAsked(raw: unknown): AskScope | null | undefined {
   return { kind: s.kind, id: s.id.slice(0, 120), label: s.label.slice(0, 80) };
 }
 
+/**
+ * The search a Leads answer row's text answers (`answering: { search_id }`), read under RLS in this workspace: what it
+ * asked rides beside the owner's words (askTurnText). None where the body names none; one not this workspace's is a 404.
+ */
+async function answeringOf(ctx: RouteContext, tenantId: string, raw: unknown): Promise<SearchAnswering | null> {
+  const id = raw && typeof raw === "object" ? (raw as { search_id?: unknown }).search_id : undefined;
+  if (id === undefined) return null;
+  const row = await searchRow(ctx, tenantId, requireUuid(id, "search"));
+  const q = row.question as { sentence?: unknown } | null;
+  return {
+    search_id: row.id,
+    name: row.name,
+    question: q && typeof q === "object" && typeof q.sentence === "string" ? q.sentence : "",
+    asked: row.asked,
+    leaving_out: ((row.plan as LeadSearchPlan | null)?.exclusions ?? []).map((x) => x.text),
+  };
+}
+
+/**
+ * The follow-up a question comes back to (Ask's home's row, `following: { id }`), cleared from the caller's views now that
+ * the question is kept. One the body does not name in that shape is none; a clear that fails is logged, never a refused
+ * question.
+ */
+async function cameBackTo(ctx: RouteContext, member: Member, following: unknown): Promise<void> {
+  const id = following && typeof following === "object" ? (following as { id?: unknown }).id : undefined;
+  if (typeof id !== "string" || !id || id.length > 40) return;
+  await clearFollowUp(readerContext(ctx, member), id).catch((e: unknown) =>
+    log.error("ask_follow_up_clear_failed", { tenant_id: member.tenantId, error: e }),
+  );
+}
+
 export const POST = write({
   scope: workspace,
   role: "viewer",
@@ -160,6 +199,7 @@ export const POST = write({
       scope?: unknown;
       surface?: unknown;
       answering?: unknown;
+      following?: unknown;
       opened_ms?: unknown;
       context?: unknown;
     } | null;
@@ -203,22 +243,7 @@ export const POST = write({
     const tenantId = member.tenantId;
 
     // The search an answer answers, read before anything is saved: one that is not this workspace's is a 404.
-    const answeringId =
-      body?.answering && typeof body.answering === "object"
-        ? (body.answering as { search_id?: unknown }).search_id
-        : undefined;
-    let answering: SearchAnswering | null = null;
-    if (answeringId !== undefined) {
-      const row = await searchRow(ctx, tenantId, requireUuid(answeringId, "search"));
-      const q = row.question as { sentence?: unknown } | null;
-      answering = {
-        search_id: row.id,
-        name: row.name,
-        question: q && typeof q === "object" && typeof q.sentence === "string" ? q.sentence : "",
-        asked: row.asked,
-        leaving_out: ((row.plan as LeadSearchPlan | null)?.exclusions ?? []).map((x) => x.text),
-      };
-    }
+    const answering = await answeringOf(ctx, tenantId, body?.answering);
 
     // The thread kept, the question saved and the workspace's facts read, before the stream opens: a question that
     // could not be saved is refused here, as JSON, and never answered (server/ask/turn.ts, the turn's first half).
@@ -231,6 +256,8 @@ export const POST = write({
       openedMs,
       answering,
     });
+
+    await cameBackTo(ctx, member, body?.following);
 
     return new Response(turnStream(prepared, req.signal), {
       status: 200,

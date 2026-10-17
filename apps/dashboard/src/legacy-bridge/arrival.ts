@@ -2,7 +2,8 @@
  * The three on a phone take a page in as it arrives, stay lit while something needs you, and notice what comes for
  * you (mascot/arrival.ts, which is pure); this is its wiring: the address and its changes (workspace.ts hearAddress), the phone (the
  * takeover's own width), Ask's door (body.ask-open, ask-real.jsx, watched as it changes), the boot (surface-runner
- * afterBoot), what needs you (Ask's own standing, ask/palette.ts rightNowParts, and the bell's unread,
+ * afterBoot), what needs you (Ask's own standing, ask/palette.ts rightNowParts, a follow-up of Ask's come due,
+ * ask/follow-ups.ts, and the bell's unread,
  * notifications.ts; asked again as the surfaces they are built from land, as the bell moves and as the phone comes
  * back) and the count of what needs you (surfaces/needs-you.ts, the selector every badge reads). Installed at boot by
  * LegacyApp. The first
@@ -14,11 +15,13 @@ import { hearNeedsYou, needsYouNow as heardCount } from "../surfaces/needs-you";
 import { MASCOT } from "./mascot";
 import { watchArrival } from "./mascot/arrival";
 import { afterBoot } from "./surface-runner";
+import { FOLLOW_UPS_EVENT } from "./ask/follow-ups";
 import { hearAddress, routeOnScreen } from "./workspace";
 
 /**
  * The surfaces what needs you is built from: Ask's standing reads Today's queue and Broadcasts' runs (ask-real.jsx
- * listens to the same), the bell reads the Inbox, Live, the team and its own kept rows (notifications.ts FEED_EVENTS).
+ * listens to the same), the bell reads the Inbox, Live, the team and its own kept rows (notifications.ts FEED_EVENTS),
+ * and Ask's follow-ups say each read of theirs (ask/follow-ups.ts FOLLOW_UPS_EVENT).
  */
 const STANDING_EVENTS = [
   "surface:today",
@@ -29,21 +32,26 @@ const STANDING_EVENTS = [
   "surface:settings",
   "surface:workspace",
   "surface:notifications",
+  FOLLOW_UPS_EVENT,
 ];
 
 type Globals = {
-  __ask?: { rightNowParts?: () => { people: number; runs: number; searches: number } };
+  __ask?: {
+    rightNowParts?: () => { people: number; runs: number; searches: number };
+    followUpsDue?: () => readonly unknown[];
+  };
   __notifs?: { unread?: () => number; onChange?: (cb: () => void) => () => void };
 };
 
-/** Whether something needs you: people, runs or searches, as Ask says it, or a notification not read yet. */
-const needsYouNow = (): boolean => {
+/** Whether something needs you: people, runs or searches, as Ask says it, a follow-up of Ask's come due, or a notification not read yet. */
+export const needsYouNow = (): boolean => {
   const w = window as unknown as Globals;
   const A = w.__ask;
   if (A && typeof A.rightNowParts === "function") {
     const p = A.rightNowParts();
     if (p.people || p.runs || p.searches) return true;
   }
+  if (A && typeof A.followUpsDue === "function" && A.followUpsDue().length) return true;
   const bell = w.__notifs;
   return !!bell && typeof bell.unread === "function" && bell.unread() > 0;
 };

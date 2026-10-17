@@ -69,6 +69,7 @@ export const SCHEMA_SETS = {
     "human_token", "non_text", "refusal", "rate_cap", "policy_block", "send_failed", "deadman",
     "brain_error", "manual", "opt_out", "state_unavailable", "stale", "person_hold", "budget",
     "policy_ask", "callback", "paused", "carriers", "email_review", "booking_request", "booking_reply",
+    "wrote_while_held",
   ],
   "escalations.state": ["open", "resolved"],
   "event_deliveries.state": ["scheduled", "done", "failed", "paused"],
