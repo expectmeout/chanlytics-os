@@ -24,6 +24,12 @@
     "fresh": "Read as Settings > Profile opens, for the row How Ask answers you; the pane's own save sets what it draws.",
     "why": "The note is the member's own, in their membership's views: no teammate's change and no record of the workspace moves it, only their own save here or a card of theirs in Ask, which the row shows the next time the pane opens."
   },
+  "apps/dashboard/src/legacy-bridge/ask/api.ts GET ask/follow-ups": {
+    "kind": "follows",
+    "follows": "leads",
+    "fresh": "Read once the boot's reads are in, as Ask opens, after a follow-up card is committed or undone and after a question that comes back to one, each time Leads or Sequences publishes a read while one still waits (ask/follow-ups.ts), and as the tab comes back past a minute.",
+    "why": "A follow-up is the member's own note in their views, changed only by their own cards and questions; what makes one due is a search's round ending or stopping to ask (which Leads hears), replies on a sequence (which Sequences hears), or the day turning, which a tab coming back catches."
+  },
   "apps/dashboard/src/legacy-bridge/ask/api.ts GET ask/threads": {
     "kind": "on-open",
     "fresh": "Read as Ask's list of threads opens.",

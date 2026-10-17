@@ -318,6 +318,7 @@ export {
   pushNamesFor,
   memberViewsOf,
   ownAddressIn,
+  setMemberView,
 } from "./repositories/notices/member-alerts";
 export type { MemberAlertsRow } from "./repositories/notices/member-alerts";
 export { lastClosedHolds, threadIdsWaitingOnYou } from "./repositories/waiting-on-you";

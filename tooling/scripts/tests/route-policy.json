@@ -16,6 +16,13 @@
       "rate": null,
       "spend": false
     },
+    "GET ask/follow-ups": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": null,
+      "rate": null,
+      "spend": false
+    },
     "GET ask/openings": {
       "kind": "read",
       "scope": "workspace",

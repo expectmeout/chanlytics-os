@@ -18,6 +18,7 @@ import {
   READ_MS,
   watchArrival,
 } from "../../../../../apps/dashboard/src/legacy-bridge/mascot/arrival.ts";
+import { needsYouNow } from "../../../../../apps/dashboard/src/legacy-bridge/arrival.ts";
 
 /** A clock, and timers that fire as it is moved. */
 const clock = () => {
@@ -236,6 +237,31 @@ test("what needs you is asked when the light is decided, never remembered: Ask c
   w.arrival.arrived();
   await w.c.tick(READ_MS);
   assert.deepEqual(w.said, ["lit", "dark", "lit", "dark"], "a page read ends in the ink when nothing needs you");
+});
+
+test("what needs you, as the wiring hands it in: people, runs or searches Ask says wait, a follow-up of Ask's come due (the closed-loop read, 17 Oct 2026), or a notification not read; nothing of these is no light", () => {
+  const w = globalThis.window;
+  const was = { ask: w?.__ask, notifs: w?.__notifs };
+  const quiet = { people: 0, runs: 0, searches: 0 };
+  globalThis.window ??= globalThis;
+  try {
+    const said = (parts, due = [], unread = 0) => {
+      globalThis.window.__ask = { rightNowParts: () => parts, followUpsDue: () => due };
+      globalThis.window.__notifs = { unread: () => unread };
+      return needsYouNow();
+    };
+    assert.equal(said(quiet), false, "nothing waits, nothing is due, the bell is read");
+    assert.equal(said({ ...quiet, searches: 1 }), true);
+    assert.equal(said(quiet, [{ id: "plumbers" }]), true, "a follow-up come due alone keeps the three lit");
+    assert.equal(said(quiet, [], 2), true);
+    // An Ask from before the follow-ups (a bridge without followUpsDue) is asked what it can say.
+    globalThis.window.__ask = { rightNowParts: () => quiet };
+    globalThis.window.__notifs = { unread: () => 0 };
+    assert.equal(needsYouNow(), false);
+  } finally {
+    globalThis.window.__ask = was.ask;
+    globalThis.window.__notifs = was.notifs;
+  }
 });
 
 test("the needs-you count rising makes the three hop once; its first word, a fall, and a rise while busy do not", () => {

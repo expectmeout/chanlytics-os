@@ -1,16 +1,29 @@
 import "server-only";
-import type { MemberAlertsDto, NotificationDto, NotificationsDto, PushPlatform } from "@chanlytics/contracts";
-import { stamp, type Reader } from "./index";
+import type {
+  AskFollowUp,
+  FollowUpWake,
+  MemberAlertsDto,
+  NotificationDto,
+  NotificationsDto,
+  PushPlatform,
+} from "@chanlytics/contracts";
+import { load, stamp, type Reader } from "./index";
 import {
   BELL_LIST_ROWS,
   BELL_WINDOW_DAYS,
   DAY_MS,
+  followUpDue,
+  followUpsOf,
   kindsEndedBy,
   PUSH_PLATFORMS,
   pushOffOf,
   unreadFor,
+  zoneDayKey,
 } from "@chanlytics/contracts";
 import { memberAlertsOf, memberViewsOf, olderUnreadFor } from "@chanlytics/db";
+import { facts as factsReader } from "./facts";
+import { searches as searchesReader } from "./searches";
+import { sequences as sequencesReader } from "./sequences";
 
 /**
  * GET notifications, as the route answers it: the workspace's kept notifications of the last thirty days by the turn's
@@ -139,5 +152,61 @@ export const memberViews: Reader<undefined, Record<string, unknown>> = {
   async read(rc) {
     const views = await memberViewsOf(rc.ctx.supabase, { tenantId: rc.tenantId, userId: rc.userId });
     return { data: views, rows: [], stamp: stamp() };
+  },
+};
+
+/**
+ * Ask's follow-ups as they stand now (the closed-loop read, 17 Oct 2026: one came due, and nobody was told until they
+ * happened to ask). Which of a member's are due is decided here once, for the two that ask it: Ask's `signals` read,
+ * which tells Ask, and GET ask/follow-ups, which Ask's home shows first after Right now and Ask's door lights for. A
+ * question asked from the home's row clears its follow-up (POST ask `following`), so Ask never proposes a card to clear
+ * what the member already came back to.
+ */
+
+/** The parts of the workspace a follow-up's wake is read from, each as its page reads it; null where it was not read. */
+interface FollowUpParts {
+  searches: ReadonlyArray<{ id: string; round?: { state?: string | null } | null }> | null;
+  sequences: ReadonlyArray<{ id: string; needs: { replies: number } }> | null;
+  nowMs: number;
+  /** The business's zone, whose calendar says what day it is; null where it could not be read: no day is due then. */
+  zone: string | null;
+}
+
+/** A member's follow-ups, those due now and those still waiting, oldest first. */
+interface FollowUpsNow {
+  due: AskFollowUp[];
+  waiting: AskFollowUp[];
+}
+
+/** Which follow-ups are due, by what the searches and the sequences say now (contracts followUpDue). */
+export function followUpsNow(follow: readonly AskFollowUp[], p: FollowUpParts): FollowUpsNow {
+  const world = {
+    searches: new Map((p.searches ?? []).map((s) => [s.id, s.round?.state ?? ""])),
+    replies: new Map((p.sequences ?? []).map((s) => [s.id, s.needs.replies])),
+    // An unread zone is no day at all, so a follow-up waiting for one is never due on a guess.
+    today: p.zone ? zoneDayKey(p.nowMs, p.zone) : "",
+  };
+  const due = follow.filter((f) => followUpDue(f, world));
+  return { due, waiting: follow.filter((f) => !due.includes(f)) };
+}
+
+/**
+ * GET ask/follow-ups, as the route answers it: the member's views first (their own membership row), then only the parts
+ * a follow-up they hold waits on, so a member who holds none costs one small read. A part that fails to read leaves its
+ * follow-ups waiting, never due. A follow-up is the member's own note, not a row a citation names.
+ */
+export const askFollowUps: Reader<undefined, FollowUpsNow> = {
+  name: "ask_follow_ups",
+  async read(rc) {
+    const follow = followUpsOf((await load(rc, memberViews, undefined)).data);
+    const waits = (wake: FollowUpWake) => follow.some((f) => f.wake === wake);
+    const quiet = <T>(read: Promise<T>): Promise<T | null> => read.catch(() => null);
+    const [searches, sequences, zone] = await Promise.all([
+      waits("search_done") ? quiet(load(rc, searchesReader, undefined).then((r) => r.data.searches)) : null,
+      waits("replies") ? quiet(load(rc, sequencesReader, undefined).then((r) => r.data.sequences)) : null,
+      waits("date") ? quiet(load(rc, factsReader, undefined).then((r) => r.data.timezone)) : null,
+    ]);
+    const data = followUpsNow(follow, { searches, sequences, nowMs: rc.now.getTime(), zone });
+    return { data, rows: [], stamp: stamp() };
   },
 };

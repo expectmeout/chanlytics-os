@@ -1,19 +1,11 @@
 import "server-only";
 import { z } from "zod";
-import {
-  DAY_MS,
-  followUpDue,
-  followUpsOf,
-  parseTenantConfigResult,
-  plural,
-  zoneDayKey,
-  type AskFollowUp,
-} from "@chanlytics/contracts";
+import { DAY_MS, followUpsOf, parseTenantConfigResult, plural } from "@chanlytics/contracts";
 import { load } from "../../../readers";
 import { audiencePool } from "../../../readers/audience-pool";
 import { config as configReader, facts as factsReader } from "../../../readers/facts";
 import { lists as listsReader } from "../../../readers/lists";
-import { memberViews } from "../../../readers/notifications";
+import { followUpsNow, memberViews } from "../../../readers/notifications";
 import { playbooks, reachOutChains } from "../../../readers/playbooks";
 import { searches as searchesReader } from "../../../readers/searches";
 import { sequences as sequencesReader } from "../../../readers/sequences";
@@ -204,14 +196,13 @@ function goalOf(cfg: Seen["cfg"]): string | null {
 
 async function readSignals(t: ToolContext): Promise<unknown> {
   const seen = await seeAll(t);
-  // The member's follow-ups that are due, by what the searches and the sequences say now.
-  const follow = seen.views ? followUpsOf(seen.views) : [];
-  const world = {
-    searches: new Map((seen.finder?.searches ?? []).map((s) => [s.id, s.round?.state ?? ""])),
-    replies: new Map((seen.seqs?.sequences ?? []).map((s) => [s.id, s.needs.replies])),
-    today: zoneDayKey(seen.nowMs, seen.zone ?? t.timezone),
-  };
-  const due: AskFollowUp[] = follow.filter((f) => followUpDue(f, world));
+  // The member's follow-ups that are due, by what the searches and the sequences say now: decided as Ask's home decides it.
+  const { due, waiting } = followUpsNow(seen.views ? followUpsOf(seen.views) : [], {
+    searches: seen.finder?.searches ?? null,
+    sequences: seen.seqs?.sequences ?? null,
+    nowMs: seen.nowMs,
+    zone: seen.zone ?? t.timezone,
+  });
   const signals = SPOTS.map((spot) => spot(seen))
     .filter((s): s is Signal => s !== null)
     .sort((a, b) => a.weight - b.weight);
@@ -227,7 +218,7 @@ async function readSignals(t: ToolContext): Promise<unknown> {
             "No goal is kept: ask what they want the business to reach, and keep it with propose_settings action goal.",
         }),
     follow_ups_due: due.map((f) => ({ id: f.id, said: f.said, do: f.prompt })),
-    follow_ups_waiting: follow.filter((f) => !due.includes(f)).map((f) => ({ id: f.id, said: f.said })),
+    follow_ups_waiting: waiting.map((f) => ({ id: f.id, said: f.said })),
     signals: signals.map(({ key, says, next }) => ({ key, says, next })),
     ...(unreadParts.length ? { unread: `could not be read just now: ${unreadParts.join(", ")}` } : {}),
     note: "A due follow-up comes first: do what it says, and clear it (propose_follow_up clear) beside the cards. Offer one signal's cards at a time, the first that serves the goal, as a plan where they build on each other; never say anything is done.",
