@@ -60,7 +60,7 @@ export function useRecordActs(rec: SequenceRecordDto, flash: Flash, moved: () =>
   // A twin is the list's to know (sequenceTwinOf): another sequence on this visit moment, which the list beside it holds.
   const list = useSurface("sequences");
   const twin = list ? sequenceTwinOf(list.sequences, row) : null;
-  const notice = sequenceNotice(row, rec.steps, { tz: rec.timezone, nowMs: Date.now() }, twin);
+  const notice = sequenceNotice(row, rec.steps, twin);
   // The batch waiting for an OK the notice is about, decided through the run's own verb.
   const waiting = notice?.kind === "waiting" ? notice.batchId : null;
   const press = async (kind: Parameters<typeof pressed>[0], payload: Record<string, unknown>) => {

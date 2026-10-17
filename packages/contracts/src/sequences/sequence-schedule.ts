@@ -11,6 +11,7 @@ import { plural } from "../shared/words";
 import type { SequencePeopleDto, SequenceRowDto, SequenceStepDto } from "./sequence-dto";
 import {
   SEQUENCE_WORDS,
+  batchWaitsUntilTonight,
   leadStepStand,
   momentStartsSentence,
   sequenceChannelsWords,
@@ -250,11 +251,9 @@ export function scheduleStepState(row: SequenceRowDto, step: SequenceStepDto, ct
   if (ctx.gone) return { tone: "need", words: SCHEDULE_WORDS.pick };
   const batch = row.needs.waiting > 0 ? row.needs.batches.find((b) => b.step_id === step.id) : undefined;
   if (batch) {
-    const when = clockWhen(Date.parse(batch.at), ctx.tz, ctx.nowMs);
-    return {
-      tone: "need",
-      words: batch.people > 0 ? `${batch.people} wait for your OK · goes ${when}` : `Waits for your OK · goes ${when}`,
-    };
+    // An OK sends it at once; a customer's waits only until its day is gone (batchWaitsUntilTonight).
+    const until = batchWaitsUntilTonight(batch) ? ` · ${SEQUENCE_WORDS.untilTonight}` : "";
+    return { tone: "need", words: `${batch.people > 0 ? `${batch.people} wait` : "Waits"} for your OK${until}` };
   }
   if (row.starts === "leads") {
     const now = leadStepNow(row, step, ctx);
@@ -269,7 +268,10 @@ export function scheduleStepState(row: SequenceRowDto, step: SequenceStepDto, ct
   if (next) return next;
   const line = scheduleInLine(ctx.people, step.place);
   if (!line) return null;
-  const day = line.first ? ` · the first on ${clockDate(Date.parse(line.first), ctx.tz, ctx.nowMs)}` : "";
+  // Someone whose wait is over waits on the step itself (a step that could not reach them keeps them due): due now.
+  const first = line.first ? Date.parse(line.first) : null;
+  const day =
+    first === null ? "" : first <= ctx.nowMs ? " · due now" : ` · the first on ${clockDate(first, ctx.tz, ctx.nowMs)}`;
   return { tone: "next", words: line.count !== null ? `${line.count} in line${day}` : `In line${day}` };
 }
 

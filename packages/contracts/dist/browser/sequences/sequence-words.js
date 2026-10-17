@@ -41,6 +41,8 @@ export const SEQUENCE_WORDS = {
   you: "You approve",
   /** The record's line of what goes next: "Next tomorrow 10:00 AM · 3 people". */
   next: "Next",
+  /** How long a customer's batch waits for an OK: an OK sends it at once, and the sweep skips it once its day is gone. */
+  untilTonight: "until tonight",
   /** Who approves its batches, said in the record's More, where it is changed (Autonomy, for its whole class). */
   whoApproves: "Who approves",
   turnOff: "Turn this off",
@@ -316,24 +318,25 @@ const noticeOf = (n) => ({
   stepId: null,
   ...n
 });
-function waitingNotice(steps, batch, clock) {
-  const when = clockWhen(Date.parse(batch.at), clock.tz, clock.nowMs);
+export const batchWaitsUntilTonight = (batch) => batch.audience?.kind === "playbook";
+function waitingNotice(steps, batch) {
   const people = batch.people;
   const place = steps.length > 1 ? steps.find((s) => s.id === batch.step_id)?.place : void 0;
+  const until = batchWaitsUntilTonight(batch) ? ` \xB7 ${SEQUENCE_WORDS.untilTonight}` : "";
+  const fact = [place ? `Step ${place}` : null, until ? SEQUENCE_WORDS.untilTonight : null].filter(Boolean).join(" \xB7 ");
   return noticeOf({
     kind: "waiting",
-    words: people > 0 ? `${plural(people, "person waits", "people wait")} for your OK \xB7 they go ${when}` : `The next batch waits for your OK \xB7 it goes ${when}`,
+    words: people > 0 ? `${plural(people, "person waits", "people wait")} for your OK${until}` : `The next batch waits for your OK${until}`,
     line: people > 0 ? `${people} wait${people === 1 ? "s" : ""} for your OK` : "The next batch waits for your OK",
-    fact: `${place ? `Step ${place} \xB7 ` : ""}goes ${when}`,
+    fact: fact || null,
     act: people > 0 ? `${SEQUENCE_WORDS.approve} ${people}` : SEQUENCE_WORDS.approve,
     batchId: batch.id
   });
 }
-export function sequenceNotice(row, steps, clock, twin = null) {
-  const { tz, nowMs } = clock;
+export function sequenceNotice(row, steps, twin = null) {
   const n = row.needs;
   const batch = n.waiting > 0 ? n.batches[0] ?? null : null;
-  if (batch) return waitingNotice(steps, batch, { tz, nowMs });
+  if (batch) return waitingNotice(steps, batch);
   if (twin)
     return noticeOf({
       kind: "twin",
