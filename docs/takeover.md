@@ -34,7 +34,7 @@ rows (`docs/debt.md`).
 <!-- measured:start -->
 
 ```text
-functions over the limit             70   of which over 200 lines: 12
+functions over the limit             69   of which over 200 lines: 12
 files over 800 lines                  3
 directories over 20 modules           3
 window globals                       74   names
