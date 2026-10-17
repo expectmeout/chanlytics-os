@@ -42,13 +42,12 @@ import { SubTabs } from "../../kit/sub-tabs/sub-tabs";
 import { gate } from "../../legacy-verbs";
 import type { LegacyFlash } from "../../legacy-verbs";
 import { useSurface } from "../../use-surface";
-import { broadcasts } from "../broadcasts/verbs";
 import { cmBusinessOf, cmOfferedFrom, cmStandInOf, type CmOffered } from "../parts/channels";
 import { messagePaneContext } from "../parts/message-pane";
 import { MessagePreview } from "../parts/message-preview";
 import { cmOfferFoot, cmPreviewBy } from "../parts/preview-by";
 import { useCmPhone } from "../parts/split";
-import { RecordFootContext, useSequenceRead } from "./use-record";
+import { RecordFootContext, useBatchRead } from "./use-record";
 import { pressed } from "./verbs";
 
 type Flash = (flash: LegacyFlash) => void;
@@ -115,7 +114,7 @@ interface ReadAs {
 
 /** Everyone the batch that waits for this step will reach, as its run reads them; none where nothing waits. */
 function useReadAs(batchId: string | null): ReadAs[] {
-  const read = useSequenceRead(batchId, broadcasts.detail, broadcasts.peekDetail);
+  const read = useBatchRead(batchId);
   if (read.state !== "read") return [];
   return read.data.recipients
     .filter((r) => r.state !== "skipped")
