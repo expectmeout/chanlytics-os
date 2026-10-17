@@ -1383,9 +1383,16 @@ test("About shows who they are: their own words, where, the listing unclaimed, t
   for (const said of [
     "Waterfront venue for weddings.",
     "101 Biscayne Blvd, Miami, FL 33132",
-    "Listing not claimed by the owner",
+    "ListingNot claimed by the owner",
   ])
     assert.ok(facts.includes(said), said);
+  assert.deepEqual(
+    all(byTestId(tree, "peek-about"), (n) => n.props?.className === "lw-kv-k")
+      .map(textOf)
+      .filter((k) => /^Rat/.test(k)),
+    ["Rating"],
+    "the rating said once, with its low share, not again as the listing's fact",
+  );
   assert.deepEqual(
     ["peek-facebook", "peek-linkedin", "peek-tiktok", "peek-maps"].map((id) => byTestId(tree, id)?.props.href ?? null),
     ["https://www.facebook.example/x", null, "https://www.tiktok.example/@x", "https://maps.example/?cid=1"],
@@ -1394,7 +1401,7 @@ test("About shows who they are: their own words, where, the listing unclaimed, t
   reset();
   const bare = page({ vm: vmOf({}) });
   tree = tabTo(bare, "about");
-  for (const said of ["Waterfront", "not claimed"]) assert.equal(textOf(tree).includes(said), false, said);
+  for (const said of ["Waterfront", "Not claimed"]) assert.equal(textOf(tree).includes(said), false, said);
   for (const id of ["peek-facebook", "peek-maps", "peek-week"])
     assert.equal(byTestId(tree, id), null, `${id}: a lead from before D2 claims none of it`);
 });

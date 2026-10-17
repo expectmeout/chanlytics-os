@@ -229,23 +229,31 @@ export const SheetParts = ({ parts }: { parts: LeadCardPart[] }) => (
 
 /** The words cut where the email breaks its lines: a paragraph each, as the canvas draws the preview. */
 const paragraphsOf = (parts: LeadCardPart[]): LeadCardPart[][] => {
-  const out: LeadCardPart[][] = [[]];
+  const out: LeadCardPart[][] = [];
+  let para: LeadCardPart[] = [];
+  const next = () => {
+    out.push(para);
+    para = [];
+  };
   for (const p of parts) {
     // The opening is a line of its own, as the email will have it.
     if (p.kind === "opening") {
-      out.push([p], []);
+      next();
+      para.push(p);
+      next();
       continue;
     }
     if (p.kind !== "text" || !p.text.includes("\n")) {
-      out[out.length - 1].push(p);
+      para.push(p);
       continue;
     }
     p.text.split(/\n+/).forEach((piece, i) => {
-      if (i > 0) out.push([]);
-      if (piece) out[out.length - 1].push({ kind: "text", text: piece });
+      if (i > 0) next();
+      if (piece) para.push({ kind: "text", text: piece });
     });
   }
-  return out.filter((para) => para.length);
+  next();
+  return out.filter((one) => one.length);
 };
 
 /** Email 1 as they would read it: whose it is and Change, its words, a gap or a fallback said first, the batch it goes in. */
@@ -409,7 +417,8 @@ export const SheetStopped = () =>
 export const SheetProgress = (p: {
   words: string;
   share: number;
-  undo: { words: string; go: () => void; busy: boolean } | null;
+  /** Undo, and what it takes back: said beside it where there is room, and always to a screen reader. */
+  undo: { what: string | null; go: () => void; busy: boolean } | null;
   extra?: ReactNode;
 }) => (
   <div className="lw-prog" data-testid="lead-pile-progress">
@@ -432,10 +441,12 @@ export const SheetProgress = (p: {
         disabled={p.undo.busy}
         onClick={p.undo.go}
         aria-keyshortcuts="Z"
+        aria-label={p.undo.what ? `Undo · ${p.undo.what}` : "Undo"}
         data-testid="lead-pile-undo"
       >
         <Icon name="undo" size={12} />
-        <span>{p.undo.words}</span>
+        <span>Undo</span>
+        {p.undo.what ? <span className="lw-undo-w">{` · ${p.undo.what}`}</span> : null}
       </button>
     ) : null}
     {p.extra}

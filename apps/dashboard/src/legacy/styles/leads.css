@@ -1331,7 +1331,10 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
 .lw-prog-n { white-space: nowrap; font-variant-numeric: tabular-nums; }
 .lw-prog-bar { flex: 1; min-width: 40px; }
 .lw-undo { display: inline-flex; align-items: center; gap: 5px; height: 26px; max-width: 190px; padding: 0 10px 0 8px; border: 0; border-radius: var(--radius-full); background: var(--surface-inset-fill); box-shadow: var(--surface-inset-ring); color: var(--ink); font: inherit; font-size: var(--text-xs); font-weight: var(--weight-medium); cursor: pointer; animation: lw-swap var(--duration-base) var(--ease-out) both; }
-.lw-undo span { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.lw-undo span { white-space: nowrap; }
+.lw-undo .lw-undo-w { overflow: hidden; text-overflow: ellipsis; }
+/* A phone's line has no room for what Undo takes back: the button says Undo, and its name says the rest. */
+.lw-phone .lw-undo-w { display: none; }
 .lw-undo:disabled { opacity: 0.6; cursor: default; }
 .lw-mode { margin: -2px 18px 8px; font-size: var(--text-sm); line-height: var(--leading-snug); color: var(--ink-muted); }
 
@@ -1436,6 +1439,11 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
 .lw-desk .lw-rail-b, .lw-desk .lw-x { height: 44px; }
 .lw-desk .lw-x { width: 44px; }
 .lw-desk .lw-rail.x { grid-template-columns: 44px minmax(0, 1fr) minmax(0, 1.5fr); }
+/* In the kit sheet's foot a button takes the foot's height and padding: the rail's places keep the canvas's 52px, and
+   a place of three words wraps to two lines at a phone's width rather than lose its end. */
+.lw-phone .lw-rail .lw-rail-b { height: 52px; padding-inline: 10px; }
+.lw-phone .lw-rail .lw-x { height: 52px; padding: 0; }
+.lw-phone .lw-rail-w { white-space: normal; text-align: center; line-height: 1.2; }
 
 /* Not a fit asks why in the rail's own place: five reasons, the last one given marked. */
 .lw-why { padding: 12px 12px 10px; border-radius: var(--radius-3xl); background: var(--surface-control-fill); box-shadow: var(--surface-control-depth); animation: lw-rise var(--duration-base) var(--ease-out) both; }
@@ -1444,6 +1452,10 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
 .lw-why-h > :last-child { margin-left: auto; }
 .lw-why-g { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
 .lw-why-b { min-height: 44px; flex-direction: column; align-items: flex-start; justify-content: center; gap: 2px; text-align: left; }
+/* A reason wraps rather than leave its button at a phone's width: the button grows with it, over the height the
+   kit's sheet gives a button in its foot. */
+.lw .lw-why .lw-why-b { height: auto; padding-block: 7px; white-space: normal; }
+.lw-why-b > span { min-width: 0; overflow-wrap: anywhere; }
 .lw-why-b small { font-size: var(--text-2xs); font-weight: var(--weight-regular); color: var(--ink-dim); }
 .lw-why-b.last { outline: 1px solid var(--accent); outline-offset: -1px; }
 

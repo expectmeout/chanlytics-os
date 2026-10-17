@@ -32900,7 +32900,10 @@ var slotLabel = (key) => {
   const at3 = REACH_OUT_SLOT_SET.keys.indexOf(key);
   return (REACH_OUT_SLOT_SET.labels[at3] || key).toLowerCase();
 };
-var VALUE_RE = new RegExp(`${REACH_OUT_VALUE_MARKS[0]}([^${REACH_OUT_VALUE_MARKS[1]}]*)${REACH_OUT_VALUE_MARKS[1]}`, "g");
+var VALUE_RE = new RegExp(
+  `${REACH_OUT_VALUE_MARKS[0]}([^${REACH_OUT_VALUE_MARKS[1]}]*)${REACH_OUT_VALUE_MARKS[1]}`,
+  "g"
+);
 function cardValuesOf(text) {
   const parts2 = [];
   let from = 0;
@@ -33806,7 +33809,11 @@ function leadSheetStateOf(p) {
 function leadSheetClosedOf(p) {
   const call = p.lead.canCall ? "call" : null;
   if (p.lead.cls === "excluded")
-    return { title: LEAD_LEFT_OUT_WORD, line: "Left out of this search. Put back brings it in again.", fix: "put_back" };
+    return {
+      title: LEAD_LEFT_OUT_WORD,
+      line: "Left out of this search. Put back brings it in again.",
+      fix: "put_back"
+    };
   if (p.lead.stage === "archived") {
     const word = p.closedReason && p.closedReason in LEAD_CLOSED_WORDS ? LEAD_CLOSED_WORDS[p.closedReason] : "Closed";
     return { title: word, line: "Closed: nothing is written to them.", fix: "ready" };
@@ -33889,7 +33896,10 @@ function closedRail(f) {
 function leadSheetRailOf(f) {
   switch (f.state) {
     case "review": {
-      const keep = { ...slot("keep", SW.keep, "check", "a"), sub: f.monthLeft === null ? null : SW.keepSub(f.monthLeft) };
+      const keep = {
+        ...slot("keep", SW.keep, "check", "a"),
+        sub: f.monthLeft === null ? null : SW.keepSub(f.monthLeft)
+      };
       return { x: false, slots: [slot("exclude", SW.exclude, "ban", "n"), laterOr(f), keep] };
     }
     case "phone":
@@ -33932,18 +33942,21 @@ function sheetStepOf(s, t, clock3) {
   }
   const planned = sends2.find((x) => x.send_at);
   const at3 = planned && planned.send_at ? Date.parse(planned.send_at) : NaN;
-  if (Number.isFinite(at3)) return { n: s.n, label, sub: "Planned", when: clockNear(at3, clock3.tz, clock3.nowMs), look: "next" };
+  if (Number.isFinite(at3))
+    return { n: s.n, label, sub: "Planned", when: clockNear(at3, clock3.tz, clock3.nowMs), look: "next" };
   const wait = s.after_days ? `+${plural(s.after_days, "day", "days")}` : "";
   return { n: s.n, label, sub: s.n === 0 ? "In its next batch" : "If nothing comes back", when: wait, look: "later" };
 }
 function leadSheetTrackOf(t, nowMs, tz) {
   if (!t.chain) return null;
-  const known = t.chain.steps ?? [...new Set(t.sends.map((s) => s.n).filter((n) => n !== null))].map(
-    (n) => ({ n, after_days: null, hand: null })
-  );
+  const known = t.chain.steps ?? [...new Set(t.sends.map((s) => s.n).filter((n) => n !== null))].map((n) => ({
+    n,
+    after_days: null,
+    hand: null
+  }));
   const steps = [...known].sort((a, b) => a.n - b.n).map((s) => sheetStepOf(s, t, { nowMs, tz }));
-  const nextAt = steps.findIndex((s) => s.look === "later");
-  if (nextAt >= 0 && !steps.some((s) => s.look === "next")) steps[nextAt] = { ...steps[nextAt], look: "next" };
+  const later = steps.find((s) => s.look === "later");
+  if (later && !steps.some((s) => s.look === "next")) later.look = "next";
   const standing2 = reachOutStandingOf(t, nowMs, tz);
   return { name: t.chain.name, rootId: t.chain.root_id, steps, line: standing2 ? capitalize(standing2.line) : null };
 }
@@ -33984,12 +33997,18 @@ function leadSheetReasonsOf(vm) {
 function leadSheetAboutOf(vm) {
   const listing = vm.company ? vm.company.source : "its listing";
   const rows2 = [
-    ...vm.rated ? [{ k: "Rating", v: [vm.rated.score, vm.rated.reviews, vm.rated.low].filter(Boolean).join(" \xB7 "), from: "listing" }] : [],
+    ...vm.rated ? [
+      {
+        k: "Rating",
+        v: [vm.rated.score, vm.rated.reviews, vm.rated.low].filter(Boolean).join(" \xB7 "),
+        from: "listing"
+      }
+    ] : [],
     ...vm.weekSummary ? [{ k: "Hours", v: vm.weekSummary, from: "listing" }] : [],
     ...vm.where ? [{ k: "Address", v: vm.where.line, from: vm.distance || null }] : [],
     ...vm.about ? [{ k: "About", v: vm.about, from: null }] : [],
-    ...vm.claimedNote ? [{ k: "Listing", v: vm.claimedNote, from: "listing" }] : [],
-    ...vm.facts.map((f) => ({ k: f.k, v: f.v, from: null }))
+    // The listing's own facts, each said once: the rating is the row above, with its low share.
+    ...vm.facts.filter((f) => !(vm.rated && f.k === "Rated")).map((f) => ({ k: f.k, v: f.v, from: null }))
   ];
   return { head: vm.company ? "The company" : "The place", from: vm.company ? listing : "its listing", rows: rows2 };
 }

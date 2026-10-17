@@ -301,17 +301,26 @@ const asksOf = (d: SheetDraw) => {
   const { p, vm } = d;
   if (!vm || !p.on) return null;
   const a = p.armed;
-  return (
-    <>
-      {p.mode === "erase" || p.mode === "erasing" ? (
-        <LeadPeekAsk vm={vm} mode={p.mode} busy={p.busy} on={p.on} />
-      ) : null}
-      {a && a.asked && a.leadId === vm.id && a.kind === "call" ? (
-        <LeadCallAsk armed={a} busy={p.busy} on={p.on} deck={p.deck} />
-      ) : null}
-      {a && a.asked && a.leadId === vm.id && a.kind === "sent" ? <LeadSentAsk busy={p.busy} on={p.on} /> : null}
-    </>
-  );
+  const ask =
+    p.mode === "erase" || p.mode === "erasing" ? (
+      <LeadPeekAsk vm={vm} mode={p.mode} busy={p.busy} on={p.on} />
+    ) : a && a.asked && a.leadId === vm.id && a.kind === "call" ? (
+      <LeadCallAsk armed={a} busy={p.busy} on={p.on} deck={p.deck} />
+    ) : a && a.asked && a.leadId === vm.id && a.kind === "sent" ? (
+      <LeadSentAsk busy={p.busy} on={p.on} />
+    ) : null;
+  return ask ? (
+    <div className="lw-ask" ref={askInView}>
+      {ask}
+    </div>
+  ) : null;
+};
+
+/** A question comes into view once, as it is asked, wherever the sheet was left scrolled (a tab read below the card). */
+const askInView = (el: HTMLDivElement | null) => {
+  if (!el || el.dataset.shown) return;
+  el.dataset.shown = "1";
+  if (typeof el.scrollIntoView === "function") el.scrollIntoView({ block: "nearest" });
 };
 
 /** The rail, Not a fit's reasons in its place, or Stop writing asked first. */
@@ -375,7 +384,7 @@ const progressOf = (pile: SheetPileView | null) =>
         undo={
           pile.pile.canUndo
             ? {
-                words: `Undo${pile.pile.undoWords ? ` · ${pile.pile.undoWords}` : ""}`,
+                what: pile.pile.undoWords || null,
                 go: () => void pile.pile.undo(),
                 busy: pile.pile.busy,
               }

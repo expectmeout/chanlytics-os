@@ -33585,7 +33585,7 @@ interface LeadSheetFactVM {
     from: string | null;
 }
 /** The place or the company as its source knows it (About): each fact with its source, nothing its source didn't say. */
-declare function leadSheetAboutOf(vm: Pick<LeadPeekVM, "rated" | "weekSummary" | "where" | "distance" | "claimedNote" | "facts" | "company" | "about">): {
+declare function leadSheetAboutOf(vm: Pick<LeadPeekVM, "rated" | "weekSummary" | "where" | "distance" | "facts" | "company" | "about">): {
     head: string;
     from: string;
     rows: LeadSheetFactVM[];

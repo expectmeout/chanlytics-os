@@ -513,8 +513,9 @@ export function leadSheetTrackOf(t: ReachOutLeadTimelineDto, nowMs: number, tz: 
       hand: null,
     }));
   const steps = [...known].sort((a, b) => a.n - b.n).map((s) => sheetStepOf(s, t, { nowMs, tz }));
-  const nextAt = steps.findIndex((s) => s.look === "later");
-  if (nextAt >= 0 && !steps.some((s) => s.look === "next")) steps[nextAt] = { ...steps[nextAt], look: "next" };
+  // The first still to come is next, where no step is already.
+  const later = steps.find((s) => s.look === "later");
+  if (later && !steps.some((s) => s.look === "next")) later.look = "next";
   const standing = reachOutStandingOf(t, nowMs, tz);
   return { name: t.chain.name, rootId: t.chain.root_id, steps, line: standing ? capitalize(standing.line) : null };
 }
@@ -604,7 +605,7 @@ export interface LeadSheetFactVM {
 
 /** The place or the company as its source knows it (About): each fact with its source, nothing its source didn't say. */
 export function leadSheetAboutOf(
-  vm: Pick<LeadPeekVM, "rated" | "weekSummary" | "where" | "distance" | "claimedNote" | "facts" | "company" | "about">,
+  vm: Pick<LeadPeekVM, "rated" | "weekSummary" | "where" | "distance" | "facts" | "company" | "about">,
 ): { head: string; from: string; rows: LeadSheetFactVM[] } {
   const listing = vm.company ? vm.company.source : "its listing";
   const rows: LeadSheetFactVM[] = [
@@ -620,8 +621,8 @@ export function leadSheetAboutOf(
     ...(vm.weekSummary ? [{ k: "Hours", v: vm.weekSummary, from: "listing" }] : []),
     ...(vm.where ? [{ k: "Address", v: vm.where.line, from: vm.distance || null }] : []),
     ...(vm.about ? [{ k: "About", v: vm.about, from: null }] : []),
-    ...(vm.claimedNote ? [{ k: "Listing", v: vm.claimedNote, from: "listing" }] : []),
-    ...vm.facts.map((f) => ({ k: f.k, v: f.v, from: null })),
+    // The listing's own facts, each said once: the rating is the row above, with its low share.
+    ...vm.facts.filter((f) => !(vm.rated && f.k === "Rated")).map((f) => ({ k: f.k, v: f.v, from: null })),
   ];
   return { head: vm.company ? "The company" : "The place", from: vm.company ? listing : "its listing", rows };
 }
