@@ -3288,8 +3288,8 @@
     box-shadow: none;
     color: var(--ink-muted);
   }
-  /* A row is one person on the page itself, as the Inbox's is: a lozenge inset from the sides, no line between two, and
-     the pressed one the selected fill. */
+  /* A row is one person on the page itself, as the Inbox's is: a lozenge inset from the sides, its own border clear (the
+     hairline between two is mobile.css's, from under the name), and the pressed one the selected fill. */
   .clients .pl-table-wrap {
     padding: 2px 4px;
     border-top: 0;
