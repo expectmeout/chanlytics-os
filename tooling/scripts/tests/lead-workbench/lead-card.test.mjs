@@ -75,7 +75,11 @@ const place = (over = {}) => ({
 const WS = { businessName: "Rae's Studio", bookingLink: "https://example.com/book" };
 
 const text = (parts) =>
-  parts.map((p) => (p.kind === "text" ? p.text : p.kind === "opening" ? "[opening]" : `[${p.label}]`)).join("");
+  parts
+    .map((p) =>
+      p.kind === "text" || p.kind === "value" ? p.text : p.kind === "opening" ? "[opening]" : `[${p.label}]`,
+    )
+    .join("");
 
 test("email 1 is the sequence's own words with the lead's values, the opening left as the line still to come", () => {
   const e = leadCardEmailOf({ chain: chain(), lead: place(), workspace: WS, nowMs: NOW, tz: TZ });

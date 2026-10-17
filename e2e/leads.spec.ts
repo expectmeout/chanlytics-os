@@ -218,13 +218,14 @@ test.describe("Leads on a real workspace", () => {
     await page.waitForLoadState("networkidle");
     const row = page.locator(".cl-table tbody tr", { hasText: HYDE_PARK });
     const before = await leadRowWords(row);
-    // Not a fit is the peek's, not the row's: a row offers Call, Copy and the
-    // class's own three (LeadRowActions), and the five whys are asked in the
-    // peek that opened (§9.5). The words are contracts' LEAD_NOT_A_FIT_WORDS.
+    // Not a fit is the lead sheet's, not the row's: a row offers Call, Copy and
+    // the class's own three (LeadRowActions), and the five whys are asked in the
+    // rail's own place on the sheet that opened (§9.5). The words are contracts'
+    // LEAD_NOT_A_FIT_WORDS.
     await row.getByTestId("lead-name").click();
     const peek = page.getByTestId("lead-peek");
     await expect(peek).toBeVisible();
-    await peek.getByTestId("peek-not-a-fit").click();
+    await peek.getByTestId("lead-sheet-not_a_fit").click();
     await peek.getByText(WHY_CHAIN, { exact: true }).click();
     await expect.poll(() => sent.map((s) => s.body)).toEqual([{ kind: "not_a_fit", why: "chain" }]);
     await page.getByRole("button", { name: "Undo" }).click();
@@ -291,7 +292,8 @@ test.describe("Leads on a real workspace", () => {
     // and no navigation for Playwright to read: what the nightly proves is that
     // the key reaches a lead with a number to dial, and that the peek shows it.
     // Stored canonical and dialled as stored, but drawn as the app writes numbers everywhere else (#770:
-    // toLeadPeekVM's reach.phone.value is formatPhoneDisplay's). Call is the act pinned at the peek's foot.
+    // toLeadPeekVM's reach.phone.value is formatPhoneDisplay's). The number and its ways to call are the Reach tab's.
+    await peek.getByTestId("lead-sheet-tab-reach").click();
     await expect(peek.getByTestId("peek-phone-value")).toHaveText(/^\+1 \(512\) 555-010\d$/);
     await expect(peek.getByTestId("peek-act-call")).toBeEnabled();
     await page.keyboard.press("Escape");

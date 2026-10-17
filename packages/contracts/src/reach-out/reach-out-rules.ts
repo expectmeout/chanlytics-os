@@ -212,6 +212,12 @@ export function reachOutEmailOf(
  */
 export const REACH_OUT_OPENING_MARK = "";
 
+/**
+ * Where a value the card fills stands in its email (canvas B: the values drawn as values): two characters no words hold,
+ * before and after it.
+ */
+export const REACH_OUT_VALUE_MARKS = ["", ""] as const;
+
 /** A step's email as one lead's card shows it before anything is written, by the send's own fill. */
 interface ReachOutCardEmail {
   subject: string | null;
@@ -240,7 +246,12 @@ export function reachOutCardEmailOf(
   const holes = written.filter((k) => (slotValueOf(REACH_OUT_SLOT_SET, k, values) ?? null) === null);
   const named = leadAddresseeOf(lead)?.first_name;
   const fellBack = !named && written.includes("first name") ? ["first name"] : [];
-  const email = renderOwnVersion("email", words, values, REACH_OUT_LANGUAGE, REACH_OUT_SLOT_SET);
+  // Each value the card shows is marked where it stands (REACH_OUT_VALUE_MARKS), so the card draws it as a value; the
+  // opening keeps its own mark, and a slot with no value stays as written.
+  const marked = values.map((v, i) =>
+    v && REACH_OUT_SLOT_SET.keys[i] !== "opening" ? `${REACH_OUT_VALUE_MARKS[0]}${v}${REACH_OUT_VALUE_MARKS[1]}` : v,
+  );
+  const email = renderOwnVersion("email", words, marked, REACH_OUT_LANGUAGE, REACH_OUT_SLOT_SET);
   return { subject: words.subject === null ? null : email.subject, body: email.body, holes, fellBack };
 }
 
