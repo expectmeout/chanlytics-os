@@ -91,6 +91,34 @@ mailed too, as the business's billing choice on Settings › Notifications allow
 Quiet hours for phones; a daily summary email; alerts chosen per address; one email per address instead of one To line;
 text or WhatsApp alerts to the owner; delivery checks per address; the owner choosing how long "Still waiting" waits.
 
+## Weighed on 17 October 2026: one record per kind, not taken
+
+The architecture review (its candidate B) counted where a kind's facts are written. A notification kind such as
+`note_to_keep` appears in six declarations across four modules:
+
+- `notification-kinds.ts`: `NOTIFICATION_DELIVERY` and `BELL_LINE_KINDS`;
+- `notifications.ts`: `SERVER_NOTIFICATION_KINDS` and `SERVER_LOOK`;
+- `today-away.ts`: `AWAY_NOUN`;
+- `waits/notice-closes.ts`: `NOTICE_ENDS`.
+
+An activity event such as `settings.fact_kept` appears in five places: its kind, its words, its fold, its address and its
+mark.
+
+The review weighed declaring each kind once, whole, and drawing these tables from that record. It did not take that
+path, for three reasons:
+
+- **Every table is already held to every kind.** The notification tables are held by the compiler
+  (`satisfies Record<ServerNotificationKind, …>`). An event's are held by `workspace/activity.test.mjs` (words of its
+  own, a family) and `links/every-subject-has-a-door-or-a-reason.test.mjs`. A kind missing from any table is already a
+  red build.
+- **No interface would get smaller.** Callers learn the same functions either way: `emailsFor`, the bell's look,
+  `activityWords`, `activityMark` and `workspaceChangeDoor`. A record would move the facts, not hide any.
+- **The tables are apart on purpose.** Settings' alert pane loads the kinds as a type alone, and nothing of the bell's
+  feed. Contracts ships a browser file per module (#1666). One record per kind would carry every page's words and looks
+  to every page that names a kind.
+
+Reopen it if a kind ships missing from a table that neither the compiler nor a test holds.
+
 ## Steps
 
 All in one change, shippable in either deploy order: contracts (topics, `emailsFor`, the config field, the alerts body),
