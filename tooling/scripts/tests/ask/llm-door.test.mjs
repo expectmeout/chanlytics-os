@@ -824,13 +824,12 @@ test("what the Line needs from the gateway: Opus 5.5 is a model Ask may name, As
     { effort: "low", format: { type: "json_schema", schema } },
     "Ask's own turn keeps its format now: the answer is structured output (the Line, D3)",
   );
-  const refused = {
-    ok: false,
-    error: "bad_request",
-    detail: "output_config.format: a JSON schema under 8,000 characters",
-  };
-  const huge = { type: "object", properties: { say: { type: "string", description: "x".repeat(8_001) } } };
-  assert.deepEqual(ask({ output_config: { format: { type: "json_schema", schema: huge } } }), refused);
+  const refused = { ok: false, error: "bad_request", detail: "output_config.format: a JSON schema" };
+  // Any size rides through (Ruben, 17 Oct 2026: the 8,000-character bound protected nothing); a format that is no schema
+  // is refused.
+  const huge = { type: "object", properties: { say: { type: "string", description: "x".repeat(20_000) } } };
+  const big = ask({ output_config: { format: { type: "json_schema", schema: huge } } });
+  assert.deepEqual(big.ok && big.request.output_config.format, { type: "json_schema", schema: huge });
   assert.deepEqual(ask({ output_config: { format: { type: "text" } } }), refused);
   const ceiling = (purpose) => {
     const v = validateGatewayRequest({ ...REQUEST, max_tokens: 9_000 }, purpose);

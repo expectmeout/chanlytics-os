@@ -203,7 +203,6 @@ test("a plan's offer message is a shell: the writer is told to write around the 
 
 test("the answer's schema has every channel and could_not; what is kept is the draft's channels, cleaned, and the empty ones said", () => {
   assert.deepEqual(C.MESSAGE_CRAFT_JSON_SCHEMA.required, ["whatsapp", "email", "sms", "could_not"]);
-  assert.ok(JSON.stringify(C.MESSAGE_CRAFT_JSON_SCHEMA).length < 8_000, "within the gateway's format limit");
   const answer = C.MessageCraftAnswerSchema.parse({
     whatsapp: { body: "  Hi {{1}}\r\nthere  " },
     email: { subject: "  A   subject ", body: "" },
