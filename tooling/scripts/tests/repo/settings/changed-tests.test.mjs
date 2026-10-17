@@ -118,6 +118,8 @@ test("a change to contracts' sources runs the browser entry's test, which no suc
   for (const f of ["packages/contracts/src/ask/index.ts", "packages/contracts/src/browser.generated.ts"])
     assert.ok(run(f).includes(entry), f);
   assert.ok(!run("apps/dashboard/src/server/ask/loop.ts").includes(entry), "a dashboard file reads no barrel of it");
+  // And the model gateway runs the lead drafts' tests, where its rules for them are proved.
+  assert.ok(run("apps/edge/lib/ask-gateway.ts").includes("tooling/scripts/tests/leads"), "the gateway's lead rules");
 });
 
 test("a changed test runs itself; a folder already asked for covers it; a helper of a folder runs the folder", () => {
