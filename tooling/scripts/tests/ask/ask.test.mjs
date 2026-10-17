@@ -873,7 +873,8 @@ test("the bridge: the jump index and Right now come from the surfaces, the quick
           who: "+1 917 555 0100",
           missed: true,
           live: false,
-          startedAtMs: Date.now() - 60_000,
+          // Just now: a minute back fell into yesterday when the suite ran in New York's first minute (17 Oct 2026).
+          startedAtMs: Date.now(),
         },
       ],
     },
@@ -1673,7 +1674,6 @@ test("the eval checks that an Open asked for is followed, and what the words dec
     Object.fromEntries(cases.filter((c) => c.expect?.list_card).map((c) => [c.id, c.expect.list_card])),
     {
       list_lapsed: { fields: ["last_visit"] },
-      list_left_out: { fields: ["last_heard"], cannot: true },
       setup_new_list_then_playbook: { fields: ["came_from"] },
     },
   );

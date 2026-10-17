@@ -4,7 +4,16 @@ import { ASK_CAPS, abandonedCall, askCallOutcome, noteRows, toCallVM } from "@ch
 import { load } from "../../../readers";
 import { call } from "../../../readers/call";
 import { calls as callsReader } from "../../../readers/calls";
-import { UUID, defineActions, noteRow, readAction, str, unlessNotFound, type ToolContext } from "../context";
+import {
+  UUID,
+  defineActions,
+  notePerson,
+  noteRow,
+  readAction,
+  str,
+  unlessNotFound,
+  type ToolContext,
+} from "../context";
 
 function dayKey(iso: string | null | undefined, tz: string): string | null {
   if (!iso) return null;
@@ -44,7 +53,11 @@ async function listCalls(t: ToolContext, input: { filter: string }): Promise<unk
       }
     })
     .slice(0, ASK_CAPS.calls);
-  for (const v of picked) noteRow(t, "call", v.callId, v.who, `conversations/cv-${v.callId}`);
+  // Each call, and its caller where People holds them: the rows say contact_id, so their profile opens.
+  for (const v of picked) {
+    noteRow(t, "call", v.callId, v.who, `conversations/cv-${v.callId}`);
+    notePerson(t, v.clientId, v.who);
+  }
   return {
     filter,
     calls: picked.map((v) => ({

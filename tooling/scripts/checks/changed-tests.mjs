@@ -83,6 +83,9 @@ export const READ_BY = {
     "packages/contracts/src/workspace/",
     "packages/contracts/src/broadcasts/",
   ],
+  // The browser's entry into contracts is written from every barrel (gen/contracts-browser-entry.mjs): an export added to
+  // one changed the entry, and nothing ran its test (the eval-truth pass, 17 Oct 2026).
+  [`${TESTS}/shipping/browser-entry.test.mjs`]: ["packages/contracts/src/"],
   [`${TESTS}/shell/hearing`]: [
     ...[...TRACED, "apps/dashboard/src", "packages/contracts/src"].map((tree) => `${tree}/`),
     "supabase/schema.sql",
