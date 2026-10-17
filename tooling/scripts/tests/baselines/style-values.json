@@ -84,11 +84,11 @@
     "blur": 2
   },
   "apps/dashboard/src/legacy/styles/leads.css": {
-    "font": 33,
-    "radius": 22,
-    "shadow": 14,
-    "colour": 9,
-    "blur": 1
+    "font": 26,
+    "radius": 14,
+    "shadow": 12,
+    "colour": 3,
+    "blur": 0
   },
   "apps/dashboard/src/legacy/styles/live.css": {
     "font": 16,

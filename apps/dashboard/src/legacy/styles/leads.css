@@ -176,71 +176,22 @@
 @media (prefers-reduced-motion: reduce) { .pk { animation: none; } }
 
 .pk-head { display: flex; align-items: flex-start; gap: 12px; padding: 18px 14px 14px 18px; border-bottom: 1px solid var(--line); }
-.pk-mark { width: 40px; height: 40px; border-radius: 10px; background: var(--bg-sunken); border: 1px solid var(--line); display: grid; place-items: center; font-size: 13px; font-weight: 500; color: var(--ink-muted); flex: none; }
+
 .pk-titles { flex: 1; min-width: 0; }
 .pk-name { font-size: var(--text-lg); font-weight: 600; letter-spacing: -0.015em; line-height: 1.3; margin: 0; }
 .pk-sub { font-size: 12px; color: var(--ink-dim); margin-top: 2px; }
-/* Who they are (D2): the listing's photo as the mark, its own words, where and when. */
-.pk-mark img { width: 40px; height: 40px; border-radius: 10px; object-fit: cover; display: block; }
-.pk-about { font-size: 13px; line-height: 1.5; color: var(--ink-muted); margin: 0; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
-.pk-where { display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: var(--ink-dim); }
-.pk-where a, .pk-where span { display: inline-flex; align-items: center; gap: 6px; color: inherit; text-decoration: none; }
-.pk-where a:hover { color: var(--ink); }
-/* "Listing not claimed by the owner" is dim here as it is in the rating card: one note, one ink. */
-.pk-where .pk-quiet { color: var(--ink-dim); }
+
 .pk-x { width: 30px; height: 30px; border-radius: var(--radius-md); border: 0; background: transparent; color: var(--ink-dim); display: grid; place-items: center; cursor: pointer; flex: none; }
 .pk-x:hover { background: var(--bg-hover); color: var(--ink); }
 
 .pk-top { display: flex; align-items: center; gap: 8px; padding: 12px 14px 12px 18px; border-bottom: 1px solid var(--line); }
 .pk-top .sp { flex: 1; }
-.pk-out-note { font-size: 12px; color: var(--ink-dim); }
+
 .seg { display: inline-grid; grid-auto-flow: column; gap: 2px; padding: 2px; background: var(--bg-active); border-radius: var(--radius-md); }
 .seg button { height: 26px; padding: 0 10px; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--ink-muted); font-size: 12px; font-weight: 500; cursor: pointer; white-space: nowrap; }
 .seg button.on { background: var(--bg-raised); color: var(--ink); box-shadow: var(--shadow-sm); }
 
 .pk-body { flex: 1; min-height: 0; overflow: auto; padding: 16px 18px 20px; display: flex; flex-direction: column; gap: 20px; }
-/* The verdict (D8): the fit's word and the evidence as a pipeline on one line, and the why under it. */
-.pk-verdict-head { display: flex; align-items: center; gap: 10px; }
-/* The fit's word is the shared pill (StatePill), whose tone is the tone registry's: never restyled here. */
-.pk-verdict-head > .pk-hint { margin-left: auto; }
-.pk-fit { font-size: 13px; line-height: 1.5; color: var(--ink-muted); margin: 8px 0 0; text-wrap: pretty; }
-.pk-bar { display: block; flex: none; }
-/* A pipeline running once: each segment fills from its left edge, one after another (the delay is the page's). */
-.pk-seg { fill: var(--ok); transform-box: fill-box; transform-origin: left center; animation: pk-seg-in 360ms var(--ease-out) backwards; }
-@keyframes pk-seg-in { from { transform: scaleX(0); } }
-@media (prefers-reduced-motion: reduce) { .pk-seg { animation: none; } }
-.pk-seg.unknown { fill: var(--warn); }
-.pk-seg.no { fill: var(--ink-faint); }
-
-/* A hint (D8): the mark is quiet until pointed at, and its tip is the peek's, not the scrolling body's: nothing
-   between them is positioned, so the body cannot cut it off, and pkPlaceTip puts it under its line (or above) as it
-   is asked for. Shown on hover and on focus, so a tap on a touch screen shows it too; never while the body scrolls
-   or once its line has scrolled out of view (.pk-away), because it would float free of what it explains. */
-.pk-hint { display: inline-flex; align-items: center; flex: none; }
-.pk-hint-mark { display: inline-grid; place-items: center; min-width: 22px; min-height: 22px; padding: 3px; border: 0; border-radius: var(--radius-sm); background: none; color: var(--ink-dim); cursor: help; }
-.pk-hint-mark:hover { background: var(--bg-hover); }
-.pk-hint-tip {
-  position: absolute; left: 0; right: 0; top: 0; z-index: 30; padding: 8px 10px; border-radius: var(--radius-md);
-  background: var(--ink); color: var(--bg); font-size: var(--text-xs); line-height: 1.5; font-weight: 400; white-space: normal;
-  box-shadow: var(--shadow-md); pointer-events: none;
-  display: none; opacity: 0;
-  transition: opacity var(--duration-fast) var(--ease-out), display var(--duration-fast) allow-discrete;
-}
-.pk-body:not([data-scrolling]) .pk-hint:not(.pk-away):is(:hover, :focus-within) > .pk-hint-tip { display: block; opacity: 1; transition-delay: 150ms; }
-@starting-style { .pk-body:not([data-scrolling]) .pk-hint:not(.pk-away):is(:hover, :focus-within) > .pk-hint-tip { opacity: 0; } }
-/* The evidence's tip is a card: a list someone reads, not a line. Its ground is the kit's pop panel (hint.tsx), the
-   glass every menu and list wears. */
-.pk-hint-tip.card { color: var(--ink); padding: 10px 12px; display: none; }
-.pk-body:not([data-scrolling]) .pk-hint:not(.pk-away):is(:hover, :focus-within) > .pk-hint-tip.card { display: flex; flex-direction: column; gap: 6px; }
-.pk-hint-tip.card .pk-group { display: flex; flex-direction: column; gap: 5px; }
-.pk-hint-tip.card .pk-group + .pk-group { padding-top: 6px; border-top: 1px solid var(--line); }
-.pk-hint-tip.card .pk-ck { display: flex; align-items: flex-start; gap: 8px; font-size: 12px; }
-
-/* The rating, as a line under who they are (D8). */
-.pk-rate { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; font-size: var(--text-xs); color: var(--ink-dim); }
-.pk-rate > .icon { color: var(--warn); fill: currentColor; }
-.pk-rate-score { font-family: var(--font-mono); font-size: var(--text-sm); font-weight: var(--weight-medium); color: var(--ink); margin-left: -4px; }
-.pk-rate-low { color: var(--warn-ink); }
 
 /* How it was found, as a small pipeline: a rail, a dot a step, a few words each. */
 .pk-steps { list-style: none; margin: 0; padding: 2px 0 0 16px; position: relative; display: flex; flex-direction: column; gap: 8px; font-size: 12px; color: var(--ink-muted); }
@@ -250,31 +201,16 @@
 .pk-decide { display: flex; gap: 6px; margin-top: -12px; }
 .pk-label { font-size: 10px; font-weight: 500; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-dim); margin: 0 0 4px; }
 
-/* A channel is one line (D8): its icon, its value, its mark, what to press. The row is what a hint's tip spans. */
-.pk-reach { display: flex; flex-direction: column; }
-.pk-rr { gap: 8px; min-height: 40px; border-top: 1px solid var(--line); }
-.pk-rr:first-child { border-top: 0; }
-.pk-rr > .icon { flex: none; color: var(--ink-dim); }
-.pk-rr > .sp { flex: 1; }
 .pk-rv { min-width: 0; font-size: var(--text-sm); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pk-rv.wrong { text-decoration: line-through; color: var(--ink-muted); }
-.pk-rr.none .pk-rv { color: var(--ink-dim); font-weight: 400; }
-.pk-rn { font-size: 11.5px; color: var(--ink-dim); margin-top: 1px; }
-/* A line's acts are quiet marks (icon buttons named on hover), close together at its end. */
-.pk-rr-acts { display: flex; gap: 2px; margin-right: -4px; }
-.pk-rr.locked .pk-rv { color: var(--ink-muted); font-weight: 400; }
-.pk-rr.locked > .icon { color: var(--ink-faint); }
 
-/* What was seen and what Claude read, apart: nothing read wears a plain check (PRD 0.1, P2). */
-.pk-ck { display: flex; align-items: flex-start; gap: 8px; font-size: var(--text-sm); color: var(--ink); }
-.pk-ck-t { min-width: 0; }
+.pk-rn { font-size: 11.5px; color: var(--ink-dim); margin-top: 1px; }
+
 .pk-ck-mark { flex: none; margin-top: 2px; display: grid; place-items: center; }
 .pk-ck-check { color: var(--ok-ink); }
 .pk-ck-read { color: var(--ink-muted); }
 .pk-ck-ask { color: var(--warn-ink); }
 .pk-ck-cross { color: var(--ink-faint); }
-.pk-ck.no { color: var(--ink-muted); }
-.pk-ck .from { font-size: var(--text-xs); color: var(--ink-dim); margin-left: auto; white-space: nowrap; padding-left: 8px; }
 
 .pk-alt { font-size: 12px; color: var(--ink-dim); border-top: 1px solid var(--line); padding-top: 10px; }
 .pk-alt summary { cursor: pointer; color: var(--ink-muted); }
@@ -847,44 +783,9 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
   .ld-values { display: none; }
 }
 
-/* ---------------------------------------------- the peek, re-cut (D5) -- */
-/* The head is a photo band, the identity under it, the verdict a card, what people say a card, the checks under
-   their own head, the act pinned at the foot. Each rule a token or a measure. */
-.pk-band { --tint: var(--bg-active); --tint-ink: var(--ink-muted); position: relative; height: 176px; flex: none; overflow: hidden; background: var(--tint); color: var(--tint-ink); display: grid; place-items: center; }
-.pk-band img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
-/* The row's tile under the band's photo (leads-peek.jsx): there at once from the list, softened so its 96 pixels do
-   not show, and the band's own size fades in over it as it lands. */
-.pk-band-thumb { filter: blur(10px); transform: scale(1.12); }
-.pk-band-photo { opacity: 0; transition: opacity 180ms var(--ease-out); }
-.pk-band-photo.in { opacity: 1; }
-@media (prefers-reduced-motion: reduce) { .pk-band-photo { transition: none; } }
-/* A photograph that fails to load takes its own layer down, never the mark painted over it. */
-.pk-band.no-img img:not(.pk-band-mark) { display: none; }
-.pk-band-initials { font-family: var(--font-mono); font-size: 40px; font-weight: 500; letter-spacing: .04em; opacity: .9; }
-/* In the band the photograph comes first: at this size a storefront is a picture, and a logo stretched across it is
-   a lot of plate. The mark rides it as a chip in the one corner nothing else uses (Close and Expand are on the right,
-   the phone's deck at the bottom left), on the same light plate as the row's. With no photograph the chip sits in
-   the middle of the tint, bigger, over the initials. It is a chip either way -- never the band's whole width -- so a
-   light plate never glares across the top of a dark peek. Its own onError takes the chip away. The selector names
-   the img because `.pk-band img` fills the band and outranks a bare class. The padding is worked out from --chip:
-   a percentage would be of the band's width, and 12% of a 572px band is a chip 137px wide. */
-.pk-band img.pk-band-mark { --chip: 72px; inset: 0; margin: auto; width: var(--chip); height: var(--chip); object-fit: contain; padding: calc(var(--chip) * 0.12); box-sizing: border-box; border-radius: var(--radius-xl); background: var(--mark-plate); box-shadow: 0 0 0 1px var(--line), 0 1px 3px oklch(0 0 0 / 0.12); }
-.pk-band img.pk-band-mark.on-photo { --chip: 44px; inset: 12px auto auto 12px; margin: 0; border-radius: 10px; box-shadow: 0 0 0 1px oklch(0 0 0 / 0.08), 0 1px 4px oklch(0 0 0 / 0.22); }
-.pk-band-expand { position: absolute; right: 12px; bottom: 12px; height: 28px; padding: 0 10px; border: 0; border-radius: var(--radius-md); background: oklch(0 0 0 / 0.6); color: oklch(1 0 0); font: inherit; font-size: var(--text-xs); display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
-.pk-band-expand:hover { background: oklch(0 0 0 / 0.75); }
-.pk-band-x { position: absolute; right: 10px; top: 10px; background: oklch(from var(--bg-raised) l c h / 0.9); color: var(--ink); }
-.pk-band-x:hover { background: var(--bg-raised); }
-.pk-identity { padding: 16px 18px 14px; border-bottom: 1px solid var(--line); display: flex; flex-direction: column; gap: 6px; flex: none; }
-.pk-identity .pk-name { font-size: var(--text-xl); }
-.pk-sub-line { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; }
-.pk-identity .pk-sub { margin: 0; }
-.pk-today { display: inline-flex; align-items: center; gap: 4px; font-size: var(--text-xs); color: var(--ink-muted); font-weight: var(--weight-medium); }
-.pk-today.closed { color: var(--ink-dim); font-weight: var(--weight-regular); }
-.pk-identity .pk-about { margin-top: 2px; }
-.pk-identity .pk-where { flex-direction: row; flex-wrap: wrap; align-items: center; gap: 4px 10px; }
-.pk-distance { font-family: var(--font-mono); font-size: var(--text-xs); color: var(--ink-dim); }
-/* The verdict is not a box (D8, 21 Sep): the pill carries its tone and the pipeline its evidence, so a tinted card
-   round them read as an alert. It stands in the body's own rhythm, first. */
+/* --------------------------------------------- the lead's folds (D5) -- */
+
+/* A fold: a hairline box whose summary is its head (the other addresses on their site, the people there). */
 .pk-box { border: 1px solid var(--line); border-radius: var(--radius-lg); padding: 0 13px 11px; }
 /* The head is the summary; the ROW is the span inside it. A <summary> is a disclosure widget before it is a box and
    not every engine lets it be a flex container, so nothing here depends on that: the summary only hides its marker
@@ -899,21 +800,8 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
 .pk-box-sum { font-size: var(--text-sm); font-weight: var(--weight-medium); color: var(--ink); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pk-box:not([open]) .pk-box-head { padding-bottom: 11px; }
 .pk-box:not([open]) { padding-bottom: 0; }
-/* The week, in the fold: the same rows the expanded photo draws, at the peek's measure, in the short hours. */
-.pk-week { display: flex; flex-direction: column; gap: 3px; padding-top: 2px; }
-.pk-day { display: grid; grid-template-columns: 30px minmax(0, 1fr) auto; gap: 9px; align-items: center; font-size: var(--text-xs); color: var(--ink-dim); }
-.pk-day.today { color: var(--ink); font-weight: var(--weight-medium); }
-.pk-day-track { position: relative; height: 5px; border-radius: 3px; background: var(--bg-active); }
-.pk-day-bar { position: absolute; top: 0; height: 5px; border-radius: 3px; background: var(--line-strong); }
-.pk-day.today .pk-day-bar { background: var(--ok); }
+
 .pk-links { display: flex; flex-wrap: wrap; gap: 6px; padding-top: 4px; }
-.pk-act { background: var(--bg-sunken); }
-.pk-act-main { flex: 1; min-height: 38px; justify-content: center; border-radius: 10px; font-size: var(--text-base); }
-/* Call is the ways-of-calling menu (LeadCallMenu): its wrap takes the bar's whole width, as the button did, and on a
-   phone the whole row of the bar's grid. The menu opens upward, the bar being the panel's last thing (moreFit). */
-.pk-act > .more-wrap { flex: 1; display: flex; grid-column: 1 / -1; }
-.pk-act > .more-wrap > .pk-act-main { flex: 1; }
-.pk-act-none { flex: 1; }
 
 /* The photo, expanded: the page's own overlay over everything, the photo left, the place's facts right. */
 .ld-lightbox-backdrop { position: fixed; inset: 0; z-index: 50; background: var(--surface-scrim); }
@@ -949,7 +837,7 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
   [data-photo="none"] { inset: auto 0 0 0; max-height: 88dvh; padding-top: 0; border-top: 1px solid var(--surface-pop-edge); border-radius: var(--surface-pane-radius) var(--surface-pane-radius) 0 0; }
   .ld-lb-body:has(.ld-lb-nophoto) { grid-template-rows: 120px auto; }
   .ld-lb-body:has(.ld-lb-nophoto) .ld-lb-nophoto { bottom: 10px; }
-  .pk-band { height: 150px; }
+
 }
 
 /* ------------------------------ Needs review, as a workbench (D5) -- */
@@ -1022,8 +910,6 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
   .ld-bench-card-acts { opacity: 1; }
 }
 
-/* --------------------------- one lead at a time, on a phone (D5) -- */
-.pk-deck { display: none; }
 .pk-chip .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ink-faint); flex: none; margin-right: 7px; display: inline-block; vertical-align: -1px; }
 .pk-chip.tone-ok .dot { background: var(--ok); }
 .pk-chip.tone-warn .dot { background: var(--warn); }
@@ -1032,71 +918,20 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
 .pk-chip.tone-plain .dot { background: var(--ink-faint); }
 
 @media (max-width: 900px) {
-  /* Where you are in the pile, and the two ways through it -- a swipe does the same. A pill on the photo's bottom
-     edge: a row of its own under the photo was 57px for three short words. */
-  .pk-deck { position: absolute; left: 10px; bottom: 10px; z-index: 1; display: flex; align-items: center; gap: 0; height: 40px; padding: 0 2px; border-radius: var(--radius-full); background: oklch(from var(--bg-raised) l c h / 0.92); }
-  .pk-deck-n { font-family: var(--font-mono); font-size: var(--text-xs); color: var(--ink-muted); padding: 0 2px; }
-  .pk-deck-btn { width: 40px; height: 40px; display: grid; place-items: center; border: 0; border-radius: var(--radius-full); background: transparent; color: var(--ink-muted); cursor: pointer; }
-  .pk-deck-btn:disabled { color: var(--ink-faint); cursor: default; }
-  .pk-deck-btn.prev .icon { transform: rotate(180deg); }
-  /* Calling is what a phone is for: the act bar's own button is a thumb's. */
-  .pl-peek .pk-act { padding: 8px var(--gutter-page) calc(8px + env(safe-area-inset-bottom, 0px)); }
-  .pl-peek .pk-act-main { min-height: 48px; font-size: var(--text-md); }
-  .pl-peek .pk-act .btn:not(.pk-act-main) { min-height: 48px; }
-
-  /* ---- One lead on one screen ----
-     Measured on production at 390 x 844, 23 Sep: the peek wanted 981px -- photo 150, the pile's row 57, who they are
-     127, the stage 73, then 505 that scrolled, and Call 69 -- where the screen gave it 786 above the tab bar, and the
-     tab bar was drawn over Call, the one act the peek pins (z-index 120 over 40). Now it is the screen, as a thread
-     is: over the tab bar and the ✦, and what it says, it says once, in about 630px (an iPhone SE's 667 holds it). */
-  /* The screen it takes starts under the phone's own bar where the app is on the home screen (components.css,
-     .app-root): the paper holds through the bar and the band, its mark and its two circles begin under it. The list of
-     reasons hangs from the same edge (above), and neither it nor the photos wear this room twice. */
+  /* A panel of the page's own (People's peeks) is the screen on a phone, as a thread is: over the tab bar and the ✦,
+     starting under the phone's own bar where the app is on the home screen (components.css, .app-root). The photos,
+     expanded, are over it, and over the lead sheet (the kit's sheet). */
   .pl-peek:not(.pk-nf):not(.ld-lightbox) { z-index: 130; padding-top: env(safe-area-inset-top, 0px); }
   .ld-lightbox-backdrop { z-index: 140; }
   .ld-lightbox { z-index: 141; }
-  .pl-peek .pk-band { height: 128px; }
-  .pl-peek .pk-band img.pk-band-mark { --chip: 60px; border-radius: 14px; }
-  .pl-peek .pk-band img.pk-band-mark.on-photo { --chip: 40px; inset: 10px auto auto 10px; border-radius: 10px; }
-  /* Expand is its mark alone, beside Close at the top, so the bottom edge is the pile's and a short photo holds both. */
-  .pl-peek .pk-band-expand { top: 10px; bottom: auto; right: 58px; width: 40px; height: 40px; padding: 0; justify-content: center; border-radius: var(--radius-full); }
-  .pl-peek .pk-band-expand-words { display: none; }
-  .pl-peek .pk-identity { padding: 10px var(--gutter-page) 8px; gap: 4px; }
-  /* The share of low stars is a figure to study, not to act on: the rating and the count stay. */
-  .pl-peek .pk-rate-low { display: none; }
-  .pl-peek .pk-top { padding: 4px var(--gutter-page) 6px; }
+
   .pl-peek .pk-body {
     padding: 10px var(--gutter-page) 12px; gap: 12px 8px;
     display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-content: start;
   }
   .pl-peek .pk-body > * { grid-column: 1 / -1; }
-  /* A strong fit's line said the kind and the rating the name had just said. Any other verdict's line is its why. */
-  .pl-peek .pk-verdict.strong .pk-fit { display: none; }
-  /* The locked line is a note on the reach above it, not a way to reach them: quieter, and no row of its own. */
-  .pl-peek .pk-rr.locked { min-height: 30px; font-size: var(--text-xs); }
-  .pl-peek .pk-rr.locked > .icon { width: 12px; height: 12px; }
-  /* An explanation's mark keeps a thumb's 44px to press, and hangs over its line rather than making it 44 tall. */
-  .pl-peek .pk-rr.locked .pk-hint, .pl-peek .pk-verdict-head .pk-hint { margin-block: -7px; }
-  /* How it was found and the week sit side by side, each opening under the two. */
-  .pl-peek .pk-body > [data-testid="peek-found"],
-  .pl-peek .pk-body > [data-testid="peek-week"] { grid-column: auto; padding: 0 10px; }
-  .pl-peek .pk-body > [data-testid="peek-found"]:not(:has(+ [data-testid="peek-week"])),
-  .pl-peek .pk-body > details[open] { grid-column: 1 / -1; }
   .pl-peek .pk-body > details[open] { padding-bottom: 11px; }
   .pl-peek .pk-box-line { gap: 7px; }
-  /* The links are words in a line, not a wall of buttons, and the map is the address above. Their marks go: three
-     of them were the same globe, and the words already say where each goes. */
-  .pl-peek .pk-links { gap: 2px 14px; padding-top: 0; }
-  .pl-peek .pk-links .btn > .icon { display: none; }
-  .pl-peek .pk-links .btn { height: 36px; min-height: 36px; padding: 0; border: 0; background: none; color: var(--ink-muted); font-size: var(--text-sm); }
-  .pl-peek .pk-links [data-said="address"] { display: none; }
-}
-/* A short phone (an iPhone SE's 667) gives the photo less of the screen, so the lead still fits without a scroll. */
-@media (max-width: 900px) and (max-height: 700px) {
-  .pl-peek .pk-band { height: 96px; }
-  /* The chip and the deck share the left edge here: 10 to 42 above, the deck from 46 down. */
-  .pl-peek .pk-band img.pk-band-mark { --chip: 52px; border-radius: var(--radius-lg); }
-  .pl-peek .pk-band img.pk-band-mark.on-photo { --chip: 32px; border-radius: var(--radius-md); }
 }
 
 /* ------------------------- the same leads, on the ground (D5) -- */
@@ -1288,21 +1123,10 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
 }
 
 /* ====================================================================
-   Glass: the lead's peek (the plan's step 5.4, canvas L2). Beside the table it is a pane of its own, in from the table
-   pane's edge, the photo band taking the pane's corners; inside, the rows sit on hairlines and a box is an inset. Each
-   rule names the look inside :where(); none matches in Classic.
+   Glass: what the lead sheet still draws of the lead's old panel (the plan's step 5.4, canvas L2): the draft's head and
+   foot on hairlines, and a fold an inset.
    ==================================================================== */
 @media (width > 900px) {
-  .leads-scope .cl-main > .pk {
-    top: 12px;
-    right: 12px;
-    bottom: 12px;
-    border-left: 0;
-    border-radius: var(--surface-pane-radius);
-    background: var(--surface-pane-solid);
-    box-shadow: var(--surface-pop-depth);
-    overflow: hidden;
-  }
   .leads-scope .pk-top {
     border-bottom-color: transparent;
   }
@@ -1317,115 +1141,6 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
   }
 }
 
-/* Glass, the peek's content as the canvas draws it (L2): the spread's bars under the score, the checks open under the
-   verdict, each row's words under its value (the mark keeps its tip), the sections named in the third ink. Each rule
-   names the look inside :where(); none matches in Classic. */
-.pk-spread {
-  display: grid;
-  grid-template-columns: 1ch minmax(0, 1fr) 3.5ch;
-  column-gap: var(--space-2);
-  row-gap: 3px;
-  align-items: center;
-  margin-top: var(--space-2);
-  padding: var(--space-3) var(--space-3) var(--space-2);
-  border-radius: var(--surface-inset-radius);
-  background: var(--surface-inset-fill);
-  box-shadow: var(--surface-inset-depth);
-}
-.pk-spread-row {
-  display: contents;
-}
-.pk-spread-n,
-.pk-spread-pct {
-  font-size: var(--text-xs);
-  color: var(--ink-dim);
-}
-.pk-spread-pct {
-  text-align: right;
-}
-.pk-spread-track {
-  width: 100%;
-  height: 4px;
-  border-radius: var(--radius-full);
-  background: var(--line);
-  overflow: hidden;
-}
-.pk-spread-bar {
-  fill: var(--ink-muted);
-}
-.pk-spread-row:last-child .pk-spread-bar {
-  fill: var(--warn);
-}
-.pk-checks-open {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  margin-top: var(--space-2);
-}
-.pk-checks-open .pk-group {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-}
-.pk-checks-open .pk-ck {
-  display: grid;
-  grid-template-columns: 16px minmax(0, 1fr) auto;
-  column-gap: var(--space-2);
-  align-items: start;
-  font-size: var(--text-sm);
-  color: var(--ink);
-}
-.pk-checks-open .pk-ck .from {
-  font-size: var(--text-xs);
-  color: var(--ink-dim);
-  text-align: right;
-}
-.pk-eyebrow {
-  display: block;
-  font-size: var(--text-sm);
-  font-weight: var(--weight-semibold);
-  color: var(--ink-dim);
-}
-.pk-reach > .pk-eyebrow {
-  padding-bottom: var(--space-1);
-}
-.pk-rr {
-  display: grid;
-  grid-template-columns: 20px minmax(0, 1fr) auto auto;
-  align-items: center;
-  row-gap: 2px;
-  padding: var(--space-2) 0;
-}
-.pk-rr > .icon {
-  grid-column: 1;
-  grid-row: 1;
-}
-.pk-rr > .pk-rv {
-  grid-column: 2;
-  grid-row: 1;
-}
-.pk-rr > .pk-hint {
-  grid-column: 3;
-  grid-row: 1;
-}
-.pk-rr > .sp {
-  display: none;
-}
-.pk-rr > .pk-rr-acts {
-  grid-column: 4;
-  grid-row: 1;
-}
-.pk-rr > .pk-rr-note {
-  grid-column: 2 / -1;
-  grid-row: 2;
-  font-size: var(--text-xs);
-  line-height: 1.45;
-  color: var(--ink-dim);
-}
-.pk-box > .pk-eyebrow {
-  padding: var(--space-2) 0 0;
-}
-
 /* ====================================================================
    Glass: Leads (the plan's step 5.4, canvases L1, L-phone-list and the panel boards; reviewed against them 2 October
    2026). The list is People's two panes (clients.css, P1) with a lead's own cells: a 40px tile in the kind's tint, the
@@ -1437,13 +1152,13 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
    buttons, the hover card) are reached by their place.
    ==================================================================== */
 
-/* The six tints (tokens.css --tile-tint-N, from contracts leadTintOf): a row's tile and the peek's band wear the same. */
-:is(.ld-row-name > .tint-1, .pk-band.tint-1) { --tint: var(--tile-tint-1); --tint-ink: var(--tile-tint-ink); }
-:is(.ld-row-name > .tint-2, .pk-band.tint-2) { --tint: var(--tile-tint-2); --tint-ink: var(--tile-tint-ink); }
-:is(.ld-row-name > .tint-3, .pk-band.tint-3) { --tint: var(--tile-tint-3); --tint-ink: var(--tile-tint-ink); }
-:is(.ld-row-name > .tint-4, .pk-band.tint-4) { --tint: var(--tile-tint-4); --tint-ink: var(--tile-tint-ink); }
-:is(.ld-row-name > .tint-5, .pk-band.tint-5) { --tint: var(--tile-tint-5); --tint-ink: var(--tile-tint-ink); }
-:is(.ld-row-name > .tint-6, .pk-band.tint-6) { --tint: var(--tile-tint-6); --tint-ink: var(--tile-tint-ink); }
+/* The six tints (tokens.css --tile-tint-N, from contracts leadTintOf), which a row's tile wears. */
+.ld-row-name > .tint-1 { --tint: var(--tile-tint-1); --tint-ink: var(--tile-tint-ink); }
+.ld-row-name > .tint-2 { --tint: var(--tile-tint-2); --tint-ink: var(--tile-tint-ink); }
+.ld-row-name > .tint-3 { --tint: var(--tile-tint-3); --tint-ink: var(--tile-tint-ink); }
+.ld-row-name > .tint-4 { --tint: var(--tile-tint-4); --tint-ink: var(--tile-tint-ink); }
+.ld-row-name > .tint-5 { --tint: var(--tile-tint-5); --tint-ink: var(--tile-tint-ink); }
+.ld-row-name > .tint-6 { --tint: var(--tile-tint-6); --tint-ink: var(--tile-tint-ink); }
 
 @media (width > 900px) {
   /* The list's name sits where People's does (P1): close under the controls, the pane's 18px at its sides. */
@@ -1490,127 +1205,8 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
     background: var(--ok);
   }
 
-  /* The panel's band on a desk (the panel boards): Close a 34px circle at the top right, Expand one at the bottom
-     right, its mark alone. */
-  .leads-scope .pk-band-expand {
-    right: 12px;
-    bottom: 12px;
-    width: 34px;
-    height: 34px;
-    padding: 0;
-    justify-content: center;
-  }
-  .leads-scope .pk-band-x {
-    right: 12px;
-    top: 12px;
-    width: 34px;
-    height: 34px;
-  }
 }
 
-/* The band's chip, its two circles and the stage capsule stand at both widths. The tile as a 44px chip at the band's
-   top left, the face's fill under the initials. */
-.leads-scope .pk-band > :first-child {
-  position: absolute;
-  left: 14px;
-  top: 14px;
-  display: grid;
-  place-items: center;
-  width: 44px;
-  height: 44px;
-  border-radius: var(--radius-lg);
-  background: var(--face-fill);
-  box-shadow: var(--shadow-md);
-  font-size: var(--text-base);
-  letter-spacing: 0.02em;
-  color: var(--ink);
-  opacity: 1;
-}
-.leads-scope :is(.pk-band-expand, .pk-band-x) {
-  border-radius: var(--radius-circle);
-  background-color: var(--surface-control-fill);
-  background-image: var(--surface-control-sheen);
-  backdrop-filter: var(--surface-control-blur);
-  box-shadow: var(--surface-control-depth);
-  color: var(--ink);
-}
-.leads-scope :is(.pk-band-expand, .pk-band-x):hover {
-  background-color: var(--selected-fill);
-}
-.leads-scope .pk-band-expand-words {
-  display: none;
-}
-/* Who they are: no rule under it; the kind at the small step, the address line too, the spread's tracks 4px. */
-.leads-scope .pk-identity {
-  border-bottom-color: transparent;
-}
-.leads-scope :is(.pk-identity .pk-sub, .pk-rate, .pk-where) {
-  font-size: var(--text-sm);
-}
-/* The stage (the panel boards): one capsule of the control layer's glass, 34px with 4px inside it, the stage they are
-   at the lozenge at 600, the others words in the muted ink. */
-.leads-scope [data-testid="peek-stage"] {
-  gap: 2px;
-  height: 34px;
-  padding: 4px;
-  border: 0;
-  border-radius: var(--radius-full);
-  background-color: var(--surface-control-fill);
-  background-image: var(--surface-control-sheen);
-  box-shadow: var(--surface-control-depth);
-}
-.leads-scope [data-testid="peek-stage"] > button {
-  height: 26px;
-  padding: 0 14px;
-  border: 0;
-  border-radius: var(--radius-full);
-  background: transparent;
-  box-shadow: none;
-  font-size: var(--text-sm);
-  font-weight: var(--weight-medium);
-  color: var(--ink-muted);
-}
-.leads-scope [data-testid="peek-stage"] > button.on {
-  background: var(--selected-fill);
-  box-shadow: var(--selected-depth);
-  font-weight: var(--weight-semibold);
-  color: var(--ink);
-}
-/* The verdict's word at the mid step with its dot, as the canvas heads the section. */
-.leads-scope .pk-verdict-head > :first-child {
-  gap: 7px;
-  font-size: var(--text-md);
-  font-weight: var(--weight-semibold);
-}
-.leads-scope .pk-verdict-head > :first-child::before {
-  width: 7px;
-  height: 7px;
-}
-/* Each check on a 16px round: green for one that held, amber for one that could not tell, the inset's fill for one
-   only read; its words at the small step. */
-.leads-scope .pk-checks-open .pk-ck > :first-child {
-  width: 16px;
-  height: 16px;
-  margin-top: 1px;
-  border-radius: var(--radius-circle);
-  background: var(--surface-inset-fill);
-  box-shadow: var(--surface-inset-ring);
-  color: var(--ink-muted);
-}
-.leads-scope .pk-checks-open .pk-ck > .pk-ck-check {
-  background: var(--ok-soft);
-  box-shadow: none;
-  color: var(--ok-ink);
-}
-.leads-scope .pk-checks-open .pk-ck > .pk-ck-ask {
-  background: var(--warn-soft);
-  box-shadow: none;
-  color: var(--warn-ink);
-}
-.leads-scope .pk-checks-open .pk-ck > :first-child > svg {
-  width: 10px;
-  height: 10px;
-}
 /* A way to reach them: its value at the base step. */
 .leads-scope .pk-rv {
   font-size: var(--text-base);
@@ -1649,7 +1245,7 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
   padding-top: 10px;
   border-top: 1px solid var(--line);
 }
-.leads-scope .pk .pk-links > a[href] {
+.leads-scope .lw .pk-links > a[href] {
   height: var(--control-h-sm);
   min-height: var(--control-h-sm);
   padding: 0 10px;
@@ -1660,62 +1256,6 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
   font-size: var(--text-xs);
   font-weight: var(--weight-medium);
   color: var(--ink-muted);
-}
-/* The foot: Call in a capsule of the control layer's glass, 6px around it, over a hairline. */
-.leads-scope .pk-act {
-  background: transparent;
-}
-.leads-scope .pk-act > :first-child {
-  padding: 6px;
-  border-radius: var(--radius-full);
-  background-color: var(--surface-control-fill);
-  background-image: var(--surface-control-sheen);
-  backdrop-filter: var(--surface-control-blur);
-  box-shadow: var(--surface-control-depth);
-}
-.leads-scope .pk-act-main {
-  min-height: 36px;
-  border-radius: var(--radius-full);
-  font-size: var(--text-base);
-}
-
-@media (max-width: 900px) {
-  /* The panel on a phone: Close and Expand 36px beside each other at the top of the band, the deck's pill the control
-     layer's glass; the stage capsule 40px, its tabs 32 with the floor's 44 kept as an invisible press area. */
-  html.legacy-on .leads-scope .pk-band > :is(.pk-band-expand, .pk-band-x) {
-    top: 12px;
-    width: 36px;
-    height: 36px;
-    min-height: 36px;
-  }
-  html.legacy-on .leads-scope .pk-band > .pk-band-x {
-    right: 12px;
-  }
-  html.legacy-on .leads-scope .pk-band > .pk-band-expand {
-    right: 58px;
-  }
-  .leads-scope .pk-deck {
-    background-color: var(--surface-control-fill);
-    background-image: var(--surface-control-sheen);
-    backdrop-filter: var(--surface-control-blur);
-    box-shadow: var(--surface-control-depth);
-  }
-  .leads-scope .pk-deck > button {
-    border-radius: var(--radius-circle);
-  }
-  .leads-scope [data-testid="peek-stage"] {
-    height: 40px;
-  }
-  html.legacy-on .leads-scope [data-testid="peek-stage"] > button {
-    position: relative;
-    height: 32px;
-    min-height: 32px;
-  }
-  html.legacy-on .leads-scope [data-testid="peek-stage"] > button::after {
-    content: "";
-    position: absolute;
-    inset: -6px 0;
-  }
 }
 
 /* In People (decision 0052): who works at the business, as People holds them, each a door to their page; a stand-in's
@@ -1764,70 +1304,238 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
   color: var(--warn-ink);
 }
 
-/* ---- The pile (the lead workbench, 00426): one lead at a time where the rows stand ---- */
-.ld-pile { display: flex; flex-direction: column; gap: 16px; max-width: 560px; padding: 18px var(--gutter-page) 32px; }
-.ld-pile-head { display: flex; flex-direction: column; gap: 8px; }
-.ld-pile-head h2 { margin: 0; font-size: var(--text-lg); font-weight: var(--weight-semibold); color: var(--ink); overflow-wrap: anywhere; }
-.ld-pile-targets { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: var(--text-xs); color: var(--ink-dim); }
-.ld-pile-lead { display: flex; flex-direction: column; gap: 12px; padding: 18px; border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--bg-raised); box-shadow: var(--shadow-sm); animation: ld-pile-in var(--duration-base) var(--ease-out); }
-@keyframes ld-pile-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
-@media (prefers-reduced-motion: reduce) { .ld-pile-lead, .ld-pile-now { animation: none; } }
-.ld-pile-who { display: grid; grid-template-columns: 48px minmax(0, 1fr); gap: 12px; align-items: center; }
-.ld-pile-name h3 { margin: 0; font-size: var(--text-lg); font-weight: var(--weight-semibold); color: var(--ink); overflow-wrap: anywhere; }
-.ld-pile-name p { margin: 2px 0 0; font-size: var(--text-sm); color: var(--ink-dim); }
-/* The lead that is up (canvas B's decide card, pile/card.tsx): the reason in large type, at most three lines, what it
-   rests on as quiet signs (a dashed ring where Claude read it, an open ring where it couldn't tell), the two ways to
-   reach them, and the first email they would get, its opening a dashed line still to be written and a value it lacks
-   marked where it would stand. */
-.ld-now-why { margin: 0; font-size: var(--text-xl); font-weight: var(--weight-medium); line-height: var(--leading-snug); color: var(--ink); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
-.ld-now-why[data-tip] { cursor: help; }
-.ld-now-signs { display: flex; flex-wrap: wrap; gap: 4px 12px; margin: 0; padding: 0; list-style: none; font-size: var(--text-xs); color: var(--ink-muted); }
-.ld-now-sign { display: inline-flex; align-items: center; gap: 5px; cursor: help; }
-.ld-now-sign.ask { color: var(--warn-ink); }
-.ld-now-reach { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 0; padding: 0; list-style: none; font-size: var(--text-sm); color: var(--ink); }
-.ld-now-reach li { display: inline-flex; align-items: center; gap: 6px; min-width: 0; overflow-wrap: anywhere; }
-.ld-now-reach-word { color: var(--ink-dim); font-size: var(--text-xs); }
-.ld-now-mail { display: flex; flex-direction: column; gap: 6px; padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--bg-sunken); font-size: var(--text-sm); color: var(--ink); }
-.ld-now-mail-head { margin: 0; font-size: var(--text-xs); font-weight: var(--weight-medium); color: var(--ink-dim); }
-.ld-now-mail-meta { display: flex; flex-direction: column; gap: 2px; margin: 0; }
-.ld-now-mail-meta > div { display: grid; grid-template-columns: 56px minmax(0, 1fr); gap: 8px; }
-.ld-now-mail-meta dt { color: var(--ink-dim); font-size: var(--text-xs); line-height: inherit; }
-.ld-now-mail-meta dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
-.ld-now-mail-body { white-space: pre-line; line-height: var(--leading-normal); overflow-wrap: anywhere; }
-.ld-now-opening { display: block; margin: 4px 0; padding: 4px 8px; border: 1px dashed var(--line-strong); border-radius: var(--radius-sm); color: var(--ink-dim); font-size: var(--text-xs); white-space: normal; }
-.ld-now-gap { padding: 0 4px; border-radius: var(--radius-xs); background: var(--warn-soft); color: var(--warn-ink); }
-.ld-now-when { margin: 0; font-size: var(--text-xs); color: var(--ink-muted); }
-.ld-now-note { margin: 0; font-size: var(--text-xs); color: var(--ink-dim); }
-.ld-now-blocked { color: var(--warn-ink); }
-/* On a phone the card is the pile's sheet at half height (pile/sheet.tsx), and at full its tabs: the same parts, the
-   page's own gaps. */
-.ld-pile-now, .ld-now-full { display: flex; flex-direction: column; gap: 12px; padding: 4px 0 12px; }
-/* A decision turns the card on a phone as it does on a desk: the next one comes in. */
-.ld-pile-now { animation: ld-pile-in var(--duration-base) var(--ease-out); }
-.ld-now-pane { display: flex; flex-direction: column; gap: 12px; }
-.ld-now-reason { display: flex; flex-direction: column; gap: 4px; }
-.ld-pile-rail { display: flex; flex-wrap: wrap; gap: 8px; }
-.ld-pile-rail > * { flex: 1 1 auto; justify-content: center; }
-.ld-pile-progress { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; font-size: var(--text-xs); color: var(--ink-dim); font-variant-numeric: tabular-nums; }
-.ld-pile-end { display: flex; flex-direction: column; gap: 8px; padding: 22px 18px; border: 1px dashed var(--line); border-radius: var(--radius-lg); text-align: center; }
-.ld-pile-end h3 { margin: 0; font-size: var(--text-lg); font-weight: var(--weight-semibold); color: var(--ink); }
-.ld-pile-end p { margin: 0; font-size: var(--text-sm); color: var(--ink-muted); }
+/* ---- The lead sheet (canvas B v2, "The Workbench"; sheet/sheet.tsx): every lead opened on Leads ----
+   A desk's panel beside the rows, or a phone's sheet with two rests over them: the card to decide on (who, the reason,
+   what it rests on, how to reach them, the email or the state's own block), the five tabs under it, and the rail at the
+   foot. The canvas's own parts (its lb-*), on the product's tokens. */
+.lw-desk { position: absolute; top: 12px; right: 12px; bottom: 12px; width: 408px; z-index: 10; display: flex; flex-direction: column; border-radius: var(--surface-pane-radius); background: var(--surface-pane-solid); box-shadow: var(--surface-pop-depth); overflow: hidden; animation: pk-in var(--duration-base) var(--ease-out) backwards; }
+@media (prefers-reduced-motion: reduce) { .lw-desk { animation: none; } }
+.lw-scroll { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior-y: contain; padding: 14px 0 12px; }
+.lw-foot { flex: none; display: flex; flex-direction: column; gap: 6px; padding: 8px 12px 12px; border-top: 1px solid var(--line); }
+.lw-body { display: flex; flex-direction: column; }
+/* On a phone the card meets the sheet's edges as the canvas draws it: its own gutter stands in for the sheet's. */
+.lw-in { display: flex; flex-direction: column; margin: 0 calc(-1 * var(--rec-gutter, 0px)); }
+/* The card's small controls keep the canvas's sizes, under the house's 44px floor for a thumb, which their hit area
+   meets instead (a margin of nothing round each). */
+.lw-ev-i, .lw-cell, .lw-now, .lw-fit-go, .lw-change, .lw-undo, .lw-opt, .lw-name-go { min-height: 0; min-width: 0; }
+.lw-ev-i, .lw-change, .lw-undo { position: relative; }
+.lw-ev-i::after, .lw-change::after, .lw-undo::after { content: ""; position: absolute; inset: -9px -4px; }
+.lw-full { display: flex; flex-direction: column; }
+/* The pile behind the card: two edges over the sheet's top, drawn only while a pile is on. */
+.lw-phone .lw-edges { position: absolute; top: -9px; left: 18px; right: 18px; height: 10px; border: 1px solid var(--surface-pop-edge); border-bottom: 0; border-radius: var(--radius-3xl) var(--radius-3xl) 0 0; background: var(--surface-pop-fill); pointer-events: none; }
+.lw-phone .lw-edges::before { content: ""; position: absolute; top: -9px; left: 20px; right: 20px; height: 10px; border: 1px solid var(--surface-pop-edge); border-bottom: 0; border-radius: var(--radius-3xl) var(--radius-3xl) 0 0; }
+
+/* The pile's line: how far through, a meter, Undo naming what it takes back, and Add them all. */
+.lw-prog { flex: none; display: flex; align-items: center; gap: 10px; min-height: 28px; padding: 0 16px 8px 18px; font-size: var(--text-xs); color: var(--ink-dim); }
+.lw-desk .lw-prog { padding: 12px 14px 10px 18px; border-bottom: 1px solid var(--line); }
+.lw-prog-n { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.lw-prog-bar { flex: 1; min-width: 40px; }
+.lw-undo { display: inline-flex; align-items: center; gap: 5px; height: 26px; max-width: 190px; padding: 0 10px 0 8px; border: 0; border-radius: var(--radius-full); background: var(--surface-inset-fill); box-shadow: var(--surface-inset-ring); color: var(--ink); font: inherit; font-size: var(--text-xs); font-weight: var(--weight-medium); cursor: pointer; animation: lw-swap var(--duration-base) var(--ease-out) both; }
+.lw-undo span { white-space: nowrap; }
+.lw-undo .lw-undo-w { overflow: hidden; text-overflow: ellipsis; }
+/* A phone's line has no room for what Undo takes back: the button says Undo, and its name says the rest. */
+.lw-phone .lw-undo-w { display: none; }
+.lw-undo:disabled { opacity: 0.6; cursor: default; }
+.lw-mode { margin: -2px 18px 8px; font-size: var(--text-sm); line-height: var(--leading-snug); color: var(--ink-muted); }
+
+/* Who: the face, the name and its line, the fit as a meter (its word only when it is news), and a desk's ⋯ and Close. */
+.lw-id { display: grid; grid-template-columns: 40px minmax(0, 1fr) auto auto; gap: 11px; align-items: center; padding: 0 14px 0 18px; }
+.lw-id-ini { width: 40px; height: 40px; display: grid; place-items: center; border-radius: var(--radius-lg); background: var(--bg-sunken); color: var(--ink-muted); font-size: var(--text-sm); font-weight: var(--weight-semibold); }
+.lw-id-words { display: flex; flex-direction: column; min-width: 0; }
+.lw-name { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: var(--text-md); font-weight: var(--weight-semibold); letter-spacing: var(--tracking-tight); line-height: var(--leading-tight); color: var(--ink); }
+.lw-name-go { padding: 0; border: 0; background: none; font: inherit; font-size: var(--text-md); font-weight: var(--weight-semibold); text-align: left; cursor: pointer; }
+.lw-name-go:hover { text-decoration: underline; }
+.lw-sub { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: var(--text-sm); color: var(--ink-dim); }
+.lw-fit { position: relative; display: flex; }
+.lw-fit-go { display: flex; flex-direction: column; align-items: flex-end; gap: 5px; padding: 4px 0; border: 0; background: none; cursor: help; }
+.lw-fit-bar { width: 54px; }
+.lw-id-end { display: inline-flex; align-items: center; gap: 2px; }
+
+/* The reason, the card's headline: at most three lines; a tap says where it came from. */
+.lw-now-w { position: relative; }
+.lw-now { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; width: 100%; margin: 0; padding: 12px 18px 0; border: 0; background: none; font: inherit; font-size: var(--text-2xl); font-weight: var(--weight-semibold); letter-spacing: var(--tracking-tight); line-height: var(--leading-tight); text-align: left; text-wrap: balance; color: var(--ink); cursor: help; }
+.lw-quote { padding: 12px 18px 0; }
+.lw-quote-t { margin: 0; font-size: var(--text-xl); font-weight: var(--weight-medium); line-height: var(--leading-snug); color: var(--ink); }
+.lw-quote-s { margin: 8px 0 0; font-size: var(--text-sm); color: var(--ink-muted); }
+
+/* What it rests on: a mark each (seen, a dashed ring read, couldn't tell), its source a tap away. */
+.lw-ev { display: flex; flex-wrap: wrap; gap: 6px; padding: 10px 18px 0; }
+.lw-ev-w, .lw-cell-w { position: relative; display: flex; min-width: 0; }
+.lw-ev-i { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px 0 8px; border: 0; border-radius: var(--radius-full); background: var(--surface-inset-fill); box-shadow: var(--surface-inset-ring); color: var(--ink); font: inherit; font-size: var(--text-sm); white-space: nowrap; cursor: help; }
+.lw-ev-i.ask { color: var(--warn-ink); }
+
+/* How they can be reached: three cells, a dot each, a second word only where the dot is not ok. */
+.lw-cells { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin: 10px 18px 0; }
+.lw-cell { display: flex; align-items: center; gap: 7px; width: 100%; height: 38px; min-width: 0; padding: 0 10px; border: 0; border-radius: var(--radius-lg); background: var(--surface-inset-fill); box-shadow: var(--surface-inset-ring); color: var(--ink-muted); font: inherit; text-align: left; cursor: help; }
+.lw-cell-t { font-size: var(--text-sm); font-weight: var(--weight-semibold); white-space: nowrap; color: var(--ink); }
+.lw-cell-s { display: inline-flex; align-items: center; gap: 5px; min-width: 0; margin-left: auto; overflow: hidden; font-size: var(--text-2xs); color: var(--ink-dim); white-space: nowrap; text-overflow: ellipsis; }
+.lw-cell-s i { flex: none; width: 6px; height: 6px; border-radius: var(--radius-circle); background: var(--ink-faint); }
+.lw-cell.ok .lw-cell-s i { background: var(--ok); }
+.lw-cell.warn .lw-cell-s i { background: var(--warn); }
+.lw-cell.info .lw-cell-s i { background: var(--info); }
+@media (hover: hover) { .lw-ev-i:hover, .lw-cell:hover { outline: 1px solid var(--line-strong); outline-offset: -1px; } }
+
+/* A tap's words, over what was tapped: on a phone at once; on a desk the house's data-tip on hover and focus. */
+.lw-bubble { position: absolute; left: 0; bottom: calc(100% + 8px); z-index: 6; width: max-content; max-width: 250px; padding: 7px 10px; border-radius: var(--radius-lg); background: var(--ink); color: var(--bg); font-size: var(--text-sm); font-weight: var(--weight-regular); line-height: var(--leading-snug); white-space: normal; text-align: left; box-shadow: var(--shadow-md); animation: lw-rise var(--duration-fast) var(--ease-out) both; pointer-events: none; }
+.lw-bubble.below { top: calc(100% + 8px); bottom: auto; }
+.lw-bubble.right { left: auto; right: 0; }
+.lw-now-w .lw-bubble { left: 18px; }
+
+/* The email they would get: the sequence's own lines with their values, the opening still to be written. */
+.lw-mail { margin: 10px 18px 0; padding: 11px 14px 12px; border-radius: var(--radius-xl); background: var(--surface-inset-fill); box-shadow: var(--surface-inset-ring), var(--surface-inset-depth); color: var(--ink); }
+.lw-mail.warn { outline: 1px solid var(--warn); outline-offset: -1px; }
+.lw-mail-h { display: flex; align-items: center; gap: 6px; min-height: 26px; font-size: var(--text-xs); color: var(--ink-dim); white-space: nowrap; }
+.lw-mail-h b { overflow: hidden; text-overflow: ellipsis; font-weight: var(--weight-semibold); color: var(--ink); }
+.lw-mail-h span { overflow: hidden; text-overflow: ellipsis; }
+.lw-change { flex: none; height: 26px; margin-left: auto; padding: 0 10px; border: 0; border-radius: var(--radius-full); background: var(--accent-soft); color: var(--accent-ink); font: inherit; font-size: var(--text-xs); font-weight: var(--weight-semibold); cursor: pointer; }
+.lw-mail-meta { display: flex; flex-direction: column; gap: 2px; margin: 6px 0 0; font-size: var(--text-sm); }
+.lw-mail-meta > div { display: grid; grid-template-columns: 56px minmax(0, 1fr); gap: 8px; }
+.lw-mail-meta dt { font-size: var(--text-xs); color: var(--ink-dim); }
+.lw-mail-meta dd { min-width: 0; margin: 0; overflow-wrap: anywhere; }
+.lw-mail-b { margin-top: 6px; font-size: var(--text-base); line-height: var(--leading-normal); color: var(--ink); overflow-wrap: anywhere; }
+.lw-mail-b p { margin: 0; }
+.lw-mail-b p + p { margin-top: 4px; }
+.lw-mail-b:not(.full) { display: -webkit-box; -webkit-line-clamp: 6; -webkit-box-orient: vertical; overflow: hidden; }
+.lw-val { padding: 0 5px; border-radius: var(--radius-sm); background: var(--info-soft); color: var(--info-ink); -webkit-box-decoration-break: clone; box-decoration-break: clone; }
+.lw-open { display: inline; padding: 0 6px; border: 1px dashed var(--line-strong); border-radius: var(--radius-sm); color: var(--ink-dim); -webkit-box-decoration-break: clone; box-decoration-break: clone; }
+.lw-hole { padding: 0 5px; border-radius: var(--radius-sm); background: var(--warn-soft); color: var(--warn-ink); }
+.lw-mail-n { margin: 6px 0 0; font-size: var(--text-sm); line-height: var(--leading-snug); color: var(--ink-muted); }
+.lw-mail-n.warn { color: var(--warn-ink); }
+.lw-mail-n.quiet { margin: 10px 18px 0; }
+.lw-mail-w { margin: 7px 0 0; font-size: var(--text-xs); color: var(--ink-dim); }
+
+/* Change, opened in place: the sequences the adds could go to, each with what it would come to here. */
+.lw-opts { display: flex; flex-direction: column; margin-top: 6px; animation: lw-rise var(--duration-base) var(--ease-out) both; }
+.lw-opt { display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 10px; align-items: center; padding: 9px 2px; border: 0; border-top: 1px solid var(--line); background: none; color: var(--ink); font: inherit; text-align: left; cursor: pointer; }
+.lw-opt:first-child { border-top: 0; }
+.lw-radio { box-sizing: border-box; width: 16px; height: 16px; border: 1.5px solid var(--line-strong); border-radius: var(--radius-circle); }
+.lw-opt.on .lw-radio { border: 5px solid var(--accent); }
+.lw-opt-n { display: block; font-size: var(--text-base); font-weight: var(--weight-semibold); }
+.lw-opt-m { display: block; font-size: var(--text-xs); color: var(--ink-dim); }
+.lw-opt-f { display: block; font-size: var(--text-xs); color: var(--ok-ink); }
+.lw-opt-f.warn { color: var(--warn-ink); }
+.lw-opts-foot { margin: 8px 0 0; font-size: var(--text-xs); color: var(--ink-dim); }
+
+/* In a sequence: their steps, done, next and still to come. */
+.lw-track { display: flex; flex-direction: column; gap: 8px; margin: 8px 0 0; padding: 0; list-style: none; }
+.lw-track-i { display: grid; grid-template-columns: 10px minmax(0, 1fr); gap: 10px; align-items: start; font-size: var(--text-sm); color: var(--ink-muted); }
+.lw-track-i i { width: 8px; height: 8px; margin-top: 5px; border-radius: var(--radius-circle); background: var(--line-strong); }
+.lw-track-i.done i { background: var(--ok); }
+.lw-track-i.next i { background: var(--accent); }
+.lw-track-i b { display: block; font-weight: var(--weight-semibold); color: var(--ink); }
+
+/* The rail: the round ✕ and two more, or three words; the third the primary. A sibling of the card, held still. */
+.lw-rail { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr) minmax(0, 1.2fr); gap: 8px; padding: 6px; border-radius: var(--radius-3xl); background: var(--surface-control-fill); box-shadow: var(--surface-control-depth); }
+.lw-rail.x { grid-template-columns: 52px minmax(0, 1fr) minmax(0, 1.5fr); }
+.lw-rail[data-n="2"] { grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); }
+.lw-rail[data-n="1"] { grid-template-columns: minmax(0, 1fr); }
+.lw-rail-b { height: 52px; min-width: 0; justify-content: center; touch-action: manipulation; }
+.lw-rail-b.two { flex-direction: column; gap: 3px; }
+.lw-rail-b small { font-size: var(--text-2xs); font-weight: var(--weight-medium); opacity: 0.82; }
+.lw-rail-w { display: inline-flex; align-items: center; gap: 6px; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.lw-x { width: 52px; height: 52px; border-radius: var(--radius-circle); }
+.lw-rail[data-busy] { opacity: 0.8; }
+.lw-desk .lw-rail { background: none; box-shadow: none; padding: 0; }
+.lw-desk .lw-rail-b, .lw-desk .lw-x { height: 44px; }
+.lw-desk .lw-x { width: 44px; }
+.lw-desk .lw-rail.x { grid-template-columns: 44px minmax(0, 1fr) minmax(0, 1.5fr); }
+/* In the kit sheet's foot a button takes the foot's height and padding: the rail's places keep the canvas's 52px, and
+   a place of three words wraps to two lines at a phone's width rather than lose its end. */
+.lw-phone .lw-rail .lw-rail-b { height: 52px; padding-inline: 10px; }
+.lw-phone .lw-rail .lw-x { height: 52px; padding: 0; }
+.lw-phone .lw-rail-w { white-space: normal; text-align: center; line-height: 1.2; }
+
+/* Not a fit asks why in the rail's own place: five reasons, the last one given marked. */
+.lw-why { padding: 12px 12px 10px; border-radius: var(--radius-3xl); background: var(--surface-control-fill); box-shadow: var(--surface-control-depth); animation: lw-rise var(--duration-base) var(--ease-out) both; }
+.lw-desk .lw-why { padding: 0; background: none; box-shadow: none; }
+.lw-why-h { display: flex; align-items: center; gap: 8px; padding: 0 4px 10px; font-size: var(--text-base); font-weight: var(--weight-semibold); color: var(--ink); }
+.lw-why-h > :last-child { margin-left: auto; }
+.lw-why-g { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.lw-why-b { min-height: 44px; flex-direction: column; align-items: flex-start; justify-content: center; gap: 2px; text-align: left; }
+/* A reason wraps rather than leave its button at a phone's width: the button grows with it, over the height the
+   kit's sheet gives a button in its foot. */
+.lw .lw-why .lw-why-b { height: auto; padding-block: 7px; white-space: normal; }
+.lw-why-b > span { min-width: 0; overflow-wrap: anywhere; }
+.lw-why-b small { font-size: var(--text-2xs); font-weight: var(--weight-regular); color: var(--ink-dim); }
+.lw-why-b.last { outline: 1px solid var(--accent); outline-offset: -1px; }
+
+/* The pile's line under the rail: what a press did, a polite live region, standing empty before the first. */
+.lw-said { margin: 0; padding: 0 6px; font-size: var(--text-xs); color: var(--ink-muted); overflow-wrap: anywhere; }
+
+/* The end of the pile: what happened, in rows, and what comes next. */
+.lw-end { display: flex; flex-direction: column; gap: 12px; padding: 18px 18px 0; animation: lw-rise var(--duration-base) var(--ease-out) both; }
+.lw-end-t { margin: 0; font-size: var(--text-2xl); font-weight: var(--weight-semibold); letter-spacing: var(--tracking-tight); line-height: var(--leading-tight); color: var(--ink); }
+.lw-end-l { display: flex; flex-direction: column; border-radius: var(--radius-xl); background: var(--surface-inset-fill); box-shadow: var(--surface-inset-ring); }
+.lw-end-r { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 11px 13px; border-top: 1px solid var(--line); font-size: var(--text-base); color: var(--ink); }
+.lw-end-r:first-child { border-top: 0; }
+.lw-end-r b { font-variant-numeric: tabular-nums; }
+.lw-end-n { margin: 0; font-size: var(--text-base); line-height: var(--leading-normal); color: var(--ink-muted); }
+
+/* Full height: the tabs, and the open one's pane. */
+.lw-read { display: flex; flex-direction: column; gap: 6px; padding: 14px 14px 0; }
+.lw-read > .lw-pane { margin: 0 -14px; }
+.lw-pane { display: flex; flex-direction: column; padding: 4px 18px 12px; animation: lw-rise var(--duration-base) var(--ease-out) both; }
+.lw-h { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 14px 0 8px; font-size: var(--text-sm); font-weight: var(--weight-semibold); color: var(--ink-muted); }
+.lw-h:first-child { margin-top: 4px; }
+.lw-h-s { font-size: var(--text-xs); font-weight: var(--weight-regular); color: var(--ink-dim); }
+.lw-say { margin: 0 0 6px; font-size: var(--text-base); line-height: var(--leading-normal); color: var(--ink); }
+.lw-say.quiet { margin: 14px 0; color: var(--ink-muted); }
+.lw-cks { display: flex; flex-direction: column; }
+.lw-ck { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; gap: 8px; align-items: center; padding: 6px 0; font-size: var(--text-base); color: var(--ink); }
+.lw-ck.no { color: var(--ink-dim); }
+.lw-src { font-size: var(--text-xs); color: var(--ink-dim); white-space: nowrap; }
+.lw-sigs { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+.lw-sig { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px 0 8px; border-radius: var(--radius-full); background: var(--surface-inset-fill); box-shadow: var(--surface-inset-ring); font-size: var(--text-sm); color: var(--ink); }
+.lw-sig i { width: 6px; height: 6px; border-radius: var(--radius-circle); background: var(--info); }
+.lw-sig.warn i { background: var(--warn); }
+.lw-sig small { font-size: var(--text-2xs); color: var(--ink-dim); }
+.lw-group { display: flex; flex-direction: column; border-radius: var(--radius-xl); background: var(--surface-inset-fill); box-shadow: var(--surface-inset-ring); }
+.lw-rr { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 10px 12px; border-top: 1px solid var(--line); color: var(--ink-muted); }
+.lw-rr:first-child { border-top: 0; }
+.lw-rr-w { display: flex; flex-direction: column; min-width: 0; }
+.lw-rr-v { overflow: hidden; font-size: var(--text-base); font-weight: var(--weight-medium); white-space: nowrap; text-overflow: ellipsis; color: var(--ink); }
+.lw-rr-v.wrong { text-decoration: line-through; color: var(--ink-dim); }
+.lw-rr-s { font-size: var(--text-xs); color: var(--ink-dim); }
+.lw-rr-a { display: inline-flex; gap: 2px; }
+.lw-steps { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; }
+.lw-step { display: grid; grid-template-columns: 26px minmax(0, 1fr) auto; gap: 10px; align-items: start; padding: 10px 0; border-top: 1px solid var(--line); }
+.lw-step:first-child { border-top: 0; }
+.lw-step-n { width: 24px; height: 24px; display: grid; place-items: center; border-radius: var(--radius-circle); background: var(--surface-inset-fill); box-shadow: var(--surface-inset-ring); font-size: var(--text-2xs); font-weight: var(--weight-semibold); color: var(--ink-muted); }
+.lw-step-n.next { background: var(--accent); box-shadow: none; color: var(--primary-ink); }
+.lw-step-w { display: flex; flex-direction: column; min-width: 0; font-size: var(--text-sm); }
+.lw-step-w b { font-weight: var(--weight-semibold); color: var(--ink); }
+.lw-step-b { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; color: var(--ink-dim); }
+.lw-step-a { font-size: var(--text-xs); color: var(--ink-dim); white-space: nowrap; }
+.lw-vars, .lw-kv { display: flex; flex-direction: column; border-radius: var(--radius-xl); background: var(--surface-inset-fill); box-shadow: var(--surface-inset-ring); }
+.lw-var, .lw-kv-r { display: grid; grid-template-columns: 92px minmax(0, 1fr) auto; gap: 10px; align-items: baseline; padding: 9px 12px; border-top: 1px solid var(--line); font-size: var(--text-sm); color: var(--ink); }
+.lw-var:first-child, .lw-kv-r:first-child { border-top: 0; }
+.lw-var > :nth-child(2), .lw-kv-r > :nth-child(2) { min-width: 0; overflow-wrap: anywhere; }
+.lw-var-k, .lw-kv-k { font-size: var(--text-xs); color: var(--ink-dim); }
+.lw-var-s { max-width: 140px; font-size: var(--text-2xs); text-align: right; color: var(--ok-ink); }
+.lw-var.fallback .lw-var-s, .lw-var.gap .lw-var-s { color: var(--warn-ink); }
+.lw-var.later .lw-var-s { color: var(--accent-ink); }
+.lw-kv-r.today { font-weight: var(--weight-semibold); }
+.lw-stand { display: flex; flex-direction: column; gap: 4px; padding: 11px 13px; border-radius: var(--radius-xl); background: var(--surface-inset-fill); box-shadow: var(--surface-inset-ring); font-size: var(--text-sm); color: var(--ink-muted); }
+.lw-stand b { font-weight: var(--weight-semibold); color: var(--ink); }
+.lw-found { display: flex; flex-direction: column; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.lw-found-i { display: grid; grid-template-columns: 8px minmax(0, 1fr) auto; gap: 10px; align-items: baseline; font-size: var(--text-sm); color: var(--ink); }
+.lw-found-i i { width: 6px; height: 6px; border-radius: var(--radius-circle); background: var(--ok); }
+.lw-quiet { display: flex; justify-content: flex-start; margin-top: 14px; }
+
+/* A decision turns the card: the next one comes in. */
+.lw-turn { display: flex; flex-direction: column; animation: lw-arrive var(--duration-base) var(--ease-out) both; }
+@keyframes lw-arrive { 0% { transform: translateX(28px); opacity: 0; } 38% { opacity: 1; } 100% { transform: none; opacity: 1; } }
+@keyframes lw-swap { from { transform: translateY(6px); opacity: 0.4; } }
+@keyframes lw-rise { from { transform: translateY(4px); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .lw-turn { animation: lw-fade var(--duration-base) linear both; }
+  .lw-pane, .lw-opts, .lw-why, .lw-end, .lw-undo, .lw-bubble { animation: none; }
+}
+@keyframes lw-fade { from { opacity: 0; } }
+
+/* The door into the pile, under an open search; and the line that asks for one. */
 .ld-pile-door { display: flex; align-items: center; gap: 8px; padding: 4px var(--gutter-page) 8px; }
 .ld-pile-door p { margin: 0; font-size: var(--text-sm); color: var(--ink-muted); }
-/* What a press did, the pile's one line: a live region, so it stands (empty) before the first press, to be heard after. */
-.ld-pile-said { flex-basis: 100%; margin: 0; color: var(--ink-muted); overflow-wrap: anywhere; }
-/* The reason a Not a fit was last given, marked among the five. */
-.ld-now-dot { flex: none; width: 6px; height: 6px; margin-right: 6px; border-radius: var(--radius-full); background: var(--accent); }
-/* What fills their words (pile/card.tsx LeadCardSlots): each slot, what it says for them and where that came from; a
-   fallback quieter, a hole in the warning's ink. */
-.ld-now-fills { display: flex; flex-direction: column; gap: 6px; }
-.ld-now-fills > summary { cursor: pointer; }
-.ld-now-fills-list { display: flex; flex-direction: column; gap: 6px; margin: 0; font-size: var(--text-sm); }
-.ld-now-fills-list > div { display: grid; grid-template-columns: 112px minmax(0, 1fr); gap: 8px; }
-.ld-now-fills-list dt { color: var(--ink-dim); font-size: var(--text-xs); line-height: inherit; }
-.ld-now-fills-list dd { display: flex; flex-direction: column; gap: 1px; margin: 0; min-width: 0; color: var(--ink); overflow-wrap: anywhere; }
-.ld-now-fills-list .fallback dd { color: var(--ink-muted); }
-.ld-now-fills-list .gap dd, .ld-now-fills-list .gap .ld-now-note { color: var(--warn-ink); }
 /* Add them all (pile/bulk.tsx): what each lead would come to, in buckets, and the one press. */
 .ld-pile-all { margin-left: auto; }
 .ld-pile-bulk { display: flex; flex-direction: column; gap: 10px; width: min(320px, calc(100vw - 32px)); }
@@ -1837,15 +1545,6 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
 .ld-pile-bulk li.stays { color: var(--ink-dim); }
 .ld-pile-bulk-n { text-align: right; font-weight: var(--weight-semibold); font-variant-numeric: tabular-nums; }
 .ld-pile-bulk-note { display: block; font-size: var(--text-xs); color: var(--ink-dim); }
-/* On a desk the lead's details are the peek beside the pile (408px, .pk): the pile keeps clear of it. Under 900px the
-   pile is a sheet over the rows (pile/sheet.tsx) and draws nothing where they stand. */
-.ld-pile { margin-right: 408px; }
-@media (max-width: 900px) {
-  .ld-pile { margin-right: 0; max-width: none; }
-  /* Under a thumb: no and not now side by side, and yes the whole width under them, where the thumb rests. */
-  .ld-pile-rail > * { flex-basis: calc(50% - 4px); }
-  .ld-pile-rail > :last-child { flex-basis: 100%; }
-}
 
 /* Back today (00426, decision 9): who asked to hear back on a day that has come, over the lists. */
 .ld-back { display: flex; flex-direction: column; gap: 4px; margin: 0 0 var(--space-3); padding: var(--space-2) var(--space-3); border: 1px solid var(--line); border-radius: var(--radius-md); }

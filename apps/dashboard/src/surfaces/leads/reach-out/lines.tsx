@@ -211,14 +211,31 @@ const RoStory = ({ vm, standing }: { vm: TimelineVM; standing: string | null }) 
  * the business answered in their own inbox, said as one of five words and read as a reply is (its undo the same).
  */
 export const LeadReachOut = ({ lead, flash }: { lead: LeadPeekVM | null; flash: Flash | null }) => {
-  const leadId = lead ? lead.id : null;
+  const told = useLeadStory(lead ? lead.id : null);
+  return <LeadReachOutView lead={lead} story={told.story} again={told.again} flash={flash} />;
+};
+
+/**
+ * Stop writing to a lead (H10): its door, what it said in a toast, and every page's lines of its leads told it moved.
+ * The block's Stop and the lead sheet's rail both press it, each after asking.
+ */
+export async function stopWritingTo(leadId: string, name: string, flash: Flash | null) {
+  const W = reachOuts.words.REACH_OUT_STOP_WORDS;
+  const r = await reachOuts.stopLead(leadId);
+  if (flash)
+    flash(r && r.ok ? { tone: "ok", msg: r.data && r.data.already ? W.already(name) : W.done(name) } : refusalToast(r));
+  roLeadsMoved();
+  return r;
+}
+
+/**
+ * A lead's story with its sequence (reach_out_lead_timeline), read as it opens and again as the business moves: a reply
+ * read, a send gone (read-again.ts). The lead sheet reads it once, for its state and its Activity alike.
+ */
+export function useLeadStory(leadId: string | null) {
   const [story, setStory] = useState<ReachOutLeadTimelineDto | null>(null);
-  const [tick, bump] = useReducer((n: number) => n + 1, 0);
-  // Its story follows the business as the lines do: a reply read, a send gone (read-again.ts).
+  const [tick, again] = useReducer((n: number) => n + 1, 0);
   const moved = useReadAgain(leadId);
-  const [sure, setSure] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [asking, setAsking] = useState(false);
   useEffect(() => {
     if (!leadId) return undefined;
     let live = true;
@@ -229,7 +246,25 @@ export const LeadReachOut = ({ lead, flash }: { lead: LeadPeekVM | null; flash: 
       live = false;
     };
   }, [leadId, tick, moved]);
-  if (!lead || !story || !story.chain || story.lead_id !== leadId) return null;
+  return { story: story && story.lead_id === leadId ? story : null, again };
+}
+
+/** The block, over a story already read: its lines, where it stands, and its doors. */
+export const LeadReachOutView = ({
+  lead,
+  story,
+  again: bump,
+  flash,
+}: {
+  lead: LeadPeekVM | null;
+  story: ReachOutLeadTimelineDto | null;
+  again: () => void;
+  flash: Flash | null;
+}) => {
+  const [sure, setSure] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [asking, setAsking] = useState(false);
+  if (!lead || !story || !story.chain) return null;
   const vm = reachOuts.timelineOf(story);
   // Where it stands, the one line every page says (00426): what is next, or what its answer did.
   const standing = vm.stopped ? null : reachOuts.standingOf(story);
@@ -240,10 +275,8 @@ export const LeadReachOut = ({ lead, flash }: { lead: LeadPeekVM | null; flash: 
   const stop = async () => {
     setSure(false);
     setBusy(true);
-    const r = await reachOuts.stopLead(lead.id).finally(() => setBusy(false));
-    said(r, r && r.ok && r.data && r.data.already ? W.already(story.business_name) : W.done(story.business_name));
+    await stopWritingTo(lead.id, story.business_name, flash).finally(() => setBusy(false));
     bump();
-    roLeadsMoved();
   };
   const undo = async () => {
     if (busy || !vm.undo) return;
