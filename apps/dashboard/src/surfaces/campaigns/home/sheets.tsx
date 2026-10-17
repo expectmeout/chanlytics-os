@@ -1,16 +1,15 @@
 /**
  * What Campaigns opens over Sequences (decision 0060, S6): the home's own page went, its ledger, rail and tiles with it,
- * and the sheets it opened stay, each at its own address (address.ts): the composer (`campaigns/new…`: Send once, Every
- * time a moment comes, Write to leads, a change to a playbook), a message in a drawer of its own
- * (`campaigns/message:<name>`), and a reach-out's sheet (a chain's change; Write to leads once its search is chosen). Each
- * is the address's as it was: a press pushes it, so Back and Cancel close it onto the page it was opened from; a link that
- * arrived at it is replaced by Sequences when it closes. A campaign made or changed opens its sequence, where its steps,
- * people and history now are.
+ * and the sheets it opened stay, each at its own address (address.ts): the composer (`campaigns/new…`: Send once and Write
+ * to leads), a message in a drawer of its own (`campaigns/message:<name>`), and a reach-out's sheet (a chain's change, a
+ * sequence to leads' step's Edit; Write to leads once its search is chosen). Each is the address's as it was: a press pushes it, so Back and Cancel close it onto the page it
+ * was opened from; a link that arrived at it is replaced by Sequences when it closes. A moment's sequence is made in New
+ * sequence and changed on its record (the closed-loop audit of 17 Oct 2026, G): the composer's Every time went.
  *
- * The campaigns' surfaces are read only while one of these stands: Sequences reads its own.
+ * What the sheets draw is read only while one of them stands: Sequences reads its own.
  */
-import { useState } from "react";
-import { LIFECYCLE_TOAST, sequenceRoute } from "@chanlytics/contracts";
+import { useEffect, useState } from "react";
+import { chainOfMoment, sequenceRoute } from "@chanlytics/contracts";
 import { replaceRoute, useLegacyToast } from "../../legacy-verbs";
 import { ReachOutSheet } from "../reach-out/sheet";
 import type { ReachOutStart } from "../reach-out/sources";
@@ -18,41 +17,46 @@ import { composeRoute, parseHome } from "./address";
 import type { HomeAddress } from "./address";
 import { MessageDrawer } from "./message-drawer";
 import { NewMessage } from "./new-message";
-import { SentenceParts } from "./sentence";
-import { useHomeData, useHomeNav } from "./use-home";
+import { useChains, useComposerData, useHomeNav } from "./use-home";
 
 type Flash = ReturnType<typeof useLegacyToast>[1];
 
-/** Whether the address names a sheet: the composer or a message. A chain's change is the composer's address. */
+/** Whether the address names a sheet: the composer or a message. */
 const namesSheet = (a: HomeAddress) => a.compose !== null || a.message !== null;
 
-/** The sheets, once the campaigns' surfaces they are made of are read. */
+/** A change the address names whose id is no reach-out's, once they are read: a moment's sequence, on its own record. */
+function LandsOnItsSequence({ id }: { id: string }) {
+  useEffect(() => replaceRoute(sequenceRoute(id)), [id]);
+  return null;
+}
+
+/** The sheets: the message's drawer, a reach-out's change or the one a search started, and the composer. */
 function OpenSheets({
   address,
   starting,
   setStarting,
   flash,
-  nowMs,
 }: {
   address: HomeAddress;
   starting: ReachOutStart | null;
   setStarting: (start: ReachOutStart | null) => void;
   flash: Flash;
-  nowMs?: number;
 }) {
-  const { playbooks, broadcasts, reachOuts, home } = useHomeData(nowMs);
+  const { broadcasts } = useComposerData(address.compose !== null);
+  const chains = useChains();
   const nav = useHomeNav(address);
-  if (!playbooks) return null;
-  // A reach-out's change is its own sheet (the record sheet), so the address that names one opens that sheet in the
-  // composer's place.
-  const changing = address.compose && address.compose.mode === "every" ? address.compose.edit : null;
-  const chain = changing && Array.isArray(reachOuts) ? (reachOuts.find((c) => c.root_id === changing) ?? null) : null;
+  // A reach-out's change is its own sheet (the record sheet), by its root or any of its steps (contracts chainOfMoment), in
+  // the composer's place; an id that is none of theirs, once they are read, is a moment's sequence's, and lands on its record.
+  const changing = address.compose?.mode === "change" ? address.compose.root : null;
+  const chain = changing && Array.isArray(chains) ? chainOfMoment(chains, changing) : null;
+  const elsewhere = changing !== null && Array.isArray(chains) && chain === null;
   return (
     <>
       <MessageDrawer name={address.message} flash={flash} onClose={nav.close} />
       {chain && chain.search ? (
         <ReachOutSheet key={chain.root_id} search={chain.search} chain={chain} onClose={nav.close} onGo={nav.swap} />
       ) : null}
+      {elsewhere ? <LandsOnItsSequence id={changing} /> : null}
       {starting && address.compose === null ? (
         <ReachOutSheet
           key={starting.search.id}
@@ -62,24 +66,13 @@ function OpenSheets({
         />
       ) : null}
       <NewMessage
-        compose={chain ? null : address.compose}
-        home={home}
-        playbooks={playbooks}
+        compose={chain || elsewhere ? null : address.compose}
         broadcasts={broadcasts}
-        reachOuts={reachOuts}
+        chains={chains}
         flash={flash}
         onClose={nav.close}
         onYes={nav.swap}
         onKind={(mode) => nav.swap(composeRoute(mode))}
-        onSaved={(d, changed) => {
-          const name = d.name ?? LIFECYCLE_TOAST.nameless;
-          flash({
-            msg: <SentenceParts parts={changed ? LIFECYCLE_TOAST.changed(name) : LIFECYCLE_TOAST.running(name)} />,
-          });
-          // The campaign is a sequence (its first step's id is the sequence's): its record, in the composer's place.
-          if (d.id) replaceRoute(sequenceRoute(d.id));
-          else nav.close();
-        }}
         onWrite={(start) => {
           setStarting(start);
           nav.close();
@@ -89,11 +82,8 @@ function OpenSheets({
   );
 }
 
-/**
- * Campaigns' sheets over Sequences: nothing while the address names none and no reach-out is being started. `nowMs` is the
- * clock its campaigns are read at, for a test; the moment it draws otherwise.
- */
-export function CampaignsSheets({ param, nowMs }: { param: string | null; nowMs?: number }) {
+/** Campaigns' sheets over Sequences: nothing while the address names none and no reach-out is being started. */
+export function CampaignsSheets({ param }: { param: string | null }) {
   const address = parseHome(param);
   const [toastNode, flash] = useLegacyToast();
   // A reach-out started from Write to leads: its search, handed over as the composer closes, and its sheet drawn here once
@@ -102,7 +92,7 @@ export function CampaignsSheets({ param, nowMs }: { param: string | null; nowMs?
   return (
     <>
       {namesSheet(address) || starting ? (
-        <OpenSheets address={address} starting={starting} setStarting={setStarting} flash={flash} nowMs={nowMs} />
+        <OpenSheets address={address} starting={starting} setStarting={setStarting} flash={flash} />
       ) : null}
       {toastNode}
     </>

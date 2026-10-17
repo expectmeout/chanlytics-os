@@ -447,14 +447,16 @@ export interface SetupCardVM {
 const CARD_SKIP = { put: "Skip", said: "Put off. It stays in Setting up for when you're ready." } as const;
 
 /**
- * Today's door to the reminder (decision 22): the composer opened on the day-before moment. Its sentence names no
- * appointment: Setup holds no word for one, and the composer it opens says the workspace's own (a meeting where deals
- * are on, journey/appointment-word.ts), so the two never disagree.
+ * Today's door to the reminder (decision 22): New sequence opened on the day-before moment. Its sentence names no
+ * appointment: Setup holds no word for one, and New sequence says the workspace's own (a meeting where deals are on,
+ * journey/appointment-word.ts), so the two never disagree.
  */
 const CARD_REMIND = {
   words: "Your calendar is in. Remind each customer the day before?",
   label: "Turn on",
-  to: "campaigns/new:moment:visit_tomorrow",
+  // New sequence on the day-before moment, its line written in (sequence-address.ts newSequenceRoute): the composer's
+  // Turn on went with its moment mode (the closed-loop audit of 17 Oct 2026, G).
+  to: "campaigns/sequences/new:moment:visit_tomorrow",
 } as const;
 
 /** Today's card: what is left to set up, or null when nothing is. */
@@ -506,7 +508,7 @@ export function setupCardOf(vm: SetupVM): SetupCardVM | null {
     skip: CARD_SKIP,
     // Only where Campaigns can make the reminder: a calendar link connected (SetupVM.calendarLinked, the moments'
     // calendarOn), and the row ready. The row's Ready alone also says "booked by hand" and bookings by email alone, where
-    // the composer's moment is not offered and core refuses it.
+    // the moment is not offered and core refuses it.
     remind: vm.calendarLinked && calendar?.state === "ready" ? { ...CARD_REMIND } : null,
   };
 }

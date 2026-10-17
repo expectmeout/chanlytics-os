@@ -839,7 +839,8 @@ scrolls across. On a phone the moments are the list's spine: each moment's head 
 under it as list rows wearing their kind as a mark, a strip of chips from seven campaigns (one choice, no swipe), and
 the drawer docks Pause or Resume in its foot. Delete and Remove close the drawer before the toast says so. The doors
 land on what they name: a campaign's drawer, a run, the bell's reach-out day on `campaigns/in:reach_out`, Ask's new
-campaign on its drawer, Today's card (after the first run, with the calendar in) on the appointment reminder's composer.
+campaign on its drawer, Today's card (after the first run, with the calendar in) on New sequence, on the appointment
+reminder's moment (the composer's Every time went: the closed-loop audit of 17 Oct 2026, G).
 What a person reads, Ask's words aside, says "campaign", never "playbook" (the spec's decision 19), and the page says the workspace's
 word for an appointment; what customers read says "appointment" ("cita") on the consent and unsubscribe pages and in the
 email's foot, whatever the trade (decision 0041).

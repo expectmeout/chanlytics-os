@@ -523,7 +523,7 @@ test("after the first run, with the calendar in, the card carries one door to th
     assert.ok(textOf(line).startsWith("Your calendar is in. Remind each customer the day before?"));
     const remind = find(card, (n) => n.props?.["data-testid"] === "today-setup-remind-go");
     assert.ok(remind, "one door to the appointment reminder");
-    assert.match(String(remind.props.href), /campaigns\/new:moment:visit_tomorrow$/);
+    assert.match(String(remind.props.href), /campaigns\/sequences\/new:moment:visit_tomorrow$/);
     assert.equal(textOf(remind), "Turn on");
   } finally {
     feedSetup(undefined);

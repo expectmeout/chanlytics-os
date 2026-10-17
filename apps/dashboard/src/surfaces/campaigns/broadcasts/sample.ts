@@ -8,7 +8,6 @@
 import {
   BROADCAST_CHUNK,
   BROADCAST_SCHEDULE_MAX_DAYS,
-  CAMPAIGNS_RESULTS_PERIOD,
   DAY_MS,
   EVERYONE_HINT,
   EVERYONE_LABEL,
@@ -28,7 +27,6 @@ import {
   type BroadcastDto,
 } from "@chanlytics/contracts";
 import type { AudienceOption, BroadcastTemplate, BroadcastsSurface } from "./surface";
-import type { CampaignResultsSurface } from "../home/results-surface";
 import { DEMO_ZONE } from "../../demo-zone";
 
 const DAY = DAY_MS;
@@ -228,15 +226,5 @@ export function broadcastsSample(now = new Date()): BroadcastsSurface {
     more: false,
     scheduleMaxDays: BROADCAST_SCHEDULE_MAX_DAYS,
     fetchedAt: now.getTime(),
-  };
-}
-
-/** A demo session's 30 days: the one run the sample sent, as the campaign report would count it over the last thirty days. */
-export function campaignResultsSample(): CampaignResultsSurface {
-  return {
-    period: CAMPAIGNS_RESULTS_PERIOD,
-    report: { days: 30, totals: { sent: 18, delivered: 17, read: 11, replied: 3, optIns: 4, optOuts: 1 }, sources: [] },
-    chains: null,
-    fetchedAt: 0,
   };
 }

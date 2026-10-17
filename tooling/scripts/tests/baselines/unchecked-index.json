@@ -36,8 +36,6 @@
   "apps/dashboard/src/server/request-ip.ts": 1,
   "apps/dashboard/src/surfaces/campaigns/broadcasts/page/reach.ts": 8,
   "apps/dashboard/src/surfaces/campaigns/broadcasts/page/runs.tsx": 1,
-  "apps/dashboard/src/surfaces/campaigns/playbooks/composer-model.ts": 4,
-  "apps/dashboard/src/surfaces/campaigns/playbooks/composer-sections.tsx": 1,
   "apps/dashboard/src/surfaces/campaigns/reach-out/approval.tsx": 1,
   "apps/dashboard/src/surfaces/campaigns/reach-out/sheet-fields.tsx": 4,
   "apps/dashboard/src/surfaces/campaigns/reach-out/sheet.tsx": 2,

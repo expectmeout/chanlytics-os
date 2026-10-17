@@ -6,6 +6,7 @@
  * model fills, its limits, what POST sequences/draft answers and the page's words. No zod here: the page reads these in the
  * browser; what the routes parse is sequence-draft-schema.ts.
  */
+import { appointmentWords, type AppointmentWord } from "../journey/appointment-word";
 import type { ParamSpec } from "../templates/templates";
 import { FOLLOW_UP_CONDITIONS, type FollowUpCondition } from "./follow-up";
 
@@ -125,4 +126,35 @@ export const SEQUENCE_NEW_WORDS = {
   noLists: "No list to start on yet. Make one in People.",
   openComposer: { date: "Write it", leads: "Pick the leads" },
   failed: "Ask couldn’t draft it just now. Try again in a moment.",
+  /** A door's moment that a sequence already starts on: by its name, with the door to it. */
+  already: (name: string): string => `“${name}” already starts on this moment`,
+  open: "Open it",
 } as const;
+
+/**
+ * The owner's line New starts from on a moment a door asked for (`new:moment:<trigger>`): what they would have said, so
+ * Draft it is one press. Null for a moment with no line of its own: New starts on a moment with an empty line, as it does
+ * with none asked for. In the workspace's word for an appointment.
+ */
+export function newSequenceLine(trigger: string, word: AppointmentWord): string | null {
+  const a = appointmentWords(word);
+  switch (trigger) {
+    case "visit_tomorrow":
+      return `Remind each customer the day before their ${a.one}`;
+    case "visited":
+      return `Thank each customer the day after their ${a.one}, and ask how it went`;
+    case "quiet_30":
+    case "lapsed":
+      return "Invite back anyone who hasn’t been in for a while";
+    case "new_week":
+      return "Welcome each new customer in their first week";
+    case "phoned_only":
+      return "Ask anyone who only phoned to save our number";
+    case "everyone_monthly":
+      return "Send everyone this month’s offer";
+    case "proposal_waiting":
+      return "Follow up on a proposal they haven’t answered";
+    default:
+      return null;
+  }
+}

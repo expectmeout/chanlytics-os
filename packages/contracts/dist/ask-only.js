@@ -769,7 +769,9 @@ var LIFECYCLE_WORDS = {
       what: "who and what you can send to",
       body: "Nothing goes out until it reads. Everything else here is current.",
       surface: "broadcasts"
-    }
+    },
+    // A reach-out's change opens on its chain, which the reach-outs read holds: said where it could not be, with its Retry.
+    chainFailed: { what: "your reach-out", body: "Its sheet opens once it reads.", surface: "reach_outs" }
   },
   phone: { moments: "Moments" },
   // The channels a campaign goes by: the row's word in the drawer, and what a mark that waits says of itself.
@@ -1026,6 +1028,10 @@ var TEMPLATE_BODY_MAX = 1024;
 var TEMPLATE_BODY_WORDS = `The message must be under ${TEMPLATE_BODY_MAX} characters.`;
 var TEMPLATE_SAME_NAME_WORDS = "A template with that name and language already exists. Pick another name.";
 
+// src/sequences/sequence-address.ts
+var SEQUENCES_ROUTE = "campaigns/sequences";
+var newSequenceRoute = (moment) => moment ? `${SEQUENCES_ROUTE}/new:moment:${moment}` : `${SEQUENCES_ROUTE}/new`;
+
 // src/shared/enums.ts
 var TEMPLATE_STATUSES = ["approved", "pending", "rejected", "paused", "disabled"];
 
@@ -1195,14 +1201,15 @@ var playbookSpec = {
     call: (u) => ({ route: "DELETE playbooks/[id]", params: { id: asText(u.playbook_id) } }),
     receipt: () => "Deleted \u2014 nothing will run"
   },
-  // The new campaign's drawer on Campaigns' home once it is made (spec 2026-10-09 §4.6, one landing rule), by the id its
-  // commit kept for the undo, as the list card opens the list it made; before then the composer on its moment, where the
-  // whole of it can be set by hand ("Open in the composer"), and the home where the card names no moment.
+  // The new campaign's sequence once it is made (spec 2026-10-09 §4.6, one landing rule: `campaigns/moment:<id>` lands on
+  // it), by the id its commit kept for the undo, as the list card opens the list it made; before then New sequence on its
+  // moment, its line written in, and Sequences where the card names no moment (the composer's moment mode went: the
+  // closed-loop audit of 17 Oct 2026, G).
   open: ({ payload }, outcome) => {
     const id = idIn(rec(outcome?.undo), "playbook_id");
     if (id) return `campaigns/moment:${id}`;
     const trigger = idIn(payload, "trigger");
-    return trigger ? `campaigns/new:moment:${trigger}` : "outbound";
+    return trigger ? newSequenceRoute(trigger) : "outbound";
   }
 };
 var channelsIn = (v) => Array.isArray(v) ? CONSENT_CHANNELS.filter((c) => v.includes(c)) : [];

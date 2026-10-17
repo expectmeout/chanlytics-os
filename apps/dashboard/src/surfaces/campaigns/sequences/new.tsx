@@ -21,6 +21,7 @@ import {
   exampleParams,
   listStartsSentence,
   momentStartsSentence,
+  newSequenceLine,
   sequenceChannelsWords,
   sequenceRoute,
   sequenceWaitWords,
@@ -29,12 +30,14 @@ import {
   type SequenceDraftDto,
   type SequenceDraftListDto,
   type SequenceDraftStepDto,
+  type SequenceRowDto,
 } from "@chanlytics/contracts";
 import type { Output } from "@/client/api";
 import { commitVerb } from "@/legacy-bridge/verbs/commit";
 import { Button } from "../../kit/button/button";
 import { Field } from "../../kit/field/field";
 import { Icon } from "../../kit/icon/icon";
+import { Notice } from "../../kit/notice/notice";
 import { StatePill } from "../../kit/pill/state-pill";
 import { Segmented } from "../../kit/segmented/segmented";
 import { Select } from "../../kit/select/select";
@@ -312,12 +315,26 @@ function SayIt(p: SayItProps) {
   );
 }
 
-export function NewSequence() {
+/**
+ * The sequence that already starts on a moment a door asked for, any but one that ended: Setup's first reminder and Ask's
+ * moment card land here whether or not the workspace has one, and a second on a visit moment is refused when started.
+ */
+function alreadyOn(rows: readonly SequenceRowDto[] | undefined, moment: string | null): SequenceRowDto | null {
+  if (!rows || !moment) return null;
+  return rows.find((r) => r.starts === "moment" && r.state !== "ended" && r.first?.trigger === moment) ?? null;
+}
+
+/** New, on the moment its address names (`new:moment:<trigger>`) where a door asked for one. */
+export function NewSequence({ moment = null }: { moment?: string | null }) {
   const page = useSurface("sequences");
   const [toast, flash] = useLegacyToast();
   const [on, setOn] = useState<StartsOn>("moment");
   const [list, setList] = useState<SequenceDraftListDto | null>(null);
-  const [words, setWords] = useState("");
+  // The owner's own line, once they type; until then the moment's line where a door asked for one, in the workspace's
+  // word for an appointment as soon as the list read says it.
+  const [typedLine, setWords] = useState<string | null>(null);
+  const words = typedLine ?? (moment ? (newSequenceLine(moment, page ? page.word : "appointment") ?? "") : "");
+  const already = alreadyOn(page?.sequences, moment);
   const [draft, setDraft] = useState<SequenceDraftDto | null>(null);
   const [saying, setSaying] = useState(true);
   // Each answer of Ask's is drawn afresh, so a draft said again arrives as the first did.
@@ -408,6 +425,19 @@ export function NewSequence() {
       }
     >
       <div className="sq-new">
+        {already && !draft ? (
+          <Notice
+            line
+            fact={W.already(already.name)}
+            label={W.already(already.name)}
+            act={
+              <Button size="sm" {...routeDoor(sequenceRoute(already.id))} data-testid="sq-new-already-open">
+                {W.open}
+              </Button>
+            }
+            testid="sq-new-already"
+          />
+        ) : null}
         {draft && !saying ? (
           <p className="sq-ask-line" data-testid="sq-new-said">
             <Icon name="sparkle" size={14} />

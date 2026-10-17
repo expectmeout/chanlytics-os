@@ -12,18 +12,11 @@
  * Run against the pages (TSX, apps/dashboard/src/surfaces/campaigns) on a stub React, over the view models the seam holds
  * (surface-values.ts), their verbs the modules' own; Today's run rows are the shell's, still JSX. A playbook's detail is
  * `PlaybookPane` (the card the Playbooks list drew in its row is gone, 3 Oct 2026: Campaigns' home opens the pane in a
- * sheet), and the composer is the home's `new:every` address.
+ * sheet). The composer's Every time, and its no-template hint, went (the closed-loop audit of 17 Oct 2026, G).
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import {
-  toBroadcastVM,
-  toTodayVM,
-  stateOf,
-  PLAYBOOK_TRIGGERS,
-  campaignMessagesOf,
-  starterForTrigger,
-} from "@chanlytics/contracts";
+import { toBroadcastVM, toTodayVM, stateOf, PLAYBOOK_TRIGGERS, campaignMessagesOf } from "@chanlytics/contracts";
 import {
   installLegacyReact,
   fresh as freshTree,
@@ -267,8 +260,6 @@ const { AgentCommand } = await import(`${S}/surfaces/today/pages/queue.tsx`);
 const { TodayBriefPane } = await import(`${S}/surfaces/today/pages/brief-pane.tsx`);
 // The moved surfaces: TSX, drawn over the values the seam holds, their verbs imported.
 const { BroadcastsPage } = await import(`${S}/surfaces/campaigns/broadcasts/broadcasts-page.tsx`);
-const { CampaignsSheets } = await import(`${S}/surfaces/campaigns/home/sheets.tsx`);
-const { playbooksSample } = await import(`${S}/surfaces/campaigns/playbooks/sample.ts`);
 const { Picker } = await import(`${S}/surfaces/kit/picker/picker.tsx`);
 /** One of the composer's choices, the kit's Picker (surfaces/kit/picker/), by its test id. */
 const pickerOf = (tree, testid) => find(tree, (n) => n.type === Picker && n.props["data-testid"] === testid);
@@ -310,17 +301,6 @@ const page = (props) => {
   return BroadcastsPage(props);
 };
 const again = (props) => drawAgain(() => BroadcastsPage(props));
-/**
- * Campaigns' sheets at an address (`campaigns/<param>`), read at the clock the file runs at. Only the playbooks are read
- * here: the broadcasts, the reach-outs and the library are not.
- */
-const homeAt = (param = null, broadcasts = undefined) => {
-  for (const key of ["reach_outs", "settings"]) setSurfaceValue(key, undefined);
-  setSurfaceValue("broadcasts", broadcasts);
-  fresh();
-  return drawAgain(() => CampaignsSheets({ param, nowMs: NOW }));
-};
-
 /* ------------------------------- a run's own door ------------------------------- */
 
 test("REGRESSION (C9): a link to a run opens it on its sheet -- its report on a screen of its own, as the canvas draws it, whether the read holds it or not", async () => {
@@ -600,24 +580,6 @@ test("REGRESSION (A21): Today's run rows open the run -- a run waiting for you o
 
 /* ------------------------- what a playbook's detail shows ------------------------- */
 
-test("REGRESSION (C19): with no approved template, the composer's hint opens Messages -- it named the page in plain words", () => {
-  // A workspace with no playbook and no approved template, and Campaigns' composer on Every time a moment comes.
-  setSurfaceValue("playbooks", { ...playbooksSample(new Date(NOW)), rows: [], templates: [] });
-  // A moment with no message of its own: one that has one offers it, to add as Turn on starts (Ruben, 11 Oct 2026).
-  const bare = PLAYBOOK_TRIGGERS.find((t) => !starterForTrigger(t.id) && t.kind !== "reach_out");
-  assert.ok(bare, "a moment with no message written for it");
-  const tree = homeAt(`new:moment:${bare.id}`);
-  const hint = byTestId(tree, "pb-no-template");
-  assert.ok(hint, "the composer is open on a workspace with no template");
-  // A door is a link inside its sentence: its address in the href, the app's own way there on a press. As a button it took
-  // the touch floor's 44px and broke the sentence on a phone (7 Oct 2026).
-  const door = find(hint, (n) => n.type === "a");
-  assert.ok(door, "REGRESSION: 'Campaigns › Messages' as words");
-  assert.match(door.props.href, /messages$/, "the Library's own address, for a new tab or a long press");
-  press(door);
-  assert.deepEqual(went, ["messages"]);
-});
-
 test("REGRESSION: a playbook's list that could not be read is not called deleted, and one of People's is named by contracts (decision 0009)", async () => {
   const empty = { candidates: 0, held: 0, pool: 0, noYes: 0, stopped: 0, noNumber: 0, saidYes: 0 };
   const pools = Object.fromEntries(PLAYBOOK_TRIGGERS.map((t) => [t.id, empty]));
@@ -650,39 +612,6 @@ test("REGRESSION: a playbook's list that could not be read is not called deleted
     assert.equal(label("pb-people"), "Lapsed", "a built-in is never deleted: contracts names it");
   } finally {
     globalThis.fetch = fetchKept;
-  }
-});
-
-test("REGRESSION: counts that could not be read draw no zero in the composer -- a People read that failed drew '0 of 0' and 'nobody to send to'", async () => {
-  // The route's answer when its People read failed (server/campaigns/playbook-pools.ts triggerPools): no moment was counted.
-  const pools = Object.fromEntries(PLAYBOOK_TRIGGERS.map((t) => [t.id, null]));
-  const surfaceOnly = new Set(["triggerLabel", "triggerHint", "schedule", "next", "candidates", "held"]);
-  const route = Object.fromEntries(Object.entries(playbook()).filter(([k]) => !surfaceOnly.has(k)));
-  const answer = (data) =>
-    new Response(JSON.stringify({ ok: true, data }), { status: 200, headers: { "content-type": "application/json" } });
-  const kept = globalThis.fetch;
-  globalThis.fetch = async (url) => {
-    const path = new URL(String(url), "https://app.chanlytics.com").pathname;
-    if (path === "/api/v1/playbooks") return answer({ playbooks: [route], pools, timezone: ZONE, calendar: "none" });
-    if (path === "/api/v1/channels") return answer({ channels: [] });
-    return answer({ config: { brain: { business_name: "Northside Studio" } }, version: 1 });
-  };
-  try {
-    setSurfaceValue("settings", settingsOf([TEMPLATE]));
-    await playbooksOverride.apply();
-    // The composer, where a moment is picked by who it reaches, draws no figure it never counted.
-    const composing = homeAt("new:every");
-    // Its sentence, and no reach line under it (the sheet around it is the record kit's, not loaded here).
-    const who = byTestId(composing, "pb-composer");
-    assert.ok(byTestId(who, "pb-recipe"), "the composer opens");
-    assert.equal(byTestId(who, "pb-reach"), null, "REGRESSION: the composer drew '0 of 0'");
-    // And its moments, listed in the kit's Picker: none says how many it reaches today.
-    const options = pickerOf(who, "pb-moment").props.groups.flatMap((g) => g.options);
-    assert.ok(options.length > 0, "the moments are listed");
-    for (const o of options)
-      assert.ok(!/nobody today|\d+ today/i.test(`${o.label} ${o.sub ?? ""} ${o.meta ?? ""}`), `REGRESSION: ${o.meta}`);
-  } finally {
-    globalThis.fetch = kept;
   }
 });
 

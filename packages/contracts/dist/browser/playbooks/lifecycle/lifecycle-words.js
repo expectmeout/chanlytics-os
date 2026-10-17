@@ -187,7 +187,9 @@ export const LIFECYCLE_WORDS = {
       what: "who and what you can send to",
       body: "Nothing goes out until it reads. Everything else here is current.",
       surface: "broadcasts"
-    }
+    },
+    // A reach-out's change opens on its chain, which the reach-outs read holds: said where it could not be, with its Retry.
+    chainFailed: { what: "your reach-out", body: "Its sheet opens once it reads.", surface: "reach_outs" }
   },
   phone: { moments: "Moments" },
   // The channels a campaign goes by: the row's word in the drawer, and what a mark that waits says of itself.

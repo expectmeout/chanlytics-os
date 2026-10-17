@@ -87,7 +87,13 @@ test("a visit marked kept, missed or cancelled re-reads the Calendar and People 
     "the Inbox draws Sent's runs waiting for your word",
   );
   at("#/campaigns/new");
-  assert.deepEqual(keysOf(MARK), ["calendar", "people", "playbooks", "broadcasts"], "Campaigns' composer draws both");
+  assert.deepEqual(
+    keysOf(MARK),
+    ["calendar", "people", "broadcasts"],
+    "Campaigns' composer draws Sent's runs: its playbook composer went (the closed-loop audit of 17 Oct 2026, G)",
+  );
+  at("#/outbound");
+  assert.deepEqual(keysOf(MARK), ["calendar", "people", "playbooks"], "and the playbooks' own page, the playbooks");
   at("#/campaigns");
   assert.deepEqual(keysOf(MARK), ["calendar", "people"], "and its landing, Sequences' list, neither");
   at("#/today");
@@ -109,7 +115,7 @@ test("and what counts the visit on a page that draws it is read there: Today's h
   at("#/today");
 });
 
-test("marked on the Calendar, the composers are left for the pages that draw them, and read once as one comes on screen: Today, which draws both and owns neither, or Campaigns' composer (S10-6)", () => {
+test("marked on the Calendar, the composers are left for the pages that draw them, and read once as one comes on screen: Today, which draws both and owns neither, or each one's own page (S10-6)", () => {
   // Today's day strip prints each visit playbook's "N people", and its queue draws Sent's runs; it owns neither, so a keep that waited
   // for their own pages (whereDrawn) would have left the strip on the old count.
   const win = {
@@ -133,6 +139,8 @@ test("marked on the Calendar, the composers are left for the pages that draw the
     at("#/today");
     win.on?.();
     assert.deepEqual(read, ["playbooks", "broadcasts"], "both, once, as Today comes on screen");
+    at("#/outbound");
+    win.on?.();
     at("#/campaigns/new");
     win.on?.();
     assert.deepEqual(read, ["playbooks", "broadcasts"], "and nothing is owed once they are read");
@@ -146,8 +154,15 @@ test("marked on the Calendar, the composers are left for the pages that draw the
     win.on?.();
     assert.deepEqual(
       read,
-      ["playbooks", "broadcasts", "playbooks", "broadcasts"],
-      "or as Campaigns' composer comes on screen, which draws both",
+      ["playbooks", "broadcasts", "broadcasts"],
+      "or as Campaigns' composer comes on screen, which draws Sent's runs",
+    );
+    at("#/outbound");
+    win.on?.();
+    assert.deepEqual(
+      read,
+      ["playbooks", "broadcasts", "broadcasts", "playbooks"],
+      "and the playbooks as their own page does",
     );
   } finally {
     stop();
@@ -248,7 +263,7 @@ test("People hears the appointments the live feed tells a workspace of on every 
 
 test("the playbooks and the broadcasts hear the appointments the live feed tells a workspace of, each on its own page", () => {
   for (const [o, home, away] of [
-    [playbooksOverride, "#/campaigns/new", "#/inbox"],
+    [playbooksOverride, "#/outbound", "#/inbox"],
     // Campaigns' composer hears a visit for Sent's runs too (the audiences leave a missed one): away is the Inbox.
     [broadcastsOverride, "#/broadcasts", "#/inbox"],
   ]) {
@@ -308,7 +323,10 @@ test("an appointment passed over on another page is read once when the playbooks
     win.on?.();
     at("#/campaigns/new");
     win.on?.();
-    assert.deepEqual(read, ["playbooks"], "the playbooks once, on Campaigns' composer");
+    assert.deepEqual(read, [], "Campaigns' composer draws no playbook");
+    at("#/outbound");
+    win.on?.();
+    assert.deepEqual(read, ["playbooks"], "the playbooks once, on their own page");
   } finally {
     stop();
     at("#/today");

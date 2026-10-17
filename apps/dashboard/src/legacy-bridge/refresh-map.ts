@@ -48,7 +48,6 @@ import { drawnHere, ownsTheScreen, whereDrawn } from "./surface-registry";
 import { routeOnScreen } from "./workspace";
 import { reachOutsOverride } from "@/surfaces/campaigns/reach-out/surface";
 import { repliesOverride } from "./reach-out/replies";
-import { campaignResults as campaignResultsHome } from "@/surfaces/campaigns/home/results-surface";
 
 /** A read that counts over days, held by range (period-surface.ts): a Reports lens, or Today's headline. */
 interface PeriodRead {
@@ -100,9 +99,6 @@ const reportsIfDrawn = (): SurfaceOverride[] => {
   forgetReports();
   return typeof window !== "undefined" && ownsTheScreen("reports", routeOnScreen()) ? [reportsOverride] : [];
 };
-// What the Campaigns home says of its last 30 days (the sends and what came back, Campaigns' own numbers) is made wrong by a person
-// erased, whose messages are deleted with them: read again where Campaigns is drawn, forgotten elsewhere, as the lenses are.
-const campaignResultsIfDrawn = ifDrawn(campaignResultsHome);
 const thread = () => [
   inboxOverride,
   conversationsOverride,
@@ -258,13 +254,12 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   "POST messages/[id]/cancel-send": thread,
   // People.
   // A person erased takes their messages, calls and threads with them (erase_contact deletes the rows, which the feed is not told
-  // of): the counts the report, the Campaigns home and Setup's rows make of them fall, where those are drawn.
+  // of): the counts the report and Setup's rows make of them fall, where those are drawn.
   "DELETE contacts/[id]": () => [
     ...personAndThreads(),
     ...audiences(),
     ...reportsPeople(),
     ...reportsIfDrawn(),
-    ...campaignResultsIfDrawn(),
     ...setupIfDrawn(),
     ...pinsIfDrawn(),
     ...sequencesIfDrawn(),
@@ -504,7 +499,6 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
       ...reportsPeople(),
       ...reportsCampaigns(),
       ...calendarIfDrawn(),
-      ...campaignResultsIfDrawn(),
     ];
   },
   // The workspace's logo (00407) is drawn from the boot's own list: the sidebar's circle, the rail and the switcher read

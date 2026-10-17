@@ -182,7 +182,7 @@ test("a notice reaches the surfaces as the live feed decodes it: each status it 
   }
 });
 
-test("a receipt reads the threads everywhere, and the counts made of receipts where they are drawn: Sent's runs on Sent, the playbooks and Campaigns' 30 days on its composer, the lens on its page (S3-5); People and Campaigns' landing read none, and the Overview keeps it for the lens", async () => {
+test("a receipt reads the threads everywhere, and the counts made of receipts where they are drawn: Sent's runs on Sent, the lens on its page (S3-5); People, Campaigns' landing and its composer read none, and the Overview keeps it for the lens", async () => {
   // What an arrival earlier in this file let pass is read as a page comes back: leave and return once, to start clean.
   const away = async (from, to) => {
     for (const hash of [from, to]) {
@@ -195,19 +195,19 @@ test("a receipt reads the threads everywhere, and the counts made of receipts wh
   const want = {
     "#/clients": { now: THREADS, back: [] },
     "#/reports": { now: THREADS, back: ["reports_campaigns"] },
-    // Campaigns lands on Sequences' list, which counts no receipt; its composer draws the counts made of them.
+    // Campaigns lands on Sequences' list, which counts no receipt, and its composer is Send once and Write to leads alone
+    // since its Every time went (the closed-loop audit of 17 Oct 2026, G): neither draws a count made of them.
     "#/campaigns": { now: THREADS, back: [] },
-    "#/campaigns/new": { now: ["campaign_results", ...THREADS, "playbooks"], back: [] },
+    "#/campaigns/new": { now: THREADS, back: [] },
     "#/broadcasts": { now: ["broadcasts", ...THREADS], back: [] },
     "#/reports/campaigns": { now: [...THREADS, "reports_campaigns"], back: [] },
   };
   for (const [hash, { now, back }] of Object.entries(want)) {
     win.location.hash = hash;
-    // Campaigns' own 30 days are read on demand and again once aged (results-surface.ts, a period surface), and so is the Campaigns
-    // lens's, which the Overview draws too, and the Calendar's campaign marks (runs-surface.ts), which the page this leaves for
-    // draws: a read recorded holds nothing and would always say it has aged, so each is held fresh here, and what this asks is
-    // what was kept.
-    const r = await running({ fresh: ["campaign_results", "reports_campaigns", "calendar_runs"] });
+    // The Campaigns lens's read is made on demand and again once aged (a period surface), which the Overview draws too, and so
+    // are the Calendar's campaign marks (runs-surface.ts), which the page this leaves for draws: a read recorded holds nothing
+    // and would always say it has aged, so each is held fresh here, and what this asks is what was kept.
+    const r = await running({ fresh: ["reports_campaigns", "calendar_runs"] });
     try {
       await away("#/calendar", hash);
       r.asked.length = 0;
@@ -238,7 +238,6 @@ test("a surface hears a message's update only by naming its statuses: the thread
   const heard = Object.fromEntries(REAL.map((o) => [o.key, hears(o)]).filter(([, h]) => h.length));
   assert.deepEqual(heard, {
     broadcasts: ["delivered", "read"],
-    campaign_results: ["delivered", "read"],
     conversations: ["sent", "delivered", "read", "failed", "canceled"],
     inbox: ["sent", "delivered", "read", "failed", "canceled"],
     playbooks: ["delivered", "read"],
@@ -249,7 +248,7 @@ test("a surface hears a message's update only by naming its statuses: the thread
   const quiet = Object.fromEntries(
     REAL.filter((o) => o.receiptsQuietMs !== undefined).map((o) => [o.key, o.receiptsQuietMs]),
   );
-  assert.deepEqual(quiet, { broadcasts: 5_000, campaign_results: 5_000, playbooks: 5_000, reports_campaigns: 5_000 });
+  assert.deepEqual(quiet, { broadcasts: 5_000, playbooks: 5_000, reports_campaigns: 5_000 });
   // An arrival is heard as it was.
   const arrival = { table: "messages", event: "INSERT", row: {} };
   for (const key of ["inbox", "conversations", "today"])
@@ -333,10 +332,9 @@ test("a surface's own tables reach it wherever the page is, and a thread's updat
   }
 });
 
-test("Campaigns' landing hears what Sequences hears, and its composer owns what it draws but Sent's runs: a message re-reads Sequences' list there, and at the composer the playbooks and Campaigns' own 30 days too, never the broadcasts and every page of People behind them; what passed is read once as each comes back", async () => {
+test("Campaigns' landing hears what Sequences hears, and its composer owns what it draws but Sent's runs: a message re-reads Sequences' list there and at the composer, never the broadcasts and every page of People behind them; what passed is read once as each comes back", async () => {
   win.location.hash = "#/campaigns";
-  // Its own 30 days are read on demand and again once aged: held fresh, so what is asked is what a message moved.
-  const r = await running({ fresh: ["campaign_results"] });
+  const r = await running();
   try {
     await r.message();
     assert.deepEqual(
@@ -380,15 +378,15 @@ test("Campaigns' landing hears what Sequences hears, and its composer owns what 
     await settle();
     assert.deepEqual(
       [...r.asked].sort(),
-      ["campaign_results", "playbooks"],
-      "the composer opened reads once what passed it: its 30 days, never read, and the playbooks a message moved",
+      [],
+      "the composer opened over the list just read reads nothing again: no message moved what it draws",
     );
     r.asked.length = 0;
     await r.message();
     assert.deepEqual(
       [...new Set(r.asked)].sort(),
-      ["campaign_results", "conversations", "inbox", "playbooks", "sequences", "today"],
-      "and at the composer's address its numbers and the list beneath it hear them",
+      ["conversations", "inbox", "sequences", "today"],
+      "and at the composer's address the list beneath it hears them",
     );
     // Sent's sheets are the broadcasts' page, beside Sequences' list: what passed them on Campaigns is read once as it comes on
     // screen, and it hears messages.
@@ -854,9 +852,10 @@ test("the page that owns what it draws is an explicit one: the surface registry 
   for (const key of ["reports_reviews", "reports_receptionist", "reports_people", "reports_headline"])
     assert.equal(owns(key, "reports/campaigns"), false, `${key} is not drawn on the Campaigns lens`);
   assert.equal(owns("reports", "reports/campaigns"), true, "and the page's own surface is still its own");
-  // The composer owns the playbooks and Campaigns' 30 days it draws; Campaigns' landing, Sequences' list, owns neither.
-  for (const key of ["playbooks", "campaign_results"]) {
-    assert.equal(owns(key, "campaigns/new:every"), true, key);
+  // The composer draws Send once and Write to leads alone since its Every time went (the closed-loop audit of 17 Oct
+  // 2026, G): neither it nor Campaigns' landing, Sequences' list, owns the playbooks or Campaigns' 30 days.
+  for (const key of ["playbooks"]) {
+    assert.equal(owns(key, "campaigns/new"), false, `the composer does not own ${key}`);
     assert.equal(owns(key, "campaigns"), false, `Campaigns' landing does not own ${key}`);
   }
   assert.equal(owns("playbooks", "campaigns/message:hello"), true, "a message's drawer waits for the playbooks");
@@ -884,9 +883,9 @@ test("the page that owns what it draws is an explicit one: the surface registry 
       `a run moves what sends a message, on ${route}`,
     );
   assert.equal(registry.ownsTable("settings", "sequence_batches", "today"), false, "and is kept for them elsewhere");
-  // The reach-outs are drawn on the home too; they have no table of their own to refresh on a message, but a route that
-  // draws them owns them for the refreshes that name a page. Settings is drawn there again: the templates a composer offers
-  // and the Library counts are the settings read's, the one read of them (surfaces/offered-templates.ts).
+  // The reach-outs are drawn there for a change to one (`new:edit:<root>`); they have no table of their own to refresh on a
+  // message, but a route that draws them owns them for the refreshes that name a page. Settings is drawn there: the templates
+  // Send once offers are the settings read's, the one read of them (surfaces/offered-templates.ts).
   assert.equal(owns("reach_outs", "campaigns/new"), true);
   assert.equal(owns("settings", "campaigns/new"), true);
   for (const key of ["people", "reports", "calendar"]) assert.equal(owns(key, "campaigns"), false, key);

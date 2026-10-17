@@ -19,13 +19,18 @@ import {
   insertSlot,
   namedProblem,
   numberedSlots,
+  playbookName,
   partWritten,
   placeholdersOf,
   reachOutRules,
   slotKnown,
+  slotChoices,
   slotLabel,
   slotWritten,
   smsVersionSegments,
+  starterByKey,
+  starterText,
+  templateSlots,
   toSlotParts,
   validateEmailVersion,
   validateOwnVersion,
@@ -603,4 +608,71 @@ test("and over a thousand made-up strings: a clamp is within the limit whenever 
       "no half a character",
     );
   }
+});
+
+/* ------------------------------- what a moment can fill ------------------------------- */
+
+/** A starter as WhatsApp holds it once approved: the library's words and slots. */
+const starterRow = (key) => {
+  const s = starterByKey(key);
+  const t = starterText(s, "en_US");
+  return {
+    id: `tpl-${key}`,
+    channel: "whatsapp",
+    name: s.name,
+    language: "en_US",
+    meta_status: "approved",
+    category: s.category,
+    body_preview: t.body,
+    variables: t.slots.map((x, i) => ({ position: i + 1, label: x.label, example: x.example })),
+  };
+};
+
+test("which slot a moment can fill (contracts slotChoices): what keeps a known slot true, anything for a guessed one; templateSlots refuses a message a moment cannot fill; playbookName is the route's", () => {
+  const o = { known: true, visits: false, bookingLink: true };
+  assert.deepEqual(slotChoices("first_name", o), ["first_name"]);
+  assert.deepEqual(slotChoices("business_name", o), ["business_name", "text"]);
+  assert.deepEqual(slotChoices("booking_link", o), ["booking_link", "text"]);
+  assert.deepEqual(slotChoices("booking_link", { ...o, bookingLink: false }), ["text"]);
+  // The review link the Google listing keeps (00415), as the booking link: offered where the one choosing knows of one.
+  assert.deepEqual(slotChoices("review_link", { ...o, reviewLink: true }), ["review_link", "text"]);
+  assert.deepEqual(slotChoices("review_link", { ...o, reviewLink: false }), ["text"]);
+  assert.ok(slotChoices("text", { ...o, known: false, reviewLink: true }).includes("review_link"));
+  assert.ok(!slotChoices("text", { ...o, known: false, reviewLink: false }).includes("review_link"));
+  assert.deepEqual(slotChoices("visit_when", o), []);
+  assert.deepEqual(slotChoices("visit_when", { ...o, visits: true }), ["visit_when"]);
+  assert.deepEqual(slotChoices("text", o), ["text"]);
+  assert.deepEqual(slotChoices("first_name", { ...o, known: false }), [
+    "first_name",
+    "text",
+    "business_name",
+    "booking_link",
+  ]);
+  assert.deepEqual(slotChoices("text", { known: false, visits: true, bookingLink: false }), [
+    "text",
+    "first_name",
+    "business_name",
+    "visit_when",
+    "visit_service",
+  ]);
+  assert.equal(templateSlots(starterRow("visit_reminder"), { visits: false, bookingLink: true }), null);
+  assert.equal(templateSlots(starterRow("visit_reminder"), { visits: true, bookingLink: true }).length, 4);
+  // The follow-up (0006): its link is each proposal's, on its own moment alone, and a message with no slot for it is
+  // not one the follow-up can send.
+  const follow = { visits: false, bookingLink: true, proposal: true };
+  assert.deepEqual(slotChoices("proposal_link", { ...o, proposal: true }), ["proposal_link"]);
+  assert.deepEqual(slotChoices("proposal_link", { ...o, proposal: false }), []);
+  assert.equal(templateSlots(starterRow("proposal_follow_up"), follow).length, 3);
+  assert.equal(templateSlots(starterRow("proposal_follow_up"), { ...follow, proposal: false }), null);
+  assert.equal(templateSlots(starterRow("winback_offer"), follow), null, "a win-back's words carry no proposal");
+  assert.equal(
+    templateSlots({ name: "our_own", variables: [{ position: 1 }] }, follow).length,
+    1,
+    "a message written elsewhere may have its slot filled with the link",
+  );
+  assert.equal(playbookName({ id: "quiet_30", label: "Win-back" }, { name: "winback_offer" }), "Win-back");
+  assert.equal(
+    playbookName({ id: "quiet_30", label: "Win-back" }, { name: "autumn_offer", title: "Autumn offer" }),
+    "Win-back · Autumn offer",
+  );
 });

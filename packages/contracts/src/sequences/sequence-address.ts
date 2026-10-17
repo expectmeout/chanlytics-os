@@ -27,10 +27,13 @@ export interface SequenceNewLeads {
   version: string | null;
 }
 
-/** What an address of the page opens: the list, a record on one of its tabs, or a new sequence; and the way back. */
+/**
+ * What an address of the page opens: the list, a record on one of its tabs, or a new sequence (on the moment a door asks
+ * for, `new:moment:<trigger>`: Setup's first reminder, Ask's moment card; or to leads, from Leads); and the way back.
+ */
 export type SequencesPlace = (
   | { view: "list" }
-  | { view: "new"; leads?: SequenceNewLeads }
+  | { view: "new"; moment?: string; leads?: SequenceNewLeads }
   | { view: "record"; id: string; tab: SequenceTab; day?: string }
 ) & {
   /** The Leads address it was opened from, where Back, Start and Cancel return; absent where none was named. */
@@ -59,9 +62,11 @@ export function parseSequencesRoute(route: string): SequencesPlace | null {
   const [root, view, id, tab, day] = backAt >= 0 ? words.slice(0, backAt) : words;
   if (root !== "campaigns" || view !== "sequences") return null;
   if (!id) return { view: "list", ...back };
-  if (id === "new") {
+  if (id === "new" || id.startsWith("new:")) {
+    // A moment rides in the word itself (`new:moment:<trigger>`); who a sequence to leads is for, in the words after it.
+    const [, kind, moment] = id.split(":");
     const leads = newLeadsOf(words.slice(3, backAt >= 0 ? backAt : undefined));
-    return { view: "new", ...(leads ? { leads } : {}), ...back };
+    return { view: "new", ...(kind === "moment" && moment ? { moment } : {}), ...(leads ? { leads } : {}), ...back };
   }
   const on = isTab(tab) ? tab : "steps";
   return { view: "record", id, tab: on, ...(on === "history" && day ? { day } : {}), ...back };
@@ -108,6 +113,13 @@ export const sequenceRoute = (id: string, tab: SequenceTab = "steps", day?: stri
     : `${SEQUENCES_ROUTE}/${id}/${tab}${tab === "history" && day ? `/${day}` : ""}`;
 
 /**
+ * New sequence's address, on a moment a door asks for: what starts it chosen, the owner's line for that moment written in
+ * (sequence-draft.ts newSequenceLine), and the sequence that already starts on it said with its door.
+ */
+export const newSequenceRoute = (moment?: string | null): string =>
+  moment ? `${SEQUENCES_ROUTE}/new:moment:${moment}` : `${SEQUENCES_ROUTE}/new`;
+
+/**
  * A run's sheet in Sent, where a link lands on it whether or not Sequences is drawn (the run's address with `/sheet`, a
  * word the sheet's page reads past): History's Open the run, and People's door to a batch it holds no draft of.
  */
@@ -116,8 +128,11 @@ export const runSheetRoute = (id: string): string => `broadcasts/run:${id}/sheet
 /**
  * Where an older address of Campaigns lands (the plan's S5 and S6, D1 and D3): Campaigns' home, or one of its groups, and
  * Sent's list (`broadcasts`) on the list; a campaign open (`campaigns/moment:<id>`, its People at `:people`) on its sequence.
- * The server reads a sequence by the id of any of its parts (a step's, a batch's), and the record then names its own. Null
- * where the address stays: the composer, a message, Ads, and Sent's sheets (Get their yes, To send, an audience). A run's
+ * The server reads a sequence by the id of any of its parts (a step's, a batch's), and the record then names its own. The
+ * composer's retired modes land too: Every time on New, a moment's Turn on on New on that moment. Null where the address
+ * stays: the composer (Send once, Write to leads, a reach-out's change, `new:edit:<root>`, whose sheet sends an id that is
+ * no reach-out's to its sequence once the chains are read), a message, Ads, and Sent's sheets (Get their yes, To send, an
+ * audience). A run's
  * address a link names (a bell row, Today, Ask's card: `broadcasts/run:<id>`) lands on its sequence's History with that day
  * open (the parity review's W4), where People and History decide what it holds in place; its sheet stays at
  * runSheetRoute's address, which no landing takes.
@@ -129,6 +144,11 @@ export function sequenceLandingOf(route: string): string | null {
     if (param === "" || param.startsWith("in:")) return SEQUENCES_ROUTE;
     const moment = /^moment:([^:/]+)(:people)?$/.exec(param);
     if (moment?.[1]) return sequenceRoute(moment[1], moment[2] ? "people" : "steps");
+    // The composer's Every time and its moment mode went (the closed-loop audit of 17 Oct 2026, G): a moment's sequence is
+    // made in New.
+    if (param === "new:every") return newSequenceRoute();
+    const on = /^new:moment:([^:/]+)$/.exec(param);
+    if (on?.[1]) return newSequenceRoute(on[1]);
   }
   if (root === "broadcasts" && param === "") return SEQUENCES_ROUTE;
   const run = root === "broadcasts" && rest === undefined ? /^run:([^:/]+)$/.exec(param) : null;

@@ -10,8 +10,8 @@
  *
  * - The harness answers GET templates as the route's own reader does (templates-read.mjs), for every record and `all` or not.
  * - The broadcast composer's picker lists what the spec expects, and says what it says where there is none or one cannot go
- *   out; the playbook composer says "no message" exactly where the spec expects none, for each kind of moment; the Library
- *   draws the rows the spec counts, the quiet line where there is no number, and its composer's first step opens where the
+ *   out (the playbook composer went with its Every time: the closed-loop audit of 17 Oct 2026, G); the Library draws the
+ *   rows the spec counts, the quiet line where there is no number, and its composer's first step opens where the
  *   spec says. Over the email-only record, the nightly's, the salon's and a workspace that holds a message in every state.
  * - A workspace with no WhatsApp number offers the messages it has written, and nothing asks it for its number.
  */
@@ -35,13 +35,7 @@ import { fakeDb } from "../_fake-db.mjs";
 import { scenario, WORKSPACE } from "../../e2e-harness/scenarios.mjs";
 import { answer } from "../../e2e-harness/server.mjs";
 import { templatesRead } from "../../e2e-harness/templates-read.mjs";
-import {
-  broadcastSlots,
-  libraryRows,
-  messagesOf,
-  messagesOffered,
-  momentSlots,
-} from "../../../../e2e/campaigns/offered.ts";
+import { broadcastSlots, libraryRows, messagesOf, messagesOffered } from "../../../../e2e/campaigns/offered.ts";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
@@ -99,7 +93,6 @@ Object.assign(globalThis, {
 const quiet = console.error;
 console.error = () => {};
 const { BroadcastsPage } = await import(`${SRC}/surfaces/campaigns/broadcasts/broadcasts-page.tsx`);
-const { PlaybookComposer } = await import(`${SRC}/surfaces/campaigns/playbooks/composer.tsx`);
 const { TemplatesPage } = await import(`${SRC}/surfaces/campaigns/templates/templates-page.tsx`);
 const { cmOfferedMessages } = await import(`${SRC}/surfaces/campaigns/parts/channels.ts`);
 const { settingsOverride } = await import(`${SRC}/legacy-bridge/surfaces/settings.ts`);
@@ -380,76 +373,10 @@ test("a workspace with no WhatsApp number offers the messages it has written, op
 /* ---------------------------------- the playbook composer ---------------------------------- */
 
 /** The moments the composer is asked to open on, one of each kind the slot rule tells apart. */
-const MOMENTS = ["quiet_30", "visit_tomorrow", "proposal_waiting"];
-const playbooksSurface = (record) => ({
-  rows: [],
-  templates: cmOfferedMessages(read(record, "/api/v1/templates")),
-  ready: readyOf(record),
-  triggers: contracts.PLAYBOOK_TRIGGERS.filter((t) => MOMENTS.includes(t.id)).map((t) => ({
-    id: t.id,
-    label: t.label,
-    hint: t.hint,
-    cls: t.cls,
-    list: t.list,
-    kind: t.kind,
-    offered: true,
-    candidates: 0,
-    held: 0,
-  })),
-  lists: [],
-  timezone: "America/New_York",
-  calendar: "ok",
-  // How the business works (the surface's shape, 9 Oct 2026): a calendar, no deals, the word the derivation gives it.
-  shape: { calendar: "feed", dealsOn: false, word: "appointment" },
-  number: hasNumber(record)
-    ? { present: true, health: contracts.numberHealth({ quality: "GREEN", event: null, limit: "TIER_1K" }) }
-    : { present: false, health: contracts.numberHealth({ quality: null, event: null, limit: null }) },
-  businessName: "Northside Studio",
-  bookingLink: true,
-  fetchedAt: NOW,
-});
-const playbookComposer = (record, trigger) => {
-  const data = playbooksSurface(record);
-  setSurfaceValue("playbooks", data);
-  freshTree();
-  const props = { data, editing: null, initialTrigger: trigger, onDone() {}, onCancel() {} };
-  PlaybookComposer(props);
-  return drawAgain(() => PlaybookComposer(props));
-};
-
-test("the playbook composer says there is no message exactly where the spec expects none, for a moment of each kind, with or without a number", () => {
-  for (const [name, record] of WORKSPACES) {
-    const templates = read(record, "/api/v1/templates");
-    for (const trigger of MOMENTS) {
-      const tree = playbookComposer(record, trigger);
-      // The spec reads the moment from the picker's face and works its slot rule out from it.
-      const face = textOf(pickerOf(tree, "pb-moment").props.face).trim();
-      const { groups } = messagesOffered(templates, momentSlots(face, HARNESS_LINKS));
-      assert.ok(byTestId(tree, "pb-message"), `${name}, ${face}: the section is always drawn`);
-      // With nothing to send, the moment's own message is offered to add (Turn on adds it), else the honest line says so.
-      const starter = !!byTestId(tree, "pb-starter");
-      assert.equal(
-        !!byTestId(tree, "pb-no-template"),
-        groups.length === 0 && !starter,
-        `${name}, ${face}: the honest line where the spec expects ${groups.length} messages`,
-      );
-      if (groups.length === 0) assert.ok(starter || byTestId(tree, "pb-no-template"), `${name}, ${face}: never silent`);
-    }
-  }
-});
-
-test("the slot rule the spec reads a moment by is the page's: a visit's message is offered on a visit moment and not to a win-back, a proposal's on its follow-up alone", () => {
+test("the slot rule the spec reads a broadcast by is the page's: a visit's message is none of it, and what the page leaves out the spec leaves out", () => {
   const record = { ...scenario("salon", NOW), templates: MIXED };
   const templates = read(record, "/api/v1/templates");
-  const offered = (trigger) => {
-    const face = textOf(pickerOf(playbookComposer(record, trigger), "pb-moment").props.face).trim();
-    return messagesOffered(templates, momentSlots(face, HARNESS_LINKS)).groups.map((g) => g.name);
-  };
-  assert.ok(offered("visit_tomorrow").includes("visit_reminder"));
-  assert.ok(!offered("quiet_30").includes("visit_reminder"));
-  assert.ok(offered("proposal_waiting").includes("proposal_follow_up"));
-  assert.ok(!offered("quiet_30").includes("proposal_follow_up"));
-  // And the broadcast's: a visit's message is none of it.
+  // A visit's message is none of a broadcast's.
   assert.ok(!messagesOffered(templates, broadcastSlots(HARNESS_LINKS)).groups.some((g) => g.name === "visit_reminder"));
   // The messages the page leaves out are the ones the spec leaves out: hidden whole, and a version in review kept by its email.
   const names = messagesOffered(templates, broadcastSlots(HARNESS_LINKS)).groups.map((g) => g.name);

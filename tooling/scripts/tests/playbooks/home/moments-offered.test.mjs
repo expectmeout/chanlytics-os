@@ -22,8 +22,6 @@ import {
   channelsReady,
   numberHealth,
   playbookPoolKey,
-  starterByKey,
-  starterText,
   stateOf,
   triggerOf,
   triggerOffered,
@@ -457,107 +455,18 @@ test("a playbook whose message makes it stricter than its moment is counted on i
   assert.equal(unread.triggers.find((t) => t.id === "visited").candidates, 2, "the moment is counted as ever");
 });
 
-/* ------------------------------ the composer's moment picker ------------------------------ */
+/* ------------------------------ the listing's review link ------------------------------ */
 
-const { installClock } = await import(`${SRC}/legacy-bridge/zone.ts`);
-installClock();
-const { composerModel, composerOffered, composerOpened } = await import(
-  `${SRC}/surfaces/campaigns/playbooks/composer-model.ts`
-);
+// The composer's moment picker and its slots went with its Every time (the closed-loop audit of 17 Oct 2026, G): which slot
+// a moment can fill is contracts slotChoices's (message-version-slots.test.mjs), and New sequence makes a moment's sequence.
 
-test("the composer's moment picker offers a new playbook the moments it may start from, and a playbook being changed its own as well, a retired moment's included", async () => {
-  const choices = (data, editing = null) => {
-    const f = composerOpened(editing, null, data);
-    const model = composerModel({
-      data,
-      editing,
-      offered: composerOffered(data.templates),
-      templatesAll: data.templates,
-      f,
-      busy: false,
-      error: null,
-    });
-    return { opens: f.trigger, picks: model.momentChoices.map((c) => c.id) };
-  };
-  const silence = await surfaceFor({ calendar: "none" });
-  assert.deepEqual(choices(silence).picks, OFFERED(false), "a new playbook: what is offered");
-  assert.equal(choices(silence).opens, "quiet_30", "and it opens on the first moment nothing is doing yet");
-  const visits = await surfaceFor({ calendar: "ok" });
-  assert.deepEqual(choices(visits).picks, OFFERED(true));
-  // A playbook on a retired moment, opened to be changed: its own moment still reads as its own, among the offered.
-  const withWelcome = await surfaceFor({ calendar: "none", playbooks: [row("pb-welcome", "new_week")] });
-  const changing = choices(withWelcome, withWelcome.rows[0]);
-  assert.equal(changing.opens, "new_week");
-  assert.deepEqual(changing.picks, ["quiet_30", "new_week", ...OFFERED(false).slice(1)]);
-  // And a new one beside it is not offered the retired moment again.
-  assert.ok(!choices(withWelcome).picks.includes("new_week"));
-  // The win-back made before a calendar was connected: its own moment, and the one by visits to move it to.
-  const made = await surfaceFor({ calendar: "ok", playbooks: [row("pb-win", "quiet_30")] });
-  assert.deepEqual(choices(made, made.rows[0]).picks, ["quiet_30", ...OFFERED(true)]);
-  // A new playbook opens on a moment nothing is doing: with a win-back made, not on the other win-back.
-  assert.equal(choices(made).opens, "everyone_monthly");
-});
-
-test("the composer offers the review ask's review-link slot the listing's link only where GET settings says the Google listing keeps one, as it offers the booking link only where one is on file; else the slot is typed", async () => {
-  const s = starterByKey("after_visit_review");
-  const t = starterText(s, "en_US");
-  // The review ask as the settings read holds it once WhatsApp approved it (the one read of the templates,
-  // offered-templates.ts): the starter's own words and slots.
-  const review = {
-    id: "tpl-review",
-    channel: "whatsapp",
-    name: s.name,
-    language: "en_US",
-    body_preview: t.body,
-    variables: t.slots.map((x, i) => ({ position: i + 1, label: x.label, example: x.example })),
-    category: s.category,
-    meta_status: "approved",
-    quality: null,
-    rejected_reason: null,
-    synced_at: null,
-    source: "chanlytics",
-    hidden_at: null,
-    title: null,
-    header: null,
-    footer: null,
-    buttons: [],
-    blocked: null,
-  };
-  const composerFor = async (settingsAnswer) => {
-    const data = await surfaceFor({
-      calendar: "ok",
-      settings: { templatesAll: [review], templateVersions: [] },
-      settingsAnswer,
-    });
-    const f = { ...composerOpened(null, "visited", data), tplId: review.id, picked: true };
-    const model = composerModel({
-      data,
-      editing: null,
-      offered: composerOffered(data.templates),
-      templatesAll: data.templates,
-      f,
-      busy: false,
-      error: null,
-    });
-    const sub = model.messageChoices.find((c) => c.id === s.name)?.sub ?? "";
-    return { reviewLink: data.reviewLink, tpl: model.tpl?.name ?? null, choices: model.choices, sub };
-  };
-  const linked = await composerFor({ review_link: true });
-  assert.deepEqual(
-    [linked.reviewLink, linked.tpl, linked.choices],
-    [true, s.name, [["first_name"], ["business_name", "text"], ["review_link", "text"]]],
-    "the listing keeps one: the review link fills it, or words typed over it",
-  );
-  assert.ok(linked.sub.includes("your review link"), linked.sub);
-  const none = await composerFor({ review_link: false });
-  assert.deepEqual(
-    [none.reviewLink, none.tpl, none.choices],
-    [false, s.name, [["first_name"], ["business_name", "text"], ["text"]]],
-    "none kept: the slot can only be typed, as a booking link with none on file",
-  );
-  assert.ok(none.sub.includes("[Review link]"), none.sub);
-  // A server from before GET settings said it says nothing of the listing: none.
-  assert.equal((await composerFor({})).reviewLink, false);
+test("the surface says the Google listing keeps a review link only where GET settings says so; a server from before it says none", async () => {
+  const linkOf = async (settingsAnswer) =>
+    (await surfaceFor({ calendar: "ok", settings: { templatesAll: [], templateVersions: [] }, settingsAnswer }))
+      .reviewLink;
+  assert.equal(await linkOf({ review_link: true }), true);
+  assert.equal(await linkOf({ review_link: false }), false);
+  assert.equal(await linkOf({}), false, "a server from before GET settings said it says nothing of the listing: none");
   setSurfaceValue("settings", undefined);
 });
 

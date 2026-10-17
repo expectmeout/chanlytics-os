@@ -236,11 +236,11 @@ export const ROUTE_DRAWS: Record<string, readonly string[]> = {
   // land there, and draw what Sequences draws beside its list, the settings read. The sheets it opens over the list draw
   // theirs at their own addresses (below), so a landing reads none of them (the Sequences phone review's Reads on landing).
   campaigns: ["settings"],
-  // The composer Campaigns opens over Sequences (`campaigns/new…`, home/sheets.tsx): the playbooks' moments, Sent's runs and
-  // who they reach (the broadcasts), Campaigns' own 30 days (campaign_results, read on demand: no other address pays for
-  // them) and the reach-outs; its messages of the templates, which are the settings read's, the one read of them
-  // (surfaces/offered-templates.ts); and the number they go out on, the channels read.
-  "campaigns/new": ["playbooks", "broadcasts", "campaign_results", "reach_outs", "settings", "channels"],
+  // The composer Campaigns opens over Sequences (`campaigns/new…`, home/sheets.tsx): Send once, made of Sent's runs and who
+  // they reach (the broadcasts); its messages of the templates, which are the settings read's, the one read of them
+  // (surfaces/offered-templates.ts); the number they go out on, the channels read; and the reach-outs' chains a change to
+  // one opens on (`new:edit:<root>`). Write to leads reads its searches itself, as it is chosen.
+  "campaigns/new": ["broadcasts", "reach_outs", "settings", "channels"],
   // A message in its drawer over Sequences (`campaigns/message:<name>`): the playbooks surface the sheets wait for, whose
   // library names the call's text, the settings read's templates its pane is drawn from, and the channels read's numbers.
   "campaigns/message": ["playbooks", "settings", "channels"],
@@ -309,7 +309,7 @@ function paneOf(page: string, param?: string | null): string | null | undefined 
     if (at) return at.lens === "overview" ? null : at.lens;
   }
   // Campaigns' first word is what is fed: its Sequences view (`campaigns/sequences/<id>/people`), the composer
-  // (`campaigns/new:every`), a message (`campaigns/message:<name>`), a campaign that lands on its sequence (`moment:<id>`).
+  // (`campaigns/new:leads`), a message (`campaigns/message:<name>`), a campaign that lands on its sequence (`moment:<id>`).
   if (page === "campaigns" && param) return param.split(/[/:]/)[0] || param;
   // A Settings pane's: the first word is what is fed.
   return page === "admin" && param && param.includes("/") ? param.slice(0, param.indexOf("/")) : param;

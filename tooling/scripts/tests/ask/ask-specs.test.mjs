@@ -1132,7 +1132,7 @@ test("a playbook card (A0, the landing rule): a starter it names is committed in
   assert.equal(body.starter_key, "winback_reply");
   assert.equal("template_id" in body, false, "no message: the route files the starter first");
   assert.equal(spec.commit(card("playbook", { trigger: "quiet_30", template_id: "t1" }), TAB).body.template_id, "t1");
-  assert.equal(spec.open(onStarter, null), "campaigns/new:moment:quiet_30");
+  assert.equal(spec.open(onStarter, null), "campaigns/sequences/new:moment:quiet_30");
   assert.equal(spec.open(onStarter, done({ playbook_id: "pb9", decision_id: "d1" })), "campaigns/moment:pb9");
   assert.equal(spec.open(card("playbook", {}), null), "outbound");
   // The receipt says the starter's WhatsApp version went for review, where the route says it did, naming the reviewer as

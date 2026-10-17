@@ -82,7 +82,8 @@ export function SequencesPage({ route }: { route: string }) {
       place.leads ? (
         <NewForLeads leads={place.leads} back={back} />
       ) : (
-        <NewSequence />
+        // A door's moment opens its own New, so the line it wrote in is never another moment's.
+        <NewSequence key={place.moment ?? "new"} moment={place.moment ?? null} />
       )
     ) : null;
   return (

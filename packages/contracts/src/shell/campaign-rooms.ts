@@ -26,14 +26,6 @@ export const NO_TEMPLATE_WORDS: NoMessageWords = {
   link: library,
 };
 
-/** A playbook composer's picker: no message, for this moment where the moment has a starter. */
-export function noMessageWords(forThisMoment: boolean): NoMessageWords {
-  return {
-    lead: `No message ${forThisMoment ? "for this moment " : ""}yet — write one in`,
-    link: library,
-  };
-}
-
 /**
  * The Library page's own lines: the waiting line, the read that failed, what a workspace with no WhatsApp number is told
  * (a message needs none: only its WhatsApp version waits for one) and what writing a WhatsApp version asks of a number.

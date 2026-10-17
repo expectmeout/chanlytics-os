@@ -25,7 +25,7 @@ import { Confirm } from "../../kit/confirm/confirm";
 import { Icon } from "../../kit/icon/icon";
 import { Sheet } from "../../kit/sheet/sheet";
 import { gate, routeDoor } from "../../legacy-verbs";
-import { composeRoute } from "../home/address";
+import { chainChangeRoute } from "../home/address";
 import type { LegacyFlash } from "../../legacy-verbs";
 import { LeadStepOpen } from "./lead-step";
 import { StepEditor } from "./step-editor";
@@ -154,7 +154,7 @@ function StepFoot(p: {
       <div className="sq-stepfoot">
         <Button
           variant="primary"
-          {...routeDoor(composeRoute("every", { edit: rec.sequence.id }))}
+          {...routeDoor(chainChangeRoute(rec.sequence.id))}
           data-testid={`sq-step-edit-${step.place}`}
           {...gate("approve")}
         >

@@ -344,10 +344,10 @@ test("after the first run, with the calendar in, Today's card carries one door t
   assert.equal(before.remind, null, "while a step is open, the card is the first run's");
   const after = setupCardOf(setupSteps(liveWithCalendar(), NOW));
   assert.deepEqual(after.remind, {
-    // No word for the appointment: the composer it opens says the workspace's own (a meeting where deals are on).
+    // No word for the appointment: New sequence, which it opens, says the workspace's own (a meeting where deals are on).
     words: "Your calendar is in. Remind each customer the day before?",
     label: "Turn on",
-    to: "campaigns/new:moment:visit_tomorrow",
+    to: "campaigns/sequences/new:moment:visit_tomorrow",
   });
   assert.doesNotMatch(after.remind.words, /appointment|visit|meeting|session|lesson/i);
   const noCalendar = setupCardOf(setupSteps(liveWithoutCalendar(), NOW));
@@ -369,10 +369,14 @@ test("Today's reminder door stands only where Campaigns can make the reminder: a
   );
   assert.equal(setupCardOf(byEmail)?.remind ?? null, null, "bookings by email alone: no door");
   const both = setupSteps(live({ calendar: { state: "ok", tool: "square", emails } }), NOW);
-  assert.equal(setupCardOf(both)?.remind?.to, "campaigns/new:moment:visit_tomorrow", "a link connected: the door");
+  assert.equal(
+    setupCardOf(both)?.remind?.to,
+    "campaigns/sequences/new:moment:visit_tomorrow",
+    "a link connected: the door",
+  );
   assert.equal(
     setupCardOf(setupSteps(live(), NOW))?.remind?.to,
-    "campaigns/new:moment:visit_tomorrow",
+    "campaigns/sequences/new:moment:visit_tomorrow",
     "connected: the door",
   );
 });

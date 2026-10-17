@@ -4105,11 +4105,11 @@ test("a campaign card opens in the composer on its moment before Approve, and sa
   };
   const went = [];
   const tree = render(AskCard, { p: card, messageId: "x", t, onNav: (to) => went.push(to) });
-  const open = find(tree, (n) => n.type === "button" && textOf(n) === "Open in the composer");
-  assert.ok(open, "the card's Open, in the composer's words");
+  const open = find(tree, (n) => n.type === "button" && textOf(n) === "Open in New sequence");
+  assert.ok(open, "the card's Open, in New sequence's words");
   open.props.onClick();
-  assert.deepEqual(went, ["campaigns/new:moment:quiet_30"]);
-  assert.equal(globalThis.window.askText("es").openComposer, "Abrir en el redactor");
+  assert.deepEqual(went, ["campaigns/sequences/new:moment:quiet_30"]);
+  assert.equal(globalThis.window.askText("es").openNew, "Abrir en Nueva secuencia");
   assert.equal(globalThis.window.askText("es").describeCampaigns, "Describe qué debe salir, y cuándo");
 });
 

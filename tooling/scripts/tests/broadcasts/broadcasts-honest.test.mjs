@@ -1,8 +1,8 @@
 /**
  * Broadcasts and Messages: each state said in words, and each word from where it is kept.
  *
- * - A broadcast's composer could pick a visit's time a broadcast does not have, a visit playbook's composer held a
- *   value its select had no option for, and a run's detail printed "visit_when" (the wiring audit's C6, C24).
+ * - A broadcast's composer could pick a visit's time a broadcast does not have, and a run's detail printed "visit_when"
+ *   (the wiring audit's C6, C24).
  * - Every slot of a broadcast took any source, so a starter's first name could be set to the booking link and a
  *   broadcast greeted everyone "Hi your booking link"; Send it again kept a run's sources as they were.
  * - Deleting a message a running playbook sends went through, and its runs skipped from then on (C8).
@@ -228,7 +228,6 @@ const { bcWhenNote, BcWhenPick } = await import(`${SRC}/surfaces/campaigns/broad
 const { BroadcastDetail, BcRunVerbs } = await import(`${SRC}/surfaces/campaigns/broadcasts/run.tsx`);
 // The receipt's sentence is words alone, apart from the picker, so the shell that publishes it carries no picker.
 const { bcWhenWords, bcOpensOnItsSheet } = await import(`${SRC}/surfaces/campaigns/broadcasts/when-words.ts`);
-const { PlaybookComposer } = await import(`${SRC}/surfaces/campaigns/playbooks/composer.tsx`);
 const { CmSlot } = await import(`${SRC}/surfaces/campaigns/parts/slot.tsx`);
 const { TemplatesPage } = await import(`${SRC}/surfaces/campaigns/templates/templates-page.tsx`);
 const { TemplateComposer } = await import(`${SRC}/surfaces/campaigns/templates/composer.tsx`);
@@ -252,7 +251,6 @@ const pickerOf = (t, id) => find(t, (n) => n.type === Picker && n.props["data-te
 /** A picker's options in their order, each with its group's heading. */
 const optionsOf = (p) => p.props.groups.flatMap((g) => g.options.map((o) => ({ ...o, group: g.label })));
 const { broadcasts } = await import(`${SRC}/surfaces/campaigns/broadcasts/verbs.ts`);
-const { playbooks } = await import(`${SRC}/surfaces/campaigns/playbooks/verbs.ts`);
 const { templates, starters } = await import(`${SRC}/surfaces/campaigns/templates/verbs.ts`);
 const { Menu } = await import(`${SRC}/surfaces/kit/menu/menu.tsx`);
 const { standingSaid } = await import(`${SRC}/surfaces/kit/head/standing.ts`);
@@ -383,20 +381,6 @@ const sentAgain = () => {
   drawAgain(() => BroadcastSend(props));
   return drawAgain(() => BroadcastSend(props));
 };
-/**
- * The playbook composer, as Campaigns' home hosts it under "Every time a moment comes" (home/new-message.tsx Held): the
- * surface the page read, nothing being changed, no moment asked for. The Playbooks page that opened it on a "New playbook"
- * event is retired; the composer is the same component, held by the home's address now.
- */
-let composerProps = null;
-const composerOf = (surface, over = {}) => {
-  setSurfaceValue("playbooks", surface);
-  fresh();
-  composerProps = { data: surface, editing: null, initialTrigger: null, onDone() {}, onCancel() {}, ...over };
-  return PlaybookComposer(composerProps);
-};
-/** The composer, drawn again over the same cells, as React would after a state change. */
-const composerAgain = () => drawAgain(() => PlaybookComposer(composerProps));
 /**
  * What the settings surface holds of the workspace, as Templates reads it (surface.ts SettingsSurface): the record, the
  * channels, every template with what uses each and when each last went out. `__TEMPLATES_ALL` is the pages' name for
@@ -607,44 +591,6 @@ test("REGRESSION (C6): a broadcast offers no visit's words, and a run's values s
     (n) => n.props?.className === "cl-prof-aut-hint" && textOf(n).startsWith("Values:"),
   );
   assert.equal(textOf(values), "Values: their booked time · their first name", "REGRESSION: visit_when");
-});
-
-test("REGRESSION (C6): a visit playbook's composer fills its visit's words -- the starter's slot held a value its select had no option for", () => {
-  const { row, slots } = visitTemplate();
-  const tree = composerOf(
-    playbooksSurface({
-      rows: [],
-      templates: [row],
-      calendar: "ok",
-      triggers: [
-        {
-          id: "visit_tomorrow",
-          label: "Visit reminder",
-          hint: "The day before an appointment on the calendar",
-          cls: "booking",
-          list: null,
-          kind: "visit",
-          offered: true,
-          candidates: 2,
-          held: 0,
-        },
-      ],
-    }),
-  );
-  // Each slot is its control in the bubble (parts/slot.tsx): what fills it, and the sources it may take.
-  const fills = all(tree, (n) => n.type === CmSlot);
-  assert.deepEqual(
-    fills.map((f) => f.props.kind),
-    slots.map((s) => (s.kind === "booking_link" ? "text" : s.kind)),
-    "the starter's own slots, a link the workspace lacks typed",
-  );
-  for (const f of fills)
-    if (f.props.offers.length > 1)
-      assert.ok(
-        f.props.offers.some((o) => o.id === f.props.kind),
-        `REGRESSION: ${f.props.kind} had no choice for itself`,
-      );
-  assert.ok(fills[slots.findIndex((s) => s.kind === "visit_when")].props.offers[0].label.includes("Their booked time"));
 });
 
 test("REGRESSION: a starter's first name is each person's own on a broadcast and offers no other source -- it could be set to the booking link, and a broadcast greeted everyone 'Hi your booking link'", async () => {
@@ -1741,15 +1687,6 @@ test("REGRESSION (C15): the sending hours and the pace are the published ones --
     press(byTestId(tree, "bc-send"));
     await press(byTestId(again({ initialSegment: null, initialRun: null }), "bc-send-yes"));
     assert.ok(textOf(toasts.at(-1).msg).includes("sending now, 10 at a time"), textOf(toasts.at(-1).msg));
-
-    setSurfaceValue("playbooks", playbooksSurface());
-    fresh();
-    const composer = composerOf(playbooksSurface());
-    assert.deepEqual(
-      optionsOf(pickerOf(composer, "pb-hour")).map((o) => Number(o.value)),
-      [8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19],
-      "the hours a run may start at",
-    );
   } finally {
     Object.assign(realClock.hours, published);
   }
@@ -3562,19 +3499,6 @@ test("A template this product cannot send is not offered, and its card says why"
     textOf(byTestId(bare, "bc-blocked")),
   );
 
-  // Playbooks refuses the same one.
-  const pb = composerOf(playbooksSurface({ templates: [plain, picture] }));
-  const messagePicker = pickerOf(pb, "pb-template");
-  assert.deepEqual(
-    [...new Set(optionsOf(messagePicker).map((o) => o.value))],
-    ["offer"],
-    "its list offers what can go on the wire",
-  );
-  assert.ok(
-    textOf(messagePicker.props.note).includes("a picture for a heading"),
-    "and says, under it, why the rest is not there",
-  );
-
   // And the library says why rather than leaving it looking available.
   const card = messages({ templatesAll: [picture] });
   assert.ok(
@@ -3989,94 +3913,6 @@ test("the send screen's composer offers the review ask by the surface its page l
   } finally {
     setSurfaceValue("settings", was);
   }
-});
-
-test("a playbook may run on any list: the composer picks one of the workspace's or one of People's, with its own count, and the save names it (decision 0009)", async () => {
-  const offer = templateRow({ id: "tpl-offer", name: "fall_offer", purpose: "marketing" });
-  const named = { pool: 5, noYes: 2, stopped: 0, noNumber: 0, saidYes: 3 };
-  const surface = playbooksSurface({
-    rows: [],
-    templates: [offer],
-    triggers: [
-      {
-        id: "saved_list",
-        label: "One of your lists",
-        hint: "Everyone on a list you keep",
-        cls: "campaign",
-        list: null,
-        kind: "saved",
-        offered: true,
-        candidates: null,
-        held: null,
-      },
-    ],
-    // Each list by its token: People's first, then the workspace's own (playbooks/surface.ts).
-    lists: [
-      { id: "seg:lapsed", name: "Lapsed", smart: true, builtin: true, candidates: 2, held: 0, named },
-      { id: "list:l1", name: "Regulars", smart: false, builtin: false, candidates: 3, held: 0, named },
-      {
-        id: "list:l2",
-        name: "Texters",
-        smart: true,
-        builtin: false,
-        candidates: 1,
-        held: 0,
-        named: { ...named, pool: 1, saidYes: 1, noYes: 0 },
-      },
-    ],
-  });
-  const bodies = [];
-  const keep = { ...playbooks };
-  Object.assign(playbooks, {
-    create: async (body) => {
-      bodies.push(body);
-      return { ok: true, data: { id: "p9", name: "Regulars · Fall offer", state: "running" } };
-    },
-  });
-  try {
-    let tree = composerOf(surface);
-    const picker = pickerOf;
-    const lists = picker(tree, "pb-list");
-    assert.ok(lists, "a list to pick, under the moment");
-    assert.deepEqual(
-      optionsOf(lists).map((o) => [o.value, o.label, o.group, o.sub, o.meta]),
-      [
-        ["seg:lapsed", "Lapsed", "Ready-made lists", "Ready-made", "2 today"],
-        ["list:l1", "Regulars", "Your lists", "Kept by hand", "3 today"],
-        ["list:l2", "Texters", "Your lists", "Keeps itself current", "1 today"],
-      ],
-    );
-    assert.equal(lists.props.value, "list:l1", "the first list the workspace keeps, until another is picked");
-    assert.ok(picker(tree, "pb-list-class"), "and what it sends: an offer or a win-back");
-    lists.props.onValueChange("list:l2");
-    tree = composerAgain();
-    picker(tree, "pb-template").props.onValueChange("fall_offer");
-    tree = composerAgain();
-    await press(byTestId(tree, "pb-save"));
-    assert.equal(bodies.length, 1, "saved");
-    assert.equal(bodies[0].trigger, "saved_list");
-    assert.equal(bodies[0].list_id, "l2", "the list picked, named on the playbook");
-    assert.equal(bodies[0].list_key, undefined);
-    assert.equal(bodies[0].policy_class, "campaign", "an offer, until the owner says a win-back");
-    // One of People's lists, sent as a win-back: its id, and the class. A fresh composer, the first one saved and closed.
-    tree = composerOf(surface);
-    picker(tree, "pb-list").props.onValueChange("seg:lapsed");
-    tree = composerAgain();
-    picker(tree, "pb-template").props.onValueChange("fall_offer");
-    tree = composerAgain();
-    picker(tree, "pb-list-class").props.onValueChange("reengage");
-    tree = composerAgain();
-    await press(byTestId(tree, "pb-save"));
-    assert.equal(bodies.length, 2, "saved again");
-    assert.deepEqual(
-      [bodies[1].list_key, bodies[1].list_id, bodies[1].policy_class],
-      ["lapsed", undefined, "reengage"],
-    );
-  } finally {
-    Object.assign(playbooks, keep);
-  }
-  const none = composerOf(playbooksSurface({ ...surface, lists: [] }));
-  assert.ok(byTestId(none, "pb-no-lists"), "no list kept yet: where to make one");
 });
 
 /* ------------------------------- Send by (One message, every channel, step 3) ------------------------------- */

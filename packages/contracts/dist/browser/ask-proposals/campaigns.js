@@ -8,6 +8,7 @@ import {
 import { LIFECYCLE_TOAST, LIFECYCLE_WORDS, channelsGoesByWords } from "../playbooks/lifecycle/lifecycle-words.js";
 import { PLAYBOOK_PATCH_CLEARS, PLAYBOOK_PATCH_KEYS } from "../playbooks/playbook-patch.js";
 import { PLAYBOOK_VETO_DELAY_WORDS, SENDING_NOW_WORDS, whenItGoes } from "../playbooks/playbook-triggers.js";
+import { newSequenceRoute } from "../sequences/sequence-address.js";
 import { clockWhen } from "../shared/clock.js";
 import { joinWords } from "../shared/words.js";
 import { CAMPAIGN_ROOMS, LIBRARY_STARTER_WORDS, LIBRARY_WORDS, runApprovedTail } from "../shell/campaign-rooms.js";
@@ -153,14 +154,15 @@ export const playbookSpec = {
     call: (u) => ({ route: "DELETE playbooks/[id]", params: { id: asText(u.playbook_id) } }),
     receipt: () => "Deleted \u2014 nothing will run"
   },
-  // The new campaign's drawer on Campaigns' home once it is made (spec 2026-10-09 §4.6, one landing rule), by the id its
-  // commit kept for the undo, as the list card opens the list it made; before then the composer on its moment, where the
-  // whole of it can be set by hand ("Open in the composer"), and the home where the card names no moment.
+  // The new campaign's sequence once it is made (spec 2026-10-09 §4.6, one landing rule: `campaigns/moment:<id>` lands on
+  // it), by the id its commit kept for the undo, as the list card opens the list it made; before then New sequence on its
+  // moment, its line written in, and Sequences where the card names no moment (the composer's moment mode went: the
+  // closed-loop audit of 17 Oct 2026, G).
   open: ({ payload }, outcome) => {
     const id = idIn(rec(outcome?.undo), "playbook_id");
     if (id) return `campaigns/moment:${id}`;
     const trigger = idIn(payload, "trigger");
-    return trigger ? `campaigns/new:moment:${trigger}` : "outbound";
+    return trigger ? newSequenceRoute(trigger) : "outbound";
   }
 };
 const channelsIn = (v) => Array.isArray(v) ? CONSENT_CHANNELS.filter((c) => v.includes(c)) : [];

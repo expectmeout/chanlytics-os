@@ -189,20 +189,6 @@ const HEARD_BEFORE = {
   playbooks: [...COMPOSER_PAGE, "sequence_batches", "sequences", "sequence_steps", "deals"],
   // And the rule that is a chain's mode (W-review-facts-rules-8); a chain's templates and a lead's deal won (owed, closed).
   reach_outs: ["sequences", "sequence_steps", "sequence_batches", "sequence_replies", "policies", "templates", "deals"],
-  // A person's answer, by an update of them (the wiring's second audit, S3-2). And a deal won and the numbers and mailboxes the
-  // reach-outs counted left from (owed, closed 15 October).
-  campaign_results: [
-    "messages",
-    "conversations",
-    "escalations",
-    "sequence_batches",
-    "sequence_replies",
-    "contacts",
-    "deals",
-    "tenant_channels",
-    "mailboxes",
-    "mailbox_connections",
-  ],
   // Campaigns › Sequences (decision 0060), declared as it arrived: a sequence and its steps, its batches, a lead's reply and a
   // customer's (the messages), the rule that says who approves, the workspace's word and clock, and the list or the search it
   // starts on.
@@ -330,7 +316,6 @@ const ON_ITS_PAGE_BEFORE = {
   reports_people: HEARD_BEFORE.reports_people,
   reports_campaigns: HEARD_BEFORE.reports_campaigns,
   reports_reviews: HEARD_BEFORE.reports_reviews,
-  campaign_results: HEARD_BEFORE.campaign_results,
   // Its batches and its sequences wherever the tab is (`always`), the rest on its page.
   sequences: ["sequence_replies", "messages", "policies", "tenant_config", "tenants", "segments", "lead_searches"],
   person: HEARD_BEFORE.person,
@@ -376,7 +361,7 @@ const ROUTES = [
   "reports/people",
   "reports/reviews",
   "campaigns",
-  // Campaigns' composer, where the playbooks' moments and Campaigns' own 30 days are drawn (its landing is Sequences' list).
+  // Campaigns' composer, where Sent's runs are drawn (its landing is Sequences' list).
   "campaigns/new",
   "broadcasts",
   "calendar",
@@ -386,8 +371,13 @@ const ROUTES = [
   "clients/0b9c4f6e-1d2a-4c3b-9e8f-7a6b5c4d3e2f",
   "clients/0b9c4f6e-1d2a-4c3b-9e8f-7a6b5c4d3e2f/history",
 ];
-/** The Campaigns lens hears the feed on the lens alone, though the Overview draws the surface too; the Library is Settings' page. */
+/**
+ * The Campaigns lens hears the feed on the lens alone, though the Overview draws the surface too; the Library is Settings' page;
+ * the playbooks' is the page they are drawn on whole since the composer's Every time went (the closed-loop audit of 17 Oct
+ * 2026, G), Campaigns' old address.
+ */
 const HOME = {
+  playbooks: "outbound",
   reports_campaigns: "reports/campaigns",
   settings: "messages",
   leads: "clients/leads",

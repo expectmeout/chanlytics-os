@@ -1,9 +1,4 @@
-import {
-  CAMPAIGNS_RESULTS_PERIOD,
-  REPORT_PERIOD_DEFAULT,
-  REPORT_PERIOD_IDS,
-  REPORT_PERIOD_STORAGE
-} from "../reports/report-periods.js";
+import { REPORT_PERIOD_DEFAULT, REPORT_PERIOD_IDS, REPORT_PERIOD_STORAGE } from "../reports/report-periods.js";
 import { ROUTE_WORDS } from "./address.js";
 const PREFETCH_UUID = "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$";
 export const PREFETCH_SLOT = "__prefetched";
@@ -47,19 +42,16 @@ export const PREFETCH_READS = {
   // Campaigns › Sequences (decision 0060), its list and a record open beside it: the sequences' own read, and the settings
   // read, which holds the messages a step may send and the business's name its preview is filled with (ROUTE_DRAWS).
   "campaigns/sequences": ["sequences", "settings", "team", "policies", "templates?all=1"],
-  // The composer over Sequences' list (`campaigns/new…`, ROUTE_DRAWS): the playbooks' moments, Sent's runs and who they reach,
-  // Campaigns' own 30 days (campaign_results, the period named once), the reach-outs' chains, the channels read and the
-  // settings read, which holds the messages a composer offers. Each surface's first reads.
+  // The composer over Sequences' list (`campaigns/new…`, ROUTE_DRAWS): Send once, made of Sent's runs and who they reach,
+  // the channels read and the settings read, which holds the messages it offers; and the reach-outs' chains a change to one
+  // opens on. Write to leads reads its searches as it is chosen. Each surface's first reads.
   "campaigns/new": [
     "sequences",
-    "playbooks",
     "channels",
     "settings",
     "broadcasts",
     "contacts",
     "segments",
-    `reports/campaigns?period=${CAMPAIGNS_RESULTS_PERIOD}`,
-    `reports/reach-outs?period=${CAMPAIGNS_RESULTS_PERIOD}`,
     "reach-outs",
     "team",
     "policies",
@@ -114,7 +106,7 @@ export function routePrefetchScript() {
     // Leads is People's scope with a surface of its own: the scope alone opens on its own list.
     'if(s==="clients"&&l==="leads")s="leads";',
     // Sequences is Campaigns' view with a surface of its own: its list, a record and a new one all open on its read. The
-    // composer and a message are sheets over its list that open on theirs too (`campaigns/new:every`, `message:<name>`).
+    // composer and a message are sheets over its list that open on theirs too (`campaigns/new`, `message:<name>`).
     'if(s==="campaigns"&&l==="sequences")s="campaigns/sequences";',
     'if(s==="campaigns"&&/^(new|message)(:|$)/.test(l))s="campaigns/"+l.split(":")[0];',
     // A day the Calendar's address names is read by the weeks around that day, which the page works out: no read here. A

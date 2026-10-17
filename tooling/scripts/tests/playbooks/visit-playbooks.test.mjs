@@ -7,11 +7,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  LIFECYCLE_WORDS,
   MOMENT_TRIGGERS,
-  momentOffered,
   PLAYBOOK_CLASS_LABEL,
-  stateOf,
   channelsReady,
   eligibleForPlaybook,
   playbookRunReach,
@@ -31,7 +28,6 @@ import {
 } from "@chanlytics/contracts";
 import { readCode, readRaw } from "../_source.mjs";
 import { fakeDb } from "../_fake-db.mjs";
-import { installLegacyReact, fresh, find, byTestId, textOf } from "../_legacy-react.mjs";
 
 /**
  * How a run goes (step 3, contracts reachFor): by WhatsApp alone, which the workspace can send on, as every playbook went
@@ -113,83 +109,6 @@ const withVisits = (id, next, last, over = {}) =>
     NOW,
   );
 const untouched = { byThis: new Map(), byAny: new Map() };
-
-/* ---- the composer, drawn: TSX since decision 0015, on the stub React over the view model the seam hands the page ---- */
-
-installLegacyReact({ __DEMO_MODE: false });
-const SRC = "../../../../apps/dashboard/src";
-// The shell's own components the composer draws by name (PolicyChip, the record kit's sheet), loaded as the app loads them.
-await import(`${SRC}/legacy/components/data-bits.jsx`);
-Object.assign(globalThis, {
-  canDo: () => true,
-  gateTitle: (perm, doing) => `Only an owner or operator can ${doing}.`,
-  __chrome: { state: stateOf },
-});
-// The Autonomy store as the app builds it, over the workspace's own rows: the booking class has its row.
-const { installPolicyStore } = await import(`${SRC}/legacy-bridge/policy-store.ts`);
-installPolicyStore(globalThis);
-globalThis.__POLICIES = { role: "owner", rows: [{ class: "booking", mode: "auto", limits: {} }], dealsOn: false };
-const { PlaybookComposer } = await import(`${SRC}/surfaces/campaigns/playbooks/composer.tsx`);
-const { CmRuleWord } = await import(`${SRC}/surfaces/campaigns/parts/rule.tsx`);
-const { setSurfaceValue } = await import(`${SRC}/surfaces/surface-values.ts`);
-/** The playbooks surface as the bridge publishes it: every moment offered, none set up, the reminder approved. */
-const playbooksVM = (over = {}) => {
-  const reminder = starterForTrigger("visit_tomorrow");
-  const words = starterText(reminder, "en_US");
-  return {
-    rows: [],
-    timezone: TZ,
-    countsRead: true,
-    calendar: "ok",
-    // How the business works (the surface's shape, 9 Oct 2026): the words this file pins are the word "visit"'s.
-    shape: { calendar: "feed", dealsOn: true, word: "visit" },
-    triggers: MOMENT_TRIGGERS.map((t) => ({
-      id: t.id,
-      label: t.label,
-      hint: t.hint,
-      cls: t.cls,
-      list: t.list,
-      kind: t.kind,
-      // 2 Oct 2026: the surface says which moments a NEW playbook may start from (surface.ts), as contracts does.
-      offered: momentOffered(t, { dealsOn: true, calendarOn: true }),
-      candidates: 3,
-      held: 0,
-      named: null,
-    })),
-    lists: [],
-    templates: [
-      {
-        id: "tpl-visit_reminder",
-        channel: "whatsapp",
-        name: reminder.name,
-        language: "en_US",
-        meta_status: "approved",
-        category: reminder.category,
-        purpose: "conversational",
-        source: "starter",
-        title: null,
-        body_preview: words.body,
-        variables: words.slots.map((x, i) => ({ position: i + 1, label: x.label, example: x.example })),
-      },
-    ],
-    number: { present: true, health: { canSend: true } },
-    businessName: "Northside Studio",
-    bookingLink: true,
-    replyWindow: "24 hours",
-    fetchedAt: nowMs,
-    ...over,
-  };
-};
-/**
- * The composer on the visit reminder's moment, as the home's sheet draws it for a Turn on pressed there
- * (campaigns/new:moment:visit_tomorrow), over a calendar that is `calendar`.
- */
-const composingVisit = (calendar) => {
-  const data = playbooksVM({ calendar });
-  setSurfaceValue("playbooks", data);
-  fresh();
-  return PlaybookComposer({ data, editing: null, initialTrigger: "visit_tomorrow", onDone() {}, onCancel() {} });
-};
 
 test("the moments: People's lists and a cadence, two the calendar makes possible, Lapsed, the workspace's own lists and a proposal waiting, each under one of the four autonomy rows", () => {
   assert.deepEqual(
@@ -577,23 +496,9 @@ test("the wiring: the CHECKs, the facts column, the runner attaching the calenda
     sd.includes("kind: t.kind") && sd.includes('calendar: pb.calendar ?? "none"'),
     "the page knows which triggers need the calendar, and whether there is one -- from the route that counts the pools",
   );
-  // The composer is composer*.tsx (moved whole from outbound-real.jsx, Reach out Part 2.5), drawn on the visit moment.
-  const composer = composingVisit("none");
-  assert.ok(
-    textOf(byTestId(composer, "pb-calendar")).includes(LIFECYCLE_WORDS.compose.calendar.words),
-    "the composer says it plainly where there is no calendar, with its door (playbook-composer.test.mjs)",
-  );
-  assert.equal(byTestId(composingVisit("ok"), "pb-calendar"), null, "and says nothing where the calendar is connected");
-  // The rule its runs keep is a word of the composer's sentence (Ruben, 11 Oct 2026), named by the moment's class.
-  const runsUnder = find(byTestId(composer, "pb-recipe"), (n) => n.type === CmRuleWord);
-  assert.equal(runsUnder?.props.cls, triggerOf("visit_tomorrow").cls, "the Autonomy row the reminder's runs keep to");
-  assert.ok(
-    !textOf(byTestId(composer, "pb-recipe")).includes(" a run") && byTestId(composer, "pb-cap") === null,
-    "a visit moment has no cap and no gap: one message per visit",
-  );
-  // No gap and no breath promised for a visit trigger, and the card's count of the day's visits, are run in
-  // playbook-composer.test.mjs; the preview's visit words are drawn there too. The assistant counts with the calendar
-  // too: campaigns.playbooks runs over a feed in ask-turn.test.mjs, and the pool it counts from is read once a turn there.
+  // The assistant counts with the calendar too: campaigns.playbooks runs over a feed in ask-turn.test.mjs, and the pool
+  // it counts from is read once a turn there. A visit moment's sequence is made in New sequence (the closed-loop audit of
+  // 17 Oct 2026, G: the playbook composer went), whose steps say what the calendar holds.
 });
 
 /* ---- the run context: one workspace's bad read is one workspace's problem ---- */

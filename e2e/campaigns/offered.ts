@@ -1,8 +1,5 @@
 import {
-  APPOINTMENT_WORDS,
   CONSENT_CHANNELS,
-  LIFECYCLE_WORDS,
-  PLAYBOOK_TRIGGERS,
   campaignMessagesOf,
   compareTemplates,
   groupTemplates,
@@ -71,30 +68,6 @@ export const broadcastSlots = (links: SlotLinks): SlotRule => ({
   reviewLink: links.reviewLink,
   proposal: false,
 });
-
-/**
- * A playbook composer's rule for the moment it is on (playbooks/composer-model.ts): a visit moment has a visit and the
- * follow-up of a proposal has its link. The moment is the one the picker says, as its sentence names the people it reaches
- * ("everyone with an appointment tomorrow", in whichever word the workspace uses: contracts LIFECYCLE_WORDS.compose.sentence
- * .who), or by its label (contracts PLAYBOOK_TRIGGERS).
- */
-export function momentSlots(face: string, links: SlotLinks): SlotRule {
-  const said = (t: (typeof PLAYBOOK_TRIGGERS)[number]) =>
-    APPOINTMENT_WORDS.some((word) => LIFECYCLE_WORDS.compose.sentence.who(t.id, word) === face);
-  const byWho = PLAYBOOK_TRIGGERS.filter(said);
-  // Else the longest label the face holds, and every moment that goes by it ("Win-back" is two moments, each of a list).
-  const longest = Math.max(0, ...PLAYBOOK_TRIGGERS.filter((t) => face.includes(t.label)).map((t) => t.label.length));
-  const named =
-    byWho.length > 0 ? byWho : PLAYBOOK_TRIGGERS.filter((t) => t.label.length === longest && face.includes(t.label));
-  if (named.length === 0) throw new Error(`the moment "${face}" is none of contracts' PLAYBOOK_TRIGGERS`);
-  const kinds = new Set(named.map((t) => t.kind));
-  return {
-    visits: kinds.has("visit"),
-    bookingLink: links.bookingLink,
-    reviewLink: links.reviewLink,
-    proposal: kinds.has("deal"),
-  };
-}
 
 /**
  * The row a message's words are drawn from, under the message's own id: the anchor's, else the first of its rows in the

@@ -11,10 +11,12 @@
  *   campaigns/message:<name>         a message open in a drawer of its own, by its name (the call's text; a playbook's message)
  *   campaigns/new                    the composer, on Send once
  *   campaigns/new:to:<audience>      the same, on the list or audience it was asked for (every old `broadcasts/<audience>` lands here)
- *   campaigns/new:every              the composer, on Every time a moment comes
  *   campaigns/new:leads              the composer, on Write to leads: where a reach-out starts (00426)
- *   campaigns/new:moment:<trigger>   the same, on the moment a Turn on was pressed for
- *   campaigns/new:edit:<id>          the same, changing the playbook the drawer showed; a reach-out's id opens its own sheet
+ *   campaigns/new:edit:<root>        a reach-out's change, in its own sheet (a sequence to leads' step's Edit); an id that is
+ *                                    no reach-out's, once they are read, is a moment's sequence, and lands on its record
+ *
+ * The composer's Every time (`new:every`, `new:moment:<trigger>`) went (the closed-loop audit of 17 Oct 2026, G): those
+ * addresses land on New sequence, on that moment (contracts sequenceLandingOf).
  *
  * A message's drawer and the composer are the address's, as the Inbox's thread is: opened by the page, pushed so Back closes
  * it; arrived at by a link, replaced with Sequences when closed. A composer opened over a drawer is pushed over it, so Back,
@@ -32,15 +34,8 @@ export interface HomeAddress {
   part?: "people";
   /** A message open in a drawer of its own, by its name: read and changed there, over the home (Ruben, 11 Oct 2026). */
   message: string | null;
-  /**
-   * The composer: Send once (on the audience asked for, or the one it opens on), or Every time a moment comes, on a moment,
-   * or changing one.
-   */
-  compose:
-    | null
-    | { mode: "once"; to: string | null }
-    | { mode: "every"; moment: string | null; edit: string | null }
-    | { mode: "leads" };
+  /** The composer: Send once (on the audience asked for, or the one it opens on), Write to leads, or a reach-out's change. */
+  compose: null | { mode: "once"; to: string | null } | { mode: "leads" } | { mode: "change"; root: string };
 }
 
 /** Campaigns' own route, which every address here is spelled under. */
@@ -58,15 +53,10 @@ function composeOf(param: string): HomeAddress["compose"] | undefined {
     const to = param.slice("new:to:".length);
     return { mode: "once", to: to || null };
   }
-  if (param === "new:every") return { mode: "every", moment: null, edit: null };
   if (param === "new:leads") return { mode: "leads" };
-  if (param.startsWith("new:moment:")) {
-    const moment = param.slice("new:moment:".length);
-    return { mode: "every", moment: moment || null, edit: null };
-  }
   if (param.startsWith("new:edit:")) {
-    const edit = param.slice("new:edit:".length);
-    return edit ? { mode: "every", moment: null, edit } : undefined;
+    const root = param.slice("new:edit:".length);
+    return root ? { mode: "change", root } : undefined;
   }
   return undefined;
 }
@@ -94,27 +84,13 @@ export function parseHome(param: string | null): HomeAddress {
 /** The route a composer is spelled as: the shell's, `campaigns/new…`. */
 function composerRoute(c: NonNullable<HomeAddress["compose"]>): string {
   if (c.mode === "once") return c.to ? `${HOME_ROUTE}/new:to:${c.to}` : `${HOME_ROUTE}/new`;
-  if (c.mode === "leads") return `${HOME_ROUTE}/new:leads`;
-  if (c.edit) return `${HOME_ROUTE}/new:edit:${c.edit}`;
-  return c.moment ? `${HOME_ROUTE}/new:moment:${c.moment}` : `${HOME_ROUTE}/new:every`;
+  if (c.mode === "change") return chainChangeRoute(c.root);
+  return `${HOME_ROUTE}/new:leads`;
 }
 
-/** What the composer is opened on: the audience a send is for, the moment a Turn on was pressed for, the playbook being changed. */
-interface ComposeOn {
-  to?: string | null;
-  moment?: string | null;
-  edit?: string | null;
-}
+/** A reach-out's change, in its own sheet over Sequences: a sequence to leads' step's Edit opens it. */
+export const chainChangeRoute = (root: string): string => `${HOME_ROUTE}/new:edit:${root}`;
 
-/**
- * The composer on a mode: Send once (on an audience), Every time a moment comes (on a moment, or changing one), or Write
- * to leads.
- */
-export const composeRoute = (mode: "once" | "every" | "leads", on: ComposeOn = {}): string =>
-  composerRoute(
-    mode === "once"
-      ? { mode, to: on.to ?? null }
-      : mode === "leads"
-        ? { mode }
-        : { mode, moment: on.moment ?? null, edit: on.edit ?? null },
-  );
+/** The composer on a mode: Send once (on an audience a send is for), or Write to leads. */
+export const composeRoute = (mode: "once" | "leads", on: { to?: string | null } = {}): string =>
+  composerRoute(mode === "once" ? { mode, to: on.to ?? null } : { mode });

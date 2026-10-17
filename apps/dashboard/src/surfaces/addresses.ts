@@ -235,7 +235,7 @@ function opensReports(param: string): Opened | null {
  *   live           `<call>`
  *   calendar       `<yyyy-mm-dd>`, `a-<visit>`, `<yyyy-mm-dd>:a-<visit>`
  *   campaigns      `in:<group>`, `moment:<campaign>`, `message:<template>`, `new` and the composer's other doors (`new:to:`,
- *                  `new:every`, `new:moment:`, `new:edit:`)
+ *                  `new:leads`; `new:every`, `new:moment:` and `new:edit:` land on Sequences, contracts sequenceLandingOf)
  *   broadcasts     `run:<send>`, `get-yes`
  *   clients        `<person>`, `new-list`, `seg:<built-in list>`, `list:<kept list>`, `leads` and its views
  *                  (`leads:s-<search>:l-<list>:c-<class>:p-<lead>`), `pipeline` and its views (`pipeline:v-<view>:p-<person>[_<deal>]`)
