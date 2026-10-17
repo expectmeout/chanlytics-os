@@ -69,6 +69,7 @@
   "remove_template_version()": 1,
   "save_template_version()": 1,
   "sequence_batch_cancel()": 1,
+  "sequence_batch_places_back()": 1,
   "sequence_batches_one_off_gone()": 1,
   "sequence_batches_place()": 1,
   "sequence_batches_say_sequence()": 1,

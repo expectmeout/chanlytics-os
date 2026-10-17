@@ -2601,6 +2601,7 @@ import {
   playbookRunReach,
   playbookStopBy,
   enrolPurpose as enrolPurpose2,
+  followUpLeaves,
   followUpReach,
   followUpStop,
   messageAboutOfTrigger as messageAboutOfTrigger3,
@@ -2672,7 +2673,11 @@ async function allowed(r, message) {
   });
   if (stop) return { ended: await r.off(stop) };
   if (await r.ports.alreadyRan(p.id, r.runFor)) return { ended: await r.off("already_ran_today", { record: false }) };
-  if (isFollowUp(p)) return { ended: null, listIds: null, kept: void 0 };
+  if (isFollowUp(p)) {
+    if ((p.only_if ?? []).includes("no_booking") && ctx.calendar === "unavailable")
+      return { ended: { outcome: "failed", error: PLAYBOOK_CALENDAR_UNREAD } };
+    return { ended: null, listIds: null, kept: void 0 };
+  }
   const trig = triggerOf3(p.trigger);
   if ((trig?.kind === "visit" || trig?.id === "lapsed") && ctx.calendar !== "ok")
     return { ended: await withoutCalendar(r) };
@@ -2769,7 +2774,7 @@ async function drawFollowUp(r, message, how) {
     });
     for (const h of drawn.held) {
       const id = enrolmentOf.get(h.id);
-      if (id) leave(h.why, id);
+      if (id && followUpLeaves(h.why)) leave(h.why, id);
     }
     const capped = drawn.eligible.slice(0, Math.max(1, r.p.cap_per_run));
     for (const [why, ids] of leaving) await r.ports.leave(ids, why);
@@ -2847,7 +2852,7 @@ async function sayTheRun(run, made) {
       // A person reads "campaign", never "playbook" (decision 19): Today's away card finds the queue's run in this title,
       // and reads the old word too (contracts today-away.ts), since the bell keeps rows written before.
       `Campaign \u201C${p.name}\u201D is ready: ${n} ${n === 1 ? "person" : "people"}`,
-      `${n} ${n === 1 ? "person has" : "people have"} become eligible for \u201C${p.name}\u201D. Approve or skip the run on Today or in Campaigns. Nothing is sent until you do.`,
+      `${n} ${n === 1 ? "person has" : "people have"} become eligible for \u201C${p.name}\u201D. Approve or skip the run on Today or in Campaigns. Nothing is sent until you do; it waits until tonight.`,
       made.madeId
     );
     return;

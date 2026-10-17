@@ -10167,6 +10167,12 @@ type Database = {
                 };
                 Returns: Json;
             };
+            sequence_batch_places_back: {
+                Args: {
+                    p_batch_id: string;
+                };
+                Returns: number;
+            };
             sequence_claim_drafts: {
                 Args: {
                     p_at: string;

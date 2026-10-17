@@ -40,8 +40,6 @@ import {
 
 const TZ = "America/New_York";
 const NOW = Date.parse("2026-10-14T14:00:00Z");
-/** The business's clock, as the notice takes it. */
-const AT = { tz: TZ, nowMs: NOW };
 const NONE = { waiting: 0, waiting_people: 0, held: 0, to_send: 0, replies: 0, oldest_at: null, batches: [] };
 const FIRST = {
   id: "s1",
@@ -143,21 +141,44 @@ test("only a batch an OK can still send waits for you, as the badge counts it: o
   assert.equal(sequenceWaitsNow(oneOff, { today: "2026-10-20", sendsOn: "2026-10-20" }).needs.waiting, 1);
 });
 
-test("the one notice: a batch waiting for an OK with its act, then what is held, said once", () => {
-  const waiting = sequenceNotice(row({ needs: { ...NONE, waiting: 1, batches: [batch()] } }), [], AT);
+test("the one notice: a batch waiting for an OK with its act and how long it waits, then what is held, said once", () => {
+  const waiting = sequenceNotice(row({ needs: { ...NONE, waiting: 1, batches: [batch()] } }), []);
   assert.equal(waiting.kind, "waiting");
-  assert.match(waiting.words, /^The next batch waits for your OK · it goes /);
+  // A customer's batch waits until its day is gone, never "goes at" the hour it was made: an OK sends it at once.
+  assert.equal(waiting.words, "The next batch waits for your OK · until tonight");
   assert.deepEqual([waiting.act, waiting.batchId], ["Approve", "b9"]);
   const named = sequenceNotice(
     row({ needs: { ...NONE, waiting: 1, waiting_people: 3, batches: [batch({ people: 3 })] } }),
     [],
-    AT,
   );
-  assert.deepEqual([named.words.startsWith("3 people wait for your OK"), named.act], [true, "Approve 3"]);
+  assert.deepEqual([named.words, named.act], ["3 people wait for your OK · until tonight", "Approve 3"]);
   // A phone's dock says it in a line and one fact, the step where there are several.
-  assert.deepEqual([named.line, named.fact.startsWith("goes ")], ["3 wait for your OK", true]);
-  assert.equal(sequenceNotice(row({ needs: { ...NONE, held: 2 } }), [], AT).words, "2 emails are held by the check");
-  assert.equal(sequenceNotice(row(), [], AT), null);
+  assert.deepEqual([named.line, named.fact], ["3 wait for your OK", "until tonight"]);
+  const steps = [
+    { id: "s1", place: 1 },
+    { id: "s2", place: 2 },
+  ];
+  const second = sequenceNotice(
+    row({ needs: { ...NONE, waiting: 1, waiting_people: 2, batches: [batch({ step_id: "s2", people: 2 })] } }),
+    steps,
+  );
+  assert.equal(second.fact, "Step 2 · until tonight");
+  // A sequence to leads' batch and a one-off wait until they are answered: no day to pass, so no "until".
+  const leads = sequenceNotice(
+    row({
+      starts: "leads",
+      needs: {
+        ...NONE,
+        waiting: 1,
+        waiting_people: 4,
+        batches: [batch({ people: 4, audience: { kind: "reach_out", trigger: null } })],
+      },
+    }),
+    [],
+  );
+  assert.deepEqual([leads.words, leads.fact], ["4 people wait for your OK", null]);
+  assert.equal(sequenceNotice(row({ needs: { ...NONE, held: 2 } }), []).words, "2 emails are held by the check");
+  assert.equal(sequenceNotice(row(), []), null);
 });
 
 test("the flow's sentences: a moment at its hour, the same for a record and a draft; a wait; what stops it", () => {
@@ -235,7 +256,7 @@ test("a twin on a visit moment needs you: two running sequences send each person
   assert.equal(sequenceTwinOf([row({ id: "a", state: "paused" }), b], b), null, "a paused one sends nothing");
   assert.equal(sequenceGroupOf(b, twin), "needs");
   assert.equal(sequenceRowLine(b, TZ, NOW, twin), "Two reminders go to each person");
-  const n = sequenceNotice(b, [], AT, twin);
+  const n = sequenceNotice(b, [], twin);
   assert.deepEqual(
     [n.kind, n.line, n.fact, n.act],
     ["twin", "Two reminders go to each person", "“Meeting reminder” sends one too", "Turn this off"],
@@ -245,7 +266,7 @@ test("a twin on a visit moment needs you: two running sequences send each person
 
 test("new words WhatsApp turned down are the notice's last, with the step its act opens", () => {
   const steps = [{ id: "st2", place: 2, next_words: { status: "rejected", rejected_reason: "reads as marketing" } }];
-  const n = sequenceNotice(row(), steps, AT);
+  const n = sequenceNotice(row(), steps);
   assert.deepEqual(
     [n.kind, n.line, n.fact, n.act, n.stepId],
     ["words", "Step 2’s new words turned down", "WhatsApp: reads as marketing", "Edit step 2", "st2"],

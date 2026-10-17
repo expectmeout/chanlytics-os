@@ -9162,6 +9162,10 @@ export type Database = {
         Args: { p_batch_ids: string[]; p_tenant_id: string }
         Returns: Json
       }
+      sequence_batch_places_back: {
+        Args: { p_batch_id: string }
+        Returns: number
+      }
       sequence_claim_drafts: {
         Args: { p_at: string; p_limit: number; p_tenant_id?: string }
         Returns: {

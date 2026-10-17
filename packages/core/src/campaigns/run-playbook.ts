@@ -14,6 +14,7 @@ import {
   playbookRunReach,
   playbookStopBy,
   enrolPurpose,
+  followUpLeaves,
   followUpReach,
   followUpStop,
   messageAboutOfTrigger,
@@ -142,8 +143,14 @@ async function allowed(
   if (stop) return { ended: await r.off(stop) };
   // One run per local day: a second ask says so and records nothing twice.
   if (await r.ports.alreadyRan(p.id, r.runFor)) return { ended: await r.off("already_ran_today", { record: false }) };
-  // A step after the first reaches whoever its sequence brought to it: no moment, list or calendar of its own.
-  if (isFollowUp(p)) return { ended: null, listIds: null, kept: undefined };
+  // A step after the first reaches whoever its sequence brought to it: no moment or list of its own. One that goes only to
+  // those who haven't booked judges a booking by the calendar, so a calendar that could not be READ fails the run, as a
+  // visit moment's does, and the next sweep asks again: never a day on which nobody looks booked.
+  if (isFollowUp(p)) {
+    if ((p.only_if ?? []).includes("no_booking") && ctx.calendar === "unavailable")
+      return { ended: { outcome: "failed", error: PLAYBOOK_CALENDAR_UNREAD } };
+    return { ended: null, listIds: null, kept: undefined };
+  }
   // A visit playbook, or Lapsed's, without a calendar has nothing to read: off, and the run says so.
   const trig = triggerOf(p.trigger);
   if ((trig?.kind === "visit" || trig?.id === "lapsed") && ctx.calendar !== "ok")
@@ -253,11 +260,12 @@ function withinTheNumbersDay(
 
 /**
  * Who a customer's step after the first reaches (D6): the people the database says are due it (in its sequence, one step
- * before it, their wait over), less those for whom what it was for no longer holds (they booked, or wrote back, since:
- * contracts followUpStop), each on one channel (contracts followUpReach), at most its cap, the longest waiting first, and
- * within the number's day. Whoever it will not reach leaves the sequence, with why (booked, replied, never said yes, gone),
- * so a day's run never asks of them again; those past the cap stay due for the next day. A read or a leave that fails is
- * this run failing: nothing is recorded, and the next sweep asks again.
+ * before it, their wait over), less those for whom what it was for no longer holds (they booked or came in, or wrote back,
+ * since: contracts followUpStop), each on one channel (contracts followUpReach), at most its cap, the longest waiting
+ * first, and within the number's day. Whoever it will not reach for a reason of their own leaves the sequence, with why
+ * (booked, replied, never said yes, gone), so a day's run never asks of them again; those no channel can carry the step
+ * to today (the workspace's to mend: contracts followUpLeaves) and those past the cap stay due for the next day. A read or
+ * a leave that fails is this run failing: nothing is recorded, and the next sweep asks again.
  */
 async function drawFollowUp(
   r: Run,
@@ -289,7 +297,7 @@ async function drawFollowUp(
     });
     for (const h of drawn.held) {
       const id = enrolmentOf.get(h.id);
-      if (id) leave(h.why, id);
+      if (id && followUpLeaves(h.why)) leave(h.why, id);
     }
     // The cap holds the rest to tomorrow: they stay in their sequence, due, the longest waiting first (the due order).
     const capped = drawn.eligible.slice(0, Math.max(1, r.p.cap_per_run));
@@ -427,7 +435,7 @@ async function sayTheRun(run: Run, made: { madeId: string; n: number; at: Date |
       // A person reads "campaign", never "playbook" (decision 19): Today's away card finds the queue's run in this title,
       // and reads the old word too (contracts today-away.ts), since the bell keeps rows written before.
       `Campaign “${p.name}” is ready: ${n} ${n === 1 ? "person" : "people"}`,
-      `${n} ${n === 1 ? "person has" : "people have"} become eligible for “${p.name}”. Approve or skip the run on Today or in Campaigns. Nothing is sent until you do.`,
+      `${n} ${n === 1 ? "person has" : "people have"} become eligible for “${p.name}”. Approve or skip the run on Today or in Campaigns. Nothing is sent until you do; it waits until tonight.`,
       made.madeId,
     );
     return;

@@ -1,7 +1,7 @@
 /** Sequences (decision 0060): everything the workspace sends on its own, its steps, batches, sends and replies. */
 export { SEQUENCE_STARTS, SEQUENCE_STATES } from "./sequence";
 export type { SequenceStart, SequenceState } from "./sequence";
-export { FOLLOW_UP_CONDITIONS, followUpStop, followUpReach, messageAboutOfClass } from "./follow-up";
+export { FOLLOW_UP_CONDITIONS, followUpLeaves, followUpStop, followUpReach, messageAboutOfClass } from "./follow-up";
 export type { FollowUpCondition, FollowUpStop, FollowUpStep } from "./follow-up";
 export { SEQUENCE_PEOPLE_GROUPS } from "./sequence-dto";
 export type {
@@ -52,6 +52,7 @@ export {
   sequenceRowLine,
   sequenceHeadLine,
   sequenceNotice,
+  batchWaitsUntilTonight,
   sequenceStartsSentence,
   momentStartsSentence,
   listStartsSentence,

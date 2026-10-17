@@ -649,8 +649,9 @@ test("the shell names the tab from the crumbs it draws, counts what needs you, a
   });
   const { tree, title } = mount("#/inbox/th-9");
   assert.equal(title, "(2) Rosa · Inbox · Chanlytics");
-  const main = find(tree, (n) => n.props?.className === "main");
-  const kids = main.props.children.filter((k) => k && typeof k === "object");
+  // The top bar and the bars under it stand in the frame's top, over the page (app-shell.jsx `.frame-top`).
+  const top = find(tree, (n) => n.props?.className === "frame-top");
+  const kids = top.props.children.filter((k) => k && typeof k === "object");
   const at = (type) => kids.findIndex((k) => k.type === type);
   assert.ok(at("Topbar") >= 0, "the top bar");
   // A call happening right now is the one thing on this line that stops being

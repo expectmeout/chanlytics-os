@@ -50,8 +50,8 @@ edge statements naming no workspace   27   in 14 files
 doors importing db or channels        0   imports in 0 files
 unnamed durations                    56   in 27 files
 event-shaped clocks                   5   of the registered clocks (invariant 6)
-tables with more than one writer     60   458 writers among them
-doors writing a record with no event   91   writing 104 tables (invariant 2)
+tables with more than one writer     60   459 writers among them
+doors writing a record with no event   92   writing 105 tables (invariant 2)
 personal columns with no erasure strategy    2   in 1 table
 breakpoints outside the set          33   in 11 files
 literal style values                826   in 22 stylesheets

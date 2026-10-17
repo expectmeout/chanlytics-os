@@ -22665,11 +22665,13 @@ function reachBarWords(split) {
 // src/sequences/follow-up.ts
 var FOLLOW_UP_CONDITIONS = ["no_booking", "no_reply"];
 function followUpStop(person, onlyIf, sentAtMs) {
-  if (onlyIf.includes("no_booking") && person.booked) return "booked";
+  const cameIn2 = person.lastVisitMs !== null && sentAtMs !== null && person.lastVisitMs > sentAtMs;
+  if (onlyIf.includes("no_booking") && (person.booked || cameIn2)) return "booked";
   if (onlyIf.includes("no_reply") && person.askedMs !== null && sentAtMs !== null && person.askedMs > sentAtMs)
     return "replied";
   return null;
 }
+var followUpLeaves = (why) => why !== "no_channel";
 function messageAboutOfClass(policyClass) {
   return policyClass === "booking" || policyClass === "follow_up" ? "theirs" : "ours";
 }
@@ -46331,6 +46333,8 @@ var SEQUENCE_WORDS = {
   you: "You approve",
   /** The record's line of what goes next: "Next tomorrow 10:00 AM · 3 people". */
   next: "Next",
+  /** How long a customer's batch waits for an OK: an OK sends it at once, and the sweep skips it once its day is gone. */
+  untilTonight: "until tonight",
   /** Who approves its batches, said in the record's More, where it is changed (Autonomy, for its whole class). */
   whoApproves: "Who approves",
   turnOff: "Turn this off",
@@ -46606,24 +46610,25 @@ var noticeOf = (n) => ({
   stepId: null,
   ...n
 });
-function waitingNotice(steps, batch, clock3) {
-  const when = clockWhen(Date.parse(batch.at), clock3.tz, clock3.nowMs);
+var batchWaitsUntilTonight = (batch) => batch.audience?.kind === "playbook";
+function waitingNotice(steps, batch) {
   const people = batch.people;
   const place = steps.length > 1 ? steps.find((s) => s.id === batch.step_id)?.place : void 0;
+  const until = batchWaitsUntilTonight(batch) ? ` \xB7 ${SEQUENCE_WORDS.untilTonight}` : "";
+  const fact2 = [place ? `Step ${place}` : null, until ? SEQUENCE_WORDS.untilTonight : null].filter(Boolean).join(" \xB7 ");
   return noticeOf({
     kind: "waiting",
-    words: people > 0 ? `${plural(people, "person waits", "people wait")} for your OK \xB7 they go ${when}` : `The next batch waits for your OK \xB7 it goes ${when}`,
+    words: people > 0 ? `${plural(people, "person waits", "people wait")} for your OK${until}` : `The next batch waits for your OK${until}`,
     line: people > 0 ? `${people} wait${people === 1 ? "s" : ""} for your OK` : "The next batch waits for your OK",
-    fact: `${place ? `Step ${place} \xB7 ` : ""}goes ${when}`,
+    fact: fact2 || null,
     act: people > 0 ? `${SEQUENCE_WORDS.approve} ${people}` : SEQUENCE_WORDS.approve,
     batchId: batch.id
   });
 }
-function sequenceNotice(row2, steps, clock3, twin = null) {
-  const { tz, nowMs } = clock3;
+function sequenceNotice(row2, steps, twin = null) {
   const n = row2.needs;
   const batch = n.waiting > 0 ? n.batches[0] ?? null : null;
-  if (batch) return waitingNotice(steps, batch, { tz, nowMs });
+  if (batch) return waitingNotice(steps, batch);
   if (twin)
     return noticeOf({
       kind: "twin",
@@ -47286,11 +47291,8 @@ function scheduleStepState(row2, step2, ctx) {
   if (ctx.gone) return { tone: "need", words: SCHEDULE_WORDS.pick };
   const batch = row2.needs.waiting > 0 ? row2.needs.batches.find((b) => b.step_id === step2.id) : void 0;
   if (batch) {
-    const when = clockWhen(Date.parse(batch.at), ctx.tz, ctx.nowMs);
-    return {
-      tone: "need",
-      words: batch.people > 0 ? `${batch.people} wait for your OK \xB7 goes ${when}` : `Waits for your OK \xB7 goes ${when}`
-    };
+    const until = batchWaitsUntilTonight(batch) ? ` \xB7 ${SEQUENCE_WORDS.untilTonight}` : "";
+    return { tone: "need", words: `${batch.people > 0 ? `${batch.people} wait` : "Waits"} for your OK${until}` };
   }
   if (row2.starts === "leads") {
     const now = leadStepNow(row2, step2, ctx);
@@ -47305,7 +47307,8 @@ function scheduleStepState(row2, step2, ctx) {
   if (next) return next;
   const line = scheduleInLine(ctx.people, step2.place);
   if (!line) return null;
-  const day = line.first ? ` \xB7 the first on ${clockDate(Date.parse(line.first), ctx.tz, ctx.nowMs)}` : "";
+  const first = line.first ? Date.parse(line.first) : null;
+  const day = first === null ? "" : first <= ctx.nowMs ? " \xB7 due now" : ` \xB7 the first on ${clockDate(first, ctx.tz, ctx.nowMs)}`;
   return { tone: "next", words: line.count !== null ? `${line.count} in line${day}` : `In line${day}` };
 }
 function scheduleStepSub(row2, step2, day) {
@@ -60211,6 +60214,7 @@ export {
   autoReplyCandidates,
   autoReplyHold,
   awayUntilOf,
+  batchWaitsUntilTonight,
   batchWent,
   bellActionOf,
   bellCalls,
@@ -60617,6 +60621,7 @@ export {
   followUpDue,
   followUpIsFor,
   followUpKey,
+  followUpLeaves,
   followUpNames,
   followUpReach,
   followUpRunAt,

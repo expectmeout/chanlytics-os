@@ -676,13 +676,13 @@ Object.assign(window, { watchKeyboard });
 // - a control that moved anyway (what changed was above it: a list shrinking over its "Show fewer") is scrolled back to
 //   where it was.
 // A control the change took with it (Mark all read, a form's "Not right?") still has the page held where it stood.
-// Where nothing scrolls, the change just runs. A change that lands later (after a server answers) is not held.
+// Where nothing scrolls (on a phone the window does: mobile.css) the change just runs. One landing later is not held.
 const holdScroller = (from) => {
   for (let n = from && from.parentElement; n && n !== document.body && n !== document.documentElement; n = n.parentElement) {
     const over = window.getComputedStyle ? window.getComputedStyle(n).overflowY : "visible";
     if ((over === "auto" || over === "scroll") && n.scrollHeight > n.clientHeight + 1) return n;
   }
-  return null;
+  const page = document.scrollingElement; return page && page.scrollHeight > page.clientHeight + 1 ? page : null;
 };
 // The room a scroller was given, and the padding it had of its own: one per scroller, grown by each switch.
 const holdRooms = new WeakMap();
@@ -692,7 +692,7 @@ const holdRoom = (box, more) => {
     room = { extra: 0, own: parseFloat(window.getComputedStyle(box).paddingBottom) || 0, inline: box.style.paddingBottom || "" };
     const release = () => {
       box.style.paddingBottom = room.inline;
-      box.removeEventListener("scroll", room.onScroll);
+      (box === document.scrollingElement ? window : box).removeEventListener("scroll", room.onScroll);
       holdRooms.delete(box);
     };
     // Scrolled up, the page needs less of it: what keeps the screen where it is, and nothing once that is none.
@@ -705,7 +705,7 @@ const holdRoom = (box, more) => {
         box.style.paddingBottom = `${room.own + need}px`;
       }
     };
-    box.addEventListener("scroll", room.onScroll, { passive: true });
+    (box === document.scrollingElement ? window : box).addEventListener("scroll", room.onScroll, { passive: true });
     holdRooms.set(box, room);
   }
   room.extra += more;
