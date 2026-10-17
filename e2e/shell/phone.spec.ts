@@ -757,35 +757,40 @@ test.describe("Phone shell on a real workspace", () => {
   /**
    * Every list pulls under a thumb, however short (25 Sep). A list rubber-bands on a touch screen only when it holds
    * more than its box: Needs you with two threads and Live with no calls could not be pulled at all, where
-   * Conversations could, and Live's panel cut its last lines off with no way to scroll to them. Each list's scroller
-   * holds a pixel more than its box (mobile.css, "Every list pulls"), so a short list gives way as a long one does.
+   * Conversations could, and Live's panel cut its last lines off with no way to scroll to them. On a phone the window
+   * scrolls a page's list (mobile.css, "The window scrolls"), and the window gives way under a thumb however short the
+   * page: the list is no box of its own there, and nothing holds the window's pull. A page that holds still keeps its
+   * own scroller (Live), which holds a pixel more than its box (mobile.css, "Every list pulls"), so a short list gives
+   * way as a long one does.
    */
   test("every list pulls under a thumb, however short: the Inbox's views, People's scopes and Campaigns' rooms", async ({
     page,
   }) => {
     const pulls: Record<string, boolean> = {};
-    for (const [hash, sel] of [
-      ["inbox", ".ix-threads"],
-      ["conversations", ".cv-rows"],
-      ["live", ".lm-list"],
-      ["live", ".lm-panel"],
-      ["clients", ".cl-main-scroll"],
-      ["clients/leads", ".cl-main-scroll"],
-      ["clients/pipeline", ".cl-main-scroll"],
-      // Sequences' list is the pane that scrolls itself, as Messages' is (parts/split.tsx CmSplit).
-      ["campaigns/sequences", ".sq-page > .cm-list"],
-      // Messages' list is the pane that scrolls itself (parts/split.tsx CmSplit: .cm-list), where .rp-body is its failed state.
-      ["messages", ".tpl-page > .cm-list"],
+    for (const [hash, sel, own] of [
+      ["inbox", ".ix-threads", false],
+      ["conversations", ".cv-rows", false],
+      ["live", ".lm-list", true],
+      ["live", ".lm-panel", true],
+      ["clients", ".cl-main-scroll", false],
+      ["clients/leads", ".cl-main-scroll", false],
+      ["clients/pipeline", ".cl-main-scroll", false],
+      // Sequences' list, as Messages' is (parts/split.tsx CmSplit).
+      ["campaigns/sequences", ".sq-page > .cm-list", false],
+      // Messages' list (parts/split.tsx CmSplit: .cm-list), where .rp-body is its failed state.
+      ["messages", ".tpl-page > .cm-list", false],
     ] as const) {
       await page.goto(`/#/${hash}`);
       await page.waitForLoadState("networkidle");
       const box = page.locator(sel).first();
       // A surface this workspace (or the local harness) does not draw, or a pane a phone leaves out while nothing is open.
       if ((await box.count()) === 0 || !(await box.isVisible())) continue;
-      pulls[`${hash} ${sel}`] = await box.evaluate((el) => {
+      pulls[`${hash} ${sel}`] = await box.evaluate((el, ownBox) => {
         const oy = getComputedStyle(el).overflowY;
-        return (oy === "auto" || oy === "scroll") && el.scrollHeight > el.clientHeight;
-      });
+        const scrolls = oy === "auto" || oy === "scroll";
+        if (ownBox) return scrolls && el.scrollHeight > el.clientHeight;
+        return !scrolls && getComputedStyle(document.documentElement).overscrollBehaviorY !== "none";
+      }, own);
     }
     test.skip(Object.keys(pulls).length === 0, "no list drawn here");
     for (const [where, ok] of Object.entries(pulls)) expect(ok, `${where} gives way under a thumb`).toBe(true);
@@ -835,7 +840,8 @@ test.describe("Phone shell on a real workspace", () => {
 
   /**
    * Reports' date range stands over what scrolls (25 Sep): it is the head's act now, a capsule beside the strip of lenses
-   * that says what the page is on (6 and 9 Oct), outside the page's one scroller, and only the charts scroll, edge to edge.
+   * that says what the page is on (6 and 9 Oct), in the frame's top, which stands over the page as the window scrolls it
+   * (mobile.css, "The window scrolls"), and only the charts scroll, edge to edge.
    */
   test("Reports' period stands over the charts, and only they scroll", async ({ page }) => {
     await page.goto("/#/reports");
@@ -850,7 +856,7 @@ test.describe("Phone shell on a real workspace", () => {
       }
       const body = document.querySelector(".rpt-body") as HTMLElement;
       const before = el.getBoundingClientRect().top;
-      body.scrollTop = 300;
+      window.scrollBy(0, 300);
       await new Promise((r) => setTimeout(r, 50));
       const after = el.getBoundingClientRect().top;
       const b = body.getBoundingClientRect();
@@ -1130,7 +1136,8 @@ test.describe("Phone shell on a real workspace", () => {
     await page.waitForLoadState("networkidle");
     const body = page.locator(".rpt-body");
     test.skip((await body.count()) === 0, "no Reports on this workspace");
-    const room = await body.evaluate((el) => el.scrollHeight - el.clientHeight);
+    // The window scrolls the body on a phone (mobile.css, "The window scrolls"); touch-action is still the body's.
+    const room = await page.evaluate(() => document.documentElement.scrollHeight - innerHeight);
     test.skip(room < 60, "Reports' Overview does not scroll on this workspace");
     const lit = page.getByTestId("reports-lenses").locator(".stabs-tab.active");
     await expect(lit).toHaveText(/^Overview/);
@@ -1147,7 +1154,7 @@ test.describe("Phone shell on a real workspace", () => {
       await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
       return held;
     };
-    const scrolled = () => body.evaluate((el) => el.scrollTop);
+    const scrolled = () => page.evaluate(() => window.scrollY);
     // Across first (the first move is wider than it is tall), then down by two thirds as much: the page walks, the
     // body stands.
     const whileAcross = await drift([300, 420], [96, 560], scrolled);
@@ -1240,9 +1247,10 @@ test.describe("Phone shell on a real workspace", () => {
     expect(face.x, "the face stands at the page's gutter, not after an arrow of its own").toBeLessThanOrEqual(17);
     test.skip(tabs <= 2, "no one here has a History with more than one kind in it");
     const strip = page.locator(".cl-tl-filters");
+    // The window scrolls a person's page on a phone (mobile.css, "The window scrolls").
     await page.locator(".cl-profile").evaluate((box) => {
       const s = box.querySelector(".cl-tl-filters");
-      if (s) box.scrollTop += s.getBoundingClientRect().top - 120;
+      if (s) window.scrollBy(0, s.getBoundingClientRect().top - 120);
     });
     const top = async () => Math.round((await strip.boundingBox())!.y);
     const start = await top();

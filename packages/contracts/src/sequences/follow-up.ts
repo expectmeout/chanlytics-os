@@ -1,8 +1,10 @@
 /**
  * A customer's sequence takes more steps (decision 0060, D6): a step some days after the one before, which goes only if
- * what it was for still holds (no booking, no reply), and stops a person who booked or wrote back since. The step runs
- * through the moment's own run (core run-playbook.ts), over the people the database says are due it
- * (`sequence_follow_ups_due`, 00441); these are the rules it judges them by.
+ * what it was for still holds (no booking, no reply), and stops a person who booked, came in or wrote back since. The step
+ * runs through the moment's own run (core run-playbook.ts), over the people the database says are due it
+ * (`sequence_follow_ups_due`, 00441); these are the rules it judges them by. Who it cannot reach today leaves only for a
+ * reason of their own (followUpLeaves): one the workspace can mend (no channel ready, the message gone) keeps them due,
+ * so the step reaches them the day it can (the loop review, 17 Oct 2026).
  */
 import type { CampaignHow } from "../broadcasts/broadcast-audience";
 import { reachFor, type HeldOn } from "../broadcasts/reach-for";
@@ -16,24 +18,34 @@ import type { RunReach } from "../playbooks/playbook-reach";
 export const FOLLOW_UP_CONDITIONS = ["no_booking", "no_reply"] as const;
 export type FollowUpCondition = (typeof FOLLOW_UP_CONDITIONS)[number];
 
-/** Why someone due a step after the first leaves the sequence instead: they booked, or they wrote or called, since. */
+/** Why someone due a step after the first leaves the sequence instead: they booked or came in, or they wrote or called, since. */
 export type FollowUpStop = "booked" | "replied";
 
 /**
  * Whether a person due a step after the first leaves instead (its `only_if`): `booked` when it asks for no booking and
- * they have an appointment ahead; `replied` when it asks for no reply and they wrote or called after the step before
- * went (`sentAtMs`). Null when the step goes to them.
+ * they have an appointment ahead, or came in since the step before went (`sentAtMs`: a booking made and kept within the
+ * wait is no appointment ahead by the step's day, and a win-back must not reach them); `replied` when it asks for no
+ * reply and they wrote or called since it went. Null when the step goes to them.
  */
 export function followUpStop(
-  person: Pick<PersonRowVM, "booked" | "askedMs">,
+  person: Pick<PersonRowVM, "booked" | "askedMs" | "lastVisitMs">,
   onlyIf: readonly string[],
   sentAtMs: number | null,
 ): FollowUpStop | null {
-  if (onlyIf.includes("no_booking") && person.booked) return "booked";
+  const cameIn = person.lastVisitMs !== null && sentAtMs !== null && person.lastVisitMs > sentAtMs;
+  if (onlyIf.includes("no_booking") && (person.booked || cameIn)) return "booked";
   if (onlyIf.includes("no_reply") && person.askedMs !== null && sentAtMs !== null && person.askedMs > sentAtMs)
     return "replied";
   return null;
 }
+
+/**
+ * Whether someone a step after the first cannot reach today leaves the sequence for it: for a reason of their own (they
+ * said stop, never said yes, have no number or address, or their address stopped taking mail), yes. Not where no channel
+ * the step ticks can carry its message here now (`no_channel`: a mailbox disconnected or unread, the message gone, its
+ * WhatsApp version not approved): that is the workspace's to mend, and they stay due until the step can reach them.
+ */
+export const followUpLeaves = (why: HeldOn): boolean => why !== "no_channel";
 
 /**
  * What a customer's step is about, by its class (a step after the first carries its first step's): a visit's or a

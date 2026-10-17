@@ -640,7 +640,7 @@ test("ask: the row waits, nobody is scheduled, the owner is told in these words,
   assert.deepEqual(of("notify")[0], [
     "notify",
     "Campaign “Win-back” is ready: 2 people",
-    "2 people have become eligible for “Win-back”. Approve or skip the run on Today or in Campaigns. Nothing is sent until you do.",
+    "2 people have become eligible for “Win-back”. Approve or skip the run on Today or in Campaigns. Nothing is sent until you do; it waits until tonight.",
     // The run that waits: the row opens it, where Approve and Skip are.
     "b1",
   ]);

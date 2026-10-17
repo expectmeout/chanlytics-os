@@ -25,6 +25,7 @@ import { BUSINESS_TAB } from "@/legacy-bridge/business-tab";
 import { canDo, gateTitle } from "../../legacy-verbs";
 import type { LegacyFlash } from "../../legacy-verbs";
 import { Icon } from "../../kit/icon/icon";
+import { documentScroller, shownHeight } from "../../kit/motion/page-scroll";
 import { recFolds } from "../../kit/record/registry";
 import { BtAnswersCard } from "./answers";
 import { BtCanCard } from "./can";
@@ -182,8 +183,14 @@ const btScrolls = (el: HTMLElement): boolean => {
 const btRowIntoView = (key: HTMLElement): void => {
   let pane = key.parentElement;
   while (pane && !btScrolls(pane)) pane = pane.parentElement;
-  if (!pane) return;
   const at = key.getBoundingClientRect();
+  // No box scrolls it on a phone, where the window scrolls the pane (mobile.css, "The window scrolls"): the window
+  // brings the row to the middle of the screen, and only where the page is longer than the screen.
+  if (!pane) {
+    const page = documentScroller();
+    if (page.scrollHeight > page.clientHeight) window.scrollBy(0, at.top + at.height / 2 - shownHeight(page) / 2);
+    return;
+  }
   const box = pane.getBoundingClientRect();
   pane.scrollTop += at.top + at.height / 2 - (box.top + box.height / 2);
 };

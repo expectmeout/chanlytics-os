@@ -1,11 +1,12 @@
 /**
  * A customer's step after the first (decision 0060, D6), run: what stops a person before it (contracts followUpStop), and
  * the moment's own run over the people the database says are due it (core runPlaybook), through fakes that log their
- * calls. Who leaves, and why, is the run's to say: booked, replied, gone, or the reason no channel reaches them.
+ * calls. Who leaves, and why, is the run's to say: booked (or came in), replied, gone, or a reason of their own no channel
+ * reaches them for; one the workspace can mend (no channel ready today) keeps them due (the loop review, 17 Oct 2026).
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { channelsReady, followUpStop, numberHealth } from "@chanlytics/contracts";
+import { channelsReady, followUpLeaves, followUpStop, numberHealth } from "@chanlytics/contracts";
 import { importSrc } from "../_source.mjs";
 
 const { runPlaybook } = await importSrc("packages/core/src/campaigns/run-playbook.ts");
@@ -33,6 +34,7 @@ const customer = (id, over = {}) => ({
   lastContact: { ts: NOW.getTime() - 20 * D, label: "" },
   booked: false,
   askedMs: NOW.getTime() - 20 * D,
+  lastVisitMs: null,
   ...over,
 });
 
@@ -48,6 +50,32 @@ test("what stops someone before a step after the first: a booking ahead where it
   assert.equal(followUpStop(customer("a", { askedMs: sent + 60_000 }), ["no_reply"], sent), "replied");
   assert.equal(followUpStop(customer("a", { askedMs: sent - 60_000 }), ["no_reply"], sent), null, "before it went");
   assert.equal(followUpStop(customer("a", { booked: true, askedMs: sent + 1 }), [], sent), null, "nothing asked");
+});
+
+test("a booking made and kept within the wait stops them too: they came in since the step before went, and a win-back must not reach them", () => {
+  const sent = Date.parse(SENT);
+  assert.equal(followUpStop(customer("a", { lastVisitMs: sent + 2 * D }), ["no_booking"], sent), "booked");
+  assert.equal(
+    followUpStop(customer("a", { lastVisitMs: sent - 2 * D }), ["no_booking"], sent),
+    null,
+    "a visit before it went",
+  );
+  assert.equal(
+    followUpStop(customer("a", { lastVisitMs: sent + 2 * D }), ["no_reply"], sent),
+    null,
+    "asked about replies alone",
+  );
+  assert.equal(
+    followUpStop(customer("a", { lastVisitMs: sent + 2 * D }), ["no_booking"], null),
+    null,
+    "no step before went",
+  );
+});
+
+test("who a step cannot reach today leaves only for a reason of their own: no channel ready is the workspace's to mend", () => {
+  for (const why of ["stopped", "unsubscribed", "no_yes", "no_number", "no_address", "address_stopped"])
+    assert.equal(followUpLeaves(why), true, why);
+  assert.equal(followUpLeaves("no_channel"), false);
 });
 
 const step = (over = {}) => ({
@@ -224,4 +252,60 @@ test("past its cap the rest wait for tomorrow, still due: nobody is taken out fo
   );
   assert.equal(row.audience.reach.overCap, 1);
   assert.equal(f.of("leave").length, 0);
+});
+
+test("a step no channel can carry today keeps everyone due: nobody leaves, the run finds nobody, and tomorrow's asks again", async () => {
+  const due = ["a", "b"].map((id) => ({ enrollment_id: `e-${id}`, contact_id: id, sent_at: SENT }));
+  const f = fakes(due);
+  // It goes by email alone, and the workspace has no mailbox connected today.
+  const r = await runPlaybook(f.ports, {
+    playbook: step({ channels: ["email"] }),
+    ctx: context(["a", "b"].map((id) => customer(id, { email: `${id}@example.com` }))),
+    runFor: "2026-10-08",
+    by: { kind: "system" },
+  });
+  assert.equal(r.outcome, "empty", JSON.stringify(r));
+  assert.equal(f.of("leave").length, 0, "still due: the step reaches them the day it can");
+  assert.equal(f.of("assemble").length, 0);
+  assert.equal(f.of("record").length, 1, "the day is recorded, with nobody reached");
+});
+
+test("a step that goes only to those who haven't booked needs a calendar it can read: unread, the run fails and records nothing; none connected, it goes on", async () => {
+  const due = [{ enrollment_id: "e-a", contact_id: "a", sent_at: SENT }];
+  const unread = fakes(due);
+  const failed = await runPlaybook(unread.ports, {
+    playbook: step(),
+    ctx: { ...context([customer("a")]), calendar: "unavailable" },
+    runFor: "2026-10-08",
+    by: { kind: "system" },
+  });
+  assert.equal(failed.outcome, "failed", JSON.stringify(failed));
+  assert.equal(
+    unread.of("followUpsDue").length,
+    0,
+    "nobody is judged booked or not on a day the calendar was not read",
+  );
+  assert.deepEqual([unread.of("leave").length, unread.of("record").length], [0, 0], "the next sweep asks again");
+  // A step that asks nothing of bookings goes on whatever the calendar.
+  const replies = fakes(due);
+  const r = await runPlaybook(replies.ports, {
+    playbook: step({ only_if: ["no_reply"] }),
+    ctx: { ...context([customer("a")]), calendar: "unavailable" },
+    runFor: "2026-10-08",
+    by: { kind: "system" },
+  });
+  assert.equal(r.outcome, "sent", JSON.stringify(r));
+  // No calendar connected at all is the workspace's answer, not a failed read: the step goes by what is known.
+  const none = fakes(due);
+  assert.equal(
+    (
+      await runPlaybook(none.ports, {
+        playbook: step(),
+        ctx: context([customer("a")]),
+        runFor: "2026-10-08",
+        by: { kind: "system" },
+      })
+    ).outcome,
+    "sent",
+  );
 });

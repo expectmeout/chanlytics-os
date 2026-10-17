@@ -137,7 +137,7 @@
       }
     },
     "DELETE reach-outs/[id]": {
-      "changes": "sequence_batches UPDATE · sequence_enrollments UPDATE · sequence_sends DELETE · sequence_steps DELETE UPDATE · sequences DELETE UPDATE · templates UPDATE",
+      "changes": "sequence_batches UPDATE · sequence_enrollments DELETE UPDATE · sequence_sends DELETE · sequence_steps DELETE UPDATE · sequences DELETE UPDATE · templates UPDATE",
       "tells": "templates",
       "extra": {
         "leads": "admin, admin/activity, admin/autonomy, admin/billing, admin/integrations, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/setup, admin/team, admin/workspace, broadcasts, calendar, campaigns, campaigns/message, campaigns/new, campaigns/sequences, clients, clients/person, conversations, inbox, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, segments, start, today"
@@ -381,7 +381,7 @@
       }
     },
     "POST broadcasts/[id]/approve": {
-      "changes": "sequence_batches UPDATE · sequences UPDATE",
+      "changes": "sequence_batches UPDATE · sequence_enrollments DELETE UPDATE · sequences UPDATE",
       "extra": {
         "reports_campaigns": "reports"
       },
@@ -396,7 +396,7 @@
       }
     },
     "POST broadcasts/[id]/cancel": {
-      "changes": "sequence_batches UPDATE · sequences UPDATE",
+      "changes": "sequence_batches UPDATE · sequence_enrollments DELETE UPDATE · sequences UPDATE",
       "extra": {
         "reports_campaigns": "reports"
       },
@@ -1527,7 +1527,7 @@
       }
     },
     "POST reach-outs": {
-      "changes": "sequence_batches UPDATE · sequence_enrollments INSERT UPDATE · sequence_sends DELETE UPDATE · sequence_steps DELETE INSERT UPDATE · sequences DELETE INSERT UPDATE · templates INSERT UPDATE",
+      "changes": "sequence_batches UPDATE · sequence_enrollments DELETE INSERT UPDATE · sequence_sends DELETE UPDATE · sequence_steps DELETE INSERT UPDATE · sequences DELETE INSERT UPDATE · templates INSERT UPDATE",
       "tells": "templates",
       "doors": "notifications · person_notes",
       "extra": {
@@ -1839,7 +1839,7 @@
       }
     },
     "POST templates/versions": {
-      "changes": "sequence_batches UPDATE · sequence_enrollments INSERT UPDATE · sequence_sends DELETE UPDATE · sequence_steps DELETE INSERT UPDATE · sequences DELETE INSERT UPDATE · templates INSERT UPDATE",
+      "changes": "sequence_batches UPDATE · sequence_enrollments DELETE INSERT UPDATE · sequence_sends DELETE UPDATE · sequence_steps DELETE INSERT UPDATE · sequences DELETE INSERT UPDATE · templates INSERT UPDATE",
       "tells": "templates",
       "doors": "notifications · person_notes",
       "missing": {
@@ -2130,7 +2130,7 @@
       }
     },
     "PUT reach-outs/[id]": {
-      "changes": "sequence_batches UPDATE · sequence_enrollments INSERT UPDATE · sequence_sends DELETE UPDATE · sequence_steps DELETE INSERT UPDATE · sequences DELETE INSERT UPDATE · templates INSERT UPDATE",
+      "changes": "sequence_batches UPDATE · sequence_enrollments DELETE INSERT UPDATE · sequence_sends DELETE UPDATE · sequence_steps DELETE INSERT UPDATE · sequences DELETE INSERT UPDATE · templates INSERT UPDATE",
       "tells": "templates",
       "doors": "notifications · person_notes",
       "missing": {
