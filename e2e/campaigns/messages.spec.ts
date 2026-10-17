@@ -1,6 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { signIn, HAVE_SESSION, WHY_SKIPPED } from "../session";
-import { dealsAreOn, startersOffered } from "../../packages/contracts/src/index";
+import { CAMPAIGN_ROOMS, dealsAreOn, startersOffered } from "../../packages/contracts/src/index";
 import { apiGet } from "../workspace";
 import { libraryRows, messagesOf, type TemplatesRead } from "./offered";
 
@@ -29,10 +29,11 @@ test.describe("Messages on a real workspace", () => {
     await page.waitForLoadState("networkidle");
     const real = page.getByTestId("messages-real");
     await expect(real).toBeVisible();
-    // Campaigns' strip, Sequences | Messages, with this one lit, and its head says so.
+    // Campaigns' strip, Sequences | Messages, with this one lit; the head is the room's, Campaigns, as on Sequences
+    // (one head for the two, #1667).
     await expect(page.getByTestId("campaigns-view-messages")).toHaveAttribute("aria-current", "page");
     await expect(page.getByTestId("campaigns-view-sequences")).toBeVisible();
-    await expectRoomNamed(page, "Messages");
+    await expectRoomNamed(page, CAMPAIGN_ROOMS.home);
 
     const [res, ch] = await Promise.all([apiGet(page, "/api/v1/templates?all=1"), apiGet(page, "/api/v1/channels")]);
     expect(res.status()).toBe(200);

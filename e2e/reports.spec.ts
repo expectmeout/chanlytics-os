@@ -117,7 +117,8 @@ async function theReceptionistLens(page: Page, report: Locator) {
     await expect(closed, "no hours are set: the figure is there to ask for them").toBeVisible();
     await expect(closed.locator(".figure-value")).toHaveText("—");
     await expect(closed.locator(".figure-meta")).toContainText("set your opening hours to see this");
-    await expect(closed.locator('a[href$="/admin/workspace"]'), "and its door is where they are set").toHaveCount(1);
+    // Its door is Settings, where the hours are set, by the page's path (appLink: admin/workspace is settings/workspace).
+    await expect(closed.locator('a[href$="/settings/workspace"]'), "and its door is where they are set").toHaveCount(1);
   }
 
   const res = await apiGet(page, "/api/v1/reports?period=30d");
@@ -359,13 +360,18 @@ test.describe("Reports on a real workspace", () => {
     await page.getByTestId("reports-period-open").click();
     const range = page.getByRole("dialog", { name: "Date range" });
     await expect(range).toBeVisible();
-    await expect(range.getByRole("radio"), "the four periods").toHaveCount(4);
+    await expect(range.getByRole("radiogroup", { name: "Period" }).getByRole("radio"), "the four periods").toHaveCount(
+      4,
+    );
     await expect(page.getByTestId("period-30d")).toHaveAttribute("aria-checked", "true");
+    // The days it reads, and no line comparing them (#1530: the presets drawn alike, no comparison line).
     await expect(page.getByTestId("reports-period-range")).toHaveText(/\S+ \d+ – \S+ \d+/);
-    await expect(page.getByTestId("reports-period-before")).toHaveText(/^Compared with \S+ \d+ – \S+ \d+$/);
+    await expect(page.getByTestId("reports-period-before")).toHaveCount(0);
+    // The days reached in one press are a track of their own, none of them chosen while a period is.
+    await expect(range.getByRole("radiogroup", { name: "Other days" }).getByRole("radio")).toHaveCount(3);
     for (const id of ["yesterday", "last-week", "last-month"])
       await expect(page.getByTestId(`period-${id}`), "days reached in one press").toHaveAttribute(
-        "aria-pressed",
+        "aria-checked",
         "false",
       );
     await expect(range.getByRole("grid", { name: "Days" }), "and a month to pick any days on").toBeVisible();
