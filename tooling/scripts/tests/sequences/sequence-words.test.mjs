@@ -40,6 +40,8 @@ import {
 
 const TZ = "America/New_York";
 const NOW = Date.parse("2026-10-14T14:00:00Z");
+/** The business's clock, as the notice takes it. */
+const AT = { tz: TZ, nowMs: NOW };
 const NONE = { waiting: 0, waiting_people: 0, held: 0, to_send: 0, replies: 0, oldest_at: null, batches: [] };
 const FIRST = {
   id: "s1",
@@ -142,24 +144,20 @@ test("only a batch an OK can still send waits for you, as the badge counts it: o
 });
 
 test("the one notice: a batch waiting for an OK with its act, then what is held, said once", () => {
-  const waiting = sequenceNotice(row({ needs: { ...NONE, waiting: 1, batches: [batch()] } }), [], TZ, NOW);
+  const waiting = sequenceNotice(row({ needs: { ...NONE, waiting: 1, batches: [batch()] } }), [], AT);
   assert.equal(waiting.kind, "waiting");
   assert.match(waiting.words, /^The next batch waits for your OK · it goes /);
   assert.deepEqual([waiting.act, waiting.batchId], ["Approve", "b9"]);
   const named = sequenceNotice(
     row({ needs: { ...NONE, waiting: 1, waiting_people: 3, batches: [batch({ people: 3 })] } }),
     [],
-    TZ,
-    NOW,
+    AT,
   );
   assert.deepEqual([named.words.startsWith("3 people wait for your OK"), named.act], [true, "Approve 3"]);
   // A phone's dock says it in a line and one fact, the step where there are several.
   assert.deepEqual([named.line, named.fact.startsWith("goes ")], ["3 wait for your OK", true]);
-  assert.equal(
-    sequenceNotice(row({ needs: { ...NONE, held: 2 } }), [], TZ, NOW).words,
-    "2 emails are held by the check",
-  );
-  assert.equal(sequenceNotice(row(), [], TZ, NOW), null);
+  assert.equal(sequenceNotice(row({ needs: { ...NONE, held: 2 } }), [], AT).words, "2 emails are held by the check");
+  assert.equal(sequenceNotice(row(), [], AT), null);
 });
 
 test("the flow's sentences: a moment at its hour, the same for a record and a draft; a wait; what stops it", () => {
@@ -227,16 +225,17 @@ test("an older address lands on what it names: the home and Sent's list on Seque
 
 test("a twin on a visit moment needs you: two running sequences send each person the same moment twice (the phone review, 16 Oct 2026)", () => {
   const a = row({ id: "a", name: "Meeting reminder" });
-  const b = row({ id: "b", name: "Meeting reminder 2" });
+  const b = row({ id: "b", name: "Meeting reminder 2", created_at: "2026-10-10T12:00:00Z" });
   const quiet = row({ id: "c", name: "Win back", first: { ...FIRST, trigger: "quiet_30" } });
   const rows = [a, b, quiet];
   const twin = sequenceTwinOf(rows, b);
   assert.deepEqual(twin, { id: "a", name: "Meeting reminder" });
+  assert.equal(sequenceTwinOf(rows, a), null, "the one made first keeps its place: the later one needs you");
   assert.equal(sequenceTwinOf(rows, quiet), null, "any other moment's breath keeps a twin from reaching anyone twice");
-  assert.equal(sequenceTwinOf([a, row({ id: "b", state: "paused" })], a), null, "a paused one sends nothing");
+  assert.equal(sequenceTwinOf([row({ id: "a", state: "paused" }), b], b), null, "a paused one sends nothing");
   assert.equal(sequenceGroupOf(b, twin), "needs");
   assert.equal(sequenceRowLine(b, TZ, NOW, twin), "Two reminders go to each person");
-  const n = sequenceNotice(b, [], TZ, NOW, twin);
+  const n = sequenceNotice(b, [], AT, twin);
   assert.deepEqual(
     [n.kind, n.line, n.fact, n.act],
     ["twin", "Two reminders go to each person", "“Meeting reminder” sends one too", "Turn this off"],
@@ -246,7 +245,7 @@ test("a twin on a visit moment needs you: two running sequences send each person
 
 test("new words WhatsApp turned down are the notice's last, with the step its act opens", () => {
   const steps = [{ id: "st2", place: 2, next_words: { status: "rejected", rejected_reason: "reads as marketing" } }];
-  const n = sequenceNotice(row(), steps, TZ, NOW);
+  const n = sequenceNotice(row(), steps, AT);
   assert.deepEqual(
     [n.kind, n.line, n.fact, n.act, n.stepId],
     ["words", "Step 2’s new words turned down", "WhatsApp: reads as marketing", "Edit step 2", "st2"],

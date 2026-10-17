@@ -573,7 +573,7 @@ const sayList = (parts: string[]): string =>
 const capital = (s: string): string => (s ? s[0].toUpperCase() + s.slice(1) : s);
 
 /** A step as the owner knows it: its sequence's name, and its place where the sequence has more than one step. */
-const stepWords = (p: TemplateUse["playbooks"][number]): string =>
+const sequenceStepWords = (p: TemplateUse["playbooks"][number]): string =>
   p.sequence ? (p.sequence.step ? `${p.sequence.name} · step ${p.sequence.step}` : p.sequence.name) : p.name;
 
 /** The words a message that nothing sends says, on its row and in its pane. */
@@ -589,7 +589,13 @@ export function templateUseWords(use: TemplateUse | null | undefined): string {
   const u = use ?? NOTHING;
   const parts: string[] = [];
   for (const p of u.playbooks)
-    parts.push(p.paused ? `${stepWords(p)} (paused)` : p.ended ? `${stepWords(p)} (ended)` : stepWords(p));
+    parts.push(
+      p.paused
+        ? `${sequenceStepWords(p)} (paused)`
+        : p.ended
+          ? `${sequenceStepWords(p)} (ended)`
+          : sequenceStepWords(p),
+    );
   if (u.broadcasts > 0) {
     parts.push(...u.recent);
     const more = u.broadcasts - u.recent.length;

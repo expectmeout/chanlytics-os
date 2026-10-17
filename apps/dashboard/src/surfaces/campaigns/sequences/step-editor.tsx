@@ -84,6 +84,17 @@ function typedOf(step: SequenceStepDto | null): Record<number, string> {
   return Object.fromEntries(specs.flatMap((s, i) => (s.kind === "text" ? [[i, s.value] as const] : [])));
 }
 
+/**
+ * The values the editor fills a step's message with: the step's own where its own message is picked (what goes now: a
+ * first name from the person, a link from the business), never the message's defaults over them; another message, or a
+ * step whose values no longer fit its message, starts from that message's own.
+ */
+function stepSpecsOf(picked: CmOffered | null, step: SequenceStepDto | null): ParamSpec[] {
+  const defaults = picked ? defaultParamSpecs(picked) : [];
+  const own = step && picked && picked.name === step.template_name ? parseParamSpecs(step.params) : [];
+  return own.length > 0 && own.length === defaults.length ? own : defaults;
+}
+
 /** Whether two sets of typed words say the same. */
 const sameTyped = (a: Record<number, string>, b: Record<number, string>) =>
   Object.keys({ ...a, ...b }).every((k) => (a[Number(k)] ?? "") === (b[Number(k)] ?? ""));
@@ -354,12 +365,7 @@ export function StepEditor({
   const [hold, setHold] = useState<Hold>(stepHoldOf(step?.only_if ?? ["no_booking"]));
   const [message, setMessage] = useState<string>(() => pickedOf(offered, step));
   const picked = offered.find((m) => m.id === message) ?? null;
-  // The values the step sends now where its own message is picked (its first name from the person, a link from the
-  // business): the editor shows and previews what goes, never the message's defaults over them. Another message, or a
-  // step whose values no longer fit its message, starts from that message's own.
-  const defaults: ParamSpec[] = picked ? defaultParamSpecs(picked) : [];
-  const own = step && picked && picked.name === step.template_name ? parseParamSpecs(step.params) : [];
-  const specs: ParamSpec[] = own.length > 0 && own.length === defaults.length ? own : defaults;
+  const specs = stepSpecsOf(picked, step);
   const labels = picked ? slotLabels(picked) : [];
   // A step's own typed words, shown and previewed as it sends them now, and kept unless they are changed.
   const [was] = useState(() => typedOf(step));

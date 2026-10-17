@@ -23,12 +23,21 @@ const CM_PHONE_QUERY = "(max-width: 900px)";
 const cmPhoneQuery = () =>
   typeof window !== "undefined" && typeof window.matchMedia === "function" ? window.matchMedia(CM_PHONE_QUERY) : null;
 
+/** The split each pane a thumb is carrying was grabbed in (cmGoing). */
+const goingHosts = new WeakMap<Element, Element>();
+
 /**
  * While a thumb carries an open pane back to its list, the list is drawn under it (campaigns.css, data-going on the split),
  * so what shows behind the pane is what it goes back to, as an open thread's list does in the Inbox.
  */
 export const cmGoing = (el: Element, on: boolean) => {
-  el.parentElement?.toggleAttribute("data-going", on);
+  // The pane is let go of after it has left (data-bits swipeLeave closes it first), when it has no parent: the split it
+  // was grabbed in is kept from the grab, so the mark always comes off.
+  const host = el.parentElement ?? goingHosts.get(el) ?? null;
+  if (!host) return;
+  if (on) goingHosts.set(el, host);
+  else goingHosts.delete(el);
+  host.toggleAttribute("data-going", on);
 };
 
 /** Whether the window is a phone's, kept current as it changes size. */

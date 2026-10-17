@@ -149,6 +149,7 @@ test("what sends a message and how much of it went out is read of every message 
         broadcasts: 0,
         recent: [],
         booking: false,
+        sequences: ["sq-1"],
       },
     },
     sends: { spring_news: { count: 3, lastAt: when } },
@@ -156,7 +157,7 @@ test("what sends a message and how much of it went out is read of every message 
   await settingsOverride.apply();
   const use = globalThis.window.__TEMPLATE_USE;
   assert.equal(use.spring_news.unused, false, "a playbook sends the email-only message, and the row can say so");
-  assert.equal(use.spring_news.playbook, "pb-1");
+  assert.equal(use.spring_news.sequence, "sq-1", "its link opens the one sequence that sends it");
   assert.equal(use.visit_reminder.unused, true, "a WhatsApp message nothing sends says so, as it did");
   const sent = globalThis.window.__TEMPLATE_SENT;
   assert.equal(sent.spring_news.count, "3", "and how many went out");

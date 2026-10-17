@@ -316,6 +316,83 @@ function CustomerStepName({ step }: { step: SequenceStepDto }) {
   return <StepMessageName name={step.template_name} message={message} testid={`sq-step-words-${step.place}`} />;
 }
 
+/** Where a lead's step stands, and when its next go where it is the one going now (the Leads board's nodes). */
+function leadStandOf(rec: SequenceRecordDto, step: SequenceStepDto) {
+  const next = rec.sequence.next;
+  if (rec.sequence.starts !== "leads") return { stand: null, nextWords: null };
+  const stand = leadStepStand(step.place, step.sent, next?.place ?? null);
+  const nextWords =
+    stand === "now" && next ? F.next(next.people, clockWhen(Date.parse(next.at), rec.timezone, Date.now())) : null;
+  return { stand, nextWords };
+}
+
+/**
+ * A step's line: its name (a customer's by its message's title, a door to it in Messages; a lead's by its own, a press
+ * opening it where it stands folded), how it goes, and Going now for a lead's step under way.
+ */
+function StepLine(p: { step: SequenceStepDto; shown: StepShown; going: boolean; onOpen: () => void }) {
+  const { step, shown } = p;
+  const customer = step.kind === "moment" && !step.hand;
+  // Each lead's email is written for its business: said once, where the flow says where they send from.
+  const via = step.hand ? F.call : sequenceChannelsWords(step.channels);
+  return (
+    <p className="sq-fl-line">
+      {customer ? (
+        <CustomerStepName step={step} />
+      ) : shown === "line" ? (
+        <LinkButton
+          size="inherit"
+          className="sq-fl-name"
+          aria-expanded={false}
+          onClick={p.onOpen}
+          data-testid={`sq-step-open-${step.place}`}
+        >
+          {step.name}
+        </LinkButton>
+      ) : (
+        <span className="sq-fl-name">{step.name}</span>
+      )}
+      {via ? <span className="sq-fl-via">{via}</span> : null}
+      {p.going ? <span className="sq-fl-now">{F.goingNow}</span> : null}
+    </p>
+  );
+}
+
+/** What a step opens onto: its editor while it is changed, else its words (a customer's), the next email (a lead's) or the call. */
+function StepOpen(p: StepProps) {
+  const { rec, step, shown } = p;
+  const next = rec.sequence.next;
+  if (shown === "edit")
+    return (
+      <StepEditor
+        sequenceId={rec.sequence.id}
+        step={step}
+        policyClass={rec.sequence.first?.policy_class ?? ""}
+        batchId={rec.sequence.needs.batches.find((x) => x.step_id === step.id)?.id ?? null}
+        flash={p.flash}
+        onDone={p.onDone}
+        onCancel={p.onCancel}
+      />
+    );
+  if (shown !== "open") return null;
+  if (step.hand) return <p className="sq-msg-none">{step.hand.words}</p>;
+  if (rec.sequence.starts === "leads")
+    return <LeadStepOpen batch={next && next.place === step.place ? next.id : null} />;
+  return <CustomerStepBody step={step} onEdit={p.onEdit} />;
+}
+
+/** New words waiting on WhatsApp, or turned down (amber), and what the step sends meanwhile. */
+function NewWords({ step }: { step: SequenceStepDto }) {
+  if (!step.next_words) return null;
+  const refused = step.next_words.status === "rejected";
+  return (
+    <div className="sq-fl-next" data-testid={`sq-step-next-${step.place}`}>
+      <p className={refused ? "sq-needs" : undefined}>{F.newWords(refused)}</p>
+      <p className="sq-fl-keeps">{F.keepsWords}</p>
+    </div>
+  );
+}
+
 /** One step of the flow: the wait before it, its line, its words and acts (or its editor), what it did. */
 function Step(p: StepProps) {
   const { rec, step, flash, moved, shown } = p;
@@ -323,41 +400,21 @@ function Step(p: StepProps) {
   const [busy, setBusy] = useState(false);
   // A customer's step opens to be changed (its first, its words alone); one after the first may be taken away.
   const customer = step.kind === "moment" && !step.hand;
-  const leads = rec.sequence.starts === "leads";
-  const next = rec.sequence.next;
-  const stand = leads ? leadStepStand(step.place, step.sent, next?.place ?? null) : null;
-  const nextWords =
-    stand === "now" && next ? F.next(next.people, clockWhen(Date.parse(next.at), rec.timezone, Date.now())) : null;
+  const { stand, nextWords } = leadStandOf(rec, step);
   const remove = async () => {
     setBusy(true);
     await pressed("sequence_step_remove", { sequence_id: rec.sequence.id, step_id: step.id }, flash, moved);
     setBusy(false);
     setSure(false);
   };
-  // Each lead's email is written for its business: said once, where the flow says where they send from.
-  const via = step.hand ? F.call : sequenceChannelsWords(step.channels);
-  const name = customer ? (
-    <CustomerStepName step={step} />
-  ) : shown === "line" ? (
-    <LinkButton
-      size="inherit"
-      className="sq-fl-name"
-      aria-expanded={false}
-      onClick={p.onOpen}
-      data-testid={`sq-step-open-${step.place}`}
-    >
-      {step.name}
-    </LinkButton>
-  ) : (
-    <span className="sq-fl-name">{step.name}</span>
-  );
+  const editing = shown === "edit";
   return (
     <FlowRow
       node={
         step.hand ? <Icon name="phone" size={12} /> : stand === "done" ? <Icon name="check" size={12} /> : step.place
       }
-      tone={shown === "edit" || stand === "now" ? "now" : stand === "done" ? "done" : null}
-      open={shown === "edit"}
+      tone={editing || stand === "now" ? "now" : stand === "done" ? "done" : null}
+      open={editing}
       testid={`sq-step-${step.place}`}
     >
       {/* The wait before it, on its own line and whole, however many lines it takes: a step's when is never cut. */}
@@ -366,39 +423,10 @@ function Step(p: StepProps) {
           <Icon name="clock" size={11} /> <span>{sequenceWaitWords(step)}</span>
         </p>
       ) : null}
-      <p className="sq-fl-line">
-        {name}
-        {via ? <span className="sq-fl-via">{via}</span> : null}
-        {stand === "now" ? <span className="sq-fl-now">{F.goingNow}</span> : null}
-      </p>
-      {shown === "edit" ? (
-        <StepEditor
-          sequenceId={rec.sequence.id}
-          step={step}
-          policyClass={rec.sequence.first?.policy_class ?? ""}
-          batchId={rec.sequence.needs.batches.find((x) => x.step_id === step.id)?.id ?? null}
-          flash={flash}
-          onDone={p.onDone}
-          onCancel={p.onCancel}
-        />
-      ) : shown === "open" ? (
-        step.hand ? (
-          <p className="sq-msg-none">{step.hand.words}</p>
-        ) : leads ? (
-          <LeadStepOpen batch={next && next.place === step.place ? next.id : null} />
-        ) : (
-          <CustomerStepBody step={step} onEdit={p.onEdit} />
-        )
-      ) : null}
-      {step.next_words && shown !== "edit" ? (
-        <div className="sq-fl-next" data-testid={`sq-step-next-${step.place}`}>
-          <p className={step.next_words.status === "rejected" ? "sq-needs" : undefined}>
-            {F.newWords(step.next_words.status === "rejected")}
-          </p>
-          <p className="sq-fl-keeps">{F.keepsWords}</p>
-        </div>
-      ) : null}
-      {shown === "edit" ? null : <StepStats sent={step.sent} replied={step.replied} next={nextWords} />}
+      <StepLine step={step} shown={shown} going={stand === "now"} onOpen={p.onOpen} />
+      <StepOpen {...p} />
+      {editing ? null : <NewWords step={step} />}
+      {editing ? null : <StepStats sent={step.sent} replied={step.replied} next={nextWords} />}
       {customer && shown === "open" ? (
         <StepActs rec={rec} step={step} flash={flash} onEdit={p.onEdit} onTakeAway={() => setSure(true)} />
       ) : null}

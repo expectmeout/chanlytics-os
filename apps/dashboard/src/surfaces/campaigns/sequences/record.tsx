@@ -1,6 +1,6 @@
 /**
- * One sequence open beside the list (decision 0060, the canvas's record): its head says what it is, how big and how old
- * (contracts sequenceHeadLine), with its one act and its More (record-acts.tsx); then at most one notice, the most pressing
+ * One sequence open beside the list (decision 0060, the canvas's record): its head says what it is, what starts it and who
+ * approves its batches (contracts sequenceSubLine), with its one act and its More (record-acts.tsx); then at most one notice, the most pressing
  * thing that needs you (D8, contracts sequenceNotice); then the same three tabs for every sequence (D5): Steps, People
  * (Leads for a sequence to leads) and History. Each tab is an address of its own, so Back walks them.
  *

@@ -74,7 +74,7 @@ const isApprovalMode = (mode: string | null): mode is PolicyMode =>
   mode !== null && Object.prototype.hasOwnProperty.call(SEQUENCE_APPROVAL_WORDS, mode);
 
 /** Who approves, in the head's words: a mode it does not know is ask's, as the policies read one with no row. */
-export const sequenceApprovalWords = (mode: string | null): string =>
+const sequenceApprovalWords = (mode: string | null): string =>
   isApprovalMode(mode) ? SEQUENCE_APPROVAL_WORDS[mode] : SEQUENCE_APPROVAL_WORDS.ask;
 
 /** The flow's own words (the canvas's Steps board): its keys, the step's lines, and what each part of it says. */
@@ -118,7 +118,7 @@ export const SEQUENCE_FLOW_WORDS = {
   cancelYes: "Cancel the send",
   /** A step after a reminder refused (the door): a reminder is said once, the day before; after the visit is its own moment. */
   noFollowUpOnReminder:
-    "A reminder goes once, the day before. To write to them after their visit, start a sequence on “After a visit”.",
+    "A reminder goes once, the day before. To write to them afterwards, start a sequence that sends after it.",
   sample: "The next one, as it reads",
   addLeads: "Add leads",
   /** When the step's next batch goes, with how many where they are counted: "next 9 tomorrow 9:00 AM". */
@@ -169,14 +169,20 @@ export interface SequenceTwin {
 /**
  * The sequence running on the same visit moment as this one, where this one runs too (B1 of the phone review, 16 Oct
  * 2026): a reminder the day before, or a thank-you the day after, is owed once per visit and skips the week's breath
- * (playbook-reach.ts), so two running on one moment send each person both. Null for any other moment, whose breath and
- * gap already keep a twin from reaching anyone twice, and where nothing else runs on it.
+ * (playbook-reach.ts), so two running on one moment send each person both. The one made later is the twin, named by the
+ * one made first: it is the one that needs you (Turn this off), and the first keeps its place. Null for the first, for
+ * any other moment, whose breath and gap already keep a twin from reaching anyone twice, and where nothing else runs on it.
  */
 export function sequenceTwinOf(rows: readonly SequenceRowDto[], row: SequenceRowDto): SequenceTwin | null {
   const trigger = row.first?.trigger ?? null;
   if (row.starts !== "moment" || row.state !== "on" || !trigger || triggerOf(trigger)?.kind !== "visit") return null;
+  const made = Date.parse(row.created_at);
+  const first = (r: SequenceRowDto) => {
+    const at = Date.parse(r.created_at);
+    return at < made || (at === made && r.id < row.id);
+  };
   const twin = rows.find(
-    (r) => r.id !== row.id && r.starts === "moment" && r.state === "on" && r.first?.trigger === trigger,
+    (r) => r.id !== row.id && r.starts === "moment" && r.state === "on" && r.first?.trigger === trigger && first(r),
   );
   return twin ? { id: twin.id, name: twin.name } : null;
 }
@@ -222,6 +228,9 @@ export function sequenceWaitsNow(row: SequenceRowDto, days: RunDays): SequenceRo
   };
 }
 
+/** Whether a sequence is paused or off: the list's Paused or off group. */
+const isOff = (row: SequenceRowDto): boolean => row.state === "paused" || row.state === "ended";
+
 /**
  * Which of the list's groups a sequence is drawn in: a draft under Drafts, what needs you (people or emails waiting, or a
  * twin sending each person the same moment twice) first, a sequence paused or ended under Paused or off, and the rest by
@@ -236,9 +245,6 @@ export function sequenceGroupOf(row: SequenceRowDto, twin: SequenceTwin | null =
   if (row.starts === "leads") return "leads";
   return "customers";
 }
-
-/** Whether a sequence is paused or off: the list's second filter. */
-export const isOff = (row: SequenceRowDto): boolean => row.state === "paused" || row.state === "ended";
 
 /** What needs you in a sequence, in a few words: "14 wait for your OK · 3 held · 2 wrote back". Empty when nothing does. */
 export function needsWords(n: SequenceNeedsDto): string {
@@ -517,15 +523,15 @@ function waitingNotice(
 /**
  * The notice: a batch waiting for an OK first, then a twin on its moment (each person gets the same message twice), the
  * emails the check held, those for you to send, the replies to answer, and new words WhatsApp turned down. `twin` is the
- * list's to say (sequenceTwinOf): a reader with one row alone passes none.
+ * list's to say (sequenceTwinOf): a reader with one row alone passes none. `clock` is the business's zone and now.
  */
 export function sequenceNotice(
   row: SequenceRowDto,
   steps: readonly SequenceStepDto[],
-  tz: string,
-  nowMs: number,
+  clock: { tz: string; nowMs: number },
   twin: SequenceTwin | null = null,
 ): SequenceNotice | null {
+  const { tz, nowMs } = clock;
   const n = row.needs;
   // The batch an OK goes to: the soonest of those an OK can still send (sequenceWaitsNow).
   const batch = n.waiting > 0 ? (n.batches[0] ?? null) : null;

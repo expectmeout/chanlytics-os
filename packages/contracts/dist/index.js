@@ -17685,13 +17685,15 @@ function templateUsage(src) {
 }
 var sayList = (parts2) => parts2.length < 2 ? parts2[0] ?? "" : `${parts2.slice(0, -1).join(", ")} and ${parts2[parts2.length - 1]}`;
 var capital = (s) => s ? s[0].toUpperCase() + s.slice(1) : s;
-var stepWords = (p) => p.sequence ? p.sequence.step ? `${p.sequence.name} \xB7 step ${p.sequence.step}` : p.sequence.name : p.name;
+var sequenceStepWords = (p) => p.sequence ? p.sequence.step ? `${p.sequence.name} \xB7 step ${p.sequence.step}` : p.sequence.name : p.name;
 var TEMPLATE_UNUSED_WORDS = "Not used";
 function templateUseWords(use) {
   const u = use ?? NOTHING;
   const parts2 = [];
   for (const p of u.playbooks)
-    parts2.push(p.paused ? `${stepWords(p)} (paused)` : p.ended ? `${stepWords(p)} (ended)` : stepWords(p));
+    parts2.push(
+      p.paused ? `${sequenceStepWords(p)} (paused)` : p.ended ? `${sequenceStepWords(p)} (ended)` : sequenceStepWords(p)
+    );
   if (u.broadcasts > 0) {
     parts2.push(...u.recent);
     const more2 = u.broadcasts - u.recent.length;
@@ -35509,6 +35511,15 @@ function followUpWords(s, tz, nowMs) {
 // src/playbooks/playbook-reach.ts
 var playbookPoolKey = (id) => `playbook:${id}`;
 var TWIN_SAME_VISIT_MS = 20 * HOUR_MS;
+function dropTwinHeard(allowed, byTwin, nowMs) {
+  if (!byTwin || byTwin.size === 0) return 0;
+  const heard = allowed.filter((r2) => {
+    const at3 = byTwin.get(r2.id);
+    return at3 !== void 0 && Math.abs(nowMs - at3) < TWIN_SAME_VISIT_MS;
+  });
+  for (const r2 of heard) allowed.splice(allowed.indexOf(r2), 1);
+  return heard.length;
+}
 function touchesAfterRun(touches, run, people) {
   const byThis = new Map(touches.byThis);
   const mine = new Map(byThis.get(run.playbookId));
@@ -35630,15 +35641,7 @@ function playbookRunReach(rows2, p, touches, nowMs, pace, listIds = null) {
     else reach.no_channel = (reach.no_channel ?? 0) + 1;
   }
   if (t.kind === "visit") {
-    const twin = touches.byTwin;
-    if (twin && twin.size > 0) {
-      const heard = allowed.filter((r2) => {
-        const at3 = twin.get(r2.id);
-        return at3 !== void 0 && Math.abs(nowMs - at3) < TWIN_SAME_VISIT_MS;
-      });
-      for (const r2 of heard) allowed.splice(allowed.indexOf(r2), 1);
-      reach.heardThis += heard.length;
-    }
+    reach.heardThis += dropTwinHeard(allowed, touches.byTwin, nowMs);
     allowed.sort(
       (a, b) => p.trigger === "visit_tomorrow" ? (a.nextVisitMs ?? 0) - (b.nextVisitMs ?? 0) : (a.lastVisitMs ?? 0) - (b.lastVisitMs ?? 0)
     );
@@ -46226,7 +46229,7 @@ var SEQUENCE_FLOW_WORDS = {
   cancelDetail: "Nobody gets it. To send it on another day, make it again.",
   cancelYes: "Cancel the send",
   /** A step after a reminder refused (the door): a reminder is said once, the day before; after the visit is its own moment. */
-  noFollowUpOnReminder: "A reminder goes once, the day before. To write to them after their visit, start a sequence on \u201CAfter a visit\u201D.",
+  noFollowUpOnReminder: "A reminder goes once, the day before. To write to them afterwards, start a sequence that sends after it.",
   sample: "The next one, as it reads",
   addLeads: "Add leads",
   /** When the step's next batch goes, with how many where they are counted: "next 9 tomorrow 9:00 AM". */
@@ -46252,8 +46255,13 @@ var SEQUENCE_GROUPS = ["needs", "customers", "leads", "dates", "off", "drafts"];
 function sequenceTwinOf(rows2, row2) {
   const trigger = row2.first?.trigger ?? null;
   if (row2.starts !== "moment" || row2.state !== "on" || !trigger || triggerOf(trigger)?.kind !== "visit") return null;
+  const made = Date.parse(row2.created_at);
+  const first = (r2) => {
+    const at3 = Date.parse(r2.created_at);
+    return at3 < made || at3 === made && r2.id < row2.id;
+  };
   const twin = rows2.find(
-    (r2) => r2.id !== row2.id && r2.starts === "moment" && r2.state === "on" && r2.first?.trigger === trigger
+    (r2) => r2.id !== row2.id && r2.starts === "moment" && r2.state === "on" && r2.first?.trigger === trigger && first(r2)
   );
   return twin ? { id: twin.id, name: twin.name } : null;
 }
@@ -46285,6 +46293,7 @@ function sequenceWaitsNow(row2, days) {
     }
   };
 }
+var isOff = (row2) => row2.state === "paused" || row2.state === "ended";
 function sequenceGroupOf(row2, twin = null) {
   if (row2.state === "draft") return "drafts";
   if (needsCount(row2.needs) > 0 || twin) return "needs";
@@ -46293,7 +46302,6 @@ function sequenceGroupOf(row2, twin = null) {
   if (row2.starts === "leads") return "leads";
   return "customers";
 }
-var isOff = (row2) => row2.state === "paused" || row2.state === "ended";
 function needsWords(n) {
   const parts2 = [];
   if (n.waiting_people > 0) parts2.push(`${n.waiting_people} wait for your OK`);
@@ -46408,7 +46416,8 @@ function sequenceSubLine(row2, rec2, nowMs) {
 }
 function sequenceNextOf(row2, lastRunFor, tz, nowMs) {
   if (row2.state !== "on" || row2.starts === "date") return null;
-  if (row2.next) return { at: Date.parse(row2.next.at), people: row2.next.people > 0 ? row2.next.people : null, soon: false };
+  if (row2.next)
+    return { at: Date.parse(row2.next.at), people: row2.next.people > 0 ? row2.next.people : null, soon: false };
   const first = row2.first;
   if (lastRunFor === void 0 || !first || row2.starts !== "moment" && row2.starts !== "list") return null;
   const now = new Date(nowMs);
@@ -46454,7 +46463,8 @@ function waitingNotice(steps, batch, clock3) {
     batchId: batch.id
   });
 }
-function sequenceNotice(row2, steps, tz, nowMs, twin = null) {
+function sequenceNotice(row2, steps, clock3, twin = null) {
+  const { tz, nowMs } = clock3;
   const n = row2.needs;
   const batch = n.waiting > 0 ? n.batches[0] ?? null : null;
   if (batch) return waitingNotice(steps, batch, { tz, nowMs });
@@ -46822,7 +46832,8 @@ function historyFigures(batches) {
 }
 function historyStamp(atMs, tz, nowMs) {
   const time = clockTime(atMs, tz);
-  if (atMs <= nowMs || zoneDayKey(atMs, tz) === zoneDayKey(nowMs, tz)) return `${clockHistoryDay(atMs, tz, nowMs)} \xB7 ${time}`;
+  if (atMs <= nowMs || zoneDayKey(atMs, tz) === zoneDayKey(nowMs, tz))
+    return `${clockHistoryDay(atMs, tz, nowMs)} \xB7 ${time}`;
   const when = clockWhen(atMs, tz, nowMs);
   return when.startsWith("tomorrow ") ? `Tomorrow \xB7 ${time}` : when;
 }
@@ -60397,7 +60408,6 @@ export {
   isLookPref,
   isModelId,
   isNoticeHold,
-  isOff,
   isOfferByEmail,
   isOpeningFactKey,
   isOpeningProblem,
@@ -61302,7 +61312,6 @@ export {
   sentByWords,
   sentResultsOfSource,
   sentenceParts,
-  sequenceApprovalWords,
   sequenceCancels,
   sequenceChannelsWords,
   sequenceGroupOf,

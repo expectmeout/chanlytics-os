@@ -50,6 +50,20 @@ export interface Touches {
 /** How near another reminder on the same moment must be to count as this visit's: the same day's run, either side. */
 const TWIN_SAME_VISIT_MS = 20 * HOUR_MS;
 
+/**
+ * Takes out of a visit moment's people those a twin on the same moment reached for this visit (its run of the same day,
+ * either side), in place, and answers how many: they are counted as heard by this playbook, never dropped in silence.
+ */
+function dropTwinHeard(allowed: PersonRowVM[], byTwin: Map<string, number> | undefined, nowMs: number): number {
+  if (!byTwin || byTwin.size === 0) return 0;
+  const heard = allowed.filter((r) => {
+    const at = byTwin.get(r.id);
+    return at !== undefined && Math.abs(nowMs - at) < TWIN_SAME_VISIT_MS;
+  });
+  for (const r of heard) allowed.splice(allowed.indexOf(r), 1);
+  return heard.length;
+}
+
 /** A workspace's touches as a run reads them: by each playbook (its gap), by any (the week's breath), and the proposal follow-ups. */
 interface WorkspaceTouches {
   byThis: Map<string, Map<string, number>>;
@@ -363,15 +377,7 @@ export function playbookRunReach(
     // a reminder must go whatever else the person heard this week, and the
     // thank-you two days after it must go too. Once, though: a twin on the same
     // moment that reached them for this visit already said it (byTwin).
-    const twin = touches.byTwin;
-    if (twin && twin.size > 0) {
-      const heard = allowed.filter((r) => {
-        const at = twin.get(r.id);
-        return at !== undefined && Math.abs(nowMs - at) < TWIN_SAME_VISIT_MS;
-      });
-      for (const r of heard) allowed.splice(allowed.indexOf(r), 1);
-      reach.heardThis += heard.length;
-    }
+    reach.heardThis += dropTwinHeard(allowed, touches.byTwin, nowMs);
     allowed.sort((a, b) =>
       p.trigger === "visit_tomorrow"
         ? (a.nextVisitMs ?? 0) - (b.nextVisitMs ?? 0)

@@ -170,15 +170,18 @@ function DayRow(p: {
 }
 
 /**
- * The batch to come, over the days that went, while it is not made yet (a daily moment makes its batch at its hour): when,
- * who it is for where they are counted, and how it goes. A press opens who it goes to (People). A batch already made is a
- * day's row of its own.
+ * The batch to come, over the days that went: the one made (waiting, scheduled) where the days read do not hold it, else
+ * the next run by its hour (a daily moment makes its batch at its hour): when, who it is for where they are counted, and
+ * how it goes. A press opens who it goes to (People). A batch the days hold is a day's row of its own.
  */
-function UpcomingRow({ rec, nowMs }: { rec: SequenceRecordDto; nowMs: number }) {
+function UpcomingRow(p: { rec: SequenceRecordDto; nowMs: number; batches: readonly SequenceBatchDto[] }) {
+  const { rec, nowMs, batches } = p;
   const row = rec.sequence;
-  const next = row.next ? null : sequenceNextOf(row, rec.last_run_for, rec.timezone, nowMs);
-  if (!next) return null;
-  const said = historyUpcomingWords(next.people, rec.mode);
+  const next = sequenceNextOf(row, rec.last_run_for, rec.timezone, nowMs);
+  const made = row.next;
+  if (!next || (made && batches.some((b) => b.id === made.id))) return null;
+  // A batch made and waiting for an OK waits, whoever approves the rest.
+  const said = historyUpcomingWords(next.people, made?.state === "pending_approval" ? "ask" : rec.mode);
   return (
     <ListRow
       bare
@@ -258,7 +261,7 @@ export function SequenceHistory(p: { rec: SequenceRecordDto; again: number; move
   if (batches.length === 0)
     return (
       <div className="sq-history" data-testid="sq-history">
-        <UpcomingRow rec={rec} nowMs={nowMs} />
+        <UpcomingRow rec={rec} nowMs={nowMs} batches={batches} />
         <p className="sq-none">{H.nothing}</p>
       </div>
     );
@@ -316,7 +319,7 @@ export function SequenceHistory(p: { rec: SequenceRecordDto; again: number; move
             </LinkButton>
           ) : null}
         </h3>
-        <UpcomingRow rec={rec} nowMs={nowMs} />
+        <UpcomingRow rec={rec} nowMs={nowMs} batches={batches} />
         {batches.map((b) => (
           <DayRow
             key={b.id}
