@@ -16,6 +16,7 @@ import type { PersonRowVM } from "@chanlytics/contracts";
 import { Face } from "../../kit/face/face";
 import { FieldError } from "../../kit/field-error/field-error";
 import { Icon } from "../../kit/icon/icon";
+import { LinkButton } from "../../kit/link-button/link-button";
 import { StoppedMark } from "../../kit/pill/stopped-mark";
 import type { FocusOn } from "../../kit/record/focus";
 import { RecordSheet } from "../../kit/record/sheet";
@@ -89,14 +90,9 @@ function pipeNewAdd(b: BodyProps) {
   const W = P.words.newProposal;
   if (!add.open)
     return (
-      <button
-        type="button"
-        className="cl-prof-deal-act pipe-new-open-add"
-        onClick={onAddOpen}
-        data-testid="pipeline-new-add-open"
-      >
+      <LinkButton className="pipe-new-open-add" onClick={onAddOpen} data-testid="pipeline-new-add-open">
         <Icon name="plus" size={12} /> {W.add}
-      </button>
+      </LinkButton>
     );
   return (
     <div className="pipe-new-add" data-rec-row="add" data-testid="pipeline-new-add">
@@ -155,17 +151,18 @@ const PipelineNewBody = (b: BodyProps) => {
   const found = pipeNewMatches(rows, q);
   return (
     <div className="pipe-new" data-testid="pipeline-new">
-      <p className="pipe-new-sub">{W.sub}</p>
-      <label className="pipe-new-search" data-rec-row="search">
-        <Icon name="search" size={13} />
+      {/* The box New conversation's kit Field draws (the same question in the same words), in the record kit's markup
+          as the add form below draws its two: the Field would bring Base UI's onto People's first load (+5 KB). */}
+      <label className="rec-field" data-rec-row="search">
+        <span className="rec-field-label">{W.sub}</span>
         <input
+          className="rec-input"
           type="search"
-          // eslint-disable-next-line jsx-a11y-x/no-autofocus -- kept as the JSX drew it: only a phone's sheet, which has no focus rule of its own
+          // eslint-disable-next-line jsx-a11y-x/no-autofocus -- only a phone's sheet, which has no focus rule of its own
           autoFocus={autoFocus}
           autoComplete="off"
           value={q}
           placeholder={W.search}
-          aria-label={W.search}
           onChange={(e) => onQ(e.target.value)}
           data-testid="pipeline-new-search"
         />

@@ -39,6 +39,15 @@
   height: auto;
   min-height: var(--control-h-lg);
 }
+/* Who it finds lifts as a menu's item does (kit.css, the lozenge in the accent's soft tint), as New proposal's people
+   do: a quiet button's capsule, its grey fill and the ring round it, read as a second kind of list beside the menus. */
+.ix-new-rows .ix-new-row {
+  border-radius: var(--radius-lg);
+}
+.ix-new-rows .ix-new-row:is(:hover, :active) {
+  border-color: transparent;
+  background: var(--accent-soft);
+}
 .ix-new-name {
   min-width: 0;
   overflow: hidden;

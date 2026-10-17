@@ -242,7 +242,7 @@ const keyPress = (fn) => (e) => {
 // scroller at its top (the first ancestor under the finger that scrolls, so a scroll back up through a list is never a
 // pull), and where `when` says (a phone's width), the element moves with the finger and the wash behind it (its
 // previous sibling, when that is a backdrop) fades as it goes. `onBack` is the same, across to the right: an open
-// thread on a phone goes back to its list, and `onGrab(el, on)` lets the page show what is under it while it moves.
+// thread on a phone goes back to its list, and `onGrab(el, on, way)` lets the page show what is under it while it moves.
 // `onAway` is the same across to the left, with its wash fading as a sheet's does: the phone's drawer slides back where
 // it came from. Nothing opens one by a swipe (from the screen's edge that is the phone's own back). A drawer is slid
 // shut by its own rules rather than taken away, so after the close its inline styles go and those rules take it on.
@@ -433,7 +433,7 @@ const touchSwipe = ({ onLeft = null, onRight = null, onDown = null, onBack = nul
       // A page moves itself (the strip's, by the deck; one that stays, by swipeStays); anything else is the element.
       if (g.way !== "page" && el.style) el.style.transition = "none";
       if (g.wash && g.wash.style) g.wash.style.transition = "none";
-      if (onGrab && g.way !== "page") onGrab(el, true);
+      if (onGrab && g.way !== "page") onGrab(el, true, g.way);
     }
     if (!el.style) return;
     if (g.way === "down") {

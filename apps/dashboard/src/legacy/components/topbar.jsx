@@ -74,6 +74,14 @@ const tbnSections = (items) => {
 
 // A dismissed note folds shut over this long (components.css .tbn-slot), so the notes under it glide up, then it goes.
 const TBN_FOLD_MS = 200;
+// While a thumb carries a note, its slot says which way (data-bits touchSwipe onGrab): the ground for that way shows
+// under it, Mark read to the right and Dismiss to the left; at rest the note stands on the sheet's glass with neither.
+const tbnMoving = (el, on, way) => {
+  const slot = el && el.parentElement;
+  if (!slot) return;
+  if (on) slot.setAttribute("data-moving", way === "back" ? "read" : "dismiss");
+  else slot.removeAttribute("data-moving");
+};
 const tbnReduced = () => !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
 
 // Escape closes what is drawn, for as long as it is drawn, and leaves a key an earlier listener took (a menu or a field inside).
@@ -125,7 +133,7 @@ const NotifPopover = ({ items, onAction, onReadAll, onDismiss, onRead = null, on
     // On a phone a thumb slides the note (data-bits touchSwipe): left over Dismiss, right over Mark read while it is
     // unread. The read note comes back read; the dismissed one stays aside while its slot folds.
     const swipe = window.touchSwipe
-      ? window.touchSwipe({ onAway: () => fold(n.id), onBack: n.unread && onRead ? () => read(n.id) : null, when: tbnPhone })
+      ? window.touchSwipe({ onAway: () => fold(n.id), onBack: n.unread && onRead ? () => read(n.id) : null, when: tbnPhone, onGrab: tbnMoving })
       : {};
     return (
       <div

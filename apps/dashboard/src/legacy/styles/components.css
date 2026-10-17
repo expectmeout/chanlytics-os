@@ -1014,8 +1014,8 @@ button.brief-inbox-link:hover { border-color: oklch(from var(--accent) l c h / 0
 /* A note is one press: its mark, two lines and a time, at the list row's own numbers (tokens.css, "one row for every
    list"). The press does what the note says; the words say where. Each used to carry a 44px row of boxed buttons
    saying it again, which was half of every note's height (48 notes, 6,677px on a phone, 25 Sep). */
-/* On the popover's glass a note has no ground of its own; on a phone's sheet it is opaque, so a note slid aside by a
-   thumb shows the ground under it and not through it (the sheet, below). */
+/* On the glass a note has no ground of its own, the popover's on a desk and the sheet's on a phone; a note a thumb is
+   carrying takes the sheet's solid, so it slides over the ground under it and never shows it through (below). */
 .tbn-item { position: relative; border-bottom: 1px solid var(--line); }
 .tbn-slot:last-child > .tbn-slot-in > .tbn-item, .tbn-group:last-child > .tbn-item:last-child { border-bottom: none; }
 .tbn-item.unread { background: color-mix(in oklab, var(--accent) 3%, transparent); }
@@ -1073,10 +1073,16 @@ button.brief-inbox-link:hover { border-color: oklch(from var(--accent) l c h / 0
   .tbn-item.in-group .tbn-open { padding-left: 54px; }
   .tbn-item.in-group .tbn-dot { left: 42px; }
   /* What a thumb slides a note over: Mark read to the right of an unread one, Dismiss to the left of any (data-bits
-     touchSwipe onBack, onAway). A dismissed note stays slid aside while its slot folds. */
-  .tbn-ground { display: flex; align-items: center; position: absolute; inset: 0; padding: 0 16px; font-size: var(--text-sm); font-weight: 500; }
+     touchSwipe onBack, onAway). Only the way the note is going shows, and only while it moves (topbar.jsx tbnMoving,
+     `data-moving`), fading as it settles back: at rest the notes stand on the sheet's glass, with no ground under them.
+     Both stood under every note, so a slide to the right showed the red of Dismiss. A dismissed note stays slid aside
+     over its ground while its slot folds. */
+  .tbn-ground { display: flex; align-items: center; position: absolute; inset: 0; padding: 0 16px; font-size: var(--text-sm); font-weight: 500; opacity: 0; transition: opacity var(--duration-base) var(--ease-out); }
   .tbn-ground-read { justify-content: flex-start; background: var(--info-soft); color: var(--info-ink); }
   .tbn-ground-dismiss { justify-content: flex-end; background: var(--danger-soft); color: var(--danger-ink); }
+  :is(.tbn-slot-in[data-moving="read"] > .tbn-ground-read, .tbn-slot-in[data-moving="dismiss"] > .tbn-ground-dismiss, .tbn-slot[data-going="true"] .tbn-ground-dismiss) { opacity: 1; transition: none; }
+  :is(.tbn-slot-in[data-moving], .tbn-slot[data-going="true"]) .tbn-item { background: var(--surface-pop-fill); }
+  :is(.tbn-slot-in[data-moving], .tbn-slot[data-going="true"]) .tbn-item.unread { background: color-mix(in oklab, var(--accent) 3%, var(--surface-pop-fill)); }
   .tbn-slot[data-going="true"] .tbn-item { translate: -100% 0; }
   /* A line the phone can do nothing about ("Alerts are blocked in your browser settings") is not drawn there; the
      switch itself is, where the browser can alert. */
@@ -1092,13 +1098,11 @@ button.brief-inbox-link:hover { border-color: oklch(from var(--accent) l c h / 0
      every card that rises on a phone, alike). It wore the ink's wash, which lightened a dark page, and then none (Ruben,
      2 Oct: no fade, no lightening). A tap on it closes the sheet. */
   .tbn-backdrop { background: var(--surface-veil); }
-  /* A sheet's solid, as every sheet a phone raises is (the glass is the desk's popover): its notes slide over grounds. */
-  .tbn-item { background: var(--surface-pop-fill); }
-  .tbn-item.unread { background: color-mix(in oklab, var(--accent) 3%, var(--surface-pop-fill)); }
+  /* The glass of every sheet and menu (kit.css, "What pops over the page"; the popover's own panel-pop), at the corners
+     of every phone sheet: it stood on the solid with a hairline over it, beside the account's menu in glass. */
   .tbn-pop {
     top: auto; right: 0; bottom: 0; left: 0; max-width: none; max-height: 82vh; max-height: 82dvh;
-    background-color: var(--surface-pop-fill);
-    border-width: 1px 0 0; border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+    border-radius: var(--radius-sheet) var(--radius-sheet) 0 0;
     padding-bottom: env(safe-area-inset-bottom, 0px); overscroll-behavior-y: none;
     animation: sheet-in 260ms var(--ease-out);
     --tbn-out: sheet-out;
@@ -1111,9 +1115,10 @@ button.brief-inbox-link:hover { border-color: oklch(from var(--accent) l c h / 0
   .tbn-list { overscroll-behavior: none; }
   .tbn-backdrop[data-leaving="true"] { animation: wash-out 160ms var(--ease-in) forwards; }
 }
-/* A day's head stands over the notes scrolling under it as the glass does: it blurs them. */
-.tbn-sec { position: sticky; top: 0; z-index: 2; padding: 8px 18px 6px; font-size: var(--text-sm); font-weight: 500; color: var(--ink-dim); background: transparent; backdrop-filter: var(--surface-control-blur); border-bottom: 1px solid var(--line); }
-@media (max-width: 720px) { .tbn-sec { background: var(--surface-pop-fill); backdrop-filter: none; } }
+/* A day's head stands over the notes scrolling under it on the pop's solid, at every width. A blur of its own inside the
+   popover's glass read nothing (a backdrop-filter nested in another's), so on a desk the first note's words stood
+   crisp under "New" as the list scrolled. */
+.tbn-sec { position: sticky; top: 0; z-index: 2; padding: 8px 18px 6px; font-size: var(--text-sm); font-weight: 500; color: var(--ink-dim); background: var(--surface-pop-fill); border-bottom: 1px solid var(--line); }
 .tbn-title { flex: 1; }
 .tb-bell.ping .icon { animation: bell-swing 0.9s var(--ease-out); transform-origin: 50% 2px; }
 @keyframes bell-swing { 0%, 100% { transform: rotate(0); } 20% { transform: rotate(13deg); } 45% { transform: rotate(-10deg); } 70% { transform: rotate(6deg); } 85% { transform: rotate(-3deg); } }
