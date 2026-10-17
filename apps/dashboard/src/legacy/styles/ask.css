@@ -254,6 +254,13 @@ body.ask-open .tb-ask .tb-ask-face { visibility: hidden; }
 .ask-card-change.bubble .ask-card-summary { max-width: 90%; padding: 8px 12px; border: 1px solid var(--bubble-us-line); border-radius: var(--radius-xl) var(--radius-xl) var(--radius-xs) var(--radius-xl); background: var(--bubble-us-bg); }
 .ask-card-note { font-size: var(--text-xs); color: var(--warn); }
 .ask-card-foot { margin: 0; font-size: var(--text-sm); line-height: 1.45; color: var(--ink-dim); }
+/* A card's change as a sheet (AskSheet, the answer canvas C1): what holds it first, in the warn tone, then a row a fact on a key column. */
+.ask-spec { display: grid; gap: 8px; }
+.ask-spec-hold { margin: 0; font-size: var(--text-sm); line-height: 1.45; color: var(--warn-ink); }
+.ask-spec-rows { display: grid; gap: 6px; margin: 0; }
+.ask-spec-row { display: grid; grid-template-columns: 88px minmax(0, 1fr); gap: 10px; align-items: baseline; }
+.ask-spec-row dt { font-size: var(--text-xs); line-height: 1.45; color: var(--ink-dim); }
+.ask-spec-row dd { margin: 0; font-size: var(--text-sm); line-height: 1.45; color: var(--ink); overflow-wrap: anywhere; }
 .ask-card-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .ask-card-not-now { margin-left: auto; }
 .ask-card-receipt { display: flex; flex-wrap: wrap; align-items: center; gap: 9px; min-height: 40px; padding: 4px 4px 4px 12px; border-radius: var(--radius-lg); background: var(--surface-inset-fill); font-size: 13px; line-height: 1.4; color: var(--ink); }

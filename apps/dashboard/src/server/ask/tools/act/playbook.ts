@@ -79,6 +79,7 @@ import { channelsWaitWords } from "./playbook-channels";
 import {
   allowanceHeld,
   breathSaid,
+  campaignSheet,
   playbookChannelsSaid,
   playbookHow,
   reachByChannel,
@@ -462,10 +463,21 @@ async function proposeOnStarter(
   const waits = starterWaitWords(read, forReview, workspace.whatsapp.ready);
   // The moment and its schedule in the workspace's word, as the message card says them.
   const { word, moment } = await wordedMoment(t, trig);
+  const said = {
+    where: listLabel ? `On ${listLabel}` : `${moment.label} — ${moment.hint.toLowerCase()}`,
+    runs: scheduleLine(clock, word),
+    breath: breathSaid(trig),
+    end: endSaid(t, input.until),
+    goes: proposalChannelsWords(channels, reachByChannel(drawn.reach.by_channel)),
+    reaches: yesSaid(purposeOfPlaybook(cls), drawn, how),
+    sends: `${trial.said}${under.said}`,
+    message: LIBRARY_STARTER_WORDS.addsFirst(starter.title),
+  };
   return propose({
     kind: "playbook",
     title: `Campaign: ${name || moment.label}`,
-    summary: `${listLabel ? `On ${listLabel}` : `${moment.label} — ${moment.hint.toLowerCase()}`} · ${scheduleLine(clock, word)}${breathSaid(trig)}${endSaid(t, input.until)} · ${LIBRARY_STARTER_WORDS.addsFirst(starter.title)} · ${proposalChannelsWords(channels, reachByChannel(drawn.reach.by_channel))}${waits} · ${held}${yesSaid(purposeOfPlaybook(cls), drawn, how)} · ${trial.said}${under.said}`,
+    summary: `${said.where} · ${said.runs}${said.breath}${said.end} · ${said.message} · ${said.goes}${waits} · ${held}${said.reaches} · ${said.sends}`,
+    sheet: campaignSheet({ ...said, waiting: [waits, held] }),
     payload: {
       ...clock,
       trigger_label: moment.label,
@@ -562,10 +574,21 @@ async function proposeOnStep(
   const trial = trialOf(under.mode);
   const name = playbookNameAsked(input.name) || null;
   const { word, moment } = await wordedMoment(t, trig);
+  const said = {
+    where: listLabel ? `On ${listLabel}` : `${moment.label} — ${moment.hint.toLowerCase()}`,
+    runs: scheduleLine(clock, word),
+    breath: breathSaid(trig),
+    end: endSaid(t, input.until),
+    goes,
+    reaches: yesSaid(purposeOfPlaybook(cls), drawn, how),
+    sends: `${trial.said}${under.said}`,
+    message: stepSays(step, specs),
+  };
   return propose({
     kind: "playbook",
     title: `Campaign: ${name ?? moment.label}`,
-    summary: `${listLabel ? `On ${listLabel}` : `${moment.label} — ${moment.hint.toLowerCase()}`} · ${scheduleLine(clock, word)}${breathSaid(trig)}${endSaid(t, input.until)}${goes} · ${waiting}${yesSaid(purposeOfPlaybook(cls), drawn, how)} · ${trial.said}${under.said} Says: ${stepSays(step, specs)}`,
+    summary: `${said.where} · ${said.runs}${said.breath}${said.end}${goes} · ${waiting}${said.reaches} · ${said.sends} Says: ${said.message}`,
+    sheet: campaignSheet({ ...said, waiting: [waiting] }),
     payload: {
       ...clock,
       trigger_label: moment.label,
@@ -651,10 +674,21 @@ async function proposePlaybook(t: ToolContext, proposed: PlaybookProposed): Prom
   if ("refusal" in said) return refuse(said.refusal);
   // The moment and its schedule in the workspace's word: read once the check has passed.
   const { word, moment } = await wordedMoment(t, trig);
+  const pieces = {
+    where: listLabel ? `On ${listLabel}` : `${moment.label} — ${moment.hint.toLowerCase()}`,
+    runs: scheduleLine(checked, word),
+    breath: breathSaid(trig),
+    end: endSaid(t, input.until),
+    goes,
+    reaches: yesSaid(purposeOfPlaybook(cls), drawn, how),
+    sends: `${trial.said}${under.said}`,
+    message: said.says,
+  };
   return propose({
     kind: "playbook",
     title: `Campaign: ${checked.name}`,
-    summary: `${listLabel ? `On ${listLabel}` : `${moment.label} — ${moment.hint.toLowerCase()}`} · ${scheduleLine(checked, word)}${breathSaid(trig)}${endSaid(t, input.until)}${goes} · ${waiting}${yesSaid(purposeOfPlaybook(cls), drawn, how)} · ${trial.said}${under.said} Says: ${said.says}`,
+    summary: `${pieces.where} · ${pieces.runs}${pieces.breath}${pieces.end}${goes} · ${waiting}${pieces.reaches} · ${pieces.sends} Says: ${said.says}`,
+    sheet: campaignSheet({ ...pieces, waiting: [waiting] }),
     payload: {
       trigger: trig.id,
       trigger_label: moment.label,
