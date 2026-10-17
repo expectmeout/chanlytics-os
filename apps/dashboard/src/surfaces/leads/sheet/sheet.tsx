@@ -200,7 +200,7 @@ const sheetWhoOf = (d: SheetDraw, desk: boolean) => {
  * email would come to here as its hover; then a version of the one chosen, and a new sequence, both made in Sequences and
  * back here. A few words an item, what it does its hover, as every menu of the house says it.
  */
-function changeOf(d: SheetDraw) {
+function changeMenuOf(d: SheetDraw) {
   const { facts, vm, p } = d;
   if (!facts || !vm || !facts.box.change) return null;
   const target = p.aim.target;
@@ -242,7 +242,7 @@ function boxOf(d: SheetDraw) {
     <SheetBox
       box={facts.box}
       onOpen={(rootId) => openRecord(rootId, { leadId: vm.id, name: vm.name, row: p.row })}
-      change={changeOf(d)}
+      change={changeMenuOf(d)}
     />
   );
 }

@@ -1667,7 +1667,7 @@
       }
     },
     "POST sequences/[id]/leave": {
-      "changes": "sequence_enrollments INSERT UPDATE · sequence_sends UPDATE",
+      "changes": "lead_search_members UPDATE · sequence_enrollments INSERT UPDATE · sequence_sends UPDATE",
       "extra": {
         "broadcasts": "admin, admin/activity, admin/autonomy, admin/billing, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/setup, admin/team, admin/workspace, calendar, campaigns, campaigns/message, campaigns/sequences, clients, clients/leads, clients/person, conversations, leads, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, segments, start",
         "leads": "admin, admin/activity, admin/autonomy, admin/billing, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/setup, admin/team, admin/workspace, broadcasts, calendar, campaigns, campaigns/message, campaigns/new, campaigns/sequences, clients, clients/person, conversations, inbox, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, segments, start, today",
@@ -1682,18 +1682,22 @@
         "person": "clients/person",
         "reach_out_replies": "inbox, today",
         "settings": "admin, admin/activity, admin/autonomy, admin/billing, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/team, admin/workspace, broadcasts, campaigns, campaigns/message, campaigns/new, campaigns/sequences, clients/leads, leads, messages, outbound, start",
-        "setup": "admin/integrations, clients/leads, leads, start, today"
+        "setup": "admin/integrations, clients/leads, leads, start, today",
+        "today": "today"
       }
     },
     "POST sequences/[id]/return": {
-      "changes": "sequence_enrollments UPDATE",
+      "changes": "lead_search_members UPDATE · sequence_enrollments UPDATE",
       "extra": {
         "sequences": "admin, admin/activity, admin/autonomy, admin/billing, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/setup, admin/team, admin/workspace, calendar, clients, clients/leads, clients/person, conversations, inbox, leads, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, segments, start, today"
       },
       "missing": {
         "calendar": "admin/hours, admin/workspace, calendar, today",
+        "leads": "clients/leads, leads",
         "person": "clients/person",
-        "setup": "admin/integrations, clients/leads, leads, start, today"
+        "reach_outs": "campaigns/new, messages, outbound",
+        "setup": "admin/integrations, clients/leads, leads, start, today",
+        "today": "today"
       }
     },
     "POST sequences/[id]/steps": {
