@@ -14,7 +14,6 @@
  */
 import type { PersonRowVM } from "@chanlytics/contracts";
 import { Face } from "../../kit/face/face";
-import { Field } from "../../kit/field/field";
 import { FieldError } from "../../kit/field-error/field-error";
 import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
@@ -152,19 +151,22 @@ const PipelineNewBody = (b: BodyProps) => {
   const found = pipeNewMatches(rows, q);
   return (
     <div className="pipe-new" data-testid="pipeline-new">
-      {/* The kit's Field, as New conversation asks the same question with the same words: one box for both sheets. */}
-      <div data-rec-row="search">
-        <Field
-          label={W.sub}
+      {/* The box New conversation's kit Field draws (the same question in the same words), in the record kit's markup
+          as the add form below draws its two: the Field would bring Base UI's onto People's first load (+5 KB). */}
+      <label className="rec-field" data-rec-row="search">
+        <span className="rec-field-label">{W.sub}</span>
+        <input
+          className="rec-input"
           type="search"
-          placeholder={W.search}
-          value={q}
-          onValueChange={onQ}
           // eslint-disable-next-line jsx-a11y-x/no-autofocus -- only a phone's sheet, which has no focus rule of its own
           autoFocus={autoFocus}
+          autoComplete="off"
+          value={q}
+          placeholder={W.search}
+          onChange={(e) => onQ(e.target.value)}
           data-testid="pipeline-new-search"
         />
-      </div>
+      </label>
       {pipeNewFound(found, onPick)}
       {pipeNewAdd(b)}
     </div>

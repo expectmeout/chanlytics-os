@@ -1674,7 +1674,7 @@ test("New proposal: pick someone, or add them by number, and the one deal sheet 
     find(tree, (n) => n.props?.["data-rec-row"] === "search"),
     "the field it names",
   );
-  byTestId(tree, "pipeline-new-search").props.onValueChange("wes");
+  byTestId(tree, "pipeline-new-search").props.onChange({ target: { value: "wes" } });
   tree = draw();
   const picks = all(byTestId(tree, "pipeline-new-list"), (n) => n.props?.["data-testid"] === "pipeline-new-pick");
   assert.deepEqual(
@@ -1682,10 +1682,10 @@ test("New proposal: pick someone, or add them by number, and the one deal sheet 
     ["Wes"],
     "People's own rule finds them",
   );
-  byTestId(tree, "pipeline-new-search").props.onValueChange("zed");
+  byTestId(tree, "pipeline-new-search").props.onChange({ target: { value: "zed" } });
   tree = draw();
   assert.match(textOf(byTestId(tree, "pipeline-new")), /No one matches\./);
-  byTestId(tree, "pipeline-new-search").props.onValueChange("wes");
+  byTestId(tree, "pipeline-new-search").props.onChange({ target: { value: "wes" } });
   tree = draw();
   click(all(byTestId(tree, "pipeline-new-list"), (n) => n.props?.["data-testid"] === "pipeline-new-pick")[0]);
   tree = draw();
