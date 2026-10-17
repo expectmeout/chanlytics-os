@@ -1,7 +1,7 @@
 /**
- * One row of a sequence's flow (the canvas's Steps board): its node on the line that joins the flow, what it says, and
- * what stands at its end. The record's Steps (steps.tsx) and a new sequence's draft (new.tsx) draw their flows with it, so
- * a draft reads as the sequence it will be. Opened, its body takes the end's column too (a step being changed).
+ * One row of a sequence's flow: its node on the line that joins the flow, what it says, and what stands at its end. A
+ * new sequence's draft (new.tsx) draws its flow with it; a record's Steps is a schedule of days (steps.tsx, 17 Oct 2026).
+ * Opened, its body takes the end's column too.
  */
 import type { ReactNode } from "react";
 import { cx } from "../../kit/variants";
