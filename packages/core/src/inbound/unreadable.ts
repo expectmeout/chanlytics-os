@@ -7,7 +7,7 @@
 import { isVisionMime, toBase64, VISION_MAX_BYTES } from "./vision";
 import { GO, type Answering } from "./context";
 import { speaksUnattended } from "./reply-posture";
-import { escalationOf, handledOf, SET_ASIDE, type WayOut } from "./handled";
+import { escalationOf, handledOf, type WayOut } from "./handled";
 
 /** Whether the receptionist will look at this photo, and how it says what it will not read. */
 export function seeingOf(at: Answering) {
@@ -45,13 +45,29 @@ export function seeingOf(at: Answering) {
    * when it never spoke — the pause itself is written to Postgres by
    * sink.pause below, and a courtesy that did not reach the customer earns no
    * pause — and to the facts of the way out, for the message's stamp
-   * (./handled.ts): a thread a person already holds says nothing and asks
-   * nobody, and past that the `non_text` escalation is always attempted, so the
+   * (./handled.ts): a thread a person already holds says nothing and is held for them (wrote_while_held, 00454),
+   * and past that the `non_text` escalation is always attempted, so the
    * message is a handoff when it landed, and the acknowledgement is a reply
    * that left when it did.
    */
   const sayUnreadable = async (pausedUntilNow: number): Promise<{ pausedUntil: number; way: WayOut }> => {
-    if (Date.now() <= pausedUntilNow) return { pausedUntil: 0, way: SET_ASIDE };
+    if (Date.now() <= pausedUntilNow) {
+      // A person has the thread: nothing is said, and the message is held for them as words are (00454). Set aside with
+      // nobody told, it waited unseen past the pause (the closed-loop audit of 17 Oct 2026, B).
+      const asked = sink.escalate(
+        "wrote_while_held",
+        `They sent a ${raw.type} message while your team had this thread. Open it and answer them, or hand the thread back.`,
+      );
+      await Promise.all([
+        asked,
+        tell(asked, {
+          said: `[${raw.type} message]`,
+          answered: "(no reply sent — a person on your team has this thread)",
+          why: "wrote while held",
+        }),
+      ]);
+      return { pausedUntil: 0, way: { escalation: escalationOf(await asked), reply: "none" } };
+    }
     // The acknowledgement is the receptionist speaking, so it obeys the
     // same rule as every reply: only when the mode in force lets it speak.
     // A workspace on Ask, or a person set to Never, gets no canned text —

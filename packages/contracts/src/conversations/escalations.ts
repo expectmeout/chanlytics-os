@@ -37,12 +37,13 @@ export const ESCALATION_REASON_LABELS: Record<EscalationReason, string> = {
   state_unavailable: "The receptionist could not read this thread — needs a human",
   stale: "Arrived hours late — too old to answer automatically",
   budget: "The day's model budget is used up — the receptionist paused itself",
-  callback: "Needs a call back — the phone receptionist could not finish it",
+  callback: "Needs a call back — they phoned and are still owed a call",
   paused: "Held — the workspace is paused until billing resumes",
   carriers: "Held — the carriers have not approved this line for texting yet",
   email_review: "Wrote by email — a person answers",
   booking_request: "Asked to book a time — confirm it or say you can't",
   booking_reply: "Asked to book a time — reply to them",
+  wrote_while_held: "Wrote again while your team had the thread — the receptionist stays out",
 };
 
 /**
@@ -72,6 +73,7 @@ export const ESCALATION_REASON_SHORT: Record<EscalationReason, string> = {
   email_review: "wrote by email",
   booking_request: "asked to book a time",
   booking_reply: "asked to book a time",
+  wrote_while_held: "wrote while your team had the thread",
 };
 
 /** The clause for a reason, or the reason's own words for one the set does not know; nothing for none. */
@@ -108,6 +110,7 @@ const ESCALATION_REASON_WHY: Record<EscalationReason, string> = {
   email_review: "because they wrote by email",
   booking_request: "because they asked to book a time",
   booking_reply: "because they asked to book a time",
+  wrote_while_held: "because they wrote while your team had the thread",
 };
 
 /** Why a reason handed a conversation over; a reason the set does not know is said by its clause. */
@@ -148,7 +151,8 @@ export const ESCALATION_SUMMARIES: Record<EscalationReason, string> = {
     "This reached us hours after they sent it, too late to answer automatically. NOTHING was sent — they have been waiting since.",
   budget:
     "The day's model budget is used up, so the receptionist paused itself. NOTHING was sent — answer them yourself, or raise the budget under Settings › Autonomy.",
-  callback: "They phoned and the receptionist couldn't finish it.",
+  callback:
+    "They phoned and are still owed a call: the call didn't connect, they hung up without a word, or the receptionist couldn't finish it.",
   paused:
     "The workspace is paused because billing stopped, so the receptionist did not answer. Resume from Settings › Billing, or answer this one yourself.",
   carriers:
@@ -159,6 +163,8 @@ export const ESCALATION_SUMMARIES: Record<EscalationReason, string> = {
     "They picked a time the calendar shows open, and the receptionist told them the team will confirm it. That's you: Booked it, or Can't and reply.",
   booking_reply:
     "They asked to book a time, and the receptionist told them the team will confirm. Reply with a time that works.",
+  wrote_while_held:
+    "They wrote again while your team had this thread, so the receptionist stayed out. Nothing was sent — answer them yourself, or hand the thread back.",
 };
 
 /** The label for a reason, or the reason's own words for one the set does not know: a row never reads as nothing. */
@@ -202,6 +208,7 @@ export const ESCALATION_ACTS: Record<EscalationReason, HoldAct> = {
   email_review: "reply",
   booking_request: "confirm",
   booking_reply: "reply",
+  wrote_while_held: "reply",
 };
 
 /** The act of a reason; a reason the set does not know is answered, as a person is needed for it. */

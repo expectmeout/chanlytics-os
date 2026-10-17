@@ -612,6 +612,8 @@ export const ESCALATION_REASONS = [
    * confirm, so a reply is owed.
    */
   "booking_reply",
+  /** The customer wrote while a person had the thread: held for them, never in another hold's place (00454). */
+  "wrote_while_held",
 ] as const;
 export type EscalationReason = (typeof ESCALATION_REASONS)[number];
 

@@ -39256,7 +39256,21 @@ function seeingOf(at) {
   const { n, rt, brainCfg, replyMode, thread, send, fallbacks, personMode, pauseMs, sink, raw, tell, pauseHours, L } = at;
   const maySee = n.type === "media" && !!n.media && !!rt?.features?.vision && isVisionMime(n.media.mime_type) && !!brainCfg && speaksUnattended(replyMode) && Date.now() > thread.pausedUntil;
   const sayUnreadable = async (pausedUntilNow) => {
-    if (Date.now() <= pausedUntilNow) return { pausedUntil: 0, way: SET_ASIDE };
+    if (Date.now() <= pausedUntilNow) {
+      const asked3 = sink.escalate(
+        "wrote_while_held",
+        `They sent a ${raw.type} message while your team had this thread. Open it and answer them, or hand the thread back.`
+      );
+      await Promise.all([
+        asked3,
+        tell(asked3, {
+          said: `[${raw.type} message]`,
+          answered: "(no reply sent \u2014 a person on your team has this thread)",
+          why: "wrote while held"
+        })
+      ]);
+      return { pausedUntil: 0, way: { escalation: escalationOf(await asked3), reply: "none" } };
+    }
     const mayAck = !!brainCfg && speaksUnattended(replyMode);
     const acked = mayAck ? (
       // A courtesy, not an answer: marked so it does not spend the daily cap.
@@ -39429,6 +39443,22 @@ async function confirmedYes(at, bodyText) {
   }
   return GO;
 }
+async function heldWhileTheirs(at, bodyText) {
+  const { sink, tell } = at;
+  const asked2 = sink.escalate(
+    "wrote_while_held",
+    "They wrote again while your team had this thread, so the receptionist stayed out. Answer them, or hand the thread back."
+  );
+  await Promise.all([
+    asked2,
+    tell(asked2, {
+      said: bodyText,
+      answered: "(no reply sent \u2014 a person on your team has this thread)",
+      why: "wrote while held"
+    }),
+    processedAfter(sink, asked2, "none")
+  ]);
+}
 async function heldForThePerson(at, bodyText) {
   const {
     thread,
@@ -39456,7 +39486,7 @@ async function heldForThePerson(at, bodyText) {
   });
   if (held === "human_has_it") {
     L.info("wa_skip_paused", { paused_until: thread.pausedUntil });
-    await sink.processed(handledOf(SET_ASIDE));
+    await heldWhileTheirs(at, bodyText);
     return;
   }
   if (held === "daily_cap") {

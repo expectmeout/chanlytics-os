@@ -433,7 +433,9 @@ export const ESCALATION_REASONS = [
    * time was not one the code found open, or the request could not be kept. The receptionist told them the team will
    * confirm, so a reply is owed.
    */
-  "booking_reply"
+  "booking_reply",
+  /** The customer wrote while a person had the thread: held for them, never in another hold's place (00454). */
+  "wrote_while_held"
 ];
 export const ESCALATION_STATES = ["open", "resolved"];
 export const DECISION_VERBS = [

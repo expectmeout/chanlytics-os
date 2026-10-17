@@ -208,7 +208,12 @@ test("the sweep asks only about a call it can settle: ended past the webhook's t
     const pending = w.tables.calls.find((c) => c.retell_call_id === id("pending"));
     assert.ok(pending.notified_at, "claimed");
     assert.equal(w.tables.notifications.length, 2, "the owner told of it, once");
-    assert.equal(w.tables.escalations.length, 0, "a call answered asks for no hold");
+    // A call answered asks for no hold; the hang-up is owed a call back, held as it ended (the closed-loop audit, C).
+    const hangup = w.tables.calls.find((c) => c.retell_call_id === id("hangup"));
+    assert.deepEqual(
+      w.tables.escalations.map((e) => [e.conversation_id, e.reason]),
+      [[hangup.conversation_id, "callback"]],
+    );
 
     const [, b3] = await tick();
     assert.deepEqual(b3.settles, settles(0, 0, 0), "and never asked about again");

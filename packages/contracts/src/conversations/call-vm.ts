@@ -16,6 +16,7 @@ import {
   abandonedCall,
   callAttemptWords,
   endedHowOf,
+  missedCall,
   neverConnected,
   reachedVoicemail,
   recordingStateOf,
@@ -145,6 +146,26 @@ export function spokenDuration(ms: number | null): string {
   const m = Math.floor(total / 60);
   const sec = total % 60;
   return m ? `${m} min ${sec} sec` : `${sec} sec`;
+}
+
+/**
+ * What a person is asked to do about a customer's call that reached no answer, or null for any other call: one that
+ * never connected (a missed call) and one they left without a word (abandonedCall) each open the thread's `callback`
+ * hold, which a call back to them closes (00422). The first was a bell for a day and the second a Today row for a day,
+ * and neither said the caller was still owed a call (the closed-loop audit of 17 Oct 2026, C).
+ */
+export function unansweredCallTodo(
+  dto: Pick<CallDto, "direction" | "status" | "duration_ms" | "disconnection_reason" | "in_voicemail" | "outcome"> & {
+    transcript_object?: CallDto["transcript_object"];
+  },
+): string | null {
+  if (missedCall({ missed: neverConnected(dto), direction: dto.direction })) {
+    return "Missed call: it rang and never connected. Call them back.";
+  }
+  if (abandonedCall(dto)) {
+    return `Hung up after ${spokenDuration(dto.duration_ms)} without a word. Call them back.`;
+  }
+  return null;
 }
 
 // How the caller sounded, as the voice provider read it, where that says anything: "Neutral" and "Unknown" do not.

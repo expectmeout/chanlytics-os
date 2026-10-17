@@ -101,7 +101,8 @@ const FROM_ITS_EVENT = "the hold is written, so its event tells the owner, not t
 /** The handler's world, recording everything that crosses it. */
 function world(over = {}) {
   // The rows, as Postgres would hold them for this one conversation.
-  const memory = { history: [], replies: [], pausedUntil: 0, textedBefore: false };
+  // A thread a person already has (`pausedUntil`): taken over, or claimed by their reply, with no hold open.
+  const memory = { history: [], replies: [], pausedUntil: over.pausedUntil ?? 0, textedBefore: false };
   const delivered = new Set();
   const seen = {
     sent: [],
@@ -111,6 +112,7 @@ function world(over = {}) {
     pauses: [],
     // Asked and landed (opened, changed or refreshed); an escalation the database refused is `refused`, nobody was asked.
     refused: [],
+    underHold: [],
     // Messages marked processed, and every stamp: one a way out wrote beside processed_at (`marked`), or alone (noteHandled).
     processed: 0,
     handled: [],
@@ -197,6 +199,13 @@ function world(over = {}) {
         },
         // How the write landed, as upsertEscalation answers it; "failed" is a write the database refused.
         escalate: async (reason, details) => {
+          // The door's one rule this world keeps (00454): a message under a hold already open is that hold's, whatever
+          // its reason, and nothing is written.
+          const open = seen.escalations.at(-1);
+          if (reason === "wrote_while_held" && open && open.reason !== reason && !over.escalateAnswer) {
+            seen.underHold.push({ reason, details });
+            return "refreshed";
+          }
           const how = over.escalateAnswer ?? "opened";
           (how === "failed" ? seen.refused : seen.escalations).push({ reason, details });
           return how;
@@ -291,6 +300,7 @@ function world(over = {}) {
     const before = {
       handled: seen.handled.length,
       escalations: seen.escalations.length,
+      underHold: seen.underHold.length,
       processed: seen.processed,
     };
     const all = { ...ports, ...extra };
@@ -305,7 +315,8 @@ function world(over = {}) {
     // person and says nothing fails here, as one that says the wrong word does. A message the world neither processed nor
     // escalated for (a redelivery, a failed send whose escalation was refused) is owed no stamp. A rejection
     // (IngestFailed) propagates before the check.
-    const asked = seen.escalations.length > before.escalations;
+    // A message under a hold already open landed on it (00454): a person was asked, by the hold that was open.
+    const asked = seen.escalations.length > before.escalations || seen.underHold.length > before.underHold;
     const marked = seen.processed > before.processed;
     const stamps = seen.handled.slice(before.handled);
     if (asked || marked) {
@@ -437,6 +448,12 @@ test("the same customer's next text inside the pause is recorded and not answere
   await w.run(text("hello?", "wamid.2"));
   assert.equal(w.seen.sent.length, 1, "nothing more left");
   assert.equal(w.seen.escalations.length, 1, "no second escalation");
+  // The receptionist's own hold is open (it handed the thread over), so the message is that hold's: nothing written.
+  assert.deepEqual(
+    w.seen.underHold.map((h) => h.reason),
+    ["wrote_while_held"],
+    "asked as written while held, and kept under the hold that was open",
+  );
   assert.equal(w.seen.processed, 2, "but the message is handled");
   assert.deepEqual(
     w.thread().history.map((h) => h.role),
@@ -1835,17 +1852,46 @@ test("a handoff is an escalation that LANDED: one the database refused asked nob
   }
 });
 
-test("a thread a person holds sets a message aside, and a voice note on it: nobody is asked, so the stamp is blocked", async () => {
+test("a thread a person holds keeps a message, and a voice note on it, under the hold that is open: a person is asked, once", async () => {
   const w = world();
   await w.run(text("hi, do you have time tomorrow?"));
   await w.run(text("hello?", "wamid.2"));
   await w.run(voice("wamid.vn3"));
+  // Set aside with nobody asked, both were "blocked" and waited unseen past the pause (the closed-loop audit, B): each is
+  // now the open hold's, so a person is asked, by the hold already open (00454).
   assert.deepEqual(handledOf(w), [
     ["handoff", null],
-    ["blocked", null],
-    ["blocked", null],
+    ["handoff", null],
+    ["handoff", null],
   ]);
   assert.equal(w.seen.escalations.length, 1, "one hold, and nobody asked twice");
+  assert.equal(w.seen.underHold.length, 2, "each later message landed on it");
+  assert.equal(w.seen.sent.length, 1, "and nothing more was said");
+});
+
+test("REGRESSION: a customer who writes after a person took the thread with no hold open is held for that person, and told once", async () => {
+  // A person replied (which resolves the thread's holds) or took it over (which opens none): the thread is theirs for
+  // the pause, and no hold is open. The message was set aside, nobody was told, and the pause's end handed the thread
+  // back with it unanswered (the closed-loop audit of 17 Oct 2026, B).
+  const w = world({ pausedUntil: Date.now() + 60 * 60 * 1000 });
+  await w.run(text("can we move it to Saturday?", "wamid.after-reply"));
+  assert.deepEqual(
+    w.seen.escalations.map((e) => e.reason),
+    ["wrote_while_held"],
+    "held for the person who has the thread",
+  );
+  assert.match(w.seen.escalations[0].details, /while your team had this thread/);
+  assert.equal(w.seen.sent.length, 0, "the receptionist stays out");
+  assert.deepEqual(handledOf(w), [["handoff", null]]);
+  // A voice note in the same stretch is the same hold's: refreshed, never a second one.
+  await w.run(voice("wamid.vn-after-reply"));
+  assert.deepEqual(
+    w.seen.escalations.map((e) => e.reason),
+    ["wrote_while_held", "wrote_while_held"],
+    "the door refreshes the open hold of its own reason (a second write, no second row)",
+  );
+  assert.match(w.seen.escalations[1].details, /They sent a \w+ message while your team had this thread/);
+  assert.equal(w.seen.sent.length, 0);
 });
 
 test("a stamp the database refuses never costs the customer their reply: the real sink's processed, over a database without the door", async () => {
