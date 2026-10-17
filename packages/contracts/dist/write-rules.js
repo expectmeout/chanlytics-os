@@ -1,7 +1,3 @@
-// src/zod-config.ts
-import { config } from "zod/v4/core";
-config({ jitless: true });
-
 // src/shared/time.ts
 var MIN_MS = 6e4;
 var HOUR_MS = 36e5;
@@ -51,11 +47,6 @@ function feedProblemWords(reason, status) {
   }
 }
 
-// src/shared/email-address.ts
-var LABEL = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
-var LOCAL = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*";
-var SHAPE = new RegExp(`^(${LOCAL})@(${LABEL}(?:\\.${LABEL})+)$`);
-
 // src/config/workspace-config/alerts.ts
 var ALERT_ADDRESSES_MAX = 10;
 var ALERT_ADDRESSES_MIN = 1;
@@ -64,9 +55,6 @@ var ALERT_REFUSED_WORDS = {
   full: `Alerts go to ${ALERT_ADDRESSES_MAX} addresses at most. Take one off on Notifications first.`,
   address: "That doesn't look like an email address."
 };
-
-// src/calendar/calendar-people.ts
-var NEAR_VISIT_MS = 3 * DAY_MS;
 
 // src/calendar/booking-notice.ts
 var BOOKING_TOOLS = [

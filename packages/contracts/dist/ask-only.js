@@ -38,12 +38,6 @@ function formatterOnUse(locales, options) {
 }
 var DATE_FMT = formatterOnUse([], { month: "short", day: "numeric" });
 
-// src/shared/clock.ts
-function clockHour(hour) {
-  const h = Number.isFinite(hour) ? (Math.floor(hour) % 24 + 24) % 24 : 0;
-  return `${h % 12 === 0 ? 12 : h % 12}:00 ${h < 12 ? "AM" : "PM"}`;
-}
-
 // src/shared/words.ts
 var plural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 var capitalize = (s) => s ? s[0].toUpperCase() + s.slice(1) : s;
@@ -99,10 +93,6 @@ function appointmentWords(word) {
     newTimeLink: (link) => `Here's a link to pick a new time for your ${word}: ${link}`
   };
 }
-
-// src/playbooks/playbook-time.ts
-var PLAYBOOK_BREATH_MS = 7 * DAY_MS;
-var SWEEP_TICK_MS = 5 * MIN_MS;
 
 // src/playbooks/playbook-triggers.ts
 var PLAYBOOK_TRIGGERS = [
@@ -513,36 +503,6 @@ function languageName(code) {
   }
 }
 
-// src/templates/sender-words.ts
-var SENDER_WORDS = {
-  en: {
-    textStop: "Reply STOP to opt out",
-    emailStop: "Reply STOP to stop these emails.",
-    marketing: "This is a marketing email.",
-    noThanks: `Not interested? Reply "no thanks" and I won't write again`,
-    unsubscribe: "Unsubscribe",
-    us: "us",
-    offerAsked: (who) => `You asked for offers from ${who}.`,
-    offerCustomer: (who) => `You're a customer of ${who}.`,
-    visitProposal: (who) => `You're getting this about your proposal from ${who}.`,
-    visitBooked: (who) => `You're getting this because of your appointment with ${who}.`,
-    visitInTouch: (who) => `You're getting this because you've been in touch with ${who}.`
-  },
-  es: {
-    textStop: "Responde STOP para darte de baja",
-    emailStop: "Responde STOP para dejar de recibir estos correos.",
-    marketing: "Este es un correo de marketing.",
-    noThanks: `\xBFNo te interesa? Responde "no, gracias" y no volver\xE9 a escribirte`,
-    unsubscribe: "Darme de baja",
-    us: "nosotros",
-    offerAsked: (who) => `Pediste recibir ofertas de ${who}.`,
-    offerCustomer: (who) => `Eres cliente de ${who}.`,
-    visitProposal: (who) => `Recibes esto sobre tu propuesta de ${who}.`,
-    visitBooked: (who) => `Recibes esto por tu cita con ${who}.`,
-    visitInTouch: (who) => `Recibes esto porque has estado en contacto con ${who}.`
-  }
-};
-
 // src/templates/message-versions.ts
 var OWN_VERSION_CHANNELS = ["email", "sms"];
 var VERSION_CHANNEL_WORDS = {
@@ -553,15 +513,6 @@ var VERSION_CHANNEL_WORDS = {
 function versionWord(channel) {
   return channel === "whatsapp" ? VERSION_CHANNEL_WORDS.whatsapp : VERSION_CHANNEL_WORDS[channel].toLowerCase();
 }
-
-// src/lines/caller-gets.ts
-var PAUSED_CALL = "calls are answered only to take a message";
-var WORKSPACE_ENDED_WORDS = `its receptionist stops replying to messages and ${PAUSED_CALL}, its plan is cancelled, and its public pages go offline`;
-var WORKSPACE_PAUSED = {
-  state: "workspace_paused",
-  tone: "danger",
-  gets: `${PAUSED_CALL}, and new messages wait in the Inbox for you to answer`
-};
 
 // src/workspace/billing.ts
 var WORKSPACE_PAUSED_FACT = "This workspace is paused, so nothing is sent until billing resumes";
@@ -576,35 +527,6 @@ var NO_DOOR = [
   CHANNEL_WORDS.textLineNotActive,
   CHANNEL_WORDS.textLineMock
 ];
-
-// src/shared/email-address.ts
-var LABEL = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
-var LOCAL = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*";
-var SHAPE = new RegExp(`^(${LOCAL})@(${LABEL}(?:\\.${LABEL})+)$`);
-
-// src/config/workspace-config/alerts.ts
-var ALERT_ADDRESSES_MAX = 10;
-var ALERT_REFUSED_WORDS = {
-  last: "Someone has to get alerts. Add another address on Notifications first.",
-  full: `Alerts go to ${ALERT_ADDRESSES_MAX} addresses at most. Take one off on Notifications first.`,
-  address: "That doesn't look like an email address."
-};
-
-// src/calendar/calendar-people.ts
-var NEAR_VISIT_MS = 3 * DAY_MS;
-
-// src/calendar/booking-notice.ts
-var NOTICE_LENGTH_MAX_MS = 12 * HOUR_MS;
-var NOTICE_TIME_REACH_MS = 400 * DAY_MS;
-var SAME_VISIT_MS = 15 * MIN_MS;
-
-// src/config/no-booking-link.ts
-var NO_LINK_DETAILS = "their name, what they need, and where and when";
-var NO_WAY_TO_SEND_LINK = `Booking: the booking link can only be sent by WhatsApp, and this business has no WhatsApp line, so never use send_booking_link and never promise a link or a message. When the caller wants to book, change or cancel a booking, take ${NO_LINK_DETAILS}, and say the team will follow up. If they would rather book themselves and a website is listed above, they can book there.`;
-
-// src/calendar/calendar-words.ts
-var SHORT = new Intl.DateTimeFormat("en-US", { timeZone: "UTC", month: "short", day: "numeric" });
-var LONG = new Intl.DateTimeFormat("en-US", { timeZone: "UTC", weekday: "long", month: "long", day: "numeric" });
 
 // src/lines/registration-path.ts
 var SOLE_PROP_LIMITS = {
@@ -1102,105 +1024,9 @@ var LIFECYCLE_TOAST = {
 var TEMPLATE_BODY_MAX = 1024;
 var TEMPLATE_BODY_WORDS = `The message must be under ${TEMPLATE_BODY_MAX} characters.`;
 var TEMPLATE_SAME_NAME_WORDS = "A template with that name and language already exists. Pick another name.";
-var PARAM_SOURCE_LABELS = {
-  text: "Type it",
-  first_name: "Their first name",
-  business_name: "The business name",
-  booking_link: "The booking link",
-  review_link: "The review link",
-  visit_when: "Their booked time",
-  visit_service: "Their booked service",
-  proposal_link: "Their proposal's link"
-};
-function paramLabel(spec) {
-  return spec.kind === "text" ? spec.value : PARAM_SOURCE_LABELS[spec.kind].toLowerCase();
-}
-function paramSaid(spec) {
-  return spec.kind === "text" ? `\u201C${spec.value}\u201D` : paramLabel(spec);
-}
-
-// src/playbooks/playbook-patch.ts
-var PLAYBOOK_PATCH_KEYS = [
-  "state",
-  "name",
-  "run_hour",
-  "cap_per_run",
-  "gap_days",
-  "cadence_days",
-  "params",
-  "until",
-  "trial_until"
-];
-var keysSaid = (last) => `${PLAYBOOK_PATCH_KEYS.slice(0, -1).join(", ")} ${last} ${PLAYBOOK_PATCH_KEYS.at(-1) ?? ""}`;
-var PLAYBOOK_PATCH_WORDS = {
-  title: (p, name) => p.state === "paused" ? `Pause: ${name}` : p.state === "running" ? `Resume: ${name}` : `Change: ${name}`,
-  name: (to) => `Renamed \u201C${to}\u201D`,
-  run_hour: (to, was) => `Runs at ${clockHour(to)} by your clock, where it ran at ${clockHour(was)}`,
-  cap_per_run: (to, was) => `Up to ${to} people a run, where it was ${was}`,
-  gap_days: (to, was) => `Reaches a person again after ${to} days, where it was ${was}`,
-  cadence_days: (to, was) => `Every ${to} days, where it was every ${was}`,
-  /** Its words, each value as every card quotes one (templates paramSaid). */
-  params: (to) => `Its words changed: ${to.map(paramSaid).join(", ")}`,
-  /** Its last day, said by the business's calendar (contracts campaignDayWords: "Nov 30"), or none. */
-  until: (day) => day ? `Ends ${day}` : "Runs until it is paused, with no last day",
-  /** The day its trial ends (campaignDayWords), or none: what a trial does is said with it. */
-  trial_until: (day) => day ? `On trial until ${day}: each run waits ${PLAYBOOK_VETO_DELAY_WORDS} for you to stop it` : "No longer on trial: its runs go as its class is set in Settings \u203A Autonomy",
-  /**
-   * A trial set where its class's mode sends nothing by itself (ask, never): the trial changes nothing there, said with
-   * what a run does under that mode (`does`), never that each run waits for a Stop.
-   */
-  trialInert: (day, cls, mode, does) => `On trial until ${day}, which changes nothing under \u201C${cls}\u201D (${mode}): ${does}`,
-  paused: "Nothing more runs until it is resumed",
-  /** D8: a pause leaves the run that waits; skipping it is a second card. */
-  pausedWaits: (people) => `The run waiting for you (${people} ${people === 1 ? "person" : "people"}) stays waiting: approve or skip it under Coming up`,
-  /** D7: a resume says its class's mode, in full. */
-  resumed: (cls, mode, does) => `Runs again under \u201C${cls}\u201D (${mode}): ${does}`,
-  same: (name) => `\u201C${name}\u201D already reads so: say so, and change nothing`,
-  nothing: `Name what changes: ${keysSaid("or")}.`,
-  state: "A campaign is running or paused.",
-  nameMissing: "A name needs words.",
-  nameLong: (max) => `A name is at most ${max} characters.`,
-  /** Only the month's offer runs every N days; every other playbook runs as people reach its moment. */
-  cadenceOffer: (name) => `Only the month's offer runs on a cadence; \u201C${name}\u201D runs as people reach its moment.`,
-  /** An end that is no day. */
-  untilDay: "An end is a day, written YYYY-MM-DD.",
-  /** An end before the business's today (`today` in campaignDayWords). */
-  untilPast: (today) => `An end is today or later: today is ${today} by your clock.`,
-  /** A trial's end that is no instant with its zone. */
-  trialWhen: "A trial ends at a date and a time with its zone, as 2026-10-18T14:00:00Z, or at null, which ends it now.",
-  /** A trial's end that has already passed: a trial that ended is none. */
-  trialPast: "A trial ends at a time still to come: name a later one, or null, which ends it now.",
-  /**
-   * What PUT playbooks/:id refuses a body that is none of its three in (a change, the channels alone, the whole
-   * campaign): one sentence that names them, where zod said the first key of the nearest one it did not take.
-   */
-  putBody: `Send a change (any of ${keysSaid("and")}), the channels alone as a list (channels: whatsapp, sms or email), or the whole campaign with its trigger and template_id.`
-};
 
 // src/shared/enums.ts
 var TEMPLATE_STATUSES = ["approved", "pending", "rejected", "paused", "disabled"];
-
-// src/templates/starter-templates.ts
-var FIRST = { kind: "first_name", label: "First name", example: "Dani" };
-var BUSINESS = { kind: "business_name", label: "Business name", example: "Luna Studio" };
-var LINK = { kind: "booking_link", label: "Booking link", example: "https://booksy.com/luna-studio" };
-var FIRST_ES = { ...FIRST, label: "Nombre" };
-var BUSINESS_ES = { ...BUSINESS, label: "Nombre del negocio" };
-var LINK_ES = { ...LINK, label: "Enlace de reservas" };
-var WHEN = { kind: "visit_when", label: "When", example: "tomorrow at 2:00 PM" };
-var SERVICE = { kind: "visit_service", label: "Service", example: "a consultation" };
-var WHEN_ES = { ...WHEN, label: "Cu\xE1ndo", example: "ma\xF1ana a las 2:00 PM" };
-var SERVICE_ES = { ...SERVICE, label: "Servicio", example: "una consulta" };
-var PROPOSAL = {
-  kind: "proposal_link",
-  label: "Proposal link",
-  example: "https://docs.example.com/proposal"
-};
-var PROPOSAL_ES = { ...PROPOSAL, label: "Enlace de la propuesta" };
-var REVIEW = { kind: "review_link", label: "Review link", example: "https://g.page/r/example/review" };
-var REVIEW_ES = { ...REVIEW, label: "Enlace de rese\xF1as" };
-var STOP_EN = SENDER_WORDS.en.textStop;
-var STOP_ES = SENDER_WORDS.es.textStop;
 
 // src/templates/campaign-message.ts
 function metaStatusOf(raw) {
@@ -1568,67 +1394,6 @@ var followUpSpec = {
   open: () => null
 };
 
-// src/leads/search/plan.ts
-var US_STATES = {
-  alabama: "AL",
-  alaska: "AK",
-  arizona: "AZ",
-  arkansas: "AR",
-  california: "CA",
-  colorado: "CO",
-  connecticut: "CT",
-  delaware: "DE",
-  "district of columbia": "DC",
-  florida: "FL",
-  georgia: "GA",
-  hawaii: "HI",
-  idaho: "ID",
-  illinois: "IL",
-  indiana: "IN",
-  iowa: "IA",
-  kansas: "KS",
-  kentucky: "KY",
-  louisiana: "LA",
-  maine: "ME",
-  maryland: "MD",
-  massachusetts: "MA",
-  michigan: "MI",
-  minnesota: "MN",
-  mississippi: "MS",
-  missouri: "MO",
-  montana: "MT",
-  nebraska: "NE",
-  nevada: "NV",
-  "new hampshire": "NH",
-  "new jersey": "NJ",
-  "new mexico": "NM",
-  "new york": "NY",
-  "north carolina": "NC",
-  "north dakota": "ND",
-  ohio: "OH",
-  oklahoma: "OK",
-  oregon: "OR",
-  pennsylvania: "PA",
-  "rhode island": "RI",
-  "south carolina": "SC",
-  "south dakota": "SD",
-  tennessee: "TN",
-  texas: "TX",
-  utah: "UT",
-  vermont: "VT",
-  virginia: "VA",
-  washington: "WA",
-  "west virginia": "WV",
-  wisconsin: "WI",
-  wyoming: "WY"
-};
-var US_CODES = new Set(Object.values(US_STATES));
-
-// src/leads/search/sentence.ts
-var US_NAMES = Object.fromEntries(
-  Object.entries(US_STATES).map(([name, code]) => [code, name])
-);
-
 // src/leads/lead-words.ts
 var LEAD_VIEW_SORTS = ["fit", "found", "distance", "business", "rating", "stage"];
 var LEAD_SORTS = [...LEAD_VIEW_SORTS, "pile"];
@@ -1993,38 +1758,6 @@ var reachOutSaidSpec = {
   open: openLead
 };
 
-// src/leads/lead-import.ts
-var LEAD_LIST_MAX = 500;
-var LEAD_IMPORT_MAX_BYTES = 2e6;
-var LEAD_IMPORT_WORDS = {
-  importDoor: "Import leads",
-  importTitle: "Import leads",
-  /**
-   * What a row needs, in one line under the title, and the rest under `importMore` (the fitted sheets, 14 Oct 2026:
-   * five lines on what a file holds opened the sheet).
-   */
-  importLine: "A name and an email on each row.",
-  importMore: "What a row can hold",
-  importRest: "A phone, a website, a city or a state, where you have them. Every address is checked before a sequence may write to it.",
-  file: "Choose a CSV file",
-  paste: "Or paste the rows",
-  pastePlaceholder: "Business,Email,Website,City,State\nZilker Kettlebell Club,hello@example.com,example.com,Austin,TX",
-  read: "Read the rows",
-  nameLabel: "Name this list",
-  askedLabel: "Who are they?",
-  askedHint: "A line about them for the emails, like \u201Cgyms I met at the Austin expo\u201D. Leave it and the name is used.",
-  costs: "Each address that checks out counts as one of this month's leads, as a found lead does.",
-  tooMany: `A list takes at most ${LEAD_LIST_MAX} rows. Split the file and import the rest as another list.`,
-  tooBig: `That file is larger than ${LEAD_IMPORT_MAX_BYTES / 1e6} MB, more than a list of ${LEAD_LIST_MAX} rows needs. Split it and import each part as a list of its own.`,
-  unreadable: "That file could not be read. Save it again as a CSV and choose it once more, or paste its rows.",
-  nothing: "No row has both a business name and an email address, so there is nothing to import.",
-  failed: "The list could not be imported. Nothing was written.",
-  write: "Write to them",
-  writeHint: "The chosen leads become a list of their own, and a sequence opens on it.",
-  writing: "Making the list\u2026",
-  searchAgain: "A list of your own is not searched again. Start a new search to find more businesses."
-};
-
 // src/leads/leads.ts
 var LEAD_FIRST_DAY = {
   title: "Who do you want as customers?",
@@ -2264,157 +1997,6 @@ var reachOutAddSpec = {
 
 // src/people/lists/list-rules.ts
 import * as z from "zod/mini";
-
-// src/people/person-words.ts
-var REPLY_VIA = {
-  whatsapp: "WhatsApp",
-  sms: "Text",
-  email: "Email"
-};
-var PERSON_CHANNEL_WORDS = {
-  whatsapp: "WhatsApp",
-  sms: "Text",
-  voice: "Phone",
-  email: "Email"
-};
-var PERSON_CAME_FROM_WORDS = {
-  whatsapp: REPLY_VIA.whatsapp,
-  sms: REPLY_VIA.sms,
-  email: REPLY_VIA.email,
-  call: PERSON_CHANNEL_WORDS.voice,
-  calendar: "Your calendar",
-  manual: "Added by hand",
-  import: "Imported",
-  lead: "A lead you found",
-  ad: "An ad"
-};
-
-// src/conversations/escalations.ts
-var ESCALATION_REASON_LABELS = {
-  human_token: "Customer asked for a person",
-  refusal: "Assistant declined to answer",
-  brain_error: "The receptionist hit an error \u2014 a holding message went out",
-  non_text: "Sent a voice note / photo",
-  send_failed: "Reply failed to deliver",
-  policy_block: "Held by your reply setting \u2014 nothing was sent",
-  policy_ask: "Set to Ask me first \u2014 a person answers this one",
-  person_hold: "You handle this person \u2014 the receptionist stays out",
-  rate_cap: "Too many replies too fast \u2014 the receptionist paused itself",
-  deadman: "Nobody picked this up \u2014 flagged after silence",
-  manual: "Flagged manually",
-  opt_out: STOP_WORDS.said(),
-  state_unavailable: "The receptionist could not read this thread \u2014 needs a human",
-  stale: "Arrived hours late \u2014 too old to answer automatically",
-  budget: "The day's model budget is used up \u2014 the receptionist paused itself",
-  callback: "Needs a call back \u2014 the phone receptionist could not finish it",
-  paused: "Held \u2014 the workspace is paused until billing resumes",
-  carriers: "Held \u2014 the carriers have not approved this line for texting yet",
-  email_review: "Wrote by email \u2014 a person answers",
-  booking_request: "Asked to book a time \u2014 confirm it or say you can't",
-  booking_reply: "Asked to book a time \u2014 reply to them"
-};
-var ESCALATION_REASON_SHORT = {
-  human_token: "asked for a person",
-  refusal: "the receptionist declined to answer",
-  brain_error: "the receptionist hit an error",
-  non_text: "sent a voice note or photo",
-  send_failed: "reply failed to deliver",
-  policy_block: "held by your reply setting",
-  policy_ask: "set to Ask me first",
-  person_hold: "you handle this person",
-  rate_cap: "too many replies too fast",
-  deadman: "nobody picked this up",
-  manual: "flagged by hand",
-  opt_out: STOP_WORDS.short,
-  state_unavailable: "the receptionist could not read this thread",
-  stale: "arrived hours late",
-  budget: "the day's model budget is used up",
-  callback: "needs a call back",
-  paused: "the workspace is paused until billing resumes",
-  carriers: "the carriers have not approved this line",
-  email_review: "wrote by email",
-  booking_request: "asked to book a time",
-  booking_reply: "asked to book a time"
-};
-var ESCALATION_REASON_WHY = {
-  human_token: "because a customer asked for a person",
-  refusal: "because it declined to answer",
-  brain_error: "because it hit an error",
-  non_text: "for something it can't read",
-  send_failed: "because a reply failed to send",
-  policy_block: "because your reply setting held it",
-  policy_ask: "for a booking or a question set to Ask me first",
-  person_hold: "because you handle this person",
-  rate_cap: "because the reply limit was reached",
-  deadman: "because no answer came in time",
-  manual: "because it was flagged by hand",
-  opt_out: `because they ${STOP_WORDS.short}`,
-  state_unavailable: "because it could not read the thread",
-  stale: "because a message arrived too late to answer",
-  budget: "because the day's model budget ran out",
-  callback: "because they need a call back",
-  paused: "because the workspace is paused",
-  carriers: "while waiting on carriers",
-  email_review: "because they wrote by email",
-  booking_request: "because they asked to book a time",
-  booking_reply: "because they asked to book a time"
-};
-var ESCALATION_SUMMARIES = {
-  human_token: "They asked for a person. A holding message went out \u2014 they're waiting on you.",
-  refusal: "The receptionist wouldn't answer this one. A holding message went out.",
-  brain_error: "The receptionist errored and sent a holding message. They're waiting on a real answer.",
-  non_text: "They sent a voice note or photo the receptionist can't read. Open it and reply yourself.",
-  send_failed: "The reply never reached them \u2014 as far as the customer knows, nobody answered.",
-  policy_block: "Your reply setting holds every message for a person. Nothing was sent \u2014 answer them yourself.",
-  policy_ask: "Your Autonomy setting hands bookings or service questions to a person. The receptionist told them someone will follow up \u2014 that someone is you.",
-  person_hold: "You set the receptionist to stay out of this person's thread. Nothing was sent \u2014 answer them yourself.",
-  rate_cap: "The receptionist hit its daily reply limit and stopped. NOTHING was sent \u2014 they're waiting in silence.",
-  deadman: "This sat unanswered long enough to flag. Nobody has replied.",
-  manual: "Flagged by hand for a human.",
-  opt_out: `${STOP_WORDS.said("They")}. Nothing was sent, and nothing may be.`,
-  state_unavailable: "The receptionist couldn't read this thread, so it stayed quiet. No reply went out.",
-  stale: "This reached us hours after they sent it, too late to answer automatically. NOTHING was sent \u2014 they have been waiting since.",
-  budget: "The day's model budget is used up, so the receptionist paused itself. NOTHING was sent \u2014 answer them yourself, or raise the budget under Settings \u203A Autonomy.",
-  callback: "They phoned and the receptionist couldn't finish it.",
-  paused: "The workspace is paused because billing stopped, so the receptionist did not answer. Resume from Settings \u203A Billing, or answer this one yourself.",
-  carriers: "This text arrived before the carriers approved your line for texting, so the receptionist did not answer. Answer it yourself, or wait for the approval on Setup.",
-  email_review: "They wrote by email. The receptionist does not answer email yet, so nothing was sent. Read it and reply from here.",
-  booking_request: "They picked a time the calendar shows open, and the receptionist told them the team will confirm it. That's you: Booked it, or Can't and reply.",
-  booking_reply: "They asked to book a time, and the receptionist told them the team will confirm. Reply with a time that works."
-};
-var ESCALATION_ACTS = {
-  human_token: "reply",
-  refusal: "reply",
-  brain_error: "reply",
-  non_text: "reply",
-  send_failed: "reply",
-  policy_block: "reply",
-  policy_ask: "reply",
-  person_hold: "reply",
-  rate_cap: "reply",
-  deadman: "reply",
-  manual: "reply",
-  opt_out: "hand_back",
-  state_unavailable: "reply",
-  stale: "reply",
-  budget: "reply",
-  callback: "call_back",
-  paused: "reply",
-  carriers: "reply",
-  email_review: "reply",
-  booking_request: "confirm",
-  booking_reply: "reply"
-};
-function holdActOf(reason) {
-  return ESCALATION_ACTS[reason ?? ""] ?? "reply";
-}
-var HAND_BACK_REASONS = Object.keys(ESCALATION_ACTS).filter((r2) => ESCALATION_ACTS[r2] === "hand_back");
-var WAITING_REASONS = Object.keys(ESCALATION_ACTS).filter(
-  (r2) => waitsOnAPerson(r2)
-);
-function waitsOnAPerson(reason) {
-  return holdActOf(reason) !== "hand_back";
-}
 
 // src/conversations/standing.ts
 var HELD_WORDS = {
@@ -3024,280 +2606,6 @@ var listDeleteSpec = {
   open: () => "clients"
 };
 
-// src/ads/address.ts
-var ADS_ROUTE = "campaigns/ads";
-function adsScopeKey(scope) {
-  if (scope.kind === "all") return "all";
-  return scope.kind === "platform" ? `platform:${scope.platform}` : `ad:${scope.id}`;
-}
-
-// src/config/workspace-config/policy-classes.ts
-var POLICY_CLASS_WORDS = {
-  reply: { name: "Replies to customers", short: "Replies", note: "every text the receptionist sends" },
-  faq: {
-    name: "Service & pricing questions",
-    short: "Questions",
-    note: "auto answers from your business profile \xB7 ask hands every service or pricing question to you, on WhatsApp and on the phone"
-  },
-  booking: {
-    name: "Book \xB7 reschedule",
-    short: "Bookings",
-    note: "auto sends your booking link \xB7 ask has a person confirm instead, on WhatsApp and on the phone"
-  },
-  reengage: {
-    name: "Re-engage quiet customers",
-    short: "Re-engage",
-    note: `the win-back and save-our-number campaigns \xB7 auto sends each run, veto sends it ${PLAYBOOK_VETO_DELAY_WORDS} later unless you stop it, ask leaves it waiting on Today, never runs nothing`
-  },
-  campaign: {
-    name: "Standing offers",
-    short: "Offers",
-    note: `the welcome and month's-offer campaigns \xB7 auto sends each run, veto sends it ${PLAYBOOK_VETO_DELAY_WORDS} later unless you stop it, ask leaves it waiting on Today, never runs nothing`
-  },
-  reviews: {
-    name: "Google reviews",
-    short: "Reviews",
-    note: "replies under new reviews on Google, through the connected Business Profile \xB7 auto answers each within the hour, ask drafts one for you to send, never leaves them all to you"
-  },
-  money: { name: "Refunds \xB7 rates \xB7 negotiation", short: "Money", note: "always goes to you" },
-  // 0006: one nudge per proposal, with its link, once it has waited past the workspace's pace with nothing back.
-  follow_up: {
-    name: "Proposal follow-ups",
-    short: "Follow-ups",
-    note: "the proposal follow-up campaign \xB7 one nudge per proposal, with its link, once it has waited with nothing back \xB7 auto sends each run, ask leaves it waiting on Today, never runs nothing"
-  },
-  // Reach out (Part 3): cold email to the businesses a search found. A chain's first run always waits for its owner.
-  outreach: {
-    name: "Cold email to businesses a search found",
-    short: "Reach-outs",
-    note: `every email a reach-out sends \xB7 its first run always waits for you; later runs send ${PLAYBOOK_VETO_DELAY_WORDS} after they are made unless you stop them \xB7 never sends none`
-  }
-};
-var POLICY_COVERS = {
-  booking: "someone wants to book, reschedule or cancel",
-  faq: "Service and pricing questions",
-  money: "a refund, a discount, a deposit, a payment plan or any change to what someone pays"
-};
-
-// src/config/brain.ts
-var BRAIN_INTENTS = [
-  "booking",
-  "pricing",
-  // A refund, a discount, a deposit, a payment plan, any negotiation of what someone pays: the Autonomy pane's locked
-  // money row (never), so a person answers whatever the words say (policy-classes.ts policyClassOfIntent; defect 5).
-  "money",
-  "hours",
-  "services",
-  "location",
-  "complaint",
-  "smalltalk",
-  "other"
-];
-var BRAIN_LANGUAGES = ["en", "es", "other"];
-var BRAIN_OUTPUT_JSON_SCHEMA = {
-  type: "object",
-  properties: {
-    reply: {
-      type: "string",
-      description: "Exactly what the customer receives, in their language, in the receptionist's voice. Nothing else goes here."
-    },
-    intent: {
-      type: "string",
-      enum: [...BRAIN_INTENTS],
-      description: `What the customer is after. money: ${POLICY_COVERS.money}.`
-    },
-    escalate: {
-      type: "boolean",
-      description: "True when a person should take over now: they asked for one, you cannot help, or a rule you were given says so."
-    },
-    reason: {
-      type: "string",
-      description: "One short sentence: why a person is needed, or why this answer might be wrong. Empty when neither applies."
-    },
-    confidence: {
-      type: "number",
-      description: "How sure you are that this reply is right and complete for this customer, from 0 to 1."
-    },
-    facts_used: {
-      type: "array",
-      items: { type: "string" },
-      description: "The business facts this reply relied on, each in a few words (an hour, a service, a note). Empty when none."
-    },
-    language: {
-      type: "string",
-      enum: [...BRAIN_LANGUAGES],
-      description: "The language the reply is written in."
-    }
-  },
-  required: ["reply", "intent", "escalate", "reason", "confidence", "facts_used", "language"],
-  additionalProperties: false
-};
-
-// src/conversations/message-author.ts
-var EMAIL_CLAIMS = [
-  { claim: "report", personsWords: false },
-  { claim: "booking_notice", personsWords: false },
-  { claim: "forwarding_confirmation", personsWords: false },
-  { claim: "auto_reply", personsWords: false },
-  { claim: "automated", personsWords: false },
-  { claim: "person", personsWords: true }
-];
-var NOT_A_PERSONS_CLAIMS = EMAIL_CLAIMS.filter((c) => !c.personsWords).map((c) => c.claim);
-
-// src/reports/reports.ts
-var REPORT_RANGES = [
-  { days: 7, id: "7d", label: "7 days" },
-  { days: 30, id: "30d", label: "30 days" },
-  { days: 90, id: "90d", label: "90 days" },
-  { days: null, id: "month", label: "Month" }
-];
-
-// src/reports/report-periods.ts
-var REPORT_PERIOD_IDS = REPORT_RANGES.map((r2) => r2.id);
-var MOST_DAYS = Math.max(...REPORT_RANGES.map((r2) => r2.days ?? 0));
-var reportRangeKey = (range) => typeof range === "string" ? range : `${range.from}~${range.to}`;
-
-// src/reports/lenses.ts
-var NOTHING_CAME_IN = (r2) => ({
-  title: "Nothing came in",
-  body: `Nobody wrote or called between ${r2.since} and ${r2.until}.`,
-  door: null
-});
-var REPORT_LENSES = [
-  {
-    id: "overview",
-    label: "Overview",
-    sub: "how the period went, and what needs a look",
-    shownWhen: "always",
-    role: "viewer",
-    empty: NOTHING_CAME_IN
-  },
-  {
-    id: "receptionist",
-    label: "Receptionist",
-    sub: "who answered, how fast, and why it stopped",
-    shownWhen: "always",
-    role: "viewer",
-    empty: NOTHING_CAME_IN
-  },
-  {
-    id: "people",
-    label: "People",
-    sub: "who reached you, whether you can reach them, and who is slipping away",
-    shownWhen: "always",
-    role: "viewer",
-    empty: NOTHING_CAME_IN
-  },
-  {
-    id: "pipeline",
-    label: "Pipeline",
-    sub: "proposals, and what became of them",
-    shownWhen: "deals_on",
-    role: "viewer",
-    empty: () => ({
-      title: "No proposals to report",
-      body: "Proposals you send, and what became of them, show here. Where your customers book directly, there is nothing to report.",
-      door: { label: "Open Settings", to: "admin/workspace" }
-    })
-  },
-  {
-    id: "campaigns",
-    label: "Campaigns",
-    sub: "did your messages reach people, did they answer, and what is stuck",
-    shownWhen: "always",
-    role: "viewer",
-    empty: (r2) => ({
-      title: "Nothing went out",
-      body: `No broadcast or campaign run reached anyone between ${r2.since} and ${r2.until}, and nobody said yes or asked to stop.`,
-      door: { label: "Open Sequences", to: "campaigns/sequences" }
-    })
-  },
-  {
-    id: "ads",
-    label: "Ads",
-    sub: "what your ads cost, who they brought, and who booked",
-    shownWhen: "ads_on",
-    role: "viewer",
-    empty: (r2) => ({
-      title: "No ads in this period",
-      body: `Nothing was spent on ads, and nobody got in touch through one, between ${r2.since} and ${r2.until}.`,
-      door: { label: "Open Ads", to: ADS_ROUTE }
-    })
-  },
-  {
-    id: "reviews",
-    label: "Reviews",
-    sub: "what customers say on Google",
-    shownWhen: "always",
-    role: "viewer",
-    empty: () => ({
-      title: "Find your business on Google once.",
-      body: "Its rating, its count and its newest reviews show here for the period, with a line on Today and a row on the bell when one lands.",
-      door: { label: "Find it", to: "start/find" }
-    })
-  }
-];
-var lensRoute = (id, days = null, scope = null) => {
-  const narrowed = id === "ads" && scope !== null && scope.kind !== "all" ? adsScopeKey(scope) : null;
-  if (days === null && narrowed === null) return id === "overview" ? "reports" : `reports/${id}`;
-  const rest = [days === null ? null : reportRangeKey(days), narrowed].filter((w) => w !== null).join(":");
-  return id === "overview" ? `reports/${rest}` : `reports/${id}:${rest}`;
-};
-var LENS_ROUTES = REPORT_LENSES.map((l) => lensRoute(l.id));
-
-// src/people/person-helpers.ts
-var MONTH_MS = 30 * DAY_MS;
-
-// src/people/person-state.ts
-var PERSON_STATE_LABELS = {
-  needs_you: NEEDS_YOU_WORD,
-  waiting_on_you: HELD_WORDS.yours.pill,
-  opted_out: STOP_WORDS.pill,
-  new: "New",
-  quiet: "Quiet",
-  active: "Active",
-  unheard: "Not heard from"
-};
-var PEOPLE_TABS = [
-  { id: "all", label: "All" },
-  { id: "needs_you", label: PERSON_STATE_LABELS.needs_you },
-  { id: "waiting_on_you", label: PERSON_STATE_LABELS.waiting_on_you },
-  { id: "new", label: "New" },
-  { id: "quiet", label: "Quiet" },
-  { id: "active", label: "Active" }
-];
-
-// src/people/person-receptionist.ts
-var PERSON_MODE_LABELS = { auto: "Answer", ask: "Ask me first", never: "Never" };
-var PERSON_MODE_WORDS = {
-  ...PERSON_MODE_LABELS,
-  inherit: "Follow the workspace"
-};
-var HELD_THREAD = {
-  yours: {
-    tone: "yours",
-    label: HELD_WORDS.yours.pill,
-    title: HELD_WORDS.yours.pill,
-    detail: HELD_WORDS.yours.sentence
-  },
-  theirs: {
-    tone: "theirs",
-    label: HELD_WORDS.theirs.pill,
-    title: HELD_WORDS.theirs.pill,
-    detail: HELD_WORDS.theirs.sentence
-  },
-  someone: {
-    tone: "paused",
-    label: "Paused, a person owns the thread",
-    title: "Paused, a person owns this thread",
-    detail: "A person owns this thread; automatic replies resume when it is handed back."
-  }
-};
-var SILENT_STOP = {
-  label: `Silent, ${STOP_WORDS.pill.toLowerCase()}`,
-  detail: `${STOP_WORDS.said("They")} \u2014 nothing goes out to them until they ask again.`
-};
-
 // src/ask-proposals/people-verbs.ts
 var fieldsOf = (pl, keys) => Object.fromEntries(keys.filter((k) => pl[k] !== void 0).map((k) => [k, pl[k]]));
 var personRoute = ({ payload }) => {
@@ -3333,22 +2641,6 @@ var personMessageSpec = {
   },
   made: (_p, data) => threadMade(data),
   open: (p, outcome) => outcome?.made?.id ? `inbox/th-${outcome.made.id}` : personRoute(p)
-};
-
-// src/notes/person-notes.ts
-var NOTE_MAX = 600;
-var NOTE_REFUSALS = {
-  empty: "Write something first.",
-  too_long: `A note is at most ${NOTE_MAX} characters.`,
-  not_found: "This person or this note is no longer here.",
-  not_a_member: "That person is not on the team.",
-  not_yours: "Only the person who wrote this note can change it.",
-  moved: "Someone changed this note since you opened it. Read it again, then save.",
-  decided: "Someone already decided on this suggestion.",
-  bad_source: "Could not save this note.",
-  bad_deal: "That deal is not this person's.",
-  not_a_step: "Only a note with a day can be done.",
-  not_for_you: "This note is for someone else."
 };
 
 // src/ask-proposals/person.ts
