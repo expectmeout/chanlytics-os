@@ -37,6 +37,7 @@ export type {
   AskRole,
   AskThreadVerb,
   AskProposal,
+  AskCardSheet,
   AskPlanStamp,
   AskProposalOutcome,
   AskMessageVM,

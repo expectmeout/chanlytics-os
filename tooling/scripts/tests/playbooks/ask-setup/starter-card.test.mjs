@@ -263,6 +263,22 @@ test("a moment whose starter is not on file: a card that names the starter, says
   assert.deepEqual(body.channels, ["whatsapp", "email"], "the channels the card said");
   assert.equal(PROPOSAL_SPECS.playbook.open(p, null), "campaigns/new:moment:quiet_30", "Open in the composer");
   assert.deepEqual([rows.templates, rows.playbooks], [[], []], "nothing is filed at the card");
+  // The card as a sheet (the answer canvas, C1): the summary's own pieces, a row a fact in the order an owner checks
+  // them, and the wait read first, apart. One derivation: every row's words are the summary's.
+  assert.deepEqual(
+    p.sheet.rows.map((r) => r.label),
+    ["Where", "Runs", "Goes", "Reaches", "Sends", "Message"],
+  );
+  // The summary as the sheet says its pieces: each separator a comma, case aside (a row starts with a capital).
+  const flat = p.summary.replaceAll(" · ", ", ").toLowerCase();
+  for (const { label, value } of p.sheet.rows) assert.ok(flat.includes(value.toLowerCase()), `${label}: ${value}`);
+  assert.equal(p.sheet.rows.find((r) => r.label === "Goes").value, "On WhatsApp and by email");
+  assert.equal(p.sheet.rows.find((r) => r.label === "Message").value, `Adds the “${STARTER.title}” starter first`);
+  assert.ok(p.sheet.holds.includes(LIBRARY_STARTER_WORDS.whatsappForReview), JSON.stringify(p.sheet.holds));
+  assert.ok(
+    p.sheet.rows.every((r) => !r.value.includes(" · ") && !/^[·\s]/.test(r.value)),
+    JSON.stringify(p.sheet.rows),
+  );
 });
 
 test("a starter card is refused for what its Approve would be refused for, in the same words, and nothing is filed: a number out of bounds, a moment this workspace is not offered, WhatsApp alone before WhatsApp approves the version", async () => {

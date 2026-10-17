@@ -56,6 +56,7 @@ import {
   type ToolContext,
 } from "../context";
 import { cardSays, stepSays } from "./says";
+import { holdsOf, sheetWords } from "./playbook-card";
 
 /** The values a proposal fills the message's slots with: typed text once, or one the job fills per person; or the refusal. */
 function proposedValues(params: unknown): { specs: ParamSpec[] } | { refusal: string } {
@@ -357,10 +358,20 @@ async function proposeBroadcast(t: ToolContext, input: BroadcastProposed): Promi
   const whenWords = goesWords(t, when, open);
   const held = await broadcastHeld(t, by.channels, byChannel, purpose, open.at);
   const what = asked ? `“${asked.message.name}” · ${whenWords}: ${said.says}` : `${said.says} · ${whenWords}`;
+  const reaches = `${count} ${count === 1 ? "person" : "people"} who said yes${says}`;
   return propose({
     kind: "broadcast",
     title: `Broadcast to ${label}`,
-    summary: `${count} ${count === 1 ? "person" : "people"} who said yes${says}${held}${leftOutSaid} · ${what}`,
+    summary: `${reaches}${held}${leftOutSaid} · ${what}`,
+    // The same pieces as a sheet (playbook-card.ts): who it reaches, when it goes, what it says; what holds it apart.
+    sheet: {
+      holds: holdsOf(held, leftOutSaid),
+      rows: [
+        { label: "Reaches", value: sheetWords(reaches) },
+        { label: "Goes", value: sheetWords(whenWords) },
+        { label: "Message", value: sheetWords(asked ? `“${asked.message.name}”: ${said.says}` : said.says) },
+      ],
+    },
     payload: {
       template_id: asked ? asked.message.anchor.id : templateId,
       template_name: asked ? asked.message.name : null,

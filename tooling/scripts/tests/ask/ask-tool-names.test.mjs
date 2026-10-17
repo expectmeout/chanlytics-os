@@ -553,10 +553,14 @@ async function answer(name, input, role = "owner", rpcs = RPCS) {
   let out;
   if (ACT_TOOL_NAMES.has(name)) {
     const p = await buildProposal(t, name, input);
+    // 17 Oct 2026 (the answer canvas, C1): a campaign's card and a one-off send's carry their sheet beside the bytes
+    // these hold, made of the summary's own pieces (starter-card.test.mjs holds the two to one derivation), so the card
+    // is compared without it.
+    const { sheet: _sheet, ...card } = p.proposal ?? {};
     out = {
       result: withoutId(p.result),
       isError: p.isError,
-      proposal: p.proposal ? withoutId(JSON.stringify(p.proposal)) : null,
+      proposal: p.proposal ? withoutId(JSON.stringify(card)) : null,
     };
   } else {
     const r = await runTool(t, { name, input });
