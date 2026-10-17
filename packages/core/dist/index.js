@@ -39443,6 +39443,22 @@ async function confirmedYes(at, bodyText) {
   }
   return GO;
 }
+async function heldWhileTheirs(at, bodyText) {
+  const { sink, tell } = at;
+  const asked2 = sink.escalate(
+    "wrote_while_held",
+    "They wrote again while your team had this thread, so the receptionist stayed out. Answer them, or hand the thread back."
+  );
+  await Promise.all([
+    asked2,
+    tell(asked2, {
+      said: bodyText,
+      answered: "(no reply sent \u2014 a person on your team has this thread)",
+      why: "wrote while held"
+    }),
+    processedAfter(sink, asked2, "none")
+  ]);
+}
 async function heldForThePerson(at, bodyText) {
   const {
     thread,
@@ -39470,19 +39486,7 @@ async function heldForThePerson(at, bodyText) {
   });
   if (held === "human_has_it") {
     L.info("wa_skip_paused", { paused_until: thread.pausedUntil });
-    const asked2 = sink.escalate(
-      "wrote_while_held",
-      "They wrote again while your team had this thread, so the receptionist stayed out. Answer them, or hand the thread back."
-    );
-    await Promise.all([
-      asked2,
-      tell(asked2, {
-        said: bodyText,
-        answered: "(no reply sent \u2014 a person on your team has this thread)",
-        why: "wrote while held"
-      }),
-      processedAfter(sink, asked2, "none")
-    ]);
+    await heldWhileTheirs(at, bodyText);
     return;
   }
   if (held === "daily_cap") {

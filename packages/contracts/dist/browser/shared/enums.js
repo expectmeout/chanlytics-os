@@ -434,12 +434,7 @@ export const ESCALATION_REASONS = [
    * confirm, so a reply is owed.
    */
   "booking_reply",
-  /**
-   * The customer wrote while a person had the thread (a reply or a take-over claims it, and the receptionist stays out for
-   * the workspace's pause): their message was set aside with nobody told, and when the pause ran out the thread went back
-   * to the receptionist with it unanswered (the closed-loop audit of 17 Oct 2026, B). Now it is held for that person,
-   * the deadman watches it, and the pause cannot lapse past it (00454).
-   */
+  /** The customer wrote while a person had the thread: held for them, never in another hold's place (00454). */
   "wrote_while_held"
 ];
 export const ESCALATION_STATES = ["open", "resolved"];
