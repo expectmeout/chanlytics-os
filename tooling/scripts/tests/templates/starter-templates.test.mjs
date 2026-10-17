@@ -451,7 +451,7 @@ test("the door: idempotent, one language at a time, synced in when the number's 
   assert.equal(Object.hasOwn(refreshMap, "HOOKS"), false, "no window hook is called behind a write any more");
 });
 
-test("the pages: titles not names, the starter set in Settings, one click on Broadcasts, the trigger's starter picked for a playbook, the message as the customer sees it", () => {
+test("the pages: titles not names, the starter set in Settings, one click on Broadcasts, the message as the customer sees it", () => {
   // The Templates page is a folder of modules (moved from messages.jsx, decision 0015): its source is read as one.
   const s = ["page-parts", "message-row-parts", "message-row", "group", "words"]
     .map((f) =>
@@ -505,19 +505,6 @@ test("the pages: titles not names, the starter set in Settings, one click on Bro
   );
   assert.ok(b.includes("<PreviewStepper"), "and it walks the real people the count is a length of, not an example");
   assert.ok(!b.includes('<span className="bc-row-label">Template</span>'), "the row label fits");
-  // The composer (moved from playbook-composer.jsx, decision 0015): its sections and its model, read as one.
-  const p = ["composer-sections.tsx", "composer-model.ts"]
-    .map((f) => readCode(`apps/dashboard/src/surfaces/campaigns/playbooks/${f}`))
-    .join(" ");
-  // The moment's own message, not added yet, reads in the preview, and Turn on adds it first (Ruben, 11 Oct 2026).
-  assert.ok(p.includes('data-testid="pb-starter"') && p.includes("export function starterToAdd("));
-  assert.ok(
-    p.includes("starters.forTrigger(f.trigger)") &&
-      p.includes("const tpl = f.picked ? usable.find((t) => t.id === f.tplId) || null : rowIn(starterGroup, null);"),
-    "the trigger's starter is picked for you",
-  );
-  // The composer's choices are the kit's Picker now (the playbooks' move onto the kit), not Campaigns' own CmPicker.
-  assert.ok(p.includes("<Picker") && p.includes("<MessagePreview"));
   // The Templates composer (moved from templates-real.jsx): its form and its module, read as one.
   const t = ["composer-forms.tsx", "composer.tsx"]
     .map((f) => readCode(`apps/dashboard/src/surfaces/campaigns/templates/${f}`))

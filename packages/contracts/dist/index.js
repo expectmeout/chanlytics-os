@@ -16992,12 +16992,6 @@ var NO_TEMPLATE_WORDS = {
   lead: "No message to send yet \u2014 add the starter set, or write one in",
   link: library
 };
-function noMessageWords(forThisMoment) {
-  return {
-    lead: `No message ${forThisMoment ? "for this moment " : ""}yet \u2014 write one in`,
-    link: library
-  };
-}
 var LIBRARY_WORDS = {
   title: library,
   demo: `${library} reads a real workspace \u2014 the messages it holds, by email, text and WhatsApp.`,
@@ -17992,6 +17986,50 @@ var PLAYBOOK_PATCH_WORDS = {
    */
   putBody: `Send a change (any of ${keysSaid("and")}), the channels alone as a list (channels: whatsapp, sms or email), or the whole campaign with its trigger and template_id.`
 };
+
+// src/sequences/sequence-address.ts
+var SEQUENCES_ROUTE = "campaigns/sequences";
+var SEQUENCE_TABS = ["steps", "people", "history"];
+var isSequencesParam = (param) => param === "sequences";
+var isTab = (word) => SEQUENCE_TABS.some((t) => t === word);
+function parseSequencesRoute(route) {
+  const [path = ""] = route.split("?");
+  const [root, view, id, tab, day] = path.split("/");
+  if (root !== "campaigns" || view !== "sequences") return null;
+  if (!id) return { view: "list" };
+  if (id === "new" || id.startsWith("new:")) {
+    const [, kind, moment2] = id.split(":");
+    return kind === "moment" && moment2 ? { view: "new", moment: moment2 } : { view: "new" };
+  }
+  const on = isTab(tab) ? tab : "steps";
+  return { view: "record", id, tab: on, ...on === "history" && day ? { day } : {} };
+}
+var sequenceRoute = (id, tab = "steps", day) => tab === "steps" ? `${SEQUENCES_ROUTE}/${id}` : `${SEQUENCES_ROUTE}/${id}/${tab}${tab === "history" && day ? `/${day}` : ""}`;
+var newSequenceRoute = (moment2) => moment2 ? `${SEQUENCES_ROUTE}/new:moment:${moment2}` : `${SEQUENCES_ROUTE}/new`;
+var runSheetRoute = (id) => `broadcasts/run:${id}/sheet`;
+function sequenceLandingOf(route) {
+  const [path = ""] = route.split("?");
+  const [root, param = "", rest] = path.split("/");
+  if (root === "campaigns") {
+    if (param === "" || param.startsWith("in:")) return SEQUENCES_ROUTE;
+    const moment2 = /^moment:([^:/]+)(:people)?$/.exec(param);
+    if (moment2?.[1]) return sequenceRoute(moment2[1], moment2[2] ? "people" : "steps");
+    if (param === "new:every") return newSequenceRoute();
+    const on = /^new:moment:([^:/]+)$/.exec(param);
+    if (on?.[1]) return newSequenceRoute(on[1]);
+    const edit = /^new:edit:([^:/]+)$/.exec(param);
+    if (edit?.[1]) return sequenceRoute(edit[1]);
+  }
+  if (root === "broadcasts" && param === "") return SEQUENCES_ROUTE;
+  const run = root === "broadcasts" && rest === void 0 ? /^run:([^:/]+)$/.exec(param) : null;
+  if (run?.[1]) return sequenceRoute(run[1], "history", run[1]);
+  return null;
+}
+var sequenceRepliesRoute = (id, period = "30") => `inbox/from:${id}${period === "30" ? "" : `:${period}`}`;
+function sequenceRepliesOf(param) {
+  const m = param ? /^from:([0-9a-f-]{36})(?::(30|90|all))?$/i.exec(param) : null;
+  return m?.[1] ? { id: m[1].toLowerCase(), period: m[2] === "90" || m[2] === "all" ? m[2] : "30" } : null;
+}
 
 // src/shared/enums.ts
 var TENANT_STATUSES = ["active", "paused", "test"];
@@ -19552,14 +19590,15 @@ var playbookSpec = {
     call: (u) => ({ route: "DELETE playbooks/[id]", params: { id: asText(u.playbook_id) } }),
     receipt: () => "Deleted \u2014 nothing will run"
   },
-  // The new campaign's drawer on Campaigns' home once it is made (spec 2026-10-09 §4.6, one landing rule), by the id its
-  // commit kept for the undo, as the list card opens the list it made; before then the composer on its moment, where the
-  // whole of it can be set by hand ("Open in the composer"), and the home where the card names no moment.
+  // The new campaign's sequence once it is made (spec 2026-10-09 §4.6, one landing rule: `campaigns/moment:<id>` lands on
+  // it), by the id its commit kept for the undo, as the list card opens the list it made; before then New sequence on its
+  // moment, its line written in, and Sequences where the card names no moment (the composer's moment mode went: the
+  // closed-loop audit of 17 Oct 2026, G).
   open: ({ payload }, outcome) => {
     const id = idIn(rec(outcome?.undo), "playbook_id");
     if (id) return `campaigns/moment:${id}`;
     const trigger = idIn(payload, "trigger");
-    return trigger ? `campaigns/new:moment:${trigger}` : "outbound";
+    return trigger ? newSequenceRoute(trigger) : "outbound";
   }
 };
 var channelsIn = (v) => Array.isArray(v) ? CONSENT_CHANNELS.filter((c) => v.includes(c)) : [];
@@ -22488,41 +22527,6 @@ function heldNoticeWords(p) {
     subject: `The check held ${plural(p.held, "email", "emails")} in ${p.name}`,
     body: `${p.held === 1 ? "It waits" : "They wait"} for your say on its run${say2 ? `: ${say2}` : ""}. The rest of the run goes as planned.`
   };
-}
-
-// src/sequences/sequence-address.ts
-var SEQUENCES_ROUTE = "campaigns/sequences";
-var SEQUENCE_TABS = ["steps", "people", "history"];
-var isSequencesParam = (param) => param === "sequences";
-var isTab = (word) => SEQUENCE_TABS.some((t) => t === word);
-function parseSequencesRoute(route) {
-  const [path = ""] = route.split("?");
-  const [root, view, id, tab, day] = path.split("/");
-  if (root !== "campaigns" || view !== "sequences") return null;
-  if (!id) return { view: "list" };
-  if (id === "new") return { view: "new" };
-  const on = isTab(tab) ? tab : "steps";
-  return { view: "record", id, tab: on, ...on === "history" && day ? { day } : {} };
-}
-var sequenceRoute = (id, tab = "steps", day) => tab === "steps" ? `${SEQUENCES_ROUTE}/${id}` : `${SEQUENCES_ROUTE}/${id}/${tab}${tab === "history" && day ? `/${day}` : ""}`;
-var runSheetRoute = (id) => `broadcasts/run:${id}/sheet`;
-function sequenceLandingOf(route) {
-  const [path = ""] = route.split("?");
-  const [root, param = "", rest] = path.split("/");
-  if (root === "campaigns") {
-    if (param === "" || param.startsWith("in:")) return SEQUENCES_ROUTE;
-    const moment2 = /^moment:([^:/]+)(:people)?$/.exec(param);
-    if (moment2?.[1]) return sequenceRoute(moment2[1], moment2[2] ? "people" : "steps");
-  }
-  if (root === "broadcasts" && param === "") return SEQUENCES_ROUTE;
-  const run = root === "broadcasts" && rest === void 0 ? /^run:([^:/]+)$/.exec(param) : null;
-  if (run?.[1]) return sequenceRoute(run[1], "history", run[1]);
-  return null;
-}
-var sequenceRepliesRoute = (id, period = "30") => `inbox/from:${id}${period === "30" ? "" : `:${period}`}`;
-function sequenceRepliesOf(param) {
-  const m = param ? /^from:([0-9a-f-]{36})(?::(30|90|all))?$/i.exec(param) : null;
-  return m?.[1] ? { id: m[1].toLowerCase(), period: m[2] === "90" || m[2] === "all" ? m[2] : "30" } : null;
 }
 
 // src/shared/html.ts
@@ -47133,8 +47137,33 @@ var SEQUENCE_NEW_WORDS = {
   whichList: "Which list",
   noLists: "No list to start on yet. Make one in People.",
   openComposer: { date: "Write it", leads: "Pick the leads" },
-  failed: "Ask couldn\u2019t draft it just now. Try again in a moment."
+  failed: "Ask couldn\u2019t draft it just now. Try again in a moment.",
+  /** A door's moment that a sequence already starts on: by its name, with the door to it. */
+  already: (name) => `\u201C${name}\u201D already starts on this moment`,
+  open: "Open it"
 };
+function newSequenceLine(trigger, word) {
+  const a = appointmentWords(word);
+  switch (trigger) {
+    case "visit_tomorrow":
+      return `Remind each customer the day before their ${a.one}`;
+    case "visited":
+      return `Thank each customer the day after their ${a.one}, and ask how it went`;
+    case "quiet_30":
+    case "lapsed":
+      return "Invite back anyone who hasn\u2019t been in for a while";
+    case "new_week":
+      return "Welcome each new customer in their first week";
+    case "phoned_only":
+      return "Ask anyone who only phoned to save our number";
+    case "everyone_monthly":
+      return "Send everyone this month\u2019s offer";
+    case "proposal_waiting":
+      return "Follow up on a proposal they haven\u2019t answered";
+    default:
+      return null;
+  }
+}
 
 // src/sequences/sequence-draft-schema.ts
 import { z as z25 } from "zod";
@@ -51837,7 +51866,9 @@ var CARD_SKIP = { put: "Skip", said: "Put off. It stays in Setting up for when y
 var CARD_REMIND = {
   words: "Your calendar is in. Remind each customer the day before?",
   label: "Turn on",
-  to: "campaigns/new:moment:visit_tomorrow"
+  // New sequence on the day-before moment, its line written in (sequence-address.ts newSequenceRoute): the composer's
+  // Turn on went with its moment mode (the closed-loop audit of 17 Oct 2026, G).
+  to: "campaigns/sequences/new:moment:visit_tomorrow"
 };
 function setupCardOf(vm) {
   const fr = firstRunOf(vm);
@@ -51879,7 +51910,7 @@ function setupCardOf(vm) {
     skip: CARD_SKIP,
     // Only where Campaigns can make the reminder: a calendar link connected (SetupVM.calendarLinked, the moments'
     // calendarOn), and the row ready. The row's Ready alone also says "booked by hand" and bookings by email alone, where
-    // the composer's moment is not offered and core refuses it.
+    // the moment is not offered and core refuses it.
     remind: vm.calendarLinked && calendar?.state === "ready" ? { ...CARD_REMIND } : null
   };
 }
@@ -53449,20 +53480,16 @@ var PREFETCH_READS = {
   // Campaigns › Sequences (decision 0060), its list and a record open beside it: the sequences' own read, and the settings
   // read, which holds the messages a step may send and the business's name its preview is filled with (ROUTE_DRAWS).
   "campaigns/sequences": ["sequences", "settings", "team", "policies", "templates?all=1"],
-  // The composer over Sequences' list (`campaigns/new…`, ROUTE_DRAWS): the playbooks' moments, Sent's runs and who they reach,
-  // Campaigns' own 30 days (campaign_results, the period named once), the reach-outs' chains, the channels read and the
-  // settings read, which holds the messages a composer offers. Each surface's first reads.
+  // The composer over Sequences' list (`campaigns/new…`, ROUTE_DRAWS): Send once, made of Sent's runs and who they reach,
+  // the channels read and the settings read, which holds the messages it offers. Write to leads reads its searches as it is
+  // chosen. Each surface's first reads.
   "campaigns/new": [
     "sequences",
-    "playbooks",
     "channels",
     "settings",
     "broadcasts",
     "contacts",
     "segments",
-    `reports/campaigns?period=${CAMPAIGNS_RESULTS_PERIOD}`,
-    `reports/reach-outs?period=${CAMPAIGNS_RESULTS_PERIOD}`,
-    "reach-outs",
     "team",
     "policies",
     "templates?all=1"
@@ -53516,7 +53543,7 @@ function routePrefetchScript() {
     // Leads is People's scope with a surface of its own: the scope alone opens on its own list.
     'if(s==="clients"&&l==="leads")s="leads";',
     // Sequences is Campaigns' view with a surface of its own: its list, a record and a new one all open on its read. The
-    // composer and a message are sheets over its list that open on theirs too (`campaigns/new:every`, `message:<name>`).
+    // composer and a message are sheets over its list that open on theirs too (`campaigns/new`, `message:<name>`).
     'if(s==="campaigns"&&l==="sequences")s="campaigns/sequences";',
     'if(s==="campaigns"&&/^(new|message)(:|$)/.test(l))s="campaigns/"+l.split(":")[0];',
     // A day the Calendar's address names is read by the weeks around that day, which the page works out: no read here. A
@@ -61168,6 +61195,8 @@ export {
   newCampaignTrialUntil,
   newConversationOf,
   newReceptionistDefaults,
+  newSequenceLine,
+  newSequenceRoute,
   newSinceOf,
   newestPostFor,
   nextMonthStart,
@@ -61179,7 +61208,6 @@ export {
   nextThemePref,
   noAdsOf,
   noChannelWords,
-  noMessageWords,
   noNumberWords,
   noProposalSince,
   noTemplateWords,

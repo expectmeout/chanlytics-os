@@ -55,17 +55,13 @@ export const PAGE_HEARS: Readonly<Record<string, Readonly<Record<string, PageCel
   // Campaigns is Sequences' list (decision 0060), where its addresses land: it hears what Sequences hears, its own list and
   // the settings read, and none of the surfaces of the sheets it opens over the list, which hear at their own addresses.
   campaigns: { sequences: true, settings: true },
-  // The composer Campaigns opens over Sequences' list (`campaigns/new…`), whole, made of four surfaces: the playbooks'
-  // moments, Campaigns' own 30 days (campaign_results), the reach-outs' chains and the settings read's templates. Sent's runs
-  // are drawn in it too: who can hear you, the pause on offers, the send-once composer and its Send by ticks. It hears here
-  // what moves those (a person's answer, the business's facts, the rules, a channel, the plan, a visit the audiences leave, a
-  // list To offers), and leaves to Sent's sheets what moves a run's replies (a message, a thread, a hold), so a message here
-  // never re-reads the broadcasts and every page of People behind them (W-review-facts-rules-2).
+  // The composer Campaigns opens over Sequences' list (`campaigns/new…`): the settings read's templates, and Sent's runs,
+  // drawn in Send once: who can hear you, the pause on offers and its Send by ticks. It hears here what moves those (a
+  // person's answer, the business's facts, the rules, a channel, the plan, a visit the audiences leave, a list To offers),
+  // and leaves to Sent's sheets what moves a run's replies (a message, a thread, a hold), so a message here never re-reads
+  // the broadcasts and every page of People behind them (W-review-facts-rules-2).
   "campaigns/new": {
     sequences: true,
-    playbooks: true,
-    campaign_results: true,
-    reach_outs: true,
     settings: true,
     broadcasts: ["person", "facts", "rules", "channel", "billing", "visit", "list"],
   },

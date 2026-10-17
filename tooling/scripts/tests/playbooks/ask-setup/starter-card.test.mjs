@@ -261,7 +261,11 @@ test("a moment whose starter is not on file: a card that names the starter, says
   assert.deepEqual([body.starter_key, body.template_id, body.trigger], [STARTER.key, undefined, "quiet_30"]);
   assert.deepEqual(body.params, p.payload.params);
   assert.deepEqual(body.channels, ["whatsapp", "email"], "the channels the card said");
-  assert.equal(PROPOSAL_SPECS.playbook.open(p, null), "campaigns/new:moment:quiet_30", "Open in the composer");
+  assert.equal(
+    PROPOSAL_SPECS.playbook.open(p, null),
+    "campaigns/sequences/new:moment:quiet_30",
+    "Open in New sequence",
+  );
   assert.deepEqual([rows.templates, rows.playbooks], [[], []], "nothing is filed at the card");
   // The card as a sheet (the answer canvas, C1): the summary's own pieces, a row a fact in the order an owner checks
   // them, and the wait read first, apart. One derivation: every row's words are the summary's.

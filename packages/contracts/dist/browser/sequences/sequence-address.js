@@ -7,11 +7,15 @@ export function parseSequencesRoute(route) {
   const [root, view, id, tab, day] = path.split("/");
   if (root !== "campaigns" || view !== "sequences") return null;
   if (!id) return { view: "list" };
-  if (id === "new") return { view: "new" };
+  if (id === "new" || id.startsWith("new:")) {
+    const [, kind, moment] = id.split(":");
+    return kind === "moment" && moment ? { view: "new", moment } : { view: "new" };
+  }
   const on = isTab(tab) ? tab : "steps";
   return { view: "record", id, tab: on, ...on === "history" && day ? { day } : {} };
 }
 export const sequenceRoute = (id, tab = "steps", day) => tab === "steps" ? `${SEQUENCES_ROUTE}/${id}` : `${SEQUENCES_ROUTE}/${id}/${tab}${tab === "history" && day ? `/${day}` : ""}`;
+export const newSequenceRoute = (moment) => moment ? `${SEQUENCES_ROUTE}/new:moment:${moment}` : `${SEQUENCES_ROUTE}/new`;
 export const runSheetRoute = (id) => `broadcasts/run:${id}/sheet`;
 export function sequenceLandingOf(route) {
   const [path = ""] = route.split("?");
@@ -20,6 +24,11 @@ export function sequenceLandingOf(route) {
     if (param === "" || param.startsWith("in:")) return SEQUENCES_ROUTE;
     const moment = /^moment:([^:/]+)(:people)?$/.exec(param);
     if (moment?.[1]) return sequenceRoute(moment[1], moment[2] ? "people" : "steps");
+    if (param === "new:every") return newSequenceRoute();
+    const on = /^new:moment:([^:/]+)$/.exec(param);
+    if (on?.[1]) return newSequenceRoute(on[1]);
+    const edit = /^new:edit:([^:/]+)$/.exec(param);
+    if (edit?.[1]) return sequenceRoute(edit[1]);
   }
   if (root === "broadcasts" && param === "") return SEQUENCES_ROUTE;
   const run = root === "broadcasts" && rest === void 0 ? /^run:([^:/]+)$/.exec(param) : null;

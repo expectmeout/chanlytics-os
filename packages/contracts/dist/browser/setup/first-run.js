@@ -253,7 +253,9 @@ const CARD_SKIP = { put: "Skip", said: "Put off. It stays in Setting up for when
 const CARD_REMIND = {
   words: "Your calendar is in. Remind each customer the day before?",
   label: "Turn on",
-  to: "campaigns/new:moment:visit_tomorrow"
+  // New sequence on the day-before moment, its line written in (sequence-address.ts newSequenceRoute): the composer's
+  // Turn on went with its moment mode (the closed-loop audit of 17 Oct 2026, G).
+  to: "campaigns/sequences/new:moment:visit_tomorrow"
 };
 export function setupCardOf(vm) {
   const fr = firstRunOf(vm);
@@ -295,7 +297,7 @@ export function setupCardOf(vm) {
     skip: CARD_SKIP,
     // Only where Campaigns can make the reminder: a calendar link connected (SetupVM.calendarLinked, the moments'
     // calendarOn), and the row ready. The row's Ready alone also says "booked by hand" and bookings by email alone, where
-    // the composer's moment is not offered and core refuses it.
+    // the moment is not offered and core refuses it.
     remind: vm.calendarLinked && calendar?.state === "ready" ? { ...CARD_REMIND } : null
   };
 }

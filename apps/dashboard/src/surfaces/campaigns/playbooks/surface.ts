@@ -130,7 +130,7 @@ export interface PlaybookNamed {
 }
 
 /** What a count says of who it names and who it leaves out: null where the moment could not be counted. */
-export function namedOf(x: Omit<PoolRead, "by"> | null | undefined): PlaybookNamed | null {
+function namedOf(x: Omit<PoolRead, "by"> | null | undefined): PlaybookNamed | null {
   return x && typeof x.pool === "number"
     ? {
         pool: x.pool,

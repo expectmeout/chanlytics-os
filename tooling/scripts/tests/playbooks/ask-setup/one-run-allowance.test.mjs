@@ -1,6 +1,7 @@
 /**
  * The month's allowance is held against ONE run of a campaign, by one rule, wherever it is said before a campaign starts:
- * the playbook composer's To row and Ask's campaign card count the same world the same way (contracts heldBackOfOneRun).
+ * Ask's campaign card counts it (contracts heldBackOfOneRun), as the playbook composer's To row did until it went with
+ * its Every time (the closed-loop audit of 17 Oct 2026, G).
  * A run reaches at most its cap, the longest unheard first, each person once, on the first channel that can reach them
  * (contracts playbookRunReach), so how many of one run go by email is not how many of everyone the moment reaches do.
  *
@@ -9,13 +10,11 @@
  *   composer and "2 held back" on the card. GET playbooks now answers one run's split at each cap the composer offers
  *   (`run_split`, counted in the pools' own pass), the card counts its own cap from the same draw, and both say it in
  *   contracts' one sentence (allowanceBeforeSend).
- * - An answer from before `run_split` (an older server, either deploy order) says what the composer said before, for one
- *   release, never a guessed number.
  * - The card drew with nobody touched this week, while the pools hold whoever any campaign reached in the week (the week's
  *   breath): its count was larger than the page's. It reads the week's touches as the pools read them.
  *
  * One world, a fake database: the card's tool reads it, GET playbooks' and GET templates' readers read it, and the surface
- * the bridge builds from those answers is the one the composer reads, as the page builds it. The rows are
+ * the bridge builds from those answers is the one the page reads. The rows are
  * tooling/scripts/tests/playbooks/ask-setup/twins-and-allowance.test.mjs's.
  */
 import { test, beforeEach, afterEach, after } from "node:test";
@@ -23,7 +22,7 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import * as contracts from "@chanlytics/contracts";
-import { installLegacyReact, find } from "../../_legacy-react.mjs";
+import { installLegacyReact } from "../../_legacy-react.mjs";
 import { fakeDb } from "../../_fake-db.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
@@ -69,11 +68,6 @@ const { emailWire } = await import(at(`${SRC}/server/connections/email-readiness
 const { setServiceClient } = await import(at(`${SRC}/server/service-db.ts`));
 const { playbooksOverride } = await import(at(`${SRC}/surfaces/campaigns/playbooks/surface.ts`));
 const { setSurfaceValue, surfaceValue } = await import(at(`${SRC}/surfaces/surface-values.ts`));
-const { composerModel, composerOffered, composerOpened } = await import(
-  at(`${SRC}/surfaces/campaigns/playbooks/composer-model.ts`)
-);
-const { reachLine } = await import(at(`${SRC}/surfaces/campaigns/playbooks/composer-sections.tsx`));
-const { CmReachLine } = await import(at(`${SRC}/surfaces/campaigns/parts/reach.tsx`));
 
 /** The month's offer (marketing), with an email version: an offer by email, which the month's allowance meters. */
 const OFFER = "dddddddd-dddd-4ddd-8ddd-ddddddddddd2";
@@ -273,33 +267,6 @@ async function worldOf({ db = {}, emailsSent = 0, answer = (x) => x } = {}) {
   return { ctx, pb, data: surfaceValue("playbooks") };
 }
 
-/** The composer on the month's offer, by WhatsApp and email, at a cap: what its view model makes, and what its reach line says. */
-function composer(data, cap) {
-  const f = {
-    ...composerOpened(null, MOMENT, data),
-    tplId: OFFER,
-    picked: true,
-    cap,
-    channels: ["whatsapp", "email"],
-  };
-  const model = composerModel({
-    data,
-    editing: null,
-    offered: composerOffered(data.templates),
-    templatesAll: data.templates,
-    f,
-    busy: false,
-    error: null,
-  });
-  const none = () => {};
-  const x = { ...model, data, f, editingId: null, editingTemplateName: null, canEdit: true, adding: false, who: 0 };
-  for (const k of ["setHour", "setCap", "setGap", "setCadence", "setListId", "setCls", "setChannels", "setFills"])
-    x[k] = none;
-  // The reach line under the composer's sentence (Ruben, 11 Oct 2026), which holds the allowance behind it.
-  const who = find(reachLine(x), (n) => n.type === CmReachLine);
-  return { model, allowance: who ? (who.props.allowance ?? null) : undefined };
-}
-
 /** Ask's card for the same campaign: the month's offer by WhatsApp and email at the same cap. */
 async function card(ctx, cap) {
   const t = newToolContext(ctx, A, "owner", TZ, NOW);
@@ -348,33 +315,29 @@ const campaignAt = (cap) => ({
 /** A moment's count for WhatsApp and email together (an offer: texts carry none), as GET playbooks answers it. */
 const pairOf = (pool) => pool.by.find((b) => b.channels.length === 2 && b.channels.includes("email"));
 
-test("one world, a cap below the reach and two channels: the composer and the card say the same held-back number, one run's", async () => {
-  const { ctx, data } = await worldOf({ emailsSent: contracts.CAMPAIGN_MONTH_ALLOWANCE.email - 1 });
-  const { model, allowance } = composer(data, 5);
+test("one world, a cap below the reach and two channels: the card says one run's held-back number, never everyone's", async () => {
+  const { ctx, pb } = await worldOf({ emailsSent: contracts.CAMPAIGN_MONTH_ALLOWANCE.email - 1 });
   // Everyone the moment reaches now, before the cap: eight, four of them by email.
-  assert.equal(model.base.candidates, 8);
-  assert.deepEqual(model.split.byChannel, { whatsapp: 4, sms: 0, email: 4 });
+  assert.equal(pairOf(pb.pools[MOMENT]).candidates, 8);
+  // One run of five takes three of them by email (GET playbooks' run_split, below).
+  assert.equal(pairOf(pb.pools[MOMENT]).run_split[5].email, 3);
   // One run of five, the longest unheard first: three by email, and one email left this month holds back two.
   const one = sentence(3);
   assert.equal(one, "Only 1 email is left this month: 2 of these people will be held back.");
-  assert.equal(allowance, one, "the composer holds the allowance against one run, never everyone");
-  assert.equal(model.allowance, one, "and its To row draws what its view model says");
   const proposed = await card(ctx, 5);
   assert.ok(proposed.summary.includes(` · ${one} · `), proposed.summary);
   assert.doesNotMatch(proposed.summary, /3 of these people/);
 });
 
 test("a cap that covers everyone the moment reaches: one run is the whole split, on both", async () => {
-  const { ctx, data } = await worldOf({ emailsSent: contracts.CAMPAIGN_MONTH_ALLOWANCE.email - 1 });
+  const { ctx } = await worldOf({ emailsSent: contracts.CAMPAIGN_MONTH_ALLOWANCE.email - 1 });
   const whole = sentence(4);
   assert.equal(whole, "Only 1 email is left this month: 3 of these people will be held back.");
-  assert.equal(composer(data, 25).allowance, whole);
   assert.ok((await card(ctx, 25)).summary.includes(` · ${whole} · `));
 });
 
 test("a month with room holds back nothing, on both", async () => {
-  const { ctx, data } = await worldOf({ emailsSent: 0 });
-  assert.equal(composer(data, 5).allowance, null);
+  const { ctx } = await worldOf({ emailsSent: 0 });
   assert.doesNotMatch((await card(ctx, 5)).summary, /held back/);
 });
 
@@ -390,19 +353,6 @@ test("GET playbooks counts one run's split at each cap the composer offers, in t
   const own = await worldOf({ db: { playbooks: [campaignAt(7)] } });
   assert.deepEqual(Object.keys(pairOf(own.pb.pools[MOMENT]).run_split), ["5", "7"]);
   assert.deepEqual(pairOf(own.pb.pools[MOMENT]).run_split[7], { whatsapp: 3, sms: 0, email: 4 });
-});
-
-test("an answer from before one run's split was counted (an older server) says what the composer said before, for one release, never a guessed number", async () => {
-  // A count as an older server answered it: everything but one run's split.
-  const older = ({ run_split: _, ...rest }) => rest;
-  const strip = (pb) => ({
-    ...pb,
-    pools: Object.fromEntries(
-      Object.entries(pb.pools).map(([k, v]) => [k, v && { ...older(v), ...(v.by ? { by: v.by.map(older) } : {}) }]),
-    ),
-  });
-  const { data } = await worldOf({ emailsSent: contracts.CAMPAIGN_MONTH_ALLOWANCE.email - 1, answer: strip });
-  assert.equal(composer(data, 5).allowance, sentence(4));
 });
 
 test("the week's breath: a person a campaign reached this week is held on the card as on the page, and the card's count is the page's", async () => {

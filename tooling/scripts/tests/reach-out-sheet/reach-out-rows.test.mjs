@@ -6,7 +6,8 @@
  *
  * - Campaigns' sheets over Sequences (home/sheets.tsx; the home and its drawer went in decision 0060's S6, a chain being a
  *   sequence to leads there): Write to leads hands its search to them, which close New message and open the reach-out's
- *   sheet in its place; a chain's change (`campaigns/new:edit:<root>`) is its own sheet, and waits on the reach-outs' read.
+ *   sheet in its place. A chain's change (`campaigns/new:edit:<root>`) lands on its sequence since the composer's Every
+ *   time went (the closed-loop audit of 17 Oct 2026, G; contracts sequenceLandingOf).
  * - Templates: a chain's emails are messages in the Templates list (reach-out-email-message.test.mjs: their rows, their
  *   pane and its editor, counted by contracts' emailTemplateRowsOf over the chains, which this file holds to the surface's
  *   reads).
@@ -15,7 +16,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as contracts from "@chanlytics/contracts";
-import { installLegacyReact, fresh, again, all, find, byTestId, press } from "../_legacy-react.mjs";
+import { installLegacyReact, fresh, again, all, find, byTestId } from "../_legacy-react.mjs";
 
 installLegacyReact({ __DEMO_MODE: false, __chrome: { state: contracts.stateOf } });
 const W = globalThis;
@@ -41,7 +42,6 @@ const { CampaignsSheets } = await import(`${S}/campaigns/home/sheets.tsx`);
 const { ReachOutSheet } = await import(`${S}/campaigns/reach-out/sheet.tsx`);
 const { WriteToLeads } = await import(`${S}/campaigns/reach-out/sources.tsx`);
 const { PaneSheet } = await import(`${S}/campaigns/home/pane-sheet.tsx`);
-const { playbooksSample } = await import(`${S}/campaigns/playbooks/sample.ts`);
 const { setSurfaceValue, surfaceValue } = await import(`${S}/surface-values.ts`);
 const bridge = await import(`${S}/campaigns/reach-out/surface.ts`);
 const WORDS = bridge.reachOuts.words;
@@ -49,7 +49,6 @@ const WORDS = bridge.reachOuts.words;
 const REAL_VERBS = { ...bridge.reachOuts };
 const realVerbs = (stubs = {}) => Object.assign(bridge.reachOuts, REAL_VERBS, stubs);
 
-const ZONE = "America/Chicago";
 const ROOT = "r1";
 const chainOf = (over = {}, next = {}) => ({
   root_id: ROOT,
@@ -126,30 +125,13 @@ const verbs = (report = REPORT(), ok = true) => {
 
 /* ------------------------------ Campaigns' sheets ------------------------------ */
 
-const NOW = Date.parse("2026-09-28T13:00:00Z");
-/** The reach-outs not read yet: the surface holds nothing (a read that failed is null, and one that came back is its chains). */
-const UNREAD = "unread";
-/** Campaigns' sheets at an address (`campaigns/<param>`), over the playbooks' surface and the reach-outs' own (the seam's "reach_outs"). */
+/** Campaigns' sheets at an address (`campaigns/<param>`), over the reach-outs' own surface (the seam's "reach_outs"). */
 const homeAt = (param = null, chains = [chainOf()]) => {
-  setSurfaceValue("playbooks", { ...playbooksSample(new Date(NOW)), timezone: ZONE });
-  setSurfaceValue("reach_outs", chains === UNREAD ? undefined : chains);
+  setSurfaceValue("reach_outs", chains);
   fresh();
-  return again(() => CampaignsSheets({ param, nowMs: NOW }));
+  return again(() => CampaignsSheets({ param }));
 };
-const homeAgain = (param = null) => again(() => CampaignsSheets({ param, nowMs: NOW }));
-
-/** The surfaces a Retry was pressed for: the frame's runner (`window.__refreshSurface`), which a failed read's Retry reads through. */
-const refreshed = [];
-const withRetry = (run) => {
-  W.__refreshSurface = async (key) => {
-    refreshed.push(key);
-  };
-  try {
-    run();
-  } finally {
-    delete W.__refreshSurface;
-  }
-};
+const homeAgain = (param = null) => again(() => CampaignsSheets({ param }));
 
 test("Write to leads hands its search to Campaigns' sheets, which close New message and open the reach-out's sheet in its place: under the composer's modal it opened hidden, its Start out of reach (census, 13 Oct 2026)", async () => {
   verbs();
@@ -182,51 +164,6 @@ test("Write to leads hands its search to Campaigns' sheets, which close New mess
     null,
     "and closed, it is gone",
   );
-});
-
-test("a reach-out's change opens its sheet at an address of its own (`campaigns/new:edit:<root>`), never the playbook composer", async () => {
-  verbs();
-  went.length = 0;
-  // The address: the composer is not drawn, and the reach-out's sheet is the page's.
-  const at = homeAt(`new:edit:${ROOT}`);
-  const sheet = find(at, (n) => n.type === ReachOutSheet);
-  assert.ok(sheet, "the reach-out's sheet");
-  assert.equal(sheet.props.chain.root_id, ROOT);
-  assert.deepEqual(sheet.props.search, { id: "s1", name: "Personal trainers · Austin" });
-  const hosts = all(at, (n) => n.type === PaneSheet);
-  assert.equal(
-    hosts.find((n) => n.props.testid === "cmh-composer"),
-    undefined,
-    "and the playbook composer is not drawn for a reach-out's id",
-  );
-  // Closing it leaves the address (a link that arrived here replaces it with Sequences); the door it says on a save replaces it
-  // with where it goes, so a close that is a step Back does not undo the door.
-  went.length = 0;
-  sheet.props.onClose();
-  assert.deepEqual(went, ["campaigns/sequences"]);
-  went.length = 0;
-  sheet.props.onGo("broadcasts/run:b2");
-  assert.deepEqual(went, ["broadcasts/run:b2"]);
-});
-
-test("a change to something that is no playbook waits on the reach-outs: reading while they are out, failed where they could not be, gone once they are read and it is not one", () => {
-  verbs();
-  const reading = homeAt(`new:edit:${ROOT}`, UNREAD);
-  assert.ok(byTestId(reading, "cmh-composer-reading"), "not known to be missing yet");
-  assert.equal(
-    find(reading, (n) => n.type === ReachOutSheet),
-    null,
-  );
-  withRetry(() => {
-    refreshed.length = 0;
-    const failed = homeAt(`new:edit:${ROOT}`, null);
-    assert.ok(byTestId(failed, "cmh-composer-failed"));
-    press(byTestId(failed, "cmh-composer-failed-retry"));
-    assert.deepEqual(refreshed, ["reach_outs"]);
-  });
-  const gone = homeAt("new:edit:nothing", []);
-  assert.ok(byTestId(gone, "pb-gone"), "read, and neither a playbook nor a chain");
-  assert.equal(byTestId(gone, "cmh-composer-reading"), null);
 });
 
 /* ------------------------------ the bridge ------------------------------ */

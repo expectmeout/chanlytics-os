@@ -2,12 +2,12 @@
  * Campaigns, the loading standard's D and G: a playbook's act is said when the server takes it, and a composer's
  * words are kept in the tab, come back when it opens again, and are thrown away only after one question.
  *
- * - The playbook composer's Escape dropped everything typed; the send screen's Cancel and a trip to another page lost a
- *   name, a typed value and a picked time; a template half-written, or a translation the assistant had just been paid
- *   to write, went with a Cancel. Each is kept per tab (tab-memory.ts) under one rule (record-fold.jsx
+ * - The send screen's Cancel and a trip to another page lost a name, a typed value and a picked time; a template
+ *   half-written, or a translation the assistant had just been paid to write, went with a Cancel. Each is kept per tab (tab-memory.ts) under one rule (record-fold.jsx
  *   useUnsavedWork), the registry holds the tab from closing over it, and Cancel asks once (UnsavedAsk).
- * - Words kept come back as their composer opens again (`campaigns/new`, `new:every`, `new:edit:<id>`, the sheets Campaigns
- *   opens over Sequences, home/sheets.tsx), on the words.
+ * - Words kept come back as their composer opens again (`campaigns/new`, the sheet Campaigns opens over Sequences,
+ *   home/sheets.tsx), on the words. The playbook composer's went with its Every time (the closed-loop audit of 17 Oct
+ *   2026, G): a sequence's draft is New sequence's own.
  * Run against the pages and the composers on a stub React, with the tab's memory installed as the app installs it.
  */
 import { test, beforeEach } from "node:test";
@@ -78,13 +78,11 @@ const { Picker } = await import(`${SRC}/surfaces/kit/picker/picker.tsx`);
 const { CmSlot } = await import(`${SRC}/surfaces/campaigns/parts/slot.tsx`);
 /** One of the composer's choices, the kit's Picker (surfaces/kit/picker/), by its test id. */
 const pickerOf = (tree, testid) => find(tree, (n) => n.type === Picker && n.props["data-testid"] === testid);
-const { PlaybookComposer } = await import(`${SRC}/surfaces/campaigns/playbooks/composer.tsx`);
 const { TemplatesPage } = await import(`${SRC}/surfaces/campaigns/templates/templates-page.tsx`);
 const { TemplateComposer } = await import(`${SRC}/surfaces/campaigns/templates/composer.tsx`);
 const { broadcasts } = await import(`${SRC}/surfaces/campaigns/broadcasts/verbs.ts`);
-const { playbooks } = await import(`${SRC}/surfaces/campaigns/playbooks/verbs.ts`);
 const { templates } = await import(`${SRC}/surfaces/campaigns/templates/verbs.ts`);
-const { setSurfaceValue, surfaceValue } = await import(`${SRC}/surfaces/surface-values.ts`);
+const { setSurfaceValue } = await import(`${SRC}/surfaces/surface-values.ts`);
 
 /* ---------------------------------- walking a tree ---------------------------------- */
 
@@ -287,20 +285,7 @@ const typedSlots = (tree) => all(tree, (n) => n.type === CmSlot).filter((s) => s
 /** The send's name box, by its name: the Name row's Field (the kit's, by its aria-label). */
 const nameBox = (tree) => find(tree, (n) => n.type === Field && n.props?.["aria-label"] === "Name this broadcast");
 /** Campaigns' sheets at an address's param (null: none open), as the route draws them over Sequences. */
-const home = (param = null) => CampaignsSheets({ param, nowMs: NOW });
-/** What the composer was told: the sheet closes on Cancel and on a thrown-away draft, and says what it saved on a Save. */
-const closed = [];
-const saved = [];
-/** The playbook composer drawn on its own, as the home's sheet draws it: a new playbook, or the one being changed. */
-const composer = (over = {}) =>
-  PlaybookComposer({
-    data: surfaceValue("playbooks"),
-    editing: null,
-    initialTrigger: null,
-    onDone: (d, changed) => saved.push([d, changed]),
-    onCancel: () => closed.push("cancel"),
-    ...over,
-  });
+const home = (param = null) => CampaignsSheets({ param });
 const messagesPage = () => {
   setSurfaceValue("settings", {
     settings: { config: { brain: { business_name: "Northside Studio" } } },
@@ -315,8 +300,6 @@ const messagesPage = () => {
 beforeEach(() => {
   unmount();
   fresh();
-  closed.length = 0;
-  saved.length = 0;
   clearTabMemory();
   globalThis.__recordFolds.reset();
   setSurfaceValue("broadcasts", broadcastsSurface());
@@ -324,117 +307,6 @@ beforeEach(() => {
 });
 
 /* ---------------------------------- D: an act is said when the server takes it ---------------------------------- */
-
-/* ---------------------------------- G: the playbook composer ---------------------------------- */
-
-test("the playbook composer keeps what was typed in the tab, opens again on it, and its Cancel and Escape ask before throwing it away -- Escape dropped everything", () => {
-  let tree = composer();
-  assert.ok(byTestId(tree, "pb-composer"), "the composer is open");
-  assert.deepEqual(drafts(), {}, "nothing typed, nothing kept");
-  // Cancel with nothing changed closes at once, as it did.
-  press(byTestId(tree, "pb-cancel"));
-  assert.deepEqual(closed, ["cancel"], "Cancel closes it");
-  closed.length = 0;
-
-  unmount();
-  tree = composer();
-  assert.equal(
-    byTestId(tree, "pb-name").props["aria-label"],
-    "The campaign's name",
-    "a campaign to a screen reader too",
-  );
-  type(byTestId(tree, "pb-name"), "Sunday quiet");
-  tree = redraw(composer);
-  assert.equal(byTestId(tree, "pb-name").props.value, "Sunday quiet");
-  const kept = TM.draft("playbook", "new");
-  assert.equal(kept && kept.name, "Sunday quiet", "kept in the tab under the composer's kind, as it is typed");
-  assert.equal(tabClosing(), true, "and the tab asks before closing over it (the record kit's registry holds it)");
-  assert.equal(globalThis.__settingsUnsaved(), true, "the rail's question hears it too");
-
-  // Escape is the pane's Close (useRecSheetEscape): it asks, where the pane's buttons were, and closes nothing.
-  globalThis.dispatchEvent({ type: "keydown", key: "Escape", defaultPrevented: false, preventDefault() {} });
-  tree = redraw(composer);
-  assert.deepEqual(closed, [], "REGRESSION: Escape dropped the composer and everything typed in it");
-  assert.ok(byTestId(tree, "pb-composer"), "still open");
-  assert.ok(byTestId(tree, "pb-leave-confirm"), "the one question");
-  assert.equal(textOf(byTestId(tree, "pb-leave-confirm")).includes("Discard what you wrote?"), true);
-  assert.equal(byTestId(tree, "pb-cancel"), null, "in the buttons' place");
-  press(byTestId(tree, "pb-leave-no"));
-  tree = redraw(composer);
-  assert.ok(byTestId(tree, "pb-cancel"), "Keep writing: the buttons are back");
-  assert.equal(byTestId(tree, "pb-name").props.value, "Sunday quiet", "and the words with them");
-  assert.deepEqual(closed, [], "nothing was closed");
-
-  // The composer left (a trip to People, a reload) and opened again: on the words that were typed. The home is what opens
-  // it again as the page does (the next test).
-  unmount();
-  assert.equal(tabClosing(), false, "gone from the page, it holds the tab no longer");
-  tree = composer();
-  assert.equal(byTestId(tree, "pb-name").props.value, "Sunday quiet", "on the words that were typed");
-  assert.equal(
-    pickerOf(tree, "pb-moment").props.value,
-    "new_week",
-    "the draft's moment: the first one nothing is doing yet",
-  );
-
-  // A moment's Turn on pressed while a new playbook is half-written: the composer opens on THAT moment (the sheet keys the
-  // composer by the moment, so React mounts it anew), with the words kept. Drawn on its own: the stub keeps one set of
-  // cells whatever the key.
-  unmount();
-  const pressed = composer({ initialTrigger: "phoned_only" });
-  assert.equal(pickerOf(pressed, "pb-moment").props.value, "phoned_only", "the moment pressed wins over the draft's");
-  assert.equal(byTestId(pressed, "pb-name").props.value, "Sunday quiet", "and the words stay");
-  unmount();
-  tree = composer();
-
-  // Cancel, then Yes: gone, from the composer and from the tab.
-  press(byTestId(tree, "pb-cancel"));
-  tree = redraw(composer);
-  assert.deepEqual(closed, [], "asked first");
-  press(byTestId(tree, "pb-leave-yes"));
-  assert.deepEqual(closed, ["cancel"], "thrown away: the composer closes");
-  assert.equal(TM.draft("playbook", "new"), null, "and nothing is kept");
-  // The stub draws no unmount of a child the page stopped drawing: React would, and the hold goes with it.
-  unmount();
-  assert.equal(tabClosing(), false);
-});
-
-test("a playbook being changed is kept under its own id, and Save, taken, keeps nothing", async () => {
-  const keep = { ...playbooks };
-  try {
-    playbooks.update = async (id, body) => ({
-      ok: true,
-      data: { id, name: body.name || "Win-back" },
-    });
-    const editing = playbook();
-    const change = () => composer({ editing });
-    let tree = change();
-    assert.ok(byTestId(tree, "pb-composer"));
-    type(byTestId(tree, "pb-name"), "Win-back, gentler");
-    tree = redraw(change);
-    assert.equal(
-      TM.draft("playbook", "pb-1") && TM.draft("playbook", "pb-1").name,
-      "Win-back, gentler",
-      "under the playbook's id",
-    );
-    assert.equal(TM.draft("playbook", "new"), null, "not the new one's");
-    unmount();
-    tree = change();
-    assert.equal(byTestId(tree, "pb-name").props.value, "Win-back, gentler", "come back to, the change opens again");
-    await press(byTestId(tree, "pb-save"));
-    assert.deepEqual(
-      saved,
-      [[{ id: "pb-1", name: "Win-back, gentler" }, true]],
-      "saved: the home is told it was a change",
-    );
-    assert.equal(TM.draft("playbook", "pb-1"), null, "and the server has it: nothing to keep");
-    // The home closes the sheet on the answer (the stub draws no unmount of a child that stopped being drawn), and the hold goes with it.
-    unmount();
-    assert.equal(tabClosing(), false);
-  } finally {
-    Object.assign(playbooks, keep);
-  }
-});
 
 /* ---------------------------------- G: the send screen ---------------------------------- */
 

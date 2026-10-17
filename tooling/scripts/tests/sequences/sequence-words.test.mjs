@@ -11,6 +11,8 @@ import {
   momentStartsSentence,
   needsCount,
   needsWords,
+  newSequenceLine,
+  newSequenceRoute,
   parseSequencesRoute,
   runSheetRoute,
   sequenceGroupOf,
@@ -201,6 +203,13 @@ test("an address is read and written by one parser and one writer: the list, a r
   assert.equal(isSequencesParam("moment:pb-1"), false);
   assert.deepEqual(parseSequencesRoute(SEQUENCES_ROUTE), { view: "list" });
   assert.deepEqual(parseSequencesRoute(`${SEQUENCES_ROUTE}/new`), { view: "new" });
+  // New on the moment a door asks for (Setup's first reminder, Ask's moment card): written and read back.
+  assert.equal(newSequenceRoute(), "campaigns/sequences/new");
+  assert.equal(newSequenceRoute(null), "campaigns/sequences/new");
+  assert.equal(newSequenceRoute("visit_tomorrow"), "campaigns/sequences/new:moment:visit_tomorrow");
+  assert.deepEqual(parseSequencesRoute(newSequenceRoute("visit_tomorrow")), { view: "new", moment: "visit_tomorrow" });
+  for (const odd of ["new:moment:", "new:moment", "new:every", "new:surprise"])
+    assert.deepEqual(parseSequencesRoute(`${SEQUENCES_ROUTE}/${odd}`), { view: "new" }, odd);
   assert.deepEqual(parseSequencesRoute(sequenceRoute("s1")), { view: "record", id: "s1", tab: "steps" });
   assert.deepEqual(parseSequencesRoute(sequenceRoute("s1", "history")), { view: "record", id: "s1", tab: "history" });
   assert.deepEqual(parseSequencesRoute(`${SEQUENCES_ROUTE}/s1/elsewhere?x=1`), {
@@ -231,9 +240,17 @@ test("an older address lands on what it names: the home and Sent's list on Seque
   assert.equal(sequenceLandingOf("campaigns/in:before"), SEQUENCES_ROUTE);
   assert.equal(sequenceLandingOf("campaigns/moment:s1"), "campaigns/sequences/s1");
   assert.equal(sequenceLandingOf("campaigns/moment:s1:people"), "campaigns/sequences/s1/people");
+  // The composer's Every time went (the closed-loop audit of 17 Oct 2026, G): its addresses, in a bookmark or an old
+  // Ask card, land on New, on New on that moment, and on the sequence being changed.
+  assert.equal(sequenceLandingOf("campaigns/new:every"), "campaigns/sequences/new");
+  assert.equal(sequenceLandingOf("campaigns/new:moment:quiet_30"), "campaigns/sequences/new:moment:quiet_30");
+  assert.equal(sequenceLandingOf("campaigns/new:edit:s1"), "campaigns/sequences/s1");
   for (const stays of [
     "campaigns/new",
-    "campaigns/new:every",
+    "campaigns/new:to:list-1",
+    "campaigns/new:leads",
+    "campaigns/new:moment:",
+    "campaigns/new:edit:",
     "campaigns/message:come_back",
     "campaigns/ads",
     "campaigns/sequences/s1",
@@ -242,6 +259,24 @@ test("an older address lands on what it names: the home and Sent's list on Seque
     "messages",
   ])
     assert.equal(sequenceLandingOf(stays), null, stays);
+});
+
+test("New on a moment is written in: the owner's line for that moment, in the workspace's word, and none for one it does not know", () => {
+  assert.equal(
+    newSequenceLine("visit_tomorrow", "appointment"),
+    "Remind each customer the day before their appointment",
+  );
+  assert.equal(newSequenceLine("visit_tomorrow", "meeting"), "Remind each customer the day before their meeting");
+  assert.match(newSequenceLine("visited", "appointment"), /the day after their appointment/);
+  assert.equal(
+    newSequenceLine("quiet_30", "appointment"),
+    newSequenceLine("lapsed", "appointment"),
+    "one line for coming back",
+  );
+  for (const t of ["new_week", "phoned_only", "everyone_monthly", "proposal_waiting"])
+    assert.ok(newSequenceLine(t, "appointment"), t);
+  assert.equal(newSequenceLine("list:3f6c1a52", "appointment"), null, "a list's moment has no line of its own");
+  assert.equal(newSequenceLine("", "appointment"), null);
 });
 
 test("a twin on a visit moment needs you: two running sequences send each person the same moment twice (the phone review, 16 Oct 2026)", () => {

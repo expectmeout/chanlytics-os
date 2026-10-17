@@ -1,10 +1,11 @@
 /**
  * Campaigns' sheets over Sequences (decision 0060, S6: home/sheets.tsx): the home's own page went, and the sheets it opened
  * stay at their addresses. Drawn on the stub React over the surfaces the seam hands it, in the real surfaces' shape (the
- * Playbooks and Broadcasts samples). What is proved: nothing is drawn while the address names no sheet; the composer
- * stands at its addresses (Send once, Every time, Write to leads, a moment's Turn on, a change, a list's send) with its
- * choice of kind replacing the address; a read it is made of that has not landed, or failed, is said in the sheet; and a
- * campaign saved says so in contracts' words and opens its sequence.
+ * Broadcasts sample). What is proved: nothing is drawn while the address names no sheet; the composer stands at its
+ * addresses (Send once, Write to leads, a list's send) with its choice of kind replacing the address; the addresses of its
+ * Every time, which went (the closed-loop audit of 17 Oct 2026, G), open no sheet here, since they land on New sequence
+ * before the page is drawn; a read it is made of that has not landed, or failed, is said in the sheet; and the sheet hands
+ * the send screen its own toast host.
  */
 import { test, afterEach } from "node:test";
 import assert from "node:assert/strict";
@@ -48,10 +49,8 @@ Object.assign(globalThis, {
   gateTitle: (perm, doing) => `Only an owner or operator can ${doing}.`,
 });
 const { CampaignsSheets } = await import(`${SRC}/surfaces/campaigns/home/sheets.tsx`);
-const { playbooksSample } = await import(`${SRC}/surfaces/campaigns/playbooks/sample.ts`);
 const { broadcastsSample } = await import(`${SRC}/surfaces/campaigns/broadcasts/sample.ts`);
 const { setSurfaceValue } = await import(`${SRC}/surfaces/surface-values.ts`);
-const { PlaybookComposer } = await import(`${SRC}/surfaces/campaigns/playbooks/composer.tsx`);
 const { WriteToLeads } = await import(`${SRC}/surfaces/campaigns/reach-out/sources.tsx`);
 const { PaneSheet } = await import(`${SRC}/surfaces/campaigns/home/pane-sheet.tsx`);
 const { Segmented } = await import(`${SRC}/surfaces/kit/segmented/segmented.tsx`);
@@ -59,23 +58,16 @@ const { Picker } = await import(`${SRC}/surfaces/kit/picker/picker.tsx`);
 const { BroadcastSend } = await import(`${SRC}/surfaces/campaigns/broadcasts/broadcasts-page.tsx`);
 const status = await import(`${SRC}/legacy-bridge/surface-status.ts`);
 
-/** The surfaces of a workspace with a calendar: its playbooks and broadcasts as the samples make them, read. */
+/** The surfaces the composer is made of: the broadcasts as the sample makes them, read, and the settings read. */
 function surfaces() {
   const now = new Date(NOW);
-  const pb = playbooksSample(now);
-  setSurfaceValue("playbooks", { ...pb, library: pb.templates, messages: contracts.campaignMessagesOf(pb.templates) });
-  setSurfaceValue("broadcasts", {
-    ...broadcastsSample(now),
-    reach: { people: 29, canHear: 7, saidMessages: 7, saidOffers: 0 },
-  });
-  setSurfaceValue("campaign_results", { period: "30d", report: null, chains: null, fetchedAt: 0 });
-  setSurfaceValue("reach_outs", []);
-  setSurfaceValue("settings", { templatesAll: pb.templates, messages: contracts.campaignMessagesOf(pb.templates) });
+  const bc = broadcastsSample(now);
+  setSurfaceValue("broadcasts", { ...bc, reach: { people: 29, canHear: 7, saidMessages: 7, saidOffers: 0 } });
+  setSurfaceValue("settings", { templatesAll: bc.templates, messages: contracts.campaignMessagesOf(bc.templates) });
 }
 
 afterEach(() => {
-  for (const k of ["playbooks", "broadcasts", "campaign_results", "reach_outs", "settings"])
-    setSurfaceValue(k, undefined);
+  for (const k of ["broadcasts", "settings"]) setSurfaceValue(k, undefined);
 });
 
 const refreshed = [];
@@ -89,24 +81,27 @@ const fresh = () => {
   replaced.length = 0;
   toasts.length = 0;
 };
-const page = (param = null) => again(() => CampaignsSheets({ param, nowMs: NOW }));
+const page = (param = null) => again(() => CampaignsSheets({ param }));
 const sheet = (tree) => find(tree, (n) => n.type === PaneSheet);
 
-test("nothing stands over Sequences while the address names no sheet: its list, a record, a word it does not know", () => {
+test("nothing stands over Sequences while the address names no sheet: its list, a record, a word it does not know, and the composer's Every time that went", () => {
   surfaces();
-  for (const param of [null, "sequences", "sequences/pb-sample-winback/history", "surprise"]) {
+  for (const param of [
+    null,
+    "sequences",
+    "sequences/pb-sample-winback/history",
+    "surprise",
+    // Each lands on New sequence, on its moment, or on the sequence being changed (contracts sequenceLandingOf).
+    "new:every",
+    "new:moment:visited",
+    "new:edit:pb-sample-winback",
+  ]) {
     fresh();
-    const tree = page(param);
-    assert.equal(sheet(tree), null, String(param));
-    assert.equal(
-      find(tree, (n) => n.type === PlaybookComposer),
-      null,
-      String(param),
-    );
+    assert.equal(sheet(page(param)), null, String(param));
   }
 });
 
-test("the composer stands at its addresses: Send once, Every time and Write to leads, a choice of kind replacing the address", () => {
+test("the composer stands at its addresses: Send once and Write to leads, a choice of kind replacing the address", () => {
   surfaces();
   fresh();
   const once = page("new");
@@ -119,16 +114,12 @@ test("the composer stands at its addresses: Send once, Every time and Write to l
     seg.props.options.map((o) => [o.value, o.label]),
     [
       ["once", "Send once"],
-      ["every", "Every time"],
       ["leads", "Write to leads"],
     ],
+    "a moment's sequence is made in New sequence, not here",
   );
-  seg.props.onValueChange("every");
-  assert.deepEqual(replaced, ["campaigns/new:every"], "a choice of kind replaces the address, never pushes");
-  fresh();
-  const every = page("new:every");
-  assert.equal(find(sheet(every).props.tools, (n) => n.type === Segmented).props.value, "every");
-  assert.ok(find(every, (n) => n.type === PlaybookComposer));
+  seg.props.onValueChange("leads");
+  assert.deepEqual(replaced, ["campaigns/new:leads"], "a choice of kind replaces the address, never pushes");
   fresh();
   const leads = page("new:leads");
   assert.equal(find(sheet(leads).props.tools, (n) => n.type === Segmented).props.value, "leads");
@@ -136,21 +127,16 @@ test("the composer stands at its addresses: Send once, Every time and Write to l
     find(leads, (n) => n.type === WriteToLeads),
     "the reach-out's sources, read when it is chosen",
   );
+  assert.equal(
+    find(leads, (n) => n.type === BroadcastSend),
+    null,
+    "and no send screen",
+  );
+  seg.props.onValueChange("once");
+  assert.deepEqual(replaced, ["campaigns/new"]);
 });
 
-test("a moment's Turn on lands the composer on its moment, and a playbook changed has no choice of kind", () => {
-  surfaces();
-  fresh();
-  const composer = find(page("new:moment:visited"), (n) => n.type === PlaybookComposer);
-  assert.equal(composer.props.initialTrigger, "visited");
-  assert.equal(composer.props.editing, null);
-  fresh();
-  const edit = page("new:edit:pb-sample-winback");
-  assert.equal(find(edit, (n) => n.type === PlaybookComposer).props.editing.id, "pb-sample-winback");
-  assert.equal(sheet(edit).props.tools, undefined, "changing one is not choosing a kind");
-});
-
-test("Send once says it is reading rather than draw a sheet with nothing in it; the playbook composer needs no such read", () => {
+test("Send once says it is reading rather than draw a sheet with nothing in it; Write to leads needs no such read", () => {
   surfaces();
   setSurfaceValue("broadcasts", undefined);
   fresh();
@@ -163,7 +149,7 @@ test("Send once says it is reading rather than draw a sheet with nothing in it; 
     "and no half of a send screen",
   );
   fresh();
-  assert.ok(find(page("new:every"), (n) => n.type === PlaybookComposer));
+  assert.ok(find(page("new:leads"), (n) => n.type === WriteToLeads));
 });
 
 test("a broadcasts read that failed is said in Send once, with a Retry that reads the broadcasts again", () => {
@@ -205,23 +191,10 @@ test("a link that names a list opens the composer on it: campaigns/new:to:<list>
   }
 });
 
-test("a campaign saved says so in contracts' words and opens its sequence in the composer's place", () => {
+test("the send screen is handed the sheets' own toast host, so a toast it raises outlives the sheet (campaigns-drafts.test.mjs)", () => {
   surfaces();
   fresh();
-  const composer = find(page("new:every"), (n) => n.type === PlaybookComposer);
-  composer.props.onDone({ id: "pb-new", name: "Sunday quiet" }, false);
-  assert.equal(textOf(toasts.at(-1).msg), "Sunday quiet is running");
-  assert.deepEqual(replaced, [contracts.sequenceRoute("pb-new")], "its sequence, replacing the composer's address");
-  fresh();
-  composer.props.onDone({ id: "pb-new", name: "Sunday quiet" }, true);
-  assert.equal(textOf(toasts.at(-1).msg), "Sunday quiet changed");
-  composer.props.onDone({}, true);
-  assert.equal(
-    textOf(toasts.at(-1).msg),
-    "It changed",
-    "a name the server did not answer is named in contracts' words",
-  );
-  // The send screen is handed the sheets' own flash: its toast outlives the sheet (campaigns-drafts.test.mjs).
   const send = find(page("new"), (n) => n.type === BroadcastSend);
   assert.equal(typeof send.props.flash, "function");
+  assert.equal(typeof send.props.onDone, "function", "and closes the sheet once the send is made");
 });

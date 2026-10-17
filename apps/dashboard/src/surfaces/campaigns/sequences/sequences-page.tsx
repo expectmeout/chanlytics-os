@@ -65,7 +65,8 @@ export function SequencesPage({ route }: { route: string }) {
     place.view === "record" ? (
       <SequenceRecord id={place.id} tab={place.tab} day={place.day ?? null} />
     ) : place.view === "new" ? (
-      <NewSequence />
+      // A door's moment opens its own New, so the line it wrote in is never another moment's.
+      <NewSequence key={place.moment ?? "new"} moment={place.moment ?? null} />
     ) : null;
   return (
     <CmSplit

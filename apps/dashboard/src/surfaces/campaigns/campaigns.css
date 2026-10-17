@@ -941,21 +941,6 @@ html.legacy-on .tpl-fresh {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.pb-preview {
-  display: flex;
-  border-radius: var(--radius-lg);
-}
-.pb-preview .mp {
-  width: 100%;
-  max-width: 360px;
-}
-.pb-preview .mp-frame {
-  max-width: none;
-  box-shadow: var(--shadow-sm);
-}
-.pb-preview .mp-bubble {
-  max-width: 90%;
-}
 /* Each slot on one line: what it is, what fills it, and -- where there is a choice -- the choice. */
 .pb-fills {
   display: flex;
@@ -1023,47 +1008,11 @@ html.legacy-on .tpl-fresh {
   font-size: var(--text-xs);
   color: var(--ink-dim);
 }
-/* What is missing where the message would be: dashed, as an unset moment is on the page. */
-.pb-empty {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 14px 16px;
-  border: 1px dashed var(--line-strong);
-  border-radius: var(--radius-lg);
-  background: var(--bg-sunken);
-}
-.pb-empty-line {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  margin: 0;
-  font-size: var(--text-sm);
-  line-height: 1.5;
-  color: var(--ink-muted);
-}
-.pb-empty-line > .icon {
-  flex: none;
-  margin-top: 3px;
-  color: var(--ink-dim);
-}
-.pb-empty-line.is-warn {
-  color: var(--warn-ink);
-}
 .pb-warn {
   margin: 0;
   font-size: var(--text-sm);
   line-height: 1.5;
   color: var(--warn-ink);
-}
-/* What the moment already holds (decision 20): one quiet line per campaign under the moment's choice. */
-.pb-holds {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-1) var(--space-3);
-  margin: var(--space-1) 0 0;
-  font-size: var(--text-sm);
-  color: var(--ink-dim);
 }
 /* The reach-out sheet (Reach out Part 4 PR 6): the composer's parts, with a chain of steps and a preview of one email. */
 .pb-note {
@@ -1257,9 +1206,6 @@ html.legacy-on .tpl-fresh {
   }
   .pb-fill-hint {
     display: none;
-  }
-  .pb-preview {
-    padding: 12px 10px;
   }
   .pb-foot-say {
     font-size: var(--text-xs);
@@ -2828,31 +2774,6 @@ html.legacy-on .msg-use-link {
   font-weight: var(--weight-regular);
   color: var(--ink-dim);
 }
-/* The bubble stands on the pane itself, not on a stage of its own. */
-.pb-preview {
-  justify-content: flex-start;
-  flex-direction: column;
-  padding: 0;
-  border: 0;
-  background: none;
-}
-.pb-preview .mp.mp-bare {
-  max-width: none;
-}
-/* What is missing where the message would be is its line, with no box round it; named by its testid, since its class is a
-   primitive's word. */
-[data-testid="pb-message-empty"] {
-  padding: 0;
-  border: 0;
-  background: none;
-}
-[data-testid="pb-starter"] {
-  align-items: center;
-}
-[data-testid="pb-starter"] > svg {
-  margin-top: 0;
-}
-
 /* The broadcast composer's rows (C2, the second door): one pane, the width of the canvases' composer, each question a
    row with its word at the left, the foot the glass bar. The columns keep their own markup; their eyebrows go. */
 .bc-send.bc-glass {

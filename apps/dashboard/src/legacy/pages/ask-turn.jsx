@@ -139,7 +139,7 @@ const AskCardActs = ({ p, t, busy, waits, hideOpen, onApprove, onDismiss, onNav 
         {busy ? t.working : p.kind === "reply" ? t.send : t.approve}
       </button>}
       {p.kind === "reply" && pl.conversation_id ? <button className="btn btn-ghost btn-sm" onClick={() => { onNav(`inbox/th-${pl.conversation_id}`); if (A) A.editReply(p); }}>{t.editComposer}</button> : null}
-      {openRoute && !hideOpen ? <button className="btn btn-ghost btn-sm" onClick={() => onNav(openRoute)}>{/^campaigns\/new:/.test(openRoute) ? t.openComposer : t.openIt}</button> : null}
+      {openRoute && !hideOpen ? <button className="btn btn-ghost btn-sm" onClick={() => onNav(openRoute)}>{/^campaigns\/sequences\/new(:|$)/.test(openRoute) ? t.openNew : t.openIt}</button> : null}
       <button className="btn btn-ghost btn-sm ask-card-not-now" onClick={onDismiss} disabled={busy}>{t.notNow}</button>
     </div>
   );

@@ -98,6 +98,7 @@ export {
   isSequencesParam,
   parseSequencesRoute,
   sequenceRoute,
+  newSequenceRoute,
   sequenceLandingOf,
   runSheetRoute,
   sequenceRepliesOf,
@@ -111,6 +112,7 @@ export {
   SEQUENCE_DRAFT_JSON_SCHEMA,
   SEQUENCE_NEW_WORDS,
   isListToken,
+  newSequenceLine,
 } from "./sequence-draft";
 export type { SequenceDraftStepDto, SequenceDraftDto, SequenceDraftListDto } from "./sequence-draft";
 export { SequenceDraftAnswerSchema } from "./sequence-draft-schema";

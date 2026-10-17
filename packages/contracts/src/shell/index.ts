@@ -103,7 +103,6 @@ export type { AddressParts } from "./address";
 export {
   CAMPAIGN_ROOMS,
   NO_TEMPLATE_WORDS,
-  noMessageWords,
   LIBRARY_WORDS,
   NEW_MESSAGE_WORDS,
   LIBRARY_STARTER_WORDS,

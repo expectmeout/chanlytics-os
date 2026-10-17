@@ -666,8 +666,6 @@
   "apps/dashboard/src/surfaces/campaigns/campaigns.css::msg-card-meta": 1,
   "apps/dashboard/src/surfaces/campaigns/campaigns.css::msg-card-spacer": 1,
   "apps/dashboard/src/surfaces/campaigns/campaigns.css::msg-tag": 1,
-  "apps/dashboard/src/surfaces/campaigns/campaigns.css::pb-empty": 1,
-  "apps/dashboard/src/surfaces/campaigns/campaigns.css::pb-empty-line": 3,
   "apps/dashboard/src/surfaces/campaigns/campaigns.css::pb-sheet": 2,
   "apps/dashboard/src/surfaces/campaigns/campaigns.css::rec-sheet": 1,
   "apps/dashboard/src/surfaces/campaigns/campaigns.css::rec-sheet-sub": 1

@@ -1,5 +1,5 @@
 /**
- * New ad's foot, on every step (playbooks/composer.tsx sheetFoot's shape): what it says first (and, when a red row stops the
+ * New ad's foot, on every step (the reach-out sheet's foot's shape, reach-out/sheet.tsx): what it says first (and, when a red row stops the
  * press, the door that mends it, beside the reason), Back (Cancel on the first step), and the one primary: "Next: the ad" …
  * "Next: review", then "Turn on · up to $300", the only press that spends and the owner's alone. For a member who is not the
  * owner, the last step's primary asks the owner instead. With something changed, Cancel asks once (UnsavedAsk).

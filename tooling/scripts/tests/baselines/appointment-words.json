@@ -6,7 +6,6 @@
   "apps/dashboard/src/legacy/demo/pages/segments.jsx": 4,
   "apps/dashboard/src/server/leads/lead-draft.ts": 1,
   "apps/dashboard/src/server/new-conversation/person-draft.ts": 1,
-  "apps/dashboard/src/surfaces/campaigns/playbooks/sample.ts": 1,
   "packages/contracts/src/calendar/calendar-people.ts": 1,
   "packages/contracts/src/google/review-reply.ts": 1,
   "packages/contracts/src/notes/note-suggest.ts": 1,
