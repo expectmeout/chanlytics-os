@@ -185,6 +185,7 @@ function OpenRecord(p: {
                 rec={rec}
                 flash={flash}
                 moved={moved}
+                again={again}
                 editing={editingStep}
                 onEditing={setEditingStep}
                 onCancelSend={() => a.setAsking("cancel")}
