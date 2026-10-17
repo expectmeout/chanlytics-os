@@ -468,6 +468,8 @@ export interface TurnFacts {
   spoken?: boolean;
   /** What is above their role, so no tool of the turn's proposes it (tools/offer.ts aboveRoleWords); null for none. */
   above?: string | null;
+  /** How they like answers, in their own note (Settings › Profile, contracts answerStyleOf); "" for none. */
+  style?: string;
 }
 
 /**
@@ -547,6 +549,11 @@ export function turnWords(t: TurnFacts): string {
           : "a viewer: they can read everything and change nothing";
   // Who they are, then what is above their role (aboveRoleWords), on one line: nothing more where nothing is.
   lines.push([`You are speaking with ${t.personLabel}, ${can}.`, t.above].join(" ").trimEnd());
+  // Their own note on how they like answers (the answer canvas, D): what they ask in this conversation comes first.
+  if (t.style)
+    lines.push(
+      `How they like answers, in their own note (Settings › Profile): ${fencedInline("note", t.style)}. Write to it, unless they ask otherwise in this conversation.`,
+    );
   if (t.surface === "leads")
     lines.push(
       'They are on the Leads page, where the businesses Claude found for them are listed. Words that describe businesses (a kind, a place, a count) are a search to propose: read leads with action searches, then propose_lead_search with action find; ask only when the kind or the place is missing. If a search on this page is waiting for an answer, words that answer its question amend it (amends), and "this search" is the one the scope names.',
