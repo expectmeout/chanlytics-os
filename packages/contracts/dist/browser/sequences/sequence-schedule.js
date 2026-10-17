@@ -1,3 +1,4 @@
+import { triggerOf } from "../playbooks/playbook-triggers.js";
 import { clockDate, clockTime, clockWhen } from "../shared/clock.js";
 import { plural } from "../shared/words.js";
 import {
@@ -35,9 +36,28 @@ export const SCHEDULE_WORDS = {
   /** How a step to leads goes, and a call: on its box and in its sheet. */
   byEmail: "Email",
   byTask: "A task for you, on Today",
-  facts: { goes: "Goes", only: "Only to", by: "By", now: "Now", last30: "Last 30 days" }
+  facts: { goes: "Goes", only: "Only to", by: "By", now: "Now", last30: "Last 30 days" },
+  /** Start's Change: how a customer's sequence runs (the loop review's item 7), changed through the campaign's own verb. */
+  settings: {
+    title: "How it runs",
+    hour: "Sends at",
+    cap: "At most, each day",
+    people: (n) => `${n} people`,
+    gap: "Again to the same person after",
+    every: "Runs every",
+    days: (n) => `${n} days`,
+    until: "Runs until",
+    untilHint: "Leave it empty and it keeps running. On that day it stops.",
+    onceEach: "It goes once to each person: who is on the list now, then each who joins.",
+    save: "Save",
+    cancel: "Cancel"
+  }
 };
 const hourWords = (h) => clockTime(Date.UTC(2026, 0, 1, h), "UTC");
+export function scheduleSettingsOf(row) {
+  const kind = row.first ? triggerOf(row.first.trigger)?.kind : null;
+  return { gap: kind === "list", every: kind === "cadence" };
+}
 export function scheduleDays(steps) {
   const out = /* @__PURE__ */ new Map();
   let day = 1;
@@ -92,7 +112,12 @@ export function scheduleStart(row, word, clock) {
       name: f?.search_name ?? "the list",
       sub: "Each one is checked before it goes"
     };
-  if (row.starts === "list") return { lead: "When someone joins ", name: f?.list_name ?? "the list", sub: at };
+  if (row.starts === "list")
+    return {
+      lead: "When someone joins ",
+      name: f?.list_name ?? "the list",
+      sub: at ? `Once each \xB7 ${at.charAt(0).toLowerCase()}${at.slice(1)}` : "Once each"
+    };
   return { lead: momentStartsSentence(f?.trigger ?? null, null, word), name: null, sub: at };
 }
 function keptFor(step) {

@@ -15,6 +15,7 @@ import { dealSpec, noteSpec, personModeSpec } from "./person.js";
 import { playbookChangeSpec, playbookRunSpec, runSpec } from "./campaigns.js";
 import {
   sequenceDiscardSpec,
+  sequenceEndSpec,
   sequenceDraftSpec,
   sequenceLeaveSpec,
   sequenceMakeSpec,
@@ -49,6 +50,7 @@ export const PAGE_SPECS = {
   sequence_make: sequenceMakeSpec,
   sequence_start: sequenceStartSpec,
   sequence_discard: sequenceDiscardSpec,
+  sequence_end: sequenceEndSpec,
   // A step's message mailed to the member who pressed Send me a test, and to nobody else.
   sequence_test: sequenceTestSpec,
   playbook_change: playbookChangeSpec,

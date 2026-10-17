@@ -24,7 +24,8 @@ import {
   sequenceOverview,
   sequencePeopleOf,
   sequenceStepsOf,
-  stepLastRunFor,
+  firstStepFacts,
+  lastRunSkipped,
 } from "@chanlytics/db";
 import { playbookCountKey, readingFor } from "@/lib/campaign-channels";
 import { repliedConversationsOf } from "../campaigns/broadcasts";
@@ -93,7 +94,7 @@ export const sequence: Reader<{ id: string }, SequenceRecordDto> = {
   async read(rc, { id: asked }) {
     const own = await sequenceOverview(rc.ctx.supabase, rc.tenantId, asked);
     const id = own.length > 0 ? asked : ((await sequenceOfPart(rc.ctx.supabase, rc.tenantId, asked)) ?? asked);
-    const [rows, steps, facts, shape, policies, lastRunFor] = await Promise.all([
+    const [rows, steps, facts, shape, policies, first, lastRunOff] = await Promise.all([
       id === asked ? own : sequenceOverview(rc.ctx.supabase, rc.tenantId, id),
       sequenceStepsOf(rc.ctx.supabase, rc.tenantId, id),
       load(rc, readers.facts, undefined).then((r) => r.data),
@@ -104,8 +105,11 @@ export const sequence: Reader<{ id: string }, SequenceRecordDto> = {
         (r) => r.data,
         () => null,
       ),
-      // The day its first step (the sequence's own id) last ran: when its next run goes. Unreadable costs that line alone.
-      stepLastRunFor(rc.ctx.supabase, rc.tenantId, id).catch(() => undefined),
+      // Its first step's (the sequence's own id) run facts: the day it last ran (when its next run goes), its cap, gap and
+      // cadence (Start's Change opens with them). Unreadable costs those lines alone.
+      firstStepFacts(rc.ctx.supabase, rc.tenantId, id).catch(() => undefined),
+      // Why its last run did nothing, where it did (the record's notice says it, sequence-run-off.ts). Unreadable: unsaid.
+      lastRunSkipped(rc.ctx.supabase, rc.tenantId, id).catch(() => undefined),
     ]);
     const [read] = rows;
     if (!read) throw new AppError("not_found", "Sequence not found.", 404);
@@ -119,7 +123,11 @@ export const sequence: Reader<{ id: string }, SequenceRecordDto> = {
         mode,
         timezone: facts.timezone,
         word: shape.word,
-        ...(lastRunFor === undefined ? {} : { last_run_for: lastRunFor }),
+        ...(first === undefined ? {} : { last_run_for: first?.last_run_for ?? null }),
+        ...(first
+          ? { settings: { cap_per_run: first.cap_per_run, gap_days: first.gap_days, cadence_days: first.cadence_days } }
+          : {}),
+        ...(lastRunOff === undefined ? {} : { last_run_off: lastRunOff }),
         ...(await startsWith(rc, row)),
       },
       rows: [cited(row)],

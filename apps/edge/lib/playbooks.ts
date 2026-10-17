@@ -16,6 +16,7 @@ import {
   holdRecipients,
   leaveSequence,
   listPolicies,
+  sequenceReached,
   mailboxOfTenant,
   messageVersionRowsOf,
   savedListsFor,
@@ -389,6 +390,8 @@ export async function runPlaybook(ctx: TenantRunContext, p: PlaybookRow, req: Ru
       // will not reach.
       followUpsDue: (stepId, runFor) => followUpsDue(db, stepId, runFor),
       leave: (enrollmentIds, why) => leaveSequence(db, { tenantId, enrollmentIds, why }),
+      // Who a list's sequence already reached: its run goes once to each person (the loop review's item 6).
+      reached: (sequenceId) => sequenceReached(db, tenantId, sequenceId),
       record: async (playbookId, runFor, at, data) => {
         await emitEvent(db, tenantId, "playbook.run", "playbook", playbookId, data).catch(() => {});
         await db

@@ -6,6 +6,7 @@
  * (who is in line, whether a step's message is still offered) are arguments.
  */
 import type { AppointmentWord } from "../journey/appointment-word";
+import { triggerOf } from "../playbooks/playbook-triggers";
 import { clockDate, clockTime, clockWhen } from "../shared/clock";
 import { plural } from "../shared/words";
 import type { SequencePeopleDto, SequenceRowDto, SequenceStepDto } from "./sequence-dto";
@@ -47,10 +48,35 @@ export const SCHEDULE_WORDS = {
   byEmail: "Email",
   byTask: "A task for you, on Today",
   facts: { goes: "Goes", only: "Only to", by: "By", now: "Now", last30: "Last 30 days" },
+  /** Start's Change: how a customer's sequence runs (the loop review's item 7), changed through the campaign's own verb. */
+  settings: {
+    title: "How it runs",
+    hour: "Sends at",
+    cap: "At most, each day",
+    people: (n: number) => `${n} people`,
+    gap: "Again to the same person after",
+    every: "Runs every",
+    days: (n: number) => `${n} days`,
+    until: "Runs until",
+    untilHint: "Leave it empty and it keeps running. On that day it stops.",
+    onceEach: "It goes once to each person: who is on the list now, then each who joins.",
+    save: "Save",
+    cancel: "Cancel",
+  },
 } as const;
 
 /** An hour as the schedule says it ("10:00 AM"), on the business's clock face. */
 const hourWords = (h: number): string => clockTime(Date.UTC(2026, 0, 1, h), "UTC");
+
+/**
+ * What Start's Change offers beside the hour, the most each day and the last day: the days before the same person hears it
+ * again, for a moment over a group of people (gone quiet, lapsed: its kind `list`); the days between runs, for the month's
+ * offer (`cadence`). A visit's, a proposal's and a list's sequence have neither: each visit, each proposal, once each.
+ */
+export function scheduleSettingsOf(row: Pick<SequenceRowDto, "first">): { gap: boolean; every: boolean } {
+  const kind = row.first ? triggerOf(row.first.trigger)?.kind : null;
+  return { gap: kind === "list", every: kind === "cadence" };
+}
 
 /** Each step's day on the rail: the first on day 1, each after it on the day its wait lands. */
 export function scheduleDays(steps: readonly Pick<SequenceStepDto, "place" | "after_days">[]): Map<number, number> {
@@ -124,7 +150,13 @@ export function scheduleStart(
       name: f?.search_name ?? "the list",
       sub: "Each one is checked before it goes",
     };
-  if (row.starts === "list") return { lead: "When someone joins ", name: f?.list_name ?? "the list", sub: at };
+  // Once to each person (the loop review's item 6): the list's people when it starts, then each who joins.
+  if (row.starts === "list")
+    return {
+      lead: "When someone joins ",
+      name: f?.list_name ?? "the list",
+      sub: at ? `Once each · ${at.charAt(0).toLowerCase()}${at.slice(1)}` : "Once each",
+    };
   return { lead: momentStartsSentence(f?.trigger ?? null, null, word), name: null, sub: at };
 }
 
