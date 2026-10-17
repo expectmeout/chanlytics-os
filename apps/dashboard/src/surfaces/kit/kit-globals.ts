@@ -23,7 +23,9 @@
  * hands data-bits `touchSwipe`), and the deck the frame's `main` registers with (`viewDeck`). Settings and Reports
  * import them. So is the phone's tab bar (`TabBar`), which the frame draws at a phone's foot (app-shell.jsx PhoneTabs).
  */
+import { BarList } from "./charts/bar";
 import { SegmentBar } from "./charts/card";
+import { LineChart } from "./charts/line";
 import { Confirm } from "./confirm/confirm";
 import { FailedRead } from "./empty/empty";
 import { Icon } from "./icon/icon";
@@ -41,6 +43,9 @@ export const KIT_GLOBALS = {
   Icon,
   FailedRead,
   SegmentBar,
+  // Ask's charts (the answer canvas, C3): a line for one count over time and bars for a few things compared.
+  LineChart,
+  BarList,
   StatePill,
   Confirm,
   MoreMenu,

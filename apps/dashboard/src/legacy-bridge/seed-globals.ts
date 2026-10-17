@@ -68,6 +68,8 @@ if (typeof window !== "undefined") {
     Icon: KIT_GLOBALS.Icon,
     FailedRead: KIT_GLOBALS.FailedRead,
     SegmentBar: KIT_GLOBALS.SegmentBar,
+    LineChart: KIT_GLOBALS.LineChart,
+    BarList: KIT_GLOBALS.BarList,
     StatePill: KIT_GLOBALS.StatePill,
     Confirm: KIT_GLOBALS.Confirm,
     MoreMenu: KIT_GLOBALS.MoreMenu,

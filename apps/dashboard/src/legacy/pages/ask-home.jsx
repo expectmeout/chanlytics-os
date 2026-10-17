@@ -253,4 +253,64 @@ const AskActs = ({ words, spoken, speech, flash, t }) => {
   );
 };
 
-window.AskHome = { buildLineRows, AskRows, flatRows, AskNowPills, ahAgo, AskReads, AskActs };
+// A chart of numbers the turn read (contracts AskChart): a line for one count over time, bars for a few things compared,
+// on the chart kit's own parts and its validated palette (kit-globals LineChart, BarList), with where it was read from.
+const AskChart = ({ c, t, onNav }) => {
+  const W = window;
+  const plot =
+    c.kind === "line" && W.LineChart ? (
+      <W.LineChart
+        data={c.points.map((p) => ({ label: p.label, short: p.label, v: p.value }))}
+        keys={[{ key: "v", fill: true }]}
+        config={{ v: { label: c.label, color: "var(--chart-1)" } }}
+        height={140}
+        ariaLabel={c.label}
+      />
+    ) : W.BarList ? (
+      <W.BarList rows={c.points.map((p, i) => ({ id: String(i), label: p.label, value: p.value }))} />
+    ) : null;
+  return (
+    <div className="ask-chart" data-testid="ask-chart" data-kind={c.kind}>
+      <span className="ask-chart-title">{c.label}</span>
+      {plot}
+      <span className="ask-breakdown-from">
+        {t.from} {c.source.label}
+        {c.source.door ? (
+          <button type="button" className="ask-receipt-door" onClick={() => onNav(c.source.to)}>{t.open}</button>
+        ) : null}
+      </span>
+    </div>
+  );
+};
+
+// One whole in its parts, on the chart kit's bar (chart-core.jsx SegmentBar), coloured as Reports colours who answered:
+// the parts in the kit's blues in order, the one marked for attention in the warn status with its icon.
+const AT_PART_COLORS = ["var(--chart-1)", "var(--chart-1-soft)", "var(--chart-ramp-2)", "var(--chart-ramp-1)"];
+const AskBreakdown = ({ b, t, onNav }) => {
+  const SegmentBar = window.SegmentBar;
+  const config = {};
+  let n = 0;
+  const rows = b.parts.map((p, k) => {
+    const key = `p${k}`;
+    config[key] = p.warn
+      ? { label: p.label, color: "var(--warn)", icon: "alert" }
+      : { label: p.label, color: AT_PART_COLORS[n++] || "var(--chart-1)" };
+    return { key, value: p.value };
+  });
+  const title = `${b.total} ${b.label}`;
+  return (
+    <div className="ask-breakdown" data-testid="ask-breakdown">
+      {SegmentBar ? <SegmentBar title={title} rows={rows} config={config} small /> : <span className="ask-breakdown-title">{title}</span>}
+      {b.source ? (
+        <span className="ask-breakdown-from">
+          {t.from} {b.source.label}
+          {b.source.door ? (
+            <button type="button" className="ask-receipt-door" onClick={() => onNav(b.source.to)}>{t.open}</button>
+          ) : null}
+        </span>
+      ) : null}
+    </div>
+  );
+};
+
+window.AskHome = { buildLineRows, AskRows, flatRows, AskNowPills, ahAgo, AskReads, AskActs, AskBreakdown, AskChart };

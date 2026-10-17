@@ -13353,6 +13353,23 @@ function answerPlain(text, spoken = false) {
     return [b.head.map(runsText).join(sep), ...b.rows.map((r2) => r2.map(runsText).join(sep))];
   }).join("\n");
 }
+var ASK_CHART_KINDS = ["line", "bars"];
+var chartWords = (v, n) => typeof v === "string" ? v.replace(/\s+/g, " ").trim().slice(0, n) : "";
+function answerChart(raw, ground, caps) {
+  const c = raw && typeof raw === "object" ? raw : {};
+  const kind = ASK_CHART_KINDS.find((k) => k === c.kind);
+  const label = chartWords(c.label, caps.label);
+  const all = (Array.isArray(c.points) ? c.points : []).flatMap((p) => {
+    const q = p && typeof p === "object" ? p : {};
+    const name = chartWords(q.label, caps.label);
+    const value = typeof q.value === "number" && Number.isFinite(q.value) && q.value >= 0 ? q.value : null;
+    return name && value !== null ? [{ label: name, value }] : [];
+  });
+  const points = kind === "line" ? all.slice(-caps.points) : all.slice(0, caps.points);
+  if (!kind || !label || points.length < 2) return null;
+  const source = ground(c.source);
+  return source ? { kind, label, points, source } : null;
+}
 var NO_LIST = { style: "bullets", entries: [] };
 function listLines(l) {
   return l.entries.map((e, i) => l.style === "numbers" ? `${i + 1}. ${e}` : l.style === "bullets" ? `\u2022 ${e}` : e);
@@ -13364,9 +13381,11 @@ function answerText(a) {
 }
 function answerCopy(a) {
   const b = a.show.breakdown;
+  const c = a.show.chart;
   return [
     answerText(a),
     ...b ? [`${b.total} ${b.label}: ${b.parts.map((p) => `${p.label} ${p.value}`).join(", ")}`] : [],
+    ...c ? [`${c.label}: ${c.points.map((p) => `${p.label} ${p.value}`).join(", ")}`] : [],
     ...a.show.figures.map((f) => `${[f.value, f.label].filter(Boolean).join(" ")}${f.note ? ` (${f.note})` : ""}`),
     ...a.show.items.map((it) => [it.title, it.meta, it.line].filter(Boolean).join(" \xB7 "))
   ].filter(Boolean).join("\n");
@@ -23360,6 +23379,7 @@ var ASK_ANSWER_CAPS = {
   figures: 4,
   items: 5,
   parts: 4,
+  points: 12,
   entries: 25,
   entry: 240,
   next: 2,
@@ -23420,10 +23440,10 @@ function oneDoor(a, cards = []) {
   const open = a.do.open && !offered.has(canonicalRoute(a.do.open.to)) ? a.do.open : null;
   if (open) offered.add(canonicalRoute(open.to));
   const cardOpen = {};
-  for (const c of cards) {
-    const to = cardOpenRoute(c);
-    cardOpen[c.id] = !!to && !offered.has(canonicalRoute(to));
-    if (to && cardOpen[c.id]) offered.add(canonicalRoute(to));
+  for (const c2 of cards) {
+    const to = cardOpenRoute(c2);
+    cardOpen[c2.id] = !!to && !offered.has(canonicalRoute(to));
+    if (to && cardOpen[c2.id]) offered.add(canonicalRoute(to));
   }
   const receipt = (s) => {
     if (!s) return null;
@@ -23433,10 +23453,12 @@ function oneDoor(a, cards = []) {
   };
   const breakdown = a.show.breakdown ? { ...a.show.breakdown, source: receipt(a.show.breakdown.source) } : null;
   const figures = a.show.figures.map((f) => ({ ...f, source: receipt(f.source) }));
+  const c = a.show.chart;
+  const chart = c ? { chart: { ...c, source: receipt(c.source) ?? c.source } } : {};
   return {
     answer: {
       ...a,
-      show: { figures, items, breakdown, list: a.show.list ?? noList() },
+      show: { figures, items, breakdown, ...chart, list: a.show.list ?? noList() },
       do: { open, next: nextQuestions(a.do.next, [...offered]) }
     },
     cardOpen
@@ -23694,6 +23716,7 @@ function normalizeAnswer(raw, read, fallback) {
   const whole2 = words(b.label, C.label);
   const adds = !!whole2 && parts2.length >= 2 && parts2.length <= C.parts && parts2.every((p) => p.label && Number.isFinite(p.value) && p.value >= 0) && Number.isFinite(total) && Math.abs(parts2.reduce((s, p) => s + p.value, 0) - total) < 1e-9;
   const breakdown = adds ? { label: whole2, total, parts: parts2, source: ground(b.source) } : null;
+  const chart = answerChart(show.chart, ground, C);
   const l = asObj(show.list);
   const list2 = {
     style: ASK_LIST_STYLES.find((x) => x === l.style) ?? "bullets",
@@ -23714,7 +23737,7 @@ function normalizeAnswer(raw, read, fallback) {
       v: 2,
       form: "structured",
       say: say2,
-      show: { figures, items, breakdown, list: list2 },
+      show: { figures, items, breakdown, ...chart ? { chart } : {}, list: list2 },
       do: { open, next },
       language
     },
@@ -23732,6 +23755,7 @@ function answerWords(a) {
       String(a.show.breakdown.total),
       ...a.show.breakdown.parts.flatMap((p) => [p.label, String(p.value)])
     ] : [],
+    ...a.show.chart ? [a.show.chart.label, ...a.show.chart.points.flatMap((p) => [p.label, String(p.value)])] : [],
     ...a.show.list.entries
   ].filter(Boolean).join(" ");
 }
@@ -23779,6 +23803,7 @@ function v1FromAnswer(a) {
   for (const i of a.show.items) add(i.source);
   for (const f of a.show.figures) add(f.source);
   add(a.show.breakdown ? a.show.breakdown.source : null);
+  add(a.show.chart?.source ?? null);
   return {
     text: answerText(a),
     citations: citations.slice(0, ASK_CAPS.citations),
@@ -25332,6 +25357,35 @@ var ASK_ANSWER_FORMAT = {
           required: ["label", "total", "parts", "source"],
           additionalProperties: false
         },
+        chart: {
+          type: "object",
+          description: `A chart of numbers read this turn, when a picture says it faster than words: kind line for one count over time (a point a day, a week or a month, oldest first), bars for a few things compared, 2 to ${ASK_ANSWER_CAPS.points} points, each value a number a tool returned, and the source they were read from. Points empty when nothing is charted, and never the numbers a breakdown or a table already shows.`,
+          properties: {
+            kind: { type: "string", enum: [...ASK_CHART_KINDS] },
+            label: {
+              type: "string",
+              description: `What is counted ("bookings a week", "messages by channel"), at most ${ASK_ANSWER_CAPS.label} characters.`
+            },
+            points: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  label: {
+                    type: "string",
+                    description: `A day, a week, a month or a name, at most ${ASK_ANSWER_CAPS.label} characters.`
+                  },
+                  value: { type: "number" }
+                },
+                required: ["label", "value"],
+                additionalProperties: false
+              }
+            },
+            source: SOURCE
+          },
+          required: ["kind", "label", "points", "source"],
+          additionalProperties: false
+        },
         list: {
           type: "object",
           description: "A flat list of points when the answer is one (bullets, numbered, steps, one per line): points in words, never the rows items hold; entries empty when nothing is a list. A list nested under headings, or set beside a table, goes in say.detail instead.",
@@ -25351,7 +25405,7 @@ var ASK_ANSWER_FORMAT = {
           additionalProperties: false
         }
       },
-      required: ["figures", "items", "breakdown", "list"],
+      required: ["figures", "items", "breakdown", "chart", "list"],
       additionalProperties: false
     },
     do: {

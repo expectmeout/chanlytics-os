@@ -512,6 +512,15 @@ const written = (over = {}) => ({
       },
     ],
     breakdown: BREAKDOWN,
+    chart: {
+      kind: "line",
+      label: "messages a day",
+      points: [
+        { label: "Mon", value: 4 },
+        { label: "Tue", value: 6 },
+      ],
+      source: { kind: "page", id: "reports", label: "Reports" },
+    },
     list: { style: "numbers", entries: ["Reply to Nora.", "Call Sam back."] },
   },
   do: {
@@ -604,6 +613,15 @@ test("the server reads every key the format names: a whole answer as written com
         },
       ],
       breakdown: { ...BREAKDOWN, source: { kind: "page", id: "reports", label: "Reports", to: "reports", door: true } },
+      chart: {
+        kind: "line",
+        label: "messages a day",
+        points: [
+          { label: "Mon", value: 4 },
+          { label: "Tue", value: 6 },
+        ],
+        source: { kind: "page", id: "reports", label: "Reports", to: "reports", door: true },
+      },
       list: { style: "numbers", entries: ["Reply to Nora.", "Call Sam back."] },
     },
     do: { open: { to: `conversations/cv-${CALL}`, label: "Open the call", now: false }, next: ["Reply to Nora?"] },
@@ -1083,6 +1101,7 @@ test("Copy takes the answer's words, then what it showed: the whole in its parts
     [
       answerText(a),
       `${BREAKDOWN.total} ${BREAKDOWN.label}: ${BREAKDOWN.parts.map((p) => `${p.label} ${p.value}`).join(", ")}`,
+      "messages a day: Mon 4, Tue 6",
       "2 waiting on you (up from 1)",
       "Nora · WhatsApp · 2h · Asked about Saturday.",
     ].join("\n"),
@@ -1572,6 +1591,72 @@ test("REGRESSION (the C2 look, 16 Oct): a door or an italic inside bold is read,
   assert.equal(blocks[0].list.start, undefined, "a list from 1 says nothing of it");
   assert.equal(blocks[2].list.start, 3, "the step after the quote is still 3");
   assert.equal(answerPlain("1. a\n> said\n3. c"), "1. a\n“said”\n3. c");
+});
+
+test("a chart the answer drew (the answer canvas, C3): a line or bars of numbers read this turn, its source grounded; none with fewer than two points, no label, a source not read or no kind; a line keeps its newest twelve, bars their first; Copy and the citations carry it", () => {
+  const REPORTS = { kind: "page", id: "reports", label: "Reports" };
+  const weeks = [
+    { label: "Sep 22", value: 3 },
+    { label: "Sep 29", value: 5 },
+    { label: "Oct 6", value: 4 },
+  ];
+  const chartOf = (chart) => read1(withShow({ breakdown: null, chart })).answer.show.chart;
+  assert.deepEqual(chartOf({ kind: "line", label: "bookings a week", points: weeks, source: REPORTS }), {
+    kind: "line",
+    label: "bookings a week",
+    points: weeks,
+    source: { ...REPORTS, to: "reports", door: true },
+  });
+  assert.equal(
+    chartOf({ kind: "line", label: "bookings a week", points: weeks.slice(0, 1), source: REPORTS }),
+    undefined,
+  );
+  assert.equal(chartOf({ kind: "line", label: "", points: weeks, source: REPORTS }), undefined);
+  assert.equal(chartOf({ kind: "pie", label: "bookings", points: weeks, source: REPORTS }), undefined);
+  assert.equal(
+    chartOf({ kind: "bars", label: "x", points: weeks, source: { kind: "thread", id: UNREAD, label: "?" } }),
+    undefined,
+  );
+  assert.equal(chartOf({ kind: "bars", label: "x", points: weeks, source: NONE }), undefined, "no source, no chart");
+  const odd = chartOf({
+    kind: "bars",
+    label: "messages by channel",
+    points: [
+      { label: "WhatsApp", value: 7 },
+      { label: "SMS", value: -1 },
+      { label: "Email", value: 2 },
+    ],
+    source: REPORTS,
+  });
+  assert.deepEqual(
+    odd.points,
+    [
+      { label: "WhatsApp", value: 7 },
+      { label: "Email", value: 2 },
+    ],
+    "a value that is no count goes",
+  );
+  const many = Array.from({ length: 15 }, (_, i) => ({ label: `d${i + 1}`, value: i }));
+  assert.deepEqual(
+    chartOf({ kind: "line", label: "a day", points: many, source: REPORTS }).points.map((p) => p.label)[0],
+    "d4",
+    "the newest twelve",
+  );
+  assert.deepEqual(
+    chartOf({ kind: "bars", label: "each", points: many, source: REPORTS }).points.at(-1).label,
+    "d12",
+    "the first twelve",
+  );
+  const drawn = read1(
+    withShow({ breakdown: null, chart: { kind: "line", label: "bookings a week", points: weeks, source: REPORTS } }),
+  ).answer;
+  assert.ok(answerCopy(drawn).includes("bookings a week: Sep 22 3, Sep 29 5, Oct 6 4"), answerCopy(drawn));
+  assert.ok(v1FromAnswer(drawn).citations.some((c) => c.kind === "page" && c.id === "reports"));
+  assert.equal(
+    read1(withShow({ breakdown: null, chart: undefined })).answer.show.chart,
+    undefined,
+    "an answer with no chart carries no key",
+  );
 });
 
 test("REGRESSION (the A1 eval): a headline's second sentence opens the detail as a paragraph of its own above a table, so the table keeps its first row", () => {

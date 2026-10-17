@@ -396,36 +396,6 @@ const AskFigure = ({ f, open, onToggle, t, onNav }) => (
   </div>
 );
 
-// One whole in its parts, on the chart kit's bar (chart-core.jsx SegmentBar), coloured as Reports colours who answered:
-// the parts in the kit's blues in order, the one marked for attention in the warn status with its icon.
-const AT_PART_COLORS = ["var(--chart-1)", "var(--chart-1-soft)", "var(--chart-ramp-2)", "var(--chart-ramp-1)"];
-const AskBreakdown = ({ b, t, onNav }) => {
-  const SegmentBar = window.SegmentBar;
-  const config = {};
-  let n = 0;
-  const rows = b.parts.map((p, k) => {
-    const key = `p${k}`;
-    config[key] = p.warn
-      ? { label: p.label, color: "var(--warn)", icon: "alert" }
-      : { label: p.label, color: AT_PART_COLORS[n++] || "var(--chart-1)" };
-    return { key, value: p.value };
-  });
-  const title = `${b.total} ${b.label}`;
-  return (
-    <div className="ask-breakdown" data-testid="ask-breakdown">
-      {SegmentBar ? <SegmentBar title={title} rows={rows} config={config} small /> : <span className="ask-breakdown-title">{title}</span>}
-      {b.source ? (
-        <span className="ask-breakdown-from">
-          {t.from} {b.source.label}
-          {b.source.door ? (
-            <button type="button" className="ask-receipt-door" onClick={() => onNav(b.source.to)}>{t.open}</button>
-          ) : null}
-        </span>
-      ) : null}
-    </div>
-  );
-};
-
 // A line of the answer's words as runs (contracts answerRuns): bold, italic or plain, each one text, and a door where
 // the run names a row the turn read (its route the normaliser's, never the model's). A door opens only on an answer that
 // landed (`onNav`): a streaming one draws its words. Nothing the model wrote is ever drawn as markup.
@@ -545,6 +515,8 @@ const AskListPart = ({ l }) => {
 // (`itemMove`, its place in answerMoves' order, or -1 for a row drawn without a door). An answer stored before the list
 // part has none. A numbered list of rows is its items, numbered in their marks (the list's style with no entries).
 const AskShow = ({ a, itemMove, moveProps, t, onNav }) => {
+  // A breakdown and a chart are ask-home.jsx's (window.AskHome), loaded beside this file.
+  const H = window.AskHome;
   const [receipt, setReceipt] = useAtState(-1);
   const list = a.show.list || { style: "bullets", entries: [] };
   const numbered = list.style === "numbers" && !list.entries.length;
@@ -566,7 +538,8 @@ const AskShow = ({ a, itemMove, moveProps, t, onNav }) => {
     <div className="ask-part show" data-testid="ask-show">
       <div className="ask-show">
         {list.entries.length ? <AskListPart l={list} /> : null}
-        {a.show.breakdown ? <AskBreakdown b={a.show.breakdown} t={t} onNav={onNav} /> : null}
+        {a.show.breakdown ? <H.AskBreakdown b={a.show.breakdown} t={t} onNav={onNav} /> : null}
+        {a.show.chart ? <H.AskChart c={a.show.chart} t={t} onNav={onNav} /> : null}
         {a.show.figures.length ? (
           <div className="ask-figures">
             {a.show.figures.map((f, k) => (
@@ -606,7 +579,7 @@ const AskAnswer = ({ answer, cardOpen, cards, messageId, retry, walk = false, se
   const a = answer;
   const nexts = next ? a.do.next : [];
   const listed = !!(a.show.list && a.show.list.entries.length);
-  const hasShow = a.show.figures.length > 0 || a.show.items.length > 0 || !!a.show.breakdown || listed;
+  const hasShow = a.show.figures.length > 0 || a.show.items.length > 0 || !!a.show.breakdown || !!a.show.chart || listed;
   const hasDo = !!a.do.open || nexts.length > 0 || (cards && cards.length > 0) || !!retry;
   // Each move's place in answerMoves' order: the items that are doors, then Open, then the next questions.
   let doors = 0;

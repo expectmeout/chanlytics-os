@@ -5,7 +5,7 @@
  * sentence ends (firstSentence), and the formatting its words may carry, read as blocks the Line draws (answerBlocks)
  * and as the plain words Copy and a voice take (answerPlain). The answer's shape and its normaliser are ask-answer.ts's.
  */
-import type { AskAnswer, AskList } from "./ask-answer";
+import type { AskAnswer, AskList, AskSource } from "./ask-answer";
 import type { AskLanguage } from "./ask-language";
 
 /* ------------------------------------------------------------- the answer */
@@ -417,6 +417,52 @@ export function answerPlain(text: string, spoken = false): string {
     .join("\n");
 }
 
+/* ------------------------------------------------------------- the chart */
+
+/** A chart's kind: a line for one count over time, bars for a few things compared. */
+export const ASK_CHART_KINDS = ["line", "bars"] as const;
+
+/**
+ * A chart of numbers this turn read (the answer canvas, C3): a line for one count over time, or bars for a few things
+ * compared, drawn with the chart kit and its validated palette. Drawn only with its source grounded and two points or
+ * more (answerChart), so every number on it is one a reader returned.
+ */
+export interface AskChart {
+  kind: (typeof ASK_CHART_KINDS)[number];
+  /** What is counted ("bookings a week", "messages by channel"). */
+  label: string;
+  points: Array<{ label: string; value: number }>;
+  source: AskSource;
+}
+
+/** A chart's words: one line, its spacing folded, cut at `n`. */
+const chartWords = (v: unknown, n: number) => (typeof v === "string" ? v.replace(/\s+/g, " ").trim().slice(0, n) : "");
+
+/**
+ * The model's chart, read: its kind, its label and its points (a label each, a finite value at or over 0), the newest
+ * `caps.points` of a line and the first of bars, and its source as `ground` grounds it; none with no label, fewer than
+ * two points or a source this turn did not read.
+ */
+export function answerChart(
+  raw: unknown,
+  ground: (source: unknown) => AskSource | null,
+  caps: { label: number; points: number },
+): AskChart | null {
+  const c = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
+  const kind = ASK_CHART_KINDS.find((k) => k === c.kind);
+  const label = chartWords(c.label, caps.label);
+  const all = (Array.isArray(c.points) ? c.points : []).flatMap((p: unknown) => {
+    const q = p && typeof p === "object" ? (p as Record<string, unknown>) : {};
+    const name = chartWords(q.label, caps.label);
+    const value = typeof q.value === "number" && Number.isFinite(q.value) && q.value >= 0 ? q.value : null;
+    return name && value !== null ? [{ label: name, value }] : [];
+  });
+  const points = kind === "line" ? all.slice(-caps.points) : all.slice(0, caps.points);
+  if (!kind || !label || points.length < 2) return null;
+  const source = ground(c.source);
+  return source ? { kind, label, points, source } : null;
+}
+
 /* ------------------------------------------------- the answer's words, read */
 
 /** No list: what an answer stored before the list part reads as. */
@@ -441,9 +487,11 @@ export function answerText(a: AskAnswer): string {
 /** The answer as Copy takes it: its words (answerText), then its parts, each figure and each row, a line each. */
 export function answerCopy(a: AskAnswer): string {
   const b = a.show.breakdown;
+  const c = a.show.chart;
   return [
     answerText(a),
     ...(b ? [`${b.total} ${b.label}: ${b.parts.map((p) => `${p.label} ${p.value}`).join(", ")}`] : []),
+    ...(c ? [`${c.label}: ${c.points.map((p) => `${p.label} ${p.value}`).join(", ")}`] : []),
     ...a.show.figures.map((f) => `${[f.value, f.label].filter(Boolean).join(" ")}${f.note ? ` (${f.note})` : ""}`),
     ...a.show.items.map((it) => [it.title, it.meta, it.line].filter(Boolean).join(" · ")),
   ]

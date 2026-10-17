@@ -1,6 +1,7 @@
 import { ASK_LANGUAGES } from "./ask-language.js";
 import { ASK_ANSWER_CAPS as C, ASK_LIST_STYLES } from "./ask-answer.js";
 import { ASK_CITATION_KINDS, ASK_ROW_WORDS } from "./citations.js";
+import { ASK_CHART_KINDS } from "./answer-text.js";
 const SOURCE = {
   type: "object",
   description: "A row or a page read this turn (the workspace block and the reads above count, as does a tool's result), or a row an earlier answer in this thread named, with the kind and the exact id it came with (a page's id is its route; a run is kind broadcast); kind none when it rests on nothing read or named.",
@@ -99,6 +100,35 @@ export const ASK_ANSWER_FORMAT = {
           required: ["label", "total", "parts", "source"],
           additionalProperties: false
         },
+        chart: {
+          type: "object",
+          description: `A chart of numbers read this turn, when a picture says it faster than words: kind line for one count over time (a point a day, a week or a month, oldest first), bars for a few things compared, 2 to ${C.points} points, each value a number a tool returned, and the source they were read from. Points empty when nothing is charted, and never the numbers a breakdown or a table already shows.`,
+          properties: {
+            kind: { type: "string", enum: [...ASK_CHART_KINDS] },
+            label: {
+              type: "string",
+              description: `What is counted ("bookings a week", "messages by channel"), at most ${C.label} characters.`
+            },
+            points: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  label: {
+                    type: "string",
+                    description: `A day, a week, a month or a name, at most ${C.label} characters.`
+                  },
+                  value: { type: "number" }
+                },
+                required: ["label", "value"],
+                additionalProperties: false
+              }
+            },
+            source: SOURCE
+          },
+          required: ["kind", "label", "points", "source"],
+          additionalProperties: false
+        },
         list: {
           type: "object",
           description: "A flat list of points when the answer is one (bullets, numbered, steps, one per line): points in words, never the rows items hold; entries empty when nothing is a list. A list nested under headings, or set beside a table, goes in say.detail instead.",
@@ -118,7 +148,7 @@ export const ASK_ANSWER_FORMAT = {
           additionalProperties: false
         }
       },
-      required: ["figures", "items", "breakdown", "list"],
+      required: ["figures", "items", "breakdown", "chart", "list"],
       additionalProperties: false
     },
     do: {

@@ -81,6 +81,7 @@ export const ASK_DEFINITIONS: Record<string, string> = {
 
 const NOTHING = { kind: "none", id: "", label: "" };
 const NO_BREAKDOWN = { label: "", total: 0, parts: [], source: NOTHING };
+const NO_CHART = { kind: "bars", label: "", points: [], source: NOTHING };
 const NO_LIST = { style: "bullets", entries: [] };
 const REPORTS = { kind: "page", id: "reports", label: "Reports, past 7 days" };
 
@@ -112,6 +113,7 @@ export const ASK_EXAMPLES = [
           ],
           source: REPORTS,
         },
+        chart: NO_CHART,
         list: NO_LIST,
       },
       do: {
@@ -146,6 +148,7 @@ export const ASK_EXAMPLES = [
           },
         ],
         breakdown: NO_BREAKDOWN,
+        chart: NO_CHART,
         list: NO_LIST,
       },
       do: { open: { source: NOTHING, label: "", now: false }, next: ["What did the receptionist tell Ana?"] },
@@ -156,7 +159,7 @@ export const ASK_EXAMPLES = [
     "Open the transcript of the most recent call",
     {
       say: { headline: "Opening Casey Lin's call from 3:34 PM.", detail: "" },
-      show: { figures: [], items: [], breakdown: NO_BREAKDOWN, list: NO_LIST },
+      show: { figures: [], items: [], breakdown: NO_BREAKDOWN, chart: NO_CHART, list: NO_LIST },
       do: {
         open: {
           source: { kind: "call", id: "<the call_id the calls above gave>", label: "Casey Lin's call" },
@@ -189,6 +192,7 @@ export const ASK_EXAMPLES = [
           },
         ],
         breakdown: NO_BREAKDOWN,
+        chart: NO_CHART,
         list: { style: "numbers", entries: [] },
       },
       do: { open: { source: NOTHING, label: "", now: false }, next: [] },
@@ -203,6 +207,7 @@ export const ASK_EXAMPLES = [
         figures: [],
         items: [],
         breakdown: NO_BREAKDOWN,
+        chart: NO_CHART,
         list: {
           style: "bullets",
           entries: [
@@ -224,7 +229,7 @@ export const ASK_EXAMPLES = [
         detail:
           "| Channel | Conversations | Booked | Median reply |\n|---|---|---|---|\n| WhatsApp | 42 | **18** | 1 min |\n| Calls | 25 | 9 | 0 min |\n| Text | 11 | 3 | 4 min |\n\nText books least: **3 of 11**, and most of the rest asked about prices.",
       },
-      show: { figures: [], items: [], breakdown: NO_BREAKDOWN, list: NO_LIST },
+      show: { figures: [], items: [], breakdown: NO_BREAKDOWN, chart: NO_CHART, list: NO_LIST },
       do: {
         open: { source: { kind: "page", id: "reports", label: "Reports" }, label: "Open Reports", now: false },
         next: ["Why does text book less?"],
@@ -240,7 +245,7 @@ export const ASK_EXAMPLES = [
         detail:
           "### Today\n1. Open **Needs you** in the Inbox and answer the oldest first.\n2. For each one the receptionist could not answer:\n  - add the missing fact to its notes, so it answers the next one itself\n  - take the thread over when it needs a person\n\n### This week\n- Check that the hours and services it answers from are right.",
       },
-      show: { figures: [], items: [], breakdown: NO_BREAKDOWN, list: NO_LIST },
+      show: { figures: [], items: [], breakdown: NO_BREAKDOWN, chart: NO_CHART, list: NO_LIST },
       do: {
         open: { source: { kind: "page", id: "inbox", label: "Inbox" }, label: "Open the Inbox", now: false },
         next: ["Which facts was it missing?"],

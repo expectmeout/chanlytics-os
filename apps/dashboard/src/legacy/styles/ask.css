@@ -221,6 +221,9 @@ body.ask-open .tb-ask .tb-ask-face { visibility: hidden; }
 .ask-tile-door { display: inline-flex; padding: 2px; border: 0; background: transparent; color: var(--ink-muted); cursor: pointer; }
 .ask-tile-door:hover { color: var(--ink); }
 .ask-breakdown { display: flex; flex-direction: column; gap: 6px; }
+/* A chart the answer drew (the answer canvas, C3): its one series in the chart kit's single data hue. */
+.ask-chart { display: flex; flex-direction: column; gap: 6px; min-width: 0; --color-v: var(--chart-1); }
+.ask-chart-title { font-size: var(--text-sm); font-weight: 500; color: var(--ink); }
 .ask-breakdown-title { font-size: 13px; font-weight: 500; color: var(--ink); }
 .ask-breakdown-from { display: inline-flex; align-items: baseline; gap: 8px; font-size: 12px; color: var(--ink-dim); }
 .ask-receipt-door { padding: 0; border: 0; background: transparent; font: inherit; font-size: 12px; color: var(--ink); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }

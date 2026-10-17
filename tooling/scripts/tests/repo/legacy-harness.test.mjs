@@ -484,6 +484,8 @@ test("the kit's bundle publishes the kit's own components on the page's React, u
     "Icon",
     "FailedRead",
     "SegmentBar",
+    "LineChart",
+    "BarList",
     "StatePill",
     "Confirm",
     "MoreMenu",

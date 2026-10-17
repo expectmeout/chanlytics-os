@@ -669,7 +669,17 @@ export function shapeAskedFails(e, m) {
     const said = FORMAT_APOLOGY.exec(m?.text ?? "");
     if (said) fails.push(`the answer apologizes for its shape: “${said[0]}”`);
   }
-  const keys = ["list", "list_empty", "headline_words", "detail_empty", "all_caps", "detail_shape", "detail_max_words"];
+  const keys = [
+    "list",
+    "list_empty",
+    "headline_words",
+    "detail_empty",
+    "all_caps",
+    "detail_shape",
+    "detail_max_words",
+    "chart",
+    "chart_none",
+  ];
   if (!keys.some((k) => e[k] !== undefined)) return fails;
   if (!a || a.form !== "structured")
     return [...fails, "a shape was asked for, and the answer has none (prose or no answer)"];
@@ -719,7 +729,7 @@ const listItems = (l) => l.items.flatMap((it) => [it, ...(it.sub ? listItems(it.
 
 /**
  * What the detail draws (contracts answerBlocks, as the Line does): `detail_shape` names what it must hold, a `table`,
- * `bold` (in the detail or the list's entries), a `heading`, a `nested` list, `numbered` steps, a `quote` of someone's
+ * `chart` (one drawn, or its kind) and `chart_none`; `bold` (in the detail or the list's entries), a `heading`, a `nested` list, `numbered` steps, a `quote` of someone's
  * words, a `callout`, a `door` (a row the words name, opened where it is named), or `plain` for no structure (no table, heading or list: a bold name or number is still plain words); `detail_max_words` is the most
  * words it may say (a turn asked to be shorter, or one that should be).
  */
@@ -766,6 +776,12 @@ export function detailShapeFails(e, a) {
   }
   if (typeof e.detail_max_words === "number" && wordsIn(a.say.detail ?? "").length > e.detail_max_words)
     fails.push(`a detail of ${wordsIn(a.say.detail ?? "").length} words, where at most ${e.detail_max_words} fit`);
+  // A chart (the answer canvas, C3): `chart` asks for one (true, or its kind: line, bars); `chart_none` for none.
+  const c = a.show.chart;
+  if (e.chart && !c) fails.push("no chart where one was asked");
+  else if (typeof e.chart === "string" && c && c.kind !== e.chart)
+    fails.push(`a ${c.kind} chart, where a ${e.chart} was asked`);
+  if (e.chart_none && c) fails.push(`a ${c.kind} chart nobody needed`);
   return fails;
 }
 
