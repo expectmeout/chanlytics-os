@@ -3708,6 +3708,28 @@ a.list-row {
   white-space: nowrap;
   overflow: hidden;
 }
+/* On a phone a hairline parts two rows, so a row is followed across the screen (Ruben, 16 Oct 2026: "a divider between
+   each row to make it easier to follow, a subtle one"): at the top of every row but a list's first, from under the name
+   to the row's far padding, the face's column clear of it; a row with nothing in its first column from its start. The
+   pages' own rows draw the same line (mobile.css). */
+@media (max-width: 900px) {
+  .list-row {
+    position: relative;
+  }
+  .list-row + .list-row::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: var(--row-rule-start);
+    right: var(--row-pad-x);
+    height: 1px;
+    background: var(--line);
+    pointer-events: none;
+  }
+  .list-row-bare + .list-row-bare::after {
+    left: var(--row-pad-x);
+  }
+}
 
 /* ---------- Meter: a whole in its parts ----------
    Step 2.2. The charts kit's SegmentBar (charts.css:150-155): the parts in a row with 2px of ground between them, the
