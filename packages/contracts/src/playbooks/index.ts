@@ -7,6 +7,7 @@ export {
   LIST_PLAYBOOK_CLASSES,
   triggerOf,
   triggerOffered,
+  VISIT_TRIGGERS,
   momentOffered,
   momentReadsCalendar,
   MOMENTS_RETIRED,

@@ -263,9 +263,10 @@ function MessagesReal() {
 
   const list = (
     <div className="cm-page tpl-wrap">
-      {/* The Library is a room of Campaigns' home (no strip of tabs any more): its crumbs say Campaigns › Library, and the
-          head names it and says its line. */}
+      {/* Messages is a view of Campaigns beside Sequences (decision 0060, D4): its head is Campaigns', the strip under it
+          saying the view, with its line beside the name and New by the strip, as Sequences' head is. */}
       <CmHead
+        quiet
         title={LIBRARY_WORDS.title}
         testid="messages-standing"
         sub={headSub({ listing, messages, emails })}

@@ -18,9 +18,12 @@ import {
   historyFigures,
   historyIn,
   historySince,
+  historyStamp,
+  historyUpcomingWords,
   isListToken,
   leadStepStand,
   listStartsSentence,
+  peopleNeedsOf,
   stepApprovalOf,
 } from "@chanlytics/contracts";
 
@@ -98,10 +101,11 @@ test("the pages read cover a period once they reach back past its first day, or 
 });
 
 test("a day's row: what it went to, or why it did not go, with the step where a sequence has several", () => {
-  assert.deepEqual(historyDayWords(B[1], null), { end: "13 sent", said: "12 delivered · 11 read · 2 replied" });
+  // Delivered is the figures' over the period; a day says what was read and what came back, a zero said in words.
+  assert.deepEqual(historyDayWords(B[1], null), { end: "13 sent", said: "11 read · 2 replied" });
   assert.deepEqual(historyDayWords(B[2], "step 2"), {
     end: "9 sent",
-    said: "step 2 · 9 delivered · 8 read · 1 replied · 1 held",
+    said: "step 2 · 8 read · 1 replied · 1 held",
   });
   assert.deepEqual(historyDayWords(B[0], null), { end: "Waits for you", said: "14 people" });
   assert.deepEqual(historyDayWords({ ...B[0], people: 0 }, null), { end: "Waits for you", said: "" }, "never 0 people");
@@ -115,8 +119,45 @@ test("a day's row: what it went to, or why it did not go, with the step where a 
   );
   assert.deepEqual(historyDayWords(failed, null), {
     end: "Failed",
-    said: "0 delivered · 0 read · 0 replied · 12 failed · The number was disconnected",
+    said: "0 read · no replies · 12 failed · The number was disconnected",
   });
+});
+
+test("History's rows say their day by name and their time; the batch to come says how it goes", () => {
+  const at = (iso) => Date.parse(iso);
+  // NOW is noon in New York on Thu, Oct 15.
+  assert.equal(historyStamp(at("2026-10-15T13:00:00Z"), TZ, NOW), "Today · 9:00 AM");
+  assert.equal(historyStamp(at("2026-10-14T13:00:00Z"), TZ, NOW), "Yesterday · 9:00 AM");
+  assert.equal(historyStamp(at("2026-10-16T13:00:00Z"), TZ, NOW), "Tomorrow · 9:00 AM");
+  assert.match(historyStamp(at("2026-10-11T13:00:00Z"), TZ, NOW), /^Sun.* · 9:00 AM$/);
+  assert.deepEqual(historyUpcomingWords(3, "auto"), { end: "3 people", said: "Next · goes on its own" });
+  assert.deepEqual(historyUpcomingWords(null, null), { end: "", said: "Next · waits for your OK" }, "none set asks");
+});
+
+test("Send N as written covers the held that judge the lead, never words the check could not back", () => {
+  const held = (id, why) => ({
+    group: "held",
+    send_id: id,
+    name: id,
+    lead_id: null,
+    batch_id: "b1",
+    why,
+    hold_detail: null,
+  });
+  const vm = peopleNeedsOf(
+    [held("a", "chain"), held("b", "unbacked_fact"), held("c", "reads_like_spam"), held("d", "abroad")],
+    { timezone: TZ, now: NOW },
+  );
+  assert.deepEqual(
+    vm.held.map((h) => h.id),
+    ["a", "b", "c", "d"],
+    "every held email is laid out",
+  );
+  assert.deepEqual(
+    vm.asIs.map((h) => h.id),
+    ["a", "d"],
+    "a chain and a business abroad may go as written; a claim or words like spam are answered one by one",
+  );
 });
 
 test("a lead's step is done, going now or still to come; a message's WhatsApp standing has its tone", () => {
@@ -141,8 +182,8 @@ test("a new sequence starts on a list by the token the composer writes; the edit
   for (const bad of ["seg:", "seg:Clients!", "list:abc", "clients", "list:3f6c1a52-0d1e-4b8a-9c2f-5e7d8a9b0c1d/x"])
     assert.equal(isListToken(bad), false, bad);
   assert.match(SEQUENCE_EDIT_WORDS.reaches(false), /already waiting keeps their day/);
-  assert.equal(SEQUENCE_NEEDS_WORDS.sendAll(1), "Send it as it is");
-  assert.equal(SEQUENCE_NEEDS_WORDS.sendAll(3), "Send all 3 as they are");
+  assert.equal(SEQUENCE_NEEDS_WORDS.sendAll(1), "Send 1 as written");
+  assert.equal(SEQUENCE_NEEDS_WORDS.sendAll(3), "Send 3 as written");
   assert.equal(SEQUENCE_NEEDS_WORDS.wentAll(1), "1 email goes as it is");
   assert.equal(SEQUENCE_PEOPLE_WORDS.takeOutAll(4), "Take these 4 out");
   assert.equal(SEQUENCE_EDIT_WORDS.days(1), "1 day");

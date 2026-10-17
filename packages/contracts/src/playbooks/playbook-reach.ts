@@ -17,6 +17,7 @@ import type { PersonRowVM } from "../people/person-row";
 import { followUpCovers, followUpDealOf, followUpKey, type FollowUpsHad } from "./playbook-follow-ups";
 import { enrolPurpose, messageAboutOfTrigger, type RunMessage } from "./playbook-purpose";
 import { DAY_MS } from "./playbook-time";
+import { HOUR_MS } from "../shared/time";
 import { type PlaybookPolicyClass, triggerOf } from "./playbook-triggers";
 import type { PlaybookDto } from "./playbooks";
 import type { ConsentChannel } from "../consent/consent-channels";
@@ -38,7 +39,16 @@ export interface Touches {
   followUps: Map<string, number>;
   /** The latest follow-up by person and by what it was about (followUpKey, 0029; packages/db touchIndex). */
   followUpKeys: Map<string, Map<string, number>>;
+  /**
+   * For a visit moment: when each person last heard from ANOTHER sequence running on the same moment (core run-playbook
+   * reads it from its twins' own touches). A reminder is owed once per visit: a twin's of the same day already gave it,
+   * so the second is never sent (the phone review's B1, 16 Oct 2026). Absent where the moment has no twin.
+   */
+  byTwin?: Map<string, number>;
 }
+
+/** How near another reminder on the same moment must be to count as this visit's: the same day's run, either side. */
+const TWIN_SAME_VISIT_MS = 20 * HOUR_MS;
 
 /** A workspace's touches as a run reads them: by each playbook (its gap), by any (the week's breath), and the proposal follow-ups. */
 interface WorkspaceTouches {
@@ -351,7 +361,17 @@ export function playbookRunReach(
     // The calendar decides, one message per visit: the run is daily and a
     // visit is on one day, so the gap and the week's breath do not apply —
     // a reminder must go whatever else the person heard this week, and the
-    // thank-you two days after it must go too.
+    // thank-you two days after it must go too. Once, though: a twin on the same
+    // moment that reached them for this visit already said it (byTwin).
+    const twin = touches.byTwin;
+    if (twin && twin.size > 0) {
+      const heard = allowed.filter((r) => {
+        const at = twin.get(r.id);
+        return at !== undefined && Math.abs(nowMs - at) < TWIN_SAME_VISIT_MS;
+      });
+      for (const r of heard) allowed.splice(allowed.indexOf(r), 1);
+      reach.heardThis += heard.length;
+    }
     allowed.sort((a, b) =>
       p.trigger === "visit_tomorrow"
         ? (a.nextVisitMs ?? 0) - (b.nextVisitMs ?? 0)

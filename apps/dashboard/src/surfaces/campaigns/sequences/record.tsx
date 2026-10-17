@@ -4,10 +4,13 @@
  * thing that needs you (D8, contracts sequenceNotice); then the same three tabs for every sequence (D5): Steps, People
  * (Leads for a sequence to leads) and History. Each tab is an address of its own, so Back walks them.
  *
- * On a phone the record is the screen, as a person's page is (the parity review of 15 Oct 2026): its tabs are the kit's
- * capsule of views, stuck under the head as the tab scrolls, a swipe across the tab walking them (kit viewPager) and a
- * swipe right from the first carrying it back to the list; the notice says its fact, and its acts dock at the foot, where
- * a question an act asks and a step's Save stand too (use-record.ts RecordFootContext).
+ * On a phone the record is the screen, as a person's page is (the phone review of 16 Oct 2026): its head is one glass
+ * capsule (Back, its name and state, what starts it and who approves, More), the frame's bar and bell standing down; its
+ * tabs are the kit's capsule of views, stuck under the head as the tab scrolls, a swipe across the tab walking them (kit
+ * viewPager) and each move replacing the address, so Back is the list; a swipe right from the first carries the whole pane
+ * back to the list, drawn under it as it goes (split.tsx cmGoing). A tab's read starts as a finger reaches it, so the
+ * view arrives with its rows. What needs you is the dock at the foot, where a question an act asks and a step's Save
+ * stand too (use-record.ts RecordFootContext); the notice above the tabs is a desk's.
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
@@ -15,8 +18,8 @@ import {
   SEQUENCES_ROUTE,
   SEQUENCE_WORDS,
   peopleTabWord,
-  sequenceHeadLine,
   sequenceRoute,
+  sequenceSubLine,
   sequenceStateTone,
   sequenceStateWords,
   type SequenceRecordDto,
@@ -31,7 +34,7 @@ import { viewPager, type ViewPage } from "../../kit/view-tabs/pager";
 import { ViewTabs } from "../../kit/view-tabs/view-tabs";
 import { navigate, replaceRoute, routeDoor, touchSwipe, useLegacyToast } from "../../legacy-verbs";
 import type { LegacyFlash } from "../../legacy-verbs";
-import { CmPane, useCmPhone } from "../parts/split";
+import { CmPane, cmGoing, useCmPhone } from "../parts/split";
 import { SequenceHistory } from "./history";
 import { SequencePeople } from "./people";
 import { HeadActs, RecordNotice, RecordQuestion, RenameForm, phoneFootOf, useRecordActs } from "./record-acts";
@@ -46,9 +49,13 @@ const TAB_ORDER: readonly SequenceTab[] = ["steps", "people", "history"];
 
 const sequenceTabOf = (id: string): SequenceTab => TAB_ORDER.find((t) => t === id) ?? "steps";
 
-/** A sequence's tabs: Steps, People (Leads) counting what needs you in amber or who is in it, and History. */
+/**
+ * A sequence's tabs: Steps, People (Leads) counting what needs you in amber or who is in it, and History. People's and
+ * History's reads start as a finger or a pointer reaches their tab (the strip's `warm`), so a swipe lands on their rows.
+ */
 function tabsOf(rec: SequenceRecordDto) {
   const row = rec.sequence;
+  const warm = (read: (id: string) => Promise<unknown>) => () => void read(row.id);
   // The People tab counts the emails that need you where any do (amber, as every count of it is), and who is in it
   // otherwise. A batch waiting for an OK is the notice's: its size counts everyone it was made for, held back or not.
   const needPeople = row.needs.held + row.needs.to_send;
@@ -63,8 +70,14 @@ function tabsOf(rec: SequenceRecordDto) {
           ? { count: row.in_it }
           : {}),
       href: routeDoor(sequenceRoute(row.id, "people")).href,
+      warm: warm(verbs.people),
     },
-    { id: "history", label: SEQUENCE_WORDS.tabs.history, href: routeDoor(sequenceRoute(row.id, "history")).href },
+    {
+      id: "history",
+      label: SEQUENCE_WORDS.tabs.history,
+      href: routeDoor(sequenceRoute(row.id, "history")).href,
+      warm: warm((id) => verbs.history(id)),
+    },
   ];
 }
 
@@ -78,7 +91,9 @@ function tabPages(page: Element, from: EventTarget | null): ViewPage | null {
 function RecordTabs({ rec, tab, phone }: { rec: SequenceRecordDto; tab: SequenceTab; phone: boolean }) {
   const row = rec.sequence;
   const tabs = tabsOf(rec);
-  const go = (id: string) => navigate(sequenceRoute(row.id, sequenceTabOf(id)));
+  // On a phone a tab move replaces the address: Back is the list, as the swipe right from Steps is, never three Backs
+  // through the tabs a thumb walked. A desk's tabs are pushed, as its pages are.
+  const go = (id: string) => (phone ? replaceRoute : navigate)(sequenceRoute(row.id, sequenceTabOf(id)));
   if (!phone) return <SubTabs label={row.name} value={tab} onSelect={go} tabs={tabs} />;
   return (
     <div className="sq-strip-stand" data-testid="sq-strip">
@@ -121,7 +136,16 @@ function OpenRecord(p: {
   const { rec, tab, flash, moved, again, toast, day } = p;
   const row = rec.sequence;
   const phone = useCmPhone();
-  const a = useRecordActs(rec, flash, moved);
+  // The step open to be changed, held here so the dock's Edit step N opens it (on Steps, where it stands).
+  const [editingStep, setEditingStep] = useState<string | null>(null);
+  const editStep = useCallback(
+    (id: string) => {
+      setEditingStep(id);
+      if (tab !== "steps") (phone ? replaceRoute : navigate)(sequenceRoute(row.id));
+    },
+    [tab, phone, row.id],
+  );
+  const a = useRecordActs(rec, flash, moved, editStep);
   const close = () => navigate(SEQUENCES_ROUTE);
   // A step opened to be changed holds the foot for its Cancel and Save (step-editor.tsx), at either width.
   const [editing, setEditing] = useState(false);
@@ -129,39 +153,43 @@ function OpenRecord(p: {
   const hold = useCallback((on: boolean) => setEditing(on), []);
   const footSlot = useMemo(() => ({ el: editing ? footEl : null, hold }), [editing, footEl, hold]);
   const foot = editing ? <div className="sq-foot sq-foot-edit" ref={setFootEl} /> : phone ? phoneFootOf(a, tab) : null;
-  // A question stands where the notice stood on a desk; on a phone it takes the foot.
+  // A question stands where the notice stood on a desk; on a phone the dock says both.
   const top = a.renaming ? (
     <RenameForm a={a} />
-  ) : a.asking && !phone ? (
+  ) : phone ? null : a.asking ? (
     <RecordQuestion a={a} />
   ) : (
-    <RecordNotice a={a} phone={phone} tab={tab} />
+    <RecordNotice a={a} tab={tab} />
   );
-  const swipe = phone
-    ? touchSwipe({
-        onBack: close,
-        pages: tabPages,
-        when: () => phone,
-        onGrab: (el, on) => (on ? el.setAttribute("data-going", "") : el.removeAttribute("data-going")),
-      })
-    : {};
+  // The swipe is the pane's: its head, body and dock go back to the list together, the list drawn under them.
+  const swipe = phone ? touchSwipe({ onBack: close, pages: tabPages, when: () => phone, onGrab: cmGoing }) : undefined;
   return (
     <CmPane
       title={row.name}
       badge={<StatePill kind="tone" value={sequenceStateTone(row)} label={sequenceStateWords(row)} />}
-      sub={sequenceHeadLine(row, rec.word, rec.timezone, Date.now())}
+      sub={sequenceSubLine(row, { word: rec.word, timezone: rec.timezone, mode: rec.mode }, Date.now())}
       tools={<HeadActs a={a} phone={phone} />}
       foot={foot}
       onClose={close}
+      swipe={swipe}
       testid="sq-record"
       className="sq-record"
     >
       <RecordFootContext.Provider value={footSlot}>
-        <div className="sq-rec" {...swipe}>
+        <div className="sq-rec">
           {top}
           <RecordTabs rec={rec} tab={tab} phone={phone} />
           <TabView tab={tab}>
-            {tab === "steps" ? <SequenceSteps rec={rec} flash={flash} moved={moved} /> : null}
+            {tab === "steps" ? (
+              <SequenceSteps
+                rec={rec}
+                flash={flash}
+                moved={moved}
+                editing={editingStep}
+                onEditing={setEditingStep}
+                onCancelSend={() => a.setAsking("cancel")}
+              />
+            ) : null}
             {tab === "people" ? <SequencePeople rec={rec} flash={flash} again={again} moved={moved} /> : null}
             {tab === "history" ? <SequenceHistory rec={rec} again={again} moved={moved} day={day} /> : null}
           </TabView>

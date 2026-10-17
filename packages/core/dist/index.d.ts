@@ -2150,6 +2150,11 @@ interface RunContext {
     dealsOn: boolean;
     /** The workspace's pace (contracts dealPaceOf): when a proposal waits, for the follow-up; null without one. */
     pace: DealPaceVM | null;
+    /**
+     * The other steps running on the same visit moment as this one (a second "day before" reminder): a run reaches nobody
+     * one of them reached for the same visit (contracts playbookRunReach `byTwin`). Absent where the runtime reads none.
+     */
+    twinsOf?: (stepId: string, trigger: string) => readonly string[];
 }
 type RunOutcome = 
 /** Sent: when it really goes, and the moment asked for when the hours moved it to nine (else null). */

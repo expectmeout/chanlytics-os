@@ -5,9 +5,16 @@
  */
 import { toSendRowOf, type ToSendRowVM } from "../reach-out/reach-out-approval";
 import { leadDoorOf } from "../reach-out/reach-out-sheet";
-import { HOLD_DOOR_WORDS, holdDoors, holdWords, isReachOutHold, type HoldDoor } from "../reach-out/reach-out-words";
+import {
+  HOLD_DOOR_WORDS,
+  holdDoors,
+  holdWords,
+  isReachOutHold,
+  type HoldDoor,
+  type ReachOutHold,
+} from "../reach-out/reach-out-words";
 import { REPORT_MIN_N } from "../reports/report-tiles";
-import { zoneDayKey } from "../shared/clock";
+import { clockHistoryDay, clockTime, clockWhen, zoneDayKey } from "../shared/clock";
 import { pct } from "../shared/numbers";
 import { plural } from "../shared/words";
 import { DAY_MS } from "../shared/time";
@@ -56,10 +63,14 @@ export const SEQUENCE_EDIT_WORDS = {
 export const SEQUENCE_NEEDS_WORDS = {
   title: "Needs you",
   held: "Held by the check",
-  sendAll: (n: number) => (n === 1 ? "Send it as it is" : `Send all ${n} as they are`),
+  /** Over the held whose hold judged the lead, never the words (LEAD_HOLDS): what may go as written in one press. */
+  sendAll: (n: number) => `Send ${n} as written`,
   sending: "Sending…",
   wentAll: (n: number) => (n === 1 ? "1 email goes as it is" : `${n} emails go as they are`),
   toSend: "For you to send from your inbox",
+  /** Leads who wrote back, answered in the Inbox (its threads that answered the sequence). */
+  wroteBack: "Wrote back",
+  inbox: "Inbox",
   oneByOne: "Send them one by one",
   reading: "Reading what it holds…",
   /** What a failed read could not read: "Couldn't read this batch's emails". */
@@ -75,6 +86,8 @@ export interface SequenceHeldVM {
   /** Its lead, where the name opens it (leadDoorOf). */
   to: string | null;
   why: string;
+  /** Why the check held it (contracts REACH_OUT_HOLDS): what decides whether it may go as written with the rest. */
+  reason: ReachOutHold;
   doors: [HoldDoor, string][];
   /** The batch it waits in: what its answer's Open goes to. */
   batchId: string | null;
@@ -83,12 +96,19 @@ export interface SequenceHeldVM {
 /** What needs you on People, from its one read: the held, the emails to send, and the batches whose rows say no draft. */
 export interface SequenceNeedsVM {
   held: SequenceHeldVM[];
-  /** The held whose answers include sending it as written: what "Send all N as they are" sends. */
+  /**
+   * The held that may go as written with one press ("Send N as written"): those held for who the lead is (a chain, its
+   * language, abroad, an address at a customer's domain), whose Include is a judgement of the lead. One held for its words
+   * (a claim the record does not back, words that read like spam) or for a check that did not run is answered one by one.
+   */
   asIs: SequenceHeldVM[];
   toSend: (ToSendRowVM & { batchId: string | null })[];
   /** Batches holding an email to send that this read carries no draft of (a server before 00447): their run's sheet lays them out. */
   unread: string[];
 }
+
+/** The holds that judge the lead rather than the email's words: an Include of one of these sends the email as written. */
+const LEAD_HOLDS: ReadonlySet<ReachOutHold> = new Set<ReachOutHold>(["chain", "language", "abroad", "customer_domain"]);
 
 /**
  * What needs you on a sequence's People, from who is in it (00442 sequence_people, the drafts 00447's): the emails the
@@ -109,6 +129,7 @@ export function peopleNeedsOf(
         name: r.name ?? SEQUENCE_PEOPLE_WORDS.someone,
         to: r.lead_id ? leadDoorOf(r.lead_id) : null,
         why: holdWords(reason, r.hold_detail),
+        reason,
         doors: holdDoors(reason).map((d): [HoldDoor, string] => [d, HOLD_DOOR_WORDS[d]]),
         batchId: r.batch_id,
       },
@@ -139,7 +160,8 @@ export function peopleNeedsOf(
       : [],
   );
   const unread = [...new Set(handed.filter((r) => !r.draft && r.batch_id).map((r) => r.batch_id ?? ""))];
-  return { held, asIs: held.filter((h) => h.doors.some(([d]) => d === "include")), toSend, unread };
+  const asIs = held.filter((h) => LEAD_HOLDS.has(h.reason) && h.doors.some(([d]) => d === "include"));
+  return { held, asIs, toSend, unread };
 }
 
 /** The People tab's own words: its rows, its folds and taking someone out. */
@@ -168,7 +190,9 @@ export type SequenceHistoryPeriod = (typeof SEQUENCE_HISTORY_PERIODS)[number]["i
 /** History's own words. */
 export const SEQUENCE_HISTORY_WORDS = {
   period: "Over",
-  inReports: "Open in Reports",
+  inReports: "Reports",
+  /** The batch to come, over the days that went: "Next · goes on its own", or waiting for an OK. */
+  upcoming: (waits: boolean) => (waits ? "Next · waits for your OK" : "Next · goes on its own"),
   dayByDay: "Day by day",
   nothing: "Nothing has gone out yet.",
   nothingIn: "Nothing went out in these days.",
@@ -302,6 +326,27 @@ export function historyFigures(batches: readonly SequenceBatchDto[]): SequenceHi
   ];
 }
 
+/**
+ * When a History row goes or went, by the day as History heads one and the time: "Today · 9:00 AM", "Yesterday · 9:00 AM",
+ * "Sat · 9:00 AM", "Sat Oct 4 · 9:00 AM"; the batch to come by its own: "Tomorrow · 9:00 AM".
+ */
+export function historyStamp(atMs: number, tz: string, nowMs: number): string {
+  const time = clockTime(atMs, tz);
+  if (atMs <= nowMs || zoneDayKey(atMs, tz) === zoneDayKey(nowMs, tz))
+    return `${clockHistoryDay(atMs, tz, nowMs)} · ${time}`;
+  const when = clockWhen(atMs, tz, nowMs);
+  return when.startsWith("tomorrow ") ? `Tomorrow · ${time}` : when;
+}
+
+/**
+ * The batch to come, History's first row while it is not made yet (contracts sequenceNextOf): who it is for where they are
+ * counted, and whether it goes on its own or waits for an OK, by who approves its batches (the record's mode; none set asks).
+ */
+export function historyUpcomingWords(people: number | null, mode: string | null): { end: string; said: string } {
+  const goes = mode === "auto" || mode === "veto";
+  return { end: people ? plural(people, "person", "people") : "", said: SEQUENCE_HISTORY_WORDS.upcoming(!goes) };
+}
+
 /** How many business days the counted batches of a period went on. */
 export function historyDays(batches: readonly SequenceBatchDto[], tz: string): number {
   return new Set(batches.filter(batchWent).map((b) => b.run_for ?? zoneDayKey(Date.parse(b.at), tz))).size;
@@ -315,7 +360,8 @@ export function historyDayWords(b: SequenceBatchDto, place: string | null): { en
   if (b.state === "pending_approval") return { end: SEQUENCE_HISTORY_WORDS.waits, said: forWhom };
   if (b.state === "scheduled") return { end: "Scheduled", said: forWhom };
   if (b.state === "canceled") return { end: "Canceled", said: [place].filter(Boolean).join(" · ") || "Nothing went" };
-  const parts = [`${c.delivered ?? 0} delivered`, `${c.read ?? 0} read`, `${c.replied ?? 0} replied`];
+  // Delivered is the figures' to say over the period; a day says what was read and what came back, a zero said in words.
+  const parts = [`${c.read ?? 0} read`, (c.replied ?? 0) > 0 ? `${c.replied} replied` : "no replies"];
   if ((c.held ?? 0) > 0) parts.push(`${c.held} held`);
   if ((c.to_send ?? 0) > 0) parts.push(`${c.to_send} for you to send`);
   if ((c.failed ?? 0) > 0) parts.push(`${c.failed} failed`);

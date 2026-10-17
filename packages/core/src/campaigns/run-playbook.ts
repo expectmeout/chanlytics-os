@@ -184,6 +184,7 @@ function draw(
   listIds: ReadonlySet<string> | null,
 ): { eligible: PersonRowVM[]; reach: RunReach; channelOf: Record<string, ConsentChannel>; dropped: number } {
   const { p, ctx } = r;
+  const byTwin = twinTouches(r);
   const drawn = playbookRunReach(
     ctx.people,
     {
@@ -199,12 +200,28 @@ function draw(
       byAny: ctx.touches.byAny,
       followUps: ctx.touches.followUps,
       followUpKeys: ctx.touches.followUpKeys,
+      ...(byTwin.size > 0 ? { byTwin } : {}),
     },
     ctx.now.getTime(),
     ctx.pace,
     listIds,
   );
   return withinTheNumbersDay(r, drawn);
+}
+
+/**
+ * When each person last heard from another step running on this one's visit moment (the context's `twinsOf`): its touches
+ * folded latest-first, so a reminder a twin already sent for this visit is not sent again (playbookRunReach `byTwin`).
+ * Empty for any other moment, and where the runtime names no twins.
+ */
+function twinTouches(r: Run): Map<string, number> {
+  const { p, ctx } = r;
+  const out = new Map<string, number>();
+  if (triggerOf(p.trigger)?.kind !== "visit" || !ctx.twinsOf) return out;
+  for (const id of ctx.twinsOf(p.id, p.trigger)) {
+    for (const [person, at] of ctx.touches.byThis.get(id) ?? []) out.set(person, Math.max(out.get(person) ?? 0, at));
+  }
+  return out;
 }
 
 /**

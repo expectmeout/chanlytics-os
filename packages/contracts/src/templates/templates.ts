@@ -456,13 +456,27 @@ export interface TemplateUse {
    * it), whether one of its runs is waiting on the owner, and its clock in words ("runs daily at 10:00") when the source
    * gave one.
    */
-  playbooks: { id: string; name: string; paused: boolean; ended?: boolean; waiting: boolean; runs: string | null }[];
-  /** How many broadcasts a PERSON sent with it; a playbook's runs are its own. */
+  playbooks: {
+    id: string;
+    name: string;
+    paused: boolean;
+    ended?: boolean;
+    waiting: boolean;
+    runs: string | null;
+    /**
+     * The sequence the step is a part of (decision 0060): its id, its name, and the step's place where it has more than
+     * one (null where it is the only step, which the sequence's name says alone). Absent from a server from before it.
+     */
+    sequence?: { id: string; name: string; step: number | null };
+  }[];
+  /** How many one-offs a PERSON sent with it (a sequence's batch of no step); a step's runs are its own. */
   broadcasts: number;
-  /** The latest of those broadcasts, newest first, by the names they were given: at most two. */
+  /** The latest of those one-offs, newest first, by the names they were given: at most two. */
   recent: string[];
   /** The Inbox sends this one when somebody asks to book. */
   booking: boolean;
+  /** Every sequence that sends it, by id, its steps' and its one-offs' alike: one is where its row's link opens. */
+  sequences?: string[];
 }
 
 const NOTHING: TemplateUse = { playbooks: [], broadcasts: 0, recent: [], booking: false };
@@ -478,7 +492,12 @@ export interface TemplateUseSource {
     runs?: string | null;
     /** Past its last day by the business's day, as the caller judged it (contracts campaignEnded); absent where it was not. */
     ended?: boolean;
+    /** The sequence it is a step of, and its place there (00440); absent from a source from before it. */
+    sequence_id?: string | null;
+    place?: number | null;
   }[];
+  /** Every sequence's name by its id (db sequenceNamesOf), which a step's words name it by; absent where not read. */
+  sequences?: readonly { id: string; name: string }[];
   /**
    * Every broadcast. A playbook's runs carry its id: they are not counted as broadcasts, but a
    * run `pending_approval` is how a playbook comes to be waiting on the owner.
@@ -489,6 +508,8 @@ export interface TemplateUseSource {
     name?: string | null;
     state?: string | null;
     created_at?: string | null;
+    /** The sequence the batch is part of: a one-off's own. */
+    sequence_id?: string | null;
   }[];
   /** The name the Inbox books with, from `bookingTemplate`; null when the workspace has none. */
   bookingName: string | null;
@@ -502,16 +523,35 @@ export function templateUsage(src: TemplateUseSource): Record<string, TemplateUs
   const asking = new Set(
     src.broadcasts.filter((b) => b.playbook_id && b.state === "pending_approval").map((b) => b.playbook_id),
   );
+  const names = new Map((src.sequences ?? []).map((q) => [q.id, q.name]));
+  // How many steps each sequence has, a hand step's too: a step is named by its place only where it has company.
+  const steps = new Map<string, number>();
+  for (const p of src.playbooks) if (p.sequence_id) steps.set(p.sequence_id, (steps.get(p.sequence_id) ?? 0) + 1);
+  const sendsBy = (u: TemplateUse, id: string | null | undefined) => {
+    if (id && !(u.sequences ??= []).includes(id)) u.sequences.push(id);
+  };
   for (const p of src.playbooks) {
     if (!p.template_name) continue;
-    at(p.template_name).playbooks.push({
+    const u = at(p.template_name);
+    const name = p.sequence_id ? names.get(p.sequence_id) : undefined;
+    u.playbooks.push({
       id: p.id,
       name: p.name,
       paused: p.state === "paused",
       ended: p.ended === true,
       waiting: asking.has(p.id),
       runs: p.runs ?? null,
+      ...(p.sequence_id && name !== undefined
+        ? {
+            sequence: {
+              id: p.sequence_id,
+              name,
+              step: (steps.get(p.sequence_id) ?? 0) > 1 && typeof p.place === "number" ? p.place : null,
+            },
+          }
+        : {}),
     });
+    sendsBy(u, p.sequence_id);
   }
   // Newest first, so the two it names are the two a person remembers sending.
   const byHand = src.broadcasts
@@ -522,6 +562,7 @@ export function templateUsage(src: TemplateUseSource): Record<string, TemplateUs
     const u = at(b.template_name);
     u.broadcasts += 1;
     if (b.name && u.recent.length < 2) u.recent.push(b.name);
+    sendsBy(u, b.sequence_id);
   }
   if (src.bookingName) at(src.bookingName).booking = true;
   return out;
@@ -531,48 +572,52 @@ const sayList = (parts: string[]): string =>
   parts.length < 2 ? (parts[0] ?? "") : `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}`;
 const capital = (s: string): string => (s ? s[0].toUpperCase() + s.slice(1) : s);
 
+/** A step as the owner knows it: its sequence's name, and its place where the sequence has more than one step. */
+const stepWords = (p: TemplateUse["playbooks"][number]): string =>
+  p.sequence ? (p.sequence.step ? `${p.sequence.name} · step ${p.sequence.step}` : p.sequence.name) : p.name;
+
+/** The words a message that nothing sends says, on its row and in its pane. */
+export const TEMPLATE_UNUSED_WORDS = "Not used";
+
 /**
- * What sends it, in one line. "Nothing sends it" is the answer worth showing:
- * it is the only one that asks the owner to do something about the message. A
- * message that ONE playbook sends says "Win-back campaign" (a person reads "campaign", never "playbook": decision
- * 19), because under a heading called "What sends it" a bare name reads as a person.
+ * What sends it, in one line, after "Sent by": the sequences' steps by their sequences' names ("VIP color clients · step
+ * 2"; a sequence of one step by its name alone), each paused or ended one saying so, the one-offs a person sent by the
+ * names they were given (the latest two, and how many more), and the Inbox where it books with it. "Not used" is the
+ * answer worth showing: it is the only one that asks the owner to do something about the message.
  */
 export function templateUseWords(use: TemplateUse | null | undefined): string {
   const u = use ?? NOTHING;
   const parts: string[] = [];
-  for (const p of u.playbooks) parts.push(p.paused ? `${p.name} (paused)` : p.ended ? `${p.name} (ended)` : p.name);
-  if (u.broadcasts > 0) parts.push(`${u.broadcasts} broadcast${u.broadcasts === 1 ? "" : "s"}`);
+  for (const p of u.playbooks)
+    parts.push(p.paused ? `${stepWords(p)} (paused)` : p.ended ? `${stepWords(p)} (ended)` : stepWords(p));
+  if (u.broadcasts > 0) {
+    parts.push(...u.recent);
+    const more = u.broadcasts - u.recent.length;
+    if (more > 0) parts.push(u.recent.length ? `${more} more` : `${more} one-off${more === 1 ? "" : "s"}`);
+  }
   if (u.booking) parts.push("the Inbox");
-  if (parts.length === 0) return "Nothing sends it";
-  // One playbook alone is "Win-back playbook" even when paused: the line under it says so.
-  if (parts.length === 1 && u.playbooks.length === 1) return `${u.playbooks[0].name} campaign`;
+  if (parts.length === 0) return TEMPLATE_UNUSED_WORDS;
   return capital(sayList(parts));
 }
 
 /**
- * The line under what sends it: what that thing is doing. A run waiting on the
- * owner outranks everything; one playbook says its clock or that it is paused;
- * a message people send by hand names the latest two; the Inbox's says what it
- * is for. Null when the first line already said all there is.
+ * The line under what sends it: what that thing is doing, where the words above have not said it. A run waiting on the
+ * owner outranks everything; one step running says its clock; several that all stopped say nothing goes out; the
+ * Inbox's says what it is for. Null when the first line already said all there is (a paused step says so there).
  */
 export function templateUseNote(use: TemplateUse | null | undefined): string | null {
   const u = use ?? NOTHING;
   if (u.playbooks.some((p) => p.waiting)) return `a run is ${RUN_WAITING_WORDS.toLowerCase()}`;
   // One past its last day sends nothing more, whatever its clock says (the wiring's second audit, S1-3).
   const [only] = u.playbooks;
-  if (only && u.playbooks.length === 1)
-    return only.paused ? "paused — nothing goes out" : only.ended ? "ended — nothing more goes out" : only.runs;
+  if (only && u.playbooks.length === 1) return only.paused || only.ended ? null : only.runs;
   if (u.playbooks.length > 1)
     return u.playbooks.every((p) => p.paused)
       ? "all paused — nothing goes out"
       : u.playbooks.every((p) => p.paused || p.ended)
         ? "none runs — nothing goes out"
         : null;
-  if (u.recent.length > 0)
-    return u.broadcasts > u.recent.length
-      ? `${u.recent.join(", ")} and ${u.broadcasts - u.recent.length} more`
-      : u.recent.join(", ");
-  if (u.booking) return "what the receptionist sends to book";
+  if (u.booking && u.broadcasts === 0) return "what the receptionist sends to book";
   return null;
 }
 

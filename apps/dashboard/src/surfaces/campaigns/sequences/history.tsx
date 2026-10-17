@@ -13,13 +13,16 @@ import {
   SEQUENCE_HISTORY_PERIODS,
   SEQUENCE_HISTORY_WORDS as H,
   batchWent,
-  clockStamp,
   historyCovers,
   historyDayWords,
   historyDays,
   historyFigures,
   historyIn,
   historySince,
+  historyStamp,
+  historyUpcomingWords,
+  sequenceNextOf,
+  sequenceRoute,
   lensRoute,
   runSheetRoute,
   sequenceRepliesRoute,
@@ -127,7 +130,7 @@ function DayRow(p: {
     <>
       <ListRow
         bare
-        name={clockStamp(Date.parse(b.at), rec.timezone, nowMs)}
+        name={historyStamp(Date.parse(b.at), rec.timezone, nowMs)}
         end={(cls) =>
           b.state === "pending_approval" ? (
             <StatePill kind="tone" value="warn" label={said.end} className={cls} />
@@ -163,6 +166,29 @@ function DayRow(p: {
         )
       ) : null}
     </>
+  );
+}
+
+/**
+ * The batch to come, over the days that went, while it is not made yet (a daily moment makes its batch at its hour): when,
+ * who it is for where they are counted, and how it goes. A press opens who it goes to (People). A batch already made is a
+ * day's row of its own.
+ */
+function UpcomingRow({ rec, nowMs }: { rec: SequenceRecordDto; nowMs: number }) {
+  const row = rec.sequence;
+  const next = row.next ? null : sequenceNextOf(row, rec.last_run_for, rec.timezone, nowMs);
+  if (!next) return null;
+  const said = historyUpcomingWords(next.people, rec.mode);
+  return (
+    <ListRow
+      bare
+      name={historyStamp(next.at, rec.timezone, nowMs)}
+      end={(cls) => (said.end ? <span className={cls}>{said.end}</span> : null)}
+      said={said.said}
+      className="sq-day sq-day-next"
+      data-testid="sq-history-next"
+      {...routeDoor(sequenceRoute(row.id, "people"))}
+    />
   );
 }
 
@@ -229,7 +255,13 @@ export function SequenceHistory(p: { rec: SequenceRecordDto; again: number; move
   if (read.state === "failed")
     return <FailedRead what="what it sent" why={read.why} onRetry={moved} testid="sq-history-failed" />;
   if (read.state === "reading") return <div className="sq-reading" aria-busy="true" />;
-  if (batches.length === 0) return <p className="sq-none">{H.nothing}</p>;
+  if (batches.length === 0)
+    return (
+      <div className="sq-history" data-testid="sq-history">
+        <UpcomingRow rec={rec} nowMs={nowMs} />
+        <p className="sq-none">{H.nothing}</p>
+      </div>
+    );
   const inPeriod = historyIn(batches, since, tz);
   const figures = historyFigures(inPeriod);
   const reports = lensRoute("campaigns", since ? { from: since, to: zoneDayKey(nowMs, tz) } : null);
@@ -284,6 +316,7 @@ export function SequenceHistory(p: { rec: SequenceRecordDto; again: number; move
             </LinkButton>
           ) : null}
         </h3>
+        <UpcomingRow rec={rec} nowMs={nowMs} />
         {batches.map((b) => (
           <DayRow
             key={b.id}

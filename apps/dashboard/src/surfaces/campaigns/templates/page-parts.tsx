@@ -335,7 +335,7 @@ export function templateList(p: ListProps) {
           <div className="msg-list-head" aria-hidden="true">
             <span />
             <span>The message</span>
-            <span>What sends it</span>
+            <span>Sent by</span>
             <span className="msg-list-head-sent">Sent</span>
           </div>
         )}

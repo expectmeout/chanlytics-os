@@ -2692,6 +2692,7 @@ async function allowed(r, message) {
 }
 function draw(r, message, how, listIds) {
   const { p, ctx } = r;
+  const byTwin = twinTouches(r);
   const drawn = playbookRunReach(
     ctx.people,
     {
@@ -2706,13 +2707,23 @@ function draw(r, message, how, listIds) {
       byThis: ctx.touches.byThis.get(p.id) ?? /* @__PURE__ */ new Map(),
       byAny: ctx.touches.byAny,
       followUps: ctx.touches.followUps,
-      followUpKeys: ctx.touches.followUpKeys
+      followUpKeys: ctx.touches.followUpKeys,
+      ...byTwin.size > 0 ? { byTwin } : {}
     },
     ctx.now.getTime(),
     ctx.pace,
     listIds
   );
   return withinTheNumbersDay(r, drawn);
+}
+function twinTouches(r) {
+  const { p, ctx } = r;
+  const out = /* @__PURE__ */ new Map();
+  if (triggerOf3(p.trigger)?.kind !== "visit" || !ctx.twinsOf) return out;
+  for (const id of ctx.twinsOf(p.id, p.trigger)) {
+    for (const [person, at] of ctx.touches.byThis.get(id) ?? []) out.set(person, Math.max(out.get(person) ?? 0, at));
+  }
+  return out;
 }
 function withinTheNumbersDay(r, drawn) {
   const { ctx } = r;

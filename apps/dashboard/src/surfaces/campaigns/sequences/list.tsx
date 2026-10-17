@@ -1,38 +1,33 @@
 /**
- * The Sequences list (decision 0060, the canvas's list pane): every sequence, grouped as the page groups them (what needs
- * you first, then your customers, leads and dates, contracts SEQUENCE_GROUPS), each a row with its kind's glyph, its name,
- * its state's pill and its line, narrowed by a search and a filter (all, what needs you, what is off). A row opens its
- * record beside the list. Every word is contracts' (sequence-words.ts); the list composes them. On a phone the search
- * takes the line and New is a round + beside it, a thumb's size, as a phone's list draws its one act. First contact is no
- * sequence (D7: the receptionist leaves the list): one line at the foot of Your customers says so and opens its settings,
- * under All with nothing searched, since it neither needs you nor pauses.
+ * The Sequences list (decision 0060; the phone review of 16 Oct 2026): every sequence, grouped as the page groups them
+ * (what needs you first, a twin on a visit moment among it; then your customers, leads, dates, what is paused or off, and
+ * the drafts: contracts SEQUENCE_GROUPS), each a row with its kind's glyph, its name and its line, a word at its end only
+ * where its state is not the ordinary one (contracts sequenceRowState: a green On on every row said nothing). A search
+ * narrows it; the groups are its filter. A row opens its record beside the list. New is the head's act, beside the strip
+ * of views (sequences-page.tsx), as Messages' New is. Every word is contracts' (sequence-words.ts); the list composes
+ * them. First contact is no sequence (D7: the receptionist leaves the list): one line at the foot of Your customers says
+ * so and opens its settings, with nothing searched, since it neither needs you nor pauses.
  */
 import { useMemo, useState } from "react";
 import {
-  SEQUENCES_ROUTE,
   SEQUENCE_GROUPS,
   SEQUENCE_WORDS,
-  isOff,
-  needsCount,
   sequenceGroupOf,
   sequenceRoute,
   sequenceRowLine,
-  sequenceStateTone,
-  sequenceStateWords,
+  sequenceRowState,
+  sequenceTwinOf,
   type SequenceGroup,
   type SequenceRowDto,
+  type SequenceTwin,
   type SequencesPageDto,
 } from "@chanlytics/contracts";
-import { Button } from "../../kit/button/button";
 import { ListRow } from "../../kit/list-row/list-row";
 import { Icon } from "../../kit/icon/icon";
+import { LinkButton } from "../../kit/link-button/link-button";
 import { Search } from "../../kit/search/search";
-import { SubTabs } from "../../kit/sub-tabs/sub-tabs";
 import { StatePill } from "../../kit/pill/state-pill";
-import { gate, routeDoor } from "../../legacy-verbs";
-import { useCmPhone } from "../parts/split";
-
-type Filter = keyof typeof SEQUENCE_WORDS.filters;
+import { routeDoor } from "../../legacy-verbs";
 
 /** The glyph a row's kind wears: a moment's, a list's, a date's, a lead's. */
 const GLYPH: Record<SequenceRowDto["starts"], string> = {
@@ -42,113 +37,84 @@ const GLYPH: Record<SequenceRowDto["starts"], string> = {
   leads: "globe",
 };
 
-const keptBy = (row: SequenceRowDto, filter: Filter, words: string): boolean => {
-  if (filter === "needs" && needsCount(row.needs) === 0) return false;
-  if (filter === "off" && !isOff(row)) return false;
-  return words === "" || row.name.toLowerCase().includes(words);
-};
-
 interface SequencesListProps {
   page: SequencesPageDto;
   /** The sequence open beside the list, whose row is marked. */
   openId: string | null;
 }
 
+/** One row: its glyph, its name, its line (amber where it needs you), and its state's word where it is not On. */
+function SequenceRow(p: {
+  row: SequenceRowDto;
+  twin: SequenceTwin | null;
+  group: SequenceGroup;
+  tz: string;
+  open: boolean;
+}) {
+  const { row, twin, group, tz, open } = p;
+  const state = sequenceRowState(row);
+  return (
+    <ListRow
+      mark={<Icon name={GLYPH[row.starts]} size={13} />}
+      name={row.name}
+      end={(place) =>
+        state ? <StatePill kind="tone" value={state.tone} label={state.label} className={place} /> : null
+      }
+      said={(place) => (
+        <div className={group === "needs" ? `${place} sq-needs` : place}>
+          {sequenceRowLine(row, tz, Date.now(), twin)}
+        </div>
+      )}
+      aria-current={open ? "true" : undefined}
+      data-testid={`sq-row-${row.id}`}
+      {...routeDoor(sequenceRoute(row.id))}
+    />
+  );
+}
+
 export function SequencesList({ page, openId }: SequencesListProps) {
-  const [filter, setFilter] = useState<Filter>("all");
   const [search, setSearch] = useState("");
-  const nowMs = Date.now();
   const words = search.trim().toLowerCase();
   const groups = useMemo(() => {
-    const by = new Map<SequenceGroup, SequenceRowDto[]>();
+    const by = new Map<SequenceGroup, { row: SequenceRowDto; twin: SequenceTwin | null }[]>();
     for (const row of page.sequences) {
-      if (!keptBy(row, filter, words)) continue;
-      const g = sequenceGroupOf(row);
-      by.set(g, [...(by.get(g) ?? []), row]);
+      if (words !== "" && !row.name.toLowerCase().includes(words)) continue;
+      const twin = sequenceTwinOf(page.sequences, row);
+      const g = sequenceGroupOf(row, twin);
+      by.set(g, [...(by.get(g) ?? []), { row, twin }]);
     }
     return SEQUENCE_GROUPS.flatMap((g) => (by.get(g)?.length ? [{ group: g, rows: by.get(g) ?? [] }] : []));
-  }, [page.sequences, filter, words]);
-  const needs = page.sequences.filter((r) => needsCount(r.needs) > 0).length;
-  const off = page.sequences.filter(isOff).length;
-  const phone = useCmPhone();
+  }, [page.sequences, words]);
   return (
     <>
       <div className="sq-list-head">
-        <div className="sq-list-top">
-          <Search label={SEQUENCE_WORDS.search} value={search} onChange={setSearch} testid="sq-search" />
-          {phone ? (
-            <Button
-              iconOnly
-              variant="primary"
-              aria-label={SEQUENCE_WORDS.newSequence}
-              {...routeDoor(`${SEQUENCES_ROUTE}/new`)}
-              data-testid="sq-new-open"
-              {...gate("approve")}
-            >
-              <Icon name="plus" size={16} />
-            </Button>
-          ) : (
-            <Button
-              size="sm"
-              variant="primary"
-              {...routeDoor(`${SEQUENCES_ROUTE}/new`)}
-              data-testid="sq-new-open"
-              {...gate("approve")}
-            >
-              <Icon name="plus" size={12} /> {SEQUENCE_WORDS.newSequence}
-            </Button>
-          )}
-        </div>
-        <SubTabs
-          label={SEQUENCE_WORDS.title}
-          value={filter}
-          dense
-          onSelect={(id) => setFilter(id === "needs" || id === "off" ? id : "all")}
-          tabs={[
-            { id: "all", label: SEQUENCE_WORDS.filters.all, count: page.sequences.length },
-            { id: "needs", label: SEQUENCE_WORDS.filters.needs, count: needs, tone: needs > 0 ? "warn" : undefined },
-            { id: "off", label: SEQUENCE_WORDS.filters.off, count: off },
-          ]}
-        />
+        <Search label={SEQUENCE_WORDS.search} value={search} onChange={setSearch} testid="sq-search" />
       </div>
       <div className="sq-list-rows" data-testid="sq-rows">
         {groups.map(({ group, rows }) => (
           <section key={group} className="sq-group" aria-label={SEQUENCE_WORDS.groups[group]}>
             <h3 className="sq-group-name">
               {SEQUENCE_WORDS.groups[group]}
-              <span className="tally">{rows.length}</span>
+              <span className={group === "needs" ? "tally tally-warn" : "tally"}>{rows.length}</span>
             </h3>
-            {rows.map((row) => (
-              <ListRow
+            {rows.map(({ row, twin }) => (
+              <SequenceRow
                 key={row.id}
-                mark={<Icon name={GLYPH[row.starts]} size={13} />}
-                name={row.name}
-                end={(place) => (
-                  <StatePill
-                    kind="tone"
-                    value={sequenceStateTone(row)}
-                    label={sequenceStateWords(row)}
-                    className={place}
-                  />
-                )}
-                said={(place) => (
-                  <div className={needsCount(row.needs) > 0 ? `${place} sq-needs` : place}>
-                    {sequenceRowLine(row, page.timezone, nowMs)}
-                  </div>
-                )}
-                aria-current={row.id === openId ? "true" : undefined}
-                data-testid={`sq-row-${row.id}`}
-                {...routeDoor(sequenceRoute(row.id))}
+                row={row}
+                twin={twin}
+                group={group}
+                tz={page.timezone}
+                open={row.id === openId}
               />
             ))}
-            {group === "customers" && filter === "all" && words === "" ? (
-              <ListRow
-                mark={<Icon name="chat" size={13} />}
-                name={SEQUENCE_WORDS.receptionist}
-                end={(place) => <Icon name="chevron" size={11} className={place} />}
-                data-testid="sq-receptionist"
+            {group === "customers" && words === "" ? (
+              <LinkButton
+                className="sq-foot-link"
                 {...routeDoor(SEQUENCE_WORDS.receptionistRoute)}
-              />
+                data-testid="sq-receptionist"
+              >
+                {SEQUENCE_WORDS.receptionist} <Icon name="chevron" size={11} />
+              </LinkButton>
             ) : null}
           </section>
         ))}
