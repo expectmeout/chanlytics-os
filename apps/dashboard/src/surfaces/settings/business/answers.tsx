@@ -23,7 +23,7 @@
 // The languages it offers are contracts' (COMMON_LANGUAGES, through BUSINESS_TAB), the first run's chips' too: one
 // The voice, the languages, the rules it always keeps and how it hands you a customer are drawn by answers-fields.tsx
 // (the file-length ratchet's 800 lines); the notes, the owner's own words, the three messages and the two rows the first
-// run draws too are here; the cards that compose them, answers-cards.tsx.
+// run draws too are here; the cards that compose them, tab.tsx.
 
 import type { BrainConfig, BusinessProfile, GuardrailsInForce } from "@chanlytics/contracts";
 import type { ComponentProps, ReactNode } from "react";

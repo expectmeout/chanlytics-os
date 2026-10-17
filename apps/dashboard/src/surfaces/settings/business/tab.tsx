@@ -5,7 +5,8 @@
 // (docs/superpowers/specs/2026-09-20-business-tab-design.md; the canvas's Record, Group-Who and Edit-Inline boards).
 // This file draws the gap line and composes the cards. The page's two gestures, a row edited in its
 // place (BtRow), a set of fields folded open under its row (BtFold) and a list in a sheet beside the page (BtSheet), are
-// gestures/; each card is a module of its own (who.tsx, open.tsx, offer.tsx, answers.tsx, can.tsx), and the two
+// gestures/; each card is a module of its own (who.tsx, open.tsx, offer.tsx, can.tsx; How it answers' and Booking are
+// composed here from their rows), and the two
 // sheets, the services list (services.tsx) and what the receptionist is told (prompt.tsx), are drawn here through ONE
 // slot, after every card (BtSheetSlot says why).
 //
@@ -20,7 +21,7 @@
 // does when a component's hooks change in number (tooling/scripts/tests/_hook-frames.mjs), so the shape stands as a
 // habit and nothing new needs keeping to it.
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { BUSINESS_TAB } from "@/legacy-bridge/business-tab";
 import { canDo, gateTitle, navigate } from "../../legacy-verbs";
 import type { LegacyFlash } from "../../legacy-verbs";
@@ -28,18 +29,29 @@ import { Icon } from "../../kit/icon/icon";
 import { documentScroller, shownHeight } from "../../kit/motion/page-scroll";
 import { recFolds } from "../../kit/record/registry";
 import { paneOfRow, settingsRowRoute } from "../frame/tabs";
-import { BtKnowsCard, BtLimitRows, BtTalksCard } from "./answers-cards";
+import {
+  BtLanguagesRow,
+  BtRulesRow,
+  btaFacts,
+  fallbacksFold,
+  handoffFold,
+  notesFold,
+  ownWordsFold,
+  toneFold,
+  type Shared,
+} from "./answers";
 import { BtCanCard } from "./can";
-import { BtBookingCard } from "./booking";
-import { BtOfferCard } from "./offer";
+import { BtBookingRuleRows, BtOfferCard } from "./offer";
 import { BtOpenCard } from "./open";
+import { BtBookingTool } from "./open-bookings";
+import { greetingFold } from "./phone/greeting";
 import { BtPromptSheet, BtPromptTold, useBtPromptSheet } from "./prompt";
 import type { BtPromptHold } from "./prompt";
 import type { Brain, Config, Saver } from "./save";
 import { businessTabSave } from "./saver";
 import { BtServicesSheet } from "./services";
 import { settingsNow } from "./shell";
-import { BtWhoCard } from "./who";
+import { BtBookingLinkRow, BtWhoCard } from "./who";
 
 /** The toast the shell raises (the page's `flash`). */
 type Flash = (flash: LegacyFlash) => void;
@@ -73,6 +85,115 @@ export const businessGapPane = (): string | null => {
   const gap = BUSINESS_TAB.businessGap(brain, businessTabSave.answer());
   return gap ? paneOfRow(gap.row) : null;
 };
+
+/* ------------------------------ the cards it composes ------------------------------ */
+
+// How it answers' first two cards and the two rows Autonomy's Limits draws, composed from answers.tsx's folds; and
+// Hours & booking's Booking card, from rows that live with their own cards' files (Ruben, 17 Oct 2026, the "Settings,
+// split" canvas). Hookless: each fold holds its own.
+
+type CardProps = Shared & { brain: Brain; base?: Config | null; config?: Config | null };
+
+/** A card of How it answers: its title and line over its rows (`id` names its test id and its title's). */
+const btaCard = (id: string, title: string, sub: string, rows: ReactNode) => (
+  <section className="rec-card" data-testid={`rec-card-${id}`} aria-labelledby={`bt-${id}-title`}>
+    <div className="rec-card-head">
+      <h2 className="rec-card-title" id={`bt-${id}-title`}>
+        {title}
+      </h2>
+      <span className="rec-card-sub">{sub}</span>
+    </div>
+    {rows}
+  </section>
+);
+
+/**
+ * How it talks: its voice, what callers hear first where the workspace answers calls (decision 0051), and the
+ * languages. The first card of How it answers (Ruben, 17 Oct 2026, the "Settings, split" canvas), which was one card of
+ * eight rows that held its limits too. What a fold opens with and saves onto is the saver's base (BtFold asks for it).
+ */
+const BtTalksCard = ({ brain, base = null, config = null, canEdit, flash, saver }: CardProps) => {
+  const shared = { canEdit, flash, saver };
+  const a = btaFacts(brain, base, config);
+  return btaCard(
+    "answers",
+    "How it talks",
+    "Its voice, and the words it opens with",
+    <>
+      {toneFold(shared, a.tone)}
+      {a.calls ? greetingFold(shared, brain) : null}
+      <BtLanguagesRow brain={brain} {...shared} />
+    </>,
+  );
+};
+
+/** What it knows beyond Details: the things it should know, your own words, and the messages when it cannot answer. */
+const BtKnowsCard = ({ brain, base = null, config = null, canEdit, flash, saver }: CardProps) => {
+  const shared = { canEdit, flash, saver };
+  const a = btaFacts(brain, base, config);
+  return btaCard(
+    "knows",
+    "What it knows",
+    "Beyond the facts on Details",
+    <>
+      {notesFold(shared, a.notes)}
+      {ownWordsFold(shared, a.ownOpening)}
+      {fallbacksFold(shared, a)}
+    </>,
+  );
+};
+
+/**
+ * The rules it always keeps and how it hands you a customer: limits, on Autonomy's Limits card (BusinessLimitRows,
+ * below), since a rule about prices lived on two tabs. `base` is what the rules fold judges by.
+ */
+const BtLimitRows = ({ brain, base = null, config = null, canEdit, flash, saver }: CardProps) => {
+  const shared = { canEdit, flash, saver };
+  return (
+    <>
+      <BtRulesRow brain={brain} base={base} config={config} {...shared} />
+      {handoffFold(shared, btaFacts(brain, base, config))}
+    </>
+  );
+};
+
+/**
+ * Booking, Hours & booking's second card: what the business books with (open-bookings.tsx), the link it sends
+ * (who.tsx) and the rules for a booking (offer.tsx), which were three cards apart on one long page. They are the facts
+ * the Calendar's "Hours and rules" shows and doors into, so they are kept on one page with the hours they apply to.
+ */
+const BtBookingCard = ({
+  brain,
+  base = null,
+  config = null,
+  canEdit,
+  flash,
+  saver,
+}: {
+  brain: Brain;
+  base?: Config | null;
+  config?: Config | null;
+  canEdit: boolean;
+  flash: Flash;
+  saver: Saver;
+}) => (
+  <section className="rec-card" data-testid="rec-card-booking" aria-labelledby="bt-booking-title">
+    <div className="rec-card-head">
+      <h2 className="rec-card-title" id="bt-booking-title">
+        Booking
+      </h2>
+      <span className="rec-card-sub">What people book with, and the rules for it</span>
+    </div>
+
+    {/* What the business books with: one row and its fold, which a door on another page draws as a sheet where it was
+        pressed (booking-tool/). */}
+    <BtBookingTool brain={brain} config={config} canEdit={canEdit} flash={flash} saver={saver} />
+
+    <BtBookingLinkRow brain={brain} base={base} canEdit={canEdit} flash={flash} saver={saver} />
+
+    <BtBookingRuleRows brain={brain} canEdit={canEdit} flash={flash} saver={saver} />
+  </section>
+);
 
 /* ------------------------------------ the page ------------------------------------ */
 

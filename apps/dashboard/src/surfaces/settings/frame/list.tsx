@@ -9,16 +9,10 @@
  * tone the page that holds the fact most worth adding (contracts' businessGap, the gap line's own).
  */
 import { ROLE_SAYS, roleSays } from "@chanlytics/contracts";
-import type { MouseEvent } from "react";
-import { hrefOfRoute } from "@/legacy-bridge/workspace";
 import { Icon } from "../../kit/icon/icon";
-import { meNow } from "../../legacy-verbs";
+import { meNow, routeDoor } from "../../legacy-verbs";
 import { settingsNow } from "../business/shell";
 import type { SetTab } from "./tabs";
-
-/** A plain press of the main button: one with a key held, or another button, is the browser's own. */
-const ownPress = (e: MouseEvent) =>
-  !(e.defaultPrevented || e.button > 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey);
 
 type Said = { words: string; warn?: boolean } | null;
 
@@ -28,7 +22,7 @@ const brainNow = () =>
   null;
 
 /** What a section's row says beside its name: the gap's page first, then the one fact the page holds, else nothing. */
-const saidOf = (id: string, gapPane: string | null): Said => {
+const sectionSaid = (id: string, gapPane: string | null): Said => {
   if (gapPane === id) return { words: "To add", warn: true };
   if (id === "profile") {
     const role = meNow()?.role;
@@ -63,19 +57,22 @@ export function SettingsList({
           {g.name ? <h2 className="set-list-head">{g.name}</h2> : null}
           <div className="rec-card set-list-rows">
             {g.tabs.map((t) => {
-              const said = saidOf(t.id, gapPane);
+              const said = sectionSaid(t.id, gapPane);
+              // A link to its section (a long press or a new tab opens it); a plain press is the page's own move.
+              const door = routeDoor(`admin/${t.id}`, () => onTab(t.id));
+              // Reached for, its page is warmed as any link's is, and its own read too where it has one (page.tsx WARM).
+              const reach = () => {
+                door.onPointerEnter?.();
+                warm[t.id]?.();
+              };
               return (
                 <a
                   key={t.id}
                   className="set-list-row"
-                  href={hrefOfRoute(`admin/${t.id}`)}
-                  onPointerEnter={warm[t.id]}
-                  onFocus={warm[t.id]}
-                  onClick={(e) => {
-                    if (!ownPress(e)) return;
-                    e.preventDefault();
-                    onTab(t.id);
-                  }}
+                  href={door.href}
+                  onClick={door.onClick}
+                  onPointerEnter={reach}
+                  onFocus={reach}
                   data-testid={`set-list-${t.id}`}
                 >
                   <span className="set-list-glyph" aria-hidden="true">

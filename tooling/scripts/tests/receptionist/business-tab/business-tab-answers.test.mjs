@@ -155,8 +155,8 @@ test("the voice's box is the first row of How it answers, reading Not set on a r
   assert.equal(tail.at(-1).type, W.BtSheetSlot);
   const cards = [].concat(tail.at(-2).props.children).filter((c) => c != null && c !== false);
   assert.deepEqual(
-    cards.map((c) => c.type),
-    [W.BtTalksCard, W.BtKnowsCard, W.BtCanCard, W.BtPromptTold],
+    cards.map((c) => c.type.name),
+    ["BtTalksCard", "BtKnowsCard", "BtCanCard", "BtPromptTold"],
     "How it talks, What it knows, What it can do, and what it is told, at rest, last",
   );
 });
