@@ -1455,6 +1455,7 @@ test("cards: an act tool never acts, a proposal names its door and its undo, the
     reach_out_said: "approve",
     review_reply: "approve",
     follow_up: "approve",
+    answer_style: "approve",
   });
   const ok = AskProposalOutcomeSchema.safeParse({
     state: "done",
@@ -1506,7 +1507,7 @@ test("cards: an act tool never acts, a proposal names its door and its undo, the
           "leads",
         ],
       ],
-      ["propose_settings", ["change", "autonomy", "goal"]],
+      ["propose_settings", ["change", "autonomy", "goal", "answer_style"]],
       ["propose_thread_verb", []],
     ],
   );

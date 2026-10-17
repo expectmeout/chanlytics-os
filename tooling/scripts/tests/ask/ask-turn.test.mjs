@@ -39,6 +39,8 @@ import {
 import {
   ASK_ANSWER_FORMAT,
   ASK_CAPS,
+  ASK_STYLE_MAX,
+  ASK_STYLE_PAGE,
   ASK_CITATION_KINDS,
   ASK_MAX_ROUNDS,
   ASK_ROW_WORDS,
@@ -9900,6 +9902,76 @@ test("a spoken turn (the voice door, spec 2026-10-03 §3.4): the listening line 
   assert.equal(r2.failed, false, r2.failure ?? "");
   assert.ok(!JSON.stringify(typed.requests[0].messages).includes(SPOKEN_LINE), "a typed turn: no line");
   assert.equal(r2.shape.spoken, false);
+});
+
+test("how they like answers (the answer canvas, D): their own note rides fenced in the turn's words and reaches the model, what they ask in the conversation first; with none, no line", async () => {
+  const facts = {
+    role: "operator",
+    personLabel: "ada",
+    scope: null,
+    surface: null,
+    language: "en",
+    timezone: TZ,
+    closures: [],
+    now: NOW,
+  };
+  const note = "Short answers, the numbers in bold, in Spanish";
+  const line = turnWords({ ...facts, style: note })
+    .split("\n")
+    .find((l) => l.startsWith("How they like answers, in their own note (Settings › Profile): "));
+  assert.ok(line, "the note's line is in the turn's words");
+  assert.ok(line.includes(note), "with their words");
+  assert.ok(line.endsWith("Write to it, unless they ask otherwise in this conversation."), line);
+  assert.ok(!turnWords(facts).includes("How they like answers"), "no note, no line");
+  assert.ok(!turnWords({ ...facts, style: "" }).includes("How they like answers"), "an empty note, no line");
+
+  // Through the loop: the note reaches the model in the turn's words, never in the cached system.
+  const s = scripted([ROUND([answer("Nadie espera.")])]);
+  const r = await runAskTurn(turn(ctxFor(), { style: note }).input, ports(s.round));
+  assert.equal(r.failed, false, r.failure ?? "");
+  assert.ok(JSON.stringify(s.requests[0].messages).includes(note), "the model read the note");
+  assert.ok(!JSON.stringify(s.requests[0].system ?? "").includes(note), "not in the system, which every member shares");
+});
+
+test("Ask keeps how they like answers by a card (propose_settings answer_style): their own note and the one it replaces, read from their views; the note they keep already, or none to clear, is refused", async () => {
+  const views = (words) =>
+    tables({
+      memberships: [
+        {
+          user_id: USER,
+          tenant_id: A,
+          role: "operator",
+          tenants: { slug: "harbor" },
+          created_at: "2026-01-01T00:00:00Z",
+          views: words == null ? {} : { [ASK_STYLE_PAGE]: { words } },
+        },
+      ],
+    });
+  const build = (t, words) =>
+    buildProposal(newToolContext(ctxFor(t), A, "operator", TZ, NOW), "propose_settings", {
+      action: "answer_style",
+      words,
+    });
+
+  const kept = await build(views(null), "  Short answers, in Spanish  ");
+  assert.equal(kept.isError, false, kept.result);
+  assert.equal(kept.proposal.kind, "answer_style");
+  assert.equal(kept.proposal.title, "How you like answers");
+  assert.equal(kept.proposal.summary, "Kept for your answers from now on: Short answers, in Spanish");
+  assert.deepEqual(kept.proposal.payload, { words: "Short answers, in Spanish", previous: "" });
+
+  const changed = await build(views("Bullets"), "Short answers");
+  assert.deepEqual(changed.proposal.payload, { words: "Short answers", previous: "Bullets" }, "the undo's note");
+
+  const cleared = await build(views("Bullets"), "");
+  assert.equal(cleared.proposal.summary, "Your note cleared: answers as Ask writes them");
+  assert.deepEqual(cleared.proposal.payload, { words: "", previous: "Bullets" });
+
+  const long = await build(views(null), "x".repeat(ASK_STYLE_MAX + 50));
+  assert.equal(long.proposal.payload.words.length, ASK_STYLE_MAX, "a note past the cap is cut to it");
+
+  assert.match(JSON.parse((await build(views("Bullets"), "Bullets")).result).error, /that is already their note/);
+  assert.match(JSON.parse((await build(views(null), "")).result).error, /they keep no note to clear/);
 });
 
 /* ---- the answer as a tool (ASK_ANSWER_TOOL, 15 Oct 2026): its input streams where text after a read does not ---- */

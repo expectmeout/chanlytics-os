@@ -26,6 +26,9 @@ export {
   FOLLOW_UP_WAKES,
   followUpsOf,
   followUpDue,
+  ASK_STYLE_PAGE,
+  ASK_STYLE_MAX,
+  answerStyleOf,
 } from "./follow-ups";
 export type { AskFollowUp, FollowUpWake, FollowUpWorld } from "./follow-ups";
 export { ASK_GUIDE_PAGES, ASK_PAGE_ONLY_VERBS } from "./guide";

@@ -73,6 +73,7 @@ export const ADDED_SINCE = [
   "propose_sequence.step",
   "propose_sequence.step_remove",
   "propose_sequence.words",
+  "propose_settings.answer_style",
   "propose_settings.goal",
   "sequences.cold_emails",
   "signals",

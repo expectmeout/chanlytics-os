@@ -10,9 +10,18 @@
  * menu, because they are properties of this BROWSER rather than of you, and moving them here would make one of the two
  * wrong. This browser's alerts are Settings › Notifications' (the account menu says where they stand and opens it).
  */
-import { useRef, useState } from "react";
-import { identityWords, ROLE_SAYS, roleSays, WORKSPACE_ENDED_WORDS } from "@chanlytics/contracts";
+import { useEffect, useRef, useState } from "react";
+import {
+  ASK_STYLE_MAX,
+  answerStyleOf,
+  identityWords,
+  ROLE_SAYS,
+  roleSays,
+  WORKSPACE_ENDED_WORDS,
+} from "@chanlytics/contracts";
+import { api } from "@/legacy-bridge/api";
 import { meVerbs } from "@/legacy-bridge/identity";
+import { commitVerb } from "@/legacy-bridge/verbs/commit";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { RecordField } from "../../kit/record/field";
 import { useRecordFold } from "../../kit/record/hooks";
@@ -121,6 +130,109 @@ function YourName({ flash }: { flash: Flash }) {
 }
 
 /**
+ * How Ask answers you (the answer canvas, D, 16 Oct 2026: "visible and editable in Settings, so it's never hidden
+ * magic"): your own note, which Ask reads with each of your questions in this workspace, kept with your other views
+ * (contracts ASK_STYLE_PAGE). Ask keeps one by a card when you say how you like answers from now on; here it is said,
+ * changed or cleared, on its row, as your name is.
+ */
+function AnswerStyle({ flash }: { flash: Flash }) {
+  const [stored, setStored] = useState<string | null>(null);
+  const [draft, setDraft] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const live = useRef<{ draft: string | null; stored: string; busy: boolean }>({
+    draft: null,
+    stored: "",
+    busy: false,
+  });
+  live.current.stored = stored ?? "";
+  live.current.busy = busy;
+  useEffect(() => {
+    let gone = false;
+    void api()("GET views").then((r) => {
+      if (!gone) setStored(r.ok ? answerStyleOf(r.data.views) : "");
+    });
+    return () => {
+      gone = true;
+    };
+  }, []);
+  const fold = useRecordFold("profile-style", {
+    dirty: () => live.current.draft != null && live.current.draft.trim() !== live.current.stored,
+    saving: () => live.current.busy,
+  });
+  const kept = stored ?? "";
+  const now = draft == null ? kept : draft;
+  const set = (v: string) => {
+    live.current.draft = v;
+    setDraft(v);
+  };
+  const close = () => {
+    live.current.draft = null;
+    setDraft(null);
+    fold.close();
+  };
+  const save = async () => {
+    const words = now.trim().slice(0, ASK_STYLE_MAX);
+    if (busy) return;
+    if (words === kept) {
+      close();
+      return;
+    }
+    setBusy(true);
+    // The same spec Ask's card commits by (contracts answerStyleSpec): one call, one receipt, one undo.
+    const r = await commitVerb("answer_style", { words, previous: kept });
+    setBusy(false);
+    if (!r.ok) {
+      flash({ tone: "danger", msg: <>{r.message}</> });
+      return;
+    }
+    setStored(words);
+    close();
+    flash({ msg: words ? <>Ask will answer you that way.</> : <>Note cleared — Ask answers as it sees fit.</> });
+  };
+  return (
+    <>
+      {fold.open ? null : (
+        <RecordRow
+          id="profile-style"
+          label="How Ask answers you"
+          value={stored == null ? "…" : kept || null}
+          empty="As it sees fit"
+          hint="Your own note, read with each question you ask. Ask offers to keep one when you say how you like answers."
+          act={{
+            label: kept ? "Change" : "Add one",
+            name: kept ? "Change how Ask answers you" : "Add a note on how Ask answers you",
+            onClick: () => fold.request(),
+            testid: "set-style-change",
+          }}
+        />
+      )}
+      <RecordInline
+        id="profile-style"
+        label="How Ask answers you"
+        open={fold.open}
+        onSave={() => void save()}
+        onCancel={close}
+        saving={busy}
+      >
+        <RecordField
+          id="set-style-words"
+          label={null}
+          aria-labelledby="rec-inline-profile-style-key"
+          value={now}
+          onChange={set}
+          rows={3}
+          maxLength={ASK_STYLE_MAX}
+          placeholder="Short answers, the key numbers in bold, in Spanish"
+          readOnly={busy || undefined}
+          data-testid="set-style-words"
+          testid="set-style"
+        />
+      </RecordInline>
+    </>
+  );
+}
+
+/**
  * Delete your own account (00190; App Store 5.1.1(v)): two steps on the row itself, the sentence saying what goes and
  * what stays, then the one button; the door's refusal (the only owner of a workspace with other members) said where it
  * happened. Drawn on the web and in the app alike: a rule that only the app needs is still the account's.
@@ -215,6 +327,7 @@ export const PaneProfile = ({ flash }: { flash: Flash }) => {
         }}
       />
       {role && <RecordRow id="profile-role" label="Role" value={role.label} hint={role.can} />}
+      <AnswerStyle flash={flash} />
       {/* Named for what it does. "This device" sat over a sign-out that ends every session on every device:
           /auth/signout revokes them all (S20). */}
       <RecordRow

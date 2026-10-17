@@ -2740,13 +2740,13 @@
     },
     {
       "name": "propose_settings",
-      "description": "Propose a settings change as a card the person approves, by action: what the receptionist knows (closed days, hours, a note, a service), what it may do alone for a class of message (autonomy), or the business's goal for you. Action autonomy changes what the receptionist may do alone for a whole class of message: class with mode, or the reply confidence dial (min_confidence) alone. Call it when they want the receptionist to act on its own, wait for them, or hold its replies for a look; propose_person with action mode is for one person. Each class takes the modes its row on the Autonomy page offers (veto holds a reply, or a campaign's run for 30 minutes, so a person can stop it), and a mode a class does not take is refused in that page's words. Never for money: that class is locked by charter, so a request to change it is answered in words, not proposed. The modes as they stand are in this prompt above, so no read is needed first.",
+      "description": "Propose a settings change as a card the person approves, by action: what the receptionist knows (closed days, hours, a note, a service), what it may do alone for a class of message (autonomy), or the business's goal for you. Action autonomy changes what the receptionist may do alone for a whole class of message: class with mode, or the reply confidence dial (min_confidence) alone. Call it when they want the receptionist to act on its own, wait for them, or hold its replies for a look; propose_person with action mode is for one person. Each class takes the modes its row on the Autonomy page offers (veto holds a reply, or a campaign's run for 30 minutes, so a person can stop it), and a mode a class does not take is refused in that page's words. Never for money: that class is locked by charter, so a request to change it is answered in words, not proposed. The modes as they stand are in this prompt above, so no read is needed first. Action answer_style keeps how this person likes your answers (length, format, language) as their own note, which comes with each of their questions from then on; empty clears it, and it replaces the one they keep. Call it when they say how they want answers from now on, next time or always (\"shorter from now on\", \"always bullets\", \"answer me in Spanish\"); within one conversation, keep to what they asked without it. Theirs alone, never a teammate's, and they see and change it in Settings › Profile.",
       "input_schema": {
         "type": "object",
         "properties": {
           "action": {
             "type": "string",
-            "enum": ["autonomy"]
+            "enum": ["autonomy", "answer_style"]
           },
           "class": {
             "type": "string",
@@ -2761,6 +2761,10 @@
           "min_confidence": {
             "type": "number",
             "description": "The reply confidence dial, 0 to 1, for class reply alone."
+          },
+          "words": {
+            "type": "string",
+            "description": "The note in their own terms, at most 300 characters, such as \"Short answers, the numbers in bold, in Spanish\"; empty clears it."
           }
         },
         "required": ["action"],
@@ -2776,6 +2780,10 @@
           "action": "autonomy",
           "class": "reply",
           "min_confidence": 0.8
+        },
+        {
+          "action": "answer_style",
+          "words": "Short answers, the key numbers in bold"
         }
       ],
       "defer_loading": true
@@ -5317,13 +5325,13 @@
     },
     {
       "name": "propose_settings",
-      "description": "Propose a settings change as a card the person approves, by action: what the receptionist knows (closed days, hours, a note, a service), what it may do alone for a class of message (autonomy), or the business's goal for you. Action change takes one change object: add_closure (date, an optional until for a range, and an optional note), set_hours (one weekday's day with open and close, or both empty for closed), add_note (a title, the text the receptionist reads, and an optional until, its last day), or add_service (name, and an optional duration_min in minutes). Dates are YYYY-MM-DD, days mon..sun, times HH:MM. Call it when they say they are closed, their hours change, the receptionist should know something, or they offer a new service. Only an owner or a partner can approve it: for anyone else, say so and that one of them can ask. Action autonomy changes what the receptionist may do alone for a whole class of message: class with mode, or the reply confidence dial (min_confidence) alone. Call it when they want the receptionist to act on its own, wait for them, or hold its replies for a look; propose_person with action mode is for one person. Each class takes the modes its row on the Autonomy page offers (veto holds a reply, or a campaign's run for 30 minutes, so a person can stop it), and a mode a class does not take is refused in that page's words. Never for money: that class is locked by charter, so a request to change it is answered in words, not proposed. The modes as they stand are in this prompt above, so no read is needed first. Action goal keeps the owner's goal in one line (at most 200 characters), which you read on every question and weigh every suggestion and plan against; empty clears it. Call it when they say what they want the business to reach, or ask you to aim for something. The receptionist never reads it. Only an owner or a partner can approve it: for anyone else, say so and that one of them can ask.",
+      "description": "Propose a settings change as a card the person approves, by action: what the receptionist knows (closed days, hours, a note, a service), what it may do alone for a class of message (autonomy), or the business's goal for you. Action change takes one change object: add_closure (date, an optional until for a range, and an optional note), set_hours (one weekday's day with open and close, or both empty for closed), add_note (a title, the text the receptionist reads, and an optional until, its last day), or add_service (name, and an optional duration_min in minutes). Dates are YYYY-MM-DD, days mon..sun, times HH:MM. Call it when they say they are closed, their hours change, the receptionist should know something, or they offer a new service. Only an owner or a partner can approve it: for anyone else, say so and that one of them can ask. Action autonomy changes what the receptionist may do alone for a whole class of message: class with mode, or the reply confidence dial (min_confidence) alone. Call it when they want the receptionist to act on its own, wait for them, or hold its replies for a look; propose_person with action mode is for one person. Each class takes the modes its row on the Autonomy page offers (veto holds a reply, or a campaign's run for 30 minutes, so a person can stop it), and a mode a class does not take is refused in that page's words. Never for money: that class is locked by charter, so a request to change it is answered in words, not proposed. The modes as they stand are in this prompt above, so no read is needed first. Action goal keeps the owner's goal in one line (at most 200 characters), which you read on every question and weigh every suggestion and plan against; empty clears it. Call it when they say what they want the business to reach, or ask you to aim for something. The receptionist never reads it. Only an owner or a partner can approve it: for anyone else, say so and that one of them can ask. Action answer_style keeps how this person likes your answers (length, format, language) as their own note, which comes with each of their questions from then on; empty clears it, and it replaces the one they keep. Call it when they say how they want answers from now on, next time or always (\"shorter from now on\", \"always bullets\", \"answer me in Spanish\"); within one conversation, keep to what they asked without it. Theirs alone, never a teammate's, and they see and change it in Settings › Profile.",
       "input_schema": {
         "type": "object",
         "properties": {
           "action": {
             "type": "string",
-            "enum": ["change", "autonomy", "goal"]
+            "enum": ["change", "autonomy", "goal", "answer_style"]
           },
           "change": {
             "type": "object",
@@ -5383,6 +5391,10 @@
           "goal": {
             "type": "string",
             "description": "The goal in the owner's own words, at most 200 characters, such as \"twenty new clients a month\"; empty clears it."
+          },
+          "words": {
+            "type": "string",
+            "description": "The note in their own terms, at most 300 characters, such as \"Short answers, the numbers in bold, in Spanish\"; empty clears it."
           }
         },
         "required": ["action"],
@@ -5428,6 +5440,10 @@
         {
           "action": "goal",
           "goal": "Twenty new clients a month"
+        },
+        {
+          "action": "answer_style",
+          "words": "Short answers, the key numbers in bold"
         }
       ],
       "defer_loading": true
@@ -7997,13 +8013,13 @@
     },
     {
       "name": "propose_settings",
-      "description": "Propose a settings change as a card the person approves, by action: what the receptionist knows (closed days, hours, a note, a service), what it may do alone for a class of message (autonomy), or the business's goal for you. Action change takes one change object: add_closure (date, an optional until for a range, and an optional note), set_hours (one weekday's day with open and close, or both empty for closed), add_note (a title, the text the receptionist reads, and an optional until, its last day), or add_service (name, and an optional duration_min in minutes). Dates are YYYY-MM-DD, days mon..sun, times HH:MM. Call it when they say they are closed, their hours change, the receptionist should know something, or they offer a new service. Only an owner or a partner can approve it: for anyone else, say so and that one of them can ask. Action autonomy changes what the receptionist may do alone for a whole class of message: class with mode, or the reply confidence dial (min_confidence) alone. Call it when they want the receptionist to act on its own, wait for them, or hold its replies for a look; propose_person with action mode is for one person. Each class takes the modes its row on the Autonomy page offers (veto holds a reply, or a campaign's run for 30 minutes, so a person can stop it), and a mode a class does not take is refused in that page's words. Never for money: that class is locked by charter, so a request to change it is answered in words, not proposed. The modes as they stand are in this prompt above, so no read is needed first. Action goal keeps the owner's goal in one line (at most 200 characters), which you read on every question and weigh every suggestion and plan against; empty clears it. Call it when they say what they want the business to reach, or ask you to aim for something. The receptionist never reads it. Only an owner or a partner can approve it: for anyone else, say so and that one of them can ask.",
+      "description": "Propose a settings change as a card the person approves, by action: what the receptionist knows (closed days, hours, a note, a service), what it may do alone for a class of message (autonomy), or the business's goal for you. Action change takes one change object: add_closure (date, an optional until for a range, and an optional note), set_hours (one weekday's day with open and close, or both empty for closed), add_note (a title, the text the receptionist reads, and an optional until, its last day), or add_service (name, and an optional duration_min in minutes). Dates are YYYY-MM-DD, days mon..sun, times HH:MM. Call it when they say they are closed, their hours change, the receptionist should know something, or they offer a new service. Only an owner or a partner can approve it: for anyone else, say so and that one of them can ask. Action autonomy changes what the receptionist may do alone for a whole class of message: class with mode, or the reply confidence dial (min_confidence) alone. Call it when they want the receptionist to act on its own, wait for them, or hold its replies for a look; propose_person with action mode is for one person. Each class takes the modes its row on the Autonomy page offers (veto holds a reply, or a campaign's run for 30 minutes, so a person can stop it), and a mode a class does not take is refused in that page's words. Never for money: that class is locked by charter, so a request to change it is answered in words, not proposed. The modes as they stand are in this prompt above, so no read is needed first. Action goal keeps the owner's goal in one line (at most 200 characters), which you read on every question and weigh every suggestion and plan against; empty clears it. Call it when they say what they want the business to reach, or ask you to aim for something. The receptionist never reads it. Only an owner or a partner can approve it: for anyone else, say so and that one of them can ask. Action answer_style keeps how this person likes your answers (length, format, language) as their own note, which comes with each of their questions from then on; empty clears it, and it replaces the one they keep. Call it when they say how they want answers from now on, next time or always (\"shorter from now on\", \"always bullets\", \"answer me in Spanish\"); within one conversation, keep to what they asked without it. Theirs alone, never a teammate's, and they see and change it in Settings › Profile.",
       "input_schema": {
         "type": "object",
         "properties": {
           "action": {
             "type": "string",
-            "enum": ["change", "autonomy", "goal"]
+            "enum": ["change", "autonomy", "goal", "answer_style"]
           },
           "change": {
             "type": "object",
@@ -8063,6 +8079,10 @@
           "goal": {
             "type": "string",
             "description": "The goal in the owner's own words, at most 200 characters, such as \"twenty new clients a month\"; empty clears it."
+          },
+          "words": {
+            "type": "string",
+            "description": "The note in their own terms, at most 300 characters, such as \"Short answers, the numbers in bold, in Spanish\"; empty clears it."
           }
         },
         "required": ["action"],
@@ -8108,6 +8128,10 @@
         {
           "action": "goal",
           "goal": "Twenty new clients a month"
+        },
+        {
+          "action": "answer_style",
+          "words": "Short answers, the key numbers in bold"
         }
       ],
       "defer_loading": true

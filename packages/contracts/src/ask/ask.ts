@@ -254,7 +254,8 @@ export interface AskProposal {
     | "reach_out_make"
     | "reach_out_said"
     | "review_reply"
-    | "follow_up";
+    | "follow_up"
+    | "answer_style";
   /** The lowest role that may commit it, its spec's (ask-proposals/); the route re-checks on Approve. */
   needs: ProposalNeeds;
   title: string;
