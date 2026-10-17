@@ -172,7 +172,7 @@ export type AnswerBlock =
   | { kind: "callout"; tone: AnswerCalloutTone; lines: AnswerRun[][] };
 
 /** A callout's tone: `warn` for what needs the person or must come first (amber, as "needs you" is everywhere), else `note`. */
-export type AnswerCalloutTone = "note" | "warn";
+type AnswerCalloutTone = "note" | "warn";
 
 /** Inline marks: `**bold**`, `__bold__`, `*italic*`, `_italic_`, a `[link](target)`, and `code` as its words. */
 const INLINE =
