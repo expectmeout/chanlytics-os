@@ -4,6 +4,7 @@ import type { z } from "zod";
 import {
   AppError,
   PROPOSAL_SPECS,
+  addressOf,
   STEP_TOKEN,
   channelChoices,
   channelsReady,
@@ -455,6 +456,16 @@ export function noteRow(
   route: string,
 ): void {
   noteRows(t.read, [{ kind, id, route, label }]);
+}
+
+/**
+ * The person a row of another kind belongs to (a call's caller, a lead that became one, someone in a sequence), noted
+ * beside that row wherever a read hands the model their contact_id, so opening their profile is a row this turn read.
+ * Without it the open was dropped as unread while the words still said it (the eval-truth pass, 17 Oct 2026: "Opening
+ * Casey Example's profile." opened nothing).
+ */
+export function notePerson(t: ToolContext, id: string | null | undefined, name: string): void {
+  if (id) noteRow(t, "person", id, name, addressOf({ kind: "person", id }));
 }
 
 export function newToolContext(

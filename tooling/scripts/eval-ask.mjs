@@ -40,7 +40,10 @@
  * and `--list` says each case's needs. The tokens: `calendar`, `no_calendar`; `offers_yes` (someone's yes to offers),
  * `no_offers_yes` (nobody's, which Campaigns' decline rests on); `offers_channel`, `offers_whatsapp`,
  * `no_offers_channel`; `live_call`; `deals_on`; `winback_seed`; `escalated_thread` (a thread an open escalation flags
- * and nobody has, which the snooze between two turns moves: never the nightly's). A channel an offer can go by
+ * and nobody has, which the snooze between two turns moves: never the nightly's); `waiting_run` (a campaign run waiting
+ * for the owner's say), `leads_seed` (the leads the e2e Leads spec seeds, Zilker Strength Lab among them) and `reach_out`
+ * (a cold email sequence to dentists), which the local stack's workspace holds none of (the eval-truth pass, 17 Oct
+ * 2026: their cases failed every run there for want of the data, never for Ask). A channel an offer can go by
  * (`offers_channel`) is one an offer's plan opens (contracts channelChoices with the marketing purpose): email set up
  * for offers, or WhatsApp on a number that sends and is outside +1 (`offers_whatsapp`, which holds offers_channel
  * too), since Meta pauses offers to US numbers. The nightly's workspace (e2e-workspace.mjs: no calendar, nobody's yes

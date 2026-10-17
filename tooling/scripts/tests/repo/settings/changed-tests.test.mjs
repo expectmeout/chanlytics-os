@@ -111,6 +111,17 @@ test("a change the hearing tests trace or run runs them, which no such path name
   );
 });
 
+test("a change to contracts' sources runs the browser entry's test, which no such path names; an app's file does not", () => {
+  // 17 Oct 2026: an export added to a barrel changed the browser's entry (gen/contracts-browser-entry.mjs), and the picker
+  // ran tests/ask alone, never shipping/browser-entry.test.mjs.
+  const entry = "tooling/scripts/tests/shipping/browser-entry.test.mjs";
+  for (const f of ["packages/contracts/src/ask/index.ts", "packages/contracts/src/browser.generated.ts"])
+    assert.ok(run(f).includes(entry), f);
+  assert.ok(!run("apps/dashboard/src/server/ask/loop.ts").includes(entry), "a dashboard file reads no barrel of it");
+  // And the model gateway runs the lead drafts' tests, where its rules for them are proved.
+  assert.ok(run("apps/edge/lib/ask-gateway.ts").includes("tooling/scripts/tests/leads"), "the gateway's lead rules");
+});
+
 test("a changed test runs itself; a folder already asked for covers it; a helper of a folder runs the folder", () => {
   assert.ok(
     run("tooling/scripts/tests/calendar/calendar-vm.test.mjs").includes(

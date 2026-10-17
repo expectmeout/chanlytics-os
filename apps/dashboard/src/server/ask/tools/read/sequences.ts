@@ -22,7 +22,7 @@ import {
 } from "@chanlytics/contracts";
 import { load } from "../../../readers";
 import { sequence, sequenceHistory, sequencePeople, sequences } from "../../../readers/sequences";
-import { str, unlessNotFound, type ToolContext } from "../context";
+import { notePerson, str, unlessNotFound, type ToolContext } from "../context";
 
 /**
  * Ask's reads of the sequences (decision 0060), over the Sequences page's own readers (readers/sequences.ts), so the
@@ -79,6 +79,11 @@ export async function readSequence(t: ToolContext, input: { sequence_id: string 
     load(t.rc, sequenceHistory, { id, before: null }).then((r) => r.data),
   ]);
   noteRows(t.read, record.rows);
+  // Who is in it, by the contact_id the answer hands on: each one's profile opens.
+  const inIt = people.rows
+    .filter((r) => r.enrollment_id && r.group !== "left" && r.group !== "done")
+    .slice(0, PEOPLE_CAP);
+  for (const r of inIt) notePerson(t, r.contact_id, r.name ?? "");
   const { sequence: row, steps, mode, word } = record.data;
   const nowMs = t.now.getTime();
   const notice = sequenceNotice(row, steps, { tz: t.timezone, nowMs });
@@ -116,15 +121,12 @@ export async function readSequence(t: ToolContext, input: { sequence_id: string 
         stands: PEOPLE_GROUP_WORDS[r.group],
         ...(r.why || r.hold_detail ? { why: r.hold_detail ?? r.why } : {}),
       })),
-    in_it: people.rows
-      .filter((r) => r.enrollment_id && r.group !== "left" && r.group !== "done")
-      .slice(0, PEOPLE_CAP)
-      .map((r) => ({
-        name: r.name,
-        stands: PEOPLE_GROUP_WORDS[r.group],
-        ...(r.contact_id ? { contact_id: r.contact_id } : {}),
-        ...(r.lead_id ? { lead_id: r.lead_id } : {}),
-      })),
+    in_it: inIt.map((r) => ({
+      name: r.name,
+      stands: PEOPLE_GROUP_WORDS[r.group],
+      ...(r.contact_id ? { contact_id: r.contact_id } : {}),
+      ...(r.lead_id ? { lead_id: r.lead_id } : {}),
+    })),
     history: history.batches.slice(0, HISTORY_CAP).map((b) => ({
       at: clockStamp(Date.parse(b.at), t.timezone, nowMs),
       state: b.state,

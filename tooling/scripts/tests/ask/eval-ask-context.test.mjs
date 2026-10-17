@@ -1333,9 +1333,11 @@ test("the cases fit their workspace and name the new reads (the review after the
   // takes no values (e2e-workspace.mjs convergeWinBack), so new words for it are refused in the door's own words
   // ("This template takes no values."): that case grades the pick alone, and the last day and the trial grade the card.
   const expect = (id) => byId[id].expect;
+  // New words for the Win-back are a new message and the step moved onto it (a plan's two cards: sequences' words
+  // action, 0060), since its message takes no values and a change of them is refused (the eval-truth pass, 17 Oct 2026).
   assert.deepEqual(
     [expect("change_words").tools_any, expect("change_words").proposals_any],
-    [["propose_sequence.change"], undefined],
+    [undefined, ["sequence_words", "playbook_change"]],
   );
   for (const [id, field] of [
     ["change_last_day", "until"],

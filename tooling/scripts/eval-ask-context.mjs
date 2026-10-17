@@ -387,6 +387,9 @@ export const WORKSPACE_NEEDS = [
   "deals_on",
   "winback_seed",
   "escalated_thread",
+  "waiting_run",
+  "leads_seed",
+  "reach_out",
 ];
 
 /** The line a case is skipped with, `skip <id> (needs <tokens>)`, or null for a case this workspace (`has`) runs. */

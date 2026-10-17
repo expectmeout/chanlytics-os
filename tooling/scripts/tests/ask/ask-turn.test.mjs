@@ -9934,6 +9934,33 @@ test("a note on how they like answers is never the whole answer (the answer canv
   assert.ok(!told.includes("Part of what they asked is no card"), "nothing was refused");
 });
 
+test("a call's caller opens from the calls list (the eval-truth pass, 17 Oct 2026): the list notes the person beside the call, so opening their profile stands, where it was dropped as unread and the words still said it", async () => {
+  const opened = (to) => ({ do: { open: { source: to, label: "", now: true }, next: [] } });
+  const s = scripted([
+    ROUND([tool("calls", { action: "list" })]),
+    ROUND([answer("Opening Rosa's profile.", opened({ kind: "person", id: P1, label: "Rosa" }))]),
+  ]);
+  const r = await runAskTurn(
+    turn(ctxFor(), { text: "Show me the profile of whoever called last." }).input,
+    ports(s.round),
+  );
+  assert.equal(r.failed, false, r.failure ?? "");
+  assert.equal(r.answer.do.open?.to, `clients/${P1}`, "the caller's profile opens");
+  assert.equal(r.answer.do.open?.now, true);
+  // A person no read named is still no door: the list notes only its callers.
+  const stranger = scripted([
+    ROUND([tool("calls", { action: "list" })]),
+    ROUND([
+      answer(
+        "Opening their profile.",
+        opened({ kind: "person", id: "99999999-9999-4999-8999-999999999999", label: "?" }),
+      ),
+    ]),
+  ]);
+  const r2 = await runAskTurn(turn(ctxFor()).input, ports(stranger.round));
+  assert.equal(r2.answer.do.open, null, "a person not read opens nothing");
+});
+
 /* ---- the answer as a tool (ASK_ANSWER_TOOL, 15 Oct 2026): its input streams where text after a read does not ---- */
 
 /** Runs `fn` with ASK_ANSWER_TOOL set to `value` (undefined: unset), as a deployment sets it, and puts it back. */

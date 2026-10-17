@@ -53,7 +53,7 @@ test("the purposes, and every one may name an output format: the lead purposes a
   );
 });
 
-test("a format that is not a JSON schema, or is too large, is refused", () => {
+test("a format that is not a JSON schema is refused; one of any size goes through (#1675: the 8,000-character bound went)", () => {
   assert.equal(
     validateGatewayRequest({ ...base, output_config: { format: { type: "text" } } }, "lead_draft").ok,
     false,
@@ -67,7 +67,7 @@ test("a format that is not a JSON schema, or is too large, is refused", () => {
     "a schema under another type is not a JSON schema",
   );
   const big = { type: "json_schema", schema: { type: "object", description: "x".repeat(9_000) } };
-  assert.equal(validateGatewayRequest({ ...base, output_config: { format: big } }, "lead_draft").ok, false);
+  assert.equal(validateGatewayRequest({ ...base, output_config: { format: big } }, "lead_draft").ok, true);
 });
 
 test("a skill's craft call (message_draft): Ask's route's model, at high effort, up to the skills' ceiling, in the ledger as a template's words", async () => {

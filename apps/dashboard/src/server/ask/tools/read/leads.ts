@@ -25,7 +25,17 @@ import { toSearchDto, waitingQuestionOf } from "../../../leads/leads";
 import { load } from "../../../readers";
 import { lead as leadReader, leadPeople, leads as leadsReader } from "../../../readers/leads";
 import { search as searchReader, searches } from "../../../readers/searches";
-import { UUID, defineActions, readAction, str, unlessNotFound, unread, type ToolContext } from "../context";
+import {
+  UUID,
+  defineActions,
+  notePerson,
+  noteRow,
+  readAction,
+  str,
+  unlessNotFound,
+  unread,
+  type ToolContext,
+} from "../context";
 
 /** A round's state in a word, for the model to say. The owner's own screen words are the strip's. */
 const ROUND_WORDS: Record<string, string> = {
@@ -178,6 +188,8 @@ async function listLeads(
     t.read,
     shown.flatMap((l) => refs.get(l.id) ?? []),
   );
+  // And the person a lead became, by the contact_id its line says.
+  for (const l of shown) notePerson(t, l.contactId, l.name);
   return {
     route: leadsRoute({ searchId: q.search ?? null, list: q.list, cls: q.class ?? null }),
     ...(page.counts
@@ -289,6 +301,11 @@ async function readIdeas(t: ToolContext): Promise<unknown> {
  */
 async function readBackToday(t: ToolContext): Promise<unknown> {
   const back = await backTodayOf(t.ctx, t.tenantId);
+  // Each lead, opened at its peek, and the person it became: rows an answer may name and open (it noted none before).
+  for (const l of back.leads) {
+    noteRow(t, "lead", l.lead_id, l.business_name, leadsRoute({ peek: l.lead_id }));
+    notePerson(t, l.contact_id, l.business_name);
+  }
   return {
     route: "clients/leads",
     back_today: back.leads.map((l) => ({
