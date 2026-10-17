@@ -7,7 +7,7 @@ import { FOCUS_COMPOSER_MS, IX_NOW } from "../constants";
 import { patched, snapOf, type InboxSoFar, type Snap } from "./inbox-state";
 import { canDo } from "../shell";
 import { conversationsData, inboxData, IX_STORE } from "../store";
-import type { SendWords } from "../thread/composer";
+import type { SendWords } from "../thread/send-words";
 
 /** The choice a plan's parameter made, when the plan has one. */
 interface DecideMeta {

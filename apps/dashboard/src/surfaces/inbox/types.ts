@@ -124,6 +124,9 @@ export interface MsgEntry {
   from: "client" | "agent";
   channel: string;
   at: string;
+  /** A real thread's: its day as the thread heads a day's run, and its time alone (contracts' bubble day). */
+  day?: string;
+  time?: string;
   body: string;
   subject?: string;
   quoted?: string;
@@ -162,9 +165,6 @@ export interface AgentEntry {
 }
 
 export type TimelineEntry = MsgEntry | EventEntry | AgentEntry;
-
-/** The customer's own words beside a decision (contracts' `InboxThreadVM.ask`). */
-export type ThreadAsk = NonNullable<InboxThreadVM["ask"]>;
 
 /** What both kinds of thread carry, the fields the page reads off either. */
 interface ThreadBase {
@@ -236,6 +236,7 @@ export interface SeededThread extends ThreadBase {
   previewChannel?: undefined;
   archived?: undefined;
   lastWord?: undefined;
+  unanswered?: undefined;
   needsYou?: undefined;
   heldDraft?: undefined;
   hasChat?: undefined;

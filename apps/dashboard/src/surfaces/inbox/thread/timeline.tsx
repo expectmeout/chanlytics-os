@@ -9,8 +9,10 @@ import { useState, type ReactNode } from "react";
 import { Icon } from "../../kit/icon/icon";
 import { TlMedia } from "../../kit/media/tl-media";
 import type { AgentEntry, MsgEntry, Thread, TimelineEntry as TlEntry } from "../types";
-import type { ReplyWhyVM } from "@chanlytics/contracts";
+import { THREAD_PANE_WORDS, type ReplyWhyVM } from "@chanlytics/contracts";
 import { ThreadCall, tlCallFor } from "./call";
+import { Button } from "../../kit/button/button";
+import { gate } from "../shell";
 
 // =============== TIMELINE ENTRY ===============
 // A link in a message is a link. The body is plain text — the customer's words or the
@@ -106,10 +108,20 @@ const TlWhyPanel = ({ why }: { why: ReplyWhyVM }) => {
 export const channelIconOf = (c: string) =>
   c === "phone" ? "phone" : c === "instagram" ? "instagram" : c === "mail" || c === "email" ? "mail" : "chat";
 
-/** How a run of bubbles draws itself: the time once at the run's head, and who sent it and what became of it at its foot. */
+/**
+ * How a bubble draws itself in a real thread: whether it continues a run of one side's bubbles (drawn close), and, on a
+ * seeded thread, the time over a run and who sent it under it as they always were.
+ */
 interface TlLines {
   meta: boolean;
   by: boolean;
+  run?: boolean;
+}
+
+/** Our words that did not send: sent again as they were, or put in the reply box. None where words cannot go. */
+interface TlAgain {
+  send: (text: string) => unknown;
+  edit: (text: string) => void;
 }
 
 interface TimelineEntryProps {
@@ -117,6 +129,7 @@ interface TimelineEntryProps {
   thread: Thread;
   channelLabels: Record<string, string>;
   lines?: TlLines | null;
+  again?: TlAgain | null;
   focus?: boolean;
   newest?: boolean;
   arrived?: boolean;
@@ -131,6 +144,7 @@ export const TimelineEntry = ({
   thread,
   channelLabels,
   lines = null,
+  again = null,
   focus = false,
   newest = false,
   arrived = false,
@@ -174,6 +188,7 @@ export const TimelineEntry = ({
       thread={thread}
       channelLabels={channelLabels}
       lines={lines}
+      again={again}
       channelIcon={channelIcon}
       focus={focus}
       newest={newest}
@@ -187,6 +202,7 @@ interface TlMsgEntryProps {
   thread: Thread;
   channelLabels: Record<string, string>;
   lines: TlLines | null;
+  again: TlAgain | null;
   channelIcon: (c: string) => string;
   focus?: boolean;
   newest?: boolean;
@@ -260,6 +276,158 @@ function metaLine(p: TlMsgEntryProps, named: boolean) {
   );
 }
 
+/** What became of words of ours, as a glyph in the bubble's corner: sent, delivered, read, failed, waiting to go. */
+function statusGlyph(entry: MsgEntry) {
+  const said = entry.statusLabel || undefined;
+  switch (entry.status) {
+    case "read":
+    case "delivered":
+      return (
+        <span className={`tl-ticks${entry.status === "read" ? " read" : ""}`} role="img" aria-label={said} title={said}>
+          <Icon name="check" size={11} />
+          <Icon name="check" size={11} />
+        </span>
+      );
+    case "sent":
+      return (
+        <span className="tl-ticks" role="img" aria-label="Sent" title="Sent">
+          <Icon name="check" size={11} />
+        </span>
+      );
+    case "queued":
+      return (
+        <span role="img" aria-label={said} title={said}>
+          <Icon name="clock" size={11} />
+        </span>
+      );
+    case "failed":
+      return (
+        <span className="tl-stamp-failed" role="img" aria-label={said} title={said}>
+          <Icon name="alert" size={11} />
+        </span>
+      );
+    case "canceled":
+      return <span className="tl-stamp-words">{said}</span>;
+    default:
+      return null;
+  }
+}
+
+/**
+ * A real bubble's corner: who sent words of ours where it was not the receptionist (a teammate, a campaign), the wire
+ * where the thread has used several, the time alone, and what became of them. The receptionist's words wear its spark,
+ * and the spark and the time are one press to why it said them, where the row remembers (the phone canvas, D1): the line
+ * under every reply said "by WhatsApp Receptionist · Why · Delivered".
+ */
+function bubbleCorner(p: TlMsgEntryProps, named: boolean, why: { open: boolean; toggle: () => void }) {
+  const { entry, thread, channelLabels, channelIcon } = p;
+  // The wire said only where a bubble came another way than the thread's own: every bubble of a WhatsApp and email
+  // thread wore the chat's glyph.
+  const wire = named && entry.channel !== thread.primaryChannel;
+  const ours = entry.from !== "client";
+  const receptionist = ours && !entry.byYou && !entry.via;
+  // Words of ours a person or a run sent are signed (A9, A23): "Your team", or the campaign's name.
+  const signed = entry.via ? entry.via.name : entry.byWords || "your team";
+  const author = !ours || receptionist ? null : signed.charAt(0).toUpperCase() + signed.slice(1);
+  const time = entry.time || entry.at;
+  const inner = (
+    <>
+      {receptionist && <Icon name="sparkle" size={11} className="tl-stamp-spark" />}
+      {author && <span className="tl-stamp-words">{author}</span>}
+      {wire && (
+        <span role="img" aria-label={channelLabels[entry.channel]} title={channelLabels[entry.channel]}>
+          <Icon name={channelIcon(entry.channel)} size={10} />
+        </span>
+      )}
+      <span className="tabular">{time}</span>
+      {ours && !entry.pending ? statusGlyph(entry) : null}
+    </>
+  );
+  if (receptionist && entry.why)
+    return (
+      <button
+        type="button"
+        className="tl-stamp"
+        aria-expanded={why.open}
+        aria-label={`Sent by ${entry.agentName || thread.agent.name} at ${time}${entry.statusLabel ? `, ${entry.statusLabel}` : ""}. Why it said this: ${entry.why.summary}`}
+        onClick={why.toggle}
+        data-testid="tl-msg-why"
+      >
+        {inner}
+      </button>
+    );
+  return (
+    <span
+      className="tl-stamp"
+      title={
+        receptionist ? `Sent by ${entry.agentName || thread.agent.name}` : author ? `Sent by ${signed}` : undefined
+      }
+    >
+      {inner}
+    </span>
+  );
+}
+
+/** Our words that never left: put them in the reply box, or send them again as they were. */
+function againActs(again: TlAgain, text: string) {
+  return (
+    <div className="tl-again" data-testid="tl-again">
+      <Button variant="quiet" size="sm" onClick={() => again.edit(text)} data-testid="tl-again-edit">
+        <Icon name="edit" size={12} /> {THREAD_PANE_WORDS.edit}
+      </Button>
+      <Button size="sm" onClick={() => void again.send(text)} data-testid="tl-again-send" {...gate("approve")}>
+        <Icon name="refresh" size={12} /> {THREAD_PANE_WORDS.sendAgain}
+      </Button>
+    </div>
+  );
+}
+
+/** A bubble's classes: whose words, held, never delivered, just arrived, or one more of a run. */
+function bubbleClass(entry: MsgEntry, lines: TlLines | null, arrived: boolean): string {
+  const isClient = entry.from === "client";
+  const held = !!entry.pending;
+  const undelivered = !isClient && !held && entry.reachedCustomer === false;
+  return [
+    "tl-msg",
+    isClient ? "client" : "agent",
+    held ? "held" : "",
+    undelivered ? "undelivered" : "",
+    arrived ? "tl-arrived" : "",
+    lines && lines.run ? "tl-run" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+}
+
+/**
+ * What a bubble says under its words: on a seeded thread who sent ours and what became of it, as it always did; on a
+ * real one only a held draft's tag, and, under our words that did not send, the way to send them again or put them in
+ * the box (againActs). A real bubble's time and what became of it are its corner's (bubbleCorner).
+ */
+function bubbleFoot(p: TlMsgEntryProps, why: { open: boolean; toggle: () => void }) {
+  const { entry, thread, lines, again } = p;
+  const isClient = entry.from === "client";
+  const held = !!entry.pending;
+  const undelivered = !isClient && !held && entry.reachedCustomer === false;
+  if (!thread.real) {
+    // What became of words that did not reach them is said on their own bubble, whatever follows.
+    return !isClient && (!lines || lines.by || held || undelivered) ? (
+      <div className="tl-msg-by">
+        {entry.byYou
+          ? byYouLine(entry)
+          : byReceptionistLine({ entry, thread, held, whyOpen: why.open, toggleWhy: why.toggle })}
+      </div>
+    ) : null;
+  }
+  if (held)
+    return (
+      <div className="tl-msg-by">
+        <span className="tl-held-tag">Not sent yet</span>
+      </div>
+    );
+  return undelivered && entry.status === "failed" && again && entry.body ? againActs(again, entry.body) : null;
+}
+
 // The message branch, with the hooks its two disclosures need. It is its own component so those
 // hooks are not behind the event and agent-thinking returns above.
 const TlMsgEntry = (props: TlMsgEntryProps) => {
@@ -278,23 +446,18 @@ const TlMsgEntry = (props: TlMsgEntryProps) => {
         open={focus || newest}
       />
     );
-  const isClient = entry.from === "client";
-  // A held draft is a message the customer has NOT seen. Rendered as an
-  // ordinary agent bubble it reads as already-sent, and an operator would
-  // either ignore it or apologise for something that never went out.
-  const held = !!entry.pending;
-  // Words that never left are dashed: the receptionist's failed reply was drawn as a sent bubble (I1).
-  const undelivered = !isClient && !held && entry.reachedCustomer === false;
+  // A held draft is a message the customer has NOT seen, and words that never left are dashed (bubbleClass): drawn as an
+  // ordinary agent bubble, a held draft reads as already sent, and the receptionist's failed reply did (I1).
   // A real thread whose words travelled one wire says the time alone: the wire is in the header, and it was over every
   // bubble. A call is drawn as a call, so it is not a second wire for the words.
   const named = !thread.real || (thread.channels || []).filter((c) => c !== "phone").length > 1;
+  // A real thread's bubble says its time and what became of it in its corner (bubbleCorner); a seeded one keeps its lines.
+  const real = !!thread.real;
+  const why = { open: whyOpen, toggle: () => setWhyOpen((v) => !v) };
   return (
-    <div
-      className={`tl-msg ${isClient ? "client" : "agent"}${held ? " held" : ""}${undelivered ? " undelivered" : ""}${arrived ? " tl-arrived" : ""}`}
-      data-mid={entry.messageId}
-    >
+    <div className={bubbleClass(entry, lines, arrived)} data-mid={entry.messageId}>
       <div className="tl-msg-bubble">
-        {metaLine(props, named)}
+        {!real && metaLine(props, named)}
         {/* An email says what it is about before it says it. */}
         {entry.subject && (
           <div className="tl-msg-subject" data-testid="tl-msg-subject">
@@ -303,6 +466,7 @@ const TlMsgEntry = (props: TlMsgEntryProps) => {
         )}
         <div className="tl-msg-body">
           <TlMsgBody text={entry.body} quoted={entry.quoted} />
+          {real && bubbleCorner(props, named, why)}
         </div>
         {entry.media && <TlMedia media={entry.media} />}
         {/* An email's files are not kept, and its words only up to a bound: the bubble says so, or "see attached" reads as the whole of it. */}
@@ -317,14 +481,7 @@ const TlMsgEntry = (props: TlMsgEntryProps) => {
             <Icon name="alert" size={11} /> {entry.failedWhy}
           </div>
         )}
-        {/* What became of words that did not reach them is said on their own bubble, whatever follows. */}
-        {!isClient && (!lines || lines.by || held || entry.reachedCustomer === false) && (
-          <div className="tl-msg-by">
-            {entry.byYou
-              ? byYouLine(entry)
-              : byReceptionistLine({ entry, thread, held, whyOpen, toggleWhy: () => setWhyOpen((v) => !v) })}
-          </div>
-        )}
+        {bubbleFoot(props, why)}
         {entry.why && whyOpen && <TlWhyPanel why={entry.why} />}
       </div>
     </div>

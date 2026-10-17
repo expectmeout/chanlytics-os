@@ -63,8 +63,24 @@ export function memberMetaOf(meta: unknown): Record<string, unknown> | null {
   return kept;
 }
 
+/**
+ * The newest hold on a thread that has closed, as the conversations read answers it for a thread whose customer wrote
+ * last: why it was opened, what the receptionist noted of it, and when it opened and closed. A hold handed back (or
+ * answered "Can't") sends the customer nothing, and the receptionist does not come back to a message it held, so a
+ * question can be left with no answer at all (Daniela's, 20 Sep 2026): the thread reads it as unanswered (lastWordOf).
+ * `resolved_at` is null for a hold closed before 00308 kept the time.
+ */
+export interface LastHoldDto {
+  reason: string;
+  details: string | null;
+  created_at: string;
+  resolved_at: string | null;
+}
+
 export interface ConversationDto {
   id: string;
+  /** The newest closed hold, read only for a thread whose customer wrote last (LastHoldDto); absent from other reads. */
+  last_hold?: LastHoldDto | null;
   state: "open" | "needs_human" | "snoozed" | "archived";
   paused_until: string | null;
   snooze_until?: string | null;

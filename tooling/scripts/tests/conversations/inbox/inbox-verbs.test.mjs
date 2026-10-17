@@ -121,3 +121,38 @@ test("a reply's idempotency key names its intent: trimmed words, or the template
     "each template and language is its own intent",
   );
 });
+
+test("a template reply sends its name, its language and the member's words for its blank, and nothing else of the row; two notes on one template are two intents", async () => {
+  const sent = [];
+  globalThis.window.fetch = async (url, init = {}) => {
+    const u = new URL(String(url), "https://app.chanlytics.com");
+    if ((init.method ?? "GET") !== "POST") return json(200, { ok: true, data: {} });
+    sent.push({ body: JSON.parse(init.body), key: init.headers?.["idempotency-key"] ?? null });
+    return ok(u.pathname.split("/")[4]);
+  };
+  const t = thread(2);
+  // The reply box hands over the whole approved row (its id, its preview, its variables...): the route's template is
+  // .strict(), so a row sent whole was refused before anything was queued.
+  const row = {
+    id: "t-quick_note",
+    name: "quick_note",
+    language: "en_US",
+    body_preview: "Hi {{1}}, a quick note from {{2}}: {{3}}",
+    variables: [{ label: "Value 1" }, { label: "Value 2" }, { label: "Value 3" }],
+    category: "utility",
+    meta_status: "approved",
+  };
+  const say = (template) => quiet(() => inboxVerb(t, "reply-template", { template }, { refresh: false }));
+  await say({ ...row, words: "$180 is our lowest." });
+  await say({ ...row, words: "See you Tuesday!" });
+  await say({ ...row });
+  assert.deepEqual(
+    sent.map((s) => s.body),
+    [
+      { template: { name: "quick_note", language: "en_US", words: "$180 is our lowest." } },
+      { template: { name: "quick_note", language: "en_US", words: "See you Tuesday!" } },
+      { template: { name: "quick_note", language: "en_US" } },
+    ],
+  );
+  assert.equal(new Set(sent.map((s) => s.key)).size, 3, "the words in its blank are part of what is sent");
+});

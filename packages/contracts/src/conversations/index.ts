@@ -1,6 +1,6 @@
 /** A thread as the pages draw it: the view models, and who has it. */
 export { messageAt, isOptedOut, memberMetaOf } from "./thread-dto";
-export type { MessageDto, ConversationDto } from "./thread-dto";
+export type { MessageDto, ConversationDto, LastHoldDto } from "./thread-dto";
 export {
   agentFor,
   answerWireOf,
@@ -73,6 +73,8 @@ export {
   HELD_BY_ID_MAX,
   snoozedThreadWords,
   heldDraftWaits,
+  THREAD_PANE_WORDS,
+  theyWroteLast,
   toInboxThreadVM,
 } from "./inbox-thread";
 export { toConversationVM } from "./conversation-vm";

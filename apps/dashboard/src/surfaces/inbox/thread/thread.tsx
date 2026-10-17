@@ -22,7 +22,8 @@ import { touchSwipe } from "../shell";
 import { repliesDoor } from "./shell-thread";
 import type { Approval, Thread, TimelineEntry as TlEntry, VerdictOption } from "../types";
 import { ApprovalCard, ContextStrip, hasVerdict, NarrativeSummary, VerdictCard, type DecideExtra } from "./approval";
-import { Composer, type OnSend } from "./composer";
+import { Composer } from "./composer";
+import type { OnSend } from "./send-words";
 import { ThreadHeader } from "./header";
 import { ThreadBar, ThreadStatus, type Stale, type StatusProps } from "./status";
 import { useEarlierAsScrolled } from "./earlier";
@@ -210,18 +211,6 @@ function archiveAsk(p: Held, thread: Thread, setAskArchive: (v: boolean) => void
   );
 }
 
-/** A real thread says a bubble's time once for a run of messages from one side in the same minute. */
-const run = (a: TlEntry | undefined, b: TlEntry | undefined) =>
-  !!a &&
-  !!b &&
-  a.type === "msg" &&
-  b.type === "msg" &&
-  a.from === b.from &&
-  a.at === b.at &&
-  a.channel === b.channel &&
-  (a.agentName || "") === (b.agentName || "") &&
-  !!a.byYou === !!b.byYou;
-
 /** What the rows are drawn by: the newest thing said, where the thread stood when it opened, and where its drawing starts. */
 interface RowsAt {
   newestSaid: number;
@@ -232,31 +221,69 @@ interface RowsAt {
 }
 
 /** The conversation, entry by entry: all of it, or from `from` with the mark of what waits before it. */
+/** The newest message before `i` in the thread: the one a bubble's day and side are read against. */
+const msgBefore = (timeline: TlEntry[], i: number): TlEntry | undefined => {
+  for (let j = i - 1; j >= 0; j--) {
+    const e = timeline.at(j);
+    if (e && e.type === "msg") return e;
+  }
+  return undefined;
+};
+
+/** Two bubbles from one side, on one wire and one day: a run, drawn close together (the phone canvas, D1). */
+const sameSide = (a: TlEntry | undefined, b: TlEntry) =>
+  !!a &&
+  a.type === "msg" &&
+  b.type === "msg" &&
+  a.from === b.from &&
+  !!a.byYou === !!b.byYou &&
+  a.channel === b.channel &&
+  a.day === b.day;
+
 function timelineRows(p: Held, thread: Thread, at: RowsAt) {
-  const { channelLabels, focusMessageId } = p;
+  const { channelLabels, focusMessageId, onSend } = p;
   const { newestSaid, seenAt, from, moreRef } = at;
-  const rows = thread.timeline.slice(from).map((entry, k) => {
+  // Our words that did not send, sent again as they were or put in the box (timeline.tsx): a real thread's, where words
+  // can still go (the window open, no stop), never a seeded one's.
+  const again =
+    thread.real && thread.windowOpen !== false && !thread.optedOut
+      ? {
+          send: (text: string) => onSend(thread.id, text),
+          edit: (text: string) =>
+            window.dispatchEvent(new CustomEvent("inbox:focus-composer", { detail: { threadId: thread.id, text } })),
+        }
+      : null;
+  const rows = thread.timeline.slice(from).flatMap((entry, k) => {
     // Its place in the whole thread, which its key and its neighbours are read by.
     const i = from + k;
-    // A real thread says a bubble's time once for a run of messages from one side in the same minute, and who
-    // sent ours and what became of it on the run's last: every bubble had "WhatsApp · 4:24 PM" over it and
-    // "by WhatsApp Receptionist · Read" under it, 79–127px apiece on a phone.
-    const lines =
-      thread.real && entry.type === "msg"
-        ? { meta: !run(thread.timeline[i - 1], entry), by: !run(entry, thread.timeline[i + 1]) }
-        : null;
-    return (
+    const before = msgBefore(thread.timeline, i);
+    // A real thread heads each day once, and each bubble says its own time and what became of it in its corner: every
+    // bubble had "Sep 17 · 10:13 AM" over it and "by WhatsApp Receptionist · Why · Delivered" under it, 79–127px apiece
+    // on a phone (the phone canvas, D1). A run of one side's bubbles stands close together.
+    const lines = thread.real && entry.type === "msg" ? { meta: false, by: false, run: sameSide(before, entry) } : null;
+    const day =
+      thread.real &&
+      entry.type === "msg" &&
+      entry.day &&
+      (!before || before.type !== "msg" || before.day !== entry.day) ? (
+        <span key={`day-${i}`} className="tl-day" data-testid="tl-day">
+          {entry.day}
+        </span>
+      ) : null;
+    const row = (
       <TimelineEntry
         key={i}
         entry={entry}
         thread={thread}
         channelLabels={channelLabels}
         lines={lines}
+        again={again}
         focus={!!focusMessageId && entry.type === "msg" && entry.messageId === focusMessageId}
         newest={i === newestSaid}
         arrived={!!thread.real && i >= seenAt}
       />
     );
+    return day ? [day, row] : [row];
   });
   // A thread drawn whole is its rows and nothing else, as it always was.
   if (from <= 0) return rows;
@@ -383,6 +410,8 @@ export const InboxThread = (props: InboxThreadProps) => {
     veto,
     vetoPaused,
     onVetoAct,
+    // "No reply needed" on a thread left unanswered is the archive, which asks first.
+    onArchive: thread.real && held.onArchive ? () => setAskArchive(true) : null,
   };
   if (seenRef.current.id !== thread.id) seenRef.current = { id: thread.id, n: thread.timeline.length };
   const seenAt = Math.max(seenRef.current.n, thread.timeline.length - 3);

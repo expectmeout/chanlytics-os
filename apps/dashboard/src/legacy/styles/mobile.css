@@ -705,6 +705,13 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
   .app-root:has([data-takeover]) [data-testid="phone-tabs"] {
     display: none;
   }
+  /* An open thread is headed by its own person: the page's date and the bell over its capsule stand down too, 44px given
+     back to the conversation (the phone thread's canvas). A person's page keeps the bar, which holds its way back. The
+     shell's status line and a call's bar are not the bar's, and stay. */
+  .app-root:has(:is(.inbox, .conversations)[data-takeover]) .topbar,
+  .app-root:has(:is(.inbox, .conversations)[data-takeover]) .pg-dateline-slot {
+    display: none;
+  }
   .main-scroll:has(> [data-takeover]) {
     --page-foot: 0px;
     padding-bottom: 0;

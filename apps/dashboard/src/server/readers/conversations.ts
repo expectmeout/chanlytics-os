@@ -1,6 +1,6 @@
 import "server-only";
-import { addressOf, contactName, type ConversationDto, type MessageDto } from "@chanlytics/contracts";
-import { failedMessageErrors } from "@chanlytics/db";
+import { addressOf, contactName, theyWroteLast, type ConversationDto, type MessageDto } from "@chanlytics/contracts";
+import { failedMessageErrors, lastClosedHolds } from "@chanlytics/db";
 import { CONVERSATION_COLUMNS, groupMessages, messageRowsOf, toConversationDto } from "../dto";
 import { seenOfPeople } from "../people/person-seen";
 import { stamp, type Reader, type RowRef } from "./index";
@@ -61,17 +61,29 @@ export const conversations: Reader<{ ids: string[] | null }, { conversations: Co
     // The threads' messages beside the reader's own reading of each person here (00349, so a row can say it is new to
     // them): both follow from the threads and neither from the other. One after the other, the Inbox, Conversations and
     // Today each stood behind a round trip more than they asked for (9 Oct 2026).
-    const [byConv, seenOf] = await Promise.all([
+    // And the newest hold that closed on each thread (contracts LastHoldDto), beside them rather than after, so the read
+    // waits on no round trip more: one held and closed with nothing sent waits on a person for good (unansweredOf).
+    const [byConv, seenOf, closedHolds] = await Promise.all([
       messagesOf(),
       seenOfPeople(
         rc.ctx,
         tenantId,
         (convs ?? []).flatMap((c) => (c.contacts?.id ? [c.contacts.id] : [])),
       ),
+      ids.length ? lastClosedHolds(supabase, tenantId, ids) : Promise.resolve([]),
     ]);
-    const conversations: ConversationDto[] = (convs ?? []).map((c) =>
-      toConversationDto(c, byConv.get(c.id) ?? [], userId, c.contacts?.id ? seenOf(c.contacts.id) : {}),
-    );
+    const holdOf = new Map(closedHolds.map((h) => [h.conversation_id, h]));
+    const conversations: ConversationDto[] = (convs ?? []).map((c) => {
+      const dto = toConversationDto(c, byConv.get(c.id) ?? [], userId, c.contacts?.id ? seenOf(c.contacts.id) : {});
+      // Carried only where the customer wrote last: on any other thread a closed hold says nothing about who is waiting.
+      const h = holdOf.get(c.id);
+      return h && theyWroteLast(dto.messages)
+        ? {
+            ...dto,
+            last_hold: { reason: h.reason, details: h.details, created_at: h.created_at, resolved_at: h.resolved_at },
+          }
+        : dto;
+    });
     return {
       data: { conversations },
       rows: conversations.map((c): RowRef => ({

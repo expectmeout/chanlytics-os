@@ -320,7 +320,7 @@ export {
   ownAddressIn,
 } from "./repositories/notices/member-alerts";
 export type { MemberAlertsRow } from "./repositories/notices/member-alerts";
-export { threadIdsWaitingOnYou } from "./repositories/waiting-on-you";
+export { lastClosedHolds, threadIdsWaitingOnYou } from "./repositories/waiting-on-you";
 export { reviewLinkOf, workspacePaused } from "./repositories/campaigns/workspace";
 export { momentSchedules, runsInSpan } from "./repositories/campaigns/calendar-runs";
 export {

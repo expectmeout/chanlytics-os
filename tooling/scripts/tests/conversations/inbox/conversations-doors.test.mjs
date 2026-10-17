@@ -208,11 +208,11 @@ test("REGRESSION (A23): the Inbox says the same author as Conversations -- a per
   );
   fresh();
   const tree = InboxThread({ thread: vm, channelLabels: { whatsapp: "WhatsApp", phone: "Phone" } });
-  // The author, not the punctuation after it: the separator used to lead into a repeat of the
-  // time that already sits over the bubble, and no longer exists. "by you" must still not match
-  // "by your team", so the boundary is explicit.
-  assert.match(textOf(tree), /by your team/);
-  assert.doesNotMatch(textOf(tree), /by you(?!r)/, "REGRESSION: every teammate's reply read 'by you'");
+  // The author signs the bubble's corner, beside its time (the phone canvas, D1). "you" must still not match "your
+  // team", so the boundary is explicit.
+  const stamp = find(tree, (n) => n.props?.className === "tl-stamp" && textOf(n).includes("9:01"));
+  assert.match(textOf(stamp), /^Your team/);
+  assert.doesNotMatch(textOf(stamp), /^You(?!r)/, "REGRESSION: every teammate's reply read 'by you'");
 });
 
 test("REGRESSION (A7, A9, A23): Conversations says who answered, signs our messages, and IS the Inbox's thread -- not a door to it", () => {
@@ -254,7 +254,7 @@ test("REGRESSION (A7, A9, A23): Conversations says who answered, signs our messa
     withRows([team]);
     fresh();
     const tree = page();
-    assert.match(textOf(tree), /by your team/, "REGRESSION: a bubble did not say who wrote it");
+    assert.match(textOf(tree), /Your team9:01/, "REGRESSION: a bubble did not say who wrote it");
     const thread = find(tree, (n) => n.type === InboxThread);
     assert.ok(thread, "REGRESSION: a chat had no way into its Inbox thread");
     assert.equal(thread.props.thread.id, "th-c1", "the row's own thread");

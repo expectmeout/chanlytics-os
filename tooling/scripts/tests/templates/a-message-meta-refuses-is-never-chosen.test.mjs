@@ -102,7 +102,16 @@ test("the Inbox picker leaves out a message WhatsApp refuses, and says why in th
 
   // Said with the other two reasons, in one sentence: "a, b and c", and two read as they always did.
   const promotion = { ...booking, id: "t-promo", name: "this_months_offer", category: "marketing" };
-  const words = { ...booking, id: "t-words", name: "mystery", variables: [{ label: "Your message", position: 1 }] };
+  // Two values of words to write: the reply box writes one (contracts inboxBlankOf).
+  const words = {
+    ...booking,
+    id: "t-words",
+    name: "mystery",
+    variables: [
+      { label: "Your message", position: 1 },
+      { label: "Your sign-off", position: 2 },
+    ],
+  };
   assert.equal(
     inboxTemplates([booking, picture, promotion, words], to).hidden,
     "Not offered: 1 that WhatsApp would refuse (a picture for a heading), 1 promotion (Rosa Díaz hasn't said yes to offers) and 1 that needs words the Inbox doesn't ask for.",
