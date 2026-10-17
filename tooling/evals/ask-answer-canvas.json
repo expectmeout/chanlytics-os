@@ -67,6 +67,24 @@
     }
   },
   {
+    "id": "canvas_quote_review",
+    "text": "What exactly did Riley write in her review? Quote her.",
+    "surface": "today",
+    "expect": { "detail_shape": ["quote"], "language": "en", "no_write": true }
+  },
+  {
+    "id": "canvas_todo_doors",
+    "text": "What should I do first today? Give me the steps.",
+    "surface": "today",
+    "expect": { "detail_shape": ["door"], "language": "en", "no_write": true }
+  },
+  {
+    "id": "canvas_callout_needs_calendar",
+    "text": "How would reminders the day before an appointment work for us?",
+    "surface": "today",
+    "expect": { "detail_shape": ["callout"], "language": "en", "no_write": true, "includes_any": ["calendar"] }
+  },
+  {
     "id": "canvas_language_pt",
     "text": "Quem precisa de mim agora?",
     "surface": "today",

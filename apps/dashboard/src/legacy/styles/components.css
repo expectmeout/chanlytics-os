@@ -659,10 +659,10 @@
      ran on under a page already moving sideways, and a thumb could carry Reports in circles (Ruben's recording, 9 Oct
      2026). touch-action is read on what scrolls, so each strip page's phone scroller says it: Reports' body, the
      Inbox's threads, Conversations' rows, People's main, Settings' pane, a person's page (its tabs, and People behind the
-     first; one each, found on the app at 375px; tooling/scripts/tests/styles/swipe-axis.test.mjs holds the list). A touch
+     first), a Campaigns pane open (a sequence's tabs, and its list behind the first; one each, found on the app at 375px; tooling/scripts/tests/styles/swipe-axis.test.mjs holds the list). A touch
      that began across never scrolls it, as a phone's own pagers hold their axis; one that began down scrolls as before,
      and the reader moves nothing. */
-  .rpt-body, .ix-threads, .cv-rows, .cl-main-scroll, .set-pane, .cl-profile { touch-action: pan-y; }
+  .rpt-body, .ix-threads, .cv-rows, .cl-main-scroll, .set-pane, .cl-profile, .cm-pane-body { touch-action: pan-y; }
 }
 
 /* ---------- Unified stat strip (dashboard anchors · clients head · profile money) ---------- */

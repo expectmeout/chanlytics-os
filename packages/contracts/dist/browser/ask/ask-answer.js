@@ -1,6 +1,7 @@
 import { ASK_CAPS } from "./ask.js";
 import {
   FOLLOWUP_ECHO,
+  answerDoors,
   answerText,
   cleanAnswer,
   firstSentence,
@@ -318,8 +319,8 @@ export function normalizeAnswer(raw, read, fallback) {
     }
   }
   const root = asObj(json);
-  const say = sayAsDrawn(asObj(root.say));
-  const headline = say.headline;
+  const said = sayAsDrawn(asObj(root.say));
+  const headline = said.headline;
   if (!headline) return { ok: false, error: "no headline" };
   const language = root.language === "en" || root.language === "es" ? root.language : fallback;
   let dropped = 0;
@@ -328,6 +329,14 @@ export function normalizeAnswer(raw, read, fallback) {
     const r = asObj(v);
     if (!s && typeof r.kind === "string" && r.kind !== "none" && typeof r.id === "string" && r.id.trim()) dropped++;
     return s;
+  };
+  const say = {
+    ...said,
+    detail: answerDoors(said.detail, (target, label) => {
+      const [, kind = "", id = ""] = /^([a-z_]+):(.+)$/.exec(target) ?? [];
+      const named = ASK_CITATION_KINDS.includes(kind);
+      return ground(named ? { kind, id, label } : { kind: "page", id: target, label })?.to ?? null;
+    })
   };
   const show = asObj(root.show);
   const figures = [];

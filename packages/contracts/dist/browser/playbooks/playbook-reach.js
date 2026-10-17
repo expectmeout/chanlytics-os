@@ -10,8 +10,19 @@ import { GET_YES_ROUTE, NO_CHANNEL_REACH, saidYesWords } from "../people/people-
 import { followUpCovers, followUpDealOf, followUpKey } from "./playbook-follow-ups.js";
 import { enrolPurpose, messageAboutOfTrigger } from "./playbook-purpose.js";
 import { DAY_MS } from "./playbook-time.js";
+import { HOUR_MS } from "../shared/time.js";
 import { triggerOf } from "./playbook-triggers.js";
 export const playbookPoolKey = (id) => `playbook:${id}`;
+const TWIN_SAME_VISIT_MS = 20 * HOUR_MS;
+function dropTwinHeard(allowed, byTwin, nowMs) {
+  if (!byTwin || byTwin.size === 0) return 0;
+  const heard = allowed.filter((r) => {
+    const at = byTwin.get(r.id);
+    return at !== void 0 && Math.abs(nowMs - at) < TWIN_SAME_VISIT_MS;
+  });
+  for (const r of heard) allowed.splice(allowed.indexOf(r), 1);
+  return heard.length;
+}
 export function touchesAfterRun(touches, run, people) {
   const byThis = new Map(touches.byThis);
   const mine = new Map(byThis.get(run.playbookId));
@@ -133,6 +144,7 @@ export function playbookRunReach(rows, p, touches, nowMs, pace, listIds = null) 
     else reach.no_channel = (reach.no_channel ?? 0) + 1;
   }
   if (t.kind === "visit") {
+    reach.heardThis += dropTwinHeard(allowed, touches.byTwin, nowMs);
     allowed.sort(
       (a, b) => p.trigger === "visit_tomorrow" ? (a.nextVisitMs ?? 0) - (b.nextVisitMs ?? 0) : (a.lastVisitMs ?? 0) - (b.lastVisitMs ?? 0)
     );

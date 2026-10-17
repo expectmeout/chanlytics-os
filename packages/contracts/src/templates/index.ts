@@ -20,6 +20,7 @@ export {
   templateUseWords,
   templateUseNote,
   templateUnused,
+  TEMPLATE_UNUSED_WORDS,
   templateSends,
   templateSendsOf,
   templateSentWords,

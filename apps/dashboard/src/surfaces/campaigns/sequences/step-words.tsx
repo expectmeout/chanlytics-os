@@ -1,10 +1,11 @@
 /**
- * A step's words as one person reads them (the canvas's Steps board, "its words in a chat bubble with each person's words
- * tinted"): the app's one drawing of a message (parts/message-preview.tsx), its bubble plain on the flow's ground, filled for an example person
- * the way every composer previews one (contracts exampleParams), under the message's own name, which opens it in Messages,
- * and its WhatsApp standing. The message is the workspace's offered one of the step's name and language (the settings
- * read, parts/channels.ts cmOfferedFrom), so the words are the ones it sends; a step whose message is not offered here says
- * its name alone.
+ * A step's message in the flow (the phone review's Steps board): its title on the step's own line, a door to it in
+ * Messages, with its WhatsApp standing only where it is not approved; and its words as one person reads them, the app's
+ * one drawing of a message (parts/message-preview.tsx), its bubble plain on the flow's ground, filled for an example
+ * person with the step's own values (contracts exampleParams over the step's params, what it sends). The message is the
+ * workspace's offered one of the step's name and language (the settings read, parts/channels.ts cmOfferedFrom), so the
+ * words are the ones it sends; a step whose message the workspace no longer offers says so, with the act that picks
+ * another.
  */
 import { useMemo } from "react";
 import type { ReactNode } from "react";
@@ -23,7 +24,7 @@ import { cmBusinessOf, cmOfferedBy, cmOfferedFrom, type CmOffered } from "../par
 import { MessagePreview } from "../parts/message-preview";
 
 /** The offered message a step sends, by its name and language, or null where the workspace offers none of it. */
-function useStepMessage(name: string | null, language: string | null): CmOffered | null {
+export function useStepMessage(name: string | null, language: string | null): CmOffered | null {
   const settings = useSurface("settings");
   // The offered messages are made of the settings read once for each read of it, not once for each step drawn.
   const offered = useMemo(() => cmOfferedFrom(settings) ?? [], [settings]);
@@ -35,36 +36,56 @@ function useBusinessName(): string {
   return cmBusinessOf(useSurface("settings")).businessName;
 }
 
+/**
+ * The step's message by its title, opening it in Messages, and its WhatsApp standing where it needs saying (in review,
+ * turned down, paused by WhatsApp); approved says nothing. Its stored name where the workspace no longer offers it.
+ */
+export function StepMessageName(p: { name: string | null; message: CmOffered | null; testid: string }) {
+  const { name, message, testid } = p;
+  if (!name) return <span className="sq-fl-name">{F.noMessage}</span>;
+  const approval = stepApprovalOf(message?.message?.versions.whatsapp?.status ?? null);
+  return (
+    <>
+      <LinkButton
+        size="inherit"
+        className="sq-fl-name"
+        {...routeDoor(addressOf({ kind: "template", name }))}
+        data-testid={`${testid}-from`}
+      >
+        {message?.title ?? name}
+      </LinkButton>
+      {approval && approval.tone !== "ok" ? (
+        <StatePill kind="tone" value={approval.tone} label={approval.label} />
+      ) : null}
+    </>
+  );
+}
+
 interface StepWordsProps {
   name: string | null;
-  language: string | null;
+  message: CmOffered | null;
   params: unknown;
-  /** Under the bubble, after the message's name and standing: the step's own acts. */
-  acts?: ReactNode;
+  /** Where its message is gone: the act that picks another (the step's editor). */
+  gone?: ReactNode;
   testid: string;
 }
 
-export function StepWords({ name, language, params, acts = null, testid }: StepWordsProps) {
-  const message = useStepMessage(name, language);
+/** The step's words as one person reads them, or what stands where its message is gone. */
+export function StepWords({ name, message, params, gone = null, testid }: StepWordsProps) {
   const business = useBusinessName();
-  const approval = stepApprovalOf(message?.message?.versions.whatsapp?.status ?? null);
+  if (!message)
+    return (
+      <div className="sq-msg sq-msg-gone" data-testid={testid}>
+        <p className="sq-msg-none">{name ? F.messageGone : F.noMessage}</p>
+        {gone}
+      </div>
+    );
+  // A message with no words to draw here (none in its anchor's language) is named on the step's line alone.
+  if (!message.body_preview) return null;
   const values = exampleParams(parseParamSpecs(params), business);
   return (
     <div className="sq-msg" data-testid={testid}>
-      {message?.body_preview ? (
-        <MessagePreview compact plain from={business} body={message.body_preview} values={values} />
-      ) : (
-        <p className="sq-msg-none">{name ?? F.noMessage}</p>
-      )}
-      <p className="sq-msg-meta">
-        {name ? (
-          <LinkButton {...routeDoor(addressOf({ kind: "template", name }))} data-testid={`${testid}-from`}>
-            {F.from} “{message?.title ?? name}”
-          </LinkButton>
-        ) : null}
-        {approval ? <StatePill kind="tone" value={approval.tone} label={approval.label} /> : null}
-        {acts}
-      </p>
+      <MessagePreview compact plain from={business} body={message.body_preview} values={values} />
     </div>
   );
 }

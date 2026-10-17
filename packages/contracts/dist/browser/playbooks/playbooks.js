@@ -27,6 +27,7 @@ export {
   REACH_OUT_IS_NOT_A_MOMENT,
   triggerOf,
   triggerOffered,
+  VISIT_TRIGGERS,
   momentOffered,
   momentReadsCalendar,
   MOMENTS_RETIRED,

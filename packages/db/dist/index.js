@@ -4602,6 +4602,22 @@ async function sequenceOfPart(db, tenantId, id) {
   };
   return of(batch.data) ?? of(step.data);
 }
+async function stepLastRunFor(db, tenantId, stepId) {
+  const { data, error } = await db.from("sequence_steps").select("last_run_for").eq("tenant_id", tenantId).eq("id", stepId).maybeSingle();
+  if (error) throw new Error(`cannot read when the step last ran: ${error.message}`);
+  return data?.last_run_for ?? null;
+}
+async function runningStepsOn(db, tenantId, triggers) {
+  if (triggers.length === 0) return [];
+  const { data, error } = await db.from("sequence_steps").select("id, name, trigger").eq("tenant_id", tenantId).eq("state", "running").in("trigger", [...triggers]);
+  if (error) throw new Error(`cannot read what runs at this moment: ${error.message}`);
+  return data ?? [];
+}
+async function sequenceNamesOf(db, tenantId) {
+  const { data, error } = await db.from("sequences").select("id, name").eq("tenant_id", tenantId);
+  if (error) throw new Error(`cannot read the sequences' names: ${error.message}`);
+  return data ?? [];
+}
 async function sequenceStepsOf(db, tenantId, sequenceId) {
   const { data, error } = await db.rpc("sequence_steps_of", { p_tenant_id: tenantId, p_sequence_id: sequenceId });
   if (error) throw new Error(`cannot read the sequence's steps: ${error.message}`);
@@ -7283,6 +7299,7 @@ export {
   runHanded,
   runSending,
   runWaitingCounts,
+  runningStepsOn,
   runningTwins,
   runsInSpan,
   runsNamed,
@@ -7307,6 +7324,7 @@ export {
   sentEmailOf,
   sentEmailWithMessageId,
   sequenceHistoryOf,
+  sequenceNamesOf,
   sequenceOfPart,
   sequenceOverview,
   sequencePeopleOf,
@@ -7340,6 +7358,7 @@ export {
   stampPlaybooksTried,
   stampReachOutStep,
   startPlaybook,
+  stepLastRunFor,
   stopAllMessages,
   strandedRuns,
   stuckClaims,
