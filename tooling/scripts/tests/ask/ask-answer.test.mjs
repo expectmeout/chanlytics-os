@@ -1368,6 +1368,8 @@ test("a write claimed is one predicate (the moment spec, A4): what the eval judg
     "Two cards to review: a win-back and a follow-up.",
     "Once you approve it, it starts running.",
     "You connect it under Settings › Business. Once that's done, ask me again and I'll add both.",
+    "The quickest fix is to turn Win-back back on. Should I set up the cards to turn Win-back back on?",
+    "I changed nothing in your account today: I can't change anything myself, only propose cards for you to approve.",
     "When that's done, the reminder can go.",
     "The card is waiting for your approval.",
     'Here is the reply, ready to approve: "I\'ve set up your visit."',
