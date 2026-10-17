@@ -143,7 +143,7 @@ function templateOptions(have: TemplateChoice): Array<{ template: ApprovedTempla
 }
 
 /** A template's words as this person reads them, its blank said by its label: the menu's second line under its name. */
-const previewOf = (t: ApprovedTemplate, facts: ReturnType<typeof factsFor>): string | undefined =>
+const templateSaid = (t: ApprovedTemplate, facts: ReturnType<typeof factsFor>): string | undefined =>
   inboxTemplateParts(t, facts)
     .map((part) => (part.blank !== undefined ? `[${THREAD_PANE_WORDS.blank(part.blank)}]` : part.words))
     .join("") || undefined;
@@ -165,7 +165,7 @@ function templateMenu(
   if (options.length > 1) {
     const item = (o: (typeof options)[number], at: number): MenuItem => ({
       label: o.label,
-      meta: previewOf(o.template, facts),
+      meta: templateSaid(o.template, facts),
       glyph: <Icon name="check" size={13} className={at === have.chosenAt ? "" : "ix-tpl-unpicked"} />,
       onSelect: () => choose(at),
     });
