@@ -5146,8 +5146,8 @@ test("the day is read once a turn, each tool as its page reads it: today, inbox.
   const selects = (table) => ctx.supabase.seen.filter((q) => q.table === table && q.op === "select").length;
   assert.deepEqual(
     ["conversations", "calls", "escalations", "tenants"].map(selects),
-    [2, 1, 2, 0],
-    "the newest hundred once, shared; the escalated one past it once, shared by Today and the Inbox; the calls once and the escalations once (in their two halves: readers/escalations.ts); and no tenant: the zone is the turn's",
+    [2, 1, 4, 0],
+    "the newest hundred once, shared; the escalated one past it once, shared by Today and the Inbox; the calls once and the escalations once (in their two halves: readers/escalations.ts), and each conversations read's last closed hold on its threads beside it (#1660, db lastClosedHolds: one a read); and no tenant: the zone is the turn's",
   );
   const out = Object.fromEntries(
     s.requests[1].messages.at(-1).content.map((c) => [c.tool_use_id, fromRecord(c.content)]),
