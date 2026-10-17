@@ -393,8 +393,9 @@ test("the feed tells Settings of a template in every tab, wherever it is, and te
     assert.equal(wantsRefresh(inboxOverride, "templates", change), false, `the Inbox: ${hash}`);
     assert.equal(wantsRefresh(broadcastsOverride, "templates", change), false, `Sent: ${hash}`);
   }
-  // Playbooks still hears the table on its page, for the server's count of a run whose message is stricter than its moment.
-  globalThis.location.hash = "#/campaigns";
+  // Playbooks still hears the table on its page, the composer, for the server's count of a run whose message is stricter than
+  // its moment.
+  globalThis.location.hash = "#/campaigns/new";
   assert.equal(wantsRefresh(playbooksOverride, "templates", change), true);
   globalThis.location.hash = "#/today";
 });

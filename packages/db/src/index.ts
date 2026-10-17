@@ -332,6 +332,8 @@ export {
   sequenceStepsOf,
   sequenceNamesOf,
   stepLastRunFor,
+  oneOffMessageOf,
+  leadsFedBy,
   runningStepsOn,
   sequencePeopleOf,
   sequenceHistoryOf,

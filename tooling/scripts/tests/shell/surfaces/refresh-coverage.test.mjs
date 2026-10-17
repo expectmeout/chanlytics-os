@@ -102,7 +102,8 @@ test("REGRESSION: a write that changes who a campaign reaches re-reads the pages
   // counts, the playbooks' "N will get it"), and the Campaigns lens counts the yeses and stops after a campaign (its own read, below;
   // the report's own no longer counts them, so these writes do not re-read it). Each write that moves one of those
   // re-reads the surfaces that count by it, with whatever it re-read before: People always, the composers where the page on screen
-  // draws them (Campaigns' home draws both), and nowhere else, where they are left for the pages that draw them (S10-6).
+  // draws them (Campaigns' composer draws both), and nowhere else, where they are left for the pages that draw them (S10-6):
+  // Campaigns' landing, Sequences' list, draws neither.
   const counted = COMPOSERS;
   const answers = [
     "PUT contacts/[id]/consent",
@@ -111,8 +112,11 @@ test("REGRESSION: a write that changes who a campaign reaches re-reads the pages
     "PUT contacts/marketing-consent",
   ];
   for (const route of answers) {
-    const keys = keysOn("#/campaigns", route);
+    const keys = keysOn("#/campaigns/new", route);
     for (const key of counted) assert.ok(keys.includes(key), `${route} re-reads ${key}: ${keys}`);
+    const landing = keysOn("#/campaigns", route);
+    for (const key of counted)
+      assert.equal(landing.includes(key), false, `${route} on Campaigns' landing: ${key} is left for its pages`);
     assert.equal(keys.includes("reports"), false, `${route}: the report's own read no longer counts a yes or a stop`);
     const away = keysOn("#/admin/profile", route);
     for (const key of counted)
@@ -134,7 +138,7 @@ test("REGRESSION: a write that changes who a campaign reaches re-reads the pages
     "PUT contacts/[id]/details",
     "POST contacts/[id]/deal",
   ]) {
-    const keys = keysOn("#/campaigns", route);
+    const keys = keysOn("#/campaigns/new", route);
     for (const key of counted) assert.ok(keys.includes(key), `${route} re-reads ${key}: ${keys}`);
     assert.ok(keysOn("#/clients", route).includes("people"), `${route} on People: people`);
   }
@@ -199,8 +203,8 @@ test("REGRESSION: a broadcast made re-reads Playbooks with Broadcasts, as approv
 test("a write that changes what a channel can send re-reads the composers and People's reach", () => {
   // The number, the text line, the mailbox and the postal address an offer by email names are what channels-ready.ts
   // reads; each has its writer in this table, and each moves the three surfaces that show the readiness, each where the page on
-  // screen draws it (Campaigns' home draws the composers, People's pages its reach) and left for those pages from Settings, where
-  // these writes are made (S10-6, S4-6).
+  // screen draws it (Campaigns' composer draws the composers, People's pages its reach) and left for those pages from Settings,
+  // where these writes are made (S10-6, S4-6).
   const moved = COMPOSERS;
   for (const route of [
     "PUT settings",
@@ -212,7 +216,7 @@ test("a write that changes what a channel can send re-reads the composers and Pe
     "POST mailboxes",
     "PUT mailboxes/[id]",
   ]) {
-    const keys = keysOn("#/campaigns", route);
+    const keys = keysOn("#/campaigns/new", route);
     for (const key of moved) assert.ok(keys.includes(key), `${route} re-reads ${key}: ${keys}`);
     const away = keysOn("#/admin/integrations", route);
     for (const key of [...COMPOSERS, "people"])
@@ -902,12 +906,13 @@ test("Not the same reads no list: the open person page reads itself again with t
   assert.equal("POST contacts/[id]/doubts/dismiss" in AFTER, false, "and not also named to re-read People");
 });
 
-test("a person erased takes their messages, calls and threads with them: the report overview and the Campaigns home read where drawn and forget where not, and a merge re-reads the bell, whose lines it re-addresses", () => {
+test("a person erased takes their messages, calls and threads with them: the report overview and Campaigns' composer read where drawn and forget where not, and a merge re-reads the bell, whose lines it re-addresses", () => {
   const was = globalThis.location.hash;
   try {
     for (const [hash, drawn, notDrawn] of [
       ["#/reports", "reports", "campaign_results"],
-      ["#/campaigns", "campaign_results", "reports"],
+      ["#/campaigns/new", "campaign_results", "reports"],
+      ["#/campaigns", null, "campaign_results"],
       ["#/inbox", null, "reports"],
     ]) {
       globalThis.location.hash = hash;

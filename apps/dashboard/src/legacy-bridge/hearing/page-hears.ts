@@ -52,22 +52,26 @@ export const PAGE_HEARS: Readonly<Record<string, Readonly<Record<string, PageCel
   // The Calendar owns the campaign marks it draws over its days (surfaces/calendar/runs-surface.ts): a run made, approved or done,
   // a campaign saved or a class's mode changed is read again while the Calendar is open, and once as it comes back elsewhere.
   calendar: { calendar: true, calendar_runs: true },
-  // Campaigns is Sequences' list (decision 0060), whole, and the sheets it opens over it, made of four surfaces: the
-  // playbooks' moments, its own 30 days (campaign_results), the reach-outs' chains and the settings read's templates. Sent's
-  // runs are drawn in them too: who can hear you, the pause on offers, the send-once composer and its Send by ticks. They hear
-  // here what moves those (a person's answer, the business's facts, the rules, a channel, the plan, a visit the audiences
-  // leave, a list To offers), and leave to Sent's sheets what moves a run's replies (a message, a thread, a hold), so a
-  // message here never re-reads the broadcasts and every page of People behind them (W-review-facts-rules-2).
-  campaigns: {
+  // Campaigns is Sequences' list (decision 0060), where its addresses land: it hears what Sequences hears, its own list and
+  // the settings read, and none of the surfaces of the sheets it opens over the list, which hear at their own addresses.
+  campaigns: { sequences: true, settings: true },
+  // The composer Campaigns opens over Sequences' list (`campaigns/new…`), whole, made of four surfaces: the playbooks'
+  // moments, Campaigns' own 30 days (campaign_results), the reach-outs' chains and the settings read's templates. Sent's runs
+  // are drawn in it too: who can hear you, the pause on offers, the send-once composer and its Send by ticks. It hears here
+  // what moves those (a person's answer, the business's facts, the rules, a channel, the plan, a visit the audiences leave, a
+  // list To offers), and leaves to Sent's sheets what moves a run's replies (a message, a thread, a hold), so a message here
+  // never re-reads the broadcasts and every page of People behind them (W-review-facts-rules-2).
+  "campaigns/new": {
     sequences: true,
     playbooks: true,
     campaign_results: true,
     reach_outs: true,
-    // A message's drawer is made of the settings read's templates, and says what sends it (Messages' pane, from the playbooks
-    // and runs its read joins: W-campaign-run-template-reachout-2).
     settings: true,
     broadcasts: ["person", "facts", "rules", "channel", "billing", "visit", "list"],
   },
+  // A message in its drawer over Sequences' list (`campaigns/message:<name>`): the settings read's templates it is drawn
+  // from, and the playbooks surface whose library names the call's text (W-campaign-run-template-reachout-2).
+  "campaigns/message": { sequences: true, playbooks: true, settings: true },
   // The composers fill a review-link slot only where the listing keeps one, which the settings read says (parts/channels.ts
   // cmBusinessOf): the listing linked, read or dropped is heard for Settings where a composer is drawn (S1-4).
   outbound: { playbooks: true, settings: ["review"] },

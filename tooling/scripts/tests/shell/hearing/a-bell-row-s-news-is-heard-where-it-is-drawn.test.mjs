@@ -139,7 +139,16 @@ function owedOnArrival(routes) {
 }
 /** Every page these surfaces own, so what was kept for one is read and the next test starts owing nothing. */
 const drain = () =>
-  owedOnArrival(["#/messages", "#/inbox", "#/calendar", "#/clients", "#/campaigns", "#/outbound", "#/broadcasts"]);
+  owedOnArrival([
+    "#/messages",
+    "#/inbox",
+    "#/calendar",
+    "#/clients",
+    "#/campaigns",
+    "#/campaigns/new",
+    "#/outbound",
+    "#/broadcasts",
+  ]);
 
 /**
  * What each kind the edge keeps announces, and who hears it. For the kinds whose table the trace followed: the change the row is about,
@@ -171,8 +180,8 @@ const ANNOUNCES = {
     heard: [
       ["inbox", ["#/inbox", "#/today"]],
       ["people", ["#/clients"]],
-      ["broadcasts", ["#/broadcasts", "#/campaigns"]],
-      ["playbooks", ["#/campaigns", "#/outbound"]],
+      ["broadcasts", ["#/broadcasts", "#/campaigns/new"]],
+      ["playbooks", ["#/campaigns/new", "#/outbound"]],
       ["calendar", ["#/calendar", "#/today"]],
       // The person's own page, where the row's button may open: their surface hears them changed there.
       ["person", ["#/clients/0b9c4f6e-1d2a-4c3b-9e8f-7a6b5c4d3e2f"]],
@@ -183,8 +192,8 @@ const ANNOUNCES = {
   sweep: {
     change: ["mailboxes", "UPDATE"],
     heard: [
-      ["broadcasts", ["#/broadcasts", "#/campaigns"]],
-      ["playbooks", ["#/campaigns", "#/outbound"]],
+      ["broadcasts", ["#/broadcasts", "#/campaigns/new"]],
+      ["playbooks", ["#/campaigns/new", "#/outbound"]],
     ],
   },
   handoff: "The Inbox, which the row opens, hears the escalation and the message.",
@@ -282,8 +291,8 @@ test("heard while the owner is elsewhere, it is kept for the page that draws it 
   const pause = { table: "mailboxes", event: "UPDATE", row: {} };
   for (const o of [playbooksOverride, broadcastsOverride])
     assert.equal(wantsRefresh(o, "mailboxes", pause), false, o.key);
-  assert.deepEqual(owedOnArrival(["#/campaigns", "#/broadcasts"]), {
-    "#/campaigns": ["playbooks", "broadcasts"],
+  assert.deepEqual(owedOnArrival(["#/campaigns/new", "#/broadcasts"]), {
+    "#/campaigns/new": ["playbooks", "broadcasts"],
     "#/broadcasts": [],
   });
 });

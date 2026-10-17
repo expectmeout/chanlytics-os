@@ -4,6 +4,7 @@
  * read these and nothing else of a sequence, so the number Ask says is the number the page shows.
  */
 import type { AppointmentWord } from "../journey/appointment-word";
+import type { ReachOutFedBy } from "../reach-out/reach-out-leads";
 import type { SequenceStart, SequenceState } from "./sequence";
 
 /** A sequence's first step, as the list reads it: how it starts and the class it runs under. */
@@ -225,4 +226,36 @@ export interface SequenceRecordDto {
    * Absent from a server before it, which then says no next run it cannot know.
    */
   last_run_for?: string | null;
+  /**
+   * A sequence to leads: what it writes to, a list its owner adds leads to (Add leads opens Leads to add to it) or its
+   * search, which the finder keeps current (contracts isLeadList over the search's `via`). Absent on any other sequence,
+   * and from a server before it, which then opens the search.
+   */
+  fed_by?: ReachOutFedBy;
+  /**
+   * A one-off: its one message as its batch sends it. Absent on any other sequence, and from a server before it, which
+   * then names the sequence alone; null where the batch could not be read.
+   */
+  one_off?: SequenceOneOffDto | null;
+}
+
+/** A one-off's message (its batch, whose id is the sequence's): the message, the values it is filled with, how it goes. */
+export interface SequenceOneOffDto {
+  template_name: string | null;
+  template_language: string | null;
+  params: unknown;
+  /** The channels its sends go by, a customer's not skipped, in CONSENT_CHANNELS' order; none until a send names one. */
+  channels: string[];
+}
+
+/**
+ * GET sequences/:id/reach: what Turn on asks with (contracts sequenceResumeAsk) beside what the record holds, for a
+ * sequence on a moment or a list: who its next run reaches, counted as GET playbooks counts its first step's card (its
+ * pool, for the channels it goes by), the most one run sends, and whether the workspace is paused (billing).
+ */
+export interface SequenceReachDto {
+  /** Null where its moment could not be counted: the question then says when alone. */
+  candidates: number | null;
+  cap_per_run: number | null;
+  paused: boolean;
 }

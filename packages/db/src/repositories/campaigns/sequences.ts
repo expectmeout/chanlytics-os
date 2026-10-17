@@ -6,7 +6,15 @@
  * refusal with its SQLSTATE and its own words (DoorResult).
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { SequenceHistoryDto, SequencePeopleDto, SequenceRowDto, SequenceStepDto } from "@chanlytics/contracts";
+import { CONSENT_CHANNELS, isLeadList } from "@chanlytics/contracts";
+import type {
+  ReachOutFedBy,
+  SequenceHistoryDto,
+  SequenceOneOffDto,
+  SequencePeopleDto,
+  SequenceRowDto,
+  SequenceStepDto,
+} from "@chanlytics/contracts";
 import type { Database, Json } from "../../database.types";
 import { answer, type DoorResult } from "./reach-out-leads";
 
@@ -168,6 +176,59 @@ export async function stepLastRunFor(db: Db, tenantId: string, stepId: string): 
     .maybeSingle();
   if (error) throw new Error(`cannot read when the step last ran: ${error.message}`);
   return data?.last_run_for ?? null;
+}
+
+/**
+ * A one-off's one message as its batch sends it (the batch's id is the sequence's, 00440): the message by its name and
+ * language, the values it is filled with, and the channels its sends go by, a customer's not skipped, in CONSENT_CHANNELS'
+ * order (none until a send names one, never guessed): each channel asked whether one send goes by it, never every send
+ * read. Null where the batch is none of this workspace's. Under the caller's row security.
+ */
+export async function oneOffMessageOf(db: Db, tenantId: string, batchId: string): Promise<SequenceOneOffDto | null> {
+  const [batch, ...by] = await Promise.all([
+    db
+      .from("sequence_batches")
+      .select("template_name, template_language, params")
+      .eq("tenant_id", tenantId)
+      .eq("id", batchId)
+      .maybeSingle(),
+    ...CONSENT_CHANNELS.map((channel) =>
+      db
+        .from("sequence_sends")
+        .select("id")
+        .eq("tenant_id", tenantId)
+        .eq("batch_id", batchId)
+        .is("lead_id", null)
+        .eq("channel", channel)
+        .neq("state", "skipped")
+        .limit(1),
+    ),
+  ]);
+  if (batch.error) throw new Error(`cannot read the one-off's message: ${batch.error.message}`);
+  const failed = by.find((r) => r.error);
+  if (failed?.error) throw new Error(`cannot read how the one-off goes: ${failed.error.message}`);
+  if (!batch.data) return null;
+  return {
+    template_name: batch.data.template_name,
+    template_language: batch.data.template_language,
+    params: batch.data.params,
+    channels: CONSENT_CHANNELS.filter((_, i) => (by[i]?.data ?? []).length > 0),
+  };
+}
+
+/**
+ * What a sequence to leads writes to, by its search (`lead_searches.via`, contracts isLeadList): a list its owner adds
+ * leads to, or the search the finder keeps current, which a search no longer here is too. Under the caller's row security.
+ */
+export async function leadsFedBy(db: Db, tenantId: string, searchId: string): Promise<ReachOutFedBy> {
+  const { data, error } = await db
+    .from("lead_searches")
+    .select("via")
+    .eq("tenant_id", tenantId)
+    .eq("id", searchId)
+    .maybeSingle();
+  if (error) throw new Error(`cannot read what the sequence writes to: ${error.message}`);
+  return isLeadList(data) ? "list" : "search";
 }
 
 /**

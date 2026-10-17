@@ -182,7 +182,7 @@ test("a notice reaches the surfaces as the live feed decodes it: each status it 
   }
 });
 
-test("a receipt reads the threads everywhere, and the counts made of receipts where they are drawn: Sent's runs on Sent, the playbooks and Campaigns' 30 days on Campaigns, the lens on its page (S3-5); People reads none, and the Overview keeps it for the lens", async () => {
+test("a receipt reads the threads everywhere, and the counts made of receipts where they are drawn: Sent's runs on Sent, the playbooks and Campaigns' 30 days on its composer, the lens on its page (S3-5); People and Campaigns' landing read none, and the Overview keeps it for the lens", async () => {
   // What an arrival earlier in this file let pass is read as a page comes back: leave and return once, to start clean.
   const away = async (from, to) => {
     for (const hash of [from, to]) {
@@ -195,7 +195,9 @@ test("a receipt reads the threads everywhere, and the counts made of receipts wh
   const want = {
     "#/clients": { now: THREADS, back: [] },
     "#/reports": { now: THREADS, back: ["reports_campaigns"] },
-    "#/campaigns": { now: ["campaign_results", ...THREADS, "playbooks"], back: [] },
+    // Campaigns lands on Sequences' list, which counts no receipt; its composer draws the counts made of them.
+    "#/campaigns": { now: THREADS, back: [] },
+    "#/campaigns/new": { now: ["campaign_results", ...THREADS, "playbooks"], back: [] },
     "#/broadcasts": { now: ["broadcasts", ...THREADS], back: [] },
     "#/reports/campaigns": { now: [...THREADS, "reports_campaigns"], back: [] },
   };
@@ -331,7 +333,7 @@ test("a surface's own tables reach it wherever the page is, and a thread's updat
   }
 });
 
-test("Campaigns owns what it draws but Sent's runs: a message re-reads Sequences' list, the playbooks and its own 30 days, never the broadcasts and every page of People behind them; what passed is read once as it comes back", async () => {
+test("Campaigns' landing hears what Sequences hears, and its composer owns what it draws but Sent's runs: a message re-reads Sequences' list there, and at the composer the playbooks and Campaigns' own 30 days too, never the broadcasts and every page of People behind them; what passed is read once as each comes back", async () => {
   win.location.hash = "#/campaigns";
   // Its own 30 days are read on demand and again once aged: held fresh, so what is asked is what a message moved.
   const r = await running({ fresh: ["campaign_results"] });
@@ -339,8 +341,8 @@ test("Campaigns owns what it draws but Sent's runs: a message re-reads Sequences
     await r.message();
     assert.deepEqual(
       [...r.asked].sort(),
-      ["campaign_results", "conversations", "inbox", "playbooks", "sequences", "today"],
-      "its own list and its sheets' numbers: not the broadcasts, People, Reports or the Calendar",
+      ["conversations", "inbox", "sequences", "today"],
+      "its own list: not its sheets' numbers, the broadcasts, People, Reports or the Calendar (the phone review's Reads on landing)",
     );
     r.asked.length = 0;
 
@@ -369,19 +371,24 @@ test("Campaigns owns what it draws but Sent's runs: a message re-reads Sequences
     await settle();
     assert.deepEqual(
       [...r.asked].sort(),
-      ["campaign_results", "playbooks", "sequences"],
-      "read once, as the page it draws them on",
+      ["sequences"],
+      "read once, as the list it draws comes back; nothing of its sheets'",
     );
     r.asked.length = 0;
     win.location.hash = "#/campaigns/new";
     win.dispatchEvent({ type: "popstate" });
     await settle();
-    assert.deepEqual(r.asked, [], "a sheet opened is the same page: nothing passed it");
+    assert.deepEqual(
+      [...r.asked].sort(),
+      ["campaign_results", "playbooks"],
+      "the composer opened reads once what passed it: its 30 days, never read, and the playbooks a message moved",
+    );
+    r.asked.length = 0;
     await r.message();
     assert.deepEqual(
       [...new Set(r.asked)].sort(),
       ["campaign_results", "conversations", "inbox", "playbooks", "sequences", "today"],
-      "and at a sheet's address Campaigns still hears them",
+      "and at the composer's address its numbers and the list beneath it hear them",
     );
     // Sent's sheets are the broadcasts' page, beside Sequences' list: what passed them on Campaigns is read once as it comes on
     // screen, and it hears messages.
@@ -795,7 +802,7 @@ test("the Campaigns lens hears messages, conversations, escalations and runs onl
   }
 });
 
-test("the page that owns what it draws is an explicit one: the surface registry names Campaigns' home, Today's headline and Reports' Reviews, Receptionist, People and Campaigns lenses, and no other page's draws are owned", async () => {
+test("the page that owns what it draws is an explicit one: the surface registry names Campaigns' composer, Today's headline and Reports' Reviews, Receptionist, People and Campaigns lenses, and no other page's draws are owned", async () => {
   const owns = (key, route) => registry.ownsTheScreen(key, route);
   // Reports owns what it names for a lens, and that lens alone: Reviews' read, and no other of its pages or lenses.
   assert.equal(owns("reports_reviews", "reports/reviews"), true);
@@ -847,24 +854,30 @@ test("the page that owns what it draws is an explicit one: the surface registry 
   for (const key of ["reports_reviews", "reports_receptionist", "reports_people", "reports_headline"])
     assert.equal(owns(key, "reports/campaigns"), false, `${key} is not drawn on the Campaigns lens`);
   assert.equal(owns("reports", "reports/campaigns"), true, "and the page's own surface is still its own");
-  for (const key of ["playbooks", "campaign_results"]) assert.equal(owns(key, "campaigns"), true, key);
-  // Sent's runs are drawn on the home for who can hear you, the pause on offers and the send-once composer: owned there for what moves
-  // those (a cell of kinds), and left to Sent for a message, which moves a run's replies.
-  assert.equal(owns("broadcasts", "campaigns"), true, "Sent's runs are drawn on the home, for some kinds");
+  // The composer owns the playbooks and Campaigns' 30 days it draws; Campaigns' landing, Sequences' list, owns neither.
+  for (const key of ["playbooks", "campaign_results"]) {
+    assert.equal(owns(key, "campaigns/new:every"), true, key);
+    assert.equal(owns(key, "campaigns"), false, `Campaigns' landing does not own ${key}`);
+  }
+  assert.equal(owns("playbooks", "campaigns/message:hello"), true, "a message's drawer waits for the playbooks");
+  // Sent's runs are drawn in the composer for who can hear you, the pause on offers and the send-once composer: owned there for
+  // what moves those (a cell of kinds), and left to Sent for a message, which moves a run's replies.
+  assert.equal(owns("broadcasts", "campaigns/new"), true, "Sent's runs are drawn in the composer, for some kinds");
+  assert.equal(owns("broadcasts", "campaigns"), false, "and not on Campaigns' landing");
   assert.equal(
-    registry.ownsTable("broadcasts", "contacts", "campaigns"),
+    registry.ownsTable("broadcasts", "contacts", "campaigns/new"),
     true,
     "a person's answer moves who can hear you",
   );
-  assert.equal(registry.ownsTable("broadcasts", "messages", "campaigns"), false, "a message is re-read on Sent");
+  assert.equal(registry.ownsTable("broadcasts", "messages", "campaigns/new"), false, "a message is re-read on Sent");
   assert.equal(
-    registry.ownsTable("broadcasts", "segments", "campaigns"),
+    registry.ownsTable("broadcasts", "segments", "campaigns/new"),
     true,
     "a list To offers moves who can hear you",
   );
   // Settings is drawn there whole: a message's drawer is the Library's pane, which says what sends it (the playbooks and runs its
-  // read joins: W-campaign-run-template-reachout-2), as the Library itself does.
-  for (const route of ["campaigns", "messages"])
+  // read joins: W-campaign-run-template-reachout-2), as the Library itself does; and Sequences' step editor offers its messages.
+  for (const route of ["campaigns", "campaigns/message:hello", "messages"])
     assert.equal(
       registry.ownsTable("settings", "sequence_batches", route),
       true,

@@ -376,6 +376,8 @@ const ROUTES = [
   "reports/people",
   "reports/reviews",
   "campaigns",
+  // Campaigns' composer, where the playbooks' moments and Campaigns' own 30 days are drawn (its landing is Sequences' list).
+  "campaigns/new",
   "broadcasts",
   "calendar",
   "live",

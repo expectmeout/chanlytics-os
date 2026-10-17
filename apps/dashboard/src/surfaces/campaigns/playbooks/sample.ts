@@ -23,7 +23,8 @@ import {
   triggerOffered,
   type PlaybookDto,
 } from "@chanlytics/contracts";
-import type { PlaybookCardVM, PlaybooksSurface, PlaybookTemplate, PlaybookTriggerOption, PoolRead } from "./surface";
+import type { PoolRead } from "@/lib/campaign-channels";
+import type { PlaybookCardVM, PlaybooksSurface, PlaybookTemplate, PlaybookTriggerOption } from "./surface";
 import { DEMO_ZONE } from "../../demo-zone";
 
 const DAY = DAY_MS;
