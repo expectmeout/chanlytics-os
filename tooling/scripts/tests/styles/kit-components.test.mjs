@@ -577,8 +577,8 @@ const row = ({ said = true, note = false, href = undefined, mark = false, bare =
   });
 
 /**
- * The gallery's List row family, entry by entry: the three shapes, a row with a page of its own, and a row whose first
- * column is its kind (a campaign on Campaigns' phone list).
+ * The gallery's List row family, entry by entry: the three shapes, a row with a page of its own, a row whose first
+ * column is its kind (a campaign on Campaigns' phone list), and two rows one after the other, as a list draws them.
  */
 const LIST_ROWS = {
   "list-row": () => row(),
@@ -587,6 +587,8 @@ const LIST_ROWS = {
   "list-row-door": () => row({ note: true, href: "#kit" }),
   "list-row-mark": () => row({ said: false, mark: true }),
   "list-row-bare": () => row({ bare: true }),
+  "list-row-list": () => [row(), row({ said: false })],
+  "list-row-bare-list": () => [row({ bare: true }), row({ bare: true })],
 };
 
 test("ListRow draws the gallery's List row family, and the page's own elements where the row takes them", () => {
