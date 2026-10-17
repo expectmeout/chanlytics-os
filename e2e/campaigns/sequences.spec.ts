@@ -3,11 +3,13 @@ import { signIn, HAVE_SESSION, WHY_SKIPPED } from "../session";
 import { atRoute } from "../address";
 import { apiGet } from "../workspace";
 import {
+  SEQUENCE_GROUPS,
   SEQUENCE_WORDS,
   historyFigures,
   historyIn,
   historySince,
-  needsCount,
+  sequenceGroupOf,
+  sequenceTwinOf,
   type SequenceHistoryDto,
   type SequencesPageDto,
 } from "../../packages/contracts/src/index";
@@ -46,16 +48,19 @@ test.describe("Campaigns › Sequences on a real workspace", () => {
     const rows = page.getByTestId("sq-rows");
     await expect(rows).toBeVisible();
     for (const s of list.sequences.slice(0, 6)) await expect(page.getByTestId(`sq-row-${s.id}`)).toContainText(s.name);
-    // The filters' figures are the list's own: every sequence, those that need you, those paused or ended.
-    const needs = list.sequences.filter((s) => needsCount(s.needs) > 0).length;
-    const tabs = page.getByRole("tablist", { name: SEQUENCE_WORDS.title });
-    await expect(tabs.getByRole("tab", { name: new RegExp(`^${SEQUENCE_WORDS.filters.all}`) })).toContainText(
-      String(list.sequences.length),
-    );
-    if (needs > 0)
-      await expect(tabs.getByRole("tab", { name: new RegExp(`^${SEQUENCE_WORDS.filters.needs}`) })).toContainText(
-        String(needs),
-      );
+    // The groups and their figures are the list's own (the filter tabs became groups, #1667): what needs you first,
+    // then by how each starts, each group's count beside its name, and no group with nothing in it.
+    const counts = new Map<string, number>();
+    for (const s of list.sequences) {
+      const g = sequenceGroupOf(s, sequenceTwinOf(list.sequences, s));
+      counts.set(g, (counts.get(g) ?? 0) + 1);
+    }
+    for (const g of SEQUENCE_GROUPS) {
+      const group = rows.getByRole("region", { name: SEQUENCE_WORDS.groups[g], exact: true });
+      const n = counts.get(g) ?? 0;
+      if (n === 0) await expect(group).toHaveCount(0);
+      else await expect(group.locator(".sq-group-name .tally")).toHaveText(String(n));
+    }
     // A search narrows the rows to the names that hold it.
     const first = list.sequences[0];
     if (!first) throw new Error("a sequence was listed and is gone");
@@ -88,10 +93,12 @@ test.describe("Campaigns › Sequences on a real workspace", () => {
     await expect(page).toHaveURL(atRoute(new RegExp(`^campaigns/sequences/${s.id}$`)));
     const record = page.getByTestId("sq-record");
     await expect(record).toContainText(s.name);
-    // Steps: what starts it, each step, what stops it, said once as a flow.
+    // Steps: what starts it, each step, what stops it, said once as a schedule (#1681); a one-off on a date is its one
+    // message and stops nowhere.
     await expect(record.getByTestId("sq-steps")).toBeVisible();
     await expect(record.getByTestId("sq-starts")).toBeVisible();
-    await expect(record.getByTestId("sq-stops")).toBeVisible();
+    if (s.starts === "date") await expect(record.getByTestId("sq-stops")).toHaveCount(0);
+    else await expect(record.getByTestId("sq-stops")).toBeVisible();
     await expect(record.getByTestId("sq-step-1")).toBeVisible();
     // People (Leads for leads), then History, each its own address.
     await record.getByRole("tab", { name: new RegExp(s.starts === "leads" ? "^Leads" : "^People") }).click();
@@ -168,7 +175,8 @@ test.describe("Campaigns › Sequences on a real workspace", () => {
     await expect(page.getByTestId("sq-page")).toBeVisible();
     await page.goBack();
     await expect(page).toHaveURL(atRoute(/^campaigns\/sequences\/new$/));
-    await expect(pane.getByTestId("sq-new-words")).toHaveCount(0);
+    // Back is New again, on what starts it (the choice is not in the address yet, so it starts on a moment again).
+    await expect(pane.getByTestId("sq-new-on-date")).toBeVisible();
     // Leads are the composer's on Write to leads.
     await pane.getByTestId("sq-new-on-leads").click();
     await expect(pane.getByTestId("sq-new-open-leads")).toBeVisible();

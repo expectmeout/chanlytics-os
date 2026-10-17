@@ -1,6 +1,6 @@
 /* global React, Icon */
-// The rows under the three (ask-real.jsx; the Stage, spec 4.3, 5.2): at rest, Right now with Brief me and three
-// questions about the page as chips; while typing, the words as a question, the jumps and the questions that match;
+// The rows under the three (ask-real.jsx; the Stage, spec 4.3, 5.2): at rest, Right now with Brief me, the follow-ups
+// Ask kept that came due, and three questions about the page as chips; while typing, the words as a question, the jumps and the questions that match;
 // Earlier (the head's, or ⌘J), every conversation. Pure of state: buildLineRows turns what the bridge
 // holds into rows, AskRows draws them as one listbox. No key symbol is drawn (the Line, D17). Published as window.AskHome.
 
@@ -47,6 +47,11 @@ const buildLineRows = ({ A, t, lang, query, surface, scope, threads, view }) => 
       items: [{ type: "now", label: parts.sentence, q: t.needsQ, people: parts.people, runs: parts.runs, searches: parts.searches }],
     },
   ];
+  // What Ask said it would come back to, come due (legacy-bridge/ask/follow-ups.ts): its own line, and pressed, what it
+  // said it would ask itself then, which clears it (the route's `following`).
+  const due = A.followUpsDue ? A.followUpsDue() : [];
+  if (due.length)
+    sections.push({ key: "follow", label: t.followUpsDue, items: due.map((f) => ({ type: "follow", label: f.said, q: f.prompt, following: f.id })) });
   const asks = A.suggestions(surface, scope, lang).filter((s) => s.kind !== "act" && s.q !== t.needsQ).slice(0, 3);
   // On Leads the consent rule stands under the section's chips (spec F3), one dim line; nowhere else has a note.
   if (asks.length)
@@ -115,6 +120,7 @@ const AskRows = ({ sections, sel, setSel, onActivate, onDelete, t, empty }) => {
     return (
       <div key={i} {...shared} className={`ask-row ${it.type}${sel ? " sel" : ""}`}>
         {it.type === "thread" ? <Icon name="chat" size={13} className="ask-row-glyph" /> : null}
+        {it.type === "follow" ? <span className="subtab-dot" aria-hidden="true" /> : null}
         <span className="ask-row-main">
           <span className="ask-row-label">{it.label}</span>
           {it.sub ? <span className="ask-row-sub">{it.sub}</span> : null}

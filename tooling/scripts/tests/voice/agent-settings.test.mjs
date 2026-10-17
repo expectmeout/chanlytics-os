@@ -142,7 +142,7 @@ test("retention is planned only when asked, and refused outside the provider's r
 });
 
 test("the converger, the diagnostic and the provisioning script all read the same plan", () => {
-  const converge = readRaw("tooling/scripts/ops/voice-converge.mjs");
+  const converge = readRaw("tooling/scripts/ops/voice/voice-converge.mjs");
   assert.ok(converge.includes("planAgentSettings(agent, {"));
   assert.ok(converge.includes("const spoken = languages?.length ? retellLocalesFor(languages) : null;"));
   assert.ok(

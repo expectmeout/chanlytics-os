@@ -4171,7 +4171,8 @@ a.list-row {
    on a phone, in Glass: elsewhere the page's own bar stands. A bar docked at the foot (data-dock on the bar itself:
    People's selection) is a capsule too, and keeps the position the page gave it. It carries no backdrop-filter: nothing
    scrolls under it, and a filter makes a bar the containing block of a menu inside it, whose sheet then opens off the top
-   of the screen (a docked bar over rows that scroll adds its own, with its menu drawn on the body). */
+   of the screen (a docked bar over rows that scroll adds its own, with its menu drawn on the body). Its shadow is the
+   floating glass's short one (tokens.css, --surface-float-depth): rows pass under a phone's bars. */
 @media (max-width: 900px) {
   [data-takeover] .capsule {
     position: relative;
@@ -4181,7 +4182,7 @@ a.list-row {
     border-radius: var(--radius-full);
     background-color: var(--surface-control-fill);
     background-image: var(--surface-control-sheen);
-    box-shadow: var(--surface-control-depth);
+    box-shadow: var(--surface-float-depth);
   }
   /* A docked bar stands under :root, for its weight: the page's own dock (a flat row on the screen's edge, clients.css)
      is a page rule of equal weight, and its position is the page's own (absolute at the foot), which the rim below stands on. */
@@ -4502,7 +4503,7 @@ a.list-row {
   border-radius: var(--radius-full);
   background-color: var(--surface-control-fill);
   background-image: var(--surface-control-sheen);
-  box-shadow: var(--surface-control-depth);
+  box-shadow: var(--surface-float-depth);
   backdrop-filter: var(--surface-control-blur);
 }
 .tab-bar::after {

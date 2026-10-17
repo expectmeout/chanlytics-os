@@ -113,7 +113,7 @@ function MovedOnLoad({ onPlaced }: { onPlaced: () => void }): null {
   const pathname = usePathname();
   useEffect(() => {
     const to = movedAddress({ pathname, search: window.location.search, hash: window.location.hash });
-    if (to) router.replace(to);
+    if (to) router.replace(to, { scroll: false });
     else onPlaced();
   }, [pathname, router, onPlaced]);
   return null;
@@ -169,9 +169,11 @@ export default function LegacyHost({ home = false, children }: { home?: boolean;
     // prefetch, of the route's prerendered page: the same for every address and workspace of the route, so one warm
     // serves them all, and a move that finds it asks the server for nothing. It was a prefetch in full ("full"), a
     // render of the page for its one address, while every page was dynamic (decision 0053, step 5).
+    // A move never scrolls the window by the router's rule: on a phone the window is what a page scrolls, and the frame
+    // keeps it (kit/motion/view-deck.ts: a view begins at the top, a move within one keeps its place).
     setAppRouter({
-      push: (href) => router.push(href),
-      replace: (href) => router.replace(href),
+      push: (href) => router.push(href, { scroll: false }),
+      replace: (href) => router.replace(href, { scroll: false }),
       prefetch: (href) => router.prefetch(href),
     });
     return () => setAppRouter(null);

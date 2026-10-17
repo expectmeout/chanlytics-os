@@ -9,10 +9,10 @@
  *   take the AI's colour and turn once (the mood's `glow`) for READ_MS, or as long as the boot takes up to
  *   READ_MAX_MS. The same page again within AGAIN_MS is not read again, and a walk within a page (a lead's peek, a
  *   view's flags after a colon) is the same page.
- * - While something needs you (`waiting`: Ask's own standing, people, runs or searches waiting, or a notification not
- *   read yet), the three stay lit at rest; the ink comes back when nothing does and no read is on. It is asked each
- *   time the light is decided, never remembered: a remembered yes kept the three lit after Ask said nobody waits and
- *   the bell was all read (Ruben, 26 Sep).
+ * - While something needs you (`waiting`: Ask's own standing, people, runs or searches waiting, a follow-up of Ask's
+ *   come due, or a notification not read yet), the three stay lit at rest; the ink comes back when nothing does and no
+ *   read is on. It is asked each time the light is decided, never remembered: a remembered yes kept the three lit
+ *   after Ask said nobody waits and the bell was all read (Ruben, 26 Sep).
  * - What comes for you is noticed: the needs-you count rising makes the three hop once.
  * Never while Ask is open (the Line owns the mood; the light goes as it opens and comes back as it closes), never a
  * read over a mood already busy, never on a desk.

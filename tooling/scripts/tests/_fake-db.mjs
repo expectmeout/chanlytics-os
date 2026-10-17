@@ -1312,7 +1312,8 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
     /**
      * A thread handed to a person, by its one door (00388 escalation_open), over the rows a world holds: a new open
      * escalation with its escalation.opened ("opened"), the open one taking another reason with escalation.changed
-     * ("changed"), or the same reason's words moved ("refreshed"). A fault on `escalations.insert` that is the one-open
+     * ("changed"), or the same reason's words moved ("refreshed"); a wrote_while_held asked of a thread already held
+     * writes nothing and answers "refreshed" (00454). A fault on `escalations.insert` that is the one-open
      * key's 23505 is a thread already held (as Postgres would answer it); any other refuses the door, with nothing kept.
      */
     escalation_open: ({ p_tenant_id, p_conversation_id, p_reason, p_details }) => {
@@ -1341,6 +1342,8 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
         });
         return "opened";
       }
+      // A customer writing while a person has the thread is the open hold's, whatever its reason (00454): nothing written.
+      if (p_reason === "wrote_while_held" && open.reason !== p_reason) return "refreshed";
       const updateFault = faults["escalations.update"];
       if (updateFault)
         throw Object.assign(new Error(updateFault.message), updateFault.code ? { code: updateFault.code } : {});

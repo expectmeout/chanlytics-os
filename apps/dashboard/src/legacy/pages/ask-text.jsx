@@ -43,6 +43,8 @@ const ASK_TEXT = {
         }[surface] || "this page"
       }`,
     earlier: "Earlier",
+    // Ask's home: the follow-ups it kept that came due (a search finished, replies came in, the day came).
+    followUpsDue: "Ready now",
     noEarlier: "No earlier conversations yet.",
     kind: { person: "Person", thread: "Thread", call: "Call", page: "Page" },
     rowsLabel: "Ask Chanlytics",
@@ -137,6 +139,7 @@ const ASK_TEXT = {
         }[surface] || "esta página"
       }`,
     earlier: "Anteriores",
+    followUpsDue: "Listo ahora",
     noEarlier: "Aún no hay conversaciones anteriores.",
     kind: { person: "Persona", thread: "Hilo", call: "Llamada", page: "Página" },
     rowsLabel: "Pregunta a Chanlytics",

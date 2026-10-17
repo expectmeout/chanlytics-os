@@ -571,7 +571,7 @@ button.ask-tile-value { text-decoration: underline dotted; text-decoration-color
     inset: 0;
     background-color: var(--surface-control-fill);
     background-image: var(--surface-control-sheen);
-    box-shadow: var(--surface-control-depth);
+    box-shadow: var(--surface-float-depth);
     backdrop-filter: var(--surface-control-blur);
   }
   .phone-ask .ask-disc::before {

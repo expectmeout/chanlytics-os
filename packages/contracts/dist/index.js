@@ -6835,12 +6835,13 @@ var ESCALATION_REASON_LABELS = {
   state_unavailable: "The receptionist could not read this thread \u2014 needs a human",
   stale: "Arrived hours late \u2014 too old to answer automatically",
   budget: "The day's model budget is used up \u2014 the receptionist paused itself",
-  callback: "Needs a call back \u2014 the phone receptionist could not finish it",
+  callback: "Needs a call back \u2014 they phoned and are still owed a call",
   paused: "Held \u2014 the workspace is paused until billing resumes",
   carriers: "Held \u2014 the carriers have not approved this line for texting yet",
   email_review: "Wrote by email \u2014 a person answers",
   booking_request: "Asked to book a time \u2014 confirm it or say you can't",
-  booking_reply: "Asked to book a time \u2014 reply to them"
+  booking_reply: "Asked to book a time \u2014 reply to them",
+  wrote_while_held: "Wrote again while your team had the thread \u2014 the receptionist stays out"
 };
 var ESCALATION_REASON_SHORT = {
   human_token: "asked for a person",
@@ -6863,7 +6864,8 @@ var ESCALATION_REASON_SHORT = {
   carriers: "the carriers have not approved this line",
   email_review: "wrote by email",
   booking_request: "asked to book a time",
-  booking_reply: "asked to book a time"
+  booking_reply: "asked to book a time",
+  wrote_while_held: "wrote while your team had the thread"
 };
 function reasonShort(reason) {
   if (!reason) return "";
@@ -6890,7 +6892,8 @@ var ESCALATION_REASON_WHY = {
   carriers: "while waiting on carriers",
   email_review: "because they wrote by email",
   booking_request: "because they asked to book a time",
-  booking_reply: "because they asked to book a time"
+  booking_reply: "because they asked to book a time",
+  wrote_while_held: "because they wrote while your team had the thread"
 };
 function reasonWhy(reason) {
   return ESCALATION_REASON_WHY[reason] ?? `because ${reasonShort(reason)}`;
@@ -6911,12 +6914,13 @@ var ESCALATION_SUMMARIES = {
   state_unavailable: "The receptionist couldn't read this thread, so it stayed quiet. No reply went out.",
   stale: "This reached us hours after they sent it, too late to answer automatically. NOTHING was sent \u2014 they have been waiting since.",
   budget: "The day's model budget is used up, so the receptionist paused itself. NOTHING was sent \u2014 answer them yourself, or raise the budget under Settings \u203A Autonomy.",
-  callback: "They phoned and the receptionist couldn't finish it.",
+  callback: "They phoned and are still owed a call: the call didn't connect, they hung up without a word, or the receptionist couldn't finish it.",
   paused: "The workspace is paused because billing stopped, so the receptionist did not answer. Resume from Settings \u203A Billing, or answer this one yourself.",
   carriers: "This text arrived before the carriers approved your line for texting, so the receptionist did not answer. Answer it yourself, or wait for the approval on Setup.",
   email_review: "They wrote by email. The receptionist does not answer email yet, so nothing was sent. Read it and reply from here.",
   booking_request: "They picked a time the calendar shows open, and the receptionist told them the team will confirm it. That's you: Booked it, or Can't and reply.",
-  booking_reply: "They asked to book a time, and the receptionist told them the team will confirm. Reply with a time that works."
+  booking_reply: "They asked to book a time, and the receptionist told them the team will confirm. Reply with a time that works.",
+  wrote_while_held: "They wrote again while your team had this thread, so the receptionist stayed out. Nothing was sent \u2014 answer them yourself, or hand the thread back."
 };
 function reasonLabelOf(reason) {
   return ESCALATION_REASON_LABELS[reason] ?? reason;
@@ -6945,7 +6949,8 @@ var ESCALATION_ACTS = {
   carriers: "reply",
   email_review: "reply",
   booking_request: "confirm",
-  booking_reply: "reply"
+  booking_reply: "reply",
+  wrote_while_held: "reply"
 };
 function holdActOf(reason) {
   return ESCALATION_ACTS[reason ?? ""] ?? "reply";
@@ -18424,7 +18429,9 @@ var ESCALATION_REASONS = [
    * time was not one the code found open, or the request could not be kept. The receptionist told them the team will
    * confirm, so a reply is owed.
    */
-  "booking_reply"
+  "booking_reply",
+  /** The customer wrote while a person had the thread: held for them, never in another hold's place (00454). */
+  "wrote_while_held"
 ];
 var ESCALATION_STATES = ["open", "resolved"];
 var DECISION_VERBS = [
@@ -24796,6 +24803,15 @@ function spokenDuration(ms2) {
   const m = Math.floor(total / 60);
   const sec = total % 60;
   return m ? `${m} min ${sec} sec` : `${sec} sec`;
+}
+function unansweredCallTodo(dto) {
+  if (missedCall({ missed: neverConnected(dto), direction: dto.direction })) {
+    return "Missed call: it rang and never connected. Call them back.";
+  }
+  if (abandonedCall(dto)) {
+    return `Hung up after ${spokenDuration(dto.duration_ms)} without a word. Call them back.`;
+  }
+  return null;
 }
 var CALL_MOOD = { Positive: "Sounded positive", Negative: "Sounded negative" };
 var RECORDING_NOTE = {
@@ -53236,7 +53252,8 @@ var SCHEMA_SETS = {
     "carriers",
     "email_review",
     "booking_request",
-    "booking_reply"
+    "booking_reply",
+    "wrote_while_held"
   ],
   "escalations.state": ["open", "resolved"],
   "event_deliveries.state": ["scheduled", "done", "failed", "paused"],
@@ -53496,6 +53513,7 @@ var ROUTE_KEYS = [
   "DELETE templates/versions/[id]",
   "DELETE workspaces/logo",
   "GET activity",
+  "GET ask/follow-ups",
   "GET ask/openings",
   "GET ask/threads",
   "GET ask/threads/[id]",
@@ -62381,6 +62399,7 @@ export {
   twinRunsWords,
   tzClock,
   tzSince,
+  unansweredCallTodo,
   unknownDetails,
   unmetNeed,
   unquoted,

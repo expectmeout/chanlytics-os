@@ -698,7 +698,7 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
   /* The Inbox's sending strip (fixed under the top bar, full width here) stands under the island while a call is up:
      over it, it hid the island whole (66 to 110px), the one door to Live, for as long as drafts waited. The strip of
      views it stands over is what it covers in Classic too. */
-  .main:has(> .live-bar) .ix-sending-strip {
+  .main:has(> .frame-top > .live-bar) .ix-sending-strip {
     top: calc(118px + env(safe-area-inset-top, 0px));
   }
   /* A page that takes the screen over (data-takeover on its root, above) is headed by its own person or call: the
@@ -756,7 +756,7 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
 
 @media (max-width: 720px) {
   /* The strip of views at the rows' 16px, as every strip on a phone. */
-  .main > .stabs {
+  .frame-top > .stabs {
     margin: 4px 16px 8px;
   }
 
@@ -767,6 +767,15 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
      has no inset at its foot and keeps the 14. */
   :root {
     --bar-foot: max(14px, calc(env(safe-area-inset-bottom, 0px) - 13px));
+  }
+  /* In a browser's tab on an iPhone (iOS 26) the browser draws its own glass capsule under the page, and keeps a margin
+     of its own over it: at 14 over that the bar stood 27pt over Safari's address, far from the thumb (Ruben, 17 Oct
+     2026). There it rests 4px over what the browser leaves the page; an app on the home screen has no browser bar
+     under it, and keeps the home bar's rest above. Only an iPhone's browsers say -webkit-touch-callout. */
+  @supports (-webkit-touch-callout: none) {
+    :root {
+      --bar-foot: max(4px, calc(env(safe-area-inset-bottom, 0px) - 13px));
+    }
   }
 
   /* The tab bar (the kit's TabBar: its capsule, its places and the lozenge are kit.css's) floats over the page, 14px
@@ -803,6 +812,231 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
   }
   .pp-toast-stack {
     bottom: calc(var(--bar-foot) + 76px);
+  }
+}
+
+/* ====================================================================
+   The window scrolls (17 Oct 2026)
+   On a phone a page scrolls the window, never a box inside it. Safari on iOS 26 draws its toolbar as a capsule of
+   glass with the page passing under it, and tucks it away as the page goes down, and it does both for the document's
+   own scroll alone: the frame was one box the screen's height with the page scrolling inside it, so the toolbar stood
+   at its full size on a flat band of the page's paper, for good (Ruben, 17 Oct 2026: glassy and floating on other
+   sites, "a background" on ours). So up to 720px the document is as long as the page. The frame's column grows with
+   it, the route view and a pane's list are as tall as what they hold, and the window is their scroller (kit
+   motion/page-scroll.ts says so to whatever reads or moves a page's scroll). What stays on the screen is the frame's
+   top (.frame-top: the date, the bell, a call, the shell's status, and a pane's name and strip), fixed to the
+   window's top with the page passing under it, and the tab bar and Ask's circle, fixed at the foot as they were. A
+   page that holds still keeps its own scroller and fills what the top leaves of the screen, as before: the route view
+   still grows to the screen's foot.
+   ==================================================================== */
+@media (max-width: 720px) {
+  /* Where the frame's top stands from the window's top (below): what sticks under it sticks that far down, plus its
+     height (--frame-top: kit/head/frame-top.ts). */
+  :root {
+    --frame-top-at: env(safe-area-inset-top, 0px);
+  }
+  /* What the window brings into view (a row the arrows reach, a field that takes focus, a pane that arrives) stops
+     under the frame's top and over the tab bar, never behind them. */
+  html.legacy-on {
+    scroll-padding-top: calc(var(--frame-top-at) + var(--frame-top, 0px));
+    scroll-padding-bottom: calc(var(--bar-foot) + 76px);
+  }
+  /* The document is not held to the screen here: legacy.css holds it only wider than a phone.
+     The page's light stands still as the page moves over it: a layer fixed to the window (the desk's, without the
+     desk's drift, components.css .pg-light), no longer the root's paint, since the root is now the page's whole length.
+     The body and the root let it through to it. */
+  html:has(.app-root) body,
+  .app-root {
+    background: transparent;
+  }
+  .pg-light {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background-image: var(--surface-page-top), var(--surface-page-light);
+    background-repeat: no-repeat;
+  }
+  .pg-light > span {
+    display: none;
+  }
+  /* At least the screen, and as long as the page. Clipped across only: nothing a page holds widens the window. */
+  .app-root {
+    height: auto;
+    min-height: 100vh;
+    min-height: 100dvh;
+    overflow: visible;
+    overflow-x: clip;
+  }
+  /* The column starts under the frame's top, which stands fixed over it (below), as tall as the top measures. */
+  .app-root .main {
+    overflow: visible;
+    padding-top: var(--frame-top, 0px);
+  }
+  .app-root .main-scroll,
+  .app-root .main-scroll.pane {
+    flex: 1 0 auto;
+    overflow: visible;
+    overflow-x: clip;
+  }
+  /* The frame's top, fixed to the window as the page passes under it, never stuck in the page: a pull past the page's
+     top drags the page and whatever is stuck in it, and the head rode a pull down with the rows (25 Sep), where a list
+     gives way under a thumb and the head over it holds. Under the phone's own bar's room where an app added to the
+     home screen before 7 Oct 2026 keeps one (components.css, .app-root), else at the window's top, and 10px higher in
+     an installed app, as its column is (components.css). Over the tab bar, Ask's circle and the page's own layers,
+     under the drawer, so the bell's sheet, which is drawn inside it, still covers the tab bar.
+     Safari colours the phone's own bar over the page from the fixed or sticky box 8px under the screen's top: from its
+     plain background colour, else from a picture of it taken once and kept while that box stands there (WebKit,
+     LocalFrameView::fixedContainerEdges), which a theme changed since would have left the old theme's. So the top
+     carries the paper as a colour Safari reads, too faint to see over the light (it ignores one under 10%). Nothing
+     fixed stands 8px over the foot (the tab bar rests 14px up), so there Safari draws its glass over the page. */
+  .frame-top {
+    --frame-top-fade: 14px;
+    display: block;
+    position: fixed;
+    top: var(--frame-top-at);
+    right: 0;
+    left: 0;
+    z-index: 200;
+    background-color: color-mix(in oklab, var(--bg) 12%, transparent);
+  }
+  /* What it stands on: the page's own ground and light, laid where the window's layer of light has them (.pg-light,
+     above: the screen's width by its height from its top), so the top reads the same over the page at rest and over
+     rows gone under it, and hides them; up over the phone's bar's room too. It was the paper alone, turned on as the
+     page moved, and the head went a flat dark block over its light the moment a row passed under it (Ruben, 17 Oct
+     2026). It ends at the top's edge. Once the page has gone under (data-under, frame-top.ts) the same ground reaches
+     14px further and fades there (::after), so the rows come out from under it rather than from behind an edge; at
+     rest that band lay over what the page drew there, the Today page's name and every pane's first row (Ruben, 17 Oct
+     2026). Where something sticks under the top, the band is shorter, as long as the gap over it (below). */
+  .frame-top::before,
+  .frame-top::after {
+    content: "";
+    position: absolute;
+    inset: calc(-1 * var(--frame-top-at)) 0 0;
+    z-index: -1;
+    pointer-events: none;
+    background-color: var(--surface-page-fill);
+    background-image: var(--surface-page-top), var(--surface-page-light);
+    background-repeat: no-repeat;
+    background-size: 100vw 100vh;
+    background-size: 100vw 100dvh;
+  }
+  .frame-top::after {
+    bottom: calc(-1 * var(--frame-top-fade));
+    opacity: 0;
+    mask-image: linear-gradient(transparent calc(100% - var(--frame-top-fade)), #000 0, transparent);
+    transition: opacity var(--duration-fast) var(--ease-out);
+  }
+  .frame-top[data-under]::after {
+    opacity: 1;
+  }
+  /* The Inbox's sending strip floats over the frame's top, as it floated over the head before the top was a box of its
+     own; while a dialog holds the page (the bell's sheet among them, drawn inside the top) it stands down. */
+  .ix-sending-strip {
+    z-index: 201;
+  }
+  :root:has([aria-modal="true"]) .ix-sending-strip {
+    visibility: hidden;
+  }
+  /* While something stands over the page (a dialog that holds the page inert, the drawer), the page holds still under
+     it: a thumb on the wash scrolled the window behind it. The kit's sheets and menus lock it themselves (Base UI). The
+     document's root alone: a body held too becomes a box that scrolls of its own, and the frame's top, stuck to the
+     window, went up the page with everything else. */
+  html.legacy-on:has(:is([aria-modal="true"], .side-wrap.open)) {
+    overflow: hidden;
+  }
+  /* A page of panes whose list is what you scroll: the Inbox's threads, Conversations' rows, People's (Leads', the
+     Pipeline's, a person's page). Its root, its column and its list are as tall as what they hold, clipped across only,
+     and the window scrolls them; a root holding less still fills the screen, since the route view does. */
+  .main-scroll.pane > :is(.inbox, .conversations, .clients):not([data-takeover]),
+  .main-scroll.pane > .clients .cl-main {
+    overflow: visible;
+    overflow-x: clip;
+  }
+  .main-scroll.pane > .inbox:not([data-takeover]) .ix-threads,
+  .main-scroll.pane > .conversations:not([data-takeover]) .cv-rows,
+  .main-scroll.pane > .clients .cl-main-scroll {
+    flex: none;
+    overflow: visible;
+  }
+  /* A person's page is one long record: no box of its own either, and its strip of tabs sticks 6px under the top, where
+     the top's band ends, so the band never lies over the capsule's rim. */
+  .main-scroll.pane > .cl-profile {
+    height: auto;
+    overflow: visible;
+    overflow-x: clip;
+  }
+  .cl-prof-strip-stand {
+    top: calc(var(--frame-top-at) + var(--frame-top, 0px) + 6px);
+  }
+  .main:has(> .main-scroll .cl-prof-strip-stand) > .frame-top {
+    --frame-top-fade: 6px;
+  }
+  /* Settings' panes, Reports' lenses and Campaigns' lists the same: as tall as what they hold. A box that clipped keeps
+     its clip (Campaigns' list is a pane with corners), and none is a scroller. */
+  .main-scroll.pane > :is(.settings, .rpt),
+  .main-scroll.pane .rpt-inner {
+    overflow: visible;
+    overflow-x: clip;
+  }
+  .main-scroll.pane :is(.set-pane, .rpt-body) {
+    flex: none;
+    overflow: visible;
+  }
+  .main-scroll.pane > .cm-split:not([data-open]) > .cm-list {
+    max-height: none;
+    overflow: clip;
+  }
+  /* Settings' strip of panes stands over what scrolls, as every page's strip does (25 Sep; the others are the frame's
+     own, in its top): stuck under the frame's top, where it stood at rest, on the same ground and light as the top,
+     laid for where it sticks, to its own edge. The band that fades under the page gone under is the strip's, then, not
+     the top's, which would lie over the strip's tabs. */
+  .main-scroll.pane .set-strip-stand {
+    display: block;
+    position: sticky;
+    top: calc(var(--frame-top-at) + var(--frame-top, 0px));
+    z-index: 8;
+  }
+  .main-scroll.pane .set-strip-stand::before,
+  .main-scroll.pane .set-strip-stand::after {
+    content: "";
+    position: absolute;
+    inset: 0 calc(-1 * var(--gutter-page));
+    z-index: -1;
+    pointer-events: none;
+    background-color: var(--surface-page-fill);
+    background-image: var(--surface-page-top), var(--surface-page-light);
+    background-repeat: no-repeat;
+    background-size: 100vw 100vh;
+    background-size: 100vw 100dvh;
+    background-position: 0 calc(-1 * (var(--frame-top-at) + var(--frame-top, 0px)));
+  }
+  .main-scroll.pane .set-strip-stand::after {
+    bottom: -14px;
+    opacity: 0;
+    mask-image: linear-gradient(transparent calc(100% - 14px), #000 0, transparent);
+    transition: opacity var(--duration-fast) var(--ease-out);
+  }
+  .main:has(> .frame-top[data-under]) .set-strip-stand::after {
+    opacity: 1;
+  }
+  .main:has(> .main-scroll.pane .set-strip-stand) > .frame-top::after {
+    display: none;
+  }
+  /* A page that holds still keeps what every page had: the screen's height under the top, and its own scroller. The
+     Calendar's board shares the screen's height between its hours (8 Oct 2026), an open thread keeps its reply box at
+     the foot and its last message over it, Live is its cockpit, and an open sequence or message is its head, its body
+     and its foot, as a thread is. */
+  .app-root .main-scroll.pane:has(> :is(.calendar, .live-monitor, .inbox[data-takeover], .conversations[data-takeover], .cm-split[data-open])) {
+    flex: 1 1 0;
+    min-height: 0;
+    overflow: hidden;
+  }
+}
+@media (max-width: 720px) and (display-mode: standalone) {
+  :root {
+    --frame-top-at: calc(env(safe-area-inset-top, 0px) - 10px);
   }
 }
 

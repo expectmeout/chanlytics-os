@@ -85,6 +85,25 @@ async function openServices(page: Page): Promise<Locator> {
 /** Every service the sheet is drawing, whatever the record came with: an added row is one more, never the only one. */
 const serviceRows = (page: Page): Locator => page.locator('[data-testid^="rec-service-"][data-rec-row]');
 
+/**
+ * Whether the sheet's rows scroll, asked once the sheet has come to rest: it glides to fit each row it is given, and
+ * measured mid-glide its rows overflowed for a moment and a loop adding them stopped short (17 Oct 2026).
+ */
+async function rowsScroll(body: Locator): Promise<boolean> {
+  const read = () => body.evaluate((el) => [el.scrollHeight, el.clientHeight].join(" "));
+  let was = await read();
+  await expect
+    .poll(async () => {
+      const now = await read();
+      const still = now === was;
+      was = now;
+      return still;
+    })
+    .toBe(true);
+  const [scroll, client] = was.split(" ").map(Number);
+  return scroll > client;
+}
+
 /** Add `n` services to the open sheet, each by the Add the sheet offers, and answer with how many rows there are. */
 async function addServices(page: Page, n: number): Promise<number> {
   const was = await serviceRows(page).count();
@@ -123,8 +142,9 @@ async function expectQuiet(page: Page, where: string): Promise<void> {
         const cs = getComputedStyle(el);
         const name = el.className || el.tagName;
         // The sheet's Close is the kit's glass circle, whose sheen is the look's control layer (kit.css, the sheet), not
-        // a ground the record paints.
-        const glass = el.matches(".rec-sheet-close");
+        // a ground the record paints; and a fold open on a phone is a sheet, whose own ground is the glass of everything
+        // that pops (kit.css, "What pops over the page", every sheet's since #1661).
+        const glass = el.matches(".rec-sheet-close") || (el === card && el.matches(".rec-fold-sheet"));
         if (!glass && cs.backgroundImage.includes("gradient"))
           gradients.push(`${name}: ${cs.backgroundImage.slice(0, 48)}`);
         if (/mono/i.test(cs.fontFamily) && (el.textContent ?? "").trim()) monospace.push(`${name}: ${cs.fontFamily}`);
@@ -153,36 +173,40 @@ async function expectQuiet(page: Page, where: string): Promise<void> {
  * yet".
  */
 /**
- * The four strengths in the rules sheet sit in ONE place: each rule's pill ends at the same distance from its row's
- * end, inside its row, so an owner scanning for them reads one column; the photos switch, an ability in a group of its
- * own, wears none (Ruben, 10 Oct 2026, the sheets in one shape). Measured against each row rather than the viewport.
+ * The four strengths in the rules sheet are each one quiet word under its rule's name, inside its row, and no pill
+ * beside the switch: one signal a row (#1592, the phone sheets fit what they hold; Ruben, 10 Oct 2026, the sheets in one
+ * shape). The photos switch, an ability in a group of its own, says none. Measured against each row.
  *
  * The walk is scoped to the open sheet (`sheet`), never the page: a fold's body stays drawn, hidden, while it is
  * closed (RecordFold).
  */
 async function expectRuleBadgesInLine(page: Page, sheet: string, where: string): Promise<void> {
-  const badges = await page.evaluate(
+  const rows = await page.evaluate(
     (within) =>
       [...document.querySelectorAll(`${within} .bt-line[data-testid^="rec-rule-"]`)].map((row) => {
         const box = row.getBoundingClientRect();
-        const pill = row.querySelector(".pill")?.getBoundingClientRect();
+        const name = row.querySelector(".bt-line-name")?.getBoundingClientRect();
+        const said = row.querySelector('[data-testid^="rec-rule-strength-"]');
+        const word = said?.getBoundingClientRect();
         return {
           id: row.getAttribute("data-testid"),
-          dx: pill ? Math.round(box.right - pill.right) : null,
-          inRow: pill ? pill.top >= box.top && pill.bottom <= box.bottom : null,
+          word: said ? (said.textContent ?? "").trim() : null,
+          under: !!name && !!word && word.top >= name.bottom - 1,
+          inRow: !!word && word.top >= box.top && word.bottom <= box.bottom + 1,
+          pill: !!row.querySelector(".pill"),
         };
       }),
     sheet,
   );
-  expect(badges.length, `${where}: four rules and the photos switch`).toBe(5);
-  const rules = badges.filter((b) => b.id !== "rec-rule-vision");
-  for (const b of rules) expect(b.dx, `${where}: ${b.id} wears its strength`).not.toBeNull();
-  expect(
-    [...new Set(rules.map((b) => b.dx))],
-    `${where}: every strength ends at the same place in its row`,
-  ).toHaveLength(1);
-  for (const b of rules) expect(b.inRow, `${where}: ${b.id}'s strength is inside its row`).toBe(true);
-  expect(badges.find((b) => b.id === "rec-rule-vision")?.dx, `${where}: the photos switch wears none`).toBeNull();
+  expect(rows.length, `${where}: four rules and the photos switch`).toBe(5);
+  const rules = rows.filter((b) => b.id !== "rec-rule-vision");
+  for (const b of rules) {
+    expect(b.word, `${where}: ${b.id} says its strength`).toBeTruthy();
+    expect(b.under, `${where}: ${b.id}'s strength is under its name`).toBe(true);
+    expect(b.inRow, `${where}: ${b.id}'s strength is inside its row`).toBe(true);
+  }
+  for (const b of rows) expect(b.pill, `${where}: ${b.id} wears no pill beside its switch`).toBe(false);
+  expect(rows.find((b) => b.id === "rec-rule-vision")?.word, `${where}: the photos switch says none`).toBeNull();
 }
 
 async function expectAbilitiesQuiet(page: Page, where: string): Promise<void> {
@@ -301,12 +325,16 @@ async function expectSheetQuiet(
         // Close of the control layer (rim and sheen), a field, a select or a picker as an inset. The kit's gallery holds
         // them (e2e/kit/kit.spec.ts: tokens, contrast, rings); this holds what the sheet paints of its own.
         if (el.closest(kit)) continue;
-        if (cs.backgroundImage.includes("gradient")) gradients.push(name);
+        // The sheet's own ground is the glass of everything that pops (kit.css, "What pops over the page": the control
+        // layer's sheen, every sheet's since #1661); what is painted on it is held.
+        if (el !== sheet && cs.backgroundImage.includes("gradient")) gradients.push(name);
         const r = el.getBoundingClientRect();
         if (r.height > 0 && parseFloat(cs.borderTopWidth) > 0 && parseFloat(cs.borderTopLeftRadius) >= r.height / 2)
           pills.push(name);
         if ([...el.childNodes].some((n) => n.nodeType === 3 && (n.textContent ?? "").trim())) faces.add(cs.fontFamily);
-        for (const c of [cs.color, cs.backgroundColor]) if (!tokens.has(c)) colours.push(`${name}: ${c}`);
+        // Its ground's colour is the same glass's fill; its ink, and everything on it, is held.
+        for (const c of el === sheet ? [cs.color] : [cs.color, cs.backgroundColor])
+          if (!tokens.has(c)) colours.push(`${name}: ${c}`);
       }
       // What is on the glass: text outside a visually hidden span, in something laid out.
       const seen: string[] = [];
@@ -882,20 +910,27 @@ test.describe("Settings › Business on a real workspace", () => {
 
     // A service's three boxes stack into ONE row: its name across the top with the remove at the right, and how long
     // it takes beside its price under them.
-    const row = page.getByTestId(`rec-service-${was}`);
-    const whole = await boxOf(row, "the service's row");
-    const name = await boxOf(row.locator(".bt-service-name"), "the name box");
-    // The name's own box is INSIDE .bt-service-name, beside the consult-first mark; the row's other two are its own.
-    const minutes = await boxOf(row.locator(":scope > .rec-box").nth(0), "the minutes box");
-    const price = await boxOf(row.locator(":scope > .rec-box").nth(1), "the price box");
-    const remove = await boxOf(page.getByTestId(`rec-service-remove-${was}`), "the remove");
-    expect(Math.abs(name.y - remove.y), "the remove is not on the name's line").toBeLessThan(name.h);
-    expect(Math.round(remove.x + remove.w), "the remove is not at the row's right edge").toBe(
-      Math.round(whole.x + whole.w),
-    );
-    expect(minutes.y, "how long it takes is not under the name").toBeGreaterThan(name.y + name.h - 1);
-    expect(Math.abs(minutes.y - price.y), "the price is not beside how long it takes").toBeLessThan(4);
-    expect(price.x, "the price is not to the right of how long it takes").toBeGreaterThan(minutes.x);
+    // Read at one moment, and again until the sheet has risen and the row has come in: read box by box while the sheet
+    // still glided, the name and its remove were measured frames apart (17 Oct 2026). The name's own box is INSIDE
+    // .bt-service-name, beside the consult-first mark; the row's other two are its own.
+    const shape = () =>
+      page.evaluate((at) => {
+        const row = document.querySelector(`[data-testid="rec-service-${at}"]`);
+        const box = (el: Element | null | undefined) => (el ? el.getBoundingClientRect() : null);
+        const boxes = row ? [...row.querySelectorAll(":scope > .rec-box")] : [];
+        const [whole, name, minutes, price] = [row, row?.querySelector(".bt-service-name"), boxes[0], boxes[1]].map(
+          box,
+        );
+        const remove = box(document.querySelector(`[data-testid="rec-service-remove-${at}"]`));
+        if (!whole || !name || !minutes || !price || !remove) return "a box of the row is not on screen";
+        if (Math.abs(name.y - remove.y) >= name.height) return "the remove is not on the name's line";
+        if (Math.round(remove.right) !== Math.round(whole.right)) return "the remove is not at the row's right edge";
+        if (minutes.y <= name.bottom - 1) return "how long it takes is not under the name";
+        if (Math.abs(minutes.y - price.y) >= 4) return "the price is not beside how long it takes";
+        if (price.x <= minutes.x) return "the price is not to the right of how long it takes";
+        return "fits";
+      }, was);
+    await expect.poll(shape, { message: "the service's row on a phone" }).toBe("fits");
 
     // Neither the page nor the sheet scrolls sideways.
     await expectNoSidewaysScroll(page, "the services sheet on a phone", [PANE]);
@@ -907,7 +942,7 @@ test.describe("Settings › Business on a real workspace", () => {
 
     // Enough rows that the list actually scrolls, then: the foot holds still under them. (The columns' head is not
     // drawn at this width -- the row's shape names them -- so there is nothing of it to hold.)
-    for (let i = 0; i < 12 && (await body.evaluate((el) => el.scrollHeight <= el.clientHeight)); i++) {
+    for (let i = 0; i < 12 && !(await rowsScroll(body)); i++) {
       await page.getByTestId("rec-services-add").click();
     }
     expect(
@@ -931,7 +966,7 @@ test.describe("Settings › Business on a real workspace", () => {
     await openRecord(page);
     await openServices(page);
     const body = page.locator(".rec-sheet-body");
-    for (let i = 0; i < 24 && (await body.evaluate((el) => el.scrollHeight <= el.clientHeight)); i++) {
+    for (let i = 0; i < 24 && !(await rowsScroll(body)); i++) {
       await page.getByTestId("rec-services-add").click();
     }
     expect(
@@ -1259,8 +1294,8 @@ test.describe("Settings › Business on a real workspace", () => {
       // again, which is what the page draws its rows from), and keeps what it was sent for the check below.
       const read = await standInSave(page);
 
-      const pane = page.locator(PANE);
-      const scrolled = () => pane.evaluate((el) => el.scrollTop);
+      // The window scrolls the pane on a phone (mobile.css, "The window scrolls"): it is what holds still behind the sheet.
+      const scrolled = () => page.evaluate(() => window.scrollY);
       await actOf(page, "tone").scrollIntoViewIfNeeded();
       const top = await scrolled();
       await actOf(page, "tone").tap();

@@ -160,7 +160,8 @@ export const SCHEMA_SETS = {
     "carriers",
     "email_review",
     "booking_request",
-    "booking_reply"
+    "booking_reply",
+    "wrote_while_held"
   ],
   "escalations.state": ["open", "resolved"],
   "event_deliveries.state": ["scheduled", "done", "failed", "paused"],

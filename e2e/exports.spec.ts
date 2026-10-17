@@ -10,7 +10,9 @@ import { apiGet } from "./workspace";
  * ledger, which says who took it.
  */
 const PEOPLE_HEADER =
-  "name,whatsapp_name,phone,email,consent,consent_source,consent_updated,offers_consent,offers_consent_source,offers_consent_updated,do_not_contact,channels,conversations,calls,escalations,first_contact,last_message,last_inbound,last_call,receptionist";
+  "name,whatsapp_name,phone,email,consent,consent_source,consent_updated,offers_consent,offers_consent_source,offers_consent_updated,do_not_contact,channels,conversations,calls,escalations,first_contact,last_message,last_inbound,last_call,receptionist," +
+  // Appended by the wiring's second audit (R14 X3, #1595): email's own answer about offers, and what each yes covers.
+  "email_offers,email_offers_source,email_offers_updated,email_unreachable_since,consent_covers,offers_covers";
 
 /** The workspace's file's sections, in its order (contracts EXPORT_SECTIONS). */
 const WORKSPACE_SECTIONS = [

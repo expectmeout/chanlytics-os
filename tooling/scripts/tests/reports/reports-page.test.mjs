@@ -189,6 +189,10 @@ const refuse = async () => {
   for (let i = 0; i < 12; i++) await settle();
 };
 const inPeriodTest = async (mode, run) => {
+  // What the test before left on a clock (the picker's close after a pick, 180ms) runs out first: on a loaded machine a
+  // read it led to landed in this test's count (a whole suite's run, 17 Oct 2026).
+  await new Promise((done) => setTimeout(done, 250));
+  for (let i = 0; i < 12; i++) await settle();
   period.mode = mode;
   period.asked.length = 0;
   try {
