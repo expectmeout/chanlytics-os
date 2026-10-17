@@ -1804,12 +1804,21 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
 }
 
 /* An open thread going back to its list on a phone, under the thumb (inbox-thread.jsx, data-going): the list is
-   drawn under the thread as it moves, so what is behind it is what it goes back to. */
+   drawn under the thread as it moves, so what is behind it is what it goes back to. The thread has no ground of its
+   own on a phone (inbox.css: the page's light shows through it), so while it moves it wears the page's, as the app's
+   root paints it there: the list under it showed through the thread, both sets of words at once (Ruben, 17 Oct 2026). */
 @media (max-width: 720px) {
   .inbox[data-takeover][data-going] > .ix-list,
   .conversations[data-takeover][data-going] > .cv-list { display: flex; grid-area: 1 / 1; }
   .inbox[data-takeover][data-going] > .ix-thread-pane,
-  .conversations[data-takeover][data-going] > .ix-thread-pane { grid-area: 1 / 1; z-index: 1; box-shadow: -12px 0 32px oklch(0 0 0 / 0.18); }
+  .conversations[data-takeover][data-going] > .ix-thread-pane {
+    grid-area: 1 / 1;
+    z-index: 1;
+    background-color: var(--surface-page-fill);
+    background-image: var(--surface-page-top), var(--surface-page-light);
+    background-repeat: no-repeat;
+    box-shadow: -12px 0 32px oklch(0 0 0 / 0.18);
+  }
 }
 
 /* A message that arrives while its thread is open rises into place; the ones it opened with are simply there. */
