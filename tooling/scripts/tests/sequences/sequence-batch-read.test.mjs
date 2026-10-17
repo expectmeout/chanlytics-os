@@ -83,6 +83,13 @@ test("a day that ended past the reply window is read as it opens, and not again 
   }
   assert.deepEqual(reads, ["old"], "three sends heard in the workspace read nothing of it");
   assert.equal(shown.state, "read", "and it still shows what it read");
+  // A write in the tab empties its read cache (read-cache.ts stale): what the day said is still what it said.
+  held.clear();
+  listMoves();
+  draw("old");
+  await settle();
+  assert.deepEqual(reads, ["old"], "after a write, the list read again reads nothing of it either");
+  assert.equal(shown.state, "read");
 });
 
 test("a batch underway, or ended within the reply window, is read again each time the list moves", async () => {

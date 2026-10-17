@@ -45,17 +45,20 @@ export function useSequenceRead<T>(
     id,
     read: id ? asRead(peek(id)) : READING,
   }));
-  // What the last read was asked for: a new id, or a press, is always read.
-  const asked = useRef<{ id: string; again: number } | null>(null);
+  // What the last read was asked for, and what it answered: a new id, or a press, is always read. Judged from this answer,
+  // never the tab's cache, which any write empties: a day that can no longer move is not read again after one either.
+  const asked = useRef<{ id: string; again: number; answer: { data: T } | null } | null>(null);
   useEffect(() => {
     if (!id) return undefined;
-    const opened = asked.current?.id !== id || asked.current.again !== again;
-    asked.current = { id, again };
-    const held = peek(id);
-    if (!opened && moves && held?.ok && !moves(held.data)) return undefined;
+    const last = asked.current;
+    const opened = last?.id !== id || last.again !== again;
+    if (!opened && moves && last?.answer && !moves(last.answer.data)) return undefined;
+    if (opened) asked.current = { id, again, answer: null };
     let live = true;
     setNow((was) => (was.id === id && was.read.state === "read" ? was : { id, read: asRead(peek(id)) }));
     void read(id).then((r) => {
+      const latest = asked.current;
+      if (r.ok && latest?.id === id) latest.answer = { data: r.data };
       if (live) setNow({ id, read: asRead(r) });
     });
     return () => {
