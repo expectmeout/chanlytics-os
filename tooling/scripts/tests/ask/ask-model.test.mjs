@@ -69,36 +69,36 @@ test("the profile: the name the environment gives, whatever Claude model it is, 
     ["claude-haiku-5-5", "high"],
     [UNLISTED, null],
   ])
-    assert.deepEqual(askModelProfile(id), { id, effort: "low", speed: "standard", draft, answerTool: false }, id);
+    assert.deepEqual(askModelProfile(id), { id, effort: "low", speed: "standard", draft, answerTool: true }, id);
   assert.deepEqual(askModelProfile(SONNET_5_5, "medium"), {
     id: SONNET_5_5,
     effort: "medium",
     speed: "standard",
     draft: "high",
-    answerTool: false,
+    answerTool: true,
   });
   assert.deepEqual(
     askModelProfile(undefined, "high"),
-    { id: ASK_MODEL, effort: "high", speed: "fast", draft: null, answerTool: false },
+    { id: ASK_MODEL, effort: "high", speed: "fast", draft: null, answerTool: true },
     "a turn asked at high already has no draft to raise",
   );
   assert.deepEqual(
     askModelProfile(SONNET_5_5, "maximum"),
-    { id: SONNET_5_5, effort: "low", speed: "standard", draft: "high", answerTool: false },
+    { id: SONNET_5_5, effort: "low", speed: "standard", draft: "high", answerTool: true },
     "an effort that is none",
   );
   assert.deepEqual(priceOf(SONNET_5_5), { input: 2, output: 10, cacheWrite: 2.5, cacheRead: 0.2 }, "its list price");
   assert.equal(priceOf(UNLISTED), null, "a model with no price is run, and its dollars are not guessed");
 });
 
-test("the answer tool is off unless ASK_ANSWER_TOOL says on (15 Oct 2026): any other word is off, whatever the model", () => {
-  for (const none of [undefined, null, "", "  ", "off", "yes", "true", "ON"])
-    assert.equal(askModelProfile(ASK_MODEL, null, null, null, none).answerTool, false, String(none));
-  assert.equal(askModelProfile(ASK_MODEL, null, null, null, "on").answerTool, true, "the switch on");
+test("the answer tool is on unless ASK_ANSWER_TOOL says off (its eval pair, 17 Oct 2026): any other word is on, whatever the model", () => {
+  for (const on of [undefined, null, "", "  ", "on", "yes", "true", "ON"])
+    assert.equal(askModelProfile(ASK_MODEL, null, null, null, on).answerTool, true, String(on));
+  assert.equal(askModelProfile(ASK_MODEL, null, null, null, "off").answerTool, false, "the switch off");
   assert.equal(
-    askModelProfile(SONNET_5_5, "medium", "standard", "off", " on ").answerTool,
-    true,
-    "on any model, at any effort",
+    askModelProfile(SONNET_5_5, "medium", "standard", "off", " off ").answerTool,
+    false,
+    "off on any model, at any effort",
   );
 });
 
@@ -277,28 +277,28 @@ test("the dashboard picks by environment: unset is the default, a model's name i
       effort: "low",
       speed: "fast",
       draft: ASK_DRAFT_EFFORT,
-      answerTool: false,
+      answerTool: true,
     });
     process.env.ASK_ANSWER_TOOL = "on";
-    assert.equal(askModel().answerTool, true, "the tool on");
+    assert.equal(askModel().answerTool, true, "on said in words is on, and no surprise");
     process.env.ASK_ANSWER_TOOL = "off";
-    assert.equal(askModel().answerTool, false, "off said in words is off, and no surprise");
+    assert.equal(askModel().answerTool, false, "the tool off");
     delete process.env.ASK_ANSWER_TOOL;
     process.env.ASK_SPEED = "standard";
     assert.deepEqual(
       askModel(),
-      { id: ASK_MODEL, effort: "low", speed: "standard", draft: ASK_DRAFT_EFFORT, answerTool: false },
+      { id: ASK_MODEL, effort: "low", speed: "standard", draft: ASK_DRAFT_EFFORT, answerTool: true },
       "the switch off, no code change",
     );
     delete process.env.ASK_SPEED;
     process.env.ASK_DRAFT_EFFORT = "off";
     assert.deepEqual(
       askModel(),
-      { id: ASK_MODEL, effort: "low", speed: "fast", draft: null, answerTool: false },
+      { id: ASK_MODEL, effort: "low", speed: "fast", draft: null, answerTool: true },
       "drafts at low too",
     );
     process.env.ASK_DRAFT_EFFORT = "xhigh";
-    assert.deepEqual(askModel(), { id: ASK_MODEL, effort: "low", speed: "fast", draft: "xhigh", answerTool: false });
+    assert.deepEqual(askModel(), { id: ASK_MODEL, effort: "low", speed: "fast", draft: "xhigh", answerTool: true });
     delete process.env.ASK_DRAFT_EFFORT;
     process.env.ASK_MODEL = SONNET_5_5;
     assert.deepEqual(askModel(), {
@@ -306,7 +306,7 @@ test("the dashboard picks by environment: unset is the default, a model's name i
       effort: "low",
       speed: "standard",
       draft: ASK_DRAFT_EFFORT,
-      answerTool: false,
+      answerTool: true,
     });
     process.env.ASK_EFFORT = "medium";
     assert.deepEqual(askModel(), {
@@ -314,10 +314,10 @@ test("the dashboard picks by environment: unset is the default, a model's name i
       effort: "medium",
       speed: "standard",
       draft: ASK_DRAFT_EFFORT,
-      answerTool: false,
+      answerTool: true,
     });
     process.env.ASK_MODEL = UNLISTED;
-    assert.deepEqual(askModel(), { id: UNLISTED, effort: "medium", speed: "standard", draft: null, answerTool: false });
+    assert.deepEqual(askModel(), { id: UNLISTED, effort: "medium", speed: "standard", draft: null, answerTool: true });
     process.env.ASK_SPEED = "fast";
     askModel();
     assert.equal(
@@ -335,7 +335,7 @@ test("the dashboard picks by environment: unset is the default, a model's name i
       effort: "low",
       speed: "fast",
       draft: ASK_DRAFT_EFFORT,
-      answerTool: false,
+      answerTool: true,
     });
     askModel();
     const unknown = warned.filter((l) => l.event === "ask_model_unknown");
@@ -353,7 +353,7 @@ test("the dashboard picks by environment: unset is the default, a model's name i
         at: "low",
         pace: "fast",
         drafts: ASK_DRAFT_EFFORT,
-        tool: false,
+        tool: true,
       },
       "what was asked for and what is run",
     );

@@ -76,6 +76,9 @@ import {
   numberHealth,
   sendableTemplates,
 } from "@chanlytics/contracts";
+// The turns here are the text path's, the answer written as its format (ASK_ANSWER_TOOL off): the tool is on by
+// default since its eval pair (17 Oct 2026), and its own tests below switch it on (withAnswerTool).
+process.env.ASK_ANSWER_TOOL = "off";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
@@ -10047,7 +10050,7 @@ test("the answer tool on: every round offers it first with its input streamed, t
     assert.equal(JSON.stringify(s.requests[0].tools), JSON.stringify(s.requests[1].tools), "one prefix, every round");
     assert.equal(s.requests[0].system[0].text, stableSystem(facts, true));
   });
-  await withAnswerTool(undefined, async () => {
+  await withAnswerTool("off", async () => {
     const s = scripted([ROUND([answer("Nobody waits.")])]);
     await runAskTurn(turn(ctxFor()).input, ports(s.round));
     assert.deepEqual(s.requests[0].tools, toApiTools("operator", true), "off: no answer tool");
@@ -10194,7 +10197,7 @@ test("the answer tool on, the last round may still call it: it is told it is the
     const r2 = await runAskTurn(turn(ctxFor()).input, ports(answered.round));
     assert.deepEqual([r2.rounds, r2.shape.answer_in], [N, "tool"], "the last round answered through the tool");
   });
-  await withAnswerTool(undefined, async () => {
+  await withAnswerTool("off", async () => {
     const s = scripted([...reads(N - 1), ROUND([answer("Two threads wait.")])]);
     await runAskTurn(turn(ctxFor()).input, ports(s.round));
     assert.deepEqual(

@@ -95,6 +95,6 @@ export const ASK_SECTIONS = [
  * prompt is the rules alone, byte for byte, so the switch off changes nothing a turn is sent.
  */
 export const ANSWER_TOOL_RULES = [
-  "Every answer is written by calling the answer tool once, with the whole answer in its format (say, show, do and language) as its input, never as text. Call it when you have read what you need: alone, or beside the cards you propose, never beside a read. A plan's answer is the plan's own words, so a plan is proposed with no answer beside it.",
-  "Beside a card, say.headline is the one sentence of what you proposed, and nothing after it: the card already says it waits for their press, so never add a sentence that it needs approving.",
+  "Every answer is written by calling the answer tool once, with the whole answer in its format (say, show, do and language) as its input, never as text. Call it when you have read what you need: alone, or beside the cards you propose, never beside a read. A plan is proposed with no answer beside it: its answer is written after, from its result.",
+  'Beside a card, say.headline is the one sentence of what you proposed ("I proposed …"), never that you set it up, added, changed or did it, and nothing after it: the card already says it waits for their press, so never add a sentence that it needs approving.',
 ] as const;

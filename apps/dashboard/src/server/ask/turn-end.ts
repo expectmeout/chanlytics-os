@@ -355,7 +355,7 @@ function withPlanFacts(answer: AskAnswer, cards: readonly AskProposal[], input: 
  * model's, in the person's language. The room a turn keeps for it: with less, the plan's own words answer.
  */
 export const PLAN_ANSWER_WORDS =
-  "The plan above is proposed as its cards, and no tool is needed now. Now write the answer, in the person's language, from its result alone: the headline says what the plan does, and the detail says first what no card carries (what must be connected or turned on first, a campaign paused, the room, the day a reminder goes) before anything the cards already show; where something must come first, the first question next asks how to do it. Never say any of it is done, sent or set up.";
+  "The plan above is proposed as its cards, and no other card or read is needed now. Now write the answer, in the person's language, from its result alone: the headline says what the plan does, and the detail says first what no card carries (what must be connected or turned on first, a campaign paused, the room, the day a reminder goes) before anything the cards already show; where something must come first, the first question next asks how to do it. Never say any of it is done, sent or set up.";
 const PLAN_ANSWER_ROOM_MS = 12_000;
 
 /** A plan made, its answer owed by the round after it (PLAN_ANSWER_WORDS): its cards, its words, the round that made it. */
@@ -374,9 +374,8 @@ export interface PlanOwed {
 export const planAnswerOwed = (
   alone: "answer" | "owed" | null,
   planned: PlanSaid | null,
-  turn: { answerTool: boolean; last: boolean; leftMs: number },
-): planned is PlanSaid =>
-  alone === "answer" && planned !== null && !turn.answerTool && !turn.last && turn.leftMs > PLAN_ANSWER_ROOM_MS;
+  turn: { last: boolean; leftMs: number },
+): planned is PlanSaid => alone === "answer" && planned !== null && !turn.last && turn.leftMs > PLAN_ANSWER_ROOM_MS;
 
 /** A plan's answer round that failed or was stopped: the plan's cards stand, and its own words answer, as before. */
 export const planFallback = (owed: PlanOwed, input: TurnInput, rounds: number): TurnEnd => ({
