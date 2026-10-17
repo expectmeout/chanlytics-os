@@ -194,9 +194,9 @@ const useArOpen = ({ open, A, route, openedAt, setScope, threadsReady, setThread
     openedAt.current = Date.now();
     const r = arRoute();
     setScope(A.scopeFor(r.page, r.param, arScopeLabel(r.page, r.param)));
-    threadsReady.current = A.threads().then((list) => { setThreads(list); return list; });
+    threadsReady.current = A.threads().then((list) => { setThreads(list); return list; }); if (A.readFollowUps) A.readFollowUps();
     const bump = () => setTick((n) => n + 1);
-    const evs = ["surface:inbox", "surface:live", "surface:clients", "surface:settings", "surface:today", "surface:broadcasts"];
+    const evs = ["surface:inbox", "surface:live", "surface:clients", "surface:settings", "surface:today", "surface:broadcasts", "ask:follow-ups"];
     evs.forEach((e) => window.addEventListener(e, bump));
     return () => evs.forEach((e) => window.removeEventListener(e, bump));
   }, [open]);
@@ -499,11 +499,11 @@ const arSubmitter = (ln) => {
     const q = (typeof qArg === "string" ? qArg : query).trim(), chip = chipArg !== undefined ? chipArg : scope; // a seed names its opening's chip; `how.spoken` marks a question the recogniser heard
     if (!q || live) return;
     arLetGo(inputRef.current); speech.stop();
-    const spoken = !!(how && how.spoken);
+    const spoken = !!(how && how.spoken), following = (how && how.following) || null; // `how.following`: the follow-up of Ask's home's row, which the route clears
     setQuery("");
     setView("rows");
     setLang(A.language(q));
-    const pending = active ? null : A.quick(q);
+    const pending = active || following ? null : A.quick(q);
     if (pending) return arQuickTurn(ln, q, pending, spoken);
     setQuick(null);
     let base = active && active.kept ? await arKept(active) : active; // asked once a quick turn is kept, which it reads
@@ -518,7 +518,7 @@ const arSubmitter = (ln) => {
     // The page, as it is now: the rows on screen and the row the words name, if they name one -- in the thread it joins, by its last answer's items first (legacy-bridge/ask/context.ts). A page that cannot say what it holds sends none: the question still goes.
     let context = null;
     try { context = A.context ? A.context(arRoute(), q, base && base.messages) : null; } catch (e) { context = null; }
-    await A.send({ text: q, threadId: turn.threadId, scope: thread.scope, surface, openedMs: openedAt.current ? Date.now() - openedAt.current : null, context, signal: turn.ctl.signal }, (ev) => arTurnHeard(ln, turn, ev));
+    await A.send({ text: q, threadId: turn.threadId, scope: thread.scope, surface, following: following ? { id: following } : null, openedMs: openedAt.current ? Date.now() - openedAt.current : null, context, signal: turn.ctl.signal }, (ev) => arTurnHeard(ln, turn, ev));
     arTurnLanded(ln, turn);
   };
   return submit;
@@ -641,7 +641,7 @@ const arActivate = ({ openThread, setView, nav, setQuery, inputRef, submit }) =>
     if (it.type === "jump") { nav(it.to, { leave: true }); return; }
     if (it.type === "item" || it.type === "open") { nav(it.to); return; }
     if (it.compose) { setQuery(it.q); setTimeout(() => inputRef.current && inputRef.current.focus(), 20); return; }
-    submit(it.q);
+    submit(it.q, undefined, it.following ? { following: it.following } : undefined); // a follow-up come due: its id rides with it
   };
   return activate;
 };
