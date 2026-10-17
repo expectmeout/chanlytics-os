@@ -9,7 +9,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { importSrc } from "../_source.mjs";
+import { importSrc } from "../../_source.mjs";
 
 /** A tab: its entries, where it stands, and a Back that lands on the next turn, as a browser's does. */
 function tab(entries) {
