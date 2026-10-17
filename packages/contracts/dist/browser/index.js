@@ -13,7 +13,7 @@ export { DATA_NOT_INSTRUCTIONS, PROFILE_NAME_MAX, fenceActed, fenced, fencedInli
 export { FLAGS, FLAG_MECHANISMS, daysToSunset } from "./ai/flags.js";
 export { MODELS, MODEL_IDS, MODEL_EFFORTS, MODEL_PURPOSES, MODEL_ROUTES, MODEL_PORTS, MODEL_SPEEDS, MODEL_TAKES, FAST_MODE_BETA, THINKING_TYPES, RETELL_MODELS, modelRoute, fallbackModel, shadowPortOf, isModelId, readsAsModel, modelTakes, hasFastMode } from "./ai/models.js";
 export { MODEL_TURN_WRITE_MS, modelTurnRequestOf, modelTurnResponseOf } from "./ai/turn.js";
-export { MODEL_PRICES, FAST_MODE_PRICES, MODEL_CALL_OUTCOMES, NO_USAGE, priceOf, usageDollars, usageTokens, usageOf, aiUsageBodyOf, usageMonthOf } from "./ai/usage.js";
+export { MODEL_PRICES, FAST_MODE_PRICES, MODEL_CALL_OUTCOMES, NO_USAGE, priceOf, usageDollars, usageTokens, usageOf, aiUsageBodyOf } from "./ai/usage.js";
 export { foldWordsMessages, isWordsMessage, wordsMessage } from "./ai/words-message.js";
 export { RUN_VERBS, PLAYBOOK_CARD_REFUSALS, PLAYBOOK_CARD_WORDS, MESSAGE_WORDS, proposalChannelsWords, stepOfferWords, twinRunsWords } from "./ask-proposals/campaigns.js";
 export { ASK_VIEW_PAGE, ASK_FOLLOW_UPS_MAX, FOLLOW_UP_SAID_MAX, FOLLOW_UP_PROMPT_MAX, FOLLOW_UP_WAKES, followUpsOf, followUpDue, ASK_STYLE_PAGE, ASK_STYLE_MAX, answerStyleOf } from "./ask-proposals/follow-ups.js";

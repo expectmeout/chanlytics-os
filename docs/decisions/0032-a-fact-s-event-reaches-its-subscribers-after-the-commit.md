@@ -197,7 +197,8 @@ versions `packages/db/src/events.ts`; a schema per kind arrives with the first s
 nobody reads is a promise nobody checks. _Both orders:_ nullable columns and a list nobody reads.
 
 **2 · Subscriptions, outbox, deliveries, the trigger.** Built, 00334, with one row: the audit subscriber on
-`message.received`, so the copy runs on real traffic from the first day. _Both orders:_ tables neither app reads.
+`message.received`, so the copy runs on real traffic from the first day. It went in 00456 (the closed-loop audit of 17
+Oct 2026, I): five subscribers that act carry the traffic now, and it cost a delivery and a job for every message. _Both orders:_ tables neither app reads.
 
 **3 · The relay in the tick, and the `event_deliver` kind** with its handler, its caller, the `jobs.kind` CHECK and
 its lane together, as the rule says. Built, 00334 (`apps/edge/lib/ops/jobs-tick.ts`, `packages/jobs/src/handlers.ts`,

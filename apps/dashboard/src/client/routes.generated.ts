@@ -45,7 +45,6 @@ export const ROUTES = {
   "GET contacts/[id]": { method: "GET", path: "/api/v1/contacts/[id]" },
   "GET contacts/export": { method: "GET", path: "/api/v1/contacts/export" },
   "GET conversations": { method: "GET", path: "/api/v1/conversations" },
-  "GET conversations/[id]": { method: "GET", path: "/api/v1/conversations/[id]" },
   "GET conversations/[id]/export": { method: "GET", path: "/api/v1/conversations/[id]/export" },
   "GET escalations": { method: "GET", path: "/api/v1/escalations" },
   "GET export": { method: "GET", path: "/api/v1/export" },
@@ -54,13 +53,11 @@ export const ROUTES = {
   "GET google/connect": { method: "GET", path: "/api/v1/google/connect" },
   "GET google/locations": { method: "GET", path: "/api/v1/google/locations" },
   "GET lead-searches": { method: "GET", path: "/api/v1/lead-searches" },
-  "GET lead-searches/[id]": { method: "GET", path: "/api/v1/lead-searches/[id]" },
   "GET lead-suggestions": { method: "GET", path: "/api/v1/lead-suggestions" },
   "GET leads": { method: "GET", path: "/api/v1/leads" },
   "GET leads/[id]": { method: "GET", path: "/api/v1/leads/[id]" },
   "GET leads/back": { method: "GET", path: "/api/v1/leads/back" },
   "GET lines/codes": { method: "GET", path: "/api/v1/lines/codes" },
-  "GET mailbox-connections": { method: "GET", path: "/api/v1/mailbox-connections" },
   "GET mailbox-connections/callback": { method: "GET", path: "/api/v1/mailbox-connections/callback" },
   "GET mailbox-connections/connect": { method: "GET", path: "/api/v1/mailbox-connections/connect" },
   "GET me/alerts": { method: "GET", path: "/api/v1/me/alerts" },
@@ -105,7 +102,6 @@ export const ROUTES = {
   "GET team/partner": { method: "GET", path: "/api/v1/team/partner" },
   "GET templates": { method: "GET", path: "/api/v1/templates" },
   "GET today": { method: "GET", path: "/api/v1/today" },
-  "GET usage": { method: "GET", path: "/api/v1/usage" },
   "GET views": { method: "GET", path: "/api/v1/views" },
   "GET workspaces": { method: "GET", path: "/api/v1/workspaces" },
   "PATCH lead-searches/[id]": { method: "PATCH", path: "/api/v1/lead-searches/[id]" },
@@ -333,7 +329,6 @@ export type Routes = {
   "GET contacts/[id]": typeof import("../../app/api/v1/contacts/[id]/route").GET;
   "GET contacts/export": typeof import("../../app/api/v1/contacts/export/route").GET;
   "GET conversations": typeof import("../../app/api/v1/conversations/route").GET;
-  "GET conversations/[id]": typeof import("../../app/api/v1/conversations/[id]/route").GET;
   "GET conversations/[id]/export": typeof import("../../app/api/v1/conversations/[id]/export/route").GET;
   "GET escalations": typeof import("../../app/api/v1/escalations/route").GET;
   "GET export": typeof import("../../app/api/v1/export/route").GET;
@@ -342,13 +337,11 @@ export type Routes = {
   "GET google/connect": typeof import("../../app/api/v1/google/connect/route").GET;
   "GET google/locations": typeof import("../../app/api/v1/google/locations/route").GET;
   "GET lead-searches": typeof import("../../app/api/v1/lead-searches/route").GET;
-  "GET lead-searches/[id]": typeof import("../../app/api/v1/lead-searches/[id]/route").GET;
   "GET lead-suggestions": typeof import("../../app/api/v1/lead-suggestions/route").GET;
   "GET leads": typeof import("../../app/api/v1/leads/route").GET;
   "GET leads/[id]": typeof import("../../app/api/v1/leads/[id]/route").GET;
   "GET leads/back": typeof import("../../app/api/v1/leads/back/route").GET;
   "GET lines/codes": typeof import("../../app/api/v1/lines/codes/route").GET;
-  "GET mailbox-connections": typeof import("../../app/api/v1/mailbox-connections/route").GET;
   "GET mailbox-connections/callback": typeof import("../../app/api/v1/mailbox-connections/callback/route").GET;
   "GET mailbox-connections/connect": typeof import("../../app/api/v1/mailbox-connections/connect/route").GET;
   "GET me/alerts": typeof import("../../app/api/v1/me/alerts/route").GET;
@@ -393,7 +386,6 @@ export type Routes = {
   "GET team/partner": typeof import("../../app/api/v1/team/partner/route").GET;
   "GET templates": typeof import("../../app/api/v1/templates/route").GET;
   "GET today": typeof import("../../app/api/v1/today/route").GET;
-  "GET usage": typeof import("../../app/api/v1/usage/route").GET;
   "GET views": typeof import("../../app/api/v1/views/route").GET;
   "GET workspaces": typeof import("../../app/api/v1/workspaces/route").GET;
   "PATCH lead-searches/[id]": typeof import("../../app/api/v1/lead-searches/[id]/route").PATCH;

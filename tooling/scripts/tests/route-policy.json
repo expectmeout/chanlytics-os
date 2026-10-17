@@ -556,13 +556,6 @@
       "spend": false,
       "idempotent": "own"
     },
-    "GET conversations/[id]": {
-      "kind": "read",
-      "scope": "row",
-      "role": null,
-      "rate": null,
-      "spend": false
-    },
     "POST conversations/[id]/snooze": {
       "kind": "write",
       "scope": "row",
@@ -732,13 +725,6 @@
       "role": "partner",
       "rate": "lead_search",
       "spend": true
-    },
-    "GET lead-searches/[id]": {
-      "kind": "read",
-      "scope": "workspace",
-      "role": null,
-      "rate": null,
-      "spend": false
     },
     "PATCH lead-searches/[id]": {
       "kind": "write",
@@ -1027,13 +1013,6 @@
       "scope": "workspace",
       "role": "partner",
       "rate": "settings",
-      "spend": false
-    },
-    "GET mailbox-connections": {
-      "kind": "read",
-      "scope": "workspace",
-      "role": null,
-      "rate": null,
       "spend": false
     },
     "PUT mailboxes/[id]": {
@@ -1940,13 +1919,6 @@
       "kind": "read",
       "scope": "workspace",
       "role": null,
-      "rate": "aggregate",
-      "spend": false
-    },
-    "GET usage": {
-      "kind": "read",
-      "scope": "workspace",
-      "role": "owner",
       "rate": "aggregate",
       "spend": false
     },

@@ -11610,26 +11610,6 @@ function aiUsageBodyOf(call) {
     subject_id: call.subjectId ?? null
   };
 }
-function usageMonthOf(month, lines) {
-  const models = lines.filter((l) => l.meter === "model");
-  const priced = models.filter((l) => l.usd !== null);
-  const sum3 = (xs, f) => xs.reduce((n, l) => n + f(l), 0);
-  return {
-    month,
-    lines,
-    model_usd: priced.length ? Math.round(sum3(priced, (l) => l.usd ?? 0) * 1e4) / 1e4 : null,
-    model_calls: sum3(models, (l) => l.uses),
-    model_tokens: sum3(models, (l) => l.quantity),
-    voice_seconds: sum3(
-      lines.filter((l) => l.meter === "voice_seconds"),
-      (l) => l.quantity
-    ),
-    wa_conversations: sum3(
-      lines.filter((l) => l.meter === "wa_conversation"),
-      (l) => l.uses
-    )
-  };
-}
 
 // src/ai/turn.ts
 var MODEL_TURN_WRITE_MS = 1500;
@@ -18143,7 +18123,6 @@ var JOB_KINDS = [
   "inbound_answer"
 ];
 var EVENT_SUBSCRIBERS = [
-  "audit",
   "reach_out_booked",
   "owner_notice",
   "consent_notice",
@@ -53684,7 +53663,6 @@ var ROUTE_KEYS = [
   "GET contacts/[id]",
   "GET contacts/export",
   "GET conversations",
-  "GET conversations/[id]",
   "GET conversations/[id]/export",
   "GET escalations",
   "GET export",
@@ -53693,13 +53671,11 @@ var ROUTE_KEYS = [
   "GET google/connect",
   "GET google/locations",
   "GET lead-searches",
-  "GET lead-searches/[id]",
   "GET lead-suggestions",
   "GET leads",
   "GET leads/[id]",
   "GET leads/back",
   "GET lines/codes",
-  "GET mailbox-connections",
   "GET mailbox-connections/callback",
   "GET mailbox-connections/connect",
   "GET me/alerts",
@@ -53744,7 +53720,6 @@ var ROUTE_KEYS = [
   "GET team/partner",
   "GET templates",
   "GET today",
-  "GET usage",
   "GET views",
   "GET workspaces",
   "PATCH lead-searches/[id]",
@@ -62563,7 +62538,6 @@ export {
   usStatesTyped,
   usableDeviceTimezone,
   usageDollars,
-  usageMonthOf,
   usageOf,
   usageTokens,
   utf8Bytes,

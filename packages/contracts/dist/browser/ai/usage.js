@@ -70,23 +70,3 @@ export function aiUsageBodyOf(call) {
     subject_id: call.subjectId ?? null
   };
 }
-export function usageMonthOf(month, lines) {
-  const models = lines.filter((l) => l.meter === "model");
-  const priced = models.filter((l) => l.usd !== null);
-  const sum = (xs, f) => xs.reduce((n, l) => n + f(l), 0);
-  return {
-    month,
-    lines,
-    model_usd: priced.length ? Math.round(sum(priced, (l) => l.usd ?? 0) * 1e4) / 1e4 : null,
-    model_calls: sum(models, (l) => l.uses),
-    model_tokens: sum(models, (l) => l.quantity),
-    voice_seconds: sum(
-      lines.filter((l) => l.meter === "voice_seconds"),
-      (l) => l.quantity
-    ),
-    wa_conversations: sum(
-      lines.filter((l) => l.meter === "wa_conversation"),
-      (l) => l.uses
-    )
-  };
-}

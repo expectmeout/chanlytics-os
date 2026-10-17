@@ -51,7 +51,7 @@ test("ids are validated by the one guard, never by a private regex", () => {
     "escalations/[id]/resolve",
     "messages/[id]/cancel-send",
     "team/[id]",
-    "conversations/[id]",
+    "conversations/[id]/snooze",
     "calls/[id]/recording",
     "contacts/[id]",
     "calls",
