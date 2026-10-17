@@ -1,5 +1,5 @@
 import "server-only";
-import type { MembershipRole } from "@chanlytics/contracts";
+import { foldWordsMessages, type MembershipRole } from "@chanlytics/contracts";
 import { log, type DashboardLogEvent } from "@/server/log";
 import type { GatewayRefusal } from "./gateway";
 import { toApiTools } from "./tools";
@@ -41,11 +41,12 @@ export function refusalSaid(r: GatewayRefusal, es: boolean, at: { tenant_id: str
 /**
  * What a turn gives up when the API refuses its request for it, once each and in this order: the replay of the
  * thread's turns as sent (the Phase 5 plan, D12), the page's data blocks (the Phase 2 plan, D14), the tools' examples
- * (the Phase 3 plan, D9), tool search (the operator, D11: every tool is then loaded up front), then the answer's format
- * (D15). The same round is asked again without it; a refusal that names none of them, or one already given up, is the
- * turn's.
+ * (the Phase 3 plan, D9), tool search (the operator, D11: every tool is then loaded up front), the answer's format
+ * (D15), and the turn's words as the operator's system message (the answer canvas, A3), which an edge from before it
+ * refuses and a model without one cannot take: they are said in the question again. The same round is asked again
+ * without it; a refusal that names none of them, or one already given up, is the turn's.
  */
-type Dropped = "replay" | "context" | "examples" | "search" | "format";
+type Dropped = "replay" | "context" | "examples" | "search" | "format" | "words";
 
 /** The line each drop logs, once a turn: typed as the dashboard's log names, so tsc holds each to that set. */
 export const DROP_EVENTS: Record<Dropped, DashboardLogEvent> = {
@@ -54,6 +55,7 @@ export const DROP_EVENTS: Record<Dropped, DashboardLogEvent> = {
   examples: "ask_examples_rejected",
   search: "ask_tool_search_rejected",
   format: "ask_format_rejected",
+  words: "ask_words_rejected",
 };
 
 /**
@@ -74,6 +76,14 @@ function examplesRefused(message: string): boolean {
   return /^400\b/.test(message) && /input_examples/.test(message);
 }
 
+/**
+ * A refusal of the turn's words as a system message: the edge's before it took them (its own words, "a system message
+ * carries an effort alone"), or the API's for a model that takes none.
+ */
+function wordsRefused(message: string): boolean {
+  return /a system message carries an effort alone|role 'system' is not supported/i.test(message);
+}
+
 /** A refusal of the request for its tool search: the search tool, a deferred tool, or a reference to one (D11). */
 function searchRefused(message: string): boolean {
   return /^400\b/.test(message) && /tool_search|defer_loading|tool_reference/i.test(message);
@@ -86,6 +96,7 @@ function searchRefused(message: string): boolean {
  */
 export function dropFor(message: string, still: Record<Dropped, boolean>): Dropped | null {
   if (!message) return null;
+  if (wordsRefused(message)) return still.words ? "words" : null;
   if (still.replay && replayRefused(message)) return "replay";
   if (still.context && blocksRefused(message)) return "context";
   if (examplesRefused(message)) return still.examples ? "examples" : null;
@@ -94,22 +105,34 @@ export function dropFor(message: string, still: Record<Dropped, boolean>): Dropp
 }
 
 /**
- * What a turn offers the API that it can do without: the tools' examples, the tool search and the answer's format; and
- * the answer tool (ASK_ANSWER_TOOL), which is never let go, so the tools it rebuilds keep it.
+ * What a turn offers the API that it can do without: the tools' examples, the tool search, the answer's format and its
+ * words as the operator's system message; and the answer tool (ASK_ANSWER_TOOL), which is never let go, so the tools
+ * it rebuilds keep it.
  */
 export interface Offer {
   examples: boolean;
   search: boolean;
   format: boolean;
+  words: boolean;
   readonly answer: boolean;
 }
 
-/** A refused part of the offer let go (dropFor): its flag off, and the tools as the API takes them now. */
-export function letGo(
+/** The tools as the API takes them (registry.ts). */
+type Tools = ReturnType<typeof toApiTools>;
+
+/**
+ * A refused part of the offer let go (dropFor): its flag off, and the request as the API takes it now: for a tool's
+ * part, the tools rebuilt; for the words, the messages with each said in the question again (contracts
+ * foldWordsMessages), where the edge or the model takes no system message of them.
+ */
+export function letGo<M>(
   offer: Offer,
-  drop: "examples" | "search" | "format",
+  drop: "examples" | "search" | "format" | "words",
   role: MembershipRole,
-): ReturnType<typeof toApiTools> {
+  now: { tools: Tools; messages: M[] },
+): { tools: Tools; messages: M[] } {
   offer[drop] = false;
-  return toApiTools(role, offer.examples, offer.search, offer.answer);
+  if (drop === "words")
+    return { tools: now.tools, messages: foldWordsMessages({ messages: now.messages }).messages as M[] };
+  return { tools: toApiTools(role, offer.examples, offer.search, offer.answer), messages: now.messages };
 }

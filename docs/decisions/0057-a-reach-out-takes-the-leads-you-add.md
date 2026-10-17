@@ -73,6 +73,15 @@ What it built (00426, 00427; the plan in `docs/superpowers/plans/2026-10-13-the-
   opens the sequence. A sequence's Add leads opens Leads with the pile set to add to it (a list-fed one; a search-fed one
   opens its search), and Needs review can be gone through under any search. The visit's origin was drawn beside it, on
   its own (#1654: the visit sheet's "Found as a lead").
+- **The lead sheet, 17 October 2026 (cm-lead-sheet):** canvas B's card is the panel of every lead opened on Leads, in
+  a pile and out of one, on a desk (a panel beside the rows) and a phone (the kit's sheet, two rests); the lead's old
+  panel is gone and its acts are kept (`peek/acts.tsx`). At half height the card: who, the fit as a meter (its word only
+  when it is news), the reason, its marks, three reach cells, then the block for the lead's state
+  (`leadSheetStateOf`): email 1 with Change opening in place, their steps in a sequence, a phone and no email, another
+  sequence that has them, what they wrote back, or what stopped. At full height five tabs: Why, Reach, Emails, About,
+  Activity. Under both a rail of three places for the state (`leadSheetRailOf`), Not a fit's reasons in its place;
+  the stage and Erase are its ⋯. The keys are named to a screen reader and listed in the ? sheet, and drawn nowhere
+  (canvas B), which takes back the keys drawn on the presses above.
 - **Call 8, as built (00430, 13 October 2026):**
   - What a lead is: `leads.kind` (place | company), `source` (the card or a file), `source_key` (a company's domain,
     one lead per workspace and source), and `facts` (the people a source named, five at most, and the addressee).

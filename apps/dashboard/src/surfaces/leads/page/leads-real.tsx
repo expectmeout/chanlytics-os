@@ -20,6 +20,7 @@ import { useLeadLists } from "../reach-out/lists";
 import { LeadsScope } from "../scope/scope";
 import { useLeadPileView } from "../pile/page-pile";
 import { useLeadPile } from "../pile/use-pile";
+import { useLeadAim } from "../sheet/use-aim";
 import { leadActs, type LeadActs } from "./acts";
 import { useLeadPeek, useLeadPeekAddress, type LeadsNav } from "./peek-hooks";
 import {
@@ -94,10 +95,12 @@ function useLeadsView({ leadsRoute, onNavigate }: { leadsRoute: string | null; o
   const { chip, setChip, fitChip, setFitChip, setBenchGroup, mapOpen, setMapOpen, setMapPick, setBulkWhy } = st;
   // The pile (00426): while it is on for the search the address names, the read is the database's pile order, with the
   // list its adds go to.
-  const pile = useLeadPile({ searches: leads.searches, flash: plFlash });
+  // Where Add goes, for the lead sheet and the pile alike (sheet/use-aim.ts: one choice, the door's answers kept by lead).
+  const aim = useLeadAim({ searches: leads.searches });
+  const pile = useLeadPile({ flash: plFlash, aim });
   const piled = pile.on && pile.searchId === leadView.searchId;
   const order = piled ? { sortBy: "pile", sortDir: "asc" } : { sortBy, sortDir };
-  const pileList = piled && pile.target ? pile.target.listId : null;
+  const pileList = piled && aim.target ? aim.target.listId : null;
   const read = useLeadsRead({ leadView, viewRoute, ...order, plFlash, pileList });
   const rows = useLeadRows({ leads, q, chip, fitChip, leadView, viewRoute, ...order });
   const { leadShown, shownIds, viewLanded } = rows;
@@ -149,7 +152,23 @@ function useLeadsView({ leadsRoute, onNavigate }: { leadsRoute: string | null; o
     setDraft: st.setDraft,
     nav,
   });
-  return { people, leads, swap, nav, leadView, viewRoute, hasCenter, controls, st, read, rows, place, deckMove, pile };
+  return {
+    people,
+    leads,
+    swap,
+    nav,
+    leadView,
+    viewRoute,
+    hasCenter,
+    controls,
+    st,
+    read,
+    rows,
+    place,
+    deckMove,
+    pile,
+    aim,
+  };
 }
 
 /**
@@ -157,7 +176,7 @@ function useLeadsView({ leadsRoute, onNavigate }: { leadsRoute: string | null; o
  * line, the open search's reach-out and the lists of one's own, the cells' context, and the strip's steps.
  */
 function useLeadsPage(v: ReturnType<typeof useLeadsView>, onOpenProfile: (id: string) => void): LeadsPage {
-  const { people, leads, swap, nav, leadView, hasCenter, controls, st, read, rows, place, deckMove, pile } = v;
+  const { people, leads, swap, nav, leadView, hasCenter, controls, st, read, rows, place, deckMove, pile, aim } = v;
   const { canExport, plFlash, setSel, setAllMatching, setSortBy, setSortDir, columns } = controls;
   const { peekId, setPeekId, finder, closeFinder, peekMode, setPeekMode, armed, setArmed } = st;
   const { values, lightboxId, setLightboxId } = st;
@@ -183,17 +202,16 @@ function useLeadsPage(v: ReturnType<typeof useLeadsView>, onOpenProfile: (id: st
   const openSearch = acts.searchById(leadView.searchId);
   // Leads while a reach-out writes (Reach out Part 6, H8): the open search's lines, or null. Present from the first draw.
   const reachOut = useReachOutLeads(openSearch ? openSearch.id : null);
-  // The pile (00426): where the rows stand while it is on, the door into it, and the keys it takes.
+  // The pile (00426): what the lead sheet draws of it while it is on, the door into it, and the keys it takes.
   const piled = useLeadPileView({
     pile,
+    aim,
     leads,
     openSearch,
     cls: leadView.cls,
     hasChain: !!(reachOut && reachOut.dto.lines),
     phone: !!controls.phone,
     setPeekId,
-    writeHeld: lists.writeTo,
-    call: callLead,
   });
   // What the keyboard's one listener reads (usePlPlace): Enter peeks the lead, and the Leads scope's own overlays.
   place.keysWith({
@@ -270,9 +288,10 @@ function useLeadsPage(v: ReturnType<typeof useLeadsView>, onOpenProfile: (id: st
     cellCtxLeads,
     reachOut,
     lists,
-    pileNode: piled.node,
-    pileSheet: piled.sheet,
+    pileSheet: piled.view,
+    pileUp: piled.up,
     pileDoor: piled.door,
+    aim,
   };
 }
 

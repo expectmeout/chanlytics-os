@@ -15,7 +15,12 @@
  *   leadCardMarksOf    what the reason rests on: each check as a mark, seen, read or couldn't tell
  */
 import { capitalize } from "../shared/words";
-import { REACH_OUT_OPENING_MARK, reachOutCardEmailOf, reachOutCardSlotsOf } from "../reach-out/reach-out-rules";
+import {
+  REACH_OUT_OPENING_MARK,
+  REACH_OUT_VALUE_MARKS,
+  reachOutCardEmailOf,
+  reachOutCardSlotsOf,
+} from "../reach-out/reach-out-rules";
 import type { SlotLead, SlotWorkspace } from "../reach-out/reach-out-rules";
 import { REACH_OUT_SLOT_SET } from "../reach-out/reach-out-words";
 import {
@@ -30,8 +35,12 @@ import type { ReachOutChainDto } from "../reach-out/reach-out-dtos";
 import type { LeadEmailState } from "./search/sets";
 import type { LeadPeekVM } from "./lead-peek";
 
-/** A piece of a card's email: words, the opening still to come, or a slot this lead has no value for. */
-export type LeadCardPart = { kind: "text"; text: string } | { kind: "opening" } | { kind: "gap"; label: string };
+/** A piece of a card's email: words, a value filled for this lead, the opening still to come, or a slot with no value. */
+export type LeadCardPart =
+  | { kind: "text"; text: string }
+  | { kind: "value"; text: string }
+  | { kind: "opening" }
+  | { kind: "gap"; label: string };
 
 /** The sequence the pile adds to, as much of it as the card reads. */
 export type LeadCardChain = Pick<
@@ -54,7 +63,7 @@ export interface LeadCardLead extends SlotLead {
  * The door's answer for this lead (00426 reach_out_add, dry: the one predicate, reach_out_why_not, then what only a list
  * can say): why it would not be added, and the sequence that has it when another does. Null: it would be added.
  */
-export type LeadCardCheck = Pick<ReachOutAddLeadDto, "why" | "chain_name"> | null;
+export type LeadCardCheck = (Pick<ReachOutAddLeadDto, "why" | "chain_name"> & { chain_id?: string | null }) | null;
 
 /** Where an address is what Add lacks, the door the card offers in its place: their phone, or someone else there. */
 export type LeadCardInstead = "call" | "choose" | null;
@@ -146,17 +155,29 @@ export const LEAD_CARD_TABS = [
 ] as const;
 export type LeadCardTab = (typeof LEAD_CARD_TABS)[number]["id"];
 
-export const LEAD_SHEET_WORDS = {
-  tabs: "About this lead",
-  raise: "Show everything about them",
-  lower: "Back to the card",
-} as const;
-
 /** A slot's label as a page calls it ("Title"), lower-cased for a sentence. */
 const slotLabel = (key: string): string => {
   const at = REACH_OUT_SLOT_SET.keys.indexOf(key);
   return (REACH_OUT_SLOT_SET.labels[at] || key).toLowerCase();
 };
+
+/** The values the fill marked, cut out of the words: text between them, and each value as a part of its own. */
+const VALUE_RE = new RegExp(
+  `${REACH_OUT_VALUE_MARKS[0]}([^${REACH_OUT_VALUE_MARKS[1]}]*)${REACH_OUT_VALUE_MARKS[1]}`,
+  "g",
+);
+function cardValuesOf(text: string): LeadCardPart[] {
+  const parts: LeadCardPart[] = [];
+  let from = 0;
+  for (const m of text.matchAll(VALUE_RE)) {
+    const at = m.index ?? 0;
+    if (at > from) parts.push(...gapsOf(text.slice(from, at)));
+    parts.push({ kind: "value", text: m[1] ?? "" });
+    from = at + m[0].length;
+  }
+  if (from < text.length) parts.push(...gapsOf(text.slice(from)));
+  return parts;
+}
 
 /** Words cut where a slot with no value still stands: text, and each such slot as a gap. */
 function gapsOf(text: string): LeadCardPart[] {
@@ -179,7 +200,7 @@ export function leadCardPartsOf(text: string): LeadCardPart[] {
   const pieces = text.split(REACH_OUT_OPENING_MARK);
   return pieces.flatMap((piece, i) => {
     const words = piece.replace(i > 0 ? /^\n+/ : /^/, "").replace(i < pieces.length - 1 ? /\n+$/ : /$/, "");
-    return [...(i > 0 ? [{ kind: "opening" } as const] : []), ...(words ? gapsOf(words) : [])];
+    return [...(i > 0 ? [{ kind: "opening" } as const] : []), ...(words ? cardValuesOf(words) : [])];
   });
 }
 

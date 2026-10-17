@@ -17,7 +17,6 @@ import { PeopleStanding } from "../../people/rail/standing";
 import { PeopleTable, type TableSection } from "../../people/table/table";
 import { LeadBand } from "../bench/band";
 import { LeadsBackToday } from "../pile/back-today";
-import { LeadPileSheet } from "../pile/sheet";
 import { LeadReviewBench } from "../bench/bench";
 import { LeadExcludedChips, LeadReviewGroups, ldExcludedChips } from "../bench/chips";
 import { LeadRowsCallMenu } from "../cells/call-menu";
@@ -31,7 +30,8 @@ import { LeadStrip } from "../finder/strip-view";
 import { LeadMap } from "../map/map";
 import { LeadPeekActions } from "../peek/acts";
 import { LeadLightbox } from "../peek/lightbox";
-import { LeadPeek } from "../peek/peek";
+import { LeadSheet } from "../sheet/sheet";
+import { peekVMFor } from "../surface";
 import type { LeadsScopeProps } from "../page/props";
 import { LeadsBulkBar } from "./bulk-bar";
 import { LeadsActs, LeadsControlsRight, LeadsHead } from "./controls";
@@ -290,8 +290,6 @@ const firstDayOf = (p: P, phone: boolean) => (
 const scopeBodyOf = (p: P, phone: boolean, table: ReactElement) => {
   const search = p.search;
   if (p.surface.readFailed) return <FailedRead kind="block" what="your leads" surface="leads" testid="leads-failed" />;
-  // The pile (00426): one lead at a time where the rows stand, while it is on.
-  if (p.pile) return p.pile;
   if (p.mapOpen && p.plot && p.plot.pins.length)
     return (
       <>
@@ -401,39 +399,39 @@ const peekActsOf = (p: P, vm: LeadPeekVM) =>
     expand: p.onExpandPhoto,
   });
 
-const peekOf = (p: P, phone: boolean) => {
-  if (!p.peek) return null;
-  return (
-    <LeadPeek
-      vm={p.peek}
-      mode={p.peekMode}
-      armed={p.armed}
-      draft={p.draft}
-      busy={p.bulkBusy}
-      deck={phone ? p.deck : null}
-      phone={phone}
-      {...peekActsOf(p, p.peek)}
-    />
-  );
-};
-
 /**
- * The pile on a phone (the lead workbench, canvas B): its sheet over the rows, its tabs drawn from the peek's parts with
- * the peek's own acts for the lead that is up, so a draft or a copy there is the peek's.
+ * The lead sheet (canvas B v2): the panel of every lead opened on Leads, in a pile and out of one. In a pile, its lead is
+ * the one up (on a desk the page's own peek follows it), and at the pile's end it says what happened; out of one, the
+ * lead the page opened. Its acts are the peek's, so a draft, a call or a copy there is the peek's.
  */
-const pileSheetOf = (p: P, phone: boolean) => {
-  const view = p.pileSheet;
-  if (!phone || !view) return null;
-  const vm = view.card ? view.card.peek : null;
+const sheetOf = (p: P, phone: boolean) => {
+  const pile = p.pileSheet;
+  const vm = pile ? (p.sheetRow ? peekVMFor(p.sheetRow.id) : null) : p.peek;
+  if (!vm && !pile) return null;
+  const on = vm ? peekActsOf(p, vm) : null;
   return (
-    <LeadPileSheet
-      view={view}
-      acts={vm ? peekActsOf(p, vm) : null}
+    <LeadSheet
+      row={p.sheetRow}
+      vm={vm}
+      phone={phone}
+      tz={p.tz}
       mode={p.peekMode}
+      armed={p.armed}
       draft={p.draft}
       busy={p.bulkBusy}
-      armed={p.armed}
-      deck={p.deck}
+      deck={pile ? null : p.deck}
+      on={on}
+      aim={p.aim}
+      searchWrites={p.searchWrites}
+      pile={pile}
+      monthLeft={p.monthLeft}
+      listId={p.listId}
+      flash={p.flash}
+      onClose={() => {
+        if (pile) pile.pile.stop();
+        if (on) on.onClose();
+      }}
+      writeHeld={p.writeHeld}
     />
   );
 };
@@ -515,8 +513,7 @@ const mainOf = (p: P, phone: boolean, railRows: ReactElement, sections: Sections
       {p.listsNode}
       {phone ? planSheetOf(p) : null}
       {(p.selectMode || (p.sel.size > 0 && p.rows.some((l) => p.sel.has(l.id)))) && bulkBarOf(p, phone)}
-      {peekOf(p, phone)}
-      {pileSheetOf(p, phone)}
+      {sheetOf(p, phone)}
       {/* The phone's rail, as a sheet from the bar's list button: the same rows, the same counts, the same searches and
           the same New search. People's, the kit's Sheet, in PL_OVERLAY while it is open, so the page's one listener holds
           still behind it. Last in the tree, after everything whose state a stub React keys by order. The photo,

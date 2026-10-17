@@ -35,8 +35,6 @@
   "apps/dashboard/src/surfaces/leads/finder/plan-card.tsx": 2,
   "apps/dashboard/src/surfaces/leads/finder/strip-view.tsx": 1,
   "apps/dashboard/src/surfaces/leads/map/map.tsx": 2,
-  "apps/dashboard/src/surfaces/leads/peek/hint.tsx": 1,
-  "apps/dashboard/src/surfaces/leads/peek/info.tsx": 1,
   "apps/dashboard/src/surfaces/leads/peek/lightbox.tsx": 1,
   "apps/dashboard/src/surfaces/live/list.tsx": 1,
   "apps/dashboard/src/surfaces/live/panel.tsx": 1,

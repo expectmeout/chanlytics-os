@@ -38,6 +38,8 @@ export {
   foldEffortMessages,
   isEffortMessage,
 } from "./effort";
+export { foldWordsMessages, isWordsMessage, wordsMessage } from "./words-message";
+export type { WordsMessage } from "./words-message";
 export type { EffortMessage } from "./effort";
 export {
   SYSTEM_ONE_MODEL,

@@ -522,7 +522,7 @@ const { PipelineScope } = await importSrc("apps/dashboard/src/surfaces/people/pi
 const { MoreMenu } = await importSrc("apps/dashboard/src/surfaces/kit/more-menu/more-menu.tsx");
 const { Confirm } = await importSrc("apps/dashboard/src/surfaces/kit/confirm/confirm.tsx");
 const { Icon } = await importSrc("apps/dashboard/src/surfaces/kit/icon/icon.tsx");
-const { LeadPeek } = await importSrc("apps/dashboard/src/surfaces/leads/peek/peek.tsx");
+const { LeadSheet } = await importSrc("apps/dashboard/src/surfaces/leads/sheet/sheet.tsx");
 const { standingSaid } = await importSrc("apps/dashboard/src/surfaces/kit/head/standing.ts");
 /**
  * What a person sees of the page on a desk: its tree, and what it said to the frame's head as its acts (an open search's
@@ -581,7 +581,9 @@ recorded.set(SharedMenu, {
 /** A switch of the Columns menu (people/table/columns-menu.tsx) as last drawn, flipped as Base UI's checkbox item flips it. */
 const flipColumn = (key) => menus.findLast((m) => m.title === "Columns").toggles.onToggle(key);
 recorded.set(Confirm, confirms);
-recorded.set(LeadPeek, peeks);
+// The lead's panel is the lead sheet (canvas B v2, sheet/sheet.tsx), handed the peek's state and its acts as `on`: read as
+// the peek was, its acts beside its state, for each lead it draws (none at a pile's end).
+recorded.set(LeadSheet, { push: (p) => (p.vm ? peeks.push({ ...p, ...(p.on ?? {}) }) : undefined) });
 recorded.set(LeadPlanPanel, panels);
 recorded.set(LeadStrip, strips);
 /** A kept search's menu, as the rail drew it. */
@@ -722,6 +724,8 @@ const serveRead = (path, query) => {
     return reply(200, { ok: true, data: { lines: null, chain: null, timeline: null } });
   if (path === "/api/v1/reach-outs/reach")
     return reply(200, { ok: true, data: { ready: 0, with_unconfirmed: 0, phone_only: 0, of: 0, chain: null } });
+  // The sequences Add can go to, read as the lead sheet first opens (sheet/use-aim.ts): none takes leads by hand here.
+  if (path === "/api/v1/reach-outs") return reply(200, { ok: true, data: { chains: [] } });
   // A person read ahead of a press (People's warmPeople, which the Pipeline's rows ask as they are rested on), who is not here.
   if (/^\/api\/v1\/contacts\/[^/]+$/.test(path)) return refusal(404, "not_found", `no ${path}`);
   unexpected.push(`GET ${path}`);
