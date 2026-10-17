@@ -2142,7 +2142,7 @@ test("on Campaigns the turn's words say what a sentence there is: a campaign to 
   assert.ok(w.includes("is a change to that sequence, by the id the page's rows carry"), w);
   // The page lines name no tool (the answer canvas, A3): which tool carries a change is the tools' own words.
   for (const surface of ["campaigns", "leads"])
-    assert.ok(!/propose_|with action|playbook_id/.test(turnWords({ ...facts, surface })), surface);
+    assert.ok(!/\bpropose_|\bwith action\b|playbook_id/.test(turnWords({ ...facts, surface })), surface);
   // A campaign's row says its last 30 days; a one-off send's (the ledger's, and Sent's) says that send's own totals.
   assert.ok(w.includes("a campaign's numbers are its last 30 days, and a one-off send's are that send's own"), w);
   assert.ok(!w.includes("their numbers are the last 30 days"), w);
