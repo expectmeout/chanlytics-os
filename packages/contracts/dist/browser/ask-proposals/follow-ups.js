@@ -32,3 +32,10 @@ export function followUpDue(f, w) {
   }
   return (w.replies.get(f.subject) ?? 0) > 0;
 }
+export const ASK_STYLE_PAGE = "ask_style";
+export const ASK_STYLE_MAX = 300;
+export function answerStyleOf(views) {
+  const page = views && typeof views === "object" ? views[ASK_STYLE_PAGE] : null;
+  const words = page && typeof page === "object" ? page.words : null;
+  return typeof words === "string" ? words.trim().slice(0, ASK_STYLE_MAX) : "";
+}

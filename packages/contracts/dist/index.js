@@ -15200,6 +15200,98 @@ var factSuggestionSpec = {
   open: () => "admin/autonomy"
 };
 
+// src/ask-proposals/follow-ups.ts
+var ASK_VIEW_PAGE = "ask";
+var ASK_FOLLOW_UPS_MAX = 3;
+var FOLLOW_UP_SAID_MAX = 100;
+var FOLLOW_UP_PROMPT_MAX = 200;
+var FOLLOW_UP_WAKES = ["search_done", "replies", "date"];
+var isWake = (v) => typeof v === "string" && FOLLOW_UP_WAKES.includes(v);
+var clipped = (v, max) => typeof v === "string" ? v.trim().slice(0, max) : "";
+function followUpOf(v) {
+  if (!v || typeof v !== "object") return null;
+  const r2 = v;
+  const id = clipped(r2.id, 40);
+  const said = clipped(r2.said, FOLLOW_UP_SAID_MAX);
+  const prompt = clipped(r2.prompt, FOLLOW_UP_PROMPT_MAX);
+  if (!id || !said || !prompt || !isWake(r2.wake)) return null;
+  const subject = clipped(r2.subject, 40) || null;
+  const on = typeof r2.on === "string" && /^\d{4}-\d{2}-\d{2}$/.test(r2.on) ? r2.on : null;
+  if (r2.wake === "date" ? !on : !subject) return null;
+  return { id, said, prompt, wake: r2.wake, subject, on, made_at: clipped(r2.made_at, 40) };
+}
+function followUpsOf(views) {
+  const ask = views && typeof views === "object" ? views[ASK_VIEW_PAGE] : null;
+  const list2 = ask && typeof ask === "object" ? ask.follow_ups : null;
+  return Array.isArray(list2) ? list2.map(followUpOf).filter((f) => f !== null) : [];
+}
+var SEARCH_WAKES = /* @__PURE__ */ new Set(["ended", "waiting_on_owner"]);
+function followUpDue(f, w) {
+  if (f.wake === "date") return !!f.on && f.on <= w.today;
+  if (!f.subject) return false;
+  if (f.wake === "search_done") {
+    const state = w.searches.get(f.subject);
+    return state !== void 0 && SEARCH_WAKES.has(state);
+  }
+  return (w.replies.get(f.subject) ?? 0) > 0;
+}
+var ASK_STYLE_PAGE = "ask_style";
+var ASK_STYLE_MAX = 300;
+function answerStyleOf(views) {
+  const page2 = views && typeof views === "object" ? views[ASK_STYLE_PAGE] : null;
+  const words3 = page2 && typeof page2 === "object" ? page2.words : null;
+  return typeof words3 === "string" ? words3.trim().slice(0, ASK_STYLE_MAX) : "";
+}
+
+// src/ask-proposals/follow-up.ts
+var listIn = (v) => Array.isArray(v) ? v : null;
+var followUpSpec = {
+  needs: "operator",
+  gate: "approve",
+  commit: ({ payload: pl }) => {
+    const list2 = listIn(pl.follow_ups);
+    return list2 ? { route: "PUT views/[page]", params: { page: ASK_VIEW_PAGE }, body: { view: { follow_ups: list2 } } } : refuseWith(PROPOSAL_WORDS.cannotApprove);
+  },
+  receipt: ({ payload: pl }) => pl.cleared === true ? "Done with it" : `I'll come back to it: ${asText(pl.said) || "when it happens"}`,
+  undo: {
+    label: () => "Undo",
+    window: "ten_minutes",
+    record: ({ payload: pl }) => {
+      const was = listIn(pl.previous);
+      return was ? { follow_ups: was } : null;
+    },
+    call: (u) => ({
+      route: "PUT views/[page]",
+      params: { page: ASK_VIEW_PAGE },
+      body: { view: { follow_ups: listIn(u.follow_ups) ?? [] } }
+    }),
+    receipt: () => "As it was"
+  },
+  open: () => null
+};
+var answerStyleSpec = {
+  needs: "operator",
+  gate: "approve",
+  commit: ({ payload: pl }) => ({
+    route: "PUT views/[page]",
+    params: { page: ASK_STYLE_PAGE },
+    body: { view: { words: asText(pl.words) } }
+  }),
+  receipt: ({ payload: pl }) => asText(pl.words) ? "Kept for your answers" : "Cleared",
+  undo: {
+    label: () => "Undo",
+    window: "ten_minutes",
+    record: ({ payload: pl }) => ({ words: asText(pl.previous) }),
+    call: (u) => ({
+      route: "PUT views/[page]",
+      params: { page: ASK_STYLE_PAGE },
+      body: { view: { words: asText(u.words) } }
+    }),
+    receipt: () => "As it was"
+  },
+  open: () => "admin/profile"
+};
+
 // src/ask-proposals/lists.ts
 var LIST_PART = 500;
 var namesIn = (d, k) => Array.isArray(d[k]) ? d[k].map(asText).filter(Boolean) : [];
@@ -22926,7 +23018,9 @@ var PAGE_SPECS = {
   // A booking the receptionist asked for, answered on Today, in the Inbox and on the Calendar (decision 0061).
   booking_request: bookingRequestSpec,
   // A note suggested from an owner's correction, kept or dismissed on Settings › Autonomy (decision 0063).
-  fact_suggestion: factSuggestionSpec
+  fact_suggestion: factSuggestionSpec,
+  // How a member likes Ask's answers, kept by Ask's card or on Settings › Profile (the answer canvas, D).
+  answer_style: answerStyleSpec
 };
 var more = {};
 function proposalSpec(kind) {
@@ -25987,69 +26081,6 @@ function planOf(intent, world) {
   return "refused" in read ? read : offerPlan(read, world);
 }
 
-// src/ask-proposals/follow-ups.ts
-var ASK_VIEW_PAGE = "ask";
-var ASK_FOLLOW_UPS_MAX = 3;
-var FOLLOW_UP_SAID_MAX = 100;
-var FOLLOW_UP_PROMPT_MAX = 200;
-var FOLLOW_UP_WAKES = ["search_done", "replies", "date"];
-var isWake = (v) => typeof v === "string" && FOLLOW_UP_WAKES.includes(v);
-var clipped = (v, max) => typeof v === "string" ? v.trim().slice(0, max) : "";
-function followUpOf(v) {
-  if (!v || typeof v !== "object") return null;
-  const r2 = v;
-  const id = clipped(r2.id, 40);
-  const said = clipped(r2.said, FOLLOW_UP_SAID_MAX);
-  const prompt = clipped(r2.prompt, FOLLOW_UP_PROMPT_MAX);
-  if (!id || !said || !prompt || !isWake(r2.wake)) return null;
-  const subject = clipped(r2.subject, 40) || null;
-  const on = typeof r2.on === "string" && /^\d{4}-\d{2}-\d{2}$/.test(r2.on) ? r2.on : null;
-  if (r2.wake === "date" ? !on : !subject) return null;
-  return { id, said, prompt, wake: r2.wake, subject, on, made_at: clipped(r2.made_at, 40) };
-}
-function followUpsOf(views) {
-  const ask = views && typeof views === "object" ? views[ASK_VIEW_PAGE] : null;
-  const list2 = ask && typeof ask === "object" ? ask.follow_ups : null;
-  return Array.isArray(list2) ? list2.map(followUpOf).filter((f) => f !== null) : [];
-}
-var SEARCH_WAKES = /* @__PURE__ */ new Set(["ended", "waiting_on_owner"]);
-function followUpDue(f, w) {
-  if (f.wake === "date") return !!f.on && f.on <= w.today;
-  if (!f.subject) return false;
-  if (f.wake === "search_done") {
-    const state = w.searches.get(f.subject);
-    return state !== void 0 && SEARCH_WAKES.has(state);
-  }
-  return (w.replies.get(f.subject) ?? 0) > 0;
-}
-
-// src/ask-proposals/follow-up.ts
-var listIn = (v) => Array.isArray(v) ? v : null;
-var followUpSpec = {
-  needs: "operator",
-  gate: "approve",
-  commit: ({ payload: pl }) => {
-    const list2 = listIn(pl.follow_ups);
-    return list2 ? { route: "PUT views/[page]", params: { page: ASK_VIEW_PAGE }, body: { view: { follow_ups: list2 } } } : refuseWith(PROPOSAL_WORDS.cannotApprove);
-  },
-  receipt: ({ payload: pl }) => pl.cleared === true ? "Done with it" : `I'll come back to it: ${asText(pl.said) || "when it happens"}`,
-  undo: {
-    label: () => "Undo",
-    window: "ten_minutes",
-    record: ({ payload: pl }) => {
-      const was = listIn(pl.previous);
-      return was ? { follow_ups: was } : null;
-    },
-    call: (u) => ({
-      route: "PUT views/[page]",
-      params: { page: ASK_VIEW_PAGE },
-      body: { view: { follow_ups: listIn(u.follow_ups) ?? [] } }
-    }),
-    receipt: () => "As it was"
-  },
-  open: () => null
-};
-
 // src/ask-proposals/lead-work.ts
 var openLead = ({ payload: pl }) => {
   const id = idIn(pl, "lead_id");
@@ -27891,8 +27922,8 @@ var ASK_GUIDE_PAGES = [
   {
     page: "Settings",
     route: "admin/workspace",
-    for: "What the receptionist knows and may do alone, your goal, connections, notifications, team and billing.",
-    verbs: ["settings", "policy", "invite", "follow_up", "fact_suggestion"],
+    for: "What the receptionist knows and may do alone, your goal, how you like answers (Profile), connections, notifications, team and billing.",
+    verbs: ["settings", "policy", "invite", "follow_up", "fact_suggestion", "answer_style"],
     pageOnly: [
       { what: "Connect WhatsApp, Google, a mailbox or a phone line", why: WHY.signIn },
       { what: "Billing and the plan", why: WHY.money },
@@ -58377,6 +58408,8 @@ export {
   ASK_SPEECH_MAX_CHARS,
   ASK_SPEED,
   ASK_SPOKEN_TURN_BUDGET_MS,
+  ASK_STYLE_MAX,
+  ASK_STYLE_PAGE,
   ASK_SURFACES,
   ASK_THREAD_ROUTES,
   ASK_THREAD_VERBS,
@@ -59597,6 +59630,7 @@ export {
   answerSaidOf,
   answerSoFar,
   answerSpoken,
+  answerStyleOf,
   answerText,
   answerWireOf,
   answerWords,

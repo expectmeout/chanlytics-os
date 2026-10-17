@@ -51,6 +51,22 @@
     }
   },
   {
+    "id": "canvas_style_keep_es",
+    "text": "De ahora en adelante, respóndeme siempre con viñetas cortas y las cifras en negrita.",
+    "surface": "today",
+    "expect": { "language": "es", "no_write": true, "proposals_any": ["answer_style"] }
+  },
+  {
+    "id": "canvas_style_keep_always",
+    "text": "Explain how the receptionist decides when to hand a conversation over to me.",
+    "surface": "today",
+    "expect": { "language": "en", "no_write": true },
+    "then": {
+      "text": "Every time I ask you something, keep it to two lines at most. Who needs me today?",
+      "expect": { "language": "en", "no_write": true, "proposals_any": ["answer_style"] }
+    }
+  },
+  {
     "id": "canvas_language_pt",
     "text": "Quem precisa de mim agora?",
     "surface": "today",

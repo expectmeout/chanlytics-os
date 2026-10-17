@@ -102,6 +102,7 @@ const KINDS = [
   "reach_out_said",
   "review_reply",
   "follow_up",
+  "answer_style",
   "teleport",
 ];
 
@@ -169,6 +170,7 @@ test("the gate each kind checks before Approve is the one it checked at a993b71d
     reach_out_said: "approve",
     review_reply: "approve",
     follow_up: "approve",
+    answer_style: "approve",
   });
 });
 
@@ -530,6 +532,7 @@ const SHAPES = {
       said: "the search",
     }),
   ],
+  answer_style: [card("answer_style", { words: "Short answers, in Spanish", previous: "" })],
 };
 
 /**
@@ -742,6 +745,7 @@ test("every kind has a spec -- the twenty-one Ask proposed and every page's verb
     reach_out_said: ["POST reach-outs/leads/[id]/said"],
     review_reply: ["POST google/reviews/[id]/reply"],
     follow_up: ["PUT views/[page]"],
+    answer_style: ["PUT views/[page]"],
   });
   for (const routes of Object.values(named)) for (const r of routes) assert.ok(ROUTE_KEYS.includes(r), r);
 });
@@ -750,7 +754,7 @@ test("a spec's `needs` is the policy role of every route it names; the exception
   for (const [kind, spec] of Object.entries(PROPOSAL_SPECS)) {
     for (const { route, by } of routesOf(kind)) {
       const role = POLICY[route]?.role;
-      if (kind === "follow_up") {
+      if (kind === "follow_up" || kind === "answer_style") {
         // Any member keeps their own views (PUT views/[page], a viewer's door); Ask's cards are an operator's and above,
         // since a viewer is offered no act (the operator, 15 Oct 2026).
         assert.deepEqual([route, role, spec.needs], ["PUT views/[page]", "viewer", "operator"]);

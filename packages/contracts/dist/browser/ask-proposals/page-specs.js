@@ -1,6 +1,7 @@
 import { ASK_UNDO_MS } from "../ask/ask.js";
 import { bookingRequestSpec } from "./inbox.js";
 import { factSuggestionSpec } from "./autonomy.js";
+import { answerStyleSpec } from "./follow-up.js";
 import { listMemberSpec } from "./lists.js";
 import {
   answerManySpec,
@@ -57,7 +58,9 @@ export const PAGE_SPECS = {
   // A booking the receptionist asked for, answered on Today, in the Inbox and on the Calendar (decision 0061).
   booking_request: bookingRequestSpec,
   // A note suggested from an owner's correction, kept or dismissed on Settings › Autonomy (decision 0063).
-  fact_suggestion: factSuggestionSpec
+  fact_suggestion: factSuggestionSpec,
+  // How a member likes Ask's answers, kept by Ask's card or on Settings › Profile (the answer canvas, D).
+  answer_style: answerStyleSpec
 };
 const more = {};
 export function proposalSpec(kind) {
