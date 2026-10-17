@@ -85,6 +85,25 @@ async function openServices(page: Page): Promise<Locator> {
 /** Every service the sheet is drawing, whatever the record came with: an added row is one more, never the only one. */
 const serviceRows = (page: Page): Locator => page.locator('[data-testid^="rec-service-"][data-rec-row]');
 
+/**
+ * Whether the sheet's rows scroll, asked once the sheet has come to rest: it glides to fit each row it is given, and
+ * measured mid-glide its rows overflowed for a moment and a loop adding them stopped short (17 Oct 2026).
+ */
+async function rowsScroll(body: Locator): Promise<boolean> {
+  const read = () => body.evaluate((el) => [el.scrollHeight, el.clientHeight].join(" "));
+  let was = await read();
+  await expect
+    .poll(async () => {
+      const now = await read();
+      const still = now === was;
+      was = now;
+      return still;
+    })
+    .toBe(true);
+  const [scroll, client] = was.split(" ").map(Number);
+  return scroll > client;
+}
+
 /** Add `n` services to the open sheet, each by the Add the sheet offers, and answer with how many rows there are. */
 async function addServices(page: Page, n: number): Promise<number> {
   const was = await serviceRows(page).count();
@@ -923,7 +942,7 @@ test.describe("Settings › Business on a real workspace", () => {
 
     // Enough rows that the list actually scrolls, then: the foot holds still under them. (The columns' head is not
     // drawn at this width -- the row's shape names them -- so there is nothing of it to hold.)
-    for (let i = 0; i < 12 && (await body.evaluate((el) => el.scrollHeight <= el.clientHeight)); i++) {
+    for (let i = 0; i < 12 && !(await rowsScroll(body)); i++) {
       await page.getByTestId("rec-services-add").click();
     }
     expect(
@@ -947,7 +966,7 @@ test.describe("Settings › Business on a real workspace", () => {
     await openRecord(page);
     await openServices(page);
     const body = page.locator(".rec-sheet-body");
-    for (let i = 0; i < 24 && (await body.evaluate((el) => el.scrollHeight <= el.clientHeight)); i++) {
+    for (let i = 0; i < 24 && !(await rowsScroll(body)); i++) {
       await page.getByTestId("rec-services-add").click();
     }
     expect(
