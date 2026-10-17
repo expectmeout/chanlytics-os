@@ -15,9 +15,13 @@
  * `tweaks-panel.jsx` outlived the file, and the harness threw on boot for as
  * long as it took anyone to look.
  *
- * So the two lists are asserted to be ONE list. Order is part of it — data
- * seeds globals that pages read at module scope — which makes "added at the
- * bottom" as loud as "not added at all".
+ * So the two lists were asserted to be ONE list, and then made one: since
+ * 17 October 2026 the harness's server writes the document's files and its
+ * stylesheets from the app's own lists (serve-legacy.mjs, legacyDocument), and
+ * `Chanlytics.html` keeps neither, nor a version of any file. The tests below
+ * hold what the server writes. Order is part of it — data seeds globals that
+ * pages read at module scope — which makes "added at the bottom" as loud as
+ * "not added at all".
  *
  * The bridge keeps two lists since the demo left the real one: `manifest.ts`,
  * every file a real workspace draws, and `manifest-demo.ts`, the mockup's own
@@ -27,9 +31,9 @@
  *
  * The stylesheets are one list too: the app imports them from one entry
  * (legacy-bridge/legacy.css, since Next orders nothing across imports) and the
- * harness links them one by one, the tokens first and the kit's right after
- * them. The kit's lives with the kit, outside this tree (src/surfaces/kit/), at
- * the one path the harness's server maps.
+ * document links them one by one in that order, the tokens first and the kit's
+ * right after them. The kit's lives with the kit, outside this tree
+ * (src/surfaces/kit/), at the one path the harness's server maps.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -56,11 +60,16 @@ import {
 import ts from "typescript";
 import { ROOT, readCode, readRaw } from "../_source.mjs";
 import { parse as parseTs } from "../_ast.mjs";
-import { serveStatic } from "../../serve-legacy.mjs";
+import { legacyDocument, send, serveStatic } from "../../serve-legacy.mjs";
 import { PEOPLE_GLOBALS } from "../../../../apps/dashboard/src/surfaces/people/people-globals.ts";
 
 const LEGACY = "apps/dashboard/src/legacy";
-const html = readRaw(`${LEGACY}/Chanlytics.html`);
+
+/** The document the harness serves, as its server writes it. */
+const html = legacyDocument();
+
+/** What the repository keeps of it: everything but the app's two lists, which the server writes in. */
+const template = readRaw(`${LEGACY}/Chanlytics.html`);
 
 /** The harness's own seed file, standing where the bridge puts seed-globals.ts. */
 const STUBS = "data/bridge-stubs.jsx";
@@ -69,7 +78,7 @@ const STUBS = "data/bridge-stubs.jsx";
 const DIRS = ["components", "data", "pages", "demo/data", "demo/pages"];
 const DIR = "(?:components|data|pages|demo\\/data|demo\\/pages)";
 
-/** Every `src="dir/file.jsx?v=N"` the harness loads, in order, without the cache-buster. */
+/** Every `src="dir/file.jsx"` the harness loads, in order. */
 const harness = [...html.matchAll(new RegExp(`<script[^>]*\\bsrc="(${DIR}\\/[^"?]+\\.jsx)[^"]*"`, "g"))].map(
   (m) => m[1],
 );
@@ -101,12 +110,12 @@ const onDisk = DIRS.flatMap((dir) =>
 
 test("a file of the mockup that exists is a file the harness loads", () => {
   const missing = onDisk.filter((f) => f !== STUBS && !harness.includes(f));
-  assert.deepEqual(missing, [], `Chanlytics.html has no <script> tag for: ${missing.join(", ")}`);
+  assert.deepEqual(missing, [], `the document has no <script> tag for: ${missing.join(", ")}`);
 });
 
 test("the harness loads nothing that is no longer on disk", () => {
   const gone = harness.filter((f) => !fs.existsSync(path.join(ROOT, LEGACY, f)));
-  assert.deepEqual(gone, [], `Chanlytics.html loads files that do not exist: ${gone.join(", ")}`);
+  assert.deepEqual(gone, [], `the document loads files that do not exist: ${gone.join(", ")}`);
 });
 
 test("the harness and the bridge load the same files in the same order: every workspace's, then the demo's", () => {
@@ -284,15 +293,17 @@ test("every page the route table draws through demoPage is one a file of the dem
   );
 });
 
-test("every script the harness loads is cache-busted", () => {
-  // Nothing here is fingerprinted and the mockup is served off a plain static
-  // server, so an edited file without a bumped ?v= is an edit the reviewer
-  // does not see. (The document itself is the one exception: a browser holding
-  // a stale Chanlytics.html is a hard reload, not a version.)
-  const bare = [...html.matchAll(new RegExp(`<script[^>]*\\bsrc="(${DIR}\\/[^"]+)"`, "g"))]
-    .map((m) => m[1])
-    .filter((s) => !s.includes("?v="));
-  assert.deepEqual(bare, [], `no ?v= on: ${bare.join(", ")}`);
+test("the document keeps no version and no copy of the app's lists: its server writes them, and answers no-store", () => {
+  // A ?v= bumped by hand on every edit was 401 of the document's 414 commits in the month to 17 October 2026, and every
+  // lane that touched the shell met in this one file. Nothing the server answers is kept by a browser, the document
+  // included, so no file needs a version.
+  assert.doesNotMatch(template, /\?v=/, "no file the document names carries a version");
+  const kept = [...template.matchAll(new RegExp(`<script[^>]*\\bsrc="(${DIR}\\/[^"]+\\.jsx)"`, "g"))].map((m) => m[1]);
+  assert.deepEqual(kept, [STUBS], "the one file of the tree it names by hand is the stand-ins', which the app has not");
+  assert.doesNotMatch(template, /<link rel="stylesheet" href="(?!https:)/, "and no stylesheet: legacy.css says those");
+  let headers;
+  send({ writeHead: (_status, h) => void (headers = h), end: () => {} }, 200, "text/html", "");
+  assert.equal(headers["cache-control"], "no-store, must-revalidate", "every answer is no-store");
 });
 
 /** The stub file is plain JS in an IIFE, so it runs against any object. */

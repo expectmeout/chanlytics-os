@@ -1,6 +1,7 @@
-/* The tokens, the kit and the shell's stylesheets, in the EXACT order Chanlytics.html
-   links them (repo/legacy-harness.test.mjs holds the two to one list) — Next.js does
-   not guarantee cross-import CSS order, so one entry file does. */
+/* The tokens, the kit and the shell's stylesheets, in their order — Next.js does
+   not guarantee cross-import CSS order, so one entry file does. The standalone
+   harness links the same list (tooling/scripts/serve-legacy.mjs writes
+   Chanlytics.html's links from these imports). */
 @import "../legacy/styles/tokens.css";
 @import "../surfaces/kit/kit.css";
 @import "../legacy/styles/components.css";

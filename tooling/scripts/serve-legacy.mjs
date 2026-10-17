@@ -1,23 +1,29 @@
 /**
- * The static server the standalone mockup is opened on.
+ * The static server the standalone mockup is opened on, and the one place its document is written.
  *
  * `python -m http.server` sends Last-Modified and NOTHING else, so a browser
  * applies heuristic freshness and serves `Chanlytics.html` from disk cache
  * without asking — for as long as a tenth of the document's age, which for a
- * file edited a few times a month is days. The `?v=N` convention protects
- * every script and stylesheet the document names; nothing protects the
- * document, and a stale one keeps a `<script>` tag for a file that was deleted
- * (`tweaks-panel.jsx`) and boots into a blank page with a ReferenceError. That
- * is not a bug anyone can find by reading the repo, because the repo is right.
+ * file edited a few times a month is days. A stale one keeps a `<script>` tag
+ * for a file that was deleted (`tweaks-panel.jsx`) and boots into a blank page
+ * with a ReferenceError. That is not a bug anyone can find by reading the repo,
+ * because the repo is right.
  *
- * So: no-store, everything, always. This serves a design review, not traffic.
+ * So: no-store, everything, always. This serves a design review, not traffic, and no file it serves carries a
+ * version: a `?v=N` on each script and stylesheet, bumped by hand on every edit, was 401 of the document's 414 commits
+ * in the month to 17 October 2026, and every lane that touched the shell met in that one file.
+ *
+ * The document is `Chanlytics.html` with the app's own lists written into it (legacyDocument below): the stylesheets
+ * legacy-bridge/legacy.css imports and the files legacy-bridge/manifest.ts and manifest-demo.ts load, in their order. A
+ * file is added to the app's list, and the mockup loads it from there.
  *
  * Six files are built rather than read: `data/kit-globals.js`, the kit's components the pages here still draw by name,
  * `data/inbox-globals.js`, the Inbox's and Conversations' seeded rows and rules under the names the pages here still read,
  * `data/people-globals.js`, People's parts the shell still draws by name (the strip's scopes and the deal and step sheets:
  * TSX since decision 0015, step 5), `data/leads-globals.js`, Leads' plan card, which Ask's palette draws by name,
  * `data/business-tab.js`, the Business tab's helpers, and `data/mascot.js`
- * (see SAMPLES below). Two are read from outside the tree: the kit's stylesheet and Campaigns' (OUTSIDE_CSS below).
+ * (see SAMPLES below). The stylesheets the app imports from outside the tree are read where the app has them (the kit's
+ * and Campaigns', outsideCss below).
  *
  *   node tooling/scripts/serve-legacy.mjs [port] [dir]
  */
@@ -200,25 +206,72 @@ export const send = (res, status, type, body) => {
   res.end(body);
 };
 
-/**
- * A file the document names from outside the mockup's tree: the kit's stylesheet, which lives with the kit and
- * which the app imports right after the tokens (legacy-bridge/legacy.css). Chanlytics.html links it in the same place,
- * as `surfaces/kit/kit.css`, so it is asked for at this path.
- */
-const KIT_CSS = { at: "/surfaces/kit/kit.css", file: path.join(REPO, "apps/dashboard/src/surfaces/kit/kit.css") };
+const SRC = path.join(REPO, "apps/dashboard/src");
+const LEGACY = path.join(SRC, "legacy");
+const BRIDGE = path.join(SRC, "legacy-bridge");
 
 /**
- * The other: Campaigns' stylesheet, which lives with its surface (a moved surface keeps its rules in its own folder, as
- * the kit does) and which the app imports right after components.css (legacy-bridge/legacy.css). Chanlytics.html links
- * it in the same place, as `surfaces/campaigns/campaigns.css`.
+ * The stylesheets the app imports, in its order, each as a path from src/: the shell's one entry, legacy-bridge/legacy.css
+ * (Next orders nothing across imports, so one file does). The tokens' and the shell's are under legacy/; the kit's and
+ * Campaigns' live with their surface (a moved surface keeps its rules in its own folder).
  */
-const CAMPAIGNS_CSS = {
-  at: "/surfaces/campaigns/campaigns.css",
-  file: path.join(REPO, "apps/dashboard/src/surfaces/campaigns/campaigns.css"),
-};
+const appStylesheets = () =>
+  [...fs.readFileSync(path.join(BRIDGE, "legacy.css"), "utf8").matchAll(/^@import "([^"]+)";/gm)].map((m) =>
+    path.relative(SRC, path.resolve(BRIDGE, m[1])).split(path.sep).join("/"),
+  );
 
-/** The stylesheets the document names from outside the mockup's tree, each at its one path. */
-const OUTSIDE_CSS = [KIT_CSS, CAMPAIGNS_CSS];
+/** Where the document asks for a stylesheet: its path under legacy/, or from src/ for one outside the tree. */
+const linkOf = (sheet) => (sheet.startsWith("legacy/") ? sheet.slice("legacy/".length) : sheet);
+
+/** The stylesheets the document names from outside the mockup's tree, each at its one path, and only those. */
+const outsideCss = () =>
+  appStylesheets()
+    .filter((sheet) => !sheet.startsWith("legacy/"))
+    .map((sheet) => ({ at: `/${sheet}`, file: path.join(SRC, sheet) }));
+
+/**
+ * The files of the shell the app loads, in its order, each as a path under legacy/: every workspace's (manifest.ts),
+ * then the demo's (manifest-demo.ts), which the app asks for only in a session that declared itself a demo, as the
+ * mockup is. Their order is the shared global scope's: data seeds globals that pages read at module scope. seed-globals
+ * is the app's own; the document's stand-ins (data/bridge-stubs.jsx and the bundles after it) stand where it does.
+ */
+const appScripts = () =>
+  ["manifest.ts", "manifest-demo.ts"].flatMap((list) =>
+    [...fs.readFileSync(path.join(BRIDGE, list), "utf8").matchAll(/^import "([^"]+)";/gm)]
+      .map((m) => m[1])
+      .filter((spec) => spec !== "./seed-globals")
+      .map((spec) => {
+        if (!spec.startsWith("@/legacy/")) throw new Error(`${list} imports ${spec}, which the mockup cannot load`);
+        return spec.slice("@/legacy/".length);
+      }),
+  );
+
+/** Where Chanlytics.html says each list goes. */
+const STYLESHEETS_HERE = "<!-- The app's stylesheets -->";
+const SCRIPTS_HERE = "<!-- The app's files -->";
+
+/**
+ * The mockup's document: Chanlytics.html with the stylesheets the app imports linked, and the files it loads named, each
+ * where the document says. Exported: the e2e harness serves this document too, and its kit gallery reads its links.
+ */
+export function legacyDocument() {
+  const at = (doc, marker, tags) => {
+    if (!doc.includes(marker)) throw new Error(`Chanlytics.html says nowhere where ${marker} go`);
+    return doc.replace(marker, tags.join("\n  "));
+  };
+  const template = fs.readFileSync(path.join(LEGACY, "Chanlytics.html"), "utf8");
+  return at(
+    at(
+      template,
+      STYLESHEETS_HERE,
+      appStylesheets().map((sheet) => `<link rel="stylesheet" href="${linkOf(sheet)}" />`),
+    ),
+    SCRIPTS_HERE,
+    appScripts().map((file) =>
+      file.endsWith(".jsx") ? `<script type="text/babel" src="${file}"></script>` : `<script src="${file}"></script>`,
+    ),
+  );
+}
 
 /**
  * Whether `file` is under `root`, compared as paths: `src/legacy-bridge` begins with the letters of `src/legacy`
@@ -231,12 +284,12 @@ const isUnder = (root, file) => {
 };
 
 /**
- * One file of the mockup, by its path under `root`, or one of OUTSIDE_CSS at its one path. Nothing else outside the
- * tree, whatever the path says. Exported for the e2e harness, which serves the same tree with its own routes in front
- * of it.
+ * One file of the mockup, by its path under `root`, or a stylesheet the app imports from outside the tree at its one
+ * path. Nothing else outside the tree, whatever the path says. Exported for the e2e harness, which serves the same tree
+ * with its own routes in front of it.
  */
 export function serveStatic(res, root, rel) {
-  const outside = OUTSIDE_CSS.find((css) => css.at === rel);
+  const outside = outsideCss().find((css) => css.at === rel);
   const file = outside ? outside.file : path.join(root, rel);
   if (!outside && !isUnder(root, file)) {
     res.writeHead(403).end("Forbidden");
@@ -254,8 +307,12 @@ export function serveStatic(res, root, rel) {
 function serve(port, root) {
   http
     .createServer((req, res) => {
-      // The query string is the cache-buster, never part of the path.
+      // A query string is never part of the path.
       const rel = decodeURIComponent((req.url || "/").split("?")[0]);
+      if (rel === "/" || rel === "/Chanlytics.html") {
+        send(res, 200, TYPES[".html"], legacyDocument());
+        return;
+      }
       if (SAMPLES[rel]) {
         sampleBundle(rel).then(
           (js) => send(res, 200, TYPES[".js"], js),
@@ -263,7 +320,7 @@ function serve(port, root) {
         );
         return;
       }
-      serveStatic(res, root, rel === "/" ? "/Chanlytics.html" : rel);
+      serveStatic(res, root, rel);
     })
     .listen(port, () => console.log(`Chanlytics mockup on http://localhost:${port}/Chanlytics.html (no-store)`));
 }

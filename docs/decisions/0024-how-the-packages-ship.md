@@ -179,3 +179,13 @@ wire changes.
   which is Settings' growth. The bundle check's "page own" sums count those copies, and it read +4 to +40 KB on most
   pages for this change while their visitors download less. The next lever is what the shell imports, not how
   contracts ships.
+
+- Whether `packages/db` should give each domain its own entry (`@chanlytics/db/leads` and the like), since its one
+  barrel, `src/index.ts` (some 550 names; 105 commits in the month to 17 October 2026), is where nearly every lane's new
+  name meets.
+
+  **Weighed on 17 October 2026 (the architecture review's candidate D) and not taken.** Splitting the barrel moves
+  names more than it gathers behaviour behind a smaller interface. The edge runs each package's built index by path
+  (step 1: one `export *` per package), so every new entry is a file the edge's functions must be told about. And a
+  barrel names each export (`repo/contracts-barrels.test.mjs`). Reopen it when merges in `index.ts` measurably keep
+  costing lanes.

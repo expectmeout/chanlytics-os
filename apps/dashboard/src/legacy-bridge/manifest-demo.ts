@@ -18,8 +18,8 @@
  *   - and the seed only they read (tasks-data).
  *
  * Loaded by manifest.ts, behind a dynamic import, after every file it lists, and only in a session that declared
- * itself a demo (window.__DEMO_MODE). Chanlytics.html, the standalone mockup, is such a session: it loads the files
- * manifest.ts lists and then these, and legacy-harness.test.mjs holds it to the two lists in that order.
+ * itself a demo (window.__DEMO_MODE). Chanlytics.html, the standalone mockup, is such a session: its server writes the
+ * files manifest.ts lists and then these into it (tooling/scripts/serve-legacy.mjs), in that order.
  */
 import "@/legacy/demo/data/clients-data.jsx";
 import "@/legacy/demo/data/people-data.jsx";
