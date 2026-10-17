@@ -386,7 +386,7 @@ interface StepsProps {
 }
 
 /** The sheet's target for the record's step open to be changed. */
-const targetOf = (editing: string): StepSheetTarget =>
+const sheetTargetOf = (editing: string): StepSheetTarget =>
   editing === "new" ? { kind: "new" } : { kind: "step", id: editing };
 
 /**
@@ -405,7 +405,7 @@ export function SequenceSteps({ rec, flash, moved, again, editing, onEditing, on
   // What the sheet holds, kept as it leaves; open is the schedule's, or the record's while it holds a step to change.
   const [held, setHeld] = useState<StepSheetTarget | null>(null);
   const [open, setOpen] = useState(false);
-  const target = editing ? targetOf(editing) : held;
+  const target = editing ? sheetTargetOf(editing) : held;
   const ctx: StepsCtx = { tz: rec.timezone, nowMs: Date.now(), lastRunFor: rec.last_run_for, people };
   const days = scheduleDays(rec.steps);
   const span = scheduleSpan(row, rec.steps);
