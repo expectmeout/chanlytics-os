@@ -745,11 +745,13 @@ test("a thread's bubbles name their wire only when its words went by more than o
   );
   assert.deepEqual(vm.channels, ["whatsapp", "phone"]);
   const tree = draw(vm);
-  const metas = all(tree, hasClass("tl-msg-meta")).map(textOf);
-  assert.ok(metas.length > 0, "the bubbles have their times");
+  // A real bubble's time is in its corner (the phone canvas, D1), and the wire's glyph joins it only for words that came
+  // another way than the thread's own.
+  const stamps = all(tree, hasClass("tl-stamp"));
+  assert.ok(stamps.length > 0, "the bubbles have their times");
   assert.ok(
-    metas.every((t) => !t.includes("WhatsApp")),
-    `REGRESSION: "WhatsApp" over every bubble of a thread with one call: ${metas.join(" | ")}`,
+    stamps.every((s) => !textOf(s).includes("WhatsApp") && !find(s, (n) => n.props?.["aria-label"] === "WhatsApp")),
+    `REGRESSION: "WhatsApp" on every bubble of a thread with one call: ${stamps.map(textOf).join(" | ")}`,
   );
   assert.equal(textOf(find(tree, hasClass("ix-th-meta"))), "WhatsApp · Phone", "the header names both, once");
 });

@@ -571,6 +571,7 @@ async function cancelSend(ports, cmd) {
 import {
   AppError as AppError8,
   firstNameOf,
+  inboxBlankOf,
   inboxSlots,
   isEmailStopped as isEmailStopped2,
   isOptedOutContact,
@@ -583,6 +584,8 @@ import {
   replyWindow,
   resolveParams,
   slotToWrite,
+  TEMPLATE_WORDS_MAX,
+  templateWords,
   MIN_MS
 } from "../../contracts/dist/index.js";
 var SEND_GRACE_MS = 15 * 1e3;
@@ -695,7 +698,16 @@ async function shapeTemplate(ports, conv, body) {
       "This template is a promotion, and this person has not said yes to offers. Use an appointment template, or ask them first."
     );
   }
-  const toWrite = slotToWrite(tpl);
+  const blank = inboxBlankOf(tpl);
+  const words = blank ? templateWords(body.template.words) : "";
+  if (blank && !words)
+    throw new AppError8(
+      "validation",
+      `Write the words for \u201C${blank.label}\u201D first: they go in the middle of the message.`
+    );
+  if (words.length > TEMPLATE_WORDS_MAX)
+    throw new AppError8("validation", `Keep the words for \u201C${blank?.label}\u201D under ${TEMPLATE_WORDS_MAX} characters.`);
+  const toWrite = blank ? null : slotToWrite(tpl);
   if (toWrite) {
     throw new AppError8(
       "validation",
@@ -708,7 +720,9 @@ async function shapeTemplate(ports, conv, body) {
       "validation",
       "This workspace has no template facts configured yet. Add the business name in Settings \u203A Business first."
     );
-  const slots = inboxSlots(tpl);
+  const slots = inboxSlots(tpl).map(
+    (s, at) => blank && at === blank.at ? { kind: "text", value: words } : s
+  );
   if (!facts.booking_link && slots.some((s) => s.kind === "booking_link"))
     throw new AppError8(
       "validation",

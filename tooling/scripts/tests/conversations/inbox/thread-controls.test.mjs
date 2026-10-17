@@ -402,29 +402,26 @@ test("Needs you: the pill its row wears and how long they have waited, in the ba
     find(standing, (n) => n.props?.kind === "thread" && n.props?.value === "escalated"),
     "the row's own pill, in the bar",
   );
-  assert.equal(textOf(find(standing, hasClass("ix-th-standing-meta"))), "waiting 40m");
+  assert.equal(textOf(find(standing, hasClass("ix-th-standing-meta"))), "· waiting 40m");
   const needs = find(tree, byTestId("ix-needs-you"));
-  assert.ok(needs, "the state line");
+  assert.ok(needs, "the dock over the reply box (the phone canvas, B1)");
   assert.equal(
     find(needs, (n) => n.props?.kind === "thread"),
     undefined,
     "REGRESSION: the pill said the state again by the reply box",
   );
-  const acts = find(needs, hasClass("ix-state-acts"));
+  const acts = find(needs, hasClass("notice-acts"));
   const answer = find(acts, (n) => n.type === "button" && textOf(n).includes("I'll answer this"));
   assert.ok(answer, "the act that answers it");
-  assert.ok(
-    hasClass("ix-state-go")(answer) && !hasClass("btn-primary")(answer),
-    "REGRESSION: a white slab beside the reply box's Send",
-  );
+  assert.ok(!hasClass("btn-primary")(answer), "REGRESSION: a white slab beside the reply box's Send");
   assert.ok(
     find(acts, (n) => n.type === "button" && textOf(n).trim() === "Hand back"),
     "and the way out",
   );
 });
 
-test("a teammate's thread wears the pill their row wears, in the bar, and offers nothing to take", () => {
-  globalThis.window.__TEAM = [{ id: "u-ana", name: "Ana García" }];
+test("a teammate's thread wears the pill their row wears, in the bar, and offers nothing to take -- the reply box says what a reply does", () => {
+  globalThis.window.__TEAM = [{ userId: "u-ana", email: "ana@example.com", displayName: "Ana García" }];
   const later = new Date(NOW.getTime() + 3_600_000).toISOString();
   try {
     const tree = draw(
@@ -440,9 +437,13 @@ test("a teammate's thread wears the pill their row wears, in the bar, and offers
       (n) => n.props?.kind === "thread" && n.props?.value === "theirs",
     );
     assert.ok(pill, "the row's pill");
-    const theirs = find(tree, byTestId("ix-theirs"));
-    assert.ok(theirs, "and what it means, by the reply box");
-    assert.equal(find(theirs, hasClass("ix-state-acts")), undefined, "nothing to take from them");
+    assert.equal(pill.props.label, "Ana García has it", "by their name, from the roster");
+    assert.equal(find(tree, hasClass("notice")), undefined, "nothing to take from them, and no block saying so");
+    assert.equal(
+      find(tree, (n) => n.type === "textarea" && hasClass("ix-composer-text")(n)).props.placeholder,
+      "Reply to take it from Ana García…",
+      "what it means, where a reply is written",
+    );
   } finally {
     globalThis.window.__TEAM = null;
   }
@@ -457,17 +458,13 @@ const quietConv = () =>
     ],
   });
 
-test("a quiet thread is one quiet sentence, in the bar under the header -- no pill, no acts, and nothing by the reply box", () => {
+test("a quiet thread, answered and owed nothing, says nothing: no bar under the header, and nothing by the reply box", () => {
+  // "Answered by the receptionist — no one asked for you." stood over every thread in the ordinary state; who had the
+  // last word is the conversation's own last bubble (the phone canvas, A1).
   const tree = draw(toInboxThreadVM(quietConv(), null, ZONE, NOW));
-  const words = find(tree, hasClass("ix-th-standing-words"));
-  assert.equal(textOf(words), "Answered by the receptionist — no one asked for you.");
-  assert.ok(hasClass("ok")(words), "in the tone of what it says");
+  assert.equal(find(tree, byTestId("ix-th-bar")), undefined, "no bar");
   assert.equal(find(tree, byTestId("ix-last-word")), undefined, "REGRESSION: the sentence sat by the reply box too");
-  assert.equal(
-    find(find(tree, byTestId("ix-th-status")), hasClass("ix-state")),
-    undefined,
-    "nothing left to say there",
-  );
+  assert.equal(find(find(tree, byTestId("ix-th-status")), hasClass("notice")), undefined, "nothing left to say there");
 });
 
 /* ------------------------------ where the conversation stands ------------------------------ */
@@ -495,16 +492,20 @@ test("the bar under the header says where the conversation stands and that the w
       .filter((k) => k && typeof k === "object")
       .map((k) => k.type?.name || k.props?.className || k.type);
     assert.deepEqual(rows.slice(0, 2), ["ThreadHeader", "ThreadBar"], `header, then the bar: ${rows.join(", ")}`);
-    assert.match(textOf(find(bar, byTestId("ix-th-standing"))), /^Needs youwaiting 40m$/);
-    assert.equal(textOf(find(bar, byTestId("ix-th-window"))), "Window closed");
+    assert.match(textOf(find(bar, byTestId("ix-th-standing"))), /^Needs you· waiting 40m$/);
+    // One quiet fact at the bar's end, a lock and its words, that opens why on a press (the phone canvas, A1): a dot in
+    // the warning's amber, "Window closed" and an underlined "Why?" made the bar 64px.
+    const shut = find(bar, (n) => n.type === "button" && byTestId("ix-th-window")(n));
+    assert.equal(textOf(shut).trim(), "Chat closed");
+    assert.equal(shut.props["aria-expanded"], false);
     assert.equal(find(bar, byTestId("ix-th-window-why")), undefined, "why, not until it is asked");
-    find(bar, (n) => n.type === "button" && textOf(n).trim() === "Why?").props.onClick();
+    shut.props.onClick();
     const opened = again(() =>
       InboxThread({ thread: toInboxThreadVM(closedConv(), asked, ZONE, NOW), channelLabels: labels }),
     );
     assert.equal(
       textOf(find(opened, byTestId("ix-th-window-why"))),
-      "The 24-hour WhatsApp window is closed — free-form replies can't be delivered. Approved templates only.",
+      "A day after their last message, WhatsApp delivers only an approved message. Sending one reopens the chat.",
     );
     // The reply box says none of it again: no red block, no "WhatsApp · to Rosa Díaz" under the header that names both.
     const box = find(opened, hasClass("ix-composer"));
@@ -514,7 +515,11 @@ test("the bar under the header says where the conversation stands and that the w
       undefined,
       "REGRESSION: the wire and the name, said again",
     );
-    assert.equal(textOf(opened).split("24-hour").length - 1, 1, "the window is said once, where it was asked for");
+    assert.equal(
+      textOf(opened).split("delivers only an approved message").length - 1,
+      1,
+      "the window is said once, where it was asked for",
+    );
     assert.match(textOf(box), /^No approved template yet — nothing can be sent until one is\.$/);
   } finally {
     setSurfaceValue("inbox", undefined);
@@ -547,7 +552,7 @@ test("the window is the bar's only while it is WhatsApp's to say: open, a text, 
   );
 });
 
-test("a reply that didn't send: the row's pill in the bar, and what it means by the reply box", () => {
+test("a reply that didn't send: the row's pill in the bar, and what it means on its own bubble, with Send again", () => {
   const failed = conv({
     state: "open",
     messages: [
@@ -558,9 +563,30 @@ test("a reply that didn't send: the row's pill in the bar, and what it means by 
   const tree = draw(toInboxThreadVM(failed, null, ZONE, NOW));
   const pill = find(find(tree, byTestId("ix-th-standing")), (n) => n.props?.kind === "tone");
   assert.ok(pill && pill.props.label === "Didn't send" && pill.props.value === "danger", "the pill its row wears");
-  const word = find(tree, byTestId("ix-last-word"));
-  assert.match(textOf(word), /They wrote last, and the reply from the receptionist didn't send/);
-  assert.ok(hasClass("danger")(word));
+  // When they were written, beside it (the phone canvas, A1): an older one says its day, as the row's time does.
+  const meta = (dto) =>
+    textOf(
+      find(
+        find(draw(toInboxThreadVM(dto, null, ZONE, NOW)), byTestId("ix-th-standing")),
+        hasClass("ix-th-standing-meta"),
+      ),
+    );
+  assert.match(meta(failed), /^· \d{1,2}:\d{2} [AP]M$/, "today: the time");
+  const lastWeek = conv({
+    state: "open",
+    messages: [
+      m("m1", 6 * DAY, { body: "Can I book at 3?" }),
+      m("m2", 6 * DAY - 1, { direction: "outbound", sender: "ai", body: "Booked!", status: "failed" }),
+    ],
+  });
+  assert.doesNotMatch(meta(lastWeek), /[AP]M$/, "days ago: the day, not a time that reads as today");
+  // What it means is said on the bubble that did not leave, with the way to send it again; a sentence by the reply box
+  // said it a third time.
+  assert.equal(find(tree, byTestId("ix-last-word")), undefined);
+  assert.equal(find(find(tree, byTestId("ix-th-status")), hasClass("notice")), undefined);
+  const bubble = find(tree, (n) => hasClass("tl-msg")(n) && textOf(n).includes("Booked!"));
+  assert.ok(find(bubble, (n) => n.props?.role === "img" && n.props?.["aria-label"] === "Didn't send"));
+  assert.ok(find(bubble, byTestId("tl-again-send")) && find(bubble, byTestId("tl-again-edit")));
 });
 
 test("a draft still waiting to go out is the thread's state: the bar says nothing over the countdown", () => {

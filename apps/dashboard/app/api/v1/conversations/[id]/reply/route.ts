@@ -38,6 +38,9 @@ const ReplyBody = z
         // Kept only so an older client's request still parses; the server
         // resolves params from the control plane and ignores these.
         params: z.array(z.string().max(1024)).max(10).optional(),
+        // The member's words for the template's one blank (contracts inboxBlankOf), and nothing else: the verb says
+        // them as WhatsApp takes a value and holds them under TEMPLATE_WORDS_MAX. Bounded here by what a value can hold.
+        words: z.string().max(1024).optional(),
       })
       .strict()
       .optional(),

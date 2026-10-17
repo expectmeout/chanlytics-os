@@ -43,7 +43,7 @@ copies                               67   of 19 names
 as unknown as                       123
 as never                             12
 non-null assertions, x!              95
-index reads the compiler lets pass  439   in 119 files
+index reads the compiler lets pass  437   in 118 files
 table names outside packages/db     419
 SQL functions outside packages/db   117   called by .rpc
 edge statements naming no workspace   27   in 14 files
@@ -58,8 +58,8 @@ literal style values                826   in 22 stylesheets
 primitives outside the kit         1568   selectors naming 673 classes
 inline style props                  191   in 46 files
 wire names not in snake_case         54   in 27 routes
-dead exports, types and modules     265
-source-text reads in tests          747
+dead exports, types and modules     264
+source-text reads in tests          742
 lint warnings                       318   in 133 files, 55 of them exhaustive-deps
 route JS ceiling, KB gzipped       1024   the shell included
 route CSS ceiling, KB gzipped       192

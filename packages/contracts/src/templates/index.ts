@@ -164,14 +164,18 @@ export {
 } from "./message-languages";
 export type { LanguageGroup, LanguageChoice } from "./message-languages";
 export {
+  inboxBlankOf,
+  inboxTemplateParts,
   inboxTemplates,
   inboxSlots,
   noTemplateWords,
   slotToWrite,
+  TEMPLATE_WORDS_MAX,
   templateHolds,
   templateOffered,
+  templateWords,
 } from "./inbox-templates";
-export type { InboxTemplateLike, TemplateHolds } from "./inbox-templates";
+export type { InboxBlank, InboxTemplateLike, TemplateHolds, TemplatePart } from "./inbox-templates";
 export {
   guessSlotKind,
   defaultSlotKinds,

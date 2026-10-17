@@ -132,23 +132,40 @@ test("the templates a person can be sent: every slot a fact the Inbox has, a pro
   assert.deepEqual(
     no.sendable.map((s) => [s.template.name, s.title, s.label]),
     [
+      ["quick_note", "A quick note", "A quick note"],
       ["booking_link", "Booking link", "Booking link"],
       ["save_our_number", "Save our number", "Save our number"],
     ],
     "a message is offered by its title: the language it is written in is not a choice a person makes",
   );
-  assert.equal(
-    no.hidden,
-    "Not offered: 2 that need words the Inbox doesn't ask for.",
-    "an offer and a note have words to write; the Inbox asks for none",
+  // One blank of words is the member's to write in the template box (the phone canvas, C1): a note is offered, with its
+  // blank, and first, since it answers whatever they asked; every other slot is a fact the Inbox has.
+  assert.deepEqual(
+    no.sendable.map((s) => [s.blank?.label ?? null, s.fits]),
+    [
+      ["The note", true],
+      [null, false],
+      [null, false],
+    ],
+    "REGRESSION: Daniela's price question could not be answered through the shut window -- the note was 'not offered'",
   );
+  assert.equal(no.hidden, "Not offered: 1 promotion (Rosa Díaz hasn't said yes to offers).");
   const yes = inboxTemplates([booking, offer, note, welcome], { who: "Rosa Díaz", offersOk: true });
   assert.deepEqual(
     yes.sendable.map((s) => s.title),
-    ["Booking link", "Welcome"],
+    ["A quick note", "Booking link", "This month's offer (earlier)", "Welcome"],
     "REGRESSION: a starter that opens with their first name was turned away for taking three values",
   );
-  assert.equal(yes.hidden, "Not offered: 2 that need words the Inbox doesn't ask for.");
+  assert.equal(yes.sendable[2].blank?.label, "The offer", "an offer's words are the member's to write");
+  assert.equal(yes.hidden, null);
+  // More than one blank, or a slot that is no fact and no words (a review link the Inbox does not keep), stays back.
+  const twoBlanks = tpl("two_notes", {
+    variables: valued("Dani", "Luna Studio", "we're open late.", "and on Sundays."),
+  });
+  assert.deepEqual(inboxTemplates([twoBlanks], { who: "Rosa Díaz", offersOk: false }), {
+    sendable: [],
+    hidden: "Not offered: 1 that needs words the Inbox doesn't ask for.",
+  });
   const promo = inboxTemplates([booking, tpl("welcome_new", { category: "marketing", variables: welcome.variables })], {
     who: "Rosa Díaz",
     offersOk: false,
@@ -181,6 +198,92 @@ test("the templates a person can be sent: every slot a fact the Inbox has, a pro
     inboxTemplates([tpl("unsynced", { variables: null })], { who: "Rosa Díaz", offersOk: false }).sendable.length,
     1,
     "a template whose slots were never recorded keeps the two the Inbox always sent",
+  );
+});
+
+test("a template's one blank of words is the member's: its slot, its label and its example -- never a second blank, a fact, or a slot that is no words", () => {
+  const { inboxBlankOf } = contracts;
+  assert.deepEqual(inboxBlankOf(note), {
+    at: 2,
+    label: "The note",
+    example: "we're open late on Thursdays this month.",
+  });
+  assert.deepEqual(
+    inboxBlankOf(
+      tpl("reservar_ahora", {
+        variables: [
+          { label: "Business name", position: 1 },
+          { label: "Offer", position: 2 },
+        ],
+      }),
+    ),
+    { at: 1, label: "Offer", example: null },
+    "a Meta template's own label, with no example",
+  );
+  assert.equal(inboxBlankOf(booking), null, "every slot a fact the Inbox has");
+  assert.equal(
+    inboxBlankOf(tpl("two_notes", { variables: valued("Dani", "Luna Studio", "we're open late.", "and on Sundays.") })),
+    null,
+    "two blanks: one box writes one",
+  );
+});
+
+test("a template's words as she will read them: her name and the business's facts filled in, the blank where its words go", () => {
+  const { inboxTemplateParts } = contracts;
+  const facts = { firstName: "Rosa", businessName: "Marisa's", bookingLink: "https://book.example.com/marisas" };
+  const said = { ...note, body_preview: "Hi {{1}}, a quick note from {{2}}: {{3}} Write back here." };
+  assert.deepEqual(inboxTemplateParts(said, facts), [
+    { words: "Hi " },
+    { words: "Rosa" },
+    { words: ", a quick note from " },
+    { words: "Marisa's" },
+    { words: ": " },
+    { blank: "The note" },
+    { words: " Write back here." },
+  ]);
+  assert.deepEqual(
+    // A workspace's own template, its slots named by Meta's labels (a starter's are its own).
+    inboxTemplateParts(
+      { ...booking, name: "book_with_us", body_preview: "Book with {{1}}: {{2}}" },
+      { ...facts, businessName: null },
+    )
+      .map((p) => p.words)
+      .join(""),
+    "Book with [Business name]: book.example.com/marisas",
+    "a fact the settings do not have is named, never invented; a link reads without its scheme",
+  );
+  assert.deepEqual(
+    inboxTemplateParts({ ...note, body_preview: "Hi {{1}}, a quick note." }, facts),
+    [{ words: "Hi " }, { words: "Rosa" }, { words: ", a quick note." }, { words: " " }, { blank: "The note" }],
+    "a preview read before its slots were: the blank goes after the words, so the box always has somewhere to write",
+  );
+  assert.deepEqual(inboxTemplateParts({ ...note, body_preview: null }, facts), [{ blank: "The note" }]);
+  assert.deepEqual(inboxTemplateParts({ ...booking, body_preview: null }, facts), [], "no words, and nothing to write");
+});
+
+test("what fits comes first, and a message for after a visit waits while their visit is ahead", () => {
+  const { inboxTemplates } = contracts;
+  const howDidItGo = tpl("after_visit_check", { variables: valued("Dani", "Luna Studio") });
+  const to = (visit) => ({ who: "Rosa Díaz", offersOk: false, visit });
+  const ahead = inboxTemplates([booking, howDidItGo, note], to("ahead"));
+  assert.deepEqual(
+    ahead.sendable.map((s) => [s.title, s.fits]),
+    [
+      ["A quick note", true],
+      ["Booking link", false],
+    ],
+    "REGRESSION: 'How did it go' stood first under a price question two days before the visit (I4)",
+  );
+  assert.equal(ahead.hidden, "Not offered: 1 for afterwards (Rosa Díaz's booking is ahead).");
+  assert.deepEqual(
+    inboxTemplates([booking, howDidItGo], to("behind")).sendable.map((s) => s.title),
+    ["Booking link", "How did it go"],
+    "after the visit, it is offered",
+  );
+  assert.deepEqual(
+    inboxTemplates([booking, howDidItGo], to(null)).sendable.map((s) => s.title),
+    ["Booking link", "How did it go"],
+    "no visit known: nothing is held back on a guess",
   );
 });
 
@@ -361,44 +464,89 @@ test("the composer names the channel and the number the way the header does", ()
   );
 });
 
-test("the template send is the reply box's capsule: the message it will send where the words go, a menu on it for the others that also says why the rest are not offered, and Send", () => {
+test("the template send is the reply box's capsule: the message it will send at its head, its sentence as they will read it with the member's words in its blank, a menu on its name for the others that also says why the rest are not offered, and Send", () => {
   const closed = toInboxThreadVM(conv(), asked(), ZONE, NOW);
   const menuIn = (tree) => find(tree, (n) => n.type === Menu);
-  // The message it will send: the menu's own button where there are others, else the words alone.
+  // The message it will send: the menu's own button where there are others, else the name alone.
   const nameOf = (tree) => {
     const menu = menuIn(tree);
     return textOf(menu ? menu.props.trigger : find(tree, hasClass("ix-tpl-name"))).trim();
   };
-  // The menu as the composer reads it: a "|" between two groups, a heading in [], the options of a set in ().
+  // The menu as the composer reads it: a "|" between two groups, a heading in [], the messages of a group in ().
   const shape = (menu) =>
     menu.props.groups.flatMap((g, i) => [
       ...(i ? ["|"] : []),
       ...(g.header ? ["[" + g.header + "]"] : []),
-      ...(g.choose ? ["(" + g.choose.options.map((o) => o.label).join(", ") + ")"] : []),
+      ...(g.items.length ? ["(" + g.items.map((o) => o.label).join(", ") + ")"] : []),
     ]);
+  const sendOf = (tree) => find(tree, hasClass("ix-composer-send"));
 
-  setTemplates([booking, offer, note]);
+  const noteSaid = {
+    ...note,
+    body_preview: "Hi {{1}}, a quick note from {{2}}: {{3}} Write back here if you have any questions.",
+  };
+  setTemplates([booking, offer, noteSaid]);
   let tree = composerOf(closed);
   assert.equal(
     find(tree, (n) => n.type === "select"),
     undefined,
     "REGRESSION: a select over the button, and its own row, for one message to send",
   );
-  assert.equal(nameOf(tree), "Booking link", "REGRESSION: 'Send booking link', whichever template was picked");
-  assert.ok(buttonsOf(tree).includes("Send"), "the reply box's own Send, at the capsule's end");
+  // What fits first: a note answers whatever they asked ("How did it go" stood first under a price question, I4).
+  assert.equal(nameOf(tree), "A quick note", "REGRESSION: 'Send booking link', whichever template was picked");
+  assert.ok(buttonsOf(tree).includes("Send"), "the reply box's own Send, at the capsule's foot");
   assert.ok(find(tree, hasClass("ix-composer-row")), "the same capsule the reply box is, not a box of its own");
-  // Why the rest are not offered is one tap away, in the menu beside the send, never a sentence under the reply box or a link.
+  assert.equal(textOf(find(tree, hasClass("ix-tpl-note"))), "Reopens the chat", "what sending it does");
+  // Why the rest are not offered is one tap away, in the menu on its name, never a sentence under the reply box or a link.
   assert.equal(find(tree, byTestId("ix-tpl-hidden")), undefined);
   assert.ok(!buttonsOf(tree).includes("Why?"), "the menu says it: no second control for it");
   assert.deepEqual(
     shape(menuIn(tree)),
-    ["[Not offered: 2 that need words the Inbox doesn't ask for.]"],
+    [
+      "[Fits now]",
+      "(A quick note)",
+      "|",
+      "[Others]",
+      "(Booking link)",
+      "|",
+      "[Not offered: 1 promotion (Rosa Díaz hasn't said yes to offers).]",
+    ],
     "REGRESSION: all seven were offered, and most would be refused",
+  );
+  const items = menuIn(tree).props.groups.flatMap((g) => g.items);
+  assert.equal(
+    items[0].meta,
+    "Hi Rosa, a quick note from [Business name]: [the note] Write back here if you have any questions.",
+    "each with what it says under its name: they were names alone, so a template went out unread",
+  );
+  assert.deepEqual(
+    items.map((o) => o.glyph.props.className),
+    ["", "ix-tpl-unpicked"],
+    "the chosen one ticked",
+  );
+  // Its sentence as she will read it, the member's words written in its blank, and Send waits for them.
+  const fill = find(tree, byTestId("ix-tpl-fill"));
+  const blank = find(fill, byTestId("ix-tpl-blank"));
+  assert.equal(blank.props.placeholder, "the note");
+  assert.match(textOf(fill), /^Hi Rosa, a quick note from \[Business name\]: .* Write back here/);
+  assert.equal(sendOf(tree).props.disabled, true, "nothing to send until the blank has words");
+  blank.props.onChange({ target: { value: "  $180 is our lowest,\n see you Tuesday! " } });
+  const sent = [];
+  tree = again(() =>
+    InboxComposer({ thread: closed, reply: "", onSend: (id, what) => void sent.push([id, what.words]) }),
+  );
+  assert.equal(sendOf(tree).props.disabled, false);
+  sendOf(tree).props.onClick();
+  assert.deepEqual(
+    sent,
+    [[closed.id, "$180 is our lowest, see you Tuesday!"]],
+    "the words, as WhatsApp takes a value: one line, single spaces",
   );
 
   setTemplates([booking]);
   tree = composerOf(closed);
   assert.equal(menuIn(tree), undefined, "one message and nothing held back: the send alone");
+  assert.equal(find(tree, byTestId("ix-tpl-blank")), undefined, "and a message with no blank asks for no words");
 
   setTemplates([booking, saveEs]);
   tree = composerOf(closed);
@@ -407,14 +555,15 @@ test("the template send is the reply box's capsule: the message it will send whe
     ["(Booking link, Save our number)"],
     "REGRESSION: booking_link · en_US; the menu lists messages, not languages",
   );
-  assert.deepEqual(menuIn(tree).props.groups[0].choose.value, "0");
   assert.equal(nameOf(tree), "Booking link", "REGRESSION: 'Send template', which said nothing of what it sends");
-  menuIn(tree).props.groups[0].choose.onChoose("1");
+  menuIn(tree).props.groups[0].items[1].onSelect();
   tree = again(() => InboxComposer({ thread: closed, reply: "", onSend() {} }));
   assert.equal(nameOf(tree), "Save our number", "the chosen message is the one the capsule names, and Send sends");
-  assert.equal(menuIn(tree).props.groups[0].choose.value, "1");
 
-  setTemplates([tpl("welcome_new", { category: "marketing", variables: welcome.variables }), note]);
+  const twoBlanks = tpl("two_notes", {
+    variables: valued("Dani", "Luna Studio", "we're open late.", "and on Sundays."),
+  });
+  setTemplates([tpl("welcome_new", { category: "marketing", variables: welcome.variables }), twoBlanks]);
   tree = composerOf(closed);
   assert.match(
     textOf(find(tree, hasClass("ix-tpl-none"))),

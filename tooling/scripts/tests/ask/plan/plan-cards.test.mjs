@@ -988,7 +988,7 @@ const planRequests = [];
  */
 const planTurn = (
   blocks,
-  { text = `I want to offer ${WORDS}`, role = "owner", ctx = null, language = "en", then = null } = {},
+  { text = `I want to offer ${WORDS}`, role = "owner", ctx = null, language = "en", then = null, waiting = null } = {},
 ) => {
   planRequests.length = 0;
   const rounds = [
@@ -1011,6 +1011,7 @@ const planTurn = (
       text,
       emit: (ev) => events.push(ev),
       now: NOW,
+      ...(waiting ? { waiting } : {}),
     },
     {
       round: async (c) => {
@@ -1389,4 +1390,31 @@ test("a setup's answer the model writes in Portuguese keeps the door the setup w
   assert.equal(r.answer.do.open?.now, false);
   assert.deepEqual(r.answer.do.next, [asked]);
   assert.equal(r.proposals.length, 1, "the win-back, the one card");
+});
+
+test("a setup asked again in the same thread makes none of its cards a second time: the plan's one card waits above, unpressed, so the call makes nothing and the model is told to name it (the evals, 16 Oct 2026: 6 times in 8 it was proposed again)", async () => {
+  const intent = { intent: "cover_journey", books: "discovery call", proposals: true };
+  const setup = { ...PLAN_CALL, json: JSON.stringify({ action: "offer", ...intent }) };
+  readerCache.clear();
+  const first = await planTurn([setup], { text: "Set up my campaigns" });
+  assert.equal(first.failed, false, JSON.stringify(first));
+  assert.equal(first.proposals.length, 1, "the win-back, the one card");
+  const [card] = first.proposals;
+  readerCache.clear();
+  const again = await planTurn([setup], {
+    text: "Set up my campaigns",
+    waiting: first.proposals,
+    then: [saidBeside(`Your setup is the “${card.title}” card above, one press away.`, "")],
+  });
+  assert.equal(again.failed, false, JSON.stringify(again));
+  assert.deepEqual(again.proposals, [], "nothing made twice");
+  assert.equal(again.answer.say.headline, `Your setup is the “${card.title}” card above, one press away.`);
+  const told = JSON.stringify(planRequests[1].messages);
+  assert.ok(told.includes("Already above in this thread, waiting for their press"), told.slice(-500));
+  assert.ok(told.includes(card.title), "named by its title");
+  // A card of another change waiting in the thread holds nothing back: the plan's card is made.
+  readerCache.clear();
+  const other = { ...card, payload: { ...card.payload, playbook_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" } };
+  const fresh = await planTurn([setup], { text: "Set up my campaigns", waiting: [other] });
+  assert.equal(fresh.proposals.length, 1, "a different change is no repeat");
 });

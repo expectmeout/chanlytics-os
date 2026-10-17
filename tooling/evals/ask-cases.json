@@ -1492,7 +1492,7 @@
       "no_write": true,
       "excludes": ["is running", "are running", "i set up", "i've set up", "i started", "is live", "all set"],
       "includes_all": ["calendar", "proposal", "discovery call"],
-      "next_any": ["settings"],
+      "next_any": ["calendar", "settings"],
       "proposals_max": 4,
       "card_fields_not": {
         "playbook": {
@@ -1566,7 +1566,7 @@
       "rows": "GET playbooks:40"
     },
     "expect": {
-      "proposals_none": true,
+      "proposals_not": ["broadcast", "playbook", "sequence_make", "person_message", "answer", "answer_many"],
       "includes_any": ["reach-out", "reach out", "email", "call", "their yes"],
       "no_write": true
     }

@@ -1136,6 +1136,16 @@ async function personIdsWaitingOnYou(db, tenantId, contactIds, nowMs) {
   }
   return new Set((await waitingOf(db, tenantId, [...latest.values()], nowMs)).map((t) => t.contact_id));
 }
+var CLOSED_HOLDS_MAX = 1e3;
+async function lastClosedHolds(db, tenantId, conversationIds) {
+  const newest = /* @__PURE__ */ new Map();
+  for (let i = 0; i < conversationIds.length; i += IN_CHUNK) {
+    const { data, error } = await db.from("escalations").select("conversation_id, reason, details, created_at, resolved_at").eq("tenant_id", tenantId).eq("state", "resolved").in("conversation_id", conversationIds.slice(i, i + IN_CHUNK)).order("created_at", { ascending: false }).limit(CLOSED_HOLDS_MAX);
+    if (error) throw new Error(`lastClosedHolds: ${error.message}`);
+    for (const r of data ?? []) if (!newest.has(r.conversation_id)) newest.set(r.conversation_id, r);
+  }
+  return [...newest.values()];
+}
 
 // src/repositories/people.ts
 var PEOPLE_PAGE = 1e3;
@@ -7062,6 +7072,7 @@ export {
   keepProviderEvent,
   keptPersonOf,
   knownThreads,
+  lastClosedHolds,
   lastInboundEmail,
   lastOutboundEmailSubject,
   leadAddressBounced,
