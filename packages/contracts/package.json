@@ -8,7 +8,7 @@
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "browser": "./dist/browser.js",
+      "browser": "./dist/browser/index.js",
       "import": "./dist/index.js",
       "default": "./dist/index.js"
     },
@@ -44,8 +44,12 @@
     },
     "./phone-app": "./src/mobile/phone-app.ts"
   },
+  "sideEffects": [
+    "./dist/*.js",
+    "./dist/browser/zod-config.js"
+  ],
   "scripts": {
-    "build": "node ../../tooling/scripts/lf-sources.mjs && tsup",
+    "build": "node ../../tooling/scripts/lf-sources.mjs && tsup && node ../../tooling/scripts/contracts-browser.mjs",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

@@ -1,7 +1,3 @@
-// src/zod-config.ts
-import { config } from "zod/v4/core";
-config({ jitless: true });
-
 // src/shared/time.ts
 var MIN_MS = 6e4;
 var HOUR_MS = 36e5;
@@ -122,9 +118,9 @@ var DOORS = ["whatsapp", "call", "form"];
 var STARTS = ["copy", "again", "google"];
 var NONE = { ad: null, compose: null, results: false };
 var isAdsParam = (param) => /^ads(:|$)/.test(param);
-function adsPreviewOf(config2) {
-  if (typeof config2 !== "object" || config2 === null || !("features" in config2)) return false;
-  const features = config2.features;
+function adsPreviewOf(config) {
+  if (typeof config !== "object" || config === null || !("features" in config)) return false;
+  const features = config.features;
   return typeof features === "object" && features !== null && "ads_preview" in features && features.ads_preview === true;
 }
 var adStartOf = (word) => STARTS.find((s) => s === word);
@@ -2199,7 +2195,7 @@ function firstMissing(acct, door, platform) {
 }
 var doorReady = (read, door) => platformsFor(door).some((p) => isConnected(read, p) && firstMissing(adAccountOf(read, p), door, p) === null);
 var firstReadyDoor = (read) => DOOR_ORDER.find((d) => doorReady(read, d)) ?? "whatsapp";
-var smallestPreset = (config2) => [...config2.presets].sort((a, b) => a.perDayMinor * a.days - b.perDayMinor * b.days).at(0);
+var smallestPreset = (config) => [...config.presets].sort((a, b) => a.perDayMinor * a.days - b.perDayMinor * b.days).at(0);
 function reachNoteOf(ad, read) {
   if (ad.door === "call") return ad.state === "review" ? REACH_NOTE.callChecking : REACH_NOTE.callApproved;
   const at3 = ad.lastArrivalAt;
@@ -4964,10 +4960,10 @@ function chooseOf(read) {
     }))
   }));
 }
-function noAdsOf(read, config2) {
+function noAdsOf(read, config) {
   const door = firstReadyDoor(read);
   const platform = platformsFor(door).at(0) ?? "meta";
-  const preset = smallestPreset(config2);
+  const preset = smallestPreset(config);
   const currency = read.accounts.find((a) => a.platform === platform)?.currency ?? ADS_DEFAULT_CURRENCY;
   const line = preset ? NO_ADS.line({
     door: DOOR[door].label,
@@ -5399,7 +5395,7 @@ var groupByOf = (read, by) => read.ads.length < ADS_GROUP_FROM ? null : {
     { value: "platform", label: GROUP.platform }
   ]
 };
-function adsModel(read, config2, by = "door") {
+function adsModel(read, config, by = "door") {
   const mode = pageModeOf(read);
   const p = pageTotals(read);
   const rv = readViewOf(read);
@@ -5425,7 +5421,7 @@ function adsModel(read, config2, by = "door") {
     noAds: null
   };
   if (mode === "v0") return { ...base, v0: v0Of(read) };
-  if (mode === "none") return { ...base, noAds: noAdsOf(read, config2) };
+  if (mode === "none") return { ...base, noAds: noAdsOf(read, config) };
   const tiles = tilesOf(read, rv.reading);
   return {
     ...base,
@@ -5858,9 +5854,9 @@ function notesOf(ad, o) {
   const end = o.lastEnd !== null && rule2.totalMaxDays !== null ? [evening, CHIPS.googleLastDay({ days: rule2.totalMaxDays, day: dayWord(o.lastEnd) })] : [evening];
   return { offer: [CHIPS.offer(p)], area, amount, end };
 }
-function areaOptions(ad, config2) {
+function areaOptions(ad, config) {
   if (ad.platform === "tiktok") return [];
-  return config2.areas.map((a) => ({
+  return config.areas.map((a) => ({
     miles: a.miles,
     label: areaWord({ kind: "radius", miles: a.miles }),
     people: a.people && ad.platform === "meta" ? CHIPS.areaPeople(a.people[0], a.people[1]) : null
@@ -6091,7 +6087,7 @@ function footOf(ad, mode) {
   return ad.madeHere ? [first, "edit"] : [first];
 }
 var reportRoute = (ad, read) => `reports/ads:${read.window.from}~${read.window.to}:ad:${ad.id}`;
-function adModel(ad, read, config2, saved) {
+function adModel(ad, read, config, saved) {
   const t = totalsOf(ad, read);
   const state = viewState(ad, read.today);
   const mode = drawerModeOf(ad);
@@ -6130,7 +6126,7 @@ function adModel(ad, read, config2, saved) {
     quiet: quietOf(ad),
     preview: adPreviewOf(ad, read),
     people: adPeopleOf(ad, t, { read, peopleTo: ADS_DOORS.people }),
-    edit: editOf(ad, t, { read, config: config2, saved }),
+    edit: editOf(ad, t, { read, config, saved }),
     endConfirm: DRAWER.menu.endConfirm(ad.name),
     confirm: {
       update: DRAWER.confirm.update({ owner, within: REVIEW_WITHIN[ad.platform] }),
@@ -6199,10 +6195,10 @@ function scheduleVM(draft, read) {
   const hint = !allowed ? NEW_AD.step4.openOnlyMeta : on ? NEW_AD.step4.openOnlyOn : NEW_AD.step4.openOnlyOff;
   return { kind: "switch", label: NEW_AD.step4.openOnly(read.business.hours), hint, on, locked: !allowed };
 }
-function budgetLines(draft, config2, o) {
+function budgetLines(draft, config, o) {
   const p = draft.platform;
   const rule2 = BUDGET_RULES[p];
-  const floor = config2.minPerDayMinor[p];
+  const floor = config.minPerDayMinor[p];
   const floorSaid = CHIPS.floor(p, floor === null ? null : moneyOf(floor, o.currency), rule2.totalMaxDays);
   const lines = [];
   if (draft.mode === "total") {
@@ -6393,8 +6389,8 @@ function baseDraft(read) {
     alsoGoogle: false
   };
 }
-function newAdDefaults(read, config2) {
-  const smallest = smallestPreset(config2);
+function newAdDefaults(read, config) {
+  const smallest = smallestPreset(config);
   return { ...baseDraft(read), presetId: smallest ? smallest.id : "own" };
 }
 var milesOf = (ad, fallback) => ad.area.kind === "radius" ? ad.area.miles : fallback;
@@ -6455,8 +6451,8 @@ function starterCopy(o) {
     thanks: PREVIEW.thanksOn
   };
 }
-function draftPlan(draft, read, config2) {
-  const preset = config2.presets.find((p) => p.id === draft.presetId);
+function draftPlan(draft, read, config) {
+  const preset = config.presets.find((p) => p.id === draft.presetId);
   const daily = preset ? preset.perDayMinor : draft.ownPerDayMinor;
   const days = preset ? preset.days : ADS_OWN_DAYS;
   const startDay = addDays(read.today, 1);
@@ -6493,8 +6489,8 @@ function mediaOf(draft) {
   if (draft.postId !== null) return { kind: "post", postId: draft.postId };
   return draft.format === "video" ? { kind: "video", label: "", vertical: true } : { kind: "photo", label: "" };
 }
-function draftAd(draft, read, config2, id) {
-  const plan = draftPlan(draft, read, config2);
+function draftAd(draft, read, config, id) {
+  const plan = draftPlan(draft, read, config);
   const service = draftService(draft, read);
   const account = adAccountOf(read, draft.platform);
   const typed = draft.name === null ? "" : draft.name.trim();
@@ -6534,8 +6530,8 @@ function draftAd(draft, read, config2, id) {
     days: []
   };
 }
-function presetsOf(draft, config2, o) {
-  return config2.presets.map((p) => {
+function presetsOf(draft, config, o) {
+  return config.presets.map((p) => {
     const totalMinor = p.perDayMinor * p.days;
     const endDay = addDays(o.startDay, p.days - 1);
     const perDay = perDayOf(p.perDayMinor, o.currency);
@@ -6550,14 +6546,14 @@ function ownRestOf(plan, currency) {
   const total = moneyOf(plan.budget.amountMinor, currency);
   return NEW_AD.step4.preset({ perDay, days: plan.days, total, end: dayWord(plan.endDay) });
 }
-function estimateOf(draft, config2, currency) {
+function estimateOf(draft, config, currency) {
   if (draft.platform === "tiktok") return null;
   if (draft.platform === "google") {
-    const g = config2.googleEstimate;
+    const g = config.googleEstimate;
     const [from, to] = g.perClickMinor;
     return NEW_AD.step4.googleEstimate({ clicks: g.clicks, from: moneyOf(from, currency), to: moneyOf(to, currency) });
   }
-  const preset = config2.presets.find((p) => p.id === draft.presetId);
+  const preset = config.presets.find((p) => p.id === draft.presetId);
   if (draft.mode !== "total" || !preset || !preset.estimate) return NEW_AD.step4.noEstimate;
   return NEW_AD.step4.estimate({ lo: preset.estimate[0], hi: preset.estimate[1], days: preset.days });
 }
@@ -6568,14 +6564,14 @@ function draftReady(draft, read, needs2) {
   if (bad) return { tone: "warn", said: reachLine(DRAWER.reach.needs(bad.text)), rows: rows2 };
   return { tone: "ok", said: NEW_AD.step5.ready(NEW_AD.step5.readyParts[draft.platform].join(" \xB7 ")), rows: rows2 };
 }
-function drawerOf(draft, ad, read, config2) {
-  const drawer = adModel(ad, read, config2);
+function drawerOf(draft, ad, read, config) {
+  const drawer = adModel(ad, read, config);
   if (draft.platform !== "meta" || draft.format !== "video") return drawer;
   return { ...drawer, preview: { ...drawer.preview, frame: "video", frames: [] } };
 }
-function newAdModel(draft, read, config2) {
-  const plan = draftPlan(draft, read, config2);
-  const ad = draftAd(draft, read, config2, "new-ad");
+function newAdModel(draft, read, config) {
+  const plan = draftPlan(draft, read, config);
+  const ad = draftAd(draft, read, config, "new-ad");
   const owner = PLATFORM_OWNER[draft.platform];
   const within2 = REVIEW_WITHIN[draft.platform];
   const totalMinor = plan.budget.mode === "total" ? plan.budget.amountMinor : null;
@@ -6590,7 +6586,7 @@ function newAdModel(draft, read, config2) {
   const checked = checkedOf({ draft, ad, read, needs: needs2 });
   return {
     ad,
-    drawer: drawerOf(draft, ad, read, config2),
+    drawer: drawerOf(draft, ad, read, config),
     name: NEW_AD.name(ad.offer, dayShort(plan.startDay)),
     sentence: sentenceParts({
       offer: ad.offer,
@@ -6603,12 +6599,12 @@ function newAdModel(draft, read, config2) {
       endDay: totalMinor === null ? null : plan.endDay,
       chips: "new"
     }),
-    presets: presetsOf(draft, config2, { startDay: plan.startDay, currency: ad.currency }),
+    presets: presetsOf(draft, config, { startDay: plan.startDay, currency: ad.currency }),
     ownRest: ownRestOf(plan, ad.currency),
     ownUnit: NEW_AD.step4.ownUnit(currencySymbol(ad.currency)),
-    estimate: estimateOf(draft, config2, ad.currency),
+    estimate: estimateOf(draft, config, ad.currency),
     history: earlier ? NEW_AD.step4.history(earlier.each, earlier.people) : null,
-    lines: budgetLines(draft, config2, { perDay, currency: ad.currency }),
+    lines: budgetLines(draft, config, { perDay, currency: ad.currency }),
     forecast: totalMinor === null ? NEW_AD.step5.forecastDaily({ owner, within: within2, perDay }) : NEW_AD.step5.forecast({ owner, within: within2, perDay, total: say2(totalMinor), end: dayWord(plan.endDay) }),
     turnOn: totalMinor === null ? NEW_AD.turnOnDaily(perDay) : NEW_AD.turnOnTotal(say2(totalMinor)),
     needs: needs2,
@@ -7852,7 +7848,7 @@ function emptyOf(o) {
   const words3 = lensEmpty("ads", { since: dayShort(o.window.from), until: dayShort(o.window.to) });
   return { title: words3.title, body: words3.body };
 }
-function adsResultsOf(read, config2, at3) {
+function adsResultsOf(read, config, at3) {
   const window = resultsWindowOf(read, at3);
   const ads = adsOf(read, at3.scope);
   const scoped = {
@@ -7889,7 +7885,7 @@ function adsResultsOf(read, config2, at3) {
   };
   const empty = emptyOf({ read, ads, window, quiet });
   if (empty) return { ...base, ...RESULTS_NOTHING, empty, head: null, theirs: { cards: [], why: null } };
-  const model = adsModel(scoped, config2);
+  const model = adsModel(scoped, config);
   return {
     ...base,
     empty: null,
@@ -24070,8 +24066,8 @@ function parseTenantConfig(raw) {
   const r2 = parseTenantConfigResult(raw);
   return r2.ok ? r2.config : null;
 }
-function withFirstAlertAddress(config2, email) {
-  const current = parseTenantConfigResult(config2 ?? {});
+function withFirstAlertAddress(config, email) {
+  const current = parseTenantConfigResult(config ?? {});
   if (!current.ok || current.config.notifications) return null;
   const address = normalizeEmail(email);
   if (!address) return null;
@@ -24079,7 +24075,7 @@ function withFirstAlertAddress(config2, email) {
     ...current.config,
     notifications: { escalation_emails: [address] }
   });
-  return next.success ? withStoredKeysKept(next.data, config2) : null;
+  return next.success ? withStoredKeysKept(next.data, config) : null;
 }
 
 // src/ask/ask-schemas.ts
@@ -24950,15 +24946,15 @@ function askCallOutcome(v) {
 
 // src/ask/ask-settings-change.ts
 var NOTE_TEXT_SAID_MAX = 160;
-function applySettingsChange(config2, change) {
+function applySettingsChange(config, change) {
   if (change.op === "set_goal") {
-    const ask = { ...config2.ask ?? {} };
+    const ask = { ...config.ask ?? {} };
     const goal = change.goal.trim();
     if (goal) ask.goal = goal;
     else delete ask.goal;
-    return { ...config2, ask };
+    return { ...config, ask };
   }
-  const brain = { ...config2.brain ?? {} };
+  const brain = { ...config.brain ?? {} };
   const profile = { ...brain.profile ?? {} };
   switch (change.op) {
     case "add_closure": {
@@ -24991,7 +24987,7 @@ function applySettingsChange(config2, change) {
     }
   }
   brain.profile = profile;
-  return { ...config2, brain };
+  return { ...config, brain };
 }
 function describeSettingsChange(change) {
   switch (change.op) {
@@ -27646,11 +27642,11 @@ var settingsSpec = {
     const st = tab.settings;
     if (!st || !st.config || typeof st.version !== "number")
       return refuseWith("Settings are not loaded yet \u2014 open Settings once and try again.");
-    const config2 = applySettingsChange(
+    const config = applySettingsChange(
       st.config,
       p.payload.change
     );
-    return { route: "PUT settings", body: { config: config2, version: st.version } };
+    return { route: "PUT settings", body: { config, version: st.version } };
   },
   receipt: (p) => p.summary,
   undo: {
@@ -39060,13 +39056,13 @@ function numberHealthWithStanding(health, standing2) {
   const row2 = standing2 ? standingRow(standing2) : null;
   return row2 ? { ...health, canSend: false, tone: "danger", refusal: row2.sentence } : health;
 }
-function numberHealthOfConfig(config2) {
+function numberHealthOfConfig(config) {
   const s = (key) => {
-    const value = config2[key];
+    const value = config[key];
     return typeof value === "string" ? value : null;
   };
   const health = numberHealth({ quality: s("quality_rating"), event: s("quality_event"), limit: s("messaging_limit") });
-  return numberHealthWithStanding(health, standingFromConfig(config2.standing));
+  return numberHealthWithStanding(health, standingFromConfig(config.standing));
 }
 var CAN_SEND_WORDS = {
   AVAILABLE: "can send",

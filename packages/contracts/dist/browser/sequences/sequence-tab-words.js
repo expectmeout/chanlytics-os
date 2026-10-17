@@ -1,0 +1,226 @@
+import { toSendRowOf } from "../reach-out/reach-out-approval.js";
+import { leadDoorOf } from "../reach-out/reach-out-sheet.js";
+import { HOLD_DOOR_WORDS, holdDoors, holdWords, isReachOutHold } from "../reach-out/reach-out-words.js";
+import { REPORT_MIN_N } from "../reports/report-tiles.js";
+import { zoneDayKey } from "../shared/clock.js";
+import { pct } from "../shared/numbers.js";
+import { plural } from "../shared/words.js";
+import { DAY_MS } from "../shared/time.js";
+export const SEQUENCE_EDIT_WORDS = {
+  after: "After the step before",
+  days: (n) => n === 1 ? "1 day" : `${n} days`,
+  only: "Only",
+  /** What must still hold for a step after the first to go, as the editor offers it. */
+  holds: {
+    always: "Whatever they did since",
+    no_booking: "If they haven\u2019t booked",
+    no_reply: "If they haven\u2019t written back",
+    neither: "If they haven\u2019t booked or written back"
+  },
+  message: "Message",
+  value: (at) => `Value ${at + 1}`,
+  cancel: "Cancel",
+  save: "Save",
+  add: "Add the step",
+  previewAs: "As one person reads it",
+  oneEach: "Each person gets one version, on the channel they are reached on.",
+  inMessages: "Change the words in Messages",
+  /** The words written where the step is read (the canvas's step editor): the message's own pane, in place of its preview. */
+  editHere: "Edit the words here",
+  previewBack: "Back to the preview",
+  /** Who the preview is read as: the example, or someone of the batch that waits (the canvas's "As Ana Morales"). */
+  as: "As",
+  example: (name) => `${name}, an example`,
+  /** Who gets which: "Ana gets it on WhatsApp." */
+  getsIt: (name, on) => `${name} gets it ${on.charAt(0).toLowerCase()}${on.slice(1)}.`,
+  noFirstName: "No first name on file: the message opens \u201CHi there\u201D.",
+  savedIn: (title) => `\u201C${title}\u201D, saved in Messages`,
+  noMessages: "No message is ready to send yet. Write one in Messages first.",
+  /** What a save reaches: a wait counts from each person's next send; new words go once WhatsApp approves them. */
+  reaches: (first) => first ? "Your change reaches the next batch" : "Your change reaches everyone who gets the step before from now; anyone already waiting keeps their day",
+  whatsAppFirst: "WhatsApp reviews new words first; until it approves them, the step keeps the words approved now"
+};
+export const SEQUENCE_NEEDS_WORDS = {
+  title: "Needs you",
+  held: "Held by the check",
+  sendAll: (n) => n === 1 ? "Send it as it is" : `Send all ${n} as they are`,
+  sending: "Sending\u2026",
+  wentAll: (n) => n === 1 ? "1 email goes as it is" : `${n} emails go as they are`,
+  toSend: "For you to send from your inbox",
+  oneByOne: "Send them one by one",
+  reading: "Reading what it holds\u2026",
+  /** What a failed read could not read: "Couldn't read this batch's emails". */
+  failed: "this batch\u2019s emails",
+  /** A batch whose emails to send this read carries no draft of: its run's sheet in Sent lays them out. */
+  inSent: "Open their run"
+};
+export function peopleNeedsOf(rows, at) {
+  const held = rows.flatMap((r) => {
+    const reason = r.why;
+    if (r.group !== "held" || !r.send_id || !isReachOutHold(reason)) return [];
+    return [
+      {
+        id: r.send_id,
+        name: r.name ?? SEQUENCE_PEOPLE_WORDS.someone,
+        to: r.lead_id ? leadDoorOf(r.lead_id) : null,
+        why: holdWords(reason, r.hold_detail),
+        doors: holdDoors(reason).map((d) => [d, HOLD_DOOR_WORDS[d]]),
+        batchId: r.batch_id
+      }
+    ];
+  });
+  const handed = rows.filter((r) => r.group === "to_send" && r.send_id && r.lead_id);
+  const toSend = handed.flatMap(
+    (r) => r.draft && r.send_id && r.lead_id ? [
+      {
+        ...toSendRowOf(
+          {
+            send_id: r.send_id,
+            lead_id: r.lead_id,
+            business_name: r.name ?? SEQUENCE_PEOPLE_WORDS.someone,
+            angle: r.draft.angle,
+            to: r.draft.to,
+            subject: r.draft.subject,
+            text: r.draft.text,
+            drafted_at: r.draft.drafted_at,
+            follow_up: r.draft.follow_up
+          },
+          at
+        ),
+        batchId: r.batch_id
+      }
+    ] : []
+  );
+  const unread = [...new Set(handed.filter((r) => !r.draft && r.batch_id).map((r) => r.batch_id ?? ""))];
+  return { held, asIs: held.filter((h) => h.doors.some(([d]) => d === "include")), toSend, unread };
+}
+export const SEQUENCE_PEOPLE_WORDS = {
+  nobody: "Nobody is in it yet.",
+  failed: "who is in it",
+  someone: "Someone",
+  step: (place) => `step ${place}`,
+  takeOut: "Take out",
+  takeOutAll: (n) => `Take these ${n} out`,
+  more: (n) => `and ${n} more`,
+  /** A fold of people still to hear from it: when the soonest of them goes. */
+  next: (when) => `next ${when}`,
+  /** Why someone finished with no reason of their own: they had the last step. */
+  lastStep: "had the last step"
+};
+export const SEQUENCE_HISTORY_PERIODS = [
+  { id: "30", label: "30 days", days: 30 },
+  { id: "90", label: "90 days", days: 90 },
+  { id: "all", label: "All", days: null }
+];
+export const SEQUENCE_HISTORY_WORDS = {
+  period: "Over",
+  inReports: "Open in Reports",
+  dayByDay: "Day by day",
+  nothing: "Nothing has gone out yet.",
+  nothingIn: "Nothing went out in these days.",
+  older: "Older",
+  replies: "What came back",
+  noReplies: "Nobody has written back to this one yet.",
+  everyone: (n) => `All ${n} who got it`,
+  openRun: "Open the run",
+  thread: "Thread",
+  waits: "Waits for you",
+  counting: "Counting\u2026",
+  step: (place) => `step ${place}`,
+  reading: "Reading the day\u2026",
+  /** What a failed read could not read: "Couldn't read this day". */
+  failed: "this day",
+  /** How many days the counted batches went on: "26 days it sent". */
+  days: (n) => n === 0 ? "" : `${plural(n, "day")} it sent`,
+  /** The door to the Inbox over the same days (sequenceRepliesRoute): "All 41 replies in the Inbox". */
+  inInbox: (n) => n === 1 ? "Its reply in the Inbox" : `All ${n} replies in the Inbox`
+};
+export const SEQUENCE_REPLIES_WORDS = {
+  period: { "30": "the last 30 days", "90": "the last 90 days", all: "since it began" },
+  line: (name, period, n) => n === 0 ? `Nobody wrote back to ${name} in ${SEQUENCE_REPLIES_WORDS.period[period]}` : `${plural(n, "reply", "replies")} to ${name}, ${SEQUENCE_REPLIES_WORDS.period[period]}`,
+  /** Some of them are older than the threads the Inbox holds: "9 of them are here; the rest are older". */
+  shown: (here, n) => here === n ? null : `${here} of them are here; the rest are older`,
+  reading: "Reading its replies\u2026",
+  failed: "its replies",
+  leave: "Show every thread"
+};
+const DEFINITIONS = {
+  sent: "Messages that left, one a person a step. Held, skipped and failed sends are not counted.",
+  delivered: "Of those sent, the share the channel says reached the person: WhatsApp's and a text's receipts, an email accepted.",
+  read: "WhatsApp's own read receipt. Email and text do not say when they are read, so they are not counted here.",
+  replied: "People who wrote back in their own words within three days of the message, as Reports counts them."
+};
+export const batchWent = (b) => b.state === "sent" || b.state === "sending" || b.state === "failed";
+export function historySince(period, tz, nowMs) {
+  const p = SEQUENCE_HISTORY_PERIODS.find((x) => x.id === period);
+  return p && p.days !== null ? zoneDayKey(nowMs - (p.days - 1) * DAY_MS, tz) : null;
+}
+export function historyIn(batches, since, tz) {
+  return since === null ? [...batches] : batches.filter((b) => (b.run_for ?? zoneDayKey(Date.parse(b.at), tz)) >= since);
+}
+export function historyCovers(h, since, tz) {
+  if (!h.more) return true;
+  if (since === null) return false;
+  const last = h.batches[h.batches.length - 1];
+  return !!last && (last.run_for ?? zoneDayKey(Date.parse(last.at), tz)) < since;
+}
+export function historyFigures(batches) {
+  const went = batches.filter(batchWent);
+  const sum = (k) => went.reduce((n, b) => n + (b.counts[k] ?? 0), 0);
+  const sent = sum("sent");
+  const delivered = sum("delivered");
+  const read = sum("read");
+  const replied = sum("replied");
+  const share = (n) => {
+    const p = pct(n, sent);
+    return p === null ? "\u2014" : `${p}%`;
+  };
+  return [
+    { id: "sent", label: "Sent", value: String(sent), meta: null, definition: DEFINITIONS.sent, n: null, minN: null },
+    {
+      id: "delivered",
+      label: "Delivered",
+      value: share(delivered),
+      meta: sent > 0 ? `${delivered} of ${sent}` : null,
+      definition: DEFINITIONS.delivered,
+      n: sent,
+      minN: REPORT_MIN_N
+    },
+    {
+      id: "read",
+      label: "Read",
+      value: String(read),
+      meta: "on WhatsApp",
+      definition: DEFINITIONS.read,
+      n: null,
+      minN: null
+    },
+    {
+      id: "replied",
+      label: "Replied",
+      value: String(replied),
+      meta: sent > 0 ? `${share(replied)} of those sent` : null,
+      definition: DEFINITIONS.replied,
+      n: null,
+      minN: null
+    }
+  ];
+}
+export function historyDays(batches, tz) {
+  return new Set(batches.filter(batchWent).map((b) => b.run_for ?? zoneDayKey(Date.parse(b.at), tz))).size;
+}
+export function historyDayWords(b, place) {
+  const c = b.counts;
+  const forWhom = [b.people > 0 ? plural(b.people, "person", "people") : null, place].filter(Boolean).join(" \xB7 ");
+  if (b.state === "pending_approval") return { end: SEQUENCE_HISTORY_WORDS.waits, said: forWhom };
+  if (b.state === "scheduled") return { end: "Scheduled", said: forWhom };
+  if (b.state === "canceled") return { end: "Canceled", said: [place].filter(Boolean).join(" \xB7 ") || "Nothing went" };
+  const parts = [`${c.delivered ?? 0} delivered`, `${c.read ?? 0} read`, `${c.replied ?? 0} replied`];
+  if ((c.held ?? 0) > 0) parts.push(`${c.held} held`);
+  if ((c.to_send ?? 0) > 0) parts.push(`${c.to_send} for you to send`);
+  if ((c.failed ?? 0) > 0) parts.push(`${c.failed} failed`);
+  return {
+    end: b.state === "sending" ? "Going out" : b.state === "failed" ? "Failed" : `${c.sent ?? 0} sent`,
+    said: [place, parts.join(" \xB7 "), b.failure].filter(Boolean).join(" \xB7 ")
+  };
+}
