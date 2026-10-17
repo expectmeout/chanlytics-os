@@ -50,7 +50,8 @@ const WRITE_CLAIMS = [
   /(?:^|[.!?]\s+)(?:all\s+)?done[,.!]/i
 ];
 export const claimsWrite = (text) => WRITE_CLAIMS.some((re) => re.test(unquoted(text)));
-const INLINE = /\*\*(.+?)\*\*|__(.+?)__|(?<![\p{L}\p{N}*])\*(?!\s)(.+?)(?<!\s)\*(?![\p{L}\p{N}*])|(?<![\p{L}\p{N}_])_(?!\s)(.+?)(?<!\s)_(?![\p{L}\p{N}_])|\[([^\]\n]+)\]\([^)\s]*\)|`([^`\n]+)`/gu;
+const INLINE = /\*\*(.+?)\*\*|__(.+?)__|(?<![\p{L}\p{N}*])\*(?!\s)(.+?)(?<!\s)\*(?![\p{L}\p{N}*])|(?<![\p{L}\p{N}_])_(?!\s)(.+?)(?<!\s)_(?![\p{L}\p{N}_])|\[([^\]\n]+)\]\(([^)\s]*)\)|`([^`\n]+)`/gu;
+const DOOR = /^ask:([a-z][\w-]*(?:[/:?=&.%-][\w:/?=&.%-]*)?)$/i;
 export function answerRuns(line) {
   const out = [];
   let at = 0;
@@ -59,16 +60,26 @@ export function answerRuns(line) {
   };
   for (const m of line.matchAll(INLINE)) {
     plain(line.slice(at, m.index));
-    const [, b1, b2, i1, i2, link, code] = m;
-    if (b1 ?? b2) out.push({ text: b1 ?? b2 ?? "", bold: true });
-    else if (i1 ?? i2) out.push({ text: i1 ?? i2 ?? "", italic: true });
+    const [, b1, b2, i1, i2, link, target, code] = m;
+    const to = link && target && !target.includes("//") ? DOOR.exec(target)?.[1] : void 0;
+    if (b1 ?? b2) out.push(...answerRuns(b1 ?? b2 ?? "").map((r) => ({ ...r, bold: true })));
+    else if (i1 ?? i2) out.push(...answerRuns(i1 ?? i2 ?? "").map((r) => ({ ...r, italic: true })));
+    else if (link && to) out.push({ text: link, to });
     else plain(link ?? code ?? "");
     at = (m.index ?? 0) + m[0].length;
   }
   plain(line.slice(at));
   return out;
 }
+export function answerDoors(text, ground) {
+  return text.replace(/\[([^\]\n]+)\]\(([^)\s]*)\)/g, (_, words, target) => {
+    const to = target ? ground(target.replace(/^ask:/i, ""), words) : null;
+    return to ? `[${words}](ask:${to})` : words;
+  });
+}
 const LIST_LINE = /^(\s*)(?:([-*•])|(\d{1,2})[.)])\s+(.*)$/;
+const QUOTE_LINE = /^\s*>\s?(.*)$/;
+const CALLOUT = /^\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]\s*(.*)$/i;
 const HEADING = /^#{1,6}\s+(.+?)\s*#*$/;
 const TABLE_LINE = /^\s*\|.*\|\s*$/;
 const TABLE_RULE = /^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$/;
@@ -79,8 +90,9 @@ function listPointOf(line) {
   const m = LIST_LINE.exec(line);
   if (!m) return null;
   const [, lead = "", , number, words = ""] = m;
-  return { indent: lead.replace(/\t/g, "  ").length, ordered: !!number, words };
+  return { indent: lead.replace(/\t/g, "  ").length, ordered: !!number, number: Number(number ?? 1), words };
 }
+const listFor = (point) => point.ordered && point.number > 1 ? { ordered: true, start: point.number, items: [] } : { ordered: point.ordered, items: [] };
 function wordsListOf(lines) {
   const root = { ordered: false, items: [] };
   const stack = [];
@@ -88,20 +100,25 @@ function wordsListOf(lines) {
     const point = listPointOf(raw);
     if (!point) {
       const last = stack.at(-1)?.list.items.at(-1);
-      if (last) last.runs.push({ text: " " }, ...answerRuns(raw.trim()));
+      const quoted = QUOTE_LINE.exec(raw)?.[1]?.trim();
+      if (last && quoted)
+        last.runs.push({ text: " \u201C" }, ...answerRuns(quoted).map((r) => ({ ...r, italic: true })), {
+          text: "\u201D"
+        });
+      else if (last) last.runs.push({ text: " " }, ...answerRuns(raw.trim()));
       continue;
     }
-    const { indent, ordered } = point;
+    const { indent } = point;
     while ((stack.at(-1)?.indent ?? -1) > indent) stack.pop();
     const top = stack.at(-1);
     const parent = top?.list.items.at(-1);
     let list;
     if (!top) {
       list = root;
-      if (!root.items.length) root.ordered = ordered;
+      if (!root.items.length) Object.assign(root, listFor(point), { items: root.items });
       stack.push({ indent, list });
     } else if (indent > top.indent && parent && stack.length < LIST_DEPTH) {
-      parent.sub = parent.sub ?? { ordered, items: [] };
+      parent.sub = parent.sub ?? listFor(point);
       list = parent.sub;
       stack.push({ indent, list });
     } else list = top.list;
@@ -117,6 +134,15 @@ function tableOf(headLine, bodyLines) {
   });
   const right = head.map((_, k) => rows.length > 0 && rows.every((r) => NUMBER_CELL.test(runsText(r[k] ?? []).trim())));
   return { kind: "table", head: head.map(answerRuns), rows, right };
+}
+function quoteOf(lines) {
+  const said = lines.map((l) => QUOTE_LINE.exec(l)?.[1]?.trim() ?? "");
+  const mark = CALLOUT.exec(said[0] ?? "");
+  const rest = mark ? [mark[2] ?? "", ...said.slice(1)] : said;
+  const runs = rest.filter(Boolean).map(answerRuns);
+  if (!mark) return { kind: "quote", lines: runs };
+  const tone = /^(NOTE|TIP)$/i.test(mark[1] ?? "") ? "note" : "warn";
+  return { kind: "callout", tone, lines: runs };
 }
 export function answerBlocks(text) {
   const lines = text.replace(/\r\n?/g, "\n").split("\n");
@@ -138,6 +164,12 @@ export function answerBlocks(text) {
       endPara();
       blocks.push({ kind: "heading", runs: answerRuns(heading) });
       i++;
+    } else if (QUOTE_LINE.test(line)) {
+      endPara();
+      const run = [];
+      for (; i < lines.length && QUOTE_LINE.test(at(i)); i++) run.push(at(i));
+      const block = quoteOf(run);
+      if (block.lines.length) blocks.push(block);
     } else if (TABLE_LINE.test(line) && TABLE_RULE.test(at(i + 1))) {
       endPara();
       const body = [];
@@ -158,11 +190,11 @@ export function answerBlocks(text) {
   endPara();
   return blocks;
 }
-export const opensWithBlock = (s) => /^\s*(?:#|[-*•]\s|\d{1,2}[.)]\s|\|)/.test(s);
+export const opensWithBlock = (s) => /^\s*(?:#|[-*•]\s|\d{1,2}[.)]\s|\||>)/.test(s);
 const runsText = (runs) => runs.map((r) => r.text).join("");
 function listPlain(l, depth, spoken) {
   return l.items.flatMap((it, k) => {
-    const mark = l.ordered ? `${k + 1}. ` : spoken ? "" : "\u2022 ";
+    const mark = l.ordered ? `${(l.start ?? 1) + k}. ` : spoken ? "" : "\u2022 ";
     const pad = spoken ? "" : "  ".repeat(depth);
     return [`${pad}${mark}${runsText(it.runs)}`, ...it.sub ? listPlain(it.sub, depth + 1, spoken) : []];
   });
@@ -173,6 +205,8 @@ export function answerPlain(text, spoken = false) {
     if (b.kind === "text") return b.lines.map(runsText);
     if (b.kind === "heading") return [runsText(b.runs)];
     if (b.kind === "list") return listPlain(b.list, 0, spoken);
+    if (b.kind === "quote") return b.lines.map((l) => spoken ? runsText(l) : `\u201C${runsText(l)}\u201D`);
+    if (b.kind === "callout") return b.lines.map(runsText);
     return [b.head.map(runsText).join(sep), ...b.rows.map((r) => r.map(runsText).join(sep))];
   }).join("\n");
 }

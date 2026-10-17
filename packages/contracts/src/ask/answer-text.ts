@@ -138,17 +138,25 @@ export const claimsWrite = (text: string | null | undefined): boolean =>
 /* ------------------------------------------------------- the words' formatting */
 
 /**
- * A run of words and how it is set: bold, italic, or neither. A link's words are a run of their own with no link: the
- * model never writes a route (D5), so a place is an item or Open, never a link inside the words.
+ * A run of words and how it is set: bold, italic, or neither, and a door where it names a row this turn read. The model
+ * never writes a route (D5): it names the row (`[Riley's review](review:<id>)`), the normaliser grounds it in the turn's
+ * reads and writes the route after `ask:` (answerDoors), and a link no read holds is its words alone. So only a link
+ * whose target opens with `ask:` is a door, and every other is a run of its words.
  */
 export interface AnswerRun {
   text: string;
   bold?: true;
   italic?: true;
+  /** The route the run opens, which the normaliser derived (answerDoors); never one the model wrote. */
+  to?: string;
 }
-/** A list as the words wrote it: numbered or bulleted, each point with the list under it, if any. */
+/**
+ * A list as the words wrote it: numbered or bulleted, each point with the list under it, if any, and the number a
+ * numbered one starts at where it is not 1 (steps that go on after a quote between them keep their numbers).
+ */
 export interface AnswerList {
   ordered: boolean;
+  start?: number;
   items: Array<{ runs: AnswerRun[]; sub: AnswerList | null }>;
 }
 /**
@@ -159,13 +167,23 @@ export type AnswerBlock =
   | { kind: "text"; lines: AnswerRun[][] }
   | { kind: "heading"; runs: AnswerRun[] }
   | { kind: "list"; list: AnswerList }
-  | { kind: "table"; head: AnswerRun[][]; rows: AnswerRun[][][]; right: boolean[] };
+  | { kind: "table"; head: AnswerRun[][]; rows: AnswerRun[][][]; right: boolean[] }
+  | { kind: "quote"; lines: AnswerRun[][] }
+  | { kind: "callout"; tone: AnswerCalloutTone; lines: AnswerRun[][] };
 
-/** Inline marks: `**bold**`, `__bold__`, `*italic*`, `_italic_`, a `[link](anywhere)`, and `code` as its words. */
+/** A callout's tone: `warn` for what needs the person or must come first (amber, as "needs you" is everywhere), else `note`. */
+type AnswerCalloutTone = "note" | "warn";
+
+/** Inline marks: `**bold**`, `__bold__`, `*italic*`, `_italic_`, a `[link](target)`, and `code` as its words. */
 const INLINE =
-  /\*\*(.+?)\*\*|__(.+?)__|(?<![\p{L}\p{N}*])\*(?!\s)(.+?)(?<!\s)\*(?![\p{L}\p{N}*])|(?<![\p{L}\p{N}_])_(?!\s)(.+?)(?<!\s)_(?![\p{L}\p{N}_])|\[([^\]\n]+)\]\([^)\s]*\)|`([^`\n]+)`/gu;
+  /\*\*(.+?)\*\*|__(.+?)__|(?<![\p{L}\p{N}*])\*(?!\s)(.+?)(?<!\s)\*(?![\p{L}\p{N}*])|(?<![\p{L}\p{N}_])_(?!\s)(.+?)(?<!\s)_(?![\p{L}\p{N}_])|\[([^\]\n]+)\]\(([^)\s]*)\)|`([^`\n]+)`/gu;
+/** A door's target as the normaliser writes it: `ask:` and a route of the app's own, never an address elsewhere. */
+const DOOR = /^ask:([a-z][\w-]*(?:[/:?=&.%-][\w:/?=&.%-]*)?)$/i;
 
-/** A line's words as runs: its marks read, each mark's words a run of their own; the marks themselves are never shown. */
+/**
+ * A line's words as runs: its marks read, each mark's words a run of their own; the marks themselves are never shown.
+ * The words inside bold or italic are read too, so a door or an italic inside bold is one ("**Reply to [Riley](ask:…)**").
+ */
 export function answerRuns(line: string): AnswerRun[] {
   const out: AnswerRun[] = [];
   let at = 0;
@@ -174,9 +192,11 @@ export function answerRuns(line: string): AnswerRun[] {
   };
   for (const m of line.matchAll(INLINE)) {
     plain(line.slice(at, m.index));
-    const [, b1, b2, i1, i2, link, code] = m;
-    if (b1 ?? b2) out.push({ text: b1 ?? b2 ?? "", bold: true });
-    else if (i1 ?? i2) out.push({ text: i1 ?? i2 ?? "", italic: true });
+    const [, b1, b2, i1, i2, link, target, code] = m;
+    const to = link && target && !target.includes("//") ? DOOR.exec(target)?.[1] : undefined;
+    if (b1 ?? b2) out.push(...answerRuns(b1 ?? b2 ?? "").map((r): AnswerRun => ({ ...r, bold: true })));
+    else if (i1 ?? i2) out.push(...answerRuns(i1 ?? i2 ?? "").map((r): AnswerRun => ({ ...r, italic: true })));
+    else if (link && to) out.push({ text: link, to });
     else plain(link ?? code ?? "");
     at = (m.index ?? 0) + m[0].length;
   }
@@ -184,7 +204,22 @@ export function answerRuns(line: string): AnswerRun[] {
   return out;
 }
 
+/**
+ * The answer's links grounded (the normaliser's): each `[words](target)` whose target `ground` turns into a route is
+ * written `[words](ask:<route>)`, a door; any other is its words alone, so nothing the model spelled opens anything.
+ */
+export function answerDoors(text: string, ground: (target: string, words: string) => string | null): string {
+  return text.replace(/\[([^\]\n]+)\]\(([^)\s]*)\)/g, (_, words: string, target: string) => {
+    const to = target ? ground(target.replace(/^ask:/i, ""), words) : null;
+    return to ? `[${words}](ask:${to})` : words;
+  });
+}
+
 const LIST_LINE = /^(\s*)(?:([-*•])|(\d{1,2})[.)])\s+(.*)$/;
+/** A line of a quote: `>`, then its words. */
+const QUOTE_LINE = /^\s*>\s?(.*)$/;
+/** A callout's mark on its first line (GitHub's alerts): what needs them or must come first is `warn`. */
+const CALLOUT = /^\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]\s*(.*)$/i;
 const HEADING = /^#{1,6}\s+(.+?)\s*#*$/;
 const TABLE_LINE = /^\s*\|.*\|\s*$/;
 const TABLE_RULE = /^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$/;
@@ -202,13 +237,19 @@ const cells = (line: string): string[] =>
     .split(/(?<!\\)\|/)
     .map((c) => c.replace(/\\\|/g, "|").trim());
 
-/** A list line read: its indent, whether it is numbered, and its words; null for a line that is no point. */
-function listPointOf(line: string): { indent: number; ordered: boolean; words: string } | null {
+/** A list line read: its indent, whether it is numbered (and its number), and its words; null for a line that is no point. */
+function listPointOf(line: string): { indent: number; ordered: boolean; number: number; words: string } | null {
   const m = LIST_LINE.exec(line);
   if (!m) return null;
   const [, lead = "", , number, words = ""] = m;
-  return { indent: lead.replace(/\t/g, "  ").length, ordered: !!number, words };
+  return { indent: lead.replace(/\t/g, "  ").length, ordered: !!number, number: Number(number ?? 1), words };
 }
+
+/** A new list for its first point: numbered from the point's number where that is not 1. */
+const listFor = (point: { ordered: boolean; number: number }): AnswerList =>
+  point.ordered && point.number > 1
+    ? { ordered: true, start: point.number, items: [] }
+    : { ordered: point.ordered, items: [] };
 
 /** A run of list lines as one list, nested by indent; a line indented under a point and not a point itself continues it. */
 function wordsListOf(lines: string[]): AnswerList {
@@ -218,20 +259,26 @@ function wordsListOf(lines: string[]): AnswerList {
     const point = listPointOf(raw);
     if (!point) {
       const last = stack.at(-1)?.list.items.at(-1);
-      if (last) last.runs.push({ text: " " }, ...answerRuns(raw.trim()));
+      // A quote under a point (`  > words`) is its words in quotes, set apart: a block never sits inside a point.
+      const quoted = QUOTE_LINE.exec(raw)?.[1]?.trim();
+      if (last && quoted)
+        last.runs.push({ text: " “" }, ...answerRuns(quoted).map((r) => ({ ...r, italic: true as const })), {
+          text: "”",
+        });
+      else if (last) last.runs.push({ text: " " }, ...answerRuns(raw.trim()));
       continue;
     }
-    const { indent, ordered } = point;
+    const { indent } = point;
     while ((stack.at(-1)?.indent ?? -1) > indent) stack.pop();
     const top = stack.at(-1);
     const parent = top?.list.items.at(-1);
     let list: AnswerList;
     if (!top) {
       list = root;
-      if (!root.items.length) root.ordered = ordered;
+      if (!root.items.length) Object.assign(root, listFor(point), { items: root.items });
       stack.push({ indent, list });
     } else if (indent > top.indent && parent && stack.length < LIST_DEPTH) {
-      parent.sub = parent.sub ?? { ordered, items: [] };
+      parent.sub = parent.sub ?? listFor(point);
       list = parent.sub;
       stack.push({ indent, list });
     } else list = top.list;
@@ -252,11 +299,23 @@ function tableOf(headLine: string, bodyLines: string[]): AnswerBlock {
   return { kind: "table", head: head.map(answerRuns), rows, right };
 }
 
+/** A run of `>` lines as a quote, or a callout where its first line carries an alert's mark (`[!WARNING]`). */
+function quoteOf(lines: string[]): Extract<AnswerBlock, { kind: "quote" | "callout" }> {
+  const said = lines.map((l) => QUOTE_LINE.exec(l)?.[1]?.trim() ?? "");
+  const mark = CALLOUT.exec(said[0] ?? "");
+  const rest = mark ? [mark[2] ?? "", ...said.slice(1)] : said;
+  const runs = rest.filter(Boolean).map(answerRuns);
+  if (!mark) return { kind: "quote", lines: runs };
+  const tone: AnswerCalloutTone = /^(NOTE|TIP)$/i.test(mark[1] ?? "") ? "note" : "warn";
+  return { kind: "callout", tone, lines: runs };
+}
+
 /**
  * The answer's words as blocks: a heading line (`#`, at any level, drawn as one), a run of list lines (`-`, `*`, `•`,
  * `1.`, `1)`, nested by indent), a table (a header row, its rule `|---|`, then its rows; a column whose every body cell
- * is a number is set right), and paragraphs, a blank line between two, each line its own. Words with no marks are one
- * paragraph of their lines, as the detail always was.
+ * is a number is set right), a quote (`>` lines: a customer's own words) or a callout (a quote whose first line is an
+ * alert's mark, `> [!WARNING]`), and paragraphs, a blank line between two, each line its own. Words with no marks are
+ * one paragraph of their lines, as the detail always was.
  */
 export function answerBlocks(text: string): AnswerBlock[] {
   const lines = text.replace(/\r\n?/g, "\n").split("\n");
@@ -278,6 +337,12 @@ export function answerBlocks(text: string): AnswerBlock[] {
       endPara();
       blocks.push({ kind: "heading", runs: answerRuns(heading) });
       i++;
+    } else if (QUOTE_LINE.test(line)) {
+      endPara();
+      const run: string[] = [];
+      for (; i < lines.length && QUOTE_LINE.test(at(i)); i++) run.push(at(i));
+      const block = quoteOf(run);
+      if (block.lines.length) blocks.push(block);
     } else if (TABLE_LINE.test(line) && TABLE_RULE.test(at(i + 1))) {
       endPara();
       const body: string[] = [];
@@ -312,14 +377,14 @@ export function answerBlocks(text: string): AnswerBlock[] {
  * Whether words open with a block of their own (a heading, a list or a table), which starts on its own line when words
  * are put before it: the headline's extra sentence, a stopped turn's headline, Copy's headline.
  */
-export const opensWithBlock = (s: string): boolean => /^\s*(?:#|[-*•]\s|\d{1,2}[.)]\s|\|)/.test(s);
+export const opensWithBlock = (s: string): boolean => /^\s*(?:#|[-*•]\s|\d{1,2}[.)]\s|\||>)/.test(s);
 
 /** The runs' words, the marks gone. */
 const runsText = (runs: AnswerRun[]) => runs.map((r) => r.text).join("");
 
 function listPlain(l: AnswerList, depth: number, spoken: boolean): string[] {
   return l.items.flatMap((it, k) => {
-    const mark = l.ordered ? `${k + 1}. ` : spoken ? "" : "• ";
+    const mark = l.ordered ? `${(l.start ?? 1) + k}. ` : spoken ? "" : "• ";
     const pad = spoken ? "" : "  ".repeat(depth);
     return [`${pad}${mark}${runsText(it.runs)}`, ...(it.sub ? listPlain(it.sub, depth + 1, spoken) : [])];
   });
@@ -337,6 +402,8 @@ export function answerPlain(text: string, spoken = false): string {
       if (b.kind === "text") return b.lines.map(runsText);
       if (b.kind === "heading") return [runsText(b.runs)];
       if (b.kind === "list") return listPlain(b.list, 0, spoken);
+      if (b.kind === "quote") return b.lines.map((l) => (spoken ? runsText(l) : `“${runsText(l)}”`));
+      if (b.kind === "callout") return b.lines.map(runsText);
       return [b.head.map(runsText).join(sep), ...b.rows.map((r) => r.map(runsText).join(sep))];
     })
     .join("\n");

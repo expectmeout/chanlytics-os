@@ -13190,7 +13190,8 @@ var WRITE_CLAIMS = [
   /(?:^|[.!?]\s+)(?:all\s+)?done[,.!]/i
 ];
 var claimsWrite = (text) => WRITE_CLAIMS.some((re) => re.test(unquoted(text)));
-var INLINE = /\*\*(.+?)\*\*|__(.+?)__|(?<![\p{L}\p{N}*])\*(?!\s)(.+?)(?<!\s)\*(?![\p{L}\p{N}*])|(?<![\p{L}\p{N}_])_(?!\s)(.+?)(?<!\s)_(?![\p{L}\p{N}_])|\[([^\]\n]+)\]\([^)\s]*\)|`([^`\n]+)`/gu;
+var INLINE = /\*\*(.+?)\*\*|__(.+?)__|(?<![\p{L}\p{N}*])\*(?!\s)(.+?)(?<!\s)\*(?![\p{L}\p{N}*])|(?<![\p{L}\p{N}_])_(?!\s)(.+?)(?<!\s)_(?![\p{L}\p{N}_])|\[([^\]\n]+)\]\(([^)\s]*)\)|`([^`\n]+)`/gu;
+var DOOR2 = /^ask:([a-z][\w-]*(?:[/:?=&.%-][\w:/?=&.%-]*)?)$/i;
 function answerRuns(line) {
   const out = [];
   let at3 = 0;
@@ -13199,16 +13200,26 @@ function answerRuns(line) {
   };
   for (const m of line.matchAll(INLINE)) {
     plain2(line.slice(at3, m.index));
-    const [, b1, b2, i1, i2, link, code2] = m;
-    if (b1 ?? b2) out.push({ text: b1 ?? b2 ?? "", bold: true });
-    else if (i1 ?? i2) out.push({ text: i1 ?? i2 ?? "", italic: true });
+    const [, b1, b2, i1, i2, link, target, code2] = m;
+    const to = link && target && !target.includes("//") ? DOOR2.exec(target)?.[1] : void 0;
+    if (b1 ?? b2) out.push(...answerRuns(b1 ?? b2 ?? "").map((r2) => ({ ...r2, bold: true })));
+    else if (i1 ?? i2) out.push(...answerRuns(i1 ?? i2 ?? "").map((r2) => ({ ...r2, italic: true })));
+    else if (link && to) out.push({ text: link, to });
     else plain2(link ?? code2 ?? "");
     at3 = (m.index ?? 0) + m[0].length;
   }
   plain2(line.slice(at3));
   return out;
 }
+function answerDoors(text, ground) {
+  return text.replace(/\[([^\]\n]+)\]\(([^)\s]*)\)/g, (_, words3, target) => {
+    const to = target ? ground(target.replace(/^ask:/i, ""), words3) : null;
+    return to ? `[${words3}](ask:${to})` : words3;
+  });
+}
 var LIST_LINE = /^(\s*)(?:([-*•])|(\d{1,2})[.)])\s+(.*)$/;
+var QUOTE_LINE = /^\s*>\s?(.*)$/;
+var CALLOUT = /^\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]\s*(.*)$/i;
 var HEADING = /^#{1,6}\s+(.+?)\s*#*$/;
 var TABLE_LINE = /^\s*\|.*\|\s*$/;
 var TABLE_RULE = /^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$/;
@@ -13219,8 +13230,9 @@ function listPointOf(line) {
   const m = LIST_LINE.exec(line);
   if (!m) return null;
   const [, lead = "", , number2, words3 = ""] = m;
-  return { indent: lead.replace(/\t/g, "  ").length, ordered: !!number2, words: words3 };
+  return { indent: lead.replace(/\t/g, "  ").length, ordered: !!number2, number: Number(number2 ?? 1), words: words3 };
 }
+var listFor = (point) => point.ordered && point.number > 1 ? { ordered: true, start: point.number, items: [] } : { ordered: point.ordered, items: [] };
 function wordsListOf(lines) {
   const root = { ordered: false, items: [] };
   const stack = [];
@@ -13228,20 +13240,25 @@ function wordsListOf(lines) {
     const point = listPointOf(raw);
     if (!point) {
       const last = stack.at(-1)?.list.items.at(-1);
-      if (last) last.runs.push({ text: " " }, ...answerRuns(raw.trim()));
+      const quoted = QUOTE_LINE.exec(raw)?.[1]?.trim();
+      if (last && quoted)
+        last.runs.push({ text: " \u201C" }, ...answerRuns(quoted).map((r2) => ({ ...r2, italic: true })), {
+          text: "\u201D"
+        });
+      else if (last) last.runs.push({ text: " " }, ...answerRuns(raw.trim()));
       continue;
     }
-    const { indent, ordered } = point;
+    const { indent } = point;
     while ((stack.at(-1)?.indent ?? -1) > indent) stack.pop();
     const top = stack.at(-1);
     const parent = top?.list.items.at(-1);
     let list2;
     if (!top) {
       list2 = root;
-      if (!root.items.length) root.ordered = ordered;
+      if (!root.items.length) Object.assign(root, listFor(point), { items: root.items });
       stack.push({ indent, list: list2 });
     } else if (indent > top.indent && parent && stack.length < LIST_DEPTH) {
-      parent.sub = parent.sub ?? { ordered, items: [] };
+      parent.sub = parent.sub ?? listFor(point);
       list2 = parent.sub;
       stack.push({ indent, list: list2 });
     } else list2 = top.list;
@@ -13257,6 +13274,15 @@ function tableOf(headLine, bodyLines) {
   });
   const right = head.map((_, k) => rows2.length > 0 && rows2.every((r2) => NUMBER_CELL.test(runsText(r2[k] ?? []).trim())));
   return { kind: "table", head: head.map(answerRuns), rows: rows2, right };
+}
+function quoteOf(lines) {
+  const said = lines.map((l) => QUOTE_LINE.exec(l)?.[1]?.trim() ?? "");
+  const mark = CALLOUT.exec(said[0] ?? "");
+  const rest = mark ? [mark[2] ?? "", ...said.slice(1)] : said;
+  const runs = rest.filter(Boolean).map(answerRuns);
+  if (!mark) return { kind: "quote", lines: runs };
+  const tone = /^(NOTE|TIP)$/i.test(mark[1] ?? "") ? "note" : "warn";
+  return { kind: "callout", tone, lines: runs };
 }
 function answerBlocks(text) {
   const lines = text.replace(/\r\n?/g, "\n").split("\n");
@@ -13278,6 +13304,12 @@ function answerBlocks(text) {
       endPara();
       blocks.push({ kind: "heading", runs: answerRuns(heading) });
       i++;
+    } else if (QUOTE_LINE.test(line)) {
+      endPara();
+      const run = [];
+      for (; i < lines.length && QUOTE_LINE.test(at3(i)); i++) run.push(at3(i));
+      const block = quoteOf(run);
+      if (block.lines.length) blocks.push(block);
     } else if (TABLE_LINE.test(line) && TABLE_RULE.test(at3(i + 1))) {
       endPara();
       const body = [];
@@ -13298,11 +13330,11 @@ function answerBlocks(text) {
   endPara();
   return blocks;
 }
-var opensWithBlock = (s) => /^\s*(?:#|[-*•]\s|\d{1,2}[.)]\s|\|)/.test(s);
+var opensWithBlock = (s) => /^\s*(?:#|[-*•]\s|\d{1,2}[.)]\s|\||>)/.test(s);
 var runsText = (runs) => runs.map((r2) => r2.text).join("");
 function listPlain(l, depth, spoken) {
   return l.items.flatMap((it, k) => {
-    const mark = l.ordered ? `${k + 1}. ` : spoken ? "" : "\u2022 ";
+    const mark = l.ordered ? `${(l.start ?? 1) + k}. ` : spoken ? "" : "\u2022 ";
     const pad = spoken ? "" : "  ".repeat(depth);
     return [`${pad}${mark}${runsText(it.runs)}`, ...it.sub ? listPlain(it.sub, depth + 1, spoken) : []];
   });
@@ -13313,6 +13345,8 @@ function answerPlain(text, spoken = false) {
     if (b.kind === "text") return b.lines.map(runsText);
     if (b.kind === "heading") return [runsText(b.runs)];
     if (b.kind === "list") return listPlain(b.list, 0, spoken);
+    if (b.kind === "quote") return b.lines.map((l) => spoken ? runsText(l) : `\u201C${runsText(l)}\u201D`);
+    if (b.kind === "callout") return b.lines.map(runsText);
     return [b.head.map(runsText).join(sep), ...b.rows.map((r2) => r2.map(runsText).join(sep))];
   }).join("\n");
 }
@@ -23616,8 +23650,8 @@ function normalizeAnswer(raw, read, fallback) {
     }
   }
   const root = asObj(json);
-  const say2 = sayAsDrawn(asObj(root.say));
-  const headline2 = say2.headline;
+  const said = sayAsDrawn(asObj(root.say));
+  const headline2 = said.headline;
   if (!headline2) return { ok: false, error: "no headline" };
   const language = root.language === "en" || root.language === "es" ? root.language : fallback;
   let dropped = 0;
@@ -23626,6 +23660,14 @@ function normalizeAnswer(raw, read, fallback) {
     const r2 = asObj(v);
     if (!s && typeof r2.kind === "string" && r2.kind !== "none" && typeof r2.id === "string" && r2.id.trim()) dropped++;
     return s;
+  };
+  const say2 = {
+    ...said,
+    detail: answerDoors(said.detail, (target, label) => {
+      const [, kind = "", id = ""] = /^([a-z_]+):(.+)$/.exec(target) ?? [];
+      const named = ASK_CITATION_KINDS.includes(kind);
+      return ground(named ? { kind, id, label } : { kind: "page", id: target, label })?.to ?? null;
+    })
   };
   const show = asObj(root.show);
   const figures = [];
@@ -25212,7 +25254,7 @@ var ASK_ANSWER_FORMAT = {
         },
         detail: {
           type: "string",
-          description: `The body under the headline, as long as the question needs and no longer: empty when the headline says it whole, a sentence or two for a reason or a condition, more for why, how, a comparison, steps or a plan. Markdown where it helps the reader: **bold** for the number or name that matters, a short ### heading over each part of a long answer, - bullets and 1. numbered steps (two spaces nest a point under another), and a table (a header row, its |---| rule, then its rows) for rows compared on the same columns. No links and no HTML: a place to open is an item or Open. At most ${ASK_ANSWER_CAPS.detail} characters.`
+          description: `The body under the headline, as long as the question needs and no longer: empty when the headline says it whole, a sentence or two for a reason or a condition, more for why, how, a comparison, steps or a plan. Markdown where it helps the reader: **bold** for the number or name that matters, a short ### heading over each part of a long answer, - bullets and 1. numbered steps (two spaces nest a point under another), a table (a header row, its |---| rule, then its rows) for rows compared on the same columns, a customer's own words as a > quote, and a callout as > [!WARNING] (what must come first, or needs them) or > [!NOTE] (a side note), its words on the same line or the > lines after. A row this turn read, named in the words, as [its name](kind:id) with the kind and the id a tool gave, which opens it; never an address, and no HTML. At most ${ASK_ANSWER_CAPS.detail} characters.`
         }
       },
       required: ["headline", "detail"],

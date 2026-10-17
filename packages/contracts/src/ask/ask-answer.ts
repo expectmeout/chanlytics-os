@@ -7,6 +7,7 @@
 import { ASK_CAPS, type AskMessageVM, type AskProposal } from "./ask";
 import {
   FOLLOWUP_ECHO,
+  answerDoors,
   answerText,
   cleanAnswer,
   firstSentence,
@@ -582,8 +583,8 @@ export function normalizeAnswer(raw: unknown, read: AskReadSet, fallback: AskLan
     }
   }
   const root = asObj(json);
-  const say = sayAsDrawn(asObj(root.say));
-  const headline = say.headline;
+  const said = sayAsDrawn(asObj(root.say));
+  const headline = said.headline;
   if (!headline) return { ok: false, error: "no headline" };
   // English or Spanish as the model says; anything else is the turn's own (detectLanguage), as it was before the Line.
   const language: AskLanguage = root.language === "en" || root.language === "es" ? root.language : fallback;
@@ -593,6 +594,15 @@ export function normalizeAnswer(raw: unknown, read: AskReadSet, fallback: AskLan
     const r = asObj(v);
     if (!s && typeof r.kind === "string" && r.kind !== "none" && typeof r.id === "string" && r.id.trim()) dropped++;
     return s;
+  };
+  // A row named in the words is a door where this turn read it (`kind:id`, or the id or route alone), else its words.
+  const say = {
+    ...said,
+    detail: answerDoors(said.detail, (target, label) => {
+      const [, kind = "", id = ""] = /^([a-z_]+):(.+)$/.exec(target) ?? [];
+      const named = (ASK_CITATION_KINDS as readonly string[]).includes(kind);
+      return ground(named ? { kind, id, label } : { kind: "page", id: target, label })?.to ?? null;
+    }),
   };
   const show = asObj(root.show);
   const figures: AskFigure[] = [];

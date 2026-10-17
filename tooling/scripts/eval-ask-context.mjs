@@ -719,8 +719,8 @@ const listItems = (l) => l.items.flatMap((it) => [it, ...(it.sub ? listItems(it.
 
 /**
  * What the detail draws (contracts answerBlocks, as the Line does): `detail_shape` names what it must hold, a `table`,
- * `bold` (in the detail or the list's entries), a `heading`, a `nested` list, `numbered` steps, or `plain` for no
- * structure (no table, heading or list: a bold name or number is still plain words); `detail_max_words` is the most
+ * `bold` (in the detail or the list's entries), a `heading`, a `nested` list, `numbered` steps, a `quote` of someone's
+ * words, a `callout`, a `door` (a row the words name, opened where it is named), or `plain` for no structure (no table, heading or list: a bold name or number is still plain words); `detail_max_words` is the most
  * words it may say (a turn asked to be shorter, or one that should be).
  */
 export function detailShapeFails(e, a) {
@@ -737,7 +737,9 @@ export function detailShapeFails(e, a) {
             ? b.runs
             : b.kind === "table"
               ? [...b.head.flat(), ...b.rows.flat(2)]
-              : lists.flatMap(listItems).flatMap((it) => it.runs),
+              : b.kind === "quote" || b.kind === "callout"
+                ? b.lines.flat()
+                : listItems(b.list).flatMap((it) => it.runs),
       ),
       ...(a.show.list?.entries ?? []).flatMap((x) =>
         answerBlocks(x).flatMap((b) => (b.kind === "text" ? b.lines.flat() : [])),
@@ -749,6 +751,9 @@ export function detailShapeFails(e, a) {
       heading: blocks.some((b) => b.kind === "heading"),
       nested: lists.some((l) => l.items.some((it) => it.sub)),
       numbered: lists.some((l) => l.ordered) || a.show.list?.style === "numbers",
+      quote: blocks.some((b) => b.kind === "quote"),
+      callout: blocks.some((b) => b.kind === "callout"),
+      door: runs.some((r) => r.to),
     };
     for (const k of [].concat(want)) {
       if (k === "plain") {
