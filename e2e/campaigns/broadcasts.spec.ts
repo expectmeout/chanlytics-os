@@ -162,7 +162,10 @@ test.describe("Broadcasts on a real workspace", () => {
       await expect(composer.getByTestId("bc-send")).toBeDisabled();
       // Everyone it reaches hears from you within a week of it: they said yes, so the heard line and the foot say why,
       // never the line about a missing yes.
-      if ((await composer.getByTestId("bc-heard-line").count()) > 0)
+      // Where no channel ticked can carry the message, a yes would change nothing: the foot says so, once, and the line
+      // about a missing yes is not drawn (Ruben, 10 Oct 2026).
+      const nowhere = composer.getByTestId("bc-foot-say").filter({ hasText: /None of the channels ticked/ });
+      if ((await composer.getByTestId("bc-heard-line").count()) > 0 || (await nowhere.count()) > 0)
         await expect(composer.getByTestId("bc-nobody")).toHaveCount(0);
       else await expect(composer.getByTestId("bc-nobody")).toBeVisible();
     } else {

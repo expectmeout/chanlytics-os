@@ -33,6 +33,7 @@ import { Icon } from "../../kit/icon/icon";
 import { Wash } from "../../kit/motion/wash";
 import { Picker } from "../../kit/picker/picker";
 import { RecordDisclosure } from "../../kit/record/disclosure";
+import { leaveSheet } from "../../kit/sheet/back";
 import { Sheet } from "../../kit/sheet/sheet";
 import type { PickerGroup } from "../../kit/picker/picker";
 import { gate, navigate, openDealSheet } from "../../legacy-verbs";
@@ -229,6 +230,9 @@ function deleteAsk(c: PageCtx): SheetAsk {
       return;
     }
     flash({ msg: W.done(p.name) });
+    // The question's sheet stands an entry in the tab's history (Back closes it): taken back first, so the person's
+    // Back lands on the list they came from rather than on their page under the sheet.
+    await leaveSheet();
     onBack();
   };
   return {

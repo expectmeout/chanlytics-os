@@ -386,7 +386,7 @@ export function phoneBulk(b: BulkCtx, a: BulkActs) {
         ref={leaving("people-dock")}
         data-dock
         role="toolbar"
-        aria-label={n ? `${n} people selected` : "Select people"}
+        aria-label={n ? `${n} ${n === 1 ? "person" : "people"} selected` : "Select people"}
         data-testid="bulk-bar"
       >
         <div className="pp-bulk-acts">{dockActs(b, a)}</div>

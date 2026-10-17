@@ -624,10 +624,11 @@ test("the six overrides that read Reports are the six marked, and nothing else i
   );
 });
 
-test("Campaigns' own 30 days are read where Campaigns is drawn: no boot or Retry-all on Today, Sent, Reports or People reads them (spec 2026-10-09 §1)", async () => {
+test("Campaigns' own 30 days are read where they are drawn, the composer: no boot or Retry-all on Today, Sent, Reports, People or Sequences reads them (spec 2026-10-09 §1)", async () => {
   assert.equal(campaignResultsOverride.onDemand, true, "marked: read where it is drawn");
   assert.equal(typeof campaignResultsOverride.isStale, "function", "and it ages: the page that draws it asks");
-  for (const hash of ["#/today", "#/broadcasts", "#/reports", "#/clients"]) {
+  // Campaigns lands on Sequences, which reads its own (17 Oct 2026, #1671): the 30 days are the old composer's.
+  for (const hash of ["#/today", "#/broadcasts", "#/reports", "#/clients", "#/campaigns"]) {
     status.setStatus("campaign_results", "seeded");
     const r = await running(hash);
     try {
@@ -640,9 +641,9 @@ test("Campaigns' own 30 days are read where Campaigns is drawn: no boot or Retry
     }
   }
   status.setStatus("campaign_results", "seeded");
-  const r = await running("#/campaigns");
+  const r = await running("#/campaigns/new");
   try {
-    assert.equal(r.take().includes("campaign_results"), true, "Campaigns' own pass reads it");
+    assert.equal(r.take().includes("campaign_results"), true, "the composer's own pass reads it");
     assert.equal(status.isSurfaceReady("campaign_results"), true);
   } finally {
     r.stop();

@@ -18,6 +18,7 @@ import {
   bankedFloors,
   finish,
   judge,
+  judgeParts,
   modulesOfBundle,
   parseLcov,
   summarize,
@@ -270,6 +271,42 @@ test("through the launcher, a measured run prints the table and ends with the ru
   assert.match(run.stderr, /# what the suite ran of the code/);
   assert.match(run.stderr, /the edge's doors \(apps\/edge\/api\)\s+\d+\.\d%\n/, "a run of one file holds no floor");
   assert.ok(!run.stderr.includes("under its floor"));
+});
+
+test("the suite's parts are judged as one: a line any part ran is a line the suite ran, and a part's report missing is red", (t) => {
+  const root = world();
+  fs.mkdirSync(path.join(root, path.dirname(FLOORS)), { recursive: true });
+  fs.writeFileSync(path.join(root, FLOORS), JSON.stringify({ core: 66, doors: 66, routes: 0 }));
+  // The whole run's report, cut in two where a file is named twice: each part ran some of the bundle's lines.
+  const whole = lcov(root);
+  const [bundle, door] = whole.split("end_of_record\n");
+  const lines = bundle.split("\n");
+  const one = [...lines.slice(0, 3), "end_of_record", door].join("\n");
+  const two = [lines[0], ...lines.slice(3), "end_of_record", ""].join("\n");
+  const sorted = (text) => [...parseLcov(text, root).get("packages/core/dist/index.js")].sort((a, b) => a[0] - b[0]);
+  assert.deepEqual(sorted(one + two), sorted(whole), "read together, the parts are the whole run");
+  const put = (name, text) => (fs.writeFileSync(path.join(root, name), text), path.join(root, name));
+  const parts = [put("part-1.lcov", one), put("part-2.lcov", two)];
+  const green = judgeParts({ reports: parts, root });
+  assert.equal(green.status, 0, green.lines.join("\n"));
+  assert.match(green.lines.join("\n"), /core\s+66\.7%\s+floor 66\.0%/);
+  // The door ran only in the first part: the second alone is under the doors' floor.
+  assert.equal(judgeParts({ reports: [parts[1]], root }).status, 1, "a part alone misses what another part ran");
+  const lost = judgeParts({ reports: [...parts, path.join(root, "part-3.lcov")], root });
+  assert.equal(lost.status, 1);
+  assert.match(lost.lines.join("\n"), /not all here \(.*part-3\.lcov\)/);
+  assert.equal(judgeParts({ reports: [], root }).status, 1, "no part named is no measure");
+
+  // A part's own end keeps its report where it was asked to, and judges nothing of it.
+  const said = [];
+  t.mock.method(console, "error", (line) => said.push(String(line)));
+  const kept = put("kept.lcov", one);
+  assert.equal(finish({ coverage: kept, status: 0, env: {}, held: false, root, keep: true }), 0);
+  assert.ok(fs.existsSync(kept), "kept for the judge of all the parts");
+  assert.equal(finish({ coverage: kept, status: 1, env: {}, held: false, root, keep: true }), 1, "its own red stays");
+  const never = path.join(root, "never.lcov");
+  assert.equal(finish({ coverage: never, status: 0, env: {}, held: false, root, keep: true }), 1, "no report is red");
+  assert.ok(!said.join("\n").includes("floor"), "no floor is a part's");
 });
 
 test("the floors the repository holds are numbers for the three areas, each under what the area could be", () => {

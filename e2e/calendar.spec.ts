@@ -146,7 +146,7 @@ test.describe("Calendar on a real workspace", () => {
     const req = page.waitForRequest(
       (r) => r.url().includes("/api/v1/calendar?") && r.url().includes("days=63") && r.method() === "GET",
     );
-    await board.getByTestId("cal-jump").click();
+    await bar.getByTestId("cal-jump").click();
     await expect(page.getByRole("dialog", { name: "Go to a date" })).toBeVisible();
     for (let month = 0; month < 3; month++) await page.keyboard.press("PageDown");
     await page.keyboard.press("Enter");
@@ -154,7 +154,7 @@ test.describe("Calendar on a real workspace", () => {
     const seen = await req;
     expect(seen.url()).toContain("from=");
     await expect(board.getByTestId("cal-col")).toHaveCount(7);
-    await expect(board.getByTestId("cal-jump")).toBeVisible();
+    await expect(bar.getByTestId("cal-jump")).toBeVisible();
   });
 
   test("adding a person from an appointment is get-or-create: an existing number returns them, a bad one is refused, nothing is duplicated", async ({
@@ -208,23 +208,25 @@ test.describe("Calendar on a real workspace", () => {
         await expect(page.getByTestId(`cal-view-${view}`)).toHaveAttribute("aria-current", "page");
         // Scroll whatever scrolls to its end, then ask whether the last day is on screen. toBeVisible cannot say it: a box
         // cut off by an overflow is still "visible". (The legend is Show's caption now, in its menu, never under the board.)
-        const reached = await board.evaluate((cal) => {
-          // Whatever scrolls: the grid, the body, and on a phone the Calendar's pane (.cal-pane).
-          const scrolls = (el: Element | null) => !!el && el.scrollHeight > el.clientHeight + 1;
-          const grid = cal.querySelector(".cal-scroll");
-          const body = cal.querySelector(".cal-body");
-          const pane = cal.querySelector(".cal-pane");
-          for (const el of [grid, body, pane, cal]) if (el) el.scrollTop = el.scrollHeight;
-          const scroller = [grid, body, pane].find(scrolls) ?? grid ?? body ?? cal;
-          const bottom = (el: Element) => el.getBoundingClientRect().bottom;
-          const days = scroller.querySelectorAll(
-            '[data-testid="cal-col"], [data-testid="cal-month-cell"], [data-testid="cal-agenda-day"]',
-          );
-          const last = days[days.length - 1];
-          const clip = Math.min(window.innerHeight, bottom(cal));
-          return { lastDay: !!last && bottom(last) <= Math.min(clip, bottom(scroller)) + 1 };
-        });
-        expect(reached, `${view} at ${size.width}x${size.height}`).toEqual({ lastDay: true });
+        // Asked until the view has slid in: measured mid-slide on a phone, the month's last row was still on its way.
+        const reached = () =>
+          board.evaluate((cal) => {
+            // Whatever scrolls: the grid, the body, and on a phone the Calendar's pane (.cal-pane).
+            const scrolls = (el: Element | null) => !!el && el.scrollHeight > el.clientHeight + 1;
+            const grid = cal.querySelector(".cal-scroll");
+            const body = cal.querySelector(".cal-body");
+            const pane = cal.querySelector(".cal-pane");
+            for (const el of [grid, body, pane, cal]) if (el) el.scrollTop = el.scrollHeight;
+            const scroller = [grid, body, pane].find(scrolls) ?? grid ?? body ?? cal;
+            const bottom = (el: Element) => el.getBoundingClientRect().bottom;
+            const days = scroller.querySelectorAll(
+              '[data-testid="cal-col"], [data-testid="cal-month-cell"], [data-testid="cal-agenda-day"]',
+            );
+            const last = days[days.length - 1];
+            const clip = Math.min(window.innerHeight, bottom(cal));
+            return { lastDay: !!last && bottom(last) <= Math.min(clip, bottom(scroller)) + 1 };
+          });
+        await expect.poll(reached, { message: `${view} at ${size.width}x${size.height}` }).toEqual({ lastDay: true });
       }
     }
   });

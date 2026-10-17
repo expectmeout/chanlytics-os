@@ -60,7 +60,16 @@ test("a full run in UTC is measured, and nothing else is: files, a flag, the db 
   assert.deepEqual([some.coverage !== null, some.held], [true, false]);
   assert.equal(planOf(["--db"], { TEST_COVERAGE: "1" }).coverage, null);
   assert.deepEqual([planOf([], { TEST_TZ: "Pacific/Auckland", TEST_COVERAGE: "1" }).held], [false]);
+  // A part of the suite is measured where TEST_LCOV keeps its report, and no floor judges it alone; CI's parts, with no
+  // TEST_LCOV, are not measured.
+  const part = planOf(["--", "--test-shard=2/4"], { TEST_LCOV: "coverage-part.lcov" });
+  assert.match(part.coverage.replaceAll("\\", "/"), /\/coverage-part\.lcov$/);
+  assert.deepEqual([part.held, part.keep], [false, true]);
+  assert.ok(part.args.includes("--test-shard=2/4") && part.args.includes("tooling/scripts/tests/**/*.test.mjs"));
+  assert.equal(full.keep, false, "a whole run's report goes once it is judged");
   for (const [argv, env] of [
+    [["--test-shard=2/4"], {}],
+    [["--test-shard=2/4", "--test-name-pattern=zone"], { TEST_LCOV: "x.lcov" }],
     [[PROBE], {}],
     [["--test-name-pattern=zone"], {}],
     [["--db"], {}],

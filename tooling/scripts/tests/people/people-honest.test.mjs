@@ -1498,7 +1498,7 @@ test("on a phone Select walks a selection -- Select, Select all, Cancel -- the f
     rowOf(tree, "p1").props.onClick();
     tree = draw();
     assert.equal(opened.length, before, "a tap selects rather than opens");
-    assert.equal(dockSays(tree), "1 people selected");
+    assert.equal(dockSays(tree), "1 person selected");
     assert.equal(selectWord(tree), "Select all");
     click(byTestId(tree, "people-phone-select"));
     tree = draw();
