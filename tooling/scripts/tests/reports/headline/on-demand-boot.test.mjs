@@ -4,9 +4,9 @@
  * has it read as it comes on screen: once, and again when it says it has aged. Run on the real runner and the real routes' registry
  * (`reports` is Reports' own surface; `reports_headline` is one Today draws; `reports_reviews`, `reports_receptionist` and
  * `reports_people` are ones only their own lens draws; `reports_campaigns` is the Campaigns lens's, which the Overview draws too, for
- * one fact; `google` is one Today and Settings' Connections pane draw, and no other page;
- * `campaign_results` is Campaigns' own 30 days, drawn on Campaigns alone), the way LegacyApp wires them, each read
- * recorded rather than made. A surface not marked behaves as it always did.
+ * one fact; `google` is one Today and Settings' Connections pane draw, and no other page), the way LegacyApp wires
+ * them, each read recorded rather than made. Campaigns' own 30 days went with the composer's Every time, their last
+ * reader (the closed-loop audit of 17 Oct 2026, G). A surface not marked behaves as it always did.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -60,7 +60,6 @@ const { receptionistOverride } = await importSrc("apps/dashboard/src/surfaces/re
 const { reportsPeopleOverride } = await importSrc("apps/dashboard/src/surfaces/reports/people-surface.ts");
 const { reportsCampaignsOverride } = await importSrc("apps/dashboard/src/surfaces/reports/campaigns-surface.ts");
 const { googleOverride } = await importSrc("apps/dashboard/src/legacy-bridge/google.ts");
-const { campaignResultsOverride } = await importSrc("apps/dashboard/src/surfaces/campaigns/home/results-surface.ts");
 const { setSurfaceValue, surfaceValue } = await importSrc("apps/dashboard/src/surfaces/surface-values.ts");
 
 let aged = false;
@@ -82,8 +81,6 @@ const world = (asked) => {
     read("reports_people", { onDemand: true, isStale: () => peopleAged }),
     // The Campaigns lens's, which the Overview draws for one fact too.
     read("reports_campaigns", { onDemand: true, isStale: () => campaignsAged }),
-    // Campaigns' own 30 days (spec 2026-10-09 §1), with its own mark: drawn on Campaigns alone.
-    read("campaign_results", { onDemand: campaignResultsOverride.onDemand }),
     // Google's own marks and its own measure of age, over a read that holds what the real one does: the answer, and when it was made.
     read("google", {
       onDemand: googleOverride.onDemand,
@@ -624,32 +621,6 @@ test("the six overrides that read Reports are the six marked, and nothing else i
   );
 });
 
-test("Campaigns' own 30 days are read where they are drawn, the composer: no boot or Retry-all on Today, Sent, Reports, People or Sequences reads them (spec 2026-10-09 §1)", async () => {
-  assert.equal(campaignResultsOverride.onDemand, true, "marked: read where it is drawn");
-  assert.equal(typeof campaignResultsOverride.isStale, "function", "and it ages: the page that draws it asks");
-  // Campaigns lands on Sequences, which reads its own (17 Oct 2026, #1671): the 30 days are the old composer's.
-  for (const hash of ["#/today", "#/broadcasts", "#/reports", "#/clients", "#/campaigns"]) {
-    status.setStatus("campaign_results", "seeded");
-    const r = await running(hash);
-    try {
-      assert.equal(r.take().includes("campaign_results"), false, `${hash}: its boot, both passes, does not read it`);
-      await runner.refreshAllSurfaces();
-      assert.equal(r.take().includes("campaign_results"), false, `${hash}: nor the shell's Retry-all`);
-      assert.equal(status.isSurfaceReady("campaign_results"), false, `${hash}: nothing of it is held`);
-    } finally {
-      r.stop();
-    }
-  }
-  status.setStatus("campaign_results", "seeded");
-  const r = await running("#/campaigns/new");
-  try {
-    assert.equal(r.take().includes("campaign_results"), true, "the composer's own pass reads it");
-    assert.equal(status.isSurfaceReady("campaign_results"), true);
-  } finally {
-    r.stop();
-  }
-});
-
 test("the real registry names the Reviews lens's read for that lens alone, and the page it draws it on owns it", () => {
   assert.deepEqual(registry.routeDrawsFor("reports", "reviews"), ["reports_reviews"]);
   assert.equal(registry.ownsTheScreen("reports_reviews", "reports/reviews"), true);
@@ -773,12 +744,12 @@ test("the real registry names the Campaigns read for that lens and for the Overv
   ])
     assert.equal(registry.ownsTheScreen("reports_campaigns", route), false, route);
   assert.equal(registry.ownsTheScreen("reports", "reports/campaigns"), true, "the page's own surface is still its own");
-  for (const key of ["reports_reviews", "reports_receptionist", "reports_people", "campaign_results"])
+  for (const key of ["reports_reviews", "reports_receptionist", "reports_people"])
     assert.equal(registry.ownsTheScreen(key, "reports/campaigns"), false, `${key} is not drawn there`);
   assert.equal(
     registry.ownsTheScreen("reports_campaigns", "campaigns"),
     false,
-    "and Campaigns' home draws its own 30 days (campaign_results), not this lens's reads",
+    "and Campaigns, Sequences' list, draws none of this lens's reads",
   );
 });
 

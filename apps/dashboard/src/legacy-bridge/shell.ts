@@ -209,7 +209,6 @@ export const SURFACE_LABELS: Readonly<Record<string, string>> = {
   playbooks: "Campaigns",
   reach_outs: "Reach-outs",
   reach_out_replies: "Replies to reach-outs",
-  campaign_results: "Campaigns' last 30 days",
   sequences: "Sequences",
   calendar: "Calendar",
   calendar_runs: "Campaigns on the Calendar",

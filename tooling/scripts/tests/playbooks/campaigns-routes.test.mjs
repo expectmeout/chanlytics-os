@@ -58,24 +58,10 @@ test("Campaigns' sheets' addresses say the composer or a message, and spell back
     "the audience it is for",
   );
   assert.deepEqual(parseHome("new:to:"), parseHome("new"), "no audience named is no audience");
-  assert.deepEqual(parseHome("new:every"), {
-    group: null,
-    moment: null,
-    message: null,
-    compose: { mode: "every", moment: null, edit: null },
-  });
-  assert.deepEqual(parseHome("new:moment:quiet_30"), {
-    group: null,
-    moment: null,
-    message: null,
-    compose: { mode: "every", moment: "quiet_30", edit: null },
-  });
-  assert.deepEqual(parseHome("new:edit:pb-1"), {
-    group: null,
-    moment: null,
-    message: null,
-    compose: { mode: "every", moment: null, edit: "pb-1" },
-  });
+  // Its Every time went (the closed-loop audit of 17 Oct 2026, G): its addresses open no sheet, and land on New sequence, on
+  // a moment, or on the sequence being changed before the page is drawn (the next test).
+  for (const went of ["new:every", "new:moment:quiet_30", "new:edit:pb-1"])
+    assert.deepEqual(parseHome(went), parseHome(null), went);
   // A message open in a drawer of its own, by its name (the call's text's, or the one a step's editor names).
   assert.deepEqual(parseHome("message:spring_offer"), {
     group: null,
@@ -86,16 +72,13 @@ test("Campaigns' sheets' addresses say the composer or a message, and spell back
   // A word the page does not know names nothing: a link never lands on nothing, and lands on Sequences.
   for (const odd of ["surprise", "moment:", "message:", "new:edit:", "run:b-1", ""])
     assert.deepEqual(parseHome(odd), parseHome(null), odd);
-  // Write to leads, New message's third choice (00426), spelled as it is read.
+  // Write to leads, New message's other choice (00426), spelled as it is read.
   assert.equal(composeRoute("leads"), "campaigns/new:leads");
   assert.deepEqual(parseHome("new:leads"), { group: null, moment: null, message: null, compose: { mode: "leads" } });
   assert.equal(composeRoute("once"), "campaigns/new");
   assert.equal(composeRoute("once", { to: "s1" }), "campaigns/new:to:s1");
   assert.equal(composeRoute("once", { to: null }), "campaigns/new", "none named");
   assert.equal(parseHome(composeRoute("once", { to: "s1" }).split("/")[1]).compose.to, "s1", "and back");
-  assert.equal(composeRoute("every"), "campaigns/new:every");
-  assert.equal(composeRoute("every", { moment: "visited" }), "campaigns/new:moment:visited");
-  assert.equal(composeRoute("every", { edit: "pb-1" }), "campaigns/new:edit:pb-1", "changing one wins over a moment");
 });
 
 test("the home's addresses, and Sent's list, land on Sequences: a campaign's on its sequence, a run's on its day of History", () => {
@@ -105,6 +88,10 @@ test("the home's addresses, and Sent's list, land on Sequences: a campaign's on 
   assert.equal(sequenceLandingOf("campaigns/moment:ro-1:people"), "campaigns/sequences/ro-1/people");
   assert.equal(sequenceLandingOf("broadcasts"), "campaigns/sequences");
   assert.equal(sequenceLandingOf("broadcasts/run:b-1"), "campaigns/sequences/b-1/history/b-1");
+  // The composer's Every time: New, New on its moment, and the sequence being changed.
+  assert.equal(sequenceLandingOf("campaigns/new:every"), "campaigns/sequences/new");
+  assert.equal(sequenceLandingOf("campaigns/new:moment:quiet_30"), "campaigns/sequences/new:moment:quiet_30");
+  assert.equal(sequenceLandingOf("campaigns/new:edit:pb-1"), "campaigns/sequences/pb-1");
   // Where a sheet stands, and Sequences' own addresses, nothing moves.
   for (const kept of [
     "campaigns/sequences",

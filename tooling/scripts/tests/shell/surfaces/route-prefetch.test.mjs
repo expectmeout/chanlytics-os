@@ -624,7 +624,6 @@ test("what the head starts for a page is what its surfaces ask for first, no mor
       (await importSrc(`${S}/surfaces/live/surface.ts`)).liveOverride,
       (await importSrc(`${S}/surfaces/campaigns/broadcasts/surface.ts`)).broadcastsOverride,
       (await importSrc(`${S}/surfaces/campaigns/playbooks/surface.ts`)).playbooksOverride,
-      (await importSrc(`${S}/surfaces/campaigns/home/results-surface.ts`)).campaignResultsOverride,
       (await importSrc(`${S}/surfaces/campaigns/reach-out/surface.ts`)).reachOutsOverride,
       (await importSrc(`${S}/surfaces/campaigns/sequences/surface.ts`)).sequencesOverride,
       (await importSrc(`${S}/legacy-bridge/surfaces/settings.ts`)).settingsOverride,
@@ -682,10 +681,10 @@ test("what the head starts for a page is what its surfaces ask for first, no mor
   }
   // Campaigns' landing draws none of its sheets' surfaces: a landing reads Sequences' alone (the phone review's Reads on landing).
   // And the composer draws no moment's since its Every time went (the closed-loop audit of 17 Oct 2026, G).
-  for (const k of ["playbooks", "campaign_results", "reach_outs"])
+  for (const k of ["playbooks", "reach_outs"])
     for (const param of ["new", "new:leads", "new:to:list-1"])
       assert.ok(!registry.routeDrawsFor("campaigns", param).includes(k), `campaigns/${param} draws no ${k}`);
-  for (const k of ["playbooks", "broadcasts", "campaign_results", "reach_outs"])
+  for (const k of ["playbooks", "broadcasts", "reach_outs"])
     for (const param of [null, "in:winback", "moment:p-1", "sequences"])
       assert.ok(!registry.routeDrawsFor("campaigns", param).includes(k), `campaigns/${param ?? ""} draws no ${k}`);
   for (const route of Object.keys(PREFETCH_READS)) {

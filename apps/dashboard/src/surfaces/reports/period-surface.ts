@@ -1,8 +1,7 @@
 /**
  * A read that follows what Reports shows, made once for every one of them: Today's headline (headline.ts), which follows
  * the period by name kept in this browser, and the Reviews lens's (reviews-surface.ts), which follows the range on
- * screen, the days a member picked among them; and Campaigns' own 30 days (campaigns/home/results-surface.ts), which
- * follows one fixed period whatever Reports shows. Part of the SurfaceData seam
+ * screen, the days a member picked among them. Part of the SurfaceData seam
  * (legacy-bridge/surface-data.ts); a page reads what one publishes through `useSurface(key)`, or through
  * `useFollower(key)` where it must also say how that stands against what is shown.
  *
@@ -32,12 +31,12 @@ import { declareFollower, setSurfaceValue, surfaceValue, type SurfaceKey, type S
 
 /**
  * What a surface follows, the read for it, and what it draws and how fresh it must stay (`live`, declareReads): the kinds of
- * record, where it hears them, how long after the last change it reads (Campaigns' 30 days wait out a burst, as Reports does) and
+ * record, where it hears them, how long after the last change it reads (a lens waits out a burst, as Reports does) and
  * the longest it waits from the first (a dear read, Today's headline, asks for more than the runner's three seconds).
  */
 interface PeriodSurfaceOptions<K extends SurfaceKey, R extends ReportRange> {
   key: K;
-  /** The range the surface follows now: the period kept in this browser, whatever Reports shows, or a fixed period. */
+  /** The range the surface follows now: the period kept in this browser, or the range Reports shows. */
   shown: () => R;
   /** The range a value is of, by its one name (reportRangeKey). */
   of: (value: NonNullable<SurfaceValues[K]>) => string;

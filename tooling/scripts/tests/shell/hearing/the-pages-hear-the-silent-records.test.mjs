@@ -62,7 +62,6 @@ const { playbooksOverride } = await importSrc("apps/dashboard/src/surfaces/campa
 const { broadcastsOverride } = await importSrc("apps/dashboard/src/surfaces/campaigns/broadcasts/surface.ts");
 const { calendarOverride } = await importSrc("apps/dashboard/src/surfaces/calendar/surface.ts");
 const { reachOutsOverride } = await importSrc("apps/dashboard/src/surfaces/campaigns/reach-out/surface.ts");
-const { campaignResultsOverride } = await importSrc("apps/dashboard/src/surfaces/campaigns/home/results-surface.ts");
 const { reportsOverride } = await importSrc("apps/dashboard/src/surfaces/reports/surface.ts");
 const { reportsHeadlineOverride } = await importSrc("apps/dashboard/src/surfaces/reports/headline.ts");
 const { reportsPeopleOverride } = await importSrc("apps/dashboard/src/surfaces/reports/people-surface.ts");
@@ -97,7 +96,6 @@ test("every table these pages name is one the database tells a workspace of (004
     broadcastsOverride,
     calendarOverride,
     reachOutsOverride,
-    campaignResultsOverride,
     reportsOverride,
     reportsHeadlineOverride,
     reportsPeopleOverride,
@@ -183,12 +181,9 @@ const ON_ITS_PAGE = [
       "tenant_config",
     ],
   ],
-  [
-    playbooksOverride,
-    "#/campaigns/new",
-    "#/inbox",
-    ["contacts", "templates", "mailboxes", "policies", "tenant_config"],
-  ],
+  // The playbooks on their own page, Campaigns' old address, since the composer's Every time went (the closed-loop audit of
+  // 17 Oct 2026, G).
+  [playbooksOverride, "#/outbound", "#/inbox", ["contacts", "templates", "mailboxes", "policies", "tenant_config"]],
   // Sent's composer offers the settings read's messages (offered-templates.ts): it hears every other table the playbooks do. Away is
   // the Inbox: Campaigns' composer hears these for Sent's runs too (PAGE_HEARS, a cell of kinds; the test below).
   [broadcastsOverride, "#/broadcasts", "#/inbox", ["contacts", "mailboxes", "policies", "tenant_config"]],
@@ -196,10 +191,9 @@ const ON_ITS_PAGE = [
   [reportsHeadlineOverride, "#/today", "#/inbox", ["contacts"]],
   [reportsPeopleOverride, "#/reports/people", "#/inbox", ["contacts", "tenant_config"]],
   [receptionistOverride, "#/reports/receptionist", "#/inbox", ["contacts", "tenant_config"]],
-  [campaignResultsOverride, "#/campaigns/new", "#/inbox", ["sequence_replies"]],
 ];
 
-test("the heavy pages hear them on their own page alone: People, the composers, the Reports lenses and Campaigns' 30 days", () => {
+test("the heavy pages hear them on their own page alone: People, the playbooks, Sent and the Reports lenses", () => {
   for (const [o, home, away, tables] of ON_ITS_PAGE)
     for (const table of tables) {
       at(home);

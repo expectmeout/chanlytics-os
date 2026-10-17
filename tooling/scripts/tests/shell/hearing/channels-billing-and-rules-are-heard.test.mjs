@@ -126,7 +126,7 @@ test("Live hears the calls, and the line's number and switch are the channels re
 
 test("the composers hear the channel, the line and the billing account on their own page, and read what they missed as it comes on screen", () => {
   for (const [o, home, away] of [
-    [playbooksOverride, "#/campaigns/new", "#/inbox"],
+    [playbooksOverride, "#/outbound", "#/inbox"],
     // Campaigns' composer hears the channels for Sent's runs too (who can hear you, Send by): away is the Inbox.
     [broadcastsOverride, "#/broadcasts", "#/inbox"],
   ]) {
@@ -167,12 +167,15 @@ test("the composers hear the channel, the line and the billing account on their 
     win.on?.();
     assert.deepEqual(
       read,
-      ["playbooks", "broadcasts"],
-      "Campaigns' composer reads both once: a channel moves the playbooks' moments and Sent's runs it draws (who can hear you)",
+      ["broadcasts"],
+      "Campaigns' composer reads Sent's runs it draws once (who can hear you); its playbook composer went (the closed-loop audit of 17 Oct 2026, G)",
     );
     at("#/broadcasts");
     win.on?.();
-    assert.deepEqual(read, ["playbooks", "broadcasts"], "and Sent owes nothing more: it was read");
+    assert.deepEqual(read, ["broadcasts"], "and Sent owes nothing more: it was read");
+    at("#/outbound");
+    win.on?.();
+    assert.deepEqual(read, ["broadcasts", "playbooks"], "the playbooks once, on their own page");
   } finally {
     stop();
     at("#/today");
@@ -204,6 +207,7 @@ test("a mode saved reads the rules' own read, and what the page on screen draws 
   const settle = () => {
     owedOn("#/campaigns/new");
     owedOn("#/broadcasts");
+    owedOn("#/outbound");
     owedOn("#/clients", [peopleOverride]);
   };
   // Nothing is owed from before.
@@ -217,10 +221,11 @@ test("a mode saved reads the rules' own read, and what the page on screen draws 
   );
   assert.deepEqual(
     owedOn("#/campaigns/new"),
-    ["playbooks", "broadcasts"],
-    "both composers are read as Campaigns' composer comes on screen: Sent's runs it draws hear the rules there",
+    ["broadcasts"],
+    "Sent's runs are read as Campaigns' composer comes on screen: the runs it draws hear the rules there",
   );
-  assert.deepEqual(owedOn("#/broadcasts"), [], "and Sent owes nothing more");
+  assert.deepEqual(owedOn("#/broadcasts"), ["playbooks"], "and Sent the playbooks, which name its runs' campaigns");
+  assert.deepEqual(owedOn("#/outbound"), [], "and their own page owes nothing more");
   assert.deepEqual(
     owedOn("#/clients", [peopleOverride]),
     ["people"],
@@ -234,17 +239,22 @@ test("a mode saved reads the rules' own read, and what the page on screen draws 
     ["settings", "broadcasts"],
     "from the Inbox, the runs waiting for your word it draws beside the rules' own read",
   );
-  assert.deepEqual(owedOn("#/campaigns/new"), ["playbooks"], "the playbooks as Campaigns' composer comes on screen");
+  assert.deepEqual(owedOn("#/campaigns/new"), [], "Campaigns' composer owes nothing: Sent's runs were read");
+  assert.deepEqual(owedOn("#/outbound"), ["playbooks"], "the playbooks as their own page comes on screen");
   settle();
 
   at("#/campaigns/new");
   assert.deepEqual(
     keysOf("PUT policies"),
-    ["settings", "playbooks", "broadcasts"],
-    "on Campaigns' composer both are read at once",
+    ["settings", "broadcasts"],
+    "on Campaigns' composer Sent's runs are read at once",
   );
-  assert.deepEqual(owedOn("#/broadcasts"), [], "Sent owes nothing: its runs were read in the composer");
-  assert.deepEqual(owedOn("#/campaigns/new"), [], "and the playbooks owe nothing: they were read");
+  assert.deepEqual(
+    owedOn("#/broadcasts"),
+    ["playbooks"],
+    "Sent owes the playbooks alone, which name its runs' campaigns: its runs were read in the composer",
+  );
+  assert.deepEqual(owedOn("#/outbound"), [], "and their own page owes nothing more");
   settle();
 
   at("#/broadcasts");

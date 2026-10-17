@@ -5,9 +5,7 @@
  * `GET reports/reach-outs`, its `report` half) and published as each route gave it. Part of the SurfaceData seam
  * (legacy-bridge/surface-data.ts); the lens reads what it publishes through `useFollower("reports_campaigns")`. The fold into its
  * view models is the page's (`toCampaignLensVM` and `toReachOutLensVM`, the page-only entry `@chanlytics/contracts/report-lens`), so
- * the fold never rides the route's chunk: this module imports the DTOs' types and nothing else of the lens. (Not Campaigns' own
- * numbers, `campaign_results`, which the Campaigns home reads over its own fixed 30 days: this is what the Reports lens of that
- * name draws.)
+ * the fold never rides the route's chunk: this module imports the DTOs' types and nothing else of the lens.
  *
  * It follows the period Reports shows, held by period as the headline is (period-surface.ts): a pick of one this tab has read paints
  * at once, and is read again behind it only if it has aged.

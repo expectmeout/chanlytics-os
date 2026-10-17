@@ -53,3 +53,7 @@ a `broadcasts` row. Production on 15 October 2026 held 7 moment playbooks in one
   an example person, to the member who pressed it at their own sign-in address and to nobody else: member mail through
   the edge (`api/admin/email/test-to-self`), never the customer's send door (Ruben, 15 Oct 2026).
 - **Every page's door (S5)** and **retiring what the page replaced (S6)**, the old tables last, after the deploy.
+- **One way to make one** (the closed-loop audit of 17 Oct 2026, G): Campaigns' composer kept a second way to make a
+  moment's sequence, its "Every time a moment comes", until it went. New sequence takes the moment a door asks for
+  (`campaigns/sequences/new:moment:<trigger>`, the owner's line for it written in), the composer's old addresses land on
+  New or on the sequence (contracts `sequenceLandingOf`), and the composer is Send once and Write to leads.

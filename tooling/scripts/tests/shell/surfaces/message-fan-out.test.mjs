@@ -204,11 +204,10 @@ test("a receipt reads the threads everywhere, and the counts made of receipts wh
   };
   for (const [hash, { now, back }] of Object.entries(want)) {
     win.location.hash = hash;
-    // Campaigns' own 30 days are read on demand and again once aged (results-surface.ts, a period surface), and so is the Campaigns
-    // lens's, which the Overview draws too, and the Calendar's campaign marks (runs-surface.ts), which the page this leaves for
-    // draws: a read recorded holds nothing and would always say it has aged, so each is held fresh here, and what this asks is
-    // what was kept.
-    const r = await running({ fresh: ["campaign_results", "reports_campaigns", "calendar_runs"] });
+    // The Campaigns lens's read is made on demand and again once aged (a period surface), which the Overview draws too, and so
+    // are the Calendar's campaign marks (runs-surface.ts), which the page this leaves for draws: a read recorded holds nothing
+    // and would always say it has aged, so each is held fresh here, and what this asks is what was kept.
+    const r = await running({ fresh: ["reports_campaigns", "calendar_runs"] });
     try {
       await away("#/calendar", hash);
       r.asked.length = 0;
@@ -239,7 +238,6 @@ test("a surface hears a message's update only by naming its statuses: the thread
   const heard = Object.fromEntries(REAL.map((o) => [o.key, hears(o)]).filter(([, h]) => h.length));
   assert.deepEqual(heard, {
     broadcasts: ["delivered", "read"],
-    campaign_results: ["delivered", "read"],
     conversations: ["sent", "delivered", "read", "failed", "canceled"],
     inbox: ["sent", "delivered", "read", "failed", "canceled"],
     playbooks: ["delivered", "read"],
@@ -250,7 +248,7 @@ test("a surface hears a message's update only by naming its statuses: the thread
   const quiet = Object.fromEntries(
     REAL.filter((o) => o.receiptsQuietMs !== undefined).map((o) => [o.key, o.receiptsQuietMs]),
   );
-  assert.deepEqual(quiet, { broadcasts: 5_000, campaign_results: 5_000, playbooks: 5_000, reports_campaigns: 5_000 });
+  assert.deepEqual(quiet, { broadcasts: 5_000, playbooks: 5_000, reports_campaigns: 5_000 });
   // An arrival is heard as it was.
   const arrival = { table: "messages", event: "INSERT", row: {} };
   for (const key of ["inbox", "conversations", "today"])
@@ -336,8 +334,7 @@ test("a surface's own tables reach it wherever the page is, and a thread's updat
 
 test("Campaigns' landing hears what Sequences hears, and its composer owns what it draws but Sent's runs: a message re-reads Sequences' list there and at the composer, never the broadcasts and every page of People behind them; what passed is read once as each comes back", async () => {
   win.location.hash = "#/campaigns";
-  // Its own 30 days are read on demand and again once aged: held fresh, so what is asked is what a message moved.
-  const r = await running({ fresh: ["campaign_results"] });
+  const r = await running();
   try {
     await r.message();
     assert.deepEqual(
@@ -857,7 +854,7 @@ test("the page that owns what it draws is an explicit one: the surface registry 
   assert.equal(owns("reports", "reports/campaigns"), true, "and the page's own surface is still its own");
   // The composer draws Send once and Write to leads alone since its Every time went (the closed-loop audit of 17 Oct
   // 2026, G): neither it nor Campaigns' landing, Sequences' list, owns the playbooks or Campaigns' 30 days.
-  for (const key of ["playbooks", "campaign_results"]) {
+  for (const key of ["playbooks"]) {
     assert.equal(owns(key, "campaigns/new"), false, `the composer does not own ${key}`);
     assert.equal(owns(key, "campaigns"), false, `Campaigns' landing does not own ${key}`);
   }

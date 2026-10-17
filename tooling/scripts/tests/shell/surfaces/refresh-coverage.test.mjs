@@ -35,6 +35,11 @@ function keysOn(hash, route) {
 }
 /** Campaigns' two composers: read where the page on screen draws them, left for the pages that do elsewhere (S10-6). */
 const COMPOSERS = ["broadcasts", "playbooks"];
+/**
+ * The page that draws each of them whole: Sent's runs in Campaigns' composer (Send once), the playbooks on Campaigns' old
+ * address, since the composer's Every time went (the closed-loop audit of 17 Oct 2026, G).
+ */
+const PAGE_OF = { broadcasts: "#/campaigns/new", playbooks: "#/outbound" };
 
 test("every write re-reads its surfaces or says why it re-reads none, and never both", () => {
   assert.ok(writes.length > 100, `the generated routes are read: ${writes.length} writes`);
@@ -102,8 +107,8 @@ test("REGRESSION: a write that changes who a campaign reaches re-reads the pages
   // counts, the playbooks' "N will get it"), and the Campaigns lens counts the yeses and stops after a campaign (its own read, below;
   // the report's own no longer counts them, so these writes do not re-read it). Each write that moves one of those
   // re-reads the surfaces that count by it, with whatever it re-read before: People always, the composers where the page on screen
-  // draws them (Campaigns' composer draws both), and nowhere else, where they are left for the pages that draw them (S10-6):
-  // Campaigns' landing, Sequences' list, draws neither.
+  // draws them (PAGE_OF), and nowhere else, where they are left for the pages that draw them (S10-6): Campaigns' landing,
+  // Sequences' list, draws neither.
   const counted = COMPOSERS;
   const answers = [
     "PUT contacts/[id]/consent",
@@ -112,8 +117,12 @@ test("REGRESSION: a write that changes who a campaign reaches re-reads the pages
     "PUT contacts/marketing-consent",
   ];
   for (const route of answers) {
+    for (const key of counted) {
+      const on = keysOn(PAGE_OF[key], route);
+      assert.ok(on.includes(key), `${route} re-reads ${key} on ${PAGE_OF[key]}: ${on}`);
+    }
     const keys = keysOn("#/campaigns/new", route);
-    for (const key of counted) assert.ok(keys.includes(key), `${route} re-reads ${key}: ${keys}`);
+    assert.equal(keys.includes("playbooks"), false, `${route}: Campaigns' composer draws no playbook`);
     const landing = keysOn("#/campaigns", route);
     for (const key of counted)
       assert.equal(landing.includes(key), false, `${route} on Campaigns' landing: ${key} is left for its pages`);
@@ -138,8 +147,10 @@ test("REGRESSION: a write that changes who a campaign reaches re-reads the pages
     "PUT contacts/[id]/details",
     "POST contacts/[id]/deal",
   ]) {
-    const keys = keysOn("#/campaigns/new", route);
-    for (const key of counted) assert.ok(keys.includes(key), `${route} re-reads ${key}: ${keys}`);
+    for (const key of counted) {
+      const on = keysOn(PAGE_OF[key], route);
+      assert.ok(on.includes(key), `${route} re-reads ${key} on ${PAGE_OF[key]}: ${on}`);
+    }
     assert.ok(keysOn("#/clients", route).includes("people"), `${route} on People: people`);
   }
   // A playbook made, changed or removed, and the class that lets the follow-up send, move what People's rows say of it
@@ -203,8 +214,8 @@ test("REGRESSION: a broadcast made re-reads Playbooks with Broadcasts, as approv
 test("a write that changes what a channel can send re-reads the composers and People's reach", () => {
   // The number, the text line, the mailbox and the postal address an offer by email names are what channels-ready.ts
   // reads; each has its writer in this table, and each moves the three surfaces that show the readiness, each where the page on
-  // screen draws it (Campaigns' composer draws the composers, People's pages its reach) and left for those pages from Settings,
-  // where these writes are made (S10-6, S4-6).
+  // screen draws it (PAGE_OF, People's pages its reach) and left for those pages from Settings, where these writes are made
+  // (S10-6, S4-6).
   const moved = COMPOSERS;
   for (const route of [
     "PUT settings",
@@ -216,8 +227,10 @@ test("a write that changes what a channel can send re-reads the composers and Pe
     "POST mailboxes",
     "PUT mailboxes/[id]",
   ]) {
-    const keys = keysOn("#/campaigns/new", route);
-    for (const key of moved) assert.ok(keys.includes(key), `${route} re-reads ${key}: ${keys}`);
+    for (const key of moved) {
+      const on = keysOn(PAGE_OF[key], route);
+      assert.ok(on.includes(key), `${route} re-reads ${key} on ${PAGE_OF[key]}: ${on}`);
+    }
     const away = keysOn("#/admin/integrations", route);
     for (const key of [...COMPOSERS, "people"])
       assert.equal(away.includes(key), false, `${route} from Settings: ${key} is left`);
@@ -906,19 +919,18 @@ test("Not the same reads no list: the open person page reads itself again with t
   assert.equal("POST contacts/[id]/doubts/dismiss" in AFTER, false, "and not also named to re-read People");
 });
 
-test("a person erased takes their messages, calls and threads with them: the report overview and Campaigns' composer read where drawn and forget where not, and a merge re-reads the bell, whose lines it re-addresses", () => {
+test("a person erased takes their messages, calls and threads with them: the report overview reads where drawn and forgets where not, and a merge re-reads the bell, whose lines it re-addresses", () => {
   const was = globalThis.location.hash;
   try {
     for (const [hash, drawn, notDrawn] of [
-      ["#/reports", "reports", "campaign_results"],
-      ["#/campaigns/new", "campaign_results", "reports"],
-      ["#/campaigns", null, "campaign_results"],
+      ["#/reports", "reports", null],
+      ["#/campaigns/new", null, "reports"],
       ["#/inbox", null, "reports"],
     ]) {
       globalThis.location.hash = hash;
       const keys = keysOf("DELETE contacts/[id]");
       if (drawn) assert.equal(keys.filter((k) => k === drawn).length, 1, `${hash}: ${drawn} is read once: ${keys}`);
-      assert.equal(keys.includes(notDrawn), false, `${hash}: ${notDrawn} is not read from here: ${keys}`);
+      if (notDrawn) assert.equal(keys.includes(notDrawn), false, `${hash}: ${notDrawn} is not read from here: ${keys}`);
     }
     globalThis.location.hash = "#/inbox";
     assert.ok(keysOf("POST contacts/[id]/merge").includes("notifications"), "a merge re-addresses the bell's lines");

@@ -604,7 +604,6 @@ test("each Reports page hears the tables it counts, on its page: the overview it
       "reports/campaigns",
       ["sequence_replies", "tenant_channels", "mailbox_connections", "mailboxes", "deals"],
     ],
-    ["campaign_results", "campaigns/new", ["sequence_replies", "deals", "mailboxes", "mailbox_connections"]],
   ];
   for (const [key, route, list] of WANTED)
     for (const table of list) {
@@ -631,7 +630,7 @@ test("each Reports page hears the tables it counts, on its page: the overview it
 });
 
 test("the receipts of a run are the one thing the Campaigns pages count and the feed cannot tell: listed, with why, in the baseline", () => {
-  for (const key of ["reports_campaigns", "campaign_results", "broadcasts", "playbooks"])
+  for (const key of ["reports_campaigns", "broadcasts", "playbooks"])
     assert.ok(held.has(`${key} sequence_sends`), `${key} reads a run's people unheard, and the baseline says why`);
   assert.equal(
     watchedTables().includes("sequence_sends"),

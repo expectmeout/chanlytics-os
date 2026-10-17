@@ -1,14 +1,11 @@
 {
-  "owed": 65,
+  "owed": 61,
   "groups": [
     {
       "kind": "seat",
       "why": "The caller's own seat. The SQL doors these pages read through check it before they answer (tenant_config_read, contact_seen, lead_month_used, the reach-outs' readers), and GET views keeps the member's saved views on it. None of these draws the roster from it: People and Sent do, and are owed (below). The feed tells a seat's role changing only (00408).",
       "reads": {
         "calendar": [
-          "memberships"
-        ],
-        "campaign_results": [
           "memberships"
         ],
         "conversations": [
@@ -126,9 +123,6 @@
         "broadcasts": [
           "tenants"
         ],
-        "campaign_results": [
-          "tenants"
-        ],
         "people": [
           "tenants"
         ],
@@ -162,9 +156,6 @@
       },
       "rereadAfter": {
         "broadcasts": [
-          "PATCH workspaces"
-        ],
-        "campaign_results": [
           "PATCH workspaces"
         ],
         "people": [
@@ -290,9 +281,6 @@
         "calendar_runs": [
           "sequence_sends"
         ],
-        "campaign_results": [
-          "sequence_sends"
-        ],
         "people": [
           "sequence_sends"
         ],
@@ -313,10 +301,6 @@
       },
       "heardWith": {
         "broadcasts": [
-          "sequence_batches",
-          "messages"
-        ],
-        "campaign_results": [
           "sequence_batches",
           "messages"
         ],
@@ -633,9 +617,6 @@
         "broadcasts": [
           "sequence_steps"
         ],
-        "campaign_results": [
-          "sequence_steps"
-        ],
         "reach_out_replies": [
           "sequence_steps"
         ],
@@ -716,11 +697,6 @@
       "finding": "W-person-list-lead-8",
       "why": "The reach-outs' part of the Campaigns lens and home counts what a chain sent and who wrote back, said no or booked (reach_out_chain_totals, reach_out_report): a lead's call, the leads and their searches, and the mailboxes they left from (connected, or the hosted address: decision 0056). The replies it counts are heard (reach_out_replies); a lead's stage written re-reads the lens in the writer's tab (rereadAfter). Owed: hear the lead and mailbox tables they count.",
       "reads": {
-        "campaign_results": [
-          "calls",
-          "lead_searches",
-          "leads"
-        ],
         "reports_campaigns": [
           "calls",
           "lead_searches",
