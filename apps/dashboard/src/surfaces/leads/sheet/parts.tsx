@@ -1,9 +1,11 @@
 /**
- * The lead sheet's card at half height (canvas B v2, "Decide at half height"): what a decision needs, in the order the
- * eye wants it. Who they are, with the fit as a meter; the reason to write now, in large type; what it rests on, as
- * quiet marks whose source is a tap away; three cells for how they can be reached; and, by the state the lead is in,
- * the email they would get (Change opens in place), their steps in a sequence, what they wrote back, or what stopped.
- * Over it in a pile, how far through it is and Undo; at its end, what happened.
+ * The lead sheet's card at half height (canvas B v2, "Decide at half height"; the refined canvas, 17 Oct 2026): what a
+ * decision needs, in the order the eye wants it. Who they are, the word for where they stand beside the name (as the
+ * sequence's Leads tab files them), the fit as a meter; the reason to write now, in large type; what it rests on, as
+ * quiet marks whose source is a tap away; three cells for how they can be reached; and the sequence box: Joins, In or
+ * Left the sequence, its name a door to the record, Change beside it, and one line of where they stand. The email
+ * they would get and their steps are the Sequence tab's. Over it in a pile, how far through it is and Undo; at its
+ * end, what happened.
  *
  * Hookless: the sheet (sheet.tsx) holds what is open and hands it down. Every word is contracts' (lead-sheet.ts,
  * lead-card.ts). A tip is the canvas's: its trigger is the thing itself (a mark, a cell, the meter, the reason), a tap
@@ -20,14 +22,16 @@ import {
   type LeadCardReasonVM,
   type LeadPeekVM,
   type LeadRowVM,
+  type LeadSheetBoxVM,
   type LeadSheetCellVM,
-  type LeadSheetClosedVM,
   type LeadSheetFitVM,
-  type LeadSheetOptionVM,
   type LeadSheetTrackVM,
+  type LeadWordTone,
 } from "@chanlytics/contracts";
 import { Icon } from "../../kit/icon/icon";
+import { LinkButton } from "../../kit/link-button/link-button";
 import { Meter } from "../../kit/meter/meter";
+import { StatePill } from "../../kit/pill/state-pill";
 import { statePillPart } from "../../legacy-parts";
 import { LeadTile } from "../cells/tile";
 import { ldCheckMark } from "../peek/hint";
@@ -48,9 +52,12 @@ const bubbleOf = (tips: SheetTips, key: string, words: string, side: "" | " righ
 
 /* ------------------------------------------------------------------------------------------------------- who -- */
 
-/** The fit as five parts of a meter, its pill only where the word is news; tapping it says what the checks found. */
+/**
+ * The fit as five parts of a meter, a check read rather than seen shaded apart, its pill only where the fit's word is
+ * news (Worth a look); tapping it says what the checks found.
+ */
 const fitOf = (fit: LeadSheetFitVM, tips: SheetTips) => {
-  const StatePill = statePillPart();
+  const FitPill = statePillPart();
   return (
     <span className="lw-fit">
       <button
@@ -61,8 +68,8 @@ const fitOf = (fit: LeadSheetFitVM, tips: SheetTips) => {
         onClick={() => tips.toggle("fit")}
         data-testid="lead-sheet-fit"
       >
-        {fit.pill ? (
-          <StatePill kind={fit.pill.kind} value={fit.pill.value} label={fit.pill.label} testid="peek-fit-word" />
+        {fit.pill && fit.pill.kind === "lead_fit" ? (
+          <FitPill kind={fit.pill.kind} value={fit.pill.value} label={fit.pill.label} testid="peek-fit-word" />
         ) : null}
         <Meter
           className="lw-fit-bar"
@@ -76,11 +83,15 @@ const fitOf = (fit: LeadSheetFitVM, tips: SheetTips) => {
   );
 };
 
-/** Who they are: the face (its photo opens large), the name (a door to the person they became), the line about where. */
+/**
+ * Who they are: the face (its photo opens large), the name (a door to the person they became) and beside it the word
+ * for where they stand, which never wraps (a long name shortens instead), the line about where.
+ */
 export const SheetWho = (p: {
   vm: LeadPeekVM;
   row: Pick<LeadRowVM, "id" | "name" | "tile"> | null;
   fit: LeadSheetFitVM;
+  word: { word: string; tone: LeadWordTone };
   tips: SheetTips;
   onExpand: () => void;
   onOpenPerson: (id: string) => void;
@@ -96,21 +107,24 @@ export const SheetWho = (p: {
       </span>
     )}
     <span className="lw-id-words">
-      {p.vm.contactId ? (
-        <button
-          type="button"
-          className="lw-name lw-name-go"
-          title={LEAD_WORDS.openPerson}
-          onClick={() => p.vm.contactId && p.onOpenPerson(p.vm.contactId)}
-          data-testid="peek-name-person"
-        >
-          {p.vm.name}
-        </button>
-      ) : (
-        <span className="lw-name" data-testid="peek-name">
-          {p.vm.name}
-        </span>
-      )}
+      <span className="lw-name-row">
+        {p.vm.contactId ? (
+          <button
+            type="button"
+            className="lw-name lw-name-go"
+            title={LEAD_WORDS.openPerson}
+            onClick={() => p.vm.contactId && p.onOpenPerson(p.vm.contactId)}
+            data-testid="peek-name-person"
+          >
+            {p.vm.name}
+          </button>
+        ) : (
+          <span className="lw-name" data-testid="peek-name">
+            {p.vm.name}
+          </span>
+        )}
+        <StatePill kind="tone" value={p.word.tone} label={p.word.word} testid="lead-sheet-word" />
+      </span>
       <span className="lw-sub" data-testid="peek-sub">
         {[p.vm.sub, p.vm.today].filter(Boolean).join(" · ")}
       </span>
@@ -314,102 +328,57 @@ export const SheetMail = (p: {
   </section>
 );
 
-/** Change, opened in place: the sequences the adds could go to, each with what it would come to here, and Done. */
-export const SheetChoose = (p: {
-  name: string;
-  options: LeadSheetOptionVM[];
-  pile: boolean;
-  onPick: (rootId: string) => void;
-  onDone: () => void;
-}) => (
-  <section className="lw-mail" aria-label={W.choose(p.name)} data-testid="lead-sheet-choose">
-    <div className="lw-mail-h">
-      <b>{W.choose(p.name)}</b>
-      <button type="button" className="lw-change" onClick={p.onDone} data-testid="lead-sheet-choose-done">
-        {W.done}
-      </button>
-    </div>
-    <div className="lw-opts" role="radiogroup" aria-label={W.choose(p.name)}>
-      {p.options.map((o) => (
-        <button
-          key={o.rootId}
-          type="button"
-          role="radio"
-          aria-checked={o.on}
-          className={`lw-opt${o.on ? " on" : ""}`}
-          onClick={() => p.onPick(o.rootId)}
-          data-testid={`lead-sheet-option-${o.rootId}`}
-        >
-          <span className="lw-radio" aria-hidden="true" />
-          <span>
-            <span className="lw-opt-n">{o.name}</span>
-            <span className="lw-opt-m">{o.meta}</span>
-            <span className={`lw-opt-f ${o.tone}`}>{o.fill}</span>
-          </span>
-        </button>
-      ))}
-    </div>
-    <p className="lw-opts-foot">{p.pile ? W.chooseFootPile : W.chooseFoot}</p>
-  </section>
-);
-
 /* --------------------------------------------------------------------------------------------- the other states -- */
 
-/** A block of the card's own: a head, and its lines under it. */
-const sheetBlockOf = (head: ReactNode, body: ReactNode, testid: string) => (
-  <section className="lw-mail" data-testid={testid}>
-    <div className="lw-mail-h">{head}</div>
-    {body}
-  </section>
+/**
+ * Their steps in the sequence they are in, on the record's rail of days (the Sequence tab): each step's day and name,
+ * whether it went, goes next or is still to come, and where they stand, in one line.
+ */
+export const SheetTrack = ({ track }: { track: LeadSheetTrackVM }) => (
+  <>
+    <ol className="lw-track" data-testid="lead-sheet-track">
+      {track.steps.map((s) => (
+        <li key={s.n} className={`lw-track-i ${s.look}`}>
+          <span className="lw-track-d">{`Day ${s.day}`}</span>
+          <i aria-hidden="true" />
+          <span>
+            <b>{s.label}</b>
+            <span>{[s.sub, s.when].filter(Boolean).join(" · ")}</span>
+          </span>
+        </li>
+      ))}
+    </ol>
+    {track.line ? <p className="lw-mail-w">{track.line}</p> : null}
+  </>
 );
 
-/** In a sequence: its name, their steps (done, next, still to come), and where they stand. */
-export const SheetTrack = ({ track }: { track: LeadSheetTrackVM }) =>
-  sheetBlockOf(
-    <b>{W.inSequence(track.name)}</b>,
-    <>
-      <ol className="lw-track">
-        {track.steps.map((s) => (
-          <li key={s.n} className={`lw-track-i ${s.look}`}>
-            <i aria-hidden="true" />
-            <span>
-              <b>{s.label}</b>
-              <span>{[s.sub, s.when].filter(Boolean).join(" · ")}</span>
-            </span>
-          </li>
-        ))}
-      </ol>
-      {track.line ? <p className="lw-mail-w">{track.line}</p> : null}
-    </>,
-    "lead-sheet-track",
-  );
-
-/** In another sequence: which, and why it stays there. */
-export const SheetElsewhere = ({ name }: { name: string | null }) =>
-  sheetBlockOf(
-    <b>{name ? W.elsewhereIn(name) : W.elsewhereIn("another sequence")}</b>,
-    <p className="lw-mail-n">{W.elsewhereLine}</p>,
-    "lead-sheet-elsewhere",
-  );
-
-/** A phone and no email: the yes is a call. */
-export const SheetPhoneOnly = ({ number }: { number: string | null }) =>
-  sheetBlockOf(
-    <b>{W.phoneOnly}</b>,
-    <>
-      {number ? <p className="lw-mail-b">{number}</p> : null}
-      <p className="lw-mail-w">{W.phoneOnlyLine}</p>
-    </>,
-    "lead-sheet-phone",
-  );
-
-/** What stopped, plainly: closed, left out, bounced, or what the door said. */
-export const SheetClosed = ({ closed }: { closed: LeadSheetClosedVM }) =>
-  sheetBlockOf(<b>{closed.title}</b>, <p className="lw-mail-n">{closed.line}</p>, "lead-sheet-closed");
-
-/** They wrote back: the sequence stopped. */
-export const SheetStopped = () =>
-  sheetBlockOf(<b>{W.stopped}</b>, <p className="lw-mail-n">{W.stoppedLine}</p>, "lead-sheet-stopped");
+/**
+ * The sequence box (the refined canvas): how they stand to the sequence (Joins, In, Left, Can't join), its name a door to
+ * its record, Change beside it where the adds may go to another, and one line of where they stand.
+ */
+export const SheetBox = (p: { box: LeadSheetBoxVM; onOpen: (rootId: string) => void; change: ReactNode }) => (
+  <section className="lw-box" aria-label={p.box.name ?? p.box.line} data-testid="lead-sheet-box">
+    <div className="lw-box-h">
+      {p.box.verb ? <span className="lw-box-v">{p.box.verb}</span> : null}
+      {p.box.name && p.box.rootId ? (
+        <LinkButton
+          className="lw-box-door"
+          onClick={() => p.box.rootId && p.onOpen(p.box.rootId)}
+          data-testid="lead-sheet-door"
+        >
+          {p.box.name}
+          <Icon name="chevron" size={11} />
+        </LinkButton>
+      ) : p.box.name ? (
+        <b className="lw-box-n">{p.box.name}</b>
+      ) : null}
+      {p.change}
+    </div>
+    <p className="lw-box-l" data-testid="lead-sheet-box-line">
+      {p.box.line}
+    </p>
+  </section>
+);
 
 /* ---------------------------------------------------------------------------------------------------- the pile -- */
 

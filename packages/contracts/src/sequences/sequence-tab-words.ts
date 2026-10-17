@@ -13,7 +13,9 @@ import {
   type HoldDoor,
   type ReachOutHold,
 } from "../reach-out/reach-out-words";
+import { REPLY_INTENT_WORDS, isReplyIntent } from "../reach-out/reach-out-replies";
 import { REPORT_MIN_N } from "../reports/report-tiles";
+import { addressOf } from "../activity/record-address";
 import { clockHistoryDay, clockTime, clockWhen, zoneDayKey } from "../shared/clock";
 import { pct } from "../shared/numbers";
 import { plural } from "../shared/words";
@@ -71,6 +73,10 @@ export const SEQUENCE_NEEDS_WORDS = {
   /** Leads who wrote back, answered in the Inbox (its threads that answered the sequence). */
   wroteBack: "Wrote back",
   inbox: "Inbox",
+  /** A reply's own door: its thread in the Inbox, where the answer is written. */
+  answer: "Answer",
+  /** What they wrote, read: "Wrote back · a question". */
+  said: (intent: string) => `Wrote back · ${intent}`,
   oneByOne: "Send them one by one",
   reading: "Reading what it holds…",
   /** What a failed read could not read: "Couldn't read this batch's emails". */
@@ -93,6 +99,19 @@ export interface SequenceHeldVM {
   batchId: string | null;
 }
 
+/** Someone whose reply asks for an answer (00455's replied group), as People lists them: what they said, and its thread. */
+export interface SequenceWroteBackVM {
+  key: string;
+  name: string;
+  /** "Wrote back · a question", and what the reply said, read. */
+  said: string;
+  summary: string | null;
+  /** The thread in the Inbox the answer is written in; null where the reply has none. */
+  answer: string | null;
+  /** Where the name opens: the person's page, or the lead's. */
+  to: string | null;
+}
+
 /** What needs you on People, from its one read: the held, the emails to send, and the batches whose rows say no draft. */
 export interface SequenceNeedsVM {
   held: SequenceHeldVM[];
@@ -105,6 +124,11 @@ export interface SequenceNeedsVM {
   toSend: (ToSendRowVM & { batchId: string | null })[];
   /** Batches holding an email to send that this read carries no draft of (a server before 00447): their run's sheet lays them out. */
   unread: string[];
+  /**
+   * Who wrote back and waits for an answer, by name (00455). Null from a server before 00455, whose read has no such
+   * group: People then says only how many, as the sequence's needs count them, with the Inbox's door.
+   */
+  wroteBack: SequenceWroteBackVM[] | null;
 }
 
 /** The holds that judge the lead rather than the email's words: an Include of one of these sends the email as written. */
@@ -161,7 +185,28 @@ export function peopleNeedsOf(
   );
   const unread = [...new Set(handed.filter((r) => !r.draft && r.batch_id).map((r) => r.batch_id ?? ""))];
   const asIs = held.filter((h) => LEAD_HOLDS.has(h.reason) && h.doors.some(([d]) => d === "include"));
-  return { held, asIs, toSend, unread };
+  const replied = rows.filter((r) => r.group === "replied");
+  const wroteBack =
+    replied.length > 0 || rows.some((r) => r.reply !== undefined)
+      ? replied.map((r): SequenceWroteBackVM => {
+          const intent = r.reply?.intent ?? r.why;
+          return {
+            key: r.lead_id ?? r.contact_id ?? r.enrollment_id ?? "",
+            name: r.name ?? SEQUENCE_PEOPLE_WORDS.someone,
+            said: SEQUENCE_NEEDS_WORDS.said(
+              isReplyIntent(intent) ? REPLY_INTENT_WORDS[intent] : REPLY_INTENT_WORDS.other,
+            ),
+            summary: r.reply?.summary ?? null,
+            answer: r.reply?.conversation_id ? addressOf({ kind: "conversation", id: r.reply.conversation_id }) : null,
+            to: r.contact_id
+              ? addressOf({ kind: "person", id: r.contact_id })
+              : r.lead_id
+                ? addressOf({ kind: "lead", id: r.lead_id })
+                : null,
+          };
+        })
+      : null;
+  return { held, asIs, toSend, unread, wroteBack };
 }
 
 /** The People tab's own words: its rows, its folds and taking someone out. */

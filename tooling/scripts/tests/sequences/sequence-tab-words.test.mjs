@@ -160,6 +160,77 @@ test("Send N as written covers the held that judge the lead, never words the che
   );
 });
 
+test("who wrote back is listed by name with their thread; a server before 00455 says only how many", () => {
+  const row = (over) => ({
+    group: "in",
+    contact_id: null,
+    lead_id: null,
+    enrollment_id: null,
+    send_id: null,
+    batch_id: null,
+    name: null,
+    place: 1,
+    at: null,
+    why: null,
+    hold_detail: null,
+    draft: null,
+    reply: null,
+    ...over,
+  });
+  const vm = peopleNeedsOf(
+    [
+      row({
+        group: "replied",
+        lead_id: "l1",
+        name: "Moss & Spine",
+        why: "question",
+        reply: { intent: "question", summary: "Asks if Tuesdays work", conversation_id: "c1" },
+      }),
+      row({
+        group: "replied",
+        contact_id: "p1",
+        name: null,
+        why: "interested",
+        reply: { intent: "interested", summary: null, conversation_id: null },
+      }),
+      row({ group: "in", lead_id: "l2", enrollment_id: "e2" }),
+    ],
+    { timezone: TZ, now: NOW },
+  );
+  assert.deepEqual(
+    vm.wroteBack,
+    [
+      {
+        key: "l1",
+        name: "Moss & Spine",
+        said: "Wrote back · a question",
+        summary: "Asks if Tuesdays work",
+        answer: "inbox/th-c1",
+        to: "clients/leads:p-l1",
+      },
+      {
+        key: "p1",
+        name: SEQUENCE_PEOPLE_WORDS.someone,
+        said: "Wrote back · interested",
+        summary: null,
+        answer: null,
+        to: "clients/p1",
+      },
+    ],
+    "each by name, what they said, its thread to answer in, and their page",
+  );
+  const before = peopleNeedsOf([{ group: "in", lead_id: "l2", enrollment_id: "e2", name: "x", place: 1 }], {
+    timezone: TZ,
+    now: NOW,
+  });
+  assert.equal(before.wroteBack, null, "a read with no reply field is a server before 00455: no rows, only the count");
+  assert.deepEqual(
+    peopleNeedsOf([row({})], { timezone: TZ, now: NOW }).wroteBack,
+    [],
+    "after 00455 and nobody wrote back: none",
+  );
+});
+
 test("a lead's step is done, going now or still to come; a message's WhatsApp standing has its tone", () => {
   assert.deepEqual(
     [1, 2, 3].map((place) => leadStepStand(place, place === 1 ? 31 : 0, 2)),

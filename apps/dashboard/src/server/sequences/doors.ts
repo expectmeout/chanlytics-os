@@ -218,6 +218,7 @@ export async function leaveSequenceNow(ctx: RouteContext, seq: Sequence, input: 
       tenantId: seq.tenant_id,
       sequenceId: seq.id,
       enrollmentIds: input.enrollment_ids,
+      leadIds: input.lead_ids,
       ...decided(ctx, {}),
     }),
   );

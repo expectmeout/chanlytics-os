@@ -16,7 +16,6 @@ import {
   PLAYBOOK_VETO_DELAY_MS,
   REACH_OUT_DRAFTS_OPEN_MAX,
   REACH_OUT_DRAFTS_PER_DAY,
-  outreachRefusalOf,
   sendWindowsOf,
   timetable,
   weekHoursOf,
@@ -24,6 +23,7 @@ import {
   type WeekHours,
 } from "@chanlytics/contracts";
 import { reachOutRunIdFor, sendIdFor } from "./reach-out-ids";
+import { followerRefusalOf } from "./reach-out-ports";
 import type { PlannedSend, ReachOutLead, ReachOutRunOutcome, ReachOutRunPorts, ReachOutStep } from "./reach-out-ports";
 
 /** A week with no hour a cold email may arrive in (closed every day): never placeable, whatever the mailboxes' room. */
@@ -49,22 +49,19 @@ export async function runReachOut(
   let leads: ReachOutLead[] = [];
   // A later step's lead keeps the mailbox its chain wrote from (decision 0056, 3): the nudge goes in the same thread.
   const keeps = new Map<string, string>();
+  // A later step's lead it refuses for good (stopped, wrote back, set aside, unsubscribed, bounced) is passed over:
+  // its place ends with why (00455). Someone away is only skipped today: the step takes them back after the day named.
+  const passed: { lead_id: string; why: string }[] = [];
   if (step.trigger === "lead_first") leads = await ports.audience(step);
   else
     for (const f of await ports.followers(step)) {
       if (f.mailbox_id) keeps.set(f.lead_id, f.mailbox_id);
-      const refused = f.bounced
-        ? "outreach_bounced"
-        : outreachRefusalOf({
-            leadStage: f.facts.lead_stage,
-            suppressed: f.facts.suppressed,
-            wroteBack: f.facts.wrote_back,
-            away: f.facts.away === true,
-            stopped: f.facts.stopped === true,
-          });
-      if (refused) skips.push({ lead: f, reason: refused });
+      const refused = followerRefusalOf(f, { bounced: true });
+      if (refused === "outreach_away") skips.push({ lead: f, reason: refused });
+      else if (refused) passed.push({ lead_id: f.lead_id, why: refused });
       else leads.push(f);
     }
+  if (passed.length > 0) await ports.passOver(step.root_id, passed);
   const weeks = new Map(leads.map((l) => [l.lead_id, weekHoursOf(l.hours).week]));
   for (const l of leads) if (neverOpen(weeks.get(l.lead_id)!)) skips.push({ lead: l, reason: "closed_every_day" });
   const skipped = new Set(skips.map((s) => s.lead.lead_id));

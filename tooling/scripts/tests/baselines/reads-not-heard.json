@@ -328,6 +328,20 @@
     },
     {
       "kind": "unfed",
+      "why": "A lead’s place in its sequence on the lead sheet’s story (reach_out_lead_timeline’s place, 00455): where they stand when a leave between steps moved no send of theirs. The feed tells no enrollment. The story is read as the sheet opens a lead and again after the sheet’s own Take out and Stop, and a step that runs, sends or passes them over makes a batch, which the chains hear.",
+      "reads": {
+        "reach_outs": [
+          "sequence_enrollments"
+        ]
+      },
+      "heardWith": {
+        "reach_outs": [
+          "sequence_batches"
+        ]
+      }
+    },
+    {
+      "kind": "unfed",
       "finding": "W-campaign-run-template-reachout-2",
       "why": "The Library's sent counts join a run's per-person rows (broadcast_recipients), which the feed never tells. Settings hears no run and no message, so a count moves only on the settings read's next read: owed with the Library's hearing of the campaign and send kinds on its page (lane R5).",
       "reads": {

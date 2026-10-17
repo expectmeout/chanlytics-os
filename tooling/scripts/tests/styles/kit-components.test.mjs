@@ -664,6 +664,16 @@ const METERS = {
       size: "sm",
       "aria-label": "12 will get it, 3 held back",
     }),
+  "meter-read": () =>
+    h(Meter, {
+      parts: [
+        { share: 3, tone: "ok" },
+        { share: 1, tone: "read" },
+        { share: 1, tone: "warn" },
+      ],
+      size: "sm",
+      "aria-label": "3 of 5 checks seen, 1 read, 1 couldn't tell",
+    }),
 };
 
 test("Meter draws the gallery's Meter family: an image of its parts, each share its flex-grow, and no part of nothing", () => {

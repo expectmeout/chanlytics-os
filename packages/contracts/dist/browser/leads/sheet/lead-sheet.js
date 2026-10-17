@@ -1,8 +1,8 @@
-import { capitalize, plural } from "../shared/words.js";
-import { clockDate, clockNear } from "../shared/clock.js";
-import { reachOutStandingOf } from "../reach-out/reach-out-leads.js";
-import { leadCardEmailOf } from "./lead-card.js";
-import { LEAD_CLOSED_WORDS, LEAD_LEFT_OUT_WORD, LEAD_REVIEW_WORD } from "./lead-words.js";
+import { capitalize, plural } from "../../shared/words.js";
+import { clockDate, clockNear } from "../../shared/clock.js";
+import { reachOutStandingOf } from "../../reach-out/reach-out-leads.js";
+import { leadCardEmailOf } from "../lead-card.js";
+import { LEAD_CLOSED_WORDS, LEAD_LEFT_OUT_WORD, LEAD_REVIEW_WORD } from "../lead-words.js";
 export const LEAD_SHEET_WORDS = {
   tabs: "About this lead",
   raise: "Show everything about them",
@@ -26,10 +26,27 @@ export const LEAD_SHEET_WORDS = {
     none: "Choose a sequence to see what they would get."
   },
   about: { links: "Their links", hours: "Their week" },
+  /** The three tabs' own headings and doors (the refined canvas). */
+  panes: {
+    listing: "From the listing",
+    company: "The company",
+    writesTo: "The sequence writes to",
+    where: "Where they are",
+    steps: "Their steps",
+    everyStep: (name) => `Every step, and who else is in it: ${name}`,
+    takeOut: "Take out",
+    wentOut: "What went out",
+    takeOutLine: "Only of this sequence; Put back undoes. Stop writing to them anywhere is in the \u22EF."
+  },
   activity: { stand: "In a sequence", found: "How it was found" },
   change: "Change",
   done: "Done",
   choose: (name) => `Which sequence, for ${name}`,
+  /** Change's way into Sequences (the refined canvas): a version of the one chosen, or a new one, and back here. */
+  versionOf: (name) => `Make a version of ${name}`,
+  versionHint: "The same steps and mailboxes, a new first email, its own list. Made in Sequences.",
+  newSequence: "New sequence",
+  newSequenceHint: "Starts in Sequences with this lead, and comes back",
   chooseFootPile: "Used for the rest of this pile. A sequence fed by its own search takes its leads by itself.",
   chooseFoot: "Used for the leads you open next. A sequence fed by its own search takes its leads by itself.",
   fills: "Every field fills",
@@ -73,6 +90,7 @@ export const LEAD_SHEET_WORDS = {
   leave: "Done for now",
   writeHeld: (n) => `Write to the ${n}`,
   openTarget: "Open the sequence",
+  approveIn: (name) => `Approve in ${name}`,
   noTarget: "No sequence takes leads you add yet: start one from New message.",
   keepSub: (left) => `Counts this month \xB7 ${left} left`,
   back: "Back",
@@ -124,7 +142,7 @@ export function leadSheetClosedOf(p) {
   return { title: "Can't be written to", line: p.blocked ?? "This one can't be added.", fix: call };
 }
 function meterOf(dots) {
-  const parts = dots.slice(0, 5).map((d) => d === "yes" ? "ok" : d === "unknown" ? "warn" : "rest");
+  const parts = dots.slice(0, 5).map((d) => d.answer === "yes" ? d.how === "read" ? "read" : "ok" : d.answer === "unknown" ? "warn" : "rest");
   while (parts.length < 5) parts.push("rest");
   return parts;
 }
@@ -177,49 +195,8 @@ const slot = (act, label, icon, key = null) => ({
   off: null
 });
 const SW = LEAD_SHEET_WORDS;
-const X_SLOT = slot("not_a_fit", SW.notFit, "x", "n");
-const NEXT = slot("next", SW.next, "arrow-right", "j");
-const laterOr = (f) => f.canLater ? slot("later", SW.later, "clock", "l") : NEXT;
-function yesOf(f) {
-  if (f.pile === "first") return slot("hold", SW.hold, "plus", "a");
-  if (f.target) return { ...slot("add", SW.add, "plus", "a"), off: f.blocked };
-  if (f.canCall) return slot("call", SW.call, "phone", "a");
-  if (f.canDraft) return slot("draft", SW.draft, "edit", "a");
-  return { ...slot("add", SW.add, "plus", "a"), off: SW.noTarget };
-}
-function closedRail(f) {
-  const fix = f.closed ? f.closed.fix : null;
-  const first = fix === "put_back" ? slot("put_back", SW.putBack, "undo") : fix === "ready" ? slot("ready", SW.ready, "undo") : fix === "call" ? slot("call", SW.call, "phone", "c") : null;
-  return { x: false, slots: [...first ? [first] : [], laterOr(f), NEXT] };
-}
-export function leadSheetRailOf(f) {
-  switch (f.state) {
-    case "review": {
-      const keep = {
-        ...slot("keep", SW.keep, "check", "a"),
-        sub: f.monthLeft === null ? null : SW.keepSub(f.monthLeft)
-      };
-      return { x: false, slots: [slot("exclude", SW.exclude, "ban", "n"), laterOr(f), keep] };
-    }
-    case "phone":
-      return { x: true, slots: [X_SLOT, laterOr(f), slot("call", SW.call, "phone", "a")] };
-    case "elsewhere":
-      return { x: false, slots: [slot("sequence", SW.openIt, "external"), laterOr(f), NEXT] };
-    case "sequence":
-      return { x: false, slots: [slot("sequence", SW.itsSequence, "external"), slot("stop", SW.stop, "stop"), NEXT] };
-    case "replied":
-      return {
-        x: false,
-        slots: [slot("thread", SW.thread, "chat"), ...f.canCall ? [slot("call", SW.call, "phone", "c")] : [], NEXT]
-      };
-    case "closed":
-      return closedRail(f);
-    default:
-      return f.pile === "search" ? { x: true, slots: [X_SLOT, slot("sequence", SW.itsSequence, "external"), NEXT] } : { x: true, slots: [X_SLOT, laterOr(f), yesOf(f)] };
-  }
-}
 export function leadSheetEndRailOf(p) {
-  const last = p.held ? slot("write_held", SW.writeHeld(p.held), "send") : p.target ? slot("open_target", SW.openTarget, "external") : slot("leave", SW.leave, "check");
+  const last = p.held ? slot("write_held", SW.writeHeld(p.held), "send") : p.target ? slot("open_target", SW.approveIn(p.target), "chevron") : slot("leave", SW.leave, "check");
   return {
     x: false,
     slots: [
@@ -229,22 +206,29 @@ export function leadSheetEndRailOf(p) {
     ]
   };
 }
-const stepLabel = (n, hand) => hand === "call" ? "A call for you" : hand === "note" ? "A note for you" : `Email ${n + 1}`;
-function sheetStepOf(s, t, clock) {
+const stepLabel = (n, hand) => hand === "call" ? "A call for you" : hand === "note" ? "A note for you" : n === 0 ? "First email" : "Follow-up";
+function sheetStepOf(s, day, t, clock) {
   const sends = t.sends.filter((x) => x.n === s.n);
   const gone = sends.find((x) => x.sent_at || x.left);
   const label = stepLabel(s.n, s.hand);
   if (gone) {
     const at2 = gone.sent_at ? Date.parse(gone.sent_at) : NaN;
     const when = Number.isFinite(at2) ? clockDate(at2, clock.tz, clock.nowMs) : "";
-    return { n: s.n, label, sub: gone.bounced ? "Bounced" : "Sent", when, look: "done" };
+    return { n: s.n, day, label, sub: gone.bounced ? "Bounced" : "Sent", when, look: "done" };
   }
   const planned = sends.find((x) => x.send_at);
   const at = planned && planned.send_at ? Date.parse(planned.send_at) : NaN;
   if (Number.isFinite(at))
-    return { n: s.n, label, sub: "Planned", when: clockNear(at, clock.tz, clock.nowMs), look: "next" };
+    return { n: s.n, day, label, sub: "Planned", when: clockNear(at, clock.tz, clock.nowMs), look: "next" };
   const wait = s.after_days ? `+${plural(s.after_days, "day", "days")}` : "";
-  return { n: s.n, label, sub: s.n === 0 ? "In its next batch" : "If nothing comes back", when: wait, look: "later" };
+  return {
+    n: s.n,
+    day,
+    label,
+    sub: s.n === 0 ? "In its next batch" : "If nothing comes back",
+    when: wait,
+    look: "later"
+  };
 }
 export function leadSheetTrackOf(t, nowMs, tz) {
   if (!t.chain) return null;
@@ -253,7 +237,11 @@ export function leadSheetTrackOf(t, nowMs, tz) {
     after_days: null,
     hand: null
   }));
-  const steps = [...known].sort((a, b) => a.n - b.n).map((s) => sheetStepOf(s, t, { nowMs, tz }));
+  let day = 1;
+  const steps = [...known].sort((a, b) => a.n - b.n).map((s) => {
+    if (s.n > 0) day += s.after_days ?? 0;
+    return sheetStepOf(s, day, t, { nowMs, tz });
+  });
   const later = steps.find((s) => s.look === "later");
   if (later && !steps.some((s) => s.look === "next")) later.look = "next";
   const standing = reachOutStandingOf(t, nowMs, tz);
@@ -322,6 +310,6 @@ export function leadSheetStandOf(p) {
   };
 }
 export function leadSheetChecksOf(vm) {
-  const passed = vm.checkDots.filter((d) => d === "yes").length;
+  const passed = vm.checkDots.filter((d) => d.answer === "yes").length;
   return SW.why.checks(passed, vm.checkDots.length);
 }

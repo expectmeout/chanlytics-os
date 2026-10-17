@@ -1,18 +1,44 @@
 export const SEQUENCES_ROUTE = "campaigns/sequences";
 const SEQUENCE_TABS = ["steps", "people", "history"];
+const LEADS_ROUTE = "clients/leads";
+const BACK = "back:";
 export const isSequencesParam = (param) => param === "sequences";
 const isTab = (word) => SEQUENCE_TABS.some((t) => t === word);
 export function parseSequencesRoute(route) {
   const [path = ""] = route.split("?");
-  const [root, view, id, tab, day] = path.split("/");
+  const words = path.split("/");
+  const backAt = words.findIndex((w) => w.startsWith(BACK));
+  const backWords = backAt >= 0 ? (words[backAt] ?? "").slice(BACK.length) : null;
+  const back = backWords === null ? {} : { back: backWords ? `${LEADS_ROUTE}:${backWords}` : LEADS_ROUTE };
+  const [root, view, id, tab, day] = backAt >= 0 ? words.slice(0, backAt) : words;
   if (root !== "campaigns" || view !== "sequences") return null;
-  if (!id) return { view: "list" };
+  if (!id) return { view: "list", ...back };
   if (id === "new" || id.startsWith("new:")) {
     const [, kind, moment] = id.split(":");
-    return kind === "moment" && moment ? { view: "new", moment } : { view: "new" };
+    const leads = newLeadsOf(words.slice(3, backAt >= 0 ? backAt : void 0));
+    return { view: "new", ...kind === "moment" && moment ? { moment } : {}, ...leads ? { leads } : {}, ...back };
   }
   const on = isTab(tab) ? tab : "steps";
-  return { view: "record", id, tab: on, ...on === "history" && day ? { day } : {} };
+  return { view: "record", id, tab: on, ...on === "history" && day ? { day } : {}, ...back };
+}
+function newLeadsOf(words) {
+  const word = (key) => {
+    const w = words.find((x) => x.startsWith(`${key}:`));
+    return w ? w.slice(key.length + 1) || null : null;
+  };
+  const list = word("list");
+  const lead = word("lead");
+  const version = word("version");
+  if (lead) return { for: { lead }, version };
+  return list && !version ? { for: { list }, version: null } : null;
+}
+export function sequenceNewLeadsRoute(leads) {
+  const on = "list" in leads.for ? `list:${leads.for.list}` : `lead:${leads.for.lead}`;
+  return `${SEQUENCES_ROUTE}/new/${leads.version && "lead" in leads.for ? `version:${leads.version}/` : ""}${on}`;
+}
+export function sequenceRouteBack(route, back) {
+  if (!back || back !== LEADS_ROUTE && !back.startsWith(`${LEADS_ROUTE}:`)) return route;
+  return `${route}/${BACK}${back.slice(LEADS_ROUTE.length + 1)}`;
 }
 export const sequenceRoute = (id, tab = "steps", day) => tab === "steps" ? `${SEQUENCES_ROUTE}/${id}` : `${SEQUENCES_ROUTE}/${id}/${tab}${tab === "history" && day ? `/${day}` : ""}`;
 export const newSequenceRoute = (moment) => moment ? `${SEQUENCES_ROUTE}/new:moment:${moment}` : `${SEQUENCES_ROUTE}/new`;

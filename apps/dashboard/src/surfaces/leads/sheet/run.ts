@@ -1,19 +1,29 @@
 /**
- * What a press of the lead sheet's rail does (contracts LeadSheetAct), through the doors that already exist. In a pile
+ * What a press of the lead sheet's dock does (contracts LeadSheetAct), through the doors that already exist. In a pile
  * the pile's own acts (use-pile.ts: its Undo, its line, the card turning); out of one the lead's own: the peek's acts
  * (peek/acts.tsx: Not a fit's reasons, Keep, Leave out, Put back, the stage, the call, the draft), or the add and Later
- * doors said in a toast, and Next the page's own walk to the next row. Nothing here writes a sentence of its own.
+ * doors said in a toast, and Next the page's own walk to the next row. A trip into Sequences (the record, Approve, a new
+ * sequence, a version) carries the way back to this lead (contracts sequenceRouteBack; trip.ts holds the names), and
+ * Take out is the sequence's own leave verb, whose undo is Put back. Nothing here writes a sentence of its own.
  */
 import {
   LEAD_PILE_SAID,
+  TO_SEND_ROUTE,
+  routeOfPath,
+  runSheetRoute,
+  sequenceNewLeadsRoute,
   sequenceRoute,
+  sequenceRouteBack,
   type LeadCardCheck,
+  type LeadPlaceVM,
   type LeadRowVM,
   type LeadSheetAct,
   type LeadSheetTrackVM,
   type ReachOutAddDto,
 } from "@chanlytics/contracts";
 import { reachOuts } from "../../campaigns/reach-out/surface";
+import { holdTrip } from "../../campaigns/sequences/trip";
+import { pressed } from "../../campaigns/sequences/verbs";
 import { navigate, refusalToast } from "../../legacy-verbs";
 import type { Flash, PeekActs } from "../peek/types";
 import type { LeadPile } from "../pile/use-pile";
@@ -31,6 +41,10 @@ interface SheetRun {
   aim: LeadAim;
   flash: Flash;
   track: LeadSheetTrackVM | null;
+  /** Their place in the sequence they are in: the batch a draft waits in. */
+  place: LeadPlaceVM | null;
+  /** The list the open search is, whose own sequence a new one for this list would be. */
+  listId: string | null;
   check: LeadCardCheck | undefined;
   searchWrites: { rootId: string; name: string } | null;
   /** Where what went out to them, and what they wrote back, is read: their thread (the story's own door). */
@@ -41,6 +55,45 @@ interface SheetRun {
   askStop: () => void;
   /** The pile's end: the leads held for a new list, written to. */
   writeHeld: (ids: string[]) => void;
+  /** Decide opens the held email's choices in the dock's place: the sheet's own. */
+  askDecide: () => void;
+  /** Said once the sheet's story moved (a Take out): read it again. */
+  moved: () => void;
+}
+
+/**
+ * Into Sequences and back (every trip comes back): the names the address does not carry, held for the tab, and the
+ * Leads address on screen now (this lead open, its search, its view) as the way back.
+ */
+function trip(route: string, r: SheetRun): void {
+  holdTrip({
+    leadId: r.leadId,
+    leadName: r.name,
+    listId: r.row ? r.row.searchId : null,
+    listName: r.row ? r.row.searchName || null : null,
+  });
+  navigate(sequenceRouteBack(route, routeOfPath(window.location.pathname)));
+}
+
+/** A sequence's record, with the way back to this lead. */
+export const openRecord = (rootId: string, r: Pick<SheetRun, "leadId" | "name" | "row">): void =>
+  trip(sequenceRoute(rootId), r as SheetRun);
+
+/** A new sequence for this lead: on the open list where it has none yet, else on a list of the lead's own. */
+export function newSequenceFor(r: Pick<SheetRun, "leadId" | "name" | "row" | "listId">, version: string | null): void {
+  const forList = !version && r.listId ? { list: r.listId } : { lead: r.leadId };
+  trip(sequenceNewLeadsRoute({ for: forList, version }), r as SheetRun);
+}
+
+/** Take out of the sequence they are in, by their id: the leave verb, its receipt, and Put back its undo. */
+export async function takeOut(r: Pick<SheetRun, "leadId" | "name" | "track" | "flash" | "moved">): Promise<void> {
+  if (!r.track) return;
+  await pressed(
+    "sequence_leave",
+    { sequence_id: r.track.rootId, lead_ids: [r.leadId], name: r.name },
+    r.flash,
+    r.moved,
+  );
 }
 
 /** An add out of a pile: the door, and what it said, in a toast. */
@@ -87,14 +140,14 @@ function endAct(act: LeadSheetAct, r: SheetRun) {
   if (act === "write_held") return r.writeHeld(pile.held);
   const to = r.aim.target;
   pile.stop();
-  if (to) navigate(sequenceRoute(to.rootId, "people"));
+  if (to) trip(sequenceRoute(to.rootId), r);
 }
 
-/** Where a press goes that opens something: a sequence, the thread they wrote in, or the person they became. */
-function openAct(act: "sequence" | "thread", r: SheetRun) {
-  if (act === "sequence") {
+/** Where a press goes that opens something: a sequence's record, the thread they wrote in, or the person they became. */
+function openAct(act: "sequence" | "thread" | "approve", r: SheetRun) {
+  if (act === "sequence" || act === "approve") {
     const root = sequenceOf(r);
-    if (root) navigate(sequenceRoute(root, "people"));
+    if (root) trip(sequenceRoute(root), r);
     return;
   }
   if (r.threadTo) return navigate(r.threadTo);
@@ -115,7 +168,14 @@ export async function runSheetAct(act: LeadSheetAct, r: SheetRun): Promise<void>
       return r.pile && r.pile.on && r.row ? r.pile.skip(r.row) : r.next ? r.next() : undefined;
     case "sequence":
     case "thread":
+    case "approve":
       return openAct(act, r);
+    case "decide":
+      return r.askDecide();
+    case "open_draft":
+      return navigate(r.place && r.place.runId ? runSheetRoute(r.place.runId) : TO_SEND_ROUTE);
+    case "new_sequence":
+      return newSequenceFor(r, null);
     case "stop":
       return r.askStop();
     case "later_again":

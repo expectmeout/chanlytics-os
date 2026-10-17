@@ -22,6 +22,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createClient } from "@supabase/supabase-js";
 import { REACH_OUT_REFUSALS, wallClockAt, zoneDayKey } from "@chanlytics/contracts";
+import { importSrc } from "../_source.mjs";
 
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -366,6 +367,9 @@ test(
   { skip },
   async () => {
     const w = await world();
+    // Who the next step would write to: the followers the planner does not refuse (00455 hands back the refused beside
+    // them, for the planner to pass over by name).
+    const { followerRefusalOf } = await importSrc("packages/core/src/campaigns/reach-out-ports.ts");
     const followers = async () =>
       ok(
         await db.rpc("reach_out_followers", {
@@ -375,7 +379,9 @@ test(
           p_after_days: 0,
           p_limit: 50,
         }),
-      ).map((f) => f.lead_id);
+      )
+        .filter((f) => followerRefusalOf(f, { bounced: true }) === null)
+        .map((f) => f.lead_id);
     assert.ok((await followers()).includes(w.leads.stopped), "before: the next step would take it");
 
     refusedWith(await as.viewer.c.rpc("reach_out_lead_stop", { p_lead_id: w.leads.stopped }), "P0002");
@@ -386,15 +392,16 @@ test(
       "22023",
       REACH_OUT_REFUSALS.nothingWritten,
     );
-    // Between its steps: nothing to skip, and the stop is the lead's.
+    // Between its steps: nothing to skip, the stop is the lead's, and its place ends (00455: it stood, followed up).
     const r = ok(await as.operator.c.rpc("reach_out_lead_stop", { p_lead_id: w.leads.stopped }));
-    assert.deepEqual(r, { stopped: true, already: false, skipped: 0, leaving: 0 });
-    // Its first email held for its owner's say: skipped.
+    assert.deepEqual(r, { stopped: true, already: false, skipped: 0, leaving: 0, left: 1 });
+    // Its first email held for its owner's say: skipped, which ended its place with it (00441's trigger).
     const p = ok(await as.operator.c.rpc("reach_out_lead_stop", { p_lead_id: w.leads.planned }));
-    assert.deepEqual(p, { stopped: true, already: false, skipped: 1, leaving: 0 });
-    // Its first email on its way: left alone here, said as leaving, and refused at the door by the stop.
+    assert.deepEqual(p, { stopped: true, already: false, skipped: 1, leaving: 0, left: 0 });
+    // Its first email on its way: left alone here, said as leaving, refused at the door by the stop; its place stays
+    // until that email has gone, and the next step passes them over.
     const l = ok(await as.operator.c.rpc("reach_out_lead_stop", { p_lead_id: w.leads.leaving }));
-    assert.deepEqual(l, { stopped: true, already: false, skipped: 0, leaving: 1 });
+    assert.deepEqual(l, { stopped: true, already: false, skipped: 0, leaving: 1, left: 0 });
     const queued = ok(await db.from("sequence_sends").select("state").eq("id", w.leavingSend).single());
     assert.equal(queued.state, "queued");
     const planned = ok(await db.from("sequence_sends").select("state, reason").eq("id", w.plannedSend).single());
@@ -423,6 +430,7 @@ test(
       already: true,
       skipped: 0,
       leaving: 0,
+      left: 0,
     });
     const lead_ = ok(await db.from("leads").select("stage, reach_out_stopped_at").eq("id", w.leads.stopped).single());
     assert.equal(lead_.stage, "nurture", "stopping is not a no");
@@ -702,11 +710,31 @@ test("each function re-created whole is its source's body but for the lines it m
       bodyIn(migration("00451"), `create or replace function public.${name}(`),
       `${name}: the database runs 00451's (00241's, read from the sequence tables)`,
     );
-  // 00424 made the followers a step's from its lead's own mailbox (decision 0056): the database runs that one.
+  // 00424 made the followers a step's from its lead's own mailbox (decision 0056), 00451 read them from the sequence
+  // tables, and 00455 follows up only someone whose place still stands, and hands back whom the door refuses beside the
+  // page it may write to, so the planner passes them over by name: the database runs 00455's. Its read of who is due is
+  // 00451's whole, but for the place.
+  const followers455 = bodyIn(migration("00455"), "create or replace function public.reach_out_followers(");
+  assert.equal(liveBody("reach_out_followers"), followers455, "reach_out_followers: the database runs 00455's");
+  const f451 = bodyIn(migration("00451"), "create or replace function public.reach_out_followers(");
+  const OUTER = "    from (\n";
+  const INNER = "            from (\n";
+  const due451 = f451.slice(f451.indexOf(OUTER) + OUTER.length, f451.indexOf("    ) f\n"));
+  const due454 = followers455.slice(
+    followers455.indexOf(INNER) + INNER.length,
+    followers455.indexOf("            ) d\n"),
+  );
   assert.equal(
-    liveBody("reach_out_followers"),
-    bodyIn(migration("00451"), "create or replace function public.reach_out_followers("),
-    "reach_out_followers: the database runs 00451's (00424's, read from the sequence tables)",
+    due454.replace(
+      "         -- Only someone whose place in the sequence still stands (00455): taken out, stopped or passed over is not\n" +
+        "         -- followed up, even with nothing of theirs pending when they left.\n" +
+        "         and exists (select 1 from public.sequence_enrollments e\n" +
+        "                      where e.tenant_id = p_tenant_id and e.sequence_id = s.sequence_id and e.lead_id = l.id\n" +
+        "                        and e.state = 'in')\n",
+      "",
+    ),
+    due451,
+    "reach_out_followers: who is due is 00451's read, but for the place",
   );
   // 00261 gave the report's membership guard a partner's second factor (0013), and changed nothing else.
   const gated = bodyIn(migration("00261"), "create or replace function public.reach_out_chain_report(");

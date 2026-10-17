@@ -41,9 +41,10 @@ const follower = (id, over = {}) => ({
 });
 /** Ports over arrays: the followers, the businesses' names, and the door, which remembers what it made. */
 function world(followers, { had = new Set() } = {}) {
-  const asked = { followers: [], runs: [] };
+  const asked = { followers: [], runs: [], passed: [] };
   const ports = {
     followers: async (s) => (asked.followers.push(s), followers),
+    passOver: async (rootId, leads) => (asked.passed.push([rootId, leads]), leads.length),
     businessNames: async (ids) =>
       new Map(ids.filter((id) => id !== "nameless").map((id) => [id, `Business ${id.toUpperCase()}`])),
     handRun: async (p) => {
@@ -77,7 +78,7 @@ test("each follower becomes one item, worded and with ids derived from what it i
   );
 });
 
-test("a lead the door would refuse is not handed; a bounced email is no reason not to call", async () => {
+test("a lead the door would refuse is not handed but passed over; away waits; a bounced email is no reason not to call", async () => {
   const facts = (over) => ({ lead_stage: "nurture", suppressed: false, wrote_back: false, away: false, ...over });
   const { ports, asked } = world([
     follower("wrote", { facts: facts({ wrote_back: true }) }),
@@ -92,6 +93,17 @@ test("a lead the door would refuse is not handed; a bounced email is no reason n
     asked.runs[0].items.map((i) => i.lead_id),
     ["bounced"],
   );
+  // Refused for good, their places end with why (00455); someone away is only left for another day.
+  assert.deepEqual(asked.passed, [
+    [
+      step().root_id,
+      [
+        { lead_id: "wrote", why: "outreach_wrote_back" },
+        { lead_id: "no", why: "outreach_suppressed" },
+        { lead_id: "talking", why: "outreach_lead_closed" },
+      ],
+    ],
+  ]);
 });
 
 test("a replay makes nothing again; nobody to hand, or a paused chain, asks the door nothing", async () => {

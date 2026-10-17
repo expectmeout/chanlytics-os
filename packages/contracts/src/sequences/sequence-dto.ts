@@ -119,7 +119,7 @@ export interface SequenceStepDto {
 }
 
 /** Where someone in a sequence stands, the People tab's groups in their order. */
-export const SEQUENCE_PEOPLE_GROUPS = ["waiting", "held", "to_send", "next", "in", "done", "left"] as const;
+export const SEQUENCE_PEOPLE_GROUPS = ["waiting", "held", "to_send", "replied", "next", "in", "done", "left"] as const;
 export type SequencePeopleGroup = (typeof SEQUENCE_PEOPLE_GROUPS)[number];
 
 /** One person or lead in a sequence (`sequence_people`). */
@@ -141,6 +141,19 @@ export interface SequencePersonDto {
    * row, and absent from a server before 00447, where the run's sheet in Sent lays it out instead.
    */
   draft?: SequencePersonDraftDto | null;
+  /**
+   * On a replied row (00455), the reply that asks for an answer, the one the overview counts: what they said and the
+   * conversation it is answered in. Null on every other row, and absent from a server before 00455.
+   */
+  reply?: SequencePersonReplyDto | null;
+}
+
+/** A reply that waits for an answer, as a replied row carries it (00455). */
+export interface SequencePersonReplyDto {
+  /** interested or question: the readings that ask for an answer. */
+  intent: string;
+  summary: string | null;
+  conversation_id: string | null;
 }
 
 /** The email handed to its owner to send from their own inbox (00429), as a to_send row carries it (00447). */

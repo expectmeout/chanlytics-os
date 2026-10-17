@@ -50,10 +50,8 @@ const LEAD_CARD_WHY_NOT = {
 const ADDRESS_WHYS = /* @__PURE__ */ new Set(["no_email", "invalid", "unconfirmed", "unchecked"]);
 export const LEAD_CARD_TABS = [
   { id: "why", label: "Why" },
-  { id: "reach", label: "Reach" },
-  { id: "emails", label: "Emails" },
-  { id: "about", label: "About" },
-  { id: "activity", label: "Activity" }
+  { id: "contact", label: "Contact" },
+  { id: "sequence", label: "Sequence" }
 ];
 const slotLabel = (key) => {
   const at = REACH_OUT_SLOT_SET.keys.indexOf(key);

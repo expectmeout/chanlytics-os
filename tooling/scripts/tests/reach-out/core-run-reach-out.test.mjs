@@ -42,7 +42,7 @@ const root = (over = {}) => ({
   ...over,
 });
 function ports(over = {}) {
-  const made = { runs: [], sends: [], told: [], recorded: [] };
+  const made = { runs: [], sends: [], told: [], recorded: [], passed: [] };
   return {
     made,
     ports: {
@@ -54,6 +54,7 @@ function ports(over = {}) {
       chainState: async () => "none",
       audience: async () => [lead("a"), lead("b", { region: "CA" })],
       followers: async () => [],
+      passOver: async (rootId, leads) => (made.passed.push([rootId, leads]), leads.length),
       mailboxes: async () => ({ senders: [{ id: "d1", cap: 30, recent: [] }], gone: new Set() }),
       planRun: async (run, sends) => (made.runs.push(run), made.sends.push(...sends), { id: run.id }),
       recordRun: async (run, counts) => void made.recorded.push([run.id, run.state, counts]),
@@ -221,7 +222,7 @@ test("a run takes the step's share of leads, and a lead whose state has no zone 
   assert.equal(nowhere.made.sends[0].send_at, "2026-09-28T13:30:00.000Z", "9:30 in New York, the workspace's zone");
 });
 
-test("a step writes to the leads sent the step before, less anyone the door would refuse or whose email bounced", async () => {
+test("a step writes to the leads sent the step before; one refused for good is passed over, someone away only skipped", async () => {
   const step = root({ id: "p2", trigger: "after_step", lead_search_id: null, after_playbook_id: "p1", after_days: 3 });
   const f = (id, over = {}) => ({
     lead_id: id,
@@ -259,22 +260,50 @@ test("a step writes to the leads sent the step before, less anyone the door woul
       ["n", "kn", "p2", "p1"],
     ],
   );
-  // Each refused one is skipped on the step with why, so it never heads tomorrow's page ahead of those behind it.
+  // Each one refused for good is passed over with why (00455): its place in the chain ends, so the record says where
+  // they went and tomorrow's read no longer returns them. A skipped send would have put them back in (a send made
+  // places its person), so none is written for them.
+  assert.deepEqual(made.passed, [
+    [
+      "p1",
+      [
+        { lead_id: "b", why: "outreach_wrote_back" },
+        { lead_id: "c", why: "outreach_bounced" },
+        { lead_id: "d", why: "outreach_lead_closed" },
+        { lead_id: "e", why: "outreach_suppressed" },
+      ],
+    ],
+  ]);
+  // Someone away is only skipped on the step: the followers take them back after the day their reply names.
   assert.deepEqual(
     made.sends
       .filter((s) => s.state === "skipped")
       .map((s) => [s.lead_id, s.reason, s.mailbox_id, s.send_at, s.contact_id]),
-    [
-      ["b", "outreach_wrote_back", null, null, "kb"],
-      ["c", "outreach_bounced", null, null, "kc"],
-      ["d", "outreach_lead_closed", null, null, "kd"],
-      ["e", "outreach_suppressed", null, null, "ke"],
-      ["w", "outreach_away", null, null, "kw"],
-    ],
+    [["w", "outreach_away", null, null, "kw"]],
   );
   assert.equal(made.runs[0].recipient_count, 2, "the run counts who it writes to");
   assert.deepEqual(made.runs[0].audience, { kind: "reach_out", root_id: "p1", step_id: "p2", search_id: null });
-  assert.deepEqual(made.recorded, [[made.runs[0].id, "scheduled", { planned: 2, skipped: 5 }]]);
+  assert.deepEqual(made.recorded, [[made.runs[0].id, "scheduled", { planned: 2, skipped: 1 }]]);
+});
+
+test("a step whose every follower is refused plans nothing, and still passes each over", async () => {
+  const step = root({ id: "p2", trigger: "after_step", lead_search_id: null, after_playbook_id: "p1", after_days: 3 });
+  const stopped = {
+    lead_id: "s",
+    contact_id: "ks",
+    email: "s@x.example",
+    region: "TX",
+    hours: [],
+    parent_message_id: "ms",
+    facts: { lead_stage: "ready", suppressed: false, wrote_back: false, stopped: true },
+    bounced: false,
+    mailbox_id: "d1",
+    country: "US",
+  };
+  const { ports: p, made } = ports({ chainState: async () => "approved", followers: async () => [stopped] });
+  assert.deepEqual(await runReachOut(p, step, day), { outcome: "empty", reason: "nobody", planned: 0 });
+  assert.deepEqual(made.passed, [["p1", [{ lead_id: "s", why: "outreach_stopped" }]]]);
+  assert.deepEqual(made.runs, [], "no run is made for nobody");
 });
 
 test("a lead that keeps no open hour all week is skipped, and the step's share goes to the next", async () => {

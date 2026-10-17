@@ -19570,9 +19570,21 @@ CREATE FUNCTION public.reach_out_followers(p_tenant_id uuid, p_step_id uuid, p_p
     LANGUAGE sql STABLE SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
-  select f.lead_id, f.contact_id, f.email, f.region, f.hours, f.parent_message_id, f.facts, f.bounced, f.mailbox_id,
-         f.country
+  -- A page holds as many it may write to as the limit, and as many refused beside them (00455): the planner passes over
+  -- whom it refuses (sequence_leads_leave), so their place ends with why instead of standing for good, and those passed
+  -- over never crowd out a day's emails. Only someone away waits: the step takes them back after the day named.
+  select g.lead_id, g.contact_id, g.email, g.region, g.hours, g.parent_message_id, g.facts, g.bounced, g.mailbox_id,
+         g.country
     from (
+      select f.*, row_number() over (partition by f.writes order by f.sent_at) as n
+        from (
+          select d.*,
+                 coalesce(d.facts->>'lead_stage' in ('ready', 'nurture'), false)
+                   and not coalesce((d.facts->>'suppressed')::boolean, true)
+                   and not coalesce((d.facts->>'wrote_back')::boolean, true)
+                   and not coalesce((d.facts->>'stopped')::boolean, false)
+                   and not d.bounced as writes
+            from (
       select l.id as lead_id, s.contact_id, lower(btrim(l.email)) as email, l.region, l.hours,
              s.message_id as parent_message_id, s.sent_at, s.mailbox_id, l.country,
              public.outreach_lead_facts(p_tenant_id, s.contact_id, lower(btrim(l.email)), l.id) as facts,
@@ -19585,18 +19597,20 @@ CREATE FUNCTION public.reach_out_followers(p_tenant_id uuid, p_step_id uuid, p_p
        where s.lead_id is not null and ( s.tenant_id = p_tenant_id and s.step_id = p_parent_id and s.state = 'sent'
          and s.sent_at <= now() - make_interval(days => p_after_days)
          and s.contact_id is not null
+         -- Only someone whose place in the sequence still stands (00455): taken out, stopped or passed over is not
+         -- followed up, even with nothing of theirs pending when they left.
+         and exists (select 1 from public.sequence_enrollments e
+                      where e.tenant_id = p_tenant_id and e.sequence_id = s.sequence_id and e.lead_id = l.id
+                        and e.state = 'in')
          and not exists (select 1 from public.sequence_sends x
                           where x.lead_id is not null and ( x.step_id = p_step_id and x.lead_id = l.id
                             and not (x.state = 'skipped' and x.reason = 'outreach_away'))))
-    ) f
-   where f.facts->>'lead_stage' in ('ready', 'nurture')
-     and not coalesce((f.facts->>'suppressed')::boolean, true)
-     and not coalesce((f.facts->>'wrote_back')::boolean, true)
-     and not coalesce((f.facts->>'away')::boolean, false)
-     and not coalesce((f.facts->>'stopped')::boolean, false)
-     and not f.bounced
-   order by f.sent_at
-   limit greatest(p_limit, 0)
+            ) d
+           where not coalesce((d.facts->>'away')::boolean, false)
+        ) f
+    ) g
+   where g.n <= greatest(p_limit, 0)
+   order by g.writes desc, g.sent_at
 $$;
 
 
@@ -19714,6 +19728,7 @@ declare
   v_lead    public.leads%rowtype;
   v_skipped int;
   v_leaving int;
+  v_places  int;
 begin
   if auth.uid() is null then
     raise exception 'Sign in required.' using errcode = '28000';
@@ -19731,7 +19746,7 @@ begin
     raise exception 'Nothing has been written to them yet.' using errcode = '22023';
   end if;
   if v_lead.reach_out_stopped_at is not null then
-    return jsonb_build_object('stopped', false, 'already', true, 'skipped', 0, 'leaving', 0);
+    return jsonb_build_object('stopped', false, 'already', true, 'skipped', 0, 'leaving', 0, 'left', 0);
   end if;
   update public.leads set reach_out_stopped_at = now() where id = p_lead_id;
   with skipped as (
@@ -19743,9 +19758,21 @@ begin
     returning 1
   )
   select count(*) into v_skipped from skipped;
+  -- Its places end too (00455): between steps nothing was pending to skip, so a place stood in every sequence. A
+  -- place with an email on its way stays until it has gone (the door refuses it by the stop, and the next step
+  -- passes them over), since a leave skips what has not gone, and that email is the sender's now.
+  v_places := public.sequence_enrollments_leave(
+    v_lead.tenant_id,
+    array(select e.id from public.sequence_enrollments e
+           where e.tenant_id = v_lead.tenant_id and e.lead_id = p_lead_id and e.state = 'in'
+             and not exists (select 1 from public.sequence_sends s
+                              where s.tenant_id = e.tenant_id and s.sequence_id = e.sequence_id
+                                and s.lead_id = p_lead_id and s.state in ('claimed', 'queued'))),
+    'owner_stopped', auth.uid());
   select count(*) into v_leaving from public.sequence_sends s
    where s.lead_id is not null and ( s.tenant_id = v_lead.tenant_id and s.lead_id = p_lead_id and s.state in ('claimed', 'queued'));
-  return jsonb_build_object('stopped', true, 'already', false, 'skipped', v_skipped, 'leaving', v_leaving);
+  return jsonb_build_object('stopped', true, 'already', false, 'skipped', v_skipped, 'leaving', v_leaving,
+                            'left', v_places);
 end $$;
 
 
@@ -19907,7 +19934,12 @@ begin
                order by x.read_at desc
                limit 10) r), '[]'::jsonb),
     -- Stop writing to them asks of a lead something was written to (reach_out_lead_stop refuses the others).
-    'can_stop', v_sent and v_lead.reach_out_stopped_at is null
+    'can_stop', v_sent and v_lead.reach_out_stopped_at is null,
+    -- Their place in it (00455), the one record of where they stand: a leave between steps moves no send of theirs.
+    'place', (select jsonb_build_object('id', e.id, 'state', e.state, 'why', e.why, 'next_at', e.next_at)
+                from public.sequence_enrollments e
+               where e.tenant_id = p_tenant_id and e.sequence_id = v_root and e.lead_id = v_lead.id
+               order by e.entered_at desc limit 1)
   );
 end $$;
 
@@ -25114,10 +25146,49 @@ COMMENT ON FUNCTION public.sequence_history(p_tenant_id uuid, p_sequence_id uuid
 
 
 --
--- Name: sequence_leave(uuid, uuid, uuid[], text, jsonb, text, uuid); Type: FUNCTION; Schema: public; Owner: -
+-- Name: sequence_leads_leave(uuid, uuid, jsonb); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.sequence_leave(p_tenant_id uuid, p_sequence_id uuid, p_enrollment_ids uuid[], p_why text DEFAULT 'removed'::text, p_decision jsonb DEFAULT '{}'::jsonb, p_via text DEFAULT NULL::text, p_undo_of uuid DEFAULT NULL::uuid) RETURNS jsonb
+CREATE FUNCTION public.sequence_leads_leave(p_tenant_id uuid, p_sequence_id uuid, p_leads jsonb) RETURNS integer
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_n int := 0;
+  r record;
+begin
+  if p_tenant_id is null or p_sequence_id is null or jsonb_typeof(p_leads) is distinct from 'array' then
+    return 0;
+  end if;
+  -- Each why once, its leads' places in this sequence that still stand: sequence_enrollments_leave ends them and skips
+  -- whatever of theirs had not gone.
+  for r in
+    select left(btrim(x->>'why'), 60) as why, array_agg(e.id) as ids
+      from jsonb_array_elements(p_leads) x
+      join public.sequence_enrollments e
+        on e.tenant_id = p_tenant_id and e.sequence_id = p_sequence_id and e.state = 'in'
+       and e.lead_id = (x->>'lead_id')::uuid
+     where nullif(btrim(x->>'why'), '') is not null
+     group by left(btrim(x->>'why'), 60)
+  loop
+    v_n := v_n + public.sequence_enrollments_leave(p_tenant_id, r.ids, r.why, null);
+  end loop;
+  return v_n;
+end $$;
+
+
+--
+-- Name: FUNCTION sequence_leads_leave(p_tenant_id uuid, p_sequence_id uuid, p_leads jsonb); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.sequence_leads_leave(p_tenant_id uuid, p_sequence_id uuid, p_leads jsonb) IS 'Leads a later step passes over (00455): each {lead_id, why} whose place in p_sequence_id still stands leaves with why, and a send of theirs not yet gone is skipped (sequence_enrollments_leave). Service role only. How many left.';
+
+
+--
+-- Name: sequence_leave(uuid, uuid, uuid[], text, jsonb, text, uuid, uuid[]); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.sequence_leave(p_tenant_id uuid, p_sequence_id uuid, p_enrollment_ids uuid[], p_why text DEFAULT 'removed'::text, p_decision jsonb DEFAULT '{}'::jsonb, p_via text DEFAULT NULL::text, p_undo_of uuid DEFAULT NULL::uuid, p_lead_ids uuid[] DEFAULT '{}'::uuid[]) RETURNS jsonb
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
@@ -25128,6 +25199,9 @@ declare
   v_places jsonb;
   v_sends int;
   v_n int;
+  v_root public.sequence_steps%rowtype;
+  v_members jsonb := '[]'::jsonb;
+  v_off int := 0;
 begin
   if v_actor is null then
     raise exception 'Sign in required.' using errcode = '28000';
@@ -25137,8 +25211,38 @@ begin
   end if;
   -- Only their places in this sequence: an id of another sequence, or another workspace, is nobody here.
   select array_agg(e.id) into v_ids from public.sequence_enrollments e
-   where e.tenant_id = p_tenant_id and e.sequence_id = p_sequence_id and e.id = any (coalesce(p_enrollment_ids, '{}'));
-  if v_ids is null then
+   where e.tenant_id = p_tenant_id and e.sequence_id = p_sequence_id
+     and (e.id = any (coalesce(p_enrollment_ids, '{}'))
+          -- A lead named by its id (00455: the lead sheet's Take out) leaves by its place, while it stands.
+          or (e.lead_id = any (coalesce(p_lead_ids, '{}')) and e.state = 'in'));
+  -- A lead on the sequence's list that nothing has been planned for has no place to end (00455): it comes off the
+  -- list, as reach_out_leave_out took it, and the leave keeps each membership for Put back. Only a list's: a
+  -- sequence fed by its own search takes its leads out on Leads.
+  if coalesce(cardinality(p_lead_ids), 0) > 0 then
+    select st.* into v_root from public.sequence_steps st
+      join public.lead_searches q on q.id = st.lead_search_id and q.tenant_id = st.tenant_id
+     where st.tenant_id = p_tenant_id and st.sequence_id = p_sequence_id and st.kind = 'reach_out'
+       and st.trigger = 'lead_first' and q.removed_at is null and q.via in ('chosen', 'import');
+    if found then
+      with off as (
+        update public.lead_search_members m set blanked_at = now(), version = m.version + 1
+         where m.tenant_id = p_tenant_id and m.search_id = v_root.lead_search_id and m.blanked_at is null
+           and m.lead_id = any (p_lead_ids)
+           and not exists (select 1 from public.sequence_enrollments e
+                            where e.tenant_id = p_tenant_id and e.sequence_id = p_sequence_id
+                              and e.lead_id = m.lead_id)
+        returning m.id, m.lead_id)
+      select coalesce(jsonb_agg(jsonb_build_object('id', o.id, 'lead_id', o.lead_id)), '[]'::jsonb), count(*)
+        into v_members, v_off from off o;
+      -- The list's own event, as Leave out writes it (reach_out_leave_out).
+      if v_off > 0 then
+        insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+        values (p_tenant_id, 'reach_out.lead_taken_back', 'lead', 'playbook', v_root.id,
+                jsonb_build_object('search_id', v_root.lead_search_id, 'n', v_off, 'by', v_actor, 'left_out', true));
+      end if;
+    end if;
+  end if;
+  if v_ids is null and v_off = 0 then
     raise exception 'Nobody of that sequence is in it.' using errcode = 'P0002';
   end if;
   -- What the leave is about to change, as it stands now (sequence_enrollments_leave's own choice of rows), kept in the
@@ -25154,20 +25258,21 @@ begin
               else s.lead_id = e.lead_id end
    where e.tenant_id = p_tenant_id and e.id = any (v_ids) and e.state = 'in'
      and s.state in ('planned', 'held', 'queued', 'drafted');
-  v_n := public.sequence_enrollments_leave(p_tenant_id, v_ids, v_why, v_actor);
+  v_n := public.sequence_enrollments_leave(p_tenant_id, coalesce(v_ids, '{}'), v_why, v_actor) + v_off;
   return jsonb_build_object('left', v_n, 'sequence_id', p_sequence_id)
     || public.team_decision(p_tenant_id, v_actor, 'sequence', p_sequence_id, 'leave_sequence',
          coalesce(p_decision, '{}'::jsonb) || jsonb_build_object(
-           'left', v_n, 'put_back', jsonb_build_object('why', v_why, 'places', v_places, 'sends', v_sends)),
+           'left', v_n, 'put_back', jsonb_build_object('why', v_why, 'places', v_places, 'sends', v_sends,
+                                                      'members', v_members)),
          p_via, p_undo_of);
 end $$;
 
 
 --
--- Name: FUNCTION sequence_leave(p_tenant_id uuid, p_sequence_id uuid, p_enrollment_ids uuid[], p_why text, p_decision jsonb, p_via text, p_undo_of uuid); Type: COMMENT; Schema: public; Owner: -
+-- Name: FUNCTION sequence_leave(p_tenant_id uuid, p_sequence_id uuid, p_enrollment_ids uuid[], p_why text, p_decision jsonb, p_via text, p_undo_of uuid, p_lead_ids uuid[]); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.sequence_leave(p_tenant_id uuid, p_sequence_id uuid, p_enrollment_ids uuid[], p_why text, p_decision jsonb, p_via text, p_undo_of uuid) IS 'People taken out of a sequence by an acting member (0060): each still in it leaves with p_why (removed), a send of theirs not yet gone skipped with it, and the leave_sequence decision written in the same transaction, keeping each place''s next step and how many sends it skipped (put_back, 00450) for sequence_return. Answers how many left.';
+COMMENT ON FUNCTION public.sequence_leave(p_tenant_id uuid, p_sequence_id uuid, p_enrollment_ids uuid[], p_why text, p_decision jsonb, p_via text, p_undo_of uuid, p_lead_ids uuid[]) IS 'People taken out of a sequence by an acting member (0060): each still in it leaves with p_why (removed), a send of theirs not yet gone skipped with it; a lead named by its id (p_lead_ids, 00455) leaves by its place, or, with none, comes off the list. The leave_sequence decision rides in the same transaction, keeping each place''s next step, how many sends it skipped and each membership (put_back) for sequence_return. Answers how many left.';
 
 
 --
@@ -25359,10 +25464,23 @@ CREATE FUNCTION public.sequence_people(p_tenant_id uuid, p_sequence_id uuid, p_l
        and not exists (select 1 from placed p where p.grp is not null
                          and coalesce(p.lead_id, p.contact_id) = coalesce(e.lead_id, e.contact_id))
   ),
+  -- Someone whose reply asks for an answer (00455), as the overview counts one (00442 sequence_overview's
+  -- replies): a person interested or asking, read in the last 14 days, not answered or undone. Their newest.
+  replied as (
+    select distinct on (coalesce(r.lead_id, r.contact_id))
+           r.contact_id, r.lead_id, r.conversation_id, r.intent, r.summary, r.read_at, st.place
+      from public.sequence_replies r
+      join public.sequence_sends s on s.id = r.send_id and s.tenant_id = p_tenant_id and s.sequence_id = p_sequence_id
+      left join public.sequence_steps st on st.id = s.step_id
+     where r.tenant_id = p_tenant_id and r.undone_at is null and r.answered_message_id is null
+       and r.claim in ('person', 'owner') and r.intent in ('interested', 'question')
+       and r.read_at > now() - interval '14 days'
+     order by coalesce(r.lead_id, r.contact_id), r.read_at desc
+  ),
   rows_of as (
     -- An email handed to its owner, whole (00429 sequence_sends_drafted_is_whole): what their mail app opens with.
     select p.grp, p.contact_id, p.lead_id, p.place, p.at, p.reason as why, p.hold_detail, p.send_id, p.batch_id,
-           null::uuid as enrollment_id,
+           null::uuid as enrollment_id, null::jsonb as reply,
            case when p.grp = 'to_send' and jsonb_typeof(p.draft) = 'object'
                      and jsonb_typeof(p.draft -> 'to') = 'string' and jsonb_typeof(p.draft -> 'subject') = 'string'
                      and jsonb_typeof(p.draft -> 'text') = 'string'
@@ -25377,12 +25495,21 @@ CREATE FUNCTION public.sequence_people(p_tenant_id uuid, p_sequence_id uuid, p_l
       from placed p where p.grp is not null
     union all
     select 'in', b.contact_id, b.lead_id, b.place, coalesce(b.next_at, b.at), null, null, null, null, b.enrollment_id,
-           null::jsonb
+           null::jsonb, null::jsonb
       from between b
     union all
     select case when e.state = 'done' then 'done' else 'left' end, e.contact_id, e.lead_id, e.place, e.at, e.why,
-           null, null, null, e.enrollment_id, null::jsonb
+           null, null, null, e.enrollment_id, null::jsonb, null::jsonb
       from enrolled e where e.state in ('done', 'left')
+    union all
+    -- Their place, while it stands, so Take out reaches them here too.
+    select 'replied', rp.contact_id, rp.lead_id, rp.place, rp.read_at, rp.intent, null, null, null,
+           (select e.enrollment_id from enrolled e
+             where e.state = 'in' and coalesce(e.lead_id, e.contact_id) = coalesce(rp.lead_id, rp.contact_id)
+             limit 1),
+           jsonb_build_object('intent', rp.intent, 'summary', rp.summary, 'conversation_id', rp.conversation_id),
+           null::jsonb
+      from replied rp
   ),
   named as (
     select r.*,
@@ -25392,6 +25519,9 @@ CREATE FUNCTION public.sequence_people(p_tenant_id uuid, p_sequence_id uuid, p_l
       from rows_of r
       left join public.contacts c on c.id = r.contact_id and c.erased_at is null
       left join public.leads ld on ld.id = r.lead_id
+     -- Who wrote back shows there alone, not again where their place stands.
+     where r.grp = 'replied' or not exists (select 1 from replied rp
+                                            where coalesce(rp.lead_id, rp.contact_id) = coalesce(r.lead_id, r.contact_id))
   )
   select jsonb_build_object(
     'counts', coalesce((select jsonb_object_agg(g.grp, g.n) from (select grp, count(*) as n from named group by grp) g),
@@ -25408,7 +25538,8 @@ CREATE FUNCTION public.sequence_people(p_tenant_id uuid, p_sequence_id uuid, p_l
                         'at', n.at,
                         'why', n.why,
                         'hold_detail', n.hold_detail,
-                        'draft', n.draft) order by n.grp, n.pos)
+                        'draft', n.draft,
+                        'reply', n.reply) order by n.grp, n.pos)
                         from named n where n.pos <= (select l.n from lim l)), '[]'::jsonb))
 $$;
 
@@ -25417,7 +25548,7 @@ $$;
 -- Name: FUNCTION sequence_people(p_tenant_id uuid, p_sequence_id uuid, p_limit integer); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.sequence_people(p_tenant_id uuid, p_sequence_id uuid, p_limit integer) IS 'Who is in a sequence (0060), by where they stand, each group''s count whole and its first p_limit (1 to 200, 50) rows: waiting (a batch waiting for your OK), held (by the check, with why), to_send (an email for you to send, with its draft as it was handed over: 00447), next (going out: never a send of a batch cut off, 00453), in (between steps, their next step''s day), done, and left (with why). A person by their name, a lead by its business''s. Under the caller''s row security.';
+COMMENT ON FUNCTION public.sequence_people(p_tenant_id uuid, p_sequence_id uuid, p_limit integer) IS 'Who is in a sequence (0060), by where they stand, each group''s count whole and its first p_limit (1 to 200, 50) rows: replied (a reply that asks for an answer, as the overview counts one, with their newest reading: 00455), waiting (a batch waiting for your OK), held (by the check, with why), to_send (an email for you to send, with its draft as it was handed over: 00447), next (going out: never a send of a batch cut off, 00453), in (between steps, their next step''s day), done, and left (with why). A person by their name, a lead by its business''s. Under the caller''s row security.';
 
 
 --
@@ -25460,6 +25591,8 @@ declare
   v_why text;
   v_back int;
   v_out int;
+  v_on int;
+  v_list uuid;
 begin
   if v_actor is null then
     raise exception 'Sign in required.' using errcode = '28000';
@@ -25498,6 +25631,25 @@ begin
                      else o.lead_id = e.lead_id end)
     returning e.id)
   select count(*) into v_back from back;
+  -- A lead the leave took off the list (00455) is on it again, unless it was added back since.
+  with mem as (
+    select (x->>'id')::uuid as id from jsonb_array_elements(coalesce(v_left.payload #> '{put_back,members}', '[]'::jsonb)) x),
+  onto as (
+    update public.lead_search_members m set blanked_at = null, version = m.version + 1
+      from mem w
+     where m.id = w.id and m.tenant_id = p_tenant_id and m.blanked_at >= v_left.created_at
+       and not exists (select 1 from public.lead_search_members o
+                        where o.search_id = m.search_id and o.lead_id = m.lead_id and o.id <> m.id
+                          and o.blanked_at is null)
+    returning m.id, m.search_id)
+  select count(*), min(o.search_id::text)::uuid into v_on, v_list from onto o;
+  -- The list's own event, as an add writes it (reach_out_add).
+  if v_on > 0 then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'reach_out.lead_added', 'lead', 'playbook', p_sequence_id,
+            jsonb_build_object('search_id', v_list, 'n', v_on, 'by', v_actor, 'put_back', true));
+  end if;
+  v_back := v_back + v_on;
   return jsonb_build_object('back', v_back, 'sends_out', case when v_back > 0 then v_out else 0 end,
                             'sequence_id', p_sequence_id)
     || public.team_decision(p_tenant_id, v_actor, 'sequence', p_sequence_id, 'return_to_sequence',
@@ -44335,12 +44487,20 @@ GRANT ALL ON FUNCTION public.sequence_history(p_tenant_id uuid, p_sequence_id uu
 
 
 --
--- Name: FUNCTION sequence_leave(p_tenant_id uuid, p_sequence_id uuid, p_enrollment_ids uuid[], p_why text, p_decision jsonb, p_via text, p_undo_of uuid); Type: ACL; Schema: public; Owner: -
+-- Name: FUNCTION sequence_leads_leave(p_tenant_id uuid, p_sequence_id uuid, p_leads jsonb); Type: ACL; Schema: public; Owner: -
 --
 
-REVOKE ALL ON FUNCTION public.sequence_leave(p_tenant_id uuid, p_sequence_id uuid, p_enrollment_ids uuid[], p_why text, p_decision jsonb, p_via text, p_undo_of uuid) FROM PUBLIC;
-GRANT ALL ON FUNCTION public.sequence_leave(p_tenant_id uuid, p_sequence_id uuid, p_enrollment_ids uuid[], p_why text, p_decision jsonb, p_via text, p_undo_of uuid) TO authenticated;
-GRANT ALL ON FUNCTION public.sequence_leave(p_tenant_id uuid, p_sequence_id uuid, p_enrollment_ids uuid[], p_why text, p_decision jsonb, p_via text, p_undo_of uuid) TO service_role;
+REVOKE ALL ON FUNCTION public.sequence_leads_leave(p_tenant_id uuid, p_sequence_id uuid, p_leads jsonb) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.sequence_leads_leave(p_tenant_id uuid, p_sequence_id uuid, p_leads jsonb) TO service_role;
+
+
+--
+-- Name: FUNCTION sequence_leave(p_tenant_id uuid, p_sequence_id uuid, p_enrollment_ids uuid[], p_why text, p_decision jsonb, p_via text, p_undo_of uuid, p_lead_ids uuid[]); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.sequence_leave(p_tenant_id uuid, p_sequence_id uuid, p_enrollment_ids uuid[], p_why text, p_decision jsonb, p_via text, p_undo_of uuid, p_lead_ids uuid[]) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.sequence_leave(p_tenant_id uuid, p_sequence_id uuid, p_enrollment_ids uuid[], p_why text, p_decision jsonb, p_via text, p_undo_of uuid, p_lead_ids uuid[]) TO authenticated;
+GRANT ALL ON FUNCTION public.sequence_leave(p_tenant_id uuid, p_sequence_id uuid, p_enrollment_ids uuid[], p_why text, p_decision jsonb, p_via text, p_undo_of uuid, p_lead_ids uuid[]) TO service_role;
 
 
 --

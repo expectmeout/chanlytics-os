@@ -100,6 +100,32 @@ export function RoWho({ W, search, reach, include, onInclude }: WhoProps) {
   );
 }
 
+/**
+ * Who gets it, on a list of its own made as it starts (a new sequence for a lead, or a version): the lead by name, and the
+ * sequence it copies. Nothing to count yet: the list holds them once Start is pressed.
+ */
+export function RoWhoNewList({ W, leadName, version }: { W: Words; leadName: string; version: string | null }) {
+  const N = W.REACH_OUT_NEW_LIST_WORDS;
+  return (
+    <section className="pb-sec" data-testid="ro-who-new">
+      <span className="pb-sec-k">{W.REACH_OUT_SHEET_PARTS.who}</span>
+      <div className="pb-pick is-fixed">
+        <span className="pb-pick-text">
+          <span className="pb-pick-title">{N.title}</span>
+          <span className="pb-pick-sub" data-testid="ro-who-new-line">
+            {N.goesOn(leadName)}
+          </span>
+          {version ? (
+            <span className="pb-pick-sub" data-testid="ro-who-new-version">
+              {N.version(version)}
+            </span>
+          ) : null}
+        </span>
+      </div>
+    </section>
+  );
+}
+
 interface StepWordsProps {
   W: Words;
   step: ReachOutDraftStep;

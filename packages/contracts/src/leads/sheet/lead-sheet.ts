@@ -11,23 +11,22 @@
  *   leadSheetClosedOf    what stopped, in words, and the one fix that exists
  *   leadSheetFitOf       the fit meter, and its word only when it is news
  *   leadSheetCellsOf     how they can be reached: three cells, a second word only where one is not as it should be
- *   leadSheetRailOf      the rail's three places for that state, in a pile or out of one
- *   leadSheetEndRailOf   the rail at the end of a pile
+ *   leadSheetEndRailOf   the acts at the end of a pile (the dock's for a lead: lead-sheet-dock.ts)
  *   leadSheetTrackOf     their steps in the sequence they are in: done, next, and still to come
  *   leadSheetOptionsOf   Change, opened in place: each sequence the adds could go to, and what it would come to here
  *   leadSheetReasonsOf   the reasons to write now, the listing's own signals
  *   leadSheetAboutOf     the place or the company as its source knows it, each fact with where it came from
  *   leadSheetStandOf     where they stand with a sequence, for Activity
  */
-import { capitalize, plural } from "../shared/words";
-import { clockDate, clockNear } from "../shared/clock";
-import { reachOutStandingOf, type ReachOutLeadTimelineDto } from "../reach-out/reach-out-leads";
-import type { ReachOutChainDto } from "../reach-out/reach-out-dtos";
-import { leadCardEmailOf, type LeadCardCheck, type LeadCardEmailVM, type LeadCardLead } from "./lead-card";
-import type { SlotWorkspace } from "../reach-out/reach-out-rules";
-import type { LeadPeekVM } from "./lead-peek";
-import { LEAD_CLOSED_WORDS, LEAD_LEFT_OUT_WORD, LEAD_REVIEW_WORD, type LeadClass, type LeadStage } from "./lead-words";
-import type { LeadEmailState } from "./search/sets";
+import { capitalize, plural } from "../../shared/words";
+import { clockDate, clockNear } from "../../shared/clock";
+import { reachOutStandingOf, type ReachOutLeadTimelineDto } from "../../reach-out/reach-out-leads";
+import type { ReachOutChainDto } from "../../reach-out/reach-out-dtos";
+import { leadCardEmailOf, type LeadCardCheck, type LeadCardEmailVM, type LeadCardLead } from "../lead-card";
+import type { SlotWorkspace } from "../../reach-out/reach-out-rules";
+import type { LeadPeekVM } from "../lead-peek";
+import { LEAD_CLOSED_WORDS, LEAD_LEFT_OUT_WORD, LEAD_REVIEW_WORD, type LeadClass, type LeadStage } from "../lead-words";
+import type { LeadEmailState } from "../search/sets";
 
 /* ------------------------------------------------------------------------------------------------ the words -- */
 
@@ -55,10 +54,27 @@ export const LEAD_SHEET_WORDS = {
     none: "Choose a sequence to see what they would get.",
   },
   about: { links: "Their links", hours: "Their week" },
+  /** The three tabs' own headings and doors (the refined canvas). */
+  panes: {
+    listing: "From the listing",
+    company: "The company",
+    writesTo: "The sequence writes to",
+    where: "Where they are",
+    steps: "Their steps",
+    everyStep: (name: string) => `Every step, and who else is in it: ${name}`,
+    takeOut: "Take out",
+    wentOut: "What went out",
+    takeOutLine: "Only of this sequence; Put back undoes. Stop writing to them anywhere is in the ⋯.",
+  },
   activity: { stand: "In a sequence", found: "How it was found" },
   change: "Change",
   done: "Done",
   choose: (name: string) => `Which sequence, for ${name}`,
+  /** Change's way into Sequences (the refined canvas): a version of the one chosen, or a new one, and back here. */
+  versionOf: (name: string) => `Make a version of ${name}`,
+  versionHint: "The same steps and mailboxes, a new first email, its own list. Made in Sequences.",
+  newSequence: "New sequence",
+  newSequenceHint: "Starts in Sequences with this lead, and comes back",
   chooseFootPile: "Used for the rest of this pile. A sequence fed by its own search takes its leads by itself.",
   chooseFoot: "Used for the leads you open next. A sequence fed by its own search takes its leads by itself.",
   fills: "Every field fills",
@@ -103,6 +119,7 @@ export const LEAD_SHEET_WORDS = {
   leave: "Done for now",
   writeHeld: (n: number) => `Write to the ${n}`,
   openTarget: "Open the sequence",
+  approveIn: (name: string) => `Approve in ${name}`,
   noTarget: "No sequence takes leads you add yet: start one from New message.",
   keepSub: (left: number) => `Counts this month · ${left} left`,
   back: "Back",
@@ -221,16 +238,17 @@ export interface LeadSheetPillVM {
 
 /** The fit: five parts of the meter (a check each), its tip, and a pill only where the word is news. */
 export interface LeadSheetFitVM {
-  meter: ("ok" | "warn" | "rest")[];
+  /** A check that passed (seen, or read: shaded apart), one that couldn't tell, then the rest. */
+  meter: ("ok" | "read" | "warn" | "rest")[];
   tip: string;
   pill: LeadSheetPillVM | null;
 }
 
-/** The meter's five parts: a check that passed, one that couldn't tell, then the rest. */
-function meterOf(dots: readonly ("yes" | "unknown" | "no")[]): LeadSheetFitVM["meter"] {
+/** The meter's five parts: a check that passed (seen, or read), one that couldn't tell, then the rest. */
+function meterOf(dots: LeadPeekVM["checkDots"]): LeadSheetFitVM["meter"] {
   const parts: LeadSheetFitVM["meter"] = dots
     .slice(0, 5)
-    .map((d) => (d === "yes" ? "ok" : d === "unknown" ? "warn" : "rest"));
+    .map((d) => (d.answer === "yes" ? (d.how === "read" ? "read" : "ok") : d.answer === "unknown" ? "warn" : "rest"));
   while (parts.length < 5) parts.push("rest");
   return parts;
 }
@@ -326,7 +344,12 @@ export type LeadSheetAct =
   | "later_again"
   | "leave"
   | "write_held"
-  | "open_target";
+  | "open_target"
+  /** The dock (the refined canvas): Approve in the record, Decide a held email here, Open the draft, a new sequence. */
+  | "approve"
+  | "decide"
+  | "open_draft"
+  | "new_sequence";
 
 /** One place on the rail: what it does, its words and glyph, its key, a second line, and why it is off. */
 export interface LeadSheetSlotVM {
@@ -339,7 +362,7 @@ export interface LeadSheetSlotVM {
   off: string | null;
 }
 
-/** The rail: a round ✕ (Not a fit) and two more, or three words; the third is always the primary. */
+/** A row of acts (the pile's end): the last is always the primary. */
 export interface LeadSheetRailVM {
   x: boolean;
   slots: LeadSheetSlotVM[];
@@ -355,94 +378,12 @@ const slot = (act: LeadSheetAct, label: string, icon: string, key: LeadSheetSlot
 });
 
 const SW = LEAD_SHEET_WORDS;
-const X_SLOT = slot("not_a_fit", SW.notFit, "x", "n");
-const NEXT = slot("next", SW.next, "arrow-right", "j");
-
-/** What the rail is read from, beside the state. */
-export interface LeadSheetRailFacts {
-  state: LeadSheetState;
-  /** The pile it is in, if any: a list's, a first pile's (a new list), or a search whose sequence takes every lead. */
-  pile: "list" | "first" | "search" | null;
-  /** Where Add would go, by name; null where no sequence takes leads by hand. */
-  target: string | null;
-  /** Why Add is off for this lead (the door's answer, or a hole); null when it would go. */
-  blocked: string | null;
-  canCall: boolean;
-  canDraft: boolean;
-  /** Later puts off a lead of a search; a lead not seen through one has none. */
-  canLater: boolean;
-  closed: LeadSheetClosedVM | null;
-  /** Leads left this month, for Keep's second line; null where it was not read. */
-  monthLeft: number | null;
-}
-
-/** Later where a search holds the lead, else Next. */
-const laterOr = (f: LeadSheetRailFacts) => (f.canLater ? slot("later", SW.later, "clock", "l") : NEXT);
-
-/** The yes: Add to the target, a new list on a first pile, or out of a pile with no target, Call or a draft. */
-function yesOf(f: LeadSheetRailFacts): LeadSheetSlotVM {
-  if (f.pile === "first") return slot("hold", SW.hold, "plus", "a");
-  if (f.target) return { ...slot("add", SW.add, "plus", "a"), off: f.blocked };
-  if (f.canCall) return slot("call", SW.call, "phone", "a");
-  if (f.canDraft) return slot("draft", SW.draft, "edit", "a");
-  return { ...slot("add", SW.add, "plus", "a"), off: SW.noTarget };
-}
-
-/** The rail for a closed card: its one fix where there is one, then Later and Next. */
-function closedRail(f: LeadSheetRailFacts): LeadSheetRailVM {
-  const fix = f.closed ? f.closed.fix : null;
-  const first =
-    fix === "put_back"
-      ? slot("put_back", SW.putBack, "undo")
-      : fix === "ready"
-        ? slot("ready", SW.ready, "undo")
-        : fix === "call"
-          ? slot("call", SW.call, "phone", "c")
-          : null;
-  return { x: false, slots: [...(first ? [first] : []), laterOr(f), NEXT] };
-}
-
-/**
- * The rail's three places, by what can honestly be done (the canvas's "Twelve states"): Needs review leaves out, puts
- * off or keeps; a phone and no email calls; one in another sequence opens it; one in a sequence opens it or stops
- * writing; one that replied opens the thread or calls; a closed one has its fix; on a search whose sequence takes every
- * lead, Its sequence; else ✕, Later and the yes. Add that would come to nothing is off, and says why.
- */
-export function leadSheetRailOf(f: LeadSheetRailFacts): LeadSheetRailVM {
-  switch (f.state) {
-    case "review": {
-      const keep = {
-        ...slot("keep", SW.keep, "check", "a"),
-        sub: f.monthLeft === null ? null : SW.keepSub(f.monthLeft),
-      };
-      return { x: false, slots: [slot("exclude", SW.exclude, "ban", "n"), laterOr(f), keep] };
-    }
-    case "phone":
-      return { x: true, slots: [X_SLOT, laterOr(f), slot("call", SW.call, "phone", "a")] };
-    case "elsewhere":
-      return { x: false, slots: [slot("sequence", SW.openIt, "external"), laterOr(f), NEXT] };
-    case "sequence":
-      return { x: false, slots: [slot("sequence", SW.itsSequence, "external"), slot("stop", SW.stop, "stop"), NEXT] };
-    case "replied":
-      return {
-        x: false,
-        slots: [slot("thread", SW.thread, "chat"), ...(f.canCall ? [slot("call", SW.call, "phone", "c")] : []), NEXT],
-      };
-    case "closed":
-      return closedRail(f);
-    default:
-      return f.pile === "search"
-        ? { x: true, slots: [X_SLOT, slot("sequence", SW.itsSequence, "external"), NEXT] }
-        : { x: true, slots: [X_SLOT, laterOr(f), yesOf(f)] };
-  }
-}
-
 /** The rail at the end of a pile: the later ones, the way out, and where the work lands. */
 export function leadSheetEndRailOf(p: { later: number; held: number; target: string | null }): LeadSheetRailVM {
   const last = p.held
     ? slot("write_held", SW.writeHeld(p.held), "send")
     : p.target
-      ? slot("open_target", SW.openTarget, "external")
+      ? slot("open_target", SW.approveIn(p.target), "chevron")
       : slot("leave", SW.leave, "check");
   return {
     x: false,
@@ -456,9 +397,11 @@ export function leadSheetEndRailOf(p: { later: number; held: number; target: str
 
 /* ------------------------------------------------------------------------------------------ a sequence's steps -- */
 
-/** One step of theirs in a sequence: its words, when, and whether it went, goes next or is still to come. */
+/** One step of theirs in a sequence: its day and name, when, and whether it went, goes next or is still to come. */
 export interface LeadSheetStepVM {
   n: number;
+  /** Its day in the sequence, as the record's rail says it: Day 1, then each wait added. */
+  day: number;
   label: string;
   sub: string;
   when: string;
@@ -473,13 +416,14 @@ export interface LeadSheetTrackVM {
   line: string | null;
 }
 
-/** A step's words: an email by its number, or a call or a note for the team. */
+/** A step's name, as the record says it: the first email, a follow-up, or a call or a note for the team. */
 const stepLabel = (n: number, hand: string | null) =>
-  hand === "call" ? "A call for you" : hand === "note" ? "A note for you" : `Email ${n + 1}`;
+  hand === "call" ? "A call for you" : hand === "note" ? "A note for you" : n === 0 ? "First email" : "Follow-up";
 
 /** One step, by its sends: gone (or bounced), planned, or still to come after its wait. */
 function sheetStepOf(
   s: { n: number; after_days: number | null; hand: string | null },
+  day: number,
   t: ReachOutLeadTimelineDto,
   clock: { nowMs: number; tz: string },
 ): LeadSheetStepVM {
@@ -489,14 +433,21 @@ function sheetStepOf(
   if (gone) {
     const at = gone.sent_at ? Date.parse(gone.sent_at) : NaN;
     const when = Number.isFinite(at) ? clockDate(at, clock.tz, clock.nowMs) : "";
-    return { n: s.n, label, sub: gone.bounced ? "Bounced" : "Sent", when, look: "done" };
+    return { n: s.n, day, label, sub: gone.bounced ? "Bounced" : "Sent", when, look: "done" };
   }
   const planned = sends.find((x) => x.send_at);
   const at = planned && planned.send_at ? Date.parse(planned.send_at) : NaN;
   if (Number.isFinite(at))
-    return { n: s.n, label, sub: "Planned", when: clockNear(at, clock.tz, clock.nowMs), look: "next" };
+    return { n: s.n, day, label, sub: "Planned", when: clockNear(at, clock.tz, clock.nowMs), look: "next" };
   const wait = s.after_days ? `+${plural(s.after_days, "day", "days")}` : "";
-  return { n: s.n, label, sub: s.n === 0 ? "In its next batch" : "If nothing comes back", when: wait, look: "later" };
+  return {
+    n: s.n,
+    day,
+    label,
+    sub: s.n === 0 ? "In its next batch" : "If nothing comes back",
+    when: wait,
+    look: "later",
+  };
 }
 
 /**
@@ -512,7 +463,14 @@ export function leadSheetTrackOf(t: ReachOutLeadTimelineDto, nowMs: number, tz: 
       after_days: null,
       hand: null,
     }));
-  const steps = [...known].sort((a, b) => a.n - b.n).map((s) => sheetStepOf(s, t, { nowMs, tz }));
+  // Each step's day, as the record's rail counts it: Day 1, then each wait added.
+  let day = 1;
+  const steps = [...known]
+    .sort((a, b) => a.n - b.n)
+    .map((s) => {
+      if (s.n > 0) day += s.after_days ?? 0;
+      return sheetStepOf(s, day, t, { nowMs, tz });
+    });
   // The first still to come is next, where no step is already.
   const later = steps.find((s) => s.look === "later");
   if (later && !steps.some((s) => s.look === "next")) later.look = "next";
@@ -647,6 +605,6 @@ export function leadSheetStandOf(p: {
 
 /** The checks' count for Why's head: "5 of 5 checks". */
 export function leadSheetChecksOf(vm: Pick<LeadPeekVM, "checkDots">): string {
-  const passed = vm.checkDots.filter((d) => d === "yes").length;
+  const passed = vm.checkDots.filter((d) => d.answer === "yes").length;
   return SW.why.checks(passed, vm.checkDots.length);
 }

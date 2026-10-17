@@ -3638,12 +3638,26 @@ import {
   PLAYBOOK_VETO_DELAY_MS,
   REACH_OUT_DRAFTS_OPEN_MAX,
   REACH_OUT_DRAFTS_PER_DAY,
-  outreachRefusalOf as outreachRefusalOf2,
   sendWindowsOf,
   timetable,
   weekHoursOf,
   zoneOfRegion
 } from "../../contracts/dist/index.js";
+
+// src/campaigns/reach-out-ports.ts
+import { outreachRefusalOf as outreachRefusalOf2 } from "../../contracts/dist/index.js";
+function followerRefusalOf(f, o) {
+  if (o.bounced && f.bounced) return "outreach_bounced";
+  return outreachRefusalOf2({
+    leadStage: f.facts.lead_stage,
+    suppressed: f.facts.suppressed,
+    wroteBack: f.facts.wrote_back,
+    away: f.facts.away === true,
+    stopped: f.facts.stopped === true
+  });
+}
+
+// src/campaigns/run-reach-out.ts
 var neverOpen = (week) => Object.values(sendWindowsOf(week)).every((w) => w.length === 0);
 async function runReachOut(ports, step, cmd) {
   if (step.state !== "running") return { outcome: "off", reason: "paused", planned: 0 };
@@ -3656,20 +3670,17 @@ async function runReachOut(ports, step, cmd) {
   const skips = [];
   let leads = [];
   const keeps = /* @__PURE__ */ new Map();
+  const passed = [];
   if (step.trigger === "lead_first") leads = await ports.audience(step);
   else
     for (const f of await ports.followers(step)) {
       if (f.mailbox_id) keeps.set(f.lead_id, f.mailbox_id);
-      const refused = f.bounced ? "outreach_bounced" : outreachRefusalOf2({
-        leadStage: f.facts.lead_stage,
-        suppressed: f.facts.suppressed,
-        wroteBack: f.facts.wrote_back,
-        away: f.facts.away === true,
-        stopped: f.facts.stopped === true
-      });
-      if (refused) skips.push({ lead: f, reason: refused });
+      const refused = followerRefusalOf(f, { bounced: true });
+      if (refused === "outreach_away") skips.push({ lead: f, reason: refused });
+      else if (refused) passed.push({ lead_id: f.lead_id, why: refused });
       else leads.push(f);
     }
+  if (passed.length > 0) await ports.passOver(step.root_id, passed);
   const weeks = new Map(leads.map((l) => [l.lead_id, weekHoursOf(l.hours).week]));
   for (const l of leads) if (neverOpen(weeks.get(l.lead_id))) skips.push({ lead: l, reason: "closed_every_day" });
   const skipped = new Set(skips.map((s) => s.lead.lead_id));
@@ -3764,17 +3775,17 @@ async function runReachOut(ports, step, cmd) {
 }
 
 // src/campaigns/run-hand-step.ts
-import { handStepWords, outreachRefusalOf as outreachRefusalOf3 } from "../../contracts/dist/index.js";
-var doorRefuses = (f) => outreachRefusalOf3({
-  leadStage: f.facts.lead_stage,
-  suppressed: f.facts.suppressed,
-  wroteBack: f.facts.wrote_back,
-  away: f.facts.away === true,
-  stopped: f.facts.stopped === true
-}) !== null;
+import { handStepWords } from "../../contracts/dist/index.js";
+var doorRefuses = (f) => followerRefusalOf(f, { bounced: false }) !== null;
 async function runHandStep(ports, step, cmd) {
   if (step.state !== "running") return { outcome: "off", reason: "paused", planned: 0 };
-  const leads = (await ports.followers(step)).filter((f) => !doorRefuses(f)).slice(0, step.cap_per_run);
+  const followers = await ports.followers(step);
+  const passed = followers.flatMap((f) => {
+    const why = followerRefusalOf(f, { bounced: false });
+    return why && why !== "outreach_away" ? [{ lead_id: f.lead_id, why }] : [];
+  });
+  if (passed.length > 0) await ports.passOver(step.root_id, passed);
+  const leads = followers.filter((f) => !doorRefuses(f)).slice(0, step.cap_per_run);
   if (leads.length === 0) return { outcome: "empty", reason: "nobody", planned: 0 };
   const names = await ports.businessNames(leads.map((l) => l.lead_id));
   const runId = await reachOutRunIdFor(step.id, cmd.runFor);

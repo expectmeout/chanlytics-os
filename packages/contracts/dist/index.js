@@ -17994,19 +17994,45 @@ var PLAYBOOK_PATCH_WORDS = {
 // src/sequences/sequence-address.ts
 var SEQUENCES_ROUTE = "campaigns/sequences";
 var SEQUENCE_TABS = ["steps", "people", "history"];
+var LEADS_ROUTE = "clients/leads";
+var BACK = "back:";
 var isSequencesParam = (param) => param === "sequences";
 var isTab = (word) => SEQUENCE_TABS.some((t) => t === word);
 function parseSequencesRoute(route) {
   const [path = ""] = route.split("?");
-  const [root, view, id, tab, day] = path.split("/");
+  const words3 = path.split("/");
+  const backAt = words3.findIndex((w) => w.startsWith(BACK));
+  const backWords = backAt >= 0 ? (words3[backAt] ?? "").slice(BACK.length) : null;
+  const back = backWords === null ? {} : { back: backWords ? `${LEADS_ROUTE}:${backWords}` : LEADS_ROUTE };
+  const [root, view, id, tab, day] = backAt >= 0 ? words3.slice(0, backAt) : words3;
   if (root !== "campaigns" || view !== "sequences") return null;
-  if (!id) return { view: "list" };
+  if (!id) return { view: "list", ...back };
   if (id === "new" || id.startsWith("new:")) {
     const [, kind, moment2] = id.split(":");
-    return kind === "moment" && moment2 ? { view: "new", moment: moment2 } : { view: "new" };
+    const leads = newLeadsOf(words3.slice(3, backAt >= 0 ? backAt : void 0));
+    return { view: "new", ...kind === "moment" && moment2 ? { moment: moment2 } : {}, ...leads ? { leads } : {}, ...back };
   }
   const on = isTab(tab) ? tab : "steps";
-  return { view: "record", id, tab: on, ...on === "history" && day ? { day } : {} };
+  return { view: "record", id, tab: on, ...on === "history" && day ? { day } : {}, ...back };
+}
+function newLeadsOf(words3) {
+  const word = (key) => {
+    const w = words3.find((x) => x.startsWith(`${key}:`));
+    return w ? w.slice(key.length + 1) || null : null;
+  };
+  const list2 = word("list");
+  const lead = word("lead");
+  const version = word("version");
+  if (lead) return { for: { lead }, version };
+  return list2 && !version ? { for: { list: list2 }, version: null } : null;
+}
+function sequenceNewLeadsRoute(leads) {
+  const on = "list" in leads.for ? `list:${leads.for.list}` : `lead:${leads.for.lead}`;
+  return `${SEQUENCES_ROUTE}/new/${leads.version && "lead" in leads.for ? `version:${leads.version}/` : ""}${on}`;
+}
+function sequenceRouteBack(route, back) {
+  if (!back || back !== LEADS_ROUTE && !back.startsWith(`${LEADS_ROUTE}:`)) return route;
+  return `${route}/${BACK}${back.slice(LEADS_ROUTE.length + 1)}`;
 }
 var sequenceRoute = (id, tab = "steps", day) => tab === "steps" ? `${SEQUENCES_ROUTE}/${id}` : `${SEQUENCES_ROUTE}/${id}/${tab}${tab === "history" && day ? `/${day}` : ""}`;
 var newSequenceRoute = (moment2) => moment2 ? `${SEQUENCES_ROUTE}/new:moment:${moment2}` : `${SEQUENCES_ROUTE}/new`;
@@ -22214,14 +22240,14 @@ function reportRowOf(s, step2) {
 function chainReportWordsOf(c, report, reach, p) {
   const sum3 = (k) => report.steps.reduce((t, s) => t + (s[k] ?? 0), 0);
   const written = sum3("written");
-  const wroteBack = sum3("wrote_back");
+  const wroteBack2 = sum3("wrote_back");
   const saidNo = sum3("said_no");
   const bounced = sum3("bounced");
   const held = sum3("held");
   const handed = sum3("handed");
   const clauses = [`${written} written`];
   if (handed > 0) clauses.push(`${handed} handed to you`);
-  if (wroteBack > 0) clauses.push(`${wroteBack} wrote back`);
+  if (wroteBack2 > 0) clauses.push(`${wroteBack2} wrote back`);
   if (saidNo > 0) clauses.push(`${saidNo} said no`);
   if (bounced > 0) clauses.push(`${bounced} bounced and their addresses were dropped`);
   const first = report.steps.find((s) => s.n === 0);
@@ -22918,11 +22944,17 @@ var sequenceLeaveSpec = {
   commit: ({ payload: pl }) => {
     const id = idIn(pl, "sequence_id");
     const ids = Array.isArray(pl.enrollment_ids) ? pl.enrollment_ids.filter((x) => typeof x === "string") : [];
-    return id && ids.length > 0 ? { route: "POST sequences/[id]/leave", params: { id }, body: { enrollment_ids: ids } } : refuseWith(PROPOSAL_WORDS.cannotApprove);
+    const leads = Array.isArray(pl.lead_ids) ? pl.lead_ids.filter((x) => typeof x === "string") : [];
+    return id && ids.length + leads.length > 0 ? {
+      route: "POST sequences/[id]/leave",
+      params: { id },
+      body: leads.length > 0 ? { enrollment_ids: ids, lead_ids: leads } : { enrollment_ids: ids }
+    } : refuseWith(PROPOSAL_WORDS.cannotApprove);
   },
-  receipt: (_p, data) => {
+  receipt: ({ payload: pl }, data) => {
     const n = Number(rec(data).left) || 0;
-    return n === 0 ? "Nobody was still in it" : `${plural(n, "person", "people")} taken out`;
+    const leads = Array.isArray(pl.lead_ids) && pl.lead_ids.length > 0 && !(Array.isArray(pl.enrollment_ids) && pl.enrollment_ids.length > 0);
+    return n === 0 ? "Nobody was still in it" : `${plural(n, leads ? "lead" : "person", leads ? "leads" : "people")} taken out`;
   },
   undo: {
     label: () => "Put them back",
@@ -27481,7 +27513,7 @@ function toLeadPeekVM(r2, search, tz, now) {
     weekSummary: leadWeekSummary(week),
     facts,
     checksSummary,
-    checkDots: m.checks.map((c) => c.answer),
+    checkDots: m.checks.map((c) => ({ answer: c.answer, how: c.how })),
     distance: milesLabel(m.distance_m),
     name: r2.business_name,
     about: r2.about ?? null,
@@ -38445,10 +38477,8 @@ var LEAD_CARD_WHY_NOT = {
 var ADDRESS_WHYS = /* @__PURE__ */ new Set(["no_email", "invalid", "unconfirmed", "unchecked"]);
 var LEAD_CARD_TABS = [
   { id: "why", label: "Why" },
-  { id: "reach", label: "Reach" },
-  { id: "emails", label: "Emails" },
-  { id: "about", label: "About" },
-  { id: "activity", label: "Activity" }
+  { id: "contact", label: "Contact" },
+  { id: "sequence", label: "Sequence" }
 ];
 var slotLabel = (key) => {
   const at3 = REACH_OUT_SLOT_SET.keys.indexOf(key);
@@ -38689,7 +38719,7 @@ function leadCardMarksOf(vm) {
   return all.sort((a, b) => rank(a) - rank(b)).slice(0, LEAD_CARD_MARKS_MAX);
 }
 
-// src/leads/lead-sheet.ts
+// src/leads/sheet/lead-sheet.ts
 var LEAD_SHEET_WORDS = {
   tabs: "About this lead",
   raise: "Show everything about them",
@@ -38713,10 +38743,27 @@ var LEAD_SHEET_WORDS = {
     none: "Choose a sequence to see what they would get."
   },
   about: { links: "Their links", hours: "Their week" },
+  /** The three tabs' own headings and doors (the refined canvas). */
+  panes: {
+    listing: "From the listing",
+    company: "The company",
+    writesTo: "The sequence writes to",
+    where: "Where they are",
+    steps: "Their steps",
+    everyStep: (name) => `Every step, and who else is in it: ${name}`,
+    takeOut: "Take out",
+    wentOut: "What went out",
+    takeOutLine: "Only of this sequence; Put back undoes. Stop writing to them anywhere is in the \u22EF."
+  },
   activity: { stand: "In a sequence", found: "How it was found" },
   change: "Change",
   done: "Done",
   choose: (name) => `Which sequence, for ${name}`,
+  /** Change's way into Sequences (the refined canvas): a version of the one chosen, or a new one, and back here. */
+  versionOf: (name) => `Make a version of ${name}`,
+  versionHint: "The same steps and mailboxes, a new first email, its own list. Made in Sequences.",
+  newSequence: "New sequence",
+  newSequenceHint: "Starts in Sequences with this lead, and comes back",
   chooseFootPile: "Used for the rest of this pile. A sequence fed by its own search takes its leads by itself.",
   chooseFoot: "Used for the leads you open next. A sequence fed by its own search takes its leads by itself.",
   fills: "Every field fills",
@@ -38760,6 +38807,7 @@ var LEAD_SHEET_WORDS = {
   leave: "Done for now",
   writeHeld: (n) => `Write to the ${n}`,
   openTarget: "Open the sequence",
+  approveIn: (name) => `Approve in ${name}`,
   noTarget: "No sequence takes leads you add yet: start one from New message.",
   keepSub: (left) => `Counts this month \xB7 ${left} left`,
   back: "Back",
@@ -38811,7 +38859,7 @@ function leadSheetClosedOf(p) {
   return { title: "Can't be written to", line: p.blocked ?? "This one can't be added.", fix: call };
 }
 function meterOf(dots) {
-  const parts2 = dots.slice(0, 5).map((d) => d === "yes" ? "ok" : d === "unknown" ? "warn" : "rest");
+  const parts2 = dots.slice(0, 5).map((d) => d.answer === "yes" ? d.how === "read" ? "read" : "ok" : d.answer === "unknown" ? "warn" : "rest");
   while (parts2.length < 5) parts2.push("rest");
   return parts2;
 }
@@ -38864,49 +38912,8 @@ var slot = (act2, label, icon, key = null) => ({
   off: null
 });
 var SW = LEAD_SHEET_WORDS;
-var X_SLOT = slot("not_a_fit", SW.notFit, "x", "n");
-var NEXT = slot("next", SW.next, "arrow-right", "j");
-var laterOr = (f) => f.canLater ? slot("later", SW.later, "clock", "l") : NEXT;
-function yesOf(f) {
-  if (f.pile === "first") return slot("hold", SW.hold, "plus", "a");
-  if (f.target) return { ...slot("add", SW.add, "plus", "a"), off: f.blocked };
-  if (f.canCall) return slot("call", SW.call, "phone", "a");
-  if (f.canDraft) return slot("draft", SW.draft, "edit", "a");
-  return { ...slot("add", SW.add, "plus", "a"), off: SW.noTarget };
-}
-function closedRail(f) {
-  const fix = f.closed ? f.closed.fix : null;
-  const first = fix === "put_back" ? slot("put_back", SW.putBack, "undo") : fix === "ready" ? slot("ready", SW.ready, "undo") : fix === "call" ? slot("call", SW.call, "phone", "c") : null;
-  return { x: false, slots: [...first ? [first] : [], laterOr(f), NEXT] };
-}
-function leadSheetRailOf(f) {
-  switch (f.state) {
-    case "review": {
-      const keep = {
-        ...slot("keep", SW.keep, "check", "a"),
-        sub: f.monthLeft === null ? null : SW.keepSub(f.monthLeft)
-      };
-      return { x: false, slots: [slot("exclude", SW.exclude, "ban", "n"), laterOr(f), keep] };
-    }
-    case "phone":
-      return { x: true, slots: [X_SLOT, laterOr(f), slot("call", SW.call, "phone", "a")] };
-    case "elsewhere":
-      return { x: false, slots: [slot("sequence", SW.openIt, "external"), laterOr(f), NEXT] };
-    case "sequence":
-      return { x: false, slots: [slot("sequence", SW.itsSequence, "external"), slot("stop", SW.stop, "stop"), NEXT] };
-    case "replied":
-      return {
-        x: false,
-        slots: [slot("thread", SW.thread, "chat"), ...f.canCall ? [slot("call", SW.call, "phone", "c")] : [], NEXT]
-      };
-    case "closed":
-      return closedRail(f);
-    default:
-      return f.pile === "search" ? { x: true, slots: [X_SLOT, slot("sequence", SW.itsSequence, "external"), NEXT] } : { x: true, slots: [X_SLOT, laterOr(f), yesOf(f)] };
-  }
-}
 function leadSheetEndRailOf(p) {
-  const last = p.held ? slot("write_held", SW.writeHeld(p.held), "send") : p.target ? slot("open_target", SW.openTarget, "external") : slot("leave", SW.leave, "check");
+  const last = p.held ? slot("write_held", SW.writeHeld(p.held), "send") : p.target ? slot("open_target", SW.approveIn(p.target), "chevron") : slot("leave", SW.leave, "check");
   return {
     x: false,
     slots: [
@@ -38916,22 +38923,29 @@ function leadSheetEndRailOf(p) {
     ]
   };
 }
-var stepLabel2 = (n, hand) => hand === "call" ? "A call for you" : hand === "note" ? "A note for you" : `Email ${n + 1}`;
-function sheetStepOf(s, t, clock3) {
+var stepLabel2 = (n, hand) => hand === "call" ? "A call for you" : hand === "note" ? "A note for you" : n === 0 ? "First email" : "Follow-up";
+function sheetStepOf(s, day, t, clock3) {
   const sends2 = t.sends.filter((x) => x.n === s.n);
   const gone = sends2.find((x) => x.sent_at || x.left);
   const label = stepLabel2(s.n, s.hand);
   if (gone) {
     const at4 = gone.sent_at ? Date.parse(gone.sent_at) : NaN;
     const when = Number.isFinite(at4) ? clockDate(at4, clock3.tz, clock3.nowMs) : "";
-    return { n: s.n, label, sub: gone.bounced ? "Bounced" : "Sent", when, look: "done" };
+    return { n: s.n, day, label, sub: gone.bounced ? "Bounced" : "Sent", when, look: "done" };
   }
   const planned = sends2.find((x) => x.send_at);
   const at3 = planned && planned.send_at ? Date.parse(planned.send_at) : NaN;
   if (Number.isFinite(at3))
-    return { n: s.n, label, sub: "Planned", when: clockNear(at3, clock3.tz, clock3.nowMs), look: "next" };
+    return { n: s.n, day, label, sub: "Planned", when: clockNear(at3, clock3.tz, clock3.nowMs), look: "next" };
   const wait = s.after_days ? `+${plural(s.after_days, "day", "days")}` : "";
-  return { n: s.n, label, sub: s.n === 0 ? "In its next batch" : "If nothing comes back", when: wait, look: "later" };
+  return {
+    n: s.n,
+    day,
+    label,
+    sub: s.n === 0 ? "In its next batch" : "If nothing comes back",
+    when: wait,
+    look: "later"
+  };
 }
 function leadSheetTrackOf(t, nowMs, tz) {
   if (!t.chain) return null;
@@ -38940,7 +38954,11 @@ function leadSheetTrackOf(t, nowMs, tz) {
     after_days: null,
     hand: null
   }));
-  const steps = [...known].sort((a, b) => a.n - b.n).map((s) => sheetStepOf(s, t, { nowMs, tz }));
+  let day = 1;
+  const steps = [...known].sort((a, b) => a.n - b.n).map((s) => {
+    if (s.n > 0) day += s.after_days ?? 0;
+    return sheetStepOf(s, day, t, { nowMs, tz });
+  });
   const later = steps.find((s) => s.look === "later");
   if (later && !steps.some((s) => s.look === "next")) later.look = "next";
   const standing2 = reachOutStandingOf(t, nowMs, tz);
@@ -39009,8 +39027,868 @@ function leadSheetStandOf(p) {
   };
 }
 function leadSheetChecksOf(vm) {
-  const passed = vm.checkDots.filter((d) => d === "yes").length;
+  const passed = vm.checkDots.filter((d) => d.answer === "yes").length;
   return SW.why.checks(passed, vm.checkDots.length);
+}
+
+// src/sequences/sequence-run-off.ts
+var RUN_OFF_REASONS = [
+  "no_calendar",
+  "no_list",
+  "list_uncounted",
+  "template_not_approved",
+  "number_flagged",
+  "deals_off",
+  "never",
+  "ended"
+];
+var isRunOffReason = (why) => RUN_OFF_REASONS.includes(why);
+var RUN_OFF_WORDS = {
+  no_calendar: { said: "no calendar is connected", act: "Connect", mends: "door" },
+  no_list: { said: "its list is gone", act: null, mends: null },
+  list_uncounted: { said: "its list couldn\u2019t be counted", act: null, mends: null },
+  template_not_approved: { said: "WhatsApp hasn\u2019t approved its message", act: "Open it", mends: "door" },
+  number_flagged: { said: "WhatsApp has limited your number", act: "Channels", mends: "door" },
+  deals_off: { said: "deals are off", act: null, mends: null },
+  never: { said: "this kind of message is set to Never", act: "Who approves", mends: "autonomy" },
+  ended: { said: "its last day has passed", act: "End it", mends: "end" }
+};
+function sequenceRunOff(row2, lastRun, clock3) {
+  const why = lastRun.off;
+  if (row2.state !== "on" || row2.starts === "leads" || row2.starts === "date" || !why || !isRunOffReason(why))
+    return null;
+  const w = RUN_OFF_WORDS[why];
+  const day = lastRun.for ? clockDate(Date.parse(`${lastRun.for}T12:00:00Z`), clock3.tz, clock3.nowMs) : null;
+  const line = why === "ended" ? "Its last day has passed" : "Its last run did nothing";
+  const fact2 = why === "ended" ? "It sends nothing more" : `${w.said.charAt(0).toUpperCase()}${w.said.slice(1)}`;
+  const to = w.mends !== "door" ? null : why === "template_not_approved" && row2.first?.template_name ? addressOf({ kind: "template", name: row2.first.template_name }) : addressOf({ kind: "channel" });
+  return {
+    reason: why,
+    words: why === "ended" ? "Its last day has passed: it sends nothing more" : `Its last run${day ? ` (${day})` : ""} did nothing: ${w.said}`,
+    line,
+    fact: fact2,
+    act: w.act,
+    mends: w.mends,
+    to
+  };
+}
+
+// src/sequences/sequence-words.ts
+var SEQUENCE_WORDS = {
+  title: "Sequences",
+  newSequence: "New sequence",
+  /** The head's way back to Leads, where a trip from a lead did not say its name. */
+  backToLeads: "Leads",
+  search: "Search sequences",
+  empty: "Nothing sends on its own yet. A sequence starts at a moment, when someone joins a list, or on a date.",
+  failed: "The sequences couldn\u2019t be loaded right now",
+  filters: { all: "All", needs: "Needs you", off: "Paused or off" },
+  groups: {
+    needs: "Needs you",
+    customers: "Your customers",
+    leads: "Leads",
+    dates: "Dates",
+    off: "Paused",
+    drafts: "Drafts",
+    ended: "Ended"
+  },
+  /** The Ended group, folded at the list's foot: what it holds is history, opened when asked for. */
+  showEnded: (n) => `Show ${n} ended`,
+  hideEnded: "Hide ended",
+  /** End it (a customer's sequence that has sent), asked first in the record's More: it sends nothing more, its history stays. */
+  end: "End it",
+  endAsk: (name) => `End \u201C${name}\u201D?`,
+  endDetail: "It sends nothing more and nobody is added to it; what it sent stays in its History.",
+  endedLine: "Ended \xB7 it sends nothing more. What it sent stays in its History.",
+  receptionist: "First contact is your receptionist\u2019s",
+  /** Where the receptionist's line opens: Settings › How it answers, as Campaigns' ledger row does (Ruben, 11 Oct 2026). */
+  receptionistRoute: "admin/receptionist",
+  tabs: { steps: "Steps", people: "People", leads: "Leads", history: "History" },
+  addFollowUp: "Add a follow-up",
+  approve: "Approve",
+  skip: "Skip",
+  skipAsk: "Skip this batch?",
+  skipDetail: "Nobody in it gets this step from this batch; the sequence goes on with its next one.",
+  lookFirst: "Look first",
+  pause: "Pause",
+  resume: "Turn on",
+  start: "Start",
+  discard: "Discard",
+  notStarted: "Not started \xB7 nothing goes yet",
+  change: "Change",
+  edit: "Edit",
+  you: "You approve",
+  /** The record's line of what goes next: "Next tomorrow 10:00 AM · 3 people". */
+  next: "Next",
+  /** How long a customer's batch waits for an OK: an OK sends it at once, and the sweep skips it once its day is gone. */
+  untilTonight: "until tonight",
+  /** Who approves its batches, said in the record's More, where it is changed (Autonomy, for its whole class). */
+  whoApproves: "Who approves",
+  turnOff: "Turn this off",
+  /** A phone dock's Turn on: it asks first, so it says so. */
+  resumeAsk: "Turn on\u2026",
+  review: "Review",
+  answer: "Answer"
+};
+var SEQUENCE_APPROVAL_WORDS = {
+  auto: "sends on its own",
+  veto: "holds each batch for you to stop",
+  ask: "asks you first",
+  never: "stays quiet"
+};
+var isApprovalMode = (mode) => mode !== null && Object.prototype.hasOwnProperty.call(SEQUENCE_APPROVAL_WORDS, mode);
+var sequenceApprovalWords = (mode) => isApprovalMode(mode) ? SEQUENCE_APPROVAL_WORDS[mode] : SEQUENCE_APPROVAL_WORDS.ask;
+var SEQUENCE_FLOW_WORDS = {
+  starts: "Starts",
+  stops: "Stops",
+  stopsAlways: "never to anyone who said stop",
+  from: "From",
+  noMessage: "No message yet",
+  sent: "sent",
+  replied: "replied",
+  last30: "last 30 days",
+  takeAway: "Take away",
+  hour: "Sends at",
+  saveHour: "Save",
+  cancel: "Cancel",
+  goingNow: "Going now",
+  done: "Done",
+  writtenEach: "Written for each business",
+  call: "A call for you, on Today",
+  sendsFrom: "Sends from",
+  fromYou: "You, from your own inbox",
+  fromMailboxes: "Your connected mailboxes",
+  connect: "Connect a mailbox",
+  mailboxes: "Mailboxes",
+  checked: "Each one is checked before it goes",
+  takeAwayAsk: (place) => `Take step ${place} away?`,
+  takeAwayDetail: "The steps after it go with it; nobody waiting for it hears more from this sequence.",
+  /** New words a step waits on WhatsApp for, or that WhatsApp turned down: said without the message's stored name. */
+  newWords: (rejected) => rejected ? "WhatsApp turned down the new words" : "New words in review with WhatsApp",
+  /** Under a step whose new words wait or were turned down: what it sends meanwhile. */
+  keepsWords: "Keeps sending these words until new ones are approved",
+  /** A step whose message the workspace no longer offers (deleted, hidden, or never synced here). */
+  messageGone: "Its message isn\u2019t in Messages anymore.",
+  pickMessage: "Pick a message",
+  /** A one-off that waits for its day, let go of (the run's cancel door), asked first. */
+  cancelSend: "Cancel this send\u2026",
+  cancelAsk: "Cancel this send?",
+  cancelDetail: "Nobody gets it. To send it on another day, make it again.",
+  cancelYes: "Cancel the send",
+  /** A step after a reminder refused (the door): a reminder is said once, the day before; after the visit is its own moment. */
+  noFollowUpOnReminder: "A reminder goes once, the day before. To write to them afterwards, start a sequence that sends after it.",
+  sample: "The next one, as it reads",
+  addLeads: "Add leads",
+  /** When the step's next batch goes, with how many where they are counted: "next 9 tomorrow 9:00 AM". */
+  next: (people, when) => people > 0 ? `next ${people} ${when}` : `next ${when}`
+};
+function takesFollowUps(row2) {
+  if (row2.starts !== "moment" && row2.starts !== "list") return false;
+  return row2.first?.trigger !== "visit_tomorrow";
+}
+function stepApprovalOf(status) {
+  if (status === "approved") return { label: "Approved", tone: "ok" };
+  if (status === "pending") return { label: "In review", tone: "warn" };
+  if (status === "rejected") return { label: "Not approved", tone: "danger" };
+  if (status === "paused" || status === "disabled") return { label: "Paused by WhatsApp", tone: "danger" };
+  return null;
+}
+function leadStepStand(place, sent, now) {
+  if (now !== null && place === now) return "now";
+  if (now !== null ? place < now : sent > 0) return "done";
+  return "later";
+}
+var SEQUENCE_GROUPS = ["needs", "customers", "leads", "dates", "off", "drafts", "ended"];
+function sequenceTwinOf(rows2, row2) {
+  const trigger = row2.first?.trigger ?? null;
+  if (row2.starts !== "moment" || row2.state !== "on" || !trigger || triggerOf(trigger)?.kind !== "visit") return null;
+  const made = Date.parse(row2.created_at);
+  const first = (r2) => {
+    const at3 = Date.parse(r2.created_at);
+    return at3 < made || at3 === made && r2.id < row2.id;
+  };
+  const twin = rows2.find(
+    (r2) => r2.id !== row2.id && r2.starts === "moment" && r2.state === "on" && r2.first?.trigger === trigger && first(r2)
+  );
+  return twin ? { id: twin.id, name: twin.name } : null;
+}
+function twinLineOf(row2) {
+  const trigger = row2.first?.trigger;
+  if (trigger === "visit_tomorrow") return "Two reminders go to each person";
+  if (trigger === "visited") return "Two thank-yous go to each person";
+  return "Two messages go to each person";
+}
+var visitTwinWords = (name) => `\u201C${name}\u201D already sends at this moment, so each person would get two. Turn it off first.`;
+function needsCount(n) {
+  return n.waiting_people + n.held + n.to_send + n.replies + (n.waiting > 0 && n.waiting_people === 0 ? n.waiting : 0);
+}
+function sequenceWaitsNow(row2, days) {
+  const batches = row2.needs.batches.filter(
+    (b) => runWaitsOnYou(
+      { state: "pending_approval", playbook_id: b.step_id, run_for: b.run_for, audience: b.audience },
+      days
+    )
+  );
+  if (batches.length === row2.needs.batches.length && batches.length === row2.needs.waiting) return row2;
+  return {
+    ...row2,
+    needs: {
+      ...row2.needs,
+      batches,
+      waiting: batches.length,
+      waiting_people: batches.reduce((n, b) => n + b.people, 0)
+    }
+  };
+}
+function sequenceGroupOf(row2, twin = null) {
+  if (row2.state === "draft") return "drafts";
+  if (needsCount(row2.needs) > 0 || twin) return "needs";
+  if (row2.starts === "date") return "dates";
+  if (row2.state === "ended") return "ended";
+  if (row2.state === "paused") return "off";
+  if (row2.starts === "leads") return "leads";
+  return "customers";
+}
+function needsWords(n) {
+  const parts2 = [];
+  if (n.waiting_people > 0) parts2.push(`${n.waiting_people} wait for your OK`);
+  else if (n.waiting > 0) parts2.push("waits for your OK");
+  if (n.held > 0) parts2.push(`${n.held} held`);
+  if (n.to_send > 0) parts2.push(`${n.to_send} for you to send`);
+  if (n.replies > 0) parts2.push(`${plural(n.replies, "wrote back", "wrote back")} \xB7 answer them`);
+  return parts2.join(" \xB7 ");
+}
+function sequenceStartWords(row2, word) {
+  const W = appointmentWords(word);
+  const f = row2.first;
+  if (row2.starts === "date") return "On a date";
+  if (row2.starts === "leads") return f?.search_name ? `Leads \xB7 ${f.search_name}` : "Leads";
+  if (row2.starts === "list") return f?.list_name ? `Joins ${f.list_name}` : "Joins a list";
+  switch (f?.trigger) {
+    case "visit_tomorrow":
+      return `Before ${W.a}`;
+    case "visited":
+      return `After ${W.a}`;
+    case "quiet_30":
+    case "lapsed":
+      return "Gone quiet";
+    case "new_week":
+      return "New this week";
+    case "phoned_only":
+      return "Only ever phoned";
+    case "everyone_monthly":
+      return "Each month";
+    case "proposal_waiting":
+      return "Proposal out";
+    default:
+      return "At a moment";
+  }
+}
+function sequenceStateWords(row2) {
+  if (row2.starts === "date" && row2.date) {
+    const DATE2 = {
+      pending_approval: "Waits for you",
+      scheduled: "Scheduled",
+      sending: "Sending",
+      sent: "Sent",
+      canceled: "Canceled",
+      failed: "Failed"
+    };
+    return DATE2[row2.date.state] ?? "Scheduled";
+  }
+  return SEQUENCE_STATE_WORDS[row2.state];
+}
+var SEQUENCE_STATE_WORDS = {
+  draft: "Draft",
+  on: "On",
+  paused: "Paused",
+  ended: "Ended"
+};
+function sequenceStateTone(row2) {
+  if (row2.starts === "date" && row2.date?.state === "pending_approval") return "warn";
+  if (row2.starts === "date" && row2.date?.state === "failed") return "danger";
+  if (row2.state === "on") return "ok";
+  return "plain";
+}
+function sequenceRowState(row2) {
+  if (row2.starts === "date" && row2.date) {
+    const DATE2 = { scheduled: "Scheduled", sending: "Sending", canceled: "Canceled" };
+    if (row2.date.state === "failed") return { label: "Failed", tone: "danger" };
+    const label = DATE2[row2.date.state];
+    return label ? { label, tone: "plain" } : null;
+  }
+  if (row2.state === "paused" || row2.state === "ended") return { label: SEQUENCE_STATE_WORDS[row2.state], tone: "plain" };
+  return null;
+}
+function sequenceRowLine(row2, tz, nowMs, twin = null) {
+  if (row2.state === "draft") return SEQUENCE_WORDS.notStarted;
+  const needs2 = needsWords(row2.needs);
+  if (needs2) return needs2;
+  if (twin) return twinLineOf(row2);
+  if (row2.starts === "date" && row2.date) {
+    const at3 = Date.parse(row2.date.at);
+    if (row2.last)
+      return `Sent ${clockDate(Date.parse(row2.last.at), tz, nowMs)} \xB7 ${row2.last.sent} \xB7 ${row2.last.replied} replied`;
+    return `${clockDate(at3, tz, nowMs)} \xB7 ${plural(row2.date.people, "person", "people")}`;
+  }
+  if (row2.state === "paused") return row2.in_it > 0 ? `${row2.in_it} waiting` : "Paused";
+  if (row2.next) return `next ${clockWhen(Date.parse(row2.next.at), tz, nowMs)}`;
+  if (row2.in_it > 0) return `${row2.in_it} in it`;
+  if (row2.last)
+    return `${clockDate(Date.parse(row2.last.at), tz, nowMs)} \xB7 ${row2.last.sent} sent \xB7 ${row2.last.replied} replied`;
+  return "Nobody yet";
+}
+function sequenceHeadLine(row2, word, tz, nowMs) {
+  const steps = row2.steps <= 1 ? "one message" : `${row2.steps} steps`;
+  return `${sequenceStartWords(row2, word)} \xB7 ${steps} \xB7 since ${clockDate(Date.parse(row2.created_at), tz, nowMs)}`;
+}
+function sequenceSubLine(row2, rec2, nowMs) {
+  if (row2.starts === "date" && row2.date) {
+    const at3 = Date.parse(row2.date.at);
+    const DATE2 = {
+      pending_approval: "waits for your OK",
+      scheduled: "goes on its own",
+      sending: "going out now",
+      sent: `went ${clockDate(row2.last ? Date.parse(row2.last.at) : at3, rec2.timezone, nowMs)}`,
+      canceled: "canceled",
+      failed: "didn\u2019t go"
+    };
+    return `One message \xB7 ${DATE2[row2.date.state] ?? "goes on its own"}`;
+  }
+  if (row2.starts === "leads") {
+    const from = row2.first?.search_name ? `Leads from \u201C${row2.first.search_name}\u201D` : "Leads";
+    return `${from} \xB7 ${row2.first?.owner_sends ? "you send each one" : sequenceApprovalWords(rec2.mode)}`;
+  }
+  return `${sequenceStartWords(row2, rec2.word)} \xB7 ${sequenceApprovalWords(rec2.mode)}`;
+}
+function sequenceNextOf(row2, lastRunFor, tz, nowMs) {
+  if (row2.state !== "on" || row2.starts === "date") return null;
+  if (row2.next)
+    return { at: Date.parse(row2.next.at), people: row2.next.people > 0 ? row2.next.people : null, soon: false };
+  const first = row2.first;
+  if (lastRunFor === void 0 || !first || row2.starts !== "moment" && row2.starts !== "list") return null;
+  const now = new Date(nowMs);
+  if (!campaignRunsOn(first, { tz, now, dealsOn: true })) return null;
+  const run = nextRunOf({ run_hour: first.run_hour, last_run_for: lastRunFor }, tz, now);
+  const today = zoneDayKey(nowMs, tz);
+  const day = run.day === "today" ? today : zoneDayKey(wallClockAt(tz, today, 12, 0) + DAY_MS, tz);
+  return { at: wallClockAt(tz, day, run.hour, 0), people: null, soon: run.soon };
+}
+function sequenceNextWords(next, tz, nowMs) {
+  const when = next.soon ? "within the hour" : clockWhen(next.at, tz, nowMs);
+  return next.people ? `${when} \xB7 ${plural(next.people, "person", "people")}` : when;
+}
+function sequencePausedDock(row2) {
+  if (row2.state !== "paused" || row2.starts === "date") return null;
+  return {
+    line: SEQUENCE_STATE_WORDS.paused,
+    fact: row2.in_it > 0 ? `${plural(row2.in_it, "person waits", "people wait")} for it` : null
+  };
+}
+var isPolicyClass = (c) => !!c && Object.prototype.hasOwnProperty.call(POLICY_CLASS_WORDS, c);
+function sequenceWhoApprovesHint(mode, policyClass) {
+  const how = sequenceApprovalWords(mode);
+  const said = how.charAt(0).toUpperCase() + how.slice(1);
+  return isPolicyClass(policyClass) ? `${said} \xB7 ${POLICY_CLASS_WORDS[policyClass].name}` : said;
+}
+var sequenceCancels = (row2) => row2.starts === "date" && row2.date?.state === "scheduled";
+var noticeOf = (n) => ({
+  batchId: null,
+  stepId: null,
+  ...n
+});
+var batchWaitsUntilTonight = (batch) => batch.audience?.kind === "playbook";
+function waitingNotice(steps, batch) {
+  const people = batch.people;
+  const place = steps.length > 1 ? steps.find((s) => s.id === batch.step_id)?.place : void 0;
+  const until = batchWaitsUntilTonight(batch) ? ` \xB7 ${SEQUENCE_WORDS.untilTonight}` : "";
+  const fact2 = [place ? `Step ${place}` : null, until ? SEQUENCE_WORDS.untilTonight : null].filter(Boolean).join(" \xB7 ");
+  return noticeOf({
+    kind: "waiting",
+    words: people > 0 ? `${plural(people, "person waits", "people wait")} for your OK${until}` : `The next batch waits for your OK${until}`,
+    line: people > 0 ? `${people} wait${people === 1 ? "s" : ""} for your OK` : "The next batch waits for your OK",
+    fact: fact2 || null,
+    act: people > 0 ? `${SEQUENCE_WORDS.approve} ${people}` : SEQUENCE_WORDS.approve,
+    batchId: batch.id
+  });
+}
+function sequenceNotice(row2, steps, twin = null, lastRun = null) {
+  const n = row2.needs;
+  const batch = n.waiting > 0 ? n.batches[0] ?? null : null;
+  if (batch) return waitingNotice(steps, batch);
+  const off = lastRun ? sequenceRunOff(row2, lastRun, { tz: lastRun.tz, nowMs: lastRun.nowMs }) : null;
+  if (off)
+    return noticeOf({
+      kind: "off",
+      words: off.words,
+      line: off.line,
+      fact: off.fact,
+      act: off.act,
+      off: { reason: off.reason, mends: off.mends, to: off.to }
+    });
+  if (twin)
+    return noticeOf({
+      kind: "twin",
+      words: `${twinLineOf(row2)}: \u201C${twin.name}\u201D sends one too`,
+      line: twinLineOf(row2),
+      fact: `\u201C${twin.name}\u201D sends one too`,
+      act: SEQUENCE_WORDS.turnOff
+    });
+  if (n.held > 0)
+    return noticeOf({
+      kind: "held",
+      words: `${plural(n.held, "email is", "emails are")} held by the check`,
+      line: `${n.held} held by the check`,
+      fact: null,
+      act: SEQUENCE_WORDS.review
+    });
+  if (n.to_send > 0)
+    return noticeOf({
+      kind: "to_send",
+      words: `${plural(n.to_send, "email waits", "emails wait")} for you to send`,
+      line: `${n.to_send} for you to send`,
+      fact: "From your own inbox",
+      act: SEQUENCE_WORDS.review
+    });
+  if (n.replies > 0)
+    return noticeOf({
+      kind: "replies",
+      words: `${plural(n.replies, "lead wrote back", "leads wrote back")} \xB7 answer them`,
+      line: `${n.replies} wrote back`,
+      fact: "Answer them in the Inbox",
+      act: SEQUENCE_WORDS.answer
+    });
+  const refused = steps.find((s) => s.next_words?.status === "rejected");
+  if (refused)
+    return noticeOf({
+      kind: "words",
+      words: `WhatsApp did not approve step ${refused.place}'s new words${refused.next_words?.rejected_reason ? `: ${refused.next_words.rejected_reason}` : ""}`,
+      line: `Step ${refused.place}\u2019s new words turned down`,
+      fact: refused.next_words?.rejected_reason ? `WhatsApp: ${refused.next_words.rejected_reason}` : null,
+      act: `${SEQUENCE_WORDS.edit} step ${refused.place}`,
+      stepId: refused.id
+    });
+  return null;
+}
+function dateSentence(date, tz, nowMs) {
+  const at3 = Date.parse(date.at);
+  const who = plural(date.people, "person", "people");
+  if (date.state === "sent") return `Went ${clockDate(at3, tz, nowMs)} \xB7 ${clockTime(at3, tz)}, to ${who}`;
+  if (date.state === "canceled") return `Canceled \xB7 it was for ${clockWhen(at3, tz, nowMs)}`;
+  if (date.state === "failed") return `Didn\u2019t go \xB7 ${clockWhen(at3, tz, nowMs)}`;
+  return `${clockWhen(at3, tz, nowMs)}, to ${who}`;
+}
+function sequenceStartsSentence(row2, word, tz, nowMs) {
+  const f = row2.first;
+  if (row2.starts === "date" && row2.date) return dateSentence(row2.date, tz, nowMs);
+  if (row2.starts === "leads") return f?.search_name ? `A lead joins ${f.search_name}` : "A lead joins the list";
+  if (row2.starts === "list") return listStartsSentence(f?.list_name ?? null, f?.run_hour ?? null);
+  return momentStartsSentence(f?.trigger ?? null, f?.run_hour ?? null, word);
+}
+var atHour = (hour) => `, at ${clockTime(Date.UTC(2026, 0, 1, hour), "UTC")}`;
+function listStartsSentence(list2, hour) {
+  return `Someone joins ${list2 ?? "the list"}${hour === null ? "" : atHour(hour)}`;
+}
+function momentStartsSentence(trigger, hour, word) {
+  const W = appointmentWords(word);
+  const at3 = hour === null ? "" : atHour(hour);
+  switch (trigger) {
+    case "visit_tomorrow":
+      return `The day before each ${W.one}${at3}`;
+    case "visited":
+      return `The day after each ${W.one}${at3}`;
+    case "quiet_30":
+      return `When someone has gone quiet for 30 days${at3}`;
+    case "lapsed":
+      return `When someone has had no ${W.one} in 45 days, and nothing booked${at3}`;
+    case "new_week":
+      return `When someone first gets in touch this week${at3}`;
+    case "phoned_only":
+      return `When someone has only ever phoned${at3}`;
+    case "everyone_monthly":
+      return `Once a month, to everyone who said yes${at3}`;
+    case "proposal_waiting":
+      return `When a proposal waits with nothing back${at3}`;
+    default:
+      return `At its moment${at3}`;
+  }
+}
+function sequenceWaitWords(step2) {
+  const days = step2.after_days ?? 0;
+  const lead = step2.kind === "reach_out";
+  const when = `${plural(days, "day", "days")} later`;
+  const noBooking = step2.only_if.includes("no_booking");
+  const noReply = step2.only_if.includes("no_reply") || lead;
+  const unless = noBooking && noReply ? ", if they haven\u2019t booked or written back" : noBooking ? ", if they haven\u2019t booked" : noReply ? ", if they haven\u2019t written back" : "";
+  return `${when}${unless}`;
+}
+function sequenceChannelsWords(channels) {
+  const WORD = { whatsapp: "WhatsApp", sms: "text", email: "email" };
+  const named = channels.map((c) => WORD[c] ?? c);
+  if (named.length <= 1) return named[0] ?? "";
+  return `${named.slice(0, -1).join(", ")} or ${named[named.length - 1]}, one each`;
+}
+function sequenceStopsSentence(row2, steps) {
+  if (row2.starts === "leads") return "A reply, a booking, a no, a bounce or a stop";
+  return stepsStopSentence(steps);
+}
+function stepsStopSentence(steps) {
+  const asks = new Set(steps.flatMap((s) => s.only_if));
+  if (steps.length <= 1) return "After this one message";
+  if (asks.has("no_booking") && asks.has("no_reply")) return "When they book or write back, or after the last step";
+  if (asks.has("no_booking")) return "When they book, or after the last step";
+  if (asks.has("no_reply")) return "When they write back, or after the last step";
+  return `After step ${steps.length}`;
+}
+var PEOPLE_GROUP_WORDS = {
+  waiting: "Wait for your OK",
+  held: "Held by the check",
+  to_send: "For you to send",
+  replied: "Wrote back",
+  next: "Up next",
+  in: "In it",
+  done: "Done",
+  left: "Left"
+};
+function sequenceLeftWords(why) {
+  const WHY2 = {
+    booked: "booked",
+    replied: "wrote back",
+    removed: "taken out",
+    started_again: "started again",
+    gone: "no longer in People",
+    no_yes: "never said yes",
+    no_number: "no number",
+    stopped: "asked to stop",
+    unsubscribed: "unsubscribed",
+    no_address: "no address",
+    address_stopped: "address stopped",
+    no_channel: "no way to reach them",
+    outreach_wrote_back: "wrote back",
+    outreach_stopped: "you stopped writing",
+    outreach_lead_closed: "no longer a lead to write to",
+    outreach_suppressed: "unsubscribed",
+    outreach_bounced: "bounced",
+    outreach_not_a_lead: "no longer in Leads",
+    said_no: "said no",
+    owner_stopped: "you stopped writing",
+    owner_skipped: "you skipped it",
+    run_canceled: "its day was canceled",
+    owner_took_back: "taken back",
+    step_removed: "the step was removed",
+    kept_waiting: "kept waiting too long",
+    stale: "kept waiting too long",
+    bounced: "bounced"
+  };
+  return why ? WHY2[why] ?? why.replace(/_/g, " ") : "";
+}
+var peopleTabWord = (row2) => row2.starts === "leads" ? SEQUENCE_WORDS.tabs.leads : SEQUENCE_WORDS.tabs.people;
+
+// src/leads/sheet/lead-sheet-dock.ts
+var LEAD_PLACE_WORDS = {
+  waiting: "Waits for your OK",
+  held: "Held",
+  to_send: "For you to send",
+  replied: "Wrote back",
+  next: "Up next",
+  in: "In it",
+  done: "Done",
+  left: "Left"
+};
+var PENDING = /* @__PURE__ */ new Set(["planned", "claimed", "queued"]);
+var ASKS_ANSWER = /* @__PURE__ */ new Set(["interested", "question"]);
+var ASKS_FOR = 14 * DAY_MS;
+var wroteBack = (t, nowMs) => t.readings.some(
+  (r2) => !r2.undone && (r2.claim === "person" || r2.claim === "owner") && ASKS_ANSWER.has(r2.intent) && nowMs - Date.parse(r2.read_at) <= ASKS_FOR
+);
+var placeStepOf = (n) => n === null ? 1 : n + 1;
+var NO_SEND = { sendId: null, hold: null, holdDetail: null, runId: null };
+function pendingPlaceOf(sends2, t, nowMs, tz) {
+  const held = sends2.find((s) => s.state === "held");
+  if (held) {
+    const hold = isReachOutHold(held.reason) ? held.reason : null;
+    const step3 = placeStepOf(held.n);
+    return {
+      ...NO_SEND,
+      group: "held",
+      step: step3,
+      sendId: held.id,
+      hold,
+      line: LEAD_PLACE_LINES.held(step3, hold && holdWords2(hold, null))
+    };
+  }
+  const drafted2 = sends2.find((s) => s.state === "drafted");
+  if (drafted2) {
+    const step3 = placeStepOf(drafted2.n);
+    return {
+      ...NO_SEND,
+      group: "to_send",
+      step: step3,
+      sendId: drafted2.id,
+      runId: drafted2.run_id ?? null,
+      line: LEAD_PLACE_LINES.toSend(step3)
+    };
+  }
+  const pending = sends2.find((s) => PENDING.has(s.state));
+  if (!pending) return null;
+  const step2 = placeStepOf(pending.n);
+  if (pending.state === "planned" && t.chain && t.chain.waiting_run_id)
+    return { ...NO_SEND, group: "waiting", step: step2, line: LEAD_PLACE_LINES.waiting(step2) };
+  const when = pending.send_at ? clockNear(Date.parse(pending.send_at), tz, nowMs) : null;
+  return { ...NO_SEND, group: "next", step: step2, line: LEAD_PLACE_LINES.next(step2, when) };
+}
+function leftWhyOf(t, sends2) {
+  const last = sends2.at(-1);
+  if (t.stopped_at) return "owner_stopped";
+  if (t.closed_reason === "said_no") return "said_no";
+  if (sends2.some((s) => s.bounced)) return "bounced";
+  if (t.booked_at) return "booked";
+  return last && (last.state === "skipped" || last.state === "failed") ? last.reason ?? "removed" : null;
+}
+function settledPlaceOf(sends2, t, nowMs, tz) {
+  const last = sends2.at(-1);
+  const why = leftWhyOf(t, sends2);
+  if (why)
+    return { ...NO_SEND, group: "left", step: placeStepOf(last ? last.n : null), line: LEAD_PLACE_LINES.left(why) };
+  const gone = sends2.filter((s) => s.left);
+  const steps = t.chain && t.chain.steps ? t.chain.steps.length : 0;
+  if (steps > 0 && gone.length >= steps) return { ...NO_SEND, group: "done", step: steps, line: LEAD_PLACE_LINES.done };
+  const sent = gone.at(-1);
+  const at3 = sent && sent.sent_at ? clockDate(Date.parse(sent.sent_at), tz, nowMs) : null;
+  const step2 = placeStepOf(sent ? sent.n : null);
+  return { ...NO_SEND, group: "in", step: step2, line: LEAD_PLACE_LINES.in(step2, at3) };
+}
+function leadSheetPlaceOf(t, nowMs, tz) {
+  if (!t || !t.chain) return null;
+  const sends2 = [...t.sends].sort((a, b) => (a.n ?? 0) - (b.n ?? 0));
+  if (wroteBack(t, nowMs)) {
+    const last = sends2.filter((s) => s.left).at(-1);
+    return { ...NO_SEND, group: "replied", step: placeStepOf(last ? last.n : null), line: LEAD_PLACE_LINES.replied };
+  }
+  const ended = t.place && (t.place.state === "left" || t.place.state === "done") ? t.place : null;
+  if (ended) {
+    const step2 = placeStepOf(sends2.filter((s) => s.left).at(-1)?.n ?? null);
+    return ended.state === "done" ? { ...NO_SEND, group: "done", step: step2, line: LEAD_PLACE_LINES.done } : { ...NO_SEND, group: "left", step: step2, line: LEAD_PLACE_LINES.left(ended.why ?? "removed") };
+  }
+  const pending = pendingPlaceOf(sends2, t, nowMs, tz);
+  if (pending) return pending;
+  if (sends2.length === 0 && !t.stopped_at && t.closed_reason !== "said_no")
+    return { ...NO_SEND, group: "next", step: 1, line: LEAD_PLACE_LINES.queued };
+  return settledPlaceOf(sends2, t, nowMs, tz);
+}
+var LEAD_PLACE_LINES = {
+  /** The card's headline says what they wrote and where it is answered; the box says only what the sequence did. */
+  replied: "Stopped for them",
+  held: (step2, why) => why ? `Step ${step2} held: ${why}` : `Step ${step2} is held by the check`,
+  toSend: (step2) => `Step ${step2} is drafted for you to send yourself`,
+  waiting: (step2) => `Step ${step2} waits for your OK with the rest of its batch`,
+  next: (step2, when) => when ? `Step ${step2} ${when}` : `Step ${step2} is planned`,
+  in: (step2, at3) => at3 ? `Step ${step2} sent ${at3}` : `Step ${step2} is next, after its wait`,
+  queued: "Step 1 goes in its next batch",
+  done: "Every step went",
+  /** Why, alone: the word beside the name and the box's verb already say Left. */
+  left: (why) => capitalize(sequenceLeftWords(why))
+};
+var NEEDS_YOU = /* @__PURE__ */ new Set(["waiting", "held", "to_send", "replied"]);
+function leadSheetWordOf(p) {
+  if (p.place) {
+    const g = p.place.group;
+    return { word: LEAD_PLACE_WORDS[g], tone: NEEDS_YOU.has(g) ? "warn" : g === "next" || g === "in" ? "ok" : "plain" };
+  }
+  switch (p.state) {
+    case "review":
+      return { word: "To review", tone: "warn" };
+    case "replied":
+      return { word: LEAD_PLACE_WORDS.replied, tone: "warn" };
+    case "elsewhere":
+    case "sequence":
+      return { word: LEAD_PLACE_WORDS.in, tone: "ok" };
+    case "closed":
+      return { word: p.closed ? p.closed.title : LEAD_PLACE_WORDS.left, tone: "plain" };
+    default:
+      return { word: "Ready", tone: "plain" };
+  }
+}
+var LEAD_BOX_WORDS = {
+  joins: "Joins",
+  in: "In",
+  left: "Left",
+  cantJoin: "Can't join",
+  goesWith: "Goes with",
+  none: "No sequence takes leads you add",
+  noneLine: "Make one in Sequences; you come back here",
+  afterOk: "Step 1 after your OK",
+  onceKept: "Once you keep it",
+  inNextBatch: "In its next batch",
+  phoneOnly: "A sequence to leads writes email; they have a phone",
+  elsewhere: "A business is written to once, so this one stays with that sequence"
+};
+function leadSheetBoxOf(p) {
+  const B = LEAD_BOX_WORDS;
+  if (p.inSequence && p.place) {
+    const verb = p.place.group === "left" ? B.left : B.in;
+    return { verb, name: p.inSequence.name, rootId: p.inSequence.rootId, line: p.place.line, change: false };
+  }
+  if (p.state === "elsewhere" && p.elsewhere)
+    return { verb: B.in, name: p.elsewhere.name, rootId: p.elsewhere.rootId, line: B.elsewhere, change: false };
+  if (p.state === "closed" && p.closed)
+    return { verb: null, name: null, rootId: null, line: `${p.closed.title}. ${p.closed.line}`, change: false };
+  if (p.searchWrites)
+    return {
+      verb: B.goesWith,
+      name: p.searchWrites.name,
+      rootId: p.searchWrites.rootId,
+      line: B.inNextBatch,
+      change: false
+    };
+  if (!p.target) return { verb: null, name: null, rootId: null, line: `${B.none}. ${B.noneLine}`, change: false };
+  const t = { name: p.target.name, rootId: p.target.rootId, change: p.canChange };
+  if (p.state === "phone") return { ...t, verb: B.cantJoin, line: B.phoneOnly };
+  return { ...t, verb: B.joins, line: p.state === "review" ? B.onceKept : B.afterOk };
+}
+var LEAD_DOCK_WORDS = {
+  /** The box says what follows ("Step 1 after your OK"); the dock says the act, once (the canvas's round two). */
+  ready: { line: "Add to it", fact: "Nothing goes until you approve" },
+  checking: { line: "Checking their mailbox", fact: "Add waits a few seconds" },
+  noEmail: { line: "No email to write to", fact: "Call them, or find one" },
+  elsewhere: { line: "One sequence at a time", fact: "Take them out there to add them here" },
+  noSequence: { line: "Nothing to add to yet", fact: "Starts from this lead, and comes back" },
+  review: { line: "To review", fact: "Keep counts it, and sends it on" },
+  waiting: { line: "Waits for your OK", fact: "A batch, so in the sequence" },
+  held: { line: "Held by the check", fact: "Its email, decided here" },
+  toSend: { line: "Yours to send", fact: "From your own inbox" },
+  search: { line: "Goes in its next batch", fact: "Not a fit is how one stays out" },
+  first: { line: "On a new list of this pile's", fact: "You write to them once, at the end" },
+  replied: (intent, at3) => ({
+    line: "Wrote back",
+    fact: [intent, at3].filter(Boolean).join(" \xB7 ") || "Answer them in the Inbox"
+  }),
+  approve: "Approve",
+  decide: "Decide",
+  openDraft: "Open the draft",
+  answer: "Answer",
+  call: "Call",
+  add: "Add",
+  later: "Later",
+  notFit: "Not a fit",
+  keep: "Keep",
+  exclude: "Leave out",
+  openIt: "Open it",
+  newSequence: "New sequence",
+  itsSequence: "Its sequence",
+  hold: "Add to a new list",
+  putBack: "Put back",
+  ready_: "Move back to Ready",
+  /** Held, decided here (the canvas's HeldDecide): the same choices, and the same verb, as the sequence's Leads tab. */
+  decideAsk: "What to do with its email?",
+  decideOnly: (sequence) => `Only this one email. The rest of its batch waits in \u201C${sequence}\u201D.`,
+  back: "Back"
+};
+var dockAct = (a, label, icon, key = null, off = null) => ({ act: a, label, icon, key, sub: null, off });
+var dockLaterOf = (f) => f.canLater ? [dockAct("later", LEAD_DOCK_WORDS.later, "clock", "l")] : [];
+function placeDock(f, place) {
+  const D = LEAD_DOCK_WORDS;
+  const dock = (w, acts) => ({
+    ...w,
+    waiting: false,
+    x: false,
+    acts
+  });
+  if (place.group === "waiting") return dock(D.waiting, [dockAct("approve", D.approve, "chevron", "a")]);
+  if (place.group === "held") return dock(D.held, [dockAct("decide", D.decide, "chevron", "a")]);
+  if (place.group === "to_send") return dock(D.toSend, [dockAct("open_draft", D.openDraft, "send", "a")]);
+  if (place.group === "replied") return repliedDock(f);
+  return null;
+}
+function repliedDock(f) {
+  const D = LEAD_DOCK_WORDS;
+  const r2 = f.reply;
+  const intent = r2 && isReplyIntent(r2.intent) ? capitalize(REPLY_INTENT_WORDS[r2.intent]) : null;
+  const at3 = r2 ? clockNear(Date.parse(r2.readAt), f.tz, f.nowMs) : null;
+  return {
+    ...D.replied(intent, at3),
+    waiting: false,
+    x: false,
+    acts: [...f.canCall ? [dockAct("call", D.call, "phone", "c")] : [], dockAct("thread", D.answer, "chat", "a")]
+  };
+}
+function readyDock(f) {
+  const D = LEAD_DOCK_WORDS;
+  const x = dockAct("not_a_fit", D.notFit, "x", "n");
+  if (f.pile === "search")
+    return { ...D.search, waiting: false, x: true, acts: [x, dockAct("sequence", D.itsSequence, "external")] };
+  if (f.pile === "first")
+    return { ...D.first, waiting: false, x: true, acts: [x, ...dockLaterOf(f), dockAct("hold", D.hold, "plus", "a")] };
+  if (!f.target)
+    return {
+      ...D.noSequence,
+      waiting: false,
+      x: true,
+      acts: [x, ...dockLaterOf(f), dockAct("new_sequence", D.newSequence, "chevron", "a")]
+    };
+  if (f.state === "finding")
+    return { ...D.checking, waiting: true, x: true, acts: [x, dockAct("add", D.add, "plus", "a", D.checking.fact)] };
+  return {
+    line: D.ready.line,
+    fact: f.blocked ?? D.ready.fact,
+    waiting: false,
+    x: true,
+    acts: [x, ...dockLaterOf(f), dockAct("add", D.add, "plus", "a", f.blocked)]
+  };
+}
+function leadSheetDockOf(f) {
+  const D = LEAD_DOCK_WORDS;
+  if (f.place) return placeDock(f, f.place);
+  switch (f.state) {
+    case "review":
+      return {
+        ...D.review,
+        waiting: false,
+        x: false,
+        acts: [dockAct("exclude", D.exclude, "ban", "n"), dockAct("keep", D.keep, "check", "a")]
+      };
+    case "phone":
+      return f.canCall ? {
+        ...D.noEmail,
+        waiting: false,
+        x: true,
+        acts: [dockAct("not_a_fit", D.notFit, "x", "n"), dockAct("call", D.call, "phone", "a")]
+      } : null;
+    case "elsewhere":
+      return { ...D.elsewhere, waiting: false, x: false, acts: [dockAct("sequence", D.openIt, "chevron", "a")] };
+    case "replied":
+      return repliedDock(f);
+    case "sequence":
+      return null;
+    case "closed": {
+      const fix = f.closed ? f.closed.fix : null;
+      if (!f.closed || !fix) return null;
+      const one = fix === "put_back" ? dockAct("put_back", D.putBack, "undo", "a") : fix === "ready" ? dockAct("ready", D.ready_, "undo", "a") : dockAct("call", D.call, "phone", "a");
+      return { line: f.closed.title, fact: f.closed.line, waiting: false, x: false, acts: [one] };
+    }
+    default:
+      return readyDock(f);
+  }
+}
+function leadLinePlaceOf(l, chainWaits, nowMs, tz) {
+  const W = LEAD_PLACE_WORDS;
+  const r2 = l.reply;
+  const person = r2 && !r2.undone && r2.claim !== "auto_reply";
+  if (person && ASKS_ANSWER.has(r2.intent))
+    return { word: W.replied, tone: "warn", line: clockNear(Date.parse(r2.read_at), tz, nowMs) };
+  if (l.held) return { word: W.held, tone: "warn", line: null };
+  if ((l.drafted ?? 0) > 0) return { word: W.to_send, tone: "warn", line: null };
+  const why = l.stopped_at ? "owner_stopped" : l.closed_reason === "said_no" || person && r2.intent === "no" ? "said_no" : l.bounced ? "bounced" : l.booked_at ? "booked" : null;
+  if (why) return { word: W.left, tone: "plain", line: sequenceLeftWords(why) };
+  const next = l.next_at ? Date.parse(l.next_at) : NaN;
+  if (l.sent === 0 && chainWaits && (l.added_at || Number.isFinite(next)))
+    return { word: W.waiting, tone: "warn", line: null };
+  if (Number.isFinite(next)) return { word: W.next, tone: "ok", line: clockNear(next, tz, nowMs) };
+  if (l.sent > 0) {
+    const last = l.last_sent_at ? Date.parse(l.last_sent_at) : NaN;
+    return { word: W.in, tone: "ok", line: Number.isFinite(last) ? `sent ${clockNear(last, tz, nowMs)}` : null };
+  }
+  return null;
 }
 
 // src/lines/channels.ts
@@ -45138,7 +46016,7 @@ function lifecycleResults(input) {
 var LEDGER_TOOLS_AT = 7;
 var LEDGER_PERIOD = periodWords(fixedDaysOf(CAMPAIGNS_RESULTS_PERIOD), null).now;
 var SENT_ROUTE = "broadcasts";
-var LEADS_ROUTE = "clients/leads";
+var LEADS_ROUTE2 = "clients/leads";
 function readyOf(input) {
   return input.playbooks?.ready ?? input.broadcasts?.ready ?? null;
 }
@@ -45503,7 +46381,7 @@ function reachOutGroup(at3) {
     glyph: "send",
     meta: chains ? groupMetaOf(rows2, LIFECYCLE_WORDS.ledger.none) : LIFECYCLE_WORDS.ledger.dash,
     rows: rows2,
-    add: { kind: "route", label: LIFECYCLE_WORDS.ledger.findBusinesses, route: LEADS_ROUTE }
+    add: { kind: "route", label: LIFECYCLE_WORDS.ledger.findBusinesses, route: LEADS_ROUTE2 }
   };
 }
 function sentOnceGroup(sources, input) {
@@ -46109,6 +46987,24 @@ function reachOutDraftOf(p) {
     ]
   };
 }
+function reachOutVersionDraftOf(chain, name, signedBy) {
+  const d = reachOutDraftOf({ chain, searchName: chain.name, signedBy });
+  return { ...d, name, steps: d.steps.map((s) => ({ ...s, id: null })) };
+}
+var REACH_OUT_NEW_LIST_WORDS = {
+  title: "A list of its own",
+  goesOn: (lead) => `${lead} goes on it when you start`,
+  version: (name) => `A version of \u201C${name}\u201D: the same steps, waits and mailboxes. Change what's different.`,
+  /** A version's name until the owner names it. */
+  nameOf: (sequence, lead) => `${sequence}, for ${lead}`,
+  /** A new sequence's name for a lead, until the owner names it. */
+  forLead: (lead) => `For ${lead}`,
+  before: "Each lead's first email is written for them as their batch is planned; you see it before it goes.",
+  /** Back on the lead, once it started: the name it was given may not be the one it opened with, so the lead's is said. */
+  started: (lead) => `Started: ${lead} is on its own list`,
+  startedOn: (list2) => `Started on \u201C${list2}\u201D`,
+  someone: "this lead"
+};
 function reachOutMayAddStep(d) {
   return d.steps.length < REACH_OUT_STEPS_MAX && !d.steps[d.steps.length - 1]?.hand;
 }
@@ -46351,552 +47247,7 @@ var SEQUENCE_STARTS = ["moment", "list", "leads", "date"];
 var SEQUENCE_STATES = ["draft", "on", "paused", "ended"];
 
 // src/sequences/sequence-dto.ts
-var SEQUENCE_PEOPLE_GROUPS = ["waiting", "held", "to_send", "next", "in", "done", "left"];
-
-// src/sequences/sequence-run-off.ts
-var RUN_OFF_REASONS = [
-  "no_calendar",
-  "no_list",
-  "list_uncounted",
-  "template_not_approved",
-  "number_flagged",
-  "deals_off",
-  "never",
-  "ended"
-];
-var isRunOffReason = (why) => RUN_OFF_REASONS.includes(why);
-var RUN_OFF_WORDS = {
-  no_calendar: { said: "no calendar is connected", act: "Connect", mends: "door" },
-  no_list: { said: "its list is gone", act: null, mends: null },
-  list_uncounted: { said: "its list couldn\u2019t be counted", act: null, mends: null },
-  template_not_approved: { said: "WhatsApp hasn\u2019t approved its message", act: "Open it", mends: "door" },
-  number_flagged: { said: "WhatsApp has limited your number", act: "Channels", mends: "door" },
-  deals_off: { said: "deals are off", act: null, mends: null },
-  never: { said: "this kind of message is set to Never", act: "Who approves", mends: "autonomy" },
-  ended: { said: "its last day has passed", act: "End it", mends: "end" }
-};
-function sequenceRunOff(row2, lastRun, clock3) {
-  const why = lastRun.off;
-  if (row2.state !== "on" || row2.starts === "leads" || row2.starts === "date" || !why || !isRunOffReason(why))
-    return null;
-  const w = RUN_OFF_WORDS[why];
-  const day = lastRun.for ? clockDate(Date.parse(`${lastRun.for}T12:00:00Z`), clock3.tz, clock3.nowMs) : null;
-  const line = why === "ended" ? "Its last day has passed" : "Its last run did nothing";
-  const fact2 = why === "ended" ? "It sends nothing more" : `${w.said.charAt(0).toUpperCase()}${w.said.slice(1)}`;
-  const to = w.mends !== "door" ? null : why === "template_not_approved" && row2.first?.template_name ? addressOf({ kind: "template", name: row2.first.template_name }) : addressOf({ kind: "channel" });
-  return {
-    reason: why,
-    words: why === "ended" ? "Its last day has passed: it sends nothing more" : `Its last run${day ? ` (${day})` : ""} did nothing: ${w.said}`,
-    line,
-    fact: fact2,
-    act: w.act,
-    mends: w.mends,
-    to
-  };
-}
-
-// src/sequences/sequence-words.ts
-var SEQUENCE_WORDS = {
-  title: "Sequences",
-  newSequence: "New sequence",
-  search: "Search sequences",
-  empty: "Nothing sends on its own yet. A sequence starts at a moment, when someone joins a list, or on a date.",
-  failed: "The sequences couldn\u2019t be loaded right now",
-  filters: { all: "All", needs: "Needs you", off: "Paused or off" },
-  groups: {
-    needs: "Needs you",
-    customers: "Your customers",
-    leads: "Leads",
-    dates: "Dates",
-    off: "Paused",
-    drafts: "Drafts",
-    ended: "Ended"
-  },
-  /** The Ended group, folded at the list's foot: what it holds is history, opened when asked for. */
-  showEnded: (n) => `Show ${n} ended`,
-  hideEnded: "Hide ended",
-  /** End it (a customer's sequence that has sent), asked first in the record's More: it sends nothing more, its history stays. */
-  end: "End it",
-  endAsk: (name) => `End \u201C${name}\u201D?`,
-  endDetail: "It sends nothing more and nobody is added to it; what it sent stays in its History.",
-  endedLine: "Ended \xB7 it sends nothing more. What it sent stays in its History.",
-  receptionist: "First contact is your receptionist\u2019s",
-  /** Where the receptionist's line opens: Settings › How it answers, as Campaigns' ledger row does (Ruben, 11 Oct 2026). */
-  receptionistRoute: "admin/receptionist",
-  tabs: { steps: "Steps", people: "People", leads: "Leads", history: "History" },
-  addFollowUp: "Add a follow-up",
-  approve: "Approve",
-  skip: "Skip",
-  skipAsk: "Skip this batch?",
-  skipDetail: "Nobody in it gets this step from this batch; the sequence goes on with its next one.",
-  lookFirst: "Look first",
-  pause: "Pause",
-  resume: "Turn on",
-  start: "Start",
-  discard: "Discard",
-  notStarted: "Not started \xB7 nothing goes yet",
-  change: "Change",
-  edit: "Edit",
-  you: "You approve",
-  /** The record's line of what goes next: "Next tomorrow 10:00 AM · 3 people". */
-  next: "Next",
-  /** How long a customer's batch waits for an OK: an OK sends it at once, and the sweep skips it once its day is gone. */
-  untilTonight: "until tonight",
-  /** Who approves its batches, said in the record's More, where it is changed (Autonomy, for its whole class). */
-  whoApproves: "Who approves",
-  turnOff: "Turn this off",
-  /** A phone dock's Turn on: it asks first, so it says so. */
-  resumeAsk: "Turn on\u2026",
-  review: "Review",
-  answer: "Answer"
-};
-var SEQUENCE_APPROVAL_WORDS = {
-  auto: "sends on its own",
-  veto: "holds each batch for you to stop",
-  ask: "asks you first",
-  never: "stays quiet"
-};
-var isApprovalMode = (mode) => mode !== null && Object.prototype.hasOwnProperty.call(SEQUENCE_APPROVAL_WORDS, mode);
-var sequenceApprovalWords = (mode) => isApprovalMode(mode) ? SEQUENCE_APPROVAL_WORDS[mode] : SEQUENCE_APPROVAL_WORDS.ask;
-var SEQUENCE_FLOW_WORDS = {
-  starts: "Starts",
-  stops: "Stops",
-  stopsAlways: "never to anyone who said stop",
-  from: "From",
-  noMessage: "No message yet",
-  sent: "sent",
-  replied: "replied",
-  last30: "last 30 days",
-  takeAway: "Take away",
-  hour: "Sends at",
-  saveHour: "Save",
-  cancel: "Cancel",
-  goingNow: "Going now",
-  done: "Done",
-  writtenEach: "Written for each business",
-  call: "A call for you, on Today",
-  sendsFrom: "Sends from",
-  fromYou: "You, from your own inbox",
-  fromMailboxes: "Your connected mailboxes",
-  connect: "Connect a mailbox",
-  mailboxes: "Mailboxes",
-  checked: "Each one is checked before it goes",
-  takeAwayAsk: (place) => `Take step ${place} away?`,
-  takeAwayDetail: "The steps after it go with it; nobody waiting for it hears more from this sequence.",
-  /** New words a step waits on WhatsApp for, or that WhatsApp turned down: said without the message's stored name. */
-  newWords: (rejected) => rejected ? "WhatsApp turned down the new words" : "New words in review with WhatsApp",
-  /** Under a step whose new words wait or were turned down: what it sends meanwhile. */
-  keepsWords: "Keeps sending these words until new ones are approved",
-  /** A step whose message the workspace no longer offers (deleted, hidden, or never synced here). */
-  messageGone: "Its message isn\u2019t in Messages anymore.",
-  pickMessage: "Pick a message",
-  /** A one-off that waits for its day, let go of (the run's cancel door), asked first. */
-  cancelSend: "Cancel this send\u2026",
-  cancelAsk: "Cancel this send?",
-  cancelDetail: "Nobody gets it. To send it on another day, make it again.",
-  cancelYes: "Cancel the send",
-  /** A step after a reminder refused (the door): a reminder is said once, the day before; after the visit is its own moment. */
-  noFollowUpOnReminder: "A reminder goes once, the day before. To write to them afterwards, start a sequence that sends after it.",
-  sample: "The next one, as it reads",
-  addLeads: "Add leads",
-  /** When the step's next batch goes, with how many where they are counted: "next 9 tomorrow 9:00 AM". */
-  next: (people, when) => people > 0 ? `next ${people} ${when}` : `next ${when}`
-};
-function takesFollowUps(row2) {
-  if (row2.starts !== "moment" && row2.starts !== "list") return false;
-  return row2.first?.trigger !== "visit_tomorrow";
-}
-function stepApprovalOf(status) {
-  if (status === "approved") return { label: "Approved", tone: "ok" };
-  if (status === "pending") return { label: "In review", tone: "warn" };
-  if (status === "rejected") return { label: "Not approved", tone: "danger" };
-  if (status === "paused" || status === "disabled") return { label: "Paused by WhatsApp", tone: "danger" };
-  return null;
-}
-function leadStepStand(place, sent, now) {
-  if (now !== null && place === now) return "now";
-  if (now !== null ? place < now : sent > 0) return "done";
-  return "later";
-}
-var SEQUENCE_GROUPS = ["needs", "customers", "leads", "dates", "off", "drafts", "ended"];
-function sequenceTwinOf(rows2, row2) {
-  const trigger = row2.first?.trigger ?? null;
-  if (row2.starts !== "moment" || row2.state !== "on" || !trigger || triggerOf(trigger)?.kind !== "visit") return null;
-  const made = Date.parse(row2.created_at);
-  const first = (r2) => {
-    const at3 = Date.parse(r2.created_at);
-    return at3 < made || at3 === made && r2.id < row2.id;
-  };
-  const twin = rows2.find(
-    (r2) => r2.id !== row2.id && r2.starts === "moment" && r2.state === "on" && r2.first?.trigger === trigger && first(r2)
-  );
-  return twin ? { id: twin.id, name: twin.name } : null;
-}
-function twinLineOf(row2) {
-  const trigger = row2.first?.trigger;
-  if (trigger === "visit_tomorrow") return "Two reminders go to each person";
-  if (trigger === "visited") return "Two thank-yous go to each person";
-  return "Two messages go to each person";
-}
-var visitTwinWords = (name) => `\u201C${name}\u201D already sends at this moment, so each person would get two. Turn it off first.`;
-function needsCount(n) {
-  return n.waiting_people + n.held + n.to_send + n.replies + (n.waiting > 0 && n.waiting_people === 0 ? n.waiting : 0);
-}
-function sequenceWaitsNow(row2, days) {
-  const batches = row2.needs.batches.filter(
-    (b) => runWaitsOnYou(
-      { state: "pending_approval", playbook_id: b.step_id, run_for: b.run_for, audience: b.audience },
-      days
-    )
-  );
-  if (batches.length === row2.needs.batches.length && batches.length === row2.needs.waiting) return row2;
-  return {
-    ...row2,
-    needs: {
-      ...row2.needs,
-      batches,
-      waiting: batches.length,
-      waiting_people: batches.reduce((n, b) => n + b.people, 0)
-    }
-  };
-}
-function sequenceGroupOf(row2, twin = null) {
-  if (row2.state === "draft") return "drafts";
-  if (needsCount(row2.needs) > 0 || twin) return "needs";
-  if (row2.starts === "date") return "dates";
-  if (row2.state === "ended") return "ended";
-  if (row2.state === "paused") return "off";
-  if (row2.starts === "leads") return "leads";
-  return "customers";
-}
-function needsWords(n) {
-  const parts2 = [];
-  if (n.waiting_people > 0) parts2.push(`${n.waiting_people} wait for your OK`);
-  else if (n.waiting > 0) parts2.push("waits for your OK");
-  if (n.held > 0) parts2.push(`${n.held} held`);
-  if (n.to_send > 0) parts2.push(`${n.to_send} for you to send`);
-  if (n.replies > 0) parts2.push(`${plural(n.replies, "wrote back", "wrote back")} \xB7 answer them`);
-  return parts2.join(" \xB7 ");
-}
-function sequenceStartWords(row2, word) {
-  const W = appointmentWords(word);
-  const f = row2.first;
-  if (row2.starts === "date") return "On a date";
-  if (row2.starts === "leads") return f?.search_name ? `Leads \xB7 ${f.search_name}` : "Leads";
-  if (row2.starts === "list") return f?.list_name ? `Joins ${f.list_name}` : "Joins a list";
-  switch (f?.trigger) {
-    case "visit_tomorrow":
-      return `Before ${W.a}`;
-    case "visited":
-      return `After ${W.a}`;
-    case "quiet_30":
-    case "lapsed":
-      return "Gone quiet";
-    case "new_week":
-      return "New this week";
-    case "phoned_only":
-      return "Only ever phoned";
-    case "everyone_monthly":
-      return "Each month";
-    case "proposal_waiting":
-      return "Proposal out";
-    default:
-      return "At a moment";
-  }
-}
-function sequenceStateWords(row2) {
-  if (row2.starts === "date" && row2.date) {
-    const DATE2 = {
-      pending_approval: "Waits for you",
-      scheduled: "Scheduled",
-      sending: "Sending",
-      sent: "Sent",
-      canceled: "Canceled",
-      failed: "Failed"
-    };
-    return DATE2[row2.date.state] ?? "Scheduled";
-  }
-  return SEQUENCE_STATE_WORDS[row2.state];
-}
-var SEQUENCE_STATE_WORDS = {
-  draft: "Draft",
-  on: "On",
-  paused: "Paused",
-  ended: "Ended"
-};
-function sequenceStateTone(row2) {
-  if (row2.starts === "date" && row2.date?.state === "pending_approval") return "warn";
-  if (row2.starts === "date" && row2.date?.state === "failed") return "danger";
-  if (row2.state === "on") return "ok";
-  return "plain";
-}
-function sequenceRowState(row2) {
-  if (row2.starts === "date" && row2.date) {
-    const DATE2 = { scheduled: "Scheduled", sending: "Sending", canceled: "Canceled" };
-    if (row2.date.state === "failed") return { label: "Failed", tone: "danger" };
-    const label = DATE2[row2.date.state];
-    return label ? { label, tone: "plain" } : null;
-  }
-  if (row2.state === "paused" || row2.state === "ended") return { label: SEQUENCE_STATE_WORDS[row2.state], tone: "plain" };
-  return null;
-}
-function sequenceRowLine(row2, tz, nowMs, twin = null) {
-  if (row2.state === "draft") return SEQUENCE_WORDS.notStarted;
-  const needs2 = needsWords(row2.needs);
-  if (needs2) return needs2;
-  if (twin) return twinLineOf(row2);
-  if (row2.starts === "date" && row2.date) {
-    const at3 = Date.parse(row2.date.at);
-    if (row2.last)
-      return `Sent ${clockDate(Date.parse(row2.last.at), tz, nowMs)} \xB7 ${row2.last.sent} \xB7 ${row2.last.replied} replied`;
-    return `${clockDate(at3, tz, nowMs)} \xB7 ${plural(row2.date.people, "person", "people")}`;
-  }
-  if (row2.state === "paused") return row2.in_it > 0 ? `${row2.in_it} waiting` : "Paused";
-  if (row2.next) return `next ${clockWhen(Date.parse(row2.next.at), tz, nowMs)}`;
-  if (row2.in_it > 0) return `${row2.in_it} in it`;
-  if (row2.last)
-    return `${clockDate(Date.parse(row2.last.at), tz, nowMs)} \xB7 ${row2.last.sent} sent \xB7 ${row2.last.replied} replied`;
-  return "Nobody yet";
-}
-function sequenceHeadLine(row2, word, tz, nowMs) {
-  const steps = row2.steps <= 1 ? "one message" : `${row2.steps} steps`;
-  return `${sequenceStartWords(row2, word)} \xB7 ${steps} \xB7 since ${clockDate(Date.parse(row2.created_at), tz, nowMs)}`;
-}
-function sequenceSubLine(row2, rec2, nowMs) {
-  if (row2.starts === "date" && row2.date) {
-    const at3 = Date.parse(row2.date.at);
-    const DATE2 = {
-      pending_approval: "waits for your OK",
-      scheduled: "goes on its own",
-      sending: "going out now",
-      sent: `went ${clockDate(row2.last ? Date.parse(row2.last.at) : at3, rec2.timezone, nowMs)}`,
-      canceled: "canceled",
-      failed: "didn\u2019t go"
-    };
-    return `One message \xB7 ${DATE2[row2.date.state] ?? "goes on its own"}`;
-  }
-  if (row2.starts === "leads") {
-    const from = row2.first?.search_name ? `Leads from \u201C${row2.first.search_name}\u201D` : "Leads";
-    return `${from} \xB7 ${row2.first?.owner_sends ? "you send each one" : sequenceApprovalWords(rec2.mode)}`;
-  }
-  return `${sequenceStartWords(row2, rec2.word)} \xB7 ${sequenceApprovalWords(rec2.mode)}`;
-}
-function sequenceNextOf(row2, lastRunFor, tz, nowMs) {
-  if (row2.state !== "on" || row2.starts === "date") return null;
-  if (row2.next)
-    return { at: Date.parse(row2.next.at), people: row2.next.people > 0 ? row2.next.people : null, soon: false };
-  const first = row2.first;
-  if (lastRunFor === void 0 || !first || row2.starts !== "moment" && row2.starts !== "list") return null;
-  const now = new Date(nowMs);
-  if (!campaignRunsOn(first, { tz, now, dealsOn: true })) return null;
-  const run = nextRunOf({ run_hour: first.run_hour, last_run_for: lastRunFor }, tz, now);
-  const today = zoneDayKey(nowMs, tz);
-  const day = run.day === "today" ? today : zoneDayKey(wallClockAt(tz, today, 12, 0) + DAY_MS, tz);
-  return { at: wallClockAt(tz, day, run.hour, 0), people: null, soon: run.soon };
-}
-function sequenceNextWords(next, tz, nowMs) {
-  const when = next.soon ? "within the hour" : clockWhen(next.at, tz, nowMs);
-  return next.people ? `${when} \xB7 ${plural(next.people, "person", "people")}` : when;
-}
-function sequencePausedDock(row2) {
-  if (row2.state !== "paused" || row2.starts === "date") return null;
-  return {
-    line: SEQUENCE_STATE_WORDS.paused,
-    fact: row2.in_it > 0 ? `${plural(row2.in_it, "person waits", "people wait")} for it` : null
-  };
-}
-var isPolicyClass = (c) => !!c && Object.prototype.hasOwnProperty.call(POLICY_CLASS_WORDS, c);
-function sequenceWhoApprovesHint(mode, policyClass) {
-  const how = sequenceApprovalWords(mode);
-  const said = how.charAt(0).toUpperCase() + how.slice(1);
-  return isPolicyClass(policyClass) ? `${said} \xB7 ${POLICY_CLASS_WORDS[policyClass].name}` : said;
-}
-var sequenceCancels = (row2) => row2.starts === "date" && row2.date?.state === "scheduled";
-var noticeOf = (n) => ({
-  batchId: null,
-  stepId: null,
-  ...n
-});
-var batchWaitsUntilTonight = (batch) => batch.audience?.kind === "playbook";
-function waitingNotice(steps, batch) {
-  const people = batch.people;
-  const place = steps.length > 1 ? steps.find((s) => s.id === batch.step_id)?.place : void 0;
-  const until = batchWaitsUntilTonight(batch) ? ` \xB7 ${SEQUENCE_WORDS.untilTonight}` : "";
-  const fact2 = [place ? `Step ${place}` : null, until ? SEQUENCE_WORDS.untilTonight : null].filter(Boolean).join(" \xB7 ");
-  return noticeOf({
-    kind: "waiting",
-    words: people > 0 ? `${plural(people, "person waits", "people wait")} for your OK${until}` : `The next batch waits for your OK${until}`,
-    line: people > 0 ? `${people} wait${people === 1 ? "s" : ""} for your OK` : "The next batch waits for your OK",
-    fact: fact2 || null,
-    act: people > 0 ? `${SEQUENCE_WORDS.approve} ${people}` : SEQUENCE_WORDS.approve,
-    batchId: batch.id
-  });
-}
-function sequenceNotice(row2, steps, twin = null, lastRun = null) {
-  const n = row2.needs;
-  const batch = n.waiting > 0 ? n.batches[0] ?? null : null;
-  if (batch) return waitingNotice(steps, batch);
-  const off = lastRun ? sequenceRunOff(row2, lastRun, { tz: lastRun.tz, nowMs: lastRun.nowMs }) : null;
-  if (off)
-    return noticeOf({
-      kind: "off",
-      words: off.words,
-      line: off.line,
-      fact: off.fact,
-      act: off.act,
-      off: { reason: off.reason, mends: off.mends, to: off.to }
-    });
-  if (twin)
-    return noticeOf({
-      kind: "twin",
-      words: `${twinLineOf(row2)}: \u201C${twin.name}\u201D sends one too`,
-      line: twinLineOf(row2),
-      fact: `\u201C${twin.name}\u201D sends one too`,
-      act: SEQUENCE_WORDS.turnOff
-    });
-  if (n.held > 0)
-    return noticeOf({
-      kind: "held",
-      words: `${plural(n.held, "email is", "emails are")} held by the check`,
-      line: `${n.held} held by the check`,
-      fact: null,
-      act: SEQUENCE_WORDS.review
-    });
-  if (n.to_send > 0)
-    return noticeOf({
-      kind: "to_send",
-      words: `${plural(n.to_send, "email waits", "emails wait")} for you to send`,
-      line: `${n.to_send} for you to send`,
-      fact: "From your own inbox",
-      act: SEQUENCE_WORDS.review
-    });
-  if (n.replies > 0)
-    return noticeOf({
-      kind: "replies",
-      words: `${plural(n.replies, "lead wrote back", "leads wrote back")} \xB7 answer them`,
-      line: `${n.replies} wrote back`,
-      fact: "Answer them in the Inbox",
-      act: SEQUENCE_WORDS.answer
-    });
-  const refused = steps.find((s) => s.next_words?.status === "rejected");
-  if (refused)
-    return noticeOf({
-      kind: "words",
-      words: `WhatsApp did not approve step ${refused.place}'s new words${refused.next_words?.rejected_reason ? `: ${refused.next_words.rejected_reason}` : ""}`,
-      line: `Step ${refused.place}\u2019s new words turned down`,
-      fact: refused.next_words?.rejected_reason ? `WhatsApp: ${refused.next_words.rejected_reason}` : null,
-      act: `${SEQUENCE_WORDS.edit} step ${refused.place}`,
-      stepId: refused.id
-    });
-  return null;
-}
-function dateSentence(date, tz, nowMs) {
-  const at3 = Date.parse(date.at);
-  const who = plural(date.people, "person", "people");
-  if (date.state === "sent") return `Went ${clockDate(at3, tz, nowMs)} \xB7 ${clockTime(at3, tz)}, to ${who}`;
-  if (date.state === "canceled") return `Canceled \xB7 it was for ${clockWhen(at3, tz, nowMs)}`;
-  if (date.state === "failed") return `Didn\u2019t go \xB7 ${clockWhen(at3, tz, nowMs)}`;
-  return `${clockWhen(at3, tz, nowMs)}, to ${who}`;
-}
-function sequenceStartsSentence(row2, word, tz, nowMs) {
-  const f = row2.first;
-  if (row2.starts === "date" && row2.date) return dateSentence(row2.date, tz, nowMs);
-  if (row2.starts === "leads") return f?.search_name ? `A lead joins ${f.search_name}` : "A lead joins the list";
-  if (row2.starts === "list") return listStartsSentence(f?.list_name ?? null, f?.run_hour ?? null);
-  return momentStartsSentence(f?.trigger ?? null, f?.run_hour ?? null, word);
-}
-var atHour = (hour) => `, at ${clockTime(Date.UTC(2026, 0, 1, hour), "UTC")}`;
-function listStartsSentence(list2, hour) {
-  return `Someone joins ${list2 ?? "the list"}${hour === null ? "" : atHour(hour)}`;
-}
-function momentStartsSentence(trigger, hour, word) {
-  const W = appointmentWords(word);
-  const at3 = hour === null ? "" : atHour(hour);
-  switch (trigger) {
-    case "visit_tomorrow":
-      return `The day before each ${W.one}${at3}`;
-    case "visited":
-      return `The day after each ${W.one}${at3}`;
-    case "quiet_30":
-      return `When someone has gone quiet for 30 days${at3}`;
-    case "lapsed":
-      return `When someone has had no ${W.one} in 45 days, and nothing booked${at3}`;
-    case "new_week":
-      return `When someone first gets in touch this week${at3}`;
-    case "phoned_only":
-      return `When someone has only ever phoned${at3}`;
-    case "everyone_monthly":
-      return `Once a month, to everyone who said yes${at3}`;
-    case "proposal_waiting":
-      return `When a proposal waits with nothing back${at3}`;
-    default:
-      return `At its moment${at3}`;
-  }
-}
-function sequenceWaitWords(step2) {
-  const days = step2.after_days ?? 0;
-  const lead = step2.kind === "reach_out";
-  const when = `${plural(days, "day", "days")} later`;
-  const noBooking = step2.only_if.includes("no_booking");
-  const noReply = step2.only_if.includes("no_reply") || lead;
-  const unless = noBooking && noReply ? ", if they haven\u2019t booked or written back" : noBooking ? ", if they haven\u2019t booked" : noReply ? ", if they haven\u2019t written back" : "";
-  return `${when}${unless}`;
-}
-function sequenceChannelsWords(channels) {
-  const WORD = { whatsapp: "WhatsApp", sms: "text", email: "email" };
-  const named = channels.map((c) => WORD[c] ?? c);
-  if (named.length <= 1) return named[0] ?? "";
-  return `${named.slice(0, -1).join(", ")} or ${named[named.length - 1]}, one each`;
-}
-function sequenceStopsSentence(row2, steps) {
-  if (row2.starts === "leads") return "A reply, a booking, a no, a bounce or a stop";
-  return stepsStopSentence(steps);
-}
-function stepsStopSentence(steps) {
-  const asks = new Set(steps.flatMap((s) => s.only_if));
-  if (steps.length <= 1) return "After this one message";
-  if (asks.has("no_booking") && asks.has("no_reply")) return "When they book or write back, or after the last step";
-  if (asks.has("no_booking")) return "When they book, or after the last step";
-  if (asks.has("no_reply")) return "When they write back, or after the last step";
-  return `After step ${steps.length}`;
-}
-var PEOPLE_GROUP_WORDS = {
-  waiting: "Wait for your OK",
-  held: "Held by the check",
-  to_send: "For you to send",
-  next: "Up next",
-  in: "In it",
-  done: "Done",
-  left: "Left"
-};
-function sequenceLeftWords(why) {
-  const WHY2 = {
-    booked: "booked",
-    replied: "wrote back",
-    removed: "taken out",
-    started_again: "started again",
-    gone: "no longer in People",
-    no_yes: "never said yes",
-    no_number: "no number",
-    stopped: "asked to stop",
-    unsubscribed: "unsubscribed",
-    no_address: "no address",
-    address_stopped: "address stopped",
-    no_channel: "no way to reach them",
-    outreach_wrote_back: "wrote back",
-    said_no: "said no",
-    owner_stopped: "you stopped writing",
-    owner_skipped: "you skipped it",
-    run_canceled: "its day was canceled",
-    owner_took_back: "taken back",
-    step_removed: "the step was removed",
-    kept_waiting: "kept waiting too long",
-    stale: "kept waiting too long",
-    bounced: "bounced"
-  };
-  return why ? WHY2[why] ?? why.replace(/_/g, " ") : "";
-}
-var peopleTabWord = (row2) => row2.starts === "leads" ? SEQUENCE_WORDS.tabs.leads : SEQUENCE_WORDS.tabs.people;
+var SEQUENCE_PEOPLE_GROUPS = ["waiting", "held", "to_send", "replied", "next", "in", "done", "left"];
 
 // src/sequences/sequence-tab-words.ts
 var SEQUENCE_EDIT_WORDS = {
@@ -46944,6 +47295,10 @@ var SEQUENCE_NEEDS_WORDS = {
   /** Leads who wrote back, answered in the Inbox (its threads that answered the sequence). */
   wroteBack: "Wrote back",
   inbox: "Inbox",
+  /** A reply's own door: its thread in the Inbox, where the answer is written. */
+  answer: "Answer",
+  /** What they wrote, read: "Wrote back · a question". */
+  said: (intent) => `Wrote back \xB7 ${intent}`,
   oneByOne: "Send them one by one",
   reading: "Reading what it holds\u2026",
   /** What a failed read could not read: "Couldn't read this batch's emails". */
@@ -46992,7 +47347,21 @@ function peopleNeedsOf(rows2, at3) {
   );
   const unread = [...new Set(handed.filter((r2) => !r2.draft && r2.batch_id).map((r2) => r2.batch_id ?? ""))];
   const asIs = held.filter((h) => LEAD_HOLDS.has(h.reason) && h.doors.some(([d]) => d === "include"));
-  return { held, asIs, toSend, unread };
+  const replied = rows2.filter((r2) => r2.group === "replied");
+  const wroteBack2 = replied.length > 0 || rows2.some((r2) => r2.reply !== void 0) ? replied.map((r2) => {
+    const intent = r2.reply?.intent ?? r2.why;
+    return {
+      key: r2.lead_id ?? r2.contact_id ?? r2.enrollment_id ?? "",
+      name: r2.name ?? SEQUENCE_PEOPLE_WORDS.someone,
+      said: SEQUENCE_NEEDS_WORDS.said(
+        isReplyIntent(intent) ? REPLY_INTENT_WORDS[intent] : REPLY_INTENT_WORDS.other
+      ),
+      summary: r2.reply?.summary ?? null,
+      answer: r2.reply?.conversation_id ? addressOf({ kind: "conversation", id: r2.reply.conversation_id }) : null,
+      to: r2.contact_id ? addressOf({ kind: "person", id: r2.contact_id }) : r2.lead_id ? addressOf({ kind: "lead", id: r2.lead_id }) : null
+    };
+  }) : null;
+  return { held, asIs, toSend, unread, wroteBack: wroteBack2 };
 }
 var SEQUENCE_PEOPLE_WORDS = {
   nobody: "Nobody is in it yet.",
@@ -49154,10 +49523,10 @@ function businessesPart(dto, when) {
   const line = `Of ${plural(businesses, "business", "businesses")} written to ${when.within}${shares}. Each counts once, at the last email that wrote to it; a question counts as interested. Who wrote back, was interested, booked${isCount(won) ? ", won" : ""} or said no is as it stands now.`;
   return mixOf(entries, line);
 }
-function angleRow(id, label, businesses, wroteBack) {
-  const of = `${wroteBack} of ${businesses}`;
-  const display = businesses === 0 ? DASH2 : businesses >= REPORT_MIN_N ? `${of}  ${pctText(wroteBack, businesses)}` : of;
-  return { id, label, value: pct(wroteBack, businesses) ?? 0, display, n: businesses, minN: REPORT_MIN_N };
+function angleRow(id, label, businesses, wroteBack2) {
+  const of = `${wroteBack2} of ${businesses}`;
+  const display = businesses === 0 ? DASH2 : businesses >= REPORT_MIN_N ? `${of}  ${pctText(wroteBack2, businesses)}` : of;
+  return { id, label, value: pct(wroteBack2, businesses) ?? 0, display, n: businesses, minN: REPORT_MIN_N };
 }
 function anglesPart(dto, when) {
   const other = dto.other_angles;
@@ -49188,10 +49557,10 @@ function anglesPart(dto, when) {
     empty: null
   };
 }
-function answeredCell(wroteBack, businesses) {
-  if (businesses === void 0 || businesses === 0) return String(wroteBack);
-  const said = shareSaid(pct(wroteBack, businesses), wroteBack, businesses) ?? String(wroteBack);
-  return isThinShare(businesses, REPORT_MIN_N) ? said : `${said} (${wroteBack})`;
+function answeredCell(wroteBack2, businesses) {
+  if (businesses === void 0 || businesses === 0) return String(wroteBack2);
+  const said = shareSaid(pct(wroteBack2, businesses), wroteBack2, businesses) ?? String(wroteBack2);
+  return isThinShare(businesses, REPORT_MIN_N) ? said : `${said} (${wroteBack2})`;
 }
 function cellsOf2(c, businesses) {
   const landed = shareSaid(pct(c.delivered, c.written), c.delivered, c.written) ?? DASH2;
@@ -49355,12 +49724,12 @@ function reachOutsWroteWords(emails, businesses) {
   const to = businesses === void 0 ? "" : ` to ${plural(businesses, "business", "businesses")}`;
   return ` Your reach-outs wrote ${plural(emails, "email")}${to}.`;
 }
-function peopleHeadWords({ messages, people, runs, wroteBack, before, range }) {
+function peopleHeadWords({ messages, people, runs, wroteBack: wroteBack2, before, range }) {
   const sentence2 = `${plural(messages, "message")} to ${plural(people, "person", "people")} over ${plural(runs, "run")}`;
-  if (people < REPORT_MIN_N || wroteBack === null) return `${sentence2}.`;
+  if (people < REPORT_MIN_N || wroteBack2 === null) return `${sentence2}.`;
   const hadPeople = before.sentTo !== null && before.sentTo > 0 && before.wroteBack !== null;
   const was = hadPeople ? ` (${before.wroteBack === 0 ? "none" : before.wroteBack} ${beforeWords(range)})` : "";
-  return `${sentence2}; ${wroteBack} of ${people} wrote back${was}.`;
+  return `${sentence2}; ${wroteBack2} of ${people} wrote back${was}.`;
 }
 function sendsHeadWords(sent) {
   const sentence2 = `${plural(sent.messages, "message")} over ${plural(sent.runs, "run")}`;
@@ -49596,9 +49965,9 @@ function deliveredShareFigure({ totals, before, days }) {
 }
 function wroteBackFigures(series) {
   if (series === null) return [];
-  const { sentTo, wroteBack, counting, before } = reachedPeopleOf(series);
-  if (sentTo === null || wroteBack === null) return [];
-  const share2 = pct(wroteBack, sentTo);
+  const { sentTo, wroteBack: wroteBack2, counting, before } = reachedPeopleOf(series);
+  if (sentTo === null || wroteBack2 === null) return [];
+  const share2 = pct(wroteBack2, sentTo);
   const was = before.sentTo === null || before.wroteBack === null ? null : shareWasWords(sentTo, { part: before.wroteBack, of: before.sentTo }, rangeLabelOf(series.days));
   return [
     {
@@ -49606,7 +49975,7 @@ function wroteBackFigures(series) {
       metric: "people_wrote_back",
       label: "Wrote back",
       value: share2 === null ? NO_FIGURE : `${share2}%`,
-      meta: wroteBackMeta({ wroteBack, people: sentTo, counting }),
+      meta: wroteBackMeta({ wroteBack: wroteBack2, people: sentTo, counting }),
       compare: was,
       n: sentTo,
       minN: REPORT_MIN_N
@@ -59472,6 +59841,7 @@ export {
   LEAD_COUNT_CHOICES,
   LEAD_DAY_CAP_USD,
   LEAD_DIRECTORY_WORDS,
+  LEAD_DOCK_WORDS,
   LEAD_DRAFT_JSON_SCHEMA,
   LEAD_DRAFT_NOTE,
   LEAD_EMAIL_STATES,
@@ -59520,6 +59890,7 @@ export {
   LEAD_PILE_UNDO_KEY,
   LEAD_PILE_WORDS,
   LEAD_PLACEHOLDER_LOCALS,
+  LEAD_PLACE_WORDS,
   LEAD_PLATFORM_DAY_CAP_USD,
   LEAD_PLATFORM_HOSTS,
   LEAD_PREFERENCE_KINDS,
@@ -59953,6 +60324,7 @@ export {
   REACH_OUT_MODEL,
   REACH_OUT_MONTH_EMAILS,
   REACH_OUT_NAME_MAX,
+  REACH_OUT_NEW_LIST_WORDS,
   REACH_OUT_PREVIEW_INDEX_MAX,
   REACH_OUT_PREVIEW_WORDS,
   REACH_OUT_READS_PER_DAY,
@@ -61082,6 +61454,7 @@ export {
   leadImportSaveLabel,
   leadKindKey,
   leadKindWord,
+  leadLinePlaceOf,
   leadListEmptyOf,
   leadListStripOf,
   leadLowShare,
@@ -61123,19 +61496,22 @@ export {
   leadRowOf,
   leadSearchWords,
   leadSheetAboutOf,
+  leadSheetBoxOf,
   leadSheetCellsOf,
   leadSheetChecksOf,
   leadSheetClosedOf,
+  leadSheetDockOf,
   leadSheetEndRailOf,
   leadSheetFitOf,
   leadSheetOptionsOf,
-  leadSheetRailOf,
+  leadSheetPlaceOf,
   leadSheetReasonsOf,
   leadSheetReplyOf,
   leadSheetStandOf,
   leadSheetStateOf,
   leadSheetStoryOf,
   leadSheetTrackOf,
+  leadSheetWordOf,
   leadSlots,
   leadStepStand,
   leadTileSrc,
@@ -61698,6 +62074,7 @@ export {
   reachOutStepOf,
   reachOutStripOf,
   reachOutTimelineOf,
+  reachOutVersionDraftOf,
   reachOutWhenOf,
   reachOutWhoWords,
   reachOutWritesFrom,
@@ -61890,6 +62267,7 @@ export {
   sequenceHeadLine,
   sequenceLandingOf,
   sequenceLeftWords,
+  sequenceNewLeadsRoute,
   sequenceNextOf,
   sequenceNextWords,
   sequenceNotice,
@@ -61898,6 +62276,7 @@ export {
   sequenceRepliesRoute,
   sequenceResumeAsk,
   sequenceRoute,
+  sequenceRouteBack,
   sequenceRowLine,
   sequenceRowState,
   sequenceRunsNow,

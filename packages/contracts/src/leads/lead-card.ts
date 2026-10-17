@@ -143,15 +143,15 @@ const LEAD_CARD_WHY_NOT: Record<ReachOutWhyNot, string> = {
 const ADDRESS_WHYS: ReadonlySet<ReachOutWhyNot> = new Set(["no_email", "invalid", "unconfirmed", "unchecked"]);
 
 /**
- * The pile's sheet on a phone (canvas B: decide at half height, read at full): its five tabs at full, Why first, and its
- * handle's words for where a press takes it.
+ * The lead sheet's tabs (the refined canvas, 17 Oct 2026: in Sequences' words), Why first: Why (the checks, the listing
+ * and how it was found), Contact (where the sequence writes, the ways in, the people there, the address and the week),
+ * and Sequence (where they stand in it, step by step, and the email they would get). "Reach" read as the old Reach out,
+ * and a step can be a call, so neither Reach nor Emails stays.
  */
 export const LEAD_CARD_TABS = [
   { id: "why", label: "Why" },
-  { id: "reach", label: "Reach" },
-  { id: "emails", label: "Emails" },
-  { id: "about", label: "About" },
-  { id: "activity", label: "Activity" },
+  { id: "contact", label: "Contact" },
+  { id: "sequence", label: "Sequence" },
 ] as const;
 export type LeadCardTab = (typeof LEAD_CARD_TABS)[number]["id"];
 

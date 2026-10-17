@@ -314,7 +314,7 @@ test(
       return l;
     };
     // The two oldest may not be written to again; the third may.
-    await sentTo(9, { wrote: true });
+    const wrote = await sentTo(9, { wrote: true });
     await sentTo(8, { stage: "archived" });
     const due = await sentTo(7);
     const rows = ok(
@@ -326,10 +326,12 @@ test(
         p_limit: 1,
       }),
     );
+    // 00455: a page holds as many it may write to as the limit, and as many refused beside them, the oldest first, for
+    // the planner to pass over by name; the refused never take the place of one it may write to.
     assert.deepEqual(
       rows.map((r) => r.lead_id),
-      [due],
-      "at a limit of one, the one the door would write to, not the oldest",
+      [due, wrote],
+      "at a limit of one, the one the door would write to first, then one refused beside it, not in its place",
     );
     assert.deepEqual(
       [rows[0].mailbox_id, rows[0].country],

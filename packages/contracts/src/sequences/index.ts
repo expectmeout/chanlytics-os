@@ -15,6 +15,7 @@ export type {
   SequencePeopleGroup,
   SequencePersonDto,
   SequencePersonDraftDto,
+  SequencePersonReplyDto,
   SequencePeopleDto,
   SequenceBatchCountsDto,
   SequenceBatchDto,
@@ -88,6 +89,7 @@ export type {
   SequenceHistoryFigure,
   SequenceHeldVM,
   SequenceNeedsVM,
+  SequenceWroteBackVM,
 } from "./sequence-tab-words";
 export { SEQUENCE_ACT_WORDS, sequenceRunsNow, sequenceResumeAsk } from "./sequence-acts";
 export type { SequenceResumeAsk } from "./sequence-acts";
@@ -97,6 +99,8 @@ export {
   SEQUENCES_ROUTE,
   isSequencesParam,
   parseSequencesRoute,
+  sequenceNewLeadsRoute,
+  sequenceRouteBack,
   sequenceRoute,
   newSequenceRoute,
   sequenceLandingOf,
@@ -104,7 +108,7 @@ export {
   sequenceRepliesOf,
   sequenceRepliesRoute,
 } from "./sequence-address";
-export type { SequenceTab, SequencesPlace } from "./sequence-address";
+export type { SequenceNewFor, SequenceNewLeads, SequenceTab, SequencesPlace } from "./sequence-address";
 export {
   SEQUENCE_DRAFT_WORDS_MAX,
   SEQUENCE_DRAFT_THEN_MAX,

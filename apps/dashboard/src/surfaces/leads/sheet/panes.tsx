@@ -1,12 +1,14 @@
 /**
- * The lead sheet at full height (canvas B v2, "Pulled up, the card reads in five tabs"): Why (every check with its mark
- * and source, the reasons to write now, the people there), Reach (each way in and how it was checked, with its acts),
- * Emails (email 1 in full, every step after it, each variable with its source), About (the place or the company as its
- * source knows it, its week and its links), and Activity (where it stands with a sequence, its story and doors, how it
- * was found). The rail stays under them, so a decision is one thumb away on every tab.
+ * The lead sheet at full height (the refined canvas, 17 Oct 2026: three tabs, in Sequences' words). Why: the judge's
+ * line, every check with its mark and source, the listing's reasons and its own facts, the company, and how it was
+ * found. Contact: where the sequence writes, each way in and how it was checked with its acts, the people there, the
+ * address and the week, the links. Sequence: where they stand in it on the record's rail of days, Take out under it and
+ * the record a press away; before a sequence has them, the email they would get, its steps and its variables. The dock
+ * stays under them, so a decision is one thumb away on every tab.
  *
  * Hookless: the sheet hands down the lead, its card, its acts and what the tabs read. Every word is contracts'.
  */
+import type { ReactNode } from "react";
 import {
   LEAD_CARD_TABS,
   LEAD_CARD_WORDS,
@@ -17,19 +19,27 @@ import {
   leadSheetReasonsOf,
   type LeadCardTab,
   type LeadPeekVM,
+  type LeadPlaceVM,
+  type LeadSheetBoxVM,
+  type LeadSheetTrackVM,
 } from "@chanlytics/contracts";
 import { Button } from "../../kit/button/button";
 import { CopyButton } from "../../kit/copy-button/copy-button";
 import { Icon } from "../../kit/icon/icon";
+import { LinkButton } from "../../kit/link-button/link-button";
+import { gate } from "../../legacy-verbs";
 import { LeadCallMenu } from "../cells/call-menu";
 import { ldCheckMark } from "../peek/hint";
 import { LeadPeekParts } from "../peek/info";
 import { LeadPeekCompany, LeadPeekPeople } from "../peek/people";
 import type { PeekActs } from "../peek/types";
 import type { LeadCardFacts } from "../pile/card";
-import { SheetMail, SheetParts } from "./parts";
+import { SheetMail, SheetParts, SheetTrack } from "./parts";
 
-/** What the panes read beside the lead: its card, its acts, where it stands, and the email's head. */
+/** The tabs' own words. */
+const TAB_WORDS = W.panes;
+
+/** What the panes read beside the lead: its card, its acts, its place in a sequence, and the email's head. */
 interface PaneProps {
   vm: LeadPeekVM;
   card: LeadCardFacts;
@@ -37,6 +47,14 @@ interface PaneProps {
   stand: { title: string; line: string };
   /** The email's head: the sequence's name and what follows it, and its Change. */
   mail: { head: string; sub: string; canChange: boolean; onChange: () => void } | null;
+  track: LeadSheetTrackVM | null;
+  place: LeadPlaceVM | null;
+  box: LeadSheetBoxVM;
+  /** The record, opened with the way back to this lead. */
+  onOpenRecord: (rootId: string) => void;
+  /** Take out of the sequence they are in: the leave verb, whose undo is Put back. */
+  onTakeOut: (() => void) | null;
+  busy: boolean;
 }
 
 /** A pane's heading, with a quiet word at its end. */
@@ -47,9 +65,24 @@ const paneHeadOf = (words: string, end?: string | null) => (
   </div>
 );
 
-/** Why: the judge's line, every check with its mark and its source, the listing's own reasons, the people there. */
+/** What is known of them, as text to paste elsewhere: the name, where, the phone, the email and the site. */
+const allOf = (vm: LeadPeekVM) =>
+  [
+    vm.name,
+    vm.sub,
+    vm.where ? vm.where.line : null,
+    vm.reach.phone ? vm.reach.phone.value : null,
+    vm.reach.email.address,
+    vm.links.website ? vm.links.website.href : null,
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+/** Why: the judge's line, every check, the listing's reasons and facts, the company, and how it was found. */
 const whyPane = ({ vm, on }: PaneProps) => {
   const reasons = leadSheetReasonsOf(vm);
+  // The listing's own facts, each said once: the address and the week are Contact's.
+  const listing = leadSheetAboutOf(vm).rows.filter((r) => r.k !== "Address" && r.k !== "Hours");
   return (
     <>
       {paneHeadOf(W.why.head, vm.checkDots.length ? leadSheetChecksOf(vm) : null)}
@@ -87,8 +120,34 @@ const whyPane = ({ vm, on }: PaneProps) => {
           </div>
         </>
       ) : null}
+      {listing.length ? (
+        <>
+          {paneHeadOf(vm.company ? TAB_WORDS.company : TAB_WORDS.listing)}
+          <div className="lw-kv" data-testid="peek-about">
+            {listing.map((r) => (
+              <div key={`${r.k}-${r.v}`} className="lw-kv-r">
+                <span className="lw-kv-k">{r.k}</span>
+                <span>{r.v}</span>
+                <span className="lw-src">{r.from ?? ""}</span>
+              </div>
+            ))}
+          </div>
+        </>
+      ) : null}
       <LeadPeekCompany key={`${vm.id}-company`} company={vm.company} lead={vm} on={on} />
-      <LeadPeekPeople lead={vm} on={on} />
+      {paneHeadOf(W.activity.found, vm.foundSummary)}
+      <ol className="lw-found" data-testid="peek-found">
+        {vm.found.map((f) => (
+          <li key={f.what} className="lw-found-i">
+            <i aria-hidden="true" />
+            <span>{f.what}</span>
+            <span className="lw-src">{f.at}</span>
+          </li>
+        ))}
+      </ol>
+      <div className="lw-quiet">
+        <CopyButton text={allOf(vm)} label={W.copyAll} said={W.copied} testid="lead-sheet-copy-all" />
+      </div>
     </>
   );
 };
@@ -98,7 +157,7 @@ const reachRow = (p: {
   icon: string;
   value: string;
   line: string;
-  acts?: React.ReactNode;
+  acts?: ReactNode;
   testid: string;
   wrong?: boolean;
 }) => (
@@ -116,46 +175,53 @@ const reachRow = (p: {
   </div>
 );
 
-/** Reach: the email (Copy, a draft for your own inbox), the phone (Call from your phone, Copy), the site, the rest. */
-const reachPane = ({ vm, on }: PaneProps) => {
+/** The email's own acts: Copy it, and a draft for your own inbox. */
+const emailActs = ({ vm, on }: PaneProps) =>
+  vm.reach.email.canDraft ? (
+    <>
+      <Button
+        variant="quiet"
+        size="sm"
+        iconOnly
+        aria-label={LEAD_WORDS.copyAria}
+        data-tip={LEAD_WORDS.copyAria}
+        onClick={() => on.onCopy(vm.id)}
+        data-testid="peek-copy"
+      >
+        <Icon name="copy" size={13} />
+      </Button>
+      <Button
+        variant="quiet"
+        size="sm"
+        iconOnly
+        aria-label={LEAD_WORDS.draftAria}
+        data-tip={LEAD_WORDS.draftAria}
+        onClick={() => void on.onDraft(vm.id)}
+        data-testid="peek-draft"
+      >
+        <Icon name="edit" size={13} />
+      </Button>
+    </>
+  ) : null;
+
+/**
+ * Contact: where the sequence writes first (the address its email goes to), then the people there, the phone (Call from
+ * your phone, Copy), the site and the rest, the address with the week, and the links.
+ */
+const contactPane = (p: PaneProps) => {
+  const { vm, on } = p;
   const phone = vm.reach.phone;
   const email = vm.reach.email;
+  const about = leadSheetAboutOf(vm).rows.filter((r) => r.k === "Address");
   return (
     <>
+      {paneHeadOf(TAB_WORDS.writesTo)}
+      <div className="lw-group">
+        {reachRow({ icon: "mail", value: email.value, line: email.tip, testid: "peek-email", acts: emailActs(p) })}
+      </div>
+      <LeadPeekPeople lead={vm} on={on} />
       {paneHeadOf(W.reach.head, W.reach.sub)}
       <div className="lw-group">
-        {reachRow({
-          icon: "mail",
-          value: email.value,
-          line: email.tip,
-          testid: "peek-email",
-          acts: email.canDraft ? (
-            <>
-              <Button
-                variant="quiet"
-                size="sm"
-                iconOnly
-                aria-label={LEAD_WORDS.copyAria}
-                data-tip={LEAD_WORDS.copyAria}
-                onClick={() => on.onCopy(vm.id)}
-                data-testid="peek-copy"
-              >
-                <Icon name="copy" size={13} />
-              </Button>
-              <Button
-                variant="quiet"
-                size="sm"
-                iconOnly
-                aria-label={LEAD_WORDS.draftAria}
-                data-tip={LEAD_WORDS.draftAria}
-                onClick={() => void on.onDraft(vm.id)}
-                data-testid="peek-draft"
-              >
-                <Icon name="edit" size={13} />
-              </Button>
-            </>
-          ) : null,
-        })}
         {phone
           ? reachRow({
               icon: "phone",
@@ -189,12 +255,37 @@ const reachPane = ({ vm, on }: PaneProps) => {
         {reachRow({ icon: "chat", value: vm.reach.locked.title, line: vm.reach.locked.line, testid: "peek-locked" })}
       </div>
       {LeadPeekParts.others(vm)}
+      {about.length || vm.week.length ? paneHeadOf(TAB_WORDS.where, vm.weekSummary || null) : null}
+      {about.length ? (
+        <div className="lw-kv" data-testid="peek-where">
+          {about.map((r) => (
+            <div key={r.k} className="lw-kv-r">
+              <span className="lw-kv-k">{r.k}</span>
+              <span>{r.v}</span>
+              <span className="lw-src">{r.from ?? ""}</span>
+            </div>
+          ))}
+        </div>
+      ) : null}
+      {vm.week.length ? (
+        <div className="lw-kv" data-testid="peek-week">
+          {vm.week.map((d) => (
+            <div key={d.day} className={`lw-kv-r${d.today ? " today" : ""}`} data-testid="peek-day">
+              <span className="lw-kv-k">{d.day}</span>
+              <span>{d.short}</span>
+              <span />
+            </div>
+          ))}
+        </div>
+      ) : null}
+      {paneHeadOf(W.about.links)}
+      {LeadPeekParts.links(vm)}
     </>
   );
 };
 
-/** Emails: email 1 in full, with Change; the steps after it; each variable with its value here and where it came from. */
-const emailsPane = ({ card, mail }: PaneProps) => {
+/** Before a sequence has them: the email they would get, in full, with Change; its steps; each variable with its source. */
+const wouldGetOf = ({ card, mail }: PaneProps) => {
   if (!card.email || !mail)
     return <p className="lw-say quiet">{card.firstPile ? LEAD_CARD_WORDS.firstPile : W.emails.none}</p>;
   return (
@@ -248,78 +339,65 @@ const emailsPane = ({ card, mail }: PaneProps) => {
   );
 };
 
-/** About: the place or the company as its source knows it, each fact with its source; its week; its links. */
-const aboutPane = ({ vm }: PaneProps) => {
-  const about = leadSheetAboutOf(vm);
+/**
+ * Sequence: where they stand. In one, their steps on the record's rail of days, Take out under it while their place
+ * stands, and every step and who else is in it a press away (the record, with the way back here); else the email they
+ * would get. Their story's doors (the thread, a reply's undo) follow.
+ */
+const sequencePane = (p: PaneProps) => {
+  const { track, place, box, on, stand } = p;
+  const out = place && (place.group === "left" || place.group === "done");
   return (
     <>
-      {paneHeadOf(about.head, about.from)}
-      <div className="lw-kv" data-testid="peek-about">
-        {about.rows.map((r) => (
-          <div key={`${r.k}-${r.v}`} className="lw-kv-r">
-            <span className="lw-kv-k">{r.k}</span>
-            <span>{r.v}</span>
-            <span className="lw-src">{r.from ?? ""}</span>
-          </div>
-        ))}
-      </div>
-      {vm.week.length ? (
+      {track ? (
         <>
-          {paneHeadOf(W.about.hours)}
-          <div className="lw-kv" data-testid="peek-week">
-            {vm.week.map((d) => (
-              <div key={d.day} className={`lw-kv-r${d.today ? " today" : ""}`} data-testid="peek-day">
-                <span className="lw-kv-k">{d.day}</span>
-                <span>{d.short}</span>
-                <span />
-              </div>
-            ))}
-          </div>
+          {paneHeadOf(TAB_WORDS.steps, stand.title)}
+          <SheetTrack track={track} />
+          {p.onTakeOut && !out ? (
+            <div className="lw-take" data-testid="lead-sheet-take-out">
+              <Button
+                size="sm"
+                variant="secondary"
+                disabled={p.busy}
+                onClick={p.onTakeOut}
+                data-testid="lead-sheet-take-out-press"
+                {...gate("approve", "take this lead out")}
+              >
+                {TAB_WORDS.takeOut}
+              </Button>
+              <span className="lw-take-s">{TAB_WORDS.takeOutLine}</span>
+            </div>
+          ) : null}
+          <LinkButton
+            className="lw-every"
+            onClick={() => p.onOpenRecord(track.rootId)}
+            data-testid="lead-sheet-every-step"
+          >
+            {TAB_WORDS.everyStep(track.name)} <Icon name="chevron" size={11} />
+          </LinkButton>
         </>
-      ) : null}
-      {paneHeadOf(W.about.links)}
-      {LeadPeekParts.links(vm)}
+      ) : (
+        <>
+          <div className="lw-stand" data-testid="lead-sheet-stand">
+            <b>{stand.title}</b>
+            <span>{stand.line}</span>
+          </div>
+          {box.rootId && box.name ? (
+            <LinkButton
+              className="lw-every"
+              onClick={() => box.rootId && p.onOpenRecord(box.rootId)}
+              data-testid="lead-sheet-every-step"
+            >
+              {TAB_WORDS.everyStep(box.name)} <Icon name="chevron" size={11} />
+            </LinkButton>
+          ) : null}
+          {wouldGetOf(p)}
+        </>
+      )}
+      {on.reachOut}
     </>
   );
 };
-
-/** What is known of them, as text to paste elsewhere: the name, where, the phone, the email and the site. */
-const allOf = (vm: LeadPeekVM) =>
-  [
-    vm.name,
-    vm.sub,
-    vm.where ? vm.where.line : null,
-    vm.reach.phone ? vm.reach.phone.value : null,
-    vm.reach.email.address,
-    vm.links.website ? vm.links.website.href : null,
-  ]
-    .filter(Boolean)
-    .join("\n");
-
-/** Activity: where they stand with a sequence, its story and its doors (Stop writing, the reply's undo), how it was found. */
-const activityPane = ({ vm, on, stand }: PaneProps) => (
-  <>
-    {paneHeadOf(W.activity.stand)}
-    <div className="lw-stand" data-testid="lead-sheet-stand">
-      <b>{stand.title}</b>
-      <span>{stand.line}</span>
-    </div>
-    {on.reachOut}
-    {paneHeadOf(W.activity.found, vm.foundSummary)}
-    <ol className="lw-found" data-testid="peek-found">
-      {vm.found.map((f) => (
-        <li key={f.what} className="lw-found-i">
-          <i aria-hidden="true" />
-          <span>{f.what}</span>
-          <span className="lw-src">{f.at}</span>
-        </li>
-      ))}
-    </ol>
-    <div className="lw-quiet">
-      <CopyButton text={allOf(vm)} label={W.copyAll} said={W.copied} testid="lead-sheet-copy-all" />
-    </div>
-  </>
-);
 
 /** The open tab's pane. */
 export const SheetPane = ({ tab, ...p }: PaneProps & { tab: LeadCardTab }) => (
@@ -329,14 +407,6 @@ export const SheetPane = ({ tab, ...p }: PaneProps & { tab: LeadCardTab }) => (
     aria-label={LEAD_CARD_TABS.find((t) => t.id === tab)?.label}
     data-testid={`lead-sheet-pane-${tab}`}
   >
-    {tab === "why"
-      ? whyPane(p)
-      : tab === "reach"
-        ? reachPane(p)
-        : tab === "emails"
-          ? emailsPane(p)
-          : tab === "about"
-            ? aboutPane(p)
-            : activityPane(p)}
+    {tab === "why" ? whyPane(p) : tab === "contact" ? contactPane(p) : sequencePane(p)}
   </div>
 );
