@@ -100,7 +100,7 @@ installLegacyReact({
 after(() => Object.assign(globalThis, timers));
 // The shell's own helpers the pane spreads and calls (gate, touchSwipe, the toast, canDo), as the app publishes them.
 await import("../../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
-const { InboxThread } = await import("../../../../../apps/dashboard/src/surfaces/inbox/thread/thread.tsx");
+const { InboxThread, ixSwipeBack } = await import("../../../../../apps/dashboard/src/surfaces/inbox/thread/thread.tsx");
 
 const walk = (n, fn) => {
   if (n == null || typeof n !== "object") return;
@@ -232,4 +232,72 @@ test("a reply of ours says who sent it and what became of it in its corner, and 
   );
   assert.equal(one(bubble, byClass("tl-msg-by")), undefined, "no line under it");
   assert.equal(textOf(bubble).split("9:01 AM").length - 1, 1, "REGRESSION: the time, printed twice");
+});
+
+/* ---------------------------- back to the list ---------------------------- */
+
+test("a thread swiped back to its list lets go of the list under it, though it has left the page by then: the next thread opens alone", async () => {
+  // The gesture's own timers and a phone's width, for this test alone: the page tests stub both.
+  const stubbed = { setTimeout: globalThis.setTimeout, clearTimeout: globalThis.clearTimeout };
+  const media = globalThis.window.matchMedia;
+  Object.assign(globalThis, { setTimeout: timers.setTimeout, clearTimeout: timers.clearTimeout });
+  globalThis.window.matchMedia = (q) => ({ matches: q.includes("max-width") });
+  try {
+    // The Inbox's grid, which draws the list under a thread a thumb is carrying (components.css, data-going).
+    const page = {
+      marks: new Set(),
+      toggleAttribute(name, on) {
+        if (on) this.marks.add(name);
+        else this.marks.delete(name);
+      },
+    };
+    const threadOn = () => ({
+      style: {},
+      offsetWidth: 375,
+      offsetHeight: 700,
+      scrollHeight: 700,
+      clientHeight: 700,
+      scrollWidth: 375,
+      clientWidth: 375,
+      scrollTop: 0,
+      parentElement: page,
+      previousElementSibling: null,
+      isConnected: true,
+      getClientRects: () => [1],
+      matches: () => false,
+    });
+    const thread = threadOn();
+    const back = [];
+    const h = ixSwipeBack(() => {
+      back.push(1);
+      // The page closes it: React takes the thread away, so it has no parent when the gesture lets go of it.
+      Object.assign(thread, { parentElement: null, isConnected: false, getClientRects: () => [] });
+    });
+    h.onTouchStart({ touches: [{ clientX: 60, clientY: 300 }], currentTarget: thread, target: thread });
+    h.onTouchMove({ touches: [{ clientX: 140, clientY: 302 }], currentTarget: thread });
+    assert.ok(page.marks.has("data-going"), "the list is drawn under it while it moves");
+    h.onTouchEnd({ changedTouches: [{ clientX: 260, clientY: 304 }], currentTarget: thread });
+    await new Promise((r) => setTimeout(r, 400));
+    assert.deepEqual(back, [1], "past a third it goes back to its list");
+    assert.ok(
+      !page.marks.has("data-going"),
+      "REGRESSION: the mark stayed, and the next thread opened over its list, the two showing through each other",
+    );
+
+    // Let go short of a third, it settles back where it stood, and the list under it goes with the mark.
+    const kept = threadOn();
+    h.onTouchStart({ touches: [{ clientX: 60, clientY: 300 }], currentTarget: kept, target: kept });
+    h.onTouchMove({ touches: [{ clientX: 120, clientY: 301 }], currentTarget: kept });
+    assert.ok(page.marks.has("data-going"));
+    // Slowly, so it is no flick.
+    await new Promise((r) => setTimeout(r, 200));
+    h.onTouchEnd({ changedTouches: [{ clientX: 120, clientY: 301 }], currentTarget: kept });
+    await new Promise((r) => setTimeout(r, 400));
+    assert.deepEqual(back, [1], "short of a third, it stays open");
+    assert.ok(!page.marks.has("data-going"));
+    assert.equal(kept.style.transform, "", "and its own rules have it again");
+  } finally {
+    Object.assign(globalThis, stubbed);
+    globalThis.window.matchMedia = media;
+  }
 });

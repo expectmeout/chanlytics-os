@@ -42,14 +42,14 @@ import { RecordDisclosure } from "../../kit/record/disclosure";
 import { Segmented } from "../../kit/segmented/segmented";
 import { routeDoor } from "../../legacy-verbs";
 import { broadcasts } from "../broadcasts/verbs";
-import { useSequenceRead } from "./use-record";
+import { useBatchRead, useSequenceRead } from "./use-record";
 import { sequenceVerbs as verbs } from "./verbs";
 
 const isPeriod = (v: string): v is SequenceHistoryPeriod => SEQUENCE_HISTORY_PERIODS.some((p) => p.id === v);
 
 /** A day opened in place: the replies it drew, everyone it went to, and the door to its run. */
 function DayOpen({ id, region }: { id: string; region: string }) {
-  const read = useSequenceRead(id, broadcasts.detail, broadcasts.peekDetail);
+  const read = useBatchRead(id);
   if (read.state === "failed")
     return <FailedRead kind="line" what={H.failed} why={read.why} testid={`sq-day-failed-${id}`} />;
   if (read.state === "reading")
@@ -210,7 +210,7 @@ interface Tail {
  * is read again and ends elsewhere (a batch made since pushed one off it), the pages after it are read again.
  */
 function useHistoryPages(id: string, again: number, since: string | null, tz: string) {
-  const read = useSequenceRead(id, verbs.history, verbs.peekHistory, again);
+  const read = useSequenceRead(id, verbs.history, verbs.peekHistory, { again });
   const [tail, setTail] = useState<Tail | null>(null);
   const [busy, setBusy] = useState(false);
   const first = read.state === "read" ? read.data : null;

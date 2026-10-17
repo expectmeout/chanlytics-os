@@ -10,7 +10,7 @@ import { ASK_MAX_TOKENS } from "./ask.js";
 export const ASK_MODEL = MODEL_ROUTES.ask.model;
 export const ASK_EFFORT = "low";
 export const ASK_SPEED = "fast";
-const ANSWER_TOOL_ON = "on";
+const ANSWER_TOOL_OFF = "off";
 export const ASK_DRAFT_EFFORT = "high";
 export const ASK_DRAFT_MAX_TOKENS = 32e3;
 export function askRoundCap(effort) {
@@ -31,6 +31,6 @@ export function askModelProfile(name, effort, speed, draft, answer) {
     effort: at,
     speed: wanted === "fast" && hasFastMode(id) ? "fast" : "standard",
     draft: drafted && effortAbove(drafted, at) && modelTakes(id)?.effortMessages === true ? drafted : null,
-    answerTool: (answer ?? "").trim() === ANSWER_TOOL_ON
+    answerTool: (answer ?? "").trim() !== ANSWER_TOOL_OFF
   };
 }

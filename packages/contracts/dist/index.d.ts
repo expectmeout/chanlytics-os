@@ -23684,7 +23684,7 @@ interface AskModelProfile {
      * no higher than it, or a model that takes no effort message.
      */
     draft: ModelEffort | null;
-    /** The answer is written through the answer tool, its input streamed (ASK_ANSWER_TOOL on), else as text in its format. */
+    /** The answer is written through the answer tool, its input streamed (unless ASK_ANSWER_TOOL is off), else as text in its format. */
     answerTool: boolean;
 }
 /** The default model: the one a deployment runs when its environment names none (the registry's, ai/models.ts). */
@@ -23709,7 +23709,7 @@ declare function askRoundCap(effort: ModelEffort | null): number;
  * The profile five variables pick: the model `name` reads as, else the default; the effort `effort` is, else the
  * default; fast mode unless `speed` says standard, on a model that runs it; a draft's effort `draft` is, none for
  * "off", else the default, kept only above the turn's effort on a model that takes an effort message; the answer tool
- * where `answer` says on. Never a throw: a variable that reads as nothing runs the default, and the caller says so.
+ * unless `answer` says off. Never a throw: a variable that reads as nothing runs the default, and the caller says so.
  */
 declare function askModelProfile(name: string | null | undefined, effort?: string | null, speed?: string | null, draft?: string | null, answer?: string | null): AskModelProfile;
 
