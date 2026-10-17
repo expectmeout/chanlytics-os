@@ -36,13 +36,8 @@
  * twin, is not in a phone's page, where it would put the stack at the foot as the bell's panel does (mobile.css,
  * :root:has(.tbn-pop)), over a sheet's Save.
  */
-import fs from "node:fs";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { GLYPHS, SHEET_SERVICES } from "./kit-shared.mjs";
-
-const HERE = path.dirname(fileURLToPath(import.meta.url));
-const LEGACY = path.resolve(HERE, "../../../apps/dashboard/src/legacy");
+import { legacyDocument } from "../serve-legacy.mjs";
 
 /**
  * The names the kit's markup carries that classes.json lists as neither a class nor a modifier. A kit entry names one
@@ -2396,7 +2391,7 @@ export const FAMILIES = [
 
 /** Every <link> in the head of the mockup's document, as it stands: the fonts, then the tokens, the kit and the rest. */
 function documentLinks() {
-  const doc = fs.readFileSync(path.join(LEGACY, "Chanlytics.html"), "utf8");
+  const doc = legacyDocument();
   const head = doc.slice(doc.indexOf("<head>"), doc.indexOf("</head>"));
   return head.match(/<link\b[^>]*>/g) ?? [];
 }

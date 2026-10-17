@@ -31,6 +31,7 @@ import {
   inboxGlobalsBundle,
   kitGlobalsBundle,
   leadsGlobalsBundle,
+  legacyDocument,
   mascotBundle,
   peopleGlobalsHarnessBundle,
   send,
@@ -203,8 +204,7 @@ export const appRules = () => fs.readFileSync(APP_CSS, "utf8").replace(/^@import
  * rules LAST, after every stylesheet, where the app has them.
  */
 export function documentWithFixture() {
-  const doc = fs.readFileSync(path.join(LEGACY, "Chanlytics.html"), "utf8");
-  return doc
+  return legacyDocument()
     .replace("<head>", '<head>\n  <script src="/_hx/fixture.js"></script>')
     .replace("</head>", '  <link rel="stylesheet" href="/_hx/app.css" />\n</head>');
 }

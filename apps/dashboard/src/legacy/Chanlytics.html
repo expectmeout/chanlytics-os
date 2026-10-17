@@ -9,29 +9,9 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600&family=Geist+Mono:wght@400;500&family=Mona+Sans:wght@200..900&display=swap" rel="stylesheet" />
 
-  <link rel="stylesheet" href="styles/tokens.css?v=27" />
-  <link rel="stylesheet" href="surfaces/kit/kit.css?v=36" />
-  <link rel="stylesheet" href="styles/components.css?v=131" />
-  <link rel="stylesheet" href="surfaces/campaigns/campaigns.css?v=11" />
-  <link rel="stylesheet" href="styles/dashboard.css?v=7" />
-  <link rel="stylesheet" href="styles/dashboard-a-v2.css?v=56" />
-  <link rel="stylesheet" href="styles/inbox.css?v=41" />
-  <link rel="stylesheet" href="styles/clients.css?v=75" />
-  <link rel="stylesheet" href="styles/people.css?v=15" />
-  <link rel="stylesheet" href="styles/leads.css?v=50" />
-  <link rel="stylesheet" href="styles/store.css?v=17" />
-  <link rel="stylesheet" href="styles/fleet.css?v=7" />
-  <link rel="stylesheet" href="styles/pipeline.css?v=4" />
-  <link rel="stylesheet" href="styles/conversations.css?v=13" />
-  <link rel="stylesheet" href="styles/live.css?v=9" />
-  <link rel="stylesheet" href="styles/calendar.css?v=28" />
-  <link rel="stylesheet" href="styles/charts.css?v=7" />
-  <link rel="stylesheet" href="styles/record.css?v=30" />
-  <link rel="stylesheet" href="styles/reports.css?v=19" />
-  <link rel="stylesheet" href="styles/settings.css?v=110" />
-  <link rel="stylesheet" href="styles/first-run.css?v=10" />
-  <link rel="stylesheet" href="styles/mobile.css?v=75" />
-  <link rel="stylesheet" href="styles/ask.css?v=42" />
+  <!-- The mockup's server (tooling/scripts/serve-legacy.mjs) writes the stylesheets the app imports here, in its order
+       (legacy-bridge/legacy.css). -->
+  <!-- The app's stylesheets -->
 
   <style>
     html, body { height: 100%; overflow: hidden; }
@@ -46,64 +26,24 @@
   <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
 
   <!-- Bridge stand-ins (harness only — the bundle publishes these for real) -->
-  <script type="text/babel" src="data/bridge-stubs.jsx?v=8"></script>
+  <script type="text/babel" src="data/bridge-stubs.jsx"></script>
   <!-- The kit's components the pages below still draw by name (Icon, FailedRead, SegmentBar, StatePill, PolicyChip, MoreMenu, Confirm, RecordSwitch ...): surfaces/kit/kit-globals.ts, built by tooling/scripts/serve-legacy.mjs, the object the app publishes from seed-globals -->
-  <script src="data/kit-globals.js?v=4"></script>
+  <script src="data/kit-globals.js"></script>
   <!-- The Inbox's and Conversations' names the pages below still read (INBOX_DATA, CONVERSATIONS_DATA, IX_STORE, ixWaitsOnYou, CV_ROUTE, CV_IN_CHANNEL): surfaces/inbox/legacy-globals.ts, built by the same server, the object the app publishes from seed-globals; the two pages themselves are App Router pages only the app draws -->
-  <script src="data/inbox-globals.js?v=1"></script>
+  <script src="data/inbox-globals.js"></script>
   <!-- People's parts the shell still draws by name (the strip's scopes, the deal and step sheets, the demo's Lists marks): surfaces/people/people-globals.ts, built by the same server, the object the app publishes from seed-globals -->
-  <script src="data/people-globals.js?v=1"></script>
+  <script src="data/people-globals.js"></script>
   <!-- Leads' plan card, which Ask's palette draws for a lead_search card (TSX since decision 0015: surfaces/leads/globals.ts), until Ask moves -->
-  <script src="data/leads-globals.js?v=2"></script>
+  <script src="data/leads-globals.js"></script>
   <!-- The Business tab's helpers: legacy-bridge/business-tab.ts through contracts, built by the same server, the object the app publishes as __businessTab -->
-  <script src="data/business-tab.js?v=27"></script>
+  <script src="data/business-tab.js"></script>
   <!-- The three: legacy-bridge/mascot built by the same server, the object the app publishes as __mascot, so the mockup's Ask has its face -->
-  <script src="data/mascot.js?v=7"></script>
+  <script src="data/mascot.js"></script>
 
-  <!-- Foundations -->
-  <script type="text/babel" src="components/surface-tabs.jsx?v=18"></script>
-  <script type="text/babel" src="components/sidebar.jsx?v=37"></script>
-  <script type="text/babel" src="components/shortcuts.jsx?v=4"></script>
-  <script type="text/babel" src="components/ask-face.jsx?v=10"></script>
-  <script type="text/babel" src="components/topbar.jsx?v=40"></script>
-  <script type="text/babel" src="components/data-bits.jsx?v=53"></script>
-
-  <!-- Data -->
-  <script type="text/babel" src="data/constants.jsx?v=8"></script>
-
-  <!-- Ask: the Line (Today's own page is TSX, an App Router page the mockup does not draw); the seeded palette is the demo's, below -->
-  <script type="text/babel" src="pages/ask-text.jsx?v=22"></script>
-  <script type="text/babel" src="pages/ask-hooks.jsx?v=16"></script>
-  <script type="text/babel" src="pages/ask-turn.jsx?v=28"></script>
-  <script type="text/babel" src="pages/ask-home.jsx?v=9"></script>
-  <script type="text/babel" src="pages/ask-real.jsx?v=46"></script>
-
-  <!-- Campaigns, Settings -->
-
-
-  <!-- Shell -->
-  <script type="text/babel" src="pages/app-routes.jsx?v=10"></script>
-  <script type="text/babel" src="pages/app-shell.jsx?v=87"></script>
-
-  <!-- The mockup's own files (legacy/demo/, legacy-bridge/manifest-demo.ts): after every file above, as the app loads
-       them in a session that declared itself a demo. A real workspace never loads them. -->
-  <script type="text/babel" src="demo/data/clients-data.jsx?v=12"></script>
-  <script type="text/babel" src="demo/data/people-data.jsx?v=15"></script>
-  <script type="text/babel" src="demo/data/dashboard-data.jsx?v=21"></script>
-  <script type="text/babel" src="demo/data/store-data.jsx?v=12"></script>
-  <script type="text/babel" src="demo/data/fleet-data.jsx?v=10"></script>
-  <script type="text/babel" src="demo/data/pipeline-data.jsx?v=5"></script>
-  <script type="text/babel" src="demo/data/reports-data.jsx?v=5"></script>
-  <script type="text/babel" src="demo/data/tasks-data.jsx?v=8"></script>
-  <script type="text/babel" src="demo/pages/dashboard-a-ask.jsx?v=37"></script>
-  <script type="text/babel" src="demo/pages/segments.jsx?v=19"></script>
-  <script type="text/babel" src="demo/pages/agent-store.jsx?v=21"></script>
-  <script type="text/babel" src="demo/pages/agent-fleet.jsx?v=24"></script>
-  <script type="text/babel" src="demo/pages/agent-studio.jsx?v=18"></script>
-  <script type="text/babel" src="demo/pages/content-cal.jsx?v=8"></script>
-  <script type="text/babel" src="demo/pages/pipeline.jsx?v=12"></script>
-
-  <script type="text/babel" src="demo/pages/tasks.jsx?v=22"></script>
+  <!-- The mockup's server writes the files the app loads here, in its order: every workspace's
+       (legacy-bridge/manifest.ts), then the demo's (legacy-bridge/manifest-demo.ts), which the app loads only in a session
+       that declared itself a demo, as this one is. A file goes in the app's list, never here. -->
+  <!-- The app's files -->
 
   <script type="text/babel" data-presets="env,react">
     const { useEffect, useCallback } = React;

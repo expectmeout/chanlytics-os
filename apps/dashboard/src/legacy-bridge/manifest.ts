@@ -1,7 +1,8 @@
 /**
- * The ordered legacy manifest: every file a real workspace draws, in the EXACT
- * script order of Chanlytics.html, which loads these first and then
- * manifest-demo.ts's.
+ * The ordered legacy manifest: every file a real workspace draws, in the order
+ * the shared global scope requires. The standalone harness loads the same files
+ * from this list (its server writes Chanlytics.html's from it, then
+ * manifest-demo.ts's: tooling/scripts/serve-legacy.mjs).
  * ES modules execute static imports in declaration order, so this file IS the
  * execution-order guarantee the classic <script> tags used to provide.
  *
