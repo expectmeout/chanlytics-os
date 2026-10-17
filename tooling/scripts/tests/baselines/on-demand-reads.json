@@ -52,7 +52,7 @@
   "apps/dashboard/src/surfaces/campaigns/broadcasts/verbs.ts GET broadcasts/[id]": {
     "kind": "follows",
     "follows": "broadcasts",
-    "fresh": "Read as a run's sheet opens, painted from the last answer and read again behind; then each time Sent's runs are read, while the run is underway and for the reply window after it ended (contracts runStillMoving).",
+    "fresh": "Read as a run's sheet opens, or a sequence's batch where its record draws it (History's day, a lead step's next email, the step editor's people: sequences/use-record.ts useBatchRead), painted from the last answer and read again behind; then each time Sent's runs are read (the record: the Sequences list), while the run is underway and for the reply window after it ended (contracts runStillMoving).",
     "why": "What a run's report says moves with its sends, and with the replies, yeses and stops counted to it for 72 hours after it ends, each a record Sent's runs hear; a run that ended longer ago is history (the wiring's second audit, X2-2). Its delivery ticks are read with the next of those (R9)."
   },
   "apps/dashboard/src/surfaces/campaigns/sequences/verbs.ts GET sequences/[id]": {
