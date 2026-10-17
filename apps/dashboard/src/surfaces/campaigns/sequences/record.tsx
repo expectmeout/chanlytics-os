@@ -211,7 +211,7 @@ export function SequenceRecord({ id, tab, day = null }: SequenceRecordProps) {
   const [again, setAgain] = useState(0);
   const moved = useCallback(() => setAgain((n) => n + 1), []);
   const [toast, flash] = useLegacyToast();
-  const read = useSequenceRead(id, verbs.record, verbs.peekRecord, again);
+  const read = useSequenceRead(id, verbs.record, verbs.peekRecord, { again });
   // An address that named one of its parts (a step's id, a run's) is replaced by the sequence's own, its day kept.
   const named = read.state === "read" ? read.data.sequence.id : null;
   useEffect(() => {

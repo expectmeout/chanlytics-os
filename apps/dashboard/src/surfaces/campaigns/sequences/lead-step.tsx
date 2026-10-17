@@ -5,14 +5,13 @@
  * run as its sheet in Sent reads it. A step not going now says how its emails are made, and where it sends from.
  */
 import { SEQUENCE_FLOW_WORDS as F } from "@chanlytics/contracts";
-import { broadcasts } from "../broadcasts/verbs";
 import { RoRunWords } from "../reach-out/approval";
 import { reachOuts } from "../reach-out/surface";
-import { useSequenceRead } from "./use-record";
+import { useBatchRead } from "./use-record";
 
 /** The next batch's first ready email, as it reads: nothing until it is read, or where it holds none yet. */
 function NextEmail({ batch }: { batch: string }) {
-  const read = useSequenceRead(batch, broadcasts.detail, broadcasts.peekDetail);
+  const read = useBatchRead(batch);
   const vm = read.state === "read" ? reachOuts.run(read.data) : null;
   if (!vm || vm.words.length === 0) return null;
   return (

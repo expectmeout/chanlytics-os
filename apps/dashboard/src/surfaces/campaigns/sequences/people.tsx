@@ -149,7 +149,7 @@ function GroupRows({ g, rows, whole, rec, busy, takeOut }: GroupProps) {
 
 export function SequencePeople(p: { rec: SequenceRecordDto; flash: Flash; again: number; moved: () => void }) {
   const { rec, flash, again, moved } = p;
-  const read = useSequenceRead(rec.sequence.id, verbs.people, verbs.peekPeople, again);
+  const read = useSequenceRead(rec.sequence.id, verbs.people, verbs.peekPeople, { again });
   const [busy, setBusy] = useState<string | null>(null);
   if (read.state === "failed")
     return <FailedRead what={P.failed} why={read.why} onRetry={moved} testid="sq-people-failed" />;
