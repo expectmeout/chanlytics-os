@@ -11833,7 +11833,7 @@ var FLAGS = [
   {
     name: "ASK_ANSWER_TOOL",
     mechanism: "dashboard_env",
-    does: "Ask writes its answer through the answer tool, whose input streams after a read; empty is off, on turns it on (ask-model.ts).",
+    does: "Ask writes its answer through the answer tool, whose input streams after a read; on unless it says off (the eval pair, 17 Oct 2026; ask-model.ts).",
     owner: "Ruben",
     sunset: "2026-11-30"
   },
@@ -25208,7 +25208,7 @@ function cacheHitOf(t) {
 var ASK_MODEL = MODEL_ROUTES.ask.model;
 var ASK_EFFORT = "low";
 var ASK_SPEED = "fast";
-var ANSWER_TOOL_ON = "on";
+var ANSWER_TOOL_OFF = "off";
 var ASK_DRAFT_EFFORT = "high";
 var ASK_DRAFT_MAX_TOKENS = 32e3;
 function askRoundCap(effort) {
@@ -25229,7 +25229,7 @@ function askModelProfile(name, effort, speed, draft, answer) {
     effort: at3,
     speed: wanted === "fast" && hasFastMode(id) ? "fast" : "standard",
     draft: drafted2 && effortAbove(drafted2, at3) && modelTakes(id)?.effortMessages === true ? drafted2 : null,
-    answerTool: (answer ?? "").trim() === ANSWER_TOOL_ON
+    answerTool: (answer ?? "").trim() !== ANSWER_TOOL_OFF
   };
 }
 

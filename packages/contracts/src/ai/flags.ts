@@ -264,7 +264,7 @@ export const FLAGS: readonly Flag[] = [
   {
     name: "ASK_ANSWER_TOOL",
     mechanism: "dashboard_env",
-    does: "Ask writes its answer through the answer tool, whose input streams after a read; empty is off, on turns it on (ask-model.ts).",
+    does: "Ask writes its answer through the answer tool, whose input streams after a read; on unless it says off (the eval pair, 17 Oct 2026; ask-model.ts).",
     owner: "Ruben",
     sunset: "2026-11-30",
   },

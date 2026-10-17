@@ -6,7 +6,7 @@ import { env } from "../env";
 /**
  * The profile this deployment runs Ask on (contracts ask-model.ts): ASK_MODEL in the environment, any Claude model's
  * id, at ASK_EFFORT, in fast mode unless ASK_SPEED says standard, a draft asked at ASK_DRAFT_EFFORT unless it says off,
- * its answer through the answer tool where ASK_ANSWER_TOOL says on; the default for each when it is unset. Read on every
+ * its answer through the answer tool unless ASK_ANSWER_TOOL says off; the default for each when it is unset. Read on every
  * turn (five string compares) so a test can set them; a deployment sets them once. A value that reads as no model, no
  * effort, no speed, no draft's effort or no switch runs the default and says so in the log once, never on every turn. A
  * name that reads as a model is run as named: whether the API has it is the API's to say (the edge then asks the
@@ -26,7 +26,7 @@ export function askModel(): AskModelProfile {
     (effort !== null && profile.effort !== effort) ||
     (speed !== null && !(MODEL_SPEEDS as readonly string[]).includes(speed)) ||
     (draft !== null && draft !== "off" && !(MODEL_EFFORTS as readonly string[]).includes(draft)) ||
-    (answer !== null && !profile.answerTool && answer !== "off");
+    (answer !== null && answer !== "on" && answer !== "off");
   const said = `${name}|${effort}|${speed}|${draft}|${answer}`;
   if (unread && warnedFor !== said) {
     warnedFor = said;

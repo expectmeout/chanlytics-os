@@ -712,9 +712,7 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
       // in the round after it), with no second round -- unless part of what was asked is no card, which the next round
       // says (turn-end.ts turnUnmade).
       const alone = unmade.alone({ acts: acts.length, calls: calls.length, refused, made: proposals.slice(before) });
-      if (
-        planAnswerOwed(alone, planned, { answerTool: model.answerTool, last, leftMs: budgetMs - (Date.now() - t0) })
-      ) {
+      if (planAnswerOwed(alone, planned, { last, leftMs: budgetMs - (Date.now() - t0) })) {
         planOwed = { cards: proposals.slice(before), plan: planned, lastRound };
         messages.push({ role: "assistant", content: replayBlocks(blocks) });
         messages.push({ role: "user", content: resultBlocks(ordered) });
