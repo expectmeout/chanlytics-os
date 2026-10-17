@@ -528,10 +528,15 @@ declare const HOLD_EXPIRY_MS: number;
 declare const REPLY_IN_PROGRESS_REFUSAL = "This reply is already being sent. Give it a moment, then check the thread before sending it again.";
 interface ReplyBody {
     text?: string;
+    /**
+     * An approved template, outside the window. `words` fills its one blank of words to write (contracts inboxBlankOf: "A
+     * quick note"'s note), said as WhatsApp takes a value (templateWords); every other slot is the workspace's own facts.
+     */
     template?: {
         name: string;
         language: string;
         params?: string[];
+        words?: string;
     };
     /**
      * Email only: the address the operator was shown and agreed to, when the

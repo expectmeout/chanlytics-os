@@ -10,6 +10,7 @@ import { languageBase, languageLabel } from "./template-languages";
 import { TEMPLATE_STATUS_WORDS, type ParamSourceKind, type ParamSpec } from "./templates";
 import { defaultParamSpecs, slotLabels } from "./template-slots";
 import { templateTitle } from "./template-titles";
+import { starterByName } from "./starter-lookup";
 
 /** The slots the Inbox fills from what it holds of the person and the workspace (core reply.ts shapeTemplate). */
 const INBOX_FILLS: ReadonlySet<ParamSourceKind> = new Set(["first_name", "business_name", "booking_link"]);
@@ -56,11 +57,20 @@ function titleWithoutLanguage(title: string, code: string): string {
  */
 export function inboxTemplates<T extends InboxTemplateLike>(
   templates: readonly T[],
-  to: { who: string; offersOk: boolean },
-): { sendable: Array<{ template: T; title: string; label: string }>; hidden: string | null } {
-  const rows: Array<{ template: T; title: string }> = [];
+  to: {
+    who: string;
+    offersOk: boolean;
+    /** Their visit as People knows it: one ahead, one behind, or none known. A message for after a visit waits while one is ahead. */
+    visit?: "ahead" | "behind" | null;
+  },
+): {
+  sendable: Array<{ template: T; title: string; label: string; blank: InboxBlank | null; fits: boolean }>;
+  hidden: string | null;
+} {
+  const rows: Array<{ template: T; title: string; blank: InboxBlank | null; fits: boolean }> = [];
   let promotions = 0;
   let unfillable = 0;
+  let afterVisit = 0;
   const refused: string[] = [];
   for (const t of templates) {
     // WhatsApp would refuse it for every send, whoever it is to: asked first, so its reason is not hidden behind another.
@@ -69,9 +79,10 @@ export function inboxTemplates<T extends InboxTemplateLike>(
       refused.push(blocked);
       continue;
     }
-    // The reply route's own reading of the slots: words to write are what the Inbox does not ask for. It counted
-    // slots, and turned away any template with other than two -- the workspace's starters among them (I6).
-    if (slotToWrite(t)) {
+    // The reply route's own reading of the slots: the Inbox fills the person's and the business's facts, and asks the
+    // member for one blank of words (inboxBlankOf: "The note"); a template that needs anything else is not offered (I6).
+    const blank = inboxBlankOf(t);
+    if (!blank && slotToWrite(t)) {
       unfillable += 1;
       continue;
     }
@@ -79,7 +90,18 @@ export function inboxTemplates<T extends InboxTemplateLike>(
       promotions += 1;
       continue;
     }
-    rows.push({ template: t, title: titleWithoutLanguage(templateTitle(t.name, t.title), t.language) });
+    // A message for after a visit ("thanks for coming in yesterday") reads wrong to someone whose visit is still ahead:
+    // "How did it go" stood first in the reply box under a price question two days before the visit (16 Oct 2026).
+    const starter = starterByName(t.name);
+    const trigger = starter?.trigger ?? null;
+    if (trigger === "visited" && to.visit === "ahead") {
+      afterVisit += 1;
+      continue;
+    }
+    // What fits now comes first: a note whose words the member writes answers anything ("A quick note", a starter for no
+    // moment), and a visit's reminder fits a visit ahead. A blank on any other message is a fact of it (a visit's time).
+    const fits = (!!blank && !!starter && trigger === null) || (trigger === "visit_tomorrow" && to.visit === "ahead");
+    rows.push({ template: t, title: titleWithoutLanguage(templateTitle(t.name, t.title), t.language), blank, fits });
   }
   // One message's rows stand together, its default language first, and the messages that have one before those that
   // have not (nothing says what language this person reads, so the product's own is the first to offer); each keeps the
@@ -88,20 +110,25 @@ export function inboxTemplates<T extends InboxTemplateLike>(
   const named = [...new Set(rows.map((r) => r.template.name))];
   const inDefault = (name: string) => rows.some((r) => r.template.name === name && isDefault(r));
   const names = [...named.filter(inDefault), ...named.filter((name) => !inDefault(name))];
-  const ordered = names.flatMap((name) => {
+  const byName = names.flatMap((name) => {
     const own = rows.filter((r) => r.template.name === name);
     return [...own.filter(isDefault), ...own.filter((r) => !isDefault(r))];
   });
+  // What fits first, each keeping that order: the reply box opens on the first.
+  const ordered = [...byName.filter((r) => r.fits), ...byName.filter((r) => !r.fits)];
   const reads = (title: string) => ordered.filter((r) => r.title === title).length;
   const sendable = ordered.map((r) => ({
     template: r.template,
     title: r.title,
     label: reads(r.title) > 1 ? `${r.title} · ${languageWords(r.template.language)}` : r.title,
+    blank: r.blank,
+    fits: r.fits,
   }));
   const held = [
     refused.length ? `${refused.length} that WhatsApp would refuse (${[...new Set(refused)].join(", ")})` : "",
     promotions ? `${promotions} promotion${promotions === 1 ? "" : "s"} (${to.who} hasn't said yes to offers)` : "",
     unfillable ? `${unfillable} that ${unfillable === 1 ? "needs" : "need"} words the Inbox doesn't ask for` : "",
+    afterVisit ? `${afterVisit} for afterwards (${to.who}'s booking is ahead)` : "",
   ].filter(Boolean);
   // "a, b and c": two read as they always did, "a and b".
   const said = held.length > 1 ? `${held.slice(0, -1).join(", ")} and ${held[held.length - 1]}` : held[0];
@@ -196,4 +223,103 @@ export function slotToWrite(t: { name: string; language?: string | null; variabl
   const at = inboxSlots(t).findIndex((s) => !INBOX_FILLS.has(s.kind));
   if (at < 0) return null;
   return slotLabels({ name: t.name, language: t.language ?? "en_US", variables: t.variables })[at] ?? `Value ${at + 1}`;
+}
+
+/**
+ * The one blank of a template that the Inbox asks a member to write: its place among the template's slots, what it is
+ * called ("The note") and its example. A template whose only slot the Inbox cannot fill by itself is words to write
+ * (the starters' "A quick note") has one; any other has none (inboxBlankOf).
+ */
+export interface InboxBlank {
+  at: number;
+  label: string;
+  example: string | null;
+}
+
+/**
+ * The longest a member's words in a template's blank may be: a sentence or two, the length of "A quick note"'s own note,
+ * where WhatsApp would take a thousand. The reply route refuses longer.
+ */
+export const TEMPLATE_WORDS_MAX = 300;
+
+/**
+ * A member's words for a template's blank, as WhatsApp takes a value: one line, its spaces single (Meta refuses a value
+ * with a line break, a tab or four spaces in a row). Empty where nothing is left. The reply box and the reply route say
+ * it the same way, so what the box shows is what is sent.
+ */
+export function templateWords(words: string | null | undefined): string {
+  return (words ?? "").replace(/\s+/g, " ").trim();
+}
+
+/**
+ * The blank the Inbox asks a member to fill, where a template has exactly one slot it cannot fill by itself and that slot
+ * is words to write; null for any other template. The facts it fills (the first name, the business name, the booking
+ * link) stay the server's, so the browser never chooses a link that reaches a phone (core reply.ts shapeTemplate): the
+ * one value a member gives is their own words, which they could have written in the window anyway.
+ */
+export function inboxBlankOf(t: { name: string; language?: string | null; variables?: unknown }): InboxBlank | null {
+  const slots = inboxSlots(t);
+  const open = slots.flatMap((s, at) => (INBOX_FILLS.has(s.kind) ? [] : [{ s, at }]));
+  const only = open.length === 1 ? open[0] : undefined;
+  if (!only || only.s.kind !== "text" || only.s.value) return null;
+  const labels = slotLabels({ name: t.name, language: t.language ?? "en_US", variables: t.variables });
+  const vars = Array.isArray(t.variables) ? (t.variables as Array<{ example?: unknown }>) : [];
+  const example = vars[only.at]?.example;
+  return {
+    at: only.at,
+    label: labels[only.at] ?? `Value ${only.at + 1}`,
+    example: typeof example === "string" && example.trim() ? example.trim() : null,
+  };
+}
+
+/** A part of a template's words as the reply box draws them: the template's own words, or its blank, by its label. */
+export type TemplatePart = { words: string; blank?: undefined } | { blank: string; words?: undefined };
+
+/**
+ * A template's words as this person would read them, in parts: each slot filled the way the reply route fills it (their
+ * first name, the business's name and booking link, "[Booking link]" where none is given), and the blank the member
+ * writes left as a part of its own, so the reply box can draw it in the sentence (the phone thread's canvas, C1). Where
+ * the template's text was never read, no words, and its blank alone where it has one: the send refuses without it.
+ */
+export function inboxTemplateParts(
+  t: { name: string; language?: string | null; body_preview: string | null; variables?: unknown },
+  facts: { firstName: string | null; businessName: string | null; bookingLink: string | null },
+): TemplatePart[] {
+  const body = String(t.body_preview ?? "");
+  const blank = inboxBlankOf(t);
+  if (!body) return blank ? [{ blank: blank.label }] : [];
+  const slots = inboxSlots(t);
+  const labels = slotLabels({ name: t.name, language: t.language ?? "en_US", variables: t.variables });
+  const vars = Array.isArray(t.variables) ? (t.variables as Array<{ position?: unknown }>) : [];
+  // A slot's place in the words: the variable's own position where it says one, else its order.
+  const valueAt = new Map<number, TemplatePart>();
+  slots.forEach((s, i) => {
+    const given = vars[i]?.position;
+    const pos = typeof given === "number" ? given : i + 1;
+    const label = labels[i] ?? `Value ${i + 1}`;
+    const words =
+      s.kind === "first_name"
+        ? facts.firstName || "there"
+        : s.kind === "business_name"
+          ? facts.businessName || `[${label}]`
+          : s.kind === "booking_link"
+            ? facts.bookingLink?.replace(/^https?:[/][/]/, "") || `[${label}]`
+            : s.kind === "text" && s.value
+              ? s.value
+              : null;
+    valueAt.set(pos, blank && i === blank.at ? { blank: blank.label } : { words: words ?? `[${label}]` });
+  });
+  const parts: TemplatePart[] = [];
+  let last = 0;
+  for (const m of body.matchAll(/\{\{(\d+)\}\}/g)) {
+    const at = m.index ?? 0;
+    if (at > last) parts.push({ words: body.slice(last, at) });
+    parts.push(valueAt.get(Number(m[1])) ?? { words: m[0] });
+    last = at + m[0].length;
+  }
+  if (last < body.length) parts.push({ words: body.slice(last) });
+  // A blank whose place the words never show (a preview read before its slots were): its words go after them, so the box
+  // always has somewhere to write what the send refuses without.
+  if (blank && !parts.some((part) => part.blank !== undefined)) parts.push({ words: " " }, { blank: blank.label });
+  return parts;
 }

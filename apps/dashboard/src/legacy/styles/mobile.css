@@ -574,6 +574,41 @@
   .cl-prof-rail-note { grid-column: 1 / -1; }
 }
 
+/* ---- A hairline between two rows (16 Oct 2026) -----------------------------------------------------------------------
+   Ruben: "a divider between each row to make it easier to follow, a subtle one". The rows stand on the page as
+   lozenges with no line between them, which on a phone left the eye nothing to follow from a name to its time or its
+   state. The line is the kit's list row's (kit.css), drawn on the Inbox's, Conversations', Live's and People's and
+   Leads' rows, which are their pages' own: at the top of every row but a list's first, from under the name
+   (--row-rule-start) to the row's far padding, inside the row, since a row out of sight is painted only inside its box
+   (content-visibility). A row in a fill of its own (under a finger or the pointer, picked, a call going on) stands
+   clear of the lines on either side of it, which fade with the fill. Above 900px each list keeps the row it has. */
+@media (max-width: 900px) {
+  .ix-thread + .ix-thread::after,
+  .cv-row + .cv-row::after,
+  .lm-row + .lm-row::after,
+  .pl-table tbody > tr[id] + tr[id]::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: var(--row-rule-start);
+    right: var(--row-pad-x);
+    height: 1px;
+    background: var(--line);
+    pointer-events: none;
+    transition: opacity var(--duration-fast) var(--ease-out);
+  }
+  .ix-thread + .ix-thread:is(:hover, .selected)::after,
+  .ix-thread:is(:hover, .selected) + .ix-thread::after,
+  .cv-row + .cv-row:is(:hover, .selected, .is-live:not(.active))::after,
+  .cv-row:is(:hover, .selected, .is-live:not(.active)) + .cv-row::after,
+  .lm-row + .lm-row:hover::after,
+  .lm-row:hover + .lm-row::after,
+  .pl-table tbody > tr[id] + tr[id]:is(:hover, .selected)::after,
+  .pl-table tbody > tr[id]:is(:hover, .selected) + tr[id]::after {
+    opacity: 0;
+  }
+}
+
 /* ---- Every list pulls under a thumb (25 Sep) ---------------------------------------------------------------------
    A list rubber-bands on a touch screen only when it holds more than its box: Needs you with two threads and Live
    with no calls could not be pulled at all, where Conversations, People and a long Templates could. A pixel more
@@ -668,6 +703,13 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
      frame's head and strip of views, the tab bar and the room kept for it leave. */
   .main:has(> .main-scroll > [data-takeover]) .pg-slot,
   .app-root:has([data-takeover]) [data-testid="phone-tabs"] {
+    display: none;
+  }
+  /* An open thread is headed by its own person: the page's date and the bell over its capsule stand down too, 44px given
+     back to the conversation (the phone thread's canvas). A person's page keeps the bar, which holds its way back. The
+     shell's status line and a call's bar are not the bar's, and stay. */
+  .app-root:has(:is(.inbox, .conversations)[data-takeover]) .topbar,
+  .app-root:has(:is(.inbox, .conversations)[data-takeover]) .pg-dateline-slot {
     display: none;
   }
   .main-scroll:has(> [data-takeover]) {

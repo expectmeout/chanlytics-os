@@ -110,7 +110,7 @@ html.legacy-on .rec-row-act { min-height: 0; }
      home indicator. It is as tall as what it holds, up to 88% of what the phone shows, and past that its body scrolls
      under its head and foot (Ruben, 14 Oct 2026, the fitted sheets: six sheets stood at 88% of blank whatever they
      held). While a box in it is typed in it holds its height (--sheet-hold, kit/motion/use-height-glide.ts). */
-  .rec-sheet { top: auto; bottom: var(--kb, 0px); left: 0; width: auto; height: auto; max-height: calc(88vh - var(--kb, 0px)); max-height: calc(88dvh - var(--kb, 0px)); min-height: min(var(--sheet-hold, 0px), calc(88dvh - var(--kb, 0px))); border: 1px solid var(--surface-pop-edge); border-bottom: 0; border-radius: var(--surface-pane-radius) var(--surface-pane-radius) 0 0; }
+  .rec-sheet { top: auto; bottom: var(--kb, 0px); left: 0; width: auto; height: auto; max-height: calc(88vh - var(--kb, 0px)); max-height: calc(88dvh - var(--kb, 0px)); min-height: min(var(--sheet-hold, 0px), calc(88dvh - var(--kb, 0px))); border-radius: var(--radius-sheet) var(--radius-sheet) 0 0; }
   .rec-sheet.deal-sheet .deal-sheet-reasons .rec-seg { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   /* A fold open on a phone is this sheet (record-fold.jsx), as tall as what it holds and no taller than a list's: the
      voice's one box does not open 88% of a screen of blank. It rises from the bottom as it opens, on the fold's own

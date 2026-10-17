@@ -131,7 +131,7 @@ export { toConversationVM } from "./conversations/conversation-vm";
 export { ESCALATION_REASON_LABELS, ESCALATION_REASON_SHORT, ESCALATION_SUMMARIES, reasonShort, reasonLabelOf, reasonSummaryOf, ESCALATION_ACTS, HAND_BACK_REASONS, WAITING_REASONS, OPEN_HOLDS_READ_MAX, HOLD_ACT_WORDS, holdActOf, holdWaits, waitsOnAPerson } from "./conversations/escalations";
 export { REFERRAL_ID_MAX } from "./conversations/first-touch";
 export { HANDLED_OUTCOMES } from "./conversations/handled";
-export { threadStanding, conversationWaitsOnYou, threadsWaitingOnYou, threadWaitsOf, heldThreadIds, HELD_BY_ID_MAX, snoozedThreadWords, heldDraftWaits, toInboxThreadVM } from "./conversations/inbox-thread";
+export { threadStanding, conversationWaitsOnYou, threadsWaitingOnYou, threadWaitsOf, heldThreadIds, HELD_BY_ID_MAX, snoozedThreadWords, heldDraftWaits, THREAD_PANE_WORDS, theyWroteLast, toInboxThreadVM } from "./conversations/inbox-thread";
 export { EMAIL_CLAIMS, isAutomatedSend, isPersonsWords, messageVia, messageAuthor, messageWhy } from "./conversations/message-author";
 export { emailLeftOutOf, splitQuotedReply } from "./conversations/message-email";
 export { mediaKind, mediaVM } from "./conversations/message-media";
@@ -169,7 +169,7 @@ export { reviewReplyModeOf, reviewReplyPrompt, cleanDraft, autoReplyCandidates, 
 export { APPOINTMENT_WORDS, appointmentWordOf, appointmentWordWhere, appointmentWords, isAppointmentWord } from "./journey/appointment-word";
 export { JOURNEY_STAGE_IDS, journeyOf, journeyStageOf } from "./journey/journey";
 export { journeyGuide } from "./journey/journey-guide";
-export { LEAD_CARD_WORDS, LEAD_CARD_TABS, LEAD_SHEET_WORDS, LEAD_CARD_MARKS_MAX, leadCardEmailOf, leadCardStepsOf, leadCardPartsOf, leadCardReasonOf, leadCardMarksOf, leadCardSlotsOf, leadCardBulkOf, leadCardBulkDoorOf } from "./leads/lead-card";
+export { LEAD_CARD_WORDS, LEAD_CARD_TABS, LEAD_CARD_MARKS_MAX, leadCardEmailOf, leadCardStepsOf, leadCardPartsOf, leadCardReasonOf, leadCardMarksOf, leadCardSlotsOf, leadCardBulkOf, leadCardBulkDoorOf } from "./leads/lead-card";
 export { LEAD_CHECK_KEYS } from "./leads/lead-dtos";
 export { leadTodayLine, leadHoursShort, leadWhere, leadUndoable, leadExclusionWord, leadCheckWord, leadSlots, leadTintOf, leadTileSrc, LEAD_UNDO_MS, LEAD_SLOT_WORDS, LEAD_TILE_PX } from "./leads/lead-facts";
 export { LEAD_SUGGEST_RETRY_MS, LEAD_IDEAS_SYSTEM, ideaHistoryOf, ideaBasisOf, ideaPacket, ideaPacketText, ideaJsonSchema, ideaPassed, ideaPassedOf } from "./leads/lead-ideas";
@@ -180,6 +180,7 @@ export { LEAD_BACK_WORDS, LEAD_PILE_UNDO_KEY, LEAD_PILE_WORDS, LEAD_PILE_SAID, l
 export { stageArgs, leadsRoute, parseLeadsRoute, leadDraftFooter, leadQuestionMail, leadPlanLikely, leadPlanFacts, leadPlanFactLine, leadMonthPlanFacts, leadPlanAsk, LEAD_DRAFT_JSON_SCHEMA, leadQuestionTitle, LEAD_QUESTION_WAIT_LINE, leadQuestionRoute, LEAD_PRIOR_MIN_PLACES } from "./leads/lead-plan";
 export { leadReviewCosts, leadAskedFor, leadReviewGroups, leadMapPlot, leadMapNote, leadLowerFirst, LEAD_REVIEW_GROUP_WORDS, LEAD_REVIEW_ACT_WORDS, LEAD_REVIEW_GROUP_WHY, LEAD_CHECK_CENTS_EACH, leadCheckAgainCents, LEAD_MAP_MAX_SPAN_M, leadMapAcross, leadAreaFrom } from "./leads/lead-review";
 export { leadBand, leadMarkSrc, toLeadRowVM, leadRowOf, leadRail, leadsStanding, LEAD_MARKS_BUCKET, LEAD_MARK_PATH } from "./leads/lead-row";
+export { LEAD_SHEET_WORDS, leadSheetStateOf, leadSheetClosedOf, leadSheetFitOf, leadSheetCellsOf, leadSheetRailOf, leadSheetEndRailOf, leadSheetTrackOf, leadSheetStoryOf, leadSheetReplyOf, leadSheetOptionsOf, leadSheetReasonsOf, leadSheetAboutOf, leadSheetStandOf, leadSheetChecksOf } from "./leads/lead-sheet";
 export { leadNoteLeft, leadLowShare, leadNotBusinessesLine, leadNoCardLine, leadNearWhere, leadAnd, leadEndingLine, leadAllowanceFact, outcomeMove, LEAD_CLASSES, LEAD_LISTS, LEAD_SORTS, LEAD_VIEW_SORTS, LEAD_CALL_OUTCOMES, LEAD_NOT_A_FIT_WHYS, LEAD_STAGE_WORDS, LEAD_CLOSED_WORDS, LEAD_FIT_WORDS, LEAD_EMAIL_WORDS, LEAD_CALL_OUTCOME_TONES, LEAD_CALL_OUTCOME_WORDS, LEAD_LIST_WORDS, LEAD_SOURCE_WORD, LEAD_LOCKED_LINE, LEAD_DRAFT_NOTE, LEAD_NO_ADDRESS, LEAD_CONSENT_REFUSAL, LEAD_NOT_A_FIT_WORDS, LEAD_NOT_A_FIT_TITLE, LEAD_SUPPRESSING_WHY, LEAD_REVIEW_WORD, LEAD_LEFT_OUT_WORD, LEAD_CLASS_WORDS, LEAD_UNREACHABLE_WORD, LEAD_CHECK_UNSURE, LEAD_CHECK_WORDS, LEAD_ERASE_WORDS, LEAD_MAILBOX_WORDS, LEAD_CONTACT_STANDARD_WORDS, LEAD_NO_EMAIL_LINE, LEAD_SENT_QUESTION, LEAD_CALL_QUESTION, LEAD_NOTE_PLACEHOLDER, LEAD_NOTE_MAX, LEAD_TALKING_NOTE, LEAD_UNCLAIMED_NOTE, LEAD_LOW_SHARE_FLOOR, LEAD_NO_CARD_LINE, LEAD_OUTSIDE_US_LINE, LEAD_PAUSED_TITLE } from "./leads/lead-words";
 export { leadReachLine, LEAD_SUGGEST_UNAVAILABLE, LEAD_WORDS, LEAD_SUGGEST_DAYS, LEAD_PRIOR_MIN } from "./leads/leads";
 export { LEAD_MONTHLY_ALLOWANCE, LEAD_MONTHLY_BUDGET_USD, LEAD_DAY_CAP_USD, LEAD_PLATFORM_DAY_CAP_USD, LEAD_QUESTION_THRESHOLD, LEAD_QUESTION_MIN_EVIDENCE, LEAD_PROBE_PLACES, LEAD_JUDGE_BATCH, LEAD_MAX_PLACES, LEAD_FACT_MAX, LEAD_REASON_MAX_WORDS, LEAD_ASSUMED_YIELD, LEAD_ESTIMATE_MARGIN, LEAD_ASK_MIN_FACTOR, LEAD_ASK_MAX_FACTOR, leadMonth } from "./leads/search/caps";
@@ -364,7 +365,7 @@ export { stateTone, stateLabel, stateOf, stateWordList, leadPinTone, leadMapLege
 export { PAGE_VITALS, PAGE_METRICS, PAGE_DEVICES, PAGE_PHONE_QUERY, PAGE_BUILD, PAGE_VITALS_PER_BEACON, PAGE_VITAL_BANDS, PAGE_VITAL_WORDS, PAGE_VITALS_READ, PAGE_VITALS_MIN_LOADS, PRIMARY_PART, PageVitalReport, vitalsPageOf, vitalValueWords, vitalVerdict, pageVitalsWords } from "./shell/vitals";
 export { campaignMessageOf, campaignMessagesOf, messageHolds, messageWhyNot, readyForMessage, messageStandingWords, metaStatusOf, variablesSlotCount, MESSAGE_GONE_WORDS, MESSAGE_BEGIN_WORDS, RUN_NOW_WITHOUT_VERSION_WORDS, STARTER_LINE_WORDS, whatsappStoppedRunWords } from "./templates/campaign-message";
 export { emailFoot, emailFootHtml } from "./templates/email-foot";
-export { inboxTemplates, inboxSlots, noTemplateWords, slotToWrite, templateHolds, templateOffered } from "./templates/inbox-templates";
+export { inboxBlankOf, inboxTemplateParts, inboxTemplates, inboxSlots, noTemplateWords, slotToWrite, TEMPLATE_WORDS_MAX, templateHolds, templateOffered, templateWords } from "./templates/inbox-templates";
 export { libraryCount, isLibrarySample } from "./templates/library-count";
 export { languageWords, languageLabels, LANGUAGE_GROUP_WORDS, messageLanguageChoices, templateUntranslatable } from "./templates/message-languages";
 export { toSlotParts, fromSlotParts, partWritten, insertSlot, eraseSlot, clampWords, slotLabel, slotKnown, namedProblem } from "./templates/message-version-slots";

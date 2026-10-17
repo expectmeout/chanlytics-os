@@ -190,12 +190,13 @@ export async function expectStripEnding(page: Page, words: string): Promise<void
 export async function expectPeekSeenVersusRead(page: Page): Promise<void> {
   const peek = page.getByTestId("lead-peek");
   await expect(peek).toBeVisible();
-  // The two groups are the evidence bar's card (#770), told apart by a hairline and by their marks rather than by
-  // headings; the card is in the page whether or not it is showing.
-  await expect(peek.getByTestId("peek-checks-seen")).toBeAttached();
-  await expect(peek.getByTestId("peek-checks-read")).toBeAttached();
+  // The lead sheet opens on Why: every check on its own line, what was seen and what Claude read told apart by their
+  // marks (sheet/panes.tsx).
+  const checks = peek.getByTestId("peek-checks-open");
+  await expect(checks).toBeVisible();
+  expect(await checks.locator(".lw-ck").count(), "the checks are drawn").toBeGreaterThan(0);
   expect(
-    await peek.getByTestId("peek-checks-read").locator(".pk-ck-check").count(),
+    await checks.locator(".lw-ck.read .pk-ck-check").count(),
     "a check Claude read wears the mark of one the product saw",
   ).toBe(0);
 }

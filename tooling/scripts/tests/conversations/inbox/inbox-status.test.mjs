@@ -187,25 +187,28 @@ test("every state of a real thread is named in the bar under the header, and wha
       chat({ paused_until: later, assignee_user_id: "u-me", assignee_is_me: true }),
       asked(),
       /^You have it$/,
-      /stays quiet while you have it/,
+      /^You have it\. · They asked for a person\./,
     ],
+    // A teammate's thread: the dock says nothing, and the reply box says what a reply does ("Reply to take it from …").
     theirs: [
       chat({ paused_until: later, assignee_user_id: "u-ana", assignee_is_me: false }),
       asked(),
-      /has itwaiting 40m$/,
-      /until they hand it back/,
+      /has it· waiting 40m$/,
+      /^$/,
     ],
     snoozed: [
       chat({ state: "snoozed", snooze_until: later, paused_until: later }),
       null,
-      /^Snoozedback /,
+      /^Snoozed· back /,
       /Hidden from your queue/,
     ],
     archived: [chat({ state: "archived" }), null, /^Archived$/, /Their request is closed/],
+    // Answered and nothing owed: no bar and no dock (the phone canvas, A1). Who had the last word is the conversation's
+    // own last bubble; a sentence for the ordinary state stood over every thread.
     lastWord: [
       chat({ state: "open", messages: [wrote("m1", "Open Sunday?", 30), ours("m2", "Closed Sundays.", 29)] }),
       null,
-      /^Answered by the receptionist — no one asked for you\.$/,
+      /^$/,
       /^$/,
     ],
   };
@@ -251,16 +254,16 @@ test("Needs you has one signal: the pill its row wears, and its wait, amber past
   };
   const late = signal(40);
   assert.deepEqual([late.pill, late.flag], [true, false], "REGRESSION: a red flag");
-  assert.equal(textOf(late.wait), "waiting 40m");
+  assert.equal(textOf(late.wait), "· waiting 40m");
   assert.ok(late.wait.props.className.split(" ").includes("late"), "amber past thirty minutes");
   const soon = signal(12);
-  assert.equal(textOf(soon.wait), "waiting 12m");
+  assert.equal(textOf(soon.wait), "· waiting 12m");
   assert.ok(!soon.wait.props.className.split(" ").includes("late"), "and not before");
 });
 
 /* ------------------------------ the conversation ------------------------------ */
 
-test("REGRESSION: a run of messages says its time once, and who sent ours and what became of it on its last -- every bubble said 'WhatsApp · 4:24 PM' over it and 'by WhatsApp Receptionist · Read' under it", () => {
+test("REGRESSION: a real bubble says its time and what became of it in its own corner, and a day is headed once -- every bubble said 'WhatsApp · 4:24 PM' over it and 'by WhatsApp Receptionist · Read' under it", () => {
   const vm = vmOf(
     chat({
       state: "open",
@@ -271,26 +274,51 @@ test("REGRESSION: a run of messages says its time once, and who sent ours and wh
       ],
     }),
   );
+  const pane = paneOf(vm);
   const bubbles = [];
-  walk(paneOf(vm), (n) => {
+  walk(pane, (n) => {
     if (hasClass("tl-msg")(n)) bubbles.push(n);
   });
   assert.equal(bubbles.length, 3);
   const has = (b, cls) => !!find(b, hasClass(cls));
+  // The phone canvas, D1: a line over every bubble and one under it were 79-127px apiece on a phone.
   assert.deepEqual(
-    bubbles.map((b) => has(b, "tl-msg-meta")),
-    [true, true, false],
-    "the time once per run",
+    bubbles.map((b) => [has(b, "tl-msg-meta"), has(b, "tl-msg-by")]),
+    [
+      [false, false],
+      [false, false],
+      [false, false],
+    ],
+    "no line over a bubble, and none under it",
+  );
+  const stamps = bubbles.map((b) => find(b, hasClass("tl-stamp")));
+  assert.ok(
+    stamps.every((st) => st && /\d:\d\d [AP]M/.test(textOf(st))),
+    "each bubble's time, in its corner",
+  );
+  assert.ok(!stamps.some((st) => textOf(st).includes("WhatsApp")), "one channel: the time alone");
+  assert.ok(
+    find(stamps[1], (n) => n.type === Icon && n.props?.name === "sparkle"),
+    "the receptionist's words wear its spark, where 'by WhatsApp Receptionist' was",
+  );
+  assert.equal(
+    find(stamps[0], (n) => n.type === Icon && n.props?.name === "sparkle"),
+    undefined,
+    "and theirs do not",
   );
   assert.deepEqual(
-    bubbles.map((b) => has(b, "tl-msg-by")),
+    bubbles.map((b) => hasClass("tl-run")(b)),
     [false, false, true],
-    "who sent it, on the run's last",
+    "one side's run stands close together",
   );
-  assert.ok(!textOf(find(bubbles[0], hasClass("tl-msg-meta"))).includes("WhatsApp"), "one channel: the time alone");
+  const days = [];
+  walk(pane, (n) => {
+    if (byTestId("tl-day")(n)) days.push(textOf(n));
+  });
+  assert.equal(days.length, 1, "the day, once, over the run");
 });
 
-test("words that did not reach them say so on their own bubble, whatever follows", () => {
+test("words that did not reach them say so on their own bubble, whatever follows, with the way to send them again", () => {
   const vm = vmOf(
     chat({
       state: "open",
@@ -301,7 +329,14 @@ test("words that did not reach them say so on their own bubble, whatever follows
   walk(paneOf(vm), (n) => {
     if (hasClass("tl-msg")(n)) bubbles.push(n);
   });
-  assert.match(textOf(find(bubbles[1], hasClass("tl-msg-by"))), /Didn't send/);
+  assert.ok(hasClass("undelivered")(bubbles[1]), "the words that never left are drawn so");
+  assert.ok(
+    find(bubbles[1], (n) => n.props?.role === "img" && n.props?.["aria-label"] === "Didn't send"),
+    "and say so in their corner",
+  );
+  assert.ok(find(bubbles[1], byTestId("tl-again-send")), "Send again, on that bubble");
+  assert.ok(find(bubbles[1], byTestId("tl-again-edit")), "or put them in the reply box");
+  assert.equal(find(bubbles[2], byTestId("tl-again")), undefined, "and only there");
 });
 
 test("REGRESSION: a real thread's reply box is one line with Send beside it, naming the channel it goes out on -- a three-line field over a line repeating the channel and the name", () => {

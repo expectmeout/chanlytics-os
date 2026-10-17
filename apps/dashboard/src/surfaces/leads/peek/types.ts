@@ -84,17 +84,6 @@ export interface LeadCourier {
   __leadErase: (id: string) => Promise<ApiResult<unknown>>;
 }
 
-/** What the peek reads of the page: the lead's view model and its mode, question, draft, busy flag, deck and width. */
-export interface PeekState {
-  vm?: LeadPeekVM | null;
-  mode?: PeekMode | null;
-  armed?: Armed | null;
-  draft?: DraftState | null;
-  busy?: boolean;
-  deck?: Deck | null;
-  phone?: boolean;
-}
-
 /** The acts the peek's panes call by name (`on.<name>`): what `LeadPeekActions` returns. */
 export interface PeekActs {
   onClose: () => void;

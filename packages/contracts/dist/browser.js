@@ -4821,9 +4821,9 @@ function takesBookingRequests(o) {
 }
 var SLOT = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{1,2}):(\d{2})$/;
 function requestedBookingOf(input) {
-  const slot = (input.slot ?? "").trim();
-  if (!slot) return { ok: false, why: "no_slot" };
-  const m = SLOT.exec(slot);
+  const slot2 = (input.slot ?? "").trim();
+  if (!slot2) return { ok: false, why: "no_slot" };
+  const m = SLOT.exec(slot2);
   if (!m) return { ok: false, why: "unreadable" };
   const [y = 0, mo = 0, d = 0, hh = 0, mm = 0] = m.slice(1).map(Number);
   if (mo < 1 || mo > 12 || d < 1 || d > 31 || hh > 23 || mm > 59) return { ok: false, why: "unreadable" };
@@ -5952,7 +5952,7 @@ function smsSegments(text) {
   return { segments, chars, perSegment: segments > 1 ? 67 : 70, unicode };
 }
 function smsVersionSegments(body, language) {
-  const slotsPlain = body.replace(/\{\{\d+\}\}/g, (slot) => "x".repeat(slot.length));
+  const slotsPlain = body.replace(/\{\{\d+\}\}/g, (slot2) => "x".repeat(slot2.length));
   return smsSegments(`${slotsPlain}
 ${smsStopLine(language)}`);
 }
@@ -5968,7 +5968,7 @@ function versionSlotsRefusal(text, slots) {
 }
 function emailIssues(w, rules) {
   const out = [];
-  const at3 = (field, problem, slot) => out.push(slot === void 0 ? { field, problem } : { field, problem, slot });
+  const at3 = (field, problem, slot2) => out.push(slot2 === void 0 ? { field, problem } : { field, problem, slot: slot2 });
   const subject = rules.subject ? w.subject ?? "" : null;
   if (subject !== null) {
     if (!subject) at3("subject", "subject_missing");
@@ -6178,8 +6178,8 @@ var REACH_OUT_NAME_MAX = 80;
 var SIGNED_BY_MAX = 60;
 var REACH_OUT_GAP_MINUTES = [5, 8, 12, 20, 30, 60];
 var REACH_OUT_AFTER_DAYS = { min: 2, max: 30, first: 4 };
-function slotCount(text, slot) {
-  return slotCountIn(REACH_OUT_SLOT_SET, text, slot);
+function slotCount(text, slot2) {
+  return slotCountIn(REACH_OUT_SLOT_SET, text, slot2);
 }
 function reachOutSlotFault(text) {
   return slotFault(REACH_OUT_SLOT_SET, text);
@@ -12843,7 +12843,7 @@ function foldWordsMessages(body) {
     while (at3 >= 0 && !(isPlainObject2(out.at(at3)) && out.at(at3).role === "user")) at3--;
     const turn = out.at(at3);
     if (at3 < 0 || !isPlainObject2(turn)) continue;
-    const content = Array.isArray(turn.content) ? turn.content : [{ type: "text", text: String(turn.content ?? "") }];
+    const content = Array.isArray(turn.content) ? turn.content : [{ type: "text", text: typeof turn.content === "string" ? turn.content : "" }];
     out[at3] = { ...turn, content: [...content.slice(0, -1), ...m.content, ...content.slice(-1)] };
   }
   return { ...body, messages: out };
@@ -17969,6 +17969,7 @@ function reachOutEmailOf(words2, lead, workspace, opening2 = null) {
   return { ok: true, subject: words2.subject === null ? null : email.subject, body: email.body };
 }
 var REACH_OUT_OPENING_MARK = "\uE000";
+var REACH_OUT_VALUE_MARKS = ["\uE001", "\uE002"];
 function reachOutCardEmailOf(words2, lead, workspace) {
   const values = reachOutValues(lead, workspace, REACH_OUT_OPENING_MARK);
   const texts = words2.subject === null ? [words2.body] : [words2.subject, words2.body];
@@ -17976,7 +17977,10 @@ function reachOutCardEmailOf(words2, lead, workspace) {
   const holes = written.filter((k) => (slotValueOf(REACH_OUT_SLOT_SET, k, values) ?? null) === null);
   const named = leadAddresseeOf(lead)?.first_name;
   const fellBack = !named && written.includes("first name") ? ["first name"] : [];
-  const email = renderOwnVersion("email", words2, values, REACH_OUT_LANGUAGE, REACH_OUT_SLOT_SET);
+  const marked = values.map(
+    (v, i) => v && REACH_OUT_SLOT_SET.keys[i] !== "opening" ? `${REACH_OUT_VALUE_MARKS[0]}${v}${REACH_OUT_VALUE_MARKS[1]}` : v
+  );
+  const email = renderOwnVersion("email", words2, marked, REACH_OUT_LANGUAGE, REACH_OUT_SLOT_SET);
   return { subject: words2.subject === null ? null : email.subject, body: email.body, holes, fellBack };
 }
 function reachOutCardSlotsOf(texts, lead, workspace) {
@@ -23663,9 +23667,9 @@ function answersToRuns(sends2, events) {
     if (!e || !theirs2) continue;
     const exact = e.key !== null;
     for (const s of e.key ? namedBy(e.key, theirs2) : reachedBefore(e, theirs2)) {
-      const slot = JSON.stringify([s.runId, s.contactId]);
-      const held = standing2.get(slot);
-      if (!held || isLaterEvent(e, held.event)) standing2.set(slot, { runId: s.runId, event: e, exact });
+      const slot2 = JSON.stringify([s.runId, s.contactId]);
+      const held = standing2.get(slot2);
+      if (!held || isLaterEvent(e, held.event)) standing2.set(slot2, { runId: s.runId, event: e, exact });
     }
   }
   return [...standing2.values()].map(({ runId, event: e, exact }) => ({
@@ -29634,11 +29638,11 @@ function greetingNotes(input) {
     });
   }
   if (LINK2.test(t)) notes.push({ key: "link", words: "A web address is read out letter by letter on a call." });
-  const [slot] = (raw.match(/\{[^{}]*\}/g) ?? []).filter((s) => s !== GREETING_NAME_SLOT);
-  if (slot) {
+  const [slot2] = (raw.match(/\{[^{}]*\}/g) ?? []).filter((s) => s !== GREETING_NAME_SLOT);
+  if (slot2) {
     notes.push({
       key: "slot",
-      words: `${slot} isn't filled in, so callers hear it as written. Only ${GREETING_NAME_SLOT} is.`
+      words: `${slot2} isn't filled in, so callers hear it as written. Only ${GREETING_NAME_SLOT} is.`
     });
   }
   if (input.namesMoney(t)) {
@@ -30613,6 +30617,34 @@ function snoozedThreadWords(openRequest) {
   const hidden = "Hidden from your queue. The receptionist still answers, and a new message brings it back.";
   return openRequest ? `${hidden} ${openRequest}. That's still waiting for you.` : hidden;
 }
+var THREAD_PANE_WORDS = {
+  /** WhatsApp's window, shut: the bar's one quiet fact, and why a press away. */
+  chatClosed: "Chat closed",
+  chatClosedWhy: "A day after their last message, WhatsApp delivers only an approved message. Sending one reopens the chat.",
+  /** The dock's acts on a thread left unanswered (THREAD_PANE_WORDS.unanswered). "No reply needed" archives it. */
+  call: "Call",
+  noReplyNeeded: "No reply needed",
+  /** Asked in the dock before a hand back leaves what they wrote with nothing sent. */
+  handBackAsk: (first) => `${first}'s message has no answer yet.`,
+  handBackWhy: "Handing back sends nothing, and the receptionist won't come back to it.",
+  answerFirst: "Answer first",
+  handBackAnyway: "Hand back anyway",
+  /** A thread you have, as the dock says it, with the one act it takes. */
+  yours: "You have it.",
+  yoursFact: "The receptionist is quiet",
+  /** The reply box on a thread a teammate has: what a reply does. */
+  takeFrom: (name) => `Reply to take it from ${name}\u2026`,
+  /** Our words that did not send: send them again as they were, or put them in the box. */
+  sendAgain: "Send again",
+  edit: "Edit",
+  /** The template box: what sending one does, what it is filled with, and its picker's head and groups. */
+  reopens: "Reopens the chat",
+  blank: (label) => label.toLowerCase(),
+  pickTitle: (first) => `Reopen the chat with ${first}`,
+  pickSub: "After a day, WhatsApp delivers only an approved message.",
+  fitsNow: "Fits now",
+  others: "Others"
+};
 var wireOf = (m) => m.type === "call_summary" ? "phone" : writtenChannelOf(m.channel);
 function previewOf(messages) {
   const last = [...messages].reverse().find((m) => m.type !== "note" && (m.direction === "inbound" || reachedCustomer(m.status)));
@@ -30678,7 +30710,7 @@ function toInboxThreadVM(dto, escalation, tz, now = /* @__PURE__ */ new Date()) 
       // An email's subject line, above its words.
       ...subject ? { subject } : {},
       ...leftOut2 ? { leftOut: leftOut2 } : {},
-      at: bubbleTime(messageAt(m), tz, now),
+      ...bubbleWhen(messageAt(m), tz, now),
       body: said ? said.text : messageText(m),
       ...said && said.quoted ? { quoted: said.quoted } : {},
       ...media ? { media } : {},
@@ -30719,7 +30751,7 @@ function toInboxThreadVM(dto, escalation, tz, now = /* @__PURE__ */ new Date()) 
   }
   const waitingMin = escalation ? Math.max(1, Math.round((now.getTime() - new Date(escalation.created_at).getTime()) / MIN_MS)) : void 0;
   const ask = askOf(escalation, lastInbound);
-  const lastWord = state === "done" && dto.state !== "archived" ? lastWordOf(dto) : null;
+  const { lastWord, unanswered } = quietWordsOf(dto, state, tz, now);
   const preview = previewOf(dto.messages);
   return {
     id: `th-${dto.id}`,
@@ -30741,6 +30773,7 @@ function toInboxThreadVM(dto, escalation, tz, now = /* @__PURE__ */ new Date()) 
     ask,
     archived: dto.state === "archived",
     lastWord,
+    unanswered,
     heldDraft,
     ...heldDraft ? {
       veto: {
@@ -30788,17 +30821,59 @@ function toInboxThreadVM(dto, escalation, tz, now = /* @__PURE__ */ new Date()) 
     timeline
   };
 }
-function lastWordOf(dto) {
+function bubbleWhen(iso, tz, now) {
+  const at3 = bubbleTime(iso, tz, now);
+  const ms2 = Date.parse(iso);
+  if (!Number.isFinite(ms2)) return { at: at3, day: "", time: "" };
+  return { at: at3, day: clockHistoryDay(ms2, tz, now.getTime()), time: clockTime(ms2, tz) };
+}
+function quietWordsOf(dto, state, tz, now) {
+  if (state !== "done" || dto.state === "archived") return { lastWord: null, unanswered: null };
+  const unanswered = unansweredOf(dto, tz, now);
+  return { lastWord: unanswered ? UNANSWERED_WORD : lastWordOf(dto, tz, now), unanswered };
+}
+function theyWroteLast(messages) {
+  return lastExchanged(messages.filter(isChatMessage))?.direction === "inbound";
+}
+var UNANSWERED_WORD = {
+  text: "They wrote last, and nobody has answered them.",
+  tone: "warn",
+  short: "Unanswered"
+};
+var heldAskLine = (details) => {
+  const text = details?.trim();
+  if (!text) return "They're waiting on an answer.";
+  const first = text.split(/(?<=[.!?])\s+/)[0] ?? text;
+  return clipAtWord(first, 100);
+};
+function unansweredOf(dto, tz, now) {
+  const hold = dto.last_hold;
+  if (!hold || !theyWroteLast(dto.messages)) return null;
+  const last = lastExchanged(dto.messages.filter(isChatMessage));
+  if (!last) return null;
+  if (!(Date.parse(hold.created_at) >= Date.parse(last.created_at))) return null;
+  const sinceMs = Date.parse(messageAt(last));
+  const closedMs = hold.resolved_at ? Date.parse(hold.resolved_at) : Number.NaN;
+  return {
+    line: heldAskLine(hold.details),
+    closed: Number.isFinite(closedMs) ? `Closed ${clockDate(closedMs, tz, now.getTime())} without a reply` : "Closed without a reply",
+    waited: formatWaited(Math.max(0, now.getTime() - sinceMs)),
+    sinceMs
+  };
+}
+function lastWordOf(dto, tz, now) {
   const chat = dto.messages.filter(isChatMessage);
   const last = lastExchanged(chat);
   const failed = [...chat.slice(last ? chat.indexOf(last) + 1 : 0)].reverse().find((m) => m.status === "failed") ?? null;
   const failedBy = failed ? messageAuthor(failed)?.words ?? "us" : null;
+  const at3 = failed ? shortTime(messageAt(failed), tz, now) : "";
   if (!last) {
     if (failedBy)
       return {
         text: `Nothing has reached them \u2014 the message from ${failedBy} didn't send.`,
         tone: "danger",
-        short: "Didn't send"
+        short: "Didn't send",
+        at: at3
       };
     return dto.messages.some((m) => m.type === "call_summary") ? { text: "The phone receptionist handled their call \u2014 no one asked for you.", tone: "ok", short: null } : { text: "No messages yet.", tone: "plain", short: null };
   }
@@ -30806,11 +30881,12 @@ function lastWordOf(dto) {
     return failedBy ? {
       text: `They wrote last, and the reply from ${failedBy} didn't send \u2014 as far as they know, nobody answered.`,
       tone: "danger",
-      short: "Didn't send"
+      short: "Didn't send",
+      at: at3
     } : { text: "They wrote last \u2014 no reply yet.", tone: "plain", short: null };
   }
   const said = lastWordLine(false, last, messageAuthor(last));
-  return failedBy ? { text: `${said} \u2014 the last message from ${failedBy} didn't send.`, tone: "warn", short: "Didn't send" } : { text: `${said} \u2014 no one asked for you.`, tone: "ok", short: null };
+  return failedBy ? { text: `${said} \u2014 the last message from ${failedBy} didn't send.`, tone: "warn", short: "Didn't send", at: at3 } : { text: `${said} \u2014 no one asked for you.`, tone: "ok", short: null };
 }
 
 // src/leads/lead-dtos.ts
@@ -32922,15 +32998,26 @@ var LEAD_CARD_TABS = [
   { id: "about", label: "About" },
   { id: "activity", label: "Activity" }
 ];
-var LEAD_SHEET_WORDS = {
-  tabs: "About this lead",
-  raise: "Show everything about them",
-  lower: "Back to the card"
-};
 var slotLabel = (key) => {
   const at3 = REACH_OUT_SLOT_SET.keys.indexOf(key);
   return (REACH_OUT_SLOT_SET.labels[at3] || key).toLowerCase();
 };
+var VALUE_RE = new RegExp(
+  `${REACH_OUT_VALUE_MARKS[0]}([^${REACH_OUT_VALUE_MARKS[1]}]*)${REACH_OUT_VALUE_MARKS[1]}`,
+  "g"
+);
+function cardValuesOf(text) {
+  const parts2 = [];
+  let from = 0;
+  for (const m of text.matchAll(VALUE_RE)) {
+    const at3 = m.index ?? 0;
+    if (at3 > from) parts2.push(...gapsOf(text.slice(from, at3)));
+    parts2.push({ kind: "value", text: m[1] ?? "" });
+    from = at3 + m[0].length;
+  }
+  if (from < text.length) parts2.push(...gapsOf(text.slice(from)));
+  return parts2;
+}
 function gapsOf(text) {
   const parts2 = [];
   let from = 0;
@@ -32946,7 +33033,7 @@ function leadCardPartsOf(text) {
   const pieces = text.split(REACH_OUT_OPENING_MARK);
   return pieces.flatMap((piece, i) => {
     const words2 = piece.replace(i > 0 ? /^\n+/ : /^/, "").replace(i < pieces.length - 1 ? /\n+$/ : /$/, "");
-    return [...i > 0 ? [{ kind: "opening" }] : [], ...words2 ? gapsOf(words2) : []];
+    return [...i > 0 ? [{ kind: "opening" }] : [], ...words2 ? cardValuesOf(words2) : []];
   });
 }
 var signedAs = (chain, w) => ({ ...w, yourName: chain.signed_by });
@@ -33717,6 +33804,330 @@ var LEAD_BACK_WORDS = {
   line: (name, day) => `${name} asked to hear from you ${day}`,
   more: (n) => `${n} more`
 };
+
+// src/leads/lead-sheet.ts
+var LEAD_SHEET_WORDS = {
+  tabs: "About this lead",
+  raise: "Show everything about them",
+  lower: "Back to the card",
+  close: "Close",
+  more: "More for this lead",
+  stage: "Stage",
+  why: {
+    head: "Why it fits",
+    checks: (passed, of) => `${passed} of ${of} checks`,
+    reasons: "Reasons to write now",
+    people: "People here"
+  },
+  reach: { head: "Ways to reach them", sub: "best first", others: "Other addresses on their site" },
+  emails: {
+    steps: "The steps",
+    vars: (name) => `Its variables, for ${name}`,
+    to: "To",
+    from: "From",
+    when: "When",
+    none: "Choose a sequence to see what they would get."
+  },
+  about: { links: "Their links", hours: "Their week" },
+  activity: { stand: "In a sequence", found: "How it was found" },
+  change: "Change",
+  done: "Done",
+  choose: (name) => `Which sequence, for ${name}`,
+  chooseFootPile: "Used for the rest of this pile. A sequence fed by its own search takes its leads by itself.",
+  chooseFoot: "Used for the leads you open next. A sequence fed by its own search takes its leads by itself.",
+  fills: "Every field fills",
+  greets: "Greets them as \u201Cthere\u201D",
+  needs: (labels) => `Needs ${labels}`,
+  emailOf: (name) => `${name} \xB7 email 1`,
+  modeFirst: "No sequence takes leads you add yet. Add the ones you'd write to; you write to them once, at the end.",
+  modeSearch: (name) => `This search has \u201C${name}\u201D, so every ready lead here goes. Not a fit is how one stays out.`,
+  goesWith: (name) => `Goes with \u201C${name}\u201D`,
+  phoneOnly: "No email found",
+  phoneOnlyLine: "There's a number to call. Call saves what was said and moves on.",
+  elsewhereIn: (name) => `In \u201C${name}\u201D`,
+  elsewhereLine: "A business is written to once, so this one stays with that sequence.",
+  inSequence: (name) => `In \u201C${name}\u201D`,
+  stopped: "The sequence stopped",
+  stoppedLine: "They wrote back, so nothing more goes. Answer them in the Inbox.",
+  wroteBack: "They wrote back",
+  endTitle: (decided) => decided ? `All ${decided} decided.` : "Nothing left to look at.",
+  endAdded: (name) => `Added to \u201C${name}\u201D`,
+  endHeld: "On your new list",
+  endLater: "For later",
+  endNotFit: "Not a fit",
+  endNote: "Its next batch waits for your OK, because it carries leads you added.",
+  endNoteFirst: "Next, write what they get. Nothing goes until you approve its first batch.",
+  next: "Next",
+  later: "Later",
+  notFit: "Not a fit",
+  add: "Add",
+  hold: "Add to a new list",
+  keep: "Keep",
+  exclude: "Leave out",
+  call: "Call",
+  draft: "Draft an email",
+  openIt: "Open it",
+  itsSequence: "Its sequence",
+  stop: "Stop writing",
+  thread: "Open the thread",
+  putBack: "Put back",
+  ready: "Move back to Ready",
+  laterAgain: (n) => `Later \xB7 ${n}`,
+  leave: "Done for now",
+  writeHeld: (n) => `Write to the ${n}`,
+  openTarget: "Open the sequence",
+  noTarget: "No sequence takes leads you add yet: start one from New message.",
+  keepSub: (left) => `Counts this month \xB7 ${left} left`,
+  back: "Back",
+  hides: "Hides it from every search",
+  lastWhy: "Your last reason",
+  copyAll: "Copy everything",
+  copied: "Copied what is known of them"
+};
+var ADDRESS_WHYS2 = /* @__PURE__ */ new Set(["no_email", "invalid"]);
+var SETTING_WHYS = /* @__PURE__ */ new Set(["unconfirmed", "unchecked"]);
+function settledOf(lead, story) {
+  if (lead.cls === "excluded") return "closed";
+  if (lead.cls === "review") return "review";
+  if (lead.stage === "converted" || story && story.replied) return "replied";
+  if (lead.stage === "archived" || story && story.bounced) return "closed";
+  return lead.inSequence ? "sequence" : null;
+}
+function checkStateOf(check, lead) {
+  if (!check) return null;
+  if (check.why === "elsewhere") return "elsewhere";
+  if (check.why === "already") return "sequence";
+  if (check.why === "checking") return "finding";
+  if (ADDRESS_WHYS2.has(check.why)) return lead.canCall ? "phone" : "closed";
+  return SETTING_WHYS.has(check.why) ? "gap" : "closed";
+}
+function leadSheetStateOf(p) {
+  const settled = settledOf(p.lead, p.story) ?? checkStateOf(p.check, p.lead);
+  if (settled) return settled;
+  if (!p.lead.hasEmail || p.lead.emailState === "invalid") return p.lead.canCall ? "phone" : "closed";
+  if (p.lead.emailState === "checking") return "finding";
+  return p.email && (p.email.blocked || p.email.note) ? "gap" : "ready";
+}
+function leadSheetClosedOf(p) {
+  const call = p.lead.canCall ? "call" : null;
+  if (p.lead.cls === "excluded")
+    return {
+      title: LEAD_LEFT_OUT_WORD,
+      line: "Left out of this search. Put back brings it in again.",
+      fix: "put_back"
+    };
+  if (p.lead.stage === "archived") {
+    const word = p.closedReason && p.closedReason in LEAD_CLOSED_WORDS ? LEAD_CLOSED_WORDS[p.closedReason] : "Closed";
+    return { title: word, line: "Closed: nothing is written to them.", fix: "ready" };
+  }
+  if (p.lead.emailState === "invalid")
+    return { title: "Their address bounced", line: "Nothing more goes to it.", fix: call };
+  if (!p.lead.hasEmail && !p.lead.canCall)
+    return { title: "No way to reach them yet", line: "No address and no number were found.", fix: null };
+  return { title: "Can't be written to", line: p.blocked ?? "This one can't be added.", fix: call };
+}
+function meterOf(dots) {
+  const parts2 = dots.slice(0, 5).map((d) => d === "yes" ? "ok" : d === "unknown" ? "warn" : "rest");
+  while (parts2.length < 5) parts2.push("rest");
+  return parts2;
+}
+function leadSheetFitOf(vm, state) {
+  const base = { meter: meterOf(vm.checkDots), tip: vm.checksSummary };
+  if (state === "review") return { ...base, pill: { kind: "lead_class", value: "review", label: LEAD_REVIEW_WORD } };
+  if (state === "sequence" || state === "elsewhere")
+    return { ...base, pill: { kind: "lead_stage", value: "nurture", label: "Contacted" } };
+  if (state === "replied") return { ...base, pill: { kind: "lead_stage", value: "converted", label: "Talking" } };
+  if (state === "closed" && vm.stage === "archived")
+    return { ...base, pill: { kind: "lead_stage", value: "archived", label: "Closed" } };
+  const news = vm.fit.cls !== "strong" && vm.fit.word;
+  return { ...base, pill: news ? { kind: "lead_fit", value: vm.fit.cls, label: vm.fit.word } : null };
+}
+var toneOf = (state) => state === "ok" ? "ok" : state === "checking" ? "info" : state === "none" ? "none" : "warn";
+function leadSheetCellsOf(vm) {
+  const email = vm.slots.mailbox;
+  const phone = vm.slots.phone;
+  const third = vm.company && vm.links.linkedin ? { key: "linkedin", label: "LinkedIn", word: null, tone: "ok", tip: vm.links.linkedin.label } : vm.links.website ? {
+    key: "site",
+    label: "Site",
+    word: vm.links.instagram ? "+ Insta" : null,
+    tone: "ok",
+    tip: vm.links.website.label
+  } : { key: "site", label: "Site", word: "none", tone: "none", tip: "No website was found." };
+  return [
+    {
+      key: "email",
+      label: "Email",
+      word: email.state === "ok" ? null : email.word,
+      tone: toneOf(email.state),
+      tip: vm.reach.email.tip
+    },
+    {
+      key: "phone",
+      label: "Phone",
+      word: phone.state === "ok" ? null : phone.word,
+      tone: toneOf(phone.state),
+      tip: vm.reach.phone ? vm.reach.phone.tip : phone.tip
+    },
+    third
+  ];
+}
+var slot = (act2, label, icon, key = null) => ({
+  act: act2,
+  label,
+  icon,
+  key,
+  sub: null,
+  off: null
+});
+var SW = LEAD_SHEET_WORDS;
+var X_SLOT = slot("not_a_fit", SW.notFit, "x", "n");
+var NEXT = slot("next", SW.next, "arrow-right", "j");
+var laterOr = (f) => f.canLater ? slot("later", SW.later, "clock", "l") : NEXT;
+function yesOf(f) {
+  if (f.pile === "first") return slot("hold", SW.hold, "plus", "a");
+  if (f.target) return { ...slot("add", SW.add, "plus", "a"), off: f.blocked };
+  if (f.canCall) return slot("call", SW.call, "phone", "a");
+  if (f.canDraft) return slot("draft", SW.draft, "edit", "a");
+  return { ...slot("add", SW.add, "plus", "a"), off: SW.noTarget };
+}
+function closedRail(f) {
+  const fix = f.closed ? f.closed.fix : null;
+  const first = fix === "put_back" ? slot("put_back", SW.putBack, "undo") : fix === "ready" ? slot("ready", SW.ready, "undo") : fix === "call" ? slot("call", SW.call, "phone", "c") : null;
+  return { x: false, slots: [...first ? [first] : [], laterOr(f), NEXT] };
+}
+function leadSheetRailOf(f) {
+  switch (f.state) {
+    case "review": {
+      const keep = {
+        ...slot("keep", SW.keep, "check", "a"),
+        sub: f.monthLeft === null ? null : SW.keepSub(f.monthLeft)
+      };
+      return { x: false, slots: [slot("exclude", SW.exclude, "ban", "n"), laterOr(f), keep] };
+    }
+    case "phone":
+      return { x: true, slots: [X_SLOT, laterOr(f), slot("call", SW.call, "phone", "a")] };
+    case "elsewhere":
+      return { x: false, slots: [slot("sequence", SW.openIt, "external"), laterOr(f), NEXT] };
+    case "sequence":
+      return { x: false, slots: [slot("sequence", SW.itsSequence, "external"), slot("stop", SW.stop, "stop"), NEXT] };
+    case "replied":
+      return {
+        x: false,
+        slots: [slot("thread", SW.thread, "chat"), ...f.canCall ? [slot("call", SW.call, "phone", "c")] : [], NEXT]
+      };
+    case "closed":
+      return closedRail(f);
+    default:
+      return f.pile === "search" ? { x: true, slots: [X_SLOT, slot("sequence", SW.itsSequence, "external"), NEXT] } : { x: true, slots: [X_SLOT, laterOr(f), yesOf(f)] };
+  }
+}
+function leadSheetEndRailOf(p) {
+  const last = p.held ? slot("write_held", SW.writeHeld(p.held), "send") : p.target ? slot("open_target", SW.openTarget, "external") : slot("leave", SW.leave, "check");
+  return {
+    x: false,
+    slots: [
+      ...p.later > 0 ? [slot("later_again", SW.laterAgain(p.later), "clock")] : [],
+      ...last.act === "leave" ? [] : [slot("leave", SW.leave, "x")],
+      last
+    ]
+  };
+}
+var stepLabel2 = (n, hand) => hand === "call" ? "A call for you" : hand === "note" ? "A note for you" : `Email ${n + 1}`;
+function sheetStepOf(s, t, clock3) {
+  const sends2 = t.sends.filter((x) => x.n === s.n);
+  const gone = sends2.find((x) => x.sent_at || x.left);
+  const label = stepLabel2(s.n, s.hand);
+  if (gone) {
+    const at4 = gone.sent_at ? Date.parse(gone.sent_at) : NaN;
+    const when = Number.isFinite(at4) ? clockDate(at4, clock3.tz, clock3.nowMs) : "";
+    return { n: s.n, label, sub: gone.bounced ? "Bounced" : "Sent", when, look: "done" };
+  }
+  const planned = sends2.find((x) => x.send_at);
+  const at3 = planned && planned.send_at ? Date.parse(planned.send_at) : NaN;
+  if (Number.isFinite(at3))
+    return { n: s.n, label, sub: "Planned", when: clockNear(at3, clock3.tz, clock3.nowMs), look: "next" };
+  const wait = s.after_days ? `+${plural(s.after_days, "day", "days")}` : "";
+  return { n: s.n, label, sub: s.n === 0 ? "In its next batch" : "If nothing comes back", when: wait, look: "later" };
+}
+function leadSheetTrackOf(t, nowMs, tz) {
+  if (!t.chain) return null;
+  const known = t.chain.steps ?? [...new Set(t.sends.map((s) => s.n).filter((n) => n !== null))].map((n) => ({
+    n,
+    after_days: null,
+    hand: null
+  }));
+  const steps = [...known].sort((a, b) => a.n - b.n).map((s) => sheetStepOf(s, t, { nowMs, tz }));
+  const later = steps.find((s) => s.look === "later");
+  if (later && !steps.some((s) => s.look === "next")) later.look = "next";
+  const standing2 = reachOutStandingOf(t, nowMs, tz);
+  return { name: t.chain.name, rootId: t.chain.root_id, steps, line: standing2 ? capitalize(standing2.line) : null };
+}
+function leadSheetStoryOf(t) {
+  if (!t) return null;
+  return {
+    replied: t.readings.some((r2) => !r2.undone && r2.claim !== "auto_reply"),
+    bounced: t.sends.some((s) => s.bounced)
+  };
+}
+function leadSheetReplyOf(t) {
+  if (!t) return null;
+  const r2 = [...t.readings].reverse().find((x) => !x.undone && x.claim !== "auto_reply");
+  return r2 && r2.summary ? r2.summary : null;
+}
+function leadSheetOptionsOf(p) {
+  return p.chains.map((c) => {
+    const email = p.lead ? leadCardEmailOf({ chain: c, lead: p.lead, workspace: p.workspace, nowMs: p.nowMs, tz: p.tz }) : null;
+    const holes = email && email.blocked ? email.blocked : null;
+    const steps = c.steps.filter((s) => !s.hand).length;
+    return {
+      rootId: c.root_id,
+      name: c.name,
+      meta: `${plural(steps, "email", "emails")} \xB7 ${c.owner_sends ? "from your own inbox" : "from your mailboxes"}`,
+      fill: holes ? holes : email && email.note ? SW.greets : SW.fills,
+      tone: holes ? "warn" : "ok",
+      on: c.root_id === p.picked
+    };
+  });
+}
+function leadSheetReasonsOf(vm) {
+  if (vm.company) return [];
+  return [
+    ...vm.rated && vm.rated.low ? [{ text: vm.rated.low, tone: "warn", from: "its listing" }] : [],
+    ...vm.claimedNote ? [{ text: "Listing not claimed", tone: "info", from: "its listing" }] : []
+  ];
+}
+function leadSheetAboutOf(vm) {
+  const listing = vm.company ? vm.company.source : "its listing";
+  const rows2 = [
+    ...vm.rated ? [
+      {
+        k: "Rating",
+        v: [vm.rated.score, vm.rated.reviews, vm.rated.low].filter(Boolean).join(" \xB7 "),
+        from: "listing"
+      }
+    ] : [],
+    ...vm.weekSummary ? [{ k: "Hours", v: vm.weekSummary, from: "listing" }] : [],
+    ...vm.where ? [{ k: "Address", v: vm.where.line, from: vm.distance || null }] : [],
+    ...vm.about ? [{ k: "About", v: vm.about, from: null }] : [],
+    // The listing's own facts, each said once: the rating is the row above, with its low share.
+    ...vm.facts.filter((f) => !(vm.rated && f.k === "Rated")).map((f) => ({ k: f.k, v: f.v, from: null }))
+  ];
+  return { head: vm.company ? "The company" : "The place", from: vm.company ? listing : "its listing", rows: rows2 };
+}
+function leadSheetStandOf(p) {
+  if (p.track) return { title: SW.inSequence(p.track.name), line: p.track.line ?? "" };
+  if (p.state === "closed" && p.closed) return { title: p.closed.title, line: p.closed.line };
+  if (p.searchWrites)
+    return { title: "Not in a sequence yet", line: `${SW.goesWith(p.searchWrites)} in its next batch.` };
+  return {
+    title: "Not in a sequence yet",
+    line: p.target ? `Add puts it on \u201C${p.target}\u201D's list; it goes in its next batch.` : SW.noTarget
+  };
+}
+function leadSheetChecksOf(vm) {
+  const passed = vm.checkDots.filter((d) => d === "yes").length;
+  return SW.why.checks(passed, vm.checkDots.length);
+}
 
 // src/leads/search/people-plan.ts
 var PEOPLE_CARD = "people_at_companies";
@@ -35571,6 +35982,7 @@ function inboxTemplates(templates, to) {
   const rows2 = [];
   let promotions = 0;
   let unfillable = 0;
+  let afterVisit = 0;
   const refused = [];
   for (const t of templates) {
     const blocked = templateBlocked(t);
@@ -35578,7 +35990,8 @@ function inboxTemplates(templates, to) {
       refused.push(blocked);
       continue;
     }
-    if (slotToWrite(t)) {
+    const blank = inboxBlankOf(t);
+    if (!blank && slotToWrite(t)) {
       unfillable += 1;
       continue;
     }
@@ -35586,26 +35999,37 @@ function inboxTemplates(templates, to) {
       promotions += 1;
       continue;
     }
-    rows2.push({ template: t, title: titleWithoutLanguage(templateTitle(t.name, t.title), t.language) });
+    const starter = starterByName(t.name);
+    const trigger = starter?.trigger ?? null;
+    if (trigger === "visited" && to.visit === "ahead") {
+      afterVisit += 1;
+      continue;
+    }
+    const fits = !!blank && !!starter && trigger === null || trigger === "visit_tomorrow" && to.visit === "ahead";
+    rows2.push({ template: t, title: titleWithoutLanguage(templateTitle(t.name, t.title), t.language), blank, fits });
   }
   const isDefault = (r2) => languageBase(r2.template.language) === "en";
   const named = [...new Set(rows2.map((r2) => r2.template.name))];
   const inDefault = (name) => rows2.some((r2) => r2.template.name === name && isDefault(r2));
   const names3 = [...named.filter(inDefault), ...named.filter((name) => !inDefault(name))];
-  const ordered = names3.flatMap((name) => {
+  const byName = names3.flatMap((name) => {
     const own = rows2.filter((r2) => r2.template.name === name);
     return [...own.filter(isDefault), ...own.filter((r2) => !isDefault(r2))];
   });
+  const ordered = [...byName.filter((r2) => r2.fits), ...byName.filter((r2) => !r2.fits)];
   const reads = (title) => ordered.filter((r2) => r2.title === title).length;
   const sendable = ordered.map((r2) => ({
     template: r2.template,
     title: r2.title,
-    label: reads(r2.title) > 1 ? `${r2.title} \xB7 ${languageWords(r2.template.language)}` : r2.title
+    label: reads(r2.title) > 1 ? `${r2.title} \xB7 ${languageWords(r2.template.language)}` : r2.title,
+    blank: r2.blank,
+    fits: r2.fits
   }));
   const held = [
     refused.length ? `${refused.length} that WhatsApp would refuse (${[...new Set(refused)].join(", ")})` : "",
     promotions ? `${promotions} promotion${promotions === 1 ? "" : "s"} (${to.who} hasn't said yes to offers)` : "",
-    unfillable ? `${unfillable} that ${unfillable === 1 ? "needs" : "need"} words the Inbox doesn't ask for` : ""
+    unfillable ? `${unfillable} that ${unfillable === 1 ? "needs" : "need"} words the Inbox doesn't ask for` : "",
+    afterVisit ? `${afterVisit} for afterwards (${to.who}'s booking is ahead)` : ""
   ].filter(Boolean);
   const said = held.length > 1 ? `${held.slice(0, -1).join(", ")} and ${held[held.length - 1]}` : held[0];
   return { sendable, hidden: held.length ? `Not offered: ${said}.` : null };
@@ -35645,6 +36069,51 @@ function slotToWrite(t) {
   const at3 = inboxSlots(t).findIndex((s) => !INBOX_FILLS.has(s.kind));
   if (at3 < 0) return null;
   return slotLabels({ name: t.name, language: t.language ?? "en_US", variables: t.variables })[at3] ?? `Value ${at3 + 1}`;
+}
+var TEMPLATE_WORDS_MAX = 300;
+function templateWords(words2) {
+  return (words2 ?? "").replace(/\s+/g, " ").trim();
+}
+function inboxBlankOf(t) {
+  const slots = inboxSlots(t);
+  const open = slots.flatMap((s, at3) => INBOX_FILLS.has(s.kind) ? [] : [{ s, at: at3 }]);
+  const only = open.length === 1 ? open[0] : void 0;
+  if (!only || only.s.kind !== "text" || only.s.value) return null;
+  const labels = slotLabels({ name: t.name, language: t.language ?? "en_US", variables: t.variables });
+  const vars = Array.isArray(t.variables) ? t.variables : [];
+  const example = vars[only.at]?.example;
+  return {
+    at: only.at,
+    label: labels[only.at] ?? `Value ${only.at + 1}`,
+    example: typeof example === "string" && example.trim() ? example.trim() : null
+  };
+}
+function inboxTemplateParts(t, facts) {
+  const body = String(t.body_preview ?? "");
+  const blank = inboxBlankOf(t);
+  if (!body) return blank ? [{ blank: blank.label }] : [];
+  const slots = inboxSlots(t);
+  const labels = slotLabels({ name: t.name, language: t.language ?? "en_US", variables: t.variables });
+  const vars = Array.isArray(t.variables) ? t.variables : [];
+  const valueAt2 = /* @__PURE__ */ new Map();
+  slots.forEach((s, i) => {
+    const given = vars[i]?.position;
+    const pos = typeof given === "number" ? given : i + 1;
+    const label = labels[i] ?? `Value ${i + 1}`;
+    const words2 = s.kind === "first_name" ? facts.firstName || "there" : s.kind === "business_name" ? facts.businessName || `[${label}]` : s.kind === "booking_link" ? facts.bookingLink?.replace(/^https?:[/][/]/, "") || `[${label}]` : s.kind === "text" && s.value ? s.value : null;
+    valueAt2.set(pos, blank && i === blank.at ? { blank: blank.label } : { words: words2 ?? `[${label}]` });
+  });
+  const parts2 = [];
+  let last = 0;
+  for (const m of body.matchAll(/\{\{(\d+)\}\}/g)) {
+    const at3 = m.index ?? 0;
+    if (at3 > last) parts2.push({ words: body.slice(last, at3) });
+    parts2.push(valueAt2.get(Number(m[1])) ?? { words: m[0] });
+    last = at3 + m[0].length;
+  }
+  if (last < body.length) parts2.push({ words: body.slice(last) });
+  if (blank && !parts2.some((part) => part.blank !== void 0)) parts2.push({ words: " " }, { blank: blank.label });
+  return parts2;
 }
 
 // src/new-conversation/person-draft.ts
@@ -46236,8 +46705,8 @@ function toSlotParts(text, set = { kind: "numbered" }) {
   for (const m of slotMentions(set, text)) {
     if (m.key === "") continue;
     if (m.index > last) parts2.push({ kind: "text", text: text.slice(last, m.index) });
-    const slot = { kind: "slot", slot: m.key };
-    parts2.push(m.written === slotWritten(m.key) ? slot : { ...slot, written: m.written });
+    const slot2 = { kind: "slot", slot: m.key };
+    parts2.push(m.written === slotWritten(m.key) ? slot2 : { ...slot2, written: m.written });
     last = m.index + m.written.length;
   }
   if (last < text.length) parts2.push({ kind: "text", text: text.slice(last) });
@@ -46247,10 +46716,10 @@ function fromSlotParts(parts2) {
   return parts2.map((p) => p.kind === "slot" ? partWritten(p) : p.text).join("");
 }
 var within = (text, at3) => Math.max(0, Math.min(text.length, Math.trunc(at3)));
-function insertSlot(text, slot, start, end) {
+function insertSlot(text, slot2, start, end) {
   const from = within(text, Math.min(start, end));
   const to = within(text, Math.max(start, end));
-  const written = slotWritten(slot);
+  const written = slotWritten(slot2);
   return { text: `${text.slice(0, from)}${written}${text.slice(to)}`, caret: from + written.length };
 }
 function clampWords(text, caret, max, set = { kind: "numbered" }) {
@@ -46290,9 +46759,9 @@ function eraseSlot(text, start, end, way, set = { kind: "numbered" }) {
   }
   return null;
 }
-var slotKnown = (set, slot) => set.keys.includes(String(slot));
-function slotLabel2(set, slot) {
-  const key = String(slot);
+var slotKnown = (set, slot2) => set.keys.includes(String(slot2));
+function slotLabel2(set, slot2) {
+  const key = String(slot2);
   const own = set.labels[set.keys.indexOf(key)]?.trim();
   return own || (set.kind === "numbered" ? `Value ${key}` : key);
 }
@@ -50135,6 +50604,7 @@ export {
   TEMPLATE_STATUSES,
   TEMPLATE_STATUS_WORDS,
   TEMPLATE_TITLE_MAX,
+  TEMPLATE_WORDS_MAX,
   TENANT_STATUSES,
   TEXTING_NEEDS_RECORD_CLAUSE,
   TEXTING_NEEDS_RECORD_SENTENCE,
@@ -50144,6 +50614,7 @@ export {
   THEME_OPTIONS,
   THINKING_TYPES,
   THREAD_CHANNEL_WORDS,
+  THREAD_PANE_WORDS,
   TIMELINE_FILTERS,
   TIMETABLE_HORIZON_DAYS,
   TOAST_ICONS,
@@ -50785,8 +51256,10 @@ export {
   inAppFrom,
   inLastSendingHour,
   inLocalWeek,
+  inboxBlankOf,
   inboxBucketWord,
   inboxSlots,
+  inboxTemplateParts,
   inboxTemplates,
   indexFeed,
   industryOf,
@@ -50989,6 +51462,20 @@ export {
   leadRoleOf,
   leadRowOf,
   leadSearchWords,
+  leadSheetAboutOf,
+  leadSheetCellsOf,
+  leadSheetChecksOf,
+  leadSheetClosedOf,
+  leadSheetEndRailOf,
+  leadSheetFitOf,
+  leadSheetOptionsOf,
+  leadSheetRailOf,
+  leadSheetReasonsOf,
+  leadSheetReplyOf,
+  leadSheetStandOf,
+  leadSheetStateOf,
+  leadSheetStoryOf,
+  leadSheetTrackOf,
   leadSlots,
   leadStepStand,
   leadTileSrc,
@@ -51833,6 +52320,7 @@ export {
   templateUsage,
   templateUseNote,
   templateUseWords,
+  templateWords,
   tenantStatusFor,
   textingTermsMetadata,
   textingTermsVM,
@@ -51842,6 +52330,7 @@ export {
   themeButtonWords,
   themeColorOf,
   themePrefOf,
+  theyWroteLast,
   threadChannelOf,
   threadChannelWords,
   threadStanding,

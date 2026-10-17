@@ -246,7 +246,7 @@
   },
   "packages/contracts/src/conversations/inbox-thread.ts::toInboxThreadVM#1": {
     "lines": 194,
-    "branches": 40,
+    "branches": 38,
     "depth": 2
   },
   "packages/contracts/src/deals/sheet/deal-sheet-body.ts::dealSheetBody#1": {

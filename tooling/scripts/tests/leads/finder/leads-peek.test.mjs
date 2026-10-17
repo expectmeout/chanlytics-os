@@ -1,33 +1,35 @@
 /**
- * The peek, and everything the owner does to one lead from it: the stage, Not a fit and its five whys, Keep and
- * Exclude, Put back, a call from their own phone with its six outcomes, and a draft for their own inbox.
+ * The lead sheet (canvas B v2, sheet/sheet.tsx), the panel of every lead opened on Leads, and everything the owner does
+ * to one lead from it out of a pile: the stage in its ⋯, Not a fit and its five whys in the rail's place, Keep and Leave
+ * out, Put back, Erase, a call from their own phone with its six outcomes, and a draft for their own inbox. The rail's
+ * places for each state, and a pile's, are lead-workbench/lead-sheet.test.mjs's; this file is the acts the lead's panel
+ * always had, carried onto the sheet, and the five tabs that say what the panel said.
  *
- * Drawn on the tests' stub React, as refusals-on-the-page does: the peek's components are hookless, so a draw is a call
- * and the state is this file's, the way LeadsReal holds it on the real page. Everything is imported from its TSX module
- * (surfaces/leads/peek, decision 0015): LeadPeek and LeadPeekActions, the lightbox, the seams the page leans on (Esc,
- * focus, the return watcher, the photo warm-up) and the hint's two handlers; the kit's MoreMenu, Confirm and StatePill
- * draw as the app draws them. Nothing is mocked that the owner reads: the view model is contracts' own toLeadPeekVM and
- * the words are contracts' LEAD_WORDS. The page hands the acts a courier, and this file hands its own, so what the peek
- * asked of the door is read off it (the surface's own doors, and the wire they go over, are leads-bridge.test.mjs's).
- * The one thing the peek draws that reads the wire is the reach-out block (LeadReachOut): its read is answered here with
- * a lead no reach-out wrote to, which draws nothing, as it does for most leads.
+ * Drawn on the tests' stub React, as refusals-on-the-page does: a draw is a call and the page's state is this file's, the
+ * way LeadsReal holds it (its mode, the question armed, the draft). Everything is imported from its TSX module: the
+ * sheet, the panel's acts (peek/acts.tsx), the lightbox and the seams the page leans on (Esc, focus, the return watcher,
+ * the photo warm-up); the kit's Menu, SubTabs, Confirm and StatePill draw as the app draws them. Nothing is mocked that
+ * the owner reads: the view model is contracts' own toLeadPeekVM and the words are contracts'. The page hands the acts a
+ * courier, and this file hands its own, so what the sheet asked of the door is read off it (the surface's own doors,
+ * and the wire they go over, are leads-bridge.test.mjs's). The one thing the sheet reads by itself is the lead's story
+ * (useLeadStory): its read is answered here with a lead no reach-out wrote to, as it is for most leads.
  */
-import { test, mock } from "node:test";
+import { test } from "node:test";
 import assert from "node:assert/strict";
 import { roleGate } from "../../../../../packages/contracts/src/shell/refusal.ts";
 import { stateOf } from "../../../../../packages/contracts/src/shell/tone.ts";
 import {
   LEAD_WORDS,
-  LEAD_EMAIL_WORDS,
-  LEAD_LOCKED_LINE,
   LEAD_DRAFT_NOTE,
   LEAD_NO_ADDRESS,
   LEAD_NOT_A_FIT_WORDS,
+  LEAD_NOT_A_FIT_TITLE,
   LEAD_CONTACT_STANDARD_WORDS,
   leadDraftFooter,
   toLeadPeekVM,
   leadPeekMenu,
 } from "../../../../../packages/contracts/src/leads/leads.ts";
+import { LEAD_SHEET_WORDS } from "../../../../../packages/contracts/src/leads/lead-sheet.ts";
 import { hookFrames } from "../../_hook-frames.mjs";
 import { kitPages, useStubHooks } from "../../_legacy-react.mjs";
 
@@ -58,7 +60,7 @@ globalThis.React = {
       },
     ];
   },
-  // LeadReachOut (the peek's reach-out block, surfaces/leads/reach-out/lines.tsx) keeps its re-read counter in one.
+  // The lead's story (reach-out/lines.tsx useLeadStory) keeps its re-read counter in one.
   useReducer: (red, init) => {
     const k = frames.key();
     if (!(k in cells)) cells[k] = init;
@@ -98,8 +100,8 @@ globalThis.document = {
   removeEventListener: off(listeners),
   createElement: () => ({ setAttribute() {}, style: {}, classList: { add() {}, remove() {} } }),
 };
-// The wire, answering the one read the peek makes by itself: the reach-out block asks for the lead's story (GET
-// reach-outs/leads?lead=). A lead no reach-out wrote to has no timeline, and the block draws nothing.
+// The wire, answering the one read the sheet makes by itself: the lead's story (GET reach-outs/leads?lead=). A lead no
+// reach-out wrote to has no timeline, and the Activity tab draws no block for it.
 const wired = [];
 const json = (status, body) =>
   new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
@@ -123,7 +125,7 @@ globalThis.window = {
       return json(200, { ok: true, data: { lines: null, chain: null, timeline: null } });
     return json(404, {
       ok: false,
-      error: { code: "not_found", message: "The peek asked for something this test did not expect." },
+      error: { code: "not_found", message: "The sheet asked for something this test did not expect." },
     });
   },
   navigator: {
@@ -134,24 +136,23 @@ globalThis.window = {
     },
   },
   __roleGate: roleGate,
-  // The one colour vocabulary, as the app publishes it: the verdict's pill takes its tone from here.
+  // The one colour vocabulary, as the app publishes it: the fit's pill takes its tone from here.
   __chrome: { state: stateOf },
 };
-// The shell's helpers the peek still asks of the window by way of legacy-verbs: the role gate (`gate`), a thumb's swipe
-// (`touchSwipe`), the refusal toast and the overlay's `leaving` ref. The role store is each test's own (roleIs).
+// The shell's helpers the sheet still asks of the window by way of legacy-verbs: the role gate (`gate`), a thumb's swipe
+// (`touchSwipe`), the refusal toast. The role store is each test's own (roleIs).
 await import("../../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
-// The verdict's pill and the Erase question are the kit's (surfaces/kit), which the peek draws by way of legacy-parts
-// off the window, where seed-globals publishes them. The ⋯ and the ways of calling are the kit's Menu (Base UI's since
-// 5 Oct 2026), found by its type and read by what the peek hands it (kitItem). The kit's parts take their hooks from
-// the react module, which the stub reaches here.
+// The fit's pill and the Erase question are the kit's (surfaces/kit), which the sheet draws by way of legacy-parts off
+// the window, where seed-globals publishes them. The ⋯ and the ways of calling are the kit's Menu, found by its type and
+// read by what the sheet hands it (kitItem); the tabs are the kit's SubTabs, chosen as its onSelect is called.
 Object.assign(globalThis.window, kitPages);
 useStubHooks();
 const { Menu } = await import("../../../../../apps/dashboard/src/surfaces/kit/menu/menu.tsx");
-// The peek and what the page leans on, from where they live (surfaces/leads/peek, decision 0015).
-const { LeadPeek } = await import("../../../../../apps/dashboard/src/surfaces/leads/peek/peek.tsx");
+const { SubTabs } = await import("../../../../../apps/dashboard/src/surfaces/kit/sub-tabs/sub-tabs.tsx");
+// The sheet and what the page leans on, from where they live (surfaces/leads, decision 0015).
+const { LeadSheet } = await import("../../../../../apps/dashboard/src/surfaces/leads/sheet/sheet.tsx");
 const { LeadPeekActions } = await import("../../../../../apps/dashboard/src/surfaces/leads/peek/acts.tsx");
 const { LeadLightbox } = await import("../../../../../apps/dashboard/src/surfaces/leads/peek/lightbox.tsx");
-const { pkPlaceTip, pkScrolling } = await import("../../../../../apps/dashboard/src/surfaces/leads/peek/hint.tsx");
 const { leadPeekEscape, leadPeekFollows, leadPeekFocus, leadArmOnReturn, leadPhotoWarm } =
   await import("../../../../../apps/dashboard/src/surfaces/leads/peek/seams.ts");
 
@@ -164,6 +165,8 @@ const walk = (n, fn) => {
   if (n.rendered) walk(n.rendered, fn);
   // A kit Menu draws the page's control it is handed: Call's button, the ⋯.
   if (n.type === Menu) walk(n.props.trigger, fn);
+  // A kit Sheet draws its foot (the rail) beside its body.
+  if (n.props?.foot && typeof n.props.foot === "object") walk(n.props.foot, fn);
 };
 const all = (tree, pred) => {
   const out = [];
@@ -181,22 +184,35 @@ const textOf = (n) => {
   if (n.rendered !== undefined) return textOf(n.rendered);
   return (n.props?.children ?? []).map(textOf).join("");
 };
+const classed = (tree, re) => all(tree, (n) => re.test(n.props?.className || ""));
 /** A control pressed; a kit Menu's item (kitItem) is pressed through its act, as Base UI's item calls it. */
 const press = async (node) => {
   assert.ok(node, "no such control");
   if (typeof node.onSelect === "function") return node.onSelect();
   await node.props.onClick({ preventDefault() {}, stopPropagation() {}, currentTarget: node });
 };
-/**
- * A kit Menu's item by its words, the menu found by its control's test id (kit/menu/menu.tsx). Its opening is Base UI's,
- * driven in a browser by e2e/kit/kit-behaves.spec.ts; what the page hands it is its groups, read here.
- */
-const kitItem = (tree, testid, label) => {
-  const m = find(tree, (n) => n.type === Menu && n.props.trigger?.props?.["data-testid"] === testid);
-  return m?.props.groups.flatMap((g) => g.items ?? []).find((i) => i.label.includes(label)) ?? null;
+/** A kit Menu, found by its control's test id (kit/menu/menu.tsx). Its opening is Base UI's, driven in a browser by e2e/kit/kit-behaves.spec.ts. */
+const kitMenu = (tree, testid) =>
+  find(tree, (n) => n.type === Menu && n.props.trigger?.props?.["data-testid"] === testid);
+/** A kit Menu's item by its words: what the page hands it is its groups, read here. */
+const kitItem = (tree, testid, label) =>
+  kitMenu(tree, testid)
+    ?.props.groups.flatMap((g) => g.items ?? [])
+    .find((i) => i.label.includes(label)) ?? null;
+/** The ⋯'s stage: a choice of three, the one the lead is at ticked (people/menu-groups.tsx choiceOf). */
+const stageOf = (tree) => kitMenu(tree, "peek-more")?.props.groups.find((g) => g.choose)?.choose ?? null;
+const pickStage = async (P, label) => {
+  const choose = stageOf(P.draw().tree);
+  assert.ok(choose, "the ⋯ holds the stage");
+  await choose.onChoose(choose.options.find((o) => o.label === label).value);
 };
-// Call opens the ways of calling (LeadCallMenu, the kit's Menu): a way is one of its items.
-const callWay = async (P, label) => press(kitItem(P.draw().tree, "peek-act-call", label));
+/** A tab chosen, as the kit's SubTabs calls its onSelect; the sheet keeps it for this lead. */
+const tabTo = (P, id) => {
+  find(P.draw().tree, (n) => n.type === SubTabs).props.onSelect(id);
+  return P.draw().tree;
+};
+// Call opens the ways of calling (LeadCallMenu, the kit's Menu) on the Reach tab: a way is one of its items.
+const callWay = async (P, label) => press(kitItem(tabTo(P, "reach"), "peek-act-call", label));
 const settle = async (n = 6) => {
   for (let i = 0; i < n; i += 1) await new Promise((r) => setTimeout(r, 0));
 };
@@ -386,6 +402,17 @@ const courierOf = (over = {}) => {
   return api;
 };
 
+/** What the sheet asks of the sequences Add goes to: none yet, so it asks nothing (sheet/use-aim.ts). */
+const aimOf = () => ({
+  targets: [],
+  target: null,
+  load: async () => {},
+  check: async () => {},
+  checkOf: () => undefined,
+  choose() {},
+  reset() {},
+});
+
 /** The page's own state, the way LeadsReal holds it: peekMode, armed and draft beside peekId. */
 const page = (over = {}) => {
   const st = { peekId: LEAD, mode: "info", armed: null, draft: null, ...over };
@@ -424,16 +451,42 @@ const page = (over = {}) => {
       return st.mode;
     },
   };
-  const draw = () => {
+  const aim = aimOf();
+  /** The sheet as scope.tsx draws it out of a pile, with the acts LeadPeekActions built from the page. */
+  const draw = (more = {}) => {
     frames.begin();
     const acts = LeadPeekActions(p);
-    return { tree: LeadPeek({ vm: p.vm, mode: st.mode, armed: st.armed, draft: st.draft, ...acts }), acts };
+    const tree = LeadSheet({
+      row: null,
+      vm: p.vm,
+      phone: false,
+      tz: TZ,
+      mode: st.mode,
+      armed: st.armed,
+      draft: st.draft,
+      busy: false,
+      deck: null,
+      on: acts,
+      aim,
+      searchWrites: null,
+      pile: null,
+      monthLeft: null,
+      listId: null,
+      flash: p.flash,
+      onClose: () => {
+        st.peekId = null;
+      },
+      writeHeld() {},
+      ...more,
+    });
+    return { tree, acts };
   };
   return { st, p, draw };
 };
 
 const reset = () => {
   cells = [];
+  frames.reset();
   frames.begin();
   flashes.length = 0;
   opened.length = 0;
@@ -443,43 +496,41 @@ const reset = () => {
   wired.length = 0;
   delete globalThis.window.ST_STORE;
 };
+/** The words of every tab, for a test that reads all the sheet says. */
+const everyTab = (P) => ["why", "reach", "emails", "about", "activity"].map((id) => textOf(tabTo(P, id))).join(" ");
 
-/* ================================================== Task 12: the peek ==== */
+/* ======================================================= who they are ==== */
 
-test("the peek names the business, its sub-line, the fit as a sentence and the stage it is at", () => {
+test("the sheet names the business and its line, the fit as a meter, the reason, and the stage in its ⋯", () => {
   reset();
   const { tree } = page().draw();
   assert.equal(tree.props.role, "dialog");
   assert.equal(/\bpl-peek\b/.test(tree.props.className), true, "the page's own overlay: PL_OVERLAY names it apart");
+  assert.equal(tree.props["data-testid"], "lead-peek");
   assert.equal(textOf(byTestId(tree, "peek-name")), "Travis Heights Coaching Co.");
   assert.equal(textOf(byTestId(tree, "peek-sub")), "Personal trainer · Austin, TX");
-  // D8: the fit's word heads the verdict beside the evidence bar, and the why is its own line under it. The word is
-  // the pill its row wears (StatePill, one vocabulary), so Strong fit is the ok tone in the table and in the peek.
-  assert.equal(textOf(byTestId(tree, "peek-fit-word")), "Strong fit");
-  assert.equal(byTestId(tree, "peek-fit-word").props.className, "pill pill-ok pk-fit-word");
-  assert.equal(
-    find(byTestId(tree, "peek-verdict"), (n) => n.type === "b"),
-    null,
-    "REGRESSION: a bold word of its own, coloured by hand",
-  );
-  assert.equal(textOf(byTestId(tree, "peek-fit")), "Independent coaching · 5.0 from 16 reviews · email checked");
-  const stage = byTestId(tree, "peek-stage");
-  assert.equal(stage.props.role, "radiogroup");
+  // A strong fit is the meter alone (canvas B: "its word only when it is news"); what the checks found is its name.
+  assert.equal(byTestId(tree, "peek-fit-word"), null);
+  assert.match(byTestId(tree, "lead-sheet-fit").props["aria-label"], /\S/);
+  assert.equal(textOf(byTestId(tree, "lead-pile-why")), "Independent coaching · 5.0 from 16 reviews · email checked");
+  const stage = stageOf(tree);
   assert.deepEqual(
-    all(stage, (n) => n.props?.role === "radio").map((n) => [textOf(n), n.props["aria-checked"]]),
+    stage.options.map((o) => [o.label, o.value === stage.value]),
     [
       ["Ready", true],
       ["Contacted", false],
       ["Talking", false],
     ],
   );
+  const close = byTestId(tree, "peek-close");
+  assert.deepEqual([close.props.id, close.props["aria-label"]], ["lead-peek-close", LEAD_SHEET_WORDS.close]);
 });
 
 test("D1-lead-person-door: the name of a lead that became a person opens them in People; a lead that has not is its name alone", async () => {
   reset();
   const PERSON = "7b2d9c40-1e5f-4a63-8d27-3c9e5a1f6b88";
   const converted = page({ vm: vmOf({ stage: "converted", contact_id: PERSON }) });
-  assert.equal(converted.p.vm.contactId, PERSON, "the peek's view model carries the person (contracts toLeadPeekVM)");
+  assert.equal(converted.p.vm.contactId, PERSON, "the sheet's view model carries the person (contracts toLeadPeekVM)");
   const door = byTestId(converted.draw().tree, "peek-name-person");
   assert.ok(door, "the name is a door");
   assert.equal(textOf(door), "Travis Heights Coaching Co.");
@@ -488,254 +539,168 @@ test("D1-lead-person-door: the name of a lead that became a person opens them in
   assert.deepEqual(opened, [PERSON], "the page's own door to a person, the one the Talking toast presses");
   reset();
   const plain = page().draw().tree;
-  assert.equal(page().p.vm.contactId, null);
   assert.equal(byTestId(plain, "peek-name-person"), null, "no person, no door");
   assert.equal(textOf(byTestId(plain, "peek-name")), "Travis Heights Coaching Co.");
 });
 
-test("the peek hands its panes its acts and nothing else: vm, mode, armed, draft, busy, deck and phone stay its own", () => {
-  // Every prop but those seven is an act the panes call by name: the peek takes the rest of its props as the acts
-  // (`...on`), so a prop it was handed that is not one of the seven would reach the panes as an act. This holds the list.
-  reset();
-  const { p } = page();
-  const acts = LeadPeekActions(p);
-  const deck = { at: 2, of: 5, onPrev() {}, onNext() {} };
-  const tree = LeadPeek({ vm: p.vm, mode: "info", armed: null, draft: null, busy: true, deck, ...acts });
-  const pane = find(tree, (n) => n.props?.on);
-  assert.ok(pane, "a pane is handed the acts");
-  assert.deepEqual(Object.keys(pane.props.on).sort(), Object.keys(acts).sort());
-});
-
-test("the peek hosts the reach-out block of its lead: it asks the wire for that lead's story once, and a lead no reach-out wrote to draws no block", async () => {
+test("the sheet reads its lead's story once, and a lead no reach-out wrote to draws no block in Activity", async () => {
   reset();
   // Another lead than the rest of the file's: the client shares one request between two identical reads inside two seconds.
   const other = "5e000000-0000-4000-8000-000000000222";
   const P = page({ vm: vmOf({ id: other }) });
-  const first = P.draw().tree;
+  P.draw();
   await settle();
   assert.deepEqual(wired, [`/api/v1/reach-outs/leads?lead=${other}&workspace=harbor`], "one read, for this lead");
-  const second = P.draw().tree;
+  const activity = tabTo(P, "activity");
+  await settle();
   assert.equal(wired.length, 1, "drawn again, it does not ask again");
-  for (const tree of [first, second]) assert.equal(byTestId(tree, "peek-reach-out"), null, "no timeline, no block");
+  assert.equal(byTestId(activity, "peek-reach-out"), null, "no timeline, no block");
+  assert.equal(
+    textOf(byTestId(activity, "lead-sheet-stand")),
+    `Not in a sequence yet${LEAD_SHEET_WORDS.noTarget}`,
+    "where it stands: in no sequence, and no sequence takes leads added yet",
+  );
 });
 
-test("How you can reach them: the phone with its sources and its copy, the email with its state in words and Copy and Draft, and texts and WhatsApp locked with the reason", async () => {
+/* ========================================================== the tabs ==== */
+
+test("Reach: the email with its state in words, Copy and a draft; the phone with how it was checked and the ways to call; texts and WhatsApp locked with why", async () => {
   reset();
-  const { tree, acts } = page().draw();
-  // D8: each channel is one line -- its value, its mark, what to press -- and each note that was a sentence under the
-  // line is what the mark says when pointed at, focused or tapped.
-  const tipOf = (id) => textOf(find(byTestId(tree, id), (n) => n.props?.role === "tooltip"));
+  const P = page();
+  // On the card, the three ways at a glance: email, phone and site.
+  assert.deepEqual(
+    all(byTestId(P.draw().tree, "lead-card-reach"), (n) =>
+      /^lead-card-reach-/.test(n.props?.["data-testid"] || ""),
+    ).map((n) => n.props["data-testid"]),
+    ["lead-card-reach-email", "lead-card-reach-phone", "lead-card-reach-site"],
+  );
+  const tree = tabTo(P, "reach");
   assert.equal(
     textOf(byTestId(tree, "peek-phone-value")),
     "+1 (512) 555-0142",
     "a number reads as the app writes numbers everywhere else",
   );
-  assert.equal(tipOf("peek-phone"), "The same number on Google Maps and their website.");
-  assert.equal(
-    byTestId(tree, "peek-phone-note").props["aria-describedby"],
-    `${LEAD}-phone-note`,
-    "a screen reader hears the note from the mark",
-  );
-  // The phone's line copies the number. Call is the act pinned at the foot, said once: it was on this line as well.
-  assert.equal(byTestId(tree, "peek-call"), null, "no second Call on the line");
-  assert.equal(textOf(byTestId(tree, "peek-act-call")).trim(), "Call +1 (512) 555-0142");
-  const copyPhone = byTestId(tree, "peek-copy-phone");
-  assert.deepEqual(
-    [copyPhone.props["aria-label"], copyPhone.props["data-tip"]],
-    ["Copy the number", "Copy the number"],
-    "a quiet mark, heard and named on hover by the shared tip",
-  );
+  assert.equal(textOf(byTestId(tree, "peek-phone-words")), "The same number on Google Maps and their website.");
   assert.equal(textOf(byTestId(tree, "peek-email-value")), "hello@travisheightscoaching.example");
-  assert.equal(
-    byTestId(tree, "peek-email-note").props["aria-label"],
-    `Email: ${LEAD_EMAIL_WORDS.ok}`,
-    "the state is the mark's name",
-  );
+  assert.equal(textOf(byTestId(tree, "peek-email-words")), P.p.vm.reach.email.tip, "the mailbox's words, under it");
   // A line's acts are quiet marks: icon buttons, named for a screen reader and on hover (data-tip).
   for (const [id, name] of [
-    ["peek-copy", "Copy the email"],
-    ["peek-draft", "Draft an email"],
-    ["peek-copy-phone", "Copy the number"],
+    ["peek-copy", LEAD_WORDS.copyAria],
+    ["peek-draft", LEAD_WORDS.draftAria],
   ]) {
     const b = byTestId(tree, id);
     assert.deepEqual([b.props["aria-label"], b.props["data-tip"]], [name, name], id);
-    assert.match(b.props.className, /\bbtn-ghost\b.*\bbtn-icon\b/, `${id} is a quiet mark, not a boxed word`);
     assert.equal(textOf(b), "", `${id} says its name on hover, not on the line`);
   }
-  assert.equal(tipOf("peek-locked"), LEAD_LOCKED_LINE);
-  assert.deepEqual(
-    all(byTestId(tree, "peek-locked"), (n) => n.type === "button" || n.type === "a").map((n) => n.props.className),
-    ["pk-hint-mark"],
-    "nothing sends a text to a lead: its one button only says why",
+  assert.equal(textOf(byTestId(tree, "peek-locked-words")), P.p.vm.reach.locked.line);
+  assert.equal(
+    all(byTestId(tree, "peek-locked"), (n) => n.type === "button" || n.type === "a" || n.props?.onClick).length,
+    0,
+    "nothing sends a text to a lead: its line only says why",
   );
-  // Copy is the email row's alone: the pinned bar said it a second time, for the same address.
-  assert.equal(byTestId(tree, "peek-act-copy"), null);
   await press(byTestId(tree, "peek-copy"));
-  await press(byTestId(tree, "peek-copy-phone"));
+  await callWay(P, LEAD_WORDS.callWays.copy.label);
   assert.deepEqual(copied, [`email ${LEAD}`, `phone ${LEAD}`]);
-  assert.equal(typeof acts.onDraft, "function");
 });
 
-test("a catch-all email is named Unconfirmed, wears the half ring the table wears, and its mark says the search's own standard", () => {
+test("a catch-all email is named Unconfirmed on the card and in Reach, with the search's own standard", () => {
   reset();
-  const { tree } = page({ vm: vmOf({ email_state: "catch_all" }) }).draw();
-  const tipOf = (t) => textOf(find(byTestId(t, "peek-email"), (n) => n.props?.role === "tooltip"));
-  assert.equal(byTestId(tree, "peek-email-note").props["aria-label"], "Email: Unconfirmed");
-  // The state leads the tip where the note does not say it; the standard follows, as a sentence of its own.
-  assert.equal(
-    tipOf(tree),
-    `Unconfirmed. Their server accepts every address, so the check can't tell. ${LEAD_CONTACT_STANDARD_WORDS.email}`,
+  const P = page({ vm: vmOf({ email_state: "catch_all" }) });
+  const cell = byTestId(P.draw().tree, "lead-card-reach-email");
+  assert.match(textOf(cell), /Unconfirmed/);
+  const words = textOf(byTestId(tabTo(P, "reach"), "peek-email-words"));
+  assert.match(words, /Their server accepts every address, so the check can't tell\./);
+  assert.ok(
+    words.includes(LEAD_CONTACT_STANDARD_WORDS.email),
+    "and the search's own standard, as a sentence of its own",
   );
-  const ok = page().draw().tree;
-  assert.doesNotMatch(
-    tipOf(ok),
-    new RegExp(LEAD_CONTACT_STANDARD_WORDS.email),
+  reset();
+  const ok = textOf(byTestId(tabTo(page(), "reach"), "peek-email-words"));
+  assert.equal(
+    ok.includes(LEAD_CONTACT_STANDARD_WORDS.email),
+    false,
     "beside an address that checks out the standard would be a sentence saying nothing",
   );
-  assert.doesNotMatch(tipOf(ok), /^Checked\./, 'and "Checked." before "Mailbox exists" would say it twice');
-  // The mark is the reach shape the row's column wears, so the table and the peek speak one language.
-  assert.ok(
-    find(byTestId(tree, "peek-email"), (n) => /\bld-slot-part\b/.test(n.props?.className || "")),
-    "the half ring, not a check",
-  );
-  assert.equal(all(byTestId(tree, "peek-email"), (n) => /\bld-slot-ok\b/.test(n.props?.className || "")).length, 0);
 });
 
-test("the checks are what the verdict's evidence bar says: two groups, what was seen and what Claude read, each with where it came from, and nothing Claude read wears a plain check", () => {
+test("Why: every check with its mark and where it came from; what was seen against what Claude read; nothing read wears a plain check", () => {
   reset();
-  const { tree } = page().draw();
-  // D8: the checks were a fold of their own below the verdict. They are the bar's card now, on the verdict's line.
-  const verdict = byTestId(tree, "peek-verdict");
-  const bar = byTestId(verdict, "peek-check-bar");
-  assert.equal(bar.type, "svg", "one svg with its own geometry, never sized spans (#734)");
-  assert.equal(all(bar, (n) => n.type === "rect").length, CHECKS.length, "one segment a check");
-  assert.equal(
-    byTestId(verdict, "peek-checks-summary").props["aria-label"],
-    "7 checks passed",
-    "the bar's name is the checks' sentence",
-  );
-  const seen = byTestId(verdict, "peek-checks-seen");
-  const read = byTestId(verdict, "peek-checks-read");
-  assert.ok(seen && read, "the two groups, told apart by a hairline rather than a heading");
-  assert.equal(
-    find(verdict, (n) => n.props?.className === "pk-group-label"),
-    null,
-  );
-  const card = find(verdict, (n) => n.props?.role === "tooltip");
-  assert.equal(
-    byTestId(verdict, "peek-checks-summary").props["aria-describedby"],
-    card.props.id,
-    "a screen reader hears the list from the bar",
-  );
-  assert.ok(find(card, (n) => n === seen) && find(card, (n) => n === read), "both groups are the bar's card");
+  const P = page();
+  const tree = P.draw().tree;
+  assert.equal(textOf(byTestId(tree, "lead-sheet-pane-why")).includes("7 of 7 checks"), true, "the head counts them");
+  const rows = classed(byTestId(tree, "peek-checks-open"), /^lw-ck /);
+  assert.equal(rows.length, CHECKS.length, "every check");
   assert.deepEqual(
-    all(seen, (n) => /^pk-ck /.test(n.props?.className || "")).map((n) =>
-      textOf(find(n, (x) => x.props?.className === "pk-ck-t")),
-    ),
+    rows.map((r) => textOf(find(r, (x) => x.props?.className === "lw-src"))),
+    P.p.vm.groups.flatMap((g) => g.checks.map((c) => c.source)),
+    "each with where it came from",
+  );
+  const seen = rows.filter((r) => /\bseen\b/.test(r.props.className));
+  const read = rows.filter((r) => /\bread\b/.test(r.props.className));
+  assert.deepEqual(
+    seen.map((r) => textOf(r.props.children[1])),
     ["Open for business", "In the area you asked for", "Phone matches on two sources", "Mailbox exists"],
   );
-  assert.deepEqual(
-    all(read, (n) => /^pk-ck /.test(n.props?.className || "")).map((n) =>
-      textOf(find(n, (x) => x.props?.className === "from")),
-    ),
-    ["Claude · the listing", "Claude · the listing", "Claude · website"],
-  );
-  assert.equal(
-    all(read, (n) => /pk-ck-check/.test(n.props?.className || "")).length,
-    0,
-    "nothing read wears a plain check mark (P2)",
-  );
-  assert.equal(all(seen, (n) => /pk-ck-check/.test(n.props?.className || "")).length, 4, "what was seen does");
+  assert.equal(read.length, 3);
+  assert.equal(read.flatMap((r) => classed(r, /pk-ck-check/)).length, 0, "nothing read wears a plain check mark (P2)");
+  assert.equal(seen.flatMap((r) => classed(r, /pk-ck-check/)).length, 4, "what was seen does");
 });
 
-test("the peek says more, as its canvas draws it (L2): the checks open under the verdict, the words under each way to reach them, the listing's facts open, and how the ratings fall", () => {
-  reset();
-  {
-    const vm = vmOf({ reviews_dist: { one: 2, two: 1, three: 1, four: 4, five: 8 } });
-    const { tree } = page({ vm }).draw();
-    const open = byTestId(tree, "peek-checks-open");
-    assert.ok(open, "the checks stand open under the verdict");
-    assert.ok(
-      byTestId(open, "peek-checks-seen-open") && byTestId(open, "peek-checks-read-open"),
-      "in their two groups",
-    );
-    assert.equal(all(open, (n) => /^pk-ck /.test(n.props?.className || "")).length, CHECKS.length, "every check");
-    assert.deepEqual(
-      all(open, (n) => /^pk-ck /.test(n.props?.className || "")).map((n) =>
-        textOf(find(n, (x) => x.props?.className === "from")),
-      ),
-      vm.groups.flatMap((g) => g.checks.map((c) => c.source)),
-      "each with where it came from",
-    );
-    assert.equal(textOf(byTestId(tree, "peek-phone-words")), vm.reach.phone.tip, "the phone's words, under the number");
-    assert.equal(
-      textOf(byTestId(tree, "peek-email-words")),
-      vm.reach.email.tip,
-      "the mailbox's words, under the address",
-    );
-    assert.equal(textOf(byTestId(tree, "peek-locked-words")), vm.reach.locked.line, "and why texts wait");
-    assert.equal(byTestId(tree, "peek-found").props.open, true, "the listing's facts stand open");
-    assert.deepEqual(
-      all(byTestId(tree, "peek-spread"), (n) => n.props?.["data-testid"] === "peek-spread-row").map((r) =>
-        textOf(find(r, (x) => /pk-spread-pct/.test(x.props?.className || ""))),
-      ),
-      ["50%", "25%", "6%", "6%", "13%"],
-      "five stars first, each bar its share of the sixteen",
-    );
-  }
-});
-
-test("a criterion Claude could not tell says so, in its own group, and never a check", () => {
+test("a criterion Claude could not tell says so, and never a check", () => {
   reset();
   const unsure = CHECKS.map((c) =>
     c.key === "independent" ? { ...c, answer: "unknown", reason: "the listing does not say" } : c,
   );
-  const { tree } = page({ vm: vmOf({ member: { checks: unsure } }) }).draw();
-  const ck = byTestId(tree, "peek-check-independent");
-  // D8: the card names what could not be told and leaves the why off: its source says where, and a card is a list
-  // someone scans, not a paragraph.
-  assert.equal(textOf(find(ck, (n) => n.props?.className === "pk-ck-t")), "Independent: couldn't tell");
-  assert.equal(/\bwarn\b/.test(ck.props.className), true);
-  assert.equal(all(ck, (n) => /pk-ck-check/.test(n.props?.className || "")).length, 0);
+  const tree = page({ vm: vmOf({ member: { checks: unsure } }) }).draw().tree;
+  const ck = byTestId(tree, "peek-check-independent-open");
+  assert.match(textOf(ck), /couldn't tell/);
+  assert.equal(classed(ck, /pk-ck-ask/).length, 1, "the mark that asks");
+  assert.equal(classed(ck, /pk-ck-check/).length, 0);
 });
 
-test("the other addresses are folded, with why Claude picked this one; Found is three lines; the site and Instagram are the foot", () => {
+test("the other addresses fold in Reach with why Claude picked this one; how it was found is Activity's; the site and Instagram are About's", () => {
   reset();
-  const { tree } = page().draw();
-  const others = byTestId(tree, "peek-others");
+  const P = page();
+  const reach = tabTo(P, "reach");
+  const others = byTestId(reach, "peek-others");
   assert.equal(others.type, "details", "folded, not open");
-  assert.equal(textOf(byTestId(tree, "peek-others-summary")), "2 other addresses on their site");
+  assert.equal(textOf(byTestId(reach, "peek-others-summary")), "2 other addresses on their site");
   assert.deepEqual(all(others, (n) => n.type === "li").map(textOf), [
     "careers@travisheightscoaching.example — for job seekers",
     "A coach's personal mailbox — not the business",
   ]);
-  assert.equal(textOf(byTestId(tree, "peek-others-why")), "on their own domain and answers bookings");
-  // D8: one short head, and three short steps with the minute each happened in its own hover. Four copies of the same
-  // date and time said nothing the head had not; the mailbox's long sentence is the email row's to say.
-  assert.equal(textOf(byTestId(tree, "peek-found-summary")), "On Google Maps · today");
-  const steps = all(byTestId(tree, "peek-found"), (n) => n.props?.className === "pk-step");
-  assert.deepEqual(steps.map(textOf), [
-    "Google Maps · searching “personal trainer”",
-    "travisheightscoaching.example · an email on the contact page",
-    "Mailbox · Checked",
-  ]);
+  assert.equal(textOf(byTestId(reach, "peek-others-why")), "on their own domain and answers bookings");
+  const activity = tabTo(P, "activity");
+  assert.ok(textOf(byTestId(activity, "lead-sheet-pane-activity")).includes("On Google Maps · today"));
+  const steps = all(byTestId(activity, "peek-found"), (n) => n.props?.className === "lw-found-i");
   assert.deepEqual(
-    steps.map((s) => s.props.title),
-    ["2:14 PM", "2:14 PM", "2:16 PM"],
-    "the minute is kept, where it is asked for",
+    steps.map((s) => textOf(s.props.children[1])),
+    [
+      "Google Maps · searching “personal trainer”",
+      "travisheightscoaching.example · an email on the contact page",
+      "Mailbox · Checked",
+    ],
   );
-  assert.equal(byTestId(tree, "peek-website").props.href, "https://travisheightscoaching.example");
-  assert.equal(byTestId(tree, "peek-instagram").props.href, "https://instagram.example/travisheights");
+  assert.deepEqual(
+    steps.map((s) => textOf(s.props.children[2])),
+    ["2:14 PM", "2:14 PM", "2:16 PM"],
+    "the minute each happened in",
+  );
+  const about = tabTo(P, "about");
+  assert.equal(byTestId(about, "peek-website").props.href, "https://travisheightscoaching.example");
+  assert.equal(byTestId(about, "peek-instagram").props.href, "https://instagram.example/travisheights");
 });
 
-test("a Needs review lead says so and offers Keep and Exclude; an Excluded one says it does not count and offers Put back", async () => {
+/* ======================================================== the decisions ==== */
+
+test("a Needs review lead says so and its rail offers Keep and Leave out; a lead left out says what stopped and offers Put back", async () => {
   reset();
   const review = page({ vm: vmOf({ member: { class: "review", fit: null, reason: "Couldn't check the email" } }) });
   let tree = review.draw().tree;
-  assert.equal(textOf(byTestId(tree, "peek-fit-word")), "Needs review");
-  assert.equal(textOf(byTestId(tree, "peek-fit")), "Couldn't check the email");
-  await press(byTestId(tree, "peek-keep"));
-  await press(byTestId(tree, "peek-exclude"));
+  assert.equal(textOf(byTestId(tree, "peek-fit-word")), "Needs review", "news, so the word is drawn");
+  assert.equal(textOf(byTestId(tree, "lead-pile-why")), "Couldn't check the email");
+  await press(byTestId(tree, "lead-sheet-keep"));
+  await press(byTestId(tree, "lead-sheet-exclude"));
   assert.deepEqual(
     flashes.map((f) => f.msg),
     [`keep ${LEAD}`, `exclude ${LEAD}`],
@@ -758,41 +723,44 @@ test("a Needs review lead says so and offers Keep and Exclude; an Excluded one s
     "Left out — Chain gyms",
     "what happened first, then the owner's own word for the criterion",
   );
-  assert.equal(
-    textOf(byTestId(tree, "peek-fit")),
-    "Part of Crunch Fitness, a chain with many locations",
-    "then the judge's reason, on its own line",
-  );
-  assert.equal(byTestId(tree, "peek-stage"), null, "an excluded place has no stage");
-  assert.equal(textOf(byTestId(tree, "peek-left-out")), "Left out of this search. It doesn't count.");
-  await press(byTestId(tree, "peek-put-back"));
+  assert.equal(textOf(byTestId(tree, "lead-pile-why")), "Part of Crunch Fitness, a chain with many locations");
+  assert.ok(byTestId(tree, "lead-sheet-closed"), "what stopped, plainly");
+  assert.equal(stageOf(tree), null, "a place left out has no stage");
+  await press(byTestId(tree, "lead-sheet-put_back"));
   assert.deepEqual(
     flashes.map((f) => f.msg),
     [`put back ${LEAD}`],
   );
 });
 
-test("an operator sees Not a fit, Keep, Exclude and Put back disabled with the gate's sentence, and pressing one does nothing", async () => {
+test("an operator sees Keep, Leave out and Put back held with the gate's sentence, and pressing one does nothing; Not a fit is theirs", async () => {
   reset();
   globalThis.window.ST_STORE = { can: (a) => a !== "find", myRole: () => "operator" };
   const { tree } = page({
     vm: vmOf({ member: { class: "review", fit: null, reason: "Couldn't check the email" } }),
   }).draw();
   for (const [id, doing] of [
-    ["peek-not-a-fit", "set this lead aside"],
-    ["peek-keep", "keep this lead"],
-    ["peek-exclude", "exclude this lead"],
+    ["lead-sheet-keep", "keep this lead"],
+    ["lead-sheet-exclude", "leave this lead out"],
   ]) {
     const b = byTestId(tree, id);
     assert.equal(b.props["aria-disabled"], true, id);
     assert.equal(b.props["aria-description"], `Only an owner can ${doing}.`, id);
-    assert.equal(b.props.disabled, false, `${id}: never disabled + title, which no keyboard reaches`);
   }
-  await press(byTestId(tree, "peek-keep"));
+  await press(byTestId(tree, "lead-sheet-keep"));
   assert.deepEqual(flashes, [], "the gate replaced the handler");
+  // The stage door is an operator's (route-policy: POST leads/[id]/stage), and Not a fit goes through it.
+  reset();
+  globalThis.window.ST_STORE = { can: (a) => a !== "find", myRole: () => "operator" };
+  assert.notEqual(byTestId(page().draw().tree, "lead-sheet-not_a_fit").props["aria-disabled"], true);
+  reset();
+  globalThis.window.ST_STORE = { can: () => false, myRole: () => "viewer" };
+  const x = byTestId(page().draw().tree, "lead-sheet-not_a_fit");
+  assert.equal(x.props["aria-disabled"], true);
+  assert.equal(x.props["aria-description"], "Only an owner or operator can set this lead aside.");
 });
 
-/* ========================================= PR 9: Erase, the owner's ==== */
+/* ================================================= Erase, the owner's ==== */
 
 const roleIs = (role) => {
   globalThis.window.ST_STORE = { can: (a) => role === "owner" || a !== "find", myRole: () => role };
@@ -800,12 +768,12 @@ const roleIs = (role) => {
 /** The ⋯'s item by its words: the kit's Menu. */
 const menuItem = async (P, label) => kitItem(P.draw().tree, "peek-more", label);
 
-test("the owner's ⋯ offers Erase this lead; it asks first in contracts' words, and yes erases through the one door, closes the peek and says it is gone", async () => {
+test("the owner's ⋯ offers Erase this lead; it asks first in contracts' words, and yes erases through the one door, closes the sheet and says it is gone", async () => {
   reset();
   roleIs("owner");
   const courier = courierOf();
   const P = page({ courier });
-  assert.equal(P.draw().tree && byTestId(P.draw().tree, "peek-erase-confirm"), null, "nothing asked before the press");
+  assert.equal(byTestId(P.draw().tree, "peek-erase-confirm"), null, "nothing asked before the press");
   const item = await menuItem(P, LEAD_WORDS.erase.act);
   assert.ok(item, "the ⋯ holds Erase this lead");
   assert.equal(item.tone, "danger", "drawn as the act that destroys, in the menu's own way");
@@ -820,12 +788,12 @@ test("the owner's ⋯ offers Erase this lead; it asks first in contracts' words,
   await press(byTestId(ask, "peek-erase-yes"));
   await settle();
   assert.deepEqual(courier.seen, [["erase", LEAD]], "the one door, with the lead's id");
-  assert.equal(P.st.peekId, null, "the peek closes on a lead that is gone");
+  assert.equal(P.st.peekId, null, "the sheet closes on a lead that is gone");
   assert.equal(flashes.at(-1).msg, "Travis Heights Coaching Co. is erased. It won't be found again.");
   assert.equal(flashes.at(-1).undo, undefined, "no Undo: it goes for good");
 });
 
-test("No leaves the lead as it was, and a refused Erase says why and keeps the peek open", async () => {
+test("No leaves the lead as it was, and a refused Erase says why and keeps the sheet open", async () => {
   reset();
   roleIs("owner");
   let P = page();
@@ -869,12 +837,12 @@ test("REVIEW: Yes, erase pressed twice sends one erase, and the question says it
   assert.equal(flashes.filter((f) => /is erased/.test(String(f.msg))).length, 1, "one toast");
 });
 
-test("an operator, a partner, a viewer and a role the page cannot read are offered no ⋯ at all: Erase is the owner's, and a secondary act stays out of sight", () => {
+test("an operator, a partner, a viewer and a role the page cannot read find no Erase in the ⋯: it is the owner's", () => {
   for (const role of ["operator", "partner", "viewer", null]) {
     reset();
     if (role) roleIs(role);
     const { tree } = page().draw();
-    assert.equal(byTestId(tree, "peek-more"), null, `${role ?? "no role"}: no menu`);
+    assert.equal(kitItem(tree, "peek-more", LEAD_WORDS.erase.act), null, `${role ?? "no role"}: no Erase`);
     assert.equal(
       find(tree, (n) => textOf(n) === LEAD_WORDS.erase.act),
       null,
@@ -888,9 +856,13 @@ test("an operator, a partner, a viewer and a role the page cannot read are offer
   assert.deepEqual([leadPeekMenu("operator"), leadPeekMenu(undefined)], [[], []]);
   // A partner (decision 0012) stands below an owner on the door's own ladder: DELETE leads/[id] refuses them too.
   assert.deepEqual(leadPeekMenu("partner"), [], "a partner is offered no Erase");
+  // A lead left out has no stage to choose, so for a member who may not erase there is nothing behind a ⋯ at all.
+  reset();
+  const out = page({ vm: vmOf({ member: { class: "excluded", fit: null, excluded_by: "chain" } }) }).draw().tree;
+  assert.equal(byTestId(out, "peek-more"), null);
 });
 
-test("a stage click goes through the one door and says what the door said, with Undo; it never converts", async () => {
+test("a stage chosen in the ⋯ goes through the one door and says what the door said, with Undo; it never converts", async () => {
   reset();
   const courier = courierOf({
     stage: () => ({
@@ -909,12 +881,12 @@ test("a stage click goes through the one door and says what the door said, with 
     }),
   });
   const P = page({ courier });
-  await press(byTestId(P.draw().tree, "peek-stage-converted"));
+  await pickStage(P, "Talking");
   await settle();
   assert.deepEqual(
     courier.seen[0],
     ["stage", LEAD, { kind: "stage", stage: "converted" }],
-    "a click says Talking; it never says convert",
+    "a choice says Talking; it never says convert",
   );
   assert.equal(
     flashes[0].msg,
@@ -925,7 +897,7 @@ test("a stage click goes through the one door and says what the door said, with 
   assert.deepEqual(opened, [], "nobody was made a person");
 });
 
-test("Esc backs out one step: the question it asked, then the pane it opened, then the peek", () => {
+test("Esc backs out one step: the question it asked, then the pane it opened, then the sheet", () => {
   reset();
   const st = { mode: "draft", armed: { kind: "call", leadId: LEAD, asked: true }, peekId: LEAD };
   const arg = {
@@ -950,11 +922,11 @@ test("Esc backs out one step: the question it asked, then the pane it opened, th
   assert.deepEqual(
     [leadPeekFollows("info", null), leadPeekFollows("draft", null), leadPeekFollows("info", { kind: "call" })],
     [true, false, false],
-    "a question or a draft holds the peek on its lead",
+    "a question or a draft holds the sheet on its lead",
   );
 });
 
-test("focus moves into the peek when it opens and back to the row when it closes, and the return watcher takes its listeners down", () => {
+test("focus moves into the sheet when it opens and back to the row when it closes, and the return watcher takes its listeners down", () => {
   reset();
   const focused = [];
   const el = (id) => ({ id, focus: () => focused.push(id) });
@@ -994,20 +966,25 @@ test("a refused act is the route's sentence, and nothing on the page pretends it
     stage: () => ({ ok: false, message: "This lead is gone.", code: "not_found", status: 404 }),
   });
   const P = page({ courier });
-  await press(byTestId(P.draw().tree, "peek-stage-nurture"));
+  await pickStage(P, "Contacted");
   await settle();
   assert.equal(flashes[0].tone, "danger");
   assert.equal(textOf(flashes[0].msg).includes("This lead is gone."), true);
 });
 
-/* ================================================= Task 13: the draft ==== */
+/* ========================================================= the draft ==== */
+
+/** Draft, pressed where it lives: the email's line on the Reach tab. */
+const draftFrom = async (P) => {
+  await press(byTestId(tabTo(P, "reach"), "peek-draft"));
+  await settle();
+};
 
 test("Draft asks the route once, shows what it wrote with the foot the law asks for, and never a field the page would have to encode", async () => {
   reset();
   const courier = courierOf();
   const P = page({ courier });
-  await press(byTestId(P.draw().tree, "peek-draft"));
-  await settle();
+  await draftFrom(P);
   const { tree } = P.draw();
   assert.deepEqual(courier.seen, [["draft", LEAD, { tone: "first" }]]);
   assert.equal(textOf(byTestId(tree, "peek-draft-to")), "hello@travisheightscoaching.example");
@@ -1026,12 +1003,8 @@ test("Draft asks the route once, shows what it wrote with the foot the law asks 
     byTestId(tree, "peek-open-mail").props.href,
     "mailto:hello%40travisheightscoaching.example?subject=Missed%20calls",
   );
-  assert.equal(
-    textOf(find(tree, (n) => n.props?.className === "pk-foot" && /Sent from your own inbox/.test(textOf(n)))).includes(
-      "Sent from your own inbox",
-    ),
-    true,
-  );
+  assert.equal(byTestId(tree, "lead-sheet-pane-why"), null, "the draft is the sheet's body while it is open");
+  assert.ok(byTestId(tree, "lead-pile-rail"), "and the rail stays under it");
 });
 
 test("Shorter and Warmer send what is on screen back with the tone, and the answer replaces it", async () => {
@@ -1048,8 +1021,7 @@ test("Shorter and Warmer send what is on screen back with the tone, and the answ
     }),
   });
   const P = page({ courier });
-  await press(byTestId(P.draw().tree, "peek-draft"));
-  await settle();
+  await draftFrom(P);
   await press(byTestId(P.draw().tree, "peek-tone-shorter"));
   await settle();
   assert.deepEqual(courier.seen[1], [
@@ -1064,32 +1036,31 @@ test("with no business address the draft asks for it in the route's words, and t
   reset();
   const courier = courierOf({ draft: () => ({ ok: false, message: LEAD_NO_ADDRESS }) });
   const P = page({ courier });
-  await press(byTestId(P.draw().tree, "peek-draft"));
-  await settle();
+  await draftFrom(P);
   const { tree } = P.draw();
   assert.equal(textOf(byTestId(tree, "peek-draft-error")), LEAD_NO_ADDRESS);
   assert.equal(byTestId(tree, "peek-draft-error").props.role, "alert");
   assert.equal(byTestId(tree, "peek-open-mail").props["aria-disabled"], true);
 });
 
-test("a lead whose email bounces is offered Call instead: no Copy, no Draft, and the note says so", () => {
+test("a lead whose email bounces is a call: the card says so, its rail's yes is Call, and Reach offers no Copy and no Draft", async () => {
   reset();
-  const { tree } = page({ vm: vmOf({ email_state: "invalid" }) }).draw();
-  assert.equal(byTestId(tree, "peek-email-note").props["aria-label"], "Email: Bounces");
-  assert.match(
-    textOf(find(byTestId(tree, "peek-email"), (n) => n.props?.role === "tooltip")),
-    /^Bounces\. That mailbox doesn't exist\. Call instead\./,
+  const P = page({ vm: vmOf({ email_state: "invalid" }) });
+  const tree = P.draw().tree;
+  assert.ok(byTestId(tree, "lead-sheet-phone"), "a phone and no email: the yes is a call");
+  assert.equal(
+    textOf(byTestId(tree, "lead-card-reach-email")),
+    `Email${P.p.vm.slots.mailbox.word}`,
+    "its cell says it in the row's own word",
   );
-  assert.ok(
-    find(byTestId(tree, "peek-email"), (n) => /\bld-slot-bad\b/.test(n.props?.className || "")),
-    "the struck ring the table wears for a bounce",
-  );
-  assert.equal(byTestId(tree, "peek-draft"), null);
-  assert.equal(byTestId(tree, "peek-copy"), null);
-  assert.ok(
-    byTestId(tree, "peek-copy-phone") && byTestId(tree, "peek-act-call"),
-    "the phone is what is left: its line and the Call at the foot",
-  );
+  const reach = tabTo(P, "reach");
+  assert.match(textOf(byTestId(reach, "peek-email-words")), /That mailbox doesn't exist/);
+  assert.equal(byTestId(reach, "peek-draft"), null);
+  assert.equal(byTestId(reach, "peek-copy"), null);
+  assert.ok(byTestId(reach, "peek-act-call"), "the phone is what is left");
+  await press(byTestId(P.draw().tree, "lead-sheet-call"));
+  assert.deepEqual(dialled, ["tel:+15125550142"], "the rail's Call rings from the owner's phone");
+  assert.deepEqual([P.st.armed.kind, P.st.armed.asked], ["call", false]);
 });
 
 test("Did you send it? is asked when the tab comes back, not when the draft opened; Yes marks them contacted with Undo", async () => {
@@ -1111,12 +1082,10 @@ test("Did you send it? is asked when the tab comes back, not when the draft open
     }),
   });
   const P = page({ courier });
-  await press(byTestId(P.draw().tree, "peek-draft"));
-  await settle();
+  await draftFrom(P);
   assert.equal(P.st.armed, null, "Draft alone arms nothing");
   await press(byTestId(P.draw().tree, "peek-open-mail"));
   assert.deepEqual([P.st.armed.kind, P.st.armed.asked], ["sent", false]);
-  P.draw();
   assert.equal(byTestId(P.draw().tree, "peek-sent-ask"), null, "nothing is asked while they are away");
 
   const stop = leadArmOnReturn(P.st.armed, P.p.setArmed);
@@ -1137,8 +1106,7 @@ test("Did you send it? is asked when the tab comes back, not when the draft open
 test("Copy copies the subject and the body and arms the same question", async () => {
   reset();
   const P = page();
-  await press(byTestId(P.draw().tree, "peek-draft"));
-  await settle();
+  await draftFrom(P);
   await press(byTestId(P.draw().tree, "peek-copy-draft"));
   await settle();
   assert.equal(copied[0].startsWith("Missed calls at Travis Heights\n\nHi,"), true);
@@ -1146,21 +1114,18 @@ test("Copy copies the subject and the body and arms the same question", async ()
   assert.equal(flashes.at(-1).msg, "Copied the email.");
 });
 
-/* ================================================= Task 14: the calls ==== */
+/* ========================================================= the calls ==== */
 
-test("Call dials tel: from the peek and asks how it went when the tab comes back; the six are one radiogroup and the note says its cap", async () => {
+test("Call asks how first and rings from the owner's phone; how it went is asked when the tab comes back; the six are one radiogroup and the note says its cap", async () => {
   reset();
   const P = page();
   // Call asks how first: its button opens the ways (Base UI's menu) and rings nobody; "Call from your phone" rings.
-  const call = find(
-    P.draw().tree,
-    (n) => n.type === Menu && n.props.trigger?.props?.["data-testid"] === "peek-act-call",
-  );
+  const call = kitMenu(tabTo(P, "reach"), "peek-act-call");
   assert.deepEqual(dialled, [], "REGRESSION: the panel's Call rang the business the moment it was pressed");
   assert.deepEqual(
     call.props.groups.map((g) => g.header),
     [undefined],
-    "the button already says the number, so no heading repeats it",
+    "the line already says the number, so no heading repeats it",
   );
   assert.deepEqual(
     call.props.groups.flatMap((g) => g.items).map((i) => `${i.label}${i.meta || ""}`),
@@ -1265,14 +1230,13 @@ test("the other five post what they say, each with Undo; a wrong number keeps th
     assert.deepEqual(opened, [], outcome);
   }
   reset();
-  const { tree } = page({ vm: vmOf({ phone_wrong: true }) }).draw();
-  assert.equal(/\bwrong\b/.test(byTestId(tree, "peek-phone-value").props.className), true);
-  assert.equal(byTestId(tree, "peek-act-call"), null, "a number marked wrong is not dialled again");
-  assert.equal(byTestId(tree, "peek-copy-phone"), null, "nor offered to be copied");
+  const reach = tabTo(page({ vm: vmOf({ phone_wrong: true }) }), "reach");
+  assert.equal(/\bwrong\b/.test(byTestId(reach, "peek-phone-value").props.className), true);
+  assert.equal(byTestId(reach, "peek-act-call"), null, "a number marked wrong is not dialled again, nor copied");
   assert.equal(
-    textOf(find(byTestId(tree, "peek-phone"), (n) => n.props?.role === "tooltip")),
+    textOf(byTestId(reach, "peek-phone-words")),
     "You marked this number wrong.",
-    "the struck number says why when pointed at",
+    "the struck number says why",
   );
 });
 
@@ -1285,28 +1249,36 @@ test("I didn't call clears the question and posts nothing", async () => {
   assert.deepEqual(courier.seen, []);
 });
 
-/* =============================================== Task 15: Not a fit ====== */
+/* ========================================================= Not a fit ====== */
 
-test("Not a fit asks why in five ways, and the list teaches nothing in this release", async () => {
+test("Not a fit asks why in five ways in the rail's own place, Back writes nothing, and the list teaches nothing in this release", async () => {
   reset();
   const P = page();
-  await press(byTestId(P.draw().tree, "peek-not-a-fit"));
+  await press(byTestId(P.draw().tree, "lead-sheet-not_a_fit"));
   const { tree } = P.draw();
+  assert.equal(byTestId(tree, "lead-pile-rail"), null, "the reasons stand where the rail stood");
   const why = byTestId(tree, "peek-why");
-  assert.equal(why.props.role, "menu");
-  assert.equal(textOf(find(why, (n) => n.props?.className === "pop-h")), "What makes it not a fit?");
-  assert.deepEqual(all(why, (n) => n.props?.role === "menuitem").map(textOf), [
-    LEAD_NOT_A_FIT_WORDS.chain,
-    LEAD_NOT_A_FIT_WORDS.wrong_kind,
-    LEAD_NOT_A_FIT_WORDS.too_far,
-    LEAD_NOT_A_FIT_WORDS.customer,
-    LEAD_NOT_A_FIT_WORDS.other,
-  ]);
+  assert.deepEqual([why.props.role, why.props["aria-label"]], ["group", LEAD_NOT_A_FIT_TITLE]);
+  assert.deepEqual(
+    ["chain", "wrong_kind", "too_far", "customer", "other"].map((w) =>
+      textOf(find(byTestId(why, `peek-why-${w}`), (n) => n.type === "span")),
+    ),
+    [
+      LEAD_NOT_A_FIT_WORDS.chain,
+      LEAD_NOT_A_FIT_WORDS.wrong_kind,
+      LEAD_NOT_A_FIT_WORDS.too_far,
+      LEAD_NOT_A_FIT_WORDS.customer,
+      LEAD_NOT_A_FIT_WORDS.other,
+    ],
+  );
   assert.equal(
     /learn|next searches|you said/i.test(textOf(why)),
     false,
     "the scoped learning and the you-said chips are release C",
   );
+  await press(byTestId(why, "peek-why-back"));
+  assert.equal(P.st.mode, "info");
+  assert.ok(byTestId(P.draw().tree, "lead-pile-rail"), "Back puts the rail back");
 });
 
 test("Already a customer hides the place and says so; the other four close the lead and say Not a fit; each has Undo", async () => {
@@ -1335,18 +1307,18 @@ test("Already a customer hides the place and says so; the other four close the l
       }),
     });
     const P = page({ courier });
-    await press(byTestId(P.draw().tree, "peek-not-a-fit"));
+    await press(byTestId(P.draw().tree, "lead-sheet-not_a_fit"));
     await press(byTestId(P.draw().tree, `peek-why-${why}`));
     await settle();
     assert.deepEqual(courier.seen[0], ["stage", LEAD, { kind: "not_a_fit", why }], why);
     assert.equal(flashes[0].msg, toast, why);
     await flashes[0].undo();
     assert.deepEqual(courier.seen[1], ["undo", "op-6", 9], why);
-    assert.equal(P.st.mode, "info", "the why list closes behind the answer");
+    assert.equal(P.st.mode, "info", "the reasons close behind the answer");
   }
 });
 
-test("no word the peek says names the vendor, or a dollar", () => {
+test("no word the sheet says names the vendor, or a dollar", () => {
   reset();
   const states = ["ok", "catch_all", "unknown", "invalid", "none", "checking"];
   for (const email_state of states) {
@@ -1365,8 +1337,7 @@ test("no word the peek says names the vendor, or a dollar", () => {
           { kind: "sent", leadId: LEAD, asked: true },
           { kind: "call", leadId: LEAD, asked: true, outcome: null, note: "" },
         ]) {
-          const P = page({ vm, mode, armed });
-          const said = textOf(P.draw().tree);
+          const said = everyTab(page({ vm, mode, armed }));
           assert.equal(
             /apify|compass|bounceverify|crawler|\$\d/i.test(said),
             false,
@@ -1378,8 +1349,10 @@ test("no word the peek says names the vendor, or a dollar", () => {
   }
 });
 
+/* ===================================================== About and photos ==== */
+
 // D2: who they are, from what the listing shows. Every line only when the listing said; a lead from before says nothing.
-test("the peek shows who they are: the photo, their own words, where, open today, the unclaimed note, the socials and the Maps page", async () => {
+test("About shows who they are: their own words, where, the listing unclaimed, the socials and the Maps page; and open today rides their line", () => {
   reset();
   const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"].map((day) => ({
     day,
@@ -1400,37 +1373,40 @@ test("the peek shows who they are: the photo, their own words, where, open today
       maps_url: "https://maps.example/?cid=1",
     }),
   });
-  let tree = shown.draw().tree;
-  assert.equal(byTestId(tree, "peek-photo").props.src, "https://lh3.example/p.jpg");
-  assert.equal(byTestId(tree, "peek-photo").props.alt, "", "a photo says nothing a screen reader must repeat");
-  assert.equal(textOf(byTestId(tree, "peek-about")), "Waterfront venue for weddings.");
-  assert.equal(
-    byTestId(tree, "peek-where").props.href,
-    "https://maps.example/?cid=1",
-    "the address opens the Maps page",
-  );
-  assert.equal(textOf(byTestId(tree, "peek-where")), "101 Biscayne Blvd, Miami, FL 33132");
-  assert.equal(
-    textOf(byTestId(tree, "peek-today")),
-    "Open until 6 PM",
+  assert.match(
+    textOf(byTestId(shown.draw().tree, "peek-sub")),
+    / · Open until 6 PM$/,
     "whether they are open now, which is what an owner about to call is asking",
   );
-  assert.equal(textOf(byTestId(tree, "peek-claimed")), "Listing not claimed by the owner");
+  let tree = tabTo(shown, "about");
+  const facts = textOf(byTestId(tree, "peek-about"));
+  for (const said of [
+    "Waterfront venue for weddings.",
+    "101 Biscayne Blvd, Miami, FL 33132",
+    "ListingNot claimed by the owner",
+  ])
+    assert.ok(facts.includes(said), said);
+  assert.deepEqual(
+    all(byTestId(tree, "peek-about"), (n) => n.props?.className === "lw-kv-k")
+      .map(textOf)
+      .filter((k) => /^Rat/.test(k)),
+    ["Rating"],
+    "the rating said once, with its low share, not again as the listing's fact",
+  );
   assert.deepEqual(
     ["peek-facebook", "peek-linkedin", "peek-tiktok", "peek-maps"].map((id) => byTestId(tree, id)?.props.href ?? null),
     ["https://www.facebook.example/x", null, "https://www.tiktok.example/@x", "https://maps.example/?cid=1"],
   );
 
   reset();
-  tree = page({ vm: vmOf({}) }).draw().tree;
-  for (const id of ["peek-photo", "peek-about", "peek-today", "peek-claimed", "peek-facebook", "peek-maps"])
+  const bare = page({ vm: vmOf({}) });
+  tree = tabTo(bare, "about");
+  for (const said of ["Waterfront", "Not claimed"]) assert.equal(textOf(tree).includes(said), false, said);
+  for (const id of ["peek-facebook", "peek-maps", "peek-week"])
     assert.equal(byTestId(tree, id), null, `${id}: a lead from before D2 claims none of it`);
 });
 
-// D7: the week folds like everything else; it was computed for the peek and read only by the expanded photo. D8: in
-// its short hours, and the listing's facts are not repeated here -- kind, rating and rank were each said above, and
-// whether the listing is claimed rides the rating.
-test("the peek's folds: the week behind one line in its short hours, and no second copy of what the listing said", () => {
+test("About's week: seven days in their short hours, today marked, and the week's shape in one line", () => {
   const days = [
     { day: "Sunday", hours: "Closed" },
     { day: "Monday", hours: "11 AM to 10 PM" },
@@ -1441,362 +1417,22 @@ test("the peek's folds: the week behind one line in its short hours, and no seco
     { day: "Saturday", hours: "11 AM to 11 PM" },
   ];
   reset();
-  const tree = page({
-    vm: vmOf({ hours: days, price: "$$", rank: 3, claimed: false, maps_url: "https://maps.example/?cid=1" }),
-  }).draw().tree;
-
-  const week = byTestId(tree, "peek-week");
-  assert.ok(week, "the week is in the peek, not only behind the photograph");
-  assert.equal(week.props.open, true, "open, as the canvas draws every fold (L2)");
-  assert.equal(
-    textOf(byTestId(tree, "peek-week-summary")),
-    "Open 6 days · 11–10 most days",
-    "one line says the shape of the week, in as few characters as say it",
+  const tree = tabTo(page({ vm: vmOf({ hours: days }) }), "about");
+  assert.ok(
+    textOf(byTestId(tree, "peek-about")).includes("Open 6 days · 11–10 most days"),
+    "the week's shape, said once",
   );
-  const days7 = all(week, (n) => n.props?.["data-testid"] === "peek-day");
-  assert.equal(days7.length, 7, "all seven rows are behind it, closed days included");
+  const rows = all(byTestId(tree, "peek-week"), (n) => n.props?.["data-testid"] === "peek-day");
+  assert.equal(rows.length, 7, "closed days included");
   assert.deepEqual(
-    days7.map((d) => textOf(find(d, (n) => n.props?.className === "h"))),
+    rows.map((d) => textOf(d.props.children[1])),
     ["Closed", "11–10", "11–10", "11–10", "11–10", "11–11", "11–11"],
   );
-
-  assert.equal(byTestId(tree, "peek-facts"), null, "every fact it held was said elsewhere on the panel");
-
-  // Every fold is the same shape, including the one that never was: the other addresses had a bare summary with no
-  // box and no chevron, so it read as a different kind of thing sitting among them.
-  for (const id of ["peek-others", "peek-found", "peek-week"]) {
-    const d = byTestId(tree, id);
-    assert.match(d.props.className, /\bpk-box\b/, `${id} is the shared shape`);
-    assert.ok(
-      find(d, (n) => n.props?.className === "pk-box-line"),
-      `${id} lays out in the span, not the summary`,
-    );
-  }
-
-  // A listing that published no hours claims none, and the fold is not drawn at all.
-  reset();
-  const bare = page({ vm: vmOf({ hours: [] }) }).draw().tree;
-  assert.equal(byTestId(bare, "peek-week"), null, "no hours, no fold");
-});
-
-// D6: each surface leads with what it draws best. A row's small square is the logo's size, so the mark is the row's
-// face; the band is a storefront's size, so the photograph is the band and the mark rides it as a chip in its free
-// corner (leads.css). With no photograph the chip sits in the middle of the tint. The layers are stacked rather than
-// chosen: both are in the band, in paint order, and a mark that fails to load takes only its own chip away.
-test("the peek's band: the photograph is the band, the mark rides it as a chip, and alone the chip sits in the tint", () => {
-  // The copy we keep, on our own storage (00161): the site's own address never reaches the band.
-  const MARK =
-    "https://project.supabase.co/storage/v1/object/public/lead-marks/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.png";
-  const PHOTO = "https://lh3.example/p.jpg";
-  const band = (over) => {
-    reset();
-    return byTestId(page({ vm: vmOf(over) }).draw().tree, "peek-photo-band");
-  };
-  const layers = (over) =>
-    all(band(over), (n) => n.props?.["data-testid"] === "peek-photo" || n.props?.["data-testid"] === "peek-mark").map(
-      (n) => n.props["data-testid"],
-    );
-
   assert.deepEqual(
-    layers({ image_url: PHOTO, mark_url: MARK }),
-    ["peek-photo", "peek-mark"],
-    "the mark is painted last, so its chip sits on the photograph",
+    rows.map((d) => /\btoday\b/.test(d.props.className)),
+    [false, false, false, false, false, true, false],
+    "NOW is a Friday in America/Chicago",
   );
-  const markOf = (over) => byTestId(band(over), "peek-mark");
-  assert.match(markOf({ image_url: PHOTO, mark_url: MARK }).props.className, /\bon-photo\b/, "a chip in the corner");
-  assert.doesNotMatch(
-    markOf({ mark_url: MARK }).props.className,
-    /\bon-photo\b/,
-    "with no photograph, the chip in the middle of the tint",
-  );
-  assert.equal(markOf({ mark_url: MARK }).props.loading, undefined, "asked for as the peek opens, as the photo is");
-  assert.deepEqual(
-    layers({ mark_url: MARK }),
-    ["peek-mark"],
-    "a business with a mark and no photograph still shows who it is",
-  );
-  assert.deepEqual(
-    layers({ image_url: PHOTO }),
-    ["peek-photo"],
-    "and one with only a photograph shows which shop it is",
-  );
-  assert.deepEqual(layers({}), [], "with neither, nothing is drawn over the tint");
-
-  const withMark = band({ image_url: PHOTO, mark_url: MARK });
-  assert.equal(byTestId(withMark, "peek-mark").props.src, MARK);
-  assert.equal(byTestId(withMark, "peek-mark").props.alt, "", "a mark says nothing a screen reader must repeat");
-  assert.equal(byTestId(withMark, "peek-photo").props.src, PHOTO, "the photograph is still there under it, for Expand");
-  // The band carries its tint and nothing else. It used to carry `has-img` too, from before the mark painted over
-  // the photograph: the rule that read it went with that change, and a class nothing reads gets read wrongly later.
-  for (const over of [{ image_url: PHOTO, mark_url: MARK }, { mark_url: MARK }, { image_url: PHOTO }, {}]) {
-    assert.doesNotMatch(band(over).props.className, /\bhas-img\b/, JSON.stringify(over));
-    assert.match(band(over).props.className, /\bpk-band tint-\d\b/, "the tint is the ground under every layer");
-  }
-  // The initials are always drawn, under everything: they are what a layer that fails to load falls back onto.
-  const initials = (over) => find(band(over), (n) => n.props?.className === "pk-band-initials");
-  assert.ok(initials({ image_url: PHOTO, mark_url: MARK }), "the initials wait under both layers");
-  assert.ok(initials({}), "and carry the band alone when there is neither");
-});
-
-// A tip must be seen whole. On production (21 Sep, a 720px window) the peek's scrolling body was 200px tall, and a
-// tip placed under its line INSIDE that body was cut at its edge: the evidence card lost 18px, the email's note 41.
-// A tip is the peek's now, placed as it is asked for. The CSS half (nothing positioned between the tip and the peek,
-// the show rule's gates) is verified against the real stylesheet over production; the page's half is pinned here.
-test("a hint's tip is placed against the peek as it is asked for, flips above its line when the room is there, and never shows over a moving body", () => {
-  reset();
-  const tree = page().draw().tree;
-  const place = pkPlaceTip;
-  const scrolling = pkScrolling;
-  const hints = all(tree, (n) => n.props?.className === "pk-hint");
-  assert.equal(hints.length, 4, "the evidence bar, the phone's note, the email's note, and why texts are locked");
-  for (const h of hints) {
-    assert.equal(h.props.onMouseEnter, place, "asks where it is as the pointer arrives");
-    assert.equal(h.props.onFocus, place, "and as focus arrives, so a keyboard and a tap get the same placement");
-  }
-  assert.equal(byTestId(tree, "peek-body").props.onScroll, scrolling, "the body says when it is moving");
-
-  // The arithmetic, on elements that answer as a browser's would, with production's numbers: the peek's padding box
-  // runs 52..720 (a 1px border on its left), its body 457..657, and every line spans 891..1252.
-  const tipOf = ({ checks = 0, text = "" }) => ({
-    style: {},
-    textContent: text,
-    querySelectorAll: (s) => (s === ".pk-ck" ? { length: checks } : []),
-  });
-  const hintAt = ({ top, bottom }, tip) => {
-    const classes = new Set();
-    const line = { getBoundingClientRect: () => ({ top, bottom, left: 891, right: 1252 }) };
-    const peek = {
-      getBoundingClientRect: () => ({ top: 52, bottom: 720, left: 872, right: 1280 }),
-      clientTop: 0,
-      clientLeft: 1,
-      clientHeight: 668,
-      clientWidth: 407,
-    };
-    const body = { getBoundingClientRect: () => ({ top: 457, bottom: 657 }) };
-    const at = { ".pk-rr, .pk-verdict": line, ".pk": peek, ".pk-body": body };
-    return {
-      closest: (s) => at[s] ?? null,
-      querySelector: (s) => (s === ":scope > .pk-hint-tip" ? tip : null),
-      classList: { toggle: (c, on) => (on ? classes.add(c) : classes.delete(c)), has: (c) => classes.has(c) },
-    };
-  };
-  const placed = (line, what) => {
-    const tip = tipOf(what);
-    const h = hintAt(line, tip);
-    place({ currentTarget: h });
-    return { ...tip.style, away: h.classList.has("pk-away") };
-  };
-
-  // The verdict at the top of the body, four checks: 132px wanted, 174 below. It hangs under its line, as wide as it,
-  // and outside the body -- which is what the body could not cut off.
-  assert.deepEqual(placed({ top: 474, bottom: 546 }, { checks: 4 }), {
-    left: "18px",
-    right: "28px",
-    top: "496px",
-    bottom: "auto",
-    away: false,
-  });
-  // The email's note on a line near the foot: three lines of words want 72px and there are 40, so it hangs above.
-  const note =
-    "Unconfirmed. Their server accepts every address, so the check can't tell. This search counts a lead once its phone or email checks out, phone first.";
-  assert.deepEqual(placed({ top: 640, bottom: 680 }, { text: note }), {
-    left: "18px",
-    right: "28px",
-    top: "auto",
-    bottom: "82px",
-    away: false,
-  });
-  // Seven checks want 204px: 88 below is not room, so the card opens upward from a verdict scrolled low.
-  assert.equal(placed({ top: 560, bottom: 632 }, { checks: 7 }).top, "auto");
-  assert.equal(placed({ top: 560, bottom: 632 }, { checks: 2 }).bottom, "auto", "while two checks fit below");
-  // A line scrolled out of the body's view, above it or under the act bar, keeps its tip hidden.
-  assert.equal(placed({ top: 420, bottom: 450 }, { text: "x" }).away, true);
-  assert.equal(placed({ top: 657, bottom: 697 }, { text: "x" }).away, true);
-  assert.equal(placed({ top: 600, bottom: 640 }, { text: "x" }).away, false);
-  // Anything that cannot be measured is left alone.
-  place({ currentTarget: {} });
-  place({
-    currentTarget: {
-      closest: () => null,
-      querySelector: () => null,
-      classList: {
-        toggle: () => {
-          throw new Error("no peek, no change");
-        },
-      },
-    },
-  });
-  place(null);
-
-  // A moving body shows no tip; once it has been still for a moment, a tip still asked for is placed where its line
-  // is now, and one that is not is left alone.
-  mock.timers.enable({ apis: ["setTimeout"] });
-  try {
-    const attrs = {};
-    const asked = hintAt({ top: 474, bottom: 546 }, tipOf({ checks: 4 }));
-    const idle = hintAt({ top: 600, bottom: 640 }, tipOf({ text: "x" }));
-    asked.matches = (s) => s === ":hover, :focus-within";
-    idle.matches = () => false;
-    let againAsked = 0;
-    const body = {
-      setAttribute: (k, v) => {
-        attrs[k] = v;
-      },
-      removeAttribute: (k) => {
-        delete attrs[k];
-      },
-      querySelectorAll: (s) => (s === ".pk-hint" ? [asked, idle] : []),
-    };
-    const q = asked.querySelector;
-    asked.querySelector = (s) => {
-      againAsked += 1;
-      return q(s);
-    };
-    scrolling({ currentTarget: body });
-    assert.equal(attrs["data-scrolling"], "1", "moving: the tips hide");
-    mock.timers.tick(100);
-    scrolling({ currentTarget: body });
-    mock.timers.tick(100);
-    assert.equal(attrs["data-scrolling"], "1", "each scroll starts the stillness over");
-    assert.equal(againAsked, 0);
-    mock.timers.tick(100);
-    assert.equal(attrs["data-scrolling"], undefined, "still again: they may show");
-    assert.equal(againAsked, 1, "and the one still asked for is placed again");
-  } finally {
-    mock.timers.reset();
-  }
-  scrolling(null);
-  scrolling({ currentTarget: {} });
-});
-
-/* ======================================================= D5: the peek re-cut ==== */
-
-test("D5: the peek opens on a photo band with Expand, says what people say under the name, decides with the verdict and its evidence bar, and pins the act", async () => {
-  reset();
-  const days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"].map((day) => ({
-    day,
-    hours: day === "Sunday" ? "Closed" : "9 AM to 6 PM",
-  }));
-  const shown = page({
-    vm: vmOf({
-      about: "Coaching only.",
-      street: "1200 Barton Springs Rd",
-      city: "Austin",
-      state: "TX",
-      postal_code: "78704",
-      hours: days,
-      image_url: "https://lh3.example/p.jpg",
-      claimed: false,
-      price: "$$",
-      rank: 3,
-      reviews_dist: { one: 0, two: 1, three: 1, four: 4, five: 10 },
-      maps_url: "https://maps.example/?cid=1",
-    }),
-  });
-  const { tree, acts } = shown.draw();
-  const band = byTestId(tree, "peek-photo-band");
-  assert.ok(band, "the head is a photo band");
-  assert.equal(byTestId(band, "peek-photo").props.src, "https://lh3.example/p.jpg");
-  assert.equal(
-    byTestId(band, "peek-close").props.id,
-    "lead-peek-close",
-    "Close keeps its id: focus lands on it when the peek opens",
-  );
-  await press(byTestId(band, "peek-expand"));
-  assert.deepEqual(opened, [`expand ${LEAD}`], "Expand hands the lead to the page's lightbox");
-  const identity = byTestId(tree, "peek-identity");
-  assert.equal(textOf(byTestId(identity, "peek-name")), "Travis Heights Coaching Co.");
-  assert.equal(
-    textOf(byTestId(identity, "peek-today")),
-    "Open until 6 PM",
-    "whether they are open now sits on the sub-line",
-  );
-  assert.equal(textOf(byTestId(identity, "peek-distance")), "1.5 mi");
-  assert.equal(textOf(byTestId(identity, "peek-about")), "Coaching only.");
-  // D8: what people say is a line under the name, not a card with a heading for one number. This lead's unhappy share
-  // is 2 of 16, under the floor, so nothing is said about it.
-  const rated = byTestId(identity, "peek-rated");
-  assert.equal(textOf(rated), "5.016 reviewsListing not claimed by the owner");
-  assert.equal(byTestId(rated, "peek-rated-low"), null, "an ordinary tail of unhappy reviews is not worth a line");
-  assert.equal(
-    textOf(byTestId(rated, "peek-claimed")),
-    "Listing not claimed by the owner",
-    "whether anyone watches the listing rides the rating",
-  );
-  // The verdict: the word, the evidence as a pipeline beside it, and one line of why.
-  const verdict = byTestId(tree, "peek-verdict");
-  assert.equal(textOf(byTestId(verdict, "peek-fit-word")), "Strong fit");
-  assert.equal(textOf(byTestId(verdict, "peek-fit")), "Independent coaching · 5.0 from 16 reviews · email checked");
-  assert.equal(
-    byTestId(tree, "peek-checks"),
-    null,
-    "the checks are no longer a fold the act at the foot must be scrolled past",
-  );
-  // The bar is ONE svg with its size in its own attributes, not a row of empty spans that take theirs from the
-  // cascade: on production those drew at two sizes on one line (#734), and a rect in a viewBox cannot.
-  const bar = byTestId(verdict, "peek-check-bar");
-  assert.equal(bar.type, "svg", "the bar carries its own geometry");
-  const segs = all(bar, (n) => n.type === "rect");
-  assert.equal(segs.length, 7, "one segment a check, in the order they were made");
-  assert.deepEqual(
-    segs.map((s) => s.props.className),
-    Array(7).fill("pk-seg yes"),
-    "and each says which answer it is",
-  );
-  // One length whatever the count, so two leads compare at a glance by how much of it is filled: seven segments
-  // and six 3px gaps make 120 exactly, each segment the same size, and each fills in turn as the peek opens.
-  assert.equal(bar.props.width, 120, "the gauge is one length");
-  assert.deepEqual(
-    [...new Set(segs.map((s) => `${s.props.width.toFixed(3)}x${s.props.height}`))],
-    [`${(102 / 7).toFixed(3)}x4`],
-    "every segment is the same size",
-  );
-  assert.ok(
-    Math.abs(segs.at(-1).props.x + segs.at(-1).props.width - 120) < 1e-9,
-    "the last segment ends where the gauge does",
-  );
-  assert.deepEqual(
-    segs.map((s) => s.props.style.animationDelay),
-    ["0ms", "70ms", "140ms", "210ms", "280ms", "350ms", "420ms"],
-    "a pipeline running once, in order",
-  );
-  const four = byTestId(page({ vm: vmOf({ member: { checks: CHECKS.slice(0, 4) } }) }).draw().tree, "peek-check-bar");
-  assert.equal(four.props.width, 120, "four checks draw the same length as seven");
-  assert.equal(
-    bar.props["aria-hidden"],
-    "true",
-    "the bar is named by the button it sits in, not read out rect by rect",
-  );
-  assert.equal(
-    byTestId(verdict, "peek-checks-summary").type,
-    "button",
-    "and that button is a stop for a keyboard and a tap for a finger",
-  );
-  assert.equal(
-    textOf(byTestId(tree, "peek-found-summary")),
-    "#3 on Google Maps · today",
-    "the trace folds under one short line",
-  );
-  const act = byTestId(tree, "peek-act");
-  assert.equal(
-    tree.props.children.at(-1).rendered.props.children.at(-1),
-    act,
-    "the act bar is the peek's last child: it never scrolls away",
-  );
-  assert.equal(textOf(byTestId(act, "peek-act-call")).trim(), "Call +1 (512) 555-0142");
-  await callWay(shown, LEAD_WORDS.callWays.dial.label);
-  assert.deepEqual(
-    dialled,
-    ["tel:+15125550142"],
-    "the act bar's Call is the phone row's, and dials the number as stored",
-  );
-  assert.equal(byTestId(act, "peek-act-copy"), null, "one press in the bar: Copy is the email row's");
-  // No number: the draft is the act. No rating: no rated card, and the unclaimed note stays with the identity.
-  const bare = page({ vm: vmOf({ phone: null, rating: null, reviews: null, claimed: false }) }).draw().tree;
-  assert.ok(byTestId(bare, "peek-act-draft"), "with no number the draft is the act");
-  assert.equal(byTestId(bare, "peek-rated"), null);
-  assert.equal(textOf(byTestId(byTestId(bare, "peek-identity"), "peek-claimed")), "Listing not claimed by the owner");
-  void acts;
 });
 
 test("D5: the photo expanded is a dialog of its own -- the photo or the tile, where it sits, the week's hours as bars with today marked, the listing's facts, Open in Maps -- and Esc closes it before anything else", () => {
@@ -1906,32 +1542,29 @@ test("D5: the photo expanded is a dialog of its own -- the photo or the tile, wh
   assert.deepEqual([out, steps], ["lightbox", ["lightbox:null"]]);
 });
 
-test("D5, on a phone: one lead at a time — where it sits in the pile, the two ways through it, a swipe, and Save and go to the next", async () => {
+test("on a phone: the kit's sheet at half height over the rows, the tabs at full, a sideways swipe walks the rows, and Save and go to the next", async () => {
   reset();
   const moved = [];
   const deck = { at: 3, of: 19, onPrev: () => moved.push("prev"), onNext: () => moved.push("next") };
   const P = page();
-  const acts = LeadPeekActions(P.p);
-  const withDeck = (over = {}) => {
-    frames.begin();
-    return LeadPeek({ vm: P.p.vm, mode: "info", armed: null, draft: null, deck, ...acts, ...over });
-  };
-  let tree = withDeck();
-  assert.equal(textOf(byTestId(tree, "peek-deck-at")), "3 of 19", "where this lead sits in the pile");
-  byTestId(tree, "peek-deck-next").props.onClick();
-  byTestId(tree, "peek-deck-prev").props.onClick();
-  assert.deepEqual(moved, ["next", "prev"], "the two ways through it");
+  const onPhone = (over = {}) => P.draw({ phone: true, deck, ...over }).tree;
+  let tree = onPhone();
+  const sheet = find(tree, (n) => n.props?.rest && n.props?.testid === "lead-peek");
+  assert.ok(sheet, "the kit's sheet, with its two rests");
+  assert.equal(sheet.props.rest.at, "half", "it opens on the card");
+  assert.ok(byTestId(tree, "lead-pile-lead") && byTestId(tree, "lead-pile-rail"), "the card, and the rail at its foot");
   assert.equal(
-    byTestId(withDeck({ deck: { ...deck, at: 1 } }), "peek-deck-prev").props.disabled,
-    true,
-    "nowhere to go back to",
+    find(tree, (n) => n.type === SubTabs),
+    null,
+    "the tabs wait for full height",
   );
 
-  // A swipe is the same two presses under a thumb: 80px across, and a scroll is never a move.
+  // A swipe across the card is the next lead or the one before, 80px under a thumb; a scroll is never a move.
+  const body = find(tree, (n) => n.props?.className === "lw-body");
   const el = { dataset: {} };
-  const swipe = (dx, dy, target = null) => {
-    tree.props.onTouchStart({ touches: [{ clientX: 300, clientY: 200 }], currentTarget: el, target });
-    tree.props.onTouchEnd({ changedTouches: [{ clientX: 300 + dx, clientY: 200 + dy }], currentTarget: el });
+  const swipe = (dx, dy) => {
+    body.props.onTouchStart({ touches: [{ clientX: 300, clientY: 200 }], currentTarget: el, target: null });
+    body.props.onTouchEnd({ changedTouches: [{ clientX: 300 + dx, clientY: 200 + dy }], currentTarget: el });
   };
   swipe(-120, 6);
   assert.equal(moved.at(-1), "next", "a swipe left is the next lead");
@@ -1942,107 +1575,35 @@ test("D5, on a phone: one lead at a time — where it sits in the pile, the two 
   swipe(-120, 300);
   assert.equal(moved.length, before, "a short drag and a scroll move nothing");
 
-  // On a phone the peek is the whole screen: a pull down from the top of what it shows is its Close, as the X is;
-  // a pull through a scrolled body is a scroll, and beside a desktop's table nothing is pulled.
-  const closed = [];
-  tree = withDeck({ phone: true, onClose: () => closed.push(1) });
-  swipe(6, 120);
-  assert.deepEqual(closed, [1], "REGRESSION: the X in the corner was the only way out of a full screen");
-  swipe(6, 120, { scrollHeight: 900, clientHeight: 300, scrollTop: 140, parentElement: null });
-  assert.deepEqual(closed, [1], "through a scrolled body it is a scroll");
-  swipe(-120, 6);
-  assert.equal(moved.at(-1), "next", "and the pile still walks");
-  tree = withDeck({ phone: false, onClose: () => closed.push(1) });
-  swipe(6, 120);
-  assert.deepEqual(closed, [1], "beside the table, nothing is pulled");
-  tree = withDeck();
-
-  // Back from the call: the six outcomes wear their dots, the sheet says what saving does, and one press saves and moves on.
-  const armed = { kind: "call", leadId: LEAD, asked: true, outcome: "interested", note: "" };
-  const sheet = byTestId(withDeck({ armed }), "peek-call-ask");
+  // Raised, the five tabs read under who they are, and the rail holds still under them.
+  sheet.props.rest.onRest("full");
+  tree = onPhone();
+  assert.ok(byTestId(tree, "lead-sheet-full"), "full height");
   assert.ok(
-    find(byTestId(sheet, "peek-outcome-interested"), (n) => n.props?.className === "dot"),
+    find(tree, (n) => n.type === SubTabs),
+    "the tabs",
+  );
+  assert.ok(byTestId(tree, "lead-pile-rail"), "the rail, still");
+
+  // Back from the call: the six outcomes wear their dots, the question says what saving does, and one press saves and moves on.
+  const armed = { kind: "call", leadId: LEAD, asked: true, outcome: "interested", note: "" };
+  const ask = byTestId(onPhone({ armed }), "peek-call-ask");
+  assert.ok(
+    find(byTestId(ask, "peek-outcome-interested"), (n) => n.props?.className === "dot"),
     "each outcome wears its dot, beside its word",
   );
-  assert.match(textOf(sheet), /Saving moves them to Talking/);
-  await press(byTestId(sheet, "peek-call-save-next"));
+  assert.match(textOf(ask), /Saving moves them to Talking/);
+  await press(byTestId(ask, "peek-call-save-next"));
   assert.equal(moved.at(-1), "next", "saved, and on to the next");
   assert.equal(
-    byTestId(withDeck({ armed, deck: { ...deck, at: 19 } }), "peek-call-save-next"),
+    byTestId(onPhone({ armed, deck: { ...deck, at: 19 } }), "peek-call-save-next"),
     null,
-    "on the last of the pile there is nowhere to go next",
+    "on the last of the rows there is nowhere to go next",
   );
 
-  // A desktop has no deck at all: no place line, no swipe.
-  frames.begin();
-  const desk = LeadPeek({ vm: P.p.vm, mode: "info", armed: null, draft: null, ...acts });
-  assert.equal(byTestId(desk, "peek-deck"), null);
-  assert.equal(desk.props.onTouchStart, undefined);
-});
-
-test("one lead on one screen: the pile rides on the photo, Expand keeps its name without its words, and the map is said once", () => {
-  reset();
-  const deck = { at: 3, of: 19, onPrev() {}, onNext() {} };
-  const P = page({ vm: vmOf({ maps_url: "https://maps.example/?cid=1" }) });
-  const acts = LeadPeekActions(P.p);
-  frames.begin();
-  const tree = LeadPeek({ vm: P.p.vm, mode: "info", armed: null, draft: null, deck, phone: true, ...acts });
-  const band = byTestId(tree, "peek-photo-band");
-  assert.ok(byTestId(band, "peek-deck"), "REGRESSION: the pile's row of its own under the photo, 57px of a phone");
-  const expand = byTestId(tree, "peek-expand");
-  assert.equal(expand.props["aria-label"], LEAD_WORDS.expand, "named, where a phone draws its mark alone");
-  assert.ok(
-    find(expand, (n) => n.props?.className === "pk-band-expand-words"),
-    "its words in a span a phone can set aside",
-  );
-  const maps = byTestId(tree, "peek-maps");
-  assert.ok(maps, "a lead with a map has its link");
-  assert.equal(maps.props["data-said"], "address", "the address is already the link to the map");
-  frames.begin();
-  const noAddressLink = LeadPeek({
-    vm: vmOf({ maps_url: null }),
-    mode: "info",
-    armed: null,
-    draft: null,
-    ...acts,
-  });
-  const plain = byTestId(noAddressLink, "peek-maps");
-  if (plain)
-    assert.equal(plain.props["data-said"], undefined, "with no address to press, the map link is the only way there");
-});
-
-test("the band's photo is there as the peek opens: the row's tile under it at once, its own size eager and first in line, each lead's its own", () => {
-  reset();
-  const P = page({ vm: vmOf({ image_url: "https://lh3.googleusercontent.com/p/AF1QipM=w408-h268-k-no" }) });
-  const acts = LeadPeekActions(P.p);
-  frames.begin();
-  const tree = LeadPeek({ vm: P.p.vm, mode: "info", armed: null, draft: null, ...acts });
-  const band = byTestId(tree, "peek-photo-band");
-  const photo = byTestId(band, "peek-photo");
-  assert.equal(
-    photo.props.src,
-    "https://lh3.googleusercontent.com/p/AF1QipM=w408-h268-k-no",
-    "the listing's own photograph",
-  );
-  assert.equal(photo.props.loading, "eager", "REGRESSION: lazy, asked for at 1000ms after the peek drew at 37ms");
-  assert.equal(photo.props.fetchPriority, "high");
-  assert.equal(
-    photo.props.key,
-    photo.props.src,
-    "each lead's photo its own element: never the last lead's under a new name",
-  );
-  const thumb = find(band, (n) => n.props?.className === "pk-band-thumb");
-  assert.equal(
-    thumb.props.src,
-    "https://lh3.googleusercontent.com/p/AF1QipM=s96-c",
-    "the row's own tile, in the browser already",
-  );
-  const fades = [];
-  photo.props.onLoad({ currentTarget: { classList: { add: (c) => fades.push(c) } } });
-  assert.deepEqual(fades, ["in"], "and the band's size fades in over it as it lands");
-  const hidden = { style: {} };
-  photo.props.onError({ currentTarget: hidden });
-  assert.equal(hidden.style.display, "none", "a photo that fails hides itself, and what is under it shows");
+  // A desk has no swipe: the panel sits beside the rows.
+  const desk = P.draw({ deck }).tree;
+  assert.deepEqual([desk.props.onTouchStart, byTestId(desk, "peek-body").props.onTouchStart], [undefined, undefined]);
 });
 
 test("a lead's photo is asked for once, before it is needed, and last in line", () => {

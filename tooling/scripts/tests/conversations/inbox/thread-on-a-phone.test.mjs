@@ -204,7 +204,10 @@ test("why it said that is a button a thumb can open, not a title only a mouse ca
   const shut = draw(dto);
   const why = one(shut, byTestId("tl-msg-why"));
   assert.ok(why, "the reply remembers why, so the thread offers it");
-  assert.equal(textOf(why), "· Booking · 91% sureWhy", "both labels ship; the breakpoint picks one");
+  // The bubble's corner is the press (the phone canvas, D1): the receptionist's spark and the time, one tap to why. The
+  // line under every reply said "by WhatsApp Receptionist · Why · Delivered".
+  assert.equal(textOf(why), "9:01 AM", "the corner says the time, and the spark says whose");
+  assert.match(why.props["aria-label"], /Why it said this: Booking · 91% sure$/, "and its name says what it opens");
   assert.equal(why.props.type, "button");
   assert.equal(why.props["aria-expanded"], false);
   assert.equal(one(shut, byTestId("tl-msg-why-panel")), undefined, "shut until asked");
@@ -217,16 +220,16 @@ test("why it said that is a button a thumb can open, not a title only a mouse ca
   assert.ok(textOf(panel).includes("Hours"), "and the facts it used");
 });
 
-test("the author line says who and what became of it, and never repeats the time above the bubble", () => {
+test("a reply of ours says who sent it and what became of it in its corner, and says its time once", () => {
   const tree = draw(conv([msg(), ours({ sender: "human", body: "See you Friday!", status: "read" })]));
-  const by = one(tree, byClass("tl-msg-by"));
-  assert.ok(by, "a reply of ours says who sent it");
-  const line = textOf(by);
-  assert.ok(/by your team/.test(line), `the author: ${line}`);
-  assert.ok(one(tree, byClass("tl-msg-author")), "and it is the span that gives way when the line is short");
-
-  // The bubble's own meta carries the time; the author line carried it a second time.
-  const stamp = textOf(one(tree, byClass("tl-msg-meta")));
-  assert.ok(stamp.trim().length > 0, `the time is over the bubble: ${stamp}`);
-  assert.ok(!line.includes(stamp.trim()), `REGRESSION: printed twice — meta ${stamp.trim()}, author line ${line}`);
+  const bubble = one(tree, (n) => byClass("tl-msg")(n) && textOf(n).includes("See you Friday!"));
+  const stamp = one(bubble, byClass("tl-stamp"));
+  assert.ok(stamp, "a reply of ours says who sent it");
+  assert.equal(textOf(stamp), "Your team9:01 AM", "who, then when, in the corner");
+  assert.ok(
+    one(stamp, (n) => n.props?.role === "img" && n.props?.["aria-label"] === "Read"),
+    "and what became of it, as ticks",
+  );
+  assert.equal(one(bubble, byClass("tl-msg-by")), undefined, "no line under it");
+  assert.equal(textOf(bubble).split("9:01 AM").length - 1, 1, "REGRESSION: the time, printed twice");
 });

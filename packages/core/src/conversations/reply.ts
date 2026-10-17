@@ -1,6 +1,7 @@
 import {
   AppError,
   firstNameOf,
+  inboxBlankOf,
   inboxSlots,
   isEmailStopped,
   isOptedOutContact,
@@ -13,6 +14,8 @@ import {
   replyWindow,
   resolveParams,
   slotToWrite,
+  TEMPLATE_WORDS_MAX,
+  templateWords,
   type ContactId,
   type TenantId,
   MIN_MS,
@@ -49,7 +52,11 @@ export const REPLY_IN_PROGRESS_REFUSAL =
 
 export interface ReplyBody {
   text?: string;
-  template?: { name: string; language: string; params?: string[] };
+  /**
+   * An approved template, outside the window. `words` fills its one blank of words to write (contracts inboxBlankOf: "A
+   * quick note"'s note), said as WhatsApp takes a value (templateWords); every other slot is the workspace's own facts.
+   */
+  template?: { name: string; language: string; params?: string[]; words?: string };
   /**
    * Email only: the address the operator was shown and agreed to, when the
    * address on the person's page is not the one they last wrote from. Agreed by
@@ -498,8 +505,18 @@ export async function shapeTemplate(
   // customer's first name, the business name, the booking link. The Inbox filled exactly two -- the business name
   // and the link -- and turned away the workspace's own starters, which open with the first name (I6). A slot with
   // words to write is one the Inbox does not ask for: refused here, in its own label, where the operator hears a
-  // sentence, not by Meta fifteen seconds after "queued".
-  const toWrite = slotToWrite(tpl);
+  // sentence, not by Meta fifteen seconds after "queued". One blank of words is the member's to write (inboxBlankOf): their
+  // own words, as they would write in the window, never a fact of the business's, so the browser still chooses no link.
+  const blank = inboxBlankOf(tpl);
+  const words = blank ? templateWords(body.template.words) : "";
+  if (blank && !words)
+    throw new AppError(
+      "validation",
+      `Write the words for “${blank.label}” first: they go in the middle of the message.`,
+    );
+  if (words.length > TEMPLATE_WORDS_MAX)
+    throw new AppError("validation", `Keep the words for “${blank?.label}” under ${TEMPLATE_WORDS_MAX} characters.`);
+  const toWrite = blank ? null : slotToWrite(tpl);
   if (toWrite) {
     throw new AppError(
       "validation",
@@ -516,7 +533,9 @@ export async function shapeTemplate(
       "validation",
       "This workspace has no template facts configured yet. Add the business name in Settings › Business first.",
     );
-  const slots = inboxSlots(tpl);
+  const slots = inboxSlots(tpl).map((s, at) =>
+    blank && at === blank.at ? { kind: "text" as const, value: words } : s,
+  );
   // A business that quotes each job has no link (the first run's decision 2). Its templates that name none still
   // go; one that sends the link is refused here, in words, rather than sent with the slot empty. Asked of the slots
   // the Inbox fills, not bookingTemplate's default kinds: a template whose slots were never recorded is sent with

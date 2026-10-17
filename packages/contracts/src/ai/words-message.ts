@@ -71,7 +71,7 @@ export function foldWordsMessages(body: Record<string, unknown>): Record<string,
     if (at < 0 || !isPlainObject(turn)) continue;
     const content: unknown[] = Array.isArray(turn.content)
       ? turn.content
-      : [{ type: "text", text: String(turn.content ?? "") }];
+      : [{ type: "text", text: typeof turn.content === "string" ? turn.content : "" }];
     out[at] = { ...turn, content: [...content.slice(0, -1), ...m.content, ...content.slice(-1)] };
   }
   return { ...body, messages: out };

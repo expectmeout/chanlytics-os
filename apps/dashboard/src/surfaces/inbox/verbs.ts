@@ -65,7 +65,12 @@ const inFlight = new Set<string>();
 export async function inboxVerb(
   thread: RealThread,
   verb: InboxVerb,
-  payload?: { text?: string; until?: string; template?: { name: string; language: string }; emailTo?: string },
+  payload?: {
+    text?: string;
+    until?: string;
+    template?: { name: string; language: string; words?: string };
+    emailTo?: string;
+  },
   /**
    * `refresh: false` for one step of a bulk act, which reads the surfaces again once, at its end. `onAccepted` is
    * called the moment the server takes the act, before the surfaces are read again: the page says so then, and the
@@ -144,7 +149,8 @@ async function runVerb(
   thread: RealThread,
   verb: InboxVerb,
   payload:
-    { text?: string; until?: string; template?: { name: string; language: string }; emailTo?: string } | undefined,
+    | { text?: string; until?: string; template?: { name: string; language: string; words?: string }; emailTo?: string }
+    | undefined,
   { refresh, onAccepted }: { refresh: boolean; onAccepted?: () => void },
 ): Promise<VerbResult> {
   // A replayed send must return the ORIGINAL result, never a second message.
@@ -165,7 +171,8 @@ async function runVerb(
   const tpl = payload?.template ?? null;
   const intent = payload?.text?.trim()
     ? `text:${payload.text.trim()}`
-    : `template:${tpl ? `${tpl.name}:${tpl.language}` : "none"}`;
+    : // The words in its blank are part of what is sent: two notes on one template are two intents.
+      `template:${tpl ? `${tpl.name}:${tpl.language}${tpl.words ? `:${tpl.words}` : ""}` : "none"}`;
   const sendKey = `${thread.conversationId}:${intentHash(intent)}`;
   const id = thread.conversationId;
   let result: VerbResult;
@@ -212,7 +219,9 @@ async function runVerb(
       result = tpl
         ? await api()("POST conversations/[id]/reply", {
             params: { id },
-            body: { template: tpl },
+            // The route's template takes its name, its language and the member's words for its blank, and refuses any
+            // other key (.strict()): the reply box hands over the whole approved row, so only those three are sent.
+            body: { template: { name: tpl.name, language: tpl.language, ...(tpl.words ? { words: tpl.words } : {}) } },
             idempotencyKey: sendKey,
             refresh,
             onAccepted,

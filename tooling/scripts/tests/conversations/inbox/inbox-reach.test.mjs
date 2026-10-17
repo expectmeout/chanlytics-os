@@ -16,7 +16,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { toInboxThreadVM, stateOf, memberWords, replyWaitsOnYou } from "@chanlytics/contracts";
-import { installLegacyReact, fresh, again, find, textOf, walk } from "../../_legacy-react.mjs";
+import { installLegacyReact, fresh, again, all as findAll, find, textOf, walk } from "../../_legacy-react.mjs";
 
 const ZONE = "America/New_York";
 const NOW = new Date("2026-09-15T14:00:00Z");
@@ -147,7 +147,8 @@ test("the Needs you line keeps its words and its buttons apart: the words take t
     paneOf(vmOf(chat({ last_wa_inbound_at: null, messages: [callNote] }), callback)),
     byTestId("ix-needs-you"),
   );
-  const actions = find(take, hasClass("ix-state-acts"));
+  // The dock is the kit's notice (the phone canvas, B1): its fact, then its acts in a row of their own.
+  const actions = find(take, hasClass("notice-acts"));
   assert.ok(actions, "REGRESSION: the buttons shared the words' row, and at 1024 the words were 0px wide");
   // One press dials and claims it: "I'll call them" only claimed it, over a reply box whose own Call back only
   // dialled, under a banner that said to call them back, under a sentence that said it first.
@@ -155,26 +156,24 @@ test("the Needs you line keeps its words and its buttons apart: the words take t
   assert.ok(call && String(call.props.href).startsWith("tel:"), "the call is the primary action");
   assert.equal(textOf(call).trim(), "Call back");
   assert.deepEqual(buttonsOf(actions), ["Hand back"], "and the way out, in two words");
-  assert.equal(
-    find(find(take, hasClass("ix-state-says")), hasClass("ix-state-acts")),
-    null,
-    "beside the pill, never inside the words",
-  );
+  assert.equal(find(find(take, hasClass("notice-fact")), hasClass("notice-acts")), null, "never inside the words");
   // The to-do is the line's own words, said once (calls you can follow).
-  assert.match(textOf(find(take, hasClass("ix-state-says"))), /Call Rosa back to confirm the bridal trial/);
+  assert.match(textOf(find(take, hasClass("notice-fact"))), /Call Rosa back to confirm the bridal trial/);
 });
 
-test("a thread you have shows what they asked, where you answer it", () => {
+test("a thread you have says so on one line, with why it was flagged and the way to give it back", () => {
   const mine = vmOf(chat({ paused_until: later, assignee_user_id: "u-me", assignee_is_me: true }), asked());
   const pane = paneOf(mine);
   assert.equal(textOf(find(pane, byTestId("ix-th-standing"))), "You have it", "named in the bar under the header");
   const owned = find(pane, byTestId("ix-yours"));
-  assert.ok(owned && textOf(owned).startsWith("The receptionist stays quiet"));
-  assert.equal(
-    textOf(find(owned, byTestId("ix-take-ask"))),
-    "They wrote“Can I move my appointment to Friday?”",
-    "REGRESSION: the words you are answering were only in the timeline",
+  assert.ok(owned && hasClass("notice-line")(owned), "one line over the reply box");
+  assert.match(textOf(owned), /^You have it\. · /, "what it means, then why it was flagged");
+  // What they asked is the bubble right above the box you answer it in (the phone canvas, B1): the dock quoted it again.
+  assert.ok(
+    findAll(pane, hasClass("tl-msg")).some((b) => textOf(b).includes("Can I move my appointment to Friday?")),
+    "the words you are answering are in the thread, over the box",
   );
+  assert.ok(!textOf(owned).includes("Can I move my appointment"), "and not said twice");
   let back = null;
   walk(owned, (n) => {
     if (n.type === "button" && textOf(n).trim() === "Hand back") back = n;

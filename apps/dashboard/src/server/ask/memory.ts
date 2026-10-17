@@ -175,8 +175,9 @@ export function withoutData(messages: Msg[], questionAt: number, words: unknown,
   return messages.map((m, i) => {
     if (isEffortMessage(m) || !Array.isArray(m.content) || i < questionAt || i > questionAt + 1) return m;
     // The question's data blocks, and the words wherever they stand: the question, or the words message after it.
-    const blocks: Array<{ type?: string }> = m.content;
-    const kept = i === questionAt ? blocks.filter((b) => b.type !== "search_result") : blocks;
+    const blocks: unknown[] = m.content;
+    const data = (b: unknown) => !!b && typeof b === "object" && "type" in b && b.type === "search_result";
+    const kept = i === questionAt ? blocks.filter((b) => !data(b)) : blocks;
     return { ...m, content: kept.map(swap) } as Msg;
   });
 }
