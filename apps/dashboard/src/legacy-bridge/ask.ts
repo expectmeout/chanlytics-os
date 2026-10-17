@@ -8,7 +8,8 @@
  * answer's say, through the speech route), a held question's answer read
  * aloud with the one line said while Ask works (ask/aloud.ts), and the voice
  * agent's session with its spoken turn (ask/voice.ts, ask/spoken.ts), which
- * no hold asks for since 5 Oct 2026. The mockup's palette
+ * no hold asks for since 5 Oct 2026, and the follow-ups that came due
+ * (ask/follow-ups.ts). The mockup's palette
  * reaches all of it through this one object and nothing else, so what a
  * palette may do is the list below.
  */
@@ -49,6 +50,7 @@ import { askAloud } from "./ask/aloud";
 import { installVoice } from "./ask/voice";
 import { spokenTurns } from "./ask/spoken";
 import { pageContext, type ThreadMessage } from "./ask/context";
+import { askFollowUps } from "./ask/follow-ups";
 
 export type { SendEvent, CommitResult };
 export { jumpIndexFrom, surfaceFor, waitingFrom, quickAnswer } from "./ask/palette";
@@ -59,7 +61,8 @@ export type AskApi = ReturnType<typeof askPalette> &
   ReturnType<typeof askSpeech> &
   ReturnType<typeof askAloud> &
   ReturnType<typeof installVoice> &
-  ReturnType<typeof spokenTurns> & {
+  ReturnType<typeof spokenTurns> &
+  ReturnType<typeof askFollowUps> & {
     /**
      * Approve a card: the verb's own route, then the surfaces refresh. A plan's card is judged by what the turn's other
      * cards of its plan became (`cards`, as the Line holds them: commit.ts commitCard), so a send fills its tokens.
@@ -173,10 +176,18 @@ export function installAsk(win: Window = window, storage: Storage | null = safeS
       voice.pageMoved(pageContext(win, { page: page || "today", param: rest.length ? rest.join("/") : null }));
     }, win);
   }
+  // The follow-ups that came due (ask/follow-ups.ts): read after the boot and as their pages move; a question that comes
+  // back to one takes it off the home at once and reads them again once the route has cleared it, and so does a card
+  // that keeps or clears one, once committed or undone.
+  const followUps = askFollowUps(win, api);
   const send: AskApiCalls["send"] = (input, on) => {
     palette.rememberLanguage(palette.language(input.text));
-    return specsIn.then(() => api.send(input, on));
+    if (!input.following) return specsIn.then(() => api.send(input, on));
+    followUps.cameBackTo(input.following.id);
+    return specsIn.then(() => api.send(input, on)).finally(() => void followUps.readFollowUps());
   };
+  const keptOrCleared = <T>(kinds: readonly AskProposal[], done: Promise<T>): Promise<T> =>
+    kinds.some((p) => p.kind === "follow_up") ? done.finally(() => void followUps.readFollowUps()) : done;
   const thread: AskApiCalls["thread"] = (...args) => specsIn.then(() => api.thread(...args));
   // A question spoken to the agent is a turn like a typed one (ask/spoken.ts): the same events, and its language kept.
   const spoken = spokenTurns(voice, api);
@@ -193,11 +204,12 @@ export function installAsk(win: Window = window, storage: Storage | null = safeS
     send,
     thread,
     sendSpoken,
-    commit: (p, cards = []) => commitCard(win, p, cards),
-    commitPlan: (cards) => commitPlan(win, cards),
+    ...followUps,
+    commit: (p, cards = []) => keptOrCleared([p], commitCard(win, p, cards)),
+    commitPlan: (cards) => keptOrCleared(cards, commitPlan(win, cards)),
     cardsInPlans,
     planGroupOf,
-    undo: (p, o) => undoProposal(win, p, o),
+    undo: (p, o) => keptOrCleared([p], undoProposal(win, p, o)),
     editReply: (p) => editReply(win, p),
     undoOpen: askUndoOpen,
     quick: quickAnswer(palette, api.openings),

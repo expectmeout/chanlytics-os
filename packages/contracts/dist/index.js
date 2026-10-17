@@ -53122,6 +53122,7 @@ var ROUTE_KEYS = [
   "DELETE templates/versions/[id]",
   "DELETE workspaces/logo",
   "GET activity",
+  "GET ask/follow-ups",
   "GET ask/openings",
   "GET ask/threads",
   "GET ask/threads/[id]",

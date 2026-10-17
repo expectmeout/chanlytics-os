@@ -13,6 +13,8 @@ import { after } from "next/server";
 import { write, workspace } from "@/server/route";
 import { log } from "@/server/log";
 import { requireUuid } from "@/server/request-guards";
+import { readerContext } from "@/server/readers";
+import { clearFollowUp } from "@/server/ask/tools/act/follow-up";
 import type { SearchAnswering } from "@/server/ask/prompt";
 import { finishAskTurn, prepareAskTurn, type AskTurnLine } from "@/server/ask/turn";
 import { searchRow } from "@/server/leads/leads";
@@ -20,7 +22,7 @@ import { searchRow } from "@/server/leads/leads";
 /**
  * POST /api/v1/ask — one turn of the workspace assistant.
  *
- * Body: { text, thread_id?, scope?, surface?, answering?, workspace? }. The response is a
+ * Body: { text, thread_id?, scope?, surface?, answering?, following?, workspace? }. The response is a
  * stream of JSON lines: {t:"thread", id} first, then {t:"trace"} while a read
  * runs, {t:"say", headline, detail} as the answer's Say is written (a
  * preview), and {t:"final", message} last, with the answer as the Line draws
@@ -43,6 +45,11 @@ import { searchRow } from "@/server/leads/leads";
  * planned in; a thread that is not the caller's -- a teammate planned it, or
  * it is gone -- is not an error for an answer: it starts one of the caller's
  * own, titled by the search's name (titleFromSearch).
+ *
+ * `following: { id }` is Ask's home's row for a follow-up of the caller's that came due: the text is what Ask said it
+ * would ask itself then, and once the question is kept the follow-up is cleared from the caller's views
+ * (clearFollowUp), before the turn reads anything, so Ask never offers a card to clear what they came back to. One they
+ * no longer hold (another tab came back to it) clears nothing, and a clear that fails is logged, never a refused question.
  *
  * The answer's row also keeps the turn as the model was sent it, at
  * `content.raw` (server/ask/memory.ts, storedRaw; the Phase 5 plan, D11), for
@@ -160,6 +167,7 @@ export const POST = write({
       scope?: unknown;
       surface?: unknown;
       answering?: unknown;
+      following?: unknown;
       opened_ms?: unknown;
       context?: unknown;
     } | null;
@@ -231,6 +239,15 @@ export const POST = write({
       openedMs,
       answering,
     });
+
+    // The follow-up the question comes back to (Ask's home's row), cleared now that the question is kept.
+    const following =
+      body?.following && typeof body.following === "object" ? (body.following as { id?: unknown }).id : undefined;
+    if (typeof following === "string" && following && following.length <= 40) {
+      await clearFollowUp(readerContext(ctx, member), following).catch((e: unknown) =>
+        log.error("ask_follow_up_clear_failed", { tenant_id: tenantId, error: e }),
+      );
+    }
 
     return new Response(turnStream(prepared, req.signal), {
       status: 200,

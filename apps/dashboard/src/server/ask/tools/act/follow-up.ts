@@ -1,15 +1,17 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
+import { setMemberView, type Json } from "@chanlytics/db";
 import {
   ASK_FOLLOW_UPS_MAX,
+  ASK_VIEW_PAGE,
   FOLLOW_UP_PROMPT_MAX,
   FOLLOW_UP_SAID_MAX,
   FOLLOW_UP_WAKES,
   followUpsOf,
   type AskFollowUp,
 } from "@chanlytics/contracts";
-import { load } from "../../../readers";
+import { load, type ReaderContext } from "../../../readers";
 import { memberViews } from "../../../readers/notifications";
 import {
   actAction,
@@ -34,6 +36,32 @@ import {
 async function heldNow(t: ToolContext): Promise<AskFollowUp[]> {
   if (!t.ctx.userId) return [];
   return followUpsOf((await load(t.rc, memberViews, undefined)).data);
+}
+
+/**
+ * The follow-up a question from Ask's home comes back to, taken from the member's follow-ups once the question is kept
+ * (POST ask `following`): through member_view_set (00113, packages/db setMemberView), the door the card's commit and PUT
+ * views/:page write by, which judges the caller's own membership and replaces the page's view whole. The one cleared, or
+ * null where they hold none by that id (cleared already: in another tab, or by its card). A failed write throws.
+ */
+export async function clearFollowUp(rc: ReaderContext, id: string): Promise<AskFollowUp | null> {
+  const held = followUpsOf((await load(rc, memberViews, undefined)).data);
+  const gone = held.find((f) => f.id === id);
+  if (!gone) return null;
+  // Each kept as the card keeps it: the follow-up's own fields, as the view holds them.
+  const left: Json[] = held
+    .filter((f) => f !== gone)
+    .map((f) => ({
+      id: f.id,
+      said: f.said,
+      prompt: f.prompt,
+      wake: f.wake,
+      subject: f.subject,
+      on: f.on,
+      made_at: f.made_at,
+    }));
+  await setMemberView(rc.ctx.supabase, { tenantId: rc.tenantId, page: ASK_VIEW_PAGE, view: { follow_ups: left } });
+  return gone;
 }
 
 async function proposeKeep(

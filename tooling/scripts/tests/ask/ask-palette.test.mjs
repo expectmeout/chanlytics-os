@@ -219,6 +219,8 @@ const { askPalette, quickAnswer, surfaceFor } =
   await import("../../../../apps/dashboard/src/legacy-bridge/ask/palette.ts");
 const { askSpeech } = await import("../../../../apps/dashboard/src/legacy-bridge/ask/speech.ts");
 const { askAloud } = await import("../../../../apps/dashboard/src/legacy-bridge/ask/aloud.ts");
+const { askFollowUps, FOLLOW_UPS_EVENT } =
+  await import("../../../../apps/dashboard/src/legacy-bridge/ask/follow-ups.ts");
 
 const walk = (n, fn) => {
   if (n == null || typeof n !== "object") return;
@@ -699,6 +701,141 @@ test("the Line at rest: Right now is Today's queue, then questions about the pag
     await closes();
   } finally {
     delete globalThis.window.TODAY_DATA;
+  }
+});
+
+/* ------------------------------ Ask's follow-ups, come due (the closed-loop read, 17 Oct 2026) */
+
+/** A follow-up that came due, as GET ask/follow-ups answers it. */
+const DUE = (id, prompt = `The ${id} search finished: pick the best leads and propose a cold email to them.`) => ({
+  id,
+  said: `When the ${id} search finishes, I'll pick the best and draft the emails`,
+  prompt,
+});
+
+test("a follow-up Ask kept that came due is the home's row after Right now, in its own words under Ready now; pressed, it asks what Ask said it would ask itself, with its id, as a turn for the model and never as a quick answer", async () => {
+  const calls = ask([]);
+  // What Ask will ask itself is, word for word, a question the Line answers itself: pressed from the row, it still goes
+  // to the model, since only the route can clear the follow-up.
+  const due = [DUE("plumbers", "Who needs me right now?")];
+  globalThis.window.__ask.followUpsDue = () => due;
+  render(Palette, OPEN);
+  let tree = await later(Palette, OPEN);
+  assert.deepEqual(
+    all(tree, (n) => n.props?.role === "option").map((n) => n.props["data-testid"]),
+    ["ask-row-now", "ask-row-follow", "ask-row-sug", "ask-row-sug", "ask-row-sug"],
+    "Right now, then the follow-up, then the questions about the page",
+  );
+  const row = byTestId(tree, "ask-row-follow");
+  assert.equal(textOf(row), due[0].said, "its own line, as the member approved it");
+  assert.ok(textOf(tree).includes("Ready now"), "under its label");
+  assert.equal(byClass(row, "subtab-dot").length, 1, "the kit's dot, as on Ask's door");
+  press(row);
+  await later(Palette, OPEN);
+  assert.deepEqual(
+    calls.inputs.map((i) => [i.text, i.following]),
+    [["Who needs me right now?", { id: "plumbers" }]],
+  );
+  await closes();
+  // None due: no row and no label.
+  globalThis.window.__ask.followUpsDue = () => [];
+  render(Palette, OPEN);
+  tree = await later(Palette, OPEN);
+  assert.equal(byTestId(tree, "ask-row-follow"), null);
+  assert.ok(!textOf(tree).includes("Ready now"));
+  await closes();
+});
+
+test("the tab holds the follow-ups that came due: read once the boot is in, said on the window each read; the newest read wins; one a question comes back to leaves at once; Leads or Sequences landing reads again only while one still waits; a tab coming back reads again past a minute", async () => {
+  const win = new EventTarget();
+  win.document = new EventTarget();
+  win.document.visibilityState = "visible";
+  const asked = [];
+  const api = {
+    followUps: () =>
+      new Promise((resolve) => {
+        asked.push(resolve);
+      }),
+  };
+  let said = 0;
+  win.addEventListener(FOLLOW_UPS_EVENT, () => said++);
+  const held = askFollowUps(win, api);
+  await until(() => asked.length === 1, "read once the boot is in");
+  asked[0]({ due: [DUE("plumbers")], waiting: 1 });
+  await flush();
+  assert.deepEqual(
+    held.followUpsDue().map((f) => f.id),
+    ["plumbers"],
+  );
+  assert.equal(said, 1, "said once it landed");
+  // One still waits: a search's round landing on Leads may have woken it.
+  win.dispatchEvent(new CustomEvent("surface:leads"));
+  assert.equal(asked.length, 2, "read again as Leads lands");
+  asked[1]({ due: [DUE("plumbers"), DUE("dentists")], waiting: 0 });
+  await flush();
+  win.dispatchEvent(new CustomEvent("surface:sequences"));
+  assert.equal(asked.length, 2, "none waits: nothing to wake");
+  // A question comes back to one: off at once, said; one not held says nothing.
+  held.cameBackTo("plumbers");
+  assert.deepEqual(
+    held.followUpsDue().map((f) => f.id),
+    ["dentists"],
+  );
+  assert.equal(said, 3);
+  held.cameBackTo("nobody");
+  assert.equal(said, 3, "nothing left, nothing said");
+  // The newest read wins: an older one that lands last says nothing.
+  const older = held.readFollowUps();
+  const newer = held.readFollowUps();
+  asked[3]({ due: [], waiting: 0 });
+  asked[2]({ due: [DUE("stale")], waiting: 0 });
+  await Promise.all([older, newer]);
+  assert.deepEqual(held.followUpsDue(), [], "the newer read's answer stands");
+  // A read that fails keeps what was held.
+  const failing = held.readFollowUps();
+  asked[4](null);
+  await failing;
+  assert.deepEqual(held.followUpsDue(), []);
+  // Back to the tab within the minute: nothing; past it, a read.
+  win.document.dispatchEvent(new CustomEvent("visibilitychange"));
+  assert.equal(asked.length, 5, "switching tabs is not news");
+  const clock = Date.now;
+  Date.now = () => clock() + 61_000;
+  try {
+    win.document.dispatchEvent(new CustomEvent("visibilitychange"));
+  } finally {
+    Date.now = clock;
+  }
+  assert.equal(asked.length, 6, "a tab back after a minute reads again");
+  asked[5]({ due: [], waiting: 0 });
+  await flush();
+});
+
+test("a follow-up of Ask's come due lights Ask's door: the top bar's capsule draws the kit's dot after its words while one is due, heard as each read lands", async () => {
+  await import("../../../../apps/dashboard/src/legacy/components/topbar.jsx");
+  const Topbar = (props) => globalThis.window.Topbar(props);
+  const was = globalThis.window.__ask;
+  let due = [DUE("plumbers")];
+  globalThis.window.__ask = { ...was, followUpsDue: () => due };
+  // The shell's names the top bar reads bare, as the page's globals: the toast and the demo's presence menu.
+  const bare = { usePPToast: globalThis.window.usePPToast, MoreMenu: "MoreMenu" };
+  const before = Object.fromEntries(Object.keys(bare).map((k) => [k, globalThis[k]]));
+  Object.assign(globalThis, bare);
+  try {
+    render(Topbar, { crumbs: [] });
+    let tree = await later(Topbar, { crumbs: [] });
+    const dot = byTestId(tree, "tb-ask-due");
+    assert.ok(dot, "the dot, while one is due");
+    assert.ok(dot.props.className.split(" ").includes("subtab-dot"), "the kit's mark for something new to the reader");
+    assert.equal(dot.props["aria-label"], "Ask has something ready for you");
+    assert.ok(all(byTestId(tree, "tb-ask"), (n) => n === dot).length, "inside Ask's capsule");
+    due = [];
+    globalThis.window.dispatchEvent(new CustomEvent(FOLLOW_UPS_EVENT));
+    tree = await later(Topbar, { crumbs: [] });
+    assert.equal(byTestId(tree, "tb-ask-due"), null, "gone once none is due");
+  } finally {
+    globalThis.window.__ask = was;
+    Object.assign(globalThis, before);
   }
 });
 

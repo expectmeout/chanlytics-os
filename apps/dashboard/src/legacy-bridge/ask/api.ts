@@ -1,5 +1,5 @@
 /**
- * The Ask routes, from the browser: threads, one thread, a deletion, the
+ * The Ask routes, from the browser: threads, one thread, a deletion, the follow-ups that came due, the
  * openings fast path, a quick answer kept, a card's outcome, and the turn itself as a stream of
  * JSON lines. Every call goes through the typed client, which names the
  * workspace, reads the envelope and signs the tab out on a 401; a card's
@@ -252,6 +252,14 @@ export function askApi(client: Api = api()) {
     },
     deleteThread: async (id: string): Promise<boolean> =>
       (await client("DELETE ask/threads/[id]", { params: { id } })).ok,
+    /** The caller's follow-ups that came due, and how many still wait; null for a read that failed (ask/follow-ups.ts). */
+    followUps: async () => {
+      try {
+        return unwrap(await client("GET ask/follow-ups"));
+      } catch {
+        return null;
+      }
+    },
     openings: async (day: string | null, service: string | null): Promise<OpeningsView> => {
       return unwrap(
         await client("GET ask/openings", { query: { day: day ?? undefined, service: service ?? undefined } }),
@@ -303,6 +311,8 @@ function turnCall(client: Api, head: { sent(): void }) {
       surface: AskSurface;
       /** The search whose question the text answers (the Leads answer row): the route reads it and tells the model. */
       answering?: { searchId: string } | null;
+      /** The follow-up the text comes back to (Ask's home's row): the route clears it once the question is kept. */
+      following?: { id: string } | null;
       /** How long the Line was open before this question, in ms (AskTurnShape.opened_ms); omitted when unknown. */
       openedMs?: number | null;
       /** The page the question is asked on (contracts PageContext; ask/context.ts); omitted when the page gave none. */
@@ -333,6 +343,7 @@ function turnCall(client: Api, head: { sent(): void }) {
           ...(input.scope !== undefined ? { scope: input.scope } : {}),
           surface: input.surface,
           ...(input.answering ? { answering: { search_id: input.answering.searchId } } : {}),
+          ...(input.following ? { following: { id: input.following.id } } : {}),
           ...(typeof input.openedMs === "number" && input.openedMs >= 0
             ? { opened_ms: Math.round(input.openedMs) }
             : {}),

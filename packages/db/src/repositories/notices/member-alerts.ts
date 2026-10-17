@@ -6,7 +6,7 @@
  * throws, except where a database before a migration is said to read as before.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "../../database.types";
+import type { Database, Json } from "../../database.types";
 import { memberEmailOf } from "./notifications";
 
 type Db = SupabaseClient<Database>;
@@ -175,6 +175,16 @@ export async function memberViewsOf(db: Db, p: { tenantId: string; userId: strin
   if (error) throw new Error(error.message);
   const views = data?.views;
   return views && typeof views === "object" && !Array.isArray(views) ? views : {};
+}
+
+/**
+ * A page's view kept for the member, replacing what that page held (member_view_set, 00113), on the SESSION client: the
+ * function judges the caller's own membership and the view's size. Ask clears a follow-up its home came back to through
+ * it, by the door its follow-up card writes by (PUT views/:page). A write that fails throws.
+ */
+export async function setMemberView(db: Db, p: { tenantId: string; page: string; view: Json }): Promise<void> {
+  const { error } = await db.rpc("member_view_set", { p_tenant_id: p.tenantId, p_page: p.page, p_view: p.view });
+  if (error) throw new Error(error.message);
 }
 
 /**

@@ -262,6 +262,20 @@ const NotifPopover = ({ items, onAction, onReadAll, onDismiss, onRead = null, on
 // drawRoute's `ask`), else Ask's own.
 const tbAskLabel = (label) => <span className="tb-ask-label">{label || "Ask Chanlytics"}</span>;
 
+// What Ask said it would come back to, come due (legacy-bridge/ask/follow-ups.ts): how many, heard as they are read. The
+// capsule draws the kit's dot after its words while there is one, as the kit marks something new there to the reader.
+const tbDueNow = () => (window.__ask && window.__ask.followUpsDue ? window.__ask.followUpsDue().length : 0);
+const useTbDue = () => {
+  const [due, setDue] = React.useState(tbDueNow);
+  React.useEffect(() => {
+    const hear = () => setDue(tbDueNow());
+    hear();
+    window.addEventListener("ask:follow-ups", hear);
+    return () => window.removeEventListener("ask:follow-ups", hear);
+  }, []);
+  return due;
+};
+
 const Topbar = ({
   crumbs = [],
   theme = "light",
@@ -273,6 +287,7 @@ const Topbar = ({
 }) => {
   // The Ask button's icon: the three (components/ask-face.jsx), or the sparkle where they are not loaded.
   const TbFace = window.AskFace || null;
+  const due = useTbDue();
   const [notifs, setNotifs] = React.useState(TB_NOTIFS);
   // Outside a demo the bell reads the workspace's own rows through the bridge
   // (legacy-bridge/notifications.ts): who needs you, a draft waiting, a
@@ -546,6 +561,7 @@ const Topbar = ({
           ? <TbFace className="tb-ask-face" testId="tb-ask-face" />
           : <Icon name="sparkle" size={13} />}
         {tbAskLabel(askLabel)}
+        {due ? <span className="subtab-dot" role="img" aria-label="Ask has something ready for you" data-testid="tb-ask-due" /> : null}
       </button>
 
       {right}
