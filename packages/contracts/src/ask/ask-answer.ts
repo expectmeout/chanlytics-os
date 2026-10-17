@@ -7,6 +7,7 @@
 import { ASK_CAPS, type AskMessageVM, type AskProposal } from "./ask";
 import {
   FOLLOWUP_ECHO,
+  answerChart,
   answerDoors,
   answerText,
   cleanAnswer,
@@ -14,6 +15,7 @@ import {
   navigateLabel,
   opensWithBlock,
   sameQuestion,
+  type AskChart,
 } from "./answer-text";
 import type { AskLanguage } from "./ask-language";
 import { CALENDAR_SETTING_ROUTE } from "../setup/calendar-source";
@@ -86,7 +88,8 @@ export interface AskAnswer {
   /** Structured has a headline; prose is words only (every answer made before the Line, and a refused format). */
   form: "structured" | "prose";
   say: { headline: string; detail: string };
-  show: { figures: AskFigure[]; items: AskItem[]; breakdown: AskBreakdown | null; list: AskList };
+  /** `chart` only where one was drawn (the answer canvas, C3): an answer stored before it has none. */
+  show: { figures: AskFigure[]; items: AskItem[]; breakdown: AskBreakdown | null; chart?: AskChart; list: AskList };
   do: { open: AskOpen | null; next: string[] };
   language: AskLanguage;
 }
@@ -102,6 +105,7 @@ export const ASK_ANSWER_CAPS = {
   figures: 4,
   items: 5,
   parts: 4,
+  points: 12,
   entries: 25,
   entry: 240,
   next: 2,
@@ -218,10 +222,12 @@ export function oneDoor(
   };
   const breakdown = a.show.breakdown ? { ...a.show.breakdown, source: receipt(a.show.breakdown.source) } : null;
   const figures = a.show.figures.map((f) => ({ ...f, source: receipt(f.source) }));
+  const c = a.show.chart;
+  const chart = c ? { chart: { ...c, source: receipt(c.source) ?? c.source } } : {};
   return {
     answer: {
       ...a,
-      show: { figures, items, breakdown, list: a.show.list ?? noList() },
+      show: { figures, items, breakdown, ...chart, list: a.show.list ?? noList() },
       do: { open, next: nextQuestions(a.do.next, [...offered]) },
     },
     cardOpen,
@@ -634,6 +640,7 @@ export function normalizeAnswer(raw: unknown, read: AskReadSet, fallback: AskLan
     Number.isFinite(total) &&
     Math.abs(parts.reduce((s, p) => s + p.value, 0) - total) < 1e-9;
   const breakdown: AskBreakdown | null = adds ? { label: whole, total, parts, source: ground(b.source) } : null;
+  const chart = answerChart(show.chart, ground, C);
   const l = asObj(show.list);
   const list: AskList = {
     style: ASK_LIST_STYLES.find((x) => x === l.style) ?? "bullets",
@@ -659,7 +666,7 @@ export function normalizeAnswer(raw: unknown, read: AskReadSet, fallback: AskLan
       v: 2,
       form: "structured",
       say,
-      show: { figures, items, breakdown, list },
+      show: { figures, items, breakdown, ...(chart ? { chart } : {}), list },
       do: { open, next },
       language,
     },
@@ -681,6 +688,7 @@ export function answerWords(a: AskAnswer): string {
           ...a.show.breakdown.parts.flatMap((p) => [p.label, String(p.value)]),
         ]
       : []),
+    ...(a.show.chart ? [a.show.chart.label, ...a.show.chart.points.flatMap((p) => [p.label, String(p.value)])] : []),
     ...a.show.list.entries,
   ]
     .filter(Boolean)
@@ -774,6 +782,7 @@ export function v1FromAnswer(a: AskAnswer): Pick<AskMessageVM, "text" | "citatio
   for (const i of a.show.items) add(i.source);
   for (const f of a.show.figures) add(f.source);
   add(a.show.breakdown ? a.show.breakdown.source : null);
+  add(a.show.chart?.source ?? null);
   return {
     text: answerText(a),
     citations: citations.slice(0, ASK_CAPS.citations),

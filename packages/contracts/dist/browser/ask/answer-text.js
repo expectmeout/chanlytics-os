@@ -213,6 +213,23 @@ export function answerPlain(text, spoken = false) {
     return [b.head.map(runsText).join(sep), ...b.rows.map((r) => r.map(runsText).join(sep))];
   }).join("\n");
 }
+export const ASK_CHART_KINDS = ["line", "bars"];
+const chartWords = (v, n) => typeof v === "string" ? v.replace(/\s+/g, " ").trim().slice(0, n) : "";
+export function answerChart(raw, ground, caps) {
+  const c = raw && typeof raw === "object" ? raw : {};
+  const kind = ASK_CHART_KINDS.find((k) => k === c.kind);
+  const label = chartWords(c.label, caps.label);
+  const all = (Array.isArray(c.points) ? c.points : []).flatMap((p) => {
+    const q = p && typeof p === "object" ? p : {};
+    const name = chartWords(q.label, caps.label);
+    const value = typeof q.value === "number" && Number.isFinite(q.value) && q.value >= 0 ? q.value : null;
+    return name && value !== null ? [{ label: name, value }] : [];
+  });
+  const points = kind === "line" ? all.slice(-caps.points) : all.slice(0, caps.points);
+  if (!kind || !label || points.length < 2) return null;
+  const source = ground(c.source);
+  return source ? { kind, label, points, source } : null;
+}
 const NO_LIST = { style: "bullets", entries: [] };
 function listLines(l) {
   return l.entries.map((e, i) => l.style === "numbers" ? `${i + 1}. ${e}` : l.style === "bullets" ? `\u2022 ${e}` : e);
@@ -224,9 +241,11 @@ export function answerText(a) {
 }
 export function answerCopy(a) {
   const b = a.show.breakdown;
+  const c = a.show.chart;
   return [
     answerText(a),
     ...b ? [`${b.total} ${b.label}: ${b.parts.map((p) => `${p.label} ${p.value}`).join(", ")}`] : [],
+    ...c ? [`${c.label}: ${c.points.map((p) => `${p.label} ${p.value}`).join(", ")}`] : [],
     ...a.show.figures.map((f) => `${[f.value, f.label].filter(Boolean).join(" ")}${f.note ? ` (${f.note})` : ""}`),
     ...a.show.items.map((it) => [it.title, it.meta, it.line].filter(Boolean).join(" \xB7 "))
   ].filter(Boolean).join("\n");

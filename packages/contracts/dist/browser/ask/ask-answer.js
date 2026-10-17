@@ -1,6 +1,7 @@
 import { ASK_CAPS } from "./ask.js";
 import {
   FOLLOWUP_ECHO,
+  answerChart,
   answerDoors,
   answerText,
   cleanAnswer,
@@ -26,6 +27,7 @@ export const ASK_ANSWER_CAPS = {
   figures: 4,
   items: 5,
   parts: 4,
+  points: 12,
   entries: 25,
   entry: 240,
   next: 2,
@@ -86,10 +88,10 @@ export function oneDoor(a, cards = []) {
   const open = a.do.open && !offered.has(canonicalRoute(a.do.open.to)) ? a.do.open : null;
   if (open) offered.add(canonicalRoute(open.to));
   const cardOpen = {};
-  for (const c of cards) {
-    const to = cardOpenRoute(c);
-    cardOpen[c.id] = !!to && !offered.has(canonicalRoute(to));
-    if (to && cardOpen[c.id]) offered.add(canonicalRoute(to));
+  for (const c2 of cards) {
+    const to = cardOpenRoute(c2);
+    cardOpen[c2.id] = !!to && !offered.has(canonicalRoute(to));
+    if (to && cardOpen[c2.id]) offered.add(canonicalRoute(to));
   }
   const receipt = (s) => {
     if (!s) return null;
@@ -99,10 +101,12 @@ export function oneDoor(a, cards = []) {
   };
   const breakdown = a.show.breakdown ? { ...a.show.breakdown, source: receipt(a.show.breakdown.source) } : null;
   const figures = a.show.figures.map((f) => ({ ...f, source: receipt(f.source) }));
+  const c = a.show.chart;
+  const chart = c ? { chart: { ...c, source: receipt(c.source) ?? c.source } } : {};
   return {
     answer: {
       ...a,
-      show: { figures, items, breakdown, list: a.show.list ?? noList() },
+      show: { figures, items, breakdown, ...chart, list: a.show.list ?? noList() },
       do: { open, next: nextQuestions(a.do.next, [...offered]) }
     },
     cardOpen
@@ -360,6 +364,7 @@ export function normalizeAnswer(raw, read, fallback) {
   const whole = words(b.label, C.label);
   const adds = !!whole && parts.length >= 2 && parts.length <= C.parts && parts.every((p) => p.label && Number.isFinite(p.value) && p.value >= 0) && Number.isFinite(total) && Math.abs(parts.reduce((s, p) => s + p.value, 0) - total) < 1e-9;
   const breakdown = adds ? { label: whole, total, parts, source: ground(b.source) } : null;
+  const chart = answerChart(show.chart, ground, C);
   const l = asObj(show.list);
   const list = {
     style: ASK_LIST_STYLES.find((x) => x === l.style) ?? "bullets",
@@ -380,7 +385,7 @@ export function normalizeAnswer(raw, read, fallback) {
       v: 2,
       form: "structured",
       say,
-      show: { figures, items, breakdown, list },
+      show: { figures, items, breakdown, ...chart ? { chart } : {}, list },
       do: { open, next },
       language
     },
@@ -398,6 +403,7 @@ export function answerWords(a) {
       String(a.show.breakdown.total),
       ...a.show.breakdown.parts.flatMap((p) => [p.label, String(p.value)])
     ] : [],
+    ...a.show.chart ? [a.show.chart.label, ...a.show.chart.points.flatMap((p) => [p.label, String(p.value)])] : [],
     ...a.show.list.entries
   ].filter(Boolean).join(" ");
 }
@@ -445,6 +451,7 @@ export function v1FromAnswer(a) {
   for (const i of a.show.items) add(i.source);
   for (const f of a.show.figures) add(f.source);
   add(a.show.breakdown ? a.show.breakdown.source : null);
+  add(a.show.chart?.source ?? null);
   return {
     text: answerText(a),
     citations: citations.slice(0, ASK_CAPS.citations),

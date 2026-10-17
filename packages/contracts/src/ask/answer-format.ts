@@ -5,6 +5,7 @@
 import { ASK_LANGUAGES } from "./ask-language";
 import { ASK_ANSWER_CAPS as C, ASK_LIST_STYLES } from "./ask-answer";
 import { ASK_CITATION_KINDS, ASK_ROW_WORDS } from "./citations";
+import { ASK_CHART_KINDS } from "./answer-text";
 
 const SOURCE = {
   type: "object",
@@ -112,6 +113,35 @@ export const ASK_ANSWER_FORMAT = {
           required: ["label", "total", "parts", "source"],
           additionalProperties: false,
         },
+        chart: {
+          type: "object",
+          description: `A chart of numbers read this turn, when a picture says it faster than words: kind line for one count over time (a point a day, a week or a month, oldest first), bars for a few things compared, 2 to ${C.points} points, each value a number a tool returned, and the source they were read from. Points empty when nothing is charted, and never the numbers a breakdown or a table already shows.`,
+          properties: {
+            kind: { type: "string", enum: [...ASK_CHART_KINDS] },
+            label: {
+              type: "string",
+              description: `What is counted ("bookings a week", "messages by channel"), at most ${C.label} characters.`,
+            },
+            points: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  label: {
+                    type: "string",
+                    description: `A day, a week, a month or a name, at most ${C.label} characters.`,
+                  },
+                  value: { type: "number" },
+                },
+                required: ["label", "value"],
+                additionalProperties: false,
+              },
+            },
+            source: SOURCE,
+          },
+          required: ["kind", "label", "points", "source"],
+          additionalProperties: false,
+        },
         list: {
           type: "object",
           description:
@@ -133,7 +163,7 @@ export const ASK_ANSWER_FORMAT = {
           additionalProperties: false,
         },
       },
-      required: ["figures", "items", "breakdown", "list"],
+      required: ["figures", "items", "breakdown", "chart", "list"],
       additionalProperties: false,
     },
     do: {

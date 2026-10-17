@@ -22013,6 +22013,153 @@ declare function messageLanguagesNext(cards: ReadonlyArray<{
     plan?: unknown;
 }>, names: readonly string[], turn: AskLanguage): string[];
 
+/**
+ * The rules an answer's text passes before the Line draws it: tag-shaped junk out (cleanAnswer), a figure with nothing
+ * read behind it (isUngrounded), whether two questions are one thread, the Open button's words, a next question that
+ * echoes a place already offered, whether its own words claim a write (claimsWrite), where its headline's first
+ * sentence ends (firstSentence), and the formatting its words may carry, read as blocks the Line draws (answerBlocks)
+ * and as the plain words Copy and a voice take (answerPlain). The answer's shape and its normaliser are ask-answer.ts's.
+ */
+
+declare function cleanAnswer(raw: string): string;
+/**
+ * An answer that states a figure without having read anything is not from
+ * the workspace. Times, counts and money all carry digits; a turn with no
+ * read tool behind such an answer is marked so the palette can say so.
+ */
+declare function isUngrounded(answer: string, reads: number): boolean;
+/** Two questions are the same thread when they differ only in case, spacing and punctuation. */
+declare function sameQuestion(a: string, b: string): boolean;
+/**
+ * The next questions a thread has not asked or offered already, in their order (the answer canvas, item 15: a chip
+ * offered again, or the question just asked offered back, reads as Ask not listening).
+ */
+declare function nextNotAsked(next: readonly string[], asked: readonly string[]): string[];
+/** The Open button's words, by where it goes; the model's label only for a page. */
+declare function navigateLabel(nav: {
+    to: string;
+    label: string;
+} | null, language: AskLanguage): string | null;
+/** A next question that points at a place already offered: its words, and the route it echoes. */
+declare const FOLLOWUP_ECHO: Array<[RegExp, RegExp]>;
+/**
+ * An answer's own words, what it quotes set aside: a span in quotes (“…”, "…", «…», or '…' opened after a space, a
+ * colon or a bracket and holding a space, which is never an apostrophe) is someone else's -- a draft to approve, a
+ * message received -- never a sentence the answer says. The eval's headline check (one sentence) and the write claims
+ * read only this. Moved from the eval (tooling/scripts/eval-ask-context.mjs), which reads it from here.
+ */
+declare const unquoted: (s: string | null | undefined) => string;
+/**
+ * Whether an answer's own words claim a write (WRITE_CLAIMS): a draft it quotes claims nothing. The eval's `no_write`
+ * and `names_card` read it, and the turn's loop, which says a claiming headline beside cards as the cards' own sentence
+ * (apps/dashboard/src/server/ask/loop.ts).
+ */
+declare const claimsWrite: (text: string | null | undefined) => boolean;
+/**
+ * A run of words and how it is set: bold, italic, or neither, and a door where it names a row this turn read. The model
+ * never writes a route (D5): it names the row (`[Riley's review](review:<id>)`), the normaliser grounds it in the turn's
+ * reads and writes the route after `ask:` (answerDoors), and a link no read holds is its words alone. So only a link
+ * whose target opens with `ask:` is a door, and every other is a run of its words.
+ */
+interface AnswerRun {
+    text: string;
+    bold?: true;
+    italic?: true;
+    /** The route the run opens, which the normaliser derived (answerDoors); never one the model wrote. */
+    to?: string;
+}
+/**
+ * A list as the words wrote it: numbered or bulleted, each point with the list under it, if any, and the number a
+ * numbered one starts at where it is not 1 (steps that go on after a quote between them keep their numbers).
+ */
+interface AnswerList {
+    ordered: boolean;
+    start?: number;
+    items: Array<{
+        runs: AnswerRun[];
+        sub: AnswerList | null;
+    }>;
+}
+/**
+ * The answer's words as the Line draws them: paragraphs, a few headings, lists nested up to three deep, and tables. The
+ * Line draws each from its parts as text, never as markup, so nothing the model writes is ever parsed as HTML.
+ */
+type AnswerBlock = {
+    kind: "text";
+    lines: AnswerRun[][];
+} | {
+    kind: "heading";
+    runs: AnswerRun[];
+} | {
+    kind: "list";
+    list: AnswerList;
+} | {
+    kind: "table";
+    head: AnswerRun[][];
+    rows: AnswerRun[][][];
+    right: boolean[];
+} | {
+    kind: "quote";
+    lines: AnswerRun[][];
+} | {
+    kind: "callout";
+    tone: AnswerCalloutTone;
+    lines: AnswerRun[][];
+};
+/** A callout's tone: `warn` for what needs the person or must come first (amber, as "needs you" is everywhere), else `note`. */
+type AnswerCalloutTone = "note" | "warn";
+/**
+ * A line's words as runs: its marks read, each mark's words a run of their own; the marks themselves are never shown.
+ * The words inside bold or italic are read too, so a door or an italic inside bold is one ("**Reply to [Riley](ask:…)**").
+ */
+declare function answerRuns(line: string): AnswerRun[];
+/**
+ * The answer's words as blocks: a heading line (`#`, at any level, drawn as one), a run of list lines (`-`, `*`, `•`,
+ * `1.`, `1)`, nested by indent), a table (a header row, its rule `|---|`, then its rows; a column whose every body cell
+ * is a number is set right), a quote (`>` lines: a customer's own words) or a callout (a quote whose first line is an
+ * alert's mark, `> [!WARNING]`), and paragraphs, a blank line between two, each line its own. Words with no marks are
+ * one paragraph of their lines, as the detail always was.
+ */
+declare function answerBlocks(text: string): AnswerBlock[];
+/**
+ * The answer's words with their formatting read as plain text, a line each: what Copy puts on the clipboard (bullets
+ * kept, a table's cells one row to a line, set apart by " · ") and, `spoken`, what a voice reads (no bullets or indents,
+ * a table's header said once, then each row's cells set apart by commas, so each is a phrase of its own).
+ */
+declare function answerPlain(text: string, spoken?: boolean): string;
+/** A chart's kind: a line for one count over time, bars for a few things compared. */
+declare const ASK_CHART_KINDS: readonly ["line", "bars"];
+/**
+ * A chart of numbers this turn read (the answer canvas, C3): a line for one count over time, or bars for a few things
+ * compared, drawn with the chart kit and its validated palette. Drawn only with its source grounded and two points or
+ * more (answerChart), so every number on it is one a reader returned.
+ */
+interface AskChart {
+    kind: (typeof ASK_CHART_KINDS)[number];
+    /** What is counted ("bookings a week", "messages by channel"). */
+    label: string;
+    points: Array<{
+        label: string;
+        value: number;
+    }>;
+    source: AskSource;
+}
+/**
+ * The answer's words, for copy, a folded turn and the history: the headline, then the detail, then the list, a line
+ * each, their formatting read as plain words (answerPlain). A detail that opens with a heading, a list or a table starts
+ * on its own line.
+ */
+declare function answerText(a: AskAnswer): string;
+/** The answer as Copy takes it: its words (answerText), then its parts, each figure and each row, a line each. */
+declare function answerCopy(a: AskAnswer): string;
+/** A list as a voice reads it: each entry its own sentence, a numbered one with its number; nothing for no entries. */
+declare function listSpoken(l: AskList): string;
+/**
+ * The answer's words as a voice reads them (Read aloud, a spoken question, the voice door): the headline, the detail's
+ * lines, then the list (listSpoken). The figures and rows are drawn, never read.
+ */
+declare function answerSpoken(a: AskAnswer): string;
+
 /** A call as the fast paths read it: the Live view model's slice (missed to the owner only where the customer dialled, missedCall; on the line by the heartbeat, liveStillUp). */
 type FastCall = Pick<LiveCallVM, "callId" | "who" | "missed" | "direction" | "live" | "startedAtMs" | "heartbeatAtMs">;
 /** The day a question names: a weekday key, "today"/"tomorrow" as a date, or nothing. */
@@ -22479,10 +22626,12 @@ interface AskAnswer {
         headline: string;
         detail: string;
     };
+    /** `chart` only where one was drawn (the answer canvas, C3): an answer stored before it has none. */
     show: {
         figures: AskFigure[];
         items: AskItem[];
         breakdown: AskBreakdown | null;
+        chart?: AskChart;
         list: AskList;
     };
     do: {
@@ -22502,6 +22651,7 @@ declare const ASK_ANSWER_CAPS: {
     readonly figures: 4;
     readonly items: 5;
     readonly parts: 4;
+    readonly points: 12;
     readonly entries: 25;
     readonly entry: 240;
     readonly next: 2;
@@ -23246,136 +23396,6 @@ declare const AskSettingsChangeSchema: z$1.ZodDiscriminatedUnion<[z$1.ZodObject<
     goal: z$1.ZodString;
 }, z$1.core.$strip>], "op">;
 
-/**
- * The rules an answer's text passes before the Line draws it: tag-shaped junk out (cleanAnswer), a figure with nothing
- * read behind it (isUngrounded), whether two questions are one thread, the Open button's words, a next question that
- * echoes a place already offered, whether its own words claim a write (claimsWrite), where its headline's first
- * sentence ends (firstSentence), and the formatting its words may carry, read as blocks the Line draws (answerBlocks)
- * and as the plain words Copy and a voice take (answerPlain). The answer's shape and its normaliser are ask-answer.ts's.
- */
-
-declare function cleanAnswer(raw: string): string;
-/**
- * An answer that states a figure without having read anything is not from
- * the workspace. Times, counts and money all carry digits; a turn with no
- * read tool behind such an answer is marked so the palette can say so.
- */
-declare function isUngrounded(answer: string, reads: number): boolean;
-/** Two questions are the same thread when they differ only in case, spacing and punctuation. */
-declare function sameQuestion(a: string, b: string): boolean;
-/**
- * The next questions a thread has not asked or offered already, in their order (the answer canvas, item 15: a chip
- * offered again, or the question just asked offered back, reads as Ask not listening).
- */
-declare function nextNotAsked(next: readonly string[], asked: readonly string[]): string[];
-/** The Open button's words, by where it goes; the model's label only for a page. */
-declare function navigateLabel(nav: {
-    to: string;
-    label: string;
-} | null, language: AskLanguage): string | null;
-/** A next question that points at a place already offered: its words, and the route it echoes. */
-declare const FOLLOWUP_ECHO: Array<[RegExp, RegExp]>;
-/**
- * An answer's own words, what it quotes set aside: a span in quotes (“…”, "…", «…», or '…' opened after a space, a
- * colon or a bracket and holding a space, which is never an apostrophe) is someone else's -- a draft to approve, a
- * message received -- never a sentence the answer says. The eval's headline check (one sentence) and the write claims
- * read only this. Moved from the eval (tooling/scripts/eval-ask-context.mjs), which reads it from here.
- */
-declare const unquoted: (s: string | null | undefined) => string;
-/**
- * Whether an answer's own words claim a write (WRITE_CLAIMS): a draft it quotes claims nothing. The eval's `no_write`
- * and `names_card` read it, and the turn's loop, which says a claiming headline beside cards as the cards' own sentence
- * (apps/dashboard/src/server/ask/loop.ts).
- */
-declare const claimsWrite: (text: string | null | undefined) => boolean;
-/**
- * A run of words and how it is set: bold, italic, or neither, and a door where it names a row this turn read. The model
- * never writes a route (D5): it names the row (`[Riley's review](review:<id>)`), the normaliser grounds it in the turn's
- * reads and writes the route after `ask:` (answerDoors), and a link no read holds is its words alone. So only a link
- * whose target opens with `ask:` is a door, and every other is a run of its words.
- */
-interface AnswerRun {
-    text: string;
-    bold?: true;
-    italic?: true;
-    /** The route the run opens, which the normaliser derived (answerDoors); never one the model wrote. */
-    to?: string;
-}
-/**
- * A list as the words wrote it: numbered or bulleted, each point with the list under it, if any, and the number a
- * numbered one starts at where it is not 1 (steps that go on after a quote between them keep their numbers).
- */
-interface AnswerList {
-    ordered: boolean;
-    start?: number;
-    items: Array<{
-        runs: AnswerRun[];
-        sub: AnswerList | null;
-    }>;
-}
-/**
- * The answer's words as the Line draws them: paragraphs, a few headings, lists nested up to three deep, and tables. The
- * Line draws each from its parts as text, never as markup, so nothing the model writes is ever parsed as HTML.
- */
-type AnswerBlock = {
-    kind: "text";
-    lines: AnswerRun[][];
-} | {
-    kind: "heading";
-    runs: AnswerRun[];
-} | {
-    kind: "list";
-    list: AnswerList;
-} | {
-    kind: "table";
-    head: AnswerRun[][];
-    rows: AnswerRun[][][];
-    right: boolean[];
-} | {
-    kind: "quote";
-    lines: AnswerRun[][];
-} | {
-    kind: "callout";
-    tone: AnswerCalloutTone;
-    lines: AnswerRun[][];
-};
-/** A callout's tone: `warn` for what needs the person or must come first (amber, as "needs you" is everywhere), else `note`. */
-type AnswerCalloutTone = "note" | "warn";
-/**
- * A line's words as runs: its marks read, each mark's words a run of their own; the marks themselves are never shown.
- * The words inside bold or italic are read too, so a door or an italic inside bold is one ("**Reply to [Riley](ask:…)**").
- */
-declare function answerRuns(line: string): AnswerRun[];
-/**
- * The answer's words as blocks: a heading line (`#`, at any level, drawn as one), a run of list lines (`-`, `*`, `•`,
- * `1.`, `1)`, nested by indent), a table (a header row, its rule `|---|`, then its rows; a column whose every body cell
- * is a number is set right), a quote (`>` lines: a customer's own words) or a callout (a quote whose first line is an
- * alert's mark, `> [!WARNING]`), and paragraphs, a blank line between two, each line its own. Words with no marks are
- * one paragraph of their lines, as the detail always was.
- */
-declare function answerBlocks(text: string): AnswerBlock[];
-/**
- * The answer's words with their formatting read as plain text, a line each: what Copy puts on the clipboard (bullets
- * kept, a table's cells one row to a line, set apart by " · ") and, `spoken`, what a voice reads (no bullets or indents,
- * a table's header said once, then each row's cells set apart by commas, so each is a phrase of its own).
- */
-declare function answerPlain(text: string, spoken?: boolean): string;
-/**
- * The answer's words, for copy, a folded turn and the history: the headline, then the detail, then the list, a line
- * each, their formatting read as plain words (answerPlain). A detail that opens with a heading, a list or a table starts
- * on its own line.
- */
-declare function answerText(a: AskAnswer): string;
-/** The answer as Copy takes it: its words (answerText), then its parts, each figure and each row, a line each. */
-declare function answerCopy(a: AskAnswer): string;
-/** A list as a voice reads it: each entry its own sentence, a numbered one with its number; nothing for no entries. */
-declare function listSpoken(l: AskList): string;
-/**
- * The answer's words as a voice reads them (Read aloud, a spoken question, the voice door): the headline, the detail's
- * lines, then the list (listSpoken). The figures and rows are drawn, never read.
- */
-declare function answerSpoken(a: AskAnswer): string;
-
 interface JumpEntry {
     label: string;
     to: string;
@@ -23859,6 +23879,58 @@ declare const ASK_ANSWER_FORMAT: {
                     readonly required: readonly ["label", "total", "parts", "source"];
                     readonly additionalProperties: false;
                 };
+                readonly chart: {
+                    readonly type: "object";
+                    readonly description: "A chart of numbers read this turn, when a picture says it faster than words: kind line for one count over time (a point a day, a week or a month, oldest first), bars for a few things compared, 2 to 12 points, each value a number a tool returned, and the source they were read from. Points empty when nothing is charted, and never the numbers a breakdown or a table already shows.";
+                    readonly properties: {
+                        readonly kind: {
+                            readonly type: "string";
+                            readonly enum: readonly ["line", "bars"];
+                        };
+                        readonly label: {
+                            readonly type: "string";
+                            readonly description: "What is counted (\"bookings a week\", \"messages by channel\"), at most 60 characters.";
+                        };
+                        readonly points: {
+                            readonly type: "array";
+                            readonly items: {
+                                readonly type: "object";
+                                readonly properties: {
+                                    readonly label: {
+                                        readonly type: "string";
+                                        readonly description: "A day, a week, a month or a name, at most 60 characters.";
+                                    };
+                                    readonly value: {
+                                        readonly type: "number";
+                                    };
+                                };
+                                readonly required: readonly ["label", "value"];
+                                readonly additionalProperties: false;
+                            };
+                        };
+                        readonly source: {
+                            readonly type: "object";
+                            readonly description: "A row or a page read this turn (the workspace block and the reads above count, as does a tool's result), or a row an earlier answer in this thread named, with the kind and the exact id it came with (a page's id is its route; a run is kind broadcast); kind none when it rests on nothing read or named.";
+                            readonly properties: {
+                                readonly kind: {
+                                    readonly type: "string";
+                                    readonly enum: readonly ["thread", "conversation", "call", "person", "page", "lead", "search", "deal", "list", "broadcast", "playbook", "template", "mailbox", "visit", "review", "none"];
+                                };
+                                readonly id: {
+                                    readonly type: "string";
+                                };
+                                readonly label: {
+                                    readonly type: "string";
+                                    readonly description: "A short name for it, at most 60 characters.";
+                                };
+                            };
+                            readonly required: readonly ["kind", "id", "label"];
+                            readonly additionalProperties: false;
+                        };
+                    };
+                    readonly required: readonly ["kind", "label", "points", "source"];
+                    readonly additionalProperties: false;
+                };
                 readonly list: {
                     readonly type: "object";
                     readonly description: "A flat list of points when the answer is one (bullets, numbered, steps, one per line): points in words, never the rows items hold; entries empty when nothing is a list. A list nested under headings, or set beside a table, goes in say.detail instead.";
@@ -23880,7 +23952,7 @@ declare const ASK_ANSWER_FORMAT: {
                     readonly additionalProperties: false;
                 };
             };
-            readonly required: readonly ["figures", "items", "breakdown", "list"];
+            readonly required: readonly ["figures", "items", "breakdown", "chart", "list"];
             readonly additionalProperties: false;
         };
         readonly do: {
