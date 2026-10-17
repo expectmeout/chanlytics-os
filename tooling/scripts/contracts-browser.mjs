@@ -41,7 +41,7 @@ function target(from, spec) {
 }
 
 /** A module's source with each relative import and export spelled as the built file it names. */
-export function fullySpecified(file, text) {
+function fullySpecified(file, text) {
   const sf = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true);
   const edits = [];
   const visit = (node) => {
@@ -82,7 +82,8 @@ function compile(file, text) {
 export function browserFiles(root = ROOT) {
   const { modules } = generate(root);
   // The entry is the folder's index.js: the server's index reaches classic zod, so it is never one of the modules.
-  if (modules.includes("index.ts")) throw new Error("the browser's entry reaches contracts' index, which loads classic zod");
+  if (modules.includes("index.ts"))
+    throw new Error("the browser's entry reaches contracts' index, which loads classic zod");
   const out = new Map();
   for (const rel of modules) {
     const file = path.join(SRC, rel);

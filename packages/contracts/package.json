@@ -19,16 +19,19 @@
     },
     "./report-window": {
       "types": "./dist/report-window.d.ts",
+      "browser": "./dist/browser/reports/report-window.js",
       "import": "./dist/report-window.js",
       "default": "./dist/report-window.js"
     },
     "./report-lens": {
       "types": "./dist/report-lens.d.ts",
+      "browser": "./dist/browser/reports/report-lens.js",
       "import": "./dist/report-lens.js",
       "default": "./dist/report-lens.js"
     },
     "./ads-page": {
       "types": "./dist/ads-page.d.ts",
+      "browser": "./dist/browser/ads/ads-page.js",
       "import": "./dist/ads-page.js",
       "default": "./dist/ads-page.js"
     },

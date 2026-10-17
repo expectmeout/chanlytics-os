@@ -23,14 +23,15 @@ const PACKAGES = fs
   .filter((e) => e.isDirectory() && fs.existsSync(path.join(ROOT, "packages", e.name, "package.json")))
   .map((e) => e.name);
 /**
- * Every module a package's dist ships, by its extension: its index, and an entry of its own (contracts' browser.js and
- * write-rules.js, db's realtime.js, which a page loads). Reading index.js alone left the others unchecked.
+ * Every module a package's dist ships, by its extension, in its folders too: its index, and an entry of its own
+ * (contracts' write-rules.js, db's realtime.js, which a page loads), and contracts' browser build, a file per module
+ * under dist/browser. Reading index.js alone left the others unchecked.
  */
 const builtFiles = (p, ext) =>
   fs
-    .readdirSync(path.join(ROOT, "packages", p, "dist"))
+    .readdirSync(path.join(ROOT, "packages", p, "dist"), { recursive: true })
     .filter((f) => f.endsWith(ext))
-    .map((f) => `packages/${p}/dist/${f}`);
+    .map((f) => `packages/${p}/dist/${f.split(path.sep).join("/")}`);
 /** The projects whose sources are held to their manifest: the packages, and the two apps that run on a server. */
 const PROJECTS = [...PACKAGES.map((p) => `packages/${p}`), "apps/edge", "apps/dashboard"];
 
@@ -96,8 +97,11 @@ test("a package's built JavaScript reaches a sibling only by its built file's re
     for (const out of builtFiles(p, ".js"))
       for (const { specifier } of importsOf(parse(out))) {
         const sibling = /^\.\.\/\.\.\/([a-z]+)\/dist\/index\.js$/.exec(specifier)?.[1];
+        // A file of the package's own dist, by its relative path: contracts' browser build, a file per module.
+        const own = path.posix.join(path.posix.dirname(out), specifier);
+        const ownFile = !sibling && own.startsWith(`packages/${p}/dist/`) && fs.existsSync(path.join(ROOT, own));
         if (specifier.startsWith("@chanlytics/")) wrong.push(`${out}: ${specifier}, by name`);
-        else if (specifier.startsWith(".") && !sibling)
+        else if (specifier.startsWith(".") && !sibling && !ownFile)
           wrong.push(`${out}: ${specifier} is not a sibling's built file`);
         else if (sibling && !declared.includes(sibling)) wrong.push(`${out}: ${sibling} is not in its package.json`);
       }
