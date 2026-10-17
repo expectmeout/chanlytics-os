@@ -99,8 +99,9 @@ test("a mail with no route links the page the kind's list lives on", async () =>
     playbook: "/w/harbor/campaigns",
     template_ready: "/w/harbor/templates",
     template_blocked: "/w/harbor/templates",
-    broadcast_sent: "/w/harbor/broadcasts",
-    broadcast_stopped: "/w/harbor/broadcasts",
+    // Where a send's day is, since Sent retired (#1644)
+    broadcast_sent: "/w/harbor/campaigns/sequences",
+    broadcast_stopped: "/w/harbor/campaigns/sequences",
     billing: "/w/harbor/settings/billing",
     leads_question: "/w/harbor/people/leads",
     reach_out_replied: "/w/harbor/inbox",

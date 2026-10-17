@@ -585,7 +585,7 @@ test("a send whose run died is never run a second time", async () => {
       [calls.alert[0].kind, calls.alert[0].subject, calls.alert[0].route],
       kind === "outbound_send"
         ? ["job_failed", "A message may not have been sent", "inbox"]
-        : ["job_failed", "A broadcast stopped partway", "broadcasts"],
+        : ["job_failed", "A broadcast stopped partway", "campaigns/sequences"],
       "the one alert that IS a job not finishing says so itself, in the owner's words, on the work's own page",
     );
     assert.equal(counts.gaveUp, 1);

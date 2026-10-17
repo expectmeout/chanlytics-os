@@ -23,6 +23,11 @@
  * the suite has cleared with room to spare; `COVERAGE_FLOORS=lower` is the one way a floor falls, argued under "Rises"
  * in docs/debt.md. `TEST_COVERAGE=0` skips the measure for a full run that wants the speed, and `TEST_COVERAGE=1`
  * measures a run of some files (the table only: a floor is the suite's, not theirs).
+ *
+ * A part of the suite, `corepack pnpm test -- --test-shard=2/4` with `TEST_LCOV=<file>`, is measured and its report kept
+ * in that file; `node tooling/scripts/checks/coverage.mjs <file>...` judges every part's report together against the
+ * floors (the nightly runs the suite in four parts: one runner took longer than its cap from 14 Oct 2026). A part
+ * without TEST_LCOV is not measured, as CI's parts are not.
  */
 import { spawn } from "node:child_process";
 import fs from "node:fs";
@@ -86,9 +91,14 @@ export function planOf(argv, env) {
     .map((a) => (isDirectory(a) ? `${a}/**/*.test.mjs` : a));
   const files = asked.length ? asked : db ? SUITES.db : SUITES.test;
   const zone = zoneOf(env);
-  const full = !asked.length && !db && !flags.length && !String(env.TEST_TZ ?? "").trim();
-  const measured = env.TEST_COVERAGE === "1" ? !db : full && env.TEST_COVERAGE !== "0";
-  const coverage = measured ? path.join(os.tmpdir(), `chanlytics-${process.pid}.lcov`) : null;
+  // A part of the suite (`--test-shard=i/n`) is the suite, cut: measured when TEST_LCOV names where its report is
+  // kept, and judged by no floor, since the floors are the whole suite's (coverage.mjs judges the parts' reports
+  // together, as the nightly does).
+  const part = flags.length > 0 && flags.every((f) => f.startsWith("--test-shard="));
+  const kept = part && String(env.TEST_LCOV ?? "").trim() ? path.resolve(ROOT, String(env.TEST_LCOV).trim()) : null;
+  const full = !asked.length && !db && (!flags.length || part) && !String(env.TEST_TZ ?? "").trim();
+  const measured = env.TEST_COVERAGE === "1" ? !db : full && env.TEST_COVERAGE !== "0" && (!part || kept !== null);
+  const coverage = measured ? (kept ?? path.join(os.tmpdir(), `chanlytics-${process.pid}.lcov`)) : null;
   const report = coverage
     ? [
         "--experimental-test-coverage",
@@ -101,7 +111,9 @@ export function planOf(argv, env) {
   return {
     zone,
     coverage,
-    held: measured && full,
+    held: measured && full && !part,
+    // a part's report stays where TEST_LCOV put it, for the judge of all the parts
+    keep: kept !== null,
     args: [
       "--conditions=react-server",
       "--import",
@@ -144,7 +156,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     const status = signal ? 1 : (code ?? 1);
     process.exit(
       plan.coverage
-        ? finish({ coverage: plan.coverage, status, env: process.env, held: plan.held, root: ROOT })
+        ? finish({ coverage: plan.coverage, status, env: process.env, held: plan.held, root: ROOT, keep: plan.keep })
         : status,
     );
   });

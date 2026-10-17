@@ -360,7 +360,10 @@ test("the peek's block tells the lead's story, and Read what went out opens its 
   assert.equal(byTestId(tree, "peek-reach-out-undo"), null);
   // A lead no reach-out planned draws nothing.
   world({ story: storyDto({ chain: null }) });
-  assert.equal((await drawPeek()).tree.rendered, null);
+  // The block reads its story and its view draws it (#1662): with no sequence the view draws nothing at all.
+  const none = (await drawPeek()).tree;
+  assert.equal(byTestId(none, "peek-reach-out-label"), null);
+  assert.equal(textOf(none), "");
 });
 
 test("Stop writing to them asks first, and stops once when asked", async () => {

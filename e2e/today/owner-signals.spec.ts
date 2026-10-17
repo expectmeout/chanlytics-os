@@ -32,23 +32,26 @@ async function sendScreenDoorLandsOnTheQr(page: Page): Promise<void> {
   await page.goto("/#/campaigns/new");
   await page.waitForLoadState("networkidle");
   const nobody = page.getByTestId("bc-nobody");
-  await expect(nobody).toBeVisible();
-  await expect(nobody).not.toContainText("below");
-  const door = nobody.getByTestId("bc-nobody-door");
-  if (!(await door.count())) {
-    // Since a message goes by the channels it ticks, the line says first when none of them can carry this message
+  const foot = page.getByTestId("bc-foot-say");
+  await expect(nobody.or(foot).first()).toBeVisible();
+  if (!(await nobody.count())) {
+    // Since a message goes by the channels it ticks, the screen says first when none of them can carry this message
     // (an offer to US numbers while Meta holds marketing there, a text, which carries no offers, email before its
-    // campaigns domain): a yes would change nothing, so the line is no door, and each channel says why beside its
-    // tick. The suite's workspace is in that state while Meta's hold lasts; the door itself is run in the node suite
-    // (broadcasts.test.mjs), and Today's and People's doors to the same QR are pressed above.
-    await expect(nobody).toHaveText(/None of the channels ticked can carry this message yet/);
-    // The row says why, for each channel that cannot carry it (under its tick on a touch screen, on hover and to a
-    // screen reader on a desk: the words are in the row either way).
-    const whys = page.getByTestId("bc-via").locator(".cm-sr");
-    await expect(whys.first()).toBeAttached();
+    // campaigns domain): a yes would change nothing, so there is no door, and each channel says why beside its tick.
+    // The foot says it, once, by the act it stops (Ruben, 10 Oct 2026: said in the line too, it was the same sentence
+    // twice in one screen). The suite's workspace is in that state while Meta's hold lasts; the door itself is run in
+    // the node suite (broadcasts.test.mjs), and Today's and People's doors to the same QR are pressed above.
+    await expect(foot).toHaveText(/None of the channels ticked can carry this message yet/);
+    // Each channel that cannot carry it says why, under its switch in the channels' list the sentence's word opens
+    // (#1556: the drawers read as one sentence).
+    await page.getByTestId("bc-via-word").click();
+    const whys = page.getByTestId("bc-via").locator('[data-warn="true"]');
+    await expect(whys.first()).toBeVisible();
     await expect(whys.first()).not.toBeEmpty();
     return;
   }
+  await expect(nobody).not.toContainText("below");
+  const door = nobody.getByTestId("bc-nobody-door");
   await expect(door).toHaveText(/get their yes/i);
   await door.click();
   await expect(page.getByTestId("bc-composer")).toHaveCount(0);

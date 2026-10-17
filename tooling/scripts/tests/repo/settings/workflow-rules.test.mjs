@@ -122,19 +122,29 @@ test("every pull request runs the tests of what it changed, and a label starts t
   assert.ok(!/Typecheck|Secret scan|Migrations replay/.test(suite), "no required check's name");
 });
 
-test("the nightly's node suite has its own job and cap, the specs run after it whatever it said, and one report says which half was red", () => {
+test("the nightly's node suite runs in four parts with their own cap, its coverage judged across them, the specs after it whatever it said, and one report says which half was red", () => {
   const y = workflow("nightly-e2e.yml");
-  const suite = y.slice(y.indexOf("  suite:"), y.indexOf("  e2e:"));
-  assert.ok(suite.includes("timeout-minutes: 45") && suite.includes("run: pnpm test"));
+  const suite = y.slice(y.indexOf("  suite:"), y.indexOf("  coverage:"));
+  assert.ok(suite.includes("timeout-minutes: 45") && suite.includes("part: [1, 2, 3, 4]"));
+  assert.ok(suite.includes("fail-fast: false"), "a red part does not hide another part's failures");
+  assert.ok(suite.includes("run: pnpm test -- --test-shard=${{ matrix.part }}/4"), "every file, in one of four parts");
+  assert.ok(suite.includes("TEST_LCOV: coverage-part.lcov") && suite.includes("if-no-files-found: error"));
+  // Every part's report, judged as one against the floors, only when every part passed.
+  const coverage = y.slice(y.indexOf("  coverage:"), y.indexOf("  e2e:"));
+  assert.ok(coverage.includes("needs: suite") && coverage.includes("needs.suite.result == 'success'"));
+  const parts = coverage.match(/parts\/coverage-part-(\d)\/coverage-part\.lcov/g) ?? [];
+  assert.equal(new Set(parts).size, 4, "the judge reads the four parts' reports, named");
+  assert.ok(coverage.includes("node tooling/scripts/checks/coverage.mjs "));
   const e2e = y.slice(y.indexOf("  e2e:"), y.indexOf("  report:"));
   assert.ok(
     e2e.includes("needs: suite") && e2e.includes("if: ${{ !cancelled() }}"),
     "after, never beside, never skipped",
   );
-  assert.ok(!e2e.includes("run: pnpm test\n"), "the suite runs once");
+  assert.ok(!/run: pnpm test\b/.test(e2e), "the suite runs once");
   const report = y.slice(y.indexOf("  report:"));
-  assert.ok(report.includes("needs: [suite, e2e]") && report.includes("always()"));
+  assert.ok(report.includes("needs: [suite, coverage, e2e]") && report.includes("always()"));
   assert.ok(report.includes("SUITE: ${{ needs.suite.result }}") && report.includes("SPECS: ${{ needs.e2e.result }}"));
+  assert.ok(report.includes("COVERAGE: ${{ needs.coverage.result }}"), "a floor missed is the suite's red");
 });
 
 test("every job says how long it may run: a step that hangs is ended at its cap, not at GitHub's six hours", () => {

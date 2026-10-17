@@ -100,7 +100,8 @@ test("a notice opens its own route, and with none the kind's list door; an unkno
   assert.equal(noticeRoute("handoff", null), "inbox");
   assert.equal(noticeRoute("handoff", undefined), "inbox");
   assert.equal(noticeRoute("handoff", ""), "inbox", "an empty route is none");
-  assert.equal(noticeRoute("broadcast_sent", null), "broadcasts");
+  // A send that went or stopped opens Sequences, where its day is (Sent retired with #1644, 16 Oct 2026).
+  assert.equal(noticeRoute("broadcast_sent", null), "campaigns/sequences");
   assert.equal(noticeRoute("nobody-knows-this-kind", null), "today");
   assert.equal(noticeRoute(null, null), "today");
   assert.equal(noticeRoute("constructor", null), "today", "a word on every object is not a kind");

@@ -45,15 +45,24 @@ permissions:
   contents: read
 
 jobs:
-  # The node suite with the service credentials, its integration suites against real Postgres. Its own job with its
+  # The node suite with the service credentials, its integration suites against real Postgres. Its own jobs with their
   # own cap, ahead of the specs: in one 60-minute job its 31 minutes left the specs too little, and from 1 Oct 2026
   # every run ended cancelled with the specs unfinished. The specs still run after it, never beside it: both write
   # to the e2e project, and create_workspace allows five an hour.
+  #
+  # Four parts at once, each a quarter of the files (Node's --test-shard), as CI's are: in one runner the suite outgrew
+  # its 45 minutes, and from 14 Oct 2026 every night was cancelled with a quarter of it unrun, the failures in that
+  # quarter seen by nobody. Each part keeps its coverage report, and the coverage job below judges the four together.
   suite:
-    name: Node suite against real Postgres
+    name: Node suite against real Postgres (${{ matrix.part }}/4)
     if: ${{ !inputs.credential_free_only }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    strategy:
+      # A part that fails does not stop the others: the night should say every test that failed.
+      fail-fast: false
+      matrix:
+        part: [1, 2, 3, 4]
     steps:
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
@@ -68,11 +77,41 @@ jobs:
       # metrics, executed by nobody. SUPABASE_URL is what they read; passing
       # only NEXT_PUBLIC_SUPABASE_URL left them skipping even here.
       - name: Integration suites against real Postgres
-        run: pnpm test
+        run: pnpm test -- --test-shard=${{ matrix.part }}/4
         env:
           REQUIRE_SERVICE_CREDENTIALS: "1"
           SUPABASE_URL: ${{ secrets.E2E_SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.E2E_SERVICE_ROLE_KEY }}
+          # Where this part's coverage report is kept, for the coverage job (tooling/scripts/checks/test.mjs).
+          TEST_LCOV: coverage-part.lcov
+      # The report names the code it ran, not a workspace's data; a day is enough for the job below.
+      - uses: actions/upload-artifact@v7
+        if: ${{ !cancelled() }}
+        with:
+          name: coverage-part-${{ matrix.part }}
+          path: coverage-part.lcov
+          retention-days: 1
+          if-no-files-found: error
+
+  # What the suite ran of the code, judged against the floors once the four parts are in: the one run that measures
+  # the whole suite (tooling/scripts/checks/coverage.mjs). A part that failed is the suite's red already, and a
+  # measure of a run that did not pass is no measure, so it runs only when every part passed.
+  coverage:
+    name: What the suite ran of the code
+    needs: suite
+    if: ${{ needs.suite.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - uses: actions/download-artifact@v7
+        with:
+          pattern: coverage-part-*
+          path: parts
+      - run: node tooling/scripts/checks/coverage.mjs parts/coverage-part-1/coverage-part.lcov parts/coverage-part-2/coverage-part.lcov parts/coverage-part-3/coverage-part.lcov parts/coverage-part-4/coverage-part.lcov
 
   e2e:
     name: Playwright against production
@@ -214,10 +253,11 @@ jobs:
   # pages the platform through the edge's pager door, once PAGER_URL and
   # PAGER_KEY are set (docs/runbook.md, What CI proves). A half the cap
   # cancelled is a half nobody heard from: it is red too. The issue says
-  # which half was red: the node suite, the specs, or both.
+  # which half was red: the node suite, the specs, or both. The suite is green when its four parts passed and what
+  # they ran of the code held its floors.
   report:
     name: Say what the night came to
-    needs: [suite, e2e]
+    needs: [suite, coverage, e2e]
     if: ${{ always() && !inputs.credential_free_only }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -233,6 +273,7 @@ jobs:
         shell: bash
         run: |
           nightly=(--title "Nightly e2e is red" --match "Nightly e2e is red" --match "Nightly e2e failed " --match "Nightly e2e hit its cap ")
+          if [ "$SUITE" = "success" ] && [ "$COVERAGE" != "success" ]; then SUITE="passed, but what it ran of the code was not held to its floors ($COVERAGE)"; fi
           if [ "$SUITE" = "success" ] && [ "$SPECS" = "success" ]; then
             node tooling/scripts/ops/rolling-issue.mjs --state green "${nightly[@]}"
           else
@@ -241,6 +282,7 @@ jobs:
           fi
         env:
           SUITE: ${{ needs.suite.result }}
+          COVERAGE: ${{ needs.coverage.result }}
           SPECS: ${{ needs.e2e.result }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PAGER_URL: ${{ secrets.PAGER_URL }}

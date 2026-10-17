@@ -408,7 +408,9 @@ test.describe("Phone shell on a real workspace", () => {
     await add.click();
     await expect(page.getByTestId("people-add-sheet")).toBeVisible();
     await expect(page.getByTestId("rec-sheet-save-people-add")).toBeInViewport({ ratio: 1 });
-    await page.getByTestId("people-add-sheet").locator(".rec-sheet-close").click();
+    // On a phone the sheet closes from its foot: its Cancel there, the corner's Close out of sight (#1592: the corner's
+    // Close comes back for a keyboard alone).
+    await page.getByTestId("rec-sheet-cancel-people-add").click();
     await expect(page.getByTestId("people-add-sheet")).toHaveCount(0);
   });
   /**
@@ -456,7 +458,15 @@ test.describe("Phone shell on a real workspace", () => {
     await add.click();
     const sheet = page.getByTestId("people-add-sheet");
     await expect(sheet).toBeVisible();
-    const b = (await sheet.boundingBox())!;
+    // Its handle where the sheet comes to rest: measured as it rose, the thumb landed below the handle.
+    let b = (await sheet.boundingBox())!;
+    await expect
+      .poll(async () => {
+        const was = b;
+        b = (await sheet.boundingBox())!;
+        return Math.round(b.y) === Math.round(was.y) && Math.round(b.height) === Math.round(was.height);
+      })
+      .toBe(true);
     await pullDown(page, b.x + b.width / 2, b.y + 10, b.height * 0.6);
     await expect(sheet, "pulled past a third, it closed").toHaveCount(0);
   });
@@ -515,7 +525,8 @@ test.describe("Phone shell on a real workspace", () => {
     await pick.click({ force: true });
     const bar = page.getByTestId("bulk-bar");
     await expect(bar).toBeVisible();
-    await expect(bar).toContainText("1 selected");
+    // The count is the dock's name; its face is the acts, docked where the tab bar stood (#1553).
+    await expect(bar).toHaveAccessibleName("1 person selected");
     const vp = page.viewportSize()!;
     const box = (await bar.boundingBox())!;
     expect(box.x, "docked in from the edges, a capsule").toBeGreaterThanOrEqual(8);
@@ -532,7 +543,7 @@ test.describe("Phone shell on a real workspace", () => {
     await expect(rows.last()).toBeInViewport({ ratio: 1 });
     await page.getByTestId("bulk-sheet-close").click();
     await expect(sheet).toHaveCount(0);
-    await expect(bar, "Cancel shuts the sheet and keeps the selection").toContainText("1 selected");
+    await expect(bar, "Cancel shuts the sheet and keeps the selection").toHaveAccessibleName("1 person selected");
     await bar.getByTestId("bulk-clear").click();
     await expect(bar).toHaveCount(0);
   });
@@ -873,13 +884,17 @@ test.describe("Phone shell on a real workspace", () => {
     await page.waitForLoadState("networkidle");
     const strip = page.getByTestId("reports-lenses");
     test.skip((await strip.count()) === 0, "no Reports on this workspace");
-    const shape = await strip.evaluate((el) => {
-      const s = el.getBoundingClientRect();
-      const t = (el.querySelector(".stabs-tab.active") as HTMLElement).getBoundingClientRect();
-      return { wider: el.scrollWidth > el.clientWidth, inside: t.left >= s.left - 1 && t.right <= s.right + 1 };
-    });
-    test.skip(!shape.wider, "the strip fits this phone");
-    expect(shape.inside, "REGRESSION: the lens picked stood past the screen's edge").toBe(true);
+    const shape = () =>
+      strip.evaluate((el) => {
+        const s = el.getBoundingClientRect();
+        const t = (el.querySelector(".stabs-tab.active") as HTMLElement).getBoundingClientRect();
+        return { wider: el.scrollWidth > el.clientWidth, inside: t.left >= s.left - 1 && t.right <= s.right + 1 };
+      });
+    test.skip(!(await shape()).wider, "the strip fits this phone");
+    // Asked until the strip has scrolled the lens into view: it glides there as the page lands.
+    await expect
+      .poll(async () => (await shape()).inside, { message: "REGRESSION: the lens picked stood past the screen's edge" })
+      .toBe(true);
   });
 
   /**
