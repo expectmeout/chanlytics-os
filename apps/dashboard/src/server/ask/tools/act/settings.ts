@@ -129,7 +129,7 @@ const answerStyleAction = actAction({
   }),
   examples: [{ words: "Short answers, the key numbers in bold" }],
   label: "Keeping how you like answers",
-  words: `Action answer_style keeps how this person likes your answers (length, format, language) as their own note, which comes with each of their questions from then on; empty clears it, and it replaces the one they keep. Call it when they say how they want answers from now on, next time or always ("shorter from now on", "always bullets", "answer me in Spanish"); within one conversation, keep to what they asked without it. Theirs alone, never a teammate's, and they see and change it in Settings › Profile.`,
+  words: `Action answer_style keeps how this person likes your answers (length, format, language) as their own note, which comes with each of their questions from then on; empty clears it, and it replaces the one they keep. Call it when they want answers a way beyond this conversation ("always bullets", "every time in Spanish", "next time, shorter"); a shape asked for within one conversation is kept there without it. Theirs alone, never a teammate's, and they see and change it in Settings › Profile.`,
   build: async (t, input) => {
     const words = input.words.trim().slice(0, ASK_STYLE_MAX);
     const previous = t.ctx.userId ? answerStyleOf((await load(t.rc, memberViews, undefined)).data) : "";

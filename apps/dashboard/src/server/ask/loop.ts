@@ -711,7 +711,7 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
       // Cards alone, every one of them made: they are the Do, said in a sentence (a plan's by the model, from its result,
       // in the round after it), with no second round -- unless part of what was asked is no card, which the next round
       // says (turn-end.ts turnUnmade).
-      const alone = unmade.alone({ acts: acts.length, calls: calls.length, refused, made: proposals.length > before });
+      const alone = unmade.alone({ acts: acts.length, calls: calls.length, refused, made: proposals.slice(before) });
       if (
         planAnswerOwed(alone, planned, { answerTool: model.answerTool, last, leftMs: budgetMs - (Date.now() - t0) })
       ) {

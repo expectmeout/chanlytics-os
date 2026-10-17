@@ -259,12 +259,12 @@ test("REGRESSION (the stress run's Win-back, 3 of 3): a card that leaves out a p
 
 test("what a turn owes, kept: a refusal until the same call makes its card, a part left as it is until the turn ends, and nothing owed by a call that refused nothing", () => {
   const u = turnUnmade();
-  const cards = { acts: 1, calls: 1, refused: false, made: true };
+  const cards = { acts: 1, calls: 1, refused: false, made: [{ kind: "note" }] };
   assert.equal(u.alone(cards), "answer");
   u.heard("propose_list.make", { isError: true, refusal: "name who is on it", result: "" });
   assert.equal(u.alone(cards), "owed");
   assert.equal(u.alone({ ...cards, refused: true }), null, "a round with a refusal of its own is the model's anyway");
-  assert.equal(u.alone({ ...cards, made: false }), null);
+  assert.equal(u.alone({ ...cards, made: [] }), null);
   assert.equal(u.alone({ ...cards, calls: 2 }), null, "a read beside the cards");
   u.heard("propose_person.note", { isError: false, result: "" });
   assert.equal(u.alone(cards), "owed", "another call's card settles nothing");
@@ -275,6 +275,24 @@ test("what a turn owes, kept: a refusal until the same call makes its card, a pa
   assert.equal(
     u.words(),
     `Part of what they asked is no card: ${ALREADY}. Propose what you still can, then answer: what the cards do and, in a short clause each, what was not made and why, or what already holds, and what they can do instead. Never leave one out.`,
+  );
+});
+
+test("a note on how they like answers, its card alone, is never the whole answer (the answer canvas, D): the round goes back to answer the rest; beside another card, the cards answer as ever", () => {
+  const u = turnUnmade();
+  const style = { acts: 1, calls: 1, refused: false, made: [{ kind: "answer_style" }] };
+  assert.equal(u.alone(style), "owed");
+  assert.match(
+    u.words(),
+    /^The note on how they like answers is proposed as its card, which is theirs to press\. Now answer the rest/,
+  );
+  assert.equal(u.alone({ ...style, acts: 2, calls: 2, made: [{ kind: "answer_style" }, { kind: "note" }] }), "answer");
+  u.heard("propose_list.make", { isError: true, refusal: "name who is on it", result: "" });
+  assert.equal(u.alone(style), "owed");
+  assert.match(
+    u.words(),
+    /^Part of what they asked is no card: propose_list\.make was refused/,
+    "a refusal is said first",
   );
 });
 

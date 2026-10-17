@@ -9974,6 +9974,27 @@ test("Ask keeps how they like answers by a card (propose_settings answer_style):
   assert.match(JSON.parse((await build(views(null), "")).result).error, /they keep no note to clear/);
 });
 
+test("a note on how they like answers is never the whole answer (the answer canvas, D): its card alone sends the round back, and the model answers the rest of what they asked, already that way", async () => {
+  const s = scripted([
+    ROUND([tool("propose_settings", { action: "answer_style", words: "Two lines at most" })]),
+    ROUND([answer("Nobody needs you today.")]),
+  ]);
+  const r = await runAskTurn(
+    turn(ctxFor(), { text: "Every time I ask, two lines at most. Who needs me today?" }).input,
+    ports(s.round),
+  );
+  assert.equal(r.failed, false, r.failure ?? "");
+  assert.equal(r.rounds, 2, "the round went back");
+  assert.equal(r.answer.say.headline, "Nobody needs you today.", "the model's answer, not the cards' sentence");
+  assert.deepEqual(
+    r.proposals.map((p) => p.kind),
+    ["answer_style"],
+  );
+  const told = JSON.stringify(s.requests[1].messages);
+  assert.ok(told.includes("The note on how they like answers is proposed as its card"), "told to answer the rest");
+  assert.ok(!told.includes("Part of what they asked is no card"), "nothing was refused");
+});
+
 /* ---- the answer as a tool (ASK_ANSWER_TOOL, 15 Oct 2026): its input streams where text after a read does not ---- */
 
 /** Runs `fn` with ASK_ANSWER_TOOL set to `value` (undefined: unset), as a deployment sets it, and puts it back. */
