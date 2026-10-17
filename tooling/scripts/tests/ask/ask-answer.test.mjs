@@ -1482,6 +1482,92 @@ test("the detail keeps its formatting and its indents; the headline is one plain
   );
 });
 
+test("a customer's words quoted and a callout for what comes first (the answer canvas, C2): `>` lines are a quote, an alert's mark makes a callout, amber for what needs them; Copy quotes the words, a voice says them", () => {
+  const detail =
+    "Riley wrote:\n> Your quote was twice what the website says.\n> Can you explain?\n\n> [!WARNING] Connect a calendar first.\n\n> [!NOTE]\n> Reminders go the day before.";
+  assert.deepEqual(answerBlocks(detail), [
+    { kind: "text", lines: [[{ text: "Riley wrote:" }]] },
+    {
+      kind: "quote",
+      lines: [[{ text: "Your quote was twice what the website says." }], [{ text: "Can you explain?" }]],
+    },
+    { kind: "callout", tone: "warn", lines: [[{ text: "Connect a calendar first." }]] },
+    { kind: "callout", tone: "note", lines: [[{ text: "Reminders go the day before." }]] },
+  ]);
+  assert.equal(answerBlocks("> [!CAUTION] **Paused** since Monday")[0].tone, "warn");
+  assert.equal(answerBlocks("> [!TIP] Ask me again tomorrow")[0].tone, "note");
+  assert.equal(answerBlocks("> [!WARNING]").length, 0, "a mark with no words draws nothing");
+  assert.deepEqual(
+    answerBlocks("1. Reply to Riley:\n  > The quote was **higher**.")[0].list.items[0].runs,
+    [
+      { text: "Reply to Riley:" },
+      { text: " “" },
+      { text: "The quote was ", italic: true },
+      { text: "higher", bold: true, italic: true },
+      { text: ".", italic: true },
+      { text: "”" },
+    ],
+    "a quote under a step is its words in quotes, never a > drawn",
+  );
+  assert.equal(
+    answerPlain(detail),
+    "Riley wrote:\n“Your quote was twice what the website says.”\n“Can you explain?”\nConnect a calendar first.\nReminders go the day before.",
+  );
+  assert.equal(
+    answerPlain(detail, true),
+    "Riley wrote:\nYour quote was twice what the website says.\nCan you explain?\nConnect a calendar first.\nReminders go the day before.",
+  );
+});
+
+test("a door in the words (the answer canvas, C2): only a link the normaliser wrote, `ask:` and a route of the app's own, opens; any other link is its words, and an address elsewhere never opens", () => {
+  assert.deepEqual(answerBlocks("1. Reply to [Riley's review](ask:reviews/rv-1)")[0].list.items[0].runs, [
+    { text: "Reply to " },
+    { text: "Riley's review", to: "reviews/rv-1" },
+  ]);
+  assert.deepEqual(answerBlocks("See [this](ask:javascript:alert(1))")[0].lines[0][1], { text: "this" });
+  assert.deepEqual(answerBlocks("See [this](review:abc)")[0].lines[0], [{ text: "See " }, { text: "this" }]);
+  assert.deepEqual(answerBlocks("See [this](https://example.com)")[0].lines[0], [{ text: "See " }, { text: "this" }]);
+  assert.deepEqual(answerBlocks("See [this](ask://example.com)")[0].lines[0], [{ text: "See " }, { text: "this" }]);
+  assert.equal(answerPlain("Reply to [Riley's review](ask:reviews/rv-1)."), "Reply to Riley's review.");
+});
+
+test("the normaliser grounds the doors in the words (the answer canvas, C2): a row this turn read, named as kind:id, by its id or by its route, becomes `ask:` and its route; a row not read, an address and a page no reader names are words alone, each counted dropped", () => {
+  const r = read1(
+    written({
+      say: {
+        headline: "Two need you.",
+        detail: `1. Reply to [Nora](thread:${ID})\n2. Call [Sam](${CALL}) back\n3. Read [the profile](clients/${PERSON})\n4. Not [this one](thread:${UNREAD})\n5. Not [this](https://example.com) either`,
+      },
+    }),
+  );
+  assert.equal(
+    r.answer.say.detail,
+    `1. Reply to [Nora](ask:inbox/th-${ID})\n2. Call [Sam](ask:conversations/cv-${CALL}) back\n3. Read [the profile](ask:clients/${PERSON})\n4. Not this one\n5. Not this either`,
+  );
+  assert.ok(r.dropped >= 2, "the row not read and the address are dropped");
+  const runs = answerBlocks(r.answer.say.detail)[0].list.items.map((it) => it.runs.find((x) => x.to)?.to ?? null);
+  assert.deepEqual(runs, [`inbox/th-${ID}`, `conversations/cv-${CALL}`, `clients/${PERSON}`, null, null]);
+  assert.equal(answerText(r.answer).split("\n")[1], "1. Reply to Nora", "Copy and the history read the words alone");
+});
+
+test("REGRESSION (the C2 look, 16 Oct): a door or an italic inside bold is read, and steps that go on after a quote between them keep their numbers", () => {
+  assert.deepEqual(answerBlocks("**Reply to [Riley](ask:reports/reviews:rv-1)** and *see **this***")[0].lines[0], [
+    { text: "Reply to ", bold: true },
+    { text: "Riley", to: "reports/reviews:rv-1", bold: true },
+    { text: " and " },
+    { text: "see ", italic: true },
+    { text: "this", bold: true, italic: true },
+  ]);
+  const blocks = answerBlocks("1. Answer the search\n2. Reply to Riley:\n> The quote was higher.\n3. Thank Morgan");
+  assert.deepEqual(
+    blocks.map((b) => b.kind),
+    ["list", "quote", "list"],
+  );
+  assert.equal(blocks[0].list.start, undefined, "a list from 1 says nothing of it");
+  assert.equal(blocks[2].list.start, 3, "the step after the quote is still 3");
+  assert.equal(answerPlain("1. a\n> said\n3. c"), "1. a\n“said”\n3. c");
+});
+
 test("REGRESSION (the A1 eval): a headline's second sentence opens the detail as a paragraph of its own above a table, so the table keeps its first row", () => {
   const read = normalizeAnswer(
     JSON.stringify({

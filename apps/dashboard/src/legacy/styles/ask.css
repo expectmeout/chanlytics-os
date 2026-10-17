@@ -181,6 +181,18 @@ body.ask-open .tb-ask .tb-ask-face { visibility: hidden; }
 .ask-words-list { display: flex; flex-direction: column; gap: 4px; margin: 0; padding: 0 0 0 22px; }
 .ask-words-list .ask-words-list { padding-top: 4px; }
 .ask-words-list > li::marker { color: var(--ink-dim); font-variant-numeric: tabular-nums; }
+/* A row the words name, as a door: underlined in the words' own ink, as a receipt's Open is. */
+.ask-words-door { display: inline; padding: 0; border: 0; background: transparent; font: inherit; color: var(--ink); text-decoration: underline; text-decoration-color: var(--ink-faint); text-underline-offset: 3px; cursor: pointer; text-align: inherit; }
+.ask-words-door:hover { text-decoration-color: currentColor; }
+.ask-words-door:focus-visible { outline: none; border-radius: var(--radius-sm); box-shadow: var(--focus-ring); }
+/* A customer's own words, quoted: a rule at the left, the words a shade quieter. A callout is what must come first. */
+.ask-words-quote { display: grid; gap: 4px; margin: 0; padding: 2px 0 2px 12px; border-left: 2px solid var(--line); color: var(--ink-muted); }
+.ask-words-quote > p, .ask-words-callout-words > p { margin: 0; }
+.ask-words-callout { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px; align-items: start; padding: 8px 10px; border-radius: var(--radius-md); background: var(--surface-inset-fill); color: var(--ink); }
+.ask-words-callout > svg { margin-top: 3px; color: var(--ink-dim); }
+.ask-words-callout[data-tone="warn"] { background: var(--warn-soft); }
+.ask-words-callout[data-tone="warn"] > svg { color: var(--warn-ink); }
+.ask-words-callout-words { display: grid; gap: 4px; }
 .ask-words-table { max-width: 100%; overflow-x: auto; overscroll-behavior-x: contain; }
 .ask-words-table table { border-collapse: collapse; font-size: var(--text-sm); font-variant-numeric: tabular-nums; }
 .ask-words-table th, .ask-words-table td { min-width: 56px; overflow-wrap: normal; padding: 6px 14px 6px 0; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }

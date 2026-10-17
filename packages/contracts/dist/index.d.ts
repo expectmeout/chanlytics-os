@@ -23251,17 +23251,25 @@ declare const unquoted: (s: string | null | undefined) => string;
  */
 declare const claimsWrite: (text: string | null | undefined) => boolean;
 /**
- * A run of words and how it is set: bold, italic, or neither. A link's words are a run of their own with no link: the
- * model never writes a route (D5), so a place is an item or Open, never a link inside the words.
+ * A run of words and how it is set: bold, italic, or neither, and a door where it names a row this turn read. The model
+ * never writes a route (D5): it names the row (`[Riley's review](review:<id>)`), the normaliser grounds it in the turn's
+ * reads and writes the route after `ask:` (answerDoors), and a link no read holds is its words alone. So only a link
+ * whose target opens with `ask:` is a door, and every other is a run of its words.
  */
 interface AnswerRun {
     text: string;
     bold?: true;
     italic?: true;
+    /** The route the run opens, which the normaliser derived (answerDoors); never one the model wrote. */
+    to?: string;
 }
-/** A list as the words wrote it: numbered or bulleted, each point with the list under it, if any. */
+/**
+ * A list as the words wrote it: numbered or bulleted, each point with the list under it, if any, and the number a
+ * numbered one starts at where it is not 1 (steps that go on after a quote between them keep their numbers).
+ */
 interface AnswerList {
     ordered: boolean;
+    start?: number;
     items: Array<{
         runs: AnswerRun[];
         sub: AnswerList | null;
@@ -23285,14 +23293,27 @@ type AnswerBlock = {
     head: AnswerRun[][];
     rows: AnswerRun[][][];
     right: boolean[];
+} | {
+    kind: "quote";
+    lines: AnswerRun[][];
+} | {
+    kind: "callout";
+    tone: AnswerCalloutTone;
+    lines: AnswerRun[][];
 };
-/** A line's words as runs: its marks read, each mark's words a run of their own; the marks themselves are never shown. */
+/** A callout's tone: `warn` for what needs the person or must come first (amber, as "needs you" is everywhere), else `note`. */
+type AnswerCalloutTone = "note" | "warn";
+/**
+ * A line's words as runs: its marks read, each mark's words a run of their own; the marks themselves are never shown.
+ * The words inside bold or italic are read too, so a door or an italic inside bold is one ("**Reply to [Riley](ask:…)**").
+ */
 declare function answerRuns(line: string): AnswerRun[];
 /**
  * The answer's words as blocks: a heading line (`#`, at any level, drawn as one), a run of list lines (`-`, `*`, `•`,
  * `1.`, `1)`, nested by indent), a table (a header row, its rule `|---|`, then its rows; a column whose every body cell
- * is a number is set right), and paragraphs, a blank line between two, each line its own. Words with no marks are one
- * paragraph of their lines, as the detail always was.
+ * is a number is set right), a quote (`>` lines: a customer's own words) or a callout (a quote whose first line is an
+ * alert's mark, `> [!WARNING]`), and paragraphs, a blank line between two, each line its own. Words with no marks are
+ * one paragraph of their lines, as the detail always was.
  */
 declare function answerBlocks(text: string): AnswerBlock[];
 /**
@@ -23652,7 +23673,7 @@ declare const ASK_ANSWER_FORMAT: {
                 };
                 readonly detail: {
                     readonly type: "string";
-                    readonly description: "The body under the headline, as long as the question needs and no longer: empty when the headline says it whole, a sentence or two for a reason or a condition, more for why, how, a comparison, steps or a plan. Markdown where it helps the reader: **bold** for the number or name that matters, a short ### heading over each part of a long answer, - bullets and 1. numbered steps (two spaces nest a point under another), and a table (a header row, its |---| rule, then its rows) for rows compared on the same columns. No links and no HTML: a place to open is an item or Open. At most 3000 characters.";
+                    readonly description: "The body under the headline, as long as the question needs and no longer: empty when the headline says it whole, a sentence or two for a reason or a condition, more for why, how, a comparison, steps or a plan. Markdown where it helps the reader: **bold** for the number or name that matters, a short ### heading over each part of a long answer, - bullets and 1. numbered steps (two spaces nest a point under another), a table (a header row, its |---| rule, then its rows) for rows compared on the same columns, a customer's own words as a > quote, and a callout as > [!WARNING] (what must come first, or needs them) or > [!NOTE] (a side note), its words on the same line or the > lines after. A row this turn read, named in the words, as [its name](kind:id) with the kind and the id a tool gave, which opens it; never an address, and no HTML. At most 3000 characters.";
                 };
             };
             readonly required: readonly ["headline", "detail"];
