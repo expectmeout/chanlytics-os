@@ -764,6 +764,15 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
   :root {
     --bar-foot: max(14px, calc(env(safe-area-inset-bottom, 0px) - 13px));
   }
+  /* In a browser's tab on an iPhone (iOS 26) the browser draws its own glass capsule under the page, and keeps a margin
+     of its own over it: at 14 over that the bar stood 27pt over Safari's address, far from the thumb (Ruben, 17 Oct
+     2026). There it rests 4px over what the browser leaves the page; an app on the home screen has no browser bar
+     under it, and keeps the home bar's rest above. Only an iPhone's browsers say -webkit-touch-callout. */
+  @supports (-webkit-touch-callout: none) {
+    :root {
+      --bar-foot: max(4px, calc(env(safe-area-inset-bottom, 0px) - 13px));
+    }
+  }
 
   /* The tab bar (the kit's TabBar: its capsule, its places and the lozenge are kit.css's) floats over the page, 14px
      clear of its sides and of the home bar, with the room for Ask's circle at its right (liquid.py tabbar). */
@@ -817,10 +826,15 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
    still grows to the screen's foot.
    ==================================================================== */
 @media (max-width: 720px) {
+  /* Where the frame's top stands from the window's top (below): what sticks under it sticks that far down, plus its
+     height (--frame-top: kit/head/frame-top.ts). */
+  :root {
+    --frame-top-at: env(safe-area-inset-top, 0px);
+  }
   /* What the window brings into view (a row the arrows reach, a field that takes focus, a pane that arrives) stops
-     under the frame's top and over the tab bar, never behind them (--frame-top: kit/head/frame-top.ts). */
+     under the frame's top and over the tab bar, never behind them. */
   html.legacy-on {
-    scroll-padding-top: var(--frame-top, 0px);
+    scroll-padding-top: calc(var(--frame-top-at) + var(--frame-top, 0px));
     scroll-padding-bottom: calc(var(--bar-foot) + 76px);
   }
   /* The document is not held to the screen here: legacy.css holds it only wider than a phone.
@@ -874,31 +888,43 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
      carries the paper as a colour Safari reads, too faint to see over the light (it ignores one under 10%). Nothing
      fixed stands 8px over the foot (the tab bar rests 14px up), so there Safari draws its glass over the page. */
   .frame-top {
+    --frame-top-fade: 14px;
     display: block;
     position: fixed;
-    top: env(safe-area-inset-top, 0px);
+    top: var(--frame-top-at);
     right: 0;
     left: 0;
     z-index: 200;
     background-color: color-mix(in oklab, var(--bg) 12%, transparent);
   }
-  /* What it stands on once the page has gone under it (kit/head/frame-top.ts, `data-under`): the paper, fading out
-     over its last 14px over a deep frost, so the page comes out from under it rather than from behind an edge; up over
-     the phone's bar's room too. Paper, not glass, where it is whole: rows read through nine parts in ten of it. Nothing
-     at rest, so the light falls on the page's name as it did. */
-  .frame-top::before {
+  /* What it stands on: the page's own ground and light, laid where the window's layer of light has them (.pg-light,
+     above: the screen's width by its height from its top), so the top reads the same over the page at rest and over
+     rows gone under it, and hides them; up over the phone's bar's room too. It was the paper alone, turned on as the
+     page moved, and the head went a flat dark block over its light the moment a row passed under it (Ruben, 17 Oct
+     2026). It ends at the top's edge. Once the page has gone under (data-under, frame-top.ts) the same ground reaches
+     14px further and fades there (::after), so the rows come out from under it rather than from behind an edge; at
+     rest that band lay over what the page drew there, the Today page's name and every pane's first row (Ruben, 17 Oct
+     2026). Where something sticks under the top, the band is shorter, as long as the gap over it (below). */
+  .frame-top::before,
+  .frame-top::after {
     content: "";
     position: absolute;
-    inset: calc(-1 * env(safe-area-inset-top, 0px)) 0 -14px;
+    inset: calc(-1 * var(--frame-top-at)) 0 0;
     z-index: -1;
     pointer-events: none;
-    background: linear-gradient(var(--bg) calc(100% - 14px), transparent);
-    backdrop-filter: blur(var(--blur-lg));
-    mask-image: linear-gradient(#000 calc(100% - 14px), transparent);
+    background-color: var(--surface-page-fill);
+    background-image: var(--surface-page-top), var(--surface-page-light);
+    background-repeat: no-repeat;
+    background-size: 100vw 100vh;
+    background-size: 100vw 100dvh;
+  }
+  .frame-top::after {
+    bottom: calc(-1 * var(--frame-top-fade));
     opacity: 0;
+    mask-image: linear-gradient(transparent calc(100% - var(--frame-top-fade)), #000 0, transparent);
     transition: opacity var(--duration-fast) var(--ease-out);
   }
-  .frame-top[data-under]::before {
+  .frame-top[data-under]::after {
     opacity: 1;
   }
   /* The Inbox's sending strip floats over the frame's top, as it floated over the head before the top was a box of its
@@ -930,14 +956,18 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
     flex: none;
     overflow: visible;
   }
-  /* A person's page is one long record: no box of its own either, and its strip of tabs sticks under the top. */
+  /* A person's page is one long record: no box of its own either, and its strip of tabs sticks 6px under the top, where
+     the top's band ends, so the band never lies over the capsule's rim. */
   .main-scroll.pane > .cl-profile {
     height: auto;
     overflow: visible;
     overflow-x: clip;
   }
   .cl-prof-strip-stand {
-    top: calc(var(--frame-top, 0px) + 6px);
+    top: calc(var(--frame-top-at) + var(--frame-top, 0px) + 6px);
+  }
+  .main:has(> .main-scroll .cl-prof-strip-stand) > .frame-top {
+    --frame-top-fade: 6px;
   }
   /* Settings' panes, Reports' lenses and Campaigns' lists the same: as tall as what they hold. A box that clipped keeps
      its clip (Campaigns' list is a pane with corners), and none is a scroller. */
@@ -965,8 +995,8 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
   }
 }
 @media (max-width: 720px) and (display-mode: standalone) {
-  .frame-top {
-    top: calc(env(safe-area-inset-top, 0px) - 10px);
+  :root {
+    --frame-top-at: calc(env(safe-area-inset-top, 0px) - 10px);
   }
 }
 

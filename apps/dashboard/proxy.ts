@@ -3,6 +3,7 @@ import { createServerClient } from "@supabase/ssr";
 import { isRetryableAuthError } from "@/server/auth-errors";
 import { contentSecurityPolicy, CSP_HEADER } from "@/csp";
 import { linkHostAnswers, linkHostOf } from "@/link-host";
+import { publicPageNamesNothing } from "@/server/public/public-page-gate";
 import { writeAuthCookies } from "@/server/auth-cookies";
 import { env, isProduction, servedOverHttps } from "@/server/env";
 import { publicEnv } from "@/lib/public-env";
@@ -144,6 +145,14 @@ export async function proxy(request: NextRequest) {
     r.headers.set(CSP_HEADER, csp);
     return r;
   };
+  // A public page's address that names no page is the not-found page with a 404, decided here because the page's own
+  // notFound() runs after its shell has gone out with a 200 (src/server/public/public-page-gate.ts). `/_none` is a
+  // private folder's name, so no route can ever answer it. Before the session is read: nothing here needs one.
+  if (await publicPageNamesNothing(request.nextUrl.pathname)) {
+    const none = NextResponse.rewrite(new URL("/_none", request.url));
+    none.headers.set(CSP_HEADER, csp);
+    return none;
+  }
   let response = nextWithPolicy();
 
   const supabase = createServerClient(env.NEXT_PUBLIC_SUPABASE_URL!, env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {

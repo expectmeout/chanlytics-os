@@ -5,7 +5,7 @@
  * The door is api/admin/voice-converge.ts: it checks who may knock (authorizeAdmin) and reads the body, then hands this
  * the knock (`auth`) and what the body carried; everything after is here, in the order the door had it.
  *
- * The converger script (tooling/scripts/ops/voice-converge.mjs) needs the
+ * The converger script (tooling/scripts/ops/voice/voice-converge.mjs) needs the
  * provider key on a laptop, and the key lives here and nowhere else. This
  * endpoint plans the same agent-level settings the script does — the webhook
  * events, the webhook budget, signed recording links, the post-call analysis

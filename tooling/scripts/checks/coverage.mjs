@@ -16,6 +16,7 @@
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 /** What is reported, in order: a package by its name, a tree by its path. `floor` marks the three that are held. */
 export const AREAS = [
@@ -50,7 +51,8 @@ export function parseLcov(text, root) {
     if (raw.startsWith("SF:")) {
       const abs = raw.slice(3);
       const rel = slash(path.isAbsolute(abs) ? path.relative(root, abs) : abs);
-      cur = new Map();
+      // A file named twice, as in the reports of the suite's parts read together, keeps every line any part ran.
+      cur = files.get(rel) ?? new Map();
       files.set(rel, cur);
     } else if (raw.startsWith("DA:") && cur) {
       const [line, count] = raw.slice(3).split(",").map(Number);
@@ -202,8 +204,15 @@ export function judge({ lcov, root, floors, status, bank = null, lower = false, 
  * The end of a measured run, from its lcov file: read the report and the floors, print the table and any floor missed
  * on stderr, write the floors a bank asked for, and return the status the launcher exits with. The report is removed.
  */
-export function finish({ coverage, status, env, held, root }) {
+export function finish({ coverage, status, env, held, root, keep = false }) {
   const read = (file) => (fs.existsSync(file) ? fs.readFileSync(file, "utf8") : null);
+  // A part of the suite: its report is kept for the judge of all the parts, and no floor is the part's.
+  if (keep) {
+    if (read(coverage) === null)
+      console.error("coverage: this part of the suite wrote no report (Node's lcov reporter)");
+    else console.error(`coverage: this part's report is kept at ${coverage}, judged with the other parts'`);
+    return status || (read(coverage) === null ? 1 : 0);
+  }
   const floorsFile = path.join(root, FLOORS);
   const floors = JSON.parse(read(floorsFile) ?? "{}");
   const lcov = read(coverage);
@@ -217,4 +226,30 @@ export function finish({ coverage, status, env, held, root }) {
     console.error(`coverage: floors written to ${FLOORS}: ${JSON.stringify(judged.banked)}`);
   }
   return judged.status;
+}
+
+/**
+ * The suite's parts judged together: their reports read as one (a line any part ran is a line the suite ran) and held
+ * to the floors, as a whole run is. A report that is missing is a red verdict, never a part left out of the measure.
+ * Nothing is banked here: a floor is raised from a whole run on a laptop.
+ */
+export function judgeParts({ reports, root }) {
+  const missing = reports.filter((f) => !fs.existsSync(f));
+  if (!reports.length || missing.length)
+    return {
+      status: 1,
+      lines: [`coverage: the parts' reports are not all here (${missing.join(", ") || "none named"})`],
+    };
+  const floors = JSON.parse(fs.readFileSync(path.join(root, FLOORS), "utf8"));
+  const lcov = reports.map((f) => fs.readFileSync(f, "utf8")).join("\n");
+  const judged = judge({ lcov, root, floors, status: 0, held: true });
+  return { status: judged.status, lines: [`# the suite's ${reports.length} parts, read as one`, ...judged.lines] };
+}
+
+//   node tooling/scripts/checks/coverage.mjs <part.lcov>...   the nightly's four parts, judged against the floors
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
+  const judged = judgeParts({ reports: process.argv.slice(2).map((f) => path.resolve(f)), root });
+  for (const line of judged.lines) console.error(line);
+  process.exit(judged.status);
 }

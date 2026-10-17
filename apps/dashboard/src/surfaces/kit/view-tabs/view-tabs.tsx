@@ -89,7 +89,18 @@ export function ViewTabs({ name, label, picked, tabs, onPick, mayLeave, fill, te
   useLayoutEffect(() => {
     showPicked(strip.current);
   }, [lit, shown]);
-  if (tabs.length < 2) return null;
+  // And again when the strip's own width changes under it: the scroll was worked out for the width it had, and a control
+  // drawn beside it later narrows it (Reports' lenses beside the period on a phone left Reviews 10px past the edge,
+  // 17 Oct 2026).
+  const drawn = tabs.length >= 2;
+  useEffect(() => {
+    const el = strip.current;
+    if (!drawn || !el || typeof ResizeObserver === "undefined") return undefined;
+    const sized = new ResizeObserver(() => showPicked(el));
+    sized.observe(el);
+    return () => sized.disconnect();
+  }, [drawn]);
+  if (!drawn) return null;
 
   const press = (e: MouseEvent<HTMLAnchorElement>, tab: ViewTab) => {
     if (!ownPress(e)) return;

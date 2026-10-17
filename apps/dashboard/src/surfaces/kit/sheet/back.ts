@@ -60,6 +60,18 @@ export function historyBack(h: History = window.history): void {
   takeBack(h);
 }
 
+/**
+ * Leave from inside a sheet: where the tab stands on the entry an open sheet stood, that entry is taken back first (the
+ * sheet closes as Back closes it), and this says when the tab has moved, so a step back made after it starts from the
+ * page under the sheet. A person deleted from their page's sheet stepped back onto that page, where the list they came
+ * from was meant: the sheet's entry took the step (the nightly's people-delete spec, 17 Oct 2026). Nothing where the tab
+ * stands on no sheet's entry.
+ */
+export function leaveSheet(h: History | null = historyOf()): Promise<void> {
+  if (h && tokenNow(h) !== null) takeBack(h);
+  return settling;
+}
+
 function takeBack(h: History): void {
   settling = new Promise((done) => {
     const fin = () => {

@@ -173,7 +173,11 @@ test.describe("The thread, in the nightly's own workspace", () => {
     await test.step("the seeded thread is quiet: the receptionist answered and nobody asked for a person", async () => {
       await freshLoad(page, "#/inbox");
       const pane = await openRobin(page, "Handled");
-      await expect(pane.getByText(/Answered by the receptionist/)).toBeVisible();
+      // The receptionist's reply wears its spark, and a quiet thread says nothing over it: no standing line, and nobody
+      // asked for a person (#1660: the sentence for the ordinary state stood over every thread).
+      await expect(pane.locator(".tl-msg .tl-stamp-spark").last()).toBeVisible();
+      await expect(pane.getByTestId("ix-th-standing")).toHaveCount(0);
+      await expect(pane.getByTestId("ix-needs-you")).toHaveCount(0);
     });
 
     await test.step("a reply written in the composer is on its way, and the thread is now yours", async () => {
@@ -189,10 +193,11 @@ test.describe("The thread, in the nightly's own workspace", () => {
       messageId = receipt.message_id;
       await expect(page.getByText(/reply on its way/)).toBeVisible();
       const bubble = pane.locator(".tl-msg").filter({ hasText: words });
-      await expect(bubble).toContainText("by you");
-      await expect(bubble).toContainText("Sending");
-      // A reply takes the thread: the receptionist steps back for the person who wrote.
-      await expect(pane.getByText(/You have it/)).toBeVisible();
+      // Signed as the team's, its state in the corner (#1660: the time and what became of it, in the bubble's corner).
+      await expect(bubble).toContainText("Your team");
+      await expect(bubble.getByRole("img", { name: /^Sending/ })).toBeVisible();
+      // A reply takes the thread: the receptionist steps back for the person who wrote (the dock says so, once).
+      await expect(pane.getByTestId("ix-yours")).toBeVisible();
     });
 
     await test.step("the number has no credentials: the send fails, and the thread says so in its own words", async () => {
@@ -217,7 +222,9 @@ test.describe("The thread, in the nightly's own workspace", () => {
       await freshLoad(page, "#/inbox");
       // Yours since the reply, so Handled (#852), with the failure said on the thread itself.
       const pane = await openRobin(page, "Handled");
-      await expect(pane.locator(".tl-msg").filter({ hasText: words })).toContainText("Didn't send");
+      await expect(
+        pane.locator(".tl-msg").filter({ hasText: words }).getByRole("img", { name: "Didn't send" }),
+      ).toBeVisible();
       const flag = pane.getByText(/Flagged for a human/);
       await expect(flag).toContainText("Reply failed to deliver");
       await expect(flag).toContainText("the WhatsApp number is not connected");
@@ -240,8 +247,9 @@ test.describe("The thread, in the nightly's own workspace", () => {
         // Measured, not asked: toBeVisible passes a box an overflow has cut to nothing.
         const fit = await pane.evaluate((el) => {
           const edge = el.getBoundingClientRect();
-          const words = el.querySelector(".ix-state-says")?.getBoundingClientRect();
-          const inside = [...el.querySelectorAll(".ix-state-acts .btn, .ix-th-actions .btn")].every((b) => {
+          // The dock over the reply box says the decision, its acts beside it (#1660: the kit's Notice).
+          const words = el.querySelector(".ix-dock .notice-fact")?.getBoundingClientRect();
+          const inside = [...el.querySelectorAll(".ix-dock .btn, .ix-th-actions .btn")].every((b) => {
             const r = b.getBoundingClientRect();
             return r.width === 0 || (r.left >= edge.left - 1 && r.right <= edge.right + 1);
           });
@@ -252,7 +260,9 @@ test.describe("The thread, in the nightly's own workspace", () => {
           // so its one row grew to the taller of the two: the list never scrolled and Send sat below the fold.
           const list = document.querySelector(".ix-list")?.getBoundingClientRect();
           return {
-            words: !!words && words.width >= Math.min(240, edge.width * 0.6),
+            // The dock's one-row form gives its act its width beside the words (the kit's Notice line): they keep at
+            // least half the pane, never the sliver the old banner was cut to.
+            words: !!words && words.width >= Math.min(240, edge.width * 0.5),
             inside,
             name: !!name && name.width >= Math.min(240, edge.width * 0.6),
             height: edge.bottom <= window.innerHeight + 1 && (!list || list.bottom <= window.innerHeight + 1),
@@ -316,7 +326,7 @@ test.describe("The thread, in the nightly's own workspace", () => {
       await expect(page.getByText(/the receptionist is paused/)).toBeVisible();
       // Taken over, it is yours: Handled (#852).
       pane = await openRobin(page, "Handled");
-      await expect(pane.getByText(/You have it/)).toBeVisible();
+      await expect(pane.getByTestId("ix-yours")).toBeVisible();
       const { conversation: c } = await readThread(page, id);
       expect(c.state).toBe("needs_human");
       expect(Date.parse(c.paused_until ?? ""), "paused into the future").toBeGreaterThan(Date.now());
@@ -343,7 +353,7 @@ test.describe("The thread, in the nightly's own workspace", () => {
       const pane = await openRobin(page, "Handled");
       await expect(pane.getByText(/Flagged for a human/)).toHaveCount(0);
       // Resolving what the thread was about does not hand it back: it is still yours.
-      await expect(pane.getByText(/You have it/)).toBeVisible();
+      await expect(pane.getByTestId("ix-yours")).toBeVisible();
     });
 
     await test.step("handed back from the thread: the receptionist answers again, and the words that never left still say so", async () => {
@@ -351,8 +361,12 @@ test.describe("The thread, in the nightly's own workspace", () => {
       await pane.getByRole("button", { name: /^Hand back to/ }).click();
       await expect(page.getByText(/handed back/)).toBeVisible();
       pane = await openRobin(page, "Handled");
-      await expect(pane.getByText(/Answered by the receptionist/)).toBeVisible();
-      await expect(pane.locator(".tl-msg").filter({ hasText: words })).toContainText("Didn't send");
+      // Nobody holds it now, and the bar still says the team's last words didn't send, as the row's pill does.
+      await expect(pane.getByTestId("ix-yours")).toHaveCount(0);
+      await expect(pane.getByTestId("ix-th-standing")).toContainText("Didn't send");
+      await expect(
+        pane.locator(".tl-msg").filter({ hasText: words }).getByRole("img", { name: "Didn't send" }),
+      ).toBeVisible();
       const t = await readThread(page, id);
       expect(t.conversation.state).toBe("open");
       expect(t.conversation.paused_until).toBeNull();

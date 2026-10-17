@@ -239,7 +239,7 @@ test("a call back's flag says why it was flagged, and its to-do is said once, wh
   // It quoted the to-do (cut at 120 characters), under the band that said it again beside "From the call".
   assert.equal(
     flag,
-    "Flagged for a human — Needs a call back — the phone receptionist could not finish it",
+    "Flagged for a human — Needs a call back — they phoned and are still owed a call",
     "REGRESSION: the flag quoted the to-do a third time",
   );
   assert.equal(vm(long).summary, long, "said whole, where it is acted on");

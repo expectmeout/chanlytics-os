@@ -89,7 +89,7 @@ export {
   DISCONNECTION_LABELS,
 } from "./call-dto";
 export type { CallDto } from "./call-dto";
-export { callEndedWords, spokenDuration, toCallVM } from "./call-vm";
+export { callEndedWords, spokenDuration, toCallVM, unansweredCallTodo } from "./call-vm";
 export type { CallVM } from "./call-vm";
 export {
   standingOf,

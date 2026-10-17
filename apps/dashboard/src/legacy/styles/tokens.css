@@ -421,6 +421,12 @@
   --surface-control-depth:
     inset 0 1px 0 oklch(1 0 0 / 0.95), 0 0 0 1px oklch(0.304 0.046 275 / 0.08),
     0 22px 44px -26px oklch(0.274 0.063 274 / 0.36), 0 1px 2px oklch(0.274 0.063 274 / 0.06);
+  /* The same glass floating over rows that scroll under it (a phone's tab bar, Ask's circle, a docked bar): its
+     specular edge and contour, with a short shadow close under it. The control's long one fell on the rows passing
+     beneath as a grey smudge under the bar (Ruben, 17 Oct 2026). */
+  --surface-float-depth:
+    inset 0 1px 0 oklch(1 0 0 / 0.95), 0 0 0 1px oklch(0.304 0.046 275 / 0.08),
+    0 4px 14px -8px oklch(0.274 0.063 274 / 0.2), 0 1px 2px oklch(0.274 0.063 274 / 0.06);
   --surface-control-radius: 30px;
 
   /* A pane: a white card on the lit ground (it was clear, which read as the ground itself), a thinner rim, a shallow
@@ -576,6 +582,9 @@
   );
   --surface-control-depth:
     inset 0 1px 0 oklch(1 0 0 / 0.2), 0 0 0 1px oklch(0.1 0.025 280 / 0.3), 0 28px 60px -32px oklch(0.1 0.025 280 / 0.8),
+    0 2px 8px -4px oklch(0.1 0.025 280 / 0.5);
+  --surface-float-depth:
+    inset 0 1px 0 oklch(1 0 0 / 0.2), 0 0 0 1px oklch(0.1 0.025 280 / 0.3), 0 6px 16px -10px oklch(0.1 0.025 280 / 0.6),
     0 2px 8px -4px oklch(0.1 0.025 280 / 0.5);
 
   --surface-pane-fill: oklch(0.97 0.014 285 / 0.035);

@@ -62,15 +62,15 @@ test.describe("Settings → Autonomy on a real workspace", () => {
       await expect(row.locator(".pol-dash")).toHaveCount(2);
       await expect(row.locator(".pol-dot")).toHaveCount(2);
       await expect(row.locator(".pol-dot").first()).toBeEnabled();
-      // The note lives behind the row's info mark since #620: the row reads as its label and the two dashes, and the
+      // The note lives behind the row's info mark since #620 (the record kit's tip since #1514): the row reads as its label and the two dashes, and the
       // mark's tip says what each mode does and on which lines.
-      await expect(row.locator(".set-mark")).toHaveAttribute("data-tip", /on WhatsApp and on the phone/);
+      await expect(row.locator(".rec-tip")).toHaveAttribute("data-tip", /on WhatsApp and on the phone/);
     }
     // The rows that run playbooks say what each mode does to a run -- behind the row's info mark, as every note is
     // since #620 -- and their dots are live.
     for (const label of ["Re-engage quiet customers", "Standing offers"]) {
       const row = rows.filter({ hasText: label });
-      await expect(row.locator(".set-mark")).toHaveAttribute("data-tip", /ask leaves it waiting on Today/);
+      await expect(row.locator(".rec-tip")).toHaveAttribute("data-tip", /ask leaves it waiting on Today/);
       await expect(row.locator(".pol-dot").first()).toBeEnabled();
     }
 
@@ -85,9 +85,9 @@ test.describe("Settings → Autonomy on a real workspace", () => {
     // control with a number the runtime actually uses -- they were two sentences.
     await expect(page.getByTestId("aut-reply-cap")).toBeVisible();
     await expect(page.getByTestId("aut-pause")).toBeVisible();
-    // Each dial is a row of options with one pressed; the pressed one is the number the runtime uses.
-    await expect(page.getByTestId("aut-reply-cap").locator(".cl-tab.active")).toHaveText(/^\d+$/);
-    await expect(page.getByTestId("aut-pause").locator(".cl-tab.active")).toHaveText(/^\d+h$/);
+    // Each dial is a row of options with one chosen (the record kit's radios); the chosen one is the number the runtime uses.
+    await expect(page.getByTestId("aut-reply-cap").getByRole("radio", { checked: true })).toHaveText(/^\d+$/);
+    await expect(page.getByTestId("aut-pause").getByRole("radio", { checked: true })).toHaveText(/^\d+h$/);
   });
 
   test("changing the reply mode issues a workspace-scoped PUT with the class and mode — intercepted", async ({

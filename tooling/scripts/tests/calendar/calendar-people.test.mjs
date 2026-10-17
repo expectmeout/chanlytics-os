@@ -2634,8 +2634,12 @@ test("a visit's title drops the person's own name, and nothing else: on Tom's pa
 
 test("a caller's appointment, told to a receptionist with no booking link, is changed through the team; with a link, or with no config to know by, by the link", async () => {
   const { visitsFor, forgetFeeds } = await import("../../../../apps/edge/lib/calendar/availability.ts");
+  const { setPg } = await importSrc("apps/edge/lib/pg.ts");
   const realFetch = globalThis.fetch;
   globalThis.fetch = async () => new Response(ICS, { status: 200, headers: { "content-type": "text/calendar" } });
+  // The record is a database in memory with nothing on it, whatever the run's credentials: with the nightly's, the
+  // real database was asked for this made-up workspace and refused its id, so the visits went unsaid.
+  setPg(fakeDb({ appointments: [] }));
   const quotes = {
     business_name: "Luna Studio",
     system_prompt: "Answer as the front desk of Luna Studio, warmly and briefly, and never a price.",
@@ -2677,6 +2681,7 @@ test("a caller's appointment, told to a receptionist with no booking link, is ch
   } finally {
     globalThis.fetch = realFetch;
     forgetFeeds();
+    setPg(null);
   }
 });
 
