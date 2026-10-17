@@ -27,13 +27,16 @@ interface Body {
   by?: string | null;
 }
 
-const WHAT: Record<string, { subject: string; how: string }> = {
+/** What the platform is told to do: words, or words made with the workspace's id (a command to run as it is). */
+const WHAT: Record<string, { subject: string; how: string | ((tenantId: string) => string) }> = {
+  // The voice door takes a token minted for it, never the platform's key on an edge that holds EDGE_CALL_SECRET
+  // (admin-auth.ts): the script mints one, as the dashboard does. The key in a curl was refused there (token_required).
   line: {
     subject: "asked for a phone line",
-    how:
-      "Set it up from the edge, dry run first:\n" +
-      '  POST /api/admin/voice-provision  { "tenant_id": "<id>", "area_code": <3 digits> }   (x-diag-key)\n' +
-      'then the same body with "apply": true. Their Setup page reads the line as ready by itself once the row exists.',
+    how: (tenantId) =>
+      "Set it up from the repository with EDGE_CALL_SECRET (the secret the dashboard signs with) in the environment, a dry run first:\n" +
+      `  node tooling/scripts/ops/voice/voice-provision.mjs --tenant ${tenantId} --area-code <3 digits>\n` +
+      "then the same with --apply. Their Setup page reads the line as ready by itself once the row exists.",
   },
   // Bringing the number they have (S14): a person files the port with the carrier; nothing here provisions it.
   port: {
@@ -84,6 +87,7 @@ export async function notifySetupRequest(auth: Admitted, body: Partial<Body>): P
 
   const by = typeof body.by === "string" && body.by.trim() ? body.by.trim().slice(0, 120) : "a member";
   const w = WHAT[what];
+  const how = typeof w.how === "function" ? w.how(tenant.data.id) : w.how;
   const sent = await notify(
     // The platform's own mailbox: this is about a workspace, not addressed to one.
     { tenantId: null, notifications: null, isEnvDefault: true },
@@ -93,7 +97,7 @@ export async function notifySetupRequest(auth: Admitted, body: Partial<Body>): P
       body:
         `${tenant.data.name} (${tenant.data.slug}) ${w.subject}.\n` +
         `Requested by: ${by}\n` +
-        `Workspace id: ${tenant.data.id}\n\n${w.how}\n`,
+        `Workspace id: ${tenant.data.id}\n\n${how}\n`,
     },
   );
   L.info("setup_request_told", { tenant_id: tenantId, what, sent });

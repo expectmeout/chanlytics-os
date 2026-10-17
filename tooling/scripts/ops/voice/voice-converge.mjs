@@ -39,7 +39,7 @@
  *       VOICE_FN_URL     where the booking tool posts; optional while the live
  *                        LLM has a booking tool, whose address is kept
  *
- * Usage: node tooling/scripts/ops/voice-converge.mjs [--apply] [--pin] [--retention-days N]
+ * Usage: node tooling/scripts/ops/voice/voice-converge.mjs [--apply] [--pin] [--retention-days N]
  *   --pin   also bind the number to agent_version "latest_published" (weight
  *           1), so a later draft cannot go live by being saved. REFUSED while
  *           the latest version is unpublished — pinning then would switch the
@@ -113,7 +113,7 @@ const number = process.env.VOICE_NUMBER
 
 // 2. Backup, ALWAYS, before any apply. The LLM carries the booking tool's
 //    secret header, which is why tooling/backups/ is gitignored.
-const backupsDir = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "backups");
+const backupsDir = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "backups");
 mkdirSync(backupsDir, { recursive: true });
 const stamp = new Date().toISOString().replace(/[:.]/g, "-");
 const backupPath = join(backupsDir, `voice-shell-${stamp}.jsonl`);

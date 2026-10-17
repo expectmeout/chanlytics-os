@@ -621,6 +621,11 @@ only a workflow sees); `admin_door_key_only` in the edge log names
 every door the key alone still knocks on, and whether it came in. The eval
 harness (`tooling/scripts/eval-brain.mjs`) mints a token for its door from
 `EDGE_CALL_SECRET`, as the dashboard does; there is no raw key knock to make.
+So does `tooling/scripts/ops/voice/voice-provision.mjs`, which sets up a workspace's
+phone line by hand when Setup's "Ask for a line" mails the platform (a
+workspace that cannot buy a line itself yet): a dry run by default, `--apply`
+to buy or bind the number, and the mail carries the command with the
+workspace's id.
 
 Before setting `RETELL_DOORS_SIGNED=1`, read `voice_door_auth` in the edge log
 for `sig: true` on each of the three voice doors. The verifier tries one key,
