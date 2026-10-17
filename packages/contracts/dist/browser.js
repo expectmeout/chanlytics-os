@@ -16125,6 +16125,13 @@ function followUpDue(f, w) {
   }
   return (w.replies.get(f.subject) ?? 0) > 0;
 }
+var ASK_STYLE_PAGE = "ask_style";
+var ASK_STYLE_MAX = 300;
+function answerStyleOf(views) {
+  const page2 = views && typeof views === "object" ? views[ASK_STYLE_PAGE] : null;
+  const words2 = page2 && typeof page2 === "object" ? page2.words : null;
+  return typeof words2 === "string" ? words2.trim().slice(0, ASK_STYLE_MAX) : "";
+}
 
 // src/ask-proposals/guide.ts
 var WHY = {
@@ -16260,8 +16267,8 @@ var ASK_GUIDE_PAGES = [
   {
     page: "Settings",
     route: "admin/workspace",
-    for: "What the receptionist knows and may do alone, your goal, connections, notifications, team and billing.",
-    verbs: ["settings", "policy", "invite", "follow_up", "fact_suggestion"],
+    for: "What the receptionist knows and may do alone, your goal, how you like answers (Profile), connections, notifications, team and billing.",
+    verbs: ["settings", "policy", "invite", "follow_up", "fact_suggestion", "answer_style"],
     pageOnly: [
       { what: "Connect WhatsApp, Google, a mailbox or a phone line", why: WHY.signIn },
       { what: "Billing and the plan", why: WHY.money },
@@ -16447,6 +16454,30 @@ var factSuggestionSpec = {
   }),
   receipt: (p) => p.payload.keep === true ? FACT_SUGGEST_WORDS.kept(asText(p.payload.title)) : FACT_SUGGEST_WORDS.dismissed,
   open: () => "admin/autonomy"
+};
+
+// src/ask-proposals/follow-up.ts
+var answerStyleSpec = {
+  needs: "operator",
+  gate: "approve",
+  commit: ({ payload: pl }) => ({
+    route: "PUT views/[page]",
+    params: { page: ASK_STYLE_PAGE },
+    body: { view: { words: asText(pl.words) } }
+  }),
+  receipt: ({ payload: pl }) => asText(pl.words) ? "Kept for your answers" : "Cleared",
+  undo: {
+    label: () => "Undo",
+    window: "ten_minutes",
+    record: ({ payload: pl }) => ({ words: asText(pl.previous) }),
+    call: (u) => ({
+      route: "PUT views/[page]",
+      params: { page: ASK_STYLE_PAGE },
+      body: { view: { words: asText(u.words) } }
+    }),
+    receipt: () => "As it was"
+  },
+  open: () => "admin/profile"
 };
 
 // src/ask-proposals/lists.ts
@@ -20437,7 +20468,9 @@ var PAGE_SPECS = {
   // A booking the receptionist asked for, answered on Today, in the Inbox and on the Calendar (decision 0061).
   booking_request: bookingRequestSpec,
   // A note suggested from an owner's correction, kept or dismissed on Settings › Autonomy (decision 0063).
-  fact_suggestion: factSuggestionSpec
+  fact_suggestion: factSuggestionSpec,
+  // How a member likes Ask's answers, kept by Ask's card or on Settings › Profile (the answer canvas, D).
+  answer_style: answerStyleSpec
 };
 var more = {};
 function proposalSpec(kind) {
@@ -49667,6 +49700,8 @@ export {
   ASK_SPEECH_MAX_CHARS,
   ASK_SPEED,
   ASK_SPOKEN_TURN_BUDGET_MS,
+  ASK_STYLE_MAX,
+  ASK_STYLE_PAGE,
   ASK_SURFACES,
   ASK_THREAD_ROUTES,
   ASK_THREAD_VERBS,
@@ -50722,6 +50757,7 @@ export {
   answerSaidOf,
   answerSoFar,
   answerSpoken,
+  answerStyleOf,
   answerText,
   answerWireOf,
   answerWords,

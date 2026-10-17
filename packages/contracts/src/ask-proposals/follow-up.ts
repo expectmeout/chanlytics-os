@@ -4,7 +4,7 @@
  * So the builder writes the whole list the view will hold (its follow-ups, contracts ask/follow-ups.ts), and the undo
  * puts back the list it held. It changes nothing of the business: a plan approves it with its other silent steps.
  */
-import { ASK_VIEW_PAGE } from "./follow-ups";
+import { ASK_STYLE_PAGE, ASK_VIEW_PAGE } from "./follow-ups";
 import { PROPOSAL_WORDS, asText, refuseWith, type ProposalSpec } from "./spec";
 
 const listIn = (v: unknown): unknown[] | null => (Array.isArray(v) ? v : null);
@@ -35,4 +35,33 @@ export const followUpSpec: ProposalSpec = {
     receipt: () => "As it was",
   },
   open: () => null,
+};
+
+/**
+ * How a member likes Ask's answers, kept as their own note (the answer canvas, D; contracts follow-ups.ts
+ * ASK_STYLE_PAGE): through the same door, on its own page, so a follow-up's card never writes over it. Theirs alone; a
+ * card is an operator's, as a follow-up's is, and a viewer keeps theirs in Settings › Profile, which shows and edits it.
+ * The undo puts back the note it replaced.
+ */
+export const answerStyleSpec: ProposalSpec = {
+  needs: "operator",
+  gate: "approve",
+  commit: ({ payload: pl }) => ({
+    route: "PUT views/[page]",
+    params: { page: ASK_STYLE_PAGE },
+    body: { view: { words: asText(pl.words) } },
+  }),
+  receipt: ({ payload: pl }) => (asText(pl.words) ? "Kept for your answers" : "Cleared"),
+  undo: {
+    label: () => "Undo",
+    window: "ten_minutes",
+    record: ({ payload: pl }) => ({ words: asText(pl.previous) }),
+    call: (u) => ({
+      route: "PUT views/[page]",
+      params: { page: ASK_STYLE_PAGE },
+      body: { view: { words: asText(u.words) } },
+    }),
+    receipt: () => "As it was",
+  },
+  open: () => "admin/profile",
 };

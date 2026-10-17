@@ -11,6 +11,7 @@ import { ASK_UNDO_MS, type AskProposal } from "../ask/ask";
 import type { AskOnlyKind } from "./ask-only";
 import { bookingRequestSpec } from "./inbox";
 import { factSuggestionSpec } from "./autonomy";
+import { answerStyleSpec } from "./follow-up";
 import { listMemberSpec } from "./lists";
 import {
   answerManySpec,
@@ -74,6 +75,8 @@ export const PAGE_SPECS = {
   booking_request: bookingRequestSpec,
   // A note suggested from an owner's correction, kept or dismissed on Settings › Autonomy (decision 0063).
   fact_suggestion: factSuggestionSpec,
+  // How a member likes Ask's answers, kept by Ask's card or on Settings › Profile (the answer canvas, D).
+  answer_style: answerStyleSpec,
 } satisfies Record<Exclude<AskProposal["kind"], AskOnlyKind>, ProposalSpec>;
 
 /** A verb a page presses: commitVerb takes no other. */

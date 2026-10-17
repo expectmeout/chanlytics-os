@@ -19,6 +19,11 @@
     "fresh": "Asked as the owner types a name, a number or an address to filter the log by.",
     "why": "A search answers what was typed at that moment and is asked again with the next key; nothing of it is kept or drawn after the pick."
   },
+  "apps/dashboard/src/surfaces/settings/profile/pane.tsx GET views": {
+    "kind": "on-open",
+    "fresh": "Read as Settings > Profile opens, for the row How Ask answers you; the pane's own save sets what it draws.",
+    "why": "The note is the member's own, in their membership's views: no teammate's change and no record of the workspace moves it, only their own save here or a card of theirs in Ask, which the row shows the next time the pane opens."
+  },
   "apps/dashboard/src/legacy-bridge/ask/api.ts GET ask/threads": {
     "kind": "on-open",
     "fresh": "Read as Ask's list of threads opens.",

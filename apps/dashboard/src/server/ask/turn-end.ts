@@ -212,6 +212,10 @@ export function finishTurn(r: TurnEnd, soFar: TurnSoFar): TurnResult {
   };
 }
 
+/** What the round after a note on how they like answers is told, its card alone: answer the rest, already that way. */
+const STYLE_ANSWER_WORDS =
+  "The note on how they like answers is proposed as its card, which is theirs to press. Now answer the rest of what they asked, already written the way the note says; where they asked nothing else, say in one sentence that the card keeps it for their next questions. Never say it is kept.";
+
 /**
  * What a turn's cards leave out of what was asked (the operator stress run, 15 Oct 2026: "turn the receptionist off, add
  * a note that she prefers mornings, and put her on a new list called Mornings" made two cards, 4 times of 4, and "2 cards
@@ -223,6 +227,7 @@ export function finishTurn(r: TurnEnd, soFar: TurnSoFar): TurnResult {
 export function turnUnmade() {
   const refused = new Map<string, string>();
   const noted: string[] = [];
+  let styleAlone = false;
   return {
     /** A proposal's outcome, under the name its call is recorded by (`propose_list.make`). */
     heard(name: string, o: { isError: boolean; refusal?: string; noted?: string; result: string }): void {
@@ -233,14 +238,23 @@ export function turnUnmade() {
     /**
      * A round of cards alone, every one made: "answer", they are the Do, said in a sentence with no second round;
      * "owed", part of what was asked is no card and not yet said, so the round goes back to say it; else null. A refused
-     * or failed proposal keeps the round -- the model must say why and what the person can do instead.
+     * or failed proposal keeps the round -- the model must say why and what the person can do instead. A note on how
+     * they like answers is never the whole answer (the answer canvas, D, 16 Oct 2026: "Every time, two lines at most.
+     * Who needs me today?" ended on the note's card, 3 times of 3, the question unanswered): it goes back too.
      */
-    alone(r: { acts: number; calls: number; refused: boolean; made: boolean }): "answer" | "owed" | null {
-      if (r.acts !== r.calls || r.refused || !r.made) return null;
-      return refused.size > 0 || noted.length > 0 ? "owed" : "answer";
+    alone(r: {
+      acts: number;
+      calls: number;
+      refused: boolean;
+      made: readonly AskProposal[];
+    }): "answer" | "owed" | null {
+      if (r.acts !== r.calls || r.refused || r.made.length === 0) return null;
+      styleAlone = r.made.every((p) => p.kind === "answer_style");
+      return refused.size > 0 || noted.length > 0 || styleAlone ? "owed" : "answer";
     },
     /** What the round after cards alone is told: each part no card carries, and that the answer says it. */
     words(): string {
+      if (styleAlone && refused.size === 0 && noted.length === 0) return STYLE_ANSWER_WORDS;
       const parts = [...[...refused].map(([name, why]) => `${name} was refused (${why})`), ...noted];
       return `Part of what they asked is no card: ${parts.join("; ")}. Propose what you still can, then answer: what the cards do and, in a short clause each, what was not made and why, or what already holds, and what they can do instead. Never leave one out.`;
     },

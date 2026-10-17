@@ -1,5 +1,6 @@
 import "server-only";
 import {
+  answerStyleOf,
   AppError,
   MIN_MS,
   answerText,
@@ -19,6 +20,7 @@ import type { Member } from "../route";
 import { log } from "@/server/log";
 import { load, readerContext, type ReaderContext } from "../readers";
 import * as readers from "../readers/facts";
+import { memberViews } from "../readers/notifications";
 import { runAskTurn, type TurnEvent, type TurnInput, type TurnResult } from "./loop";
 import { storedRaw, threadForTurn } from "./memory";
 import { askTurnText, workspaceFacts, type SearchAnswering, type WorkspaceFacts } from "./prompt";
@@ -176,6 +178,10 @@ export async function finishAskTurn(
   const t0 = Date.now();
   // The Say as the person last read it: an empty one took the answer back (loop.ts unsay).
   let said: { headline: string; detail: string } | null = null;
+  // How they like answers, their own note (the answer canvas, D): a read that fails costs the note, never the turn.
+  const style = await load(rc, memberViews, undefined)
+    .then((r) => answerStyleOf(r.data))
+    .catch(() => "");
   const ran = await runAskTurn({
     ctx,
     tenantId,
@@ -191,6 +197,7 @@ export async function finishAskTurn(
     openedMs,
     context,
     spoken: ask.spoken ?? false,
+    style,
     emit: (ev) => {
       if (ev.t === "say")
         said = ev.headline || ev.detail ? { headline: ev.headline ?? "", detail: ev.detail ?? "" } : null;

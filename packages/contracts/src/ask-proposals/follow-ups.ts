@@ -88,3 +88,20 @@ export function followUpDue(f: AskFollowUp, w: FollowUpWorld): boolean {
   }
   return (w.replies.get(f.subject) ?? 0) > 0;
 }
+
+/**
+ * How a member likes Ask's answers (the answer canvas, D, 16 Oct 2026: "a per-member 'how I like answers' note: length,
+ * format habits, language ... visible and editable in Settings, so it's never hidden magic"): their own few sentences,
+ * kept in their views under a page of its own, apart from `ask`, whose follow-ups a card writes whole. Ask reads it with
+ * each of their questions; Settings › Profile shows it and edits it.
+ */
+export const ASK_STYLE_PAGE = "ask_style";
+/** The note, in characters: a few sentences. */
+export const ASK_STYLE_MAX = 300;
+
+/** A member's note on how they like answers, from their views (GET views' `views`): "" where they keep none. */
+export function answerStyleOf(views: unknown): string {
+  const page = views && typeof views === "object" ? (views as Record<string, unknown>)[ASK_STYLE_PAGE] : null;
+  const words = page && typeof page === "object" ? (page as Record<string, unknown>).words : null;
+  return typeof words === "string" ? words.trim().slice(0, ASK_STYLE_MAX) : "";
+}

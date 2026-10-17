@@ -2,7 +2,9 @@ import "server-only";
 import { z } from "zod";
 import {
   ASK_GOAL_MAX,
+  ASK_STYLE_MAX,
   AskSettingsChangeSchema,
+  answerStyleOf,
   describeSettingsChange,
   proposalBelowNeeds,
   type AskSettingsChange,
@@ -19,6 +21,8 @@ import {
   type ToolContext,
 } from "../context";
 import { autonomyAction } from "./policy";
+import { load } from "../../../readers";
+import { memberViews } from "../../../readers/notifications";
 
 /** Each change's card title, in the person's words. */
 const SETTINGS_TITLE: Record<AskSettingsChange["op"], string> = {
@@ -110,6 +114,36 @@ const goalAction = actAction({
 });
 
 /**
+ * How this member likes your answers, kept as their own note (the answer canvas, D, 16 Oct 2026): their length, format
+ * and language, which comes with each of their questions. Theirs alone, in their views (contracts ASK_STYLE_PAGE): the
+ * card writes the whole note, and its undo the one it replaced, read here as it stands.
+ */
+const answerStyleAction = actAction({
+  kind: "answer_style",
+  input: z.object({
+    words: z
+      .string()
+      .describe(
+        `The note in their own terms, at most ${ASK_STYLE_MAX} characters, such as "Short answers, the numbers in bold, in Spanish"; empty clears it.`,
+      ),
+  }),
+  examples: [{ words: "Short answers, the key numbers in bold" }],
+  label: "Keeping how you like answers",
+  words: `Action answer_style keeps how this person likes your answers (length, format, language) as their own note, which comes with each of their questions from then on; empty clears it, and it replaces the one they keep. Call it when they want answers a way beyond this conversation ("always bullets", "every time in Spanish", "next time, shorter"); a shape asked for within one conversation is kept there without it. Theirs alone, never a teammate's, and they see and change it in Settings › Profile.`,
+  build: async (t, input) => {
+    const words = input.words.trim().slice(0, ASK_STYLE_MAX);
+    const previous = t.ctx.userId ? answerStyleOf((await load(t.rc, memberViews, undefined)).data) : "";
+    if (words === previous) return refuse(words ? "that is already their note" : "they keep no note to clear");
+    return propose({
+      kind: "answer_style",
+      title: "How you like answers",
+      summary: words ? `Kept for your answers from now on: ${words}` : "Your note cleared: answers as Ask writes them",
+      payload: { words, previous },
+    });
+  },
+});
+
+/**
  * What the workspace is set to (D11, the operator, 15 Oct 2026): a change the receptionist follows (change, once the one
  * definition), what it may do alone for a class of message (autonomy, once propose_autonomy) and the owner's goal for
  * Ask (goal).
@@ -125,5 +159,6 @@ export const propose_settings = defineActions({
     }),
     autonomy: autonomyAction,
     goal: goalAction,
+    answer_style: answerStyleAction,
   },
 });
