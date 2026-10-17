@@ -154,7 +154,7 @@ function closedFigure({ after_hours }: Series, profile: ReportProfile | null): R
     compare: null,
   } as const;
   if (hoursUnsetOf(after_hours, profile)) {
-    return { ...tile, value: "—", meta: CLOSED_UNSET, door: "admin/workspace", unset: true };
+    return { ...tile, value: "—", meta: CLOSED_UNSET, door: "admin/hours", unset: true };
   }
   if (profile === null) return null;
   const came = closedOf(after_hours, profile) ?? 0;

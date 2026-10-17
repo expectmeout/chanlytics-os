@@ -268,8 +268,8 @@ export const PARAM_SOURCE_LABELS: Record<ParamSourceKind, string> = {
  */
 export const PARAM_SOURCE_HINTS: Record<Exclude<ParamSourceKind, "text">, string> = {
   first_name: "Each person's own — “there” when none is on file",
-  business_name: "From Settings › Business",
-  booking_link: "From Settings › Business",
+  business_name: "From Settings › Details",
+  booking_link: "From Settings › Hours & booking",
   review_link: "From your Google listing",
   visit_when: "Each one's own, from the calendar",
   visit_service: "Each one's own, from the calendar",

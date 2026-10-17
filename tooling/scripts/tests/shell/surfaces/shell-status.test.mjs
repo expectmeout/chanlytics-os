@@ -688,7 +688,7 @@ test("on a real workspace a crumb, and so the tab, never names the demo's people
   assert.equal(mount("#/clients/seg:opted_in").title, "Opted in · People · Chanlytics");
   assert.equal(mount("#/clients/seg:lapsed-60").title, "List · People · Chanlytics");
 
-  assert.equal(mount("#/admin").title, "Business · Settings · Chanlytics", "the pane the bare route opens, by name");
+  assert.equal(mount("#/admin").title, "Details · Settings · Chanlytics", "the pane the bare route opens, by name");
   assert.equal(
     mount("#/admin/memory").title,
     "AI memory · Settings · Chanlytics",

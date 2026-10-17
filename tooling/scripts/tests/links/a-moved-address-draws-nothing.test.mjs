@@ -53,7 +53,7 @@ test("the gate still draws its card for a demo page nobody is sent from, and a p
 
 test("an address under Settings that names no pane opens Profile, in the frame's crumbs as in the page", async () => {
   const { SET_TAB, settingsCrumbs } = await import("../../../../apps/dashboard/src/surfaces/settings/frame/tabs.ts");
-  for (const param of ["hours", "seats", "nonsense/deeper", "setup"]) {
+  for (const param of ["opening", "seats", "nonsense/deeper", "setup"]) {
     assert.equal(SET_TAB(param).id, "profile", `${param}: Settings opens Profile`);
     assert.equal(settingsCrumbs(param).at(-1), "Profile", `${param}: and the crumb says so`);
   }

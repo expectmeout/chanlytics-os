@@ -131,7 +131,10 @@ const BtcCannotRow = ({ limit }: { limit: Limit }) => (
 
 /* ------------------------------------ the card ------------------------------------ */
 
-/** A door opens a row by its id, as the gap line's does (tab.tsx says how the registry asks first). */
+/**
+ * A door opens a row by its id, as the gap line's does (tab.tsx says how the registry asks first). The page passes its
+ * own (tab.tsx btDoorFrom), which takes a row on another page there, open; drawn alone, the card opens rows in place.
+ */
 const btcOpenRow = (id: string) => {
   recFolds.request(id);
 };
@@ -258,13 +261,12 @@ const BtcHeld = ({ held }: { held: NonNullable<Abilities["held"]> }) => (
 const BtcAbilityRows = ({
   abilities,
   reads,
-  canEdit,
+  door,
 }: {
   abilities: Abilities | null;
   reads: CanReads;
-  canEdit: boolean;
+  door: ((id: string) => void) | null;
 }) => {
-  const door = canEdit ? btcOpenRow : null;
   const lost = [
     reads.rows ? null : "the Autonomy tab",
     Array.isArray(reads.templates) ? null : "your approved messages",
@@ -280,16 +282,19 @@ const BtcAbilityRows = ({
   );
 };
 
-/** The three things it cannot do, under the abilities. */
+/**
+ * The things it cannot do, under the abilities, folded behind one line that counts them (Ruben, 17 Oct 2026: the card
+ * said three things nobody can switch on, in full, on every visit). Open, each is a line, and what it is instead its tip.
+ */
 const BtcCannot = ({ limits }: { limits: Limit[] }) => (
-  <div className="bt-can-group" role="group" aria-labelledby="bt-cannot-title" data-testid="rec-card-cannot">
-    <h3 className="bt-can-group-head" id="bt-cannot-title">
-      And what it cannot
-    </h3>
+  <details className="bt-can-group" data-testid="rec-card-cannot">
+    <summary className="bt-can-group-head" id="bt-cannot-title">
+      {BUSINESS_TAB.cannotFoldWords(limits.length)}
+    </summary>
     {limits.map((c) => (
       <BtcCannotRow key={c.id} limit={c} />
     ))}
-  </div>
+  </details>
 );
 
 /**
@@ -303,11 +308,14 @@ export const BtCanCard = ({
   config,
   canEdit,
   activating = null,
+  door = btcOpenRow,
 }: {
   brain: Brain;
   config: Config | null;
   canEdit: boolean;
   activating?: readonly string[] | null;
+  /** How a row's door opens the row that supplies what is missing: in place, unless the page says otherwise. */
+  door?: (id: string) => void;
 }) => {
   // Undefined until the surface is read, null when the read FAILED, and the two are not one answer
   // (setup, settings take the same stance). On a cold boot the settings surface
@@ -350,7 +358,7 @@ export const BtCanCard = ({
     <>
       {abilities && abilities.held ? <BtcHeld held={abilities.held} /> : null}
 
-      <BtcAbilityRows abilities={abilities} reads={reads} canEdit={canEdit} />
+      <BtcAbilityRows abilities={abilities} reads={reads} door={canEdit ? door : null} />
 
       <BtcCannot limits={limits} />
     </>,

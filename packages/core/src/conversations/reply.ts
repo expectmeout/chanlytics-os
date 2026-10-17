@@ -531,7 +531,7 @@ export async function shapeTemplate(
   if (!facts)
     throw new AppError(
       "validation",
-      "This workspace has no template facts configured yet. Add the business name in Settings › Business first.",
+      "This workspace has no template facts configured yet. Add the business name in Settings › Details first.",
     );
   const slots = inboxSlots(tpl).map((s, at) =>
     blank && at === blank.at ? { kind: "text" as const, value: words } : s,
@@ -543,7 +543,7 @@ export async function shapeTemplate(
   if (!facts.booking_link && slots.some((s) => s.kind === "booking_link"))
     throw new AppError(
       "validation",
-      "This template takes the booking link, and none is on file. Pick another template, or add the link in Settings › Business first.",
+      "This template takes the booking link, and none is on file. Pick another template, or add the link in Settings › Hours & booking first.",
     );
   const params: string[] = resolveParams(slots, {
     firstName: firstNameOf(conv.display_name, conv.wa_profile_name, {

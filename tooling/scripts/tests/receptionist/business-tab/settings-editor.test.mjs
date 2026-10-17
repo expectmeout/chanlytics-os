@@ -152,6 +152,11 @@ globalThis.React = {
     return fn;
   },
   useId: () => `id-${slot()}`,
+  // A store's value as it stands: the stub draws once and is drawn again by hand, so nothing needs to listen.
+  useSyncExternalStore: (_subscribe, get) => {
+    slot();
+    return get();
+  },
   useEffect: (fn, deps) => {
     const k = slot();
     const prev = cells.get(k);
@@ -305,36 +310,20 @@ const railRow = (tree, label) =>
 /* ------------------------------ the sections on a phone ------------------------------ */
 
 const classesOf = (n) => String(n.props?.className || "").split(" ");
-// Ruben, 25 Sep: on a phone Settings' sections are every page's strip -- the words alone, the one open underlined in the
-// accent -- where a boxed rail of icons ran off the screen's edge with no sign there was more. It is the kit's strip
-// itself since 8 Oct 2026 (surfaces/kit/view-tabs): the page typed the markup again, with buttons where a section has
-// an address, and a slide of its own.
-test("on a phone the sections are every page's strip: their words in order, each a link to its section, the open one current, a press goes there", () => {
-  const went = [];
-  const tree = draw("workspace", went);
-  const strip = find(tree, (n) => classesOf(n).includes("stabs-settings"));
-  assert.ok(strip, "the strip (a phone shows it, mobile.css)");
-  assert.ok(classesOf(strip).includes("stabs"), "every page's strip, the kit's .stabs");
-  const tabs = all(strip, (n) => classesOf(n).includes("stabs-tab"));
-  assert.deepEqual(
-    tabs.map((t) => textOf(t).trim()),
-    SET_TABS.map((t) => t.label),
-    "the words alone, in the rail's order",
-  );
-  assert.ok(
-    tabs.every((t, i) => t.type === "a" && String(t.props.href).endsWith(`/${SET_TABS[i].id}`)),
-    "a section has an address, so its tab is a link to it",
-  );
-  assert.deepEqual(
-    tabs.filter((t) => classesOf(t).includes("active")).map((t) => [textOf(t).trim(), t.props["aria-current"]]),
-    [["Business", "page"]],
-  );
-  let stopped = 0;
-  tabs.find((t) => textOf(t).trim() === "Team").props.onClick({ button: 0, preventDefault: () => stopped++ });
-  assert.deepEqual(went, ["team"]);
-  assert.equal(stopped, 1, "the app's own move, not the link's");
-});
-
+/** Draw at a phone's width (the frame's phone head, 900px and under) or a desk's, as matchMedia answers. */
+const atPhone = (phone, fn) => {
+  const was = globalThis.window.matchMedia;
+  globalThis.window.matchMedia = (q) => ({
+    matches: phone && /max-width:\s*900px/.test(q),
+    addEventListener() {},
+    removeEventListener() {},
+  });
+  try {
+    return fn();
+  } finally {
+    globalThis.window.matchMedia = was;
+  }
+};
 test("a section's pane is a view that says which side it arrives from, and keeps saying it while it stays open", () => {
   // The deck every change of view moves by brings it in from there (surfaces/kit/motion/view-deck.ts); it was a class
   // of the page's own that a phone's stylesheet slid.
@@ -343,6 +332,62 @@ test("a section's pane is a view that says which side it arrives from, and keeps
   assert.equal(pane(draw("team")).props["data-slide"], "next", "Team after Business: from the right");
   assert.equal(pane(draw("team")).props["data-slide"], "next", "drawn again, still");
   assert.equal(pane(draw("profile")).props["data-slide"], "prev", "Profile after Team: from the left");
+});
+
+// Ruben, 17 Oct 2026 (the "Settings, split" canvas): on a phone Settings opens on its sections as a list, grouped as the
+// rail groups them, and a section opens as a page of its own whose way back is the list. Before it they were every
+// page's strip (25 Sep), nine tabs that ran off the screen, whose way back opened Business again.
+test("on a phone the bare address is the list of sections: their words in order, each a link to its section, a press goes there", () => {
+  const went = [];
+  const tree = atPhone(true, () => draw("", went));
+  const list = find(tree, (n) => n.props?.["data-testid"] === "set-list");
+  assert.ok(list, "the list");
+  assert.equal(
+    find(tree, (n) => classesOf(n).includes("set-pane")),
+    null,
+    "and no pane beside it",
+  );
+  const rows = all(list, (n) => classesOf(n).includes("set-list-row"));
+  const listed = SET_TABS.filter((t) => !t.partners);
+  assert.deepEqual(
+    rows.map((r) => textOf(find(r, (n) => classesOf(n).includes("set-list-name"))).trim()),
+    listed.map((t) => t.label),
+    "every section a person who is not a partner is offered, in the rail's order",
+  );
+  assert.deepEqual(
+    all(list, (n) => classesOf(n).includes("set-list-head")).map((h) => textOf(h).trim()),
+    ["You", "Business", "Receptionist", "Workspace"],
+    "under the rail's groups",
+  );
+  assert.ok(
+    rows.every((r, i) => r.type === "a" && String(r.props.href).endsWith(`/${listed[i].id}`)),
+    "a section has an address, so its row is a link to it",
+  );
+  let stopped = 0;
+  rows.find((r) => textOf(r).includes("Team")).props.onClick({ button: 0, preventDefault: () => stopped++ });
+  assert.deepEqual(went, ["team"]);
+  assert.equal(stopped, 1, "the app's own move, not the link's");
+  // A section's own address draws its pane on a phone, and the bare address on a desk is Details beside the rail.
+  assert.ok(
+    find(
+      atPhone(true, () => draw("team")),
+      (n) => classesOf(n).includes("set-pane"),
+    ),
+    "a section is a page",
+  );
+  const desk = atPhone(false, () => draw(""));
+  assert.equal(
+    find(desk, (n) => n.props?.["data-testid"] === "set-list"),
+    null,
+    "a desk has no list",
+  );
+  assert.deepEqual(
+    all(
+      desk,
+      (n) => n.type === "button" && classesOf(n).includes("set-nav-row") && classesOf(n).includes("active"),
+    ).map((n) => textOf(n).trim()),
+    ["Details"],
+  );
 });
 
 /* ------------------------------ which card the pane draws ------------------------------ */
@@ -373,7 +418,9 @@ test("the pane is the record, the card that sets one up, or the broken one -- an
     fresh();
     let tree = draw("workspace");
     assert.ok(byTestId(tree, "the-business-page"), "the record is the pane");
-    assert.ok(byTestId(tree, "set-data"), "with the owner's own copy of the customer record under it");
+    // The owner's copy of it all is Billing's since 17 Oct 2026, under the plan: the account's own page.
+    assert.equal(byTestId(tree, "set-data"), null, "and the owner's copy of the records is not on it");
+    assert.ok(byTestId(draw("billing"), "set-data"), "it is Billing's");
     assert.equal(buttonSaying(tree, "Edit"), null, "and no button that opens a second editor of the same config");
 
     // No brain at all: the empty state and the fold that sets a receptionist up, never the record, never the demo.

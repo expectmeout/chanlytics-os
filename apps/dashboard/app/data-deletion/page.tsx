@@ -42,7 +42,7 @@ export default function DataDeletionPage() {
         requires us to keep. There is nothing to pay and no notice period.
       </p>
       <p>
-        Take what you want to keep first. Settings › Business downloads its people, conversations, calls and consent
+        Take what you want to keep first. Settings › Billing downloads its people, conversations, calls and consent
         history as one file; ask us for a copy of the rest.
       </p>
 

@@ -80,7 +80,7 @@ export { visitTitleWithout } from "./calendar/visit/visit-service.js";
 export { visitSheetOf, CALENDAR_VISIT_SHEET_WORDS } from "./calendar/visit/visit-sheet.js";
 export { zoneOffsetMs, localToUtcMs, clockInZone, dayInZone, dayPlusInZone, WEEKDAY_KEYS } from "./calendar/zone-math.js";
 export { brainMetaOf, replyWhy, BRAIN_INTENTS, BRAIN_LANGUAGES, BRAIN_OUTPUT_JSON_SCHEMA, brainOutputSchemaFor, CONFIDENCE_STEPS } from "./config/brain.js";
-export { abilityRows, cannotRows } from "./config/business-tab/abilities.js";
+export { abilityRows, cannotFoldWords, cannotRows } from "./config/business-tab/abilities.js";
 export { bookingRulesWords, bookingRuleRefusal, BOOKING_RULE_HINTS } from "./config/business-tab/booking-rules-words.js";
 export { bookingLinkRowWords, businessGap } from "./config/business-tab/business-gap.js";
 export { chipsMoreWords, CHIPS_SHOWN } from "./config/business-tab/counts.js";

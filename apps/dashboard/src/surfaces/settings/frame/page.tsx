@@ -1,9 +1,9 @@
 /**
- * Settings, the page (moved from legacy/pages/settings.jsx, decision 0015 step 11): its rail, the phone's strip, the
- * leave guard, and the pane the route names. Every pane is a module of this surface, imported (settings/<pane>/), and AI
- * memory is a pane that says it is not built.
+ * Settings, the page (moved from legacy/pages/settings.jsx, decision 0015 step 11): its rail, the phone's list of
+ * sections, the leave guard, and the pane the route names. Every pane is a module of this surface, imported
+ * (settings/<pane>/), and AI memory is a pane that says it is not built.
  */
-import { Fragment, useState, type RefCallback } from "react";
+import { Fragment, useState, useSyncExternalStore, type RefCallback } from "react";
 import { Confirm } from "../../kit/confirm/confirm";
 import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
@@ -11,22 +11,33 @@ import { useSlide } from "../../kit/motion/use-slide";
 import { viewDeck } from "../../kit/motion/view-deck";
 import { recFolds } from "../../kit/record/registry";
 import { RecordRow } from "../../kit/record/row";
-import { ViewTabs } from "../../kit/view-tabs/view-tabs";
 import { activity } from "@/legacy-bridge/activity";
 import { backOffice } from "@/legacy-bridge/platform";
-import { hrefOfRoute, reachFor } from "@/legacy-bridge/workspace";
+import { reachFor } from "@/legacy-bridge/workspace";
 import { useLegacyToast, type LegacyFlash } from "../../legacy-verbs";
+import { useSurface } from "../../use-surface";
 import { PaneActivity } from "../activity/pane";
 import { PaneAutonomyReal } from "../autonomy/pane";
 import { PaneBillingReal } from "../billing/pane";
+import { businessGapPane } from "../business/tab";
 import { PaneIntegrationsReal } from "../connections/pane";
 import { PaneNotificationsReal } from "../notifications/pane";
 import { PanePartner } from "../partner/pane";
 import { PaneTeam } from "../partner/team-card";
 import { PanePlatform } from "../platform/pane";
 import { PaneProfile } from "../profile/pane";
-import { SET_TAB, SET_TABS, SET_TABS_PLATFORM, isPlatformAdmin, settingsRowOf, type SetTab } from "./tabs";
-import { PaneWorkspace } from "./workspace";
+import { SettingsList } from "./list";
+import {
+  SETTINGS_PHONE_QUERY,
+  SET_TAB,
+  SET_TABS,
+  SET_TABS_PLATFORM,
+  isPlatformAdmin,
+  settingsOnPhone,
+  settingsRowOf,
+  type SetTab,
+} from "./tabs";
+import { PaneWorkspace, WorkspaceData } from "./workspace";
 
 type Flash = (f: LegacyFlash) => void;
 
@@ -50,8 +61,8 @@ const SET_SOON = {
   memory: {
     title: "AI memory",
     chip: "Not built yet",
-    body: "The receptionist does not learn rules on its own yet. Everything it knows comes from Business: who you are, when you're open, what you offer, the things it should know and what you tell it in your own words.",
-    action: { label: "Open Business", tab: "workspace", icon: "home" },
+    body: "The receptionist does not learn rules on its own yet. Everything it knows comes from your settings: who you are, when you're open, what you offer, the things it should know and what you tell it in your own words.",
+    action: { label: "Open How it answers", tab: "receptionist", icon: "chat" },
   },
 };
 
@@ -74,7 +85,7 @@ function PaneSoon({ which, onTab }: { which: keyof typeof SET_SOON; onTab: (tab:
 }
 
 // The open section's row, brought into view in the rail. A callback ref, not an effect: it runs when a row becomes
-// the open one and at no other time. (On a phone the sections are the kit's strip, which keeps its own picked tab in view.)
+// the open one and at no other time.
 const setTabIntoView: RefCallback<HTMLButtonElement> = (el) => {
   if (el && typeof el.scrollIntoView === "function") el.scrollIntoView({ block: "nearest", inline: "center" });
 };
@@ -88,7 +99,21 @@ const groupsOf = (listed: readonly SetTab[]) =>
     return acc;
   }, []);
 
-/** The pane the route names, and the row it names after it: Business's, or the part Activity opens on (tabs.ts settingsRowOf). */
+/** The sections this person is offered: Partner only to a partner (or while its page is open), the back office to its few. */
+const listedTabs = (partner: boolean, open: string): SetTab[] => [
+  ...SET_TABS.filter((t) => !t.partners || partner || open === t.id),
+  ...(isPlatformAdmin() ? SET_TABS_PLATFORM : []),
+];
+
+/** Kept current as the window changes size: the bare address is the list on a phone and Details on a desk. */
+const watchPhone = (fn: () => void): (() => void) => {
+  const q = typeof window.matchMedia === "function" ? window.matchMedia(SETTINGS_PHONE_QUERY) : null;
+  q?.addEventListener?.("change", fn);
+  return () => q?.removeEventListener?.("change", fn);
+};
+const useSettingsPhone = (): boolean => useSyncExternalStore(watchPhone, settingsOnPhone, () => false);
+
+/** The pane the route names, and the row it names after it: a business page's, Autonomy's, or Activity's part. */
 function SetPane({
   id,
   row,
@@ -105,12 +130,21 @@ function SetPane({
       {id === "profile" && <PaneProfile flash={flash} />}
       {id === "partner" && <PanePartner flash={flash} />}
       {id === "team" && <PaneTeam flash={flash} />}
-      {id === "workspace" && <PaneWorkspace flash={flash} row={row} />}
-      {id === "autonomy" && <PaneAutonomyReal flash={flash} />}
+      {/* The business, one page per question: Details, Hours & booking and How it answers, over one record. */}
+      {(id === "workspace" || id === "hours" || id === "receptionist") && (
+        <PaneWorkspace flash={flash} row={row} part={id} />
+      )}
+      {id === "autonomy" && <PaneAutonomyReal flash={flash} row={row} />}
       {id === "integrations" && <PaneIntegrationsReal />}
       {id === "memory" && <PaneSoon which="memory" onTab={onTab} />}
       {id === "notifications" && <PaneNotificationsReal flash={flash} />}
-      {id === "billing" && <PaneBillingReal flash={flash} />}
+      {/* The plan, then the workspace's own records: the account itself. */}
+      {id === "billing" && (
+        <>
+          <PaneBillingReal flash={flash} />
+          <WorkspaceData />
+        </>
+      )}
       {id === "platform" && <PanePlatform />}
       {/* Keyed by its row: the rail's Activity after a door to `activity/team` is the whole log again, not the team's. */}
       {id === "activity" && <PaneActivity key={row ?? ""} family={row} />}
@@ -146,8 +180,34 @@ function LeaveAsk({
   );
 }
 
-export function SettingsPage({ tab = "workspace", onTab = () => {} }: { tab?: string; onTab?: (tab: string) => void }) {
-  const active = SET_TAB(tab);
+/** The rail's row for a section: its glyph, its name, and a mark where the business's gap is on its page. */
+function SettingsRailRow({ t, on, gap, go }: { t: SetTab; on: boolean; gap: boolean; go: (id: string) => void }) {
+  return (
+    <LinkButton
+      ref={on ? setTabIntoView : undefined}
+      className={`fl-agent set-nav-row ${on ? "active" : ""}`}
+      aria-current={on ? "page" : undefined}
+      onPointerEnter={WARM[t.id]}
+      onFocus={WARM[t.id]}
+      onClick={() => go(t.id)}
+      data-testid={`set-nav-${t.id}`}
+    >
+      <Icon name={t.icon} size={14} />
+      <span className="set-nav-label">{t.label}</span>
+      {gap ? <span className="set-nav-gap" role="img" aria-label="Something to add" /> : null}
+    </LinkButton>
+  );
+}
+
+export function SettingsPage({ tab = "", onTab = () => {} }: { tab?: string; onTab?: (tab: string) => void }) {
+  // The bare address names no pane: on a desk it is Details, beside the rail; on a phone it is the list of sections.
+  const active = SET_TAB(tab || "workspace");
+  const phone = useSettingsPhone();
+  const listing = phone && !tab;
+  // Drawn again as a partner's account and the business's record are read: the rail's Partner and its gap mark.
+  const partner = !!useSurface("partner")?.dto;
+  useSurface("settings");
+  const gapPane = businessGapPane();
   const [toastNode, flash] = useLegacyToast();
   // The tab asked for while a pane holds unsaved changes (the fold registry answers: the record kit's open fold, whatever
   // pane drew it): the rail asks before the pane, and the changes with it, are replaced (S22). And while a fold's save is
@@ -161,7 +221,7 @@ export function SettingsPage({ tab = "workspace", onTab = () => {} }: { tab?: st
     }
     onTab(id);
   };
-  const listed = [...SET_TABS, ...(isPlatformAdmin() ? SET_TABS_PLATFORM : [])];
+  const listed = listedTabs(partner, active.id);
   const groups = groupsOf(listed);
   // A section is a view of this page: its pane is replaced as the section changes (keyed by it), registers with the
   // deck every change of view moves by (kit/motion/view-deck.ts) and says which side it arrives from, by where the two
@@ -170,22 +230,19 @@ export function SettingsPage({ tab = "workspace", onTab = () => {} }: { tab?: st
     listed.map((t) => t.id),
     active.id,
   );
+  // On a phone Settings opens on its sections, grouped as the rail groups them, and each opens as a page of its own
+  // whose way back is this list (tabs.ts settingsCrumbs). The strip of nine tabs it replaces ran off the screen, and
+  // its way back opened Business again (17 Oct 2026).
+  if (listing) {
+    return (
+      <div className="settings settings-listing">
+        <SettingsList groups={groups} gapPane={gapPane} onTab={onTab} warm={WARM} />
+        {toastNode}
+      </div>
+    );
+  }
   return (
     <div className="settings">
-      {/* On a phone the sections are every page's strip, the kit's: a section has an address, so a tab is a link, a press
-          starts the pane leaving, and a swipe across the pane walks them (the shell's stripSwipe). A pane holding unsaved
-          work is not left until the page has asked. The desk keeps its rail. Its stand is what sticks under the frame's
-          top on a phone, where the window scrolls the pane (mobile.css); elsewhere it is no box. */}
-      <div className="set-strip-stand">
-        <ViewTabs
-          name="settings"
-          label="Settings sections"
-          picked={active.id}
-          tabs={listed.map((t) => ({ id: t.id, label: t.label, href: hrefOfRoute(`admin/${t.id}`), warm: WARM[t.id] }))}
-          onPick={go}
-          mayLeave={() => !(recFolds.dirty() || recFolds.saving())}
-        />
-      </div>
       <aside className="set-nav">
         <div className="fl-roster-head">
           <span className="fl-roster-label">Settings</span>
@@ -194,18 +251,7 @@ export function SettingsPage({ tab = "workspace", onTab = () => {} }: { tab?: st
           <Fragment key={g.name}>
             <div className="set-nav-group">{g.name}</div>
             {g.tabs.map((t) => (
-              <LinkButton
-                key={t.id}
-                ref={active.id === t.id ? setTabIntoView : undefined}
-                className={`fl-agent set-nav-row ${active.id === t.id ? "active" : ""}`}
-                aria-current={active.id === t.id ? "page" : undefined}
-                onPointerEnter={WARM[t.id]}
-                onFocus={WARM[t.id]}
-                onClick={() => go(t.id)}
-              >
-                <Icon name={t.icon} size={14} />
-                <span className="set-nav-label">{t.label}</span>
-              </LinkButton>
+              <SettingsRailRow key={t.id} t={t} on={active.id === t.id} gap={gapPane === t.id} go={go} />
             ))}
           </Fragment>
         ))}

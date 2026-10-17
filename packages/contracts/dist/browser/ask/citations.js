@@ -50,6 +50,8 @@ export const ASK_PAGE_ROUTES = [
   ...LENS_ROUTES,
   "start",
   "admin/workspace",
+  "admin/hours",
+  "admin/receptionist",
   "admin/team",
   "admin/autonomy",
   "admin/notifications",

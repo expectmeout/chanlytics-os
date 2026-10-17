@@ -27,7 +27,9 @@ import { RecordField } from "../../kit/record/field";
 import { useRecordFold } from "../../kit/record/hooks";
 import { RecordInline } from "../../kit/record/inline";
 import { RecordRow } from "../../kit/record/row";
-import { demoSession, meNow, shellSignOut, type LegacyFlash } from "../../legacy-verbs";
+import { demoSession, meNow, navigate, shellSignOut, type LegacyFlash } from "../../legacy-verbs";
+import { useSurface } from "../../use-surface";
+import { partnerVerbs } from "../partner/surface";
 
 type Flash = (f: LegacyFlash) => void;
 
@@ -289,6 +291,29 @@ function DeleteAccountRow({ flash }: { flash: Flash }) {
   );
 }
 
+/**
+ * The partner offer, for a person who is not a partner: one row on Profile, since the rail offers the Partner tab only
+ * to partners (frame/tabs.ts, 17 Oct 2026). A partner reads none here: their account is the tab.
+ */
+function PartnerOfferRow() {
+  const partner = useSurface("partner");
+  if (partner?.dto) return null;
+  return (
+    <RecordRow
+      id="profile-partner"
+      label={partnerVerbs.words.tab}
+      value={partnerVerbs.words.title}
+      act={{
+        label: "Open",
+        name: `${partnerVerbs.words.tab}: ${partnerVerbs.words.title}`,
+        icon: "arrow-right",
+        onClick: () => navigate("admin/partner"),
+        testid: "set-profile-partner",
+      }}
+    />
+  );
+}
+
 export const PaneProfile = ({ flash }: { flash: Flash }) => {
   const me = meNow();
   const words = identityWords(me ? { ...me, email: me.email ?? null } : null);
@@ -328,6 +353,7 @@ export const PaneProfile = ({ flash }: { flash: Flash }) => {
       />
       {role && <RecordRow id="profile-role" label="Role" value={role.label} hint={role.can} />}
       <AnswerStyle flash={flash} />
+      <PartnerOfferRow />
       {/* Named for what it does. "This device" sat over a sign-out that ends every session on every device:
           /auth/signout revokes them all (S20). */}
       <RecordRow

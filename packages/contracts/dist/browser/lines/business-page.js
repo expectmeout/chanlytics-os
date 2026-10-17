@@ -133,7 +133,7 @@ export function registrationPreflight(f) {
     out.push({
       id: "name_mismatch",
       what: `The carriers will be told this business is called \u201C${f.workspaceName}\u201D, but the business on record is \u201C${f.tradeName?.trim() || f.legalName}\u201D.`,
-      fix: "Save the business's name under Settings \u203A Business as it is on record, or put that name on record as its trading name, before filing. The name goes into the confirmation message customers receive, and that message cannot be changed after a filing without registering a new campaign."
+      fix: "Save the business's name under Settings \u203A Details as it is on record, or put that name on record as its trading name, before filing. The name goes into the confirmation message customers receive, and that message cannot be changed after a filing without registering a new campaign."
     });
   }
   const answers = loose(f.receptionistName ?? "");
@@ -141,7 +141,7 @@ export function registrationPreflight(f) {
     out.push({
       id: "names_differ",
       what: `Your receptionist introduces the business as \u201C${(f.receptionistName ?? "").trim()}\u201D, but your sign-up page and this filing call it \u201C${f.workspaceName}\u201D.`,
-      fix: "Save the name customers know you by under Settings \u203A Business: an owner's save renames your sign-up page and your sign too, so customers read one name."
+      fix: "Save the name customers know you by under Settings \u203A Details: an owner's save renames your sign-up page and your sign too, so customers read one name."
     });
   }
   if (!identifiesABusiness(f)) {

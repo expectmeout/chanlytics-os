@@ -4294,7 +4294,7 @@ test("a gated list's refusal names the condition that failed: with a calendar an
       (await runTool(tc, { name: "people", input: { action: "search", query: "", list: "consultation_booked" } }))
         .result,
     );
-    assert.match(consult.error, /lists a consult-first service under Settings › Business/, consult.error);
+    assert.match(consult.error, /lists a consult-first service under Settings › Hours & booking/, consult.error);
     assert.doesNotMatch(
       consult.error,
       /deal recorded|calendar connected/,
@@ -4783,7 +4783,7 @@ test("report reads what the Reports page reads (ledger #1): the series, then the
   }
   // No calendar: the line says why there is nothing to count, in the page's words.
   const bare = await turnOver(world(false));
-  assert.equal(bare.read.booking, "Add a calendar link under Settings › Business to see who booked.");
+  assert.equal(bare.read.booking, "Add a calendar link under Settings › Hours & booking to see who booked.");
   // Where the workspace's customers book, the page draws no Deals section, and the deals are not even read.
   const booked = await turnOver(world(false, "booking"));
   assert.equal(booked.read.deals, null);
@@ -6768,7 +6768,7 @@ test("campaigns.playbooks says the Playbooks page's numbers (ledger #10): every 
   );
   assert.deepEqual(
     [byId["pb-booked"].list, byId["pb-booked"].cannot_count],
-    ["seg:booked", "This list reads a calendar link. Add one under Settings › Business to count it."],
+    ["seg:booked", "This list reads a calendar link. Add one under Settings › Hours & booking to count it."],
   );
   assert.deepEqual([byId["pb-gone"].cannot_count, byId["pb-gone"].said_yes_now], ["its list was deleted", undefined]);
   assert.deepEqual(

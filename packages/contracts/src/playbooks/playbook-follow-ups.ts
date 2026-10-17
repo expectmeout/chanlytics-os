@@ -16,7 +16,7 @@ import { runDueNow } from "./playbook-schedule";
 import { DAY_MS, sweepTickAtOrAfter } from "./playbook-time";
 
 /** Why a proposal follow-up is not made or run here: deals are off. The check, a run now and Ask say it alike. */
-export const FOLLOW_UP_NEEDS_DEALS = `Proposal follow-ups need deals: in Settings › Business, answer “${SELLS_BY_QUESTION}” with “${SELLS_BY_WORDS.proposal.label}”.`;
+export const FOLLOW_UP_NEEDS_DEALS = `Proposal follow-ups need deals: in Settings › Details, answer “${SELLS_BY_QUESTION}” with “${SELLS_BY_WORDS.proposal.label}”.`;
 
 /** Why a follow-up must carry its proposal's link (0006): without it the nudge is a bare "just checking in". */
 export const FOLLOW_UP_NEEDS_LINK =

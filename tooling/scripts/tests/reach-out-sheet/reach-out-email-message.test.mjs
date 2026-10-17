@@ -358,7 +358,7 @@ test("a later step is saved under its own name with no subject", async () => {
 });
 
 test("a refusal is said in the server's words, where the words were typed: the editor stays open", async () => {
-  const refusal = "Your words name {{booking link}}. Add your booking link in Settings › Business first.";
+  const refusal = "Your words name {{booking link}}. Add your booking link in Settings › Hours & booking first.";
   const calls = stubbed({
     saveVersion: async (body) => (calls.push(body), { ok: false, code: "validation", status: 422, message: refusal }),
   });

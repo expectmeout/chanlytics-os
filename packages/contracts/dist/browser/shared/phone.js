@@ -50,7 +50,7 @@ export function whyNotAHandoff(raw, ownLine, keptLine) {
   return null;
 }
 export const HANDOFF_FORWARDS_BACK = "That number sends the calls nobody picks up to your receptionist, so a caller put through to it would come straight back. Use a mobile or another line a person answers.";
-export const FORWARD_IS_HANDOFF = "Your receptionist puts callers through to this number. Change the transfer number in Settings \u203A Business first \u2014 once this number forwards to the receptionist, a caller put through to it would come straight back.";
+export const FORWARD_IS_HANDOFF = "Your receptionist puts callers through to this number. Change the transfer number in Settings \u203A Details first \u2014 once this number forwards to the receptionist, a caller put through to it would come straight back.";
 export function whyNotForward(number, handoff) {
   return samePhone(number, handoff) ? FORWARD_IS_HANDOFF : null;
 }

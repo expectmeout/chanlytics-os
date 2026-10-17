@@ -138,8 +138,8 @@ export const PARAM_SOURCE_LABELS = {
 };
 export const PARAM_SOURCE_HINTS = {
   first_name: "Each person's own \u2014 \u201Cthere\u201D when none is on file",
-  business_name: "From Settings \u203A Business",
-  booking_link: "From Settings \u203A Business",
+  business_name: "From Settings \u203A Details",
+  booking_link: "From Settings \u203A Hours & booking",
   review_link: "From your Google listing",
   visit_when: "Each one's own, from the calendar",
   visit_service: "Each one's own, from the calendar",
