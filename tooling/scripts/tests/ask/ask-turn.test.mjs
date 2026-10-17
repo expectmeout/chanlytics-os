@@ -7593,9 +7593,7 @@ test("fifteen names move five spans of the request (PR 4.2; a visit and a review
   const rules = req.system[0].text;
   assert.ok(rules.includes(`items for the rows it names (${every})`), "the rules' items list says the same words");
   assert.ok(
-    rules.includes(
-      "A batch that went out is kind broadcast; a list is kind list, with the audience_id sequences gave it.",
-    ),
+    rules.includes("A batch that went out is kind broadcast; a list is kind list, with the audience_id it came with."),
     "the source rule says how the two rows whose word differs are cited",
   );
   assert.ok(!rules.includes("items for the rows it names (people, threads, calls),"), "the three-kind list is gone");
@@ -7648,9 +7646,9 @@ test("a rule that described one tool is that tool's description now, and out of 
     "You never act.",
     "Answer from it when it is enough, in one round.",
     "Read only for what it does not hold: a whole conversation or transcript, a person's profile",
-    "name the door: a one-off send (propose_sequence action once) reaches only the people whose yes covers its message",
-    "Leads are businesses Claude found for the owner to reach",
-    "Only in the US.",
+    "a one-off send reaches only the people whose yes covers its message",
+    "leads are businesses Claude found for the owner to reach",
+    "Leads are found only in the US",
   ])
     assert.ok(rules.includes(kept), `kept, about answering in general: ${kept}`);
 });
