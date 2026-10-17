@@ -93,31 +93,6 @@
   "apps/dashboard/src/legacy/components/topbar.jsx": {
     "react-hooks/exhaustive-deps": 1
   },
-  "apps/dashboard/src/legacy/demo/pages/agent-fleet.jsx": {
-    "react-hooks/exhaustive-deps": 1
-  },
-  "apps/dashboard/src/legacy/demo/pages/agent-store.jsx": {
-    "jsx-a11y-x/click-events-have-key-events": 6,
-    "jsx-a11y-x/no-static-element-interactions": 5,
-    "react-hooks/exhaustive-deps": 4
-  },
-  "apps/dashboard/src/legacy/demo/pages/agent-studio.jsx": {
-    "react-hooks/exhaustive-deps": 7
-  },
-  "apps/dashboard/src/legacy/demo/pages/dashboard-a-ask.jsx": {
-    "jsx-a11y-x/click-events-have-key-events": 1
-  },
-  "apps/dashboard/src/legacy/demo/pages/pipeline.jsx": {
-    "react-hooks/exhaustive-deps": 1
-  },
-  "apps/dashboard/src/legacy/demo/pages/segments.jsx": {
-    "jsx-a11y-x/click-events-have-key-events": 1,
-    "jsx-a11y-x/no-static-element-interactions": 1,
-    "react-hooks/exhaustive-deps": 3
-  },
-  "apps/dashboard/src/legacy/demo/pages/tasks.jsx": {
-    "react-hooks/exhaustive-deps": 2
-  },
   "apps/dashboard/src/legacy/pages/app-shell.jsx": {
     "react-hooks/exhaustive-deps": 5
   },

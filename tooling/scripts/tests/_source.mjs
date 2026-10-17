@@ -87,7 +87,6 @@ export const READER_SCOPE = [
   "apps/dashboard/src/auth",
   "apps/dashboard/app",
   "apps/dashboard/src/legacy/pages",
-  "apps/dashboard/src/legacy/demo/pages",
   "apps/dashboard/src/legacy/components",
   "apps/edge/lib",
   "apps/edge/api",

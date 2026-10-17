@@ -246,10 +246,6 @@ test("Lists is a view of People: a kept list is the page's title with its rename
     !readCode("apps/dashboard/src/legacy-bridge/manifest.ts").includes("segments-real"),
     "REGRESSION: a second page of the same people",
   );
-  assert.ok(
-    readCode("apps/dashboard/src/legacy/demo/pages/segments.jsx").includes("window.SegmentsPage = SegmentsPage;"),
-    "the demo's page under the name the shell draws",
-  );
   // The phone's way to the lists is the bar's list button now, pressed in people-honest ("on a phone the lists are
   // behind the bar's list button"), not a testid read here.
   // The kept list's title, drawn: the title, its rename and the box the rename opens.

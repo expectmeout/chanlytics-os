@@ -12,7 +12,7 @@
   ],
   "counts": {
     "ai/flag-registry.test.mjs": 3,
-    "ask/ask.test.mjs": 46,
+    "ask/ask.test.mjs": 45,
     "auth/auth-gate.test.mjs": 5,
     "auth/signup-posture.test.mjs": 5,
     "auth/signup.test.mjs": 9,
@@ -53,7 +53,7 @@
     "ops/sweep-rotation.test.mjs": 2,
     "people/attention-strip.test.mjs": 3,
     "people/erasure/erasure.test.mjs": 1,
-    "people/lists/saved-lists.test.mjs": 12,
+    "people/lists/saved-lists.test.mjs": 11,
     "people/person-mode-enforcement.test.mjs": 3,
     "people/threads-people.test.mjs": 5,
     "platform/back-office.test.mjs": 20,

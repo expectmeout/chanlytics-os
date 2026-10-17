@@ -408,12 +408,10 @@ honest:
   number is not.
 
 The unbuilt surfaces (agent fleet, store, studio, tasks, content, the retired
-deal board) stay in the tree, hidden from every real workspace, by decision.
-They live under `src/legacy/demo/`, with the seeded twin of each real page
-(`demo/pages/broadcasts.jsx` beside `pages/broadcasts.jsx`, and so on), the seeded
-Lists and the seed data only they read, and a real workspace never downloads
-them: `src/legacy-bridge/manifest-demo.ts` lists them, and `manifest.ts` asks
-for it, after its own files, only in a declared demo session. The shell's route names
+deal board) are parked by decision: each address draws the "Not in this release"
+card (`src/legacy/pages/app-routes.jsx`). Their mockups, the seeded Lists and Ask
+palette and the seed data only they read lived under `src/legacy/demo/` until
+17 October 2026 (the closed-loop audit's S2): git keeps them. The shell's route names
 and the API's nouns do not all agree yet; `docs/glossary.md` lists them.
 
 **Where the shell's state lives.** Three kinds, each with one owner:

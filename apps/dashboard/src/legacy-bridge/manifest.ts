@@ -1,18 +1,14 @@
 /**
  * The ordered legacy manifest: every file a real workspace draws, in the order
  * the shared global scope requires. The standalone harness loads the same files
- * from this list (its server writes Chanlytics.html's from it, then
- * manifest-demo.ts's: tooling/scripts/serve-legacy.mjs).
+ * from this list (its server writes Chanlytics.html's from it:
+ * tooling/scripts/serve-legacy.mjs).
  * ES modules execute static imports in declaration order, so this file IS the
  * execution-order guarantee the classic <script> tags used to provide.
  *
- * The mockup's own files (legacy/demo/) are not here: a real workspace never
- * draws them, so it never downloads them. That is its seeds too: the invented
- * people and leads (demo/data/clients-data, people-data) and the seeded Ask palette
- * (demo/pages/dashboard-a-ask), which a real workspace imported until 11 October
- * 2026 for the one door it hosted (Ask's `askAbout` is surfaces/frame-doors.ts now)
- * and the choice of the real Line (ask-real.jsx publishes `AskBar`). A session that
- * declared itself a demo loads them after these, at the foot of this file.
+ * The mockup's own files (legacy/demo/: Agents, Content, the Deal board, the seeded
+ * Lists and Ask palette, and the invented people and leads they read) were deleted on
+ * 17 October 2026 (the closed-loop audit's S2, Ruben's word): no workspace drew them.
  *
  * Dropped vs the original, and since deleted from the tree: tweaks-panel.jsx
  * (replaced by the bridge's localStorage prefs) and design-canvas.jsx (never
@@ -42,10 +38,5 @@ import "@/legacy/pages/ask-real.jsx";
 // The route table (SHELL_ROUTES, drawRoute): what each route draws, before the shell that reads it.
 import "@/legacy/pages/app-routes.jsx";
 import "@/legacy/pages/app-shell.jsx";
-
-// The mockup's own files (manifest-demo.ts), after every file above and only in a session that declared itself a
-// demo: window.__DEMO_MODE, which seed-globals.ts sets false wherever nothing set it first, so a real workspace never
-// asks for them. Awaited, so the bridge that imports this file goes on, and the shell draws, only once they are in.
-if (window.__DEMO_MODE) await import("./manifest-demo");
 
 export {};

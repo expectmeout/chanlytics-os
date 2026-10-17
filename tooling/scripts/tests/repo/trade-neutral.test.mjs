@@ -17,20 +17,7 @@ import { relative, sep } from "node:path";
 import { ROOT as REPO, readerFiles, readerLines } from "../_source.mjs";
 
 /** Files that may keep a trade's words, and why. */
-const ALLOWED = new Map([
-  [
-    "apps/dashboard/src/legacy/demo/pages/segments.jsx",
-    "the seeded Segments of the mockup; a real workspace's lists are a view of People (surfaces/people/)",
-  ],
-  [
-    "apps/dashboard/src/legacy/demo/pages/content-cal.jsx",
-    "the seeded content calendar; a real workspace sees the in-design card",
-  ],
-  [
-    "apps/dashboard/src/legacy/demo/pages/agent-studio.jsx",
-    "the seeded Studio; a real workspace sees the in-design card",
-  ],
-]);
+const ALLOWED = new Map([]);
 const BANNED = /\b(salons?|stylists?|balayage|therapists?|chair rental|haircuts?|keratin|blowouts?|lash(?:es)?)\b/i;
 
 test("no salon words reach a customer of another trade", () => {

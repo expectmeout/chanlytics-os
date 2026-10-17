@@ -14,7 +14,7 @@
  * in the month to 17 October 2026, and every lane that touched the shell met in that one file.
  *
  * The document is `Chanlytics.html` with the app's own lists written into it (legacyDocument below): the stylesheets
- * legacy-bridge/legacy.css imports and the files legacy-bridge/manifest.ts and manifest-demo.ts load, in their order. A
+ * legacy-bridge/legacy.css imports and the files legacy-bridge/manifest.ts loads, in its order. A
  * file is added to the app's list, and the mockup loads it from there.
  *
  * Six files are built rather than read: `data/kit-globals.js`, the kit's components the pages here still draw by name,
@@ -230,13 +230,12 @@ const outsideCss = () =>
     .map((sheet) => ({ at: `/${sheet}`, file: path.join(SRC, sheet) }));
 
 /**
- * The files of the shell the app loads, in its order, each as a path under legacy/: every workspace's (manifest.ts),
- * then the demo's (manifest-demo.ts), which the app asks for only in a session that declared itself a demo, as the
- * mockup is. Their order is the shared global scope's: data seeds globals that pages read at module scope. seed-globals
+ * The files of the shell the app loads, in its order, each as a path under legacy/ (manifest.ts). Their order is the
+ * shared global scope's: data seeds globals that pages read at module scope. seed-globals
  * is the app's own; the document's stand-ins (data/bridge-stubs.jsx and the bundles after it) stand where it does.
  */
 const appScripts = () =>
-  ["manifest.ts", "manifest-demo.ts"].flatMap((list) =>
+  ["manifest.ts"].flatMap((list) =>
     [...fs.readFileSync(path.join(BRIDGE, list), "utf8").matchAll(/^import "([^"]+)";/gm)]
       .map((m) => m[1])
       .filter((spec) => spec !== "./seed-globals")
