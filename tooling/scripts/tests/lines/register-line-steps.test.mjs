@@ -139,7 +139,7 @@ test("a filing whose receptionist answers in another name than the campaign stat
   const two = await file({ config: brain("Harbor Hauling") });
   assert.equal(two.out.ok, false);
   assert.ok(
-    two.out.problems.some((p) => /Harbor Hauling/.test(p) && /Settings › Business/.test(p)),
+    two.out.problems.some((p) => /Harbor Hauling/.test(p) && /Settings › Details/.test(p)),
     two.out.problems.join(" | "),
   );
   assert.equal(two.seen.length, 0, "nothing reached the carriers");

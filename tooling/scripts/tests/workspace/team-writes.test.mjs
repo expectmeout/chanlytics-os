@@ -266,10 +266,10 @@ test("Leave hands the database the member themself, and the last owner is told w
   await refused(leaveTeam(ctx(), A, platform({ team_leave: raised("not_found") }).svc), "not_found", 404);
 });
 
-test("the palette's page jumps land on pages that exist: Team on the Team pane, the receptionist's memory on Business details, and no jump to a pane that says not built", () => {
+test("the palette's page jumps land on pages that exist: Team on the Team pane, the receptionist's memory on How it answers, and no jump to a pane that says not built", () => {
   const by = Object.fromEntries(ASK_PAGES.map((p) => [p.label, p.to]));
   assert.equal(by.Team, "admin/team");
-  assert.equal(by["Receptionist memory"], "admin/workspace", "what the receptionist knows lives in Business details");
+  assert.equal(by["Receptionist memory"], "admin/receptionist", "what the receptionist knows lives in How it answers");
   assert.ok(
     !ASK_PAGE_ROUTES.includes("admin/memory"),
     "the model may not send a person to the pane that says not built",

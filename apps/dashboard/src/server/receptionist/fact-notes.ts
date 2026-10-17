@@ -55,7 +55,7 @@ async function keepNote(
   const parsed = TenantConfigWriteSchema.safeParse(added);
   if (!parsed.success) {
     log.error("fact_answer_failed", { tenant_id: member.tenantId, step: "schema", issues: parsed.error.issues.length });
-    throw new AppError("validation", "This note cannot be kept as it is: add it in Settings › Business.");
+    throw new AppError("validation", "This note cannot be kept as it is: add it in Settings › How it answers.");
   }
   // What the schema left out of the stored row is put back, as a save on the page does (settings-save.ts).
   const next = withStoredKeysKept(parsed.data, before.config);

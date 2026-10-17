@@ -1,7 +1,7 @@
 /**
  * Ask's addresses (wiring/records-not-pages, task 1.6; findings A2e and A2f).
  *
- * A2e: a page citation was kept when it began with one of fourteen page words, whatever followed, so `admin/hours`,
+ * A2e: a page citation was kept when it began with one of fourteen page words, whatever followed, so `admin/opening`,
  * `calendar/next-week`, `reports/foo`, `messages/x` and `today/x` came back as a door written exactly so, and landed on
  * "Settings - Not in this release", the Calendar's usual week or "No surface at reports". A page is now one of the listed pages
  * or one of the shapes its own page parses (the Calendar's day and visit, Reports' lens and days, People's Leads views and
@@ -67,7 +67,7 @@ test("a page citation is a listed page, or a shape its page parses", () => {
 
 test("an address that begins with a page word and is not one of its shapes is dropped (REGRESSION: all came back as a door)", () => {
   const made_up = [
-    "admin/hours",
+    "admin/opening",
     "admin",
     "admin/setup",
     "calendar/next-week",
@@ -108,7 +108,7 @@ test("a source the model writes as an invented page is dropped, and counted", ()
     show: { items: [{ title: "Hours", source: { kind: "page", id, label: "Hours" } }] },
     do: { open: { source: { kind: "page", id, label: "Hours" }, label: "Open hours" }, next: [] },
   });
-  const wrong = normalizeAnswer(answer("admin/hours"), read, "en");
+  const wrong = normalizeAnswer(answer("admin/opening"), read, "en");
   assert.ok(wrong.ok);
   assert.deepEqual(wrong.answer.show.items, [], "an item is its row: a page that is not one has none");
   assert.equal(wrong.answer.do.open, null, "and no Open to nowhere");

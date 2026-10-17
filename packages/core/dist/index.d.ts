@@ -2391,7 +2391,7 @@ declare function parseChannels(asked: unknown, kept?: readonly string[] | null):
 
 /** The refusals a message's values meet for a link the workspace has not given, in the words the composer shows. */
 declare const TEMPLATE_VALUE_WORDS: {
-    readonly noBookingLink: "This message takes the booking link, and none is on file. Add it in Settings › Business first.";
+    readonly noBookingLink: "This message takes the booking link, and none is on file. Add it in Settings › Hours & booking first.";
     readonly noReviewLink: "Connect your Google listing so the review link can be filled.";
 };
 /**

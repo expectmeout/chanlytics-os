@@ -162,7 +162,8 @@ test("First contact holds the receptionist and the call's text as rows of their 
       "receptionist",
       "always",
       "Answers · asks for the yes",
-      { kind: "route", label: "Open", route: "admin/workspace" },
+      // How it answers: the receptionist's own page of Settings since 17 Oct 2026.
+      { kind: "route", label: "Open", route: "admin/receptionist" },
       "uncounted",
     ],
     "the receptionist opens its settings: every row on the list opens something (11 Oct 2026)",

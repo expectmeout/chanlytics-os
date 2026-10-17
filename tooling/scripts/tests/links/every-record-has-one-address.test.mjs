@@ -10,7 +10,7 @@
  *   own parse reads back as the record the writer meant, by the same kind and id (where two kinds share a page by design -- a
  *   hold is told in its thread, a step is a line on its person's page -- as the kind the page shows);
  * - every page the frame draws (SURFACE_ROUTES) is a page the registry opens, so a page added to the frame is added to it;
- * - the shapes that are no address (`reports/overview`, `messages/x`, `today/x`, `admin/hours`) open nothing, and a retired
+ * - the shapes that are no address (`reports/overview`, `messages/x`, `today/x`, `admin/opening`) open nothing, and a retired
  *   route lands on the page that replaced it.
  */
 import { test } from "node:test";
@@ -177,7 +177,7 @@ test("the shapes that are no address open nothing: a word a page only begins wit
     "reports/people:" + ID,
     "messages/x",
     "today/x",
-    "admin/hours",
+    "admin/opening",
     "calendar/next-week",
     "calendar/2026-9-9",
     "calendar/year",

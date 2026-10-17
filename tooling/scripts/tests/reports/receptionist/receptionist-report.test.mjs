@@ -379,7 +379,7 @@ test("while you were closed: the hours decide, and no hours is a question", () =
     value: "—",
     meta: "set your opening hours to see this",
     compare: null,
-    door: "admin/workspace",
+    door: "admin/hours",
     unset: true,
   });
   assert.equal(vm({}, null).closed, null, "the hours could not be read: nothing is said of them");

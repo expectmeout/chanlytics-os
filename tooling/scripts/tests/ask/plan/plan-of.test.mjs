@@ -128,9 +128,9 @@ const QUIET_ONLY = [
 ];
 /** What a setup with no calendar says first. */
 const CONNECT = (each = "appointment", gets = "a reminder the day before and a follow-up the day after") =>
-  `First, connect your calendar under Settings › Business, so each ${each} gets ${gets}.`;
+  `First, connect your calendar under Settings › Hours & booking, so each ${each} gets ${gets}.`;
 const TURN_ON =
-  "Then, under Settings › Business, answer How customers buy with “Some get a proposal first”, so each proposal that waits gets a follow-up.";
+  "Then, under Settings › Details, answer How customers buy with “Some get a proposal first”, so each proposal that waits gets a follow-up.";
 const WIN_BACK = "Starts 1 campaign now: a win-back once they go quiet.";
 /** The answer a setup with no calendar leads with. */
 const CALENDAR_LEAD = (now, more) => ({
@@ -975,7 +975,7 @@ const ROWS = [
     world: world({ journey: QUIET_ONLY, shape: { ...NO_CALENDAR, calendar: "email" } }),
     steps: [{ n: 1, kind: "playbook", silent: false, after: [], input: { trigger: "quiet_30" } }],
     words: [
-      "First, connect your calendar's feed under Settings › Business (booking emails alone cannot time a campaign), so each appointment gets a reminder the day before.",
+      "First, connect your calendar's feed under Settings › Hours & booking (booking emails alone cannot time a campaign), so each appointment gets a reminder the day before.",
       WIN_BACK,
       "Ask me again once it is connected, and I'll add it.",
     ],
@@ -990,7 +990,7 @@ const ROWS = [
       { n: 2, kind: "playbook", silent: false, after: [], input: { trigger: "visited" } },
     ],
     words: [
-      "First, under Settings › Business, answer How customers buy with “Some get a proposal first”, so each proposal that waits gets a follow-up.",
+      "First, under Settings › Details, answer How customers buy with “Some get a proposal first”, so each proposal that waits gets a follow-up.",
       "Starts 2 campaigns now, each its own card: a reminder the day before a booked time and a follow-up the day after a booked time.",
       "Ask me again once they are on, and I'll add it.",
     ],

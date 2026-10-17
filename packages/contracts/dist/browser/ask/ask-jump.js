@@ -51,6 +51,20 @@ export const ASK_PAGES = [
   ...LENS_JUMPS,
   { label: "Settings", to: "admin/workspace", kind: "page" },
   {
+    label: "Hours & booking",
+    to: "admin/hours",
+    kind: "page",
+    sub: "opening hours, closed days, booking rules",
+    also: ["hours", "booking link", "booking tool"]
+  },
+  {
+    label: "How it answers",
+    to: "admin/receptionist",
+    kind: "page",
+    sub: "the receptionist's voice, languages and notes",
+    also: ["voice", "greeting", "languages"]
+  },
+  {
     label: "Setting up",
     to: "start",
     kind: "page",
@@ -64,15 +78,15 @@ export const ASK_PAGES = [
   { label: "Team", to: "admin/team", kind: "page", sub: "members and invitations" },
   { label: "Notifications", to: "admin/notifications", kind: "page" },
   { label: "Connections", to: "admin/integrations", kind: "page", sub: "WhatsApp, phone line, calendar" },
-  // A partner's account and link (0012): in every workspace's rail, beside Profile.
+  // A partner's account and link (0012): beside Profile in a partner's rail, and a row on Profile for everyone else.
   { label: "Partner", to: "admin/partner", kind: "page", sub: "bring a business to Chanlytics" },
-  // What the receptionist knows lives in Business details; the AI memory pane says it is not built and points here, so
-  // its name lands here too, never on that pane (#417).
+  // What the receptionist knows beyond the business's details lives in How it answers; the AI memory pane says it is not
+  // built and points here, so its name lands here too, never on that pane (#417).
   {
     label: "Receptionist memory",
-    to: "admin/workspace",
+    to: "admin/receptionist",
     kind: "page",
-    sub: "hours, services and notes, in Business details",
+    sub: "notes and your own words, in How it answers",
     also: ["ai memory"]
   }
 ];

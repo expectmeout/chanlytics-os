@@ -427,7 +427,7 @@ test("navigating INSIDE a surface does not tear the surface down", () => {
   // on the shell as drawn (shell-status.test.mjs), the safe default with them. Broadcasts follows its run and its
   // list as props: drawn in runs-honest.test.mjs.
   const settings = readCode("apps/dashboard/src/surfaces/settings/frame/page.tsx");
-  assert.ok(settings.includes("const active = SET_TAB(tab);"), "Settings derives its tab every render");
+  assert.ok(settings.includes('const active = SET_TAB(tab || "workspace");'), "Settings derives its tab every render");
   const inbox = readCode("apps/dashboard/src/surfaces/inbox/pages/inbox-state.tsx");
   assert.ok(
     /\},\s*\[initialThreadId, addressThreadHeld\],\s*\)/.test(inbox),

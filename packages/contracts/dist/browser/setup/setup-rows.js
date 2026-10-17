@@ -410,7 +410,7 @@ function googleRow(i, ctx) {
       required: false,
       sentence: "Find your business on Google so new reviews reach you here.",
       details: [
-        i.business.address ? "Uses the name and address on record" : "Add your address in Settings \u203A Business for a surer match"
+        i.business.address ? "Uses the name and address on record" : "Add your address in Settings \u203A Details for a surer match"
       ],
       // One finder: the first run's Find, asked for by name (first-run.ts).
       verb: { label: "Find it", to: FIRST_RUN_FIND_ROUTE }

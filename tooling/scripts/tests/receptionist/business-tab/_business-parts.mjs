@@ -31,7 +31,8 @@ for (const m of [
 ])
   Object.assign(part, await import(`${BIZ}/${m}`));
 const {
-  BtAnswersCard,
+  BtBookingRuleRows,
+  BusinessLimitRows,
   BtLanguagesRow,
   BtRulesRow,
   BtCanCard,
@@ -82,7 +83,8 @@ export const BUSINESS_PARTS = {
   btSellsByChoice,
   btSellsByNow,
   BtServicesRow,
-  BtAnswersCard,
+  BtBookingRuleRows,
+  BusinessLimitRows,
   BtLanguagesRow,
   BtRulesRow,
   BtCanCard,

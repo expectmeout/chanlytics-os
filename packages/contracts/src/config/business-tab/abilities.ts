@@ -370,3 +370,15 @@ export function cannotRows(i: {
         : r,
   );
 }
+
+/** The counts the fold below says in words: there are three things at most, and never a figure on the glass for them. */
+const CANNOT_COUNT_WORDS = ["No", "One", "Two", "Three", "Four", "Five"] as const;
+
+/**
+ * The line the things it cannot do fold behind on What it can do (17 Oct 2026: said in full on every visit, three
+ * things nobody can switch on stood under the abilities): how many there are, in words.
+ */
+export function cannotFoldWords(count: number): string {
+  const n = CANNOT_COUNT_WORDS[count] ?? String(count);
+  return count === 1 ? `${n} thing it cannot do` : `${n} things it cannot do`;
+}

@@ -102,6 +102,8 @@ export const ASK_PAGE_ROUTES: readonly string[] = [
   ...LENS_ROUTES,
   "start",
   "admin/workspace",
+  "admin/hours",
+  "admin/receptionist",
   "admin/team",
   "admin/autonomy",
   "admin/notifications",
@@ -119,7 +121,7 @@ export const ASK_PAGE_ROUTES: readonly string[] = [
  * and no lead and its built-in lists, the Sent room's Get their yes, the calls tab of Conversations and a group of
  * Campaigns' ledger. A visit is no page: it is a row, cited as kind visit, so `calendar/<day>:a-<id>` is not one, whatever
  * the id. A route that only BEGINS with a page's word
- * is no page (`admin/hours`, `calendar/next-week`, `reports/foo`, `today/x`): it lands on "Not in this release", on the usual
+ * is no page (`admin/opening`, `calendar/next-week`, `reports/foo`, `today/x`): it lands on "Not in this release", on the usual
  * week or on a card that names no surface. A list of the workspace's own (`clients/list:<id>`) is a row, its reader's route,
  * and so are a thread, a call, a person, a campaign and a run: never a page.
  */

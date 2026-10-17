@@ -11,7 +11,8 @@ import type { TemplateValuesPorts } from "./ports";
 
 /** The refusals a message's values meet for a link the workspace has not given, in the words the composer shows. */
 export const TEMPLATE_VALUE_WORDS = {
-  noBookingLink: "This message takes the booking link, and none is on file. Add it in Settings › Business first.",
+  noBookingLink:
+    "This message takes the booking link, and none is on file. Add it in Settings › Hours & booking first.",
   noReviewLink: "Connect your Google listing so the review link can be filled.",
 } as const;
 

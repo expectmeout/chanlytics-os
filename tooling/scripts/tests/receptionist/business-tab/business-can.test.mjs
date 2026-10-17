@@ -166,14 +166,13 @@ test("a row nothing does says so once: both glyphs dark, and the title in the di
 });
 
 test("a door opens the row that supplies what is missing", () => {
-  // Every runsOn this card can offer, pressed: the fold or the inline editor behind it opens, by the
-  // same registry the gap line's door goes through (so a row holding changes is asked first).
+  // Every runsOn this card can offer, pressed: on a page that draws the row, the fold or the inline editor behind it
+  // opens, by the same registry the gap line's door goes through (so a row holding changes is asked first).
   const nothing = { ...marisa, handoff_number: undefined, escalate_when: [] };
   for (const [id, row] of [
     ["open_times", "calendar"],
     ["booking_link", "booking_link"],
     ["transfer", "handoff_number"],
-    ["vision", "guardrails"],
   ]) {
     const tree = drawTab({ profile: nothing, brain: { booking_link: undefined }, config: { calendar: undefined } });
     const door = byTestId(canCard(tree), `rec-can-door-${id}`);
@@ -185,6 +184,12 @@ test("a door opens the row that supplies what is missing", () => {
       `${id} opens ${row}, not ${openFolds(after).concat(openRows(after)).join(", ") || "nothing"}`,
     );
   }
+  // The photos switch is one of the rules it always keeps, a limit on Autonomy since 17 Oct 2026: the door goes there,
+  // the address naming the row it opens, rather than opening nothing on a page that does not draw it.
+  went.length = 0;
+  const tree = drawTab({ profile: nothing });
+  press(byTestId(canCard(tree), "rec-can-door-vision"));
+  assert.deepEqual(went, ["admin/autonomy/guardrails"]);
 });
 
 test("a glyph says which channel in words, so dim is never the only thing that said it", () => {
@@ -342,11 +347,14 @@ test("the card is drawn on every render, after How it answers and before the ser
     (n) =>
       typeof n.props?.["data-testid"] === "string" && /^(rec-card-|rec-sheet-services)/.test(n.props["data-testid"]),
   ).map((n) => n.props["data-testid"]);
-  assert.deepEqual(order.slice(0, 5), [
+  // The record whole, as its three pages draw it in turn: Details, Hours & booking, How it answers.
+  assert.deepEqual(order.slice(0, 7), [
     "rec-card-who",
-    "rec-card-open",
     "rec-card-offer",
+    "rec-card-open",
+    "rec-card-booking",
     "rec-card-answers",
+    "rec-card-knows",
     "rec-card-can",
   ]);
   // A fold opened elsewhere draws the page again; the card holds no hook, and comes back whole.

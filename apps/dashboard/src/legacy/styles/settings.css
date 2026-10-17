@@ -65,17 +65,20 @@
 .set-nav-row {
   display: grid;
   width: 100%;
-  grid-template-columns: 16px 1fr;
+  grid-template-columns: 16px 1fr auto;
   gap: 10px;
   min-height: 34px;
   padding: 0 10px;
 }
+/* The page that holds the business's fact most worth adding, marked where the rail names it; the gap line says it on
+   that page (business/tab.tsx), and a phone's list says it in words (frame/list.tsx). */
+.set-nav-gap { width: 6px; height: 6px; border-radius: var(--radius-full); background: var(--warn); }
 .set-nav-row .icon { color: var(--ink-dim); }
 .set-nav-row.active .icon { color: var(--ink); }
 .set-nav-label { font-size: var(--set-label); font-weight: 500; color: var(--ink-muted); }
 .set-nav-row:hover .set-nav-label, .set-nav-row.active .set-nav-label { color: var(--ink); }
-/* Two groups, because the rail holds two different things: you, and the
-   workspace. Without them Profile read as one more workspace setting. */
+/* The rail's groups say whose each section is: you, the business, its receptionist, and the workspace. Without them
+   Profile read as one more workspace setting. */
 .set-nav-group {
   padding: 18px 10px 6px;
   font-size: 10.5px;
@@ -100,10 +103,50 @@
   scrollbar-color: var(--line-strong) transparent;
 }
 @media (prefers-reduced-motion: reduce) { .set-pane { animation: none; } }
-/* The sections as every page's strip is a phone's (settings.jsx, mobile.css); a desk has the rail. The strip's stand is no
-   box but on a phone, where it sticks under the frame's top (mobile.css, "The window scrolls"). */
-.stabs-settings { display: none; }
-.set-strip-stand { display: contents; }
+/* ---- Settings on a phone: its sections as a list (frame/list.tsx), grouped as the rail groups them on a desk. Each row
+   is a link to its section, which opens as a page whose way back is this list (17 Oct 2026). */
+.set-list { display: flex; flex-direction: column; gap: 6px; padding: 8px 16px 48px; }
+.set-list-group { display: flex; flex-direction: column; gap: 6px; }
+.set-list-head {
+  margin: 0;
+  padding: 12px 6px 0;
+  font-size: var(--text-xs);
+  font-weight: 500;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
+.settings .set-list-rows { padding: 2px 14px; }
+.set-list-row {
+  display: grid;
+  grid-template-columns: var(--row-face, 32px) minmax(0, 1fr) auto 14px;
+  column-gap: 12px;
+  align-items: center;
+  min-height: 52px;
+  color: var(--ink);
+  text-decoration: none;
+}
+.set-list-row + .set-list-row { border-top: 1px solid var(--line); }
+.set-list-glyph {
+  display: grid;
+  place-items: center;
+  width: var(--row-face, 32px);
+  height: var(--row-face, 32px);
+  border-radius: var(--radius-full);
+  background: var(--surface-inset-fill);
+  color: var(--ink-muted);
+}
+.set-list-name { min-width: 0; font-size: var(--text-md); font-weight: 500; }
+.set-list-said {
+  max-width: 40vw;
+  font-size: var(--text-sm);
+  color: var(--ink-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.set-list-said[data-tone="warn"] { color: var(--warn-ink); }
+.set-list-go { display: grid; color: var(--ink-faint); }
 /* A section opened after another arrives by the deck every change of view moves by (surfaces/kit/motion/view-deck.ts;
    the pane says its side, settings/frame/page.tsx), and plays no entrance of its own. On a phone it travels its own
    width, as a page from the tab beside does. On a desk the sections are a rail, one under another, and nothing goes

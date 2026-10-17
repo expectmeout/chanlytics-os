@@ -459,7 +459,7 @@ var SOLE_PROP_TEXTING_SENTENCE = `Texting is on. ${SOLE_PROP_CEILING_SENTENCE}`;
 // src/setup/calendar-source.ts
 var CALENDAR_OWED_WORD = SETUP_STATE_WORDS.waiting_you;
 var FORWARD_CONFIRM_SHOWN_MS = 3 * DAY_MS;
-var BOOKED_NEEDS_A_LINK = "Add a calendar link under Settings \u203A Business to see who booked.";
+var BOOKED_NEEDS_A_LINK = "Add a calendar link under Settings \u203A Hours & booking to see who booked.";
 
 // src/reports/booking-report.ts
 var BOOKED_NEEDS_TODAY = "It follows people as they stand today, so it is only true of a period that ends today.";
@@ -609,7 +609,7 @@ function closedFigure({ after_hours }, profile) {
     compare: null
   };
   if (hoursUnsetOf(after_hours, profile)) {
-    return { ...tile, value: "\u2014", meta: CLOSED_UNSET, door: "admin/workspace", unset: true };
+    return { ...tile, value: "\u2014", meta: CLOSED_UNSET, door: "admin/hours", unset: true };
   }
   if (profile === null) return null;
   const came = closedOf(after_hours, profile) ?? 0;

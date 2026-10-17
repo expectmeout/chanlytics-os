@@ -96,7 +96,7 @@ function closedFigure({ after_hours }, profile) {
     compare: null
   };
   if (hoursUnsetOf(after_hours, profile)) {
-    return { ...tile, value: "\u2014", meta: CLOSED_UNSET, door: "admin/workspace", unset: true };
+    return { ...tile, value: "\u2014", meta: CLOSED_UNSET, door: "admin/hours", unset: true };
   }
   if (profile === null) return null;
   const came = closedOf(after_hours, profile) ?? 0;

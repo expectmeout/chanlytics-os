@@ -41,8 +41,8 @@ export const SEQUENCE_WORDS = {
   endDetail: "It sends nothing more and nobody is added to it; what it sent stays in its History.",
   endedLine: "Ended · it sends nothing more. What it sent stays in its History.",
   receptionist: "First contact is your receptionist’s",
-  /** Where the receptionist's line opens: Settings › Business, as Campaigns' ledger row did (Ruben, 11 Oct 2026). */
-  receptionistRoute: "admin/workspace",
+  /** Where the receptionist's line opens: Settings › How it answers, as Campaigns' ledger row does (Ruben, 11 Oct 2026). */
+  receptionistRoute: "admin/receptionist",
   tabs: { steps: "Steps", people: "People", leads: "Leads", history: "History" },
   addFollowUp: "Add a follow-up",
   approve: "Approve",

@@ -384,7 +384,7 @@ test("no hours: the closed figure says so and holds the door to set them; no pro
   assert.ok(closed, "the figure is there, asking");
   assert.equal(textOf(find(closed, (n) => classes(n).includes("figure-meta"))), "set your opening hours to see this");
   assert.equal(textOf(find(closed, (n) => classes(n).includes("figure-value"))), "—", "a dash, never a zero");
-  assert.equal(find(closed, (n) => n.type === "a").props.href, "/w/studio/settings/workspace", "the door to set them");
+  assert.equal(find(closed, (n) => n.type === "a").props.href, "/w/studio/settings/hours", "the door to set them");
   assert.equal(classes(closed).includes("is-thin"), false);
 
   const unread = draw({ own: ownHeld(dtoWith({}, null)) });

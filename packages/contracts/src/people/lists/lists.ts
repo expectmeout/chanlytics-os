@@ -519,10 +519,10 @@ export function listUnknownWords(reason: ListUnknownReason, calendar: ListContex
   switch (reason) {
     case "calendar":
       return calendar === "none"
-        ? "This list reads a calendar link. Add one under Settings › Business to count it."
+        ? "This list reads a calendar link. Add one under Settings › Hours & booking to count it."
         : "This list reads your calendar, which can't be read right now.";
     case "consult":
-      return "This list exists only where the profile lists a consult-first service under Settings › Business.";
+      return "This list exists only where the profile lists a consult-first service under Settings › Hours & booking.";
     case "deals":
       return `This list exists only where deals are on: the workspace answers “${SELLS_BY_QUESTION}” with “${SELLS_BY_WORDS.proposal.label}”.`;
     case "viewer":

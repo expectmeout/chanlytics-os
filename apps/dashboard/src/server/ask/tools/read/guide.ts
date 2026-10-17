@@ -70,10 +70,13 @@ async function readGuide(t: ToolContext, input: { skill?: string | undefined }):
   const missing: string[] = [];
   if (setup) {
     const b = setup.business;
-    if (!b.hours) missing.push("Opening hours: the receptionist cannot say when you are open (Settings › Business).");
-    if (!b.services) missing.push("Services: the receptionist cannot say what you offer (Settings › Business).");
+    if (!b.hours)
+      missing.push("Opening hours: the receptionist cannot say when you are open (Settings › Hours & booking).");
+    if (!b.services) missing.push("Services: the receptionist cannot say what you offer (Settings › Details).");
     if (!b.bookingLink && setup.calendar.state === "none")
-      missing.push("A booking link or a calendar: nobody can be booked by the receptionist (Settings › Business).");
+      missing.push(
+        "A booking link or a calendar: nobody can be booked by the receptionist (Settings › Hours & booking).",
+      );
     if (!setup.channels.whatsapp.active)
       missing.push(
         "WhatsApp: no customer can write to you there, and no WhatsApp sequence can send (Settings › Connections).",
@@ -84,7 +87,7 @@ async function readGuide(t: ToolContext, input: { skill?: string | undefined }):
       missing.push("A mailbox to send from: no cold email can go from your own address (Settings › Connections).");
     if (setup.calendar.state === "unavailable")
       missing.push(
-        `The calendar cannot be read: ${setup.calendar.problem ?? "its link or its emails stopped"} (Settings › Business).`,
+        `The calendar cannot be read: ${setup.calendar.problem ?? "its link or its emails stopped"} (Settings › Hours & booking).`,
       );
     if (!setup.templates.approved)
       missing.push(

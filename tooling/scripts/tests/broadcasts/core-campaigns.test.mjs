@@ -1633,7 +1633,7 @@ test("an appointment moment needs a calendar, said in the workspace's word; a ne
     ),
     "validation",
     400,
-    "Meetings are read from your calendar, and none is connected. Connect one under Settings › Business.",
+    "Meetings are read from your calendar, and none is connected. Connect one under Settings › Hours & booking.",
   );
   // A reminder made before the rule keeps running, and is changed where it is.
   const kept = await checkPlaybook(
@@ -2164,7 +2164,7 @@ test("a booking-link slot needs a link on file, by one rule a message's values a
     refuseWithoutBookingLink(ports(null), [{ kind: "first_name" }, { kind: "booking_link" }]),
     "conflict",
     409,
-    "This message takes the booking link, and none is on file. Add it in Settings › Business first.",
+    "This message takes the booking link, and none is on file. Add it in Settings › Hours & booking first.",
   );
   await refuseWithoutBookingLink(ports("https://example.com/book"), [{ kind: "booking_link" }]);
   asked = 0;
