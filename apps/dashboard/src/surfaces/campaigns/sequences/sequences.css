@@ -659,6 +659,14 @@
   border: 1px dashed var(--line-strong);
   border-radius: var(--surface-inset-radius);
 }
+/* On a phone a hairline parts two rows (kit.css, the list row). Two days take none: the one under the batch to come,
+   whose dashed box already ends it, and a day open, a lozenge of the selected fill that no line touches. */
+@media (max-width: 900px) {
+  .sq-days > .sq-day-next + .sq-day::after,
+  .sq-days > .sq-day[aria-expanded="true"]::after {
+    content: none;
+  }
+}
 
 /* A phone (the kit's one breakpoint): a line's key stands over its words, so the words take the width. The flow's column
    of numbers narrows so a step's words take the screen; what a step did stands under its words, not in a column of its

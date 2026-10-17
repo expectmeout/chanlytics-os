@@ -605,31 +605,37 @@ test.describe("Phone shell on a real workspace", () => {
    * A hairline between two rows (16 Oct 2026). The rows stood on the page as lozenges with nothing between them, and
    * on a phone the eye had nothing to follow from a name to its time or its state (Ruben: "a divider between each row
    * to make it easier to follow, a subtle one"). Every list draws one line, the kit's row's (kit.css) and the pages'
-   * own rows' (mobile.css): none over a list's first row, and over each one after it from under the name to the row's
-   * far padding, a hairline, in one colour on every list.
+   * own rows' (mobile.css; Messages', campaigns.css, on the lozenge inside its row): none over a list's first row, and
+   * over each one after it from under the name to the row's far padding, a hairline, in one colour on every list.
    */
   test("a hairline parts two rows of every list, from under the name, in one colour", async ({ page }) => {
+    test.slow(); // seven pages, each opened and read whole
     type Rule = { first: string; left: number; right: number; height: number; colour: string; name: number };
     const rules: Record<string, Rule> = {};
-    const read = async (hash: string, rowSel: string, nameSel: string, label: string) => {
+    // A row's line is drawn on the row, or on the part of it named (a message's lozenge, inset from its row's sides).
+    const read = async (hash: string, rowSel: string, nameSel: string, label: string, drawnOn?: string) => {
       await page.goto(`/#/${hash}`);
       await page.waitForLoadState("networkidle");
       // The first two rows of the list that stand one after the other: a group's head between two parts them itself.
-      const rule = await page.locator(rowSel).evaluateAll((els, name) => {
-        const at = els.findIndex((el, i) => els[i + 1]?.previousElementSibling === el);
-        if (at < 0) return null;
-        const row = els[at + 1];
-        const line = getComputedStyle(row, "::after");
-        const words = row.querySelector(name);
-        return {
-          first: getComputedStyle(els[0], "::after").content,
-          left: Math.round(Number.parseFloat(line.left)),
-          right: Math.round(Number.parseFloat(line.right)),
-          height: Number.parseFloat(line.height),
-          colour: line.backgroundColor,
-          name: words ? Math.round(words.getBoundingClientRect().left - row.getBoundingClientRect().left) : -1,
-        };
-      }, nameSel);
+      const rule = await page.locator(rowSel).evaluateAll(
+        (els, sels) => {
+          const lineOf = (row: Element) => (sels.drawnOn ? row.querySelector(sels.drawnOn) : row) ?? row;
+          const at = els.findIndex((el, i) => els[i + 1]?.previousElementSibling === el);
+          if (at < 0) return null;
+          const row = lineOf(els[at + 1]);
+          const line = getComputedStyle(row, "::after");
+          const words = row.querySelector(sels.name);
+          return {
+            first: getComputedStyle(lineOf(els[0]), "::after").content,
+            left: Math.round(Number.parseFloat(line.left)),
+            right: Math.round(Number.parseFloat(line.right)),
+            height: Number.parseFloat(line.height),
+            colour: line.backgroundColor,
+            name: words ? Math.round(words.getBoundingClientRect().left - row.getBoundingClientRect().left) : -1,
+          };
+        },
+        { name: nameSel, drawnOn },
+      );
       if (rule) rules[label] = rule; // a list of one row has nothing to part
     };
     await read("inbox", ".ix-thread", ".ix-thread-who", "the Inbox");
@@ -638,6 +644,7 @@ test.describe("Phone shell on a real workspace", () => {
     await read("clients", ".pl-table tbody tr.pl-card-row", ".list-row-name", "People");
     await read("clients/leads", ".pl-table tbody tr.pl-card-row", ".list-row-name", "Leads");
     await read("campaigns", ".sq-group > .list-row", ".list-row-name", "Sequences");
+    await read("templates", ".msg-list > .msg-row", ".msg-row-title", "Messages", ".msg-row-line");
     const seen = Object.entries(rules);
     test.skip(seen.length === 0, "this workspace has no list of two rows");
     const [first, firstRule] = seen[0];
