@@ -210,6 +210,12 @@ test("an address is read and written by one parser and one writer: the list, a r
   assert.equal(newSequenceRoute(null), "campaigns/sequences/new");
   assert.equal(newSequenceRoute("visit_tomorrow"), "campaigns/sequences/new:moment:visit_tomorrow");
   assert.deepEqual(parseSequencesRoute(newSequenceRoute("visit_tomorrow")), { view: "new", moment: "visit_tomorrow" });
+  // A moment and a way back to Leads (the lead sheet's hand-off) read together: one in the word, one after it.
+  assert.deepEqual(parseSequencesRoute(`${newSequenceRoute("visited")}/back:`), {
+    view: "new",
+    moment: "visited",
+    back: "clients/leads",
+  });
   for (const odd of ["new:moment:", "new:moment", "new:every", "new:surprise"])
     assert.deepEqual(parseSequencesRoute(`${SEQUENCES_ROUTE}/${odd}`), { view: "new" }, odd);
   assert.deepEqual(parseSequencesRoute(sequenceRoute("s1")), { view: "record", id: "s1", tab: "steps" });
