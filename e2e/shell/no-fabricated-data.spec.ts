@@ -142,7 +142,15 @@ test.describe("a signed-in session never sees the mockup", () => {
     await page.waitForLoadState("networkidle");
     const undelivered = page.locator(".tl-msg.undelivered");
     if ((await undelivered.count()) > 0) {
-      await expect(undelivered.first()).toContainText(/Canceled before sending|Didn't send|Sending/);
+      // Said in words where it was canceled, and by the corner's mark, named, where it did not send or is on its way
+      // (#1660: the time and what became of it in the bubble's corner).
+      const first = undelivered.first();
+      await expect(
+        first
+          .getByText(/Canceled before sending/)
+          .or(first.getByRole("img", { name: /Didn't send|Sending/ }))
+          .first(),
+      ).toBeVisible();
     }
   });
 });
