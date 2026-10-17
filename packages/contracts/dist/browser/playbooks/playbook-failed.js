@@ -9,7 +9,7 @@ export function playbookFailedWords(name, why) {
       title: `\u201C${label}\u201D could not read your calendar today`,
       body: `\u201C${label}\u201D could not read your calendar today, so nobody was sent it. Tomorrow's run will try again.
 
-It kept trying through the day. Check that the calendar link under Settings \u203A Business still opens; if today's message matters, you can send it yourself from Campaigns.`
+It kept trying through the day. Check that the calendar link under Settings \u203A Hours & booking still opens; if today's message matters, you can send it yourself from Campaigns.`
     };
   return {
     title: `\u201C${label}\u201D could not run today`,

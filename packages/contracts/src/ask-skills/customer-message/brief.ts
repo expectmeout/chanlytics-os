@@ -31,7 +31,7 @@ export interface BriefValue {
 export interface MessageBrief {
   business: {
     name: string;
-    /** Its tone line (Settings › Business, "How it answers"), or null with none. */
+    /** Its tone line (Settings › How it answers, "How it talks"), or null with none. */
     tone: string | null;
     /** Its services' names, the first dozen. */
     services: readonly string[];

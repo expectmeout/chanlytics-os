@@ -1601,7 +1601,7 @@ test("the tab exists for the people it is for, and for nobody else", () => {
     /export const isPlatformAdmin = \(\): boolean =>\s*!!\(Reflect\.get\(window, "__ME"\) as \{ platform_admin\?: boolean \} \| null \| undefined\)\?\.platform_admin;/,
   );
   // The rail derives from the list, so the tab cannot appear where it may not.
-  assert.match(settings, /\[\.\.\.SET_TABS, \.\.\.\(isPlatformAdmin\(\) \? SET_TABS_PLATFORM : \[\]\)\]/);
+  assert.match(settings, /\.\.\.SET_TABS\.filter\(.*\),\s*\.\.\.\(isPlatformAdmin\(\) \? SET_TABS_PLATFORM : \[\]\)/);
   // And the route resolves to it only for an admin -- otherwise SET_TAB falls
   // through to the default, which is what makes the route a dead end.
   assert.match(settings, /\(isPlatformAdmin\(\) \? SET_TABS_PLATFORM\.find\(\(t\) => t\.id === id\) : null\) \|\|/);

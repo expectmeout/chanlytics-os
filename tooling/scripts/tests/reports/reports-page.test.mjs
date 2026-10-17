@@ -837,7 +837,7 @@ test("a workspace with no hours is asked for them through the page, with the doo
     "and no count of what a guess would have called closed",
   );
   press(find(hours, (n) => n.type === "a"));
-  assert.deepEqual(went, ["admin/workspace"], "the door opens Settings, where the hours are kept");
+  assert.deepEqual(went, ["admin/hours"], "the door opens Settings' Hours & booking, where the hours are kept");
   const unread = page({ report: calm, campaigns: null, profile: null });
   assert.equal(factOf(unread, "hours"), null, "a profile that could not be read says nothing of the hours");
 });
@@ -949,7 +949,7 @@ test("asked, then booked: the share as a meter beside the view model's words, th
   assert.equal(textOf(cls(ok, "rpt-booked-number")), "38%");
   assert.equal(textOf(cls(ok, "rpt-booked-copy")), "of the people who wrote or called in the last 7 days have booked.");
   const none = card(page({ booking: { calendar: "none", days: 7, asked: 0, booked: 0 } }), "chart-booking");
-  assert.ok(textOf(none).includes("Add a calendar link under Settings › Business to see who booked."));
+  assert.ok(textOf(none).includes("Add a calendar link under Settings › Hours & booking to see who booked."));
   press(find(none, (n) => n.type === "button"));
   // The Business row that holds the link, opened (contracts CALENDAR_SETTING_ROUTE): it went to the top of the tab.
   assert.deepEqual(went, ["admin/workspace/calendar"]);

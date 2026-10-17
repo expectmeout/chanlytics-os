@@ -34,7 +34,6 @@ import { gate as roleGate } from "../../legacy-verbs";
 import type { LegacyFlash } from "../../legacy-verbs";
 import { BtRow } from "./gestures/row";
 import { BtFold } from "./gestures/fold";
-import { BtBookingTool } from "./open-bookings";
 import { BtoWeek } from "./open-week";
 import type { Week } from "./open-week";
 import { businessTabSave } from "./saver";
@@ -342,25 +341,21 @@ const BtoClosures = ({ draft: days, rows, press, problems, readOnly }: ClosureFi
 /* ------------------------------------ the card ------------------------------------ */
 
 /**
- * When you're open (spec §4.3): four rows, in the order a customer's question meets them -- the week, whose clock it is
- * on, the days it does not apply to, and what the business books with, which says which of its times are taken.
+ * When you're open (spec §4.3): three rows, in the order a customer's question meets them -- the week, whose clock it is
+ * on, and the days it does not apply to. What the business books with, which says which of its times are taken, is the
+ * Booking card's beside it on Hours & booking (booking.tsx), since 17 Oct 2026.
  *
- * `brain` and `config` are the settings read's, which the rows state; what a fold opens with and saves onto is the
- * saver's base, which BtFold asks for itself.
+ * `brain` is the settings read's, which the rows state; what a fold opens with and saves onto is the saver's base,
+ * which BtFold asks for itself.
  */
 export const BtOpenCard = ({
   brain,
-  config = null,
   prompt = null,
   canEdit,
   flash,
   saver,
 }: {
   brain: Brain;
-  config?: {
-    calendar?: { ical_url?: string | null } | null;
-    bookings?: { tool?: string | null; by_hand?: boolean | null } | null;
-  } | null;
   prompt?: Pick<PromptPreviewDto, "tz"> | null;
   canEdit: boolean;
   flash: Flash;
@@ -403,10 +398,6 @@ export const BtOpenCard = ({
         }}
         body={(f) => <BtoClosures {...f} />}
       />
-
-      {/* What the business books with: one row and its fold (open-bookings.tsx), which a door on another page draws
-          as a sheet where it was pressed (booking-tool/). */}
-      <BtBookingTool brain={brain} config={config} {...shared} />
     </section>
   );
 };

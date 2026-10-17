@@ -4,7 +4,8 @@ import { apiGet } from "../workspace";
 import { expectFocusInside, expectNoSidewaysScroll } from "../signals";
 
 /**
- * Settings › Business on a real workspace: the record, and the things only a browser can show about it.
+ * The business's record on a real workspace, and the things only a browser can show about it: Settings › Details, Hours &
+ * booking and How it answers, and the two rows of it Autonomy's Limits draws (one page per question since 17 Oct 2026).
  *
  * The page is made of three gestures -- a value edited in its row, a set of fields folded open under the row that
  * states them, and a list in a sheet beside the page -- and every one of them moves FOCUS. The unit suite draws the
@@ -22,15 +23,32 @@ import { expectFocusInside, expectNoSidewaysScroll } from "../signals";
  * control clipped to a sliver, which is how the QR that nobody could scan passed its check (21 Sep, #809).
  */
 
-/** The record as Settings reads it. */
-const ROUTE = "#/admin/workspace";
+/** The pages the record is read on, by their section (settings/frame/tabs.ts), and what each draws first. */
+type Pane = "workspace" | "hours" | "receptionist" | "autonomy";
+const FIRST_DRAWN: Record<Pane, string> = {
+  workspace: "rec-card-who",
+  hours: "rec-card-open",
+  receptionist: "rec-card-answers",
+  autonomy: "rec-row-guardrails",
+};
 /** The pane the record is read in, which is what scrolls when something on it is laid out past the edge. */
 const PANE = ".set-pane";
 
-/** The page is a Settings pane; its first card is drawn only once the settings read has a brain to draw. */
-async function openRecord(page: Page): Promise<void> {
-  await page.goto(`/${ROUTE}`);
-  await expect(page.getByTestId("rec-card-who")).toBeVisible({ timeout: 40_000 });
+/** A page of the record is a Settings pane; its first card is drawn only once the settings read has a brain to draw. */
+async function openRecord(page: Page, pane: Pane = "workspace"): Promise<void> {
+  await page.goto(`/#/admin/${pane}`);
+  await expect(page.getByTestId(FIRST_DRAWN[pane])).toBeVisible({ timeout: 40_000 });
+}
+
+/**
+ * Another page of the record, moved to in the page's own hand (the rail's move), so what a test put on the window (the
+ * stand-in settings door) is still there: a reload would put the bridge's own door back.
+ */
+async function goToPane(page: Page, pane: Pane): Promise<void> {
+  await page.evaluate((to) => {
+    (window as unknown as { CHANLY: { address: { go: (r: string) => void } } }).CHANLY.address.go(to);
+  }, `admin/${pane}`);
+  await expect(page.getByTestId(FIRST_DRAWN[pane])).toBeVisible({ timeout: 40_000 });
 }
 
 /** What GET settings holds, for the comparison that proves nothing was saved. */
@@ -122,9 +140,9 @@ async function expectQuiet(page: Page, where: string): Promise<void> {
       for (const el of [card, ...card.querySelectorAll("*")]) {
         const cs = getComputedStyle(el);
         const name = el.className || el.tagName;
-        // The sheet's Close is the kit's glass circle, whose sheen is the look's control layer (kit.css, the sheet), not
-        // a ground the record paints.
-        const glass = el.matches(".rec-sheet-close");
+        // The sheet's Close is the kit's glass circle, and a phone's sheet the glass of everything that pops: both the
+        // look's control layer and its sheen (kit.css, the sheet), not a ground the record paints.
+        const glass = el.matches(".rec-sheet-close, .rec-sheet");
         if (!glass && cs.backgroundImage.includes("gradient"))
           gradients.push(`${name}: ${cs.backgroundImage.slice(0, 48)}`);
         if (/mono/i.test(cs.fontFamily) && (el.textContent ?? "").trim()) monospace.push(`${name}: ${cs.fontFamily}`);
@@ -153,9 +171,10 @@ async function expectQuiet(page: Page, where: string): Promise<void> {
  * yet".
  */
 /**
- * The four strengths in the rules sheet sit in ONE place: each rule's pill ends at the same distance from its row's
- * end, inside its row, so an owner scanning for them reads one column; the photos switch, an ability in a group of its
- * own, wears none (Ruben, 10 Oct 2026, the sheets in one shape). Measured against each row rather than the viewport.
+ * The four strengths in the rules sheet sit in ONE place: each rule's word, quiet under its name (answers-fields.tsx
+ * BtaRule), starts where its name starts, inside its row, so an owner scanning for them reads one column; the photos
+ * switch, an ability in a group of its own, wears none (Ruben, 10 Oct 2026, the sheets in one shape; the pill at the
+ * row's end became the word under the name since). Measured against each row rather than the viewport.
  *
  * The walk is scoped to the open sheet (`sheet`), never the page: a fold's body stays drawn, hidden, while it is
  * closed (RecordFold).
@@ -165,11 +184,11 @@ async function expectRuleBadgesInLine(page: Page, sheet: string, where: string):
     (within) =>
       [...document.querySelectorAll(`${within} .bt-line[data-testid^="rec-rule-"]`)].map((row) => {
         const box = row.getBoundingClientRect();
-        const pill = row.querySelector(".pill")?.getBoundingClientRect();
+        const word = row.querySelector('[data-testid^="rec-rule-strength-"]')?.getBoundingClientRect();
         return {
           id: row.getAttribute("data-testid"),
-          dx: pill ? Math.round(box.right - pill.right) : null,
-          inRow: pill ? pill.top >= box.top && pill.bottom <= box.bottom : null,
+          dx: word && word.width > 0 ? Math.round(word.left - box.left) : null,
+          inRow: word ? word.top >= box.top && word.bottom <= box.bottom : null,
         };
       }),
     sheet,
@@ -179,7 +198,7 @@ async function expectRuleBadgesInLine(page: Page, sheet: string, where: string):
   for (const b of rules) expect(b.dx, `${where}: ${b.id} wears its strength`).not.toBeNull();
   expect(
     [...new Set(rules.map((b) => b.dx))],
-    `${where}: every strength ends at the same place in its row`,
+    `${where}: every strength starts at the same place in its row`,
   ).toHaveLength(1);
   for (const b of rules) expect(b.inRow, `${where}: ${b.id}'s strength is inside its row`).toBe(true);
   expect(badges.find((b) => b.id === "rec-rule-vision")?.dx, `${where}: the photos switch wears none`).toBeNull();
@@ -190,6 +209,12 @@ async function expectAbilitiesQuiet(page: Page, where: string): Promise<void> {
   // the boot reads the route's surface first and the rest in lanes (#642, #824), and the lists' surfaces joined the
   // queue this week (#988–#993). The rows are waited for; the one-shot read below counted the reading line as none.
   await expect(page.getByTestId("rec-card-can").locator(".bt-can-row").first()).toBeVisible({ timeout: 20_000 });
+  // The things it cannot do fold behind one line that counts them, closed at rest (17 Oct 2026); opened, each is a line.
+  const cannot = page.getByTestId("rec-card-cannot");
+  await expect(cannot, `${where}: the things it cannot do are folded at rest`).not.toHaveAttribute("open", "");
+  await expect(cannot.locator("summary")).toHaveText(/things? it cannot do$/);
+  await cannot.locator("summary").click();
+  await expect(cannot).toHaveAttribute("open", "");
   const card = await page.evaluate(() => {
     const el = document.querySelector('[data-testid="rec-card-can"]');
     if (!el) return null;
@@ -282,6 +307,8 @@ async function expectSheetQuiet(
         "--surface-inset-fill",
         "--surface-control-fill",
         "--surface-pop-fill",
+        // The sheet's own ground: the glass of everything that pops (kit.css, since 16 Oct 2026).
+        "--surface-pop-glass",
         "--surface-island-fill",
         ...also,
       ]) {
@@ -301,7 +328,9 @@ async function expectSheetQuiet(
         // Close of the control layer (rim and sheen), a field, a select or a picker as an inset. The kit's gallery holds
         // them (e2e/kit/kit.spec.ts: tokens, contrast, rings); this holds what the sheet paints of its own.
         if (el.closest(kit)) continue;
-        if (cs.backgroundImage.includes("gradient")) gradients.push(name);
+        // The sheet itself wears the glass of everything that pops, the control layer's sheen over its ground (kit.css,
+        // "What pops over the page"): the kit's, as its Close is. What it holds paints no gradient of its own.
+        if (el !== sheet && cs.backgroundImage.includes("gradient")) gradients.push(name);
         const r = el.getBoundingClientRect();
         if (r.height > 0 && parseFloat(cs.borderTopWidth) > 0 && parseFloat(cs.borderTopLeftRadius) >= r.height / 2)
           pills.push(name);
@@ -463,17 +492,18 @@ const settled = (page: Page): Promise<unknown> =>
 async function expectMotions(page: Page, reduced: boolean): Promise<void> {
   const where = reduced ? "under reduced motion" : "with motion";
   const none = (m: Motion[][], what: string) => expect(m.flat(), `${what} moves ${where}`).toEqual([]);
-  /** Where the row after the fold stands in its card: what must hold still whatever the pane scrolls to. */
+  /** Where the row after the fold stands in its card (Autonomy's Limits): what must hold still whatever the pane scrolls to. */
   const still = () =>
     page
-      .getByTestId("rec-row-notes")
+      .getByTestId("aut-pause")
       .evaluate((el) =>
         Math.round(el.getBoundingClientRect().top - el.closest(".rec-card")!.getBoundingClientRect().top),
       );
 
   // 1. The value becomes its field: the editor's body fades in on 120ms, the label holds still, the caret is at the
   // end of what is there, and the row keeps its height (the editor is the row's one line, its Save and Cancel where
-  // the act was).
+  // the act was). The website is Details'.
+  await goToPane(page, "workspace");
   await settled(page);
   const rowHeight = await page.getByTestId("rec-row-website").evaluate((el) => el.getBoundingClientRect().height);
   const inline = await page.evaluate(async () => {
@@ -504,7 +534,9 @@ async function expectMotions(page: Page, reduced: boolean): Promise<void> {
 
   // 2. A fold opens as a sheet beside the page (record-fold.jsx frame="sheet", which every fold of this tab is), and
   // comes in from its edge as every side sheet does (components.css side-in, 260ms on --ease-out), its wash fading in
-  // with it; the row it opened from stays in its card behind it, and nothing on the page moves.
+  // with it; the row it opened from stays in its card behind it, and nothing on the page moves. How it hands you a
+  // customer is a limit, on Autonomy's Limits card.
+  await goToPane(page, "autonomy");
   await settled(page);
   const at = await still();
   await actOf(page, "escalate_when").click();
@@ -595,7 +627,8 @@ async function expectMotions(page: Page, reduced: boolean): Promise<void> {
   await expect(page.locator(fold)).toHaveCount(0);
   expect(await still(), `${where}: the card moved once the sheet had gone`).toBe(at);
 
-  // 5. The save settle: the row its save draws again lets its value arrive on rise-in.
+  // 5. The save settle: the row its save draws again lets its value arrive on rise-in. The voice is How it answers'.
+  await goToPane(page, "receptionist");
   await settled(page);
   await actOf(page, "tone").click();
   const voice = page.locator('[data-testid="rec-fold-tone"] textarea').first();
@@ -622,13 +655,18 @@ test.describe("Settings › Business on a real workspace", () => {
     const before = await readConfig(page);
     await openRecord(page);
 
-    // Where something is missing, the one gap most worth closing, which is the door to it; nothing otherwise.
-    const gap = page.getByTestId("rec-gap");
-    if ((await gap.count()) === 0) {
+    // Where something is missing, the one gap most worth closing, which is the door to it; nothing otherwise. It is said
+    // on the page that holds its row, and the rail marks that page.
+    const marked = page.locator('[data-testid^="set-nav-"]:has(.set-nav-gap)');
+    if ((await marked.count()) === 0) {
       // A record with no gap states no gap, and offers no door to one. Nothing else here to prove.
       await expect(page.getByTestId("rec-gap-door")).toHaveCount(0);
       return;
     }
+    await expect(marked).toHaveCount(1);
+    const holder = (await marked.getAttribute("data-testid"))!.slice("set-nav-".length) as Pane;
+    await openRecord(page, holder);
+    const gap = page.getByTestId("rec-gap");
     await expect(gap).toBeInViewport({ ratio: 1 });
     const door = page.getByTestId("rec-gap-door");
     await door.click();
@@ -647,7 +685,7 @@ test.describe("Settings › Business on a real workspace", () => {
     page,
   }) => {
     const before = await readConfig(page);
-    await openRecord(page);
+    await openRecord(page, "receptionist");
 
     await openFold(page, "tone");
     const box = foldOf(page, "tone").locator("textarea").first();
@@ -675,7 +713,7 @@ test.describe("Settings › Business on a real workspace", () => {
     page,
   }) => {
     const before = await readConfig(page);
-    await openRecord(page);
+    await openRecord(page, "hours");
 
     const hours = await openFold(page, "hours");
     // A day that is open has a shift; a second one is the break this fold offers to add.
@@ -708,7 +746,7 @@ test.describe("Settings › Business on a real workspace", () => {
     page,
   }) => {
     const before = await readConfig(page);
-    await openRecord(page);
+    await openRecord(page, "hours");
 
     const closures = await openFold(page, "closures");
     const add = closures.getByTestId("rec-closures-add");
@@ -740,7 +778,7 @@ test.describe("Settings › Business on a real workspace", () => {
     // page beside it is its wash, and a press there is the fold's Cancel -- with nothing typed, the sheet simply goes
     // (the click that once landed on the page and had to survive a redraw lands here now).
     const before = await readConfig(page);
-    await openRecord(page);
+    await openRecord(page, "receptionist");
 
     const sheet = await openFold(page, "tone");
     // A point on screen beside the sheet, whatever the pane scrolled to bring the row in reach: 40px left of the
@@ -765,7 +803,7 @@ test.describe("Settings › Business on a real workspace", () => {
 
   test("a language typed into the box and left there by focus is added", async ({ page }) => {
     const before = await readConfig(page);
-    await openRecord(page);
+    await openRecord(page, "receptionist");
 
     const fold = await openFold(page, "languages");
     const box = fold.getByTestId("rec-languages-add").locator("input");
@@ -798,7 +836,7 @@ test.describe("Settings › Business on a real workspace", () => {
 
   test("the Add that fills a list to its cap becomes the sentence, and focus stays in the fold", async ({ page }) => {
     const before = await readConfig(page);
-    await openRecord(page);
+    await openRecord(page, "receptionist");
 
     const fold = await openFold(page, "languages");
     const box = fold.getByTestId("rec-languages-add").locator("input");
@@ -879,6 +917,7 @@ test.describe("Settings › Business on a real workspace", () => {
     const was = await rows.count();
     await page.getByTestId("rec-services-add").click();
     await expect(rows).toHaveCount(was + 1);
+    await settled(page);
 
     // A service's three boxes stack into ONE row: its name across the top with the remove at the right, and how long
     // it takes beside its price under them.
@@ -907,13 +946,16 @@ test.describe("Settings › Business on a real workspace", () => {
 
     // Enough rows that the list actually scrolls, then: the foot holds still under them. (The columns' head is not
     // drawn at this width -- the row's shape names them -- so there is nothing of it to hold.)
-    for (let i = 0; i < 12 && (await body.evaluate((el) => el.scrollHeight <= el.clientHeight)); i++) {
+    // Measured once the row just added has arrived: its entry motion overflows the body by a few pixels while it runs,
+    // which read as a list that scrolls and stopped the adding early.
+    const scrolls = async () => {
+      await settled(page);
+      return body.evaluate((el) => el.scrollHeight > el.clientHeight);
+    };
+    for (let i = 0; i < 12 && !(await scrolls()); i++) {
       await page.getByTestId("rec-services-add").click();
     }
-    expect(
-      await body.evaluate((el) => el.scrollHeight > el.clientHeight),
-      "the sheet's rows never came to scroll",
-    ).toBe(true);
+    expect(await scrolls(), "the sheet's rows never came to scroll").toBe(true);
     const footBefore = await boxOf(page.locator(".rec-sheet-foot"), "the sheet's foot");
     await body.evaluate((el) => {
       el.scrollTop = el.scrollHeight;
@@ -960,7 +1002,7 @@ test.describe("Settings › Business on a real workspace", () => {
   }) => {
     const before = await readConfig(page);
     await page.setViewportSize({ width: 1280, height: 900 });
-    await openRecord(page);
+    await openRecord(page, "receptionist");
     const door = page.getByTestId("rec-prompt-open");
     const sheet = page.getByTestId("rec-sheet-prompt");
     // Each block is the kit's folding row: its wrapper by its id, never the press inside it.
@@ -1010,7 +1052,7 @@ test.describe("Settings › Business on a real workspace", () => {
         await away.click();
         await expect(page).toHaveURL(/\/settings\/autonomy$/);
         await expect(page.locator(".pol-table")).toBeVisible();
-        await openRecord(page);
+        await openRecord(page, "receptionist");
       } else {
         await sheet.locator(".rec-sheet-foot").getByRole("button", { name: "Done" }).click();
         await expect(sheet).toHaveCount(0);
@@ -1078,15 +1120,27 @@ test.describe("Settings › Business on a real workspace", () => {
   }) => {
     const before = await readConfig(page);
     await page.setViewportSize({ width: 390, height: 844 });
-    await openRecord(page);
-    await expectNoSidewaysScroll(page, "the record at rest", [PANE]);
-    await expectQuiet(page, "the record at rest");
-    await expectAbilitiesQuiet(page, "the record at rest");
+    for (const pane of ["workspace", "hours", "receptionist"] as const) {
+      await openRecord(page, pane);
+      await expectNoSidewaysScroll(page, `${pane} at rest`, [PANE]);
+      await expectQuiet(page, `${pane} at rest`);
+    }
+    await expectAbilitiesQuiet(page, "How it answers at rest");
 
     // The Who you are card overflowed a phone by 8px once, on the arrow inside a door's clipped words. Every card is
-    // measured, and then the folds whose fields are widest. Each one open is also where the fold's own ground and the
-    // block of what a save will say are painted, which is what carried a gradient and a monospace.
-    for (const id of ["guardrails", "escalate_when", "fallbacks", "booking_rules", "hours", "languages"]) {
+    // measured, and then the folds whose fields are widest, each on the page that holds it. Each one open is also where
+    // the fold's own ground and the block of what a save will say are painted, which is what carried a gradient and a
+    // monospace.
+    const FOLDS: [string, Pane][] = [
+      ["guardrails", "autonomy"],
+      ["escalate_when", "autonomy"],
+      ["fallbacks", "receptionist"],
+      ["languages", "receptionist"],
+      ["booking_rules", "hours"],
+      ["hours", "hours"],
+    ];
+    for (const [id, pane] of FOLDS) {
+      await openRecord(page, pane);
       // On a phone a fold opens as a sheet from the bottom, in the app's root (record-fold.jsx): what scrolls is the
       // pane behind it and the sheet's own body, and what is painted is inside the sheet.
       const fold = await openFold(page, id);
@@ -1151,9 +1205,6 @@ test.describe("Settings › Business on a real workspace", () => {
     // press. business-tab-page.test.mjs holds which controls the page draws at rest on a whole record and on an empty
     // one; this is what the browser paints of them.
     await page.setViewportSize({ width: 1280, height: 900 });
-    await openRecord(page);
-    await page.mouse.move(0, 0);
-    await settled(page);
     const drawn = () =>
       page.evaluate(() => {
         const pane = document.querySelector(".set-pane")!;
@@ -1190,26 +1241,29 @@ test.describe("Settings › Business on a real workspace", () => {
         }
         return out;
       });
-    const atRest = await drawn();
+    // Every page of the record: what each draws at rest, and none of its rows' acts latent.
+    const atRest: Awaited<ReturnType<typeof drawn>> = [];
+    for (const pane of ["workspace", "hours", "receptionist"] as const) {
+      await openRecord(page, pane);
+      await page.mouse.move(0, 0);
+      await settled(page);
+      atRest.push(...(await drawn()));
+      const latent = await page.locator(".rec-row .rec-row-act").evaluateAll((els) =>
+        els
+          .filter((el) => {
+            let seen = 1;
+            for (let n: Element | null = el; n; n = n.parentElement) seen *= parseFloat(getComputedStyle(n).opacity);
+            return seen < 1 || !el.getClientRects().length;
+          })
+          .map((el) => el.getAttribute("data-testid")),
+      );
+      expect(latent, `an act not drawn at rest on ${pane}`).toEqual([]);
+    }
     expect(
       atRest.filter((c) => !c.why).map((c) => c.id),
       "a control drawn at rest that an owner does not act on without looking for it",
     ).toEqual([]);
     expect(atRest.map((c) => c.why)).toContain("Read it");
-    // Download is Your data's, under the tab, and drawn wherever the app can name its door (window.__href); the
-    // harness has no export door to name, so it is held to being drawn only where it is on the page.
-    if (await page.getByTestId("set-export-all").count()) expect(atRest.map((c) => c.why)).toContain("Download");
-    // Every row with an act draws it at rest: none is latent.
-    const latent = await page.locator(".rec-row .rec-row-act").evaluateAll((els) =>
-      els
-        .filter((el) => {
-          let seen = 1;
-          for (let n: Element | null = el; n; n = n.parentElement) seen *= parseFloat(getComputedStyle(n).opacity);
-          return seen < 1 || !el.getClientRects().length;
-        })
-        .map((el) => el.getAttribute("data-testid")),
-    );
-    expect(latent, "an act not drawn at rest").toEqual([]);
     expect(atRest.filter((c) => c.why === "a row's act").length).toBeGreaterThan(10);
 
     // Quietly: the dim ink at rest, the ink as the row is approached, and the whole row is the press (the pointer says
@@ -1253,7 +1307,7 @@ test.describe("Settings › Business on a real workspace", () => {
       page,
     }) => {
       const before = await readConfig(page);
-      await openRecord(page);
+      await openRecord(page, "receptionist");
       // The save goes to a stand-in for the settings door, never to the workspace this spec shares (its rule, above):
       // it takes what the page sends, answers as the bridge does when the server takes it (onSaved, then the read
       // again, which is what the page draws its rows from), and keeps what it was sent for the check below.
@@ -1357,7 +1411,8 @@ test.describe("Settings › Business on a real workspace", () => {
       expect(took[0].config, "the save sent more than the voice").toEqual(expected);
       expect(await scrolled(), "the page behind the sheet scrolled").toBe(top);
 
-      // A fold with the widest fields, as a sheet: quiet and made for a finger too.
+      // A fold with the widest fields, as a sheet: quiet and made for a finger too. The hours are Hours & booking's.
+      await goToPane(page, "hours");
       await actOf(page, "hours").tap();
       const hours = '[role="dialog"][data-testid="rec-fold-hours"]';
       await expect(page.locator(hours)).toBeVisible();
@@ -1399,6 +1454,7 @@ test.describe("Settings › Business on a real workspace", () => {
       await expectFingerSized(page, hours, "the hours' sheet");
       await discard(page, "hours");
       await expect(actOf(page, "hours")).toBeFocused();
+      await goToPane(page, "receptionist");
 
       // The sheet rises as it opens and goes down the way it came as it closes (spec §9, item 1, and Task 6.1's step
       // 3b), over a card that holds still: the row it opened from is drawn behind it the whole time, so nothing under
@@ -1407,7 +1463,7 @@ test.describe("Settings › Business on a real workspace", () => {
         await page.emulateMedia({ reducedMotion: reduced ? "reduce" : "no-preference" });
         await settled(page);
         const where = reduced ? "under reduced motion" : "with motion";
-        const next = page.getByTestId("rec-row-act-notes");
+        const next = page.getByTestId("rec-row-act-languages");
         // Where the next row stands in its card: the card under the wash is what must hold still, whatever the pane
         // scrolls to bring the row in reach.
         const still = () =>

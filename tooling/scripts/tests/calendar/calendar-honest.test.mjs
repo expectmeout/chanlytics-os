@@ -1268,8 +1268,8 @@ test("(A1) a window the tab held does not decide for a visit it lacks: the fresh
   }
 });
 
-test("REGRESSION (B19): a sentence that sends the owner to the calendar's address names the tab it is on -- Settings › Business, not Settings › Workspace", () => {
-  assert.equal(toBookingReportVM(null).sub, "Add a calendar link under Settings › Business to see who booked.");
+test("REGRESSION (B19): a sentence that sends the owner to the calendar's address names the page it is on -- Settings › Hours & booking, not Settings › Workspace", () => {
+  assert.equal(toBookingReportVM(null).sub, "Add a calendar link under Settings › Hours & booking to see who booked.");
   fresh(
     dto({
       feed: { present: false, state: "none", read_at: null, events: 0, recurring_expanded: 0, skipped_recurring: 0 },
@@ -1295,7 +1295,7 @@ test("REGRESSION (B19): a sentence that sends the owner to the calendar's addres
     }),
   );
   const unread = textOf(byTestId(page(), "cal-notice-feed"));
-  assert.ok(unread.includes("Settings › Business") && !unread.includes("Settings › Workspace"), unread);
+  assert.ok(unread.includes("Settings › Hours & booking") && !unread.includes("Settings › Workspace"), unread);
 });
 
 /* ------------------- C1: what the page says is true wherever it looks ------------------- */
@@ -2213,7 +2213,7 @@ test("REGRESSION (C3): the rules bar says what Business calls each thing -- 'Rul
   // Each door says where it goes, for a tab named Business: 'Edit in Settings' named a tab there is none of.
   assert.deepEqual(
     [...new Set(all(bar, (n) => /^cal-rules-door-/.test(n.props?.["data-testid"] ?? "")).map((n) => n.props.title))],
-    ["Change it in Settings › Business"],
+    ["Change it in Settings › Hours & booking"],
     "REGRESSION: 'Edit in Settings', for a tab named Business",
   );
   assert.equal(

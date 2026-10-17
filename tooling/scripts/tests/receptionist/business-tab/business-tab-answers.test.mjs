@@ -112,33 +112,53 @@ test("the voice's box is the first row of How it answers, reading Not set on a r
   assert.match(textOf(rows[0]), /Not set/);
   assert.equal(rows[0].props["data-empty"], "true");
   assert.equal(textOf(byTestId(rows[0], "rec-row-act-tone")).trim(), "Give it one", "the canvas's act for the gap");
-  // Seven rows, in the canvas's order, under its title and sub, and on a workspace that answers calls (Marisa's does)
-  // the eighth after the voice: what callers hear first (decision 0051).
+  // How it talks: the voice, then on a workspace that answers calls (Marisa's does) what callers hear first (decision
+  // 0051), then the languages, under its title and sub. What it knows holds the next three, and the rules it always
+  // keeps and how it hands you a customer are limits, on Autonomy's Limits card (17 Oct 2026).
   assert.deepEqual(all(card, (n) => classes(n).includes("rec-row-key")).map(textOf), [
     "Its voice",
     "Greets every caller with",
     "Languages",
-    "Rules it always keeps",
-    "Hands you a customer",
+  ]);
+  assert.equal(textOf(find(card, (n) => classes(n).includes("rec-card-title"))), "How it talks");
+  assert.equal(
+    textOf(find(card, (n) => classes(n).includes("rec-card-sub"))),
+    "Its voice, and the words it opens with",
+  );
+  const knows = byTestId(tree, "rec-card-knows");
+  assert.deepEqual(all(knows, (n) => classes(n).includes("rec-row-key")).map(textOf), [
     "Things it should know",
     "In your own words",
     "When it can't answer",
   ]);
-  assert.equal(textOf(find(card, (n) => classes(n).includes("rec-card-title"))), "How it answers");
-  assert.equal(
-    textOf(find(card, (n) => classes(n).includes("rec-card-sub"))),
-    "The voice, the limits, and what fits no field",
-  );
-  // After What you offer, before What it can do, and above the sheet slot, the page's last drawn child.
+  // The record whole, as its three pages draw it in turn, and How it answers alone as Settings draws it: its two cards,
+  // What it can do and what it is told, then the sheet slot, the page's last drawn child.
   assert.deepEqual(
     all(drawTab(), (n) => classes(n).includes("rec-card")).map((n) => n.props["data-testid"]),
-    ["rec-card-who", "rec-card-open", "rec-card-offer", "rec-card-answers", "rec-card-can", "rec-card-told"],
+    [
+      "rec-card-who",
+      "rec-card-offer",
+      "rec-card-open",
+      "rec-card-booking",
+      "rec-card-answers",
+      "rec-card-knows",
+      "rec-card-can",
+      "rec-card-told",
+    ],
   );
-  const tail = [].concat(drawTab().rendered.props.children).filter((c) => c != null && c !== false);
+  const page = drawTab({ part: "receptionist" });
+  assert.deepEqual(
+    all(page, (n) => classes(n).includes("rec-card")).map((n) => n.props["data-testid"]),
+    ["rec-card-answers", "rec-card-knows", "rec-card-can", "rec-card-told"],
+  );
+  const tail = [].concat(page.rendered.props.children).filter((c) => c != null && c !== false);
   assert.equal(tail.at(-1).type, W.BtSheetSlot);
-  assert.equal(tail.at(-2).type, W.BtPromptTold, "what it is told, at rest, after What it can do");
-  assert.equal(tail.at(-3).type, W.BtCanCard, "What it can do is the card after this one");
-  assert.equal(tail.at(-4).type, W.BtAnswersCard);
+  const cards = [].concat(tail.at(-2).props.children).filter((c) => c != null && c !== false);
+  assert.deepEqual(
+    cards.map((c) => c.type),
+    [W.BtTalksCard, W.BtKnowsCard, W.BtCanCard, W.BtPromptTold],
+    "How it talks, What it knows, What it can do, and what it is told, at rest, last",
+  );
 });
 
 test("typing a voice reaches the composer: the fold says the Tone line it will be told, and the save writes the tone alone", () => {
@@ -1448,7 +1468,8 @@ test("a viewer reads How it answers and is offered no act on any of it, and noth
       "no row offers a change",
     );
     assert.match(textOf(card), /English, Spanish/, "and everything is there to read");
-    assert.match(textOf(card), /transfers to \+1 \(212\) 555-0142/);
+    // How it hands you a customer, read on Autonomy's Limits card.
+    assert.match(textOf(byTestId(tree, "rec-handoff-line")), /transfers to \+1 \(212\) 555-0142/);
     const why = roleGate("viewer", "settings", "change the business").reason;
     assert.equal(
       all(tree, (n) => ownWords(n).includes(why)).length,
@@ -1478,14 +1499,15 @@ test("every act of How it answers is gated as a change to the settings, and name
     const mine = asked.filter(([, doing]) =>
       /voice|languages|rules it always|hands you|should know|own words|can't answer/.test(doing),
     );
+    // How it answers' rows in its order, then the two it keeps as limits, drawn after the record on Autonomy's card.
     assert.deepEqual(mine.slice(0, 7), [
       ["settings", "change its voice"],
       ["settings", "change the languages it speaks"],
-      ["settings", "change the rules it always keeps"],
-      ["settings", "change how it hands you a customer"],
       ["settings", "change the things it should know"],
       ["settings", "change what it is told in your own words"],
       ["settings", "change the messages sent when it can't answer"],
+      ["settings", "change the rules it always keeps"],
+      ["settings", "change how it hands you a customer"],
     ]);
     // Each act's name holds the words on it (WCAG 2.5.3).
     for (const id of ROWS) {

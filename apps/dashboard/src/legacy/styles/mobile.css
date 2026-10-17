@@ -227,16 +227,12 @@
   /* The leading tile at the phone row's face size (tokens.css --row-face). The one column is minmax(0, 1fr), never a
      bare 1fr: Safari sized a bare 1fr to the strip of sections laid end to end (775px on a 393px iPhone), and every
      pane under the strip took that width and ran off the screen's right edge (4 Oct). */
-  .settings { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); --set-lead: var(--row-face, 32px); }
+  .settings { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto; --set-lead: var(--row-face, 32px); }
   .setup-rows { --set-lead: var(--row-face, 32px); }
-  /* The sections are every page's strip here (components.css .stabs, settings.jsx), where the rail was squeezed into
-     a row of boxed icons that ran off the screen's edge with no sign there was more (25 Sep). The strip scrolls
-     sideways with no bar drawn, each tab keeps its word, the open one is brought into view by the page, and the edges
-     fade where more waits past them. */
+  /* The sections are a list of their own here, the page Settings opens on (settings/frame/list.tsx), and a section is a
+     page whose way back is that list. A strip of the nine ran off the screen's edge, and its way back opened Business
+     again (17 Oct 2026); before it the rail was squeezed into a row of boxed icons (25 Sep). */
   .set-nav { display: none; }
-  .stabs-settings { display: flex; scrollbar-width: none; scroll-padding-inline: 16px; -webkit-mask-image: linear-gradient(to right, transparent, #000 20px, #000 calc(100% - 20px), transparent); mask-image: linear-gradient(to right, transparent, #000 20px, #000 calc(100% - 20px), transparent); }
-  .stabs-settings::-webkit-scrollbar { display: none; }
-  .stabs-settings .stabs-tab { flex: none; white-space: nowrap; }
   /* Settings holds still under a pull (Ruben, 25 Sep): a thumb moves a page sideways, to the tab beside it, never
      down. The pane scrolls through what it holds and stretches past neither its top nor its foot; while Settings is
      open the screen does not either, where a short page or the strip handed the pull to it (iOS bounced the screen,
@@ -957,30 +953,6 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
   .main-scroll.pane > .cm-split:not([data-open]) > .cm-list {
     max-height: none;
     overflow: clip;
-  }
-  /* Settings' strip of panes stands over what scrolls, as every page's strip does (25 Sep; the others are the frame's
-     own, in its top): stuck under the frame's top, where it stood at rest, on the frame's frosted paper once the page
-     has gone under it (kit/head/frame-top.ts marks the frame's top; the stand reads the same scroll). */
-  .main-scroll.pane .set-strip-stand {
-    display: block;
-    position: sticky;
-    top: var(--frame-top, 0px);
-    z-index: 8;
-  }
-  .main-scroll.pane .set-strip-stand::before {
-    content: "";
-    position: absolute;
-    inset: 0 calc(-1 * var(--gutter-page)) -14px;
-    z-index: -1;
-    pointer-events: none;
-    background: linear-gradient(var(--bg) calc(100% - 14px), transparent);
-    backdrop-filter: blur(var(--blur-lg));
-    mask-image: linear-gradient(#000 calc(100% - 14px), transparent);
-    opacity: 0;
-    transition: opacity var(--duration-fast) var(--ease-out);
-  }
-  .main:has(> .frame-top[data-under]) .set-strip-stand::before {
-    opacity: 1;
   }
   /* A page that holds still keeps what every page had: the screen's height under the top, and its own scroller. The
      Calendar's board shares the screen's height between its hours (8 Oct 2026), an open thread keeps its reply box at

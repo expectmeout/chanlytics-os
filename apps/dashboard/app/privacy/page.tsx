@@ -16,7 +16,7 @@ export const metadata: Metadata = { title: "Privacy · Chanlytics", robots: { in
  * contracts EXPORT_SECTIONS; the wiring's second audit, R14: the download holds what it promises).
  */
 const DOWNLOAD_WORDS =
-  "An owner can download a copy of a workspace’s records from Settings › Business: its people, conversations and " +
+  "An owner can download a copy of a workspace’s records from Settings › Billing: its people, conversations and " +
   "the files customers sent, calls, consent history, notes, deals, bookings, campaigns, lists, the team and the " +
   "business’s own details. The file names what it leaves out and why, such as call audio and the connections that " +
   "hold a provider’s credentials; an owner can ask us for anything else, and ask us to delete the workspace, after " +

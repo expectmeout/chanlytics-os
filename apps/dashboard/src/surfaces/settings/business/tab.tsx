@@ -22,13 +22,15 @@
 
 import { useEffect, useRef, useState } from "react";
 import { BUSINESS_TAB } from "@/legacy-bridge/business-tab";
-import { canDo, gateTitle } from "../../legacy-verbs";
+import { canDo, gateTitle, navigate } from "../../legacy-verbs";
 import type { LegacyFlash } from "../../legacy-verbs";
 import { Icon } from "../../kit/icon/icon";
 import { documentScroller, shownHeight } from "../../kit/motion/page-scroll";
 import { recFolds } from "../../kit/record/registry";
-import { BtAnswersCard } from "./answers";
+import { paneOfRow, settingsRowRoute } from "../frame/tabs";
+import { BtKnowsCard, BtLimitRows, BtTalksCard } from "./answers-cards";
 import { BtCanCard } from "./can";
+import { BtBookingCard } from "./booking";
 import { BtOfferCard } from "./offer";
 import { BtOpenCard } from "./open";
 import { BtPromptSheet, BtPromptTold, useBtPromptSheet } from "./prompt";
@@ -41,6 +43,36 @@ import { BtWhoCard } from "./who";
 
 /** The toast the shell raises (the page's `flash`). */
 type Flash = (flash: LegacyFlash) => void;
+
+/**
+ * Which of the business's pages is drawn, by its section's id (frame/tabs.ts): Details (`workspace`), Hours & booking
+ * (`hours`) or How it answers (`receptionist`). One record, three pages, one question each (Ruben, 17 Oct 2026, the
+ * "Settings, split" canvas): it was one page of 34 rows for three readers.
+ */
+export type BusinessPart = "workspace" | "hours" | "receptionist";
+
+/**
+ * A door that opens a row of the business by its id, from a page that draws the business's pages `here`: in place where
+ * the row is on one of them (the fold registry, as the row's own act would), else on the page that holds it, open (the
+ * address names the row: frame/tabs.ts settingsRowRoute). What it can do and the prompt's blocks are How it answers',
+ * and their rows are on every page of the business and on Autonomy.
+ */
+const btDoorFrom =
+  (here: readonly string[]) =>
+  (id: string): void => {
+    if (here.includes(paneOfRow(id))) recFolds.request(id);
+    else navigate(settingsRowRoute(id));
+  };
+
+/** The page that holds the fact most worth adding while one is missing (contracts' businessGap), else null: the rail's mark. */
+export const businessGapPane = (): string | null => {
+  const settings = settingsNow() || null;
+  const config = settings && (settings.config as Config | null);
+  const brain = (config && config.brain) || null;
+  if (!brain) return null;
+  const gap = BUSINESS_TAB.businessGap(brain, businessTabSave.answer());
+  return gap ? paneOfRow(gap.row) : null;
+};
 
 /* ------------------------------------ the page ------------------------------------ */
 
@@ -58,10 +90,19 @@ type Flash = (flash: LegacyFlash) => void;
  * where you are. Add one Address", in the row's own words and label (RecordRow's ids), so a screen reader hears where
  * it goes and not only a statement. A row not on the page yet adds nothing to the name, and the sentence stands alone.
  */
-const BtGap = ({ brain, door }: { brain: Brain; door: ((id: string) => void) | null }) => {
+const BtGap = ({
+  brain,
+  door,
+  parts,
+}: {
+  brain: Brain;
+  door: ((id: string) => void) | null;
+  parts: readonly BusinessPart[];
+}) => {
   // With how customers buy, which decides whether a missing booking link is a gap (the first run's decision 2).
   const gap = BUSINESS_TAB.businessGap(brain, businessTabSave.answer());
-  if (!gap) return null;
+  // Said on the page that holds the row it opens; the rail marks that page from the others (frame/page.tsx).
+  if (!gap || !parts.some((p) => p === paneOfRow(gap.row))) return null;
   return (
     <p className="bt-gap" data-testid="rec-gap">
       <span className="bt-gap-dot" aria-hidden="true" />
@@ -116,16 +157,19 @@ export const BtSheetSlot = ({
   canEdit,
   flash,
   saver,
+  here = ["receptionist"],
 }: {
   prompt: BtPromptHold | null;
   brain: Brain;
   canEdit: boolean;
   flash: Flash;
   saver: Saver;
+  /** The business's pages drawn here, whose rows the prompt's doors open in place. */
+  here?: readonly string[];
 }) => (
   <>
     <BtServicesSheet brain={brain} canEdit={canEdit} flash={flash} saver={saver} />
-    {prompt && prompt.open ? <BtPromptSheet prompt={prompt} brain={brain} canEdit={canEdit} /> : null}
+    {prompt && prompt.open ? <BtPromptSheet prompt={prompt} brain={brain} canEdit={canEdit} here={here} /> : null}
   </>
 );
 
@@ -215,10 +259,20 @@ const useBtOpenRow = (row: string | null, drawn: boolean, canEdit: boolean) => {
 };
 
 /**
- * Settings › Business, drawn from the settings read. A workspace with no brain -- none set up, or a config the parser
- * refused -- is PaneWorkspace's to draw, so the page draws nothing it cannot back.
+ * A page of the business, drawn from the settings read: the part Settings names (frame/page.tsx draws one), or several
+ * in their order, as one page (the record whole, as the tests read it). A workspace with no brain -- none set up, or a
+ * config the parser refused -- is PaneWorkspace's to draw, so the page draws nothing it cannot back.
  */
-export const BusinessTab = ({ flash = () => {}, open = null }: { flash?: Flash; open?: string | null }) => {
+export const BusinessTab = ({
+  flash = () => {},
+  open = null,
+  part = "workspace",
+}: {
+  flash?: Flash;
+  open?: string | null;
+  part?: BusinessPart | readonly BusinessPart[];
+}) => {
+  const parts: readonly BusinessPart[] = typeof part === "string" ? [part] : part;
   // The tab's one saver (save.tsx), which outlives the page: a page drawn again on coming back to this tab
   // finds the save still out and the answer to the last one. A save moving through it draws the page again, busy or
   // done, for as long as the page is on screen.
@@ -236,6 +290,7 @@ export const BusinessTab = ({ flash = () => {}, open = null }: { flash?: Flash; 
   if (!settings || !config || !brain) return null;
   // The config the next save goes on: what every row's "It will say" is worked out on.
   const base = saver.base();
+  const shared = { brain, canEdit, flash, saver };
   return (
     <>
       {/* A role that may not change the business reads all of it. Each row's act is absent rather than a dead button,
@@ -245,25 +300,52 @@ export const BusinessTab = ({ flash = () => {}, open = null }: { flash?: Flash; 
           <Icon name="shield" size={11} /> {gateTitle("settings", "change the business")} You can read everything.
         </p>
       )}
-      <BtGap brain={brain} door={canEdit ? btOpenRow : null} />
+      <BtGap brain={brain} door={canEdit ? btOpenRow : null} parts={parts} />
       {/* Each card is a module of its own (who.tsx, open.tsx, offer.tsx, answers.tsx, can.tsx). */}
-      <BtWhoCard brain={brain} base={base} canEdit={canEdit} flash={flash} saver={saver} />
-      <BtOpenCard
-        brain={brain}
-        config={config}
-        prompt={settings.prompt || null}
-        canEdit={canEdit}
-        flash={flash}
-        saver={saver}
-      />
-      <BtOfferCard brain={brain} canEdit={canEdit} flash={flash} saver={saver} />
-      <BtAnswersCard brain={brain} base={base} config={config} canEdit={canEdit} flash={flash} saver={saver} />
-      <BtCanCard brain={brain} config={config} canEdit={canEdit} />
-      {/* What the receptionist is told, at rest: a title, who reads it, and the door to the sheet. Hookless. */}
-      <BtPromptTold prompt={prompt} />
+      {parts.includes("workspace") ? (
+        <>
+          <BtWhoCard {...shared} base={base} />
+          <BtOfferCard {...shared} />
+        </>
+      ) : null}
+      {parts.includes("hours") ? (
+        <>
+          <BtOpenCard {...shared} prompt={settings.prompt || null} />
+          <BtBookingCard {...shared} base={base} config={config} />
+        </>
+      ) : null}
+      {parts.includes("receptionist") ? (
+        <>
+          <BtTalksCard {...shared} base={base} config={config} />
+          <BtKnowsCard {...shared} base={base} config={config} />
+          <BtCanCard brain={brain} config={config} canEdit={canEdit} door={btDoorFrom(parts)} />
+          {/* What the receptionist is told, at rest: a title, who reads it, and the door to the sheet. Hookless. */}
+          <BtPromptTold prompt={prompt} />
+        </>
+      ) : null}
       {/* The sheets, LAST, after every card, through one slot (BtSheetSlot says why). Whatever card comes next goes above
           this line, and whatever sheet comes next goes through the slot; a page test holds it last. */}
-      <BtSheetSlot prompt={prompt} brain={brain} canEdit={canEdit} flash={flash} saver={saver} />
+      <BtSheetSlot prompt={prompt} brain={brain} canEdit={canEdit} flash={flash} saver={saver} here={parts} />
     </>
+  );
+};
+
+/**
+ * The business's two rows that are limits, on Autonomy's Limits card: the rules it always keeps and when it hands you a
+ * customer (Ruben, 17 Oct 2026: a rule about prices lived on two tabs). They are the record's rows, saved through the
+ * tab's one saver, so this holds what a business page holds for them: the saver heard, the record read, and the row an
+ * address names opened. Nothing while the record is not read, or where there is none to change.
+ */
+export const BusinessLimitRows = ({ flash, open = null }: { flash: Flash; open?: string | null }) => {
+  const saver = businessTabSave.saver;
+  useBtPageSubscriptions(saver);
+  const settings = settingsNow() || null;
+  const config = settings && (settings.config as Config | null);
+  const brain = (config && config.brain) || null;
+  const canEdit = canDo("settings");
+  useBtOpenRow(open, !!(settings && config && brain), canEdit);
+  if (!settings || !config || !brain) return null;
+  return (
+    <BtLimitRows brain={brain} base={saver.base()} config={config} canEdit={canEdit} flash={flash} saver={saver} />
   );
 };

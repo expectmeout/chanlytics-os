@@ -284,7 +284,7 @@ test("what only the chain knows is refused too: a name to sign with when the wor
     post(noLink, write({ name: NUDGE, body: "Bumping this: {{booking link}}\n\n{{your name}}" })),
     "validation",
     422,
-    "Your words name {{booking link}}. Add your booking link in Settings › Business first.",
+    "Your words name {{booking link}}. Add your booking link in Settings › Hours & booking first.",
   );
   // And a first email carries no link at all (decision 0056), whatever the workspace holds.
   await refused(

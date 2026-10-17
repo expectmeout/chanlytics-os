@@ -214,7 +214,7 @@ export {
   type HandoffCallRowVM,
 } from "./business-tab/handoff-words";
 export type { HandoffWordsVM } from "./business-tab/handoff-words";
-export { abilityRows, cannotRows } from "./business-tab/abilities";
+export { abilityRows, cannotFoldWords, cannotRows } from "./business-tab/abilities";
 export type { AbilityInputs, AbilityRowVM, AbilitiesVM, CannotRowVM } from "./business-tab/abilities";
 export {
   offersBookingLink,

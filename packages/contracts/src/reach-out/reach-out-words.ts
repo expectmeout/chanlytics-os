@@ -368,7 +368,7 @@ export function chainIssueWords(i: ChainIssue): string {
     case "no_name_to_sign":
       return "Your words name {{your name}}. Say the name you sign with.";
     case "no_booking_link":
-      return "Your words name {{booking link}}. Add your booking link in Settings › Business first.";
+      return "Your words name {{booking link}}. Add your booking link in Settings › Hours & booking first.";
     case "first_has_a_link":
       return "Keep your first email free of links: put your booking link in the nudge.";
     default:

@@ -446,8 +446,10 @@ test("the editor is four steps, and the days sit beside the hours they qualify",
   // the four cards of the Business page, in this order, and what each one draws is EXECUTED in its own test file
   // (business-tab-open.test.mjs asserts the cards in order, and the four rows of When you are open in theirs).
   const page = readRaw("apps/dashboard/src/surfaces/settings/business/tab.tsx");
-  const cards = [...page.matchAll(/<(Bt(?:Who|Open|Offer|Answers))Card\b/g)].map((m) => m[1]);
-  assert.deepEqual(cards, ["BtWho", "BtOpen", "BtOffer", "BtAnswers"]);
+  // Since 17 Oct 2026 the record is three pages: Details (Who you are, What you offer), Hours & booking (When you're
+  // open, Booking) and How it answers (How it talks, What it knows), each drawn in that order by tab.tsx.
+  const cards = [...page.matchAll(/<(Bt(?:Who|Offer|Open|Booking|Talks|Knows))Card\b/g)].map((m) => m[1]);
+  assert.deepEqual(cards, ["BtWho", "BtOffer", "BtOpen", "BtBooking", "BtTalks", "BtKnows"]);
 });
 
 test("languages is one control, not a grid plus a second control", () => {

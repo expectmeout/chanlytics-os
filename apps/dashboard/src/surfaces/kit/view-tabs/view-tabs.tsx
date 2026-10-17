@@ -1,7 +1,7 @@
 /**
  * The kit's strip of views (kit.css, `.stabs`; docs/superpowers/specs/2026-10-08-one-motion-for-every-strip-design.md):
  * the few views a page is, side by side on one capsule, the picked one lit. The Inbox's Needs you, Conversations and
- * Live; People's scopes; Reports' lenses; Settings' sections on a phone. It is the page, not something on it: a page's
+ * Live; People's scopes; Reports' lenses. It is the page, not something on it: a page's
  * own sub-menu is the SubTabs (../sub-tabs/sub-tabs.tsx), a line of words under this.
  *
  * A view has an address, so a tab is a link (the shell's "a door is a link"): a long press, a middle click or a new

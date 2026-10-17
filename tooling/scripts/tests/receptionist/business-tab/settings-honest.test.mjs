@@ -394,7 +394,7 @@ test("REGRESSION (S24): the Settings rail says which page is open -- only its co
   assert.ok(rows.length > 3, "the rail is drawn");
   const current = rows.filter((r) => r.props["aria-current"] === "page");
   assert.equal(current.length, 1, "REGRESSION: no row said it was the page on screen");
-  assert.equal(textOf(current[0]).trim(), "Business");
+  assert.equal(textOf(current[0]).trim(), "Details");
 });
 
 // What the receptionist is told says who reads it at rest, and counts nothing there: the Business tab's own since Phase

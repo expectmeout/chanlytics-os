@@ -17,7 +17,7 @@ import { RecordRow } from "../../kit/record/row";
 import { askAbout, canDo, gate, hrefOf, navigate, refusalToast, type LegacyFlash } from "../../legacy-verbs";
 import { BtCreateCard } from "../business/create";
 import { brokenConfigWords, settingsNow, setupApi, setupNow } from "../business/shell";
-import { BusinessTab } from "../business/tab";
+import { BusinessTab, type BusinessPart } from "../business/tab";
 
 type Flash = (f: LegacyFlash) => void;
 
@@ -195,7 +195,16 @@ function DemoBusiness() {
   );
 }
 
-export function PaneWorkspace({ flash, row = null }: { flash: Flash; row?: string | null }) {
+export function PaneWorkspace({
+  flash,
+  row = null,
+  part = "workspace",
+}: {
+  flash: Flash;
+  row?: string | null;
+  /** Which of the business's pages: Details (`workspace`), Hours & booking, or How it answers (tabs.ts). */
+  part?: BusinessPart;
+}) {
   // Drawn again whenever the settings surface is read again: after a save, a conflict's re-read, a Retry. Only Autonomy
   // and Notifications listened, so this card kept the values from before a save until something else happened to
   // repaint it (D7).
@@ -234,19 +243,12 @@ export function PaneWorkspace({ flash, row = null }: { flash: Flash; row?: strin
    * The record: every fact is a row, and a row is edited where it is stated (business/tab.tsx, the spec
    * docs/superpowers/specs/2026-09-20-business-tab-design.md). What stood here was two surfaces that disagreed about
    * what exists -- a card showing nine facts, and a form editing about twenty-five behind one Save -- and one of them had
-   * to be opened before the other could be corrected. The page draws the head, who last changed it, the standing line,
-   * every row and its editor, and says why once to a role that may not change it. What the receptionist is told is the
-   * page's own since Phase 5 (business/prompt.tsx: a told section at rest and the sheet it opens), and the owner's copy
-   * of everything is below it.
+   * to be opened before the other could be corrected. Each of the business's pages draws its part of the record, its
+   * rows and their editors, and says why once to a role that may not change it. What the receptionist is told is How it
+   * answers' (business/prompt.tsx: a told section at rest and the sheet it opens), and the owner's copy of everything is
+   * Billing's (WorkspaceData, drawn there since the split of 17 Oct 2026).
    */
-  if (real) {
-    return (
-      <>
-        <BusinessTab flash={flash} open={row} />
-        <WorkspaceData />
-      </>
-    );
-  }
+  if (real) return <BusinessTab flash={flash} open={row} part={part} />;
   /* Nothing set up yet: the empty state, and the fold that sets a receptionist up from it (business/create.tsx).
      Provisioning inserts an EMPTY tenant_config row (migration 00017), so this is the first thing every new owner sees. */
   if (unconfigured) return <BtCreateCard flash={flash} />;

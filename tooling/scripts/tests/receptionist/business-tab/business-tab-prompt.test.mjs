@@ -336,14 +336,13 @@ test("a block's line opens onto its words and closes again, and starts closed", 
   assert.equal(byTestId(tree, "rec-prompt-block-services").props["data-open"], "false");
 });
 
-test("every block a row of this page wrote opens that row, and the platform's opens nothing", () => {
+test("every block a row of the record wrote opens that row, and the platform's opens nothing", () => {
+  // The record's three pages drawn as one: a row on any of them opens in place.
   const where = {
     identity: ["inline", "name"],
     hours: ["fold", "hours"],
     notes: ["fold", "notes"],
     booking_rules: ["fold", "booking_rules"],
-    handoff: ["fold", "escalate_when"],
-    guardrails: ["fold", "guardrails"],
     extra_instructions: ["fold", "extra_instructions"],
   };
   for (const [id, [kind, row]] of Object.entries(where)) {
@@ -359,6 +358,19 @@ test("every block a row of this page wrote opens that row, and the platform's op
     const editor = byTestId(next, `rec-${kind}-${row}`);
     assert.ok(editor && !editor.props.hidden, `${id}: and its ${kind} is on the page`);
     if (kind === "fold") assert.deepEqual(openFolds(next), [row]);
+  }
+  // The two that are limits are Autonomy's rows (17 Oct 2026): their doors close the sheet and go there, the address
+  // naming the row they open.
+  for (const [id, row] of [
+    ["handoff", "escalate_when"],
+    ["guardrails", "guardrails"],
+  ]) {
+    const tree = drawPrompt();
+    openBlock(tree, id);
+    went.length = 0;
+    press(byTestId(redrawTab(), `rec-prompt-door-${id}`));
+    assert.equal(sheetOf(redrawTab()), null, `${id}: the sheet closes`);
+    assert.deepEqual(went, [`admin/autonomy/${row}`], `${id}: Autonomy opens ${row}`);
   }
   const tree = drawPrompt();
   assert.equal(byTestId(tree, "rec-prompt-door-platform"), null, "Chanlytics' own lines are no row's");

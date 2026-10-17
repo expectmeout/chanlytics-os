@@ -185,18 +185,23 @@ test("consult-first is its own row with its own name", () => {
 
 /* ------------------------------------ the card at rest ------------------------------------ */
 
-test("What you offer draws four rows under its title, and the booking rules in one sentence contracts wrote", () => {
-  const card = byTestId(drawTab(), "rec-card-offer");
+test("What you offer draws two rows under its title, and Booking the rules, in one sentence contracts wrote", () => {
+  const tree = drawTab();
+  const card = byTestId(tree, "rec-card-offer");
   assert.equal(textOf(find(card, (n) => classes(n).includes("rec-card-title"))), "What you offer");
-  assert.equal(textOf(find(card, (n) => classes(n).includes("rec-card-sub"))), "And the rules for offering it");
+  assert.equal(textOf(find(card, (n) => classes(n).includes("rec-card-sub"))), "And how customers buy it");
   // How customers buy first (0008): it decides whether any of the rest leads to a deal.
-  assert.deepEqual(all(card, (n) => classes(n).includes("rec-row-key")).map(textOf), [
-    "How customers buy",
-    "Services",
+  assert.deepEqual(all(card, (n) => classes(n).includes("rec-row-key")).map(textOf), ["How customers buy", "Services"]);
+  // The rules for booking are Hours & booking's (17 Oct 2026), with what the business books with and its link.
+  const booking = byTestId(tree, "rec-card-booking");
+  assert.equal(textOf(find(booking, (n) => classes(n).includes("rec-card-title"))), "Booking");
+  assert.deepEqual(all(booking, (n) => classes(n).includes("rec-row-key")).map(textOf), [
+    "Booking tool",
+    "Booking link",
     "Booking rules",
     "Needs a consult first",
   ]);
-  const rules = byTestId(card, "rec-row-booking_rules");
+  const rules = byTestId(booking, "rec-row-booking_rules");
   assert.match(textOf(rules), new RegExp(escape(bookingRulesWords(marisa.booking_rules).line)));
   assert.equal(
     bookingRulesWords(marisa.booking_rules).line,
@@ -291,7 +296,11 @@ test("a viewer reads what is offered and is offered no act on any of it, and not
       "no row offers a change",
     );
     assert.equal(textOf(find(byTestId(card, "rec-row-services"), (n) => classes(n).includes("rec-row-value"))), "33");
-    assert.match(textOf(card), /Color correction, Extensions/, "and everything is there to read");
+    assert.match(
+      textOf(byTestId(tree, "rec-card-booking")),
+      /Color correction, Extensions/,
+      "and everything is there to read",
+    );
     assert.match(textOf(card), /Some get a proposal first/, "how customers buy too");
     // The page says why once, and this card does not say it again.
     const why = roleGate("viewer", "settings", "change the business").reason;
@@ -1729,7 +1738,7 @@ test("the services sheet is drawn by the page's last child, its one sheet slot, 
   // the last child is the slot both sheets go through (surfaces/settings/business/tab.tsx BtSheetSlot; the prompt sheet's half of this is
   // business-tab-prompt.test.mjs).
   const drawnIn = (node) => [].concat(node.rendered.props.children).filter((c) => c != null && c !== false);
-  let tree = drawTab({ profile: many });
+  let tree = drawTab({ profile: many, part: "workspace" });
   assert.equal(drawnIn(tree).at(-1).type, W.BtSheetSlot, "closed");
   assert.deepEqual(
     drawnIn(drawnIn(tree).at(-1)).map((c) => c.type),
@@ -1794,7 +1803,7 @@ test("a hand-edited record whose consult-first list or rule notes are not lists 
     W.__businessTabSave.saver.reset();
     // A page drawn afresh over it, as it is drawn when the tab opens on such a record.
     unmount();
-    let tree = W.React.createElement(W.BusinessTab, { flash: () => {} });
+    let tree = W.React.createElement(W.BusinessTab, { flash: () => {}, part: ["workspace", "hours"] });
     assert.match(textOf(byTestId(tree, "rec-row-consult_first")), /None/, "a list that is not one is none");
     assert.doesNotMatch(textOf(byTestId(tree, "rec-row-booking_rules")), /Cash only/);
     tree = openSheet(tree);

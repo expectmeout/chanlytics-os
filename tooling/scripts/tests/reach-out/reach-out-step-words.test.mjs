@@ -178,7 +178,7 @@ test("the first step goes on day one, each after it waits its days; a name to si
   );
   assert.equal(
     chainIssueWords({ step: null, field: "body", problem: "no_booking_link" }),
-    "Your words name {{booking link}}. Add your booking link in Settings › Business first.",
+    "Your words name {{booking link}}. Add your booking link in Settings › Hours & booking first.",
   );
 });
 

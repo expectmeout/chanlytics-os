@@ -704,7 +704,7 @@ test.describe("Phone shell on a real workspace", () => {
       // where the list's buckets do not stand under it.
       ["the Inbox's views", "conversations", page.locator(".stabs.stabs-inbox")],
       ["People", "clients", page.getByTestId("people-scope")],
-      ["Settings", "admin/workspace", page.locator(".stabs.stabs-settings")],
+      // Settings has no strip on a phone since 17 Oct 2026: it opens on its list of sections (settings/frame/list.tsx).
     ] as const) {
       await page.goto(`/#/${hash}`);
       await page.waitForLoadState("networkidle");
@@ -1097,12 +1097,17 @@ test.describe("Phone shell on a real workspace", () => {
     await expect(page.locator(".stabs.stabs-campaigns")).toBeVisible();
     await expect(page.getByTestId("campaigns-view-sequences")).toHaveAttribute("aria-current", "page");
 
-    // Settings' sections are the same strip on a phone (25 Sep): Business, then Team.
-    await page.goto("/#/admin/workspace");
+    // Settings on a phone is a list of its sections, not a strip (17 Oct 2026): a row opens its section as a page, and
+    // the way back is the list, where it opened Business again when the sections were a strip of nine.
+    await page.goto("/#/admin");
     await page.waitForLoadState("networkidle");
-    await expect(page.locator(".stabs.stabs-settings")).toBeVisible();
-    await swipe(300, 90);
-    await expect(page).toHaveURL(atRoute(/^admin\/team/));
+    await expect(page.getByTestId("set-list")).toBeVisible();
+    await expect(page.locator(".stabs-settings")).toHaveCount(0);
+    await page.getByTestId("set-list-team").tap();
+    await expect(page).toHaveURL(atRoute(/^admin\/team$/));
+    await page.locator(".pg-back").tap();
+    await expect(page).toHaveURL(atRoute(/^admin$/));
+    await expect(page.getByTestId("set-list")).toBeVisible();
   });
 
   /**

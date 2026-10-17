@@ -14,6 +14,8 @@ const BIZ = "../../../../../apps/dashboard/src/surfaces/settings/business";
 const part = {};
 for (const m of [
   "answers.tsx",
+  "answers-cards.tsx",
+  "booking.tsx",
   "can.tsx",
   "create.tsx",
   "gestures/common.tsx",
@@ -31,7 +33,12 @@ for (const m of [
 ])
   Object.assign(part, await import(`${BIZ}/${m}`));
 const {
-  BtAnswersCard,
+  BtTalksCard,
+  BtKnowsCard,
+  BtLimitRows,
+  BtBookingCard,
+  BtBookingRuleRows,
+  BusinessLimitRows,
   BtLanguagesRow,
   BtRulesRow,
   BtCanCard,
@@ -82,7 +89,12 @@ export const BUSINESS_PARTS = {
   btSellsByChoice,
   btSellsByNow,
   BtServicesRow,
-  BtAnswersCard,
+  BtBookingCard,
+  BtBookingRuleRows,
+  BtTalksCard,
+  BtKnowsCard,
+  BtLimitRows,
+  BusinessLimitRows,
   BtLanguagesRow,
   BtRulesRow,
   BtCanCard,

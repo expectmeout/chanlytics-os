@@ -101,7 +101,7 @@ export interface PlanLead {
   next: string[];
 }
 
-/** Settings › Business, where How customers buy is answered (settings/frame/tabs.ts: the bare route opens Business). */
+/** Settings › Details, where How customers buy is answered (settings/frame/tabs.ts: the bare route opens Details). */
 const SETTINGS_BUSINESS_ROUTE = "admin/workspace";
 
 /** The workspace's word for an appointment, in Spanish: a setup's Spanish words say it where the owner named nothing. */
@@ -140,10 +140,10 @@ const SETUP_WORDS = {
       `Starts ${plural(n, "campaign")} now${n > 1 ? ", each its own card" : ""}: ${what}.`,
     calendar: (feed: boolean, each: string, gets: string) =>
       feed
-        ? `First, connect your calendar's feed under Settings › Business (booking emails alone cannot time a campaign), so each ${each} gets ${gets}.`
-        : `First, connect your calendar under Settings › Business, so each ${each} gets ${gets}.`,
+        ? `First, connect your calendar's feed under Settings › Hours & booking (booking emails alone cannot time a campaign), so each ${each} gets ${gets}.`
+        : `First, connect your calendar under Settings › Hours & booking, so each ${each} gets ${gets}.`,
     proposals: (first: boolean) =>
-      `${first ? "First" : "Then"}, under Settings › Business, answer ${SELLS_BY_QUESTION} with “${SELLS_BY_WORDS.proposal.label}”, so each proposal that waits gets a follow-up.`,
+      `${first ? "First" : "Then"}, under Settings › Details, answer ${SELLS_BY_QUESTION} with “${SELLS_BY_WORDS.proposal.label}”, so each proposal that waits gets a follow-up.`,
     nobody: (named: string, one: boolean) =>
       `${capitalize(named)} ${one ? "reaches" : "reach"} nobody today; ${one ? "its card says" : "each card says"} why.`,
     resume: (names: readonly string[]) =>

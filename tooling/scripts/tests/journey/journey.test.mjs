@@ -69,7 +69,7 @@ test("each word says its phrases once, with its own article and verb", () => {
   assert.equal(appointment.startsWith, "an appointment tomorrow, an appointment yesterday");
   assert.equal(
     appointment.needsCalendar,
-    "Appointments are read from your calendar, and none is connected. Connect one under Settings › Business.",
+    "Appointments are read from your calendar, and none is connected. Connect one under Settings › Hours & booking.",
   );
 });
 

@@ -117,7 +117,8 @@ async function theReceptionistLens(page: Page, report: Locator) {
     await expect(closed, "no hours are set: the figure is there to ask for them").toBeVisible();
     await expect(closed.locator(".figure-value")).toHaveText("—");
     await expect(closed.locator(".figure-meta")).toContainText("set your opening hours to see this");
-    await expect(closed.locator('a[href$="/admin/workspace"]'), "and its door is where they are set").toHaveCount(1);
+    // Settings › Hours & booking (admin/hours), in the address's own word for Settings.
+    await expect(closed.locator('a[href$="/settings/hours"]'), "and its door is where they are set").toHaveCount(1);
   }
 
   const res = await apiGet(page, "/api/v1/reports?period=30d");

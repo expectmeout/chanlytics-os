@@ -718,7 +718,7 @@ async function shapeTemplate(ports, conv, body) {
   if (!facts)
     throw new AppError8(
       "validation",
-      "This workspace has no template facts configured yet. Add the business name in Settings \u203A Business first."
+      "This workspace has no template facts configured yet. Add the business name in Settings \u203A Details first."
     );
   const slots = inboxSlots(tpl).map(
     (s, at) => blank && at === blank.at ? { kind: "text", value: words } : s
@@ -726,7 +726,7 @@ async function shapeTemplate(ports, conv, body) {
   if (!facts.booking_link && slots.some((s) => s.kind === "booking_link"))
     throw new AppError8(
       "validation",
-      "This template takes the booking link, and none is on file. Pick another template, or add the link in Settings \u203A Business first."
+      "This template takes the booking link, and none is on file. Pick another template, or add the link in Settings \u203A Hours & booking first."
     );
   const params = resolveParams(slots, {
     firstName: firstNameOf(conv.display_name, conv.wa_profile_name, {
@@ -2979,7 +2979,7 @@ import {
   UUID
 } from "../../contracts/dist/index.js";
 var TEMPLATE_VALUE_WORDS = {
-  noBookingLink: "This message takes the booking link, and none is on file. Add it in Settings \u203A Business first.",
+  noBookingLink: "This message takes the booking link, and none is on file. Add it in Settings \u203A Hours & booking first.",
   noReviewLink: "Connect your Google listing so the review link can be filled."
 };
 async function readCampaignMessage(ports, id) {

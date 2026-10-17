@@ -318,9 +318,9 @@ export function membersOf(def, rows, ctx, saved = []) {
 export function listUnknownWords(reason, calendar) {
   switch (reason) {
     case "calendar":
-      return calendar === "none" ? "This list reads a calendar link. Add one under Settings \u203A Business to count it." : "This list reads your calendar, which can't be read right now.";
+      return calendar === "none" ? "This list reads a calendar link. Add one under Settings \u203A Hours & booking to count it." : "This list reads your calendar, which can't be read right now.";
     case "consult":
-      return "This list exists only where the profile lists a consult-first service under Settings \u203A Business.";
+      return "This list exists only where the profile lists a consult-first service under Settings \u203A Hours & booking.";
     case "deals":
       return `This list exists only where deals are on: the workspace answers \u201C${SELLS_BY_QUESTION}\u201D with \u201C${SELLS_BY_WORDS.proposal.label}\u201D.`;
     case "viewer":
