@@ -615,6 +615,10 @@
 .app-root .main { display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
 .app-root .main-scroll { flex: 1; overflow-y: auto; overflow-x: hidden; }
 .app-root .main-scroll.pane { overflow: hidden; display: flex; }
+/* What stands over the page (app-shell.jsx): no box of its own, so the top bar, the bars under it and a pane's head are
+   the column's own rows, as they always were. A phone gives it a box, the one that stays as the window scrolls
+   (mobile.css, "The window scrolls"). */
+.frame-top { display: contents; }
 
 /* ---------- Route transition ---------- */
 .route-view { animation: route-in 240ms var(--ease-out); }
@@ -2189,7 +2193,7 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
   }
 }
 @media (min-width: 901px) and (max-width: 1280px) {
-  :root .main:has(> .live-bar) .ix-sending-strip {
+  :root .main:has(> .frame-top > .live-bar) .ix-sending-strip {
     top: 118px;
   }
 }
@@ -2199,7 +2203,7 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
    open under 1010px the row has no room for the views, the strip and the act, and the strip stands over the views' last
    tab for the seconds it is drawn, as it did from 901 to 1280px when it was centred. */
 @media (min-width: 901px) {
-  :root .main:has(> .pg-slot > .pg-act-slot > #pg-act:not(:empty)) .ix-sending-strip {
+  :root .main:has(> .frame-top > .pg-slot > .pg-act-slot > #pg-act:not(:empty)) .ix-sending-strip {
     right: calc(var(--gutter-page) + 173px + var(--space-2));
   }
 }
@@ -2372,7 +2376,7 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
    under the top bar (a call, the shell's status) begins under the bell instead. The bell's wrap is what moves (the
    bell stands relative inside it, where its sheet is anchored). */
 @media (max-width: 900px) {
-  .main > .topbar {
+  .frame-top > .topbar {
     align-items: flex-start;
     height: 44px;
     padding: 18px var(--gutter-page) 0;
@@ -2381,7 +2385,7 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
     top: 10px;
     height: 32px;
   }
-  .main > .topbar .tbn-wrap {
+  .frame-top > .topbar .tbn-wrap {
     position: absolute;
     top: 10px;
     right: var(--gutter-page);
@@ -2391,24 +2395,24 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
      invisible margin round it. Unread is a 6px dot at the shoulder. The name is drawn 7px up into the bar (a margin on the
      head's slot, below): only the line box's empty top is under the scroller's edge, so it stands about ten pixels under
      the date's letters, as the phone boards set it (date box 18px from the top, name box 2px under it). */
-  .main > .topbar .tbn-wrap .tb-bell {
+  .frame-top > .topbar .tbn-wrap .tb-bell {
     width: 32px;
     min-width: 0;
     height: 32px;
     min-height: 0;
   }
-  .main > .topbar .tbn-wrap .tb-bell::before {
+  .frame-top > .topbar .tbn-wrap .tb-bell::before {
     content: "";
     position: absolute;
     inset: -6px;
   }
-  .main > .topbar .tbn-wrap .tb-bell > span {
+  .frame-top > .topbar .tbn-wrap .tb-bell > span {
     top: 6px;
     right: 7px;
     width: 6px;
     height: 6px;
   }
-  .main > .topbar + :is(.live-bar, .shell-status-slot:has(> *)) {
+  .frame-top > .topbar + :is(.live-bar, .shell-status-slot:has(> *)) {
     margin-top: 0;
   }
   .pg-slot {
@@ -2450,10 +2454,10 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
     right: var(--gutter-page);
     justify-content: space-between;
   }
-  .main:has(> .pg-dateline-slot > .pg-back-after) {
+  .main:has(> .frame-top > .pg-dateline-slot > .pg-back-after) {
     --bartitle-right: 72px;
   }
-  .main:has(> .pg-dateline-slot > .pg-back-after) > .topbar .tbn-wrap {
+  .main:has(> .frame-top > .pg-dateline-slot > .pg-back-after) .frame-top > .topbar .tbn-wrap {
     display: none;
   }
   .pg-act-slot {
@@ -2468,7 +2472,7 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
      the top) by 8; so does a row under a way back in the date's place (its capsule is the bell's height, on the bell's
      line), the same on Campaigns, Sent and the Library. A person's page draws its own head, so its slot holds no name and stays where it is. */
   .pg-slot:not(:has(> nav)):has(> .pg-act-slot :is(button, a)),
-  .main:has(> .pg-dateline-slot > .pg-back) .pg-slot:has(> .pg-head-slot > header) {
+  .main:has(> .frame-top > .pg-dateline-slot > .pg-back) .pg-slot:has(> .pg-head-slot > header) {
     padding-top: 13px;
   }
   .pg-slot:not(:has(> nav)):has(> .pg-act-slot :is(button, a)) {
@@ -2663,16 +2667,16 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
    bell (6 Oct 2026). Here the four share the bell's line: the menu (the bar's first button) at the gutter with the date
    after it, and Ask in the row with the bell, which comes back into the bar's flow, each 32px as the bell is. */
 @media (min-width: 721px) and (max-width: 900px) {
-  .main > .topbar {
+  .frame-top > .topbar {
     padding-top: 10px;
   }
-  .main > .topbar .tbn-wrap {
+  .frame-top > .topbar .tbn-wrap {
     position: relative;
     top: auto;
     right: auto;
   }
-  .main > .topbar > button:first-child,
-  .main > .topbar .tb-ask {
+  .frame-top > .topbar > button:first-child,
+  .frame-top > .topbar .tb-ask {
     width: 32px;
     min-width: 0;
     height: 32px;
@@ -2680,7 +2684,7 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
     padding: 0;
     justify-content: center;
   }
-  .main > .topbar > button:first-child {
+  .frame-top > .topbar > button:first-child {
     position: absolute;
     top: 10px;
     left: var(--gutter-page);

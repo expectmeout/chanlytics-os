@@ -174,15 +174,18 @@ export function SettingsPage({ tab = "workspace", onTab = () => {} }: { tab?: st
     <div className="settings">
       {/* On a phone the sections are every page's strip, the kit's: a section has an address, so a tab is a link, a press
           starts the pane leaving, and a swipe across the pane walks them (the shell's stripSwipe). A pane holding unsaved
-          work is not left until the page has asked. The desk keeps its rail. */}
-      <ViewTabs
-        name="settings"
-        label="Settings sections"
-        picked={active.id}
-        tabs={listed.map((t) => ({ id: t.id, label: t.label, href: hrefOfRoute(`admin/${t.id}`), warm: WARM[t.id] }))}
-        onPick={go}
-        mayLeave={() => !(recFolds.dirty() || recFolds.saving())}
-      />
+          work is not left until the page has asked. The desk keeps its rail. Its stand is what sticks under the frame's
+          top on a phone, where the window scrolls the pane (mobile.css); elsewhere it is no box. */}
+      <div className="set-strip-stand">
+        <ViewTabs
+          name="settings"
+          label="Settings sections"
+          picked={active.id}
+          tabs={listed.map((t) => ({ id: t.id, label: t.label, href: hrefOfRoute(`admin/${t.id}`), warm: WARM[t.id] }))}
+          onPick={go}
+          mayLeave={() => !(recFolds.dirty() || recFolds.saving())}
+        />
+      </div>
       <aside className="set-nav">
         <div className="fl-roster-head">
           <span className="fl-roster-label">Settings</span>

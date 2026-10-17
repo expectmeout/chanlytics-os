@@ -21,7 +21,10 @@
  * press (the strip's, kit/view-tabs), `drag` and `settle` the finger's (data-bits `touchSwipe`, through the strip's
  * pager). How far a page travels is the token `--view-travel`: its own width where the page is one column, a short
  * length on a desk, where the page leaving dims and waits and the two cross-fade. Nothing here knows which page it moves.
+ * Where the window scrolls the page (a phone, motion/page-scroll.ts), the copy is pinned to the screen where it stood,
+ * since the window moves under it as the next page arrives.
  */
+import { documentScroller, isDocumentScroller, scrollerOf, shownHeight } from "./page-scroll";
 
 /** How long a change of view takes: the spring is within a pixel of its place by then. */
 export const TIMELINE_MS = 460;
@@ -84,6 +87,27 @@ interface DeckEnv {
   /** How far across an element is drawn from where it rests, in pixels. */
   placeOf(el: HTMLElement): number;
   later(ms: number, fn: () => void): void;
+  /**
+   * Where the window is what scrolls the view (a phone's page: motion/page-scroll.ts), how tall the screen is; else null,
+   * and the view scrolls in a box of its own. Absent, no view is scrolled by the window.
+   */
+  windowOf?(el: HTMLElement): { screen: number } | null;
+  /**
+   * A view that arrived, where the window scrolls it, put at its top: the window's own for the outermost view (the
+   * frame's page), else the view's top under what stands over the page, if the page had gone past it.
+   */
+  toTop?(el: HTMLElement, nested: boolean): void;
+}
+
+/**
+ * Where a view the window scrolls stood on the screen as it was asked to leave: its left edge at rest, its width, its top
+ * (above the screen's own where the page had scrolled past it) and the screen's height.
+ */
+interface Pin {
+  left: number;
+  top: number;
+  width: number;
+  screen: number;
 }
 
 /** A change of view under way: which side, when it began, how far, and a way to move something else in step with it. */
@@ -125,6 +149,8 @@ interface Held {
   role: "out" | "in" | "back";
   /** Where the page stood in what holds it, measured as it was asked to leave. */
   spot: Spot | null;
+  /** And where it stood on the screen, where the window scrolled it. */
+  pin?: Pin | null;
   anims: Animation[];
 }
 
@@ -292,6 +318,12 @@ interface Table {
   finger: Finger | null;
 }
 
+/** Whether a view stands inside another seated view (a pane inside the frame's page). */
+function nestedIn(table: Table, el: HTMLElement): boolean {
+  for (const seat of table.seats.values()) if (seat.el && seat.el !== el && seat.el.contains(el)) return true;
+  return false;
+}
+
 /** The view a gesture moves: the innermost one on the page. */
 function liveOf(table: Table): HTMLElement | null {
   const on: HTMLElement[] = [];
@@ -363,17 +395,36 @@ function adopt(table: Table, gone: HTMLElement, next: HTMLElement, move: Timelin
   stop(table, gone);
   if (!parent) return;
   const spot = was?.spot ?? spotOf(next, next.getBoundingClientRect());
+  const pin = was?.pin ?? null;
   makeStill(gone);
   parent.insertBefore(gone, next);
-  // Its box is the one measured: no margin of its page's own moves it, and no padding widens it.
-  Object.assign(gone.style, {
-    left: `${spot.left}px`,
-    top: `${spot.top}px`,
-    width: `${spot.width}px`,
-    height: `${spot.height}px`,
-    margin: "0",
-    boxSizing: "border-box",
-  });
+  if (pin) {
+    // A page the window scrolled is pinned to the screen where it stood, and cut to what the screen showed of it: the
+    // window goes back to the top under it as the next page arrives (or to the place that page kept), and a page of a
+    // hundred rows is no layer to move. What had gone up past the screen's top is scrolled off inside it.
+    const top = Math.max(pin.top, 0);
+    Object.assign(gone.style, {
+      position: "fixed",
+      left: `${pin.left}px`,
+      top: `${top}px`,
+      width: `${pin.width}px`,
+      height: `${Math.max(pin.screen - top, 0)}px`,
+      margin: "0",
+      boxSizing: "border-box",
+      overflow: "hidden",
+    });
+    gone.scrollTop = top - pin.top;
+  } else {
+    // Its box is the one measured: no margin of its page's own moves it, and no padding widens it.
+    Object.assign(gone.style, {
+      left: `${spot.left}px`,
+      top: `${spot.top}px`,
+      width: `${spot.width}px`,
+      height: `${spot.height}px`,
+      margin: "0",
+      boxSizing: "border-box",
+    });
+  }
   for (const [node, [top, left]] of table.scrolled.get(gone) ?? []) {
     if (!gone.contains(node)) continue;
     node.scrollTop = top;
@@ -402,6 +453,12 @@ function enter(table: Table, el: HTMLElement, move: Timeline): void {
 function arrive(table: Table, el: HTMLElement, prev: HTMLElement | null): void {
   const side = el.dataset.slide;
   const was = prev ? table.held.get(prev) : undefined;
+  // A view begins at its top, as one that scrolled in a box of its own did by being a new box; where the window scrolls
+  // it, the window is put there: the frame's page at the window's top whenever it arrives, a view in place of another
+  // inside it (a Settings pane, a lens, a tab) at its own. Its page may put back a place it kept after this: People's
+  // is an effect (people/hooks/use-place.ts), a person's tabs a layout effect of the page around them (tab-scroll.ts).
+  const nested = table.env.toTop ? nestedIn(table, el) : false;
+  if (table.env.toTop && (prev || !nested)) table.env.toTop(el, nested);
   if (side !== "next" && side !== "prev") {
     if (prev) stop(table, prev);
     return;
@@ -545,7 +602,9 @@ function leave(table: Table, dir: Side): Move | null {
       run,
     ),
   );
-  table.held.set(el, { move, role: "out", spot: spotOf(el, rect, from), anims });
+  const scrolled = table.env.windowOf ? table.env.windowOf(el) : null;
+  const pin = scrolled ? { left: rect.left - from, top: rect.top, width: rect.width, screen: scrolled.screen } : null;
+  table.held.set(el, { move, role: "out", spot: spotOf(el, rect, from), pin, anims });
   table.env.later(move.ms + SUCCESSOR_WAIT_MS, () => comeBack(table, el, move));
   return move;
 }
@@ -591,5 +650,20 @@ export const viewDeck: Deck = createDeck({
   placeOf: (el) => new DOMMatrixReadOnly(getComputedStyle(el).transform).m41,
   later: (ms, fn) => {
     window.setTimeout(fn, ms);
+  },
+  windowOf: (el) =>
+    isDocumentScroller(scrollerOf(el, { self: true })) ? { screen: shownHeight(documentScroller()) } : null,
+  toTop: (el, nested) => {
+    if (!isDocumentScroller(scrollerOf(el, { self: true }))) return;
+    if (!nested) {
+      // The browser puts back a scroll of its own on Back, before the page it goes to is drawn: the deck keeps it.
+      if ("scrollRestoration" in window.history) window.history.scrollRestoration = "manual";
+      if (window.scrollY > 0) window.scrollTo(0, 0);
+      return;
+    }
+    // Just under what stands over the page (the frame's top on a phone: the document's scroll-padding, mobile.css).
+    const under = Number.parseFloat(getComputedStyle(documentScroller()).scrollPaddingTop) || 0;
+    const top = el.getBoundingClientRect().top;
+    if (top < under) window.scrollBy(0, top - under);
   },
 });

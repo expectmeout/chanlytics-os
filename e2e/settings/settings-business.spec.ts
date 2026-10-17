@@ -1259,8 +1259,8 @@ test.describe("Settings › Business on a real workspace", () => {
       // again, which is what the page draws its rows from), and keeps what it was sent for the check below.
       const read = await standInSave(page);
 
-      const pane = page.locator(PANE);
-      const scrolled = () => pane.evaluate((el) => el.scrollTop);
+      // The window scrolls the pane on a phone (mobile.css, "The window scrolls"): it is what holds still behind the sheet.
+      const scrolled = () => page.evaluate(() => window.scrollY);
       await actOf(page, "tone").scrollIntoViewIfNeeded();
       const top = await scrolled();
       await actOf(page, "tone").tap();
