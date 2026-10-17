@@ -411,7 +411,7 @@ test("REGRESSION: a row says each thing once -- why a person is needed, what the
   assert.ok(samRow.wait && !samRow.time, "a snoozed row says when it wakes, and not also when it last moved");
 });
 
-test("an email in the thread is drawn as one: the envelope, the word Email, its subject above its words; a WhatsApp bubble beside it has no subject line", () => {
+test("an email in the thread is drawn as one: its subject above its words, the envelope where it came another way than the reply goes; a WhatsApp bubble beside it has no subject line", () => {
   const ana = person("p9", null, { phone_e164: null, email: "ana@example.com" });
   const emailed = {
     ...wrote("m9", "Can you do Saturday at 9?", 20),
@@ -431,11 +431,21 @@ test("an email in the thread is drawn as one: the envelope, the word Email, its 
   const [chatBubble, emailBubble] = bubbles;
   assert.equal(textOf(find(emailBubble, byTestId("tl-msg-subject"))), "Quote for Saturday");
   assert.equal(find(chatBubble, byTestId("tl-msg-subject")), null, "a subject is an email's");
+  // A bubble names its wire, in its corner, where it came another way than the thread's own (the reply box's, which is
+  // where they last wrote): here she last wrote by email, so the WhatsApp bubble wears the chat's glyph, named.
+  const wire = (b, name) => find(b, (n) => n.props?.role === "img" && n.props?.["aria-label"] === name);
+  assert.ok(wire(chatBubble, "WhatsApp"), "the bubble that came by WhatsApp says so");
+  assert.equal(wire(emailBubble, "Email"), null, "the email, the reply's own wire, needs no mark");
+  // A WhatsApp thread with one email in it: the envelope is the email's.
+  const mixed = paneOf(
+    vmOf(chat({ contact: ana, last_wa_inbound_at: ago(5), messages: [emailed, wrote("m11", "Got it, thanks", 5)] })),
+    { channelLabels: { whatsapp: "WhatsApp", phone: "Phone", sms: "Text", email: "Email" } },
+  );
+  const [emailFirst] = findAll(mixed, hasClass("tl-msg"));
   assert.ok(
-    find(emailBubble, (n) => n.type === Icon && n.props?.name === "mail"),
+    find(wire(emailFirst, "Email"), (n) => n.type === Icon && n.props?.name === "mail"),
     "an envelope, not a chat bubble",
   );
-  assert.match(textOf(find(emailBubble, hasClass("tl-msg-meta"))), /Email/);
   const order = [];
   walk(emailBubble, (n) => {
     if (byTestId("tl-msg-subject")(n)) order.push("subject");

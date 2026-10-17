@@ -248,18 +248,42 @@ test("outside the window: only an approved template goes, a promotion needs a ye
       ],
     },
   });
+  // One blank of words to write is the member's (contracts inboxBlankOf): without them the template is refused here, in
+  // the blank's own label, not by Meta fifteen seconds after "queued"; with them it goes, the words in the blank.
   await refused(
     replyToConversation(
       typed.ports,
       cmd({ conv: closed, body: { template: { name: "reservar_ahora", language: "en_US" } } }),
     ),
     "validation",
-    /needs words for “Offer”/,
+    /Write the words for “Offer” first/,
+  );
+  assert.deepEqual(typed.ops(), [], "a template whose blank is empty is refused here, and nothing is queued");
+  const written = fakes({
+    template: {
+      ...approved,
+      variables: [
+        { label: "Business name", position: 1 },
+        { label: "Offer", position: 2 },
+      ],
+    },
+  });
+  assert.equal(
+    (
+      await replyToConversation(
+        written.ports,
+        cmd({
+          conv: closed,
+          body: { template: { name: "reservar_ahora", language: "en_US", words: "20% off\n  colour   this week" } },
+        }),
+      )
+    ).status,
+    "queued",
   );
   assert.deepEqual(
-    typed.ops(),
-    [],
-    "a template with words to write is refused here, not by Meta fifteen seconds after 'queued'",
+    written.log.find((l) => l[0] === "schedule")[3].template.params,
+    ["Marisa's", "20% off colour this week"],
+    "the member's words fill the blank as WhatsApp takes a value (one line, single spaces); the business's facts stay the server's",
   );
   const two = fakes({
     template: {
@@ -354,9 +378,34 @@ test("REGRESSION (I6): a template is filled by its own slots, as broadcasts and 
   await refused(
     replyToConversation(q.ports, cmd({ conv: closed, body: { template: { name: "quick_note", language: "en_US" } } })),
     "validation",
-    /needs words for “The note”, which the Inbox does not ask for/,
+    /Write the words for “The note” first/,
   );
-  assert.deepEqual(q.ops(), [], "nothing is queued for a template the Inbox cannot fill");
+  assert.deepEqual(q.ops(), [], "nothing is queued for a note with no words in it");
+  // The note answers a question through the shut window (Daniela Reyes, 20 Sep 2026: a price question nobody answered).
+  const answered = fakes({ template: note });
+  const sent = await replyToConversation(
+    answered.ports,
+    cmd({
+      conv: closed,
+      body: { template: { name: "quick_note", language: "en_US", words: "$180 is our lowest, see you Tuesday!" } },
+    }),
+  );
+  assert.equal(sent.status, "queued");
+  assert.equal(
+    answered.log.find((l) => l[0] === "queue")[1].body,
+    "Hi Rosa, a quick note from Marisa's: $180 is our lowest, see you Tuesday!",
+    "the row says what she reads: the template's words with the member's in its blank",
+  );
+  const long = fakes({ template: note });
+  await refused(
+    replyToConversation(
+      long.ports,
+      cmd({ conv: closed, body: { template: { name: "quick_note", language: "en_US", words: "x".repeat(301) } } }),
+    ),
+    "validation",
+    /under 300 characters/,
+  );
+  assert.deepEqual(long.ops(), [], "words past the bound are refused before anything is queued");
   // A review's link is a campaign's to fill, from the Google listing (00415): the Inbox holds none, so it never sends one blank.
   const review = fakes({
     template: {

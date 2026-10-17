@@ -16,7 +16,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { toInboxThreadVM, stateOf, memberWords } from "@chanlytics/contracts";
-import { installLegacyReact, fresh, again, find, textOf, walk } from "../../_legacy-react.mjs";
+import { installLegacyReact, fresh, again, all, find, textOf, walk } from "../../_legacy-react.mjs";
 
 // The workspace's zone: every view model says its times by it (contracts clock.ts).
 const ZONE = "America/New_York";
@@ -247,39 +247,50 @@ test("the list: a wait reads as days, and a teammate's thread says whose it is i
 test("the pane: a teammate's thread names who is answering, and offers no take-over and no hand-back", () => {
   globalThis.window.__TEAM = TEAM;
   const tree = paneOf(toInboxThreadVM(conv({ assignee_user_id: ANA, assignee_is_me: false }), asked(), ZONE, NOW));
-  const banner = find(tree, byTestId("ix-theirs"));
-  assert.ok(banner, "the claim is said where the take banner was");
   // The pill their row in the list wears, in the same words, in the bar under the header: "Ana García is answering
   // this" was a sentence of its own.
   assert.match(textOf(find(tree, byTestId("ix-th-standing"))), /Ana García has it/);
-  assert.match(
-    textOf(banner),
-    /If you reply, the thread becomes yours\./,
-    "a reply claims it, so the page says so before it happens",
-  );
+  // A reply claims it, so the page says so before it happens, where the reply is written (the phone canvas, B1): a
+  // banner over the box said it in a block of its own.
+  const box = find(tree, (n) => n.type === "textarea");
+  assert.equal(box.props.placeholder, "Reply to take it from Ana García…", "a reply claims it, and the box says so");
+  assert.equal(find(tree, byTestId("ix-theirs")), null, "and nothing over the box says it again");
   const buttons = buttonsOf(tree);
   assert.ok(
     !buttons.some((b) => b.includes("I'll answer this")),
     "REGRESSION: 'I'll answer this' took it from them without a word",
   );
   assert.ok(
-    !buttons.some((b) => b.includes("hand it back")),
+    !buttons.some((b) => /hand( it)? back/i.test(b)),
     "REGRESSION: the hand-back resolved the teammate's request",
   );
   assert.equal(find(tree, hasClass("ix-take")), null, "no Needs you banner on a thread someone has");
+  assert.equal(find(tree, byTestId("ix-needs-you")), null, "nor the dock");
   globalThis.window.__TEAM = null;
+  assert.equal(
+    find(
+      paneOf(toInboxThreadVM(conv({ assignee_user_id: ANA, assignee_is_me: false }), asked(), ZONE, NOW)),
+      (n) => n.type === "textarea",
+    ).props.placeholder,
+    "Reply to take it from a teammate…",
+    "the roster unread: no name is invented",
+  );
 });
 
-test("the pane: beside I'll answer this, the customer's own words -- what they wrote, or what the call left", () => {
-  const take = find(paneOf(toInboxThreadVM(conv(), asked(), ZONE, NOW)), byTestId("ix-needs-you"));
-  assert.ok(take, "the take banner");
-  const words = find(take, byTestId("ix-take-ask"));
-  assert.ok(words, "REGRESSION: only the reason's sentence sat beside the decision");
-  assert.equal(textOf(words), "They wrote“Can I move my appointment to Friday?”");
+test("the pane: I'll answer this sits under what they wrote, with the reason's own sentence -- their words are not said twice", () => {
+  const tree = paneOf(toInboxThreadVM(conv(), asked(), ZONE, NOW));
+  const take = find(tree, byTestId("ix-needs-you"));
+  assert.ok(take, "the dock over the reply box");
   assert.ok(
     buttonsOf(take).some((b) => b.includes("I'll answer this")),
     "the decision is still there to make",
   );
+  // What they asked is the bubble right above the dock (the phone canvas, B1): it was quoted again over the acts.
+  assert.ok(
+    all(tree, hasClass("tl-msg")).some((b) => textOf(b).includes("Can I move my appointment to Friday?")),
+    "their words are in the thread",
+  );
+  assert.ok(!textOf(take).includes("Can I move my appointment"), "and not quoted again in the dock");
 
   // A call back's details are the line's own sentence, said once: "From the call" beneath the same words went (calls you
   // can follow), and the call itself is right above.
@@ -288,11 +299,10 @@ test("the pane: beside I'll answer this, the customer's own words -- what they w
     byTestId("ix-needs-you"),
   );
   assert.equal(
-    textOf(find(callTake, hasClass("ix-state-says"))),
+    textOf(find(callTake, hasClass("notice-fact"))),
     "Call Rosa back to confirm the bridal trial on Oct 3",
     "REGRESSION: the call back promised the details and showed none",
   );
-  assert.equal(find(callTake, byTestId("ix-take-ask")), null, "and not again beneath them");
 });
 
 test("the countdown's tip says what stops a real draft -- Hold, or starting to type -- where Edit only opens the composer", () => {

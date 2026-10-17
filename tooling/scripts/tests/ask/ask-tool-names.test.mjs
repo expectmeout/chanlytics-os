@@ -1419,10 +1419,17 @@ test("every old tool's call, made by its new name and action, answers the bytes 
     const followsACombine =
       NAMES[old] === "people.get" && want.isError ? [...withRunsWaiting, "contacts.select"] : null;
     const withKept = followsACombine ?? withRunsWaiting;
+    // 16 Oct 2026 (a question handed back unanswered still waits): the conversations reader asks each thread's newest
+    // closed hold beside its messages (db lastClosedHolds), so a thread whose customer wrote last can say nobody answered
+    // them: one `escalations` read more for each read of the threads' messages. The bytes are unchanged: no tool says it yet.
+    const withClosedHolds = [
+      ...withKept,
+      ...withKept.filter((r) => r === "rpc:newest_messages").map(() => "escalations.select"),
+    ];
     const reads =
       NAMES[old] === "report"
-        ? withCampaignReads(withPeopleReads(withReceptionistReads(withReviewReads(withKept))))
-        : withKept;
+        ? withCampaignReads(withPeopleReads(withReceptionistReads(withReviewReads(withClosedHolds))))
+        : withClosedHolds;
     const [gotResult, wantResult] = withoutStoredWords(
       old,
       ...(NAMES[old] === "sequences.moments"

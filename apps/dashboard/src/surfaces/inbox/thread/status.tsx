@@ -6,15 +6,22 @@
  * The band is a function per state, called by `ThreadStatus` and not drawn as a component of its own, so the tree is
  * the tree it was.
  */
-import type { ReactElement, ReactNode } from "react";
-import { BOOKING_REQUEST_WORDS, HOLD_ACT_WORDS, heldPill, snoozedThreadWords } from "@chanlytics/contracts";
+import { useState, type ReactElement, type ReactNode } from "react";
+import {
+  BOOKING_REQUEST_WORDS,
+  HOLD_ACT_WORDS,
+  heldPill,
+  shortName,
+  snoozedThreadWords,
+  THREAD_PANE_WORDS,
+} from "@chanlytics/contracts";
 import { Icon } from "../../kit/icon/icon";
 import { StatePill } from "../../kit/pill/state-pill";
+import { Notice } from "../../kit/notice/notice";
 import { holderName } from "../../holder-names";
 import { gate, navigate } from "../shell";
-import type { Thread, ThreadAsk, TimelineEntry as TlEntry } from "../types";
+import type { Thread, TimelineEntry as TlEntry } from "../types";
 import { ixDockDials } from "./band";
-import { IxWhy } from "./composer";
 import { hasVeto, SteerBox, VetoBar } from "./veto";
 import { Button } from "../../kit/button/button";
 import { LinkButton } from "../../kit/link-button/link-button";
@@ -37,38 +44,40 @@ export interface StatusProps {
   veto: number | null;
   vetoPaused: boolean;
   onVetoAct: (threadId: string, act: string) => void;
+  /** Archive, which asks first (thread.tsx): "No reply needed" on a thread left unanswered. None where it cannot be done. */
+  onArchive?: (() => void) | null;
 }
 
-// What a real thread's state asks of you, said one way whatever the state: one sentence, what they asked, and what
-// you can do about it, under the sentence. It was a dot and a bold title here, an icon and a bold name inside a
-// sentence there, a white slab of a button beside a link with an arrow: six looks for one line of a thread. The
-// state's name -- the pill its row wears, and its wait -- is the bar's under the header (ThreadBar), said once.
-interface IxStateProps {
-  says?: ReactNode;
-  ask?: ReactNode;
+/** The thread whose hand back is being asked about (Hand back when what they wrote has no answer), and how to ask or let go. */
+interface HandBackAsk {
+  asking: string | null;
+  setAsking: (threadId: string | null) => void;
+}
+
+type DockProps = StatusProps & HandBackAsk;
+
+// What a real thread asks of you, said one way whatever the state: the dock over the reply box (the phone canvas, B1),
+// the kit's notice. The one line of what is owed, one fact the page does not already show after it in the dim ink (never
+// the bar's wait, never their last bubble, which is right above it), and at most two acts, the lead a capsule and the
+// other words. The state's name -- the pill its row wears, and its wait -- is the bar's under the header (ThreadBar).
+// It was a sentence at 600 over their last message quoted again over the acts: three blocks for what the bar named.
+interface DockLine {
+  fact: ReactNode;
+  source?: ReactNode;
   acts?: ReactNode;
-  tone?: string | null;
-  testid?: string | null;
+  line?: boolean;
+  label: string;
+  testid: string;
 }
 
-const IxState = ({ says = null, ask = null, acts = null, tone = null, testid = null }: IxStateProps) => (
-  <div className={`ix-state${tone ? ` ${tone}` : ""}`} data-testid={testid || undefined}>
-    {(says || ask) && (
-      <div className="ix-state-says">
-        {says}
-        {ask}
-      </div>
-    )}
-    {acts && <div className="ix-state-acts">{acts}</div>}
-  </div>
+const Dock = ({ fact, source = null, acts = null, line = false, label, testid }: DockLine) => (
+  <Notice fact={fact} source={source} act={acts} line={line} label={label} className="ix-dock" testid={testid} />
 );
 
 // =============== THE THREAD'S STATUS — what it needs from you, one state at a time ===============
 // On a real thread it sits under the conversation, by the reply box (InboxThread). Over the timeline it was a stack
 // of cards that took a phone's first screen -- Rosa's banner was 262px and her first message started at 427px -- and
 // scrolled away with the words. A seeded thread keeps its cards over its story.
-// The state's name is the bar's (ThreadBar), under the header: here is what is more than the name -- the reason, what
-// they asked, and what to do about it. A quiet thread's one sentence is the bar's, so it says nothing here.
 
 /** The other side moved while you were reading: who, what, and how far behind you are. */
 function staleBar(p: StatusProps) {
@@ -138,11 +147,12 @@ function snoozedBar(p: StatusProps) {
       // paused — and, when the customer asked for a person, say that
       // the request is still standing rather than letting the operator
       // believe it was dealt with.
-      <IxState
+      <Dock
         testid="ix-snoozed"
+        label="Snoozed"
         // The request still standing, in its own words (the row's subject is the reason's label): it said "They
         // asked for a person" over a failed send, a call back and a deadman alike.
-        says={snoozedThreadWords(thread.escalationId && thread.subject ? thread.subject : null)}
+        fact={snoozedThreadWords(thread.escalationId && thread.subject ? thread.subject : null)}
         acts={
           <Button
             variant="quiet"
@@ -178,7 +188,6 @@ function requestActsOf(thread: Thread, onDecide: StatusProps["onDecide"]) {
     <>
       <Button
         size="sm"
-        className="ix-state-go"
         onClick={() => onDecide(thread.id, "__BOOKED__")}
         data-testid="ix-request-booked"
         {...gate("approve", W.gate)}
@@ -198,17 +207,80 @@ function requestActsOf(thread: Thread, onDecide: StatusProps["onDecide"]) {
   );
 }
 
-/** A real thread that needs you: the reason, what they asked, and the two things to do about it. */
-function needsYouState(p: StatusProps, thread: Thread) {
-  const { onTakeOver, onDecide } = p;
+/**
+ * Whether what they wrote is still waiting on an answer: of the words exchanged, theirs are the newest (a draft held, a
+ * note, a call, our words that never reached them are not an answer). A hand back then sends them nothing, and the
+ * receptionist never comes back to a message it held (Daniela Reyes, 20 Sep 2026), so the hand back asks first.
+ */
+const theyAreWaiting = (thread: Thread): boolean => {
+  for (let i = thread.timeline.length - 1; i >= 0; i--) {
+    const e = thread.timeline.at(i);
+    if (!e || e.type !== "msg" || e.pending || e.channel === "phone") continue;
+    if (e.from === "client") return true;
+    if (e.reachedCustomer !== false) return false;
+  }
+  return false;
+};
+
+/** Hand back, guarded: where what they wrote has no answer, the dock asks before it lets go (handBackAsk). */
+const guardedHandBack = (p: DockProps, go: () => void) => () => {
+  if (p.asking !== p.thread.id && theyAreWaiting(p.thread)) p.setAsking(p.thread.id);
+  else {
+    p.setAsking(null);
+    go();
+  }
+};
+
+/** The hand back asks first, in the dock's place: their message has no answer, and handing back sends none. */
+function handBackAsk(p: DockProps, go: () => void) {
+  const { thread, setAsking } = p;
+  const W = THREAD_PANE_WORDS;
+  const said = W.handBackAsk(shortName(thread.who));
   return (
-    <IxState
+    <Dock
+      testid="ix-hand-back-ask"
+      label={said}
+      fact={<b>{said}</b>}
+      source={W.handBackWhy}
+      acts={
+        <>
+          <Button
+            size="sm"
+            onClick={() => {
+              setAsking(null);
+              window.dispatchEvent(new CustomEvent("inbox:focus-composer", { detail: { threadId: thread.id } }));
+            }}
+            data-testid="ix-answer-first"
+          >
+            {W.answerFirst}
+          </Button>
+          <Button
+            variant="quiet"
+            size="sm"
+            onClick={guardedHandBack(p, go)}
+            data-testid="ix-hand-back-anyway"
+            {...gate("approve", "hand a conversation back")}
+          >
+            {W.handBackAnyway}
+          </Button>
+        </>
+      }
+    />
+  );
+}
+
+/** A real thread that needs you: the reason, and the two things to do about it. */
+function needsYouState(p: DockProps, thread: Thread) {
+  const { onTakeOver, onDecide } = p;
+  const handBack = () => onDecide(thread.id, "__HANDBACK__");
+  if (p.asking === thread.id) return handBackAsk(p, handBack);
+  return (
+    <Dock
       testid="ix-needs-you"
-      // The reason's own sentence (ESCALATION_SUMMARIES), never one line for every reason:
-      // a held message was not "already answered", and a call back is not a reply.
-      says={thread.summary}
-      // What they asked, beside the decision: their last message, or what the call left behind.
-      ask={thread.ask && thread.ask.kind !== "call" ? <IxAsk ask={thread.ask} /> : null}
+      label={thread.summary}
+      // The reason's own sentence (ESCALATION_SUMMARIES), never one line for every reason: a held message was not
+      // "already answered", and a call back is not a reply. What they asked is the bubble right above it.
+      fact={thread.summary}
       acts={
         thread.holdAct === "confirm" ? (
           requestActsOf(thread, onDecide)
@@ -219,7 +291,6 @@ function needsYouState(p: StatusProps, thread: Thread) {
             {thread.holdAct === "hand_back" ? null : ixDockDials(thread) ? (
               <Button
                 size="sm"
-                className="ix-state-go"
                 href={`tel:${thread.phone}`}
                 onClick={() => onTakeOver(thread.id)}
                 data-testid="ix-call-back"
@@ -227,12 +298,7 @@ function needsYouState(p: StatusProps, thread: Thread) {
                 <Icon name="phone" size={12} /> Call back
               </Button>
             ) : (
-              <Button
-                size="sm"
-                className="ix-state-go"
-                onClick={() => onTakeOver(thread.id)}
-                {...gate("approve", "take over a conversation")}
-              >
+              <Button size="sm" onClick={() => onTakeOver(thread.id)} {...gate("approve", "take over a conversation")}>
                 {thread.primaryChannel === "phone" ? (
                   <>
                     <Icon name="phone" size={12} /> Call back
@@ -247,7 +313,7 @@ function needsYouState(p: StatusProps, thread: Thread) {
               <Button
                 variant="quiet"
                 size="sm"
-                onClick={() => onDecide(thread.id, "__HANDBACK__")}
+                onClick={guardedHandBack(p, handBack)}
                 aria-label="Nothing needed — hand it back to the receptionist"
                 {...gate("approve", "hand a conversation back")}
               >
@@ -289,7 +355,7 @@ function needsYouSeeded(p: StatusProps) {
 }
 
 /** An escalated thread nobody has: real or seeded. */
-function escalatedBar(p: StatusProps) {
+function escalatedBar(p: DockProps) {
   const { thread } = p;
   return (
     thread.state === "escalated" &&
@@ -299,85 +365,92 @@ function escalatedBar(p: StatusProps) {
   );
 }
 
-/** A thread a teammate has: nothing to take and nothing to hand back. */
-function theirsBar(thread: Thread) {
-  // A teammate has it. Nothing to take and nothing to hand back: pressing
-  // "I'll answer this" took it from them without a word, and the hand-back
-  // resolved their request. A reply still claims it, so that is said first.
-  return (
-    thread.real &&
-    thread.claimedByOther && (
-      <IxState
-        testid="ix-theirs"
-        says="The receptionist stays quiet until they hand it back. If you reply, the thread becomes yours."
-      />
-    )
-  );
-}
-
-/** A handled real thread: archived, or a reply that did not send. */
-function handledBar(thread: Thread) {
-  return (
-    thread.real &&
-    thread.state === "done" &&
-    !thread.resolution &&
-    (thread.archived ? (
-      <IxState testid="ix-archived" says="Their request is closed. If they write again, it comes back." />
-    ) : // A draft still waiting to go out is the thread's state, said by its bar: "They wrote last — no reply yet"
-    // sat over "Auto-sends in 72s", one saying nothing was coming and the other that it was about to.
-    thread.lastWord && !thread.veto && thread.lastWord.short ? (
-      // A reply that didn't send: the bar wears the row's pill ("Didn't send"), and here is what it means -- who
-      // wrote last and what they know. A quiet thread's one sentence is the bar's alone: it read here too, under
-      // "Answered by the receptionist — no one asked for you" over a reply that never left (I1).
-      <IxState
-        testid="ix-last-word"
-        tone={thread.lastWord.tone === "ok" ? null : thread.lastWord.tone}
-        says={thread.lastWord.text}
-      />
-    ) : null)
-  );
-}
-
-/** A thread you have: what it means for the receptionist, what they asked, and the way to hand it back. */
-function yoursBar(p: StatusProps) {
-  const { thread, onHandBack } = p;
-  return (
-    thread.takenOver &&
-    (thread.real ? (
-      <IxState
-        testid="ix-yours"
-        // The reason it was flagged is said here, once: "Where this stands" said it below (I1).
-        says={
-          <>
-            The receptionist stays quiet while you have it.
-            {thread.escalationId && thread.summary ? <> {thread.summary}</> : null}
-          </>
-        }
-        // What they asked, where you answer it: it was only in the timeline (I3).
-        ask={thread.ask && thread.ask.kind !== "call" ? <IxAsk ask={thread.ask} /> : null}
-        acts={
+/**
+ * A thread left with no answer (contracts unansweredOf): what the hold noted of their ask, when it closed, and the two
+ * ways to settle it besides the reply box under it -- a call, or saying no reply is needed, which archives the thread
+ * (a new message brings it back). The bar names it, amber, with how long they have waited.
+ */
+function unansweredDock(p: StatusProps, thread: Thread) {
+  const u = thread.unanswered;
+  if (!u) return null;
+  const W = THREAD_PANE_WORDS;
+  const mayCall = !!thread.phone && !thread.dnc && !thread.optedOut;
+  const acts =
+    mayCall || p.onArchive ? (
+      <>
+        {mayCall && (
+          <Button size="sm" href={`tel:${thread.phone}`} data-testid="ix-unanswered-call">
+            <Icon name="phone" size={12} /> {W.call}
+          </Button>
+        )}
+        {p.onArchive && (
           <Button
             variant="quiet"
             size="sm"
-            onClick={() => onHandBack(thread.id)}
-            aria-label={`Hand back to ${thread.agent.name}`}
-            {...gate("approve", "hand a conversation back")}
+            onClick={p.onArchive}
+            data-testid="ix-no-reply-needed"
+            {...gate("approve", "archive a conversation")}
           >
-            Hand back
+            {W.noReplyNeeded}
           </Button>
-        }
-      />
-    ) : (
-      <div className="ix-resolved ix-owned">
-        <Icon name="users" size={13} />
-        <div className="ix-take-body">
-          <span>You own this thread — agents are standing down. Reply below in your own voice.</span>
-        </div>
-        <LinkButton onClick={() => onHandBack(thread.id)} {...gate("approve", "hand a conversation back")}>
-          Hand back to {thread.agent.name} <Icon name="arrow-right" size={10} />
-        </LinkButton>
+        )}
+      </>
+    ) : null;
+  return <Dock testid="ix-unanswered" label={u.line} fact={u.line} source={u.closed} acts={acts} />;
+}
+
+/**
+ * A handled real thread: archived, or left with no answer. A reply that did not send is said by the bar ("Didn't send")
+ * and acted on at its own bubble (timeline.tsx: Send again, Edit); a sentence here said it a third time.
+ */
+function handledBar(p: StatusProps) {
+  const { thread } = p;
+  if (!thread.real || thread.state !== "done" || thread.resolution) return null;
+  if (thread.archived)
+    return (
+      <Dock testid="ix-archived" label="Archived" fact="Their request is closed. If they write again, it comes back." />
+    );
+  // A draft still waiting to go out is the thread's state, said by its countdown.
+  return thread.veto ? null : unansweredDock(p, thread);
+}
+
+/** A thread you have: what it means for the receptionist, and the way to hand it back, on one line. */
+function yoursBar(p: DockProps) {
+  const { thread, onHandBack } = p;
+  const W = THREAD_PANE_WORDS;
+  const handBack = () => onHandBack(thread.id);
+  if (!thread.takenOver) return false;
+  if (thread.real && p.asking === thread.id) return handBackAsk(p, handBack);
+  return thread.real ? (
+    <Dock
+      testid="ix-yours"
+      line
+      label={W.yours}
+      fact={W.yours}
+      // The reason it was flagged is said here, once: "Where this stands" said it below (I1).
+      source={thread.escalationId && thread.summary ? thread.summary : W.yoursFact}
+      acts={
+        <Button
+          variant="quiet"
+          size="sm"
+          onClick={guardedHandBack(p, handBack)}
+          aria-label={`Hand back to ${thread.agent.name}`}
+          {...gate("approve", "hand a conversation back")}
+        >
+          Hand back
+        </Button>
+      }
+    />
+  ) : (
+    <div className="ix-resolved ix-owned">
+      <Icon name="users" size={13} />
+      <div className="ix-take-body">
+        <span>You own this thread — agents are standing down. Reply below in your own voice.</span>
       </div>
-    ))
+      <LinkButton onClick={() => onHandBack(thread.id)} {...gate("approve", "hand a conversation back")}>
+        Hand back to {thread.agent.name} <Icon name="arrow-right" size={10} />
+      </LinkButton>
+    </div>
   );
 }
 
@@ -412,21 +485,29 @@ function steerStatus(p: StatusProps) {
   );
 }
 
-export const ThreadStatus = (props: StatusProps) => (
-  <>
-    {staleBar(props)}
-    {resolvedBar(props)}
+/**
+ * What the thread needs from you. A thread a teammate has says nothing here: its reply box says what a reply does
+ * ("Reply to take it from …", composer.tsx), the one thing left to know.
+ */
+export const ThreadStatus = (props: StatusProps) => {
+  // Which thread's hand back is being asked about: kept by its id, so it never shows over another thread.
+  const [asking, setAsking] = useState<string | null>(null);
+  const p: DockProps = { ...props, asking, setAsking };
+  return (
+    <>
+      {staleBar(p)}
+      {resolvedBar(p)}
 
-    {snoozedBar(props)}
+      {snoozedBar(p)}
 
-    {escalatedBar(props)}
-    {theirsBar(props.thread)}
-    {handledBar(props.thread)}
-    {yoursBar(props)}
-    {vetoStatus(props)}
-    {steerStatus(props)}
-  </>
-);
+      {escalatedBar(p)}
+      {handledBar(p)}
+      {yoursBar(p)}
+      {vetoStatus(p)}
+      {steerStatus(p)}
+    </>
+  );
+};
 
 // =============== THE BAR — where the conversation stands, under the header ===============
 // One slim line a thread opens on: the pill its row in the list wears (StatePill -- one vocabulary for both) and how
@@ -436,11 +517,9 @@ export const ThreadStatus = (props: StatusProps) => (
 
 /** Where a thread stands: the pill its row wears with how long they have waited, or a quiet thread's one sentence. */
 interface Standing {
-  pill?: ReactElement;
+  pill: ReactElement;
   meta?: string | null;
   late?: boolean;
-  words?: string;
-  tone?: string;
 }
 
 const ixStanding = (thread: Thread): Standing | null => {
@@ -468,11 +547,48 @@ const ixStanding = (thread: Thread): Standing | null => {
   // A draft still waiting to go out is the thread's state, said by its countdown: "They wrote last — no reply yet"
   // sat over "Auto-sends in 72s", one saying nothing was coming and the other that it was about to.
   if (!thread.lastWord || thread.veto) return null;
-  // A reply that didn't send wears the row's own pill ("Didn't send"); a quiet thread is its one quiet sentence.
-  return thread.lastWord.short
-    ? { pill: <StatePill kind="tone" value={thread.lastWord.tone} label={thread.lastWord.short} /> }
-    : { words: thread.lastWord.text, tone: thread.lastWord.tone };
+  // A reply that didn't send, or what they wrote held and closed with nothing sent (contracts unansweredOf), wears the
+  // row's own pill and, beside it, when the words that didn't send were written, or how long they have waited. A quiet
+  // thread says nothing here: the conversation shows who had the last word, and a sentence for the ordinary state stood
+  // over every thread (the phone canvas, A1).
+  if (!thread.lastWord.short) return null;
+  return {
+    pill: <StatePill kind="tone" value={thread.lastWord.tone} label={thread.lastWord.short} />,
+    // The tone says it once, in the pill: the time beside it is the dim ink.
+    meta: thread.unanswered ? `waiting ${thread.unanswered.waited}` : thread.lastWord.at || null,
+  };
 };
+
+/**
+ * WhatsApp's window, shut: one quiet fact at the bar's end, a lock and its words, that opens why on a press. It was a dot
+ * in the warning's amber, "Window closed" and an underlined "Why?" over a 44px press, which made the bar 64px and cut the
+ * standing beside it to "Answered by the receptionist — n…" on a phone (the phone canvas, A1). Amber says one thing.
+ */
+function ChatClosed() {
+  const [open, setOpen] = useState(false);
+  const W = THREAD_PANE_WORDS;
+  return (
+    <>
+      <Button
+        variant="quiet"
+        size="text"
+        className="ix-th-window"
+        aria-expanded={open}
+        onClick={() => setOpen(!open)}
+        data-testid="ix-th-window"
+      >
+        <Icon name="lock" size={12} />
+        {W.chatClosed}
+        <Icon name="info" size={12} />
+      </Button>
+      {open && (
+        <span className="ix-why-said" data-testid="ix-th-window-why">
+          {W.chatClosedWhy}
+        </span>
+      )}
+    </>
+  );
+}
 
 export const ThreadBar = ({ thread }: { thread: Thread }) => {
   const standing = ixStanding(thread);
@@ -484,35 +600,13 @@ export const ThreadBar = ({ thread }: { thread: Thread }) => {
     <div className="ix-th-bar" data-testid="ix-th-bar">
       {standing && (
         <span className="ix-th-standing" data-testid="ix-th-standing">
-          {standing.pill || (
-            <span className={`ix-th-standing-words ${standing.tone}`} title={standing.words}>
-              {standing.words}
-            </span>
-          )}
+          {standing.pill}
           {standing.meta && (
-            <span className={`ix-th-standing-meta tabular${standing.late ? " late" : ""}`}>{standing.meta}</span>
+            <span className={`ix-th-standing-meta tabular${standing.late ? " late" : ""}`}>· {standing.meta}</span>
           )}
         </span>
       )}
-      {closed && (
-        <>
-          <span className="ix-th-window" data-testid="ix-th-window">
-            Window closed
-          </span>
-          <IxWhy
-            said="The 24-hour WhatsApp window is closed — free-form replies can't be delivered. Approved templates only."
-            testid="ix-th-window-why"
-          />
-        </>
-      )}
+      {closed && <ChatClosed />}
     </div>
   );
 };
-
-// The customer's own words beside a decision about them: what they last wrote, or what the call left.
-const IxAsk = ({ ask }: { ask: ThreadAsk }) => (
-  <div className="ix-take-ask" data-testid="ix-take-ask">
-    <span className="ix-take-ask-label">{ask.label}</span>
-    <span className="ix-take-ask-text">{ask.quoted ? `“${ask.text}”` : ask.text}</span>
-  </div>
-);

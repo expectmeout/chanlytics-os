@@ -319,6 +319,10 @@ const dayCtx = (tbls, { rpcs = {}, faults = {}, opts = {} } = {}) => ({
 /** The context a route builds from the membership it resolved. */
 const turnIn = (ctx, tenantId = A) => kernel.readerContext(ctx, { tenantId, role: "viewer" });
 const selects = (ctx, table) => ctx.supabase.seen.filter((q) => q.table === table && q.op === "select");
+/** A read of the holds that have closed (db lastClosedHolds), which the threads' read asks beside their messages. */
+const closedHolds = (q) => q.filters.some(([op, col, v]) => op === "eq" && col === "state" && v === "resolved");
+/** The reads of the open escalations, apart from the closed holds the threads' read asks. */
+const openHolds = (ctx) => selects(ctx, "escalations").filter((q) => !closedHolds(q));
 
 // The rows as the route tests build them (inbox-server, inbox-routes, lead-routes), so each reader answers their fixture.
 const contact = (over = {}) => ({
@@ -796,9 +800,14 @@ test("the Inbox as the page composes it: the newest hundred and the open escalat
     "the messages in one read for each",
   );
   assert.equal(
-    selects(ctx, "escalations").length,
+    openHolds(ctx).length,
     2,
     "the open escalations in two halves: the holds that wait on a person, and the hand-backs (escalations.ts)",
+  );
+  assert.equal(
+    selects(ctx, "escalations").filter(closedHolds).length,
+    2,
+    "and each read of threads asks their newest closed hold beside their messages (db lastClosedHolds)",
   );
   assert.deepEqual(
     r.rows.map((x) => x.id),
@@ -869,12 +878,17 @@ test("Today for Ask as the page composes it: the day's metrics, the newest hundr
     { kind: "call", id: L2, route: `conversations/cv-${L2}`, label: "Dana" },
     { kind: "call", id: L1, route: `conversations/cv-${L1}`, label: "+1 (555) 000-0001" },
   ]);
-  const reads = () =>
-    ["conversations", "escalations", "calls", "lead_searches_view"].map((t) => selects(ctx, t).length);
+  const reads = () => [
+    selects(ctx, "conversations").length,
+    openHolds(ctx).length,
+    selects(ctx, "escalations").filter(closedHolds).length,
+    selects(ctx, "calls").length,
+    selects(ctx, "lead_searches_view").length,
+  ];
   assert.deepEqual(
     reads(),
-    [2, 2, 1, 1],
-    "Today alone: the hundred and the held thread by id, the escalations in their two halves, the calls, the searches",
+    [2, 2, 2, 1, 1],
+    "Today alone: the hundred and the held thread by id, the escalations in their two halves, the closed holds of each read of threads, the calls, the searches",
   );
   assert.deepEqual(
     ctx.supabase.seen.filter((q) => q.rpc === "metrics_summary").map((q) => q.args.p_days),
@@ -887,7 +901,7 @@ test("Today for Ask as the page composes it: the day's metrics, the newest hundr
   assert.equal(theInbox.data.conversations[0].id, OUTSIDE);
   assert.deepEqual(
     reads(),
-    [2, 2, 1, 1],
+    [2, 2, 2, 1, 1],
     "the hundred, the held thread, the escalations and the calls shared: the Inbox reads nothing again",
   );
 
