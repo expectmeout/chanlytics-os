@@ -246,10 +246,15 @@ test("both doors: without the platform's mailbox they say so and read nothing; w
 
 /* ------------------------------ setup-request ----------------------------- */
 
-const HOW =
-  "Set it up from the edge, dry run first:\n" +
-  '  POST /api/admin/voice-provision  { "tenant_id": "<id>", "area_code": <3 digits> }   (x-diag-key)\n' +
-  'then the same body with "apply": true. Their Setup page reads the line as ready by itself once the row exists.';
+/**
+ * How to set the line up: the script that mints the voice door's token (tooling/scripts/ops/voice/voice-provision.mjs), with
+ * the workspace's own id in the command. The platform's key in a curl, which this said before, is refused by an edge
+ * that holds EDGE_CALL_SECRET (token_required).
+ */
+const HOW = (id) =>
+  "Set it up from the repository with EDGE_CALL_SECRET (the secret the dashboard signs with) in the environment, a dry run first:\n" +
+  `  node tooling/scripts/ops/voice/voice-provision.mjs --tenant ${id} --area-code <3 digits>\n` +
+  "then the same with --apply. Their Setup page reads the line as ready by itself once the row exists.";
 
 test("setup-request: a known `what` and a workspace on record, or nothing; the platform hears from the workspace's own name who asked, the id, and how to set the line up -- and never a customer's word", async () => {
   const tables = world();
@@ -302,8 +307,8 @@ test("setup-request: a known `what` and a workspace on record, or nothing; the p
     assert.equal(m.subject, "Harbor Moving asked for a phone line");
     assert.equal(
       m.text,
-      `Harbor Moving (harbor-moving) asked for a phone line.\nRequested by: ada@example.com\nWorkspace id: ${A}\n\n${HOW}\n`,
-      "the workspace's own name and id, who asked (trimmed), and how to set the line up: from the edge, dry run first",
+      `Harbor Moving (harbor-moving) asked for a phone line.\nRequested by: ada@example.com\nWorkspace id: ${A}\n\n${HOW(A)}\n`,
+      "the workspace's own name and id, who asked (trimmed), and how to set the line up: the script, with this id, dry run first",
     );
     assert.deepEqual(
       asked(db).slice(readsBefore),
