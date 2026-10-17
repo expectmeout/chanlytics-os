@@ -485,7 +485,6 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
     });
   };
   let planOwed: PlanOwed | null = null; // a plan made, whose answer the next round writes (planAnswerOwed)
-  let answering = false; // that round: it may call no tool
   /** A turn that could not be answered: its sentence, in the person's language, heads it; once a plan is made, its words. */
   const fail = (sentence: string, failure: string, rounds: number) =>
     done(
@@ -553,7 +552,7 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
     toolsUsed.push(calledName(b.name, args));
     if (!args) return cutOff(b, input.tenantId);
     return timed(calledName(b.name, args), async () => {
-      const p = notAgain(await ports.propose(tc, b.name, args), input.waiting);
+      const p = notAgain(await ports.propose(tc, b.name, args), [...(input.waiting ?? []), ...proposals]);
       proposals.push(...cardsOf(p));
       if (p.words) planWords.push({ words: p.words, lead: p.lead });
       unmade.heard(calledName(b.name, args), p);
@@ -578,7 +577,7 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
   try {
     for (let round = 1; round <= ASK_MAX_ROUNDS + Number(closing); round++) {
       const last = round >= ASK_MAX_ROUNDS;
-      const noTool = answering || (model.answerTool ? closing : last);
+      const noTool = model.answerTool ? closing : last;
       const request = { ...requestOf(messages, anchor, noTool), diagnostics: meter.follows(live, input.chain) };
 
       const roundAt = Date.now();
@@ -714,7 +713,6 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
         planAnswerOwed(alone, planned, { answerTool: model.answerTool, last, leftMs: budgetMs - (Date.now() - t0) })
       ) {
         planOwed = { cards: proposals.slice(before), plan: planned, lastRound };
-        answering = true;
         messages.push({ role: "assistant", content: replayBlocks(blocks) });
         messages.push({ role: "user", content: resultBlocks(ordered) });
         tellNext(messages, PLAN_ANSWER_WORDS);

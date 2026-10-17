@@ -249,13 +249,14 @@ export function turnUnmade() {
 
 /* --------------------------------------------------- what a turn of cards says */
 
-/** Whether two cards make the same change: the same kind and the same payload, whatever their ids. */
+/** Whether two cards make the same change: the same kind, title and payload, whatever their ids. */
 const sameChange = (a: AskProposal, b: AskProposal): boolean =>
-  a.kind === b.kind && JSON.stringify(a.payload) === JSON.stringify(b.payload);
+  a.kind === b.kind && a.title === b.title && JSON.stringify(a.payload) === JSON.stringify(b.payload);
 
 /**
- * A call whose every card the thread already holds, waiting for the person's press (memory.ts threadForTurn): nothing is
- * made again, and the model is told which are above, to name them (the evals, 16 Oct 2026: "set up my campaigns" asked
+ * A call whose every card the thread already holds, waiting for the person's press (memory.ts threadForTurn), or this
+ * turn already made (a plan's answer round asked as every round is, which may call a tool): nothing is made again, and
+ * the model is told which are above, to name them (the evals, 16 Oct 2026: "set up my campaigns" asked
  * twice in one thread proposed its Win-back card a second time, 6 times in 8, on the rules before and after their
  * sections). A call with any card that is new keeps all of them: a plan's steps name each other, so none is taken out.
  */
@@ -340,7 +341,7 @@ function withPlanFacts(answer: AskAnswer, cards: readonly AskProposal[], input: 
  * model's, in the person's language. The room a turn keeps for it: with less, the plan's own words answer.
  */
 export const PLAN_ANSWER_WORDS =
-  "The plan above is proposed as its cards. Now write the answer, in the person's language, from its result alone: the headline says what the plan does, and the detail says first what no card carries (what must be connected or turned on first, a campaign paused, the room, the day a reminder goes) before anything the cards already show; where something must come first, the first question next asks how to do it. Never say any of it is done, sent or set up.";
+  "The plan above is proposed as its cards, and no tool is needed now. Now write the answer, in the person's language, from its result alone: the headline says what the plan does, and the detail says first what no card carries (what must be connected or turned on first, a campaign paused, the room, the day a reminder goes) before anything the cards already show; where something must come first, the first question next asks how to do it. Never say any of it is done, sent or set up.";
 const PLAN_ANSWER_ROOM_MS = 12_000;
 
 /** A plan made, its answer owed by the round after it (PLAN_ANSWER_WORDS): its cards, its words, the round that made it. */
@@ -352,8 +353,9 @@ export interface PlanOwed {
 
 /**
  * Whether a round of cards alone that made a plan leaves its answer to the model, written from the plan's result in one
- * more round with no tool: where there is that round, and the time for it. The answer tool's turn keeps the plan's own
- * words, as it always did.
+ * more round: where there is that round, and the time for it. That round is asked as every round is, its tool choice
+ * the same, since a change of it would write the turn's messages to the cache again and send the next question cold
+ * (the replay's prefix); a card it makes again is none (notAgain). The answer tool's turn keeps the plan's own words.
  */
 export const planAnswerOwed = (
   alone: "answer" | "owed" | null,

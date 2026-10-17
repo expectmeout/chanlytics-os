@@ -1345,7 +1345,7 @@ test("POST playbooks takes until: judged by core's judge of an end at the route'
 
 /* ------------------------------ a plan's answer is the model's (the answer canvas, phase B) ------------------------------ */
 
-test("a plan's answer is the model's, written from the plan's result in one more round with no tool, in the person's language: the plan's words reach it as the result, and the cards stand as made", async () => {
+test("a plan's answer is the model's, written from the plan's result in one more round asked as the plan's was, in the person's language: the plan's words reach it as the result, and the cards stand as made", async () => {
   // The model's words, in whatever language it answers in: Portuguese here (the question's own is the routing's, not this).
   const words = "Pausa a oferta do mês até 30 de novembro e envia a oferta por e-mail.";
   const r = await planTurn([PLAN_CALL], { then: [saidBeside("Um plano de 3 passos para revisar.", words)] });
@@ -1356,7 +1356,11 @@ test("a plan's answer is the model's, written from the plan's result in one more
   );
   assert.deepEqual([r.answer.say.headline, r.answer.say.detail], ["Um plano de 3 passos para revisar.", words]);
   assert.equal(planRequests.length, 2, "one more round, for the answer");
-  assert.deepEqual(planRequests[1].tool_choice, { type: "none" }, "which may call no tool");
+  assert.deepEqual(
+    planRequests[1].tool_choice,
+    planRequests[0].tool_choice,
+    "asked as the plan's round was: a change of tool choice would write the messages to the cache again",
+  );
   const told = JSON.stringify(planRequests[1].messages);
   readerCache.clear();
   const planWords = await planWordsOf(offer());
