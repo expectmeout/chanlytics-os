@@ -28,7 +28,6 @@ import {
   usageOf,
   usageTokens,
   aiUsageBodyOf,
-  usageMonthOf,
 } from "@chanlytics/contracts";
 import { repoFiles, parse } from "../_ast.mjs";
 
@@ -192,31 +191,4 @@ test("what each model takes: every model the registry lists has a row, of thinki
   assert.deepEqual([...MODEL_TAKES[MODELS.OPUS_5_5].thinking], ["adaptive"]);
   assert.ok(MODEL_TAKES[MODELS.SONNET_5_5].thinking.includes("between_tools"), "Sonnet 5.5's lowest");
   assert.equal(modelTakes("claude-some-model-9"), null);
-});
-
-test("a month's usage totals the model calls, their dollars, the call seconds and the conversations", () => {
-  const line = (over) => ({
-    meter: "model",
-    purpose: "ask",
-    model: MODELS.OPUS_5_5,
-    uses: 1,
-    quantity: 0,
-    input_tokens: 0,
-    output_tokens: 0,
-    cache_read_tokens: 0,
-    cache_write_tokens: 0,
-    usd: null,
-    ...over,
-  });
-  const m = usageMonthOf("2026-09", [
-    line({ uses: 3, quantity: 900, usd: 0.012 }),
-    line({ purpose: "receptionist", uses: 2, quantity: 400, usd: 0.0031 }),
-    line({ meter: "voice_seconds", purpose: null, model: null, uses: 2, quantity: 190 }),
-    line({ meter: "wa_conversation", purpose: null, model: null, uses: 4, quantity: 4 }),
-  ]);
-  assert.deepEqual(
-    [m.model_calls, m.model_tokens, m.model_usd, m.voice_seconds, m.wa_conversations],
-    [5, 1_300, 0.0151, 190, 4],
-  );
-  assert.equal(usageMonthOf("2026-09", []).model_usd, null, "nothing priced is not zero dollars");
 });

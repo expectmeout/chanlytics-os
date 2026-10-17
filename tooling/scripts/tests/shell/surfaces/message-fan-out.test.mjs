@@ -1155,7 +1155,6 @@ test("every surface a page names to useSurface is a real one: a key that is no o
   const real = new Set(REAL.map((o) => o.key));
   const named = [];
   for (const file of repoFiles(["apps/dashboard/src/legacy"], { keep: /.jsx$/ })) {
-    if (file.includes("/legacy/demo/")) continue;
     const sf = parse(file);
     const visit = (n) => {
       if (

@@ -185,8 +185,8 @@ if (getActiveWorkspace())
   });
 
 // The mockup's own data-before-mount contract (boot gate). The seeded people (CLIENTS), the Agents roster and the
-// seeded Today (FLEET_DATA, CHANLY_DATA) are the demo's, loaded only in a demo session (manifest-demo.ts), and so is the
-// seeded Inbox (INBOX_DATA): a real session's is its first read's, which no page waits on to mount (X6-1).
+// seeded Today (FLEET_DATA, CHANLY_DATA) went with the mockup's pages (17 Oct 2026); the seeded Inbox (INBOX_DATA) is a
+// demo session's alone: a real session's is its first read's, which no page waits on to mount (X6-1).
 const REQUIRED = ["CHANLY", "POLICY", "ChanlyticsApp"] as const;
 
 // leadsOverride rides beside peopleOverride: Leads is the other scope of that page.

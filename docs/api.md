@@ -13,7 +13,7 @@ once per key for a day: the same request sent again is given the first answer an
 another request (another method, path or body) is refused with 422, and one that arrives while the first still runs
 with 409 (decision 0035). A write that keeps its own key, or has no workspace to keep one in, says so.
 
-284 handlers in 50 domains.
+281 handlers in 49 domains.
 
 ## activity
 
@@ -881,12 +881,6 @@ Writes; for a member of the workspace the request names, partner or above; count
 | `exclusions` | array of object | yes | at most 8 |
 | `thread_id` | any | no |  |
 
-### `GET /api/v1/lead-searches/[id]`
-
-Reads; for a member of the workspace the request names; no rate bucket; spends nothing.
-
-Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/lead-searches/[id]/route.ts`).
-
 ### `PATCH /api/v1/lead-searches/[id]`
 
 Writes; for a member of the row's own workspace, operator or above; counts against the `lead_member` rate; spends nothing.
@@ -1204,12 +1198,6 @@ Writes; for a member of the workspace the request names, partner or above; count
 Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/lines/search/route.ts`).
 
 ## mailbox-connections
-
-### `GET /api/v1/mailbox-connections`
-
-Reads; for a member of the workspace the request names; no rate bucket; spends nothing.
-
-Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/mailbox-connections/route.ts`).
 
 ### `PATCH /api/v1/mailbox-connections/[id]`
 
@@ -2335,16 +2323,6 @@ Writes; for a member of the workspace the request names, operator or above; coun
 Reads; for a member of the workspace the request names; counts against the `aggregate` rate; spends nothing.
 
 Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/today/route.ts`).
-
-## usage
-
-### `GET /api/v1/usage`
-
-Reads; for a member of the workspace the request names, owner or above; counts against the `aggregate` rate; spends nothing.
-
-| Query field | Type | Required | Limits |
-| --- | --- | --- | --- |
-| `month` | string | no | matches `^\d{4}-(0[1-9]\|1[0-2])$` |
 
 ## views
 

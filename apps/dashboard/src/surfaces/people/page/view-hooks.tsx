@@ -51,8 +51,8 @@ export function usePeopleView({
 /**
  * The phone's list picker (the rail, as a sheet), and the New list box. The shell's and a profile's "New list" is an
  * address (`clients/new-list`) that opens the box from the first draw; on a phone the sheet comes up with it, since the rail
- * it sits in is not drawn there. Nothing is sent over the window for it: segments:new had one sender, the mockup's seeded
- * Lists page (demo/pages/segments.jsx), and People never heard it from anything real.
+ * it sits in is not drawn there. Nothing is sent over the window for it: segments:new had one listener, the mockup's
+ * seeded Lists page, deleted on 17 Oct 2026, and People never heard it from anything real.
  */
 export function usePeopleSheets(newList: boolean, savedId: string | null) {
   const [listsOpen, setListsOpen] = useState(() => !!newList && plPhoneNow());

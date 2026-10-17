@@ -76,9 +76,8 @@ export {
   usageTokens,
   usageOf,
   aiUsageBodyOf,
-  usageMonthOf,
 } from "./usage";
-export type { ModelUsage, ModelPrice, ModelCallOutcome, AiUsageBody, UsageMonthDto } from "./usage";
+export type { ModelUsage, ModelPrice, ModelCallOutcome, AiUsageBody } from "./usage";
 export {
   DATA_NOT_INSTRUCTIONS,
   PROFILE_NAME_MAX,

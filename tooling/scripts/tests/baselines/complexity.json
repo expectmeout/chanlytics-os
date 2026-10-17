@@ -44,61 +44,6 @@
     "branches": 12,
     "depth": 1
   },
-  "apps/dashboard/src/legacy/demo/pages/agent-fleet.jsx::FleetDetail#1": {
-    "lines": 320,
-    "branches": 29,
-    "depth": 0
-  },
-  "apps/dashboard/src/legacy/demo/pages/agent-store.jsx::AgentStore#1": {
-    "lines": 173,
-    "branches": 10,
-    "depth": 0
-  },
-  "apps/dashboard/src/legacy/demo/pages/agent-store.jsx::InstallModal#1": {
-    "lines": 197,
-    "branches": 22,
-    "depth": 1
-  },
-  "apps/dashboard/src/legacy/demo/pages/agent-studio.jsx::ComposeMode#1": {
-    "lines": 168,
-    "branches": 13,
-    "depth": 0
-  },
-  "apps/dashboard/src/legacy/demo/pages/agent-studio.jsx::ConnectMode#1": {
-    "lines": 841,
-    "branches": 132,
-    "depth": 0
-  },
-  "apps/dashboard/src/legacy/demo/pages/content-cal.jsx::ContentPage#1": {
-    "lines": 153,
-    "branches": 5,
-    "depth": 0
-  },
-  "apps/dashboard/src/legacy/demo/pages/dashboard-a-ask.jsx::AskBarSeed#1": {
-    "lines": 264,
-    "branches": 28,
-    "depth": 3
-  },
-  "apps/dashboard/src/legacy/demo/pages/dashboard-a-ask.jsx::askAnswerFor#1": {
-    "lines": 268,
-    "branches": 94,
-    "depth": 3
-  },
-  "apps/dashboard/src/legacy/demo/pages/segments.jsx::SegmentDetail#1": {
-    "lines": 249,
-    "branches": 35,
-    "depth": 1
-  },
-  "apps/dashboard/src/legacy/demo/pages/segments.jsx::SegmentsPage#1": {
-    "lines": 236,
-    "branches": 14,
-    "depth": 0
-  },
-  "apps/dashboard/src/legacy/demo/pages/tasks.jsx::TasksPage#1": {
-    "lines": 249,
-    "branches": 20,
-    "depth": 0
-  },
   "apps/dashboard/src/server/ask/loop.ts::runAskTurn#1": {
     "lines": 409,
     "branches": 65,

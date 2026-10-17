@@ -634,7 +634,8 @@ function journeyStageLine(stage: LifecycleStage, group: LifecycleGroup | undefin
 }
 
 /**
- * The journey as Campaigns' home draws it (contracts campaignsHomeOf), its rail as data: the playbooks and the broadcasts
+ * The customer journey, as the home Campaigns drew until decision 0060's S6 composed it (contracts campaignsHomeOf), its
+ * rail as data: the playbooks and the broadcasts
  * read as the page's surfaces answer from them, through the surface's own reading of GET playbooks' answer (contracts
  * lifecyclePlaybooksOf, cmp/home/use-home.ts), and the channels for the WhatsApp line First contact is answered on, so
  * the number Ask says is the page's (the rail's own `covered` of `of`); and the guide (contracts journeyGuide), what each
@@ -714,7 +715,7 @@ async function readColdEmails(t: ToolContext): Promise<unknown> {
  * the Sequences page lists them (list) and one as its record shows it (sequence); the moments a sequence can start at,
  * with who each names and the autonomy modes (moments, once playbooks); who a send can go to and the messages it may use
  * (lists, once audiences); the Library whole (messages); what went out and one batch of it (sent and batch, once
- * broadcasts and broadcast); the journey as Campaigns' home draws it (journey); and the cold email sequences (cold_emails).
+ * broadcasts and broadcast); the customer journey (journey); and the cold email sequences (cold_emails).
  */
 export const sequencesTool = defineActions({
   name: "sequences",
@@ -783,7 +784,7 @@ export const sequencesTool = defineActions({
       examples: [{}],
       label: "Reading the journey",
       words:
-        "Action journey reads the customer journey as Campaigns' home draws it: how many of its moments are covered (covered, of), then each stage in the order a customer passes it (first contact, the day before and the day after an appointment, which need a calendar, a proposal waiting where deals are on, quiet or lapsed) with whether it is covered, its state, the moment a sequence on it starts from and the sequences that stand on it; and guide, what each touch point sends and when. An offer or a whole setup is one call of propose_plan with action offer, which reads the journey itself and makes the steps, never a sequence proposed stage by stage from this read.",
+        "Action journey reads the customer journey: how many of its moments are covered (covered, of), then each stage in the order a customer passes it (first contact, the day before and the day after an appointment, which need a calendar, a proposal waiting where deals are on, quiet or lapsed) with whether it is covered, its state, the moment a sequence on it starts from and the sequences that stand on it; and guide, what each touch point sends and when. An offer or a whole setup is one call of propose_plan with action offer, which reads the journey itself and makes the steps, never a sequence proposed stage by stage from this read.",
       run: readJourney,
     }),
     cold_emails: readAction({

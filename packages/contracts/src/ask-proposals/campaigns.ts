@@ -281,7 +281,7 @@ export const playbookChannelsSpec: ProposalSpec = {
     },
     receipt: () => "Its channels are as they were",
   },
-  // Its drawer on Campaigns' home, where the Goes by row shows what it goes by now.
+  // Its sequence (`campaigns/moment:<id>` lands on it), where its record shows what it goes by now.
   open: ({ payload }) => {
     const id = idIn(payload, "playbook_id");
     return id ? `campaigns/moment:${id}` : "outbound";

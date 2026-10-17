@@ -367,7 +367,7 @@ test("a change's delivery that fails for good is the platform's: the operator is
   // in the customer's words, with nothing they could do about it.
   const delivery = (id, attempts) => ({
     ...job(id, "event_deliver", attempts),
-    payload: { event_id: "e-1", subscriber: "audit", kind: "message.received" },
+    payload: { event_id: "e-1", subscriber: "owner_notice", kind: "escalation.opened" },
   });
   const { ports, calls, logged } = fakes([delivery("d", MAX_ATTEMPTS)], { throwOn: new Set(["d"]) });
   const counts = await runTick(ports, OPTS);
@@ -378,11 +378,15 @@ test("a change's delivery that fails for good is the platform's: the operator is
   );
   assert.deepEqual(calls.alert, [], "no notice of its own: nothing an owner can act on");
   assert.equal(calls.page.length, 1);
-  assert.equal(calls.page[0].key, "event_deliver_failed:audit", "one condition per subscriber, paged once per window");
+  assert.equal(
+    calls.page[0].key,
+    "event_deliver_failed:owner_notice",
+    "one condition per subscriber, paged once per window",
+  );
   assert.equal(calls.page[0].subject, "A change was not passed on to what reads it");
   assert.match(
     calls.page[0].body,
-    /^The delivery of event e-1 \(message\.received\) to the audit subscriber failed for good in workspace t1: boom d\./,
+    /^The delivery of event e-1 \(escalation\.opened\) to the owner_notice subscriber failed for good in workspace t1: boom d\./,
   );
   assert.match(calls.page[0].body, /from event_deliveries where state = 'failed'/, "and where to look");
   assert.match(calls.page[0].body, /Reference: job d \(event_deliver\)\.$/);

@@ -17,8 +17,8 @@ within seconds from the business's own facts, offers the times that are open,
 sends the booking link, and hands over anything it should not decide. A team
 watches it from a dashboard, takes a thread over, whispers into a live call,
 and hands it back. The finder searches for new leads on the owner's behalf and
-judges each one against what they asked for. Playbooks and broadcasts send the
-routine messages around an appointment, to people who said yes.
+judges each one against what they asked for. Sequences send the routine
+messages around an appointment, to people who said yes.
 
 Three things it never does, enforced in code rather than in a prompt: it never
 decides money, it never quotes a price where the workspace forbids it, and it
@@ -408,12 +408,10 @@ honest:
   number is not.
 
 The unbuilt surfaces (agent fleet, store, studio, tasks, content, the retired
-deal board) stay in the tree, hidden from every real workspace, by decision.
-They live under `src/legacy/demo/`, with the seeded twin of each real page
-(`demo/pages/broadcasts.jsx` beside `pages/broadcasts.jsx`, and so on), the seeded
-Lists and the seed data only they read, and a real workspace never downloads
-them: `src/legacy-bridge/manifest-demo.ts` lists them, and `manifest.ts` asks
-for it, after its own files, only in a declared demo session. The shell's route names
+deal board) are parked by decision: each address draws the "Not in this release"
+card (`src/legacy/pages/app-routes.jsx`). Their mockups, the seeded Lists and Ask
+palette and the seed data only they read lived under `src/legacy/demo/` until
+17 October 2026 (the closed-loop audit's S2): git keeps them. The shell's route names
 and the API's nouns do not all agree yet; `docs/glossary.md` lists them.
 
 **Where the shell's state lives.** Three kinds, each with one owner:
@@ -686,7 +684,6 @@ apps/dashboard/src/legacy-bridge/
 apps/dashboard/src/legacy/
   components/
   data/
-  demo/
   pages/
 apps/mobile/src/
   app/

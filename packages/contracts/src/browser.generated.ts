@@ -22,7 +22,7 @@ export { DATA_NOT_INSTRUCTIONS, PROFILE_NAME_MAX, fenceActed, fenced, fencedInli
 export { FLAGS, FLAG_MECHANISMS, daysToSunset } from "./ai/flags";
 export { MODELS, MODEL_IDS, MODEL_EFFORTS, MODEL_PURPOSES, MODEL_ROUTES, MODEL_PORTS, MODEL_SPEEDS, MODEL_TAKES, FAST_MODE_BETA, THINKING_TYPES, RETELL_MODELS, modelRoute, fallbackModel, shadowPortOf, isModelId, readsAsModel, modelTakes, hasFastMode } from "./ai/models";
 export { MODEL_TURN_WRITE_MS, modelTurnRequestOf, modelTurnResponseOf } from "./ai/turn";
-export { MODEL_PRICES, FAST_MODE_PRICES, MODEL_CALL_OUTCOMES, NO_USAGE, priceOf, usageDollars, usageTokens, usageOf, aiUsageBodyOf, usageMonthOf } from "./ai/usage";
+export { MODEL_PRICES, FAST_MODE_PRICES, MODEL_CALL_OUTCOMES, NO_USAGE, priceOf, usageDollars, usageTokens, usageOf, aiUsageBodyOf } from "./ai/usage";
 export { foldWordsMessages, isWordsMessage, wordsMessage } from "./ai/words-message";
 export { RUN_VERBS, PLAYBOOK_CARD_REFUSALS, PLAYBOOK_CARD_WORDS, MESSAGE_WORDS, proposalChannelsWords, stepOfferWords, twinRunsWords } from "./ask-proposals/campaigns";
 export { ASK_VIEW_PAGE, ASK_FOLLOW_UPS_MAX, FOLLOW_UP_SAID_MAX, FOLLOW_UP_PROMPT_MAX, FOLLOW_UP_WAKES, followUpsOf, followUpDue, ASK_STYLE_PAGE, ASK_STYLE_MAX, answerStyleOf } from "./ask-proposals/follow-ups";
@@ -264,7 +264,7 @@ export { campaignsHomeOf, lifecycleKicker } from "./playbooks/lifecycle/lifecycl
 export { lifecyclePlaybooksOf, whatsappLineOf } from "./playbooks/lifecycle/lifecycle-inputs";
 export { LEDGER_STATUSES, chainResultsOf, chainResumeOf, isLedgerCampaign, ledgerRowIn, lifecycleChainsOf, sentResultsOfSource } from "./playbooks/lifecycle/lifecycle-ledger";
 export { reachCountsOf } from "./playbooks/lifecycle/lifecycle-tiles";
-export { LIFECYCLE_WORDS, LIFECYCLE_TOAST, channelsGoesByWords, lifecycleChainStateOf, lifecycleStateOf, momentHoldsWords } from "./playbooks/lifecycle/lifecycle-words";
+export { LIFECYCLE_WORDS, LIFECYCLE_TOAST, channelsGoesByWords, lifecycleChainStateOf, lifecycleStateOf } from "./playbooks/lifecycle/lifecycle-words";
 export { poolWords, reachLines, runDayPassed, runApprovalRefusal, runDaysAt, waitingRunOffer, toApprovalVM } from "./playbooks/playbook-approval";
 export { WHATSAPP_VERSION_ALONE, campaignChannelsOf, playbookChannelsRead } from "./playbooks/playbook-channels";
 export { PLAYBOOK_CALENDAR_UNREAD, playbookFailedAbout, playbookFailedWords } from "./playbooks/playbook-failed";

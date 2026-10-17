@@ -11,8 +11,6 @@
  *   aiFailuresHour        the workspaces whose model calls or receptionist turns failed at least `min` times in the
  *                         last hour (ai_failures_hour): what the health sweep pages on.
  *   purgeAiUsage          the rows past their keep (ai_usage_purge).
- *   usageMonth            a workspace's month of metered use by meter, purpose and model (ai_usage_month), on the
- *                         caller's client: RLS decides whose rows it sums.
  *
  * And what a row of it names (decision 0039; 00401 model_prompts, model_turns):
  *
@@ -115,35 +113,4 @@ export async function scrubModelTurns(db: Db, tenantId: string, needles: readonl
   if (error && (error.code === "PGRST202" || error.code === "42883")) return 0;
   if (error) throw new Error(`model_turns_scrub: ${error.message}`);
   return data ?? 0;
-}
-
-export interface UsageMonthRow {
-  meter: "model" | "voice_seconds" | "wa_conversation";
-  purpose: string | null;
-  model: string | null;
-  uses: number;
-  quantity: number;
-  input_tokens: number;
-  output_tokens: number;
-  cache_read_tokens: number;
-  cache_write_tokens: number;
-  usd: number | null;
-}
-
-export async function usageMonth(db: Db, tenantId: string, month: string): Promise<UsageMonthRow[]> {
-  const { data, error } = await db.rpc("ai_usage_month", { p_tenant_id: tenantId, p_month: month });
-  if (error) throw new Error(`ai_usage_month: ${error.message}`);
-  const n = (v: unknown): number => (Number.isFinite(Number(v)) ? Number(v) : 0);
-  return (data ?? []).map((r) => ({
-    meter: r.meter as UsageMonthRow["meter"],
-    purpose: r.purpose ?? null,
-    model: r.model ?? null,
-    uses: n(r.uses),
-    quantity: n(r.quantity),
-    input_tokens: n(r.input_tokens),
-    output_tokens: n(r.output_tokens),
-    cache_read_tokens: n(r.cache_read_tokens),
-    cache_write_tokens: n(r.cache_write_tokens),
-    usd: r.usd === null || r.usd === undefined ? null : n(r.usd),
-  }));
 }

@@ -14,8 +14,8 @@ import { homeHref, lastWorkspace, notifyAddress, setAppRouter } from "./workspac
  * Client-only mount for the legacy tree: module-scope code in the mockup
  * touches document/window at import time, so SSR/prerender must never
  * evaluate it (Blueprint §7 — the (os) surfaces are client-rendered).
- * `seed-globals.ts` and the shell's files in particular read `window` at module scope (so does the demo's
- * `demo/data/people-data.jsx`); dropping ssr:false would throw during prerender.
+ * `seed-globals.ts` and the shell's files in particular read `window` at module scope; dropping ssr:false would throw
+ * during prerender.
  *
  * The fallback below is the FIRST thing every visitor sees, for the whole
  * duration of the chunk download. It used to be hardcoded `#93a5a0` on the
