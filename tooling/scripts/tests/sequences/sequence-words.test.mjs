@@ -40,8 +40,6 @@ import {
 
 const TZ = "America/New_York";
 const NOW = Date.parse("2026-10-14T14:00:00Z");
-/** The business's clock, as the notice takes it. */
-const AT = { tz: TZ, nowMs: NOW };
 const NONE = { waiting: 0, waiting_people: 0, held: 0, to_send: 0, replies: 0, oldest_at: null, batches: [] };
 const FIRST = {
   id: "s1",
