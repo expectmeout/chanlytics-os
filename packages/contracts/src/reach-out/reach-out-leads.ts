@@ -179,6 +179,11 @@ export interface ReachOutLeadTimelineDto {
   sends: ReachOutTimelineSendDto[];
   readings: ReachOutTimelineReadingDto[];
   can_stop: boolean;
+  /**
+   * Their place in the sequence (00455), the one record of where they stand: a leave between steps moves no send of
+   * theirs, so only this says they left. Null before they have one; absent before 00455.
+   */
+  place?: { id: string; state: string; why: string | null; next_at: string | null } | null;
 }
 
 /** What GET reach-outs/leads answers: a search's lines with its chain as Playbooks reads it, or one lead's story. */

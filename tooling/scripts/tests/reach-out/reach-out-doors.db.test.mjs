@@ -634,7 +634,7 @@ test("two claims make one person for one address at once: the other is refused, 
 });
 
 test(
-  "a step's followers: sent the step before long enough ago, not on this step yet, and only those the door would write to (00185)",
+  "a step's followers: sent the step before long enough ago, not on this step yet, and the refused said as refused (00185, 00455)",
   { skip },
   async () => {
     const d = await mailboxRow();
@@ -714,11 +714,13 @@ test(
       ).map((r) => [r.lead_id, r]),
     );
     assert.deepEqual([after[due.lead].mailbox_id, after[abroad.lead].country], [null, "FR"]);
-    // 00185: one the door would refuse never comes back to hold a place at the head of the page.
-    assert.ok(!by[bounced.lead], "any bounce in the chain stops it (C4)");
-    assert.ok(!by[failed.lead], "an email that failed for good stops it too");
+    // 00455: one the door refuses comes back beside the page, said as it is, for the planner to pass over by name, and
+    // never ahead of one it may write to (00185's rule, kept: a refused one holds no place at the page's head).
+    assert.equal(rows[0].lead_id, due.lead, "the one it may write to heads the page");
+    assert.equal(by[bounced.lead].bounced, true, "any bounce in the chain stops it (C4), and says so");
+    assert.equal(by[failed.lead].bounced, true, "an email that failed for good stops it too");
     assert.ok(!by[erased.lead], "an erased email has no follower");
-    assert.ok(!by[wrote.lead], "a reply stops it");
+    assert.equal(by[wrote.lead].facts.wrote_back, true, "a reply stops it, and says so");
     assert.deepEqual(
       ok(
         await db.rpc("reach_out_followers", {

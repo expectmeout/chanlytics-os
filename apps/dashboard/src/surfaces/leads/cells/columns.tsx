@@ -99,12 +99,20 @@ const LeadRowActions = ({
   </span>
 );
 
-/** Where this business stands in the reach-out writing to the open search (Part 6, H8), or nothing. */
+/**
+ * Where this business stands in the sequence writing to the open search (Part 6, H8), in the words the lead sheet and
+ * the record use (the refined canvas: Held, Waits for your OK, For you to send, Up next, In it, Wrote back, Left), or
+ * nothing while the sequence has done nothing with it.
+ */
+const ldPlaceWords = (l: LeadRowVM, x: LeadCellCtx | null | undefined): string | null => {
+  const place = x && x.reachOut && l.cls !== "excluded" ? x.reachOut.placeOf(l.id) : null;
+  return place ? (place.line ? `${place.word} · ${place.line}` : place.word) : null;
+};
 const ldReachOutLine = (l: LeadRowVM, x: LeadCellCtx | null | undefined) => {
-  const line = x && x.reachOut && l.cls !== "excluded" ? x.reachOut.lineOf(l.id) : null;
-  return line ? (
+  const words = ldPlaceWords(l, x);
+  return words ? (
     <div className="cl-row-meta" data-testid="lead-reach-out-line">
-      {line}
+      {words}
     </div>
   ) : null;
 };
@@ -146,7 +154,7 @@ export const LEAD_COLUMNS: readonly TableColumn<LeadRowVM, LeadCellCtx>[] = [
     cell: ldBusinessCell,
   },
   // Beside the name (Reach out Part 6, H8: "Columns puts the Stage beside the name"), with, while a reach-out writes to the
-  // open search, the line that says where this business stands in it (contracts reachOutLineOf, x.reachOut).
+  // open search, where this business stands in it, in Sequences' words (contracts leadLinePlaceOf, x.reachOut).
   {
     key: "stage",
     label: "Stage",
@@ -333,7 +341,7 @@ const ldCardCell = (l: LeadRowVM, x: LeadCellCtx, pick?: RowPick) => {
         ? l.fitLabel
         : l.cls === "review" && x && x.sectioned
           ? l.sub
-          : (x && x.reachOut && x.reachOut.lineOf(l.id)) || l.waitsOn || ldPeopleOf(l, x)?.line || l.sub,
+          : ldPlaceWords(l, x) || l.waitsOn || ldPeopleOf(l, x)?.line || l.sub,
     leadTestid: "lead-sub",
     swipe: slides
       ? touchSwipe({

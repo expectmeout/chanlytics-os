@@ -7,18 +7,22 @@
  * walks the list, a record and its tabs. The list's pane is drawn by Sent's sheets too, a run's, To send and Get their
  * yes standing beside it at their own addresses (broadcasts/broadcasts-page.tsx). Its head is Campaigns' own, as Messages'
  * is: the name, the strip of views, and New beside it (a phone's round + by the strip), the list keeping its search alone.
+ * Opened from a lead (the lead sheet's hand-off), the head's way back names the lead and returns to it, across a record's
+ * tabs; a new sequence to leads is the composer, on a list or for the lead (new-for-leads.tsx).
  */
 import { CAMPAIGN_ROOMS, SEQUENCES_ROUTE, SEQUENCE_WORDS, parseSequencesRoute } from "@chanlytics/contracts";
 import { Button } from "../../kit/button/button";
 import { EmptyState, FailedRead } from "../../kit/empty/empty";
 import { useStanding } from "../../kit/head/standing";
 import { Icon } from "../../kit/icon/icon";
-import { gate, routeDoor } from "../../legacy-verbs";
+import { gate, navigate, routeDoor } from "../../legacy-verbs";
 import { useSurface } from "../../use-surface";
 import { CmSplit } from "../parts/split";
 import { SequencesList } from "./list";
 import { NewSequence } from "./new";
+import { NewForLeads } from "./new-for-leads";
 import { SequenceRecord } from "./record";
+import { recordBackOf, tripNow } from "./trip";
 import "./sequences.css";
 
 /** The list's pane: reading, failed, empty, or the sequences, `openId` the one open beside it. */
@@ -56,16 +60,30 @@ const newAct = () => (
   </Button>
 );
 
+/** The way back to the lead a trip came from: by the lead's name where Leads said it, else Leads. */
+function backWayOf(back: string | null) {
+  if (!back) return null;
+  const t = tripNow();
+  return { label: (t && t.leadName) || SEQUENCE_WORDS.backToLeads, go: () => navigate(back) };
+}
+
 export function SequencesPage({ route }: { route: string }) {
   const place = parseSequencesRoute(route) ?? { view: "list" as const };
-  // Campaigns' head, the view's name in the strip under it: no way back above it, and New beside the strip until one is
-  // being made.
-  useStanding({ title: CAMPAIGN_ROOMS.home, back: null, act: place.view === "new" ? null : newAct() });
+  // A record keeps the way back it was opened with while its tabs change; the list and New say only their own.
+  const held = recordBackOf(place.view === "record" ? place.id : null, place.back ?? null);
+  const back = place.view === "record" ? held : (place.back ?? null);
+  // Campaigns' head, the view's name in the strip under it: no way back above it but the lead a trip came from, and New
+  // beside the strip until one is being made.
+  useStanding({ title: CAMPAIGN_ROOMS.home, back: backWayOf(back), act: place.view === "new" ? null : newAct() });
   const open =
     place.view === "record" ? (
       <SequenceRecord id={place.id} tab={place.tab} day={place.day ?? null} />
     ) : place.view === "new" ? (
-      <NewSequence />
+      place.leads ? (
+        <NewForLeads leads={place.leads} back={back} />
+      ) : (
+        <NewSequence />
+      )
     ) : null;
   return (
     <CmSplit

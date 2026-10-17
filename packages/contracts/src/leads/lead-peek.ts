@@ -114,8 +114,11 @@ export interface LeadPeekVM {
   weekSummary: string;
   /** "5 checks passed · 2 couldn't tell": the name of the verdict's evidence bar. */
   checksSummary: string;
-  /** One segment per check, in the order they were made: the verdict's evidence bar, so the shape of the evidence reads at a glance. */
-  checkDots: ("yes" | "unknown" | "no")[];
+  /**
+   * One segment per check, in the order they were made: the verdict's evidence bar, so the shape of the evidence reads at
+   * a glance; each with how it was known (seen on the listing, or read by Claude), which shades it.
+   */
+  checkDots: { answer: "yes" | "unknown" | "no"; how: "seen" | "read" }[];
   /** "#19 on Google Maps · Sep 20": the line the trace folds under. */
   foundSummary: string;
   /** "1.2 mi", from the search's centre; "" when the search has none. */
@@ -410,7 +413,7 @@ export function toLeadPeekVM(r: LeadRowDto, search: LeadSearchDto | null, tz: st
     weekSummary: leadWeekSummary(week),
     facts,
     checksSummary,
-    checkDots: m.checks.map((c) => c.answer),
+    checkDots: m.checks.map((c) => ({ answer: c.answer, how: c.how })),
     distance: milesLabel(m.distance_m),
     name: r.business_name,
     about: r.about ?? null,

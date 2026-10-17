@@ -61,7 +61,19 @@ test("a step taken away and people taken out say what the door did, and keep no 
     params: { id: SEQ },
     body: { enrollment_ids: ["e1", "e2"] },
   });
-  assert.equal(verbSpec("sequence_leave").receipt(null, { left: 0 }), "Nobody was still in it");
+  assert.equal(verbSpec("sequence_leave").receipt({ payload: {} }, { left: 0 }), "Nobody was still in it");
+  // A lead on its list that nothing has been planned for yet comes off it through the same door (00455).
+  assert.deepEqual(commit("sequence_leave", { sequence_id: SEQ, lead_ids: ["l1", null] }), {
+    route: "POST sequences/[id]/leave",
+    params: { id: SEQ },
+    body: { enrollment_ids: [], lead_ids: ["l1"] },
+  });
+  assert.equal(verbSpec("sequence_leave").receipt({ payload: { lead_ids: ["l1"] } }, { left: 1 }), "1 lead taken out");
+  assert.equal(
+    verbSpec("sequence_leave").receipt({ payload: { enrollment_ids: ["e1", "e2"] } }, { left: 2 }),
+    "2 people taken out",
+  );
+  assert.ok("refused" in commit("sequence_leave", { sequence_id: SEQ }), "nobody named is no leave");
 });
 
 test("a leave's undo puts them back through its own door, and says what stays out (00450)", () => {

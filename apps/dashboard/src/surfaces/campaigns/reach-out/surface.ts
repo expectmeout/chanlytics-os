@@ -15,6 +15,7 @@ import {
   REACH_OUT_PREVIEW_WORDS,
   REACH_OUT_ROW_WORDS,
   REACH_OUT_SHEET_PARTS,
+  REACH_OUT_NEW_LIST_WORDS,
   REACH_OUT_SHEET_WORDS,
   firstNameOf,
   paceWords,
@@ -29,6 +30,7 @@ import {
   reachOutDoorOf,
   reachOutDraftIssues,
   reachOutDraftOf,
+  reachOutVersionDraftOf,
   reachOutDropStep,
   reachOutMayAddStep,
   reachOutRunMoving,
@@ -58,7 +60,6 @@ import {
   stepLabelOf,
   HAND_WORDS_MAX,
   REACH_OUT_STOP_WORDS,
-  reachOutLineOf,
   reachOutStripOf,
   reachOutTimelineOf,
   reachOutStandingOf,
@@ -94,6 +95,7 @@ import {
   type ReachOutReachDto,
   type ReachOutSourceDto,
   type BroadcastDetailDto,
+  leadLinePlaceOf,
 } from "@chanlytics/contracts";
 import { api, read } from "@/legacy-bridge/api";
 import { readCache } from "@/legacy-bridge/read-cache";
@@ -296,7 +298,9 @@ export const reachOuts = {
   /** Where a lead stands in its reach-out, the one line every page says (00426), by the business's clock. */
   standingOf: (t: ReachOutLeadTimelineDto) => reachOutStandingOf(t, Date.now(), businessZone()),
   /** A lead's line under its stage, the strip and the peek's block, by the business's clock. */
-  lineOf: (line: ReachOutLeadLineDto): string | null => reachOutLineOf(line, Date.now(), businessZone()),
+  /** A row's place in the sequence, in the words the lead sheet and the record use (contracts leadLinePlaceOf). */
+  placeOf: (line: ReachOutLeadLineDto, chainWaits: boolean) =>
+    leadLinePlaceOf(line, chainWaits, Date.now(), businessZone()),
   stripOf: (d: ReachOutLeadsDto) => (d.lines ? reachOutStripOf(d.lines, d.chain, Date.now(), businessZone()) : null),
   timelineOf: (t: ReachOutLeadTimelineDto) => reachOutTimelineOf(t, Date.now(), businessZone()),
   /** What the business wrote back to an email its owner sent, as the owner says it on the lead (00429). */
@@ -393,6 +397,7 @@ export const reachOuts = {
     REACH_OUT_ROW_WORDS,
     REACH_OUT_SHEET_PARTS,
     REACH_OUT_SHEET_WORDS,
+    REACH_OUT_NEW_LIST_WORDS,
     chainHintOf,
     chainPaceOf,
     chainPathWords,
@@ -415,6 +420,7 @@ export const reachOuts = {
     reachOutDoorOf,
     reachOutDraftIssues,
     reachOutDraftOf,
+    reachOutVersionDraftOf,
     reachOutDropStep,
     reachOutMayAddStep,
     reachOutMayPickMailbox,

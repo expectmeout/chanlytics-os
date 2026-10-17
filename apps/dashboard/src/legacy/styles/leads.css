@@ -1304,10 +1304,10 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
   color: var(--warn-ink);
 }
 
-/* ---- The lead sheet (canvas B v2, "The Workbench"; sheet/sheet.tsx): every lead opened on Leads ----
-   A desk's panel beside the rows, or a phone's sheet with two rests over them: the card to decide on (who, the reason,
-   what it rests on, how to reach them, the email or the state's own block), the five tabs under it, and the rail at the
-   foot. The canvas's own parts (its lb-*), on the product's tokens. */
+/* ---- The lead sheet (canvas B v2, "The Workbench"; the refined canvas, 17 Oct 2026; sheet/sheet.tsx) ----
+   A desk's panel beside the rows, or a phone's sheet with two rests over them: the card to decide on (who and where they
+   stand, the reason, what it rests on, how to reach them, the sequence box), the three tabs under it, and the dock at
+   the foot: only what needs you. The canvases' own parts, on the product's tokens. */
 .lw-desk { position: absolute; top: 12px; right: 12px; bottom: 12px; width: 408px; z-index: 10; display: flex; flex-direction: column; border-radius: var(--surface-pane-radius); background: var(--surface-pane-solid); box-shadow: var(--surface-pop-depth); overflow: hidden; animation: pk-in var(--duration-base) var(--ease-out) backwards; }
 @media (prefers-reduced-motion: reduce) { .lw-desk { animation: none; } }
 .lw-scroll { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior-y: contain; padding: 14px 0 12px; }
@@ -1317,7 +1317,7 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
 .lw-in { display: flex; flex-direction: column; margin: 0 calc(-1 * var(--rec-gutter, 0px)); }
 /* The card's small controls keep the canvas's sizes, under the house's 44px floor for a thumb, which their hit area
    meets instead (a margin of nothing round each). */
-.lw-ev-i, .lw-cell, .lw-now, .lw-fit-go, .lw-change, .lw-undo, .lw-opt, .lw-name-go { min-height: 0; min-width: 0; }
+.lw-ev-i, .lw-cell, .lw-now, .lw-fit-go, .lw-change, .lw-undo, .lw-name-go { min-height: 0; min-width: 0; }
 .lw-ev-i, .lw-change, .lw-undo { position: relative; }
 .lw-ev-i::after, .lw-change::after, .lw-undo::after { content: ""; position: absolute; inset: -9px -4px; }
 .lw-full { display: flex; flex-direction: column; }
@@ -1342,6 +1342,10 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
 .lw-id { display: grid; grid-template-columns: 40px minmax(0, 1fr) auto auto; gap: 11px; align-items: center; padding: 0 14px 0 18px; }
 .lw-id-ini { width: 40px; height: 40px; display: grid; place-items: center; border-radius: var(--radius-lg); background: var(--bg-sunken); color: var(--ink-muted); font-size: var(--text-sm); font-weight: var(--weight-semibold); }
 .lw-id-words { display: flex; flex-direction: column; min-width: 0; }
+/* The name and the word for where they stand: the word never wraps, a long name shortens instead. */
+.lw-name-row { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.lw-name-row > .lw-name { min-width: 0; }
+.lw-name-row > :last-child { flex: none; }
 .lw-name { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: var(--text-md); font-weight: var(--weight-semibold); letter-spacing: var(--tracking-tight); line-height: var(--leading-tight); color: var(--ink); }
 .lw-name-go { padding: 0; border: 0; background: none; font: inherit; font-size: var(--text-md); font-weight: var(--weight-semibold); text-align: left; cursor: pointer; }
 .lw-name-go:hover { text-decoration: underline; }
@@ -1404,48 +1408,51 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
 .lw-mail-n.quiet { margin: 10px 18px 0; }
 .lw-mail-w { margin: 7px 0 0; font-size: var(--text-xs); color: var(--ink-dim); }
 
-/* Change, opened in place: the sequences the adds could go to, each with what it would come to here. */
-.lw-opts { display: flex; flex-direction: column; margin-top: 6px; animation: lw-rise var(--duration-base) var(--ease-out) both; }
-.lw-opt { display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 10px; align-items: center; padding: 9px 2px; border: 0; border-top: 1px solid var(--line); background: none; color: var(--ink); font: inherit; text-align: left; cursor: pointer; }
-.lw-opt:first-child { border-top: 0; }
-.lw-radio { box-sizing: border-box; width: 16px; height: 16px; border: 1.5px solid var(--line-strong); border-radius: var(--radius-circle); }
-.lw-opt.on .lw-radio { border: 5px solid var(--accent); }
-.lw-opt-n { display: block; font-size: var(--text-base); font-weight: var(--weight-semibold); }
-.lw-opt-m { display: block; font-size: var(--text-xs); color: var(--ink-dim); }
-.lw-opt-f { display: block; font-size: var(--text-xs); color: var(--ok-ink); }
-.lw-opt-f.warn { color: var(--warn-ink); }
-.lw-opts-foot { margin: 8px 0 0; font-size: var(--text-xs); color: var(--ink-dim); }
+/* The sequence box: Joins, In or Left the sequence, its name a door to its record, Change beside it, and one line of
+   where they stand. */
+.lw-box { margin: 10px 18px 0; padding: 9px 12px 11px 14px; border-radius: var(--radius-xl); background: var(--surface-inset-fill); box-shadow: var(--surface-inset-ring), var(--surface-inset-depth); color: var(--ink); }
+.lw-box-h { display: flex; align-items: center; gap: 6px; min-width: 0; min-height: 30px; font-size: var(--text-sm); color: var(--ink-dim); white-space: nowrap; }
+.lw-box-v { flex: none; }
+.lw-box-door, .lw-box-n { min-width: 0; overflow: hidden; text-overflow: ellipsis; font-weight: var(--weight-semibold); color: var(--ink); }
+.lw-box-change { flex: none; margin-left: auto; }
+.lw-box-l { margin: 2px 0 0; font-size: var(--text-sm); line-height: var(--leading-snug); color: var(--ink-muted); }
 
-/* In a sequence: their steps, done, next and still to come. */
-.lw-track { display: flex; flex-direction: column; gap: 8px; margin: 8px 0 0; padding: 0; list-style: none; }
-.lw-track-i { display: grid; grid-template-columns: 10px minmax(0, 1fr); gap: 10px; align-items: start; font-size: var(--text-sm); color: var(--ink-muted); }
+/* In a sequence: their steps on the record's rail of days, done, next and still to come. */
+.lw-track { display: flex; flex-direction: column; gap: 10px; margin: 4px 0 0; padding: 0; list-style: none; }
+.lw-track-i { display: grid; grid-template-columns: 44px 10px minmax(0, 1fr); gap: 10px; align-items: start; font-size: var(--text-sm); color: var(--ink-muted); }
+.lw-track-d { padding-top: 2px; font-family: var(--font-mono); font-size: var(--text-2xs); color: var(--ink-dim); white-space: nowrap; }
 .lw-track-i i { width: 8px; height: 8px; margin-top: 5px; border-radius: var(--radius-circle); background: var(--line-strong); }
 .lw-track-i.done i { background: var(--ok); }
 .lw-track-i.next i { background: var(--accent); }
 .lw-track-i b { display: block; font-weight: var(--weight-semibold); color: var(--ink); }
 
-/* The rail: the round ✕ and two more, or three words; the third the primary. A sibling of the card, held still. */
-.lw-rail { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr) minmax(0, 1.2fr); gap: 8px; padding: 6px; border-radius: var(--radius-3xl); background: var(--surface-control-fill); box-shadow: var(--surface-control-depth); }
-.lw-rail.x { grid-template-columns: 52px minmax(0, 1fr) minmax(0, 1.5fr); }
-.lw-rail[data-n="2"] { grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); }
-.lw-rail[data-n="1"] { grid-template-columns: minmax(0, 1fr); }
-.lw-rail-b { height: 52px; min-width: 0; justify-content: center; touch-action: manipulation; }
-.lw-rail-b.two { flex-direction: column; gap: 3px; }
-.lw-rail-b small { font-size: var(--text-2xs); font-weight: var(--weight-medium); opacity: 0.82; }
-.lw-rail-w { display: inline-flex; align-items: center; gap: 6px; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-.lw-x { width: 52px; height: 52px; border-radius: var(--radius-circle); }
-.lw-rail[data-busy] { opacity: 0.8; }
-.lw-desk .lw-rail { background: none; box-shadow: none; padding: 0; }
-.lw-desk .lw-rail-b, .lw-desk .lw-x { height: 44px; }
-.lw-desk .lw-x { width: 44px; }
-.lw-desk .lw-rail.x { grid-template-columns: 44px minmax(0, 1fr) minmax(0, 1.5fr); }
-/* In the kit sheet's foot a button takes the foot's height and padding: the rail's places keep the canvas's 52px, and
-   a place of three words wraps to two lines at a phone's width rather than lose its end. */
-.lw-phone .lw-rail .lw-rail-b { height: 52px; padding-inline: 10px; }
-.lw-phone .lw-rail .lw-x { height: 52px; padding: 0; }
-.lw-phone .lw-rail-w { white-space: normal; text-align: center; line-height: 1.2; }
+/* The dock: only what needs you, one line and its fact, a round ✕ where Not a fit is one, and at most two acts; none
+   at all when nothing needs you. A sibling of the card, held still while it turns. */
+.lw-dock { display: flex; align-items: center; gap: 8px; min-height: 56px; padding: 6px 6px 6px 16px; border-radius: var(--radius-3xl); background: var(--surface-control-fill); box-shadow: var(--surface-control-depth); }
+.lw-dock.x { padding-left: 6px; }
+.lw-dock-t { flex: 1; display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.lw-dock-l { display: flex; align-items: center; gap: 7px; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: var(--text-sm); font-weight: var(--weight-semibold); color: var(--ink); }
+.lw-dock-f { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: var(--text-xs); color: var(--ink-dim); }
+.lw-dock-b { flex: none; height: 44px; touch-action: manipulation; }
+.lw-dock[data-busy] { opacity: 0.8; }
+.lw-x { flex: none; width: 44px; height: 44px; padding: 0; border-radius: var(--radius-circle); }
+.lw-desk .lw-dock { background: none; box-shadow: none; padding: 0; min-height: 44px; }
+/* A phone's dock keeps a thumb's 48px in the kit sheet's foot, whose button takes the foot's height otherwise. */
+.lw-phone .lw-dock .lw-dock-b, .lw-phone .lw-dock .lw-x { height: 48px; }
+.lw-phone .lw-dock .lw-x { width: 48px; }
+/* Something being read beside the line: a small ring turning, standing still under reduced motion. */
+.lw-spin { flex: none; width: 12px; height: 12px; border: 2px solid var(--line-strong); border-top-color: var(--accent); border-radius: var(--radius-circle); animation: lw-spin 0.9s linear infinite; }
+@keyframes lw-spin { to { rotate: 1turn; } }
+@media (prefers-reduced-motion: reduce) { .lw-spin { animation: none; } }
+/* A held email's choices, in the dock's place: whose email it is, under the question. */
+.lw-decide-s { margin: -4px 4px 10px; font-size: var(--text-sm); line-height: var(--leading-snug); color: var(--ink-muted); }
 
-/* Not a fit asks why in the rail's own place: five reasons, the last one given marked. */
+/* The Sequence tab: Take out under their steps, and every step and who else is in it, a press away. */
+.lw-take { display: flex; align-items: center; gap: 10px; margin: 14px 0 0; }
+.lw-take-s { min-width: 0; font-size: var(--text-xs); line-height: var(--leading-snug); color: var(--ink-dim); }
+.lw-every { align-self: flex-start; margin: 12px 0 0; font-size: var(--text-sm); }
+
+/* Not a fit asks why in the dock's own place: five reasons, the last one given marked. */
 .lw-why { padding: 12px 12px 10px; border-radius: var(--radius-3xl); background: var(--surface-control-fill); box-shadow: var(--surface-control-depth); animation: lw-rise var(--duration-base) var(--ease-out) both; }
 .lw-desk .lw-why { padding: 0; background: none; box-shadow: none; }
 .lw-why-h { display: flex; align-items: center; gap: 8px; padding: 0 4px 10px; font-size: var(--text-base); font-weight: var(--weight-semibold); color: var(--ink); }
@@ -1459,7 +1466,7 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
 .lw-why-b small { font-size: var(--text-2xs); font-weight: var(--weight-regular); color: var(--ink-dim); }
 .lw-why-b.last { outline: 1px solid var(--accent); outline-offset: -1px; }
 
-/* The pile's line under the rail: what a press did, a polite live region, standing empty before the first. */
+/* The pile's line under the dock: what a press did, a polite live region, standing empty before the first. */
 .lw-said { margin: 0; padding: 0 6px; font-size: var(--text-xs); color: var(--ink-muted); overflow-wrap: anywhere; }
 
 /* The end of the pile: what happened, in rows, and what comes next. */
@@ -1529,7 +1536,7 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
 @keyframes lw-rise { from { transform: translateY(4px); opacity: 0; } }
 @media (prefers-reduced-motion: reduce) {
   .lw-turn { animation: lw-fade var(--duration-base) linear both; }
-  .lw-pane, .lw-opts, .lw-why, .lw-end, .lw-undo, .lw-bubble { animation: none; }
+  .lw-pane, .lw-why, .lw-end, .lw-undo, .lw-bubble { animation: none; }
 }
 @keyframes lw-fade { from { opacity: 0; } }
 

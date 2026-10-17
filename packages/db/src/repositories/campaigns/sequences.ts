@@ -62,6 +62,24 @@ export async function leaveSequence(
 }
 
 /**
+ * Leads a later step passes over (00455 sequence_leads_leave): each one's place in the sequence that still stands ends
+ * with its why, and a send of theirs not yet gone is skipped. Service role only. How many left.
+ */
+export async function leadsLeaveSequence(
+  db: Db,
+  p: { tenantId: string; sequenceId: string; leads: readonly { lead_id: string; why: string }[] },
+): Promise<number> {
+  if (p.leads.length === 0) return 0;
+  const { data, error } = await db.rpc("sequence_leads_leave", {
+    p_tenant_id: p.tenantId,
+    p_sequence_id: p.sequenceId,
+    p_leads: p.leads.map((l) => ({ lead_id: l.lead_id, why: l.why })),
+  });
+  if (error) throw new Error(`cannot pass over the step's leads: ${error.message}`);
+  return typeof data === "number" ? data : 0;
+}
+
+/**
  * The sequences one person is in now (decision 0060, S5: a person's page says them), soonest next first: each with its
  * name, the step they are at and when the next goes. Under the caller's row security.
  */
@@ -413,12 +431,20 @@ export async function setSequenceStepWords(
 /** People taken out of a sequence by a member (00442 sequence_leave): only theirs in that sequence. */
 export async function takeOutOfSequence(
   db: Db,
-  p: { tenantId: string; sequenceId: string; enrollmentIds: readonly string[]; why?: string } & DoorDecision,
+  p: {
+    tenantId: string;
+    sequenceId: string;
+    enrollmentIds: readonly string[];
+    /** Leads on its list that nothing has been planned for yet: they come off the list (00455). */
+    leadIds?: readonly string[];
+    why?: string;
+  } & DoorDecision,
 ): Promise<DoorResult<SequenceDoorAnswer>> {
   const { data, error } = await db.rpc("sequence_leave", {
     p_tenant_id: p.tenantId,
     p_sequence_id: p.sequenceId,
     p_enrollment_ids: [...p.enrollmentIds],
+    ...(p.leadIds && p.leadIds.length > 0 ? { p_lead_ids: [...p.leadIds] } : {}),
     ...(p.why ? { p_why: p.why } : {}),
     ...decided(p),
   });

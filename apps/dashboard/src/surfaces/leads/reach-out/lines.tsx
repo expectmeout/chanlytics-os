@@ -4,12 +4,12 @@
  * the finder's own (how many it has written to, today's count of the day's share, the next email and who it goes to, the
  * domain), each row's Stage cell a line saying where that business stands, and the peek a block with its story and three
  * doors: Read what went out (the person's thread), Stop writing to them, and Read as no · undo. Every sentence is contracts'
- * (reachOutLineOf, reachOutStripOf, reachOutTimelineOf), read through Campaigns' reach-out reads (GET reach-outs/leads); a
+ * (leadLinePlaceOf, reachOutStripOf, reachOutTimelineOf), read through Campaigns' reach-out reads (GET reach-outs/leads); a
  * read that failed draws nothing of it, never a line it did not read. Who may press is the role store's answer (canDo
  * "approve", and the role gate).
  */
 import { useEffect, useMemo, useReducer, useState } from "react";
-import { chainResumeOf } from "@chanlytics/contracts";
+import { LEAD_SHEET_WORDS, chainResumeOf } from "@chanlytics/contracts";
 import type { LeadPeekVM, OwnerSaidIntent, ReachOutLeadTimelineDto, ReachOutLeadsDto } from "@chanlytics/contracts";
 import { replies } from "@/legacy-bridge/reach-out/replies";
 import { ResumeAct } from "../../campaigns/home/resume-act";
@@ -23,17 +23,18 @@ import { canDo, gate, navigate, refusalToast, useLegacyToast } from "../../legac
 import { LeadStrip } from "../finder/strip-view";
 import type { Flash } from "../peek/types";
 
-/** An open search's reach-out: its read, and each lead's line under its stage. */
+/** An open search's reach-out: its read, and each lead's place under its stage, in Sequences' words. */
 export interface ReachOutLines {
   dto: ReachOutLeadsDto;
-  lineOf: (leadId: string) => string | null;
+  /** Where the lead stands in the sequence, as the sheet and the record say it; null where it has done nothing yet. */
+  placeOf: (leadId: string) => ReturnType<typeof reachOuts.placeOf>;
 }
 
 /**
  * An open search's reach-out: its lines, read when the search opens, again as Leads or the reach-outs move (a reply read, a
  * run sent: read-again.ts, at most every thirty seconds and once more at the window's end, so the last of a burst is read;
  * the wiring's second audit, W-campaign-run-template-reachout-8), and at once after a door here moved something. Null while
- * there is none, or it could not be read. Answers the lines with `lineOf(leadId)`, the Stage cell's words.
+ * there is none, or it could not be read. Answers each lead's place with `placeOf(leadId)`, the Stage cell's words.
  */
 export const useReachOutLeads = (searchId: string | null): ReachOutLines | null => {
   const [dto, setDto] = useState<ReachOutLeadsDto | null>(null);
@@ -61,11 +62,12 @@ export const useReachOutLeads = (searchId: string | null): ReachOutLines | null 
   return useMemo(() => {
     if (!dto || !dto.lines) return null;
     const byLead = new Map(dto.lines.leads.map((l) => [l.lead_id, l]));
+    const waits = !!dto.lines.waiting_run_id;
     return {
       dto,
-      lineOf: (id: string) => {
+      placeOf: (id: string) => {
         const l = byLead.get(id);
-        return l ? reachOuts.lineOf(l) : null;
+        return l ? reachOuts.placeOf(l, waits) : null;
       },
     };
   }, [dto]);
@@ -174,13 +176,13 @@ const RoOwnerDoors = ({
 );
 
 /** The block's head and its story: what the reach-out is, where the lead stands, each line, and its stop if any. */
-const RoStory = ({ vm, standing }: { vm: TimelineVM; standing: string | null }) => (
+const RoStory = ({ vm, standing, label }: { vm: TimelineVM; standing: string | null; label?: string }) => (
   <>
     <summary className="pk-box-head">
       <span className="pk-box-line">
         <Icon name="mail" size={12} />
         <span className="pk-box-sum" data-testid="peek-reach-out-label">
-          {vm.label}
+          {label ?? vm.label}
         </span>
         <Icon name="chevron-down" size={12} />
       </span>
@@ -255,11 +257,17 @@ export const LeadReachOutView = ({
   story,
   again: bump,
   flash,
+  inSheet = false,
 }: {
   lead: LeadPeekVM | null;
   story: ReachOutLeadTimelineDto | null;
   again: () => void;
   flash: Flash | null;
+  /**
+   * On the lead sheet's Sequence tab, under their steps (the refined canvas): what went out, by its own name, with no
+   * line of where they stand (the steps say it) and no Stop writing (the sheet's ⋯ holds it).
+   */
+  inSheet?: boolean;
 }) => {
   const [sure, setSure] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -267,7 +275,7 @@ export const LeadReachOutView = ({
   if (!lead || !story || !story.chain) return null;
   const vm = reachOuts.timelineOf(story);
   // Where it stands, the one line every page says (00426): what is next, or what its answer did.
-  const standing = vm.stopped ? null : reachOuts.standingOf(story);
+  const standing = vm.stopped || inSheet ? null : reachOuts.standingOf(story);
   const W = reachOuts.words.REACH_OUT_STOP_WORDS;
   const said = (r: { ok: boolean } | null | undefined, ok: string) => {
     if (flash) flash(r && r.ok ? { tone: "ok", msg: ok } : refusalToast(r as Parameters<typeof refusalToast>[0]));
@@ -309,7 +317,11 @@ export const LeadReachOutView = ({
   };
   return (
     <details className="pk-box" open data-testid="peek-reach-out">
-      <RoStory vm={vm} standing={standing ? standing.line : null} />
+      <RoStory
+        vm={vm}
+        standing={standing ? standing.line : null}
+        label={inSheet ? LEAD_SHEET_WORDS.panes.wentOut : undefined}
+      />
       {sure ? (
         <Confirm
           question={W.ask(story.business_name)}
@@ -333,7 +345,7 @@ export const LeadReachOutView = ({
               {vm.read.label}
             </button>
           ) : null}
-          {vm.stop ? (
+          {vm.stop && !inSheet ? (
             <button
               type="button"
               className="btn btn-ghost btn-sm"

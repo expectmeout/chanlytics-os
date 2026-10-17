@@ -83,4 +83,6 @@ export interface ReachOutStopDto {
   already: boolean;
   skipped: number;
   leaving: number;
+  /** Its places in sequences ended with the stop (00455), where nothing of theirs was on its way; absent before 00455. */
+  left?: number;
 }

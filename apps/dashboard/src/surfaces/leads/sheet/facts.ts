@@ -1,21 +1,25 @@
 /**
  * What the lead sheet draws, worked out once a draw from what the page hands it (sheet.tsx): the lead's card (its
- * reason, marks and email, pile/card.tsx), its state and what stopped, the fit, the reach cells, the rail, its steps in
- * a sequence, what it wrote back, where it stands, and Change's options. Every rule is contracts' (lead-sheet.ts,
- * lead-card.ts); this only gathers their inputs from the page's reads.
+ * reason, marks and email, pile/card.tsx), its state and what stopped, the fit, the reach cells, its steps in a sequence
+ * and its place there, the word beside its name, the sequence box, the dock, what it wrote back, where it stands, and
+ * Change's options. Every rule is contracts' (lead-sheet.ts, lead-sheet-dock.ts, lead-card.ts); this only gathers their
+ * inputs from the page's reads.
  */
 import {
+  leadSheetBoxOf,
   leadSheetCellsOf,
   leadSheetClosedOf,
+  leadSheetDockOf,
   leadSheetEndRailOf,
   leadSheetFitOf,
   leadSheetOptionsOf,
-  leadSheetRailOf,
+  leadSheetPlaceOf,
   leadSheetReplyOf,
   leadSheetStandOf,
   leadSheetStateOf,
   leadSheetStoryOf,
   leadSheetTrackOf,
+  leadSheetWordOf,
   type LeadCardCheck,
   type LeadPeekVM,
   type LeadRowVM,
@@ -23,9 +27,13 @@ import {
   type LeadSheetClosedVM,
   type LeadSheetFitVM,
   type LeadSheetLead,
+  type LeadPlaceVM,
+  type LeadSheetBoxVM,
+  type LeadSheetDockVM,
   type LeadSheetOptionVM,
   type LeadSheetRailVM,
   type LeadSheetState,
+  type LeadWordTone,
   type LeadSheetTrackVM,
   type ReachOutChainDto,
   type ReachOutLeadTimelineDto,
@@ -61,7 +69,13 @@ export interface SheetFacts {
   closed: LeadSheetClosedVM | null;
   fit: LeadSheetFitVM;
   cells: LeadSheetCellVM[];
-  rail: LeadSheetRailVM;
+  /** Their place in the sequence they are in, and the word beside their name. */
+  place: LeadPlaceVM | null;
+  word: { word: string; tone: LeadWordTone };
+  /** The sequence box on the card: the door to the record, and Change. */
+  box: LeadSheetBoxVM;
+  /** Only what needs you; null when nothing does. */
+  dock: LeadSheetDockVM | null;
   track: LeadSheetTrackVM | null;
   reply: string | null;
   stand: { title: string; line: string };
@@ -111,19 +125,34 @@ function cardStateOf(i: SheetInputs) {
   return { card, check, lead, state, blocked, closed };
 }
 
-/** The rail for the lead's state, in its pile or out of one. */
-function sheetRailFor(i: SheetInputs, c: ReturnType<typeof cardStateOf>): LeadSheetRailVM {
+/** Their newest reading that asks for an answer, for the dock's line: what it was read as, and when. */
+const replyOf = (story: ReachOutLeadTimelineDto | null) => {
+  const r = story
+    ? [...story.readings].reverse().find((x) => !x.undone && (x.claim === "person" || x.claim === "owner"))
+    : null;
+  return r ? { intent: r.intent, readAt: r.read_at } : null;
+};
+
+/** The dock for the lead's state and place, in its pile or out of one. */
+function sheetDockFor(
+  i: SheetInputs,
+  c: ReturnType<typeof cardStateOf>,
+  place: LeadPlaceVM | null,
+  nowMs: number,
+): LeadSheetDockVM | null {
   const target = i.aim.target;
-  return leadSheetRailOf({
+  return leadSheetDockOf({
     state: c.state,
+    place,
     pile: i.searchWrites ? "search" : i.pile ? i.pile.mode : null,
     target: target ? target.name : null,
     blocked: c.blocked,
     canCall: c.lead.canCall,
-    canDraft: i.vm.reach.email.canDraft,
     canLater: !!(i.row && i.row.searchId),
     closed: c.closed,
-    monthLeft: i.monthLeft,
+    reply: replyOf(i.story),
+    tz: i.tz,
+    nowMs,
   });
 }
 
@@ -144,7 +173,18 @@ export function sheetFactsOf(i: SheetInputs, nowMs: number): SheetFacts {
   const target = i.aim.target;
   const writes = i.searchWrites;
   const track = c.lead.inSequence && i.story ? leadSheetTrackOf(i.story, nowMs, i.tz) : null;
+  const place = track ? leadSheetPlaceOf(i.story, nowMs, i.tz) : null;
   const canChange = !writes && (!i.pile || i.pile.mode === "list") && (i.aim.targets ?? []).length > 0;
+  const box = leadSheetBoxOf({
+    state: c.state,
+    place,
+    inSequence: track ? { rootId: track.rootId, name: track.name } : null,
+    elsewhere: c.check && c.check.chain_name ? { rootId: c.check.chain_id ?? null, name: c.check.chain_name } : null,
+    target: target ? { rootId: target.rootId, name: target.name } : null,
+    searchWrites: writes ? { rootId: writes.rootId, name: writes.name } : null,
+    canChange,
+    closed: c.closed,
+  });
   return {
     card: c.card,
     check: c.check,
@@ -152,7 +192,10 @@ export function sheetFactsOf(i: SheetInputs, nowMs: number): SheetFacts {
     closed: c.closed,
     fit: leadSheetFitOf(i.vm, c.state),
     cells: leadSheetCellsOf(i.vm),
-    rail: sheetRailFor(i, c),
+    place,
+    word: leadSheetWordOf({ state: c.state, place, closed: c.closed }),
+    box,
+    dock: sheetDockFor(i, c, place, nowMs),
     track,
     reply: leadSheetReplyOf(i.story),
     stand: leadSheetStandOf({

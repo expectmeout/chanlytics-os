@@ -9,6 +9,8 @@ import { runWaitsOnYou } from "../waits/waits.js";
 export const SEQUENCE_WORDS = {
   title: "Sequences",
   newSequence: "New sequence",
+  /** The head's way back to Leads, where a trip from a lead did not say its name. */
+  backToLeads: "Leads",
   search: "Search sequences",
   empty: "Nothing sends on its own yet. A sequence starts at a moment, when someone joins a list, or on a date.",
   failed: "The sequences couldn\u2019t be loaded right now",
@@ -455,6 +457,7 @@ export const PEOPLE_GROUP_WORDS = {
   waiting: "Wait for your OK",
   held: "Held by the check",
   to_send: "For you to send",
+  replied: "Wrote back",
   next: "Up next",
   in: "In it",
   done: "Done",
@@ -475,6 +478,11 @@ export function sequenceLeftWords(why) {
     address_stopped: "address stopped",
     no_channel: "no way to reach them",
     outreach_wrote_back: "wrote back",
+    outreach_stopped: "you stopped writing",
+    outreach_lead_closed: "no longer a lead to write to",
+    outreach_suppressed: "unsubscribed",
+    outreach_bounced: "bounced",
+    outreach_not_a_lead: "no longer in Leads",
     said_no: "said no",
     owner_stopped: "you stopped writing",
     owner_skipped: "you skipped it",

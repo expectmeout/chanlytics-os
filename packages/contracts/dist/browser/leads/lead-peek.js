@@ -182,7 +182,7 @@ export function toLeadPeekVM(r, search, tz, now) {
     weekSummary: leadWeekSummary(week),
     facts,
     checksSummary,
-    checkDots: m.checks.map((c) => c.answer),
+    checkDots: m.checks.map((c) => ({ answer: c.answer, how: c.how })),
     distance: milesLabel(m.distance_m),
     name: r.business_name,
     about: r.about ?? null,

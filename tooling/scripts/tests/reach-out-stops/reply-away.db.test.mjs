@@ -371,14 +371,15 @@ test("the re-created bodies are 00220's and 00185's, but for the away", { skip }
   assert.equal(back, f185);
   // 00241 re-creates both whole with the stop (Reach out Part 6), and what-comes-back.db.test.mjs holds it to these;
   // 00424 makes the followers again with each one's mailbox (a cold email leaves from a connected mailbox, 0056); 00451
-  // writes both again over the sequence tables, which is what the database holds now.
+  // writes both again over the sequence tables; 00455 makes the followers again for someone whose place still stands
+  // (what-comes-back.db.test.mjs holds the change), still leaving out someone away. That is what the database holds now.
   assert.equal(
     liveBody("outreach_lead_facts"),
     bodyIn(migration("00451"), "create or replace function public.outreach_lead_facts("),
   );
   assert.equal(
     liveBody("reach_out_followers"),
-    bodyIn(migration("00451"), "create or replace function public.reach_out_followers("),
+    bodyIn(migration("00455"), "create or replace function public.reach_out_followers("),
   );
 });
 

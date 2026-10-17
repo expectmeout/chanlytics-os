@@ -1,8 +1,9 @@
 /**
  * A sequence's People (Leads for a sequence to leads; the canvas's People board): who is in it, by where they stand, one
  * row per person or lead read from their enrollment (00441), so every screen says the same. What needs you is open at the
- * top: a batch waiting for your OK with the people it holds, and for a sequence to leads the emails the check held and
- * those for you to send, decided in place from the same read (needs.tsx, 00447). Everything else folds to one line that already says its numbers:
+ * top: a batch waiting for your OK with the people it holds, for a sequence to leads the emails the check held and
+ * those for you to send, decided in place from the same read (needs.tsx, 00447), and who wrote back and waits for an
+ * answer, each with the door to their thread (00455's replied group). Everything else folds to one line that already says its numbers:
  * up next, in it, done and left (contracts SEQUENCE_PEOPLE_GROUPS), each opening onto its rows, each row a door to the
  * person or the lead. Someone still in it may be taken out, alone or with the rest of their group: a send of theirs not
  * yet gone is skipped with them (00442 sequence_leave).
@@ -15,6 +16,7 @@ import {
   addressOf,
   clockStamp,
   clockWhen,
+  peopleNeedsOf,
   sequenceLeftWords,
   sequenceRepliesRoute,
   type SequencePeopleGroup,
@@ -165,24 +167,50 @@ export function SequencePeople(p: { rec: SequenceRecordDto; flash: Flash; again:
   const needs = (counts.held ?? 0) + (counts.to_send ?? 0);
   const waiting = of("waiting");
   const folded = FOLDED.filter((g) => (counts[g] ?? 0) > 0);
-  if (needs === 0 && waiting.length === 0 && folded.length === 0 && rec.sequence.needs.replies === 0)
+  const { wroteBack } = peopleNeedsOf(rows, { timezone: rec.timezone, now: nowMs });
+  // From a server before 00455 there is no replied group: the sequence's needs say how many, and the Inbox has them.
+  const replied = wroteBack ? (counts.replied ?? 0) : rec.sequence.needs.replies;
+  if (needs === 0 && waiting.length === 0 && folded.length === 0 && replied === 0)
     return <p className="sq-none">{P.nobody}</p>;
   return (
     <div className="sq-people" data-testid="sq-people">
       <SequenceNeeds rows={rows} count={needs} timezone={rec.timezone} flash={flash} onDecided={moved} />
-      {/* Leads who wrote back, answered where their threads are: the Inbox, its threads that answered this sequence. */}
-      {rec.sequence.needs.replies > 0 ? (
-        <h3 className="sq-group-name" data-testid="sq-people-replied">
-          {N.wroteBack}
-          <span className="tally tally-warn">{rec.sequence.needs.replies}</span>
-          <LinkButton
-            className="sq-group-act"
-            {...routeDoor(sequenceRepliesRoute(rec.sequence.id, "all"))}
-            data-testid="sq-people-inbox"
-          >
-            {N.inbox} <Icon name="chevron" size={11} />
-          </LinkButton>
-        </h3>
+      {/* Who wrote back, answered where their threads are: each one's thread, and the Inbox's threads of this sequence. */}
+      {replied > 0 ? (
+        <section className="sq-group" aria-label={N.wroteBack} data-testid="sq-people-replied">
+          <h3 className="sq-group-name">
+            {N.wroteBack}
+            <span className="tally tally-warn">{replied}</span>
+            <LinkButton
+              className="sq-group-act"
+              {...routeDoor(sequenceRepliesRoute(rec.sequence.id, "all"))}
+              data-testid="sq-people-inbox"
+            >
+              {N.inbox} <Icon name="chevron" size={11} />
+            </LinkButton>
+          </h3>
+          {wroteBack && wroteBack.length > 0 ? (
+            <div className="sq-group-rows">
+              {wroteBack.map((w) => (
+                <ListRow
+                  key={w.key}
+                  face={{ person: { name: w.name }, size: "sm" }}
+                  name={w.name}
+                  said={w.summary ? `${w.said} · ${w.summary}` : w.said}
+                  end={(place) =>
+                    w.answer ? (
+                      <LinkButton className={place} {...routeDoor(w.answer)} data-testid={`sq-answer-${w.key}`}>
+                        {N.answer}
+                      </LinkButton>
+                    ) : null
+                  }
+                  {...(w.to ? routeDoor(w.to) : {})}
+                />
+              ))}
+              {replied > wroteBack.length ? <p className="sq-more">{P.more(replied - wroteBack.length)}</p> : null}
+            </div>
+          ) : null}
+        </section>
       ) : null}
       {waiting.length > 0 ? (
         <section className="sq-group" aria-label={PEOPLE_GROUP_WORDS.waiting} data-testid="sq-people-waiting">

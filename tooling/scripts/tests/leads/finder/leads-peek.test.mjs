@@ -29,7 +29,8 @@ import {
   toLeadPeekVM,
   leadPeekMenu,
 } from "../../../../../packages/contracts/src/leads/leads.ts";
-import { LEAD_SHEET_WORDS } from "../../../../../packages/contracts/src/leads/lead-sheet.ts";
+import { LEAD_SHEET_WORDS } from "../../../../../packages/contracts/src/leads/sheet/lead-sheet.ts";
+import { LEAD_DOCK_WORDS } from "../../../../../packages/contracts/src/leads/sheet/lead-sheet-dock.ts";
 import { hookFrames } from "../../_hook-frames.mjs";
 import { kitPages, useStubHooks } from "../../_legacy-react.mjs";
 
@@ -211,8 +212,8 @@ const tabTo = (P, id) => {
   find(P.draw().tree, (n) => n.type === SubTabs).props.onSelect(id);
   return P.draw().tree;
 };
-// Call opens the ways of calling (LeadCallMenu, the kit's Menu) on the Reach tab: a way is one of its items.
-const callWay = async (P, label) => press(kitItem(tabTo(P, "reach"), "peek-act-call", label));
+// Call opens the ways of calling (LeadCallMenu, the kit's Menu) on the Contact tab: a way is one of its items.
+const callWay = async (P, label) => press(kitItem(tabTo(P, "contact"), "peek-act-call", label));
 const settle = async (n = 6) => {
   for (let i = 0; i < n; i += 1) await new Promise((r) => setTimeout(r, 0));
 };
@@ -497,7 +498,7 @@ const reset = () => {
   delete globalThis.window.ST_STORE;
 };
 /** The words of every tab, for a test that reads all the sheet says. */
-const everyTab = (P) => ["why", "reach", "emails", "about", "activity"].map((id) => textOf(tabTo(P, id))).join(" ");
+const everyTab = (P) => ["why", "contact", "sequence"].map((id) => textOf(tabTo(P, id))).join(" ");
 
 /* ======================================================= who they are ==== */
 
@@ -543,7 +544,7 @@ test("D1-lead-person-door: the name of a lead that became a person opens them in
   assert.equal(textOf(byTestId(plain, "peek-name")), "Travis Heights Coaching Co.");
 });
 
-test("the sheet reads its lead's story once, and a lead no reach-out wrote to draws no block in Activity", async () => {
+test("the sheet reads its lead's story once, and a lead no sequence wrote to draws no block in Sequence", async () => {
   reset();
   // Another lead than the rest of the file's: the client shares one request between two identical reads inside two seconds.
   const other = "5e000000-0000-4000-8000-000000000222";
@@ -551,7 +552,7 @@ test("the sheet reads its lead's story once, and a lead no reach-out wrote to dr
   P.draw();
   await settle();
   assert.deepEqual(wired, [`/api/v1/reach-outs/leads?lead=${other}&workspace=harbor`], "one read, for this lead");
-  const activity = tabTo(P, "activity");
+  const activity = tabTo(P, "sequence");
   await settle();
   assert.equal(wired.length, 1, "drawn again, it does not ask again");
   assert.equal(byTestId(activity, "peek-reach-out"), null, "no timeline, no block");
@@ -564,7 +565,7 @@ test("the sheet reads its lead's story once, and a lead no reach-out wrote to dr
 
 /* ========================================================== the tabs ==== */
 
-test("Reach: the email with its state in words, Copy and a draft; the phone with how it was checked and the ways to call; texts and WhatsApp locked with why", async () => {
+test("Contact: where the sequence writes, its state in words, Copy and a draft; the phone with how it was checked and the ways to call; texts and WhatsApp locked with why", async () => {
   reset();
   const P = page();
   // On the card, the three ways at a glance: email, phone and site.
@@ -574,7 +575,7 @@ test("Reach: the email with its state in words, Copy and a draft; the phone with
     ).map((n) => n.props["data-testid"]),
     ["lead-card-reach-email", "lead-card-reach-phone", "lead-card-reach-site"],
   );
-  const tree = tabTo(P, "reach");
+  const tree = tabTo(P, "contact");
   assert.equal(
     textOf(byTestId(tree, "peek-phone-value")),
     "+1 (512) 555-0142",
@@ -603,19 +604,19 @@ test("Reach: the email with its state in words, Copy and a draft; the phone with
   assert.deepEqual(copied, [`email ${LEAD}`, `phone ${LEAD}`]);
 });
 
-test("a catch-all email is named Unconfirmed on the card and in Reach, with the search's own standard", () => {
+test("a catch-all email is named Unconfirmed on the card and in Contact, with the search's own standard", () => {
   reset();
   const P = page({ vm: vmOf({ email_state: "catch_all" }) });
   const cell = byTestId(P.draw().tree, "lead-card-reach-email");
   assert.match(textOf(cell), /Unconfirmed/);
-  const words = textOf(byTestId(tabTo(P, "reach"), "peek-email-words"));
+  const words = textOf(byTestId(tabTo(P, "contact"), "peek-email-words"));
   assert.match(words, /Their server accepts every address, so the check can't tell\./);
   assert.ok(
     words.includes(LEAD_CONTACT_STANDARD_WORDS.email),
     "and the search's own standard, as a sentence of its own",
   );
   reset();
-  const ok = textOf(byTestId(tabTo(page(), "reach"), "peek-email-words"));
+  const ok = textOf(byTestId(tabTo(page(), "contact"), "peek-email-words"));
   assert.equal(
     ok.includes(LEAD_CONTACT_STANDARD_WORDS.email),
     false,
@@ -658,10 +659,10 @@ test("a criterion Claude could not tell says so, and never a check", () => {
   assert.equal(classed(ck, /pk-ck-check/).length, 0);
 });
 
-test("the other addresses fold in Reach with why Claude picked this one; how it was found is Activity's; the site and Instagram are About's", () => {
+test("the other addresses fold in Contact with why Claude picked this one; how it was found is Why's; the site and Instagram are Contact's", () => {
   reset();
   const P = page();
-  const reach = tabTo(P, "reach");
+  const reach = tabTo(P, "contact");
   const others = byTestId(reach, "peek-others");
   assert.equal(others.type, "details", "folded, not open");
   assert.equal(textOf(byTestId(reach, "peek-others-summary")), "2 other addresses on their site");
@@ -670,8 +671,8 @@ test("the other addresses fold in Reach with why Claude picked this one; how it 
     "A coach's personal mailbox — not the business",
   ]);
   assert.equal(textOf(byTestId(reach, "peek-others-why")), "on their own domain and answers bookings");
-  const activity = tabTo(P, "activity");
-  assert.ok(textOf(byTestId(activity, "lead-sheet-pane-activity")).includes("On Google Maps · today"));
+  const activity = tabTo(P, "why");
+  assert.ok(textOf(byTestId(activity, "lead-sheet-pane-why")).includes("On Google Maps · today"));
   const steps = all(byTestId(activity, "peek-found"), (n) => n.props?.className === "lw-found-i");
   assert.deepEqual(
     steps.map((s) => textOf(s.props.children[1])),
@@ -686,18 +687,18 @@ test("the other addresses fold in Reach with why Claude picked this one; how it 
     ["2:14 PM", "2:14 PM", "2:16 PM"],
     "the minute each happened in",
   );
-  const about = tabTo(P, "about");
+  const about = tabTo(P, "contact");
   assert.equal(byTestId(about, "peek-website").props.href, "https://travisheightscoaching.example");
   assert.equal(byTestId(about, "peek-instagram").props.href, "https://instagram.example/travisheights");
 });
 
 /* ======================================================== the decisions ==== */
 
-test("a Needs review lead says so and its rail offers Keep and Leave out; a lead left out says what stopped and offers Put back", async () => {
+test("a Needs review lead says so and its dock offers Keep and Leave out; a lead left out says what stopped and offers Put back", async () => {
   reset();
   const review = page({ vm: vmOf({ member: { class: "review", fit: null, reason: "Couldn't check the email" } }) });
   let tree = review.draw().tree;
-  assert.equal(textOf(byTestId(tree, "peek-fit-word")), "Needs review", "news, so the word is drawn");
+  assert.equal(textOf(byTestId(tree, "lead-sheet-word")), "To review", "where it stands, beside the name");
   assert.equal(textOf(byTestId(tree, "lead-pile-why")), "Couldn't check the email");
   await press(byTestId(tree, "lead-sheet-keep"));
   await press(byTestId(tree, "lead-sheet-exclude"));
@@ -724,7 +725,11 @@ test("a Needs review lead says so and its rail offers Keep and Leave out; a lead
     "what happened first, then the owner's own word for the criterion",
   );
   assert.equal(textOf(byTestId(tree, "lead-pile-why")), "Part of Crunch Fitness, a chain with many locations");
-  assert.ok(byTestId(tree, "lead-sheet-closed"), "what stopped, plainly");
+  assert.match(
+    textOf(byTestId(tree, "lead-sheet-box-line")),
+    /^Left out\. /,
+    "what stopped, plainly, in the sequence box",
+  );
   assert.equal(stageOf(tree), null, "a place left out has no stage");
   await press(byTestId(tree, "lead-sheet-put_back"));
   assert.deepEqual(
@@ -976,7 +981,7 @@ test("a refused act is the route's sentence, and nothing on the page pretends it
 
 /** Draft, pressed where it lives: the email's line on the Reach tab. */
 const draftFrom = async (P) => {
-  await press(byTestId(tabTo(P, "reach"), "peek-draft"));
+  await press(byTestId(tabTo(P, "contact"), "peek-draft"));
   await settle();
 };
 
@@ -1004,7 +1009,7 @@ test("Draft asks the route once, shows what it wrote with the foot the law asks 
     "mailto:hello%40travisheightscoaching.example?subject=Missed%20calls",
   );
   assert.equal(byTestId(tree, "lead-sheet-pane-why"), null, "the draft is the sheet's body while it is open");
-  assert.ok(byTestId(tree, "lead-pile-rail"), "and the rail stays under it");
+  assert.ok(byTestId(tree, "lead-sheet-dock"), "and the dock stays under it");
 });
 
 test("Shorter and Warmer send what is on screen back with the tone, and the answer replaces it", async () => {
@@ -1043,23 +1048,27 @@ test("with no business address the draft asks for it in the route's words, and t
   assert.equal(byTestId(tree, "peek-open-mail").props["aria-disabled"], true);
 });
 
-test("a lead whose email bounces is a call: the card says so, its rail's yes is Call, and Reach offers no Copy and no Draft", async () => {
+test("a lead whose email bounces is a call: the dock says so, its yes is Call, and Contact offers no Copy and no Draft", async () => {
   reset();
   const P = page({ vm: vmOf({ email_state: "invalid" }) });
   const tree = P.draw().tree;
-  assert.ok(byTestId(tree, "lead-sheet-phone"), "a phone and no email: the yes is a call");
+  assert.equal(
+    textOf(byTestId(tree, "lead-sheet-dock-line")),
+    LEAD_DOCK_WORDS.noEmail.line,
+    "a phone and no email: the yes is a call",
+  );
   assert.equal(
     textOf(byTestId(tree, "lead-card-reach-email")),
     `Email${P.p.vm.slots.mailbox.word}`,
     "its cell says it in the row's own word",
   );
-  const reach = tabTo(P, "reach");
+  const reach = tabTo(P, "contact");
   assert.match(textOf(byTestId(reach, "peek-email-words")), /That mailbox doesn't exist/);
   assert.equal(byTestId(reach, "peek-draft"), null);
   assert.equal(byTestId(reach, "peek-copy"), null);
   assert.ok(byTestId(reach, "peek-act-call"), "the phone is what is left");
   await press(byTestId(P.draw().tree, "lead-sheet-call"));
-  assert.deepEqual(dialled, ["tel:+15125550142"], "the rail's Call rings from the owner's phone");
+  assert.deepEqual(dialled, ["tel:+15125550142"], "the dock's Call rings from the owner's phone");
   assert.deepEqual([P.st.armed.kind, P.st.armed.asked], ["call", false]);
 });
 
@@ -1120,7 +1129,7 @@ test("Call asks how first and rings from the owner's phone; how it went is asked
   reset();
   const P = page();
   // Call asks how first: its button opens the ways (Base UI's menu) and rings nobody; "Call from your phone" rings.
-  const call = kitMenu(tabTo(P, "reach"), "peek-act-call");
+  const call = kitMenu(tabTo(P, "contact"), "peek-act-call");
   assert.deepEqual(dialled, [], "REGRESSION: the panel's Call rang the business the moment it was pressed");
   assert.deepEqual(
     call.props.groups.map((g) => g.header),
@@ -1230,7 +1239,7 @@ test("the other five post what they say, each with Undo; a wrong number keeps th
     assert.deepEqual(opened, [], outcome);
   }
   reset();
-  const reach = tabTo(page({ vm: vmOf({ phone_wrong: true }) }), "reach");
+  const reach = tabTo(page({ vm: vmOf({ phone_wrong: true }) }), "contact");
   assert.equal(/\bwrong\b/.test(byTestId(reach, "peek-phone-value").props.className), true);
   assert.equal(byTestId(reach, "peek-act-call"), null, "a number marked wrong is not dialled again, nor copied");
   assert.equal(
@@ -1251,12 +1260,12 @@ test("I didn't call clears the question and posts nothing", async () => {
 
 /* ========================================================= Not a fit ====== */
 
-test("Not a fit asks why in five ways in the rail's own place, Back writes nothing, and the list teaches nothing in this release", async () => {
+test("Not a fit asks why in five ways in the dock's own place, Back writes nothing, and the list teaches nothing in this release", async () => {
   reset();
   const P = page();
   await press(byTestId(P.draw().tree, "lead-sheet-not_a_fit"));
   const { tree } = P.draw();
-  assert.equal(byTestId(tree, "lead-pile-rail"), null, "the reasons stand where the rail stood");
+  assert.equal(byTestId(tree, "lead-sheet-dock"), null, "the reasons stand where the dock stood");
   const why = byTestId(tree, "peek-why");
   assert.deepEqual([why.props.role, why.props["aria-label"]], ["group", LEAD_NOT_A_FIT_TITLE]);
   assert.deepEqual(
@@ -1278,7 +1287,7 @@ test("Not a fit asks why in five ways in the rail's own place, Back writes nothi
   );
   await press(byTestId(why, "peek-why-back"));
   assert.equal(P.st.mode, "info");
-  assert.ok(byTestId(P.draw().tree, "lead-pile-rail"), "Back puts the rail back");
+  assert.ok(byTestId(P.draw().tree, "lead-sheet-dock"), "Back puts the dock back");
 });
 
 test("Already a customer hides the place and says so; the other four close the lead and say Not a fit; each has Undo", async () => {
@@ -1378,14 +1387,14 @@ test("About shows who they are: their own words, where, the listing unclaimed, t
     / · Open until 6 PM$/,
     "whether they are open now, which is what an owner about to call is asking",
   );
-  let tree = tabTo(shown, "about");
+  let tree = tabTo(shown, "why");
   const facts = textOf(byTestId(tree, "peek-about"));
-  for (const said of [
-    "Waterfront venue for weddings.",
-    "101 Biscayne Blvd, Miami, FL 33132",
-    "ListingNot claimed by the owner",
-  ])
+  for (const said of ["Waterfront venue for weddings.", "ListingNot claimed by the owner"])
     assert.ok(facts.includes(said), said);
+  assert.ok(
+    textOf(byTestId(tabTo(shown, "contact"), "peek-where")).includes("101 Biscayne Blvd, Miami, FL 33132"),
+    "the address is Contact's, where they are",
+  );
   assert.deepEqual(
     all(byTestId(tree, "peek-about"), (n) => n.props?.className === "lw-kv-k")
       .map(textOf)
@@ -1393,6 +1402,7 @@ test("About shows who they are: their own words, where, the listing unclaimed, t
     ["Rating"],
     "the rating said once, with its low share, not again as the listing's fact",
   );
+  tree = tabTo(shown, "contact");
   assert.deepEqual(
     ["peek-facebook", "peek-linkedin", "peek-tiktok", "peek-maps"].map((id) => byTestId(tree, id)?.props.href ?? null),
     ["https://www.facebook.example/x", null, "https://www.tiktok.example/@x", "https://maps.example/?cid=1"],
@@ -1400,13 +1410,14 @@ test("About shows who they are: their own words, where, the listing unclaimed, t
 
   reset();
   const bare = page({ vm: vmOf({}) });
-  tree = tabTo(bare, "about");
+  tree = tabTo(bare, "why");
   for (const said of ["Waterfront", "Not claimed"]) assert.equal(textOf(tree).includes(said), false, said);
+  tree = tabTo(bare, "contact");
   for (const id of ["peek-facebook", "peek-maps", "peek-week"])
     assert.equal(byTestId(tree, id), null, `${id}: a lead from before D2 claims none of it`);
 });
 
-test("About's week: seven days in their short hours, today marked, and the week's shape in one line", () => {
+test("Contact's week: seven days in their short hours, today marked, and the week's shape in one line", () => {
   const days = [
     { day: "Sunday", hours: "Closed" },
     { day: "Monday", hours: "11 AM to 10 PM" },
@@ -1417,9 +1428,9 @@ test("About's week: seven days in their short hours, today marked, and the week'
     { day: "Saturday", hours: "11 AM to 11 PM" },
   ];
   reset();
-  const tree = tabTo(page({ vm: vmOf({ hours: days }) }), "about");
+  const tree = tabTo(page({ vm: vmOf({ hours: days }) }), "contact");
   assert.ok(
-    textOf(byTestId(tree, "peek-about")).includes("Open 6 days · 11–10 most days"),
+    textOf(byTestId(tree, "lead-sheet-pane-contact")).includes("Open 6 days · 11–10 most days"),
     "the week's shape, said once",
   );
   const rows = all(byTestId(tree, "peek-week"), (n) => n.props?.["data-testid"] === "peek-day");
@@ -1552,7 +1563,10 @@ test("on a phone: the kit's sheet at half height over the rows, the tabs at full
   const sheet = find(tree, (n) => n.props?.rest && n.props?.testid === "lead-peek");
   assert.ok(sheet, "the kit's sheet, with its two rests");
   assert.equal(sheet.props.rest.at, "half", "it opens on the card");
-  assert.ok(byTestId(tree, "lead-pile-lead") && byTestId(tree, "lead-pile-rail"), "the card, and the rail at its foot");
+  assert.ok(
+    byTestId(tree, "lead-pile-lead") && byTestId(tree, "lead-sheet-dock"),
+    "the card, and the dock at its foot",
+  );
   assert.equal(
     find(tree, (n) => n.type === SubTabs),
     null,
@@ -1575,7 +1589,7 @@ test("on a phone: the kit's sheet at half height over the rows, the tabs at full
   swipe(-120, 300);
   assert.equal(moved.length, before, "a short drag and a scroll move nothing");
 
-  // Raised, the five tabs read under who they are, and the rail holds still under them.
+  // Raised, the three tabs read under who they are, and the dock holds still under them.
   sheet.props.rest.onRest("full");
   tree = onPhone();
   assert.ok(byTestId(tree, "lead-sheet-full"), "full height");
@@ -1583,7 +1597,7 @@ test("on a phone: the kit's sheet at half height over the rows, the tabs at full
     find(tree, (n) => n.type === SubTabs),
     "the tabs",
   );
-  assert.ok(byTestId(tree, "lead-pile-rail"), "the rail, still");
+  assert.ok(byTestId(tree, "lead-sheet-dock"), "the dock, still");
 
   // Back from the call: the six outcomes wear their dots, the question says what saving does, and one press saves and moves on.
   const armed = { kind: "call", leadId: LEAD, asked: true, outcome: "interested", note: "" };

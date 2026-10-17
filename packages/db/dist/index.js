@@ -4546,6 +4546,16 @@ async function leaveSequence(db, p) {
   if (error) throw new Error(`cannot take them out of the sequence: ${error.message}`);
   return typeof data === "number" ? data : 0;
 }
+async function leadsLeaveSequence(db, p) {
+  if (p.leads.length === 0) return 0;
+  const { data, error } = await db.rpc("sequence_leads_leave", {
+    p_tenant_id: p.tenantId,
+    p_sequence_id: p.sequenceId,
+    p_leads: p.leads.map((l) => ({ lead_id: l.lead_id, why: l.why }))
+  });
+  if (error) throw new Error(`cannot pass over the step's leads: ${error.message}`);
+  return typeof data === "number" ? data : 0;
+}
 async function sequencesOfPerson(db, tenantId, contactId) {
   const { data, error } = await db.from("sequence_enrollments").select("sequence_id, place, next_at").eq("tenant_id", tenantId).eq("contact_id", contactId).eq("state", "in").order("next_at", { ascending: true, nullsFirst: false }).limit(20);
   if (error) throw new Error(`cannot read the sequences they are in: ${error.message}`);
@@ -4721,6 +4731,7 @@ async function takeOutOfSequence(db, p) {
     p_tenant_id: p.tenantId,
     p_sequence_id: p.sequenceId,
     p_enrollment_ids: [...p.enrollmentIds],
+    ...p.leadIds && p.leadIds.length > 0 ? { p_lead_ids: [...p.leadIds] } : {},
     ...p.why ? { p_why: p.why } : {},
     ...decided(p)
   });
@@ -7130,6 +7141,7 @@ export {
   leadWritten,
   leadsBackToday,
   leadsFedBy,
+  leadsLeaveSequence,
   leavePersonLead,
   leaveSequence,
   lineForwardingSet,

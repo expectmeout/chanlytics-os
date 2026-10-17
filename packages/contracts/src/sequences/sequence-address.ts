@@ -3,6 +3,12 @@
  * record at `campaigns/sequences/<id>`, its People and History tabs one word further, a day of its History open one word
  * further still (`/history/<batch>`), and a new one at `campaigns/sequences/new`. One parser and one writer, so a link and the page read an
  * address the same way.
+ *
+ * A new sequence to leads is written here too, never in Leads (the lead sheet's hand-off, 17 Oct 2026: one creator): on a
+ * list as it is (`new/list:<search>`), or on a list of its own that a lead goes on when it starts (`new/lead:<lead>`), and
+ * as a version of a sequence (`new/version:<sequence>/lead:<lead>`): the same steps, waits and mailboxes, its own list, so
+ * it is never a twin. Any of the page's addresses may end in the way back to the lead it was opened from
+ * (`/back:<the Leads address's words>`), which its head says by the lead's name and Start and Cancel take.
  */
 
 /** The list's address. */
@@ -12,9 +18,28 @@ export const SEQUENCES_ROUTE = "campaigns/sequences";
 const SEQUENCE_TABS = ["steps", "people", "history"] as const;
 export type SequenceTab = (typeof SEQUENCE_TABS)[number];
 
-/** What an address of the page opens: the list, a record on one of its tabs, or a new sequence. */
-export type SequencesPlace =
-  { view: "list" } | { view: "new" } | { view: "record"; id: string; tab: SequenceTab; day?: string };
+/** Who a new sequence to leads is for: a list as it is, or a lead, on a list of its own made as it starts. */
+export type SequenceNewFor = { list: string } | { lead: string };
+
+/** A new sequence to leads, opened from Leads: who it is for, and the sequence it is a version of. */
+export interface SequenceNewLeads {
+  for: SequenceNewFor;
+  version: string | null;
+}
+
+/** What an address of the page opens: the list, a record on one of its tabs, or a new sequence; and the way back. */
+export type SequencesPlace = (
+  | { view: "list" }
+  | { view: "new"; leads?: SequenceNewLeads }
+  | { view: "record"; id: string; tab: SequenceTab; day?: string }
+) & {
+  /** The Leads address it was opened from, where Back, Start and Cancel return; absent where none was named. */
+  back?: string;
+};
+
+/** The Leads page's own route, which a way back names the words after (contracts leadsRoute). */
+const LEADS_ROUTE = "clients/leads";
+const BACK = "back:";
 
 /** Whether a param of `campaigns` is the Sequences view's (its second word, `sequences`). */
 export const isSequencesParam = (param: string | null): boolean => param === "sequences";
@@ -27,12 +52,50 @@ const isTab = (word: string | undefined): word is SequenceTab => SEQUENCE_TABS.s
  */
 export function parseSequencesRoute(route: string): SequencesPlace | null {
   const [path = ""] = route.split("?");
-  const [root, view, id, tab, day] = path.split("/");
+  const words = path.split("/");
+  const backAt = words.findIndex((w) => w.startsWith(BACK));
+  const backWords = backAt >= 0 ? (words[backAt] ?? "").slice(BACK.length) : null;
+  const back = backWords === null ? {} : { back: backWords ? `${LEADS_ROUTE}:${backWords}` : LEADS_ROUTE };
+  const [root, view, id, tab, day] = backAt >= 0 ? words.slice(0, backAt) : words;
   if (root !== "campaigns" || view !== "sequences") return null;
-  if (!id) return { view: "list" };
-  if (id === "new") return { view: "new" };
+  if (!id) return { view: "list", ...back };
+  if (id === "new") {
+    const leads = newLeadsOf(words.slice(3, backAt >= 0 ? backAt : undefined));
+    return { view: "new", ...(leads ? { leads } : {}), ...back };
+  }
   const on = isTab(tab) ? tab : "steps";
-  return { view: "record", id, tab: on, ...(on === "history" && day ? { day } : {}) };
+  return { view: "record", id, tab: on, ...(on === "history" && day ? { day } : {}), ...back };
+}
+
+/** A new sequence to leads, from the words after `new`: a list, or a lead with the sequence it is a version of. */
+function newLeadsOf(words: readonly string[]): SequenceNewLeads | null {
+  const word = (key: string) => {
+    const w = words.find((x) => x.startsWith(`${key}:`));
+    return w ? w.slice(key.length + 1) || null : null;
+  };
+  const list = word("list");
+  const lead = word("lead");
+  const version = word("version");
+  if (lead) return { for: { lead }, version };
+  return list && !version ? { for: { list }, version: null } : null;
+}
+
+/**
+ * A new sequence to leads (the lead sheet's hand-off): on a list as it is, or for a lead on a list of its own, as a version
+ * of a sequence where one is named.
+ */
+export function sequenceNewLeadsRoute(leads: SequenceNewLeads): string {
+  const on = "list" in leads.for ? `list:${leads.for.list}` : `lead:${leads.for.lead}`;
+  return `${SEQUENCES_ROUTE}/new/${leads.version && "lead" in leads.for ? `version:${leads.version}/` : ""}${on}`;
+}
+
+/**
+ * An address of the page with the way back to the Leads address it was opened from: Back, Start and Cancel return there.
+ * A way back that is not a Leads address is not kept.
+ */
+export function sequenceRouteBack(route: string, back: string | null): string {
+  if (!back || (back !== LEADS_ROUTE && !back.startsWith(`${LEADS_ROUTE}:`))) return route;
+  return `${route}/${BACK}${back.slice(LEADS_ROUTE.length + 1)}`;
 }
 
 /**

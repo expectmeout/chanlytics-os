@@ -427,7 +427,8 @@ test("Templates: a chain's emails are messages in the list, on the Email channel
   for (const r of rows) assert.equal(textOf(byTestId(r, "template-sent")), "", "closed, no count");
   assert.deepEqual(reported, [], "the list reads no report (R23)");
   press(byTestId(nudge, "template-users"));
-  assert.deepEqual(went, [`outbound/${ROOT}`]);
+  // What sends it opens: its sequence, on Sequences (where the retired outbound/<id> moved, #1644).
+  assert.deepEqual(went, [`campaigns/sequences/${ROOT}`]);
 });
 
 test("an email row says how many it wrote once it opens and its chain's report reads, and nothing when it cannot", async () => {

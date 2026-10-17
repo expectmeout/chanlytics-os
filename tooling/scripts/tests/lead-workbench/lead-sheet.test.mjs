@@ -1,9 +1,11 @@
 /**
- * The lead sheet (canvas B v2, "The Workbench"), run: which of the canvas's states a lead is in, by its own record, the
- * add door's answer and its story (leadSheetStateOf); what stopped (leadSheetClosedOf); the fit as a meter with its word
- * only when it is news; three reach cells; the rail's three places for each state, in a pile and out of one, its keys
- * named and a press that would fail off with why; the end of a pile; their steps in a sequence; Change's options; and the
- * rail as the page draws it, its keys named to a screen reader and drawn nowhere (canvas B: "keys, drawn nowhere").
+ * The lead sheet (canvas B v2, "The Workbench"; the refined canvas, 17 Oct 2026), run: which of the canvas's states a lead
+ * is in, by its own record, the add door's answer and its story (leadSheetStateOf); what stopped (leadSheetClosedOf); the
+ * fit as a meter, a check read shaded apart, its word only when it is news; three reach cells; where they stand in their
+ * sequence and the word beside the name, in Sequences' words; the sequence box; the dock, which holds only what needs
+ * you, its keys named and a press that would fail off with why, and nothing when nothing does; the end of a pile; their
+ * steps on the record's rail of days; Change's options; a row's place on Leads; and the dock as the page draws it, its
+ * keys named to a screen reader and drawn nowhere (canvas B: "keys, drawn nowhere").
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -15,13 +17,19 @@ const {
   leadSheetClosedOf,
   leadSheetFitOf,
   leadSheetCellsOf,
-  leadSheetRailOf,
+  leadSheetDockOf,
+  leadSheetPlaceOf,
+  leadSheetWordOf,
+  leadSheetBoxOf,
+  leadLinePlaceOf,
   leadSheetEndRailOf,
   leadSheetTrackOf,
   leadSheetOptionsOf,
   leadSheetReasonsOf,
   leadSheetStandOf,
   LEAD_SHEET_WORDS: W,
+  LEAD_DOCK_WORDS: D,
+  LEAD_PLACE_WORDS: P,
 } = contracts;
 
 const lead = (over = {}) => ({
@@ -82,17 +90,18 @@ test("what stopped, plainly, and the one fix that exists for it", () => {
   );
 });
 
+const dot = (answer, how = "seen") => ({ answer, how });
 const peek = (over = {}) => ({
-  checkDots: ["yes", "yes", "unknown", "yes"],
+  checkDots: [dot("yes"), dot("yes"), dot("unknown", "read"), dot("yes", "read")],
   checksSummary: "3 checks passed · 1 couldn't tell",
   fit: { word: "Strong fit", cls: "strong", sentence: "An independent salon" },
   stage: "ready",
   ...over,
 });
 
-test("the fit: the meter alone for a strong fit; its word only when it is news; the stage once it has moved", () => {
+test("the fit: the meter alone for a strong fit, a check read shaded apart; its word only when it is news", () => {
   const strong = leadSheetFitOf(peek(), "ready");
-  assert.deepEqual(strong.meter, ["ok", "ok", "warn", "ok", "rest"]);
+  assert.deepEqual(strong.meter, ["ok", "ok", "warn", "read", "rest"], "a check Claude read is softer than one seen");
   assert.equal(strong.pill, null);
   assert.equal(strong.tip, "3 checks passed · 1 couldn't tell");
   assert.equal(
@@ -126,63 +135,97 @@ test("the reach cells: email, phone and site, a second word only where the dot i
   assert.equal(cells[1].tip, "Same on its listing and website.");
 });
 
-const facts = (over = {}) => ({
+const dockFacts = (over = {}) => ({
   state: "ready",
+  place: null,
   pile: null,
   target: "Salon owners · Queens",
   blocked: null,
   canCall: true,
-  canDraft: true,
   canLater: true,
   closed: null,
-  monthLeft: 212,
+  reply: null,
+  tz: "America/New_York",
+  nowMs: Date.parse("2026-10-16T14:00:00Z"),
   ...over,
 });
-const railOf = (over) => leadSheetRailOf(facts(over));
-const acts = (r) => r.slots.map((s) => s.act);
+const dockOf = (over) => leadSheetDockOf(dockFacts(over));
+const acts = (r) => r.acts.map((s) => s.act);
 
-test("the rail holds what can honestly be done: ✕, Later and Add; a press that would fail is off and says why", () => {
-  const ready = railOf();
+test("the dock holds what needs you: ✕, Later and Add for a lead to decide on; a press that would fail is off and says why", () => {
+  const ready = dockOf();
   assert.equal(ready.x, true);
   assert.deepEqual(acts(ready), ["not_a_fit", "later", "add"]);
   assert.deepEqual(
-    ready.slots.map((s) => s.key),
+    ready.acts.map((s) => s.key),
     ["n", "l", "a"],
   );
-  const off = railOf({ state: "gap", blocked: "Its words need their city" });
-  assert.equal(off.slots[2].off, "Its words need their city");
-  assert.deepEqual(acts(railOf({ state: "phone" })), ["not_a_fit", "later", "call"]);
-  assert.deepEqual(acts(railOf({ state: "review" })), ["exclude", "later", "keep"]);
-  assert.equal(railOf({ state: "review" }).slots[2].sub, W.keepSub(212));
-  assert.deepEqual(acts(railOf({ state: "elsewhere" })), ["sequence", "later", "next"]);
-  assert.deepEqual(acts(railOf({ state: "sequence" })), ["sequence", "stop", "next"]);
-  assert.deepEqual(acts(railOf({ state: "replied" })), ["thread", "call", "next"]);
-  assert.deepEqual(acts(railOf({ state: "replied", canCall: false })), ["thread", "next"]);
-  const closed = railOf({ state: "closed", closed: { title: "Left out", line: "", fix: "put_back" } });
-  assert.deepEqual(acts(closed), ["put_back", "later", "next"]);
+  assert.deepEqual([ready.line, ready.fact], [D.ready.line, D.ready.fact], "the consequence, said before the press");
+  const off = dockOf({ state: "gap", blocked: "Its words need their city" });
+  assert.equal(off.acts[2].off, "Its words need their city");
+  assert.equal(off.fact, "Its words need their city", "why, in the dock's own line");
+  const checking = dockOf({ state: "finding" });
+  assert.equal(checking.waiting, true);
+  assert.equal(checking.acts.at(-1).off, D.checking.fact, "Add waits for the mailbox's check");
+  assert.deepEqual(acts(dockOf({ state: "phone" })), ["not_a_fit", "call"]);
+  assert.equal(dockOf({ state: "phone", canCall: false }), null);
+  assert.deepEqual(acts(dockOf({ state: "review" })), ["exclude", "keep"]);
+  assert.deepEqual(acts(dockOf({ state: "elsewhere" })), ["sequence"]);
+  assert.deepEqual(acts(dockOf({ state: "replied" })), ["call", "thread"]);
+  assert.deepEqual(acts(dockOf({ state: "replied", canCall: false })), ["thread"]);
+  const closed = dockOf({ state: "closed", closed: { title: "Left out", line: "", fix: "put_back" } });
+  assert.deepEqual(acts(closed), ["put_back"]);
+  assert.equal(dockOf({ state: "closed", closed: { title: "Asked to stop", line: "", fix: null } }), null);
+  // A lead seen through no search has no Later: two acts at most, so nothing takes its place.
+  assert.deepEqual(acts(dockOf({ canLater: false })), ["not_a_fit", "add"]);
 });
 
-test("in a pile and out of one: a first pile holds for a new list, a search that writes is Its sequence, no target is a call", () => {
-  assert.deepEqual(acts(railOf({ pile: "first", target: null })), ["not_a_fit", "later", "hold"]);
-  assert.deepEqual(acts(railOf({ pile: "search" })), ["not_a_fit", "sequence", "next"]);
-  // Out of a pile with no sequence taking leads by hand: the yes is a call, else a draft for their own inbox, else Add off.
-  assert.equal(railOf({ target: null }).slots[2].act, "call");
-  assert.equal(railOf({ target: null, canCall: false }).slots[2].act, "draft");
-  const none = railOf({ target: null, canCall: false, canDraft: false });
-  assert.equal(none.slots[2].act, "add");
-  assert.equal(none.slots[2].off, W.noTarget);
-  // A lead seen through no search has no Later: Next in its place.
-  assert.equal(railOf({ canLater: false }).slots[1].act, "next");
+test("in a sequence the dock holds only what needs you there, and nothing while it runs", () => {
+  const place = (group, over = {}) => ({
+    group,
+    step: 1,
+    sendId: null,
+    hold: null,
+    holdDetail: null,
+    runId: null,
+    line: "",
+    ...over,
+  });
+  assert.deepEqual(acts(dockOf({ state: "sequence", place: place("waiting") })), ["approve"]);
+  assert.deepEqual(acts(dockOf({ state: "sequence", place: place("held", { sendId: "s1", hold: "unbacked_fact" }) })), [
+    "decide",
+  ]);
+  assert.deepEqual(acts(dockOf({ state: "sequence", place: place("to_send", { runId: "b1" }) })), ["open_draft"]);
+  const replied = dockOf({
+    state: "sequence",
+    place: place("replied"),
+    reply: { intent: "question", readAt: "2026-10-16T13:00:00Z" },
+  });
+  assert.deepEqual(acts(replied), ["call", "thread"]);
+  assert.match(replied.fact, /^A question · /);
+  for (const g of ["next", "in", "done", "left"])
+    assert.equal(dockOf({ state: "sequence", place: place(g) }), null, `${g}: nothing needs you`);
+});
+
+test("in a pile and out of one: a first pile holds for a new list, a search that writes is Its sequence, none is New", () => {
+  assert.deepEqual(acts(dockOf({ pile: "first", target: null })), ["not_a_fit", "later", "hold"]);
+  assert.deepEqual(acts(dockOf({ pile: "search" })), ["not_a_fit", "sequence"]);
+  // No sequence takes leads by hand: one is made in Sequences, from this lead, and the trip comes back.
+  const none = dockOf({ target: null });
+  assert.deepEqual(acts(none), ["not_a_fit", "later", "new_sequence"]);
+  assert.equal(none.line, D.noSequence.line);
 });
 
 test("the end of a pile: the later ones, the way out, and where the work lands", () => {
-  assert.deepEqual(acts(leadSheetEndRailOf({ later: 2, held: 0, target: "Gyms" })), [
+  const slots = (r) => r.slots.map((s) => s.act);
+  assert.equal(leadSheetEndRailOf({ later: 2, held: 0, target: "Gyms" }).slots.at(-1).label, W.approveIn("Gyms"));
+  assert.deepEqual(slots(leadSheetEndRailOf({ later: 2, held: 0, target: "Gyms" })), [
     "later_again",
     "leave",
     "open_target",
   ]);
-  assert.deepEqual(acts(leadSheetEndRailOf({ later: 0, held: 3, target: null })), ["leave", "write_held"]);
-  assert.deepEqual(acts(leadSheetEndRailOf({ later: 0, held: 0, target: null })), ["leave"]);
+  assert.deepEqual(slots(leadSheetEndRailOf({ later: 0, held: 3, target: null })), ["leave", "write_held"]);
+  assert.deepEqual(slots(leadSheetEndRailOf({ later: 0, held: 0, target: null })), ["leave"]);
 });
 
 const NOW = Date.parse("2026-10-16T14:00:00Z");
@@ -230,17 +273,18 @@ const story = (over = {}) => ({
   ...over,
 });
 
-test("their steps in a sequence: done, the next one, and still to come", () => {
+test("their steps on the record's rail of days: done, the next one, and still to come", () => {
   const track = leadSheetTrackOf(story(), NOW, "America/New_York");
   assert.equal(track.name, "Salon owners · Queens");
   assert.equal(track.rootId, "root-1");
   assert.deepEqual(
-    track.steps.map((s) => [s.label, s.look]),
+    track.steps.map((s) => [s.day, s.label, s.look]),
     [
-      ["Email 1", "done"],
-      ["Email 2", "next"],
-      ["A call for you", "later"],
+      [1, "First email", "done"],
+      [5, "Follow-up", "next"],
+      [8, "A call for you", "later"],
     ],
+    "each step's day, as the record counts it: Day 1, then each wait added",
   );
   assert.match(track.steps[0].when, /Oct 12/);
   assert.equal(leadSheetTrackOf(story({ chain: null }), NOW, "America/New_York"), null);
@@ -301,17 +345,141 @@ test("the reasons to write now are the listing's own signals; where they stand s
   assert.match(stand.line, /Gyms/);
 });
 
+test("where they stand in their sequence, in the words its Leads tab files them under", () => {
+  const tz = "America/New_York";
+  const at = (o) => leadSheetPlaceOf(story(o), NOW, tz);
+  assert.equal(leadSheetPlaceOf(story({ chain: null }), NOW, tz), null, "outside a sequence: no place");
+  const queued = at({ sends: [], added_at: "2026-10-16T10:00:00Z" });
+  assert.deepEqual(
+    [queued.group, queued.line],
+    ["next", "Step 1 goes in its next batch"],
+    "on its list, nothing planned yet",
+  );
+  assert.equal(at({}).group, "in", "between steps");
+  const held = at({ sends: [send(0, { state: "held", reason: "unbacked_fact" })] });
+  assert.deepEqual([held.group, held.sendId, held.hold], ["held", "s-0", "unbacked_fact"]);
+  assert.match(held.line, /^Step 1 held: /);
+  const drafted = at({ sends: [send(0, { state: "drafted", run_id: "b-1" })] });
+  assert.deepEqual([drafted.group, drafted.runId], ["to_send", "b-1"]);
+  const waits = at({
+    chain: { ...story().chain, waiting_run_id: "b-2" },
+    sends: [send(0, { state: "planned", send_at: "2026-10-17T13:00:00Z" })],
+  });
+  assert.equal(waits.group, "waiting", "a planned email in a batch that waits for an OK");
+  assert.equal(at({ sends: [send(0, { state: "planned", send_at: "2026-10-17T13:00:00Z" })] }).group, "next");
+  const reading = {
+    message_id: "m",
+    read_at: "2026-10-16T12:00:00Z",
+    intent: "interested",
+    claim: "person",
+    summary: null,
+    undone: false,
+    until_at: null,
+    stops: true,
+    convert: false,
+    said_no: false,
+    can_undo: true,
+  };
+  assert.equal(at({ readings: [reading] }).group, "replied", "a reply that asks for an answer comes first");
+  assert.notEqual(at({ readings: [{ ...reading, intent: "no" }] }).group, "replied", "a no asks for none");
+  // Taken out between steps: no send of theirs moved, and their place (00455) says they left, and why.
+  const takenOut = at({ place: { id: "e1", state: "left", why: "removed", next_at: null } });
+  assert.deepEqual([takenOut.group, takenOut.line], ["left", "Taken out"]);
+  const stopped = at({ stopped_at: "2026-10-15T12:00:00Z" });
+  assert.deepEqual([stopped.group, stopped.line], ["left", "You stopped writing"]);
+  const done = at({
+    sends: [0, 1, 2].map((n) => send(n, { sent_at: "2026-10-12T13:10:00Z", left: true })),
+  });
+  assert.equal(done.group, "done", "every step went");
+});
+
+test("the word beside the name, and the sequence box: Joins, In or Left, by name, with its one line", () => {
+  const place = {
+    group: "held",
+    step: 1,
+    sendId: "s",
+    hold: "chain",
+    holdDetail: null,
+    runId: null,
+    line: "Step 1 held: …",
+  };
+  assert.deepEqual(leadSheetWordOf({ state: "sequence", place, closed: null }), { word: P.held, tone: "warn" });
+  assert.deepEqual(leadSheetWordOf({ state: "ready", place: null, closed: null }), { word: "Ready", tone: "plain" });
+  assert.equal(leadSheetWordOf({ state: "review", place: null, closed: null }).word, "To review");
+  assert.equal(leadSheetWordOf({ state: "sequence", place: { ...place, group: "next" }, closed: null }).tone, "ok");
+  const base = {
+    state: "ready",
+    place: null,
+    inSequence: null,
+    elsewhere: null,
+    target: { rootId: "r1", name: "Portland bookshops" },
+    searchWrites: null,
+    canChange: true,
+    closed: null,
+  };
+  assert.deepEqual((({ verb, name, line, change }) => ({ verb, name, line, change }))(leadSheetBoxOf(base)), {
+    verb: "Joins",
+    name: "Portland bookshops",
+    line: "Step 1 after your OK",
+    change: true,
+  });
+  const inIt = leadSheetBoxOf({ ...base, state: "sequence", place, inSequence: { rootId: "r2", name: "Indie shops" } });
+  assert.deepEqual(
+    [inIt.verb, inIt.name, inIt.rootId, inIt.line, inIt.change],
+    ["In", "Indie shops", "r2", place.line, false],
+  );
+  assert.equal(leadSheetBoxOf({ ...base, state: "phone" }).verb, "Can't join");
+  assert.equal(leadSheetBoxOf({ ...base, state: "review" }).line, "Once you keep it");
+  assert.equal(leadSheetBoxOf({ ...base, target: null }).verb, null, "no sequence takes leads you add yet");
+});
+
+test("a row's place on Leads says the same words from the open search's lines", () => {
+  const line = (over = {}) => ({
+    lead_id: "l",
+    stage: "ready",
+    closed_reason: null,
+    sent: 0,
+    first_sent_at: null,
+    last_sent_at: null,
+    next_at: null,
+    held: false,
+    handed: false,
+    bounced: false,
+    bounced_at: null,
+    email_state: "ok",
+    reply: null,
+    away_until: null,
+    resume_at: null,
+    booked_at: null,
+    stopped_at: null,
+    ...over,
+  });
+  const tz = "America/New_York";
+  const word = (over, waits = false) => leadLinePlaceOf(line(over), waits, NOW, tz)?.word ?? null;
+  assert.equal(word({}), null, "nothing done with it yet");
+  assert.equal(word({ held: true }), P.held);
+  assert.equal(word({ drafted: 1 }), P.to_send);
+  assert.equal(word({ added_at: "2026-10-16T10:00:00Z" }, true), P.waiting);
+  assert.equal(word({ next_at: "2026-10-17T13:00:00Z" }), P.next);
+  assert.equal(word({ sent: 1, last_sent_at: "2026-10-12T13:00:00Z" }), P.in);
+  assert.equal(word({ stopped_at: "2026-10-15T12:00:00Z", sent: 1 }), P.left);
+  assert.equal(
+    word({ sent: 1, reply: { intent: "question", claim: "person", read_at: "2026-10-16T12:00:00Z", undone: false } }),
+    P.replied,
+  );
+});
+
 installLegacyReact({ __DEMO_MODE: false, __surfaceState: () => "live", __chrome: { state: contracts.stateOf } });
 const G = globalThis;
 await import("../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
 Object.assign(G, { CHANLY: { nav: () => {}, R: {} }, canDo: () => true, gate: () => ({}) });
-const { SheetRail } = await import("../../../../apps/dashboard/src/surfaces/leads/sheet/rail.tsx");
+const { SheetDock } = await import("../../../../apps/dashboard/src/surfaces/leads/sheet/dock.tsx");
 
-test("the rail as the page draws it: each place names its key to a screen reader, and no key is drawn", () => {
+test("the dock as the page draws it: each act names its key to a screen reader, and no key is drawn", () => {
   fresh();
-  const rail = railOf();
+  const dock = dockOf();
   const pressed = [];
-  const tree = again(() => G.React.createElement(SheetRail, { rail, busy: false, onRun: (s) => pressed.push(s.act) }));
+  const tree = again(() => G.React.createElement(SheetDock, { dock, busy: false, onRun: (s) => pressed.push(s.act) }));
   assert.equal(byTestId(tree, "lead-sheet-not_a_fit").props["aria-keyshortcuts"], "N");
   assert.equal(byTestId(tree, "lead-sheet-later").props["aria-keyshortcuts"], "L");
   assert.equal(byTestId(tree, "lead-sheet-add").props["aria-keyshortcuts"], "A");
@@ -323,8 +491,8 @@ test("the rail as the page draws it: each place names its key to a screen reader
   byTestId(tree, "lead-sheet-add").props.onClick();
   assert.deepEqual(pressed, ["add"]);
   const off = again(() =>
-    G.React.createElement(SheetRail, {
-      rail: railOf({ blocked: "Its words need their city" }),
+    G.React.createElement(SheetDock, {
+      dock: dockOf({ blocked: "Its words need their city" }),
       busy: false,
       onRun: () => {},
     }),

@@ -38,6 +38,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { createClient } from "@supabase/supabase-js";
 import { LEAD_CLOSED_WORDS, LEAD_STAGE_WORDS } from "@chanlytics/contracts";
 import { MAILBOX_ENV, gmailFake, gmailReceived, liveCredentials, withEnv } from "../email/mailboxes/_mailbox-world.mjs";
+import { importSrc } from "../_source.mjs";
 
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -177,6 +178,9 @@ const noticesOn = async (conversationId) =>
   );
 const suppressed = async (addresses) =>
   ok(await db.rpc("lead_addresses_suppressed", { p_tenant_id: A, p_addresses: addresses })).sort();
+const { followerRefusalOf } = await importSrc("packages/core/src/campaigns/reach-out-ports.ts");
+// Who the next step would write to: the followers the planner does not refuse (00455 hands back the refused beside them,
+// for the planner to pass over by name).
 const followers = async () =>
   ok(
     await db.rpc("reach_out_followers", {
@@ -186,7 +190,9 @@ const followers = async () =>
       p_after_days: 3,
       p_limit: 100,
     }),
-  ).map((f) => f.lead_id);
+  )
+    .filter((f) => followerRefusalOf(f, { bounced: true }) === null)
+    .map((f) => f.lead_id);
 
 /** A job context as the tick builds one, for this workspace: its wires, the ledger's two schedulers, and `extra`. */
 async function jobContext(extra) {

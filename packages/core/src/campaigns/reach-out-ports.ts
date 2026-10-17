@@ -2,7 +2,7 @@
  * What assembling a reach-out step's run needs (Part 3), as ports: the edge's run context builds them over the database
  * (apps/edge lib/reach-out/run-context.ts); tests build them from arrays.
  */
-import type { StepHand, TimetableSender } from "@chanlytics/contracts";
+import { outreachRefusalOf, type StepHand, type TimetableSender } from "@chanlytics/contracts";
 
 export interface ReachOutStep {
   id: string;
@@ -60,6 +60,11 @@ export type HandItem = {
 /** What a hand step's run reads and writes, over the database on the edge and arrays in tests. */
 export interface HandStepPorts {
   followers(step: FollowedStep): Promise<ReachOutFollower[]>;
+  /**
+   * The leads a later step refuses, passed over (00455 sequence_leads_leave): each one's place in the chain ends with
+   * why, so the record says where they went, never "in it" for good. How many left.
+   */
+  passOver(rootId: string, leads: { lead_id: string; why: string }[]): Promise<number>;
   /** The businesses' names, by lead id: what the team's step calls each. */
   businessNames(leadIds: string[]): Promise<Map<string, string>>;
   /** The run, a handed send per lead and each lead's step, written whole: how many made, how many it had already. */
@@ -140,6 +145,11 @@ export interface ReachOutRunPorts {
   audience(step: ReachOutStep): Promise<ReachOutLead[]>;
   followers(step: FollowedStep): Promise<ReachOutFollower[]>;
   /**
+   * The leads a later step refuses, passed over (00455 sequence_leads_leave): each one's place in the chain ends with
+   * why, so the record says where they went, never "in it" for good. How many left.
+   */
+  passOver(rootId: string, leads: { lead_id: string; why: string }[]): Promise<number>;
+  /**
    * The mailboxes the step writes from (contracts reachOutWritesFrom), and those named in `also` (a later step's
    * leads' own, whichever the step names), each with its day's share now (0 for one that does not send today) and the
    * times it already spends (db mailbox_capacity); `gone` is those of `also` that are removed, or not the workspace's.
@@ -169,3 +179,19 @@ export type ReachOutRunOutcome =
   | { outcome: "held"; reason: "waiting_for_you" | "no_mailbox" | "no_room" | "billing"; planned: number }
   | { outcome: "empty"; reason: "already_ran" | "nobody"; planned: 0 }
   | { outcome: "off"; reason: "paused" | "never"; planned: 0 };
+
+/**
+ * Why a later step refuses one of its leads (the door's own mapping, contracts outreachRefusalOf), and for an email step
+ * a bounced address too (a call is no worse for one); null for a lead it may reach. One reading for both kinds of later
+ * step: what it refuses for good is passed over (00455), someone away only waits.
+ */
+export function followerRefusalOf(f: ReachOutFollower, o: { bounced: boolean }): string | null {
+  if (o.bounced && f.bounced) return "outreach_bounced";
+  return outreachRefusalOf({
+    leadStage: f.facts.lead_stage,
+    suppressed: f.facts.suppressed,
+    wroteBack: f.facts.wrote_back,
+    away: f.facts.away === true,
+    stopped: f.facts.stopped === true,
+  });
+}

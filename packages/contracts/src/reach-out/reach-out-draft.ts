@@ -114,6 +114,32 @@ export function reachOutDraftOf(p: {
 }
 
 /**
+ * A version of a sequence to leads (the lead sheet's Make a version, 17 Oct 2026): its steps, waits, pace, mailboxes and
+ * signature as they are, each step new (nothing of the one it copies is changed), under its own name, for the owner to
+ * change what is different for these leads. Its list is its own, made as it starts, so it is never a twin.
+ */
+export function reachOutVersionDraftOf(chain: ReachOutChainDto, name: string, signedBy: string | null): ReachOutDraft {
+  const d = reachOutDraftOf({ chain, searchName: chain.name, signedBy });
+  return { ...d, name, steps: d.steps.map((s) => ({ ...s, id: null })) };
+}
+
+/** The composer on a list of its own (a new sequence for a lead, or a version): who gets it before the list exists. */
+export const REACH_OUT_NEW_LIST_WORDS = {
+  title: "A list of its own",
+  goesOn: (lead: string) => `${lead} goes on it when you start`,
+  version: (name: string) => `A version of “${name}”: the same steps, waits and mailboxes. Change what's different.`,
+  /** A version's name until the owner names it. */
+  nameOf: (sequence: string, lead: string) => `${sequence}, for ${lead}`,
+  /** A new sequence's name for a lead, until the owner names it. */
+  forLead: (lead: string) => `For ${lead}`,
+  before: "Each lead's first email is written for them as their batch is planned; you see it before it goes.",
+  /** Back on the lead, once it started: the name it was given may not be the one it opened with, so the lead's is said. */
+  started: (lead: string) => `Started: ${lead} is on its own list`,
+  startedOn: (list: string) => `Started on “${list}”`,
+  someone: "this lead",
+} as const;
+
+/**
  * Whether another step may be added (five at most, and nothing after a call or a note, which ends the chain), and the
  * draft with one: a short nudge four days on.
  */

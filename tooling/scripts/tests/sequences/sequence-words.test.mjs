@@ -12,6 +12,8 @@ import {
   needsCount,
   needsWords,
   parseSequencesRoute,
+  sequenceNewLeadsRoute,
+  sequenceRouteBack,
   runSheetRoute,
   sequenceGroupOf,
   sequenceLandingOf,
@@ -219,6 +221,51 @@ test("an address is read and written by one parser and one writer: the list, a r
     tab: "history",
     day: "b1",
   });
+});
+
+test("a new sequence to leads is Sequences' own, on a list or for a lead, a version where named, and every trip comes back", () => {
+  const forList = sequenceNewLeadsRoute({ for: { list: "l1" }, version: null });
+  assert.equal(forList, "campaigns/sequences/new/list:l1");
+  assert.deepEqual(parseSequencesRoute(forList), { view: "new", leads: { for: { list: "l1" }, version: null } });
+  const version = sequenceNewLeadsRoute({ for: { lead: "d1" }, version: "s1" });
+  assert.equal(version, "campaigns/sequences/new/version:s1/lead:d1");
+  assert.deepEqual(parseSequencesRoute(version), { view: "new", leads: { for: { lead: "d1" }, version: "s1" } });
+  assert.equal(
+    sequenceNewLeadsRoute({ for: { list: "l1" }, version: "s1" }),
+    "campaigns/sequences/new/list:l1",
+    "a version is never on a list that has a sequence already: it is always a list of its own",
+  );
+  // The way back is the Leads address's words after the page's own, on any of Sequences' addresses.
+  const back = "clients/leads:s-l1:p-d1";
+  const ticketed = sequenceRouteBack(version, back);
+  assert.equal(ticketed, "campaigns/sequences/new/version:s1/lead:d1/back:s-l1:p-d1");
+  assert.deepEqual(parseSequencesRoute(ticketed), {
+    view: "new",
+    leads: { for: { lead: "d1" }, version: "s1" },
+    back,
+  });
+  assert.deepEqual(parseSequencesRoute(sequenceRouteBack(sequenceRoute("s1", "people"), back)), {
+    view: "record",
+    id: "s1",
+    tab: "people",
+    back,
+  });
+  assert.deepEqual(parseSequencesRoute(sequenceRouteBack(sequenceRoute("s1"), "clients/leads")), {
+    view: "record",
+    id: "s1",
+    tab: "steps",
+    back: "clients/leads",
+  });
+  assert.equal(
+    sequenceRouteBack(sequenceRoute("s1"), "inbox/th-1"),
+    sequenceRoute("s1"),
+    "only a way back to Leads is kept",
+  );
+  assert.deepEqual(
+    parseSequencesRoute(`${SEQUENCES_ROUTE}/new/version:s1`),
+    { view: "new" },
+    "a version names its lead",
+  );
 });
 
 test("an older address lands on what it names: the home and Sent's list on Sequences; the composer, a message and Sent's sheets stay", () => {

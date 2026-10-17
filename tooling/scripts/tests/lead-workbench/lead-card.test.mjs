@@ -364,9 +364,9 @@ test("the marks: couldn't-tell first, then seen, then read; a no is the verdict'
   assert.equal(marks[0].from, "from in_area");
 });
 
-test("the sheet's five tabs, Why first", () => {
+test("the sheet's three tabs, Why first, in Sequences' words (the refined canvas)", () => {
   assert.deepEqual(
     LEAD_CARD_TABS.map((t) => t.label),
-    ["Why", "Reach", "Emails", "About", "Activity"],
+    ["Why", "Contact", "Sequence"],
   );
 });

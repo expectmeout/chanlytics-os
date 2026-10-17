@@ -404,7 +404,6 @@ export {
   leadSheetClosedOf,
   leadSheetFitOf,
   leadSheetCellsOf,
-  leadSheetRailOf,
   leadSheetEndRailOf,
   leadSheetTrackOf,
   leadSheetStoryOf,
@@ -414,7 +413,7 @@ export {
   leadSheetAboutOf,
   leadSheetStandOf,
   leadSheetChecksOf,
-} from "./lead-sheet";
+} from "./sheet/lead-sheet";
 export type {
   LeadSheetState,
   LeadSheetLead,
@@ -426,13 +425,29 @@ export type {
   LeadSheetAct,
   LeadSheetSlotVM,
   LeadSheetRailVM,
-  LeadSheetRailFacts,
   LeadSheetStepVM,
   LeadSheetTrackVM,
   LeadSheetOptionVM,
   LeadSheetReasonVM,
   LeadSheetFactVM,
-} from "./lead-sheet";
+} from "./sheet/lead-sheet";
+export {
+  LEAD_PLACE_WORDS,
+  LEAD_DOCK_WORDS,
+  leadSheetPlaceOf,
+  leadSheetWordOf,
+  leadSheetBoxOf,
+  leadSheetDockOf,
+  leadLinePlaceOf,
+} from "./sheet/lead-sheet-dock";
+export type {
+  LeadPlaceGroup,
+  LeadPlaceVM,
+  LeadWordTone,
+  LeadSheetBoxVM,
+  LeadSheetDockVM,
+  LeadSheetDockFacts,
+} from "./sheet/lead-sheet-dock";
 export type {
   LeadCardTab,
   LeadCardPart,

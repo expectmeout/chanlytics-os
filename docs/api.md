@@ -2041,7 +2041,8 @@ Writes; for a member of the row's own workspace, operator or above; counts again
 
 | Body field | Type | Required | Limits |
 | --- | --- | --- | --- |
-| `enrollment_ids` | array of string | yes | at least 1; at most 500 |
+| `enrollment_ids` | array of string | no | at most 500 |
+| `lead_ids` | array of string | no | at most 500 |
 
 ### `GET /api/v1/sequences/[id]/people`
 

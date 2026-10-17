@@ -17,23 +17,33 @@ interface DraftOptions {
   chain: ReachOutChainDto | null;
   includeUnconfirmed: boolean;
   onClose: () => void;
+  /** A list of its own, made as it starts (a new sequence for a lead, or a version): the leads it holds, and the one it copies. */
+  onList?: { leadIds: readonly string[]; name: string; from: ReachOutChainDto | null } | null;
 }
 
 /** The sheet's state: the draft (kept in the tab while changed) and the reach. */
-export function useReachOutDraft(W: Words, { search, chain, includeUnconfirmed, onClose }: DraftOptions) {
+export function useReachOutDraft(
+  W: Words,
+  { search, chain, includeUnconfirmed, onClose, onList = null }: DraftOptions,
+) {
   const me: NonNullable<ReturnType<typeof meNow>> = meNow() || {};
+  const signedBy = W.firstNameOf(me.display_name, null);
   const opened = useMemo(
     () =>
-      W.reachOutDraftOf({
-        chain,
-        searchName: search.name,
-        signedBy: W.firstNameOf(me.display_name, null),
-        includeUnconfirmed,
-      }),
+      onList && onList.from
+        ? W.reachOutVersionDraftOf(onList.from, onList.name, signedBy)
+        : onList
+          ? { ...W.reachOutDraftOf({ chain: null, searchName: onList.name, signedBy }), name: onList.name }
+          : W.reachOutDraftOf({ chain, searchName: search.name, signedBy, includeUnconfirmed }),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- what it opened as, read once
-    [chain, search.name],
+    [chain, search.name, onList ? onList.from : null],
   );
-  const key = chain ? chain.root_id : `new:${search.id}`;
+  // A list of its own has no search yet: its draft is kept by whom it is for, and the sequence it copies.
+  const key = chain
+    ? chain.root_id
+    : onList
+      ? `list:${onList.from ? onList.from.root_id : "new"}:${onList.leadIds.join(",")}`
+      : `new:${search.id}`;
   // A draft kept in the tab comes back as it was typed, but who it writes to is the door's: the door said which.
   const [draft, setDraft] = useState<ReachOutDraft>(() => {
     const kept = tabDraft("reach-out", key) as ReachOutDraft | null;
@@ -47,7 +57,7 @@ export function useReachOutDraft(W: Words, { search, chain, includeUnconfirmed, 
   // The search's reach: what this tab last read painted at once, read again behind as the sheet opens and as Leads or the
   // reach-outs move while it is open (read-again.ts; the wiring's second audit, X2-1). A read again that fails keeps it.
   const [reach, setReach] = useState<ReachOutReachDto | null>(() => reachOuts.reachHeld(search.id));
-  const moved = useReadAgain(search.id);
+  const moved = useReadAgain(search.id || null);
   const [, setLanded] = useState(0);
   useEffect(() => {
     const landed = () => setLanded((n) => n + 1);
@@ -58,6 +68,8 @@ export function useReachOutDraft(W: Words, { search, chain, includeUnconfirmed, 
   }, []);
   useEffect(() => {
     let live = true;
+    // A list made as it starts has nothing to count yet: who it holds is said by name.
+    if (!search.id) return;
     void reachOuts.reach(search.id).then((r) => {
       if (live && r) setReach(r);
     });

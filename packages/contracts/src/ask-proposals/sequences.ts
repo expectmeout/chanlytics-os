@@ -169,13 +169,26 @@ export const sequenceLeaveSpec: ProposalSpec = {
   commit: ({ payload: pl }) => {
     const id = idIn(pl, "sequence_id");
     const ids = Array.isArray(pl.enrollment_ids) ? pl.enrollment_ids.filter((x) => typeof x === "string") : [];
-    return id && ids.length > 0
-      ? { route: "POST sequences/[id]/leave", params: { id }, body: { enrollment_ids: ids } }
+    // A lead on its list that nothing has been planned for yet has no place to end: it comes off the list (00455).
+    const leads = Array.isArray(pl.lead_ids) ? pl.lead_ids.filter((x) => typeof x === "string") : [];
+    return id && ids.length + leads.length > 0
+      ? {
+          route: "POST sequences/[id]/leave",
+          params: { id },
+          body: leads.length > 0 ? { enrollment_ids: ids, lead_ids: leads } : { enrollment_ids: ids },
+        }
       : refuseWith(PROPOSAL_WORDS.cannotApprove);
   },
-  receipt: (_p, data) => {
+  receipt: ({ payload: pl }, data) => {
     const n = Number(rec(data).left) || 0;
-    return n === 0 ? "Nobody was still in it" : `${plural(n, "person", "people")} taken out`;
+    // Leads, said as leads: a sequence to leads takes businesses, not people (the lead sheet's Take out).
+    const leads =
+      Array.isArray(pl.lead_ids) &&
+      pl.lead_ids.length > 0 &&
+      !(Array.isArray(pl.enrollment_ids) && pl.enrollment_ids.length > 0);
+    return n === 0
+      ? "Nobody was still in it"
+      : `${plural(n, leads ? "lead" : "person", leads ? "leads" : "people")} taken out`;
   },
   undo: {
     label: () => "Put them back",
