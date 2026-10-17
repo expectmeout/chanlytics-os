@@ -1136,7 +1136,7 @@ test("REGRESSION: the rules say what stays on a page and where, from the guide's
     ),
   );
   // A one-off send reaches the yes its message asks for, as the send counts it (broadcastReach by its purpose).
-  const door = ASK_RULES.find((r) => r.includes("a one-off send (propose_sequence action once)"));
+  const door = ASK_RULES.find((r) => r.includes("a one-off send reaches only the people whose yes covers its message"));
   assert.ok(
     door.includes(
       "reaches only the people whose yes covers its message: a reminder or a confirmation reaches the yes to messages, an offer or news the yes to offers",
@@ -1520,7 +1520,7 @@ test("cards: an act tool never acts, a proposal names its door and its undo, the
     loop.includes("if (!args) return cutOff(b, input.tenantId);"),
     "a call whose arguments did not arrive whole is told so, not judged as a plan with every field missing",
   );
-  const prompt = readCode("apps/dashboard/src/server/ask/prompt.ts");
+  const prompt = ASK_RULES.join("\n");
   assert.ok(prompt.includes("You never act.") && prompt.includes("never say it was sent, changed or done"));
   const store = readCode("apps/dashboard/src/server/ask/store.ts");
   assert.ok(
@@ -1684,8 +1684,8 @@ test("context first: the page rides into every turn (ask-turn.test.mjs runs it),
     "the effort is the profile's, identical on every round (spec 5.11)",
   );
   assert.ok(
-    readCode("apps/dashboard/src/server/ask/prompt.ts").includes(
-      "Already in this prompt, above: the hours, closures, services",
+    ASK_RULES.join("\n").includes(
+      "The business's hours, closures, services, notes, guardrails, booking notes and autonomy modes",
     ),
     "what the prompt already holds needs no read",
   );
@@ -1696,7 +1696,7 @@ test("context first: the page rides into every turn (ask-turn.test.mjs runs it),
   // calls.list together reads the conversations at most twice and the calls once. The readers, and the Inbox's paged
   // messages, in readers.test.mjs.
   // The gateway passes a known effort through and nothing else: executed in ask-model.test.mjs.
-  const prompt = readCode("apps/dashboard/src/server/ask/prompt.ts");
+  const prompt = ASK_RULES.join("\n");
   assert.ok(prompt.includes("Answer from it when it is enough, in one round."));
   const ev = readCode("tooling/scripts/eval-ask.mjs");
   assert.ok(ev.includes("one-round ${oneRound}/${results.length}"), "the eval measures the one-round share");
@@ -1857,7 +1857,7 @@ test("the speed pass: a fast model for a short answer, the autonomy modes in the
       prompt.includes("Autonomy, class by class (auto: on its own"),
     "the modes are facts in the stable block",
   );
-  assert.ok(prompt.includes("booking notes and the autonomy modes"), "and the rules say so");
+  assert.ok(ASK_RULES.join("\n").includes("booking notes and autonomy modes"), "and the rules say so");
   // The budget read once a minute -- kept per workspace, believed within the
   // minute over the table -- runs in llm-door.test.mjs.
 });
@@ -1869,7 +1869,7 @@ test("the speed pass, two: no definitions tool", () => {
     "the definitions are in the prompt; a tool for them was a round",
   );
   assert.ok(
-    readCode("apps/dashboard/src/server/ask/prompt.ts").includes("a word the pages use is defined above, never read"),
+    ASK_RULES.join("\n").includes("the pages' words under Definitions: answer about them from there, without a read"),
   );
   // What the answer may hold is ASK_ANSWER_CAPS, said in the format's own words: ask-answer.test.mjs.
 });
@@ -2113,8 +2113,8 @@ test("the speed pass, four: the page's data before the words needs no second rea
   const bare = turnWords(facts);
   assert.ok(!bare.includes("search results") && !bare.includes("read://"), "nothing rode in: nothing is said of it");
   assert.ok(
-    readCode("apps/dashboard/src/server/ask/prompt.ts").includes(
-      "name the door: a one-off send (propose_sequence action once) reaches only the people whose yes covers its message",
+    ASK_RULES.join("\n").includes(
+      "To tell several people something at once, a one-off send reaches only the people whose yes covers its message",
     ),
     "a message to many is a one-off send or one message each",
   );
@@ -2149,7 +2149,7 @@ test("on Campaigns the turn's words say what a sentence there is: a campaign to 
     assert.ok(!turnWords({ ...facts, since: [{ ...since[0], state }] }).includes("never the shape"), state);
   const rule = ASK_RULES.find((r) => r.startsWith("Setting up sequences is a few cards, never a claim."));
   assert.ok(rule, "the setup rule");
-  assert.ok(rule.includes("Only batch tool calls that are independent of each other:"));
+  assert.ok(rule.includes("only calls independent of each other go side by side"), rule);
   assert.ok(rule.includes("never that anything is set up, started or running"));
   assert.ok(
     ASK_RULES.indexOf(rule) === ASK_RULES.findIndex((r) => r.startsWith("A proposal is one card.")) + 1,
@@ -2163,14 +2163,13 @@ test("on Campaigns the turn's words say what a sentence there is: a campaign to 
   assert.ok(ASK_DEFINITIONS.playbook.includes("say campaign, never playbook"), ASK_DEFINITIONS.playbook);
 });
 
-test("the rules know the plan and the message (the marketing manager's §5.7): an offer, a promotion or a whole setup is one call of propose_campaign's plan, whose steps Ask never assembles, and a message's words are written by its action message alone, every channel's version on the card; the setup rule says so itself, no rule left says otherwise, and on Campaigns the turn's words name the plan first", async () => {
+test("the rules know the plan and the message (the marketing manager's §5.7): an offer, a promotion or a whole setup is one plan, whose steps Ask never assembles, and a message's words are a message card's alone, every channel's version on it; the setup rule says so itself, no rule left says otherwise, the rules name no tool (the answer canvas, A2: the tools' descriptions say which), and on Campaigns the turn's words name the plan first", async () => {
   const { turnWords } = await import(
     pathToFileURL(path.join(here, "../../../../apps/dashboard/src/server/ask/prompt.ts")).href
   );
   const PLAN =
-    "For an offer, a promotion, or a whole setup of the customer journey, call propose_plan with action offer once with the intent and leave the steps to it; never assemble an offer's steps yourself.";
-  const MESSAGE =
-    "A message's words are written only through propose_sequence with action message, and every channel's version is on the card";
+    "An offer, a promotion or a whole setup of the customer journey is one plan, which builds its own steps.";
+  const MESSAGE = "A message's words are written as a message card, every channel's version on it";
   for (const words of [PLAN, MESSAGE])
     assert.equal(ASK_RULES.filter((r) => r.includes(words)).length, 1, `one rule says it: ${words}`);
   // The plan is the setup rule's own first instruction: the rule is reworded, never a second one beside it.
@@ -2191,7 +2190,10 @@ test("the rules know the plan and the message (the marketing manager's §5.7): a
   // disagree about a plan's answer.
   const act = ASK_RULES.find((r) => r.startsWith("You never act."));
   for (const r of [act, setup]) assert.ok(r.includes("(a plan is answered from its result)"), r);
-  assert.ok(ASK_RULES.at(-1).includes("A plan is the exception"), "the rule both point to");
+  assert.equal(ASK_RULES.filter((r) => r.includes("A plan is the exception")).length, 1, "the rule both point to");
+  // The answer canvas, A2 (16 Oct 2026): how a tool is used is its description's, so no rule names one; the tools below
+  // say what the rules once did (the plan, the message, never a setup assembled by hand).
+  for (const r of ASK_RULES) assert.ok(!/\bpropose_[a-z_]+|\baction [a-z_]+\b/.test(r), r);
   // What the rules said before a plan and a written message, none of it left: a whole setup's cards assembled by hand,
   // a campaign on a held message or its starter and nothing else, every card its own press, Ask never writing a message.
   const rules = ASK_RULES.join("\n");
@@ -2204,13 +2206,15 @@ test("the rules know the plan and the message (the marketing manager's §5.7): a
   ])
     assert.ok(!old.test(rules), String(old));
   // Where a rule offers a campaign its starter, it offers the message Ask writes too.
-  for (const r of ASK_RULES.filter((x) => /\bstarter\b/.test(x))) assert.ok(r.includes("action message"), r);
+  for (const r of ASK_RULES.filter((x) => /\bstarter\b/.test(x))) assert.ok(/\bwritten\b/.test(r), r);
   // The polish round (11 Oct 2026): a proposal is one card, and a plan's cards one proposal, so the two rules agree;
   // and a campaign's values (the month's offer's text) are its change's, never a message written anew.
   const one = ASK_RULES.find((r) => r.startsWith("A proposal is one card."));
   assert.ok(one.startsWith("A proposal is one card. A plan's cards, its steps from one call, are one proposal."), one);
   assert.ok(
-    ASK_RULES.find((r) => r.includes(MESSAGE)).includes("a sequence's values are changed with action change"),
+    ASK_RULES.find((r) => r.includes(MESSAGE)).includes(
+      "a sequence's own values (the month's offer's text) are changed on the sequence",
+    ),
     "the message rule",
   );
   // Every page's turn words (the surface lines, Campaigns' among them) say none of the old words either, and restate
