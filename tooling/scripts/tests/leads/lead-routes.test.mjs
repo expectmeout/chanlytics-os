@@ -138,10 +138,9 @@ async function refused(p, code, status) {
   });
 }
 
-test("release A's eleven declare their policy: the reads open to every member; a search, a top-up and what counts a lead the owner's or the partner's (0012), spending where money leaves; a stop the operator's", () => {
+test("release A's routes declare their policy (one search's GET went: no page called it, the closed-loop audit's J): the reads open to every member; a search, a top-up and what counts a lead the owner's or the partner's (0012), spending where money leaves; a stop the operator's", () => {
   const open = { kind: "read", role: null, rate: null, spend: false, scope: "workspace" };
   assert.deepEqual(searches.GET.policy, open);
-  assert.deepEqual(search.GET.policy, open);
   assert.deepEqual(leads.GET.policy, open);
   assert.deepEqual(searches.POST.policy, {
     kind: "write",
@@ -412,11 +411,6 @@ test("the answer takes the search's latest round: keep and stop as words, includ
       ctxFor("owner", { lead_round_answer: () => ({ error: "state", state: "running" }) }, { id: S1 }),
     ),
     /not waiting for an answer/,
-  );
-  await refused(
-    search.GET.run(get(inA), ctxFor("viewer", {}, { id: "eeeeeeee-1111-4111-8111-eeeeeeeeeeee" })),
-    "not_found",
-    404,
   );
 });
 
@@ -1416,14 +1410,12 @@ test("one lead and one search, for Ask and for the page (PR 4.3): GET leads/[id]
     ]);
   }
   await refused(load(rc(), leadReader, { id: OTHER_SEARCH }), "not_found", 404);
-  // One search, as the route answers it, and through the rail's mapping the row the rail lists.
+  // One search, as Ask reads it, and through the rail's mapping the row the rail lists.
   const s = world({ role: "viewer" });
   s.lead_searches_view = [view({ emails_checked: 41, with_phone: 72 }), view({ id: OTHER_SEARCH, name: "Other" })];
-  const page = await search.GET.run(get(inA), ctxOf(s, { id: SEARCH }, doors()));
   const one = await load(readerContext(ctxOf(s, {}, doors()), { tenantId: A, role: "viewer" }), searchReader, {
     id: SEARCH,
   });
-  assert.equal(JSON.stringify(one.data), JSON.stringify(page), "the route's payload");
   assert.deepEqual(one.rows, [{ kind: "search", id: SEARCH, route: `clients/leads:s-${SEARCH}`, label: "Trainers" }]);
   const rail = await load(readerContext(ctxOf(s, {}, doors()), { tenantId: A, role: "viewer" }), searchesReader);
   assert.deepEqual(toSearchDto(one.data.search), rail.data.searches[0], "the rail's own row for it");

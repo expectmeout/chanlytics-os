@@ -6413,7 +6413,7 @@ test("campaigns.messages reads the whole library, a WhatsApp version still in re
  * head and its rail as data, composed from the readers the page's surfaces answer from, so the number Ask says is the
  * page's. Harbor here: a calendar connected, its WhatsApp number, deals off, and one running win-back by appointments.
  */
-test("campaigns.journey says the journey as Campaigns' home draws it: 2 of 4 moments covered, first contact by the receptionist and quiet by the running win-back, which its stage names; the day before and after off; and the guide beside it, the day before's row among its rows; the win-back a row a citation names", async () => {
+test("campaigns.journey says the customer journey: 2 of 4 moments covered, first contact by the receptionist and quiet by the running win-back, which its stage names; the day before and after off; and the guide beside it, the day before's row among its rows; the win-back a row a citation names", async () => {
   const w = countsWorld(pagedPeople([poolPerson(1)]), {
     ...calTables("https://cal.example/journey.ics"),
     playbooks: [pbRow(PB1, { name: "Come back soon", trigger: "lapsed" })],

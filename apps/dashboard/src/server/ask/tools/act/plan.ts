@@ -166,8 +166,8 @@ function customersLanguage(r: Awaited<ReturnType<typeof worldReads>>, t: ToolCon
 /**
  * The workspace as a plan is made against (contracts PlanWorld), each part read by the read Ask's own action of it makes,
  * so what the plan reuses, counts and covers is what those actions say: the Library (sequences.messages), the lists and
- * their counts (people.lists: People's offered here and the workspace's own), the journey (sequences.journey, as
- * Campaigns' home composes it), the campaigns (GET playbooks' reader, the journey's own read), the room (calendar.room:
+ * their counts (people.lists: People's offered here and the workspace's own), the journey (sequences.journey, the
+ * old home's model, contracts campaignsHomeOf), the campaigns (GET playbooks' reader, the journey's own read), the room (calendar.room:
  * none where no calendar can say it, or one with no slot either way), the receptionist's notes in force (notesOf), the
  * channels an offer may go by now and why not (the channels' readiness with the offer's own rule, contracts
  * channelChoices, each entry whole) and whether WhatsApp sends at all, and whether the Google listing keeps a review link

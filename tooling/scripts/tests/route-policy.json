@@ -556,6 +556,13 @@
       "spend": false,
       "idempotent": "own"
     },
+    "GET conversations/[id]": {
+      "kind": "read",
+      "scope": "row",
+      "role": null,
+      "rate": null,
+      "spend": false
+    },
     "POST conversations/[id]/snooze": {
       "kind": "write",
       "scope": "row",

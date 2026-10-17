@@ -45,6 +45,7 @@ export const ROUTES = {
   "GET contacts/[id]": { method: "GET", path: "/api/v1/contacts/[id]" },
   "GET contacts/export": { method: "GET", path: "/api/v1/contacts/export" },
   "GET conversations": { method: "GET", path: "/api/v1/conversations" },
+  "GET conversations/[id]": { method: "GET", path: "/api/v1/conversations/[id]" },
   "GET conversations/[id]/export": { method: "GET", path: "/api/v1/conversations/[id]/export" },
   "GET escalations": { method: "GET", path: "/api/v1/escalations" },
   "GET export": { method: "GET", path: "/api/v1/export" },
@@ -329,6 +330,7 @@ export type Routes = {
   "GET contacts/[id]": typeof import("../../app/api/v1/contacts/[id]/route").GET;
   "GET contacts/export": typeof import("../../app/api/v1/contacts/export/route").GET;
   "GET conversations": typeof import("../../app/api/v1/conversations/route").GET;
+  "GET conversations/[id]": typeof import("../../app/api/v1/conversations/[id]/route").GET;
   "GET conversations/[id]/export": typeof import("../../app/api/v1/conversations/[id]/export/route").GET;
   "GET escalations": typeof import("../../app/api/v1/escalations/route").GET;
   "GET export": typeof import("../../app/api/v1/export/route").GET;

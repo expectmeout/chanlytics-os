@@ -17,8 +17,8 @@ within seconds from the business's own facts, offers the times that are open,
 sends the booking link, and hands over anything it should not decide. A team
 watches it from a dashboard, takes a thread over, whispers into a live call,
 and hands it back. The finder searches for new leads on the owner's behalf and
-judges each one against what they asked for. Playbooks and broadcasts send the
-routine messages around an appointment, to people who said yes.
+judges each one against what they asked for. Sequences send the routine
+messages around an appointment, to people who said yes.
 
 Three things it never does, enforced in code rather than in a prompt: it never
 decides money, it never quotes a price where the workspace forbids it, and it

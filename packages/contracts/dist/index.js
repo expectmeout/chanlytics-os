@@ -19633,7 +19633,7 @@ var playbookChannelsSpec = {
     },
     receipt: () => "Its channels are as they were"
   },
-  // Its drawer on Campaigns' home, where the Goes by row shows what it goes by now.
+  // Its sequence (`campaigns/moment:<id>` lands on it), where its record shows what it goes by now.
   open: ({ payload }) => {
     const id = idIn(payload, "playbook_id");
     return id ? `campaigns/moment:${id}` : "outbound";
@@ -53663,6 +53663,7 @@ var ROUTE_KEYS = [
   "GET contacts/[id]",
   "GET contacts/export",
   "GET conversations",
+  "GET conversations/[id]",
   "GET conversations/[id]/export",
   "GET escalations",
   "GET export",

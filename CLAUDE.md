@@ -11,8 +11,8 @@ Chanlytics is a multi-tenant, omnichannel AI receptionist and lead engine
 for any business that turns a conversation into a booked appointment. A
 customer writes on WhatsApp, texts, phones or emails; the receptionist answers
 from the business's own facts and hands over what it should not decide; a team
-supervises it from the dashboard; the finder sources leads; playbooks and
-broadcasts send the routine messages around an appointment. It is live with
+supervises it from the dashboard; the finder sources leads; sequences send
+the routine messages around an appointment. It is live with
 real customers. Treat `apps/edge` and `packages/channels` as something a member
 of the public will experience.
 

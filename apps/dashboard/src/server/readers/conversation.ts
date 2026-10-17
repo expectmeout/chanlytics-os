@@ -12,15 +12,14 @@ import { loadConversation, type VerbConversation } from "../verbs";
 import { load, stamp, type Reader, type RowRef } from "./index";
 
 /**
- * One thread's messages: the hundred most recent, or the hundred before
- * `before` when the thread pages back, oldest first. The thread itself is not
- * read here: Ask's `conversation` below loaded it, so the row is never read
- * twice. An attachment is its public facts (mediaPublic): the storage path
- * never leaves the server. A message is cited by its thread. (GET
- * conversations/:id answered the same until it went, the closed-loop audit's J:
- * the Inbox reads its threads through GET conversations.)
+ * One thread's messages, as GET conversations/:id answers them: the hundred
+ * most recent, or the hundred before `before` when the thread pages back,
+ * oldest first. The thread itself is not read here: the route's scope loaded
+ * it, and Ask's `conversation` below loads it the same way, so neither reads
+ * the row twice. An attachment is its public facts (mediaPublic): the storage
+ * path never leaves the server. A message is cited by its thread.
  */
-const messagesOf: Reader<{ id: string; before: string | null }, MessageDto[]> = {
+export const messagesOf: Reader<{ id: string; before: string | null }, MessageDto[]> = {
   name: "messagesOf",
   async read(rc, { id, before }) {
     const { supabase } = rc.ctx;
@@ -50,8 +49,12 @@ const messagesOf: Reader<{ id: string; before: string | null }, MessageDto[]> = 
   },
 };
 
-/** The thread from the row loadConversation loaded (it carries every column the page needs): a pure assembly, no read. */
-function conversationDtoOf(row: VerbConversation, userId: string): Omit<ConversationDto, "messages"> {
+/**
+ * The thread as GET conversations/:id answers it, from the row its scope
+ * loaded (loadConversation carries every column the page needs): a pure
+ * assembly, no read.
+ */
+export function conversationDtoOf(row: VerbConversation, userId: string): Omit<ConversationDto, "messages"> {
   return {
     id: row.id,
     state: row.state as ConversationDto["state"],
@@ -75,9 +78,9 @@ function conversationDtoOf(row: VerbConversation, userId: string): Omit<Conversa
 
 /**
  * One thread with its messages, for Ask, as the page reads it: the row through
- * the loader the conversation doors' scope uses (under RLS, so a thread the
- * caller cannot see is their 404, in their words), then its messages and
- * assembly. RLS lets a member of two workspaces see both; a turn
+ * the loader GET conversations/:id's scope uses (under RLS, so a thread the
+ * caller cannot see is that route's 404, in its words), then the route's own
+ * messages and assembly. RLS lets a member of two workspaces see both; a turn
  * reads its own workspace, so a thread of the other is not here either, and
  * says so the same way before any message of it is read. The thread and its
  * person are named as the Inbox row names them: the loader carries the

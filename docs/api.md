@@ -13,7 +13,7 @@ once per key for a day: the same request sent again is given the first answer an
 another request (another method, path or body) is refused with 422, and one that arrives while the first still runs
 with 409 (decision 0035). A write that keeps its own key, or has no workspace to keep one in, says so.
 
-280 handlers in 49 domains.
+281 handlers in 49 domains.
 
 ## activity
 
@@ -654,6 +654,14 @@ Reads; for a member of the workspace the request names; no rate bucket; spends n
 | Query field | Type | Required | Limits |
 | --- | --- | --- | --- |
 | `ids` | string | no |  |
+
+### `GET /api/v1/conversations/[id]`
+
+Reads; for a member of the row's own workspace; no rate bucket; spends nothing.
+
+| Query field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `before` | string | no |  |
 
 ### `POST /api/v1/conversations/[id]/archive`
 
