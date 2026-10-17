@@ -8104,7 +8104,7 @@ function foldWordsMessages(body) {
     while (at3 >= 0 && !(isPlainObject2(out.at(at3)) && out.at(at3).role === "user")) at3--;
     const turn = out.at(at3);
     if (at3 < 0 || !isPlainObject2(turn)) continue;
-    const content = Array.isArray(turn.content) ? turn.content : [{ type: "text", text: String(turn.content ?? "") }];
+    const content = Array.isArray(turn.content) ? turn.content : [{ type: "text", text: typeof turn.content === "string" ? turn.content : "" }];
     out[at3] = { ...turn, content: [...content.slice(0, -1), ...m.content, ...content.slice(-1)] };
   }
   return { ...body, messages: out };
