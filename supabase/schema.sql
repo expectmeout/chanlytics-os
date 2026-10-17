@@ -2110,6 +2110,21 @@ begin
   if v_rows = 0 then
     raise exception 'Playbook not found.' using errcode = 'P0002';
   end if;
+  -- A sequence's settings are its first step's (0060; the loop review, 17 Oct 2026): a customer's steps after it run at
+  -- its hour, under its cap, its last day and its trial, so a change here reaches all of them; one named as the first was
+  -- takes its new name (a step given a name of its own keeps it). On the caller's rights, as the first step's row was.
+  if v_was.id = v_was.sequence_id and v_was.kind = 'moment' then
+    update public.sequence_steps n
+       set run_hour = f.run_hour, cap_per_run = f.cap_per_run, until = f.until, trial_until = f.trial_until,
+           name = case when n.name = v_was.name then f.name else n.name end
+      from public.sequence_steps f
+     where f.id = p_playbook_id and f.tenant_id = p_tenant_id
+       and n.tenant_id = p_tenant_id and n.sequence_id = f.sequence_id and n.id <> f.id
+       and n.kind = 'moment' and n.trigger = 'after_step'
+       and (n.run_hour, n.cap_per_run, n.until, n.trial_until, n.name)
+           is distinct from (f.run_hour, f.cap_per_run, f.until, f.trial_until,
+                             case when n.name = v_was.name then f.name else n.name end);
+  end if;
   -- The verb follows the state that moved, never the one named: a state named as it stands is in no diff.
   v_verb := case v_diff ->> 'state'
               when 'running' then 'start_playbook'
@@ -2128,7 +2143,7 @@ end $$;
 -- Name: FUNCTION change_playbook(p_tenant_id uuid, p_playbook_id uuid, p_set jsonb, p_decision jsonb, p_via text, p_undo_of uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.change_playbook(p_tenant_id uuid, p_playbook_id uuid, p_set jsonb, p_decision jsonb, p_via text, p_undo_of uuid) IS 'A member changes a playbook in place and its line in the ledger together (the change_playbook door): the row locked on the caller''s rights, of the columns p_set names (state, name, run_hour, cap_per_run, gap_days, cadence_days, params, until, trial_until) only those that differ from the row written, then start_playbook or pause_playbook where the state moved, else change_playbook, as theirs (member_decision), in one transaction. A key outside the nine is refused (22023); so is a null, but for until and trial_until, which it clears, and a params that is not an array. Security invoker: the update policy (is_acting_member: an owner, an operator, or a partner on a session that showed its second factor) and the column grants judge it. P0002 where the caller cannot see or change the row. Returns id, was (what each written column held), decision_id and undo_dropped; where nothing differs, nothing is written and no line: was is empty and decision_id null (00377, 00416).';
+COMMENT ON FUNCTION public.change_playbook(p_tenant_id uuid, p_playbook_id uuid, p_set jsonb, p_decision jsonb, p_via text, p_undo_of uuid) IS 'A member changes a playbook in place and its line in the ledger together (the change_playbook door): the row locked on the caller''s rights, of the columns p_set names (state, name, run_hour, cap_per_run, gap_days, cadence_days, params, until, trial_until) only those that differ from the row written, then start_playbook or pause_playbook where the state moved, else change_playbook, as theirs (member_decision), in one transaction. A sequence''s first step''s hour, cap, last day and trial reach its customer''s steps after it, and its name those named as it was (00453). A key outside the nine is refused (22023); so is a null, but for until and trial_until, which it clears, and a params that is not an array. Security invoker: the update policy and the column grants judge it. P0002 where the caller cannot see or change the row. Returns id, was (what each written column held), decision_id and undo_dropped; where nothing differs, nothing is written and no line (00377, 00416, 00453).';
 
 
 --
@@ -24382,6 +24397,104 @@ COMMENT ON FUNCTION public.sequence_batch_counts(p_tenant_id uuid, p_batch_ids u
 
 
 --
+-- Name: sequence_batch_places_back(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.sequence_batch_places_back(p_batch_id uuid) RETURNS integer
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_b public.sequence_batches%rowtype;
+  v_place int;
+  v_n int;
+begin
+  select * into v_b from public.sequence_batches where id = p_batch_id;
+  if v_b.id is null or v_b.state not in ('canceled', 'failed') then
+    return 0;
+  end if;
+  -- A customer's step's batch alone: a lead's sends are the lead clock's to close (run_canceled), a one-off has no places.
+  select st.place into v_place from public.sequence_steps st where st.id = v_b.step_id and st.kind = 'moment';
+  if v_place is null then
+    return 0;
+  end if;
+  with stuck as (
+    -- Each person it was to reach and never did, where it is still their latest send in the sequence.
+    select s.contact_id
+      from public.sequence_sends s
+     where s.batch_id = p_batch_id and s.lead_id is null and s.state = 'queued'
+       and not exists (select 1 from public.sequence_sends o
+                        where o.sequence_id = s.sequence_id and o.lead_id is null and o.contact_id = s.contact_id
+                          and o.id <> s.id and o.created_at > s.created_at)
+  ),
+  latest as (
+    select distinct on (e.contact_id) e.id, e.contact_id, e.state, e.place, e.next_at, e.sent_at
+      from public.sequence_enrollments e
+      join stuck k on k.contact_id = e.contact_id
+     where e.sequence_id = v_b.sequence_id and e.lead_id is null
+     order by e.contact_id, e.entered_at desc, e.id desc
+  ),
+  -- The place the batch gave them, still standing: in, at its step, with no day of its own (00441 wrote none for it).
+  placed as (
+    select l.* from latest l where l.state = 'in' and l.place = v_place and l.next_at is null
+  ),
+  -- A first step that sent them nothing in this place: they were never in it.
+  gone as (
+    delete from public.sequence_enrollments e using placed p
+     where e.id = p.id and v_place = 1 and p.sent_at is null
+    returning e.contact_id
+  ),
+  -- The place a new start took them from (00441: one still in it leaves as started_again), stands again with its day.
+  again as (
+    update public.sequence_enrollments e
+       set state = 'in', why = null, ended_at = null,
+           next_at = coalesce(e.sent_at + make_interval(days => coalesce(
+                       (select n.after_days from public.sequence_steps n
+                         where n.sequence_id = e.sequence_id and n.place = e.place + 1), 0)), now())
+      from gone g
+     where e.sequence_id = v_b.sequence_id and e.lead_id is null and e.contact_id = g.contact_id
+       and e.state = 'left' and e.why = 'started_again' and e.ended_at >= v_b.created_at
+    returning e.id
+  ),
+  -- Anyone else: in line again for the step, from the day the wait before it ended (when the step before went, and its
+  -- wait), so its next run reaches them.
+  back as (
+    update public.sequence_enrollments e
+       set place = greatest(v_place - 1, 1),
+           next_at = coalesce(e.sent_at + make_interval(days => coalesce(
+                       (select n.after_days from public.sequence_steps n
+                         where n.sequence_id = e.sequence_id and n.place = greatest(v_place - 1, 1) + 1), 0)), now())
+      from placed p
+     where e.id = p.id and not (v_place = 1 and p.sent_at is null)
+    returning e.id
+  )
+  select (select count(*) from gone) + (select count(*) from back) into v_n;
+  return v_n;
+end $$;
+
+
+--
+-- Name: FUNCTION sequence_batch_places_back(p_batch_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.sequence_batch_places_back(p_batch_id uuid) IS 'A customer''s batch cut off (canceled or failed: skipped, its day gone, stopped, or a run that failed) gives back the places it gave (0060; the loop review): each person it never reached, where it is their latest send, is in line again for its step from the day their wait ended, or, for a first step that sent them nothing, out of the place it made (and back in one a new start took them from). Its sends stay queued, as a run''s sheet reads them. How many places moved. Service role only.';
+
+
+--
+-- Name: sequence_batches_cut_off(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.sequence_batches_cut_off() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+begin
+  perform public.sequence_batch_places_back(NEW.id);
+  return null;
+end $$;
+
+
+--
 -- Name: sequence_batches_guard(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -25216,7 +25329,7 @@ CREATE FUNCTION public.sequence_people(p_tenant_id uuid, p_sequence_id uuid, p_l
              when l.state = 'held' then 'held'
              when l.state = 'drafted' then 'to_send'
              when l.batch_state = 'pending_approval' and l.state in ('queued', 'planned') then 'waiting'
-             when l.state in ('queued', 'planned', 'claimed') then 'next'
+             when l.state in ('queued', 'planned', 'claimed') and l.batch_state not in ('canceled', 'failed') then 'next'
              else null
            end as grp,
            coalesce(l.drafted_at, l.send_at, l.scheduled_for, l.created_at) as at
@@ -25294,7 +25407,7 @@ $$;
 -- Name: FUNCTION sequence_people(p_tenant_id uuid, p_sequence_id uuid, p_limit integer); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.sequence_people(p_tenant_id uuid, p_sequence_id uuid, p_limit integer) IS 'Who is in a sequence (0060), by where they stand, each group''s count whole and its first p_limit (1 to 200, 50) rows: waiting (a batch waiting for your OK), held (by the check, with why), to_send (an email for you to send, with its draft as it was handed over: 00447), next (going out), in (between steps, their next step''s day), done, and left (with why). A person by their name, a lead by its business''s. Under the caller''s row security.';
+COMMENT ON FUNCTION public.sequence_people(p_tenant_id uuid, p_sequence_id uuid, p_limit integer) IS 'Who is in a sequence (0060), by where they stand, each group''s count whole and its first p_limit (1 to 200, 50) rows: waiting (a batch waiting for your OK), held (by the check, with why), to_send (an email for you to send, with its draft as it was handed over: 00447), next (going out: never a send of a batch cut off, 00453), in (between steps, their next step''s day), done, and left (with why). A person by their name, a lead by its business''s. Under the caller''s row security.';
 
 
 --
@@ -25753,11 +25866,12 @@ begin
      where tenant_id = p_tenant_id and sequence_id = p_sequence_id order by place desc limit 1;
     insert into public.sequence_steps (tenant_id, kind, name, trigger, after_step_id, after_days, only_if, template_id,
                                        template_name, template_language, params, policy_class, state, run_hour,
-                                       cap_per_run, channels, created_by)
+                                       cap_per_run, until, trial_until, channels, created_by)
     values (p_tenant_id, 'moment', coalesce(nullif(btrim(v_step->>'name'), ''), v_first.name), 'after_step', v_last.id,
             (v_step->>'after_days')::int, v_only, v_t.id, v_t.name, v_t.language,
             coalesce(v_step->'params', '[]'::jsonb), v_first.policy_class, 'running', v_first.run_hour,
-            v_first.cap_per_run, coalesce(nullif(v_channels, '{}'), v_first.channels), v_actor)
+            v_first.cap_per_run, v_first.until, v_first.trial_until,
+            coalesce(nullif(v_channels, '{}'), v_first.channels), v_actor)
     returning id, place into v_out, v_place;
   else
     select * into v_was from public.sequence_steps
@@ -25788,7 +25902,7 @@ end $$;
 -- Name: FUNCTION sequence_step_save(p_tenant_id uuid, p_sequence_id uuid, p_step jsonb, p_decision jsonb, p_via text, p_undo_of uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.sequence_step_save(p_tenant_id uuid, p_sequence_id uuid, p_step jsonb, p_decision jsonb, p_via text, p_undo_of uuid) IS 'A customer''s step after the first (D6, 0060), added at the end of its sequence or changed (p_step.id): its wait (after_days), what must still hold (only_if), its message, channels, name and slots; a new one under the first step''s class, hour and cap. On the member''s own rights (the steps'' policies and column grants); the change_step decision rides in the same transaction. Answers id, place, was and the decision''s.';
+COMMENT ON FUNCTION public.sequence_step_save(p_tenant_id uuid, p_sequence_id uuid, p_step jsonb, p_decision jsonb, p_via text, p_undo_of uuid) IS 'A customer''s step after the first (D6, 0060), added at the end of its sequence or changed (p_step.id): its wait (after_days), what must still hold (only_if), its message, channels and slots; a new one under the first step''s class, hour, cap, last day and trial (00453), named as it unless given a name. On the member''s own rights (the steps'' policies and column grants); the change_step decision rides in the same transaction. Answers id, place, was and the decision''s.';
 
 
 --
@@ -36348,6 +36462,13 @@ CREATE TRIGGER sending_domains_within_limit BEFORE INSERT ON public.sending_doma
 
 
 --
+-- Name: sequence_batches sequence_batches_cut_off; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER sequence_batches_cut_off AFTER UPDATE OF state ON public.sequence_batches FOR EACH ROW WHEN (((new.state = ANY (ARRAY['canceled'::text, 'failed'::text])) AND (old.state IS DISTINCT FROM new.state))) EXECUTE FUNCTION public.sequence_batches_cut_off();
+
+
+--
 -- Name: sequence_batches sequence_batches_guard; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -44041,6 +44162,22 @@ GRANT ALL ON FUNCTION public.sequence_batch_cancel(p_tenant_id uuid, p_batch_id 
 REVOKE ALL ON FUNCTION public.sequence_batch_counts(p_tenant_id uuid, p_batch_ids uuid[]) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.sequence_batch_counts(p_tenant_id uuid, p_batch_ids uuid[]) TO authenticated;
 GRANT ALL ON FUNCTION public.sequence_batch_counts(p_tenant_id uuid, p_batch_ids uuid[]) TO service_role;
+
+
+--
+-- Name: FUNCTION sequence_batch_places_back(p_batch_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.sequence_batch_places_back(p_batch_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.sequence_batch_places_back(p_batch_id uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION sequence_batches_cut_off(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.sequence_batches_cut_off() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.sequence_batches_cut_off() TO service_role;
 
 
 --

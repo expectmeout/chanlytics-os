@@ -162,14 +162,31 @@ test("what a step is doing now: a batch waiting for your OK, a message gone and 
       waiting: 1,
       waiting_people: 6,
       batches: [
-        { id: "b1", step_id: "s1", run_for: "2026-10-17", at: "2026-10-18T03:30:00Z", people: 6, audience: null },
+        {
+          id: "b1",
+          step_id: "s1",
+          run_for: "2026-10-17",
+          at: "2026-10-17T14:05:00Z",
+          people: 6,
+          audience: { kind: "playbook", trigger: "list" },
+        },
       ],
     },
   });
+  // Its `at` is when it was made: an OK sends it at once, and a customer's waits only until its day is gone.
   assert.deepEqual(scheduleStepState(waits, STEPS[0], ctx()), {
     tone: "need",
-    words: "6 wait for your OK · goes today 11:30 PM",
+    words: "6 wait for your OK · until tonight",
   });
+  const toLeads = row({
+    starts: "leads",
+    needs: { ...waits.needs, batches: [{ ...waits.needs.batches[0], audience: { kind: "reach_out", trigger: null } }] },
+  });
+  assert.deepEqual(
+    scheduleStepState(toLeads, step(1, { kind: "reach_out" }), ctx()),
+    { tone: "need", words: "6 wait for your OK" },
+    "a sequence to leads' batch has no day to pass",
+  );
   assert.deepEqual(scheduleStepState(row(), STEPS[0], ctx({ gone: true })), {
     tone: "need",
     words: "Pick a message for it",
@@ -204,6 +221,12 @@ test("what is only coming is quiet: the first step's next run, and who is in lin
     "In line · the first on Oct 20",
   );
   assert.equal(scheduleInLine(people, 1), null, "nobody waits for the first step");
+  // Someone whose wait is over and who is still in line (the step could not reach them yet) is due now, never a day past.
+  const overdue = {
+    counts: { in: 2 },
+    rows: [person("in", 1, "2026-10-12T14:00:00Z"), person("in", 1, "2026-10-21T14:00:00Z")],
+  };
+  assert.equal(scheduleStepState(row(), STEPS[1], ctx({ people: overdue })).words, "2 in line · due now");
 });
 
 test("a sequence to leads: what the check held of a step and when the rest go, else gone to everyone in it", () => {
