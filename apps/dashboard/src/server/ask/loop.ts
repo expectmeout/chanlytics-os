@@ -152,6 +152,8 @@ export interface TurnInput {
   openedMs?: number | null;
   /** The person is listening, not reading (the voice door): the spoken register rides in the turn's words. */
   spoken?: boolean;
+  /** How they like answers, their own note (contracts answerStyleOf): said in the turn's words; "" or none, nothing. */
+  style?: string;
   /** How long after the thread's previous turn this question came; null on a thread's first. */
   sinceLastMs?: number | null;
   /**
@@ -279,6 +281,7 @@ function wordsBlock(
     scopeOnPage: input.scope?.kind === "page" && input.scope.id === input.context?.route,
     now,
     spoken: input.spoken ?? false,
+    style: input.style ?? "",
     above: aboveRoleWords(input.role),
   };
   const words = (live: boolean, dataDropped: boolean) => ({
@@ -708,7 +711,7 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
       // Cards alone, every one of them made: they are the Do, said in a sentence (a plan's by the model, from its result,
       // in the round after it), with no second round -- unless part of what was asked is no card, which the next round
       // says (turn-end.ts turnUnmade).
-      const alone = unmade.alone({ acts: acts.length, calls: calls.length, refused, made: proposals.length > before });
+      const alone = unmade.alone({ acts: acts.length, calls: calls.length, refused, made: proposals.slice(before) });
       if (
         planAnswerOwed(alone, planned, { answerTool: model.answerTool, last, leftMs: budgetMs - (Date.now() - t0) })
       ) {

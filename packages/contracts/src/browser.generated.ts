@@ -25,7 +25,7 @@ export { MODEL_TURN_WRITE_MS, modelTurnRequestOf, modelTurnResponseOf } from "./
 export { MODEL_PRICES, FAST_MODE_PRICES, MODEL_CALL_OUTCOMES, NO_USAGE, priceOf, usageDollars, usageTokens, usageOf, aiUsageBodyOf, usageMonthOf } from "./ai/usage";
 export { foldWordsMessages, isWordsMessage, wordsMessage } from "./ai/words-message";
 export { RUN_VERBS, PLAYBOOK_CARD_REFUSALS, PLAYBOOK_CARD_WORDS, MESSAGE_WORDS, proposalChannelsWords, stepOfferWords, twinRunsWords } from "./ask-proposals/campaigns";
-export { ASK_VIEW_PAGE, ASK_FOLLOW_UPS_MAX, FOLLOW_UP_SAID_MAX, FOLLOW_UP_PROMPT_MAX, FOLLOW_UP_WAKES, followUpsOf, followUpDue } from "./ask-proposals/follow-ups";
+export { ASK_VIEW_PAGE, ASK_FOLLOW_UPS_MAX, FOLLOW_UP_SAID_MAX, FOLLOW_UP_PROMPT_MAX, FOLLOW_UP_WAKES, followUpsOf, followUpDue, ASK_STYLE_PAGE, ASK_STYLE_MAX, answerStyleOf } from "./ask-proposals/follow-ups";
 export { ASK_GUIDE_PAGES, ASK_PAGE_ONLY_VERBS } from "./ask-proposals/guide";
 export { ASK_THREAD_ROUTES } from "./ask-proposals/inbox";
 export { PROPOSAL_GATE, addProposalSpecs, askUndoOpen, cardOpenRoute, proposalSpec, verbSpec } from "./ask-proposals/page-specs";
@@ -37,7 +37,7 @@ export { ASK_SKILL_IDS, isAskSkillId, skillGuide, skillsAsked } from "./ask-skil
 export { SKILL_CRAFT_PURPOSES, SKILL_CRAFT_MAX_TOKENS, SKILL_GUIDE_MAX, craftSystem, guideBlock } from "./ask-skills/skill";
 export { ASK_ANSWER_FORMAT } from "./ask/answer-format";
 export { partialSay, answerSoFar, stoppedAnswer } from "./ask/answer-stream";
-export { cleanAnswer, isUngrounded, sameQuestion, navigateLabel, FOLLOWUP_ECHO, claimsWrite, unquoted, answerBlocks, answerRuns, answerPlain, answerText, answerCopy, answerSpoken, listSpoken } from "./ask/answer-text";
+export { cleanAnswer, isUngrounded, sameQuestion, nextNotAsked, navigateLabel, FOLLOWUP_ECHO, claimsWrite, unquoted, answerBlocks, answerRuns, answerPlain, answerText, answerCopy, answerSpoken, listSpoken } from "./ask/answer-text";
 export { scopeFromRoute, ASK_MAX_CHARS, ASK_MAX_ROUNDS, ASK_TURN_BUDGET_MS, ASK_SPOKEN_TURN_BUDGET_MS, ASK_TOOLS_CHARS_CEILING, ASK_CORE_TOOLS_CHARS_CEILING, ASK_SELECTION_MAX, ASK_VOICE_CLAIM_STALE_MS, ASK_VOICE_FIRST_WORDS_MS, ASK_VOICE_PULSE_MS, ASK_VOICE_TOKEN_MIN_MS, ASK_VOICE_ID, ASK_VOICE_MODEL, ASK_SPEECH_MAX_CHARS, SPEECH_PURPOSES, ASK_VOICE_TIMING_MAX_MS, ASK_VOICE_IDLE_MS, ASK_VOICE_UP_WAIT_MS, VOICE_END_REASONS, isVoiceEndReason, ASK_MAX_TOKENS, ASK_WARM_MAX_TOKENS, ASK_TOKENS_DAY, ASK_CAPS, ASK_THREAD_VERBS, ASK_UNDO_MS, askCardLapsed, ASK_SURFACES, ASK_SCOPE_KINDS } from "./ask/ask";
 export { storedAnswer, oneDoor, answerFromV1, needsAnswer, callsAnswer, openingsAnswer, normalizeAnswer, answerWords, answerForCards, failedAnswer, proseAnswer, v1FromAnswer, clip, ASK_ANSWER_CAPS } from "./ask/ask-answer";
 export { callJumpSub, askCallOutcome } from "./ask/ask-calls";

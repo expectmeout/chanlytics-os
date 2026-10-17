@@ -1,7 +1,3 @@
-// src/zod-config.ts
-import { config } from "zod/v4/core";
-config({ jitless: true });
-
 // src/shared/time.ts
 var MIN_MS = 6e4;
 var HOUR_MS = 36e5;
@@ -122,9 +118,9 @@ var DOORS = ["whatsapp", "call", "form"];
 var STARTS = ["copy", "again", "google"];
 var NONE = { ad: null, compose: null, results: false };
 var isAdsParam = (param) => /^ads(:|$)/.test(param);
-function adsPreviewOf(config2) {
-  if (typeof config2 !== "object" || config2 === null || !("features" in config2)) return false;
-  const features = config2.features;
+function adsPreviewOf(config) {
+  if (typeof config !== "object" || config === null || !("features" in config)) return false;
+  const features = config.features;
   return typeof features === "object" && features !== null && "ads_preview" in features && features.ads_preview === true;
 }
 var adStartOf = (word) => STARTS.find((s) => s === word);
@@ -2199,7 +2195,7 @@ function firstMissing(acct, door, platform) {
 }
 var doorReady = (read, door) => platformsFor(door).some((p) => isConnected(read, p) && firstMissing(adAccountOf(read, p), door, p) === null);
 var firstReadyDoor = (read) => DOOR_ORDER.find((d) => doorReady(read, d)) ?? "whatsapp";
-var smallestPreset = (config2) => [...config2.presets].sort((a, b) => a.perDayMinor * a.days - b.perDayMinor * b.days).at(0);
+var smallestPreset = (config) => [...config.presets].sort((a, b) => a.perDayMinor * a.days - b.perDayMinor * b.days).at(0);
 function reachNoteOf(ad, read) {
   if (ad.door === "call") return ad.state === "review" ? REACH_NOTE.callChecking : REACH_NOTE.callApproved;
   const at3 = ad.lastArrivalAt;
@@ -4964,10 +4960,10 @@ function chooseOf(read) {
     }))
   }));
 }
-function noAdsOf(read, config2) {
+function noAdsOf(read, config) {
   const door = firstReadyDoor(read);
   const platform = platformsFor(door).at(0) ?? "meta";
-  const preset = smallestPreset(config2);
+  const preset = smallestPreset(config);
   const currency = read.accounts.find((a) => a.platform === platform)?.currency ?? ADS_DEFAULT_CURRENCY;
   const line = preset ? NO_ADS.line({
     door: DOOR[door].label,
@@ -5399,7 +5395,7 @@ var groupByOf = (read, by) => read.ads.length < ADS_GROUP_FROM ? null : {
     { value: "platform", label: GROUP.platform }
   ]
 };
-function adsModel(read, config2, by = "door") {
+function adsModel(read, config, by = "door") {
   const mode = pageModeOf(read);
   const p = pageTotals(read);
   const rv = readViewOf(read);
@@ -5425,7 +5421,7 @@ function adsModel(read, config2, by = "door") {
     noAds: null
   };
   if (mode === "v0") return { ...base, v0: v0Of(read) };
-  if (mode === "none") return { ...base, noAds: noAdsOf(read, config2) };
+  if (mode === "none") return { ...base, noAds: noAdsOf(read, config) };
   const tiles = tilesOf(read, rv.reading);
   return {
     ...base,
@@ -5858,9 +5854,9 @@ function notesOf(ad, o) {
   const end = o.lastEnd !== null && rule2.totalMaxDays !== null ? [evening, CHIPS.googleLastDay({ days: rule2.totalMaxDays, day: dayWord(o.lastEnd) })] : [evening];
   return { offer: [CHIPS.offer(p)], area, amount, end };
 }
-function areaOptions(ad, config2) {
+function areaOptions(ad, config) {
   if (ad.platform === "tiktok") return [];
-  return config2.areas.map((a) => ({
+  return config.areas.map((a) => ({
     miles: a.miles,
     label: areaWord({ kind: "radius", miles: a.miles }),
     people: a.people && ad.platform === "meta" ? CHIPS.areaPeople(a.people[0], a.people[1]) : null
@@ -6091,7 +6087,7 @@ function footOf(ad, mode) {
   return ad.madeHere ? [first, "edit"] : [first];
 }
 var reportRoute = (ad, read) => `reports/ads:${read.window.from}~${read.window.to}:ad:${ad.id}`;
-function adModel(ad, read, config2, saved) {
+function adModel(ad, read, config, saved) {
   const t = totalsOf(ad, read);
   const state = viewState(ad, read.today);
   const mode = drawerModeOf(ad);
@@ -6130,7 +6126,7 @@ function adModel(ad, read, config2, saved) {
     quiet: quietOf(ad),
     preview: adPreviewOf(ad, read),
     people: adPeopleOf(ad, t, { read, peopleTo: ADS_DOORS.people }),
-    edit: editOf(ad, t, { read, config: config2, saved }),
+    edit: editOf(ad, t, { read, config, saved }),
     endConfirm: DRAWER.menu.endConfirm(ad.name),
     confirm: {
       update: DRAWER.confirm.update({ owner, within: REVIEW_WITHIN[ad.platform] }),
@@ -6199,10 +6195,10 @@ function scheduleVM(draft, read) {
   const hint = !allowed ? NEW_AD.step4.openOnlyMeta : on ? NEW_AD.step4.openOnlyOn : NEW_AD.step4.openOnlyOff;
   return { kind: "switch", label: NEW_AD.step4.openOnly(read.business.hours), hint, on, locked: !allowed };
 }
-function budgetLines(draft, config2, o) {
+function budgetLines(draft, config, o) {
   const p = draft.platform;
   const rule2 = BUDGET_RULES[p];
-  const floor = config2.minPerDayMinor[p];
+  const floor = config.minPerDayMinor[p];
   const floorSaid = CHIPS.floor(p, floor === null ? null : moneyOf(floor, o.currency), rule2.totalMaxDays);
   const lines = [];
   if (draft.mode === "total") {
@@ -6393,8 +6389,8 @@ function baseDraft(read) {
     alsoGoogle: false
   };
 }
-function newAdDefaults(read, config2) {
-  const smallest = smallestPreset(config2);
+function newAdDefaults(read, config) {
+  const smallest = smallestPreset(config);
   return { ...baseDraft(read), presetId: smallest ? smallest.id : "own" };
 }
 var milesOf = (ad, fallback) => ad.area.kind === "radius" ? ad.area.miles : fallback;
@@ -6455,8 +6451,8 @@ function starterCopy(o) {
     thanks: PREVIEW.thanksOn
   };
 }
-function draftPlan(draft, read, config2) {
-  const preset = config2.presets.find((p) => p.id === draft.presetId);
+function draftPlan(draft, read, config) {
+  const preset = config.presets.find((p) => p.id === draft.presetId);
   const daily = preset ? preset.perDayMinor : draft.ownPerDayMinor;
   const days = preset ? preset.days : ADS_OWN_DAYS;
   const startDay = addDays(read.today, 1);
@@ -6493,8 +6489,8 @@ function mediaOf(draft) {
   if (draft.postId !== null) return { kind: "post", postId: draft.postId };
   return draft.format === "video" ? { kind: "video", label: "", vertical: true } : { kind: "photo", label: "" };
 }
-function draftAd(draft, read, config2, id) {
-  const plan = draftPlan(draft, read, config2);
+function draftAd(draft, read, config, id) {
+  const plan = draftPlan(draft, read, config);
   const service = draftService(draft, read);
   const account = adAccountOf(read, draft.platform);
   const typed = draft.name === null ? "" : draft.name.trim();
@@ -6534,8 +6530,8 @@ function draftAd(draft, read, config2, id) {
     days: []
   };
 }
-function presetsOf(draft, config2, o) {
-  return config2.presets.map((p) => {
+function presetsOf(draft, config, o) {
+  return config.presets.map((p) => {
     const totalMinor = p.perDayMinor * p.days;
     const endDay = addDays(o.startDay, p.days - 1);
     const perDay = perDayOf(p.perDayMinor, o.currency);
@@ -6550,14 +6546,14 @@ function ownRestOf(plan, currency) {
   const total = moneyOf(plan.budget.amountMinor, currency);
   return NEW_AD.step4.preset({ perDay, days: plan.days, total, end: dayWord(plan.endDay) });
 }
-function estimateOf(draft, config2, currency) {
+function estimateOf(draft, config, currency) {
   if (draft.platform === "tiktok") return null;
   if (draft.platform === "google") {
-    const g = config2.googleEstimate;
+    const g = config.googleEstimate;
     const [from, to] = g.perClickMinor;
     return NEW_AD.step4.googleEstimate({ clicks: g.clicks, from: moneyOf(from, currency), to: moneyOf(to, currency) });
   }
-  const preset = config2.presets.find((p) => p.id === draft.presetId);
+  const preset = config.presets.find((p) => p.id === draft.presetId);
   if (draft.mode !== "total" || !preset || !preset.estimate) return NEW_AD.step4.noEstimate;
   return NEW_AD.step4.estimate({ lo: preset.estimate[0], hi: preset.estimate[1], days: preset.days });
 }
@@ -6568,14 +6564,14 @@ function draftReady(draft, read, needs2) {
   if (bad) return { tone: "warn", said: reachLine(DRAWER.reach.needs(bad.text)), rows: rows2 };
   return { tone: "ok", said: NEW_AD.step5.ready(NEW_AD.step5.readyParts[draft.platform].join(" \xB7 ")), rows: rows2 };
 }
-function drawerOf(draft, ad, read, config2) {
-  const drawer = adModel(ad, read, config2);
+function drawerOf(draft, ad, read, config) {
+  const drawer = adModel(ad, read, config);
   if (draft.platform !== "meta" || draft.format !== "video") return drawer;
   return { ...drawer, preview: { ...drawer.preview, frame: "video", frames: [] } };
 }
-function newAdModel(draft, read, config2) {
-  const plan = draftPlan(draft, read, config2);
-  const ad = draftAd(draft, read, config2, "new-ad");
+function newAdModel(draft, read, config) {
+  const plan = draftPlan(draft, read, config);
+  const ad = draftAd(draft, read, config, "new-ad");
   const owner = PLATFORM_OWNER[draft.platform];
   const within2 = REVIEW_WITHIN[draft.platform];
   const totalMinor = plan.budget.mode === "total" ? plan.budget.amountMinor : null;
@@ -6590,7 +6586,7 @@ function newAdModel(draft, read, config2) {
   const checked = checkedOf({ draft, ad, read, needs: needs2 });
   return {
     ad,
-    drawer: drawerOf(draft, ad, read, config2),
+    drawer: drawerOf(draft, ad, read, config),
     name: NEW_AD.name(ad.offer, dayShort(plan.startDay)),
     sentence: sentenceParts({
       offer: ad.offer,
@@ -6603,12 +6599,12 @@ function newAdModel(draft, read, config2) {
       endDay: totalMinor === null ? null : plan.endDay,
       chips: "new"
     }),
-    presets: presetsOf(draft, config2, { startDay: plan.startDay, currency: ad.currency }),
+    presets: presetsOf(draft, config, { startDay: plan.startDay, currency: ad.currency }),
     ownRest: ownRestOf(plan, ad.currency),
     ownUnit: NEW_AD.step4.ownUnit(currencySymbol(ad.currency)),
-    estimate: estimateOf(draft, config2, ad.currency),
+    estimate: estimateOf(draft, config, ad.currency),
     history: earlier ? NEW_AD.step4.history(earlier.each, earlier.people) : null,
-    lines: budgetLines(draft, config2, { perDay, currency: ad.currency }),
+    lines: budgetLines(draft, config, { perDay, currency: ad.currency }),
     forecast: totalMinor === null ? NEW_AD.step5.forecastDaily({ owner, within: within2, perDay }) : NEW_AD.step5.forecast({ owner, within: within2, perDay, total: say2(totalMinor), end: dayWord(plan.endDay) }),
     turnOn: totalMinor === null ? NEW_AD.turnOnDaily(perDay) : NEW_AD.turnOnTotal(say2(totalMinor)),
     needs: needs2,
@@ -7852,7 +7848,7 @@ function emptyOf(o) {
   const words3 = lensEmpty("ads", { since: dayShort(o.window.from), until: dayShort(o.window.to) });
   return { title: words3.title, body: words3.body };
 }
-function adsResultsOf(read, config2, at3) {
+function adsResultsOf(read, config, at3) {
   const window = resultsWindowOf(read, at3);
   const ads = adsOf(read, at3.scope);
   const scoped = {
@@ -7889,7 +7885,7 @@ function adsResultsOf(read, config2, at3) {
   };
   const empty = emptyOf({ read, ads, window, quiet });
   if (empty) return { ...base, ...RESULTS_NOTHING, empty, head: null, theirs: { cards: [], why: null } };
-  const model = adsModel(scoped, config2);
+  const model = adsModel(scoped, config);
   return {
     ...base,
     empty: null,
@@ -13173,6 +13169,9 @@ function sameQuestion(a, b) {
   const x = norm(a);
   return x.length > 0 && x === norm(b);
 }
+function nextNotAsked(next, asked) {
+  return next.filter((q) => !asked.some((a) => sameQuestion(a, q)));
+}
 function navigateLabel(nav, language) {
   if (!nav || !nav.to) return null;
   const es = language === "es";
@@ -13194,7 +13193,8 @@ var WRITE_CLAIMS = [
   /(?:^|[.!?]\s+)(?:all\s+)?done[,.!]/i
 ];
 var claimsWrite = (text) => WRITE_CLAIMS.some((re) => re.test(unquoted(text)));
-var INLINE = /\*\*(.+?)\*\*|__(.+?)__|(?<![\p{L}\p{N}*])\*(?!\s)(.+?)(?<!\s)\*(?![\p{L}\p{N}*])|(?<![\p{L}\p{N}_])_(?!\s)(.+?)(?<!\s)_(?![\p{L}\p{N}_])|\[([^\]\n]+)\]\([^)\s]*\)|`([^`\n]+)`/gu;
+var INLINE = /\*\*(.+?)\*\*|__(.+?)__|(?<![\p{L}\p{N}*])\*(?!\s)(.+?)(?<!\s)\*(?![\p{L}\p{N}*])|(?<![\p{L}\p{N}_])_(?!\s)(.+?)(?<!\s)_(?![\p{L}\p{N}_])|\[([^\]\n]+)\]\(([^)\s]*)\)|`([^`\n]+)`/gu;
+var DOOR2 = /^ask:([a-z][\w-]*(?:[/:?=&.%-][\w:/?=&.%-]*)?)$/i;
 function answerRuns(line) {
   const out = [];
   let at3 = 0;
@@ -13203,16 +13203,26 @@ function answerRuns(line) {
   };
   for (const m of line.matchAll(INLINE)) {
     plain2(line.slice(at3, m.index));
-    const [, b1, b2, i1, i2, link, code2] = m;
-    if (b1 ?? b2) out.push({ text: b1 ?? b2 ?? "", bold: true });
-    else if (i1 ?? i2) out.push({ text: i1 ?? i2 ?? "", italic: true });
+    const [, b1, b2, i1, i2, link, target, code2] = m;
+    const to = link && target && !target.includes("//") ? DOOR2.exec(target)?.[1] : void 0;
+    if (b1 ?? b2) out.push(...answerRuns(b1 ?? b2 ?? "").map((r2) => ({ ...r2, bold: true })));
+    else if (i1 ?? i2) out.push(...answerRuns(i1 ?? i2 ?? "").map((r2) => ({ ...r2, italic: true })));
+    else if (link && to) out.push({ text: link, to });
     else plain2(link ?? code2 ?? "");
     at3 = (m.index ?? 0) + m[0].length;
   }
   plain2(line.slice(at3));
   return out;
 }
+function answerDoors(text, ground) {
+  return text.replace(/\[([^\]\n]+)\]\(([^)\s]*)\)/g, (_, words3, target) => {
+    const to = target ? ground(target.replace(/^ask:/i, ""), words3) : null;
+    return to ? `[${words3}](ask:${to})` : words3;
+  });
+}
 var LIST_LINE = /^(\s*)(?:([-*•])|(\d{1,2})[.)])\s+(.*)$/;
+var QUOTE_LINE = /^\s*>\s?(.*)$/;
+var CALLOUT = /^\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]\s*(.*)$/i;
 var HEADING = /^#{1,6}\s+(.+?)\s*#*$/;
 var TABLE_LINE = /^\s*\|.*\|\s*$/;
 var TABLE_RULE = /^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$/;
@@ -13223,8 +13233,9 @@ function listPointOf(line) {
   const m = LIST_LINE.exec(line);
   if (!m) return null;
   const [, lead = "", , number2, words3 = ""] = m;
-  return { indent: lead.replace(/\t/g, "  ").length, ordered: !!number2, words: words3 };
+  return { indent: lead.replace(/\t/g, "  ").length, ordered: !!number2, number: Number(number2 ?? 1), words: words3 };
 }
+var listFor = (point) => point.ordered && point.number > 1 ? { ordered: true, start: point.number, items: [] } : { ordered: point.ordered, items: [] };
 function wordsListOf(lines) {
   const root = { ordered: false, items: [] };
   const stack = [];
@@ -13232,20 +13243,25 @@ function wordsListOf(lines) {
     const point = listPointOf(raw);
     if (!point) {
       const last = stack.at(-1)?.list.items.at(-1);
-      if (last) last.runs.push({ text: " " }, ...answerRuns(raw.trim()));
+      const quoted = QUOTE_LINE.exec(raw)?.[1]?.trim();
+      if (last && quoted)
+        last.runs.push({ text: " \u201C" }, ...answerRuns(quoted).map((r2) => ({ ...r2, italic: true })), {
+          text: "\u201D"
+        });
+      else if (last) last.runs.push({ text: " " }, ...answerRuns(raw.trim()));
       continue;
     }
-    const { indent, ordered } = point;
+    const { indent } = point;
     while ((stack.at(-1)?.indent ?? -1) > indent) stack.pop();
     const top = stack.at(-1);
     const parent = top?.list.items.at(-1);
     let list2;
     if (!top) {
       list2 = root;
-      if (!root.items.length) root.ordered = ordered;
+      if (!root.items.length) Object.assign(root, listFor(point), { items: root.items });
       stack.push({ indent, list: list2 });
     } else if (indent > top.indent && parent && stack.length < LIST_DEPTH) {
-      parent.sub = parent.sub ?? { ordered, items: [] };
+      parent.sub = parent.sub ?? listFor(point);
       list2 = parent.sub;
       stack.push({ indent, list: list2 });
     } else list2 = top.list;
@@ -13261,6 +13277,15 @@ function tableOf(headLine, bodyLines) {
   });
   const right = head.map((_, k) => rows2.length > 0 && rows2.every((r2) => NUMBER_CELL.test(runsText(r2[k] ?? []).trim())));
   return { kind: "table", head: head.map(answerRuns), rows: rows2, right };
+}
+function quoteOf(lines) {
+  const said = lines.map((l) => QUOTE_LINE.exec(l)?.[1]?.trim() ?? "");
+  const mark = CALLOUT.exec(said[0] ?? "");
+  const rest = mark ? [mark[2] ?? "", ...said.slice(1)] : said;
+  const runs = rest.filter(Boolean).map(answerRuns);
+  if (!mark) return { kind: "quote", lines: runs };
+  const tone = /^(NOTE|TIP)$/i.test(mark[1] ?? "") ? "note" : "warn";
+  return { kind: "callout", tone, lines: runs };
 }
 function answerBlocks(text) {
   const lines = text.replace(/\r\n?/g, "\n").split("\n");
@@ -13282,6 +13307,12 @@ function answerBlocks(text) {
       endPara();
       blocks.push({ kind: "heading", runs: answerRuns(heading) });
       i++;
+    } else if (QUOTE_LINE.test(line)) {
+      endPara();
+      const run = [];
+      for (; i < lines.length && QUOTE_LINE.test(at3(i)); i++) run.push(at3(i));
+      const block = quoteOf(run);
+      if (block.lines.length) blocks.push(block);
     } else if (TABLE_LINE.test(line) && TABLE_RULE.test(at3(i + 1))) {
       endPara();
       const body = [];
@@ -13302,11 +13333,11 @@ function answerBlocks(text) {
   endPara();
   return blocks;
 }
-var opensWithBlock = (s) => /^\s*(?:#|[-*•]\s|\d{1,2}[.)]\s|\|)/.test(s);
+var opensWithBlock = (s) => /^\s*(?:#|[-*•]\s|\d{1,2}[.)]\s|\||>)/.test(s);
 var runsText = (runs) => runs.map((r2) => r2.text).join("");
 function listPlain(l, depth, spoken) {
   return l.items.flatMap((it, k) => {
-    const mark = l.ordered ? `${k + 1}. ` : spoken ? "" : "\u2022 ";
+    const mark = l.ordered ? `${(l.start ?? 1) + k}. ` : spoken ? "" : "\u2022 ";
     const pad = spoken ? "" : "  ".repeat(depth);
     return [`${pad}${mark}${runsText(it.runs)}`, ...it.sub ? listPlain(it.sub, depth + 1, spoken) : []];
   });
@@ -13317,6 +13348,8 @@ function answerPlain(text, spoken = false) {
     if (b.kind === "text") return b.lines.map(runsText);
     if (b.kind === "heading") return [runsText(b.runs)];
     if (b.kind === "list") return listPlain(b.list, 0, spoken);
+    if (b.kind === "quote") return b.lines.map((l) => spoken ? runsText(l) : `\u201C${runsText(l)}\u201D`);
+    if (b.kind === "callout") return b.lines.map(runsText);
     return [b.head.map(runsText).join(sep), ...b.rows.map((r2) => r2.map(runsText).join(sep))];
   }).join("\n");
 }
@@ -15203,6 +15236,98 @@ var factSuggestionSpec = {
   }),
   receipt: (p) => p.payload.keep === true ? FACT_SUGGEST_WORDS.kept(asText(p.payload.title)) : FACT_SUGGEST_WORDS.dismissed,
   open: () => "admin/autonomy"
+};
+
+// src/ask-proposals/follow-ups.ts
+var ASK_VIEW_PAGE = "ask";
+var ASK_FOLLOW_UPS_MAX = 3;
+var FOLLOW_UP_SAID_MAX = 100;
+var FOLLOW_UP_PROMPT_MAX = 200;
+var FOLLOW_UP_WAKES = ["search_done", "replies", "date"];
+var isWake = (v) => typeof v === "string" && FOLLOW_UP_WAKES.includes(v);
+var clipped = (v, max) => typeof v === "string" ? v.trim().slice(0, max) : "";
+function followUpOf(v) {
+  if (!v || typeof v !== "object") return null;
+  const r2 = v;
+  const id = clipped(r2.id, 40);
+  const said = clipped(r2.said, FOLLOW_UP_SAID_MAX);
+  const prompt = clipped(r2.prompt, FOLLOW_UP_PROMPT_MAX);
+  if (!id || !said || !prompt || !isWake(r2.wake)) return null;
+  const subject = clipped(r2.subject, 40) || null;
+  const on = typeof r2.on === "string" && /^\d{4}-\d{2}-\d{2}$/.test(r2.on) ? r2.on : null;
+  if (r2.wake === "date" ? !on : !subject) return null;
+  return { id, said, prompt, wake: r2.wake, subject, on, made_at: clipped(r2.made_at, 40) };
+}
+function followUpsOf(views) {
+  const ask = views && typeof views === "object" ? views[ASK_VIEW_PAGE] : null;
+  const list2 = ask && typeof ask === "object" ? ask.follow_ups : null;
+  return Array.isArray(list2) ? list2.map(followUpOf).filter((f) => f !== null) : [];
+}
+var SEARCH_WAKES = /* @__PURE__ */ new Set(["ended", "waiting_on_owner"]);
+function followUpDue(f, w) {
+  if (f.wake === "date") return !!f.on && f.on <= w.today;
+  if (!f.subject) return false;
+  if (f.wake === "search_done") {
+    const state = w.searches.get(f.subject);
+    return state !== void 0 && SEARCH_WAKES.has(state);
+  }
+  return (w.replies.get(f.subject) ?? 0) > 0;
+}
+var ASK_STYLE_PAGE = "ask_style";
+var ASK_STYLE_MAX = 300;
+function answerStyleOf(views) {
+  const page2 = views && typeof views === "object" ? views[ASK_STYLE_PAGE] : null;
+  const words3 = page2 && typeof page2 === "object" ? page2.words : null;
+  return typeof words3 === "string" ? words3.trim().slice(0, ASK_STYLE_MAX) : "";
+}
+
+// src/ask-proposals/follow-up.ts
+var listIn = (v) => Array.isArray(v) ? v : null;
+var followUpSpec = {
+  needs: "operator",
+  gate: "approve",
+  commit: ({ payload: pl }) => {
+    const list2 = listIn(pl.follow_ups);
+    return list2 ? { route: "PUT views/[page]", params: { page: ASK_VIEW_PAGE }, body: { view: { follow_ups: list2 } } } : refuseWith(PROPOSAL_WORDS.cannotApprove);
+  },
+  receipt: ({ payload: pl }) => pl.cleared === true ? "Done with it" : `I'll come back to it: ${asText(pl.said) || "when it happens"}`,
+  undo: {
+    label: () => "Undo",
+    window: "ten_minutes",
+    record: ({ payload: pl }) => {
+      const was = listIn(pl.previous);
+      return was ? { follow_ups: was } : null;
+    },
+    call: (u) => ({
+      route: "PUT views/[page]",
+      params: { page: ASK_VIEW_PAGE },
+      body: { view: { follow_ups: listIn(u.follow_ups) ?? [] } }
+    }),
+    receipt: () => "As it was"
+  },
+  open: () => null
+};
+var answerStyleSpec = {
+  needs: "operator",
+  gate: "approve",
+  commit: ({ payload: pl }) => ({
+    route: "PUT views/[page]",
+    params: { page: ASK_STYLE_PAGE },
+    body: { view: { words: asText(pl.words) } }
+  }),
+  receipt: ({ payload: pl }) => asText(pl.words) ? "Kept for your answers" : "Cleared",
+  undo: {
+    label: () => "Undo",
+    window: "ten_minutes",
+    record: ({ payload: pl }) => ({ words: asText(pl.previous) }),
+    call: (u) => ({
+      route: "PUT views/[page]",
+      params: { page: ASK_STYLE_PAGE },
+      body: { view: { words: asText(u.words) } }
+    }),
+    receipt: () => "As it was"
+  },
+  open: () => "admin/profile"
 };
 
 // src/ask-proposals/lists.ts
@@ -22953,7 +23078,9 @@ var PAGE_SPECS = {
   // A booking the receptionist asked for, answered on Today, in the Inbox and on the Calendar (decision 0061).
   booking_request: bookingRequestSpec,
   // A note suggested from an owner's correction, kept or dismissed on Settings › Autonomy (decision 0063).
-  fact_suggestion: factSuggestionSpec
+  fact_suggestion: factSuggestionSpec,
+  // How a member likes Ask's answers, kept by Ask's card or on Settings › Profile (the answer canvas, D).
+  answer_style: answerStyleSpec
 };
 var more = {};
 function proposalSpec(kind) {
@@ -23526,8 +23653,8 @@ function normalizeAnswer(raw, read, fallback) {
     }
   }
   const root = asObj(json);
-  const say2 = sayAsDrawn(asObj(root.say));
-  const headline2 = say2.headline;
+  const said = sayAsDrawn(asObj(root.say));
+  const headline2 = said.headline;
   if (!headline2) return { ok: false, error: "no headline" };
   const language = root.language === "en" || root.language === "es" ? root.language : fallback;
   let dropped = 0;
@@ -23536,6 +23663,14 @@ function normalizeAnswer(raw, read, fallback) {
     const r2 = asObj(v);
     if (!s && typeof r2.kind === "string" && r2.kind !== "none" && typeof r2.id === "string" && r2.id.trim()) dropped++;
     return s;
+  };
+  const say2 = {
+    ...said,
+    detail: answerDoors(said.detail, (target, label) => {
+      const [, kind = "", id = ""] = /^([a-z_]+):(.+)$/.exec(target) ?? [];
+      const named = ASK_CITATION_KINDS.includes(kind);
+      return ground(named ? { kind, id, label } : { kind: "page", id: target, label })?.to ?? null;
+    })
   };
   const show = asObj(root.show);
   const figures = [];
@@ -24123,8 +24258,8 @@ function parseTenantConfig(raw) {
   const r2 = parseTenantConfigResult(raw);
   return r2.ok ? r2.config : null;
 }
-function withFirstAlertAddress(config2, email) {
-  const current = parseTenantConfigResult(config2 ?? {});
+function withFirstAlertAddress(config, email) {
+  const current = parseTenantConfigResult(config ?? {});
   if (!current.ok || current.config.notifications) return null;
   const address = normalizeEmail(email);
   if (!address) return null;
@@ -24132,7 +24267,7 @@ function withFirstAlertAddress(config2, email) {
     ...current.config,
     notifications: { escalation_emails: [address] }
   });
-  return next.success ? withStoredKeysKept(next.data, config2) : null;
+  return next.success ? withStoredKeysKept(next.data, config) : null;
 }
 
 // src/ask/ask-schemas.ts
@@ -25003,15 +25138,15 @@ function askCallOutcome(v) {
 
 // src/ask/ask-settings-change.ts
 var NOTE_TEXT_SAID_MAX = 160;
-function applySettingsChange(config2, change) {
+function applySettingsChange(config, change) {
   if (change.op === "set_goal") {
-    const ask = { ...config2.ask ?? {} };
+    const ask = { ...config.ask ?? {} };
     const goal = change.goal.trim();
     if (goal) ask.goal = goal;
     else delete ask.goal;
-    return { ...config2, ask };
+    return { ...config, ask };
   }
-  const brain = { ...config2.brain ?? {} };
+  const brain = { ...config.brain ?? {} };
   const profile = { ...brain.profile ?? {} };
   switch (change.op) {
     case "add_closure": {
@@ -25044,7 +25179,7 @@ function applySettingsChange(config2, change) {
     }
   }
   brain.profile = profile;
-  return { ...config2, brain };
+  return { ...config, brain };
 }
 function describeSettingsChange(change) {
   switch (change.op) {
@@ -25122,7 +25257,7 @@ var ASK_ANSWER_FORMAT = {
         },
         detail: {
           type: "string",
-          description: `The body under the headline, as long as the question needs and no longer: empty when the headline says it whole, a sentence or two for a reason or a condition, more for why, how, a comparison, steps or a plan. Markdown where it helps the reader: **bold** for the number or name that matters, a short ### heading over each part of a long answer, - bullets and 1. numbered steps (two spaces nest a point under another), and a table (a header row, its |---| rule, then its rows) for rows compared on the same columns. No links and no HTML: a place to open is an item or Open. At most ${ASK_ANSWER_CAPS.detail} characters.`
+          description: `The body under the headline, as long as the question needs and no longer: empty when the headline says it whole, a sentence or two for a reason or a condition, more for why, how, a comparison, steps or a plan. Markdown where it helps the reader: **bold** for the number or name that matters, a short ### heading over each part of a long answer, - bullets and 1. numbered steps (two spaces nest a point under another), a table (a header row, its |---| rule, then its rows) for rows compared on the same columns, a customer's own words as a > quote, and a callout as > [!WARNING] (what must come first, or needs them) or > [!NOTE] (a side note), its words on the same line or the > lines after. A row this turn read, named in the words, as [its name](kind:id) with the kind and the id a tool gave, which opens it; never an address, and no HTML. At most ${ASK_ANSWER_CAPS.detail} characters.`
         }
       },
       required: ["headline", "detail"],
@@ -26013,69 +26148,6 @@ function planOf(intent, world) {
   const read = offerRead(intent.offer, intent.say, world);
   return "refused" in read ? read : offerPlan(read, world);
 }
-
-// src/ask-proposals/follow-ups.ts
-var ASK_VIEW_PAGE = "ask";
-var ASK_FOLLOW_UPS_MAX = 3;
-var FOLLOW_UP_SAID_MAX = 100;
-var FOLLOW_UP_PROMPT_MAX = 200;
-var FOLLOW_UP_WAKES = ["search_done", "replies", "date"];
-var isWake = (v) => typeof v === "string" && FOLLOW_UP_WAKES.includes(v);
-var clipped = (v, max) => typeof v === "string" ? v.trim().slice(0, max) : "";
-function followUpOf(v) {
-  if (!v || typeof v !== "object") return null;
-  const r2 = v;
-  const id = clipped(r2.id, 40);
-  const said = clipped(r2.said, FOLLOW_UP_SAID_MAX);
-  const prompt = clipped(r2.prompt, FOLLOW_UP_PROMPT_MAX);
-  if (!id || !said || !prompt || !isWake(r2.wake)) return null;
-  const subject = clipped(r2.subject, 40) || null;
-  const on = typeof r2.on === "string" && /^\d{4}-\d{2}-\d{2}$/.test(r2.on) ? r2.on : null;
-  if (r2.wake === "date" ? !on : !subject) return null;
-  return { id, said, prompt, wake: r2.wake, subject, on, made_at: clipped(r2.made_at, 40) };
-}
-function followUpsOf(views) {
-  const ask = views && typeof views === "object" ? views[ASK_VIEW_PAGE] : null;
-  const list2 = ask && typeof ask === "object" ? ask.follow_ups : null;
-  return Array.isArray(list2) ? list2.map(followUpOf).filter((f) => f !== null) : [];
-}
-var SEARCH_WAKES = /* @__PURE__ */ new Set(["ended", "waiting_on_owner"]);
-function followUpDue(f, w) {
-  if (f.wake === "date") return !!f.on && f.on <= w.today;
-  if (!f.subject) return false;
-  if (f.wake === "search_done") {
-    const state = w.searches.get(f.subject);
-    return state !== void 0 && SEARCH_WAKES.has(state);
-  }
-  return (w.replies.get(f.subject) ?? 0) > 0;
-}
-
-// src/ask-proposals/follow-up.ts
-var listIn = (v) => Array.isArray(v) ? v : null;
-var followUpSpec = {
-  needs: "operator",
-  gate: "approve",
-  commit: ({ payload: pl }) => {
-    const list2 = listIn(pl.follow_ups);
-    return list2 ? { route: "PUT views/[page]", params: { page: ASK_VIEW_PAGE }, body: { view: { follow_ups: list2 } } } : refuseWith(PROPOSAL_WORDS.cannotApprove);
-  },
-  receipt: ({ payload: pl }) => pl.cleared === true ? "Done with it" : `I'll come back to it: ${asText(pl.said) || "when it happens"}`,
-  undo: {
-    label: () => "Undo",
-    window: "ten_minutes",
-    record: ({ payload: pl }) => {
-      const was = listIn(pl.previous);
-      return was ? { follow_ups: was } : null;
-    },
-    call: (u) => ({
-      route: "PUT views/[page]",
-      params: { page: ASK_VIEW_PAGE },
-      body: { view: { follow_ups: listIn(u.follow_ups) ?? [] } }
-    }),
-    receipt: () => "As it was"
-  },
-  open: () => null
-};
 
 // src/ask-proposals/lead-work.ts
 var openLead = ({ payload: pl }) => {
@@ -27699,11 +27771,11 @@ var settingsSpec = {
     const st = tab.settings;
     if (!st || !st.config || typeof st.version !== "number")
       return refuseWith("Settings are not loaded yet \u2014 open Settings once and try again.");
-    const config2 = applySettingsChange(
+    const config = applySettingsChange(
       st.config,
       p.payload.change
     );
-    return { route: "PUT settings", body: { config: config2, version: st.version } };
+    return { route: "PUT settings", body: { config, version: st.version } };
   },
   receipt: (p) => p.summary,
   undo: {
@@ -27918,8 +27990,8 @@ var ASK_GUIDE_PAGES = [
   {
     page: "Settings",
     route: "admin/workspace",
-    for: "What the receptionist knows and may do alone, your goal, connections, notifications, team and billing.",
-    verbs: ["settings", "policy", "invite", "follow_up", "fact_suggestion"],
+    for: "What the receptionist knows and may do alone, your goal, how you like answers (Profile), connections, notifications, team and billing.",
+    verbs: ["settings", "policy", "invite", "follow_up", "fact_suggestion", "answer_style"],
     pageOnly: [
       { what: "Connect WhatsApp, Google, a mailbox or a phone line", why: WHY.signIn },
       { what: "Billing and the plan", why: WHY.money },
@@ -39124,13 +39196,13 @@ function numberHealthWithStanding(health, standing2) {
   const row2 = standing2 ? standingRow(standing2) : null;
   return row2 ? { ...health, canSend: false, tone: "danger", refusal: row2.sentence } : health;
 }
-function numberHealthOfConfig(config2) {
+function numberHealthOfConfig(config) {
   const s = (key) => {
-    const value = config2[key];
+    const value = config[key];
     return typeof value === "string" ? value : null;
   };
   const health = numberHealth({ quality: s("quality_rating"), event: s("quality_event"), limit: s("messaging_limit") });
-  return numberHealthWithStanding(health, standingFromConfig(config2.standing));
+  return numberHealthWithStanding(health, standingFromConfig(config.standing));
 }
 var CAN_SEND_WORDS = {
   AVAILABLE: "can send",
@@ -58604,6 +58676,8 @@ export {
   ASK_SPEECH_MAX_CHARS,
   ASK_SPEED,
   ASK_SPOKEN_TURN_BUDGET_MS,
+  ASK_STYLE_MAX,
+  ASK_STYLE_PAGE,
   ASK_SURFACES,
   ASK_THREAD_ROUTES,
   ASK_THREAD_VERBS,
@@ -59826,6 +59900,7 @@ export {
   answerSaidOf,
   answerSoFar,
   answerSpoken,
+  answerStyleOf,
   answerText,
   answerWireOf,
   answerWords,
@@ -60811,6 +60886,7 @@ export {
   newSinceOf,
   newestPostFor,
   nextMonthStart,
+  nextNotAsked,
   nextOpenMoment,
   nextRunLabel,
   nextRunWords,

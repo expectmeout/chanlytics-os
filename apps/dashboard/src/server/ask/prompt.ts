@@ -468,6 +468,8 @@ export interface TurnFacts {
   spoken?: boolean;
   /** What is above their role, so no tool of the turn's proposes it (tools/offer.ts aboveRoleWords); null for none. */
   above?: string | null;
+  /** How they like answers, in their own note (Settings › Profile, contracts answerStyleOf); "" for none. */
+  style?: string;
 }
 
 /**
@@ -491,14 +493,15 @@ function rowName(r: AskScope): string {
 
 /**
  * The Campaigns line (the moment spec §4.9 A2), in the turn's words and never in system, so the cached rules stay the
- * same bytes on every page: what a sentence on Campaigns is, and which action each kind of sentence is.
+ * same bytes on every page: what a sentence on Campaigns is. It names no tool (the answer canvas, A3): which tool and
+ * action carry each change is the tools' own words, found by search with the page's tools first.
  */
 const CAMPAIGNS_LINE =
-  "They are on Campaigns, which lists what goes out on its own as a customer reaches each moment of their journey (campaigns that run by themselves) and what they send themselves. Words that describe an offer, a promotion, a setup, or a message at a moment or to a list are sequences to propose, as the rule \"Setting up sequences is a few cards\" says (propose_sequence; search for it). Pausing, resuming, renaming, or a new hour, cap, gap or cadence, new words, a last day or a trial's end of one that exists is propose_sequence action change on its playbook_id, which the page's rows carry; a step after the first is action step or words, and cold email to leads action cold_email. A question about results is answered from the page's rows: a campaign's numbers are its last 30 days, and a one-off send's are that send's own, however long ago it went.";
+  "They are on Campaigns, which lists what goes out on its own as a customer reaches each moment of their journey (campaigns that run by themselves) and what they send themselves. Words that describe an offer, a promotion, a setup, or a message at a moment or to a list are sequences to propose, as the rule \"Setting up sequences is a few cards\" says. Pausing, resuming, renaming, or a new hour, cap, gap or cadence, new words, a step, a last day or a trial's end of one that exists is a change to that sequence, by the id the page's rows carry, and cold email to leads is a sequence too. A question about results is answered from the page's rows: a campaign's numbers are its last 30 days, and a one-off send's are that send's own, however long ago it went.";
 
 /** Said once a card of the thread was approved since the last answer (A4): the shape is minutes old; campaigns are read. */
 const AFTER_APPROVAL_LINE =
-  "Cards were approved since the workspace's shape above was read: for what runs now, read sequences with action moments again, never the shape.";
+  "Cards were approved since the workspace's shape above was read: for what runs now, read the sequences again, never the shape.";
 
 /**
  * This turn's words, in the user's message after the page's data and before
@@ -547,9 +550,14 @@ export function turnWords(t: TurnFacts): string {
           : "a viewer: they can read everything and change nothing";
   // Who they are, then what is above their role (aboveRoleWords), on one line: nothing more where nothing is.
   lines.push([`You are speaking with ${t.personLabel}, ${can}.`, t.above].join(" ").trimEnd());
+  // Their own note on how they like answers (the answer canvas, D): what they ask in this conversation comes first.
+  if (t.style)
+    lines.push(
+      `How they like answers, in their own note (Settings › Profile): ${fencedInline("note", t.style)}. Write to it, unless they ask otherwise in this conversation.`,
+    );
   if (t.surface === "leads")
     lines.push(
-      'They are on the Leads page, where the businesses Claude found for them are listed. Words that describe businesses (a kind, a place, a count) are a search to propose: read leads with action searches, then propose_lead_search with action find; ask only when the kind or the place is missing. If a search on this page is waiting for an answer, words that answer its question amend it (amends), and "this search" is the one the scope names.',
+      'They are on the Leads page, where the businesses Claude found for them are listed. Words that describe businesses (a kind, a place, a count) are a lead search to propose, once the searches they have are read; ask only when the kind or the place is missing. If a search on this page is waiting for an answer, words that answer its question amend it, and "this search" is the one the scope names.',
     );
   else if (t.surface === "campaigns") lines.push(CAMPAIGNS_LINE);
   else if (t.surface) lines.push(`They are on the ${t.surface} page.`);

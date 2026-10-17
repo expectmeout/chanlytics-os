@@ -58,6 +58,7 @@ export {
   cleanAnswer,
   isUngrounded,
   sameQuestion,
+  nextNotAsked,
   navigateLabel,
   FOLLOWUP_ECHO,
   claimsWrite,

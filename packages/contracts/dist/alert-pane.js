@@ -34,67 +34,6 @@ function withAlertAddress(notifications, email, on) {
   };
 }
 
-// src/leads/search/plan.ts
-var US_STATES = {
-  alabama: "AL",
-  alaska: "AK",
-  arizona: "AZ",
-  arkansas: "AR",
-  california: "CA",
-  colorado: "CO",
-  connecticut: "CT",
-  delaware: "DE",
-  "district of columbia": "DC",
-  florida: "FL",
-  georgia: "GA",
-  hawaii: "HI",
-  idaho: "ID",
-  illinois: "IL",
-  indiana: "IN",
-  iowa: "IA",
-  kansas: "KS",
-  kentucky: "KY",
-  louisiana: "LA",
-  maine: "ME",
-  maryland: "MD",
-  massachusetts: "MA",
-  michigan: "MI",
-  minnesota: "MN",
-  mississippi: "MS",
-  missouri: "MO",
-  montana: "MT",
-  nebraska: "NE",
-  nevada: "NV",
-  "new hampshire": "NH",
-  "new jersey": "NJ",
-  "new mexico": "NM",
-  "new york": "NY",
-  "north carolina": "NC",
-  "north dakota": "ND",
-  ohio: "OH",
-  oklahoma: "OK",
-  oregon: "OR",
-  pennsylvania: "PA",
-  "rhode island": "RI",
-  "south carolina": "SC",
-  "south dakota": "SD",
-  tennessee: "TN",
-  texas: "TX",
-  utah: "UT",
-  vermont: "VT",
-  virginia: "VA",
-  washington: "WA",
-  "west virginia": "WV",
-  wisconsin: "WI",
-  wyoming: "WY"
-};
-var US_CODES = new Set(Object.values(US_STATES));
-
-// src/leads/search/sentence.ts
-var US_NAMES = Object.fromEntries(
-  Object.entries(US_STATES).map(([name, code]) => [code, name])
-);
-
 // src/shared/time.ts
 var MIN_MS = 6e4;
 var HOUR_MS = 36e5;
@@ -121,10 +60,6 @@ function spanLabel(ms) {
 function agoShort(atMs, nowMs) {
   return spanLabel(nowMs - atMs);
 }
-
-// src/leads/lead-words.ts
-var LEAD_VIEW_SORTS = ["fit", "found", "distance", "business", "rating", "stage"];
-var LEAD_SORTS = [...LEAD_VIEW_SORTS, "pile"];
 
 // src/leads/lead-plan.ts
 var LEAD_QUESTION_WAIT_LINE = "Nothing is spent while this waits. With no answer in a day, it stops and keeps what it found.";

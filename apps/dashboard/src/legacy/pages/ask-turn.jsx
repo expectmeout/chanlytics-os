@@ -71,11 +71,11 @@ const freshNext = (A, drawn, turns) => {
 // 2026-09-27-ask-chat-on-a-phone, D16); these are its parts, and AskCard below holds its state and its verbs.
 
 // Each card's kind as the mark in its tile: a list's card and a run's card are marked as their rows are.
-const AT_CARD_ICONS = { reply: "chat", steer: "chat", whisper: "phone", call_hand_over: "phone", invite: "users", policy: "shield", settings: "settings", person_mode: "settings", person_mode_many: "settings", thread_verb: "inbox", broadcast: "wave", playbook: "bolt", playbook_channels: "bolt", playbook_change: "bolt", sequence_make: "bolt", sequence_step: "bolt", sequence_step_remove: "bolt", sequence_words: "bolt", sequence_start: "bolt", sequence_leave: "bolt", sequence_send_decide: "wave", sequence_send_said: "wave", booking_request: "calendar", fact_suggestion: "edit", sequence_draft: "bolt", sequence_discard: "bolt", lead_search: "search", people_search: "search", lead_search_more: "search", lead_stage: "search", lead_mark: "search", lead_later: "search", leads_bulk: "search", leads_check: "search", lead_addressee: "search", lead_list: "search", reach_out_said: "search", reach_out_add: "wave", reach_out_make: "wave", deal: "users", note: "edit", note_many: "edit", follow_up: "edit", person_details: "user", person_add: "user", person_merge: "users", person_message: "chat", answer: "shield", answer_many: "shield", review_reply: "chat", list: askKindGlyph("list"), list_member: askKindGlyph("list"), list_change: askKindGlyph("list"), list_delete: askKindGlyph("list"), run: askKindGlyph("run"), message: askKindGlyph("template") };
+const AT_CARD_ICONS = { reply: "chat", steer: "chat", whisper: "phone", call_hand_over: "phone", invite: "users", policy: "shield", settings: "settings", person_mode: "settings", person_mode_many: "settings", thread_verb: "inbox", broadcast: "wave", playbook: "bolt", playbook_channels: "bolt", playbook_change: "bolt", sequence_make: "bolt", sequence_step: "bolt", sequence_step_remove: "bolt", sequence_words: "bolt", sequence_start: "bolt", sequence_leave: "bolt", sequence_send_decide: "wave", sequence_send_said: "wave", booking_request: "calendar", fact_suggestion: "edit", sequence_draft: "bolt", sequence_discard: "bolt", lead_search: "search", people_search: "search", lead_search_more: "search", lead_stage: "search", lead_mark: "search", lead_later: "search", leads_bulk: "search", leads_check: "search", lead_addressee: "search", lead_list: "search", reach_out_said: "search", reach_out_add: "wave", reach_out_make: "wave", deal: "users", note: "edit", note_many: "edit", follow_up: "edit", answer_style: "settings", person_details: "user", person_add: "user", person_merge: "users", person_message: "chat", answer: "shield", answer_many: "shield", review_reply: "chat", list: askKindGlyph("list"), list_member: askKindGlyph("list"), list_change: askKindGlyph("list"), list_delete: askKindGlyph("list"), run: askKindGlyph("run"), message: askKindGlyph("template") };
 
 // The card's head: the kind's mark in its tile, the title, and the kind's word under it.
 const AskCardHead = ({ p, t }) => {
-  const KIND = { reply: t.kReply, steer: t.kSteer, thread_verb: t.kInbox, person_mode: t.kPerson, person_mode_many: t.kPerson, policy: t.kAutonomy, settings: t.kSettings, whisper: t.kWhisper, call_hand_over: t.kCall, invite: t.kTeam, broadcast: t.kBroadcast, playbook: t.kPlaybook, playbook_channels: t.kPlaybook, playbook_change: t.kPlaybook, sequence_make: t.kSequence, sequence_step: t.kSequence, sequence_step_remove: t.kSequence, sequence_words: t.kSequence, sequence_start: t.kSequence, sequence_leave: t.kSequence, sequence_send_decide: t.kColdEmail, sequence_send_said: t.kColdEmail, booking_request: t.kBooking, sequence_draft: t.kSequence, sequence_discard: t.kSequence, lead_search: t.kLeads, people_search: t.kLeads, lead_search_more: t.kLeads, lead_stage: t.kLeads, lead_mark: t.kLeads, lead_later: t.kLeads, leads_bulk: t.kLeads, leads_check: t.kLeads, lead_addressee: t.kLeads, lead_list: t.kLeads, reach_out_said: t.kLeads, reach_out_add: t.kColdEmail, reach_out_make: t.kColdEmail, deal: t.kDeal, note: t.kNote, note_many: t.kNote, follow_up: t.kFollowUp, person_details: t.kDetails, person_add: t.kPeople, person_merge: t.kPeople, person_message: t.kMessage, answer: t.kAnswer, answer_many: t.kAnswer, review_reply: t.kReview, list: t.kList, list_member: t.kList, list_change: t.kList, list_delete: t.kList, run: t.kRun, message: t.kMessage };
+  const KIND = { reply: t.kReply, steer: t.kSteer, thread_verb: t.kInbox, person_mode: t.kPerson, person_mode_many: t.kPerson, policy: t.kAutonomy, settings: t.kSettings, whisper: t.kWhisper, call_hand_over: t.kCall, invite: t.kTeam, broadcast: t.kBroadcast, playbook: t.kPlaybook, playbook_channels: t.kPlaybook, playbook_change: t.kPlaybook, sequence_make: t.kSequence, sequence_step: t.kSequence, sequence_step_remove: t.kSequence, sequence_words: t.kSequence, sequence_start: t.kSequence, sequence_leave: t.kSequence, sequence_send_decide: t.kColdEmail, sequence_send_said: t.kColdEmail, booking_request: t.kBooking, sequence_draft: t.kSequence, sequence_discard: t.kSequence, lead_search: t.kLeads, people_search: t.kLeads, lead_search_more: t.kLeads, lead_stage: t.kLeads, lead_mark: t.kLeads, lead_later: t.kLeads, leads_bulk: t.kLeads, leads_check: t.kLeads, lead_addressee: t.kLeads, lead_list: t.kLeads, reach_out_said: t.kLeads, reach_out_add: t.kColdEmail, reach_out_make: t.kColdEmail, deal: t.kDeal, note: t.kNote, note_many: t.kNote, follow_up: t.kFollowUp, answer_style: t.kStyle, person_details: t.kDetails, person_add: t.kPeople, person_merge: t.kPeople, person_message: t.kMessage, answer: t.kAnswer, answer_many: t.kAnswer, review_reply: t.kReview, list: t.kList, list_member: t.kList, list_change: t.kList, list_delete: t.kList, run: t.kRun, message: t.kMessage };
   return (
     <div className="ask-card-head">
       <span className="ask-card-mark"><Icon name={AT_CARD_ICONS[p.kind] || "inbox"} size={15} /></span>
@@ -426,23 +426,28 @@ const AskBreakdown = ({ b, t, onNav }) => {
   );
 };
 
-// A line of the answer's words as runs (contracts answerRuns): bold, italic or plain, each one text. Nothing the model
-// wrote is ever drawn as markup.
-const AskRuns = ({ runs }) =>
+// A line of the answer's words as runs (contracts answerRuns): bold, italic or plain, each one text, and a door where
+// the run names a row the turn read (its route the normaliser's, never the model's). A door opens only on an answer that
+// landed (`onNav`): a streaming one draws its words. Nothing the model wrote is ever drawn as markup.
+const AskRuns = ({ runs, onNav = null }) =>
   runs.map((r, k) =>
-    r.bold ? <strong key={k}>{r.text}</strong> : r.italic ? <em key={k}>{r.text}</em> : <React.Fragment key={k}>{r.text}</React.Fragment>,
+    r.to && onNav ? (
+      <button key={k} type="button" className="ask-words-door" onClick={() => onNav(r.to)} data-testid="ask-words-door">{r.bold ? <strong>{r.text}</strong> : r.text}</button>
+    ) : r.bold ? <strong key={k}>{r.text}</strong> : r.italic ? <em key={k}>{r.text}</em> : <React.Fragment key={k}>{r.text}</React.Fragment>,
   );
+// A quote's or a callout's lines, a paragraph each.
+const AskLines = ({ lines, onNav }) => lines.map((l, i) => <p key={i}><AskRuns runs={l} onNav={onNav} /></p>);
 const atRuns = (s) => (window.__ask && window.__ask.answerRuns ? window.__ask.answerRuns(s) : [{ text: s }]);
 
 // A list in the answer's words, nested up to three deep as the words wrote it.
-const AskWordsList = ({ list }) => {
+const AskWordsList = ({ list, onNav }) => {
   const Tag = list.ordered ? "ol" : "ul";
   return (
-    <Tag className="ask-words-list">
+    <Tag className="ask-words-list" start={list.ordered && list.start ? list.start : undefined}>
       {list.items.map((it, k) => (
         <li key={k}>
-          <AskRuns runs={it.runs} />
-          {it.sub ? <AskWordsList list={it.sub} /> : null}
+          <AskRuns runs={it.runs} onNav={onNav} />
+          {it.sub ? <AskWordsList list={it.sub} onNav={onNav} /> : null}
         </li>
       ))}
     </Tag>
@@ -450,9 +455,10 @@ const AskWordsList = ({ list }) => {
 };
 
 // The answer's words as the Line draws them (contracts answerBlocks): paragraphs with each line its own, a heading over a
-// part, lists, and a table that scrolls sideways where it is wider than the answer. A streaming answer's cursor follows
-// its last block. Without the bridge (the mockup) the words are one paragraph, as they always were.
-const AskWords = ({ text, className, cursor = null }) => {
+// part, lists, a table that scrolls sideways where it is wider than the answer, a customer's words quoted, and a callout
+// for what must come first. A streaming answer's cursor follows its last block. Without the bridge (the mockup) the words
+// are one paragraph, as they always were.
+const AskWords = ({ text, className, cursor = null, onNav = null }) => {
   const A = window.__ask;
   const blocks = A && A.answerBlocks ? A.answerBlocks(text) : [{ kind: "text", lines: [[{ text }]] }];
   const last = blocks.length - 1;
@@ -463,27 +469,44 @@ const AskWords = ({ text, className, cursor = null }) => {
         if (b.kind === "heading")
           return (
             <h4 key={k} className="ask-words-head">
-              <AskRuns runs={b.runs} />
+              <AskRuns runs={b.runs} onNav={onNav} />
               {tail}
             </h4>
           );
         if (b.kind === "list")
           return (
             <React.Fragment key={k}>
-              <AskWordsList list={b.list} />
+              <AskWordsList list={b.list} onNav={onNav} />
               {tail}
             </React.Fragment>
+          );
+        if (b.kind === "quote")
+          return (
+            <blockquote key={k} className="ask-words-quote" data-testid="ask-words-quote">
+              <AskLines lines={b.lines} onNav={onNav} />
+              {tail}
+            </blockquote>
+          );
+        if (b.kind === "callout")
+          return (
+            <div key={k} className="ask-words-callout" data-tone={b.tone} data-testid="ask-words-callout">
+              <Icon name={b.tone === "warn" ? "alert" : "info"} size={14} />
+              <div className="ask-words-callout-words">
+                <AskLines lines={b.lines} onNav={onNav} />
+                {tail}
+              </div>
+            </div>
           );
         if (b.kind === "table")
           return (
             <div key={k} className="ask-words-table" data-testid="ask-words-table">
               <table>
                 <thead>
-                  <tr>{b.head.map((c, i) => <th key={i} className={b.right[i] ? "ask-words-num" : undefined}><AskRuns runs={c} /></th>)}</tr>
+                  <tr>{b.head.map((c, i) => <th key={i} className={b.right[i] ? "ask-words-num" : undefined}><AskRuns runs={c} onNav={onNav} /></th>)}</tr>
                 </thead>
                 <tbody>
                   {b.rows.map((r, j) => (
-                    <tr key={j}>{r.map((c, i) => <td key={i} className={b.right[i] ? "ask-words-num" : undefined}><AskRuns runs={c} /></td>)}</tr>
+                    <tr key={j}>{r.map((c, i) => <td key={i} className={b.right[i] ? "ask-words-num" : undefined}><AskRuns runs={c} onNav={onNav} /></td>)}</tr>
                   ))}
                 </tbody>
               </table>
@@ -495,7 +518,7 @@ const AskWords = ({ text, className, cursor = null }) => {
             {b.lines.map((l, i) => (
               <React.Fragment key={i}>
                 {i ? <br /> : null}
-                <AskRuns runs={l} />
+                <AskRuns runs={l} onNav={onNav} />
               </React.Fragment>
             ))}
             {tail}
@@ -597,7 +620,7 @@ const AskAnswer = ({ answer, cardOpen, cards, messageId, retry, walk = false, se
       <div className="ask-part say" data-testid="ask-say">
         <div className="ask-say">
           {a.say.headline ? <p className="ask-headline">{a.say.headline}</p> : null}
-          {a.say.detail ? <AskWords text={a.say.detail} className={a.say.headline ? "ask-detail" : "ask-prose"} /> : null}
+          {a.say.detail ? <AskWords text={a.say.detail} className={a.say.headline ? "ask-detail" : "ask-prose"} onNav={onNav} /> : null}
         </div>
       </div>
       {hasShow ? <AskShow a={a} itemMove={itemMove} moveProps={moveProps} t={t} onNav={onNav} /> : null}

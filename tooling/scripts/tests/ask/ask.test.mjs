@@ -592,11 +592,11 @@ test("the prompt on Leads: the page is named and words that describe businesses 
   const leads = turnWords({ ...facts, surface: "leads" });
   assert.ok(leads.includes("They are on the Leads page"), leads);
   assert.ok(
-    leads.includes("read leads with action searches, then propose_lead_search"),
+    leads.includes("are a lead search to propose, once the searches they have are read"),
     "a search is proposed, never run",
   );
   assert.ok(leads.includes("ask only when the kind or the place is missing"));
-  assert.ok(leads.includes("amends"), "an answer amends the search that asked");
+  assert.ok(leads.includes("words that answer its question amend it"), "an answer amends the search that asked");
   assert.ok(!leads.includes("They are on the leads page."), "the generic line does not double it");
   const people = turnWords({ ...facts, surface: "people" });
   assert.ok(people.includes("They are on the people page."));
@@ -1455,6 +1455,7 @@ test("cards: an act tool never acts, a proposal names its door and its undo, the
     reach_out_said: "approve",
     review_reply: "approve",
     follow_up: "approve",
+    answer_style: "approve",
   });
   const ok = AskProposalOutcomeSchema.safeParse({
     state: "done",
@@ -1506,7 +1507,7 @@ test("cards: an act tool never acts, a proposal names its door and its undo, the
           "leads",
         ],
       ],
-      ["propose_settings", ["change", "autonomy", "goal"]],
+      ["propose_settings", ["change", "autonomy", "goal", "answer_style"]],
       ["propose_thread_verb", []],
     ],
   );
@@ -2138,7 +2139,10 @@ test("on Campaigns the turn's words say what a sentence there is: a campaign to 
   };
   const w = turnWords(facts);
   assert.ok(w.includes("They are on Campaigns,"), w);
-  assert.ok(w.includes("is propose_sequence action change on its playbook_id"), w);
+  assert.ok(w.includes("is a change to that sequence, by the id the page's rows carry"), w);
+  // The page lines name no tool (the answer canvas, A3): which tool carries a change is the tools' own words.
+  for (const surface of ["campaigns", "leads"])
+    assert.ok(!/\bpropose_|\bwith action\b|playbook_id/.test(turnWords({ ...facts, surface })), surface);
   // A campaign's row says its last 30 days; a one-off send's (the ledger's, and Sent's) says that send's own totals.
   assert.ok(w.includes("a campaign's numbers are its last 30 days, and a one-off send's are that send's own"), w);
   assert.ok(!w.includes("their numbers are the last 30 days"), w);
@@ -2146,7 +2150,7 @@ test("on Campaigns the turn's words say what a sentence there is: a campaign to 
   assert.ok(!turnWords({ ...facts, surface: "today" }).includes("They are on Campaigns,"));
   // A card approved since the last answer sends Ask back to the reads; one dismissed, failed or undone does not.
   const since = [{ id: "p-1", title: "Campaign: Win-back", state: "done", receipt: "running", atMs: 1 }];
-  assert.ok(turnWords({ ...facts, since }).includes("read sequences with action moments again, never the shape"));
+  assert.ok(turnWords({ ...facts, since }).includes("read the sequences again, never the shape"));
   for (const state of ["dismissed", "failed", "undone"])
     assert.ok(!turnWords({ ...facts, since: [{ ...since[0], state }] }).includes("never the shape"), state);
   const rule = ASK_RULES.find((r) => r.startsWith("Setting up sequences is a few cards, never a claim."));

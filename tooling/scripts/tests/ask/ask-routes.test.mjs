@@ -291,7 +291,7 @@ test("a question answered: the thread is made before the model is asked, the per
     );
     await onLeads.text();
     assert.ok(systems[2].includes("They are on the Leads page"), "Leads is a surface the route accepts");
-    assert.ok(systems[2].includes("propose_lead_search"), "and the prompt steers a search there");
+    assert.ok(systems[2].includes("are a lead search to propose"), "and the prompt steers a search there");
     assert.equal(tables.ask_threads[1].title, "100 nail salons in Queens, NY", "titled by the owner's own words");
     const elsewhere = await ask.POST.run(send("POST", { text: "And more?", surface: "clients" }, inA), ctxFor(tables));
     await elsewhere.text();
@@ -427,6 +427,80 @@ test("a quick answer kept: a new thread titled by its question, the question and
   assert.ok(asked[0].includes(answer.say.headline), asked[0]);
   assert.ok(asked[0].includes(`thread ${CONV} Nora`), "the first one is Nora's thread, by its id");
   assert.equal(tables.ask_messages.length, 6, "the follow-up joined the thread");
+});
+
+test("a next question never says again what the thread asked or offered (the answer canvas, item 15): the question pressed and an earlier chip go, a new one stays, in the answer stored and the one streamed", async () => {
+  const tables = {
+    memberships: both("viewer", "operator"),
+    tenants: [{ id: A, name: "Harbor", timezone: "America/New_York" }],
+    tenant_config: [{ tenant_id: A, config: {}, version: 1 }],
+    policies: [],
+    ask_threads: [],
+    ask_messages: [],
+  };
+  const none = { kind: "none", id: "", label: "" };
+  const answerWith = (headline, next) =>
+    JSON.stringify({
+      say: { headline, detail: "" },
+      show: { figures: [], items: [], breakdown: { label: "", total: 0, parts: [], source: none } },
+      do: { open: { source: none, label: "", now: false }, next },
+      language: "en",
+    });
+  const turns = [
+    answerWith("Nobody booked this week.", ["Who called this week?", "Which list is biggest?"]),
+    answerWith("Two people called.", ["who called this week", "What about next week?"]),
+    answerWith("Nobody on Sunday.", ["Which list is biggest?", "How many reviews this month?"]),
+  ];
+  let at = 0;
+  setAskPorts({
+    round: async (_call, onText) => {
+      const written = turns[at++];
+      onText(written);
+      return {
+        blocks: [{ type: "text", id: "", name: "", text: written, json: "" }],
+        stopReason: "end_turn",
+        streamError: null,
+      };
+    },
+    shape: async () => "",
+  });
+  try {
+    const first = await ask.POST.run(
+      send("POST", { text: "Who booked this week?", surface: "today" }, inA),
+      ctxFor(tables),
+    );
+    await first.text();
+    const thread = tables.ask_threads[0];
+    const res = await ask.POST.run(
+      send("POST", { text: "Who called this week?", thread_id: thread.id }, inA),
+      ctxFor(tables),
+    );
+    const final = (await res.text())
+      .trim()
+      .split("\n")
+      .map((l) => JSON.parse(l))
+      .find((l) => l.t === "final");
+    assert.deepEqual(final.message.answer.do.next, ["What about next week?"], "the question pressed goes");
+    assert.deepEqual(final.message.followups, ["What about next week?"]);
+    assert.deepEqual(
+      tables.ask_messages.at(-1).content.answer.do.next,
+      ["What about next week?"],
+      "and the stored answer",
+    );
+    const third = await ask.POST.run(send("POST", { text: "And Sunday?", thread_id: thread.id }, inA), ctxFor(tables));
+    const last = (await third.text())
+      .trim()
+      .split("\n")
+      .map((l) => JSON.parse(l))
+      .find((l) => l.t === "final");
+    assert.deepEqual(
+      last.message.answer.do.next,
+      ["How many reviews this month?"],
+      "a chip offered two turns back goes",
+    );
+  } finally {
+    setAskPorts(null);
+  }
 });
 
 test("Stop reaches the turn: the stream let go of cuts the model, the thread keeps the turn as stopped with what its Say had written, and the next question's history says it was stopped before its answer", async () => {
