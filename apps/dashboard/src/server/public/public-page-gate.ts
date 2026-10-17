@@ -18,7 +18,7 @@ import { businessPageFor } from "./business-page";
 import { consentPageFor } from "./consent-page";
 
 /** The reads the rules ask: the pages' own, or a test's. */
-export interface PublicPageReads {
+interface PublicPageReads {
   consent: (slug: string) => Promise<unknown>;
   business: (slug: string) => Promise<BusinessPageFacts | null>;
 }
