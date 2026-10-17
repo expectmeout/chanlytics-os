@@ -544,7 +544,7 @@ const valueShape = (v) =>
       ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k, valueShape(x)]))
       : typeof v;
 
-test("the format the model writes: every key required, nothing else allowed, each limit said from the caps, under the gateway's 8,000 characters", () => {
+test("the format the model writes: every key required, nothing else allowed, each limit said from the caps", () => {
   const walk = (s, path) => {
     if (s.type === "object") {
       assert.equal(s.additionalProperties, false, `${path}: nothing else allowed`);
@@ -555,10 +555,6 @@ test("the format the model writes: every key required, nothing else allowed, eac
   };
   walk(ASK_ANSWER_FORMAT, "answer");
   assert.deepEqual(Object.keys(ASK_ANSWER_FORMAT.properties)[0], "say", "say is written first, so it streams first");
-  assert.ok(
-    JSON.stringify(ASK_ANSWER_FORMAT).length < 8000,
-    "the edge refuses an Ask format of 8,000 characters or more",
-  );
   for (const [path, cap] of [
     [["say", "headline"], C.headline],
     [["say", "detail"], C.detail],
@@ -797,7 +793,7 @@ const NEW_ROWS = [
   ref("review", REVIEW, `reports/reviews:${REVIEW}`, "Ana P. · ★★★★★"),
 ];
 
-test("fifteen names: the format's kinds are a page and fourteen rows, and a run is none of them; the format is measured under the edge's 8,000", () => {
+test("fifteen names: the format's kinds are a page and fourteen rows, and a run is none of them", () => {
   const kinds = at("show", "items", "[]", "source").properties.kind.enum;
   assert.deepEqual(kinds, [...ASK_CITATION_KINDS, "none"], "the format writes the grammar's kinds, and none");
   assert.deepEqual(
@@ -833,8 +829,6 @@ test("fifteen names: the format's kinds are a page and fourteen rows, and a run 
     ["do", "open"],
   ])
     assert.deepEqual(at(...part, "source"), at("show", "items", "[]", "source"), `${part.join(".")}: the same source`);
-  const size = JSON.stringify(ASK_ANSWER_FORMAT).length;
-  assert.ok(size > 5_385 && size < 8_000, `the format is ${size} characters: more than main's 5,385, under 8,000`);
 });
 
 test("a row of each new kind a reader returned is kept and opens where the reader said; one not read goes and is counted; a deal opens its person, a People list grounds by its name, a run is cited as a broadcast", () => {

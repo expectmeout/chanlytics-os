@@ -282,7 +282,6 @@ export function modelPurposeOf(purpose: GatewayPurpose): ModelPurpose {
 }
 /** What Ask's daily budget counts: the gateway's purposes, and the reach-out sheet's preview (its own door, R12). */
 type AskUsagePurpose = GatewayPurpose | "reach_out_preview";
-const FORMAT_MAX = 8_000;
 
 /**
  * The cache diagnostics a request may carry (the Phase 6 plan, D2): the id of a message the API wrote, or null to start
@@ -296,14 +295,17 @@ function diagnosticsOf(raw: unknown): { diagnostics?: { previous_message_id: str
   return typeof id === "string" && MESSAGE_ID.test(id) ? { diagnostics: { previous_message_id: id } } : {};
 }
 
+/**
+ * A request's format: a JSON schema object, as the dashboard writes it, whatever its size (Ruben, 17 Oct 2026: the
+ * 8,000-character bound protected nothing, since only the dashboard's own code sends a format through this door, and it
+ * held back the answer's charts). Anything else is refused.
+ */
 function formatOf(raw: unknown): { type: "json_schema"; schema: Record<string, unknown> } | null | "bad" {
   if (raw === undefined) return null;
   const f = raw as { type?: unknown; schema?: unknown } | null;
   if (!f || f.type !== "json_schema" || !f.schema || typeof f.schema !== "object" || Array.isArray(f.schema))
     return "bad";
-  return JSON.stringify(f.schema).length > FORMAT_MAX
-    ? "bad"
-    : { type: "json_schema", schema: f.schema as Record<string, unknown> };
+  return { type: "json_schema", schema: f.schema as Record<string, unknown> };
 }
 
 /**
@@ -386,7 +388,7 @@ export function validateGatewayRequest(
   // A format rides through for every purpose: the lead purposes answer as
   // records, and Ask's turn answers in its answer schema (the Line, D3).
   const format = formatOf(oc ? oc.format : undefined);
-  if (format === "bad") return badRequest("output_config.format: a JSON schema under 8,000 characters");
+  if (format === "bad") return badRequest("output_config.format: a JSON schema");
   return {
     ok: true,
     request: {
