@@ -1,9 +1,10 @@
-// Chanlytics — Settings › Business: How it answers.
+// Chanlytics — Settings › How it answers: How it talks, What it knows, and the two limits Autonomy draws.
 //
 // The fourth card of the record (docs/superpowers/specs/2026-09-20-business-tab-design.md §4.5 and §4.6; the canvas's
 // Record and Group-Answers boards): the voice, the languages, the rules it always keeps, how it hands you a customer,
 // the things it should know, what it is told in your own words, and the three messages sent in your name when it cannot
-// answer. Seven rows, each a fold (BtFold, gestures/). It replaces the old form's "How it answers" group
+// answer. Seven rows, each a fold (BtFold, gestures/), in two cards on How it answers and, for the rules it keeps and
+// how it hands you a customer, on Autonomy's Limits (17 Oct 2026). It replaces the old form's "How it answers" group
 // (BusinessEditor, settings.jsx: Languages, Rules it always follows, Hand over to a person when, Other things it should
 // know, Anything else it should know, When it can't answer), and what those learned came with them, comments and all;
 // and it gives the voice the box it never had. `profile.tone` was read, diffed, saved and composed into every prompt,
@@ -21,8 +22,8 @@
 //
 // The languages it offers are contracts' (COMMON_LANGUAGES, through BUSINESS_TAB), the first run's chips' too: one
 // The voice, the languages, the rules it always keeps and how it hands you a customer are drawn by answers-fields.tsx
-// (the file-length ratchet's 800 lines); the notes, the owner's own words, the three messages, the two rows the first
-// run draws too and the card are here.
+// (the file-length ratchet's 800 lines); the notes, the owner's own words, the three messages and the two rows the first
+// run draws too are here; the cards that compose them, tab.tsx.
 
 import type { BrainConfig, BusinessProfile, GuardrailsInForce } from "@chanlytics/contracts";
 import type { ComponentProps, ReactNode } from "react";
@@ -37,7 +38,6 @@ import { BtaHandoff, BtaLanguages, BtaRules, BtaVoice } from "./answers-fields";
 import type { Fields, HandoffWords } from "./answers-fields";
 import { BtFold } from "./gestures/fold";
 import { btoStoredZone } from "./open";
-import { greetingFold } from "./phone/greeting";
 import { phoneShown } from "./save";
 import type { Brain, Config, Profile } from "./save";
 import { businessTabSave } from "./saver";
@@ -46,7 +46,7 @@ import { factsNow, fallbackDefaults, fallbackMessages, instructionsDraft, polici
 type FoldProps = ComponentProps<typeof BtFold>;
 
 /** What every fold of the card is given by the page. */
-interface Shared {
+export interface Shared {
   canEdit: boolean;
   flash: NonNullable<FoldProps["flash"]>;
   saver: NonNullable<FoldProps["saver"]>;
@@ -622,7 +622,7 @@ const btaOwnOpening = (stored: Config): string | null => {
   return own ? BUSINESS_TAB.instructionsWords(own.text as string).opening : null;
 };
 
-const btaFacts = (brain: Brain, base: Config | null, config: Config | null): AnswersFacts => {
+export const btaFacts = (brain: Brain, base: Config | null, config: Config | null): AnswersFacts => {
   const profile: Profile = brain.profile || {};
   const stored = btaStored(brain, config);
   const tone = typeof profile.tone === "string" && profile.tone.trim() ? profile.tone.trim() : null;
@@ -641,7 +641,7 @@ const btaFacts = (brain: Brain, base: Config | null, config: Config | null): Ans
 };
 
 /** The card's rows are folds drawn by helpers, not components of their own: BtFold holds their hooks, where they were. */
-const toneFold = (shared: Shared, tone: string | null) => (
+export const toneFold = (shared: Shared, tone: string | null) => (
   <BtFold
     {...shared}
     id="tone"
@@ -658,7 +658,7 @@ const toneFold = (shared: Shared, tone: string | null) => (
   />
 );
 
-const handoffFold = (shared: Shared, a: AnswersFacts) => (
+export const handoffFold = (shared: Shared, a: AnswersFacts) => (
   <BtFold
     {...shared}
     id="escalate_when"
@@ -679,7 +679,7 @@ const handoffFold = (shared: Shared, a: AnswersFacts) => (
   />
 );
 
-const notesFold = (shared: Shared, notes: AnswersFacts["notes"]) => (
+export const notesFold = (shared: Shared, notes: AnswersFacts["notes"]) => (
   <BtFold
     {...shared}
     id="notes"
@@ -696,7 +696,7 @@ const notesFold = (shared: Shared, notes: AnswersFacts["notes"]) => (
   />
 );
 
-const ownWordsFold = (shared: Shared, opening: string | null) => (
+export const ownWordsFold = (shared: Shared, opening: string | null) => (
   <BtFold
     {...shared}
     id="extra_instructions"
@@ -718,7 +718,7 @@ const ownWordsFold = (shared: Shared, opening: string | null) => (
   />
 );
 
-const fallbacksFold = (shared: Shared, a: AnswersFacts) => (
+export const fallbacksFold = (shared: Shared, a: AnswersFacts) => (
   <BtFold
     {...shared}
     id="fallbacks"
@@ -739,48 +739,3 @@ const fallbacksFold = (shared: Shared, a: AnswersFacts) => (
     body={(f) => <BtaFallbacks {...f} brain={a.on} />}
   />
 );
-
-/**
- * How it answers (spec §4.5): seven rows in the canvas's order, each a fold, and an eighth after the voice where the
- * workspace answers calls: what callers hear first (decision 0051). `brain` and `config` are the settings
- * read's, which the rows state; `base` is the config the next save goes on (the saver's base), which is what the rules
- * fold judges "composes nothing" by, as its save will be; what a fold opens with and saves onto is the saver's base,
- * which BtFold asks for itself.
- */
-export const BtAnswersCard = ({
-  brain,
-  base = null,
-  config = null,
-  canEdit,
-  flash,
-  saver,
-}: Shared & { brain: Brain; base?: Config | null; config?: Config | null }) => {
-  const shared = { canEdit, flash, saver };
-  const a = btaFacts(brain, base, config);
-  return (
-    <section className="rec-card" data-testid="rec-card-answers" aria-labelledby="bt-answers-title">
-      <div className="rec-card-head">
-        <h2 className="rec-card-title" id="bt-answers-title">
-          How it answers
-        </h2>
-        <span className="rec-card-sub">The voice, the limits, and what fits no field</span>
-      </div>
-
-      {toneFold(shared, a.tone)}
-
-      {a.calls ? greetingFold(shared, brain) : null}
-
-      <BtLanguagesRow brain={brain} {...shared} />
-
-      <BtRulesRow brain={brain} base={base} config={config} {...shared} />
-
-      {handoffFold(shared, a)}
-
-      {notesFold(shared, a.notes)}
-
-      {ownWordsFold(shared, a.ownOpening)}
-
-      {fallbacksFold(shared, a)}
-    </section>
-  );
-};

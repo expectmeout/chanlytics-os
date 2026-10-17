@@ -172,7 +172,11 @@ test("each field's problems are said under it in contracts' words, and Start wai
   assert.equal(byTestId(tree, "ro-start").props.disabled, true);
   typeInto(byTestId(tree, "ro-body"), "Book here: {{booking link}}");
   tree = s.draw();
-  assert.match(textOf(byTestId(tree, "ro-chain-issues")), /Add your booking link in Settings › Business first/, "F8");
+  assert.match(
+    textOf(byTestId(tree, "ro-chain-issues")),
+    /Add your booking link in Settings › Hours & booking first/,
+    "F8",
+  );
 });
 
 test("a slot goes in by its name, at the caret the box last used had, and the words keep the named slot", async () => {

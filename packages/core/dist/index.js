@@ -718,7 +718,7 @@ async function shapeTemplate(ports, conv, body) {
   if (!facts)
     throw new AppError8(
       "validation",
-      "This workspace has no template facts configured yet. Add the business name in Settings \u203A Business first."
+      "This workspace has no template facts configured yet. Add the business name in Settings \u203A Details first."
     );
   const slots = inboxSlots(tpl).map(
     (s, at) => blank && at === blank.at ? { kind: "text", value: words } : s
@@ -726,7 +726,7 @@ async function shapeTemplate(ports, conv, body) {
   if (!facts.booking_link && slots.some((s) => s.kind === "booking_link"))
     throw new AppError8(
       "validation",
-      "This template takes the booking link, and none is on file. Pick another template, or add the link in Settings \u203A Business first."
+      "This template takes the booking link, and none is on file. Pick another template, or add the link in Settings \u203A Hours & booking first."
     );
   const params = resolveParams(slots, {
     firstName: firstNameOf(conv.display_name, conv.wa_profile_name, {
@@ -2695,9 +2695,12 @@ async function allowed(r, message) {
   if (trig && !triggerOffered(trig, ctx.dealsOn)) return { ended: await r.off("deals_off") };
   return { ended: null, listIds, kept };
 }
-function draw(r, message, how, listIds) {
+function draw(r, message, how, among) {
+  const { listIds, reached } = among;
   const { p, ctx } = r;
   const byTwin = twinTouches(r);
+  const byThis = new Map(ctx.touches.byThis.get(p.id) ?? []);
+  for (const id of reached) byThis.set(id, ctx.now.getTime());
   const drawn = playbookRunReach(
     ctx.people,
     {
@@ -2709,7 +2712,7 @@ function draw(r, message, how, listIds) {
       ...how
     },
     {
-      byThis: ctx.touches.byThis.get(p.id) ?? /* @__PURE__ */ new Map(),
+      byThis,
       byAny: ctx.touches.byAny,
       followUps: ctx.touches.followUps,
       followUpKeys: ctx.touches.followUpKeys,
@@ -2788,7 +2791,13 @@ async function drawFollowUp(r, message, how) {
   }
 }
 async function drawOf(r, message, how, listIds) {
-  return isFollowUp(r.p) ? drawFollowUp(r, message, how) : draw(r, message, how, listIds);
+  if (isFollowUp(r.p)) return drawFollowUp(r, message, how);
+  if (listIds === null) return draw(r, message, how, { listIds: null, reached: /* @__PURE__ */ new Set() });
+  try {
+    return draw(r, message, how, { listIds, reached: await r.ports.reached(r.p.id) });
+  } catch (e) {
+    return { error: `reached: ${e instanceof Error ? e.message : String(e)}` };
+  }
 }
 async function pastTheRoom(r, message, drawn, goesAt) {
   try {
@@ -2979,7 +2988,7 @@ import {
   UUID
 } from "../../contracts/dist/index.js";
 var TEMPLATE_VALUE_WORDS = {
-  noBookingLink: "This message takes the booking link, and none is on file. Add it in Settings \u203A Business first.",
+  noBookingLink: "This message takes the booking link, and none is on file. Add it in Settings \u203A Hours & booking first.",
   noReviewLink: "Connect your Google listing so the review link can be filled."
 };
 async function readCampaignMessage(ports, id) {

@@ -1,6 +1,7 @@
 // Chanlytics — Settings › Business: What you offer.
 //
-// The third card of the record (docs/superpowers/specs/2026-09-20-business-tab-design.md §4.4; the canvas's Record,
+// Details' second card, and the rules Hours & booking draws (docs/superpowers/specs/2026-09-20-business-tab-design.md
+// §4.4; the canvas's Record,
 // Edit-Sheet and Edit-Fold boards): how customers buy, the services, the booking rules, and what needs a consult first,
 // each edited where it is stated. How customers buy is the workspace's answer, not a key of the settings, and saves
 // through the workspace's own door (docs/decisions/0008, "One switch"; BtSellsBy, below). The services are a list:
@@ -385,15 +386,15 @@ const btRulesRow = (rules: BookingRulesOf) => {
 type BookingRulesOf = NonNullable<NonNullable<Brain["profile"]>["booking_rules"]>;
 
 /**
- * What you offer (spec §4.4): how customers buy (0008), the services, the rules for booking them, and the ones that
- * need a consult first. Consult-first is stored inside the booking rules, and its fold and the rules' fold each write
- * only their own keys of it (folds.ts PATHS_OF), so saving one never puts the other's back as it was.
+ * The rules for booking, as Hours & booking's Booking card draws them (booking.tsx): the booking rules, and the
+ * services that need a consult first. Consult-first is stored inside the booking rules, and its fold and the rules'
+ * fold each write only their own keys of it (folds.ts PATHS_OF), so saving one never puts the other's back as it was.
  * Where deals are on, its row says what a consultation for them starts (sellsByVM's consultHint).
  *
  * `brain` is the settings read's, which the rows state; what a fold opens with and saves onto is the saver's base,
- * which BtFold asks for itself. How customers buy is the workspace list's, which its door keeps current.
+ * which BtFold asks for itself.
  */
-export const BtOfferCard = ({
+export const BtBookingRuleRows = ({
   brain,
   canEdit,
   flash,
@@ -410,22 +411,9 @@ export const BtOfferCard = ({
   const shared = { canEdit, flash, saver };
   // A stored list that is not one (a hand-edited record) is none: joined as it stood, it threw as the card drew.
   const consult = (Array.isArray(rules.consult_first) ? rules.consult_first : []).join(", ");
-  const answer = btSellsByNow();
-  const buys = BUSINESS_TAB.sellsByVM(answer);
-
+  const buys = BUSINESS_TAB.sellsByVM(btSellsByNow());
   return (
-    <section className="rec-card" data-testid="rec-card-offer" aria-labelledby="bt-offer-title">
-      <div className="rec-card-head">
-        <h2 className="rec-card-title" id="bt-offer-title">
-          What you offer
-        </h2>
-        <span className="rec-card-sub">And the rules for offering it</span>
-      </div>
-
-      <BtSellsBy vm={buys} answer={answer} canEdit={canEdit} gate={pressable("how customers buy")} flash={flash} />
-
-      <BtServicesRow brain={brain} canEdit={canEdit} saver={saver} />
-
+    <>
       <BtFold<RulesDraft>
         {...shared}
         id="booking_rules"
@@ -448,6 +436,44 @@ export const BtOfferCard = ({
         }}
         body={(f) => <BtConsult {...f} />}
       />
+    </>
+  );
+};
+
+/**
+ * What you offer (spec §4.4): how customers buy (0008) and the services, on Details. The rules for booking them are
+ * Hours & booking's since 17 Oct 2026 (BtBookingRuleRows, above, drawn by booking.tsx), beside the hours they apply to.
+ *
+ * `brain` is the settings read's, which the rows state. How customers buy is the workspace list's, which its door
+ * keeps current.
+ */
+export const BtOfferCard = ({
+  brain,
+  canEdit,
+  flash,
+  saver,
+}: {
+  brain: Brain;
+  canEdit: boolean;
+  flash: (flash: LegacyFlash) => void;
+  saver: Saver | null;
+}) => {
+  const pressable = (thing: string) => gate("settings", `change ${thing}`);
+  const answer = btSellsByNow();
+  const buys = BUSINESS_TAB.sellsByVM(answer);
+
+  return (
+    <section className="rec-card" data-testid="rec-card-offer" aria-labelledby="bt-offer-title">
+      <div className="rec-card-head">
+        <h2 className="rec-card-title" id="bt-offer-title">
+          What you offer
+        </h2>
+        <span className="rec-card-sub">And how customers buy it</span>
+      </div>
+
+      <BtSellsBy vm={buys} answer={answer} canEdit={canEdit} gate={pressable("how customers buy")} flash={flash} />
+
+      <BtServicesRow brain={brain} canEdit={canEdit} saver={saver} />
     </section>
   );
 };

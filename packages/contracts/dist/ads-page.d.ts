@@ -694,7 +694,7 @@ declare const FIGURES: {
     reading: (list: string) => string;
     /** Under Spent while a platform's last read failed: the sum holds its last numbers. */
     spentMetaStale: (ads: number, owner: string, when: string | null) => string;
-    /** The door that mends a missing calendar link: the calendar is set under Settings › Business. */
+    /** The door that mends a missing calendar link: the calendar is set under Settings › Hours & booking. */
     linkDoor: string;
 };
 /** The quiet line under the figures, and the door that opens the four definitions, the fee and the calls. */

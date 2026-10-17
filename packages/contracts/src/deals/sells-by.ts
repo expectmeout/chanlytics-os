@@ -60,7 +60,7 @@ export const SELLS_BY_FIRST: SellsBy = "booking";
 /** "Needs a consult first", where deals are on (0008): a consultation for one of those is where a deal starts. */
 export const CONSULT_FIRST_DEAL_HINT = "A consultation for these is the first step of a deal.";
 
-/** What Settings › Business says of the answer (0008): its row, the choice, and what the answer switches there. */
+/** What Settings › Details says of the answer (0008): its row, the choice, and what the answer switches there. */
 export interface SellsByVM {
   /** The row's label, and the choice's name. */
   question: string;

@@ -664,7 +664,7 @@ test("the home's input from GET playbooks is the one reading it was: the shape, 
     channels: [{ kind: "whatsapp", status: "disconnected" }],
   });
   const FOLLOW =
-    "Proposal follow-ups need deals: in Settings › Business, answer “How customers buy” with “Some get a proposal first”.";
+    "Proposal follow-ups need deals: in Settings › Details, answer “How customers buy” with “Some get a proposal first”.";
   assert.deepEqual(composed(first), {
     shape: { calendar: "feed", dealsOn: false, word: "session" },
     timezone: "America/Los_Angeles",

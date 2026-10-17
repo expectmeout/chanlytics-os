@@ -238,6 +238,7 @@ export interface AskProposal {
     | "sequence_make"
     | "sequence_start"
     | "sequence_discard"
+    | "sequence_end"
     | "sequence_test"
     | "playbook_run"
     | "booking_request"

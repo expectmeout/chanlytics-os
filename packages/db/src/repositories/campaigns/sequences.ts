@@ -16,6 +16,7 @@ import type {
   SequenceStepDto,
 } from "@chanlytics/contracts";
 import type { Database, Json } from "../../database.types";
+import { readAllRows } from "../../paged";
 import { answer, type DoorResult } from "./reach-out-leads";
 
 type Db = SupabaseClient<Database>;
@@ -59,6 +60,26 @@ export async function leaveSequence(
   });
   if (error) throw new Error(`cannot take them out of the sequence: ${error.message}`);
   return typeof data === "number" ? data : 0;
+}
+
+/**
+ * Who a customer's sequence has reached, by contact id: everyone it holds now, or sent anything to (an enrollment that is
+ * in, or one with a send that went). A sequence on a list goes once to each person (the loop review's item 6), so its run
+ * leaves them out. Every page read; a read that fails throws: unread is not nobody.
+ */
+export async function sequenceReached(db: Db, tenantId: string, sequenceId: string): Promise<Set<string>> {
+  const rows = await readAllRows("who the sequence reached", (from, to) =>
+    db
+      .from("sequence_enrollments")
+      .select("contact_id")
+      .eq("tenant_id", tenantId)
+      .eq("sequence_id", sequenceId)
+      .is("lead_id", null)
+      .or("state.eq.in,sent_at.not.is.null")
+      .order("id")
+      .range(from, to),
+  );
+  return new Set(rows.flatMap((r) => (r.contact_id ? [r.contact_id] : [])));
 }
 
 /**
@@ -164,18 +185,46 @@ export async function sequenceOfPart(db: Db, tenantId: string, id: string): Prom
 }
 
 /**
- * The business day a step last ran (`sequence_steps.last_run_for`, written by the run's record): when its next run goes
- * (contracts sequenceNextOf). Null where it never ran, or names no step of this workspace. Under the caller's row security.
+ * A sequence's first step's run facts: the business day it last ran (when its next run goes), the most one run sends, the
+ * days before someone hears it again (a moment's gap), and the days between runs (the month's offer). Null where the step
+ * is none of this workspace's. Under the caller's row security.
  */
-export async function stepLastRunFor(db: Db, tenantId: string, stepId: string): Promise<string | null> {
+export async function firstStepFacts(
+  db: Db,
+  tenantId: string,
+  stepId: string,
+): Promise<{ last_run_for: string | null; cap_per_run: number; gap_days: number; cadence_days: number } | null> {
   const { data, error } = await db
     .from("sequence_steps")
-    .select("last_run_for")
+    .select("last_run_for, cap_per_run, gap_days, cadence_days")
     .eq("tenant_id", tenantId)
     .eq("id", stepId)
     .maybeSingle();
-  if (error) throw new Error(`cannot read when the step last ran: ${error.message}`);
-  return data?.last_run_for ?? null;
+  if (error) throw new Error(`cannot read the first step's run: ${error.message}`);
+  return data;
+}
+
+/**
+ * Why a step's last recorded run did nothing, where it did nothing: the `skipped` its latest `playbook.run` event carries
+ * (core runPlaybook's record: no calendar, its list gone, its message not approved, the class set to Never, its last day
+ * passed). Null where that run sent, found nobody or none is recorded. Under the caller's row security.
+ */
+export async function lastRunSkipped(db: Db, tenantId: string, stepId: string): Promise<string | null> {
+  const { data, error } = await db
+    .from("events")
+    .select("data")
+    .eq("tenant_id", tenantId)
+    .eq("subject_type", "playbook")
+    .eq("subject_id", stepId)
+    .eq("kind", "playbook.run")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw new Error(`cannot read the step's last run: ${error.message}`);
+  const said = data?.data;
+  return said && typeof said === "object" && !Array.isArray(said) && typeof said.skipped === "string"
+    ? said.skipped
+    : null;
 }
 
 /**

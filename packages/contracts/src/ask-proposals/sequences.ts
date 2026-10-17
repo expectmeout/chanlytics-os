@@ -325,6 +325,22 @@ export const sequenceDiscardSpec: ProposalSpec = {
   open: () => SEQUENCES_ROUTE,
 };
 
+/**
+ * A customer's sequence that has sent, ended for good (the loop review's item 10, End it): its first step goes through the
+ * campaign's own door (DELETE playbooks/:id), so it sends nothing more and nobody is added to it; what it sent stays in its
+ * History. Nothing undoes it. A sequence to leads is paused instead: the door refuses it in its own words.
+ */
+export const sequenceEndSpec: ProposalSpec = {
+  needs: "operator",
+  gate: "approve",
+  commit: ({ payload: pl }) => {
+    const id = idIn(pl, "sequence_id");
+    return id ? { route: "DELETE playbooks/[id]", params: { id } } : refuseWith(PROPOSAL_WORDS.cannotApprove);
+  },
+  receipt: ({ payload: pl }) => (asText(pl.name) ? `“${asText(pl.name)}” has ended` : "It has ended"),
+  open: openSequence,
+};
+
 /** Where a send's verb opens: the run that holds the email, its sheet in Sent (`run_id`), or nowhere it was not named. */
 const openRun = ({ payload }: { payload: Record<string, unknown> }): string | null => {
   const run = idIn(payload, "run_id");

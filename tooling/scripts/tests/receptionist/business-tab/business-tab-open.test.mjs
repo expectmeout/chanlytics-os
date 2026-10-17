@@ -79,16 +79,21 @@ const copyTo = (tree, flash, words) => {
 /** The card's summary is the composer's own run-collapsing, joined. Never a second implementation. */
 const summaryOf = (hours) => hoursLines(hours).join(" · ");
 
-test("When you're open draws four rows in the spec's order, under a line contracts wrote", () => {
-  const card = byTestId(drawTab(), "rec-card-open");
+test("When you're open draws three rows in the spec's order, under a line contracts wrote", () => {
+  const tree = drawTab();
+  const card = byTestId(tree, "rec-card-open");
   assert.deepEqual(all(card, (n) => classes(n).includes("rec-row-key")).map(textOf), [
     "Hours",
     "Timezone",
     "Days you're closed",
-    // What the business books with: its calendar link and its tool's booking emails, one row (7 Oct 2026). It was
-    // "Calendar it reads" and "Where your bookings come from", each sending the owner to the other.
-    "Booking tool",
   ]);
+  // What the business books with: its calendar link and its tool's booking emails, one row (7 Oct 2026; it was
+  // "Calendar it reads" and "Where your bookings come from", each sending the owner to the other), first on Booking,
+  // the card beside this one on Hours & booking (17 Oct 2026).
+  assert.equal(
+    textOf(find(byTestId(tree, "rec-card-booking"), (n) => classes(n).includes("rec-row-key"))),
+    "Booking tool",
+  );
   assert.equal(textOf(find(card, (n) => classes(n).includes("rec-card-title"))), "When you're open");
   assert.equal(
     textOf(find(card, (n) => classes(n).includes("rec-card-sub"))),
@@ -99,10 +104,19 @@ test("When you're open draws four rows in the spec's order, under a line contrac
     "Six days a week, in New York time",
     "the canvas's line, from contracts",
   );
-  // Between Who you are and What you offer, on the one page.
+  // The first card of Hours & booking, before Booking, as the record's three pages draw it in turn.
   assert.deepEqual(
     all(drawTab(), (n) => classes(n).includes("rec-card")).map((n) => n.props["data-testid"]),
-    ["rec-card-who", "rec-card-open", "rec-card-offer", "rec-card-answers", "rec-card-can", "rec-card-told"],
+    [
+      "rec-card-who",
+      "rec-card-offer",
+      "rec-card-open",
+      "rec-card-booking",
+      "rec-card-answers",
+      "rec-card-knows",
+      "rec-card-can",
+      "rec-card-told",
+    ],
   );
 });
 
@@ -2242,7 +2256,7 @@ test("a zone being saved outlives the page that sent it: come back mid-save and 
     unmount();
     await settle();
     assert.equal(W.__businessTabSave.zone.pending(), true, "the save is the tab's, not the page's");
-    tree = W.React.createElement(W.BusinessTab, { flash });
+    tree = W.React.createElement(W.BusinessTab, { flash, part: "hours" });
     openFold(tree, "timezone");
     tree = redrawTab(flash);
     const box = () => find(inline(tree, "timezone"), (n) => n.props?.role === "combobox");

@@ -227,6 +227,18 @@ export interface SequenceRecordDto {
    */
   last_run_for?: string | null;
   /**
+   * Why its first step's last run did nothing, where it did nothing (core runPlaybook's `skipped`, from its `playbook.run`
+   * event: no calendar, its list gone, its message not approved, the class set to Never, its last day passed); null where
+   * it ran, sent or found nobody (contracts sequenceRunOff says it). Absent from a server before it.
+   */
+  last_run_off?: string | null;
+  /**
+   * How its first step's runs go, beyond its hour: the most one run sends, the days before someone hears it again (a
+   * moment's), and the days between runs (the month's offer). What Start's Change opens with. Absent on a sequence to
+   * leads and a one-off, and from a server before it.
+   */
+  settings?: { cap_per_run: number; gap_days: number; cadence_days: number };
+  /**
    * A sequence to leads: what it writes to, a list its owner adds leads to (Add leads opens Leads to add to it) or its
    * search, which the finder keeps current (contracts isLeadList over the search's `via`). Absent on any other sequence,
    * and from a server before it, which then opens the search.

@@ -136,7 +136,7 @@ export function appointmentWords(word: AppointmentWord): AppointmentPhrases {
     offYesterday: (n) => `Off · ${people(n)} ${f.had} yesterday`,
     startsWith: `${f.a} tomorrow, ${f.a} yesterday`,
     byMany: `by ${many}`,
-    needsCalendar: `${capitalize(many)} are read from your calendar, and none is connected. Connect one under Settings › Business.`,
+    needsCalendar: `${capitalize(many)} are read from your calendar, and none is connected. Connect one under Settings › Hours & booking.`,
     cancelAsk: `Cancel this ${word}?`,
     cancelAct: `Cancel the ${word}…`,
     bookingLink: (link) => `Here's the link to book your ${word}: ${link}`,

@@ -102,10 +102,14 @@ export const PAGE_HEARS: Readonly<Record<string, Readonly<Record<string, PageCel
   // Settings: a pane it does not list opens Profile, which the settings read feeds.
   admin: { settings: true },
   "admin/profile": { settings: true },
-  // The Business pane lists the booking emails held for a look and states the calendar link's last read from the Calendar's read
+  // Hours & booking lists the booking emails held for a look and states the calendar link's last read from the Calendar's read
   // (settings/business/open-bookings.tsx, open-calendar.tsx): a held email's bell row opens it, so a read of the Calendar is due
-  // there, as it is on the board. Settings with no pane is this pane (SURFACE_DEFAULT_PARAM).
+  // there, as it is on the board. The bell's rows name it the old way (`admin/workspace/calendar`, which opens Hours &
+  // booking: settings/frame/tabs.ts), so Details hears the Calendar too. Settings with no pane is Details
+  // (SURFACE_DEFAULT_PARAM).
   "admin/workspace": { settings: true, calendar: true },
+  "admin/hours": { settings: true, calendar: true },
+  "admin/receptionist": { settings: true },
   "admin/team": { settings: true },
   "admin/autonomy": { settings: true },
   "admin/notifications": { settings: true },

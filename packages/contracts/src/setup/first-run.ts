@@ -166,7 +166,7 @@ export const FIRST_RUN_WORDS = {
     foundLead: "Your receptionist answers from this. Fix anything that's off.",
     /** None: the basics, asked (V2). */
     basics: "Tell us the basics",
-    basicsLead: "Your receptionist answers from this. You can add more later in Settings › Business.",
+    basicsLead: "Your receptionist answers from this. You can add more later in Settings.",
     /** No receptionist yet: the owner's one press, and where it starts from. */
     makeListed: "Your receptionist starts from what your Google listing says, and you check it here.",
     makeNamed: (name: string | null) =>
@@ -628,7 +628,7 @@ export function receptionistCardOf(i: ReceptionistCardInputs): ReceptionistCardV
       },
       { key: "through", label: "Puts through to", value: show(through) },
     ],
-    foot: "Fills in as you go. You can change any of it later in Settings › Business.",
+    foot: "Fills in as you go. You can change any of it later in Settings.",
   };
 }
 

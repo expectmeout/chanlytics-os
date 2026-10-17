@@ -542,7 +542,7 @@ function googleRow(i: SetupInputs, ctx: SetupRowContext): SetupRowDraft | null {
       details: [
         i.business.address
           ? "Uses the name and address on record"
-          : "Add your address in Settings › Business for a surer match",
+          : "Add your address in Settings › Details for a surer match",
       ],
       // One finder: the first run's Find, asked for by name (first-run.ts).
       verb: { label: "Find it", to: FIRST_RUN_FIND_ROUTE },

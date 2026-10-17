@@ -159,3 +159,8 @@ export function cannotRows(i) {
     (r) => r.id === "book" && i.takesRequests === true ? { ...r, detail: CANNOT_REQUESTS_BOOK } : !i.hasBookingLink && CANNOT_NO_LINK[r.id] ? { ...r, detail: CANNOT_NO_LINK[r.id] } : r
   );
 }
+const CANNOT_COUNT_WORDS = ["No", "One", "Two", "Three", "Four", "Five"];
+export function cannotFoldWords(count) {
+  const n = CANNOT_COUNT_WORDS[count] ?? String(count);
+  return count === 1 ? `${n} thing it cannot do` : `${n} things it cannot do`;
+}

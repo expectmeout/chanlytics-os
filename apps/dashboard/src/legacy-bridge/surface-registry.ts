@@ -81,7 +81,9 @@ export const SURFACE_STATES: Record<string, SurfaceState> = {
   // nobody had listed -- a typed one (settings/hours), and the retired admin/setup, for a frame before the move ran (A3c).
   admin: "real",
   "admin/profile": "real", // you: name, the address you signed in with, your role
-  "admin/workspace": "real",
+  "admin/workspace": "real", // Details: who the business is and what it sells
+  "admin/hours": "real", // Hours & booking: the week, closed days, the booking tool, link and rules
+  "admin/receptionist": "real", // How it answers: its voice, what it knows, what it can do, what it is told
   "admin/team": "real", // split out of workspace: the people, their roles, invites
   "admin/autonomy": "real", // the policies table, live for the reply row
   "admin/notifications": "real", // who is alerted, from tenant_config
@@ -140,6 +142,8 @@ export const ROUTE_SURFACE: Record<string, string> = {
   // fabricated business for a frame before the truth arrives.
   "admin/profile": "settings",
   "admin/workspace": "settings",
+  "admin/hours": "settings",
+  "admin/receptionist": "settings",
   "admin/team": "settings",
   "admin/autonomy": "settings",
   "admin/notifications": "settings",

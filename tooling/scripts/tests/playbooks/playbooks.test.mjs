@@ -807,7 +807,7 @@ test("offered here (0006): a proposal's moment and its Autonomy class only where
     "deals on: nine rows; the reach-outs' row is offered now that the sheet makes them (Part 4 PR 6)",
   );
   assert.ok(
-    FOLLOW_UP_NEEDS_DEALS.includes("Settings › Business") &&
+    FOLLOW_UP_NEEDS_DEALS.includes("Settings › Details") &&
       FOLLOW_UP_NEEDS_DEALS.includes("“Some get a proposal first”"),
     "the refusal says where the answer is given, in the answer's own words",
   );

@@ -3,16 +3,19 @@
  * back office's, and the rule that names the pane a route opens, which the page and its crumb both ask, so one route
  * is never described two ways.
  *
- * Settings, in the order a person needs them: yourself, then the business, then the people, then what the receptionist
- * is allowed to do, then the account.
+ * Settings, in the order a person needs them: yourself, then the business, then its receptionist, then the account.
+ * One page per question (Ruben, 17 Oct 2026, the "Settings, split" canvas): Business was one page of 34 rows for three
+ * readers -- the facts a customer asks for, how the receptionist talks, and the account's own records -- and is now
+ * Details, Hours & booking and How it answers, with its limits on Autonomy and its records on Billing.
  *
  * It used to be one "Workspace" tab holding three unrelated audiences -- the business your CUSTOMERS hear about, the
  * workspace record, and YOU -- with your own name buried in the Team card underneath a roster of other people. The
  * sidebar's own menu said "Your name" and navigated there, so the one link that promised you delivered the business
  * instead.
  *
- * `workspace` keeps its route id: the label is what a person reads, and renaming the id would break every bookmark, the
- * Ask answer that links to it and four e2e specs for a word.
+ * `workspace` keeps its route id for Details: the label is what a person reads, and renaming the id would break every
+ * bookmark, the Ask answer that links to it and four e2e specs for a word. A row the old address names
+ * (`workspace/hours`) opens the page that holds it now (paneOfRow).
  *
  * AI memory is not here on purpose. It renders the "not built" pane for every real workspace, so as a rail item it was
  * a permanent promise of nothing -- the route still answers, because an old link should land somewhere honest.
@@ -25,24 +28,35 @@ export interface SetTab {
   label: string;
   icon: string;
   group?: string;
+  /** In the rail only for a person who is a partner: everyone else meets the offer as a row on Profile. */
+  partners?: boolean;
 }
 
 /** The first section, and where a route that names no pane a person may open lands. */
 const PROFILE_TAB: SetTab = { id: "profile", label: "Profile", icon: "user", group: "You" };
 
+/** Details: what a customer asks for by name, and what the business sells. Where the bare route lands on a desk. */
+const DETAILS_TAB: SetTab = { id: "workspace", label: "Details", icon: "home", group: "Business" };
+
 export const SET_TABS: readonly SetTab[] = [
   PROFILE_TAB,
-  // A partner's account and link (0012): the offer for everyone else. On the account, like Profile.
-  { id: "partner", label: "Partner", icon: "users", group: "You" },
-  { id: "workspace", label: "Business", icon: "home", group: "Workspace" },
+  // A partner's account and link (0012). On the account, like Profile.
+  { id: "partner", label: "Partner", icon: "users", group: "You", partners: true },
+  DETAILS_TAB,
+  // When people can come, and how they book: what the Calendar's "Hours and rules" shows, kept in one place.
+  { id: "hours", label: "Hours & booking", icon: "calendar", group: "Business" },
+  // What the receptionist says: its voice, what it knows, what it can do, and what it is told.
+  { id: "receptionist", label: "How it answers", icon: "chat", group: "Receptionist" },
+  // What it may do without you, and every limit it keeps.
+  { id: "autonomy", label: "Autonomy", icon: "shield", group: "Receptionist" },
   { id: "team", label: "Team", icon: "users", group: "Workspace" },
-  { id: "autonomy", label: "Autonomy", icon: "shield", group: "Workspace" },
   // The tab reads Connections; its ROUTE id stays "integrations". Notification rows written before today carry route
   // "admin/integrations" in the database, and a rename would turn every one of those bells into a dead link. The word
   // an owner sees is worth changing -- Connections is what this list is, and what the contract behind it has always
   // called them -- and the identifier is not worth breaking to match.
   { id: "integrations", label: "Connections", icon: "external", group: "Workspace" },
   { id: "notifications", label: "Notifications", icon: "bell", group: "Workspace" },
+  // The plan, and the workspace's own records: what the account itself is.
   { id: "billing", label: "Billing", icon: "money", group: "Workspace" },
   // Both ledgers, readable by the owner: who did what, and what happened (its tab warms its read: page.tsx WARM).
   { id: "activity", label: "Activity", icon: "clock", group: "Workspace" },
@@ -63,17 +77,48 @@ export const SET_TABS_PLATFORM: readonly SetTab[] = [
 export const isPlatformAdmin = (): boolean =>
   !!(Reflect.get(window, "__ME") as { platform_admin?: boolean } | null | undefined)?.platform_admin;
 
+/**
+ * Which page holds each of the business's rows that left Details, by the id the fold registry opens it by. A row not
+ * named here is Details'. One table, read by the address (an old `workspace/<row>` opens the page that holds it), by
+ * every door that opens a row (the gap line, What it can do, the prompt's blocks), and by the gap's mark in the rail.
+ */
+const ROW_PANES: Readonly<Record<string, string>> = {
+  hours: "hours",
+  timezone: "hours",
+  closures: "hours",
+  // The booking tool's fold (contracts CALENDAR_SETTING_ROUTE names it: `admin/workspace/calendar`).
+  calendar: "hours",
+  booking_link: "hours",
+  booking_rules: "hours",
+  consult_first: "hours",
+  tone: "receptionist",
+  phone_greeting: "receptionist",
+  languages: "receptionist",
+  notes: "receptionist",
+  extra_instructions: "receptionist",
+  fallbacks: "receptionist",
+  prompt: "receptionist",
+  guardrails: "autonomy",
+  escalate_when: "autonomy",
+};
+
+/** The page a row of the business is on: Hours & booking, How it answers, Autonomy, or else Details. */
+export const paneOfRow = (row: string): string => ROW_PANES[row] ?? DETAILS_TAB.id;
+
+/** The address that opens a row of the business, open, on the page that holds it. */
+export const settingsRowRoute = (row: string): string => `admin/${paneOfRow(row)}/${row}`;
+
 /** The section an address under Settings names: what stands before a row it may name (`workspace/calendar` is `workspace`). */
 const sectionOf = (id: string): string => (id.includes("/") ? id.slice(0, id.indexOf("/")) : id);
 
-/** The sections an address may name a row of: Business's rows, and the part of the product Activity opens on. */
-const SECTIONS_WITH_ROWS = new Set(["workspace", "activity"]);
+/** The sections an address may name a row of: the business's pages and Autonomy's, and the part Activity opens on. */
+const SECTIONS_WITH_ROWS = new Set(["workspace", "hours", "receptionist", "autonomy", "activity"]);
 
 /**
- * The row an address names after its section, or null: `workspace/calendar` names Business's row `calendar`
- * (contracts CALENDAR_SETTING_ROUTE), and `activity/team` the log of the team's changes (Team's Activity, 9 Oct 2026).
- * A door on another page that says "Check the link" or "Look at them" lands on the row it means, open, where it landed
- * at the top of the tab with the row a screen down (7 Oct 2026). An address that names one anywhere else names none.
+ * The row an address names after its section, or null: `workspace/calendar` names the booking tool's row (contracts
+ * CALENDAR_SETTING_ROUTE), and `activity/team` the log of the team's changes (Team's Activity, 9 Oct 2026). A door on
+ * another page that says "Check the link" or "Look at them" lands on the row it means, open, where it landed at the top
+ * of the tab with the row a screen down (7 Oct 2026). An address that names one anywhere else names none.
  */
 export const settingsRowOf = (param: string | null | undefined): string | null => {
   const p = param || "";
@@ -81,9 +126,15 @@ export const settingsRowOf = (param: string | null | undefined): string | null =
   return p.slice(p.indexOf("/") + 1).split("/")[0] || null;
 };
 
-/** The pane a route's tab opens: a listed tab, the back office for those it is for, an unlisted route, else Profile. */
+/**
+ * The pane a route's tab opens: a listed tab, the back office for those it is for, an unlisted route, else Profile. An
+ * address under `workspace` that names a row opens the page that holds the row now, so every door written before the
+ * split (a bell, an Ask answer, the Calendar's rules) lands where the row is.
+ */
 export const SET_TAB = (param: string): SetTab => {
-  const id = sectionOf(param);
+  const section = sectionOf(param);
+  const row = section === DETAILS_TAB.id ? settingsRowOf(param) : null;
+  const id = row ? paneOfRow(row) : section;
   return (
     SET_TABS.find((t) => t.id === id) ||
     (isPlatformAdmin() ? SET_TABS_PLATFORM.find((t) => t.id === id) : null) ||
@@ -93,12 +144,33 @@ export const SET_TAB = (param: string): SetTab => {
 };
 
 /**
- * The crumbs the frame draws over Settings (src/surfaces/routes.ts): the pane the route opens, named by the rule
- * Settings itself uses (SET_TAB), so the two cannot say different things about one route. The bare route opens
- * Business, a retired route answers under its own name, and the back office is found only for the people it exists
- * for -- anyone else lands on Profile, and so does the crumb.
+ * The address a Settings address names now: an old `workspace/<row>` whose row has moved names the page that holds it
+ * (`workspace/hours` is `hours/hours`), so the address, the crumbs and the tab's title say the page that is drawn; any
+ * other address is itself. The page draws the right pane either way (SET_TAB); this is what it replaces the address with.
  */
-export const settingsCrumbs = (param: string | null) => [
-  { label: "Settings", to: "admin" },
-  SET_TAB(param || "workspace").label,
-];
+export const settingsAddressNow = (param: string): string => {
+  const row = sectionOf(param) === DETAILS_TAB.id ? settingsRowOf(param) : null;
+  const pane = row ? paneOfRow(row) : DETAILS_TAB.id;
+  return pane === DETAILS_TAB.id ? param : `${pane}/${param.slice(param.indexOf("/") + 1)}`;
+};
+
+/** The width under which the frame wears a phone's head (kit.css's one breakpoint), and Settings opens on its list. */
+export const SETTINGS_PHONE_QUERY = "(max-width: 900px)";
+
+/** Whether Settings is on a phone now: its bare address is the list there, and Details on a desk. */
+export const settingsOnPhone = (): boolean =>
+  typeof window !== "undefined" &&
+  typeof window.matchMedia === "function" &&
+  window.matchMedia(SETTINGS_PHONE_QUERY).matches;
+
+/**
+ * The crumbs the frame draws over Settings (src/surfaces/routes.ts): the pane the route opens, named by the rule
+ * Settings itself uses (SET_TAB), so the two cannot say different things about one route. The bare route is the list
+ * of sections on a phone, which is Settings itself and has no way back of its own, and Details on a desk; a retired
+ * route answers under its own name, and the back office is found only for the people it exists for -- anyone else
+ * lands on Profile, and so does the crumb. On a phone the way back from a section is the crumb before it: the list.
+ */
+export const settingsCrumbs = (param: string | null) =>
+  !param && settingsOnPhone()
+    ? ["Settings"]
+    : [{ label: "Settings", to: "admin" }, SET_TAB(param || DETAILS_TAB.id).label];

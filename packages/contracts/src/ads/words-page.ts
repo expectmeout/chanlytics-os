@@ -103,7 +103,7 @@ export const FIGURES = {
   bookedMeta: (of: number) => `of ${of} · counted by Chanlytics`,
   eachMeta: (spent: string, n: number) => `${spent} / ${peopleWord(n)} · calls not included`,
   /** No calendar link: Booked waits, and the cost falls back to people in touch. */
-  needsLink: "Add a calendar link under Settings › Business to see who booked.",
+  needsLink: "Add a calendar link under Settings › Hours & booking to see who booked.",
   eachInTouchLabel: "For each person in touch",
   eachInTouchMeta: (spent: string, n: number) => `${spent} / ${peopleWord(n)}`,
   callsNotMatched: "Calls aren't matched to people yet",
@@ -112,8 +112,8 @@ export const FIGURES = {
   /** Under Spent while a platform's last read failed: the sum holds its last numbers. */
   spentMetaStale: (ads: number, owner: string, when: string | null) =>
     `across ${plural(ads, "ad")} · ${owner}${when === null ? "" : ` as of ${when}`}`,
-  /** The door that mends a missing calendar link: the calendar is set under Settings › Business. */
-  linkDoor: "Open Settings › Business",
+  /** The door that mends a missing calendar link: the calendar is set under Settings › Hours & booking. */
+  linkDoor: "Open Settings › Hours & booking",
 };
 
 /** The quiet line under the figures, and the door that opens the four definitions, the fee and the calls. */

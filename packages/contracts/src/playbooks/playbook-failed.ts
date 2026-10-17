@@ -35,7 +35,7 @@ export function playbookFailedWords(name: string, why: "calendar" | "other"): { 
       title: `“${label}” could not read your calendar today`,
       body:
         `“${label}” could not read your calendar today, so nobody was sent it. Tomorrow's run will try again.\n\n` +
-        "It kept trying through the day. Check that the calendar link under Settings › Business still opens; if today's " +
+        "It kept trying through the day. Check that the calendar link under Settings › Hours & booking still opens; if today's " +
         "message matters, you can send it yourself from Campaigns.",
     };
   return {

@@ -44,8 +44,8 @@ import { pressed, sequenceVerbs as verbs } from "./verbs";
 
 type Flash = (flash: LegacyFlash) => void;
 
-/** A question an act asks before it acts: Skip a batch, Turn on, Discard a draft, Cancel a one-off's send. */
-type Asking = "skip" | "resume" | "discard" | "cancel";
+/** A question an act asks before it acts: Skip a batch, Turn on, Discard a draft, Cancel a one-off's send, End it. */
+type Asking = "skip" | "resume" | "discard" | "cancel" | "end";
 
 /**
  * The record's acts and what they share, held once for the head, the notice and a phone's dock: the notice and the batch
@@ -60,7 +60,13 @@ export function useRecordActs(rec: SequenceRecordDto, flash: Flash, moved: () =>
   // A twin is the list's to know (sequenceTwinOf): another sequence on this visit moment, which the list beside it holds.
   const list = useSurface("sequences");
   const twin = list ? sequenceTwinOf(list.sequences, row) : null;
-  const notice = sequenceNotice(row, rec.steps, twin);
+  // What needs you most, a run that did nothing among it (the loop review's item 8: its last run's reason, said until one goes).
+  const notice = sequenceNotice(row, rec.steps, twin, {
+    off: rec.last_run_off,
+    for: rec.last_run_for,
+    tz: rec.timezone,
+    nowMs: Date.now(),
+  });
   // The batch waiting for an OK the notice is about, decided through the run's own verb.
   const waiting = notice?.kind === "waiting" ? notice.batchId : null;
   const press = async (kind: Parameters<typeof pressed>[0], payload: Record<string, unknown>) => {
@@ -105,6 +111,11 @@ export function useRecordActs(rec: SequenceRecordDto, flash: Flash, moved: () =>
     rename: async (name: string) => {
       if (await press("playbook_change", { playbook_id: row.id, name })) setRenaming(false);
     },
+    /** End it (a customer's sequence that has sent): it sends nothing more, its History stays. Nothing undoes it. */
+    end: async () => {
+      await press("sequence_end", { sequence_id: row.id, name: row.name });
+      setAsking(null);
+    },
     discard: async () => {
       setBusy(true);
       const gone = await pressed("sequence_discard", { sequence_id: row.id }, flash, () => undefined);
@@ -114,6 +125,13 @@ export function useRecordActs(rec: SequenceRecordDto, flash: Flash, moved: () =>
   };
 }
 type RecordActs = ReturnType<typeof useRecordActs>;
+
+/**
+ * Whether End it is offered: a customer's sequence (a moment's or a list's) that runs or is paused. A draft is discarded
+ * instead, a one-off ends with its day, and a sequence to leads is paused (its door refuses an end).
+ */
+const ends = (row: RecordActs["row"]) =>
+  (row.starts === "moment" || row.starts === "list") && (row.state === "on" || row.state === "paused");
 
 /** Whether its state changes here: a sequence that runs on, never a one-off (decided on its notice) or one that ended. */
 const turns = (a: RecordActs) => a.row.starts !== "date" && (a.row.state === "on" || a.row.state === "paused");
@@ -198,7 +216,7 @@ function phoneItems(a: RecordActs): MenuItem[] {
 
 /**
  * The head's More: on a phone its state, Skip and Discard first; then Cancel this send, Run now, Rename, Who approves
- * (how, and the Autonomy row it is set on for the whole class) and Ask about it.
+ * (how, and the Autonomy row it is set on for the whole class), End it, asked first, and Ask about it.
  */
 function More({ a, phone }: { a: RecordActs; phone: boolean }) {
   const row = a.row;
@@ -222,7 +240,7 @@ function More({ a, phone }: { a: RecordActs; phone: boolean }) {
       gate: allowed,
       onSelect: () => void a.runNow(),
     });
-  if (row.starts !== "date")
+  if (row.starts !== "date" && row.state !== "ended")
     items.push({
       label: A.rename,
       glyph: <Icon name="pencil" size={13} />,
@@ -235,6 +253,15 @@ function More({ a, phone }: { a: RecordActs; phone: boolean }) {
       glyph: <Icon name="shield" size={13} />,
       hint: sequenceWhoApprovesHint(a.rec.mode, row.first?.policy_class),
       onSelect: openAutonomy,
+    });
+  if (ends(row))
+    items.push({
+      label: `${SEQUENCE_WORDS.end}…`,
+      glyph: <Icon name="ban" size={13} />,
+      tone: "danger",
+      disabled: a.busy,
+      gate: allowed,
+      onSelect: () => a.setAsking("end"),
     });
   return (
     <Menu
@@ -328,6 +355,19 @@ export function RecordQuestion({ a }: { a: RecordActs }) {
         testid="sq-cancel"
       />
     );
+  if (a.asking === "end")
+    return (
+      <Confirm
+        question={SEQUENCE_WORDS.endAsk(a.row.name)}
+        detail={SEQUENCE_WORDS.endDetail}
+        yes={SEQUENCE_WORDS.end}
+        danger
+        busy={a.busy}
+        onYes={() => void a.end()}
+        onNo={() => a.setAsking(null)}
+        testid="sq-end"
+      />
+    );
   if (a.asking === "discard")
     return (
       <Confirm
@@ -410,6 +450,28 @@ function NoticeAct({ a, tab, phone }: { a: RecordActs; tab: SequenceTab; phone: 
         {n.act}
       </Button>
     );
+  }
+  if (n.kind === "off" && n.off) {
+    const mends = n.off.mends;
+    if (mends === "door" && n.off.to)
+      return (
+        <Button size={size} {...routeDoor(n.off.to)} data-testid="sq-off-mend">
+          {n.act}
+        </Button>
+      );
+    if (mends === "autonomy")
+      return (
+        <Button size={size} onClick={openAutonomy} data-testid="sq-off-mend">
+          {n.act}
+        </Button>
+      );
+    if (mends === "end")
+      return (
+        <Button size={size} onClick={() => a.setAsking("end")} data-testid="sq-off-end" {...gate("approve")}>
+          {n.act}
+        </Button>
+      );
+    return null;
   }
   if (n.kind === "replies")
     return (

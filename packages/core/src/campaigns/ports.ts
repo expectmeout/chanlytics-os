@@ -270,6 +270,12 @@ export interface RunPlaybookPorts extends AssemblePorts {
   followUpsDue(stepId: string, runFor: string): Promise<FollowUpDue[]>;
   /** People taken out of their sequence with why (00441 sequence_enrollments_leave): how many left. Throws on a failed write. */
   leave(enrollmentIds: readonly string[], why: string): Promise<number>;
+  /**
+   * Who a customer's sequence has reached, by contact id: everyone it holds now, or sent anything to (the loop review's
+   * item 6: a sequence on a list goes once to each person, the list's people when it starts, then each who joins). A list's
+   * run leaves them out. Throws when it cannot be read: a run that could not read it fails, and the next sweep asks again.
+   */
+  reached(sequenceId: string): Promise<ReadonlySet<string>>;
   /** The run recorded: the event, and the playbook's last run. Never throws. */
   record(playbookId: string, runFor: string, at: Date, data: Record<string, unknown>): Promise<void>;
   /**

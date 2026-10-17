@@ -85,7 +85,7 @@ function appointmentWords(word) {
     offYesterday: (n) => `Off \xB7 ${people(n)} ${f.had} yesterday`,
     startsWith: `${f.a} tomorrow, ${f.a} yesterday`,
     byMany: `by ${many}`,
-    needsCalendar: `${capitalize(many)} are read from your calendar, and none is connected. Connect one under Settings \u203A Business.`,
+    needsCalendar: `${capitalize(many)} are read from your calendar, and none is connected. Connect one under Settings \u203A Hours & booking.`,
     cancelAsk: `Cancel this ${word}?`,
     cancelAct: `Cancel the ${word}\u2026`,
     bookingLink: (link) => `Here's the link to book your ${word}: ${link}`,

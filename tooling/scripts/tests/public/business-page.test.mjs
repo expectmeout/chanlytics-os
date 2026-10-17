@@ -202,7 +202,7 @@ test("Chanlytics' own policy and a workspace's page cannot drift", () => {
   );
   assert.ok(
     /<p>\s*\{retentionWords\(\)\} \{DOWNLOAD_WORDS\}/.test(privacy) &&
-      privacy.includes('"An owner can download a copy of a workspace’s records from Settings › Business:'),
+      privacy.includes('"An owner can download a copy of a workspace’s records from Settings › Billing:'),
     "the page prints the contract's paragraph, not its own numbers",
   );
   assert.ok(privacy.includes('{SMS_CLAUSES.join(" ")}'), "the policy renders them rather than repeating them");
@@ -276,7 +276,7 @@ test("the name the receptionist answers in, against the name the filing states (
   assert.equal(p.id, "names_differ");
   assert.match(p.what, /Harbor Hair Studio/);
   assert.match(p.what, /Marisa's Beauty Salon/);
-  assert.match(p.fix, /Settings › Business/);
+  assert.match(p.fix, /Settings › Details/);
   // One name, said loosely, is one name; and a name never read refuses nothing.
   for (const same of [
     "Marisa's Beauty Salon",

@@ -146,7 +146,7 @@ function optionsGroups(p: BarProps): MenuGroup[] {
       { label: "Hours and rules", glyph: crGlyph("clock"), onSelect: openRules },
       {
         label: BOOKING_TOOL_WORDS.label,
-        hint: "Settings › Business",
+        hint: "Settings › Hours & booking",
         glyph: crGlyph("cog"),
         onSelect: () => openBookingTool(CALENDAR_SETTING_ROUTE),
       },
@@ -544,7 +544,7 @@ function rulesLabel(words: string, row: string) {
       <LinkButton
         className="cal-door"
         onClick={() => navigate(businessRow(row))}
-        title="Change it in Settings › Business"
+        title="Change it in Settings › Hours & booking"
         data-testid={`cal-rules-door-${row}`}
       >
         {words} <Icon name="arrow-right" size={9} />

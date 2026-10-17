@@ -575,7 +575,7 @@ var FIGURES = {
   bookedMeta: (of) => `of ${of} \xB7 counted by Chanlytics`,
   eachMeta: (spent, n) => `${spent} / ${peopleWord(n)} \xB7 calls not included`,
   /** No calendar link: Booked waits, and the cost falls back to people in touch. */
-  needsLink: "Add a calendar link under Settings \u203A Business to see who booked.",
+  needsLink: "Add a calendar link under Settings \u203A Hours & booking to see who booked.",
   eachInTouchLabel: "For each person in touch",
   eachInTouchMeta: (spent, n) => `${spent} / ${peopleWord(n)}`,
   callsNotMatched: "Calls aren't matched to people yet",
@@ -583,8 +583,8 @@ var FIGURES = {
   reading: (list2) => `reading ${list2}`,
   /** Under Spent while a platform's last read failed: the sum holds its last numbers. */
   spentMetaStale: (ads, owner, when) => `across ${plural(ads, "ad")} \xB7 ${owner}${when === null ? "" : ` as of ${when}`}`,
-  /** The door that mends a missing calendar link: the calendar is set under Settings › Business. */
-  linkDoor: "Open Settings \u203A Business"
+  /** The door that mends a missing calendar link: the calendar is set under Settings › Hours & booking. */
+  linkDoor: "Open Settings \u203A Hours & booking"
 };
 var COUNTED = {
   quiet: (time) => `Spend is as each platform reports it, read ${time}, and can change for a day or two.`,
@@ -1541,7 +1541,7 @@ function appointmentWords(word) {
     offYesterday: (n) => `Off \xB7 ${people(n)} ${f.had} yesterday`,
     startsWith: `${f.a} tomorrow, ${f.a} yesterday`,
     byMany: `by ${many}`,
-    needsCalendar: `${capitalize(many)} are read from your calendar, and none is connected. Connect one under Settings \u203A Business.`,
+    needsCalendar: `${capitalize(many)} are read from your calendar, and none is connected. Connect one under Settings \u203A Hours & booking.`,
     cancelAsk: `Cancel this ${word}?`,
     cancelAct: `Cancel the ${word}\u2026`,
     bookingLink: (link) => `Here's the link to book your ${word}: ${link}`,
@@ -2445,7 +2445,7 @@ function whyNotAHandoff(raw, ownLine, keptLine) {
   return null;
 }
 var HANDOFF_FORWARDS_BACK = "That number sends the calls nobody picks up to your receptionist, so a caller put through to it would come straight back. Use a mobile or another line a person answers.";
-var FORWARD_IS_HANDOFF = "Your receptionist puts callers through to this number. Change the transfer number in Settings \u203A Business first \u2014 once this number forwards to the receptionist, a caller put through to it would come straight back.";
+var FORWARD_IS_HANDOFF = "Your receptionist puts callers through to this number. Change the transfer number in Settings \u203A Details first \u2014 once this number forwards to the receptionist, a caller put through to it would come straight back.";
 function whyNotForward(number2, handoff) {
   return samePhone(number2, handoff) ? FORWARD_IS_HANDOFF : null;
 }
@@ -3573,7 +3573,7 @@ var BOOKING_REQUEST_WORDS = {
     booked: (who) => `Booked. Tell ${who} in the thread.`,
     cant: (who) => `${who} is waiting on your reply`
   },
-  /** The switch, in Settings › Business, the booking tool's fold. */
+  /** The switch, in Settings › Hours & booking, the booking tool's fold. */
   setting: {
     name: "Booking requests",
     says: "Where you confirm bookings yourself, a time a customer picks by text waits on Today: Booked it, or Can't."
@@ -4717,7 +4717,7 @@ function calendarSourceFacts(c) {
     bookingLink: !!c.booking_link
   };
 }
-var BOOKED_NEEDS_A_LINK = "Add a calendar link under Settings \u203A Business to see who booked.";
+var BOOKED_NEEDS_A_LINK = "Add a calendar link under Settings \u203A Hours & booking to see who booked.";
 var BOOKS_WITH_CALENDAR = "calendar";
 var BOOKS_BY_HAND = "hand";
 function booksWithOptions() {
@@ -9798,7 +9798,7 @@ function hardLimitsWords(limits) {
     return v !== void 0 && v !== null && v !== "" && Number.isFinite(n) && n > 0 ? n : null;
   };
   return {
-    sub: "The first two never change; the last two are yours to set",
+    sub: "The first two never change; the rest are yours to set",
     replies: `How many it sends before it stops and asks for you. ${REPLY_CAP_DEFAULT} is the default.`,
     pause: `Counted from Take over, a reply sent from the Inbox or the WhatsApp Business app, or a handoff to you. ${PAUSE_HOURS_DEFAULT} hours is the default.`,
     cap: stored(limits?.max_replies_day) ?? REPLY_CAP_DEFAULT,
@@ -10332,7 +10332,7 @@ function chainIssueWords(i) {
     case "no_name_to_sign":
       return "Your words name {{your name}}. Say the name you sign with.";
     case "no_booking_link":
-      return "Your words name {{booking link}}. Add your booking link in Settings \u203A Business first.";
+      return "Your words name {{booking link}}. Add your booking link in Settings \u203A Hours & booking first.";
     case "first_has_a_link":
       return "Keep your first email free of links: put your booking link in the nudge.";
     default:
@@ -14282,9 +14282,9 @@ function membersOf(def, rows2, ctx, saved = []) {
 function listUnknownWords(reason, calendar) {
   switch (reason) {
     case "calendar":
-      return calendar === "none" ? "This list reads a calendar link. Add one under Settings \u203A Business to count it." : "This list reads your calendar, which can't be read right now.";
+      return calendar === "none" ? "This list reads a calendar link. Add one under Settings \u203A Hours & booking to count it." : "This list reads your calendar, which can't be read right now.";
     case "consult":
-      return "This list exists only where the profile lists a consult-first service under Settings \u203A Business.";
+      return "This list exists only where the profile lists a consult-first service under Settings \u203A Hours & booking.";
     case "deals":
       return `This list exists only where deals are on: the workspace answers \u201C${SELLS_BY_QUESTION}\u201D with \u201C${SELLS_BY_WORDS.proposal.label}\u201D.`;
     case "viewer":
@@ -14945,6 +14945,8 @@ var ASK_PAGE_ROUTES = [
   ...LENS_ROUTES,
   "start",
   "admin/workspace",
+  "admin/hours",
+  "admin/receptionist",
   "admin/team",
   "admin/autonomy",
   "admin/notifications",
@@ -15243,7 +15245,7 @@ var FACT_SUGGEST_WORDS = {
   alreadyKept: (title) => `Your notes already say this: \u201C${title}\u201D`,
   dismissed: "Dismissed",
   gate: "Only the owner and a partner change what the receptionist reads.",
-  notesFull: `Your notes are full (${PROFILE_LIMITS.notes}). Take one away in Settings \u203A Business, then keep this.`,
+  notesFull: `Your notes are full (${PROFILE_LIMITS.notes}). Take one away in Settings \u203A How it answers, then keep this.`,
   answered: "This was answered already.",
   moved: "The settings changed while this was kept. Try again."
 };
@@ -17728,8 +17730,8 @@ var PARAM_SOURCE_LABELS = {
 };
 var PARAM_SOURCE_HINTS = {
   first_name: "Each person's own \u2014 \u201Cthere\u201D when none is on file",
-  business_name: "From Settings \u203A Business",
-  booking_link: "From Settings \u203A Business",
+  business_name: "From Settings \u203A Details",
+  booking_link: "From Settings \u203A Hours & booking",
   review_link: "From your Google listing",
   visit_when: "Each one's own, from the calendar",
   visit_service: "Each one's own, from the calendar",
@@ -23032,6 +23034,16 @@ var sequenceDiscardSpec = {
   receipt: () => "The draft is gone",
   open: () => SEQUENCES_ROUTE
 };
+var sequenceEndSpec = {
+  needs: "operator",
+  gate: "approve",
+  commit: ({ payload: pl }) => {
+    const id = idIn(pl, "sequence_id");
+    return id ? { route: "DELETE playbooks/[id]", params: { id } } : refuseWith(PROPOSAL_WORDS.cannotApprove);
+  },
+  receipt: ({ payload: pl }) => asText(pl.name) ? `\u201C${asText(pl.name)}\u201D has ended` : "It has ended",
+  open: openSequence
+};
 var openRun = ({ payload }) => {
   const run = idIn(payload, "run_id");
   return run ? `broadcasts/run:${run}` : null;
@@ -23101,6 +23113,7 @@ var PAGE_SPECS = {
   sequence_make: sequenceMakeSpec,
   sequence_start: sequenceStartSpec,
   sequence_discard: sequenceDiscardSpec,
+  sequence_end: sequenceEndSpec,
   // A step's message mailed to the member who pressed Send me a test, and to nobody else.
   sequence_test: sequenceTestSpec,
   playbook_change: playbookChangeSpec,
@@ -24450,6 +24463,20 @@ var ASK_PAGES2 = [
   ...LENS_JUMPS,
   { label: "Settings", to: "admin/workspace", kind: "page" },
   {
+    label: "Hours & booking",
+    to: "admin/hours",
+    kind: "page",
+    sub: "opening hours, closed days, booking rules",
+    also: ["hours", "booking link", "booking tool"]
+  },
+  {
+    label: "How it answers",
+    to: "admin/receptionist",
+    kind: "page",
+    sub: "the receptionist's voice, languages and notes",
+    also: ["voice", "greeting", "languages"]
+  },
+  {
     label: "Setting up",
     to: "start",
     kind: "page",
@@ -24463,15 +24490,15 @@ var ASK_PAGES2 = [
   { label: "Team", to: "admin/team", kind: "page", sub: "members and invitations" },
   { label: "Notifications", to: "admin/notifications", kind: "page" },
   { label: "Connections", to: "admin/integrations", kind: "page", sub: "WhatsApp, phone line, calendar" },
-  // A partner's account and link (0012): in every workspace's rail, beside Profile.
+  // A partner's account and link (0012): beside Profile in a partner's rail, and a row on Profile for everyone else.
   { label: "Partner", to: "admin/partner", kind: "page", sub: "bring a business to Chanlytics" },
-  // What the receptionist knows lives in Business details; the AI memory pane says it is not built and points here, so
-  // its name lands here too, never on that pane (#417).
+  // What the receptionist knows beyond the business's details lives in How it answers; the AI memory pane says it is not
+  // built and points here, so its name lands here too, never on that pane (#417).
   {
     label: "Receptionist memory",
-    to: "admin/workspace",
+    to: "admin/receptionist",
     kind: "page",
-    sub: "hours, services and notes, in Business details",
+    sub: "notes and your own words, in How it answers",
     also: ["ai memory"]
   }
 ];
@@ -25740,8 +25767,8 @@ var SETUP_WORDS = {
     join: joinWords,
     thing: (word) => appointmentWords(word).one,
     cover: (n, what) => `Starts ${plural(n, "campaign")} now${n > 1 ? ", each its own card" : ""}: ${what}.`,
-    calendar: (feed, each, gets) => feed ? `First, connect your calendar's feed under Settings \u203A Business (booking emails alone cannot time a campaign), so each ${each} gets ${gets}.` : `First, connect your calendar under Settings \u203A Business, so each ${each} gets ${gets}.`,
-    proposals: (first) => `${first ? "First" : "Then"}, under Settings \u203A Business, answer ${SELLS_BY_QUESTION} with \u201C${SELLS_BY_WORDS.proposal.label}\u201D, so each proposal that waits gets a follow-up.`,
+    calendar: (feed, each, gets) => feed ? `First, connect your calendar's feed under Settings \u203A Hours & booking (booking emails alone cannot time a campaign), so each ${each} gets ${gets}.` : `First, connect your calendar under Settings \u203A Hours & booking, so each ${each} gets ${gets}.`,
+    proposals: (first) => `${first ? "First" : "Then"}, under Settings \u203A Details, answer ${SELLS_BY_QUESTION} with \u201C${SELLS_BY_WORDS.proposal.label}\u201D, so each proposal that waits gets a follow-up.`,
     nobody: (named, one) => `${capitalize(named)} ${one ? "reaches" : "reach"} nobody today; ${one ? "its card says" : "each card says"} why.`,
     resume: (names3) => `Resumes ${joinWords(names3.map((n) => `\u201C${n}\u201D`))}, paused on ${names3.length === 1 ? "its moment, on a card of its own" : "their moments, a card each"}.`,
     again: (more2, needs2) => `Ask me again once ${onceOf(needs2, "en")}, and I'll add ${more2 === 1 ? "it" : "them"}.`,
@@ -27943,7 +27970,8 @@ var WHY = {
   team: "it changes who is on the team, which the owner does in Settings \u203A Team",
   draft: "Ask writes the draft itself in the conversation, so it never needs the page's drafter",
   learned: "a note the owner's correction suggested is kept beside what they wrote, on Settings \u203A Autonomy; Ask adds a note of its own with a settings card",
-  test: "it mails a step's message to the member who presses it, beside the step on its page"
+  test: "it mails a step's message to the member who presses it, beside the step on its page",
+  end: "it ends a sequence for good, which is asked and confirmed on its page, beside the history it keeps"
 };
 var ASK_GUIDE_PAGES = [
   {
@@ -28046,6 +28074,7 @@ var ASK_GUIDE_PAGES = [
       "sequence_send_decide",
       "sequence_send_said",
       "sequence_discard",
+      "sequence_end",
       "sequence_draft",
       "sequence_test",
       "reach_out_make",
@@ -28053,7 +28082,8 @@ var ASK_GUIDE_PAGES = [
     ],
     pageOnly: [
       { what: "Draft a sequence from a line on the page", why: WHY.draft },
-      { what: "Send yourself a test of a step's message", why: WHY.test }
+      { what: "Send yourself a test of a step's message", why: WHY.test },
+      { what: "End a sequence for good", why: WHY.end }
     ]
   },
   {
@@ -28080,7 +28110,8 @@ var ASK_PAGE_ONLY_VERBS = {
   invite: WHY.team,
   sequence_draft: WHY.draft,
   fact_suggestion: WHY.learned,
-  sequence_test: WHY.test
+  sequence_test: WHY.test,
+  sequence_end: WHY.end
 };
 
 // src/ask-skills/skill.ts
@@ -33390,6 +33421,11 @@ function cannotRows(i) {
     (r2) => r2.id === "book" && i.takesRequests === true ? { ...r2, detail: CANNOT_REQUESTS_BOOK } : !i.hasBookingLink && CANNOT_NO_LINK[r2.id] ? { ...r2, detail: CANNOT_NO_LINK[r2.id] } : r2
   );
 }
+var CANNOT_COUNT_WORDS = ["No", "One", "Two", "Three", "Four", "Five"];
+function cannotFoldWords(count2) {
+  const n = CANNOT_COUNT_WORDS[count2] ?? String(count2);
+  return count2 === 1 ? `${n} thing it cannot do` : `${n} things it cannot do`;
+}
 
 // src/config/brain-schema.ts
 import { z as z11 } from "zod";
@@ -35603,7 +35639,7 @@ function leadMapLegend(rows2) {
 }
 
 // src/playbooks/playbook-follow-ups.ts
-var FOLLOW_UP_NEEDS_DEALS = `Proposal follow-ups need deals: in Settings \u203A Business, answer \u201C${SELLS_BY_QUESTION}\u201D with \u201C${SELLS_BY_WORDS.proposal.label}\u201D.`;
+var FOLLOW_UP_NEEDS_DEALS = `Proposal follow-ups need deals: in Settings \u203A Details, answer \u201C${SELLS_BY_QUESTION}\u201D with \u201C${SELLS_BY_WORDS.proposal.label}\u201D.`;
 var FOLLOW_UP_NEEDS_LINK = "A proposal follow-up carries the proposal's link: pick a message with a slot for it, and fill that slot with their proposal's link.";
 var FOLLOW_UP_ONE = "This workspace already has a proposal follow-up. Change that one rather than starting another.";
 var PLAYBOOK_TOUCH_WINDOW_MS = (365 + 7) * DAY_MS;
@@ -39508,8 +39544,8 @@ var RECORD_REVIEW_CONFIRM = {
 };
 var PUBLIC_FIELD_MARK = "public";
 var BUSINESS_PAGE_NOTE = {
-  before: "Boxes marked public go on your business's own page once the name and the address are saved, beside the number customers reach you on and the services you list under Settings \u203A Business. Anyone can open the page, and search engines list it.",
-  live: "Boxes marked public are on your business's own page, beside the number customers reach you on and the services you list under Settings \u203A Business. Anyone can open the page, and search engines list it.",
+  before: "Boxes marked public go on your business's own page once the name and the address are saved, beside the number customers reach you on and the services you list under Settings \u203A Details. Anyone can open the page, and search engines list it.",
+  live: "Boxes marked public are on your business's own page, beside the number customers reach you on and the services you list under Settings \u203A Details. Anyone can open the page, and search engines list it.",
   open: "Open your page"
 };
 var SERVICES_ON_PUBLIC_PAGE = "The business's own page lists these, with how long each takes and its price, once the business is on record under Settings \u203A Connections. Anyone can open it.";
@@ -39867,7 +39903,7 @@ function registrationPreflight(f) {
     out.push({
       id: "name_mismatch",
       what: `The carriers will be told this business is called \u201C${f.workspaceName}\u201D, but the business on record is \u201C${f.tradeName?.trim() || f.legalName}\u201D.`,
-      fix: "Save the business's name under Settings \u203A Business as it is on record, or put that name on record as its trading name, before filing. The name goes into the confirmation message customers receive, and that message cannot be changed after a filing without registering a new campaign."
+      fix: "Save the business's name under Settings \u203A Details as it is on record, or put that name on record as its trading name, before filing. The name goes into the confirmation message customers receive, and that message cannot be changed after a filing without registering a new campaign."
     });
   }
   const answers = loose(f.receptionistName ?? "");
@@ -39875,7 +39911,7 @@ function registrationPreflight(f) {
     out.push({
       id: "names_differ",
       what: `Your receptionist introduces the business as \u201C${(f.receptionistName ?? "").trim()}\u201D, but your sign-up page and this filing call it \u201C${f.workspaceName}\u201D.`,
-      fix: "Save the name customers know you by under Settings \u203A Business: an owner's save renames your sign-up page and your sign too, so customers read one name."
+      fix: "Save the name customers know you by under Settings \u203A Details: an owner's save renames your sign-up page and your sign too, so customers read one name."
     });
   }
   if (!identifiesABusiness(f)) {
@@ -44607,7 +44643,7 @@ function playbookFailedWords(name, why) {
       title: `\u201C${label}\u201D could not read your calendar today`,
       body: `\u201C${label}\u201D could not read your calendar today, so nobody was sent it. Tomorrow's run will try again.
 
-It kept trying through the day. Check that the calendar link under Settings \u203A Business still opens; if today's message matters, you can send it yourself from Campaigns.`
+It kept trying through the day. Check that the calendar link under Settings \u203A Hours & booking still opens; if today's message matters, you can send it yourself from Campaigns.`
     };
   return {
     title: `\u201C${label}\u201D could not run today`,
@@ -45250,7 +45286,7 @@ function receptionistRow(stage) {
     people: { n: stage.people, unit: stage.unit },
     results: "uncounted",
     next: NO_NEXT,
-    open: { kind: "route", label: "Open", route: "admin/workspace" },
+    open: { kind: "route", label: "Open", route: "admin/receptionist" },
     waiting: null,
     act: null,
     search: rowSearchOf(stage.name, stage.caps)
@@ -46162,7 +46198,7 @@ function previewRefusedWords(reason) {
     case "missing_value":
       return "This business is missing a value your words name, so its email would be skipped.";
     case "no_business_address":
-      return "Add your business's address in Settings \u203A Business: every email carries it at the foot.";
+      return "Add your business's address in Settings \u203A Details: every email carries it at the foot.";
     default:
       return "These words can't go as they are.";
   }
@@ -46317,6 +46353,48 @@ var SEQUENCE_STATES = ["draft", "on", "paused", "ended"];
 // src/sequences/sequence-dto.ts
 var SEQUENCE_PEOPLE_GROUPS = ["waiting", "held", "to_send", "next", "in", "done", "left"];
 
+// src/sequences/sequence-run-off.ts
+var RUN_OFF_REASONS = [
+  "no_calendar",
+  "no_list",
+  "list_uncounted",
+  "template_not_approved",
+  "number_flagged",
+  "deals_off",
+  "never",
+  "ended"
+];
+var isRunOffReason = (why) => RUN_OFF_REASONS.includes(why);
+var RUN_OFF_WORDS = {
+  no_calendar: { said: "no calendar is connected", act: "Connect", mends: "door" },
+  no_list: { said: "its list is gone", act: null, mends: null },
+  list_uncounted: { said: "its list couldn\u2019t be counted", act: null, mends: null },
+  template_not_approved: { said: "WhatsApp hasn\u2019t approved its message", act: "Open it", mends: "door" },
+  number_flagged: { said: "WhatsApp has limited your number", act: "Channels", mends: "door" },
+  deals_off: { said: "deals are off", act: null, mends: null },
+  never: { said: "this kind of message is set to Never", act: "Who approves", mends: "autonomy" },
+  ended: { said: "its last day has passed", act: "End it", mends: "end" }
+};
+function sequenceRunOff(row2, lastRun, clock3) {
+  const why = lastRun.off;
+  if (row2.state !== "on" || row2.starts === "leads" || row2.starts === "date" || !why || !isRunOffReason(why))
+    return null;
+  const w = RUN_OFF_WORDS[why];
+  const day = lastRun.for ? clockDate(Date.parse(`${lastRun.for}T12:00:00Z`), clock3.tz, clock3.nowMs) : null;
+  const line = why === "ended" ? "Its last day has passed" : "Its last run did nothing";
+  const fact2 = why === "ended" ? "It sends nothing more" : `${w.said.charAt(0).toUpperCase()}${w.said.slice(1)}`;
+  const to = w.mends !== "door" ? null : why === "template_not_approved" && row2.first?.template_name ? addressOf({ kind: "template", name: row2.first.template_name }) : addressOf({ kind: "channel" });
+  return {
+    reason: why,
+    words: why === "ended" ? "Its last day has passed: it sends nothing more" : `Its last run${day ? ` (${day})` : ""} did nothing: ${w.said}`,
+    line,
+    fact: fact2,
+    act: w.act,
+    mends: w.mends,
+    to
+  };
+}
+
 // src/sequences/sequence-words.ts
 var SEQUENCE_WORDS = {
   title: "Sequences",
@@ -46330,12 +46408,21 @@ var SEQUENCE_WORDS = {
     customers: "Your customers",
     leads: "Leads",
     dates: "Dates",
-    off: "Paused or off",
-    drafts: "Drafts"
+    off: "Paused",
+    drafts: "Drafts",
+    ended: "Ended"
   },
+  /** The Ended group, folded at the list's foot: what it holds is history, opened when asked for. */
+  showEnded: (n) => `Show ${n} ended`,
+  hideEnded: "Hide ended",
+  /** End it (a customer's sequence that has sent), asked first in the record's More: it sends nothing more, its history stays. */
+  end: "End it",
+  endAsk: (name) => `End \u201C${name}\u201D?`,
+  endDetail: "It sends nothing more and nobody is added to it; what it sent stays in its History.",
+  endedLine: "Ended \xB7 it sends nothing more. What it sent stays in its History.",
   receptionist: "First contact is your receptionist\u2019s",
-  /** Where the receptionist's line opens: Settings › Business, as Campaigns' ledger row did (Ruben, 11 Oct 2026). */
-  receptionistRoute: "admin/workspace",
+  /** Where the receptionist's line opens: Settings › How it answers, as Campaigns' ledger row does (Ruben, 11 Oct 2026). */
+  receptionistRoute: "admin/receptionist",
   tabs: { steps: "Steps", people: "People", leads: "Leads", history: "History" },
   addFollowUp: "Add a follow-up",
   approve: "Approve",
@@ -46431,7 +46518,7 @@ function leadStepStand(place, sent, now) {
   if (now !== null ? place < now : sent > 0) return "done";
   return "later";
 }
-var SEQUENCE_GROUPS = ["needs", "customers", "leads", "dates", "off", "drafts"];
+var SEQUENCE_GROUPS = ["needs", "customers", "leads", "dates", "off", "drafts", "ended"];
 function sequenceTwinOf(rows2, row2) {
   const trigger = row2.first?.trigger ?? null;
   if (row2.starts !== "moment" || row2.state !== "on" || !trigger || triggerOf(trigger)?.kind !== "visit") return null;
@@ -46473,12 +46560,12 @@ function sequenceWaitsNow(row2, days) {
     }
   };
 }
-var isOff = (row2) => row2.state === "paused" || row2.state === "ended";
 function sequenceGroupOf(row2, twin = null) {
   if (row2.state === "draft") return "drafts";
   if (needsCount(row2.needs) > 0 || twin) return "needs";
   if (row2.starts === "date") return "dates";
-  if (isOff(row2)) return "off";
+  if (row2.state === "ended") return "ended";
+  if (row2.state === "paused") return "off";
   if (row2.starts === "leads") return "leads";
   return "customers";
 }
@@ -46645,10 +46732,20 @@ function waitingNotice(steps, batch) {
     batchId: batch.id
   });
 }
-function sequenceNotice(row2, steps, twin = null) {
+function sequenceNotice(row2, steps, twin = null, lastRun = null) {
   const n = row2.needs;
   const batch = n.waiting > 0 ? n.batches[0] ?? null : null;
   if (batch) return waitingNotice(steps, batch);
+  const off = lastRun ? sequenceRunOff(row2, lastRun, { tz: lastRun.tz, nowMs: lastRun.nowMs }) : null;
+  if (off)
+    return noticeOf({
+      kind: "off",
+      words: off.words,
+      line: off.line,
+      fact: off.fact,
+      act: off.act,
+      off: { reason: off.reason, mends: off.mends, to: off.to }
+    });
   if (twin)
     return noticeOf({
       kind: "twin",
@@ -47212,9 +47309,28 @@ var SCHEDULE_WORDS = {
   /** How a step to leads goes, and a call: on its box and in its sheet. */
   byEmail: "Email",
   byTask: "A task for you, on Today",
-  facts: { goes: "Goes", only: "Only to", by: "By", now: "Now", last30: "Last 30 days" }
+  facts: { goes: "Goes", only: "Only to", by: "By", now: "Now", last30: "Last 30 days" },
+  /** Start's Change: how a customer's sequence runs (the loop review's item 7), changed through the campaign's own verb. */
+  settings: {
+    title: "How it runs",
+    hour: "Sends at",
+    cap: "At most, each day",
+    people: (n) => `${n} people`,
+    gap: "Again to the same person after",
+    every: "Runs every",
+    days: (n) => `${n} days`,
+    until: "Runs until",
+    untilHint: "Leave it empty and it keeps running. On that day it stops.",
+    onceEach: "It goes once to each person: who is on the list now, then each who joins.",
+    save: "Save",
+    cancel: "Cancel"
+  }
 };
 var hourWords = (h) => clockTime(Date.UTC(2026, 0, 1, h), "UTC");
+function scheduleSettingsOf(row2) {
+  const kind = row2.first ? triggerOf(row2.first.trigger)?.kind : null;
+  return { gap: kind === "list", every: kind === "cadence" };
+}
 function scheduleDays(steps) {
   const out = /* @__PURE__ */ new Map();
   let day = 1;
@@ -47269,7 +47385,12 @@ function scheduleStart(row2, word, clock3) {
       name: f?.search_name ?? "the list",
       sub: "Each one is checked before it goes"
     };
-  if (row2.starts === "list") return { lead: "When someone joins ", name: f?.list_name ?? "the list", sub: at3 };
+  if (row2.starts === "list")
+    return {
+      lead: "When someone joins ",
+      name: f?.list_name ?? "the list",
+      sub: at3 ? `Once each \xB7 ${at3.charAt(0).toLowerCase()}${at3.slice(1)}` : "Once each"
+    };
   return { lead: momentStartsSentence(f?.trigger ?? null, null, word), name: null, sub: at3 };
 }
 function keptFor(step2) {
@@ -48146,7 +48267,7 @@ function closedFigure({ after_hours }, profile) {
     compare: null
   };
   if (hoursUnsetOf(after_hours, profile)) {
-    return { ...tile, value: "\u2014", meta: CLOSED_UNSET, door: "admin/workspace", unset: true };
+    return { ...tile, value: "\u2014", meta: CLOSED_UNSET, door: "admin/hours", unset: true };
   }
   if (profile === null) return null;
   const came = closedOf(after_hours, profile) ?? 0;
@@ -48764,7 +48885,7 @@ function reportFacts(vm, campaigns, ads = null) {
       icon: "clock",
       text: "Set your business hours to see what came in while you were closed",
       sub: "",
-      door: { label: "Open Settings", to: "admin/workspace" }
+      door: { label: "Open Settings", to: "admin/hours" }
     });
   } else if (b === null && h && h.closed) {
     out.push({
@@ -50681,7 +50802,7 @@ function googleRow(i, ctx) {
       required: false,
       sentence: "Find your business on Google so new reviews reach you here.",
       details: [
-        i.business.address ? "Uses the name and address on record" : "Add your address in Settings \u203A Business for a surer match"
+        i.business.address ? "Uses the name and address on record" : "Add your address in Settings \u203A Details for a surer match"
       ],
       // One finder: the first run's Find, asked for by name (first-run.ts).
       verb: { label: "Find it", to: FIRST_RUN_FIND_ROUTE }
@@ -51731,7 +51852,7 @@ var FIRST_RUN_WORDS = {
     foundLead: "Your receptionist answers from this. Fix anything that's off.",
     /** None: the basics, asked (V2). */
     basics: "Tell us the basics",
-    basicsLead: "Your receptionist answers from this. You can add more later in Settings \u203A Business.",
+    basicsLead: "Your receptionist answers from this. You can add more later in Settings.",
     /** No receptionist yet: the owner's one press, and where it starts from. */
     makeListed: "Your receptionist starts from what your Google listing says, and you check it here.",
     makeNamed: (name) => `Your receptionist starts with ${name ? `the name ${name}` : "your business's name"}, and you add the rest here.`,
@@ -51962,7 +52083,7 @@ function receptionistCardOf(i) {
       },
       { key: "through", label: "Puts through to", value: show(through) }
     ],
-    foot: "Fills in as you go. You can change any of it later in Settings \u203A Business."
+    foot: "Fills in as you go. You can change any of it later in Settings."
   };
 }
 function shouldLandOnFirstRun(role, answering, route, landed) {
@@ -55346,7 +55467,7 @@ var SERVER_LOOK = {
    */
   playbook: { icon: "bolt", tone: "warn", action: "Open Campaigns", to: "outbound" },
   calendar_people: { icon: "users", tone: "ok", action: "Open People", to: "clients" },
-  /** A booking tool's email that could not be read as a booking (00345): a person looks, under Settings › Business. */
+  /** A booking tool's email that could not be read as a booking (00345): a person looks, under Settings › Hours & booking. */
   booking_notice: { icon: "calendar", tone: "warn", action: "Open Settings", to: "admin/workspace" },
   /** A search that finished: good news, on the page the leads are on. */
   leads_ready: { icon: "users", tone: "ok", action: "Open Leads", to: "clients/leads" },
@@ -56303,7 +56424,7 @@ var SIGNUP_WORDS = {
   crossSite: "That request did not come from this site.",
   haveOne: "Already have a workspace?",
   newHere: "New to Chanlytics?",
-  clock: (tz) => `Your clock: ${tz}, read from this device. Change it later in Settings \u203A Business.`,
+  clock: (tz) => `Your clock: ${tz}, read from this device. Change it later in Settings \u203A Hours & booking.`,
   /* ------------------------------------------------------------ google
    * The provider's own words for its button, and ours for what follows it. */
   google: "Continue with Google",
@@ -60365,6 +60486,7 @@ export {
   campaignRunsOn,
   campaignsHomeOf,
   cannotBeSentWords,
+  cannotFoldWords,
   cannotRows,
   canonicalRoute,
   capabilityStatus,
@@ -61735,6 +61857,7 @@ export {
   scheduleEnd,
   scheduleInLine,
   scheduleLine,
+  scheduleSettingsOf,
   scheduleSpan,
   scheduleStart,
   scheduleStepFacts,

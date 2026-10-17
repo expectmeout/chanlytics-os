@@ -398,7 +398,7 @@ test("POST reach-outs refuses before the door: a viewer, a slot that is none of 
     chains.POST.run(send("POST", link), ctxFor(tables("operator", { tenant_config: [] }))),
     "validation",
     422,
-    "Your words name {{booking link}}. Add your booking link in Settings › Business first.",
+    "Your words name {{booking link}}. Add your booking link in Settings › Hours & booking first.",
   );
   await refused(chains.POST.run(send("POST", CHAIN({ gap_minutes: 7 })), ctxFor(tables())), "validation", 400);
   assert.equal(asked.length, 0, "the door was never asked");

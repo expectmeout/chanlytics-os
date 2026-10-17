@@ -95,7 +95,7 @@ export function reportFacts(
       icon: "clock",
       text: "Set your business hours to see what came in while you were closed",
       sub: "",
-      door: { label: "Open Settings", to: "admin/workspace" },
+      door: { label: "Open Settings", to: "admin/hours" },
     });
   } else if (b === null && h && h.closed) {
     out.push({

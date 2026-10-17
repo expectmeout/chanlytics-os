@@ -460,7 +460,7 @@ var FIGURES = {
   bookedMeta: (of) => `of ${of} \xB7 counted by Chanlytics`,
   eachMeta: (spent, n) => `${spent} / ${peopleWord(n)} \xB7 calls not included`,
   /** No calendar link: Booked waits, and the cost falls back to people in touch. */
-  needsLink: "Add a calendar link under Settings \u203A Business to see who booked.",
+  needsLink: "Add a calendar link under Settings \u203A Hours & booking to see who booked.",
   eachInTouchLabel: "For each person in touch",
   eachInTouchMeta: (spent, n) => `${spent} / ${peopleWord(n)}`,
   callsNotMatched: "Calls aren't matched to people yet",
@@ -468,8 +468,8 @@ var FIGURES = {
   reading: (list) => `reading ${list}`,
   /** Under Spent while a platform's last read failed: the sum holds its last numbers. */
   spentMetaStale: (ads, owner, when) => `across ${plural(ads, "ad")} \xB7 ${owner}${when === null ? "" : ` as of ${when}`}`,
-  /** The door that mends a missing calendar link: the calendar is set under Settings › Business. */
-  linkDoor: "Open Settings \u203A Business"
+  /** The door that mends a missing calendar link: the calendar is set under Settings › Hours & booking. */
+  linkDoor: "Open Settings \u203A Hours & booking"
 };
 var COUNTED = {
   quiet: (time) => `Spend is as each platform reports it, read ${time}, and can change for a day or two.`,
@@ -1373,7 +1373,7 @@ function appointmentWords(word) {
     offYesterday: (n) => `Off \xB7 ${people(n)} ${f.had} yesterday`,
     startsWith: `${f.a} tomorrow, ${f.a} yesterday`,
     byMany: `by ${many}`,
-    needsCalendar: `${capitalize(many)} are read from your calendar, and none is connected. Connect one under Settings \u203A Business.`,
+    needsCalendar: `${capitalize(many)} are read from your calendar, and none is connected. Connect one under Settings \u203A Hours & booking.`,
     cancelAsk: `Cancel this ${word}?`,
     cancelAct: `Cancel the ${word}\u2026`,
     bookingLink: (link) => `Here's the link to book your ${word}: ${link}`,
