@@ -684,7 +684,6 @@ apps/dashboard/src/legacy-bridge/
 apps/dashboard/src/legacy/
   components/
   data/
-  demo/
   pages/
 apps/mobile/src/
   app/
