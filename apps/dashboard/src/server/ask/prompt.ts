@@ -24,7 +24,7 @@ import {
   type TenantConfig,
 } from "@chanlytics/contracts";
 import type { MembershipRole, Note } from "@chanlytics/contracts";
-import type { AskMessageVM, AskProposal, AskProposalOutcome, AskScope } from "@chanlytics/contracts";
+import type { AskColumn, AskMessageVM, AskProposal, AskProposalOutcome, AskScope } from "@chanlytics/contracts";
 import { oneLine } from "./context/rows";
 import { ANSWER_TOOL_RULES, ASK_SECTIONS } from "./prompt-rules";
 
@@ -471,6 +471,8 @@ export interface TurnFacts {
    * language, so the say is written for the ear and the figures still go to show.
    */
   spoken?: boolean;
+  /** The column the Line draws the answer in (contracts AskColumn): columnLine, unless they are listening. */
+  column?: AskColumn | null;
   /** What is above their role, so no tool of the turn's proposes it (tools/offer.ts aboveRoleWords); null for none. */
   above?: string | null;
   /** How they like answers, in their own note (Settings › Profile, contracts answerStyleOf); "" for none. */
@@ -485,6 +487,19 @@ export interface TurnFacts {
  */
 const SPOKEN_LINE =
   "They are listening, not reading. Open with a short clause and a comma, then what matters first in one breath, in say.headline; say.detail may run to three short sentences when they asked for a summary, a reason or detail, and is empty otherwise. Say a name as a name and a time or a count as the page shows it; never an id, a route, a symbol, a bracketed tag or formatting: no headings, bold or tables, plain sentences only. Every figure and row goes in show, where the screen draws it; a list goes in show.list, whose entries are read after the say, one by one, so keep each short.";
+
+/**
+ * Where the answer is read (18 Oct 2026, after Anthropic's prompting guidance: say the surface and why it matters, and let
+ * the model choose the shape): the column the Line draws it in, as the tab measured it, and about as many characters as
+ * a line of the detail holds there (Mona Sans at the detail's 15px, about 7px a character; measured 18 Oct 2026). A table wider than the
+ * column scrolls sideways, which a reader in a narrow panel or on a phone seldom does. Said in the turn's words, beside
+ * the page; a spoken turn draws nothing, so it says none.
+ */
+const DETAIL_PX_PER_CHAR = 7;
+function columnLine(c: AskColumn): string {
+  const chars = Math.round(c.px / DETAIL_PX_PER_CHAR / 5) * 5;
+  return `They read your answer in a column about ${c.px}px wide on ${c.phone ? "a phone" : "a desk"}, about ${chars} characters to a line. Lists and short paragraphs fit it well; a table wider than three short columns scrolls sideways there, so a wider comparison reads better as a list or a narrower table, unless they ask for a table.`;
+}
 
 /**
  * A row as the turn's words name it: by the label the page gave it, which is often someone else's (a customer's name,
@@ -586,6 +601,7 @@ export function turnWords(t: TurnFacts): string {
   if (f && (f.kind !== t.scope?.kind || f.id !== t.scope?.id))
     lines.push(`Their words point at ${rowName(f)} (${f.kind} ${f.id}): ${then}.`);
   if (t.spoken) lines.push(SPOKEN_LINE);
+  else if (t.column) lines.push(columnLine(t.column));
   return lines.join("\n");
 }
 

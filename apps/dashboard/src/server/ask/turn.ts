@@ -10,6 +10,7 @@ import {
   policyClassOffered,
   stoppedAnswer,
   v1FromAnswer,
+  type AskColumn,
   type AskLanguage,
   type AskMessageVM,
   type AskProposal,
@@ -48,6 +49,8 @@ interface AskTurnAsk {
   answering: SearchAnswering | null;
   /** The person is listening, not reading (the spoken register, spec §3.4). */
   spoken?: boolean;
+  /** The column the Line draws the answer in, as the tab measured it (contracts AskColumn); none from an older tab. */
+  column?: AskColumn | null;
 }
 
 /** A line the turn's door sends: the thread first, then the turn's own events. */
@@ -228,6 +231,7 @@ export async function finishAskTurn(
     openedMs,
     context,
     spoken: ask.spoken ?? false,
+    column: ask.column ?? null,
     style,
     emit: (ev) => {
       if (ev.t === "say")

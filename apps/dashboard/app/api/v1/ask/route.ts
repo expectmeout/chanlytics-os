@@ -4,6 +4,7 @@ import {
   ASK_SCOPE_KINDS,
   ASK_SURFACES,
   PageContextSchema,
+  askColumnOf,
   type AskScope,
   type LeadSearchPlan,
   type PageContext,
@@ -23,7 +24,7 @@ import { searchRow } from "@/server/leads/leads";
 /**
  * POST /api/v1/ask — one turn of the workspace assistant.
  *
- * Body: { text, thread_id?, scope?, surface?, answering?, following?, workspace? }. The response is a
+ * Body: { text, thread_id?, scope?, surface?, answering?, following?, column?, workspace? }. The response is a
  * stream of JSON lines: {t:"thread", id} first, then {t:"trace"} while a read
  * runs, {t:"say", headline, detail} as the answer's Say is written (a
  * preview), and {t:"final", message} last, with the answer as the Line draws
@@ -51,6 +52,9 @@ import { searchRow } from "@/server/leads/leads";
  * would ask itself then, and once the question is kept the follow-up is cleared from the caller's views
  * (clearFollowUp), before the turn reads anything, so Ask never offers a card to clear what they came back to. One they
  * no longer hold (another tab came back to it) clears nothing, and a clear that fails is logged, never a refused question.
+ *
+ * `column: { px, phone }` is the width the Line draws the answer in, as the tab measured it (contracts AskColumn): the
+ * model is told it with the question; one not in that shape is none.
  *
  * The answer's row also keeps the turn as the model was sent it, at
  * `content.raw` (server/ask/memory.ts, storedRaw; the Phase 5 plan, D11), for
@@ -200,6 +204,7 @@ export const POST = write({
       surface?: unknown;
       answering?: unknown;
       following?: unknown;
+      column?: unknown;
       opened_ms?: unknown;
       context?: unknown;
     } | null;
@@ -255,6 +260,7 @@ export const POST = write({
       context,
       openedMs,
       answering,
+      column: askColumnOf(body?.column),
     });
 
     await cameBackTo(ctx, member, body?.following);

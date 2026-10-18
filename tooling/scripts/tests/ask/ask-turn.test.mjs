@@ -9816,6 +9816,41 @@ test("a broadcast or a playbook proposed on a workspace with no WhatsApp number 
   assert.match(held.proposal.summary, /Connect a WhatsApp number first\. Its runs hold everyone until it is\./);
 });
 
+test("the column the answer is drawn in rides in the turn's words (18 Oct 2026): its width, a phone or a desk, about the characters a line holds, and that a table wider than three short columns scrolls sideways; a spoken turn and a tab that sent none say nothing of it; through the loop the model reads it", async () => {
+  const facts = {
+    role: "operator",
+    personLabel: "ada",
+    scope: null,
+    surface: null,
+    language: "en",
+    timezone: TZ,
+    closures: [],
+    now: NOW,
+  };
+  assert.equal(
+    turnWords({ ...facts, column: { px: 358, phone: true } })
+      .split("\n")
+      .at(-1),
+    "They read your answer in a column about 358px wide on a phone, about 50 characters to a line. Lists and short paragraphs fit it well; a table wider than three short columns scrolls sideways there, so a wider comparison reads better as a list or a narrower table, unless they ask for a table.",
+  );
+  assert.match(
+    turnWords({ ...facts, column: { px: 408, phone: false } }),
+    /a column about 408px wide on a desk, about 60 characters to a line/,
+  );
+  assert.ok(!turnWords(facts).includes("a column about"), "none sent: no line");
+  const listening = turnWords({ ...facts, spoken: true, column: { px: 358, phone: true } }).split("\n");
+  assert.ok(!listening.some((l) => l.includes("a column about")), "listening: nothing is drawn, so no column");
+  assert.equal(listening.at(-1), SPOKEN_LINE);
+
+  const s = scripted([ROUND([answer("Nobody is waiting.")])]);
+  const r = await runAskTurn(turn(ctxFor(), { column: { px: 358, phone: true } }).input, ports(s.round));
+  assert.equal(r.failed, false, r.failure ?? "");
+  assert.ok(
+    JSON.stringify(s.requests[0].messages).includes("a column about 358px wide on a phone"),
+    "the model read it",
+  );
+});
+
 test("a spoken turn (the voice door, spec 2026-10-03 §3.4): the listening line rides last in the turn's words, a typed turn says nothing of it, the model reads it, and the stored shape says which", async () => {
   // Pure: the line, once, last.
   const facts = {

@@ -47,6 +47,33 @@
     }
   },
   {
+    "id": "column_wide_phone",
+    "text": "Compare my channels this month side by side: conversations, answered by the receptionist, unanswered, booked, new people and replies.",
+    "surface": "reports",
+    "column": "phone",
+    "expect": { "table_cols_max": 3, "no_format_apology": true, "language": "en", "no_write": true }
+  },
+  {
+    "id": "column_table_asked_phone",
+    "text": "Compare my channels this week as a table: conversations, how many booked, and how fast they were answered.",
+    "surface": "reports",
+    "column": "phone",
+    "expect": { "detail_shape": ["table"], "no_format_apology": true, "language": "en", "no_write": true }
+  },
+  {
+    "id": "column_plain_phone",
+    "text": "Are we open on Sunday?",
+    "surface": "today",
+    "column": "phone",
+    "expect": {
+      "detail_shape": "plain",
+      "detail_max_words": 60,
+      "language": "en",
+      "no_write": true,
+      "chart_none": true
+    }
+  },
+  {
     "id": "canvas_shorter_from_now_on",
     "text": "Explain how the receptionist decides when to hand a conversation over to me.",
     "surface": "today",

@@ -661,8 +661,8 @@ const wordsIn = (s) =>
  * (`style`, at least `min` entries, exactly `count`, the `entries` themselves word for word, every entry carrying an
  * `emoji`; with `rows`, a list of rows read is the items, numbered by the list's style with no entries of its own, and
  * fewer than two of either asks for no style), `list_empty` (no entries), `headline_words` (at most that many words),
- * `detail_empty`, `all_caps` (no lower-case letter in the headline, the detail or the list), `detail_shape` and
- * `detail_max_words` (detailShapeFails), and `no_format_apology` (no sentence spent on the format, FORMAT_APOLOGY). `e`
+ * `detail_empty`, `all_caps` (no lower-case letter in the headline, the detail or the list), `detail_shape`,
+ * `detail_max_words` and `table_cols_max` (detailShapeFails), and `no_format_apology` (no sentence spent on the format, FORMAT_APOLOGY). `e`
  * is a case's expect, `m` the turn's final message.
  */
 export function shapeAskedFails(e, m) {
@@ -680,6 +680,7 @@ export function shapeAskedFails(e, m) {
     "all_caps",
     "detail_shape",
     "detail_max_words",
+    "table_cols_max",
     "chart",
     "chart_none",
   ];
@@ -734,7 +735,8 @@ const listItems = (l) => l.items.flatMap((it) => [it, ...(it.sub ? listItems(it.
  * What the detail draws (contracts answerBlocks, as the Line does): `detail_shape` names what it must hold, a `table`,
  * `chart` (one drawn, or its kind) and `chart_none`; `bold` (in the detail or the list's entries), a `heading`, a `nested` list, `numbered` steps, a `quote` of someone's
  * words, a `callout`, a `door` (a row the words name, opened where it is named), or `plain` for no structure (no table, heading or list: a bold name or number is still plain words); `detail_max_words` is the most
- * words it may say (a turn asked to be shorter, or one that should be).
+ * words it may say (a turn asked to be shorter, or one that should be); `table_cols_max` the most columns a table in it
+ * may have, so a comparison fits the column it is drawn in (18 Oct 2026: a phone's is about 55 characters wide).
  */
 export function detailShapeFails(e, a) {
   const fails = [];
@@ -779,6 +781,14 @@ export function detailShapeFails(e, a) {
   }
   if (typeof e.detail_max_words === "number" && wordsIn(a.say.detail ?? "").length > e.detail_max_words)
     fails.push(`a detail of ${wordsIn(a.say.detail ?? "").length} words, where at most ${e.detail_max_words} fit`);
+  if (typeof e.table_cols_max === "number") {
+    const widest = Math.max(
+      0,
+      ...answerBlocks(a.say.detail ?? "").map((b) => (b.kind === "table" ? b.head.length : 0)),
+    );
+    if (widest > e.table_cols_max)
+      fails.push(`a table of ${widest} columns, where the column it is drawn in fits ${e.table_cols_max}`);
+  }
   // A chart (the answer canvas, C3): `chart` asks for one (true, or its kind: line, bars); `chart_none` for none.
   const c = a.show.chart;
   if (e.chart && !c) fails.push("no chart where one was asked");
