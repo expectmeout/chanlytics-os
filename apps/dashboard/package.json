@@ -2,6 +2,12 @@
   "name": "@chanlytics/dashboard",
   "version": "0.1.0",
   "private": true,
+  "imports": {
+    "#frame-shell": {
+      "browser": "./src/legacy-bridge/LegacyApp.tsx",
+      "default": "./src/frame-shell.ts"
+    }
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",

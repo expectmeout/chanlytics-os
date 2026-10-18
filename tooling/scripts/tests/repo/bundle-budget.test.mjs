@@ -4,10 +4,11 @@
  *
  * checks/bundle-budget.mjs runs in CI after the dashboard's build. Here it runs against a build written by hand, in
  * the shape Next writes (a build manifest, each page's client manifest, the route's loadable manifest, the chunks), so
- * what it counts and when it fails are proved without a build: the runtime, every segment's chunks and stylesheets and
- * the shell `next/dynamic` loads are the route's; each other page's own chunks beyond the route are that page's, a
- * shared chunk counted for each page that loads it; the polyfills and a chunk nothing names at load are not counted;
- * a build missing a manifest or a file fails rather than measuring less.
+ * what it counts and when it fails are proved without a build: the runtime, every segment's chunks and stylesheets (the
+ * frame's layout's carry the shell) and what `next/dynamic` loads as the route draws are the route's; each other
+ * page's own chunks beyond the route are that page's, a shared chunk counted for each page that loads it; the polyfills
+ * and a chunk nothing names at load are not counted; a build missing a manifest, the frame's chunks or a file fails
+ * rather than measuring less.
  *
  * Against the record of the main commit a change stands on, a sum grown past its line fails until the pull request's
  * description says why (`Bundle: <why>`, read from PR_BODY); a record of another commit, or none, is compared and not
@@ -83,6 +84,7 @@ const CHUNKS = {
   "static/chunks/inbox.js": noise("inbox", 60_000),
   "static/chunks/people.js": noise("people", 40_000),
   "static/chunks/kit.js": noise("kit", 30_000),
+  "static/chunks/drawn.js": noise("drawn", 15_000),
 };
 /** Each page's chunks as its own client manifest names them: the layout the route already counts, and its own. */
 const PAGES = {
@@ -91,7 +93,8 @@ const PAGES = {
 };
 
 function writeBuild({
-  loadable = { 33959: { id: 33959, files: ["static/chunks/shell.js"] } },
+  frame = ["static/chunks/layout.js", "static/chunks/shell.js"],
+  loadable = null,
   chunks = CHUNKS,
   pages = PAGES,
 } = {}) {
@@ -114,6 +117,7 @@ function writeBuild({
     clientModules: { "[project]/layout-router.js": { chunks: ["/_next/static/chunks/layout.js"] } },
     entryJSFiles: {
       "[project]/apps/dashboard/app/layout": ["static/chunks/layout.js"],
+      ...(frame ? { "[project]/apps/dashboard/app/(os)/w/[workspace]/layout": frame } : {}),
       "[project]/apps/dashboard/app/(os)/w/[workspace]/[[...route]]/page": [
         "static/chunks/layout.js",
         "static/chunks/page.js",
@@ -181,6 +185,11 @@ test("it counts the runtime, every segment's chunks once, the shell and the styl
   // The measure a test or a comparison of two builds reads is the script's own.
   assert.deepEqual(sumsOf(measureBuild(dir)), seeded());
   assert.equal(measureBuild(dir).js.files, 4);
+});
+
+test("what `next/dynamic` loads as the route draws is the route's too", () => {
+  const dir = writeBuild({ loadable: { 1: { id: 1, files: ["static/chunks/drawn.js"] } } });
+  assert.equal(sumsOf(measureBuild(dir)).js, seeded().js + gz(CHUNKS, "static/chunks/drawn.js"));
 });
 
 test("a page is named by its path under the workspace, its dynamic segment, a group and `page` dropped", () => {
@@ -379,10 +388,11 @@ test("the week: main beside main a week before, a sum past its week's line exits
 
 /* ----------------------------- the build's shape ----------------------------- */
 
-test("a build with no loadable manifest, or one naming nothing, fails rather than leaving the shell out", () => {
-  for (const loadable of [null, {}]) {
-    const r = run(writeBuild({ loadable }));
+test("a build whose route names no chunks for the frame's layout fails rather than leaving the shell out", () => {
+  for (const frame of [null, []]) {
+    const r = run(writeBuild({ frame }));
     assert.equal(r.status, 2, r.out);
+    assert.match(r.out, /the shell's would go uncounted/);
   }
 });
 

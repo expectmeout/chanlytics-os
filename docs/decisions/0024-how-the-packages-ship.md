@@ -180,6 +180,16 @@ wire changes.
   pages for this change while their visitors download less. The next lever is what the shell imports, not how
   contracts ships.
 
+  **Pulled on 17 October 2026, by how the shell is loaded.** Loaded by `next/dynamic`, the shell was a chunk group of
+  its own, which no page's chunks may count as loaded, so Turbopack copied every module a page shares with it into the
+  page's chunks (Turbopack's chunking options change nothing here: clusters and a smaller merge size built the same
+  files, and component chunks saved under half of it, at the runtime's discretion). LegacyHost imports the shell now, as
+  `#frame-shell` (the browser's build resolves it to LegacyApp, the server's to an empty component), so it is the
+  frame layout's and every page below counts it as loaded. The two error boundaries, chunk groups the frame cannot
+  count either, import their reporter only once they catch something. Against main at `6fc3ceb90`: the route's JS
+  849,978 → 816,441 bytes gzipped; Settings −47,256, Inbox −41,497, People −40,830, Conversations −38,518, Reports
+  −24,238, Calendar −21,440, Campaigns −21,418, Broadcasts −16,877, Live −16,378, Templates −15,457, Start −14,662.
+
 - Whether `packages/db` should give each domain its own entry (`@chanlytics/db/leads` and the like), since its one
   barrel, `src/index.ts` (some 550 names; 105 commits in the month to 17 October 2026), is where nearly every lane's new
   name meets.

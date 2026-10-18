@@ -111,8 +111,11 @@ seeded twin of each real page and the seeds only they read live under
 app loads only in a declared demo session. The mockup's own
 prose (its audits and demo scripts) lives in `docs/mockup/`, not in the app.
 
-**`dynamic(ssr:false)` on the legacy app is required.** `seed-globals.ts`, the shell's files and the seed publishers (the
+**The legacy app never runs on the server.** `seed-globals.ts`, the shell's files and the seed publishers (the
 demo's `demo/data/people-data.jsx` among them) do unguarded module-scope `window` access and throw during prerender.
+`LegacyHost` imports the shell as `#frame-shell` (`apps/dashboard/package.json` "imports"): a browser's build resolves
+it to `LegacyApp`, the server's to `src/frame-shell.ts`, an empty component, and `dynamic(ssr:false)` keeps the
+server from drawing even that.
 
 **Nothing in the UI may state a fact the database cannot support.** Unbacked
 mockup regions stay behind `window.__DEMO_MODE`. A zero is a real measurement
