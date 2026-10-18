@@ -18,6 +18,11 @@
  * answer carries the prices the workspace may say (allowed_prices, contracts
  * priceAllowance; null for the strict rule), so the runner judges a price
  * against the workspace's own switch.
+ *
+ * Settings' Try it asks here too, one case at a time, with a token the dashboard minted for the member and the
+ * workspace (dashboard server/receptionist/try.ts). So beside each answer is what the live turn would do with it (`then`):
+ * the words layer two leaves, whether the thread goes to a person and why, and how long the reply would wait. And a
+ * workspace with no WhatsApp line yet is answered as its chat would be, which is when an owner most wants to try it.
  */
 import { json, refuse } from "../http.js";
 import { workspaceFor, type Admitted } from "../admin-auth.js";
@@ -25,8 +30,9 @@ import { pg } from "../pg.js";
 import { loadTenantRuntime, type TenantRuntime } from "../tenant-runtime.js";
 import { openingsFor, takesRequests } from "../calendar/availability.js";
 import { resolveSystemPrompt, describeNow, fallbackMessages, priceAllowance, UUID } from "../packages/contracts.js";
-import { oldestActiveChannel } from "../packages/db.js";
-import { brainCallOf, generateReply } from "./brain.js";
+import { holdPlan, layerTwo } from "../packages/core.js";
+import { oldestActiveChannel, type RoutedChannel } from "../packages/db.js";
+import { brainCallOf, generateReply, type BrainReply } from "./brain.js";
 import { env } from "../env.js";
 import { logger } from "../log.js";
 
@@ -93,6 +99,61 @@ ${openings}`
   };
 }
 
+/**
+ * What the live turn would do with an answer (core model-turn.ts `checked`, dispatch.ts `planTheHold`), by the same two
+ * functions: the words layer two leaves (`changed` names why it replaced the model's, where it did), whether the thread
+ * goes to a person and under which reason, and how long the reply waits under the reply row's mode and confidence dial.
+ * The words go out either way, as they do live: a hand-off sends them and holds the thread for a person. Under "ask" or
+ * "never" the live receptionist is not asked at all (core reply-gates.ts), which the mode says.
+ */
+function thenOf(rt: TenantRuntime, brainCfg: NonNullable<TenantRuntime["brain"]>, r: BrainReply, now: Date) {
+  const reply = rt.policy["reply"];
+  // A workspace with no reply row holds every message for a person, as the runtime reads it (an unexpected mode is ask).
+  const mode = reply?.mode ?? "ask";
+  const two = layerTwo({
+    replyText: r.text,
+    escalate: r.escalate,
+    escalationReason: r.reason ?? "human_token",
+    brainCfg,
+    policy: rt.policy,
+    intent: r.meta?.intent ?? null,
+    language: r.meta?.language ?? null,
+    known: rt.known,
+    tz: rt.timezone,
+    now,
+  });
+  const plan = holdPlan(mode, reply?.limits ?? {}, r.meta);
+  return {
+    mode,
+    text: two.replyText,
+    changed: two.replyText === r.text ? null : two.priceBlocked ? "price" : two.askClass,
+    escalate: two.escalate,
+    reason: two.escalate ? two.escalationReason : null,
+    hold_ms: plan.delayMs,
+    held_for: plan.delayMs > 0 ? plan.source : null,
+    min_confidence: plan.minConfidence,
+  };
+}
+
+/**
+ * The channel the cases are answered as: the workspace's WhatsApp, as the webhook would route it (its oldest active one,
+ * where it holds two), else the workspace's chat before it has a line, loaded by the workspace (reach-out/reply-draft.ts
+ * builds its mailbox's the same way: a kind that is not WhatsApp binds no number and reads every setting by the tenant).
+ */
+async function routedFor(db: NonNullable<ReturnType<typeof pg>>, tenantId: string): Promise<RoutedChannel | undefined> {
+  const routed = await oldestActiveChannel(db, tenantId, "whatsapp").catch(() => undefined);
+  if (routed !== null) return routed;
+  return {
+    kind: "chat",
+    channelId: tenantId,
+    tenantId,
+    externalId: "",
+    numberE164: null,
+    credentialsRef: null,
+    config: {},
+  };
+}
+
 export async function evaluateCases(
   auth: Admitted,
   body: Partial<{ tenant_id?: string; cases?: EvalCase[] }>,
@@ -126,10 +187,8 @@ export async function evaluateCases(
 
   const db = pg();
   if (!db) return refuse(503, "no_database");
-  // The tenant's WhatsApp channel, as the webhook would route it: its oldest active one, where it holds two.
-  const routed = await oldestActiveChannel(db, tenantId, "whatsapp").catch(() => undefined);
+  const routed = await routedFor(db, tenantId);
   if (routed === undefined) return refuse(500, "channel_read_failed");
-  if (!routed) return refuse(404, "no_whatsapp_channel");
   const rt = await loadTenantRuntime(db, routed);
   if (!rt.brain) return refuse(409, rt.configBroken ? "config_broken" : "no_persona");
   const now = new Date(); // the run's one clock: the prompt, the clock note, the prices it may say, and its timing
@@ -152,6 +211,7 @@ export async function evaluateCases(
         meta: r.meta ?? null,
         usage: r.usage ?? null,
         ms: Date.now() - t0,
+        then: thenOf(rt, rt.brain, r, now),
         ...said(r),
       });
     } catch (e) {

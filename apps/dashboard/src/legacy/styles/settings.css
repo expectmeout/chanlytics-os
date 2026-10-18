@@ -1461,6 +1461,13 @@ tr.pol-locked .pol-label{color:var(--ink-muted)}
 .bt-gap { margin: 0; display: flex; align-items: flex-start; gap: 10px; font-size: var(--text-sm); line-height: var(--leading-normal); }
 .bt-gap-dot { flex: none; width: 8px; height: 8px; margin-top: 6px; border-radius: var(--radius-full); background: var(--warn); }
 .bt-gap-words, .bt-gap-door { font-weight: var(--weight-medium); color: var(--warn-ink); text-wrap: pretty; }
+/* How it answers, Try it (business/try/try-it.tsx): each message tried and what came back stack as the card's rows, and
+   the box sits under them with its acts beside it, under it on a phone. The box is the form's first child, so no rule
+   here names the kit's field. */
+.bt-try-turn { display: grid; }
+.bt-try-ask { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px 12px; padding-top: 12px; }
+.bt-try-ask > :first-child { flex: 1 1 260px; min-width: 0; }
+.bt-try-acts { display: flex; align-items: center; gap: 12px; min-height: 32px; }
 .bt-gap-door { display: inline; line-height: inherit; text-align: left; text-decoration: underline; text-decoration-color: color-mix(in oklab, var(--warn) 50%, transparent); text-underline-offset: 3px; border-radius: var(--radius-xs); }
 .bt-gap-door:hover { text-decoration-color: currentColor; }
 

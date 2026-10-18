@@ -144,20 +144,21 @@ test("the voice's box is the first row of How it answers, reading Not set on a r
       "rec-card-knows",
       "rec-card-can",
       "rec-card-told",
+      "rec-card-try",
     ],
   );
   const page = drawTab({ part: "receptionist" });
   assert.deepEqual(
     all(page, (n) => classes(n).includes("rec-card")).map((n) => n.props["data-testid"]),
-    ["rec-card-answers", "rec-card-knows", "rec-card-can", "rec-card-told"],
+    ["rec-card-answers", "rec-card-knows", "rec-card-can", "rec-card-told", "rec-card-try"],
   );
   const tail = [].concat(page.rendered.props.children).filter((c) => c != null && c !== false);
   assert.equal(tail.at(-1).type, W.BtSheetSlot);
   const cards = [].concat(tail.at(-2).props.children).filter((c) => c != null && c !== false);
   assert.deepEqual(
     cards.map((c) => c.type.name),
-    ["BtTalksCard", "BtKnowsCard", "BtCanCard", "BtPromptTold"],
-    "How it talks, What it knows, What it can do, and what it is told, at rest, last",
+    ["BtTalksCard", "BtKnowsCard", "BtCanCard", "BtPromptTold", "BtTryIt"],
+    "How it talks, What it knows, What it can do, what it is told, and Try it, at rest, last",
   );
 });
 

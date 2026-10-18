@@ -184,6 +184,7 @@ export const DASHBOARD_LOG_EVENTS = [
   "reach_out_chain_totals_read_failed",
   "reach_out_last_days_read_failed",
   "receptionist_series_missing",
+  "receptionist_try_failed",
   "recording_audit_unavailable",
   "reply_claim_failed",
   "reply_orphan_withdraw_failed",
