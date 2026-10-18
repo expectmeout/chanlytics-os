@@ -104,8 +104,6 @@ export interface DraftOf {
 export interface CalendarDraft {
   with: string;
   ical_url: string;
-  /** Booking requests (features.booking_requests, decision 0061); absent on a draft from before them, which writes none. */
-  requests?: boolean;
 }
 
 // The days of the week in the schema's order (contracts DAYS): the hours fold writes every one of them.
@@ -148,8 +146,10 @@ export const btRuleNumber = (v: unknown, lo: number, hi: number) => {
   return n >= lo && n <= hi ? n : undefined;
 };
 
-// The four rules it always keeps (contracts GUARDRAIL_KEYS), and the three messages sent in the business's name (S5).
-export const BT_GUARDRAILS = ["never_quote_prices", "never_confirm_booking", "disclose_ai", "no_health_advice"];
+// The rules fold's one switch: of the four rules (contracts GUARDRAIL_KEYS), the price rule is the price row's
+// (business/choices) and the other two are always on (contracts ALWAYS_ON). And the three messages sent in the
+// business's name (S5).
+export const BT_GUARDRAILS = ["no_health_advice"];
 export const BT_FALLBACKS = ["greeting", "error", "non_text"];
 
 /**
@@ -190,9 +190,8 @@ export const BT_DAY_NAMES: Record<string, string> = {
 
 /**
  * Exactly what each fold writes, as dotted paths into the whole config: nothing outside them is the fold's to change.
- * Two folds share booking_rules, each with only its own of its keys, and three write beside the profile: the rules
- * write the photos switch (features.vision), the instructions write the stored prompt, and the fallbacks and the
- * calendar write nothing in the profile at all. The calendar's are its address and what the owner books with (the
+ * Two folds share booking_rules, each with only its own of its keys, and two write beside the profile: the
+ * instructions write the stored prompt, and the fallbacks and the calendar write nothing in the profile at all. The calendar's are its address and what the owner books with (the
  * tool, or their own hands), each a key of its own section: whatever else a section comes to hold is kept, as it is
  * under the rules, the messages and the features.
  */
@@ -210,13 +209,13 @@ export const BT_PATHS_OF: Record<FoldName, string[]> = {
     "brain.profile.booking_rules.ask_email",
   ]),
   consult_first: ["brain.profile.booking_rules.consult_first"],
-  guardrails: BT_GUARDRAILS.map((key) => `brain.profile.guardrails.${key}`).concat(["features.vision"]),
+  guardrails: BT_GUARDRAILS.map((key) => `brain.profile.guardrails.${key}`),
   extra_instructions: ["brain.profile.extra_instructions", "brain.system_prompt"],
   fallbacks: BT_FALLBACKS.map((key) => `brain.fallbacks.${key}`),
   // The link's address, and what the owner books with (00345): the second a section of its own, which a build from
   // before it leaves out and reads on. One fold since 7 Oct 2026, where each was a row of its own that sent the owner
-  // to the other.
-  calendar: ["calendar.ical_url", "bookings.tool", "bookings.by_hand", "features.booking_requests"],
+  // to the other. Booking requests (features.booking_requests) are the booking row's (business/choices) since 18 Oct.
+  calendar: ["calendar.ical_url", "bookings.tool", "bookings.by_hand"],
   // The first save a workspace makes, where it has no receptionist (create.tsx): the three things it
   // cannot answer anyone without, and the product's own prompt and messages, which the schema needs and nobody should
   // have to write (contracts newReceptionistDefaults), written only where none is stored.
@@ -275,7 +274,6 @@ export const btCalendarDraft = (config: Config): CalendarDraft => {
   return {
     with: booksWithOf({ ...(config.bookings || {}), ical_url }),
     ical_url,
-    requests: config.features?.booking_requests === true,
   };
 };
 
@@ -302,10 +300,6 @@ export const btWriteCalendar = (next: Config, draft: unknown) => {
   btPut(bookings, "by_hand", d.with === BOOKS_BY_HAND ? true : undefined);
   if (Object.keys(bookings).length) next.bookings = bookings;
   else delete next.bookings;
-  // Booking requests (decision 0061): written where switched on, or where it was ever said, as the photos switch is.
-  const features = { ...(next.features || {}) };
-  if (typeof d.requests === "boolean" && (d.requests || features.booking_requests !== undefined))
-    next.features = { ...features, booking_requests: d.requests };
 };
 
 /**

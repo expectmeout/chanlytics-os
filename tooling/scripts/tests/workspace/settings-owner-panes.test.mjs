@@ -848,7 +848,7 @@ const headCells = (tree) =>
     sub: textOf(find(n, (k) => k.props?.className === "pol-mode-sub")),
   }));
 
-test("on a phone the matrix is one line per class: its mode is a word that opens a menu of the modes it takes, and a locked class says so", () => {
+test("on a phone the matrix is one line per class: its mode is a word that opens a menu of the modes it takes, and money is said once, on Limits", () => {
   // 24 Sep: the table of four columns collapsed into four captioned dots under every label on a phone, 107px a row.
   // Settings reads its own breakpoint (useSetPhone, 640px); the desktop keeps the matrix, which the tests above draw.
   const W = globalThis.window;
@@ -888,11 +888,9 @@ test("on a phone the matrix is one line per class: its mode is a word that opens
       ],
       "the four modes, the one in force ticked",
     );
-    // The locked class is a line that says so, with nothing to press.
-    const money = byTestId(tree, "pol-phone-money");
-    assert.ok(money, "the charter's row is drawn");
-    assert.match(textOf(money), /locked by charter/);
-    assert.equal(byTestId(money, "pol-phone-mode-money"), null, "and opens nothing");
+    // Money, which nothing can change, is no line of the matrix: Limits says it (18 Oct 2026: it was said twice).
+    assert.equal(byTestId(tree, "pol-phone-money"), null);
+    assert.match(textOf(byTestId(tree, "rec-row-aut-hard-money")), /Always go to you — locked in the database/);
   } finally {
     W.matchMedia = was;
   }
@@ -960,15 +958,18 @@ test("a phone names each dot with the same words -- it is a list there, and the 
 });
 
 test("a control says what it will do, in the words above it", () => {
-  const tree = autonomy([{ class: "reply", mode: "veto", limits: {} }]);
-  const dots = all(tree, (n) => n.type === "button" && /^Replies to customers: /.test(n.props["aria-label"] || ""));
+  const tree = autonomy([{ class: "reengage", mode: "veto", limits: {} }]);
+  const dots = all(
+    tree,
+    (n) => n.type === "button" && /^Re-engage quiet customers: /.test(n.props["aria-label"] || ""),
+  );
   assert.deepEqual(
     dots.map((d) => d.props["aria-label"]),
     [
-      "Replies to customers: Sends it",
-      "Replies to customers: Holds it",
-      "Replies to customers: Asks you",
-      "Replies to customers: Stays quiet",
+      "Re-engage quiet customers: Sends it",
+      "Re-engage quiet customers: Holds it",
+      "Re-engage quiet customers: Asks you",
+      "Re-engage quiet customers: Stays quiet",
     ],
     "REGRESSION: a screen reader heard the filing word",
   );
@@ -980,59 +981,76 @@ test("a control says what it will do, in the words above it", () => {
   assert.equal(dots[1].props["aria-pressed"], true, "and the stored mode is still the one shown");
 });
 
-test("the row the charter fixes states its rule instead of ticking a column that would misdescribe it", () => {
+test("money, which the charter fixes, is said once, on Limits, and the matrix ticks no column for it", () => {
   const tree = autonomy([{ class: "reply", mode: "auto", limits: {} }]);
-  const fixed = find(tree, (n) => n.props?.className === "pol-fixed");
-  assert.ok(fixed, "REGRESSION: money was three dashes and a tick under Never");
-  assert.equal(fixed.props.colSpan, 4, "across every mode column: there is nothing to pick");
-  const words = textOf(fixed);
-  assert.match(words, /always goes to you/i, "the charter's own words (POLICY_CLASS_WORDS.money.note)");
-  assert.match(words, /locked by charter, enforced in the database/);
-  // "Stays quiet · nothing happens" is the one thing money is not: it comes to you.
-  assert.ok(!/Stays quiet/.test(words));
-  const moneyRow = find(tree, (n) => n.type === "tr" && /Refunds/.test(textOf(n)));
+  // It was a row of the matrix and a row of Limits, saying the same thing twice (18 Oct 2026).
   assert.equal(
-    find(moneyRow, (n) => n.props?.className === "set-mark"),
+    find(tree, (n) => n.type === "tr" && /Refunds/.test(textOf(n))),
     null,
-    "and the note is not also behind an info mark",
+    "no row of the matrix",
   );
-  assert.equal(
-    all(moneyRow, (n) => n.type === "button" && (n.props.className || "").includes("pol-dot")).length,
-    0,
-    "nothing to press",
-  );
+  const limit = byTestId(tree, "rec-row-aut-hard-money");
+  assert.match(textOf(limit), /Refunds, rates, negotiation/);
+  assert.match(textOf(limit), /Always go to you — locked in the database/);
+  // "Stays quiet · nothing happens" is the one thing money is not: it comes to you.
+  assert.ok(!/Stays quiet/.test(textOf(limit)));
+  assert.equal(all(limit, (n) => n.type === "button").length, 0, "nothing to press");
+});
+
+test("Replies is a card of its own: its mode, and under it only the dials its mode has", () => {
+  // The hold window holds a reply under Veto, and under Auto one below the confidence dial; under Ask or Never neither
+  // does anything (18 Oct 2026: two cards apart, and the dials drawn whatever the mode).
+  const dials = (mode) => {
+    const card = byTestId(autonomy([{ class: "reply", mode, limits: {} }]), "aut-replies");
+    assert.ok(byTestId(card, "pol-phone-mode-reply"), `${mode}: the mode is the card's first row`);
+    return ["Hold window", "Send on its own only when it's sure"].filter((label) =>
+      find(card, (n) => String(n.props?.className || "").includes("rec-row") && textOf(n).startsWith(label)),
+    );
+  };
+  assert.deepEqual(dials("auto"), ["Hold window", "Send on its own only when it's sure"]);
+  assert.deepEqual(dials("veto"), ["Hold window"]);
+  assert.deepEqual(dials("ask"), []);
+  assert.deepEqual(dials("never"), []);
+  // Replies is no row of the matrix, and nor are bookings and price questions: each is one question on Settings.
+  const tree = autonomy([{ class: "reply", mode: "auto", limits: {} }]);
+  for (const name of [/^Replies to customers/, /^Service & pricing/, /^Book · reschedule/])
+    assert.equal(
+      find(tree, (n) => n.type === "tr" && name.test(textOf(n))),
+      null,
+      String(name),
+    );
+  // And the day's budget is a limit, beside the reply cap.
+  const limits = find(tree, (n) => n.type === "section" && /^Limits/.test(textOf(n)));
+  assert.match(textOf(limits), /Day's model budget/);
 });
 
 test("a class that cannot honour a mode still shows a dash there, and the rest still set", async () => {
   const put = [];
   const tree = autonomy([
-    { class: "faq", mode: "auto", limits: {} },
+    { class: "reviews", mode: "auto", limits: {} },
     { class: "reply", mode: "ask", limits: {} },
   ]);
   autonomyVerbs.setPolicy = async (cls, mode) => {
     put.push([cls, mode]);
     return { ok: true };
   };
-  const faq = find(tree, (n) => n.type === "tr" && /Service/.test(textOf(n)));
+  const reviews = find(tree, (n) => n.type === "tr" && /Google reviews/.test(textOf(n)));
   assert.equal(
-    all(faq, (n) => n.props?.className === "pol-dash").length,
-    2,
-    "Holds it and Stays quiet are not on offer for a question",
+    all(reviews, (n) => n.props?.className === "pol-dash").length,
+    1,
+    "Holds it is not on offer for a review",
   );
-  const asks = all(
-    faq,
-    (n) => n.type === "button" && n.props["aria-label"] === "Service & pricing questions: Asks you",
-  );
+  const asks = all(reviews, (n) => n.type === "button" && n.props["aria-label"] === "Google reviews: Asks you");
   press(asks[0]);
   await flush();
-  assert.deepEqual(put, [["faq", "ask"]], "REGRESSION: the heading changed and the stored word went with it");
+  assert.deepEqual(put, [["reviews", "ask"]], "REGRESSION: the heading changed and the stored word went with it");
 });
 
 test("F50: every dot and dial asks the autonomy gate, and a dial sends itself alone, never the row's mode", async () => {
   // PUT /policies is an operator's or the owner's: the matrix keeps its own gate, where the business form asks
   // settings'. A viewer's dots and steps say why when pressed, and send nothing.
   const sent = [];
-  const tree = autonomy([{ class: "reply", mode: "ask", limits: {} }], {}, "viewer");
+  const tree = autonomy([{ class: "reply", mode: "auto", limits: {} }], {}, "viewer");
   autonomyVerbs.setPolicy = async (...args) => {
     sent.push(args);
     return { ok: true };
@@ -1046,7 +1064,7 @@ test("F50: every dot and dial asks the autonomy gate, and a dial sends itself al
   assert.equal(sent.length, 0, "a gated press sends nothing");
 
   // An owner's dial edit: the one dial, and no mode with it (a stale tab resent its remembered mode once).
-  let own = autonomy([{ class: "reply", mode: "ask", limits: {} }]);
+  let own = autonomy([{ class: "reply", mode: "auto", limits: {} }]);
   autonomyVerbs.setPolicy = async (...args) => {
     sent.push(args);
     return { ok: true };

@@ -2631,7 +2631,7 @@ const drawnAtRest = (tree) => {
   return out;
 };
 
-test("at rest a whole record draws every row's act, quietly, and three controls an owner acts on without looking for it", () => {
+test("at rest a whole record draws every row's act, quietly, and five controls an owner acts on without looking for it", () => {
   const drawn = drawnAtRest(drawTab());
   const isAct = (c) => classes(c.n).includes("rec-row-act");
   assert.deepEqual(
@@ -2639,10 +2639,14 @@ test("at rest a whole record draws every row's act, quietly, and three controls 
     [
       // Where the carrier record is asked, a link in Who you are's foot sentence: part of what it says.
       "rec-who-carriers",
-      // Look at a photo is off: what is missing says so, with its door, at full strength (§11).
-      "rec-can-door-vision",
+      // When someone wants to book: the answer is the row's value, and a press of it offers the three (18 Oct 2026).
+      "booking_choice-menu",
+      // Look at a photo: its switch, on its ability's row (18 Oct 2026: it sat in the rules fold, among limits).
+      "rec-can-vision-switch",
       // Read it: what the receptionist is told.
       "rec-prompt-open",
+      // When someone asks a price, on Autonomy's Limits: the answer, as the booking row's is.
+      "price_choice-menu",
     ],
   );
   // Every row with an act draws it, one each, in its own row: nothing is latent any more.
@@ -2668,7 +2672,11 @@ test("at rest an empty record adds only what is empty or missing, and the gap li
           ? "a row's act, drawn at rest"
           : /^rec-can-door-/.test(c.id)
             ? "missing"
-            : null;
+            : c.id === "booking_choice-menu" || c.id === "price_choice-menu"
+              ? "a question's answer, drawn as its row's value"
+              : c.id === "rec-can-vision-switch"
+                ? "the photo switch, on its ability's row"
+                : null;
   assert.deepEqual(
     drawn.filter((c) => !why(c)).map((c) => c.id),
     [],

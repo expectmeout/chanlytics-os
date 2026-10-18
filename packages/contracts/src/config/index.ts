@@ -162,10 +162,10 @@ export {
   rulesKept,
   rulesWithoutFieldsWords,
   ABILITY_CHANNEL_WORDS,
-  VISION_STRENGTH,
   RULES_AT_REST_WORDS,
   RULES_WITHOUT_FIELDS_WORDS,
   ALWAYS_TOLD,
+  ALWAYS_ON,
   pricesWrittenWords,
 } from "./business-tab/rule-strengths";
 export type { RuleStrength, RuleStrengthVM, RulesKeptInputs } from "./business-tab/rule-strengths";
@@ -207,6 +207,18 @@ export type { NotesWordsVM, InstructionsWordsVM, FallbacksWordsVM } from "./busi
 export { TRY_IT_WORDS, TRY_IT_MAX_CHARS, TRY_IT_MAX_EXCHANGES, SPEND_TRY, tryItVM } from "./business-tab/try-it";
 export type { TryItAnswer, TryItThen, TryItVM } from "./business-tab/try-it";
 export {
+  BOOKING_CHOICES,
+  BOOKING_CHOICE_WORDS,
+  bookingChoiceOf,
+  bookingChoiceWrites,
+  bookingChoiceNeeds,
+  PRICE_CHOICES,
+  PRICE_CHOICE_WORDS,
+  priceChoiceOf,
+  priceChoiceWrites,
+} from "./business-tab/choices";
+export type { BookingChoice, BookingFacts, ChoiceWrite, PriceChoice, PriceFacts } from "./business-tab/choices";
+export {
   handoffChatWords,
   handoffChatRow,
   handoffCallRow,
@@ -216,7 +228,7 @@ export {
   type HandoffCallRowVM,
 } from "./business-tab/handoff-words";
 export type { HandoffWordsVM } from "./business-tab/handoff-words";
-export { abilityRows, cannotFoldWords, cannotRows } from "./business-tab/abilities";
+export { abilityRows, cannotFoldWords, cannotRows, VISION_SWITCH_WORDS } from "./business-tab/abilities";
 export type { AbilityInputs, AbilityRowVM, AbilitiesVM, CannotRowVM } from "./business-tab/abilities";
 export {
   offersBookingLink,

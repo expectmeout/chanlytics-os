@@ -2,9 +2,10 @@
  * Settings › Autonomy's policy matrix (moved from legacy/pages/settings.jsx, decision 0015 step 11): one row per action
  * class and a column per mode, a table on a desktop and one line per class on a phone. The rows are the bridge's
  * (policy-store.ts uiRows: contracts' classes, the modes each honours, and the workspace's stored mode); every word a
- * mode says is contracts' POLICY_MODE_WORDS, through UI_MODE_WORDS. Under the rows a held draft belongs to (Replies, Bookings,
- * Questions), how often the owner changed what the receptionist wrote (decision 0063, contracts heldDraftsLine): the
- * evidence for the row's mode, and no advice.
+ * mode says is contracts' POLICY_MODE_WORDS, through UI_MODE_WORDS. Under Replies, the one row a held draft belongs to
+ * here (Bookings' and Questions' are their own rows' on Settings, business/choices), how often the owner changed what
+ * the receptionist wrote (decision 0063, contracts heldDraftsLine): the evidence for the row's mode, and no advice.
+ * Money is no row here: a class nothing can change, it is said once, on Limits (the Settings wiring review, 18 Oct).
  */
 import { useEffect, useState } from "react";
 import { heldDraftsLine, type HeldDraftsClass, type HeldDraftsCount } from "@chanlytics/contracts";
@@ -36,9 +37,9 @@ type PutMode = (r: UiRow, mode: string) => void;
 /** The held drafts by the row they belong to (contracts heldDraftsByClass); empty where none were read. */
 type HeldByClass = Partial<Record<HeldDraftsClass, HeldDraftsCount>>;
 
-/** A row's line of held drafts, or null: only the rows a draft can belong to, and only with one held. */
+/** A row's line of held drafts, or null: only Replies here, and only with one held. */
 const heldLineOf = (r: UiRow, held: HeldByClass): string | null =>
-  r.cls === "reply" || r.cls === "booking" || r.cls === "faq" ? heldDraftsLine(held[r.cls]) : null;
+  r.cls === "reply" ? heldDraftsLine(held[r.cls]) : null;
 
 function PolModeHead({ m }: { m: UiMode }) {
   const w = polMode(m);
@@ -47,25 +48,6 @@ function PolModeHead({ m }: { m: UiMode }) {
       <span className="pol-mode-head">{w.head}</span>
       {w.sub && <span className="pol-mode-sub">{w.sub}</span>}
     </span>
-  );
-}
-
-/**
- * A locked row is not a row with one box ticked: it is a rule, and it says so. Money was three dashes and a grey tick
- * under "Never" -- and once the headings say what a mode DOES, "Stays quiet · nothing happens" is the one thing that is
- * not true of it. The charter's own words go across the columns instead, so there is nothing to press and nothing to
- * misread.
- */
-function PolLockedCells({ span, note }: { span: number; note: string }) {
-  return (
-    <td className="pol-fixed" colSpan={span}>
-      <span className="pol-fixed-words">
-        <Icon name="shield" size={12} />
-        <span>
-          <b>{note}</b> — locked by charter, enforced in the database.
-        </span>
-      </span>
-    </td>
   );
 }
 
@@ -91,10 +73,64 @@ export function useSetPhone(): boolean {
 }
 
 /**
- * The matrix on a phone (24 Sep): one line per action class, its mode as a word that opens a menu of the modes the
- * class takes, each saying what it does. The table of four columns collapsed into four captioned dots under every label
- * there -- 107px a row, the four captions repeated seven times down the screen. A locked class says so and opens
- * nothing. A desktop keeps the matrix, where four columns read at a glance.
+ * One action class as a line: its mode as a word that opens a menu of the modes the class takes, each saying what it
+ * does. The phone's matrix is these lines, and Replies is one on every width (its card holds its hold window and its
+ * confidence dial under it, pane.tsx).
+ */
+export function PolModeRow({
+  r,
+  put,
+  busy,
+  held = {},
+}: {
+  r: UiRow;
+  put: PutMode;
+  busy: string | null;
+  held?: HeldByClass;
+}) {
+  const g = gate("autonomy");
+  const gated = busy === r.cls ? "Saving — wait for this one to land." : g["aria-disabled"] ? g["data-tip"] : null;
+  return (
+    <RecordRow
+      id={`pol-${r.id}`}
+      testid={`pol-phone-${r.id}`}
+      hint={heldLineOf(r, held)}
+      label={
+        <>
+          {r.label}
+          {r.note && <RecordTip text={r.note} label={`What each mode does for ${r.label}: ${r.note}`} />}
+        </>
+      }
+      value={
+        <MoreMenu
+          // The sheet says which kind it sets, over each mode with what it does under its name (MoreMenu puts a
+          // sentence under the words on a phone): the sentence was cut at the line's end.
+          items={[
+            { header: r.label },
+            ...UI_MODES.filter((m) => !r.modes || r.modes.includes(m)).map((m) => ({
+              label: polMode(m).head,
+              hint: (r.hints && r.hints[m]) || polMode(m).does,
+              checked: r.mode === m,
+              onClick: () => put(r, m.toLowerCase()),
+            })),
+          ]}
+          label={polMode(r.mode).head}
+          title={`${r.label}: ${String(polMode(r.mode).head)}`}
+          btnClass="bt-link pol-phone-mode"
+          align="right"
+          escape
+          gated={gated}
+          testid={`pol-phone-mode-${r.id}`}
+        />
+      }
+    />
+  );
+}
+
+/**
+ * The matrix on a phone (24 Sep): one line per action class (PolModeRow). The table of four columns collapsed into
+ * four captioned dots under every label there -- 107px a row, the four captions repeated seven times down the screen.
+ * A desktop keeps the matrix, where four columns read at a glance.
  */
 export function PolPhoneRows({
   rows,
@@ -109,55 +145,9 @@ export function PolPhoneRows({
 }) {
   return (
     <div className="pol-phone" data-testid="pol-phone">
-      {rows.map((r) => {
-        const g = gate("autonomy");
-        const gated =
-          busy === r.cls ? "Saving — wait for this one to land." : g["aria-disabled"] ? g["data-tip"] : null;
-        return (
-          <RecordRow
-            key={r.id}
-            id={`pol-${r.id}`}
-            testid={`pol-phone-${r.id}`}
-            hint={heldLineOf(r, held)}
-            label={
-              <>
-                {r.label}
-                {r.note && !r.locked && (
-                  <RecordTip text={r.note} label={`What each mode does for ${r.label}: ${r.note}`} />
-                )}
-              </>
-            }
-            value={
-              r.locked ? (
-                <span className="pol-phone-locked">
-                  <Icon name="shield" size={11} /> {r.note} — locked by charter
-                </span>
-              ) : (
-                <MoreMenu
-                  // The sheet says which kind it sets, over each mode with what it does under its name (MoreMenu puts a
-                  // sentence under the words on a phone): the sentence was cut at the line's end.
-                  items={[
-                    { header: r.label },
-                    ...UI_MODES.filter((m) => !r.modes || r.modes.includes(m)).map((m) => ({
-                      label: polMode(m).head,
-                      hint: (r.hints && r.hints[m]) || polMode(m).does,
-                      checked: r.mode === m,
-                      onClick: () => put(r, m.toLowerCase()),
-                    })),
-                  ]}
-                  label={polMode(r.mode).head}
-                  title={`${r.label}: ${String(polMode(r.mode).head)}`}
-                  btnClass="bt-link pol-phone-mode"
-                  align="right"
-                  escape
-                  gated={gated}
-                  testid={`pol-phone-mode-${r.id}`}
-                />
-              )
-            }
-          />
-        );
-      })}
+      {rows.map((r) => (
+        <PolModeRow key={r.id} r={r} put={put} busy={busy} held={held} />
+      ))}
     </div>
   );
 }
@@ -220,14 +210,11 @@ export function PolicyTable({
       </thead>
       <tbody>
         {rows.map((r) => (
-          <tr key={r.id} className={r.locked ? "pol-locked" : ""}>
+          <tr key={r.id}>
             <td>
               <span className="pol-label">
                 {r.label}
-                {/* A locked row carries its note across the columns instead — said once. */}
-                {r.note && !r.locked && (
-                  <RecordTip text={r.note} label={`What each mode does for ${r.label}: ${r.note}`} />
-                )}
+                {r.note && <RecordTip text={r.note} label={`What each mode does for ${r.label}: ${r.note}`} />}
               </span>
               {heldLineOf(r, held) && (
                 <span className="pol-held" data-testid={`pol-held-${r.cls}`}>
@@ -235,11 +222,7 @@ export function PolicyTable({
                 </span>
               )}
             </td>
-            {r.locked ? (
-              <PolLockedCells span={UI_MODES.length} note={r.note} />
-            ) : (
-              UI_MODES.map((m) => modeCell(r, m, put, busy))
-            )}
+            {UI_MODES.map((m) => modeCell(r, m, put, busy))}
           </tr>
         ))}
       </tbody>

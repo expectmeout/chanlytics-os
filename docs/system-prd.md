@@ -739,6 +739,8 @@ Settings › Business marks it ended (`noteEndedWords`).
 
 A per-person row (`subject_type 'contact'`) overrides the workspace's reply mode for one customer; the edge reads it on every message and never caches it. The reply row's limits are **the owner's dials** on the Autonomy pane: `max_replies_day`, `pause_hours`, `max_llm_tokens_day` (the day's budget has its handle), `min_confidence`, and the veto delay. Every switch on the pane is one something honours, and the copy says what the dial does.
 
+Where each class is set (18 October 2026): `reply` is the pane's Replies card, its mode with only the dials that mode has (the hold window under veto and auto, the confidence dial under auto); `booking` and `faq` are each one question on Settings, with the switch or the rule they go with — Hours & booking's "When someone wants to book" (`features.booking_requests` and the booking row) and Limits' "When someone asks a price" (the price rule and the `faq` row), read and written by contracts `business-tab/choices.ts`; `money` is said once, on Limits; the rest are the matrix. The photo switch (`features.vision`) is its ability's row on How it answers › What it can do.
+
 ### 13.4 The tenant runtime
 
 `apps/edge/lib/tenant-runtime.ts` is the one door between the runtime and the control plane: the persona, notifications, calendar and features; the policy matrix; the workspace's WhatsApp credentials from Vault; its timezone; whether billing has paused it; and the facts the platform knows. One batched read, cached per function instance and checked against `runtime_stamp()` on every message, so a setting saved in the dashboard reaches the next message.

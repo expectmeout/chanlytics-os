@@ -28,6 +28,7 @@ import {
   BookingRulesSchema,
   guardrailsInForce,
   GUARDRAIL_KEYS,
+  ALWAYS_ON,
   PROFILE_LIMITS,
   profileRefusal,
   normalizeLink,
@@ -218,8 +219,8 @@ const EDITS = {
       assert.deepEqual(next.brain.profile.booking_rules.consult_first, ["Color correction", "Extensions", "Keratin"]),
   ],
   guardrails: [
-    (d) => ({ ...d, disclose_ai: false, vision: true }),
-    (next) => assert.deepEqual([next.brain.profile.guardrails.disclose_ai, next.features.vision], [false, true]),
+    (d) => ({ ...d, no_health_advice: false }),
+    (next) => assert.equal(next.brain.profile.guardrails.no_health_advice, false),
   ],
   extra_instructions: [
     (d) => ({ ...d, text: "  Parking is behind the building.  " }),
@@ -281,7 +282,6 @@ const FOLDS = Object.keys(EDITS);
  */
 const INEXACT = {
   hours: "A day the record leaves out is written as {}, the closed day the schema stores. Both are said as Closed.",
-  guardrails: "The four switches are written out where the record left two to their defaults, which say the same.",
   extra_instructions:
     "The prompt carried into the box is kept as the owner's words, and the product's lines take its place (S4).",
 };
@@ -463,24 +463,24 @@ test("each fold opens with its stored values, as the form it replaces opened the
   assert.deepEqual(S.draftOf("notes", s), STORED.brain.profile.notes);
   assert.deepEqual(S.draftOf("fallbacks", s), STORED.brain.fallbacks);
   // A link stored and no tool named: a calendar with no tool behind it, as the picker says it (contracts booksWithOf).
-  // Booking requests are off where nothing was said (decision 0061).
-  assert.deepEqual(S.draftOf("calendar", s), { with: "calendar", ical_url: STORED.calendar.ical_url, requests: false });
+  // Booking requests are the booking row's since 18 Oct 2026 (business/choices), so no part of this fold.
+  assert.deepEqual(S.draftOf("calendar", s), { with: "calendar", ical_url: STORED.calendar.ical_url });
   const named = stored();
   named.bookings = { tool: "booksy" };
   assert.equal(S.draftOf("calendar", named).with, "booksy", "the tool named outranks the link beside it");
   const byHand = stored();
   delete byHand.calendar;
   byHand.bookings = { by_hand: true };
-  assert.deepEqual(S.draftOf("calendar", byHand), { with: "hand", ical_url: "", requests: false });
+  assert.deepEqual(S.draftOf("calendar", byHand), { with: "hand", ical_url: "" });
   // The prompt from before the fields, carried into the box and marked so (contracts instructionsDraft, S4).
   assert.deepEqual(S.draftOf("extra_instructions", s), { text: STORED.brain.system_prompt, carried: true });
-  // Three rules on unless one is switched off; the health rule and the photos only when switched on.
+  // The rules as contracts reads them: the price rule on unless switched off, the booking rule and saying it is an
+  // assistant always, the health rule only when switched on. Photos are What it can do's (18 Oct 2026).
   assert.deepEqual(S.draftOf("guardrails", s), {
     never_quote_prices: true,
     never_confirm_booking: true,
     disclose_ai: true,
     no_health_advice: true,
-    vision: false,
   });
   const bare = stored();
   delete bare.brain.profile.guardrails;
@@ -490,7 +490,6 @@ test("each fold opens with its stored values, as the form it replaces opened the
     never_confirm_booking: true,
     disclose_ai: true,
     no_health_advice: false,
-    vision: false,
   });
   // Which rules are in force is contracts' one predicate (guardrailsInForce, the composer's and Ask's), asked through the
   // bridge, never a copy of it: whatever it answers is what the switches open as.
@@ -498,7 +497,7 @@ test("each fold opens with its stored values, as the form it replaces opened the
     const c = stored();
     if (g === undefined) delete c.brain.profile.guardrails;
     else c.brain.profile.guardrails = g;
-    assert.deepEqual(without(S.draftOf("guardrails", c), "vision"), guardrailsInForce(g), JSON.stringify(g));
+    assert.deepEqual(S.draftOf("guardrails", c), guardrailsInForce(g), JSON.stringify(g));
   }
   const was = W.__businessTab.guardrailsInForce;
   try {
@@ -515,7 +514,6 @@ test("each fold opens with its stored values, as the form it replaces opened the
         never_confirm_booking: false,
         disclose_ai: false,
         no_health_advice: true,
-        vision: false,
       },
       "the switches open as the predicate says",
     );
@@ -562,12 +560,11 @@ test("each fold opens with its stored values, as the form it replaces opened the
           never_confirm_booking: true,
           disclose_ai: true,
           no_health_advice: false,
-          vision: false,
         },
       ],
       ["extra_instructions", { text: "", carried: false }],
       ["fallbacks", FALLBACK_DEFAULTS],
-      ["calendar", { with: "", ical_url: "", requests: false }],
+      ["calendar", { with: "", ical_url: "" }],
       ["receptionist", { name: "Bella Nails", own: true, typed: "", link: "https://bella.example/book" }],
     ],
   );
@@ -768,31 +765,26 @@ test("booking_rules and consult_first share one stored object, and each writes o
   });
 });
 
-test("guardrails: four switches written, what else is stored beside them kept, and the photos written once touched or stored", () => {
+test("guardrails: the health switch written, and everything stored beside it kept, the price rule and photos too", () => {
   const draft = S.draftOf("guardrails", stored());
-  const next = S.saveFold("guardrails", stored(), { ...draft, never_confirm_booking: false });
-  assert.deepEqual(next.brain.profile.guardrails, {
-    never_quote_prices: true,
+  // A draft that says otherwise of the rules the fold does not draw changes none of them: they are other rows'.
+  const next = S.saveFold("guardrails", stored(), {
+    ...draft,
+    no_health_advice: false,
+    never_quote_prices: false,
     never_confirm_booking: false,
-    disclose_ai: true,
-    no_health_advice: true,
   });
-  assert.deepEqual(next.features, { vision: false }, "stored, so written");
-  // Never touched and never stored, the photos switch writes nothing: an untouched workspace keeps no features at all.
+  assert.deepEqual(next.brain.profile.guardrails, { never_quote_prices: true, no_health_advice: false });
+  assert.deepEqual(next.features, STORED.features, "the photo switch is What it can do's");
+  // Never stored, nothing is written beside it: an untouched workspace keeps no features at all.
   const untouched = stored();
   delete untouched.features;
   assert.equal("features" in S.saveFold("guardrails", untouched, S.draftOf("guardrails", untouched)), false);
-  assert.deepEqual(
-    S.saveFold("guardrails", untouched, { ...S.draftOf("guardrails", untouched), vision: true }).features,
-    { vision: true },
-  );
   // A switch a newer form added, which this one does not draw, stays as it was stored.
   const newer = stored();
   newer.brain.profile.guardrails.a_switch_added_later = true;
-  newer.features.a_feature_added_later = true;
-  const kept = S.saveFold("guardrails", newer, { ...S.draftOf("guardrails", newer), vision: true });
+  const kept = S.saveFold("guardrails", newer, S.draftOf("guardrails", newer));
   assert.equal(kept.brain.profile.guardrails.a_switch_added_later, true);
-  assert.deepEqual(kept.features, { vision: true, a_feature_added_later: true });
 });
 
 test("extra_instructions: the box is the owner's words, and the prompt becomes the product's lines under the name stored (S4)", () => {
@@ -1363,13 +1355,9 @@ test("a reset forgets a save that is out: its answer closes nothing and says not
 
 test("a rules draft, or a messages draft, with a part missing is a TypeError naming it: absent is never written as off", () => {
   const rules = S.draftOf("guardrails", stored());
-  assert.throws(() => S.saveFold("guardrails", stored(), without(rules, "never_quote_prices")), {
+  assert.throws(() => S.saveFold("guardrails", stored(), without(rules, "no_health_advice")), {
     name: "TypeError",
-    message: /never_quote_prices/,
-  });
-  assert.throws(() => S.saveFold("guardrails", stored(), without(rules, "vision")), {
-    name: "TypeError",
-    message: /vision/,
+    message: /no_health_advice/,
   });
   const messages = S.draftOf("fallbacks", stored());
   assert.throws(() => S.saveFold("fallbacks", stored(), without(messages, "error")), {
@@ -1508,38 +1496,21 @@ test("the calendar's address is written onto its section, never in place of it",
     undefined,
     "emptied, with nothing else in it, the section goes",
   );
-  assert.deepEqual(S.PATHS_OF.calendar, [
-    "calendar.ical_url",
-    "bookings.tool",
-    "bookings.by_hand",
-    "features.booking_requests",
-  ]);
+  assert.deepEqual(S.PATHS_OF.calendar, ["calendar.ical_url", "bookings.tool", "bookings.by_hand"]);
 });
 
-test("the booking tool's fold writes the booking requests switch onto the features, keeping the rest (decision 0061)", () => {
+test("the booking tool's fold leaves the booking requests switch as stored: it is the booking row's (18 Oct 2026)", () => {
   const withMore = stored();
-  withMore.features = { vision: true };
-  const on = S.saveFold("calendar", withMore, { with: "calendar", ical_url: STORED.calendar.ical_url, requests: true });
-  assert.deepEqual(on.features, { vision: true, booking_requests: true }, "switched on, beside the photos switch");
-  assert.equal(S.draftOf("calendar", on).requests, true, "and the fold opens with it on");
-  const off = S.saveFold("calendar", on, { with: "calendar", ical_url: STORED.calendar.ical_url, requests: false });
-  assert.deepEqual(
-    off.features,
-    { vision: true, booking_requests: false },
-    "switched off where it was said, it is said off",
-  );
-  const never = S.saveFold("calendar", stored(), {
+  withMore.features = { vision: true, booking_requests: true };
+  const next = S.saveFold("calendar", withMore, { with: "calendar", ical_url: STORED.calendar.ical_url });
+  assert.deepEqual(next.features, { vision: true, booking_requests: true });
+  // An open tab from before the move hands a draft with the switch in it: what it says is not this fold's to write.
+  const older = S.saveFold("calendar", withMore, {
     with: "calendar",
     ical_url: STORED.calendar.ical_url,
     requests: false,
   });
-  assert.deepEqual(never.features, stored().features, "off where it was never said writes nothing");
-  const before = S.saveFold("calendar", on, { with: "calendar", ical_url: STORED.calendar.ical_url });
-  assert.deepEqual(
-    before.features,
-    { vision: true, booking_requests: true },
-    "a draft from before the switch leaves it",
-  );
+  assert.deepEqual(older.features, { vision: true, booking_requests: true });
 });
 
 test("a fold saved onto a config with no brain, or no profile, writes nothing it has no value for", () => {
@@ -2111,23 +2082,24 @@ test("a booking rule's refusal is contracts' bookingRuleRefusal, and the page's 
   // bridge's helpers, so the range is always the save's own.)
 });
 
-test("the guardrails fold writes the four keys the save's own schema has, in its order", () => {
-  // The page holds the four as a literal (BT_GUARDRAILS), because a classic script is compiled at file-load time and
-  // the bridge that publishes the list (__businessTab.GUARDRAIL_KEYS) installs after it: window is there to READ as a
-  // fold draws, not as this list is built. So the literal stays, and this is the pin instead -- what the fold actually
-  // writes into the config is the schema's own list (contracts GUARDRAIL_KEYS, GuardrailsSchema.keyof()), so a rule
-  // added to the schema and not to the page fails here rather than being quietly unwritable.
+test("every rule of the save's own schema has its place: the fold's switch, the price row, or always on", () => {
+  // The page holds its switch as a literal (BT_GUARDRAILS), so this is the pin -- every key of the schema's own list
+  // (contracts GUARDRAIL_KEYS, GuardrailsSchema.keyof()) is the fold's to write, the price row's (business/choices), or
+  // a rule no row turns off (contracts ALWAYS_ON), so a rule added to the schema and placed nowhere fails here rather
+  // than being quietly unwritable.
   const prefix = "brain.profile.guardrails.";
-  assert.deepEqual(
-    S.PATHS_OF.guardrails.filter((p) => p.startsWith(prefix)).map((p) => p.slice(prefix.length)),
-    [...GUARDRAIL_KEYS],
-  );
-  // features.vision is the fold's fifth path and a power, not a rule it always keeps.
+  const own = S.PATHS_OF.guardrails.filter((p) => p.startsWith(prefix)).map((p) => p.slice(prefix.length));
+  assert.deepEqual(own, ["no_health_advice"]);
+  for (const k of GUARDRAIL_KEYS)
+    assert.ok(own.includes(k) || k === "never_quote_prices" || ALWAYS_ON.has(k), `${k} has a place`);
+  // Nothing beside the rules: the photo switch is What it can do's since 18 Oct 2026.
   assert.deepEqual(
     S.PATHS_OF.guardrails.filter((p) => !p.startsWith(prefix)),
-    ["features.vision"],
+    [],
   );
-  // And a save writes every one of them, not only the keys the record already stored.
-  const saved = S.saveFold("guardrails", stored(), S.draftOf("guardrails", stored()));
-  assert.deepEqual(Object.keys(saved.brain.profile.guardrails).sort(), [...GUARDRAIL_KEYS].sort());
+  // And a save writes its switch, not only where the record already stored it.
+  const bare = stored();
+  delete bare.brain.profile.guardrails;
+  const saved = S.saveFold("guardrails", bare, S.draftOf("guardrails", bare));
+  assert.deepEqual(saved.brain.profile.guardrails, { no_health_advice: false });
 });

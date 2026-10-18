@@ -66,17 +66,8 @@ const STRENGTHS = /* @__PURE__ */ (() => ({
 export function ruleStrength(key) {
   return STRENGTHS[key];
 }
-export const VISION_STRENGTH = /* @__PURE__ */ (() => ({
-  strength: "power",
-  chip: "gives it a power",
-  // Two clauses, one per position, and nothing else. "The rules above are limits; this one gives it an ability, so
-  // it starts off" went: the dashed rule above the switch says it is apart, the badge beside it says it is a power,
-  // and the switch itself says it is off -- three sayings of one thing, and four lines of a phone.
-  sentence: "Off, photos go to a person.",
-  checkedOn: null
-}))();
 export const ALWAYS_TOLD = /* @__PURE__ */ new Set(["disclose_ai"]);
-const PRICES_WRITTEN_WORDS = "Says only the prices you wrote";
+export const ALWAYS_ON = /* @__PURE__ */ new Set(["never_confirm_booking", "disclose_ai"]);
 export const RULES_AT_REST_WORDS = {
   never_quote_prices: "Never quotes a price",
   never_confirm_booking: "Never confirms a booking",
@@ -84,10 +75,9 @@ export const RULES_AT_REST_WORDS = {
   no_health_advice: "No health advice"
 };
 const CANNOT_BOOK_WORDS = "Cannot book anything";
-const PHOTOS_AT_REST_WORDS = { on: "Looks at photos", off: "Won't look at photos" };
 export function rulesKept(i) {
-  if (typeof i?.vision !== "boolean" || typeof i?.composes !== "boolean") {
-    throw new TypeError("rulesKept needs vision and composes as booleans, not what an untyped page left out.");
+  if (typeof i?.composes !== "boolean") {
+    throw new TypeError("rulesKept needs composes as a boolean, not what an untyped page left out.");
   }
   const rules = i.rules;
   if (!rules || typeof rules !== "object") throw new TypeError("rulesKept needs the four rules as guardrailsInForce.");
@@ -96,13 +86,12 @@ export function rulesKept(i) {
   }
   const kept = [];
   for (const key of GUARDRAIL_KEYS) {
+    if (key === "never_quote_prices") continue;
     const { strength } = ruleStrength(key);
     const told = i.composes && rules[key] || ALWAYS_TOLD.has(key);
-    if (key === "never_quote_prices" && !rules[key] && i.composes) kept.push(PRICES_WRITTEN_WORDS);
-    else if (strength === "checked" || told) kept.push(RULES_AT_REST_WORDS[key]);
+    if (strength === "checked" || told) kept.push(RULES_AT_REST_WORDS[key]);
     else if (strength === "structural") kept.push(CANNOT_BOOK_WORDS);
   }
-  kept.push(i.vision ? PHOTOS_AT_REST_WORDS.on : PHOTOS_AT_REST_WORDS.off);
   return kept;
 }
 export const RULES_WITHOUT_FIELDS_WORDS = /* @__PURE__ */ (() => `${NO_FIELDS_COMPOSED_WORDS} Until they are, it isn't told these rules, only that it is an automated assistant.`)();

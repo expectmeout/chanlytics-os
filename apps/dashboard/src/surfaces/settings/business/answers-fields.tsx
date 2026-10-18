@@ -5,7 +5,7 @@
 // messages sent when it cannot answer are there with it; these four are here so that neither module passes the
 // file-length ratchet (800 lines). Hookless, as the card is: the folds hold the hooks.
 
-import type { BusinessProfile, GuardrailKey } from "@chanlytics/contracts";
+import type { GuardrailKey } from "@chanlytics/contracts";
 import type { ComponentProps, ReactNode } from "react";
 import { BUSINESS_TAB } from "@/legacy-bridge/business-tab";
 import { Icon } from "../../kit/icon/icon";
@@ -18,7 +18,6 @@ import { RecordField, RecordSwitch, RecordTip } from "../../kit/record/field";
 import { RecordCombobox } from "../../kit/record/combobox";
 import { recFolds } from "../../kit/record/registry";
 import type { BtFold } from "./gestures/fold";
-import { btoStoredZone } from "./open";
 import { businessTabSave } from "./saver";
 import type { policiesNow } from "./shell";
 
@@ -195,21 +194,23 @@ export const BtaLanguages = ({
 // ruleStrength(key)): its word quiet under the name, and its sentence under "How these rules work" (Ruben, 10 Oct 2026:
 // the sheets "too wordy, too explanatory"; 14 Oct, the fitted sheets: one signal a row, where a dot, a word, an ⓘ and a
 // switch stood for one fact).
+// Prices are their own row beside this one since 18 Oct 2026 (choices/rows.tsx BtPriceChoiceRow, contracts
+// PRICE_CHOICE_WORDS), and the booking rule is always on (ALWAYS_ON), as nothing in the product books.
 const BTA_RULES: [GuardrailKey, string, string][] = [
-  ["never_quote_prices", "Never quote a price", "Never quotes a price"],
   ["never_confirm_booking", "Never confirm a booking", "Never confirms a booking"],
   ["disclose_ai", "Says it's an automated assistant", "Says it's an assistant"],
   ["no_health_advice", "No health advice", "No health advice"],
 ];
 
-/** The guardrails draft: the four rules and the photos switch, each a switch. */
-type RulesDraft = Partial<Record<GuardrailKey | "vision", unknown>>;
+/** The guardrails draft: the four rules, each a switch. */
+type RulesDraft = Partial<Record<GuardrailKey, unknown>>;
 
 /**
  * One of the four rules: its label with how far it goes as one quiet word under it, and the switch, which carries the
  * rule's sentence as its description (the sentence is read under "How these rules work", BtaRuleHow). A rule that is
- * not a switch (contracts ALWAYS_TOLD: saying it is an automated assistant, decision 0051) says "Always on" with a lock
- * where the switch would be: one signal at the row's end, never a dot, a word, a tip and a switch.
+ * not a switch (contracts ALWAYS_ON: saying it is an automated assistant, decision 0051, and the booking rule) says
+ * "Always on" with a lock where the switch would be: one signal at the row's end, never a dot, a word, a tip and a
+ * switch.
  */
 const BtaRule = ({
   ruleKey,
@@ -239,7 +240,7 @@ const BtaRule = ({
         </span>
       </span>
       <span className="bt-line-end">
-        {BUSINESS_TAB.ALWAYS_TOLD.has(ruleKey) ? (
+        {BUSINESS_TAB.ALWAYS_ON.has(ruleKey) ? (
           <span className="bt-line-sub bt-line-lock" data-testid={`rec-rule-always-${ruleKey}`}>
             <Icon name="lock" size={11} />
             Always on
@@ -263,112 +264,36 @@ const BtaRule = ({
 };
 
 /**
- * The photos switch, in a group of its own: opt-in, unlike the rules, since it gives the receptionist an ability rather
- * than a limit, so it starts off. Its line says what Off does, which is the decision an owner makes here. It changes no
- * word of the prompt (a photo's words go in the customer's own turn), so it draws no "what it's told" of its own.
- */
-const BtaVisionRule = ({ on, update, readOnly }: { on: boolean; update: Fields["update"]; readOnly: boolean }) => {
-  // Contracts', like the four (VISION_STRENGTH): a sentence typed here and typed again in the page's test agreed with
-  // each other and with nothing else.
-  const vision = BUSINESS_TAB.VISION_STRENGTH;
-  return (
-    <>
-      <p className="bt-list-head" id="bt-rules-abilities">
-        Abilities
-      </p>
-      <Panel variant="inset" size="flush" className="bt-lines" role="group" aria-labelledby="bt-rules-abilities">
-        <div className="bt-line" data-testid="rec-rule-vision">
-          <span className="bt-line-words">
-            <span className="bt-line-name" id="bt-rule-vision-label">
-              Look at photos customers send
-            </span>
-            <span className="bt-line-sub" id="bt-rule-vision-says">
-              {vision.sentence}
-            </span>
-          </span>
-          <span className="bt-line-end">
-            <RecordSwitch
-              on={on}
-              onChange={(v) => update((d) => ({ ...(d as RulesDraft), vision: v }))}
-              labelledBy="bt-rule-vision-label"
-              describedBy="bt-rule-vision-says"
-              readOnly={readOnly}
-              testid="rec-rule-switch-vision"
-            />
-          </span>
-        </div>
-      </Panel>
-    </>
-  );
-};
-
-/**
  * How far each rule goes, in its sentence, and how the checked rule lands on each channel (contracts' checkedOn), folded
  * behind one line under them: what stood behind four tips and a fold of its own.
  */
-const BtaRuleHow = () => {
-  const lines = BUSINESS_TAB.ruleStrength("never_quote_prices").checkedOn || [];
-  return (
-    <RecordDisclosure id="bt-rules-how" label="How these rules work" testid="rec-rules-checked">
-      {BTA_RULES.map(([key, label]) => (
-        <p key={key} className="bt-rule-how" data-testid={`rec-rule-how-${key}`}>
-          <b className="bt-fold-lead">{label}.</b> {BUSINESS_TAB.ruleStrength(key).sentence}
-        </p>
-      ))}
-      {lines.map((c) => (
-        <p key={c.channel} className="bt-fold-note">
-          <b className="bt-fold-lead">{c.label}</b>, {c.words}
-        </p>
-      ))}
-    </RecordDisclosure>
-  );
-};
+const BtaRuleHow = () => (
+  <RecordDisclosure id="bt-rules-how" label="How these rules work" testid="rec-rules-checked">
+    {BTA_RULES.map(([key, label]) => (
+      <p key={key} className="bt-rule-how" data-testid={`rec-rule-how-${key}`}>
+        <b className="bt-fold-lead">{label}.</b> {BUSINESS_TAB.ruleStrength(key).sentence}
+      </p>
+    ))}
+  </RecordDisclosure>
+);
 
 /**
- * The four switches in one group, the photos switch in one of its own, and how the checked rule lands folded under
- * them. Each rule is ONE element holding its label, its word, its tip and its switch (rec-rule-<key>). The draft is the
- * fold's whole guardrails draft, and a press writes one key of it, spread over the rest: saveFold refuses a draft with
- * any of the five missing (folds.ts btWhole), because a missing switch written as it stood was stored as off, the
- * opposite of the schema's "absent means on".
+ * The rules it keeps that are not a row of their own, in one group, and how they work folded under them. Each rule is
+ * ONE element holding its label, its word, its tip and its switch (rec-rule-<key>); the two that are always on say so
+ * in place of a switch. The draft is the fold's guardrails draft, and a press writes one key of it, spread over the
+ * rest: the fold writes the health rule alone (folds.ts btWriteGuardrails), since prices are their own row and the
+ * other two are always on (the Settings wiring review, 18 Oct 2026).
  *
- * Absent means ON for the first three and OFF for health advice, as draftOf opens them: a record that stores no rules
- * opens with three on, and a Save that changes nothing sends nothing. On a record whose details compose nothing, none
- * of the four changes a word the receptionist is told (the price detector still reads every reply), and the sheet says
- * so once, first, in contracts' words (`unread`), in the warn tone of a fact the owner may want to change.
+ * On a record whose details compose nothing, no rule here changes a word the receptionist is told, and the sheet says so
+ * once, first, in contracts' words (`unread`), in the warn tone of a fact the owner may want to change.
  */
 export const BtaRules = ({
   draft,
   update,
   readOnly,
   unread,
-  profile,
-  name,
-}: Pick<Fields, "draft" | "update" | "readOnly"> & {
-  unread: string | null;
-  profile: BusinessProfile | null;
-  /** The business's name, so a greeting callers never hear lends the list no price. */
-  name: string | null;
-}) => {
+}: Pick<Fields, "draft" | "update" | "readOnly"> & { unread: string | null }) => {
   const rules = draft as RulesDraft;
-  // With "Never quote a price" off in the draft, the amounts it may say, read as the save would leave them (0051). A
-  // note counts while it holds, judged as the notes fold judges "ended" (answers.tsx): in the zone the receptionist is
-  // composed with, the workspace's own or none, never the zone the page shows times in, at this moment.
-  const prices =
-    rules.never_quote_prices === false
-      ? BUSINESS_TAB.pricesWrittenWords(
-          BUSINESS_TAB.allowedPrices(
-            {
-              business_name: name ?? "",
-              profile: {
-                ...(profile || {}),
-                guardrails: { ...(profile?.guardrails || {}), never_quote_prices: false },
-              },
-            },
-            btoStoredZone(),
-            new Date(),
-          ),
-        )
-      : null;
   return (
     <div className="bt-stack" data-testid="rec-rules-switches">
       {unread ? (
@@ -381,13 +306,6 @@ export const BtaRules = ({
           <BtaRule key={key} ruleKey={key} label={label} on={rules[key] === true} update={update} readOnly={readOnly} />
         ))}
       </Panel>
-      {prices ? (
-        <p className="bt-fold-note" data-testid="rec-rules-prices">
-          {prices}
-        </p>
-      ) : null}
-      {/* Opt-in, unlike the rules above: this gives the receptionist an ability rather than a limit, so it starts off. */}
-      <BtaVisionRule on={rules.vision === true} update={update} readOnly={readOnly} />
       <BtaRuleHow />
     </div>
   );

@@ -541,11 +541,9 @@ export const BtRulesRow = ({
   flash,
   saver,
 }: Shared & { brain: Brain; base?: Config | null; config?: Config | null }) => {
-  // The rules as the fold opens them (contracts guardrailsInForce, through draftOf: absent means on for three, off for
-  // health advice and photos), so the row and the fold never read a stored rule two ways.
-  const rules = businessTabSave.draftOf("guardrails", btaStored(brain, config)) as GuardrailsInForce & {
-    vision?: boolean;
-  };
+  // The rules as the fold opens them (contracts guardrailsInForce, through draftOf: absent means on for the price rule,
+  // off for health advice), so the row and the fold never read a stored rule two ways.
+  const rules = businessTabSave.draftOf("guardrails", btaStored(brain, config)) as GuardrailsInForce;
   // Whether the record's details compose anything, by the resolver's own test (hasProfile), on the brain the rules'
   // save goes on.
   const on = btaOn(brain, base);
@@ -554,7 +552,7 @@ export const BtRulesRow = ({
   // switch decides the same amount -- the price detector runs with its switch off, the two told-and-trusted rules are
   // lines in a prompt a record composing nothing never gets, and a booking is beyond the product either way. So the
   // row never lists a rule as kept that the receptionist was never told and cannot keep on its own.
-  const ruleChips = BUSINESS_TAB.rulesKept({ rules, vision: rules.vision === true, composes }).map((label) => ({
+  const ruleChips = BUSINESS_TAB.rulesKept({ rules, composes }).map((label) => ({
     label,
   }));
   return (
@@ -578,14 +576,7 @@ export const BtRulesRow = ({
         ) : null,
         name: "Change the rules it always keeps",
       }}
-      body={(f) => (
-        <BtaRules
-          {...f}
-          unread={composes ? null : BUSINESS_TAB.rulesWithoutFieldsWords()}
-          profile={(on.profile || null) as BusinessProfile | null}
-          name={on.business_name ?? null}
-        />
-      )}
+      body={(f) => <BtaRules {...f} unread={composes ? null : BUSINESS_TAB.rulesWithoutFieldsWords()} />}
     />
   );
 };
