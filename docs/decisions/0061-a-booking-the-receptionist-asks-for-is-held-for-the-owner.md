@@ -30,7 +30,9 @@ or hand back. The call-back hold carries what to do in its details.
 
 1. **A workspace switch, off by default:** "Booking requests" (`features.booking_requests`), in Settings › Business, in
    the booking tool's fold, beside what the business books with. While it is off, nothing changes: the model is sent
-   exactly the answer's record it always was, and keeps exactly the record it kept.
+   exactly the answer's record it always was, and keeps exactly the record it kept. (Since 18 October 2026 the switch
+   is no control of its own: Hours & booking asks once "When someone wants to book", and "It offers times, you confirm"
+   writes it with the booking row, contracts `business-tab/choices.ts`.)
 2. **When the receptionist may ask.** On a text channel (WhatsApp or SMS), where the team confirms (no booking link offered
    in chat, or the booking row set to Ask me first), with the switch on and the calendar read. When the customer picks a
    time, the receptionist writes two fields beside its reply:

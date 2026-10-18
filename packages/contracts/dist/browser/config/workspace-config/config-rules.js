@@ -94,7 +94,10 @@ export const GUARDRAIL_KEYS = [
 export function guardrailsInForce(g) {
   return {
     never_quote_prices: g?.never_quote_prices !== false,
-    never_confirm_booking: g?.never_confirm_booking !== false,
+    // Always (the Settings wiring review, 18 Oct 2026): nothing in the product books, so no choice of the owner's lets the
+    // receptionist confirm one; what happens instead is the booking choice on Hours & booking. A stored false is read as
+    // on, and the key stays in the schema so an older tab's rules save is not refused by name.
+    never_confirm_booking: true,
     // Always: the receptionist says it is an automated assistant whatever a row stores (decision 0051). The key stays
     // in the schema so an open tab's rules save, which writes all four, is never refused by name.
     disclose_ai: true,

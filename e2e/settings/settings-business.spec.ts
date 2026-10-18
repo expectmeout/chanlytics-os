@@ -191,9 +191,9 @@ async function expectQuiet(page: Page, where: string): Promise<void> {
  * yet".
  */
 /**
- * The four strengths in the rules sheet are each one quiet word under its rule's name, inside its row, and no pill
- * beside the switch: one signal a row (#1592, the phone sheets fit what they hold; Ruben, 10 Oct 2026, the sheets in one
- * shape). The photos switch, an ability in a group of its own, says none. Measured against each row.
+ * The strengths in the rules sheet are each one quiet word under its rule's name, inside its row, and no pill beside the
+ * switch: one signal a row (#1592, the phone sheets fit what they hold; Ruben, 10 Oct 2026, the sheets in one shape).
+ * Three rules since 18 Oct 2026: the price rule is a row of its own and photos an ability. Measured against each row.
  *
  * The walk is scoped to the open sheet (`sheet`), never the page: a fold's body stays drawn, hidden, while it is
  * closed (RecordFold).
@@ -216,15 +216,13 @@ async function expectRuleBadgesInLine(page: Page, sheet: string, where: string):
       }),
     sheet,
   );
-  expect(rows.length, `${where}: four rules and the photos switch`).toBe(5);
-  const rules = rows.filter((b) => b.id !== "rec-rule-vision");
-  for (const b of rules) {
+  expect(rows.length, `${where}: three rules`).toBe(3);
+  for (const b of rows) {
     expect(b.word, `${where}: ${b.id} says its strength`).toBeTruthy();
     expect(b.under, `${where}: ${b.id}'s strength is under its name`).toBe(true);
     expect(b.inRow, `${where}: ${b.id}'s strength is inside its row`).toBe(true);
   }
   for (const b of rows) expect(b.pill, `${where}: ${b.id} wears no pill beside its switch`).toBe(false);
-  expect(rows.find((b) => b.id === "rec-rule-vision")?.word, `${where}: the photos switch says none`).toBeNull();
 }
 
 async function expectAbilitiesQuiet(page: Page, where: string): Promise<void> {

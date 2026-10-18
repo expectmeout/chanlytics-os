@@ -184,12 +184,10 @@ test("a door opens the row that supplies what is missing", () => {
       `${id} opens ${row}, not ${openFolds(after).concat(openRows(after)).join(", ") || "nothing"}`,
     );
   }
-  // The photos switch is one of the rules it always keeps, a limit on Autonomy since 17 Oct 2026: the door goes there,
-  // the address naming the row it opens, rather than opening nothing on a page that does not draw it.
-  went.length = 0;
+  // The photo switch is on its own row since 18 Oct 2026, so that row offers no door to another.
   const tree = drawTab({ profile: nothing });
-  press(byTestId(canCard(tree), "rec-can-door-vision"));
-  assert.deepEqual(went, ["admin/autonomy/guardrails"]);
+  assert.equal(byTestId(canCard(tree), "rec-can-door-vision"), null);
+  assert.ok(byTestId(byTestId(canCard(tree), "rec-can-vision"), "rec-can-vision-switch"));
 });
 
 test("a glyph says which channel in words, so dim is never the only thing that said it", () => {
@@ -202,14 +200,17 @@ test("a glyph says which channel in words, so dim is never the only thing that s
   assert.deepEqual(both, [ABILITY_CHANNEL_WORDS.whatsapp.has, ABILITY_CHANNEL_WORDS.voice.has]);
 });
 
-test("nothing on the card is a pill, a switch or a count", () => {
+test("nothing on the card is a pill or a count, and its one switch is the photo row's", () => {
   const card = canCard(drawTab({ profile: marisa }));
   assert.equal(
     all(card, (n) => classes(n).includes("pill")).length,
     0,
     "no bordered pill: the owner named them by name",
   );
-  assert.equal(all(card, (n) => n.props?.role === "switch").length, 0, "nothing here is a control");
+  // The one ability that is opt-in carries its switch (18 Oct 2026: it sat in the rules fold, among limits).
+  const switches = all(card, (n) => n.props?.role === "switch");
+  assert.equal(switches.length, 1);
+  assert.equal(switches[0].props["data-testid"], "rec-can-vision-switch");
   assert.doesNotMatch(textOf(byTestId(card, "rec-can-answer")), /\d/, "no number an owner cannot act on");
 });
 

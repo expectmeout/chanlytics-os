@@ -76,11 +76,6 @@ export const BOOKING_REQUEST_WORDS = {
   said: {
     booked: (who) => `Booked. Tell ${who} in the thread.`,
     cant: (who) => `${who} is waiting on your reply`
-  },
-  /** The switch, in Settings › Hours & booking, the booking tool's fold. */
-  setting: {
-    name: "Booking requests",
-    says: "Where you confirm bookings yourself, a time a customer picks by text waits on Today: Booked it, or Can't."
   }
 };
 export const BOOKING_REQUEST_REFUSALS = {

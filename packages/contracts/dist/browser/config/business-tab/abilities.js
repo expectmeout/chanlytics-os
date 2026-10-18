@@ -107,8 +107,8 @@ export function abilityRows(i) {
       title: "Look at a photo",
       detail: i.visionOn ? "It says what it sees and suggests the next step, under the rules it always keeps." : "Off. A photo is passed to a person.",
       channels: { voice: false, whatsapp: chatAnswers && i.visionOn },
-      // The switch sits with the rules it keeps, which is the row that opens it.
-      runsOn: { label: i.visionOn ? "Turn it off" : "Turn it on", row: "guardrails" },
+      // Its switch is on this row since 18 Oct 2026 (it sat in the rules fold, among limits): no other row supplies it.
+      runsOn: null,
       ready: chatAnswers && i.visionOn,
       // Off is the one state an owner changes from this card.
       missing: !i.visionOn,
@@ -164,3 +164,8 @@ export function cannotFoldWords(count) {
   const n = CANNOT_COUNT_WORDS[count] ?? String(count);
   return count === 1 ? `${n} thing it cannot do` : `${n} things it cannot do`;
 }
+export const VISION_SWITCH_WORDS = {
+  label: "Look at a photo",
+  gate: "turn photos on or off",
+  saved: (on) => on ? "Photos on: it says what it sees." : "Photos off: a photo goes to a person."
+};

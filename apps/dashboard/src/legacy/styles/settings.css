@@ -854,9 +854,9 @@ p.set-team-compare-note { margin: 10px 0 0; font-size: var(--set-hint); text-wra
 .pol-table tr:last-child td{border-bottom:none}
 /* A class under the pointer is a lozenge on its cells, as People's rows are (a row has no corners of its own). */
 @media (hover: hover) {
-  .pol-table tbody tr:not(.pol-locked):hover > td { background: var(--bg-hover); }
-  .pol-table tbody tr:not(.pol-locked):hover > td:first-child { border-top-left-radius: var(--surface-inset-radius); border-bottom-left-radius: var(--surface-inset-radius); }
-  .pol-table tbody tr:not(.pol-locked):hover > td:last-child { border-top-right-radius: var(--surface-inset-radius); border-bottom-right-radius: var(--surface-inset-radius); }
+  .pol-table tbody tr:hover > td { background: var(--bg-hover); }
+  .pol-table tbody tr:hover > td:first-child { border-top-left-radius: var(--surface-inset-radius); border-bottom-left-radius: var(--surface-inset-radius); }
+  .pol-table tbody tr:hover > td:last-child { border-top-right-radius: var(--surface-inset-radius); border-bottom-right-radius: var(--surface-inset-radius); }
 }
 .pol-cell{text-align:center}
 .pol-label{display:block;font-size:var(--set-label);font-weight:500;line-height:1.35;color:var(--ink)}
@@ -864,21 +864,9 @@ p.set-team-compare-note { margin: 10px 0 0; font-size: var(--set-hint); text-wra
 .pol-dot{width:22px;height:22px;border-radius:var(--radius-full);border:1px solid var(--line);background:var(--bg-raised);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;color:transparent;padding:0}
 .pol-dot:hover{border-color:var(--ink)}
 .pol-dot.on{background:var(--ink);border-color:var(--ink);color:var(--bg-raised)}
-/* Locked is a setting too, but not one to reach for: it is drawn, not filled. */
-.pol-locked .pol-dot.on{background:var(--bg);border-color:var(--ink-dim);color:var(--ink-dim)}
-.pol-locked .pol-dot{cursor:not-allowed}
 /* The dash is the mark that says a mode is not on offer for this row. */
 .pol-dash{color:var(--ink-dim)}
-/* A row the charter fixes says its rule across the columns: there is no mode to
-   pick, and once the headings say what a mode DOES, a tick under "Stays quiet"
-   would have been the one thing that is not true of money. */
-.pol-fixed{padding-left:0}
-.pol-fixed-words{display:flex;gap:8px;align-items:flex-start;font-size:var(--set-hint);line-height:1.5;color:var(--ink-muted);background:color-mix(in oklab,var(--warn) 8%,transparent);border:1px solid color-mix(in oklab,var(--warn) 26%,transparent);border-radius:var(--radius-sm);padding:8px 11px}
-.pol-fixed-words b{color:var(--ink);font-weight:var(--weight-medium)}
-.pol-fixed-words .icon{color:var(--warn-ink);flex-shrink:0;margin-top:2px}
-/* The locked row is said by its words and its grey dot; the tinted band behind
-   it ran edge to edge inside a card whose other rows have no background. */
-tr.pol-locked .pol-label{color:var(--ink-muted)}
+/* Money is no row of the matrix: it is said once, on Limits (the Settings wiring review, 18 Oct 2026). */
 /* How often the owner changed what it wrote, under a row's name (decision 0063). */
 .pol-held{display:block;margin-top:2px;font-size:var(--set-hint);line-height:1.4;color:var(--ink-muted)}
 /* A suggested note's two presses, under what it would say (decision 0063). */
@@ -892,8 +880,6 @@ tr.pol-locked .pol-label{color:var(--ink-muted)}
    rules under this for the table itself stay for the mockup's pane, which keeps the table at every width. */
 .pol-phone { display: flex; flex-direction: column; margin: 0 0 4px; }
 .pol-phone-mode, .set-dial { font-size: var(--set-label); white-space: nowrap; }
-.pol-phone-locked { display: inline-flex; align-items: center; gap: 6px; }
-.pol-phone-locked .icon { color: var(--warn-ink); flex: none; }
 @media (max-width: 640px) {
   /* Notifications' grid keeps its table on a phone: its two columns of ticks narrow, and their heads say one word. */
   .settings .ntf-col { width: 52px; }
@@ -906,9 +892,6 @@ tr.pol-locked .pol-label{color:var(--ink-muted)}
   .pol-table tr:last-child { border-bottom: none; }
   .pol-table td { display: block; padding: 0; border-bottom: none; }
   .pol-table td:first-child { grid-column: 1 / -1; padding-right: 0; }
-  /* colSpan is a table word and this row is a grid: the fixed row's sentence
-     takes the whole width the same way its label does. */
-  .pol-table td.pol-fixed { grid-column: 1 / -1; }
   .pol-table td.pol-cell { display: flex; flex-direction: column; align-items: center; gap: 6px; }
   .pol-cell::before { content: attr(data-mode); font-size: var(--text-xs); font-weight: 500; color: var(--ink-dim); }
   .pol-cell .pol-dash { display: grid; place-items: center; height: 30px; }

@@ -268,8 +268,8 @@ export function abilityRows(i: AbilityInputs): AbilitiesVM {
         ? "It says what it sees and suggests the next step, under the rules it always keeps."
         : "Off. A photo is passed to a person.",
       channels: { voice: false, whatsapp: chatAnswers && i.visionOn },
-      // The switch sits with the rules it keeps, which is the row that opens it.
-      runsOn: { label: i.visionOn ? "Turn it off" : "Turn it on", row: "guardrails" },
+      // Its switch is on this row since 18 Oct 2026 (it sat in the rules fold, among limits): no other row supplies it.
+      runsOn: null,
       ready: chatAnswers && i.visionOn,
       // Off is the one state an owner changes from this card.
       missing: !i.visionOn,
@@ -382,3 +382,14 @@ export function cannotFoldWords(count: number): string {
   const n = CANNOT_COUNT_WORDS[count] ?? String(count);
   return count === 1 ? `${n} thing it cannot do` : `${n} things it cannot do`;
 }
+
+/**
+ * The photo switch on its ability's row (features.vision): what it is called to a screen reader, what a role that may
+ * not change it is told it is, and the toast once the server takes it. It gives the receptionist something rather
+ * than limiting it, so it is not among the rules it keeps (the Settings wiring review, 18 Oct 2026).
+ */
+export const VISION_SWITCH_WORDS = {
+  label: "Look at a photo",
+  gate: "turn photos on or off",
+  saved: (on: boolean) => (on ? "Photos on: it says what it sees." : "Photos off: a photo goes to a person."),
+} as const;

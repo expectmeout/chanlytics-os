@@ -41,6 +41,7 @@ import {
   type Shared,
 } from "./answers";
 import { BtCanCard } from "./can";
+import { BtBookingChoiceRow, BtPriceChoiceRow } from "./choices/rows";
 import { BtBookingRuleRows, BtOfferCard } from "./offer";
 import { BtOpenCard } from "./open";
 import { BtBookingTool } from "./open-bookings";
@@ -145,13 +146,15 @@ const BtKnowsCard = ({ brain, base = null, config = null, canEdit, flash, saver 
 };
 
 /**
- * The rules it always keeps and how it hands you a customer: limits, on Autonomy's Limits card (BusinessLimitRows,
- * below), since a rule about prices lived on two tabs. `base` is what the rules fold judges by.
+ * What it says when someone asks a price, the rules it always keeps and how it hands you a customer: limits, on
+ * Autonomy's Limits card (BusinessLimitRows, below), since a rule about prices lived on two tabs. `base` is what the
+ * rules fold judges by.
  */
 const BtLimitRows = ({ brain, base = null, config = null, canEdit, flash, saver }: CardProps) => {
   const shared = { canEdit, flash, saver };
   return (
     <>
+      <BtPriceChoiceRow canEdit={canEdit} flash={flash} />
       <BtRulesRow brain={brain} base={base} config={config} {...shared} />
       {handoffFold(shared, btaFacts(brain, base, config))}
     </>
@@ -160,7 +163,8 @@ const BtLimitRows = ({ brain, base = null, config = null, canEdit, flash, saver 
 
 /**
  * Booking, Hours & booking's second card: what the business books with (open-bookings.tsx), the link it sends
- * (who.tsx) and the rules for a booking (offer.tsx), which were three cards apart on one long page. They are the facts
+ * (who.tsx), what happens when someone wants to book (choices/rows.tsx) and the rules for a booking (offer.tsx), which
+ * were three cards apart on one long page. They are the facts
  * the Calendar's "Hours and rules" shows and doors into, so they are kept on one page with the hours they apply to.
  */
 const BtBookingCard = ({
@@ -191,6 +195,8 @@ const BtBookingCard = ({
     <BtBookingTool brain={brain} config={config} canEdit={canEdit} flash={flash} saver={saver} />
 
     <BtBookingLinkRow brain={brain} base={base} canEdit={canEdit} flash={flash} saver={saver} />
+
+    <BtBookingChoiceRow brain={brain} config={config} canEdit={canEdit} flash={flash} />
 
     <BtBookingRuleRows brain={brain} canEdit={canEdit} flash={flash} saver={saver} />
   </section>
@@ -440,7 +446,7 @@ export const BusinessTab = ({
         <>
           <BtTalksCard {...shared} base={base} config={config} />
           <BtKnowsCard {...shared} base={base} config={config} />
-          <BtCanCard brain={brain} config={config} canEdit={canEdit} door={btDoorFrom(parts)} />
+          <BtCanCard brain={brain} config={config} canEdit={canEdit} door={btDoorFrom(parts)} flash={flash} />
           {/* What the receptionist is told, at rest: a title, who reads it, and the door to the sheet. Hookless. */}
           <BtPromptTold prompt={prompt} />
           {/* Try it: a message written as a customer would, the answer and why (try/try-it.tsx). Holds its own state. */}

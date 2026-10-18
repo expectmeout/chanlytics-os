@@ -174,15 +174,10 @@ const BT_DRAFT_OF: { [F in FoldName]: (p: Profile, brain: Brain, config: Config)
   booking_rules: btOpenRules,
   consult_first: (p) => ((p.booking_rules || {}).consult_first || []).join("\n"),
   // Which rules are in force is contracts' one reading (guardrailsInForce, through the bridge), the composer's and Ask's:
-  // absent means ON for three, so an unset config must not render as three unticked boxes, and the health rule is
-  // opt-in, since a rule that defaulted on would have changed every composed prompt already live the moment it shipped.
-  // The form this replaces read them with a copy of that rule, and two copies had already drifted once (Ask took the
-  // health rule as on when absent).
-  guardrails: (p, brain, config) => ({
-    ...BUSINESS_TAB.guardrailsInForce(p.guardrails),
-    // Opt-in abilities: off unless the owner turned one on.
-    vision: (config.features || {}).vision === true,
-  }),
+  // the health rule is opt-in, since a rule that defaulted on would have changed every composed prompt already live the
+  // moment it shipped. The form this replaces read them with a copy of that rule, and two copies had already drifted
+  // once (Ask took the health rule as on when absent).
+  guardrails: (p) => ({ ...BUSINESS_TAB.guardrailsInForce(p.guardrails) }),
   // Pre-filled with the workspace's existing instructions, so nothing a business already told its receptionist quietly
   // disappears the moment it fills in a form. Chosen in contracts (S4): the owner's own words, or the prompt from
   // before the form, carried and marked `carried` so the fold can say so -- never the product's opening lines, which
@@ -303,20 +298,16 @@ const btWriteRules = (next: Config, draft: unknown) => {
   btPutProfile(next, "booking_rules", Object.keys(rules).length ? rules : undefined);
 };
 
-// The four switches written onto what is stored beside them, where the old form wrote the four alone: a switch a
-// newer form adds is kept by an older tab's save, as a rule added later is kept under booking_rules.
+// The fold's switch written onto what is stored beside it: the price rule (the price row's) and a rule a newer form
+// adds are kept by this save, as a rule added later is kept under booking_rules.
 const btWriteGuardrails = (next: Config, draft: unknown) => {
-  btWhole("guardrails", draft, BT_GUARDRAILS.concat(["vision"]), "boolean");
+  btWhole("guardrails", draft, BT_GUARDRAILS, "boolean");
   const d = draft as Record<string, unknown>;
   const guardrails = { ...(btProfileOf(next).guardrails || {}) };
   BT_GUARDRAILS.forEach((key) => {
     guardrails[key] = d[key] === true;
   });
   btPutProfile(next, "guardrails", guardrails);
-  // Opt-in abilities, written once the owner has touched them: an untouched workspace keeps no features at all.
-  const features = next.features || {};
-  const vision = d.vision === true;
-  if (vision || features.vision !== undefined) next.features = { ...features, vision };
 };
 
 // A receptionist from nothing, as the old form's create path made one, onto whatever else the config holds (the
@@ -646,14 +637,14 @@ const btFieldOf = (fold: FoldName, path: (string | number)[], draft: unknown) =>
   if (fold === "services" || fold === "closures" || fold === "notes") return btListField(fold, path, draft);
   if (fold === "booking_rules" || fold === "consult_first") return String(path[3]);
   if (fold === "fallbacks") return String(path[2]);
-  if (fold === "calendar") return path[0] === "bookings" ? "with" : path[0] === "features" ? "requests" : "ical_url";
+  if (fold === "calendar") return path[0] === "bookings" ? "with" : "ical_url";
   // The three boxes the create card draws; the product's own prompt and messages have none, and a refusal of them is
   // said once, as a refusal elsewhere is.
   if (fold === "receptionist") {
     const box = path[1];
     return (box !== undefined && BT_RECEPTIONIST_FIELDS[box]) || null;
   }
-  return fold === "guardrails" && path[0] === "features" ? "vision" : fold;
+  return fold;
 };
 
 /**

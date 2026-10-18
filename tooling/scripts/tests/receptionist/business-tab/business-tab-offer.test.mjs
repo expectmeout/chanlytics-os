@@ -192,12 +192,14 @@ test("What you offer draws two rows under its title, and Booking the rules, in o
   assert.equal(textOf(find(card, (n) => classes(n).includes("rec-card-sub"))), "And how customers buy it");
   // How customers buy first (0008): it decides whether any of the rest leads to a deal.
   assert.deepEqual(all(card, (n) => classes(n).includes("rec-row-key")).map(textOf), ["How customers buy", "Services"]);
-  // The rules for booking are Hours & booking's (17 Oct 2026), with what the business books with and its link.
+  // The rules for booking are Hours & booking's (17 Oct 2026), with what the business books with, its link, and what
+  // happens when someone wants to book (18 Oct 2026: one question where a switch and a matrix row stood).
   const booking = byTestId(tree, "rec-card-booking");
   assert.equal(textOf(find(booking, (n) => classes(n).includes("rec-card-title"))), "Booking");
   assert.deepEqual(all(booking, (n) => classes(n).includes("rec-row-key")).map(textOf), [
     "Booking tool",
     "Booking link",
+    "When someone wants to book",
     "Booking rules",
     "Needs a consult first",
   ]);

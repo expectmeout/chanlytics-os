@@ -176,7 +176,7 @@
   },
   "packages/contracts/src/config/business-tab/abilities.ts::abilityRows#1": {
     "lines": 162,
-    "branches": 40,
+    "branches": 39,
     "depth": 1
   },
   "packages/contracts/src/conversations/call-vm.ts::toCallVM#1": {

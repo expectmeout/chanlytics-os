@@ -1,10 +1,13 @@
 /**
  * Settings › Autonomy on the workspace's policies table (moved from legacy/pages/settings.jsx, decision 0015 step 11).
  *
- * Every row is a class with an enforcer -- the receptionist (replies, questions, bookings), the playbooks (re-engage,
- * offers), the review sweep, and for money a database trigger -- so every switch shown is one something honours,
- * offering only the modes it honours. The three dials write the reply row's limits through one route. The limits card
- * shows the runtime's actual numbers: two the charter's, two this workspace's own. Settings' page (settings.jsx) still
+ * Every row is a class with an enforcer -- the receptionist (replies), the playbooks (re-engage, offers), the review
+ * sweep -- so every switch shown is one something honours, offering only the modes it honours. Replies is a card of its
+ * own, with the two dials that only mean something under its mode (the hold window and the confidence dial) under it;
+ * bookings and price questions are each one question on Settings (business/choices: the class with the switch or the
+ * rule it goes with), and money, which nothing can change, is said once, on Limits (the Settings wiring review, 18 Oct
+ * 2026). The dials write the reply row's limits through one route. The limits card shows the runtime's actual numbers:
+ * two the charter's, the rest this workspace's own. Settings' page (settings.jsx) still
  * draws it by its old name, which seed-globals publishes (settings/globals.ts), until Settings' frame moves; the mockup's
  * seeded twin (its own matrix, defaults and guardrails, kept in the browser) left with it.
  */
@@ -19,7 +22,7 @@ import { useSurface } from "../../use-surface";
 import { BusinessLimitRows } from "../business/tab";
 import { SetDial, SetRow } from "./controls";
 import { LearnedFromYou } from "./learned";
-import { PolPhoneRows, PolicyTable, polMode, useSetPhone } from "./matrix";
+import { PolModeRow, PolPhoneRows, PolicyTable, polMode, useSetPhone } from "./matrix";
 import { autonomyVerbs } from "./verbs";
 
 /** A step of a dial: its word, and the value it stores. */
@@ -159,6 +162,40 @@ function dialRow(
   );
 }
 
+/**
+ * The dials Replies holds under its mode, only where the mode has them: the hold window holds a reply under Veto, and
+ * under Auto one below the confidence dial; under Ask or Never neither does anything, so neither is drawn.
+ */
+function replyDials(reply: UiRow): DialRow[] {
+  const limits = reply.limits || {};
+  const delayMs = Number(limits.reply_delay_ms) || REPLY_DELAY_DEFAULT_MS;
+  const minConf = Number(limits.min_confidence) || 0;
+  const dials: DialRow[] = [];
+  if (reply.mode === "Auto" || reply.mode === "Veto")
+    dials.push({
+      label: "Hold window",
+      note: "How long a reply waits before it sends, so you can stop or change it from the Inbox. A booking link asked for on the phone goes out at once.",
+      steps: AUT_DELAYS,
+      value: wordOf(AUT_DELAYS, delayMs, `${Math.round(delayMs / 1000)}s`),
+      save: (v: number) => ({ replyDelayMs: v }),
+    });
+  if (reply.mode === "Auto")
+    dials.push({
+      label: "Send on its own only when it's sure",
+      note: "A reply less certain than this waits in the hold window instead of going out. Off sends everything, and so does a reply with no confidence on record.",
+      steps: AUT_CONF,
+      value: wordOf(AUT_CONF, minConf, `${Math.round(minConf * 100)}%`),
+      save: (v: number) => ({ minConfidence: v }),
+    });
+  return dials;
+}
+
+/**
+ * The classes the matrix does not draw: Replies has its card; bookings and price questions are asked once each on
+ * Settings, where the switch or the rule they go with is (business/choices); money is said once, on Limits.
+ */
+const AUT_ASKED_ELSEWHERE = new Set(["reply", "booking", "faq", "money"]);
+
 export const PaneAutonomyReal = ({ flash, row = null }: { flash: (f: LegacyFlash) => void; row?: string | null }) => {
   const read = useSurface("settings");
   const [busy, setBusy] = useState<string | null>(null);
@@ -184,13 +221,11 @@ export const PaneAutonomyReal = ({ flash, row = null }: { flash: (f: LegacyFlash
   const held = heldDraftsByClass(policies.held ?? []);
   const reply = rows.find((r) => r.id === "reply");
   const limits = (reply && reply.limits) || {};
-  const delayMs = Number(limits.reply_delay_ms) || REPLY_DELAY_DEFAULT_MS;
   // The hard limits in contracts' words, which say each default, and the value each of the owner's two dials shows:
   // the stored one, or the default.
   const hard = hardLimitsWords(limits);
   const capSteps = withStep(AUT_CAP, hard.cap, String(hard.cap));
   const pauseSteps = withStep(AUT_PAUSE, hard.hours, `${hard.hours}h`);
-  const minConf = Number(limits.min_confidence) || 0;
   const budget = Number(limits.max_llm_tokens_day) || 0;
 
   // One dial at a time, and never the mode with it (the bridge's PolicyDials).
@@ -213,54 +248,36 @@ export const PaneAutonomyReal = ({ flash, row = null }: { flash: (f: LegacyFlash
   };
   const putDial = (r: UiRow, m: undefined, d: PolicyDials) => void put(r, m, d);
   const putMode = (r: UiRow, m: string) => void put(r, m);
+  const matrix = rows.filter((r) => !AUT_ASKED_ELSEWHERE.has(r.cls));
 
   return (
     <>
+      {reply ? (
+        <section className="rec-card set-card" data-testid="aut-replies">
+          <div className="rec-card-head">
+            <h2 className="rec-card-title">Replies</h2>
+            <span className="rec-card-sub">How each text to a customer goes out, and how long it waits for you</span>
+          </div>
+          <PolModeRow r={reply} put={putMode} busy={busy} held={held} />
+          {replyDials(reply).map((d) => dialRow(d, phone, reply, putDial))}
+        </section>
+      ) : null}
+
       <section className="rec-card set-card">
         <div className="rec-card-head">
           <h2 className="rec-card-title">Policy matrix</h2>
-          <span className="rec-card-sub">What it may do without you. Every row is one it consults before acting.</span>
+          <span className="rec-card-sub">
+            What else it may do without you. Every row is one it consults before acting.
+          </span>
         </div>
         {phone ? (
-          <PolPhoneRows rows={rows} put={putMode} busy={busy} held={held} />
+          <PolPhoneRows rows={matrix} put={putMode} busy={busy} held={held} />
         ) : (
-          <PolicyTable rows={rows} put={putMode} busy={busy} held={held} />
+          <PolicyTable rows={matrix} put={putMode} busy={busy} held={held} />
         )}
       </section>
 
       <LearnedFromYou suggestions={policies.suggestions} flash={flash} />
-
-      <section className="rec-card set-card">
-        <div className="rec-card-head">
-          <h2 className="rec-card-title">Reply timing and budget</h2>
-          <span className="rec-card-sub">
-            The hold window applies under Veto, and under Auto below the confidence dial.
-          </span>
-        </div>
-        {[
-          {
-            label: "Hold window",
-            note: "How long a reply waits before it sends, so you can stop or change it from the Inbox. A booking link asked for on the phone goes out at once.",
-            steps: AUT_DELAYS,
-            value: wordOf(AUT_DELAYS, delayMs, `${Math.round(delayMs / 1000)}s`),
-            save: (v: number) => ({ replyDelayMs: v }),
-          },
-          {
-            label: "Send on its own only when it's sure",
-            note: "Under Auto, a reply less certain than this waits in the hold window instead of going out. Off sends everything, and so does a reply with no confidence on record.",
-            steps: AUT_CONF,
-            value: wordOf(AUT_CONF, minConf, `${Math.round(minConf * 100)}%`),
-            save: (v: number) => ({ minConfidence: v }),
-          },
-          {
-            label: "Day's model budget",
-            note: "Model tokens it may spend in a rolling 24 hours, in and out. Over the budget it stops answering for the day, and every new message lands in Needs you.",
-            steps: AUT_BUDGET,
-            value: wordOf(AUT_BUDGET, budget, `${Math.round(budget / 1000)}k`),
-            save: (v: number) => ({ maxTokensDay: v }),
-          },
-        ].map((d) => dialRow(d, phone, reply, putDial))}
-      </section>
 
       <section className="rec-card set-card">
         <div className="rec-card-head">
@@ -273,11 +290,11 @@ export const PaneAutonomyReal = ({ flash, row = null }: { flash: (f: LegacyFlash
           label="Refunds, rates, negotiation"
           value="Always go to you — locked in the database"
         />
-        {/* The business's two limits, its own rows saved through its record (17 Oct 2026: a rule about prices lived on
-            two tabs): the rules it always keeps, and when it hands you a customer. */}
+        {/* The business's limits, its own rows (17 Oct 2026: a rule about prices lived on two tabs): what it says when
+            someone asks a price, the rules it always keeps, and when it hands you a customer. */}
         <BusinessLimitRows flash={flash} open={row} />
-        {/* The last two were Chanlytics' and could not be changed here (S6): the owner's dials now, through the same
-            door as the three above. */}
+        {/* The reply cap and the pause were Chanlytics' and could not be changed here (S6): the owner's dials now,
+            through the same door as the two on Replies, and the day's budget beside them. */}
         {[
           {
             label: "Replies to one person in 24 hours",
@@ -294,6 +311,13 @@ export const PaneAutonomyReal = ({ flash, row = null }: { flash: (f: LegacyFlash
             value: wordOf(pauseSteps, hard.hours, `${hard.hours}h`),
             save: (v: number) => ({ pauseHours: v }),
             testid: "aut-pause",
+          },
+          {
+            label: "Day's model budget",
+            note: "Model tokens it may spend in a rolling 24 hours, in and out. Over the budget it stops answering for the day, and every new message lands in Needs you.",
+            steps: AUT_BUDGET,
+            value: wordOf(AUT_BUDGET, budget, `${Math.round(budget / 1000)}k`),
+            save: (v: number) => ({ maxTokensDay: v }),
           },
         ].map((d) => dialRow(d, phone, reply, putDial))}
       </section>
