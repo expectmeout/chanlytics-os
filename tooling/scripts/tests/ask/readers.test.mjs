@@ -5886,6 +5886,9 @@ const matrixWorld = (over = {}) => ({
     matrixRow(B, "reply", "auto", { max_replies_day: 50, reply_delay_ms: 15000 }),
     matrixRow(B, "booking", "auto"),
   ],
+  contacts: [
+    { id: "k1", tenant_id: A, display_name: "Dana Reyes", wa_profile_name: null, phone_e164: null, email: null },
+  ],
   ...over,
 });
 
@@ -5899,16 +5902,31 @@ test("the autonomy matrix, for the page: GET policies answers its reader's paylo
     const r = await kernel.load(memberIn(ctx, tenant, role), autonomy, undefined);
     assert.deepEqual(r.data, page, "the route's payload");
     assert.equal(JSON.stringify(r.data), JSON.stringify(page), "byte for byte");
-    assert.deepEqual(Object.keys(r.data), ["policies", "role", "deals_on", "held", "suggestions"]);
+    assert.deepEqual(Object.keys(r.data), ["policies", "role", "deals_on", "held", "suggestions", "own_modes"]);
     assert.deepEqual(
       [r.data.policies.map((p) => p.class), r.data.role, r.data.deals_on],
       [classes, role, false],
       "the workspace's rows, by class; a person's own row is not the matrix",
     );
     assert.deepEqual(r.rows, []);
-    // And what the owner's corrections show (decision 0063): the held drafts are a function, the suggestions a table.
-    assert.deepEqual(asked(ctx), ["tenants.select", "policies.select", "fact_suggestions.select"]);
+    // And what the owner's corrections show (decision 0063): the held drafts are a function, the suggestions a table;
+    // and the people set differently (item 10, 18 Oct 2026): their rows, then the names of the newest.
+    assert.deepEqual(
+      asked(ctx),
+      ["tenants.select", "policies.select", "fact_suggestions.select", "policies.select"].concat(
+        tenant === A ? ["contacts.select"] : [],
+      ),
+    );
   }
+  // A person's own row is counted and named on Replies' line, by their workspace alone.
+  const own = await kernel.load(memberIn(dayCtx(matrixWorld()), A, "viewer"), autonomy, undefined);
+  assert.deepEqual(own.data.own_modes, {
+    total: 1,
+    by_mode: { auto: 0, ask: 0, never: 1 },
+    named: [{ id: "k1", name: "Dana Reyes", mode: "never" }],
+  });
+  const none = await kernel.load(memberIn(dayCtx(matrixWorld()), B, "operator"), autonomy, undefined);
+  assert.deepEqual(none.data.own_modes, { total: 0, by_mode: { auto: 0, ask: 0, never: 0 }, named: [] });
   const agency = matrixWorld({
     tenants: [{ id: A, name: "Harbor", timezone: "America/New_York", sells_by: "proposal" }],
   });
@@ -5919,16 +5937,23 @@ test("the autonomy matrix, for the page: GET policies answers its reader's paylo
   const twice = dayCtx(matrixWorld());
   await policiesRoute.GET.run(req(`?workspace=${A}`), twice);
   await policiesRoute.GET.run(req(`?workspace=${A}`), twice);
-  assert.equal(selects(twice, "policies").length, 2, "fresh on every request");
+  assert.equal(selects(twice, "policies").length, 4, "fresh on every request: the matrix and the people set apart");
   // A turn that holds the rows and how the customers buy (workspace.settings, campaigns.playbooks) reads neither again.
   const turn = memberIn(dayCtx(matrixWorld()), A, "viewer");
   await Promise.all([kernel.load(turn, policies, undefined), kernel.load(turn, sellsBy, undefined)]);
   const held = turn.ctx.supabase.seen.length;
   await kernel.load(turn, autonomy, undefined);
-  // What it reads beyond them is the learning loop's own (decision 0063): the held drafts and the notes waiting.
+  // What it reads beyond them is the learning loop's own (decision 0063), the held drafts and the notes waiting, and the
+  // people set differently: their rows and their names.
   const beyond = turn.ctx.supabase.seen.slice(held);
   assert.ok(
-    beyond.every((q) => q.table === "fact_suggestions" || q.rpc === "held_drafts_by_intent"),
+    beyond.every(
+      (q) =>
+        q.table === "fact_suggestions" ||
+        q.rpc === "held_drafts_by_intent" ||
+        q.table === "contacts" ||
+        (q.table === "policies" && JSON.stringify(q).includes("contact")),
+    ),
     "the turn's own reads",
   );
 });

@@ -6,6 +6,7 @@ import {
   policyModeOffered,
   type FactSuggestionDto,
   type HeldDraftsByIntent,
+  type OwnModesDto,
   type PolicyClass,
   type PolicyMode,
 } from "@chanlytics/contracts";
@@ -134,6 +135,8 @@ export interface PoliciesSurface {
   held?: HeldDraftsByIntent[] | null;
   /** The notes the owner's corrections suggest, waiting (decision 0063); null where the read failed or is old. */
   suggestions?: FactSuggestionDto[] | null;
+  /** The people whose receptionist has a mode of their own (Replies' line); null where the read failed or is old. */
+  ownModes?: OwnModesDto | null;
 }
 
 export interface UiRow extends UiRowMeta {

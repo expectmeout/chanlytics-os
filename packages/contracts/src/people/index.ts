@@ -20,8 +20,16 @@ export type {
   PersonSignerDto,
   PersonBusinessDto,
 } from "./person-dto";
-export { asPersonMode, PERSON_MODES, PERSON_MODE_LABELS, PERSON_MODE_WORDS } from "./person-receptionist";
-export type { PersonMode, ReceptionistTone, PersonReceptionist, HolderNames } from "./person-receptionist";
+export {
+  asPersonMode,
+  PERSON_MODES,
+  PERSON_MODE_LABELS,
+  PERSON_MODE_WORDS,
+  OWN_MODE_NAMED,
+  ownModesOf,
+  ownModesWords,
+} from "./person-receptionist";
+export type { PersonMode, ReceptionistTone, PersonReceptionist, HolderNames, OwnModesDto } from "./person-receptionist";
 export { ago } from "./person-row-facts";
 export type { PersonLastContact, PersonFirstContact } from "./person-row-facts";
 export {

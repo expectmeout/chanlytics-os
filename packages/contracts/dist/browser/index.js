@@ -236,7 +236,7 @@ export { MERGE_ANSWERS, MERGE_CONSENT_SOURCE, MERGE_REFUSALS, MERGE_WORDS, merge
 export { callerName, personName } from "./people/person-name.js";
 export { filterTimeline, PERSON_ACT_WORDS, PERSON_DELETE_WORDS, personActs, personNextFor, timelineFilterLabel, toPersonVM, TIMELINE_FILTERS } from "./people/person-profile.js";
 export { bookingLinkAction, proposalMessage, proposalAction, repliesWords, rowReachWords, mayReach } from "./people/person-reach.js";
-export { asPersonMode, PERSON_MODES, PERSON_MODE_LABELS, PERSON_MODE_WORDS } from "./people/person-receptionist.js";
+export { asPersonMode, PERSON_MODES, PERSON_MODE_LABELS, PERSON_MODE_WORDS, OWN_MODE_NAMED, ownModesOf, ownModesWords } from "./people/person-receptionist.js";
 export { cameFromOf, visitLineForDto, toPersonRowVM } from "./people/person-row.js";
 export { ago } from "./people/person-row-facts.js";
 export { personStanding, attentionOf, holderOf, personStateFor, stopToldBesideState, PERSON_STATE_LABELS, PEOPLE_TABS, NEW_WINDOW_DAYS, QUIET_AFTER_DAYS } from "./people/person-state.js";

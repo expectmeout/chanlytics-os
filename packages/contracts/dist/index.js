@@ -15832,6 +15832,29 @@ var PERSON_MODE_WORDS = {
 function asPersonMode(s) {
   return s && PERSON_MODES.includes(s) ? s : null;
 }
+var OWN_MODE_NAMED = 20;
+function ownModesOf(rows2, names3) {
+  const by_mode = { auto: 0, ask: 0, never: 0 };
+  const named = [];
+  for (const r2 of rows2) {
+    const mode = asPersonMode(r2.mode);
+    if (!mode) continue;
+    by_mode[mode] += 1;
+    const name = names3.get(r2.id);
+    if (name && named.length < OWN_MODE_NAMED) named.push({ id: r2.id, name, mode });
+  }
+  return { total: by_mode.auto + by_mode.ask + by_mode.never, by_mode, named };
+}
+var OWN_MODE_ORDER = ["never", "ask", "auto"];
+function ownModesWords(d) {
+  if (!d || d.total === 0) return null;
+  return {
+    label: "People set differently",
+    value: d.total === 1 ? "1 person" : `${d.total} people`,
+    hint: OWN_MODE_ORDER.filter((m) => d.by_mode[m] > 0).map((m) => `${d.by_mode[m]} ${PERSON_MODE_LABELS[m]}`).join(" \xB7 "),
+    header: d.named.length < d.total ? `The ${d.named.length} changed last` : "Their own reply mode"
+  };
+}
 var HELD_THREAD = {
   yours: {
     tone: "yours",
@@ -60312,6 +60335,7 @@ export {
   OUTREACH_WAIT_REFUSALS,
   OWNER_SAID_INTENTS,
   OWN_MESSAGE_REFUSALS,
+  OWN_MODE_NAMED,
   OWN_VERSION_CHANNELS,
   PACE_AFTER_YESES,
   PACE_WINDOW_DAYS,
@@ -61988,6 +62012,8 @@ export {
   overLimitRefusal,
   ownAddressesOf,
   ownMessageRefusal,
+  ownModesOf,
+  ownModesWords,
   ownWordsOf,
   ownedDomainOf,
   ownerPaceWords,
