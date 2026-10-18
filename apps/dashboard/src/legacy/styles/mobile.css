@@ -301,16 +301,16 @@
     vertical-align: bottom;
   }
 
-  /* A toast is one row on a phone (25 Sep): its words, then a 28px Undo and its ×, never two tiers under a 44px Undo
-     disc. The words wrap to three lines at most (18 Oct): cut to one, a failure lost "check whether it went through"
-     and a switch's Undo lost what it had switched; a tap besides now takes the toast, so its height is not in the way
-     for long. Above the home bar. The stack spans the screen inside its 12px sides and centres its toasts there:
-     centred by `left: 50%`, it had half the screen to grow into, and words that wrap stood in a toast 201px wide. */
-  .pp-toast { flex-wrap: nowrap; gap: 8px; padding: 8px 10px 8px 12px; max-width: calc(100vw - 24px); }
-  .pp-toast-stack { bottom: calc(14px + env(safe-area-inset-bottom)); left: 12px; right: 12px; transform: none; }
+  /* A toast is one row on a phone (25 Sep): its words, then a 28px Undo, never two tiers under a 44px Undo disc. The
+     words wrap to three lines at most (18 Oct): cut to one, a failure lost "check whether it went through" and a
+     switch's Undo lost what it had switched; a tap besides takes the toast, so its height is not in the way for long.
+     The stack spans the screen inside the tab bar's 14px sides (the toast as wide as the bar and Ask's circle, kit.css):
+     centred by `left: 50%`, it had half the screen to grow into, and words that wrap stood in a toast 201px wide.
+     Above the home bar. */
+  .pp-toast { flex-wrap: nowrap; gap: 10px; padding: 8px 10px 8px 14px; max-width: none; }
+  .pp-toast-stack { bottom: calc(14px + env(safe-area-inset-bottom)); left: 14px; right: 14px; transform: none; }
   .pp-toast .pp-toast-msg { flex: 1 1 auto; min-width: 0; overflow: hidden; max-height: 3lh; }
   html.legacy-on .pp-toast-cta { min-height: 28px; padding: 4px 12px; }
-  html.legacy-on .pp-toast-x { min-height: 28px; }
 
   /* Clients bulk bar: two-row wrap, full-width, above the safe area */
   .cl-bulkbar {
