@@ -259,3 +259,27 @@ export function answerSpoken(a) {
   const said = sentences([a.say.headline, ...answerPlain(a.say.detail, true).split("\n")]);
   return [said, listSpoken({ ...l, entries: l.entries.map((e) => answerPlain(e, true)) })].filter(Boolean).join(" ");
 }
+export function firstJsonValue(s) {
+  const start = s.search(/\S/);
+  if (start < 0 || s[start] !== "{" && s[start] !== "[") return null;
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  for (let i = start; i < s.length; i++) {
+    const c = s[i];
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (c === "\\") escaped = true;
+      else if (c === '"') inString = false;
+    } else if (c === '"') inString = true;
+    else if (c === "{" || c === "[") depth++;
+    else if ((c === "}" || c === "]") && --depth === 0) {
+      try {
+        return { value: JSON.parse(s.slice(start, i + 1)), rest: s.slice(i + 1) };
+      } catch {
+        return null;
+      }
+    }
+  }
+  return null;
+}

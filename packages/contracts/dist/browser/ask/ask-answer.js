@@ -8,7 +8,8 @@ import {
   firstSentence,
   navigateLabel,
   opensWithBlock,
-  sameQuestion
+  sameQuestion,
+  firstJsonValue
 } from "./answer-text.js";
 import { CALENDAR_SETTING_ROUTE } from "../setup/calendar-source.js";
 import {
@@ -315,11 +316,15 @@ function groundRef(v, read) {
 }
 export function normalizeAnswer(raw, read, fallback) {
   let json = raw;
+  let ignored = "";
   if (typeof raw === "string") {
     try {
       json = JSON.parse(raw);
     } catch (e) {
-      return { ok: false, error: `not JSON: ${e instanceof Error ? e.message : String(e)}` };
+      const first = firstJsonValue(raw);
+      if (!first) return { ok: false, error: `not JSON: ${e instanceof Error ? e.message : String(e)}` };
+      json = first.value;
+      ignored = first.rest.trim();
     }
   }
   const root = asObj(json);
@@ -389,7 +394,8 @@ export function normalizeAnswer(raw, read, fallback) {
       do: { open, next },
       language
     },
-    dropped
+    dropped,
+    ...ignored ? { ignored } : {}
   };
 }
 export function answerWords(a) {

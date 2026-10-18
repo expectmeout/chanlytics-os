@@ -10180,6 +10180,22 @@ test("the answer tool on, the last round may still call it: it is told it is the
   });
 });
 
+test("an answer call with a character after its closed object lands as the answer, and the turn logs what it set aside (18 Oct 2026: such turns said they could not shape the answer)", async () => {
+  await withAnswerTool("on", async () => {
+    const call = answerCall("Two threads wait.");
+    const strayed = { ...call, json: call.json + "}" };
+    const { result: r, lines } = await logged("ask_answer_tail", () =>
+      runAskTurn(turn(ctxFor()).input, ports(scripted([ROUND([strayed])]).round)),
+    );
+    assert.equal(r.failed, false, r.failure ?? "");
+    assert.equal(r.answer.say.headline, "Two threads wait.");
+    assert.deepEqual(
+      lines.map((l) => JSON.parse(l)),
+      [{ chars: 1, tail: "}", stop: "tool_use", tenant_id: A }],
+    );
+  });
+});
+
 test("an answer call cut off, or empty, is no answer: the turn says it could not shape one, never a half answer", async () => {
   await withAnswerTool("on", async () => {
     const cut = { ...answerCall("Two threads wait."), json: '{"say": {"headline": "Two thr' };

@@ -398,6 +398,9 @@ export const DROPPED_WORDS = {
  * (withoutClaimedWrite), and the plan's facts kept where it answers a plan (withPlanFacts). Or why it cannot be read:
  * the sentence the person is told, and the failure kept.
  */
+/** How much of what followed a whole answer the log keeps: enough to see what it is, too little to carry a reply. */
+const ANSWER_TAIL_LOGGED = 40;
+
 export function writtenAnswer(
   written: string,
   input: TurnInput,
@@ -416,6 +419,14 @@ export function writtenAnswer(
     return { ok: true, answer: withoutClaimedWrite(proseAnswer(written, input.language), input, from.proposals) };
   }
   const shaped = normalizeAnswer(written, from.read, input.language);
+  // What followed a whole answer (contracts firstJsonValue): set aside, and said, so what writes it can be found.
+  if (shaped.ok && shaped.ignored)
+    log.warn("ask_answer_tail", {
+      chars: shaped.ignored.length,
+      tail: shaped.ignored.slice(0, ANSWER_TAIL_LOGGED),
+      stop: from.stopReason,
+      tenant_id: input.tenantId,
+    });
   if (!shaped.ok) {
     log.error("ask_answer_unparsed", {
       error: shaped.error.slice(0, 200),
