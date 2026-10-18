@@ -647,6 +647,8 @@ export const REFRESHES_NOTHING: Partial<Record<RouteKey, string>> = {
   "PUT me/alerts": "published from the answer (notifications/verbs.ts)",
   "POST notifications/test": "a test email; nothing moves",
   "POST sequences/[id]/steps/[step]/test": "a test of a step's message to the member's own address; nothing moves",
+  "POST receptionist/try":
+    "a message tried on the receptionist from How it answers, drawn in its card; nothing is sent",
   "PUT views/[page]": "the member's saved view, which the page already shows",
   "POST vitals": "the page's field data, kept for the back office",
   "POST client-errors": "an error a boundary caught, told to the server's log; nothing on screen moves",

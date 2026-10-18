@@ -98,6 +98,8 @@ const ROW_PANES: Readonly<Record<string, string>> = {
   extra_instructions: "receptionist",
   fallbacks: "receptionist",
   prompt: "receptionist",
+  // Try it (business/try/try-it.tsx): a message tried as a customer would, opened by `admin/receptionist/try`.
+  try: "receptionist",
   guardrails: "autonomy",
   escalate_when: "autonomy",
 };

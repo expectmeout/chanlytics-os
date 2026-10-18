@@ -116,6 +116,7 @@ test("When you're open draws three rows in the spec's order, under a line contra
       "rec-card-knows",
       "rec-card-can",
       "rec-card-told",
+      "rec-card-try",
     ],
   );
 });
