@@ -51,9 +51,9 @@ const StatCell = ({ label, value, valueSize, meta, metaTone = "", spark, tip, ch
 // bridge; the standalone mockup has no bridge and keeps one tone. A mouse resting on a toast, or focus in it, holds its
 // clock; a finger never does (a tap on its words froze it until the next tap elsewhere).
 // GOING (Ruben, 18 Oct 2026: on a phone toasts stood far too long). A press anywhere besides it, or on its words, takes
-// it (the press does what it does as well); so do its ×, which every toast carries, Escape inside it, its Undo or act,
-// and under a finger a pull down or a flick across (touchSwipe). A send's Undo, the one way to stop the send, `stays`
-// through a tap besides for its window.
+// it (the press does what it does as well), and so do Escape inside it, its Undo or act, and under a finger a pull down
+// or a flick across (touchSwipe); no × (a tap besides is one). A send's Undo `stays` through a tap besides. A phone
+// shows the newest alone, as one snackbar: three stood over its page's foot.
 // Usage: const [toastNode, flash] = usePPToast();
 //   flash({ msg, tone?: "ok"|"info"|"warn"|"danger", undo?, action?: {label,onClick}, links?: [{label,to}], ms?, icon?, once?, stays? })
 // `once`: a name for what the toast says; a second flash with the same name refreshes that toast in place of stacking
@@ -63,6 +63,7 @@ const toastShapeOf = (p) => (window.__chrome && window.__chrome.toast)
   : { tone: p.tone || "ok", icon: p.icon || "check", role: "status", ms: p.ms || 4000, stays: false };
 // A press on one of these inside a toast is that control's, never a press on the toast's words.
 const TOAST_OWN_PRESS = "button, a, input, select, textarea, [role='button']";
+const toastCap = () => (window.matchMedia && window.matchMedia("(max-width: 900px)").matches ? 1 : 3);
 // `place`: a class of the caller's own on the stack, so its toasts can stand somewhere of its own (Ask's desk panel).
 const usePPToast = (place) => {
   const [toasts, setToasts] = React.useState([]);
@@ -106,7 +107,7 @@ const usePPToast = (place) => {
       const twin = payload.once ? ts.find((x) => x.once === payload.once) : null;
       if (twin) stop(twin.id);
       const next = [...ts.filter((x) => x !== twin), { ...payload, ...shape, id }];
-      while (next.length > 3) stop(next.shift().id);
+      while (next.length > toastCap()) stop(next.shift().id);
       return next;
     });
     arm(id, shape.ms);
@@ -137,7 +138,6 @@ const usePPToast = (place) => {
           ))}
           {toast.action && <button className="pp-toast-cta" onClick={() => { close(toast.id); toast.action.onClick(); }}>{toast.action.label}</button>}
           {toast.undo && <button className="pp-toast-cta" onClick={() => { toast.undo(); close(toast.id); }}>Undo</button>}
-          <button className="pp-toast-x" onClick={() => close(toast.id)} aria-label="Dismiss"><Icon name="x" size={11} /></button>
         </div>
       ))}
     </div>,
