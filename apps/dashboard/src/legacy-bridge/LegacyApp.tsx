@@ -53,6 +53,7 @@ import { reportsCampaignsOverride } from "@/surfaces/reports/campaigns-surface";
 import { SURFACE_ROUTES } from "@/surfaces/routes";
 import { liveOverride } from "@/surfaces/live/surface";
 import { broadcastsOverride } from "@/surfaces/campaigns/broadcasts/surface";
+import { audiencesOverride } from "@/surfaces/campaigns/broadcasts/audiences-surface";
 import { playbooksOverride } from "@/surfaces/campaigns/playbooks/surface";
 import { calendarOverride } from "@/surfaces/calendar/surface";
 import { calendarRunsOverride } from "@/surfaces/calendar/runs-surface";
@@ -214,6 +215,8 @@ const SURFACES = [
   liveOverride,
   broadcastsOverride,
   playbooksOverride,
+  // Who each audience a broadcast offers reaches, read where a composer is drawn (surfaces/campaigns/broadcasts/audiences-surface.ts).
+  audiencesOverride,
   // A reach-out's chains and their emails (Part 4 PR 8): Playbooks' rows and Templates' email rows.
   reachOutsOverride,
   // Campaigns › Sequences (decision 0060): its list, read where its view is drawn (surfaces/campaigns/sequences/surface.ts).

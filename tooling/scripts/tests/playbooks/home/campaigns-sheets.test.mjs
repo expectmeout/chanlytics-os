@@ -59,11 +59,21 @@ const { Picker } = await import(`${SRC}/surfaces/kit/picker/picker.tsx`);
 const { BroadcastSend } = await import(`${SRC}/surfaces/campaigns/broadcasts/broadcasts-page.tsx`);
 const status = await import(`${SRC}/legacy-bridge/surface-status.ts`);
 
-/** The surfaces the composer is made of: the broadcasts as the sample makes them, read, and the settings read. */
+/**
+ * The surfaces the composer is made of: Sent's surface and who each audience reaches (broadcasts/audiences-surface.ts), as the
+ * sample makes them, read, and the settings read.
+ */
 function surfaces() {
   const now = new Date(NOW);
-  const bc = broadcastsSample(now);
-  setSurfaceValue("broadcasts", { ...bc, reach: { people: 29, canHear: 7, saidMessages: 7, saidOffers: 0 } });
+  const { audiences, listsRead, heardRead, reach, ...bc } = broadcastsSample(now);
+  setSurfaceValue("broadcasts", bc);
+  setSurfaceValue("audiences", {
+    audiences,
+    listsRead,
+    heardRead,
+    reach: { ...reach, people: 29, canHear: 7, saidMessages: 7, saidOffers: 0 },
+    fetchedAt: bc.fetchedAt,
+  });
   setSurfaceValue("settings", { templatesAll: bc.templates, messages: contracts.campaignMessagesOf(bc.templates) });
 }
 
@@ -177,6 +187,24 @@ test("a broadcasts read that failed is said in Send once, with a Retry that read
     assert.equal(byTestId(send, "cmh-composer-reading"), null);
   } finally {
     status.setStatus("broadcasts", "live");
+  }
+});
+
+test("who each audience reaches is half of what Send once is made of: while it is out Send once is reading, and a read of it that failed is said with a Retry that reads it again", () => {
+  surfaces();
+  setSurfaceValue("audiences", undefined);
+  fresh();
+  assert.ok(byTestId(page("new"), "cmh-composer-reading"), "Sent's runs alone are no send screen: reading");
+  status.setStatus("audiences", "seeded");
+  try {
+    fresh();
+    refreshed.length = 0;
+    const send = page("new");
+    assert.match(textOf(byTestId(send, "cmh-composer-failed")), /Couldn't read who and what you can send to/);
+    press(byTestId(send, "cmh-composer-failed-retry"));
+    assert.deepEqual(refreshed, ["audiences"], "its Retry reads the audiences, not Sent's runs, which were read");
+  } finally {
+    status.setStatus("audiences", "live");
   }
 });
 

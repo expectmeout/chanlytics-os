@@ -39403,8 +39403,8 @@ interface LifecycleFailedRead {
     what: string;
     /** What is still current, one sentence. */
     body: string;
-    /** The surface its Retry reads again. */
-    surface: "playbooks" | "settings" | "reach_outs" | "broadcasts" | "campaign_results";
+    /** The surface its Retry reads again: the composer's, Sent's runs or who each audience reaches. */
+    surface: "playbooks" | "settings" | "reach_outs" | "broadcasts" | "audiences" | "campaign_results";
 }
 /** Each read the home is made from that failed, or null where it was read (or has not landed yet, which says nothing). */
 interface LifecycleFailed {

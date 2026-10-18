@@ -17,9 +17,9 @@
  */
 import { LIFECYCLE_WORDS } from "@chanlytics/contracts";
 import { Segmented } from "../../kit/segmented/segmented";
+import { useSurfaceFailed } from "../../use-surface";
 import { BroadcastSend } from "../broadcasts/broadcasts-page";
-import type { Flash } from "../broadcasts/page/types";
-import type { BroadcastsSurface } from "../broadcasts/surface";
+import type { BcWhole, Flash } from "../broadcasts/page/types";
 import { WriteToLeads } from "../reach-out/sources";
 import type { ReachOutsSurface } from "../reach-out/surface";
 import type { ReachOutStart } from "../reach-out/sources";
@@ -32,8 +32,8 @@ type Compose = NonNullable<HomeAddress["compose"]>;
 interface NewMessageProps {
   /** What the address asks for, or null while the composer is closed. */
   compose: Compose | null;
-  /** The broadcasts: undefined before they are read, null where they could not be. */
-  broadcasts: BroadcastsSurface | null | undefined;
+  /** Sent's surface and who each audience reaches: undefined before both are read, null where either could not be. */
+  broadcasts: BcWhole | null | undefined;
   /** The reach-outs' chains a change waits on: undefined before they are read, null where they could not be. */
   chains: ReachOutsSurface | undefined;
   /** The sheets' toast host: it stays while the sheet closes over what a send says. */
@@ -49,6 +49,8 @@ interface NewMessageProps {
 
 /** The send screen, once the broadcasts it is made of are read: reading while they are out, said when they could not be. */
 function SendOnce({ compose, broadcasts, flash, onClose, onYes }: NewMessageProps & { compose: Compose }) {
+  // Its Retry reads again what could not be read: Sent's surface, else who each audience reaches (audiences-surface.ts).
+  const sentFailed = useSurfaceFailed("broadcasts");
   if (broadcasts) {
     return (
       <BroadcastSend
@@ -61,7 +63,8 @@ function SendOnce({ compose, broadcasts, flash, onClose, onYes }: NewMessageProp
     );
   }
   if (broadcasts === undefined) return <HomeReading testid="cmh-composer-reading" />;
-  return <HomeFailed failed={LIFECYCLE_WORDS.compose.failed} testid="cmh-composer-failed" />;
+  const failed = LIFECYCLE_WORDS.compose.failed;
+  return <HomeFailed failed={sentFailed ? failed : { ...failed, surface: "audiences" }} testid="cmh-composer-failed" />;
 }
 
 /** A reach-out's change while the chains it opens on are out, or could not be read: its own sheet takes over once they are. */

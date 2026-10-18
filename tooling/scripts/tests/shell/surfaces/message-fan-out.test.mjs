@@ -397,7 +397,15 @@ test("Campaigns' landing hears what Sequences hears, and its composer owns what 
     assert.ok(r.asked.includes("broadcasts"), "the replies Campaigns let pass are read once on Sent");
     r.asked.length = 0;
     await r.message();
-    assert.deepEqual([...new Set(r.asked)].sort(), ["broadcasts", "conversations", "inbox", "sequences", "today"]);
+    // And who each audience reaches, drawn there for Send it again, as Sent's surface heard it when the audiences were part of it.
+    assert.deepEqual([...new Set(r.asked)].sort(), [
+      "audiences",
+      "broadcasts",
+      "conversations",
+      "inbox",
+      "sequences",
+      "today",
+    ]);
   } finally {
     r.stop();
     win.location.hash = "#/today";
@@ -859,21 +867,26 @@ test("the page that owns what it draws is an explicit one: the surface registry 
     assert.equal(owns(key, "campaigns"), false, `Campaigns' landing does not own ${key}`);
   }
   assert.equal(owns("playbooks", "campaigns/message:hello"), true, "a message's drawer waits for the playbooks");
-  // Sent's runs are drawn in the composer for who can hear you, the pause on offers and the send-once composer: owned there for
-  // what moves those (a cell of kinds), and left to Sent for a message, which moves a run's replies.
-  assert.equal(owns("broadcasts", "campaigns/new"), true, "Sent's runs are drawn in the composer, for some kinds");
-  assert.equal(owns("broadcasts", "campaigns"), false, "and not on Campaigns' landing");
+  // Who each audience reaches is drawn in the composer for who can hear you and the send-once composer, and Sent's runs for the
+  // pause on offers and the Send by ticks: owned there for what moves those (a cell of kinds), and left to Sent for a message,
+  // which moves a run's replies.
+  for (const key of ["audiences", "broadcasts"]) {
+    assert.equal(owns(key, "campaigns/new"), true, `${key}: drawn in the composer, for some kinds`);
+    assert.equal(owns(key, "campaigns"), false, `${key}: and not on Campaigns' landing`);
+    assert.equal(registry.ownsTable(key, "messages", "campaigns/new"), false, `${key}: a message is re-read on Sent`);
+  }
   assert.equal(
-    registry.ownsTable("broadcasts", "contacts", "campaigns/new"),
+    registry.ownsTable("audiences", "contacts", "campaigns/new"),
     true,
     "a person's answer moves who can hear you",
   );
-  assert.equal(registry.ownsTable("broadcasts", "messages", "campaigns/new"), false, "a message is re-read on Sent");
+  assert.equal(registry.ownsTable("broadcasts", "contacts", "campaigns/new"), false, "and moves no run");
   assert.equal(
-    registry.ownsTable("broadcasts", "segments", "campaigns/new"),
+    registry.ownsTable("audiences", "segments", "campaigns/new"),
     true,
     "a list To offers moves who can hear you",
   );
+  assert.equal(registry.ownsTable("broadcasts", "tenant_channels", "campaigns/new"), true, "a number moves Send by");
   // Settings is drawn there whole: a message's drawer is the Library's pane, which says what sends it (the playbooks and runs its
   // read joins: W-campaign-run-template-reachout-2), as the Library itself does; and Sequences' step editor offers its messages.
   for (const route of ["campaigns", "campaigns/message:hello", "messages"])
@@ -893,7 +906,7 @@ test("the page that owns what it draws is an explicit one: the surface registry 
   // feed there, a long wait later: reports/headline.ts), the replies to a reach-out its queue draws, and the setup band, which hears
   // what its rows state there (the wiring's second audit, S4-3; a message only while the first WhatsApp message is awaited). And
   // People's person alone: its rows are the steps due and Worth a look's names there (W-visit-deal-5); a message is not People's.
-  for (const key of ["broadcasts", "reports", "playbooks", "calendar", "notifications", "live", "google"])
+  for (const key of ["broadcasts", "audiences", "reports", "playbooks", "calendar", "notifications", "live", "google"])
     assert.equal(owns(key, "today"), false, `today does not own ${key}`);
   assert.equal(owns("today", "today"), true);
   for (const key of ["reports_headline", "reach_out_replies", "setup", "people"])

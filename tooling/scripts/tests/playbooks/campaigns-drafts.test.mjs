@@ -177,11 +177,18 @@ const ownTemplate = {
     { position: 2, label: "Value 2", example: "20% off" },
   ],
 };
-const broadcastsSurface = (over = {}) => ({
+/** Who each audience reaches, as its own read publishes it (broadcasts/audiences-surface.ts): the composer is made of it too. */
+const audiencesSurface = (over = {}) => ({
   audiences: [
     { kind: "everyone", id: null, label: "Everyone who said yes", counts: { marketing: 2, conversational: 3 } },
     { kind: "saved", id: "s1", label: "Regulars", counts: { marketing: 1, conversational: 1 } },
   ],
+  listsRead: true,
+  heardRead: true,
+  fetchedAt: 1,
+  ...over,
+});
+const broadcastsSurface = (over = {}) => ({
   templates: [ownTemplate],
   rows: [toBroadcastVM(dto(), ZONE)],
   more: false,
@@ -190,7 +197,6 @@ const broadcastsSurface = (over = {}) => ({
   number: healthyNumber,
   optIn: null,
   getYes: contracts.GET_YES_ROUTE,
-  listsRead: true,
   scheduleMaxDays: 30,
   businessName: "Northside Studio",
   bookingLink: false,
@@ -303,6 +309,7 @@ beforeEach(() => {
   clearTabMemory();
   globalThis.__recordFolds.reset();
   setSurfaceValue("broadcasts", broadcastsSurface());
+  setSurfaceValue("audiences", audiencesSurface());
   setSurfaceValue("playbooks", playbooksSurface());
 });
 
@@ -470,11 +477,16 @@ test("the send screen's door to their yes, pressed in Campaigns' sheet, replaces
   globalThis.history.back = () => backs.push("back");
   try {
     setSurfaceValue(
-      "broadcasts",
-      broadcastsSurface({
+      "audiences",
+      audiencesSurface({
         audiences: [
           { kind: "everyone", id: null, label: "Everyone who said yes", counts: { marketing: 0, conversational: 0 } },
         ],
+      }),
+    );
+    setSurfaceValue(
+      "broadcasts",
+      broadcastsSurface({
         optIn: {
           phrase: "YES OFFERS",
           phraseEs: "SI OFERTAS",

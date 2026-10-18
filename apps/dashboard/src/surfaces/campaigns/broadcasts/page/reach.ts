@@ -29,7 +29,7 @@ import {
 } from "../../parts/channels";
 import { cmChannelOfPerson, cmOfferFoot, cmPreviewBy } from "../../parts/preview-by";
 import { starters } from "../../templates/verbs";
-import type { AudienceOption } from "../surface";
+import type { AudienceOption } from "../audiences-surface";
 import { broadcasts } from "../verbs";
 import { BC_NONE } from "../run";
 import { bcWhenNote } from "../when";

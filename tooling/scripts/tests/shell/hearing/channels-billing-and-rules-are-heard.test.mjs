@@ -66,6 +66,7 @@ const { liveOverride } = await importSrc("apps/dashboard/src/surfaces/live/surfa
 const { peopleOverride } = await importSrc("apps/dashboard/src/surfaces/people/surface.ts");
 const { playbooksOverride } = await importSrc("apps/dashboard/src/surfaces/campaigns/playbooks/surface.ts");
 const { broadcastsOverride } = await importSrc("apps/dashboard/src/surfaces/campaigns/broadcasts/surface.ts");
+const { audiencesOverride } = await importSrc("apps/dashboard/src/surfaces/campaigns/broadcasts/audiences-surface.ts");
 const { reviewsOverride } = await importSrc("apps/dashboard/src/surfaces/reports/reviews-surface.ts");
 const { DEFAULT_REFRESH_TABLES } = await importSrc("apps/dashboard/src/legacy-bridge/surface-realtime.ts");
 
@@ -184,7 +185,8 @@ test("the composers hear the channel, the line and the billing account on their 
 
 test("a mode saved reads the rules' own read, and what the page on screen draws of the rest; each of the rest is left for the pages that draw it, never read for a page nobody has open (W-review-facts-rules-9, S10-6)", () => {
   // Resume asks 'It sends on its own: nothing will wait for your approval' when the class is Auto, from the modes the playbooks read held;
-  // People's follow-up column says the mode, and the Reviews lens whether a review's composer asks for a draft.
+  // People's follow-up column says the mode, the Reviews lens whether a review's composer asks for a draft, and the audiences count
+  // by the rules. Sent's runs read no mode (reads-are-heard's rows read what they can change).
   const win = {
     location: globalThis.location,
     addEventListener(_t, fn) {
@@ -192,7 +194,7 @@ test("a mode saved reads the rules' own read, and what the page on screen draws 
     },
     removeEventListener() {},
   };
-  const owedOn = (hash, overrides = [playbooksOverride, broadcastsOverride]) => {
+  const owedOn = (hash, overrides = [playbooksOverride, audiencesOverride]) => {
     const read = [];
     at("#/__nowhere");
     const stop = readWhatWasMissed(overrides, (k) => read.push(...k), win);
@@ -221,8 +223,8 @@ test("a mode saved reads the rules' own read, and what the page on screen draws 
   );
   assert.deepEqual(
     owedOn("#/campaigns/new"),
-    ["broadcasts"],
-    "Sent's runs are read as Campaigns' composer comes on screen: the runs it draws hear the rules there",
+    ["audiences"],
+    "who each audience reaches is read as Campaigns' composer comes on screen: the audiences it draws hear the rules there",
   );
   assert.deepEqual(owedOn("#/broadcasts"), ["playbooks"], "and Sent the playbooks, which name its runs' campaigns");
   assert.deepEqual(owedOn("#/outbound"), [], "and their own page owes nothing more");
@@ -236,23 +238,23 @@ test("a mode saved reads the rules' own read, and what the page on screen draws 
   at("#/inbox");
   assert.deepEqual(
     keysOf("PUT policies"),
-    ["settings", "broadcasts"],
-    "from the Inbox, the runs waiting for your word it draws beside the rules' own read",
+    ["settings"],
+    "from the Inbox, the rules' own read alone: the runs waiting for your word it draws read no mode",
   );
-  assert.deepEqual(owedOn("#/campaigns/new"), [], "Campaigns' composer owes nothing: Sent's runs were read");
+  assert.deepEqual(owedOn("#/campaigns/new"), ["audiences"], "Campaigns' composer, the audiences it draws");
   assert.deepEqual(owedOn("#/outbound"), ["playbooks"], "the playbooks as their own page comes on screen");
   settle();
 
   at("#/campaigns/new");
   assert.deepEqual(
     keysOf("PUT policies"),
-    ["settings", "broadcasts"],
-    "on Campaigns' composer Sent's runs are read at once",
+    ["settings", "audiences"],
+    "on Campaigns' composer who each audience reaches is read at once",
   );
   assert.deepEqual(
     owedOn("#/broadcasts"),
     ["playbooks"],
-    "Sent owes the playbooks alone, which name its runs' campaigns: its runs were read in the composer",
+    "Sent owes the playbooks alone, which name its runs' campaigns: the audiences were read in the composer",
   );
   assert.deepEqual(owedOn("#/outbound"), [], "and their own page owes nothing more");
   settle();
@@ -260,8 +262,8 @@ test("a mode saved reads the rules' own read, and what the page on screen draws 
   at("#/broadcasts");
   assert.deepEqual(
     keysOf("PUT policies"),
-    ["settings", "playbooks", "broadcasts"],
-    "Sent draws a run's playbook beside its runs",
+    ["settings", "playbooks", "audiences"],
+    "Sent draws a run's playbook beside its runs, and the audiences Send it again offers",
   );
   at("#/campaigns");
   assert.deepEqual(keysOf("PUT policies"), ["settings"], "Campaigns' landing, Sequences' list, draws neither composer");

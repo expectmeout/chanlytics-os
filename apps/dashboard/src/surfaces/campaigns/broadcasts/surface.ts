@@ -1,48 +1,32 @@
 /**
- * The Broadcasts override: the sends, their audiences and templates, and the
- * number they go out on. Part of the SurfaceData seam (../surface-data.ts); the
- * audiences read People through ./people.
+ * The Broadcasts override: Sent's runs, the templates a broadcast may go on, and the number it goes out on. Part of the
+ * SurfaceData seam (../surface-data.ts). Who each audience reaches is counted over everyone in People, and is a surface of its
+ * own (./audiences-surface.ts), read only where a composer is drawn: everything that says a run waits reads this one (the
+ * badge, Today's queue, the Inbox's rows, Ask's Right now, a run's sheet), and it asks for nothing of People, so none of them
+ * waits on People's whole book (the Inbox's run review, 18 Oct 2026).
  */
 
 import { api, read } from "@/legacy-bridge/api";
 import { workspaceZone } from "@/legacy-bridge/zone";
 import {
-  CONSENT_LIST_IDS,
-  PEOPLE_LISTS,
-  savedListIds,
-  savedListLookup,
-  poolListContext,
-  poolRowsOf,
   BROADCAST_CHUNK,
   BROADCAST_SCHEDULE_MAX_DAYS,
-  EVERYONE_HINT,
-  EVERYONE_LABEL,
   GET_YES_ROUTE,
   HELD_REASONS,
   REPLY_WINDOW_WORDS,
   OFFERS_OPT_IN_PHRASES,
-  DEFAULT_CAMPAIGN_CHANNELS,
-  audiencePreview,
   optInLink,
-  reachCountsOf,
   takesSignUps,
   toBroadcastVM,
-  type AudienceKind,
-  type AudiencePreview,
   type BroadcastVM,
   type ChannelsReady,
-  type ConsentChannel,
   type MonthSent,
   type NumberHealth,
   type OpenToCustomers,
-  type AskedPurpose,
-  type ReachCounts,
 } from "@chanlytics/contracts";
-import { otherChannelSets } from "@/lib/campaign-channels";
 import { type SurfaceOverride, workspaceOverride } from "@/legacy-bridge/surface-data";
-import { COUNTED_RECEIPTS, DEAR_READ_LONGEST_WAIT_MS, RECEIPTS_QUIET_MS } from "@/legacy-bridge/surface-realtime";
+import { COUNTED_RECEIPTS, RECEIPTS_QUIET_MS } from "@/legacy-bridge/surface-realtime";
 import { declareReads } from "@/legacy-bridge/surface-registry";
-import { everyPerson, viewerId } from "@/surfaces/people/surface";
 import { followSettings } from "../../offered-templates";
 import { declareSurfaceValue, setSurfaceValue, shareUnchanged, surfaceValue } from "../../surface-values";
 import { channelsHeld, followChannels } from "../../channels/surface";
@@ -50,7 +34,6 @@ import {
   cmBusinessOf,
   cmNumberOf,
   cmOfferedFrom,
-  cmReadyOf,
   cmSameBusiness,
   cmSameNumber,
   type CmOffered,
@@ -60,47 +43,6 @@ import {
 declareSurfaceValue("broadcasts", "__BROADCASTS");
 
 /* ------------------------------ Broadcasts ------------------------------- */
-
-export interface AudienceOption {
-  kind: AudienceKind;
-  id: string | null;
-  label: string;
-  /**
-   * How many of them this audience reaches, PER PURPOSE, because there is no one
-   * number any more: a `utility` template needs their yes to messages, a
-   * marketing one needs their separate yes to offers, and the same list has two
-   * different sizes depending on which is picked.
-   *
-   * This used to be a single `count` computed once per surface load, with a
-   * comment promising it was "the number the route will find". The route reads
-   * the chosen template's category; the chip could not, so the promise held only
-   * while both were wrong in the same direction. The page now indexes by the
-   * purpose of the template actually selected.
-   */
-  counts: Record<AskedPurpose, number>;
-  /**
-   * A handful of the people the count is a length of, per purpose, so the
-   * composer can show one of them at a time beside the message.
-   *
-   * The chip said `23` and nothing else, so the last thing an owner saw before
-   * an irreversible send was a number -- not that three of the twenty-three have
-   * no first name on file and open with "Hi there", and not which two are in the
-   * list but held back. The rows are already in hand here; this is the same
-   * pass, keeping a few of them instead of only counting.
-   *
-   * It says how many on the list said yes, too (`saidYes`), a number or not: a
-   * count of 0 is "nobody said yes" only when that is 0 as well.
-   */
-  preview: Record<AskedPurpose, AudiencePreview>;
-  /**
-   * Both of the above are for WhatsApp alone, as every broadcast went before. A broadcast may tick more channels, and who
-   * it reaches then depends on the set ticked (each person is reached once, on one of them: contracts reachFor), so the
-   * same preview is kept for each other set the workspace could tick for each purpose, which the composer reads as the
-   * owner ticks and unticks. Absent where there is no other set to tick.
-   */
-  by?: Record<AskedPurpose, Array<{ channels: ConsentChannel[]; preview: AudiencePreview }>>;
-  hint: string;
-}
 
 /**
  * A message a broadcast may be sent on, with the one thing the composer cannot work out for itself: WHICH consent sending it
@@ -121,7 +63,8 @@ export interface BroadcastsSurface {
   templates?: BroadcastTemplate[] | null;
   /**
    * Whether the workspace can send on each channel now (server/campaigns/channels-ready.ts); null where that could not be
-   * read. The Send by row is drawn from it (parts/channels.ts cmReadyOf), as are the audiences' previews.
+   * read. The Send by row is drawn from it (parts/channels.ts cmReadyOf), as are the audiences' previews (audiences-surface.ts,
+   * from the same read).
    */
   ready: ChannelsReady | null;
   /**
@@ -136,19 +79,6 @@ export interface BroadcastsSurface {
    * Null where the workspace's clock could not be read, and on a server from before it was carried.
    */
   month_sent_next: { from: number; sent: MonthSent | null } | null;
-  /** Whether the saved lists were read; false leaves the audiences without them, and the page says so. */
-  listsRead: boolean;
-  /**
-   * Whether who heard from a campaign or a broadcast this week was read (GET broadcasts' `touched_at`); false counts the
-   * audiences with nobody left out, and the composer says the send still leaves them out (contracts HEARD_UNREAD_WORDS).
-   */
-  heardRead: boolean;
-  audiences: AudienceOption[];
-  /**
-   * Who can hear the workspace, counted once over everyone read from the one rule every page asks (contracts
-   * reachCountsOf over each row's personReachOf): Campaigns' home draws it as its ladder.
-   */
-  reach: ReachCounts;
   /** The WhatsApp number a broadcast goes out on, and what WhatsApp has said about it. */
   number: { present: boolean; display: string | null; health: NumberHealth };
   /** The words for a held-back reason, for the detail view. */
@@ -195,22 +125,6 @@ const monthSentNextOf = (read: {
 }): { from: number; sent: MonthSent | null } | null => read.month_sent_next ?? null;
 
 /**
- * Whether a People list is an audience a broadcast offers: not the three consent lists, each a restatement of the
- * eligibility filter the list is already crossed with, and not one whose data the workspace has not switched on.
- */
-function listIsAnAudience(
-  l: (typeof PEOPLE_LISTS)[number],
-  has: { calendar: boolean; consultFirst: boolean; deals: boolean },
-): boolean {
-  return (
-    !CONSENT_LIST_IDS.includes(l.id) &&
-    (!l.needsCalendar || has.calendar) &&
-    (!l.needsConsultFirst || has.consultFirst) &&
-    (!l.needsDeals || has.deals)
-  );
-}
-
-/**
  * The messages a broadcast may be sent on are the settings read's, the one read of the templates (parts/channels.ts
  * cmOfferedFrom, over offered-templates.ts): this surface asks for no GET templates of its own, so a template approved, blocked or
  * written is told to the composer by the read that tells Settings, and the composer is made of it again each time that is
@@ -229,8 +143,7 @@ let optInFrom: { slug: string | null; open: OpenToCustomers | null } | null = nu
 
 /**
  * Sent's runs as the last read answered them, and the zone their times are said in: the clock says each run's time again from
- * them each minute where Sent's runs are drawn (`rederive`), so "goes out in 5 min" does not stand an hour after it went. Who
- * an audience counts is a read of everyone, and stays the read's.
+ * them each minute where Sent's runs are drawn (`rederive`), so "goes out in 5 min" does not stand an hour after it went.
  */
 let lastRuns: { runs: Parameters<typeof toBroadcastVM>[0][]; tz: string } | null = null;
 
@@ -254,50 +167,6 @@ followChannels("broadcasts", (held, rows) => {
   if (cmSameNumber(held.number, number)) return held;
   return { ...held, number, ...(optInFrom ? { optIn: optInOf(wa.e164, optInFrom.slug, optInFrom.open) } : {}) };
 });
-
-/** What a saved list's chip says under its name: kept by hand, or keeping itself current. */
-function savedHint(byHand: boolean): string {
-  return byHand
-    ? "A list kept by hand — of those whose yes covers this message"
-    : "A list that keeps itself current — of those whose yes covers this message";
-}
-
-/**
- * What an audience carries of who it reaches: both purposes for WhatsApp alone, as every broadcast went (`counts`, with
- * the preview each is the length of), and the same preview for each other set of channels the workspace could tick for
- * each purpose (`by`), since who is reached on which channel depends on the set (contracts reachFor). One pass over the
- * people already in hand for each; `by` is absent where there is no other set to tick.
- */
-function optionReadings(
-  rows: Parameters<typeof audiencePreview>[0],
-  of: { kind: AudienceKind; id: string | null; ids: Set<string> | null },
-  how: { ready: ChannelsReady; touches: Readonly<Record<string, readonly string[]>> },
-): Pick<AudienceOption, "counts" | "preview" | "by"> {
-  const { kind, id, ids } = of;
-  const { ready, touches } = how;
-  // A broadcast is the business's news: by email it asks for a yes covering email or a relationship (decision D1).
-  const reading = (purpose: AskedPurpose, channels: readonly ConsentChannel[]) =>
-    audiencePreview(rows, kind, id, ids, purpose, { channels, ready, about: "ours" }, 5, touches);
-  const preview = {
-    conversational: reading("conversational", DEFAULT_CAMPAIGN_CHANNELS),
-    marketing: reading("marketing", DEFAULT_CAMPAIGN_CHANNELS),
-  };
-  const sets = (purpose: AskedPurpose) =>
-    otherChannelSets(ready, purpose, "ours").map((channels) => ({ channels, preview: reading(purpose, channels) }));
-  const by = { conversational: sets("conversational"), marketing: sets("marketing") };
-  return {
-    counts: { conversational: preview.conversational.sending, marketing: preview.marketing.sending },
-    preview,
-    ...(by.conversational.length > 0 || by.marketing.length > 0 ? { by } : {}),
-  };
-}
-
-/**
- * Broadcasts: the rows with the numbers their messages earned, the approved
- * templates, and every audience with the count of people who may receive an
- * offer — computed here by the same contracts predicate the route enrols
- * with, so the number on the chip is the number the route will find.
- */
 
 /**
  * How a customer says yes, for the card that gets it: the phrase, the link that opens WhatsApp with it ready, the code of
@@ -326,47 +195,24 @@ export const broadcastsOverride: SurfaceOverride = {
   events: ["surface:broadcasts"],
   // Each run's time is the clock's (hearing/clock.ts).
   rederive: rederiveBroadcasts,
-  // Its audiences are counted over everyone in People: a run's stream of receipts is waited out longer (S10-2).
-  maxWaitMs: DEAR_READ_LONGEST_WAIT_MS,
   // A run's "N delivered" moves with its receipts: heard while Sent is on screen, and read once they quieten (S3-5).
   refreshOnMessageStatuses: COUNTED_RECEIPTS,
   receiptsQuietMs: RECEIPTS_QUIET_MS,
-  // A run made by the sweep, approved in another tab, sending or finished (00321) is this surface's own row: heard
-  // wherever the tab is, since Today draws its Approve and Stop rows from here. A message moves a run's replies: read
-  // again only while Sent is on screen, and once when it comes back (surface-registry.ts PAGE_HEARS). So does a visit, which the audiences' pools read (a visit marked missed or cancelled
-  // leaves a reminder's: #1551), and a number, a line or the workspace's pause, which the Send by tick is worded from. And what the
-  // composers read of the business (0047): who may be sent to (the person: an answer, a stop, people imported), the rules the
-  // Send tick and the chips beside it say, the mailbox whose offers the gates paused and the business's facts, the postal address
-  // an offer by email names and the booking link a slot fills. And the lists To offers and counts: a list made, renamed or emptied by a
-  // teammate or another tab (the wiring's second audit, W-person-list-lead-7). Not the templates: the messages it offers are the
-  // settings read's, which hears them and which this surface follows (followSettings above).
+  // A run made by the sweep, approved in another tab, sending or finished (00321) is this surface's own row: heard wherever the
+  // tab is, since the badge, Today's Approve and Stop rows and the Inbox's rows are drawn from here. A message moves a run's
+  // replies and the month's count: read again only while Sent is on screen, and once when it comes back (surface-registry.ts
+  // PAGE_HEARS). So does a number, a line, the mailbox or the workspace's pause, which the Send by tick is worded from, and the
+  // business's config the read is made with. Not the templates and not the business's name and links: those are the settings
+  // read's, which hears them and which this surface follows (followSettings above). Not People: who an audience reaches is
+  // audiences-surface.ts's, and nothing here is counted over anyone.
   ...declareReads("broadcasts", {
-    // And a deal (an audience of proposals out, or a yes since), and the team the people read names (reads-not-heard's owed,
-    // closed where Sent is drawn). Not the templates: Settings reads them, once, and Sent follows it (templates-are-read-once).
-    reads: [
-      "conversation",
-      "hold",
-      "visit",
-      "channel",
-      "billing",
-      "person",
-      "rules",
-      "facts",
-      "send",
-      "list",
-      "deal",
-      "team",
-    ],
+    reads: ["conversation", "channel", "billing", "facts", "send"],
     fresh: "its-page",
     always: ["send"],
     omit: [
       {
-        tables: ["invitations"],
-        why: "the people it counts name the members who wrote or took something; an invitation not yet taken names no one",
-      },
-      {
-        tables: ["appointment_notices"],
-        why: "a booking email held for a look is the Calendar's and Settings'; the audiences' pools read the appointments themselves",
+        tables: ["conversations"],
+        why: "a run's replies and receipts are its messages; a thread's own row (its state, who holds it) moves no run and no count Sent says",
       },
       {
         tables: ["mailbox_connections", "capability_activations", "business_records"],
@@ -376,96 +222,18 @@ export const broadcastsOverride: SurfaceOverride = {
   }),
   apply: async () => {
     // The number and the business's name and links are not read here: they are the channels read's and the settings read's,
-    // which this surface follows (above), so a re-read of the runs for a message asks for neither again (S10-9).
-    const [bc, people, saved, tz] = await Promise.all([
+    // which this surface follows (above), so a re-read of the runs for a message asks for neither again (S10-9). Nor is
+    // anyone in People: the runs and what the read says beside them are drawn from GET broadcasts alone.
+    const [bc, tz] = await Promise.all([
       read("GET broadcasts"),
-      read("GET contacts"),
-      read("GET segments").catch((e: unknown) => e as Error),
       // When a broadcast went or goes, by the business's clock (zone.ts).
       workspaceZone(),
     ]);
     // The number they go out on: the workspace's WhatsApp line (contracts whatsappLineOf), as the playbooks surface reads it.
     const wa = cmNumberOf(channelsHeld());
     const now = new Date();
-    // Every page of people, not the first: the send enrols everyone, so an
-    // audience counted over one page promised fewer people than the send reaches.
-    const { people: everyone } = await everyPerson(people);
-    // The pool's one reading (contracts audience-pool.ts), as the send reads it.
-    const rows = poolRowsOf(everyone, {
-      tz,
-      now,
-      viewer: viewerId(),
-      dealsOn: !!people.deals_on,
-      ready: bc.ready,
-    });
-    // The number's health as WhatsApp last said it, and whether each channel can send now (the read's own; where it could
-    // not be read, WhatsApp as before, which the number's banner judges): who an audience reaches is judged against it.
+    // The number's health as WhatsApp last said it.
     const number = { present: wa.present, display: wa.display, health: wa.health };
-    const ready = cmReadyOf(bc.ready);
-    // Both purposes, for every audience, so picking a template re-reads a number
-    // rather than recomputing a list. Two passes over the people already in hand, for WhatsApp alone, as every broadcast
-    // went; and one more for each other set of channels the owner could tick for the purpose, since who is reached on
-    // which channel depends on the set (reachFor). Who a run reached from a week ago on, or is due to, and when, for the
-    // note on how many of an audience hear from one within a week of the send, either side (contracts heardFor, at the
-    // picked time).
-    const touches = bc.touched_at ?? {};
-    const optionFor = (kind: AudienceKind, id: string | null, ids: Set<string> | null) =>
-      optionReadings(rows, { kind, id, ids }, { ready, touches });
-    const audiences: AudienceOption[] = [
-      {
-        kind: "everyone",
-        id: null,
-        label: EVERYONE_LABEL,
-        ...optionFor("everyone", null, null),
-        hint: EVERYONE_HINT,
-      },
-      // The calendar lists are audiences only when there is a calendar to read them
-      // from. The three consent lists are never audiences: each is a restatement of
-      // the eligibility filter this list is already crossed with, so picking one
-      // would read as narrowing while changing nothing.
-      ...PEOPLE_LISTS.filter((l) =>
-        listIsAnAudience(l, {
-          calendar: people.calendar?.state === "ok",
-          consultFirst: !!people.consult_first,
-          deals: !!people.deals_on,
-        }),
-      ).map((l) => ({
-        kind: "list" as const,
-        id: l.id,
-        label: l.label,
-        ...optionFor("list", l.id, null),
-        hint: `${l.label} — of those whose yes covers this message`,
-      })),
-      ...(saved instanceof Error
-        ? []
-        : // An archived list is sent to no new broadcast (00169): it is off People's rail, and the send refuses it.
-          saved.lists
-            .filter((s) => !s.archived_at)
-            .map((s) => ({
-              kind: "saved" as const,
-              id: s.id,
-              label: s.name,
-              // Counted as the send will count it (lists.ts): a rule that can't be counted here reaches nobody, and
-              // the send refuses it in words.
-              ...optionFor(
-                "saved",
-                null,
-                savedListIds(
-                  s,
-                  rows,
-                  poolListContext({
-                    calendar: people.calendar?.state ?? "none",
-                    dealsOn: !!people.deals_on,
-                    consultFirst: !!people.consult_first,
-                    viewer: viewerId(),
-                  }),
-                  savedListLookup(saved.lists),
-                ),
-              ),
-              hint: savedHint(s.rule == null),
-            }))),
-    ];
-    if (saved instanceof Error) console.error("broadcasts_lists_fetch_failed", saved.message);
     // The workspace being VIEWED, for the public page's address.
     const slug = workspaceOverride.current()?.slug ?? null;
     optInFrom = { slug, open: bc.open_to_customers ?? null };
@@ -474,13 +242,8 @@ export const broadcastsOverride: SurfaceOverride = {
       rows: bc.broadcasts.map((b) => toBroadcastVM(b, tz, now)),
       scheduleMaxDays: BROADCAST_SCHEDULE_MAX_DAYS,
       more: bc.more === true,
-      listsRead: !(saved instanceof Error),
-      // Null is a read that failed; a server from before it was carried says nothing, and is read as read.
-      heardRead: bc.touched_at !== null,
       // The messages are the settings read's, as it stands now (absent while that is still being read; followSettings above).
       templates: shareUnchanged(surfaceValue("broadcasts")?.templates, cmOfferedFrom(surfaceValue("settings"))),
-      audiences,
-      reach: reachCountsOf(rows),
       number,
       ready: bc.ready ?? null,
       month_sent: monthSentOf(bc),

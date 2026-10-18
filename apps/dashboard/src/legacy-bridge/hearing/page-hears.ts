@@ -56,16 +56,17 @@ export const PAGE_HEARS: Readonly<Record<string, Readonly<Record<string, PageCel
   // the settings read, and none of the surfaces of the sheets it opens over the list, which hear at their own addresses.
   campaigns: { sequences: true, settings: true },
   // The composer Campaigns opens over Sequences' list (`campaigns/new…`): the settings read's templates, the reach-outs'
-  // chains a change to one opens on, and Sent's runs,
-  // drawn in Send once: who can hear you, the pause on offers and its Send by ticks. It hears here what moves those (a
-  // person's answer, the business's facts, the rules, a channel, the plan, a visit the audiences leave, a list To offers),
-  // and leaves to Sent's sheets what moves a run's replies (a message, a thread, a hold), so a message here never re-reads
-  // the broadcasts and every page of People behind them (W-review-facts-rules-2).
+  // chains a change to one opens on, Sent's runs and who each audience reaches, drawn in Send once: the pause on offers, its
+  // Send by ticks and the month (the runs' read), and who can hear you (the audiences'). It hears here what moves those (a
+  // person's answer, the business's facts, the rules, a channel, the plan, a visit the audiences leave, a list To offers, a
+  // run that went to some of them this week), and leaves to Sent's sheets what moves a run's replies (a message, a thread, a
+  // hold), so a message here never re-reads every page of People behind the audiences (W-review-facts-rules-2).
   "campaigns/new": {
     sequences: true,
     reach_outs: true,
     settings: true,
-    broadcasts: ["person", "facts", "rules", "channel", "billing", "visit", "list"],
+    broadcasts: ["facts", "channel", "billing"],
+    audiences: ["person", "facts", "rules", "channel", "billing", "visit", "list", "send"],
   },
   // A message in its drawer over Sequences' list (`campaigns/message:<name>`): the settings read's templates it is drawn
   // from, and the playbooks surface whose library names the call's text (W-campaign-run-template-reachout-2).
@@ -76,8 +77,10 @@ export const PAGE_HEARS: Readonly<Record<string, Readonly<Record<string, PageCel
   // Campaigns › Sequences (decision 0060): its own list, whole, and the settings read its step editor offers messages from.
   "campaigns/sequences": { sequences: true, settings: true },
   messages: { settings: true },
-  // Sent's sheets, beside Sequences' list (decision 0060, D3), whole.
-  broadcasts: { broadcasts: true, sequences: true, settings: ["review"] },
+  // Sent's sheets, beside Sequences' list (decision 0060, D3), whole, and who each audience reaches with them (Send it again
+  // offers a run's list while it can still be sent to), as Sent's surface heard it when the audiences were part of it. Read
+  // beside the sheet, never waited for: the sheet is drawn from Sent's runs.
+  broadcasts: { broadcasts: true, sequences: true, settings: ["review"], audiences: true },
   clients: { people: true },
   segments: { people: true },
   // A person's page waits for who is looking and hears its own person (people-detail.ts personOverride): a rename, a stop, a
