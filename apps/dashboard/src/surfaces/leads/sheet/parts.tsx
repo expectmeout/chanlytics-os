@@ -1,30 +1,29 @@
 /**
- * The lead sheet's card at half height (canvas B v2, "Decide at half height"; the refined canvas, 17 Oct 2026): what a
- * decision needs, in the order the eye wants it. Who they are, the word for where they stand beside the name (as the
- * sequence's Leads tab files them), the fit as a meter; the reason to write now, in large type; what it rests on, as
- * quiet marks whose source is a tap away; three cells for how they can be reached; and the sequence box: Joins, In or
- * Left the sequence, its name a door to the record, Change beside it, and one line of where they stand. The email
- * they would get and their steps are the Sequence tab's. Over it in a pile, how far through it is and Undo; at its
- * end, what happened.
+ * The lead sheet's card at half height (the refined canvas, 17 Oct 2026, its Main and PhoneHalf boards): what a decision
+ * needs, in the order the eye wants it. Who they are, with the word for where they stand beside the name (as the
+ * sequence files them) and one line under it of what and where; the reason, in plain type; one line for the checks
+ * (their dots, how many passed, what did not, in amber) that opens Why; one line for the ways in (the address, the phone
+ * in amber where it is not confirmed, the site) that opens Contact; and the sequence box: Joins, In or Left the
+ * sequence, its name a door to the record, Change beside it, and one line of where they stand. The email they would get
+ * and their steps are the Sequence tab's. Over it in a pile, how far through it is and Undo; at its end, what happened.
  *
  * Hookless: the sheet (sheet.tsx) holds what is open and hands it down. Every word is contracts' (lead-sheet.ts,
- * lead-card.ts). A tip is the canvas's: its trigger is the thing itself (a mark, a cell, the meter, the reason), a tap
- * on a phone and hover or focus on a desk (`data-tip`), never an act.
+ * lead-sheet-card.ts, lead-card.ts).
  */
 import type { ReactNode } from "react";
 import {
   LEAD_CARD_WORDS,
+  LEAD_SHEET_CARD_WORDS as CW,
   LEAD_SHEET_WORDS as W,
   LEAD_WORDS,
   type LeadCardEmailVM,
-  type LeadCardMarkVM,
   type LeadCardPart,
   type LeadCardReasonVM,
   type LeadPeekVM,
   type LeadRowVM,
   type LeadSheetBoxVM,
-  type LeadSheetCellVM,
-  type LeadSheetFitVM,
+  type LeadSheetChecksLineVM,
+  type LeadSheetContactLineVM,
   type LeadSheetTrackVM,
   type LeadWordTone,
 } from "@chanlytics/contracts";
@@ -32,67 +31,19 @@ import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { Meter } from "../../kit/meter/meter";
 import { StatePill } from "../../kit/pill/state-pill";
-import { statePillPart } from "../../legacy-parts";
 import { LeadTile } from "../cells/tile";
-import { ldCheckMark } from "../peek/hint";
-
-/** A tip the canvas draws over the thing tapped: shown while it is the one open, its words always in the tree. */
-export interface SheetTips {
-  open: string | null;
-  toggle: (key: string) => void;
-}
-
-/** The bubble over a trigger, while it is the open one. */
-const bubbleOf = (tips: SheetTips, key: string, words: string, side: "" | " right" | " below" = "") =>
-  tips.open === key ? (
-    <span className={`lw-bubble${side}`} role="status">
-      {words}
-    </span>
-  ) : null;
 
 /* ------------------------------------------------------------------------------------------------------- who -- */
 
 /**
- * The fit as five parts of a meter, a check read rather than seen shaded apart, its pill only where the fit's word is
- * news (Worth a look); tapping it says what the checks found.
- */
-const fitOf = (fit: LeadSheetFitVM, tips: SheetTips) => {
-  const FitPill = statePillPart();
-  return (
-    <span className="lw-fit">
-      <button
-        type="button"
-        className="lw-fit-go"
-        aria-label={fit.tip}
-        data-tip={fit.tip}
-        onClick={() => tips.toggle("fit")}
-        data-testid="lead-sheet-fit"
-      >
-        {fit.pill && fit.pill.kind === "lead_fit" ? (
-          <FitPill kind={fit.pill.kind} value={fit.pill.value} label={fit.pill.label} testid="peek-fit-word" />
-        ) : null}
-        <Meter
-          className="lw-fit-bar"
-          size="sm"
-          parts={fit.meter.map((tone) => ({ share: 1, tone }))}
-          aria-label={fit.tip}
-        />
-      </button>
-      {bubbleOf(tips, "fit", fit.tip, " below")}
-    </span>
-  );
-};
-
-/**
  * Who they are: the face (its photo opens large), the name (a door to the person they became) and beside it the word
- * for where they stand, which never wraps (a long name shortens instead), the line about where.
+ * for where they stand, which never wraps (a long name shortens instead), and under it what and where, which wraps.
  */
 export const SheetWho = (p: {
   vm: LeadPeekVM;
   row: Pick<LeadRowVM, "id" | "name" | "tile"> | null;
-  fit: LeadSheetFitVM;
   word: { word: string; tone: LeadWordTone };
-  tips: SheetTips;
+  sub: string;
   onExpand: () => void;
   onOpenPerson: (id: string) => void;
   /** The desk's ⋯ and Close, at the row's end; a phone's sheet has its own. */
@@ -126,23 +77,21 @@ export const SheetWho = (p: {
         <StatePill kind="tone" value={p.word.tone} label={p.word.word} testid="lead-sheet-word" />
       </span>
       <span className="lw-sub" data-testid="peek-sub">
-        {[p.vm.sub, p.vm.today].filter(Boolean).join(" · ")}
+        {p.sub}
       </span>
     </span>
-    {fitOf(p.fit, p.tips)}
     {p.end}
   </div>
 );
 
-/* ------------------------------------------------------------------------------------- the reason and its marks -- */
+/* ------------------------------------------------------------------------------------- the reason and its lines -- */
 
-/** The reason, the card's headline: where it came from a tap away. They wrote back: what they said, as it was read. */
+/** The reason, in plain type, where it came from on hover. They wrote back: what they said, as it was read. */
 export const SheetNow = (p: {
   reason: LeadCardReasonVM | null;
   fallback: string;
   reply: string | null;
   replied: boolean;
-  tips: SheetTips;
 }) => {
   if (p.replied)
     return (
@@ -152,68 +101,63 @@ export const SheetNow = (p: {
       </div>
     );
   const text = p.reason ? p.reason.text : p.fallback;
-  if (!text) return null;
-  return (
-    <div className="lw-now-w">
-      <button
-        type="button"
-        className={`lw-now ${p.reason ? p.reason.how : "read"}`}
-        data-tip={p.reason ? p.reason.from : undefined}
-        onClick={() => p.tips.toggle("now")}
-        data-testid="lead-pile-why"
-      >
-        {text}
-      </button>
-      {p.reason ? bubbleOf(p.tips, "now", p.reason.from, " below") : null}
-    </div>
-  );
+  return text ? (
+    <p className="lw-rs" title={p.reason ? p.reason.from : undefined} data-testid="lead-pile-why">
+      {text}
+    </p>
+  ) : null;
 };
 
-/** What the reason rests on: each check's mark (seen, a dashed ring read, couldn't tell) and its words; its source a tap. */
-export const SheetMarks = ({ marks, tips }: { marks: LeadCardMarkVM[]; tips: SheetTips }) =>
-  marks.length ? (
-    <div className="lw-ev" data-testid="lead-card-marks">
-      {marks.map((m) => (
-        <span key={m.key} className="lw-ev-w">
-          <button
-            type="button"
-            className={`lw-ev-i ${m.how}${m.answer === "unknown" ? " ask" : ""}`}
-            data-tip={m.from}
-            onClick={() => tips.toggle(`ev-${m.key}`)}
-            data-testid={`lead-card-mark-${m.key}`}
-          >
-            {ldCheckMark(m.how, m.answer)}
-            {m.label}
-          </button>
-          {bubbleOf(tips, `ev-${m.key}`, m.from)}
-        </span>
+/** The checks in one line: a dot each (a passed one read shaded apart), how many passed, and what did not, in amber. */
+export const SheetChecksLine = ({ line, onOpen }: { line: LeadSheetChecksLineVM; onOpen: () => void }) => (
+  <LinkButton
+    size="inherit"
+    className="lw-ln"
+    onClick={onOpen}
+    title={`${line.tip} · ${CW.openWhy}`}
+    data-testid="lead-sheet-checks"
+  >
+    <span className="lw-dots" aria-hidden="true">
+      {line.dots.map((d, i) => (
+        <i key={i} className={d} />
       ))}
-    </div>
-  ) : null;
+    </span>
+    <span className="lw-ln-t">
+      {line.fit ? `${line.fit} · ` : null}
+      {line.words}
+      {line.exception ? (
+        <>
+          {" · "}
+          <span className="lw-amber">{line.exception}</span>
+        </>
+      ) : null}
+    </span>
+    <Icon name="chevron" size={10} />
+  </LinkButton>
+);
 
-/** How they can be reached: three cells, a dot each, a second word only where the dot is not ok; the story a tap away. */
-export const SheetCells = ({ cells, tips }: { cells: LeadSheetCellVM[]; tips: SheetTips }) => (
-  <div className="lw-cells" data-testid="lead-card-reach">
-    {cells.map((c, i) => (
-      <span key={c.key} className="lw-cell-w">
-        <button
-          type="button"
-          className={`lw-cell ${c.tone}`}
-          data-tip={c.tip}
-          onClick={() => tips.toggle(`cell-${c.key}`)}
-          data-testid={`lead-card-reach-${c.key}`}
-        >
-          <Icon name={c.key === "email" ? "mail" : c.key === "phone" ? "phone" : "globe"} size={14} />
-          <span className="lw-cell-t">{c.label}</span>
-          <span className="lw-cell-s">
-            <i aria-hidden="true" />
-            {c.word}
-          </span>
-        </button>
-        {bubbleOf(tips, `cell-${c.key}`, c.tip, i === cells.length - 1 ? " right" : "")}
+/** The ways in, in one line: the address, the phone (amber where it is not confirmed), the site. */
+export const SheetContactLine = ({ line, onOpen }: { line: LeadSheetContactLineVM; onOpen: () => void }) => (
+  <LinkButton size="inherit" className="lw-ln" onClick={onOpen} title={CW.openContact} data-testid="lead-sheet-contact">
+    <Icon name="mail" size={14} />
+    <span className={`lw-ln-t${line.email.warn ? " lw-amber" : ""}`} data-testid="lead-sheet-contact-email">
+      {line.email.text}
+    </span>
+    {line.phone ? (
+      <span className="lw-ln-w">
+        <Icon name="phone" size={14} />
+        <span className={line.phone.warn ? "lw-amber" : undefined} data-testid="lead-sheet-contact-phone">
+          {line.phone.text}
+        </span>
       </span>
-    ))}
-  </div>
+    ) : null}
+    {line.site ? (
+      <span className="lw-ln-w">
+        <Icon name="globe" size={14} />
+        <span>{line.site}</span>
+      </span>
+    ) : null}
+  </LinkButton>
 );
 
 /* ------------------------------------------------------------------------------------------------- the email -- */

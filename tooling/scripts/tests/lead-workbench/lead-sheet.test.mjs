@@ -1,7 +1,8 @@
 /**
  * The lead sheet (canvas B v2, "The Workbench"; the refined canvas, 17 Oct 2026), run: which of the canvas's states a lead
  * is in, by its own record, the add door's answer and its story (leadSheetStateOf); what stopped (leadSheetClosedOf); the
- * fit as a meter, a check read shaded apart, its word only when it is news; three reach cells; where they stand in their
+ * card's lines (the line under the name, the checks line with a check read shaded apart and the fit's word only when it
+ * is news, the ways-in line) and Why's checks, what did not pass first (lead-sheet-card.ts); where they stand in their
  * sequence and the word beside the name, in Sequences' words; the sequence box; the dock, which holds only what needs
  * you, its keys named and a press that would fail off with why, and nothing when nothing does; the end of a pile; their
  * steps on the record's rail of days; Change's options; a row's place on Leads; and the dock as the page draws it, its
@@ -15,8 +16,10 @@ import { installLegacyReact, fresh, again, all, byTestId } from "../_legacy-reac
 const {
   leadSheetStateOf,
   leadSheetClosedOf,
-  leadSheetFitOf,
-  leadSheetCellsOf,
+  leadSheetSubOf,
+  leadSheetChecksLineOf,
+  leadSheetContactLineOf,
+  leadSheetWhyOf,
   leadSheetDockOf,
   leadSheetPlaceOf,
   leadSheetWordOf,
@@ -30,6 +33,7 @@ const {
   LEAD_SHEET_WORDS: W,
   LEAD_DOCK_WORDS: D,
   LEAD_PLACE_WORDS: P,
+  LEAD_SHEET_CARD_WORDS,
 } = contracts;
 
 const lead = (over = {}) => ({
@@ -99,40 +103,100 @@ const peek = (over = {}) => ({
   ...over,
 });
 
-test("the fit: the meter alone for a strong fit, a check read shaded apart; its word only when it is news", () => {
-  const strong = leadSheetFitOf(peek(), "ready");
-  assert.deepEqual(strong.meter, ["ok", "ok", "warn", "read", "rest"], "a check Claude read is softer than one seen");
-  assert.equal(strong.pill, null);
-  assert.equal(strong.tip, "3 checks passed · 1 couldn't tell");
-  assert.equal(
-    leadSheetFitOf(peek({ fit: { word: "Worth a look", cls: "look", sentence: "" } }), "ready").pill.label,
-    "Worth a look",
-  );
-  assert.equal(leadSheetFitOf(peek(), "review").pill.label, "Needs review");
-  assert.equal(leadSheetFitOf(peek(), "sequence").pill.label, "Contacted");
-  assert.equal(leadSheetFitOf(peek(), "replied").pill.label, "Talking");
+const check = (key, answer, how = "seen") => ({ key, label: key, answer, how, source: "Maps", reason: null });
+const card = (over = {}) => ({
+  ...peek(),
+  groups: [
+    { how: "seen", checks: [check("on_maps", "yes"), check("in_area", "yes")] },
+    { how: "read", checks: [check("phone_two_sources", "unknown", "read"), check("independent", "yes", "read")] },
+  ],
+  ...over,
 });
 
-test("the reach cells: email, phone and site, a second word only where the dot is not ok", () => {
-  const slot = (state, word) => ({ state, value: null, word, tip: `${word} tip`, copy: false });
-  const cells = leadSheetCellsOf({
-    slots: { mailbox: slot("checking", "checking"), phone: slot("ok", "agrees") },
-    reach: { email: { tip: "Being checked." }, phone: { tip: "Same on its listing and website." } },
-    links: {
-      website: { label: "luxelane.example.com", href: "https://luxelane.example.com" },
-      instagram: { label: "@luxe", href: "x" },
-    },
+test("the line under the name: the kind, the street and the rating, short on a phone", () => {
+  const vm = {
+    sub: "Hair salon · $$ · Queens, NY",
+    where: { line: "31-12 Ditmars Blvd, Queens, NY 11105", href: null },
+    rated: { score: "4.8", count: "212", reviews: "212 reviews", low: null },
     company: null,
+  };
+  assert.equal(leadSheetSubOf(vm), "Hair salon · 31-12 Ditmars Blvd · 4.8 from 212 reviews");
+  assert.equal(leadSheetSubOf(vm, true), "Hair salon · 31-12 Ditmars Blvd · 4.8 (212)", "the canvas's PhoneHalf");
+  assert.equal(
+    leadSheetSubOf({ ...vm, where: null, rated: null }),
+    "Hair salon · $$ · Queens, NY",
+    "the area, no street",
+  );
+});
+
+test("the checks line: a dot a check, a passed one Claude read shaded apart, the count, and what did not pass, short", () => {
+  const line = leadSheetChecksLineOf(card());
+  assert.deepEqual(line.dots, ["ok", "ok", "warn", "read"], "a check Claude read is softer than one seen");
+  assert.equal(line.words, "3 of 4 checks");
+  assert.equal(line.exception, "phone unconfirmed", "one that couldn't tell, in its own short words");
+  assert.equal(line.fit, null, "a strong fit has no word before the count");
+  assert.equal(line.tip, "3 checks passed · 1 couldn't tell");
+  const two = card({
+    groups: [{ how: "seen", checks: [check("on_maps", "no"), check("in_area", "unknown"), check("mailbox", "yes")] }],
   });
+  assert.equal(leadSheetChecksLineOf(two).exception, "1 failed · 1 couldn't tell", "several, by how many");
+  const look = card({ fit: { word: "Worth a look", cls: "look", sentence: "" } });
+  assert.equal(leadSheetChecksLineOf(look).fit, "Worth a look", "the fit's word where it is news");
+  const out = card({ fit: { word: "Left out — Chain gyms", cls: "out", sentence: "" } });
+  assert.equal(
+    leadSheetChecksLineOf(out).fit,
+    "Left out — Chain gyms",
+    "and what left it out, by the owner's criterion",
+  );
+  assert.equal(leadSheetChecksLineOf(card({ checkDots: [], groups: [] })), null, "no checks, no line");
+});
+
+test("the ways-in line: the address, the phone amber where it is not confirmed, the site", () => {
+  const vm = (over = {}) => ({
+    reach: { email: { address: "hi@luxelane.example.com" }, phone: { value: "+1 (718) 555-0142" } },
+    slots: { mailbox: { state: "ok" }, phone: { state: "unconfirmed" } },
+    links: { website: { label: "luxelane.example.com", href: "https://luxelane.example.com" }, linkedin: null },
+    company: null,
+    ...over,
+  });
+  assert.deepEqual(leadSheetContactLineOf(vm()), {
+    email: { text: "hi@luxelane.example.com", warn: false },
+    phone: { text: "+1 (718) 555-0142", warn: true },
+    site: "site",
+  });
+  const none = leadSheetContactLineOf(
+    vm({ reach: { email: { address: null }, phone: null }, links: { website: null, linkedin: null } }),
+  );
+  assert.deepEqual(none, { email: { text: LEAD_SHEET_CARD_WORDS.noEmail, warn: true }, phone: null, site: null });
+  const company = leadSheetContactLineOf(
+    vm({ company: {}, links: { website: null, linkedin: { label: "acme", href: "x" } } }),
+  );
+  assert.equal(company.site, "LinkedIn", "a company's site is its LinkedIn");
+});
+
+test("Why's checks: what did not pass first, the rest folded under how many passed, and a legend where Claude read one", () => {
+  const why = leadSheetWhyOf(card());
+  assert.equal(why.count, "3 of 4");
   assert.deepEqual(
-    cells.map((c) => [c.key, c.word, c.tone]),
+    why.exceptions.map((c) => c.key),
+    ["phone_two_sources"],
+  );
+  assert.deepEqual(
+    why.passed.map((c) => [c.key, c.how]),
     [
-      ["email", "checking", "info"],
-      ["phone", null, "ok"],
-      ["site", "+ Insta", "ok"],
+      ["on_maps", "seen"],
+      ["in_area", "seen"],
+      ["independent", "read"],
     ],
   );
-  assert.equal(cells[1].tip, "Same on its listing and website.");
+  assert.equal(why.fold, "3 passed");
+  assert.equal(why.legend, true);
+  assert.equal(
+    leadSheetWhyOf(card({ groups: [{ how: "seen", checks: [check("on_maps", "yes")] }] })).legend,
+    false,
+    "all seen: nothing to tell apart",
+  );
+  assert.equal(leadSheetWhyOf(card({ groups: [] })), null);
 });
 
 const dockFacts = (over = {}) => ({
@@ -160,7 +224,14 @@ test("the dock holds what needs you: ✕, Later and Add for a lead to decide on;
     ready.acts.map((s) => s.key),
     ["n", "l", "a"],
   );
-  assert.deepEqual([ready.line, ready.fact], [D.ready.line, D.ready.fact], "the consequence, said before the press");
+  assert.deepEqual(
+    [ready.line, ready.fact],
+    ["Joins Salon owners · Queens", D.ready.fact],
+    "where Add goes, named before the press (the refined canvas, decision 04), and what follows",
+  );
+  // Their story or the sequences still being read: the dock waits and offers nothing the reads could take back.
+  const reading = dockOf({ reading: true });
+  assert.deepEqual([reading.line, reading.waiting, reading.acts], [D.reading.line, true, []]);
   const off = dockOf({ state: "gap", blocked: "Its words need their city" });
   assert.equal(off.acts[2].off, "Its words need their city");
   assert.equal(off.fact, "Its words need their city", "why, in the dock's own line");
@@ -416,6 +487,8 @@ test("the word beside the name, and the sequence box: Joins, In or Left, by name
     searchWrites: null,
     canChange: true,
     closed: null,
+    firstSubject: null,
+    reading: false,
   };
   assert.deepEqual((({ verb, name, line, change }) => ({ verb, name, line, change }))(leadSheetBoxOf(base)), {
     verb: "Joins",
@@ -423,6 +496,14 @@ test("the word beside the name, and the sequence box: Joins, In or Left, by name
     line: "Step 1 after your OK",
     change: true,
   });
+  // Step 1 by its subject as this lead would get it, where every part of it fills (the refined canvas).
+  assert.equal(
+    leadSheetBoxOf({ ...base, firstSubject: "A quieter phone for Rose City Books" }).line,
+    "Step 1, “A quieter phone for Rose City Books”, after your OK",
+  );
+  // Still reading their story or the sequences: the box says so, never a place the reads would take back.
+  const reading = leadSheetBoxOf({ ...base, target: null, reading: true });
+  assert.deepEqual([reading.verb, reading.name, reading.line], [null, null, "Reading where they stand"]);
   const inIt = leadSheetBoxOf({ ...base, state: "sequence", place, inSequence: { rootId: "r2", name: "Indie shops" } });
   assert.deepEqual(
     [inIt.verb, inIt.name, inIt.rootId, inIt.line, inIt.change],

@@ -9,8 +9,6 @@
  *   leadSheetStateOf     which state: needs review, finding an email, a phone and no email, a gap, in another sequence,
  *                        in a sequence, they replied, closed, or ready
  *   leadSheetClosedOf    what stopped, in words, and the one fix that exists
- *   leadSheetFitOf       the fit meter, and its word only when it is news
- *   leadSheetCellsOf     how they can be reached: three cells, a second word only where one is not as it should be
  *   leadSheetEndRailOf   the acts at the end of a pile (the dock's for a lead: lead-sheet-dock.ts)
  *   leadSheetTrackOf     their steps in the sequence they are in: done, next, and still to come
  *   leadSheetOptionsOf   Change, opened in place: each sequence the adds could go to, and what it would come to here
@@ -25,7 +23,7 @@ import type { ReachOutChainDto } from "../../reach-out/reach-out-dtos";
 import { leadCardEmailOf, type LeadCardCheck, type LeadCardEmailVM, type LeadCardLead } from "../lead-card";
 import type { SlotWorkspace } from "../../reach-out/reach-out-rules";
 import type { LeadPeekVM } from "../lead-peek";
-import { LEAD_CLOSED_WORDS, LEAD_LEFT_OUT_WORD, LEAD_REVIEW_WORD, type LeadClass, type LeadStage } from "../lead-words";
+import { LEAD_CLOSED_WORDS, LEAD_LEFT_OUT_WORD, type LeadClass, type LeadStage } from "../lead-words";
 import type { LeadEmailState } from "../search/sets";
 
 /* ------------------------------------------------------------------------------------------------ the words -- */
@@ -39,8 +37,6 @@ export const LEAD_SHEET_WORDS = {
   more: "More for this lead",
   stage: "Stage",
   why: {
-    head: "Why it fits",
-    checks: (passed: number, of: number) => `${passed} of ${of} checks`,
     reasons: "Reasons to write now",
     people: "People here",
   },
@@ -225,102 +221,6 @@ export function leadSheetClosedOf(p: {
   if (!p.lead.hasEmail && !p.lead.canCall)
     return { title: "No way to reach them yet", line: "No address and no number were found.", fix: null };
   return { title: "Can't be written to", line: p.blocked ?? "This one can't be added.", fix: call };
-}
-
-/* --------------------------------------------------------------------------------------------- the card's parts -- */
-
-/** A pill as the house's StatePill draws it: the registry it reads, the value, and its word. */
-export interface LeadSheetPillVM {
-  kind: "lead_fit" | "lead_class" | "lead_stage";
-  value: string;
-  label: string;
-}
-
-/** The fit: five parts of the meter (a check each), its tip, and a pill only where the word is news. */
-export interface LeadSheetFitVM {
-  /** A check that passed (seen, or read: shaded apart), one that couldn't tell, then the rest. */
-  meter: ("ok" | "read" | "warn" | "rest")[];
-  tip: string;
-  pill: LeadSheetPillVM | null;
-}
-
-/** The meter's five parts: a check that passed (seen, or read), one that couldn't tell, then the rest. */
-function meterOf(dots: LeadPeekVM["checkDots"]): LeadSheetFitVM["meter"] {
-  const parts: LeadSheetFitVM["meter"] = dots
-    .slice(0, 5)
-    .map((d) => (d.answer === "yes" ? (d.how === "read" ? "read" : "ok") : d.answer === "unknown" ? "warn" : "rest"));
-  while (parts.length < 5) parts.push("rest");
-  return parts;
-}
-
-/**
- * The fit, in the card's name row: the meter alone for a strong fit; the word where it is news (Worth a look), and the
- * stage's word where the lead has moved past deciding (Contacted, Talking, Closed).
- */
-export function leadSheetFitOf(
-  vm: Pick<LeadPeekVM, "checkDots" | "checksSummary" | "fit" | "stage">,
-  state: LeadSheetState,
-): LeadSheetFitVM {
-  const base = { meter: meterOf(vm.checkDots), tip: vm.checksSummary };
-  if (state === "review") return { ...base, pill: { kind: "lead_class", value: "review", label: LEAD_REVIEW_WORD } };
-  if (state === "sequence" || state === "elsewhere")
-    return { ...base, pill: { kind: "lead_stage", value: "nurture", label: "Contacted" } };
-  if (state === "replied") return { ...base, pill: { kind: "lead_stage", value: "converted", label: "Talking" } };
-  if (state === "closed" && vm.stage === "archived")
-    return { ...base, pill: { kind: "lead_stage", value: "archived", label: "Closed" } };
-  const news = vm.fit.cls !== "strong" && vm.fit.word;
-  return { ...base, pill: news ? { kind: "lead_fit", value: vm.fit.cls, label: vm.fit.word } : null };
-}
-
-/** One way to reach them: its glyph, its word, a second word only when it is not as it should be, and what it says. */
-export interface LeadSheetCellVM {
-  key: "email" | "phone" | "site" | "linkedin";
-  label: string;
-  word: string | null;
-  tone: "ok" | "warn" | "info" | "none";
-  tip: string;
-}
-
-/** A slot's state as a cell's tone: ok, being checked, not quite, gone, or none. */
-const toneOf = (state: string): LeadSheetCellVM["tone"] =>
-  state === "ok" ? "ok" : state === "checking" ? "info" : state === "none" ? "none" : "warn";
-
-/**
- * How they can be reached: their email, their phone, and their site (a company's LinkedIn), each as the row's slots
- * judge it. The word after a cell's dot only where the dot is not ok; the whole story in its tip.
- */
-export function leadSheetCellsOf(vm: Pick<LeadPeekVM, "slots" | "reach" | "links" | "company">): LeadSheetCellVM[] {
-  const email = vm.slots.mailbox;
-  const phone = vm.slots.phone;
-  const third: LeadSheetCellVM =
-    vm.company && vm.links.linkedin
-      ? { key: "linkedin", label: "LinkedIn", word: null, tone: "ok", tip: vm.links.linkedin.label }
-      : vm.links.website
-        ? {
-            key: "site",
-            label: "Site",
-            word: vm.links.instagram ? "+ Insta" : null,
-            tone: "ok",
-            tip: vm.links.website.label,
-          }
-        : { key: "site", label: "Site", word: "none", tone: "none", tip: "No website was found." };
-  return [
-    {
-      key: "email",
-      label: "Email",
-      word: email.state === "ok" ? null : email.word,
-      tone: toneOf(email.state),
-      tip: vm.reach.email.tip,
-    },
-    {
-      key: "phone",
-      label: "Phone",
-      word: phone.state === "ok" ? null : phone.word,
-      tone: toneOf(phone.state),
-      tip: vm.reach.phone ? vm.reach.phone.tip : phone.tip,
-    },
-    third,
-  ];
 }
 
 /* --------------------------------------------------------------------------------------------------- the rail -- */
@@ -601,10 +501,4 @@ export function leadSheetStandOf(p: {
     title: "Not in a sequence yet",
     line: p.target ? `Add puts it on “${p.target}”'s list; it goes in its next batch.` : SW.noTarget,
   };
-}
-
-/** The checks' count for Why's head: "5 of 5 checks". */
-export function leadSheetChecksOf(vm: Pick<LeadPeekVM, "checkDots">): string {
-  const passed = vm.checkDots.filter((d) => d.answer === "yes").length;
-  return SW.why.checks(passed, vm.checkDots.length);
 }

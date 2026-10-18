@@ -235,20 +235,22 @@ export async function stopWritingTo(leadId: string, name: string, flash: Flash |
  * read, a send gone (read-again.ts). The lead sheet reads it once, for its state and its Activity alike.
  */
 export function useLeadStory(leadId: string | null) {
-  const [story, setStory] = useState<ReachOutLeadTimelineDto | null>(null);
+  // Whose story was read, and what it said: none (null) is told apart from not read yet.
+  const [held, setStory] = useState<{ leadId: string; story: ReachOutLeadTimelineDto | null } | null>(null);
   const [tick, again] = useReducer((n: number) => n + 1, 0);
   const moved = useReadAgain(leadId);
   useEffect(() => {
     if (!leadId) return undefined;
     let live = true;
     void reachOuts.leadTimeline(leadId).then((t) => {
-      if (live) setStory(t);
+      if (live) setStory({ leadId, story: t });
     });
     return () => {
       live = false;
     };
   }, [leadId, tick, moved]);
-  return { story: story && story.lead_id === leadId ? story : null, again };
+  const story = held && held.leadId === leadId && held.story && held.story.lead_id === leadId ? held.story : null;
+  return { story, read: !!held && held.leadId === leadId, again };
 }
 
 /** The block, over a story already read: its lines, where it stands, and its doors. */

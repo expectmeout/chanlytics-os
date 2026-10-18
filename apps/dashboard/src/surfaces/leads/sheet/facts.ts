@@ -1,31 +1,35 @@
 /**
  * What the lead sheet draws, worked out once a draw from what the page hands it (sheet.tsx): the lead's card (its
- * reason, marks and email, pile/card.tsx), its state and what stopped, the fit, the reach cells, its steps in a sequence
+ * reason and email, pile/card.tsx), its state and what stopped, the line under its name, its checks and ways-in lines
+ * and Why's checks (lead-sheet-card.ts), its steps in a sequence
  * and its place there, the word beside its name, the sequence box, the dock, what it wrote back, where it stands, and
  * Change's options. Every rule is contracts' (lead-sheet.ts, lead-sheet-dock.ts, lead-card.ts); this only gathers their
  * inputs from the page's reads.
  */
 import {
   leadSheetBoxOf,
-  leadSheetCellsOf,
+  leadSheetChecksLineOf,
   leadSheetClosedOf,
+  leadSheetContactLineOf,
   leadSheetDockOf,
   leadSheetEndRailOf,
-  leadSheetFitOf,
   leadSheetOptionsOf,
   leadSheetPlaceOf,
   leadSheetReplyOf,
   leadSheetStandOf,
   leadSheetStateOf,
   leadSheetStoryOf,
+  leadSheetSubOf,
   leadSheetTrackOf,
+  leadSheetWhyOf,
   leadSheetWordOf,
   type LeadCardCheck,
+  type LeadCardPart,
   type LeadPeekVM,
   type LeadRowVM,
-  type LeadSheetCellVM,
+  type LeadSheetChecksLineVM,
   type LeadSheetClosedVM,
-  type LeadSheetFitVM,
+  type LeadSheetContactLineVM,
   type LeadSheetLead,
   type LeadPlaceVM,
   type LeadSheetBoxVM,
@@ -35,6 +39,7 @@ import {
   type LeadSheetState,
   type LeadWordTone,
   type LeadSheetTrackVM,
+  type LeadSheetWhyVM,
   type ReachOutChainDto,
   type ReachOutLeadTimelineDto,
 } from "@chanlytics/contracts";
@@ -56,6 +61,8 @@ interface SheetInputs {
   tz: string;
   aim: LeadAim;
   story: ReachOutLeadTimelineDto | null;
+  /** Whether this lead's story has been read (none is told apart from not yet). */
+  storyRead: boolean;
   /** The open search's own sequence, where it writes to every ready lead it finds. */
   searchWrites: { rootId: string; name: string; chain: ReachOutChainDto | null } | null;
   pile: SheetPileFacts | null;
@@ -67,8 +74,11 @@ export interface SheetFacts {
   check: LeadCardCheck | undefined;
   state: LeadSheetState;
   closed: LeadSheetClosedVM | null;
-  fit: LeadSheetFitVM;
-  cells: LeadSheetCellVM[];
+  /** The line under the name, the card's checks and ways-in lines, and Why's checks. */
+  sub: { desk: string; phone: string };
+  checks: LeadSheetChecksLineVM | null;
+  contact: LeadSheetContactLineVM;
+  why: LeadSheetWhyVM | null;
   /** Their place in the sequence they are in, and the word beside their name. */
   place: LeadPlaceVM | null;
   word: { word: string; tone: LeadWordTone };
@@ -104,6 +114,15 @@ function mailOf(card: LeadCardFacts, name: string | null, canChange: boolean): S
   return { head: name, sub: "· email 1", canChange };
 }
 
+/** Step 1's subject as this lead would get it, where every part of it fills: words and values alone. */
+const subjectOf = (parts: LeadCardPart[] | null | undefined): string | null =>
+  parts && parts.length && parts.every((p) => p.kind === "text" || p.kind === "value")
+    ? parts
+        .map((p) => (p.kind === "text" || p.kind === "value" ? p.text : ""))
+        .join("")
+        .trim() || null
+    : null;
+
 /** The card, the door's answer and the lead's state: what the rest of the facts are read from. */
 function cardStateOf(i: SheetInputs) {
   const target = i.aim.target;
@@ -133,6 +152,14 @@ const replyOf = (story: ReachOutLeadTimelineDto | null) => {
   return r ? { intent: r.intent, readAt: r.read_at } : null;
 };
 
+/**
+ * Still reading: a lead the row says a sequence has whose story has not come back, or a lead to add before the sequences
+ * the adds could go to are known. The box and the dock say so, never a place the reads would take back.
+ */
+const stillReadingOf = (i: SheetInputs, c: ReturnType<typeof cardStateOf>): boolean =>
+  (!i.storyRead && !!(i.row && i.row.chainId)) ||
+  (i.aim.targets === null && !i.searchWrites && !c.lead.inSequence && c.state !== "closed");
+
 /** The dock for the lead's state and place, in its pile or out of one. */
 function sheetDockFor(
   i: SheetInputs,
@@ -151,6 +178,7 @@ function sheetDockFor(
     canLater: !!(i.row && i.row.searchId),
     closed: c.closed,
     reply: replyOf(i.story),
+    reading: stillReadingOf(i, c),
     tz: i.tz,
     nowMs,
   });
@@ -181,17 +209,21 @@ export function sheetFactsOf(i: SheetInputs, nowMs: number): SheetFacts {
     inSequence: track ? { rootId: track.rootId, name: track.name } : null,
     elsewhere: c.check && c.check.chain_name ? { rootId: c.check.chain_id ?? null, name: c.check.chain_name } : null,
     target: target ? { rootId: target.rootId, name: target.name } : null,
+    firstSubject: c.card.email ? subjectOf(c.card.email.subject) : null,
     searchWrites: writes ? { rootId: writes.rootId, name: writes.name } : null,
     canChange,
     closed: c.closed,
+    reading: stillReadingOf(i, c),
   });
   return {
     card: c.card,
     check: c.check,
     state: c.state,
     closed: c.closed,
-    fit: leadSheetFitOf(i.vm, c.state),
-    cells: leadSheetCellsOf(i.vm),
+    sub: { desk: leadSheetSubOf(i.vm), phone: leadSheetSubOf(i.vm, true) },
+    checks: leadSheetChecksLineOf(i.vm),
+    contact: leadSheetContactLineOf(i.vm),
+    why: leadSheetWhyOf(i.vm),
     place,
     word: leadSheetWordOf({ state: c.state, place, closed: c.closed }),
     box,

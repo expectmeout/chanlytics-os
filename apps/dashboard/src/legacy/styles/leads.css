@@ -1311,15 +1311,25 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
 .lw-desk { position: absolute; top: 12px; right: 12px; bottom: 12px; width: 408px; z-index: 10; display: flex; flex-direction: column; border-radius: var(--surface-pane-radius); background: var(--surface-pane-solid); box-shadow: var(--surface-pop-depth); overflow: hidden; animation: pk-in var(--duration-base) var(--ease-out) backwards; }
 @media (prefers-reduced-motion: reduce) { .lw-desk { animation: none; } }
 .lw-scroll { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior-y: contain; padding: 14px 0 12px; }
-.lw-foot { flex: none; display: flex; flex-direction: column; gap: 6px; padding: 8px 12px 12px; border-top: 1px solid var(--line); }
+.lw-foot { flex: none; display: flex; flex-direction: column; gap: 6px; padding: 8px 12px 12px; }
 .lw-body { display: flex; flex-direction: column; }
 /* On a phone the card meets the sheet's edges as the canvas draws it: its own gutter stands in for the sheet's. */
 .lw-in { display: flex; flex-direction: column; margin: 0 calc(-1 * var(--rec-gutter, 0px)); }
 /* The card's small controls keep the canvas's sizes, under the house's 44px floor for a thumb, which their hit area
    meets instead (a margin of nothing round each). */
-.lw-ev-i, .lw-cell, .lw-now, .lw-fit-go, .lw-change, .lw-undo, .lw-name-go { min-height: 0; min-width: 0; }
-.lw-ev-i, .lw-change, .lw-undo { position: relative; }
-.lw-ev-i::after, .lw-change::after, .lw-undo::after { content: ""; position: absolute; inset: -9px -4px; }
+.lw-change, .lw-undo, .lw-name-go { min-height: 0; min-width: 0; }
+.lw-change, .lw-undo, .lw-ln { position: relative; }
+.lw-change::after, .lw-undo::after { content: ""; position: absolute; inset: -9px -4px; }
+.lw-ln::after { content: ""; position: absolute; inset: -11px 0; }
+/* The house floors a press at 44px under a coarse pointer (html.legacy-on button): the card's lines keep their 22px,
+   and their margin of nothing above is the thumb's 44px. */
+.lw-turn .lw-ln { min-height: 22px; }
+.lw-turn .lw-box .lw-box-change { position: relative; height: 30px; min-height: 0; }
+.lw-turn .lw-box .lw-box-change::after { content: ""; position: absolute; inset: -7px -4px; }
+.lw-turn .lw-box .lw-box-door { position: relative; min-height: 0; }
+.lw-turn .lw-box .lw-box-door::after { content: ""; position: absolute; inset: -12px -4px; }
+/* At half on a phone the tabs sit under the card, closer than over a pane. */
+.lw-turn + .lw-read { padding-top: 10px; }
 .lw-full { display: flex; flex-direction: column; }
 /* The pile behind the card: two edges over the sheet's top, drawn only while a pile is on. */
 .lw-phone .lw-edges { position: absolute; top: -9px; left: 18px; right: 18px; height: 10px; border: 1px solid var(--surface-pop-edge); border-bottom: 0; border-radius: var(--radius-3xl) var(--radius-3xl) 0 0; background: var(--surface-pop-fill); pointer-events: none; }
@@ -1349,41 +1359,28 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
 .lw-name { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: var(--text-md); font-weight: var(--weight-semibold); letter-spacing: var(--tracking-tight); line-height: var(--leading-tight); color: var(--ink); }
 .lw-name-go { padding: 0; border: 0; background: none; font: inherit; font-size: var(--text-md); font-weight: var(--weight-semibold); text-align: left; cursor: pointer; }
 .lw-name-go:hover { text-decoration: underline; }
-.lw-sub { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: var(--text-sm); color: var(--ink-dim); }
-.lw-fit { position: relative; display: flex; }
-.lw-fit-go { display: flex; flex-direction: column; align-items: flex-end; gap: 5px; padding: 4px 0; border: 0; background: none; cursor: help; }
-.lw-fit-bar { width: 54px; }
+.lw-sub { font-size: var(--text-sm); line-height: var(--leading-snug); color: var(--ink-dim); }
 .lw-id-end { display: inline-flex; align-items: center; gap: 2px; }
 
-/* The reason, the card's headline: at most three lines; a tap says where it came from. */
-.lw-now-w { position: relative; }
-.lw-now { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; width: 100%; margin: 0; padding: 12px 18px 0; border: 0; background: none; font: inherit; font-size: var(--text-2xl); font-weight: var(--weight-semibold); letter-spacing: var(--tracking-tight); line-height: var(--leading-tight); text-align: left; text-wrap: balance; color: var(--ink); cursor: help; }
+/* The reason, in plain type (the refined canvas): where it came from on hover. */
+.lw-rs { margin: 10px 18px 0; font-size: var(--text-base); line-height: var(--leading-normal); color: var(--ink); }
 .lw-quote { padding: 12px 18px 0; }
 .lw-quote-t { margin: 0; font-size: var(--text-xl); font-weight: var(--weight-medium); line-height: var(--leading-snug); color: var(--ink); }
 .lw-quote-s { margin: 8px 0 0; font-size: var(--text-sm); color: var(--ink-muted); }
 
-/* What it rests on: a mark each (seen, a dashed ring read, couldn't tell), its source a tap away. */
-.lw-ev { display: flex; flex-wrap: wrap; gap: 6px; padding: 10px 18px 0; }
-.lw-ev-w, .lw-cell-w { position: relative; display: flex; min-width: 0; }
-.lw-ev-i { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px 0 8px; border: 0; border-radius: var(--radius-full); background: var(--surface-inset-fill); box-shadow: var(--surface-inset-ring); color: var(--ink); font: inherit; font-size: var(--text-sm); white-space: nowrap; cursor: help; }
-.lw-ev-i.ask { color: var(--warn-ink); }
-
-/* How they can be reached: three cells, a dot each, a second word only where the dot is not ok. */
-.lw-cells { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin: 10px 18px 0; }
-.lw-cell { display: flex; align-items: center; gap: 7px; width: 100%; height: 38px; min-width: 0; padding: 0 10px; border: 0; border-radius: var(--radius-lg); background: var(--surface-inset-fill); box-shadow: var(--surface-inset-ring); color: var(--ink-muted); font: inherit; text-align: left; cursor: help; }
-.lw-cell-t { font-size: var(--text-sm); font-weight: var(--weight-semibold); white-space: nowrap; color: var(--ink); }
-.lw-cell-s { display: inline-flex; align-items: center; gap: 5px; min-width: 0; margin-left: auto; overflow: hidden; font-size: var(--text-2xs); color: var(--ink-dim); white-space: nowrap; text-overflow: ellipsis; }
-.lw-cell-s i { flex: none; width: 6px; height: 6px; border-radius: var(--radius-circle); background: var(--ink-faint); }
-.lw-cell.ok .lw-cell-s i { background: var(--ok); }
-.lw-cell.warn .lw-cell-s i { background: var(--warn); }
-.lw-cell.info .lw-cell-s i { background: var(--info); }
-@media (hover: hover) { .lw-ev-i:hover, .lw-cell:hover { outline: 1px solid var(--line-strong); outline-offset: -1px; } }
-
-/* A tap's words, over what was tapped: on a phone at once; on a desk the house's data-tip on hover and focus. */
-.lw-bubble { position: absolute; left: 0; bottom: calc(100% + 8px); z-index: 6; width: max-content; max-width: 250px; padding: 7px 10px; border-radius: var(--radius-lg); background: var(--ink); color: var(--bg); font-size: var(--text-sm); font-weight: var(--weight-regular); line-height: var(--leading-snug); white-space: normal; text-align: left; box-shadow: var(--shadow-md); animation: lw-rise var(--duration-fast) var(--ease-out) both; pointer-events: none; }
-.lw-bubble.below { top: calc(100% + 8px); bottom: auto; }
-.lw-bubble.right { left: auto; right: 0; }
-.lw-now-w .lw-bubble { left: 18px; }
+/* The checks and the ways in, a line each (the refined canvas): each opens its tab. A dot a check, a passed one Claude
+   read shaded apart, one that couldn't tell amber, one that failed red; what is not as it should be in amber. */
+.lw-ln { display: flex; align-items: center; gap: 7px; width: auto; min-width: 0; min-height: 22px; margin: 8px 18px 0; color: var(--ink-muted); font-size: var(--text-sm); white-space: nowrap; text-align: left; text-decoration: none; }
+.lw-ln svg { flex: none; color: var(--ink-dim); }
+.lw-ln-t { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.lw-ln-w { display: inline-flex; flex: none; align-items: center; gap: 5px; margin-left: 5px; }
+.lw-amber { color: var(--warn-ink); }
+.lw-dots { display: inline-flex; flex: none; gap: 3px; }
+.lw-dots i { width: 6px; height: 6px; border-radius: var(--radius-circle); background: var(--ink-faint); }
+.lw-dots i.ok, .lw-dots i.read { background: var(--ok); }
+.lw-dots i.read { opacity: 0.55; }
+.lw-dots i.warn { background: var(--warn); }
+.lw-dots i.no { background: var(--danger); }
 
 /* The email they would get: the sequence's own lines with their values, the opening still to be written. */
 .lw-mail { margin: 10px 18px 0; padding: 11px 14px 12px; border-radius: var(--radius-xl); background: var(--surface-inset-fill); box-shadow: var(--surface-inset-ring), var(--surface-inset-depth); color: var(--ink); }
@@ -1413,7 +1410,7 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
 .lw-box { margin: 10px 18px 0; padding: 9px 12px 11px 14px; border-radius: var(--radius-xl); background: var(--surface-inset-fill); box-shadow: var(--surface-inset-ring), var(--surface-inset-depth); color: var(--ink); }
 .lw-box-h { display: flex; align-items: center; gap: 6px; min-width: 0; min-height: 30px; font-size: var(--text-sm); color: var(--ink-dim); white-space: nowrap; }
 .lw-box-v { flex: none; }
-.lw-box-door, .lw-box-n { min-width: 0; overflow: hidden; text-overflow: ellipsis; font-weight: var(--weight-semibold); color: var(--ink); }
+.lw-box-door, .lw-box-n { min-width: 0; margin-right: auto; overflow: hidden; text-overflow: ellipsis; font-weight: var(--weight-semibold); color: var(--ink); }
 .lw-box-change { flex: none; margin-left: auto; }
 .lw-box-l { margin: 2px 0 0; font-size: var(--text-sm); line-height: var(--leading-snug); color: var(--ink-muted); }
 
@@ -1428,15 +1425,19 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
 
 /* The dock: only what needs you, one line and its fact, a round ✕ where Not a fit is one, and at most two acts; none
    at all when nothing needs you. A sibling of the card, held still while it turns. */
-.lw-dock { display: flex; align-items: center; gap: 8px; min-height: 56px; padding: 6px 6px 6px 16px; border-radius: var(--radius-3xl); background: var(--surface-control-fill); box-shadow: var(--surface-control-depth); }
+.lw-dock { display: flex; align-items: center; gap: 4px; min-height: 56px; padding: 6px 6px 6px 16px; border-radius: var(--radius-3xl); background: var(--surface-control-fill); box-shadow: var(--surface-control-depth); }
 .lw-dock.x { padding-left: 6px; }
 .lw-dock-t { flex: 1; display: flex; flex-direction: column; gap: 1px; min-width: 0; }
 .lw-dock-l { display: flex; align-items: center; gap: 7px; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: var(--text-sm); font-weight: var(--weight-semibold); color: var(--ink); }
 .lw-dock-f { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: var(--text-xs); color: var(--ink-dim); }
 .lw-dock-b { flex: none; height: 44px; touch-action: manipulation; }
 .lw-dock[data-busy] { opacity: 0.8; }
+/* The keys a desk says under the dock: a pile's own and Undo, or J and K out of one. */
+.lw-keys { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 12px; margin: 0; font-size: var(--text-2xs); color: var(--ink-dim); }
+.lw-keys span { display: inline-flex; align-items: center; gap: 4px; }
+.lw-kbd { display: inline-grid; place-items: center; min-width: 18px; height: 18px; padding: 0 4px; border: 1px solid currentColor; border-radius: var(--radius-xs); font-family: var(--font-mono); font-size: var(--text-2xs); line-height: 1; opacity: 0.7; }
+.lw-dock-b .lw-kbd { margin-left: 4px; }
 .lw-x { flex: none; width: 44px; height: 44px; padding: 0; border-radius: var(--radius-circle); }
-.lw-desk .lw-dock { background: none; box-shadow: none; padding: 0; min-height: 44px; }
 /* A phone's dock keeps a thumb's 48px in the kit sheet's foot, whose button takes the foot's height otherwise. */
 .lw-phone .lw-dock .lw-dock-b, .lw-phone .lw-dock .lw-x { height: 48px; }
 .lw-phone .lw-dock .lw-x { width: 48px; }
@@ -1480,6 +1481,7 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
 
 /* Full height: the tabs, and the open one's pane. */
 .lw-read { display: flex; flex-direction: column; gap: 6px; padding: 14px 14px 0; }
+.lw-read > .lw-views { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); width: auto; }
 .lw-read > .lw-pane { margin: 0 -14px; }
 .lw-pane { display: flex; flex-direction: column; padding: 4px 18px 12px; animation: lw-rise var(--duration-base) var(--ease-out) both; }
 .lw-h { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 14px 0 8px; font-size: var(--text-sm); font-weight: var(--weight-semibold); color: var(--ink-muted); }
@@ -1490,6 +1492,12 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
 .lw-cks { display: flex; flex-direction: column; }
 .lw-ck { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; gap: 8px; align-items: center; padding: 6px 0; font-size: var(--text-base); color: var(--ink); }
 .lw-ck.no { color: var(--ink-dim); }
+.lw-fold-s { display: flex; align-items: center; gap: 6px; min-height: 32px; font-size: var(--text-sm); color: var(--ink-muted); list-style: none; cursor: pointer; }
+.lw-fold-s::-webkit-details-marker { display: none; }
+.lw-fold-s svg { color: var(--ink-dim); transition: transform var(--duration-fast) var(--ease-out); }
+.lw-fold[open] > .lw-fold-s svg { transform: rotate(90deg); }
+.lw-legend { display: flex; flex-wrap: wrap; gap: 4px 12px; margin: 6px 0 0; font-size: var(--text-xs); color: var(--ink-dim); }
+.lw-legend span { display: inline-flex; align-items: center; gap: 5px; }
 .lw-src { font-size: var(--text-xs); color: var(--ink-dim); white-space: nowrap; }
 .lw-sigs { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
 .lw-sig { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px 0 8px; border-radius: var(--radius-full); background: var(--surface-inset-fill); box-shadow: var(--surface-inset-ring); font-size: var(--text-sm); color: var(--ink); }
@@ -1536,7 +1544,7 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
 @keyframes lw-rise { from { transform: translateY(4px); opacity: 0; } }
 @media (prefers-reduced-motion: reduce) {
   .lw-turn { animation: lw-fade var(--duration-base) linear both; }
-  .lw-pane, .lw-why, .lw-end, .lw-undo, .lw-bubble { animation: none; }
+  .lw-pane, .lw-why, .lw-end, .lw-undo { animation: none; }
 }
 @keyframes lw-fade { from { opacity: 0; } }
 

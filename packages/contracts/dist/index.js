@@ -38679,8 +38679,6 @@ var LEAD_SHEET_WORDS = {
   more: "More for this lead",
   stage: "Stage",
   why: {
-    head: "Why it fits",
-    checks: (passed, of) => `${passed} of ${of} checks`,
     reasons: "Reasons to write now",
     people: "People here"
   },
@@ -38809,51 +38807,6 @@ function leadSheetClosedOf(p) {
     return { title: "No way to reach them yet", line: "No address and no number were found.", fix: null };
   return { title: "Can't be written to", line: p.blocked ?? "This one can't be added.", fix: call };
 }
-function meterOf(dots) {
-  const parts2 = dots.slice(0, 5).map((d) => d.answer === "yes" ? d.how === "read" ? "read" : "ok" : d.answer === "unknown" ? "warn" : "rest");
-  while (parts2.length < 5) parts2.push("rest");
-  return parts2;
-}
-function leadSheetFitOf(vm, state) {
-  const base = { meter: meterOf(vm.checkDots), tip: vm.checksSummary };
-  if (state === "review") return { ...base, pill: { kind: "lead_class", value: "review", label: LEAD_REVIEW_WORD } };
-  if (state === "sequence" || state === "elsewhere")
-    return { ...base, pill: { kind: "lead_stage", value: "nurture", label: "Contacted" } };
-  if (state === "replied") return { ...base, pill: { kind: "lead_stage", value: "converted", label: "Talking" } };
-  if (state === "closed" && vm.stage === "archived")
-    return { ...base, pill: { kind: "lead_stage", value: "archived", label: "Closed" } };
-  const news = vm.fit.cls !== "strong" && vm.fit.word;
-  return { ...base, pill: news ? { kind: "lead_fit", value: vm.fit.cls, label: vm.fit.word } : null };
-}
-var toneOf = (state) => state === "ok" ? "ok" : state === "checking" ? "info" : state === "none" ? "none" : "warn";
-function leadSheetCellsOf(vm) {
-  const email = vm.slots.mailbox;
-  const phone = vm.slots.phone;
-  const third = vm.company && vm.links.linkedin ? { key: "linkedin", label: "LinkedIn", word: null, tone: "ok", tip: vm.links.linkedin.label } : vm.links.website ? {
-    key: "site",
-    label: "Site",
-    word: vm.links.instagram ? "+ Insta" : null,
-    tone: "ok",
-    tip: vm.links.website.label
-  } : { key: "site", label: "Site", word: "none", tone: "none", tip: "No website was found." };
-  return [
-    {
-      key: "email",
-      label: "Email",
-      word: email.state === "ok" ? null : email.word,
-      tone: toneOf(email.state),
-      tip: vm.reach.email.tip
-    },
-    {
-      key: "phone",
-      label: "Phone",
-      word: phone.state === "ok" ? null : phone.word,
-      tone: toneOf(phone.state),
-      tip: vm.reach.phone ? vm.reach.phone.tip : phone.tip
-    },
-    third
-  ];
-}
 var slot = (act2, label, icon, key = null) => ({
   act: act2,
   label,
@@ -38976,10 +38929,6 @@ function leadSheetStandOf(p) {
     title: "Not in a sequence yet",
     line: p.target ? `Add puts it on \u201C${p.target}\u201D's list; it goes in its next batch.` : SW.noTarget
   };
-}
-function leadSheetChecksOf(vm) {
-  const passed = vm.checkDots.filter((d) => d.answer === "yes").length;
-  return SW.why.checks(passed, vm.checkDots.length);
 }
 
 // src/sequences/sequence-run-off.ts
@@ -39667,8 +39616,12 @@ var LEAD_BOX_WORDS = {
   cantJoin: "Can't join",
   goesWith: "Goes with",
   none: "No sequence takes leads you add",
+  /** While their story or the sequences are still being read: nothing said yet that the reads could take back. */
+  reading: "Reading where they stand",
   noneLine: "Make one in Sequences; you come back here",
   afterOk: "Step 1 after your OK",
+  /** Step 1 by its subject as this lead would get it (the refined canvas): "Step 1, “A quieter phone”, after your OK". */
+  afterOkNamed: (subject) => `Step 1, \u201C${subject}\u201D, after your OK`,
   onceKept: "Once you keep it",
   inNextBatch: "In its next batch",
   phoneOnly: "A sequence to leads writes email; they have a phone",
@@ -39680,6 +39633,7 @@ function leadSheetBoxOf(p) {
     const verb = p.place.group === "left" ? B.left : B.in;
     return { verb, name: p.inSequence.name, rootId: p.inSequence.rootId, line: p.place.line, change: false };
   }
+  if (p.reading) return { verb: null, name: null, rootId: null, line: B.reading, change: false };
   if (p.state === "elsewhere" && p.elsewhere)
     return { verb: B.in, name: p.elsewhere.name, rootId: p.elsewhere.rootId, line: B.elsewhere, change: false };
   if (p.state === "closed" && p.closed)
@@ -39695,12 +39649,14 @@ function leadSheetBoxOf(p) {
   if (!p.target) return { verb: null, name: null, rootId: null, line: `${B.none}. ${B.noneLine}`, change: false };
   const t = { name: p.target.name, rootId: p.target.rootId, change: p.canChange };
   if (p.state === "phone") return { ...t, verb: B.cantJoin, line: B.phoneOnly };
-  return { ...t, verb: B.joins, line: p.state === "review" ? B.onceKept : B.afterOk };
+  const after = p.firstSubject ? B.afterOkNamed(p.firstSubject) : B.afterOk;
+  return { ...t, verb: B.joins, line: p.state === "review" ? B.onceKept : after };
 }
 var LEAD_DOCK_WORDS = {
-  /** The box says what follows ("Step 1 after your OK"); the dock says the act, once (the canvas's round two). */
-  ready: { line: "Add to it", fact: "Nothing goes until you approve" },
+  /** The dock names where Add goes (the refined canvas, decision 04), so a wrong default shows before the press. */
+  ready: { line: (sequence) => `Joins ${sequence}`, fact: "Nothing goes until you approve" },
   checking: { line: "Checking their mailbox", fact: "Add waits a few seconds" },
+  reading: { line: "Reading where they stand", fact: "A moment" },
   noEmail: { line: "No email to write to", fact: "Call them, or find one" },
   elsewhere: { line: "One sequence at a time", fact: "Take them out there to add them here" },
   noSequence: { line: "Nothing to add to yet", fact: "Starts from this lead, and comes back" },
@@ -39733,7 +39689,10 @@ var LEAD_DOCK_WORDS = {
   /** Held, decided here (the canvas's HeldDecide): the same choices, and the same verb, as the sequence's Leads tab. */
   decideAsk: "What to do with its email?",
   decideOnly: (sequence) => `Only this one email. The rest of its batch waits in \u201C${sequence}\u201D.`,
-  back: "Back"
+  back: "Back",
+  /** The desk's key row under the dock: in a pile, the dock's own keys and Undo; out of one, J and K walk the rows. */
+  undoKey: "undo",
+  moveKeys: "next, before"
 };
 var dockAct = (a, label, icon, key = null, off = null) => ({ act: a, label, icon, key, sub: null, off });
 var dockLaterOf = (f) => f.canLater ? [dockAct("later", LEAD_DOCK_WORDS.later, "clock", "l")] : [];
@@ -39780,7 +39739,7 @@ function readyDock(f) {
   if (f.state === "finding")
     return { ...D.checking, waiting: true, x: true, acts: [x, dockAct("add", D.add, "plus", "a", D.checking.fact)] };
   return {
-    line: D.ready.line,
+    line: D.ready.line(f.target),
     fact: f.blocked ?? D.ready.fact,
     waiting: false,
     x: true,
@@ -39790,6 +39749,7 @@ function readyDock(f) {
 function leadSheetDockOf(f) {
   const D = LEAD_DOCK_WORDS;
   if (f.place) return placeDock(f, f.place);
+  if (f.reading) return { ...D.reading, waiting: true, x: false, acts: [] };
   switch (f.state) {
     case "review":
       return {
@@ -39840,6 +39800,91 @@ function leadLinePlaceOf(l, chainWaits, nowMs, tz) {
     return { word: W.in, tone: "ok", line: Number.isFinite(last) ? `sent ${clockNear(last, tz, nowMs)}` : null };
   }
   return null;
+}
+
+// src/leads/sheet/lead-sheet-card.ts
+var LEAD_SHEET_CARD_WORDS = {
+  /** Why's first head, its count at the end ("5 of 7"). */
+  checksHead: "Checks",
+  checks: (passed, of) => `${passed} of ${of} checks`,
+  couldntTell: (n) => `${n} couldn't tell`,
+  failed: (n) => `${n} failed`,
+  passed: (n) => `${n} passed`,
+  noEmail: "No email found",
+  noPhone: "No phone",
+  site: "site",
+  linkedin: "LinkedIn",
+  /** The legend under Why's checks: a mark seen, and a mark Claude read. */
+  seen: "seen on the map or in the mailbox",
+  read: "read by Claude from the listing and their site",
+  /** What the card's two lines open, said to a screen reader and on hover. */
+  openWhy: "Why it fits, every check",
+  openContact: "Every way to reach them"
+};
+var CW = LEAD_SHEET_CARD_WORDS;
+var UNSURE_WORDS = {
+  phone_two_sources: "phone unconfirmed",
+  mailbox: "mailbox unconfirmed",
+  own_address: "address unconfirmed",
+  on_maps: "listing unconfirmed",
+  in_area: "area unconfirmed",
+  independent: "ownership unclear",
+  right_kind: "kind unclear"
+};
+function leadSheetSubOf(vm, short = false) {
+  if (vm.company) return vm.sub;
+  const [kind, ...rest] = vm.sub.split(" \xB7 ");
+  const [first] = vm.where ? vm.where.line.split(",") : [];
+  const street = first ? first.trim() : rest.join(" \xB7 ");
+  const rated = !vm.rated ? null : short ? `${vm.rated.score} (${vm.rated.count})` : `${vm.rated.score} from ${vm.rated.reviews}`;
+  return [kind, street, rated].filter(Boolean).join(" \xB7 ");
+}
+var checksOf = (vm) => vm.groups.flatMap(
+  (g) => g.checks.map((c) => ({ key: c.key, label: c.label, how: g.how, answer: c.answer, source: c.source }))
+);
+function exceptionOf(checks) {
+  const unsure = checks.filter((c) => c.answer === "unknown");
+  const failed = checks.filter((c) => c.answer === "no");
+  if (!unsure.length && !failed.length) return null;
+  const [only] = unsure;
+  const one = only && unsure.length === 1 && !failed.length ? UNSURE_WORDS[only.key] : void 0;
+  if (one) return one;
+  return [failed.length ? CW.failed(failed.length) : null, unsure.length ? CW.couldntTell(unsure.length) : null].filter(Boolean).join(" \xB7 ");
+}
+function leadSheetChecksLineOf(vm) {
+  if (!vm.checkDots.length) return null;
+  const checks = checksOf(vm);
+  const passed = vm.checkDots.filter((d) => d.answer === "yes").length;
+  return {
+    dots: vm.checkDots.map(
+      (d) => d.answer === "yes" ? d.how === "read" ? "read" : "ok" : d.answer === "unknown" ? "warn" : "no"
+    ),
+    words: CW.checks(passed, vm.checkDots.length),
+    exception: exceptionOf(checks),
+    tip: vm.checksSummary,
+    fit: (vm.fit.cls === "look" || vm.fit.cls === "out") && vm.fit.word ? vm.fit.word : null
+  };
+}
+function leadSheetContactLineOf(vm) {
+  const address = vm.reach.email.address;
+  const site = vm.company && vm.links.linkedin ? CW.linkedin : vm.links.website ? CW.site : null;
+  return {
+    email: address ? { text: address, warn: vm.slots.mailbox.state !== "ok" } : { text: CW.noEmail, warn: true },
+    phone: vm.reach.phone ? { text: vm.reach.phone.value, warn: vm.slots.phone.state !== "ok" } : null,
+    site
+  };
+}
+function leadSheetWhyOf(vm) {
+  const checks = checksOf(vm);
+  if (!checks.length) return null;
+  const passed = checks.filter((c) => c.answer === "yes");
+  return {
+    count: `${passed.length} of ${checks.length}`,
+    exceptions: checks.filter((c) => c.answer !== "yes"),
+    passed,
+    fold: CW.passed(passed.length),
+    legend: checks.some((c) => c.how === "read")
+  };
 }
 
 // src/lines/channels.ts
@@ -59864,6 +59909,7 @@ export {
   LEAD_RUN_STATES,
   LEAD_SEARCH_VIAS,
   LEAD_SENT_QUESTION,
+  LEAD_SHEET_CARD_WORDS,
   LEAD_SHEET_WORDS,
   LEAD_SLOT_WORDS,
   LEAD_SORTS,
@@ -61445,12 +61491,11 @@ export {
   leadSearchWords,
   leadSheetAboutOf,
   leadSheetBoxOf,
-  leadSheetCellsOf,
-  leadSheetChecksOf,
+  leadSheetChecksLineOf,
   leadSheetClosedOf,
+  leadSheetContactLineOf,
   leadSheetDockOf,
   leadSheetEndRailOf,
-  leadSheetFitOf,
   leadSheetOptionsOf,
   leadSheetPlaceOf,
   leadSheetReasonsOf,
@@ -61458,7 +61503,9 @@ export {
   leadSheetStandOf,
   leadSheetStateOf,
   leadSheetStoryOf,
+  leadSheetSubOf,
   leadSheetTrackOf,
+  leadSheetWhyOf,
   leadSheetWordOf,
   leadSlots,
   leadStepStand,

@@ -5,7 +5,8 @@
  * why before Add is pressed. One choice and one cache, so the pile's adds and a lead opened from the rows agree.
  *
  * A sequence's Add leads names the one to choose (pileAsk); else a list the open search is, with a sequence of its own;
- * else the newest. A sequence fed by its own search writes to every ready lead it finds and is never offered.
+ * else the one this viewer chose last (a pile keeps the last one chosen: the refined canvas's decision 04, whose dock
+ * names it, so a wrong default shows before the press); else the newest. A sequence fed by its own search writes to every ready lead it finds and is never offered.
  */
 import { useRef, useState } from "react";
 import {
@@ -31,6 +32,23 @@ interface AimChecks {
   rootId: string;
   by: ReadonlyMap<string, LeadCardCheck>;
 }
+
+/** Where this viewer last sent Add, by its sequence: read and kept in a try, so blocked storage keeps nothing. */
+const AIM_KEY = "leads.aim";
+const keptAim = (): string | null => {
+  try {
+    return window.localStorage.getItem(AIM_KEY);
+  } catch {
+    return null;
+  }
+};
+const keepAim = (rootId: string): void => {
+  try {
+    window.localStorage.setItem(AIM_KEY, rootId);
+  } catch {
+    // Kept for this page alone.
+  }
+};
 
 /** The sequences fed by a list: the newest first. A chain says what feeds it (00426). */
 const targetsOf = (chains: readonly ReachOutChainDto[], searches: readonly LeadSearchDto[]): AimTarget[] =>
@@ -87,7 +105,7 @@ export function useLeadAim({ searches }: { searches: readonly LeadSearchDto[] })
 
   /**
    * Read the sequences fed by a list and choose one: the one a sequence's Add leads named, a new list of the pile's own
-   * (none chosen), the open list's own, the one already chosen, else the newest.
+   * (none chosen), the open list's own, the one already chosen, the one this viewer chose last, else the newest.
    */
   const load = async (p: { asked?: PileAsk | null; listId?: string | null } = {}) => {
     if (loading.current) return;
@@ -100,15 +118,19 @@ export function useLeadAim({ searches }: { searches: readonly LeadSearchDto[] })
     if (p.asked && p.asked.id === PILE_NEW_LIST) return setTarget(null);
     const named = p.asked ? all.find((t) => t.rootId === p.asked?.id) : undefined;
     const own = p.listId ? all.find((t) => t.listId === p.listId) : undefined;
-    setTarget((was) => named ?? own ?? (was && all.find((t) => t.rootId === was.rootId)) ?? all[0] ?? null);
+    const kept = keptAim();
+    const last = kept ? all.find((t) => t.rootId === kept) : undefined;
+    setTarget((was) => named ?? own ?? (was && all.find((t) => t.rootId === was.rootId)) ?? last ?? all[0] ?? null);
   };
 
   return {
     targets,
     target,
     /** Change: the sequence the adds go to now, for this lead and the ones opened after it. */
-    choose: (rootId: string | null) =>
-      setTarget(rootId ? ((targets ?? []).find((t) => t.rootId === rootId) ?? null) : null),
+    choose: (rootId: string | null) => {
+      if (rootId) keepAim(rootId);
+      setTarget(rootId ? ((targets ?? []).find((t) => t.rootId === rootId) ?? null) : null);
+    },
     load,
     check: checks.check,
     checkOf: checks.checkOf,
