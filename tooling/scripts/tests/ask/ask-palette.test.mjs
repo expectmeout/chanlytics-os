@@ -221,6 +221,8 @@ const { askSpeech } = await import("../../../../apps/dashboard/src/legacy-bridge
 const { askAloud } = await import("../../../../apps/dashboard/src/legacy-bridge/ask/aloud.ts");
 const { askFollowUps, FOLLOW_UPS_EVENT } =
   await import("../../../../apps/dashboard/src/legacy-bridge/ask/follow-ups.ts");
+const { askColumn } = await import("../../../../apps/dashboard/src/legacy-bridge/ask/column.ts");
+const { askApi } = await import("../../../../apps/dashboard/src/legacy-bridge/ask/api.ts");
 
 const walk = (n, fn) => {
   if (n == null || typeof n !== "object") return;
@@ -837,6 +839,46 @@ test("a follow-up of Ask's come due lights Ask's door: the top bar's capsule dra
     globalThis.window.__ask = was;
     Object.assign(globalThis, before);
   }
+});
+
+test("a question carries the column the Line draws its answer in (18 Oct 2026): an answer already drawn is measured, else the panel less the Line's 16px gutters; a phone is the takeover's own width; nothing drawn is no column; the turn's body sends it", async () => {
+  const box = (width) => ({ getBoundingClientRect: () => ({ width }) });
+  const winOf = (els, phone) => ({
+    document: { querySelector: (sel) => els[sel] ?? null },
+    matchMedia: (q) => ({ matches: phone && q === "(max-width: 720px)" }),
+  });
+  assert.deepEqual(
+    askColumn(winOf({ ".ask-real": box(440) }, false)),
+    { px: 408, phone: false },
+    "a desk's docked panel",
+  );
+  assert.deepEqual(askColumn(winOf({ ".ask-real": box(390) }, true)), { px: 358, phone: true }, "a phone's screen");
+  assert.deepEqual(
+    askColumn(winOf({ '[data-testid="ask-answer"]': box(401.6), ".ask-real": box(440) }, false)),
+    { px: 402, phone: false },
+    "an answer drawn is the column itself",
+  );
+  assert.equal(askColumn(winOf({}, false)), null, "nothing drawn: no column");
+  assert.equal(askColumn({}), null, "no document: no column");
+
+  const bodies = [];
+  const client = {
+    raw: async (_key, opts) => {
+      bodies.push(opts.body);
+      return new Response(JSON.stringify({ ok: false }), { status: 500 });
+    },
+  };
+  const calls = askApi(client);
+  await calls.send(
+    { text: "Compare my channels", threadId: null, surface: "reports", column: { px: 358, phone: true } },
+    () => {},
+  );
+  await calls.send({ text: "Compare my channels", threadId: null, surface: "reports" }, () => {});
+  assert.deepEqual(
+    bodies.map((b) => b.column ?? null),
+    [{ px: 358, phone: true }, null],
+    "sent where measured, and only then",
+  );
 });
 
 test("a follow-up keeps the answer above it, in full, in the thread; New ends the conversation, which stays in Earlier", async () => {

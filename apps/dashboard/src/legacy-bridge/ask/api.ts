@@ -8,6 +8,7 @@
  */
 import type {
   AskAnswer,
+  AskColumn,
   AskMessageVM,
   AskProposalOutcome,
   AskScope,
@@ -313,6 +314,8 @@ function turnCall(client: Api, head: { sent(): void }) {
       answering?: { searchId: string } | null;
       /** The follow-up the text comes back to (Ask's home's row): the route clears it once the question is kept. */
       following?: { id: string } | null;
+      /** The column the Line draws the answer in (ask/column.ts), told to the model; omitted when nothing measured it. */
+      column?: AskColumn | null;
       /** How long the Line was open before this question, in ms (AskTurnShape.opened_ms); omitted when unknown. */
       openedMs?: number | null;
       /** The page the question is asked on (contracts PageContext; ask/context.ts); omitted when the page gave none. */
@@ -344,6 +347,7 @@ function turnCall(client: Api, head: { sent(): void }) {
           surface: input.surface,
           ...(input.answering ? { answering: { search_id: input.answering.searchId } } : {}),
           ...(input.following ? { following: { id: input.following.id } } : {}),
+          ...(input.column ? { column: input.column } : {}),
           ...(typeof input.openedMs === "number" && input.openedMs >= 0
             ? { opened_ms: Math.round(input.openedMs) }
             : {}),
