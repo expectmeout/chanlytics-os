@@ -498,7 +498,7 @@ const SPOKEN_LINE =
 const DETAIL_PX_PER_CHAR = 7;
 function columnLine(c: AskColumn): string {
   const chars = Math.round(c.px / DETAIL_PX_PER_CHAR / 5) * 5;
-  return `They read your answer in a column about ${c.px}px wide on ${c.phone ? "a phone" : "a desk"}, about ${chars} characters to a line: a table wider than three short columns scrolls sideways there, so a wider comparison reads better as a list or a narrower table unless they ask for a table.`;
+  return `They read your answer in a column about ${c.px}px wide on ${c.phone ? "a phone" : "a desk"}, about ${chars} characters to a line. Lists and short paragraphs fit it well; a table wider than three short columns scrolls sideways there, so a wider comparison reads better as a list or a narrower table, unless they ask for a table.`;
 }
 
 /**

@@ -316,10 +316,10 @@ async function warm(cookie, ws, context) {
 /**
  * The column the Line draws an answer in, as the tab measures and sends it (legacy-bridge/ask/column.ts): a desk's
  * docked panel or a phone's screen, measured on 18 Oct 2026. A case names `column: "phone"` or "desk"; a desk's is sent
- * where it names none, as every desk's tab does.
+ * where it names none, as every desk's tab does, and none at all with EVAL_COLUMN=none (an older tab, to compare).
  */
 const COLUMNS = { desk: { px: 408, phone: false }, phone: { px: 358, phone: true } };
-const columnOf = (q) => COLUMNS[q.column] ?? COLUMNS.desk;
+const columnOf = (q) => (process.env.EVAL_COLUMN === "none" ? null : (COLUMNS[q.column] ?? COLUMNS.desk));
 
 async function ask(cookie, { text, surface, page = null, threadId = null, scope = null, column = null }, ws = null) {
   let t0 = Date.now();

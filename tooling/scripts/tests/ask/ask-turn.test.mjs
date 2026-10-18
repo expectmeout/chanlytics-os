@@ -9831,7 +9831,7 @@ test("the column the answer is drawn in rides in the turn's words (18 Oct 2026):
     turnWords({ ...facts, column: { px: 358, phone: true } })
       .split("\n")
       .at(-1),
-    "They read your answer in a column about 358px wide on a phone, about 50 characters to a line: a table wider than three short columns scrolls sideways there, so a wider comparison reads better as a list or a narrower table unless they ask for a table.",
+    "They read your answer in a column about 358px wide on a phone, about 50 characters to a line. Lists and short paragraphs fit it well; a table wider than three short columns scrolls sideways there, so a wider comparison reads better as a list or a narrower table, unless they ask for a table.",
   );
   assert.match(
     turnWords({ ...facts, column: { px: 408, phone: false } }),
