@@ -349,9 +349,10 @@ test("the card is drawn on every render, after How it answers and before the ser
       typeof n.props?.["data-testid"] === "string" && /^(rec-card-|rec-sheet-services)/.test(n.props["data-testid"]),
   ).map((n) => n.props["data-testid"]);
   // The record whole, as its three pages draw it in turn: Details, Hours & booking, How it answers.
-  assert.deepEqual(order.slice(0, 7), [
+  assert.deepEqual(order.slice(0, 8), [
     "rec-card-who",
     "rec-card-offer",
+    "rec-card-goal",
     "rec-card-open",
     "rec-card-booking",
     "rec-card-answers",

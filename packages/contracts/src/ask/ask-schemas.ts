@@ -7,7 +7,7 @@
 import { z } from "zod";
 import { ASK_SURFACES, ASK_SCOPE_KINDS } from "./ask";
 import { ASK_CONTEXT_ROW_KINDS, ASK_CONTEXT_MAX_ROWS } from "./ask-context";
-import { ASK_GOAL_MAX } from "../config/workspace-config/config-schema";
+import { ASK_GOAL_MAX } from "../config/workspace-config/config-rules";
 
 const Id = z.string().min(1).max(120);
 

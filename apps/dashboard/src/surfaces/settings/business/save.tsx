@@ -103,6 +103,7 @@ export interface Config {
   calendar?: { [key: string]: unknown; ical_url?: string };
   /** The booking tool the owner named (00345, contracts BOOKING_TOOL_IDS), in a section of its own. */
   bookings?: { [key: string]: unknown; tool?: string; by_hand?: boolean };
+  ask?: { [key: string]: unknown; goal?: string }; // Ask's own: the owner's goal (who.tsx BtGoalCard)
 }
 
 /** A row's change: a function of the brain and its profile that returns the brain. */
