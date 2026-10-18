@@ -19895,6 +19895,7 @@ begin
                'hand', p.hand->>'kind',
                'state', s.state,
                'reason', s.reason,
+               'hold_detail', s.hold_detail,
                'send_at', s.send_at,
                'sent_at', coalesce(s.sent_at, case when s.state = 'failed' and public.email_left(m.status, m.error)
                                                   then public.email_sent_at(m.meta, m.status_updated_at, m.created_at) end),

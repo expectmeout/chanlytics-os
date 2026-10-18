@@ -885,6 +885,26 @@ function SubTabsKitGlyph() {
   );
 }
 
+/** A pane's three tabs as the capsule (a lead sheet's), the first picked. */
+function SubTabsKitCapsule() {
+  const [on, setOn] = useState("why");
+  return (
+    <Figure id="subtabs-capsule" about="the kit's SubTabs, as the capsule">
+      <SubTabs
+        look="capsule"
+        label="About this lead"
+        value={on}
+        onSelect={setOn}
+        tabs={[
+          { id: "why", label: "Why" },
+          { id: "contact", label: "Contact" },
+          { id: "sequence", label: "Sequence" },
+        ]}
+      />
+    </Figure>
+  );
+}
+
 /** Fields: a hint, and a unit. */
 function FieldKit() {
   const [link, setLink] = useState("https://example.com/book");
@@ -958,6 +978,7 @@ export const ENTRIES: { id: string; Draw: () => ReactElement; closed: boolean }[
   { id: "subtabs-dense", Draw: SubTabsKitDense, closed: true },
   { id: "subtabs-fresh", Draw: SubTabsKitFresh, closed: true },
   { id: "subtabs-glyph", Draw: SubTabsKitGlyph, closed: true },
+  { id: "subtabs-capsule", Draw: SubTabsKitCapsule, closed: true },
   { id: "field-kit", Draw: FieldKit, closed: true },
   { id: "field-kit-wrong", Draw: FieldKitWrong, closed: true },
   { id: "field-kit-title", Draw: FieldKitTitle, closed: true },

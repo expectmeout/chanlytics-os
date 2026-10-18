@@ -12,7 +12,6 @@
  *   leadSheetEndRailOf   the acts at the end of a pile (the dock's for a lead: lead-sheet-dock.ts)
  *   leadSheetTrackOf     their steps in the sequence they are in: done, next, and still to come
  *   leadSheetOptionsOf   Change, opened in place: each sequence the adds could go to, and what it would come to here
- *   leadSheetReasonsOf   the reasons to write now, the listing's own signals
  *   leadSheetAboutOf     the place or the company as its source knows it, each fact with where it came from
  *   leadSheetStandOf     where they stand with a sequence, for Activity
  */
@@ -23,6 +22,7 @@ import type { ReachOutChainDto } from "../../reach-out/reach-out-dtos";
 import { leadCardEmailOf, type LeadCardCheck, type LeadCardEmailVM, type LeadCardLead } from "../lead-card";
 import type { SlotWorkspace } from "../../reach-out/reach-out-rules";
 import type { LeadPeekVM } from "../lead-peek";
+import type { LeadSheetBoxVM } from "./lead-sheet-dock";
 import { LEAD_CLOSED_WORDS, LEAD_LEFT_OUT_WORD, type LeadClass, type LeadStage } from "../lead-words";
 import type { LeadEmailState } from "../search/sets";
 
@@ -37,7 +37,6 @@ export const LEAD_SHEET_WORDS = {
   more: "More for this lead",
   stage: "Stage",
   why: {
-    reasons: "Reasons to write now",
     people: "People here",
   },
   reach: { head: "Ways to reach them", sub: "best first", others: "Other addresses on their site" },
@@ -55,6 +54,9 @@ export const LEAD_SHEET_WORDS = {
     listing: "From the listing",
     company: "The company",
     writesTo: "The sequence writes to",
+    email: "Email",
+    /** The site's row opens it, in a tab of its own: said once, here, and nowhere else in Contact. */
+    openSite: "Open their site",
     where: "Where they are",
     steps: "Their steps",
     everyStep: (name: string) => `Every step, and who else is in it: ${name}`,
@@ -86,10 +88,13 @@ export const LEAD_SHEET_WORDS = {
   elsewhereIn: (name: string) => `In “${name}”`,
   elsewhereLine: "A business is written to once, so this one stays with that sequence.",
   inSequence: (name: string) => `In “${name}”`,
+  notInYet: "Not in a sequence yet",
   stopped: "The sequence stopped",
-  stoppedLine: "They wrote back, so nothing more goes. Answer them in the Inbox.",
   wroteBack: "They wrote back",
-  endTitle: (decided: number) => (decided ? `All ${decided} decided.` : "Nothing left to look at."),
+  /** Their reply as Claude read it: a reading, so never in quotation marks as if their words. */
+  readAs: "Their reply, as read",
+  /** Every lead the pile went through: added, set aside and put off alike. */
+  endTitle: (looked: number) => (looked ? `All ${looked} looked at.` : "Nothing left to look at."),
   endAdded: (name: string) => `Added to “${name}”`,
   endHeld: "On your new list",
   endLater: "For later",
@@ -116,7 +121,6 @@ export const LEAD_SHEET_WORDS = {
   writeHeld: (n: number) => `Write to the ${n}`,
   openTarget: "Open the sequence",
   approveIn: (name: string) => `Approve in ${name}`,
-  noTarget: "No sequence takes leads you add yet: start one from New message.",
   keepSub: (left: number) => `Counts this month · ${left} left`,
   back: "Back",
   hides: "Hides it from every search",
@@ -279,10 +283,16 @@ const slot = (act: LeadSheetAct, label: string, icon: string, key: LeadSheetSlot
 
 const SW = LEAD_SHEET_WORDS;
 /** The rail at the end of a pile: the later ones, the way out, and where the work lands. */
-export function leadSheetEndRailOf(p: { later: number; held: number; target: string | null }): LeadSheetRailVM {
+export function leadSheetEndRailOf(p: {
+  later: number;
+  held: number;
+  target: string | null;
+  /** How many this pile added to the target: Approve is offered only where there is something to approve. */
+  added: number;
+}): LeadSheetRailVM {
   const last = p.held
     ? slot("write_held", SW.writeHeld(p.held), "send")
-    : p.target
+    : p.target && p.added > 0
       ? slot("open_target", SW.approveIn(p.target), "chevron")
       : slot("leave", SW.leave, "check");
   return {
@@ -320,7 +330,7 @@ export interface LeadSheetTrackVM {
 const stepLabel = (n: number, hand: string | null) =>
   hand === "call" ? "A call for you" : hand === "note" ? "A note for you" : n === 0 ? "First email" : "Follow-up";
 
-/** One step, by its sends: gone (or bounced), planned, or still to come after its wait. */
+/** One step, by its sends: gone (or bounced), held by the check, planned, or still to come after its wait. */
 function sheetStepOf(
   s: { n: number; after_days: number | null; hand: string | null },
   day: number,
@@ -335,6 +345,9 @@ function sheetStepOf(
     const when = Number.isFinite(at) ? clockDate(at, clock.tz, clock.nowMs) : "";
     return { n: s.n, day, label, sub: gone.bounced ? "Bounced" : "Sent", when, look: "done" };
   }
+  // Held by the check: its time is no plan until it is decided, so it never reads as Planned beside a box that says held.
+  if (sends.some((x) => x.state === "held"))
+    return { n: s.n, day, label, sub: "Held by the check", when: "", look: "next" };
   const planned = sends.find((x) => x.send_at);
   const at = planned && planned.send_at ? Date.parse(planned.send_at) : NaN;
   if (Number.isFinite(at))
@@ -438,22 +451,6 @@ export function leadSheetOptionsOf(p: {
 
 /* --------------------------------------------------------------------------------------------- the tabs' facts -- */
 
-/** A reason to write now: what the listing shows, its dot, and where it came from. */
-export interface LeadSheetReasonVM {
-  text: string;
-  tone: "warn" | "info";
-  from: string;
-}
-
-/** The reasons to write now (Why): the listing's own signals, a low-star share and an unclaimed listing. */
-export function leadSheetReasonsOf(vm: Pick<LeadPeekVM, "rated" | "claimedNote" | "company">): LeadSheetReasonVM[] {
-  if (vm.company) return [];
-  return [
-    ...(vm.rated && vm.rated.low ? [{ text: vm.rated.low, tone: "warn" as const, from: "its listing" }] : []),
-    ...(vm.claimedNote ? [{ text: "Listing not claimed", tone: "info" as const, from: "its listing" }] : []),
-  ];
-}
-
 /** A fact about them, and where it came from. */
 export interface LeadSheetFactVM {
   k: string;
@@ -471,7 +468,8 @@ export function leadSheetAboutOf(
       ? [
           {
             k: "Rating",
-            v: [vm.rated.score, vm.rated.reviews, vm.rated.low].filter(Boolean).join(" · "),
+            // The low-star share is the card's reason, said once there.
+            v: [vm.rated.score, vm.rated.reviews].join(" · "),
             from: "listing",
           },
         ]
@@ -485,20 +483,15 @@ export function leadSheetAboutOf(
   return { head: vm.company ? "The company" : "The place", from: vm.company ? listing : "its listing", rows };
 }
 
-/** Where they stand with a sequence, for Activity: in one by name and its line, or not yet and what Add would do. */
-export function leadSheetStandOf(p: {
-  track: LeadSheetTrackVM | null;
-  state: LeadSheetState;
-  target: string | null;
-  searchWrites: string | null;
-  closed: LeadSheetClosedVM | null;
-}): { title: string; line: string } {
+/**
+ * Where they stand with a sequence, for the Sequence tab: in one, by its steps' line; else exactly what the card's box
+ * says (one derivation: the tab and the box never disagree), its verb and sequence as the title where it names one.
+ */
+export function leadSheetStandOf(p: { track: LeadSheetTrackVM | null; box: LeadSheetBoxVM }): {
+  title: string;
+  line: string;
+} {
   if (p.track) return { title: SW.inSequence(p.track.name), line: p.track.line ?? "" };
-  if (p.state === "closed" && p.closed) return { title: p.closed.title, line: p.closed.line };
-  if (p.searchWrites)
-    return { title: "Not in a sequence yet", line: `${SW.goesWith(p.searchWrites)} in its next batch.` };
-  return {
-    title: "Not in a sequence yet",
-    line: p.target ? `Add puts it on “${p.target}”'s list; it goes in its next batch.` : SW.noTarget,
-  };
+  const b = p.box;
+  return { title: b.verb && b.name ? `${b.verb} “${b.name}”` : SW.notInYet, line: b.line };
 }

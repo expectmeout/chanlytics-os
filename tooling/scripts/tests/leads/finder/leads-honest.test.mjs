@@ -4625,7 +4625,8 @@ test("a list of your own draws with no round and no area, reaches no finder stri
   const items = menuOf("Expo gyms")
     .items.filter((i) => i.label)
     .map((i) => i.label);
-  assert.deepEqual(items, ["Rename", "Export these 0", "Remove this search"]);
+  // A list has no round, so no count of one: Export names none rather than a 0 its rows would contradict.
+  assert.deepEqual(items, ["Rename", "Export these", "Remove this search"]);
   const found = menuOf("Personal trainers · Austin")
     .items.filter((i) => i.label)
     .map((i) => i.label);

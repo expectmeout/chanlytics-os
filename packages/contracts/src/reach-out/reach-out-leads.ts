@@ -96,6 +96,8 @@ export interface ReachOutTimelineSendDto {
   hand: HandKind | null;
   state: string;
   reason: string | null;
+  /** What a held email's check flagged (sequence_sends.hold_detail: the opening's words, a chain's count); absent before 00457. */
+  hold_detail?: string | null;
   send_at: string | null;
   sent_at: string | null;
   angle: string | null;

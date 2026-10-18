@@ -106,22 +106,39 @@ function reasonsOf(judgment: unknown, emailState: string): string[] {
   return raw.map((x) => (x.startsWith("email:") ? `email:${emailState}` : x));
 }
 
+/** What the judge answered for a criterion: its answer, its reason, and the listing's facts it rested on. */
+interface Judged {
+  answer: "yes" | "no" | "unknown";
+  reason: string | null;
+  facts: string[];
+}
+
 /** What the judge answered for each criterion of this place, by the plan's own key, in the order it answered. */
-function judgedBy(judgment: unknown): Map<string, { answer: "yes" | "no" | "unknown"; reason: string | null }> {
-  const out = new Map<string, { answer: "yes" | "no" | "unknown"; reason: string | null }>();
+function judgedBy(judgment: unknown): Map<string, Judged> {
+  const out = new Map<string, Judged>();
   const j =
     judgment && typeof judgment === "object"
       ? (judgment as { answer?: { criteria?: unknown; reason?: unknown } | null })
       : null;
   const answer = j?.answer && typeof j.answer === "object" ? j.answer : null;
-  const criteria = Array.isArray(answer?.criteria) ? (answer.criteria as { key?: unknown; answer?: unknown }[]) : [];
+  const criteria = Array.isArray(answer?.criteria)
+    ? (answer.criteria as { key?: unknown; answer?: unknown; facts?: unknown }[])
+    : [];
   const reason = typeof answer?.reason === "string" ? answer.reason : null;
   for (const c of criteria) {
     if (typeof c.key !== "string") continue;
-    out.set(c.key, { answer: c.answer === "pass" ? "yes" : c.answer === "fail" ? "no" : "unknown", reason });
+    const facts = Array.isArray(c.facts) ? c.facts.filter((x): x is string => typeof x === "string") : [];
+    out.set(c.key, { answer: c.answer === "pass" ? "yes" : c.answer === "fail" ? "no" : "unknown", reason, facts });
   }
   return out;
 }
+
+/**
+ * The listing's numbers a criterion's answer can rest on (contracts JUDGE_FACT_KEYS), in the words its source names: a
+ * criterion the judge answered from them ("a rating of 4.2 or lower") is a fact the listing shows, so it is said as
+ * seen there, never as Claude's reading of the listing.
+ */
+const LISTING_NUMBERS: Readonly<Record<string, string>> = { rating: "rating", reviews: "reviews" };
 
 /** The four checks the card SAW: never a word the check did not measure (S12). */
 const SEEN_CHECKS = new Set<string>(["on_maps", "in_area", "phone_two_sources", "mailbox"] satisfies LeadCheckKey[]);
@@ -170,7 +187,12 @@ function checksOf(r: LeadPageRow): LeadCheck[] {
   for (const [key, read] of judgedBy(r.judgment)) {
     // A seen check is measured, never read: a plan key that shared its name would say it twice.
     if (SEEN_CHECKS.has(key)) continue;
-    out.push({ key, how: "read", answer: read.answer, source: "Claude · the listing", reason: read.reason });
+    const numbers = read.facts.flatMap((f) => (LISTING_NUMBERS[f] ? [LISTING_NUMBERS[f]] : []));
+    out.push(
+      numbers.length
+        ? { key, how: "seen", answer: read.answer, source: `Google Maps · ${numbers.join(", ")}`, reason: read.reason }
+        : { key, how: "read", answer: read.answer, source: "Claude · the listing", reason: read.reason },
+    );
   }
   return out;
 }

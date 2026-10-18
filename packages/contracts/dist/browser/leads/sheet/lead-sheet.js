@@ -11,7 +11,6 @@ export const LEAD_SHEET_WORDS = {
   more: "More for this lead",
   stage: "Stage",
   why: {
-    reasons: "Reasons to write now",
     people: "People here"
   },
   reach: { head: "Ways to reach them", sub: "best first", others: "Other addresses on their site" },
@@ -29,6 +28,9 @@ export const LEAD_SHEET_WORDS = {
     listing: "From the listing",
     company: "The company",
     writesTo: "The sequence writes to",
+    email: "Email",
+    /** The site's row opens it, in a tab of its own: said once, here, and nowhere else in Contact. */
+    openSite: "Open their site",
     where: "Where they are",
     steps: "Their steps",
     everyStep: (name) => `Every step, and who else is in it: ${name}`,
@@ -59,10 +61,13 @@ export const LEAD_SHEET_WORDS = {
   elsewhereIn: (name) => `In \u201C${name}\u201D`,
   elsewhereLine: "A business is written to once, so this one stays with that sequence.",
   inSequence: (name) => `In \u201C${name}\u201D`,
+  notInYet: "Not in a sequence yet",
   stopped: "The sequence stopped",
-  stoppedLine: "They wrote back, so nothing more goes. Answer them in the Inbox.",
   wroteBack: "They wrote back",
-  endTitle: (decided) => decided ? `All ${decided} decided.` : "Nothing left to look at.",
+  /** Their reply as Claude read it: a reading, so never in quotation marks as if their words. */
+  readAs: "Their reply, as read",
+  /** Every lead the pile went through: added, set aside and put off alike. */
+  endTitle: (looked) => looked ? `All ${looked} looked at.` : "Nothing left to look at.",
   endAdded: (name) => `Added to \u201C${name}\u201D`,
   endHeld: "On your new list",
   endLater: "For later",
@@ -89,7 +94,6 @@ export const LEAD_SHEET_WORDS = {
   writeHeld: (n) => `Write to the ${n}`,
   openTarget: "Open the sequence",
   approveIn: (name) => `Approve in ${name}`,
-  noTarget: "No sequence takes leads you add yet: start one from New message.",
   keepSub: (left) => `Counts this month \xB7 ${left} left`,
   back: "Back",
   hides: "Hides it from every search",
@@ -149,7 +153,7 @@ const slot = (act, label, icon, key = null) => ({
 });
 const SW = LEAD_SHEET_WORDS;
 export function leadSheetEndRailOf(p) {
-  const last = p.held ? slot("write_held", SW.writeHeld(p.held), "send") : p.target ? slot("open_target", SW.approveIn(p.target), "chevron") : slot("leave", SW.leave, "check");
+  const last = p.held ? slot("write_held", SW.writeHeld(p.held), "send") : p.target && p.added > 0 ? slot("open_target", SW.approveIn(p.target), "chevron") : slot("leave", SW.leave, "check");
   return {
     x: false,
     slots: [
@@ -169,6 +173,8 @@ function sheetStepOf(s, day, t, clock) {
     const when = Number.isFinite(at2) ? clockDate(at2, clock.tz, clock.nowMs) : "";
     return { n: s.n, day, label, sub: gone.bounced ? "Bounced" : "Sent", when, look: "done" };
   }
+  if (sends.some((x) => x.state === "held"))
+    return { n: s.n, day, label, sub: "Held by the check", when: "", look: "next" };
   const planned = sends.find((x) => x.send_at);
   const at = planned && planned.send_at ? Date.parse(planned.send_at) : NaN;
   if (Number.isFinite(at))
@@ -227,20 +233,14 @@ export function leadSheetOptionsOf(p) {
     };
   });
 }
-export function leadSheetReasonsOf(vm) {
-  if (vm.company) return [];
-  return [
-    ...vm.rated && vm.rated.low ? [{ text: vm.rated.low, tone: "warn", from: "its listing" }] : [],
-    ...vm.claimedNote ? [{ text: "Listing not claimed", tone: "info", from: "its listing" }] : []
-  ];
-}
 export function leadSheetAboutOf(vm) {
   const listing = vm.company ? vm.company.source : "its listing";
   const rows = [
     ...vm.rated ? [
       {
         k: "Rating",
-        v: [vm.rated.score, vm.rated.reviews, vm.rated.low].filter(Boolean).join(" \xB7 "),
+        // The low-star share is the card's reason, said once there.
+        v: [vm.rated.score, vm.rated.reviews].join(" \xB7 "),
         from: "listing"
       }
     ] : [],
@@ -254,11 +254,6 @@ export function leadSheetAboutOf(vm) {
 }
 export function leadSheetStandOf(p) {
   if (p.track) return { title: SW.inSequence(p.track.name), line: p.track.line ?? "" };
-  if (p.state === "closed" && p.closed) return { title: p.closed.title, line: p.closed.line };
-  if (p.searchWrites)
-    return { title: "Not in a sequence yet", line: `${SW.goesWith(p.searchWrites)} in its next batch.` };
-  return {
-    title: "Not in a sequence yet",
-    line: p.target ? `Add puts it on \u201C${p.target}\u201D's list; it goes in its next batch.` : SW.noTarget
-  };
+  const b = p.box;
+  return { title: b.verb && b.name ? `${b.verb} \u201C${b.name}\u201D` : SW.notInYet, line: b.line };
 }

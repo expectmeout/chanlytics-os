@@ -14,7 +14,12 @@ export const LEAD_SHEET_CARD_WORDS = {
   read: "read by Claude from the listing and their site",
   /** What the card's two lines open, said to a screen reader and on hover. */
   openWhy: "Why it fits, every check",
-  openContact: "Every way to reach them"
+  openContact: "Every way to reach them",
+  opens: (tab) => `Opens ${tab}.`,
+  notConfirmed: "not confirmed",
+  email: "Email",
+  phone: "Phone",
+  theirSite: "their site"
 };
 const CW = LEAD_SHEET_CARD_WORDS;
 const UNSURE_WORDS = {
@@ -26,21 +31,23 @@ const UNSURE_WORDS = {
   independent: "ownership unclear",
   right_kind: "kind unclear"
 };
-export function leadSheetSubOf(vm, short = false) {
+export function leadSheetSubOf(vm) {
   if (vm.company) return vm.sub;
   const [kind, ...rest] = vm.sub.split(" \xB7 ");
   const [first] = vm.where ? vm.where.line.split(",") : [];
   const street = first ? first.trim() : rest.join(" \xB7 ");
-  const rated = !vm.rated ? null : short ? `${vm.rated.score} (${vm.rated.count})` : `${vm.rated.score} from ${vm.rated.reviews}`;
+  const rated = vm.rated ? `${vm.rated.score} (${vm.rated.count})` : null;
   return [kind, street, rated].filter(Boolean).join(" \xB7 ");
 }
 const checksOf = (vm) => vm.groups.flatMap(
   (g) => g.checks.map((c) => ({ key: c.key, label: c.label, how: g.how, answer: c.answer, source: c.source }))
 );
+const REACH_CHECKS = /* @__PURE__ */ new Set(["phone_two_sources", "mailbox"]);
 function exceptionOf(checks) {
   const unsure = checks.filter((c) => c.answer === "unknown");
   const failed = checks.filter((c) => c.answer === "no");
   if (!unsure.length && !failed.length) return null;
+  if ([...unsure, ...failed].every((c) => REACH_CHECKS.has(c.key))) return null;
   const [only] = unsure;
   const one = only && unsure.length === 1 && !failed.length ? UNSURE_WORDS[only.key] : void 0;
   if (one) return one;
@@ -59,6 +66,13 @@ export function leadSheetChecksLineOf(vm) {
     tip: vm.checksSummary,
     fit: (vm.fit.cls === "look" || vm.fit.cls === "out") && vm.fit.word ? vm.fit.word : null
   };
+}
+export const leadSheetChecksSaid = (line) => `${[line.fit, line.words, line.exception].filter(Boolean).join(", ")}. ${CW.opens("Why")}`;
+export function leadSheetContactSaid(line) {
+  const way = (what, w) => `${what} ${w.text}${w.warn ? `, ${CW.notConfirmed}` : ""}`;
+  const email = line.email.text === CW.noEmail ? CW.noEmail : way(CW.email, line.email);
+  const parts = [email, line.phone ? way(CW.phone, line.phone) : null, line.site ? CW.theirSite : null];
+  return `${parts.filter(Boolean).join("; ")}. ${CW.opens("Contact")}`;
 }
 export function leadSheetContactLineOf(vm) {
   const address = vm.reach.email.address;

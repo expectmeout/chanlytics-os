@@ -146,7 +146,13 @@ export const leadsListProps = (p: LeadsPage) => {
   // shortens (Task 18; PeoplePhoneBar's listCount).
   const openList = rail.lists.find((l) => l.id === leadView.list);
   const railLabel = openSearch ? openSearch.name : openList ? openList.label : "All leads";
-  const railCount = openSearch ? (openSearch.round ? openSearch.round.counted : 0) : openList ? openList.count : null;
+  const railCount = openSearch
+    ? openSearch.round
+      ? openSearch.round.counted
+      : null
+    : openList
+      ? openList.count
+      : null;
   return {
     surface: leads,
     // The ideas, less any the workspace is already searching for in that place (a search started since they were
@@ -178,7 +184,8 @@ export const leadsListProps = (p: LeadsPage) => {
     // order asked (a view read before paints at once; one not yet read is on its way): said, not left looking right and
     // being wrong.
     loading: !p.viewLanded,
-    total: leads.counts[leadView.list] ?? leads.counts.all,
+    // Under a search, its own rows (the read is the search's); else the view's count across the workspace.
+    total: openSearch ? leads.rows.length : (leads.counts[leadView.list] ?? leads.counts.all),
     columns: p.columns,
     layout: p.layout,
     colOptions: p.colOptions,

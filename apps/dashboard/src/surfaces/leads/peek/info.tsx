@@ -32,7 +32,10 @@ function peekOthers(vm: LeadPeekVM) {
   ) : null;
 }
 
-/** The links the listing gave: the site (or that it has none), Instagram, and the rest as quiet buttons. */
+/**
+ * The links the listing gave beyond the site (which is a way to reach them, in Contact's own rows): Instagram and the
+ * rest as quiet buttons. Nothing at all where it gave none.
+ */
 const OTHER_LINKS = [
   ["facebook", "globe"],
   ["linkedin", "globe"],
@@ -40,24 +43,9 @@ const OTHER_LINKS = [
   ["maps", "pin"],
 ] as const;
 function peekLinks(vm: LeadPeekVM) {
+  if (!vm.links.instagram && !OTHER_LINKS.some(([k]) => vm.links[k])) return null;
   return (
     <div className="pk-links" data-testid="peek-links">
-      {vm.links.website ? (
-        <a
-          className="btn btn-ghost btn-sm"
-          href={vm.links.website.href}
-          target="_blank"
-          rel="noopener noreferrer"
-          data-testid="peek-website"
-        >
-          <Icon name="external" size={12} />
-          {vm.links.website.label}
-        </a>
-      ) : (
-        <span className="pk-rn" data-testid="peek-no-website">
-          {W.noWebsite}
-        </span>
-      )}
       {vm.links.instagram ? (
         <a
           className="btn btn-ghost btn-sm"

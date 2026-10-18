@@ -52,6 +52,8 @@ export interface SheetPileFacts {
   mode: "list" | "first" | "search";
   later: number;
   held: number;
+  /** How many this pile added to the sequence chosen: its end offers Approve only where there is something to approve. */
+  added: number;
 }
 
 /** What the sheet is handed to work its facts out from. */
@@ -75,7 +77,7 @@ export interface SheetFacts {
   state: LeadSheetState;
   closed: LeadSheetClosedVM | null;
   /** The line under the name, the card's checks and ways-in lines, and Why's checks. */
-  sub: { desk: string; phone: string };
+  sub: string;
   checks: LeadSheetChecksLineVM | null;
   contact: LeadSheetContactLineVM;
   why: LeadSheetWhyVM | null;
@@ -108,10 +110,13 @@ function sheetLeadOf(i: SheetInputs): LeadSheetLead {
   };
 }
 
-/** Email 1's head: whose it is, and "· email 1" (where it leaves from is the Emails tab's). */
-function mailOf(card: LeadCardFacts, name: string | null, canChange: boolean): SheetFacts["mail"] {
-  if (!card.email || !name) return null;
-  return { head: name, sub: "· email 1", canChange };
+/**
+ * Email 1's head: whose it is, and "· email 1". None for a lead with no email to write to: a sequence's email to someone
+ * it can never reach is noise. Change is the box's alone, so the email's head offers none.
+ */
+function mailOf(card: LeadCardFacts, name: string | null, state: string): SheetFacts["mail"] {
+  if (!card.email || !name || state === "phone") return null;
+  return { head: name, sub: "· email 1", canChange: false };
 }
 
 /** Step 1's subject as this lead would get it, where every part of it fills: words and values alone. */
@@ -160,6 +165,13 @@ const stillReadingOf = (i: SheetInputs, c: ReturnType<typeof cardStateOf>): bool
   (!i.storyRead && !!(i.row && i.row.chainId)) ||
   (i.aim.targets === null && !i.searchWrites && !c.lead.inSequence && c.state !== "closed");
 
+/**
+ * Sequences take leads you add and none is chosen for the open search (never a guess: use-aim.ts), outside a pile of the
+ * search's own sequence or its own new list: the box and the dock ask where they go.
+ */
+const unchosenOf = (i: SheetInputs): boolean =>
+  !i.searchWrites && !i.aim.target && !i.aim.newList && (i.aim.targets ?? []).length > 0;
+
 /** The dock for the lead's state and place, in its pile or out of one. */
 function sheetDockFor(
   i: SheetInputs,
@@ -179,6 +191,7 @@ function sheetDockFor(
     closed: c.closed,
     reply: replyOf(i.story),
     reading: stillReadingOf(i, c),
+    unchosen: unchosenOf(i),
     tz: i.tz,
     nowMs,
   });
@@ -214,34 +227,30 @@ export function sheetFactsOf(i: SheetInputs, nowMs: number): SheetFacts {
     canChange,
     closed: c.closed,
     reading: stillReadingOf(i, c),
+    blocked: c.blocked,
+    unchosen: unchosenOf(i),
   });
   return {
     card: c.card,
     check: c.check,
     state: c.state,
     closed: c.closed,
-    sub: { desk: leadSheetSubOf(i.vm), phone: leadSheetSubOf(i.vm, true) },
+    sub: leadSheetSubOf(i.vm),
     checks: leadSheetChecksLineOf(i.vm),
     contact: leadSheetContactLineOf(i.vm),
     why: leadSheetWhyOf(i.vm),
     place,
-    word: leadSheetWordOf({ state: c.state, place, closed: c.closed }),
+    word: leadSheetWordOf({ state: c.state, place, closed: c.closed, blocked: c.blocked }),
     box,
     dock: sheetDockFor(i, c, place, nowMs),
     track,
     reply: leadSheetReplyOf(i.story),
-    stand: leadSheetStandOf({
-      track,
-      state: c.state,
-      target: target ? target.name : null,
-      searchWrites: writes ? writes.name : null,
-      closed: c.closed,
-    }),
+    stand: leadSheetStandOf({ track, box }),
     options: sheetOptionsFor(i, nowMs),
-    mail: mailOf(c.card, writes ? writes.name : target ? target.name : null, canChange),
+    mail: mailOf(c.card, writes ? writes.name : target ? target.name : null, c.state),
   };
 }
 
 /** The rail at a pile's end. */
 export const endRailOf = (pile: SheetPileFacts, target: string | null): LeadSheetRailVM =>
-  leadSheetEndRailOf({ later: pile.later, held: pile.held, target });
+  leadSheetEndRailOf({ later: pile.later, held: pile.held, target, added: pile.added });

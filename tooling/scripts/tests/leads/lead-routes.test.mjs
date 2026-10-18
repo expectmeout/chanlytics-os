@@ -1231,6 +1231,8 @@ test("the checks read the judge's own keys: the kind and every criterion it answ
               { key: "kind", answer: "pass", facts: ["name", "category"] },
               { key: "open_weekends", answer: "unknown", facts: [] },
               { key: "chains", answer: "fail", facts: ["name"] },
+              // Answered from the listing's own numbers: a fact the listing shows, seen there, never Claude's read.
+              { key: "rated_low", answer: "pass", facts: ["rating", "reviews"] },
               // A key that shares a seen check's name is measured, never read: it is not said twice.
               { key: "mailbox", answer: "pass", facts: ["emails"] },
             ]),
@@ -1250,6 +1252,12 @@ test("the checks read the judge's own keys: the kind and every criterion it answ
     "every criterion the judge answered, under the plan's key: only LEAD_CHECK_KEYS were, and no plan's keys were those",
   );
   assert.equal(out.rows[0].member.checks.filter((c) => c.key === "mailbox").length, 1, "the mailbox is the seen one");
+  const rated = out.rows[0].member.checks.find((c) => c.key === "rated_low");
+  assert.deepEqual(
+    [rated.how, rated.answer, rated.source],
+    ["seen", "yes", "Google Maps · rating, reviews"],
+    "a criterion the listing's numbers answer is seen on the listing",
+  );
 });
 
 /** GET leads/[id]'s world (PR 9): one lead, its two memberships, its places; and lead_member_of answering from them. */

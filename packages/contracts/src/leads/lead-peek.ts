@@ -160,11 +160,12 @@ export interface LeadPeekVM {
 }
 
 /**
- * A check's label in the peek: the mailbox says the state it saw; what was seen is said in the check's own words; what
- * Claude read, in the plan's (the judge's keys are its, PR 9).
+ * A check's label in the peek: the mailbox says the state it saw; every other check, seen or read, in the plan's words
+ * where the plan has its key (a criterion the listing's numbers answered is seen, and still the owner's criterion), and
+ * in the check's own words where it does not (the judge's keys are the plan's, PR 9).
  */
 const peekCheckLabel = (c: LeadCheck, search: LeadSearchDto | null, mailboxLabel: string): string =>
-  c.key === "mailbox" ? mailboxLabel : leadCheckWord(c.how === "read" ? search : null, c.key, c.answer);
+  c.key === "mailbox" ? mailboxLabel : leadCheckWord(search, c.key, c.answer);
 
 /**
  * What the peek's ⋯ menu offers the member looking at it (Reach out Part 4, PR 9). Erase is the owner's alone -- the
@@ -442,12 +443,12 @@ export function toLeadPeekVM(r: LeadRowDto, search: LeadSearchDto | null, tz: st
               ? "You marked this number wrong."
               : r.phone_agrees
                 ? "The same number on Google Maps and their website"
-                : "From their Google Maps listing",
+                : "On their Google Maps listing only, so not confirmed",
             tip: r.phone_wrong
               ? "You marked this number wrong."
               : r.phone_agrees
                 ? "The same number on Google Maps and their website."
-                : "From their Google Maps listing.",
+                : "On their Google Maps listing only; their website doesn't show it, so it isn't confirmed.",
             tel: r.phone_wrong ? null : `tel:${r.phone}`,
             wrong: r.phone_wrong,
           }

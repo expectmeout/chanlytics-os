@@ -194,10 +194,15 @@ export const REACH_OUT_PREVIEW_WORDS = {
 };
 export function reachOutDoorOf(r) {
   if (!r) return null;
-  if (r.chain) return { kind: "open", label: "Open its reach-out", rootId: r.chain };
+  if (r.chain) return { kind: "open", label: "Open its sequence", rootId: r.chain };
   if (r.ready > 0) return { kind: "write", label: `Write to the ${r.ready} ready`, include: false };
   const unconfirmed = Math.max(0, r.with_unconfirmed - r.ready);
-  if (unconfirmed > 0) return { kind: "write", label: `Write to the ${unconfirmed} unconfirmed`, include: true };
+  if (unconfirmed > 0)
+    return {
+      kind: "write",
+      label: `Write to ${unconfirmed} whose address can't be confirmed`,
+      include: true
+    };
   return null;
 }
 export function reachOutWhoWords(includeUnconfirmed) {

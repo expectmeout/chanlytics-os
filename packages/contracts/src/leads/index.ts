@@ -407,7 +407,6 @@ export {
   leadSheetStoryOf,
   leadSheetReplyOf,
   leadSheetOptionsOf,
-  leadSheetReasonsOf,
   leadSheetAboutOf,
   leadSheetStandOf,
 } from "./sheet/lead-sheet";
@@ -422,7 +421,6 @@ export type {
   LeadSheetStepVM,
   LeadSheetTrackVM,
   LeadSheetOptionVM,
-  LeadSheetReasonVM,
   LeadSheetFactVM,
 } from "./sheet/lead-sheet";
 export {
@@ -447,6 +445,8 @@ export {
   leadSheetSubOf,
   leadSheetChecksLineOf,
   leadSheetContactLineOf,
+  leadSheetChecksSaid,
+  leadSheetContactSaid,
   leadSheetWhyOf,
 } from "./sheet/lead-sheet-card";
 export type {

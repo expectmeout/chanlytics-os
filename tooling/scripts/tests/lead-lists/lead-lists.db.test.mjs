@@ -689,9 +689,16 @@ test(
     // 00430 says what the lead is and where it came from (kind, source), and nothing else.
     const live = bodyIn(migration("00430"), "create or replace function public.reach_out_lead_timeline(");
     // 00451 read it from the sequence tables, the ones the old names were views of, and changed nothing else; 00455 says
-    // their place in it (a leave between steps moves no send of theirs), and nothing else.
+    // their place in it (a leave between steps moves no send of theirs), and nothing else; 00457 says what a held
+    // email's check flagged (hold_detail), and nothing else.
     const placed = bodyIn(migration("00455"), "create or replace function public.reach_out_lead_timeline(");
-    assert.equal(liveBody("reach_out_lead_timeline"), placed, "the database runs 00455's");
+    const flagged = bodyIn(migration("00457"), "create or replace function public.reach_out_lead_timeline(");
+    assert.equal(liveBody("reach_out_lead_timeline"), flagged, "the database runs 00457's");
+    assert.equal(
+      flagged.replace("               'hold_detail', s.hold_detail,\n", ""),
+      placed,
+      "00457's is 00455's with what a held email's check flagged",
+    );
     assert.equal(
       placed.replace(
         "    'can_stop', v_sent and v_lead.reach_out_stopped_at is null,\n" +
