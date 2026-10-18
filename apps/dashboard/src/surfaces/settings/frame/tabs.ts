@@ -100,6 +100,8 @@ const ROW_PANES: Readonly<Record<string, string>> = {
   prompt: "receptionist",
   // Try it (business/try/try-it.tsx): a message tried as a customer would, opened by `admin/receptionist/try`.
   try: "receptionist",
+  // The transfer number, on How it answers' On calls with the greeting (the Settings wiring review, items 6-7).
+  handoff_number: "receptionist",
   guardrails: "autonomy",
   escalate_when: "autonomy",
 };

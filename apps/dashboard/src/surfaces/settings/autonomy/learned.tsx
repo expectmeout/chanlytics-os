@@ -1,9 +1,10 @@
 /**
- * What the receptionist learned from the owner's corrections, on Settings › Autonomy (decision 0063): each note an owner's
- * rewrite or reply suggested, newest first, with what they wrote, and Keep as a note or Dismiss. Keep is the settings' own
+ * What the receptionist learned from the owner's corrections, on Settings › How it answers after What it knows (decision
+ * 0063; there since the Settings wiring review, item 8, 18 Oct 2026, where a kept note lands, as it was on Autonomy): each
+ * note an owner's rewrite or reply suggested, newest first, with what they wrote, and Keep as a note or Dismiss. Keep is the settings' own
  * write on the server, so the presses are the settings' role (gate "settings"); the row goes at once, and the settings are
  * read again behind the verb (the refresh map), which carries the list as it then stands. Nothing is drawn while none waits,
- * nor where the read failed: the matrix above stands either way.
+ * nor where the read failed: the page stands either way.
  */
 import { useState } from "react";
 import { FACT_SUGGEST_WORDS as W, type FactSuggestionDto } from "@chanlytics/contracts";
@@ -44,7 +45,7 @@ export function LearnedFromYou({
     flash({ msg: <>{r.receipt}</> });
   };
   return (
-    <section className="rec-card set-card" data-testid="aut-learned">
+    <section className="rec-card" data-testid="rec-card-learned">
       <div className="rec-card-head">
         <h2 className="rec-card-title">{W.heading}</h2>
         <span className="rec-card-sub">{W.sub}</span>

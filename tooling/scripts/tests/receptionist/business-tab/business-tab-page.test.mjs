@@ -37,6 +37,7 @@ import {
   composePromptPreview,
   composed,
   dayOf,
+  POLICIES,
   drawTab,
   escape,
   foldOf,
@@ -106,19 +107,56 @@ test("a missing voice is named in the gap line, and the link opens its row", () 
   );
 });
 
-test("Who you are draws seven rows, in the spec's order: the logo after the name (00407)", () => {
+test("Who you are draws six rows, in the spec's order: the logo after the name (00407)", () => {
   const card = byTestId(drawTab({ profile: marisa }), "rec-card-who");
   const keys = all(card, (n) => classes(n).includes("rec-row-key")).map(textOf);
-  // The booking link is Booking's, on Hours & booking (17 Oct 2026).
-  assert.deepEqual(keys, [
-    "Name",
-    "Logo",
-    "Address",
-    "Website",
-    "Answers on",
-    "Tells customers to call",
+  // The booking link is Booking's, on Hours & booking (17 Oct 2026); the transfer number is On calls' (18 Oct 2026).
+  assert.deepEqual(keys, ["Name", "Logo", "Address", "Website", "Answers on", "Tells customers to call"]);
+});
+
+test("On calls holds what a caller hears and who it puts them through to, and says what a call does out of hours", () => {
+  // The Settings wiring review, items 6-7 (18 Oct 2026): the greeting was How it talks', the number Who you are's.
+  const tree = drawTab({ profile: marisa });
+  const card = byTestId(tree, "rec-card-calls");
+  assert.match(textOf(card), /On calls/);
+  // Out of hours a call takes a message (contracts handoffCallRow), so the card says who it rings in opening hours.
+  assert.match(textOf(card), /who it rings in opening hours/);
+  assert.deepEqual(all(card, (n) => classes(n).includes("rec-row-key")).map(textOf), [
+    "Greets every caller with",
     "Transfer number",
   ]);
+  const row = byTestId(card, "rec-row-handoff_number");
+  assert.match(textOf(row), /\+1 \(212\) 555-0142/);
+  assert.equal(byTestId(byTestId(tree, "rec-card-answers"), "rec-row-phone_greeting"), null, "no longer How it talks'");
+  // A line that answers no calls: no greeting, and the number still says a message is what a caller gets.
+  const none = byTestId(
+    drawTab({
+      profile: without(marisa, "handoff_number"),
+      facts: { voice_line: { value: null, source: "absent" }, handoff_number: { value: null, source: "absent" } },
+    }),
+    "rec-card-calls",
+  );
+  assert.equal(byTestId(none, "rec-row-phone_greeting"), null);
+  assert.match(textOf(byTestId(none, "rec-row-handoff_number")), /Takes a message instead/);
+});
+
+test("what the owner's corrections suggest is drawn after What it knows, where a note kept lands", () => {
+  // The Settings wiring review, item 8 (18 Oct 2026): it was a card of Autonomy's.
+  const waiting = {
+    id: "s-1",
+    source: "steer",
+    title: "Mondays",
+    body: "We are closed on Mondays.",
+    quote: "tell her we are closed on Mondays now",
+    conversation_id: null,
+    created_at: "2026-10-16T09:00:00Z",
+  };
+  const order = (tree) => all(tree, (n) => classes(n).includes("rec-card")).map((n) => n.props["data-testid"]);
+  const tree = drawTab({ policies: { ...POLICIES(), suggestions: [waiting] } });
+  const cards = order(tree);
+  assert.equal(cards[cards.indexOf("rec-card-knows") + 1], "rec-card-learned");
+  assert.match(textOf(byTestId(tree, "rec-card-learned")), /We are closed on Mondays\./);
+  assert.ok(!order(drawTab()).includes("rec-card-learned"), "nothing while none waits");
 });
 
 test("the Workspace row is gone, whatever the workspace is called", () => {

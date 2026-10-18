@@ -1064,6 +1064,16 @@ test("Replies says how many people are set differently, by mode, and each of the
   } finally {
     W.CHANLY = nav;
   }
+  // What the owner's corrections suggest is How it answers' now (item 8), so Autonomy draws no card of them.
+  workspace("owner", {
+    __POLICIES: {
+      role: "owner",
+      rows,
+      ownModes,
+      suggestions: [{ id: "s-1", source: "steer", title: "Mondays", body: "Closed.", quote: "closed", created_at: "" }],
+    },
+  });
+  assert.equal(byTestId(settings("autonomy"), "rec-card-learned"), null);
   // Nobody set apart, or a read that failed: no line at all.
   for (const none of [{ total: 0, by_mode: { auto: 0, ask: 0, never: 0 }, named: [] }, null]) {
     workspace("owner", { __POLICIES: { role: "owner", rows, ownModes: none } });
