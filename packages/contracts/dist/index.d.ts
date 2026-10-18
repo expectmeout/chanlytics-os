@@ -22769,10 +22769,12 @@ interface AskSourceRef {
     id: string;
     label: string;
 }
+/** The answer read, or why not; `ignored` is what followed its closed object (firstJsonValue): logged, never drawn. */
 type AskAnswerRead = {
     ok: true;
     answer: AskAnswer;
     dropped: number;
+    ignored?: string;
 } | {
     ok: false;
     error: string;
