@@ -1,6 +1,21 @@
 import "server-only";
-import { dealsAreOn, HELD_DRAFTS_DAYS, type FactSuggestionDto, type HeldDraftsByIntent } from "@chanlytics/contracts";
-import { factSuggestionsWaiting, heldDraftsByIntent, type PolicyRecord } from "@chanlytics/db";
+import {
+  dealsAreOn,
+  HELD_DRAFTS_DAYS,
+  OWN_MODE_NAMED,
+  ownModesOf,
+  personName,
+  type FactSuggestionDto,
+  type HeldDraftsByIntent,
+  type OwnModesDto,
+} from "@chanlytics/contracts";
+import {
+  factSuggestionsWaiting,
+  heldDraftsByIntent,
+  namesOfPeople,
+  peopleOnTheirOwnMode,
+  type PolicyRecord,
+} from "@chanlytics/db";
 import { log } from "@/server/log";
 import { load, stamp, type Reader, type ReaderContext } from "./index";
 import * as facts from "./facts";
@@ -14,6 +29,20 @@ interface AutonomyMatrix {
   held: HeldDraftsByIntent[] | null;
   /** The notes suggested from the owner's corrections, waiting, newest first (decision 0063); null where the read failed. */
   suggestions: FactSuggestionDto[] | null;
+  /** The people whose receptionist has a mode of their own, counted and the newest named; null where the read failed. */
+  own_modes: OwnModesDto | null;
+}
+
+/**
+ * The people set differently from the reply row (the Settings wiring review, item 10, 18 Oct 2026): every one counted,
+ * the newest changes named as People names them (contracts personName). Replies said what the receptionist does for
+ * everyone, and nothing said that some people were set apart from it.
+ */
+async function ownModes(db: ReaderContext["ctx"]["supabase"], tenantId: string): Promise<OwnModesDto> {
+  const rows = await peopleOnTheirOwnMode(db, tenantId);
+  const newest = rows.slice(0, OWN_MODE_NAMED).map((r) => r.id);
+  const people = newest.length ? await namesOfPeople(db, tenantId, newest) : [];
+  return ownModesOf(rows, new Map(people.map((p) => [p.id, personName(p)])));
 }
 
 /**
@@ -31,7 +60,7 @@ export const autonomy: Reader<undefined, AutonomyMatrix> = {
   name: "autonomy",
   async read(rc) {
     const db = rc.ctx.supabase;
-    const [p, s, held, suggestions] = await Promise.all([
+    const [p, s, held, suggestions, own] = await Promise.all([
       load(rc, facts.policies, undefined),
       load(rc, facts.sellsBy, undefined),
       heldDraftsByIntent(db, rc.tenantId, HELD_DRAFTS_DAYS).catch((error: unknown) => {
@@ -42,9 +71,13 @@ export const autonomy: Reader<undefined, AutonomyMatrix> = {
         log.error("autonomy_suggestions_failed", { tenant_id: rc.tenantId, error });
         return null;
       }),
+      ownModes(db, rc.tenantId).catch((error: unknown) => {
+        log.error("autonomy_own_modes_failed", { tenant_id: rc.tenantId, error });
+        return null;
+      }),
     ]);
     return {
-      data: { policies: p.data, role: rc.role, deals_on: dealsAreOn(s.data), held, suggestions },
+      data: { policies: p.data, role: rc.role, deals_on: dealsAreOn(s.data), held, suggestions, own_modes: own },
       rows: [],
       stamp: stamp(),
     };

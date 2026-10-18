@@ -244,6 +244,33 @@ export async function personReplyModes(
   return out;
 }
 
+/** How many people's own modes one read takes: PostgREST's page. */
+const OWN_MODES_PAGE = 1000;
+
+/**
+ * Every person in the workspace whose receptionist has a mode of their own, the newest change first: their id and the
+ * mode (Settings › Autonomy says how many, and opens them). Read a page at a time to the end: a count that stopped at a
+ * page would say fewer people than are set. A merge moves a person's row and an erasure deletes it, so every row is a
+ * person. A read that fails THROWS: a count the database could not answer is never none.
+ */
+export async function peopleOnTheirOwnMode(db: Db, tenantId: string): Promise<Array<{ id: string; mode: string }>> {
+  const out: Array<{ id: string; mode: string }> = [];
+  for (let from = 0; ; from += OWN_MODES_PAGE) {
+    const { data, error } = await db
+      .from("policies")
+      .select("subject_id, mode")
+      .eq("tenant_id", tenantId)
+      .eq("class", "reply")
+      .eq("subject_type", "contact")
+      .order("updated_at", { ascending: false })
+      .order("id")
+      .range(from, from + OWN_MODES_PAGE - 1);
+    if (error) throw new Error(`peopleOnTheirOwnMode: ${error.message}`);
+    for (const r of data ?? []) if (r.subject_id) out.push({ id: r.subject_id, mode: r.mode });
+    if ((data ?? []).length < OWN_MODES_PAGE) return out;
+  }
+}
+
 /**
  * Set or clear one person's receptionist mode. `null` removes the row, so the
  * person follows the workspace policy again. Insert and delete are owner-only

@@ -22,6 +22,7 @@ import { useSurface } from "../../use-surface";
 import { BusinessLimitRows } from "../business/tab";
 import { SetDial, SetRow } from "./controls";
 import { LearnedFromYou } from "./learned";
+import { AutOwnModes } from "./own-modes";
 import { PolModeRow, PolPhoneRows, PolicyTable, polMode, useSetPhone } from "./matrix";
 import { autonomyVerbs } from "./verbs";
 
@@ -259,6 +260,7 @@ export const PaneAutonomyReal = ({ flash, row = null }: { flash: (f: LegacyFlash
             <span className="rec-card-sub">How each text to a customer goes out, and how long it waits for you</span>
           </div>
           <PolModeRow r={reply} put={putMode} busy={busy} held={held} />
+          <AutOwnModes own={policies.ownModes} />
           {replyDials(reply).map((d) => dialRow(d, phone, reply, putDial))}
         </section>
       ) : null}

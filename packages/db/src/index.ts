@@ -487,6 +487,7 @@ export {
   setPolicyMode,
   personReplyMode,
   personReplyModes,
+  peopleOnTheirOwnMode,
   setPersonReplyMode,
   workspaceAnswersOnItsOwn,
   workspaceOpenToCustomers,
