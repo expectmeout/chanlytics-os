@@ -42,6 +42,11 @@ const runtimeOf = (m) => ({ ...m.dependencies, ...m.peerDependencies });
 const isDevOnly = (file) => /\.type-test\.tsx?$|(^|\/)(test|__tests__)\/|(^|\/)[\w.-]+\.config\.[cm]?ts$/.test(file);
 /** The dashboard's path alias (`@/server/route`, its tsconfig.json's paths): its own modules, not a package. */
 const isAlias = (specifier) => specifier.startsWith("@/");
+/**
+ * A subpath import its manifest names (`#frame-shell`, package.json's "imports"): the project's own module, not a
+ * dependency. One its manifest does not name resolves to nothing, and is reported.
+ */
+const isOwnImport = (m, specifier) => specifier.startsWith("#") && Object.hasOwn(m.imports ?? {}, specifier);
 
 test("each project's source imports only what its package.json declares", () => {
   const unlisted = [];
@@ -50,7 +55,7 @@ test("each project's source imports only what its package.json declares", () => 
     const runtime = runtimeOf(m);
     for (const file of repoFiles([dir]).filter((f) => /\.(ts|tsx|mts)$/.test(f))) {
       for (const { specifier } of importsOf(parse(file))) {
-        const name = isAlias(specifier) ? null : packageOf(specifier);
+        const name = isAlias(specifier) || isOwnImport(m, specifier) ? null : packageOf(specifier);
         if (!name || name === m.name || name in runtime) continue;
         if (isDevOnly(file) && name in (m.devDependencies ?? {})) continue;
         // Next resolves these itself: `next/*`, and the `server-only` marker it bundles.

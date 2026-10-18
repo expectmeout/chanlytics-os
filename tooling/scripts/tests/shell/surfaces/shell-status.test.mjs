@@ -1651,18 +1651,19 @@ test("a list's own route on a real workspace is the App Router page, drawn from 
   }
 });
 
-test("the mockup's seeded Lists page is drawn only where there is no workspace to read: a demo session keeps it, a real workspace never sees it", () => {
+test("a demo session's list is the App Router page too: the mockup's seeded Lists page went, and its name on the window draws nothing", () => {
+  // The seeded page and its row went on 17 October 2026 (the closed-loop audit's S2, Ruben's word); a real workspace's
+  // list is the test above's.
   win.SegmentsPage = "SegmentsPage";
   try {
     const demo = mount("#/segments/s1");
     assert.ok(
-      find(demo.tree, (n) => n.type === "SegmentsPage"),
-      "a demo keeps its seeded page",
+      find(demo.tree, (n) => n.type === "RoutePage"),
+      "a demo draws the page the layout drew",
     );
-    win.__surfaceState = () => "real";
-    assert.ok(!find(mount("#/segments/s1").tree, (n) => n.type === "SegmentsPage"), "a real workspace is the page");
+    assert.ok(!find(demo.tree, (n) => n.type === "SegmentsPage"), "never the seeded page");
+    assert.equal(demo.title, "People · Chanlytics", "under People in the trail, as a real workspace's");
   } finally {
-    delete win.__surfaceState;
     delete win.SegmentsPage;
   }
 });

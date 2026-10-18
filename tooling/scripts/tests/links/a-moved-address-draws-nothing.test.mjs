@@ -47,8 +47,11 @@ test("the gate still draws its card for a demo page nobody is sent from, and a p
   const gated = globalThis.drawRoute(route({ page: "tasks", param: null, routeKey: "tasks/" }));
   assert.ok(gated.content, "a demo page in a real workspace is still the honest card");
   assert.deepEqual(gated.crumbs, ["Tasks"]);
+  // The row's own answer, in a session that declared itself a demo: the parked page's landing (drawParked), since its
+  // mockup went on 17 October 2026 (the closed-loop audit's S2, Ruben's word), so a demo says the gate's card too.
   const open = globalThis.drawRoute(route({ page: "tasks", param: null, routeKey: "tasks/", demoGated: false }));
-  assert.deepEqual(open.crumbs, ["Agents", "Tasks"], "the row's own answer, in a session that declared itself a demo");
+  assert.deepEqual(open.crumbs, ["Tasks"]);
+  assert.equal(open.content.props.surface, "tasks", "the Not-in-this-release card, drawn by the row");
 });
 
 test("an address under Settings that names no pane opens Profile, in the frame's crumbs as in the page", async () => {
