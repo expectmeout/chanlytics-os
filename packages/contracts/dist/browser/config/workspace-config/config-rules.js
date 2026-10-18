@@ -50,6 +50,7 @@ export const E164 = /^\+[1-9]\d{6,14}$/;
 export const isE164 = (s) => typeof s === "string" && E164.test(s);
 export const INSTRUCTIONS_MAX = 2e4;
 export const BOOKING_LINK_MAX = 500;
+export const ASK_GOAL_MAX = 200;
 export const PROFILE_LIMITS = {
   tone: 200,
   services: 60,

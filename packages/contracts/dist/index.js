@@ -3430,6 +3430,7 @@ var E1642 = /^\+[1-9]\d{6,14}$/;
 var isE164 = (s) => typeof s === "string" && E1642.test(s);
 var INSTRUCTIONS_MAX = 2e4;
 var BOOKING_LINK_MAX = 500;
+var ASK_GOAL_MAX = 200;
 var PROFILE_LIMITS = {
   tone: 200,
   services: 60,
@@ -13118,7 +13119,7 @@ var ASK_SURFACES = [
 ];
 
 // src/ask/ask-schemas.ts
-import { z as z7 } from "zod";
+import { z as z4 } from "zod";
 
 // src/ask/answer-text.ts
 var TAG_CUT = /<\/answer>|<\/?parameter\b|<\/?invoke\b|<\/?function_calls\b|<\/?tool_call\b/i;
@@ -23798,513 +23799,53 @@ function itemFocus(m, n) {
   return isRowFocus(kind) ? { kind, id, label: label.slice(0, 80) || `this ${kind}` } : null;
 }
 
-// src/calendar/feed-url.ts
-var PRIVATE_HOST = /^(localhost|127\.|10\.|192\.168\.|169\.254\.|0\.|\[?::1\]?$|.*\.local$|.*\.internal$)/i;
-var CARRIER_NAT = /^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./;
-var PRIVATE_V6 = /^\[(::1?|f[cd][0-9a-f]{0,2}:.*|fe[89ab][0-9a-f]?:.*|::ffff:.*)\]$/i;
-function feedUrlOk(raw) {
-  if (!raw) return null;
-  const url = raw.trim().replace(/^webcal:\/\//i, "https://");
-  let u;
-  try {
-    u = new URL(url);
-  } catch {
-    return null;
-  }
-  if (u.protocol !== "https:" && u.protocol !== "http:") return null;
-  const h = u.hostname;
-  if (PRIVATE_HOST.test(h) || /^172\.(1[6-9]|2\d|3[01])\./.test(h) || CARRIER_NAT.test(h) || PRIVATE_V6.test(h))
-    return null;
-  return u.toString();
-}
-var FEED_REDIRECTS_MAX = 3;
-async function fetchPublic(fetchImpl, raw, init = {}) {
-  let at3 = feedUrlOk(raw);
-  for (let hop = 0; at3 && hop <= FEED_REDIRECTS_MAX; hop += 1) {
-    const res = await fetchImpl(at3, { ...init, redirect: "manual" });
-    if (res.status >= 300 && res.status < 400) {
-      const next = res.headers.get("location");
-      await res.body?.cancel().catch(() => void 0);
-      at3 = next ? feedUrlOk(URL.canParse(next, at3) ? new URL(next, at3).toString() : null) : null;
-      continue;
-    }
-    return res;
-  }
-  return null;
-}
-var FEED_GUIDES = [
-  {
-    name: "Google Calendar",
-    steps: [
-      "On a computer, open Google Calendar and go to Settings.",
-      "Under \u201CSettings for my calendars\u201D, pick the calendar your bookings land in.",
-      "Open \u201CIntegrate calendar\u201D and copy \u201CSecret address in iCal format\u201D."
-    ]
-  },
-  {
-    name: "Apple Calendar (iCloud)",
-    steps: [
-      "In the Calendar app, open Calendars and press \u24D8 beside the calendar your bookings land in.",
-      "Turn on Public Calendar, then Share Link, and copy it."
-    ]
-  },
-  {
-    name: "Outlook",
-    steps: [
-      "In Outlook on the web, open Settings, then Calendar, then Shared calendars.",
-      "Under \u201CPublish a calendar\u201D, pick your calendar and \u201CCan view when I'm busy\u201D, then Publish.",
-      "Copy the ICS link."
-    ]
-  }
-];
-var FEED_CHECK_WORDS = {
-  guide: "Where do I find it?",
-  reading: "Reading it\u2026",
-  read: (events, next) => events === 0 ? "Read it: it's empty so far. Your receptionist will see new bookings as they land." : `Read it: ${events} ${events === 1 ? "event" : "events"}, ${next ? `the next ${next}` : "none in the next 30 days"}.`
-};
-var FEED_MAX_BYTES = 2e6;
-function feedProblemWords(reason, status) {
-  switch (reason) {
-    case "address":
-      return "The calendar feed needs to be a full https:// or webcal:// address on the internet.";
-    case "unreachable":
-      return "The calendar could not be reached. Check the address and try again.";
-    case "http":
-      return `The calendar answered ${status ?? "an error"}. It is usually the private iCal address, not the calendar's web page.`;
-    case "too_large":
-      return "That feed is too large to read (over 2 MB).";
-    case "not_ical":
-      return "That address is not an iCal feed. In Google Calendar it is Settings \u203A your calendar \u203A Secret address in iCal format.";
-    case "settings":
-      return "Your workspace settings could not be read, so the calendar address could not be found. Save it again in Settings.";
-    default:
-      return null;
-  }
-}
-function feedBodyProblem(text) {
-  if (text.length > FEED_MAX_BYTES) return "too_large";
-  if (!/BEGIN:VCALENDAR/i.test(text)) return "not_ical";
-  return null;
-}
-function offeringHorizon(now, daysAhead) {
-  return { from: now.getTime() - DAY_MS, to: now.getTime() + (daysAhead + 1) * DAY_MS };
-}
-var SEASON_BACK_DAYS = 90;
-function seasonHorizon(now, daysAhead = 0) {
-  return {
-    from: now.getTime() - DAY_MS * SEASON_BACK_DAYS,
-    to: now.getTime() + Math.max(daysAhead + 1, 90) * DAY_MS
-  };
-}
-function previewHorizon(now) {
-  return { from: now.getTime() - DAY_MS, to: now.getTime() + 30 * DAY_MS };
-}
-
-// src/config/workspace-config/config-schema.ts
-import { z as z6 } from "zod";
-
-// src/config/unknown-keys.ts
-var isJsonObject = (v) => typeof v === "object" && v !== null && !Array.isArray(v);
-var isList = (v) => Array.isArray(v);
-function keysLeftOut(raw, kept, at3 = []) {
-  if (Array.isArray(raw) && Array.isArray(kept)) {
-    return raw.flatMap((v, i) => i < kept.length ? keysLeftOut(v, kept[i], [...at3, i]) : []);
-  }
-  if (!isJsonObject(raw) || !isJsonObject(kept)) return [];
-  return Object.entries(raw).flatMap(([k, v]) => {
-    if (v === void 0) return [];
-    return Object.hasOwn(kept, k) ? keysLeftOut(v, kept[k], [...at3, k]) : [[...at3, k]];
-  });
-}
-function sameJson(a, b) {
-  if (Array.isArray(a) || Array.isArray(b)) {
-    return Array.isArray(a) && Array.isArray(b) && a.length === b.length && a.every((v, i) => sameJson(v, b[i]));
-  }
-  if (isJsonObject(a) && isJsonObject(b)) {
-    const ka = Object.keys(a).filter((k) => a[k] !== void 0);
-    const kb = Object.keys(b).filter((k) => b[k] !== void 0);
-    return ka.length === kb.length && ka.every((k) => Object.hasOwn(b, k) && sameJson(a[k], b[k]));
-  }
-  return Object.is(a, b);
-}
-function withKeysLeftOut(sent, raw, kept) {
-  if (isList(sent) && isList(raw) && isList(kept)) {
-    const taken = /* @__PURE__ */ new Set();
-    return sent.map((el) => {
-      const i = kept.findIndex((k, n) => !taken.has(n) && n < raw.length && sameJson(k, el));
-      if (i < 0) return el;
-      taken.add(i);
-      return withKeysLeftOut(el, raw[i], kept[i]);
-    });
-  }
-  if (!isJsonObject(sent) || !isJsonObject(raw) || !isJsonObject(kept)) return sent;
-  const out = { ...sent };
-  for (const [k, v] of Object.entries(raw)) {
-    if (v === void 0) continue;
-    if (!Object.hasOwn(kept, k)) {
-      if (!Object.hasOwn(sent, k)) out[k] = v;
-    } else if (Object.hasOwn(sent, k)) {
-      out[k] = withKeysLeftOut(sent[k], v, kept[k]);
-    }
-  }
-  return out;
-}
-function refuseUnknownFields(read, raw, ctx) {
-  const parsed = read.safeParse(raw);
-  if (!parsed.success) return;
-  const byObject = /* @__PURE__ */ new Map();
-  for (const where of keysLeftOut(raw, parsed.data)) {
-    if (where.length < 2) continue;
-    const path = where.slice(0, -1);
-    const id = JSON.stringify(path);
-    const held = byObject.get(id) ?? { path, keys: [] };
-    held.keys.push(String(where[where.length - 1]));
-    byObject.set(id, held);
-  }
-  for (const { path, keys } of byObject.values()) ctx.addIssue({ code: "unrecognized_keys", keys, path });
-}
-
-// src/config/workspace-config/brain-config-schema.ts
-import { z as z5 } from "zod";
-
-// src/config/workspace-config/business-profile.ts
-import { z as z4 } from "zod";
-var TIME = z4.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
-var IntervalSchema = z4.object({ open: TIME, close: TIME });
-var HoursSchema = z4.object({
-  /** "09:00". Absent or null = closed that day, which is a real answer. */
-  open: TIME.nullable().optional(),
-  close: TIME.nullable().optional(),
-  /**
-   * Split shifts — 09:30-13:00 and 15:00-19:00, the lunch break a salon
-   * actually keeps. Additive: a day that has always been one stretch keeps
-   * saying so with open/close, and no stored config is rewritten.
-   */
-  intervals: z4.array(IntervalSchema).optional()
-}).strip();
-var DATE = z4.string().regex(/^\d{4}-\d{2}-\d{2}$/);
-var ClosureSchema = z4.object({
-  date: DATE,
-  until: DATE.optional(),
-  note: z4.string().max(PROFILE_LIMITS.closureNote).optional()
-});
-var ServiceSchema = z4.object({
-  name: z4.string().min(1).max(PROFILE_LIMITS.serviceName),
-  /** Minutes. The receptionist is asked "how long does it take" constantly. */
-  duration_min: z4.number().int().min(1).max(PROFILE_LIMITS.serviceMinutes).optional(),
-  /**
-   * Free text, not a number, and deliberately so: "from $45", "quoted at
-   * consult", "varies by length". A price the business cannot state flatly
-   * must not be forced into a field that looks like it can.
-   */
-  price_note: z4.string().max(PROFILE_LIMITS.servicePrice).optional()
-}).strip();
-var GuardrailsSchema = z4.object({
-  never_quote_prices: z4.boolean().optional(),
-  never_confirm_booking: z4.boolean().optional(),
-  disclose_ai: z4.boolean().optional(),
-  /**
-   * OPT-IN, unlike the three above. Those default on because absent means
-   * "the safe reading"; this one arrived after prompts were live, and a
-   * rule that defaulted on would have changed every composed prompt in
-   * production the moment it deployed.
-   */
-  no_health_advice: z4.boolean().optional()
-}).strip();
-var NoteSchema = z4.object({
-  title: z4.string().min(1).max(PROFILE_LIMITS.noteTitle),
-  text: z4.string().min(1).max(PROFILE_LIMITS.noteText),
-  until: DATE.optional()
-}).strip();
-var rule = (key) => z4.number().int().min(BOOKING_RULE_BOUNDS[key].min).max(BOOKING_RULE_BOUNDS[key].max).optional();
-var BookingRulesSchema = z4.object({
-  /** Least notice for a slot, in hours. Absent = 2. */
-  lead_hours: rule("lead_hours"),
-  /** Gap kept around each existing appointment, in minutes. Absent = 0. */
-  buffer_min: rule("buffer_min"),
-  /** How far ahead open times are offered, in days. Absent = 14. */
-  max_days_ahead: rule("max_days_ahead"),
-  /** The shortest window worth naming, in minutes. Absent = 30. */
-  slot_min: rule("slot_min"),
-  /** Services that need a consultation before they can be booked. */
-  consult_first: z4.array(z4.string().min(1).max(PROFILE_LIMITS.consultFirstLine)).max(PROFILE_LIMITS.consultFirst).optional(),
-  party_max: rule("party_max"),
-  /**
-   * Ask, once, for an email when sending the booking link -- for the confirmation, and for the campaigns that follow
-   * (Part 0 of the campaigns-on-every-channel spec). Absent = no.
-   */
-  ask_email: z4.boolean().optional(),
-  /** Anything else about booking, one short line each. */
-  notes: z4.array(z4.string().min(1).max(PROFILE_LIMITS.ruleNote)).max(PROFILE_LIMITS.ruleNotes).optional()
-}).strip();
-var BusinessProfileSchema = z4.object({
-  address: z4.string().max(300).optional(),
-  hours: z4.partialRecord(z4.enum(DAYS), HoursSchema).optional(),
-  /** Dates the business is shut regardless of the weekly grid. */
-  closures: z4.array(ClosureSchema).optional(),
-  services: z4.array(ServiceSchema).max(PROFILE_LIMITS.services).optional(),
-  languages: z4.array(z4.string().min(PROFILE_LIMITS.languageMin).max(PROFILE_LIMITS.languageMax)).max(PROFILE_LIMITS.languages).optional(),
-  guardrails: GuardrailsSchema.optional(),
-  /** What must reach a person. One short line each. */
-  escalate_when: z4.array(z4.string().min(1).max(PROFILE_LIMITS.reason)).max(PROFILE_LIMITS.reasons).optional(),
-  tone: z4.string().max(PROFILE_LIMITS.tone).optional(),
-  /**
-   * The line a PERSON answers. The phone receptionist warm-transfers here
-   * during opening hours; absent, it takes a message instead. Never the
-   * receptionist's own line — that would ring itself.
-   */
-  handoff_number: z4.string().regex(E1642, "E.164, like +12125550143").optional(),
-  /**
-   * The first thing a caller hears, in the owner's words, with {business} for the name (decision 0051): no cap and
-   * nothing refused, only notes (voice/greeting-owner.ts greetingNotes). Absent is the standard greeting. The one
-   * thing the product holds is said where the line is spoken, not here: a line that never says it is automated has
-   * the product's clause added (greetingOf). Never part of the composed prompt, so not in hasProfile.
-   */
-  // `.catch`: a stored value that is not a string reads as none (the standard greeting), never as a config that cannot
-  // be parsed, which would leave the receptionist silent.
-  phone_greeting: z4.string().optional().catch(void 0),
-  website: z4.string().url().max(500).optional(),
-  notes: z4.array(NoteSchema).max(PROFILE_LIMITS.notes).optional(),
-  booking_rules: BookingRulesSchema.optional(),
-  /**
-   * Anything the owner wants said that no field covers.
-   *
-   * The escape hatch that keeps this model honest — without it, structuring
-   * the facts would mean losing whatever did not fit, and the first migration
-   * would be a downgrade.
-   *
-   * It holds what the prompt it grew out of holds (INSTRUCTIONS_MAX), because
-   * the form carries that prompt into it.
-   */
-  extra_instructions: z4.string().max(PROFILE_LIMITS.instructions).optional()
-}).strip();
-
-// src/config/workspace-config/brain-config-schema.ts
-var BrainConfigSchema = z5.object({
-  business_name: z5.string().min(1).max(120),
-  /**
-   * The number the receptionist tells customers to call — an OVERRIDE, and
-   * optional because it should almost never be set.
-   *
-   * It was required, free text, and named the same as the line the
-   * receptionist answers, so every workspace typed something into it and
-   * nothing checked what. On the first live salon that produced a
-   * receptionist publishing the number it transfers to: customers who rang
-   * it reached a person's mobile and never the receptionist standing by,
-   * and the same string went to Google.
-   *
-   * Absent is now the right answer and the default: resolveFacts falls back
-   * to the provisioned voice line, formatted for speech, so the number
-   * published is the number answered by construction. A value here means a
-   * business deliberately publishes something else — a tracking line, a
-   * shopfront — and the pane says so in those words.
-   */
-  phone_display: z5.string().min(3).max(40).optional(),
-  /**
-   * Where a customer books. Optional since the first run's decision 2 (24 Sep 2026): a business that quotes each
-   * job has none, and its receptionist takes the customer's details instead (no-booking-link.ts). Who is asked for
-   * one is the pages' question, by how customers buy (deals.ts bookingLinkOptional): the config cannot see it.
-   */
-  booking_link: z5.string().url().max(BOOKING_LINK_MAX).optional(),
-  /** The complete system prompt the model receives — the "AI memory" pane's
-   *  one hard promise is that what it shows is EXACTLY this, nothing more. */
-  system_prompt: z5.string().min(40).max(INSTRUCTIONS_MAX),
-  /**
-   * The business's facts, as fields.
-   *
-   * Optional: every config written before this existed stays valid, and
-   * nothing composes until a workspace actually fills it in. When present
-   * it REPLACES system_prompt as the source the prompt is built from.
-   */
-  profile: BusinessProfileSchema.optional(),
-  fallbacks: z5.object({
-    /** Sent when no model key is configured. */
-    greeting: z5.string().min(1).max(PROFILE_LIMITS.message),
-    /** Sent when the model call failed. */
-    error: z5.string().min(1).max(PROFILE_LIMITS.message),
-    /** Sent for voice notes / photos before escalating. */
-    non_text: z5.string().min(1).max(PROFILE_LIMITS.message)
-  }).strip()
-}).strip();
-
-// src/config/workspace-config/config-schema.ts
-var NotificationsConfigSchema = z6.object({
-  escalation_emails: z6.array(z6.string().email()).min(ALERT_ADDRESSES_MIN).max(ALERT_ADDRESSES_MAX),
-  from: z6.string().max(200).optional(),
-  /**
-   * The kinds the business is not emailed (decision 0040), chosen on Settings › Notifications. Strings, not the closed
-   * set: a kind a newer dashboard writes must not make an older edge's read fail, and `emailOffOf` reads only the kinds
-   * that may be turned off. An edge older than the field drops it and keeps emailing, the safe side.
-   */
-  // `.catch`: a stored value that is not a short list of short names reads as none (everything emailed), never as a
-  // config that cannot be parsed, which would leave the receptionist silent.
-  email_off: z6.array(z6.string().max(40)).max(40).optional().catch(void 0)
-}).strip();
-var CalendarConfigSchema = z6.object({
-  ical_url: z6.string().max(2e3).refine((u) => /^(https?|webcal):\/\/\S+$/i.test(u), "An https:// or webcal:// address")
-}).strip();
-var BookingsConfigSchema = z6.object({ tool: z6.string().max(40).optional(), by_hand: z6.boolean().optional() }).strip();
-var FeaturesConfigSchema = z6.object({
-  vision: z6.boolean().optional(),
-  /** Campaigns › Ads, its sample drawn in this workspace as a demo session draws it (contracts ads/address.ts). */
-  ads_preview: z6.boolean().optional(),
-  /**
-   * Booking requests (decision 0061): where the team confirms its own bookings, a time a customer picks by text is held
-   * for the owner as a request (Booked it or Can't). Off, the conversation is a person's to read, as before.
-   */
-  booking_requests: z6.boolean().optional()
-}).strip();
-var ASK_GOAL_MAX = 200;
-var AskConfigSchema = z6.object({ goal: z6.string().max(ASK_GOAL_MAX).optional() }).strip();
-var TenantConfigSchema = z6.object({
-  brain: BrainConfigSchema.optional(),
-  ask: AskConfigSchema.optional(),
-  notifications: NotificationsConfigSchema.optional(),
-  calendar: CalendarConfigSchema.optional(),
-  bookings: BookingsConfigSchema.optional(),
-  features: FeaturesConfigSchema.optional()
-});
-function checkDay(h, day, ctx) {
-  for (const p of dayProblems(h, day)) {
-    ctx.addIssue({
-      code: z6.ZodIssueCode.custom,
-      path: ["brain", "profile", "hours", day, ...p.path],
-      message: p.message
-    });
-  }
-}
-function checkCalendarDay(day, path, ctx) {
-  if (!isRealDate(day)) {
-    ctx.addIssue({
-      code: z6.ZodIssueCode.custom,
-      path,
-      message: `${day} is not a date on the calendar.`
-    });
-  }
-}
-function checkClosure(c, n, ctx) {
-  const at3 = (...rest) => ["brain", "profile", "closures", n, ...rest];
-  checkCalendarDay(c.date, at3("date"), ctx);
-  if (c.until) checkCalendarDay(c.until, at3("until"), ctx);
-  if (c.until && c.until < c.date) {
-    ctx.addIssue({
-      code: z6.ZodIssueCode.custom,
-      path: at3("until"),
-      message: "A closure cannot end before it starts."
-    });
-  }
-}
-var WriteRules = TenantConfigSchema.superRefine((cfg, ctx) => {
-  if (cfg.calendar && !feedUrlOk(cfg.calendar.ical_url)) {
-    ctx.addIssue({
-      code: z6.ZodIssueCode.custom,
-      path: ["calendar", "ical_url"],
-      message: feedProblemWords("address") ?? "Not an address the receptionist may read."
-    });
-  }
-  if (cfg.bookings?.tool !== void 0 && !isBookingTool(cfg.bookings.tool)) {
-    ctx.addIssue({
-      code: "custom",
-      path: ["bookings", "tool"],
-      message: "Not a booking tool this product knows."
-    });
-  }
-  const p = cfg.brain?.profile;
-  if (!p) return;
-  for (const [day, h] of Object.entries(p.hours ?? {})) if (h) checkDay(h, day, ctx);
-  if ((p.closures?.length ?? 0) > MAX_CLOSURES) {
-    ctx.addIssue({
-      code: z6.ZodIssueCode.custom,
-      path: ["brain", "profile", "closures"],
-      message: `At most ${MAX_CLOSURES} closures.`
-    });
-  }
-  (p.closures ?? []).forEach((c, n) => checkClosure(c, n, ctx));
-  (p.notes ?? []).forEach((note, n) => {
-    if (note.until) checkCalendarDay(note.until, ["brain", "profile", "notes", n, "until"], ctx);
-  });
-});
-var TenantConfigWriteSchema = z6.unknown().superRefine((raw, ctx) => refuseUnknownFields(TenantConfigSchema, raw, ctx)).pipe(WriteRules);
-function parseTenantConfigResult(raw) {
-  const r2 = TenantConfigSchema.safeParse(raw ?? {});
-  if (r2.success) return { ok: true, config: r2.data, ignored: keysLeftOut(raw, r2.data).map((p) => p.join(".")) };
-  return {
-    ok: false,
-    issues: r2.error.issues.map((i) => `${i.path.join(".") || "(root)"}: ${i.message}`)
-  };
-}
-function withStoredKeysKept(sent, stored) {
-  const read = TenantConfigSchema.safeParse(stored ?? {});
-  if (!read.success) return sent;
-  return withKeysLeftOut(sent, stored, read.data);
-}
-function receptionistOf2(parsed) {
-  if (parsed && !parsed.ok) return "broken";
-  return parsed?.config.brain ? "set" : "none";
-}
-function parseTenantConfig(raw) {
-  const r2 = parseTenantConfigResult(raw);
-  return r2.ok ? r2.config : null;
-}
-function withFirstAlertAddress(config, email) {
-  const current = parseTenantConfigResult(config ?? {});
-  if (!current.ok || current.config.notifications) return null;
-  const address = normalizeEmail(email);
-  if (!address) return null;
-  const next = TenantConfigWriteSchema.safeParse({
-    ...current.config,
-    notifications: { escalation_emails: [address] }
-  });
-  return next.success ? withStoredKeysKept(next.data, config) : null;
-}
-
 // src/ask/ask-schemas.ts
-var Id = z7.string().min(1).max(120);
-var PageContextSchema = z7.object({
-  v: z7.literal(1),
-  surface: z7.enum(ASK_SURFACES),
-  route: z7.string().max(200),
-  view: z7.string().max(80).nullish(),
-  focus: z7.object({ kind: z7.enum(ASK_SCOPE_KINDS), id: Id, label: z7.string().max(80) }).strict().nullish(),
-  rows: z7.array(z7.object({ kind: z7.enum(ASK_CONTEXT_ROW_KINDS), id: Id }).strict()).max(ASK_CONTEXT_MAX_ROWS),
-  askedAt: z7.number().int().nonnegative()
+var Id = z4.string().min(1).max(120);
+var PageContextSchema = z4.object({
+  v: z4.literal(1),
+  surface: z4.enum(ASK_SURFACES),
+  route: z4.string().max(200),
+  view: z4.string().max(80).nullish(),
+  focus: z4.object({ kind: z4.enum(ASK_SCOPE_KINDS), id: Id, label: z4.string().max(80) }).strict().nullish(),
+  rows: z4.array(z4.object({ kind: z4.enum(ASK_CONTEXT_ROW_KINDS), id: Id }).strict()).max(ASK_CONTEXT_MAX_ROWS),
+  askedAt: z4.number().int().nonnegative()
 }).strict();
-var AskProposalOutcomeSchema = z7.object({
-  state: z7.enum(["done", "dismissed", "failed", "undone"]),
-  receipt: z7.string().max(300).catch(""),
-  atMs: z7.number().catch(0),
-  undo: z7.record(z7.string(), z7.unknown()).nullable().optional(),
+var AskProposalOutcomeSchema = z4.object({
+  state: z4.enum(["done", "dismissed", "failed", "undone"]),
+  receipt: z4.string().max(300).catch(""),
+  atMs: z4.number().catch(0),
+  undo: z4.record(z4.string(), z4.unknown()).nullable().optional(),
   // What the commit made that a plan's later step names (AskProposalOutcome.made): kept, never stripped, so a plan's
   // made survives a reload; absent (every outcome saved before) or unreadable, it made nothing a token names.
-  made: z7.object({ kind: z7.string().min(1).max(40), id: z7.string().min(1).max(120) }).nullable().catch(null)
+  made: z4.object({ kind: z4.string().min(1).max(40), id: z4.string().min(1).max(120) }).nullable().catch(null)
 });
-var CalendarDay = z7.string().regex(/^\d{4}-\d{2}-\d{2}$/);
-var AskSettingsChangeSchema = z7.discriminatedUnion("op", [
-  z7.object({
-    op: z7.literal("add_closure"),
+var CalendarDay = z4.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+var AskSettingsChangeSchema = z4.discriminatedUnion("op", [
+  z4.object({
+    op: z4.literal("add_closure"),
     date: CalendarDay,
     until: CalendarDay.optional(),
-    note: z7.string().max(200).optional()
+    note: z4.string().max(200).optional()
   }),
-  z7.object({
-    op: z7.literal("set_hours"),
-    day: z7.enum(["mon", "tue", "wed", "thu", "fri", "sat", "sun"]),
-    open: z7.string().regex(/^\d{2}:\d{2}$/).nullable(),
-    close: z7.string().regex(/^\d{2}:\d{2}$/).nullable()
+  z4.object({
+    op: z4.literal("set_hours"),
+    day: z4.enum(["mon", "tue", "wed", "thu", "fri", "sat", "sun"]),
+    open: z4.string().regex(/^\d{2}:\d{2}$/).nullable(),
+    close: z4.string().regex(/^\d{2}:\d{2}$/).nullable()
   }),
-  z7.object({
-    op: z7.literal("add_note"),
-    title: z7.string().min(1).max(80),
-    text: z7.string().min(1).max(1200),
+  z4.object({
+    op: z4.literal("add_note"),
+    title: z4.string().min(1).max(80),
+    text: z4.string().min(1).max(1200),
     until: CalendarDay.optional()
   }),
-  z7.object({
-    op: z7.literal("add_service"),
-    name: z7.string().min(1).max(80),
-    duration_min: z7.number().int().min(1).max(1440).optional()
+  z4.object({
+    op: z4.literal("add_service"),
+    name: z4.string().min(1).max(80),
+    duration_min: z4.number().int().min(1).max(1440).optional()
   }),
   // The owner's goal for Ask (the operator, 15 Oct 2026): one line, or empty to clear it.
-  z7.object({ op: z7.literal("set_goal"), goal: z7.string().max(ASK_GOAL_MAX) })
+  z4.object({ op: z4.literal("set_goal"), goal: z4.string().max(ASK_GOAL_MAX) })
 ]);
 
 // src/ask/ask-language.ts
@@ -28242,7 +27783,7 @@ function skillsAsked(question) {
 }
 
 // src/ask-skills/customer-message/brief.ts
-import { z as z8 } from "zod";
+import { z as z5 } from "zod";
 var CRAFT_CHANNELS = ["whatsapp", "email", "sms"];
 var ASKED_CHARS = 1200;
 var ownerWords = (b) => (b.message.asked ?? "").trim().slice(0, ASKED_CHARS);
@@ -28365,11 +27906,11 @@ var MESSAGE_CRAFT_JSON_SCHEMA = {
     could_not: { type: "string" }
   }
 };
-var MessageCraftAnswerSchema = z8.object({
-  whatsapp: z8.object({ body: z8.string() }),
-  email: z8.object({ subject: z8.string(), body: z8.string() }),
-  sms: z8.object({ body: z8.string() }),
-  could_not: z8.string()
+var MessageCraftAnswerSchema = z5.object({
+  whatsapp: z5.object({ body: z5.string() }),
+  email: z5.object({ subject: z5.string(), body: z5.string() }),
+  sms: z5.object({ body: z5.string() }),
+  could_not: z5.string()
 });
 var craftClean = (s) => s.replace(/\r\n/g, "\n").trim();
 function craftedVersions(a, b) {
@@ -28491,7 +28032,7 @@ function messageCraftIssues(v, b, missing = []) {
 }
 
 // src/ask-skills/customer-message/rubric.ts
-import { z as z9 } from "zod";
+import { z as z6 } from "zod";
 var MESSAGE_RUBRIC = [
   {
     id: "approvable",
@@ -28577,8 +28118,8 @@ var MESSAGE_JUDGE_JSON_SCHEMA = {
     }
   }
 };
-var MessageJudgeAnswerSchema = z9.object({
-  verdicts: z9.array(z9.object({ id: z9.string(), pass: z9.boolean(), why: z9.string() }))
+var MessageJudgeAnswerSchema = z6.object({
+  verdicts: z6.array(z6.object({ id: z6.string(), pass: z6.boolean(), why: z6.string() }))
 });
 function messageVerdict(issues, judged2) {
   const failed = issues.map((i) => `${i.channel} ${i.code}: ${i.words}`);
@@ -29601,6 +29142,108 @@ function appointmentKeysOf(rows2) {
     }
   }
   return [...keys];
+}
+
+// src/calendar/feed-url.ts
+var PRIVATE_HOST = /^(localhost|127\.|10\.|192\.168\.|169\.254\.|0\.|\[?::1\]?$|.*\.local$|.*\.internal$)/i;
+var CARRIER_NAT = /^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./;
+var PRIVATE_V6 = /^\[(::1?|f[cd][0-9a-f]{0,2}:.*|fe[89ab][0-9a-f]?:.*|::ffff:.*)\]$/i;
+function feedUrlOk(raw) {
+  if (!raw) return null;
+  const url = raw.trim().replace(/^webcal:\/\//i, "https://");
+  let u;
+  try {
+    u = new URL(url);
+  } catch {
+    return null;
+  }
+  if (u.protocol !== "https:" && u.protocol !== "http:") return null;
+  const h = u.hostname;
+  if (PRIVATE_HOST.test(h) || /^172\.(1[6-9]|2\d|3[01])\./.test(h) || CARRIER_NAT.test(h) || PRIVATE_V6.test(h))
+    return null;
+  return u.toString();
+}
+var FEED_REDIRECTS_MAX = 3;
+async function fetchPublic(fetchImpl, raw, init = {}) {
+  let at3 = feedUrlOk(raw);
+  for (let hop = 0; at3 && hop <= FEED_REDIRECTS_MAX; hop += 1) {
+    const res = await fetchImpl(at3, { ...init, redirect: "manual" });
+    if (res.status >= 300 && res.status < 400) {
+      const next = res.headers.get("location");
+      await res.body?.cancel().catch(() => void 0);
+      at3 = next ? feedUrlOk(URL.canParse(next, at3) ? new URL(next, at3).toString() : null) : null;
+      continue;
+    }
+    return res;
+  }
+  return null;
+}
+var FEED_GUIDES = [
+  {
+    name: "Google Calendar",
+    steps: [
+      "On a computer, open Google Calendar and go to Settings.",
+      "Under \u201CSettings for my calendars\u201D, pick the calendar your bookings land in.",
+      "Open \u201CIntegrate calendar\u201D and copy \u201CSecret address in iCal format\u201D."
+    ]
+  },
+  {
+    name: "Apple Calendar (iCloud)",
+    steps: [
+      "In the Calendar app, open Calendars and press \u24D8 beside the calendar your bookings land in.",
+      "Turn on Public Calendar, then Share Link, and copy it."
+    ]
+  },
+  {
+    name: "Outlook",
+    steps: [
+      "In Outlook on the web, open Settings, then Calendar, then Shared calendars.",
+      "Under \u201CPublish a calendar\u201D, pick your calendar and \u201CCan view when I'm busy\u201D, then Publish.",
+      "Copy the ICS link."
+    ]
+  }
+];
+var FEED_CHECK_WORDS = {
+  guide: "Where do I find it?",
+  reading: "Reading it\u2026",
+  read: (events, next) => events === 0 ? "Read it: it's empty so far. Your receptionist will see new bookings as they land." : `Read it: ${events} ${events === 1 ? "event" : "events"}, ${next ? `the next ${next}` : "none in the next 30 days"}.`
+};
+var FEED_MAX_BYTES = 2e6;
+function feedProblemWords(reason, status) {
+  switch (reason) {
+    case "address":
+      return "The calendar feed needs to be a full https:// or webcal:// address on the internet.";
+    case "unreachable":
+      return "The calendar could not be reached. Check the address and try again.";
+    case "http":
+      return `The calendar answered ${status ?? "an error"}. It is usually the private iCal address, not the calendar's web page.`;
+    case "too_large":
+      return "That feed is too large to read (over 2 MB).";
+    case "not_ical":
+      return "That address is not an iCal feed. In Google Calendar it is Settings \u203A your calendar \u203A Secret address in iCal format.";
+    case "settings":
+      return "Your workspace settings could not be read, so the calendar address could not be found. Save it again in Settings.";
+    default:
+      return null;
+  }
+}
+function feedBodyProblem(text) {
+  if (text.length > FEED_MAX_BYTES) return "too_large";
+  if (!/BEGIN:VCALENDAR/i.test(text)) return "not_ical";
+  return null;
+}
+function offeringHorizon(now, daysAhead) {
+  return { from: now.getTime() - DAY_MS, to: now.getTime() + (daysAhead + 1) * DAY_MS };
+}
+var SEASON_BACK_DAYS = 90;
+function seasonHorizon(now, daysAhead = 0) {
+  return {
+    from: now.getTime() - DAY_MS * SEASON_BACK_DAYS,
+    to: now.getTime() + Math.max(daysAhead + 1, 90) * DAY_MS
+  };
+}
+function previewHorizon(now) {
+  return { from: now.getTime() - DAY_MS, to: now.getTime() + 30 * DAY_MS };
 }
 
 // src/calendar/appointment-item.ts
@@ -31855,10 +31498,10 @@ function roleTable() {
 }
 
 // src/config/workspace-config/policy-limits-schema.ts
-import { z as z10 } from "zod";
-var PolicyLimitsSchema = z10.object({
-  max_replies_day: z10.number().int().min(1).max(200).optional(),
-  pause_hours: z10.number().int().min(PAUSE_HOURS_MIN).max(PAUSE_HOURS_MAX).optional(),
+import { z as z7 } from "zod";
+var PolicyLimitsSchema = z7.object({
+  max_replies_day: z7.number().int().min(1).max(200).optional(),
+  pause_hours: z7.number().int().min(PAUSE_HOURS_MIN).max(PAUSE_HOURS_MAX).optional(),
   /**
    * How long the receptionist WAITS before its own reply goes out, in ms.
    *
@@ -31867,14 +31510,14 @@ var PolicyLimitsSchema = z10.object({
    * the customer nothing and buys the business a window to redirect the bot
    * before it speaks, rather than apologising for it afterwards.
    */
-  reply_delay_ms: z10.number().int().min(REPLY_DELAY_MIN_MS).max(REPLY_DELAY_MAX_MS).optional(),
+  reply_delay_ms: z7.number().int().min(REPLY_DELAY_MIN_MS).max(REPLY_DELAY_MAX_MS).optional(),
   /**
    * The confidence dial. Under 'auto', a reply the model is less sure about
    * than this waits in the hold window (reply_delay_ms) for a person instead
    * of going straight out — sure enough sends itself, not sure enough waits.
    * 0 or absent means off.
    */
-  min_confidence: z10.number().min(0).max(1).optional(),
+  min_confidence: z7.number().min(0).max(1).optional(),
   /**
    * The day's token budget: model tokens in and out over a rolling 24
    * hours, read from the usage events every reply writes. Over it the
@@ -31882,7 +31525,7 @@ var PolicyLimitsSchema = z10.object({
    * reply cap. 0 or absent is off; a value is at least a thousand, because
    * a budget of ten would be a mute button with a misleading name.
    */
-  max_llm_tokens_day: z10.number().int().min(0).max(5e6).refine((n) => n === 0 || n >= 1e3, "at least 1,000, or 0 to turn it off").optional()
+  max_llm_tokens_day: z7.number().int().min(0).max(5e6).refine((n) => n === 0 || n >= 1e3, "at least 1,000, or 0 to turn it off").optional()
 }).strict();
 
 // src/config/limits.ts
@@ -31894,6 +31537,118 @@ function tokenBudgetSpent(limits, used) {
   const cap2 = tokenCapOf(limits);
   return cap2 > 0 && used >= cap2;
 }
+
+// src/config/workspace-config/business-profile.ts
+import { z as z8 } from "zod";
+var TIME = z8.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
+var IntervalSchema = z8.object({ open: TIME, close: TIME });
+var HoursSchema = z8.object({
+  /** "09:00". Absent or null = closed that day, which is a real answer. */
+  open: TIME.nullable().optional(),
+  close: TIME.nullable().optional(),
+  /**
+   * Split shifts — 09:30-13:00 and 15:00-19:00, the lunch break a salon
+   * actually keeps. Additive: a day that has always been one stretch keeps
+   * saying so with open/close, and no stored config is rewritten.
+   */
+  intervals: z8.array(IntervalSchema).optional()
+}).strip();
+var DATE = z8.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+var ClosureSchema = z8.object({
+  date: DATE,
+  until: DATE.optional(),
+  note: z8.string().max(PROFILE_LIMITS.closureNote).optional()
+});
+var ServiceSchema = z8.object({
+  name: z8.string().min(1).max(PROFILE_LIMITS.serviceName),
+  /** Minutes. The receptionist is asked "how long does it take" constantly. */
+  duration_min: z8.number().int().min(1).max(PROFILE_LIMITS.serviceMinutes).optional(),
+  /**
+   * Free text, not a number, and deliberately so: "from $45", "quoted at
+   * consult", "varies by length". A price the business cannot state flatly
+   * must not be forced into a field that looks like it can.
+   */
+  price_note: z8.string().max(PROFILE_LIMITS.servicePrice).optional()
+}).strip();
+var GuardrailsSchema = z8.object({
+  never_quote_prices: z8.boolean().optional(),
+  never_confirm_booking: z8.boolean().optional(),
+  disclose_ai: z8.boolean().optional(),
+  /**
+   * OPT-IN, unlike the three above. Those default on because absent means
+   * "the safe reading"; this one arrived after prompts were live, and a
+   * rule that defaulted on would have changed every composed prompt in
+   * production the moment it deployed.
+   */
+  no_health_advice: z8.boolean().optional()
+}).strip();
+var NoteSchema = z8.object({
+  title: z8.string().min(1).max(PROFILE_LIMITS.noteTitle),
+  text: z8.string().min(1).max(PROFILE_LIMITS.noteText),
+  until: DATE.optional()
+}).strip();
+var rule = (key) => z8.number().int().min(BOOKING_RULE_BOUNDS[key].min).max(BOOKING_RULE_BOUNDS[key].max).optional();
+var BookingRulesSchema = z8.object({
+  /** Least notice for a slot, in hours. Absent = 2. */
+  lead_hours: rule("lead_hours"),
+  /** Gap kept around each existing appointment, in minutes. Absent = 0. */
+  buffer_min: rule("buffer_min"),
+  /** How far ahead open times are offered, in days. Absent = 14. */
+  max_days_ahead: rule("max_days_ahead"),
+  /** The shortest window worth naming, in minutes. Absent = 30. */
+  slot_min: rule("slot_min"),
+  /** Services that need a consultation before they can be booked. */
+  consult_first: z8.array(z8.string().min(1).max(PROFILE_LIMITS.consultFirstLine)).max(PROFILE_LIMITS.consultFirst).optional(),
+  party_max: rule("party_max"),
+  /**
+   * Ask, once, for an email when sending the booking link -- for the confirmation, and for the campaigns that follow
+   * (Part 0 of the campaigns-on-every-channel spec). Absent = no.
+   */
+  ask_email: z8.boolean().optional(),
+  /** Anything else about booking, one short line each. */
+  notes: z8.array(z8.string().min(1).max(PROFILE_LIMITS.ruleNote)).max(PROFILE_LIMITS.ruleNotes).optional()
+}).strip();
+var BusinessProfileSchema = z8.object({
+  address: z8.string().max(300).optional(),
+  hours: z8.partialRecord(z8.enum(DAYS), HoursSchema).optional(),
+  /** Dates the business is shut regardless of the weekly grid. */
+  closures: z8.array(ClosureSchema).optional(),
+  services: z8.array(ServiceSchema).max(PROFILE_LIMITS.services).optional(),
+  languages: z8.array(z8.string().min(PROFILE_LIMITS.languageMin).max(PROFILE_LIMITS.languageMax)).max(PROFILE_LIMITS.languages).optional(),
+  guardrails: GuardrailsSchema.optional(),
+  /** What must reach a person. One short line each. */
+  escalate_when: z8.array(z8.string().min(1).max(PROFILE_LIMITS.reason)).max(PROFILE_LIMITS.reasons).optional(),
+  tone: z8.string().max(PROFILE_LIMITS.tone).optional(),
+  /**
+   * The line a PERSON answers. The phone receptionist warm-transfers here
+   * during opening hours; absent, it takes a message instead. Never the
+   * receptionist's own line — that would ring itself.
+   */
+  handoff_number: z8.string().regex(E1642, "E.164, like +12125550143").optional(),
+  /**
+   * The first thing a caller hears, in the owner's words, with {business} for the name (decision 0051): no cap and
+   * nothing refused, only notes (voice/greeting-owner.ts greetingNotes). Absent is the standard greeting. The one
+   * thing the product holds is said where the line is spoken, not here: a line that never says it is automated has
+   * the product's clause added (greetingOf). Never part of the composed prompt, so not in hasProfile.
+   */
+  // `.catch`: a stored value that is not a string reads as none (the standard greeting), never as a config that cannot
+  // be parsed, which would leave the receptionist silent.
+  phone_greeting: z8.string().optional().catch(void 0),
+  website: z8.string().url().max(500).optional(),
+  notes: z8.array(NoteSchema).max(PROFILE_LIMITS.notes).optional(),
+  booking_rules: BookingRulesSchema.optional(),
+  /**
+   * Anything the owner wants said that no field covers.
+   *
+   * The escape hatch that keeps this model honest — without it, structuring
+   * the facts would mean losing whatever did not fit, and the first migration
+   * would be a downgrade.
+   *
+   * It holds what the prompt it grew out of holds (INSTRUCTIONS_MAX), because
+   * the form carries that prompt into it.
+   */
+  extra_instructions: z8.string().max(PROFILE_LIMITS.instructions).optional()
+}).strip();
 
 // src/config/facts.ts
 var trimmed = (v) => {
@@ -32111,6 +31866,249 @@ function baselinePrompt(businessName) {
 }
 function isBaselinePrompt(text) {
   return text.startsWith(BASELINE_OPENING) && text.endsWith(BASELINE_CLOSING);
+}
+
+// src/config/workspace-config/brain-config-schema.ts
+import { z as z9 } from "zod";
+var BrainConfigSchema = z9.object({
+  business_name: z9.string().min(1).max(120),
+  /**
+   * The number the receptionist tells customers to call — an OVERRIDE, and
+   * optional because it should almost never be set.
+   *
+   * It was required, free text, and named the same as the line the
+   * receptionist answers, so every workspace typed something into it and
+   * nothing checked what. On the first live salon that produced a
+   * receptionist publishing the number it transfers to: customers who rang
+   * it reached a person's mobile and never the receptionist standing by,
+   * and the same string went to Google.
+   *
+   * Absent is now the right answer and the default: resolveFacts falls back
+   * to the provisioned voice line, formatted for speech, so the number
+   * published is the number answered by construction. A value here means a
+   * business deliberately publishes something else — a tracking line, a
+   * shopfront — and the pane says so in those words.
+   */
+  phone_display: z9.string().min(3).max(40).optional(),
+  /**
+   * Where a customer books. Optional since the first run's decision 2 (24 Sep 2026): a business that quotes each
+   * job has none, and its receptionist takes the customer's details instead (no-booking-link.ts). Who is asked for
+   * one is the pages' question, by how customers buy (deals.ts bookingLinkOptional): the config cannot see it.
+   */
+  booking_link: z9.string().url().max(BOOKING_LINK_MAX).optional(),
+  /** The complete system prompt the model receives — the "AI memory" pane's
+   *  one hard promise is that what it shows is EXACTLY this, nothing more. */
+  system_prompt: z9.string().min(40).max(INSTRUCTIONS_MAX),
+  /**
+   * The business's facts, as fields.
+   *
+   * Optional: every config written before this existed stays valid, and
+   * nothing composes until a workspace actually fills it in. When present
+   * it REPLACES system_prompt as the source the prompt is built from.
+   */
+  profile: BusinessProfileSchema.optional(),
+  fallbacks: z9.object({
+    /** Sent when no model key is configured. */
+    greeting: z9.string().min(1).max(PROFILE_LIMITS.message),
+    /** Sent when the model call failed. */
+    error: z9.string().min(1).max(PROFILE_LIMITS.message),
+    /** Sent for voice notes / photos before escalating. */
+    non_text: z9.string().min(1).max(PROFILE_LIMITS.message)
+  }).strip()
+}).strip();
+
+// src/config/workspace-config/config-schema.ts
+import { z as z10 } from "zod";
+
+// src/config/unknown-keys.ts
+var isJsonObject = (v) => typeof v === "object" && v !== null && !Array.isArray(v);
+var isList = (v) => Array.isArray(v);
+function keysLeftOut(raw, kept, at3 = []) {
+  if (Array.isArray(raw) && Array.isArray(kept)) {
+    return raw.flatMap((v, i) => i < kept.length ? keysLeftOut(v, kept[i], [...at3, i]) : []);
+  }
+  if (!isJsonObject(raw) || !isJsonObject(kept)) return [];
+  return Object.entries(raw).flatMap(([k, v]) => {
+    if (v === void 0) return [];
+    return Object.hasOwn(kept, k) ? keysLeftOut(v, kept[k], [...at3, k]) : [[...at3, k]];
+  });
+}
+function sameJson(a, b) {
+  if (Array.isArray(a) || Array.isArray(b)) {
+    return Array.isArray(a) && Array.isArray(b) && a.length === b.length && a.every((v, i) => sameJson(v, b[i]));
+  }
+  if (isJsonObject(a) && isJsonObject(b)) {
+    const ka = Object.keys(a).filter((k) => a[k] !== void 0);
+    const kb = Object.keys(b).filter((k) => b[k] !== void 0);
+    return ka.length === kb.length && ka.every((k) => Object.hasOwn(b, k) && sameJson(a[k], b[k]));
+  }
+  return Object.is(a, b);
+}
+function withKeysLeftOut(sent, raw, kept) {
+  if (isList(sent) && isList(raw) && isList(kept)) {
+    const taken = /* @__PURE__ */ new Set();
+    return sent.map((el) => {
+      const i = kept.findIndex((k, n) => !taken.has(n) && n < raw.length && sameJson(k, el));
+      if (i < 0) return el;
+      taken.add(i);
+      return withKeysLeftOut(el, raw[i], kept[i]);
+    });
+  }
+  if (!isJsonObject(sent) || !isJsonObject(raw) || !isJsonObject(kept)) return sent;
+  const out = { ...sent };
+  for (const [k, v] of Object.entries(raw)) {
+    if (v === void 0) continue;
+    if (!Object.hasOwn(kept, k)) {
+      if (!Object.hasOwn(sent, k)) out[k] = v;
+    } else if (Object.hasOwn(sent, k)) {
+      out[k] = withKeysLeftOut(sent[k], v, kept[k]);
+    }
+  }
+  return out;
+}
+function refuseUnknownFields(read, raw, ctx) {
+  const parsed = read.safeParse(raw);
+  if (!parsed.success) return;
+  const byObject = /* @__PURE__ */ new Map();
+  for (const where of keysLeftOut(raw, parsed.data)) {
+    if (where.length < 2) continue;
+    const path = where.slice(0, -1);
+    const id = JSON.stringify(path);
+    const held = byObject.get(id) ?? { path, keys: [] };
+    held.keys.push(String(where[where.length - 1]));
+    byObject.set(id, held);
+  }
+  for (const { path, keys } of byObject.values()) ctx.addIssue({ code: "unrecognized_keys", keys, path });
+}
+
+// src/config/workspace-config/config-schema.ts
+var NotificationsConfigSchema = z10.object({
+  escalation_emails: z10.array(z10.string().email()).min(ALERT_ADDRESSES_MIN).max(ALERT_ADDRESSES_MAX),
+  from: z10.string().max(200).optional(),
+  /**
+   * The kinds the business is not emailed (decision 0040), chosen on Settings › Notifications. Strings, not the closed
+   * set: a kind a newer dashboard writes must not make an older edge's read fail, and `emailOffOf` reads only the kinds
+   * that may be turned off. An edge older than the field drops it and keeps emailing, the safe side.
+   */
+  // `.catch`: a stored value that is not a short list of short names reads as none (everything emailed), never as a
+  // config that cannot be parsed, which would leave the receptionist silent.
+  email_off: z10.array(z10.string().max(40)).max(40).optional().catch(void 0)
+}).strip();
+var CalendarConfigSchema = z10.object({
+  ical_url: z10.string().max(2e3).refine((u) => /^(https?|webcal):\/\/\S+$/i.test(u), "An https:// or webcal:// address")
+}).strip();
+var BookingsConfigSchema = z10.object({ tool: z10.string().max(40).optional(), by_hand: z10.boolean().optional() }).strip();
+var FeaturesConfigSchema = z10.object({
+  vision: z10.boolean().optional(),
+  /** Campaigns › Ads, its sample drawn in this workspace as a demo session draws it (contracts ads/address.ts). */
+  ads_preview: z10.boolean().optional(),
+  /**
+   * Booking requests (decision 0061): where the team confirms its own bookings, a time a customer picks by text is held
+   * for the owner as a request (Booked it or Can't). Off, the conversation is a person's to read, as before.
+   */
+  booking_requests: z10.boolean().optional()
+}).strip();
+var AskConfigSchema = z10.object({ goal: z10.string().max(ASK_GOAL_MAX).optional() }).strip();
+var TenantConfigSchema = z10.object({
+  brain: BrainConfigSchema.optional(),
+  ask: AskConfigSchema.optional(),
+  notifications: NotificationsConfigSchema.optional(),
+  calendar: CalendarConfigSchema.optional(),
+  bookings: BookingsConfigSchema.optional(),
+  features: FeaturesConfigSchema.optional()
+});
+function checkDay(h, day, ctx) {
+  for (const p of dayProblems(h, day)) {
+    ctx.addIssue({
+      code: z10.ZodIssueCode.custom,
+      path: ["brain", "profile", "hours", day, ...p.path],
+      message: p.message
+    });
+  }
+}
+function checkCalendarDay(day, path, ctx) {
+  if (!isRealDate(day)) {
+    ctx.addIssue({
+      code: z10.ZodIssueCode.custom,
+      path,
+      message: `${day} is not a date on the calendar.`
+    });
+  }
+}
+function checkClosure(c, n, ctx) {
+  const at3 = (...rest) => ["brain", "profile", "closures", n, ...rest];
+  checkCalendarDay(c.date, at3("date"), ctx);
+  if (c.until) checkCalendarDay(c.until, at3("until"), ctx);
+  if (c.until && c.until < c.date) {
+    ctx.addIssue({
+      code: z10.ZodIssueCode.custom,
+      path: at3("until"),
+      message: "A closure cannot end before it starts."
+    });
+  }
+}
+var WriteRules = TenantConfigSchema.superRefine((cfg, ctx) => {
+  if (cfg.calendar && !feedUrlOk(cfg.calendar.ical_url)) {
+    ctx.addIssue({
+      code: z10.ZodIssueCode.custom,
+      path: ["calendar", "ical_url"],
+      message: feedProblemWords("address") ?? "Not an address the receptionist may read."
+    });
+  }
+  if (cfg.bookings?.tool !== void 0 && !isBookingTool(cfg.bookings.tool)) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["bookings", "tool"],
+      message: "Not a booking tool this product knows."
+    });
+  }
+  const p = cfg.brain?.profile;
+  if (!p) return;
+  for (const [day, h] of Object.entries(p.hours ?? {})) if (h) checkDay(h, day, ctx);
+  if ((p.closures?.length ?? 0) > MAX_CLOSURES) {
+    ctx.addIssue({
+      code: z10.ZodIssueCode.custom,
+      path: ["brain", "profile", "closures"],
+      message: `At most ${MAX_CLOSURES} closures.`
+    });
+  }
+  (p.closures ?? []).forEach((c, n) => checkClosure(c, n, ctx));
+  (p.notes ?? []).forEach((note, n) => {
+    if (note.until) checkCalendarDay(note.until, ["brain", "profile", "notes", n, "until"], ctx);
+  });
+});
+var TenantConfigWriteSchema = z10.unknown().superRefine((raw, ctx) => refuseUnknownFields(TenantConfigSchema, raw, ctx)).pipe(WriteRules);
+function parseTenantConfigResult(raw) {
+  const r2 = TenantConfigSchema.safeParse(raw ?? {});
+  if (r2.success) return { ok: true, config: r2.data, ignored: keysLeftOut(raw, r2.data).map((p) => p.join(".")) };
+  return {
+    ok: false,
+    issues: r2.error.issues.map((i) => `${i.path.join(".") || "(root)"}: ${i.message}`)
+  };
+}
+function withStoredKeysKept(sent, stored) {
+  const read = TenantConfigSchema.safeParse(stored ?? {});
+  if (!read.success) return sent;
+  return withKeysLeftOut(sent, stored, read.data);
+}
+function receptionistOf2(parsed) {
+  if (parsed && !parsed.ok) return "broken";
+  return parsed?.config.brain ? "set" : "none";
+}
+function parseTenantConfig(raw) {
+  const r2 = parseTenantConfigResult(raw);
+  return r2.ok ? r2.config : null;
+}
+function withFirstAlertAddress(config, email) {
+  const current = parseTenantConfigResult(config ?? {});
+  if (!current.ok || current.config.notifications) return null;
+  const address = normalizeEmail(email);
+  if (!address) return null;
+  const next = TenantConfigWriteSchema.safeParse({
+    ...current.config,
+    notifications: { escalation_emails: [address] }
+  });
+  return next.success ? withStoredKeysKept(next.data, config) : null;
 }
 
 // src/config/workspace-config/offers-ask.ts
@@ -33341,6 +33339,24 @@ var PRICE_CHOICE_WORDS = {
   },
   saved: (to) => `When someone asks a price: ${PRICE_CHOICE_WORDS.options[to].label.toLowerCase()}.`
 };
+
+// src/config/business-tab/goal.ts
+var ASK_GOAL_WORDS = {
+  title: "Your goal",
+  // What it is for is the hint, since a phone draws no card's sub; the sub says who reads it.
+  sub: "Only Ask reads it",
+  label: "Goal",
+  empty: "Not set",
+  hint: "What Ask works toward, like twenty new clients a month.",
+  placeholder: "Twenty new clients a month",
+  gate: "change your goal"
+};
+function askGoalRefusal(goal) {
+  return goal.trim().length > ASK_GOAL_MAX ? `Keep it to ${ASK_GOAL_MAX} characters.` : null;
+}
+function askGoalSaved(goal) {
+  return describeSettingsChange({ op: "set_goal", goal });
+}
 
 // src/config/business-tab/handoff-words.ts
 var HANDED_OVER_ANYWAY = "a customer asks for a person or it can't help";
@@ -59635,6 +59651,7 @@ export {
   ASK_EFFORT,
   ASK_FOLLOW_UPS_MAX,
   ASK_GOAL_MAX,
+  ASK_GOAL_WORDS,
   ASK_GUIDE_PAGES,
   ASK_LANGUAGES,
   ASK_MAX_CHARS,
@@ -60919,6 +60936,8 @@ export {
   asTenantId,
   askCallOutcome,
   askCardLapsed,
+  askGoalRefusal,
+  askGoalSaved,
   askIntent,
   askJump,
   askModelProfile,

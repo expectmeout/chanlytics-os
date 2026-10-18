@@ -138,6 +138,7 @@ test("the voice's box is the first row of How it answers, reading Not set on a r
     [
       "rec-card-who",
       "rec-card-offer",
+      "rec-card-goal",
       "rec-card-open",
       "rec-card-booking",
       "rec-card-answers",

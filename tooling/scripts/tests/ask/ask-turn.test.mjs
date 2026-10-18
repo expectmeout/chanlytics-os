@@ -5630,7 +5630,7 @@ test("people.get is the person page's one read (ledger #3): the reader's one rou
   );
 });
 
-test("the rules Ask says the receptionist follows are the ones the composer gave it: three are on until switched off, the health rule only once switched on", async () => {
+test("the rules Ask says the receptionist follows are the ones the composer gave it: the price rule on until switched off, two always, the health rule only once switched on", async () => {
   const { factsBlock } = await import(at("apps/dashboard/src/server/ask/prompt.ts"));
   const { composeSystemPrompt, guardrailsInForce } = await import("@chanlytics/contracts");
   const brain = {
@@ -5644,7 +5644,8 @@ test("the rules Ask says the receptionist follows are the ones the composer gave
   });
   const PRICE = "never quotes or confirms a price";
   const BOOKING = "never confirms a booking itself";
-  // Always (decision 0051): a stored false changes nothing, and the price rule off says what it may say instead.
+  // Always (decision 0051; the booking rule since 18 Oct 2026, nothing books): a stored false changes nothing, and the
+  // price rule off says what it may say instead.
   const AI = "always says it is the business's automated assistant, never a person";
   const WRITTEN = "says only the prices the business wrote, never another";
   const HEALTH = "gives no health advice";
@@ -5668,7 +5669,11 @@ test("the rules Ask says the receptionist follows are the ones the composer gave
     config({ never_quote_prices: false, never_confirm_booking: false, disclose_ai: false }),
     NOW,
   );
-  assert.deepEqual(off.guardrails, [WRITTEN, AI], "switched off is off, and the health rule is still not on");
+  assert.deepEqual(
+    off.guardrails,
+    [WRITTEN, BOOKING, AI],
+    "the price rule switched off is off, the two always on stay on, and the health rule is still not on",
+  );
 
   // The same three configs through the composer: Ask lists the health rule exactly when the receptionist's prompt holds it.
   for (const [guardrails, facts] of [
