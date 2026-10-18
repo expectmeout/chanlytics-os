@@ -114,6 +114,7 @@ test("When you're open draws three rows in the spec's order, under a line contra
       "rec-card-open",
       "rec-card-booking",
       "rec-card-answers",
+      "rec-card-calls",
       "rec-card-knows",
       "rec-card-can",
       "rec-card-told",

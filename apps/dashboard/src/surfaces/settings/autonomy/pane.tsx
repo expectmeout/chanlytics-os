@@ -21,7 +21,6 @@ import { gate, type LegacyFlash } from "../../legacy-verbs";
 import { useSurface } from "../../use-surface";
 import { BusinessLimitRows } from "../business/tab";
 import { SetDial, SetRow } from "./controls";
-import { LearnedFromYou } from "./learned";
 import { AutOwnModes } from "./own-modes";
 import { PolModeRow, PolPhoneRows, PolicyTable, polMode, useSetPhone } from "./matrix";
 import { autonomyVerbs } from "./verbs";
@@ -278,8 +277,6 @@ export const PaneAutonomyReal = ({ flash, row = null }: { flash: (f: LegacyFlash
           <PolicyTable rows={matrix} put={putMode} busy={busy} held={held} />
         )}
       </section>
-
-      <LearnedFromYou suggestions={policies.suggestions} flash={flash} />
 
       <section className="rec-card set-card">
         <div className="rec-card-head">

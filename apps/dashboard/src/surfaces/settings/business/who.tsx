@@ -528,6 +528,14 @@ const BtTransferRow = ({ shared, brain, numbers }: { shared: RowShared; brain: B
 };
 
 /**
+ * The transfer number on How it answers' On calls card (the Settings wiring review, items 6-7, 18 Oct 2026), with the
+ * greeting: a call's settings in one place, where it was a fact on Who you are and shown again in the hand-off.
+ */
+export const BtTransferNumberRow = (shared: RowShared) => (
+  <BtTransferRow shared={shared} brain={shared.brain} numbers={btWhoNumbers()} />
+);
+
+/**
  * Who you are (spec §4.2): the facts a customer asks for by name, each with where it came from, and the
  * disagreements factConflicts finds drawn on the row each is about, where the banner above the card used to hold them.
  * The booking link is Hours & booking's (offer.tsx BtBookingCard), with what the business books with, since 17 Oct 2026.
@@ -559,10 +567,10 @@ export const BtWhoCard = ({ brain, base = null, canEdit, flash, saver }: RowShar
 
       <BtWebsiteRow {...shared} />
 
-      {/* THREE numbers, named for what each one does. They were one row called "Phone line" showing a typed string,
+      {/* The numbers, named for what each one does. They were one row called "Phone line" showing a typed string,
           which is how a salon came to publish the number it transfers to as the number to call. The line it answers
-          is provisioned and belongs to Connections, so it is shown here and never offered as a box; the other two are
-          the receptionist's behaviour, edited in the row that states them. */}
+          is provisioned and belongs to Connections, so it is shown here and never offered as a box; the number it
+          gives out is edited in the row that states it, and the one it transfers to is On calls' (How it answers). */}
       {/* The door is the row's act, with its own test id: it opens Connections, never a box, so it is not the row's
           Change. Named for where it goes and why, beginning with its own word, since its word and the row's label
           together ("Connections Answers on") say nothing. */}
@@ -582,8 +590,6 @@ export const BtWhoCard = ({ brain, base = null, canEdit, flash, saver }: RowShar
       />
 
       <BtPublishedRow shared={shared} brain={brain} numbers={numbers} />
-
-      <BtTransferRow shared={shared} brain={brain} numbers={numbers} />
 
       {/* Nothing is asked twice (spec §3): the carrier record is Connections', and this card only says where it is. */}
       <p className="bt-card-foot" data-testid="rec-who-foot">
