@@ -521,3 +521,37 @@ export function answerSpoken(a: AskAnswer): string {
   const said = sentences([a.say.headline, ...answerPlain(a.say.detail, true).split("\n")]);
   return [said, listSpoken({ ...l, entries: l.entries.map((e) => answerPlain(e, true)) })].filter(Boolean).join(" ");
 }
+
+/* ------------------------------------------------------ the answer's JSON */
+
+/**
+ * The first whole JSON value in `s`, an object or an array, and what follows it, found by a scan that steps over
+ * strings and their escapes; null where `s` holds no whole value, so an answer cut off stays a failure. The answer tool
+ * streams its input unchecked (eager_input_streaming), and now and then a character follows the closed object (18 Oct
+ * 2026: "Unexpected non-whitespace character after JSON at position 1282", on 2 to 4 turns in 10 on Reports), which
+ * failed a turn whose answer was whole.
+ */
+export function firstJsonValue(s: string): { value: unknown; rest: string } | null {
+  const start = s.search(/\S/);
+  if (start < 0 || (s[start] !== "{" && s[start] !== "[")) return null;
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  for (let i = start; i < s.length; i++) {
+    const c = s[i];
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (c === "\\") escaped = true;
+      else if (c === '"') inString = false;
+    } else if (c === '"') inString = true;
+    else if (c === "{" || c === "[") depth++;
+    else if ((c === "}" || c === "]") && --depth === 0) {
+      try {
+        return { value: JSON.parse(s.slice(start, i + 1)), rest: s.slice(i + 1) };
+      } catch {
+        return null;
+      }
+    }
+  }
+  return null;
+}

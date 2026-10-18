@@ -51,6 +51,7 @@ import { installVoice } from "./ask/voice";
 import { spokenTurns } from "./ask/spoken";
 import { pageContext, type ThreadMessage } from "./ask/context";
 import { askFollowUps } from "./ask/follow-ups";
+import { askColumn } from "./ask/column";
 
 export type { SendEvent, CommitResult };
 export { jumpIndexFrom, surfaceFor, waitingFrom, quickAnswer } from "./ask/palette";
@@ -180,11 +181,13 @@ export function installAsk(win: Window = window, storage: Storage | null = safeS
   // back to one takes it off the home at once and reads them again once the route has cleared it, and so does a card
   // that keeps or clears one, once committed or undone.
   const followUps = askFollowUps(win, api);
+  // A question carries the column the Line draws its answer in (ask/column.ts), measured as it is sent.
   const send: AskApiCalls["send"] = (input, on) => {
     palette.rememberLanguage(palette.language(input.text));
-    if (!input.following) return specsIn.then(() => api.send(input, on));
+    const asked = { ...input, column: input.column ?? askColumn(win) };
+    if (!input.following) return specsIn.then(() => api.send(asked, on));
     followUps.cameBackTo(input.following.id);
-    return specsIn.then(() => api.send(input, on)).finally(() => void followUps.readFollowUps());
+    return specsIn.then(() => api.send(asked, on)).finally(() => void followUps.readFollowUps());
   };
   const keptOrCleared = <T>(kinds: readonly AskProposal[], done: Promise<T>): Promise<T> =>
     kinds.some((p) => p.kind === "follow_up") ? done.finally(() => void followUps.readFollowUps()) : done;

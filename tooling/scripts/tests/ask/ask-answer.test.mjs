@@ -1009,6 +1009,31 @@ test("a breakdown draws only when it says what the whole is and two to four part
   );
 });
 
+test("a whole answer with something after its closed object is still the answer, and what followed is set aside (18 Oct 2026: the answer tool's unchecked stream); an answer cut off is still none", () => {
+  const full = JSON.stringify(written());
+  const whole = normalizeAnswer(full, reads(), "en");
+  assert.equal(whole.ok, true);
+  assert.equal("ignored" in whole, false, "nothing followed: nothing set aside");
+  for (const [after, kept] of [
+    ["}", "}"],
+    ["\n}", "}"],
+    [' {"say":{"headline":"Again."}}', '{"say":{"headline":"Again."}}'],
+    [" and that is all.", "and that is all."],
+  ]) {
+    const r = normalizeAnswer(full + after, reads(), "en");
+    assert.equal(r.ok, true, JSON.stringify(after));
+    assert.deepEqual(r.answer, whole.answer, "the same answer as the whole one alone");
+    assert.equal(r.ignored, kept);
+  }
+  // A brace or a quote inside a string is the string's: the scan ends at the object's own close.
+  const tricky = JSON.stringify(written({ say: { headline: 'Robin wrote "}{" twice.', detail: "a \\ b" } }));
+  const r = normalizeAnswer(tricky + "}", reads(), "en");
+  assert.deepEqual([r.ok, r.answer.say.headline, r.ignored], [true, 'Robin wrote "}{" twice.', "}"]);
+  // Cut off, or no object at all: still none.
+  assert.equal(normalizeAnswer(full.slice(0, full.length - 40) + "}", reads(), "en").ok, false);
+  assert.equal(normalizeAnswer("} {", reads(), "en").ok, false);
+});
+
 test("no headline is no answer, and neither is text that is not JSON, such as an answer cut off by the cap", () => {
   const full = JSON.stringify(written());
   const cut = normalizeAnswer(full.slice(0, full.length - 40), reads(), "en");

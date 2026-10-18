@@ -833,6 +833,55 @@ test("the openings and the threads answer the workspace the tab named; one threa
   );
 });
 
+test("a question carries the column the Line draws its answer in (contracts askColumnOf): the model is told it with the question; a column out of shape, or none, tells nothing", async () => {
+  const tables = {
+    memberships: both("viewer", "operator"),
+    tenants: [{ id: A, name: "Harbor", timezone: "America/New_York" }],
+    tenant_config: [{ tenant_id: A, config: {}, version: 1 }],
+    policies: [],
+    ask_threads: [],
+    ask_messages: [],
+  };
+  const none = { kind: "none", id: "", label: "" };
+  const written = JSON.stringify({
+    say: { headline: "Nobody has booked this week yet.", detail: "" },
+    show: { figures: [], items: [], breakdown: { label: "", total: 0, parts: [], source: none } },
+    do: { open: null, next: [] },
+    language: "en",
+  });
+  const asked = [];
+  setAskPorts({
+    round: async (call, onText) => {
+      asked.push(
+        askedBlocks(call.request)
+          .map((c) => c.text ?? "")
+          .join("\n"),
+      );
+      onText(written);
+      return {
+        blocks: [{ type: "text", id: "", name: "", text: written, json: "" }],
+        stopReason: "end_turn",
+        streamError: null,
+      };
+    },
+    shape: async () => "",
+  });
+  try {
+    for (const column of [{ px: 358, phone: true }, { px: 12, phone: true }, "wide", undefined]) {
+      const res = await ask.POST.run(send("POST", { text: "Who booked this week?", column }, inA), ctxFor(tables));
+      await res.text();
+    }
+    assert.match(asked[0], /a column about 358px wide on a phone, about 50 characters to a line/);
+    assert.deepEqual(
+      asked.slice(1).map((a) => a.includes("a column about")),
+      [false, false, false],
+      "a width no screen has, a word, or nothing: no column",
+    );
+  } finally {
+    setAskPorts(null);
+  }
+});
+
 /* ---------------------------------------- Ask's follow-ups, come due (the closed-loop read, 17 Oct 2026) */
 
 /** A follow-up as the member's views keep it (contracts AskFollowUp): a day's on the 17th, an event's on its subject. */

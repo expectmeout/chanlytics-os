@@ -16,6 +16,7 @@ import {
   opensWithBlock,
   sameQuestion,
   type AskChart,
+  firstJsonValue,
 } from "./answer-text";
 import type { AskLanguage } from "./ask-language";
 import { CALENDAR_SETTING_ROUTE } from "../setup/calendar-source";
@@ -569,7 +570,9 @@ function groundRef(v: unknown, read: AskReadSet): AskSource | null {
   return kept ? { ...kept, to: citationRoute(kept, read), door: true } : null;
 }
 
-export type AskAnswerRead = { ok: true; answer: AskAnswer; dropped: number } | { ok: false; error: string };
+/** The answer read, or why not; `ignored` is what followed its closed object (firstJsonValue): logged, never drawn. */
+export type AskAnswerRead =
+  { ok: true; answer: AskAnswer; dropped: number; ignored?: string } | { ok: false; error: string };
 
 /**
  * The model's answer, as the Line may draw it (spec 5.4): every string cleaned and cut to its cap, every array cut to
@@ -581,11 +584,15 @@ export type AskAnswerRead = { ok: true; answer: AskAnswer; dropped: number } | {
  */
 export function normalizeAnswer(raw: unknown, read: AskReadSet, fallback: AskLanguage): AskAnswerRead {
   let json: unknown = raw;
+  let ignored = "";
   if (typeof raw === "string") {
     try {
       json = JSON.parse(raw);
     } catch (e) {
-      return { ok: false, error: `not JSON: ${e instanceof Error ? e.message : String(e)}` };
+      const first = firstJsonValue(raw);
+      if (!first) return { ok: false, error: `not JSON: ${e instanceof Error ? e.message : String(e)}` };
+      json = first.value;
+      ignored = first.rest.trim();
     }
   }
   const root = asObj(json);
@@ -671,6 +678,7 @@ export function normalizeAnswer(raw: unknown, read: AskReadSet, fallback: AskLan
       language,
     },
     dropped,
+    ...(ignored ? { ignored } : {}),
   };
 }
 

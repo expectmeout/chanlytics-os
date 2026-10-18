@@ -13006,6 +13006,13 @@ function personTabsOf(f, phone) {
 
 // src/ask/ask.ts
 var ASK_MAX_CHARS = 1e3;
+var ASK_COLUMN_PX = { min: 240, max: 1600 };
+function askColumnOf(raw) {
+  if (!raw || typeof raw !== "object") return null;
+  const r2 = raw;
+  const px = typeof r2.px === "number" && Number.isFinite(r2.px) ? Math.round(r2.px) : Number.NaN;
+  return px >= ASK_COLUMN_PX.min && px <= ASK_COLUMN_PX.max ? { px, phone: r2.phone === true } : null;
+}
 var ASK_MAX_ROUNDS = 8;
 var ASK_TURN_BUDGET_MS = 2 * MIN_MS;
 var ASK_SPOKEN_TURN_BUDGET_MS = 45e3;
@@ -13382,6 +13389,30 @@ function answerSpoken(a) {
   const l = a.show.list ?? NO_LIST;
   const said = sentences([a.say.headline, ...answerPlain(a.say.detail, true).split("\n")]);
   return [said, listSpoken({ ...l, entries: l.entries.map((e) => answerPlain(e, true)) })].filter(Boolean).join(" ");
+}
+function firstJsonValue(s) {
+  const start = s.search(/\S/);
+  if (start < 0 || s[start] !== "{" && s[start] !== "[") return null;
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  for (let i = start; i < s.length; i++) {
+    const c = s[i];
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (c === "\\") escaped = true;
+      else if (c === '"') inString = false;
+    } else if (c === '"') inString = true;
+    else if (c === "{" || c === "[") depth++;
+    else if ((c === "}" || c === "]") && --depth === 0) {
+      try {
+        return { value: JSON.parse(s.slice(start, i + 1)), rest: s.slice(i + 1) };
+      } catch {
+        return null;
+      }
+    }
+  }
+  return null;
 }
 
 // src/people/lists/list-rules.ts
@@ -23654,11 +23685,15 @@ function groundRef(v, read) {
 }
 function normalizeAnswer(raw, read, fallback) {
   let json = raw;
+  let ignored = "";
   if (typeof raw === "string") {
     try {
       json = JSON.parse(raw);
     } catch (e) {
-      return { ok: false, error: `not JSON: ${e instanceof Error ? e.message : String(e)}` };
+      const first = firstJsonValue(raw);
+      if (!first) return { ok: false, error: `not JSON: ${e instanceof Error ? e.message : String(e)}` };
+      json = first.value;
+      ignored = first.rest.trim();
     }
   }
   const root = asObj(json);
@@ -23728,7 +23763,8 @@ function normalizeAnswer(raw, read, fallback) {
       do: { open, next },
       language
     },
-    dropped
+    dropped,
+    ...ignored ? { ignored } : {}
   };
 }
 function answerWords(a) {
@@ -61190,6 +61226,7 @@ export {
   asTenantId,
   askCallOutcome,
   askCardLapsed,
+  askColumnOf,
   askGoalRefusal,
   askGoalSaved,
   askIntent,

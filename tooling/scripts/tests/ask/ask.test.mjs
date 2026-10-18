@@ -24,6 +24,7 @@ import {
   ASK_SURFACES,
   ASK_TOKENS_DAY,
   AskProposalOutcomeSchema,
+  askColumnOf,
   navigateLabel,
   sameQuestion,
   PROPOSAL_GATE,
@@ -832,6 +833,13 @@ test("language, scope and settings changes", () => {
     "Closed on 2026-09-12 (early)",
   );
   assert.equal(describeSettingsChange({ op: "set_hours", day: "sun", open: null, close: null }), "sun: closed");
+});
+
+test("a request's column (contracts askColumnOf): a width in CSS pixels a screen has, rounded, and whether a phone is looking; anything else is none", () => {
+  assert.deepEqual(askColumnOf({ px: 358.4, phone: true }), { px: 358, phone: true });
+  assert.deepEqual(askColumnOf({ px: 408 }), { px: 408, phone: false }, "a desk unless it says a phone");
+  for (const raw of [null, undefined, "wide", 408, { px: 12 }, { px: 9000 }, { px: Number.NaN }, { px: "408" }])
+    assert.equal(askColumnOf(raw), null, JSON.stringify(raw) ?? "undefined");
 });
 
 test("the bridge: the jump index and Right now come from the surfaces, the quick answers need no route, and a turn is read as JSON lines", async () => {

@@ -2,6 +2,7 @@
 export {
   scopeFromRoute,
   ASK_MAX_CHARS,
+  askColumnOf,
   ASK_MAX_ROUNDS,
   ASK_TURN_BUDGET_MS,
   ASK_SPOKEN_TURN_BUDGET_MS,
@@ -31,7 +32,7 @@ export {
   ASK_SURFACES,
   ASK_SCOPE_KINDS,
 } from "./ask";
-export type { SpeechPurpose, VoiceEndReason } from "./ask";
+export type { AskColumn, SpeechPurpose, VoiceEndReason } from "./ask";
 export { AskProposalOutcomeSchema } from "./ask-schemas";
 export type {
   AskRole,

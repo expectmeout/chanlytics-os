@@ -2004,6 +2004,15 @@ test("the detail's formatting, judged on the blocks the Line draws: a table, bol
   );
   assert.match(detailShapeFails({ detail_shape: "plain" }, rich)[0], /table, heading, a list/);
   assert.match(detailShapeFails({ detail_max_words: 3 }, a("one two three four"))[0], /4 words, where at most 3/);
+  // The widest table a column fits (18 Oct 2026): every table's columns, its header's cells; none is no table to judge.
+  const wide = a("| Channel | In | Answered | Booked |\n|---|---|---|---|\n| WhatsApp | 7 | 6 | 2 |");
+  assert.match(
+    detailShapeFails({ table_cols_max: 3 }, wide)[0],
+    /a table of 4 columns, where the column it is drawn in fits 3/,
+  );
+  assert.deepEqual(detailShapeFails({ table_cols_max: 4 }, wide), []);
+  assert.deepEqual(detailShapeFails({ table_cols_max: 3 }, a("- WhatsApp: 7 in, 6 answered")), [], "a list, no table");
+  assert.match(shapeAskedFails({ table_cols_max: 3 }, { answer: wide })[0], /4 columns/, "a shape the judge reads");
   const m = { answer: a("Do this:\n1. Open the Calendar.\n2. Paste the link.") };
   assert.deepEqual(shapeAskedFails({ list: { style: "numbers", min: 2 } }, m), [], "numbered steps in the detail");
   assert.match(shapeAskedFails({ list: { style: "bullets" } }, m)[0], /asked as bullets, drawn as numbers/);
