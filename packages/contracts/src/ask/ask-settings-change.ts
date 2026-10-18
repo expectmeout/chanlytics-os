@@ -11,7 +11,6 @@ import { newReceptionistDefaults } from "../config/workspace-config/brain-config
 import { FALLBACK_DEFAULTS, FALLBACK_ROWS } from "../config/workspace-config/fallbacks";
 import { instructionsDraft } from "../config/workspace-config/resolve";
 import { formatPhoneDisplay, handoffE164 } from "../shared/phone";
-import { GREETING_TEMPLATE } from "../voice/greeting-owner";
 import { phoneVoiceOf } from "../voice/phone-voices";
 
 /** How much of a note's text its card quotes, in characters, before it is cut on a whole word. */
@@ -168,11 +167,11 @@ function applyAnswersChange<C extends Cfg>(config: C, change: BrainChange): C {
       putKey(profile, "languages", list.length ? list : undefined);
       break;
     }
-    case "set_phone_greeting": {
-      const line = change.greeting.trim();
-      putKey(profile, "phone_greeting", line && line !== GREETING_TEMPLATE ? line : undefined);
+    // Emptied, the standard greeting. The standard line typed out is made empty by the tool that proposes it (act/settings.ts),
+    // as the row's own save stores it: the check reads the greeting's disclosure rules, which stay out of the tab's bundle.
+    case "set_phone_greeting":
+      putKey(profile, "phone_greeting", change.greeting.trim() || undefined);
       break;
-    }
     case "set_phone_voice":
       putKey(profile, "phone_voice", change.voice);
       break;
@@ -212,7 +211,7 @@ function describeAnswersChange(change: AskAnswersChange): string {
       return list.length ? `It speaks ${list.join(", ")}` : "No languages set";
     }
     case "set_phone_greeting":
-      return change.greeting.trim() && change.greeting.trim() !== GREETING_TEMPLATE
+      return change.greeting.trim()
         ? `Callers hear first: ${quoted(change.greeting)}`
         : "Callers hear the standard greeting";
     case "set_phone_voice": {

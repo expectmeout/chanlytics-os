@@ -6,6 +6,7 @@ import {
   ASK_STYLE_MAX,
   AskSettingsChangeSchema,
   FALLBACK_ROWS,
+  GREETING_TEMPLATE,
   PHONE_VOICES,
   answerStyleOf,
   describeSettingsChange,
@@ -80,8 +81,11 @@ function answersChangeOf(raw: Record<string, unknown>): Record<string, unknown> 
         op: raw.op,
         languages: Array.isArray(raw.languages) ? raw.languages.filter((l) => typeof l === "string") : [],
       };
-    case "set_phone_greeting":
-      return { op: raw.op, greeting: said("greeting") };
+    case "set_phone_greeting": {
+      // The standard line typed out is the standard line, stored as none, as the row's own save stores it.
+      const line = said("greeting").trim();
+      return { op: raw.op, greeting: line === GREETING_TEMPLATE ? "" : line };
+    }
     case "set_phone_voice":
       return { op: raw.op, voice: voiceIdOf(said("voice")) };
     case "set_transfer_number":

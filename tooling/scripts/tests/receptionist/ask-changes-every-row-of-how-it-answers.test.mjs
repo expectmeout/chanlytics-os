@@ -13,6 +13,7 @@ import {
   ASK_ANSWERS_ROWS,
   AskSettingsChangeSchema,
   FALLBACK_DEFAULTS,
+  GREETING_TEMPLATE,
   PHONE_VOICES,
   PROPOSAL_SPECS,
   VISION_SWITCH_WORDS,
@@ -239,6 +240,16 @@ test("Ask proposes each by its action answers, a voice by the name an owner says
     op: "set_phone_greeting",
     greeting: "",
   });
+  // The standard line typed out is the standard line, stored as none, as the row's own save stores it.
+  assert.deepEqual((await card({ op: "set_phone_greeting", greeting: ` ${GREETING_TEMPLATE} ` })).payload.change, {
+    op: "set_phone_greeting",
+    greeting: "",
+  });
+  const base = stored();
+  assert.deepEqual(
+    applySettingsChange(base, { op: "set_phone_greeting", greeting: "" }),
+    S.saveFold("phone_greeting", base, GREETING_TEMPLATE),
+  );
   assert.deepEqual((await card({ op: "set_photos", on: true })).payload.change, { op: "set_photos", on: true });
   assert.deepEqual(supabase.seen, [], "a card reads nothing");
   const refused = await buildProposal(t, "propose_settings", {

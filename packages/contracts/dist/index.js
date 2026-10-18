@@ -25709,167 +25709,6 @@ function isBaselineInOwnersField(text) {
   return name.trim().length > 0 && name.length <= 120 && !/[\r\n]/.test(name) && !/[.!?]\s/.test(name);
 }
 
-// src/voice/greeting.ts
-function greetingFor(name) {
-  return `${opening(name)} I'm the automated assistant, and calls are recorded. How can I help?`;
-}
-function opening(name) {
-  return name ? `Hi, ${name}.` : "Hi, thanks for calling.";
-}
-function pausedGreetingFor(name) {
-  return `${opening(name)} I'm the automated assistant, and calls are recorded. Today I can only take a message for the team.`;
-}
-var GREETING_DEFAULT = /* @__PURE__ */ greetingFor(null);
-
-// src/voice/greeting-owner.ts
-var GREETING_NAME_SLOT = "{business}";
-var AI_CLAUSE = { en: "I'm the automated assistant.", es: "Soy el asistente autom\xE1tico." };
-var GREETING_TEMPLATE = greetingFor(GREETING_NAME_SLOT);
-var GREETING_LONG_WORDS = 18;
-var SECONDS_PER_WORD = 0.4;
-var ROLE = String.raw`(?:assistant|receptionist|agent|attendant|operator|concierge|helper|host)`;
-var MACHINE = String.raw`(?:A\.?I\.?|(?:chat)?bot|robot|machine|computer|automated|automatic|virtual|digital|artificial intelligence)`;
-var STATES_AI = [
-  new RegExp(
-    String.raw`\b(?:automated|automatic|virtual|digital|A\.?I\.?|artificial[- ]intelligence|robot(?:ic)?)\s+${ROLE}\b`,
-    "i"
-  ),
-  new RegExp(
-    String.raw`\b(?:I'm|I am|this is|you're (?:speaking|talking) (?:with|to)|you are (?:speaking|talking) (?:with|to)|you've reached|you have reached)\s+(?:(?:the|a|an|our|your|\w+'s)\s+)?(?:\w+\s+)?${MACHINE}\b`,
-    "i"
-  ),
-  /\bchat\s?bot\b/i,
-  /\b(?:asistente|recepcionista|agente|operador[a]?)\s+(?:virtual|digital|autom[aá]tic[oa]|de\s+IA|de\s+inteligencia\s+artificial)\b/i,
-  /\b(?:soy|habla\s+con|est[aá]\s+hablando\s+con|le\s+atiende)\s+(?:(?:el|la|un|una|su|nuestr[oa])\s+)?(?:IA|robot|bot|m[aá]quina|inteligencia\s+artificial|asistente\s+(?:virtual|autom[aá]tic[oa]|digital))\b/i
-];
-var NEGATION = String.raw`(?:not|never|isn't|aren't|ain't|wasn't)`;
-var GOVERNED = String.raw`(?:(?!but\b|and\b|or\b|though\b)[\w']+\s+){0,2}`;
-var DENIED = String.raw`(?:(?:a|an|the|some)\s+)?(?:bot|chatbot|robot|machine|computer|automated|automatic|A\.?I\.?|artificial intelligence|(?:virtual|digital)\s+${ROLE})`;
-var DENIES_AI = [
-  new RegExp(String.raw`\b${NEGATION}\s+${GOVERNED}${DENIED}\b`, "i"),
-  /\bno\s+(?:bots?|robots?|machines?|A\.?I\.?)\b/i,
-  /\bAI[- ]free\b/i,
-  /\b(?:I'm|I am|this is|you're (?:speaking|talking) (?:with|to)|you are (?:speaking|talking) (?:with|to))\s+(?:a\s+)?(?:real|live|actual)\s+(?:person|human)\b/i,
-  /(?<!\bnot\s(?:a\s)?)\b(?:a\s+)?(?:real|live|actual)\s+(?:person|human)\s+(?:here|speaking|answering)\b/i,
-  /\bno\s+(?:soy|es)\s+(?:un\s+|una\s+)?(?:robot|bot|m[aá]quina|autom[aá]tic[oa]|IA|asistente\s+virtual|inteligencia\s+artificial)\b/i,
-  /\bno\s+(?:est[aá]\s+)?habla(?:ndo)?\s+con\s+(?:un\s+|una\s+)?(?:robot|bot|m[aá]quina|IA|asistente\s+virtual)\b/i,
-  /(?<!\bno\s)\bsoy\s+una\s+persona(?:\s+real)?\b/i,
-  /(?<!\bno\s(?:soy|es)\s(?:una\s)?)\bpersona\s+real\b/i
-];
-var SAYS_RECORDING = [
-  /\brecord(?:ed|ing|s)?\b/i,
-  /\bgrab(?:a|an|ada|adas|ado|amos|ando|ar|aci[oó]n)\b/i
-];
-var DENIES_RECORDING = [
-  /\b(?:not|never)\s+(?:being\s+|be\s+|get\s+)?record(?:ed|ing|s)?\b/i,
-  /\bno\s+recordings?\b/i,
-  /\b(?:don't|doesn't|won't|aren't|isn't|ain't)\s+(?:being\s+|be\s+)?record(?:ed|ing|s)?\b/i,
-  /\bno\s+(?:se\s+)?(?:graba|graban|grabamos|grabada|grabadas|est[aá]\s+grabando|estamos\s+grabando|son\s+grabadas|es\s+grabada)\b/i,
-  /\bsin\s+grabar\b/i
-];
-var LINK2 = /\b(?:https?:\/\/|www\.)\S+|\b[\w-]+\.(?:com|net|org|co|io|us|mx|es)\b/i;
-var SPANISH = /[¿¡ñ]|\b(?:hola|gracias|llamar|llamada|ayudar|ayudarle|ayudarte|bienvenid[oa]s?|c[oó]mo|est[aá]|usted)\b/i;
-var NAME_STANDS_IN = "Xname";
-function judged(text, name) {
-  const straight = (s) => s.replace(/[‘’]/g, "'");
-  let t = straight(text).split(GREETING_NAME_SLOT).join(NAME_STANDS_IN);
-  const n = straight(name ?? "").trim();
-  if (n) t = t.split(n).join(NAME_STANDS_IN);
-  return t;
-}
-var any = (rules, t) => rules.some((r2) => r2.test(t));
-function statesAutomated(text, name = null) {
-  const t = judged(text, name);
-  return any(STATES_AI, t) && !any(DENIES_AI, t);
-}
-function deniesAutomated(text, name = null) {
-  return any(DENIES_AI, judged(text, name));
-}
-function spokenNameOf(name) {
-  const n = (name ?? "").trim();
-  return n || null;
-}
-var clauseFor = (text, name) => SPANISH.test(judged(text, name)) ? AI_CLAUSE.es : AI_CLAUSE.en;
-function withAiClause(text, clause2) {
-  const closing = /^([\s\S]*[.!?…])\s+([^.!?…]*\?)\s*$/.exec(text);
-  if (closing) {
-    const [, head, question] = closing;
-    return `${head} ${clause2} ${question}`;
-  }
-  const trimmed2 = text.trimEnd();
-  return `${trimmed2}${/[.!?…]$/.test(trimmed2) ? "" : "."} ${clause2}`;
-}
-function greetingOf(input) {
-  const name = spokenNameOf(input.name);
-  if (input.paused) return { text: pausedGreetingFor(name), source: "paused" };
-  const raw = (input.stored ?? "").replace(/\{\{/g, "{").replace(/\}\}/g, "}").trim();
-  if (!raw) return { text: greetingFor(name), source: "standard" };
-  if (deniesAutomated(raw, name)) return { text: greetingFor(name), source: "standard_denied" };
-  if (raw.includes(GREETING_NAME_SLOT) && !name) return { text: GREETING_DEFAULT, source: "standard" };
-  const filled = name ? raw.split(GREETING_NAME_SLOT).join(name) : raw;
-  return statesAutomated(raw, name) ? { text: filled, source: "owner" } : { text: withAiClause(filled, clauseFor(raw, name)), source: "owner_disclosed" };
-}
-function greetingNotes(input) {
-  const raw = (input.stored ?? "").trim();
-  if (!raw) return [];
-  const name = spokenNameOf(input.name);
-  const t = judged(raw, name);
-  const notes = [];
-  if (deniesAutomated(raw, name)) {
-    notes.push({
-      key: "denies_ai",
-      words: "This says it isn't automated, so callers hear the standard greeting instead: your receptionist always says it's an automated assistant."
-    });
-    return notes;
-  }
-  if (!statesAutomated(raw, name)) {
-    notes.push({
-      key: "adds_ai",
-      words: `It doesn't say it's automated, so callers also hear \u201C${clauseFor(raw, name)}\u201D Say it your own way to replace it.`
-    });
-  }
-  if (any(DENIES_RECORDING, t)) {
-    notes.push({
-      key: "denies_recording",
-      words: "This tells callers they aren't recorded. Calls to your receptionist are recorded, so that isn't so."
-    });
-  } else if (!any(SAYS_RECORDING, t)) {
-    notes.push({
-      key: "no_recording",
-      words: "The standard greeting says calls are recorded; yours doesn't. In some places callers have to be told first."
-    });
-  }
-  const spoken = greetingOf({ name, stored: raw, paused: false }).text;
-  const words3 = (name ? spoken.split(name).join(" ") : spoken).split(/\s+/).filter(Boolean).length;
-  if (words3 > GREETING_LONG_WORDS) {
-    notes.push({
-      key: "long",
-      words: `About ${Math.round(words3 * SECONDS_PER_WORD)} seconds before a caller can speak. Callers hang up during long greetings; under 7 seconds keeps more of them.`
-    });
-  }
-  if (LINK2.test(t)) notes.push({ key: "link", words: "A web address is read out letter by letter on a call." });
-  const [slot2] = (raw.match(/\{[^{}]*\}/g) ?? []).filter((s) => s !== GREETING_NAME_SLOT);
-  if (slot2) {
-    notes.push({
-      key: "slot",
-      words: `${slot2} isn't filled in, so callers hear it as written. Only ${GREETING_NAME_SLOT} is.`
-    });
-  }
-  if (input.namesMoney(t)) {
-    notes.push({
-      key: "money",
-      words: "It mentions a discount, deposit or refund. If a caller asks about it, your receptionist hands it to you."
-    });
-  }
-  if (input.neverQuotePrices && input.namesPrice(t)) {
-    notes.push({
-      key: "price",
-      words: "It says a price while \u201CNever quote a price\u201D is on. Callers hear this one anyway."
-    });
-  }
-  return notes;
-}
-
 // src/ask/ask-settings-change.ts
 var NOTE_TEXT_SAID_MAX = 160;
 var ASK_ANSWERS_ROWS = {
@@ -25960,11 +25799,11 @@ function applyAnswersChange(config, change) {
       putKey(profile, "languages", list2.length ? list2 : void 0);
       break;
     }
-    case "set_phone_greeting": {
-      const line = change.greeting.trim();
-      putKey(profile, "phone_greeting", line && line !== GREETING_TEMPLATE ? line : void 0);
+    // Emptied, the standard greeting. The standard line typed out is made empty by the tool that proposes it (act/settings.ts),
+    // as the row's own save stores it: the check reads the greeting's disclosure rules, which stay out of the tab's bundle.
+    case "set_phone_greeting":
+      putKey(profile, "phone_greeting", change.greeting.trim() || void 0);
       break;
-    }
     case "set_phone_voice":
       putKey(profile, "phone_voice", change.voice);
       break;
@@ -26000,7 +25839,7 @@ function describeAnswersChange(change) {
       return list2.length ? `It speaks ${list2.join(", ")}` : "No languages set";
     }
     case "set_phone_greeting":
-      return change.greeting.trim() && change.greeting.trim() !== GREETING_TEMPLATE ? `Callers hear first: ${quoted(change.greeting)}` : "Callers hear the standard greeting";
+      return change.greeting.trim() ? `Callers hear first: ${quoted(change.greeting)}` : "Callers hear the standard greeting";
     case "set_phone_voice": {
       const v = phoneVoiceOf(change.voice);
       return v ? `Callers hear ${v.name} (${v.says}) from their next call` : `Callers hear ${change.voice}`;
@@ -33222,6 +33061,167 @@ function withFirstAlertAddress(config, email) {
     notifications: { escalation_emails: [address] }
   });
   return next.success ? withStoredKeysKept(next.data, config) : null;
+}
+
+// src/voice/greeting.ts
+function greetingFor(name) {
+  return `${opening(name)} I'm the automated assistant, and calls are recorded. How can I help?`;
+}
+function opening(name) {
+  return name ? `Hi, ${name}.` : "Hi, thanks for calling.";
+}
+function pausedGreetingFor(name) {
+  return `${opening(name)} I'm the automated assistant, and calls are recorded. Today I can only take a message for the team.`;
+}
+var GREETING_DEFAULT = /* @__PURE__ */ greetingFor(null);
+
+// src/voice/greeting-owner.ts
+var GREETING_NAME_SLOT = "{business}";
+var AI_CLAUSE = { en: "I'm the automated assistant.", es: "Soy el asistente autom\xE1tico." };
+var GREETING_TEMPLATE = greetingFor(GREETING_NAME_SLOT);
+var GREETING_LONG_WORDS = 18;
+var SECONDS_PER_WORD = 0.4;
+var ROLE = String.raw`(?:assistant|receptionist|agent|attendant|operator|concierge|helper|host)`;
+var MACHINE = String.raw`(?:A\.?I\.?|(?:chat)?bot|robot|machine|computer|automated|automatic|virtual|digital|artificial intelligence)`;
+var STATES_AI = [
+  new RegExp(
+    String.raw`\b(?:automated|automatic|virtual|digital|A\.?I\.?|artificial[- ]intelligence|robot(?:ic)?)\s+${ROLE}\b`,
+    "i"
+  ),
+  new RegExp(
+    String.raw`\b(?:I'm|I am|this is|you're (?:speaking|talking) (?:with|to)|you are (?:speaking|talking) (?:with|to)|you've reached|you have reached)\s+(?:(?:the|a|an|our|your|\w+'s)\s+)?(?:\w+\s+)?${MACHINE}\b`,
+    "i"
+  ),
+  /\bchat\s?bot\b/i,
+  /\b(?:asistente|recepcionista|agente|operador[a]?)\s+(?:virtual|digital|autom[aá]tic[oa]|de\s+IA|de\s+inteligencia\s+artificial)\b/i,
+  /\b(?:soy|habla\s+con|est[aá]\s+hablando\s+con|le\s+atiende)\s+(?:(?:el|la|un|una|su|nuestr[oa])\s+)?(?:IA|robot|bot|m[aá]quina|inteligencia\s+artificial|asistente\s+(?:virtual|autom[aá]tic[oa]|digital))\b/i
+];
+var NEGATION = String.raw`(?:not|never|isn't|aren't|ain't|wasn't)`;
+var GOVERNED = String.raw`(?:(?!but\b|and\b|or\b|though\b)[\w']+\s+){0,2}`;
+var DENIED = String.raw`(?:(?:a|an|the|some)\s+)?(?:bot|chatbot|robot|machine|computer|automated|automatic|A\.?I\.?|artificial intelligence|(?:virtual|digital)\s+${ROLE})`;
+var DENIES_AI = [
+  new RegExp(String.raw`\b${NEGATION}\s+${GOVERNED}${DENIED}\b`, "i"),
+  /\bno\s+(?:bots?|robots?|machines?|A\.?I\.?)\b/i,
+  /\bAI[- ]free\b/i,
+  /\b(?:I'm|I am|this is|you're (?:speaking|talking) (?:with|to)|you are (?:speaking|talking) (?:with|to))\s+(?:a\s+)?(?:real|live|actual)\s+(?:person|human)\b/i,
+  /(?<!\bnot\s(?:a\s)?)\b(?:a\s+)?(?:real|live|actual)\s+(?:person|human)\s+(?:here|speaking|answering)\b/i,
+  /\bno\s+(?:soy|es)\s+(?:un\s+|una\s+)?(?:robot|bot|m[aá]quina|autom[aá]tic[oa]|IA|asistente\s+virtual|inteligencia\s+artificial)\b/i,
+  /\bno\s+(?:est[aá]\s+)?habla(?:ndo)?\s+con\s+(?:un\s+|una\s+)?(?:robot|bot|m[aá]quina|IA|asistente\s+virtual)\b/i,
+  /(?<!\bno\s)\bsoy\s+una\s+persona(?:\s+real)?\b/i,
+  /(?<!\bno\s(?:soy|es)\s(?:una\s)?)\bpersona\s+real\b/i
+];
+var SAYS_RECORDING = [
+  /\brecord(?:ed|ing|s)?\b/i,
+  /\bgrab(?:a|an|ada|adas|ado|amos|ando|ar|aci[oó]n)\b/i
+];
+var DENIES_RECORDING = [
+  /\b(?:not|never)\s+(?:being\s+|be\s+|get\s+)?record(?:ed|ing|s)?\b/i,
+  /\bno\s+recordings?\b/i,
+  /\b(?:don't|doesn't|won't|aren't|isn't|ain't)\s+(?:being\s+|be\s+)?record(?:ed|ing|s)?\b/i,
+  /\bno\s+(?:se\s+)?(?:graba|graban|grabamos|grabada|grabadas|est[aá]\s+grabando|estamos\s+grabando|son\s+grabadas|es\s+grabada)\b/i,
+  /\bsin\s+grabar\b/i
+];
+var LINK2 = /\b(?:https?:\/\/|www\.)\S+|\b[\w-]+\.(?:com|net|org|co|io|us|mx|es)\b/i;
+var SPANISH = /[¿¡ñ]|\b(?:hola|gracias|llamar|llamada|ayudar|ayudarle|ayudarte|bienvenid[oa]s?|c[oó]mo|est[aá]|usted)\b/i;
+var NAME_STANDS_IN = "Xname";
+function judged(text, name) {
+  const straight = (s) => s.replace(/[‘’]/g, "'");
+  let t = straight(text).split(GREETING_NAME_SLOT).join(NAME_STANDS_IN);
+  const n = straight(name ?? "").trim();
+  if (n) t = t.split(n).join(NAME_STANDS_IN);
+  return t;
+}
+var any = (rules, t) => rules.some((r2) => r2.test(t));
+function statesAutomated(text, name = null) {
+  const t = judged(text, name);
+  return any(STATES_AI, t) && !any(DENIES_AI, t);
+}
+function deniesAutomated(text, name = null) {
+  return any(DENIES_AI, judged(text, name));
+}
+function spokenNameOf(name) {
+  const n = (name ?? "").trim();
+  return n || null;
+}
+var clauseFor = (text, name) => SPANISH.test(judged(text, name)) ? AI_CLAUSE.es : AI_CLAUSE.en;
+function withAiClause(text, clause2) {
+  const closing = /^([\s\S]*[.!?…])\s+([^.!?…]*\?)\s*$/.exec(text);
+  if (closing) {
+    const [, head, question] = closing;
+    return `${head} ${clause2} ${question}`;
+  }
+  const trimmed2 = text.trimEnd();
+  return `${trimmed2}${/[.!?…]$/.test(trimmed2) ? "" : "."} ${clause2}`;
+}
+function greetingOf(input) {
+  const name = spokenNameOf(input.name);
+  if (input.paused) return { text: pausedGreetingFor(name), source: "paused" };
+  const raw = (input.stored ?? "").replace(/\{\{/g, "{").replace(/\}\}/g, "}").trim();
+  if (!raw) return { text: greetingFor(name), source: "standard" };
+  if (deniesAutomated(raw, name)) return { text: greetingFor(name), source: "standard_denied" };
+  if (raw.includes(GREETING_NAME_SLOT) && !name) return { text: GREETING_DEFAULT, source: "standard" };
+  const filled = name ? raw.split(GREETING_NAME_SLOT).join(name) : raw;
+  return statesAutomated(raw, name) ? { text: filled, source: "owner" } : { text: withAiClause(filled, clauseFor(raw, name)), source: "owner_disclosed" };
+}
+function greetingNotes(input) {
+  const raw = (input.stored ?? "").trim();
+  if (!raw) return [];
+  const name = spokenNameOf(input.name);
+  const t = judged(raw, name);
+  const notes = [];
+  if (deniesAutomated(raw, name)) {
+    notes.push({
+      key: "denies_ai",
+      words: "This says it isn't automated, so callers hear the standard greeting instead: your receptionist always says it's an automated assistant."
+    });
+    return notes;
+  }
+  if (!statesAutomated(raw, name)) {
+    notes.push({
+      key: "adds_ai",
+      words: `It doesn't say it's automated, so callers also hear \u201C${clauseFor(raw, name)}\u201D Say it your own way to replace it.`
+    });
+  }
+  if (any(DENIES_RECORDING, t)) {
+    notes.push({
+      key: "denies_recording",
+      words: "This tells callers they aren't recorded. Calls to your receptionist are recorded, so that isn't so."
+    });
+  } else if (!any(SAYS_RECORDING, t)) {
+    notes.push({
+      key: "no_recording",
+      words: "The standard greeting says calls are recorded; yours doesn't. In some places callers have to be told first."
+    });
+  }
+  const spoken = greetingOf({ name, stored: raw, paused: false }).text;
+  const words3 = (name ? spoken.split(name).join(" ") : spoken).split(/\s+/).filter(Boolean).length;
+  if (words3 > GREETING_LONG_WORDS) {
+    notes.push({
+      key: "long",
+      words: `About ${Math.round(words3 * SECONDS_PER_WORD)} seconds before a caller can speak. Callers hang up during long greetings; under 7 seconds keeps more of them.`
+    });
+  }
+  if (LINK2.test(t)) notes.push({ key: "link", words: "A web address is read out letter by letter on a call." });
+  const [slot2] = (raw.match(/\{[^{}]*\}/g) ?? []).filter((s) => s !== GREETING_NAME_SLOT);
+  if (slot2) {
+    notes.push({
+      key: "slot",
+      words: `${slot2} isn't filled in, so callers hear it as written. Only ${GREETING_NAME_SLOT} is.`
+    });
+  }
+  if (input.namesMoney(t)) {
+    notes.push({
+      key: "money",
+      words: "It mentions a discount, deposit or refund. If a caller asks about it, your receptionist hands it to you."
+    });
+  }
+  if (input.neverQuotePrices && input.namesPrice(t)) {
+    notes.push({
+      key: "price",
+      words: "It says a price while \u201CNever quote a price\u201D is on. Callers hear this one anyway."
+    });
+  }
+  return notes;
 }
 
 // src/config/workspace-config/price-allowance.ts

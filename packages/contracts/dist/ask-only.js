@@ -2714,47 +2714,6 @@ function isBaselineInOwnersField(text) {
   return name.trim().length > 0 && name.length <= 120 && !/[\r\n]/.test(name) && !/[.!?]\s/.test(name);
 }
 
-// src/voice/greeting.ts
-function greetingFor(name) {
-  return `${opening(name)} I'm the automated assistant, and calls are recorded. How can I help?`;
-}
-function opening(name) {
-  return name ? `Hi, ${name}.` : "Hi, thanks for calling.";
-}
-
-// src/voice/greeting-owner.ts
-var GREETING_NAME_SLOT = "{business}";
-var GREETING_TEMPLATE = greetingFor(GREETING_NAME_SLOT);
-var ROLE = String.raw`(?:assistant|receptionist|agent|attendant|operator|concierge|helper|host)`;
-var MACHINE = String.raw`(?:A\.?I\.?|(?:chat)?bot|robot|machine|computer|automated|automatic|virtual|digital|artificial intelligence)`;
-var STATES_AI = [
-  new RegExp(
-    String.raw`\b(?:automated|automatic|virtual|digital|A\.?I\.?|artificial[- ]intelligence|robot(?:ic)?)\s+${ROLE}\b`,
-    "i"
-  ),
-  new RegExp(
-    String.raw`\b(?:I'm|I am|this is|you're (?:speaking|talking) (?:with|to)|you are (?:speaking|talking) (?:with|to)|you've reached|you have reached)\s+(?:(?:the|a|an|our|your|\w+'s)\s+)?(?:\w+\s+)?${MACHINE}\b`,
-    "i"
-  ),
-  /\bchat\s?bot\b/i,
-  /\b(?:asistente|recepcionista|agente|operador[a]?)\s+(?:virtual|digital|autom[aá]tic[oa]|de\s+IA|de\s+inteligencia\s+artificial)\b/i,
-  /\b(?:soy|habla\s+con|est[aá]\s+hablando\s+con|le\s+atiende)\s+(?:(?:el|la|un|una|su|nuestr[oa])\s+)?(?:IA|robot|bot|m[aá]quina|inteligencia\s+artificial|asistente\s+(?:virtual|autom[aá]tic[oa]|digital))\b/i
-];
-var NEGATION = String.raw`(?:not|never|isn't|aren't|ain't|wasn't)`;
-var GOVERNED = String.raw`(?:(?!but\b|and\b|or\b|though\b)[\w']+\s+){0,2}`;
-var DENIED = String.raw`(?:(?:a|an|the|some)\s+)?(?:bot|chatbot|robot|machine|computer|automated|automatic|A\.?I\.?|artificial intelligence|(?:virtual|digital)\s+${ROLE})`;
-var DENIES_AI = [
-  new RegExp(String.raw`\b${NEGATION}\s+${GOVERNED}${DENIED}\b`, "i"),
-  /\bno\s+(?:bots?|robots?|machines?|A\.?I\.?)\b/i,
-  /\bAI[- ]free\b/i,
-  /\b(?:I'm|I am|this is|you're (?:speaking|talking) (?:with|to)|you are (?:speaking|talking) (?:with|to))\s+(?:a\s+)?(?:real|live|actual)\s+(?:person|human)\b/i,
-  /(?<!\bnot\s(?:a\s)?)\b(?:a\s+)?(?:real|live|actual)\s+(?:person|human)\s+(?:here|speaking|answering)\b/i,
-  /\bno\s+(?:soy|es)\s+(?:un\s+|una\s+)?(?:robot|bot|m[aá]quina|autom[aá]tic[oa]|IA|asistente\s+virtual|inteligencia\s+artificial)\b/i,
-  /\bno\s+(?:est[aá]\s+)?habla(?:ndo)?\s+con\s+(?:un\s+|una\s+)?(?:robot|bot|m[aá]quina|IA|asistente\s+virtual)\b/i,
-  /(?<!\bno\s)\bsoy\s+una\s+persona(?:\s+real)?\b/i,
-  /(?<!\bno\s(?:soy|es)\s(?:una\s)?)\bpersona\s+real\b/i
-];
-
 // src/ask/ask-settings-change.ts
 var ASK_ANSWERS_ROWS = {
   set_tone: "tone",
@@ -2844,11 +2803,11 @@ function applyAnswersChange(config, change) {
       putKey(profile, "languages", list.length ? list : void 0);
       break;
     }
-    case "set_phone_greeting": {
-      const line = change.greeting.trim();
-      putKey(profile, "phone_greeting", line && line !== GREETING_TEMPLATE ? line : void 0);
+    // Emptied, the standard greeting. The standard line typed out is made empty by the tool that proposes it (act/settings.ts),
+    // as the row's own save stores it: the check reads the greeting's disclosure rules, which stay out of the tab's bundle.
+    case "set_phone_greeting":
+      putKey(profile, "phone_greeting", change.greeting.trim() || void 0);
       break;
-    }
     case "set_phone_voice":
       putKey(profile, "phone_voice", change.voice);
       break;
