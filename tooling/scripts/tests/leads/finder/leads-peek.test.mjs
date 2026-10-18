@@ -8,7 +8,7 @@
  * Drawn on the tests' stub React, as refusals-on-the-page does: a draw is a call and the page's state is this file's, the
  * way LeadsReal holds it (its mode, the question armed, the draft). Everything is imported from its TSX module: the
  * sheet, the panel's acts (peek/acts.tsx), the lightbox and the seams the page leans on (Esc, focus, the return watcher,
- * the photo warm-up); the kit's Menu, Segmented, Confirm and StatePill draw as the app draws them. Nothing is mocked that
+ * the photo warm-up); the kit's Menu, SubTabs, Confirm and StatePill draw as the app draws them. Nothing is mocked that
  * the owner reads: the view model is contracts' own toLeadPeekVM and the words are contracts'. The page hands the acts a
  * courier, and this file hands its own, so what the sheet asked of the door is read off it (the surface's own doors,
  * and the wire they go over, are leads-bridge.test.mjs's). The one thing the sheet reads by itself is the lead's story
@@ -147,12 +147,12 @@ globalThis.window = {
 await import("../../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
 // The fit's pill and the Erase question are the kit's (surfaces/kit), which the sheet draws by way of legacy-parts off
 // the window, where seed-globals publishes them. The ⋯ and the ways of calling are the kit's Menu, found by its type and
-// read by what the sheet hands it (kitItem); the tabs are the kit's capsule (Segmented), chosen as its onValueChange is
-// called.
+// read by what the sheet hands it (kitItem); the tabs are the kit's capsule (SubTabs, look "capsule"), chosen as its
+// onSelect is called.
 Object.assign(globalThis.window, kitPages);
 useStubHooks();
 const { Menu } = await import("../../../../../apps/dashboard/src/surfaces/kit/menu/menu.tsx");
-const { Segmented } = await import("../../../../../apps/dashboard/src/surfaces/kit/segmented/segmented.tsx");
+const { SubTabs } = await import("../../../../../apps/dashboard/src/surfaces/kit/sub-tabs/sub-tabs.tsx");
 // The sheet and what the page leans on, from where they live (surfaces/leads, decision 0015).
 const { LeadSheet } = await import("../../../../../apps/dashboard/src/surfaces/leads/sheet/sheet.tsx");
 const { LeadPeekActions } = await import("../../../../../apps/dashboard/src/surfaces/leads/peek/acts.tsx");
@@ -210,9 +210,9 @@ const pickStage = async (P, label) => {
   assert.ok(choose, "the ⋯ holds the stage");
   await choose.onChoose(choose.options.find((o) => o.label === label).value);
 };
-/** A tab chosen, as the kit's capsule calls its onValueChange; the sheet keeps it for this lead. */
+/** A tab chosen, as the kit's capsule calls its onSelect; the sheet keeps it for this lead. */
 const tabTo = (P, id) => {
-  find(P.draw().tree, (n) => n.type === Segmented).props.onValueChange(id);
+  find(P.draw().tree, (n) => n.type === SubTabs).props.onSelect(id);
   return P.draw().tree;
 };
 // Call opens the ways of calling (LeadCallMenu, the kit's Menu) on the Contact tab: a way is one of its items.
@@ -513,7 +513,7 @@ test("the sheet names the business and its line, the reason, a line for the chec
   assert.equal(tree.props["data-testid"], "lead-peek");
   assert.equal(textOf(byTestId(tree, "peek-name")), "Travis Heights Coaching Co.");
   // Under the name, the kind, the street and the rating (the refined canvas).
-  assert.equal(textOf(byTestId(tree, "peek-sub")), "Personal trainer · 1200 Barton Springs Rd · 5.0 from 16 reviews");
+  assert.equal(textOf(byTestId(tree, "peek-sub")), "Personal trainer · 1200 Barton Springs Rd · 5.0 (16)");
   // No meter in the head: the checks are a line on the card, a strong fit's with no word before the count.
   assert.equal(byTestId(tree, "lead-sheet-fit"), null);
   assert.equal(textOf(byTestId(tree, "lead-sheet-checks")), "7 of 7 checks");
@@ -563,8 +563,8 @@ test("the sheet reads its lead's story once, and a lead no sequence wrote to dra
   assert.equal(byTestId(activity, "peek-reach-out"), null, "no timeline, no block");
   assert.equal(
     textOf(byTestId(activity, "lead-sheet-stand")),
-    `Not in a sequence yet${LEAD_SHEET_WORDS.noTarget}`,
-    "where it stands: in no sequence, and no sequence takes leads added yet",
+    "Not in a sequence yetNo sequence takes leads you add. Make one in Sequences; you come back here",
+    "where it stands, in the box's own words: in no sequence, and none takes leads you add yet",
   );
 });
 
@@ -1393,10 +1393,7 @@ test("About shows who they are: their own words, where, the listing unclaimed, t
     }),
   });
   // The refined canvas: the kind, the street and the rating; whether they are open is Contact's week, today marked.
-  assert.equal(
-    textOf(byTestId(shown.draw().tree, "peek-sub")),
-    "Personal trainer · 101 Biscayne Blvd · 5.0 from 16 reviews",
-  );
+  assert.equal(textOf(byTestId(shown.draw().tree, "peek-sub")), "Personal trainer · 101 Biscayne Blvd · 5.0 (16)");
   let tree = tabTo(shown, "why");
   const facts = textOf(byTestId(tree, "peek-about"));
   for (const said of ["Waterfront venue for weddings.", "ListingNot claimed by the owner"])
@@ -1578,7 +1575,7 @@ test("on a phone: the kit's sheet at half height over the rows, the tabs at full
     "the card, and the dock at its foot",
   );
   // At half the three tabs sit under the card with none picked (the canvas's PhoneHalf): any of them raises the sheet.
-  assert.equal(find(tree, (n) => n.type === Segmented).props.value, "", "the tabs wait under the card, none picked");
+  assert.equal(find(tree, (n) => n.type === SubTabs).props.value, null, "the tabs wait under the card, none picked");
 
   // A swipe across the card is the next lead or the one before, 80px under a thumb; a scroll is never a move.
   const body = find(tree, (n) => n.props?.className === "lw-body");
@@ -1600,7 +1597,15 @@ test("on a phone: the kit's sheet at half height over the rows, the tabs at full
   sheet.props.rest.onRest("full");
   tree = onPhone();
   assert.ok(byTestId(tree, "lead-sheet-full"), "full height");
-  assert.equal(find(tree, (n) => n.type === Segmented).props.value, "why", "the tabs, Why picked");
+  const tabs = find(tree, (n) => n.type === SubTabs).props;
+  assert.equal(tabs.value, "why", "the tabs, Why picked");
+  assert.deepEqual(
+    tabs.tabs.map((t) => t.controls ?? null),
+    ["lead-sheet-pane", null, null],
+    "tabs to a screen reader, the picked one naming the pane it opens",
+  );
+  const pane = byTestId(tree, "lead-sheet-pane-why");
+  assert.deepEqual([pane.props.role, pane.props.id], ["tabpanel", "lead-sheet-pane"]);
   assert.ok(byTestId(tree, "lead-sheet-dock"), "the dock, still");
 
   // Back from the call: the six outcomes wear their dots, the question says what saving does, and one press saves and moves on.

@@ -83,11 +83,18 @@ export interface LeadPileProgressVM {
   done: boolean;
 }
 
-export function leadPileProgressOf(c: LeadPileCountsDto): LeadPileProgressVM {
-  const decided = c.added + (c.elsewhere ?? 0) + c.closed;
+/**
+ * The pile's line: how many of its leads are decided, and how many put off. The counts read with the leads arrive after a
+ * press; the page's own rows move on it (`now`: still open, and put off, in this pass), so where it has them the line
+ * counts from those and never trails the card by a press.
+ */
+export function leadPileProgressOf(c: LeadPileCountsDto, now?: { left: number; later: number }): LeadPileProgressVM {
+  const later = now ? now.later : c.later;
+  const left = now ? now.left : c.left;
+  const decided = now ? Math.max(0, c.total - left - later) : c.added + (c.elsewhere ?? 0) + c.closed;
   const parts = [`${decided} of ${c.total} decided`];
-  if (c.later > 0) parts.push(`${c.later} for later`);
-  return { text: parts.join(" · "), share: c.total > 0 ? decided / c.total : 0, done: c.left === 0 };
+  if (later > 0) parts.push(`${later} for later`);
+  return { text: parts.join(" · "), share: c.total > 0 ? decided / c.total : 0, done: left === 0 };
 }
 
 /** What the pile reads of a row beyond its words (00426): the reach-out it goes with, and when it was put off. */

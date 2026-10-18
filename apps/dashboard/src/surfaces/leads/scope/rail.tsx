@@ -98,7 +98,7 @@ const LeadSearchMenu = ({
                 },
               ]),
         {
-          label: `Export these ${s.count}`,
+          label: s.count === null ? "Export these" : `Export these ${s.count}`,
           icon: "external",
           // A press that POSTs and saves the file (page/acts.tsx exportLeads), not a link: it marks what it took.
           onClick: onExport,
@@ -111,7 +111,7 @@ const LeadSearchMenu = ({
               {
                 label: "Remove the ones you haven't touched",
                 icon: "undo",
-                meta: `Up to ${s.count} given back this month`,
+                meta: `Up to ${s.count ?? 0} given back this month`,
                 onClick: () => onUndo(s),
                 gate: canFind ? undefined : gate("find", "remove these leads"),
               },

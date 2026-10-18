@@ -16,12 +16,12 @@ import {
   LEAD_SHEET_WORDS as W,
   LEAD_WORDS,
   leadSheetAboutOf,
-  leadSheetReasonsOf,
   type LeadCardTab,
   type LeadPeekVM,
   type LeadPlaceVM,
   type LeadSheetBoxVM,
   type LeadSheetCheckVM,
+  type LeadSheetState,
   type LeadSheetTrackVM,
   type LeadSheetWhyVM,
 } from "@chanlytics/contracts";
@@ -45,6 +45,8 @@ const TAB_WORDS = W.panes;
 interface PaneProps {
   vm: LeadPeekVM;
   card: LeadCardFacts;
+  /** The lead's state: a lead with no email to write to is shown no sequence's email. */
+  state: LeadSheetState;
   /** Why's checks: what did not pass, the rest, their count and whether a legend is owed. */
   why: LeadSheetWhyVM | null;
   on: PeekActs;
@@ -126,28 +128,13 @@ const whyChecksOf = (why: LeadSheetWhyVM) => (
   </>
 );
 
-/** Why: the checks, the listing's reasons and facts, the company, and how it was found. */
+/** Why: the checks, the listing's facts, the company, and how it was found (its reasons are the card's own line). */
 const whyPane = ({ vm, on, why }: PaneProps) => {
-  const reasons = leadSheetReasonsOf(vm);
   // The listing's own facts, each said once: the address and the week are Contact's.
   const listing = leadSheetAboutOf(vm).rows.filter((r) => r.k !== "Address" && r.k !== "Hours");
   return (
     <>
       {why ? whyChecksOf(why) : null}
-      {reasons.length ? (
-        <>
-          {paneHeadOf(W.why.reasons)}
-          <div className="lw-sigs">
-            {reasons.map((r) => (
-              <span key={r.text} className={`lw-sig ${r.tone}`}>
-                <i aria-hidden="true" />
-                {r.text}
-                <small>{r.from}</small>
-              </span>
-            ))}
-          </div>
-        </>
-      ) : null}
       {listing.length ? (
         <>
           {paneHeadOf(vm.company ? TAB_WORDS.company : TAB_WORDS.listing)}
@@ -241,9 +228,11 @@ const contactPane = (p: PaneProps) => {
   const phone = vm.reach.phone;
   const email = vm.reach.email;
   const about = leadSheetAboutOf(vm).rows.filter((r) => r.k === "Address");
+  const links = LeadPeekParts.links(vm);
   return (
     <>
-      {paneHeadOf(TAB_WORDS.writesTo)}
+      {/* Where the sequence writes, while there is an address to write to; else plainly the email row, which says none. */}
+      {paneHeadOf(email.address ? TAB_WORDS.writesTo : TAB_WORDS.email)}
       <div className="lw-group">
         {reachRow({ icon: "mail", value: email.value, line: email.tip, testid: "peek-email", acts: emailActs(p) })}
       </div>
@@ -278,6 +267,21 @@ const contactPane = (p: PaneProps) => {
               value: vm.links.website.label,
               line: vm.links.instagram ? LEAD_WORDS.instagram : "",
               testid: "peek-site",
+              acts: (
+                <Button
+                  variant="quiet"
+                  size="sm"
+                  iconOnly
+                  href={vm.links.website.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label={TAB_WORDS.openSite}
+                  title={TAB_WORDS.openSite}
+                  data-testid="peek-website"
+                >
+                  <Icon name="external" size={13} />
+                </Button>
+              ),
             })
           : null}
         {reachRow({ icon: "chat", value: vm.reach.locked.title, line: vm.reach.locked.line, testid: "peek-locked" })}
@@ -306,14 +310,22 @@ const contactPane = (p: PaneProps) => {
           ))}
         </div>
       ) : null}
-      {paneHeadOf(W.about.links)}
-      {LeadPeekParts.links(vm)}
+      {links ? (
+        <>
+          {paneHeadOf(W.about.links)}
+          {links}
+        </>
+      ) : null}
     </>
   );
 };
 
-/** Before a sequence has them: the email they would get, in full, with Change; its steps; each variable with its source. */
-const wouldGetOf = ({ card, mail }: PaneProps) => {
+/**
+ * Before a sequence has them: the email they would get, in full; its steps; each variable with its source. Nothing for a
+ * lead with no email to write to: the stand above says why no sequence can take them.
+ */
+const wouldGetOf = ({ card, mail, state }: PaneProps) => {
+  if (state === "phone") return null;
   if (!card.email || !mail)
     return <p className="lw-say quiet">{card.firstPile ? LEAD_CARD_WORDS.firstPile : W.emails.none}</p>;
   return (
@@ -427,11 +439,15 @@ const sequencePane = (p: PaneProps) => {
   );
 };
 
-/** The open tab's pane. */
+/** The open tab's pane's id, which its tab names (sheet.tsx tabStripOf): one sheet stands on a page. */
+export const SHEET_PANE_ID = "lead-sheet-pane";
+
+/** The open tab's pane: the panel its tab opens, named by the tab's word. */
 export const SheetPane = ({ tab, ...p }: PaneProps & { tab: LeadCardTab }) => (
   <div
     className="lw-pane"
-    role="region"
+    id={SHEET_PANE_ID}
+    role="tabpanel"
     aria-label={LEAD_CARD_TABS.find((t) => t.id === tab)?.label}
     data-testid={`lead-sheet-pane-${tab}`}
   >

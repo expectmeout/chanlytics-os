@@ -14,6 +14,8 @@ import type { ReactNode } from "react";
 import {
   LEAD_CARD_WORDS,
   LEAD_SHEET_CARD_WORDS as CW,
+  leadSheetChecksSaid,
+  leadSheetContactSaid,
   LEAD_SHEET_WORDS as W,
   LEAD_WORDS,
   type LeadCardEmailVM,
@@ -86,7 +88,10 @@ export const SheetWho = (p: {
 
 /* ------------------------------------------------------------------------------------- the reason and its lines -- */
 
-/** The reason, in plain type, where it came from on hover. They wrote back: what they said, as it was read. */
+/**
+ * The reason, in plain type, where it came from on hover. They wrote back: their reply as Claude read it, named as a
+ * reading and never in quotation marks (it is not their words); the dock says what to do with it.
+ */
 export const SheetNow = (p: {
   reason: LeadCardReasonVM | null;
   fallback: string;
@@ -96,8 +101,8 @@ export const SheetNow = (p: {
   if (p.replied)
     return (
       <div className="lw-quote" data-testid="lead-sheet-reply">
-        <p className="lw-quote-t">{p.reply ? `“${p.reply}”` : W.wroteBack}</p>
-        <p className="lw-quote-s">{W.stoppedLine}</p>
+        {p.reply ? <p className="lw-quote-s">{W.readAs}</p> : null}
+        <p className="lw-quote-t">{p.reply ?? W.wroteBack}</p>
       </div>
     );
   const text = p.reason ? p.reason.text : p.fallback;
@@ -115,6 +120,7 @@ export const SheetChecksLine = ({ line, onOpen }: { line: LeadSheetChecksLineVM;
     className="lw-ln"
     onClick={onOpen}
     title={`${line.tip} · ${CW.openWhy}`}
+    aria-label={leadSheetChecksSaid(line)}
     data-testid="lead-sheet-checks"
   >
     <span className="lw-dots" aria-hidden="true">
@@ -138,7 +144,14 @@ export const SheetChecksLine = ({ line, onOpen }: { line: LeadSheetChecksLineVM;
 
 /** The ways in, in one line: the address, the phone (amber where it is not confirmed), the site. */
 export const SheetContactLine = ({ line, onOpen }: { line: LeadSheetContactLineVM; onOpen: () => void }) => (
-  <LinkButton size="inherit" className="lw-ln" onClick={onOpen} title={CW.openContact} data-testid="lead-sheet-contact">
+  <LinkButton
+    size="inherit"
+    className="lw-ln"
+    onClick={onOpen}
+    title={CW.openContact}
+    aria-label={leadSheetContactSaid(line)}
+    data-testid="lead-sheet-contact"
+  >
     <Icon name="mail" size={14} />
     <span className={`lw-ln-t${line.email.warn ? " lw-amber" : ""}`} data-testid="lead-sheet-contact-email">
       {line.email.text}
@@ -300,7 +313,32 @@ export const SheetTrack = ({ track }: { track: LeadSheetTrackVM }) => (
  * The sequence box (the refined canvas): how they stand to the sequence (Joins, In, Left, Can't join), its name a door to
  * its record, Change beside it where the adds may go to another, and one line of where they stand.
  */
-export const SheetBox = (p: { box: LeadSheetBoxVM; onOpen: (rootId: string) => void; change: ReactNode }) => (
+export const SheetBox = (p: { box: LeadSheetBoxVM; onOpen: (rootId: string) => void; change: ReactNode }) =>
+  p.box.verb || p.box.name ? <SheetBoxNamed {...p} /> : <SheetBoxLine line={p.box.line} change={p.change} />;
+
+/**
+ * A box that names no sequence (none chosen yet, none could take them, still reading, closed): its line alone, and
+ * Change beside it where another can be picked, so no empty row stands over the words.
+ */
+const SheetBoxLine = (p: { line: string; change: ReactNode }) => (
+  <section className="lw-box" aria-label={p.line} data-testid="lead-sheet-box">
+    {p.change ? (
+      <div className="lw-box-h">
+        <b className="lw-box-n" data-testid="lead-sheet-box-line">
+          {p.line}
+        </b>
+        {p.change}
+      </div>
+    ) : (
+      <p className="lw-box-l" data-testid="lead-sheet-box-line">
+        {p.line}
+      </p>
+    )}
+  </section>
+);
+
+/** A box that names its sequence: how they stand to it, the door to its record, Change, and its one line. */
+const SheetBoxNamed = (p: { box: LeadSheetBoxVM; onOpen: (rootId: string) => void; change: ReactNode }) => (
   <section className="lw-box" aria-label={p.box.name ?? p.box.line} data-testid="lead-sheet-box">
     <div className="lw-box-h">
       {p.box.verb ? <span className="lw-box-v">{p.box.verb}</span> : null}

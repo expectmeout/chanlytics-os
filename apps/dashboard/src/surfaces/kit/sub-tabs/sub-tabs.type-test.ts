@@ -23,6 +23,8 @@ function _subTabsTake(glyph: ReactElement): void {
     Holds<Exactly<SubTab["count"], number | undefined>>,
     Holds<Exactly<SubTabsProps["quietCounts"], boolean | undefined>>,
     Holds<Exactly<SubTabsProps["dense"], boolean | undefined>>,
+    Holds<Exactly<SubTabsProps["look"], "capsule" | undefined>>,
+    Holds<Exactly<SubTabsProps["value"], string | null>>,
   ];
   SubTabs({
     label: "Conversations by status",
@@ -43,6 +45,14 @@ function _subTabsTake(glyph: ReactElement): void {
     ],
     onSelect: pick,
   });
+  // A pane's few tabs as the capsule, none picked yet, the picked one naming the pane it opens.
+  SubTabs({
+    label: "About this lead",
+    look: "capsule",
+    value: null,
+    tabs: [{ id: "why", label: "Why", controls: "lead-sheet-pane" }],
+    onSelect: pick,
+  });
 
   // @ts-expect-error a strip is named: a group of tabs with no name says nothing to a screen reader
   SubTabs({ value: "all", tabs: [{ id: "all", label: "All" }], onSelect: pick });
@@ -54,4 +64,6 @@ function _subTabsTake(glyph: ReactElement): void {
   SubTabs({ label: "By channel", value: "all", tabs: [{ id: "all", label: "All", tone: "ok" }], onSelect: pick });
   // @ts-expect-error a strip picks one: with nothing to pick another with, it is a row of words
   SubTabs({ label: "By channel", value: "all", tabs: [{ id: "all", label: "All" }] });
+  // @ts-expect-error the line and the capsule are the kit's two looks
+  SubTabs({ label: "By channel", look: "pills", value: "all", tabs: [{ id: "all", label: "All" }], onSelect: pick });
 }

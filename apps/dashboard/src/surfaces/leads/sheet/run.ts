@@ -188,6 +188,16 @@ export async function runSheetAct(act: LeadSheetAct, r: SheetRun): Promise<void>
   }
 }
 
+/**
+ * Put back, or back to Ready: the add door answered for where the lead stood ("already worked"), so once the move lands
+ * it is asked afresh, and the sheet never says a thing the move just undid.
+ */
+async function reopened(r: SheetRun, move: unknown) {
+  await move;
+  r.aim.reset();
+  await r.aim.check([r.leadId]);
+}
+
 /** The acts the lead's own panel always had: Not a fit's reasons, the call, the draft, Put back, back to Ready. */
 function lookAct(act: LeadSheetAct, r: SheetRun) {
   const on = r.on;
@@ -195,6 +205,6 @@ function lookAct(act: LeadSheetAct, r: SheetRun) {
   if (act === "not_a_fit") return on.onNotAFit();
   if (act === "call") return on.onCall(r.leadId);
   if (act === "draft") return void on.onDraft(r.leadId);
-  if (act === "put_back") return void on.onPutBack(r.leadId);
-  if (act === "ready") return void on.onStage("ready");
+  if (act === "put_back") return void reopened(r, on.onPutBack(r.leadId));
+  if (act === "ready") return void reopened(r, on.onStage("ready"));
 }

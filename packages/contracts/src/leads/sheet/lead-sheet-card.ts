@@ -5,9 +5,9 @@
  * and the sequence box. Each line opens its tab. What failed comes first in Why too (decision 07): the exceptions, then
  * the rest folded under "N passed", and one legend for a mark seen and a mark read.
  *
- *   leadSheetSubOf          the line under the name: the kind, the street, the rating (short on a phone: "4.7 (312)")
- *   leadSheetChecksLineOf   the card's checks line, and its words
- *   leadSheetContactLineOf  the card's ways-in line
+ *   leadSheetSubOf          the line under the name: the kind, the street, the rating ("4.7 (312)"), on one line
+ *   leadSheetChecksLineOf   the card's checks line, its words, and what a screen reader hears of it
+ *   leadSheetContactLineOf  the card's ways-in line, and what a screen reader hears of it
  *   leadSheetWhyOf          Why's checks: the exceptions, the passed ones, their count and the legend
  */
 import type { LeadCheckKey } from "../lead-dtos";
@@ -31,6 +31,11 @@ export const LEAD_SHEET_CARD_WORDS = {
   /** What the card's two lines open, said to a screen reader and on hover. */
   openWhy: "Why it fits, every check",
   openContact: "Every way to reach them",
+  opens: (tab: string) => `Opens ${tab}.`,
+  notConfirmed: "not confirmed",
+  email: "Email",
+  phone: "Phone",
+  theirSite: "their site",
 } as const;
 
 const CW = LEAD_SHEET_CARD_WORDS;
@@ -47,19 +52,15 @@ const UNSURE_WORDS: Partial<Record<LeadCheckKey, string>> = {
 };
 
 /**
- * The line under the name: the kind, the street (else the area), and the rating with its reviews; on a phone the rating
- * short, as the canvas's PhoneHalf has it ("4.7 (312)"), so the line keeps to one.
+ * The line under the name: the kind, the street (else the area), and the rating with how many rated it, short as the
+ * canvas's PhoneHalf has it ("4.7 (312)"), so the line keeps to one on a desk's panel and a phone alike.
  */
-export function leadSheetSubOf(vm: Pick<LeadPeekVM, "sub" | "where" | "rated" | "company">, short = false): string {
+export function leadSheetSubOf(vm: Pick<LeadPeekVM, "sub" | "where" | "rated" | "company">): string {
   if (vm.company) return vm.sub;
   const [kind, ...rest] = vm.sub.split(" · ");
   const [first] = vm.where ? vm.where.line.split(",") : [];
   const street = first ? first.trim() : rest.join(" · ");
-  const rated = !vm.rated
-    ? null
-    : short
-      ? `${vm.rated.score} (${vm.rated.count})`
-      : `${vm.rated.score} from ${vm.rated.reviews}`;
+  const rated = vm.rated ? `${vm.rated.score} (${vm.rated.count})` : null;
   return [kind, street, rated].filter(Boolean).join(" · ");
 }
 
@@ -92,11 +93,18 @@ export interface LeadSheetChecksLineVM {
   fit: string | null;
 }
 
-/** What did not pass, said short: one by its own words, else how many couldn't tell and how many failed. */
+/** The checks the ways-in line says in amber already: the phone's two sources, and the mailbox. */
+const REACH_CHECKS: ReadonlySet<string> = new Set<LeadCheckKey>(["phone_two_sources", "mailbox"]);
+
+/**
+ * What did not pass, said short: one by its own words, else how many couldn't tell and how many failed. Where every one
+ * is a way in, the ways-in line under it says so in amber, and this line does not say it again.
+ */
 function exceptionOf(checks: LeadSheetCheckVM[]): string | null {
   const unsure = checks.filter((c) => c.answer === "unknown");
   const failed = checks.filter((c) => c.answer === "no");
   if (!unsure.length && !failed.length) return null;
+  if ([...unsure, ...failed].every((c) => REACH_CHECKS.has(c.key))) return null;
   const [only] = unsure;
   const one = only && unsure.length === 1 && !failed.length ? UNSURE_WORDS[only.key as LeadCheckKey] : undefined;
   if (one) return one;
@@ -122,6 +130,10 @@ export function leadSheetChecksLineOf(
   };
 }
 
+/** The checks line as a screen reader hears it: its words in order, then the tab it opens. */
+export const leadSheetChecksSaid = (line: LeadSheetChecksLineVM): string =>
+  `${[line.fit, line.words, line.exception].filter(Boolean).join(", ")}. ${CW.opens("Why")}`;
+
 /** One way in on the card's line: its words, and amber where it is not as it should be. */
 export interface LeadSheetWayVM {
   text: string;
@@ -133,6 +145,14 @@ export interface LeadSheetContactLineVM {
   email: LeadSheetWayVM;
   phone: LeadSheetWayVM | null;
   site: string | null;
+}
+
+/** The ways-in line as a screen reader hears it: each way apart, what is not confirmed said, then the tab it opens. */
+export function leadSheetContactSaid(line: LeadSheetContactLineVM): string {
+  const way = (what: string, w: LeadSheetWayVM) => `${what} ${w.text}${w.warn ? `, ${CW.notConfirmed}` : ""}`;
+  const email = line.email.text === CW.noEmail ? CW.noEmail : way(CW.email, line.email);
+  const parts = [email, line.phone ? way(CW.phone, line.phone) : null, line.site ? CW.theirSite : null];
+  return `${parts.filter(Boolean).join("; ")}. ${CW.opens("Contact")}`;
 }
 
 export function leadSheetContactLineOf(

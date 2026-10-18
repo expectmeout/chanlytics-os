@@ -31,7 +31,7 @@ import {
 import { formatPhoneDisplay } from "../shared/phone.js";
 import { initialsOf } from "../conversations/thread-contact.js";
 import { dateFormat, DAY_MS } from "../shared/time.js";
-const peekCheckLabel = (c, search, mailboxLabel) => c.key === "mailbox" ? mailboxLabel : leadCheckWord(c.how === "read" ? search : null, c.key, c.answer);
+const peekCheckLabel = (c, search, mailboxLabel) => c.key === "mailbox" ? mailboxLabel : leadCheckWord(search, c.key, c.answer);
 export function leadPeekMenu(role) {
   return roleAtLeast(role ?? "", "owner") ? [{ id: "erase", label: LEAD_ERASE_WORDS.act, danger: true }] : [];
 }
@@ -206,8 +206,8 @@ export function toLeadPeekVM(r, search, tz, now) {
     reach: {
       phone: r.phone ? {
         value: formatPhoneDisplay(r.phone) ?? r.phone,
-        note: r.phone_wrong ? "You marked this number wrong." : r.phone_agrees ? "The same number on Google Maps and their website" : "From their Google Maps listing",
-        tip: r.phone_wrong ? "You marked this number wrong." : r.phone_agrees ? "The same number on Google Maps and their website." : "From their Google Maps listing.",
+        note: r.phone_wrong ? "You marked this number wrong." : r.phone_agrees ? "The same number on Google Maps and their website" : "On their Google Maps listing only, so not confirmed",
+        tip: r.phone_wrong ? "You marked this number wrong." : r.phone_agrees ? "The same number on Google Maps and their website." : "On their Google Maps listing only; their website doesn't show it, so it isn't confirmed.",
         tel: r.phone_wrong ? null : `tel:${r.phone}`,
         wrong: r.phone_wrong
       } : null,

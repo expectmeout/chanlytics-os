@@ -95,8 +95,9 @@ function useLeadsView({ leadsRoute, onNavigate }: { leadsRoute: string | null; o
   const { chip, setChip, fitChip, setFitChip, setBenchGroup, mapOpen, setMapOpen, setMapPick, setBulkWhy } = st;
   // The pile (00426): while it is on for the search the address names, the read is the database's pile order, with the
   // list its adds go to.
-  // Where Add goes, for the lead sheet and the pile alike (sheet/use-aim.ts: one choice, the door's answers kept by lead).
-  const aim = useLeadAim({ searches: leads.searches });
+  // Where Add goes, for the lead sheet and the pile alike (sheet/use-aim.ts: one choice per search, the door's answers kept
+  // by lead).
+  const aim = useLeadAim({ searches: leads.searches, searchId: leadView.searchId });
   const pile = useLeadPile({ flash: plFlash, aim });
   const piled = pile.on && pile.searchId === leadView.searchId;
   const order = piled ? { sortBy: "pile", sortDir: "asc" } : { sortBy, sortDir };

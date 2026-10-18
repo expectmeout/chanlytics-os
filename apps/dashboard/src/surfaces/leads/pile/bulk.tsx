@@ -4,7 +4,8 @@
  * the send's fill make (contracts leadCardBulkOf: go as they are, greeted “there”, once their address checks out, in
  * another sequence, can't be written to) and the one press that adds those that go, undone as one by the pile's Undo.
  *
- * Its buckets are worked out as it opens, never on every draw of the pile; it closes as its press is made.
+ * Its buckets are worked out with the pile (page-pile.tsx), so its door counts only the leads that would go and shows only
+ * where two or more would; it closes as its press is made.
  */
 import { useState } from "react";
 import { leadCardBulkDoorOf, type LeadCardBulkVM } from "@chanlytics/contracts";

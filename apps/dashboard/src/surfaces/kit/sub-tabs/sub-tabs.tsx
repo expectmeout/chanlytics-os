@@ -17,6 +17,12 @@
  * with more tabs than its pane has room for at the desk's size is `dense`: the phone's sizes, on a desk's line; and
  * where even that is too wide, the strip scrolls across.
  *
+ * `look="capsule"` is a pane's few tabs drawn as the segmented capsule (.rec-seg), the picked one the lozenge, the
+ * tabs sharing the row: a lead sheet's Why, Contact and Sequence. They stay tabs to a screen reader, as a radio group
+ * would not, and a tab names the pane it opens where that pane stands apart from the strip (`controls`, the pane's
+ * id). A capsule may have none picked (`value` null: a phone's half sheet, where any tab raises the sheet onto its
+ * pane); it has no bar, and a tab's figure, tone, glyph and dot are the line's, not its.
+ *
  * It draws what the gallery's Sub-tabs family draws (tooling/scripts/e2e-harness/kit-gallery.mjs), which
  * e2e/kit/kit-behaves.spec.ts holds to it in a browser, and the node suite holds to a server's draw of it
  * (tests/styles/kit-behaves.test.mjs). `className` is for the page's layout (where the strip stands in its column and
@@ -45,6 +51,8 @@ export type SubTab = {
   hint?: string;
   /** The page's test id for this tab. */
   testid?: string;
+  /** The id of the pane this tab opens, where that pane is drawn apart from the strip (a capsule's). */
+  controls?: string;
   /**
    * Its address, where the tab is a page of its own (a person's History, Visits): drawn as a link, so a long press, a
    * middle click or a modified one opens it in a new tab; a plain press stays the strip's own pick (`onSelect`).
@@ -56,13 +64,16 @@ export type SubTab = {
 export type SubTabsProps = {
   /** What the strip is, to a screen reader ("Conversations by status"). */
   label: string;
-  value: string;
+  /** The tab picked: none, in a capsule that shows no pane yet. */
+  value: string | null;
   tabs: readonly SubTab[];
   onSelect: (id: string) => void;
   /** On a phone, say only the warn tab's figure. */
   quietCounts?: boolean;
   /** At the desk's size, set the tabs as a phone does: for a strip with more of them than its pane has room for. */
   dense?: boolean;
+  /** The segmented capsule in place of the line: a pane's few tabs, sharing its row. */
+  look?: "capsule";
   className?: string;
 };
 
@@ -82,8 +93,36 @@ function linkTab(href: string) {
   };
 }
 
-/** A line of sub-tabs, one picked. */
-export function SubTabs({ label, value, tabs, onSelect, quietCounts, dense, className }: SubTabsProps) {
+/** A pane's few tabs as the segmented capsule: each its words alone, the picked one the lozenge. */
+function capsuleOf({ label, value, tabs, onSelect, className }: SubTabsProps) {
+  return (
+    <Tabs.Root
+      value={value}
+      onValueChange={(next) => onSelect(String(next))}
+      className={cx("subtabs-stand", className)}
+    >
+      <Tabs.List aria-label={label} className="rec-seg" data-look="capsule">
+        {tabs.map((tab) => (
+          <Tabs.Tab
+            key={tab.id}
+            value={tab.id}
+            className="rec-seg-btn"
+            data-testid={tab.testid}
+            title={tab.hint}
+            aria-controls={tab.controls}
+          >
+            {tab.label}
+          </Tabs.Tab>
+        ))}
+      </Tabs.List>
+    </Tabs.Root>
+  );
+}
+
+/** A line of sub-tabs, one picked; or a pane's few, as the capsule. */
+export function SubTabs(props: SubTabsProps) {
+  if (props.look === "capsule") return capsuleOf(props);
+  const { label, value, tabs, onSelect, quietCounts, dense, className } = props;
   return (
     <Tabs.Root
       value={value}
@@ -104,6 +143,7 @@ export function SubTabs({ label, value, tabs, onSelect, quietCounts, dense, clas
             data-tone={tab.tone}
             data-testid={tab.testid}
             title={tab.hint}
+            aria-controls={tab.controls}
             {...(tab.href ? linkTab(tab.href) : {})}
           >
             {tab.glyph}

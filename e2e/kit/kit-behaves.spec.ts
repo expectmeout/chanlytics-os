@@ -175,6 +175,7 @@ const STATES: { entry: string; bring: (page: Page) => Promise<void>; ready: stri
   { entry: "subtabs-dense", bring: async () => undefined, ready: '[data-entry="subtabs-dense"] .subtabs[data-dense]' },
   { entry: "subtabs-fresh", bring: async () => undefined, ready: '[data-entry="subtabs-fresh"] .subtab-dot' },
   { entry: "subtabs-glyph", bring: async () => undefined, ready: '[data-entry="subtabs-glyph"] .subtabs' },
+  { entry: "subtabs-capsule", bring: async () => undefined, ready: '[data-entry="subtabs-capsule"] .rec-seg' },
   { entry: "field-kit", bring: async () => undefined, ready: ".rec-input-group" },
   { entry: "field-kit-wrong", bring: async () => undefined, ready: ".field-error" },
   { entry: "field-kit-title", bring: async () => undefined, ready: ".rec-input-title" },

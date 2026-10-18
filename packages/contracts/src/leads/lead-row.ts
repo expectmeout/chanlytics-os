@@ -396,7 +396,8 @@ export function leadRail(
   searches: {
     id: string;
     name: string;
-    count: number;
+    /** What its last round counted; null for a search with no round (one imported, or made from a list), never a 0. */
+    count: number | null;
     mark: "live" | "question" | null;
     undoable: boolean;
     /** A list of the owner's own (00242): its menu offers nothing that searches again. */
@@ -420,7 +421,7 @@ export function leadRail(
     searches: searches.map((s) => ({
       id: s.id,
       name: s.name,
-      count: s.round?.counted ?? 0,
+      count: s.round ? s.round.counted : null,
       undoable: leadUndoable(s, now),
       list: isLeadList(s),
       people: !!s.people,
