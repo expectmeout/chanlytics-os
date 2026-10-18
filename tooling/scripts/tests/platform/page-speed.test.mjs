@@ -6,19 +6,16 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import path from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "../_fake-db.mjs";
 import { PAGE_SPEED_MIN, PRIMARY_PART, pageSpeedWords } from "@chanlytics/contracts";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
-const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
-const { createPageSpeed, waitOf, readKeyOf } = await import(at("apps/dashboard/src/client/page-speed-rules.ts"));
-const { reportOf, detailOf } = await import(at("apps/dashboard/src/client/field-data-reporter.ts"));
-const { platformSpeed } = await import(at("apps/dashboard/src/server/platform/vitals.ts"));
+const { createPageSpeed, waitOf, readKeyOf } =
+  await import("../../../../apps/dashboard/src/client/page-speed-rules.ts");
+const { reportOf, detailOf } = await import("../../../../apps/dashboard/src/client/field-data-reporter.ts");
+const { platformSpeed } = await import("../../../../apps/dashboard/src/server/platform/vitals.ts");
 
 /** The rules over a clock set by hand and frames painted when the test says: each report, and each measure's name. */
 function speedRig(waits = () => undefined) {

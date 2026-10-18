@@ -7,8 +7,8 @@
  * what it counts and when it fails are proved without a build: the runtime, every segment's chunks and stylesheets (the
  * frame's layout's carry the shell) and what `next/dynamic` loads as the route draws are the route's; each other
  * page's own chunks beyond the route are that page's, a shared chunk counted for each page that loads it; the polyfills
- * and a chunk nothing names at load are not counted; a build missing a manifest, the frame's chunks or a file fails
- * rather than measuring less.
+ * and a chunk nothing names at load are not counted; a build missing a manifest or a file, or whose frame loads less
+ * than half the route at once (the shell, by either way the check reads), fails rather than measuring less.
  *
  * Against the record of the main commit a change stands on, a sum grown past its line fails until the pull request's
  * description says why (`Bundle: <why>`, read from PR_BODY); a record of another commit, or none, is compared and not
@@ -388,12 +388,36 @@ test("the week: main beside main a week before, a sum past its week's line exits
 
 /* ----------------------------- the build's shape ----------------------------- */
 
-test("a build whose route names no chunks for the frame's layout fails rather than leaving the shell out", () => {
-  for (const frame of [null, []]) {
+test("a build whose frame loads less than half the route at once fails rather than leaving the shell out", () => {
+  // No frame at all, a frame with no chunks, and a frame whose shell arrives by an `import()` no manifest names.
+  for (const frame of [null, [], ["static/chunks/layout.js"]]) {
     const r = run(writeBuild({ frame }));
     assert.equal(r.status, 2, r.out);
-    assert.match(r.out, /the shell's would go uncounted/);
+    assert.match(r.out, /would go uncounted/);
   }
+});
+
+test("the shell is counted whichever way the frame loads it: in its layout's chunks or through `next/dynamic`", () => {
+  const dynamic = writeBuild({
+    frame: ["static/chunks/layout.js"],
+    loadable: { 33959: { id: 33959, files: ["static/chunks/shell.js"] } },
+  });
+  assert.equal(run(dynamic).status, 0);
+  assert.deepEqual(sumsOf(measureBuild(dynamic)), seeded());
+});
+
+test("the shell is the browser's alone: `#frame-shell` is LegacyApp under the browser condition, the stand-in otherwise", () => {
+  const dashboard = path.join(ROOT, "apps/dashboard");
+  const resolved = (...conditions) => {
+    const r = spawnSync(process.execPath, [...conditions, "-p", "require.resolve('#frame-shell')"], {
+      cwd: dashboard,
+      encoding: "utf8",
+    });
+    assert.equal(r.status, 0, r.stderr);
+    return path.relative(dashboard, r.stdout.trim()).split(path.sep).join("/");
+  };
+  assert.equal(resolved("--conditions=browser"), "src/legacy-bridge/LegacyApp.tsx");
+  assert.equal(resolved(), "src/frame-shell.ts");
 });
 
 test("a manifest naming a file the build did not write fails", () => {

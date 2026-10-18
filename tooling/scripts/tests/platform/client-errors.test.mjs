@@ -16,10 +16,12 @@ import { CLIENT_ERROR_BOUNDARIES, CLIENT_ERROR_LIMITS, ClientErrorInput, clientE
 import { fakeDb } from "../_fake-db.mjs";
 import { fieldsOf, logLineOf } from "../_log-lines.mjs";
 import {
+  CLIENT_ERRORS_PATH,
   clientErrorReporter,
   listenForShellErrors,
   SHELL_ERROR_EVENT,
 } from "../../../../apps/dashboard/src/client/client-error.ts";
+import { ROUTES } from "../../../../apps/dashboard/src/client/routes.generated.ts";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
@@ -222,6 +224,11 @@ test("the browser's reporter sends each error once, five at most a load, as JSON
   assert.equal(reportError("os", new Error("f"), "inbox"), false, "a sixth is a stream, not a report");
   assert.equal(beacons.length, 5);
   assert.equal(beacons[0].url, "/api/v1/client-errors");
+  assert.equal(
+    CLIENT_ERRORS_PATH,
+    ROUTES["POST client-errors"].path,
+    "the route table's path, which it does not import",
+  );
   assert.equal(beacons[0].blob.type, "application/json");
   const refusing = clientErrorReporter({ sendBeacon: () => false });
   assert.equal(refusing("root", new Error("x"), null), false);
