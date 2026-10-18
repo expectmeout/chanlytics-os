@@ -91,6 +91,7 @@ export { openWeekWords, hoursZoneWords, closuresAheadWords } from "./config/busi
 export { blockShareWords, promptCostWords, promptTotalWords, PROMPT_READERS, PROMPT_NOW } from "./config/business-tab/prompt-cost-words.js";
 export { ruleStrength, rulesKept, rulesWithoutFieldsWords, ABILITY_CHANNEL_WORDS, VISION_STRENGTH, RULES_AT_REST_WORDS, RULES_WITHOUT_FIELDS_WORDS, ALWAYS_TOLD, pricesWrittenWords } from "./config/business-tab/rule-strengths.js";
 export { servicesWords, servicesToldWords, serviceUndoName, servicesFoundWords, serviceLineWords, lengthWords, SERVICE_PRICE_EMPTY } from "./config/business-tab/services-words.js";
+export { TRY_IT_WORDS, TRY_IT_MAX_CHARS, TRY_IT_MAX_EXCHANGES, SPEND_TRY, tryItVM } from "./config/business-tab/try-it.js";
 export { knownForwarding, sameAddress, sameName, resolveFacts, factConflicts, changedConfigFields, SOURCE_WORDS } from "./config/facts.js";
 export { INTENT_LABELS } from "./config/intent-labels.js";
 export { tokenCapOf, tokenBudgetSpent, TOKENS_DAY_DEFAULT } from "./config/limits.js";

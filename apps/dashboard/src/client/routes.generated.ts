@@ -232,6 +232,7 @@ export const ROUTES = {
   "POST reach-outs/leads/[id]/said": { method: "POST", path: "/api/v1/reach-outs/leads/[id]/said" },
   "POST reach-outs/leads/[id]/stop": { method: "POST", path: "/api/v1/reach-outs/leads/[id]/stop" },
   "POST reach-outs/preview": { method: "POST", path: "/api/v1/reach-outs/preview" },
+  "POST receptionist/try": { method: "POST", path: "/api/v1/receptionist/try" },
   "POST segments": { method: "POST", path: "/api/v1/segments" },
   "POST segments/draft": { method: "POST", path: "/api/v1/segments/draft" },
   "POST sequences": { method: "POST", path: "/api/v1/sequences" },
@@ -517,6 +518,7 @@ export type Routes = {
   "POST reach-outs/leads/[id]/said": typeof import("../../app/api/v1/reach-outs/leads/[id]/said/route").POST;
   "POST reach-outs/leads/[id]/stop": typeof import("../../app/api/v1/reach-outs/leads/[id]/stop/route").POST;
   "POST reach-outs/preview": typeof import("../../app/api/v1/reach-outs/preview/route").POST;
+  "POST receptionist/try": typeof import("../../app/api/v1/receptionist/try/route").POST;
   "POST segments": typeof import("../../app/api/v1/segments/route").POST;
   "POST segments/draft": typeof import("../../app/api/v1/segments/draft/route").POST;
   "POST sequences": typeof import("../../app/api/v1/sequences/route").POST;
