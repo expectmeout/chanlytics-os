@@ -227,8 +227,7 @@ export const ROUTE_DRAWS: Record<string, readonly string[]> = {
   // A reply to a reach-out, read: the Inbox's strip, composer line and row chip (Reach out Part 5, PR 7). A call in a
   // thread is drawn from the calls Conversations reads (surfaces/inbox/thread/call.tsx tlCallFor), the same door as the Inbox's own.
   // And Sent's runs: the Needs-you rows and the badge say the runs waiting for your word (needs-you.ts), on the Inbox. Their own
-  // read, which asks nothing of People, started from the document's head with the Inbox's (contracts PREFETCH_READS): the rows
-  // waited on every page of People and landed after the threads, pushing them down (the Inbox's run review, 18 Oct 2026).
+  // read, nothing of People, started from the document's head with the Inbox's (the Inbox's run review, 18 Oct 2026).
   inbox: ["reach_out_replies", "conversations", "broadcasts"],
   // A reach-out's chains are Playbooks' rows, and their emails Templates' email rows (Part 4 PR 8): the reach-outs
   // surface, read beside each page's own.
@@ -294,10 +293,8 @@ export const ROUTE_DRAWS: Record<string, readonly string[]> = {
  */
 export const ROUTE_WAITS: Record<string, readonly string[]> = {
   today: ["setup"],
-  // The Inbox draws the campaign runs waiting for your word as rows of Needs you, above its threads (inbox-runs.tsx): landing
-  // after them, they pushed the threads down a row each (330 px on a phone for four, measured on the campaigns rig, 18 Oct
-  // 2026). Sent's runs are their own read now, nothing of People (campaigns/broadcasts/surface.ts), started from the document's
-  // head with the threads (contracts PREFETCH_READS), so the wait is the few milliseconds one read answers after the other.
+  // The Inbox's rows of the runs waiting for your word stand above its threads: landing after them, four pushed them 330px down
+  // on a phone (18 Oct 2026). Sent's runs read nothing of People and leave from the document's head with the threads.
   inbox: ["broadcasts"],
   // Reports' strip of lenses is decided from the workspace list (how its customers buy: the Pipeline is shown only where deals
   // are on) and draws above the page's body, so a list that landed after it would add a tab to a strip already drawn.

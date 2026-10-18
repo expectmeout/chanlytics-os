@@ -808,7 +808,8 @@ test("the surface and the page: Broadcasts is real, fed by the same rules, and t
   );
   assert.equal(reg.SURFACE_STATES.broadcasts, "real");
   assert.equal(reg.ROUTE_SURFACE.broadcasts, "broadcasts");
-  assert.ok(readCode("apps/dashboard/src/surfaces/campaigns/broadcasts/surface.ts").includes('key: "broadcasts",'));
+  const sent = await importSrc("apps/dashboard/src/surfaces/campaigns/broadcasts/surface.ts");
+  assert.equal(sent.broadcastsOverride.key, "broadcasts");
   // Who each audience reaches is a surface of its own beside Sent's runs (the Inbox's run review, 18 Oct 2026).
   const s = readCode("apps/dashboard/src/surfaces/campaigns/broadcasts/audiences-surface.ts");
   // BOTH sizes per audience, because there is no one number any more: the chip's
