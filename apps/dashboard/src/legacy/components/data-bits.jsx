@@ -43,32 +43,17 @@ const StatCell = ({ label, value, valueSize, meta, metaTone = "", spark, tip, ch
 // MoreMenu and its placement, `moreFit`, are the kit's now (surfaces/kit/more-menu); seed-globals publishes MoreMenu.
 
 // ---- Shared toast — usePPToast --------------------------------------------
-// The ONE toast implementation (CLAUDE.md · UI patterns). Portals to <body> so
-// no scroll container can clip it. QUEUE, not a slot: rapid decisions stack up
-// to 3 toasts, each with its own dismiss timer, so no undo gets eaten by the
-// next action. Oldest drops first when the cap is hit.
-//
-// TONE. What a toast says is one thing; whether it is good news, a note, a
-// warning or a failure is another, and the icon and its colour say the second
-// so an owner can tell "saved" from "not saved" from across the room. Every
-// toast used to wear a green check, the failures included. The tone also sets
-// the lifetime — a failure stays longer than a confirmation — and a toast with
-// something to press stays long enough to reach it, or for the exact `ms` a
-// caller knows (the reply's cancel window, from its own receipt), never the few
-// seconds a plain confirmation gets. A mouse resting on a toast, or
-// focus in it, holds it; leaving resumes what was left. A finger never holds
-// one: a tap on its words froze it until the next tap elsewhere (Ruben, 18 Oct
-// 2026: toasts on a phone stood far too long).
-//
-// GOING. A toast is not in the way of what comes next: a press anywhere besides
-// it, or on its words, takes it away (the press does what it does as well), and
-// so do its ×, which every toast carries, Escape inside it and, under a finger,
-// a pull down or a flick across (touchSwipe). Its Undo or act closes it too.
-// A send's Undo is the exception (`stays`): the one way to stop the send, kept
-// through a tap besides for its window, and taken by its ×, a swipe or Escape.
-// The shape is decided in contracts (toastShape) and reaches here through the
-// chrome bridge; the standalone mockup has no bridge and keeps the old one-tone
-// behaviour.
+// The ONE toast implementation (CLAUDE.md · UI patterns), portalled to <body> so no scroll container clips it. A
+// queue, not a slot: up to 3, each with its own clock, the oldest dropped first. Its tone (good news, a note, a warning,
+// a failure) sets its icon and colour, so "saved" is told from "not saved" across the room, and how long it stays: a
+// failure longer than a confirmation, a toast with something to press long enough to reach it, or the exact `ms` a
+// caller knows (the reply's cancel window, from its receipt). The shape is contracts' (toastShape), through the chrome
+// bridge; the standalone mockup has no bridge and keeps one tone. A mouse resting on a toast, or focus in it, holds its
+// clock; a finger never does (a tap on its words froze it until the next tap elsewhere).
+// GOING (Ruben, 18 Oct 2026: on a phone toasts stood far too long). A press anywhere besides it, or on its words, takes
+// it (the press does what it does as well); so do its ×, which every toast carries, Escape inside it, its Undo or act,
+// and under a finger a pull down or a flick across (touchSwipe). A send's Undo, the one way to stop the send, `stays`
+// through a tap besides for its window.
 // Usage: const [toastNode, flash] = usePPToast();
 //   flash({ msg, tone?: "ok"|"info"|"warn"|"danger", undo?, action?: {label,onClick}, links?: [{label,to}], ms?, icon?, once?, stays? })
 // `once`: a name for what the toast says; a second flash with the same name refreshes that toast in place of stacking
@@ -82,77 +67,46 @@ const TOAST_OWN_PRESS = "button, a, input, select, textarea, [role='button']";
 const usePPToast = (place) => {
   const [toasts, setToasts] = React.useState([]);
   const timers = React.useRef({});
-  // What is shown, for the one press listener below, which is the hook's for its life and reads it on each press.
-  const shown = React.useRef([]);
-  shown.current = toasts;
+  const shown = React.useRef([]); shown.current = toasts;
   const stack = React.useRef(null);
   React.useEffect(() => () => Object.values(timers.current).forEach((t) => window.clearTimeout(t.handle)), []);
-  const close = (id) => {
-    const t = timers.current[id];
-    if (t) window.clearTimeout(t.handle);
-    delete timers.current[id];
-    setToasts((ts) => ts.filter((x) => x.id !== id));
-  };
-  // A press anywhere but on the stack takes every toast that does not stay. Heard as it starts (the capture of a
-  // pointerdown), so a press that opens or raises something has already cleared the way for it.
+  const stop = (id) => { const t = timers.current[id]; if (t) window.clearTimeout(t.handle); delete timers.current[id]; };
+  const close = (id) => { stop(id); setToasts((ts) => ts.filter((x) => x.id !== id)); };
+  // One listener for the hook's life, reading what is shown: a press begun anywhere but the stack takes every toast
+  // that does not stay, before what the press opens or raises.
   React.useEffect(() => {
     const away = (e) => {
-      const going = shown.current.filter((x) => !x.stays);
-      if (!going.length) return;
       const box = stack.current;
       if (box && box.contains && e && e.target && box.contains(e.target)) return;
-      going.forEach((x) => close(x.id));
+      const going = shown.current.filter((x) => !x.stays).map((x) => x.id);
+      going.forEach((id) => { const t = timers.current[id]; if (t) window.clearTimeout(t.handle); delete timers.current[id]; });
+      if (going.length) setToasts((ts) => ts.filter((x) => !going.includes(x.id)));
     };
     document.addEventListener("pointerdown", away, true);
     return () => document.removeEventListener("pointerdown", away, true);
   }, []);
-  // A press on its words is a press besides what it offers: the toast goes, unless it stays.
   const pressed = (toast) => (e) => {
     const on = e && e.target;
-    if (toast.stays || (on && on.closest && on.closest(TOAST_OWN_PRESS))) return;
-    close(toast.id);
+    if (!toast.stays && !(on && on.closest && on.closest(TOAST_OWN_PRESS))) close(toast.id);
   };
-  const keyed = (toast) => (e) => {
-    if (!e || e.key !== "Escape") return;
-    e.stopPropagation();
-    close(toast.id);
-  };
+  const keyed = (toast) => (e) => { if (e && e.key === "Escape") { e.stopPropagation(); close(toast.id); } };
   const arm = (id, ms) => {
     timers.current[id] = { handle: window.setTimeout(() => close(id), ms), endsAt: Date.now() + ms, left: null };
   };
-  // A toast under a mouse, or holding focus, keeps its clock. A finger's tap is a pointer that arrives and stays
-  // until the next tap elsewhere, so it holds nothing.
-  const mouseOn = (id) => (e) => { if (e && e.pointerType === "mouse") hold(id); };
-  const mouseOff = (id) => (e) => { if (e && e.pointerType === "mouse") release(id); };
   const hold = (id) => {
     const t = timers.current[id];
-    if (!t || t.handle === null) return;
-    window.clearTimeout(t.handle);
-    t.handle = null;
-    t.left = Math.max(1000, t.endsAt - Date.now());
+    if (t && t.handle !== null) { window.clearTimeout(t.handle); t.handle = null; t.left = Math.max(1000, t.endsAt - Date.now()); }
   };
-  const release = (id) => {
-    const t = timers.current[id];
-    if (!t || t.handle !== null) return;
-    arm(id, t.left);
-  };
+  const release = (id) => { const t = timers.current[id]; if (t && t.handle === null) arm(id, t.left); };
+  const byMouse = (fn, id) => (e) => { if (e && e.pointerType === "mouse") fn(id); };
   const flash = (payload) => {
     const shape = toastShapeOf(payload);
     const id = ++usePPToast._seq;
     setToasts((ts) => {
       const twin = payload.once ? ts.find((x) => x.once === payload.once) : null;
-      if (twin) {
-        const t = timers.current[twin.id];
-        if (t) window.clearTimeout(t.handle);
-        delete timers.current[twin.id];
-      }
+      if (twin) stop(twin.id);
       const next = [...ts.filter((x) => x !== twin), { ...payload, ...shape, id }];
-      while (next.length > 3) {
-        const gone = next.shift();
-        const t = timers.current[gone.id];
-        if (t) window.clearTimeout(t.handle);
-        delete timers.current[gone.id];
-      }
+      while (next.length > 3) stop(next.shift().id);
       return next;
     });
     arm(id, shape.ms);
@@ -168,8 +122,8 @@ const usePPToast = (place) => {
           className={`pp-toast pp-toast-${toast.tone}`}
           data-tone={toast.tone}
           role={toast.role}
-          onPointerEnter={mouseOn(toast.id)}
-          onPointerLeave={mouseOff(toast.id)}
+          onPointerEnter={byMouse(hold, toast.id)}
+          onPointerLeave={byMouse(release, toast.id)}
           onFocus={() => hold(toast.id)}
           onBlur={() => release(toast.id)}
           onClick={pressed(toast)}
