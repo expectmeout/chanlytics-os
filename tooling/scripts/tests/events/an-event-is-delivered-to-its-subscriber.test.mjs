@@ -35,7 +35,6 @@ const E = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee";
 
 /** The kind each subscriber reads, and an event of it: an appointment kept on the record for reach_out_booked. */
 const READS = {
-  audit: { kind: "message.received", category: "message", subject_type: null, subject_id: null, data: {} },
   reach_out_booked: {
     kind: "appointment.changed",
     category: "appointment",
@@ -155,8 +154,8 @@ const aPerson = () => ({
 });
 
 /** A world with one event, its subscription and the delivery the relay wrote; the booking door counts its calls. */
-function world({ paused = false, withEvent = true, subscriber = "audit" } = {}) {
-  const read = READS[subscriber] ?? READS.audit;
+function world({ paused = false, withEvent = true, subscriber = "reach_out_booked" } = {}) {
+  const read = READS[subscriber] ?? READS.reach_out_booked;
   const kind = read.kind;
   const booked = [];
   const tables = {
@@ -228,7 +227,7 @@ function world({ paused = false, withEvent = true, subscriber = "audit" } = {}) 
   return { tables, ctx, job, pages, booked, told, delivery: () => tables.event_deliveries[0] };
 }
 
-test("the audit subscriber runs and the delivery is done, counted once", async () => {
+test("a subscriber runs and the delivery is done, counted once", async () => {
   const w = world();
   assert.equal(await dispatchJob(w.ctx, w.job), "done");
   assert.deepEqual([w.delivery().state, w.delivery().attempts, w.delivery().last_error], ["done", 1, null]);
@@ -258,20 +257,20 @@ test("a paused subscription pauses the delivery for the re-drive; an event the l
   );
   assert.deepEqual(
     lines.filter((l) => l.event === "event_deliver_event_gone").map((l) => [l.level, fieldsOf(l)]),
-    [["error", { tenant_id: T, job: "j-1", event_id: E, subscriber: "audit", kind: "message.received" }]],
+    [["error", { tenant_id: T, job: "j-1", event_id: E, subscriber: "reach_out_booked", kind: "appointment.changed" }]],
     "one line, under the name alerting greps for, with the delivery named",
   );
   assert.equal(gone.pages.length, 1);
   assert.equal(
     gone.pages[0].key,
-    "event_deliver_failed:audit",
+    "event_deliver_failed:reach_out_booked",
     "the tick's own condition for a delivery to that subscriber that failed for good",
   );
   assert.equal(gone.pages[0].subject, "A change was not passed on to what reads it");
   assert.match(
     gone.pages[0].body,
     new RegExp(
-      `^The delivery of event ${E} \\(message\\.received\\) to the audit subscriber failed for good in workspace ${T}: the ledger no longer holds the event\\.`,
+      `^The delivery of event ${E} \\(appointment\\.changed\\) to the reach_out_booked subscriber failed for good in workspace ${T}: the ledger no longer holds the event\\.`,
     ),
   );
   assert.match(gone.pages[0].body, /Reference: job j-1 \(event_deliver\)\.$/);
@@ -292,14 +291,14 @@ test("a paused subscription pauses the delivery for the re-drive; an event the l
 
 test("a subscriber that throws fails the delivery with why, and the job throws on so the ledger tries again", async () => {
   const w = world();
-  const audit = SUBSCRIBERS.audit;
-  SUBSCRIBERS.audit = async () => {
+  const kept = SUBSCRIBERS.reach_out_booked;
+  SUBSCRIBERS.reach_out_booked = async () => {
     throw new Error("the projection's table is away");
   };
   try {
     await assert.rejects(() => dispatchJob(w.ctx, w.job), /the projection's table is away/);
   } finally {
-    SUBSCRIBERS.audit = audit;
+    SUBSCRIBERS.reach_out_booked = kept;
   }
   assert.deepEqual([w.delivery().state, w.delivery().last_error], ["failed", "the projection's table is away"]);
 });

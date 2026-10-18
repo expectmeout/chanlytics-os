@@ -81,7 +81,6 @@ export const JOB_KINDS = [
   "inbound_answer"
 ];
 export const EVENT_SUBSCRIBERS = [
-  "audit",
   "reach_out_booked",
   "owner_notice",
   "consent_notice",

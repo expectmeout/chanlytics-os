@@ -50,10 +50,13 @@ function harness(answer, { workspace = A } = {}) {
 }
 
 test("a read: the path with its params, the query, the workspace the tab holds, and the envelope's data", async () => {
-  const h = harness(envelope({ conversation: { id: C1 }, messages: [] }));
-  const r = await h.api("GET conversations/[id]", { params: { id: C1 }, query: { before: "2026-09-01T00:00:00Z" } });
-  assert.deepEqual(r, { ok: true, data: { conversation: { id: C1 }, messages: [] } });
-  assert.equal(h.sent[0].url, `/api/v1/conversations/${C1}?before=2026-09-01T00%3A00%3A00Z&workspace=${A}`);
+  const h = harness(envelope({ batches: [], more: false }));
+  const r = await h.api("GET sequences/[id]/history", {
+    params: { id: C1 },
+    query: { before: "2026-09-01T00:00:00Z" },
+  });
+  assert.deepEqual(r, { ok: true, data: { batches: [], more: false } });
+  assert.equal(h.sent[0].url, `/api/v1/sequences/${C1}/history?before=2026-09-01T00%3A00%3A00Z&workspace=${A}`);
   assert.equal(h.sent[0].init.method, "GET");
   assert.deepEqual(h.events, [], "a read invalidates and refreshes nothing");
   const bare = harness(envelope({ workspaces: [] }), { workspace: null });

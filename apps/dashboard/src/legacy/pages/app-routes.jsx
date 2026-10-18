@@ -11,26 +11,13 @@
 // No hooks here: a row is a function of the address and of what the window holds at the draw, called during the
 // shell's own render, so a row's elements are created exactly where the router's branches created them.
 
-// A real workspace: the bridge is here (it publishes the registry) and the session did not declare itself a demo.
-// Not a gate (the honesty gate is the one gate); which of two real drawings a route gets before its surface lands.
-const realWorkspace = () => !window.__DEMO_MODE && !!window.__surfaceState;
-
-// A page of the mockup's own (legacy/demo/: Agents, Content, the Deal board, the seeded Lists), drawn by its name on
-// the window. Those files load only in a session that declared itself a demo (manifest-demo.ts), so on a real
-// workspace the name was never published: the row draws nothing, where a bare name would throw, and the honesty gate
-// draws the route's landing in its place (routeGated) whatever the row answered.
-const demoPage = (name, props) => {
-  const Page = window[name];
-  return Page ? <Page {...props} /> : null;
-};
-
 // ---- The mockup's landings ---------------------------------------------
-// The mockup surfaces (Agents: fleet, store, studio, tasks; Content; Pipeline;
-// the shared report viewer) stay in the tree and stay hidden from
-// every real workspace: no nav entry, no tab, the Not-in-this-release card for
-// a hand-typed address. Ruben's decision, 11 September 2026: most of it is
-// revisited when the product is at 100%, and none of those features is built
-// before then. Nothing here is a promise to a customer or an operator.
+// The parked surfaces (Agents: fleet, store, studio, tasks; Content; Pipeline;
+// the shared report viewer) are hidden from every workspace: no nav entry, no
+// tab, the Not-in-this-release card for a hand-typed address. Ruben's decision,
+// 11 September 2026: most of it is revisited when the product is at 100%, and
+// none of those features is built before then; their mockups went on 17 October
+// 2026 (git keeps them). Nothing here is a promise to a customer or an operator.
 //
 // The landing's words for the pages the registry marks demo, and only those (surface-registry.ts SURFACE_STATES; a test
 // holds every key to a demo row). A page that has shipped never draws ComingSoon in the app: `soon/<page>` lands on the page
@@ -94,76 +81,13 @@ const NotFound = ({ raw, onNavigate }) => (
 // Leads scope, the Pipeline and a person, each drawn by the page, with the frame's chrome from the surface's own `chrome`
 // (surfaces/people/chrome.ts).
 
-// Lists on a real workspace is a view of People: `segments/<id>` is an App Router page that replaces itself with the
-// list picked on People (surfaces/people/lists-route.tsx). What is left here is the mockup's own seeded page, for a demo.
-const drawSegments = ({ param }) => {
-  // The seeded page keeps the demo's segments.
-  const segMeta = param ? (window.CLIENT_SEGMENTS || []).find(s => s.id === param) : null;
-  return {
-    activeNav: "segments",
-    crumbs: segMeta ? ["People", { label: "Segments", to: "segments" }, segMeta.label] : ["People", "Segments"],
-    pane: true,
-    primaryAction: (
-      <button className="btn btn-primary btn-sm" onClick={() => window.dispatchEvent(new CustomEvent("segments:new"))}>
-        <Icon name="plus" size={12} /> New segment
-      </button>
-    ),
-    content: demoPage("SegmentsPage", { initialId: param }),
-  };
-};
-
-const drawTasks = () => ({
-  activeNav: "tasks",
-  crumbs: ["Agents", "Tasks"],
-  pane: true,
-  content: demoPage("TasksPage"),
-});
-
-
-const drawDealBoard = ({ openAsk }) => ({
-  activeNav: "pipeline",
-  crumbs: ["People", "Deal board"],
-  pane: true,
-  primaryAction: (
-    <button className="btn btn-primary btn-sm" onClick={openAsk}>
-      <Icon name="plus" size={12} /> New deal
-    </button>
-  ),
-  content: demoPage("PipelinePage"),
-});
-
-const drawFleet = ({ param, navigate }) => {
-  const fleetAgent = (window.FLEET_DATA?.FLEET_ROSTER || []).find(a => a.id === param);
-  return {
-    activeNav: "fleet",
-    crumbs: fleetAgent ? ["Agents", { label: "Fleet", to: "fleet" }, fleetAgent.name] : ["Agents", "Fleet"],
-    pane: true,
-    primaryAction: (
-      <button className="btn btn-sm" onClick={() => navigate("store")}>
-        <Icon name="plus" size={12} /> Hire from store
-      </button>
-    ),
-    content: demoPage("AgentFleetPage", { id: param, onSelect: (id) => navigate(`fleet/${id}`) }),
-  };
-};
-
-const drawContent = () => ({
-  activeNav: "content",
-  crumbs: ["Campaigns", "Content"],
-  content: demoPage("ContentPage"),
-});
-
-const drawStudio = () => ({
-  activeNav: "studio",
-  crumbs: ["Agents", "Studio"],
-  pane: true,
-  content: demoPage("AgentStudioPage"),
-});
-
-const drawStore = () => ({
-  activeNav: "store",
-  crumbs: ["Agents", "Store"],
-  content: demoPage("AgentStore"),
+// The parked pages (Agents: fleet, store, studio, tasks; Content; the Deal board, retired to People's Pipeline): their
+// mockups went on 17 October 2026 (the closed-loop audit's S2, Ruben's word), so each draws its landing wherever it is
+// asked for, a demo session's too; the registry still marks them demo, and the honesty gate says the same card.
+const drawParked = ({ page, navigate }) => ({
+  activeNav: page,
+  crumbs: [SOON_META[page]?.title || page],
+  content: <ComingSoon surface={page} onNavigate={navigate} />,
 });
 
 const drawSoonUnknown = ({ param, navigate }) => ({
@@ -219,15 +143,12 @@ const routeGated = (drawn, { page, navigate }) => ({
 // its page's, which follows its address itself and mounts afresh for the one it did not write
 // (surfaces/people/people-route.tsx).
 const SHELL_ROUTES = [
-  // The mockup's seeded Lists page, where there is no workspace to read (a demo session); a real workspace's Lists is the App Router page (surfaces/routes.ts).
-  { page: "segments", when: () => !window.__PEOPLE && !realWorkspace(), draw: drawSegments },
-  { page: "tasks", draw: drawTasks },
-
-  { page: "pipeline", draw: drawDealBoard },
-  { page: "fleet", draw: drawFleet },
-  { page: "content", draw: drawContent },
-  { page: "studio", draw: drawStudio },
-  { page: "store", draw: drawStore },
+  { page: "tasks", draw: drawParked },
+  { page: "pipeline", draw: drawParked },
+  { page: "fleet", draw: drawParked },
+  { page: "content", draw: drawParked },
+  { page: "studio", draw: drawParked },
+  { page: "store", draw: drawParked },
   { page: "soon", when: (param, r) => !!param && r.soonState === "unknown", draw: drawSoonUnknown },
   { page: "soon", when: (param) => !!param, draw: drawSoon },
 ];

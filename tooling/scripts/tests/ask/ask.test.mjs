@@ -9,6 +9,7 @@
  * person, answers in the Line's shape, and may name only what it read. The
  * answer's own tests are ask-answer.test.mjs; the turn's, ask-turn.test.mjs.
  */
+import { existsSync } from "node:fs";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
@@ -1362,22 +1363,15 @@ test("the store never scopes by hand: RLS is the door", () => {
   assert.ok(!store.includes('.eq("user_id"'), "the store never scopes by hand; RLS is the door");
 });
 
-test("the entry points are real everywhere: no Soon tag, ⌘K and the button open the palette, the seed palette is the demo's", () => {
+test("the entry points are real everywhere: no Soon tag, ⌘K and the button open the palette, and the Line is the only palette", () => {
   const tb = readCode("apps/dashboard/src/legacy/components/topbar.jsx");
   assert.ok(!tb.includes("Soon") && tb.includes("onClick={onAsk}") && tb.includes('data-testid="tb-ask"'));
   const shell = readCode("apps/dashboard/src/legacy/pages/app-shell.jsx");
   assert.ok(shell.includes("appAsk: openAsk"), "the frame publishes the door the pages open the palette by");
   assert.ok(!shell.includes("Ask stubbed outside demo"));
-  // The seeded palette and the choice of it are the demo's file, loaded only in a demo session (manifest-demo.ts); a real
-  // workspace's AskBar is the Line (ask-real.jsx), and the door into Ask is the bridge's (surfaces/frame-doors.ts), not that file's.
-  const ask = readCode("apps/dashboard/src/legacy/demo/pages/dashboard-a-ask.jsx");
-  assert.ok(
-    ask.includes(
-      "const AskBar = (props) => (!window.__DEMO_MODE && AskLine ? <AskLine {...props} /> : <AskBarSeed {...props} />);",
-    ),
-  );
-  assert.ok(!ask.includes("if (!window.__DEMO_MODE) return; // Ask is stubbed"));
-  assert.ok(!ask.includes("window.askAbout ="), "the door into Ask is not defined in the seeded palette");
+  // The seeded palette went with the mockup's pages (17 Oct 2026): the AskBar is the Line (ask-real.jsx) everywhere, and
+  // the door into Ask is the bridge's (surfaces/frame-doors.ts).
+  assert.equal(existsSync("apps/dashboard/src/legacy/demo/pages/dashboard-a-ask.jsx"), false, "no seeded palette");
   const real = readCode("apps/dashboard/src/legacy/pages/ask-real.jsx");
   assert.ok(real.includes('data-testid="ask-real"') && real.includes('data-testid="ask-input"'));
   assert.ok(

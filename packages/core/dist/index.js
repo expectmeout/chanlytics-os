@@ -939,8 +939,6 @@ function reasonOfEvent(event2) {
 var TOLD_WHERE_TAKEN_IN = "email_review";
 var BOOKS = /* @__PURE__ */ new Set(["added", "confirmed", "moved"]);
 var SUBSCRIBERS = {
-  audit: async () => {
-  },
   reach_out_booked: async (event2, ports) => {
     if (event2.kind !== "appointment.changed" || event2.subject_type !== "appointment" || !event2.subject_id) return;
     const data = event2.data && typeof event2.data === "object" && !Array.isArray(event2.data) ? event2.data : {};

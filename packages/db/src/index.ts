@@ -20,11 +20,10 @@ export {
   workspaceMayUseModels,
   aiFailuresHour,
   purgeAiUsage,
-  usageMonth,
   keepModelTurn,
   scrubModelTurns,
 } from "./ai-usage";
-export type { AiFailures, UsageMonthRow, ModelTurnKept } from "./ai-usage";
+export type { AiFailures, ModelTurnKept } from "./ai-usage";
 export { keepInvoiceAmount } from "./billing/events";
 export { applyBilling } from "./billing/account";
 export type { BillingPatch, BillingExpectation } from "./billing/account";

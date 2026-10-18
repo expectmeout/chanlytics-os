@@ -1024,4 +1024,4 @@ const AskReal = ({ open, onClose }) => {
   return arLineView(ln);
 };
 
-window.AskBar = AskReal; // the Line is what the frame draws; a demo's seeded palette (demo/pages/dashboard-a-ask.jsx) replaces it
+window.AskBar = AskReal; // the Line is what the frame draws

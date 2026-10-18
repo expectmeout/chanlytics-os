@@ -77,7 +77,7 @@ const CHANLY = {
 
   // The agent registry (agents, agentById, agentByName, agentByGlyph, agentIdFor), the segment helpers (seg, segsOf,
   // membersOf) and the compliance ones (compliance, canMessage) read the mockup's seeded roster, people and segments, which a
-  // real workspace never loads: they live with those seeds (demo/data/fleet-data.jsx, clients-data.jsx, people-data.jsx).
+  // real workspace never loaded: they lived with those seeds, deleted with the mockup's pages on 17 October 2026.
 };
 
 window.CHANLY = CHANLY;

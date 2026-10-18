@@ -405,23 +405,6 @@ async function scrubModelTurns(db, tenantId, needles) {
   if (error) throw new Error(`model_turns_scrub: ${error.message}`);
   return data ?? 0;
 }
-async function usageMonth(db, tenantId, month) {
-  const { data, error } = await db.rpc("ai_usage_month", { p_tenant_id: tenantId, p_month: month });
-  if (error) throw new Error(`ai_usage_month: ${error.message}`);
-  const n = (v) => Number.isFinite(Number(v)) ? Number(v) : 0;
-  return (data ?? []).map((r) => ({
-    meter: r.meter,
-    purpose: r.purpose ?? null,
-    model: r.model ?? null,
-    uses: n(r.uses),
-    quantity: n(r.quantity),
-    input_tokens: n(r.input_tokens),
-    output_tokens: n(r.output_tokens),
-    cache_read_tokens: n(r.cache_read_tokens),
-    cache_write_tokens: n(r.cache_write_tokens),
-    usd: r.usd === null || r.usd === void 0 ? null : n(r.usd)
-  }));
-}
 
 // src/billing/events.ts
 async function keepInvoiceAmount(db, eventId, amountCents, currency) {
@@ -7454,7 +7437,6 @@ export {
   unreadOfReaders,
   updateAppointment,
   updatePlaybook,
-  usageMonth,
   visitOrigins,
   visitsOver,
   waitingPlaybookRuns,

@@ -8,8 +8,8 @@ within seconds from the business's own facts, offers the times that are open,
 sends the booking link, and hands over anything it should not decide. A team
 watches it from a dashboard, takes a thread over, whispers into a live call,
 and hands it back. The finder searches for new leads on the owner's behalf.
-Playbooks and broadcasts send the routine messages around an appointment, to
-the people who said yes.
+Sequences send the routine messages around an appointment, to the people who
+said yes.
 
 It does not book. The booking tool behind the link does that, and the
 receptionist is told never to confirm a slot itself. An appointment is a record

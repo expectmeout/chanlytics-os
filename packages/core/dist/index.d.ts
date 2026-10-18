@@ -4797,7 +4797,6 @@ declare function bookingPageLinkedFrom(html: string, pageUrl: string): string | 
  * relay of a late commit are all second runs, and the ledger's rule below the commit line is at least once
  * (0031, invariant 3). The harness in tooling/scripts/tests/events runs each subscriber twice on one delivery.
  *
- *   audit             settles and does nothing else: it measures the relay (0032, step 3).
  *   reach_out_booked  an appointment added, confirmed or moved on the record (appointment.changed, 00389) is handed
  *                     to the booking door, so the lead a reach-out wrote to is booked however the booking arrived: a
  *                     booking tool's notice by email never reached it. The feed's own changes (00348) are passed: the

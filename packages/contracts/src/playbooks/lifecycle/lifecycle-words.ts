@@ -4,12 +4,10 @@
  * page.
  */
 import { SET_UP_CAMPAIGNS } from "../../ask/ask-suggestions";
-import { CHANNELS_DOOR } from "../../broadcasts/channels-standing";
 import type { PolicyMode } from "../../config/workspace-config/policy-classes";
 import type { ConsentChannel } from "../../consent/consent-channels";
 import { appointmentWords } from "../../journey/appointment-word";
 import type { AppointmentWord } from "../../journey/appointment-word";
-import { CALENDAR_SETTING_ROUTE } from "../../setup/calendar-source";
 import { clockHour } from "../../shared/clock";
 import type { ReachOutChainDto } from "../../reach-out/reach-out-dtos";
 import {
@@ -22,7 +20,7 @@ import {
 import { joinWords, plural } from "../../shared/words";
 import { VERSION_CHANNEL_WORDS } from "../../templates/message-versions";
 import { WORKSPACE_PAUSED_FACT } from "../../workspace/billing";
-import { SENDING_HOURS_WORDS, isWinBack, triggerOf } from "../playbook-triggers";
+import { SENDING_HOURS_WORDS, triggerOf } from "../playbook-triggers";
 import type { LifecyclePlaybook, LifecycleRowResults, LifecycleSentence, LifecycleTone } from "./lifecycle-types";
 
 /** The channels a campaign goes by, as a list in a sentence: "WhatsApp and Email", "WhatsApp, Text and Email". */
@@ -93,33 +91,10 @@ export const LIFECYCLE_WORDS = {
     title: CAMPAIGN_ROOMS.newMessage,
     kind: "What kind of message",
     once: "Send once",
-    // Beside "Send once" at the sheet's head; the moment it comes on is the To row's (Ruben, 11 Oct 2026: shorter words).
-    every: "Every time",
-    /** The third (00426, canvas B): a reach-out to leads, from a search, a list, or the ones the pile adds. */
+    /** Beside "Send once" (00426, canvas B): a reach-out to leads, from a search, a list, or the ones the pile adds. */
     leads: "Write to leads",
-    /** The sheet a moment's Turn on opens, titled for the campaign it starts (spec §4.2): "Turn on Appointment reminder". */
-    turnOn: (name: string): string => `Turn on ${name}`,
-    /**
-     * The same sheet on the home, where the campaign's own name stands under it to rename in place (Ruben, 11 Oct 2026:
-     * "Turn on Win-back" over "Win-back" said the name twice).
-     */
-    turnOnShort: "Turn on",
-    /** The same sheet changing a campaign the drawer showed: its kicker, over the campaign's own name. */
+    /** A reach-out's change (`campaigns/new:edit:<root>`): its sheet's kicker while its chain is read. */
     edit: "Edit",
-    /** A campaign the moment already holds, said as the composer opens on it (decision 20): "Win-back · On". */
-    holds: (name: string, paused: boolean): string => `${name} · ${paused ? "Paused" : "On"}`,
-    /**
-     * The composer's two sentences that name a setting, each with its door to it (spec §4.2): the calendar's is the one
-     * "Needs your calendar" opens (Settings › Business, the calendar's row), with its words; the number's is Connections.
-     */
-    calendar: {
-      words: "This moment reads your calendar: a run can send once it is connected.",
-      door: { label: NEEDS_CALENDAR.door, to: CALENDAR_SETTING_ROUTE },
-    },
-    number: {
-      words: "No WhatsApp number is connected yet: a run cannot send by WhatsApp until one is.",
-      door: { label: "Open Connections", to: CHANNELS_DOOR },
-    },
     /**
      * The composers and a campaign's drawer as one sentence of words to press (Ruben, 11 Oct 2026, "Option B"): the words
      * round its tokens, the one line under it saying who it reaches now, what happens next, and what an edit changes.
@@ -482,25 +457,6 @@ export const LIFECYCLE_TOAST = {
   /** The browser would not copy it: the toast shows the phrase, to be typed or copied by hand. */
   copyFailed: (phrase: string): string => `Couldn't copy, the phrase is: ${phrase}`,
 } as const;
-
-/**
- * What a moment already holds, said in the composer opened on it (decision 20): one line per campaign on the same moment
- * ("Appointment reminder · On", "Win-back · Paused"), the campaign being changed left out; none for a moment that holds
- * none, and none for a list (a list holds as many campaigns as it is given, and that is no news). The win-back's two
- * moments are one, as the rail groups them (isWinBack).
- */
-export function momentHoldsWords(
-  rows: readonly { id: string; name: string; trigger: string; state: string }[],
-  trigger: string,
-  editing: string | null,
-): string[] {
-  // "On a list" (decision 0009) is the one trigger of kind `saved`: each of its campaigns names its own list.
-  if (triggerOf(trigger)?.kind === "saved") return [];
-  const same = (t: string) => t === trigger || (isWinBack(t) && isWinBack(trigger));
-  return rows
-    .filter((p) => p.id !== editing && same(p.trigger))
-    .map((p) => LIFECYCLE_WORDS.compose.holds(p.name, p.state !== "running"));
-}
 
 /** A playbook's clock in the fewest words: "daily 10:00 AM", "every 30 days". The hour is the product's clock's (clockHour). */
 function lifecycleClock(p: Pick<LifecyclePlaybook, "trigger" | "run_hour" | "cadence_days">): string {

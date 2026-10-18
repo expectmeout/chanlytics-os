@@ -14,7 +14,7 @@ import ts from "typescript";
 import { parse, repoFiles } from "../../_ast.mjs";
 
 const TREES = ["apps/dashboard/src/legacy", "apps/dashboard/src/legacy-bridge", "apps/dashboard/src/surfaces"];
-const files = repoFiles(TREES, { keep: /\.(jsx|tsx)$/ }).filter((f) => !f.includes("/legacy/demo/"));
+const files = repoFiles(TREES, { keep: /\.(jsx|tsx)$/ });
 
 const hasAttr = (open, name) =>
   open.attributes.properties.some((a) => ts.isJsxAttribute(a) && a.name.getText() === name);
