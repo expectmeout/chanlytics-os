@@ -53,9 +53,9 @@ const StatCell = ({ label, value, valueSize, meta, metaTone = "", spark, tip, ch
 // so an owner can tell "saved" from "not saved" from across the room. Every
 // toast used to wear a green check, the failures included. The tone also sets
 // the lifetime — a failure stays longer than a confirmation — and a toast with
-// an Undo lives as long as the undo does: the shared undo window, or the exact
-// `ms` a caller knows (the reply's cancel window, from its own receipt), never
-// the few seconds a plain confirmation gets. A mouse resting on a toast, or
+// something to press stays long enough to reach it, or for the exact `ms` a
+// caller knows (the reply's cancel window, from its own receipt), never the few
+// seconds a plain confirmation gets. A mouse resting on a toast, or
 // focus in it, holds it; leaving resumes what was left. A finger never holds
 // one: a tap on its words froze it until the next tap elsewhere (Ruben, 18 Oct
 // 2026: toasts on a phone stood far too long).
