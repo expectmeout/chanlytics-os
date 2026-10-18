@@ -11,10 +11,16 @@
  * (SHELL_ERROR_EVENT), and the bridge's host listens (listenForShellErrors) and sends it.
  */
 import { clientErrorOf, type ClientErrorBoundary } from "@chanlytics/contracts";
-import { ROUTES } from "./routes.generated";
 
 /** The event the shell's pane boundary dispatches on window: `detail` is `{ error, page }`. */
 export const SHELL_ERROR_EVENT = "chanlytics:shell-error";
+
+/**
+ * Where a report goes: `POST client-errors` in the route table (routes.generated.ts), which client-errors.test.mjs holds
+ * this to. Written here, not read from the table: the two error boundaries import this module, each is a chunk group
+ * that every page loads and no other may count as loaded, and the table is 20 KB they would each carry again.
+ */
+export const CLIENT_ERRORS_PATH = "/api/v1/client-errors";
 
 /** The most reports one page load sends: a broken page is a few errors, not a stream. */
 const MOST_PER_LOAD = 5;
@@ -31,7 +37,7 @@ export function clientErrorReporter(nav: Beacon, workspace: () => string | null 
     sent.add(key);
     try {
       const blob = new Blob([JSON.stringify(body)], { type: "application/json" });
-      return nav?.sendBeacon?.(ROUTES["POST client-errors"].path, blob) ?? false;
+      return nav?.sendBeacon?.(CLIENT_ERRORS_PATH, blob) ?? false;
     } catch {
       return false;
     }

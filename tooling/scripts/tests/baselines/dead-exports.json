@@ -1,5 +1,4 @@
 {
-  "apps/dashboard/src/client/field-data-reporter.ts": 2,
   "apps/dashboard/src/server/ask/context.ts": 4,
   "apps/dashboard/src/server/ask/cross-page.ts": 1,
   "apps/dashboard/src/server/ask/gateway.ts": 2,
