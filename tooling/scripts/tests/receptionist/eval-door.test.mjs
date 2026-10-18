@@ -27,7 +27,13 @@ import { createHash } from "node:crypto";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { signEdgeToken } from "@chanlytics/channels";
-import { resolveSystemPrompt, parseTenantConfigResult, formatPhoneDisplay } from "@chanlytics/contracts";
+import {
+  resolveSystemPrompt,
+  parseTenantConfigResult,
+  formatPhoneDisplay,
+  heldLine,
+  REPLY_DELAY_DEFAULT_MS,
+} from "@chanlytics/contracts";
 import { fakeDb } from "../_fake-db.mjs";
 
 // A model key is set so the door's own refusals are reachable, and nothing
@@ -238,8 +244,11 @@ function world(T, { brain = BRAIN, config, channels, policies = [], faults = {} 
   return { tables, db };
 }
 const wrote = (db) => db.seen.filter((s) => ["insert", "update", "upsert", "delete"].includes(s.op));
-/** One case's record without the milliseconds it took, which are asserted on their own. */
-const record = (r) => Object.fromEntries(Object.entries(r).filter(([k]) => k !== "ms"));
+/**
+ * One case's record without the milliseconds it took and what the live turn would do with it (`then`), each asserted on
+ * its own.
+ */
+const record = (r) => Object.fromEntries(Object.entries(r).filter(([k]) => k !== "ms" && k !== "then"));
 
 /** The brain as a port that remembers what it was asked and answers by case id. */
 function brain(answers = ANSWERS) {
@@ -384,15 +393,11 @@ test("the workspace and the case set: a body naming another workspace than the t
   ]);
 });
 
-test("the workspace's world: a channel read that fails, no WhatsApp channel, no persona or a broken one -- each named, the model unasked, nothing written", async () => {
+test("the workspace's world: a channel read that fails, no persona or a broken one -- each named, the model unasked, nothing written", async () => {
   for (const [expected, make] of [
     [
       [500, "channel_read_failed"],
       (T) => world(T, { faults: { "tenant_channels.select": { message: "connection reset" } } }),
-    ],
-    [
-      [404, "no_whatsapp_channel"],
-      (T) => world(T, { channels: [voiceChannel(T), waChannel(T, { status: "disabled" })] }),
     ],
     [[409, "no_persona"], (T) => world(T, { config: {} })],
     [[409, "config_broken"], (T) => world(T, { config: { brain: { business_name: "Harbor Moving" } } })],
@@ -550,6 +555,105 @@ test("the run: each case is handed to the brain with its own history and the wor
       },
     ],
     "the judge reads 'no answer: overloaded' for the one and the record for the other",
+  );
+});
+
+test("a workspace with no WhatsApp line yet is answered as its chat would be, loaded by the workspace: Settings' Try it is most wanted before the line is there", async () => {
+  const T = fresh();
+  const { db } = world(T, { channels: [voiceChannel(T), waChannel(T, { status: "disabled" })] });
+  const b = brain();
+  const [status, body] = await answer(await knock({ tenant_id: T, cases: CASES }, { workspace: T, brain: b.port }));
+  assert.equal(status, 200, JSON.stringify(body));
+  assert.equal(b.asked.length, 2, "each case asked");
+  assert.ok(
+    b.asked.every((q) => q.system.includes("answering customers over WhatsApp")),
+    "the prompt is the chat's, as the line will answer once it is there",
+  );
+  assert.deepEqual(
+    body.results.map((r) => r.ok),
+    [true, true],
+  );
+  assert.equal(wrote(db).length, 0, "nothing written");
+});
+
+test("then: what the live turn would do with each answer, by its own two functions -- the words layer two leaves and why it replaced the model's, whether a person takes the thread and under which reason, and how long the reply waits under the reply row and the confidence dial", async () => {
+  const PRICE = {
+    text: "A two-room move is $400.",
+    escalate: false,
+    reason: undefined,
+    usage: { input_tokens: 900, output_tokens: 20 },
+    meta: { ...ANSWERS.hours_en.meta, intent: "pricing", reason: "asked a price" },
+  };
+  const three = [...CASES, { id: "price_en", text: "How much is a two-room move?" }];
+  const thens = async (policies, answers) => {
+    const T = fresh();
+    world(T, { policies });
+    const b = brain(answers);
+    const [status, body] = await answer(await knock({ tenant_id: T, cases: three }, { workspace: T, brain: b.port }));
+    assert.equal(status, 200, JSON.stringify(body));
+    return body.results.map((r) => r.then);
+  };
+  const answers = { ...ANSWERS, price_en: PRICE };
+  const phone = formatPhoneDisplay(VOICE_LINE);
+
+  // Held for the window: every reply waits, the booking the owner keeps is a person's, and a price is never said.
+  const veto = await thens(
+    [
+      { class: "reply", mode: "veto", limits: {} },
+      { class: "booking", mode: "ask" },
+    ],
+    answers,
+  );
+  assert.deepEqual(veto, [
+    {
+      mode: "veto",
+      text: ANSWERS.hours_en.text,
+      changed: null,
+      escalate: false,
+      reason: null,
+      hold_ms: REPLY_DELAY_DEFAULT_MS,
+      held_for: "veto_window",
+      min_confidence: 0,
+    },
+    {
+      mode: "veto",
+      text: heldLine("booking", "es", phone),
+      changed: "booking",
+      escalate: true,
+      reason: "policy_ask",
+      hold_ms: REPLY_DELAY_DEFAULT_MS,
+      held_for: "veto_window",
+      min_confidence: 0,
+    },
+    {
+      mode: "veto",
+      text: heldLine("price", "en", phone),
+      changed: "price",
+      escalate: true,
+      reason: "policy_block",
+      hold_ms: REPLY_DELAY_DEFAULT_MS,
+      held_for: "veto_window",
+      min_confidence: 0,
+    },
+  ]);
+
+  // Sends on its own, with the dial at 90%: the sure answer goes now, the unsure one waits the window.
+  const auto = await thens([{ class: "reply", mode: "auto", limits: { min_confidence: 0.9 } }], answers);
+  assert.deepEqual(
+    auto.map((t) => [t.mode, t.hold_ms, t.held_for, t.min_confidence]),
+    [
+      ["auto", 0, null, 0.9],
+      ["auto", REPLY_DELAY_DEFAULT_MS, "low_confidence", 0.9],
+      ["auto", 0, null, 0.9],
+    ],
+  );
+  assert.equal(auto[1].text, ANSWERS.book_es.text, "no row holds the booking: the model's words stand");
+  assert.deepEqual([auto[1].escalate, auto[1].reason], [true, "human_token"], "its own hand-off, as it said");
+
+  // No reply row: the runtime holds every message for a person, and says so.
+  assert.deepEqual(
+    (await thens([], answers)).map((t) => t.mode),
+    ["ask", "ask", "ask"],
   );
 });
 

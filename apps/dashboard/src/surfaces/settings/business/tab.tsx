@@ -50,6 +50,7 @@ import type { BtPromptHold } from "./prompt";
 import type { Brain, Config, Saver } from "./save";
 import { businessTabSave } from "./saver";
 import { BtServicesSheet } from "./services";
+import { BtTryIt } from "./try/try-it";
 import { settingsNow } from "./shell";
 import { BtBookingLinkRow, BtWhoCard } from "./who";
 
@@ -442,6 +443,8 @@ export const BusinessTab = ({
           <BtCanCard brain={brain} config={config} canEdit={canEdit} door={btDoorFrom(parts)} />
           {/* What the receptionist is told, at rest: a title, who reads it, and the door to the sheet. Hookless. */}
           <BtPromptTold prompt={prompt} />
+          {/* Try it: a message written as a customer would, the answer and why (try/try-it.tsx). Holds its own state. */}
+          <BtTryIt canEdit={canEdit} />
         </>
       ) : null}
       {/* The sheets, LAST, after every card, through one slot (BtSheetSlot says why). Whatever card comes next goes above

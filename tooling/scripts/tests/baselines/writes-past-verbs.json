@@ -22,6 +22,7 @@
   "apps/dashboard/src/surfaces/settings/billing/surface.ts": 5,
   "apps/dashboard/src/surfaces/settings/business/logo/verbs.ts": 3,
   "apps/dashboard/src/surfaces/settings/business/open-bookings.tsx": 3,
+  "apps/dashboard/src/surfaces/settings/business/try/verbs.ts": 1,
   "apps/dashboard/src/surfaces/settings/connections/connected-mailboxes.ts": 5,
   "apps/dashboard/src/surfaces/settings/connections/mailbox.ts": 2,
   "apps/dashboard/src/surfaces/settings/connections/record.ts": 2,

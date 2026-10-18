@@ -84,7 +84,6 @@ export const EDGE_ERROR_CODES = [
   "no_such_location",
   "no_token",
   "no_waba",
-  "no_whatsapp_channel",
   "no_workspace_readable",
   "not_a_held_draft",
   "not_connected",

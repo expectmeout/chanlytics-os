@@ -112,6 +112,8 @@ export const RATE = {
   alert_test: { limit: 3, windowMs: HOUR_MS, noun: "test alerts" },
   /** A step's message mailed to the member who pressed Send me a test: enough to check each step twice, never a flood. */
   step_test: { limit: 10, windowMs: HOUR_MS, noun: "tests" },
+  /** A message tried on the receptionist from Settings › How it answers: one model answer each, nothing sent. */
+  receptionist_try: { limit: 30, windowMs: HOUR_MS, noun: "tries" },
   /** A member's own seen and unread marks on people: one as each thread or person is opened. */
   seen_mark: { limit: 240, windowMs: MIN_MS, noun: "read marks" },
   setup_request: { limit: 5, windowMs: HOUR_MS, noun: "setup requests" },

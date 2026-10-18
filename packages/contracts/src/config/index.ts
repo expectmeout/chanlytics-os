@@ -204,6 +204,8 @@ export {
   TONE_PRESETS,
 } from "./business-tab/how-it-answers";
 export type { NotesWordsVM, InstructionsWordsVM, FallbacksWordsVM } from "./business-tab/how-it-answers";
+export { TRY_IT_WORDS, TRY_IT_MAX_CHARS, TRY_IT_MAX_EXCHANGES, SPEND_TRY, tryItVM } from "./business-tab/try-it";
+export type { TryItAnswer, TryItThen, TryItVM } from "./business-tab/try-it";
 export {
   handoffChatWords,
   handoffChatRow,

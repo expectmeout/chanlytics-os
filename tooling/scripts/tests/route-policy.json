@@ -1551,6 +1551,13 @@
       "rate": "playbook",
       "spend": false
     },
+    "POST receptionist/try": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "partner",
+      "rate": "receptionist_try",
+      "spend": true
+    },
     "GET reports/campaigns": {
       "kind": "read",
       "scope": "workspace",
