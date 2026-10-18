@@ -424,6 +424,27 @@ test("a routed call is answered 200 with the four variables the shell's prompt r
   });
 });
 
+test("the workspace's voice is sent as the call's own override, and a workspace that chose none sends none", async () => {
+  // The Settings wiring review, item 11 (18 Oct 2026): Retell's call_inbound.agent_override, which changes nothing saved
+  // on the agent; a voice off contracts' list is never sent (call-start.test.mjs).
+  const chosen = world({
+    config: { brain: { ...BRAIN, profile: { ...BRAIN.profile, phone_voice: "minimax-Alejandro" } } },
+  });
+  chosen.open();
+  await listening(async () => {
+    const [status, , body] = await heard(await knock(chosen.call()));
+    assert.equal(status, 200);
+    assert.deepEqual(Object.keys(body.call_inbound), ["dynamic_variables", "agent_override"]);
+    assert.deepEqual(body.call_inbound.agent_override, { agent: { voice_id: "minimax-Alejandro" } });
+  });
+  const none = world();
+  none.open();
+  await listening(async () => {
+    const [, , body] = await heard(await knock(none.call()));
+    assert.deepEqual(Object.keys(body.call_inbound), ["dynamic_variables"], "the line's own voice: nothing overridden");
+  });
+});
+
 test("an agent nobody routes is answered 200 with the shell's own defaults, said as a warning with the tail, and the platform is told once a window -- naming the agent, never the caller -- without one row of any workspace read", async () => {
   const w = world({ channel: "disabled" });
   const db = w.open();

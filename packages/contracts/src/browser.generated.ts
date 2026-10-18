@@ -410,6 +410,7 @@ export { telHref, forwardingDialLabel, forwardingCodes, forwardingMatch, diverte
 export { greetingFor, pausedGreetingFor, GREETING_DEFAULT } from "./voice/greeting";
 export { greetingOf, greetingNotes, statesAutomated, deniesAutomated, spokenNameOf, GREETING_TEMPLATE } from "./voice/greeting-owner";
 export { fmtClock, liveStillUp, callsStillUp, liveBar, toLiveCallVM, toLiveVM, missedCallIsNews, LIVE_STALE_MS, LIVE_OVERLONG_MS, ANALYSIS_GRACE_MS, RECENT_MAX } from "./voice/live";
+export { PHONE_VOICES, PHONE_VOICE_DEFAULT, PHONE_VOICE_SAMPLES_ORIGIN, PHONE_VOICE_WORDS, phoneVoiceOf, phoneVoiceShown } from "./voice/phone-voices";
 export { frameWhisper, frameGuardrail, frameSteer, whisperText, frameHandOver, injectedTurn } from "./voice/whisper";
 export { bellFeed, bellOlderOf, holdMarksOf } from "./waits/hold-rows";
 export { closeSettledNotices, noticeStillWaits, settledNoticeIds, kindsEndedBy, NOTICE_ENDS, NOTHING_WAITS_KNOWN } from "./waits/notice-closes";

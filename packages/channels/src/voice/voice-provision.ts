@@ -26,7 +26,7 @@ import {
   SILENCE_REMINDER_MS,
   SILENCE_REMINDERS,
 } from "./voice-shell";
-import { E164, HOUR_MS, RETELL_MODELS } from "@chanlytics/contracts";
+import { E164, HOUR_MS, PHONE_VOICE_DEFAULT, RETELL_MODELS } from "@chanlytics/contracts";
 
 /** The model behind the shell, in Retell's name for it (contracts RETELL_MODELS). Temperature 0: the facts are read, not improvised. */
 export const VOICE_LLM_DEFAULTS = {
@@ -42,11 +42,12 @@ export const VOICE_LLM_DEFAULTS = {
  * after Andrea (ElevenLabs) had opened every call before that, and a new
  * workspace should sound like the line customers already hear. The converger
  * never touches an existing agent's voice, so this only reaches agents
- * provisioned from now on. Retention is the product's 90 days; the pipeline
+ * provisioned from now on; a workspace's own choice is sent with each call
+ * (contracts PHONE_VOICES, the inbound webhook's agent_override). Retention is the product's 90 days; the pipeline
  * copies audio into private storage within seconds.
  */
 export const VOICE_AGENT_DEFAULTS = {
-  voice_id: "minimax-Tamsin",
+  voice_id: PHONE_VOICE_DEFAULT,
   language: ["en-US", "es-ES", "fr-FR", "de-DE", "hi-IN", "ru-RU", "pt-PT", "ja-JP", "it-IT", "nl-NL"],
   end_call_after_silence_ms: 30000,
   // A silent caller is reminded after four seconds, twice (voice-shell.ts SILENCE_REMINDER_MS): the converger holds

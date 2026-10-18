@@ -51,6 +51,15 @@ export type {
 } from "./forwarding";
 export { greetingFor, pausedGreetingFor, GREETING_DEFAULT } from "./greeting";
 export {
+  PHONE_VOICES,
+  PHONE_VOICE_DEFAULT,
+  PHONE_VOICE_SAMPLES_ORIGIN,
+  PHONE_VOICE_WORDS,
+  phoneVoiceOf,
+  phoneVoiceShown,
+} from "./phone-voices";
+export type { PhoneVoice } from "./phone-voices";
+export {
   greetingOf,
   greetingNotes,
   statesAutomated,

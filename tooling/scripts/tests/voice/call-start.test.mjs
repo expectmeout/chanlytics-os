@@ -230,6 +230,38 @@ test("a routed call: the facts are the workspace's own composition with the cloc
   );
 });
 
+test("the workspace's own voice rides with the call: an id on the list is sent, one off it or none leaves the line its own", async () => {
+  // The Settings wiring review, item 11 (18 Oct 2026): Retell refuses a call whose override it cannot honour, so only a
+  // voice on contracts' list is ever sent (PHONE_VOICES), as the call's own override.
+  const plan = async (phone_voice, over = {}) => {
+    const w = fresh();
+    const profile = { ...BRAIN.profile, ...(phone_voice === undefined ? {} : { phone_voice }) };
+    return planCallStart({
+      agentId: w.agent,
+      from: CALLER,
+      db: world(w, { config: { brain: { ...BRAIN, profile } }, ...over }),
+      now: NOW,
+      calendar: calendar().port,
+    });
+  };
+  assert.equal((await plan("minimax-Claudia")).voiceId, "minimax-Claudia");
+  assert.equal((await plan(undefined)).voiceId, null, "none chosen: the line speaks in its own");
+  assert.equal((await plan("minimax-Somebody")).voiceId, null, "never an id the provider might refuse the call for");
+  assert.equal(
+    (await plan("minimax-Claudia", { status: "paused" })).voiceId,
+    "minimax-Claudia",
+    "its line, paused too",
+  );
+  assert.equal((await plan("minimax-Claudia", { channels: [] })).voiceId, null, "a call nobody routes is nobody's");
+  // And it is no variable of the prompt's: the four the shell reads are unchanged.
+  assert.deepEqual(Object.keys((await plan("minimax-Claudia")).variables), [
+    "caller_context",
+    "business_facts",
+    "handoff_number",
+    "greeting",
+  ]);
+});
+
 test("no caller ID: the facts are owed to every call, and the memory is nobody's", async () => {
   const w = fresh();
   const cal = calendar({ openings: OPENINGS, visits: VISITS });

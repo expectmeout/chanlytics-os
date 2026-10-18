@@ -1419,10 +1419,12 @@ test("every act of How it answers is gated as a change to the settings, and name
     const mine = asked.filter(([, doing]) =>
       /voice|languages|rules it always|hands you|should know|own words|can't answer/.test(doing),
     );
-    // How it answers' rows in its order, then the two it keeps as limits, drawn after the record on Autonomy's card.
-    assert.deepEqual(mine.slice(0, 7), [
+    // How it answers' rows in its order (On calls' voice after How it talks), then the two it keeps as limits, drawn
+    // after the record on Autonomy's card.
+    assert.deepEqual(mine.slice(0, 8), [
       ["settings", "change its voice"],
       ["settings", "change the languages it speaks"],
+      ["settings", "change the voice callers hear"],
       ["settings", "change the things it should know"],
       ["settings", "change what it is told in your own words"],
       ["settings", "change the messages sent when it can't answer"],
