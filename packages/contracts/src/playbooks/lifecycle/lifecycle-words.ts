@@ -12,9 +12,11 @@ import { clockHour } from "../../shared/clock";
 import type { ReachOutChainDto } from "../../reach-out/reach-out-dtos";
 import {
   CAMPAIGN_ROOMS,
+  RUN_OPEN_WORDS,
   RUN_WAITING_WORDS,
   heldEmailsWords,
   runApprovedTail,
+  runApproveWords,
   runStoppedWords,
 } from "../../shell/campaign-rooms";
 import { joinWords, plural } from "../../shared/words";
@@ -295,7 +297,7 @@ export const LIFECYCLE_WORDS = {
       );
       return now.length ? now.join(" · ") : p.done ? `${p.done} done` : "Nobody yet";
     },
-    openRun: "Open the run",
+    openRun: RUN_OPEN_WORDS,
     /**
      * A row's last 30 days, as its cell says them. A reach-out's is in the businesses it wrote to, which "wrote back" is a
      * count of; its emails written only where the businesses were not counted (a database before 00404).
@@ -317,7 +319,7 @@ export const LIFECYCLE_WORDS = {
       hint: (when: string | null): string => (when ? `Sent once · ${when}` : "Sent once"),
     },
     /** One word per act (decision 19): "Approve · 7 people" and "Skip", everywhere a waiting run is decided. */
-    approve: (n: number): string => `Approve · ${plural(n, "person", "people")}`,
+    approve: runApproveWords,
     skip: "Skip",
     resume: {
       label: "Resume",

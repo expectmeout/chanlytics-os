@@ -101,6 +101,8 @@ export function runApprovedTail(people, when) {
 }
 export const RUN_WAITING_WORDS = "Waiting for your approval";
 export const RUN_WAITING_SHORT = "Waits for you";
+export const runApproveWords = (n) => `Approve \xB7 ${n} ${n === 1 ? "person" : "people"}`;
+export const RUN_OPEN_WORDS = "Open the run";
 export function runsWaitingSentence(n) {
   return n === 1 ? "A campaign run is waiting for your say." : `${n} campaign runs are waiting for your say.`;
 }

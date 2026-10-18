@@ -5,7 +5,7 @@ import { consentRuleWords } from "../consent/consent-asks.js";
 import { appointmentWords } from "../journey/appointment-word.js";
 import { GET_YES_ROUTE } from "../people/people-lists.js";
 import { CAMPAIGNS_PAUSED_WORDS } from "../workspace/billing.js";
-import { LIFECYCLE_WORDS } from "./lifecycle/lifecycle-words.js";
+import { runApproveWords } from "../shell/campaign-rooms.js";
 import { isReachOutRun } from "../reach-out/reach-out-rules.js";
 import { messageAboutOfTrigger } from "./playbook-purpose.js";
 import { triggerOf } from "./playbook-triggers.js";
@@ -212,7 +212,7 @@ export function toApprovalVM(d, opts) {
     hiThere: greets ? d.recipients.filter((r) => !r.first_name).length : 0,
     // One word per act (decision 19 of the spec of 9 Oct 2026), as Today's row and the ledger say it; when it goes is said
     // once, beside it (`goes`): the button said it again ("Approve — 3 now").
-    approve: refusal ? null : LIFECYCLE_WORDS.ledger.approve(will),
+    approve: refusal ? null : runApproveWords(will),
     expired: refusal,
     goes: late ? `made for ${opts.day(runFor)}` : opts.paused ? "waits until billing resumes" : opts.open.moved ? `goes at ${opts.open.time} once you approve it` : "goes the moment you approve it",
     skip: "Skipping loses this run only \u2014 the campaign keeps running."

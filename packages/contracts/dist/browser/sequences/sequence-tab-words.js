@@ -11,7 +11,7 @@ import { REPORT_MIN_N } from "../reports/report-tiles.js";
 import { addressOf } from "../activity/record-address.js";
 import { clockHistoryDay, clockTime, clockWhen, zoneDayKey } from "../shared/clock.js";
 import { pct } from "../shared/numbers.js";
-import { RUN_WAITING_SHORT } from "../shell/campaign-rooms.js";
+import { RUN_OPEN_WORDS, RUN_WAITING_SHORT } from "../shell/campaign-rooms.js";
 import { plural } from "../shared/words.js";
 import { DAY_MS } from "../shared/time.js";
 export const SEQUENCE_EDIT_WORDS = {
@@ -157,7 +157,7 @@ export const SEQUENCE_HISTORY_WORDS = {
   replies: "What came back",
   noReplies: "Nobody has written back to this one yet.",
   everyone: (n) => `All ${n} who got it`,
-  openRun: "Open the run",
+  openRun: RUN_OPEN_WORDS,
   thread: "Thread",
   waits: RUN_WAITING_SHORT,
   counting: "Counting\u2026",

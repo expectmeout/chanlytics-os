@@ -104,13 +104,12 @@ export {
   sequenceRoute,
   newSequenceRoute,
   sequenceLandingOf,
-  arrivedRunOf,
-  runLandingOf,
   runSheetRoute,
   sequenceRepliesOf,
   sequenceRepliesRoute,
 } from "./sequence-address";
 export type { SequenceNewFor, SequenceNewLeads, SequenceTab, SequencesPlace } from "./sequence-address";
+export { arrivedRunOf, runLandingOf } from "./run-landing";
 export {
   SEQUENCE_DRAFT_WORDS_MAX,
   SEQUENCE_DRAFT_THEN_MAX,

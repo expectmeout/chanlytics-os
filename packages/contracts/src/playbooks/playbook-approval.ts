@@ -11,7 +11,7 @@ import type { ConsentChannel } from "../consent/consent-channels";
 import { appointmentWords, type AppointmentWord } from "../journey/appointment-word";
 import { GET_YES_ROUTE } from "../people/people-lists";
 import { CAMPAIGNS_PAUSED_WORDS } from "../workspace/billing";
-import { LIFECYCLE_WORDS } from "./lifecycle/lifecycle-words";
+import { runApproveWords } from "../shell/campaign-rooms";
 import { isReachOutRun } from "../reach-out/reach-out-rules";
 import { messageAboutOfTrigger } from "./playbook-purpose";
 import type { RunReach } from "./playbook-reach";
@@ -446,7 +446,7 @@ export function toApprovalVM(
     hiThere: greets ? d.recipients.filter((r) => !r.first_name).length : 0,
     // One word per act (decision 19 of the spec of 9 Oct 2026), as Today's row and the ledger say it; when it goes is said
     // once, beside it (`goes`): the button said it again ("Approve — 3 now").
-    approve: refusal ? null : LIFECYCLE_WORDS.ledger.approve(will),
+    approve: refusal ? null : runApproveWords(will),
     expired: refusal,
     goes: late
       ? `made for ${opts.day(runFor)}`

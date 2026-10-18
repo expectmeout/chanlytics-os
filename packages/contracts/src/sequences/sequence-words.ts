@@ -5,13 +5,12 @@
  */
 import { POLICY_CLASS_WORDS, type PolicyClass, type PolicyMode } from "../config/workspace-config/policy-classes";
 import { appointmentWords, type AppointmentWord } from "../journey/appointment-word";
-import { LIFECYCLE_WORDS } from "../playbooks/lifecycle/lifecycle-words";
 import { campaignRunsOn, nextRunOf } from "../playbooks/playbook-schedule";
 import { triggerOf } from "../playbooks/playbook-triggers";
 import { clockDate, clockTime, clockWhen, wallClockAt, zoneDayKey } from "../shared/clock";
 import { DAY_MS } from "../shared/time";
 import { plural } from "../shared/words";
-import { RUN_WAITING_SHORT } from "../shell/campaign-rooms";
+import { RUN_WAITING_SHORT, runApproveWords } from "../shell/campaign-rooms";
 import { runWaitsOnYou, type RunDays } from "../waits/waits";
 import type { SequenceNeedsDto, SequencePeopleGroup, SequenceRowDto, SequenceStepDto } from "./sequence-dto";
 import type { SequenceState } from "./sequence";
@@ -538,7 +537,7 @@ function waitingNotice(steps: readonly SequenceStepDto[], batch: SequenceNeedsDt
     line: people > 0 ? `${people} wait${people === 1 ? "s" : ""} for your OK` : "The next batch waits for your OK",
     fact: fact || null,
     // One word per act, as the run's own sheet and Today's row say it (decision 19 of the spec of 9 Oct 2026).
-    act: people > 0 ? LIFECYCLE_WORDS.ledger.approve(people) : SEQUENCE_WORDS.approve,
+    act: people > 0 ? runApproveWords(people) : SEQUENCE_WORDS.approve,
     batchId: batch.id,
   });
 }

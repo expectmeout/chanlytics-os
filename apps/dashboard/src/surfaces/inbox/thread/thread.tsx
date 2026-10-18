@@ -16,7 +16,7 @@
  */
 import { useEffect, useRef, useState, type HTMLAttributes, type ReactNode, type RefObject } from "react";
 import { Confirm } from "../../kit/confirm/confirm";
-import { SEQUENCE_HISTORY_WORDS, runSheetRoute, runsWaitingSentence } from "@chanlytics/contracts";
+import { RUN_OPEN_WORDS, runSheetRoute, runsWaitingSentence } from "@chanlytics/contracts";
 import { EmptyState } from "../../kit/empty/empty";
 import { useNeedsYouParts, waitingRunsNow } from "../../needs-you";
 import { ReplyStrip } from "./reply-strip";
@@ -483,7 +483,7 @@ const InboxEmpty = () => {
         glyph="bolt"
         title="No customer needs you"
         body={runsWaitingSentence(runs)}
-        action={only ? { label: SEQUENCE_HISTORY_WORDS.openRun, to: runSheetRoute(only.id) } : undefined}
+        action={only ? { label: RUN_OPEN_WORDS, to: runSheetRoute(only.id) } : undefined}
         testid="inbox-empty"
       />
     );

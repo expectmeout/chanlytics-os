@@ -1,4 +1,3 @@
-import { runDecidedOnItsPage } from "../waits/waits.js";
 export const SEQUENCES_ROUTE = "campaigns/sequences";
 const SEQUENCE_TABS = ["steps", "people", "history"];
 const LEADS_ROUTE = "clients/leads";
@@ -44,17 +43,6 @@ export function sequenceRouteBack(route, back) {
 export const sequenceRoute = (id, tab = "steps", day) => tab === "steps" ? `${SEQUENCES_ROUTE}/${id}` : `${SEQUENCES_ROUTE}/${id}/${tab}${tab === "history" && day ? `/${day}` : ""}`;
 export const newSequenceRoute = (moment) => moment ? `${SEQUENCES_ROUTE}/new:moment:${moment}` : `${SEQUENCES_ROUTE}/new`;
 export const runSheetRoute = (id) => `broadcasts/run:${id}/sheet`;
-export function arrivedRunOf(route) {
-  const [path = ""] = route.split("?");
-  const [root, param = "", rest] = path.split("/");
-  const run = root === "broadcasts" && rest === void 0 ? /^run:([^:/]+)$/.exec(param) : null;
-  return run?.[1] ?? null;
-}
-export function runLandingOf(route, run) {
-  const id = arrivedRunOf(route);
-  if (!id || id !== run.id) return null;
-  return runDecidedOnItsPage(run) ? runSheetRoute(id) : sequenceRoute(run.sequence_id || id, "history", id);
-}
 export function sequenceLandingOf(route) {
   const [path = ""] = route.split("?");
   const [root, param = ""] = path.split("/");

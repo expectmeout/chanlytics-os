@@ -17076,6 +17076,8 @@ function runApprovedTail(people, when) {
 }
 var RUN_WAITING_WORDS = "Waiting for your approval";
 var RUN_WAITING_SHORT = "Waits for you";
+var runApproveWords = (n) => `Approve \xB7 ${n} ${n === 1 ? "person" : "people"}`;
+var RUN_OPEN_WORDS = "Open the run";
 function runsWaitingSentence(n) {
   return n === 1 ? "A campaign run is waiting for your say." : `${n} campaign runs are waiting for your say.`;
 }
@@ -17370,7 +17372,7 @@ var LIFECYCLE_WORDS = {
       );
       return now.length ? now.join(" \xB7 ") : p.done ? `${p.done} done` : "Nobody yet";
     },
-    openRun: "Open the run",
+    openRun: RUN_OPEN_WORDS,
     /**
      * A row's last 30 days, as its cell says them. A reach-out's is in the businesses it wrote to, which "wrote back" is a
      * count of; its emails written only where the businesses were not counted (a database before 00404).
@@ -17383,7 +17385,7 @@ var LIFECYCLE_WORDS = {
       hint: (when) => when ? `Sent once \xB7 ${when}` : "Sent once"
     },
     /** One word per act (decision 19): "Approve · 7 people" and "Skip", everywhere a waiting run is decided. */
-    approve: (n) => `Approve \xB7 ${plural(n, "person", "people")}`,
+    approve: runApproveWords,
     skip: "Skip",
     resume: {
       label: "Resume",
@@ -17952,6 +17954,1937 @@ var PLAYBOOK_PATCH_WORDS = {
    */
   putBody: `Send a change (any of ${keysSaid("and")}), the channels alone as a list (channels: whatsapp, sms or email), or the whole campaign with its trigger and template_id.`
 };
+
+// src/sequences/sequence-address.ts
+var SEQUENCES_ROUTE = "campaigns/sequences";
+var SEQUENCE_TABS = ["steps", "people", "history"];
+var LEADS_ROUTE = "clients/leads";
+var BACK = "back:";
+var isSequencesParam = (param) => param === "sequences";
+var isTab = (word) => SEQUENCE_TABS.some((t) => t === word);
+function parseSequencesRoute(route) {
+  const [path = ""] = route.split("?");
+  const words3 = path.split("/");
+  const backAt = words3.findIndex((w) => w.startsWith(BACK));
+  const backWords = backAt >= 0 ? (words3[backAt] ?? "").slice(BACK.length) : null;
+  const back = backWords === null ? {} : { back: backWords ? `${LEADS_ROUTE}:${backWords}` : LEADS_ROUTE };
+  const [root, view, id, tab, day] = backAt >= 0 ? words3.slice(0, backAt) : words3;
+  if (root !== "campaigns" || view !== "sequences") return null;
+  if (!id) return { view: "list", ...back };
+  if (id === "new" || id.startsWith("new:")) {
+    const [, kind, moment2] = id.split(":");
+    const leads = newLeadsOf(words3.slice(3, backAt >= 0 ? backAt : void 0));
+    return { view: "new", ...kind === "moment" && moment2 ? { moment: moment2 } : {}, ...leads ? { leads } : {}, ...back };
+  }
+  const on = isTab(tab) ? tab : "steps";
+  return { view: "record", id, tab: on, ...on === "history" && day ? { day } : {}, ...back };
+}
+function newLeadsOf(words3) {
+  const word = (key) => {
+    const w = words3.find((x) => x.startsWith(`${key}:`));
+    return w ? w.slice(key.length + 1) || null : null;
+  };
+  const list2 = word("list");
+  const lead = word("lead");
+  const version = word("version");
+  if (lead) return { for: { lead }, version };
+  return list2 && !version ? { for: { list: list2 }, version: null } : null;
+}
+function sequenceNewLeadsRoute(leads) {
+  const on = "list" in leads.for ? `list:${leads.for.list}` : `lead:${leads.for.lead}`;
+  return `${SEQUENCES_ROUTE}/new/${leads.version && "lead" in leads.for ? `version:${leads.version}/` : ""}${on}`;
+}
+function sequenceRouteBack(route, back) {
+  if (!back || back !== LEADS_ROUTE && !back.startsWith(`${LEADS_ROUTE}:`)) return route;
+  return `${route}/${BACK}${back.slice(LEADS_ROUTE.length + 1)}`;
+}
+var sequenceRoute = (id, tab = "steps", day) => tab === "steps" ? `${SEQUENCES_ROUTE}/${id}` : `${SEQUENCES_ROUTE}/${id}/${tab}${tab === "history" && day ? `/${day}` : ""}`;
+var newSequenceRoute = (moment2) => moment2 ? `${SEQUENCES_ROUTE}/new:moment:${moment2}` : `${SEQUENCES_ROUTE}/new`;
+var runSheetRoute = (id) => `broadcasts/run:${id}/sheet`;
+function sequenceLandingOf(route) {
+  const [path = ""] = route.split("?");
+  const [root, param = ""] = path.split("/");
+  if (root === "campaigns") {
+    if (param === "" || param.startsWith("in:")) return SEQUENCES_ROUTE;
+    const moment2 = /^moment:([^:/]+)(:people)?$/.exec(param);
+    if (moment2?.[1]) return sequenceRoute(moment2[1], moment2[2] ? "people" : "steps");
+    if (param === "new:every") return newSequenceRoute();
+    const on = /^new:moment:([^:/]+)$/.exec(param);
+    if (on?.[1]) return newSequenceRoute(on[1]);
+  }
+  if (root === "broadcasts" && param === "") return SEQUENCES_ROUTE;
+  return null;
+}
+var sequenceRepliesRoute = (id, period = "30") => `inbox/from:${id}${period === "30" ? "" : `:${period}`}`;
+function sequenceRepliesOf(param) {
+  const m = param ? /^from:([0-9a-f-]{36})(?::(30|90|all))?$/i.exec(param) : null;
+  return m?.[1] ? { id: m[1].toLowerCase(), period: m[2] === "90" || m[2] === "all" ? m[2] : "30" } : null;
+}
+
+// src/shared/enums.ts
+var TENANT_STATUSES = ["active", "paused", "test"];
+var MEMBERSHIP_ROLES = ["owner", "operator", "partner", "viewer"];
+var CHANNEL_KINDS = ["whatsapp", "voice", "sms", "email", "instagram"];
+var IDENTITY_ASSURANCES = ["observed", "asserted", "found"];
+var CONVERSATION_STATES = ["open", "needs_human", "snoozed", "archived"];
+var MESSAGE_CHANNELS = ["whatsapp", "voice", "sms", "email", "system"];
+var MESSAGE_DIRECTIONS = ["inbound", "outbound"];
+var MESSAGE_SENDERS = ["customer", "ai", "human", "system"];
+var MESSAGE_TYPES = ["text", "template", "media", "call_summary", "note"];
+var MESSAGE_STATUSES = ["received", "queued", "sent", "delivered", "read", "failed", "canceled"];
+var CONSENT_STATES = ["unknown", "opted_in", "opted_out"];
+var JOB_KINDS = [
+  "outbound_send",
+  "broadcast_send",
+  /**
+   * A line's provisioning saga, run under the ledger's lease and resumed by
+   * the heartbeat if a worker dies (00109). The saga itself stays on the
+   * edge with the provider's credentials and is injected into the tick.
+   */
+  "line_provision",
+  /**
+   * One received email, fetched from the provider and taken in (00127). The
+   * webhook that announces it is a pointer, and a fetch can fail, so intake is
+   * a job: once per mailbox however often the webhook is replayed, and resumed
+   * where an interrupted run stopped. The fetch stays on the edge with the
+   * provider's key and is injected into the tick.
+   */
+  "email_ingest",
+  /**
+   * The lead finder (00140, PRD v3 §12.5). lead_round_start starts one round:
+   * a run per term, each claimed before the provider is called. lead_collect
+   * reads one page of one run, judges it and commits it in one transaction;
+   * seq is p<offset> for a page, final from the webhook, s<minute> from the
+   * sweep, stop from the stop door. lead_check checks one batch of emails. A
+   * provider's 429 or 5xx throws and is tried again by RETRY_WAITS_MS.
+   */
+  "lead_round_start",
+  "lead_collect",
+  "lead_check",
+  /**
+   * One kept notification (00057) to every phone of the people it is for
+   * (00162). Scheduled by the edge's notify when the row's kind is one of
+   * contracts PUSH_KINDS; a transport failure throws and is tried again by
+   * RETRY_WAITS_MS. Internal work: a second claim runs it again.
+   */
+  "push_send",
+  /**
+   * The receipts of one push_send, read a quarter of an hour on (00189):
+   * Expo's ticket says the service took a message, its receipt says whether
+   * the phone did, and a phone answered gone is forgotten here. Carries the
+   * tickets in its payload; a transport failure throws and is tried again.
+   */
+  "push_receipts",
+  /**
+   * One reply to a reach-out, read for what it means (Reach out Part 5, 00222): the model's reading, applied through
+   * reach_out_reply_apply, and the workspace told once. Scheduled by the email intake once per message
+   * (jobs_reply_read_once, scheduleJobOnce), and by itself for a re-read of a reply it could not read ({ stage:
+   * "reread-<n>" }). Internal work written to be run again: a second claim finds the reading and pays nothing.
+   */
+  "reply_read",
+  /**
+   * One booking tool's notice read into an appointment (docs/plans/2026-10-07-bookings-arrive-by-email.md): the
+   * email_ingest that recognised it schedules one per delivery (payload { received_id, mailbox_id }, keyed on the
+   * delivery), the handler fetches the email again, asks the model and writes the row. Internal work written to be run
+   * again: a second claim finds the row by the delivery's id and pays nothing.
+   */
+  "booking_read",
+  /**
+   * One event's delivery to one subscriber (00334, decision 0032): the relay writes it beside the event_deliveries row,
+   * keyed 'deliver:<event>:<subscriber>' (jobs.dedupe_key), in the subscription's lane (payload.lane). The handler runs
+   * the subscriber (core SUBSCRIBERS) and settles the delivery; a subscriber this build does not know is kept, as an
+   * unknown kind is. Internal work written to be run again: every subscriber assumes a second delivery.
+   */
+  "event_deliver",
+  /**
+   * One text answered after its acknowledgement (00347, decision 0031 Phase 2): the SMS door records the text and answers
+   * Twilio, and this job takes it up again through the whole inbound phase (core answerInbound with `resume`), keyed
+   * 'inbound_answer:<message>' (jobs.dedupe_key), in the reply lane. A runner killed mid-turn leaves it to be claimed
+   * again: the message is answered while it is unprocessed and no reply names it, so a second claim never texts twice.
+   */
+  "inbound_answer"
+];
+var EVENT_SUBSCRIBERS = [
+  "reach_out_booked",
+  "owner_notice",
+  "consent_notice",
+  "visit_notice",
+  "team_notice"
+];
+var JOB_STATES = ["scheduled", "fired", "done", "canceled", "failed"];
+var WABA_FIELDS = [
+  "phone_number_quality_update",
+  "account_update",
+  "message_template_status_update",
+  "account_review_update",
+  "message_template_quality_update",
+  "template_category_update",
+  "phone_number_name_update"
+];
+var EVENT_KINDS = [
+  "message.received",
+  "message.sent",
+  "contact.consent_changed",
+  "usage.llm_tokens",
+  "usage.wa_conversation",
+  "ingest.allowlist_skip",
+  /** The sender cannot receive a reply — a short code. Recorded, never answered. */
+  "ingest.unreachable_sender",
+  "message.send_failed",
+  "message.send_blocked",
+  "message.send_raced_cancel",
+  /** An outbound chat message carrying the workspace's booking link has left (00313): { channel, sender }. */
+  "booking_link.sent",
+  "conversation.reopened",
+  "conversation.pause_expired",
+  "contact.erased",
+  /** Two records of one person became one (00326, decision 0028): on the kept record, with what moved. */
+  "contact.merged",
+  /**
+   * A door resolved who a person is (resolve_person, 00342, decision 0034): the outcome (new, matched, filled), how it
+   * matched, what it filled and the doubt it raised; never the number or the address. Evidence, purged with the other
+   * evidence kinds, and hidden from the activity log unless asked for by name: the record is contact.added.
+   */
+  "person.resolved",
+  "setup.requested",
+  "voice.provisioned",
+  "line.answering",
+  "line.failed",
+  "line.released",
+  "line.forwarding_verified",
+  /**
+   * Somebody at Chanlytics acted on a workspace they are not a member of.
+   *
+   * The back office's write half. Recorded BEFORE the action, and the action is
+   * refused if it cannot be recorded: a cross-tenant write that nobody can be
+   * held to is worse than one that did not happen. What happened next is the
+   * line's own event, written by the edge, immediately after this one.
+   */
+  "platform.acted",
+  /** The carriers answered: texting is on, the business is through, or it came back. */
+  "line.texting_on",
+  "line.texting_approved",
+  "line.texting_rejected",
+  /** The business on record for the carriers, saved or changed. */
+  "business.recorded",
+  /** The workspace's listing on Google: linked, removed, and a read that found new reviews or ratings. */
+  "google.linked",
+  "google.unlinked",
+  "google.reviews",
+  /** The owner's Business Profile: connected, disconnected, and a review answered from here. */
+  "google.connected",
+  "google.disconnected",
+  "google.replied",
+  // An automatic review reply written and not posted: it named a price or money (contracts autoReplyHold).
+  "google.reply_held",
+  "workspace.created",
+  /** The owner's controls changed: which config fields moved (never their values); a policy row's class, mode and the limit keys that moved. */
+  "settings.changed",
+  /**
+   * A note for the receptionist suggested from an owner's correction, and the member's answer (00448, decision 0063):
+   * { suggestion_id, source }, never the words; a Keep's note is the settings.changed beside it.
+   */
+  "settings.fact_suggested",
+  "settings.fact_kept",
+  "settings.fact_dismissed",
+  "policy.changed",
+  "billing.updated",
+  "billing.paused",
+  "billing.resumed",
+  /** A call: the row (00007) and the seconds it cost. */
+  "call.recorded",
+  /** A call ended in a transfer to a person (00312): { answered }, whether they picked up. */
+  "call.transferred",
+  "usage.voice_seconds",
+  /** The assistant's model usage, per turn (ask-gateway). */
+  "usage.ask_tokens",
+  /** Retell's webhook: every delivery and every refused signature, kept thirty days (00038). */
+  "webhook.auth",
+  "webhook.delivery",
+  /** A person who came from the calendar or a hand, not from a message (00053). */
+  "contact.added",
+  /** A person renamed or annotated at the desk (00054), or given an email address (00125). */
+  "contact.named",
+  /**
+   * Where a person works (0052, 00413): linked to a lead (its first email or call, a reply that cited ours, a member's
+   * hand), or not at it any more: { lead_id, via, by? }, never a name.
+   */
+  "contact.business_linked",
+  "contact.business_unlinked",
+  "contact.noted",
+  /** A note changed, taken away, or the receptionist's suggestion kept or dismissed (00157, 0007). Never the words. */
+  "contact.note_changed",
+  "contact.note_removed",
+  "contact.note_suggested",
+  "contact.note_kept",
+  "contact.note_dismissed",
+  "contact.note_done",
+  "contact.note_undone",
+  /** The member a note is for said Got it (0052): { note_id, by }, never the words. */
+  "contact.note_seen",
+  "contact.email_set",
+  /** A person's proposal link set or cleared at the desk (00154). Never the address. */
+  "contact.proposal_set",
+  /** A person's address stopped being sent to: a permanent bounce, a complaint, or the provider's own list (00126). The reason, never the address. */
+  "contact.email_suppressed",
+  /** An inbound the router could not place on any workspace. */
+  "ingest.unroutable",
+  /** A reply skipped because its veto window had already been spent. */
+  "policy.veto_window_skipped",
+  /** The sweep woke a snooze whose time had passed (00082). */
+  "conversation.snooze_expired",
+  /** A handover's reason was replaced by another while it was open (00308): { from, to }, reasons only, never the words. */
+  "escalation.changed",
+  /** A broadcast finished, with its tally; a playbook made a run. */
+  "broadcast.sent",
+  /**
+   * A broadcast stopped before it was done, or never went (state `failed`): its failure code and how many it reached
+   * first (contracts BROADCAST_FAILURES), from every place a run is failed. A finished run was on the ledger and a
+   * stopped one was not (the 4 Oct wiring review, P2 5).
+   */
+  "broadcast.stopped",
+  "playbook.run",
+  /** A WhatsApp number connected through Embedded Signup (admin/whatsapp/connect). */
+  "channel.connected",
+  /** A WhatsApp number's quality rating, read on a clock, changed (00315): { from?, to }. Meta's own news of it is channel.phone_number_quality_update. */
+  "channel.quality_rating",
+  /** What Meta holds about a WhatsApp number (may it send, and what stands in the way) changed: read at connection, on a clock or when an owner asks (00338): { from?, to }, the word of can_send only. */
+  "channel.standing",
+  /** An owner gave the workspace its email address, or changed the name beside it (00129). Who, never the address. */
+  "mailbox.created",
+  "mailbox.renamed",
+  /** A gate paused the workspace's offers by email (complaints or bounces over their limits), and the back office turned them back on (00299). The reason, never an address. */
+  "mailbox.offers_paused",
+  "mailbox.offers_resumed",
+  /** A mailbox the business writes cold email from (00423, decision 0056): connected (or connected again), signed out
+   * by its provider, held for its own mail, resumed by its owner, paused and unpaused by its owner, removed. Its
+   * address and the reason, never its token. */
+  "mailbox_connection.connected",
+  "mailbox_connection.signed_out",
+  "mailbox_connection.held",
+  "mailbox_connection.resumed",
+  "mailbox_connection.paused",
+  "mailbox_connection.unpaused",
+  "mailbox_connection.removed",
+  /** A lead search's round started, waited, or ended with one of the nine endings (00140). */
+  "lead.round",
+  /** An ask no source card fits, logged as demand (§0.3): the words asked, never a place. */
+  "lead.no_card",
+  /** A lead worked: its stage moved, the owner said they sent the email, a call happened, it became a person, or it was not a fit (release B). */
+  "lead.stage",
+  "lead.emailed",
+  "lead.call",
+  "lead.converted",
+  "lead.not_a_fit",
+  /**
+   * A lead was set aside as stale (archived, closed stale), by the nightly purge or by hand (00309): { stage, reason, from },
+   * written on the move into it, so a lead restored and set aside again writes a second. `from` is the stage the lead left to be
+   * set aside, null when it was already archived and only its reason changed (nothing moved: not an exit). The purge writes only
+   * this event; by hand (lead_set_stage to archived with the reason stale) the move also writes its lead.stage, so a count of
+   * exits takes one per lead and moment, never both kinds. Its own kind, not lead.stage, so the Activity log is not filled with
+   * one line per lead.
+   */
+  "lead.set_aside",
+  /**
+   * The ideas for a new search were written (00400: lead_suggestions_write), { how: "written" | "line", count, by_owner }:
+   * "written" when the model's ideas were kept, with how many; "line" when the owner set the business line they are
+   * written from, which asks for new ones. A record for Reports (how often ideas are written, whether owners rewrite
+   * the line), never a line of the owner's Activity.
+   */
+  "lead.ideas_written",
+  // A deal (0004): written by deal_record, one kind per stage; record kinds, kept.
+  "deal.proposed",
+  "deal.won",
+  "deal.lost",
+  "deal.ended",
+  // A partner (0012): the workspace was made through a partner's link and the partner joined its team, or the code
+  // the link left named no partner who could be credited (unknown, paused, or the caller's own).
+  "partner.attributed",
+  "partner.code_ignored",
+  // The ledger (0012, P3): a share written from a paid invoice, a refund's or a dispute's effect on it, and the
+  // standing the sweep decided for a workspace once it had paid.
+  "partner.earned",
+  "partner.reversed",
+  "partner.standing_set",
+  // A payout sent by hand (0012, P5), on each workspace it came from, with that workspace's part.
+  "partner.paid",
+  // A workspace a partner set up for a business (0016): handed to its owner (again, on a resend), accepted, declined.
+  "partner.handover_sent",
+  "partner.handover_accepted",
+  "partner.handover_declined",
+  // An existing workspace asks a partner to join it (0020): asked (again, on a second ask), taken back, joined, declined.
+  "partner.invited",
+  "partner.invite_withdrawn",
+  "partner.invite_accepted",
+  "partner.invite_declined",
+  // A reply to a reach-out, read (00222, Reach out Part 5): what it meant ({ intent, claim, reread, unread }), on the lead.
+  "reach_out.replied",
+  // A reply read as no, undone by a member within seven days (00222 reach_out_reply_undo).
+  "reach_out.reply_undone",
+  // A workspace reached an activation milestone for the first time (contracts ACTIVATION_MILESTONES): the funnel's rows.
+  "workspace.activated",
+  /**
+   * An appointment of the record changed (decision 0002), never its title: the calendar's hourly read writes { change:
+   * added | moved | vanished | back, source, starts_at } (appointments_feed_sync, 00348), and every other writer's row
+   * { change: added | confirmed | cancelled | moved, ... } in its own transaction (appointments_note_change, 00389). On
+   * the appointment; hidden from the activity log unless asked for by name, since a calendar read writes one per
+   * appointment.
+   */
+  "appointment.changed",
+  /**
+   * What a member did, or the receptionist, that neither ledger kept (the activity log's review, 8 Oct 2026). Each
+   * names the member in its data (`by`), as the settings' and the notes' kinds do, and none carries a customer's words.
+   *
+   * A thread handed to the team: a new open escalation ({ reason }), on the conversation. Every path that flags a
+   * thread writes it through one door, with the hold, in one transaction (escalation_open, 00388), once per hold; a
+   * reason that changes under an open hold is escalation.changed.
+   */
+  "escalation.opened",
+  /** A person accepted an invitation and joined the workspace ({ by, role }), on the invitation. */
+  "member.joined",
+  /** A playbook, or a reach-out's chain, edited ({ name, by, fields }: which parts moved, never their words). */
+  "playbook.changed",
+  /** A message sent to WhatsApp for approval, and one deleted from the Library ({ name, language, by }). */
+  "template.submitted",
+  "template.removed",
+  /** The owner switched what the workspace answers on or off ({ capability, by }: calls, WhatsApp or texts). */
+  "capability.activated",
+  "capability.deactivated",
+  /** A person left the workspace by deleting their account ({ by, how }): the seat is gone, and so is its name. */
+  "member.left",
+  /** "Stop writing to them" on a reach-out's lead, and a held reach-out email decided ({ decision, by }), on its run. */
+  "reach_out.lead_stopped",
+  "reach_out.send_decided",
+  /**
+   * Leads added to a list-fed reach-out ({ search_id, n, by }), and an add taken back ({ search_id, taken, leaving,
+   * sent, by }), on the reach-out (00426).
+   */
+  "reach_out.lead_added",
+  "reach_out.lead_taken_back",
+  /** A place in Needs review kept (it counts against the month), left out, or put back ({ by, search_id }), on the lead. */
+  "lead.kept",
+  "lead.excluded",
+  "lead.put_back",
+  /** A lead put off in a pass of the pile: Later ({ search_id, by }), on the lead (00426). */
+  "lead.later",
+  /**
+   * Who a company lead's reach-out writes to, chosen by its owner ({ person, checking, by }: the index of one of the people
+   * its source named, and whether their address is being checked first), on the lead (00430 lead_addressee_choose).
+   */
+  "lead.addressee_chosen",
+  /** A search renamed ({ name, by }) or removed ({ kept, archived, by }), on the search. */
+  "lead.search_renamed",
+  "lead.search_removed",
+  /** Two records a doubt named, said to be two people ({ by }), on the person. */
+  "contact.kept_apart",
+  /** The number a business keeps set to forward to its line ({ carrier, mode, by }: never the number), on the line. */
+  "line.forwarding_set",
+  /**
+   * A booking tool's email, read into the calendar (packages/jobs booking-read): a visit booked, moved or cancelled
+   * ({ source: "booking_email", tool }), on the appointment. Shown, where appointment.changed (the calendar's hourly
+   * read) is a kept record: an email is one thing that happened, said once.
+   */
+  "appointment.booked",
+  "appointment.moved",
+  "appointment.cancelled",
+  /** The owner answered from the WhatsApp Business app, so the receptionist stepped back until `until` (recordEchoAndPause). */
+  "conversation.owner_replied",
+  /** Stripe's own news of a payment and of a trial about to end (billing.ts notePayment, noteTrialEnding): never an amount. */
+  "billing.payment_failed",
+  "billing.paid",
+  "billing.trial_ending"
+];
+var OPT_OUT_PATTERN = /^\s*(stop|baja|unsubscribe|alto)\s*[.!]?\s*$/i;
+var EMAIL_STOP_PATTERN = /^\s*(stop|baja|alto)\s*[.!]?\s*$/i;
+var EMAIL_UNSUBSCRIBE_PATTERN = /^\s*(?:please\s+)?(?:unsubscribe(?:\s+me)?|desuscribir(?:me)?)\s*[.!]?\s*$/i;
+var SMS_OPT_OUT_PATTERN = /^\s*(stop|stopall|end|cancel|quit|unsubscribe|revoke|optout|baja|alto)\s*[.!]?\s*$/i;
+var OPT_IN_PATTERN = /^\s*(start|unstop|resume|alta|yes offers|si ofertas|s\u00ed ofertas)\s*[.!]?\s*$/i;
+var MARKETING_OPT_IN_PATTERN = /^\s*(yes offers|si ofertas|s\u00ed ofertas)\s*[.!]?\s*$/i;
+var CONVERSATION_OPT_IN_PATTERN = /^\s*(start|unstop|resume|alta)\s*[.!]?\s*$/i;
+function optInPurposeOf(text) {
+  if (MARKETING_OPT_IN_PATTERN.test(text)) return "marketing";
+  if (CONVERSATION_OPT_IN_PATTERN.test(text)) return "conversational";
+  return null;
+}
+var OFFERS_OPT_IN_PHRASES = { en: "YES OFFERS", es: "SI OFERTAS" };
+function waMeDigits(number2) {
+  const digits2 = String(number2 ?? "").replace(/\D/g, "");
+  return digits2.length < 8 ? null : digits2;
+}
+function waMeLink(number2, text) {
+  const digits2 = waMeDigits(number2);
+  if (!digits2) return null;
+  return `https://wa.me/${digits2}${text ? `?text=${encodeURIComponent(text)}` : ""}`;
+}
+function optInLink(numberE164, phrase = OFFERS_OPT_IN_PHRASES.en) {
+  return waMeLink(numberE164, phrase);
+}
+var ESCALATION_REASONS = [
+  "human_token",
+  "non_text",
+  "refusal",
+  "rate_cap",
+  "policy_block",
+  "send_failed",
+  "deadman",
+  "brain_error",
+  "manual",
+  "opt_out",
+  "state_unavailable",
+  /** Delivered so late that an automated reply would arrive out of nowhere. */
+  "stale",
+  /** The owner set the receptionist to Ask or Never for THIS person; the
+   *  thread is theirs to answer. A choice about one customer, never a
+   *  workspace setting. */
+  "person_hold",
+  /** The workspace's day of model tokens is spent (limits.max_llm_tokens_day). */
+  "budget",
+  /** A booking or a service/pricing question, with that class set to Ask me first on the Autonomy pane: a person answers. */
+  "policy_ask",
+  /** The phone receptionist could not finish the call: a person calls them back. What to do rides in the details. */
+  "callback",
+  /** The workspace is paused (billing): calls only take a message and messages wait for a person, until it resumes. */
+  "paused",
+  /** A text arrived on a line the carriers have not approved for texting yet: kept, a person answers. */
+  "carriers",
+  /** An email a person must read before anyone answers it (00127). */
+  "email_review",
+  /** A time the customer picked by text, held for the owner to confirm (00443, decision 0061): Booked it or Can't. */
+  "booking_request",
+  /**
+   * A time the customer asked for by text that a person answers (00443, decision 0061): the owner said Can't, or the
+   * time was not one the code found open, or the request could not be kept. The receptionist told them the team will
+   * confirm, so a reply is owed.
+   */
+  "booking_reply",
+  /** The customer wrote while a person had the thread: held for them, never in another hold's place (00454). */
+  "wrote_while_held"
+];
+var ESCALATION_STATES = ["open", "resolved"];
+var DECISION_VERBS = [
+  "approve",
+  "edit",
+  "decline",
+  "snooze",
+  "wake",
+  "take_over",
+  "hand_back",
+  "resolve",
+  "archive",
+  "reply",
+  "cancel_send",
+  "pause_agent",
+  "resume_agent",
+  /**
+   * What one member can do to another.
+   *
+   * The ledger recorded every conversation verb and nothing about the team —
+   * the one table where "who did this" is hardest to reconstruct afterwards
+   * and matters most. Promoting someone to owner hands them billing, the
+   * ability to remove everyone else, and the receptionist's voice.
+   *
+   * These must stay in step with decisions_verb_check (migration 00023): the
+   * database rejects a verb this list allows, and a verb the database allows
+   * but this omits cannot be written by any typed caller.
+   */
+  "invite",
+  "revoke_invite",
+  "change_role",
+  "remove_member",
+  /**
+   * The only irreversible verb. privacy.html promises deletion on verified
+   * request; this is the record that it happened, on subject_type 'contact',
+   * and it survives the data it destroyed. Written by the owner (actor_type
+   * 'user'), and again by the route for a leg that finished after the rows
+   * were gone — the storage sweep.
+   */
+  "erase",
+  /**
+   * Two records of one person became one (merge_people, 00326; decision 0028). On subject_type 'contact', the kept
+   * record; the payload names the merged one and counts what moved. Owner only, and never undone.
+   */
+  "merge",
+  /**
+   * A sentence handed to the phone receptionist mid-call, heard by it alone
+   * and worked into its next answer (Retell update-live-call). Subject
+   * 'call'. The ledger keeps the words: they are the operator's, and they
+   * changed what a customer was told.
+   */
+  "whisper",
+  /**
+   * A business connected its own channel (Embedded Signup): subject
+   * 'channel', payload the number, the WABA and the registration outcome.
+   * The one verb whose consequence is a credential in Vault.
+   */
+  "connect_channel",
+  /**
+   * A customer's answer about marketing messages, recorded by the person
+   * who heard it: subject 'contact', payload the answer, how it was given,
+   * and what it was before. The record a broadcast stands on.
+   */
+  "consent_change",
+  /**
+   * A broadcast: one message, on the channels it holds, to the people who said
+   * yes. The decision to send (subject 'broadcast', payload the message, the
+   * audience and the count) and the decision to stop one.
+   */
+  "send_broadcast",
+  "cancel_broadcast",
+  /** A playbook started or paused: subject 'playbook'. Its runs are send_broadcast rows. */
+  "start_playbook",
+  "pause_playbook",
+  /**
+   * A playbook changed in place (the change_playbook door): its name, hour, cap, gap or cadence. Subject 'playbook'; the
+   * payload names what changed. A pause or a resume stays pause_playbook or start_playbook.
+   */
+  "change_playbook",
+  /**
+   * An answer to a review on Google, in the business's own words: subject
+   * 'review' (the row's id), payload the words and when Google took them.
+   * Replaces the previous answer; Google keeps one per review.
+   */
+  "reply_review",
+  /**
+   * A copy of the workspace's data left the building: everyone as a CSV, a
+   * thread, a call, or the whole workspace. Subject "workspace" for the two
+   * that carry everyone; the thread's or the call's own row for the others.
+   * The one verb an auditor asks about that the ledger did not keep.
+   */
+  "export",
+  /** A call in progress ended from the Live page (00118). Passing one to the business is take_over, the Inbox's word for the same intent. */
+  "end_call",
+  "record_deal",
+  /**
+   * A list's life (00169, decision 0009): made, renamed, its rule changed, people put on or taken off, archived (a
+   * playbook or another list depends on it), restored, deleted. Subject 'list'; the payload says what changed.
+   */
+  "make_list",
+  "rename_list",
+  "change_list_rule",
+  "add_to_list",
+  "drop_from_list",
+  "archive_list",
+  "restore_list",
+  "delete_list",
+  /** A client list brought in from a spreadsheet (00170): one row per part of fifty, subject the workspace. */
+  "import",
+  /**
+   * A member opened a call's recording (00277): subject 'call', written by recording_opened as the member, once per
+   * member per call per hour. A customer's voice left the building to someone's speakers; who listened is the audit.
+   */
+  "open_recording",
+  /**
+   * A member said what became of a visit (00397 mark_visit, decision 0002 step 8): kept, missed or cancelled, subject
+   * 'appointment' (its row), payload from, to, the row's source, its start and the person it is for.
+   */
+  "mark_visit",
+  /**
+   * A step of a sequence added, changed, given new words or taken away (00442 sequence_step_save, sequence_step_remove,
+   * sequence_step_words; decision 0060): subject 'sequence', payload the step and what changed of it.
+   */
+  "change_step",
+  /** People taken out of a sequence (00442 sequence_leave), and put back (00450 sequence_return): subject 'sequence'. */
+  "leave_sequence",
+  "return_to_sequence",
+  /**
+   * A new sequence made whole, kept as a draft or started (00442 sequence_create, decision 0060 S4), and one that never
+   * sent let go (sequence_discard): subject 'sequence', payload its steps and whether it started, or its name and state.
+   */
+  "make_sequence",
+  "discard_sequence",
+  /**
+   * A member answered a booking the receptionist asked for (00443 booking_request_answer, decision 0061): booked, or not,
+   * subject 'appointment' (the request's row), payload booked, its start, the person and the service.
+   */
+  "answer_booking_request"
+];
+var DECISION_SUBJECTS = [
+  "conversation",
+  "escalation",
+  "draft",
+  "lead",
+  "message",
+  "agent",
+  "membership",
+  "invitation",
+  "contact",
+  "call",
+  "channel",
+  "broadcast",
+  "playbook",
+  "review",
+  /** The workspace itself: an export of everyone, or of everything. Its id is the tenant's. */
+  "workspace",
+  "deal",
+  /** One of the workspace's own lists (segments): its life, in the ledger (00169). */
+  "list",
+  /** A visit the record keeps (00345): what a member said became of it (00397). */
+  "appointment",
+  /** A sequence (decision 0060, 00442): its steps changed and its people taken out. Its id is its first step's. */
+  "sequence"
+];
+var ACTOR_TYPES = ["user", "ai", "system", "owner_phone"];
+var TEMPLATE_STATUSES = ["approved", "pending", "rejected", "paused", "disabled"];
+
+// src/templates/starter-templates.ts
+var STARTER_LANGUAGES = [
+  { id: "en_US", label: "English" },
+  { id: "es", label: "Spanish" }
+];
+function messageLanguageCode(language) {
+  const base = languageBase(language);
+  return STARTER_LANGUAGES.find((l) => languageBase(l.id) === base)?.id ?? language;
+}
+var FIRST = { kind: "first_name", label: "First name", example: "Dani" };
+var BUSINESS = { kind: "business_name", label: "Business name", example: "Luna Studio" };
+var LINK = { kind: "booking_link", label: "Booking link", example: "https://booksy.com/luna-studio" };
+var FIRST_ES = { ...FIRST, label: "Nombre" };
+var BUSINESS_ES = { ...BUSINESS, label: "Nombre del negocio" };
+var LINK_ES = { ...LINK, label: "Enlace de reservas" };
+var WHEN = { kind: "visit_when", label: "When", example: "tomorrow at 2:00 PM" };
+var SERVICE = { kind: "visit_service", label: "Service", example: "a consultation" };
+var WHEN_ES = { ...WHEN, label: "Cu\xE1ndo", example: "ma\xF1ana a las 2:00 PM" };
+var SERVICE_ES = { ...SERVICE, label: "Servicio", example: "una consulta" };
+var PROPOSAL = {
+  kind: "proposal_link",
+  label: "Proposal link",
+  example: "https://docs.example.com/proposal"
+};
+var PROPOSAL_ES = { ...PROPOSAL, label: "Enlace de la propuesta" };
+var REVIEW = { kind: "review_link", label: "Review link", example: "https://g.page/r/example/review" };
+var REVIEW_ES = { ...REVIEW, label: "Enlace de rese\xF1as" };
+var OFFER = { kind: "text", label: "The offer", example: "20% off any service booked before Friday." };
+var OFFER_ES = {
+  kind: "text",
+  label: "La oferta",
+  example: "20% de descuento en cualquier servicio reservado antes del viernes."
+};
+var STOP_EN = SENDER_WORDS.en.textStop;
+var STOP_ES = SENDER_WORDS.es.textStop;
+var STARTER_TEMPLATES = [
+  /* ---- The set (2 Oct 2026), in the order a composer opens on ---- */
+  {
+    // An offer, and honest about it: it waits for a yes to offers. It asks for a reply rather than sending them to a
+    // link, so it needs no booking link on file, and what comes back is a conversation the receptionist can carry.
+    key: "winback_reply",
+    name: "winback_reply",
+    title: "Win-back",
+    purpose: "for anyone who has gone quiet",
+    category: "marketing",
+    trigger: "quiet_30",
+    texts: {
+      en_US: {
+        body: "Hi {{1}}, it's been a while since we last saw you at {{2}}. We'd love to see you again: reply with a day that suits you and we'll find you a time.",
+        footer: STOP_EN,
+        slots: [FIRST, BUSINESS]
+      },
+      es: {
+        body: "Hola {{1}}, hace tiempo que no te vemos en {{2}}. Nos encantar\xEDa volver a verte: responde con el d\xEDa que mejor te venga y te buscamos una hora.",
+        footer: STOP_ES,
+        slots: [FIRST_ES, BUSINESS_ES]
+      }
+    },
+    email: {
+      en_US: {
+        subject: "It's been a while",
+        body: "Hi {{1}},\n\nIt's been a while since we last saw you at {{2}}, and we'd love to see you again.\n\nReply with a day that suits you and we'll find you a time."
+      },
+      es: {
+        subject: "Hace tiempo que no te vemos",
+        body: "Hola {{1}}:\n\nHace tiempo que no te vemos en {{2}}, y nos encantar\xEDa volver a verte.\n\nResponde con el d\xEDa que mejor te venga y te buscamos una hora."
+      }
+    }
+  },
+  {
+    key: "this_months_offer",
+    name: "this_months_offer",
+    title: "This month's offer",
+    purpose: "for everyone who said yes to offers, once a month",
+    category: "marketing",
+    trigger: "everyone_monthly",
+    texts: {
+      en_US: {
+        body: "Hi {{1}}, this month at {{2}}: {{3}} Book here: {{4}} or reply with a day that suits you.",
+        footer: STOP_EN,
+        slots: [FIRST, BUSINESS, OFFER, LINK]
+      },
+      es: {
+        body: "Hola {{1}}, este mes en {{2}}: {{3}} Reserva aqu\xED: {{4}} o responde con el d\xEDa que mejor te venga.",
+        footer: STOP_ES,
+        slots: [FIRST_ES, BUSINESS_ES, OFFER_ES, LINK_ES]
+      }
+    },
+    email: {
+      en_US: {
+        subject: "This month at {{2}}",
+        body: "Hi {{1}},\n\nThis month at {{2}}: {{3}}\n\nBook here: {{4}}, or reply with a day that suits you."
+      },
+      es: {
+        subject: "Este mes en {{2}}",
+        body: "Hola {{1}}:\n\nEste mes en {{2}}: {{3}}\n\nReserva aqu\xED: {{4}}, o responde con el d\xEDa que mejor te venga."
+      }
+    }
+  },
+  {
+    key: "visit_reminder",
+    name: "visit_reminder",
+    title: "Visit reminder",
+    purpose: "for the day before an appointment",
+    category: "utility",
+    trigger: "visit_tomorrow",
+    texts: {
+      en_US: {
+        body: "Hi {{1}}, it's {{2}}. A reminder of your appointment {{3}} for {{4}}. If you need to change it, just reply here.",
+        footer: null,
+        slots: [FIRST, BUSINESS, WHEN, SERVICE]
+      },
+      es: {
+        body: "Hola {{1}}, te escribimos de {{2}}. Te recordamos tu cita {{3}} para {{4}}. Si necesitas cambiarla, responde aqu\xED.",
+        footer: null,
+        slots: [FIRST_ES, BUSINESS_ES, WHEN_ES, SERVICE_ES]
+      }
+    },
+    email: {
+      en_US: {
+        subject: "Your appointment {{3}}",
+        body: "Hi {{1}},\n\nA reminder of your appointment at {{2}} {{3}} for {{4}}.\n\nIf you need to change it, just reply to this email."
+      },
+      es: {
+        subject: "Tu cita {{3}}",
+        body: "Hola {{1}}:\n\nTe recordamos tu cita en {{2}} {{3}} para {{4}}.\n\nSi necesitas cambiarla, responde a este correo."
+      }
+    },
+    sms: {
+      en_US: {
+        body: "Hi {{1}}, it's {{2}}. A reminder of your appointment {{3}} for {{4}}. Reply here if you need to change it."
+      },
+      es: {
+        // Spanish texts keep to the letters the carriers send plainly (é, ñ, ¿ but not á, í, ó, ú), so each goes as one part.
+        body: "Hola {{1}}, te escribimos de {{2}}. Te recordamos tu cita {{3}} para {{4}}. Si necesitas cambiarla, responde a este mensaje."
+      }
+    }
+  },
+  {
+    // About the visit they just had, and nothing else: no offer and no booking push, so it is utility and reaches a
+    // yes to texts. Their reply opens WhatsApp's 24 hours, inside which the receptionist may say anything.
+    key: "after_visit_check",
+    name: "after_visit_check",
+    title: "How did it go",
+    purpose: "for the day after a visit",
+    category: "utility",
+    trigger: "visited",
+    texts: {
+      en_US: {
+        body: "Hi {{1}}, thanks for coming to {{2}} yesterday. How did everything go? If anything isn't right, reply here and we'll sort it out.",
+        footer: null,
+        slots: [FIRST, BUSINESS]
+      },
+      es: {
+        body: "Hola {{1}}, gracias por venir ayer a {{2}}. \xBFQu\xE9 tal fue todo? Si algo no est\xE1 bien, responde aqu\xED y lo solucionamos.",
+        footer: null,
+        slots: [FIRST_ES, BUSINESS_ES]
+      }
+    },
+    email: {
+      en_US: {
+        subject: "How did everything go?",
+        body: "Hi {{1}},\n\nThanks for coming to {{2}} yesterday. How did everything go?\n\nIf anything isn't right, just reply to this email and we'll sort it out."
+      },
+      es: {
+        subject: "\xBFQu\xE9 tal fue todo?",
+        body: "Hola {{1}}:\n\nGracias por venir ayer a {{2}}. \xBFQu\xE9 tal fue todo?\n\nSi algo no est\xE1 bien, responde a este correo y lo solucionamos."
+      }
+    },
+    sms: {
+      en_US: {
+        body: "Hi {{1}}, thanks for coming to {{2}} yesterday. How did everything go? If anything isn't right, reply here and we'll sort it out."
+      },
+      es: {
+        body: "Hola {{1}}, gracias por venir ayer a {{2}}. \xBFQu\xE9 tal fue todo? Si algo no te ha gustado, responde a este mensaje y lo solucionamos."
+      }
+    }
+  },
+  {
+    // The day after's other message (10 Oct 2026): the thank-you with a review ask, the link the Google listing keeps.
+    // About the appointment they just had, with no offer and no booking push, so it is utility like How did it go. It is
+    // offered only where the listing keeps a review link (startersOffered), as its slot is filled from nothing else, and
+    // How did it go stays the moment's own: what a composer opens on, and what a campaign picks when nothing is picked.
+    key: "after_visit_review",
+    name: "after_visit_review",
+    title: "After the appointment, with a review ask",
+    purpose: "for the day after an appointment, asking for a review",
+    category: "utility",
+    trigger: "visited",
+    texts: {
+      en_US: {
+        body: "Hi {{1}}, thanks for coming to {{2}} yesterday. If you have a minute, a review helps others find us: {{3}}. If anything wasn't right, reply here and we'll sort it out.",
+        footer: null,
+        slots: [FIRST, BUSINESS, REVIEW]
+      },
+      es: {
+        body: "Hola {{1}}, gracias por venir ayer a {{2}}. Si tienes un minuto, tu rese\xF1a ayuda a otros a encontrarnos: {{3}}. Si algo no estuvo bien, responde aqu\xED y lo solucionamos.",
+        footer: null,
+        slots: [FIRST_ES, BUSINESS_ES, REVIEW_ES]
+      }
+    },
+    email: {
+      en_US: {
+        subject: "Thanks for coming to {{2}}",
+        body: "Hi {{1}},\n\nThanks for coming to {{2}} yesterday. If you have a minute, a review helps others find us: {{3}}\n\nIf anything wasn't right, just reply to this email and we'll sort it out."
+      },
+      es: {
+        subject: "Gracias por venir a {{2}}",
+        body: "Hola {{1}}:\n\nGracias por venir ayer a {{2}}. Si tienes un minuto, tu rese\xF1a ayuda a otros a encontrarnos: {{3}}\n\nSi algo no estuvo bien, responde a este correo y lo solucionamos."
+      }
+    },
+    sms: {
+      en_US: {
+        body: "Hi {{1}}, thanks for coming to {{2}} yesterday. A review helps others find us: {{3}} If anything wasn't right, reply here."
+      },
+      es: {
+        body: "Hola {{1}}, gracias por venir ayer a {{2}}. Tu rese\xF1a ayuda a otros a encontrarnos: {{3}} Si algo no estuvo bien, responde a este mensaje."
+      }
+    }
+  },
+  {
+    // 0006: one nudge per proposal, with its link. Utility, as a reminder of a person's own request is; it names no
+    // price, date, amount or offer, and Meta's category decides the yes it needs at the wire (deliver.ts).
+    key: "proposal_follow_up",
+    name: "proposal_follow_up",
+    title: "Proposal follow-up",
+    purpose: "for a proposal waiting with nothing back",
+    category: "utility",
+    trigger: "proposal_waiting",
+    texts: {
+      en_US: {
+        body: "Hi {{1}}, just making sure the proposal from {{2}} reached you: {{3}}. Reply here with any questions.",
+        footer: null,
+        slots: [FIRST, BUSINESS, PROPOSAL]
+      },
+      es: {
+        body: "Hola {{1}}, solo queremos confirmar que te lleg\xF3 la propuesta de {{2}}: {{3}}. Responde aqu\xED con cualquier pregunta.",
+        footer: null,
+        slots: [FIRST_ES, BUSINESS_ES, PROPOSAL_ES]
+      }
+    },
+    email: {
+      en_US: {
+        subject: "Your proposal from {{2}}",
+        body: "Hi {{1}},\n\nJust making sure the proposal from {{2}} reached you: {{3}}\n\nReply to this email with any questions."
+      },
+      es: {
+        subject: "Tu propuesta de {{2}}",
+        body: "Hola {{1}}:\n\nSolo queremos confirmar que te lleg\xF3 la propuesta de {{2}}: {{3}}\n\nResponde a este correo con cualquier pregunta."
+      }
+    },
+    sms: {
+      en_US: {
+        body: "Hi {{1}}, just making sure the proposal from {{2}} reached you: {{3}} Reply here with any questions."
+      },
+      es: {
+        body: "Hola {{1}}, queremos confirmar que recibiste la propuesta de {{2}}: {{3}} Responde a este mensaje con cualquier pregunta."
+      }
+    }
+  },
+  {
+    key: "quick_note",
+    name: "quick_note",
+    title: "A quick note",
+    purpose: "for any broadcast: news, hours, a heads-up",
+    category: "marketing",
+    trigger: null,
+    texts: {
+      en_US: {
+        body: "Hi {{1}}, a quick note from {{2}}: {{3}} Write back here if you have any questions.",
+        footer: STOP_EN,
+        slots: [
+          FIRST,
+          BUSINESS,
+          { kind: "text", label: "The note", example: "we're open late on Thursdays this month." }
+        ]
+      },
+      es: {
+        body: "Hola {{1}}, una nota r\xE1pida de {{2}}: {{3}} Escr\xEDbenos aqu\xED si tienes alguna pregunta.",
+        footer: STOP_ES,
+        slots: [
+          FIRST_ES,
+          BUSINESS_ES,
+          { kind: "text", label: "La nota", example: "este mes abrimos hasta tarde los jueves." }
+        ]
+      }
+    },
+    email: {
+      en_US: {
+        subject: "A quick note from {{2}}",
+        body: "Hi {{1}},\n\nA quick note from {{2}}: {{3}}\n\nReply to this email if you have any questions."
+      },
+      es: {
+        subject: "Una nota r\xE1pida de {{2}}",
+        body: "Hola {{1}}:\n\nUna nota r\xE1pida de {{2}}: {{3}}\n\nResponde a este correo si tienes alguna pregunta."
+      }
+    }
+  },
+  {
+    // The one a caller asks for OUT LOUD, mid-call: the phone agent texts it when somebody wants to book (edge
+    // retell-fn.ts), with the business's WhatsApp named, so a caller who only ever phoned learns where to write.
+    //
+    // UTILITY, and that is the whole point of writing it down here. It answers a request the person just made, so it
+    // needs no separate yes to offers -- and because the category is Meta's own word for that, purposeOfTemplate reads
+    // it correctly and nothing has to override the purpose at a call site. It is LAST on purpose: the order is what a
+    // composer opens on, and this is the one a caller asks for rather than one anybody broadcasts.
+    key: "call_text",
+    name: "call_text",
+    title: "The call's text",
+    purpose: "for a caller who asks to book",
+    category: "utility",
+    trigger: null,
+    texts: {
+      en_US: {
+        // The first name every starter opens with, and here it is usually "there": the phone agent texts somebody
+        // whose name nobody has yet, and resolveParams says so rather than leaving a gap.
+        body: "Hi {{1}}, it's {{2}}, thanks for calling. Here's the link to book: {{3}}. This is our WhatsApp too: write to us here any time to book, move or ask about an appointment.",
+        footer: null,
+        slots: [FIRST, BUSINESS, LINK]
+      },
+      es: {
+        body: "Hola {{1}}, te escribimos de {{2}}, gracias por llamar. Aqu\xED tienes el enlace para reservar: {{3}}. Este tambi\xE9n es nuestro WhatsApp: escr\xEDbenos aqu\xED cuando quieras para reservar, cambiar o preguntar por una cita.",
+        footer: null,
+        slots: [FIRST_ES, BUSINESS_ES, LINK_ES]
+      }
+    },
+    sms: {
+      en_US: {
+        body: "Hi {{1}}, it's {{2}}, thanks for calling. Here's the link to book: {{3}}. You can text us here any time too."
+      },
+      es: {
+        body: "Hola {{1}}, te escribimos de {{2}}, gracias por llamar. Este es el enlace para reservar: {{3}}. Puedes responder a este mensaje cuando quieras."
+      }
+    }
+  },
+  /* ---- Retired (2 Oct 2026): never offered again, kept so a workspace that added one still reads it ---- */
+  {
+    key: "winback_offer",
+    name: "winback_offer",
+    // Called apart from the set's own Win-back, which a workspace that has this one sees listed beside it.
+    title: "Win-back (earlier)",
+    purpose: "for anyone quiet 30 days",
+    category: "marketing",
+    trigger: "quiet_30",
+    retired: { by: "winback_reply", why: "It sent people to a link; its place asks for a reply." },
+    texts: {
+      en_US: {
+        body: "Hi {{1}}, it's been a while since we last saw you at {{2}}. We'd love to have you back \u2014 pick a time that suits you here: {{3}} and we'll take care of the rest.",
+        footer: STOP_EN,
+        slots: [FIRST, BUSINESS, LINK]
+      },
+      es: {
+        body: "Hola {{1}}, hace tiempo que no te vemos en {{2}}. Nos encantar\xEDa volver a atenderte \u2014 elige la hora que mejor te venga aqu\xED: {{3}} y nosotros nos ocupamos del resto.",
+        footer: STOP_ES,
+        slots: [FIRST_ES, BUSINESS_ES, LINK_ES]
+      }
+    }
+  },
+  {
+    key: "welcome_new",
+    name: "welcome_new",
+    title: "Welcome",
+    purpose: "for anyone new this week",
+    category: "marketing",
+    trigger: "new_week",
+    retired: {
+      by: null,
+      why: "The receptionist answers a first contact itself; as an offer, a welcome reached nobody new."
+    },
+    texts: {
+      en_US: {
+        body: "Hi {{1}}, welcome to {{2}}! This is our WhatsApp \u2014 message us here any time to book, move or ask about an appointment. Book whenever you're ready: {{3}} and we'll take it from there.",
+        footer: STOP_EN,
+        slots: [FIRST, BUSINESS, LINK]
+      },
+      es: {
+        body: "Hola {{1}}, \xA1bienvenido/a a {{2}}! Este es nuestro WhatsApp \u2014 escr\xEDbenos aqu\xED cuando quieras para reservar, cambiar o preguntar por una cita. Reserva cuando quieras: {{3}} y nosotros nos encargamos del resto.",
+        footer: STOP_ES,
+        slots: [FIRST_ES, BUSINESS_ES, LINK_ES]
+      }
+    }
+  },
+  {
+    key: "save_our_number",
+    name: "save_our_number",
+    title: "Save our number",
+    purpose: "for anyone who only ever phoned",
+    category: "marketing",
+    trigger: "phoned_only",
+    retired: {
+      by: "call_text",
+      why: "Its people only ever phoned, so none could have said yes to offers; the call's text does its work during the call."
+    },
+    texts: {
+      en_US: {
+        body: "Hi {{1}}, thanks for calling {{2}}. Save this number \u2014 on WhatsApp you can book, reschedule or ask us anything in a message, and we answer fast. Book any time: {{3}} or just write to us here.",
+        footer: STOP_EN,
+        slots: [FIRST, BUSINESS, LINK]
+      },
+      es: {
+        body: "Hola {{1}}, gracias por llamar a {{2}}. Guarda este n\xFAmero \u2014 por WhatsApp puedes reservar, cambiar tu cita o preguntarnos lo que quieras, y respondemos r\xE1pido. Reserva cuando quieras: {{3}} o escr\xEDbenos aqu\xED.",
+        footer: STOP_ES,
+        slots: [FIRST_ES, BUSINESS_ES, LINK_ES]
+      }
+    }
+  },
+  {
+    key: "monthly_offer",
+    name: "monthly_offer",
+    title: "This month's offer (earlier)",
+    purpose: "for everyone who said yes, once a month",
+    category: "marketing",
+    trigger: "everyone_monthly",
+    retired: { by: "this_months_offer", why: "It promised that spaces were limited, which a business may not mean." },
+    texts: {
+      en_US: {
+        body: "Hi {{1}}, this month at {{2}}: {{3}} Book here: {{4}} \u2014 spaces are limited.",
+        footer: STOP_EN,
+        slots: [FIRST, BUSINESS, OFFER, LINK]
+      },
+      es: {
+        body: "Hola {{1}}, este mes en {{2}}: {{3}} Reserva aqu\xED: {{4}} \u2014 las plazas son limitadas.",
+        footer: STOP_ES,
+        slots: [FIRST_ES, BUSINESS_ES, OFFER_ES, LINK_ES]
+      }
+    }
+  },
+  {
+    key: "after_visit",
+    name: "after_visit",
+    title: "After the visit",
+    purpose: "for the day after a visit",
+    category: "marketing",
+    trigger: "visited",
+    retired: {
+      by: "after_visit_check",
+      why: "Asking them to book again made it an offer, which reached only a yes to offers; its place asks how it went."
+    },
+    texts: {
+      en_US: {
+        body: "Hi {{1}}, thank you for coming to {{2}} yesterday \u2014 we hope you love the result. When you're ready for your next appointment, pick a time here: {{3}}.",
+        footer: STOP_EN,
+        slots: [FIRST, BUSINESS, LINK]
+      },
+      es: {
+        body: "Hola {{1}}, gracias por venir ayer a {{2}} \u2014 esperamos que te encante el resultado. Cuando quieras tu pr\xF3xima cita, elige la hora aqu\xED: {{3}}.",
+        footer: STOP_ES,
+        slots: [FIRST_ES, BUSINESS_ES, LINK_ES]
+      }
+    }
+  },
+  {
+    // The row this replaced was hand-written straight into one workspace's database, marked approved, with no
+    // meta_id: an approval Meta had never given, so every send of it failed, and it failed for every other workspace
+    // by not existing at all.
+    key: "booking_link",
+    name: "booking_link",
+    title: "Booking link",
+    purpose: "for a caller who asks to book",
+    category: "utility",
+    trigger: null,
+    retired: { by: "call_text", why: "The call's text sends the link and names the business's WhatsApp too." },
+    texts: {
+      en_US: {
+        body: "Hi {{1}}, it's {{2}}. Here's the link to book your appointment: {{3}} \u2014 pick any time that suits you.",
+        footer: null,
+        slots: [FIRST, BUSINESS, LINK]
+      },
+      es: {
+        body: "Hola {{1}}, te escribimos de {{2}}. Aqu\xED tienes el enlace para reservar tu cita: {{3}} \u2014 elige la hora que mejor te venga.",
+        footer: null,
+        slots: [FIRST_ES, BUSINESS_ES, LINK_ES]
+      }
+    }
+  }
+];
+
+// src/templates/starter-lookup.ts
+function starterByName(name) {
+  return STARTER_TEMPLATES.find((s) => s.name === name) ?? null;
+}
+function starterByKey(key) {
+  return STARTER_TEMPLATES.find((s) => s.key === key) ?? null;
+}
+var STARTER_OF = { lapsed: "quiet_30" };
+function startersOffered(here) {
+  return STARTER_TEMPLATES.filter((s) => {
+    if (s.retired) return false;
+    if (!here.reviewLink && starterText(s, "en_US").slots.some((x) => x.kind === "review_link")) return false;
+    const t = s.trigger ? triggerOf(s.trigger) : null;
+    return !t || triggerOffered(t, here.dealsOn);
+  });
+}
+function starterForTrigger(trigger) {
+  return startersForTrigger(trigger)[0] ?? null;
+}
+function startersForTrigger(trigger) {
+  if (!trigger) return [];
+  const own = STARTER_OF[trigger] ?? trigger;
+  const all = STARTER_TEMPLATES.filter((s) => s.trigger === own);
+  return [...all.filter((s) => !s.retired), ...all.filter((s) => s.retired)];
+}
+function starterSmsText(s, language) {
+  return s.sms?.[language] ?? s.sms?.en_US ?? null;
+}
+function starterEmailText(s, language) {
+  return s.email?.[language] ?? s.email?.en_US ?? null;
+}
+function starterText(s, language) {
+  return s.texts[language] ?? s.texts.en_US;
+}
+function starterDraft(s, language) {
+  const t = starterText(s, language);
+  return {
+    name: s.name,
+    language,
+    category: s.category,
+    body: t.body,
+    footer: t.footer,
+    examples: t.slots.map((x) => x.example)
+  };
+}
+
+// src/templates/template-parts.ts
+function footerOf(components) {
+  if (!Array.isArray(components)) return null;
+  for (const c of components) {
+    if (!c || typeof c !== "object") continue;
+    const part = c;
+    if (String(part.type ?? "").toUpperCase() !== "FOOTER") continue;
+    const text = typeof part.text === "string" ? part.text.trim() : "";
+    if (text) return text;
+  }
+  return null;
+}
+function templateFooter(t) {
+  if (typeof t.footer === "string" && t.footer.trim()) return t.footer.trim();
+  const stored = footerOf(t.components);
+  if (stored) return stored;
+  const s = starterByName(t.name);
+  return s ? starterText(s, t.language ?? "en_US").footer ?? null : null;
+}
+var FILLED_PARTS = ["HEADER", "BODY", "FOOTER", "BUTTONS"];
+var partOf = (components, type) => {
+  if (!Array.isArray(components)) return null;
+  for (const c of components) {
+    if (c && typeof c === "object" && String(c.type ?? "").toUpperCase() === type)
+      return c;
+  }
+  return null;
+};
+var textOf = (part) => {
+  const t = part && typeof part.text === "string" ? part.text.trim() : "";
+  return t || null;
+};
+var BUTTON_KIND = { URL: "url", QUICK_REPLY: "reply", PHONE_NUMBER: "call" };
+function templateParts(components) {
+  const header = partOf(components, "HEADER");
+  const buttons = [];
+  const holder = partOf(components, "BUTTONS");
+  const list2 = holder && Array.isArray(holder.buttons) ? holder.buttons : [];
+  for (const b of list2) {
+    if (!b || typeof b !== "object") continue;
+    const kind = BUTTON_KIND[String(b.type ?? "").toUpperCase()];
+    const text = typeof b.text === "string" ? b.text.trim() : "";
+    if (kind && text) buttons.push({ text, kind });
+  }
+  return {
+    // A picture heading is not words and is not drawn as any.
+    header: header && String(header.format ?? "TEXT").toUpperCase() === "TEXT" ? textOf(header) : null,
+    footer: footerOf(components),
+    buttons
+  };
+}
+function templateBlocked(t) {
+  if (typeof t.blocked === "string") return t.blocked.trim() || null;
+  if (t.blocked === null) return null;
+  const components = t.components;
+  if (!Array.isArray(components)) return null;
+  const unfilled = components.some((c) => {
+    const type = c && typeof c === "object" ? c.type : null;
+    return !(typeof type === "string" && FILLED_PARTS.includes(type.toUpperCase()));
+  });
+  if (unfilled) return "a part Chanlytics cannot fill";
+  const header = partOf(components, "HEADER");
+  if (header) {
+    const format = String(header.format ?? "TEXT").toUpperCase();
+    if (format !== "TEXT")
+      return format === "IMAGE" ? "a picture for a heading" : `a ${format.toLowerCase()} for a heading`;
+    if (/\{\{\d+\}\}/.test(String(header.text ?? ""))) return "a heading that takes a value";
+  }
+  const holder = partOf(components, "BUTTONS");
+  const list2 = holder && Array.isArray(holder.buttons) ? holder.buttons : [];
+  for (const b of list2) {
+    if (!b || typeof b !== "object") continue;
+    const button = b;
+    const type = String(button.type ?? "").toUpperCase();
+    if (!(type in BUTTON_KIND)) return "a button Chanlytics cannot fill";
+    if (type === "URL" && /\{\{\d+\}\}/.test(String(button.url ?? ""))) return "a button that takes a value";
+  }
+  return null;
+}
+function refusedWords(reason) {
+  const said = String(reason ?? "").trim().replace(/[.!?\s]+$/, "");
+  if (!said) return null;
+  const words3 = /^[A-Z0-9_]+$/.test(said) ? said.toLowerCase().replace(/_/g, " ") : said;
+  return `WhatsApp refused this one: ${words3}. Change the words and send it back.`;
+}
+var COUNT_WORDS = ["", "one", "two", "three", "four", "five"];
+function blockedWords(reasons) {
+  const seen = /* @__PURE__ */ new Map();
+  for (const r2 of reasons) seen.set(r2, (seen.get(r2) ?? 0) + 1);
+  const parts2 = [...seen].map(([reason, n]) => `${COUNT_WORDS[n] ?? n} ${n === 1 ? "has" : "have"} ${reason}`);
+  return parts2.length > 1 ? `${parts2.slice(0, -1).join(", ")} and ${parts2[parts2.length - 1]}` : parts2[0];
+}
+function sendableTemplates(list2) {
+  const sendable = [];
+  const blocked = [];
+  for (const t of list2) (templateBlocked(t) ? blocked : sendable).push(t);
+  if (blocked.length === 0) return { sendable, blocked, why: null };
+  const n = blocked.length;
+  const reasons = blocked.map((t) => templateBlocked(t));
+  const words3 = n === 1 ? `it has ${reasons[0]}` : blockedWords(reasons);
+  const many = COUNT_WORDS[n] ?? String(n);
+  const lead = n === 1 ? "One of your messages" : `${many[0].toUpperCase()}${many.slice(1)} of your messages`;
+  return {
+    sendable,
+    blocked,
+    why: `${lead} can't go out from here \u2014 ${words3}. ${n === 1 ? "It still works" : "They still work"} in WhatsApp Manager.`
+  };
+}
+function templateLinkButton(components) {
+  const holder = partOf(components, "BUTTONS");
+  const list2 = holder && Array.isArray(holder.buttons) ? holder.buttons : [];
+  for (const b of list2) {
+    if (!b || typeof b !== "object") continue;
+    const x = b;
+    if (String(x.type ?? "").toUpperCase() !== "URL") continue;
+    const text = typeof x.text === "string" ? x.text.trim() : "";
+    const url = typeof x.url === "string" ? x.url.trim() : "";
+    if (text && url) return { text, url };
+  }
+  return null;
+}
+
+// src/templates/template-titles.ts
+var TEMPLATE_TITLE_MAX = 60;
+function templateTitle(name, title) {
+  const given = typeof title === "string" ? title.replace(/\s+/g, " ").trim() : "";
+  if (given) return given.slice(0, TEMPLATE_TITLE_MAX);
+  const s = starterByName(name);
+  if (s) return s.title;
+  const words3 = String(name ?? "").replace(/_v\d+$/i, "").replace(/_/g, " ").replace(/\s+/g, " ").trim();
+  return words3 ? words3[0].toUpperCase() + words3.slice(1) : String(name ?? "");
+}
+function playbookName(trigger, tpl) {
+  return startersForTrigger(trigger.id).some((s) => s.name === tpl.name) ? trigger.label : `${trigger.label} \xB7 ${templateTitle(tpl.name, tpl.title)}`;
+}
+
+// src/templates/campaign-message.ts
+function variablesSlotCount(variables) {
+  if (!Array.isArray(variables)) return 0;
+  const positions = variables.map((v) => Number(v?.position)).filter((position) => Number.isFinite(position));
+  return Math.max(variables.length, ...positions);
+}
+function metaStatusOf(raw) {
+  return TEMPLATE_STATUSES.find((s) => s === raw) ?? "pending";
+}
+function strictestCategory(categories) {
+  if (categories.some((c) => purposeOfTemplate(c) === "marketing")) return "marketing";
+  return categories.find((c) => c !== null) ?? null;
+}
+function whatsappVersionOf(row2) {
+  const status = metaStatusOf(row2.meta_status);
+  return {
+    id: row2.id,
+    status,
+    hidden: Boolean(row2.hidden_at),
+    blocked: templateBlocked(row2),
+    reason: status === "rejected" ? refusedWords(row2.rejected_reason) : null
+  };
+}
+function messageFrom(name, language, rows2) {
+  const {
+    whatsapp: [w = null],
+    email: [e = null],
+    sms: [s = null]
+  } = versionsOf(rows2, name);
+  const anchorRow = w ?? e ?? s;
+  if (anchorRow === null) return null;
+  const category = w ? w.category ?? null : strictestCategory([e, s].flatMap((r2) => r2 ? [r2.category ?? null] : []));
+  const versions = {
+    whatsapp: w ? whatsappVersionOf(w) : null,
+    email: e ? { id: e.id } : null,
+    sms: s ? { id: s.id } : null
+  };
+  const held = messageHolds({ versions });
+  const hidden = Boolean(anchorRow.hidden_at);
+  const titled = [w, e, s].map((r2) => r2?.title ?? null).find((t) => t !== null && t.trim() !== "") ?? null;
+  return {
+    name,
+    language,
+    title: templateTitle(name, titled),
+    anchor: { id: anchorRow.id, channel: w ? "whatsapp" : e ? "email" : "sms" },
+    slots: variablesSlotCount((w ?? anchorRow).variables),
+    category,
+    purpose: purposeOfTemplate(category),
+    hidden,
+    offered: !hidden && CONSENT_CHANNELS.some((c) => held[c]),
+    versions
+  };
+}
+function campaignMessageOf(rows2, name, language) {
+  return messageFrom(
+    name,
+    language,
+    rows2.filter((r2) => r2.language === language)
+  );
+}
+function campaignMessagesOf(rows2) {
+  const groups = /* @__PURE__ */ new Map();
+  for (const r2 of rows2) {
+    if (isReachOutRow(r2)) continue;
+    const key = JSON.stringify([r2.name, r2.language]);
+    const group = groups.get(key) ?? { name: r2.name, language: r2.language, rows: [] };
+    group.rows.push(r2);
+    groups.set(key, group);
+  }
+  return [...groups.values()].flatMap((g) => {
+    const message = messageFrom(g.name, g.language, g.rows);
+    return message ? [message] : [];
+  });
+}
+function messageHolds(m) {
+  const w = m.versions.whatsapp;
+  return {
+    whatsapp: w !== null && w.status === "approved" && w.blocked === null,
+    email: m.versions.email !== null,
+    sms: m.versions.sms !== null
+  };
+}
+var NOT_APPROVED_WORDS = {
+  pending: "WhatsApp is still reviewing this message's WhatsApp version.",
+  rejected: "WhatsApp refused this message's WhatsApp version.",
+  paused: "WhatsApp has paused this message's WhatsApp version.",
+  disabled: "WhatsApp has disabled this message's WhatsApp version."
+};
+function messageWhyNot(m, channel) {
+  if (messageHolds(m)[channel]) return null;
+  const w = m.versions.whatsapp;
+  if (channel !== "whatsapp" || w === null) return noVersionWords(channel);
+  if (w.status !== "approved") return NOT_APPROVED_WORDS[w.status];
+  return w.blocked === null ? null : `This message's WhatsApp version has ${w.blocked}, so it cannot be sent from here.`;
+}
+var HOLDS_NOTHING = { versions: { whatsapp: null, email: null, sms: null } };
+function readyForMessage(ready, message) {
+  const out = { ...ready };
+  for (const c of CONSENT_CHANNELS) {
+    const why = messageWhyNot(message ?? HOLDS_NOTHING, c);
+    if (ready[c].ready && why !== null) out[c] = { ...ready[c], ready: false, why };
+  }
+  return out;
+}
+var whatsappStandingWord = (status) => TEMPLATE_STATUS_WORDS[status].toLowerCase();
+function messageStandingWords(m) {
+  const at3 = (channel, word) => `${VERSION_CHANNEL_WORDS[channel]} \xB7 ${word}`;
+  const w = m?.versions.whatsapp ?? null;
+  return {
+    whatsapp: at3("whatsapp", w ? whatsappStandingWord(w.status) : "not added"),
+    email: at3("email", m?.versions.email ? "ready" : "not written"),
+    sms: at3("sms", m?.versions.sms ? "ready" : m?.purpose === "marketing" ? "not for offers" : "not written")
+  };
+}
+function whatsappStoppedRunWords(m) {
+  const why = m === null ? null : messageWhyNot(m, "whatsapp");
+  return `${why ?? noVersionWords("whatsapp")} Everyone on this run goes by WhatsApp, so nothing was sent.`;
+}
+var NO_RUN_VERSION_WORDS = "has no version its runs can send";
+var MESSAGE_GONE_WORDS = {
+  card: `Its message ${NO_RUN_VERSION_WORDS}, so they are skipped until it has one again or the campaign sends another.`,
+  composer: (title) => `Its message, ${title}, ${NO_RUN_VERSION_WORDS} any more. Pick another to save a change.`
+};
+var RUN_NOW_WITHOUT_VERSION_WORDS = "Its message has no WhatsApp version a run can send, and nobody it would reach goes by email or text. Pick another message, or give this one an email or a text version and tick it on the campaign.";
+var STARTER_LINE_WORDS = {
+  /** The send screen, with no message it can send yet: how many starters' WhatsApp versions WhatsApp is still reviewing. */
+  reviewing: (n) => `Your starter messages' WhatsApp versions are in review (${n}) \u2014 they appear here once approved, usually within minutes.`,
+  /** The playbook composer, after the moment's own message and a comma: where its WhatsApp version stands. */
+  standing: (status) => {
+    const at3 = metaStatusOf(status);
+    return at3 === "pending" ? "has its WhatsApp version in review \u2014 it appears here once approved, usually within minutes." : `has its WhatsApp version ${whatsappStandingWord(at3)} \u2014 see ${CAMPAIGN_ROOMS.home} \u203A ${CAMPAIGN_ROOMS.library}.`;
+  },
+  /**
+   * The link that adds the moment's own message: its email and text versions at once, a WhatsApp version where a number
+   * is, which the line says once it is in review (`standing`). The link was the whole of that, in 25 words.
+   */
+  add: "Add it",
+  /** After the moment's own message's name, where it is not added yet: "Win-back, written for you". */
+  written: "written for you"
+};
+var THEIRS_WORDS = "about something they booked, or a proposal of theirs";
+var MESSAGE_BEGIN_WORDS = {
+  customIsAnOffer: "A message you write is an offer or news. Only a starter is a reminder, a check after or a follow-up.",
+  /**
+   * A message written whole (POST templates/message, Ask's message card) takes one about their own booking or proposal,
+   * written with a WhatsApp version for WhatsApp to review: never with an email or a text alone, which nobody reviews.
+   * Its own sentence, since customIsAnOffer (POST templates/versions's) is not true of this door.
+   */
+  utilityNeedsWhatsapp: `A message ${THEIRS_WORDS}, needs a WhatsApp version, which WhatsApp reviews.`,
+  starterNeedsItsOwnWords: "A starter begins with its own words. Add the starter set, then change the words in Messages.",
+  doorNotSwitchedOn: "Writing a message with no WhatsApp version is not switched on here yet.",
+  /**
+   * A message written whole in a language of a message already on file in another, said as something else (POST
+   * templates/message): a language of a message is the same kind of message with the same values, its kind what a send
+   * judges it by (consent purposeOfTemplate: a row with no category is an offer), so `purpose` is the held one's.
+   */
+  heldOtherwise: (purpose, slots) => `This message is on file in another language as ${purpose === "marketing" ? "an offer or news" : `a message ${THEIRS_WORDS},`} with ${slots} value${slots === 1 ? "" : "s"}. Write this language the same way, or give it another name.`,
+  /**
+   * A name on file in another language as a code for signing in (Meta's `authentication`): no campaign sends one, so no
+   * kind of message is written beside it, and "write it the same way" would be no way out.
+   */
+  heldAuthentication: "This name is on file in another language as a code for signing in, which no campaign sends. Give this message another name."
+};
+
+// src/ask-proposals/campaigns.ts
+var RUN_VERBS = ["approve", "skip"];
+function proposalChannelsWords(channels, byChannel) {
+  const goes = channelsWords(channels);
+  const carrying = channels.filter((c) => byChannel[c] > 0);
+  if (carrying.length < 2) return goes;
+  return `${goes} (${carrying.map((c) => `${byChannel[c].toLocaleString("en-US")} ${CONSENT_CHANNEL_WORDS[c]}`).join(", ")})`;
+}
+var PLAYBOOK_CARD_REFUSALS = {
+  /** A typed slot the proposal gave no words for: a question for the person. */
+  typedSlot: (label) => `this template takes typed words for \u201C${label}\u201D; ask the person what to say there, then propose again with params`,
+  value: "each value is text, or @first_name, @business_name, @booking_link or @review_link, or @visit_when or @visit_service on a reminder or a check after an appointment, or @proposal_link on the proposal follow-up",
+  plainText: "every typed value must be plain text under 1024 characters, without line breaks",
+  /** The moment's starter, hidden in this workspace's Library: no card adds it back. */
+  starterHidden: (title, from) => `${LIBRARY_STARTER_WORDS.hiddenInLibrary(title)} Say so; ${from} names the messages that may send.`,
+  starterUnsent: (title, from) => `the \u201C${title}\u201D starter has no version this workspace can send yet; say so and suggest adding the starter set under ${CAMPAIGN_ROOMS.home} \u203A ${CAMPAIGN_ROOMS.library}, or name a message from ${from}`,
+  hiddenTemplate: (from) => `that template is one the workspace keeps out of the composers; ${from} names the ones that may send`,
+  noList: (from) => `no such list; ${from} names them`,
+  uncounted: (list2, why) => `${list2} can't be counted right now: ${why}`,
+  /**
+   * A second running campaign on the same moment, list and message, where they named none of its own (D9). The model's
+   * words, when the card is made; a card's start that meets one is answered in twinRunsWords, the owner's.
+   */
+  twin: (name) => `\u201C${name}\u201D already runs on this moment with this message: say so, and propose a second only when they ask for another by a name of its own`,
+  followUpsUnread: "who already had a proposal follow-up could not be read just now; say so, and try again in a moment",
+  /**
+   * The week's breath: every message sent or due within a week of a run, a member's own too, holds its person, so the
+   * count waits on it. The stem a broadcast's door says it in (core createBroadcast).
+   */
+  weekUnread: "who has had a message from you lately, or has one due, could not be read just now; say so, and try again in a moment",
+  /**
+   * The autonomy modes, unread: what a card says of its runs (and of a trial, which only an auto class starts on, D5)
+   * is its class's mode, so no card is made on a guess, and a change's card is not either (act/playbook-change.ts).
+   */
+  modeUnread: "the sending mode of this campaign's class could not be read just now, so the card cannot say what its runs would do; say so, and try again in a moment",
+  /** The action named a message and a starter both: a campaign sends one. */
+  starterOrMessage: "name template_id for a message the workspace holds, or starter for the moment's starter to file at Approve, never both",
+  trigger: (triggers) => `trigger must be one of ${triggers.join(", ")}`,
+  listToken: (from) => `a playbook on a list needs list: the list's token from ${from} (seg:<id> or list:<id>)`,
+  templateId: (from) => `template_id must be an id ${from} returned, or omitted for the trigger's starter`
+};
+var twinRunsWords = (name) => `\u201C${name}\u201D already runs on this moment with this message, so nothing was started.`;
+var PLAYBOOK_CARD_WORDS = {
+  /**
+   * A campaign that starts on trial (D5: under an auto class only): for its first week, counted from its Approve
+   * (contracts newCampaignTrialUntil, at the route's clock), each run waits for a Stop as veto's do, said in veto's own
+   * words (PLAYBOOK_VETO_DELAY_WORDS), so a sentence that says both the trial and veto names one wait.
+   */
+  trial: `on trial for a week from when you approve it: for seven days each run waits ${PLAYBOOK_VETO_DELAY_WORDS} with a Stop`,
+  /**
+   * A reminder the day before or a check after an appointment (D2): one message per appointment, sent whatever else
+   * the person hears from you within a week of it, sent or due (BREATH_WHY), since the run is daily and the appointment
+   * is on one day (contracts playbookRunReach), so the week's breath, which holds every other moment, does not hold it.
+   */
+  appointmentBreath: `exempt from one a week per person: each goes whatever else they hear ${BREATH_WHY}`
+};
+var stepOfferWords = (quotes) => quotes.length === 0 ? "" : `, with the offer ${joinWords(quotes)}`;
+var channelsNamed = (pl) => Array.isArray(pl.channels) ? { channels: pl.channels } : {};
+var cancelCall = (u) => ({
+  route: "POST broadcasts/[id]/cancel",
+  params: { id: asText(u.broadcast_id) }
+});
+var canceled = (data) => rec(data).was === "sending" ? "Stopped \u2014 it ends after this batch" : "Canceled \u2014 nothing will send";
+var broadcastSpec = {
+  needs: "operator",
+  gate: "approve",
+  commit: ({ payload: pl }) => ({
+    route: "POST broadcasts",
+    body: {
+      template_id: pl.template_id,
+      params: Array.isArray(pl.params) ? pl.params : [],
+      audience: { kind: pl.audience_kind, id: pl.audience_id ?? null },
+      scheduled_for: pl.scheduled_for ?? null,
+      name: pl.name ?? null,
+      ...channelsNamed(pl)
+    }
+  }),
+  // The count and the name are the route's answer where it gave them, the card's where it did not: who it goes to, the
+  // people it enrolled less those it left out for the breath (goesToOf), and how many were left out.
+  receipt: ({ payload: pl }, data) => {
+    const d = rec(data);
+    const leftOut2 = typeof d.left_out === "number" ? d.left_out : 0;
+    const n = typeof d.recipient_count === "number" ? goesToOf({ recipient_count: d.recipient_count, left_out: leftOut2 }) : Number(pl.count ?? 0);
+    const ahead = d.scheduled_ahead === true;
+    const said = heardWords(leftOut2, true);
+    return `Broadcast \u201C${d.name ?? asText(pl.name)}\u201D \u2014 ${n} ${n === 1 ? "person" : "people"}, ${ahead ? "scheduled" : SENDING_NOW_WORDS}${said ? ` \xB7 ${said}` : ""}`;
+  },
+  undo: {
+    label: () => "Cancel it, if it has not finished",
+    window: "ten_minutes",
+    record: (_p, data) => ({ broadcast_id: rec(data).id, decision_id: decisionOf(data) }),
+    call: cancelCall,
+    receipt: canceled
+  },
+  open: () => "broadcasts"
+};
+var playbookSpec = {
+  needs: "operator",
+  gate: "approve",
+  commit: ({ payload: pl }) => ({
+    route: "POST playbooks",
+    body: {
+      name: pl.name ?? null,
+      trigger: pl.trigger,
+      // On a list (decision 0009): the list it names, and whether it sends an offer or a win-back.
+      ...pl.list_key ? { list_key: pl.list_key } : pl.list_id ? { list_id: pl.list_id } : {},
+      ...pl.list_key || pl.list_id ? { policy_class: pl.policy_class } : {},
+      // A starter named and no message (A0): the route files the starter, then starts the playbook on it.
+      ...pl.starter_key && !pl.template_id ? { starter_key: pl.starter_key } : { template_id: pl.template_id },
+      params: Array.isArray(pl.params) ? pl.params : [],
+      run_hour: pl.run_hour,
+      cap_per_run: pl.cap_per_run,
+      gap_days: pl.gap_days,
+      cadence_days: pl.cadence_days,
+      ...channelsNamed(pl),
+      // It starts on trial (D5), where the card said so: the route counts the week from the Approve, at its own clock.
+      ...pl.trial === true ? { trial: true } : {},
+      // Its last day (00416), where the card named one: the route judges it again at its own clock.
+      ...typeof pl.until === "string" ? { until: pl.until } : {}
+    }
+  }),
+  // "Campaign", the word a person reads; and, where the route says it sent the starter's WhatsApp version for review, so.
+  receipt: ({ payload: pl }, data) => `Campaign \u201C${rec(data).name ?? asText(pl.name)}\u201D is running \u2014 its next run is under Coming up in Campaigns${rec(rec(data).starter).status === "submitted" ? " \xB7 its starter's WhatsApp version is with WhatsApp for review" : ""}`,
+  undo: {
+    label: () => "Delete it \u2014 nothing will run",
+    window: "ten_minutes",
+    record: (_p, data) => ({ playbook_id: rec(data).id, decision_id: decisionOf(data) }),
+    call: (u) => ({ route: "DELETE playbooks/[id]", params: { id: asText(u.playbook_id) } }),
+    receipt: () => "Deleted \u2014 nothing will run"
+  },
+  // The new campaign's sequence once it is made (spec 2026-10-09 §4.6, one landing rule: `campaigns/moment:<id>` lands on
+  // it), by the id its commit kept for the undo, as the list card opens the list it made; before then New sequence on its
+  // moment, its line written in, and Sequences where the card names no moment (the composer's moment mode went: the
+  // closed-loop audit of 17 Oct 2026, G).
+  open: ({ payload }, outcome) => {
+    const id = idIn(rec(outcome?.undo), "playbook_id");
+    if (id) return `campaigns/moment:${id}`;
+    const trigger = idIn(payload, "trigger");
+    return trigger ? newSequenceRoute(trigger) : "outbound";
+  }
+};
+var channelsIn = (v) => Array.isArray(v) ? CONSENT_CHANNELS.filter((c) => v.includes(c)) : [];
+var playbookChannelsSpec = {
+  needs: "operator",
+  gate: "approve",
+  commit: ({ payload: pl }) => {
+    const id = idIn(pl, "playbook_id");
+    const channels = channelsIn(pl.channels);
+    if (!id || channels.length === 0) return refuseWith(PROPOSAL_WORDS.cannotApprove);
+    return { route: "PUT playbooks/[id]", params: { id }, body: { channels } };
+  },
+  // The drawer's own sentence, whole (LIFECYCLE_TOAST.channels): "Visit reminder goes by WhatsApp and Email now", and
+  // after it that the run which waits keeps the channels it was made with, where one does.
+  receipt: ({ payload: pl }) => LIFECYCLE_TOAST.channels(asText(pl.name) || "The campaign", channelsIn(pl.channels), pl.run_waits === true).map((part) => typeof part === "string" ? part : part.b).join(""),
+  undo: {
+    label: ({ payload }) => `Put it back to ${channelsGoesByWords(channelsIn(payload.was))}`,
+    window: "ten_minutes",
+    // The channels the route found when it wrote (its answer's `was`), the card's own reading where an older route
+    // answers none.
+    record: (p, data) => ({ playbook_id: p.payload.playbook_id, was: wasIn(data, "channels") ?? p.payload.was }),
+    call: (u) => {
+      const was = channelsIn(u.was);
+      return was.length === 0 || !asText(u.playbook_id) ? refuseWith(PROPOSAL_WORDS.noUndo) : { route: "PUT playbooks/[id]", params: { id: asText(u.playbook_id) }, body: { channels: was } };
+    },
+    receipt: () => "Its channels are as they were"
+  },
+  // Its sequence (`campaigns/moment:<id>` lands on it), where its record shows what it goes by now.
+  open: ({ payload }) => {
+    const id = idIn(payload, "playbook_id");
+    return id ? `campaigns/moment:${id}` : "outbound";
+  }
+};
+var patchIn = (pl) => Object.fromEntries(
+  PLAYBOOK_PATCH_KEYS.filter((k) => pl[k] !== void 0 && (pl[k] !== null || PLAYBOOK_PATCH_CLEARS.includes(k))).map(
+    (k) => [k, pl[k]]
+  )
+);
+var resumeUndoLabel = (mode) => mode === "auto" ? `Resume it. ${LIFECYCLE_WORDS.ledger.resume.auto}` : "Resume it";
+var toastWords = (parts2) => parts2.map((part) => typeof part === "string" ? part : part.b).join("");
+var playbookChangeSpec = {
+  needs: "operator",
+  gate: "approve",
+  commit: ({ payload: pl }) => {
+    const id = idIn(pl, "playbook_id");
+    const body = patchIn(pl);
+    if (!id || Object.keys(body).length === 0) return refuseWith(PROPOSAL_WORDS.cannotApprove);
+    return { route: "PUT playbooks/[id]", params: { id }, body };
+  },
+  receipt: ({ payload: pl }, data) => {
+    const name = asText(rec(data).name ?? pl.name ?? pl.playbook_name) || LIFECYCLE_TOAST.nameless;
+    if (pl.state === "paused") return toastWords(LIFECYCLE_TOAST.paused(name));
+    if (pl.state === "running") return toastWords(LIFECYCLE_TOAST.resumed(name));
+    return toastWords(LIFECYCLE_TOAST.changed(name));
+  },
+  undo: {
+    label: ({ payload }) => payload.state === "paused" ? resumeUndoLabel(payload.mode) : payload.state === "running" ? "Pause it again" : "Put it back",
+    window: "ten_minutes",
+    // What the route found when it wrote (its answer's `was`), the card's own reading only where a route answers none, and
+    // the ledger row the change wrote, which the undo names (commit.ts: undo_of). A route that wrote nothing (somebody
+    // made the same change first) answers it empty: no undo, which would undo theirs.
+    record: (p, data) => {
+      const was = rec(data).was;
+      if (was && typeof was === "object" && Object.keys(was).length === 0) return null;
+      return {
+        playbook_id: p.payload.playbook_id,
+        was: was && typeof was === "object" ? was : p.payload.was,
+        decision_id: decisionOf(data)
+      };
+    },
+    call: (u) => {
+      const was = patchIn(rec(u.was));
+      return !asText(u.playbook_id) || Object.keys(was).length === 0 ? refuseWith(PROPOSAL_WORDS.noUndo) : { route: "PUT playbooks/[id]", params: { id: asText(u.playbook_id) }, body: was };
+    },
+    receipt: () => "It is as it was"
+  },
+  // Its drawer on Campaigns, where its state, clock and name are.
+  open: ({ payload }) => {
+    const id = idIn(payload, "playbook_id");
+    return id ? `campaigns/moment:${id}` : "outbound";
+  }
+};
+function runGoes(pl, data) {
+  const d = rec(data);
+  const at3 = Date.parse(asText(d.scheduled_for));
+  const from = Date.parse(asText(d.moved_from));
+  const tz = asText(pl.timezone) || "UTC";
+  const asked = Number.isFinite(from) ? from : at3;
+  return whenItGoes(
+    { scheduled_for: asText(d.scheduled_for) || null, moved_from: asText(d.moved_from) || null },
+    (ms2) => clockWhen(ms2, tz, asked),
+    asked
+  );
+}
+var skipped = (data) => {
+  const was = rec(data).was;
+  return was === "sending" ? "stops after this batch" : was === "pending_approval" ? "skipped \u2014 nothing will send" : "canceled \u2014 nothing will send";
+};
+var runSpec = {
+  needs: "operator",
+  gate: "approve",
+  // The run's own doors, as the Playbooks card and the Broadcasts sheet press them: approve sends it, skip is its
+  // cancel. The verb is the card's to say (no default, the Phase 4 plan, D11): a card that says neither is never sent.
+  commit: ({ payload: pl }) => {
+    const id = idIn(pl, "broadcast_id");
+    if (!id || !RUN_VERBS.includes(pl.verb)) return refuseWith(PROPOSAL_WORDS.cannotApprove);
+    return {
+      route: pl.verb === "approve" ? "POST broadcasts/[id]/approve" : "POST broadcasts/[id]/cancel",
+      params: { id }
+    };
+  },
+  // The Broadcasts page's words: approved, with how many and when it goes; or what the skip did.
+  receipt: ({ payload: pl }, data) => {
+    const name = asText(pl.name) || "The run";
+    if (pl.verb !== "approve") return `${name} ${skipped(data)}`;
+    const n = Number(rec(data).recipient_count ?? pl.people ?? 0);
+    return `${name} ${runApprovedTail(n, runGoes(pl, data))}`;
+  },
+  // An approved run is canceled as a broadcast is; a skip has nothing to undo.
+  undo: {
+    label: ({ payload }) => payload.verb === "approve" ? "Cancel it, if it has not finished" : null,
+    window: "ten_minutes",
+    record: (p, data) => p.payload.verb === "approve" ? { broadcast_id: rec(data).id, decision_id: decisionOf(data) } : null,
+    call: cancelCall,
+    receipt: canceled
+  },
+  // The run's sheet, where Today and the Playbooks card open it.
+  open: ({ payload }) => {
+    const id = idIn(payload, "broadcast_id");
+    return id ? `broadcasts/run:${id}` : "broadcasts";
+  }
+};
+var playbookRunSpec = {
+  needs: "operator",
+  gate: "approve",
+  commit: ({ payload: pl }) => {
+    const id = idIn(pl, "playbook_id");
+    return id ? { route: "POST playbooks/[id]/run", params: { id } } : refuseWith(PROPOSAL_WORDS.cannotApprove);
+  },
+  receipt: ({ payload: pl }, data) => {
+    const d = rec(data);
+    const name = asText(d.name ?? pl.name) || LIFECYCLE_TOAST.nameless;
+    const n = Number(d.eligible) || 0;
+    const people = `${n} ${n === 1 ? "person" : "people"}`;
+    if (d.outcome === "sent") return `${name} \u2014 ${people}, ${runGoes(pl, data)}`;
+    if (d.outcome === "held") return `${name} \u2014 ${people} waiting for your approval`;
+    return `${name} \u2014 nobody new to send to right now`;
+  },
+  undo: {
+    label: () => "Cancel it, if it has not finished",
+    window: "ten_minutes",
+    record: (_p, data) => {
+      const d = rec(data);
+      const id = asText(d.broadcast_id);
+      return d.outcome === "sent" && id ? { broadcast_id: id, decision_id: decisionOf(data) } : null;
+    },
+    call: cancelCall,
+    receipt: canceled
+  },
+  open: ({ payload }) => {
+    const id = idIn(payload, "playbook_id");
+    return id ? `campaigns/moment:${id}` : "outbound";
+  }
+};
+var whatsappFiledWords = (state) => {
+  const at3 = metaStatusOf(state);
+  const where = `(see ${CAMPAIGN_ROOMS.home} \u203A ${CAMPAIGN_ROOMS.library})`;
+  if (at3 === "approved") return "is approved";
+  if (at3 === "pending") return "is with WhatsApp for review";
+  return at3 === "rejected" ? `was refused by WhatsApp ${where}` : `is ${at3} by WhatsApp ${where}`;
+};
+var versionsWords = (own) => `${own.map(versionWord).join(" and ")} version${own.length === 1 ? "" : "s"}`;
+var MESSAGE_WORDS = {
+  /** A text version of an offer: the door's sentence (contracts channelNeverCarries). */
+  smsOffer: `${CHANNEL_WORDS.noOffersByText} Say so, and write the offer for WhatsApp and email alone.`,
+  /** A message about their own booking or proposal with no WhatsApp version for WhatsApp to review: the door's sentence. */
+  utilityNeedsWhatsapp: `${MESSAGE_BEGIN_WORDS.utilityNeedsWhatsapp} Add one, or write it as an offer or news (marketing).`,
+  /** A WhatsApp version past what WhatsApp takes: the door's sentence (templateBodyTooLong). */
+  tooLong: `${TEMPLATE_BODY_WORDS} Shorten its WhatsApp version, and propose it again.`,
+  /** A WhatsApp version where no number is connected: what the door answers when the edge finds none. */
+  noNumber: `${LIBRARY_WORDS.writeNeedsNumber} Say so, and write it for email or text alone, or once a number is connected.`,
+  /**
+   * An email version where email cannot send, which is known (channelsReady: no mailbox, or no email for the deployment):
+   * why, in its sentence, else the mailbox's.
+   */
+  noMailbox: (why) => `${why ?? CHANNEL_WORDS.noMailbox} Say so, and write it without an email version.`,
+  /**
+   * An email version where whether email can send could not be asked just now (channelsReady's `unchecked`): not a no, so
+   * the email stays in the message, and the card is asked for again in a moment.
+   */
+  emailUnchecked: `Whether email can send here could not be checked just now. Say so, and propose it again in a moment, with its email version.`,
+  /** A name and language the Library holds: the door's sentence for a twin, and where that message's versions change. */
+  twin: (name) => `${TEMPLATE_SAME_NAME_WORDS} Say so: \u201C${name}\u201D in this language is in ${CAMPAIGN_ROOMS.home} \u203A ${CAMPAIGN_ROOMS.library}, where its versions are changed.`,
+  /** The card's title: the name the door files the message under, and its language in words ("in English"). */
+  title: (name, language) => `${CAMPAIGN_ROOMS.newMessage}: ${name}, in ${languageName(language)}`,
+  /**
+   * When its versions are ready to send: an email's and a text's once Approve files them (the card itself sends nothing,
+   * and in a plan it sits among the silent steps), WhatsApp's once WhatsApp has reviewed it, in the product's voice (a
+   * person reads WhatsApp, never Meta, as STARTER_LINE_WORDS say the review).
+   */
+  goes: (now, review) => {
+    const reviewed = "once WhatsApp has reviewed it (usually minutes, sometimes a day)";
+    if (now.length === 0) return review ? `Its WhatsApp version is ready ${reviewed}` : "";
+    return `Ready ${channelsWords(now)} once approved${review ? `; its WhatsApp version ${reviewed}` : ""}`;
+  },
+  /**
+   * What the door filed (its answer): each version, ready, in review or as WhatsApp answered its filing (refused at once,
+   * say, which is said with where it is seen), and the one it could not file, in its words.
+   */
+  filed: (name, filed, refused) => {
+    const said = filed.map(
+      (v) => v.channel === "whatsapp" ? `its WhatsApp version ${whatsappFiledWords(v.state)}` : `its ${versionWord(v.channel)} version is ready`
+    );
+    if (said.length === 0) return `\u201C${name}\u201D was not filed${refused ? `: ${refused.words}` : ""}`;
+    const not = refused ? ` \xB7 its ${versionWord(refused.channel)} version was not filed: ${refused.words}` : "";
+    return `\u201C${name}\u201D is in ${CAMPAIGN_ROOMS.library} \u2014 ${said.join("; ")}${not}`;
+  },
+  /** The undo's button: the email and text versions it deletes; none where the card writes none. */
+  undo: (own) => own.length > 0 ? `Delete its ${versionsWords(own)}` : null,
+  /**
+   * What the undo did: those versions deleted, and the WhatsApp version, where the door filed one, left, said so, and
+   * where a person deletes it if it should go.
+   */
+  undone: (own, whatsapp) => {
+    const gone = `Its ${versionsWords(own)} ${own.length === 1 ? "is" : "are"} deleted`;
+    return whatsapp ? `${gone}. Its WhatsApp version stays, held by WhatsApp: delete it in ${CAMPAIGN_ROOMS.home} \u203A ${CAMPAIGN_ROOMS.library} if it should go.` : gone;
+  },
+  /**
+   * An undo refused part-way: the versions already deleted, the ones that are not, and the door's refusal; nothing deleted
+   * yet, the refusal alone. Pressed again, the deleted ones are answered as they were and the rest is tried.
+   */
+  partlyUndone: (gone, left, refused) => gone.length === 0 ? refused : `Its ${versionsWords(gone)} ${gone.length === 1 ? "is" : "are"} deleted; its ${versionsWords(left)} ${left.length === 1 ? "is" : "are"} not: ${refused}`
+};
+var versionsIn = (v) => Array.isArray(v) ? v.map(rec).flatMap(
+  (x) => CONSENT_CHANNELS.includes(x.channel) && typeof x.id === "string" && x.id ? [{ channel: x.channel, id: x.id, state: asText(x.state) }] : []
+) : [];
+var writtenHere = (c) => c !== "whatsapp";
+var ownKept = (u) => versionsIn(u.versions).map((v) => v.channel).filter(writtenHere);
+var messageSpec = {
+  needs: "operator",
+  gate: "approve",
+  commit: ({ payload: pl }) => {
+    const name = asText(pl.name);
+    const versions = rec(pl.versions);
+    if (!name || Object.keys(versions).length === 0) return refuseWith(PROPOSAL_WORDS.cannotApprove);
+    return {
+      route: "POST templates/message",
+      body: {
+        name,
+        language: pl.language,
+        category: pl.category,
+        versions,
+        slots: Array.isArray(pl.slots) ? pl.slots : []
+      }
+    };
+  },
+  receipt: ({ payload: pl }, data) => {
+    const d = rec(data);
+    const refused = rec(d.refused);
+    const not = CONSENT_CHANNELS.includes(refused.channel) ? { channel: refused.channel, words: asText(refused.words) } : null;
+    return MESSAGE_WORDS.filed(asText(d.name ?? pl.name), versionsIn(d.versions), not);
+  },
+  // The first version the door filed: a broadcast and a playbook take any version's id for the message (core
+  // templateValues), so a plan's send names this one. None where nothing was filed.
+  made: (_p, data) => versionsIn(rec(data).versions).at(0)?.id ?? null,
+  undo: {
+    // The versions the card writes that an undo can delete, in the order the door files them.
+    label: ({ payload }) => MESSAGE_WORDS.undo(OWN_VERSION_CHANNELS.filter((c) => rec(payload.versions)[c] != null)),
+    window: "ten_minutes",
+    // The email and text versions the door answered it filed, and the state of a WhatsApp version it filed beside them.
+    record: (_p, data) => {
+      const filed = versionsIn(rec(data).versions);
+      const own = filed.filter((v) => writtenHere(v.channel)).map(({ channel, id }) => ({ channel, id }));
+      if (own.length === 0) return null;
+      return { versions: own, whatsapp: filed.find((v) => v.channel === "whatsapp")?.state ?? null };
+    },
+    call: (u) => {
+      const own = versionsIn(u.versions).filter((v) => writtenHere(v.channel));
+      return own.length === 0 ? refuseWith(PROPOSAL_WORDS.noUndo) : own.map(
+        // A version gone already (an earlier press deleted it, or a member did) is what the undo wants.
+        (v) => ({ route: "DELETE templates/versions/[id]", params: { id: v.id }, goneIsDone: true })
+      );
+    },
+    receipt: (_data, u) => MESSAGE_WORDS.undone(ownKept(u), u.whatsapp != null),
+    // The calls go in the order the kept versions are named, so the first `landed` of them are the ones deleted.
+    partial: (u, landed, refused) => {
+      const own = ownKept(u);
+      return MESSAGE_WORDS.partlyUndone(own.slice(0, landed), own.slice(landed), refused);
+    }
+  },
+  open: () => "messages"
+};
+
+// src/reach-out/reach-out-dtos.ts
+var REACH_OUT_PREVIEW_INDEX_MAX = 199;
+var REACH_OUT_DECISIONS = ["include", "rewrite", "skip", "not_a_fit"];
+var REACH_OUT_SAID_OUTCOMES = ["sent", "not_sent"];
 
 // src/broadcasts/reach-any.ts
 var READY_WHATSAPP_ALONE = {
@@ -18773,548 +20706,11 @@ function toApprovalVM(d, opts) {
     hiThere: greets ? d.recipients.filter((r2) => !r2.first_name).length : 0,
     // One word per act (decision 19 of the spec of 9 Oct 2026), as Today's row and the ledger say it; when it goes is said
     // once, beside it (`goes`): the button said it again ("Approve — 3 now").
-    approve: refusal ? null : LIFECYCLE_WORDS.ledger.approve(will),
+    approve: refusal ? null : runApproveWords(will),
     expired: refusal,
     goes: late ? `made for ${opts.day(runFor)}` : opts.paused ? "waits until billing resumes" : opts.open.moved ? `goes at ${opts.open.time} once you approve it` : "goes the moment you approve it",
     skip: "Skipping loses this run only \u2014 the campaign keeps running."
   };
-}
-
-// src/templates/starter-templates.ts
-var STARTER_LANGUAGES = [
-  { id: "en_US", label: "English" },
-  { id: "es", label: "Spanish" }
-];
-function messageLanguageCode(language) {
-  const base = languageBase(language);
-  return STARTER_LANGUAGES.find((l) => languageBase(l.id) === base)?.id ?? language;
-}
-var FIRST = { kind: "first_name", label: "First name", example: "Dani" };
-var BUSINESS = { kind: "business_name", label: "Business name", example: "Luna Studio" };
-var LINK = { kind: "booking_link", label: "Booking link", example: "https://booksy.com/luna-studio" };
-var FIRST_ES = { ...FIRST, label: "Nombre" };
-var BUSINESS_ES = { ...BUSINESS, label: "Nombre del negocio" };
-var LINK_ES = { ...LINK, label: "Enlace de reservas" };
-var WHEN = { kind: "visit_when", label: "When", example: "tomorrow at 2:00 PM" };
-var SERVICE = { kind: "visit_service", label: "Service", example: "a consultation" };
-var WHEN_ES = { ...WHEN, label: "Cu\xE1ndo", example: "ma\xF1ana a las 2:00 PM" };
-var SERVICE_ES = { ...SERVICE, label: "Servicio", example: "una consulta" };
-var PROPOSAL = {
-  kind: "proposal_link",
-  label: "Proposal link",
-  example: "https://docs.example.com/proposal"
-};
-var PROPOSAL_ES = { ...PROPOSAL, label: "Enlace de la propuesta" };
-var REVIEW = { kind: "review_link", label: "Review link", example: "https://g.page/r/example/review" };
-var REVIEW_ES = { ...REVIEW, label: "Enlace de rese\xF1as" };
-var OFFER = { kind: "text", label: "The offer", example: "20% off any service booked before Friday." };
-var OFFER_ES = {
-  kind: "text",
-  label: "La oferta",
-  example: "20% de descuento en cualquier servicio reservado antes del viernes."
-};
-var STOP_EN = SENDER_WORDS.en.textStop;
-var STOP_ES = SENDER_WORDS.es.textStop;
-var STARTER_TEMPLATES = [
-  /* ---- The set (2 Oct 2026), in the order a composer opens on ---- */
-  {
-    // An offer, and honest about it: it waits for a yes to offers. It asks for a reply rather than sending them to a
-    // link, so it needs no booking link on file, and what comes back is a conversation the receptionist can carry.
-    key: "winback_reply",
-    name: "winback_reply",
-    title: "Win-back",
-    purpose: "for anyone who has gone quiet",
-    category: "marketing",
-    trigger: "quiet_30",
-    texts: {
-      en_US: {
-        body: "Hi {{1}}, it's been a while since we last saw you at {{2}}. We'd love to see you again: reply with a day that suits you and we'll find you a time.",
-        footer: STOP_EN,
-        slots: [FIRST, BUSINESS]
-      },
-      es: {
-        body: "Hola {{1}}, hace tiempo que no te vemos en {{2}}. Nos encantar\xEDa volver a verte: responde con el d\xEDa que mejor te venga y te buscamos una hora.",
-        footer: STOP_ES,
-        slots: [FIRST_ES, BUSINESS_ES]
-      }
-    },
-    email: {
-      en_US: {
-        subject: "It's been a while",
-        body: "Hi {{1}},\n\nIt's been a while since we last saw you at {{2}}, and we'd love to see you again.\n\nReply with a day that suits you and we'll find you a time."
-      },
-      es: {
-        subject: "Hace tiempo que no te vemos",
-        body: "Hola {{1}}:\n\nHace tiempo que no te vemos en {{2}}, y nos encantar\xEDa volver a verte.\n\nResponde con el d\xEDa que mejor te venga y te buscamos una hora."
-      }
-    }
-  },
-  {
-    key: "this_months_offer",
-    name: "this_months_offer",
-    title: "This month's offer",
-    purpose: "for everyone who said yes to offers, once a month",
-    category: "marketing",
-    trigger: "everyone_monthly",
-    texts: {
-      en_US: {
-        body: "Hi {{1}}, this month at {{2}}: {{3}} Book here: {{4}} or reply with a day that suits you.",
-        footer: STOP_EN,
-        slots: [FIRST, BUSINESS, OFFER, LINK]
-      },
-      es: {
-        body: "Hola {{1}}, este mes en {{2}}: {{3}} Reserva aqu\xED: {{4}} o responde con el d\xEDa que mejor te venga.",
-        footer: STOP_ES,
-        slots: [FIRST_ES, BUSINESS_ES, OFFER_ES, LINK_ES]
-      }
-    },
-    email: {
-      en_US: {
-        subject: "This month at {{2}}",
-        body: "Hi {{1}},\n\nThis month at {{2}}: {{3}}\n\nBook here: {{4}}, or reply with a day that suits you."
-      },
-      es: {
-        subject: "Este mes en {{2}}",
-        body: "Hola {{1}}:\n\nEste mes en {{2}}: {{3}}\n\nReserva aqu\xED: {{4}}, o responde con el d\xEDa que mejor te venga."
-      }
-    }
-  },
-  {
-    key: "visit_reminder",
-    name: "visit_reminder",
-    title: "Visit reminder",
-    purpose: "for the day before an appointment",
-    category: "utility",
-    trigger: "visit_tomorrow",
-    texts: {
-      en_US: {
-        body: "Hi {{1}}, it's {{2}}. A reminder of your appointment {{3}} for {{4}}. If you need to change it, just reply here.",
-        footer: null,
-        slots: [FIRST, BUSINESS, WHEN, SERVICE]
-      },
-      es: {
-        body: "Hola {{1}}, te escribimos de {{2}}. Te recordamos tu cita {{3}} para {{4}}. Si necesitas cambiarla, responde aqu\xED.",
-        footer: null,
-        slots: [FIRST_ES, BUSINESS_ES, WHEN_ES, SERVICE_ES]
-      }
-    },
-    email: {
-      en_US: {
-        subject: "Your appointment {{3}}",
-        body: "Hi {{1}},\n\nA reminder of your appointment at {{2}} {{3}} for {{4}}.\n\nIf you need to change it, just reply to this email."
-      },
-      es: {
-        subject: "Tu cita {{3}}",
-        body: "Hola {{1}}:\n\nTe recordamos tu cita en {{2}} {{3}} para {{4}}.\n\nSi necesitas cambiarla, responde a este correo."
-      }
-    },
-    sms: {
-      en_US: {
-        body: "Hi {{1}}, it's {{2}}. A reminder of your appointment {{3}} for {{4}}. Reply here if you need to change it."
-      },
-      es: {
-        // Spanish texts keep to the letters the carriers send plainly (é, ñ, ¿ but not á, í, ó, ú), so each goes as one part.
-        body: "Hola {{1}}, te escribimos de {{2}}. Te recordamos tu cita {{3}} para {{4}}. Si necesitas cambiarla, responde a este mensaje."
-      }
-    }
-  },
-  {
-    // About the visit they just had, and nothing else: no offer and no booking push, so it is utility and reaches a
-    // yes to texts. Their reply opens WhatsApp's 24 hours, inside which the receptionist may say anything.
-    key: "after_visit_check",
-    name: "after_visit_check",
-    title: "How did it go",
-    purpose: "for the day after a visit",
-    category: "utility",
-    trigger: "visited",
-    texts: {
-      en_US: {
-        body: "Hi {{1}}, thanks for coming to {{2}} yesterday. How did everything go? If anything isn't right, reply here and we'll sort it out.",
-        footer: null,
-        slots: [FIRST, BUSINESS]
-      },
-      es: {
-        body: "Hola {{1}}, gracias por venir ayer a {{2}}. \xBFQu\xE9 tal fue todo? Si algo no est\xE1 bien, responde aqu\xED y lo solucionamos.",
-        footer: null,
-        slots: [FIRST_ES, BUSINESS_ES]
-      }
-    },
-    email: {
-      en_US: {
-        subject: "How did everything go?",
-        body: "Hi {{1}},\n\nThanks for coming to {{2}} yesterday. How did everything go?\n\nIf anything isn't right, just reply to this email and we'll sort it out."
-      },
-      es: {
-        subject: "\xBFQu\xE9 tal fue todo?",
-        body: "Hola {{1}}:\n\nGracias por venir ayer a {{2}}. \xBFQu\xE9 tal fue todo?\n\nSi algo no est\xE1 bien, responde a este correo y lo solucionamos."
-      }
-    },
-    sms: {
-      en_US: {
-        body: "Hi {{1}}, thanks for coming to {{2}} yesterday. How did everything go? If anything isn't right, reply here and we'll sort it out."
-      },
-      es: {
-        body: "Hola {{1}}, gracias por venir ayer a {{2}}. \xBFQu\xE9 tal fue todo? Si algo no te ha gustado, responde a este mensaje y lo solucionamos."
-      }
-    }
-  },
-  {
-    // The day after's other message (10 Oct 2026): the thank-you with a review ask, the link the Google listing keeps.
-    // About the appointment they just had, with no offer and no booking push, so it is utility like How did it go. It is
-    // offered only where the listing keeps a review link (startersOffered), as its slot is filled from nothing else, and
-    // How did it go stays the moment's own: what a composer opens on, and what a campaign picks when nothing is picked.
-    key: "after_visit_review",
-    name: "after_visit_review",
-    title: "After the appointment, with a review ask",
-    purpose: "for the day after an appointment, asking for a review",
-    category: "utility",
-    trigger: "visited",
-    texts: {
-      en_US: {
-        body: "Hi {{1}}, thanks for coming to {{2}} yesterday. If you have a minute, a review helps others find us: {{3}}. If anything wasn't right, reply here and we'll sort it out.",
-        footer: null,
-        slots: [FIRST, BUSINESS, REVIEW]
-      },
-      es: {
-        body: "Hola {{1}}, gracias por venir ayer a {{2}}. Si tienes un minuto, tu rese\xF1a ayuda a otros a encontrarnos: {{3}}. Si algo no estuvo bien, responde aqu\xED y lo solucionamos.",
-        footer: null,
-        slots: [FIRST_ES, BUSINESS_ES, REVIEW_ES]
-      }
-    },
-    email: {
-      en_US: {
-        subject: "Thanks for coming to {{2}}",
-        body: "Hi {{1}},\n\nThanks for coming to {{2}} yesterday. If you have a minute, a review helps others find us: {{3}}\n\nIf anything wasn't right, just reply to this email and we'll sort it out."
-      },
-      es: {
-        subject: "Gracias por venir a {{2}}",
-        body: "Hola {{1}}:\n\nGracias por venir ayer a {{2}}. Si tienes un minuto, tu rese\xF1a ayuda a otros a encontrarnos: {{3}}\n\nSi algo no estuvo bien, responde a este correo y lo solucionamos."
-      }
-    },
-    sms: {
-      en_US: {
-        body: "Hi {{1}}, thanks for coming to {{2}} yesterday. A review helps others find us: {{3}} If anything wasn't right, reply here."
-      },
-      es: {
-        body: "Hola {{1}}, gracias por venir ayer a {{2}}. Tu rese\xF1a ayuda a otros a encontrarnos: {{3}} Si algo no estuvo bien, responde a este mensaje."
-      }
-    }
-  },
-  {
-    // 0006: one nudge per proposal, with its link. Utility, as a reminder of a person's own request is; it names no
-    // price, date, amount or offer, and Meta's category decides the yes it needs at the wire (deliver.ts).
-    key: "proposal_follow_up",
-    name: "proposal_follow_up",
-    title: "Proposal follow-up",
-    purpose: "for a proposal waiting with nothing back",
-    category: "utility",
-    trigger: "proposal_waiting",
-    texts: {
-      en_US: {
-        body: "Hi {{1}}, just making sure the proposal from {{2}} reached you: {{3}}. Reply here with any questions.",
-        footer: null,
-        slots: [FIRST, BUSINESS, PROPOSAL]
-      },
-      es: {
-        body: "Hola {{1}}, solo queremos confirmar que te lleg\xF3 la propuesta de {{2}}: {{3}}. Responde aqu\xED con cualquier pregunta.",
-        footer: null,
-        slots: [FIRST_ES, BUSINESS_ES, PROPOSAL_ES]
-      }
-    },
-    email: {
-      en_US: {
-        subject: "Your proposal from {{2}}",
-        body: "Hi {{1}},\n\nJust making sure the proposal from {{2}} reached you: {{3}}\n\nReply to this email with any questions."
-      },
-      es: {
-        subject: "Tu propuesta de {{2}}",
-        body: "Hola {{1}}:\n\nSolo queremos confirmar que te lleg\xF3 la propuesta de {{2}}: {{3}}\n\nResponde a este correo con cualquier pregunta."
-      }
-    },
-    sms: {
-      en_US: {
-        body: "Hi {{1}}, just making sure the proposal from {{2}} reached you: {{3}} Reply here with any questions."
-      },
-      es: {
-        body: "Hola {{1}}, queremos confirmar que recibiste la propuesta de {{2}}: {{3}} Responde a este mensaje con cualquier pregunta."
-      }
-    }
-  },
-  {
-    key: "quick_note",
-    name: "quick_note",
-    title: "A quick note",
-    purpose: "for any broadcast: news, hours, a heads-up",
-    category: "marketing",
-    trigger: null,
-    texts: {
-      en_US: {
-        body: "Hi {{1}}, a quick note from {{2}}: {{3}} Write back here if you have any questions.",
-        footer: STOP_EN,
-        slots: [
-          FIRST,
-          BUSINESS,
-          { kind: "text", label: "The note", example: "we're open late on Thursdays this month." }
-        ]
-      },
-      es: {
-        body: "Hola {{1}}, una nota r\xE1pida de {{2}}: {{3}} Escr\xEDbenos aqu\xED si tienes alguna pregunta.",
-        footer: STOP_ES,
-        slots: [
-          FIRST_ES,
-          BUSINESS_ES,
-          { kind: "text", label: "La nota", example: "este mes abrimos hasta tarde los jueves." }
-        ]
-      }
-    },
-    email: {
-      en_US: {
-        subject: "A quick note from {{2}}",
-        body: "Hi {{1}},\n\nA quick note from {{2}}: {{3}}\n\nReply to this email if you have any questions."
-      },
-      es: {
-        subject: "Una nota r\xE1pida de {{2}}",
-        body: "Hola {{1}}:\n\nUna nota r\xE1pida de {{2}}: {{3}}\n\nResponde a este correo si tienes alguna pregunta."
-      }
-    }
-  },
-  {
-    // The one a caller asks for OUT LOUD, mid-call: the phone agent texts it when somebody wants to book (edge
-    // retell-fn.ts), with the business's WhatsApp named, so a caller who only ever phoned learns where to write.
-    //
-    // UTILITY, and that is the whole point of writing it down here. It answers a request the person just made, so it
-    // needs no separate yes to offers -- and because the category is Meta's own word for that, purposeOfTemplate reads
-    // it correctly and nothing has to override the purpose at a call site. It is LAST on purpose: the order is what a
-    // composer opens on, and this is the one a caller asks for rather than one anybody broadcasts.
-    key: "call_text",
-    name: "call_text",
-    title: "The call's text",
-    purpose: "for a caller who asks to book",
-    category: "utility",
-    trigger: null,
-    texts: {
-      en_US: {
-        // The first name every starter opens with, and here it is usually "there": the phone agent texts somebody
-        // whose name nobody has yet, and resolveParams says so rather than leaving a gap.
-        body: "Hi {{1}}, it's {{2}}, thanks for calling. Here's the link to book: {{3}}. This is our WhatsApp too: write to us here any time to book, move or ask about an appointment.",
-        footer: null,
-        slots: [FIRST, BUSINESS, LINK]
-      },
-      es: {
-        body: "Hola {{1}}, te escribimos de {{2}}, gracias por llamar. Aqu\xED tienes el enlace para reservar: {{3}}. Este tambi\xE9n es nuestro WhatsApp: escr\xEDbenos aqu\xED cuando quieras para reservar, cambiar o preguntar por una cita.",
-        footer: null,
-        slots: [FIRST_ES, BUSINESS_ES, LINK_ES]
-      }
-    },
-    sms: {
-      en_US: {
-        body: "Hi {{1}}, it's {{2}}, thanks for calling. Here's the link to book: {{3}}. You can text us here any time too."
-      },
-      es: {
-        body: "Hola {{1}}, te escribimos de {{2}}, gracias por llamar. Este es el enlace para reservar: {{3}}. Puedes responder a este mensaje cuando quieras."
-      }
-    }
-  },
-  /* ---- Retired (2 Oct 2026): never offered again, kept so a workspace that added one still reads it ---- */
-  {
-    key: "winback_offer",
-    name: "winback_offer",
-    // Called apart from the set's own Win-back, which a workspace that has this one sees listed beside it.
-    title: "Win-back (earlier)",
-    purpose: "for anyone quiet 30 days",
-    category: "marketing",
-    trigger: "quiet_30",
-    retired: { by: "winback_reply", why: "It sent people to a link; its place asks for a reply." },
-    texts: {
-      en_US: {
-        body: "Hi {{1}}, it's been a while since we last saw you at {{2}}. We'd love to have you back \u2014 pick a time that suits you here: {{3}} and we'll take care of the rest.",
-        footer: STOP_EN,
-        slots: [FIRST, BUSINESS, LINK]
-      },
-      es: {
-        body: "Hola {{1}}, hace tiempo que no te vemos en {{2}}. Nos encantar\xEDa volver a atenderte \u2014 elige la hora que mejor te venga aqu\xED: {{3}} y nosotros nos ocupamos del resto.",
-        footer: STOP_ES,
-        slots: [FIRST_ES, BUSINESS_ES, LINK_ES]
-      }
-    }
-  },
-  {
-    key: "welcome_new",
-    name: "welcome_new",
-    title: "Welcome",
-    purpose: "for anyone new this week",
-    category: "marketing",
-    trigger: "new_week",
-    retired: {
-      by: null,
-      why: "The receptionist answers a first contact itself; as an offer, a welcome reached nobody new."
-    },
-    texts: {
-      en_US: {
-        body: "Hi {{1}}, welcome to {{2}}! This is our WhatsApp \u2014 message us here any time to book, move or ask about an appointment. Book whenever you're ready: {{3}} and we'll take it from there.",
-        footer: STOP_EN,
-        slots: [FIRST, BUSINESS, LINK]
-      },
-      es: {
-        body: "Hola {{1}}, \xA1bienvenido/a a {{2}}! Este es nuestro WhatsApp \u2014 escr\xEDbenos aqu\xED cuando quieras para reservar, cambiar o preguntar por una cita. Reserva cuando quieras: {{3}} y nosotros nos encargamos del resto.",
-        footer: STOP_ES,
-        slots: [FIRST_ES, BUSINESS_ES, LINK_ES]
-      }
-    }
-  },
-  {
-    key: "save_our_number",
-    name: "save_our_number",
-    title: "Save our number",
-    purpose: "for anyone who only ever phoned",
-    category: "marketing",
-    trigger: "phoned_only",
-    retired: {
-      by: "call_text",
-      why: "Its people only ever phoned, so none could have said yes to offers; the call's text does its work during the call."
-    },
-    texts: {
-      en_US: {
-        body: "Hi {{1}}, thanks for calling {{2}}. Save this number \u2014 on WhatsApp you can book, reschedule or ask us anything in a message, and we answer fast. Book any time: {{3}} or just write to us here.",
-        footer: STOP_EN,
-        slots: [FIRST, BUSINESS, LINK]
-      },
-      es: {
-        body: "Hola {{1}}, gracias por llamar a {{2}}. Guarda este n\xFAmero \u2014 por WhatsApp puedes reservar, cambiar tu cita o preguntarnos lo que quieras, y respondemos r\xE1pido. Reserva cuando quieras: {{3}} o escr\xEDbenos aqu\xED.",
-        footer: STOP_ES,
-        slots: [FIRST_ES, BUSINESS_ES, LINK_ES]
-      }
-    }
-  },
-  {
-    key: "monthly_offer",
-    name: "monthly_offer",
-    title: "This month's offer (earlier)",
-    purpose: "for everyone who said yes, once a month",
-    category: "marketing",
-    trigger: "everyone_monthly",
-    retired: { by: "this_months_offer", why: "It promised that spaces were limited, which a business may not mean." },
-    texts: {
-      en_US: {
-        body: "Hi {{1}}, this month at {{2}}: {{3}} Book here: {{4}} \u2014 spaces are limited.",
-        footer: STOP_EN,
-        slots: [FIRST, BUSINESS, OFFER, LINK]
-      },
-      es: {
-        body: "Hola {{1}}, este mes en {{2}}: {{3}} Reserva aqu\xED: {{4}} \u2014 las plazas son limitadas.",
-        footer: STOP_ES,
-        slots: [FIRST_ES, BUSINESS_ES, OFFER_ES, LINK_ES]
-      }
-    }
-  },
-  {
-    key: "after_visit",
-    name: "after_visit",
-    title: "After the visit",
-    purpose: "for the day after a visit",
-    category: "marketing",
-    trigger: "visited",
-    retired: {
-      by: "after_visit_check",
-      why: "Asking them to book again made it an offer, which reached only a yes to offers; its place asks how it went."
-    },
-    texts: {
-      en_US: {
-        body: "Hi {{1}}, thank you for coming to {{2}} yesterday \u2014 we hope you love the result. When you're ready for your next appointment, pick a time here: {{3}}.",
-        footer: STOP_EN,
-        slots: [FIRST, BUSINESS, LINK]
-      },
-      es: {
-        body: "Hola {{1}}, gracias por venir ayer a {{2}} \u2014 esperamos que te encante el resultado. Cuando quieras tu pr\xF3xima cita, elige la hora aqu\xED: {{3}}.",
-        footer: STOP_ES,
-        slots: [FIRST_ES, BUSINESS_ES, LINK_ES]
-      }
-    }
-  },
-  {
-    // The row this replaced was hand-written straight into one workspace's database, marked approved, with no
-    // meta_id: an approval Meta had never given, so every send of it failed, and it failed for every other workspace
-    // by not existing at all.
-    key: "booking_link",
-    name: "booking_link",
-    title: "Booking link",
-    purpose: "for a caller who asks to book",
-    category: "utility",
-    trigger: null,
-    retired: { by: "call_text", why: "The call's text sends the link and names the business's WhatsApp too." },
-    texts: {
-      en_US: {
-        body: "Hi {{1}}, it's {{2}}. Here's the link to book your appointment: {{3}} \u2014 pick any time that suits you.",
-        footer: null,
-        slots: [FIRST, BUSINESS, LINK]
-      },
-      es: {
-        body: "Hola {{1}}, te escribimos de {{2}}. Aqu\xED tienes el enlace para reservar tu cita: {{3}} \u2014 elige la hora que mejor te venga.",
-        footer: null,
-        slots: [FIRST_ES, BUSINESS_ES, LINK_ES]
-      }
-    }
-  }
-];
-
-// src/templates/starter-lookup.ts
-function starterByName(name) {
-  return STARTER_TEMPLATES.find((s) => s.name === name) ?? null;
-}
-function starterByKey(key) {
-  return STARTER_TEMPLATES.find((s) => s.key === key) ?? null;
-}
-var STARTER_OF = { lapsed: "quiet_30" };
-function startersOffered(here) {
-  return STARTER_TEMPLATES.filter((s) => {
-    if (s.retired) return false;
-    if (!here.reviewLink && starterText(s, "en_US").slots.some((x) => x.kind === "review_link")) return false;
-    const t = s.trigger ? triggerOf(s.trigger) : null;
-    return !t || triggerOffered(t, here.dealsOn);
-  });
-}
-function starterForTrigger(trigger) {
-  return startersForTrigger(trigger)[0] ?? null;
-}
-function startersForTrigger(trigger) {
-  if (!trigger) return [];
-  const own = STARTER_OF[trigger] ?? trigger;
-  const all = STARTER_TEMPLATES.filter((s) => s.trigger === own);
-  return [...all.filter((s) => !s.retired), ...all.filter((s) => s.retired)];
-}
-function starterSmsText(s, language) {
-  return s.sms?.[language] ?? s.sms?.en_US ?? null;
-}
-function starterEmailText(s, language) {
-  return s.email?.[language] ?? s.email?.en_US ?? null;
-}
-function starterText(s, language) {
-  return s.texts[language] ?? s.texts.en_US;
-}
-function starterDraft(s, language) {
-  const t = starterText(s, language);
-  return {
-    name: s.name,
-    language,
-    category: s.category,
-    body: t.body,
-    footer: t.footer,
-    examples: t.slots.map((x) => x.example)
-  };
-}
-
-// src/templates/template-titles.ts
-var TEMPLATE_TITLE_MAX = 60;
-function templateTitle(name, title) {
-  const given = typeof title === "string" ? title.replace(/\s+/g, " ").trim() : "";
-  if (given) return given.slice(0, TEMPLATE_TITLE_MAX);
-  const s = starterByName(name);
-  if (s) return s.title;
-  const words3 = String(name ?? "").replace(/_v\d+$/i, "").replace(/_/g, " ").replace(/\s+/g, " ").trim();
-  return words3 ? words3[0].toUpperCase() + words3.slice(1) : String(name ?? "");
-}
-function playbookName(trigger, tpl) {
-  return startersForTrigger(trigger.id).some((s) => s.name === tpl.name) ? trigger.label : `${trigger.label} \xB7 ${templateTitle(tpl.name, tpl.title)}`;
 }
 
 // src/broadcasts/broadcast-failure-words.ts
@@ -20011,1411 +21407,6 @@ function waitsOf(input) {
 function needsYouCount(waits) {
   return waits.holds + waits.sends + waits.runs;
 }
-
-// src/sequences/sequence-address.ts
-var SEQUENCES_ROUTE = "campaigns/sequences";
-var SEQUENCE_TABS = ["steps", "people", "history"];
-var LEADS_ROUTE = "clients/leads";
-var BACK = "back:";
-var isSequencesParam = (param) => param === "sequences";
-var isTab = (word) => SEQUENCE_TABS.some((t) => t === word);
-function parseSequencesRoute(route) {
-  const [path = ""] = route.split("?");
-  const words3 = path.split("/");
-  const backAt = words3.findIndex((w) => w.startsWith(BACK));
-  const backWords = backAt >= 0 ? (words3[backAt] ?? "").slice(BACK.length) : null;
-  const back = backWords === null ? {} : { back: backWords ? `${LEADS_ROUTE}:${backWords}` : LEADS_ROUTE };
-  const [root, view, id, tab, day] = backAt >= 0 ? words3.slice(0, backAt) : words3;
-  if (root !== "campaigns" || view !== "sequences") return null;
-  if (!id) return { view: "list", ...back };
-  if (id === "new" || id.startsWith("new:")) {
-    const [, kind, moment2] = id.split(":");
-    const leads = newLeadsOf(words3.slice(3, backAt >= 0 ? backAt : void 0));
-    return { view: "new", ...kind === "moment" && moment2 ? { moment: moment2 } : {}, ...leads ? { leads } : {}, ...back };
-  }
-  const on = isTab(tab) ? tab : "steps";
-  return { view: "record", id, tab: on, ...on === "history" && day ? { day } : {}, ...back };
-}
-function newLeadsOf(words3) {
-  const word = (key) => {
-    const w = words3.find((x) => x.startsWith(`${key}:`));
-    return w ? w.slice(key.length + 1) || null : null;
-  };
-  const list2 = word("list");
-  const lead = word("lead");
-  const version = word("version");
-  if (lead) return { for: { lead }, version };
-  return list2 && !version ? { for: { list: list2 }, version: null } : null;
-}
-function sequenceNewLeadsRoute(leads) {
-  const on = "list" in leads.for ? `list:${leads.for.list}` : `lead:${leads.for.lead}`;
-  return `${SEQUENCES_ROUTE}/new/${leads.version && "lead" in leads.for ? `version:${leads.version}/` : ""}${on}`;
-}
-function sequenceRouteBack(route, back) {
-  if (!back || back !== LEADS_ROUTE && !back.startsWith(`${LEADS_ROUTE}:`)) return route;
-  return `${route}/${BACK}${back.slice(LEADS_ROUTE.length + 1)}`;
-}
-var sequenceRoute = (id, tab = "steps", day) => tab === "steps" ? `${SEQUENCES_ROUTE}/${id}` : `${SEQUENCES_ROUTE}/${id}/${tab}${tab === "history" && day ? `/${day}` : ""}`;
-var newSequenceRoute = (moment2) => moment2 ? `${SEQUENCES_ROUTE}/new:moment:${moment2}` : `${SEQUENCES_ROUTE}/new`;
-var runSheetRoute = (id) => `broadcasts/run:${id}/sheet`;
-function arrivedRunOf(route) {
-  const [path = ""] = route.split("?");
-  const [root, param = "", rest] = path.split("/");
-  const run = root === "broadcasts" && rest === void 0 ? /^run:([^:/]+)$/.exec(param) : null;
-  return run?.[1] ?? null;
-}
-function runLandingOf(route, run) {
-  const id = arrivedRunOf(route);
-  if (!id || id !== run.id) return null;
-  return runDecidedOnItsPage(run) ? runSheetRoute(id) : sequenceRoute(run.sequence_id || id, "history", id);
-}
-function sequenceLandingOf(route) {
-  const [path = ""] = route.split("?");
-  const [root, param = ""] = path.split("/");
-  if (root === "campaigns") {
-    if (param === "" || param.startsWith("in:")) return SEQUENCES_ROUTE;
-    const moment2 = /^moment:([^:/]+)(:people)?$/.exec(param);
-    if (moment2?.[1]) return sequenceRoute(moment2[1], moment2[2] ? "people" : "steps");
-    if (param === "new:every") return newSequenceRoute();
-    const on = /^new:moment:([^:/]+)$/.exec(param);
-    if (on?.[1]) return newSequenceRoute(on[1]);
-  }
-  if (root === "broadcasts" && param === "") return SEQUENCES_ROUTE;
-  return null;
-}
-var sequenceRepliesRoute = (id, period = "30") => `inbox/from:${id}${period === "30" ? "" : `:${period}`}`;
-function sequenceRepliesOf(param) {
-  const m = param ? /^from:([0-9a-f-]{36})(?::(30|90|all))?$/i.exec(param) : null;
-  return m?.[1] ? { id: m[1].toLowerCase(), period: m[2] === "90" || m[2] === "all" ? m[2] : "30" } : null;
-}
-
-// src/shared/enums.ts
-var TENANT_STATUSES = ["active", "paused", "test"];
-var MEMBERSHIP_ROLES = ["owner", "operator", "partner", "viewer"];
-var CHANNEL_KINDS = ["whatsapp", "voice", "sms", "email", "instagram"];
-var IDENTITY_ASSURANCES = ["observed", "asserted", "found"];
-var CONVERSATION_STATES = ["open", "needs_human", "snoozed", "archived"];
-var MESSAGE_CHANNELS = ["whatsapp", "voice", "sms", "email", "system"];
-var MESSAGE_DIRECTIONS = ["inbound", "outbound"];
-var MESSAGE_SENDERS = ["customer", "ai", "human", "system"];
-var MESSAGE_TYPES = ["text", "template", "media", "call_summary", "note"];
-var MESSAGE_STATUSES = ["received", "queued", "sent", "delivered", "read", "failed", "canceled"];
-var CONSENT_STATES = ["unknown", "opted_in", "opted_out"];
-var JOB_KINDS = [
-  "outbound_send",
-  "broadcast_send",
-  /**
-   * A line's provisioning saga, run under the ledger's lease and resumed by
-   * the heartbeat if a worker dies (00109). The saga itself stays on the
-   * edge with the provider's credentials and is injected into the tick.
-   */
-  "line_provision",
-  /**
-   * One received email, fetched from the provider and taken in (00127). The
-   * webhook that announces it is a pointer, and a fetch can fail, so intake is
-   * a job: once per mailbox however often the webhook is replayed, and resumed
-   * where an interrupted run stopped. The fetch stays on the edge with the
-   * provider's key and is injected into the tick.
-   */
-  "email_ingest",
-  /**
-   * The lead finder (00140, PRD v3 §12.5). lead_round_start starts one round:
-   * a run per term, each claimed before the provider is called. lead_collect
-   * reads one page of one run, judges it and commits it in one transaction;
-   * seq is p<offset> for a page, final from the webhook, s<minute> from the
-   * sweep, stop from the stop door. lead_check checks one batch of emails. A
-   * provider's 429 or 5xx throws and is tried again by RETRY_WAITS_MS.
-   */
-  "lead_round_start",
-  "lead_collect",
-  "lead_check",
-  /**
-   * One kept notification (00057) to every phone of the people it is for
-   * (00162). Scheduled by the edge's notify when the row's kind is one of
-   * contracts PUSH_KINDS; a transport failure throws and is tried again by
-   * RETRY_WAITS_MS. Internal work: a second claim runs it again.
-   */
-  "push_send",
-  /**
-   * The receipts of one push_send, read a quarter of an hour on (00189):
-   * Expo's ticket says the service took a message, its receipt says whether
-   * the phone did, and a phone answered gone is forgotten here. Carries the
-   * tickets in its payload; a transport failure throws and is tried again.
-   */
-  "push_receipts",
-  /**
-   * One reply to a reach-out, read for what it means (Reach out Part 5, 00222): the model's reading, applied through
-   * reach_out_reply_apply, and the workspace told once. Scheduled by the email intake once per message
-   * (jobs_reply_read_once, scheduleJobOnce), and by itself for a re-read of a reply it could not read ({ stage:
-   * "reread-<n>" }). Internal work written to be run again: a second claim finds the reading and pays nothing.
-   */
-  "reply_read",
-  /**
-   * One booking tool's notice read into an appointment (docs/plans/2026-10-07-bookings-arrive-by-email.md): the
-   * email_ingest that recognised it schedules one per delivery (payload { received_id, mailbox_id }, keyed on the
-   * delivery), the handler fetches the email again, asks the model and writes the row. Internal work written to be run
-   * again: a second claim finds the row by the delivery's id and pays nothing.
-   */
-  "booking_read",
-  /**
-   * One event's delivery to one subscriber (00334, decision 0032): the relay writes it beside the event_deliveries row,
-   * keyed 'deliver:<event>:<subscriber>' (jobs.dedupe_key), in the subscription's lane (payload.lane). The handler runs
-   * the subscriber (core SUBSCRIBERS) and settles the delivery; a subscriber this build does not know is kept, as an
-   * unknown kind is. Internal work written to be run again: every subscriber assumes a second delivery.
-   */
-  "event_deliver",
-  /**
-   * One text answered after its acknowledgement (00347, decision 0031 Phase 2): the SMS door records the text and answers
-   * Twilio, and this job takes it up again through the whole inbound phase (core answerInbound with `resume`), keyed
-   * 'inbound_answer:<message>' (jobs.dedupe_key), in the reply lane. A runner killed mid-turn leaves it to be claimed
-   * again: the message is answered while it is unprocessed and no reply names it, so a second claim never texts twice.
-   */
-  "inbound_answer"
-];
-var EVENT_SUBSCRIBERS = [
-  "reach_out_booked",
-  "owner_notice",
-  "consent_notice",
-  "visit_notice",
-  "team_notice"
-];
-var JOB_STATES = ["scheduled", "fired", "done", "canceled", "failed"];
-var WABA_FIELDS = [
-  "phone_number_quality_update",
-  "account_update",
-  "message_template_status_update",
-  "account_review_update",
-  "message_template_quality_update",
-  "template_category_update",
-  "phone_number_name_update"
-];
-var EVENT_KINDS = [
-  "message.received",
-  "message.sent",
-  "contact.consent_changed",
-  "usage.llm_tokens",
-  "usage.wa_conversation",
-  "ingest.allowlist_skip",
-  /** The sender cannot receive a reply — a short code. Recorded, never answered. */
-  "ingest.unreachable_sender",
-  "message.send_failed",
-  "message.send_blocked",
-  "message.send_raced_cancel",
-  /** An outbound chat message carrying the workspace's booking link has left (00313): { channel, sender }. */
-  "booking_link.sent",
-  "conversation.reopened",
-  "conversation.pause_expired",
-  "contact.erased",
-  /** Two records of one person became one (00326, decision 0028): on the kept record, with what moved. */
-  "contact.merged",
-  /**
-   * A door resolved who a person is (resolve_person, 00342, decision 0034): the outcome (new, matched, filled), how it
-   * matched, what it filled and the doubt it raised; never the number or the address. Evidence, purged with the other
-   * evidence kinds, and hidden from the activity log unless asked for by name: the record is contact.added.
-   */
-  "person.resolved",
-  "setup.requested",
-  "voice.provisioned",
-  "line.answering",
-  "line.failed",
-  "line.released",
-  "line.forwarding_verified",
-  /**
-   * Somebody at Chanlytics acted on a workspace they are not a member of.
-   *
-   * The back office's write half. Recorded BEFORE the action, and the action is
-   * refused if it cannot be recorded: a cross-tenant write that nobody can be
-   * held to is worse than one that did not happen. What happened next is the
-   * line's own event, written by the edge, immediately after this one.
-   */
-  "platform.acted",
-  /** The carriers answered: texting is on, the business is through, or it came back. */
-  "line.texting_on",
-  "line.texting_approved",
-  "line.texting_rejected",
-  /** The business on record for the carriers, saved or changed. */
-  "business.recorded",
-  /** The workspace's listing on Google: linked, removed, and a read that found new reviews or ratings. */
-  "google.linked",
-  "google.unlinked",
-  "google.reviews",
-  /** The owner's Business Profile: connected, disconnected, and a review answered from here. */
-  "google.connected",
-  "google.disconnected",
-  "google.replied",
-  // An automatic review reply written and not posted: it named a price or money (contracts autoReplyHold).
-  "google.reply_held",
-  "workspace.created",
-  /** The owner's controls changed: which config fields moved (never their values); a policy row's class, mode and the limit keys that moved. */
-  "settings.changed",
-  /**
-   * A note for the receptionist suggested from an owner's correction, and the member's answer (00448, decision 0063):
-   * { suggestion_id, source }, never the words; a Keep's note is the settings.changed beside it.
-   */
-  "settings.fact_suggested",
-  "settings.fact_kept",
-  "settings.fact_dismissed",
-  "policy.changed",
-  "billing.updated",
-  "billing.paused",
-  "billing.resumed",
-  /** A call: the row (00007) and the seconds it cost. */
-  "call.recorded",
-  /** A call ended in a transfer to a person (00312): { answered }, whether they picked up. */
-  "call.transferred",
-  "usage.voice_seconds",
-  /** The assistant's model usage, per turn (ask-gateway). */
-  "usage.ask_tokens",
-  /** Retell's webhook: every delivery and every refused signature, kept thirty days (00038). */
-  "webhook.auth",
-  "webhook.delivery",
-  /** A person who came from the calendar or a hand, not from a message (00053). */
-  "contact.added",
-  /** A person renamed or annotated at the desk (00054), or given an email address (00125). */
-  "contact.named",
-  /**
-   * Where a person works (0052, 00413): linked to a lead (its first email or call, a reply that cited ours, a member's
-   * hand), or not at it any more: { lead_id, via, by? }, never a name.
-   */
-  "contact.business_linked",
-  "contact.business_unlinked",
-  "contact.noted",
-  /** A note changed, taken away, or the receptionist's suggestion kept or dismissed (00157, 0007). Never the words. */
-  "contact.note_changed",
-  "contact.note_removed",
-  "contact.note_suggested",
-  "contact.note_kept",
-  "contact.note_dismissed",
-  "contact.note_done",
-  "contact.note_undone",
-  /** The member a note is for said Got it (0052): { note_id, by }, never the words. */
-  "contact.note_seen",
-  "contact.email_set",
-  /** A person's proposal link set or cleared at the desk (00154). Never the address. */
-  "contact.proposal_set",
-  /** A person's address stopped being sent to: a permanent bounce, a complaint, or the provider's own list (00126). The reason, never the address. */
-  "contact.email_suppressed",
-  /** An inbound the router could not place on any workspace. */
-  "ingest.unroutable",
-  /** A reply skipped because its veto window had already been spent. */
-  "policy.veto_window_skipped",
-  /** The sweep woke a snooze whose time had passed (00082). */
-  "conversation.snooze_expired",
-  /** A handover's reason was replaced by another while it was open (00308): { from, to }, reasons only, never the words. */
-  "escalation.changed",
-  /** A broadcast finished, with its tally; a playbook made a run. */
-  "broadcast.sent",
-  /**
-   * A broadcast stopped before it was done, or never went (state `failed`): its failure code and how many it reached
-   * first (contracts BROADCAST_FAILURES), from every place a run is failed. A finished run was on the ledger and a
-   * stopped one was not (the 4 Oct wiring review, P2 5).
-   */
-  "broadcast.stopped",
-  "playbook.run",
-  /** A WhatsApp number connected through Embedded Signup (admin/whatsapp/connect). */
-  "channel.connected",
-  /** A WhatsApp number's quality rating, read on a clock, changed (00315): { from?, to }. Meta's own news of it is channel.phone_number_quality_update. */
-  "channel.quality_rating",
-  /** What Meta holds about a WhatsApp number (may it send, and what stands in the way) changed: read at connection, on a clock or when an owner asks (00338): { from?, to }, the word of can_send only. */
-  "channel.standing",
-  /** An owner gave the workspace its email address, or changed the name beside it (00129). Who, never the address. */
-  "mailbox.created",
-  "mailbox.renamed",
-  /** A gate paused the workspace's offers by email (complaints or bounces over their limits), and the back office turned them back on (00299). The reason, never an address. */
-  "mailbox.offers_paused",
-  "mailbox.offers_resumed",
-  /** A mailbox the business writes cold email from (00423, decision 0056): connected (or connected again), signed out
-   * by its provider, held for its own mail, resumed by its owner, paused and unpaused by its owner, removed. Its
-   * address and the reason, never its token. */
-  "mailbox_connection.connected",
-  "mailbox_connection.signed_out",
-  "mailbox_connection.held",
-  "mailbox_connection.resumed",
-  "mailbox_connection.paused",
-  "mailbox_connection.unpaused",
-  "mailbox_connection.removed",
-  /** A lead search's round started, waited, or ended with one of the nine endings (00140). */
-  "lead.round",
-  /** An ask no source card fits, logged as demand (§0.3): the words asked, never a place. */
-  "lead.no_card",
-  /** A lead worked: its stage moved, the owner said they sent the email, a call happened, it became a person, or it was not a fit (release B). */
-  "lead.stage",
-  "lead.emailed",
-  "lead.call",
-  "lead.converted",
-  "lead.not_a_fit",
-  /**
-   * A lead was set aside as stale (archived, closed stale), by the nightly purge or by hand (00309): { stage, reason, from },
-   * written on the move into it, so a lead restored and set aside again writes a second. `from` is the stage the lead left to be
-   * set aside, null when it was already archived and only its reason changed (nothing moved: not an exit). The purge writes only
-   * this event; by hand (lead_set_stage to archived with the reason stale) the move also writes its lead.stage, so a count of
-   * exits takes one per lead and moment, never both kinds. Its own kind, not lead.stage, so the Activity log is not filled with
-   * one line per lead.
-   */
-  "lead.set_aside",
-  /**
-   * The ideas for a new search were written (00400: lead_suggestions_write), { how: "written" | "line", count, by_owner }:
-   * "written" when the model's ideas were kept, with how many; "line" when the owner set the business line they are
-   * written from, which asks for new ones. A record for Reports (how often ideas are written, whether owners rewrite
-   * the line), never a line of the owner's Activity.
-   */
-  "lead.ideas_written",
-  // A deal (0004): written by deal_record, one kind per stage; record kinds, kept.
-  "deal.proposed",
-  "deal.won",
-  "deal.lost",
-  "deal.ended",
-  // A partner (0012): the workspace was made through a partner's link and the partner joined its team, or the code
-  // the link left named no partner who could be credited (unknown, paused, or the caller's own).
-  "partner.attributed",
-  "partner.code_ignored",
-  // The ledger (0012, P3): a share written from a paid invoice, a refund's or a dispute's effect on it, and the
-  // standing the sweep decided for a workspace once it had paid.
-  "partner.earned",
-  "partner.reversed",
-  "partner.standing_set",
-  // A payout sent by hand (0012, P5), on each workspace it came from, with that workspace's part.
-  "partner.paid",
-  // A workspace a partner set up for a business (0016): handed to its owner (again, on a resend), accepted, declined.
-  "partner.handover_sent",
-  "partner.handover_accepted",
-  "partner.handover_declined",
-  // An existing workspace asks a partner to join it (0020): asked (again, on a second ask), taken back, joined, declined.
-  "partner.invited",
-  "partner.invite_withdrawn",
-  "partner.invite_accepted",
-  "partner.invite_declined",
-  // A reply to a reach-out, read (00222, Reach out Part 5): what it meant ({ intent, claim, reread, unread }), on the lead.
-  "reach_out.replied",
-  // A reply read as no, undone by a member within seven days (00222 reach_out_reply_undo).
-  "reach_out.reply_undone",
-  // A workspace reached an activation milestone for the first time (contracts ACTIVATION_MILESTONES): the funnel's rows.
-  "workspace.activated",
-  /**
-   * An appointment of the record changed (decision 0002), never its title: the calendar's hourly read writes { change:
-   * added | moved | vanished | back, source, starts_at } (appointments_feed_sync, 00348), and every other writer's row
-   * { change: added | confirmed | cancelled | moved, ... } in its own transaction (appointments_note_change, 00389). On
-   * the appointment; hidden from the activity log unless asked for by name, since a calendar read writes one per
-   * appointment.
-   */
-  "appointment.changed",
-  /**
-   * What a member did, or the receptionist, that neither ledger kept (the activity log's review, 8 Oct 2026). Each
-   * names the member in its data (`by`), as the settings' and the notes' kinds do, and none carries a customer's words.
-   *
-   * A thread handed to the team: a new open escalation ({ reason }), on the conversation. Every path that flags a
-   * thread writes it through one door, with the hold, in one transaction (escalation_open, 00388), once per hold; a
-   * reason that changes under an open hold is escalation.changed.
-   */
-  "escalation.opened",
-  /** A person accepted an invitation and joined the workspace ({ by, role }), on the invitation. */
-  "member.joined",
-  /** A playbook, or a reach-out's chain, edited ({ name, by, fields }: which parts moved, never their words). */
-  "playbook.changed",
-  /** A message sent to WhatsApp for approval, and one deleted from the Library ({ name, language, by }). */
-  "template.submitted",
-  "template.removed",
-  /** The owner switched what the workspace answers on or off ({ capability, by }: calls, WhatsApp or texts). */
-  "capability.activated",
-  "capability.deactivated",
-  /** A person left the workspace by deleting their account ({ by, how }): the seat is gone, and so is its name. */
-  "member.left",
-  /** "Stop writing to them" on a reach-out's lead, and a held reach-out email decided ({ decision, by }), on its run. */
-  "reach_out.lead_stopped",
-  "reach_out.send_decided",
-  /**
-   * Leads added to a list-fed reach-out ({ search_id, n, by }), and an add taken back ({ search_id, taken, leaving,
-   * sent, by }), on the reach-out (00426).
-   */
-  "reach_out.lead_added",
-  "reach_out.lead_taken_back",
-  /** A place in Needs review kept (it counts against the month), left out, or put back ({ by, search_id }), on the lead. */
-  "lead.kept",
-  "lead.excluded",
-  "lead.put_back",
-  /** A lead put off in a pass of the pile: Later ({ search_id, by }), on the lead (00426). */
-  "lead.later",
-  /**
-   * Who a company lead's reach-out writes to, chosen by its owner ({ person, checking, by }: the index of one of the people
-   * its source named, and whether their address is being checked first), on the lead (00430 lead_addressee_choose).
-   */
-  "lead.addressee_chosen",
-  /** A search renamed ({ name, by }) or removed ({ kept, archived, by }), on the search. */
-  "lead.search_renamed",
-  "lead.search_removed",
-  /** Two records a doubt named, said to be two people ({ by }), on the person. */
-  "contact.kept_apart",
-  /** The number a business keeps set to forward to its line ({ carrier, mode, by }: never the number), on the line. */
-  "line.forwarding_set",
-  /**
-   * A booking tool's email, read into the calendar (packages/jobs booking-read): a visit booked, moved or cancelled
-   * ({ source: "booking_email", tool }), on the appointment. Shown, where appointment.changed (the calendar's hourly
-   * read) is a kept record: an email is one thing that happened, said once.
-   */
-  "appointment.booked",
-  "appointment.moved",
-  "appointment.cancelled",
-  /** The owner answered from the WhatsApp Business app, so the receptionist stepped back until `until` (recordEchoAndPause). */
-  "conversation.owner_replied",
-  /** Stripe's own news of a payment and of a trial about to end (billing.ts notePayment, noteTrialEnding): never an amount. */
-  "billing.payment_failed",
-  "billing.paid",
-  "billing.trial_ending"
-];
-var OPT_OUT_PATTERN = /^\s*(stop|baja|unsubscribe|alto)\s*[.!]?\s*$/i;
-var EMAIL_STOP_PATTERN = /^\s*(stop|baja|alto)\s*[.!]?\s*$/i;
-var EMAIL_UNSUBSCRIBE_PATTERN = /^\s*(?:please\s+)?(?:unsubscribe(?:\s+me)?|desuscribir(?:me)?)\s*[.!]?\s*$/i;
-var SMS_OPT_OUT_PATTERN = /^\s*(stop|stopall|end|cancel|quit|unsubscribe|revoke|optout|baja|alto)\s*[.!]?\s*$/i;
-var OPT_IN_PATTERN = /^\s*(start|unstop|resume|alta|yes offers|si ofertas|s\u00ed ofertas)\s*[.!]?\s*$/i;
-var MARKETING_OPT_IN_PATTERN = /^\s*(yes offers|si ofertas|s\u00ed ofertas)\s*[.!]?\s*$/i;
-var CONVERSATION_OPT_IN_PATTERN = /^\s*(start|unstop|resume|alta)\s*[.!]?\s*$/i;
-function optInPurposeOf(text) {
-  if (MARKETING_OPT_IN_PATTERN.test(text)) return "marketing";
-  if (CONVERSATION_OPT_IN_PATTERN.test(text)) return "conversational";
-  return null;
-}
-var OFFERS_OPT_IN_PHRASES = { en: "YES OFFERS", es: "SI OFERTAS" };
-function waMeDigits(number2) {
-  const digits2 = String(number2 ?? "").replace(/\D/g, "");
-  return digits2.length < 8 ? null : digits2;
-}
-function waMeLink(number2, text) {
-  const digits2 = waMeDigits(number2);
-  if (!digits2) return null;
-  return `https://wa.me/${digits2}${text ? `?text=${encodeURIComponent(text)}` : ""}`;
-}
-function optInLink(numberE164, phrase = OFFERS_OPT_IN_PHRASES.en) {
-  return waMeLink(numberE164, phrase);
-}
-var ESCALATION_REASONS = [
-  "human_token",
-  "non_text",
-  "refusal",
-  "rate_cap",
-  "policy_block",
-  "send_failed",
-  "deadman",
-  "brain_error",
-  "manual",
-  "opt_out",
-  "state_unavailable",
-  /** Delivered so late that an automated reply would arrive out of nowhere. */
-  "stale",
-  /** The owner set the receptionist to Ask or Never for THIS person; the
-   *  thread is theirs to answer. A choice about one customer, never a
-   *  workspace setting. */
-  "person_hold",
-  /** The workspace's day of model tokens is spent (limits.max_llm_tokens_day). */
-  "budget",
-  /** A booking or a service/pricing question, with that class set to Ask me first on the Autonomy pane: a person answers. */
-  "policy_ask",
-  /** The phone receptionist could not finish the call: a person calls them back. What to do rides in the details. */
-  "callback",
-  /** The workspace is paused (billing): calls only take a message and messages wait for a person, until it resumes. */
-  "paused",
-  /** A text arrived on a line the carriers have not approved for texting yet: kept, a person answers. */
-  "carriers",
-  /** An email a person must read before anyone answers it (00127). */
-  "email_review",
-  /** A time the customer picked by text, held for the owner to confirm (00443, decision 0061): Booked it or Can't. */
-  "booking_request",
-  /**
-   * A time the customer asked for by text that a person answers (00443, decision 0061): the owner said Can't, or the
-   * time was not one the code found open, or the request could not be kept. The receptionist told them the team will
-   * confirm, so a reply is owed.
-   */
-  "booking_reply",
-  /** The customer wrote while a person had the thread: held for them, never in another hold's place (00454). */
-  "wrote_while_held"
-];
-var ESCALATION_STATES = ["open", "resolved"];
-var DECISION_VERBS = [
-  "approve",
-  "edit",
-  "decline",
-  "snooze",
-  "wake",
-  "take_over",
-  "hand_back",
-  "resolve",
-  "archive",
-  "reply",
-  "cancel_send",
-  "pause_agent",
-  "resume_agent",
-  /**
-   * What one member can do to another.
-   *
-   * The ledger recorded every conversation verb and nothing about the team —
-   * the one table where "who did this" is hardest to reconstruct afterwards
-   * and matters most. Promoting someone to owner hands them billing, the
-   * ability to remove everyone else, and the receptionist's voice.
-   *
-   * These must stay in step with decisions_verb_check (migration 00023): the
-   * database rejects a verb this list allows, and a verb the database allows
-   * but this omits cannot be written by any typed caller.
-   */
-  "invite",
-  "revoke_invite",
-  "change_role",
-  "remove_member",
-  /**
-   * The only irreversible verb. privacy.html promises deletion on verified
-   * request; this is the record that it happened, on subject_type 'contact',
-   * and it survives the data it destroyed. Written by the owner (actor_type
-   * 'user'), and again by the route for a leg that finished after the rows
-   * were gone — the storage sweep.
-   */
-  "erase",
-  /**
-   * Two records of one person became one (merge_people, 00326; decision 0028). On subject_type 'contact', the kept
-   * record; the payload names the merged one and counts what moved. Owner only, and never undone.
-   */
-  "merge",
-  /**
-   * A sentence handed to the phone receptionist mid-call, heard by it alone
-   * and worked into its next answer (Retell update-live-call). Subject
-   * 'call'. The ledger keeps the words: they are the operator's, and they
-   * changed what a customer was told.
-   */
-  "whisper",
-  /**
-   * A business connected its own channel (Embedded Signup): subject
-   * 'channel', payload the number, the WABA and the registration outcome.
-   * The one verb whose consequence is a credential in Vault.
-   */
-  "connect_channel",
-  /**
-   * A customer's answer about marketing messages, recorded by the person
-   * who heard it: subject 'contact', payload the answer, how it was given,
-   * and what it was before. The record a broadcast stands on.
-   */
-  "consent_change",
-  /**
-   * A broadcast: one message, on the channels it holds, to the people who said
-   * yes. The decision to send (subject 'broadcast', payload the message, the
-   * audience and the count) and the decision to stop one.
-   */
-  "send_broadcast",
-  "cancel_broadcast",
-  /** A playbook started or paused: subject 'playbook'. Its runs are send_broadcast rows. */
-  "start_playbook",
-  "pause_playbook",
-  /**
-   * A playbook changed in place (the change_playbook door): its name, hour, cap, gap or cadence. Subject 'playbook'; the
-   * payload names what changed. A pause or a resume stays pause_playbook or start_playbook.
-   */
-  "change_playbook",
-  /**
-   * An answer to a review on Google, in the business's own words: subject
-   * 'review' (the row's id), payload the words and when Google took them.
-   * Replaces the previous answer; Google keeps one per review.
-   */
-  "reply_review",
-  /**
-   * A copy of the workspace's data left the building: everyone as a CSV, a
-   * thread, a call, or the whole workspace. Subject "workspace" for the two
-   * that carry everyone; the thread's or the call's own row for the others.
-   * The one verb an auditor asks about that the ledger did not keep.
-   */
-  "export",
-  /** A call in progress ended from the Live page (00118). Passing one to the business is take_over, the Inbox's word for the same intent. */
-  "end_call",
-  "record_deal",
-  /**
-   * A list's life (00169, decision 0009): made, renamed, its rule changed, people put on or taken off, archived (a
-   * playbook or another list depends on it), restored, deleted. Subject 'list'; the payload says what changed.
-   */
-  "make_list",
-  "rename_list",
-  "change_list_rule",
-  "add_to_list",
-  "drop_from_list",
-  "archive_list",
-  "restore_list",
-  "delete_list",
-  /** A client list brought in from a spreadsheet (00170): one row per part of fifty, subject the workspace. */
-  "import",
-  /**
-   * A member opened a call's recording (00277): subject 'call', written by recording_opened as the member, once per
-   * member per call per hour. A customer's voice left the building to someone's speakers; who listened is the audit.
-   */
-  "open_recording",
-  /**
-   * A member said what became of a visit (00397 mark_visit, decision 0002 step 8): kept, missed or cancelled, subject
-   * 'appointment' (its row), payload from, to, the row's source, its start and the person it is for.
-   */
-  "mark_visit",
-  /**
-   * A step of a sequence added, changed, given new words or taken away (00442 sequence_step_save, sequence_step_remove,
-   * sequence_step_words; decision 0060): subject 'sequence', payload the step and what changed of it.
-   */
-  "change_step",
-  /** People taken out of a sequence (00442 sequence_leave), and put back (00450 sequence_return): subject 'sequence'. */
-  "leave_sequence",
-  "return_to_sequence",
-  /**
-   * A new sequence made whole, kept as a draft or started (00442 sequence_create, decision 0060 S4), and one that never
-   * sent let go (sequence_discard): subject 'sequence', payload its steps and whether it started, or its name and state.
-   */
-  "make_sequence",
-  "discard_sequence",
-  /**
-   * A member answered a booking the receptionist asked for (00443 booking_request_answer, decision 0061): booked, or not,
-   * subject 'appointment' (the request's row), payload booked, its start, the person and the service.
-   */
-  "answer_booking_request"
-];
-var DECISION_SUBJECTS = [
-  "conversation",
-  "escalation",
-  "draft",
-  "lead",
-  "message",
-  "agent",
-  "membership",
-  "invitation",
-  "contact",
-  "call",
-  "channel",
-  "broadcast",
-  "playbook",
-  "review",
-  /** The workspace itself: an export of everyone, or of everything. Its id is the tenant's. */
-  "workspace",
-  "deal",
-  /** One of the workspace's own lists (segments): its life, in the ledger (00169). */
-  "list",
-  /** A visit the record keeps (00345): what a member said became of it (00397). */
-  "appointment",
-  /** A sequence (decision 0060, 00442): its steps changed and its people taken out. Its id is its first step's. */
-  "sequence"
-];
-var ACTOR_TYPES = ["user", "ai", "system", "owner_phone"];
-var TEMPLATE_STATUSES = ["approved", "pending", "rejected", "paused", "disabled"];
-
-// src/templates/template-parts.ts
-function footerOf(components) {
-  if (!Array.isArray(components)) return null;
-  for (const c of components) {
-    if (!c || typeof c !== "object") continue;
-    const part = c;
-    if (String(part.type ?? "").toUpperCase() !== "FOOTER") continue;
-    const text = typeof part.text === "string" ? part.text.trim() : "";
-    if (text) return text;
-  }
-  return null;
-}
-function templateFooter(t) {
-  if (typeof t.footer === "string" && t.footer.trim()) return t.footer.trim();
-  const stored = footerOf(t.components);
-  if (stored) return stored;
-  const s = starterByName(t.name);
-  return s ? starterText(s, t.language ?? "en_US").footer ?? null : null;
-}
-var FILLED_PARTS = ["HEADER", "BODY", "FOOTER", "BUTTONS"];
-var partOf = (components, type) => {
-  if (!Array.isArray(components)) return null;
-  for (const c of components) {
-    if (c && typeof c === "object" && String(c.type ?? "").toUpperCase() === type)
-      return c;
-  }
-  return null;
-};
-var textOf = (part) => {
-  const t = part && typeof part.text === "string" ? part.text.trim() : "";
-  return t || null;
-};
-var BUTTON_KIND = { URL: "url", QUICK_REPLY: "reply", PHONE_NUMBER: "call" };
-function templateParts(components) {
-  const header = partOf(components, "HEADER");
-  const buttons = [];
-  const holder = partOf(components, "BUTTONS");
-  const list2 = holder && Array.isArray(holder.buttons) ? holder.buttons : [];
-  for (const b of list2) {
-    if (!b || typeof b !== "object") continue;
-    const kind = BUTTON_KIND[String(b.type ?? "").toUpperCase()];
-    const text = typeof b.text === "string" ? b.text.trim() : "";
-    if (kind && text) buttons.push({ text, kind });
-  }
-  return {
-    // A picture heading is not words and is not drawn as any.
-    header: header && String(header.format ?? "TEXT").toUpperCase() === "TEXT" ? textOf(header) : null,
-    footer: footerOf(components),
-    buttons
-  };
-}
-function templateBlocked(t) {
-  if (typeof t.blocked === "string") return t.blocked.trim() || null;
-  if (t.blocked === null) return null;
-  const components = t.components;
-  if (!Array.isArray(components)) return null;
-  const unfilled = components.some((c) => {
-    const type = c && typeof c === "object" ? c.type : null;
-    return !(typeof type === "string" && FILLED_PARTS.includes(type.toUpperCase()));
-  });
-  if (unfilled) return "a part Chanlytics cannot fill";
-  const header = partOf(components, "HEADER");
-  if (header) {
-    const format = String(header.format ?? "TEXT").toUpperCase();
-    if (format !== "TEXT")
-      return format === "IMAGE" ? "a picture for a heading" : `a ${format.toLowerCase()} for a heading`;
-    if (/\{\{\d+\}\}/.test(String(header.text ?? ""))) return "a heading that takes a value";
-  }
-  const holder = partOf(components, "BUTTONS");
-  const list2 = holder && Array.isArray(holder.buttons) ? holder.buttons : [];
-  for (const b of list2) {
-    if (!b || typeof b !== "object") continue;
-    const button = b;
-    const type = String(button.type ?? "").toUpperCase();
-    if (!(type in BUTTON_KIND)) return "a button Chanlytics cannot fill";
-    if (type === "URL" && /\{\{\d+\}\}/.test(String(button.url ?? ""))) return "a button that takes a value";
-  }
-  return null;
-}
-function refusedWords(reason) {
-  const said = String(reason ?? "").trim().replace(/[.!?\s]+$/, "");
-  if (!said) return null;
-  const words3 = /^[A-Z0-9_]+$/.test(said) ? said.toLowerCase().replace(/_/g, " ") : said;
-  return `WhatsApp refused this one: ${words3}. Change the words and send it back.`;
-}
-var COUNT_WORDS = ["", "one", "two", "three", "four", "five"];
-function blockedWords(reasons) {
-  const seen = /* @__PURE__ */ new Map();
-  for (const r2 of reasons) seen.set(r2, (seen.get(r2) ?? 0) + 1);
-  const parts2 = [...seen].map(([reason, n]) => `${COUNT_WORDS[n] ?? n} ${n === 1 ? "has" : "have"} ${reason}`);
-  return parts2.length > 1 ? `${parts2.slice(0, -1).join(", ")} and ${parts2[parts2.length - 1]}` : parts2[0];
-}
-function sendableTemplates(list2) {
-  const sendable = [];
-  const blocked = [];
-  for (const t of list2) (templateBlocked(t) ? blocked : sendable).push(t);
-  if (blocked.length === 0) return { sendable, blocked, why: null };
-  const n = blocked.length;
-  const reasons = blocked.map((t) => templateBlocked(t));
-  const words3 = n === 1 ? `it has ${reasons[0]}` : blockedWords(reasons);
-  const many = COUNT_WORDS[n] ?? String(n);
-  const lead = n === 1 ? "One of your messages" : `${many[0].toUpperCase()}${many.slice(1)} of your messages`;
-  return {
-    sendable,
-    blocked,
-    why: `${lead} can't go out from here \u2014 ${words3}. ${n === 1 ? "It still works" : "They still work"} in WhatsApp Manager.`
-  };
-}
-function templateLinkButton(components) {
-  const holder = partOf(components, "BUTTONS");
-  const list2 = holder && Array.isArray(holder.buttons) ? holder.buttons : [];
-  for (const b of list2) {
-    if (!b || typeof b !== "object") continue;
-    const x = b;
-    if (String(x.type ?? "").toUpperCase() !== "URL") continue;
-    const text = typeof x.text === "string" ? x.text.trim() : "";
-    const url = typeof x.url === "string" ? x.url.trim() : "";
-    if (text && url) return { text, url };
-  }
-  return null;
-}
-
-// src/templates/campaign-message.ts
-function variablesSlotCount(variables) {
-  if (!Array.isArray(variables)) return 0;
-  const positions = variables.map((v) => Number(v?.position)).filter((position) => Number.isFinite(position));
-  return Math.max(variables.length, ...positions);
-}
-function metaStatusOf(raw) {
-  return TEMPLATE_STATUSES.find((s) => s === raw) ?? "pending";
-}
-function strictestCategory(categories) {
-  if (categories.some((c) => purposeOfTemplate(c) === "marketing")) return "marketing";
-  return categories.find((c) => c !== null) ?? null;
-}
-function whatsappVersionOf(row2) {
-  const status = metaStatusOf(row2.meta_status);
-  return {
-    id: row2.id,
-    status,
-    hidden: Boolean(row2.hidden_at),
-    blocked: templateBlocked(row2),
-    reason: status === "rejected" ? refusedWords(row2.rejected_reason) : null
-  };
-}
-function messageFrom(name, language, rows2) {
-  const {
-    whatsapp: [w = null],
-    email: [e = null],
-    sms: [s = null]
-  } = versionsOf(rows2, name);
-  const anchorRow = w ?? e ?? s;
-  if (anchorRow === null) return null;
-  const category = w ? w.category ?? null : strictestCategory([e, s].flatMap((r2) => r2 ? [r2.category ?? null] : []));
-  const versions = {
-    whatsapp: w ? whatsappVersionOf(w) : null,
-    email: e ? { id: e.id } : null,
-    sms: s ? { id: s.id } : null
-  };
-  const held = messageHolds({ versions });
-  const hidden = Boolean(anchorRow.hidden_at);
-  const titled = [w, e, s].map((r2) => r2?.title ?? null).find((t) => t !== null && t.trim() !== "") ?? null;
-  return {
-    name,
-    language,
-    title: templateTitle(name, titled),
-    anchor: { id: anchorRow.id, channel: w ? "whatsapp" : e ? "email" : "sms" },
-    slots: variablesSlotCount((w ?? anchorRow).variables),
-    category,
-    purpose: purposeOfTemplate(category),
-    hidden,
-    offered: !hidden && CONSENT_CHANNELS.some((c) => held[c]),
-    versions
-  };
-}
-function campaignMessageOf(rows2, name, language) {
-  return messageFrom(
-    name,
-    language,
-    rows2.filter((r2) => r2.language === language)
-  );
-}
-function campaignMessagesOf(rows2) {
-  const groups = /* @__PURE__ */ new Map();
-  for (const r2 of rows2) {
-    if (isReachOutRow(r2)) continue;
-    const key = JSON.stringify([r2.name, r2.language]);
-    const group = groups.get(key) ?? { name: r2.name, language: r2.language, rows: [] };
-    group.rows.push(r2);
-    groups.set(key, group);
-  }
-  return [...groups.values()].flatMap((g) => {
-    const message = messageFrom(g.name, g.language, g.rows);
-    return message ? [message] : [];
-  });
-}
-function messageHolds(m) {
-  const w = m.versions.whatsapp;
-  return {
-    whatsapp: w !== null && w.status === "approved" && w.blocked === null,
-    email: m.versions.email !== null,
-    sms: m.versions.sms !== null
-  };
-}
-var NOT_APPROVED_WORDS = {
-  pending: "WhatsApp is still reviewing this message's WhatsApp version.",
-  rejected: "WhatsApp refused this message's WhatsApp version.",
-  paused: "WhatsApp has paused this message's WhatsApp version.",
-  disabled: "WhatsApp has disabled this message's WhatsApp version."
-};
-function messageWhyNot(m, channel) {
-  if (messageHolds(m)[channel]) return null;
-  const w = m.versions.whatsapp;
-  if (channel !== "whatsapp" || w === null) return noVersionWords(channel);
-  if (w.status !== "approved") return NOT_APPROVED_WORDS[w.status];
-  return w.blocked === null ? null : `This message's WhatsApp version has ${w.blocked}, so it cannot be sent from here.`;
-}
-var HOLDS_NOTHING = { versions: { whatsapp: null, email: null, sms: null } };
-function readyForMessage(ready, message) {
-  const out = { ...ready };
-  for (const c of CONSENT_CHANNELS) {
-    const why = messageWhyNot(message ?? HOLDS_NOTHING, c);
-    if (ready[c].ready && why !== null) out[c] = { ...ready[c], ready: false, why };
-  }
-  return out;
-}
-var whatsappStandingWord = (status) => TEMPLATE_STATUS_WORDS[status].toLowerCase();
-function messageStandingWords(m) {
-  const at3 = (channel, word) => `${VERSION_CHANNEL_WORDS[channel]} \xB7 ${word}`;
-  const w = m?.versions.whatsapp ?? null;
-  return {
-    whatsapp: at3("whatsapp", w ? whatsappStandingWord(w.status) : "not added"),
-    email: at3("email", m?.versions.email ? "ready" : "not written"),
-    sms: at3("sms", m?.versions.sms ? "ready" : m?.purpose === "marketing" ? "not for offers" : "not written")
-  };
-}
-function whatsappStoppedRunWords(m) {
-  const why = m === null ? null : messageWhyNot(m, "whatsapp");
-  return `${why ?? noVersionWords("whatsapp")} Everyone on this run goes by WhatsApp, so nothing was sent.`;
-}
-var NO_RUN_VERSION_WORDS = "has no version its runs can send";
-var MESSAGE_GONE_WORDS = {
-  card: `Its message ${NO_RUN_VERSION_WORDS}, so they are skipped until it has one again or the campaign sends another.`,
-  composer: (title) => `Its message, ${title}, ${NO_RUN_VERSION_WORDS} any more. Pick another to save a change.`
-};
-var RUN_NOW_WITHOUT_VERSION_WORDS = "Its message has no WhatsApp version a run can send, and nobody it would reach goes by email or text. Pick another message, or give this one an email or a text version and tick it on the campaign.";
-var STARTER_LINE_WORDS = {
-  /** The send screen, with no message it can send yet: how many starters' WhatsApp versions WhatsApp is still reviewing. */
-  reviewing: (n) => `Your starter messages' WhatsApp versions are in review (${n}) \u2014 they appear here once approved, usually within minutes.`,
-  /** The playbook composer, after the moment's own message and a comma: where its WhatsApp version stands. */
-  standing: (status) => {
-    const at3 = metaStatusOf(status);
-    return at3 === "pending" ? "has its WhatsApp version in review \u2014 it appears here once approved, usually within minutes." : `has its WhatsApp version ${whatsappStandingWord(at3)} \u2014 see ${CAMPAIGN_ROOMS.home} \u203A ${CAMPAIGN_ROOMS.library}.`;
-  },
-  /**
-   * The link that adds the moment's own message: its email and text versions at once, a WhatsApp version where a number
-   * is, which the line says once it is in review (`standing`). The link was the whole of that, in 25 words.
-   */
-  add: "Add it",
-  /** After the moment's own message's name, where it is not added yet: "Win-back, written for you". */
-  written: "written for you"
-};
-var THEIRS_WORDS = "about something they booked, or a proposal of theirs";
-var MESSAGE_BEGIN_WORDS = {
-  customIsAnOffer: "A message you write is an offer or news. Only a starter is a reminder, a check after or a follow-up.",
-  /**
-   * A message written whole (POST templates/message, Ask's message card) takes one about their own booking or proposal,
-   * written with a WhatsApp version for WhatsApp to review: never with an email or a text alone, which nobody reviews.
-   * Its own sentence, since customIsAnOffer (POST templates/versions's) is not true of this door.
-   */
-  utilityNeedsWhatsapp: `A message ${THEIRS_WORDS}, needs a WhatsApp version, which WhatsApp reviews.`,
-  starterNeedsItsOwnWords: "A starter begins with its own words. Add the starter set, then change the words in Messages.",
-  doorNotSwitchedOn: "Writing a message with no WhatsApp version is not switched on here yet.",
-  /**
-   * A message written whole in a language of a message already on file in another, said as something else (POST
-   * templates/message): a language of a message is the same kind of message with the same values, its kind what a send
-   * judges it by (consent purposeOfTemplate: a row with no category is an offer), so `purpose` is the held one's.
-   */
-  heldOtherwise: (purpose, slots) => `This message is on file in another language as ${purpose === "marketing" ? "an offer or news" : `a message ${THEIRS_WORDS},`} with ${slots} value${slots === 1 ? "" : "s"}. Write this language the same way, or give it another name.`,
-  /**
-   * A name on file in another language as a code for signing in (Meta's `authentication`): no campaign sends one, so no
-   * kind of message is written beside it, and "write it the same way" would be no way out.
-   */
-  heldAuthentication: "This name is on file in another language as a code for signing in, which no campaign sends. Give this message another name."
-};
-
-// src/ask-proposals/campaigns.ts
-var RUN_VERBS = ["approve", "skip"];
-function proposalChannelsWords(channels, byChannel) {
-  const goes = channelsWords(channels);
-  const carrying = channels.filter((c) => byChannel[c] > 0);
-  if (carrying.length < 2) return goes;
-  return `${goes} (${carrying.map((c) => `${byChannel[c].toLocaleString("en-US")} ${CONSENT_CHANNEL_WORDS[c]}`).join(", ")})`;
-}
-var PLAYBOOK_CARD_REFUSALS = {
-  /** A typed slot the proposal gave no words for: a question for the person. */
-  typedSlot: (label) => `this template takes typed words for \u201C${label}\u201D; ask the person what to say there, then propose again with params`,
-  value: "each value is text, or @first_name, @business_name, @booking_link or @review_link, or @visit_when or @visit_service on a reminder or a check after an appointment, or @proposal_link on the proposal follow-up",
-  plainText: "every typed value must be plain text under 1024 characters, without line breaks",
-  /** The moment's starter, hidden in this workspace's Library: no card adds it back. */
-  starterHidden: (title, from) => `${LIBRARY_STARTER_WORDS.hiddenInLibrary(title)} Say so; ${from} names the messages that may send.`,
-  starterUnsent: (title, from) => `the \u201C${title}\u201D starter has no version this workspace can send yet; say so and suggest adding the starter set under ${CAMPAIGN_ROOMS.home} \u203A ${CAMPAIGN_ROOMS.library}, or name a message from ${from}`,
-  hiddenTemplate: (from) => `that template is one the workspace keeps out of the composers; ${from} names the ones that may send`,
-  noList: (from) => `no such list; ${from} names them`,
-  uncounted: (list2, why) => `${list2} can't be counted right now: ${why}`,
-  /**
-   * A second running campaign on the same moment, list and message, where they named none of its own (D9). The model's
-   * words, when the card is made; a card's start that meets one is answered in twinRunsWords, the owner's.
-   */
-  twin: (name) => `\u201C${name}\u201D already runs on this moment with this message: say so, and propose a second only when they ask for another by a name of its own`,
-  followUpsUnread: "who already had a proposal follow-up could not be read just now; say so, and try again in a moment",
-  /**
-   * The week's breath: every message sent or due within a week of a run, a member's own too, holds its person, so the
-   * count waits on it. The stem a broadcast's door says it in (core createBroadcast).
-   */
-  weekUnread: "who has had a message from you lately, or has one due, could not be read just now; say so, and try again in a moment",
-  /**
-   * The autonomy modes, unread: what a card says of its runs (and of a trial, which only an auto class starts on, D5)
-   * is its class's mode, so no card is made on a guess, and a change's card is not either (act/playbook-change.ts).
-   */
-  modeUnread: "the sending mode of this campaign's class could not be read just now, so the card cannot say what its runs would do; say so, and try again in a moment",
-  /** The action named a message and a starter both: a campaign sends one. */
-  starterOrMessage: "name template_id for a message the workspace holds, or starter for the moment's starter to file at Approve, never both",
-  trigger: (triggers) => `trigger must be one of ${triggers.join(", ")}`,
-  listToken: (from) => `a playbook on a list needs list: the list's token from ${from} (seg:<id> or list:<id>)`,
-  templateId: (from) => `template_id must be an id ${from} returned, or omitted for the trigger's starter`
-};
-var twinRunsWords = (name) => `\u201C${name}\u201D already runs on this moment with this message, so nothing was started.`;
-var PLAYBOOK_CARD_WORDS = {
-  /**
-   * A campaign that starts on trial (D5: under an auto class only): for its first week, counted from its Approve
-   * (contracts newCampaignTrialUntil, at the route's clock), each run waits for a Stop as veto's do, said in veto's own
-   * words (PLAYBOOK_VETO_DELAY_WORDS), so a sentence that says both the trial and veto names one wait.
-   */
-  trial: `on trial for a week from when you approve it: for seven days each run waits ${PLAYBOOK_VETO_DELAY_WORDS} with a Stop`,
-  /**
-   * A reminder the day before or a check after an appointment (D2): one message per appointment, sent whatever else
-   * the person hears from you within a week of it, sent or due (BREATH_WHY), since the run is daily and the appointment
-   * is on one day (contracts playbookRunReach), so the week's breath, which holds every other moment, does not hold it.
-   */
-  appointmentBreath: `exempt from one a week per person: each goes whatever else they hear ${BREATH_WHY}`
-};
-var stepOfferWords = (quotes) => quotes.length === 0 ? "" : `, with the offer ${joinWords(quotes)}`;
-var channelsNamed = (pl) => Array.isArray(pl.channels) ? { channels: pl.channels } : {};
-var cancelCall = (u) => ({
-  route: "POST broadcasts/[id]/cancel",
-  params: { id: asText(u.broadcast_id) }
-});
-var canceled = (data) => rec(data).was === "sending" ? "Stopped \u2014 it ends after this batch" : "Canceled \u2014 nothing will send";
-var broadcastSpec = {
-  needs: "operator",
-  gate: "approve",
-  commit: ({ payload: pl }) => ({
-    route: "POST broadcasts",
-    body: {
-      template_id: pl.template_id,
-      params: Array.isArray(pl.params) ? pl.params : [],
-      audience: { kind: pl.audience_kind, id: pl.audience_id ?? null },
-      scheduled_for: pl.scheduled_for ?? null,
-      name: pl.name ?? null,
-      ...channelsNamed(pl)
-    }
-  }),
-  // The count and the name are the route's answer where it gave them, the card's where it did not: who it goes to, the
-  // people it enrolled less those it left out for the breath (goesToOf), and how many were left out.
-  receipt: ({ payload: pl }, data) => {
-    const d = rec(data);
-    const leftOut2 = typeof d.left_out === "number" ? d.left_out : 0;
-    const n = typeof d.recipient_count === "number" ? goesToOf({ recipient_count: d.recipient_count, left_out: leftOut2 }) : Number(pl.count ?? 0);
-    const ahead = d.scheduled_ahead === true;
-    const said = heardWords(leftOut2, true);
-    return `Broadcast \u201C${d.name ?? asText(pl.name)}\u201D \u2014 ${n} ${n === 1 ? "person" : "people"}, ${ahead ? "scheduled" : SENDING_NOW_WORDS}${said ? ` \xB7 ${said}` : ""}`;
-  },
-  undo: {
-    label: () => "Cancel it, if it has not finished",
-    window: "ten_minutes",
-    record: (_p, data) => ({ broadcast_id: rec(data).id, decision_id: decisionOf(data) }),
-    call: cancelCall,
-    receipt: canceled
-  },
-  open: () => "broadcasts"
-};
-var playbookSpec = {
-  needs: "operator",
-  gate: "approve",
-  commit: ({ payload: pl }) => ({
-    route: "POST playbooks",
-    body: {
-      name: pl.name ?? null,
-      trigger: pl.trigger,
-      // On a list (decision 0009): the list it names, and whether it sends an offer or a win-back.
-      ...pl.list_key ? { list_key: pl.list_key } : pl.list_id ? { list_id: pl.list_id } : {},
-      ...pl.list_key || pl.list_id ? { policy_class: pl.policy_class } : {},
-      // A starter named and no message (A0): the route files the starter, then starts the playbook on it.
-      ...pl.starter_key && !pl.template_id ? { starter_key: pl.starter_key } : { template_id: pl.template_id },
-      params: Array.isArray(pl.params) ? pl.params : [],
-      run_hour: pl.run_hour,
-      cap_per_run: pl.cap_per_run,
-      gap_days: pl.gap_days,
-      cadence_days: pl.cadence_days,
-      ...channelsNamed(pl),
-      // It starts on trial (D5), where the card said so: the route counts the week from the Approve, at its own clock.
-      ...pl.trial === true ? { trial: true } : {},
-      // Its last day (00416), where the card named one: the route judges it again at its own clock.
-      ...typeof pl.until === "string" ? { until: pl.until } : {}
-    }
-  }),
-  // "Campaign", the word a person reads; and, where the route says it sent the starter's WhatsApp version for review, so.
-  receipt: ({ payload: pl }, data) => `Campaign \u201C${rec(data).name ?? asText(pl.name)}\u201D is running \u2014 its next run is under Coming up in Campaigns${rec(rec(data).starter).status === "submitted" ? " \xB7 its starter's WhatsApp version is with WhatsApp for review" : ""}`,
-  undo: {
-    label: () => "Delete it \u2014 nothing will run",
-    window: "ten_minutes",
-    record: (_p, data) => ({ playbook_id: rec(data).id, decision_id: decisionOf(data) }),
-    call: (u) => ({ route: "DELETE playbooks/[id]", params: { id: asText(u.playbook_id) } }),
-    receipt: () => "Deleted \u2014 nothing will run"
-  },
-  // The new campaign's sequence once it is made (spec 2026-10-09 §4.6, one landing rule: `campaigns/moment:<id>` lands on
-  // it), by the id its commit kept for the undo, as the list card opens the list it made; before then New sequence on its
-  // moment, its line written in, and Sequences where the card names no moment (the composer's moment mode went: the
-  // closed-loop audit of 17 Oct 2026, G).
-  open: ({ payload }, outcome) => {
-    const id = idIn(rec(outcome?.undo), "playbook_id");
-    if (id) return `campaigns/moment:${id}`;
-    const trigger = idIn(payload, "trigger");
-    return trigger ? newSequenceRoute(trigger) : "outbound";
-  }
-};
-var channelsIn = (v) => Array.isArray(v) ? CONSENT_CHANNELS.filter((c) => v.includes(c)) : [];
-var playbookChannelsSpec = {
-  needs: "operator",
-  gate: "approve",
-  commit: ({ payload: pl }) => {
-    const id = idIn(pl, "playbook_id");
-    const channels = channelsIn(pl.channels);
-    if (!id || channels.length === 0) return refuseWith(PROPOSAL_WORDS.cannotApprove);
-    return { route: "PUT playbooks/[id]", params: { id }, body: { channels } };
-  },
-  // The drawer's own sentence, whole (LIFECYCLE_TOAST.channels): "Visit reminder goes by WhatsApp and Email now", and
-  // after it that the run which waits keeps the channels it was made with, where one does.
-  receipt: ({ payload: pl }) => LIFECYCLE_TOAST.channels(asText(pl.name) || "The campaign", channelsIn(pl.channels), pl.run_waits === true).map((part) => typeof part === "string" ? part : part.b).join(""),
-  undo: {
-    label: ({ payload }) => `Put it back to ${channelsGoesByWords(channelsIn(payload.was))}`,
-    window: "ten_minutes",
-    // The channels the route found when it wrote (its answer's `was`), the card's own reading where an older route
-    // answers none.
-    record: (p, data) => ({ playbook_id: p.payload.playbook_id, was: wasIn(data, "channels") ?? p.payload.was }),
-    call: (u) => {
-      const was = channelsIn(u.was);
-      return was.length === 0 || !asText(u.playbook_id) ? refuseWith(PROPOSAL_WORDS.noUndo) : { route: "PUT playbooks/[id]", params: { id: asText(u.playbook_id) }, body: { channels: was } };
-    },
-    receipt: () => "Its channels are as they were"
-  },
-  // Its sequence (`campaigns/moment:<id>` lands on it), where its record shows what it goes by now.
-  open: ({ payload }) => {
-    const id = idIn(payload, "playbook_id");
-    return id ? `campaigns/moment:${id}` : "outbound";
-  }
-};
-var patchIn = (pl) => Object.fromEntries(
-  PLAYBOOK_PATCH_KEYS.filter((k) => pl[k] !== void 0 && (pl[k] !== null || PLAYBOOK_PATCH_CLEARS.includes(k))).map(
-    (k) => [k, pl[k]]
-  )
-);
-var resumeUndoLabel = (mode) => mode === "auto" ? `Resume it. ${LIFECYCLE_WORDS.ledger.resume.auto}` : "Resume it";
-var toastWords = (parts2) => parts2.map((part) => typeof part === "string" ? part : part.b).join("");
-var playbookChangeSpec = {
-  needs: "operator",
-  gate: "approve",
-  commit: ({ payload: pl }) => {
-    const id = idIn(pl, "playbook_id");
-    const body = patchIn(pl);
-    if (!id || Object.keys(body).length === 0) return refuseWith(PROPOSAL_WORDS.cannotApprove);
-    return { route: "PUT playbooks/[id]", params: { id }, body };
-  },
-  receipt: ({ payload: pl }, data) => {
-    const name = asText(rec(data).name ?? pl.name ?? pl.playbook_name) || LIFECYCLE_TOAST.nameless;
-    if (pl.state === "paused") return toastWords(LIFECYCLE_TOAST.paused(name));
-    if (pl.state === "running") return toastWords(LIFECYCLE_TOAST.resumed(name));
-    return toastWords(LIFECYCLE_TOAST.changed(name));
-  },
-  undo: {
-    label: ({ payload }) => payload.state === "paused" ? resumeUndoLabel(payload.mode) : payload.state === "running" ? "Pause it again" : "Put it back",
-    window: "ten_minutes",
-    // What the route found when it wrote (its answer's `was`), the card's own reading only where a route answers none, and
-    // the ledger row the change wrote, which the undo names (commit.ts: undo_of). A route that wrote nothing (somebody
-    // made the same change first) answers it empty: no undo, which would undo theirs.
-    record: (p, data) => {
-      const was = rec(data).was;
-      if (was && typeof was === "object" && Object.keys(was).length === 0) return null;
-      return {
-        playbook_id: p.payload.playbook_id,
-        was: was && typeof was === "object" ? was : p.payload.was,
-        decision_id: decisionOf(data)
-      };
-    },
-    call: (u) => {
-      const was = patchIn(rec(u.was));
-      return !asText(u.playbook_id) || Object.keys(was).length === 0 ? refuseWith(PROPOSAL_WORDS.noUndo) : { route: "PUT playbooks/[id]", params: { id: asText(u.playbook_id) }, body: was };
-    },
-    receipt: () => "It is as it was"
-  },
-  // Its drawer on Campaigns, where its state, clock and name are.
-  open: ({ payload }) => {
-    const id = idIn(payload, "playbook_id");
-    return id ? `campaigns/moment:${id}` : "outbound";
-  }
-};
-function runGoes(pl, data) {
-  const d = rec(data);
-  const at3 = Date.parse(asText(d.scheduled_for));
-  const from = Date.parse(asText(d.moved_from));
-  const tz = asText(pl.timezone) || "UTC";
-  const asked = Number.isFinite(from) ? from : at3;
-  return whenItGoes(
-    { scheduled_for: asText(d.scheduled_for) || null, moved_from: asText(d.moved_from) || null },
-    (ms2) => clockWhen(ms2, tz, asked),
-    asked
-  );
-}
-var skipped = (data) => {
-  const was = rec(data).was;
-  return was === "sending" ? "stops after this batch" : was === "pending_approval" ? "skipped \u2014 nothing will send" : "canceled \u2014 nothing will send";
-};
-var runSpec = {
-  needs: "operator",
-  gate: "approve",
-  // The run's own doors, as the Playbooks card and the Broadcasts sheet press them: approve sends it, skip is its
-  // cancel. The verb is the card's to say (no default, the Phase 4 plan, D11): a card that says neither is never sent.
-  commit: ({ payload: pl }) => {
-    const id = idIn(pl, "broadcast_id");
-    if (!id || !RUN_VERBS.includes(pl.verb)) return refuseWith(PROPOSAL_WORDS.cannotApprove);
-    return {
-      route: pl.verb === "approve" ? "POST broadcasts/[id]/approve" : "POST broadcasts/[id]/cancel",
-      params: { id }
-    };
-  },
-  // The Broadcasts page's words: approved, with how many and when it goes; or what the skip did.
-  receipt: ({ payload: pl }, data) => {
-    const name = asText(pl.name) || "The run";
-    if (pl.verb !== "approve") return `${name} ${skipped(data)}`;
-    const n = Number(rec(data).recipient_count ?? pl.people ?? 0);
-    return `${name} ${runApprovedTail(n, runGoes(pl, data))}`;
-  },
-  // An approved run is canceled as a broadcast is; a skip has nothing to undo.
-  undo: {
-    label: ({ payload }) => payload.verb === "approve" ? "Cancel it, if it has not finished" : null,
-    window: "ten_minutes",
-    record: (p, data) => p.payload.verb === "approve" ? { broadcast_id: rec(data).id, decision_id: decisionOf(data) } : null,
-    call: cancelCall,
-    receipt: canceled
-  },
-  // The run's sheet, where Today and the Playbooks card open it.
-  open: ({ payload }) => {
-    const id = idIn(payload, "broadcast_id");
-    return id ? `broadcasts/run:${id}` : "broadcasts";
-  }
-};
-var playbookRunSpec = {
-  needs: "operator",
-  gate: "approve",
-  commit: ({ payload: pl }) => {
-    const id = idIn(pl, "playbook_id");
-    return id ? { route: "POST playbooks/[id]/run", params: { id } } : refuseWith(PROPOSAL_WORDS.cannotApprove);
-  },
-  receipt: ({ payload: pl }, data) => {
-    const d = rec(data);
-    const name = asText(d.name ?? pl.name) || LIFECYCLE_TOAST.nameless;
-    const n = Number(d.eligible) || 0;
-    const people = `${n} ${n === 1 ? "person" : "people"}`;
-    if (d.outcome === "sent") return `${name} \u2014 ${people}, ${runGoes(pl, data)}`;
-    if (d.outcome === "held") return `${name} \u2014 ${people} waiting for your approval`;
-    return `${name} \u2014 nobody new to send to right now`;
-  },
-  undo: {
-    label: () => "Cancel it, if it has not finished",
-    window: "ten_minutes",
-    record: (_p, data) => {
-      const d = rec(data);
-      const id = asText(d.broadcast_id);
-      return d.outcome === "sent" && id ? { broadcast_id: id, decision_id: decisionOf(data) } : null;
-    },
-    call: cancelCall,
-    receipt: canceled
-  },
-  open: ({ payload }) => {
-    const id = idIn(payload, "playbook_id");
-    return id ? `campaigns/moment:${id}` : "outbound";
-  }
-};
-var whatsappFiledWords = (state) => {
-  const at3 = metaStatusOf(state);
-  const where = `(see ${CAMPAIGN_ROOMS.home} \u203A ${CAMPAIGN_ROOMS.library})`;
-  if (at3 === "approved") return "is approved";
-  if (at3 === "pending") return "is with WhatsApp for review";
-  return at3 === "rejected" ? `was refused by WhatsApp ${where}` : `is ${at3} by WhatsApp ${where}`;
-};
-var versionsWords = (own) => `${own.map(versionWord).join(" and ")} version${own.length === 1 ? "" : "s"}`;
-var MESSAGE_WORDS = {
-  /** A text version of an offer: the door's sentence (contracts channelNeverCarries). */
-  smsOffer: `${CHANNEL_WORDS.noOffersByText} Say so, and write the offer for WhatsApp and email alone.`,
-  /** A message about their own booking or proposal with no WhatsApp version for WhatsApp to review: the door's sentence. */
-  utilityNeedsWhatsapp: `${MESSAGE_BEGIN_WORDS.utilityNeedsWhatsapp} Add one, or write it as an offer or news (marketing).`,
-  /** A WhatsApp version past what WhatsApp takes: the door's sentence (templateBodyTooLong). */
-  tooLong: `${TEMPLATE_BODY_WORDS} Shorten its WhatsApp version, and propose it again.`,
-  /** A WhatsApp version where no number is connected: what the door answers when the edge finds none. */
-  noNumber: `${LIBRARY_WORDS.writeNeedsNumber} Say so, and write it for email or text alone, or once a number is connected.`,
-  /**
-   * An email version where email cannot send, which is known (channelsReady: no mailbox, or no email for the deployment):
-   * why, in its sentence, else the mailbox's.
-   */
-  noMailbox: (why) => `${why ?? CHANNEL_WORDS.noMailbox} Say so, and write it without an email version.`,
-  /**
-   * An email version where whether email can send could not be asked just now (channelsReady's `unchecked`): not a no, so
-   * the email stays in the message, and the card is asked for again in a moment.
-   */
-  emailUnchecked: `Whether email can send here could not be checked just now. Say so, and propose it again in a moment, with its email version.`,
-  /** A name and language the Library holds: the door's sentence for a twin, and where that message's versions change. */
-  twin: (name) => `${TEMPLATE_SAME_NAME_WORDS} Say so: \u201C${name}\u201D in this language is in ${CAMPAIGN_ROOMS.home} \u203A ${CAMPAIGN_ROOMS.library}, where its versions are changed.`,
-  /** The card's title: the name the door files the message under, and its language in words ("in English"). */
-  title: (name, language) => `${CAMPAIGN_ROOMS.newMessage}: ${name}, in ${languageName(language)}`,
-  /**
-   * When its versions are ready to send: an email's and a text's once Approve files them (the card itself sends nothing,
-   * and in a plan it sits among the silent steps), WhatsApp's once WhatsApp has reviewed it, in the product's voice (a
-   * person reads WhatsApp, never Meta, as STARTER_LINE_WORDS say the review).
-   */
-  goes: (now, review) => {
-    const reviewed = "once WhatsApp has reviewed it (usually minutes, sometimes a day)";
-    if (now.length === 0) return review ? `Its WhatsApp version is ready ${reviewed}` : "";
-    return `Ready ${channelsWords(now)} once approved${review ? `; its WhatsApp version ${reviewed}` : ""}`;
-  },
-  /**
-   * What the door filed (its answer): each version, ready, in review or as WhatsApp answered its filing (refused at once,
-   * say, which is said with where it is seen), and the one it could not file, in its words.
-   */
-  filed: (name, filed, refused) => {
-    const said = filed.map(
-      (v) => v.channel === "whatsapp" ? `its WhatsApp version ${whatsappFiledWords(v.state)}` : `its ${versionWord(v.channel)} version is ready`
-    );
-    if (said.length === 0) return `\u201C${name}\u201D was not filed${refused ? `: ${refused.words}` : ""}`;
-    const not = refused ? ` \xB7 its ${versionWord(refused.channel)} version was not filed: ${refused.words}` : "";
-    return `\u201C${name}\u201D is in ${CAMPAIGN_ROOMS.library} \u2014 ${said.join("; ")}${not}`;
-  },
-  /** The undo's button: the email and text versions it deletes; none where the card writes none. */
-  undo: (own) => own.length > 0 ? `Delete its ${versionsWords(own)}` : null,
-  /**
-   * What the undo did: those versions deleted, and the WhatsApp version, where the door filed one, left, said so, and
-   * where a person deletes it if it should go.
-   */
-  undone: (own, whatsapp) => {
-    const gone = `Its ${versionsWords(own)} ${own.length === 1 ? "is" : "are"} deleted`;
-    return whatsapp ? `${gone}. Its WhatsApp version stays, held by WhatsApp: delete it in ${CAMPAIGN_ROOMS.home} \u203A ${CAMPAIGN_ROOMS.library} if it should go.` : gone;
-  },
-  /**
-   * An undo refused part-way: the versions already deleted, the ones that are not, and the door's refusal; nothing deleted
-   * yet, the refusal alone. Pressed again, the deleted ones are answered as they were and the rest is tried.
-   */
-  partlyUndone: (gone, left, refused) => gone.length === 0 ? refused : `Its ${versionsWords(gone)} ${gone.length === 1 ? "is" : "are"} deleted; its ${versionsWords(left)} ${left.length === 1 ? "is" : "are"} not: ${refused}`
-};
-var versionsIn = (v) => Array.isArray(v) ? v.map(rec).flatMap(
-  (x) => CONSENT_CHANNELS.includes(x.channel) && typeof x.id === "string" && x.id ? [{ channel: x.channel, id: x.id, state: asText(x.state) }] : []
-) : [];
-var writtenHere = (c) => c !== "whatsapp";
-var ownKept = (u) => versionsIn(u.versions).map((v) => v.channel).filter(writtenHere);
-var messageSpec = {
-  needs: "operator",
-  gate: "approve",
-  commit: ({ payload: pl }) => {
-    const name = asText(pl.name);
-    const versions = rec(pl.versions);
-    if (!name || Object.keys(versions).length === 0) return refuseWith(PROPOSAL_WORDS.cannotApprove);
-    return {
-      route: "POST templates/message",
-      body: {
-        name,
-        language: pl.language,
-        category: pl.category,
-        versions,
-        slots: Array.isArray(pl.slots) ? pl.slots : []
-      }
-    };
-  },
-  receipt: ({ payload: pl }, data) => {
-    const d = rec(data);
-    const refused = rec(d.refused);
-    const not = CONSENT_CHANNELS.includes(refused.channel) ? { channel: refused.channel, words: asText(refused.words) } : null;
-    return MESSAGE_WORDS.filed(asText(d.name ?? pl.name), versionsIn(d.versions), not);
-  },
-  // The first version the door filed: a broadcast and a playbook take any version's id for the message (core
-  // templateValues), so a plan's send names this one. None where nothing was filed.
-  made: (_p, data) => versionsIn(rec(data).versions).at(0)?.id ?? null,
-  undo: {
-    // The versions the card writes that an undo can delete, in the order the door files them.
-    label: ({ payload }) => MESSAGE_WORDS.undo(OWN_VERSION_CHANNELS.filter((c) => rec(payload.versions)[c] != null)),
-    window: "ten_minutes",
-    // The email and text versions the door answered it filed, and the state of a WhatsApp version it filed beside them.
-    record: (_p, data) => {
-      const filed = versionsIn(rec(data).versions);
-      const own = filed.filter((v) => writtenHere(v.channel)).map(({ channel, id }) => ({ channel, id }));
-      if (own.length === 0) return null;
-      return { versions: own, whatsapp: filed.find((v) => v.channel === "whatsapp")?.state ?? null };
-    },
-    call: (u) => {
-      const own = versionsIn(u.versions).filter((v) => writtenHere(v.channel));
-      return own.length === 0 ? refuseWith(PROPOSAL_WORDS.noUndo) : own.map(
-        // A version gone already (an earlier press deleted it, or a member did) is what the undo wants.
-        (v) => ({ route: "DELETE templates/versions/[id]", params: { id: v.id }, goneIsDone: true })
-      );
-    },
-    receipt: (_data, u) => MESSAGE_WORDS.undone(ownKept(u), u.whatsapp != null),
-    // The calls go in the order the kept versions are named, so the first `landed` of them are the ones deleted.
-    partial: (u, landed, refused) => {
-      const own = ownKept(u);
-      return MESSAGE_WORDS.partlyUndone(own.slice(0, landed), own.slice(landed), refused);
-    }
-  },
-  open: () => "messages"
-};
-
-// src/reach-out/reach-out-dtos.ts
-var REACH_OUT_PREVIEW_INDEX_MAX = 199;
-var REACH_OUT_DECISIONS = ["include", "rewrite", "skip", "not_a_fit"];
-var REACH_OUT_SAID_OUTCOMES = ["sent", "not_sent"];
 
 // src/reach-out/owner/compose.ts
 var COMPOSE_URL_MAX = 3800;
@@ -34716,8 +34707,9 @@ function shortcutGroups(list2 = SHORTCUTS) {
   return out;
 }
 var TOAST_TONES = ["ok", "info", "warn", "danger"];
-var TOAST_MS = { ok: 4e3, info: 4e3, warn: 6e3, danger: 8e3 };
-var TOAST_UNDO_MS = 8e3;
+var TOAST_MS = { ok: 3e3, info: 3e3, warn: 4e3, danger: 4e3 };
+var TOAST_UNDO_MS = 4e3;
+var TOAST_MAX_MS = 4e3;
 var TOAST_MIN_MS = 2e3;
 var TOAST_ICONS = {
   ok: "check",
@@ -34729,9 +34721,9 @@ function toastShape(p) {
   const tone = TOAST_TONES.includes(p.tone) ? p.tone : "ok";
   const asked = typeof p.ms === "number" && Number.isFinite(p.ms) && p.ms > 0 ? p.ms : null;
   const presses = !!p.undo || !!p.action || Array.isArray(p.links) && p.links.length > 0;
-  const ms2 = Math.max(
-    TOAST_MIN_MS,
-    Math.round(asked ?? (presses ? Math.max(TOAST_UNDO_MS, TOAST_MS[tone]) : TOAST_MS[tone]))
+  const ms2 = Math.min(
+    TOAST_MAX_MS,
+    Math.max(TOAST_MIN_MS, Math.round(asked ?? (presses ? Math.max(TOAST_UNDO_MS, TOAST_MS[tone]) : TOAST_MS[tone])))
   );
   return {
     tone,
@@ -39769,7 +39761,7 @@ function waitingNotice(steps, batch) {
     line: people > 0 ? `${people} wait${people === 1 ? "s" : ""} for your OK` : "The next batch waits for your OK",
     fact: fact2 || null,
     // One word per act, as the run's own sheet and Today's row say it (decision 19 of the spec of 9 Oct 2026).
-    act: people > 0 ? LIFECYCLE_WORDS.ledger.approve(people) : SEQUENCE_WORDS.approve,
+    act: people > 0 ? runApproveWords(people) : SEQUENCE_WORDS.approve,
     batchId: batch.id
   });
 }
@@ -47892,7 +47884,7 @@ var SEQUENCE_HISTORY_WORDS = {
   replies: "What came back",
   noReplies: "Nobody has written back to this one yet.",
   everyone: (n) => `All ${n} who got it`,
-  openRun: "Open the run",
+  openRun: RUN_OPEN_WORDS,
   thread: "Thread",
   waits: RUN_WAITING_SHORT,
   counting: "Counting\u2026",
@@ -48038,6 +48030,19 @@ function sequenceResumeAsk(rec2, reach, at3) {
   } : null;
   const detail = starts === "leads" ? W.chain : step2 ? resumeDetailOf(step2, { ...at3, paused: reach?.paused === true }) : null;
   return { question: SEQUENCE_ACT_WORDS.resumeAsk(name), detail, yes: SEQUENCE_ACT_WORDS.resumeYes };
+}
+
+// src/sequences/run-landing.ts
+function arrivedRunOf(route) {
+  const [path = ""] = route.split("?");
+  const [root, param = "", rest] = path.split("/");
+  const run = root === "broadcasts" && rest === void 0 ? /^run:([^:/]+)$/.exec(param) : null;
+  return run?.[1] ?? null;
+}
+function runLandingOf(route, run) {
+  const id = arrivedRunOf(route);
+  if (!id || id !== run.id) return null;
+  return runDecidedOnItsPage(run) ? runSheetRoute(id) : sequenceRoute(run.sequence_id || id, "history", id);
 }
 
 // src/sequences/sequence-draft.ts
@@ -60934,6 +60939,7 @@ export {
   RUN_FILTERS,
   RUN_GOING_STATES,
   RUN_NOW_WITHOUT_VERSION_WORDS,
+  RUN_OPEN_WORDS,
   RUN_REPORT_STEPS,
   RUN_VERBS,
   RUN_WAITING_SHORT,
@@ -61091,6 +61097,7 @@ export {
   TIMELINE_FILTERS,
   TIMETABLE_HORIZON_DAYS,
   TOAST_ICONS,
+  TOAST_MAX_MS,
   TOAST_MIN_MS,
   TOAST_MS,
   TOAST_TONES,
@@ -62725,6 +62732,7 @@ export {
   rulesLine,
   rulesWithoutFieldsWords,
   runApprovalRefusal,
+  runApproveWords,
   runApprovedTail,
   runCountsOf,
   runDayPassed,

@@ -62,6 +62,7 @@ export {
   TOAST_TONES,
   TOAST_MS,
   TOAST_UNDO_MS,
+  TOAST_MAX_MS,
   TOAST_MIN_MS,
   TOAST_ICONS,
 } from "./chrome";
@@ -111,6 +112,8 @@ export {
   runApprovedTail,
   RUN_WAITING_WORDS,
   RUN_WAITING_SHORT,
+  RUN_OPEN_WORDS,
+  runApproveWords,
   runsWaitingSentence,
   heldEmailsWords,
   runStopWords,

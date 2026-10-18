@@ -208,8 +208,9 @@ export function shortcutGroups(list = SHORTCUTS) {
   return out;
 }
 export const TOAST_TONES = ["ok", "info", "warn", "danger"];
-export const TOAST_MS = { ok: 4e3, info: 4e3, warn: 6e3, danger: 8e3 };
-export const TOAST_UNDO_MS = 8e3;
+export const TOAST_MS = { ok: 3e3, info: 3e3, warn: 4e3, danger: 4e3 };
+export const TOAST_UNDO_MS = 4e3;
+export const TOAST_MAX_MS = 4e3;
 export const TOAST_MIN_MS = 2e3;
 export const TOAST_ICONS = {
   ok: "check",
@@ -221,9 +222,9 @@ export function toastShape(p) {
   const tone = TOAST_TONES.includes(p.tone) ? p.tone : "ok";
   const asked = typeof p.ms === "number" && Number.isFinite(p.ms) && p.ms > 0 ? p.ms : null;
   const presses = !!p.undo || !!p.action || Array.isArray(p.links) && p.links.length > 0;
-  const ms = Math.max(
-    TOAST_MIN_MS,
-    Math.round(asked ?? (presses ? Math.max(TOAST_UNDO_MS, TOAST_MS[tone]) : TOAST_MS[tone]))
+  const ms = Math.min(
+    TOAST_MAX_MS,
+    Math.max(TOAST_MIN_MS, Math.round(asked ?? (presses ? Math.max(TOAST_UNDO_MS, TOAST_MS[tone]) : TOAST_MS[tone])))
   );
   return {
     tone,
