@@ -395,6 +395,8 @@ function runApprovedTail(people, when) {
   return `approved \u2014 ${people} ${people === 1 ? "person" : "people"}, ${when}`;
 }
 var RUN_WAITING_WORDS = "Waiting for your approval";
+var runApproveWords = (n) => `Approve \xB7 ${n} ${n === 1 ? "person" : "people"}`;
+var RUN_OPEN_WORDS = "Open the run";
 function heldEmailsWords(n) {
   return `${n} ${n === 1 ? "email waits" : "emails wait"} for your say`;
 }
@@ -814,7 +816,7 @@ var LIFECYCLE_WORDS = {
       );
       return now.length ? now.join(" \xB7 ") : p.done ? `${p.done} done` : "Nobody yet";
     },
-    openRun: "Open the run",
+    openRun: RUN_OPEN_WORDS,
     /**
      * A row's last 30 days, as its cell says them. A reach-out's is in the businesses it wrote to, which "wrote back" is a
      * count of; its emails written only where the businesses were not counted (a database before 00404).
@@ -827,7 +829,7 @@ var LIFECYCLE_WORDS = {
       hint: (when) => when ? `Sent once \xB7 ${when}` : "Sent once"
     },
     /** One word per act (decision 19): "Approve · 7 people" and "Skip", everywhere a waiting run is decided. */
-    approve: (n) => `Approve \xB7 ${plural(n, "person", "people")}`,
+    approve: runApproveWords,
     skip: "Skip",
     resume: {
       label: "Resume",

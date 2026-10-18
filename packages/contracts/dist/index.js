@@ -17047,6 +17047,9 @@ function runApprovedTail(people, when) {
   return `approved \u2014 ${people} ${people === 1 ? "person" : "people"}, ${when}`;
 }
 var RUN_WAITING_WORDS = "Waiting for your approval";
+var RUN_WAITING_SHORT = "Waits for you";
+var runApproveWords = (n) => `Approve \xB7 ${n} ${n === 1 ? "person" : "people"}`;
+var RUN_OPEN_WORDS = "Open the run";
 function runsWaitingSentence(n) {
   return n === 1 ? "A campaign run is waiting for your say." : `${n} campaign runs are waiting for your say.`;
 }
@@ -17341,7 +17344,7 @@ var LIFECYCLE_WORDS = {
       );
       return now.length ? now.join(" \xB7 ") : p.done ? `${p.done} done` : "Nobody yet";
     },
-    openRun: "Open the run",
+    openRun: RUN_OPEN_WORDS,
     /**
      * A row's last 30 days, as its cell says them. A reach-out's is in the businesses it wrote to, which "wrote back" is a
      * count of; its emails written only where the businesses were not counted (a database before 00404).
@@ -17354,7 +17357,7 @@ var LIFECYCLE_WORDS = {
       hint: (when) => when ? `Sent once \xB7 ${when}` : "Sent once"
     },
     /** One word per act (decision 19): "Approve · 7 people" and "Skip", everywhere a waiting run is decided. */
-    approve: (n) => `Approve \xB7 ${plural(n, "person", "people")}`,
+    approve: runApproveWords,
     skip: "Skip",
     resume: {
       label: "Resume",
@@ -17972,7 +17975,7 @@ var newSequenceRoute = (moment2) => moment2 ? `${SEQUENCES_ROUTE}/new:moment:${m
 var runSheetRoute = (id) => `broadcasts/run:${id}/sheet`;
 function sequenceLandingOf(route) {
   const [path = ""] = route.split("?");
-  const [root, param = "", rest] = path.split("/");
+  const [root, param = ""] = path.split("/");
   if (root === "campaigns") {
     if (param === "" || param.startsWith("in:")) return SEQUENCES_ROUTE;
     const moment2 = /^moment:([^:/]+)(:people)?$/.exec(param);
@@ -17982,8 +17985,6 @@ function sequenceLandingOf(route) {
     if (on?.[1]) return newSequenceRoute(on[1]);
   }
   if (root === "broadcasts" && param === "") return SEQUENCES_ROUTE;
-  const run = root === "broadcasts" && rest === void 0 ? /^run:([^:/]+)$/.exec(param) : null;
-  if (run?.[1]) return sequenceRoute(run[1], "history", run[1]);
   return null;
 }
 var sequenceRepliesRoute = (id, period = "30") => `inbox/from:${id}${period === "30" ? "" : `:${period}`}`;
@@ -20674,7 +20675,9 @@ function toApprovalVM(d, opts) {
     reader: reader ? reader.name : null,
     readerChannel: channelOfRecipient(reader),
     hiThere: greets ? d.recipients.filter((r2) => !r2.first_name).length : 0,
-    approve: refusal ? null : `Approve \u2014 ${will} ${opts.open.moved ? `at ${opts.open.time}` : "now"}`,
+    // One word per act (decision 19 of the spec of 9 Oct 2026), as Today's row and the ledger say it; when it goes is said
+    // once, beside it (`goes`): the button said it again ("Approve — 3 now").
+    approve: refusal ? null : runApproveWords(will),
     expired: refusal,
     goes: late ? `made for ${opts.day(runFor)}` : opts.paused ? "waits until billing resumes" : opts.open.moved ? `goes at ${opts.open.time} once you approve it` : "goes the moment you approve it",
     skip: "Skipping loses this run only \u2014 the campaign keeps running."
@@ -21284,6 +21287,10 @@ function runLabelOf(run) {
   const label = run.audience?.label;
   return typeof label === "string" && label.trim() ? label : run.name;
 }
+function runTitleOf(run) {
+  const tail = run.run_for ? ` \xB7 ${run.run_for}` : null;
+  return tail && run.name.endsWith(tail) && run.name.length > tail.length ? run.name.slice(0, -tail.length) : run.name;
+}
 function whenLabel(iso, tz, now = /* @__PURE__ */ new Date()) {
   const ms2 = Date.parse(iso);
   return Number.isFinite(ms2) ? clockWhen(ms2, tz, now.getTime()) : "";
@@ -21336,6 +21343,9 @@ function runHeldEmails(run) {
 function runDraftedEmails(run) {
   const going = RUN_GOING_STATES.includes(run.state);
   return going && typeof run.drafted === "number" && run.drafted > 0 ? run.drafted : 0;
+}
+function runDecidedOnItsPage(run) {
+  return run.state === "pending_approval" || runHeldEmails(run) > 0 || runDraftedEmails(run) > 0;
 }
 function runTooLate(run, days) {
   return run.state === "pending_approval" && runApprovalRefusal(runAsked(run), days) !== null;
@@ -34639,8 +34649,9 @@ function shortcutGroups(list2 = SHORTCUTS) {
   return out;
 }
 var TOAST_TONES = ["ok", "info", "warn", "danger"];
-var TOAST_MS = { ok: 6e3, info: 6e3, warn: 8e3, danger: 1e4 };
-var TOAST_UNDO_MS = 15e3;
+var TOAST_MS = { ok: 3e3, info: 3e3, warn: 4e3, danger: 4e3 };
+var TOAST_UNDO_MS = 4e3;
+var TOAST_MAX_MS = 4e3;
 var TOAST_MIN_MS = 2e3;
 var TOAST_ICONS = {
   ok: "check",
@@ -34651,15 +34662,18 @@ var TOAST_ICONS = {
 function toastShape(p) {
   const tone = TOAST_TONES.includes(p.tone) ? p.tone : "ok";
   const asked = typeof p.ms === "number" && Number.isFinite(p.ms) && p.ms > 0 ? p.ms : null;
-  const ms2 = Math.max(
-    TOAST_MIN_MS,
-    Math.round(asked ?? (p.undo ? Math.max(TOAST_UNDO_MS, TOAST_MS[tone]) : TOAST_MS[tone]))
+  const presses = !!p.undo || !!p.action || Array.isArray(p.links) && p.links.length > 0;
+  const ms2 = Math.min(
+    TOAST_MAX_MS,
+    Math.max(TOAST_MIN_MS, Math.round(asked ?? (presses ? Math.max(TOAST_UNDO_MS, TOAST_MS[tone]) : TOAST_MS[tone])))
   );
   return {
     tone,
     icon: typeof p.icon === "string" && p.icon ? p.icon : TOAST_ICONS[tone],
     role: tone === "danger" ? "alert" : "status",
-    ms: ms2
+    ms: ms2,
+    // Only an Undo is worth keeping through a tap besides: a toast that stays with nothing to press is one in the way.
+    stays: p.stays === true && !!p.undo
   };
 }
 
@@ -39564,7 +39578,7 @@ function sequenceStartWords(row2, word) {
 function sequenceStateWords(row2) {
   if (row2.starts === "date" && row2.date) {
     const DATE2 = {
-      pending_approval: "Waits for you",
+      pending_approval: RUN_WAITING_SHORT,
       scheduled: "Scheduled",
       sending: "Sending",
       sent: "Sent",
@@ -39685,7 +39699,8 @@ function waitingNotice(steps, batch) {
     words: people > 0 ? `${plural(people, "person waits", "people wait")} for your OK${until}` : `The next batch waits for your OK${until}`,
     line: people > 0 ? `${people} wait${people === 1 ? "s" : ""} for your OK` : "The next batch waits for your OK",
     fact: fact2 || null,
-    act: people > 0 ? `${SEQUENCE_WORDS.approve} ${people}` : SEQUENCE_WORDS.approve,
+    // One word per act, as the run's own sheet and Today's row say it (decision 19 of the spec of 9 Oct 2026).
+    act: people > 0 ? runApproveWords(people) : SEQUENCE_WORDS.approve,
     batchId: batch.id
   });
 }
@@ -47802,9 +47817,9 @@ var SEQUENCE_HISTORY_WORDS = {
   replies: "What came back",
   noReplies: "Nobody has written back to this one yet.",
   everyone: (n) => `All ${n} who got it`,
-  openRun: "Open the run",
+  openRun: RUN_OPEN_WORDS,
   thread: "Thread",
-  waits: "Waits for you",
+  waits: RUN_WAITING_SHORT,
   counting: "Counting\u2026",
   step: (place) => `step ${place}`,
   reading: "Reading the day\u2026",
@@ -47948,6 +47963,19 @@ function sequenceResumeAsk(rec2, reach, at3) {
   } : null;
   const detail = starts === "leads" ? W.chain : step2 ? resumeDetailOf(step2, { ...at3, paused: reach?.paused === true }) : null;
   return { question: SEQUENCE_ACT_WORDS.resumeAsk(name), detail, yes: SEQUENCE_ACT_WORDS.resumeYes };
+}
+
+// src/sequences/run-landing.ts
+function arrivedRunOf(route) {
+  const [path = ""] = route.split("?");
+  const [root, param = "", rest] = path.split("/");
+  const run = root === "broadcasts" && rest === void 0 ? /^run:([^:/]+)$/.exec(param) : null;
+  return run?.[1] ?? null;
+}
+function runLandingOf(route, run) {
+  const id = arrivedRunOf(route);
+  if (!id || id !== run.id) return null;
+  return runDecidedOnItsPage(run) ? runSheetRoute(id) : sequenceRoute(run.sequence_id || id, "history", id);
 }
 
 // src/sequences/sequence-draft.ts
@@ -54345,7 +54373,8 @@ var PREFETCH_READS = {
     "calendar?around=today"
   ],
   // The reply box's approved templates are the settings read's, the one read of the templates (surfaces/offered-templates.ts).
-  inbox: ["conversations", "escalations?state=open"],
+  // And Sent's runs, whose waiting ones are rows of Needs you (surface-registry ROUTE_DRAWS): their own read, nothing of People.
+  inbox: ["conversations", "escalations?state=open", "broadcasts"],
   // A row's standing reads the thread's open escalation, as the Inbox's does (conversations-surface.ts).
   conversations: ["conversations", "calls", "escalations?state=open"],
   // People's list, its lists and the Pipeline are one page over one surface (a person's page reads the person instead).
@@ -54360,10 +54389,11 @@ var PREFETCH_READS = {
   // own surface's (reports_campaigns), made where the lens is drawn and not by the head.
   reports: ["reports?period=30d"],
   live: ["calls", "channels"],
-  // Sent's sheets: the runs, who an audience reaches, and the channels read the composers are made of
-  // (surfaces/channels/surface.ts), beside Sequences' list (decision 0060, D3), its own read. The messages a composer offers,
+  // Sent's sheets: the runs, and the channels read the composers are made of (surfaces/channels/surface.ts), beside Sequences'
+  // list (decision 0060, D3), its own read. Who an audience reaches (Send it again's list) is every page of People, read
+  // once these are in, never by the head: a run's sheet opened from the Inbox draws without it. The messages a composer offers,
   // the business's name and its links are the settings read's, which the boot's second pass reads.
-  broadcasts: ["broadcasts", "contacts", "segments", "channels", "sequences"],
+  broadcasts: ["broadcasts", "channels", "sequences"],
   outbound: ["playbooks", "channels"],
   // Campaigns is Sequences' list (surface-registry ROUTE_SURFACE), where its own address, a group's and a campaign's land,
   // and it opens on what Sequences opens on: the sheets it opens over the list read theirs at their own addresses (below).
@@ -54372,9 +54402,10 @@ var PREFETCH_READS = {
   // Campaigns › Sequences (decision 0060), its list and a record open beside it: the sequences' own read, and the settings
   // read, which holds the messages a step may send and the business's name its preview is filled with (ROUTE_DRAWS).
   "campaigns/sequences": ["sequences", "settings", "team", "policies", "templates?all=1"],
-  // The composer over Sequences' list (`campaigns/new…`, ROUTE_DRAWS): Send once, made of Sent's runs and who they reach,
-  // the channels read and the settings read, which holds the messages it offers; and the reach-outs' chains a change to one
-  // opens on. Write to leads reads its searches as it is chosen. Each surface's first reads.
+  // The composer over Sequences' list (`campaigns/new…`, ROUTE_DRAWS): Send once, made of Sent's runs and who each audience
+  // reaches (People's book, its lists and the runs' touches), the channels read and the settings read, which holds the messages
+  // it offers; and the reach-outs' chains a change to one opens on. Write to leads reads its searches as it is chosen. Each
+  // surface's first reads.
   "campaigns/new": [
     "sequences",
     "channels",
@@ -54397,8 +54428,9 @@ var PREFETCH_READS = {
   start: ["setup", "views"]
 };
 var PREFETCH_BESIDE = {
-  // Sent's runs and who they reach, the playbooks' moments, the bell (notifications), the reach-outs' replies, Google's
-  // reviews, the channels read Live's strip and the runs are made of, and the period line: Reports' headline over the period
+  // Sent's runs, People's book and its lists (Worth a look's people, the day card's flags), the playbooks' moments, the bell
+  // (notifications), the reach-outs' replies, Google's reviews, the channels read Live's strip and the runs are made of, and
+  // the period line: Reports' headline over the period
   // this device last picked, as Reports reads it. Not the settings read: nothing on Today draws it, and the composers that
   // asked for it here follow it now (surfaces/offered-templates.ts), so it comes in the boot's second pass.
   today: [
@@ -60839,8 +60871,10 @@ export {
   RUN_FILTERS,
   RUN_GOING_STATES,
   RUN_NOW_WITHOUT_VERSION_WORDS,
+  RUN_OPEN_WORDS,
   RUN_REPORT_STEPS,
   RUN_VERBS,
+  RUN_WAITING_SHORT,
   RUN_WAITING_WORDS,
   ReachOutAddSchema,
   ReachOutChainSchema,
@@ -60990,6 +61024,7 @@ export {
   TIMELINE_FILTERS,
   TIMETABLE_HORIZON_DAYS,
   TOAST_ICONS,
+  TOAST_MAX_MS,
   TOAST_MIN_MS,
   TOAST_MS,
   TOAST_TONES,
@@ -61143,6 +61178,7 @@ export {
   areaOfValue,
   areaValueOf,
   areaWord,
+  arrivedRunOf,
   asContactId,
   asListRule,
   asNameSource,
@@ -62620,20 +62656,24 @@ export {
   rulesLine,
   rulesWithoutFieldsWords,
   runApprovalRefusal,
+  runApproveWords,
   runApprovedTail,
   runCountsOf,
   runDayPassed,
   runDaysAt,
+  runDecidedOnItsPage,
   runDraftedEmails,
   runDueNow,
   runHeldEmails,
   runLabelOf,
+  runLandingOf,
   runMarkShown,
   runReadingOf,
   runSheetRoute,
   runStillMoving,
   runStopWords,
   runStoppedWords,
+  runTitleOf,
   runTooLate,
   runWaitsOnYou,
   runningTotal,

@@ -41,7 +41,7 @@ const RECENT = 50;
 const IN_CHUNK = 200;
 
 const ROW_COLUMNS =
-  "id, name, template_id, template_name, template_language, params, audience, state, scheduled_for, started_at, finished_at, recipient_count, failure, created_at, playbook_id:step_id, run_for";
+  "id, name, template_id, template_name, template_language, params, audience, state, scheduled_for, started_at, finished_at, recipient_count, failure, created_at, playbook_id:step_id, run_for, sequence_id";
 
 interface BroadcastRow {
   id: string;
@@ -60,6 +60,7 @@ interface BroadcastRow {
   created_at: string;
   playbook_id: string | null;
   run_for: string | null;
+  sequence_id: string;
 }
 
 interface RecipientRow {
@@ -325,6 +326,7 @@ function toDto(r: BroadcastRow, counts: BroadcastCounts): BroadcastDto {
     created_at: r.created_at,
     playbook_id: r.playbook_id,
     run_for: r.run_for,
+    sequence_id: r.sequence_id,
     counts,
   };
 }

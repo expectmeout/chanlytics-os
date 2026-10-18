@@ -443,7 +443,9 @@ test("the page and its doors: Campaigns is real (Sequences, decision 0060), and 
       AFTER[k]().map((o) => o.key),
       [
         "playbooks",
-        "broadcasts",
+        // Sent's runs where the write makes, moves or takes back a run: a playbook made or changed makes none, and Sent's runs read
+        // no campaign (the Inbox's run review, 18 Oct 2026).
+        ...(["POST playbooks", "PUT playbooks/[id]"].includes(k) ? [] : ["broadcasts"]),
         // A reach-out's row moves with its first step's pause and resume, and with its run's approval (Part 4 PR 8).
         ...(["PUT playbooks/[id]", "POST broadcasts/[id]/approve", "POST broadcasts/[id]/cancel"].includes(k)
           ? ["reach_outs"]
@@ -454,7 +456,7 @@ test("the page and its doors: Campaigns is real (Sequences, decision 0060), and 
         // reply box and both composers are made of it (offered-templates.ts), so none is named beside it.
         ...(k === "POST playbooks" ? ["settings"] : []),
       ],
-      `${k}: every write re-fetches both surfaces`,
+      `${k}: every write re-fetches the playbooks, and Sent's runs where it moves one`,
     );
   const pools = readCode("apps/dashboard/src/server/campaigns/playbook-pools.ts");
   assert.ok(

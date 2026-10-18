@@ -18,6 +18,7 @@ import { REPORT_MIN_N } from "../reports/report-tiles";
 import { addressOf } from "../activity/record-address";
 import { clockHistoryDay, clockTime, clockWhen, zoneDayKey } from "../shared/clock";
 import { pct } from "../shared/numbers";
+import { RUN_OPEN_WORDS, RUN_WAITING_SHORT } from "../shell/campaign-rooms";
 import { plural } from "../shared/words";
 import { DAY_MS } from "../shared/time";
 import type { SequenceBatchDto, SequenceHistoryDto, SequencePersonDto } from "./sequence-dto";
@@ -245,9 +246,9 @@ export const SEQUENCE_HISTORY_WORDS = {
   replies: "What came back",
   noReplies: "Nobody has written back to this one yet.",
   everyone: (n: number) => `All ${n} who got it`,
-  openRun: "Open the run",
+  openRun: RUN_OPEN_WORDS,
   thread: "Thread",
-  waits: "Waits for you",
+  waits: RUN_WAITING_SHORT,
   counting: "Counting…",
   step: (place: number) => `step ${place}`,
   reading: "Reading the day…",

@@ -33,13 +33,20 @@ function keysOn(hash, route) {
     globalThis.location.hash = was;
   }
 }
-/** Campaigns' two composers: read where the page on screen draws them, left for the pages that do elsewhere (S10-6). */
-const COMPOSERS = ["broadcasts", "playbooks"];
 /**
- * The page that draws each of them whole: Sent's runs in Campaigns' composer (Send once), the playbooks on Campaigns' old
- * address, since the composer's Every time went (the closed-loop audit of 17 Oct 2026, G).
+ * What Campaigns' two composers count over everyone in People: read where the page on screen draws them, left for the pages that
+ * do elsewhere (S10-6). Who each audience a broadcast offers reaches is a surface of its own (audiences-surface.ts); Sent's runs
+ * count nobody (the Inbox's run review, 18 Oct 2026).
  */
-const PAGE_OF = { broadcasts: "#/campaigns/new", playbooks: "#/outbound" };
+const COMPOSERS = ["audiences", "playbooks"];
+/**
+ * The page that draws each of them whole: who each audience reaches in Campaigns' composer (Send once), the playbooks on
+ * Campaigns' old address, since the composer's Every time went (the closed-loop audit of 17 Oct 2026, G); and Sent's runs, whose
+ * Send by ticks the composer draws too.
+ */
+const PAGE_OF = { audiences: "#/campaigns/new", playbooks: "#/outbound", broadcasts: "#/campaigns/new" };
+/** Pages each row's surfaces are drawn on: a row whose surfaces are all read where they are drawn names one on some page. */
+const PAGES = ["#/inbox", "#/today", "#/clients", "#/campaigns/new", "#/outbound", "#/calendar", "#/admin/workspace"];
 
 test("every write re-reads its surfaces or says why it re-reads none, and never both", () => {
   assert.ok(writes.length > 100, `the generated routes are read: ${writes.length} writes`);
@@ -55,7 +62,11 @@ test("the tables name only writes, and every reason is said", () => {
     assert.notEqual(ROUTES[k].method, "GET", `${k}: a read is not a write`);
     assert.ok(String(REFRESHES_NOTHING[k]).trim().length > 10, `${k}: say why nothing on screen moves`);
   }
-  for (const k of Object.keys(AFTER)) assert.ok(keysOf(k).length > 0, `${k}: names no surface`);
+  for (const k of Object.keys(AFTER))
+    assert.ok(
+      PAGES.some((hash) => keysOn(hash, k).length > 0),
+      `${k}: names no surface`,
+    );
 });
 
 test("REGRESSION: a contact's edit re-reads the threads with them -- their name stayed old on the Inbox", () => {
@@ -76,8 +87,8 @@ test("REGRESSION: a contact's edit re-reads the threads with them -- their name 
     assert.equal(keys.includes("people"), false, `${route} from the Inbox: People is left for its pages`);
   }
   // Their details carry the email address a campaign by email goes to, so the audiences read again with them where they are drawn:
-  // the Inbox draws Sent's runs (the runs waiting for your word), not the playbooks.
-  assert.deepEqual(keysOf("PUT contacts/[id]/details").sort(), ["broadcasts", "conversations", "inbox", "today"]);
+  // the Inbox draws Sent's runs (the runs waiting for your word), which count nobody, and neither the audiences nor the playbooks.
+  assert.deepEqual(keysOf("PUT contacts/[id]/details").sort(), ["conversations", "inbox", "today"]);
   // What a thread does not carry re-reads People alone.
   assert.deepEqual(keysOf("PUT contacts/[id]/receptionist"), ["people"]);
 });
@@ -163,9 +174,13 @@ test("REGRESSION: a write that changes who a campaign reaches re-reads the pages
   assert.equal(keysOf("PUT policies").includes("people"), false, "PUT policies, not from the Inbox");
   // And each keeps what it re-read before.
   assert.ok(keysOf("PUT policies").includes("settings"));
-  for (const key of ["playbooks", "broadcasts"]) assert.ok(keysOf("POST playbooks").includes(key), key);
-  for (const key of ["playbooks", "broadcasts", "reach_outs"])
+  assert.ok(keysOf("POST playbooks").includes("playbooks"), "playbooks");
+  for (const key of ["playbooks", "reach_outs"])
     assert.ok(keysOf("PUT playbooks/[id]").includes(key), `PUT playbooks/[id]: ${key}`);
+  // A campaign saved makes no run: Sent's runs read no campaign, and are not read for one (reads-are-heard's rows read what they
+  // can change).
+  for (const route of ["POST playbooks", "PUT playbooks/[id]"])
+    assert.equal(keysOf(route).includes("broadcasts"), false, `${route} reads Sent's runs for nothing`);
 });
 
 test("a partner joining a workspace goes through the map, the switcher's list and the partner's count", () => {
@@ -216,7 +231,7 @@ test("a write that changes what a channel can send re-reads the composers and Pe
   // reads; each has its writer in this table, and each moves the three surfaces that show the readiness, each where the page on
   // screen draws it (PAGE_OF, People's pages its reach) and left for those pages from Settings, where these writes are made
   // (S10-6, S4-6).
-  const moved = COMPOSERS;
+  const moved = [...COMPOSERS, "broadcasts"];
   for (const route of [
     "PUT settings",
     "POST settings/receptionist",
@@ -232,7 +247,7 @@ test("a write that changes what a channel can send re-reads the composers and Pe
       assert.ok(on.includes(key), `${route} re-reads ${key} on ${PAGE_OF[key]}: ${on}`);
     }
     const away = keysOn("#/admin/integrations", route);
-    for (const key of [...COMPOSERS, "people"])
+    for (const key of [...moved, "people"])
       assert.equal(away.includes(key), false, `${route} from Settings: ${key} is left`);
     assert.ok(keysOn("#/clients", route).includes("people"), `${route} on People: its reach`);
   }
@@ -563,7 +578,7 @@ test("a write that changes who is in the book, what they answered, their steps, 
     }
     // Each keeps what it re-read before.
     assert.deepEqual(keysOf("PATCH workspaces"), ["settings", "people", "today", "broadcasts"]);
-    assert.deepEqual(keysOf("PUT contacts/[id]/details").sort(), ["broadcasts", "conversations", "inbox", "today"]);
+    assert.deepEqual(keysOf("PUT contacts/[id]/details").sort(), ["conversations", "inbox", "today"]);
     assert.deepEqual(keysOf("POST contacts/[id]/notes"), ["people"]);
     // People's reach where its pages draw it, and the Inbox is on screen here (S4-6).
     assert.deepEqual(keysOf("POST lines/buy").sort(), ["broadcasts", "setup"]);
@@ -761,8 +776,10 @@ test("a write that changes a yes or a stop, who waits on you, a run, the number 
     // A yes or a stop, and a merge, are the lens's and the People lens's now, not the report's own: the report no longer counts them.
     for (const route of CAMPAIGNS_WRITES.slice(0, 5)) {
       const keys = keysOf(route);
-      for (const key of ["conversations", "inbox", "today", "broadcasts"])
+      for (const key of ["conversations", "inbox", "today"])
         assert.ok(keys.includes(key), `${route} still re-reads ${key}: ${keys}`);
+      // Sent's runs count nobody: a yes or a stop moves no run, and the audiences they do move are not drawn on the Inbox.
+      assert.equal(keys.includes("broadcasts"), false, `${route} reads Sent's runs for nothing: ${keys}`);
       assert.equal(keys.includes("reports"), false, `${route}: consentWrite no longer names the report's own read`);
     }
     // A deal is the report's own Deals section, and nothing the lens says: read where the overview is on screen and forgotten

@@ -34,11 +34,15 @@ interface AskAbout {
   actions?: Array<{ label: string; run?: () => unknown }>;
 }
 
-/** What the frame holds for every page: its own move, its Ask, and a person's Back to the People view they were opened from. */
+/**
+ * What the frame holds for every page: its own move, its Ask, a person's Back to the People view they were opened from, and
+ * a page's Back to wherever it was opened from (`from`, any place when absent), else `home`.
+ */
 interface FrameDoors {
   navigate: (route: string, opts?: GoOptions) => void;
   openAsk: () => void;
   backToPeople: () => void;
+  backFrom: (home: string, from?: RegExp, opts?: GoOptions) => void;
 }
 
 /** A door a page could not find. */
@@ -130,6 +134,15 @@ export function askAbout(about: AskAbout = {}): void {
   if (own) return own(about);
   openAsk();
   window.dispatchEvent(new CustomEvent("ask:seed", { detail: about }));
+}
+
+/**
+ * A page's Back to where it was opened from, by the browser's own Back (the frame knows the move that opened it), so that
+ * page comes back as it was left; reached any other way (a link, a reload), `home`, the address replaced where `opts` says.
+ */
+export function backFrom(home: string, opts?: GoOptions): void {
+  if (frame) return frame.backFrom(home, undefined, opts);
+  navigate(home, opts);
 }
 
 /** A person's Back: the People view they were opened from (the frame's rule), else People itself. */

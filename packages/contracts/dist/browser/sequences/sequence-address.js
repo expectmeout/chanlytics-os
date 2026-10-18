@@ -45,7 +45,7 @@ export const newSequenceRoute = (moment) => moment ? `${SEQUENCES_ROUTE}/new:mom
 export const runSheetRoute = (id) => `broadcasts/run:${id}/sheet`;
 export function sequenceLandingOf(route) {
   const [path = ""] = route.split("?");
-  const [root, param = "", rest] = path.split("/");
+  const [root, param = ""] = path.split("/");
   if (root === "campaigns") {
     if (param === "" || param.startsWith("in:")) return SEQUENCES_ROUTE;
     const moment = /^moment:([^:/]+)(:people)?$/.exec(param);
@@ -55,8 +55,6 @@ export function sequenceLandingOf(route) {
     if (on?.[1]) return newSequenceRoute(on[1]);
   }
   if (root === "broadcasts" && param === "") return SEQUENCES_ROUTE;
-  const run = root === "broadcasts" && rest === void 0 ? /^run:([^:/]+)$/.exec(param) : null;
-  if (run?.[1]) return sequenceRoute(run[1], "history", run[1]);
   return null;
 }
 export const sequenceRepliesRoute = (id, period = "30") => `inbox/from:${id}${period === "30" ? "" : `:${period}`}`;

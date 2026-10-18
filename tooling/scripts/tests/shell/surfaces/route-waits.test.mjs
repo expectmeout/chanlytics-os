@@ -26,17 +26,33 @@ test("Today waits for Setup beside its own surface; asked for its own alone, it 
 });
 
 test("a Setup that failed is done waiting, and never holds a page that waits for nothing", () => {
-  status.setStatus("inbox", "live");
-  assert.equal(gate("inbox"), true, "the Inbox waits for its own surface alone");
+  status.setStatus("conversations", "live");
+  assert.equal(gate("conversations"), true, "Conversations waits for its own surface alone");
   // A fresh key pair, as the statuses are module state: a page whose band failed draws, and says so where it would be.
-  reg.ROUTE_WAITS.inbox = ["google"];
+  reg.ROUTE_WAITS.conversations = ["google"];
   try {
-    assert.equal(gate("inbox"), false);
+    assert.equal(gate("conversations"), false);
     status.setStatus("google", "seeded");
-    assert.equal(gate("inbox"), true, "failed is over: the page draws");
+    assert.equal(gate("conversations"), true, "failed is over: the page draws");
   } finally {
-    delete reg.ROUTE_WAITS.inbox;
+    delete reg.ROUTE_WAITS.conversations;
   }
+});
+
+test("the Inbox waits for Sent's runs beside its threads, so the runs waiting for your word never push the threads down (the Inbox's run review, 18 Oct 2026)", () => {
+  assert.deepEqual(reg.ROUTE_WAITS.inbox, ["broadcasts"]);
+  status.setStatus("inbox", "live");
+  assert.equal(
+    gate("inbox"),
+    false,
+    "REGRESSION: the threads drawn while the run rows above them were still on their way",
+  );
+  assert.equal(gate("inbox", "c-1"), false, "a thread's address is the Inbox's too");
+  assert.equal(gate("inbox", null, true), true, "its own surface is in: the shell draws after the wait regardless");
+  status.setStatus("broadcasts", "live");
+  assert.equal(gate("inbox"), true, "the run rows and the threads draw together");
+  status.setStatus("broadcasts", "seeded");
+  assert.equal(gate("inbox"), true, "a runs read that failed holds nothing: the threads draw");
 });
 
 test("Reports waits for the workspace list beside its own surface, so the strip of lenses never gains a tab after it is drawn", () => {

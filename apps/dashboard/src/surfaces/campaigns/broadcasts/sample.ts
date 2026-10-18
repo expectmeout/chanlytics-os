@@ -26,7 +26,9 @@ import {
   type AudiencePreview,
   type BroadcastDto,
 } from "@chanlytics/contracts";
-import type { AudienceOption, BroadcastTemplate, BroadcastsSurface } from "./surface";
+import type { AudienceOption } from "./audiences-surface";
+import type { BcWhole } from "./page/types";
+import type { BroadcastTemplate } from "./surface";
 import { DEMO_ZONE } from "../../demo-zone";
 
 const DAY = DAY_MS;
@@ -103,7 +105,7 @@ function audience(
 }
 
 /** The demo's Broadcasts as of `now`: what `useSurface("broadcasts")` answers for a workspace that has read its own. */
-export function broadcastsSample(now = new Date()): BroadcastsSurface {
+export function broadcastsSample(now = new Date()): BcWhole {
   const iso = (ms: number) => new Date(now.getTime() + ms).toISOString();
   // The day a run is made for is the business's (core run-playbook stamps it by the workspace's zone): the demo's own
   // zone here. Stamped by UTC, the waiting run read as a day late every evening in New York, with nothing to approve.
@@ -130,6 +132,8 @@ export function broadcastsSample(now = new Date()): BroadcastsSurface {
     created_at: iso(-4 * DAY),
     playbook_id: null,
     run_for: null,
+    // A demo run is a one-off: its own sequence.
+    sequence_id: id,
     counts: { queued: 0, sent: 18, skipped: 0, failed: 0, delivered: 17, read: 11, replied: 3, ...counts },
     ...over,
   });

@@ -25,7 +25,8 @@ import {
   type Flash,
   type SeededLead,
 } from "../shell";
-import { needsYouMoved } from "../../needs-you";
+import { needsYouMoved, waitingRunsNow } from "../../needs-you";
+import { surfaceValue } from "../../surface-values";
 import { seePerson, threadReading, threadUnread, threadWhose } from "../../seen";
 import { inboxData, IX_STORE, VW_STORE, VW_UTIL, type Decision } from "../store";
 import { threadVerbs } from "../thread/thread-verbs";
@@ -77,8 +78,11 @@ export const IX_VIEW_FILTERS: Record<string, (t: Thread) => boolean> = {
   "new-leads": (t) => /lead/i.test(t.whoMeta),
 };
 
-// The bucket a thread is IN, never the state it holds: one whose own reply is on its way out is in Needs you.
+// The bucket a thread is IN, never the state it holds: one whose own reply is on its way out is in Needs you. A campaign
+// run waiting for your say is a row of Needs you too (inbox-runs.tsx): with one, Needs you is where the Inbox opens, as the
+// badge over it says. It opened on Handled, and the run waited unseen under a tab that said no number.
 const firstBucketWithThreads = (list: Thread[]): string => {
+  if (waitingRunsNow().length > 0) return "escalated";
   for (const s of ["escalated", "needs", "snoozed", "done"]) {
     if (list.some((x) => ixBucketOf(x) === s)) return s;
   }
@@ -155,8 +159,20 @@ const ixFollowReads = ({
       list.some((x) => x.id === id) || (id !== null && id === routeThreadRef.current) ? id : null,
     );
   };
+  // Sent's runs, first read after the threads were drawn: a run waiting moves an Inbox nobody has picked a bucket in to
+  // Needs you, as it would have opened there. Only that first read: a run made later never moves a bucket being read.
+  let runsUnread = surfaceValue("broadcasts") === undefined;
+  const onRuns = () => {
+    if (!runsUnread) return;
+    runsUnread = false;
+    if (!ixPlace().bucket && waitingRunsNow().length > 0) setActiveBucket("escalated");
+  };
   window.addEventListener("surface:inbox", onSwap);
-  return () => window.removeEventListener("surface:inbox", onSwap);
+  window.addEventListener("surface:broadcasts", onRuns);
+  return () => {
+    window.removeEventListener("surface:inbox", onSwap);
+    window.removeEventListener("surface:broadcasts", onRuns);
+  };
 };
 
 /** The page's door to the address: the record of the entry the page itself moved, and the three moves that use it. */

@@ -132,14 +132,11 @@ export const runSheetRoute = (id: string): string => `broadcasts/run:${id}/sheet
  * composer's retired modes land too: Every time on New, a moment's Turn on on New on that moment. Null where the address
  * stays: the composer (Send once, Write to leads, a reach-out's change, `new:edit:<root>`, whose sheet sends an id that is
  * no reach-out's to its sequence once the chains are read), a message, Ads, and Sent's sheets (Get their yes, To send, an
- * audience). A run's
- * address a link names (a bell row, Today, Ask's card: `broadcasts/run:<id>`) lands on its sequence's History with that day
- * open (the parity review's W4), where People and History decide what it holds in place; its sheet stays at
- * runSheetRoute's address, which no landing takes.
+ * audience). A run's address is landed by what the run is, which no address says (runLandingOf).
  */
 export function sequenceLandingOf(route: string): string | null {
   const [path = ""] = route.split("?");
-  const [root, param = "", rest] = path.split("/");
+  const [root, param = ""] = path.split("/");
   if (root === "campaigns") {
     if (param === "" || param.startsWith("in:")) return SEQUENCES_ROUTE;
     const moment = /^moment:([^:/]+)(:people)?$/.exec(param);
@@ -151,8 +148,6 @@ export function sequenceLandingOf(route: string): string | null {
     if (on?.[1]) return newSequenceRoute(on[1]);
   }
   if (root === "broadcasts" && param === "") return SEQUENCES_ROUTE;
-  const run = root === "broadcasts" && rest === undefined ? /^run:([^:/]+)$/.exec(param) : null;
-  if (run?.[1]) return sequenceRoute(run[1], "history", run[1]);
   return null;
 }
 

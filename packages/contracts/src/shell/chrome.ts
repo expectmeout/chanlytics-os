@@ -419,16 +419,26 @@ export function shortcutGroups(list: readonly Shortcut[] = SHORTCUTS): Array<{ g
 export type ToastTone = "ok" | "info" | "warn" | "danger";
 export const TOAST_TONES: readonly ToastTone[] = ["ok", "info", "warn", "danger"];
 
-/** How long a toast stays, by tone: long enough to read, and a failure longer than a confirmation. */
-export const TOAST_MS: Readonly<Record<ToastTone, number>> = { ok: 6000, info: 6000, warn: 8000, danger: 10000 };
+/**
+ * How long a toast stays, by tone: three seconds to read a confirmation or a note, four for a warning or a failure.
+ * A toast is taken away by a tap anywhere besides it (the hook's), so these are for the toast nobody answers, and none
+ * stays past TOAST_MAX_MS (Ruben, 18 Oct 2026: on a phone six to fifteen seconds stood over the page's foot well after
+ * it was read; then "even shorter like 3 seconds and max 4 seconds").
+ */
+export const TOAST_MS: Readonly<Record<ToastTone, number>> = { ok: 3000, info: 3000, warn: 4000, danger: 4000 };
 
 /**
- * A toast with an Undo lives as long as the undo does. Fifteen seconds is the
- * reply's cancel window (SEND_GRACE_MS in core, the one real window the
- * product has); an Undo that outlived its window would lie, and one that died
- * before it would waste it. A caller that knows its exact window passes `ms`.
+ * A toast with something to press (an Undo, an act, a link) stays long enough to reach for it. Every Undo but a send's
+ * is a second call the other way, open as long as the page is, so its toast is a shortcut and not the undo's window.
  */
-export const TOAST_UNDO_MS = 15_000;
+export const TOAST_UNDO_MS = 4000;
+
+/**
+ * The most any toast stays, a caller's own `ms` included. A send's Undo (the reply's and a new conversation's, whose
+ * window is SEND_GRACE_MS in core) is offered for this long too: the send can still be stopped for the rest of its
+ * window, and the toast says it goes in so many seconds; it is the shortcut that goes, nothing that lies.
+ */
+export const TOAST_MAX_MS = 4000;
 
 /** The least a toast may stay: a window that is nearly over is still read. */
 export const TOAST_MIN_MS = 2_000;
@@ -446,19 +456,32 @@ export interface ToastShape {
   /** A failure interrupts a screen reader; everything else waits its turn. */
   role: "status" | "alert";
   ms: number;
+  /** A send's cancel window: a tap besides it does not take it away, only its Undo, a swipe, Escape or its time. */
+  stays: boolean;
 }
 
-export function toastShape(p: { tone?: unknown; icon?: unknown; undo?: unknown; ms?: unknown }): ToastShape {
+export function toastShape(p: {
+  tone?: unknown;
+  icon?: unknown;
+  undo?: unknown;
+  action?: unknown;
+  links?: unknown;
+  ms?: unknown;
+  stays?: unknown;
+}): ToastShape {
   const tone: ToastTone = (TOAST_TONES as readonly unknown[]).includes(p.tone) ? (p.tone as ToastTone) : "ok";
   const asked = typeof p.ms === "number" && Number.isFinite(p.ms) && p.ms > 0 ? p.ms : null;
-  const ms = Math.max(
-    TOAST_MIN_MS,
-    Math.round(asked ?? (p.undo ? Math.max(TOAST_UNDO_MS, TOAST_MS[tone]) : TOAST_MS[tone])),
+  const presses = !!p.undo || !!p.action || (Array.isArray(p.links) && p.links.length > 0);
+  const ms = Math.min(
+    TOAST_MAX_MS,
+    Math.max(TOAST_MIN_MS, Math.round(asked ?? (presses ? Math.max(TOAST_UNDO_MS, TOAST_MS[tone]) : TOAST_MS[tone]))),
   );
   return {
     tone,
     icon: typeof p.icon === "string" && p.icon ? p.icon : TOAST_ICONS[tone],
     role: tone === "danger" ? "alert" : "status",
     ms,
+    // Only an Undo is worth keeping through a tap besides: a toast that stays with nothing to press is one in the way.
+    stays: p.stays === true && !!p.undo,
   };
 }

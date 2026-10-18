@@ -101,6 +101,8 @@ export const threadVerbs = (flash: (flash: Flash) => void) => {
             </>
           ),
           ms: untilMs && untilMs > 0 ? untilMs : undefined,
+          // Its Undo is the one way to stop the send (the held bubble has none), so a tap besides does not take it.
+          stays: !!(untilMs && untilMs > 0),
           undo: mid
             ? () =>
                 cancelSend(mid).then((c) =>

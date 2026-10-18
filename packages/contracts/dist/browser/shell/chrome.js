@@ -208,8 +208,9 @@ export function shortcutGroups(list = SHORTCUTS) {
   return out;
 }
 export const TOAST_TONES = ["ok", "info", "warn", "danger"];
-export const TOAST_MS = { ok: 6e3, info: 6e3, warn: 8e3, danger: 1e4 };
-export const TOAST_UNDO_MS = 15e3;
+export const TOAST_MS = { ok: 3e3, info: 3e3, warn: 4e3, danger: 4e3 };
+export const TOAST_UNDO_MS = 4e3;
+export const TOAST_MAX_MS = 4e3;
 export const TOAST_MIN_MS = 2e3;
 export const TOAST_ICONS = {
   ok: "check",
@@ -220,14 +221,17 @@ export const TOAST_ICONS = {
 export function toastShape(p) {
   const tone = TOAST_TONES.includes(p.tone) ? p.tone : "ok";
   const asked = typeof p.ms === "number" && Number.isFinite(p.ms) && p.ms > 0 ? p.ms : null;
-  const ms = Math.max(
-    TOAST_MIN_MS,
-    Math.round(asked ?? (p.undo ? Math.max(TOAST_UNDO_MS, TOAST_MS[tone]) : TOAST_MS[tone]))
+  const presses = !!p.undo || !!p.action || Array.isArray(p.links) && p.links.length > 0;
+  const ms = Math.min(
+    TOAST_MAX_MS,
+    Math.max(TOAST_MIN_MS, Math.round(asked ?? (presses ? Math.max(TOAST_UNDO_MS, TOAST_MS[tone]) : TOAST_MS[tone])))
   );
   return {
     tone,
     icon: typeof p.icon === "string" && p.icon ? p.icon : TOAST_ICONS[tone],
     role: tone === "danger" ? "alert" : "status",
-    ms
+    ms,
+    // Only an Undo is worth keeping through a tap besides: a toast that stays with nothing to press is one in the way.
+    stays: p.stays === true && !!p.undo
   };
 }

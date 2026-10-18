@@ -11,6 +11,7 @@ import type { ConsentChannel } from "../consent/consent-channels";
 import { appointmentWords, type AppointmentWord } from "../journey/appointment-word";
 import { GET_YES_ROUTE } from "../people/people-lists";
 import { CAMPAIGNS_PAUSED_WORDS } from "../workspace/billing";
+import { runApproveWords } from "../shell/campaign-rooms";
 import { isReachOutRun } from "../reach-out/reach-out-rules";
 import { messageAboutOfTrigger } from "./playbook-purpose";
 import type { RunReach } from "./playbook-reach";
@@ -60,7 +61,7 @@ export interface ApprovalVM {
   readerChannel: ConsentChannel;
   /** How many a greeting by name reaches with no name on file: they get "Hi there" (resolveParams). */
   hiThere: number;
-  /** The act: "Approve — 186 now", or "at 9:00" after hours (approveRun sends at the next open moment). Null when approveRun would refuse it. */
+  /** The act, "Approve · 186 people"; when it goes is `goes` (approveRun sends at the next open moment). Null when approveRun would refuse it. */
   approve: string | null;
   /**
    * Why it cannot be approved, in the verb's own words (runApprovalRefusal): a playbook's run is a day's run, and approveRun
@@ -443,7 +444,9 @@ export function toApprovalVM(
     reader: reader ? reader.name : null,
     readerChannel: channelOfRecipient(reader),
     hiThere: greets ? d.recipients.filter((r) => !r.first_name).length : 0,
-    approve: refusal ? null : `Approve — ${will} ${opts.open.moved ? `at ${opts.open.time}` : "now"}`,
+    // One word per act (decision 19 of the spec of 9 Oct 2026), as Today's row and the ledger say it; when it goes is said
+    // once, beside it (`goes`): the button said it again ("Approve — 3 now").
+    approve: refusal ? null : runApproveWords(will),
     expired: refusal,
     goes: late
       ? `made for ${opts.day(runFor)}`

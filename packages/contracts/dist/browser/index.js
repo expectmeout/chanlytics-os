@@ -48,7 +48,7 @@ export { eligibleFor, enrolFor, saidYesOnAny, heldWords, heldBackWords, audience
 export { broadcastFailureWords, BROADCAST_FAILURES, BROADCAST_FAILURE_WORDS } from "./broadcasts/broadcast-failure-words.js";
 export { broadcastFailureFix, emailRunStop, playbookRunNext, stoppedRunFix, wireFailure, BROADCAST_FAILURE_FIX } from "./broadcasts/broadcast-failures.js";
 export { dailyLimit, numberHealth, overLimitRefusal, LIMIT_TIERS } from "./broadcasts/broadcast-number.js";
-export { renderTemplate, cleanParam, broadcastName, whenLabel, runLabelOf, toBroadcastVM, sentByWords, emptyAudienceRefusal, BROADCAST_STATES, RUN_GOING_STATES, RECIPIENT_STATES, REACH_OUT_SEND_STATES, BROADCAST_STATE_LABELS, BROADCAST_CHUNK, BROADCAST_GAP_MS, BROADCAST_THROTTLE_WAITS_MS, BROADCAST_HOLD_WAIT_MS, BROADCAST_MAX_RECIPIENTS, BROADCAST_PARAM_MAX, BROADCAST_SCHEDULE_MAX_DAYS, BROADCAST_NAME_MAX, OUTCOME_UNKNOWN, runCountsOf } from "./broadcasts/broadcasts.js";
+export { renderTemplate, cleanParam, broadcastName, whenLabel, runLabelOf, runTitleOf, toBroadcastVM, sentByWords, emptyAudienceRefusal, BROADCAST_STATES, RUN_GOING_STATES, RECIPIENT_STATES, REACH_OUT_SEND_STATES, BROADCAST_STATE_LABELS, BROADCAST_CHUNK, BROADCAST_GAP_MS, BROADCAST_THROTTLE_WAITS_MS, BROADCAST_HOLD_WAIT_MS, BROADCAST_MAX_RECIPIENTS, BROADCAST_PARAM_MAX, BROADCAST_SCHEDULE_MAX_DAYS, BROADCAST_NAME_MAX, OUTCOME_UNKNOWN, runCountsOf } from "./broadcasts/broadcasts.js";
 export { CHANNELS_DOOR, channelsStandingParts, channelsStandingWords } from "./broadcasts/channels-standing.js";
 export { OFFERS_BY_EMAIL_WORDS, OFFERS_PAUSED_WORDS, OFFERS_NOTICE_WORDS, OFFER_GATES, offerGate, offerPauseOf, emailOffersOpen, offersPausedLine } from "./broadcasts/email-offers.js";
 export { OFFER_PLAN_WORDS } from "./broadcasts/offer-plan-words.js";
@@ -313,6 +313,7 @@ export { toReviewsReportVM, REVIEWS_WAITING_SHOWN } from "./reports/review-repor
 export { ROUTE_KEYS } from "./route-keys.generated.js";
 export { SCHEMA_SETS } from "./schema-sets.generated.js";
 export { FOLLOW_UP_CONDITIONS, followUpLeaves, followUpStop, followUpReach, messageAboutOfClass } from "./sequences/follow-up.js";
+export { arrivedRunOf, runLandingOf } from "./sequences/run-landing.js";
 export { SEQUENCE_STARTS, SEQUENCE_STATES } from "./sequences/sequence.js";
 export { SEQUENCE_ACT_WORDS, sequenceRunsNow, sequenceResumeAsk } from "./sequences/sequence-acts.js";
 export { SEQUENCES_ROUTE, isSequencesParam, parseSequencesRoute, sequenceNewLeadsRoute, sequenceRouteBack, sequenceRoute, newSequenceRoute, sequenceLandingOf, runSheetRoute, sequenceRepliesOf, sequenceRepliesRoute } from "./sequences/sequence-address.js";
@@ -350,8 +351,8 @@ export { MIN_MS, HOUR_MS, DAY_MS, WEEK_MS, jittered, spanUnits, spanLabel, waite
 export { finiteOrNull, finiteOrZero, trimmedOrNull, nonBlankOrNull, recordOrNull, lineOrNull } from "./shared/unknown.js";
 export { plural } from "./shared/words.js";
 export { routeOfPath, routeOfHash, routeOfAddress, movedAddress, workspacePath, appLink, doorOf, canonicalRoute, ROUTE_WORDS } from "./shell/address.js";
-export { CAMPAIGN_ROOMS, NO_TEMPLATE_WORDS, LIBRARY_WORDS, NEW_MESSAGE_WORDS, LIBRARY_STARTER_WORDS, BROADCAST_WORDS, runStoppedWords, runApprovedTail, RUN_WAITING_WORDS, runsWaitingSentence, heldEmailsWords, runStopWords, OFFERS_IN_WRITING_WORDS } from "./shell/campaign-rooms.js";
-export { nextThemePref, themeButtonWords, resolveTheme, themeColorOf, themeBootScript, inAppFrom, inAppBootScript, isTypingTarget, pageTitle, notFoundPageMetadata, shellStatusLine, shortcutGroups, toastShape, THEME_OPTIONS, isThemePref, DEFAULT_THEME_PREF, themePrefOf, LOOK_OPTIONS, isLookPref, DEFAULT_LOOK_PREF, lookPrefOf, LOOK_OFFERED, DEVICE_PREFS_STORAGE, THEME_COLORS, THEME_INK, THEME_COLOR_META, IN_APP_UA_RE, IN_APP_CLASS, APP_KEYS_RESIZE_CLASS, isSidebarPref, SHORTCUTS, TOAST_TONES, TOAST_MS, TOAST_UNDO_MS, TOAST_MIN_MS, TOAST_ICONS } from "./shell/chrome.js";
+export { CAMPAIGN_ROOMS, NO_TEMPLATE_WORDS, LIBRARY_WORDS, NEW_MESSAGE_WORDS, LIBRARY_STARTER_WORDS, BROADCAST_WORDS, runStoppedWords, runApprovedTail, RUN_WAITING_WORDS, RUN_WAITING_SHORT, RUN_OPEN_WORDS, runApproveWords, runsWaitingSentence, heldEmailsWords, runStopWords, OFFERS_IN_WRITING_WORDS } from "./shell/campaign-rooms.js";
+export { nextThemePref, themeButtonWords, resolveTheme, themeColorOf, themeBootScript, inAppFrom, inAppBootScript, isTypingTarget, pageTitle, notFoundPageMetadata, shellStatusLine, shortcutGroups, toastShape, THEME_OPTIONS, isThemePref, DEFAULT_THEME_PREF, themePrefOf, LOOK_OPTIONS, isLookPref, DEFAULT_LOOK_PREF, lookPrefOf, LOOK_OFFERED, DEVICE_PREFS_STORAGE, THEME_COLORS, THEME_INK, THEME_COLOR_META, IN_APP_UA_RE, IN_APP_CLASS, APP_KEYS_RESIZE_CLASS, isSidebarPref, SHORTCUTS, TOAST_TONES, TOAST_MS, TOAST_UNDO_MS, TOAST_MAX_MS, TOAST_MIN_MS, TOAST_ICONS } from "./shell/chrome.js";
 export { CLIENT_ERROR_BOUNDARIES, CLIENT_ERROR_LIMITS, clientErrorOf } from "./shell/client-error.js";
 export { personInitials, identityWords, memberWords, cleanDisplayName, providerNameOf, invitationWords, joinedWords, youJoinedWords, TEAM_INVITE_DAYS, ROLE_WORDS, DISPLAY_NAME_MAX } from "./shell/identity.js";
 export { PAGE_SPEED_READ, PAGE_SPEED_MIN, pageSpeedWords } from "./shell/page-speed.js";
@@ -406,7 +407,7 @@ export { bellFeed, bellOlderOf, holdMarksOf } from "./waits/hold-rows.js";
 export { closeSettledNotices, noticeStillWaits, settledNoticeIds, kindsEndedBy, NOTICE_ENDS, NOTHING_WAITS_KNOWN } from "./waits/notice-closes.js";
 export { NOTICE_MENDS, warningsMendedBy } from "./waits/notice-mends.js";
 export { noticeTone } from "./waits/notice-tones.js";
-export { threadWait, threadWaits, waitsOf, needsYouCount, runWaitsOnYou, runHeldEmails, runDraftedEmails, runTooLate, runsThatWait } from "./waits/waits.js";
+export { threadWait, threadWaits, waitsOf, needsYouCount, runWaitsOnYou, runHeldEmails, runDraftedEmails, runDecidedOnItsPage, runTooLate, runsThatWait } from "./waits/waits.js";
 export { ACTIVATION_MILESTONES } from "./workspace/activation.js";
 export { activityWords, activityKindWords, REACH_OUT_EMAILED_WORDS, CALL_MISSED_WORDS, CALL_UNANSWERED_WORDS, isActivityMoney, isActivityNoise, ACTIVITY_NOISE_PREFIXES, ACTIVITY_NOISE_KINDS, ACTIVITY_KINDS } from "./workspace/activity.js";
 export { receptionistOn, billingDoorOpen, maySpend, mayUseModels, openToCustomersOf, takesSignUps, hasPublicPages, whyCannotSpend, tenantStatusFor, planBilling, dayWords, trialOffer, trialWords, priceWords, toBillingVM, billingPill, invoiceStatusWords, isCheckoutReturn, moneyWords, billingAccountDto, pausedVoiceFacts, BILLING_MODES, BILLING_STATUSES, BILLING_TRIAL_DAYS, SPEND_NUMBER, SPEND_LEADS, SPEND_TEXTING, PAUSED_WORDS, CAMPAIGNS_PAUSED_WORDS, BILLING_TEST_MODE_CLAUSE, TRIAL_COVERS, START_PLAN_WORDS, INVOICE_STATUS_WORDS, CHECKOUT_RETURNS, CHECKOUT_RETURN_ROUTE, CHECKOUT_OUTCOME_WORDS } from "./workspace/billing.js";

@@ -14,7 +14,7 @@
 import type { KeyboardEvent, MouseEvent, ReactNode, RefCallback, TouchEvent } from "react";
 import type { AskApi } from "../legacy-bridge/ask";
 import { workspacePath } from "@chanlytics/contracts";
-import { askAbout, navigate, openAsk } from "./frame-doors";
+import { askAbout, backFrom, navigate, openAsk } from "./frame-doors";
 import type { ViewPage } from "./kit/view-tabs/pager";
 import type { SetupSurface } from "./setup/surface";
 import { surfaceValue } from "./surface-values";
@@ -29,6 +29,8 @@ export interface LegacyFlash {
   links?: { label: string; to: string }[];
   undo?: (() => unknown) | null;
   ms?: number;
+  /** A send's cancel window: a tap besides does not take it (contracts `toastShape`). */
+  stays?: boolean;
   icon?: string;
   once?: string;
 }
@@ -52,7 +54,7 @@ declare global {
  * Go to a route, open Ask, open Ask about something: the doors every page uses are the bridge's (legacy-bridge/workspace.ts), which
  * the frame fills as it renders. They are named here too, with the verbs a surface already imports from this file.
  */
-export { askAbout, navigate, openAsk };
+export { askAbout, backFrom, navigate, openAsk };
 
 /** The role the member is acting as, View-as included (the role store's `myRole`); a role nobody can read is a viewer's. */
 export function actingRole(): string {
