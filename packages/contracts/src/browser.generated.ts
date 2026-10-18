@@ -95,6 +95,7 @@ export { bookingLinkRowWords, businessGap } from "./config/business-tab/business
 export { BOOKING_CHOICES, BOOKING_CHOICE_WORDS, bookingChoiceOf, bookingChoiceWrites, bookingChoiceNeeds, PRICE_CHOICES, PRICE_CHOICE_WORDS, priceChoiceOf, priceChoiceWrites } from "./config/business-tab/choices";
 export { chipsMoreWords, CHIPS_SHOWN } from "./config/business-tab/counts";
 export { profileRefusal, writtenOutDetail, PROFILE_CROSSING_WORDS } from "./config/business-tab/fold-limits";
+export { ASK_GOAL_WORDS, askGoalRefusal, askGoalSaved } from "./config/business-tab/goal";
 export { handoffChatWords, handoffChatRow, handoffCallRow, HANDOFF_ANYWAY, handoffWords } from "./config/business-tab/handoff-words";
 export { notesWords, noteEndedWords, instructionsWords, fallbacksWords, COMMON_LANGUAGES, TONE_PRESETS } from "./config/business-tab/how-it-answers";
 export { openWeekWords, hoursZoneWords, closuresAheadWords } from "./config/business-tab/open-week";
@@ -113,7 +114,7 @@ export { ALERT_ADDRESSES_MAX, ALERT_ADDRESSES_MIN, ALERT_REFUSED_WORDS, alertAdd
 export { disclosureFacts, CONVERSATION_UNDER_WAY, CONVERSATION_GAP_MS } from "./config/workspace-config/assistant-disclosure";
 export { newReceptionistDefaults, isBaselinePrompt } from "./config/workspace-config/brain-config";
 export { describeNow, composeSystemPrompt, PROMPT_OPENINGS, notesInForce, noteAsTold } from "./config/workspace-config/compose";
-export { DAYS, DAY_NAMES, isRealDate, dayProblems, MAX_INTERVALS_PER_DAY, MAX_CLOSURES, E164, isE164, INSTRUCTIONS_MAX, PROFILE_LIMITS, GUARDRAIL_KEYS, guardrailsInForce } from "./config/workspace-config/config-rules";
+export { DAYS, DAY_NAMES, isRealDate, dayProblems, MAX_INTERVALS_PER_DAY, MAX_CLOSURES, E164, isE164, INSTRUCTIONS_MAX, ASK_GOAL_MAX, PROFILE_LIMITS, GUARDRAIL_KEYS, guardrailsInForce } from "./config/workspace-config/config-rules";
 export { isProductFallback, fallbackMessages, unknownDetails, FALLBACK_DETAILS, FALLBACK_DEFAULTS, EARLIER_FALLBACK_DEFAULTS } from "./config/workspace-config/fallbacks";
 export { offersAfterStart, offersFacts } from "./config/workspace-config/offers-ask";
 export { policyClassOfIntent, policyClassLabel, policyClassQuestion, policyAskClass, bookingHeld, policyRules, POLICY_CLASSES, POLICY_CLASS_WORDS, POLICY_COVERS, POLICY_MODES, POLICY_MODE_WORDS, POLICY_CLASS_MODES, policyModeOffered, policyModeRefusal, heldDraftsByClass, heldDraftsLine, HELD_DRAFTS_DAYS } from "./config/workspace-config/policy-classes";

@@ -77,6 +77,7 @@ export {
   E164,
   isE164,
   INSTRUCTIONS_MAX,
+  ASK_GOAL_MAX,
   PROFILE_LIMITS,
   GUARDRAIL_KEYS,
   guardrailsInForce,
@@ -113,7 +114,6 @@ export {
   NotificationsConfigSchema,
   CalendarConfigSchema,
   FeaturesConfigSchema,
-  ASK_GOAL_MAX,
   TenantConfigSchema,
   TenantConfigWriteSchema,
 } from "./workspace-config/config-schema";
@@ -218,6 +218,7 @@ export {
   priceChoiceWrites,
 } from "./business-tab/choices";
 export type { BookingChoice, BookingFacts, ChoiceWrite, PriceChoice, PriceFacts } from "./business-tab/choices";
+export { ASK_GOAL_WORDS, askGoalRefusal, askGoalSaved } from "./business-tab/goal";
 export {
   handoffChatWords,
   handoffChatRow,

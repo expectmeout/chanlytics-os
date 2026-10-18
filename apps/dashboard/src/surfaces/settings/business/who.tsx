@@ -10,7 +10,7 @@
 //
 // It holds no hook of its own (the rows hold theirs).
 
-import { RENAME_WORDS } from "@chanlytics/contracts";
+import { ASK_GOAL_WORDS, RENAME_WORDS, applySettingsChange, askGoalRefusal, askGoalSaved } from "@chanlytics/contracts";
 import type { Fact, FactConflict, FactSource, ResolvedFacts } from "@chanlytics/contracts";
 import type { ReactNode } from "react";
 import { BUSINESS_TAB } from "@/legacy-bridge/business-tab";
@@ -598,6 +598,57 @@ export const BtWhoCard = ({ brain, base = null, canEdit, flash, saver }: RowShar
         </button>
         .
       </p>
+    </section>
+  );
+};
+
+/**
+ * Your goal (the Settings wiring review, item 9, 18 Oct 2026): what Ask weighs every signal and plan against (config
+ * `ask.goal`, Ask's own section; the receptionist never reads it). Ask's card was the only way to set it, and no page
+ * said what it was. One row, saved through the tab's saver as that card writes it (contracts applySettingsChange's
+ * set_goal) and said in the card's own line (askGoalSaved), so a goal kept either way reads the same here and in Ask.
+ * It changes no word the receptionist is told, so its editor says nothing it will be told.
+ */
+export const BtGoalCard = ({ brain, config, canEdit, flash, saver }: RowShared & { config: Config | null }) => {
+  const W = ASK_GOAL_WORDS;
+  const goal = config?.ask?.goal || "";
+  const door = saver
+    ? {
+        save: (draft: string, done: () => void) =>
+          saver.save({
+            row: "ask_goal",
+            patch: (c) => applySettingsChange(c, { op: "set_goal", goal: draft }),
+            said: askGoalSaved(draft),
+            done,
+            flash,
+          }),
+        pending: () => saver.pending("ask_goal"),
+      }
+    : null;
+  return (
+    <section className="rec-card" data-testid="rec-card-goal" aria-labelledby="bt-goal-title">
+      <div className="rec-card-head">
+        <h2 className="rec-card-title" id="bt-goal-title">
+          {W.title}
+        </h2>
+        <span className="rec-card-sub">{W.sub}</span>
+      </div>
+      <BtRow
+        brain={brain}
+        canEdit={canEdit && !!door}
+        flash={flash}
+        id="ask_goal"
+        label={W.label}
+        value={goal ? <span className="bt-one-line">{goal}</span> : null}
+        empty={W.empty}
+        hint={goal ? null : W.hint}
+        gate={gate("settings", W.gate)}
+        initial={goal}
+        storedAs={(d: string) => d.trim()}
+        check={askGoalRefusal}
+        door={door}
+        body={btTextBox({ placeholder: W.placeholder, hint: W.hint })}
+      />
     </section>
   );
 };

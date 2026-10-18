@@ -164,6 +164,7 @@ function dayProblems(h, day) {
 var E164 = /^\+[1-9]\d{6,14}$/;
 var INSTRUCTIONS_MAX = 2e4;
 var BOOKING_LINK_MAX = 500;
+var ASK_GOAL_MAX = 200;
 var PROFILE_LIMITS = {
   tone: 200,
   services: 60,
@@ -386,7 +387,6 @@ var FeaturesConfigSchema = z3.object({
    */
   booking_requests: z3.boolean().optional()
 }).strip();
-var ASK_GOAL_MAX = 200;
 var AskConfigSchema = z3.object({ goal: z3.string().max(ASK_GOAL_MAX).optional() }).strip();
 var TenantConfigSchema = z3.object({
   brain: BrainConfigSchema.optional(),

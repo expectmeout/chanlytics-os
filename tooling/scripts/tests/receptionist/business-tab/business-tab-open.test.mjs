@@ -110,6 +110,7 @@ test("When you're open draws three rows in the spec's order, under a line contra
     [
       "rec-card-who",
       "rec-card-offer",
+      "rec-card-goal",
       "rec-card-open",
       "rec-card-booking",
       "rec-card-answers",

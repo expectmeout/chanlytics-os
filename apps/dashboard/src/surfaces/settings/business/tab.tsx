@@ -53,7 +53,7 @@ import { businessTabSave } from "./saver";
 import { BtServicesSheet } from "./services";
 import { BtTryIt } from "./try/try-it";
 import { settingsNow } from "./shell";
-import { BtBookingLinkRow, BtWhoCard } from "./who";
+import { BtBookingLinkRow, BtGoalCard, BtWhoCard } from "./who";
 
 /** The toast the shell raises (the page's `flash`). */
 type Flash = (flash: LegacyFlash) => void;
@@ -434,6 +434,7 @@ export const BusinessTab = ({
         <>
           <BtWhoCard {...shared} base={base} />
           <BtOfferCard {...shared} />
+          <BtGoalCard {...shared} config={config} />
         </>
       ) : null}
       {parts.includes("hours") ? (

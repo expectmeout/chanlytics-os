@@ -99,6 +99,9 @@ export const INSTRUCTIONS_MAX = 20_000;
 /** The longest booking link the config keeps, and so the longest booking page (google/booking-page.ts). */
 export const BOOKING_LINK_MAX = 500;
 
+/** The owner's goal in their own words, at most this long: what Ask weighs every plan against (the operator, 15 Oct 2026). */
+export const ASK_GOAL_MAX = 200;
+
 /** Everything `PROFILE_LIMITS` holds a number for; `profileRefusal` (business-tab/fold-limits.ts) says what each one refuses in. */
 export type ProfileLimitKey =
   | "tone"

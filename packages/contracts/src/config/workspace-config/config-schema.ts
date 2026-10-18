@@ -16,7 +16,7 @@ import { keysLeftOut, refuseUnknownFields, withKeysLeftOut } from "../unknown-ke
 import { ALERT_ADDRESSES_MAX, ALERT_ADDRESSES_MIN } from "./alerts";
 import { BrainConfigSchema } from "./brain-config-schema";
 import type { Closure, Hours } from "./business-profile";
-import { MAX_CLOSURES, dayProblems, isRealDate } from "./config-rules";
+import { ASK_GOAL_MAX, MAX_CLOSURES, dayProblems, isRealDate } from "./config-rules";
 
 export const NotificationsConfigSchema = z
   .object({
@@ -107,9 +107,6 @@ export const FeaturesConfigSchema = z
   })
   .strip();
 export type FeaturesConfig = z.infer<typeof FeaturesConfigSchema>;
-
-/** The owner's goal in their own words, at most this long: what Ask weighs every plan against (the operator, 15 Oct 2026). */
-export const ASK_GOAL_MAX = 200;
 
 /**
  * Ask's own section (the operator, 15 Oct 2026, D13): the owner's goal in one line ("twenty new salon clients a month"),
