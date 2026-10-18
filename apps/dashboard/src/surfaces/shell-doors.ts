@@ -27,6 +27,8 @@ export interface Flash {
   msg: ReactNode;
   undo?: (() => unknown) | null;
   ms?: number;
+  /** A send's cancel window: a tap besides does not take it (contracts `toastShape`). */
+  stays?: boolean;
   links?: Array<{ label: string; to: string }>;
   action?: { label: string; onClick: () => unknown } | null;
 }

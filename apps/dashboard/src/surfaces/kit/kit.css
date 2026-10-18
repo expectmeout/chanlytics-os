@@ -1378,8 +1378,11 @@ a.more-item {
   flex-direction: column;
   gap: 8px;
   align-items: center;
+  /* Only the toasts are pressed: the room beside and between them is the page's (a phone's stack spans the screen). */
+  pointer-events: none;
 }
 .pp-toast {
+  pointer-events: auto;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -1393,14 +1396,15 @@ a.more-item {
   color: var(--ink-muted);
   animation: pp-toast-in var(--duration-base) var(--ease-out);
 }
+/* `translate`, never `transform`: a finger pulling the toast away (data-bits touchSwipe) holds it by its transform. */
 @keyframes pp-toast-in {
   from {
     opacity: 0;
-    transform: translateY(6px);
+    translate: 0 6px;
   }
   to {
     opacity: 1;
-    transform: none;
+    translate: none;
   }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -1451,12 +1455,40 @@ a.more-item {
   opacity: 0.85;
 }
 .pp-toast-x {
+  flex-shrink: 0;
   color: var(--ink-dim);
   display: inline-flex;
+  align-items: center;
+  justify-content: center;
   padding: 2px;
 }
 .pp-toast-x:hover {
   color: var(--ink);
+}
+/* Under a finger the Undo and the × keep the size they are drawn (the phone's 28px, mobile.css) and the touch floor's
+   44px is the press round them: the × was 15px wide and the only way to be rid of a toast before its time (Ruben,
+   18 Oct 2026). The × has no ground of its own, so its box widens to 28px with nothing new drawn. The toast takes no
+   pan of the page under it, so a pull down or a flick across is the toast's (data-bits touchSwipe). */
+@media (pointer: coarse) {
+  .pp-toast {
+    touch-action: none;
+  }
+  .pp-toast-cta,
+  .pp-toast-x {
+    position: relative;
+  }
+  .pp-toast-x {
+    min-width: 28px;
+  }
+  .pp-toast-cta::after,
+  .pp-toast-x::after {
+    content: "";
+    position: absolute;
+    inset: -8px 0;
+  }
+  .pp-toast-x::after {
+    inset: -8px;
+  }
 }
 
 /* Role-gated controls (window.gate) keep a working control's look under the pointer and the press: they are dimmed and

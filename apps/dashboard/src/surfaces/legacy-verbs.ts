@@ -29,6 +29,8 @@ export interface LegacyFlash {
   links?: { label: string; to: string }[];
   undo?: (() => unknown) | null;
   ms?: number;
+  /** A send's cancel window: a tap besides does not take it (contracts `toastShape`). */
+  stays?: boolean;
   icon?: string;
   once?: string;
 }

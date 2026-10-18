@@ -175,7 +175,8 @@ export function sayQueued(
     void undoFirst({ personId: person.id, messageId: q.message_id, noteId: q.note_id }).then((c) =>
       flash(c.ok ? undone() : { tone: "danger", msg: c.message }),
     );
-  flash({ msg: W.sent(person.name, Math.round(left / SECOND_MS)), ms: left, undo });
+  // The one way to stop the send: kept through a tap besides for its window (contracts toastShape `stays`).
+  flash({ msg: W.sent(person.name, Math.round(left / SECOND_MS)), ms: left, undo, stays: true });
 }
 
 /**
