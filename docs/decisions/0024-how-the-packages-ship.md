@@ -174,11 +174,11 @@ wire changes.
     21,597, Campaigns 18,459, Templates 18,356, Inbox 10,670, Today 9,635, People 8,370 and Conversations 5,478.
   - Settings grew 8,513.
 
-  The shell, which every page loads through `next/dynamic`, still imports most of contracts, and its chunks are
-  worked out once for every page. So a module a page imports and the shell imports too arrives twice on that page,
-  which is Settings' growth. The bundle check's "page own" sums count those copies, and it read +4 to +40 KB on most
-  pages for this change while their visitors download less. The next lever is what the shell imports, not how
-  contracts ships.
+  The shell, which every page then loaded through `next/dynamic`, still imported most of contracts, and its chunks
+  were worked out once for every page. So a module a page imported and the shell imported too arrived twice on that
+  page, which was Settings' growth. The bundle check's "page own" sums counted those copies, and it read +4 to +40 KB
+  on most pages for this change while their visitors downloaded less. The next lever was what the shell imports, not
+  how contracts ships.
 
   **Pulled on 17 October 2026, by how the shell is loaded.** Loaded by `next/dynamic`, the shell was a chunk group of
   its own, which no page's chunks may count as loaded, so Turbopack copied every module a page shares with it into the
@@ -186,9 +186,11 @@ wire changes.
   files, and component chunks saved under half of it, at the runtime's discretion). LegacyHost imports the shell now, as
   `#frame-shell` (the browser's build resolves it to LegacyApp, the server's to an empty component), so it is the
   frame layout's and every page below counts it as loaded. The two error boundaries, chunk groups the frame cannot
-  count either, import their reporter only once they catch something. Against main at `6fc3ceb90`: the route's JS
-  849,978 → 816,441 bytes gzipped; Settings −47,256, Inbox −41,497, People −40,830, Conversations −38,518, Reports
-  −24,238, Calendar −21,440, Campaigns −21,418, Broadcasts −16,877, Live −16,378, Templates −15,457, Start −14,662.
+  count either, carry only a slim reporter: its route's path, not the 20 KB route table, and the route read from the
+  address through contracts (an import once they caught something, tried first, could be lost to a deploy; the slim
+  one costs each page about 2.4 KB of raw JS a second time). Against main at `6fc3ceb90`: the route's JS 849,978 →
+  816,441 bytes gzipped; Settings −47,256, Inbox −41,497, People −40,830, Conversations −38,518, Reports −24,238,
+  Calendar −21,440, Campaigns −21,418, Broadcasts −16,877, Live −16,378, Templates −15,457, Start −14,662.
 
 - Whether `packages/db` should give each domain its own entry (`@chanlytics/db/leads` and the like), since its one
   barrel, `src/index.ts` (some 550 names; 105 commits in the month to 17 October 2026), is where nearly every lane's new

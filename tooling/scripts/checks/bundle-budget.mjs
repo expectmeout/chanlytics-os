@@ -16,8 +16,8 @@
  * gzips each file once, at level 9, and sums three things: the route's JavaScript, the route's CSS, and each other
  * page's own JavaScript beyond the route (its segments' chunks and its loadable's, less the route's; a chunk two pages
  * share counts for each, since each page's visitor downloads it). A chunk fetched later, on demand (the map, a
- * refresh), is not counted: it is not what a person waits for. A build that no longer writes one of the manifests
- * fails the check rather than measuring less. The build is deterministic to the byte (6 Oct 2026).
+ * refresh), is not counted: it is not what a person waits for. A build that no longer writes one of the manifests,
+ * or whose frame loads less than SHELL_SHARE of the route at once, fails the check rather than measuring less. The build is deterministic to the byte (6 Oct 2026).
  *
  * Three holds, none of them a number the repository keeps in step with every merge:
  *
@@ -61,6 +61,14 @@ const PAGE = "(os)/w/[workspace]/[[...route]]/page";
 const PAGES_DIR = "server/app/(os)/w/[workspace]";
 /** The frame's segment, as the route's client manifest names it: its chunks carry the shell. */
 const FRAME = "[project]/apps/dashboard/app/(os)/w/[workspace]/layout";
+/** The root layout's segment: the frame's own chunks are what it loads beyond these and the runtime. */
+const ROOT_LAYOUT = "[project]/apps/dashboard/app/layout";
+/**
+ * The least share of the route's JavaScript the frame loads at once: its layout's own chunks, and what `next/dynamic`
+ * loads under it. That is the shell, most of what a workspace waits for, whichever of the two brings it; a shell
+ * loaded some other way (an `import()` no manifest names) leaves the frame light, and the route's sum without it.
+ */
+const SHELL_SHARE = 0.5;
 /** What one change may add to a sum, gzipped bytes, before its pull request says why: the route's two, and a page's. */
 export const GROWTH_LINE = { js: 1024, css: 1024, page: 2048 };
 /** What main may add to a sum in a week before the weekly reading keeps an issue open about it. */
@@ -165,9 +173,6 @@ const summed = (files) => ({ files: Object.keys(files).length, raw: total(files,
 export function measureBuild(next) {
   const build = readJson(next, "build-manifest.json");
   const client = manifestOf(next, PAGE);
-  if (!client.entryJSFiles[FRAME]?.length) {
-    throw new BuildShape(`the route's client manifest names no chunks for ${FRAME}: the shell's would go uncounted`);
-  }
   const dynamic = loadableOf(next, PAGE) ?? [];
   const js = new Set(build.rootMainFiles ?? []);
   for (const f of chunksOf(client)) js.add(f);
@@ -186,6 +191,15 @@ export function measureBuild(next) {
     page[key] = sizesOf(next, own);
   }
   const files = { js: sizesOf(next, js), css: sizesOf(next, css), page };
+  const below = new Set([...(build.rootMainFiles ?? []), ...(client.entryJSFiles[ROOT_LAYOUT] ?? [])]);
+  const frame = new Set([...(client.entryJSFiles[FRAME] ?? []), ...dynamic]);
+  const shell = [...frame].filter((f) => f.endsWith(".js") && !below.has(f)).reduce((a, f) => a + files.js[f].gzip, 0);
+  if (shell < SHELL_SHARE * total(files.js, "gzip")) {
+    throw new BuildShape(
+      `the frame loads ${shell} of the route's ${total(files.js, "gzip")} bytes gzipped at once, under ` +
+        `${SHELL_SHARE * 100}%: the shell arrives some way this check does not read, and would go uncounted`,
+    );
+  }
   return {
     js: summed(files.js),
     css: summed(files.css),
