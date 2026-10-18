@@ -54,7 +54,8 @@ import {
   fallbacksWords,
   guardrailsInForce,
   rulesKept,
-  VISION_STRENGTH,
+  VISION_SWITCH_WORDS,
+  ALWAYS_ON,
   hoursLines,
   MAX_INTERVALS_PER_DAY,
   MAX_CLOSURES,
@@ -156,6 +157,7 @@ const NOWHERE = ["fallbacks", "phone_greeting", "calendar", "vision", "timezone"
 test("the bridge publishes the tab's view models, and each says what contracts says", () => {
   assert.deepEqual(Object.keys(tab).sort(), [
     "ABILITY_CHANNEL_WORDS",
+    "ALWAYS_ON",
     "ALWAYS_TOLD",
     "BOOKING_LINK_NEEDED",
     "BOOKING_RULE_HINTS",
@@ -173,7 +175,7 @@ test("the bridge publishes the tab's view models, and each says what contracts s
     "SERVICES_ON_PUBLIC_PAGE",
     "SERVICE_PRICE_EMPTY",
     "TONE_PRESETS",
-    "VISION_STRENGTH",
+    "VISION_SWITCH_WORDS",
     "abilityRows",
     "allowedPrices",
     "blockShareWords",
@@ -271,10 +273,11 @@ test("the bridge publishes the tab's view models, and each says what contracts s
   for (const g of [undefined, {}, { never_quote_prices: false }, { no_health_advice: true }])
     assert.deepEqual(tab.guardrailsInForce(g), guardrailsInForce(g), JSON.stringify(g));
   // Which rules the row at rest may name is contracts' too, over the same reading of the stored ones.
-  assert.deepEqual(tab.VISION_STRENGTH, VISION_STRENGTH);
+  for (const on of [true, false]) assert.equal(tab.VISION_SWITCH_WORDS.saved(on), VISION_SWITCH_WORDS.saved(on));
+  assert.deepEqual([...tab.ALWAYS_ON], [...ALWAYS_ON]);
   for (const g of [undefined, {}, { never_quote_prices: false }, { never_confirm_booking: false }])
     for (const composes of [true, false]) {
-      const i = { rules: guardrailsInForce(g), vision: false, composes };
+      const i = { rules: guardrailsInForce(g), composes };
       assert.deepEqual(tab.rulesKept(i), rulesKept(i), `${JSON.stringify(g)} ${composes}`);
     }
   assert.deepEqual(

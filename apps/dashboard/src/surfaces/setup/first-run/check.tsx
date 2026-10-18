@@ -23,6 +23,7 @@ import type { SettingsRecord } from "@/legacy-bridge/surfaces/settings";
 import { FailedRead } from "../../kit/empty/empty";
 import { recFolds } from "../../kit/record/registry";
 import { gate, surfaceFailed, type LegacyFlash } from "../../legacy-verbs";
+import { BtPriceChoiceRow } from "../../settings/business/choices/rows";
 import { businessPart, businessTabSave, sellsByChoice, type BusinessPart, type BusinessTabSave } from "../shell";
 import { brainOf, sellsByAnswer, sendAnswer, type CardBrain } from "./inputs";
 import { FrChips } from "./chips";
@@ -236,6 +237,7 @@ export const FrCheck = ({ check, W, flash, make, making, go, canEdit, held, sett
             }
           />
         ) : null}
+        <BtPriceChoiceRow canEdit={canEdit} flash={flash} />
         <RulesRow {...rows} config={settings.config} />
       </section>
       {offerCard({ W, brain, rows, canEdit, flash, saver, chips })}

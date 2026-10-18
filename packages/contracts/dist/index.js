@@ -3474,7 +3474,10 @@ var GUARDRAIL_KEYS = [
 function guardrailsInForce(g) {
   return {
     never_quote_prices: g?.never_quote_prices !== false,
-    never_confirm_booking: g?.never_confirm_booking !== false,
+    // Always (the Settings wiring review, 18 Oct 2026): nothing in the product books, so no choice of the owner's lets the
+    // receptionist confirm one; what happens instead is the booking choice on Hours & booking. A stored false is read as
+    // on, and the key stays in the schema so an older tab's rules save is not refused by name.
+    never_confirm_booking: true,
     // Always: the receptionist says it is an automated assistant whatever a row stores (decision 0051). The key stays
     // in the schema so an open tab's rules save, which writes all four, is never refused by name.
     disclose_ai: true,
@@ -3572,11 +3575,6 @@ var BOOKING_REQUEST_WORDS = {
   said: {
     booked: (who) => `Booked. Tell ${who} in the thread.`,
     cant: (who) => `${who} is waiting on your reply`
-  },
-  /** The switch, in Settings › Hours & booking, the booking tool's fold. */
-  setting: {
-    name: "Booking requests",
-    says: "Where you confirm bookings yourself, a time a customer picks by text waits on Today: Booked it, or Can't."
   }
 };
 var BOOKING_REQUEST_REFUSALS = {
@@ -32829,17 +32827,8 @@ var STRENGTHS = /* @__PURE__ */ (() => ({
 function ruleStrength(key) {
   return STRENGTHS[key];
 }
-var VISION_STRENGTH = /* @__PURE__ */ (() => ({
-  strength: "power",
-  chip: "gives it a power",
-  // Two clauses, one per position, and nothing else. "The rules above are limits; this one gives it an ability, so
-  // it starts off" went: the dashed rule above the switch says it is apart, the badge beside it says it is a power,
-  // and the switch itself says it is off -- three sayings of one thing, and four lines of a phone.
-  sentence: "Off, photos go to a person.",
-  checkedOn: null
-}))();
 var ALWAYS_TOLD = /* @__PURE__ */ new Set(["disclose_ai"]);
-var PRICES_WRITTEN_WORDS = "Says only the prices you wrote";
+var ALWAYS_ON = /* @__PURE__ */ new Set(["never_confirm_booking", "disclose_ai"]);
 var RULES_AT_REST_WORDS = {
   never_quote_prices: "Never quotes a price",
   never_confirm_booking: "Never confirms a booking",
@@ -32847,10 +32836,9 @@ var RULES_AT_REST_WORDS = {
   no_health_advice: "No health advice"
 };
 var CANNOT_BOOK_WORDS = "Cannot book anything";
-var PHOTOS_AT_REST_WORDS = { on: "Looks at photos", off: "Won't look at photos" };
 function rulesKept(i) {
-  if (typeof i?.vision !== "boolean" || typeof i?.composes !== "boolean") {
-    throw new TypeError("rulesKept needs vision and composes as booleans, not what an untyped page left out.");
+  if (typeof i?.composes !== "boolean") {
+    throw new TypeError("rulesKept needs composes as a boolean, not what an untyped page left out.");
   }
   const rules = i.rules;
   if (!rules || typeof rules !== "object") throw new TypeError("rulesKept needs the four rules as guardrailsInForce.");
@@ -32859,13 +32847,12 @@ function rulesKept(i) {
   }
   const kept = [];
   for (const key of GUARDRAIL_KEYS) {
+    if (key === "never_quote_prices") continue;
     const { strength } = ruleStrength(key);
     const told = i.composes && rules[key] || ALWAYS_TOLD.has(key);
-    if (key === "never_quote_prices" && !rules[key] && i.composes) kept.push(PRICES_WRITTEN_WORDS);
-    else if (strength === "checked" || told) kept.push(RULES_AT_REST_WORDS[key]);
+    if (strength === "checked" || told) kept.push(RULES_AT_REST_WORDS[key]);
     else if (strength === "structural") kept.push(CANNOT_BOOK_WORDS);
   }
-  kept.push(i.vision ? PHOTOS_AT_REST_WORDS.on : PHOTOS_AT_REST_WORDS.off);
   return kept;
 }
 var RULES_WITHOUT_FIELDS_WORDS = /* @__PURE__ */ (() => `${NO_FIELDS_COMPOSED_WORDS} Until they are, it isn't told these rules, only that it is an automated assistant.`)();
@@ -33275,6 +33262,86 @@ function tryItVM(answer) {
   return { said, wrote: said === answer.text ? null : answer.text, rows: rows2, then: booked };
 }
 
+// src/config/business-tab/choices.ts
+var BOOKING_CHOICES = ["link", "confirm", "person"];
+function bookingChoiceOf(f) {
+  if (f.takes) return "confirm";
+  if (!f.held && f.linkInChat) return "link";
+  return "person";
+}
+function bookingChoiceWrites(to, f) {
+  const out = [];
+  if (to === "link") {
+    if (f.held) out.push({ kind: "policy", cls: "booking", mode: "auto" });
+    if (f.switchOn) out.push({ kind: "booking_requests", on: false });
+  } else if (to === "confirm") {
+    if (!f.switchOn) out.push({ kind: "booking_requests", on: true });
+    if (f.linkInChat && !f.held) out.push({ kind: "policy", cls: "booking", mode: "ask" });
+  } else {
+    if (f.switchOn) out.push({ kind: "booking_requests", on: false });
+    if (f.linkInChat && !f.held) out.push({ kind: "policy", cls: "booking", mode: "ask" });
+  }
+  return out;
+}
+function bookingChoiceNeeds(to, f) {
+  if (to === "link" && !f.linkInChat) return BOOKING_CHOICE_WORDS.needs.link;
+  if (to === "confirm" && !f.calendar) return BOOKING_CHOICE_WORDS.needs.confirm;
+  return null;
+}
+var BOOKING_CHOICE_WORDS = {
+  label: "When someone wants to book",
+  options: {
+    link: { label: "They book with your link", says: "It sends your booking link and they pick a time there." },
+    confirm: {
+      label: "It offers times, you confirm",
+      says: "It offers open times from your calendar. The one they pick waits on Today: Booked it, or Can't."
+    },
+    person: {
+      label: "You reply to each one",
+      says: "It asks what they want and when, and the conversation waits for you in the Inbox."
+    }
+  },
+  needs: {
+    link: "Add your booking link first.",
+    confirm: "Needs your calendar link, to know what's open."
+  },
+  saved: (to) => `When someone wants to book: ${BOOKING_CHOICE_WORDS.options[to].label.toLowerCase()}.`
+};
+var PRICE_CHOICES = ["written", "never", "yours"];
+function priceChoiceOf(f) {
+  if (f.handed) return "yours";
+  return f.neverQuote ? "never" : "written";
+}
+function priceChoiceWrites(to, f) {
+  const out = [];
+  if (to === "yours") {
+    if (!f.handed) out.push({ kind: "policy", cls: "faq", mode: "ask" });
+    return out;
+  }
+  const neverQuote = to === "never";
+  if (f.neverQuote !== neverQuote) out.push({ kind: "never_quote_prices", on: neverQuote });
+  if (f.handed) out.push({ kind: "policy", cls: "faq", mode: "auto" });
+  return out;
+}
+var PRICE_CHOICE_WORDS = {
+  label: "When someone asks a price",
+  options: {
+    written: {
+      label: "Says the prices you wrote",
+      says: "Only the prices you wrote. In chat any other figure is taken out before it's sent; on a call, you're told."
+    },
+    never: {
+      label: "Never says a price",
+      says: "It says prices are given in person or at a consult, and offers the next step."
+    },
+    yours: {
+      label: "Hands it to you",
+      says: "Every question about a price or a service waits for you in the Inbox."
+    }
+  },
+  saved: (to) => `When someone asks a price: ${PRICE_CHOICE_WORDS.options[to].label.toLowerCase()}.`
+};
+
 // src/config/business-tab/handoff-words.ts
 var HANDED_OVER_ANYWAY = "a customer asks for a person or it can't help";
 function handoffChatWords(i) {
@@ -33423,8 +33490,8 @@ function abilityRows(i) {
       title: "Look at a photo",
       detail: i.visionOn ? "It says what it sees and suggests the next step, under the rules it always keeps." : "Off. A photo is passed to a person.",
       channels: { voice: false, whatsapp: chatAnswers && i.visionOn },
-      // The switch sits with the rules it keeps, which is the row that opens it.
-      runsOn: { label: i.visionOn ? "Turn it off" : "Turn it on", row: "guardrails" },
+      // Its switch is on this row since 18 Oct 2026 (it sat in the rules fold, among limits): no other row supplies it.
+      runsOn: null,
       ready: chatAnswers && i.visionOn,
       // Off is the one state an owner changes from this card.
       missing: !i.visionOn,
@@ -33480,6 +33547,11 @@ function cannotFoldWords(count2) {
   const n = CANNOT_COUNT_WORDS[count2] ?? String(count2);
   return count2 === 1 ? `${n} thing it cannot do` : `${n} things it cannot do`;
 }
+var VISION_SWITCH_WORDS = {
+  label: "Look at a photo",
+  gate: "turn photos on or off",
+  saved: (on) => on ? "Photos on: it says what it sees." : "Photos off: a photo goes to a person."
+};
 
 // src/config/brain-schema.ts
 import { z as z11 } from "zod";
@@ -59502,6 +59574,7 @@ export {
   ALERT_PANE_WORDS,
   ALERT_REFUSED_WORDS,
   ALERT_TOPICS,
+  ALWAYS_ON,
   ALWAYS_TOLD,
   ANALYSIS_GRACE_MS,
   ANGLE_WORDS_MAX,
@@ -59576,6 +59649,8 @@ export {
   BOOKED_NEEDS_A_LINK,
   BOOKED_NEEDS_TODAY,
   BOOKED_SEEN_CAP,
+  BOOKING_CHOICES,
+  BOOKING_CHOICE_WORDS,
   BOOKING_DEFAULTS,
   BOOKING_LINK_NEEDED,
   BOOKING_PLATFORM_HOSTS,
@@ -60322,6 +60397,8 @@ export {
   PREVIEW,
   PREVIEW_CHANNEL_WORDS,
   PREVIEW_WORDS,
+  PRICE_CHOICES,
+  PRICE_CHOICE_WORDS,
   PRIMARY_PART,
   PROFILE_CROSSING_WORDS,
   PROFILE_LIMITS,
@@ -60675,7 +60752,7 @@ export {
   V0,
   VERSION_CHANNELS,
   VERSION_CHANNEL_WORDS,
-  VISION_STRENGTH,
+  VISION_SWITCH_WORDS,
   VISITS_TAB_WORDS,
   VISIT_ASK_WORDS,
   VISIT_CHANGES_TOLD,
@@ -60840,6 +60917,9 @@ export {
   bookedTileOf,
   bookingArriving,
   bookingChanged,
+  bookingChoiceNeeds,
+  bookingChoiceOf,
+  bookingChoiceWrites,
   bookingCopyTest,
   bookingEmailsHeldWords,
   bookingEmailsStep,
@@ -62058,6 +62138,8 @@ export {
   previewVersionsOf,
   priceAllowance,
   priceBreach,
+  priceChoiceOf,
+  priceChoiceWrites,
   priceFigures,
   priceNextStep,
   priceOf,

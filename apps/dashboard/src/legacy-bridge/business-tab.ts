@@ -21,6 +21,7 @@ import {
   POLICY_MODES,
   ruleStrength,
   ALWAYS_TOLD,
+  ALWAYS_ON,
   allowedPrices,
   pricesWrittenWords,
   greetingNotes,
@@ -28,7 +29,7 @@ import {
   GREETING_TEMPLATE,
   namesMoney,
   violatesNoPrices,
-  VISION_STRENGTH,
+  VISION_SWITCH_WORDS,
   rulesKept,
   GUARDRAIL_KEYS,
   promptBlocks,
@@ -338,6 +339,7 @@ export function saveIssues(part: unknown): Array<{ path: Array<string | number>;
 // What it can do's are the abilities and the limits (abilityRows, cannotRows), the two questions the edge asks of the
 // Autonomy tab (bookingHeld, and POLICY_MODES to read the Replies row as stored), the template a call sends the
 // booking link as (bookingTemplate), the words each of a row's two channel glyphs is called (ABILITY_CHANNEL_WORDS),
+// the photo switch's on its row (VISION_SWITCH_WORDS),
 // and capabilityStatus, which is where "this line answers" is decided for Setup and for this card alike -- the card
 // reads it off the Setup payload the bridge already publishes (__SETUP) rather than asking the channels itself.
 // CHIPS_SHOWN and chipsMoreWords are how many chips any row of the record draws at rest and how the rest are said:
@@ -355,7 +357,7 @@ export function saveIssues(part: unknown): Array<{ path: Array<string | number>;
 export const BUSINESS_TAB = {
   businessGap,
   rulesKept,
-  VISION_STRENGTH,
+  VISION_SWITCH_WORDS,
   ABILITY_CHANNEL_WORDS,
   abilityRows,
   cannotFoldWords,
@@ -367,6 +369,7 @@ export const BUSINESS_TAB = {
   POLICY_MODES,
   ruleStrength,
   ALWAYS_TOLD,
+  ALWAYS_ON,
   allowedPrices,
   pricesWrittenWords,
   greetingNotes,

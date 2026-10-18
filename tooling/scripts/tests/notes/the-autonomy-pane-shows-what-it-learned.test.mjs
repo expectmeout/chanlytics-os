@@ -1,6 +1,7 @@
 /**
- * What Settings › Autonomy draws of the owner's corrections (decision 0063), on the stub React: under the rows a held draft
- * belongs to, how often the owner changed what it wrote (and nothing on a row with none held); and the notes their
+ * What Settings › Autonomy draws of the owner's corrections (decision 0063), on the stub React: under Replies, how often
+ * the owner changed what it wrote (and nothing with none held; Bookings' and Questions' lines are their own rows' on
+ * Settings since 18 Oct 2026, business/choices); and the notes their
  * corrections suggest, each with what they wrote and Keep as a note or Dismiss, pressed through the pane's one door, the
  * row gone once it answered and its refusal said in its own words. Nothing is drawn where nothing waits or the read failed.
  */
@@ -34,16 +35,17 @@ const held = heldDraftsByClass([
   { intent: "greeting", held: 6, sent: 5, steered: 0, canceled: 1, person_first: 0 },
 ]);
 
-test("each row a held draft belongs to says how often its drafts were changed, and a row with none says nothing", () => {
+test("Replies says how often its drafts were changed, and no other row of the matrix says a line", () => {
   fresh();
   const tree = again(() => h(PolicyTable, { rows, put() {}, busy: null, held }));
   assert.equal(said(tree, "pol-held-reply"), "6 held for you in 30 days: 5 sent as written, 1 stopped");
-  assert.equal(said(tree, "pol-held-booking"), "5 held for you in 30 days: 4 sent as written, 1 rewritten");
+  assert.equal(byTestId(tree, "pol-held-booking"), null, "a booking's drafts are the booking row's, on Settings");
   assert.equal(byTestId(tree, "pol-held-faq"), null, "no draft held under Questions: no line");
   assert.equal(byTestId(tree, "pol-held-reengage"), null, "a campaign's row holds no receptionist's drafts");
   fresh();
   const phone = again(() => h(PolPhoneRows, { rows, put() {}, busy: null, held }));
-  assert.match(textOf(byTestId(phone, "pol-phone-book")), /5 held for you in 30 days/);
+  assert.match(textOf(byTestId(phone, "pol-phone-reply")), /6 held for you in 30 days/);
+  assert.doesNotMatch(textOf(byTestId(phone, "pol-phone-book")), /held for you/);
 });
 
 const S1 = {

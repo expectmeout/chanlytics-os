@@ -24,13 +24,14 @@
 // not be read is its own state: the rows that need it are a FailedRead, never a guessed false, which would draw a live
 // line dark and a hold as none.
 
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { BUSINESS_TAB } from "@/legacy-bridge/business-tab";
 import type { PoliciesSurface } from "@/legacy-bridge/policy-store";
 import type { TemplateDto } from "@/surfaces/inbox/types";
-import { navigate } from "../../legacy-verbs";
+import { gate, navigate, type LegacyFlash } from "../../legacy-verbs";
 import { FailedRead } from "../../kit/empty/empty";
 import { Icon } from "../../kit/icon/icon";
+import { RecordSwitch } from "../../kit/record/field";
 import { recFolds } from "../../kit/record/registry";
 import type { SetupSurface } from "../../setup/surface";
 import type { Brain as SavedBrain, Config } from "./save";
@@ -76,10 +77,13 @@ const BtcRow = ({
   ability,
   words,
   door,
+  end = null,
 }: {
   ability: Ability;
   words: Record<"whatsapp" | "voice", ChannelWords>;
   door: ((id: string) => void) | null;
+  /** A switch the row carries itself, after its glyphs: only the opt-in ability has one. */
+  end?: ReactNode;
 }) => {
   const a = ability;
   const saysId = `rec-can-${a.id}-says`;
@@ -97,6 +101,7 @@ const BtcRow = ({
       <span className="bt-can-chips">
         <BtcGlyph channel="whatsapp" has={a.channels.whatsapp} words={words.whatsapp} />
         <BtcGlyph channel="voice" has={a.channels.voice} words={words.voice} />
+        {end}
       </span>
       {a.missing ? (
         <p className="bt-can-why">
@@ -114,10 +119,55 @@ const BtcRow = ({
           ) : null}
         </p>
       ) : (
-        // No id: nothing points at it, and inside the row a screen reader reads it in its place anyway.
-        <span className="bt-can-says">{a.detail}</span>
+        // Inside the row a screen reader reads it in its place; the photo switch points at it too.
+        <span className="bt-can-says" id={saysId}>
+          {a.detail}
+        </span>
       )}
     </div>
+  );
+};
+
+/**
+ * The photo switch (features.vision), on its ability's row: it gives the receptionist something, so it is not among the
+ * limits it keeps (the Settings wiring review, 18 Oct 2026). Saved at once through the tab's one saver; it shows where it
+ * is going until the read says so, and goes back where the save is refused.
+ */
+const BtcVisionSwitch = ({
+  on,
+  canEdit,
+  flash,
+}: {
+  on: boolean;
+  canEdit: boolean;
+  flash: (f: LegacyFlash) => void;
+}) => {
+  const [soon, setSoon] = useState<boolean | null>(null);
+  useEffect(() => {
+    if (soon !== null && on === soon) setSoon(null);
+  }, [on, soon]);
+  const set = (vision: boolean) => {
+    setSoon(vision);
+    businessTabSave.saver.save({
+      row: "vision",
+      patch: (c) => ({ ...c, features: { ...(c.features || {}), vision } }),
+      said: BUSINESS_TAB.VISION_SWITCH_WORDS.saved(vision),
+      flash: (f: LegacyFlash) => {
+        if (f && f.tone === "danger") setSoon(null);
+        flash(f);
+      },
+    });
+  };
+  return (
+    <RecordSwitch
+      on={soon ?? on}
+      onChange={set}
+      label={BUSINESS_TAB.VISION_SWITCH_WORDS.label}
+      describedBy="rec-can-vision-says"
+      readOnly={!canEdit}
+      gate={canEdit ? null : gate("settings", BUSINESS_TAB.VISION_SWITCH_WORDS.gate)}
+      testid="rec-can-vision-switch"
+    />
   );
 };
 
@@ -262,10 +312,13 @@ const BtcAbilityRows = ({
   abilities,
   reads,
   door,
+  vision,
 }: {
   abilities: Abilities | null;
   reads: CanReads;
   door: ((id: string) => void) | null;
+  /** The photo switch, drawn on its ability's row; null where the card is drawn without one (the first run's Live). */
+  vision: ReactNode;
 }) => {
   const lost = [
     reads.rows ? null : "the Autonomy tab",
@@ -274,7 +327,13 @@ const BtcAbilityRows = ({
   return abilities ? (
     <>
       {abilities.rows.map((a) => (
-        <BtcRow key={a.id} ability={a} words={BUSINESS_TAB.ABILITY_CHANNEL_WORDS} door={door} />
+        <BtcRow
+          key={a.id}
+          ability={a}
+          words={BUSINESS_TAB.ABILITY_CHANNEL_WORDS}
+          door={door}
+          end={a.id === "vision" ? vision : null}
+        />
       ))}
     </>
   ) : (
@@ -309,6 +368,7 @@ export const BtCanCard = ({
   canEdit,
   activating = null,
   door = btcOpenRow,
+  flash = null,
 }: {
   brain: Brain;
   config: Config | null;
@@ -316,6 +376,8 @@ export const BtCanCard = ({
   activating?: readonly string[] | null;
   /** How a row's door opens the row that supplies what is missing: in place, unless the page says otherwise. */
   door?: (id: string) => void;
+  /** The page's toast: where there is one, the photo row carries its switch (the first run's Live draws none). */
+  flash?: ((f: LegacyFlash) => void) | null;
 }) => {
   // Undefined until the surface is read, null when the read FAILED, and the two are not one answer
   // (setup, settings take the same stance). On a cold boot the settings surface
@@ -358,7 +420,14 @@ export const BtCanCard = ({
     <>
       {abilities && abilities.held ? <BtcHeld held={abilities.held} /> : null}
 
-      <BtcAbilityRows abilities={abilities} reads={reads} door={canEdit ? door : null} />
+      <BtcAbilityRows
+        abilities={abilities}
+        reads={reads}
+        door={canEdit ? door : null}
+        vision={
+          flash ? <BtcVisionSwitch on={config?.features?.vision === true} canEdit={canEdit} flash={flash} /> : null
+        }
+      />
 
       <BtcCannot limits={limits} />
     </>,

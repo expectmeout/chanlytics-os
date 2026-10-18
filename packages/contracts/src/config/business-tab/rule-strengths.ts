@@ -135,39 +135,21 @@ export function ruleStrength(key: GuardrailKey): RuleStrengthVM {
 }
 
 /**
- * The fifth switch in the same fold, and the only one that is not a limit.
- *
- * Not a GuardrailKey: photos are stored as `features.vision` beside the profile rather than in the guardrails, and
- * the switch changes no word of the composed prompt at all -- a photo's words go in the customer's own turn
- * (core/src/inbound/answer.ts). So it is its own export rather than a fifth entry in a table typed over the schema's
- * keys, and its strength is a different kind: the four above say how far a LIMIT goes, and this one says the switch
- * gives the receptionist something it otherwise does not have.
- *
- * Here rather than in the JSX for the reason every other sentence on this tab is: the page drew the badge as a
- * literal and the page's test typed the same literal back, so the two agreed with each other and with nothing else.
- */
-export const VISION_STRENGTH: RuleStrengthVM = /* @__PURE__ */ (() => ({
-  strength: "power" as const,
-  chip: "gives it a power",
-  // Two clauses, one per position, and nothing else. "The rules above are limits; this one gives it an ability, so
-  // it starts off" went: the dashed rule above the switch says it is apart, the badge beside it says it is a power,
-  // and the switch itself says it is off -- three sayings of one thing, and four lines of a phone.
-  sentence: "Off, photos go to a person.",
-  checkedOn: null,
-}))();
-
-/**
  * The short name the row at rest says each rule by (the canvas's Record board). Not the switch's label, which is an
  * instruction to the receptionist ("Never quote or confirm a price"); this is what the receptionist does.
  */
 /**
- * The rules that are not switches: said to every prompt, composed or stored, whatever a row stores (compose.ts
- * standingRules). The fold draws them without a switch and names them at rest always (decision 0051).
+ * The rules said to every prompt, composed or stored, whatever a row stores (compose.ts standingRules): named at rest
+ * always (decision 0051).
  */
 export const ALWAYS_TOLD: ReadonlySet<GuardrailKey> = new Set<GuardrailKey>(["disclose_ai"]);
 
-/** The price rule at rest while it is off: what it may say, not what it never says (decision 0051). */
-const PRICES_WRITTEN_WORDS = "Says only the prices you wrote";
+/**
+ * The rules that are not switches, which the fold draws with a lock: the one every prompt is told, and the booking rule,
+ * in force whatever a row stores since 18 Oct 2026 (guardrailsInForce), as nothing in the product books and what
+ * happens instead is the booking choice on Hours & booking (choices.ts).
+ */
+export const ALWAYS_ON: ReadonlySet<GuardrailKey> = new Set<GuardrailKey>(["never_confirm_booking", "disclose_ai"]);
 
 export const RULES_AT_REST_WORDS: Record<GuardrailKey, string> = {
   never_quote_prices: "Never quotes a price",
@@ -177,23 +159,15 @@ export const RULES_AT_REST_WORDS: Record<GuardrailKey, string> = {
 };
 
 /**
- * The structural rule where nothing tells it not to claim: what it CANNOT do, rather than what it will not say.
- *
- * Nothing in this product can create, move or cancel an appointment (its record keeps only what a booking tool
- * reports), so a booking is beyond it whatever it reads. The switch decides only whether it is told not to claim it
- * had -- so with that line gone (switched off, or a record whose details compose
- * nothing) the row says the part that still holds and drops the part that does not.
+ * The booking rule where nothing tells it not to claim (a record whose details compose nothing): what it CANNOT do,
+ * rather than what it will not say. Nothing in this product can create, move or cancel an appointment, so a booking is
+ * beyond it whatever it reads.
  */
 const CANNOT_BOOK_WORDS = "Cannot book anything";
-
-/** The photos switch at rest. An ability, so both ways round are worth saying: it is the one that starts off. */
-const PHOTOS_AT_REST_WORDS = { on: "Looks at photos", off: "Won't look at photos" } as const;
 
 export interface RulesKeptInputs {
   /** The four, as the fold opens them: `guardrailsInForce` over the stored record, never the raw guardrails. */
   rules: GuardrailsInForce;
-  /** `features.vision`. An ability rather than a limit, and it reaches the receptionist without the prompt. */
-  vision: boolean;
   /** Whether the record's details compose anything at all (config.ts `hasProfile`). */
   composes: boolean;
 }
@@ -211,16 +185,16 @@ export interface RulesKeptInputs {
  * - **instructed** -- a line in a prompt and nothing else, so it is named only where the record composes one AND the
  *   switch is on. On a record whose details compose nothing the resolver hands back the stored prompt plus Autonomy's
  *   rules (`resolveSystemPrompt`'s no-profile branch), so there is no line to name.
- * - **structural** -- named either way, in different words: the line decides only whether it is told not to CLAIM it
- *   booked, and the product cannot book regardless.
+ * - **structural** -- the booking rule, in force whatever a row stores (ALWAYS_ON), named either way in different
+ *   words: told not to CLAIM it booked where the record composes, and unable to book regardless.
  *
  * Every input is required and checked as it runs, as `abilityRows` is and for the same reason: the page that calls
  * this is untyped JSX, and a rule it left out would read as false -- a rule quietly dropped from the row with nothing
  * to say it had gone.
  */
 export function rulesKept(i: RulesKeptInputs): string[] {
-  if (typeof i?.vision !== "boolean" || typeof i?.composes !== "boolean") {
-    throw new TypeError("rulesKept needs vision and composes as booleans, not what an untyped page left out.");
+  if (typeof i?.composes !== "boolean") {
+    throw new TypeError("rulesKept needs composes as a boolean, not what an untyped page left out.");
   }
   const rules = i.rules;
   if (!rules || typeof rules !== "object") throw new TypeError("rulesKept needs the four rules as guardrailsInForce.");
@@ -229,14 +203,15 @@ export function rulesKept(i: RulesKeptInputs): string[] {
   }
   const kept: string[] = [];
   for (const key of GUARDRAIL_KEYS) {
+    // Prices are their own row beside this one (choices.ts PRICE_CHOICE_WORDS), and photos an ability on How it answers
+    // (the Settings wiring review, 18 Oct 2026): said there, never twice.
+    if (key === "never_quote_prices") continue;
     const { strength } = ruleStrength(key);
     // A line it actually reads: the switch on, over a record the resolver composes from; or a rule every prompt carries.
     const told = (i.composes && rules[key]) || ALWAYS_TOLD.has(key);
-    if (key === "never_quote_prices" && !rules[key] && i.composes) kept.push(PRICES_WRITTEN_WORDS);
-    else if (strength === "checked" || told) kept.push(RULES_AT_REST_WORDS[key]);
+    if (strength === "checked" || told) kept.push(RULES_AT_REST_WORDS[key]);
     else if (strength === "structural") kept.push(CANNOT_BOOK_WORDS);
   }
-  kept.push(i.vision ? PHOTOS_AT_REST_WORDS.on : PHOTOS_AT_REST_WORDS.off);
   return kept;
 }
 

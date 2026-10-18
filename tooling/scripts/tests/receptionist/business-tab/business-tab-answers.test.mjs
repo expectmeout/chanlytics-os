@@ -20,7 +20,6 @@ import {
   DAY_MS,
   instructionsWords,
   fallbacksWords,
-  chipsMoreWords,
   fallbackMessages,
   RULES_WITHOUT_FIELDS_WORDS,
   PROFILE_CROSSING_WORDS,
@@ -29,9 +28,10 @@ import {
   newReceptionistDefaults,
   hasProfile,
   GUARDRAIL_KEYS,
-  ALWAYS_TOLD,
   ruleStrength,
-  VISION_STRENGTH,
+  ALWAYS_ON,
+  PRICE_CHOICE_WORDS,
+  VISION_SWITCH_WORDS,
   rulesKept,
   guardrailsInForce,
   GREETING_TEMPLATE,
@@ -453,7 +453,7 @@ test("the languages stop at what the profile keeps, through Add and through an U
 
 /* ------------------------------------ the rules it always keeps ------------------------------------ */
 
-test("the rules at rest are a chip for each rule in force and one for photos, and each is a row of one element in the fold", () => {
+test("the rules at rest are a chip for each rule in force, and each is a row of one element in the fold", () => {
   let tree = drawTab({
     profile: {
       ...marisa,
@@ -466,141 +466,95 @@ test("the rules at rest are a chip for each rule in force and one for photos, an
     },
   });
   const chips = all(byTestId(tree, "rec-rules-chips"), (n) => classes(n).includes("rec-chip")).map(textOf);
-  // The booking rule's word changes rather than going: the switch decides only whether it is told not to CLAIM it
-  // booked, and the product has no appointments table either way (contracts rulesKept).
-  assert.deepEqual(chips, [
-    "Never quotes a price",
-    "Cannot book anything",
-    "Says it's an assistant",
-    chipsMoreWords(1),
-  ]);
-  // Past the cap every row of chips keeps (contracts CHIPS_SHOWN, through the kit), the rest are said as "+N more",
-  // in contracts' own words: five chips wrapped three deep at a phone's width.
-  tree = drawTab({ config: { features: { vision: true } } });
+  // The booking rule holds whatever a row stores (18 Oct 2026: nothing books), and the price rule is a row of its own
+  // beside this one, so it is not named here; photos are an ability on What it can do (contracts rulesKept).
+  assert.deepEqual(chips, ["Never confirms a booking", "Says it's an assistant"]);
+  // Three rules at most, never past the cap every row of chips keeps (contracts CHIPS_SHOWN, through the kit).
+  tree = drawTab();
   assert.deepEqual(all(byTestId(tree, "rec-rules-chips"), (n) => classes(n).includes("rec-chip")).map(textOf), [
-    "Never quotes a price",
     "Never confirms a booking",
     "Says it's an assistant",
-    chipsMoreWords(2),
+    "No health advice",
   ]);
-  assert.equal(chipsMoreWords(2), "+2");
   openFold(tree, "guardrails");
   tree = redrawTab();
-  // One element per rule, holding its label, its strength, its tip and its switch; saying it is an assistant is always on
-  // (decision 0051), so its row says so where the switch would be.
-  const always = byTestId(tree, "rec-rule-disclose_ai");
-  assert.match(textOf(always), /Says it's an automated assistant/);
-  assert.equal(textOf(byTestId(always, "rec-rule-always-disclose_ai")), "Always on");
-  assert.equal(switchOf(tree, "disclose_ai"), null, "no switch for a rule that is not one");
+  // One element per rule, holding its label, its strength, its tip and its switch; the two that are always on (saying
+  // it is an assistant, decision 0051, and the booking rule) say so where a switch would be.
   for (const [k, label] of [
-    ["never_quote_prices", "Never quote a price"],
     ["never_confirm_booking", "Never confirm a booking"],
-    ["no_health_advice", "No health advice"],
+    ["disclose_ai", "Says it's an automated assistant"],
   ]) {
-    const r = byTestId(tree, `rec-rule-${k}`);
-    assert.ok(
-      find(r, (n) => n === switchOf(tree, k)),
-      `${k}'s switch is in its row`,
-    );
-    assert.match(textOf(r), new RegExp(label));
-    assert.equal(
-      textOf(find(r, (n) => n.props?.id === switchOf(tree, k).props["aria-labelledby"])),
-      label,
-      "the switch is named by the label beside it",
-    );
+    const always = byTestId(tree, `rec-rule-${k}`);
+    assert.match(textOf(always), new RegExp(label));
+    assert.equal(textOf(byTestId(always, `rec-rule-always-${k}`)), "Always on");
+    assert.equal(switchOf(tree, k), null, `no switch for ${k}, which is not one`);
   }
-  const vision = byTestId(tree, "rec-rule-vision");
-  const four = find(tree, (n) => n.props?.["aria-label"] === "The rules");
+  const r = byTestId(tree, "rec-rule-no_health_advice");
+  assert.ok(
+    find(r, (n) => n === switchOf(tree, "no_health_advice")),
+    "the health rule's switch is in its row",
+  );
   assert.equal(
-    find(four, (n) => n === vision),
-    null,
-    "the photos switch is in a group of its own, apart from the four limits",
+    textOf(find(r, (n) => n.props?.id === switchOf(tree, "no_health_advice").props["aria-labelledby"])),
+    "No health advice",
+    "the switch is named by the label beside it",
   );
-  assert.equal(textOf(find(tree, (n) => n.props?.id === "bt-rules-abilities")), "Abilities");
-  assert.match(textOf(vision), /Look at photos customers send/);
-  assert.match(textOf(vision), new RegExp(escape(VISION_STRENGTH.sentence)));
-  assert.doesNotMatch(
-    textOf(vision),
-    /four above .* start on/i,
-    "REGRESSION: the canvas said all four start on, and health advice starts off",
-  );
-  assert.equal(switchOf(tree, "vision").props["aria-checked"], true);
+  // Neither the price rule nor the photo switch is in the fold any more: each is said once, where it is chosen.
+  assert.equal(byTestId(tree, "rec-rule-never_quote_prices"), null);
+  assert.equal(byTestId(tree, "rec-rule-vision"), null);
 });
 
-test("the rules the fold draws are the four the schema keeps, in its order, and the photos switch is apart from them", () => {
-  // The page lists the four with their words (BTA_RULES), and cites contracts GUARDRAIL_KEYS without reading it: the
-  // bridge publishes the list on __businessTab as it installs, and this file's list is built when the classic script
-  // is compiled, before that. So the literal stays and this is the pin -- the rows the fold DRAWS, in order, are the
-  // schema's own keys (GuardrailsSchema.keyof()), so a rule added to the schema and not here has no switch and fails.
+test("the rules the fold draws are the schema's own, in its order, but the price rule, which is a row of its own", () => {
+  // The page lists its rules with their words (BTA_RULES), and cites contracts GUARDRAIL_KEYS without reading it, so
+  // this is the pin: the rows the fold DRAWS, in order, are the schema's own keys (GuardrailsSchema.keyof()) less the
+  // price rule (the price row's, 18 Oct 2026), so a rule added to the schema and not here has no row and fails.
   let tree = drawTab();
   openFold(tree, "guardrails");
   tree = redrawTab();
   const rows = all(byTestId(tree, "rec-rules-switches"), (n) => classes(n).includes("bt-line"));
   const drawn = rows.map((n) => String(n.props["data-testid"]).replace("rec-rule-", ""));
-  assert.deepEqual(drawn, [...GUARDRAIL_KEYS, "vision"], "the four rules in the schema's order, then the photos power");
-  for (const key of GUARDRAIL_KEYS) {
-    if (ALWAYS_TOLD.has(key)) assert.ok(byTestId(tree, `rec-rule-always-${key}`), `${key} is always on`);
+  assert.deepEqual(
+    drawn,
+    GUARDRAIL_KEYS.filter((k) => k !== "never_quote_prices"),
+  );
+  for (const key of drawn) {
+    if (ALWAYS_ON.has(key)) assert.ok(byTestId(tree, `rec-rule-always-${key}`), `${key} is always on`);
     else assert.ok(switchOf(tree, key), `${key} has a switch`);
   }
 });
 
-test("each switch saves only its own key, and the photos switch writes features.vision and nothing else", () => {
-  for (const k of ["never_quote_prices", "never_confirm_booking", "no_health_advice"]) {
-    const sent = saving();
-    let tree = drawTab();
-    const stored = structuredClone(W.__SETTINGS.config);
-    openFold(tree, "guardrails");
-    tree = redrawTab();
-    press(switchOf(tree, k));
-    tree = redrawTab();
-    assert.equal(switchOf(tree, k).props["aria-checked"], false);
-    saveFoldOf(tree, "guardrails");
-    const expected = structuredClone(stored);
-    expected.brain.profile.guardrails[k] = false;
-    assert.deepEqual(
-      sent.map((s) => s.config),
-      [expected],
-      `${k} alone`,
-    );
-  }
+test("the fold's one switch saves only its own key, and leaves the price rule and the photo switch as stored", () => {
   const sent = saving();
-  let tree = drawTab();
+  let tree = drawTab({
+    profile: { ...marisa, guardrails: { ...marisa.guardrails, never_quote_prices: false } },
+    config: { features: { vision: true } },
+  });
   const stored = structuredClone(W.__SETTINGS.config);
   openFold(tree, "guardrails");
   tree = redrawTab();
-  const before = partsOf(byTestId(tree, "rec-fold-says-guardrails"));
-  press(switchOf(tree, "vision"));
+  press(switchOf(tree, "no_health_advice"));
   tree = redrawTab();
-  assert.deepEqual(
-    partsOf(byTestId(tree, "rec-fold-says-guardrails")),
-    before,
-    "the photos switch changes no word it is told, so it says nothing more",
-  );
+  assert.equal(switchOf(tree, "no_health_advice").props["aria-checked"], false);
   saveFoldOf(tree, "guardrails");
+  const expected = structuredClone(stored);
+  expected.brain.profile.guardrails.no_health_advice = false;
   assert.deepEqual(
     sent.map((s) => s.config),
-    [{ ...stored, features: { vision: true } }],
-    "features.vision, and nothing else",
+    [expected],
+    "the health rule alone: the price rule off and photos on, both kept",
   );
 });
 
-test("absent means on: a record that stores no rules opens with three on, and a Save that changes nothing sends nothing", () => {
+test("absent means as contracts reads it: a record that stores no rules opens with health advice off, and a Save that changes nothing sends nothing", () => {
   const sent = saving();
   let tree = drawTab({ profile: without(marisa, "guardrails") });
   assert.deepEqual(all(byTestId(tree, "rec-rules-chips"), (n) => classes(n).includes("rec-chip")).map(textOf), [
-    "Never quotes a price",
     "Never confirms a booking",
     "Says it's an assistant",
-    chipsMoreWords(1),
   ]);
   openFold(tree, "guardrails");
   tree = redrawTab();
-  assert.deepEqual(
-    ["never_quote_prices", "never_confirm_booking", "no_health_advice", "vision"].map(
-      (k) => switchOf(tree, k).props["aria-checked"],
-    ),
-    [true, true, false, false],
-  );
+  assert.equal(switchOf(tree, "no_health_advice").props["aria-checked"], false);
   saveFoldOf(tree, "guardrails");
   tree = redrawTab();
   assert.deepEqual([sent.length, openFolds(tree)], [0, []], "nothing to write is nothing sent");
@@ -672,10 +626,8 @@ test("at rest the rules are ONE row: the words are contracts', and no strength i
   const row = byTestId(tree, "rec-row-guardrails");
   assert.deepEqual(
     all(byTestId(tree, "rec-rules-chips"), (n) => classes(n).includes("rec-chip")).map(textOf),
-    rulesKept({ rules: guardrailsInForce(marisa.guardrails), vision: false, composes: true })
-      .slice(0, 3)
-      .concat(chipsMoreWords(2)),
-    "the words are contracts', capped by the kit",
+    rulesKept({ rules: guardrailsInForce(marisa.guardrails), composes: true }),
+    "the words are contracts'",
   );
   const words = textOf(row);
   for (const key of GUARDRAIL_KEYS) {
@@ -687,22 +639,17 @@ test("at rest the rules are ONE row: the words are contracts', and no strength i
 });
 
 test("M-2: on a record that composes nothing, the row names only what holds, in contracts' words", () => {
-  // The fold says once that the four switches change nothing it is told (RULES_WITHOUT_FIELDS_WORDS). At rest the row
-  // must not then list those four as if they were lines it reads: what is left is the detector and the appointments
-  // table that does not exist.
+  // The fold says once that its switch changes nothing it is told (RULES_WITHOUT_FIELDS_WORDS). At rest the row must
+  // not then list rules as if they were lines it reads: what is left is the appointments table that does not exist,
+  // and the one line every prompt carries.
   const profile = { guardrails: marisa.guardrails, handoff_number: "+12125550142" };
   assert.equal(hasProfile(profile), false, "the fixture composes nothing");
   const tree = drawTab({ profile });
   const chips = all(byTestId(tree, "rec-rules-chips"), (n) => classes(n).includes("rec-chip")).map(textOf);
-  assert.deepEqual(chips, [
-    "Never quotes a price",
-    "Cannot book anything",
-    "Says it's an assistant",
-    chipsMoreWords(1),
-  ]);
+  assert.deepEqual(chips, ["Cannot book anything", "Says it's an assistant"]);
   assert.deepEqual(
-    chips.slice(0, 3),
-    rulesKept({ rules: guardrailsInForce(profile.guardrails), vision: false, composes: false }).slice(0, 3),
+    chips,
+    rulesKept({ rules: guardrailsInForce(profile.guardrails), composes: false }),
     "contracts', not the page's",
   );
   // And a record that DOES compose says the two it is told as well.
@@ -711,24 +658,21 @@ test("M-2: on a record that composes nothing, the row names only what holds, in 
   assert.ok(told.includes("Never confirms a booking"), "a line it reads, so the claim is covered too");
 });
 
-test("at rest the price rule says what off lets through, and the booking rule changes its words", () => {
-  // Decision 0051: off, it may say the prices the owner wrote, and the row says that rather than dropping the word,
-  // which would read as if any price went through.
-  const off = { ...marisa, guardrails: { ...marisa.guardrails, never_quote_prices: false } };
+test("at rest the rules row says nothing of prices either way, and a stored booking false still reads as on", () => {
+  // Prices are said once, on the price row beside this one (18 Oct 2026).
   const chips = (t) => all(byTestId(t, "rec-rules-chips"), (n) => classes(n).includes("rec-chip")).map(textOf);
-  const said = chips(drawTab({ profile: off }));
-  assert.ok(said.includes("Says only the prices you wrote") && !said.includes("Never quotes a price"));
-  // The structural one is different: the switch decides only whether it is told not to CLAIM it booked, so the fact
-  // that stays is what it cannot do.
+  for (const never_quote_prices of [true, false]) {
+    const said = chips(drawTab({ profile: { ...marisa, guardrails: { ...marisa.guardrails, never_quote_prices } } }));
+    assert.ok(!said.some((w) => /price/i.test(w)), String(never_quote_prices));
+  }
+  // Nothing in the product books, so no row of the owner's turns the booking rule off (guardrailsInForce).
   const noBooking = { ...marisa, guardrails: { ...marisa.guardrails, never_confirm_booking: false } };
-  const booking = chips(drawTab({ profile: noBooking }));
-  assert.ok(booking.includes("Cannot book anything"));
-  assert.ok(!booking.includes("Never confirms a booking"));
+  assert.ok(chips(drawTab({ profile: noBooking })).includes("Never confirms a booking"));
 });
 
 /* --- the three strengths, in the fold (Task 4.2) --- */
 
-/** The rules fold, opened: the four switches and the photos switch are drawn in it. */
+/** The rules fold, opened: its three rules are drawn in it. */
 const rulesOpen = (over = {}) => {
   let tree = drawTab(over);
   openFold(tree, "guardrails");
@@ -748,7 +692,7 @@ const badgesOn = (row) =>
 
 test("each rule in the fold says how far it goes, in the words contracts wrote", () => {
   const tree = rulesOpen();
-  for (const key of GUARDRAIL_KEYS) {
+  for (const key of GUARDRAIL_KEYS.filter((k) => k !== "never_quote_prices")) {
     const row = ruleRow(tree, key);
     const r = ruleStrength(key);
     // ONE word, and it is the strength's own: four identical switches over three different guarantees was the
@@ -770,7 +714,7 @@ test("each rule in the fold says how far it goes, in the words contracts wrote",
     // whatever the width: a badge word alone says nothing about what the switch does.
     const says = find(row, (n) => n.props?.id === `bt-rule-${key}-says`);
     assert.equal(textOf(says), r.sentence, `${key}'s sentence is one element`);
-    if (ALWAYS_TOLD.has(key)) continue;
+    if (ALWAYS_ON.has(key)) continue;
     assert.equal(
       switchOf(tree, key).props["aria-describedby"],
       `bt-rule-${key}-says`,
@@ -781,53 +725,26 @@ test("each rule in the fold says how far it goes, in the words contracts wrote",
   assert.equal(new Set(GUARDRAIL_KEYS.map((k) => ruleStrength(k).chip)).size, 3);
 });
 
-test("the checked rule draws both channels, because they differ, and no other rule draws any", () => {
+test("how these rules work says each rule's sentence, and no channel lines: none of the three is checked", () => {
   const tree = rulesOpen();
-  // Folded under the rules, one line a channel (Ruben, 10 Oct 2026: the sheets "too wordy"), and only the checked
-  // rule's: the other three land the same way on both.
   const how = byTestId(tree, "rec-rules-checked");
   assert.equal(textOf(find(how, (n) => classes(n).includes("rec-disclosure-label"))), "How these rules work");
-  const lines = all(how, (n) => classes(n).includes("bt-fold-note")).map(textOf);
+  // The checked rule, prices, is its own row (18 Oct 2026): the three here land the same way on both channels.
   assert.deepEqual(
-    lines,
-    ruleStrength("never_quote_prices").checkedOn.map((c) => `${c.label}, ${c.words}`),
-    "the two lines are contracts', channel name and all",
+    all(how, (n) => classes(n).includes("bt-fold-note")),
+    [],
   );
-  assert.match(lines[0], /In chat/);
-  assert.match(lines[0], /before the customer sees it/i);
-  assert.match(lines[1], /On a call/);
-  // A call has no before, and saying there was one is the sentence this whole task exists to stop.
-  assert.doesNotMatch(lines[1], /before/i);
-  for (const key of GUARDRAIL_KEYS) {
-    if (key === "never_quote_prices") continue;
-    assert.deepEqual(
-      all(ruleRow(tree, key), (n) => classes(n).includes("bt-fold-note")),
-      [],
-      `${key} lands the same way on both channels, so it names neither`,
-    );
-  }
 });
 
-test("the price rule still says it is checked with the switch off, and lists what it may say", () => {
+test("saying the prices you wrote, the price row lists what it may say, as the save would leave it", () => {
   // Decision 0051: off, it may say the prices the owner wrote and any other is swapped out; the detector runs either way.
   const off = { ...marisa, guardrails: { ...marisa.guardrails, never_quote_prices: false } };
-  const tree = rulesOpen({ profile: off });
-  const row = ruleRow(tree, "never_quote_prices");
-  assert.equal(switchOf(tree, "never_quote_prices").props["aria-checked"], false, "the switch really is off");
-  assert.deepEqual(badgesOn(row), ["Checked"]);
-  assert.match(textOf(row), /off, it may say the ones you've written, and any other is swapped out/);
-  // The list of what it may say, read off what the owner wrote, as the save would leave it.
-  assert.match(textOf(byTestId(tree, "rec-rules-prices")), /^(It may say |You haven't written a price yet)/);
-  assert.equal(
-    all(byTestId(tree, "rec-rules-checked"), (n) => classes(n).includes("bt-fold-note")).length,
-    2,
-    "and both channels still",
-  );
-  // No alarm beside it: nothing about switching it off lets a price through.
-  assert.equal(
-    find(row, (n) => classes(n).includes("rec-warn")),
-    null,
-  );
+  const tree = drawTab({ profile: off });
+  const row = byTestId(tree, "rec-row-price_choice");
+  assert.match(textOf(row), new RegExp(escape(PRICE_CHOICE_WORDS.options.written.label)));
+  assert.match(textOf(row), /(It may say |You haven't written a price yet)/);
+  // Never saying a price, it lists none.
+  assert.doesNotMatch(textOf(byTestId(drawTab(), "rec-row-price_choice")), /It may say/);
 });
 
 test("what it may say leaves out a note that has ended on the workspace's own day, as the notes fold calls it ended", (t) => {
@@ -837,29 +754,30 @@ test("what it may say leaves out a note that has ended on the workspace's own da
   const offer = { title: "Offer: Colour for $60", text: "Colour is $60 this week.", until: "2026-10-11" };
   const parking = { title: "Parking", text: "Parking is $5." };
   const off = { ...marisa, notes: [offer, parking], guardrails: { ...marisa.guardrails, never_quote_prices: false } };
-  const tree = rulesOpen({ profile: off, zone: "Pacific/Auckland" });
-  const listed = textOf(byTestId(tree, "rec-rules-prices"));
-  assert.match(listed, /^It may say 5 \(Notes\), as you wrote them\./);
+  const tree = drawTab({ profile: off, zone: "Pacific/Auckland" });
+  const listed = textOf(byTestId(tree, "rec-row-price_choice"));
+  assert.match(listed, /It may say 5 \(Notes\), as you wrote them\./);
   assert.doesNotMatch(listed, /60/, "the ended offer's price is not one it may say");
   assert.equal(noteEndedWords(offer.until, "Pacific/Auckland", new Date()), "ended Oct 11", "the fold's word for it");
 });
 
-test("the photos switch is an ability, not a limit, and is drawn apart from the four", () => {
-  const tree = rulesOpen();
-  const vision = byTestId(tree, "rec-rule-vision");
-  const four = find(tree, (n) => n.props?.["aria-label"] === "The rules");
-  assert.equal(
-    find(four, (n) => n === vision),
-    null,
-    "a group of its own separates it from the four limits",
+test("the photo switch is on What it can do's own row, not among the rules it keeps", () => {
+  const sent = saving();
+  drawTab();
+  const stored = structuredClone(W.__SETTINGS.config);
+  assert.equal(byTestId(rulesOpen(), "rec-rule-vision"), null, "no longer in the rules fold");
+  const tree = redrawTab();
+  const row = byTestId(tree, "rec-can-vision");
+  const sw = byTestId(row, "rec-can-vision-switch");
+  assert.ok(sw, "the switch is on the ability's row");
+  assert.equal(sw.props["aria-checked"], false);
+  assert.equal(sw.props["aria-label"], VISION_SWITCH_WORDS.label);
+  press(sw);
+  assert.deepEqual(
+    sent.map((s) => s.config),
+    [{ ...stored, features: { ...(stored.features || {}), vision: true } }],
+    "features.vision, and nothing else",
   );
-  assert.deepEqual(badgesOn(vision), [], "an ability wears no strength: its group's name says what it is");
-  assert.equal(
-    textOf(find(vision, (n) => n.props?.id === "bt-rule-vision-says")),
-    VISION_STRENGTH.sentence,
-    "and its line is contracts', never typed in the page",
-  );
-  assert.equal(switchOf(tree, "vision").props["aria-describedby"], "bt-rule-vision-says");
 });
 
 /* ------------------------------------ how it hands you a customer ------------------------------------ */
