@@ -4,6 +4,13 @@ import { parsePipelineRoute } from "../deals/pipeline/pipeline-views.js";
 import { pipelinePersonOf } from "../deals/pipeline/pipeline-vm.js";
 import { personRouteOf } from "../person-page/route.js";
 export const ASK_MAX_CHARS = 1e3;
+const ASK_COLUMN_PX = { min: 240, max: 1600 };
+export function askColumnOf(raw) {
+  if (!raw || typeof raw !== "object") return null;
+  const r = raw;
+  const px = typeof r.px === "number" && Number.isFinite(r.px) ? Math.round(r.px) : Number.NaN;
+  return px >= ASK_COLUMN_PX.min && px <= ASK_COLUMN_PX.max ? { px, phone: r.phone === true } : null;
+}
 export const ASK_MAX_ROUNDS = 8;
 export const ASK_TURN_BUDGET_MS = 2 * MIN_MS;
 export const ASK_SPOKEN_TURN_BUDGET_MS = 45e3;

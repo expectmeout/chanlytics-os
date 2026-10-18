@@ -13006,6 +13006,13 @@ function personTabsOf(f, phone) {
 
 // src/ask/ask.ts
 var ASK_MAX_CHARS = 1e3;
+var ASK_COLUMN_PX = { min: 240, max: 1600 };
+function askColumnOf(raw) {
+  if (!raw || typeof raw !== "object") return null;
+  const r2 = raw;
+  const px = typeof r2.px === "number" && Number.isFinite(r2.px) ? Math.round(r2.px) : Number.NaN;
+  return px >= ASK_COLUMN_PX.min && px <= ASK_COLUMN_PX.max ? { px, phone: r2.phone === true } : null;
+}
 var ASK_MAX_ROUNDS = 8;
 var ASK_TURN_BUDGET_MS = 2 * MIN_MS;
 var ASK_SPOKEN_TURN_BUDGET_MS = 45e3;
@@ -60936,6 +60943,7 @@ export {
   asTenantId,
   askCallOutcome,
   askCardLapsed,
+  askColumnOf,
   askGoalRefusal,
   askGoalSaved,
   askIntent,

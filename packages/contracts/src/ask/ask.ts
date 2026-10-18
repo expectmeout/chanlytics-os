@@ -36,6 +36,27 @@ import type { TemplateCategoryChoice } from "../templates/templates";
 
 /** One question, in characters. Longer than this is a document, not a question. */
 export const ASK_MAX_CHARS = 1000;
+
+/**
+ * The column the Line draws an answer in, as the tab measures it when a question is sent (legacy-bridge/ask/column.ts):
+ * its width in CSS pixels, and whether a phone is looking. It rides with the question and is told to the model in the
+ * turn's words, so the answer is shaped for the space it is read in (18 Oct 2026: a desk's docked panel draws answers
+ * 408px wide, a phone 358px). None from an older tab or a script.
+ */
+export interface AskColumn {
+  px: number;
+  phone: boolean;
+}
+/** The narrowest and widest column a tab may say it draws in: anything else is no column. */
+const ASK_COLUMN_PX = { min: 240, max: 1600 } as const;
+
+/** A column as a request carries it, read leniently: null where it is not one. */
+export function askColumnOf(raw: unknown): AskColumn | null {
+  if (!raw || typeof raw !== "object") return null;
+  const r = raw as Record<string, unknown>;
+  const px = typeof r.px === "number" && Number.isFinite(r.px) ? Math.round(r.px) : Number.NaN;
+  return px >= ASK_COLUMN_PX.min && px <= ASK_COLUMN_PX.max ? { px, phone: r.phone === true } : null;
+}
 /**
  * Tool rounds per turn: reads, then the answer, the last forced to finish. Three from the page riding in (D10) to the
  * operator (15 Oct 2026, Ruben's "running chanlytics end to end"): reading the workspace, what wins and what exists before
