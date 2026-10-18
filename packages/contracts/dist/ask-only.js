@@ -971,6 +971,581 @@ var TEMPLATE_BODY_MAX = 1024;
 var TEMPLATE_BODY_WORDS = `The message must be under ${TEMPLATE_BODY_MAX} characters.`;
 var TEMPLATE_SAME_NAME_WORDS = "A template with that name and language already exists. Pick another name.";
 
+// src/conversations/standing.ts
+var HELD_WORDS = {
+  yours: {
+    pill: "You have it",
+    sentence: "You're answering this one. The receptionist stays quiet until you hand it back."
+  },
+  theirs: {
+    pill: "A teammate has it",
+    sentence: "A teammate is answering this. The receptionist stays quiet until they hand it back."
+  }
+};
+var NEEDS_YOU_WORD = "Needs you";
+
+// src/people/lists/list-rules.ts
+import * as z from "zod/mini";
+var LIST_NEEDS = ["calendar", "consult", "deals", "viewer"];
+var LIST_RULE_FIELDS = [
+  {
+    id: "last_visit",
+    label: "Last on the calendar",
+    kind: "days",
+    needs: ["calendar"],
+    draft: "days since their last appointment on the calendar"
+  },
+  {
+    id: "next_visit",
+    label: "Next on the calendar",
+    kind: "days",
+    needs: ["calendar"],
+    draft: "days until their next appointment; op this_week is Monday to Sunday of this week"
+  },
+  {
+    id: "missed_visit",
+    label: "Missed one",
+    kind: "days",
+    needs: ["calendar"],
+    draft: "days since an appointment they did not come to, as a member marked it missed on the calendar"
+  },
+  { id: "booked", label: "Booked ahead", kind: "yesno", needs: ["calendar"], draft: "an appointment booked ahead" },
+  {
+    id: "asked_not_booked",
+    label: "Asked, never booked",
+    kind: "yesno",
+    needs: ["calendar"],
+    draft: "wrote or called in the last 30 days and nothing on the calendar answers it"
+  },
+  {
+    id: "last_heard",
+    label: "Last heard from",
+    kind: "days",
+    needs: [],
+    draft: "days since THEY last wrote or called"
+  },
+  { id: "first_contact", label: "First contact", kind: "days", needs: [], draft: "days since they first got in touch" },
+  {
+    id: "channel",
+    label: "Reaches you by",
+    kind: "channel",
+    needs: [],
+    draft: "a way they reach the business: whatsapp, sms, voice (phone calls) or email"
+  },
+  {
+    id: "came_from",
+    label: "Came from",
+    kind: "came_from",
+    needs: [],
+    draft: "how they first came: whatsapp, sms, email, call, calendar, manual, import or lead"
+  },
+  { id: "calls", label: "Calls", kind: "count", needs: [], draft: "how many calls" },
+  { id: "conversations", label: "Conversations", kind: "count", needs: [], draft: "how many conversations" },
+  {
+    id: "has_chat",
+    label: "Has written with you",
+    kind: "yesno",
+    needs: [],
+    draft: "a written conversation either way (no means they have only phoned)"
+  },
+  {
+    id: "said_yes",
+    label: "Said yes to",
+    kind: "purpose",
+    needs: [],
+    draft: "said yes to offers, or to messages (to: offers or messages)"
+  },
+  {
+    id: "can_receive",
+    label: "Can be sent",
+    kind: "purpose",
+    needs: [],
+    draft: "can be sent offers or messages: the yes and a number to send to (to: offers or messages)"
+  },
+  { id: "stopped", label: "Asked to stop", kind: "yesno", needs: [], draft: "asked to stop, or on do-not-contact" },
+  {
+    id: "standing",
+    label: "Standing",
+    kind: "standing",
+    needs: [],
+    draft: "value needs_you (waiting for a person) or waiting_on_you (a thread you have: you took it over, or your reply paused the receptionist)"
+  },
+  {
+    id: "assigned",
+    label: "Thread is with",
+    kind: "assigned",
+    needs: [],
+    draft: "who has their thread: value me, teammate or nobody"
+  },
+  {
+    id: "deal_stage",
+    label: "Deal",
+    kind: "deal_stage",
+    needs: ["deals"],
+    draft: "where they are on the way to a deal: value consultation, proposed, won, lost (passed) or ended"
+  },
+  {
+    id: "consultation",
+    label: "A consultation",
+    kind: "yesno",
+    needs: ["calendar", "consult"],
+    draft: "their next or last appointment is a consultation"
+  },
+  { id: "step_due", label: "A next step due", kind: "yesno", needs: [], draft: "a next step whose day has come" },
+  {
+    id: "in_list",
+    label: "On the list",
+    kind: "list",
+    needs: [],
+    draft: "on another list, by its token (list); never use it in a draft"
+  }
+];
+var FIELD_IDS = LIST_RULE_FIELDS.map((f) => f.id);
+var fieldOf = (id) => LIST_RULE_FIELDS.find((f) => f.id === id);
+var CHANNELS = ["whatsapp", "sms", "voice", "email"];
+var CAME_FROM = [
+  "whatsapp",
+  "sms",
+  "email",
+  "call",
+  "calendar",
+  "manual",
+  "import",
+  "lead"
+];
+var LIST_PURPOSES = ["offers", "messages"];
+var LIST_STANDINGS = ["needs_you", "waiting_on_you"];
+var LIST_ASSIGNED = ["me", "teammate", "nobody"];
+var LIST_DEAL_STAGES = ["consultation", "proposed", "won", "lost", "ended"];
+var LIST_RULE_MAX = 12;
+var LIST_ANY_MAX = 6;
+var DAY_OPS = ["more_than", "within", "never", "ever", "this_week"];
+var Days = { op: z.enum(DAY_OPS), days: z.optional(z.int().check(z.minimum(1), z.maximum(3650))) };
+var YesNo = { op: z.literal("is"), yes: z.boolean() };
+var Count = { op: z.enum(["at_least", "at_most"]), n: z.int().check(z.minimum(0), z.maximum(1e4)) };
+var IsOrNot = z.enum(["is", "is_not"]);
+var Token = z.string().check(z.regex(/^(seg:[a-z_]{1,40}|list:[0-9a-f-]{36})$/i));
+var fact = (shape) => z.strictObject(shape);
+var ListFactSchema = z.discriminatedUnion("field", [
+  fact({ field: z.literal("last_visit"), ...Days }),
+  fact({ field: z.literal("next_visit"), ...Days }),
+  fact({ field: z.literal("missed_visit"), ...Days }),
+  fact({ field: z.literal("booked"), ...YesNo }),
+  fact({ field: z.literal("asked_not_booked"), ...YesNo }),
+  fact({ field: z.literal("last_heard"), ...Days }),
+  fact({ field: z.literal("first_contact"), ...Days }),
+  fact({ field: z.literal("channel"), op: IsOrNot, channel: z.enum(CHANNELS) }),
+  fact({ field: z.literal("came_from"), op: IsOrNot, from: z.enum(CAME_FROM) }),
+  fact({ field: z.literal("calls"), ...Count }),
+  fact({ field: z.literal("conversations"), ...Count }),
+  fact({ field: z.literal("has_chat"), ...YesNo }),
+  fact({ field: z.literal("said_yes"), ...YesNo, to: z.enum(LIST_PURPOSES) }),
+  fact({ field: z.literal("can_receive"), ...YesNo, to: z.enum(LIST_PURPOSES) }),
+  fact({ field: z.literal("stopped"), ...YesNo }),
+  fact({ field: z.literal("standing"), op: IsOrNot, value: z.enum(LIST_STANDINGS) }),
+  fact({ field: z.literal("assigned"), op: IsOrNot, value: z.enum(LIST_ASSIGNED) }),
+  fact({ field: z.literal("deal_stage"), op: IsOrNot, value: z.enum(LIST_DEAL_STAGES) }),
+  fact({ field: z.literal("consultation"), ...YesNo }),
+  fact({ field: z.literal("step_due"), ...YesNo }),
+  fact({ field: z.literal("in_list"), op: IsOrNot, list: Token })
+]);
+var AnySchema = z.strictObject({ any: z.array(ListFactSchema).check(z.minLength(2), z.maxLength(LIST_ANY_MAX)) });
+var ListConditionSchema = z.union([AnySchema, ListFactSchema]);
+var isDayFact = (f) => f.field === "last_visit" || f.field === "next_visit" || f.field === "missed_visit" || f.field === "last_heard" || f.field === "first_contact";
+function factProblem(f) {
+  if (!isDayFact(f)) return null;
+  if ((f.op === "more_than" || f.op === "within") && f.days === void 0) return `${f.field} ${f.op} needs days`;
+  if (f.op === "this_week" && f.field !== "next_visit") return "only the next one on the calendar can be this week";
+  return null;
+}
+var ListRuleSchema = z.strictObject({
+  v: z.optional(z.literal(2)),
+  all: z.array(ListConditionSchema).check(z.minLength(1), z.maxLength(LIST_RULE_MAX))
+}).check(
+  z.superRefine((r2, ctx) => {
+    for (const f of r2.all.flatMap((c) => "any" in c ? c.any : [c])) {
+      const p = factProblem(f);
+      if (p) ctx.addIssue({ code: "custom", message: p });
+    }
+  })
+);
+function ruleFacts(rule) {
+  return rule.all.flatMap((c) => "any" in c ? c.any : [c]);
+}
+function factNeeds(f) {
+  const needs = new Set(fieldOf(f.field).needs);
+  if (f.field === "standing" && f.value === "waiting_on_you") needs.add("viewer");
+  if (f.field === "assigned" && f.value !== "nobody") needs.add("viewer");
+  if (f.field === "deal_stage" && f.value === "consultation") {
+    needs.add("calendar");
+    needs.add("consult");
+  }
+  return LIST_NEEDS.filter((n) => needs.has(n));
+}
+function ruleNeeds(rule) {
+  const needs = new Set(ruleFacts(rule).flatMap(factNeeds));
+  return LIST_NEEDS.filter((n) => needs.has(n));
+}
+function dayHolds(days, op, n) {
+  switch (op) {
+    case "never":
+      return days === null;
+    case "ever":
+      return days !== null;
+    case "within":
+      return days !== null && days <= (n ?? 0);
+    case "more_than":
+      return days !== null && days > (n ?? 0);
+    case "this_week":
+      return false;
+  }
+}
+function holds(f, v, inList) {
+  const is = "op" in f && f.op === "is";
+  switch (f.field) {
+    case "last_visit":
+      return dayHolds(v.lastVisitDays, f.op, f.days);
+    case "next_visit":
+      return f.op === "this_week" ? v.nextVisitThisWeek : dayHolds(v.nextVisitDays, f.op, f.days);
+    case "missed_visit":
+      return dayHolds(v.missedVisitDays, f.op, f.days);
+    case "last_heard":
+      return dayHolds(v.heardDays, f.op, f.days);
+    case "first_contact":
+      return f.op === "within" && !v.firstContact.evidence ? false : dayHolds(v.firstDays, f.op, f.days);
+    case "booked":
+      return v.booked === f.yes;
+    case "asked_not_booked":
+      return v.askedNotBooked === f.yes;
+    case "has_chat":
+      return v.hasChat === f.yes;
+    case "stopped":
+      return v.stopped === f.yes;
+    case "consultation":
+      return v.consultationVisit === f.yes;
+    case "step_due":
+      return v.stepDue === f.yes;
+    case "said_yes":
+      return v.saidYes[f.to] === f.yes;
+    case "can_receive":
+      return v.canReceive[f.to] === f.yes;
+    case "channel":
+      return v.channels.includes(f.channel) === is;
+    case "came_from":
+      return v.cameFrom?.key === f.from === is;
+    case "calls":
+      return f.op === "at_least" ? v.calls >= f.n : v.calls <= f.n;
+    case "conversations":
+      return f.op === "at_least" ? v.threads >= f.n : v.threads <= f.n;
+    case "standing":
+      return v.standing === f.value === is;
+    case "assigned":
+      return v.assigned === f.value === is;
+    case "deal_stage":
+      return v.dealStages.includes(f.value) === is;
+    case "in_list":
+      return inList(f.list, v.id) === is;
+  }
+}
+var noLists = () => false;
+function listRuleMatches(rule, v, inList = noLists) {
+  return rule.all.every((c) => "any" in c ? c.any.some((f) => holds(f, v, inList)) : holds(c, v, inList));
+}
+var STANDING_WORDS = {
+  needs_you: NEEDS_YOU_WORD,
+  waiting_on_you: HELD_WORDS.yours.pill
+};
+var LEAF_PROPERTIES = {
+  field: { type: "string", enum: FIELD_IDS.filter((id) => id !== "in_list") },
+  op: { type: "string", enum: [...DAY_OPS, "at_least", "at_most", "is", "is_not"] },
+  days: { type: "integer" },
+  n: { type: "integer" },
+  yes: { type: "boolean" },
+  channel: { type: "string", enum: [...CHANNELS] },
+  from: { type: "string", enum: [...CAME_FROM] },
+  to: { type: "string", enum: [...LIST_PURPOSES] },
+  value: { type: "string", enum: [.../* @__PURE__ */ new Set([...LIST_STANDINGS, ...LIST_ASSIGNED, ...LIST_DEAL_STAGES])] }
+};
+var LIST_DRAFT_JSON_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: ["name", "all", "cannot"],
+  properties: {
+    name: { type: "string" },
+    cannot: { type: "string" },
+    all: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          ...LEAF_PROPERTIES,
+          any: {
+            type: "array",
+            items: {
+              type: "object",
+              additionalProperties: false,
+              required: ["field", "op"],
+              properties: LEAF_PROPERTIES
+            }
+          }
+        }
+      }
+    }
+  }
+};
+
+// src/deals/deal-words.ts
+var DEAL_STAGE_WORDS = {
+  proposed: "Proposal out",
+  won: "Client",
+  lost: "Passed",
+  ended: "Ended"
+};
+
+// src/people/lists/lists.ts
+function listToken(ref) {
+  return ref.kind === "builtin" ? `seg:${ref.id}` : `list:${ref.id}`;
+}
+var r = (...all) => ({ v: 2, all });
+var BUILTIN_LISTS = [
+  {
+    id: "needs_you",
+    label: NEEDS_YOU_WORD,
+    tip: "An open escalation, or a thread waiting for a person",
+    group: "attention",
+    onProfile: false,
+    rule: r({ field: "standing", op: "is", value: "needs_you" })
+  },
+  // Yours by the one standing rule (standing.ts): you took it over, or your reply paused the receptionist.
+  {
+    id: "waiting_on_you",
+    label: HELD_WORDS.yours.pill,
+    tip: "Threads you have: you took them over, or your reply paused the receptionist. A teammate's waits on them",
+    group: "attention",
+    onProfile: false,
+    rule: r({ field: "standing", op: "is", value: "waiting_on_you" })
+  },
+  // Their next step's day has come (0007, amended): every workspace, deals or not. The page says the step itself.
+  {
+    id: "steps_due",
+    label: "Steps due",
+    tip: "Their next step's day has come, or gone by \u2014 a note with a day, for the team",
+    group: "attention",
+    onProfile: false,
+    rule: r({ field: "step_due", op: "is", yes: true })
+  },
+  // New by the date they first got in touch, whatever their standing: someone new who needs you is both.
+  {
+    id: "new_week",
+    label: "New this week",
+    tip: "First contact in the last 7 days, by evidence \u2014 imported history never counts",
+    group: "journey",
+    rule: r({ field: "first_contact", op: "within", days: 7 })
+  },
+  // This week, Monday to Sunday, by the workspace's clock.
+  {
+    id: "booked_week",
+    label: "Booked this week",
+    tip: "Booked this week, Monday to Sunday",
+    group: "journey",
+    rule: r({ field: "next_visit", op: "this_week" })
+  },
+  {
+    id: "booked",
+    label: "Booked",
+    tip: "Something ahead on your calendar \u2014 the booking is the conversion",
+    group: "journey",
+    rule: r({ field: "booked", op: "is", yes: true })
+  },
+  // Reports' rule (calendar-people.ts visitAnswersAsk): asked in 30 days and nothing on the calendar answers it.
+  {
+    id: "asked_never_booked",
+    label: "Asked, never booked",
+    tip: "Wrote or called in the last 30 days, and nothing on your calendar since answers it \u2014 the people you can still win",
+    group: "journey",
+    rule: r({ field: "asked_not_booked", op: "is", yes: true })
+  },
+  // Forty-five days since the chair, nothing ahead: the win-back list, from visits rather than silence.
+  {
+    id: "lapsed",
+    label: "Lapsed",
+    tip: "Forty-five days or more since they were last on the calendar, nothing ahead \u2014 the win-back list, from the calendar rather than silence",
+    group: "journey",
+    rule: r({ field: "booked", op: "is", yes: false }, { field: "last_visit", op: "more_than", days: 44 })
+  },
+  // The journey past the booking (0004), as the Pipeline groups it (deals.ts dealStageOf).
+  {
+    id: "consultation_booked",
+    label: "Consultations",
+    tip: "A consultation coming up, or one this past week with no proposal since \u2014 the Pipeline's Consultations",
+    group: "journey",
+    onProfile: false,
+    rule: r({ field: "deal_stage", op: "is", value: "consultation" })
+  },
+  {
+    id: "proposal_out",
+    // A stage's list says its stage's word (S9-9); Clients names the people, not the stage.
+    label: DEAL_STAGE_WORDS.proposed,
+    tip: "A proposal went out and is waiting on their answer",
+    group: "journey",
+    onProfile: false,
+    rule: r({ field: "deal_stage", op: "is", value: "proposed" })
+  },
+  {
+    id: "clients",
+    label: "Clients",
+    tip: "Said yes, or paid \u2014 the engagement is running",
+    group: "journey",
+    onProfile: false,
+    rule: r({ field: "deal_stage", op: "is", value: "won" })
+  },
+  {
+    id: "deal_passed",
+    label: DEAL_STAGE_WORDS.lost,
+    tip: "They passed on a proposal",
+    group: "journey",
+    onProfile: false,
+    rule: r({ field: "deal_stage", op: "is", value: "lost" })
+  },
+  {
+    id: "deal_ended",
+    label: DEAL_STAGE_WORDS.ended,
+    tip: "An engagement that ended \u2014 the win-back list for clients",
+    group: "journey",
+    onProfile: false,
+    rule: r({ field: "deal_stage", op: "is", value: "ended" })
+  },
+  // Heard from them, then nothing for thirty days: someone we never heard from is not quiet, and our own sends are
+  // not their word.
+  {
+    id: "quiet",
+    label: "Quiet 30+ days",
+    tip: "They haven't written or called in 30 days \u2014 your own messages don't count, and someone never heard from isn't quiet",
+    group: "reach",
+    rule: r({ field: "last_heard", op: "more_than", days: 30 })
+  },
+  {
+    id: "phoned_only",
+    label: "Phoned only",
+    tip: "Only ever phoned \u2014 no WhatsApp thread",
+    group: "reach",
+    rule: r({ field: "has_chat", op: "is", yes: false }, { field: "calls", op: "at_least", n: 1 })
+  },
+  // TWO LISTS, BECAUSE THERE ARE TWO ANSWERS. This one is the yes to hearing from the business, which says nothing
+  // about offers; the next is the promotional audience, who a marketing broadcast may reach: the yes AND a number.
+  {
+    id: "opted_in",
+    label: "Said yes to messages",
+    tip: "Said yes to messages \u2014 replies, reminders and confirmations",
+    group: "reach",
+    onProfile: false,
+    rule: r({ field: "said_yes", op: "is", to: "messages", yes: true })
+  },
+  {
+    id: "offers_ok",
+    label: "Can receive offers",
+    tip: "Said yes to OFFERS, separately, with a number to send to \u2014 the only people a promotional broadcast may reach",
+    group: "reach",
+    onProfile: false,
+    rule: r({ field: "can_receive", op: "is", to: "offers", yes: true })
+  },
+  // A fact, not the state: someone who opted out AND needs you is in both lists.
+  {
+    id: "opted_out",
+    label: STOP_WORDS.pill,
+    tip: "Asked to stop; the receptionist stays silent, offers included",
+    group: "reach",
+    onProfile: false,
+    rule: r({ field: "stopped", op: "is", yes: true })
+  }
+];
+var PEOPLE_LISTS = BUILTIN_LISTS.map((l) => {
+  const needs = ruleNeeds(l.rule);
+  return {
+    ...l,
+    ...needs.includes("calendar") ? { needsCalendar: true } : {},
+    ...needs.includes("consult") ? { needsConsultFirst: true } : {},
+    ...needs.includes("deals") ? { needsDeals: true } : {},
+    ...needs.includes("viewer") ? { needsViewer: true } : {},
+    test: (vm) => listRuleMatches(l.rule, vm)
+  };
+});
+
+// src/leads/lead-words.ts
+var LEAD_VIEW_SORTS = ["fit", "found", "distance", "business", "rating", "stage"];
+var LEAD_SORTS = [...LEAD_VIEW_SORTS, "pile"];
+var LEAD_CALL_OUTCOMES = [
+  "interested",
+  "call_back",
+  "not_interested",
+  "voicemail",
+  "no_answer",
+  "wrong_number"
+];
+var LEAD_NOT_A_FIT_WHYS = ["chain", "wrong_kind", "too_far", "customer", "other"];
+var LEAD_CLOSED_WORDS = {
+  said_no: "Said no",
+  not_a_fit: "Not a fit",
+  customer: "Already a customer",
+  stale: "Went quiet",
+  search_removed: "Search removed"
+};
+var LEAD_CALL_OUTCOME_TONES = {
+  interested: "ok",
+  call_back: "warn",
+  voicemail: "plain",
+  no_answer: "plain",
+  not_interested: "danger",
+  wrong_number: "danger"
+};
+var LEAD_CALL_OUTCOME_WORDS = {
+  interested: "Interested",
+  call_back: "Call back later",
+  not_interested: "Not interested",
+  voicemail: "Left a voicemail",
+  no_answer: "No answer",
+  wrong_number: "Wrong number"
+};
+var LEAD_DRAFT_NOTE = "Your business address and a way to say no are added at the foot, as US law asks.";
+var LEAD_NOT_A_FIT_WORDS = {
+  chain: "A chain or franchise",
+  wrong_kind: "The wrong kind of business",
+  too_far: "Too far away",
+  customer: "Already a customer",
+  other: "Something else"
+};
+var LEAD_NOT_A_FIT_TITLE = "What makes it not a fit?";
+var LEAD_ERASE_WORDS = {
+  act: "Erase this lead",
+  ask: (name) => `Erase ${name}? Its record and every trace of it go for good.`,
+  yes: "Yes, erase",
+  no: "No",
+  busy: "Erasing\u2026",
+  done: (name) => `${name} is erased. It won't be found again.`,
+  refused: "Not erased"
+};
+var LEAD_SENT_QUESTION = "Did you send it?";
+var LEAD_CALL_QUESTION = "How did the call go?";
+var LEAD_NOTE_PLACEHOLDER = "A note for next time, if you like";
+var LEAD_NOTE_MAX = 280;
+var LEAD_TALKING_NOTE = "They join People when they write or call in, or when a call goes well.";
+function leadNoteLeft(left, max) {
+  return left >= max ? `Up to ${max} characters` : `${left} left`;
+}
+var LEAD_UNCLAIMED_NOTE = "Listing not claimed by the owner";
+
+// src/leads/lead-plan.ts
+function leadsRoute(v) {
+  const parts = ["clients/leads"];
+  if (v.searchId) parts.push(`s-${v.searchId}`);
+  if (v.list && v.list !== "all") parts.push(`l-${v.list}`);
+  if (v.cls) parts.push(`c-${v.cls}`);
+  if (v.peek) parts.push(`p-${v.peek}`);
+  return parts.join(":");
+}
+var leadQuestionRoute = (searchId) => leadsRoute({ searchId, cls: "excluded" });
+
 // src/sequences/sequence-address.ts
 var SEQUENCES_ROUTE = "campaigns/sequences";
 var newSequenceRoute = (moment) => moment ? `${SEQUENCES_ROUTE}/new:moment:${moment}` : `${SEQUENCES_ROUTE}/new`;
@@ -1343,88 +1918,6 @@ var followUpSpec = {
     receipt: () => "As it was"
   },
   open: () => null
-};
-
-// src/leads/lead-words.ts
-var LEAD_VIEW_SORTS = ["fit", "found", "distance", "business", "rating", "stage"];
-var LEAD_SORTS = [...LEAD_VIEW_SORTS, "pile"];
-var LEAD_CALL_OUTCOMES = [
-  "interested",
-  "call_back",
-  "not_interested",
-  "voicemail",
-  "no_answer",
-  "wrong_number"
-];
-var LEAD_NOT_A_FIT_WHYS = ["chain", "wrong_kind", "too_far", "customer", "other"];
-var LEAD_CLOSED_WORDS = {
-  said_no: "Said no",
-  not_a_fit: "Not a fit",
-  customer: "Already a customer",
-  stale: "Went quiet",
-  search_removed: "Search removed"
-};
-var LEAD_CALL_OUTCOME_TONES = {
-  interested: "ok",
-  call_back: "warn",
-  voicemail: "plain",
-  no_answer: "plain",
-  not_interested: "danger",
-  wrong_number: "danger"
-};
-var LEAD_CALL_OUTCOME_WORDS = {
-  interested: "Interested",
-  call_back: "Call back later",
-  not_interested: "Not interested",
-  voicemail: "Left a voicemail",
-  no_answer: "No answer",
-  wrong_number: "Wrong number"
-};
-var LEAD_DRAFT_NOTE = "Your business address and a way to say no are added at the foot, as US law asks.";
-var LEAD_NOT_A_FIT_WORDS = {
-  chain: "A chain or franchise",
-  wrong_kind: "The wrong kind of business",
-  too_far: "Too far away",
-  customer: "Already a customer",
-  other: "Something else"
-};
-var LEAD_NOT_A_FIT_TITLE = "What makes it not a fit?";
-var LEAD_ERASE_WORDS = {
-  act: "Erase this lead",
-  ask: (name) => `Erase ${name}? Its record and every trace of it go for good.`,
-  yes: "Yes, erase",
-  no: "No",
-  busy: "Erasing\u2026",
-  done: (name) => `${name} is erased. It won't be found again.`,
-  refused: "Not erased"
-};
-var LEAD_SENT_QUESTION = "Did you send it?";
-var LEAD_CALL_QUESTION = "How did the call go?";
-var LEAD_NOTE_PLACEHOLDER = "A note for next time, if you like";
-var LEAD_NOTE_MAX = 280;
-var LEAD_TALKING_NOTE = "They join People when they write or call in, or when a call goes well.";
-function leadNoteLeft(left, max) {
-  return left >= max ? `Up to ${max} characters` : `${left} left`;
-}
-var LEAD_UNCLAIMED_NOTE = "Listing not claimed by the owner";
-
-// src/leads/lead-plan.ts
-function leadsRoute(v) {
-  const parts = ["clients/leads"];
-  if (v.searchId) parts.push(`s-${v.searchId}`);
-  if (v.list && v.list !== "all") parts.push(`l-${v.list}`);
-  if (v.cls) parts.push(`c-${v.cls}`);
-  if (v.peek) parts.push(`p-${v.peek}`);
-  return parts.join(":");
-}
-var leadQuestionRoute = (searchId) => leadsRoute({ searchId, cls: "excluded" });
-
-// src/deals/deal-words.ts
-var DEAL_STAGE_WORDS = {
-  proposed: "Proposal out",
-  won: "Client",
-  lost: "Passed",
-  ended: "Ended"
 };
 
 // src/ask/ask.ts
@@ -1945,501 +2438,6 @@ var reachOutAddSpec = {
     return id ? `campaigns/moment:${id}` : "outbound";
   }
 };
-
-// src/people/lists/list-rules.ts
-import * as z from "zod/mini";
-
-// src/conversations/standing.ts
-var HELD_WORDS = {
-  yours: {
-    pill: "You have it",
-    sentence: "You're answering this one. The receptionist stays quiet until you hand it back."
-  },
-  theirs: {
-    pill: "A teammate has it",
-    sentence: "A teammate is answering this. The receptionist stays quiet until they hand it back."
-  }
-};
-var NEEDS_YOU_WORD = "Needs you";
-
-// src/people/lists/list-rules.ts
-var LIST_NEEDS = ["calendar", "consult", "deals", "viewer"];
-var LIST_RULE_FIELDS = [
-  {
-    id: "last_visit",
-    label: "Last on the calendar",
-    kind: "days",
-    needs: ["calendar"],
-    draft: "days since their last appointment on the calendar"
-  },
-  {
-    id: "next_visit",
-    label: "Next on the calendar",
-    kind: "days",
-    needs: ["calendar"],
-    draft: "days until their next appointment; op this_week is Monday to Sunday of this week"
-  },
-  {
-    id: "missed_visit",
-    label: "Missed one",
-    kind: "days",
-    needs: ["calendar"],
-    draft: "days since an appointment they did not come to, as a member marked it missed on the calendar"
-  },
-  { id: "booked", label: "Booked ahead", kind: "yesno", needs: ["calendar"], draft: "an appointment booked ahead" },
-  {
-    id: "asked_not_booked",
-    label: "Asked, never booked",
-    kind: "yesno",
-    needs: ["calendar"],
-    draft: "wrote or called in the last 30 days and nothing on the calendar answers it"
-  },
-  {
-    id: "last_heard",
-    label: "Last heard from",
-    kind: "days",
-    needs: [],
-    draft: "days since THEY last wrote or called"
-  },
-  { id: "first_contact", label: "First contact", kind: "days", needs: [], draft: "days since they first got in touch" },
-  {
-    id: "channel",
-    label: "Reaches you by",
-    kind: "channel",
-    needs: [],
-    draft: "a way they reach the business: whatsapp, sms, voice (phone calls) or email"
-  },
-  {
-    id: "came_from",
-    label: "Came from",
-    kind: "came_from",
-    needs: [],
-    draft: "how they first came: whatsapp, sms, email, call, calendar, manual, import or lead"
-  },
-  { id: "calls", label: "Calls", kind: "count", needs: [], draft: "how many calls" },
-  { id: "conversations", label: "Conversations", kind: "count", needs: [], draft: "how many conversations" },
-  {
-    id: "has_chat",
-    label: "Has written with you",
-    kind: "yesno",
-    needs: [],
-    draft: "a written conversation either way (no means they have only phoned)"
-  },
-  {
-    id: "said_yes",
-    label: "Said yes to",
-    kind: "purpose",
-    needs: [],
-    draft: "said yes to offers, or to messages (to: offers or messages)"
-  },
-  {
-    id: "can_receive",
-    label: "Can be sent",
-    kind: "purpose",
-    needs: [],
-    draft: "can be sent offers or messages: the yes and a number to send to (to: offers or messages)"
-  },
-  { id: "stopped", label: "Asked to stop", kind: "yesno", needs: [], draft: "asked to stop, or on do-not-contact" },
-  {
-    id: "standing",
-    label: "Standing",
-    kind: "standing",
-    needs: [],
-    draft: "value needs_you (waiting for a person) or waiting_on_you (a thread you have: you took it over, or your reply paused the receptionist)"
-  },
-  {
-    id: "assigned",
-    label: "Thread is with",
-    kind: "assigned",
-    needs: [],
-    draft: "who has their thread: value me, teammate or nobody"
-  },
-  {
-    id: "deal_stage",
-    label: "Deal",
-    kind: "deal_stage",
-    needs: ["deals"],
-    draft: "where they are on the way to a deal: value consultation, proposed, won, lost (passed) or ended"
-  },
-  {
-    id: "consultation",
-    label: "A consultation",
-    kind: "yesno",
-    needs: ["calendar", "consult"],
-    draft: "their next or last appointment is a consultation"
-  },
-  { id: "step_due", label: "A next step due", kind: "yesno", needs: [], draft: "a next step whose day has come" },
-  {
-    id: "in_list",
-    label: "On the list",
-    kind: "list",
-    needs: [],
-    draft: "on another list, by its token (list); never use it in a draft"
-  }
-];
-var FIELD_IDS = LIST_RULE_FIELDS.map((f) => f.id);
-var fieldOf = (id) => LIST_RULE_FIELDS.find((f) => f.id === id);
-var CHANNELS = ["whatsapp", "sms", "voice", "email"];
-var CAME_FROM = [
-  "whatsapp",
-  "sms",
-  "email",
-  "call",
-  "calendar",
-  "manual",
-  "import",
-  "lead"
-];
-var LIST_PURPOSES = ["offers", "messages"];
-var LIST_STANDINGS = ["needs_you", "waiting_on_you"];
-var LIST_ASSIGNED = ["me", "teammate", "nobody"];
-var LIST_DEAL_STAGES = ["consultation", "proposed", "won", "lost", "ended"];
-var LIST_RULE_MAX = 12;
-var LIST_ANY_MAX = 6;
-var DAY_OPS = ["more_than", "within", "never", "ever", "this_week"];
-var Days = { op: z.enum(DAY_OPS), days: z.optional(z.int().check(z.minimum(1), z.maximum(3650))) };
-var YesNo = { op: z.literal("is"), yes: z.boolean() };
-var Count = { op: z.enum(["at_least", "at_most"]), n: z.int().check(z.minimum(0), z.maximum(1e4)) };
-var IsOrNot = z.enum(["is", "is_not"]);
-var Token = z.string().check(z.regex(/^(seg:[a-z_]{1,40}|list:[0-9a-f-]{36})$/i));
-var fact = (shape) => z.strictObject(shape);
-var ListFactSchema = z.discriminatedUnion("field", [
-  fact({ field: z.literal("last_visit"), ...Days }),
-  fact({ field: z.literal("next_visit"), ...Days }),
-  fact({ field: z.literal("missed_visit"), ...Days }),
-  fact({ field: z.literal("booked"), ...YesNo }),
-  fact({ field: z.literal("asked_not_booked"), ...YesNo }),
-  fact({ field: z.literal("last_heard"), ...Days }),
-  fact({ field: z.literal("first_contact"), ...Days }),
-  fact({ field: z.literal("channel"), op: IsOrNot, channel: z.enum(CHANNELS) }),
-  fact({ field: z.literal("came_from"), op: IsOrNot, from: z.enum(CAME_FROM) }),
-  fact({ field: z.literal("calls"), ...Count }),
-  fact({ field: z.literal("conversations"), ...Count }),
-  fact({ field: z.literal("has_chat"), ...YesNo }),
-  fact({ field: z.literal("said_yes"), ...YesNo, to: z.enum(LIST_PURPOSES) }),
-  fact({ field: z.literal("can_receive"), ...YesNo, to: z.enum(LIST_PURPOSES) }),
-  fact({ field: z.literal("stopped"), ...YesNo }),
-  fact({ field: z.literal("standing"), op: IsOrNot, value: z.enum(LIST_STANDINGS) }),
-  fact({ field: z.literal("assigned"), op: IsOrNot, value: z.enum(LIST_ASSIGNED) }),
-  fact({ field: z.literal("deal_stage"), op: IsOrNot, value: z.enum(LIST_DEAL_STAGES) }),
-  fact({ field: z.literal("consultation"), ...YesNo }),
-  fact({ field: z.literal("step_due"), ...YesNo }),
-  fact({ field: z.literal("in_list"), op: IsOrNot, list: Token })
-]);
-var AnySchema = z.strictObject({ any: z.array(ListFactSchema).check(z.minLength(2), z.maxLength(LIST_ANY_MAX)) });
-var ListConditionSchema = z.union([AnySchema, ListFactSchema]);
-var isDayFact = (f) => f.field === "last_visit" || f.field === "next_visit" || f.field === "missed_visit" || f.field === "last_heard" || f.field === "first_contact";
-function factProblem(f) {
-  if (!isDayFact(f)) return null;
-  if ((f.op === "more_than" || f.op === "within") && f.days === void 0) return `${f.field} ${f.op} needs days`;
-  if (f.op === "this_week" && f.field !== "next_visit") return "only the next one on the calendar can be this week";
-  return null;
-}
-var ListRuleSchema = z.strictObject({
-  v: z.optional(z.literal(2)),
-  all: z.array(ListConditionSchema).check(z.minLength(1), z.maxLength(LIST_RULE_MAX))
-}).check(
-  z.superRefine((r2, ctx) => {
-    for (const f of r2.all.flatMap((c) => "any" in c ? c.any : [c])) {
-      const p = factProblem(f);
-      if (p) ctx.addIssue({ code: "custom", message: p });
-    }
-  })
-);
-function ruleFacts(rule) {
-  return rule.all.flatMap((c) => "any" in c ? c.any : [c]);
-}
-function factNeeds(f) {
-  const needs = new Set(fieldOf(f.field).needs);
-  if (f.field === "standing" && f.value === "waiting_on_you") needs.add("viewer");
-  if (f.field === "assigned" && f.value !== "nobody") needs.add("viewer");
-  if (f.field === "deal_stage" && f.value === "consultation") {
-    needs.add("calendar");
-    needs.add("consult");
-  }
-  return LIST_NEEDS.filter((n) => needs.has(n));
-}
-function ruleNeeds(rule) {
-  const needs = new Set(ruleFacts(rule).flatMap(factNeeds));
-  return LIST_NEEDS.filter((n) => needs.has(n));
-}
-function dayHolds(days, op, n) {
-  switch (op) {
-    case "never":
-      return days === null;
-    case "ever":
-      return days !== null;
-    case "within":
-      return days !== null && days <= (n ?? 0);
-    case "more_than":
-      return days !== null && days > (n ?? 0);
-    case "this_week":
-      return false;
-  }
-}
-function holds(f, v, inList) {
-  const is = "op" in f && f.op === "is";
-  switch (f.field) {
-    case "last_visit":
-      return dayHolds(v.lastVisitDays, f.op, f.days);
-    case "next_visit":
-      return f.op === "this_week" ? v.nextVisitThisWeek : dayHolds(v.nextVisitDays, f.op, f.days);
-    case "missed_visit":
-      return dayHolds(v.missedVisitDays, f.op, f.days);
-    case "last_heard":
-      return dayHolds(v.heardDays, f.op, f.days);
-    case "first_contact":
-      return f.op === "within" && !v.firstContact.evidence ? false : dayHolds(v.firstDays, f.op, f.days);
-    case "booked":
-      return v.booked === f.yes;
-    case "asked_not_booked":
-      return v.askedNotBooked === f.yes;
-    case "has_chat":
-      return v.hasChat === f.yes;
-    case "stopped":
-      return v.stopped === f.yes;
-    case "consultation":
-      return v.consultationVisit === f.yes;
-    case "step_due":
-      return v.stepDue === f.yes;
-    case "said_yes":
-      return v.saidYes[f.to] === f.yes;
-    case "can_receive":
-      return v.canReceive[f.to] === f.yes;
-    case "channel":
-      return v.channels.includes(f.channel) === is;
-    case "came_from":
-      return v.cameFrom?.key === f.from === is;
-    case "calls":
-      return f.op === "at_least" ? v.calls >= f.n : v.calls <= f.n;
-    case "conversations":
-      return f.op === "at_least" ? v.threads >= f.n : v.threads <= f.n;
-    case "standing":
-      return v.standing === f.value === is;
-    case "assigned":
-      return v.assigned === f.value === is;
-    case "deal_stage":
-      return v.dealStages.includes(f.value) === is;
-    case "in_list":
-      return inList(f.list, v.id) === is;
-  }
-}
-var noLists = () => false;
-function listRuleMatches(rule, v, inList = noLists) {
-  return rule.all.every((c) => "any" in c ? c.any.some((f) => holds(f, v, inList)) : holds(c, v, inList));
-}
-var STANDING_WORDS = {
-  needs_you: NEEDS_YOU_WORD,
-  waiting_on_you: HELD_WORDS.yours.pill
-};
-var LEAF_PROPERTIES = {
-  field: { type: "string", enum: FIELD_IDS.filter((id) => id !== "in_list") },
-  op: { type: "string", enum: [...DAY_OPS, "at_least", "at_most", "is", "is_not"] },
-  days: { type: "integer" },
-  n: { type: "integer" },
-  yes: { type: "boolean" },
-  channel: { type: "string", enum: [...CHANNELS] },
-  from: { type: "string", enum: [...CAME_FROM] },
-  to: { type: "string", enum: [...LIST_PURPOSES] },
-  value: { type: "string", enum: [.../* @__PURE__ */ new Set([...LIST_STANDINGS, ...LIST_ASSIGNED, ...LIST_DEAL_STAGES])] }
-};
-var LIST_DRAFT_JSON_SCHEMA = {
-  type: "object",
-  additionalProperties: false,
-  required: ["name", "all", "cannot"],
-  properties: {
-    name: { type: "string" },
-    cannot: { type: "string" },
-    all: {
-      type: "array",
-      items: {
-        type: "object",
-        additionalProperties: false,
-        properties: {
-          ...LEAF_PROPERTIES,
-          any: {
-            type: "array",
-            items: {
-              type: "object",
-              additionalProperties: false,
-              required: ["field", "op"],
-              properties: LEAF_PROPERTIES
-            }
-          }
-        }
-      }
-    }
-  }
-};
-
-// src/people/lists/lists.ts
-function listToken(ref) {
-  return ref.kind === "builtin" ? `seg:${ref.id}` : `list:${ref.id}`;
-}
-var r = (...all) => ({ v: 2, all });
-var BUILTIN_LISTS = [
-  {
-    id: "needs_you",
-    label: NEEDS_YOU_WORD,
-    tip: "An open escalation, or a thread waiting for a person",
-    group: "attention",
-    onProfile: false,
-    rule: r({ field: "standing", op: "is", value: "needs_you" })
-  },
-  // Yours by the one standing rule (standing.ts): you took it over, or your reply paused the receptionist.
-  {
-    id: "waiting_on_you",
-    label: HELD_WORDS.yours.pill,
-    tip: "Threads you have: you took them over, or your reply paused the receptionist. A teammate's waits on them",
-    group: "attention",
-    onProfile: false,
-    rule: r({ field: "standing", op: "is", value: "waiting_on_you" })
-  },
-  // Their next step's day has come (0007, amended): every workspace, deals or not. The page says the step itself.
-  {
-    id: "steps_due",
-    label: "Steps due",
-    tip: "Their next step's day has come, or gone by \u2014 a note with a day, for the team",
-    group: "attention",
-    onProfile: false,
-    rule: r({ field: "step_due", op: "is", yes: true })
-  },
-  // New by the date they first got in touch, whatever their standing: someone new who needs you is both.
-  {
-    id: "new_week",
-    label: "New this week",
-    tip: "First contact in the last 7 days, by evidence \u2014 imported history never counts",
-    group: "journey",
-    rule: r({ field: "first_contact", op: "within", days: 7 })
-  },
-  // This week, Monday to Sunday, by the workspace's clock.
-  {
-    id: "booked_week",
-    label: "Booked this week",
-    tip: "Booked this week, Monday to Sunday",
-    group: "journey",
-    rule: r({ field: "next_visit", op: "this_week" })
-  },
-  {
-    id: "booked",
-    label: "Booked",
-    tip: "Something ahead on your calendar \u2014 the booking is the conversion",
-    group: "journey",
-    rule: r({ field: "booked", op: "is", yes: true })
-  },
-  // Reports' rule (calendar-people.ts visitAnswersAsk): asked in 30 days and nothing on the calendar answers it.
-  {
-    id: "asked_never_booked",
-    label: "Asked, never booked",
-    tip: "Wrote or called in the last 30 days, and nothing on your calendar since answers it \u2014 the people you can still win",
-    group: "journey",
-    rule: r({ field: "asked_not_booked", op: "is", yes: true })
-  },
-  // Forty-five days since the chair, nothing ahead: the win-back list, from visits rather than silence.
-  {
-    id: "lapsed",
-    label: "Lapsed",
-    tip: "Forty-five days or more since they were last on the calendar, nothing ahead \u2014 the win-back list, from the calendar rather than silence",
-    group: "journey",
-    rule: r({ field: "booked", op: "is", yes: false }, { field: "last_visit", op: "more_than", days: 44 })
-  },
-  // The journey past the booking (0004), as the Pipeline groups it (deals.ts dealStageOf).
-  {
-    id: "consultation_booked",
-    label: "Consultations",
-    tip: "A consultation coming up, or one this past week with no proposal since \u2014 the Pipeline's Consultations",
-    group: "journey",
-    onProfile: false,
-    rule: r({ field: "deal_stage", op: "is", value: "consultation" })
-  },
-  {
-    id: "proposal_out",
-    // A stage's list says its stage's word (S9-9); Clients names the people, not the stage.
-    label: DEAL_STAGE_WORDS.proposed,
-    tip: "A proposal went out and is waiting on their answer",
-    group: "journey",
-    onProfile: false,
-    rule: r({ field: "deal_stage", op: "is", value: "proposed" })
-  },
-  {
-    id: "clients",
-    label: "Clients",
-    tip: "Said yes, or paid \u2014 the engagement is running",
-    group: "journey",
-    onProfile: false,
-    rule: r({ field: "deal_stage", op: "is", value: "won" })
-  },
-  {
-    id: "deal_passed",
-    label: DEAL_STAGE_WORDS.lost,
-    tip: "They passed on a proposal",
-    group: "journey",
-    onProfile: false,
-    rule: r({ field: "deal_stage", op: "is", value: "lost" })
-  },
-  {
-    id: "deal_ended",
-    label: DEAL_STAGE_WORDS.ended,
-    tip: "An engagement that ended \u2014 the win-back list for clients",
-    group: "journey",
-    onProfile: false,
-    rule: r({ field: "deal_stage", op: "is", value: "ended" })
-  },
-  // Heard from them, then nothing for thirty days: someone we never heard from is not quiet, and our own sends are
-  // not their word.
-  {
-    id: "quiet",
-    label: "Quiet 30+ days",
-    tip: "They haven't written or called in 30 days \u2014 your own messages don't count, and someone never heard from isn't quiet",
-    group: "reach",
-    rule: r({ field: "last_heard", op: "more_than", days: 30 })
-  },
-  {
-    id: "phoned_only",
-    label: "Phoned only",
-    tip: "Only ever phoned \u2014 no WhatsApp thread",
-    group: "reach",
-    rule: r({ field: "has_chat", op: "is", yes: false }, { field: "calls", op: "at_least", n: 1 })
-  },
-  // TWO LISTS, BECAUSE THERE ARE TWO ANSWERS. This one is the yes to hearing from the business, which says nothing
-  // about offers; the next is the promotional audience, who a marketing broadcast may reach: the yes AND a number.
-  {
-    id: "opted_in",
-    label: "Said yes to messages",
-    tip: "Said yes to messages \u2014 replies, reminders and confirmations",
-    group: "reach",
-    onProfile: false,
-    rule: r({ field: "said_yes", op: "is", to: "messages", yes: true })
-  },
-  {
-    id: "offers_ok",
-    label: "Can receive offers",
-    tip: "Said yes to OFFERS, separately, with a number to send to \u2014 the only people a promotional broadcast may reach",
-    group: "reach",
-    onProfile: false,
-    rule: r({ field: "can_receive", op: "is", to: "offers", yes: true })
-  },
-  // A fact, not the state: someone who opted out AND needs you is in both lists.
-  {
-    id: "opted_out",
-    label: STOP_WORDS.pill,
-    tip: "Asked to stop; the receptionist stays silent, offers included",
-    group: "reach",
-    onProfile: false,
-    rule: r({ field: "stopped", op: "is", yes: true })
-  }
-];
-var PEOPLE_LISTS = BUILTIN_LISTS.map((l) => {
-  const needs = ruleNeeds(l.rule);
-  return {
-    ...l,
-    ...needs.includes("calendar") ? { needsCalendar: true } : {},
-    ...needs.includes("consult") ? { needsConsultFirst: true } : {},
-    ...needs.includes("deals") ? { needsDeals: true } : {},
-    ...needs.includes("viewer") ? { needsViewer: true } : {},
-    test: (vm) => listRuleMatches(l.rule, vm)
-  };
-});
 
 // src/ask-proposals/lists.ts
 var LIST_PART = 500;

@@ -16,7 +16,9 @@
  */
 import { useEffect, useRef, useState, type HTMLAttributes, type ReactNode, type RefObject } from "react";
 import { Confirm } from "../../kit/confirm/confirm";
+import { SEQUENCE_HISTORY_WORDS, runSheetRoute, runsWaitingSentence } from "@chanlytics/contracts";
 import { EmptyState } from "../../kit/empty/empty";
+import { useNeedsYouParts, waitingRunsNow } from "../../needs-you";
 import { ReplyStrip } from "./reply-strip";
 import { touchSwipe } from "../shell";
 import { repliesDoor } from "./shell-thread";
@@ -468,15 +470,32 @@ export const InboxThread = (props: InboxThreadProps) => {
 // =============== EMPTY STATE ===============
 // Placed by the page (inbox.css, .ix-zero): a little over the middle of the room it has, and on a phone in the room under
 // the search, clear of the tab bar. It stood in the middle of the pane on a desk, under the window's own middle, and at
-// the foot of a phone's screen with its button under the tab bar (Ruben, 7 Oct 2026).
-const InboxEmpty = () => (
-  <EmptyState
-    kind="page"
-    className="ix-zero"
-    glyph="inbox"
-    title="Inbox zero"
-    body="The receptionist is handling everything. Anything that needs your call appears here."
-    action={{ label: "See what it handled", to: "conversations" }}
-    testid="inbox-empty"
-  />
-);
+// the foot of a phone's screen with its button under the tab bar (Ruben, 7 Oct 2026). While a campaign run waits for your
+// say (a row of Needs you, pages/inbox-runs.tsx) it says so, with the door to the one run: it said "Inbox zero" beside it.
+const InboxEmpty = () => {
+  const runs = useNeedsYouParts()?.runs ?? 0;
+  const [only] = runs === 1 ? waitingRunsNow() : [];
+  if (runs > 0)
+    return (
+      <EmptyState
+        kind="page"
+        className="ix-zero"
+        glyph="bolt"
+        title="No customer needs you"
+        body={runsWaitingSentence(runs)}
+        action={only ? { label: SEQUENCE_HISTORY_WORDS.openRun, to: runSheetRoute(only.id) } : undefined}
+        testid="inbox-empty"
+      />
+    );
+  return (
+    <EmptyState
+      kind="page"
+      className="ix-zero"
+      glyph="inbox"
+      title="Inbox zero"
+      body="The receptionist is handling everything. Anything that needs your call appears here."
+      action={{ label: "See what it handled", to: "conversations" }}
+      testid="inbox-empty"
+    />
+  );
+};

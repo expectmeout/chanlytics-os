@@ -142,7 +142,7 @@ test.describe("Campaigns › Sequences on a real workspace", () => {
     ).toBeVisible();
   });
 
-  test("a run's address, as a bell row or Ask's card names it, lands on its sequence's History with that day open", async ({
+  test("a run's address that went, as a bell row or Ask's card names it, lands on its sequence's History with that day open", async ({
     page,
   }) => {
     const list = await readList(page);
@@ -155,6 +155,18 @@ test.describe("Campaigns › Sequences on a real workspace", () => {
     await expect(record.getByTestId(`sq-batch-${s.last.id}`)).toHaveAttribute("aria-expanded", "true");
     // Its sheet in Sent stays a door away, at an address no landing takes.
     await expect(record.getByTestId("sq-day-run").first()).toBeVisible();
+  });
+
+  test("a run's address still waiting for an OK stays on its sheet, where it is decided (the Inbox's run review, 18 Oct 2026)", async ({
+    page,
+  }) => {
+    const list = await readList(page);
+    const [waiting] = list.sequences.flatMap((x) => x.needs.batches);
+    test.skip(!waiting, "no batch here waits for an OK");
+    if (!waiting) return;
+    await page.goto(`/#/broadcasts/run:${waiting.id}`);
+    await expect(page).toHaveURL(atRoute(new RegExp(`^broadcasts/run:${waiting.id}/sheet$`)));
+    await expect(page.getByTestId("bc-sheet")).toBeVisible();
   });
 
   test("New starts from what starts it; a date and leads open their own composers, and nothing is drafted here", async ({

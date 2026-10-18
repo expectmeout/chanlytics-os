@@ -177,6 +177,12 @@ export function runApprovedTail(people: number, when: string): string {
 export const RUN_WAITING_WORDS = "Waiting for your approval";
 
 /**
+ * The same, where a pill stands beside a name on a phone (a sequence's head, a day of its History, the Inbox's run row):
+ * "Waiting for your approval" took the name's room, and each of those spelled its own "Waits for you".
+ */
+export const RUN_WAITING_SHORT = "Waits for you";
+
+/**
  * How many campaign runs wait for your say, as a sentence: what Today's calm head leads with and the Inbox's Needs-you
  * band says, and what Ask's Right now says in its run clause, so a run waiting is said in one set of words. A run waits
  * for your approval, or for your say on the emails its check holds (waits.ts runWaitsOnYou): one word covers both.

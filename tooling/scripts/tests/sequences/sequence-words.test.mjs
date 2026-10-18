@@ -155,7 +155,8 @@ test("the one notice: a batch waiting for an OK with its act and how long it wai
     row({ needs: { ...NONE, waiting: 1, waiting_people: 3, batches: [batch({ people: 3 })] } }),
     [],
   );
-  assert.deepEqual([named.words, named.act], ["3 people wait for your OK · until tonight", "Approve 3"]);
+  // The act in the words every Approve of a run says (decision 19 of the spec of 9 Oct 2026): its sheet's, Today's row.
+  assert.deepEqual([named.words, named.act], ["3 people wait for your OK · until tonight", "Approve · 3 people"]);
   // A phone's dock says it in a line and one fact, the step where there are several.
   assert.deepEqual([named.line, named.fact], ["3 wait for your OK", "until tonight"]);
   const steps = [
@@ -287,8 +288,8 @@ test("an older address lands on what it names: the home and Sent's list on Seque
   assert.equal(sequenceLandingOf("campaigns"), SEQUENCES_ROUTE);
   // Sent's list is History now (D3): its bare address is Sequences' list.
   assert.equal(sequenceLandingOf("broadcasts"), SEQUENCES_ROUTE);
-  // A run a link names lands on its sequence's History, that day open (W4); its sheet stays where Open the run goes.
-  assert.equal(sequenceLandingOf("broadcasts/run:b1"), "campaigns/sequences/b1/history/b1");
+  // A run a link names lands by what the run is, which the address does not say (contracts runLandingOf); its sheet stays.
+  assert.equal(sequenceLandingOf("broadcasts/run:b1"), null);
   assert.equal(sequenceLandingOf(runSheetRoute("b1")), null);
   assert.equal(sequenceLandingOf("campaigns/in:before"), SEQUENCES_ROUTE);
   assert.equal(sequenceLandingOf("campaigns/moment:s1"), "campaigns/sequences/s1");

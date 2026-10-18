@@ -1086,6 +1086,71 @@ test("REGRESSION: a person's Back returns to the list they were opened from -- i
   }
 });
 
+test("REGRESSION: a run's sheet closes back to the page it was opened from, by the browser's own Back -- it closed onto Sequences from the Inbox (the Inbox's run review, 18 Oct 2026)", async () => {
+  shell.installShell(win);
+  const doors = await importSrc("apps/dashboard/src/surfaces/frame-doors.ts");
+  const keepHistory = win.history;
+  const h = {
+    backs: 0,
+    back() {
+      h.backs += 1;
+    },
+  };
+  win.history = { ...keepHistory, back: () => h.back() };
+  // The frame as the bridge draws it, filling the doors a page asks for (LegacyApp's fillDoors).
+  const draw = (path) => {
+    if (path) {
+      win.location.pathname = path;
+      fire("popstate");
+    }
+    deep = false;
+    frames.begin();
+    const t = win.ChanlyticsApp({
+      ...PAGES,
+      theme: "dark",
+      themePref: "dark",
+      sidebar: "open",
+      onSidebar() {},
+      onTheme() {},
+      fillDoors: doors.fillDoors,
+    });
+    deep = true;
+    return t;
+  };
+  try {
+    cells = [];
+    placeAt("#/inbox");
+    draw();
+    // The Inbox's run row opens the run's sheet, a new entry (the frame's own move, as a page's door makes it).
+    doors.navigate("broadcasts/run:b-1/sheet");
+    draw("/w/acme/broadcasts/run:b-1/sheet");
+    doors.backFrom("campaigns/sequences", { replace: true });
+    assert.equal(h.backs, 1, "opened from the Inbox: the browser's Back, to the Inbox as it was left");
+    assert.equal(win.location.pathname, "/w/acme/broadcasts/run:b-1/sheet", "nothing pushed or replaced");
+
+    // The arrival writes the sheet's own address over the run's (route.tsx): the same entry, so Back is still the Inbox.
+    h.backs = 0;
+    placeAt("#/inbox");
+    draw();
+    doors.navigate("broadcasts/run:b-1");
+    draw("/w/acme/broadcasts/run:b-1");
+    doors.navigate("broadcasts/run:b-1/sheet", { replace: true });
+    doors.backFrom("campaigns/sequences", { replace: true });
+    assert.equal(h.backs, 1, "a run's address landed on its sheet: Back is the Inbox's");
+
+    // Reached by a link or a reload (a frame drawn afresh): its home, the address replaced, never a Back out of the app.
+    h.backs = 0;
+    cells = [];
+    placeAt("#/broadcasts/run:b-1/sheet");
+    draw();
+    doors.backFrom("campaigns/sequences", { replace: true });
+    assert.deepEqual([h.backs, win.location.pathname], [0, "/w/acme/campaigns/sequences"], "by a link: Sequences");
+  } finally {
+    win.history = keepHistory;
+    doors.emptyDoors();
+  }
+});
+
 test("REGRESSION (C13): a link to a playbook lands on its sequence, named in the crumbs -- the route dropped the id", () => {
   shell.installShell(win);
   const keepGate = win.gate;
@@ -1388,7 +1453,7 @@ test("the first run keeps Ask: the palette is drawn over the step, closed, and t
   }
 });
 
-test("the frame fills the bridge's doors as it renders (a move, Ask, a person's Back) and publishes no door name of its own when the bridge gave it the filler; without one it publishes them as it always did (surfaces/frame-doors.ts)", () => {
+test("the frame fills the bridge's doors as it renders (a move, Ask, a person's Back, a page's Back to its opener) and publishes no door name of its own when the bridge gave it the filler; without one it publishes them as it always did (surfaces/frame-doors.ts)", () => {
   shell.installShell(win);
   const keptState = win.__surfaceState;
   delete win.__surfaceState;
@@ -1415,7 +1480,7 @@ test("the frame fills the bridge's doors as it renders (a move, Ask, a person's 
     const filled = [];
     draw({ fillDoors: (doors) => filled.push(doors) });
     assert.equal(filled.length, 1, "filled once, as the frame renders");
-    assert.deepEqual(Object.keys(filled[0]).sort(), ["backToPeople", "navigate", "openAsk"]);
+    assert.deepEqual(Object.keys(filled[0]).sort(), ["backFrom", "backToPeople", "navigate", "openAsk"]);
     for (const k of Object.keys(filled[0])) assert.equal(typeof filled[0][k], "function", `${k} is a door`);
     for (const k of NAMES) assert.equal(win[k], undefined, `the frame does not publish ${k}: the bridge does`);
     // No bridge (the standalone mockup, a test): the frame publishes the names itself.

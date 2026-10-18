@@ -11,6 +11,8 @@
  * (`/back:<the Leads address's words>`), which its head says by the lead's name and Start and Cancel take.
  */
 
+import { runDecidedOnItsPage } from "../waits/waits";
+
 /** The list's address. */
 export const SEQUENCES_ROUTE = "campaigns/sequences";
 
@@ -126,20 +128,51 @@ export const newSequenceRoute = (moment?: string | null): string =>
 export const runSheetRoute = (id: string): string => `broadcasts/run:${id}/sheet`;
 
 /**
+ * The run a link's address names (`broadcasts/run:<id>`: a bell row, Today, the Inbox, Ask's card), which lands by what the
+ * run is (runLandingOf); null for any other address, its sheet's (runSheetRoute's) among them, which stays.
+ */
+export function arrivedRunOf(route: string): string | null {
+  const [path = ""] = route.split("?");
+  const [root, param = "", rest] = path.split("/");
+  const run = root === "broadcasts" && rest === undefined ? /^run:([^:/]+)$/.exec(param) : null;
+  return run?.[1] ?? null;
+}
+
+/** A run as the landing of a link to it reads it: a row of Sent's, or the run's own read. */
+interface LandingRun {
+  id: string;
+  /** The sequence it is a day of (BroadcastDto.sequence_id); absent on a row read before it was said, as the run's id. */
+  sequence_id?: string | null;
+  state: string;
+  held?: number | null;
+  drafted?: number | null;
+}
+
+/**
+ * Where a link to a run lands once the run is known (the Inbox's run review, 18 Oct 2026): a run decided on its own page
+ * (contracts runDecidedOnItsPage: waiting for approval, or going with emails held or handed to you) stays on its sheet,
+ * where the decision is, and a run that has gone lands on its sequence's History with that day open (the parity review's
+ * W4), by the sequence's own id. Null where the address is no run's (arrivedRunOf) or names another run.
+ */
+export function runLandingOf(route: string, run: LandingRun): string | null {
+  const id = arrivedRunOf(route);
+  if (!id || id !== run.id) return null;
+  // A run's id names its sequence too (the server reads a sequence by any of its parts), where the row does not say it.
+  return runDecidedOnItsPage(run) ? runSheetRoute(id) : sequenceRoute(run.sequence_id || id, "history", id);
+}
+
+/**
  * Where an older address of Campaigns lands (the plan's S5 and S6, D1 and D3): Campaigns' home, or one of its groups, and
  * Sent's list (`broadcasts`) on the list; a campaign open (`campaigns/moment:<id>`, its People at `:people`) on its sequence.
  * The server reads a sequence by the id of any of its parts (a step's, a batch's), and the record then names its own. The
  * composer's retired modes land too: Every time on New, a moment's Turn on on New on that moment. Null where the address
  * stays: the composer (Send once, Write to leads, a reach-out's change, `new:edit:<root>`, whose sheet sends an id that is
  * no reach-out's to its sequence once the chains are read), a message, Ads, and Sent's sheets (Get their yes, To send, an
- * audience). A run's
- * address a link names (a bell row, Today, Ask's card: `broadcasts/run:<id>`) lands on its sequence's History with that day
- * open (the parity review's W4), where People and History decide what it holds in place; its sheet stays at
- * runSheetRoute's address, which no landing takes.
+ * audience). A run's address is landed by what the run is, which no address says (runLandingOf).
  */
 export function sequenceLandingOf(route: string): string | null {
   const [path = ""] = route.split("?");
-  const [root, param = "", rest] = path.split("/");
+  const [root, param = ""] = path.split("/");
   if (root === "campaigns") {
     if (param === "" || param.startsWith("in:")) return SEQUENCES_ROUTE;
     const moment = /^moment:([^:/]+)(:people)?$/.exec(param);
@@ -151,8 +184,6 @@ export function sequenceLandingOf(route: string): string | null {
     if (on?.[1]) return newSequenceRoute(on[1]);
   }
   if (root === "broadcasts" && param === "") return SEQUENCES_ROUTE;
-  const run = root === "broadcasts" && rest === undefined ? /^run:([^:/]+)$/.exec(param) : null;
-  if (run?.[1]) return sequenceRoute(run[1], "history", run[1]);
   return null;
 }
 

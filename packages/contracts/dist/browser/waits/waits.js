@@ -13,6 +13,9 @@ export function runDraftedEmails(run) {
   const going = RUN_GOING_STATES.includes(run.state);
   return going && typeof run.drafted === "number" && run.drafted > 0 ? run.drafted : 0;
 }
+export function runDecidedOnItsPage(run) {
+  return run.state === "pending_approval" || runHeldEmails(run) > 0 || runDraftedEmails(run) > 0;
+}
 export function runTooLate(run, days) {
   return run.state === "pending_approval" && runApprovalRefusal(runAsked(run), days) !== null;
 }

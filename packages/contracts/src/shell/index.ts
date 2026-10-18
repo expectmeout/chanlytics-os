@@ -110,6 +110,7 @@ export {
   runStoppedWords,
   runApprovedTail,
   RUN_WAITING_WORDS,
+  RUN_WAITING_SHORT,
   runsWaitingSentence,
   heldEmailsWords,
   runStopWords,

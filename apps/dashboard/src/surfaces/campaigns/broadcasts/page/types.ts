@@ -67,6 +67,8 @@ export interface BcActRow {
   id: string;
   name: string;
   state?: string;
+  /** A sequence's run's day, which its name carries after it and its toast does not (contracts runTitleOf). */
+  run_for?: string | null;
 }
 
 /** The one run waiting on you, as its sheet draws it (broadcasts/run.tsx BroadcastDetail's `sheet`). */
