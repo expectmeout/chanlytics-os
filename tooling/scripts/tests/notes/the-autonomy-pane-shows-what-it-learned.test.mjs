@@ -76,8 +76,8 @@ test("the notes waiting: each with what the owner wrote; Keep goes through the d
   fresh();
   const draw = () => again(() => h(LearnedFromYou, { suggestions: [S1, S2], flash: (f) => flashes.push(f) }));
   let tree = draw();
-  assert.match(said(tree, "aut-learned"), /^Learned from your corrections/);
-  const text = said(tree, "aut-learned");
+  assert.match(said(tree, "rec-card-learned"), /^Learned from your corrections/);
+  const text = said(tree, "rec-card-learned");
   assert.match(
     text,
     /MondaysWe are closed on Mondays\.You asked for a rewrite: “tell her we are closed on Mondays now”Keep as a noteDismiss/,
@@ -87,7 +87,7 @@ test("the notes waiting: each with what the owner wrote; Keep goes through the d
   await new Promise((r) => setTimeout(r, 0));
   tree = draw();
   assert.deepEqual(asked, [["s-1", true]]);
-  assert.doesNotMatch(said(tree, "aut-learned"), /Mondays/, "the answered row is gone at once");
+  assert.doesNotMatch(said(tree, "rec-card-learned"), /Mondays/, "the answered row is gone at once");
   assert.equal(textOf(flashes.at(-1).msg), "Kept as a note: “Mondays”");
 });
 
@@ -98,7 +98,7 @@ test("a refusal is said in its own words and the row stays; nothing is drawn whe
   const draw = () => again(() => h(LearnedFromYou, { suggestions: [S2], flash: (f) => flashes.push(f) }));
   press(byTestId(draw(), "aut-fact-dismiss"));
   await new Promise((r) => setTimeout(r, 0));
-  assert.match(said(draw(), "aut-learned"), /Threading/, "the row stays");
+  assert.match(said(draw(), "rec-card-learned"), /Threading/, "the row stays");
   assert.equal(flashes.at(-1).tone, "danger");
   assert.match(textOf(flashes.at(-1).msg), /Not changed — Your notes are full \(10\)\./);
   for (const suggestions of [[], null, undefined]) {
@@ -106,7 +106,7 @@ test("a refusal is said in its own words and the row stays; nothing is drawn whe
     assert.equal(
       byTestId(
         again(() => h(LearnedFromYou, { suggestions, flash() {} })),
-        "aut-learned",
+        "rec-card-learned",
       ),
       null,
     );

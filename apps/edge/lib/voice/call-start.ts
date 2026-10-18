@@ -37,6 +37,7 @@ import {
   describeNow,
   pausedVoiceFacts,
   greetingOf,
+  phoneVoiceOf,
   type GreetingSource,
 } from "../packages/contracts.js";
 import { FACTS_UNAVAILABLE, CALLER_UNKNOWN, greetingFor } from "../packages/channels.js";
@@ -101,6 +102,12 @@ interface CallStart {
    * on purpose -- so there is nothing to hold and nothing to collide with.
    */
   conversationId: string | null;
+  /**
+   * The voice the workspace chose for its calls (contracts PHONE_VOICES), sent as the call's own override; null where
+   * none is chosen, or the stored id is not on the list, and the line speaks in its own. Retell refuses a call whose
+   * override it cannot honour, so nothing off the list is ever sent.
+   */
+  voiceId: string | null;
   /**
    * Whose workspace the call belongs to, as soon as it routed: whatever the reads after the routing make of it. The door
    * keeps the delivery under it and proves a test of "keep my number" with it (inbound-call.ts), and a caller who
@@ -182,6 +189,7 @@ export async function planCallStartWithin(o: CallStartInput): Promise<CallStart 
     alert: false,
     error: `the plan took longer than ${budget} ms`,
     conversationId: null,
+    voiceId: null,
     tenantId: null,
     late: true,
   };
@@ -203,6 +211,17 @@ function callVariables(v: { context: string; businessFacts: string; handoff: str
   };
 }
 
+/**
+ * What the line says and does for this workspace, read off its runtime: the name it greets with, the owner's own
+ * greeting, the line a transfer dials, and the voice it speaks in (contracts phoneVoiceOf: only one on the list).
+ */
+const spokenLineOf = (rt: TenantRuntime) => ({
+  businessName: rt.brain?.business_name ?? null,
+  ownGreeting: rt.brain?.profile?.phone_greeting,
+  handoff: rt.brain?.profile?.handoff_number ?? null,
+  voiceId: phoneVoiceOf(rt.brain?.profile?.phone_voice)?.id ?? null,
+});
+
 async function planCallStart(o: CallStartInput, calendar: Calendar): Promise<CallStart> {
   const now = o.now ?? new Date();
   const phone = normalizePhone(o.from);
@@ -217,6 +236,7 @@ async function planCallStart(o: CallStartInput, calendar: Calendar): Promise<Cal
   let ownGreeting: string | undefined;
   let handoff: string | null = null;
   let conversationId: string | null = null;
+  let voiceId: string | null = null;
   let tenantId: string | null = null;
   const fail = (e: unknown) => {
     if (error === null) error = e instanceof Error ? e.message : String(e);
@@ -262,9 +282,7 @@ async function planCallStart(o: CallStartInput, calendar: Calendar): Promise<Cal
           fail(rtR.reason);
         } else {
           rt = rtR.value;
-          businessName = rt.brain?.business_name ?? null;
-          ownGreeting = rt.brain?.profile?.phone_greeting;
-          handoff = rt.brain?.profile?.handoff_number ?? null;
+          ({ businessName, ownGreeting, handoff, voiceId } = spokenLineOf(rt));
           if (rt.loadFailed) {
             fail("the workspace's runtime could not be loaded");
           } else if (rt.paused) {
@@ -339,6 +357,7 @@ async function planCallStart(o: CallStartInput, calendar: Calendar): Promise<Cal
     alert,
     error,
     conversationId,
+    voiceId,
     tenantId,
   };
 }

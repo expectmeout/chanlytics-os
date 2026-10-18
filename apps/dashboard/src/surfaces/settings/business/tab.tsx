@@ -46,14 +46,16 @@ import { BtBookingRuleRows, BtOfferCard } from "./offer";
 import { BtOpenCard } from "./open";
 import { BtBookingTool } from "./open-bookings";
 import { greetingFold } from "./phone/greeting";
+import { BtVoiceRow } from "./phone/voice";
 import { BtPromptSheet, BtPromptTold, useBtPromptSheet } from "./prompt";
 import type { BtPromptHold } from "./prompt";
 import type { Brain, Config, Saver } from "./save";
 import { businessTabSave } from "./saver";
 import { BtServicesSheet } from "./services";
 import { BtTryIt } from "./try/try-it";
-import { settingsNow } from "./shell";
-import { BtBookingLinkRow, BtGoalCard, BtWhoCard } from "./who";
+import { policiesNow, settingsNow } from "./shell";
+import { BtBookingLinkRow, BtGoalCard, BtTransferNumberRow, BtWhoCard } from "./who";
+import { LearnedFromYou } from "../autonomy/learned";
 
 /** The toast the shell raises (the page's `flash`). */
 type Flash = (flash: LegacyFlash) => void;
@@ -69,12 +71,14 @@ export type BusinessPart = "workspace" | "hours" | "receptionist";
  * A door that opens a row of the business by its id, from a page that draws the business's pages `here`: in place where
  * the row is on one of them (the fold registry, as the row's own act would), else on the page that holds it, open (the
  * address names the row: frame/tabs.ts settingsRowRoute). What it can do and the prompt's blocks are How it answers',
- * and their rows are on every page of the business and on Autonomy.
+ * and their rows are on every page of the business and on Autonomy. A fold holding changes, or a save on its way, is
+ * asked first, as the rail asks before it changes the page: the registry raises the fold's own question, and the door
+ * goes once it is answered and pressed again.
  */
 const btDoorFrom =
   (here: readonly string[]) =>
   (id: string): void => {
-    if (here.includes(paneOfRow(id))) recFolds.request(id);
+    if (here.includes(paneOfRow(id)) || recFolds.dirty() || recFolds.saving()) recFolds.request(id);
     else navigate(settingsRowRoute(id));
   };
 
@@ -110,9 +114,9 @@ const btaCard = (id: string, title: string, sub: string, rows: ReactNode) => (
 );
 
 /**
- * How it talks: its voice, what callers hear first where the workspace answers calls (decision 0051), and the
- * languages. The first card of How it answers (Ruben, 17 Oct 2026, the "Settings, split" canvas), which was one card of
- * eight rows that held its limits too. What a fold opens with and saves onto is the saver's base (BtFold asks for it).
+ * How it talks: its voice and the languages. The first card of How it answers (Ruben, 17 Oct 2026, the "Settings,
+ * split" canvas), which was one card of eight rows that held its limits too. What a fold opens with and saves onto is
+ * the saver's base (BtFold asks for it).
  */
 const BtTalksCard = ({ brain, base = null, config = null, canEdit, flash, saver }: CardProps) => {
   const shared = { canEdit, flash, saver };
@@ -120,11 +124,34 @@ const BtTalksCard = ({ brain, base = null, config = null, canEdit, flash, saver 
   return btaCard(
     "answers",
     "How it talks",
-    "Its voice, and the words it opens with",
+    "Its voice, and the languages it speaks",
     <>
       {toneFold(shared, a.tone)}
-      {a.calls ? greetingFold(shared, brain) : null}
       <BtLanguagesRow brain={brain} {...shared} />
+    </>,
+  );
+};
+
+/**
+ * On calls (the Settings wiring review, items 6-7, 18 Oct 2026): what a caller hears first, where the workspace answers
+ * calls (decision 0051), and who a caller who insists on a person is put through to, in opening hours, else a message
+ * (contracts handoffCallRow, which the hand-off says too; the sub says it, since a filled row draws no hint).
+ * They were a row of How it talks, a fact on Who you are and a line of the hand-off on Autonomy. The line it answers on
+ * and its forwarding stay Connections'.
+ */
+const BtCallsCard = ({ brain, base = null, config = null, canEdit, flash, saver }: CardProps) => {
+  const shared = { canEdit, flash, saver };
+  const a = btaFacts(brain, base, config);
+  return btaCard(
+    "calls",
+    "On calls",
+    "What a caller hears, and who it rings in opening hours",
+    <>
+      {a.calls ? greetingFold(shared, brain) : null}
+      {/* The voice it speaks in, chosen from the provider's list (the Settings wiring review, item 11): only where a
+          line answers calls, as the greeting. */}
+      {a.calls ? <BtVoiceRow brain={brain} {...shared} /> : null}
+      <BtTransferNumberRow brain={brain} base={base} {...shared} />
     </>,
   );
 };
@@ -156,7 +183,8 @@ const BtLimitRows = ({ brain, base = null, config = null, canEdit, flash, saver 
     <>
       <BtPriceChoiceRow canEdit={canEdit} flash={flash} />
       <BtRulesRow brain={brain} base={base} config={config} {...shared} />
-      {handoffFold(shared, btaFacts(brain, base, config))}
+      {/* The transfer number is On calls' (How it answers): the hand-off's door goes there, the row open. */}
+      {handoffFold(shared, btaFacts(brain, base, config), btDoorFrom(["autonomy"]))}
     </>
   );
 };
@@ -446,7 +474,11 @@ export const BusinessTab = ({
       {parts.includes("receptionist") ? (
         <>
           <BtTalksCard {...shared} base={base} config={config} />
+          <BtCallsCard {...shared} base={base} config={config} />
           <BtKnowsCard {...shared} base={base} config={config} />
+          {/* What the owner's corrections suggest it should know (decision 0063), beside what it knows, where a note
+              kept lands (the Settings wiring review, item 8). The counts of what was held stay under Replies. */}
+          <LearnedFromYou suggestions={policiesNow()?.suggestions} flash={flash} />
           <BtCanCard brain={brain} config={config} canEdit={canEdit} door={btDoorFrom(parts)} flash={flash} />
           {/* What the receptionist is told, at rest: a title, who reads it, and the door to the sheet. Hookless. */}
           <BtPromptTold prompt={prompt} />

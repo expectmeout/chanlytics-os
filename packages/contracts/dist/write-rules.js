@@ -296,6 +296,13 @@ var BusinessProfileSchema = z.object({
   // `.catch`: a stored value that is not a string reads as none (the standard greeting), never as a config that cannot
   // be parsed, which would leave the receptionist silent.
   phone_greeting: z.string().optional().catch(void 0),
+  /**
+   * The voice callers hear, by its provider id (voice/phone-voices.ts PHONE_VOICES; the Settings wiring review, item
+   * 11). Absent is the line's own voice, the product's. Kept as a string, never the list's ids: a voice retired from
+   * the list must not leave a config that cannot be parsed, and the edge sends only an id on the list. Never part of
+   * the composed prompt.
+   */
+  phone_voice: z.string().max(64).optional().catch(void 0),
   website: z.string().url().max(500).optional(),
   notes: z.array(NoteSchema).max(PROFILE_LIMITS.notes).optional(),
   booking_rules: BookingRulesSchema.optional(),

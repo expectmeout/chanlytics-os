@@ -29,6 +29,60 @@ export function asPersonMode(s: string | null | undefined): PersonMode | null {
   return s && (PERSON_MODES as readonly string[]).includes(s) ? (s as PersonMode) : null;
 }
 
+/* ---------------------------------- the people set differently (Settings › Autonomy) ---------------------------------- */
+
+/** How many of the people set differently the line names: the newest changes, which an owner is likeliest to look for. */
+export const OWN_MODE_NAMED = 20;
+
+/**
+ * The people whose receptionist has a mode of their own (the Settings wiring review, item 10, 18 Oct 2026): how many,
+ * how many under each mode, and the newest changes by name. Autonomy's Replies said what the receptionist does for
+ * everyone, and nothing said that some people were set apart from it: each was found only on their own page.
+ */
+export interface OwnModesDto {
+  total: number;
+  by_mode: Record<PersonMode, number>;
+  /** The newest changes, at most OWN_MODE_NAMED, each opening the person's page. */
+  named: Array<{ id: string; name: string; mode: PersonMode }>;
+}
+
+/**
+ * The line's answer from the rows as stored (id and mode, newest first: db peopleOnTheirOwnMode) and the names of the
+ * newest (personName over the people the server could read). A mode no person may have is not counted, as nothing sets
+ * one; a person the server could not name is counted and not named.
+ */
+export function ownModesOf(
+  rows: ReadonlyArray<{ id: string; mode: string }>,
+  names: ReadonlyMap<string, string>,
+): OwnModesDto {
+  const by_mode: Record<PersonMode, number> = { auto: 0, ask: 0, never: 0 };
+  const named: OwnModesDto["named"] = [];
+  for (const r of rows) {
+    const mode = asPersonMode(r.mode);
+    if (!mode) continue;
+    by_mode[mode] += 1;
+    const name = names.get(r.id);
+    if (name && named.length < OWN_MODE_NAMED) named.push({ id: r.id, name, mode });
+  }
+  return { total: by_mode.auto + by_mode.ask + by_mode.never, by_mode, named };
+}
+
+/** The order the line says the modes in: the ones that hold the receptionist back first. */
+const OWN_MODE_ORDER: readonly PersonMode[] = ["never", "ask", "auto"];
+
+/** The line's words, in the person page's own words for each mode (PERSON_MODE_LABELS); null when nobody is set apart. */
+export function ownModesWords(d: OwnModesDto | null | undefined) {
+  if (!d || d.total === 0) return null;
+  return {
+    label: "People set differently",
+    value: d.total === 1 ? "1 person" : `${d.total} people`,
+    hint: OWN_MODE_ORDER.filter((m) => d.by_mode[m] > 0)
+      .map((m) => `${d.by_mode[m]} ${PERSON_MODE_LABELS[m]}`)
+      .join(" · "),
+    header: d.named.length < d.total ? `The ${d.named.length} changed last` : "Their own reply mode",
+  };
+}
+
 export type ReceptionistTone =
   "answering" | "escalated" | "queued" | "snoozed" | "paused" | "silent" | "yours" | "theirs";
 

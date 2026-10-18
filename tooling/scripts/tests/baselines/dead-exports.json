@@ -101,7 +101,6 @@
   "packages/contracts/src/notes/note-suggest.ts": 1,
   "packages/contracts/src/people/lists/list-rules.ts": 11,
   "packages/contracts/src/people/lists/lists.ts": 1,
-  "packages/contracts/src/people/person-receptionist.ts": 1,
   "packages/contracts/src/people/person-state.ts": 2,
   "packages/contracts/src/playbooks/playbooks.ts": 1,
   "packages/contracts/src/reach-out/reach-out-draft.ts": 4,

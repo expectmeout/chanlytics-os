@@ -4496,12 +4496,12 @@ function activationWords(cap2, nowMs) {
 }
 function rowContextOf(i, nowMs) {
   const wa = i.channels.whatsapp;
-  const voice = i.channels.voice;
+  const voice2 = i.channels.voice;
   const waReady = wa.present && wa.active;
-  const voiceReady = voice.present && voice.active;
+  const voiceReady = voice2.present && voice2.active;
   const answering = waReady || voiceReady;
   const waNum = formatPhoneDisplay(wa.number) ?? "your number";
-  const voiceNum = formatPhoneDisplay(voice.number) ?? "your line";
+  const voiceNum = formatPhoneDisplay(voice2.number) ?? "your line";
   const handoffNum = formatPhoneDisplay(i.business.handoff);
   const lines = i.lines ?? { rows: [], ready: false, provider: null, costs: { local_number_month_usd: 1.15 } };
   const canSpend = !i.billing || maySpend(i.billing.mode, i.billing.status);
@@ -4511,7 +4511,7 @@ function rowContextOf(i, nowMs) {
   return {
     nowMs,
     wa,
-    voice,
+    voice: voice2,
     waReady,
     voiceReady,
     answering,
@@ -8518,19 +8518,19 @@ function policyClassQuestion() {
 function policyRules(policy, channel) {
   const out = [];
   const modeOf = (cls) => policy?.[cls]?.mode ?? "auto";
-  const voice = channel === "voice";
+  const voice2 = channel === "voice";
   if (modeOf("booking") !== "auto") {
     out.push(
-      voice ? `Booking: when ${POLICY_COVERS.booking}, do not offer the booking link. Say a member of the team will call or text them to confirm, and take their name.` : `Booking: when ${POLICY_COVERS.booking}, do not send the booking link. Say a member of the team will confirm with them shortly, and set escalate to true.`
+      voice2 ? `Booking: when ${POLICY_COVERS.booking}, do not offer the booking link. Say a member of the team will call or text them to confirm, and take their name.` : `Booking: when ${POLICY_COVERS.booking}, do not send the booking link. Say a member of the team will confirm with them shortly, and set escalate to true.`
     );
   }
   if (modeOf("faq") !== "auto") {
     out.push(
-      voice ? `${POLICY_COVERS.faq}: do not answer them yourself. Say a member of the team will call them back with the details, and take their name.` : `${POLICY_COVERS.faq}: do not answer them yourself. Say a member of the team will get back to them with the details, and set escalate to true.`
+      voice2 ? `${POLICY_COVERS.faq}: do not answer them yourself. Say a member of the team will call them back with the details, and take their name.` : `${POLICY_COVERS.faq}: do not answer them yourself. Say a member of the team will get back to them with the details, and set escalate to true.`
     );
   }
   out.push(
-    voice ? `Money: ${POLICY_COVERS.money} is never yours to decide or promise. Do not agree, refuse or quote terms; say a member of the team will call them back about it, and take their name.` : `Money: ${POLICY_COVERS.money} is never yours to decide or promise. Do not agree, refuse or quote terms; say a member of the team will get back to them about it, set intent to money and escalate to true.`
+    voice2 ? `Money: ${POLICY_COVERS.money} is never yours to decide or promise. Do not agree, refuse or quote terms; say a member of the team will call them back about it, and take their name.` : `Money: ${POLICY_COVERS.money} is never yours to decide or promise. Do not agree, refuse or quote terms; say a member of the team will get back to them about it, set intent to money and escalate to true.`
   );
   return out;
 }
@@ -15838,6 +15838,29 @@ var PERSON_MODE_WORDS = {
 };
 function asPersonMode(s) {
   return s && PERSON_MODES.includes(s) ? s : null;
+}
+var OWN_MODE_NAMED = 20;
+function ownModesOf(rows2, names3) {
+  const by_mode = { auto: 0, ask: 0, never: 0 };
+  const named = [];
+  for (const r2 of rows2) {
+    const mode = asPersonMode(r2.mode);
+    if (!mode) continue;
+    by_mode[mode] += 1;
+    const name = names3.get(r2.id);
+    if (name && named.length < OWN_MODE_NAMED) named.push({ id: r2.id, name, mode });
+  }
+  return { total: by_mode.auto + by_mode.ask + by_mode.never, by_mode, named };
+}
+var OWN_MODE_ORDER = ["never", "ask", "auto"];
+function ownModesWords(d) {
+  if (!d || d.total === 0) return null;
+  return {
+    label: "People set differently",
+    value: d.total === 1 ? "1 person" : `${d.total} people`,
+    hint: OWN_MODE_ORDER.filter((m) => d.by_mode[m] > 0).map((m) => `${d.by_mode[m]} ${PERSON_MODE_LABELS[m]}`).join(" \xB7 "),
+    header: d.named.length < d.total ? `The ${d.named.length} changed last` : "Their own reply mode"
+  };
 }
 var HELD_THREAD = {
   yours: {
@@ -24512,12 +24535,12 @@ function toLiveVM(calls, channels, tz, now = /* @__PURE__ */ new Date()) {
   const finished = vms.filter((c) => !c.live).sort((a, b) => (b.startedAtMs ?? 0) - (a.startedAtMs ?? 0));
   const recent = finished.slice(0, RECENT_MAX);
   const missedCalls = finished.filter((c) => missedCallIsNews(c, now.getTime()));
-  const voice = channels?.find((ch) => ch.kind === "voice") ?? null;
-  const line = voice ? {
-    number: formatPhoneDisplay(voice.number_e164),
-    on: voice.status === "active",
+  const voice2 = channels?.find((ch) => ch.kind === "voice") ?? null;
+  const line = voice2 ? {
+    number: formatPhoneDisplay(voice2.number_e164),
+    on: voice2.status === "active",
     offWords: `The line is switched off \u2014 ${PHONE_LINE_OFF.gets}.`,
-    lastCallLabel: voice.last_inbound_at ? shortTime(voice.last_inbound_at, tz, now) : null
+    lastCallLabel: voice2.last_inbound_at ? shortTime(voice2.last_inbound_at, tz, now) : null
   } : null;
   return {
     now: nowList,
@@ -31641,6 +31664,13 @@ var BusinessProfileSchema = z8.object({
   // `.catch`: a stored value that is not a string reads as none (the standard greeting), never as a config that cannot
   // be parsed, which would leave the receptionist silent.
   phone_greeting: z8.string().optional().catch(void 0),
+  /**
+   * The voice callers hear, by its provider id (voice/phone-voices.ts PHONE_VOICES; the Settings wiring review, item
+   * 11). Absent is the line's own voice, the product's. Kept as a string, never the list's ids: a voice retired from
+   * the list must not leave a config that cannot be parsed, and the edge sends only an id on the list. Never part of
+   * the composed prompt.
+   */
+  phone_voice: z8.string().max(64).optional().catch(void 0),
   website: z8.string().url().max(500).optional(),
   notes: z8.array(NoteSchema).max(PROFILE_LIMITS.notes).optional(),
   booking_rules: BookingRulesSchema.optional(),
@@ -31700,9 +31730,9 @@ function typedOverKnown(typed, known, knownSource, same2) {
 }
 function resolveFacts(typed, known) {
   const p = typed?.profile ?? null;
-  const voice = activeChannel(known, "voice");
+  const voice2 = activeChannel(known, "voice");
   const whatsapp = activeChannel(known, "whatsapp");
-  const kept = keptReaching(known, voice);
+  const kept = keptReaching(known, voice2);
   const published = trimmed(typed?.phone_display);
   const strEq = (a, b) => a === b;
   return {
@@ -31721,13 +31751,13 @@ function resolveFacts(typed, known) {
     //
     // The number the business keeps and forwards to THIS line is the one typed value that is not a disagreement
     // with it: customers call the number they know, and when nobody picks up they reach the receptionist.
-    phone_display: published && samePhone(published, kept) ? { value: published, source: "typed" } : typedOverKnown(published, voice ? formatPhoneDisplay(voice) : null, "provisioned", samePhone),
+    phone_display: published && samePhone(published, kept) ? { value: published, source: "typed" } : typedOverKnown(published, voice2 ? formatPhoneDisplay(voice2) : null, "provisioned", samePhone),
     booking_link: typedOverKnown(trimmed(typed?.booking_link), null, "absent", strEq),
     address: typedOverKnown(trimmed(p?.address), trimmed(known?.listing?.address), "verified", sameAddress),
     website: typedOverKnown(trimmed(p?.website), null, "absent", strEq),
     // Human-only by nature: nothing provisions "the person to put a caller through to".
     handoff_number: p?.handoff_number ? { value: p.handoff_number, source: "typed" } : { value: null, source: "absent" },
-    voice_line: voice ? { value: voice, source: "provisioned" } : { value: null, source: "absent" },
+    voice_line: voice2 ? { value: voice2, source: "provisioned" } : { value: null, source: "absent" },
     whatsapp_line: whatsapp ? { value: whatsapp, source: "provisioned" } : { value: null, source: "absent" },
     kept_line: kept ? { value: kept, source: "provisioned" } : { value: null, source: "absent" }
   };
@@ -50624,7 +50654,7 @@ function forwardingTestOpen(facts, nowMs = Date.now()) {
 
 // src/setup/setup-rows-phone.ts
 function lineRow(i, ctx) {
-  const { voice, voiceReady, voiceNum, answering, ownLine, texting } = ctx;
+  const { voice: voice2, voiceReady, voiceNum, answering, ownLine, texting } = ctx;
   if (voiceReady) {
     return {
       id: "line",
@@ -50640,14 +50670,14 @@ function lineRow(i, ctx) {
       verb: { label: "Open Connections", to: "admin/integrations" }
     };
   }
-  if (voice.present) {
+  if (voice2.present) {
     return {
       id: "line",
       icon: "phone",
       title: "A line for calls and texts",
       state: "waiting_you",
       required: !answering,
-      sentence: `Your line ${voice.number ? `${voiceNum} ` : ""}is switched off \u2014 ${PHONE_LINE_OFF.gets}.`,
+      sentence: `Your line ${voice2.number ? `${voiceNum} ` : ""}is switched off \u2014 ${PHONE_LINE_OFF.gets}.`,
       details: [],
       verb: { label: "Open Connections", to: "admin/integrations" }
     };
@@ -50827,9 +50857,9 @@ function lineToGetRow(i, ctx) {
   };
 }
 function receptionistRow2(i, ctx) {
-  const { voice, voiceReady, voiceNum, answering, handoffNum, ownLine, nowMs } = ctx;
+  const { voice: voice2, voiceReady, voiceNum, answering, handoffNum, ownLine, nowMs } = ctx;
   if (voiceReady) {
-    const last = voice.lastInboundAt ? `Last call ${agoWords(Date.parse(voice.lastInboundAt), nowMs)}` : "No calls yet";
+    const last = voice2.lastInboundAt ? `Last call ${agoWords(Date.parse(voice2.lastInboundAt), nowMs)}` : "No calls yet";
     const cap2 = capabilityStatus("voice", i, nowMs);
     if (!i.business.name || !i.business.hours) {
       return {
@@ -50858,12 +50888,12 @@ function receptionistRow2(i, ctx) {
           last,
           activationWords(cap2, nowMs)
         ],
-        verb: cap2.tested && !cap2.live ? { label: "Activate", to: "verb:activate:voice" } : voice.number ? { label: "Call it", to: `tel:${voice.number}` } : null,
+        verb: cap2.tested && !cap2.live ? { label: "Activate", to: "verb:activate:voice" } : voice2.number ? { label: "Call it", to: `tel:${voice2.number}` } : null,
         undo: cap2.live ? { label: "Withdraw activation", to: "verb:deactivate:voice" } : null
       };
     }
   }
-  if (voice.present) {
+  if (voice2.present) {
     return {
       id: "receptionist",
       icon: "headphones",
@@ -50899,7 +50929,7 @@ function receptionistRow2(i, ctx) {
   };
 }
 function tryRow(_i, ctx) {
-  const { voice, voiceReady, voiceNum, lines, nowMs } = ctx;
+  const { voice: voice2, voiceReady, voiceNum, lines, nowMs } = ctx;
   if (!voiceReady) return null;
   const fwTry = forwardedLineOf(lines);
   const through = fwTry?.e164 ? formatPhoneDisplay(fwTry.e164) ?? fwTry.e164 : voiceNum;
@@ -50907,23 +50937,23 @@ function tryRow(_i, ctx) {
     id: "try",
     icon: "phone",
     title: "Try it",
-    state: voice.lastInboundAt ? "ready" : "waiting_you",
+    state: voice2.lastInboundAt ? "ready" : "waiting_you",
     required: false,
-    sentence: voice.lastInboundAt ? `A call reached your receptionist ${agoWords(Date.parse(voice.lastInboundAt), nowMs)}.` : fwTry ? (
+    sentence: voice2.lastInboundAt ? `A call reached your receptionist ${agoWords(Date.parse(voice2.lastInboundAt), nowMs)}.` : fwTry ? (
       // A phone cannot call itself: only an office phone system's owner is sure to hold another phone, their cell.
       `Call ${through} from ${keptPhoneKind(fwTry) === "office" ? "your cell" : "another phone"} and don't pick up.`
     ) : `Call ${through} from your cell.`,
     details: [],
     // The first run's own step (first-run.ts firstRunStepRoute("try")), spelled here: that file reads this one.
-    verb: voice.lastInboundAt ? null : { label: "Try it", to: "start/try" }
+    verb: voice2.lastInboundAt ? null : { label: "Try it", to: "start/try" }
   };
 }
 function keepRow(_i, ctx) {
-  const { voice, voiceReady, voiceNum, lines, nowMs } = ctx;
+  const { voice: voice2, voiceReady, voiceNum, lines, nowMs } = ctx;
   const fw = lines.rows.find((l) => l.kind === "forwarded") ?? null;
   const f = fw?.forwarding ?? null;
   const kept = fw?.e164 ? formatPhoneDisplay(fw.e164) ?? fw.e164 : "your number";
-  const dest = voiceReady && voice.number ? voiceNum : null;
+  const dest = voiceReady && voice2.number ? voiceNum : null;
   const how = f ? `${FORWARDING_MODE_WORDS[f.mode] ?? "Forwarded"} \xB7 ${CARRIER_WORDS[f.carrier] ?? "your carrier"}` : "";
   const title = "The number you already have";
   if (fw && f && fw.forwarding_state === "verified") {
@@ -51415,7 +51445,7 @@ var forwardingOwedOf = (i, later) => !!i.want && !forwardedLineOf(i.lines) && !l
 function setupSteps2(i, nowMs = Date.now()) {
   const later = new Set(i.later ?? []);
   const ctx = rowContextOf(i, nowMs);
-  const { wa, voice, waReady, voiceReady, answering, waNum, voiceNum, texting } = ctx;
+  const { wa, voice: voice2, waReady, voiceReady, answering, waNum, voiceNum, texting } = ctx;
   const rows2 = [];
   for (const build of SETUP_ROWS) {
     const r2 = build(i, ctx);
@@ -51443,7 +51473,7 @@ function setupSteps2(i, nowMs = Date.now()) {
     done,
     total: rows2.length,
     tryIt: answering ? {
-      voice: voiceReady ? voice.number : null,
+      voice: voiceReady ? voice2.number : null,
       voiceLabel: voiceReady ? voiceNum : null,
       whatsapp: waReady ? wa.number : null,
       whatsappLabel: waReady ? waNum : null
@@ -51760,8 +51790,8 @@ function listenWordsOf(rings, shown2, quiet) {
 }
 function firstRunTryOf({ dto, calls, since, nowMs }) {
   const W = FIRST_RUN_TRY_WORDS;
-  const voice = dto.channels.voice;
-  const own = voice.active ? normalizePhone(voice.number) : null;
+  const voice2 = dto.channels.voice;
+  const own = voice2.active ? normalizePhone(voice2.number) : null;
   const fw = forwardedLineOf(dto.lines);
   const kept = fw ? normalizePhone(fw.e164) : null;
   const forwarded = !!kept;
@@ -51782,7 +51812,7 @@ function firstRunTryOf({ dto, calls, since, nowMs }) {
     skip: { label: W.skip, nudge: W.nudge, stay: W.stay, anyway: W.anyway }
   };
   if (!own) return { ...base, stage: "rows", heading: "", lead: "" };
-  const tested = !!voice.lastInboundAt;
+  const tested = !!voice2.lastInboundAt;
   const inbound = calls.filter((c) => c.direction === "inbound" && !c.missed && c.startedAtMs !== null).sort((a, b) => (b.startedAtMs ?? 0) - (a.startedAtMs ?? 0));
   const call = inbound.find((c) => (c.startedAtMs ?? 0) >= since - TRY_SLACK_MS) ?? (tested ? inbound[0] ?? null : null);
   if (!call) {
@@ -52099,8 +52129,8 @@ function showCtaOf(s, lineAnswers) {
   };
 }
 function answeringStageOf(s) {
-  const voice = s.dto.channels.voice;
-  const dest = voice.active ? voice.number : null;
+  const voice2 = s.dto.channels.voice;
+  const dest = voice2.active ? voice2.number : null;
   const saved = savedForwardingOf(s.dto.lines);
   if (!dest) return s.rows;
   const line = { dest, saved, from: saved ? normalizePhone(saved.line.e164) : null };
@@ -52937,15 +52967,15 @@ function whatsappRow2(i, { wa, own, nowMs }) {
     verb: null
   };
 }
-function phoneRow(i, { voice, own, nowMs }) {
+function phoneRow(i, { voice: voice2, own, nowMs }) {
   const base = { kind: "phone", icon: "phone", title: "Phone line" };
-  if (voice) {
+  if (voice2) {
     return {
       ...base,
-      detail: voice.number,
-      state: voice.on ? "connected" : "off",
-      stateWords: voice.on ? "On" : "Off",
-      sentence: voice.healthLabel,
+      detail: voice2.number,
+      state: voice2.on ? "connected" : "off",
+      stateWords: voice2.on ? "On" : "Off",
+      sentence: voice2.healthLabel,
       verb: null
     };
   }
@@ -56767,6 +56797,40 @@ function phoneLine(p, now) {
   return `${what} \xB7 ${ago3 === "now" ? "seen just now" : `seen ${ago3} ago`}`;
 }
 
+// src/voice/phone-voices.ts
+var PHONE_VOICE_SAMPLES_ORIGIN = "https://retell-utils-public.s3.us-west-2.amazonaws.com";
+var voice = (id, name, says, file) => ({
+  id,
+  name,
+  says,
+  sample: `${PHONE_VOICE_SAMPLES_ORIGIN}/${file}`
+});
+var PHONE_VOICES = [
+  voice("minimax-Tamsin", "Tamsin", "Woman \xB7 American", "minimax-Tamsin.mp3"),
+  voice("minimax-Grace", "Grace", "Woman \xB7 American", "minimax_grace.mp3"),
+  voice("minimax-Nia", "Nia", "Woman \xB7 American, younger", "minimax_nia.mp3"),
+  voice("minimax-Willa", "Willa", "Woman \xB7 British", "minimax-Willa.mp3"),
+  voice("minimax-Claudia", "Claudia", "Woman \xB7 Mexican", "minimax-Claudia.mp3"),
+  voice("minimax-Nico", "Nico", "Man \xB7 American", "minimax_nico.mp3"),
+  voice("minimax-Jack", "Jack", "Man \xB7 American", "jack.mp3"),
+  voice("minimax-Alejandro", "Alejandro", "Man \xB7 Mexican, younger", "minimax-Alejandro.mp3")
+];
+var PHONE_VOICE_DEFAULT = "minimax-Tamsin";
+function phoneVoiceOf(id) {
+  return typeof id === "string" ? PHONE_VOICES.find((v) => v.id === id) ?? null : null;
+}
+function phoneVoiceShown(id) {
+  return phoneVoiceOf(id) ?? phoneVoiceOf(PHONE_VOICE_DEFAULT);
+}
+var PHONE_VOICE_WORDS = {
+  label: "Voice",
+  gate: "change the voice callers hear",
+  listen: (name) => `Hear ${name}`,
+  stop: "Stop",
+  unlisted: "Choose one of the voices on the list.",
+  saved: (name) => `Callers hear ${name} from their next call.`
+};
+
 // src/waits/notice-closes.ts
 var NOTHING_WAITS_KNOWN = {
   runs: null,
@@ -60319,6 +60383,7 @@ export {
   OUTREACH_WAIT_REFUSALS,
   OWNER_SAID_INTENTS,
   OWN_MESSAGE_REFUSALS,
+  OWN_MODE_NAMED,
   OWN_VERSION_CHANNELS,
   PACE_AFTER_YESES,
   PACE_WINDOW_DAYS,
@@ -60410,6 +60475,10 @@ export {
   PHONE,
   PHONE_LINE_OFF,
   PHONE_RINGS,
+  PHONE_VOICES,
+  PHONE_VOICE_DEFAULT,
+  PHONE_VOICE_SAMPLES_ORIGIN,
+  PHONE_VOICE_WORDS,
   PHONE_WAYS,
   PIPELINE_BOARD_CAP,
   PIPELINE_GROUPS,
@@ -61996,6 +62065,8 @@ export {
   overLimitRefusal,
   ownAddressesOf,
   ownMessageRefusal,
+  ownModesOf,
+  ownModesWords,
   ownWordsOf,
   ownedDomainOf,
   ownerPaceWords,
@@ -62112,6 +62183,8 @@ export {
   phoneLine,
   phoneOf,
   phoneTail,
+  phoneVoiceOf,
+  phoneVoiceShown,
   pickCurrentDeal,
   pinTokens,
   pipelineBoardMore,

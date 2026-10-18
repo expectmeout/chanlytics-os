@@ -74,6 +74,12 @@ const GOOGLE_PHOTOS = "https://*.googleusercontent.com";
  * regional twins likewise), so the vendor's domain as a whole, over both schemes. Named once here; the agent's API key
  * never reaches the browser (the edge mints a conversation token good for minutes).
  */
+/**
+ * The phone voices' samples (contracts voice/phone-voices.ts PHONE_VOICE_SAMPLES_ORIGIN): the provider's own recording
+ * of each voice an owner may choose, heard on Settings › How it answers before it is kept. Retell's public bucket, read
+ * as audio and nothing else; routes/csp.test.mjs holds it to the contracts' constant.
+ */
+const VOICE_SAMPLES = "https://retell-utils-public.s3.us-west-2.amazonaws.com";
 const VOICE_AGENT = [
   "https://api.elevenlabs.io",
   "wss://api.elevenlabs.io",
@@ -105,7 +111,7 @@ export function contentSecurityPolicy(o: CspInputs): string {
       "img-src",
       ["'self'", "data:", "blob:", ...(supabase ? [supabase] : []), GOOGLE_PHOTOS, ...(leadMap ? [leadMap] : [])],
     ],
-    ["media-src", ["'self'", "blob:", ...(supabase ? [supabase] : [])]],
+    ["media-src", ["'self'", "blob:", ...(supabase ? [supabase] : []), VOICE_SAMPLES]],
     [
       "connect-src",
       ["'self'", ...(supabase ? [supabase, supabaseWs!] : []), ...META, ...VOICE_AGENT, ...(leadMap ? [leadMap] : [])],

@@ -162,6 +162,8 @@ function policiesOf(pol: Output<"GET policies">): PoliciesSurface {
     // What the owner's corrections show (decision 0063): absent from a server from before, which reads as unread.
     held: pol.held ?? null,
     suggestions: pol.suggestions ?? null,
+    // The people set differently (the Settings wiring review, item 10): absent from a server from before, read as unread.
+    ownModes: pol.own_modes ?? null,
   };
 }
 

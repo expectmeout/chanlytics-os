@@ -838,6 +838,20 @@
           "appointments"
         ]
       }
+    },
+    {
+      "kind": "over-read",
+      "why": "The names on Autonomy's line of the people set differently (the Settings wiring review, item 10, 18 Oct 2026: readers/autonomy.ts ownModes, namesOfPeople over the newest of peopleOnTheirOwnMode). A name rides with its person's own mode row, which Settings hears (policies): the line is read again whenever anyone's mode changes, and a person renamed in between shows the new name on Settings' next read.",
+      "heardWith": {
+        "settings": [
+          "policies"
+        ]
+      },
+      "reads": {
+        "settings": [
+          "contacts"
+        ]
+      }
     }
   ]
 }

@@ -1024,6 +1024,63 @@ test("Replies is a card of its own: its mode, and under it only the dials its mo
   assert.match(textOf(limits), /Day's model budget/);
 });
 
+test("Replies says how many people are set differently, by mode, and each of the newest opens their own page", () => {
+  // The Settings wiring review, item 10 (18 Oct 2026): a person may have a mode of their own, which nothing here said.
+  const rows = [{ class: "reply", mode: "auto", limits: {} }];
+  const ownModes = {
+    total: 3,
+    by_mode: { auto: 0, ask: 1, never: 2 },
+    named: [
+      { id: "k1", name: "Dana Reyes", mode: "never" },
+      { id: "k2", name: "Sam Ortiz", mode: "ask" },
+    ],
+  };
+  workspace("owner", { __POLICIES: { role: "owner", rows, ownModes } });
+  let tree = settings("autonomy");
+  const line = byTestId(byTestId(tree, "aut-replies"), "rec-row-aut-own-modes");
+  assert.ok(line, "a line of Replies");
+  assert.match(textOf(line), /People set differently/);
+  assert.match(textOf(line), /3 people/);
+  assert.match(textOf(line), /2 Never · 1 Ask me first/, "never first: what holds the receptionist back");
+  // Its menu names the newest, each in the person page's own word for their mode, and a press opens their page.
+  const W = globalThis.window;
+  const nav = W.CHANLY;
+  const went = [];
+  W.CHANLY = { ...(nav || {}), nav: (route) => went.push(route) };
+  try {
+    press(byTestId(tree, "aut-own-modes-menu"));
+    tree = settle("autonomy");
+    const items = all(tree, (n) => n.props?.role === "menuitem");
+    const part = (i, cls) => textOf(find(i, (k) => k.props?.className === cls));
+    assert.deepEqual(
+      items.map((i) => [part(i, "more-item-label"), part(i, "more-item-meta")]),
+      [
+        ["Dana Reyes", "Never"],
+        ["Sam Ortiz", "Ask me first"],
+      ],
+    );
+    press(items[1]);
+    assert.deepEqual(went, ["clients/k2"]);
+  } finally {
+    W.CHANLY = nav;
+  }
+  // What the owner's corrections suggest is How it answers' now (item 8), so Autonomy draws no card of them.
+  workspace("owner", {
+    __POLICIES: {
+      role: "owner",
+      rows,
+      ownModes,
+      suggestions: [{ id: "s-1", source: "steer", title: "Mondays", body: "Closed.", quote: "closed", created_at: "" }],
+    },
+  });
+  assert.equal(byTestId(settings("autonomy"), "rec-card-learned"), null);
+  // Nobody set apart, or a read that failed: no line at all.
+  for (const none of [{ total: 0, by_mode: { auto: 0, ask: 0, never: 0 }, named: [] }, null]) {
+    workspace("owner", { __POLICIES: { role: "owner", rows, ownModes: none } });
+    assert.equal(byTestId(settings("autonomy"), "rec-row-aut-own-modes"), null, JSON.stringify(none));
+  }
+});
+
 test("a class that cannot honour a mode still shows a dash there, and the rest still set", async () => {
   const put = [];
   const tree = autonomy([

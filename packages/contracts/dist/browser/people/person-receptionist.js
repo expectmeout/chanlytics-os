@@ -13,6 +13,29 @@ export const PERSON_MODE_WORDS = {
 export function asPersonMode(s) {
   return s && PERSON_MODES.includes(s) ? s : null;
 }
+export const OWN_MODE_NAMED = 20;
+export function ownModesOf(rows, names) {
+  const by_mode = { auto: 0, ask: 0, never: 0 };
+  const named = [];
+  for (const r of rows) {
+    const mode = asPersonMode(r.mode);
+    if (!mode) continue;
+    by_mode[mode] += 1;
+    const name = names.get(r.id);
+    if (name && named.length < OWN_MODE_NAMED) named.push({ id: r.id, name, mode });
+  }
+  return { total: by_mode.auto + by_mode.ask + by_mode.never, by_mode, named };
+}
+const OWN_MODE_ORDER = ["never", "ask", "auto"];
+export function ownModesWords(d) {
+  if (!d || d.total === 0) return null;
+  return {
+    label: "People set differently",
+    value: d.total === 1 ? "1 person" : `${d.total} people`,
+    hint: OWN_MODE_ORDER.filter((m) => d.by_mode[m] > 0).map((m) => `${d.by_mode[m]} ${PERSON_MODE_LABELS[m]}`).join(" \xB7 "),
+    header: d.named.length < d.total ? `The ${d.named.length} changed last` : "Their own reply mode"
+  };
+}
 const HELD_THREAD = {
   yours: {
     tone: "yours",

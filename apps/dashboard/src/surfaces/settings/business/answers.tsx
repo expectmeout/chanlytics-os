@@ -649,7 +649,7 @@ export const toneFold = (shared: Shared, tone: string | null) => (
   />
 );
 
-export const handoffFold = (shared: Shared, a: AnswersFacts) => (
+export const handoffFold = (shared: Shared, a: AnswersFacts, door?: (id: string) => void) => (
   <BtFold
     {...shared}
     id="escalate_when"
@@ -666,7 +666,7 @@ export const handoffFold = (shared: Shared, a: AnswersFacts) => (
       empty: "Not set",
       name: "Change how it hands you a customer",
     }}
-    body={(f) => <BtaHandoff {...f} transfer={a.transfer} calls={a.calls} policies={policiesNow()} />}
+    body={(f) => <BtaHandoff {...f} transfer={a.transfer} calls={a.calls} policies={policiesNow()} door={door} />}
   />
 );
 

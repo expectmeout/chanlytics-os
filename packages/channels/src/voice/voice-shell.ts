@@ -33,6 +33,7 @@ import {
   CALL_OUTCOMES,
   greetingFor,
   GREETING_DEFAULT,
+  PHONE_VOICE_DEFAULT,
   POLICY_COVERS,
   RETELL_MODELS,
 } from "@chanlytics/contracts";
@@ -641,8 +642,10 @@ function planFirstSeconds(
 /** The agent's settings that differ from the product's defaults and stay as they are: the voice, the post-call model. */
 function agentNotes(live: LiveAgentSettings): string[] {
   const notes: string[] = [];
-  if (live.voice_id && live.voice_id !== "minimax-Tamsin")
-    notes.push(`voice is ${live.voice_id}; the product's default is minimax-Tamsin (a voice is the owner's: kept)`);
+  if (live.voice_id && live.voice_id !== PHONE_VOICE_DEFAULT)
+    notes.push(
+      `voice is ${live.voice_id}; the product's default is ${PHONE_VOICE_DEFAULT} (a voice is the owner's: kept)`,
+    );
   if (live.post_call_analysis_model && live.post_call_analysis_model !== RETELL_MODELS.analysis)
     notes.push(
       `post-call analysis runs on ${live.post_call_analysis_model}; the product's is ${RETELL_MODELS.analysis} (kept: a model change goes through the gate)`,

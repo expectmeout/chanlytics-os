@@ -5189,6 +5189,16 @@ async function personReplyModes(db, tenantId, contactIds) {
   }
   return out;
 }
+var OWN_MODES_PAGE = 1e3;
+async function peopleOnTheirOwnMode(db, tenantId) {
+  const out = [];
+  for (let from = 0; ; from += OWN_MODES_PAGE) {
+    const { data, error } = await db.from("policies").select("subject_id, mode").eq("tenant_id", tenantId).eq("class", "reply").eq("subject_type", "contact").order("updated_at", { ascending: false }).order("id").range(from, from + OWN_MODES_PAGE - 1);
+    if (error) throw new Error(`peopleOnTheirOwnMode: ${error.message}`);
+    for (const r of data ?? []) if (r.subject_id) out.push({ id: r.subject_id, mode: r.mode });
+    if ((data ?? []).length < OWN_MODES_PAGE) return out;
+  }
+}
 async function setPersonReplyMode(db, tenantId, contactId, mode) {
   if (mode === null) {
     const { data, error: error2 } = await db.from("policies").delete().eq("tenant_id", tenantId).eq("class", "reply").eq("subject_type", "contact").eq("subject_id", contactId).select("mode");
@@ -7232,6 +7242,7 @@ export {
   pauseEmailOffers,
   peopleAtLead,
   peopleCursorOf,
+  peopleOnTheirOwnMode,
   peoplePage,
   peopleSeries,
   personDecisions,

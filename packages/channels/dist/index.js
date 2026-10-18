@@ -1383,6 +1383,7 @@ import {
   CALL_OUTCOMES,
   greetingFor,
   GREETING_DEFAULT,
+  PHONE_VOICE_DEFAULT,
   POLICY_COVERS,
   RETELL_MODELS
 } from "../../contracts/dist/index.js";
@@ -1735,8 +1736,10 @@ function planFirstSeconds(live, locales, drift, patch) {
 }
 function agentNotes(live) {
   const notes = [];
-  if (live.voice_id && live.voice_id !== "minimax-Tamsin")
-    notes.push(`voice is ${live.voice_id}; the product's default is minimax-Tamsin (a voice is the owner's: kept)`);
+  if (live.voice_id && live.voice_id !== PHONE_VOICE_DEFAULT)
+    notes.push(
+      `voice is ${live.voice_id}; the product's default is ${PHONE_VOICE_DEFAULT} (a voice is the owner's: kept)`
+    );
   if (live.post_call_analysis_model && live.post_call_analysis_model !== RETELL_MODELS.analysis)
     notes.push(
       `post-call analysis runs on ${live.post_call_analysis_model}; the product's is ${RETELL_MODELS.analysis} (kept: a model change goes through the gate)`
@@ -1761,14 +1764,14 @@ function agentSettingsDrift(live) {
 }
 
 // src/voice/voice-provision.ts
-import { E164, HOUR_MS, RETELL_MODELS as RETELL_MODELS2 } from "../../contracts/dist/index.js";
+import { E164, HOUR_MS, PHONE_VOICE_DEFAULT as PHONE_VOICE_DEFAULT2, RETELL_MODELS as RETELL_MODELS2 } from "../../contracts/dist/index.js";
 var VOICE_LLM_DEFAULTS = {
   model: RETELL_MODELS2.llm,
   model_temperature: 0,
   start_speaker: "agent"
 };
 var VOICE_AGENT_DEFAULTS = {
-  voice_id: "minimax-Tamsin",
+  voice_id: PHONE_VOICE_DEFAULT2,
   language: ["en-US", "es-ES", "fr-FR", "de-DE", "hi-IN", "ru-RU", "pt-PT", "ja-JP", "it-IT", "nl-NL"],
   end_call_after_silence_ms: 3e4,
   // A silent caller is reminded after four seconds, twice (voice-shell.ts SILENCE_REMINDER_MS): the converger holds

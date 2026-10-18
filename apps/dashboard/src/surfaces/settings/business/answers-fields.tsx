@@ -352,8 +352,19 @@ const BtaHandoffChat = ({ policies }: { policies: ReturnType<typeof policiesNow>
   );
 };
 
-/** What a call does, as one row (contracts handoffCallRow), and the door to the row that sets the number. */
-const BtaHandoffCall = ({ transfer, press }: { transfer: string | null | undefined; press: Fields["press"] }) => {
+/**
+ * What a call does, as one row (contracts handoffCallRow), and the door to the row that sets the number: the page's own
+ * (on Autonomy, How it answers' On calls, open), else the row opened in place.
+ */
+const BtaHandoffCall = ({
+  transfer,
+  press,
+  door,
+}: {
+  transfer: string | null | undefined;
+  press: Fields["press"];
+  door: ((id: string) => void) | undefined;
+}) => {
   const row = BUSINESS_TAB.handoffCallRow(transfer);
   return (
     <div className="bt-line" data-testid="rec-handoff-call-part">
@@ -372,7 +383,8 @@ const BtaHandoffCall = ({ transfer, press }: { transfer: string | null | undefin
           className="bt-link"
           aria-label={row.actName}
           {...press(() => {
-            recFolds.request("handoff_number");
+            if (door) door("handoff_number");
+            else recFolds.request("handoff_number");
           })}
           data-testid="rec-handoff-door"
         >
@@ -390,8 +402,9 @@ const BtaHandoffCall = ({ transfer, press }: { transfer: string | null | undefin
  * Autonomy tab's; handoffCallRow what a call does, which the reasons reach too). Who is handed over without a reason
  * (asked for a person, or past what it can help with) is the tip by the box.
  *
- * The transfer number is only shown here, never edited: Who you are's "Transfer number" is its one editor (the plan's
- * decision in Task 3.2's review), and the call's row opens that row, by its id, as the gap line's door opens a row. With
+ * The transfer number is only shown here, never edited: On calls' "Transfer number" (How it answers, since 18 Oct 2026)
+ * is its one editor (the plan's decision in Task 3.2's review), and the call's row opens that row through the page's
+ * door (`door`: on Autonomy it goes to How it answers, the row open), as the gap line's door opens a row. With
  * the Autonomy tab's read failed, how long it holds off cannot be said, and a failed read says so where the row would
  * be. On a workspace with no line to call (`calls` false) no receptionist of it takes a call, so the call's row is not
  * drawn.
@@ -405,10 +418,13 @@ export const BtaHandoff = ({
   transfer,
   calls,
   policies,
+  door = undefined,
 }: Pick<Fields, "draft" | "update" | "press" | "problems" | "readOnly"> & {
   transfer: string | null | undefined;
   calls: boolean;
   policies: ReturnType<typeof policiesNow>;
+  /** How the call's row opens the transfer number's row: the page's door, else in place. */
+  door?: (id: string) => void;
 }) => (
   <div className="bt-stack">
     <div className="bt-ask">
@@ -436,7 +452,7 @@ export const BtaHandoff = ({
     </p>
     <Panel variant="inset" size="flush" className="bt-lines" role="group" aria-labelledby="bt-handoff-what">
       <BtaHandoffChat policies={policies} />
-      {calls ? <BtaHandoffCall transfer={transfer} press={press} /> : null}
+      {calls ? <BtaHandoffCall transfer={transfer} press={press} door={door} /> : null}
     </Panel>
   </div>
 );

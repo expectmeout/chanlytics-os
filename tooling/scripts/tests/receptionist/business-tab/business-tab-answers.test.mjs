@@ -59,6 +59,7 @@ import {
   cancelFoldOf,
   escape,
   saving,
+  went,
   without,
 } from "../../_business-tab-harness.mjs";
 
@@ -112,18 +113,14 @@ test("the voice's box is the first row of How it answers, reading Not set on a r
   assert.match(textOf(rows[0]), /Not set/);
   assert.equal(rows[0].props["data-empty"], "true");
   assert.equal(textOf(byTestId(rows[0], "rec-row-act-tone")).trim(), "Give it one", "the canvas's act for the gap");
-  // How it talks: the voice, then on a workspace that answers calls (Marisa's does) what callers hear first (decision
-  // 0051), then the languages, under its title and sub. What it knows holds the next three, and the rules it always
-  // keeps and how it hands you a customer are limits, on Autonomy's Limits card (17 Oct 2026).
-  assert.deepEqual(all(card, (n) => classes(n).includes("rec-row-key")).map(textOf), [
-    "Its voice",
-    "Greets every caller with",
-    "Languages",
-  ]);
+  // How it talks: the voice, then the languages, under its title and sub. What callers hear first is On calls' (18 Oct
+  // 2026), What it knows holds the next three, and the rules it always keeps and how it hands you a customer are
+  // limits, on Autonomy's Limits card (17 Oct 2026).
+  assert.deepEqual(all(card, (n) => classes(n).includes("rec-row-key")).map(textOf), ["Its voice", "Languages"]);
   assert.equal(textOf(find(card, (n) => classes(n).includes("rec-card-title"))), "How it talks");
   assert.equal(
     textOf(find(card, (n) => classes(n).includes("rec-card-sub"))),
-    "Its voice, and the words it opens with",
+    "Its voice, and the languages it speaks",
   );
   const knows = byTestId(tree, "rec-card-knows");
   assert.deepEqual(all(knows, (n) => classes(n).includes("rec-row-key")).map(textOf), [
@@ -142,6 +139,7 @@ test("the voice's box is the first row of How it answers, reading Not set on a r
       "rec-card-open",
       "rec-card-booking",
       "rec-card-answers",
+      "rec-card-calls",
       "rec-card-knows",
       "rec-card-can",
       "rec-card-told",
@@ -151,15 +149,15 @@ test("the voice's box is the first row of How it answers, reading Not set on a r
   const page = drawTab({ part: "receptionist" });
   assert.deepEqual(
     all(page, (n) => classes(n).includes("rec-card")).map((n) => n.props["data-testid"]),
-    ["rec-card-answers", "rec-card-knows", "rec-card-can", "rec-card-told", "rec-card-try"],
+    ["rec-card-answers", "rec-card-calls", "rec-card-knows", "rec-card-can", "rec-card-told", "rec-card-try"],
   );
   const tail = [].concat(page.rendered.props.children).filter((c) => c != null && c !== false);
   assert.equal(tail.at(-1).type, W.BtSheetSlot);
   const cards = [].concat(tail.at(-2).props.children).filter((c) => c != null && c !== false);
   assert.deepEqual(
     cards.map((c) => c.type.name),
-    ["BtTalksCard", "BtKnowsCard", "BtCanCard", "BtPromptTold", "BtTryIt"],
-    "How it talks, What it knows, What it can do, what it is told, and Try it, at rest, last",
+    ["BtTalksCard", "BtCallsCard", "BtKnowsCard", "LearnedFromYou", "BtCanCard", "BtPromptTold", "BtTryIt"],
+    "How it talks, On calls, What it knows and what the corrections suggest, What it can do, what it is told, and Try it, at rest, last",
   );
 });
 
@@ -783,7 +781,7 @@ test("the photo switch is on What it can do's own row, not among the rules it ke
 
 /* ------------------------------------ how it hands you a customer ------------------------------------ */
 
-test("the transfer number is shown in the hand-off fold, never edited there, and its door opens the Who you are row", () => {
+test("the transfer number is shown in the hand-off fold, never edited there, and its door opens On calls' row on How it answers", () => {
   const sent = saving();
   let tree = drawTab();
   openFold(tree, "escalate_when");
@@ -796,23 +794,24 @@ test("the transfer number is shown in the hand-off fold, never edited there, and
     boxes.every((b) => !/212|0142/.test(String(b.props.value))),
     "and no box holds the number",
   );
-  // The door is the Who you are row's act, by that row's id, guarded as its own act would be.
+  // The door is On calls' row's (How it answers, since 18 Oct 2026), by that row's id: the hand-off is on Autonomy, so
+  // it goes to the page that holds the row, the row open (frame/tabs.ts settingsRowRoute). It opened nothing there.
   const door = byTestId(fold, "rec-handoff-door");
   assert.equal(textOf(door), "Change");
   assert.equal(door.props["aria-label"], "Change the transfer number", "named whole for a screen reader");
+  went.length = 0;
   press(door);
-  tree = redrawTab();
-  assert.equal(W.__recordFolds.open(), "handoff_number");
-  assert.deepEqual([openRows(tree), openFolds(tree)], [["handoff_number"], []]);
+  assert.deepEqual(went, ["admin/receptionist/handoff_number"]);
   // A fold holding changes asks before the door throws them away.
   tree = drawTab();
   openFold(tree, "escalate_when");
   tree = redrawTab();
   typeIn(tree, "escalate_when", "Refunds");
   tree = redrawTab();
+  went.length = 0;
   press(byTestId(foldOf(tree, "escalate_when"), "rec-handoff-door"));
   tree = redrawTab();
-  assert.deepEqual([openFolds(tree), openRows(tree)], [["escalate_when"], []]);
+  assert.deepEqual([openFolds(tree), openRows(tree), went], [["escalate_when"], [], []], "nothing left behind unsaved");
   assert.ok(byTestId(tree, "rec-fold-escalate_when-ask-confirm"), "asked, beside the changes");
   // Saved, the reasons are written and the number is not touched.
   press(byTestId(tree, "rec-fold-escalate_when-ask-no"));
@@ -869,12 +868,13 @@ test("with no transfer number, the fold's call sentence says it takes a message,
   const door = byTestId(tree, "rec-handoff-door");
   assert.equal(textOf(door), "Add one");
   assert.equal(door.props["aria-label"], "Add a transfer number", "named for what it does with no number to change");
+  went.length = 0;
   press(door);
-  assert.equal(W.__recordFolds.open(), "handoff_number");
+  assert.deepEqual(went, ["admin/receptionist/handoff_number"], "to On calls, where it is added");
 });
 
 test("a workspace that takes no calls is told nothing a call does: no call sentence and no door in the fold", () => {
-  // Who you are's rule (its transfer row): no sentence is shown that no receptionist of the workspace receives. The
+  // The transfer row's rule (On calls): no sentence is shown that no receptionist of the workspace receives. The
   // row at rest still says it takes a message, as that row says so too.
   const tree0 = drawTab({
     profile: without(marisa, "handoff_number"),
@@ -1419,10 +1419,12 @@ test("every act of How it answers is gated as a change to the settings, and name
     const mine = asked.filter(([, doing]) =>
       /voice|languages|rules it always|hands you|should know|own words|can't answer/.test(doing),
     );
-    // How it answers' rows in its order, then the two it keeps as limits, drawn after the record on Autonomy's card.
-    assert.deepEqual(mine.slice(0, 7), [
+    // How it answers' rows in its order (On calls' voice after How it talks), then the two it keeps as limits, drawn
+    // after the record on Autonomy's card.
+    assert.deepEqual(mine.slice(0, 8), [
       ["settings", "change its voice"],
       ["settings", "change the languages it speaks"],
+      ["settings", "change the voice callers hear"],
       ["settings", "change the things it should know"],
       ["settings", "change what it is told in your own words"],
       ["settings", "change the messages sent when it can't answer"],
