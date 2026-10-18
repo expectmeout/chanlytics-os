@@ -130,6 +130,8 @@ export function broadcastsSample(now = new Date()): BroadcastsSurface {
     created_at: iso(-4 * DAY),
     playbook_id: null,
     run_for: null,
+    // A demo run is a one-off: its own sequence.
+    sequence_id: id,
     counts: { queued: 0, sent: 18, skipped: 0, failed: 0, delivered: 17, read: 11, replied: 3, ...counts },
     ...over,
   });

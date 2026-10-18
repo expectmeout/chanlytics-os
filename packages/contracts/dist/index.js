@@ -17075,6 +17075,9 @@ function runApprovedTail(people, when) {
   return `approved \u2014 ${people} ${people === 1 ? "person" : "people"}, ${when}`;
 }
 var RUN_WAITING_WORDS = "Waiting for your approval";
+var RUN_WAITING_SHORT = "Waits for you";
+var runApproveWords = (n) => `Approve \xB7 ${n} ${n === 1 ? "person" : "people"}`;
+var RUN_OPEN_WORDS = "Open the run";
 function runsWaitingSentence(n) {
   return n === 1 ? "A campaign run is waiting for your say." : `${n} campaign runs are waiting for your say.`;
 }
@@ -17369,7 +17372,7 @@ var LIFECYCLE_WORDS = {
       );
       return now.length ? now.join(" \xB7 ") : p.done ? `${p.done} done` : "Nobody yet";
     },
-    openRun: "Open the run",
+    openRun: RUN_OPEN_WORDS,
     /**
      * A row's last 30 days, as its cell says them. A reach-out's is in the businesses it wrote to, which "wrote back" is a
      * count of; its emails written only where the businesses were not counted (a database before 00404).
@@ -17382,7 +17385,7 @@ var LIFECYCLE_WORDS = {
       hint: (when) => when ? `Sent once \xB7 ${when}` : "Sent once"
     },
     /** One word per act (decision 19): "Approve · 7 people" and "Skip", everywhere a waiting run is decided. */
-    approve: (n) => `Approve \xB7 ${plural(n, "person", "people")}`,
+    approve: runApproveWords,
     skip: "Skip",
     resume: {
       label: "Resume",
@@ -18000,7 +18003,7 @@ var newSequenceRoute = (moment2) => moment2 ? `${SEQUENCES_ROUTE}/new:moment:${m
 var runSheetRoute = (id) => `broadcasts/run:${id}/sheet`;
 function sequenceLandingOf(route) {
   const [path = ""] = route.split("?");
-  const [root, param = "", rest] = path.split("/");
+  const [root, param = ""] = path.split("/");
   if (root === "campaigns") {
     if (param === "" || param.startsWith("in:")) return SEQUENCES_ROUTE;
     const moment2 = /^moment:([^:/]+)(:people)?$/.exec(param);
@@ -18010,8 +18013,6 @@ function sequenceLandingOf(route) {
     if (on?.[1]) return newSequenceRoute(on[1]);
   }
   if (root === "broadcasts" && param === "") return SEQUENCES_ROUTE;
-  const run = root === "broadcasts" && rest === void 0 ? /^run:([^:/]+)$/.exec(param) : null;
-  if (run?.[1]) return sequenceRoute(run[1], "history", run[1]);
   return null;
 }
 var sequenceRepliesRoute = (id, period = "30") => `inbox/from:${id}${period === "30" ? "" : `:${period}`}`;
@@ -20703,7 +20704,9 @@ function toApprovalVM(d, opts) {
     reader: reader ? reader.name : null,
     readerChannel: channelOfRecipient(reader),
     hiThere: greets ? d.recipients.filter((r2) => !r2.first_name).length : 0,
-    approve: refusal ? null : `Approve \u2014 ${will} ${opts.open.moved ? `at ${opts.open.time}` : "now"}`,
+    // One word per act (decision 19 of the spec of 9 Oct 2026), as Today's row and the ledger say it; when it goes is said
+    // once, beside it (`goes`): the button said it again ("Approve — 3 now").
+    approve: refusal ? null : runApproveWords(will),
     expired: refusal,
     goes: late ? `made for ${opts.day(runFor)}` : opts.paused ? "waits until billing resumes" : opts.open.moved ? `goes at ${opts.open.time} once you approve it` : "goes the moment you approve it",
     skip: "Skipping loses this run only \u2014 the campaign keeps running."
@@ -21313,6 +21316,10 @@ function runLabelOf(run) {
   const label = run.audience?.label;
   return typeof label === "string" && label.trim() ? label : run.name;
 }
+function runTitleOf(run) {
+  const tail = run.run_for ? ` \xB7 ${run.run_for}` : null;
+  return tail && run.name.endsWith(tail) && run.name.length > tail.length ? run.name.slice(0, -tail.length) : run.name;
+}
 function whenLabel(iso, tz, now = /* @__PURE__ */ new Date()) {
   const ms2 = Date.parse(iso);
   return Number.isFinite(ms2) ? clockWhen(ms2, tz, now.getTime()) : "";
@@ -21365,6 +21372,9 @@ function runHeldEmails(run) {
 function runDraftedEmails(run) {
   const going = RUN_GOING_STATES.includes(run.state);
   return going && typeof run.drafted === "number" && run.drafted > 0 ? run.drafted : 0;
+}
+function runDecidedOnItsPage(run) {
+  return run.state === "pending_approval" || runHeldEmails(run) > 0 || runDraftedEmails(run) > 0;
 }
 function runTooLate(run, days) {
   return run.state === "pending_approval" && runApprovalRefusal(runAsked(run), days) !== null;
@@ -39629,7 +39639,7 @@ function sequenceStartWords(row2, word) {
 function sequenceStateWords(row2) {
   if (row2.starts === "date" && row2.date) {
     const DATE2 = {
-      pending_approval: "Waits for you",
+      pending_approval: RUN_WAITING_SHORT,
       scheduled: "Scheduled",
       sending: "Sending",
       sent: "Sent",
@@ -39750,7 +39760,8 @@ function waitingNotice(steps, batch) {
     words: people > 0 ? `${plural(people, "person waits", "people wait")} for your OK${until}` : `The next batch waits for your OK${until}`,
     line: people > 0 ? `${people} wait${people === 1 ? "s" : ""} for your OK` : "The next batch waits for your OK",
     fact: fact2 || null,
-    act: people > 0 ? `${SEQUENCE_WORDS.approve} ${people}` : SEQUENCE_WORDS.approve,
+    // One word per act, as the run's own sheet and Today's row say it (decision 19 of the spec of 9 Oct 2026).
+    act: people > 0 ? runApproveWords(people) : SEQUENCE_WORDS.approve,
     batchId: batch.id
   });
 }
@@ -47873,9 +47884,9 @@ var SEQUENCE_HISTORY_WORDS = {
   replies: "What came back",
   noReplies: "Nobody has written back to this one yet.",
   everyone: (n) => `All ${n} who got it`,
-  openRun: "Open the run",
+  openRun: RUN_OPEN_WORDS,
   thread: "Thread",
-  waits: "Waits for you",
+  waits: RUN_WAITING_SHORT,
   counting: "Counting\u2026",
   step: (place) => `step ${place}`,
   reading: "Reading the day\u2026",
@@ -48019,6 +48030,19 @@ function sequenceResumeAsk(rec2, reach, at3) {
   } : null;
   const detail = starts === "leads" ? W.chain : step2 ? resumeDetailOf(step2, { ...at3, paused: reach?.paused === true }) : null;
   return { question: SEQUENCE_ACT_WORDS.resumeAsk(name), detail, yes: SEQUENCE_ACT_WORDS.resumeYes };
+}
+
+// src/sequences/run-landing.ts
+function arrivedRunOf(route) {
+  const [path = ""] = route.split("?");
+  const [root, param = "", rest] = path.split("/");
+  const run = root === "broadcasts" && rest === void 0 ? /^run:([^:/]+)$/.exec(param) : null;
+  return run?.[1] ?? null;
+}
+function runLandingOf(route, run) {
+  const id = arrivedRunOf(route);
+  if (!id || id !== run.id) return null;
+  return runDecidedOnItsPage(run) ? runSheetRoute(id) : sequenceRoute(run.sequence_id || id, "history", id);
 }
 
 // src/sequences/sequence-draft.ts
@@ -60915,8 +60939,10 @@ export {
   RUN_FILTERS,
   RUN_GOING_STATES,
   RUN_NOW_WITHOUT_VERSION_WORDS,
+  RUN_OPEN_WORDS,
   RUN_REPORT_STEPS,
   RUN_VERBS,
+  RUN_WAITING_SHORT,
   RUN_WAITING_WORDS,
   ReachOutAddSchema,
   ReachOutChainSchema,
@@ -61224,6 +61250,7 @@ export {
   areaOfValue,
   areaValueOf,
   areaWord,
+  arrivedRunOf,
   asContactId,
   asListRule,
   asNameSource,
@@ -62705,20 +62732,24 @@ export {
   rulesLine,
   rulesWithoutFieldsWords,
   runApprovalRefusal,
+  runApproveWords,
   runApprovedTail,
   runCountsOf,
   runDayPassed,
   runDaysAt,
+  runDecidedOnItsPage,
   runDraftedEmails,
   runDueNow,
   runHeldEmails,
   runLabelOf,
+  runLandingOf,
   runMarkShown,
   runReadingOf,
   runSheetRoute,
   runStillMoving,
   runStopWords,
   runStoppedWords,
+  runTitleOf,
   runTooLate,
   runWaitsOnYou,
   runningTotal,

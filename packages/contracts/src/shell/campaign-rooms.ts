@@ -177,6 +177,22 @@ export function runApprovedTail(people: number, when: string): string {
 export const RUN_WAITING_WORDS = "Waiting for your approval";
 
 /**
+ * The same, where a pill stands beside a name on a phone (a sequence's head, a day of its History, the Inbox's run row):
+ * "Waiting for your approval" took the name's room, and each of those spelled its own "Waits for you".
+ */
+export const RUN_WAITING_SHORT = "Waits for you";
+
+/**
+ * Approving a run, said once (decision 19 of the spec of 9 Oct 2026): "Approve · 7 people", on the run's sheet, a sequence's
+ * dock and Today's row alike; when it goes is said beside it, never in it. Here, a leaf, so a view model that says it carries
+ * no page's words with it.
+ */
+export const runApproveWords = (n: number): string => `Approve · ${n} ${n === 1 ? "person" : "people"}`;
+
+/** The door to a run, said once: History's day, a campaign's ledger, a reach-out's list and the Inbox's empty pane. */
+export const RUN_OPEN_WORDS = "Open the run";
+
+/**
  * How many campaign runs wait for your say, as a sentence: what Today's calm head leads with and the Inbox's Needs-you
  * band says, and what Ask's Right now says in its run clause, so a run waiting is said in one set of words. A run waits
  * for your approval, or for your say on the emails its check holds (waits.ts runWaitsOnYou): one word covers both.

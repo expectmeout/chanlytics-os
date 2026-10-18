@@ -10,6 +10,7 @@ import {
   LIFECYCLE_WORDS,
   messageAboutOfTrigger,
   runStopWords,
+  runTitleOf,
 } from "@chanlytics/contracts";
 import type { ApprovalVM, BroadcastDetailDto, BroadcastDto, PreviewVersions, RunPersonVM } from "@chanlytics/contracts";
 import { Button } from "../../kit/button/button";
@@ -17,6 +18,7 @@ import { Confirm } from "../../kit/confirm/confirm";
 import { Face } from "../../kit/face/face";
 import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
+import { Menu } from "../../kit/menu/menu";
 import { gateTitle, navigate } from "../../legacy-verbs";
 import { cmSplitWords, cmStandInOf } from "../parts/channels";
 import { mpParts } from "../parts/message-preview";
@@ -300,7 +302,7 @@ function bcSheetActs(p: {
       )}
       {sheet.armed && sheet.canSend ? (
         <Confirm
-          question={stop.question(b)}
+          question={stop.question({ name: runTitleOf(b) })}
           detail={stop.detail}
           yes={stop.yes}
           danger
@@ -326,7 +328,96 @@ function bcSheetActs(p: {
   );
 }
 
+/** What the dock and the menu read of the sheet. */
+interface BcSheetActsAsk {
+  b: BroadcastDto;
+  avm: ApprovalVM;
+  sheet: BcSheetAsk;
+  seeAll: boolean;
+  onSeeAll: () => void;
+}
+
+/**
+ * The acts on a phone, docked at the screen's foot as a sequence's are (its Approve in the record's dock): Approve, and who
+ * gets it, an equal pair; Skip's question in their place once the menu asks it. A run too late to approve has Skip there
+ * instead, with why. On a phone the band of acts stood after the words, a solid slab halfway down the screen.
+ */
+export function bcSheetDock({ b, avm, sheet, seeAll, onSeeAll }: BcSheetActsAsk) {
+  const stop = runStopWords("pending_approval");
+  if (sheet.armed && sheet.canSend)
+    return (
+      <div className="bc-approval-foot" data-foot-pair="" data-testid="bc-sheet-acts">
+        <Confirm
+          question={stop.question({ name: runTitleOf(b) })}
+          detail={`${stop.detail} ${avm.skip}`}
+          yes={stop.yes}
+          danger
+          busy={sheet.stopping}
+          onYes={sheet.skip}
+          onNo={() => sheet.onArm(false)}
+          testid="bc-sheet-skip"
+        />
+      </div>
+    );
+  const why = avm.expired ?? (sheet.canSend ? null : gateTitle("approve", "approve or skip a run"));
+  return (
+    <div className="bc-approval-foot" data-foot-pair="" data-testid="bc-sheet-acts">
+      {why ? (
+        <span className="bc-sheet-expired" data-testid="bc-sheet-expired">
+          {why}
+        </span>
+      ) : null}
+      {sheet.canSend && avm.approve ? (
+        <Button variant="primary" disabled={sheet.approving} onClick={sheet.approve} data-testid="bc-sheet-approve">
+          <Icon name="check" size={16} /> {sheet.approving ? "Approving…" : avm.approve}
+        </Button>
+      ) : null}
+      {sheet.canSend && !avm.approve ? (
+        <Button onClick={() => sheet.onArm(true)} data-testid="bc-sheet-skip">
+          {LIFECYCLE_WORDS.ledger.skip}
+        </Button>
+      ) : null}
+      <Button aria-expanded={seeAll} onClick={onSeeAll} data-testid="bc-sheet-see">
+        {seeAll ? "Hide the list" : `See the ${avm.will}`}
+      </Button>
+    </div>
+  );
+}
+
+/** The head's menu on a phone, as a sequence's record has one: Skip, which asks in the dock. None for a role that may not. */
+export function BcSheetMore({ b, avm, sheet }: Pick<BcSheetActsAsk, "b" | "avm" | "sheet">) {
+  // A run too late to approve has Skip in the dock already.
+  if (!sheet.canSend || !avm.approve) return null;
+  const name = runTitleOf(b);
+  return (
+    <Menu
+      label={`More for ${name}`}
+      trigger={
+        <Button variant="quiet" size="touch" iconOnly aria-label={`More for ${name}`} data-testid="bc-sheet-more">
+          <Icon name="more" size={18} />
+        </Button>
+      }
+      groups={[
+        {
+          header: name,
+          items: [
+            {
+              label: `${LIFECYCLE_WORDS.ledger.skip}…`,
+              glyph: <Icon name="ban" size={13} />,
+              tone: "danger",
+              disabled: sheet.stopping || sheet.approving,
+              onSelect: () => sheet.onArm(true),
+            },
+          ],
+        },
+      ]}
+    />
+  );
+}
+
 interface BcSheetProps {
+  /** A phone's: the acts are the pane's docked foot (bcSheetDock) and Skip is in its head's menu (BcSheetMore), not here. */
+  docked: boolean;
   d: BroadcastDetailDto;
   people: RunPersonVM[];
   avm: ApprovalVM;
@@ -336,7 +427,7 @@ interface BcSheetProps {
 }
 
 /** The sheet's body: the pane's head (run.tsx) says the run's name, its policy and its place in the queue. */
-export function BcSheet({ d, people, avm, sheet, seeAll, onSeeAll }: BcSheetProps) {
+export function BcSheet({ d, people, avm, sheet, seeAll, onSeeAll, docked }: BcSheetProps) {
   const b = d.broadcast;
   const pb = sheet.playbook;
   const hint =
@@ -359,7 +450,7 @@ export function BcSheet({ d, people, avm, sheet, seeAll, onSeeAll }: BcSheetProp
           {people.map(bcPersonRow)}
         </section>
       )}
-      {bcSheetActs({ b, avm, sheet, seeAll, onSeeAll })}
+      {docked ? null : bcSheetActs({ b, avm, sheet, seeAll, onSeeAll })}
     </div>
   );
 }

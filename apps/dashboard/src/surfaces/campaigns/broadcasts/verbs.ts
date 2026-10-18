@@ -26,9 +26,9 @@ import {
   type PlaybookDto,
 } from "@chanlytics/contracts";
 import { api } from "@/legacy-bridge/api";
-import { readCache } from "@/legacy-bridge/read-cache";
-import type { ApiResult, Output } from "@/client/api";
+import type { Output } from "@/client/api";
 import { surfaceValue } from "../../surface-values";
+import { peekRunDetail, runDetail } from "./detail-read";
 
 export interface SendBody {
   template_id: string;
@@ -42,13 +42,6 @@ export interface SendBody {
   breathe?: boolean;
 }
 
-/**
- * The last answer for each run this tab has opened (read-cache.ts: in memory, per workspace, emptied by any write):
- * a run opened again paints at once and is read again behind. A refusal is never kept.
- */
-type DetailAnswer = ApiResult<Output<"GET broadcasts/[id]">>;
-const details = readCache<DetailAnswer>("broadcast", (r) => r.ok);
-
 export const broadcasts = {
   // One intent per broadcast (decision 0035): a send pressed again after a timeout is the same request, answered once.
   send: (body: SendBody) => api()("POST broadcasts", { body, once: true }),
@@ -61,10 +54,9 @@ export const broadcasts = {
   /** A playbook's run that waited for a person goes out now. */
   approve: (id: string, opts: { onAccepted?: (data: Output<"POST broadcasts/[id]/approve">) => void } = {}) =>
     api()("POST broadcasts/[id]/approve", { params: { id }, onAccepted: opts.onAccepted, once: true }),
-  /** One broadcast and every person on it. A read: nothing refreshes. Kept for the run, so its next open is at once. */
-  detail: (id: string) => details.through(id, () => api()("GET broadcasts/[id]", { params: { id } })),
-  /** The last answer this tab holds for a run, to paint while it is read again; null when it has none. */
-  peekDetail: (id: string): DetailAnswer | null => details.peek(id),
+  /** One broadcast and every person on it, and the last answer the tab holds for it (detail-read.ts). */
+  detail: runDetail,
+  peekDetail: peekRunDetail,
   /** Why a whole broadcast stopped, in the owner's words, for the detail, which reads the row as the route returns it. */
   failureWords: broadcastFailureWords,
   /** Why nobody on an audience can be sent it when somebody on it said yes -- no number to send to -- in People's words. */

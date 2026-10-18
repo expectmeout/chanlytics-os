@@ -5,6 +5,7 @@ export {
   broadcastName,
   whenLabel,
   runLabelOf,
+  runTitleOf,
   toBroadcastVM,
   sentByWords,
   emptyAudienceRefusal,

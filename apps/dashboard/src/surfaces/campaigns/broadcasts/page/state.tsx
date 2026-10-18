@@ -15,7 +15,7 @@ import {
 } from "@chanlytics/contracts";
 import type { ConsentChannel } from "@chanlytics/contracts";
 import { LinkButton } from "../../../kit/link-button/link-button";
-import { navigate, replaceRoute } from "../../../legacy-verbs";
+import { backFrom, navigate, replaceRoute } from "../../../legacy-verbs";
 import { tabDraft } from "../../../kit/record/work";
 import type { AudienceOption, BroadcastTemplate, BroadcastsSurface } from "../surface";
 import { starters } from "../../templates/verbs";
@@ -196,8 +196,9 @@ export function useBcNow(data: BroadcastsSurface) {
  * What is open beside Sequences' list, by the address, replaced as it opens and closes so a reload opens it again and the
  * crumbs name it: a run (its sheet, `broadcasts/run:<id>/sheet`), or the one To send (`broadcasts/to-send`, 00429: every
  * email handed to its owner). Back leaves the page rather than replaying every run read (the Inbox's rule). A run opened
- * from To send closes back to it, the list being worked down; anything else closes onto Sequences (decision 0060, D3:
- * Sent's list is each sequence's History).
+ * from To send closes back to it, the list being worked down; anything else closes back to where it was opened from (the
+ * Inbox, Today, a sequence's History: the frame's backFrom), and onto Sequences where nothing opened it (a link, a reload;
+ * decision 0060, D3: Sent's list is each sequence's History). It closed onto Sequences from wherever it was opened.
  */
 export function useBcOpen(initialRun: string | null, initialToSend: boolean) {
   const [openId, setOpenId] = useState(initialRun);
@@ -215,18 +216,16 @@ export function useBcOpen(initialRun: string | null, initialToSend: boolean) {
   // already, so the address's own change moves nothing.
   const openRun = (id: string | null, keep = id === null) => {
     const under = keep && toSendOpen;
+    // Closed, and To send not under it: the page is left, back to where it was opened from, as it is drawn.
+    if (!id && !under) return backFrom(SEQUENCES_ROUTE, { replace: true });
     setOpenId(id);
     if (!under) setToSendOpen(false);
     followed.current = { run: id, toSend: !id && under };
-    // A run's own address lands on its History (route.tsx): the sheet open here writes its sheet's, so a reload opens it
-    // here again.
-    replaceRoute(id ? runSheetRoute(id) : under ? TO_SEND_ROUTE : SEQUENCES_ROUTE);
+    // A run's own address lands by what the run is (route.tsx): the sheet open here writes its sheet's, so a reload opens
+    // it here again.
+    replaceRoute(id ? runSheetRoute(id) : TO_SEND_ROUTE);
   };
-  const close = () => {
-    setToSendOpen(false);
-    followed.current = { run: null, toSend: false };
-    replaceRoute(SEQUENCES_ROUTE);
-  };
+  const close = () => backFrom(SEQUENCES_ROUTE, { replace: true });
   return { openId, openRun, toSend: { open: toSendOpen, close } };
 }
 

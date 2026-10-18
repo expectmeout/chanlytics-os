@@ -22,7 +22,7 @@ const { campaignsChrome, broadcastsChrome, broadcastsProps } = await import(`${S
 const { parseHome, composeRoute, chainChangeRoute } = await import(`${S}/campaigns/home/address.ts`);
 const { setSurfaceValue } = await import(`${S}/surface-values.ts`);
 const { SURFACE_ROUTES, routeHasPage, onOnePage } = await import(`${S}/routes.ts`);
-const { workspacePath, routeOfPath, routeOfHash, movedAddress, doorOf, sequenceLandingOf } =
+const { workspacePath, routeOfPath, routeOfHash, movedAddress, doorOf, sequenceLandingOf, arrivedRunOf, runLandingOf } =
   await import("@chanlytics/contracts");
 
 afterEach(() => {
@@ -88,13 +88,14 @@ test("Campaigns' sheets' addresses say the composer or a message, and spell back
   assert.equal(parseHome(composeRoute("once", { to: "s1" }).split("/")[1]).compose.to, "s1", "and back");
 });
 
-test("the home's addresses, and Sent's list, land on Sequences: a campaign's on its sequence, a run's on its day of History", () => {
+test("the home's addresses, and Sent's list, land on Sequences: a campaign's on its sequence; a run's by what the run is", () => {
   assert.equal(sequenceLandingOf("campaigns"), "campaigns/sequences");
   assert.equal(sequenceLandingOf("campaigns/in:before"), "campaigns/sequences", "a group of the ledger that went");
   assert.equal(sequenceLandingOf("campaigns/moment:pb-1"), "campaigns/sequences/pb-1");
   assert.equal(sequenceLandingOf("campaigns/moment:ro-1:people"), "campaigns/sequences/ro-1/people");
   assert.equal(sequenceLandingOf("broadcasts"), "campaigns/sequences");
-  assert.equal(sequenceLandingOf("broadcasts/run:b-1"), "campaigns/sequences/b-1/history/b-1");
+  // A run's address says nothing of what the run is: runLandingOf lands it once the run is known (below).
+  assert.equal(sequenceLandingOf("broadcasts/run:b-1"), null);
   // The composer's Every time: New, and New on its moment.
   assert.equal(sequenceLandingOf("campaigns/new:every"), "campaigns/sequences/new");
   assert.equal(sequenceLandingOf("campaigns/new:moment:quiet_30"), "campaigns/sequences/new:moment:quiet_30");
@@ -112,6 +113,33 @@ test("the home's addresses, and Sent's list, land on Sequences: a campaign's on 
     "messages",
   ])
     assert.equal(sequenceLandingOf(kept), null, kept);
+});
+
+test("a link to a run lands by what the run is: on its sheet while it is decided there, on its sequence's History once it went (the Inbox's run review, 18 Oct 2026)", () => {
+  const run = (over) => ({ id: "b-1", sequence_id: "sq-1", state: "sent", ...over });
+  assert.equal(arrivedRunOf("broadcasts/run:b-1"), "b-1");
+  assert.equal(arrivedRunOf("broadcasts/run:b-1?x=1"), "b-1", "its query is no part of its run");
+  for (const other of ["broadcasts/run:b-1/sheet", "broadcasts", "broadcasts/to-send", "campaigns/sequences/b-1"])
+    assert.equal(arrivedRunOf(other), null, other);
+  // Waiting for approval (an Approve, or, its day gone, the Skip it is left): its sheet, where the address already drew it.
+  assert.equal(runLandingOf("broadcasts/run:b-1", run({ state: "pending_approval" })), "broadcasts/run:b-1/sheet");
+  // Going, with emails the check holds for your say or hands you to send: its page decides them.
+  assert.equal(runLandingOf("broadcasts/run:b-1", run({ state: "sending", held: 2 })), "broadcasts/run:b-1/sheet");
+  assert.equal(runLandingOf("broadcasts/run:b-1", run({ state: "scheduled", drafted: 1 })), "broadcasts/run:b-1/sheet");
+  // Gone, or going with nothing for you: its day of its sequence's History, by the sequence's own id (no lookup, no swap).
+  assert.equal(runLandingOf("broadcasts/run:b-1", run()), "campaigns/sequences/sq-1/history/b-1");
+  assert.equal(
+    runLandingOf("broadcasts/run:b-1", run({ state: "sending", held: 0 })),
+    "campaigns/sequences/sq-1/history/b-1",
+  );
+  // A row that does not say its sequence: the run's id, which the server reads its sequence by.
+  assert.equal(
+    runLandingOf("broadcasts/run:b-1", run({ sequence_id: undefined })),
+    "campaigns/sequences/b-1/history/b-1",
+  );
+  // Another run's answer, or an address that is no run's, lands nothing.
+  assert.equal(runLandingOf("broadcasts/run:b-1", run({ id: "b-2" })), null);
+  assert.equal(runLandingOf("broadcasts/run:b-1/sheet", run({ state: "pending_approval" })), null);
 });
 
 test("Campaigns' crumbs are its first view's at every address but Ads, a sheet over it among them -- Campaigns alone, as People's and Reports' are -- and every address is one mount", () => {

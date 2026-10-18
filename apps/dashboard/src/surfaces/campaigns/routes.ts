@@ -19,6 +19,8 @@ import {
   parseAds,
   parseSequencesRoute,
   routeOfPath,
+  runDecidedOnItsPage,
+  runTitleOf,
 } from "@chanlytics/contracts";
 import { adsShown } from "./ads/shown";
 import { surfaceValue } from "../surface-values";
@@ -176,8 +178,9 @@ export function broadcastsChrome({ param }: { param: string | null }): {
     mount: "broadcasts",
     views: campaignsViews("sequences"),
     pane: true,
+    // A run waiting for its decision is named as its sheet's head names it (runTitleOf); one that went keeps its day.
     crumbs: runId
-      ? [CAMPAIGNS, run ? run.name : "Broadcast"]
+      ? [CAMPAIGNS, run ? (runDecidedOnItsPage(run) ? runTitleOf(run) : run.name) : "Broadcast"]
       : getYes
         ? [CAMPAIGNS, "Get their yes"]
         : toSend

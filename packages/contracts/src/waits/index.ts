@@ -7,6 +7,7 @@ export {
   runWaitsOnYou,
   runHeldEmails,
   runDraftedEmails,
+  runDecidedOnItsPage,
   runTooLate,
   runsThatWait,
 } from "./waits";

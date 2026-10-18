@@ -71,6 +71,8 @@ const dto = (over = {}) => ({
   created_at: iso(-5 * D),
   playbook_id: "pb-1",
   run_for: "2026-09-10",
+  // A first step's run: its sequence has the step's own id (00440).
+  sequence_id: "pb-1",
   counts: { queued: 0, sent: 3, skipped: 0, failed: 0, delivered: 2, read: 1, replied: 1 },
   ...over,
 });
@@ -933,7 +935,7 @@ test("a run waiting on you opens as the sheet the canvas draws -- where it sits 
       "the case nobody is shown before a send, shown before this one",
     );
     assert.ok(
-      textOf(byTestId(sheet, "bc-sheet-approve")).includes("Approve \u2014 2 "),
+      textOf(byTestId(sheet, "bc-sheet-approve")).includes("Approve \u00b7 2 people"),
       textOf(byTestId(sheet, "bc-sheet-approve")),
     );
     // Who gets it, on asking.
@@ -1965,7 +1967,7 @@ test("each run opens on a pane of its own: the open run's filter and expanded ro
   assert.equal(second.props.key, "b-sent-2");
 });
 
-test("the run open beside Sequences' list is the address's: closing it replaces the entry with Sequences, and a link out pushes one", async () => {
+test("the run open beside Sequences' list is the address's: closing it goes back to where it was opened from, else onto Sequences, and a link out pushes one", async () => {
   setSurfaceValue("broadcasts", broadcastsSurface());
   answers.set("b-sent", [{ ok: true, data: detailOf(dto()) }]);
   const calls = [];
@@ -1983,13 +1985,18 @@ test("the run open beside Sequences' list is the address's: closing it replaces 
     assert.match(textOf(door), / campaign$/, "said as a campaign to its reader (decision 19)");
     const before = calls.length;
     press(door);
-    assert.equal(went.at(-1), "campaigns/moment:pb-1", "its sequence, by the address a campaign's always was");
+    assert.equal(went.at(-1), "campaigns/sequences/pb-1", "its sequence, by the sequence's own id the run names");
     assert.equal(calls.length, before, "and it did not replace the run's entry");
-    // Closed: the address is Sequences', replaced, so Back leaves rather than replaying the run.
+    // Closed with no frame to say what opened it (a link, a reload): onto Sequences, never a Back out of the app. The frame's
+    // own Back to the opener is the shell's (shell-status.test.mjs).
     press(byTestId(tree, "bc-detail-close"));
-    assert.deepEqual(calls.at(-1), ["campaigns/sequences", "replace"]);
+    assert.equal(went.at(-1), "campaigns/sequences");
+    assert.equal(calls.length, before, "nothing replaced here: the page is left as it is drawn");
     tree = again(props);
-    assert.equal(byTestId(tree, "bc-run-solo"), null, "the pane closes at once, before the address follows it");
+    assert.ok(
+      byTestId(tree, "bc-run-solo"),
+      "the pane stays drawn until its page is left, never the list a moment first",
+    );
   } finally {
     globalThis.appNavigate = keep;
   }

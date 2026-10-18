@@ -11,7 +11,7 @@
  */
 import { useEffect, useReducer, useState } from "react";
 import type { Dispatch, ReactNode, SetStateAction } from "react";
-import { LIFECYCLE_WORDS, runStillMoving, runStopWords } from "@chanlytics/contracts";
+import { LIFECYCLE_WORDS, runStillMoving, runStopWords, runTitleOf, sequenceRoute } from "@chanlytics/contracts";
 import type { BroadcastDetailDto, BroadcastDto, BroadcastVM, RunFilterId, RunReportVM } from "@chanlytics/contracts";
 import { pageClock } from "@/legacy-bridge/zone";
 import { Button } from "../../kit/button/button";
@@ -23,13 +23,13 @@ import { LinkButton } from "../../kit/link-button/link-button";
 import { StatePill } from "../../kit/pill/state-pill";
 import { PolicyChip } from "../../kit/policy-chip/policy-chip";
 import { SubTabs } from "../../kit/sub-tabs/sub-tabs";
-import { gate, gatedProps, navigate } from "../../legacy-verbs";
+import { gate, gatedProps, navigate, touchSwipe } from "../../legacy-verbs";
 import { CmDot } from "../parts/head";
-import { CmPane } from "../parts/split";
+import { CmPane, useCmPhone } from "../parts/split";
 import { ReachOutRun, roRunHead } from "../reach-out/approval";
 import { reachOuts } from "../reach-out/surface";
 import { starters } from "../templates/verbs";
-import { BcSheet, bcPersonRow, bcSheetSub } from "./run-sheet";
+import { BcSheet, BcSheetMore, bcPersonRow, bcSheetDock, bcSheetSub } from "./run-sheet";
 import type { BcSheetAsk } from "./run-sheet";
 import { broadcasts } from "./verbs";
 import { bcLateWords, bcOpensOnItsSheet } from "./when-words";
@@ -134,7 +134,7 @@ function bcRunHead(p: {
           </>
         )}
         {playbookId ? (
-          <LinkButton className="bc-run-link" onClick={() => navigate(`campaigns/moment:${playbookId}`)}>
+          <LinkButton className="bc-run-link" onClick={() => navigate(sequenceRoute(b.sequence_id))}>
             {b.audience.label} campaign
           </LinkButton>
         ) : (
@@ -161,7 +161,11 @@ function bcRunHead(p: {
 /** What the pane's head says of a run waiting on you: its name, its policy class, and where it sits in the queue. */
 function bcSheetHead(d: BroadcastDetailDto, sheet: BcSheetAsk): BcPaneHead {
   const pb = sheet.playbook;
-  return { title: d.broadcast.name, badge: pb ? <PolicyChip cls={pb.policy_class} /> : null, sub: bcSheetSub(sheet) };
+  return {
+    title: runTitleOf(d.broadcast),
+    badge: pb ? <PolicyChip cls={pb.policy_class} /> : null,
+    sub: bcSheetSub(sheet),
+  };
 }
 
 /**
@@ -359,9 +363,13 @@ export function BroadcastDetail({
     };
   }, [id, asks]);
   useBcRunWatch(id, d, setAnswer);
+  // On a phone the pane is the screen: a swipe from its edge goes back as its Back does, and a waiting run's acts dock at
+  // its foot.
+  const phone = useCmPhone();
+  const swipe = phone ? touchSwipe({ onBack: onClose, when: () => phone }) : undefined;
   // The run's pane, in whatever state it is in: Close at its head (Escape closes it too), its name, and the report in its
   // body. While the report is read it has the name the list's row has; the run's own head says the rest once it lands.
-  const pane = (head: BcPaneHead, body: ReactNode) => (
+  const pane = (head: BcPaneHead, body: ReactNode, foot?: ReactNode) => (
     <CmPane
       id={`bc-run-${id}`}
       testid="bc-run-solo"
@@ -371,6 +379,8 @@ export function BroadcastDetail({
       badge={head.badge}
       sub={head.sub}
       tools={head.tools}
+      foot={foot}
+      swipe={swipe}
       onClose={onClose}
     >
       {body}
@@ -425,18 +435,14 @@ export function BroadcastDetail({
       ? broadcasts.approval(d, sheet.playbook, sheet.businessName, sheet.paused)
       : null;
   if (sheet && avm) {
+    const onSeeAll = () => setSeeAll((v) => !v);
+    const acts = { b, avm, sheet, seeAll, onSeeAll };
     return pane(
-      bcSheetHead(d, sheet),
+      { ...bcSheetHead(d, sheet), ...(phone ? { tools: <BcSheetMore b={b} avm={avm} sheet={sheet} /> } : {}) },
       <div className="bc-report is-sheet is-approval" data-testid="bc-detail">
-        <BcSheet
-          d={d}
-          people={vm.people}
-          avm={avm}
-          sheet={sheet}
-          seeAll={seeAll}
-          onSeeAll={() => setSeeAll((v) => !v)}
-        />
+        <BcSheet d={d} people={vm.people} avm={avm} sheet={sheet} seeAll={seeAll} onSeeAll={onSeeAll} docked={phone} />
       </div>,
+      phone ? bcSheetDock(acts) : undefined,
     );
   }
   return pane(

@@ -150,6 +150,9 @@
 }
 .ix-thread.selected { background: var(--accent-soft); }
 .ix-thread.unread .ix-thread-who { font-weight: 500; }
+/* A campaign run waiting for your say, a row of Needs you over the threads (surfaces/inbox/pages/inbox-runs.tsx): a link,
+   in the row's ink. It has no box to pick it by, and needs none: a thread's box lies over its face, out of the grid. */
+.ix-run { color: inherit; text-decoration: none; }
 /* A row is an option in a listbox: its ring sits inside it, where the scrolling list cannot clip it,
    and the open row keeps its edge. */
 .ix-thread:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; box-shadow: none; }
@@ -2154,7 +2157,9 @@ button.ix-ctx:hover { background: var(--bg-hover); }
   order: 4;
 }
 /* ---- A row is one person on the pane itself; the open one is the lozenge (I1) ---- */
-.ix-thread-rows {
+/* The runs waiting for your say over them are rows of the same column (.ix-runs, inbox-runs.tsx). */
+.ix-thread-rows,
+.ix-runs {
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -2886,7 +2891,7 @@ button.tl-stamp:focus-visible {
     padding: 6px 12px 8px;
   }
   /* The rows straight on the page, no fill at rest: the open one takes the screen, so none is marked here. */
-  .inbox .ix-thread-rows {
+  .inbox :is(.ix-thread-rows, .ix-runs) {
     padding: 2px 4px;
   }
   .inbox .ix-thread.active {
