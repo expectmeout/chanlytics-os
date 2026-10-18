@@ -14,6 +14,7 @@ import assert from "node:assert/strict";
 import { importSrc } from "../_source.mjs";
 
 const { contentSecurityPolicy, CSP_HEADER } = await importSrc("apps/dashboard/src/csp.ts");
+const { PHONE_VOICES, PHONE_VOICE_SAMPLES_ORIGIN } = await import("@chanlytics/contracts");
 
 const directives = (policy) =>
   Object.fromEntries(
@@ -80,7 +81,9 @@ test("the workspace's Supabase origin is allowed over https and wss, and for the
     "https://mwwy.supabase.co",
     "https://*.googleusercontent.com",
   ]);
-  assert.deepEqual(p["media-src"], ["'self'", "blob:", "https://mwwy.supabase.co"]);
+  // The phone voices' samples are the provider's own recordings, on its public bucket: contracts names the one host.
+  assert.deepEqual(p["media-src"], ["'self'", "blob:", "https://mwwy.supabase.co", PHONE_VOICE_SAMPLES_ORIGIN]);
+  for (const v of PHONE_VOICES) assert.equal(new URL(v.sample).origin, PHONE_VOICE_SAMPLES_ORIGIN, v.id);
   assert.deepEqual(p["frame-src"], ["https://www.facebook.com", "https://web.facebook.com"]);
   // The mockup's inline styles: attributes, which no nonce can reach. Said in the policy, not smuggled.
   assert.deepEqual(p["style-src"], ["'self'", "'unsafe-inline'"]);

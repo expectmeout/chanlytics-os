@@ -46,6 +46,7 @@ import { BtBookingRuleRows, BtOfferCard } from "./offer";
 import { BtOpenCard } from "./open";
 import { BtBookingTool } from "./open-bookings";
 import { greetingFold } from "./phone/greeting";
+import { BtVoiceRow } from "./phone/voice";
 import { BtPromptSheet, BtPromptTold, useBtPromptSheet } from "./prompt";
 import type { BtPromptHold } from "./prompt";
 import type { Brain, Config, Saver } from "./save";
@@ -147,6 +148,9 @@ const BtCallsCard = ({ brain, base = null, config = null, canEdit, flash, saver 
     "What a caller hears, and who it rings in opening hours",
     <>
       {a.calls ? greetingFold(shared, brain) : null}
+      {/* The voice it speaks in, chosen from the provider's list (the Settings wiring review, item 11): only where a
+          line answers calls, as the greeting. */}
+      {a.calls ? <BtVoiceRow brain={brain} {...shared} /> : null}
       <BtTransferNumberRow brain={brain} base={base} {...shared} />
     </>,
   );

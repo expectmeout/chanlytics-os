@@ -123,6 +123,7 @@ test("On calls holds what a caller hears and who it puts them through to, and sa
   assert.match(textOf(card), /who it rings in opening hours/);
   assert.deepEqual(all(card, (n) => classes(n).includes("rec-row-key")).map(textOf), [
     "Greets every caller with",
+    "Voice",
     "Transfer number",
   ]);
   const row = byTestId(card, "rec-row-handoff_number");
@@ -137,6 +138,7 @@ test("On calls holds what a caller hears and who it puts them through to, and sa
     "rec-card-calls",
   );
   assert.equal(byTestId(none, "rec-row-phone_greeting"), null);
+  assert.equal(byTestId(none, "rec-row-phone_voice"), null, "nor a voice: no call is answered in it");
   assert.match(textOf(byTestId(none, "rec-row-handoff_number")), /Takes a message instead/);
 });
 

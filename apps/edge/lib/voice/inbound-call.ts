@@ -171,5 +171,11 @@ export async function receiveInboundCall(request: Request): Promise<Response> {
     greeting: start.greetingSource,
     ms: Date.now() - t0,
   });
-  return json(200, { call_inbound: { dynamic_variables: start.variables } });
+  // The workspace's voice, for this call alone (Retell's agent_override): the saved agent is never changed for it.
+  return json(200, {
+    call_inbound: {
+      dynamic_variables: start.variables,
+      ...(start.voiceId ? { agent_override: { agent: { voice_id: start.voiceId } } } : {}),
+    },
+  });
 }

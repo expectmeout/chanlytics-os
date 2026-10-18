@@ -131,7 +131,7 @@
   },
   "apps/edge/lib/voice/call-start.ts::planCallStart#1": {
     "lines": 139,
-    "branches": 31,
+    "branches": 24,
     "depth": 6
   },
   "apps/edge/lib/whatsapp/connect-number.ts::connectWhatsAppNumber#1": {

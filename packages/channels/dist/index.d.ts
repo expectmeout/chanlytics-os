@@ -1101,7 +1101,8 @@ declare const VOICE_LLM_DEFAULTS: {
  * after Andrea (ElevenLabs) had opened every call before that, and a new
  * workspace should sound like the line customers already hear. The converger
  * never touches an existing agent's voice, so this only reaches agents
- * provisioned from now on. Retention is the product's 90 days; the pipeline
+ * provisioned from now on; a workspace's own choice is sent with each call
+ * (contracts PHONE_VOICES, the inbound webhook's agent_override). Retention is the product's 90 days; the pipeline
  * copies audio into private storage within seconds.
  */
 declare const VOICE_AGENT_DEFAULTS: {
