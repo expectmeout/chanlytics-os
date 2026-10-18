@@ -1210,7 +1210,7 @@ test("the reports: the three presets and no other, the series from the function 
   assert.equal((await reviews.GET.run(get(inA), ctxFor(unlinked, {}, rpcs))).days, 30, "thirty by default");
 });
 
-test("the reports' Deals section rides on how the workspace's customers buy (0008): drawn where it says proposal, and not even read where it books or was never asked", async () => {
+test("the reports' Deals section is every workspace's (0008, amended 18 Oct 2026): drawn wherever a deal is on file, whatever the retired answer to how its customers buy said", async () => {
   const contact = "cccccccc-cccc-4ccc-8ccc-cccccccccc01";
   // One page of People, the booking line's: the deals read where each new client came from out of the same rows.
   const rpcs = {
@@ -1247,9 +1247,9 @@ test("the reports' Deals section rides on how the workspace's customers buy (000
   assert.deepEqual(on.deals.sources, [{ came_from: "lead", count: 1 }], "the new client's source, from People");
   assert.equal(on.people, 1, "People read once for the whole report, the booking line's read");
   for (const sellsBy of ["booking", null, undefined]) {
-    const off = await run(sellsBy);
-    assert.equal(off.deals.any, false, `${sellsBy}: a deal on file switches nothing`);
-    assert.equal(off.read, false, `${sellsBy}: the table is not read for a section not drawn`);
+    const any = await run(sellsBy);
+    assert.deepEqual([any.deals.any, any.deals.clients], [true, 1], `${sellsBy}: the deal on file is reported`);
+    assert.equal(any.read, true, `${sellsBy}: the table is read`);
   }
 });
 

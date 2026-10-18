@@ -32,7 +32,7 @@ import { useSlide } from "../kit/motion/use-slide";
 import { viewDeck } from "../kit/motion/view-deck";
 import { canDo, demoSession, navigate, onAPhone } from "../legacy-verbs";
 import { usePartShown, useSurface } from "../use-surface";
-import { visitWordHere } from "../visit-line";
+import { visitWordHere } from "../workspace-word";
 import { refreshAct, swipePagesOf } from "./acts";
 import { calendarDayRoute, calendarViewNamed, calendarViewOf } from "./address";
 import { CrAgenda, CrAgendaDay, CrBoard, CrMonth, type ViewAct } from "./blocks";

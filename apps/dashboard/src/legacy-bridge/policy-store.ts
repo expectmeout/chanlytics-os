@@ -33,7 +33,7 @@ import {
  * Honesty rule for the rows: every class here has an enforcer — the
  * receptionist for replies, questions and bookings (the prompt's rules and
  * layer two), the playbooks for re-engage, offers and proposal follow-ups
- * (a row only where deals are on, 0006), the review sweep for reviews, and
+ * (0006, every workspace's), the review sweep for reviews, and
  * a database trigger for money, which is locked. A class
  * without one is not offered as a switch, and each offers only the modes
  * its enforcer honours (`modes`: contracts POLICY_CLASS_MODES, the rule the
@@ -101,7 +101,7 @@ export const UI_ROWS: readonly UiRowMeta[] = [
     },
   },
   { id: "reengage", cls: "reengage", ...W("reengage") },
-  // Beside Win-back (0006): the proposal follow-up's class, auto, ask or never, where deals are on.
+  // Beside Win-back (0006): the proposal follow-up's class, auto, ask or never, in every workspace (0008, amended).
   { id: "follow_up", cls: "follow_up", ...W("follow_up") },
   { id: "campaign", cls: "campaign", ...W("campaign") },
   // Beside the campaigns (Reach out, Part 4 PR 6): what a reach-out's runs do. Never auto: a chain's first run waits.
@@ -129,8 +129,6 @@ export interface PolicyRecordLike {
 export interface PoliciesSurface {
   rows: PolicyRecordLike[];
   role: string | null;
-  /** Deals are on here (dealsAreOn, 0008): the follow-ups' row is drawn only then (policyClassOffered). */
-  dealsOn: boolean;
   /** The drafts held for the owner, by intent (decision 0063): each row's line; null where the read failed or is old. */
   held?: HeldDraftsByIntent[] | null;
   /** The notes the owner's corrections suggest, waiting (decision 0063); null where the read failed or is old. */
@@ -148,7 +146,7 @@ export interface UiRow extends UiRowMeta {
   limits: Record<string, unknown>;
 }
 
-const EMPTY: PoliciesSurface = { rows: [], role: null, dealsOn: false };
+const EMPTY: PoliciesSurface = { rows: [], role: null };
 
 export function modeLabel(dbMode: string | null | undefined): UiMode | null {
   return dbMode ? ((LABELS as Record<string, UiMode>)[dbMode] ?? null) : null;
@@ -161,7 +159,7 @@ export function dbMode(label: string | null | undefined): string | null {
 }
 
 export function uiRows(p: PoliciesSurface): UiRow[] {
-  return UI_ROWS.filter((r) => policyClassOffered(r.cls, p.dealsOn)).map((r) => {
+  return UI_ROWS.filter((r) => policyClassOffered(r.cls)).map((r) => {
     const rec = p.rows.find((x) => x.class === r.cls);
     return {
       ...r,

@@ -76,7 +76,7 @@ const { setSurfaceValue } = await import("../../../../../apps/dashboard/src/surf
 globalThis.ViewTabs = (await import("../../../../../apps/dashboard/src/surfaces/kit/view-tabs/view-tabs.tsx")).ViewTabs;
 await import("../../../../../apps/dashboard/src/legacy/components/surface-tabs.jsx");
 
-const people = (dealsOn) => ({ rows: [], lists: [], saved: [], dealsOn });
+const people = () => ({ rows: [], lists: [], saved: [] });
 const viewsAt = (param) => peopleChrome({ param, backToPeople: null }).views ?? null;
 const walk = (n, fn) => {
   if (n == null || typeof n !== "object") return;
@@ -97,23 +97,14 @@ const strip = (props) => {
   return drawn ? drawn.rendered : null;
 };
 
-test("the chrome says People and Leads, and the Pipeline only where deals are on", () => {
-  setSurfaceValue("people", people(false));
+test("the chrome says People, Leads and the Pipeline, every workspace's (0008, amended 18 Oct 2026)", () => {
+  setSurfaceValue("people", people());
   assert.deepEqual(
     viewsAt(null).tabs.map((t) => [t.id, t.label, t.to, t.testid]),
     [
       ["people", "People", "clients", "scope-people"],
       ["leads", "Leads", "clients/leads", "scope-leads"],
-    ],
-    "a workspace whose customers book is never offered a Pipeline",
-  );
-  setSurfaceValue("people", people(true));
-  assert.deepEqual(
-    viewsAt(null).tabs.map((t) => [t.label, t.to]),
-    [
-      ["People", "clients"],
-      ["Leads", "clients/leads"],
-      ["Pipeline", "clients/pipeline"],
+      ["pipeline", "Pipeline", "clients/pipeline", "scope-pipeline"],
     ],
   );
   assert.equal(viewsAt(null).label, "Which people");
@@ -121,8 +112,8 @@ test("the chrome says People and Leads, and the Pipeline only where deals are on
   setSurfaceValue("people", undefined);
 });
 
-test("which view is picked follows the address: a list is People's, Leads and its searches are Leads', the Pipeline is the Pipeline's where deals are on", () => {
-  setSurfaceValue("people", people(true));
+test("which view is picked follows the address: a list is People's, Leads and its searches are Leads', the Pipeline is the Pipeline's", () => {
+  setSurfaceValue("people", people());
   for (const [param, picked] of [
     [null, "people"],
     ["new-list", "people"],
@@ -135,15 +126,11 @@ test("which view is picked follows the address: a list is People's, Leads and it
     ["pipeline:v-board:p-x", "pipeline"],
   ])
     assert.equal(viewsAt(param).picked, picked, `${param} is on ${picked}`);
-  // Where deals are off the Pipeline's address draws People's own page, and People is the view it is on.
-  setSurfaceValue("people", people(false));
-  assert.equal(viewsAt("pipeline").picked, "people");
-  assert.equal(viewsAt("pipeline").tabs.length, 2);
   setSurfaceValue("people", undefined);
 });
 
 test("a person's page says no views, and nothing is said before People has landed", () => {
-  setSurfaceValue("people", people(true));
+  setSurfaceValue("people", people());
   assert.equal(viewsAt("ed2244f3-9f88-49c5-863e-fbdea4b60e12"), null, "a person's page is on no strip");
   setSurfaceValue("people", undefined);
   assert.equal(viewsAt(null), null, "a strip that gained its third tab as People landed would move");
@@ -151,7 +138,7 @@ test("a person's page says no views, and nothing is said before People has lande
 });
 
 test("the strip draws the page's views as the Inbox's: the picked one active and current, a test id each, a press moves to the route", () => {
-  setSurfaceValue("people", people(true));
+  setSurfaceValue("people", people());
   const moved = [];
   const tree = strip({
     page: "clients",
@@ -203,7 +190,7 @@ test("the strip draws the page's views as the Inbox's: the picked one active and
 });
 
 test("the strip warms the routes it can move to, as the Inbox's does, and draws nothing for one view", () => {
-  setSurfaceValue("people", people(true));
+  setSurfaceValue("people", people());
   warmed.length = 0;
   strip({ page: "clients", param: null, views: viewsAt(null) });
   assert.deepEqual(warmed, ["clients", "clients/leads", "clients/pipeline"]);

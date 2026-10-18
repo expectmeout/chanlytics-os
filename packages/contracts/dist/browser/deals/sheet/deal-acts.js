@@ -95,11 +95,11 @@ export function dealMenuActs(deal) {
 }
 export function calendarPeekDeal(block, people, nowMs) {
   const who = block.person;
-  const row = who && people && people.dealsOn ? (people.rows ?? []).find((r) => r.id === who.id) : void 0;
+  const row = who && people ? (people.rows ?? []).find((r) => r.id === who.id) : void 0;
   if (!who || !row) return { stage: null, start: null };
   const deal = row.deal ?? null;
   const endMs = Date.parse(block.end);
-  const over = block.consultation && Number.isFinite(endMs) && endMs < nowMs && consultationHappened(block.visit);
+  const over = block.consultation && Number.isFinite(endMs) && endMs < nowMs && consultationHappened(block.visit) && (row.nextVisitMs ?? null) === null;
   return {
     stage: deal ? deal.stage : null,
     start: over && noProposalSince(deal, endMs) ? { act: act("propose"), personId: who.id, service: block.consultService } : null

@@ -515,8 +515,8 @@ test("one turn reads the workspace's facts once, on one clock: the route's own r
     );
     assert.equal(
       selects("tenants"),
-      2,
-      "name and zone once (facts), sells_by once (sellsBy): the tools re-read neither",
+      1,
+      "name and zone once (facts): the tools re-read it not, and workspace.settings asks no word of its own (the shape says it)",
     );
     assert.equal(selects("tenant_config"), 1, "the config once, for the prompt and for workspace.settings");
     assert.equal(selects("policies"), 1, "the policies once");

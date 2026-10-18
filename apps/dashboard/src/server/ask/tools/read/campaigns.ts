@@ -35,7 +35,6 @@ import {
   takesSignUps,
   type ChannelDto,
   playbookListRef,
-  policyClassOffered,
   resolveList,
   scheduleLine,
   sendableTemplates,
@@ -310,7 +309,7 @@ const MODE_WORDS: Record<string, string> = {
  * lifecyclePlaybooksOf: the zone, the word, the calendar and each card's next
  * run, why it runs nothing, the day it ended and the day its trial ends) and
  * projected (ledger #10). Every count is the page's: over everyone, with no one
- * looking, the week's touches applied and, where deals are on, whoever already
+ * looking, the week's touches applied and whoever already
  * had their proposal's follow-up left out, as a run counts them.
  */
 async function listPlaybooksTool(t: ToolContext): Promise<unknown> {
@@ -365,7 +364,7 @@ async function listPlaybooksTool(t: ToolContext): Promise<unknown> {
     if (pb.people_lists.length === 0) return "it could not be counted just now";
     if (pb.people_lists.some((l) => l.key === ref.id)) return "it could not be counted just now";
     const need =
-      unmetNeed(def.needs, { calendar: pb.calendar, dealsOn: pb.deals_on, consultFirst: true, viewer: false }) ??
+      unmetNeed(def.needs, { calendar: pb.calendar, hasDeals: pb.has_deals, consultFirst: true, viewer: false }) ??
       "consult";
     return listUnknownWords(need, pb.calendar);
   };
@@ -379,8 +378,8 @@ async function listPlaybooksTool(t: ToolContext): Promise<unknown> {
           reengage: modeOf("reengage"),
           campaign: modeOf("campaign"),
           booking: modeOf("booking"),
-          // The follow-ups' class only where deals are on (0006).
-          ...(policyClassOffered("follow_up", pb.deals_on) ? { follow_up: modeOf("follow_up") } : {}),
+          // The follow-ups' class, every workspace's (0006; 0008, amended 18 Oct 2026).
+          follow_up: modeOf("follow_up"),
         }
       : null,
     ...(modes
@@ -408,7 +407,7 @@ async function listPlaybooksTool(t: ToolContext): Promise<unknown> {
       mode: modes ? effectiveMode(p, modeOf(p.policy_class), t.now) : null,
       ...(c.trial ? { on_trial_until: c.trial } : {}),
       schedule: scheduleLine(p, shape.word),
-      // No next run where it runs nothing here (an ended campaign, a follow-up with deals off): the card's one predicate,
+      // No next run where it runs nothing here (an ended campaign): the card's one predicate,
       // and why in its words.
       next_run: c.off ? null : c.next,
       ...(c.off ? { runs_nothing: c.off } : {}),
@@ -427,7 +426,7 @@ async function listPlaybooksTool(t: ToolContext): Promise<unknown> {
         ? { broadcast_id: p.totals.waiting.id, people: p.totals.waiting.recipient_count }
         : null,
     })),
-    // The moments offered for a new playbook here: a proposal's only where deals are on (0006), and of the two win-backs
+    // The moments offered for a new playbook here: every moment, a proposal's too (0006), and of the two win-backs
     // the one this workspace can read (momentOffered; a connected calendar's feed need not be readable just now).
     triggers: answer.moments
       .filter((x) => x.offered)
@@ -440,7 +439,7 @@ async function listPlaybooksTool(t: ToolContext): Promise<unknown> {
         ...(x.kind === "saved" ? { counted_per_list: true } : counted(x.id)),
         starter_template: starterForTrigger(x.id)?.title ?? null,
       })),
-    note: `A run is a broadcast, and ${NO_NUMBER_REACH}. It never reaches anyone twice within the playbook's gap, and holds whoever hears ${BREATH_WHY}, by a message already sent or one due, for a later run; a reminder the day before ${W.a} and a check the day after go one per ${W.one}, exempt from the gap and ${PLAYBOOK_CARD_WORDS.appointmentBreath}. said_yes_now counts who each trigger names that said the yes its template needs, a number or not; can_be_sent_now is who of them a run reaches now, the Playbooks page's own count: whoever hears from you within a week of today, by a message already sent or one due, waits. A null count means the page could not count it just now.${pb.deals_on ? " The proposal follow-up reaches each proposal once, with its link: its counts leave out whoever already had theirs." : ""}`,
+    note: `A run is a broadcast, and ${NO_NUMBER_REACH}. It never reaches anyone twice within the playbook's gap, and holds whoever hears ${BREATH_WHY}, by a message already sent or one due, for a later run; a reminder the day before ${W.a} and a check the day after go one per ${W.one}, exempt from the gap and ${PLAYBOOK_CARD_WORDS.appointmentBreath}. said_yes_now counts who each trigger names that said the yes its template needs, a number or not; can_be_sent_now is who of them a run reaches now, the Playbooks page's own count: whoever hears from you within a week of today, by a message already sent or one due, waits. A null count means the page could not count it just now. The proposal follow-up reaches each proposal once, with its link: its counts leave out whoever already had theirs.`,
   };
 }
 
@@ -683,7 +682,7 @@ export async function readJourney(t: ToolContext) {
     covered: home.rail.covered,
     of: home.rail.of,
     stages,
-    guide: journeyGuide({ calendarOn: shape.calendar === "feed", dealsOn: shape.dealsOn, word: shape.word }),
+    guide: journeyGuide({ calendarOn: shape.calendar === "feed", hasDeals: shape.hasDeals, word: shape.word }),
   };
 }
 
@@ -784,7 +783,7 @@ export const sequencesTool = defineActions({
       examples: [{}],
       label: "Reading the journey",
       words:
-        "Action journey reads the customer journey: how many of its moments are covered (covered, of), then each stage in the order a customer passes it (first contact, the day before and the day after an appointment, which need a calendar, a proposal waiting where deals are on, quiet or lapsed) with whether it is covered, its state, the moment a sequence on it starts from and the sequences that stand on it; and guide, what each touch point sends and when. An offer or a whole setup is one call of propose_plan with action offer, which reads the journey itself and makes the steps, never a sequence proposed stage by stage from this read.",
+        "Action journey reads the customer journey: how many of its moments are covered (covered, of), then each stage in the order a customer passes it (first contact, the day before and the day after an appointment, which need a calendar, a proposal waiting where a deal was ever recorded or a sequence stands on it, quiet or lapsed) with whether it is covered, its state, the moment a sequence on it starts from and the sequences that stand on it; and guide, what each touch point sends and when. An offer or a whole setup is one call of propose_plan with action offer, which reads the journey itself and makes the steps, never a sequence proposed stage by stage from this read.",
       run: readJourney,
     }),
     cold_emails: readAction({

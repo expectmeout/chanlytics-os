@@ -4,7 +4,7 @@
  * surface.ts `PeopleSurface`; a row is contracts' `PersonRowVM`.
  */
 import type { ReactElement, ReactNode } from "react";
-import type { PeopleAggregates, PersonRowVM } from "@chanlytics/contracts";
+import type { AppointmentWord, PeopleAggregates, PersonRowVM } from "@chanlytics/contracts";
 import type { PeopleSurface } from "./surface";
 import type { ColumnWidth } from "./table/layout";
 
@@ -45,7 +45,8 @@ export interface TableCtx {
 /** What a column's default depends on: `{ withCalendar }` under People, `{ hasCenter }` under Leads. */
 export interface ColCtx {
   withCalendar?: boolean;
-  dealsOn?: boolean;
+  /** What the workspace calls an appointment: the Visits column's head says it. */
+  word?: AppointmentWord;
   hasCenter?: boolean;
 }
 

@@ -108,7 +108,7 @@ const leads: Provider = (_w, route) => {
 };
 
 const pipeline: Provider = (w, route) => {
-  // Where deals are off, the Pipeline's address draws People (surfaces/people/chrome.ts peopleTakes), and People says what it drew.
+  // The page on screen says what it drew: the Pipeline, or People's own page for the moment a move from it takes.
   const got = askOnScreenOf(w)?.key === "people" ? drawn(w, "people", "person") : drawn(w, "pipeline", "person");
   return { ...got, view: got.view ?? parsePipelineRoute(`clients/${route.param ?? "pipeline"}`)?.view ?? null };
 };

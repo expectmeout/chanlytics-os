@@ -196,7 +196,8 @@ const monthSentNextOf = (read: {
 
 /**
  * Whether a People list is an audience a broadcast offers: not the three consent lists, each a restatement of the
- * eligibility filter the list is already crossed with, and not one whose data the workspace has not switched on.
+ * eligibility filter the list is already crossed with, and not one whose data the workspace does not have yet (a
+ * calendar, a consult-first service, a deal on file).
  */
 function listIsAnAudience(
   l: (typeof PEOPLE_LISTS)[number],
@@ -395,7 +396,6 @@ export const broadcastsOverride: SurfaceOverride = {
       tz,
       now,
       viewer: viewerId(),
-      dealsOn: !!people.deals_on,
       ready: bc.ready,
     });
     // The number's health as WhatsApp last said it, and whether each channel can send now (the read's own; where it could
@@ -427,7 +427,7 @@ export const broadcastsOverride: SurfaceOverride = {
         listIsAnAudience(l, {
           calendar: people.calendar?.state === "ok",
           consultFirst: !!people.consult_first,
-          deals: !!people.deals_on,
+          deals: !!people.has_deals,
         }),
       ).map((l) => ({
         kind: "list" as const,
@@ -455,7 +455,7 @@ export const broadcastsOverride: SurfaceOverride = {
                   rows,
                   poolListContext({
                     calendar: people.calendar?.state ?? "none",
-                    dealsOn: !!people.deals_on,
+                    hasDeals: !!people.has_deals,
                     consultFirst: !!people.consult_first,
                     viewer: viewerId(),
                   }),

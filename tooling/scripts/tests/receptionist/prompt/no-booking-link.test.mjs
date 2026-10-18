@@ -5,7 +5,8 @@
  * receptionist takes the customer's details for the team instead. Until this, a config with no link failed to parse,
  * and a config that fails to parse is configBroken: the receptionist is silent and staff are told the settings could
  * not be read. So the reading half ships first. Every reader takes a receptionist with no link and says what it does
- * instead, and every save still requires one until the first run's Check asks how customers buy (3c).
+ * instead; and since 18 Oct 2026 no save or page asks one of anyone: a booking link is optional for every business
+ * (0008, amended).
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -14,7 +15,6 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "../../_fake-db.mjs";
 import { withStanding } from "../_prompt-rules.mjs";
 import {
-  bookingLinkOptional,
   composeSystemPrompt,
   describeOpenings,
   describeVisits,
@@ -51,14 +51,14 @@ const PROFILE = {
   guardrails: { never_quote_prices: true, never_confirm_booking: true, no_health_advice: true },
 };
 
-test("the read and the save both take a receptionist with no booking link; who is asked for one is the pages', by how customers buy", () => {
+test("the read and the save both take a receptionist with no booking link, for every business", () => {
   const read = parseTenantConfigResult({ brain: QUOTES });
   assert.equal(read.ok, true, read.ok ? "" : read.issues.join("; "));
   assert.equal(read.config.brain.booking_link, undefined);
   assert.equal(
     TenantConfigWriteSchema.safeParse({ brain: QUOTES }).success,
     true,
-    "a business that quotes saves one (decision 2), and the save cannot see how customers buy",
+    "a business that quotes saves one (decision 2), as any business may",
   );
   assert.equal(TenantConfigWriteSchema.safeParse({ brain: BOOKS }).success, true, "one with a link saves as before");
   assert.equal(TenantConfigWriteSchema.safeParse({}).success, true, "and a config with no receptionist yet");
@@ -71,11 +71,6 @@ test("the read and the save both take a receptionist with no booking link; who i
     TenantConfigWriteSchema.safeParse({ brain: { ...QUOTES, booking_link: "" } }).success,
     false,
     "and an empty one is not no link: the pages remove the key rather than store it empty",
-  );
-  assert.deepEqual(
-    ["proposal", "booking", null, undefined].map((answer) => bookingLinkOptional(answer)),
-    [true, false, false, false],
-    "asked of a business that books or has not said; never of one that quotes",
   );
 });
 
@@ -209,12 +204,15 @@ test("the openings, a caller's appointment and a correction on a call each end i
   assert.doesNotMatch(corrected, /booking link/);
 });
 
-test("the Business tab says so: the one gap it names first is the link", () => {
-  const read = parseTenantConfigResult({ brain: { ...QUOTES, profile: PROFILE } });
-  assert.deepEqual(businessGap(read.config.brain, null), {
-    sentence: "It has no booking link to send anyone.",
+test("the Business tab says so, once the rest is said: the gap it names is the link, and what the receptionist does instead", () => {
+  const read = parseTenantConfigResult({ brain: { ...QUOTES, profile: { ...PROFILE, tone: "Warm and brief." } } });
+  assert.deepEqual(businessGap(read.config.brain), {
+    sentence: "It has no booking link to send, so it takes their details instead.",
     row: "booking_link",
   });
+  // A gap a customer would hear comes first: with no voice of its own, that is the gap named.
+  const plain = parseTenantConfigResult({ brain: { ...QUOTES, profile: PROFILE } });
+  assert.equal(businessGap(plain.config.brain).row, "tone");
 });
 
 test("the link is offered unless the config is known to hold none: with no receptionist config, a call is told to offer it", () => {

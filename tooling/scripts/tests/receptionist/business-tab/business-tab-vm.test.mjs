@@ -244,19 +244,19 @@ const full = {
 };
 
 test("a full record has no gap, and the page says nothing above its cards", () => {
-  assert.equal(businessGap(full, null), null, "a full record is missing nothing");
+  assert.equal(businessGap(full), null, "a full record is missing nothing");
 });
 
 test("the gap names the one thing missing, and the row that adds it", () => {
   const noVoice = { ...full, profile: { ...full.profile, tone: undefined } };
-  const gap = businessGap(noVoice, null);
+  const gap = businessGap(noVoice);
   assert.match(gap.sentence, /no voice of its own/i);
   assert.equal(gap.row, "tone");
   assert.equal(gap.sentence.split(".").filter((p) => p.trim() !== "").length, 1, "one sentence");
 });
 
 test("a record with nothing names only its first gap", () => {
-  assert.equal(businessGap({ business_name: "", booking_link: "", profile: {} }, null).row, "name");
+  assert.equal(businessGap({ business_name: "", booking_link: "", profile: {} }).row, "name");
 });
 
 /* ---- What it can do: one card, every ability, what each runs on ---- */
@@ -266,7 +266,6 @@ const live = {
   whatsappLive: true,
   hasCalendarFeed: true,
   hasBookingLink: true,
-  linkOptional: false,
   hasBookingTemplate: true,
   hasHandoffNumber: true,
   hasEscalateWhen: true,
@@ -283,7 +282,6 @@ test("an ability names its channels and the row it runs on", () => {
     whatsappLive: true,
     hasCalendarFeed: true,
     hasBookingLink: true,
-    linkOptional: false,
     hasHandoffNumber: true,
     hasEscalateWhen: true,
     visionOn: false,
@@ -312,7 +310,6 @@ test("an ability whose input is missing says which row to fill", () => {
     whatsappLive: true,
     hasCalendarFeed: false,
     hasBookingLink: true,
-    linkOptional: false,
     hasHandoffNumber: false,
     hasEscalateWhen: true,
     visionOn: false,
@@ -336,7 +333,6 @@ test("nothing is ready on a channel that is not answering", () => {
     whatsappLive: false,
     hasCalendarFeed: true,
     hasBookingLink: true,
-    linkOptional: false,
     hasHandoffNumber: true,
     hasEscalateWhen: true,
     visionOn: true,
@@ -352,7 +348,6 @@ test("nothing is ready on a channel that is not answering", () => {
     whatsappLive: false,
     hasCalendarFeed: true,
     hasBookingLink: true,
-    linkOptional: false,
     hasHandoffNumber: true,
     hasEscalateWhen: true,
     visionOn: true,
@@ -532,7 +527,7 @@ test("with bookings held on the Autonomy tab, the link is not ready, and the row
   // Missing the link, or WhatsApp, is still said first: those are what the page can fix here.
   assert.match(
     idOf(abilityRows({ ...live, bookingHeld: true, hasBookingLink: false })).booking_link.detail,
-    /^No booking link yet/,
+    /^No booking link, so it takes their details/,
   );
   assert.match(
     idOf(abilityRows({ ...live, bookingHeld: true, whatsappLive: false })).booking_link.detail,
@@ -967,14 +962,11 @@ test("the services sheet's foot says how many it will be told of, how long they 
     "No services, so it cannot say what you offer.",
   );
   // One sentence, one home: the foot says what the gap line says of a receptionist with no services.
-  const gap = businessGap(
-    {
-      business_name: "A",
-      booking_link: "https://a.example",
-      profile: { hours: { mon: { open: "09:00", close: "17:00" } } },
-    },
-    null,
-  );
+  const gap = businessGap({
+    business_name: "A",
+    booking_link: "https://a.example",
+    profile: { hours: { mon: { open: "09:00", close: "17:00" } } },
+  });
   assert.deepEqual([gap.row, gap.sentence], ["services", "It cannot say what you offer."]);
   assert.equal(
     servicesToldWords({ count: 0, chars: null, total: null }),
@@ -1471,28 +1463,25 @@ test("a message that writes a detail out instead of naming it is found, link fir
   );
 });
 
-test("a business that quotes, with no booking link, is told of no missing link; one that books, or has not said, is", () => {
-  const quotes = { ...full, booking_link: undefined };
-  assert.equal(businessGap(quotes, "proposal"), null, "it has none by right (the first run's decision 2)");
-  for (const answer of ["booking", null])
-    assert.equal(businessGap(quotes, answer).row, "booking_link", `missing it (${answer})`);
-  assert.throws(
-    () => businessGap(full),
-    TypeError,
-    "the answer is required: whether a missing link is a gap turns on it",
+test("with no booking link, every business is told so last, as an offer: the receptionist takes their details instead (0008, amended 18 Oct 2026)", () => {
+  const none = { ...full, booking_link: undefined };
+  assert.deepEqual(businessGap(none), {
+    sentence: "It has no booking link to send, so it takes their details instead.",
+    row: "booking_link",
+  });
+  assert.equal(
+    businessGap({ ...none, profile: { ...full.profile, hours: undefined } }).row,
+    "hours",
+    "a gap a customer would hear first comes first",
   );
 });
 
-test("a business that quotes, with no booking link, takes their details: its booking-link row is missing nothing", () => {
-  const quotes = idOf(abilityRows({ ...live, hasBookingLink: false, linkOptional: true })).booking_link;
+test("with no booking link, the row says it takes their details, for every business: one to add, and not ready", () => {
+  const none = idOf(abilityRows({ ...live, hasBookingLink: false })).booking_link;
   assert.deepEqual(
-    [quotes.detail, quotes.missing, quotes.ready],
-    ["No booking link, so it takes their details for you to follow up with a quote.", false, false],
+    [none.detail, none.missing, none.ready],
+    ["No booking link, so it takes their details for you to follow up.", true, false],
   );
-  const asked = idOf(abilityRows({ ...live, hasBookingLink: false, linkOptional: false })).booking_link;
-  assert.deepEqual([asked.detail, asked.missing], ["No booking link yet, so there is nothing to send.", true]);
-  const { linkOptional: _unsaid, ...unsaid } = live;
-  assert.throws(() => abilityRows(unsaid), TypeError);
 });
 
 test("the rules sheet over a stored prompt says one line, link or no link: what the owner can change is the details", () => {

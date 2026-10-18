@@ -103,7 +103,7 @@ test("the period's cohort and what became of it, how long its yeses took, where 
     person("d5", "whatsapp"),
     person("d13", "calendar"),
   ];
-  assert.deepEqual(await dealReport(ctxFor({ deals }), T, 30, true, people, NOW), {
+  assert.deepEqual(await dealReport(ctxFor({ deals }), T, 30, people, NOW), {
     any: true,
     sent: 7,
     won: 3,
@@ -149,7 +149,7 @@ test("a year is twelve months, once is not a month, an ended engagement was won 
     }),
     deal("l", { stage: "lost", proposed_at: iso(2), decided_at: iso(1) }),
   ];
-  assert.deepEqual(await dealReport(ctxFor({ deals }), T, 7, true, [], NOW), {
+  assert.deepEqual(await dealReport(ctxFor({ deals }), T, 7, [], NOW), {
     ...NONE,
     any: true,
     sent: 5,
@@ -165,21 +165,21 @@ test("whole days from a proposal to its yes: part of a day is none, a client ent
   const won = (id, proposed, decided) => deal(id, { stage: "won", proposed_at: proposed, decided_at: decided });
   const at = (days, hours = 0) => new Date(NOW.getTime() - days * DAY + hours * HOUR).toISOString();
   const part = [won("a", at(6), at(6, 23))]; // 23 hours: under a day
-  assert.equal((await dealReport(ctxFor({ deals: part }), T, 30, true, [], NOW)).median_days_to_yes, 0);
+  assert.equal((await dealReport(ctxFor({ deals: part }), T, 30, [], NOW)).median_days_to_yes, 0);
   // A yes dated before its proposal went, or put on file with it, is a client entered after the fact: no wait, so
   // no median of none (the pace reads the same rule, contracts yesWaits).
   const before = [won("b", at(6), at(7))]; // recorded a day before the proposal went
-  assert.equal((await dealReport(ctxFor({ deals: before }), T, 30, true, [], NOW)).median_days_to_yes, null);
+  assert.equal((await dealReport(ctxFor({ deals: before }), T, 30, [], NOW)).median_days_to_yes, null);
   const together = [won("b2", at(6), at(6, 0.2))]; // twelve minutes after
-  const r2 = await dealReport(ctxFor({ deals: together }), T, 30, true, [], NOW);
+  const r2 = await dealReport(ctxFor({ deals: together }), T, 30, [], NOW);
   assert.deepEqual([r2.won, r2.median_days_to_yes], [1, null], "still a client of the cohort; not a wait");
   const even = [won("c", at(10), at(9)), won("d", at(10), at(8))]; // 1 and 2: the middle is 1.5
-  assert.equal((await dealReport(ctxFor({ deals: even }), T, 30, true, [], NOW)).median_days_to_yes, 2);
+  assert.equal((await dealReport(ctxFor({ deals: even }), T, 30, [], NOW)).median_days_to_yes, 2);
   const undated = [won("e", at(10), null), won("f", at(10), at(4))];
-  const r = await dealReport(ctxFor({ deals: undated }), T, 30, true, [], NOW);
+  const r = await dealReport(ctxFor({ deals: undated }), T, 30, [], NOW);
   assert.deepEqual([r.won, r.median_days_to_yes], [2, 6], "both are clients; the one with a day is the median");
   const none = [deal("g", { stage: "lost", proposed_at: at(3), decided_at: at(2) })];
-  assert.equal((await dealReport(ctxFor({ deals: none }), T, 30, true, [], NOW)).median_days_to_yes, null);
+  assert.equal((await dealReport(ctxFor({ deals: none }), T, 30, [], NOW)).median_days_to_yes, null);
 });
 
 test("a client whose person says nothing, has left People or holds a value this build does not know is a client from no source; a tie keeps People's order", async () => {
@@ -187,7 +187,7 @@ test("a client whose person says nothing, has left People or holds a value this 
     deal(id, { stage: "won", proposed_at: iso(4), decided_at: iso(2) }),
   );
   const people = [person("q", null), person("odd", "fax"), person("t", "email"), person("m", "sms")];
-  const r = await dealReport(ctxFor({ deals }), T, 30, true, people, NOW);
+  const r = await dealReport(ctxFor({ deals }), T, 30, people, NOW);
   assert.equal(r.won, 5);
   assert.deepEqual(r.sources, [
     { came_from: "sms", count: 1 },
@@ -199,7 +199,7 @@ test("a pass with no reason, or one this build does not know, is a pass and no r
   const deals = [null, "moved away", "other", "timing"].map((lost_reason, i) =>
     deal(`p${i}`, { stage: "lost", proposed_at: iso(4), decided_at: iso(2), lost_reason }),
   );
-  const r = await dealReport(ctxFor({ deals }), T, 30, true, [], NOW);
+  const r = await dealReport(ctxFor({ deals }), T, 30, [], NOW);
   assert.equal(r.lost, 4);
   assert.deepEqual(r.reasons, [
     { reason: "timing", count: 1 },
@@ -216,7 +216,7 @@ test("past a thousand deals every one is counted: the deals are read a page at a
       deal(id(1101 + i), { stage: "won", proposed_at: iso(5), decided_at: iso(4), amount_cents: 2_000, per: "month" }),
     ),
   ];
-  const r = await dealReport(ctxFor({ deals }), T, 30, true, [], NOW);
+  const r = await dealReport(ctxFor({ deals }), T, 30, [], NOW);
   assert.deepEqual(
     [r.sent, r.waiting, r.won, r.clients, r.monthly_cents, r.open.count, r.open.amounts.length],
     [1200, 1100, 100, 100, 200_000, 1100, 1100],
@@ -224,20 +224,14 @@ test("past a thousand deals every one is counted: the deals are read a page at a
 });
 
 test("nothing ever recorded reads as none, and another workspace's deals are not this one's", async () => {
-  assert.deepEqual(await dealReport(ctxFor({ deals: [] }), T, 30, true, [], NOW), NONE);
+  assert.deepEqual(await dealReport(ctxFor({ deals: [] }), T, 30, [], NOW), NONE);
   const theirs = [
     deal("x", { tenant_id: OTHER, stage: "won", decided_at: iso(1), amount_cents: 250_000, per: "month" }),
   ];
-  assert.deepEqual(await dealReport(ctxFor({ deals: theirs }), T, 30, true, [person("x", "lead")], NOW), NONE);
-});
-
-test("where deals are off the section is not drawn, whatever deals the table holds, and the table is not read", async () => {
-  const ctx = ctxFor({ deals: [deal("d1", { stage: "won", amount_cents: 250_000, per: "month" })] });
-  assert.deepEqual(await dealReport(ctx, T, 30, false, [person("d1", "lead")], NOW), NONE);
-  assert.equal(ctx.supabase.seen.filter((q) => q.table === "deals").length, 0, "nothing read for a section not drawn");
+  assert.deepEqual(await dealReport(ctxFor({ deals: theirs }), T, 30, [person("x", "lead")], NOW), NONE);
 });
 
 test("a table that cannot be read is no report, so the section is not drawn and the rest of Reports stands", async () => {
   const ctx = ctxFor({ deals: [deal("d1")] }, { "deals.select": { message: 'column "lost_reason" does not exist' } });
-  assert.equal(await dealReport(ctx, T, 30, true, [], NOW), null);
+  assert.equal(await dealReport(ctx, T, 30, [], NOW), null);
 });

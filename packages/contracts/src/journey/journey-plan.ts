@@ -3,14 +3,14 @@
  * contracts planOf (ask/plan.ts) makes of the intent cover_journey against the workspace as Ask's reads see it. A
  * campaign on each moment of the business's journey that this workspace runs and nothing covers yet, on its action's
  * pick (stageInput); a moment it does not run yet said with what it needs first, never dropped in silence: an
- * appointment's two need the calendar's feed, a proposal's needs deals on, which the owner's own words make a moment of
- * their journey. The words name what they book in the owner's words, say whoever a card reaches nobody of today, and
- * are said in the question's language; the answer leads with what comes first (PlanLead). Its rows are in
+ * appointment's two need the calendar's feed. A proposal's is the journey's where a deal was recorded here, or where
+ * the owner's own words make it a moment of their journey (every workspace has deals, 0008 amended 18 Oct 2026). The
+ * words name what they book in the owner's words, say whoever a card reaches nobody of today, and are said in the
+ * question's language; the answer leads with what comes first (PlanLead). Its rows are in
  * tooling/scripts/tests/ask/plan/plan-of.test.mjs, beside the offer's.
  */
 import { clip } from "../ask/ask-answer";
 import type { PlanIntent, PlanStep, PlanWorld } from "../ask/plan";
-import { SELLS_BY_QUESTION, SELLS_BY_WORDS } from "../deals/sells-by";
 import { CALENDAR_SETTING_ROUTE } from "../setup/calendar-source";
 import { capitalize, joinWords, joinWordsEs, plural } from "../shared/words";
 import { LIVE_VERSION_STATES } from "../templates/message-versions";
@@ -35,7 +35,7 @@ export const JOURNEY_PLAN_WORDS = {
   journeyUnread:
     "The journey could not be read just now, so which moments are covered is not known: say so, and try again in a moment.",
   nothingToCover:
-    "Every moment asked for is covered already or not offered here (an appointment's moments need a calendar connected, a proposal's needs deals on): say so, and propose nothing.",
+    "Every moment asked for is covered already or not offered here (an appointment's moments need a calendar connected): say so, and propose nothing.",
   notOffered: (stages: readonly string[]): string => `Not offered here: ${joinWords(stages)}.`,
   whyStage: (id: JourneyStageId): string => `Nobody hears from you ${STAGE_WORDS[id]} yet.`,
   /** A campaign paused on a moment the setup covers: resumed by a card of its own, never doubled. */
@@ -86,8 +86,8 @@ function stageInput(id: JourneyStageId, moment: string, world: PlanWorld): Recor
 
 /** A moment a setup may start a campaign on: every stage but first contact, the receptionist's. */
 type Moment = Exclude<JourneyStageId, "first_contact">;
-/** What a moment of the business's journey waits for here: a calendar's feed (an appointment's two), deals on (a proposal's). */
-type Need = "calendar" | "proposals";
+/** What a moment of the business's journey waits for here: a calendar's feed (an appointment's two). */
+type Need = "calendar";
 type Cover = Extract<PlanIntent, { intent: "cover_journey" }>;
 
 /**
@@ -101,9 +101,6 @@ export interface PlanLead {
   next: string[];
 }
 
-/** Settings › Details, where How customers buy is answered (settings/frame/tabs.ts: the bare route opens Details). */
-const SETTINGS_BUSINESS_ROUTE = "admin/workspace";
-
 /** The workspace's word for an appointment, in Spanish: a setup's Spanish words say it where the owner named nothing. */
 const APPOINTMENT_ES: Record<AppointmentWord, string> = {
   appointment: "cita",
@@ -115,9 +112,9 @@ const APPOINTMENT_ES: Record<AppointmentWord, string> = {
 
 /**
  * A setup's words, by the language of the question (PlanWorld.says): what each campaign it starts sends, what an
- * appointment's moments and a proposal's need first and where that is set (Settings › Business: the calendar's row, and
- * How customers buy, contracts sells-by.ts), what reaches nobody today, and the answer's headline, Open and next question
- * where something waits. Every sentence names what the business books in the owner's words where they gave them.
+ * appointment's moments need first and where that is set (Settings › Hours & booking: the calendar's row), what reaches
+ * nobody today, and the answer's headline, Open and next question where something waits. Every sentence names what the
+ * business books in the owner's words where they gave them.
  */
 const SETUP_WORDS = {
   en: {
@@ -142,19 +139,15 @@ const SETUP_WORDS = {
       feed
         ? `First, connect your calendar's feed under Settings › Hours & booking (booking emails alone cannot time a campaign), so each ${each} gets ${gets}.`
         : `First, connect your calendar under Settings › Hours & booking, so each ${each} gets ${gets}.`,
-    proposals: (first: boolean) =>
-      `${first ? "First" : "Then"}, under Settings › Details, answer ${SELLS_BY_QUESTION} with “${SELLS_BY_WORDS.proposal.label}”, so each proposal that waits gets a follow-up.`,
     nobody: (named: string, one: boolean) =>
       `${capitalize(named)} ${one ? "reaches" : "reach"} nobody today; ${one ? "its card says" : "each card says"} why.`,
     resume: (names: readonly string[]) =>
       `Resumes ${joinWords(names.map((n) => `“${n}”`))}, paused on ${names.length === 1 ? "its moment, on a card of its own" : "their moments, a card each"}.`,
-    again: (more: number, needs: ReadonlySet<Need>) =>
-      `Ask me again once ${onceOf(needs, "en")}, and I'll add ${more === 1 ? "it" : "them"}.`,
-    headline: (needs: ReadonlySet<Need>, now: number, more: number) =>
-      `${needs.size === 2 ? "Connect your calendar and turn on proposals" : needs.has("calendar") ? "Connect your calendar" : "Turn on proposals"} first: ${plural(now, "campaign")} can start now, ${more} more once ${onceOf(needs, "en")}.`,
-    open: (needs: ReadonlySet<Need>) => (needs.has("calendar") ? "Connect a calendar" : "Open Business settings"),
-    next: (needs: ReadonlySet<Need>) =>
-      needs.has("calendar") ? "How do I connect my calendar in Settings?" : "How do I turn on proposals in Settings?",
+    again: (more: number) => `Ask me again once it is connected, and I'll add ${more === 1 ? "it" : "them"}.`,
+    headline: (now: number, more: number) =>
+      `Connect your calendar first: ${plural(now, "campaign")} can start now, ${more} more once it is connected.`,
+    open: "Connect a calendar",
+    next: "How do I connect my calendar in Settings?",
   },
   es: {
     starts: {
@@ -178,29 +171,17 @@ const SETUP_WORDS = {
       feed
         ? `Primero, conecta el feed de tu calendario en Ajustes › Negocio (los correos de reserva no bastan para programar una campaña), para que cada ${each} tenga ${gets}.`
         : `Primero, conecta tu calendario en Ajustes › Negocio, para que cada ${each} tenga ${gets}.`,
-    proposals: (first: boolean) =>
-      `${first ? "Primero" : "Luego"}, en Ajustes › Negocio, responde a «Cómo compran tus clientes» con «Algunos reciben antes una propuesta», para que cada propuesta que espera tenga un seguimiento.`,
     nobody: (named: string, one: boolean) =>
       `${capitalize(named)} no ${one ? "llega" : "llegan"} a nadie hoy; ${one ? "su tarjeta dice" : "cada tarjeta dice"} por qué.`,
     resume: (names: readonly string[]) =>
       `Reanuda ${joinWordsEs(names.map((n) => `«${n}»`))}, en pausa en ${names.length === 1 ? "su momento, en su propia tarjeta" : "sus momentos, en una tarjeta cada una"}.`,
-    again: (more: number, needs: ReadonlySet<Need>) =>
-      `Pídemelo otra vez cuando ${onceOf(needs, "es")} y ${more === 1 ? "la añado" : "las añado"}.`,
-    headline: (needs: ReadonlySet<Need>, now: number, more: number) =>
-      `${needs.size === 2 ? "Conecta tu calendario y activa las propuestas" : needs.has("calendar") ? "Conecta tu calendario" : "Activa las propuestas"} primero: ${now === 1 ? "1 campaña puede" : `${now} campañas pueden`} empezar ya, ${more} más cuando ${onceOf(needs, "es")}.`,
-    open: (needs: ReadonlySet<Need>) =>
-      needs.has("calendar") ? "Conectar un calendario" : "Abrir Ajustes del negocio",
-    next: (needs: ReadonlySet<Need>) =>
-      needs.has("calendar") ? "¿Cómo conecto mi calendario en Ajustes?" : "¿Cómo activo las propuestas en Ajustes?",
+    again: (more: number) => `Pídemelo otra vez cuando esté conectado y ${more === 1 ? "la añado" : "las añado"}.`,
+    headline: (now: number, more: number) =>
+      `Conecta tu calendario primero: ${now === 1 ? "1 campaña puede" : `${now} campañas pueden`} empezar ya, ${more} más cuando esté conectado.`,
+    open: "Conectar un calendario",
+    next: "¿Cómo conecto mi calendario en Ajustes?",
   },
 } as const;
-
-/** When what a setup waits for is done: the calendar connected, proposals on, or both. */
-function onceOf(needs: ReadonlySet<Need>, says: PlanWorld["says"]): string {
-  if (needs.size === 2) return says === "es" ? "estén los dos" : "both are on";
-  if (needs.has("calendar")) return says === "es" ? "esté conectado" : "it is connected";
-  return says === "es" ? "estén activas" : "they are on";
-}
 
 /**
  * What the business books as the owner said it ("a discovery call", "una llamada"), as a setup's words name it after
@@ -217,17 +198,16 @@ function bookedThing(books: string | undefined, world: PlanWorld): string {
 
 /**
  * Why a moment of the business's journey is not one this workspace runs yet: an appointment's two without a calendar's
- * feed, a proposal's with deals off. Null where it runs, or where nothing a setup could name stops it.
+ * feed. Null where it runs, or where nothing a setup could name stops it.
  */
 function needOf(id: Moment, world: PlanWorld): Need | null {
   if (id === "before" || id === "after") return world.shape.calendar === "feed" ? null : "calendar";
-  if (id === "proposal") return world.shape.dealsOn ? null : "proposals";
   return null;
 }
 
 /**
- * The moments a setup is for: each named, or every one of the journey's, a proposal's only where deals are on or the
- * owner said some customers get one first (a salon is never told to turn proposals on).
+ * The moments a setup is for: each named, or every one of the journey's, a proposal's only where a deal was recorded
+ * here or the owner said some customers get one first (a salon is never offered a proposal follow-up unasked).
  */
 function momentsOf(intent: Cover, world: PlanWorld): Moment[] {
   const named = intent.stages;
@@ -235,29 +215,26 @@ function momentsOf(intent: Cover, world: PlanWorld): Moment[] {
     (id): id is Moment =>
       id !== "first_contact" &&
       (!named || named.includes(id)) &&
-      (id !== "proposal" || world.shape.dealsOn || intent.proposals === true || !!named?.includes(id)),
+      (id !== "proposal" || world.shape.hasDeals || intent.proposals === true || !!named?.includes(id)),
   );
 }
 
-/** What a setup says must come first, in order (the calendar, then proposals), each naming what it starts. */
+/** What a setup says must come first (the calendar), naming what it starts. */
 function needLines(needs: ReadonlySet<Need>, later: readonly Moment[], books: string | undefined, world: PlanWorld) {
   const S = SETUP_WORDS[world.says];
-  const lines: string[] = [];
-  if (needs.has("calendar")) {
-    const gets = later.flatMap((id) => (id === "before" || id === "after" ? [S.gets[id]] : []));
-    lines.push(S.calendar(world.shape.calendar === "email", bookedThing(books, world), S.join(gets)));
-  }
-  if (needs.has("proposals")) lines.push(S.proposals(!needs.has("calendar")));
-  return lines;
+  if (!needs.has("calendar")) return [];
+  const gets = later.flatMap((id) => (id === "before" || id === "after" ? [S.gets[id]] : []));
+  return [S.calendar(world.shape.calendar === "email", bookedThing(books, world), S.join(gets))];
 }
 
 /**
  * A setup of the journey (the setup review, 15 Oct 2026): a campaign on each moment of the business's journey that this
  * workspace runs and nothing covers yet, on its action's pick (stageInput); a campaign paused on its moment resumed by a
  * card of its own, never doubled. A moment it does not run yet is said with what it needs first, never dropped in
- * silence: an appointment's two need the calendar connected, a proposal's needs deals on, which the owner's own words
- * make a moment of their journey (`proposals`). The words say what must come first, then what the cards start, then
- * whoever they reach nobody of today, then what they resume, and to ask again once it is set up; the answer leads with
+ * silence: an appointment's two need the calendar connected. A proposal's, asked for where no deal was recorded yet and
+ * so not among the journey's stages, is started all the same (`proposals`, or the stage named). The words say what must
+ * come first, then what the cards start, then whoever they reach nobody of today, then what they resume, and to ask
+ * again once it is set up; the answer leads with
  * it (PlanLead). With nothing to start or resume, the plan is refused with what comes first, for the model to say.
  */
 export function journeyPlan(
@@ -275,6 +252,13 @@ export function journeyPlan(
   const started: Moment[] = [];
   for (const id of momentsOf(intent, world)) {
     const stage = journey.find((s) => s.id === id);
+    // The proposal's stage is the journey's only where a deal was recorded or a campaign stands on it (journeyOf);
+    // asked for, it is started all the same: every workspace has deals, and nothing stands on it yet.
+    if (!stage && id === "proposal") {
+      add(stageInput(id, "proposal_waiting", world), JOURNEY_PLAN_WORDS.whyStage(id));
+      started.push(id);
+      continue;
+    }
     if (!stage) {
       const need = needOf(id, world);
       if (need) {
@@ -301,9 +285,10 @@ export function journeyPlan(
     const first = needLines(needs, later, intent.books, { ...world, says: "en" });
     return { refused: [JOURNEY_PLAN_WORDS.nothingToCover, ...first, ...notOffered].join(" ") };
   }
-  // Whom a card reaches today, by its moment's own count: null is not counted, never nobody.
+  // Whom a card reaches today, by its moment's own count: null is not counted, never nobody. A proposal's started off
+  // the journey is counted on its own moment.
   const nobody = started.filter((id) => {
-    const moment = journey.find((s) => s.id === id)?.moment;
+    const moment = journey.find((s) => s.id === id)?.moment ?? (id === "proposal" ? "proposal_waiting" : null);
     return !!moment && world.reach[moment] === 0;
   });
   const words = [
@@ -312,14 +297,14 @@ export function journeyPlan(
     ...(nobody.length ? [S.nobody(S.join(nobody.map((id) => S.named[id])), nobody.length === 1)] : []),
     ...notOffered,
     ...(paused.length ? [S.resume(paused)] : []),
-    ...(needs.size ? [S.again(later.length, needs)] : []),
+    ...(needs.size ? [S.again(later.length)] : []),
   ];
   // A campaign resumed starts again now, as one started does.
   const lead = needs.size
     ? {
-        headline: S.headline(needs, started.length + paused.length, later.length),
-        open: { to: needs.has("calendar") ? CALENDAR_SETTING_ROUTE : SETTINGS_BUSINESS_ROUTE, label: S.open(needs) },
-        next: [S.next(needs)],
+        headline: S.headline(started.length + paused.length, later.length),
+        open: { to: CALENDAR_SETTING_ROUTE, label: S.open },
+        next: [S.next],
       }
     : null;
   return { steps, words: words.join(" "), lead };

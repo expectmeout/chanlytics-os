@@ -29,7 +29,7 @@ import {
 } from "@chanlytics/contracts";
 import { REVIEWS_NOW, reviewsDto } from "../_report-world.mjs";
 
-const OWNER = { sellsBy: "booking", role: "owner", adsOn: false };
+const OWNER = { role: "owner", adsOn: false };
 
 test("seven lenses in the strip's order, each with its words, and none for a lens that is not drawn", () => {
   assert.deepEqual(
@@ -126,47 +126,30 @@ test("one review is an address of the Reviews lens: reports/reviews:<id>, the ro
   assert.equal(reviewRoute("r-ana"), lensRoute("reviews"));
 });
 
-test("Pipeline is shown where deals are on, Ads where ads are on, and nowhere else; the other five are shown to every member", () => {
+test("Ads is shown where ads are on, and nowhere else; the other six, Pipeline among them (0008, amended 18 Oct 2026), are shown to every member", () => {
   const ids = (who) => lensesFor(who).map((l) => l.id);
   const WITHOUT_ADS = REPORT_LENSES.map((l) => l.id).filter((id) => id !== "ads");
-  assert.deepEqual(ids(OWNER), ["overview", "receptionist", "people", "campaigns", "reviews"]);
-  assert.deepEqual(ids({ sellsBy: "proposal", role: "operator", adsOn: false }), WITHOUT_ADS);
+  assert.deepEqual(ids(OWNER), ["overview", "receptionist", "people", "pipeline", "campaigns", "reviews"]);
+  assert.deepEqual(ids(OWNER), WITHOUT_ADS);
   assert.deepEqual(
-    ids({ sellsBy: "proposal", role: "operator", adsOn: true }),
+    ids({ role: "operator", adsOn: true }),
     REPORT_LENSES.map((l) => l.id),
-    "deals and ads both on: every lens",
+    "ads on: every lens",
   );
   assert.deepEqual(
     ids({ ...OWNER, adsOn: true }),
-    ["overview", "receptionist", "people", "campaigns", "ads", "reviews"],
-    "ads on and deals off: Ads stands between Campaigns and Reviews, and Pipeline is still not there",
+    ["overview", "receptionist", "people", "pipeline", "campaigns", "ads", "reviews"],
+    "ads on: Ads stands between Campaigns and Reviews",
   );
   assert.ok(lensIsShown("ads", { ...OWNER, adsOn: true }));
   assert.ok(
     !lensIsShown("ads", OWNER),
     "a workspace without ads is not shown the lens, and reads its empty at the address",
   );
-  assert.ok(!lensIsShown("ads", { sellsBy: "proposal", role: "owner", adsOn: false }), "deals on does not turn Ads on");
-  assert.deepEqual(ids({ sellsBy: null, role: "viewer", adsOn: false }), [
-    "overview",
-    "receptionist",
-    "people",
-    "campaigns",
-    "reviews",
-  ]);
-  assert.ok(lensIsShown("pipeline", { sellsBy: "proposal", role: "viewer", adsOn: false }));
-  assert.ok(!lensIsShown("pipeline", OWNER));
-  assert.ok(!lensIsShown("pipeline", { ...OWNER, adsOn: true }), "ads on does not turn Pipeline on");
-  assert.deepEqual(
-    ids({ sellsBy: "proposal", role: undefined, adsOn: false }),
-    WITHOUT_ADS,
-    "a role not yet known reads as a viewer",
-  );
-  assert.deepEqual(
-    ids({ sellsBy: "proposal", role: "stranger", adsOn: true }),
-    [],
-    "a role the ladder does not know stands on no rung",
-  );
+  assert.deepEqual(ids({ role: "viewer", adsOn: false }), WITHOUT_ADS, "a viewer sees every lens but Ads");
+  assert.ok(lensIsShown("pipeline", OWNER));
+  assert.deepEqual(ids({ role: undefined, adsOn: false }), WITHOUT_ADS, "a role not yet known reads as a viewer");
+  assert.deepEqual(ids({ role: "stranger", adsOn: true }), [], "a role the ladder does not know stands on no rung");
 });
 
 test("Ads' address says the days and what it is narrowed to, after the lens: every ad is no word, and nothing else is read", () => {
@@ -233,15 +216,21 @@ test("Ads' address says the days and what it is narrowed to, after the lens: eve
 test("the palette and Ask's page routes are the registry's: no lens spelled twice", () => {
   for (const route of LENS_ROUTES) assert.ok(ASK_PAGE_ROUTES.includes(route), `${route} is a page an answer may name`);
   const labels = (has) => askPages({ platformAdmin: false, ...has }).map((e) => e.label);
-  const off = labels({ dealsOn: false });
+  const every = labels({});
   assert.deepEqual(
-    off.filter((l) => l.startsWith("Reports")),
-    ["Reports", "Reports › Receptionist", "Reports › People", "Reports › Campaigns", "Reports › Reviews"],
+    every.filter((l) => l.startsWith("Reports")),
+    [
+      "Reports",
+      "Reports › Receptionist",
+      "Reports › People",
+      "Reports › Pipeline",
+      "Reports › Campaigns",
+      "Reports › Reviews",
+    ],
+    "every workspace's lenses, Pipeline among them",
   );
-  assert.ok(labels({ dealsOn: true }).includes("Reports › Pipeline"));
-  assert.ok(!off.includes("Reports › Pipeline"), "where deals are off the lens has no jump");
   assert.ok(
-    !labels({ dealsOn: true }).includes("Reports › Ads") && !off.includes("Reports › Ads"),
+    !every.includes("Reports › Ads"),
     "Ads is no jump of the palette: a real workspace's has none, and a demo's lens is reached from the strip",
   );
   assert.ok(ASK_PAGE_ROUTES.includes("reports/ads"), "but an answer may name the page, which says why it is empty");

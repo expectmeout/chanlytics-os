@@ -14,7 +14,7 @@ import { clockDate } from "../shared/clock";
 import { visitLineForDto } from "../people/person-row";
 import type { PersonCardContext } from "../people/person-cards";
 import { DAY_MS, dateFormat } from "../shared/time";
-import { appointmentWordWhere, appointmentWords } from "../journey/appointment-word";
+import { appointmentWords } from "../journey/appointment-word";
 
 export const VISITS_TAB_WORDS = {
   toMark: "To mark",
@@ -147,9 +147,9 @@ function visitsHeadOf(
 }
 
 /** Their visits, as the Visits tab draws them. */
-export function personVisitsOf({ profile, nowMs, base, dealsOn }: PersonCardContext): PersonVisitsVM {
+export function personVisitsOf({ profile, nowMs, base, word }: PersonCardContext): PersonVisitsVM {
   // A visit the calendar names nothing for is called what the workspace calls one ("Appointment", "Meeting").
-  const untitled = appointmentWords(appointmentWordWhere(dealsOn)).Title;
+  const untitled = appointmentWords(word).Title;
   const toMark: { t: number; row: PersonVisitRowVM }[] = [];
   const ahead: { t: number; row: PersonVisitRowVM }[] = [];
   const past: { t: number; row: PersonVisitRowVM }[] = [];

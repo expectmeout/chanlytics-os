@@ -15,12 +15,12 @@ import * as C from "@chanlytics/contracts";
 const BANNED = /\b(salons?|stylists?|balayage|therapists?|chair rental|haircuts?|keratin|blowouts?|lash(?:es)?)\b/i;
 const VISIT = /(?<![\w-])visit(?:a)?s?(?![\w-])/i;
 
-/** The four shapes a workspace can have: a calendar connected or not, deals on or not; each calls it an appointment. */
+/** The four shapes a workspace can have: a calendar connected or not, a deal on file or not; each calls it an appointment. */
 const SHAPES = [
-  { calendarOn: false, dealsOn: false, word: "appointment" },
-  { calendarOn: true, dealsOn: false, word: "appointment" },
-  { calendarOn: true, dealsOn: true, word: "appointment" },
-  { calendarOn: false, dealsOn: true, word: "appointment" },
+  { calendarOn: false, hasDeals: false, word: "appointment" },
+  { calendarOn: true, hasDeals: false, word: "appointment" },
+  { calendarOn: true, hasDeals: true, word: "appointment" },
+  { calendarOn: false, hasDeals: true, word: "appointment" },
 ];
 
 const rowsOf = (shape) => C.journeyGuide(shape).map((r) => [r.stage, r.moment]);
@@ -96,12 +96,12 @@ test("the win-back's row says when it goes in its own moment's words, by silence
 });
 
 test("without a calendar, no row for the day before or the day after, and the win-back goes by silence", () => {
-  for (const dealsOn of [false, true]) {
-    const rows = rowsOf({ calendarOn: false, dealsOn, word: "appointment" });
+  for (const hasDeals of [false, true]) {
+    const rows = rowsOf({ calendarOn: false, hasDeals, word: "appointment" });
     assert.deepEqual(
       rows.filter(([stage]) => stage === "before" || stage === "after"),
       [],
-      `deals ${dealsOn ? "on" : "off"}`,
+      `${hasDeals ? "a deal on file" : "no deal on file"}`,
     );
     assert.deepEqual(
       rows.find(([stage]) => stage === "quiet"),
@@ -115,11 +115,11 @@ test("without a calendar, no row for the day before or the day after, and the wi
   ]);
 });
 
-test("a proposal's row only where deals are on, before quiet, on the follow-up's moment", () => {
+test("a proposal's row only once a deal is on file, before quiet, on the follow-up's moment", () => {
   for (const shape of SHAPES) {
     const rows = rowsOf(shape);
     const at = rows.findIndex(([stage]) => stage === "proposal");
-    if (!shape.dealsOn) {
+    if (!shape.hasDeals) {
       assert.equal(at, -1, JSON.stringify(shape));
       continue;
     }
@@ -156,7 +156,7 @@ test("every sentence the guide says is any trade's: none of trade-neutral's bann
 });
 
 test("the guide says the workspace's own word for an appointment, and the day after names the review ask only where the listing keeps a review link, which the review starter takes", () => {
-  const guide = C.journeyGuide({ calendarOn: true, dealsOn: true, word: "meeting" });
+  const guide = C.journeyGuide({ calendarOn: true, hasDeals: true, word: "meeting" });
   const row = (stage) => guide.find((r) => r.stage === stage);
   assert.equal(row("before").sends, "the day before a meeting on the calendar: a reminder");
   assert.equal(

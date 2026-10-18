@@ -378,8 +378,9 @@ const worldOf = (over = {}) => ({
   // An owner asks: a note for the receptionist is theirs to approve.
   canNote: true,
   says: "en",
-  // No calendar and no deals, as GET playbooks says Harbor works; nobody counted for a moment the setups below start.
-  shape: { calendar: "none", dealsOn: false, word: "appointment" },
+  // No calendar and no deal on file, as GET playbooks says Harbor works; nobody counted for a moment the setups below
+  // start.
+  shape: { calendar: "none", hasDeals: false, word: "appointment" },
   reach: {},
   ...over,
 });
@@ -849,7 +850,7 @@ const calendarWorld = (over = {}) =>
     messages: [],
     playbooks: [],
     journey: CALENDAR_JOURNEY,
-    shape: { calendar: "feed", dealsOn: false, word: "appointment" },
+    shape: { calendar: "feed", hasDeals: false, word: "appointment" },
     // Who GET playbooks counts on each moment of Harbor today: nobody has a visit tomorrow or had one yesterday, and
     // nobody has lapsed.
     reach: { visit_tomorrow: 0, visited: 0, lapsed: 0 },
@@ -1168,18 +1169,21 @@ test("a setup's plan alone in its round: its campaigns are plain cards (D3), so 
   assert.deepEqual([r.answer.do.open, r.answer.do.next], [null, []]);
 });
 
-test("a setup with no calendar, asked in Spanish by a business that books a call and sends proposals: the answer leads with what to connect first, in Spanish, opens the calendar's row and asks how next; the win-back is the one card (the setup review)", async () => {
+test("a setup with no calendar, asked in Spanish by a business that books a call and sends proposals: the answer leads with what to connect first, in Spanish, opens the calendar's row and asks how next; the proposal follow-up and the win-back are its cards (the setup review; deals for everyone, 18 Oct 2026)", async () => {
   const intent = { intent: "cover_journey", books: "llamada de diagnóstico", proposals: true };
   const setup = { ...PLAN_CALL, json: JSON.stringify({ action: "offer", ...intent }) };
   const r = await planTurn([setup], { text: "Prepara mis campañas", language: "es" });
   assert.equal(r.failed, false, JSON.stringify(r));
   assert.deepEqual(
     r.proposals.map((p) => [p.kind, p.payload.trigger]),
-    [["playbook", "quiet_30"]],
+    [
+      ["playbook", "proposal_waiting"],
+      ["playbook", "quiet_30"],
+    ],
   );
   assert.equal(
     r.answer.say.headline,
-    "Conecta tu calendario y activa las propuestas primero: 1 campaña puede empezar ya, 3 más cuando estén los dos.",
+    "Conecta tu calendario primero: 2 campañas pueden empezar ya, 2 más cuando esté conectado.",
   );
   assert.ok(
     r.answer.say.detail.startsWith(
@@ -1393,7 +1397,7 @@ test("a setup's answer the model writes in Portuguese keeps the door the setup w
   assert.equal(r.answer.do.open?.label, "Connect a calendar");
   assert.equal(r.answer.do.open?.now, false);
   assert.deepEqual(r.answer.do.next, [asked]);
-  assert.equal(r.proposals.length, 1, "the win-back, the one card");
+  assert.equal(r.proposals.length, 2, "the proposal follow-up and the win-back, a card each");
 });
 
 test("a setup asked again in the same thread makes none of its cards a second time: the plan's one card waits above, unpressed, so the call makes nothing and the model is told to name it (the evals, 16 Oct 2026: 6 times in 8 it was proposed again)", async () => {
@@ -1402,7 +1406,7 @@ test("a setup asked again in the same thread makes none of its cards a second ti
   readerCache.clear();
   const first = await planTurn([setup], { text: "Set up my campaigns" });
   assert.equal(first.failed, false, JSON.stringify(first));
-  assert.equal(first.proposals.length, 1, "the win-back, the one card");
+  assert.equal(first.proposals.length, 2, "the proposal follow-up and the win-back, a card each");
   const [card] = first.proposals;
   readerCache.clear();
   const again = await planTurn([setup], {
@@ -1420,5 +1424,5 @@ test("a setup asked again in the same thread makes none of its cards a second ti
   readerCache.clear();
   const other = { ...card, payload: { ...card.payload, playbook_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" } };
   const fresh = await planTurn([setup], { text: "Set up my campaigns", waiting: [other] });
-  assert.equal(fresh.proposals.length, 1, "a different change is no repeat");
+  assert.equal(fresh.proposals.length, 2, "a different change is no repeat");
 });

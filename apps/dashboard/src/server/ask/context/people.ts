@@ -4,7 +4,6 @@ import {
   LEAD_LISTS,
   LeadsQuerySchema,
   ago,
-  dealsAreOn,
   isDayKey,
   isPipelineView,
   leadsRoute,
@@ -49,17 +48,15 @@ import {
 
 const zone = (rc: ReaderContext) => load(rc, facts.facts, undefined).then((r) => r.data.timezone);
 
-/** Everyone, each as People draws their row for the member asking, with no deal where deals are off. */
+/** Everyone, each as People draws their row for the member asking. */
 async function peopleRows(rc: ReaderContext) {
-  const [all, sells, tz, ready] = await Promise.all([
+  const [all, tz, ready] = await Promise.all([
     load(rc, everyoneReader, undefined).then((r) => r.data),
-    load(rc, facts.sellsBy, undefined).then((r) => r.data),
     zone(rc),
     load(rc, facts.channelsReady, undefined).then((r) => r.data),
   ]);
-  const dealsOn = dealsAreOn(sells);
-  const vm = (r: PersonRowDto) => poolRowOf(r, { tz, now: rc.now, viewer: rc.userId, dealsOn, ready });
-  return { all, dealsOn, tz, vm };
+  const vm = (r: PersonRowDto) => poolRowOf(r, { tz, now: rc.now, viewer: rc.userId, ready });
+  return { all, tz, vm };
 }
 
 /** A person's line as people.search says them (read/people.ts personLine): name, state, detail, last contact, next step. */
@@ -103,12 +100,11 @@ export const people: Provider = async (rc, ctx) => {
 /**
  * The Pipeline: the rows the page drew, each in its group with its deal, and the line over the table, as the page
  * builds it -- the board's reader (readers/people.ts dealBoard: contracts pipelineOf over People's rows, each row's
- * follow-up and the workspace's pace from People's first page), which Ask's people.pipeline reads too. Where deals are
- * off the Pipeline's address draws People, and so does this.
+ * follow-up and the workspace's pace from People's first page), which Ask's people.pipeline reads too. Every workspace
+ * has the Pipeline (0008, amended 18 Oct 2026).
  */
 export const pipeline: Provider = async (rc, ctx) => {
   const whole = (await load(rc, dealBoard, undefined)).data.board;
-  if (!whole) return people(rc, ctx);
   const pace = whole.pace;
   const found = new Map(whole.groups.flatMap((g) => g.rows.map((row) => [row.id, { row, group: g.label }] as const)));
   const rows: ContextRow[] = [];

@@ -48,8 +48,8 @@ export const railQuiet = <T extends { count: number | string }>(rows: readonly T
 
 /**
  * The list the address names when People doesn't have it: one of People's this workspace can't count (a calendar not
- * read, deals off), archived (it comes back from the rail's Archived line), or not here at all -- deleted, or from
- * another workspace. Null when the list is here, when none is named, or when the lists could not be read.
+ * read, no deal on file yet), archived (it comes back from the rail's Archived line), or not here at all -- deleted, or
+ * from another workspace. Null when the list is here, when none is named, or when the lists could not be read.
  */
 export const plListGone = ({
   listId,
@@ -65,7 +65,7 @@ export const plListGone = ({
   people: PeopleRead;
 }): { title: string; body: string; archived?: { id: string; name: string } } | null => {
   if (listId && !activeList) {
-    // One of People's this workspace doesn't show: a calendar that couldn't be read, deals off. Can't tell, not gone.
+    // One of People's this workspace doesn't show: a calendar that couldn't be read, no deal yet. Can't tell, not gone.
     const hidden = (people.hidden || []).find((h) => h.id === listId);
     return hidden
       ? { title: `${hidden.label} can't be counted here`, body: hidden.why }

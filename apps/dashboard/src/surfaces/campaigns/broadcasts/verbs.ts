@@ -10,7 +10,6 @@
  */
 import {
   REPLY_WINDOW_MS,
-  appointmentWordOf,
   broadcastFailureWords,
   heardWords,
   noNumberWords,
@@ -26,6 +25,7 @@ import {
   type PlaybookDto,
 } from "@chanlytics/contracts";
 import { api } from "@/legacy-bridge/api";
+import { visitWordHere } from "../../workspace-word";
 import { readCache } from "@/legacy-bridge/read-cache";
 import type { ApiResult, Output } from "@/client/api";
 import { surfaceValue } from "../../surface-values";
@@ -106,12 +106,12 @@ export const broadcasts = {
     const now = Date.now();
     const open = clock ? clock.nextOpen(now) : { at: now, moved: false };
     return toApprovalVM(d, {
-      // The playbook with what the workspace calls an appointment (the playbooks surface's shape; unread, the one
-      // derivation over nothing known).
+      // The playbook with what the workspace calls an appointment (the playbooks surface's shape; unread, the workspace
+      // list's word).
       playbook: playbook
         ? {
             ...playbook,
-            word: surfaceValue("playbooks")?.shape.word ?? appointmentWordOf({ stored: null, sellsBy: null }),
+            word: surfaceValue("playbooks")?.shape.word ?? visitWordHere(),
           }
         : null,
       businessName,

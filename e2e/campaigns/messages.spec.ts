@@ -1,6 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { signIn, HAVE_SESSION, WHY_SKIPPED } from "../session";
-import { CAMPAIGN_ROOMS, dealsAreOn, startersOffered } from "../../packages/contracts/src/index";
+import { CAMPAIGN_ROOMS, startersOffered } from "../../packages/contracts/src/index";
 import { apiGet } from "../workspace";
 import { libraryRows, messagesOf, type TemplatesRead } from "./offered";
 
@@ -47,19 +47,13 @@ test.describe("Messages on a real workspace", () => {
     const hasNumber = ((await ch.json()).data.channels as { kind: string }[]).some((c) => c.kind === "whatsapp");
     // The quiet line where the number is missing, and no wall: the list below it is drawn either way.
     await expect(real.getByTestId("messages-no-number")).toHaveCount(hasNumber ? 0 : 1);
-    // The starters offered are contracts' own (the page reads them the same way), by how this workspace says its customers buy.
-    const sellsBy = await page.evaluate(() => {
-      const w = window as unknown as {
-        __WORKSPACES?: Array<{ id: string; sells_by?: string | null }>;
-        __ACTIVE_WORKSPACE?: string;
-      };
-      return w.__WORKSPACES?.find((t) => t.id === w.__ACTIVE_WORKSPACE)?.sells_by ?? null;
-    });
-    // And whether its Google listing keeps a review link, as GET settings says it to the page (the review ask's offer).
+    // The starters offered are contracts' own (the page reads them the same way): every workspace's, the proposal
+    // follow-up's too (0008, amended 18 Oct 2026), and the review ask where its Google listing keeps a review link, as
+    // GET settings says it to the page.
     const settings = await apiGet(page, "/api/v1/settings");
     expect(settings.status()).toBe(200);
     const reviewLink = ((await settings.json()).data as { review_link?: boolean }).review_link === true;
-    const starterNames = startersOffered({ dealsOn: dealsAreOn(sellsBy), reviewLink }).map((s) => s.name);
+    const starterNames = startersOffered({ reviewLink }).map((s) => s.name);
     // The list is the messages: the set's starters, a row each, whatever of it the workspace holds, then a row to each name it
     // wrote or synced, whatever languages and channels it holds, and a fold for what it hid.
     const rows = libraryRows(messages, starterNames);

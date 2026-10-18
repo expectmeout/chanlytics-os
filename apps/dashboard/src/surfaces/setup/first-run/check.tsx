@@ -1,33 +1,26 @@
 /**
  * Check (canvas R2, V2, P2; moved from legacy/pages/first-run.jsx, decision 0015): what the receptionist answers from, in
  * the Business tab's own rows, over the settings read's brain -- the week and its clock, where the business is, its
- * website; how customers buy, the booking link (for a business that books) and the rules it keeps (the price rule shown as
- * its default); what it offers and the languages it speaks. Each row saves through the tab's one saver, and a sheet opens
- * over the first run as it does over the tab. How customers buy is the tab's own choice, drawn open and saved at once
- * through the workspace's door; until it is said, the first answer is shown, and Looks right sends it (FirstRun). With no
- * receptionist yet: an owner's one press, or who sets it up. `canEdit` is whether the role may change the business, as the
+ * website; the booking link (optional for every business: with none, its receptionist takes their details) and the
+ * rules it keeps (the price rule shown as its default); what it offers and the languages it speaks. Each row saves
+ * through the tab's one saver, and a sheet opens over the first run as it does over the tab. Nothing of how customers buy
+ * is asked (0008, amended 18 Oct 2026: every workspace has deals). With no receptionist yet: an owner's one press, or who
+ * sets it up. `canEdit` is whether the role may change the business, as the
  * tab asks it.
  *
  * The Business tab's rows are Settings' (pages/business-tab-*.jsx), borrowed by name through setup/shell.ts until the
  * Business tab moves (step 11).
  */
-import { useState, type RefObject, type ReactNode } from "react";
-import {
-  bookingLinkOptional,
-  bookingLinkRowWords,
-  FIRST_RUN_HELPERS,
-  type FIRST_RUN_WORDS,
-  type FirstRunCheckVM,
-} from "@chanlytics/contracts";
+import type { ReactNode } from "react";
+import { FIRST_RUN_HELPERS, type FIRST_RUN_WORDS, type FirstRunCheckVM } from "@chanlytics/contracts";
 import type { SettingsRecord } from "@/legacy-bridge/surfaces/settings";
 import { FailedRead } from "../../kit/empty/empty";
 import { recFolds } from "../../kit/record/registry";
 import { gate, surfaceFailed, type LegacyFlash } from "../../legacy-verbs";
 import { BtPriceChoiceRow } from "../../settings/business/choices/rows";
-import { businessPart, businessTabSave, sellsByChoice, type BusinessPart, type BusinessTabSave } from "../shell";
-import { brainOf, sellsByAnswer, sendAnswer, type CardBrain } from "./inputs";
+import { businessPart, businessTabSave, type BusinessPart, type BusinessTabSave } from "../shell";
+import { brainOf, type CardBrain } from "./inputs";
 import { FrChips } from "./chips";
-import { useSettled, type SettledEntry } from "./settle";
 
 type CheckWords = (typeof FIRST_RUN_WORDS)["check"];
 
@@ -39,7 +32,6 @@ interface CheckProps {
   making: boolean;
   go: (to: string) => void;
   canEdit: boolean;
-  held: RefObject<SettledEntry | null>;
   settings: SettingsRecord | null;
 }
 
@@ -141,11 +133,7 @@ function offerCard(o: {
   );
 }
 
-export const FrCheck = ({ check, W, flash, make, making, go, canEdit, held, settings }: CheckProps) => {
-  // How customers buy, as the owner is choosing it: shown at once, sent once the keys settle, and let go of once the
-  // answer is taken or refused.
-  const [soon, setSoon] = useState<string | null>(null);
-  const settled = useSettled(held);
+export const FrCheck = ({ check, W, flash, make, making, go, canEdit, settings }: CheckProps) => {
   const brain = brainOf(settings && settings.config);
   // The settings read's brain draws the rows. None there: the owner's press, who sets it up, or, set up and not read back
   // yet, the read on its way; and a read that failed, its retry.
@@ -154,14 +142,6 @@ export const FrCheck = ({ check, W, flash, make, making, go, canEdit, held, sett
   const saver = S.saver;
   const base = saver.base();
   const rows = { brain, base, canEdit, flash, saver };
-  const answer = sellsByAnswer();
-  const door = S.sellsBy;
-  const choice = sellsByChoice();
-  // The booking link is asked of a business that books (the spec's "only for businesses that book"). One that quotes has
-  // none by right (contracts bookingLinkOptional), and its row is drawn only while it has a link to show; in its place,
-  // what it does without one, in the row's own words (bookingLinkRowWords).
-  const quotes = bookingLinkOptional(answer.shown);
-  const linkRow = !quotes || !!brain.booking_link;
   const note = check.unsure ? (
     <span className="fr-unsure" data-testid="fr-check-unsure">
       {check.unsure}
@@ -196,47 +176,15 @@ export const FrCheck = ({ check, W, flash, make, making, go, canEdit, held, sett
         <AddressRow {...rows} />
         <WebsiteRow {...rows} />
       </section>
-      <section className="rec-card fr-check-group" aria-label={W.groups.buys}>
-        {choice ? (
-          <div className="fr-check-buys">
-            {choice({
-              id: "fr-sells-by",
-              vm: answer.vm,
-              value: soon || answer.shown,
-              set: (next) => {
-                setSoon(next);
-                const refused = (f: unknown) => {
-                  if (f && typeof f === "object" && Reflect.get(f, "tone") === "danger") setSoon(null);
-                  flash(f as LegacyFlash);
-                };
-                settled({
-                  next,
-                  send: () => {
-                    if (!sendAnswer(next, refused, () => setSoon(null))) setSoon(null);
-                  },
-                });
-              },
-              readOnly: !canEdit || !door || door.pending(),
-              label: true,
-              testid: "fr-sells-by",
-            })}
-            {!linkRow ? (
-              <p className="fr-note" data-testid="fr-check-quotes">
-                {bookingLinkRowWords(answer.shown).hint}
-              </p>
-            ) : null}
-          </div>
-        ) : null}
-        {linkRow ? (
-          <BookingLinkRow
-            {...rows}
-            other={
-              offered
-                ? { value: offered, sentence: W.bookingPage.found(offered), use: offered, useLabel: W.bookingPage.use }
-                : null
-            }
-          />
-        ) : null}
+      <section className="rec-card fr-check-group" aria-label={W.groups.booking}>
+        <BookingLinkRow
+          {...rows}
+          other={
+            offered
+              ? { value: offered, sentence: W.bookingPage.found(offered), use: offered, useLabel: W.bookingPage.use }
+              : null
+          }
+        />
         <BtPriceChoiceRow canEdit={canEdit} flash={flash} />
         <RulesRow {...rows} config={settings.config} />
       </section>

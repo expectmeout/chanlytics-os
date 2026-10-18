@@ -259,8 +259,6 @@ const btcAbilities = (
     hasCalendarFeed: !!config?.calendar?.ical_url,
     // By the resolver's own test (contracts offersBookingLink), as every reader of the link asks.
     hasBookingLink: BUSINESS_TAB.offersBookingLink(brain),
-    // Whether the workspace is asked for one at all, by how its customers buy (contracts bookingLinkOptional).
-    linkOptional: BUSINESS_TAB.bookingLinkOptional(businessTabSave.answer()),
     // The template retell-fn picks the call's message with, asked of contracts, never matched by name here.
     // The list is known to be one by now: a failed read is said above, not read as "no approved message".
     hasBookingTemplate: !!BUSINESS_TAB.bookingTemplate(templates),

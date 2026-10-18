@@ -10,12 +10,10 @@
 import { useSyncExternalStore } from "react";
 import {
   CALENDAR_VISIT_SHEET_WORDS as W,
-  dealsAreOn,
   visitSheetOf,
   type CalendarBlockVM,
   type CalendarMomentDto,
 } from "@chanlytics/contracts";
-import { workspaceOverride } from "@/legacy-bridge/surface-data";
 import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
 import { Sheet } from "../../kit/sheet/sheet";
@@ -24,7 +22,7 @@ import type { CalendarFrame } from "../types";
 import { calendar } from "../verbs";
 import { crDur, crNotesWorth, crWhen } from "../words";
 import { VisitBody, VisitFoot, whenWords, type VisitCtx } from "./visit";
-import { visitWordHere } from "../../visit-line";
+import { visitWordHere } from "../../workspace-word";
 
 /** What the open visit is drawn from: the block, its day, the board around it, and what closing and walking do. */
 interface OpenVisitProps {
@@ -87,7 +85,6 @@ function ctxOf(p: OpenVisitProps): VisitCtx {
     word,
     source: p.source,
     bookingLink: p.bookingLink,
-    dealsOn: dealsAreOn(workspaceOverride.current()?.sells_by ?? null),
     notes: crNotesWorth(b.description, b.person, contacts),
     next: nextVisitOf(b, p.days),
     moments: p.moments,

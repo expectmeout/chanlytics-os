@@ -9,7 +9,7 @@
 //   /today                → Operator's brief
 //   /inbox                → Inbox
 //   /clients              → Clients portfolio
-//   /clients/pipeline     → People › Pipeline, where deals are on (else People)
+//   /clients/pipeline     → People › Pipeline
 //   /clients/<id>         → Client profile
 //   /soon/<surface>       → In-design landing (pipeline, calendar, fleet, …)
 // The route is read, followed and moved in one place, CHANLY.address (data/constants.jsx: the bridge's in the app,

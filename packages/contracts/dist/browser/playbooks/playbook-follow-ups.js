@@ -1,14 +1,12 @@
 import { shiftKey } from "../calendar/day-keys.js";
 import { clockNear, wallClockAt, zoneDayKey } from "../shared/clock.js";
 import { purposeOfPlaybook } from "../consent/consent.js";
-import { SELLS_BY_QUESTION, SELLS_BY_WORDS } from "../deals/sells-by.js";
 import { waitingOnProposal } from "../deals/deal-waits.js";
 import { readyOrWhatsApp } from "../broadcasts/reach-any.js";
 import { DEFAULT_CAMPAIGN_CHANNELS, reachFor } from "../broadcasts/reach-for.js";
 import { heardWithin } from "../broadcasts/run-words.js";
 import { runDueNow } from "./playbook-schedule.js";
 import { DAY_MS, sweepTickAtOrAfter } from "./playbook-time.js";
-export const FOLLOW_UP_NEEDS_DEALS = `Proposal follow-ups need deals: in Settings \u203A Details, answer \u201C${SELLS_BY_QUESTION}\u201D with \u201C${SELLS_BY_WORDS.proposal.label}\u201D.`;
 export const FOLLOW_UP_NEEDS_LINK = "A proposal follow-up carries the proposal's link: pick a message with a slot for it, and fill that slot with their proposal's link.";
 export const FOLLOW_UP_ONE = "This workspace already has a proposal follow-up. Change that one rather than starting another.";
 export const PLAYBOOK_TOUCH_WINDOW_MS = (365 + 7) * DAY_MS;

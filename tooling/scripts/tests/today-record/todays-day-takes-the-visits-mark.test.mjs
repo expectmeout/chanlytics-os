@@ -240,15 +240,15 @@ test("the brief counts in the workspace's word for an appointment, as Campaigns 
     todayBriefWords(handoffDay(), day, [])
       .sentences.map((s) => s.map((x) => x.text).join(""))
       .find((l) => /^\d+ \w+ today/.test(l));
-  // The playbooks read says the word; a workspace that has not picked reads the one it is given (deals on: a meeting).
+  // The playbooks read says the word, the workspace's own (00458).
   assert.equal(todayDay(afternoon(), { rows: [], word: "meeting" }).word, "meeting");
   assert.equal(
     sentence(todayDay(afternoon(), { rows: [], word: "meeting" })),
     "4 meetings today, 1 missed: next is Dulce Amaro (Color) at 5 PM, 1 more after.",
   );
   assert.equal(sentence(todayDay(afternoon(), { rows: [], word: "visit" })).split(",")[0], "4 visits today");
-  // Playbooks unread: People's deals-on says it, and nothing says it otherwise.
-  assert.equal(todayDay(afternoon(), null, { rows: [], dealsOn: true }).word, "meeting");
+  // Playbooks unread: People's read says it (GET contacts' appointment_word), and nothing says it otherwise.
+  assert.equal(todayDay(afternoon(), null, { rows: [], word: "meeting" }).word, "meeting");
   assert.equal(todayDay(afternoon(), null, { rows: [] }).word, "appointment");
   assert.equal(todayDay(null, null).word, "appointment", "no calendar, and the word is still the default one");
 });

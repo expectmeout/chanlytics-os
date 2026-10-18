@@ -820,10 +820,10 @@ test("a client is offered the service itself; a stranger the consultation; the a
   );
 });
 
-test("the door reads the caller's deal: a client on the line is offered a consult-first service itself, a stranger and a withheld number the consultation; where deals are off, nobody is a client", async () => {
+test("the door reads the caller's deal: a client on the line is offered a consult-first service itself, a stranger and a withheld number the consultation; whatever the retired answer to how customers buy said", async () => {
   // The same world as the booking-held case, with a calendar and a receptionist, one contact who is a client (0004)
-  // and a stubbed feed with nothing on it: every day is open, so the answer turns on the caller alone. The workspace
-  // says some customers get a proposal first (0008), so the deal is read; the contact read carries that answer.
+  // and a stubbed feed with nothing on it: every day is open, so the answer turns on the caller alone. Every
+  // workspace's deals are read (0008, amended 18 Oct 2026).
   const T = "cccccccc-0000-4000-8000-000000000002";
   const AGENT = "agent_availability_client";
   const CLIENT = "+13055550123";
@@ -923,11 +923,11 @@ test("the door reads the caller's deal: a client on the line is offered a consul
     );
     const withheld = await ask(undefined);
     assert.match(withheld, /needs a consultation/, "no number is the stranger's answer");
-    // Where deals are off (0008) the deal on file is not read: the client hears the consultation, as anyone does.
+    // Where the retired answer said its customers book, or was never given, the client is a client all the same.
     for (const answer of ["booking", null]) {
       setPg(world(answer));
       forgetFeeds();
-      assert.match(await ask(CLIENT), /^Ad management needs a consultation before it can be booked/, String(answer));
+      assert.match(await ask(CLIENT), /^For Ad management \(about 60 minutes\): Open times/, String(answer));
     }
   } finally {
     globalThis.fetch = realFetch;

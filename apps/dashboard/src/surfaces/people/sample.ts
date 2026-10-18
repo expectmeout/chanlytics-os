@@ -229,7 +229,8 @@ function sampleLoaded(nowMs: number): PeopleLoaded {
     ],
     calendar: { state: "ok", source: "Google Calendar" },
     bookingLink: "https://book.example.com/studio",
-    dealsOn: false,
+    hasDeals: false,
+    word: "appointment",
     consultFirst: false,
     dealPace: null,
     followUp: null,
@@ -257,7 +258,7 @@ export function demoPeople(): PeopleSurface {
 /**
  * A person's whole page in the demo: the row, the conversation the row says they had (what they last wrote, and the
  * receptionist's answer where it answered), the escalation a row that needs someone names, and the visits the calendar
- * holds for them. Nothing else is invented: no notes, no deals, no campaigns (a demo has deals off), so the page says
+ * holds for them. Nothing else is invented: no notes, no deals, no campaigns (a demo records none), so the page says
  * what a small salon's front desk would see and no more. Null for an id the sample does not hold.
  */
 function sampleDetail(id: string, now: Date = new Date()): PersonDetailDto | null {
@@ -385,7 +386,7 @@ function sampleDetail(id: string, now: Date = new Date()): PersonDetailDto | nul
     person_notes: [],
     note_team: [],
     booking_link: "https://book.example.com/studio",
-    deals_on: false,
+    appointment_word: "appointment",
   };
 }
 

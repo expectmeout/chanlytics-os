@@ -88,7 +88,7 @@ export const businessGapPane = (): string | null => {
   const config = settings && (settings.config as Config | null);
   const brain = (config && config.brain) || null;
   if (!brain) return null;
-  const gap = BUSINESS_TAB.businessGap(brain, businessTabSave.answer());
+  const gap = BUSINESS_TAB.businessGap(brain);
   return gap ? paneOfRow(gap.row) : null;
 };
 
@@ -255,8 +255,8 @@ const BtGap = ({
   door: ((id: string) => void) | null;
   parts: readonly BusinessPart[];
 }) => {
-  // With how customers buy, which decides whether a missing booking link is a gap (the first run's decision 2).
-  const gap = BUSINESS_TAB.businessGap(brain, businessTabSave.answer());
+  // A missing booking link is named last, as an offer, for every business (0008, amended 18 Oct 2026).
+  const gap = BUSINESS_TAB.businessGap(brain);
   // Said on the page that holds the row it opens; the rail marks that page from the others (frame/page.tsx).
   if (!gap || !parts.some((p) => p === paneOfRow(gap.row))) return null;
   return (
@@ -331,22 +331,22 @@ export const BtSheetSlot = ({
 
 /**
  * What the page draws once, on every draw, before any card: the tab's saver drawing the page again as a save moves, the
- * workspace's own doors (the zone's and how customers buy's, which are the tab's for the same reason: save.tsx), and the
+ * workspace's own doors (the zone's and the word's, which are the tab's for the same reason: save.tsx), and the
  * settings surface read again.
  */
 const useBtPageSubscriptions = (saver: Saver) => {
   const [, setTick] = useState(0);
-  // And the workspace's own doors, the zone's and how customers buy's, which are the tab's for the same reason
+  // And the workspace's own doors, the zone's and the word's, which are the tab's for the same reason
   // (save.tsx): one effect hears all three.
   // And the settings surface read again (after a save, a zone saved through its own route, a conflict's re-read, a
   // Retry), which is where every row's value comes from: heard here, not only by whatever draws the page, since a zone
   // saved and read back left the card's "in New York time" and the closures counted on New York's day until something
   // else drew the page.
   const zone = businessTabSave.zone;
-  const buys = businessTabSave.sellsBy;
+  const word = businessTabSave.word;
   useEffect(() => {
     const bump = () => setTick((n) => n + 1);
-    const stops = [saver.subscribe(bump), zone ? zone.subscribe(bump) : null, buys ? buys.subscribe(bump) : null];
+    const stops = [saver.subscribe(bump), zone ? zone.subscribe(bump) : null, word ? word.subscribe(bump) : null];
     window.addEventListener("surface:settings", bump);
     // The save's own rules come with this tab, never with the page (the bridge's loadSaveRules): drawn again when they
     // land, so a fold open by then says what they judge.
@@ -364,7 +364,7 @@ const useBtPageSubscriptions = (saver: Saver) => {
       });
       window.removeEventListener("surface:settings", bump);
     };
-  }, [saver, zone, buys]);
+  }, [saver, zone, word]);
 };
 
 /** Whether an element scrolls its own content up and down, by a person's hand. */

@@ -157,8 +157,6 @@ function policiesOf(pol: Output<"GET policies">): PoliciesSurface {
           : {},
     })),
     role: pol.role ?? null,
-    // Deals on or off (0008): the follow-ups' row is drawn only where they are on (0006).
-    dealsOn: !!pol.deals_on,
     // What the owner's corrections show (decision 0063): absent from a server from before, which reads as unread.
     held: pol.held ?? null,
     suggestions: pol.suggestions ?? null,

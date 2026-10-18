@@ -31,16 +31,6 @@ const {
   WAITING_AFTER_DAYS,
   consultationsWithoutProposal,
   CONSULT_FOLLOW_DAYS,
-  dealsAreOn,
-  isSellsBy,
-  SELLS_BY,
-  SELLS_BY_QUESTION,
-  SELLS_BY_WORDS,
-  SELLS_BY_REFUSAL,
-  SELLS_BY_FIRST,
-  CONSULT_FIRST_DEAL_HINT,
-  sellsByVM,
-  sellsBySaved,
   DEAL_LOST_REASONS,
   DEAL_LOST_REASON_WORDS,
   DEAL_CLEARABLE,
@@ -374,10 +364,10 @@ test("proposals waiting: out past a week with nothing back since", () => {
   assert.equal(waitingOnProposal({ deal: null, askedMs: null }, NOW, null), false);
 });
 
-test("consultations with no proposal after them: ended in the last week, and nothing open since", () => {
+test("consultations with nothing after them: ended in the last week, and no proposal or booking since", () => {
   const H = 3_600_000;
   const at = (daysBack) => NOW - daysBack * 86_400_000;
-  const row = (id, consulted, deal = null) => ({ id, consultedMs: consulted, deal });
+  const row = (id, consulted, deal = null, nextVisitMs = null) => ({ id, consultedMs: consulted, deal, nextVisitMs });
   const closed = (stage, sinceDaysBack) => ({ stage, sinceMs: at(sinceDaysBack) });
   const picked = consultationsWithoutProposal(
     [
@@ -391,6 +381,8 @@ test("consultations with no proposal after them: ended in the last week, and not
       row("passed-before", at(2), closed("lost", 30)), // passed on an old one, then consulted again
       row("passed-after", at(2), closed("lost", 1)), // consulted, then passed: nothing left to send
       row("ended-before", at(3), closed("ended", 60)),
+      // Booked again since (0008, amended 18 Oct 2026): a salon's consultation that ended in a booking was followed.
+      row("booked-since", at(2), null, NOW + 86_400_000),
     ],
     NOW,
   ).map((r) => r.id);
@@ -400,12 +392,12 @@ test("consultations with no proposal after them: ended in the last week, and not
   // A tie goes by name, then id; a row without a number for its consultation has none to follow, and never throws.
   const tied = consultationsWithoutProposal(
     [
-      { id: "b2", name: "Bea", consultedMs: at(2), deal: null },
-      { id: "c1", name: "Cora", consultedMs: at(2), deal: null },
-      { id: "b1", name: "Bea", consultedMs: at(2), deal: null },
-      { id: "u", name: "Una", consultedMs: undefined, deal: null },
-      { id: "n", name: "Nan", consultedMs: Number.NaN, deal: null },
-      { id: "s", name: "Sal", consultedMs: String(at(2)), deal: null },
+      { id: "b2", name: "Bea", consultedMs: at(2), deal: null, nextVisitMs: null },
+      { id: "c1", name: "Cora", consultedMs: at(2), deal: null, nextVisitMs: null },
+      { id: "b1", name: "Bea", consultedMs: at(2), deal: null, nextVisitMs: null },
+      { id: "u", name: "Una", consultedMs: undefined, deal: null, nextVisitMs: null },
+      { id: "n", name: "Nan", consultedMs: Number.NaN, deal: null, nextVisitMs: null },
+      { id: "s", name: "Sal", consultedMs: String(at(2)), deal: null, nextVisitMs: null },
     ],
     NOW,
   ).map((r) => r.id);
@@ -427,89 +419,21 @@ test("the step not taken is one rule: nothing on file, or a pass or an end befor
   assert.equal(noProposalSince(deal("lost", null), END), false, "a close with no day says nothing it can count");
 });
 
-test("deals are on exactly where the workspace says some customers get a proposal first, and nothing else switches them", () => {
-  assert.equal(dealsAreOn("proposal"), true);
-  assert.equal(dealsAreOn("booking"), false);
-  assert.equal(dealsAreOn(null), false, "not asked yet: off, as a workspace that books");
-  assert.equal(dealsAreOn(undefined), false);
-  assert.equal(dealsAreOn("Proposal"), false);
-  assert.deepEqual([...SELLS_BY], ["booking", "proposal"]);
-  assert.equal(isSellsBy("booking"), true);
-  assert.equal(isSellsBy("banana"), false);
-  assert.equal(SELLS_BY_QUESTION, "How customers buy");
-  assert.deepEqual(SELLS_BY_WORDS, {
-    booking: { label: "They book an appointment", sentence: "Bookings and reminders." },
-    proposal: {
-      label: "Some get a proposal first",
-      sentence: "Adds proposals, a Pipeline and Deals in Reports.",
-    },
-  });
-  // The refusal is a literal, so the bundles that never say it drop it; this holds it to the question and the labels.
-  assert.equal(
-    SELLS_BY_REFUSAL,
-    `${SELLS_BY_QUESTION}: ${SELLS_BY_WORDS.booking.label.toLowerCase()}, or ${SELLS_BY_WORDS.proposal.label.toLowerCase()}.`,
-  );
-  assert.equal(contracts.dealsAreAThing, undefined, "the old gate is gone, not kept beside the new one");
-});
-
-test("Settings › Business says the answer as a row, offers the two as a choice, and says what it switches", () => {
-  // Never asked: the row is empty, its act chooses, and nothing of a deal is said on the page.
-  const unsaid = sellsByVM(null);
-  assert.deepEqual(
-    [unsaid.question, unsaid.value, unsaid.empty, unsaid.act, unsaid.name],
-    ["How customers buy", null, "Not said yet", "Choose one", "Choose how customers buy"],
-  );
-  assert.equal(unsaid.question, SELLS_BY_QUESTION, "the row's label is the question, once");
-  assert.deepEqual([unsaid.dealsOn, unsaid.consultHint], [false, null]);
-  // The choice: both answers, in the set's order, each with its label and what choosing it means, and nothing else.
-  assert.deepEqual(unsaid.choices, [
-    { value: "booking", label: "They book an appointment", hint: "Bookings and reminders." },
-    {
-      value: "proposal",
-      label: "Some get a proposal first",
-      hint: "Adds proposals, a Pipeline and Deals in Reports.",
-    },
-  ]);
-  assert.deepEqual(
-    unsaid.choices.map((c) => [c.value, c.label, c.hint]),
-    SELLS_BY.map((a) => [a, SELLS_BY_WORDS[a].label, SELLS_BY_WORDS[a].sentence]),
-    "the words are SELLS_BY_WORDS', not a copy of them",
-  );
-  assert.equal(unsaid.refusal, SELLS_BY_REFUSAL, "a Save with neither chosen is refused in the route's own words");
-  // What the create card has chosen before anyone presses: they book an appointment.
-  assert.equal(SELLS_BY_FIRST, "booking");
-  assert.equal(unsaid.first, SELLS_BY_FIRST);
-
-  // They book: the answer's label, an act that changes it, and still no deal.
-  const books = sellsByVM("booking");
-  assert.deepEqual(
-    [books.value, books.act, books.name, books.first, books.dealsOn, books.consultHint],
-    ["They book an appointment", "Change", "Change how customers buy", "booking", false, null],
-  );
-  // Some get a proposal first: deals are on, and a consult-first service is where a deal starts.
-  const proposes = sellsByVM("proposal");
-  assert.deepEqual(
-    [proposes.value, proposes.act, proposes.first, proposes.dealsOn, proposes.consultHint],
-    ["Some get a proposal first", "Change", "proposal", true, "A consultation for these is the first step of a deal."],
-  );
-  assert.equal(proposes.consultHint, CONSULT_FIRST_DEAL_HINT);
-  // Anything but the two answers is never said: the row is empty, and deals are off, as dealsAreOn reads it.
-  for (const odd of [undefined, "", "Proposal", "banana", 7]) {
-    const vm = sellsByVM(odd);
-    assert.deepEqual([vm.value, vm.act, vm.first, vm.dealsOn], [null, "Choose one", "booking", false], String(odd));
-  }
-});
-
-test("the toast once an answer is saved says what it switched, and that deals turned off are kept", () => {
-  assert.equal(sellsBySaved(null, "proposal"), "Saved — deals are on.");
-  assert.equal(sellsBySaved("booking", "proposal"), "Saved — deals are on.");
-  assert.equal(
-    sellsBySaved("proposal", "booking"),
-    "Saved — deals are off. Any already recorded are kept.",
-    "every surface hides them, and the other answer brings them back (0008)",
-  );
-  assert.equal(sellsBySaved(null, "booking"), "Saved — customers book an appointment.", "nothing was on to go off");
-  assert.equal(sellsBySaved(undefined, "booking"), "Saved — customers book an appointment.");
+test("every workspace has deals (0008, amended 18 Oct 2026): nothing of the switch is left for a page to read", () => {
+  for (const name of [
+    "dealsAreOn",
+    "dealsAreAThing",
+    "isSellsBy",
+    "SELLS_BY",
+    "SELLS_BY_QUESTION",
+    "SELLS_BY_WORDS",
+    "SELLS_BY_REFUSAL",
+    "SELLS_BY_FIRST",
+    "CONSULT_FIRST_DEAL_HINT",
+    "sellsByVM",
+    "sellsBySaved",
+  ])
+    assert.equal(contracts[name], undefined, name);
 });
 
 test("a visit is a consultation when its title says consult, or names a consult-first service", () => {
@@ -578,8 +502,8 @@ test("a deal is open while it is a proposal out or a client; the current deal an
   ];
   assert.equal(pickCurrentDeal(rows).id, "old-won");
   // The Pipeline's Consultations and Today's row say the count in this one sentence.
-  assert.equal(consultsHeldWords(2), "2 ended in the last week, no proposal yet");
-  assert.equal(consultsHeldWords(1), "1 ended in the last week, no proposal yet");
+  assert.equal(consultsHeldWords(2), "2 ended in the last week, nothing since");
+  assert.equal(consultsHeldWords(1), "1 ended in the last week, nothing since");
 });
 
 /** A report as the route answers it (dealReport, 0008), the least one can be: a deal on file, none sent, nothing open. */
@@ -960,12 +884,12 @@ test("a person's page lists their deals, says the current one among its facts, a
         created_at: daysAgo(200),
       },
     ],
-    deals_on: true,
+    appointment_word: "meeting",
     services: ["Ad management", "SEO", "Discovery call"],
   });
   const vm = toPersonVM(d, TZ, new Date(NOW));
   assert.equal(vm.deal.version, 2, "the current deal carries its version for a move");
-  assert.equal(vm.dealsOn, true);
+  assert.equal(vm.word, "meeting", "the workspace's word, which its deal lines say");
   assert.deepEqual(vm.services, ["Ad management", "SEO", "Discovery call"]);
   assert.equal(vm.deals.length, 3);
   assert.equal(vm.deal.stage, "won");
@@ -987,7 +911,7 @@ test("a person's page lists their deals, says the current one among its facts, a
   assert.ok(TIMELINE_FILTERS.some((f) => f.id === "deals"));
   assert.deepEqual([...new Set(filterTimeline(vm.timeline, "deals").map((i) => i.kind))], ["deal"]);
   const none = toPersonVM(detail(), TZ, new Date(NOW));
-  assert.equal(none.dealsOn, false);
+  assert.equal(none.word, "appointment", "none picked: an appointment");
   assert.deepEqual(none.deals, []);
   assert.ok(!none.facts.some((f) => f.label === "Deal"));
 });
@@ -1011,7 +935,7 @@ test("the timeline says a proposal's value on the line it belongs to, and why so
     ...over,
   });
   const texts = (d) =>
-    toPersonVM(detail({ deals: [d], deals_on: true }), TZ, new Date(NOW))
+    toPersonVM(detail({ deals: [d] }), TZ, new Date(NOW))
       .timeline.filter((i) => i.kind === "deal")
       .map((i) => i.text)
       .sort();

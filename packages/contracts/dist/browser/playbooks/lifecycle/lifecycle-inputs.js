@@ -1,6 +1,5 @@
 import { appointmentWordOf } from "../../journey/appointment-word.js";
 import { PEOPLE_LISTS } from "../../people/lists/lists.js";
-import { FOLLOW_UP_NEEDS_DEALS } from "../playbook-follow-ups.js";
 import {
   campaignDayWords,
   campaignEnded,
@@ -16,8 +15,8 @@ function businessShapeOf(pb) {
   const calendarOn = (pb.calendar ?? "none") !== "none";
   return {
     calendar: calendarOn ? "feed" : pb.bookings_by_email === true ? "email" : "none",
-    dealsOn: !!pb.deals_on,
-    word: appointmentWordOf({ stored: pb.appointment_word ?? null, sellsBy: pb.deals_on ? "proposal" : null })
+    hasDeals: pb.has_deals === true,
+    word: appointmentWordOf({ stored: pb.appointment_word ?? null, sellsBy: null })
   };
 }
 function listNameOf(p, pb) {
@@ -32,8 +31,6 @@ function triggerLabelOf(p, pb, word) {
   return t ? triggerWords(t, word).label : p.trigger;
 }
 function cardReadOf(p, pb, at) {
-  const t = triggerOf(p.trigger);
-  const dealsOff = t && !triggerOffered(t, at.shape.dealsOn) ? FOLLOW_UP_NEEDS_DEALS : null;
   const last = campaignEnded(p, localDate(at.tz, at.now));
   const ended = last ? campaignDayWords(last, at.tz, at.now) : null;
   return {
@@ -43,17 +40,17 @@ function cardReadOf(p, pb, at) {
     // While the workspace is paused no time is promised: the card says so instead of "tomorrow 10:00 AM".
     next: nextRunLabel(p, at.tz, at.now, pb.ready?.paused === true),
     // Why it runs nothing here: the card says it, and every rule of the home that skips what runs nothing skips it.
-    off: ended ? LIFECYCLE_WORDS.ended(ended) : dealsOff,
+    off: ended ? LIFECYCLE_WORDS.ended(ended) : null,
     ended,
     trial: trialDayWords(p, at.tz, at.now),
-    runs: campaignRunsOn(p, { tz: at.tz, now: at.now, dealsOn: at.shape.dealsOn })
+    runs: campaignRunsOn(p, { tz: at.tz, now: at.now })
   };
 }
 export function lifecyclePlaybooksOf(pb, now) {
   const shape = businessShapeOf(pb);
   const timezone = pb.timezone || ZONE_UNSAID;
-  const moments = PLAYBOOK_TRIGGERS.filter((t) => triggerOffered(t, shape.dealsOn));
-  const here = { dealsOn: shape.dealsOn, calendarOn: shape.calendar === "feed" };
+  const moments = PLAYBOOK_TRIGGERS.filter((t) => triggerOffered(t));
+  const here = { calendarOn: shape.calendar === "feed" };
   return {
     shape,
     timezone,

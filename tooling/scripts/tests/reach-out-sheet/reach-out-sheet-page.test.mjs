@@ -580,7 +580,7 @@ test("the Leads door: its search's chain, else its ready, else its unconfirmed i
   redraw = door();
   await settle();
   tree = redraw();
-  assert.equal(textOf(byTestId(tree, "leads-write")).trim(), "Write to the 12 unconfirmed");
+  assert.equal(textOf(byTestId(tree, "leads-write")).trim(), "Write to 12 whose address can't be confirmed");
   press(byTestId(tree, "leads-write"));
   redraw();
   await settle();
@@ -646,7 +646,7 @@ test("through the door: saved, the sheet stays and says what the run did, and th
     textOf(byTestId(tree, "ro-saved")),
     "Planned 30 emails. The first run waits on you: open it to approve.",
   );
-  assert.equal(textOf(byTestId(tree, "leads-write")).trim(), "Open its reach-out", "the door behind it, read again");
+  assert.equal(textOf(byTestId(tree, "leads-write")).trim(), "Open its sequence", "the door behind it, read again");
   assert.equal(calls.filter((c) => c[0] === "reach").length >= 3, true);
   press(byTestId(tree, "ro-close"));
   assert.equal(byTestId(redraw(), "ro-sheet"), null);

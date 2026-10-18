@@ -261,8 +261,8 @@ provisions, the clock it sets -- so it changes when the seed changes rather than
 drifting from it; `e2e-harness.test.mjs` holds the two together. `salon` is a
 fuller, fictional record for the branches the nightly's data cannot reach: a
 week of hours, closures at the cap, services, and one language short of the cap.
-`pipeline` is the salon's record made a studio whose customers buy by proposal
-(`sells_by: "proposal"`, so deals are on), with eight people across the
+`pipeline` is the salon's record made a studio that sends proposals (its word
+"meeting", and deals on file), with eight people across the
 Pipeline's four groups in `people_list`'s row shape and the person read's own.
 For it alone the server answers People's reads and the fixture runs the app's
 People surface, courier and route gate over them, so People, the Pipeline and a

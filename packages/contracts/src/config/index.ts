@@ -171,7 +171,7 @@ export {
   pricesWrittenWords,
 } from "./business-tab/rule-strengths";
 export type { RuleStrength, RuleStrengthVM, RulesKeptInputs } from "./business-tab/rule-strengths";
-export { bookingLinkRowWords, businessGap } from "./business-tab/business-gap";
+export { BOOKING_LINK_ROW_WORDS, businessGap } from "./business-tab/business-gap";
 export type { StandingInputs, BusinessGap } from "./business-tab/business-gap";
 export { openWeekWords, hoursZoneWords, closuresAheadWords } from "./business-tab/open-week";
 export type { ClosuresAheadVM } from "./business-tab/open-week";

@@ -163,7 +163,7 @@ var PLAYBOOK_TRIGGERS = [
     hint: "Everyone on a list: one of People's, or one you keep"
   },
   // A proposal out that has waited past the workspace's pace with nothing back (0006): one nudge per proposal, with
-  // its link, under its own class, where deals are on. Conversational: it answers the person's own request.
+  // its link, under its own class, in every workspace. Conversational: it answers the person's own request.
   {
     id: "proposal_waiting",
     label: "Proposal follow-up",

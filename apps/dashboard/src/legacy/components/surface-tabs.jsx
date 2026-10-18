@@ -142,7 +142,7 @@ const stripPlace = (page, param) => {
       : param && /^pipeline(:|$)/.test(param)
         ? "clients/pipeline"
         : !param || /^(seg|list|state):/.test(param) ? "clients" : null;
-    const at = route ? window.plScopes(true).map((s) => window.plScopeRoute(s.id)).indexOf(route) : -1;
+    const at = route ? window.plScopes().map((s) => window.plScopeRoute(s.id)).indexOf(route) : -1;
     return at < 0 ? null : { strip: "people", at };
   }
   // Campaigns' own views (its chrome's, surfaces/campaigns/routes.ts): Messages, the home and its addresses, then Ads. A demo session's,

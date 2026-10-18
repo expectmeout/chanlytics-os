@@ -211,8 +211,9 @@ const home = (over = {}) =>
     messages: [],
     reachOuts: [],
     report: report(),
-    // A calendar connected and deals off (no follow-up among the moments), in the word these sentences were written in.
-    shape: { calendar: "feed", dealsOn: false, word: "visit" },
+    // A calendar connected and no deal on file (no follow-up among the moments), in the word these sentences were
+    // written in.
+    shape: { calendar: "feed", hasDeals: false, word: "visit" },
     chains: undefined,
     ...over,
   });

@@ -2,11 +2,11 @@ import "server-only";
 import {
   addressOf,
   dealPaceOf,
-  dealsAreOn,
   followUpStandOf,
   personName,
   pipelineOf,
   poolRowOf,
+  type AppointmentWord,
   type ChannelsReady,
   type DealPaceDto,
   type FollowUpFactsDto,
@@ -39,7 +39,10 @@ interface PeoplePage {
   booking_link: string | null;
   /** The profile lists a consult-first service (0004): the Consultations list can be counted only then. */
   consult_first: boolean;
-  deals_on: boolean;
+  /** A deal was ever recorded here (readers/facts.ts hasDeals): People's deal lists fill its rail only then. */
+  has_deals: boolean;
+  /** What the workspace calls an appointment (readers/facts.ts appointmentWord): the page's one word for one. */
+  appointment_word: AppointmentWord;
   deal_pace: DealPaceDto | null;
   follow_up: FollowUpFactsDto | null;
   /**
@@ -58,13 +61,13 @@ interface PeoplePage {
 }
 
 /**
- * GET contacts, as the route answers it: a page of everyone who has written to or phoned the workspace, computed in
- * SQL by people_list under the caller's own RLS (a query matches a name, a WhatsApp name, an address or three digits
- * of the number, in the function's order), each person with their appointments and who their next step is for, and
- * beside them how the workspace's customers buy, its pace and the proposal follow-up's facts -- the route's body,
- * moved here whole, so People and Ask's people.search read the same rows the same way. The route trims the query and
- * checks the offset; this takes them as given. How the workspace's customers buy, and the calendar's zone and
- * settings, come through their readers, once in a turn. Each person is a row a citation may name, as People names them.
+ * GET contacts, as the route answers it: a page of everyone who has written to or phoned the workspace, computed in SQL
+ * by people_list under the caller's own RLS (a query matches a name, a WhatsApp name, an address or three digits of the
+ * number, in the function's order), each person with their appointments and who their next step is for, and beside them
+ * whether a deal was ever recorded, the workspace's word, its pace and the proposal follow-up's facts -- the route's
+ * body, moved here whole, so People and Ask's people.search read the same rows the same way. The route trims the query
+ * and checks the offset; this takes them as given. A deal on file, the word, and the calendar's zone and settings, come
+ * through their readers, once in a turn. Each person is a row a citation may name, as People names them.
  */
 export const people: Reader<{ q: string | null; offset: number; after?: PeopleCursor | null }, PeoplePage> = {
   name: "people",
@@ -72,20 +75,20 @@ export const people: Reader<{ q: string | null; offset: number; after?: PeopleCu
     const ctx = rc.ctx;
     const tenantId = rc.tenantId;
     // Beside the rows, what is read of the workspace rather than of them, started with them rather than after them:
-    // they waited for the rows, a whole round trip, and none needs them (2 Oct 2026). How this workspace's customers
-    // buy (0008): an answer that cannot be read is not asked yet, and costs the deal lists, never the list; the
-    // turn's (readers/facts.ts). The workspace's pace (0008, amended), said only where deals are on, and read with the
-    // first page alone: People keeps that page's answer, and a later page or a search would read it again for nothing.
-    // The proposal follow-up's facts (0006), where deals are on, with the first page alone as the pace is: each row's
-    // standing is worked out from them where the rows are held. Unreadable, every row says what it said. And the
-    // calendar's zone and settings, the turn's too: started here and handed to the calendar's own lookup below, which
-    // takes this read rather than asking again. Each is held from the moment it starts, so one that fails before the
-    // rows land is the answer's to weigh, never an unhandled rejection.
-    const buys = early(load(rc, facts.sellsBy, undefined).then((r) => r.data));
+    // they waited for the rows, a whole round trip, and none needs them (2 Oct 2026). Whether a deal was ever recorded
+    // here, and the workspace's word (readers/facts.ts), the turn's. The workspace's pace (0008, amended), read with
+    // the first page alone: People keeps that page's answer, and a later page or a search would read it again for
+    // nothing. The proposal follow-up's facts (0006), where a deal is on file, with the first page alone as the pace
+    // is: each row's standing is worked out from them where the rows are held. Unreadable, every row says what it said.
+    // And the calendar's zone and settings, the turn's too: started here and handed to the calendar's own lookup below,
+    // which takes this read rather than asking again. Each is held from the moment it starts, so one that fails before
+    // the rows land is the answer's to weigh, never an unhandled rejection.
+    const dealt = early(load(rc, facts.hasDeals, undefined).then((r) => r.data));
+    const word = early(load(rc, facts.appointmentWord, undefined).then((r) => r.data));
     const pace = early(offset === 0 && !q ? dealPaceRead(ctx, tenantId, rc.now) : Promise.resolve(null));
     const followUp = early(
-      buys.then((s) =>
-        dealsAreOn(s) && offset === 0 && !q
+      dealt.then((any) =>
+        any && offset === 0 && !q
           ? // By the business's day, the turn's zone (readers/facts.ts): a follow-up past its last day stands as none.
             load(rc, facts.facts, undefined)
               .then((zone) => followUpFacts(ctx, tenantId, rc.now, zone.data.timezone))
@@ -117,9 +120,10 @@ export const people: Reader<{ q: string | null; offset: number; after?: PeopleCu
     // behind it, as a person's page says them (person-visits.ts): what was booked, never an opening offered. And who
     // each next step is for (00166), from the team, read only when a step is for someone. And what the member asking
     // has seen of each (00349, people/person-seen.ts): the row says who is new to them, as the Inbox's does.
-    const [out, sellsBy, nameSteps, seenOf] = await Promise.all([
+    const [out, hasDeals, appointmentWord, nameSteps, seenOf] = await Promise.all([
       withVisits(ctx, tenantId, rows, rc.now, () => zone, { stale: true }),
-      buys,
+      dealt,
+      word,
       stepNamer(ctx, tenantId, rows),
       seenOfPeople(
         ctx,
@@ -127,21 +131,20 @@ export const people: Reader<{ q: string | null; offset: number; after?: PeopleCu
         rows.map((r) => r.id),
       ),
     ]);
-    const dealsOn = dealsAreOn(sellsBy);
     // A short page is the last: someone who wrote as the pages were read counts in the total, and is read first on the
     // next pass, never after the cursor.
     const hasMore = rows.length === PEOPLE_PAGE && offset + rows.length < total;
     const data: PeoplePage = {
       ...out,
       people: out.people.map(nameSteps).map((p) => ({ ...p, ...seenOf(p.id) })),
-      // Deals are on where the workspace says some customers get a proposal first (dealsAreOn, 0008): the Journey's
-      // deal lists, the thread's menu item, the column. Consult-first stays a booking rule, sent for its own list; the
-      // names of the services stay on the server.
-      deals_on: dealsOn,
+      // Every workspace has deals (0008, amended 18 Oct 2026); whether one was ever recorded fills the rail's deal
+      // lists. Consult-first stays a booking rule, sent for its own list; the names of the services stay on the server.
+      has_deals: hasDeals,
+      appointment_word: appointmentWord,
       // How long this workspace's yeses usually take (0008, amended): when a proposal is waiting, on every page.
-      deal_pace: dealsOn ? await pace : null,
+      deal_pace: await pace,
       // The proposal follow-up, where one runs (0006): who it has in hand and when, row by row, on People and Today.
-      follow_up: dealsOn ? await followUp : null,
+      follow_up: await followUp,
       channels_ready: await ready,
       consult_first: out.consult_first,
       page: {
@@ -166,39 +169,34 @@ export const people: Reader<{ q: string | null; offset: number; after?: PeopleCu
   },
 };
 
-/** The Pipeline's board: whether deals are on, the zone its days are judged in, and the board where they are. */
+/** The Pipeline's board: the zone its days are judged in, and the board, every workspace's (0008, amended 18 Oct 2026). */
 interface DealBoard {
-  deals_on: boolean;
   timezone: string;
-  /** Null where deals are off: the Pipeline's address draws People there. */
-  board: PipelineVM<PersonRowVM> | null;
+  board: PipelineVM<PersonRowVM>;
 }
 
 /**
  * The Pipeline, as the page builds it (contracts pipelineOf) over everyone in People (readers/everyone.ts), each row as
  * People draws it for the member asking (poolRowOf) with their standing in the proposal follow-up laid on, and the
  * workspace's pace and the follow-up's facts from People's first page -- the whole board, every group, on the turn's
- * clock; where deals are off, none. Moved out of Ask's Pipeline context (server/ask/context/people.ts), which reads it
+ * clock. Moved out of Ask's Pipeline context (server/ask/context/people.ts), which reads it
  * now, as Ask's people.pipeline does. No route answers it: the page builds the same board in the tab from GET contacts.
  * Each person on the board is a row a citation names, and each deal one too, opened on its person's page.
  */
 export const dealBoard: Reader<undefined, DealBoard> = {
   name: "dealBoard",
   async read(rc) {
-    const [all, sells, tz] = await Promise.all([
+    const [all, tz] = await Promise.all([
       load(rc, everyone, undefined).then((r) => r.data),
-      load(rc, facts.sellsBy, undefined).then((r) => r.data),
       load(rc, facts.facts, undefined).then((r) => r.data.timezone),
     ]);
-    const dealsOn = dealsAreOn(sells);
-    if (!dealsOn) return { data: { deals_on: false, timezone: tz, board: null }, rows: [], stamp: stamp() };
     const first = (await load(rc, people, { q: null, offset: 0 })).data;
     const pace = dealPaceOf(first.deal_pace);
     const nowMs = rc.now.getTime();
     const fu = first.follow_up;
     const ready = first.channels_ready;
     const rowsVm = all.map((r) => {
-      const v = poolRowOf(r, { tz, now: rc.now, viewer: rc.userId, dealsOn, ready });
+      const v = poolRowOf(r, { tz, now: rc.now, viewer: rc.userId, ready });
       return fu ? { ...v, followUp: followUpStandOf(v, fu, tz, nowMs, pace, ready) } : v;
     });
     const board = pipelineOf(rowsVm, nowMs, tz, pace);
@@ -216,6 +214,6 @@ export const dealBoard: Reader<undefined, DealBoard> = {
         ];
       }),
     );
-    return { data: { deals_on: true, timezone: tz, board }, rows, stamp: stamp() };
+    return { data: { timezone: tz, board }, rows, stamp: stamp() };
   },
 };

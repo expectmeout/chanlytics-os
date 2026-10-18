@@ -102,7 +102,7 @@ test("the walk reads a union's and an array's names and a record's values, to si
 });
 
 test("snake_case is lower-case words joined by underscores", () => {
-  for (const name of ["id", "reply_delay_ms", "e164", "max_llm_tokens_day", "deals_on"])
+  for (const name of ["id", "reply_delay_ms", "e164", "max_llm_tokens_day", "has_deals"])
     assert.ok(isSnakeCase(name), name);
   for (const name of ["askedAt", "Id", "URL", "reply-delay", "_private", "a__b", "trailing_", "2fa"])
     assert.ok(!isSnakeCase(name), name);

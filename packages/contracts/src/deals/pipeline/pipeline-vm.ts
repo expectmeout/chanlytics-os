@@ -26,6 +26,7 @@ export type PipelineSource = Pick<
   | "askedMs"
   | "consultedMs"
   | "lastVisitMs"
+  | "nextVisitMs"
   | "consultAhead"
   | "calendarTz"
   | "nextStep"
@@ -104,7 +105,7 @@ export interface PipelineGroupVM<T extends PipelineSource = PersonRowVM> {
   count: number;
   /**
    * What the group comes to: the value of its proposals or its clients in all ("$4,250", "$1,340 a month"), and for
-   * the consultations, how many were held in the last week with no proposal yet. Null for nothing to say.
+   * the consultations, how many ended in the last week with nothing since. Null for nothing to say.
    */
   meta: string | null;
   /** Whether it starts folded: Passed or ended does, until someone opens it (PIPELINE_WORDS.show). */

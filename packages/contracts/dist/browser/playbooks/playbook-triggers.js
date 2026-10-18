@@ -69,7 +69,7 @@ export const PLAYBOOK_TRIGGERS = [
     hint: "Everyone on a list: one of People's, or one you keep"
   },
   // A proposal out that has waited past the workspace's pace with nothing back (0006): one nudge per proposal, with
-  // its link, under its own class, where deals are on. Conversational: it answers the person's own request.
+  // its link, under its own class, in every workspace. Conversational: it answers the person's own request.
   {
     id: "proposal_waiting",
     label: "Proposal follow-up",
@@ -152,9 +152,8 @@ export function triggerOf(id) {
   return PLAYBOOK_TRIGGERS.find((t) => t.id === id) ?? null;
 }
 export const VISIT_TRIGGERS = PLAYBOOK_TRIGGERS.filter((t) => t.kind === "visit").map((t) => t.id);
-export function triggerOffered(t, dealsOn) {
-  if (t.kind === "reach_out") return false;
-  return t.kind !== "deal" || dealsOn;
+export function triggerOffered(t) {
+  return t.kind !== "reach_out";
 }
 export const MOMENTS_RETIRED = {
   new_week: "Your receptionist answers a first contact itself, and asks there for the yes to offers that a welcome would need.",
@@ -183,13 +182,13 @@ export function momentReadsCalendar(t) {
   return isWinBack(t.id) || t.kind === "visit";
 }
 export function momentOffered(t, o) {
-  if (!triggerOffered(t, o.dealsOn)) return false;
+  if (!triggerOffered(t)) return false;
   if (t.id in MOMENTS_RETIRED) return false;
   if (!momentReadsCalendar(t)) return true;
   return t.id === "quiet_30" ? !o.calendarOn : o.calendarOn;
 }
-export function policyClassOffered(cls, dealsOn) {
+export function policyClassOffered(cls) {
   if (cls === "outreach") return true;
   const runs = PLAYBOOK_TRIGGERS.filter((t) => t.cls === cls);
-  return runs.length === 0 || runs.some((t) => triggerOffered(t, dealsOn));
+  return runs.length === 0 || runs.some((t) => triggerOffered(t));
 }

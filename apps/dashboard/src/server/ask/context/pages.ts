@@ -3,7 +3,6 @@ import {
   addressOf,
   campaignRunsOn,
   chainResultsOf,
-  dealsAreOn,
   lifecycleChainStateOf,
   lifecycleChainsOf,
   lifecyclePlaybooksOf,
@@ -138,8 +137,8 @@ async function playbookContextRows(rc: ReaderContext, ids: string[]) {
       ref: refs.get(id) ?? null,
     });
   }
-  // Running is the one rule's (campaignRunsOn): on, before its last day, and its moment one that may run here.
-  const at = { tz: home.timezone, now: rc.now, dealsOn: home.shape.dealsOn };
+  // Running is the one rule's (campaignRunsOn): on, and before its last day.
+  const at = { tz: home.timezone, now: rc.now };
   const running = pb.playbooks.filter((p) => campaignRunsOn(p, at)).length;
   return { rows, aggregate: `playbooks: ${pb.playbooks.length}, ${running} running` };
 }
@@ -286,12 +285,12 @@ export const campaigns: Provider = async (rc, ctx) => {
   };
 };
 
-/** Settings: the pane the page is on, and what the workspace runs on: its name, its zone, its lines, its deals. */
+/** Settings: the pane the page is on, and what the workspace runs on: its name, its zone, its lines, its word. */
 export const settings: Provider = async (rc, ctx) => {
-  const [f, chans, sells] = await Promise.all([
+  const [f, chans, word] = await Promise.all([
     load(rc, facts.facts, undefined).then((r) => r.data),
     load(rc, channelsReader, undefined).then((r) => r.data.channels),
-    load(rc, facts.sellsBy, undefined).then((r) => r.data),
+    load(rc, facts.appointmentWord, undefined).then((r) => r.data),
   ]);
   return {
     rows: [],
@@ -300,7 +299,7 @@ export const settings: Provider = async (rc, ctx) => {
       f.name,
       f.timezone,
       `lines: ${chans.length ? chans.map((c) => `${c.kind} ${c.status}`).join(", ") : "none"}`,
-      `deals ${dealsAreOn(sells) ? "on" : "off"}`,
+      `what it calls a booking: ${word}`,
     ]),
   };
 };

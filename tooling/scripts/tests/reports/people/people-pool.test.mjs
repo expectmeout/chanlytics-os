@@ -228,7 +228,7 @@ test("steps: the earliest open step decides, and a person is counted once", () =
   assert.deepEqual(steps, { overdue: 2, due_today: 1 });
   assert.deepEqual(count([overdueAndLater]).steps, { overdue: 1, due_today: 0 }, "overdue once, not once per step");
 
-  const rows = poolRowsOf(book, { tz: ZONE, now: new Date(NOW), viewer: null, dealsOn: false, ready: null });
+  const rows = poolRowsOf(book, { tz: ZONE, now: new Date(NOW), viewer: null, ready: null });
   const stepsDue = PEOPLE_LISTS.find((l) => l.id === "steps_due");
   assert.equal(steps.overdue + steps.due_today, rows.filter(stepsDue.test).length, "the Steps due list's own count");
 });
@@ -323,7 +323,8 @@ test("it is what People's rail says: the same people, counted by the same lists"
           saved: [],
           calendar: { state: "none", source: "your calendar" },
           bookingLink: null,
-          dealsOn: false,
+          hasDeals: false,
+          word: "appointment",
           consultFirst: false,
           dealPace: null,
           followUp: null,
@@ -385,10 +386,9 @@ test("a list that cannot be counted is an error, never a made-up count", () => {
       tz: ZONE,
       now: new Date(NOW),
       viewer: null,
-      dealsOn: false,
       ready: null,
     });
-    const ctx = poolListContext({ calendar: "none", dealsOn: false, consultFirst: false, viewer: null });
+    const ctx = poolListContext({ calendar: "none", hasDeals: false, consultFirst: false, viewer: null });
     assert.equal(membersOf(resolveList({ kind: "builtin", id: "quiet" }, []), rows, ctx).state, "unknown");
   } finally {
     quiet.rule = kept;

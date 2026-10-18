@@ -13,7 +13,7 @@ import { LensEmpty, type LensProps } from "./shared";
 // said there and nowhere else (a sentence of the same counts would say each twice); the lines beside it say what the
 // bars cannot -- how long a yes took, where the new clients came from, why people passed, what is still open -- each
 // only when it has something; the clients now close the section under the one hairline. Every word is contracts'
-// DealReportVM. Drawn wherever deals are on and a deal was ever recorded, whatever came in this period: an engagement
+// DealReportVM. Drawn wherever a deal was ever recorded, whatever came in this period: an engagement
 // is agreed in a call or a meeting as often as in a message, so a quiet month for the receptionist is not a month
 // without clients.
 function dealsSection(deals: DealReportVM | null | undefined) {

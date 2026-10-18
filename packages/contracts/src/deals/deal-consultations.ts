@@ -61,17 +61,20 @@ export function noProposalSince(deal: Pick<DealVM, "stage" | "sinceMs"> | null |
 }
 
 /**
- * One person's consultation waits on the business (0008): it ended in the last CONSULT_FOLLOW_DAYS days and no proposal
- * came after it (noProposalSince). The one row-level rule the week's count (consultationsWithoutProposal) and the deal
- * stage a list reads (dealStageOf) both ask.
+ * One person's consultation waits on the business (0008): it ended in the last CONSULT_FOLLOW_DAYS days and nothing came
+ * after it, no proposal (noProposalSince) and no visit booked (`nextVisitMs`; a visit since would have been their last,
+ * and `consultedMs` is set only while the consultation is). A salon whose consultation ends in a booking and a business
+ * whose ends in a proposal are told of the same thing, a customer nobody followed (0008, amended 18 Oct 2026). The one
+ * row-level rule the week's count (consultationsWithoutProposal) and the deal stage a list reads (dealStageOf) both ask.
  */
 export function consultationHeld(
-  r: { consultedMs: number | null; deal: Pick<DealVM, "stage" | "sinceMs"> | null },
+  r: { consultedMs: number | null; deal: Pick<DealVM, "stage" | "sinceMs"> | null; nextVisitMs: number | null },
   nowMs: number,
 ): boolean {
   const at = r.consultedMs;
   if (typeof at !== "number" || !Number.isFinite(at)) return false;
   if (at > nowMs || nowMs - at > CONSULT_FOLLOW_DAYS * DAY_MS) return false;
+  if (r.nextVisitMs !== null) return false;
   return noProposalSince(r.deal, at);
 }
 
@@ -89,6 +92,7 @@ export function dealStageOf(
   r: {
     consultedMs: number | null;
     deal: Pick<DealVM, "stage" | "sinceMs"> | null;
+    nextVisitMs: number | null;
     consultAhead: { startMs: number; allDay: boolean } | null;
   },
   nowMs: number,
@@ -113,8 +117,8 @@ export function dealStagesOf(
 }
 
 /**
- * The next step nobody has taken (0008): a consultation that ended in the last CONSULT_FOLLOW_DAYS days with no
- * proposal since (noProposalSince), the oldest first, a tie by name and then id, which is the order the Pipeline lists
+ * The next step nobody has taken (0008): a consultation that ended in the last CONSULT_FOLLOW_DAYS days with nothing
+ * since (consultationHeld: no proposal, no visit booked), the oldest first, a tie by name and then id, which is the order the Pipeline lists
  * them in and Today names its first two. `consultedMs` is when their last visit, a consultation, ended; a row without
  * a number there has no consultation to follow.
  */
@@ -124,6 +128,7 @@ export function consultationsWithoutProposal<
     name?: string;
     consultedMs: number | null;
     deal: Pick<DealVM, "stage" | "sinceMs"> | null;
+    nextVisitMs: number | null;
   },
 >(rows: readonly T[], nowMs: number): T[] {
   const endOf = (r: T): number => r.consultedMs as number;
@@ -138,10 +143,11 @@ export function consultationsWithoutProposal<
 }
 
 /**
- * Their count, in the one sentence the Pipeline's Consultations say it in and Today's row re-prints word for word:
- * "2 ended in the last week, no proposal yet". The week is the rule's own (CONSULT_FOLLOW_DAYS). "Ended", never "held":
- * a consultation nobody marked is past, and the record does not say they came (D1-consult-held; each row says Kept or Past).
+ * Their count, in the one sentence the Pipeline's Consultations say it in and Today's row re-prints word for word: "2
+ * ended in the last week, nothing since" (no visit booked, no proposal: consultationHeld). The week is the rule's own
+ * (CONSULT_FOLLOW_DAYS). "Ended", never "held": a consultation nobody marked is past, and the record does not say they
+ * came (D1-consult-held; each row says Kept or Past).
  */
 export function consultsHeldWords(n: number): string {
-  return `${n} ended in the last week, no proposal yet`;
+  return `${n} ended in the last week, nothing since`;
 }

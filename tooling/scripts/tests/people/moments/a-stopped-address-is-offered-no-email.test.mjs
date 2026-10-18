@@ -166,7 +166,6 @@ const personOn = (channel, { stopped, withDeal = true }) =>
       booking_link: BOOKING,
       proposal_url: PROPOSAL,
       deals: withDeal ? [deal] : [],
-      deals_on: true,
       services: ["Ad management"],
     },
     TZ,

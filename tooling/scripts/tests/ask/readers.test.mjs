@@ -46,7 +46,8 @@ const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const kernel = await import(at("apps/dashboard/src/server/readers/index.ts"));
 const {
   facts,
-  sellsBy,
+  appointmentWord,
+  hasDeals,
   policies,
   config,
   businessShape,
@@ -256,26 +257,29 @@ test("the kept values are bounded at READER_CACHE_CAP, the oldest write first ou
   assert.equal(r.reads, reads + 1, "the oldest write was the one let go");
 });
 
-test("the facts readers: the tenant's name and zone are read once and kept for turns that keep; sells_by, the policies and the config are read once per turn; each answers the row's fields and nothing else", async () => {
+test("the facts readers: the tenant's name and zone are read once and kept for turns that keep; the word, a deal on file, the policies and the config are read once per turn; each answers the row's fields and nothing else", async () => {
   const ctx = ctxFor(tables());
   const rc = kernel.readerContext(ctx, { tenantId: A, role: "operator" }, undefined, { keep: true });
-  const [f, s, p, c] = await Promise.all([
+  const [f, w, d, p, c] = await Promise.all([
     kernel.load(rc, facts, undefined),
-    kernel.load(rc, sellsBy, undefined),
+    kernel.load(rc, appointmentWord, undefined),
+    kernel.load(rc, hasDeals, undefined),
     kernel.load(rc, policies, undefined),
     kernel.load(rc, config, undefined),
   ]);
   assert.deepEqual(f.data, { name: "Harbor", timezone: "America/New_York" });
-  assert.equal(s.data, "booking");
+  // None picked, and the retired answer said its customers book: an appointment (contracts appointmentWordOf).
+  assert.equal(w.data, "appointment");
+  assert.equal(d.data, false, "no deal on file");
   assert.deepEqual(p.data, []);
   // Who last changed it and when ride with the row (PR 1.7), so the settings read is the turn's one read of it.
   assert.deepEqual(c.data, { config: { hours: "9-5" }, version: 3, updated_by: null, updated_at: null });
   await Promise.all([kernel.load(rc, facts, undefined), kernel.load(rc, config, undefined)]);
   const reads = (table) => ctx.supabase.seen.filter((q) => q.table === table && q.op === "select").length;
   assert.deepEqual(
-    [reads("tenants"), reads("tenant_config")],
-    [2, 1],
-    "tenants once for facts and once for sells_by; the config once",
+    [reads("tenants"), reads("tenant_config"), reads("deals")],
+    [2, 1, 1],
+    "tenants once for facts and once for the word; the config once; the deals once, for whether there is one",
   );
   const later = kernel.readerContext(ctxFor(tables()), { tenantId: A, role: "operator" }, undefined, { keep: true });
   const f2 = await kernel.load(later, facts, undefined);
@@ -295,6 +299,46 @@ test("the facts readers: the tenant's name and zone are read once and kept for t
     "tenantFacts' own defaults",
   );
   assert.equal((await kernel.load(none, config, undefined)).data, null);
+});
+
+test("the word reader says the word picked, else the retired answer's, else an appointment; on a database 00458 has not reached it reads the retired answer alone, and one it cannot read says an appointment", async () => {
+  const wordOf = async (tenant, faults = {}) => {
+    const t = tables();
+    t.tenants = [{ ...t.tenants[0], ...tenant }];
+    const rc = kernel.readerContext({ ...ctxFor(t), supabase: fakeDb(t, faults) }, { tenantId: A, role: "operator" });
+    return (await kernel.load(rc, appointmentWord, undefined)).data;
+  };
+  assert.equal(await wordOf({ appointment_word: "session", sells_by: "proposal" }), "session", "the word picked");
+  assert.equal(
+    await wordOf({ sells_by: "proposal" }),
+    "meeting",
+    "none picked: the retired answer's (00458's backfill)",
+  );
+  assert.equal(await wordOf({ sells_by: null }), "appointment");
+  assert.equal(
+    await wordOf({}, { "tenants.select": { message: "down" } }),
+    "appointment",
+    "unreadable: an appointment",
+  );
+  // An older database: the column is not there, so the read asks for the retired answer alone.
+  const asked = [];
+  const older = {
+    from: () => ({
+      select: (columns) => ({
+        eq: () => ({
+          maybeSingle: async () => {
+            asked.push(columns);
+            return /appointment_word/.test(columns)
+              ? { data: null, error: { message: "column tenants.appointment_word does not exist" } }
+              : { data: { sells_by: "proposal" }, error: null };
+          },
+        }),
+      }),
+    }),
+  };
+  const rc = kernel.readerContext({ ...ctxFor(tables()), supabase: older }, { tenantId: A, role: "operator" });
+  assert.equal((await kernel.load(rc, appointmentWord, undefined)).data, "meeting");
+  assert.deepEqual(asked, ["appointment_word, sells_by", "sells_by"]);
 });
 
 /* ----------------------------------------------- the day's readers (PR 1.2) */
@@ -1357,7 +1401,8 @@ const PERSON_KEYS = [
   "lead",
   "doubts",
   "deals",
-  "deals_on",
+  // 18 Oct 2026 (0008, amended): what the workspace calls an appointment, where whether deals were on was answered.
+  "appointment_word",
   "deal_pace",
   "services",
   "consult_first",
@@ -1382,7 +1427,7 @@ const PERSON_READS = {
   "contacts.select": 1,
   // The calendar's own lookup, and the booking link and the services.
   "tenant_config.select": 2,
-  // The calendar's zone, and how the workspace's customers buy.
+  // The calendar's zone, and what the workspace calls an appointment.
   "tenants.select": 2,
   "leads.select": 1,
   // Their deals, and the workspace's pace.
@@ -1464,7 +1509,7 @@ test("the person, for Ask and for the page: GET contacts/:id answers its reader'
   );
 });
 
-test("GET contacts/:id through its reader reads what it read at origin/main, in one round: every table as many times, only the threads' messages, escalations and decisions waiting for their ids; the config now through getTenantConfig's columns and sells_by through its reader, once each", async () => {
+test("GET contacts/:id through its reader reads what it read at origin/main, in one round: every table as many times, only the threads' messages, escalations and decisions waiting for their ids; the config now through getTenantConfig's columns and the word through its reader, once each", async () => {
   const tbls = personTables({ threads: true });
   const routed = personCtx(tbls, P1);
   await personRoute.GET.run(req(`?workspace=${A}`), routed);
@@ -1493,8 +1538,8 @@ test("GET contacts/:id through its reader reads what it read at origin/main, in 
   );
   assert.deepEqual(
     columns("tenants"),
-    ["name, timezone", "sells_by"],
-    "the calendar's zone, and sells_by through its reader",
+    ["appointment_word, sells_by", "name, timezone"],
+    "the calendar's zone, and the word through its reader (with the retired answer, which says it where none was picked)",
   );
 });
 
@@ -1666,7 +1711,8 @@ const presetsWorld = () => ({
 const CLIENT = "cccccccc-cccc-4ccc-8ccc-cccccccccc01";
 /**
  * ask-routes.test.mjs, "the reports' Deals section": one page of People, whose one row says the client came from a
- * lead, and their deal, won five days ago at $2,500 a month. `sellsBy` is how the workspace's customers buy, or unset.
+ * lead, and their deal, won five days ago at $2,500 a month. `sellsBy` is the retired answer to how the workspace's
+ * customers buy (00160), or unset: it switches nothing now (0008, amended 18 Oct 2026).
  */
 const dealsWorld = (sellsBy) => ({
   tables: {
@@ -1730,9 +1776,14 @@ test("the reports, for Ask and for the page: GET reports answers its reader's pa
   const on = await kernel.load(turnIn(worldCtx(dealsWorld("proposal"))), reportReader, { days: 30, end: null });
   assert.deepEqual([on.data.deals.any, on.data.deals.clients, on.data.deals.monthly_cents], [true, 1, 250_000]);
   assert.deepEqual(on.data.deals.sources, [{ came_from: "lead", count: 1 }], "the new client's source, from People");
+  // Every workspace has deals (0008, amended 18 Oct 2026): whatever the retired answer said, its deal is reported.
   for (const sellsBy of ["booking", null, undefined]) {
-    const off = await kernel.load(turnIn(worldCtx(dealsWorld(sellsBy))), reportReader, { days: 30, end: null });
-    assert.equal(off.data.deals.any, false, `${sellsBy}: a deal on file switches nothing`);
+    const any = await kernel.load(turnIn(worldCtx(dealsWorld(sellsBy))), reportReader, { days: 30, end: null });
+    assert.deepEqual(
+      [any.data.deals.any, any.data.deals.clients],
+      [true, 1],
+      `${sellsBy}: the deal on file is reported`,
+    );
   }
 });
 
@@ -1882,7 +1933,7 @@ test("the report reader's profile reaches the view model: the closed count with 
  */
 const readTogether = (list) => [...list].sort();
 
-test("GET reports through its reader asks what it asked at origin/main, each read once, the series first: People once, with their reply modes, for the booking line and the deals alike; the booking line's calendar zone and settings, now through their readers; how the workspace's customers buy, once, through its reader; the deals, and only where deals are on -- and a turn that holds the zone, the settings and sells_by reads none of them again", async () => {
+test("GET reports through its reader asks what it asked at origin/main, each read once, the series first: People once, with their reply modes, for the booking line and the deals alike; the booking line's calendar zone and settings, now through their readers; the deals, in every workspace -- and a turn that holds the zone and the settings reads neither again", async () => {
   const REPORT_READS = [
     "rpc:report_series",
     // Everyone, read once for the whole report: the booking line's read, which the deals take their sources from.
@@ -1895,8 +1946,7 @@ test("GET reports through its reader asks what it asked at origin/main, each rea
     // This workspace has no settings row, so the door is asked after the table: from 00366 a member who is not the
     // owner reads the row only there (workspace/config-row.ts).
     "rpc:tenant_config_read",
-    // How the workspace's customers buy, after the booking line, then the deals.
-    "tenants.select",
+    // The deals, after the booking line: every workspace's (0008, amended 18 Oct 2026).
     "deals.select",
   ];
   const routed = worldCtx(dealsWorld("proposal"));
@@ -1909,8 +1959,8 @@ test("GET reports through its reader asks what it asked at origin/main, each rea
   assert.deepEqual(readTogether(asked(ctx)), readTogether(REPORT_READS));
   assert.deepEqual(
     readTogether(selects(ctx, "tenants").map((q) => q.columns)),
-    ["name, timezone", "sells_by"],
-    "the calendar's zone and sells_by, each once",
+    ["name, timezone"],
+    "the calendar's zone, once",
   );
   assert.deepEqual(
     selects(ctx, "tenant_config").map((q) => q.columns),
@@ -1922,20 +1972,20 @@ test("GET reports through its reader asks what it asked at origin/main, each rea
     ctx.supabase.seen.filter((q) => q.rpc === "report_series").map((q) => q.args),
     [{ p_tenant_id: A, p_days: 30 }],
   );
-  // A turn that already holds the zone, the settings and how the workspace's customers buy is asked for none again.
+  // A turn that already holds the zone and the settings is asked for neither again.
   const turn = turnIn(worldCtx(dealsWorld("proposal")));
-  await Promise.all([facts, config, sellsBy].map((r) => kernel.load(turn, r, undefined)));
+  await Promise.all([facts, config].map((r) => kernel.load(turn, r, undefined)));
   const held = turn.ctx.supabase.seen.length;
   await kernel.load(turn, reportReader, { days: 30, end: null });
   assert.deepEqual(
     readTogether(asked(turn.ctx).slice(held)),
     readTogether(["rpc:report_series", "rpc:people_list", "policies.select", "deals.select"]),
-    "the series, everyone and the deals: the tenant, its settings and sells_by were the turn's",
+    "the series, everyone and the deals: the tenant and its settings were the turn's",
   );
-  // Where the workspace's customers book, the deals are not even read.
-  const off = worldCtx(dealsWorld("booking"));
-  await kernel.load(turnIn(off), reportReader, { days: 30, end: null });
-  assert.deepEqual(readTogether(asked(off)), readTogether(REPORT_READS.slice(0, -1)));
+  // Where the retired answer said its customers book, the deals are read all the same.
+  const booked = worldCtx(dealsWorld("booking"));
+  await kernel.load(turnIn(booked), reportReader, { days: 30, end: null });
+  assert.deepEqual(readTogether(asked(booked)), readTogether(REPORT_READS));
 });
 
 test("the report over days that ended before today: the series is asked to their last day, the deals are those proposed in those days, and the booking line is not counted; on a database that cannot read such days yet it is refused in words, where days that end today read as they always did", async () => {
@@ -3921,15 +3971,23 @@ test("the cross-turn cache is opt-in: a context that does not keep reads a ttl r
   });
 });
 
-test("the business's shape (readers/facts.ts businessShape): how its customers buy, the word it derives, and whether bookings arrive by a tool's emails", async () => {
+test("the business's shape (readers/facts.ts businessShape): whether a deal was ever recorded, its word, and whether bookings arrive by a tool's emails", async () => {
   const t = calTables(null);
-  t.tenants[0].sells_by = "proposal";
+  t.tenants[0].appointment_word = "session";
+  t.deals = [{ id: "dddddddd-dddd-4ddd-8ddd-dddddddddd09", tenant_id: A, contact_id: P1, stage: "proposed" }];
   t.tenant_config[0].config.bookings = { tool: "booksy" };
   const r = await kernel.load(turnIn(ctxFor(t)), businessShape, undefined);
-  assert.deepEqual(r.data, { sellsBy: "proposal", dealsOn: true, word: "meeting", bookingsByEmail: true });
+  assert.deepEqual(r.data, { hasDeals: true, word: "session", bookingsByEmail: true });
   assert.deepEqual(r.rows, [], "no row of its own");
   const bare = await kernel.load(turnIn(ctxFor(calTables(null))), businessShape, undefined);
-  assert.deepEqual(bare.data, { sellsBy: null, dealsOn: false, word: "appointment", bookingsByEmail: false });
+  assert.deepEqual(bare.data, { hasDeals: false, word: "appointment", bookingsByEmail: false });
+  const quoted = calTables(null);
+  quoted.tenants[0].sells_by = "proposal";
+  assert.equal(
+    (await kernel.load(turnIn(ctxFor(quoted)), businessShape, undefined)).data.word,
+    "meeting",
+    "none picked: the retired answer's word (00458's backfill)",
+  );
   const unreadable = calTables(null);
   unreadable.tenant_config = [];
   const none = await kernel.load(turnIn(ctxFor(unreadable)), businessShape, undefined);
@@ -3941,12 +3999,12 @@ test("the business's shape (readers/facts.ts businessShape): how its customers b
   );
   assert.deepEqual(
     down.data,
-    { sellsBy: "proposal", dealsOn: true, word: "meeting", bookingsByEmail: false },
+    { hasDeals: true, word: "session", bookingsByEmail: false },
     "settings that cannot be read cost the booking tool's word, never the shape",
   );
-  // A turn that holds how its customers buy and the settings reads neither again.
+  // A turn that holds the word, a deal on file and the settings reads none of them again.
   const turn = turnIn(ctxFor(t));
-  await Promise.all([sellsBy, config].map((x) => kernel.load(turn, x, undefined)));
+  await Promise.all([appointmentWord, hasDeals, config].map((x) => kernel.load(turn, x, undefined)));
   const held = turn.ctx.supabase.seen.length;
   await kernel.load(turn, businessShape, undefined);
   assert.equal(turn.ctx.supabase.seen.length, held, "the turn's own reads");
@@ -3961,7 +4019,10 @@ const PEOPLE_KEYS = [
   "calendar",
   "booking_link",
   "consult_first",
-  "deals_on",
+  // 18 Oct 2026 (0008, amended): whether a deal was ever recorded, and the workspace's word, where whether deals were
+  // on was.
+  "has_deals",
+  "appointment_word",
   "deal_pace",
   "follow_up",
   // 3 Oct 2026: what the workspace can send on now, which who can be sent what is judged against (contracts reach-any.ts).
@@ -3970,8 +4031,7 @@ const PEOPLE_KEYS = [
 ];
 /**
  * people-routes.test.mjs, "the people list is the workspace the tab named": harbor holds two people and bayside one;
- * harbor's reply mode is auto, and one of its people has their own, never. No calendar, and nobody asked how its
- * customers buy.
+ * harbor's reply mode is auto, and one of its people has their own, never. No calendar, and no deal on file.
  */
 const listWorld = () => ({
   tables: {
@@ -4139,8 +4199,9 @@ const MESSAGE_ROWS_ASKED =
 /**
  * Every query GET contacts asked at origin/main (e3184cff) for peopleWorld's first page, in order, with the columns it
  * selected (and, since 3 Oct 2026, the two reads of what the workspace can send on). The workspace's door. The first stage at once: the page and how many match, then the page's reply modes.
- * The second at once: how the workspace's customers buy, the calendar's zone and settings (the feed itself is fetched,
- * never read from the database), who each step is for, the pace; then, once sells_by says deals are on, the proposal
+ * The second at once: whether a deal is on file and the workspace's word (18 Oct 2026, where how its customers buy was
+ * read), the calendar's zone and settings (the feed itself is fetched, never read from the database), who each step is
+ * for, the pace; then, once a deal is on file, the proposal
  * follow-up's facts -- its playbook, its class, the workspace, its number, the proposals out, its template, and the
  * runs that touched them.
  */
@@ -4149,7 +4210,8 @@ const PEOPLE_ASKED_AT_MAIN = [
   ["rpc:people_list", null],
   ["contacts.select", "id"],
   ["policies.select", "subject_type, subject_id, mode"],
-  ["tenants.select", "sells_by"],
+  ["deals.select", "id"],
+  ["tenants.select", "appointment_word, sells_by"],
   ["tenants.select", "name, timezone"],
   ["tenant_config.select", "config"],
   // 7 Oct 2026 (00349): what the member asking has seen of each person on the page (server/people/person-seen.ts), for
@@ -4189,19 +4251,21 @@ const PEOPLE_ASKED_AT_MAIN = [
   ],
 ];
 /**
- * The same queries in the order they reach the database since 2 Oct 2026: what is read of the workspace -- how its
- * customers buy, the calendar's zone and settings, the pace -- and the page's reply modes no longer wait for the page's
- * rows, a round trip each time; they leave with the page and its count. Then, once sells_by says deals are on, the
+ * The same queries in the order they reach the database since 2 Oct 2026: what is read of the workspace -- a deal on
+ * file and its word, the calendar's zone and settings, the pace -- and the page's reply modes no longer wait for the
+ * page's rows, a round trip each time; they leave with the page and its count. Then, once a deal is on file, the
  * follow-up's facts; and once the rows are in, who each step is for.
  */
 const PEOPLE_ASKED_NOW = [
   ["memberships.select", "tenant_id, role, tenants (slug, name, timezone)"],
   ["rpc:people_list", null],
-  ["tenants.select", "sells_by"],
+  ["tenants.select", "appointment_word, sells_by"],
   ["tenant_channels.select", "config, number_e164"],
   ["lines.select", "sms_state, reg_mock"],
   ["tenants.select", "name, timezone"],
   ["tenant_config.select", "config"],
+  // Whether a deal is on file, asked with the word and answered after the settings.
+  ["deals.select", "id"],
   ["deals.select", "id, stage, proposed_at, decided_at"],
   ["policies.select", "subject_type, subject_id, mode"],
   ["contacts.select", "id"],
@@ -4209,8 +4273,8 @@ const PEOPLE_ASKED_NOW = [
   ["policies.select", "mode"],
   ["tenants.select", "status"],
   ["tenant_channels.select", "config, number_e164"],
-  ["deals.select", "id, contact_id, proposed_at"],
   ["rpc:contact_seen", null],
+  ["deals.select", "id, contact_id, proposed_at"],
   ["rpc:team_roster", null],
   ["sequence_steps.select", "channels"],
   // 11 Oct 2026 (0002's readers): the record over the feed's season, joined to it: a booking's rows whole, and the
@@ -4248,7 +4312,7 @@ const askedWith = (ctx) =>
 /** The config reader's columns (getTenantConfig), where the calendar's own lookup asked for the one, config. */
 const CONFIG_READER_COLUMNS = "tenant_id, config, version, updated_at, updated_by";
 
-test("GET contacts through its reader asks what it asked at origin/main -- the page, its count and everything read of the workspace at once, then the follow-up's facts and who each step is for -- the settings now through the config reader's columns and sells_by through its reader; a turn that holds the zone, the settings and sells_by reads none of them again", async () => {
+test("GET contacts through its reader asks what it asked at origin/main -- the page, its count and everything read of the workspace at once, then the follow-up's facts and who each step is for -- the settings now through the config reader's columns, and the word and a deal on file through theirs; a turn that holds the zone, the settings, the word and a deal on file reads none of them again", async () => {
   await withFeed({ body: ONE_ICS }, async () => {
     const asConfigReader = (list) =>
       list.map(([k, cols]) => [k, k === "tenant_config.select" ? CONFIG_READER_COLUMNS : cols]);
@@ -4273,7 +4337,10 @@ test("GET contacts through its reader asks what it asked at origin/main -- the p
       [ana.step_for_name, ana.step_for_me, luis.step_for_name, luis.step_for_me],
       ["Sam", false, "Ada", true],
     );
-    assert.deepEqual([r.data.deals_on, r.data.deal_pace], [true, { median_days: 10, yeses: 1 }]);
+    assert.deepEqual(
+      [r.data.has_deals, r.data.appointment_word, r.data.deal_pace],
+      [true, "meeting", { median_days: 10, yeses: 1 }],
+    );
     assert.deepEqual(Object.keys(r.data.follow_up.had), [P2], "Luis had his proposal's follow-up");
     // A search reads neither the pace nor the follow-up's facts: People keeps its first page's.
     const searched = worldCtx(w);
@@ -4287,27 +4354,39 @@ test("GET contacts through its reader asks what it asked at origin/main -- the p
           .filter(
             ([k, cols]) =>
               !/^(sequence_steps|tenant_channels|lines|templates|sequence_batches|sequence_sends)\./.test(k) &&
-              !(k === "deals.select") &&
+              !(k === "deals.select" && cols !== "id") &&
               !(k === "policies.select" && cols === "mode") &&
               !(k === "tenants.select" && /^(status|timezone)$/.test(cols)),
           ),
       ),
       "the same, less the pace and the follow-up",
     );
-    // A turn that already holds the zone, the settings and how the customers buy is asked for none of them again.
+    // A turn that already holds the zone, the settings, the word and a deal on file is asked for none of them again.
     const turn = turnIn(worldCtx(w));
-    await Promise.all([facts, config, sellsBy].map((x) => kernel.load(turn, x, undefined)));
+    await Promise.all([facts, config, appointmentWord, hasDeals].map((x) => kernel.load(turn, x, undefined)));
     const held = turn.ctx.supabase.seen.length;
     await kernel.load(turn, peopleReader, { q: null, offset: 0 });
     const heldWant = want
       .slice(1)
-      .filter(([k, cols]) => k !== "tenant_config.select" && !(k === "tenants.select" && /sells_by|name/.test(cols)));
+      .filter(
+        ([k, cols]) =>
+          k !== "tenant_config.select" &&
+          !(k === "tenants.select" && /appointment_word|name/.test(cols)) &&
+          !(k === "deals.select" && cols === "id"),
+      );
+    // With a deal on file already the turn's, the proposals out are asked before what the member has seen of each.
+    const out = heldWant.findIndex(([k, cols]) => k === "deals.select" && cols === "id, contact_id, proposed_at");
+    heldWant.splice(
+      heldWant.findIndex(([k]) => k === "rpc:contact_seen"),
+      0,
+      ...heldWant.splice(out, 1),
+    );
     // The follow-up's reads wait on the business's zone (its last day is judged by it: S1-3), which the turn holds but hands
     // over a moment later: they reach the database after who each step is for, in the order the page asks them.
     assert.deepEqual(
       recordApart(askedWith(turn.ctx).slice(held)),
       recordApart(heldWant),
-      "the page, the steps, the pace and the follow-up's own reads: the zone, the settings and sells_by were the turn's",
+      "the page, the steps, the pace and the follow-up's own reads: the zone, the settings, the word and a deal on file were the turn's",
     );
   });
 });
@@ -4323,7 +4402,7 @@ test("the people list's calendar is never fatal: settings that cannot be read co
       [page.people.map((p) => p.visits), page.calendar, page.booking_link],
       [[null, null], { state: "none", source: "your calendar", timezone: "UTC" }, null],
     );
-    assert.deepEqual([page.deals_on, Object.keys(page.follow_up.had), page.page.total], [true, [P2], 2]);
+    assert.deepEqual([page.has_deals, Object.keys(page.follow_up.had), page.page.total], [true, [P2], 2]);
     assert.deepEqual(
       lines,
       // The settings come through the config reader now (getTenantConfig), which names itself in its failure.
@@ -4674,7 +4753,7 @@ test("one broadcast, for Ask and for the page: GET broadcasts/:id answers its re
 
 /* --------------------------------------------------------------------------- the audience pool (PR 1.6) */
 
-test("the audience pool, for Ask: everyone with their appointments for the member asking, exactly as server/people/audience.ts reads it for the same zone and clock -- over a calendar that names one of them -- read once a turn; the zone, the settings and sells_by are the turn's, so the pool's calendar lookup reads neither and sells_by is not read again; settings that cannot be read cost the visits, never the pool; a workspace-wide read, with no row of its own", async () => {
+test("the audience pool, for Ask: everyone with their appointments for the member asking, exactly as server/people/audience.ts reads it for the same zone and clock -- over a calendar that names one of them -- read once a turn; the zone, the settings and a deal on file are the turn's, so the pool's calendar lookup reads neither and the deals are not read again; settings that cannot be read cost the visits, never the pool; a workspace-wide read, with no row of its own", async () => {
   await withFeed({ body: ONE_ICS }, async () => {
     const w = peopleWorld();
     // The rows say who can be sent what against what the workspace sends on (3 Oct 2026), read as the reader reads it.
@@ -4683,13 +4762,13 @@ test("the audience pool, for Ask: everyone with their appointments for the membe
     const r = await kernel.load(calIn(worldCtx(w)), audiencePoolReader, undefined);
     assert.deepEqual(r.data, want, "the pool server/people/audience.ts reads");
     assert.deepEqual(r.rows, []);
-    // Ana's appointment is on the turn's own day, ahead of its clock; deals are on here, so Luis's proposal is his.
+    // Ana's appointment is on the turn's own day, ahead of its clock; Luis's proposal is his, as in every workspace.
     const [ana, luis] = r.data.rows;
     assert.deepEqual([r.data.calendar.state, ana.nextVisitDate, luis.nextVisitDate], ["ok", "2026-09-08", null]);
-    assert.deepEqual([r.data.deals_on, !!luis.deal], [true, true]);
-    // A turn that holds the zone, the settings and how the customers buy reads everyone and their reply modes, once.
+    assert.deepEqual([r.data.has_deals, !!luis.deal], [true, true]);
+    // A turn that holds the zone, the settings and a deal on file reads everyone and their reply modes, once.
     const turn = calIn(worldCtx(w));
-    await Promise.all([facts, config, sellsBy].map((x) => kernel.load(turn, x, undefined)));
+    await Promise.all([facts, config, hasDeals].map((x) => kernel.load(turn, x, undefined)));
     const held = turn.ctx.supabase.seen.length;
     assert.equal(kernel.load(turn, audiencePoolReader, undefined), kernel.load(turn, audiencePoolReader, undefined));
     await kernel.load(turn, audiencePoolReader, undefined);
@@ -4728,7 +4807,8 @@ const PLAYBOOKS_KEYS = [
   "calendar",
   "lists",
   "people_lists",
-  "deals_on",
+  // 18 Oct 2026 (0008, amended): whether a deal was ever recorded, where whether deals were on was answered.
+  "has_deals",
   // 3 Oct 2026: whether each channel can send now, which the pools were counted against (server/campaigns/channels-ready.ts),
   // and what its campaigns have sent by email and by text this month (server/campaigns/month-sent.ts).
   "ready",
@@ -4844,7 +4924,7 @@ test("Today's pins are counted on the server by the rule People's rail counts by
   const page = await contactsRoute.GET.run(req(`?workspace=${A}`), worldCtx(world()));
   const tz = "America/New_York";
   const rows = page.people.map((r) =>
-    contracts.poolRowOf(r, { tz, now: new Date(), viewer: USER, dealsOn: page.deals_on, ready: page.channels_ready }),
+    contracts.poolRowOf(r, { tz, now: new Date(), viewer: USER, ready: page.channels_ready }),
   );
   const rail = (id) => rows.filter(contracts.PEOPLE_LISTS.find((l) => l.id === id).test).length;
   for (const id of ["quiet", "opted_in", "offers_ok"])
@@ -4881,7 +4961,7 @@ const outboundWorld = () => ({
   rpcs: {},
 });
 
-test("the playbooks, for Ask and for the page: GET playbooks answers its reader's payload, key for key and byte for byte -- over outbound-routes' fixture in both workspaces, whose People read fails and counts no moment; calendar-counts' thousand and three people with one reached this week, its People read refused, and its proposals out where deals are on and where they are off; and a workspace with a calendar, deals on and a list of its own -- and each playbook a row a citation names, opened on Playbooks at its card", async () => {
+test("the playbooks, for Ask and for the page: GET playbooks answers its reader's payload, key for key and byte for byte -- over outbound-routes' fixture in both workspaces, whose People read fails and counts no moment; calendar-counts' thousand and three people with one reached this week, its People read refused, and its proposals out with a deal on file and with none; and a workspace with a calendar, deals and a list of its own -- and each playbook a row a citation names, opened on Playbooks at its card", async () => {
   const thousand = Array.from({ length: 1003 }, (_, i) => poolPerson(i + 1));
   thousand[0].marketing_consent = "unknown";
   thousand[1].dnc = true;
@@ -4902,20 +4982,28 @@ test("the playbooks, for Ask and for the page: GET playbooks answers its reader'
       ...over,
     });
   const proposals = pagedPeople([out(1, 10), out(2, 20), out(3, 20, { deal_proposal_url: null }), poolPerson(4)]);
-  const dealsOn = countsWorld(proposals, {
+  const dealt = countsWorld(proposals, {
     tenants: [
       { id: A, slug: "harbor", name: "Harbor", status: "active", timezone: "America/New_York", sells_by: "proposal" },
     ],
-    deals: [],
+    deals: [
+      {
+        id: "dddddddd-dddd-4ddd-8ddd-dddddddddd01",
+        tenant_id: A,
+        contact_id: P1,
+        stage: "proposed",
+        proposed_at: ago(10 * 24 * HOUR),
+      },
+    ],
   });
-  const booked = countsWorld(proposals);
+  const undealt = countsWorld(proposals);
   const cases = [
     ["outbound, harbor", outboundWorld(), A],
     ["outbound, bayside", outboundWorld(), B],
     ["a thousand and three", touchedOnce, A],
     ["People refused", refused, A],
-    ["deals on", dealsOn, A],
-    ["deals off", booked, A],
+    ["a deal on file", dealt, A],
+    ["no deal on file", undealt, A],
     ["calendar, deals and a list", playbooksWorld(), A],
   ];
   const pages = {};
@@ -4955,25 +5043,36 @@ test("the playbooks, for Ask and for the page: GET playbooks answers its reader'
     "past the first page, less the one reached",
   );
   assert.equal(pages["People refused"].pools.everyone_monthly, null);
-  assert.deepEqual([pages["deals on"].deals_on, pages["deals on"].pools.proposal_waiting.pool], [true, 2]);
-  assert.deepEqual([pages["deals off"].deals_on, pages["deals off"].pools.proposal_waiting], [false, null]);
+  // Every workspace has the proposal follow-up (0008, amended 18 Oct 2026): its moment counts the proposals out with a
+  // deal on file and with none.
+  assert.deepEqual([pages["a deal on file"].has_deals, pages["a deal on file"].pools.proposal_waiting.pool], [true, 2]);
+  assert.deepEqual(
+    [pages["no deal on file"].has_deals, pages["no deal on file"].pools.proposal_waiting.pool],
+    [false, 2],
+  );
   const rich = pages["calendar, deals and a list"];
   assert.deepEqual(
-    [rich.calendar, rich.deals_on, "touched" in rich, rich.lists.map((l) => l.id), rich.pools[`list:${SEG1}`].pool],
+    [rich.calendar, rich.has_deals, "touched" in rich, rich.lists.map((l) => l.id), rich.pools[`list:${SEG1}`].pool],
     ["ok", true, false, [SEG1], 1],
   );
   // 9 Oct 2026 (spec 2026-10-09 §4.8, §4.3): the shape's word and booking tool, and the matrix's modes by class.
   assert.deepEqual(
-    [rich.appointment_word, rich.bookings_by_email, pages["deals off"].appointment_word, pages["deals off"].modes],
+    [
+      rich.appointment_word,
+      rich.bookings_by_email,
+      pages["no deal on file"].appointment_word,
+      pages["no deal on file"].modes,
+    ],
     ["meeting", false, "appointment", {}],
-    "a meeting where deals are on, else an appointment; no autonomy row is no mode",
+    "a meeting where the retired answer said proposals and none was picked, else an appointment; no autonomy row is no mode",
   );
 });
 
 /**
  * Every query GET playbooks asked at origin/main (e3184cff) for playbooksWorld, in order, with the columns it selected.
  * The workspace's door. The first stage at once: the zone, who a run reached this week (with the zone its touches
- * keep), how the customers buy, the playbooks' runs and rows, the pace, then the runs' recipients. The second: everyone
+ * keep), the word and a deal on file (18 Oct 2026, where how the customers buy was read), the playbooks' runs and rows,
+ * the pace, then the runs' recipients. The second: everyone
  * with their reply modes; the calendar's own lookup of the zone and the settings; then, deals being on, who had a
  * proposal's follow-up; and the lists.
  */
@@ -4981,7 +5080,8 @@ const PLAYBOOKS_ASKED_AT_MAIN = [
   ["memberships.select", "tenant_id, role, tenants (slug, name, timezone)"],
   ["tenants.select", "name, timezone"],
   ["tenants.select", "timezone"],
-  ["tenants.select", "sells_by"],
+  ["tenants.select", "appointment_word, sells_by"],
+  ["deals.select", "id"],
   [
     "sequence_batches.select",
     "id, name, template_id, template_name, template_language, params, audience, state, scheduled_for, started_at, finished_at, recipient_count, failure, created_at, playbook_id, run_for",
@@ -5021,7 +5121,7 @@ const PLAYBOOKS_ASKED_AT_MAIN = [
   ["segment_members.select", "segment_id, contact_id"],
 ];
 
-test("GET playbooks through its reader asks what it asked at origin/main, in its order, less one read: the pools' calendar lookup no longer reads the zone the page's first read just read, and the settings come through the config reader's columns; a turn that holds the zone, the settings and sells_by reads none of them; settings that cannot be read cost the visit moments, said once in the log, never the page", async () => {
+test("GET playbooks through its reader asks what it asked at origin/main, in its order, less one read: the pools' calendar lookup no longer reads the zone the page's first read just read, and the settings come through the config reader's columns; a turn that holds the zone, the settings, the word and a deal on file reads none of them; settings that cannot be read cost the visit moments, said once in the log, never the page", async () => {
   await withFeed({ body: ONE_ICS }, async () => {
     // At origin/main the pools' calendar lookup read the zone a second time, just before the settings.
     const lookup = PLAYBOOKS_ASKED_AT_MAIN.findIndex(
@@ -5082,7 +5182,7 @@ test("GET playbooks through its reader asks what it asked at origin/main, in its
     assert.deepEqual(r.data, page);
     assert.deepEqual(bagOf(askedWith(ctx)), bagOf(want.slice(1)));
     const turn = turnIn(worldCtx(w));
-    await Promise.all([facts, config, sellsBy].map((x) => kernel.load(turn, x, undefined)));
+    await Promise.all([facts, config, appointmentWord, hasDeals].map((x) => kernel.load(turn, x, undefined)));
     const held = turn.ctx.supabase.seen.length;
     await kernel.load(turn, playbooksReader, undefined);
     assert.deepEqual(
@@ -5091,10 +5191,13 @@ test("GET playbooks through its reader asks what it asked at origin/main, in its
         want
           .slice(1)
           .filter(
-            ([k, cols]) => k !== "tenant_config.select" && !(k === "tenants.select" && /sells_by|name/.test(cols)),
+            ([k, cols]) =>
+              k !== "tenant_config.select" &&
+              !(k === "tenants.select" && /appointment_word|name/.test(cols)) &&
+              !(k === "deals.select" && cols === "id"),
           ),
       ),
-      "the zone, the settings and sells_by were the turn's",
+      "the zone, the settings, the word and a deal on file were the turn's",
     );
     const down = { "tenant_config.select": { message: "config down" } };
     const { result: blind, lines } = await logged("playbook_pools_visits_failed", () =>
@@ -5138,7 +5241,7 @@ const idle = async () => {
   for (let i = 0; i < 25; i++) await new Promise((go) => setImmediate(go));
 };
 
-test("GET playbooks asks for the pools' reads with its first ones, not behind them: with the playbooks' own rows still out, everyone, the reply modes, the settings, the proposals out and their follow-ups and the lists have all been asked for, and only the templates wait, which are read for the playbooks; the page is the one it was; and where deals are off, no deal is read at all", async () => {
+test("GET playbooks asks for the pools' reads with its first ones, not behind them: with the playbooks' own rows still out, everyone, the reply modes, the settings, the proposals out and their follow-ups and the lists have all been asked for, and only the templates wait, which are read for the playbooks; the page is the one it was; and with no deal on file, only whether there is one is read", async () => {
   await withFeed({ body: ONE_ICS }, async () => {
     const w = playbooksWorld();
     const page = await playbooksRoute.GET.run(req(`?workspace=${A}`), worldCtx(w));
@@ -5171,14 +5274,15 @@ test("GET playbooks asks for the pools' reads with its first ones, not behind th
     assert.deepEqual(await waiting, page, "the page it always answered");
     assert.equal(selects(ctx, "templates").length, 1, "and the templates once, when the playbooks are in");
 
-    // Deals off: the pace is counted by nothing and no proposal is out, so neither is read.
+    // No deal on file: the pace has no yes to measure and no proposal's follow-up went out, so neither is read.
     const off = worldCtx(countsWorld(pagedPeople([poolPerson(1), poolPerson(2)])));
     const quiet = await playbooksRoute.GET.run(req(`?workspace=${A}`), off);
+    assert.deepEqual([quiet.has_deals, quiet.pools.everyone_monthly.pool], [false, 2]);
     assert.deepEqual(
-      [quiet.deals_on, quiet.pools.proposal_waiting, quiet.pools.everyone_monthly.pool],
-      [false, null, 2],
+      selects(off, "deals").map((q) => q.columns),
+      ["id"],
+      "REGRESSION: a workspace with no deal on file read its deals for a pace: only whether there is one",
     );
-    assert.deepEqual(selects(off, "deals"), [], "REGRESSION: a workspace with deals off read its deals for a pace");
   });
 });
 
@@ -5912,7 +6016,7 @@ const matrixWorld = (over = {}) => ({
   ...over,
 });
 
-test("the autonomy matrix, for the page: GET policies answers its reader's payload over settings-routes' fixture in both workspaces -- the workspace's own rows by class, never a person's, the reader's role, and whether deals are on -- the rows and how the customers buy read at once, through the turn's readers, fresh on every request; a turn that holds both reads neither again", async () => {
+test("the autonomy matrix, for the page: GET policies answers its reader's payload over settings-routes' fixture in both workspaces -- the workspace's own rows by class, never a person's, the reader's role, -- the rows through the turn's reader, fresh on every request; a turn that holds them reads them no more", async () => {
   for (const [tenant, role, classes] of [
     [A, "viewer", ["money", "reply"]],
     [B, "operator", ["booking", "reply"]],
@@ -5922,18 +6026,10 @@ test("the autonomy matrix, for the page: GET policies answers its reader's paylo
     const r = await kernel.load(memberIn(ctx, tenant, role), autonomy, undefined);
     assert.deepEqual(r.data, page, "the route's payload");
     assert.equal(JSON.stringify(r.data), JSON.stringify(page), "byte for byte");
-    assert.deepEqual(Object.keys(r.data), [
-      "policies",
-      "role",
-      "deals_on",
-      "held",
-      "suggestions",
-      "own_modes",
-      "reply_tokens",
-    ]);
+    assert.deepEqual(Object.keys(r.data), ["policies", "role", "held", "suggestions", "own_modes", "reply_tokens"]);
     assert.deepEqual(
-      [r.data.policies.map((p) => p.class), r.data.role, r.data.deals_on],
-      [classes, role, false],
+      [r.data.policies.map((p) => p.class), r.data.role],
+      [classes, role],
       "the workspace's rows, by class; a person's own row is not the matrix",
     );
     assert.deepEqual(r.rows, []);
@@ -5942,7 +6038,7 @@ test("the autonomy matrix, for the page: GET policies answers its reader's paylo
     // replies, which say the day's budget in replies (item 12).
     assert.deepEqual(
       asked(ctx),
-      ["tenants.select", "policies.select", "fact_suggestions.select", "policies.select", "events.select"].concat(
+      ["policies.select", "fact_suggestions.select", "policies.select", "events.select"].concat(
         tenant === A ? ["contacts.select"] : [],
       ),
     );
@@ -5969,20 +6065,14 @@ test("the autonomy matrix, for the page: GET policies answers its reader's paylo
   });
   const none = await kernel.load(memberIn(dayCtx(matrixWorld()), B, "operator"), autonomy, undefined);
   assert.deepEqual(none.data.own_modes, { total: 0, by_mode: { auto: 0, ask: 0, never: 0 }, named: [] });
-  const agency = matrixWorld({
-    tenants: [{ id: A, name: "Harbor", timezone: "America/New_York", sells_by: "proposal" }],
-  });
-  const on = await kernel.load(memberIn(dayCtx(agency), A, "viewer"), autonomy, undefined);
-  assert.equal(on.data.deals_on, true, "some customers get a proposal first: the follow-ups' row is drawn");
-  assert.deepEqual(on.data, await policiesRoute.GET.run(req(`?workspace=${A}`), dayCtx(agency)));
   // A route keeps nothing: the same request twice reads the matrix twice.
   const twice = dayCtx(matrixWorld());
   await policiesRoute.GET.run(req(`?workspace=${A}`), twice);
   await policiesRoute.GET.run(req(`?workspace=${A}`), twice);
   assert.equal(selects(twice, "policies").length, 4, "fresh on every request: the matrix and the people set apart");
-  // A turn that holds the rows and how the customers buy (workspace.settings, campaigns.playbooks) reads neither again.
+  // A turn that holds the rows (workspace.settings, campaigns.playbooks) reads them no more.
   const turn = memberIn(dayCtx(matrixWorld()), A, "viewer");
-  await Promise.all([kernel.load(turn, policies, undefined), kernel.load(turn, sellsBy, undefined)]);
+  await kernel.load(turn, policies, undefined);
   const held = turn.ctx.supabase.seen.length;
   await kernel.load(turn, autonomy, undefined);
   // What it reads beyond them is the learning loop's own (decision 0063), the held drafts and the notes waiting, and the
@@ -6513,7 +6603,7 @@ test("campaigns.journey says the customer journey: 2 of 4 moments covered, first
       "the receptionist and the call's text are no campaign",
     );
     // The guide for the workspace's shape, in its word (the stages' "Appointment tomorrow"): the page's word, once.
-    assert.deepEqual(said.guide, journeyGuide({ calendarOn: true, dealsOn: false, word: "appointment" }));
+    assert.deepEqual(said.guide, journeyGuide({ calendarOn: true, hasDeals: false, word: "appointment" }));
     assert.equal(
       said.guide.find((r) => r.stage === "after").sends,
       "the day after an appointment, when nothing is booked next: a thank-you and how it went, with a review ask where your Google listing keeps a review link",

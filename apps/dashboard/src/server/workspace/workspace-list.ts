@@ -3,26 +3,26 @@
  * on the payload the seam already fetches at boot (the platform-admin flag, the partner account, an open handover, the
  * sign-up posture for an account in no workspace yet), and the active workspace chosen by memberContext's one rule with
  * the one degradation that keeps a stale preference from bricking the app, every read asked at once and weighed in the
- * order it depends; and the two fields of the tenant row a
- * business owns, its zone and how its customers buy (0008). On a database 00160 has not reached, the read is asked
- * again without sells_by: either deploy order works. The read writes nothing, whoever makes it: an invitation open for the
- * caller's address is accepted by one POST the shell makes once when it boots (POST me/invitations/accept, after which
- * the list is read again when it seated someone), not here (decision 0047, lane 6). A partner account must have shown
- * its second factor before it gets the list. The PATCH is its owner's: a forbidden UPDATE answers success with no
- * rows in this stack, so the row count is the permission check. The routes declare who may and how often.
+ * order it depends; and the two fields of the tenant row a business owns, its zone and its word for a booking (0041 J4,
+ * 00458). On a database a migration has not reached, the read is asked again without the newer column: either deploy
+ * order works. The read writes nothing, whoever makes it: an invitation open for the caller's address is accepted by
+ * one POST the shell makes once when it boots (POST me/invitations/accept, after which the list is read again when it
+ * seated someone), not here (decision 0047, lane 6). A partner account must have shown its second factor before it gets
+ * the list. The PATCH is its owner's: a forbidden UPDATE answers success with no rows in this stack, so the row count
+ * is the permission check. The routes declare who may and how often.
  */
 import { memberContext, requireSecondFactor, type MemberContext, type RouteContext } from "@/server/with-route";
 import {
+  APPOINTMENT_WORD_REFUSAL,
   AppError,
-  SELLS_BY_REFUSAL,
   cleanTimezone,
   cleanWorkspaceName,
-  isSellsBy,
+  isAppointmentWord,
   pendingWorkspaceOf,
   providerNameOf,
   signupPosture,
   workspaceLogoSrc,
-  type SellsBy,
+  type AppointmentWord,
 } from "@chanlytics/contracts";
 import { emitEvent, getOpenHandovers, getOwnPartner, workspaceNamed } from "@chanlytics/db";
 import { serviceDb } from "@/server/service-db";
@@ -32,13 +32,18 @@ import { log } from "@/server/log";
 import { settled } from "@/server/lazy";
 import type { Member } from "@/server/route";
 
-/** A workspace as the list says it: its zone, and how its customers buy (0008), null when it was never asked. */
+/**
+ * A workspace as the list says it: its zone, and its word for a booking (0041 J4, 00458), null where it never picked one.
+ * `sells_by` rides one release more, retired (0008, amended 18 Oct 2026): the word's fallback where none is stored, as
+ * contracts appointmentWordOf reads it, until the column goes.
+ */
 interface WorkspaceRow {
   id: string;
   slug: string;
   name: string;
   status: string;
   timezone: string;
+  appointment_word: string | null;
   sells_by: string | null;
   /** The caller's role in it (0012): the switcher says it beside every workspace, and the partner's pane counts theirs. */
   role?: string | null;
@@ -46,24 +51,29 @@ interface WorkspaceRow {
   logo_url?: string | null;
 }
 
-const WORKSPACE_COLUMNS = "id, slug, name, status, timezone, sells_by";
+/** The columns the list reads, newest first; each read after the first leaves one newer column out. */
+const COLUMN_SETS = [
+  "id, slug, name, status, timezone, appointment_word, sells_by, logo_path",
+  "id, slug, name, status, timezone, sells_by, logo_path",
+  "id, slug, name, status, timezone, sells_by",
+  "id, slug, name, status, timezone",
+] as const;
 
-const OLDER_COLUMNS = "id, slug, name, status, timezone";
-
-/** What the list reads first: the row with the logo's address (00407). */
-const LIST_COLUMNS = "id, slug, name, status, timezone, sells_by, logo_path";
+/** What a PATCH of the word reads back: the row as it wrote it, its word with it, and never the logo's storage path. */
+const WORD_ANSWER = "id, slug, name, status, timezone, appointment_word";
 
 /** The error a read that names a newer column gets from a database the migration adding it has not reached. */
 const lacksNewer = (message: string): boolean =>
-  /\b(logo_path|sells_by)\b/.test(message) && /does not exist|could not find/i.test(message);
+  /\b(appointment_word|logo_path|sells_by)\b/.test(message) && /does not exist|could not find/i.test(message);
 
-/** A tenant row as any of the three reads gives it. */
+/** A tenant row as any of the reads gives it. */
 interface TenantRead {
   id: string;
   slug: string;
   name: string;
   status: string;
   timezone: string;
+  appointment_word?: string | null;
   sells_by?: string | null;
   logo_path?: string | null;
 }
@@ -72,28 +82,36 @@ interface TenantRead {
 const listed = (rows: TenantRead[] | null): WorkspaceRow[] | null =>
   rows?.map(({ logo_path: path, ...t }) => ({
     ...t,
+    appointment_word: t.appointment_word ?? null,
     sells_by: t.sells_by ?? null,
     logo_url: workspaceLogoSrc(env.NEXT_PUBLIC_SUPABASE_URL, path),
   })) ?? null;
 
 /**
  * The session's tenants, RLS-scoped, by name. The whole app boots on this read, so on a database a migration has not
- * reached -- which answers "column does not exist" for a newer column -- it reads again without it (the logo's 00407,
- * then how its customers buy, 00160), and what that database cannot say is not said yet: no logo, deals off, never a
- * blank app. Either deploy order works.
+ * reached -- which answers "column does not exist" for a newer column -- it reads again without it (the word's 00458,
+ * the logo's 00407, then sells_by's 00160), and what that database cannot say is not said yet: no word stored, no logo,
+ * never a blank app. Either deploy order works.
  */
 async function tenantsOf(
   supabase: RouteContext["supabase"],
 ): Promise<{ data: WorkspaceRow[] | null; error: { message: string } | null }> {
   const read = <C extends string>(columns: C) => supabase.from("tenants").select(columns).order("name");
-  const newest = await read(LIST_COLUMNS);
-  if (!newest.error) return { data: listed(newest.data), error: null };
-  if (!lacksNewer(newest.error.message)) return { data: null, error: newest.error };
-  const mid = await read(WORKSPACE_COLUMNS);
-  if (!mid.error) return { data: listed(mid.data), error: null };
-  if (!lacksNewer(mid.error.message)) return { data: null, error: mid.error };
-  const older = await read(OLDER_COLUMNS);
-  return { data: listed(older.data), error: older.error };
+  // Each read typed by its own columns, newest first.
+  const reads = [
+    () => read(COLUMN_SETS[0]),
+    () => read(COLUMN_SETS[1]),
+    () => read(COLUMN_SETS[2]),
+    () => read(COLUMN_SETS[3]),
+  ];
+  let last: { message: string } | null = null;
+  for (const next of reads) {
+    const r = await next();
+    if (!r.error) return { data: listed(r.data), error: null };
+    if (!lacksNewer(r.error.message)) return { data: null, error: r.error };
+    last = r.error;
+  }
+  return { data: null, error: last };
 }
 
 /** The caller's role in each of their workspaces: their own memberships, by RLS. */
@@ -228,20 +246,20 @@ export async function readWorkspaces(ctx: RouteContext, _req: Request) {
 }
 
 export async function patchWorkspace(ctx: RouteContext, req: Request, member: Member) {
-  const body = (await req.json().catch(() => null)) as { timezone?: unknown; sells_by?: unknown } | null;
+  const body = (await req.json().catch(() => null)) as { timezone?: unknown; appointment_word?: unknown } | null;
   const zone = body?.timezone !== undefined;
-  const answer = body?.sells_by;
-  if (!zone && answer === undefined)
-    throw new AppError("validation", "Send the workspace's timezone, or how its customers buy.");
-  const patch: { timezone?: string; sells_by?: SellsBy } = {};
+  const word = body?.appointment_word;
+  if (!zone && word === undefined)
+    throw new AppError("validation", "Send the workspace's timezone, or what it calls a booking.");
+  const patch: { timezone?: string; appointment_word?: AppointmentWord } = {};
   if (zone) {
     const parsed = cleanTimezone(body?.timezone);
     if (!parsed.ok) throw new AppError("validation", parsed.reason);
     patch.timezone = parsed.tz;
   }
-  if (answer !== undefined) {
-    if (!isSellsBy(answer)) throw new AppError("validation", SELLS_BY_REFUSAL);
-    patch.sells_by = answer;
+  if (word !== undefined) {
+    if (!isAppointmentWord(word)) throw new AppError("validation", APPOINTMENT_WORD_REFUSAL);
+    patch.appointment_word = word;
   }
 
   const { data, error } = await writeOwnFields(ctx, member.tenantId, patch);
@@ -254,7 +272,7 @@ export async function patchWorkspace(ctx: RouteContext, req: Request, member: Me
   // the row count IS the permission check. Without this an owner whose policy
   // or grant went missing would be told the zone was saved and see the old one
   // on the next read.
-  const what = zone ? "That workspace's timezone" : "How that workspace's customers buy";
+  const what = zone ? "That workspace's timezone" : "What that workspace calls a booking";
   if (!data?.length) throw new AppError("forbidden", `${what} could not be changed.`, 403);
   // On the ledger as every other setting is (settings-write.ts): which of the two moved and who by, never the value.
   // They live on the tenant's row, not in its config, so a save of them left no trace. As the service role: a session
@@ -274,13 +292,13 @@ export async function patchWorkspace(ctx: RouteContext, req: Request, member: Me
 async function writeOwnFields(
   ctx: RouteContext,
   tenantId: string,
-  patch: { timezone?: string; sells_by?: SellsBy; name?: string },
+  patch: { timezone?: string; appointment_word?: AppointmentWord; name?: string },
 ) {
   return (await ctx.supabase
     .from("tenants")
     .update(patch)
     .eq("id", tenantId)
-    .select(patch.sells_by ? WORKSPACE_COLUMNS : OLDER_COLUMNS)) as unknown as {
+    .select(patch.appointment_word ? WORD_ANSWER : COLUMN_SETS[3])) as unknown as {
     data: Partial<WorkspaceRow>[] | null;
     error: { message: string; code?: string } | null;
   };

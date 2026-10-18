@@ -44,10 +44,10 @@ test.describe("Settings → Autonomy on a real workspace", () => {
     const text = await page.locator(".set-pane").innerText();
     for (const s of INVENTED) expect(text, `invented copy on the pane: "${s}"`).not.toContain(s);
 
-    // One row per class the workspace is offered (contracts policyClassOffered) and asked nowhere else: four where
-    // deals are off, as the nightly's are, the reach-outs' cold email among them; Proposal follow-ups makes five.
+    // One row per class the workspace is offered (contracts policyClassOffered) and asked nowhere else: five, the
+    // reach-outs' cold email and Proposal follow-ups among them (every workspace has deals, 0008 amended 18 Oct 2026).
     const rows = table.locator("tbody tr");
-    await expect(rows).toHaveCount(4);
+    await expect(rows).toHaveCount(5);
     await expect(rows.filter({ hasText: "Cold email to businesses a search found" })).toHaveCount(1);
     for (const label of ["Replies to customers", "Refunds", "Service & pricing questions", "Book · reschedule"])
       await expect(rows.filter({ hasText: label }), `${label} is asked elsewhere`).toHaveCount(0);

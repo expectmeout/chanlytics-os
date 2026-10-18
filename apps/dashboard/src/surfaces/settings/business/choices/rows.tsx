@@ -76,8 +76,11 @@ interface ChoiceRowProps<C extends string> {
   pick: (c: C) => Promise<void>;
 }
 
-/** One question as a row: its answer as the value, and the three answers in a menu, each saying what it does. */
-function ChoiceRow<C extends string>(p: ChoiceRowProps<C>) {
+/**
+ * One question as a row: its answer as the value, and its answers in a menu, each saying what it does. Shared with
+ * Details' word for a booking (offer.tsx BtWordRow), the third question asked this way.
+ */
+export function ChoiceRow<C extends string>(p: ChoiceRowProps<C>) {
   const [busy, setBusy] = useState(false);
   const g = gate("settings", p.gateWords);
   const gated = busy ? "Saving — wait for this one to land." : g["aria-disabled"] ? String(g["data-tip"]) : null;

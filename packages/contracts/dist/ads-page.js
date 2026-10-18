@@ -3756,12 +3756,12 @@ var REPORT_LENSES = [
     id: "pipeline",
     label: "Pipeline",
     sub: "proposals, and what became of them",
-    shownWhen: "deals_on",
+    shownWhen: "always",
     role: "viewer",
     empty: () => ({
       title: "No proposals to report",
-      body: "Proposals you send, and what became of them, show here. Where your customers book directly, there is nothing to report.",
-      door: { label: "Open Settings", to: "admin/workspace" }
+      body: "Proposals you send, and what became of them, show here. Start one from anyone's page in People.",
+      door: { label: "Open the Pipeline", to: "clients/pipeline" }
     })
   },
   {

@@ -31,7 +31,6 @@ import {
   scheduleLine,
   toBroadcastVM,
   triggerOf,
-  FOLLOW_UP_NEEDS_DEALS,
   POLICY_CLASSES,
   PLAYBOOK_REACH_WORDS,
   playbookRunReach,
@@ -785,31 +784,17 @@ test("a person with two proposals out (0029): each has its own follow-up with it
   assert.equal(playbookRunReach([two], follow, unkept, NOW + 8 * DAY, null).reach.heardThis, 1);
 });
 
-test("offered here (0006): a proposal's moment and its Autonomy class only where deals are on, every other everywhere", () => {
+test("offered here (0006): every moment and every Autonomy class in every workspace, a proposal's among them (0008, amended 18 Oct 2026)", () => {
   assert.deepEqual(
-    PLAYBOOK_TRIGGERS.filter((t) => !triggerOffered(t, false)).map((t) => t.id),
-    ["proposal_waiting", "lead_first", "after_step"],
-  );
-  assert.deepEqual(
-    PLAYBOOK_TRIGGERS.filter((t) => !triggerOffered(t, true)).map((t) => t.id),
+    PLAYBOOK_TRIGGERS.filter((t) => !triggerOffered(t)).map((t) => t.id),
     ["lead_first", "after_step"],
     "a reach-out's steps are never offered among the moments: its own sheet makes them (Part 4)",
   );
   assert.match(REACH_OUT_IS_NOT_A_MOMENT, /own sheet/);
   assert.deepEqual(
-    POLICY_CLASSES.filter((c) => !policyClassOffered(c, false)),
-    ["follow_up"],
-    "a salon's Autonomy: eight rows, the reach-outs' among them",
-  );
-  assert.deepEqual(
-    POLICY_CLASSES.filter((c) => !policyClassOffered(c, true)),
+    POLICY_CLASSES.filter((c) => !policyClassOffered(c)),
     [],
-    "deals on: nine rows; the reach-outs' row is offered now that the sheet makes them (Part 4 PR 6)",
-  );
-  assert.ok(
-    FOLLOW_UP_NEEDS_DEALS.includes("Settings › Details") &&
-      FOLLOW_UP_NEEDS_DEALS.includes("“Some get a proposal first”"),
-    "the refusal says where the answer is given, in the answer's own words",
+    "nine rows; the reach-outs' row is offered now that the sheet makes them (Part 4 PR 6)",
   );
 });
 

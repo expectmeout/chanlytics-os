@@ -57,9 +57,8 @@ export function usePeopleState({
   const lists = people.lists;
   const agg = people.aggregates;
   const withCalendar = !!(people.calendar && people.calendar.state === "ok");
-  // Whether deals are on here (the surface's dealsOn, 0008): the Deal column is offered, and the switch has the Pipeline,
-  // only then.
-  const dealsOn = !!people.dealsOn;
+  // What the workspace calls an appointment (the surface's word): the Visits column, its sort and its head say it.
+  const word = people.word ?? "appointment";
   const view = usePeopleView({ initialSegment, initialSaved, initialState });
   const { listId, setListId, savedId, setSavedId, tab, setTab } = view;
   const saved = people.saved || PL_NO_LISTS;
@@ -67,7 +66,7 @@ export function usePeopleState({
     scope: "people",
     cols: PL_COLUMNS,
     phoneCols: PL_PHONE_COLUMNS,
-    colCtx: { withCalendar, dealsOn },
+    colCtx: { withCalendar, word },
     people,
     sortFirst: { by: "last", dir: "desc" },
   });
@@ -160,7 +159,7 @@ export function usePeopleState({
     lists,
     agg,
     withCalendar,
-    dealsOn,
+    word,
     saved,
     canEditLists,
     shown,

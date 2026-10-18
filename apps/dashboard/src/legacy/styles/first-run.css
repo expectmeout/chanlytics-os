@@ -90,12 +90,11 @@
 .fr-find-form > :first-child { flex: 1 1 auto; min-width: 0; }
 .fr-legal { display: flex; align-items: center; gap: 6px; margin: 0; color: var(--ink-faint); }
 
-/* Check (canvas R2, V2, P2): the Business tab's own rows, in three cards, with the choice of how customers buy drawn
-   open in the second and a quiet note under the hours. The rows and their sheets are the record kit's; only the cards'
-   spacing is the first run's. A card here has no head, so its first row draws no rule over itself. */
+/* Check (canvas R2, V2, P2): the Business tab's own rows, in three cards, with a quiet note under the hours. The rows
+   and their sheets are the record kit's; only the cards' spacing is the first run's. A card here has no head, so its
+   first row draws no rule over itself. */
 .fr-check-group { padding-top: 6px; }
 .fr-check-group > :first-child { border-top: 0; }
-.fr-check-buys { display: grid; gap: 10px; padding: 12px 0 14px; }
 .fr-unsure { flex: 1 1 100%; font-size: var(--text-sm); line-height: var(--leading-normal); color: var(--ink-muted); }
 .fr-make { display: grid; gap: 14px; justify-items: start; }
 /* What it offers and the languages it speaks, a press each (check-chips.ts): the kit's small button, ticked and edged in

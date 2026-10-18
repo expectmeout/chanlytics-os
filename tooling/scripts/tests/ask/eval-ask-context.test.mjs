@@ -112,7 +112,7 @@ const ANSWERS = {
     next: null,
   },
   "lead-searches": { searches: [{ id: U(31), name: "Pilates studios · Denver" }], counts: {} },
-  playbooks: { playbooks: [], deals_on: false },
+  playbooks: { playbooks: [], has_deals: false },
   broadcasts: { broadcasts: [], more: false, touched_at: null },
   templates: { templates: [] },
 };
@@ -1595,7 +1595,7 @@ test("needs (a case's workspace): a case needing what EVAL_WORKSPACE_HAS does no
   const file = path.join(os.tmpdir(), `eval-ask-needs-${process.pid}.json`);
   writeFileSync(file, JSON.stringify([one("a", ["live_call"]), one("b", ["calendar"]), one("c")]));
   try {
-    const env = { ...process.env, EVAL_WORKSPACE_HAS: "calendar, deals_on" };
+    const env = { ...process.env, EVAL_WORKSPACE_HAS: "calendar" };
     const run = spawnSync(process.execPath, ["tooling/scripts/eval-ask.mjs", "--list", file], {
       cwd: ROOT,
       env,

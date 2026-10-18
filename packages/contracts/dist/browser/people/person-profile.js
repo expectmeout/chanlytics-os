@@ -1,5 +1,5 @@
 import { clockDate, clockTime } from "../shared/clock.js";
-import { appointmentWordWhere, appointmentWords } from "../journey/appointment-word.js";
+import { appointmentWords } from "../journey/appointment-word.js";
 import { plural } from "../shared/words.js";
 import { DEAL_ACT_WORDS } from "../deals/deal-words.js";
 import { dealPaceOf } from "../deals/deal-waits.js";
@@ -58,8 +58,8 @@ export const TIMELINE_FILTERS = [
   { id: "consent", label: "Consent", kinds: ["consent"] },
   { id: "deals", label: "Deals", kinds: ["deal"] }
 ];
-export function timelineFilterLabel(f, dealsOn) {
-  return f.id === "visits" ? appointmentWords(appointmentWordWhere(dealsOn)).Many : f.label;
+export function timelineFilterLabel(f, word) {
+  return f.id === "visits" ? appointmentWords(word).Many : f.label;
 }
 export function filterTimeline(items, id) {
   const kinds = TIMELINE_FILTERS.find((f) => f.id === id)?.kinds ?? null;
@@ -141,7 +141,7 @@ export function personActs(p) {
       off
     });
   const cardSends = p.deal?.stage === "proposed" && (!p.proposal?.sent || !!p.deal.proposal?.sending);
-  if (reach && p.dealsOn && p.proposal && p.proposalAction.ready && !cardSends)
+  if (reach && p.proposal && p.proposalAction.ready && !cardSends)
     acts.push({
       id: "proposal",
       label: p.proposal.sent ? `${DEAL_ACT_WORDS.send} again` : DEAL_ACT_WORDS.send,
@@ -150,15 +150,14 @@ export function personActs(p) {
       needs: "record",
       off
     });
-  if (p.dealsOn)
-    acts.push({
-      id: "start-proposal",
-      label: W.startProposal,
-      hint: null,
-      group: "record",
-      needs: "record",
-      off: null
-    });
+  acts.push({
+    id: "start-proposal",
+    label: W.startProposal,
+    hint: null,
+    group: "record",
+    needs: "record",
+    off: null
+  });
   acts.push({ id: "add-to-list", label: W.addToList, hint: null, group: "record", needs: "record", off: null });
   if (p.phone)
     acts.push({ id: "copy-phone", label: W.copyPhone, hint: null, group: "record", needs: "any", off: null });
@@ -228,7 +227,7 @@ function ownMessagesOf(d, stamp) {
 }
 export function toPersonVM(d, tz, now = /* @__PURE__ */ new Date(), viewerId = null, page = {}) {
   const ctx = personCardContext(d, tz, now, viewerId, page?.names ?? null);
-  const { base, nowMs, dealsOn, reply } = ctx;
+  const { base, nowMs, word, reply } = ctx;
   const vm = {
     ...base,
     ...reply ? replyFields(reply, base.emailSuppressed, { optedOut: base.stopped, who: base.name }) : {},
@@ -257,8 +256,8 @@ export function toPersonVM(d, tz, now = /* @__PURE__ */ new Date(), viewerId = n
     doubts: doubtsOf(d),
     deal: ctx.current,
     deals: ctx.deals,
-    dealsOn,
-    dealPace: dealsOn ? dealPaceOf(d.deal_pace) : null,
+    word,
+    dealPace: dealPaceOf(d.deal_pace),
     services: d.services ?? [],
     consultFirst: d.consult_first ?? [],
     // The one rule's answer, wire by wire, over People's own row for them (the sheet asks the same of the same row).
@@ -292,7 +291,6 @@ export function personNextFor(p, dealP, tz, nowMs) {
     lastVisit: p.visitTab.toMark[0]?.visit ?? p.lastVisitLine,
     ahead: p.comingUp,
     deals: dealCardsOf(dealP, nowMs, tz),
-    dealsOn: p.dealsOn,
     // A business you are talking to (the lead's stage converted, said "Talking"): with no deal, a proposal is next.
     talking: !!p.business && p.business.stage.word === LEAD_STAGE_WORDS.converted,
     step: p.nextStep,
@@ -344,7 +342,7 @@ function personPageOf(p, d, tz, now) {
       any: p.calendar === "ok" && (p.comingUp.length > 0 || visitsSeen > 0 || earlierSaid > 0)
     },
     emails: reachOut ? { out: sent, back: reachOut.readings.filter((r) => !r.undone).length } : null,
-    dealsOn: p.dealsOn
+    word: p.word
   });
   const tabFacts = {
     id: p.id,
@@ -354,7 +352,7 @@ function personPageOf(p, d, tz, now) {
     deals: p.deals.length,
     campaigns: p.campaigns.length + p.inSequences.length,
     thin,
-    dealsOn: p.dealsOn
+    word: p.word
   };
   const evidence = contactEvidenceOf(d, { ...p.firstContact, cameFrom: p.cameFrom?.key ?? null });
   return {

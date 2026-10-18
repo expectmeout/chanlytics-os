@@ -9,7 +9,6 @@ import { BUSINESS_TAB } from "@/legacy-bridge/business-tab";
 import {
   CHECK_OF,
   STORED_AS,
-  answerOf,
   refusal,
   same,
   trimmed,
@@ -578,8 +577,8 @@ const BT_PROBLEMS_OF: { [F in FoldName]?: (draft: unknown) => Problems } = {
     const found: Problems = {};
     const name = CHECK_OF.name(d.name);
     if (name) found.name = name;
-    // By the answer the fold stands on: a business that quotes is not asked for a link.
-    const link = CHECK_OF.booking_link(d.link, answerOf(d));
+    // Optional for every business; one typed must be a web address.
+    const link = CHECK_OF.booking_link(d.link);
     if (link) found.link = link;
     return found;
   },

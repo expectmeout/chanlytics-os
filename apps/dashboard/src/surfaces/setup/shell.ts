@@ -4,7 +4,7 @@
  * so the two screens never disagree. Each is read as it is asked for, never when this module loads. A line here is deleted
  * on the day its owner moves: the Business tab with Settings (step 11).
  */
-import type { ComponentType, ReactNode } from "react";
+import type { ComponentType } from "react";
 import type { WorkspaceSettings } from "@/legacy-bridge/surfaces/settings";
 import { windowValue } from "../legacy-verbs";
 
@@ -30,22 +30,6 @@ export function businessPart(name: BusinessPartName): BusinessPart | undefined {
   return typeof found === "function" ? (found as BusinessPart) : undefined;
 }
 
-/** How customers buy, as What you offer draws its choice (`btSellsByChoice`): a function that answers its element. */
-type SellsByChoice = (o: {
-  id: string;
-  vm: unknown;
-  value: string | null;
-  set: (next: string) => void;
-  readOnly: boolean;
-  label: boolean;
-  testid: string;
-}) => ReactNode;
-
-export function sellsByChoice(): SellsByChoice | undefined {
-  const found = windowValue("btSellsByChoice");
-  return typeof found === "function" ? (found as SellsByChoice) : undefined;
-}
-
 /** The config the next save goes on, as the saver holds it. */
 export type SaverBase = WorkspaceSettings | null;
 
@@ -56,7 +40,7 @@ export interface BusinessSaver {
   subscribe(fn: () => void): () => void;
 }
 
-/** One of the workspace's own doors the tab saves through (the timezone, how customers buy). */
+/** One of the workspace's own doors the tab saves through (the timezone, the word for a booking). */
 export interface WorkspaceDoor {
   save(o: Record<string, unknown>): void;
   pending(): boolean;
@@ -67,7 +51,7 @@ export interface WorkspaceDoor {
 export interface BusinessTabSave {
   saver: BusinessSaver;
   zone: WorkspaceDoor;
-  sellsBy: WorkspaceDoor;
+  word: WorkspaceDoor;
   draftOf(list: string, base: SaverBase): unknown[];
   foldJob(
     list: string,

@@ -2258,7 +2258,7 @@ test("REGRESSION: a reply counting down to send waits on you on People as in the
   );
 });
 
-test("a proposal's send sits beside the booking link in More, 'again' once it went out, nothing to press for a viewer, for someone who said stop, or where customers book; and About no longer says the link, the deal does (0008)", async () => {
+test("a proposal's send sits beside the booking link in More, 'again' once it went out, nothing to press for a viewer or for someone who said stop, in every workspace; and About no longer says the link, the deal does (0008, amended 18 Oct 2026)", async () => {
   const url = "https://docs.example.com/p/dani";
   // The send is a deal's (0008): the workspace here says some customers get a proposal first. The last case is one
   // whose customers book. With no deal at all, the link left on the person (00154) is theirs, until it retires.
@@ -2276,11 +2276,7 @@ test("a proposal's send sits beside the booking link in More, 'again' once it we
     created_at: at,
   });
   const aboutKeys = (t) => all(t, (n) => String(n.props?.className || "") === "cl-prof-attr-key").map((k) => textOf(k));
-  const vm = toPersonVM(
-    detail({ proposal_url: url, booking_link: "https://book.example/salon", deals_on: true }),
-    ZONE,
-    new Date(NOW),
-  );
+  const vm = toPersonVM(detail({ proposal_url: url, booking_link: "https://book.example/salon" }), ZONE, new Date(NOW));
   let tree = (await profile(vm))();
   assert.equal(byTestId(tree, "person-proposal"), null, "REGRESSION: the link was an About row of its own");
   assert.ok(!aboutKeys(tree).includes("Proposal"), `About says it no more: ${aboutKeys(tree)}`);
@@ -2319,7 +2315,7 @@ test("a proposal's send sits beside the booking link in More, 'again' once it we
   }
 
   // Once the address went out the label says so; a message still in its cancel window does not count.
-  const d = detail({ proposal_url: url, deals_on: true });
+  const d = detail({ proposal_url: url });
   d.conversations[0].messages.push(outbound(iso(2 * H), "queued"));
   tree = (await profile(toPersonVM(d, ZONE, new Date(NOW))))();
   assert.ok(labels(tree).includes("Send proposal"));
@@ -2328,7 +2324,7 @@ test("a proposal's send sits beside the booking link in More, 'again' once it we
   assert.ok(labels(tree).includes("Send proposal again"), labels(tree).join(", "));
 
   // None on file: no send, and no row inviting one: a proposal is started from the Deal section.
-  tree = (await profile(toPersonVM(detail({ deals_on: true }), ZONE, new Date(NOW))))();
+  tree = (await profile(toPersonVM(detail(), ZONE, new Date(NOW))))();
   assert.equal(byTestId(tree, "person-proposal"), null);
   assert.ok(!labels(tree).some((l) => /^Send proposal/.test(l)), "no proposal, no send");
   assert.ok(labels(tree).includes("Start a proposal"), "a proposal is started, in the sheet");
@@ -2348,7 +2344,7 @@ test("a proposal's send sits beside the booking link in More, 'again' once it we
 
   // Someone who said stop: never the send.
   const quiet = toPersonVM(
-    detail({ row: row({ visits: VISITS, consent: "opted_out" }), proposal_url: url, deals_on: true }),
+    detail({ row: row({ visits: VISITS, consent: "opted_out" }), proposal_url: url }),
     ZONE,
     new Date(NOW),
   );
@@ -2361,22 +2357,20 @@ test("a proposal's send sits beside the booking link in More, 'again' once it we
     `nothing is sent to someone who said stop: ${sends.map((i) => `${i.label}:${i.disabled}`)}`,
   );
 
-  // A workspace whose customers book: the booking link's send, and no proposal anywhere (0008).
+  // A salon (0008, amended 18 Oct 2026): the booking link's send, and the proposal's beside it, as every workspace has;
+  // with nothing on file, no Deal section on the page.
   tree = (
     await profile(
       toPersonVM(
-        detail({ proposal_url: url, booking_link: "https://book.example/salon", deals_on: false }),
+        detail({ proposal_url: url, booking_link: "https://book.example/salon", appointment_word: "visit" }),
         ZONE,
         new Date(NOW),
       ),
     )
   )();
   assert.ok(labels(tree).includes("Send booking link"));
-  assert.ok(
-    !labels(tree).some((l) => /proposal/.test(l)),
-    `REGRESSION: a salon was offered a proposal: ${labels(tree)}`,
-  );
-  assert.equal(byTestId(tree, "person-deal"), null, "and no Deal section");
+  assert.ok(labels(tree).includes("Send proposal"), `a salon may send its proposal too: ${labels(tree)}`);
+  assert.equal(byTestId(tree, "person-deal"), null, "and no Deal section with nothing on file");
   assert.ok(!aboutKeys(tree).includes("Proposal"));
 });
 
@@ -2406,7 +2400,6 @@ const withDeals = (deals, over = {}, rowOver = {}) => {
   const d = contracts.pickCurrentDeal(deals);
   return toPersonVM(
     detail({
-      deals_on: true,
       services: ["Ad management", "SEO"],
       deals,
       row: row({
@@ -2456,30 +2449,27 @@ const openedRow = async (vm, tab = "deals") => {
 
 const movesOf = (t) => all(t, (n) => n.type === "button" && n.props?.["data-testid"] === "person-deal-move");
 
-test("the Deal section stands on the Overview above Coming up, only where deals are on; with no deal it is one quiet line that starts a proposal in the sheet; the card's settings have no Deal row", async () => {
+test("the Deal section stands on the Overview above Coming up for someone a deal is true of; with nothing on file it is no line on the page, the proposal started from More (0008, amended 18 Oct 2026); the card's settings have no Deal row", async () => {
   recFolds.reset();
   const asked = sheetAsks();
   try {
-    const off = (await profile(toPersonVM(detail({ deals_on: false, deals: [] }), ZONE, new Date(NOW))))();
-    assert.equal(byTestId(off, "person-deal"), null, "a salon never sees it");
-
-    const tree = (await profile(withDeals([])))();
+    const none = (await profile(withDeals([])))();
+    assert.equal(byTestId(none, "person-deal"), null, "nothing on file and no consultation waiting: no Deal section");
+    const tree = (await profile(withDeals([dealRow()])))();
     const section = byTestId(tree, "person-deal");
-    assert.equal(textOf(find(section, (n) => n.type === "h2")), "Deal");
+    assert.equal(textOf(find(section, (n) => n.type === "h2")), "Deals");
     // On the Overview (0052), its next act on Up next's rung, then Coming up (VISITS has a visit ahead).
     const overview = find(tree, (n) => typeof n.type === "function" && n.type.name === "Overview");
     const kids = overview.rendered.props.children.filter((k) => k && typeof k === "object");
     const at = kids.findIndex((k) => k.type === PersonDealCard);
     assert.ok(at >= 0 && kids[at].props.rung, "the deal, on the Overview, its next act Up next's");
     assert.equal(kids[at + 1].props["data-testid"], "person-coming-up", "then what is coming");
-    // Nothing recorded: one line, and its act in quiet words.
-    assert.equal(textOf(byTestId(tree, "person-deal-said")), "No proposal yet");
-    assert.equal(byTestId(tree, "person-deal-card"), null);
-    const start = byTestId(tree, "person-deal-start");
-    assert.equal(textOf(start), "Start a proposal");
-    assert.equal(start.props.className, "cl-prof-deal-act", "quiet: no consultation is waiting on it");
-    press(start);
-    assert.deepEqual(asked, [{ personId: "p1", mode: "propose", dealId: null }], "the one sheet, for a new proposal");
+    // Nothing recorded: the proposal starts from More, in the one sheet.
+    const more = find(none, (n) => n.type === Menu && n.props.trigger?.props?.["data-testid"] === "person-more");
+    const start = itemsIn(more).find((i) => /^Start a proposal/.test(i.label));
+    assert.ok(start, "More offers a proposal to start");
+    start.onSelect();
+    assert.deepEqual(asked, [{ personId: "p1", mode: "propose" }], "the one sheet, for a new proposal");
     // The card's settings are the three answers: the deal says itself once, in its own section.
     const cls = (n) => String(n.props?.className || "");
     assert.deepEqual(

@@ -10,6 +10,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   assembleBroadcast,
   campaignMonthSent,
+  dealOnFile,
   emitEvent,
   everyoneIn,
   followUpsDue,
@@ -46,8 +47,6 @@ import {
   channelsReady,
   dealPaceFrom,
   dealPaceOf,
-  dealsAreOn,
-  isSellsBy,
   offerPauseOf,
   ownAddressesOf,
   numberHealthOfConfig,
@@ -245,9 +244,11 @@ export async function loadTenantRunContext(
     kept,
     yeses,
     onMoments,
+    dealt,
   ] = await Promise.all([
-    // How its customers buy (0008): the proposal follow-up runs only where deals are on (0006).
-    db.from("tenants").select("timezone, status, sells_by").eq("id", tenantId).maybeSingle(),
+    // Its zone and whether it is paused. Every workspace has deals (0008, amended 18 Oct 2026): the proposal follow-up
+    // runs wherever one is made (0006).
+    db.from("tenants").select("timezone, status").eq("id", tenantId).maybeSingle(),
     allPeople(db, tenantId),
     listPolicies(db, tenantId).catch(() => []),
     channelFacts(db, tenantId),
@@ -285,6 +286,9 @@ export async function loadTenantRunContext(
       (data) => ({ data, error: null as string | null }),
       (e: unknown) => ({ data: null, error: e instanceof Error ? e.message : String(e) }),
     ),
+    // Whether a deal was ever recorded here (packages/db dealOnFile), the read the dashboard's lists take too: a list
+    // of a deal stage is counted only then. Unreadable is none, which leaves such a list uncounted, never a send.
+    dealOnFile(db, tenantId),
   ]);
   if (pErr) return { error: pErr.message };
   if (onMoments.error) return { error: `moments: ${onMoments.error}` };
@@ -310,12 +314,11 @@ export async function loadTenantRunContext(
   const daysAhead = cfgParsed?.brain?.profile?.booking_rules?.max_days_ahead ?? BOOKING_DEFAULTS.max_days_ahead;
   const profile = cfgParsed?.brain?.profile;
   const { calendar, visits } = await runVisits(db, tenantId, { url, tz, now, daysAhead, rows, cfg: cfgParsed });
-  const dealsOn = dealsAreOn(isSellsBy(tenant?.sells_by) ? tenant.sells_by : null);
-  // Everyone as the pool reads them: no one looking (a run has no viewer), no deal where deals are off, and their
-  // visits attached the one way (withVisitsOf), as the People list and the Playbooks page attach them.
+  // Everyone as the pool reads them: no one looking (a run has no viewer), and their visits attached the one way
+  // (withVisitsOf), as the People list and the Playbooks page attach them.
   const listCtx = poolListContext({
     calendar,
-    dealsOn,
+    hasDeals: dealt,
     consultFirst: consultFirstOf(profile?.booking_rules),
     viewer: null,
   });
@@ -327,7 +330,6 @@ export async function loadTenantRunContext(
     tz,
     now,
     viewer: null,
-    dealsOn,
     ready,
   });
   return {
@@ -353,8 +355,7 @@ export async function loadTenantRunContext(
     health,
     ready,
     touches: { byThis, byAny, followUps, followUpKeys },
-    dealsOn,
-    pace: dealsOn && yeses ? dealPaceOf(dealPaceFrom(yeses, now.getTime())) : null,
+    pace: yeses ? dealPaceOf(dealPaceFrom(yeses, now.getTime())) : null,
     twinsOf: (stepId, trigger) =>
       (onMoments.data ?? []).filter((s) => s.trigger === trigger && s.id !== stepId).map((s) => s.id),
   };

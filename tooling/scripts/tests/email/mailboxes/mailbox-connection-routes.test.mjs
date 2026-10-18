@@ -4,7 +4,8 @@
  * client and scopes, a state signed for this workspace, this person and this provider); the way back (nothing trusted
  * before the state proves itself, a Business Profile's state refused, the code handed to the edge, one word for the page
  * on the workspace's own address); what the edge is sent for each verb, in a token for its door; how its refusals become
- * the owner's words; and that the page's read of the mailboxes never carries a token's name.
+ * the owner's words; and that the pages' read of the mailboxes (Setup's and Connections', connections/email.ts) never
+ * carries a token's name.
  */
 import { test, beforeEach, after } from "node:test";
 import assert from "node:assert/strict";
@@ -31,7 +32,6 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../.
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const R = "apps/dashboard/app/api/v1/mailbox-connections";
 const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server/rate-limit.ts"));
-const list = await import(at(`${R}/route.ts`));
 const connect = await import(at(`${R}/connect/route.ts`));
 const callback = await import(at(`${R}/callback/route.ts`));
 const one = await import(at(`${R}/[id]/route.ts`));
@@ -41,6 +41,7 @@ const testOne = await import(at(`${R}/[id]/test/route.ts`));
 const { forgetMailboxesReadiness, mailboxConnectionsFor } = await import(
   at("apps/dashboard/src/server/connections/mailbox-connections.ts")
 );
+const { emailSetupFor } = await import(at("apps/dashboard/src/server/connections/email.ts"));
 
 const A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const USER = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
@@ -101,7 +102,7 @@ async function refused(p, code, words) {
 }
 const DTO = { id: M1, address: "sam@getharbor.example", state: "connected" };
 
-test("each verb is an owner's or the partner's, in the workspace, under the settings limit; the list is any member's; the callback is the account's", () => {
+test("each verb is an owner's or the partner's, in the workspace, under the settings limit; the callback is the account's", () => {
   const write = { kind: "write", scope: "workspace", role: "partner", rate: "settings", spend: false };
   for (const r of [one.PATCH, one.DELETE, resume.POST, check.POST, testOne.POST]) assert.deepEqual(r.policy, write);
   assert.deepEqual(connect.GET.policy, {
@@ -111,7 +112,6 @@ test("each verb is an owner's or the partner's, in the workspace, under the sett
     rate: "settings",
     spend: false,
   });
-  assert.deepEqual(list.GET.policy, { kind: "read", scope: "workspace", role: null, rate: null, spend: false });
   assert.deepEqual(callback.GET.policy, { kind: "read", scope: "account", role: null, rate: null, spend: false });
 });
 
@@ -260,7 +260,7 @@ test("the edge's refusals become the owner's words", async () => {
   }
 });
 
-test("the page's read of the mailboxes never carries a token's name, removed ones aside; the list says which providers are offered", async () => {
+test("the pages' read of the mailboxes never carries a token's name, removed ones aside, and says which providers are offered", async () => {
   const live = rows.mailboxConnection({ id: M1, tenant_id: A, credentials_ref: `mailbox-creds-${M1}` });
   const gone = rows.mailboxConnection({
     tenant_id: A,
@@ -278,7 +278,8 @@ test("the page's read of the mailboxes never carries a token's name, removed one
   assert.equal("credentials_ref" in read[0], false);
   const net = edge(() => [200, READY]);
   try {
-    const out = await list.GET.run(send("GET"), ctx("operator", { mailbox_connections: [live] }));
+    // GET mailbox-connections went with #1695 (no page called it): Setup and Connections read them with the email line.
+    const out = (await emailSetupFor(fakeDb({ mailbox_connections: [live] }), A, async () => null)).sending;
     assert.deepEqual(out.providers, ["google", "microsoft"]);
     assert.deepEqual(
       out.mailboxes.map((m) => m.id),

@@ -139,7 +139,7 @@ function quietOf(p, nowMs, tz) {
   const deals = p.deals ?? (p.deal ? [p.deal] : []);
   const closed = [...deals].filter((d) => d.stage === "lost" || d.stage === "ended").sort((a, b) => (b.sinceMs ?? 0) - (a.sinceMs ?? 0))[0] ?? null;
   const consulted = p.consultedMs ?? null;
-  const fresh = consulted !== null && consultationsWithoutProposal([{ consultedMs: consulted, deal: p.deal }], nowMs).length > 0;
+  const fresh = consulted !== null && consultationsWithoutProposal([{ consultedMs: consulted, deal: p.deal, nextVisitMs: p.nextVisitMs ?? null }], nowMs).length > 0;
   const sub = fresh && consulted !== null ? consultationWas(consulted, tz, nowMs) : null;
   if (!closed)
     return {

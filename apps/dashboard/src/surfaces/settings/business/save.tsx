@@ -10,9 +10,7 @@
 // The tab's saver (saver.ts) is this file's SAVE with folds.ts's FOLDS added, one object that every consumer imports.
 
 import type { ReactNode } from "react";
-import { BUSINESS_TAB } from "@/legacy-bridge/business-tab";
 import type { LegacyFlash } from "../../legacy-verbs";
-import { btSellsByNow } from "./offer";
 import {
   handoffE164,
   normalizeLink,
@@ -480,7 +478,7 @@ interface WorkspaceDoor<J> {
 /**
  * The workspace's own doors, for what this tab states that the settings save does not write: the two fields of the
  * tenant row its owner may change (PATCH workspaces, workspaceApi()), which are no key of the config. The timezone
- * is one (`zone`), and how customers buy (0008) the other (`sellsBy`); each is a door made here, once, by the one rule.
+ * is one (`zone`), and what it calls a booking (00458) the other (`word`); each is a door made here, once, by the one rule.
  *
  * It is here, beside the saver, for the saver's reason: it outlives the page. The row once kept "my save is out" in its
  * own state, so a pane left mid-save and come back to drew an editor that was not busy and told the rail nothing was
@@ -554,9 +552,9 @@ interface ZoneJob extends DoorJob {
   tz: string;
 }
 
-/** How customers buy: the answer, the toast the fold worked out, the editor's close and the flash. */
-interface SellsByJob extends DoorJob {
-  answer: string;
+/** What it calls a booking: the word picked, the toast, the editor's close and the flash. */
+interface WordJob extends DoorJob {
+  word: string;
   said?: ReactNode;
 }
 
@@ -581,12 +579,11 @@ const btZoneDoor = btWorkspaceDoor({
   },
 });
 
-// How customers buy: save({ answer, said, done, flash }), the answer alone in the patch, so the zone is never sent
-// again with it. `said` is the toast the fold worked out (contracts sellsBySaved), since what it says depends on the
-// answer this one replaces.
-const btSellsByDoor = btWorkspaceDoor({
+// What it calls a booking: save({ word, said, done, flash }), the word alone in the patch, so the zone is never sent
+// again with it. `said` is the toast (contracts appointmentWordSaved).
+const btWordDoor = btWorkspaceDoor({
   ready: () => !!(workspaceApi() && typeof workspaceApi()?.patch === "function"),
-  send: (job: SellsByJob) => btWorkspaceOrThrow().patch({ sells_by: job.answer }),
+  send: (job: WordJob) => btWorkspaceOrThrow().patch({ appointment_word: job.word }),
   taken: (_r, job) => <>{job.said}</>,
 });
 
@@ -644,8 +641,8 @@ const BT_STORED_AS: StoredAs = {
 };
 
 /* What stops each row's save before any round trip: its sentence, said under the box, or null. Each takes the draft;
-   the two numbers take the line the workspace answers on ("" when there is none) too, and the booking link the
-   workspace's answer to how its customers buy. The address takes anything, empty included. */
+   the two numbers take the line the workspace answers on ("" when there is none) too. The booking link is optional for
+   every business, one typed a web address; the address takes anything, empty included. */
 
 // The API refuses an empty name too, but names no field: checked here, the owner is told where.
 const btCheckName = (d: unknown) =>
@@ -654,12 +651,11 @@ const btCheckWebsite = (d: unknown) => {
   const v = btTrimmed(d);
   return v && !btWebOf(v) ? "The website needs to be a web address, like example.com." : null;
 };
-// Asked of a business that books or has not said (contracts bookingLinkOptional, by the answer the caller holds): a
-// business that quotes may leave it empty, and its receptionist takes the customer's details instead. Without the
-// bridge (the standalone mockup before it loads, a test that never installed it) there is nothing to ask.
-const btCheckBookingLink = (d: unknown, sellsBy: string | null | undefined) => {
+// Optional for every business (0008, amended 18 Oct 2026): left empty, its receptionist takes the customer's details
+// instead. One typed must be a web address.
+const btCheckBookingLink = (d: unknown) => {
   const v = btTrimmed(d);
-  if (!v) return !BUSINESS_TAB.bookingLinkOptional(sellsBy) ? BUSINESS_TAB.BOOKING_LINK_NEEDED : null;
+  if (!v) return null;
   return btWebOf(v) ? null : "That booking link needs to be a web address, like booksy.com/your-page.";
 };
 const btCheckPublished = (d: PublishedDraft, line: string | null | undefined) => {
@@ -679,7 +675,7 @@ const btCheckTransfer = (d: string | null | undefined, line: string | null | und
 interface CheckOf {
   name: (d: unknown) => string | null;
   website: (d: unknown) => string | null;
-  booking_link: (d: unknown, sellsBy: string | null | undefined) => string | null;
+  booking_link: (d: unknown) => string | null;
   phone_display: (d: PublishedDraft, line: string | null | undefined) => string | null;
   handoff_number: (
     d: string | null | undefined,
@@ -768,33 +764,25 @@ const BT_PATCH_OF: PatchOf = {
   handoff_number: btPatchProfile("handoff_number"),
 };
 
-// The workspace's answer to how its customers buy, as the workspace list carries it (offer.tsx btSellsByNow), asked as
-// it is needed; null where it was never said.
-const btAnswer = () => btSellsByNow();
-// The answer a create fold's draft stands on: the one chosen in it, else the workspace's (create.tsx).
-const btAnswerOf = (draft: { sells_by?: string | null } | null | undefined) => (draft && draft.sells_by) || btAnswer();
-
 // The tab's one saver (`saver`: { save(job), pending(row), takenAt(row), base(), subscribe(fn), reset() }),
 // the workspace's own doors for the timezone (`zone`: { save({ tz, done, flash }), pending(), subscribe(fn), reset() }) and
-// for how customers buy (`sellsBy`: the same, saving { answer, said, done, flash }),
+// for what it calls a booking (`word`: the same, saving { word, said, done, flash }),
 // how a job's patch is applied (`patched`) and how one refuses the config it would go on (`refusal`), the two helpers a row's draft is judged by (`same`, `trimmed`), whether a
 // brain's prompt is the product's own lines under its stored name (`isBaseline`), each row's STORED_AS, CHECK_OF and
 // PATCH_OF by its id. folds.ts adds each fold's paths, keys and helpers to it (saver.ts).
 export const SAVE = {
   saver: btTabSaver,
   zone: btZoneDoor,
-  sellsBy: btSellsByDoor,
+  word: btWordDoor,
   patched: btPatched,
   refusal: btRefusal,
   same: btSame,
   trimmed: btTrimmed,
   isBaseline: btIsBaseline,
-  answer: btAnswer,
-  answerOf: btAnswerOf,
   STORED_AS: BT_STORED_AS,
   CHECK_OF: BT_CHECK_OF,
   PATCH_OF: BT_PATCH_OF,
 };
 
 // Each member, by name too: the tab's pages import the one they use.
-export const { refusal, same, trimmed, answerOf, STORED_AS, CHECK_OF } = SAVE;
+export const { refusal, same, trimmed, STORED_AS, CHECK_OF } = SAVE;

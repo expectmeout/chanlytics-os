@@ -15,7 +15,7 @@
  * send -- "Send proposal", "Follow up" -- opens their thread through the page's own path (`onCompose`, the More menu's),
  * with the words in its box where free text can go; where only an approved message can, it opens the thread with
  * nothing in the box, which offers those, and its hover says so. Every other act opens the one deal sheet
- * (components/deal-sheet.jsx, the `openDealSheet` verb). Nothing is drawn where deals are off. On the person page each
+ * (components/deal-sheet.jsx, the `openDealSheet` verb). On the person page each
  * deal is a row that folds the card open (canvas A); the Pipeline's peek draws the card itself.
  *
  * Under its acts, a card says its next step (0007, amended): Next, what, when and for whom, with Done and, for the
@@ -424,7 +424,9 @@ function PersonDealRow({
 
 /**
  * The person page's Deals (canvas A): one row a deal in one inset, each folding open on a press, and "Start another
- * proposal" under them; with none open, the one quiet line and its act.
+ * proposal" under them; with none open, the one quiet line and its act. Every workspace has deals (0008, amended 18 Oct
+ * 2026), and the section is drawn for someone a deal is true of: one on file, or a consultation nothing followed (the
+ * quiet act leads). Anyone else is offered a proposal from the page's More, never a line on the page.
  */
 export const PersonDealCard = ({
   p,
@@ -440,9 +442,10 @@ export const PersonDealCard = ({
   /** The page draws Up next, which holds each deal's next act (the person page's Overview). */
   rung?: boolean;
 }) => {
-  if (!p || !p.dealsOn) return null;
+  if (!p) return null;
   const tz = pageClock().zone();
   const vm = dealCardsOf(p, Date.now(), tz);
+  if (vm.quiet && p.deals.length === 0 && !vm.quiet.primary) return null;
   const W = DEAL_CARD_WORDS;
   return (
     <section className="cl-prof-section cl-prof-deal" aria-labelledby="person-deal-title" data-testid="person-deal">

@@ -96,5 +96,5 @@ export function journeyOf(s) {
       }
     }
   ];
-  return stages.filter((x) => x.id !== "proposal" || s.dealsOn || s.held.has("proposal"));
+  return stages.filter((x) => x.id !== "proposal" || s.hasDeals || s.held.has("proposal"));
 }

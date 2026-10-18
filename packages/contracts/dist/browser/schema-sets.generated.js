@@ -393,6 +393,7 @@ export const SCHEMA_SETS = {
   "templates.source": ["meta", "chanlytics"],
   "tenant_channels.kind": ["whatsapp", "voice", "sms", "email", "instagram"],
   "tenant_channels.status": ["active", "disabled"],
+  "tenants.appointment_word": ["appointment", "visit", "meeting", "session", "lesson"],
   "tenants.sells_by": ["booking", "proposal"],
   "tenants.status": ["active", "paused", "test"]
 };

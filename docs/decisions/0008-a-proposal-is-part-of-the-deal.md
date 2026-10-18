@@ -2,7 +2,8 @@
 
 **Status:** built, all but step 7 (PRs #927, #933, #937, #939, #938, #934, all merged 23 September 2026), and
 amended the same day by "The Pipeline is a workspace" and on 24 September by "Your pace", both built, with what the
-first amendment's _Still held_ names still held. **Step 7 has not happened:** the person's own link has not retired.
+first amendment's _Still held_ names still held; and on 18 October 2026 by "Deals for everyone" (below), which
+supersedes "One switch": every workspace has deals, and `tenants.sells_by` is retired. **Step 7 has not happened:** the person's own link has not retired.
 `contacts.proposal_url` and `set_person_proposal` (00154, rewritten by 00160 to write through to the deal) are still in
 the schema, `apps/dashboard/app/api/v1/contacts/[id]/details/route.ts` still calls the door, and the readers keep their
 fallback to the person's link for someone with no deal (`proposalLinkOf`); the number the step names, 00161, went to
@@ -122,6 +123,8 @@ answer. This supersedes 0004 on four points, each named where it applies.
   deal.
 
 ### One switch
+
+_Superseded on 18 October 2026 by "Deals for everyone", below._
 
 - **`tenants.sells_by`**: `booking` or `proposal`; empty means not asked yet.
   Deals are on exactly when it is `proposal` (`dealsAreOn`, one predicate in
@@ -477,3 +480,44 @@ one.
   the pace beside it; where the thirty-day cap holds the wait at or under the pace, they say the days instead ("N
   waiting over 30 days"). The rail and the crumb say "Nothing back in N days". Without a pace every word is as
   before.
+
+## Amended 18 October 2026 · Deals for everyone
+
+Ruben, 18 October 2026, on Settings › Details: "as a standard all users should get all features meaning pipeline deals
+etc instead of a toggle". The review he approved ("build deals for everyone on the five-gate logic") set the rule: what a
+workspace sees is limited by its plan (how much), what it has connected (what can run), the person's role (who may act)
+and the owner's choices about how the receptionist treats customers, and never by what kind of business it is; places
+are always there with a one-line empty state, and cards and nudges appear only when something is true.
+
+"How customers buy" did three jobs, and each has its own home now:
+
+- **The deals are every workspace's.** `dealsAreOn` is gone, and with it every gate on it: People › Pipeline, the
+  deal sheet and the thread's Deal actions, Reports' Pipeline lens (an empty state, "Open the Pipeline", where nothing
+  was recorded), the proposal follow-up on Autonomy, Campaigns and Ask, the receptionist's reading of a person's deal
+  (packages/db `readLeadContext`, `readDealForPhone`), the edge's playbook run, and `set_person_proposal` (00458).
+  A person's Deal section is drawn where a deal is true of them (one on file, or a consultation nothing followed);
+  anyone else is offered Start a proposal in the page's More.
+- **A deal on file, for what presumes a business sends proposals.** One read, packages/db `dealOnFile` (the
+  dashboard's `hasDeals` reader, the edge's run): People's deal lists fill the rail, the journey draws Proposal
+  waiting, a whole setup offers the follow-up unasked, and Ask's question about proposals is offered, only once a deal
+  was recorded. Never a page or a door.
+- **The consultation is followed by anything.** A consultation waits on the business while nothing came after it: no
+  proposal and no visit booked (contracts `consultationHeld`, now with `nextVisitMs`). Today's row ("N consultations
+  in the last week with nothing booked or proposed since"), the Pipeline's Consultations, the person page's Up next and
+  the Calendar's peek all read it, so a salon whose consultation ends in a booking is told nothing.
+- **The booking link is optional for every business.** With none, the receptionist takes their details (no change to
+  the receptionist: `no-booking-link.ts` always read a config with no link). The gap line names a missing link last,
+  as an offer (`businessGap`), and its row says `BOOKING_LINK_ROW_WORDS` everywhere.
+- **The word is the workspace's own.** `tenants.appointment_word` (00458; decision 0041's J4), picked on Details'
+  What you offer ("What you call a booking", a menu of the five, `appointmentWordVM`), saved through
+  `PATCH workspaces`. The three workspaces that said "proposal" have "meeting" stored, so no word they see changed.
+  `appointmentWordOf` reads the stored word, else the retired `sells_by`'s, else appointment, and every page is handed
+  the one word (the server's readers; the browser's `workspace-word.ts`).
+
+The create card and the first run's Check ask nothing of how customers buy. `tenants.sells_by` stays one release,
+written by nothing, read only as the word's fallback on a database 00458 has not reached; a later migration drops it
+with the fallback and `SELLS_BY`.
+
+**Either deploy order:** 00458 is additive (a column, its grant, a backfill of the word, `set_person_proposal` without
+its condition, the workspace's notice with the word); a dashboard before it reads `sells_by` and draws what it did, and
+this one reads the word where the column is and derives it where not.

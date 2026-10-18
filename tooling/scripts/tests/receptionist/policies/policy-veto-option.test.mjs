@@ -170,7 +170,7 @@ test("changing autonomy is an operator's: a viewer is refused at the door", asyn
 });
 
 test("the Autonomy pane draws a dot exactly where the rule offers the mode, and writes only such a mode", () => {
-  const rows = uiRows({ rows: [], role: "owner", dealsOn: true });
+  const rows = uiRows({ rows: [], role: "owner" });
   assert.deepEqual(
     rows.map((r) => r.cls).sort(),
     POLICY_CLASSES.filter((c) => UI_ROWS.some((r) => r.cls === c)).sort(),
@@ -185,7 +185,7 @@ test("the Autonomy pane draws a dot exactly where the rule offers the mode, and 
   const writes = [];
   const win = {
     POLICY: undefined,
-    __POLICIES: { rows: [], role: "owner", dealsOn: true },
+    __POLICIES: { rows: [], role: "owner" },
     __setPolicy: async (cls, mode) => writes.push([cls, mode]),
   };
   installPolicyStore(win);

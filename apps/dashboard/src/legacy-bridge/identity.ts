@@ -3,8 +3,8 @@
  * and for a member (contracts/identity.ts), the writes a person may make
  * about themselves — their name, their account (`meVerbs`, which Settings › Profile
  * imports) — and the ones their workspace owns, its
- * timezone and how its customers buy (0008). The workspace surface publishes
- * __ME and __WORKSPACES at boot, each workspace with its `sells_by`; this keeps
+ * timezone and its word for a booking (00458). The workspace surface publishes
+ * __ME and __WORKSPACES at boot, each workspace with its `appointment_word`; this keeps
  * both current after a change and tells the chrome. And who is acting: the one role every gate reads (`roleOf`).
  */
 import {
@@ -51,10 +51,10 @@ export interface TzApi {
   also: typeof zoneSearchWords;
 }
 
-/** What the active workspace's owner may change about it: its zone, how its customers buy (0008). At least one. */
+/** What the active workspace's owner may change about it: its zone, what it calls a booking (00458). At least one. */
 export interface WorkspacePatch {
   timezone?: string;
-  sells_by?: string;
+  appointment_word?: string;
 }
 
 export interface WorkspaceApi {
@@ -186,10 +186,12 @@ export function installIdentity(win: Window = window): void {
     // What the server kept, else what was sent, for each field sent and no other.
     const saved: Partial<Workspace> = {
       ...(fields.timezone !== undefined ? { timezone: back.timezone ?? fields.timezone } : {}),
-      ...(fields.sells_by !== undefined ? { sells_by: back.sells_by ?? fields.sells_by } : {}),
+      ...(fields.appointment_word !== undefined
+        ? { appointment_word: back.appointment_word ?? fields.appointment_word }
+        : {}),
     };
     // Keep the published list current, or every date on the page keeps being
-    // read in the old zone, and every deal gate in the old answer, until a reload.
+    // read in the old zone, and every page says the old word, until a reload.
     const w = win as unknown as { __WORKSPACES?: Partial<Workspace>[]; __ACTIVE_WORKSPACE?: string };
     if (Array.isArray(w.__WORKSPACES)) {
       w.__WORKSPACES = w.__WORKSPACES.map((t) => (t.id === w.__ACTIVE_WORKSPACE ? { ...t, ...saved } : t));

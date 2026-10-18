@@ -159,7 +159,6 @@ test("a new playbook's moment, list and class are judged before its message is r
   const LIST = "22222222-2222-4222-8222-222222222222";
   const ports = {
     listName: async (id) => (id === LIST ? "Regulars" : null),
-    dealsOn: async () => false,
     calendarOn: async () => false,
     appointmentWord: async () => "appointment",
     message: async () => assert.fail("the message is never read before the moment is judged"),

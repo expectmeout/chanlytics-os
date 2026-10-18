@@ -1,6 +1,6 @@
 /**
  * The starter set, added to a workspace (POST /api/v1/templates/starter): { keys?, languages?, channels? }, every starter
- * the workspace is offered by default (contracts startersOffered: the proposal follow-up's only where deals are on,
+ * the workspace is offered by default (contracts startersOffered: the proposal follow-up's in every workspace,
  * 0006, and the review ask's only where the Google listing keeps a review link, 00415), in English by default, on every
  * channel by default. Idempotent: a starter already on file is left as it is; one
  * the number's account already holds (a shared account, or written in WhatsApp Manager) is synced in rather than
@@ -36,7 +36,6 @@ import {
   campaignMessageOf,
   channelNeverCarries,
   channelsWords,
-  dealsAreOn,
   defaultParamSpecs,
   enrolPurpose,
   messageFitsMoment,
@@ -80,8 +79,7 @@ import { createTemplate, syncTemplates } from "@/server/campaigns/meta-templates
 import { checkPlaybookMomentInput } from "@/server/campaigns/playbooks";
 import { fileStarterVersions, startersFiled, type StarterVersionResult } from "@/server/campaigns/template-versions";
 import type { ZoneAndSettings } from "@/server/calendar/people-visits";
-import { sellsByOf } from "@/server/people/deals";
-import { appointmentWordFor } from "@/server/readers/facts";
+import { appointmentWordRead } from "@/server/people/deals";
 import type { RouteContext } from "@/server/with-route";
 import type { Member } from "@/server/route";
 
@@ -129,21 +127,17 @@ interface StartersAsked {
 }
 
 /**
- * The set this workspace is offered (contracts startersOffered): the proposal follow-up only where deals are on, and the
- * review ask only where the Google listing keeps a review link (db reviewLinkOf, 00415), which its slot is filled from. A
- * link that could not be read is none here: the review ask is left out of a press, which costs nothing. A starter asked
- * for by its key and left out for want of the link is refused in the words a message's values are (core
- * TEMPLATE_VALUE_WORDS), never as "pick at least one".
+ * The set this workspace is offered (contracts startersOffered): every starter, the proposal follow-up's too (0008,
+ * amended 18 Oct 2026), and the review ask only where the Google listing keeps a review link (db reviewLinkOf, 00415),
+ * which its slot is filled from. A link that could not be read is none here: the review ask is left out of a press,
+ * which costs nothing. A starter asked for by its key and left out for want of the link is refused in the words a
+ * message's values are (core TEMPLATE_VALUE_WORDS), never as "pick at least one".
  */
 async function startersHere(ctx: RouteContext, tenantId: string, keys: unknown): Promise<StarterTemplate[]> {
-  const [sellsBy, link] = await Promise.all([
-    sellsByOf(ctx, tenantId),
-    reviewLinkOf(ctx.supabase, tenantId).catch(() => null),
-  ]);
-  const dealsOn = dealsAreOn(sellsBy);
-  const offered = startersOffered({ dealsOn, reviewLink: link !== null });
+  const link = await reviewLinkOf(ctx.supabase, tenantId).catch(() => null);
+  const offered = startersOffered({ reviewLink: link !== null });
   const asked = Array.isArray(keys) ? keys : [];
-  if (startersOffered({ dealsOn, reviewLink: true }).some((s) => asked.includes(s.key) && !offered.includes(s)))
+  if (startersOffered({ reviewLink: true }).some((s) => asked.includes(s.key) && !offered.includes(s)))
     throw new AppError("conflict", TEMPLATE_VALUE_WORDS.noReviewLink, 409);
   return offered;
 }
@@ -318,9 +312,7 @@ const NUMBERS = ["run_hour", "cap_per_run", "gap_days", "cadence_days"] as const
 
 /** A moment's name as a refusal says it: an appointment moment's in the workspace's own word (readers/facts.ts). */
 async function momentLabel(ctx: RouteContext, tenantId: string, trig: Trigger): Promise<string> {
-  return trig.kind === "visit"
-    ? triggerWords(trig, appointmentWordFor(await sellsByOf(ctx, tenantId))).label
-    : trig.label;
+  return trig.kind === "visit" ? triggerWords(trig, await appointmentWordRead(ctx, tenantId)).label : trig.label;
 }
 
 /**

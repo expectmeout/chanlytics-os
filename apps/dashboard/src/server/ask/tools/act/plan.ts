@@ -203,7 +203,7 @@ async function planWorld(
     return { ok: o?.ok === true, why: o?.why ?? null };
   };
   // The stages this workspace can run are the guide's (contracts journeyGuide: an appointment's only with a calendar, a
-  // proposal's only where deals are on); the rail draws the others too, as needing what they lack.
+  // proposal's only where a deal was recorded); the rail draws the others too, as needing what they lack.
   const runs = new Set(r.journey?.guide.map((g) => g.stage));
   const room = r.room && !("none" in r.room) && r.room.open + r.room.taken > 0 ? r.room : null;
   return {
@@ -216,7 +216,7 @@ async function planWorld(
     // readable now or not, is the feed; else its booking tool's emails, else none.
     shape: {
       calendar: r.pb.calendar !== "none" ? "feed" : r.pb.bookings_by_email ? "email" : "none",
-      dealsOn: r.pb.deals_on,
+      hasDeals: r.pb.has_deals,
       word: r.pb.appointment_word,
     },
     // Who a run on each moment would pick now, the Playbooks page's own count; a moment not counted is null.

@@ -259,7 +259,7 @@ const busy = () => toTodayVM(metrics(), threads(), escalations(), calls(), NOW);
  * The playbooks surface with no playbook, as the app publishes it: its rows, and its shape (9 Oct 2026), whose word the
  * day's reminders say.
  */
-const noPlaybooks = () => ({ rows: [], shape: { calendar: "feed", dealsOn: false, word: "appointment" } });
+const noPlaybooks = () => ({ rows: [], shape: { calendar: "feed", hasDeals: false, word: "appointment" } });
 const quietDay = () =>
   toTodayVM(
     metrics({
@@ -1423,7 +1423,7 @@ test("REGRESSION: worth a look over People's real rows -- a yes to offers with n
   assert.equal(went.at(-1), "clients/seg:opted_in", "the number is People's list, and the door opens it");
 });
 
-test("worth a look where deals are on: the consultations row names the count's own people under its own lead, each to their page, and its door is the Pipeline", () => {
+test("worth a look, in every workspace: the consultations row names the count's own people under its own lead, each to their page, and its door is the Pipeline", () => {
   clear();
   const DAY = 86_400_000;
   // The page asks contracts with the clock it runs on, so the consultations ended within the last week of now.
@@ -1488,18 +1488,18 @@ test("worth a look where deals are on: the consultations row names the count's o
       new Date(),
     );
   const rows = [consulted("p-b", "Bea Ortiz", 2), consulted("p-a", "Abel Cruz", 4), consulted("p-c", "Cora Diaz", 1)];
-  const P = { rows, lists: [], aggregates: { total: rows.length }, dealsOn: true };
+  const P = { rows, lists: [], aggregates: { total: rows.length } };
   // A week that booked and answered, so the consultations are the one row.
   const R = headline({ in: 23, ai: 23, you: 0, none: 0, booking: { calendar: "ok", days: 7, asked: 18, booked: 17 } });
   set({ today: busy(), headline: R, __PEOPLE: P });
   const want = todayLeaks(R, P).rows.find((l) => l.id === "consults-waiting");
-  assert.ok(want, "three consultations this week, no proposal after any");
+  assert.ok(want, "three consultations this week, nothing after any");
   const row = byTestId(draw(TodayLeaks), "today-leak-consults-waiting");
   assert.ok(row, "the row is drawn");
   assert.equal(textOf(find(row, (n) => classes(n).includes("tl-tag"))), "Next step");
   assert.equal(textOf(find(row, (n) => classes(n).includes("tl-text"))), want.text);
   assert.equal(textOf(find(row, (n) => classes(n).includes("tl-math"))), want.math);
-  assert.equal(want.text, "3 consultations in the last week ended with no proposal yet.");
+  assert.equal(want.text, "3 consultations in the last week with nothing booked or proposed since.");
   assert.equal(
     textOf(find(row, (n) => classes(n).includes("tl-people-lead"))),
     "Consultation with",
@@ -1516,9 +1516,6 @@ test("worth a look where deals are on: the consultations row names the count's o
   assert.equal(went.at(-1), "clients/p-a");
   press(buttons(row, "See who")[0]);
   assert.equal(went.at(-1), "clients/pipeline", "the door is the Pipeline, whose number the row re-prints");
-  // Where deals are off the same calendar says nothing here.
-  set({ __PEOPLE: { ...P, dealsOn: false } });
-  assert.equal(draw(TodayLeaks).rendered, null, "no deals, no row, and no band with nothing in it");
 });
 
 /* ------------------------------------ while you were away ------------------------------------ */

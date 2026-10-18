@@ -4,7 +4,7 @@ import { SEASON_BACK_DAYS } from "../calendar/feed-url.js";
 import { clockDate } from "../shared/clock.js";
 import { visitLineForDto } from "../people/person-row.js";
 import { DAY_MS, dateFormat } from "../shared/time.js";
-import { appointmentWordWhere, appointmentWords } from "../journey/appointment-word.js";
+import { appointmentWords } from "../journey/appointment-word.js";
 export const VISITS_TAB_WORDS = {
   toMark: "To mark",
   ahead: "Ahead",
@@ -70,8 +70,8 @@ function visitsHeadOf(season, earlier, zone, nowMs) {
     over: earlier ? W.since(dayOf(earlier.first_at)) : W.over(SEASON_BACK_DAYS)
   };
 }
-export function personVisitsOf({ profile, nowMs, base, dealsOn }) {
-  const untitled = appointmentWords(appointmentWordWhere(dealsOn)).Title;
+export function personVisitsOf({ profile, nowMs, base, word }) {
+  const untitled = appointmentWords(word).Title;
   const toMark = [];
   const ahead = [];
   const past = [];

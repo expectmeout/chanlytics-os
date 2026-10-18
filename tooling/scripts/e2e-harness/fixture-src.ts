@@ -49,8 +49,8 @@ interface Scenario {
   role: string;
   /** People, where the record has them (the pipeline scenario): people_list's rows. */
   people?: unknown[];
-  /** How its customers buy (tenants.sells_by), where the record says: the pipeline's is "proposal". */
-  sellsBy?: string;
+  /** What it calls a booking (tenants.appointment_word), where the record says: the pipeline's is "meeting". */
+  word?: string;
   /** The bell's kept rows, as GET notifications hands them over (scenarios.mjs bellNotes). */
   notifications?: C.NotificationDto[];
   /** The workspace's template rows, as the table holds them, whatever channel: WhatsApp's and a message's email and text. */
@@ -73,8 +73,8 @@ w.__WORKSPACES = [
     name: WORKSPACE.name,
     status: "active",
     timezone: zone,
-    // Each workspace with its sells_by, as the app's boot lists them (identity.ts), where the record has one.
-    ...(S.sellsBy ? { sells_by: S.sellsBy } : {}),
+    // Each workspace with its word, as the app's boot lists them (identity.ts), where the record has one.
+    ...(S.word ? { appointment_word: S.word } : {}),
   },
 ];
 w.__ACTIVE_WORKSPACE = WORKSPACE.id;

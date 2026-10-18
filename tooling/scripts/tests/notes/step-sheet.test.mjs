@@ -307,7 +307,6 @@ const personDto = (now, notes = []) => {
         lost_reason: null,
       },
     ],
-    deals_on: true,
     person_notes: notes,
     note_team: [
       { id: "u-me", name: "Ruben", me: true },

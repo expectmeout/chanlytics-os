@@ -13,8 +13,8 @@ import { importSrc } from "../../_source.mjs";
 installLegacyReact();
 const { SURFACE_ROUTES, routeHasPage, onOnePage } = await importSrc("apps/dashboard/src/surfaces/routes.ts");
 
-/** The workspace list the shell holds, with the active one. */
-const hold = (sellsBy, role = "owner") => {
+/** The workspace list the shell holds, with the active one: every workspace has the Pipeline (0008, amended 18 Oct 2026). */
+const hold = (role = "owner") => {
   globalThis.__WORKSPACES = [
     {
       id: "w1",
@@ -22,7 +22,6 @@ const hold = (sellsBy, role = "owner") => {
       name: "Harbor Studio",
       status: "active",
       timezone: "America/New_York",
-      sells_by: sellsBy,
       role,
     },
   ];
@@ -85,7 +84,7 @@ test("the page takes the days a member picked: alone for the Overview, after its
 });
 
 test("on days a member picked every tab keeps them, so another lens is the same days there; the lens picked, the crumbs and the mount are the lens's own", () => {
-  hold("booking");
+  hold();
   const overview = chromeAt(DAYS);
   assert.equal(overview.views.picked, "overview", "days alone are the Overview over them");
   assert.deepEqual(overview.crumbs, ["Reports"]);
@@ -95,6 +94,7 @@ test("on days a member picked every tab keeps them, so another lens is the same 
       ["overview", `reports/${DAYS}`],
       ["receptionist", `reports/receptionist:${DAYS}`],
       ["people", `reports/people:${DAYS}`],
+      ["pipeline", `reports/pipeline:${DAYS}`],
       ["campaigns", `reports/campaigns:${DAYS}`],
       ["reviews", `reports/reviews:${DAYS}`],
     ],
@@ -107,13 +107,13 @@ test("on days a member picked every tab keeps them, so another lens is the same 
   assert.equal(people.mount, "reports", "one mount, days or none: a pick never remounts the page");
   assert.deepEqual(
     chromeAt("people").views.tabs.map((t) => t.to),
-    ["reports", "reports/receptionist", "reports/people", "reports/campaigns", "reports/reviews"],
+    ["reports", "reports/receptionist", "reports/people", "reports/pipeline", "reports/campaigns", "reports/reviews"],
     "and with no days in the address, none in a tab's",
   );
 });
 
 test("Ads is a tab in a demo session and nowhere else, between Campaigns and Reviews; its scope is its own and the days ride every tab", () => {
-  hold("booking");
+  hold();
   const demo = globalThis.__DEMO_MODE;
   try {
     globalThis.__DEMO_MODE = false;
@@ -121,7 +121,7 @@ test("Ads is a tab in a demo session and nowhere else, between Campaigns and Rev
     globalThis.__DEMO_MODE = true;
     assert.deepEqual(
       chromeAt(null).views.tabs.map((t) => t.id),
-      ["overview", "receptionist", "people", "campaigns", "ads", "reviews"],
+      ["overview", "receptionist", "people", "pipeline", "campaigns", "ads", "reviews"],
     );
     const ads = chromeAt(`ads:${DAYS}:platform:google`);
     assert.equal(ads.views.picked, "ads");
@@ -132,6 +132,7 @@ test("Ads is a tab in a demo session and nowhere else, between Campaigns and Rev
         ["overview", `reports/${DAYS}`],
         ["receptionist", `reports/receptionist:${DAYS}`],
         ["people", `reports/people:${DAYS}`],
+        ["pipeline", `reports/pipeline:${DAYS}`],
         ["campaigns", `reports/campaigns:${DAYS}`],
         ["ads", `reports/ads:${DAYS}`],
         ["reviews", `reports/reviews:${DAYS}`],
@@ -154,7 +155,7 @@ test("a move between two lenses is a pushed or replaced entry on the one page, n
 });
 
 test("the strip is the frame's: the lens registry's tabs as links to each lens's route, the page mounted once across them", () => {
-  hold("booking");
+  hold();
   const overview = chromeAt(null);
   assert.deepEqual(overview.crumbs, ["Reports"]);
   assert.equal(overview.mount, "reports", "one mount across every lens, so a move never remounts the page");
@@ -167,6 +168,7 @@ test("the strip is the frame's: the lens registry's tabs as links to each lens's
       { id: "overview", label: "Overview", to: "reports", testid: "lens-overview" },
       { id: "receptionist", label: "Receptionist", to: "reports/receptionist", testid: "lens-receptionist" },
       { id: "people", label: "People", to: "reports/people", testid: "lens-people" },
+      { id: "pipeline", label: "Pipeline", to: "reports/pipeline", testid: "lens-pipeline" },
       { id: "campaigns", label: "Campaigns", to: "reports/campaigns", testid: "lens-campaigns" },
       { id: "reviews", label: "Reviews", to: "reports/reviews", testid: "lens-reviews" },
     ],
@@ -180,7 +182,7 @@ test("the strip is the kit's, wearing whose views it holds, and says nothing of 
   // The strip wore `data-stays` for Reports, so a swipe knew to wait for the lens to land and bring the page back in
   // (7 Oct 2026): a third way for a view to change, beside a page mounted afresh and Settings' own. The lens's body is a
   // view of the deck's now (reports-page.tsx, kit/motion/view-deck.ts), and the strip is every page's.
-  hold("booking");
+  hold();
   const win = globalThis.window;
   win.CHANLY = { address: { href: (r) => `/w/harbor/${r}`, warm() {}, warmSoon() {} } };
   await importSrc("apps/dashboard/src/legacy/components/surface-tabs.jsx");
@@ -198,22 +200,24 @@ test("the strip is the kit's, wearing whose views it holds, and says nothing of 
       ["lens-overview", "/w/harbor/reports", "page"],
       ["lens-receptionist", "/w/harbor/reports/receptionist", undefined],
       ["lens-people", "/w/harbor/reports/people", undefined],
+      ["lens-pipeline", "/w/harbor/reports/pipeline", undefined],
       ["lens-campaigns", "/w/harbor/reports/campaigns", undefined],
       ["lens-reviews", "/w/harbor/reports/reviews", undefined],
     ],
   );
 });
 
-test("Pipeline is a tab where deals are on, in its place, and nowhere else; the strip reads only what the shell holds", () => {
-  hold("proposal");
+test("Pipeline is a tab in every workspace, in its place (0008, amended 18 Oct 2026), before the workspace list is held too", () => {
+  hold();
   assert.deepEqual(
     chromeAt(null).views.tabs.map((t) => t.id),
     ["overview", "receptionist", "people", "pipeline", "campaigns", "reviews"],
   );
-  hold("booking");
-  assert.ok(!chromeAt(null).views.tabs.some((t) => t.id === "pipeline"));
-  assert.equal(chromeAt("pipeline").views.picked, "pipeline", "an address typed by hand is still the one picked");
+  assert.equal(chromeAt("pipeline").views.picked, "pipeline");
   delete globalThis.__WORKSPACES;
   delete globalThis.__ACTIVE_WORKSPACE;
-  assert.ok(!chromeAt(null).views.tabs.some((t) => t.id === "pipeline"), "no workspace list yet: deals are not on");
+  assert.ok(
+    chromeAt(null).views.tabs.some((t) => t.id === "pipeline"),
+    "no workspace list yet: the tab is there",
+  );
 });

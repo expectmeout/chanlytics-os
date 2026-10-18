@@ -256,9 +256,10 @@ test("every starter's email and text versions keep to its slots and pass their c
 
 test("the moments offered for a new playbook: no retired one, and one win-back, the one the workspace can read", () => {
   const offered = (o) => PLAYBOOK_TRIGGERS.filter((t) => momentOffered(t, o)).map((t) => t.id);
-  // No calendar: no appointment moment either (D44, 9 Oct 2026), since without one its run reads nothing.
-  assert.deepEqual(offered({ dealsOn: false, calendarOn: false }), ["quiet_30", "everyone_monthly", "saved_list"]);
-  assert.deepEqual(offered({ dealsOn: true, calendarOn: true }), [
+  // No calendar: no appointment moment either (D44, 9 Oct 2026), since without one its run reads nothing. The proposal
+  // follow-up is every workspace's (0008, amended 18 Oct 2026).
+  assert.deepEqual(offered({ calendarOn: false }), ["quiet_30", "everyone_monthly", "saved_list", "proposal_waiting"]);
+  assert.deepEqual(offered({ calendarOn: true }), [
     "everyone_monthly",
     "visit_tomorrow",
     "visited",
@@ -269,14 +270,7 @@ test("the moments offered for a new playbook: no retired one, and one win-back, 
   assert.deepEqual(Object.keys(MOMENTS_RETIRED), ["new_week", "phoned_only"]);
   // A playbook already made on a retired moment keeps running: the run asks triggerOffered, which they still pass.
   for (const id of Object.keys(MOMENTS_RETIRED))
-    assert.equal(
-      triggerOffered(
-        PLAYBOOK_TRIGGERS.find((t) => t.id === id),
-        false,
-      ),
-      true,
-      id,
-    );
+    assert.equal(triggerOffered(PLAYBOOK_TRIGGERS.find((t) => t.id === id)), true, id);
   const label = (id) => PLAYBOOK_TRIGGERS.find((t) => t.id === id).label;
   assert.equal(label("quiet_30"), "Win-back");
   assert.equal(label("lapsed"), "Win-back", "the two win-backs are one moment, read two ways");

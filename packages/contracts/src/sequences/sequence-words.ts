@@ -440,7 +440,7 @@ export function sequenceNextOf(
   const first = row.first;
   if (lastRunFor === undefined || !first || (row.starts !== "moment" && row.starts !== "list")) return null;
   const now = new Date(nowMs);
-  if (!campaignRunsOn(first, { tz, now, dealsOn: true })) return null;
+  if (!campaignRunsOn(first, { tz, now })) return null;
   const run = nextRunOf({ run_hour: first.run_hour, last_run_for: lastRunFor }, tz, now);
   const today = zoneDayKey(nowMs, tz);
   const day = run.day === "today" ? today : zoneDayKey(wallClockAt(tz, today, 12, 0) + DAY_MS, tz);

@@ -13,15 +13,11 @@
 // every page from the first day, so it can be set before a receptionist exists (S13). It is When you're open's own
 // row (BtZoneRow, open.tsx), not a copy of it.
 //
-// And the fold asks how customers buy (docs/decisions/0008, "One switch"), with "They book an appointment" chosen
-// until someone chooses otherwise: What you offer's own choice (btSellsByChoice, offer.tsx). The
-// answer is the workspace's too, so the create save never carries it; once the server has taken the receptionist, it
-// goes through the workspace's own door (save.tsx `sellsBy`, PATCH workspaces), as What you offer's row
-// saves it.
+// It asks nothing of how customers buy: every workspace has deals (docs/decisions/0008, amended 18 Oct 2026), and the
+// booking link is optional for every business (with none, its receptionist takes their details).
 //
 // It holds no hook of its own (the fold and the rows hold theirs, drawn on every render).
 
-import type { SellsBy, SellsByVM } from "@chanlytics/contracts";
 import type { ComponentProps } from "react";
 import { BUSINESS_TAB } from "@/legacy-bridge/business-tab";
 import { EmptyState } from "../../kit/empty/empty";
@@ -30,18 +26,16 @@ import { canDo, gate, windowValue } from "../../legacy-verbs";
 import type { LegacyFlash } from "../../legacy-verbs";
 import { BtFold } from "./gestures/fold";
 import { BtZoneRow } from "./open";
-import { btSellsByChoice, btSellsByNow } from "./offer";
 import { businessTabSave } from "./saver";
 import { factsNow } from "./shell";
 import { btPublishedBox } from "./who";
 
-/** The create fold's draft: the name, the number to give out (the line, or one typed), the link and how they buy. */
+/** The create fold's draft: the name, the number to give out (the line, or one typed), and the link. */
 interface CreateDraft {
   name: string;
   own?: boolean;
   typed?: string | null;
   link: string;
-  sells_by?: SellsBy;
 }
 
 type FoldFields<D> = Parameters<ComponentProps<typeof BtFold<D>>["body"]>[0];
@@ -51,21 +45,18 @@ type CreateFields = FoldFields<CreateDraft> & {
   line: string;
   handoff: string | null;
   kept: string | null;
-  buys: SellsByVM;
 };
 
 /**
  * The create path's three fields, in the old form's order: the name, the number to give out, the booking link. Each
  * box is named by its visible label. The number is the Who you are row's own box (btPublishedBox), so the
- * choice between the line and a different number, and what each costs, are written once. Under them, how customers
- * buy, named by its question and chosen as `buys.first` says until a choice is made (the draft's `sells_by`, which no
- * write of the receptionist fold reads: folds.ts writes its own paths and nothing else).
+ * choice between the line and a different number, and what each costs, are written once.
  */
-const BtcFields = ({ draft, update, problems, readOnly, line, handoff, kept, buys }: CreateFields) => {
+const BtcFields = ({ draft, update, problems, readOnly, line, handoff, kept }: CreateFields) => {
   const d: Partial<CreateDraft> = draft || {};
   const number = btPublishedBox({ line, handoff, kept, testid: "rec-create-number" });
-  // The link box's hint follows the answer chosen below, as the Who you are row's does the workspace's.
-  const linkWords = BUSINESS_TAB.bookingLinkRowWords(businessTabSave.answerOf(d));
+  // The link box's hint is the Who you are row's: optional, for every business.
+  const linkWords = BUSINESS_TAB.BOOKING_LINK_ROW_WORDS;
   return (
     <>
       <RecordField
@@ -118,46 +109,8 @@ const BtcFields = ({ draft, update, problems, readOnly, line, handoff, kept, buy
         readOnly={readOnly || undefined}
         testid="rec-create-link"
       />
-      {btSellsByChoice({
-        id: "bt-create-sells-by",
-        vm: buys,
-        value: d.sells_by || buys.first,
-        set: (v) => update((was) => ({ ...was, sells_by: v }), ["sells_by"]),
-        readOnly,
-        label: true,
-        testid: "rec-create-sells-by",
-      })}
     </>
   );
-};
-
-/**
- * The workspace's answer to how its customers buy, sent once the receptionist is set up (BtFold's `after`), and only
- * where it is not the one stored: through the workspace's own door, as What you offer's row sends it. Its toast is not
- * said, since the receptionist's toast says the one act; a refusal is, in the server's words, and the answer can be
- * given again on the Business tab's row.
- */
-const btcSendAnswer = ({
-  draft,
-  stored,
-  buys,
-  flash,
-}: {
-  draft: CreateDraft | null;
-  stored: string | null;
-  buys: SellsByVM;
-  flash: (flash: LegacyFlash) => void;
-}) => {
-  const next = (draft && draft.sells_by) || buys.first;
-  if (next === stored) return;
-  businessTabSave.sellsBy.save({
-    answer: next,
-    said: null,
-    done: undefined,
-    flash: (f) => {
-      if (f && f.tone === "danger") flash(f);
-    },
-  });
 };
 
 /**
@@ -180,9 +133,6 @@ export const BtCreateCard = ({ flash = () => {} }: { flash?: (flash: LegacyFlash
   const kept = (F?.kept_line && F.kept_line.value) || null;
   const canEdit = btcMayChange();
   const pressable = gate("settings", "set up the receptionist");
-  // How customers buy, as the workspace list carries it, and its words (contracts sellsByVM).
-  const stored = btSellsByNow();
-  const buys = BUSINESS_TAB.sellsByVM(stored);
   return (
     <section className="rec-card" data-testid="rec-card-create" aria-labelledby="bt-create-title">
       <div className="rec-card-head">
@@ -226,8 +176,7 @@ export const BtCreateCard = ({ flash = () => {} }: { flash?: (flash: LegacyFlash
             }
           />
         )}
-        body={(f) => <BtcFields {...f} line={line} handoff={handoff} kept={kept} buys={buys} />}
-        after={(draft) => btcSendAnswer({ draft, stored, buys, flash })}
+        body={(f) => <BtcFields {...f} line={line} handoff={handoff} kept={kept} />}
       />
       <BtZoneRow brain={{}} canEdit={canEdit} flash={flash} />
     </section>

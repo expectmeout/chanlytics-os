@@ -627,7 +627,7 @@ const ROW = {
   has_chat: false,
   queued_reply_at: null,
 };
-/** What People has loaded, for the surface's mapping (surfaces/people/surface-map.ts): `ROW` in Harbor's zone, a calendar that reads, no deals. */
+/** What People has loaded, for the surface's mapping (surfaces/people/surface-map.ts): `ROW` in Harbor's zone, a calendar that reads, no deal on file. */
 const peopleLoaded = (over = {}) => ({
   tz: TZ,
   people: [ROW],
@@ -635,7 +635,8 @@ const peopleLoaded = (over = {}) => ({
   saved: [],
   calendar: { state: "ok", source: "Google Calendar" },
   bookingLink: null,
-  dealsOn: false,
+  hasDeals: false,
+  word: "appointment",
   consultFirst: false,
   dealPace: null,
   followUp: null,
@@ -798,9 +799,9 @@ test("the profile: a Next appointment fact and About rows when the calendar is c
       { k: "Last appointment", v: "Thu, Aug 20 · 10:00 AM – 12:00 PM · Colour" },
     ],
   );
-  // The workspace's own word, as Campaigns says it (decision 0041): where some customers get a proposal first it is a meeting.
+  // The workspace's own word, as Campaigns says it (decision 0041): where it calls a booking a meeting, a meeting.
   const meeting = toPersonVM(
-    { ...detail({ timezone: TZ, source: "Google Calendar", state: "ok", next, last }), deals_on: true },
+    { ...detail({ timezone: TZ, source: "Google Calendar", state: "ok", next, last }), appointment_word: "meeting" },
     TZ,
     now,
   );
@@ -1521,11 +1522,11 @@ test("the wiring: the list and the assistant carry appointments from one parsed 
     );
   assert.ok(
     dealLists.every((id) => !withCalendar.includes(id)),
-    "deals off: no deal list",
+    "no deal on file: no deal list",
   );
   assert.ok(
-    dealLists.every((id) => listsOf({ dealsOn: true }).includes(id)),
-    "deals on: every deal list",
+    dealLists.every((id) => listsOf({ hasDeals: true }).includes(id)),
+    "a deal on file: every deal list",
   );
   assert.ok(
     readCode("apps/dashboard/src/surfaces/reports/surface.ts").includes("booking: toBookingReportVM(data.booking),"),
@@ -2128,11 +2129,11 @@ test("bulk actions: a selection becomes people on a list, a yes on record (one r
     "the columns the page shows by default, a calendar's appointments among them, in the workspace's word",
   );
   assert.equal(
-    plCsv([], plShownColumns(PL_COLUMNS, {}, { withCalendar: true, dealsOn: true }))
+    plCsv([], plShownColumns(PL_COLUMNS, {}, { withCalendar: true, word: "meeting" }))
       .split(",")
       .at(-1),
     "Next meeting",
-    "where deals are on, as the column's heading says Meetings",
+    "in the workspace's word, as the column's heading says it",
   );
   assert.equal(
     plCsv([], plShownColumns(PL_COLUMNS, {}, { withCalendar: false })),

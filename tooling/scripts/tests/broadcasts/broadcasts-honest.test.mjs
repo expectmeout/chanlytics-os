@@ -172,7 +172,7 @@ const playbooksSurface = (over = {}) => ({
   timezone: ZONE,
   calendar: "none",
   // How the business works (the surface's shape, 9 Oct 2026): the words this file pins are the word "visit"'s.
-  shape: { calendar: "none", dealsOn: false, word: "visit" },
+  shape: { calendar: "none", hasDeals: false, word: "visit" },
   number: { present: true, health: { canSend: true } },
   businessName: "Northside Studio",
   bookingLink: false,
@@ -3889,8 +3889,8 @@ test("the send screen's composer offers the review ask by the surface its page l
   // Settings never opened in this tab: its surface holds nothing, as before its read lands (offered-templates.ts).
   setSurfaceValue("settings", undefined);
   const review = contracts
-    .startersOffered({ dealsOn: false, reviewLink: true })
-    .find((s) => !contracts.startersOffered({ dealsOn: false, reviewLink: false }).some((x) => x.key === s.key));
+    .startersOffered({ reviewLink: true })
+    .find((s) => !contracts.startersOffered({ reviewLink: false }).some((x) => x.key === s.key));
   assert.ok(review, "the review ask is the starter a review link adds");
   try {
     for (const reviewLink of [true, false]) {

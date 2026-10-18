@@ -15,7 +15,7 @@ import {
   personFaceOf,
   timelineFilterLabel,
 } from "@chanlytics/contracts";
-import type { PersonVM } from "@chanlytics/contracts";
+import type { AppointmentWord, PersonVM } from "@chanlytics/contracts";
 import { SubTabs } from "../../kit/sub-tabs/sub-tabs";
 import { EmptyState } from "../../kit/empty/empty";
 import { Icon } from "../../kit/icon/icon";
@@ -132,17 +132,17 @@ function filterStrip(
   items: Item[],
   filter: string,
   onFilter: (id: string) => void,
-  more: { dealsOn: boolean; notes: TimelineNotes | null },
+  more: { word: AppointmentWord; notes: TimelineNotes | null },
 ): ReactNode {
   const offered = TIMELINE_FILTERS.filter((f) => f.id === "all" || items.some((i) => (f.kinds || []).includes(i.kind)));
-  const { dealsOn, notes } = more;
+  const { word, notes } = more;
   // A short record needs no filters (canvas A, D3): under six rows, none, unless their notes are only reached here.
   if (offered.length + (notes ? 1 : 0) <= 2 || (items.length < FILTERS_FROM && !notes)) return null;
   const testid = (id: string) => `timeline-filter-${id}`;
   // All says how many rows it holds; a kind says nothing (canvas A, D3).
   const tabs = offered.map((f) => ({
     id: f.id,
-    label: timelineFilterLabel(f, dealsOn),
+    label: timelineFilterLabel(f, word),
     ...(f.id === "all" ? { count: items.length } : {}),
     testid: testid(f.id),
   }));
@@ -228,7 +228,7 @@ export function PersonTimeline({
   onFilter = null,
   showAll = false,
   onShowAll = null,
-  dealsOn = false,
+  word = "appointment",
   fresh = NOTHING_NEW,
   notes = null,
 }: {
@@ -240,14 +240,14 @@ export function PersonTimeline({
   onFilter?: ((id: string) => void) | null;
   showAll?: boolean;
   onShowAll?: (() => void) | null;
-  /** Whether deals are on here: the workspace's word for an appointment follows (appointmentWordWhere). */
-  dealsOn?: boolean;
+  /** What the workspace calls an appointment: the appointments' filter says it. */
+  word?: AppointmentWord;
   /** The rows new since the reader last looked (contracts newSinceOf), each with its dot. */
   fresh?: ReadonlySet<string>;
   /** Their notes as a tab of the filters (the page's History): every note, in place of the rows, while it is picked. */
   notes?: TimelineNotes | null;
 }) {
-  const strip = onFilter ? filterStrip(items, filter, onFilter, { dealsOn, notes }) : null;
+  const strip = onFilter ? filterStrip(items, filter, onFilter, { word, notes }) : null;
   if (notes && filter === notes.id)
     return (
       <>
