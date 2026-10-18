@@ -242,8 +242,12 @@ const LEAD_BOX_WORDS = {
   cantJoin: "Can't join",
   goesWith: "Goes with",
   none: "No sequence takes leads you add",
+  /** While their story or the sequences are still being read: nothing said yet that the reads could take back. */
+  reading: "Reading where they stand",
   noneLine: "Make one in Sequences; you come back here",
   afterOk: "Step 1 after your OK",
+  /** Step 1 by its subject as this lead would get it (the refined canvas): "Step 1, “A quieter phone”, after your OK". */
+  afterOkNamed: (subject: string) => `Step 1, “${subject}”, after your OK`,
   onceKept: "Once you keep it",
   inNextBatch: "In its next batch",
   phoneOnly: "A sequence to leads writes email; they have a phone",
@@ -264,16 +268,21 @@ export function leadSheetBoxOf(p: {
   elsewhere: { rootId: string | null; name: string } | null;
   /** Where the adds go: the one chosen. */
   target: { rootId: string; name: string } | null;
+  /** Step 1's subject as this lead would get it, where every part of it fills; null otherwise. */
+  firstSubject: string | null;
   /** The open search's own sequence, which takes every ready lead it finds. */
   searchWrites: { rootId: string; name: string } | null;
   canChange: boolean;
   closed: LeadSheetClosedVM | null;
+  /** Their story or the sequences still being read. */
+  reading: boolean;
 }): LeadSheetBoxVM {
   const B = LEAD_BOX_WORDS;
   if (p.inSequence && p.place) {
     const verb = p.place.group === "left" ? B.left : B.in;
     return { verb, name: p.inSequence.name, rootId: p.inSequence.rootId, line: p.place.line, change: false };
   }
+  if (p.reading) return { verb: null, name: null, rootId: null, line: B.reading, change: false };
   if (p.state === "elsewhere" && p.elsewhere)
     return { verb: B.in, name: p.elsewhere.name, rootId: p.elsewhere.rootId, line: B.elsewhere, change: false };
   if (p.state === "closed" && p.closed)
@@ -289,7 +298,8 @@ export function leadSheetBoxOf(p: {
   if (!p.target) return { verb: null, name: null, rootId: null, line: `${B.none}. ${B.noneLine}`, change: false };
   const t = { name: p.target.name, rootId: p.target.rootId, change: p.canChange };
   if (p.state === "phone") return { ...t, verb: B.cantJoin, line: B.phoneOnly };
-  return { ...t, verb: B.joins, line: p.state === "review" ? B.onceKept : B.afterOk };
+  const after = p.firstSubject ? B.afterOkNamed(p.firstSubject) : B.afterOk;
+  return { ...t, verb: B.joins, line: p.state === "review" ? B.onceKept : after };
 }
 
 /* -------------------------------------------------------------------------------------------- the dock -------- */
@@ -305,9 +315,10 @@ export interface LeadSheetDockVM {
 }
 
 export const LEAD_DOCK_WORDS = {
-  /** The box says what follows ("Step 1 after your OK"); the dock says the act, once (the canvas's round two). */
-  ready: { line: "Add to it", fact: "Nothing goes until you approve" },
+  /** The dock names where Add goes (the refined canvas, decision 04), so a wrong default shows before the press. */
+  ready: { line: (sequence: string) => `Joins ${sequence}`, fact: "Nothing goes until you approve" },
   checking: { line: "Checking their mailbox", fact: "Add waits a few seconds" },
+  reading: { line: "Reading where they stand", fact: "A moment" },
   noEmail: { line: "No email to write to", fact: "Call them, or find one" },
   elsewhere: { line: "One sequence at a time", fact: "Take them out there to add them here" },
   noSequence: { line: "Nothing to add to yet", fact: "Starts from this lead, and comes back" },
@@ -341,6 +352,9 @@ export const LEAD_DOCK_WORDS = {
   decideAsk: "What to do with its email?",
   decideOnly: (sequence: string) => `Only this one email. The rest of its batch waits in “${sequence}”.`,
   back: "Back",
+  /** The desk's key row under the dock: in a pile, the dock's own keys and Undo; out of one, J and K walk the rows. */
+  undoKey: "undo",
+  moveKeys: "next, before",
 } as const;
 
 const dockAct = (
@@ -365,6 +379,8 @@ export interface LeadSheetDockFacts {
   closed: LeadSheetClosedVM | null;
   /** Their newest reading that asks for an answer: what it was read as, and when. */
   reply: { intent: string; readAt: string } | null;
+  /** Their story or the sequences still being read: the dock waits, offering nothing the reads could take back. */
+  reading: boolean;
   tz: string;
   nowMs: number;
 }
@@ -422,7 +438,7 @@ function readyDock(f: LeadSheetDockFacts): LeadSheetDockVM | null {
   if (f.state === "finding")
     return { ...D.checking, waiting: true, x: true, acts: [x, dockAct("add", D.add, "plus", "a", D.checking.fact)] };
   return {
-    line: D.ready.line,
+    line: D.ready.line(f.target),
     fact: f.blocked ?? D.ready.fact,
     waiting: false,
     x: true,
@@ -439,6 +455,7 @@ function readyDock(f: LeadSheetDockFacts): LeadSheetDockVM | null {
 export function leadSheetDockOf(f: LeadSheetDockFacts): LeadSheetDockVM | null {
   const D = LEAD_DOCK_WORDS;
   if (f.place) return placeDock(f, f.place);
+  if (f.reading) return { ...D.reading, waiting: true, x: false, acts: [] };
   switch (f.state) {
     case "review":
       return {

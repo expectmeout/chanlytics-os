@@ -2,7 +2,7 @@ import { capitalize, plural } from "../../shared/words.js";
 import { clockDate, clockNear } from "../../shared/clock.js";
 import { reachOutStandingOf } from "../../reach-out/reach-out-leads.js";
 import { leadCardEmailOf } from "../lead-card.js";
-import { LEAD_CLOSED_WORDS, LEAD_LEFT_OUT_WORD, LEAD_REVIEW_WORD } from "../lead-words.js";
+import { LEAD_CLOSED_WORDS, LEAD_LEFT_OUT_WORD } from "../lead-words.js";
 export const LEAD_SHEET_WORDS = {
   tabs: "About this lead",
   raise: "Show everything about them",
@@ -11,8 +11,6 @@ export const LEAD_SHEET_WORDS = {
   more: "More for this lead",
   stage: "Stage",
   why: {
-    head: "Why it fits",
-    checks: (passed, of) => `${passed} of ${of} checks`,
     reasons: "Reasons to write now",
     people: "People here"
   },
@@ -141,51 +139,6 @@ export function leadSheetClosedOf(p) {
     return { title: "No way to reach them yet", line: "No address and no number were found.", fix: null };
   return { title: "Can't be written to", line: p.blocked ?? "This one can't be added.", fix: call };
 }
-function meterOf(dots) {
-  const parts = dots.slice(0, 5).map((d) => d.answer === "yes" ? d.how === "read" ? "read" : "ok" : d.answer === "unknown" ? "warn" : "rest");
-  while (parts.length < 5) parts.push("rest");
-  return parts;
-}
-export function leadSheetFitOf(vm, state) {
-  const base = { meter: meterOf(vm.checkDots), tip: vm.checksSummary };
-  if (state === "review") return { ...base, pill: { kind: "lead_class", value: "review", label: LEAD_REVIEW_WORD } };
-  if (state === "sequence" || state === "elsewhere")
-    return { ...base, pill: { kind: "lead_stage", value: "nurture", label: "Contacted" } };
-  if (state === "replied") return { ...base, pill: { kind: "lead_stage", value: "converted", label: "Talking" } };
-  if (state === "closed" && vm.stage === "archived")
-    return { ...base, pill: { kind: "lead_stage", value: "archived", label: "Closed" } };
-  const news = vm.fit.cls !== "strong" && vm.fit.word;
-  return { ...base, pill: news ? { kind: "lead_fit", value: vm.fit.cls, label: vm.fit.word } : null };
-}
-const toneOf = (state) => state === "ok" ? "ok" : state === "checking" ? "info" : state === "none" ? "none" : "warn";
-export function leadSheetCellsOf(vm) {
-  const email = vm.slots.mailbox;
-  const phone = vm.slots.phone;
-  const third = vm.company && vm.links.linkedin ? { key: "linkedin", label: "LinkedIn", word: null, tone: "ok", tip: vm.links.linkedin.label } : vm.links.website ? {
-    key: "site",
-    label: "Site",
-    word: vm.links.instagram ? "+ Insta" : null,
-    tone: "ok",
-    tip: vm.links.website.label
-  } : { key: "site", label: "Site", word: "none", tone: "none", tip: "No website was found." };
-  return [
-    {
-      key: "email",
-      label: "Email",
-      word: email.state === "ok" ? null : email.word,
-      tone: toneOf(email.state),
-      tip: vm.reach.email.tip
-    },
-    {
-      key: "phone",
-      label: "Phone",
-      word: phone.state === "ok" ? null : phone.word,
-      tone: toneOf(phone.state),
-      tip: vm.reach.phone ? vm.reach.phone.tip : phone.tip
-    },
-    third
-  ];
-}
 const slot = (act, label, icon, key = null) => ({
   act,
   label,
@@ -308,8 +261,4 @@ export function leadSheetStandOf(p) {
     title: "Not in a sequence yet",
     line: p.target ? `Add puts it on \u201C${p.target}\u201D's list; it goes in its next batch.` : SW.noTarget
   };
-}
-export function leadSheetChecksOf(vm) {
-  const passed = vm.checkDots.filter((d) => d.answer === "yes").length;
-  return SW.why.checks(passed, vm.checkDots.length);
 }

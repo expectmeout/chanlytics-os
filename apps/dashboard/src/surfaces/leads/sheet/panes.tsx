@@ -1,7 +1,7 @@
 /**
- * The lead sheet at full height (the refined canvas, 17 Oct 2026: three tabs, in Sequences' words). Why: the judge's
- * line, every check with its mark and source, the listing's reasons and its own facts, the company, and how it was
- * found. Contact: where the sequence writes, each way in and how it was checked with its acts, the people there, the
+ * The lead sheet at full height (the refined canvas, 17 Oct 2026: three tabs, in Sequences' words). Why: the checks,
+ * what did not pass first and the rest folded under "N passed", with one legend for a mark seen and a mark read (its
+ * decision 07); the listing's reasons and its own facts, the company, and how it was found. Contact: where the sequence writes, each way in and how it was checked with its acts, the people there, the
  * address and the week, the links. Sequence: where they stand in it on the record's rail of days, Take out under it and
  * the record a press away; before a sequence has them, the email they would get, its steps and its variables. The dock
  * stays under them, so a decision is one thumb away on every tab.
@@ -12,16 +12,18 @@ import type { ReactNode } from "react";
 import {
   LEAD_CARD_TABS,
   LEAD_CARD_WORDS,
+  LEAD_SHEET_CARD_WORDS as CW,
   LEAD_SHEET_WORDS as W,
   LEAD_WORDS,
   leadSheetAboutOf,
-  leadSheetChecksOf,
   leadSheetReasonsOf,
   type LeadCardTab,
   type LeadPeekVM,
   type LeadPlaceVM,
   type LeadSheetBoxVM,
+  type LeadSheetCheckVM,
   type LeadSheetTrackVM,
+  type LeadSheetWhyVM,
 } from "@chanlytics/contracts";
 import { Button } from "../../kit/button/button";
 import { CopyButton } from "../../kit/copy-button/copy-button";
@@ -43,6 +45,8 @@ const TAB_WORDS = W.panes;
 interface PaneProps {
   vm: LeadPeekVM;
   card: LeadCardFacts;
+  /** Why's checks: what did not pass, the rest, their count and whether a legend is owed. */
+  why: LeadSheetWhyVM | null;
   on: PeekActs;
   stand: { title: string; line: string };
   /** The email's head: the sequence's name and what follows it, and its Change. */
@@ -78,34 +82,58 @@ const allOf = (vm: LeadPeekVM) =>
     .filter(Boolean)
     .join("\n");
 
-/** Why: the judge's line, every check, the listing's reasons and facts, the company, and how it was found. */
-const whyPane = ({ vm, on }: PaneProps) => {
+/** One check: its mark (seen, read, couldn't tell, failed), its words, and its source. */
+const checkRow = (c: LeadSheetCheckVM) => (
+  <div
+    key={`${c.how}-${c.key}`}
+    className={`lw-ck ${c.how}${c.answer === "no" ? " no" : ""}`}
+    data-testid={`peek-check-${c.key}-open`}
+  >
+    {ldCheckMark(c.how, c.answer)}
+    <span>{c.label}</span>
+    <span className="lw-src">{c.source}</span>
+  </div>
+);
+
+/** Why's checks: what did not pass first, the rest folded under "N passed", and the legend where a check was read. */
+const whyChecksOf = (why: LeadSheetWhyVM) => (
+  <>
+    {paneHeadOf(CW.checksHead, why.count)}
+    <div className="lw-cks" data-testid="peek-checks-open">
+      {why.exceptions.map(checkRow)}
+      {why.passed.length ? (
+        <details className="lw-fold" open={!why.exceptions.length} data-testid="lead-sheet-passed">
+          <summary className="lw-fold-s">
+            <Icon name="chevron" size={11} />
+            {why.fold}
+          </summary>
+          {why.passed.map(checkRow)}
+          {why.legend ? (
+            <p className="lw-legend">
+              <span>
+                {ldCheckMark("seen", "yes")}
+                {CW.seen}
+              </span>
+              <span>
+                {ldCheckMark("read", "yes")}
+                {CW.read}
+              </span>
+            </p>
+          ) : null}
+        </details>
+      ) : null}
+    </div>
+  </>
+);
+
+/** Why: the checks, the listing's reasons and facts, the company, and how it was found. */
+const whyPane = ({ vm, on, why }: PaneProps) => {
   const reasons = leadSheetReasonsOf(vm);
   // The listing's own facts, each said once: the address and the week are Contact's.
   const listing = leadSheetAboutOf(vm).rows.filter((r) => r.k !== "Address" && r.k !== "Hours");
   return (
     <>
-      {paneHeadOf(W.why.head, vm.checkDots.length ? leadSheetChecksOf(vm) : null)}
-      {vm.fit.sentence ? (
-        <p className="lw-say" data-testid="peek-fit">
-          {vm.fit.sentence}
-        </p>
-      ) : null}
-      <div className="lw-cks" data-testid="peek-checks-open">
-        {vm.groups.flatMap((g) =>
-          g.checks.map((c) => (
-            <div
-              key={`${g.how}-${c.key}`}
-              className={`lw-ck ${g.how}${c.answer === "no" ? " no" : ""}`}
-              data-testid={`peek-check-${c.key}-open`}
-            >
-              {ldCheckMark(g.how, c.answer)}
-              <span>{c.label}</span>
-              <span className="lw-src">{c.source}</span>
-            </div>
-          )),
-        )}
-      </div>
+      {why ? whyChecksOf(why) : null}
       {reasons.length ? (
         <>
           {paneHeadOf(W.why.reasons)}
@@ -403,7 +431,7 @@ const sequencePane = (p: PaneProps) => {
 export const SheetPane = ({ tab, ...p }: PaneProps & { tab: LeadCardTab }) => (
   <div
     className="lw-pane"
-    role="tabpanel"
+    role="region"
     aria-label={LEAD_CARD_TABS.find((t) => t.id === tab)?.label}
     data-testid={`lead-sheet-pane-${tab}`}
   >

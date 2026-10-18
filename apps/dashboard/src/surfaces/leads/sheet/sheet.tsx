@@ -14,8 +14,8 @@
  * It keeps every act the lead's panel had (the stage, Stop writing and Erase in its ⋯, Not a fit's reasons, Keep, Leave
  * out, Put back, a call from the owner's phone and how it went, a draft for their own inbox and whether it was sent),
  * through the same acts (peek/acts.tsx), and the page's own state (its mode, the question armed, the draft), so Esc backs
- * out of it as it did. What it holds of its own is only for the lead on screen: which tab, which rest, which tip is open,
- * whether a held email's choices are open, and whether Stop writing is being asked.
+ * out of it as it did. What it holds of its own is only for the lead on screen: which tab, which rest, whether a held
+ * email's choices are open, and whether Stop writing is being asked.
  */
 import { useEffect, useState } from "react";
 import {
@@ -36,8 +36,8 @@ import { Button } from "../../kit/button/button";
 import { Confirm } from "../../kit/confirm/confirm";
 import { Icon } from "../../kit/icon/icon";
 import { Menu } from "../../kit/menu/menu";
+import { Segmented } from "../../kit/segmented/segmented";
 import { Sheet } from "../../kit/sheet/sheet";
-import { SubTabs } from "../../kit/sub-tabs/sub-tabs";
 import { touchSwipe } from "../../legacy-verbs";
 import { MenuInPlace, menuGroups, moreButton, type PeopleMenuItem } from "../../people/menu-groups";
 import { LeadCallAsk, LeadPeekAsk, LeadSentAsk } from "../peek/asks";
@@ -50,7 +50,7 @@ import { SheetDecide, SheetDock, SheetWhy } from "./dock";
 import { endRailOf, sheetFactsOf, type SheetFacts, type SheetPileFacts } from "./facts";
 import { holdSheetKeys } from "./keys";
 import { SheetPane } from "./panes";
-import { SheetBox, SheetCells, SheetEnd, SheetMarks, SheetNow, SheetProgress, SheetWho, type SheetTips } from "./parts";
+import { SheetBox, SheetChecksLine, SheetContactLine, SheetEnd, SheetNow, SheetProgress, SheetWho } from "./parts";
 import { newSequenceFor, openRecord, runSheetAct, takeOut } from "./run";
 import type { LeadAim } from "./use-aim";
 
@@ -94,20 +94,18 @@ interface SheetUiState {
   lead: string | null;
   tab: LeadCardTab;
   full: boolean;
-  tip: string | null;
   deciding: boolean;
   stopping: boolean;
 }
 
-const FRESH = { tab: "why" as LeadCardTab, full: false, tip: null, deciding: false, stopping: false };
+const FRESH = { tab: "why" as LeadCardTab, full: false, deciding: false, stopping: false };
 
 /** The sheet's own state: a decision turns the card, and the next lead comes up at half, on Why, nothing open. */
 function useSheetUi(leadId: string | null) {
   const [held, setHeld] = useState<SheetUiState>({ lead: leadId, ...FRESH });
   const ui = held.lead === leadId ? held : { lead: leadId, ...FRESH };
   const put = (next: Partial<SheetUiState>) => setHeld({ ...ui, ...next });
-  const tips: SheetTips = { open: ui.tip, toggle: (key) => put({ tip: ui.tip === key ? null : key }) };
-  return { ui, put, tips };
+  return { ui, put };
 }
 type SheetUi = ReturnType<typeof useSheetUi>;
 
@@ -183,9 +181,8 @@ const sheetWhoOf = (d: SheetDraw, desk: boolean) => {
     <SheetWho
       vm={vm}
       row={p.row}
-      fit={facts.fit}
       word={facts.word}
-      tips={d.sheet.tips}
+      sub={desk ? facts.sub.desk : facts.sub.phone}
       onExpand={() => p.on && p.on.onExpand()}
       onOpenPerson={(id) => p.on && p.on.onOpenPerson(id)}
       end={end}
@@ -247,10 +244,14 @@ function boxOf(d: SheetDraw) {
   );
 }
 
-/** The card at half height: who, the reason, what it rests on, how to reach them, and the sequence box. */
+/**
+ * The card at half height: who, the reason, the checks line, the ways-in line, and the sequence box. A line opens its tab,
+ * at full height on a phone.
+ */
 const sheetCardOf = (d: SheetDraw, desk: boolean) => {
   const { facts, vm, sheet } = d;
   if (!facts || !vm) return null;
+  const open = (tab: LeadCardTab) => sheet.put({ tab, full: true });
   return (
     <article key={vm.id} className="lw-card-w lw-turn" aria-label={vm.name} data-testid="lead-pile-lead">
       {sheetWhoOf(d, desk)}
@@ -259,14 +260,29 @@ const sheetCardOf = (d: SheetDraw, desk: boolean) => {
         fallback={vm.fit.sentence}
         reply={facts.reply}
         replied={facts.state === "replied"}
-        tips={sheet.tips}
       />
-      {facts.state === "replied" ? null : <SheetMarks marks={facts.card.marks} tips={sheet.tips} />}
-      <SheetCells cells={facts.cells} tips={sheet.tips} />
+      {facts.state === "replied" || !facts.checks ? null : (
+        <SheetChecksLine line={facts.checks} onOpen={() => open("why")} />
+      )}
+      <SheetContactLine line={facts.contact} onOpen={() => open("contact")} />
       {boxOf(d)}
     </article>
   );
 };
+
+/**
+ * The three tabs, the record's capsule (the refined canvas, decision 01): a pick shows its pane, at full height on a
+ * phone. At half none is picked (the canvas's PhoneHalf), so any of the three raises the sheet onto its pane.
+ */
+const tabStripOf = (d: SheetDraw, half = false) => (
+  <Segmented<LeadCardTab | "">
+    label={W.tabs}
+    value={half ? "" : d.sheet.ui.tab}
+    options={LEAD_CARD_TABS.map((t) => ({ value: t.id, label: t.label, testid: `lead-sheet-tab-${t.id}` }))}
+    onValueChange={(tab) => tab && d.sheet.put({ tab, full: true })}
+    className="lw-views"
+  />
+);
 
 /** The tabs at full height, and the open one's pane. */
 const tabsOf = (d: SheetDraw) => {
@@ -278,20 +294,12 @@ const tabsOf = (d: SheetDraw) => {
   );
   return (
     <div className="lw-read">
-      <SubTabs
-        label={W.tabs}
-        value={sheet.ui.tab}
-        tabs={LEAD_CARD_TABS.map((t) => ({ id: t.id, label: t.label, testid: `lead-sheet-tab-${t.id}` }))}
-        onSelect={(id) => {
-          const found = LEAD_CARD_TABS.find((t) => t.id === id);
-          if (found) sheet.put({ tab: found.id });
-        }}
-        dense
-      />
+      {tabStripOf(d)}
       <SheetPane
         tab={sheet.ui.tab}
         vm={vm}
         card={facts.card}
+        why={facts.why}
         on={{ ...on, reachOut }}
         stand={facts.stand}
         mail={facts.mail ? { ...facts.mail, onChange: () => sheet.put({ full: false }) } : null}
@@ -364,8 +372,11 @@ async function decideHeld(d: SheetDraw, door: HoldDoor) {
   d.sheet.put({ deciding: false });
 }
 
-/** The dock, Not a fit's reasons or a held email's choices in its place, or Stop writing asked first. */
-function dockOf(d: SheetDraw) {
+/**
+ * The dock, Not a fit's reasons or a held email's choices in its place, or Stop writing asked first; on a desk, the keys
+ * under it.
+ */
+function dockOf(d: SheetDraw, desk: boolean) {
   const { p, vm, dock, sheet, facts } = d;
   const pile = p.pile ? p.pile.pile : null;
   const busy = p.busy || d.busy.on || !!(pile && pile.busy);
@@ -414,7 +425,8 @@ function dockOf(d: SheetDraw) {
         onBack={() => sheet.put({ deciding: false })}
       />
     );
-  return dock ? <SheetDock dock={dock} busy={busy} onRun={d.run} /> : null;
+  const keys = !desk ? null : pile ? "pile" : p.deck ? "rows" : null;
+  return dock ? <SheetDock dock={dock} busy={busy} onRun={d.run} keys={keys} /> : null;
 }
 
 /** The pile's line, a polite live region: what was done, and who is up now or that it was the last. */
@@ -467,7 +479,11 @@ function sheetBodyOf(d: SheetDraw, desk: boolean) {
       {tabsOf(d)}
     </div>
   ) : (
-    sheetCardOf(d, false)
+    // At half, the card and under it the tabs (the canvas's PhoneHalf): a tab raises the sheet onto its pane.
+    <>
+      {sheetCardOf(d, false)}
+      {d.p.on ? <div className="lw-read">{tabStripOf(d, true)}</div> : null}
+    </>
   );
 }
 
@@ -485,7 +501,7 @@ const deskOf = (d: SheetDraw) => (
       {sheetBodyOf(d, true)}
     </div>
     <div className="lw-foot">
-      {dockOf(d)}
+      {dockOf(d, true)}
       {sheetSaidOf(d.p.pile)}
     </div>
   </aside>
@@ -510,7 +526,7 @@ function phoneOf(d: SheetDraw) {
       }}
       foot={
         <>
-          {dockOf(d)}
+          {dockOf(d, false)}
           {sheetSaidOf(p.pile)}
         </>
       }
@@ -558,6 +574,7 @@ export function LeadSheet(p: LeadSheetProps) {
           tz: p.tz,
           aim,
           story: story.story,
+          storyRead: story.read,
           searchWrites: p.searchWrites,
           pile: p.pile ? p.pile.facts : null,
           monthLeft: p.monthLeft,
