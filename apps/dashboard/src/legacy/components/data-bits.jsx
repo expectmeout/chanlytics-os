@@ -55,21 +55,37 @@ const StatCell = ({ label, value, valueSize, meta, metaTone = "", spark, tip, ch
 // the lifetime — a failure stays longer than a confirmation — and a toast with
 // an Undo lives as long as the undo does: the shared undo window, or the exact
 // `ms` a caller knows (the reply's cancel window, from its own receipt), never
-// the six seconds a plain confirmation gets. Hovering or focusing a toast holds
-// it; leaving resumes what was left. The shape is decided in contracts
-// (toastShape) and reaches here through the chrome bridge; the standalone
-// mockup has no bridge and keeps the old one-tone behaviour.
+// the few seconds a plain confirmation gets. A mouse resting on a toast, or
+// focus in it, holds it; leaving resumes what was left. A finger never holds
+// one: a tap on its words froze it until the next tap elsewhere (Ruben, 18 Oct
+// 2026: toasts on a phone stood far too long).
+//
+// GOING. A toast is not in the way of what comes next: a press anywhere besides
+// it, or on its words, takes it away (the press does what it does as well), and
+// so do its ×, which every toast carries, Escape inside it and, under a finger,
+// a pull down or a flick across (touchSwipe). Its Undo or act closes it too.
+// A send's Undo is the exception (`stays`): the one way to stop the send, kept
+// through a tap besides for its window, and taken by its ×, a swipe or Escape.
+// The shape is decided in contracts (toastShape) and reaches here through the
+// chrome bridge; the standalone mockup has no bridge and keeps the old one-tone
+// behaviour.
 // Usage: const [toastNode, flash] = usePPToast();
-//   flash({ msg, tone?: "ok"|"info"|"warn"|"danger", undo?, action?: {label,onClick}, links?: [{label,to}], ms?, icon?, once? })
+//   flash({ msg, tone?: "ok"|"info"|"warn"|"danger", undo?, action?: {label,onClick}, links?: [{label,to}], ms?, icon?, once?, stays? })
 // `once`: a name for what the toast says; a second flash with the same name refreshes that toast in place of stacking
 // a twin under it (a mic pressed twice says "blocked" once).
 const toastShapeOf = (p) => (window.__chrome && window.__chrome.toast)
   ? window.__chrome.toast(p)
-  : { tone: p.tone || "ok", icon: p.icon || "check", role: "status", ms: p.ms || 6000 };
+  : { tone: p.tone || "ok", icon: p.icon || "check", role: "status", ms: p.ms || 4000, stays: false };
+// A press on one of these inside a toast is that control's, never a press on the toast's words.
+const TOAST_OWN_PRESS = "button, a, input, select, textarea, [role='button']";
 // `place`: a class of the caller's own on the stack, so its toasts can stand somewhere of its own (Ask's desk panel).
 const usePPToast = (place) => {
   const [toasts, setToasts] = React.useState([]);
   const timers = React.useRef({});
+  // What is shown, for the one press listener below, which is the hook's for its life and reads it on each press.
+  const shown = React.useRef([]);
+  shown.current = toasts;
+  const stack = React.useRef(null);
   React.useEffect(() => () => Object.values(timers.current).forEach((t) => window.clearTimeout(t.handle)), []);
   const close = (id) => {
     const t = timers.current[id];
@@ -77,10 +93,37 @@ const usePPToast = (place) => {
     delete timers.current[id];
     setToasts((ts) => ts.filter((x) => x.id !== id));
   };
+  // A press anywhere but on the stack takes every toast that does not stay. Heard as it starts (the capture of a
+  // pointerdown), so a press that opens or raises something has already cleared the way for it.
+  React.useEffect(() => {
+    const away = (e) => {
+      const going = shown.current.filter((x) => !x.stays);
+      if (!going.length) return;
+      const box = stack.current;
+      if (box && box.contains && e && e.target && box.contains(e.target)) return;
+      going.forEach((x) => close(x.id));
+    };
+    document.addEventListener("pointerdown", away, true);
+    return () => document.removeEventListener("pointerdown", away, true);
+  }, []);
+  // A press on its words is a press besides what it offers: the toast goes, unless it stays.
+  const pressed = (toast) => (e) => {
+    const on = e && e.target;
+    if (toast.stays || (on && on.closest && on.closest(TOAST_OWN_PRESS))) return;
+    close(toast.id);
+  };
+  const keyed = (toast) => (e) => {
+    if (!e || e.key !== "Escape") return;
+    e.stopPropagation();
+    close(toast.id);
+  };
   const arm = (id, ms) => {
     timers.current[id] = { handle: window.setTimeout(() => close(id), ms), endsAt: Date.now() + ms, left: null };
   };
-  // A toast under the pointer, or holding focus, keeps its clock.
+  // A toast under a mouse, or holding focus, keeps its clock. A finger's tap is a pointer that arrives and stays
+  // until the next tap elsewhere, so it holds nothing.
+  const mouseOn = (id) => (e) => { if (e && e.pointerType === "mouse") hold(id); };
+  const mouseOff = (id) => (e) => { if (e && e.pointerType === "mouse") release(id); };
   const hold = (id) => {
     const t = timers.current[id];
     if (!t || t.handle === null) return;
@@ -118,17 +161,20 @@ const usePPToast = (place) => {
     // stopPropagation: portal events bubble through the REACT tree, so a toast
     // rendered inside an overlay (Ask modal, dialogs) would otherwise trigger
     // the overlay's close-on-click and kill the undo.
-    <div className={`pp-toast-stack${place ? ` ${place}` : ""}`} role="presentation" onClick={(e) => e.stopPropagation()}>
+    <div ref={stack} className={`pp-toast-stack${place ? ` ${place}` : ""}`} role="presentation" onClick={(e) => e.stopPropagation()}>
       {toasts.map((toast) => (
         <div
           key={toast.id}
           className={`pp-toast pp-toast-${toast.tone}`}
           data-tone={toast.tone}
           role={toast.role}
-          onMouseEnter={() => hold(toast.id)}
-          onMouseLeave={() => release(toast.id)}
+          onPointerEnter={mouseOn(toast.id)}
+          onPointerLeave={mouseOff(toast.id)}
           onFocus={() => hold(toast.id)}
           onBlur={() => release(toast.id)}
+          onClick={pressed(toast)}
+          onKeyDown={keyed(toast)}
+          {...touchSwipe({ onDown: () => close(toast.id), onAway: () => close(toast.id), onBack: () => close(toast.id) })}
         >
           <Icon name={toast.icon} size={13} />
           <span className="pp-toast-msg">{toast.msg}</span>
@@ -137,7 +183,7 @@ const usePPToast = (place) => {
           ))}
           {toast.action && <button className="pp-toast-cta" onClick={() => { close(toast.id); toast.action.onClick(); }}>{toast.action.label}</button>}
           {toast.undo && <button className="pp-toast-cta" onClick={() => { toast.undo(); close(toast.id); }}>Undo</button>}
-          {!toast.undo && !toast.action && !(toast.links || []).length && <button className="pp-toast-x" onClick={() => close(toast.id)} aria-label="Dismiss"><Icon name="x" size={11} /></button>}
+          <button className="pp-toast-x" onClick={() => close(toast.id)} aria-label="Dismiss"><Icon name="x" size={11} /></button>
         </div>
       ))}
     </div>,

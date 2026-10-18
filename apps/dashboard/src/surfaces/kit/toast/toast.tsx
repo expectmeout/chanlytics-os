@@ -122,7 +122,7 @@ export function useToast(glyphs: ToastGlyphs): [ReactNode, (flash: ToastFlash) =
   const [manager] = useState(() => BaseToast.createToastManager<ToastData>());
   const flash = useCallback(
     ({ msg, tone, undo, action, ms, once }: ToastFlash) => {
-      const shape = toastShape({ tone, undo, ms });
+      const shape = toastShape({ tone, undo, action, ms });
       manager.add({
         id: once,
         description: msg,

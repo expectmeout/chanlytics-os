@@ -28980,15 +28980,19 @@ declare function shortcutGroups(list?: readonly Shortcut[]): Array<{
 }>;
 type ToastTone = "ok" | "info" | "warn" | "danger";
 declare const TOAST_TONES: readonly ToastTone[];
-/** How long a toast stays, by tone: long enough to read, and a failure longer than a confirmation. */
+/**
+ * How long a toast stays, by tone: long enough to read once, and a failure longer than a confirmation. A toast is
+ * taken away by a tap anywhere besides (the hook's), so these are for the toast nobody answers: on a phone the six
+ * to fifteen seconds they were stood over the page's foot well after it was read (Ruben, 18 Oct 2026).
+ */
 declare const TOAST_MS: Readonly<Record<ToastTone, number>>;
 /**
- * A toast with an Undo lives as long as the undo does. Fifteen seconds is the
- * reply's cancel window (SEND_GRACE_MS in core, the one real window the
- * product has); an Undo that outlived its window would lie, and one that died
- * before it would waste it. A caller that knows its exact window passes `ms`.
+ * A toast with something to press (an Undo, an act, a link) stays long enough to reach for it. Every Undo but a send's
+ * is a second call the other way, open as long as the page is, so its toast is a shortcut and not the undo's window.
+ * A send's Undo is the one way to stop it (the reply's and a new conversation's cancel window, SEND_GRACE_MS in core):
+ * its caller passes the exact window as `ms` and `stays`, so it lives that long and a tap besides does not take it.
  */
-declare const TOAST_UNDO_MS = 15000;
+declare const TOAST_UNDO_MS = 8000;
 /** The least a toast may stay: a window that is nearly over is still read. */
 declare const TOAST_MIN_MS = 2000;
 declare const TOAST_ICONS: Readonly<Record<ToastTone, string>>;
@@ -28998,12 +29002,17 @@ interface ToastShape {
     /** A failure interrupts a screen reader; everything else waits its turn. */
     role: "status" | "alert";
     ms: number;
+    /** A send's cancel window: a tap besides it does not take it away, only its ×, a swipe, Escape or its time. */
+    stays: boolean;
 }
 declare function toastShape(p: {
     tone?: unknown;
     icon?: unknown;
     undo?: unknown;
+    action?: unknown;
+    links?: unknown;
     ms?: unknown;
+    stays?: unknown;
 }): ToastShape;
 
 interface ConsentPageFacts {

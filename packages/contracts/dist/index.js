@@ -34697,8 +34697,8 @@ function shortcutGroups(list2 = SHORTCUTS) {
   return out;
 }
 var TOAST_TONES = ["ok", "info", "warn", "danger"];
-var TOAST_MS = { ok: 6e3, info: 6e3, warn: 8e3, danger: 1e4 };
-var TOAST_UNDO_MS = 15e3;
+var TOAST_MS = { ok: 4e3, info: 4e3, warn: 6e3, danger: 8e3 };
+var TOAST_UNDO_MS = 8e3;
 var TOAST_MIN_MS = 2e3;
 var TOAST_ICONS = {
   ok: "check",
@@ -34709,15 +34709,18 @@ var TOAST_ICONS = {
 function toastShape(p) {
   const tone = TOAST_TONES.includes(p.tone) ? p.tone : "ok";
   const asked = typeof p.ms === "number" && Number.isFinite(p.ms) && p.ms > 0 ? p.ms : null;
+  const presses = !!p.undo || !!p.action || Array.isArray(p.links) && p.links.length > 0;
   const ms2 = Math.max(
     TOAST_MIN_MS,
-    Math.round(asked ?? (p.undo ? Math.max(TOAST_UNDO_MS, TOAST_MS[tone]) : TOAST_MS[tone]))
+    Math.round(asked ?? (presses ? Math.max(TOAST_UNDO_MS, TOAST_MS[tone]) : TOAST_MS[tone]))
   );
   return {
     tone,
     icon: typeof p.icon === "string" && p.icon ? p.icon : TOAST_ICONS[tone],
     role: tone === "danger" ? "alert" : "status",
-    ms: ms2
+    ms: ms2,
+    // Only an Undo is worth keeping through a tap besides: a toast that stays with nothing to press is one in the way.
+    stays: p.stays === true && !!p.undo
   };
 }
 

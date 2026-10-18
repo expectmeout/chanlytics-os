@@ -103,7 +103,6 @@ export function NameOffer({
       ) : (
         PERSON_NAME_WORDS.named(named)
       ),
-      ms: 15000,
       undo: () => void putNameBack(personId, say, onChanged),
     });
     onChanged();
