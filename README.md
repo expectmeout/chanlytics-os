@@ -114,8 +114,8 @@ prose (its audits and demo scripts) lives in `docs/mockup/`, not in the app.
 **The legacy app never runs on the server.** `seed-globals.ts`, the shell's files and the seed publishers (the
 demo's `demo/data/people-data.jsx` among them) do unguarded module-scope `window` access and throw during prerender.
 `LegacyHost` imports the shell as `#frame-shell` (`apps/dashboard/package.json` "imports"): a browser's build resolves
-it to `LegacyApp`, the server's to `frame-shell.ts`, an empty component, and `dynamic(ssr:false)` keeps the server from
-drawing even that.
+it to `LegacyApp`, the server's to `src/frame-shell.ts`, an empty component, and `dynamic(ssr:false)` keeps the
+server from drawing even that.
 
 **Nothing in the UI may state a fact the database cannot support.** Unbacked
 mockup regions stay behind `window.__DEMO_MODE`. A zero is a real measurement

@@ -1,5 +1,5 @@
 import type { ComponentProps, ComponentType } from "react";
-import type LegacyApp from "./LegacyApp";
+import type LegacyApp from "./legacy-bridge/LegacyApp";
 
 /**
  * The shell as every build but a browser's sees it: nothing. LegacyHost imports the shell as `#frame-shell`, which the

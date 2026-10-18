@@ -9,7 +9,7 @@ import { speedHost } from "@/client/page-speed";
 import { api } from "./api";
 import { acceptedInTime } from "./invitations/accept";
 import { homeHref, lastWorkspace, notifyAddress, setAppRouter } from "./workspace";
-// The shell (LegacyApp) in a browser's build, nothing in the server's: package.json "imports" (frame-shell.ts).
+// The shell (LegacyApp) in a browser's build, nothing in the server's: package.json "imports" (src/frame-shell.ts).
 import FrameShell from "#frame-shell";
 
 /**

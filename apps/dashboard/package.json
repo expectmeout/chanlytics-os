@@ -5,7 +5,7 @@
   "imports": {
     "#frame-shell": {
       "browser": "./src/legacy-bridge/LegacyApp.tsx",
-      "default": "./src/legacy-bridge/frame-shell.ts"
+      "default": "./src/frame-shell.ts"
     }
   },
   "scripts": {
