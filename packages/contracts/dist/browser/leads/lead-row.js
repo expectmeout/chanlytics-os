@@ -173,7 +173,7 @@ export function leadRail(counts, searches, now = /* @__PURE__ */ new Date()) {
     searches: searches.map((s) => ({
       id: s.id,
       name: s.name,
-      count: s.round?.counted ?? 0,
+      count: s.round ? s.round.counted : null,
       undoable: leadUndoable(s, now),
       list: isLeadList(s),
       people: !!s.people,

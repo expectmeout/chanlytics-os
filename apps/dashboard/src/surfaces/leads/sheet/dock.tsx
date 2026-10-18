@@ -167,10 +167,14 @@ export const SheetDock = (p: DockProps) => {
   );
 };
 
-/** Not a fit's five reasons, in the dock's own place: one tap decides; the one last given is marked; Back writes nothing. */
+/**
+ * Not a fit's five reasons, in the dock's own place: one tap decides; the one last given is marked; Back writes nothing.
+ * In a pile on a desk each wears its key, 1 to 5, which picks it.
+ */
 export const SheetWhy = (p: {
   last: LeadNotAFitWhy | null;
   busy: boolean;
+  keys: boolean;
   onPick: (why: LeadNotAFitWhy) => void;
   onBack: () => void;
 }) => (
@@ -182,17 +186,19 @@ export const SheetWhy = (p: {
       </Button>
     </div>
     <div className="lw-why-g">
-      {LEAD_NOT_A_FIT_WHYS.map((w) => (
+      {LEAD_NOT_A_FIT_WHYS.map((w, i) => (
         <Button
           key={w}
           className={`lw-why-b${p.last === w ? " last" : ""}`}
           disabled={p.busy}
           onClick={() => p.onPick(w)}
+          aria-keyshortcuts={p.keys ? String(i + 1) : undefined}
           data-testid={`peek-why-${w}`}
           {...(p.last === w ? { title: W.lastWhy } : {})}
         >
           <span>{LEAD_NOT_A_FIT_WORDS[w]}</span>
           {w === LEAD_SUPPRESSING_WHY ? <small>{W.hides}</small> : null}
+          {p.keys ? <kbd className="lw-kbd lw-why-k">{i + 1}</kbd> : null}
         </Button>
       ))}
     </div>
@@ -205,6 +211,11 @@ export const SheetWhy = (p: {
  */
 export const SheetDecide = (p: {
   hold: ReachOutHold;
+  /**
+   * What the check flagged (the opening's words, a chain's count), said here where the card's box is not on screen to
+   * say it; null where it is.
+   */
+  flag: string | null;
   sequence: string;
   busy: boolean;
   onDecide: (door: HoldDoor) => void;
@@ -217,6 +228,11 @@ export const SheetDecide = (p: {
         {D.back}
       </Button>
     </div>
+    {p.flag ? (
+      <p className="lw-decide-f" data-testid="lead-sheet-decide-flag">
+        {p.flag}
+      </p>
+    ) : null}
     <p className="lw-decide-s">{D.decideOnly(p.sequence)}</p>
     <div className="lw-why-g">
       {holdDoors(p.hold).map((door) => (

@@ -92,7 +92,9 @@ function pendingPlaceOf(
       step,
       sendId: held.id,
       hold,
-      line: LEAD_PLACE_LINES.held(step, hold && holdWords(hold, null)),
+      // What the check flagged ("the opening said “…”"), where the story carries it (00457): Decide shows it too.
+      holdDetail: held.hold_detail ?? null,
+      line: LEAD_PLACE_LINES.held(step, hold && holdWords(hold, held.hold_detail ?? null)),
     };
   }
   const drafted = sends.find((s) => s.state === "drafted");
@@ -191,17 +193,27 @@ const LEAD_PLACE_LINES = {
 /** A word's tone, as the house's tone pill draws it: amber needs you, green runs, plain is over or not decided on yet. */
 export type LeadWordTone = "warn" | "ok" | "plain";
 
+/** A lead that can't join a sequence as it stands, said beside its name, in its box and in its dock. */
+const LEAD_CANT_JOIN_WORDS = {
+  callFirst: "Call first",
+  notYet: "Can't join yet",
+} as const;
+
 /** The places that need you: amber. */
 const NEEDS_YOU: ReadonlySet<LeadPlaceGroup> = new Set(["waiting", "held", "to_send", "replied"]);
 
 /**
  * The word beside the name: where they stand once a sequence has them (its group's word), else the lead's own state:
- * Ready, To review, Wrote back, or what closed it. A lead in another sequence is In it, as that sequence files it.
+ * Ready, To review, Wrote back, or what closed it. A lead in another sequence is In it, as that sequence files it. One
+ * that can't join says so in amber: Call first (no email to write to), Can't join yet (the sequence's rule keeps them
+ * out until something changes).
  */
 export function leadSheetWordOf(p: {
   state: LeadSheetState;
   place: LeadPlaceVM | null;
   closed: LeadSheetClosedVM | null;
+  /** Why Add is off for this lead; null when it would go. */
+  blocked?: string | null;
 }): { word: string; tone: LeadWordTone } {
   if (p.place) {
     const g = p.place.group;
@@ -217,8 +229,10 @@ export function leadSheetWordOf(p: {
       return { word: LEAD_PLACE_WORDS.in, tone: "ok" };
     case "closed":
       return { word: p.closed ? p.closed.title : LEAD_PLACE_WORDS.left, tone: "plain" };
+    case "phone":
+      return { word: LEAD_CANT_JOIN_WORDS.callFirst, tone: "warn" };
     default:
-      return { word: "Ready", tone: "plain" };
+      return p.blocked ? { word: LEAD_CANT_JOIN_WORDS.notYet, tone: "warn" } : { word: "Ready", tone: "plain" };
   }
 }
 
@@ -226,7 +240,7 @@ export function leadSheetWordOf(p: {
 
 /** The sequence box: how they stand to it, which (a door to its record), its one line, and whether Change is offered. */
 export interface LeadSheetBoxVM {
-  /** "Joins", "In", "Left", "Can't join", or null where no sequence is named ("No sequence takes leads you add"). */
+  /** "Joins", "In", "Left", "Can't join yet", or null where no sequence is named (none takes leads, none chosen, no email). */
   verb: string | null;
   name: string | null;
   /** The record the name opens. */
@@ -239,7 +253,9 @@ const LEAD_BOX_WORDS = {
   joins: "Joins",
   in: "In",
   left: "Left",
-  cantJoin: "Can't join",
+  cantJoin: LEAD_CANT_JOIN_WORDS.notYet,
+  /** Sequences take leads you add, and none is chosen for this search yet: Change, beside it, picks one. */
+  choose: "Choose where they go",
   goesWith: "Goes with",
   none: "No sequence takes leads you add",
   /** While their story or the sequences are still being read: nothing said yet that the reads could take back. */
@@ -250,14 +266,16 @@ const LEAD_BOX_WORDS = {
   afterOkNamed: (subject: string) => `Step 1, “${subject}”, after your OK`,
   onceKept: "Once you keep it",
   inNextBatch: "In its next batch",
-  phoneOnly: "A sequence to leads writes email; they have a phone",
+  /** No email to write to: no sequence is named, since none could take them (a sequence to leads writes email). */
+  phoneOnly: "Needs an email to join a sequence. Call them instead.",
   elsewhere: "A business is written to once, so this one stays with that sequence",
 } as const;
 
 /**
  * The sequence box, by the state and the place: Joins the sequence the adds go to (Step 1 after your OK, or once kept),
- * Goes with a search's own, In the one they are in (its place's line), Left it (why), Can't join (they have only a
- * phone), or no sequence yet. Change is offered where the adds may go to another.
+ * Goes with a search's own, In the one they are in (its place's line), Left it (why), Can't join yet (its rule keeps them
+ * out, the reason as its line), Needs an email (no sequence named, since none could take them), Choose where they go
+ * (none chosen for this search), or no sequence yet. Change is offered where the adds may go to another.
  */
 export function leadSheetBoxOf(p: {
   state: LeadSheetState;
@@ -276,6 +294,10 @@ export function leadSheetBoxOf(p: {
   closed: LeadSheetClosedVM | null;
   /** Their story or the sequences still being read. */
   reading: boolean;
+  /** Why Add is off for this lead in the sequence chosen (its rule, or a hole in its words); null when it would go. */
+  blocked?: string | null;
+  /** Sequences take leads you add, and none is chosen for this search. */
+  unchosen?: boolean;
 }): LeadSheetBoxVM {
   const B = LEAD_BOX_WORDS;
   if (p.inSequence && p.place) {
@@ -295,9 +317,11 @@ export function leadSheetBoxOf(p: {
       line: B.inNextBatch,
       change: false,
     };
+  if (p.state === "phone") return { verb: null, name: null, rootId: null, line: B.phoneOnly, change: false };
+  if (p.unchosen) return { verb: null, name: null, rootId: null, line: B.choose, change: p.canChange };
   if (!p.target) return { verb: null, name: null, rootId: null, line: `${B.none}. ${B.noneLine}`, change: false };
   const t = { name: p.target.name, rootId: p.target.rootId, change: p.canChange };
-  if (p.state === "phone") return { ...t, verb: B.cantJoin, line: B.phoneOnly };
+  if (p.blocked) return { ...t, verb: B.cantJoin, line: p.blocked };
   const after = p.firstSubject ? B.afterOkNamed(p.firstSubject) : B.afterOk;
   return { ...t, verb: B.joins, line: p.state === "review" ? B.onceKept : after };
 }
@@ -319,7 +343,11 @@ export const LEAD_DOCK_WORDS = {
   ready: { line: (sequence: string) => `Joins ${sequence}`, fact: "Nothing goes until you approve" },
   checking: { line: "Checking their mailbox", fact: "Add waits a few seconds" },
   reading: { line: "Reading where they stand", fact: "A moment" },
-  noEmail: { line: "No email to write to", fact: "Call them, or find one" },
+  noEmail: { line: "No email to write to", fact: "Call them" },
+  /** Add is off in the sequence chosen: its reason is the fact, and Not a fit and Later stay. */
+  cantJoin: { line: LEAD_CANT_JOIN_WORDS.notYet },
+  /** None chosen for this search: Change, in the box above, picks one; Not a fit and Later stay. */
+  choose: { line: "Which sequence?", fact: "Change, above, picks where they go" },
   elsewhere: { line: "One sequence at a time", fact: "Take them out there to add them here" },
   noSequence: { line: "Nothing to add to yet", fact: "Starts from this lead, and comes back" },
   review: { line: "To review", fact: "Keep counts it, and sends it on" },
@@ -351,6 +379,8 @@ export const LEAD_DOCK_WORDS = {
   /** Held, decided here (the canvas's HeldDecide): the same choices, and the same verb, as the sequence's Leads tab. */
   decideAsk: "What to do with its email?",
   decideOnly: (sequence: string) => `Only this one email. The rest of its batch waits in “${sequence}”.`,
+  /** What the check flagged, said before the choices, so a held email is never decided blind. */
+  decideFlag: (hold: ReachOutHold, detail: string | null) => `${capitalize(holdWords(hold, detail))}.`,
   back: "Back",
   /** The desk's key row under the dock: in a pile, the dock's own keys and Undo; out of one, J and K walk the rows. */
   undoKey: "undo",
@@ -381,6 +411,8 @@ export interface LeadSheetDockFacts {
   reply: { intent: string; readAt: string } | null;
   /** Their story or the sequences still being read: the dock waits, offering nothing the reads could take back. */
   reading: boolean;
+  /** Sequences take leads you add, and none is chosen for this search: Change, in the box, picks one. */
+  unchosen?: boolean;
   tz: string;
   nowMs: number;
 }
@@ -419,7 +451,10 @@ function repliedDock(f: LeadSheetDockFacts): LeadSheetDockVM {
   };
 }
 
-/** The dock for a lead not in a sequence yet: what Add would do, or why it can't yet and the one way on. */
+/**
+ * The dock for a lead not in a sequence yet: what Add would do; or, with no Add to offer, why (none chosen, the sequence's
+ * rule keeps them out, being checked) with Not a fit and Later still theirs, never an Add that is off.
+ */
 function readyDock(f: LeadSheetDockFacts): LeadSheetDockVM | null {
   const D = LEAD_DOCK_WORDS;
   const x = dockAct("not_a_fit", D.notFit, "x", "n");
@@ -427,6 +462,7 @@ function readyDock(f: LeadSheetDockFacts): LeadSheetDockVM | null {
     return { ...D.search, waiting: false, x: true, acts: [x, dockAct("sequence", D.itsSequence, "external")] };
   if (f.pile === "first")
     return { ...D.first, waiting: false, x: true, acts: [x, ...dockLaterOf(f), dockAct("hold", D.hold, "plus", "a")] };
+  if (f.unchosen) return { ...D.choose, waiting: false, x: true, acts: [x, ...dockLaterOf(f)] };
   // No sequence takes leads by hand yet: one is made in Sequences from this lead, and Not a fit and Later stay theirs.
   if (!f.target)
     return {
@@ -437,12 +473,14 @@ function readyDock(f: LeadSheetDockFacts): LeadSheetDockVM | null {
     };
   if (f.state === "finding")
     return { ...D.checking, waiting: true, x: true, acts: [x, dockAct("add", D.add, "plus", "a", D.checking.fact)] };
+  if (f.blocked)
+    return { line: D.cantJoin.line, fact: f.blocked, waiting: false, x: true, acts: [x, ...dockLaterOf(f)] };
   return {
     line: D.ready.line(f.target),
-    fact: f.blocked ?? D.ready.fact,
+    fact: D.ready.fact,
     waiting: false,
     x: true,
-    acts: [x, ...dockLaterOf(f), dockAct("add", D.add, "plus", "a", f.blocked)],
+    acts: [x, ...dockLaterOf(f), dockAct("add", D.add, "plus", "a")],
   };
 }
 
@@ -470,7 +508,8 @@ export function leadSheetDockOf(f: LeadSheetDockFacts): LeadSheetDockVM | null {
             ...D.noEmail,
             waiting: false,
             x: true,
-            acts: [dockAct("not_a_fit", D.notFit, "x", "n"), dockAct("call", D.call, "phone", "a")],
+            // Call is C, as on Wrote back: A is Add everywhere else, and a fast pile must never dial.
+            acts: [dockAct("not_a_fit", D.notFit, "x", "n"), ...dockLaterOf(f), dockAct("call", D.call, "phone", "c")],
           }
         : null;
     case "elsewhere":
@@ -487,7 +526,7 @@ export function leadSheetDockOf(f: LeadSheetDockFacts): LeadSheetDockVM | null {
           ? dockAct("put_back", D.putBack, "undo", "a")
           : fix === "ready"
             ? dockAct("ready", D.ready_, "undo", "a")
-            : dockAct("call", D.call, "phone", "a");
+            : dockAct("call", D.call, "phone", "c");
       return { line: f.closed.title, fact: f.closed.line, waiting: false, x: false, acts: [one] };
     }
     default:

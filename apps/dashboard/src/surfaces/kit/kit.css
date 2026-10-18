@@ -549,9 +549,17 @@ a.chip:focus-visible {
   background: var(--secondary-fill);
   border-color: var(--line);
 }
+/* A primary that cannot be pressed is no longer the accent: the secondary's ground and quiet ink, no depth, so a dimmed
+   coral never reads as live (the lead sheet's Add, off with its reason beside it). */
+.btn-primary:disabled,
 .btn-primary:disabled:hover {
-  background: var(--primary-fill);
-  border-color: var(--primary-fill);
+  background: var(--secondary-fill);
+  border-color: var(--line);
+  color: var(--quiet-ink);
+  box-shadow: none;
+}
+.btn-primary:disabled .icon {
+  color: var(--quiet-ink);
 }
 .btn-ghost:disabled:hover {
   background: transparent;
@@ -2785,7 +2793,7 @@ textarea.rec-input {
 .rec-seg-btn:hover {
   color: var(--ink);
 }
-.rec-seg-btn[aria-checked="true"] {
+.rec-seg-btn:is([aria-checked="true"], [aria-selected="true"]) {
   background: var(--selected-fill);
   font-weight: var(--weight-medium);
   color: var(--ink);
@@ -2843,6 +2851,14 @@ textarea.rec-input {
   flex-wrap: wrap;
   width: 100%;
   border-radius: var(--surface-inset-radius);
+}
+/* A pane's few tabs (SubTabs look="capsule": a lead sheet's Why, Contact, Sequence): the same track and the same
+   lozenge on the tab picked (aria-selected, as Base UI's Tabs say it), the tabs sharing the row they stand in. */
+.rec-seg[data-look="capsule"] {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  width: 100%;
 }
 
 /* ---------- A date picker: one day of a month, over the page ---------- */
@@ -4303,7 +4319,7 @@ a.list-row {
   padding: 3px;
   box-shadow: var(--surface-inset-depth);
 }
-.rec-seg-btn[aria-checked="true"] {
+.rec-seg-btn:is([aria-checked="true"], [aria-selected="true"]) {
   box-shadow: var(--selected-depth);
 }
 .rec-seg[data-hints="true"] {
@@ -4357,10 +4373,10 @@ a.list-row {
    rule (components.css, NUANCE PASS), and the picked segment is where a radio group and a tab list put focus. The dim
    words on it (a tab's count, a choice's sentence) take the dim ink the lozenge needs, which is lighter than the page
    under a dark look (tokens.css, --selected-ink-dim). */
-:is(.stabs-tab.active, .rec-seg-btn[aria-checked="true"]):focus-visible {
+:is(.stabs-tab.active, .rec-seg-btn:is([aria-checked="true"], [aria-selected="true"])):focus-visible {
   box-shadow: var(--focus-ring), var(--selected-depth);
 }
-:is(.stabs-tab.active, .rec-seg-btn[aria-checked="true"]) :is(.tally, .rec-seg-hint) {
+:is(.stabs-tab.active, .rec-seg-btn:is([aria-checked="true"], [aria-selected="true"])) :is(.tally, .rec-seg-hint) {
   color: var(--selected-ink-dim);
 }
 

@@ -461,6 +461,9 @@ const newSearchOf = (p: P, phone: boolean) => (
 /** Back today (00426, decision 9): who asked to hear back on a day that has come, over the lists, never over a search. */
 const backTodayOf = (p: P) => (!p.search && !p.firstDay && !p.surface.readFailed ? <LeadsBackToday /> : null);
 
+/** While a lead's sheet is open beside the rows, a row's hover card would say again what the sheet says (leads.css). */
+const sheetMarkOf = (p: P) => (p.peek || p.pileSheet ? "" : undefined);
+
 const mainOf = (p: P, phone: boolean, railRows: ReactElement, sections: Sections) => {
   const search = p.search;
   const table = tableOf(p, phone, sections);
@@ -472,7 +475,7 @@ const mainOf = (p: P, phone: boolean, railRows: ReactElement, sections: Sections
           name. A phone's head holds New search past the first day (phone-bar.tsx LeadsNewSearch), and its bar Import; a
           desk's first day holds no act beside the page's own door, and keeps the door for a list under it. */}
       {phone && !p.firstDay && !p.newSearch && phoneBarOf(p)}
-      <div className="cl-main-scroll pl-main" ref={p.scrollRef}>
+      <div className="cl-main-scroll pl-main" ref={p.scrollRef} data-sheet={sheetMarkOf(p)}>
         {phone || p.firstDay ? <LeadsHead act={headActOf(p, phone)} /> : deskTopOf(p)}
         {p.newSearch ? (
           newSearchOf(p, phone)

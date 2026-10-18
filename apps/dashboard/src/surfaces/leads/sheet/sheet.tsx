@@ -20,9 +20,12 @@
 import { useEffect, useState } from "react";
 import {
   LEAD_CARD_TABS,
+  LEAD_DOCK_WORDS,
+  LEAD_NOT_A_FIT_WHYS,
   LEAD_SHEET_WORDS as W,
   type HoldDoor,
   type LeadCardTab,
+  type LeadNotAFitWhy,
   type LeadPeekVM,
   type LeadRowVM,
   type LeadSheetDockVM,
@@ -36,7 +39,7 @@ import { Button } from "../../kit/button/button";
 import { Confirm } from "../../kit/confirm/confirm";
 import { Icon } from "../../kit/icon/icon";
 import { Menu } from "../../kit/menu/menu";
-import { Segmented } from "../../kit/segmented/segmented";
+import { SubTabs } from "../../kit/sub-tabs/sub-tabs";
 import { Sheet } from "../../kit/sheet/sheet";
 import { touchSwipe } from "../../legacy-verbs";
 import { MenuInPlace, menuGroups, moreButton, type PeopleMenuItem } from "../../people/menu-groups";
@@ -49,7 +52,7 @@ import { LeadReachOutView, stopWritingTo, useLeadStory } from "../reach-out/line
 import { SheetDecide, SheetDock, SheetWhy } from "./dock";
 import { endRailOf, sheetFactsOf, type SheetFacts, type SheetPileFacts } from "./facts";
 import { holdSheetKeys } from "./keys";
-import { SheetPane } from "./panes";
+import { SHEET_PANE_ID, SheetPane } from "./panes";
 import { SheetBox, SheetChecksLine, SheetContactLine, SheetEnd, SheetNow, SheetProgress, SheetWho } from "./parts";
 import { newSequenceFor, openRecord, runSheetAct, takeOut } from "./run";
 import type { LeadAim } from "./use-aim";
@@ -182,7 +185,7 @@ const sheetWhoOf = (d: SheetDraw, desk: boolean) => {
       vm={vm}
       row={p.row}
       word={facts.word}
-      sub={desk ? facts.sub.desk : facts.sub.phone}
+      sub={facts.sub}
       onExpand={() => p.on && p.on.onExpand()}
       onOpenPerson={(id) => p.on && p.on.onOpenPerson(id)}
       end={end}
@@ -272,17 +275,29 @@ const sheetCardOf = (d: SheetDraw, desk: boolean) => {
 
 /**
  * The three tabs, the record's capsule (the refined canvas, decision 01): a pick shows its pane, at full height on a
- * phone. At half none is picked (the canvas's PhoneHalf), so any of the three raises the sheet onto its pane.
+ * phone. They are tabs to a screen reader, the picked one naming the pane it opens. At half none is picked (the
+ * canvas's PhoneHalf), so any of the three raises the sheet onto its pane.
  */
-const tabStripOf = (d: SheetDraw, half = false) => (
-  <Segmented<LeadCardTab | "">
-    label={W.tabs}
-    value={half ? "" : d.sheet.ui.tab}
-    options={LEAD_CARD_TABS.map((t) => ({ value: t.id, label: t.label, testid: `lead-sheet-tab-${t.id}` }))}
-    onValueChange={(tab) => tab && d.sheet.put({ tab, full: true })}
-    className="lw-views"
-  />
-);
+const tabStripOf = (d: SheetDraw, half = false) => {
+  const on = half ? null : d.sheet.ui.tab;
+  return (
+    <SubTabs
+      look="capsule"
+      label={W.tabs}
+      value={on}
+      tabs={LEAD_CARD_TABS.map((t) => ({
+        id: t.id,
+        label: t.label,
+        testid: `lead-sheet-tab-${t.id}`,
+        controls: t.id === on ? SHEET_PANE_ID : undefined,
+      }))}
+      onSelect={(id) => {
+        const tab = LEAD_CARD_TABS.find((t) => t.id === id)?.id;
+        if (tab) d.sheet.put({ tab, full: true });
+      }}
+    />
+  );
+};
 
 /** The tabs at full height, and the open one's pane. */
 const tabsOf = (d: SheetDraw) => {
@@ -299,6 +314,7 @@ const tabsOf = (d: SheetDraw) => {
         tab={sheet.ui.tab}
         vm={vm}
         card={facts.card}
+        state={facts.state}
         why={facts.why}
         on={{ ...on, reachOut }}
         stand={facts.stand}
@@ -372,6 +388,17 @@ async function decideHeld(d: SheetDraw, door: HoldDoor) {
   d.sheet.put({ deciding: false });
 }
 
+/** Not a fit, for a reason: in a pile the pile's own act, which moves to the next; else the lead's. */
+function pickWhy(d: SheetDraw, why: LeadNotAFitWhy) {
+  const { p } = d;
+  const pile = p.pile ? p.pile.pile : null;
+  if (!p.on) return;
+  if (pile && pile.on && p.row) {
+    p.on.onBack();
+    void pile.act(p.row, "not_a_fit", why);
+  } else void p.on.onWhy(why);
+}
+
 /**
  * The dock, Not a fit's reasons or a held email's choices in its place, or Stop writing asked first; on a desk, the keys
  * under it.
@@ -398,27 +425,23 @@ function dockOf(d: SheetDraw, desk: boolean) {
       />
     );
   }
-  if (vm && p.mode === "why" && p.on) {
-    const on = p.on;
+  if (vm && p.mode === "why" && p.on)
     return (
       <SheetWhy
         last={pile ? pile.lastWhy : null}
         busy={busy}
-        onBack={on.onBack}
-        onPick={(why) => {
-          if (pile && pile.on && p.row) {
-            on.onBack();
-            void pile.act(p.row, "not_a_fit", why);
-          } else void on.onWhy(why);
-        }}
+        keys={!!(desk && pile)}
+        onBack={p.on.onBack}
+        onPick={(why) => pickWhy(d, why)}
       />
     );
-  }
   const place = facts ? facts.place : null;
   if (vm && sheet.ui.deciding && place && place.hold && facts && facts.track)
     return (
       <SheetDecide
         hold={place.hold}
+        // What the check flagged is the box's line wherever the card shows; raised on a phone, the card is not there.
+        flag={!desk && sheet.ui.full ? LEAD_DOCK_WORDS.decideFlag(place.hold, place.holdDetail) : null}
         sequence={facts.track.name}
         busy={busy}
         onDecide={(door) => void decideHeld(d, door)}
@@ -558,9 +581,9 @@ export function LeadSheet(p: LeadSheetProps) {
   useEffect(() => {
     const made = takeTripMade();
     if (made) {
-      void aim.load({ asked: { id: made.rootId, name: null }, listId: p.listId });
+      void aim.load({ asked: { id: made.rootId, name: null } });
       p.flash({ tone: "ok", msg: made.said });
-    } else if (aim.targets === null) void aim.load({ listId: p.listId });
+    } else if (aim.targets === null) void aim.load();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const targetId = aim.target ? aim.target.rootId : null;
   useEffect(() => {
@@ -613,11 +636,18 @@ export function LeadSheet(p: LeadSheetProps) {
       writeHeld: p.writeHeld,
     });
   };
-  // The dock's keys in a pile: a key does what the press in that place does.
+  const d: SheetDraw = { p, vm, facts, dock, sheet, run, story, busy: { on: busyOn, set: setBusy } };
+  // The dock's keys in a pile: a key does what the press in that place does; with Not a fit's reasons open, 1 to 5 pick.
   useEffect(() => {
     holdSheetKeys(
       p.pile && dock
         ? (key) => {
+            const n = Number(key);
+            if (p.mode === "why" && n >= 1 && n <= LEAD_NOT_A_FIT_WHYS.length) {
+              const why = LEAD_NOT_A_FIT_WHYS[n - 1];
+              if (why) pickWhy(d, why);
+              return;
+            }
             const s = dock.acts.find((x) => x.key === key);
             if (s && !s.off) run(s);
           }
@@ -625,6 +655,5 @@ export function LeadSheet(p: LeadSheetProps) {
     );
     return () => holdSheetKeys(null);
   });
-  const d: SheetDraw = { p, vm, facts, dock, sheet, run, story, busy: { on: busyOn, set: setBusy } };
   return p.phone ? phoneOf(d) : deskOf(d);
 }

@@ -4,9 +4,11 @@
  * the leads asked about with it (00426 reach_out_add with p_dry: the one predicate, reach_out_why_not), so a card says
  * why before Add is pressed. One choice and one cache, so the pile's adds and a lead opened from the rows agree.
  *
- * A sequence's Add leads names the one to choose (pileAsk); else a list the open search is, with a sequence of its own;
- * else the one this viewer chose last (a pile keeps the last one chosen: the refined canvas's decision 04, whose dock
- * names it, so a wrong default shows before the press); else the newest. A sequence fed by its own search writes to every ready lead it finds and is never offered.
+ * The choice is the open search's: a sequence's Add leads names the one (pileAsk), or a new list of the pile's own; else
+ * the one chosen for this search before (a pile keeps the last one chosen: the refined canvas's decision 04, kept per
+ * search on this browser); else the list's own sequence where the open search is a list. Else none: the sheet says
+ * "Choose where they go", never a guess that carries a bookshop's sequence onto a salon search. A sequence fed by its own
+ * search writes to every ready lead it finds and is never offered.
  */
 import { useRef, useState } from "react";
 import {
@@ -33,18 +35,20 @@ interface AimChecks {
   by: ReadonlyMap<string, LeadCardCheck>;
 }
 
-/** Where this viewer last sent Add, by its sequence: read and kept in a try, so blocked storage keeps nothing. */
-const AIM_KEY = "leads.aim";
-const keptAim = (): string | null => {
+/** Where this viewer last sent Add for a search, by its sequence: read and kept in a try, so blocked storage keeps nothing. */
+const aimKey = (searchId: string) => `leads.aim:${searchId}`;
+const keptAim = (searchId: string | null): string | null => {
+  if (!searchId) return null;
   try {
-    return window.localStorage.getItem(AIM_KEY);
+    return window.localStorage.getItem(aimKey(searchId));
   } catch {
     return null;
   }
 };
-const keepAim = (rootId: string): void => {
+const keepAim = (searchId: string | null, rootId: string): void => {
+  if (!searchId) return;
   try {
-    window.localStorage.setItem(AIM_KEY, rootId);
+    window.localStorage.setItem(aimKey(searchId), rootId);
   } catch {
     // Kept for this page alone.
   }
@@ -97,39 +101,44 @@ function useAimChecks(target: AimTarget | null) {
   return { check, checkOf, reset };
 }
 
-export function useLeadAim({ searches }: { searches: readonly LeadSearchDto[] }) {
+export function useLeadAim({ searches, searchId }: { searches: readonly LeadSearchDto[]; searchId: string | null }) {
   const [targets, setTargets] = useState<AimTarget[] | null>(null);
-  const [target, setTarget] = useState<AimTarget | null>(null);
+  // What this page chose, by search: a sequence's first step by its id, or the pile's own new list (PILE_NEW_LIST).
+  const [picked, setPicked] = useState<Readonly<Record<string, string>>>({});
   const loading = useRef(false);
+  const key = searchId ?? "";
+  // This search's choice: made on this page, else kept from before, else the list's own sequence where it is a list.
+  const pick: string | null = picked[key] ?? keptAim(searchId);
+  const newList = pick === PILE_NEW_LIST;
+  const all = targets ?? [];
+  const target = newList
+    ? null
+    : ((pick ? all.find((t) => t.rootId === pick) : undefined) ??
+      (searchId ? all.find((t) => t.listId === searchId) : undefined) ??
+      null);
   const checks = useAimChecks(target);
+  const pickFor = (p: string) => setPicked((was) => ({ ...was, [key]: p }));
 
-  /**
-   * Read the sequences fed by a list and choose one: the one a sequence's Add leads named, a new list of the pile's own
-   * (none chosen), the open list's own, the one already chosen, the one this viewer chose last, else the newest.
-   */
-  const load = async (p: { asked?: PileAsk | null; listId?: string | null } = {}) => {
+  /** Read the sequences fed by a list; a sequence's Add leads names this search's choice, or a new list of the pile's own. */
+  const load = async (p: { asked?: PileAsk | null } = {}) => {
     if (loading.current) return;
     loading.current = true;
     const chains = await reachOuts.chainsNow().finally(() => {
       loading.current = false;
     });
-    const all = targetsOf(chains ?? [], searches);
-    setTargets(all);
-    if (p.asked && p.asked.id === PILE_NEW_LIST) return setTarget(null);
-    const named = p.asked ? all.find((t) => t.rootId === p.asked?.id) : undefined;
-    const own = p.listId ? all.find((t) => t.listId === p.listId) : undefined;
-    const kept = keptAim();
-    const last = kept ? all.find((t) => t.rootId === kept) : undefined;
-    setTarget((was) => named ?? own ?? (was && all.find((t) => t.rootId === was.rootId)) ?? last ?? all[0] ?? null);
+    setTargets(targetsOf(chains ?? [], searches));
+    if (p.asked) pickFor(p.asked.id);
   };
 
   return {
     targets,
     target,
-    /** Change: the sequence the adds go to now, for this lead and the ones opened after it. */
-    choose: (rootId: string | null) => {
-      if (rootId) keepAim(rootId);
-      setTarget(rootId ? ((targets ?? []).find((t) => t.rootId === rootId) ?? null) : null);
+    /** This search's adds go to a new list of the pile's own (New message's Leads you add), not a sequence. */
+    newList,
+    /** Change: the sequence the adds go to now, for this search's leads, kept for it on this browser. */
+    choose: (rootId: string) => {
+      keepAim(searchId, rootId);
+      pickFor(rootId);
     },
     load,
     check: checks.check,

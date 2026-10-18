@@ -40,11 +40,13 @@ export const LEAD_PILE_SAID = {
   keep: (lead) => `Kept ${lead}`,
   exclude: (lead) => `Left ${lead} out`
 };
-export function leadPileProgressOf(c) {
-  const decided = c.added + (c.elsewhere ?? 0) + c.closed;
+export function leadPileProgressOf(c, now) {
+  const later = now ? now.later : c.later;
+  const left = now ? now.left : c.left;
+  const decided = now ? Math.max(0, c.total - left - later) : c.added + (c.elsewhere ?? 0) + c.closed;
   const parts = [`${decided} of ${c.total} decided`];
-  if (c.later > 0) parts.push(`${c.later} for later`);
-  return { text: parts.join(" \xB7 "), share: c.total > 0 ? decided / c.total : 0, done: c.left === 0 };
+  if (later > 0) parts.push(`${later} for later`);
+  return { text: parts.join(" \xB7 "), share: c.total > 0 ? decided / c.total : 0, done: left === 0 };
 }
 export function leadPileOpen(r, pile) {
   const undecided = pile.cls === "review" ? r.cls === "review" : r.stage === "ready" && !r.chainId;

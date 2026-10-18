@@ -25,7 +25,7 @@ import {
 import { PILE_NEW_LIST, pileAsk, type PileAsk } from "../../campaigns/reach-out/surface";
 import { canDo } from "../../legacy-verbs";
 import type { SheetPileView } from "../sheet/sheet";
-import { pressSheetKey } from "../sheet/keys";
+import { pressSheetKey, type SheetKey } from "../sheet/keys";
 import type { LeadAim } from "../sheet/use-aim";
 import type { LeadsSurface } from "../surface";
 import { leadCardBulkLeadsOf, leadCardWorkspace } from "./card";
@@ -34,7 +34,7 @@ import { usePileUp, type LeadPile } from "./use-pile";
 
 /** What the page's one listener hands the pile: a press of the rail by its key, Undo, and the way out. */
 interface PileKeys {
-  press: (key: "a" | "l" | "n") => void;
+  press: (key: SheetKey) => void;
   undo: () => void;
   leave: () => void;
 }
@@ -77,16 +77,21 @@ interface PileViewArgs {
 }
 
 /** The end of the pile, as the sheet says it: what happened, in rows, and what comes next. */
+/**
+ * The end of a pile: every lead it went through (added, set aside and put off), a row for each kind that happened, and
+ * the note on what comes next only where something was added (a batch waits for the OK only then).
+ */
 function pileEndOf(pile: LeadPile, target: string | null, later: number) {
   const kept = target ? pile.tally.added : pile.held.length;
+  const rows = [
+    { icon: "plus", t: target ? LEAD_SHEET_WORDS.endAdded(target) : LEAD_SHEET_WORDS.endHeld, n: kept },
+    { icon: "clock", t: LEAD_SHEET_WORDS.endLater, n: later },
+    { icon: "x", t: LEAD_SHEET_WORDS.endNotFit, n: pile.tally.notFit },
+  ];
   return {
-    title: LEAD_SHEET_WORDS.endTitle(kept + pile.tally.notFit),
-    rows: [
-      { icon: "plus", t: target ? LEAD_SHEET_WORDS.endAdded(target) : LEAD_SHEET_WORDS.endHeld, n: kept },
-      { icon: "clock", t: LEAD_SHEET_WORDS.endLater, n: later },
-      { icon: "x", t: LEAD_SHEET_WORDS.endNotFit, n: pile.tally.notFit },
-    ],
-    note: target ? LEAD_SHEET_WORDS.endNote : LEAD_SHEET_WORDS.endNoteFirst,
+    title: LEAD_SHEET_WORDS.endTitle(kept + pile.tally.notFit + later),
+    rows: rows.filter((r) => r.n > 0),
+    note: kept === 0 ? "" : target ? LEAD_SHEET_WORDS.endNote : LEAD_SHEET_WORDS.endNoteFirst,
   };
 }
 
@@ -123,25 +128,37 @@ export function useLeadPileView(a: PileViewArgs) {
     setAsked(null);
   });
   // Add them all: the leads open in this pass, as the door answered for them, in buckets; the press adds those that go.
-  const bulk: SheetPileView["bulk"] =
+  // Its door counts only those that would go, and shows only where two or more would (one is the dock's own Add).
+  const bulkVm: LeadCardBulkVM | null =
     on && pile.cls === "qualified" && target && open.length > 1
+      ? leadCardBulkOf({
+          chain: target.chain,
+          leads: leadCardBulkLeadsOf(open, aim.checkOf),
+          workspace: leadCardWorkspace(),
+        })
+      : null;
+  const bulk: SheetPileView["bulk"] =
+    bulkVm && bulkVm.ids.length > 1
       ? {
-          n: open.length,
-          vm: (): LeadCardBulkVM =>
-            leadCardBulkOf({
-              chain: target.chain,
-              leads: leadCardBulkLeadsOf(open, aim.checkOf),
-              workspace: leadCardWorkspace(),
-            }),
+          n: bulkVm.ids.length,
+          vm: () => bulkVm,
           add: (ids) => void pile.addAll(open.filter((r) => ids.includes(r.id))),
         }
       : null;
-  const progress = leads.pile ? leadPileProgressOf(leads.pile) : null;
+  // Counted from the rows on the page, which move as a press is made, never from the read that follows it.
+  const progress = leads.pile ? leadPileProgressOf(leads.pile, { left: open.length, later }) : null;
   const view: SheetPileView | null =
     on && openSearch
       ? {
           pile,
-          facts: { mode: target ? "list" : "first", later, held: pile.held.length },
+          // A pile with no sequence chosen is still a list's (its sheet asks where they go), unless it is a new list of its
+          // own, or no sequence takes leads you add at all.
+          facts: {
+            mode: target || (!aim.newList && (aim.targets ?? []).length > 0) ? "list" : "first",
+            later,
+            held: pile.held.length,
+            added: pile.tally.added,
+          },
           progress: { words: progress ? progress.text : "", share: progress ? progress.share : 0 },
           searchName: openSearch.name,
           bulk,

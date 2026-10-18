@@ -85,7 +85,7 @@ export function useLeadPile({ flash, aim }: { flash: Flash; aim: LeadAim }) {
     setTally({ added: 0, notFit: 0 });
     aim.reset();
     // A sequence's Add leads (Sequences, a list's door) names where this pass's adds go; New message's Leads you add, a
-    // list of the pile's own (held, then Write to the N); else the one chosen, else the newest.
+    // list of the pile's own (held, then Write to the N); else the one chosen for this search, else the list's own.
     await aim.load({ asked: pileAsk.take() });
   };
   const stop = () => setSearchId(null);

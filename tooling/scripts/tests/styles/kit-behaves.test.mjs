@@ -202,6 +202,7 @@ test("a server draws each entry the page draws closed as its gallery entry draws
       "subtabs-dense",
       "subtabs-fresh",
       "subtabs-glyph",
+      "subtabs-capsule",
       "field-kit",
       "field-kit-wrong",
       "field-kit-title",

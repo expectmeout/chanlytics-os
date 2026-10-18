@@ -887,6 +887,18 @@ const kitSubtabs = (name, tabs, { attrs = "", left = "18px", width = "78px", dir
   `<span role="presentation" class="subtab-bar" data-activation-direction="${direction}" ` +
   `style="--active-tab-left: ${left}; --active-tab-width: ${width};"></span></div></div>`;
 
+/** A pane's few tabs as the capsule (SubTabs look="capsule"): Base UI's tablist on the segmented track, each tab its words. */
+const kitSubtabsCapsule = (name, labels, on = 0) =>
+  `<div class="subtabs-stand"><div role="tablist" aria-label="${name}" class="rec-seg" data-look="capsule">` +
+  labels
+    .map(
+      (label, at) =>
+        `<button type="button" role="tab" aria-selected="${at === on}" aria-disabled="false" ` +
+        `tabindex="${at === on ? 0 : -1}" class="rec-seg-btn">${label}</button>`,
+    )
+    .join("") +
+  "</div></div>";
+
 /** The phone's places, as the frame hands them to TabBar (app-shell.jsx PHONE_TABS): each word with its glyph. */
 const TAB_BAR_PLACES = [
   ["Today", "home"],
@@ -1501,7 +1513,7 @@ export const FAMILIES = [
   {
     family: "Sub-tabs, on Base UI",
     about:
-      "A page's own sub-menu, SubTabs (surfaces/kit/sub-tabs/sub-tabs.tsx): Base UI's tabs as small text tabs on a line under the strip of views, the picked one in ink with a bar that is the Tabs' indicator, a plain figure beside a word that has one; a strip that is quiet on a phone, which keeps only the warn tab's figure; a dense one for a desk pane with more tabs than room; a dot after the words where something there is new to the reader; and a glyph before the words.",
+      "A page's own sub-menu, SubTabs (surfaces/kit/sub-tabs/sub-tabs.tsx): Base UI's tabs as small text tabs on a line under the strip of views, the picked one in ink with a bar that is the Tabs' indicator, a plain figure beside a word that has one; a strip that is quiet on a phone, which keeps only the warn tab's figure; a dense one for a desk pane with more tabs than room; a dot after the words where something there is new to the reader; a glyph before the words; and a pane's few tabs as the segmented capsule (look=\"capsule\": a lead sheet's), still tabs to a screen reader, sharing the row.",
     entries: [
       {
         id: "subtabs",
@@ -1561,6 +1573,7 @@ export const FAMILIES = [
           { left: "18px", width: "74px", direction: "right" },
         ),
       },
+      { id: "subtabs-capsule", html: kitSubtabsCapsule("About this lead", ["Why", "Contact", "Sequence"]) },
     ],
   },
   {

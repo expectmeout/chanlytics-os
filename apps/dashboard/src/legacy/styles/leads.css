@@ -664,7 +664,8 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
    above the row instead when that is where the room is. */
 .ld-hover.ld-up > .ld-tip { top: auto; bottom: calc(100% + 6px); }
 .ld-hover.ld-up > .ld-card { top: auto; bottom: calc(100% + 8px); }
-.pl-main[data-scrolling] .ld-tip, .pl-main[data-scrolling] .ld-card { display: none !important; transition: none !important; }
+/* Under an open lead sheet (scope.tsx data-sheet) a row's card would repeat the sheet beside it, so it stays down too. */
+.pl-main[data-scrolling] .ld-tip, .pl-main:is([data-scrolling], [data-sheet]) .ld-card { display: none !important; transition: none !important; }
 .ld-rated-cell .ld-card, .ld-found-cell .ld-tip { left: auto; right: 0; }
 .ld-card-head { display: flex; align-items: center; gap: 10px; }
 .ld-card-titles { min-width: 0; }
@@ -1365,8 +1366,8 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
 /* The reason, in plain type (the refined canvas): where it came from on hover. */
 .lw-rs { margin: 10px 18px 0; font-size: var(--text-base); line-height: var(--leading-normal); color: var(--ink); }
 .lw-quote { padding: 12px 18px 0; }
-.lw-quote-t { margin: 0; font-size: var(--text-xl); font-weight: var(--weight-medium); line-height: var(--leading-snug); color: var(--ink); }
-.lw-quote-s { margin: 8px 0 0; font-size: var(--text-sm); color: var(--ink-muted); }
+.lw-quote-t { margin: 0; font-size: var(--text-base); font-weight: var(--weight-medium); line-height: var(--leading-normal); color: var(--ink); }
+.lw-quote-s { margin: 0 0 3px; font-size: var(--text-xs); color: var(--ink-dim); }
 
 /* The checks and the ways in, a line each (the refined canvas): each opens its tab. A dot a check, a passed one Claude
    read shaded apart, one that couldn't tell amber, one that failed red; what is not as it should be in amber. */
@@ -1437,6 +1438,7 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
 .lw-keys span { display: inline-flex; align-items: center; gap: 4px; }
 .lw-kbd { display: inline-grid; place-items: center; min-width: 18px; height: 18px; padding: 0 4px; border: 1px solid currentColor; border-radius: var(--radius-xs); font-family: var(--font-mono); font-size: var(--text-2xs); line-height: 1; opacity: 0.7; }
 .lw-dock-b .lw-kbd { margin-left: 4px; }
+.lw-why-k { margin-left: auto; }
 .lw-x { flex: none; width: 44px; height: 44px; padding: 0; border-radius: var(--radius-circle); }
 /* A phone's dock keeps a thumb's 48px in the kit sheet's foot, whose button takes the foot's height otherwise. */
 .lw-phone .lw-dock .lw-dock-b, .lw-phone .lw-dock .lw-x { height: 48px; }
@@ -1447,6 +1449,8 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
 @media (prefers-reduced-motion: reduce) { .lw-spin { animation: none; } }
 /* A held email's choices, in the dock's place: whose email it is, under the question. */
 .lw-decide-s { margin: -4px 4px 10px; font-size: var(--text-sm); line-height: var(--leading-snug); color: var(--ink-muted); }
+/* What a held email's check flagged, before its choices. */
+.lw-decide-f { margin: 0 0 4px; font-size: var(--text-sm); line-height: var(--leading-snug); color: var(--ink); }
 
 /* The Sequence tab: Take out under their steps, and every step and who else is in it, a press away. */
 .lw-take { display: flex; align-items: center; gap: 10px; margin: 14px 0 0; }
@@ -1479,9 +1483,8 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
 .lw-end-r b { font-variant-numeric: tabular-nums; }
 .lw-end-n { margin: 0; font-size: var(--text-base); line-height: var(--leading-normal); color: var(--ink-muted); }
 
-/* Full height: the tabs, and the open one's pane. */
+/* Full height: the tabs (the kit's capsule, which shares the row by itself), and the open one's pane. */
 .lw-read { display: flex; flex-direction: column; gap: 6px; padding: 14px 14px 0; }
-.lw-read > .lw-views { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); width: auto; }
 .lw-read > .lw-pane { margin: 0 -14px; }
 .lw-pane { display: flex; flex-direction: column; padding: 4px 18px 12px; animation: lw-rise var(--duration-base) var(--ease-out) both; }
 .lw-h { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 14px 0 8px; font-size: var(--text-sm); font-weight: var(--weight-semibold); color: var(--ink-muted); }
@@ -1499,11 +1502,6 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
 .lw-legend { display: flex; flex-wrap: wrap; gap: 4px 12px; margin: 6px 0 0; font-size: var(--text-xs); color: var(--ink-dim); }
 .lw-legend span { display: inline-flex; align-items: center; gap: 5px; }
 .lw-src { font-size: var(--text-xs); color: var(--ink-dim); white-space: nowrap; }
-.lw-sigs { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
-.lw-sig { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px 0 8px; border-radius: var(--radius-full); background: var(--surface-inset-fill); box-shadow: var(--surface-inset-ring); font-size: var(--text-sm); color: var(--ink); }
-.lw-sig i { width: 6px; height: 6px; border-radius: var(--radius-circle); background: var(--info); }
-.lw-sig.warn i { background: var(--warn); }
-.lw-sig small { font-size: var(--text-2xs); color: var(--ink-dim); }
 .lw-group { display: flex; flex-direction: column; border-radius: var(--radius-xl); background: var(--surface-inset-fill); box-shadow: var(--surface-inset-ring); }
 .lw-rr { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 10px 12px; border-top: 1px solid var(--line); color: var(--ink-muted); }
 .lw-rr:first-child { border-top: 0; }
