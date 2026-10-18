@@ -1961,7 +1961,8 @@ test("the list page: the rail is grouped, a state is a chip, a list has its step
 
   assert.ok(
     (() => {
-      const bs = readCode("apps/dashboard/src/surfaces/campaigns/broadcasts/surface.ts");
+      // Who each audience reaches is its own surface since #1713.
+      const bs = readCode("apps/dashboard/src/surfaces/campaigns/broadcasts/audiences-surface.ts");
       return (
         bs.includes("(!l.needsCalendar || has.calendar)") && bs.includes('calendar: people.calendar?.state === "ok"')
       );
