@@ -1,5 +1,6 @@
 import "server-only";
 import {
+  DAY_MS,
   dealsAreOn,
   HELD_DRAFTS_DAYS,
   OWN_MODE_NAMED,
@@ -14,6 +15,7 @@ import {
   heldDraftsByIntent,
   namesOfPeople,
   peopleOnTheirOwnMode,
+  replyTokensSince,
   type PolicyRecord,
 } from "@chanlytics/db";
 import { log } from "@/server/log";
@@ -31,7 +33,15 @@ interface AutonomyMatrix {
   suggestions: FactSuggestionDto[] | null;
   /** The people whose receptionist has a mode of their own, counted and the newest named; null where the read failed. */
   own_modes: OwnModesDto | null;
+  /**
+   * The replies of the last REPLY_TOKENS_DAYS and their model tokens, which the day's budget counts: the dial says each
+   * step in the replies it buys (contracts budgetDial). Null where the read failed.
+   */
+  reply_tokens: { replies: number; tokens: number } | null;
 }
+
+/** How far back a reply's size is measured: a week, so a quiet day or a busy one does not move it much. */
+const REPLY_TOKENS_DAYS = 7;
 
 /**
  * The people set differently from the reply row (the Settings wiring review, item 10, 18 Oct 2026): every one counted,
@@ -60,7 +70,7 @@ export const autonomy: Reader<undefined, AutonomyMatrix> = {
   name: "autonomy",
   async read(rc) {
     const db = rc.ctx.supabase;
-    const [p, s, held, suggestions, own] = await Promise.all([
+    const [p, s, held, suggestions, own, replyTokens] = await Promise.all([
       load(rc, facts.policies, undefined),
       load(rc, facts.sellsBy, undefined),
       heldDraftsByIntent(db, rc.tenantId, HELD_DRAFTS_DAYS).catch((error: unknown) => {
@@ -75,9 +85,26 @@ export const autonomy: Reader<undefined, AutonomyMatrix> = {
         log.error("autonomy_own_modes_failed", { tenant_id: rc.tenantId, error });
         return null;
       }),
+      replyTokensSince(
+        db,
+        rc.tenantId,
+        new Date(rc.now.getTime() - REPLY_TOKENS_DAYS * DAY_MS).toISOString(),
+        rc.now.toISOString(),
+      ).catch((error: unknown) => {
+        log.error("autonomy_reply_tokens_failed", { tenant_id: rc.tenantId, error });
+        return null;
+      }),
     ]);
     return {
-      data: { policies: p.data, role: rc.role, deals_on: dealsAreOn(s.data), held, suggestions, own_modes: own },
+      data: {
+        policies: p.data,
+        role: rc.role,
+        deals_on: dealsAreOn(s.data),
+        held,
+        suggestions,
+        own_modes: own,
+        reply_tokens: replyTokens,
+      },
       rows: [],
       stamp: stamp(),
     };

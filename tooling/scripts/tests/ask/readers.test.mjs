@@ -5863,6 +5863,18 @@ test("the channels carry what Meta holds about the WhatsApp number, as the edge 
   );
 });
 
+/**
+ * A reply's usage event (usage.llm_tokens), `ms` before now: what the day's budget counts, and what says it in replies.
+ */
+const usage = (id, tenant_id, input_tokens, output_tokens, ms, kind = "usage.llm_tokens") => ({
+  id,
+  tenant_id,
+  kind,
+  subject_type: null,
+  subject_id: null,
+  data: { input_tokens, output_tokens },
+  created_at: new Date(Date.now() - ms).toISOString(),
+});
 /** settings-routes.test.mjs, "the autonomy matrix": harbor's rows and a person's own row, bayside's with its limits. */
 const matrixRow = (tenant_id, cls, mode, limits = {}) => ({
   id: `${cls}-${tenant_id.slice(0, 1)}`,
@@ -5889,6 +5901,14 @@ const matrixWorld = (over = {}) => ({
   contacts: [
     { id: "k1", tenant_id: A, display_name: "Dana Reyes", wa_profile_name: null, phone_e164: null, email: null },
   ],
+  // Harbor's replies this week, one before it and a line that is no reply; bayside's one.
+  events: [
+    usage("u1", A, 1200, 300, DAY / 24),
+    usage("u2", A, 900, 100, 2 * DAY),
+    usage("u3", A, 5000, 5000, 8 * DAY),
+    usage("u4", A, 700, 0, DAY / 24, "message.sent"),
+    usage("u5", B, 400, 100, DAY / 24),
+  ],
   ...over,
 });
 
@@ -5902,7 +5922,15 @@ test("the autonomy matrix, for the page: GET policies answers its reader's paylo
     const r = await kernel.load(memberIn(ctx, tenant, role), autonomy, undefined);
     assert.deepEqual(r.data, page, "the route's payload");
     assert.equal(JSON.stringify(r.data), JSON.stringify(page), "byte for byte");
-    assert.deepEqual(Object.keys(r.data), ["policies", "role", "deals_on", "held", "suggestions", "own_modes"]);
+    assert.deepEqual(Object.keys(r.data), [
+      "policies",
+      "role",
+      "deals_on",
+      "held",
+      "suggestions",
+      "own_modes",
+      "reply_tokens",
+    ]);
     assert.deepEqual(
       [r.data.policies.map((p) => p.class), r.data.role, r.data.deals_on],
       [classes, role, false],
@@ -5910,14 +5938,28 @@ test("the autonomy matrix, for the page: GET policies answers its reader's paylo
     );
     assert.deepEqual(r.rows, []);
     // And what the owner's corrections show (decision 0063): the held drafts are a function, the suggestions a table;
-    // and the people set differently (item 10, 18 Oct 2026): their rows, then the names of the newest.
+    // the people set differently (item 10, 18 Oct 2026): their rows, then the names of the newest; and the week's
+    // replies, which say the day's budget in replies (item 12).
     assert.deepEqual(
       asked(ctx),
-      ["tenants.select", "policies.select", "fact_suggestions.select", "policies.select"].concat(
+      ["tenants.select", "policies.select", "fact_suggestions.select", "policies.select", "events.select"].concat(
         tenant === A ? ["contacts.select"] : [],
       ),
     );
+    assert.deepEqual(
+      r.data.reply_tokens,
+      tenant === A ? { replies: 2, tokens: 2500 } : { replies: 1, tokens: 500 },
+      "the workspace's own replies of the last seven days, in and out; nothing older, and no other kind",
+    );
   }
+  // A week that could not be read says so, and the rest of the page stands: the dial says tokens.
+  const down = await kernel.load(
+    memberIn(dayCtx(matrixWorld(), { faults: { "events.select": { message: "down" } } }), A, "viewer"),
+    autonomy,
+    undefined,
+  );
+  assert.equal(down.data.reply_tokens, null);
+  assert.equal(down.data.policies.length, 2);
   // A person's own row is counted and named on Replies' line, by their workspace alone.
   const own = await kernel.load(memberIn(dayCtx(matrixWorld()), A, "viewer"), autonomy, undefined);
   assert.deepEqual(own.data.own_modes, {
@@ -5952,6 +5994,7 @@ test("the autonomy matrix, for the page: GET policies answers its reader's paylo
         q.table === "fact_suggestions" ||
         q.rpc === "held_drafts_by_intent" ||
         q.table === "contacts" ||
+        q.table === "events" ||
         (q.table === "policies" && JSON.stringify(q).includes("contact")),
     ),
     "the turn's own reads",

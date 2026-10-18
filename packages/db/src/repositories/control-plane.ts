@@ -244,6 +244,47 @@ export async function personReplyModes(
   return out;
 }
 
+/** How many replies' usage one read takes (PostgREST's page), and how many at most: a week of a busy workspace. */
+const USAGE_PAGE = 1000;
+const USAGE_CAP = 5000;
+
+/**
+ * How many replies the receptionist wrote from `since` to `until`, and their model tokens in and out: the usage events every reply
+ * writes (usage.llm_tokens), which the day's budget counts (limits.max_llm_tokens_day), so a budget can be said in the
+ * replies it buys at this workspace's own size of reply. The newest first, at most USAGE_CAP of them: an average of the
+ * newest five thousand is the average. A read that fails THROWS.
+ */
+export async function replyTokensSince(
+  db: Db,
+  tenantId: string,
+  since: string,
+  until: string,
+): Promise<{ replies: number; tokens: number }> {
+  let replies = 0;
+  let tokens = 0;
+  const n = (v: unknown) => (typeof v === "number" && Number.isFinite(v) && v > 0 ? v : 0);
+  for (let from = 0; from < USAGE_CAP; from += USAGE_PAGE) {
+    const { data, error } = await db
+      .from("events")
+      .select("data")
+      .eq("tenant_id", tenantId)
+      .eq("kind", "usage.llm_tokens")
+      .gte("created_at", since)
+      .lte("created_at", until)
+      .order("created_at", { ascending: false })
+      .order("id", { ascending: false })
+      .range(from, from + USAGE_PAGE - 1);
+    if (error) throw new Error(`replyTokensSince: ${error.message}`);
+    for (const r of data ?? []) {
+      const d = (r.data ?? {}) as Record<string, unknown>;
+      replies += 1;
+      tokens += n(d.input_tokens) + n(d.output_tokens);
+    }
+    if ((data ?? []).length < USAGE_PAGE) break;
+  }
+  return { replies, tokens };
+}
+
 /** How many people's own modes one read takes: PostgREST's page. */
 const OWN_MODES_PAGE = 1000;
 

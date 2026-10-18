@@ -1,7 +1,7 @@
 /**
  * The workspace's cards: what the receptionist may do alone, the settings it follows, and who is on the team.
  */
-import { applySettingsChange } from "../ask/ask-settings-change";
+import { ASK_ANSWERS_ROWS, applySettingsChange, type AskSettingsChange } from "../ask/ask-settings-change";
 import { asText, rec, refuseWith, type ProposalSpec, type ProposalSpecAboveOperator } from "./spec";
 
 const policyBody = (cls: unknown, mode: unknown, confidence: unknown): Record<string, unknown> => {
@@ -72,7 +72,13 @@ export const settingsSpec: ProposalSpecAboveOperator = {
     },
     receipt: () => "Previous settings are back",
   },
-  open: () => "admin/workspace",
+  // A change to How it answers opens there, on its row (the Settings wiring review, item 14); the rest on Details.
+  open: (p) => {
+    const op = (p.payload.change as AskSettingsChange | undefined)?.op;
+    if (!op || !(op in ASK_ANSWERS_ROWS)) return "admin/workspace";
+    const row = ASK_ANSWERS_ROWS[op as keyof typeof ASK_ANSWERS_ROWS];
+    return row ? `admin/receptionist/${row}` : "admin/receptionist";
+  },
 };
 
 export const inviteSpec: ProposalSpecAboveOperator = {

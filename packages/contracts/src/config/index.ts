@@ -66,7 +66,8 @@ export type {
   HeldDraftsClass,
 } from "./workspace-config/policy-classes";
 export type { PolicyLimits } from "./workspace-config/policy-limits-schema";
-export { tokenCapOf, tokenBudgetSpent, TOKENS_DAY_DEFAULT } from "./limits";
+export { tokenCapOf, tokenBudgetSpent, TOKENS_DAY_DEFAULT, BUDGET_WORDS, budgetDial, tokensPerReply } from "./limits";
+export type { BudgetDial } from "./limits";
 export {
   DAYS,
   DAY_NAMES,
@@ -154,6 +155,7 @@ export {
   unknownDetails,
   FALLBACK_DETAILS,
   FALLBACK_DEFAULTS,
+  FALLBACK_ROWS,
   EARLIER_FALLBACK_DEFAULTS,
 } from "./workspace-config/fallbacks";
 export type { FallbackDetail } from "./workspace-config/fallbacks";

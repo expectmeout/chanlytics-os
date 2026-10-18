@@ -2740,7 +2740,7 @@
     },
     {
       "name": "propose_settings",
-      "description": "Propose a settings change as a card the person approves, by action: what the receptionist knows (closed days, hours, a note, a service), what it may do alone for a class of message (autonomy), or the business's goal for you. Action autonomy changes what the receptionist may do alone for a whole class of message: class with mode, or the reply confidence dial (min_confidence) alone. Call it when they want the receptionist to act on its own, wait for them, or hold its replies for a look; propose_person with action mode is for one person. Each class takes the modes its row on the Autonomy page offers (veto holds a reply, or a campaign's run for 30 minutes, so a person can stop it), and a mode a class does not take is refused in that page's words. Never for money: that class is locked by charter, so a request to change it is answered in words, not proposed. The modes as they stand are in this prompt above, so no read is needed first. Action answer_style keeps how this person likes your answers (length, format, language) as their own note, which comes with each of their questions from then on; empty clears it, and it replaces the one they keep. Call it when they want answers a way beyond this conversation (\"always bullets\", \"every time in Spanish\", \"next time, shorter\"); a shape asked for within one conversation is kept there without it. Theirs alone, never a teammate's, and they see and change it in Settings › Profile.",
+      "description": "Propose a settings change as a card the person approves, by action: what the receptionist knows (closed days, hours, a note, a service), how it answers (its voice, languages, what callers hear and who they reach, your own words, the messages when it can't answer, photos), what it may do alone for a class of message (autonomy), or the business's goal for you. Action autonomy changes what the receptionist may do alone for a whole class of message: class with mode, or the reply confidence dial (min_confidence) alone. Call it when they want the receptionist to act on its own, wait for them, or hold its replies for a look; propose_person with action mode is for one person. Each class takes the modes its row on the Autonomy page offers (veto holds a reply, or a campaign's run for 30 minutes, so a person can stop it), and a mode a class does not take is refused in that page's words. Never for money: that class is locked by charter, so a request to change it is answered in words, not proposed. The modes as they stand are in this prompt above, so no read is needed first. Action answer_style keeps how this person likes your answers (length, format, language) as their own note, which comes with each of their questions from then on; empty clears it, and it replaces the one they keep. Call it when they want answers a way beyond this conversation (\"always bullets\", \"every time in Spanish\", \"next time, shorter\"); a shape asked for within one conversation is kept there without it. Theirs alone, never a teammate's, and they see and change it in Settings › Profile.",
       "input_schema": {
         "type": "object",
         "properties": {
@@ -5325,13 +5325,13 @@
     },
     {
       "name": "propose_settings",
-      "description": "Propose a settings change as a card the person approves, by action: what the receptionist knows (closed days, hours, a note, a service), what it may do alone for a class of message (autonomy), or the business's goal for you. Action change takes one change object: add_closure (date, an optional until for a range, and an optional note), set_hours (one weekday's day with open and close, or both empty for closed), add_note (a title, the text the receptionist reads, and an optional until, its last day), or add_service (name, and an optional duration_min in minutes). Dates are YYYY-MM-DD, days mon..sun, times HH:MM. Call it when they say they are closed, their hours change, the receptionist should know something, or they offer a new service. Only an owner or a partner can approve it: for anyone else, say so and that one of them can ask. Action autonomy changes what the receptionist may do alone for a whole class of message: class with mode, or the reply confidence dial (min_confidence) alone. Call it when they want the receptionist to act on its own, wait for them, or hold its replies for a look; propose_person with action mode is for one person. Each class takes the modes its row on the Autonomy page offers (veto holds a reply, or a campaign's run for 30 minutes, so a person can stop it), and a mode a class does not take is refused in that page's words. Never for money: that class is locked by charter, so a request to change it is answered in words, not proposed. The modes as they stand are in this prompt above, so no read is needed first. Action goal keeps the owner's goal in one line (at most 200 characters), which you read on every question and weigh every suggestion and plan against; empty clears it. Call it when they say what they want the business to reach, or ask you to aim for something. The receptionist never reads it. Only an owner or a partner can approve it: for anyone else, say so and that one of them can ask. Action answer_style keeps how this person likes your answers (length, format, language) as their own note, which comes with each of their questions from then on; empty clears it, and it replaces the one they keep. Call it when they want answers a way beyond this conversation (\"always bullets\", \"every time in Spanish\", \"next time, shorter\"); a shape asked for within one conversation is kept there without it. Theirs alone, never a teammate's, and they see and change it in Settings › Profile.",
+      "description": "Propose a settings change as a card the person approves, by action: what the receptionist knows (closed days, hours, a note, a service), how it answers (its voice, languages, what callers hear and who they reach, your own words, the messages when it can't answer, photos), what it may do alone for a class of message (autonomy), or the business's goal for you. Action change takes one change object: add_closure (date, an optional until for a range, and an optional note), set_hours (one weekday's day with open and close, or both empty for closed), add_note (a title, the text the receptionist reads, and an optional until, its last day), or add_service (name, and an optional duration_min in minutes). Dates are YYYY-MM-DD, days mon..sun, times HH:MM. Call it when they say they are closed, their hours change, the receptionist should know something, or they offer a new service. Only an owner or a partner can approve it: for anyone else, say so and that one of them can ask. Action answers takes one row object, a row of How it answers and what it becomes: set_tone (tone, how it sounds in a line; empty takes it away), set_languages (languages, the whole list it speaks, which replaces the one it has; empty for none), set_phone_greeting (greeting, the line callers hear first, {business} for the name; empty for the standard one; a line that never says it is automated has the product's clause added when spoken), set_phone_voice (voice, one of Tamsin (Woman · American), Grace (Woman · American), Nia (Woman · American, younger), Willa (Woman · British), Claudia (Woman · Mexican), Nico (Man · American), Jack (Man · American), Alejandro (Man · Mexican, younger)), set_transfer_number (number, with its country code like +1 212 555 0143, a line a person answers; empty and it takes a message instead), add_own_words (text, added after the owner's own words, which it reads on every reply), set_message (which, one of error (it couldn't write a reply), non_text (it got something it can't read), greeting (the ai is down), and text, with {business}, {booking link} and {phone} filled as it goes out; empty for the product's wording), set_photos (on, whether it looks at the photos customers send on WhatsApp). Read workspace.settings first for what each row holds now: a list replaces, so keep the languages they did not ask to drop. Call it when they want it to sound, speak, greet, put callers through or answer differently. Only an owner or a partner can approve it: for anyone else, say so and that one of them can ask. Action autonomy changes what the receptionist may do alone for a whole class of message: class with mode, or the reply confidence dial (min_confidence) alone. Call it when they want the receptionist to act on its own, wait for them, or hold its replies for a look; propose_person with action mode is for one person. Each class takes the modes its row on the Autonomy page offers (veto holds a reply, or a campaign's run for 30 minutes, so a person can stop it), and a mode a class does not take is refused in that page's words. Never for money: that class is locked by charter, so a request to change it is answered in words, not proposed. The modes as they stand are in this prompt above, so no read is needed first. Action goal keeps the owner's goal in one line (at most 200 characters), which you read on every question and weigh every suggestion and plan against; empty clears it. Call it when they say what they want the business to reach, or ask you to aim for something. The receptionist never reads it. Only an owner or a partner can approve it: for anyone else, say so and that one of them can ask. Action answer_style keeps how this person likes your answers (length, format, language) as their own note, which comes with each of their questions from then on; empty clears it, and it replaces the one they keep. Call it when they want answers a way beyond this conversation (\"always bullets\", \"every time in Spanish\", \"next time, shorter\"); a shape asked for within one conversation is kept there without it. Theirs alone, never a teammate's, and they see and change it in Settings › Profile.",
       "input_schema": {
         "type": "object",
         "properties": {
           "action": {
             "type": "string",
-            "enum": ["change", "autonomy", "goal", "answer_style"]
+            "enum": ["change", "answers", "autonomy", "goal", "answer_style"]
           },
           "change": {
             "type": "object",
@@ -5369,6 +5369,54 @@
               },
               "duration_min": {
                 "type": "integer"
+              }
+            },
+            "required": ["op"],
+            "additionalProperties": false
+          },
+          "row": {
+            "type": "object",
+            "properties": {
+              "op": {
+                "type": "string",
+                "enum": [
+                  "set_tone",
+                  "set_languages",
+                  "set_phone_greeting",
+                  "set_phone_voice",
+                  "set_transfer_number",
+                  "add_own_words",
+                  "set_message",
+                  "set_photos"
+                ]
+              },
+              "tone": {
+                "type": "string"
+              },
+              "languages": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "greeting": {
+                "type": "string"
+              },
+              "voice": {
+                "type": "string"
+              },
+              "number": {
+                "type": "string"
+              },
+              "text": {
+                "type": "string"
+              },
+              "which": {
+                "type": "string",
+                "enum": ["error", "non_text", "greeting"]
+              },
+              "on": {
+                "type": "boolean"
               }
             },
             "required": ["op"],
@@ -5425,6 +5473,27 @@
             "op": "add_service",
             "name": "Deep clean",
             "duration_min": 90
+          }
+        },
+        {
+          "action": "answers",
+          "row": {
+            "op": "set_languages",
+            "languages": ["English", "Spanish"]
+          }
+        },
+        {
+          "action": "answers",
+          "row": {
+            "op": "set_phone_voice",
+            "voice": "Claudia"
+          }
+        },
+        {
+          "action": "answers",
+          "row": {
+            "op": "set_transfer_number",
+            "number": "+1 212 555 0143"
           }
         },
         {
@@ -8013,13 +8082,13 @@
     },
     {
       "name": "propose_settings",
-      "description": "Propose a settings change as a card the person approves, by action: what the receptionist knows (closed days, hours, a note, a service), what it may do alone for a class of message (autonomy), or the business's goal for you. Action change takes one change object: add_closure (date, an optional until for a range, and an optional note), set_hours (one weekday's day with open and close, or both empty for closed), add_note (a title, the text the receptionist reads, and an optional until, its last day), or add_service (name, and an optional duration_min in minutes). Dates are YYYY-MM-DD, days mon..sun, times HH:MM. Call it when they say they are closed, their hours change, the receptionist should know something, or they offer a new service. Only an owner or a partner can approve it: for anyone else, say so and that one of them can ask. Action autonomy changes what the receptionist may do alone for a whole class of message: class with mode, or the reply confidence dial (min_confidence) alone. Call it when they want the receptionist to act on its own, wait for them, or hold its replies for a look; propose_person with action mode is for one person. Each class takes the modes its row on the Autonomy page offers (veto holds a reply, or a campaign's run for 30 minutes, so a person can stop it), and a mode a class does not take is refused in that page's words. Never for money: that class is locked by charter, so a request to change it is answered in words, not proposed. The modes as they stand are in this prompt above, so no read is needed first. Action goal keeps the owner's goal in one line (at most 200 characters), which you read on every question and weigh every suggestion and plan against; empty clears it. Call it when they say what they want the business to reach, or ask you to aim for something. The receptionist never reads it. Only an owner or a partner can approve it: for anyone else, say so and that one of them can ask. Action answer_style keeps how this person likes your answers (length, format, language) as their own note, which comes with each of their questions from then on; empty clears it, and it replaces the one they keep. Call it when they want answers a way beyond this conversation (\"always bullets\", \"every time in Spanish\", \"next time, shorter\"); a shape asked for within one conversation is kept there without it. Theirs alone, never a teammate's, and they see and change it in Settings › Profile.",
+      "description": "Propose a settings change as a card the person approves, by action: what the receptionist knows (closed days, hours, a note, a service), how it answers (its voice, languages, what callers hear and who they reach, your own words, the messages when it can't answer, photos), what it may do alone for a class of message (autonomy), or the business's goal for you. Action change takes one change object: add_closure (date, an optional until for a range, and an optional note), set_hours (one weekday's day with open and close, or both empty for closed), add_note (a title, the text the receptionist reads, and an optional until, its last day), or add_service (name, and an optional duration_min in minutes). Dates are YYYY-MM-DD, days mon..sun, times HH:MM. Call it when they say they are closed, their hours change, the receptionist should know something, or they offer a new service. Only an owner or a partner can approve it: for anyone else, say so and that one of them can ask. Action answers takes one row object, a row of How it answers and what it becomes: set_tone (tone, how it sounds in a line; empty takes it away), set_languages (languages, the whole list it speaks, which replaces the one it has; empty for none), set_phone_greeting (greeting, the line callers hear first, {business} for the name; empty for the standard one; a line that never says it is automated has the product's clause added when spoken), set_phone_voice (voice, one of Tamsin (Woman · American), Grace (Woman · American), Nia (Woman · American, younger), Willa (Woman · British), Claudia (Woman · Mexican), Nico (Man · American), Jack (Man · American), Alejandro (Man · Mexican, younger)), set_transfer_number (number, with its country code like +1 212 555 0143, a line a person answers; empty and it takes a message instead), add_own_words (text, added after the owner's own words, which it reads on every reply), set_message (which, one of error (it couldn't write a reply), non_text (it got something it can't read), greeting (the ai is down), and text, with {business}, {booking link} and {phone} filled as it goes out; empty for the product's wording), set_photos (on, whether it looks at the photos customers send on WhatsApp). Read workspace.settings first for what each row holds now: a list replaces, so keep the languages they did not ask to drop. Call it when they want it to sound, speak, greet, put callers through or answer differently. Only an owner or a partner can approve it: for anyone else, say so and that one of them can ask. Action autonomy changes what the receptionist may do alone for a whole class of message: class with mode, or the reply confidence dial (min_confidence) alone. Call it when they want the receptionist to act on its own, wait for them, or hold its replies for a look; propose_person with action mode is for one person. Each class takes the modes its row on the Autonomy page offers (veto holds a reply, or a campaign's run for 30 minutes, so a person can stop it), and a mode a class does not take is refused in that page's words. Never for money: that class is locked by charter, so a request to change it is answered in words, not proposed. The modes as they stand are in this prompt above, so no read is needed first. Action goal keeps the owner's goal in one line (at most 200 characters), which you read on every question and weigh every suggestion and plan against; empty clears it. Call it when they say what they want the business to reach, or ask you to aim for something. The receptionist never reads it. Only an owner or a partner can approve it: for anyone else, say so and that one of them can ask. Action answer_style keeps how this person likes your answers (length, format, language) as their own note, which comes with each of their questions from then on; empty clears it, and it replaces the one they keep. Call it when they want answers a way beyond this conversation (\"always bullets\", \"every time in Spanish\", \"next time, shorter\"); a shape asked for within one conversation is kept there without it. Theirs alone, never a teammate's, and they see and change it in Settings › Profile.",
       "input_schema": {
         "type": "object",
         "properties": {
           "action": {
             "type": "string",
-            "enum": ["change", "autonomy", "goal", "answer_style"]
+            "enum": ["change", "answers", "autonomy", "goal", "answer_style"]
           },
           "change": {
             "type": "object",
@@ -8057,6 +8126,54 @@
               },
               "duration_min": {
                 "type": "integer"
+              }
+            },
+            "required": ["op"],
+            "additionalProperties": false
+          },
+          "row": {
+            "type": "object",
+            "properties": {
+              "op": {
+                "type": "string",
+                "enum": [
+                  "set_tone",
+                  "set_languages",
+                  "set_phone_greeting",
+                  "set_phone_voice",
+                  "set_transfer_number",
+                  "add_own_words",
+                  "set_message",
+                  "set_photos"
+                ]
+              },
+              "tone": {
+                "type": "string"
+              },
+              "languages": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "greeting": {
+                "type": "string"
+              },
+              "voice": {
+                "type": "string"
+              },
+              "number": {
+                "type": "string"
+              },
+              "text": {
+                "type": "string"
+              },
+              "which": {
+                "type": "string",
+                "enum": ["error", "non_text", "greeting"]
+              },
+              "on": {
+                "type": "boolean"
               }
             },
             "required": ["op"],
@@ -8113,6 +8230,27 @@
             "op": "add_service",
             "name": "Deep clean",
             "duration_min": 90
+          }
+        },
+        {
+          "action": "answers",
+          "row": {
+            "op": "set_languages",
+            "languages": ["English", "Spanish"]
+          }
+        },
+        {
+          "action": "answers",
+          "row": {
+            "op": "set_phone_voice",
+            "voice": "Claudia"
+          }
+        },
+        {
+          "action": "answers",
+          "row": {
+            "op": "set_transfer_number",
+            "number": "+1 212 555 0143"
           }
         },
         {

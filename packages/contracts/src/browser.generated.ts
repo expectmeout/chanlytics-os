@@ -46,7 +46,7 @@ export { dayFromQuestion, askIntent, callsToday, quickAnswerOf } from "./ask/ask
 export { askJump, askPages, ASK_PAGES } from "./ask/ask-jump";
 export { detectLanguage, messageLanguageOf, messageLanguagesNext, messageLanguagesOf, ASK_LANGUAGES } from "./ask/ask-language";
 export { askModelProfile, askRoundCap, ASK_DRAFT_EFFORT, ASK_DRAFT_MAX_TOKENS, ASK_EFFORT, ASK_MODEL, ASK_SPEED } from "./ask/ask-model";
-export { applySettingsChange, describeSettingsChange } from "./ask/ask-settings-change";
+export { applySettingsChange, describeSettingsChange, ASK_ANSWERS_ROWS } from "./ask/ask-settings-change";
 export { cacheHitOf } from "./ask/ask-shape";
 export { buildAskSuggestions } from "./ask/ask-suggestions";
 export { rightNowLine, rightNowCounts } from "./ask/ask-waiting";
@@ -105,7 +105,7 @@ export { servicesWords, servicesToldWords, serviceUndoName, servicesFoundWords, 
 export { TRY_IT_WORDS, TRY_IT_MAX_CHARS, TRY_IT_MAX_EXCHANGES, SPEND_TRY, tryItVM } from "./config/business-tab/try-it";
 export { knownForwarding, sameAddress, sameName, resolveFacts, factConflicts, changedConfigFields, SOURCE_WORDS } from "./config/facts";
 export { INTENT_LABELS } from "./config/intent-labels";
-export { tokenCapOf, tokenBudgetSpent, TOKENS_DAY_DEFAULT } from "./config/limits";
+export { tokenCapOf, tokenBudgetSpent, TOKENS_DAY_DEFAULT, BUDGET_WORDS, budgetDial, tokensPerReply } from "./config/limits";
 export { offersBookingLink, offersLinkOn, priceNextStep, NO_LINK_DETAILS, NO_WAY_TO_SEND_LINK } from "./config/no-booking-link";
 export { violatesNoPrices, priceFigures, priceBreach, namesMoney, heldLine, spokenBreach, spokenBreachDetails, guardSpokenTurns, waWindow, replyWindow, isLiveCall, hardLimitsWords, replyDelayMs, WA_WINDOW_MS, REPLY_LIMITS, REPLY_MAX_ANY, CALL_HEARTBEAT_MS, REPLY_DELAY_DEFAULT_MS, REPLY_DELAY_MIN_MS, REPLY_DELAY_MAX_MS, REPLY_CAP_DEFAULT, PAUSE_HOURS_DEFAULT, pauseHoursOf, pauseMsOf } from "./config/policy";
 export { promptBlocks } from "./config/prompt-blocks";
@@ -115,7 +115,7 @@ export { disclosureFacts, CONVERSATION_UNDER_WAY, CONVERSATION_GAP_MS } from "./
 export { newReceptionistDefaults, isBaselinePrompt } from "./config/workspace-config/brain-config";
 export { describeNow, composeSystemPrompt, PROMPT_OPENINGS, notesInForce, noteAsTold } from "./config/workspace-config/compose";
 export { DAYS, DAY_NAMES, isRealDate, dayProblems, MAX_INTERVALS_PER_DAY, MAX_CLOSURES, E164, isE164, INSTRUCTIONS_MAX, ASK_GOAL_MAX, PROFILE_LIMITS, GUARDRAIL_KEYS, guardrailsInForce } from "./config/workspace-config/config-rules";
-export { isProductFallback, fallbackMessages, unknownDetails, FALLBACK_DETAILS, FALLBACK_DEFAULTS, EARLIER_FALLBACK_DEFAULTS } from "./config/workspace-config/fallbacks";
+export { isProductFallback, fallbackMessages, unknownDetails, FALLBACK_DETAILS, FALLBACK_DEFAULTS, FALLBACK_ROWS, EARLIER_FALLBACK_DEFAULTS } from "./config/workspace-config/fallbacks";
 export { offersAfterStart, offersFacts } from "./config/workspace-config/offers-ask";
 export { policyClassOfIntent, policyClassLabel, policyClassQuestion, policyAskClass, bookingHeld, policyRules, POLICY_CLASSES, POLICY_CLASS_WORDS, POLICY_COVERS, POLICY_MODES, POLICY_MODE_WORDS, POLICY_CLASS_MODES, policyModeOffered, policyModeRefusal, heldDraftsByClass, heldDraftsLine, HELD_DRAFTS_DAYS } from "./config/workspace-config/policy-classes";
 export { allowedPrices, priceAllowance } from "./config/workspace-config/price-allowance";

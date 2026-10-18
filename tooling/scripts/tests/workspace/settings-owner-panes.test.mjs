@@ -26,6 +26,7 @@ import {
   POLICY_MODE_WORDS,
   ALERT_TOPICS,
   ALERT_PANE_WORDS,
+  BUDGET_WORDS,
   alertGrid,
 } from "@chanlytics/contracts";
 import { useStubHooks, kitPages } from "../_legacy-react.mjs";
@@ -1021,7 +1022,62 @@ test("Replies is a card of its own: its mode, and under it only the dials its mo
     );
   // And the day's budget is a limit, beside the reply cap.
   const limits = find(tree, (n) => n.type === "section" && /^Limits/.test(textOf(n)));
-  assert.match(textOf(limits), /Day's model budget/);
+  assert.ok(byTestId(limits, "aut-budget"), "the day's budget");
+});
+
+test("the day's budget is said in the replies it buys at this workspace's size of reply, in tokens until it has answered a few", async () => {
+  // The Settings wiring review, item 12 (18 Oct 2026): "Day's model budget · 100k · 1M" was a developer's words.
+  const budgetRow = (tree) =>
+    find(tree, (n) => String(n.props?.className || "").includes("rec-row") && !!byTestId(n, "aut-budget"));
+  const words = (tree) =>
+    all(budgetRow(tree), (n) => n.type === "button" && n.props.role === "radio").map((b) => textOf(b).trim());
+  // Its note is the label's tip.
+  const note = (tree) =>
+    find(budgetRow(tree), (n) => typeof n.props?.text === "string" && /^About /.test(n.props?.label || ""))?.props.text;
+  const reply = (limits) => [{ class: "reply", mode: "auto", limits }];
+  const drawn = (limits, replyTokens) => {
+    workspace("owner", { __POLICIES: { role: "owner", rows: reply(limits), replyTokens } });
+    return settings("autonomy");
+  };
+  // A week of 120 replies at 2,500 tokens each: a cap of 250k buys about a hundred.
+  let tree = drawn({ max_llm_tokens_day: 250000 }, { replies: 120, tokens: 300000 });
+  assert.match(textOf(budgetRow(tree)), new RegExp(`^${BUDGET_WORDS.inReplies}`));
+  assert.equal(note(tree), `${BUDGET_WORDS.sized(2500)} ${BUDGET_WORDS.stops}`);
+  assert.match(note(tree), /about 2,500 model tokens, over the last week/);
+  assert.deepEqual(words(tree), ["No limit", "~40", "~100", "~200", "~400"]);
+  assert.equal(byTestId(tree, "aut-budget").props.value, "~100", "the cap in force");
+  // Too few replies to say a reply's size: tokens, and a label that says so.
+  tree = drawn({}, { replies: 4, tokens: 9000 });
+  assert.match(textOf(budgetRow(tree)), new RegExp(`^${BUDGET_WORDS.inTokens}`));
+  assert.deepEqual(words(tree), ["No limit", "100k", "250k", "500k", "1M"]);
+  assert.equal(note(tree), `${BUDGET_WORDS.unsized} ${BUDGET_WORDS.stops}`);
+  assert.equal(
+    byTestId(tree, "aut-budget").props.value,
+    "No limit",
+    "none set is no limit, never a step of zero replies",
+  );
+  tree = drawn({ max_llm_tokens_day: 300000 }, null);
+  assert.deepEqual(
+    words(tree),
+    ["No limit", "100k", "250k", "300k", "500k", "1M"],
+    "a stored cap off the steps is a step of its own",
+  );
+  // A reply so large that two caps buy the same few is said in tokens: a dial of two equal words cannot be read.
+  tree = drawn({}, { replies: 10, tokens: 3000000 });
+  assert.match(textOf(budgetRow(tree)), new RegExp(`^${BUDGET_WORDS.inTokens}`));
+  assert.match(note(tree), /about 300,000 model tokens/);
+  // A press saves the cap in tokens, the dial alone, and says it in the dial's words.
+  const sent = [];
+  tree = drawn({}, { replies: 120, tokens: 300000 });
+  autonomyVerbs.setPolicy = async (...args) => {
+    sent.push(args);
+    return { ok: true };
+  };
+  flashes.length = 0;
+  press(find(budgetRow(tree), (n) => n.type === "button" && n.props.role === "radio" && textOf(n).trim() === "~200"));
+  await flush();
+  assert.deepEqual(sent, [["reply", undefined, { maxTokensDay: 500000 }]]);
+  assert.match(textOf(flashes.at(-1).msg), new RegExp(`${BUDGET_WORDS.inReplies} → ~200 — from the next reply`));
 });
 
 test("Replies says how many people are set differently, by mode, and each of the newest opens their own page", () => {

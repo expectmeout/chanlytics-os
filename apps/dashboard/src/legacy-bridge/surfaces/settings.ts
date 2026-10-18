@@ -164,6 +164,8 @@ function policiesOf(pol: Output<"GET policies">): PoliciesSurface {
     suggestions: pol.suggestions ?? null,
     // The people set differently (the Settings wiring review, item 10): absent from a server from before, read as unread.
     ownModes: pol.own_modes ?? null,
+    // The day's budget said in replies (item 12): absent from a server from before, said in tokens.
+    replyTokens: pol.reply_tokens ?? null,
   };
 }
 

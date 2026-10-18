@@ -1513,7 +1513,7 @@ test("cards: an act tool never acts, a proposal names its door and its undo, the
           "leads",
         ],
       ],
-      ["propose_settings", ["change", "autonomy", "goal", "answer_style"]],
+      ["propose_settings", ["change", "answers", "autonomy", "goal", "answer_style"]],
       ["propose_thread_verb", []],
     ],
   );

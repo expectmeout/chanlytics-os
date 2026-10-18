@@ -137,6 +137,8 @@ export interface PoliciesSurface {
   suggestions?: FactSuggestionDto[] | null;
   /** The people whose receptionist has a mode of their own (Replies' line); null where the read failed or is old. */
   ownModes?: OwnModesDto | null;
+  /** The last week's replies and their tokens, which say the day's budget in replies; null where unread or old. */
+  replyTokens?: { replies: number; tokens: number } | null;
 }
 
 export interface UiRow extends UiRowMeta {

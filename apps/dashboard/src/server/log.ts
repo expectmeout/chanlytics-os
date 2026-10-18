@@ -78,6 +78,7 @@ export const DASHBOARD_LOG_EVENTS = [
   "auth_unavailable",
   "autonomy_held_drafts_failed",
   "autonomy_own_modes_failed",
+  "autonomy_reply_tokens_failed",
   "autonomy_suggestions_failed",
   "booking_report_failed",
   "booking_request_unknown_answer",

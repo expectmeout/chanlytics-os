@@ -150,10 +150,17 @@ function identitySection({ base, profile, channel, wire }) {
   s.push(`You are the assistant for ${base.business_name}, answering customers ${medium}.`);
   if (profile.tone) s.push(`Tone: ${profile.tone}`);
   if (profile.languages?.length) {
+    const list = profile.languages.join(", ");
     s.push(
-      `You speak: ${profile.languages.join(", ")}.` + // A caller picks the language by speaking it; nobody asks a phone
-      // agent to "reply in Spanish".
-      (channel === "voice" ? " Answer in whichever of these the caller uses, and switch if they do." : "")
+      channel === "voice" ? (
+        // A call hears only these: the line listens for its workspace's languages (voice-converge's locales). A caller
+        // picks the language by speaking it; nobody asks a phone agent to "reply in Spanish".
+        `You speak: ${list}. Answer in whichever of these the caller uses, and switch if they do.`
+      ) : (
+        // In writing the list is a preference, not a limit (the Settings wiring review, item 13, 18 Oct 2026; the
+        // owner's rule that language is the model's to follow): the customer's own language comes first.
+        `The business serves customers in: ${list}. Reply in the language the customer writes in, and switch if they do.`
+      )
     );
   }
   return s;
