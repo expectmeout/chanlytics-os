@@ -1,15 +1,22 @@
 "use client";
 
 import { useEffect } from "react";
-import { reportClientError } from "@/client/client-error";
 
 /**
  * Root error boundary — replaces its own <html>, styles inline: the dark paper, its ink, the three's coral. The
  * sign-in pages have no boundary of their own, so theirs land here too; each is told to the server (client-error.ts).
+ *
+ * The reporter is imported once there is something to report. A boundary is a chunk group of its own that every page
+ * loads, and the layouts below it cannot count its modules as loaded: imported here, the reporter and the route table
+ * it reads were downloaded twice on every page of the OS, once here and once in the frame (17 Oct 2026).
  */
 export default function GlobalError({ error }: { error: Error & { digest?: string } }) {
   useEffect(() => {
-    reportClientError("root", error, window.location.pathname.replace(/^\//, ""), error.digest ?? null);
+    void import("@/client/client-error")
+      .then(({ reportClientError }) =>
+        reportClientError("root", error, window.location.pathname.replace(/^\//, ""), error.digest ?? null),
+      )
+      .catch(() => {});
   }, [error]);
   return (
     <html lang="en">

@@ -9,16 +9,25 @@ import { speedHost } from "@/client/page-speed";
 import { api } from "./api";
 import { acceptedInTime } from "./invitations/accept";
 import { homeHref, lastWorkspace, notifyAddress, setAppRouter } from "./workspace";
+// The shell (LegacyApp) in a browser's build, nothing in the server's: package.json "imports" (frame-shell.ts).
+import FrameShell from "#frame-shell";
 
 /**
  * Client-only mount for the legacy tree: module-scope code in the mockup
  * touches document/window at import time, so SSR/prerender must never
  * evaluate it (Blueprint §7 — the (os) surfaces are client-rendered).
- * `seed-globals.ts` and the shell's files in particular read `window` at module scope; dropping ssr:false would throw
- * during prerender.
+ * `seed-globals.ts` and the shell's files in particular read `window` at module scope, so the server's build imports
+ * an empty component in its place (`#frame-shell`), and `ssr: false` keeps the server from drawing even that.
  *
- * The fallback below is the FIRST thing every visitor sees, for the whole
- * duration of the chunk download. It used to be hardcoded `#93a5a0` on the
+ * The shell is imported, not loaded by `import()` (until 17 Oct 2026). Loaded later, it was a chunk group of its own,
+ * which no page's chunks could count as loaded: every module a page shares with it (the kit, contracts, the surfaces'
+ * reads) was downloaded twice, in the page's chunks and in the shell's, 20 to 50 KB gzipped on each page with its own
+ * route. Imported, it is the layout's, which every page below counts as loaded, and its chunks are fetched with the
+ * document's rather than once this module evaluates (a cold load on 25 Sep 2026 asked for it 270 ms after the document
+ * was interactive).
+ *
+ * The fallback below is the FIRST thing every visitor sees, until the
+ * frame is placed. It used to be hardcoded `#93a5a0` on the
  * auth page's near-black ground — shown to light-theme users too. Now it
  * paints from the design tokens (which arrive as a document stylesheet from
  * the (os) layout, so they are available before this renders) and shows the
@@ -62,11 +71,8 @@ function Loading() {
   );
 }
 
-const LegacyApp = dynamic(() => import("./LegacyApp"), { ssr: false, loading: () => <Loading /> });
-// The chunk is asked for as this module evaluates, not once React has hydrated and drawn the fallback: measured on
-// production (25 Sep 2026, a cold load), the 762 KB chunk started 1,361 ms in, 270 ms after the document was
-// interactive and 360 ms after the framework's own chunks began. Same module, same chunk: `dynamic` finds it loaded.
-if (typeof window !== "undefined") void import("./LegacyApp");
+// `dynamic` for its `ssr: false` alone: the server draws the fallback, and the browser the shell, already loaded.
+const LegacyApp = dynamic(() => Promise.resolve(FrameShell), { ssr: false, loading: () => <Loading /> });
 
 /**
  * Field data (00255, 00412): the browser's five for this load and each move it counts, beside the shell's own
@@ -76,13 +82,11 @@ if (typeof window !== "undefined") void import("./LegacyApp");
  * measures', read as the frame was installed, before the address could move.
  */
 const reportWebVitals = () =>
-  // The frame's chunk first: the measures are installed as it evaluates, which may be after the page's load event.
-  import("./LegacyApp")
-    .then(() => import("../client/field-data-reporter"))
-    .then(({ reportWebVitals: report }) => {
-      const host = speedHost();
-      if (host) report(host);
-    });
+  // The measures were installed as the shell evaluated, before this module did (it imports the shell).
+  import("../client/field-data-reporter").then(({ reportWebVitals: report }) => {
+    const host = speedHost();
+    if (host) report(host);
+  });
 /** The shell's pane boundary says what it caught on window; this sends it (src/client/client-error.ts). */
 const shellErrors = () => import("../client/client-error").then((m) => m.listenForShellErrors(window));
 

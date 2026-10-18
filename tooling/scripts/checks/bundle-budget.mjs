@@ -8,9 +8,10 @@
  *
  *   build-manifest.json           the runtime every page loads (its root main files; the polyfills are left out, a
  *                                 current browser never fetches them)
- *   a page's client manifest      the chunks and stylesheets of every segment on the page, from the root layout down
- *   a page's loadable manifest    what `next/dynamic` loads when the page draws: the shell, which LegacyHost imports
- *                                 at once
+ *   a page's client manifest      the chunks and stylesheets of every segment on the page, from the root layout down:
+ *                                 the workspace's layout's carry the shell, which LegacyHost imports (until 17 Oct
+ *                                 2026 by `import()`, and the loadable manifest named it)
+ *   a page's loadable manifest    what `next/dynamic` loads when the page draws, where it names anything
  *
  * gzips each file once, at level 9, and sums three things: the route's JavaScript, the route's CSS, and each other
  * page's own JavaScript beyond the route (its segments' chunks and its loadable's, less the route's; a chunk two pages
@@ -58,6 +59,8 @@ const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), "../../..")
 // is counted where it lives.
 const PAGE = "(os)/w/[workspace]/[[...route]]/page";
 const PAGES_DIR = "server/app/(os)/w/[workspace]";
+/** The frame's segment, as the route's client manifest names it: its chunks carry the shell. */
+const FRAME = "[project]/apps/dashboard/app/(os)/w/[workspace]/layout";
 /** What one change may add to a sum, gzipped bytes, before its pull request says why: the route's two, and a page's. */
 export const GROWTH_LINE = { js: 1024, css: 1024, page: 2048 };
 /** What main may add to a sum in a week before the weekly reading keeps an issue open about it. */
@@ -162,10 +165,10 @@ const summed = (files) => ({ files: Object.keys(files).length, raw: total(files,
 export function measureBuild(next) {
   const build = readJson(next, "build-manifest.json");
   const client = manifestOf(next, PAGE);
-  const dynamic = loadableOf(next, PAGE);
-  if (!dynamic || dynamic.length === 0) {
-    throw new BuildShape(`the loadable manifest names no files: the shell's chunks would go uncounted`);
+  if (!client.entryJSFiles[FRAME]?.length) {
+    throw new BuildShape(`the route's client manifest names no chunks for ${FRAME}: the shell's would go uncounted`);
   }
+  const dynamic = loadableOf(next, PAGE) ?? [];
   const js = new Set(build.rootMainFiles ?? []);
   for (const f of chunksOf(client)) js.add(f);
   const css = new Set();
