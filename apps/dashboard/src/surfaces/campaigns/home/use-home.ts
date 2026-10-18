@@ -8,22 +8,28 @@
  * one that could not be read is null and says so (the seam's own status, `useSurfaceFailed`, which the shell's route gate
  * reads).
  */
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { SEQUENCES_ROUTE } from "@chanlytics/contracts";
 import { demoSession, navigate, replaceRoute } from "../../legacy-verbs";
 import { useSurface, useSurfaceFailed } from "../../use-surface";
 import { broadcastsSample } from "../broadcasts/sample";
-import type { BroadcastsSurface } from "../broadcasts/surface";
+import type { BcWhole } from "../broadcasts/page/types";
 import type { ReachOutsSurface } from "../reach-out/surface";
 import type { HomeAddress } from "./address";
 
-/** The broadcasts the send screen is made of: undefined before they are read, null where they could not be. */
-export function useComposerData(open: boolean): { broadcasts: BroadcastsSurface | null | undefined } {
+/**
+ * What the send screen is made of: Sent's surface and who each audience reaches (broadcasts/audiences-surface.ts), both read.
+ * Undefined while either is out, null where either could not be read.
+ */
+export function useComposerData(open: boolean): { broadcasts: BcWhole | null | undefined } {
   const live = useSurface("broadcasts");
+  const audiences = useSurface("audiences");
   const failed = useSurfaceFailed("broadcasts");
+  const unreached = useSurfaceFailed("audiences");
+  const whole = useMemo(() => (live && audiences ? { ...audiences, ...live } : null), [live, audiences]);
   // A demo session's sample, made once for the page's life, and only once the composer is asked for.
   const [sample] = useState(() => (open && demoSession() ? broadcastsSample() : null));
-  return { broadcasts: live ?? sample ?? (failed ? null : undefined) };
+  return { broadcasts: whole ?? sample ?? (failed || unreached ? null : undefined) };
 }
 
 /**

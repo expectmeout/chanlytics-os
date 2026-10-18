@@ -623,6 +623,8 @@ test("what the head starts for a page is what its surfaces ask for first, no mor
       (await importSrc(`${S}/surfaces/people/surface.ts`)).peopleOverride,
       (await importSrc(`${S}/surfaces/live/surface.ts`)).liveOverride,
       (await importSrc(`${S}/surfaces/campaigns/broadcasts/surface.ts`)).broadcastsOverride,
+      // Who each audience reaches: the composer's, over everyone in People (audiences-surface.ts).
+      (await importSrc(`${S}/surfaces/campaigns/broadcasts/audiences-surface.ts`)).audiencesOverride,
       (await importSrc(`${S}/surfaces/campaigns/playbooks/surface.ts`)).playbooksOverride,
       (await importSrc(`${S}/surfaces/campaigns/reach-out/surface.ts`)).reachOutsOverride,
       (await importSrc(`${S}/surfaces/campaigns/sequences/surface.ts`)).sequencesOverride,
@@ -656,11 +658,14 @@ test("what the head starts for a page is what its surfaces ask for first, no mor
   // read, which holds the templates (the one read of them, task 3.3), a message the playbooks' read and the settings read; Sent's sheets stand beside Sequences' list (decision 0060,
   // D3); and the Calendar's campaign marks are their own span's read, started beside the board's (the Calendar's lane C).
   // And the channels read (surfaces/channels/surface.ts), which Live, both composers and the Library are made of: the one read
-  // of the numbers, started with the page's own.
+  // of the numbers, started with the page's own. The composer is made of who each audience reaches too (the audiences), which
+  // Sent's sheets read only once their own are in. And the Inbox draws Sent's runs, waiting ones as rows of Needs you: their
+  // own read, nothing of People (the Inbox's run review, 18 Oct 2026).
   const alsoDrawn = {
     today: ["calendar"],
+    inbox: ["broadcasts"],
     campaigns: ["settings"],
-    "campaigns/new": ["broadcasts", "reach_outs", "settings", "channels"],
+    "campaigns/new": ["broadcasts", "audiences", "reach_outs", "settings", "channels"],
     "campaigns/message": ["playbooks", "settings", "channels"],
     "campaigns/sequences": ["settings"],
     calendar: ["calendar_runs"],

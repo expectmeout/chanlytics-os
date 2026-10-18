@@ -441,6 +441,8 @@ const json = (status, body) =>
 const realConsoleError = console.error;
 console.error = () => {};
 const { broadcastsOverride } = await import("../../../../apps/dashboard/src/surfaces/campaigns/broadcasts/surface.ts");
+const { audiencesOverride } =
+  await import("../../../../apps/dashboard/src/surfaces/campaigns/broadcasts/audiences-surface.ts");
 const { setSurfaceValue, surfaceValue } = await import("../../../../apps/dashboard/src/surfaces/surface-values.ts");
 console.error = realConsoleError;
 
@@ -499,10 +501,20 @@ const wire = ({
 
 test("REGRESSION: an audience counts every page of people -- it counted the first page while the send enrols everyone", async () => {
   const offsets = wire();
-  await broadcastsOverride.apply();
+  await audiencesOverride.apply();
   assert.deepEqual(offsets, [0, 1], "the second page of people was read before counting");
-  const everyone = surfaceValue("broadcasts").audiences.find((a) => a.kind === "everyone");
+  const everyone = surfaceValue("audiences").audiences.find((a) => a.kind === "everyone");
   assert.equal(everyone.counts.marketing, 2, JSON.stringify(everyone.counts));
+});
+
+test("REGRESSION: Sent's runs are read without People -- the badge, Today's queue and the Inbox's rows waited on every page of the book (the Inbox's run review, 18 Oct 2026)", async () => {
+  const offsets = wire();
+  await broadcastsOverride.apply();
+  assert.deepEqual(offsets, [], "no page of People is read for the runs");
+  const sent = surfaceValue("broadcasts");
+  assert.ok(Array.isArray(sent.rows), "the runs are published");
+  for (const key of ["audiences", "reach", "listsRead", "heardRead"])
+    assert.equal(Object.hasOwn(sent, key), false, `${key} is the audiences' (audiences-surface.ts)`);
 });
 
 test("the surface carries the route's word that more than fifty broadcasts exist", async () => {
@@ -583,8 +595,8 @@ test("REGRESSION: an audience says, per purpose, how many on it said yes, a numb
       { id: "s2", name: "Walk-ins", ids: ["p3"] },
     ],
   });
-  await broadcastsOverride.apply();
-  const { audiences } = surfaceValue("broadcasts");
+  await audiencesOverride.apply();
+  const { audiences } = surfaceValue("audiences");
   const option = (id) => audiences.find((a) => a.id === id);
   /** For one purpose: how many the send reaches (the chip), and how many said yes to what it needs. */
   const sizes = (a, purpose) => [a.counts[purpose], a.preview[purpose].saidYes];
@@ -614,9 +626,9 @@ test("an archived list is offered to no new broadcast: it is off People's rail, 
       { id: "s2", name: "VIP", ids: ["p2"], rule: null, archived_at: "2026-09-20T12:00:00.000Z" },
     ],
   });
-  await broadcastsOverride.apply();
+  await audiencesOverride.apply();
   assert.deepEqual(
-    surfaceValue("broadcasts")
+    surfaceValue("audiences")
       .audiences.filter((a) => a.kind === "saved")
       .map((a) => a.id),
     ["s1"],
@@ -808,7 +820,7 @@ test("a template approved, hidden or taken away reaches an open composer with Se
     ["quick_note", "later_note"],
   );
   // The rest of the surface is the object it was: nothing but the messages moved.
-  assert.equal(surfaceValue("broadcasts").audiences, before.audiences);
+  assert.equal(surfaceValue("broadcasts").rows, before.rows);
   // The owner hides one, and then adds an email version of the other: both are Settings' news.
   setSurfaceValue(
     "settings",

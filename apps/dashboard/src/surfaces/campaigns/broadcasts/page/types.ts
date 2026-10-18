@@ -20,7 +20,8 @@ import type { UnsavedWork } from "../../../kit/record/work";
 import type { CmViaTick } from "../../parts/channels";
 import type { CmPreviewBy } from "../../parts/preview-by";
 import type { PlaybookCardVM } from "../../playbooks/surface";
-import type { AudienceOption, BroadcastTemplate, BroadcastsSurface } from "../surface";
+import type { AudienceOption, AudiencesSurface } from "../audiences-surface";
+import type { BroadcastTemplate, BroadcastsSurface } from "../surface";
 import type { bcWhenNote } from "../when";
 
 export type Setter<T> = Dispatch<SetStateAction<T>>;
@@ -98,9 +99,19 @@ interface BcOffered {
   why: string | null;
 }
 
+/**
+ * What the page is drawn from: Sent's surface, and who each audience reaches once that is read (audiences-surface.ts, every
+ * page of People). A run's sheet, To send and Get their yes draw without it, and Send it again joins a run's sheet once it is
+ * in; a composer is opened with it whole (home/use-home.ts useComposerData).
+ */
+export type BcData = BroadcastsSurface & Partial<Omit<AudiencesSurface, "fetchedAt">>;
+
+/** What a composer is opened with: Sent's surface and who each audience reaches, both read. */
+export type BcWhole = BroadcastsSurface & Omit<AudiencesSurface, "fetchedAt">;
+
 /** The page's own state and reads, before anything is worked out of them. */
 export interface BcBase {
-  data: BroadcastsSurface;
+  data: BcData;
   flash: Flash;
   canSend: boolean;
   audiences: AudienceOption[];

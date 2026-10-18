@@ -191,8 +191,9 @@ test("Sent's sheets: the crumbs go back to Campaigns, name a run, Get their yes,
   assert.deepEqual(b("get-yes").crumbs, [HOME, "Get their yes"]);
   assert.deepEqual(b("to-send").crumbs, [HOME, "To send"]);
   assert.deepEqual(b("s1").crumbs, ["Campaigns"], "an audience nothing holds yet");
-  setSurfaceValue("broadcasts", {
-    rows: [{ id: "b-1", name: "Win-back · Sep 10" }],
+  setSurfaceValue("broadcasts", { rows: [{ id: "b-1", name: "Win-back · Sep 10" }] });
+  // Who each audience reaches is its own read (broadcasts/audiences-surface.ts): an audience's address is named from it.
+  setSurfaceValue("audiences", {
     audiences: [
       { kind: "everyone", id: null, label: "Everyone" },
       { kind: "saved", id: "s1", label: "Regulars" },

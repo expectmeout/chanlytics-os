@@ -184,8 +184,20 @@ const HEARD_BEFORE = {
   ],
   // Its line is the channels read's, which it follows (R6).
   live: ["calls"],
-  // And a deal an audience names, and the team the people read names; the playbooks a deal (owed, closed 15 October).
-  broadcasts: [...SENT_PAGE, "sequence_batches", "deals", "memberships"],
+  // Who each audience reaches, as Sent heard it while the audiences were part of it: and a deal an audience names, and the team
+  // the people read names; the playbooks a deal (owed, closed 15 October).
+  audiences: [...SENT_PAGE, "sequence_batches", "deals", "memberships"],
+  // Sent's runs on their own (the Inbox's run review, 18 Oct 2026): what GET broadcasts reads and the feed tells, a thread's own
+  // row aside, and nothing of People.
+  broadcasts: [
+    "messages",
+    "tenant_channels",
+    "lines",
+    "mailboxes",
+    "billing_accounts",
+    "tenant_config",
+    "sequence_batches",
+  ],
   playbooks: [...COMPOSER_PAGE, "sequence_batches", "sequences", "sequence_steps", "deals"],
   // And the rule that is a chain's mode (W-review-facts-rules-8); a chain's templates and a lead's deal won (owed, closed).
   reach_outs: ["sequences", "sequence_steps", "sequence_batches", "sequence_replies", "policies", "templates", "deals"],
@@ -308,7 +320,10 @@ const ON_ITS_PAGE_BEFORE = {
     "calls",
     "memberships",
   ],
-  broadcasts: [...SENT_PAGE, "deals", "memberships"],
+  // Every table on its page: it hears no kind wherever the tab is.
+  audiences: [...SENT_PAGE, "sequence_batches", "deals", "memberships"],
+  // Its runs wherever the tab is (`always`), the rest on its page.
+  broadcasts: ["messages", "tenant_channels", "lines", "mailboxes", "billing_accounts", "tenant_config"],
   playbooks: [...COMPOSER_PAGE, "deals"],
   reports: HEARD_BEFORE.reports,
   reports_headline: HEARD_BEFORE.reports_headline,

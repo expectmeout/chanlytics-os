@@ -672,8 +672,9 @@ test("on a real workspace a crumb, and so the tab, never names the demo's people
   assert.equal(mount("#/calendar/a-1").title, "Calendar · Chanlytics", "a real calendar is not named from the seeds");
 
   win.CLIENT_SEGMENTS = [{ id: "lapsed-60", label: "Lapsed 60 days" }];
-  setSurfaceValue("broadcasts", {
-    rows: [],
+  setSurfaceValue("broadcasts", { rows: [] });
+  // Who each audience reaches is its own read (broadcasts/audiences-surface.ts): an audience's address is named from it.
+  setSurfaceValue("audiences", {
     audiences: [{ kind: "list", id: "lapsed", label: "Lapsed", counts: null, hint: "" }],
   });
   // Sent's sheets go back to Campaigns (decision 0060, D3: its list went to each sequence's History).
@@ -708,6 +709,7 @@ test("on a real workspace a crumb, and so the tab, never names the demo's people
   delete win.__ME;
   setSurfaceValue("calendar", undefined);
   setSurfaceValue("broadcasts", undefined);
+  setSurfaceValue("audiences", undefined);
   for (const k of ["CLIENT_SEGMENTS"]) delete win[k];
   clearPeople();
 });
@@ -894,10 +896,8 @@ test("a page that follows its own address is one mount across it -- Settings' pa
 
 test("REGRESSION (C9): a link to a run opens that broadcast, named in the crumbs, on the page already open -- Broadcasts read every param as a list's id", () => {
   shell.installShell(win);
-  setSurfaceValue("broadcasts", {
-    audiences: [{ kind: "saved", id: "s1", label: "Regulars" }],
-    rows: [{ id: "b-1", name: "Win-back · 2026-09-10" }],
-  });
+  setSurfaceValue("broadcasts", { rows: [{ id: "b-1", name: "Win-back · 2026-09-10" }] });
+  setSurfaceValue("audiences", { audiences: [{ kind: "saved", id: "s1", label: "Regulars" }] });
   try {
     // What the page is handed for each address is the route's (campaigns-routes.test.mjs, broadcastsProps); the frame
     // names the trail and keeps one mount for the page.
@@ -920,6 +920,7 @@ test("REGRESSION (C9): a link to a run opens that broadcast, named in the crumbs
     assert.equal(run.key, list.key, "one mount for the page, so a run opened from it keeps a half-typed broadcast");
   } finally {
     setSurfaceValue("broadcasts", undefined);
+    setSurfaceValue("audiences", undefined);
   }
 });
 

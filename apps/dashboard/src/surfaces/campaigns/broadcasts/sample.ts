@@ -26,7 +26,9 @@ import {
   type AudiencePreview,
   type BroadcastDto,
 } from "@chanlytics/contracts";
-import type { AudienceOption, BroadcastTemplate, BroadcastsSurface } from "./surface";
+import type { AudienceOption } from "./audiences-surface";
+import type { BcWhole } from "./page/types";
+import type { BroadcastTemplate } from "./surface";
 import { DEMO_ZONE } from "../../demo-zone";
 
 const DAY = DAY_MS;
@@ -103,7 +105,7 @@ function audience(
 }
 
 /** The demo's Broadcasts as of `now`: what `useSurface("broadcasts")` answers for a workspace that has read its own. */
-export function broadcastsSample(now = new Date()): BroadcastsSurface {
+export function broadcastsSample(now = new Date()): BcWhole {
   const iso = (ms: number) => new Date(now.getTime() + ms).toISOString();
   // The day a run is made for is the business's (core run-playbook stamps it by the workspace's zone): the demo's own
   // zone here. Stamped by UTC, the waiting run read as a day late every evening in New York, with nothing to approve.

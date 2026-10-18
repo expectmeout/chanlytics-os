@@ -17,10 +17,11 @@ import type { ConsentChannel } from "@chanlytics/contracts";
 import { LinkButton } from "../../../kit/link-button/link-button";
 import { backFrom, navigate, replaceRoute } from "../../../legacy-verbs";
 import { tabDraft } from "../../../kit/record/work";
-import type { AudienceOption, BroadcastTemplate, BroadcastsSurface } from "../surface";
+import type { AudienceOption } from "../audiences-surface";
+import type { BroadcastTemplate } from "../surface";
 import { starters } from "../../templates/verbs";
 import { BC_NONE } from "../run";
-import type { BcKept, Flash, Params, Setter, Sources } from "./types";
+import type { BcData, BcKept, Flash, Params, Setter, Sources } from "./types";
 import { bcKey, bcOrder, bcSlots } from "./words";
 
 /** A row as `sendable` reads it: with the components Meta holds, which `TemplateDto` does not name. */
@@ -28,7 +29,7 @@ type Sendable = BroadcastTemplate & { components?: unknown };
 
 // What can be offered: every template this product can put on the wire, in the library's order, and of those the
 // ones whose every slot a broadcast can fill.
-export function useBcOffered(data: BroadcastsSurface) {
+export function useBcOffered(data: BcData) {
   // Only what this product can actually put on the wire. `sendTemplate` sends the
   // body alone, so a template needing a value in a heading or a button is refused
   // by Meta for EVERY recipient -- and the composer used to offer it, pass its own
@@ -174,7 +175,7 @@ export function useBcArmed(asked: {
 const NOW_TICK_MS = 1000;
 
 // Now, for the minutes until a run goes: ticking only while a run is under an hour away.
-export function useBcNow(data: BroadcastsSurface) {
+export function useBcNow(data: BcData) {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     const at = Date.now();
@@ -235,7 +236,7 @@ export function useBcOpen(initialRun: string | null, initialToSend: boolean) {
 // goes there as every link does.
 export function useBcYes(
   initialYes: boolean,
-  data: BroadcastsSurface,
+  data: BcData,
   setWriting: Setter<boolean>,
   goes: (route: string) => void = navigate,
 ) {

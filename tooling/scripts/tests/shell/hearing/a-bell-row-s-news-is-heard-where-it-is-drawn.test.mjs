@@ -55,6 +55,7 @@ const { calendarOverride } = await importSrc("apps/dashboard/src/surfaces/calend
 const { peopleOverride } = await importSrc("apps/dashboard/src/surfaces/people/surface.ts");
 const { playbooksOverride } = await importSrc("apps/dashboard/src/surfaces/campaigns/playbooks/surface.ts");
 const { broadcastsOverride } = await importSrc("apps/dashboard/src/surfaces/campaigns/broadcasts/surface.ts");
+const { audiencesOverride } = await importSrc("apps/dashboard/src/surfaces/campaigns/broadcasts/audiences-surface.ts");
 const { personOverride } = await importSrc("apps/dashboard/src/surfaces/people/people-detail.ts");
 const { channelsOverride } = await importSrc("apps/dashboard/src/surfaces/channels/surface.ts");
 
@@ -66,6 +67,7 @@ const DRAWN = [
   peopleOverride,
   playbooksOverride,
   broadcastsOverride,
+  audiencesOverride,
 ];
 const byKey = Object.fromEntries([...DRAWN, personOverride, channelsOverride].map((o) => [o.key, o]));
 
@@ -180,7 +182,7 @@ const ANNOUNCES = {
     heard: [
       ["inbox", ["#/inbox", "#/today"]],
       ["people", ["#/clients"]],
-      ["broadcasts", ["#/broadcasts", "#/campaigns/new"]],
+      ["audiences", ["#/broadcasts", "#/campaigns/new"]],
       ["playbooks", ["#/outbound"]],
       ["calendar", ["#/calendar", "#/today"]],
       // The person's own page, where the row's button may open: their surface hears them changed there.

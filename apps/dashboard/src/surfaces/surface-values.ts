@@ -22,6 +22,7 @@ import type { PeopleSurface as ReportsPeopleSurface } from "./reports/people-sur
 import type { CampaignsSurface } from "./reports/campaigns-surface";
 import type { GoogleSurface } from "../legacy-bridge/google";
 import type { BroadcastsSurface } from "./campaigns/broadcasts/surface";
+import type { AudiencesSurface } from "./campaigns/broadcasts/audiences-surface";
 import type { PlaybooksSurface } from "./campaigns/playbooks/surface";
 import type { ReachOutsSurface } from "./campaigns/reach-out/surface";
 import type { SequencesSurface } from "./campaigns/sequences/surface";
@@ -58,7 +59,10 @@ export interface SurfaceValues {
   conversations: ConversationsSurface;
   today: TodayVM;
   playbooks: PlaybooksSurface;
+  /** Sent's runs and what GET broadcasts says beside them: nothing of it counted over People (campaigns/broadcasts/surface.ts). */
   broadcasts: BroadcastsSurface;
+  /** Who each audience a broadcast offers reaches, counted over everyone in People: read where a composer is drawn (campaigns/broadcasts/audiences-surface.ts). */
+  audiences: AudiencesSurface;
   reach_outs: ReachOutsSurface;
   /** The Sequences page's list (decision 0060), read where it is drawn (campaigns/sequences/surface.ts); null when it failed. */
   sequences: SequencesSurface;
@@ -217,6 +221,7 @@ const SURFACE_KEYS: Record<SurfaceKey, true> = {
   today: true,
   playbooks: true,
   broadcasts: true,
+  audiences: true,
   reach_outs: true,
   sequences: true,
   settings: true,
