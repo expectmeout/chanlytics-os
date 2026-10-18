@@ -117,7 +117,10 @@ test("website, notes and the language rule reach both receptionists", () => {
     composeSystemPrompt(brain, profile, "voice").includes("switch if they do"),
     "a caller who changes language is followed",
   );
-  assert.ok(!composeSystemPrompt(brain, profile, "whatsapp").includes("switch if they do"));
+  // And a customer who writes in another is answered in it (the Settings wiring review, item 13, 18 Oct 2026): the
+  // languages are the business's, never a limit on the customer's.
+  const text = composeSystemPrompt(brain, profile, "whatsapp");
+  assert.ok(text.includes("Reply in the language the customer writes in, and switch if they do."));
 });
 
 test("the health-advice rule is opt-in and lands last with the other rules", () => {

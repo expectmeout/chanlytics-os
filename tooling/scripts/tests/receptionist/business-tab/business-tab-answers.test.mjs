@@ -334,8 +334,14 @@ test("a language is added from the list or as typed, removed with its Undo, and 
   tree = redrawTab(flash);
   assert.deepEqual(tokensOf(tree), ["English", "Spanish", "French"]);
   assert.deepEqual(partsOf(byTestId(tree, "rec-fold-says-languages")), [
-    ["Preview what it's told", "You speak: English, Spanish, French."],
-    ["No longer told", "You speak: English, Spanish."],
+    [
+      "Preview what it's told",
+      "The business serves customers in: English, Spanish, French. Reply in the language the customer writes in, and switch if they do.",
+    ],
+    [
+      "No longer told",
+      "The business serves customers in: English, Spanish. Reply in the language the customer writes in, and switch if they do.",
+    ],
   ]);
   langBox(tree).props.onChange({ target: { value: "Xhosa" } });
   tree = redrawTab(flash);

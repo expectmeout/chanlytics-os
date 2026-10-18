@@ -488,6 +488,7 @@ export {
   personReplyMode,
   personReplyModes,
   peopleOnTheirOwnMode,
+  replyTokensSince,
   setPersonReplyMode,
   workspaceAnswersOnItsOwn,
   workspaceOpenToCustomers,

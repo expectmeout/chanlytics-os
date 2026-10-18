@@ -8,10 +8,12 @@ import {
   clockStamp,
   closeSettledNotices,
   dealsAreOn,
+  instructionsDraft,
   isActivityMoney,
   memberWords,
   noteRows,
   parseTenantConfig,
+  phoneVoiceShown,
   policyClassOffered,
   mailboxWords,
   roleAtLeast,
@@ -31,6 +33,24 @@ import { notifications as notificationsReader } from "../../../readers/notificat
 import { workspaceFacts } from "../../prompt";
 import { WHOSE, defineActions, readAction, unread, type ToolContext } from "../context";
 import { noticeWaitsOf } from "./notice-waits";
+
+/**
+ * How it answers as it stands, beyond the languages and photos said beside it: what a card of propose_settings' answers
+ * changes, read first so a list it replaces keeps what the owner did not ask to drop (the Settings wiring review, item
+ * 14). A greeting of null is the standard one, and own words of null none.
+ */
+function howItAnswersOf(cfg: ReturnType<typeof parseTenantConfig>) {
+  const brain = cfg?.brain;
+  const profile = brain?.profile;
+  return {
+    tone: profile?.tone ?? null,
+    phone_greeting: profile?.phone_greeting ?? null,
+    phone_voice: phoneVoiceShown(profile?.phone_voice).name,
+    transfer_number: profile?.handoff_number ?? null,
+    own_words: (brain && instructionsDraft(brain).text) || null,
+    messages: brain?.fallbacks ?? null,
+  };
+}
 
 async function getSettings(t: ToolContext): Promise<unknown> {
   // The facts the receptionist runs on, composed from the turn's reads -- never the settings page's own read
@@ -65,6 +85,7 @@ async function getSettings(t: ToolContext): Promise<unknown> {
     escalate_when: cfg?.brain?.profile?.escalate_when ?? [],
     calendar_connected: facts.hasCalendar,
     vision: facts.visionOn,
+    answers: howItAnswersOf(cfg),
     notifications: cfg?.notifications
       ? {
           escalation_emails:

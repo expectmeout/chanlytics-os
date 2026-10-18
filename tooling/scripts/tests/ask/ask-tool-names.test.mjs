@@ -1207,6 +1207,37 @@ function againstOffered(got, frozen) {
   return [JSON.stringify(g), JSON.stringify(w)];
 }
 
+/**
+ * 18 Oct 2026 (the Settings wiring review, item 14): workspace.settings says how it answers -- its tone, what callers
+ * hear first and in which voice, the transfer number, the owner's own words and the three messages -- beside the
+ * languages and photos, so a card that changes a row of How it answers is proposed from what the row holds. This
+ * world's: nothing set but the prompt written before the form, which the box opens as the owner's own words, and the
+ * three messages it stores. Nothing else moved.
+ */
+function withHowItAnswers(frozen) {
+  const answers = {
+    tone: null,
+    phone_greeting: null,
+    phone_voice: "Tamsin",
+    transfer_number: null,
+    own_words: "Answer as the front desk of Harbor Moving: brief and warm.",
+    messages: { greeting: "g", error: "e", non_text: "n" },
+  };
+  const said = Object.entries(JSON.parse(frozen));
+  return JSON.stringify(
+    Object.fromEntries(
+      said.flatMap(([k, v]) =>
+        k === "vision"
+          ? [
+              [k, v],
+              ["answers", answers],
+            ]
+          : [[k, v]],
+      ),
+    ),
+  );
+}
+
 test("every old tool's call, made by its new name and action, answers the bytes the old tool answered at 7405e34b, and makes the same reads", async () => {
   assert.equal(FIXTURE.length, CASES.length, "one frozen answer per call");
   for (let i = 0; i < CASES.length; i++) {
@@ -1256,6 +1287,7 @@ test("every old tool's call, made by its new name and action, answers the bytes 
       result = withPeople(withReceptionist(withReachOuts(withReviews(withCampaigns(withHold(result))))));
     if (NAMES[old] === "inbox.list" && input.filter === "held") result = withNothingHeld(result);
     if (old === "get_today") result = withTheOneCount(result);
+    if (old === "get_settings") result = withHowItAnswers(result);
     if (old === "list_threads" || old === "get_thread") result = withNoHeldDraft(result);
     if (NAMES[old] === "calls.list" || NAMES[old] === "calls.get") result = withCallDirection(result);
     if (NAMES[old] === "sequences.lists") result = withTheYesItself(withHeldListWord(withChannels(result)));

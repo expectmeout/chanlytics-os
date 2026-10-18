@@ -5189,6 +5189,24 @@ async function personReplyModes(db, tenantId, contactIds) {
   }
   return out;
 }
+var USAGE_PAGE = 1e3;
+var USAGE_CAP = 5e3;
+async function replyTokensSince(db, tenantId, since, until) {
+  let replies = 0;
+  let tokens = 0;
+  const n = (v) => typeof v === "number" && Number.isFinite(v) && v > 0 ? v : 0;
+  for (let from = 0; from < USAGE_CAP; from += USAGE_PAGE) {
+    const { data, error } = await db.from("events").select("data").eq("tenant_id", tenantId).eq("kind", "usage.llm_tokens").gte("created_at", since).lte("created_at", until).order("created_at", { ascending: false }).order("id", { ascending: false }).range(from, from + USAGE_PAGE - 1);
+    if (error) throw new Error(`replyTokensSince: ${error.message}`);
+    for (const r of data ?? []) {
+      const d = r.data ?? {};
+      replies += 1;
+      tokens += n(d.input_tokens) + n(d.output_tokens);
+    }
+    if ((data ?? []).length < USAGE_PAGE) break;
+  }
+  return { replies, tokens };
+}
 var OWN_MODES_PAGE = 1e3;
 async function peopleOnTheirOwnMode(db, tenantId) {
   const out = [];
@@ -7332,6 +7350,7 @@ export {
   replyReadingOf,
   replyReadingRefOf,
   replySaid,
+  replyTokensSince,
   replyUndoableOf,
   reportSeries,
   resendHandover,

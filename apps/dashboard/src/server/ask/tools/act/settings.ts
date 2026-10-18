@@ -1,9 +1,12 @@
 import "server-only";
 import { z } from "zod";
 import {
+  ASK_ANSWERS_ROWS,
   ASK_GOAL_MAX,
   ASK_STYLE_MAX,
   AskSettingsChangeSchema,
+  FALLBACK_ROWS,
+  PHONE_VOICES,
   answerStyleOf,
   describeSettingsChange,
   proposalBelowNeeds,
@@ -31,13 +34,18 @@ const SETTINGS_TITLE: Record<AskSettingsChange["op"], string> = {
   add_note: "Remember this",
   add_service: "Add a service",
   set_goal: "Your goal",
+  set_tone: "Its voice",
+  set_languages: "The languages it speaks",
+  set_phone_greeting: "What callers hear first",
+  set_phone_voice: "The voice callers hear",
+  set_transfer_number: "Who callers reach",
+  add_own_words: "In your own words",
+  set_message: "When it can't answer",
+  set_photos: "Photos",
 };
 
-async function proposeSettings(t: ToolContext, input: { change: Record<string, unknown> }): Promise<ProposalOutcome> {
-  // Below the card's role, by the one predicate the registry offers it by (context.ts offeredTo).
-  if (!offeredTo(settingsAct, t.role)) return refuse(proposalBelowNeeds("settings"));
-  const raw = input.change && typeof input.change === "object" ? (input.change as Record<string, unknown>) : null;
-  if (!raw) return refuse("change is required");
+/** What the model sent for what the receptionist knows, its fields copied as each op takes them. */
+function knowsChangeOf(raw: Record<string, unknown>): Record<string, unknown> {
   const clean: Record<string, unknown> = { op: raw.op };
   for (const k of ["date", "until", "note", "day", "open", "close", "title", "text", "name"])
     if (typeof raw[k] === "string" && raw[k]) clean[k] = raw[k];
@@ -48,7 +56,52 @@ async function proposeSettings(t: ToolContext, input: { change: Record<string, u
     clean.open = typeof raw.open === "string" && raw.open ? raw.open : null;
     clean.close = typeof raw.close === "string" && raw.close ? raw.close : null;
   }
-  const parsed = AskSettingsChangeSchema.safeParse(clean);
+  return clean;
+}
+
+/** A voice as the model names it, by its id or its name ("Claudia"), as the list's id; another word as it came. */
+const voiceIdOf = (said: string): string =>
+  PHONE_VOICES.find((v) => v.id === said || v.name.toLowerCase() === said.trim().toLowerCase())?.id ?? said;
+
+/**
+ * What the model sent for a row of How it answers: the one field its op takes, an empty word kept, since it empties the
+ * row (no voice, the standard greeting, a message instead of a transfer, the product's wording).
+ */
+function answersChangeOf(raw: Record<string, unknown>): Record<string, unknown> {
+  const said = (k: string) => {
+    const v = raw[k];
+    return typeof v === "string" ? v : "";
+  };
+  switch (raw.op) {
+    case "set_tone":
+      return { op: raw.op, tone: said("tone") };
+    case "set_languages":
+      return {
+        op: raw.op,
+        languages: Array.isArray(raw.languages) ? raw.languages.filter((l) => typeof l === "string") : [],
+      };
+    case "set_phone_greeting":
+      return { op: raw.op, greeting: said("greeting") };
+    case "set_phone_voice":
+      return { op: raw.op, voice: voiceIdOf(said("voice")) };
+    case "set_transfer_number":
+      return { op: raw.op, number: said("number") };
+    case "set_message":
+      return { op: raw.op, which: raw.which, text: said("text") };
+    case "set_photos":
+      return { op: raw.op, on: raw.on };
+    default:
+      return { op: raw.op, text: said("text") };
+  }
+}
+
+async function proposeSettings(t: ToolContext, input: { change: Record<string, unknown> }): Promise<ProposalOutcome> {
+  // Below the card's role, by the one predicate the registry offers it by (context.ts offeredTo).
+  if (!offeredTo(settingsAct, t.role)) return refuse(proposalBelowNeeds("settings"));
+  const raw = input.change && typeof input.change === "object" ? (input.change as Record<string, unknown>) : null;
+  if (!raw) return refuse("change is required");
+  const answers = typeof raw.op === "string" && raw.op in ASK_ANSWERS_ROWS;
+  const parsed = AskSettingsChangeSchema.safeParse(answers ? answersChangeOf(raw) : knowsChangeOf(raw));
   if (!parsed.success)
     return refuse(`change rejected: ${parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ")}`);
   const change = parsed.data;
@@ -96,6 +149,52 @@ export const settingsAct: ActDef<typeof SETTINGS_INPUT> = {
   label: "Preparing a settings change",
   build: proposeSettings,
 };
+
+/** The ops of How it answers, as the model is shown them. */
+const ANSWERS_OPS = [
+  "set_tone",
+  "set_languages",
+  "set_phone_greeting",
+  "set_phone_voice",
+  "set_transfer_number",
+  "add_own_words",
+  "set_message",
+  "set_photos",
+] as const satisfies readonly (keyof typeof ASK_ANSWERS_ROWS)[];
+
+/** The voices a line may speak in, as the model is told them: a name and what the provider says of it. */
+const VOICES_SAID = PHONE_VOICES.map((v) => `${v.name} (${v.says})`).join(", ");
+/** The three messages, by the key the model sends and when each goes out. */
+const MESSAGES_SAID = FALLBACK_ROWS.map((r) => `${r.key} (${r.label.toLowerCase()})`).join(", ");
+
+/**
+ * A row of How it answers as a card (the Settings wiring review, item 14, 18 Oct 2026): every row the page has, through
+ * the one handler and the one card, judged by the same schema op by op.
+ */
+const answersAction = actAction({
+  kind: "settings",
+  input: z.object({
+    row: z.object({
+      op: z.enum(ANSWERS_OPS),
+      tone: z.string().optional(),
+      languages: z.array(z.string()).optional(),
+      greeting: z.string().optional(),
+      voice: z.string().optional(),
+      number: z.string().optional(),
+      text: z.string().optional(),
+      which: z.enum(["error", "non_text", "greeting"]).optional(),
+      on: z.boolean().optional(),
+    }),
+  }),
+  examples: [
+    { row: { op: "set_languages", languages: ["English", "Spanish"] } },
+    { row: { op: "set_phone_voice", voice: "Claudia" } },
+    { row: { op: "set_transfer_number", number: "+1 212 555 0143" } },
+  ],
+  label: "Preparing a change to how it answers",
+  words: `Action answers takes one row object, a row of How it answers and what it becomes: set_tone (tone, how it sounds in a line; empty takes it away), set_languages (languages, the whole list it speaks, which replaces the one it has; empty for none), set_phone_greeting (greeting, the line callers hear first, {business} for the name; empty for the standard one; a line that never says it is automated has the product's clause added when spoken), set_phone_voice (voice, one of ${VOICES_SAID}), set_transfer_number (number, with its country code like +1 212 555 0143, a line a person answers; empty and it takes a message instead), add_own_words (text, added after the owner's own words, which it reads on every reply), set_message (which, one of ${MESSAGES_SAID}, and text, with {business}, {booking link} and {phone} filled as it goes out; empty for the product's wording), set_photos (on, whether it looks at the photos customers send on WhatsApp). Read workspace.settings first for what each row holds now: a list replaces, so keep the languages they did not ask to drop. Call it when they want it to sound, speak, greet, put callers through or answer differently. ${approvalWords("settings")}.`,
+  build: (t, input) => proposeSettings(t, { change: input.row }),
+});
 
 /** The owner's goal for Ask (the operator, 15 Oct 2026, D13): one line Ask weighs every plan against, or cleared. */
 const goalAction = actAction({
@@ -145,18 +244,19 @@ const answerStyleAction = actAction({
 
 /**
  * What the workspace is set to (D11, the operator, 15 Oct 2026): a change the receptionist follows (change, once the one
- * definition), what it may do alone for a class of message (autonomy, once propose_autonomy) and the owner's goal for
- * Ask (goal).
+ * definition), how it answers (answers, a row each of the page's, item 14), what it may do alone for a class of message
+ * (autonomy, once propose_autonomy) and the owner's goal for Ask (goal).
  */
 export const propose_settings = defineActions({
   name: "propose_settings",
   description:
-    "Propose a settings change as a card the person approves, by action: what the receptionist knows (closed days, hours, a note, a service), what it may do alone for a class of message (autonomy), or the business's goal for you.",
+    "Propose a settings change as a card the person approves, by action: what the receptionist knows (closed days, hours, a note, a service), how it answers (its voice, languages, what callers hear and who they reach, your own words, the messages when it can't answer, photos), what it may do alone for a class of message (autonomy), or the business's goal for you.",
   actions: {
     change: actAction({
       ...settingsAct,
       words: `Action change takes one change object: add_closure (date, an optional until for a range, and an optional note), set_hours (one weekday's day with open and close, or both empty for closed), add_note (a title, the text the receptionist reads, and an optional until, its last day), or add_service (name, and an optional duration_min in minutes). Dates are YYYY-MM-DD, days mon..sun, times HH:MM. Call it when they say they are closed, their hours change, the receptionist should know something, or they offer a new service. ${approvalWords("settings")}.`,
     }),
+    answers: answersAction,
     autonomy: autonomyAction,
     goal: goalAction,
     answer_style: answerStyleAction,

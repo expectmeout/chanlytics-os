@@ -7,7 +7,9 @@
 import { z } from "zod";
 import { ASK_SURFACES, ASK_SCOPE_KINDS } from "./ask";
 import { ASK_CONTEXT_ROW_KINDS, ASK_CONTEXT_MAX_ROWS } from "./ask-context";
-import { ASK_GOAL_MAX } from "../config/workspace-config/config-rules";
+import { ASK_GOAL_MAX, PROFILE_LIMITS } from "../config/workspace-config/config-rules";
+import { whyNotAHandoff } from "../shared/phone";
+import { phoneVoiceOf } from "../voice/phone-voices";
 
 const Id = z.string().min(1).max(120);
 
@@ -75,4 +77,37 @@ export const AskSettingsChangeSchema = z.discriminatedUnion("op", [
   }),
   // The owner's goal for Ask (the operator, 15 Oct 2026): one line, or empty to clear it.
   z.object({ op: z.literal("set_goal"), goal: z.string().max(ASK_GOAL_MAX) }),
+  // How it answers, a row each (the Settings wiring review, item 14, 18 Oct 2026), within the profile's own limits; an
+  // empty value empties the row. The settings save judges the whole config again.
+  z.object({ op: z.literal("set_tone"), tone: z.string().max(PROFILE_LIMITS.tone) }),
+  z.object({
+    op: z.literal("set_languages"),
+    languages: z
+      .array(z.string().trim().min(PROFILE_LIMITS.languageMin).max(PROFILE_LIMITS.languageMax))
+      .max(PROFILE_LIMITS.languages),
+  }),
+  z.object({ op: z.literal("set_phone_greeting"), greeting: z.string().max(PROFILE_LIMITS.message) }),
+  z.object({
+    op: z.literal("set_phone_voice"),
+    voice: z.string().refine((v) => phoneVoiceOf(v) !== null, "not one of the phone voices"),
+  }),
+  z.object({
+    op: z.literal("set_transfer_number"),
+    // Its shape here, in the owner's words; the line it may not be (the receptionist's own, or one forwarding to it)
+    // is the settings save's to judge, which reads the lines.
+    number: z
+      .string()
+      .max(40)
+      .superRefine((v, ctx) => {
+        const why = whyNotAHandoff(v);
+        if (why) ctx.addIssue({ code: "custom", message: why });
+      }),
+  }),
+  z.object({ op: z.literal("add_own_words"), text: z.string().trim().min(1).max(PROFILE_LIMITS.instructions) }),
+  z.object({
+    op: z.literal("set_message"),
+    which: z.enum(["error", "non_text", "greeting"]),
+    text: z.string().max(PROFILE_LIMITS.message),
+  }),
+  z.object({ op: z.literal("set_photos"), on: z.boolean() }),
 ]);

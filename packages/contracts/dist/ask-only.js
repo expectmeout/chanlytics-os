@@ -959,6 +959,13 @@ var LIFECYCLE_TOAST = {
   copyFailed: (phrase) => `Couldn't copy, the phrase is: ${phrase}`
 };
 
+// src/shared/phone.ts
+function handoffE164(raw) {
+  const typed = String(raw ?? "").trim();
+  if (!typed) return null;
+  return "+" + typed.replace(/[^0-9]/g, "");
+}
+
 // src/templates/templates.ts
 var TEMPLATE_BODY_MAX = 1024;
 var TEMPLATE_BODY_WORDS = `The message must be under ${TEMPLATE_BODY_MAX} characters.`;
@@ -2649,8 +2656,126 @@ var reviewReplySpec = {
   open: () => "reports/reviews"
 };
 
+// src/config/workspace-config/fallbacks.ts
+var FALLBACK_DEFAULTS = {
+  greeting: "Hi! Thanks for reaching out to {business}.\n\nBook anytime: {booking link}\n\nReply here with any question.",
+  error: "Thanks for reaching out to {business}! A member of our team will reply here soon. Book anytime: {booking link}",
+  non_text: "Thanks for your message! A member of our team will take a look and reply here soon. For anything urgent, call us at {phone}."
+};
+
+// src/config/workspace-config/brain-config.ts
+function newReceptionistDefaults(businessName) {
+  return {
+    system_prompt: baselinePrompt(businessName),
+    // What a customer reads when the model cannot be reached: the product's
+    // wording, naming the business's details rather than copying them, so they
+    // are filled as each message goes out and follow the details from then on
+    // (fallbackMessages, S5). Copied, a workspace set up before its line existed
+    // told customers "call us at .", and a new booking link never reached them.
+    fallbacks: { ...FALLBACK_DEFAULTS }
+  };
+}
+var BASELINE_OPENING = "You are the assistant for ";
+var BASELINE_CLOSING = ", answering inbound customer messages. You are warm, concise and professional \u2014 a great front-desk person, in text form. If you do not know something, say so plainly and offer to have a person follow up.";
+function baselinePrompt(businessName) {
+  return `${BASELINE_OPENING}${businessName}${BASELINE_CLOSING}`;
+}
+function isBaselinePrompt(text) {
+  return text.startsWith(BASELINE_OPENING) && text.endsWith(BASELINE_CLOSING);
+}
+
+// src/config/workspace-config/resolve.ts
+function instructionsDraft(brain) {
+  const whose = whoseWords(brain);
+  if (whose.kind === "own") return { text: whose.text, carried: false };
+  return whose.kind === "carried" || whose.kind === "prompt" ? { text: whose.text, carried: true } : { text: "", carried: false };
+}
+function hasProfile(p) {
+  if (!p) return false;
+  const statedHours = !!p.hours && Object.values(p.hours).some((h) => h?.open && h?.close || h?.intervals?.length);
+  return !!(p.address || p.tone || p.extra_instructions || statedHours || p.services?.length || p.languages?.length || p.escalate_when?.length || p.website || p.notes?.length);
+}
+function ownWordsOf(brain) {
+  const own = brain?.profile?.extra_instructions;
+  return own?.trim() ? own : brain?.system_prompt ?? null;
+}
+function whoseWords(brain) {
+  const text = ownWordsOf(brain);
+  if (!text?.trim()) return { kind: "none", text: null };
+  if (brain?.profile?.extra_instructions?.trim())
+    return { kind: isBaselineInOwnersField(text) ? "baseline" : "own", text };
+  if (isBaselinePrompt(text.trim())) return { kind: "baseline", text };
+  return { kind: hasProfile(brain?.profile) ? "carried" : "prompt", text };
+}
+function isBaselineInOwnersField(text) {
+  const t = text.trim();
+  if (!isBaselinePrompt(t)) return false;
+  const name = t.slice(BASELINE_OPENING.length, t.length - BASELINE_CLOSING.length);
+  return name.trim().length > 0 && name.length <= 120 && !/[\r\n]/.test(name) && !/[.!?]\s/.test(name);
+}
+
+// src/voice/greeting.ts
+function greetingFor(name) {
+  return `${opening(name)} I'm the automated assistant, and calls are recorded. How can I help?`;
+}
+function opening(name) {
+  return name ? `Hi, ${name}.` : "Hi, thanks for calling.";
+}
+
+// src/voice/greeting-owner.ts
+var GREETING_NAME_SLOT = "{business}";
+var GREETING_TEMPLATE = greetingFor(GREETING_NAME_SLOT);
+var ROLE = String.raw`(?:assistant|receptionist|agent|attendant|operator|concierge|helper|host)`;
+var MACHINE = String.raw`(?:A\.?I\.?|(?:chat)?bot|robot|machine|computer|automated|automatic|virtual|digital|artificial intelligence)`;
+var STATES_AI = [
+  new RegExp(
+    String.raw`\b(?:automated|automatic|virtual|digital|A\.?I\.?|artificial[- ]intelligence|robot(?:ic)?)\s+${ROLE}\b`,
+    "i"
+  ),
+  new RegExp(
+    String.raw`\b(?:I'm|I am|this is|you're (?:speaking|talking) (?:with|to)|you are (?:speaking|talking) (?:with|to)|you've reached|you have reached)\s+(?:(?:the|a|an|our|your|\w+'s)\s+)?(?:\w+\s+)?${MACHINE}\b`,
+    "i"
+  ),
+  /\bchat\s?bot\b/i,
+  /\b(?:asistente|recepcionista|agente|operador[a]?)\s+(?:virtual|digital|autom[aá]tic[oa]|de\s+IA|de\s+inteligencia\s+artificial)\b/i,
+  /\b(?:soy|habla\s+con|est[aá]\s+hablando\s+con|le\s+atiende)\s+(?:(?:el|la|un|una|su|nuestr[oa])\s+)?(?:IA|robot|bot|m[aá]quina|inteligencia\s+artificial|asistente\s+(?:virtual|autom[aá]tic[oa]|digital))\b/i
+];
+var NEGATION = String.raw`(?:not|never|isn't|aren't|ain't|wasn't)`;
+var GOVERNED = String.raw`(?:(?!but\b|and\b|or\b|though\b)[\w']+\s+){0,2}`;
+var DENIED = String.raw`(?:(?:a|an|the|some)\s+)?(?:bot|chatbot|robot|machine|computer|automated|automatic|A\.?I\.?|artificial intelligence|(?:virtual|digital)\s+${ROLE})`;
+var DENIES_AI = [
+  new RegExp(String.raw`\b${NEGATION}\s+${GOVERNED}${DENIED}\b`, "i"),
+  /\bno\s+(?:bots?|robots?|machines?|A\.?I\.?)\b/i,
+  /\bAI[- ]free\b/i,
+  /\b(?:I'm|I am|this is|you're (?:speaking|talking) (?:with|to)|you are (?:speaking|talking) (?:with|to))\s+(?:a\s+)?(?:real|live|actual)\s+(?:person|human)\b/i,
+  /(?<!\bnot\s(?:a\s)?)\b(?:a\s+)?(?:real|live|actual)\s+(?:person|human)\s+(?:here|speaking|answering)\b/i,
+  /\bno\s+(?:soy|es)\s+(?:un\s+|una\s+)?(?:robot|bot|m[aá]quina|autom[aá]tic[oa]|IA|asistente\s+virtual|inteligencia\s+artificial)\b/i,
+  /\bno\s+(?:est[aá]\s+)?habla(?:ndo)?\s+con\s+(?:un\s+|una\s+)?(?:robot|bot|m[aá]quina|IA|asistente\s+virtual)\b/i,
+  /(?<!\bno\s)\bsoy\s+una\s+persona(?:\s+real)?\b/i,
+  /(?<!\bno\s(?:soy|es)\s(?:una\s)?)\bpersona\s+real\b/i
+];
+
 // src/ask/ask-settings-change.ts
+var ASK_ANSWERS_ROWS = {
+  set_tone: "tone",
+  set_languages: "languages",
+  set_phone_greeting: "phone_greeting",
+  set_phone_voice: "phone_voice",
+  set_transfer_number: "handoff_number",
+  add_own_words: "extra_instructions",
+  set_message: "fallbacks",
+  set_photos: null
+};
+var languagesOf = (list) => [
+  ...new Set(list.map((l) => l.trim()).filter((l) => l !== ""))
+];
 function applySettingsChange(config, change) {
+  if (change.op === "set_photos")
+    return {
+      ...config,
+      features: { ...config.features ?? {}, vision: change.on }
+    };
+  if (isAnswersBrainChange(change)) return applyAnswersChange(config, change);
   if (change.op === "set_goal") {
     const ask = { ...config.ask ?? {} };
     const goal = change.goal.trim();
@@ -2689,6 +2814,60 @@ function applySettingsChange(config, change) {
       profile.services = services;
       break;
     }
+  }
+  brain.profile = profile;
+  return { ...config, brain };
+}
+var BRAIN_OPS = /* @__PURE__ */ new Set([
+  "set_tone",
+  "set_languages",
+  "set_phone_greeting",
+  "set_phone_voice",
+  "set_transfer_number",
+  "add_own_words",
+  "set_message"
+]);
+var isAnswersBrainChange = (change) => BRAIN_OPS.has(change.op);
+var putKey = (profile, key, value) => {
+  if (value === void 0) delete profile[key];
+  else profile[key] = value;
+};
+function applyAnswersChange(config, change) {
+  const brain = { ...config.brain ?? {} };
+  const profile = { ...brain.profile ?? {} };
+  switch (change.op) {
+    case "set_tone":
+      putKey(profile, "tone", change.tone.trim() || void 0);
+      break;
+    case "set_languages": {
+      const list = languagesOf(change.languages);
+      putKey(profile, "languages", list.length ? list : void 0);
+      break;
+    }
+    case "set_phone_greeting": {
+      const line = change.greeting.trim();
+      putKey(profile, "phone_greeting", line && line !== GREETING_TEMPLATE ? line : void 0);
+      break;
+    }
+    case "set_phone_voice":
+      putKey(profile, "phone_voice", change.voice);
+      break;
+    case "set_transfer_number":
+      putKey(profile, "handoff_number", handoffE164(change.number) ?? void 0);
+      break;
+    case "add_own_words": {
+      const now = instructionsDraft({ ...brain, profile }).text.trim();
+      putKey(profile, "extra_instructions", [now, change.text.trim()].filter(Boolean).join("\n\n"));
+      brain.system_prompt = newReceptionistDefaults(brain.business_name || "").system_prompt;
+      break;
+    }
+    case "set_message":
+      brain.fallbacks = {
+        ...FALLBACK_DEFAULTS,
+        ...brain.fallbacks ?? {},
+        [change.which]: change.text.trim() || FALLBACK_DEFAULTS[change.which]
+      };
+      break;
   }
   brain.profile = profile;
   return { ...config, brain };
@@ -2755,7 +2934,13 @@ var settingsSpec = {
     },
     receipt: () => "Previous settings are back"
   },
-  open: () => "admin/workspace"
+  // A change to How it answers opens there, on its row (the Settings wiring review, item 14); the rest on Details.
+  open: (p) => {
+    const op = p.payload.change?.op;
+    if (!op || !(op in ASK_ANSWERS_ROWS)) return "admin/workspace";
+    const row = ASK_ANSWERS_ROWS[op];
+    return row ? `admin/receptionist/${row}` : "admin/receptionist";
+  }
 };
 var inviteSpec = {
   needs: "owner",

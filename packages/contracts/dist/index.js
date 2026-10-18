@@ -3094,8 +3094,8 @@ function bookingNoticeOf(e) {
   if (!e.from || !FORWARD_SUBJECT.test(e.subject ?? "") || !e.text) return null;
   const head = e.text.slice(0, 4e3);
   const m = /^\s*(?:>\s*)?(?:from|de|von)\s*:\s*(?:"?[^<\n]*"?\s*<)?([^\s<>]+@[^\s<>]+)>?/im.exec(head);
-  const quoted = m ? bookingToolOfAddress(m[1]) : null;
-  return quoted ? { tool: quoted, forwarded: true } : null;
+  const quoted2 = m ? bookingToolOfAddress(m[1]) : null;
+  return quoted2 ? { tool: quoted2, forwarded: true } : null;
 }
 var NOTICE_KINDS = ["booked", "changed", "cancelled", "other"];
 var LOCAL_TIME = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/;
@@ -8631,9 +8631,9 @@ function splitQuotedReply(body) {
   if (cuts.length === 0) return { text: body, quoted: null };
   const cut2 = Math.min(...cuts);
   const text = body.slice(0, cut2).trim();
-  const quoted = body.slice(cut2).trim();
-  if (!text || !quoted) return { text: body, quoted: null };
-  return { text, quoted };
+  const quoted2 = body.slice(cut2).trim();
+  if (!text || !quoted2) return { text: body, quoted: null };
+  return { text, quoted: quoted2 };
 }
 
 // src/config/intent-labels.ts
@@ -11214,7 +11214,7 @@ function judgeSystemPrompt(plan) {
 var CONTROL = /[\p{Cc}\p{Cf}]/gu;
 var cap = (s) => s.replace(CONTROL, " ").replace(/[<>]/g, " ").replace(/\s+/g, " ").trim().slice(0, LEAD_FACT_MAX);
 function judgeUserContent(places) {
-  const quoted = places.map((p) => ({
+  const quoted2 = places.map((p) => ({
     ref: p.ref,
     name: cap(p.name),
     category: p.category === null ? null : cap(p.category),
@@ -11227,7 +11227,7 @@ function judgeUserContent(places) {
     phone_matches_site: p.phone_matches_site
   }));
   return `<places>
-${JSON.stringify(quoted)}
+${JSON.stringify(quoted2)}
 </places>`;
 }
 function judgeShadowCalls(plan, places) {
@@ -13227,9 +13227,9 @@ function wordsListOf(lines) {
     const point = listPointOf(raw);
     if (!point) {
       const last = stack.at(-1)?.list.items.at(-1);
-      const quoted = QUOTE_LINE.exec(raw)?.[1]?.trim();
-      if (last && quoted)
-        last.runs.push({ text: " \u201C" }, ...answerRuns(quoted).map((r2) => ({ ...r2, italic: true })), {
+      const quoted2 = QUOTE_LINE.exec(raw)?.[1]?.trim();
+      if (last && quoted2)
+        last.runs.push({ text: " \u201C" }, ...answerRuns(quoted2).map((r2) => ({ ...r2, italic: true })), {
           text: "\u201D"
         });
       else if (last) last.runs.push({ text: " " }, ...answerRuns(raw.trim()));
@@ -17695,10 +17695,10 @@ function paramSaid(spec) {
   return spec.kind === "text" ? `\u201C${spec.value}\u201D` : paramLabel(spec);
 }
 function playbooksStillSending(names3) {
-  const quoted = names3.map((n) => `\u201C${n}\u201D`);
-  if (quoted.length <= 1)
-    return `${quoted[0] ?? "A campaign"} still uses this template. Pause it, or give it another, first.`;
-  return `${quoted.slice(0, -1).join(", ")} and ${quoted[quoted.length - 1]} still use this template. Pause them, or give them another, first.`;
+  const quoted2 = names3.map((n) => `\u201C${n}\u201D`);
+  if (quoted2.length <= 1)
+    return `${quoted2[0] ?? "A campaign"} still uses this template. Pause it, or give it another, first.`;
+  return `${quoted2.slice(0, -1).join(", ")} and ${quoted2[quoted2.length - 1]} still use this template. Pause them, or give them another, first.`;
 }
 function firstNameOf(displayName, waProfileName, name) {
   if (displayName && name) {
@@ -23822,6 +23822,40 @@ function itemFocus(m, n) {
   return isRowFocus(kind) ? { kind, id, label: label.slice(0, 80) || `this ${kind}` } : null;
 }
 
+// src/voice/phone-voices.ts
+var PHONE_VOICE_SAMPLES_ORIGIN = "https://retell-utils-public.s3.us-west-2.amazonaws.com";
+var voice = (id, name, says, file) => ({
+  id,
+  name,
+  says,
+  sample: `${PHONE_VOICE_SAMPLES_ORIGIN}/${file}`
+});
+var PHONE_VOICES = [
+  voice("minimax-Tamsin", "Tamsin", "Woman \xB7 American", "minimax-Tamsin.mp3"),
+  voice("minimax-Grace", "Grace", "Woman \xB7 American", "minimax_grace.mp3"),
+  voice("minimax-Nia", "Nia", "Woman \xB7 American, younger", "minimax_nia.mp3"),
+  voice("minimax-Willa", "Willa", "Woman \xB7 British", "minimax-Willa.mp3"),
+  voice("minimax-Claudia", "Claudia", "Woman \xB7 Mexican", "minimax-Claudia.mp3"),
+  voice("minimax-Nico", "Nico", "Man \xB7 American", "minimax_nico.mp3"),
+  voice("minimax-Jack", "Jack", "Man \xB7 American", "jack.mp3"),
+  voice("minimax-Alejandro", "Alejandro", "Man \xB7 Mexican, younger", "minimax-Alejandro.mp3")
+];
+var PHONE_VOICE_DEFAULT = "minimax-Tamsin";
+function phoneVoiceOf(id) {
+  return typeof id === "string" ? PHONE_VOICES.find((v) => v.id === id) ?? null : null;
+}
+function phoneVoiceShown(id) {
+  return phoneVoiceOf(id) ?? phoneVoiceOf(PHONE_VOICE_DEFAULT);
+}
+var PHONE_VOICE_WORDS = {
+  label: "Voice",
+  gate: "change the voice callers hear",
+  listen: (name) => `Hear ${name}`,
+  stop: "Stop",
+  unlisted: "Choose one of the voices on the list.",
+  saved: (name) => `Callers hear ${name} from their next call.`
+};
+
 // src/ask/ask-schemas.ts
 var Id = z4.string().min(1).max(120);
 var PageContextSchema = z4.object({
@@ -23868,7 +23902,35 @@ var AskSettingsChangeSchema = z4.discriminatedUnion("op", [
     duration_min: z4.number().int().min(1).max(1440).optional()
   }),
   // The owner's goal for Ask (the operator, 15 Oct 2026): one line, or empty to clear it.
-  z4.object({ op: z4.literal("set_goal"), goal: z4.string().max(ASK_GOAL_MAX) })
+  z4.object({ op: z4.literal("set_goal"), goal: z4.string().max(ASK_GOAL_MAX) }),
+  // How it answers, a row each (the Settings wiring review, item 14, 18 Oct 2026), within the profile's own limits; an
+  // empty value empties the row. The settings save judges the whole config again.
+  z4.object({ op: z4.literal("set_tone"), tone: z4.string().max(PROFILE_LIMITS.tone) }),
+  z4.object({
+    op: z4.literal("set_languages"),
+    languages: z4.array(z4.string().trim().min(PROFILE_LIMITS.languageMin).max(PROFILE_LIMITS.languageMax)).max(PROFILE_LIMITS.languages)
+  }),
+  z4.object({ op: z4.literal("set_phone_greeting"), greeting: z4.string().max(PROFILE_LIMITS.message) }),
+  z4.object({
+    op: z4.literal("set_phone_voice"),
+    voice: z4.string().refine((v) => phoneVoiceOf(v) !== null, "not one of the phone voices")
+  }),
+  z4.object({
+    op: z4.literal("set_transfer_number"),
+    // Its shape here, in the owner's words; the line it may not be (the receptionist's own, or one forwarding to it)
+    // is the settings save's to judge, which reads the lines.
+    number: z4.string().max(40).superRefine((v, ctx) => {
+      const why = whyNotAHandoff(v);
+      if (why) ctx.addIssue({ code: "custom", message: why });
+    })
+  }),
+  z4.object({ op: z4.literal("add_own_words"), text: z4.string().trim().min(1).max(PROFILE_LIMITS.instructions) }),
+  z4.object({
+    op: z4.literal("set_message"),
+    which: z4.enum(["error", "non_text", "greeting"]),
+    text: z4.string().max(PROFILE_LIMITS.message)
+  }),
+  z4.object({ op: z4.literal("set_photos"), on: z4.boolean() })
 ]);
 
 // src/ask/ask-language.ts
@@ -24711,9 +24773,1089 @@ function askCallOutcome(v) {
   return v.outcome === "missed" && !missedCall(v) ? "not_connected" : v.outcome;
 }
 
+// src/config/business-tab/counts.ts
+var count = (n) => n.toLocaleString("en-US");
+var CHIPS_SHOWN = 3;
+function chipsMoreWords(n) {
+  return `+${count(n)}`;
+}
+var pluralGrouped = (n, one, many) => `${count(n)} ${n === 1 ? one : many}`;
+
+// src/config/business-tab/handoff-words.ts
+var HANDED_OVER_ANYWAY = "a customer asks for a person or it can't help";
+function handoffChatWords(i) {
+  const when = i.hasEscalateWhen ? `On your reasons, or when ${HANDED_OVER_ANYWAY}, it` : `When ${HANDED_OVER_ANYWAY}, it`;
+  const pause = heldFor(hardLimitsWords({ pause_hours: i.pauseHours }).hours);
+  return `${when} stops answering, the thread turns Needs you in the Inbox, and anyone set to be alerted is emailed. It holds off for ${pause}, then answers the customer's next message itself.`;
+}
+function transferWords(hasHandoffNumber) {
+  return hasHandoffNumber ? "During opening hours it rings the number you gave and stays on until someone picks up. Outside them, or if nobody answers, it takes a message." : "No number yet, so it takes a message.";
+}
+function handoffChatRow(pauseHours) {
+  const pause = heldFor(hardLimitsWords({ pause_hours: pauseHours }).hours);
+  return { name: "Stops and marks it Needs you", sub: `Sends your alerts \xB7 replies again after ${pause}` };
+}
+function handoffCallRow(transfer) {
+  const number2 = typeof transfer === "string" ? transfer.trim() : "";
+  return number2 ? {
+    name: `Rings ${number2}`,
+    sub: "In opening hours, otherwise takes a message",
+    act: "Change",
+    actName: "Change the transfer number"
+  } : { name: "Takes a message", sub: "No transfer number", act: "Add one", actName: "Add a transfer number" };
+}
+var HANDOFF_ANYWAY = "Anyone who asks for a person, or needs help it can't give, is handed over too.";
+function handoffWords(reasons, transfer) {
+  const list2 = (Array.isArray(reasons) ? reasons : []).filter((r2) => typeof r2 === "string" && r2.trim() !== "").map((r2) => r2.trim());
+  const n = list2.length;
+  const number2 = typeof transfer === "string" ? transfer.trim() : "";
+  const phone = number2 ? `transfers to ${number2}` : "takes a message";
+  return {
+    line: `${n ? `For ${pluralGrouped(n, "reason", "reasons")}` : `When ${HANDED_OVER_ANYWAY}`} \xB7 on a call, ${phone}`,
+    phone
+  };
+}
+function heldFor(pauseHours) {
+  const hours = Math.max(1, Math.round(pauseHours));
+  if (hours % 24 === 0) return hours === 24 ? "a day" : `${hours / 24} days`;
+  return hours === 1 ? "an hour" : `${hours} hours`;
+}
+
+// src/config/business-tab/abilities.ts
+var BOOLEAN_INPUTS = {
+  voiceLive: true,
+  whatsappLive: true,
+  hasCalendarFeed: true,
+  hasBookingLink: true,
+  linkOptional: true,
+  hasBookingTemplate: true,
+  hasHandoffNumber: true,
+  hasEscalateWhen: true,
+  visionOn: true,
+  bookingHeld: true
+};
+function abilityRows(i) {
+  if (!i || typeof i !== "object")
+    throw new TypeError(
+      "abilityRows needs its inputs: which lines answer, what is filled in, and what the Autonomy tab holds."
+    );
+  const notBoolean = Object.keys(BOOLEAN_INPUTS).filter(
+    (k) => typeof i[k] !== "boolean"
+  );
+  if (notBoolean.length) {
+    throw new TypeError(
+      `abilityRows needs true or false for ${notBoolean.join(", ")}: missing or not a boolean, each would be drawn as false.`
+    );
+  }
+  if (!POLICY_MODES.includes(i.replyMode)) {
+    throw new TypeError(
+      `abilityRows needs replyMode, the Autonomy tab's Replies row (${POLICY_MODES.join(", ")}), not ${JSON.stringify(i.replyMode)}: every chat ability turns on it.`
+    );
+  }
+  const repliesHeld = i.replyMode === "ask" || i.replyMode === "never";
+  const chatAnswers = i.whatsappLive && !repliesHeld;
+  const both = { voice: i.voiceLive, whatsapp: chatAnswers };
+  const answering = i.voiceLive || chatAnswers;
+  const callSendsLink = i.voiceLive && i.whatsappLive && i.hasBookingTemplate;
+  const linkGoes2 = i.hasBookingLink && chatAnswers && !i.bookingHeld;
+  const linkIsChatsAlone = linkGoes2 && i.voiceLive && !callSendsLink;
+  const inChat = linkIsChatsAlone ? " in chat" : "";
+  const bookingDetail = !i.hasBookingLink ? i.linkOptional ? "No booking link, so it takes their details for you to follow up with a quote." : "No booking link yet, so there is nothing to send." : !i.whatsappLive ? i.voiceLive ? "It goes out on WhatsApp, which isn't connected here, so on a call it offers to have someone follow up instead." : "It goes out on WhatsApp, which isn't connected here." : i.bookingHeld ? "Your Autonomy tab holds bookings for you to confirm, so when someone asks to book, it sends no link: it tells them someone from the team will confirm." : !i.voiceLive ? "It sends it in the thread." : callSendsLink ? "On a call it sends it to the caller's WhatsApp, when their number has one, and says so. In chat it sends it in the thread." : "In chat it sends it in the thread. On a call it can't yet: sending it to a caller's WhatsApp needs an approved booking-link message.";
+  const rows2 = [
+    {
+      id: "answer",
+      title: "Answer from your facts",
+      // facts_used is the chat brain's (brain.ts); the phone agent reports an outcome, not its facts.
+      detail: "Hours, address, services, your notes. In chat it also records which facts it leaned on, so you can see why it said what it said.",
+      channels: both,
+      runsOn: { label: "Name and hours", row: "name" },
+      ready: answering,
+      // The facts it answers from are the rows' own subject, and a missing one is the gap line's (businessGap).
+      missing: false
+    },
+    {
+      id: "open_times",
+      title: "Say which times are open",
+      // describeOpenings hands chat up to five days (availability.ts maxDays), not one.
+      // With bookings held, a call still offers the openings (call-start.ts; check_availability, with the team
+      // confirming) and chat is handed them, while layerTwo replaces a booking reply carrying the link. So this
+      // says what holds on both: it has them, and a request to book gets no link.
+      detail: !i.hasCalendarFeed ? linkGoes2 ? `No calendar to read, so it does not guess at open times \u2014${inChat} it sends the link instead.` : "No calendar to read, so it does not guess at open times." : i.bookingHeld ? "It is handed the openings on a call and in chat, but your Autonomy tab holds bookings for you to confirm, so when someone asks to book, no link follows." : `On a call it asks the calendar at that moment. In chat it is handed the next few days' openings with each message. It offers up to three that fit${linkGoes2 ? `, then the link${inChat}` : ""}.`,
+      channels: { voice: i.voiceLive && i.hasCalendarFeed, whatsapp: chatAnswers && i.hasCalendarFeed },
+      runsOn: { label: "Your calendar link", row: "calendar" },
+      ready: answering && i.hasCalendarFeed,
+      missing: !i.hasCalendarFeed
+    },
+    {
+      id: "booking_link",
+      title: "Send the booking link",
+      detail: bookingDetail,
+      // The call's send goes through the same outbound gate the Replies row holds, so a
+      // workspace whose replies are held has no channel here at all -- and neither has one
+      // where there is no link to send, or where the Autonomy tab confirms bookings itself.
+      channels: { voice: linkGoes2 && callSendsLink && !repliesHeld, whatsapp: linkGoes2 },
+      runsOn: { label: "The booking link", row: "booking_link" },
+      ready: linkGoes2,
+      missing: !i.hasBookingLink && !i.linkOptional
+    },
+    {
+      id: "transfer",
+      title: "Put a caller through",
+      // What a transfer does, in the words the hand-off row's fold says it in too (transferWords).
+      detail: transferWords(i.hasHandoffNumber),
+      channels: { voice: i.voiceLive && i.hasHandoffNumber, whatsapp: false },
+      // The transfer number's one editor, Who you are's "Transfer number" (the plan's Task 3.2 decision): the
+      // hand-off row (escalate_when) shows the number and opens this same row, and edits only the reasons.
+      runsOn: { label: "The transfer number", row: "handoff_number" },
+      ready: i.voiceLive && i.hasHandoffNumber,
+      missing: !i.hasHandoffNumber
+    },
+    {
+      id: "handoff",
+      title: "Hand the thread to you",
+      // A hand-off pauses the thread for pause_hours and no longer (inbound.ts, steps.ts); after that the receptionist
+      // answers the next message itself, Needs you or not. The base triggers hold with no reasons at all -- they asked
+      // for a person, or it cannot help -- so the owner's reasons widen the hand-off; they do not switch it on. The
+      // hand-off row's fold says it in the same words (handoffChatWords).
+      detail: handoffChatWords({ hasEscalateWhen: i.hasEscalateWhen, pauseHours: i.pauseHours }),
+      channels: { voice: false, whatsapp: chatAnswers },
+      runsOn: { label: "Your reasons", row: "escalate_when" },
+      ready: chatAnswers,
+      // The base triggers hold with no reasons at all, so nothing here is missing.
+      missing: false
+    },
+    {
+      id: "vision",
+      title: "Look at a photo",
+      detail: i.visionOn ? "It says what it sees and suggests the next step, under the rules it always keeps." : "Off. A photo is passed to a person.",
+      channels: { voice: false, whatsapp: chatAnswers && i.visionOn },
+      // Its switch is on this row since 18 Oct 2026 (it sat in the rules fold, among limits): no other row supplies it.
+      runsOn: null,
+      ready: chatAnswers && i.visionOn,
+      // Off is the one state an owner changes from this card.
+      missing: !i.visionOn,
+      on: i.visionOn
+    }
+  ];
+  const held = repliesHeld ? {
+    sentence: `Replies on your Autonomy tab: it ${POLICY_MODE_WORDS[i.replyMode].chip} \u2014 ${POLICY_MODE_WORDS[i.replyMode].sub}. Until that changes it writes no WhatsApp reply at all, so nothing here happens in chat.${i.voiceLive ? " A call still answers, and cannot send the booking link." : ""}`,
+    door: "Your Autonomy tab",
+    to: "admin/autonomy"
+  } : null;
+  return { rows: rows2, held };
+}
+var CANNOT_ROWS = [
+  {
+    id: "book",
+    title: "Make, move or cancel a booking",
+    detail: "Not a setting you could switch on. Nothing in this product can make, move or cancel a booking: it only records the ones your booking tool reports. Your booking link does that, whichever tool is behind it."
+  },
+  {
+    id: "outbound_call",
+    title: "Ring a customer",
+    // Not "never dials out": a transfer rings the owner's number, two rows up the same card.
+    detail: "It answers your line and never calls a customer. The only number it rings is yours, to put a caller through. A call back is a person's, and the receptionist tells you when one is wanted."
+  },
+  {
+    id: "sms",
+    title: "Send a text message",
+    detail: "Not part of what is sold yet. It arrives with a line the carriers have approved, and Connections will say when. The booking link a caller receives goes to their WhatsApp.",
+    soon: true
+  }
+];
+var CANNOT_NO_LINK = {
+  book: "Not a setting you could switch on. Nothing in this product can make, move or cancel a booking. Your team does that, from the details it takes.",
+  sms: "Not part of what is sold yet. It arrives with a line the carriers have approved, and Connections will say when."
+};
+var CANNOT_REQUESTS_BOOK = "Not a setting you could switch on: it never makes, moves or cancels a booking itself. A time a customer picks by text waits on Today for your Booked it or Can't.";
+function cannotRows(i) {
+  if (typeof i?.smsLive !== "boolean") {
+    throw new TypeError("cannotRows needs true or false for smsLive: left out, texting would be drawn as not sold.");
+  }
+  if (typeof i?.hasBookingLink !== "boolean") {
+    throw new TypeError(
+      "cannotRows needs true or false for hasBookingLink: left out, a business with no link would be told its link books."
+    );
+  }
+  return CANNOT_ROWS.filter((r2) => !(r2.id === "sms" && i.smsLive)).map(
+    (r2) => r2.id === "book" && i.takesRequests === true ? { ...r2, detail: CANNOT_REQUESTS_BOOK } : !i.hasBookingLink && CANNOT_NO_LINK[r2.id] ? { ...r2, detail: CANNOT_NO_LINK[r2.id] } : r2
+  );
+}
+var CANNOT_COUNT_WORDS = ["No", "One", "Two", "Three", "Four", "Five"];
+function cannotFoldWords(count2) {
+  const n = CANNOT_COUNT_WORDS[count2] ?? String(count2);
+  return count2 === 1 ? `${n} thing it cannot do` : `${n} things it cannot do`;
+}
+var VISION_SWITCH_WORDS = {
+  label: "Look at a photo",
+  gate: "turn photos on or off",
+  saved: (on) => on ? "Photos on: it says what it sees." : "Photos off: a photo goes to a person."
+};
+
+// src/config/facts.ts
+var trimmed = (v) => {
+  const s = typeof v === "string" ? v.trim() : "";
+  return s || null;
+};
+var activeChannel = (known, kind) => {
+  const rows2 = known?.channels ?? [];
+  const row2 = rows2.find((c) => c.kind === kind && (c.status ?? "active") === "active");
+  return trimmed(row2?.number_e164);
+};
+var keptReaching = (known, line) => line ? trimmed((known?.forwarding ?? []).find((r2) => trimmed(r2.from_e164) && samePhone(r2.to_e164, line))?.from_e164) : null;
+function knownForwarding(rows2) {
+  const out = [];
+  for (const r2 of rows2) {
+    const from = trimmed(r2.e164);
+    if (r2.kind === "forwarded" && from) out.push({ from_e164: from, to_e164: r2.forwarding?.destination_e164 ?? null });
+  }
+  return out;
+}
+function sameAddress(a, b) {
+  const x = textKey(a).replace(/\b(usa|us|united states)\b/g, "").trim();
+  const y = textKey(b).replace(/\b(usa|us|united states)\b/g, "").trim();
+  if (!x || !y) return false;
+  return x === y || x.startsWith(y) || y.startsWith(x);
+}
+function sameName(a, b) {
+  const x = textKey(a);
+  const y = textKey(b);
+  return !!x && !!y && x === y;
+}
+function textKey(v) {
+  return String(v ?? "").toLowerCase().replace(/[’'.]/g, "").replace(/[^a-z0-9]+/g, " ").trim();
+}
+function typedOverKnown(typed, known, knownSource, same2) {
+  if (typed && known) {
+    return same2(typed, known) ? { value: typed, source: "typed" } : { value: typed, source: "typed", disputed: { value: known, source: knownSource } };
+  }
+  if (typed) return { value: typed, source: "typed" };
+  if (known) return { value: known, source: knownSource };
+  return { value: null, source: "absent" };
+}
+function resolveFacts(typed, known) {
+  const p = typed?.profile ?? null;
+  const voice2 = activeChannel(known, "voice");
+  const whatsapp = activeChannel(known, "whatsapp");
+  const kept = keptReaching(known, voice2);
+  const published = trimmed(typed?.phone_display);
+  const strEq = (a, b) => a === b;
+  return {
+    business_name: typedOverKnown(
+      trimmed(typed?.business_name),
+      trimmed(known?.listing?.name) ?? trimmed(known?.workspace?.name),
+      known?.listing?.name ? "verified" : "workspace",
+      sameName
+    ),
+    // The one that matters, and the one that should usually be absent.
+    //
+    // The fallback is FORMATTED, not raw E.164: this value is spoken and
+    // written to customers -- "Phone: +13085550109" in a prompt becomes a
+    // receptionist reading digits aloud -- so the provisioned line arrives as
+    // "+1 (308) 555-0109", the way a person says a number.
+    //
+    // The number the business keeps and forwards to THIS line is the one typed value that is not a disagreement
+    // with it: customers call the number they know, and when nobody picks up they reach the receptionist.
+    phone_display: published && samePhone(published, kept) ? { value: published, source: "typed" } : typedOverKnown(published, voice2 ? formatPhoneDisplay(voice2) : null, "provisioned", samePhone),
+    booking_link: typedOverKnown(trimmed(typed?.booking_link), null, "absent", strEq),
+    address: typedOverKnown(trimmed(p?.address), trimmed(known?.listing?.address), "verified", sameAddress),
+    website: typedOverKnown(trimmed(p?.website), null, "absent", strEq),
+    // Human-only by nature: nothing provisions "the person to put a caller through to".
+    handoff_number: p?.handoff_number ? { value: p.handoff_number, source: "typed" } : { value: null, source: "absent" },
+    voice_line: voice2 ? { value: voice2, source: "provisioned" } : { value: null, source: "absent" },
+    whatsapp_line: whatsapp ? { value: whatsapp, source: "provisioned" } : { value: null, source: "absent" },
+    kept_line: kept ? { value: kept, source: "provisioned" } : { value: null, source: "absent" }
+  };
+}
+function factConflicts(f) {
+  const out = [];
+  const phone = f.phone_display;
+  if (phone.disputed && phone.value) {
+    const isHandoff = samePhone(phone.value, f.handoff_number.value);
+    out.push({
+      fact: "phone_display",
+      severity: "serious",
+      used: phone.value,
+      known: phone.disputed.value,
+      knownSource: phone.disputed.source,
+      sentence: isHandoff ? `Your receptionist tells customers to call ${phone.value}, which is the number it transfers to \u2014 so they reach a person directly and never the receptionist answering on ${phone.disputed.value}.` : `Your receptionist tells customers to call ${phone.value}, but it answers on ${phone.disputed.value}. Anyone who calls the published number does not reach it.`,
+      to: "admin/workspace"
+    });
+  }
+  if (f.handoff_number.value && f.kept_line.value && samePhone(f.handoff_number.value, f.kept_line.value)) {
+    const kept = formatPhoneDisplay(f.kept_line.value) ?? f.kept_line.value;
+    out.push({
+      fact: "handoff_number",
+      severity: "serious",
+      used: f.handoff_number.value,
+      known: kept,
+      knownSource: f.kept_line.source,
+      sentence: `Your receptionist puts callers who ask for a person through to ${kept}, which forwards the calls nobody picks up back to it \u2014 they would come straight back. Give a mobile or another line a person answers.`,
+      to: "admin/workspace"
+    });
+  }
+  if (f.address.disputed && f.address.value) {
+    out.push({
+      fact: "address",
+      severity: "minor",
+      used: f.address.value,
+      known: f.address.disputed.value,
+      knownSource: f.address.disputed.source,
+      sentence: `Your receptionist gives ${f.address.value}; Google has you at ${f.address.disputed.value}.`,
+      to: "admin/workspace"
+    });
+  }
+  if (f.business_name.disputed && f.business_name.value) {
+    out.push({
+      fact: "business_name",
+      severity: "minor",
+      used: f.business_name.value,
+      known: f.business_name.disputed.value,
+      knownSource: f.business_name.disputed.source,
+      sentence: `Your receptionist introduces the business as ${f.business_name.value}; ${f.business_name.disputed.source === "verified" ? "Google lists it" : "this workspace is named"} ${f.business_name.disputed.value}.`,
+      to: "admin/workspace"
+    });
+  }
+  return out.sort((a, b) => a.severity === b.severity ? 0 : a.severity === "serious" ? -1 : 1);
+}
+var SOURCE_WORDS = {
+  provisioned: "your line",
+  verified: "from Google",
+  workspace: "this workspace",
+  typed: "you set this",
+  absent: "not set"
+};
+function changedConfigFields(before, after) {
+  const top = (v) => {
+    const cfg = v ?? {};
+    const brain = cfg.brain ?? {};
+    const { profile, ...rest } = brain;
+    return {
+      ...rest,
+      ...profile ?? {},
+      calendar: cfg.calendar ?? null,
+      bookings: cfg.bookings ?? null,
+      notifications: cfg.notifications ?? null,
+      features: cfg.features ?? null
+    };
+  };
+  const a = top(before);
+  const b = top(after);
+  const keys = [.../* @__PURE__ */ new Set([...Object.keys(a), ...Object.keys(b)])].sort();
+  return keys.filter((k) => JSON.stringify(a[k] ?? null) !== JSON.stringify(b[k] ?? null));
+}
+
+// src/config/workspace-config/fallbacks.ts
+var FALLBACK_DETAILS = ["business", "booking link", "phone"];
+var FALLBACK_DEFAULTS = {
+  greeting: "Hi! Thanks for reaching out to {business}.\n\nBook anytime: {booking link}\n\nReply here with any question.",
+  error: "Thanks for reaching out to {business}! A member of our team will reply here soon. Book anytime: {booking link}",
+  non_text: "Thanks for your message! A member of our team will take a look and reply here soon. For anything urgent, call us at {phone}."
+};
+var EARLIER_FALLBACK_DEFAULTS = /* @__PURE__ */ (() => ({
+  greeting: "Hi! Thanks for reaching out to {business}.\n\nBook anytime: {booking link}\n\nOr reply here with any question.",
+  error: "Thanks for reaching out to {business}! Book anytime: {booking link} \u2014 or a member of our team will reply here soon.",
+  non_text: FALLBACK_DEFAULTS.non_text
+}))();
+var FALLBACK_ROWS = [
+  { key: "error", label: "It couldn't write a reply", when: "Then it waits for you" },
+  { key: "non_text", label: "It got something it can't read", when: "Voice notes, stickers, some photos" },
+  { key: "greeting", label: "The AI is down", when: "Rare. Every chat waits for you" }
+];
+function isProductFallback(key, text) {
+  const t = typeof text === "string" ? text.trim() : "";
+  return t === FALLBACK_DEFAULTS[key] || t === EARLIER_FALLBACK_DEFAULTS[key];
+}
+var DETAIL = /\{\s*(business|booking\s+link|phone)\s*\}/gi;
+var namesADetail = (text) => /\{\s*(business|booking\s+link|phone)\s*\}/i.test(text);
+var detailOf = (raw) => raw.toLowerCase().replace(/\s+/g, " ");
+function fillDetails(text, values) {
+  if (!namesADetail(text)) return text;
+  return text.split("\n").map((line) => {
+    if (!namesADetail(line)) return line;
+    return line.split(/(?<=[.!?])\s+/).filter((s) => [...s.matchAll(DETAIL)].every((m) => values[detailOf(m[1])])).map((s) => s.replace(DETAIL, (_, name) => values[detailOf(name)])).join(" ");
+  }).join("\n").replace(/\n{3,}/g, "\n\n").trim();
+}
+function fallbackMessages(brain, known) {
+  const facts = resolveFacts(brain, known);
+  const values = {
+    business: facts.business_name.value ?? brain.business_name,
+    "booking link": facts.booking_link.value ?? brain.booking_link ?? null,
+    phone: facts.phone_display.value
+  };
+  const own = (kind) => {
+    const stored = brain.fallbacks[kind];
+    return !values["booking link"] && stored.trim() === EARLIER_FALLBACK_DEFAULTS[kind] ? FALLBACK_DEFAULTS[kind] : stored;
+  };
+  const say2 = (kind) => fillDetails(own(kind), values) || fillDetails(FALLBACK_DEFAULTS[kind], values);
+  return { greeting: say2("greeting"), error: say2("error"), non_text: say2("non_text") };
+}
+function unknownDetails(text) {
+  return [...text.matchAll(/\{[^{}\n]{1,40}\}/g)].map((m) => m[0]).filter((name) => !namesADetail(name));
+}
+
+// src/config/workspace-config/brain-config.ts
+function newReceptionistDefaults(businessName) {
+  return {
+    system_prompt: baselinePrompt(businessName),
+    // What a customer reads when the model cannot be reached: the product's
+    // wording, naming the business's details rather than copying them, so they
+    // are filled as each message goes out and follow the details from then on
+    // (fallbackMessages, S5). Copied, a workspace set up before its line existed
+    // told customers "call us at .", and a new booking link never reached them.
+    fallbacks: { ...FALLBACK_DEFAULTS }
+  };
+}
+var BASELINE_OPENING = "You are the assistant for ";
+var BASELINE_CLOSING = ", answering inbound customer messages. You are warm, concise and professional \u2014 a great front-desk person, in text form. If you do not know something, say so plainly and offer to have a person follow up.";
+function baselinePrompt(businessName) {
+  return `${BASELINE_OPENING}${businessName}${BASELINE_CLOSING}`;
+}
+function isBaselinePrompt(text) {
+  return text.startsWith(BASELINE_OPENING) && text.endsWith(BASELINE_CLOSING);
+}
+
+// src/config/workspace-config/offers-ask.ts
+var FACT = /* @__PURE__ */ (() => ({
+  yes: "Said yes to offers.",
+  no: "Said no to offers.",
+  never: "Has not been asked for the yes to offers.",
+  asked: (on) => `Asked for the yes to offers${on ? ` on ${on}` : ""}; has not said it.`,
+  text: "This conversation is by text message, not WhatsApp."
+}))();
+function offersFacts(p, channel, now, tz) {
+  const out = [];
+  if (channel === "sms") out.push(FACT.text);
+  const asked = p.offersAskedAt;
+  const open = p.marketingConsent === "unknown" || p.marketingConsent === "opted_in" && !yesCovers(p.marketingChannels, "whatsapp");
+  if (p.marketingConsent === "opted_in" && !open) out.push(FACT.yes);
+  else if (p.marketingConsent === "opted_out") out.push(FACT.no);
+  else if (open) {
+    if (typeof asked === "string") {
+      const at3 = Date.parse(asked);
+      out.push(FACT.asked(Number.isFinite(at3) ? clockDate(at3, tz, now.getTime()) : null));
+    } else if (asked === null && channel === "whatsapp" && !p.optedOut) out.push(FACT.never);
+  }
+  return out;
+}
+function offersAfterStart(p, channel) {
+  if (channel !== "whatsapp") return null;
+  if (p.marketingConsent !== "unknown" || p.marketingConsentSource !== STOP_ENDED_OFFERS_SOURCE) return null;
+  return `Offers and news stay off. Reply ${OFFERS_OPT_IN_PHRASES.en} to get them here again.`;
+}
+function offersAskRule() {
+  const { en, es } = OFFERS_OPT_IN_PHRASES;
+  return `When a WhatsApp conversation the customer started comes to its natural end after something went well (a booking made or confirmed, or their question fully answered), and the facts about them say "${FACT.never}", close your reply with this question, once, in their language: "Want our offers and news here too? Reply ${en}. You can stop any time." (in Spanish, ${es} in place of ${en}). Never ask twice; never on a text or email conversation, in a complaint, in a cancellation, after STOP, or of anyone who has said no to offers; never make it a condition of anything.`;
+}
+
+// src/config/workspace-config/assistant-disclosure.ts
+var CONVERSATION_UNDER_WAY = "This conversation is already under way.";
+var CONVERSATION_GAP_MS = DAY_MS;
+function disclosureFacts(p, channel, now) {
+  if (channel === "voice" || !p.returning || !p.lastTurnAt) return [];
+  const at3 = Date.parse(p.lastTurnAt);
+  return Number.isFinite(at3) && now.getTime() - at3 < CONVERSATION_GAP_MS ? [CONVERSATION_UNDER_WAY] : [];
+}
+
+// src/config/workspace-config/compose.ts
+function dateKeyInZone(tz, at3) {
+  try {
+    const parts2 = dateFormat("en-US", {
+      timeZone: tz,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit"
+    }).formatToParts(at3);
+    const get = (t) => parts2.find((p) => p.type === t)?.value ?? "";
+    const y = get("year"), m = get("month"), d = get("day");
+    return y && m && d ? `${y}-${m}-${d}` : null;
+  } catch {
+    return null;
+  }
+}
+function labelDate(key, withWeekday) {
+  const at3 = /* @__PURE__ */ new Date(`${key}T12:00:00Z`);
+  if (Number.isNaN(at3.getTime()) || dateKeyInZone("UTC", at3) !== key) return key;
+  return dateFormat("en-US", {
+    timeZone: "UTC",
+    ...withWeekday ? { weekday: "long" } : {},
+    month: "long",
+    day: "numeric",
+    year: "numeric"
+  }).format(at3);
+}
+function businessToday(tz, at3) {
+  return tz && dateKeyInZone(tz, at3) || dateKeyInZone("UTC", new Date(at3.getTime() - 864e5));
+}
+function upcomingClosures(closures, today) {
+  if (!closures?.length) return [];
+  if (!today) return closures;
+  return closures.filter((c) => (c.until && c.until >= c.date ? c.until : c.date) >= today).sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
+}
+function notesInForceOn(notes, today) {
+  if (!notes?.length) return [];
+  if (!today) return [...notes];
+  return notes.filter((n) => !n.until || n.until >= today);
+}
+function notesInForce(notes, tz, now) {
+  return notesInForceOn(notes, businessToday(tz, now));
+}
+function noteAsTold(n) {
+  return n.until ? `${n.title} (until ${labelDate(n.until, true)}): ${n.text}` : `${n.title}: ${n.text}`;
+}
+function closureLines(closures) {
+  return closures.map((c) => {
+    const when = c.until && c.until !== c.date && c.until > c.date ? `${labelDate(c.date, false)} \u2013 ${labelDate(c.until, false)}` : labelDate(c.date, true);
+    return c.note ? `${when} \u2014 ${c.note}` : when;
+  });
+}
+function closedToday(closures, tz, at3) {
+  if (!closures?.length || !tz) return null;
+  const today = dateKeyInZone(tz, at3);
+  if (!today) return null;
+  return closures.find((c) => {
+    const end = c.until && c.until >= c.date ? c.until : c.date;
+    return c.date <= today && today <= end;
+  }) ?? null;
+}
+var NO_CLOCK = "You do not know today's date or the current time. If a customer asks whether the business is open right now, or about today or tomorrow, state the opening hours and let them compare \u2014 never guess which day it is.";
+function describeNow(tz, now = /* @__PURE__ */ new Date(), closures) {
+  if (!tz) return NO_CLOCK;
+  try {
+    const stamp = dateFormat("en-US", {
+      weekday: "long",
+      month: "long",
+      day: "numeric",
+      year: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+      timeZone: tz
+    }).format(now);
+    const shut = closedToday(closures, tz, now);
+    const today = shut ? ` The business is CLOSED today${shut.note ? ` \u2014 ${shut.note}` : ""}, whatever the weekly hours say. Do not offer today; offer the next day it is open.` : "";
+    return `Right now it is ${stamp} (${tz}).${today} Use this for anything about today, tomorrow, or whether the business is open at this moment \u2014 compare it against the opening hours and the closed dates, and treat a closed date as final.`;
+  } catch {
+    return NO_CLOCK;
+  }
+}
+var PROMPT_OPENINGS = {
+  hours: "Opening hours",
+  closures: "Closed on these dates",
+  services: "Services:",
+  notes: "Other things to know:",
+  bookingRules: "Booking rules:",
+  handoffChat: "Handing the conversation to a person:",
+  handoffCall: "Handing the caller to a person:",
+  /** The call's tool mechanics: check_availability, send_booking_link, end_call. */
+  callTools: "Open times: use check_availability",
+  callMedium: "You are speaking aloud.",
+  chatMedium: "Keep replies short enough to read on a phone.",
+  openTimes: "If open times are listed after these instructions",
+  /** The rules, last: the guardrails in a composed prompt, Autonomy's alone after a prompt nothing composed. */
+  rules: "Rules you must follow:",
+  /** Above the owner's own words, when there are details above for them to disagree with. */
+  ownWordsUnderDetails: "Further instructions from the business.",
+  /** Above the owner's own words on a call, alone or after the line above. */
+  ownWordsOnACall: "Some of it was written for text conversations"
+};
+function noLinkBooking(channel) {
+  return channel === "voice" ? `Booking: there is no booking link, so never use send_booking_link. When the caller wants to book, change or cancel a booking, or get a quote, take ${NO_LINK_DETAILS}, and say the team will follow up.` : `There is no booking link to send. When someone wants to book, change or cancel a booking, or get a quote, take ${NO_LINK_DETAILS}; once they have told you, say the team will follow up and set escalate to true.`;
+}
+function composeSystemPrompt(base, profile, channel = "whatsapp", tz, now = /* @__PURE__ */ new Date(), policy, audience = "customer") {
+  return composeSystemPromptWith(base, profile, channel, tz, now, policy, audience);
+}
+function composeSystemPromptWith(base, profile, wire, tz, now, policy, audience) {
+  const channel = wire === "voice" ? "voice" : "whatsapp";
+  const link = offersBookingLink(base) ? base.booking_link : null;
+  const handed = offersLinkOn(channel === "voice" ? "call" : "chat", base, base.whatsapp_line) ? link : null;
+  const hrs = hoursLines(profile.hours);
+  const today = businessToday(tz, now);
+  const closed = closureLines(upcomingClosures(profile.closures, today));
+  const notes = notesInForceOn(profile.notes, today).map(noteAsTold);
+  const facts = { base, profile, channel, wire, tz, policy, link, handed, hrs, closed, notes, audience };
+  return PROMPT_SECTIONS.flatMap((section) => section(facts)).join("\n");
+}
+var PROMPT_SECTIONS = [
+  identitySection,
+  contactSection,
+  hoursSection,
+  closuresSection,
+  servicesSection,
+  notesSection,
+  bookingRulesSection,
+  handoffSection,
+  callToolsSection,
+  ownWordsSection,
+  mediumSection,
+  openTimesSection,
+  rulesSection
+];
+function identitySection({ base, profile, channel, wire }) {
+  const s = [];
+  const medium = wire === "voice" ? "on the phone" : wire === "sms" ? "by text message" : "over WhatsApp";
+  s.push(`You are the assistant for ${base.business_name}, answering customers ${medium}.`);
+  if (profile.tone) s.push(`Tone: ${profile.tone}`);
+  if (profile.languages?.length) {
+    const list2 = profile.languages.join(", ");
+    s.push(
+      channel === "voice" ? (
+        // A call hears only these: the line listens for its workspace's languages (voice-converge's locales). A caller
+        // picks the language by speaking it; nobody asks a phone agent to "reply in Spanish".
+        `You speak: ${list2}. Answer in whichever of these the caller uses, and switch if they do.`
+      ) : (
+        // In writing the list is a preference, not a limit (the Settings wiring review, item 13, 18 Oct 2026; the
+        // owner's rule that language is the model's to follow): the customer's own language comes first.
+        `The business serves customers in: ${list2}. Reply in the language the customer writes in, and switch if they do.`
+      )
+    );
+  }
+  return s;
+}
+function contactSection({ base, profile, link }) {
+  const s = [];
+  if (profile.address) s.push(`
+Address: ${profile.address}`);
+  if (base.phone_display) s.push(`Phone: ${base.phone_display}`);
+  if (link) s.push(`Booking link: ${link}`);
+  if (profile.website) s.push(`Website: ${profile.website}`);
+  return s;
+}
+function hoursSection({ tz, hrs }) {
+  const s = [];
+  if (hrs.length) {
+    const where = tz ? ` (all times ${tz})` : "";
+    s.push(`
+${PROMPT_OPENINGS.hours}${where}:
+${hrs.map((l) => `- ${l}`).join("\n")}`);
+  }
+  return s;
+}
+function closuresSection({ closed }) {
+  const s = [];
+  if (closed.length) {
+    s.push(
+      `
+${PROMPT_OPENINGS.closures}, whatever the opening hours above say:
+${closed.map((l) => `- ${l}`).join(
+        "\n"
+      )}
+If someone asks about one of these dates, say the business is closed that day and offer the next day it is open.`
+    );
+  }
+  return s;
+}
+function servicesSection({ profile }) {
+  const s = [];
+  if (profile.services?.length) {
+    const lines = profile.services.map((sv) => {
+      const bits2 = [sv.name];
+      if (sv.duration_min) bits2.push(`about ${sv.duration_min} minutes`);
+      if (sv.price_note) bits2.push(sv.price_note);
+      return `- ${bits2.join(" \u2014 ")}`;
+    });
+    s.push(`
+${PROMPT_OPENINGS.services}
+${lines.join("\n")}`);
+  }
+  return s;
+}
+function notesSection({ notes }) {
+  const s = [];
+  if (notes.length) s.push(`
+${PROMPT_OPENINGS.notes}
+${notes.map((l) => `- ${l}`).join("\n")}`);
+  return s;
+}
+function bookingRulesSection({ profile }) {
+  const s = [];
+  const br = profile.booking_rules;
+  if (br && (br.lead_hours !== void 0 || br.consult_first?.length || br.party_max || br.notes?.length || br.ask_email)) {
+    const lines = bookingRuleLines(br);
+    s.push(`
+${PROMPT_OPENINGS.bookingRules}
+${lines.map((l) => `- ${l}`).join("\n")}`);
+  }
+  return s;
+}
+function bookingRuleLines(br) {
+  const lines = [];
+  if (br.lead_hours !== void 0) {
+    lines.push(
+      br.lead_hours === 0 ? "Same-day bookings are fine, right up to the time." : `At least ${br.lead_hours} hour${br.lead_hours === 1 ? "" : "s"}' notice for any appointment.`
+    );
+  }
+  if (br.consult_first?.length)
+    lines.push(`These need a consultation before they can be booked: ${br.consult_first.join(", ")}.`);
+  if (br.party_max)
+    lines.push(
+      `Up to ${br.party_max} ${br.party_max === 1 ? "person" : "people"} per booking; larger groups go to a person.`
+    );
+  if (br.ask_email)
+    lines.push(
+      "When you send the booking link and no email address is on file for them, ask once for their best email address, then move on. Never insist; thank them if they give one."
+    );
+  for (const n of br.notes ?? []) lines.push(n);
+  return lines;
+}
+function handoffSection({ profile, channel }) {
+  const s = [];
+  if (channel === "whatsapp") {
+    const when = profile.escalate_when?.length ? `
+${profile.escalate_when.map((e) => `- ${e}`).join("\n")}` : "";
+    s.push(
+      `
+${PROMPT_OPENINGS.handoffChat}
+Set escalate to true: that is what tells a person and holds the conversation for them \u2014 saying you will fetch someone does nothing on its own. Write the reply you would normally send. If you ever answer in plain words, without that record, put the exact token [[HUMAN]] at the very end of your reply instead; it is removed before the customer sees it.
+Do this whenever the customer asks for a person, is upset, or asks something these instructions do not cover${when ? ", and whenever:" : "."}${when}`
+    );
+  } else {
+    const when = profile.escalate_when?.length ? `
+${profile.escalate_when.map((e) => `- ${e}`).join("\n")}` : "";
+    const staffed = profile.handoff_number ? "Use transfer_to_staff during opening hours \u2014 it rings the line a person answers, and you stay on until they pick up. Outside opening hours, or if the transfer does not connect, take the caller's name and a short message and say the team will follow up." : "There is no line to transfer to. Take the caller's name and a short message and say the team will follow up.";
+    s.push(
+      `
+${PROMPT_OPENINGS.handoffCall}
+${staffed}
+Do this whenever the caller asks for a person, is upset, or asks something these instructions do not cover${when ? ", and whenever:" : "."}${when}`
+    );
+  }
+  return s;
+}
+function callToolsSection({ base, channel, link, handed }) {
+  const s = [];
+  if (channel !== "whatsapp") {
+    s.push(
+      `
+${PROMPT_OPENINGS.callTools} before offering a time \u2014 it reads the calendar as it is at that moment (a list at the end of these instructions, if any, is from the start of the call). Ask which service first when you can, so only windows long enough are offered.
+` + (handed ? "Booking: when the caller wants to book, use send_booking_link \u2014 it sends the booking link to the caller's WhatsApp, on the number they are calling from, so do not ask them for a number unless they want it sent somewhere else. Tell them it comes by WhatsApp, not as a text message: it only arrives if that number has WhatsApp. Then confirm it was sent. " + // A number to give only where there is one other than the line they are ringing (resolveSystemPrompt).
+      (base.phone_display ? "If it fails, or they do not have WhatsApp on that number, give the phone number above and offer to have someone follow up.\n" : "If it fails, or they do not have WhatsApp on that number, offer to have someone follow up.\n") : link ? `${NO_WAY_TO_SEND_LINK}
+` : `${noLinkBooking("voice")}
+`) + "Ending: once the caller has said goodbye, use end_call."
+    );
+  }
+  return s;
+}
+function ownWordsSection({ profile, channel, hrs, closed }) {
+  const s = [];
+  if (profile.extra_instructions?.trim()) {
+    const above = [
+      profile.address ? "address" : "",
+      hrs.length ? "hours" : "",
+      closed.length ? "closed dates" : "",
+      profile.services?.length ? "services" : ""
+    ].filter(Boolean);
+    const stated2 = above.length > 0;
+    const text = profile.extra_instructions.trim();
+    const header = [
+      stated2 ? `${PROMPT_OPENINGS.ownWordsUnderDetails} Where these disagree with the ${joinList(above)} above, the details above are current and correct.` : "",
+      channel === "voice" ? `${PROMPT_OPENINGS.ownWordsOnACall}; you are on a phone call.` : ""
+    ].filter(Boolean).join(" ");
+    s.push(header ? `
+${header}
+${text}` : `
+${text}`);
+  }
+  return s;
+}
+function mediumSection({ channel, link, handed }) {
+  const s = [];
+  const callMedium = handed ? "Keep answers to one or two sentences, never read a URL out character by character, and offer to send the booking link to the caller's WhatsApp instead." : "Keep answers to one or two sentences, and never read a URL out character by character.";
+  const chatMedium = link ? "Send the booking link rather than describing how to book." : noLinkBooking("whatsapp");
+  s.push(
+    channel === "voice" ? `
+${PROMPT_OPENINGS.callMedium} ${callMedium}` : `
+${PROMPT_OPENINGS.chatMedium} ${chatMedium}`
+  );
+  return s;
+}
+function openTimesSection({ handed, policy }) {
+  const s = [];
+  s.push(
+    `
+${PROMPT_OPENINGS.openTimes}, offer up to three that fit what the customer wants, ` + (handed && bookingHeld(policy) ? "then say a member of the team will call or text them to confirm one, and take their name \u2014 the calendar decides, never you. If none are listed, do not guess at open times." : handed ? "then send the booking link \u2014 the calendar decides, never you. If none are listed, do not guess at open times; send the link." : `then take ${NO_LINK_DETAILS} so the team can confirm one \u2014 the calendar decides, never you. If none are listed, do not guess at open times.`)
+  );
+  return s;
+}
+var ASSISTANT_RULE = {
+  always: "You are the business's automated assistant: never claim or hint that you are a person. If anyone asks whether you are a bot, a person or AI, say plainly that you are the business's automated assistant and offer to bring in a person.",
+  textOpening: `Unless the facts about them say "${CONVERSATION_UNDER_WAY}", open your reply by saying, in a few words, that you are the business's automated assistant.`
+};
+var RULES_WIN = "Where anything above disagrees with these rules, the rules win.";
+function standingRules(policy, channel, audience) {
+  const assistant = audience === "draft" ? [] : channel === "voice" ? [ASSISTANT_RULE.always] : [ASSISTANT_RULE.always, ASSISTANT_RULE.textOpening];
+  return [...policyRules(policy, channel), ...assistant, RULES_WIN, DATA_NOT_INSTRUCTIONS];
+}
+function rulesSection({ base, profile, channel, policy, link, handed, audience }) {
+  const s = [];
+  const g = guardrailsInForce(profile.guardrails);
+  const rules = [];
+  if (g.never_quote_prices) {
+    rules.push(
+      `Never quote or confirm a price. Say it is quoted in person or at a consult, and ${priceNextStep(!!handed)}.`
+    );
+  } else {
+    rules.push(
+      `Say a price only as the business wrote it in the details above, exactly as written and in digits; never work one out or estimate one. For any other price, say it is quoted in person or at a consult, and ${priceNextStep(!!handed)}.`
+    );
+  }
+  if (g.never_confirm_booking) {
+    rules.push(
+      `Never promise or confirm an appointment yourself. Booking happens ${link ? "on the booking link or " : ""}with staff.`
+    );
+  }
+  rules.push(
+    base.whatsapp_line ? "If a message is only the words YES OFFERS or SI OFERTAS, the customer is saying yes to offers and news by WhatsApp: thank them in one short line, say they can reply STOP at any time, and ask nothing else." : "If a message is only the words YES OFFERS or SI OFERTAS, thank them in one short line and promise nothing: this business sends no offers or news by message."
+  );
+  if (channel === "whatsapp" && base.whatsapp_line) rules.push(offersAskRule());
+  if (g.no_health_advice) {
+    rules.push(
+      `Never give medical or health advice \u2014 for anything about skin reactions, allergies, pregnancy or medication, say a professional will advise at the appointment${handed ? " and offer the booking link" : ""}.`
+    );
+  }
+  rules.push(...standingRules(policy, channel, audience));
+  if (rules.length) s.push(`
+${PROMPT_OPENINGS.rules}
+${rules.map((r2) => `- ${r2}`).join("\n")}`);
+  return s;
+}
+
+// src/config/workspace-config/resolve.ts
+function instructionsDraft(brain) {
+  const whose = whoseWords(brain);
+  if (whose.kind === "own") return { text: whose.text, carried: false };
+  return whose.kind === "carried" || whose.kind === "prompt" ? { text: whose.text, carried: true } : { text: "", carried: false };
+}
+var NO_FIELDS_COMPOSED_WORDS = "Your details aren't in what it reads yet.";
+function hasProfile(p) {
+  if (!p) return false;
+  const statedHours = !!p.hours && Object.values(p.hours).some((h) => h?.open && h?.close || h?.intervals?.length);
+  return !!(p.address || p.tone || p.extra_instructions || statedHours || p.services?.length || p.languages?.length || p.escalate_when?.length || p.website || p.notes?.length);
+}
+function resolveSystemPrompt(brain, wire = "whatsapp", tz, now = /* @__PURE__ */ new Date(), policy, known, audience = "customer") {
+  const channel = wire === "voice" ? "voice" : "whatsapp";
+  const facts = resolveFacts(brain, known);
+  if (!hasProfile(brain.profile)) {
+    const link = !offersBookingLink(brain) ? [noLinkBooking(channel)] : channel === "voice" && !offersLinkOn("call", brain, facts.whatsapp_line.value) ? [NO_WAY_TO_SEND_LINK] : [];
+    const rules = [...link, ...standingRules(policy, channel, audience)];
+    return `${brain.system_prompt}
+
+${PROMPT_OPENINGS.rules}
+${rules.map((r2) => `- ${r2}`).join("\n")}`;
+  }
+  const profile = brain.profile;
+  const ringing = wire === "voice" && (samePhone(facts.phone_display.value, facts.voice_line.value) || samePhone(facts.phone_display.value, facts.kept_line.value));
+  const resolved = {
+    business_name: facts.business_name.value ?? brain.business_name,
+    phone_display: ringing ? null : facts.phone_display.value,
+    booking_link: facts.booking_link.value ?? brain.booking_link ?? null,
+    // Provisioned or nothing, never typed (facts.ts): the ask for the yes to offers is composed only where there is one.
+    whatsapp_line: facts.whatsapp_line.value
+  };
+  const carried = { ...profile, extra_instructions: ownWordsOf(brain) ?? void 0 };
+  return composeSystemPrompt(resolved, carried, wire, tz, now, policy, audience);
+}
+function ownWordsOf(brain) {
+  const own = brain?.profile?.extra_instructions;
+  return own?.trim() ? own : brain?.system_prompt ?? null;
+}
+function whoseWords(brain) {
+  const text = ownWordsOf(brain);
+  if (!text?.trim()) return { kind: "none", text: null };
+  if (brain?.profile?.extra_instructions?.trim())
+    return { kind: isBaselineInOwnersField(text) ? "baseline" : "own", text };
+  if (isBaselinePrompt(text.trim())) return { kind: "baseline", text };
+  return { kind: hasProfile(brain?.profile) ? "carried" : "prompt", text };
+}
+function isBaselineInOwnersField(text) {
+  const t = text.trim();
+  if (!isBaselinePrompt(t)) return false;
+  const name = t.slice(BASELINE_OPENING.length, t.length - BASELINE_CLOSING.length);
+  return name.trim().length > 0 && name.length <= 120 && !/[\r\n]/.test(name) && !/[.!?]\s/.test(name);
+}
+
+// src/voice/greeting.ts
+function greetingFor(name) {
+  return `${opening(name)} I'm the automated assistant, and calls are recorded. How can I help?`;
+}
+function opening(name) {
+  return name ? `Hi, ${name}.` : "Hi, thanks for calling.";
+}
+function pausedGreetingFor(name) {
+  return `${opening(name)} I'm the automated assistant, and calls are recorded. Today I can only take a message for the team.`;
+}
+var GREETING_DEFAULT = /* @__PURE__ */ greetingFor(null);
+
+// src/voice/greeting-owner.ts
+var GREETING_NAME_SLOT = "{business}";
+var AI_CLAUSE = { en: "I'm the automated assistant.", es: "Soy el asistente autom\xE1tico." };
+var GREETING_TEMPLATE = greetingFor(GREETING_NAME_SLOT);
+var GREETING_LONG_WORDS = 18;
+var SECONDS_PER_WORD = 0.4;
+var ROLE = String.raw`(?:assistant|receptionist|agent|attendant|operator|concierge|helper|host)`;
+var MACHINE = String.raw`(?:A\.?I\.?|(?:chat)?bot|robot|machine|computer|automated|automatic|virtual|digital|artificial intelligence)`;
+var STATES_AI = [
+  new RegExp(
+    String.raw`\b(?:automated|automatic|virtual|digital|A\.?I\.?|artificial[- ]intelligence|robot(?:ic)?)\s+${ROLE}\b`,
+    "i"
+  ),
+  new RegExp(
+    String.raw`\b(?:I'm|I am|this is|you're (?:speaking|talking) (?:with|to)|you are (?:speaking|talking) (?:with|to)|you've reached|you have reached)\s+(?:(?:the|a|an|our|your|\w+'s)\s+)?(?:\w+\s+)?${MACHINE}\b`,
+    "i"
+  ),
+  /\bchat\s?bot\b/i,
+  /\b(?:asistente|recepcionista|agente|operador[a]?)\s+(?:virtual|digital|autom[aá]tic[oa]|de\s+IA|de\s+inteligencia\s+artificial)\b/i,
+  /\b(?:soy|habla\s+con|est[aá]\s+hablando\s+con|le\s+atiende)\s+(?:(?:el|la|un|una|su|nuestr[oa])\s+)?(?:IA|robot|bot|m[aá]quina|inteligencia\s+artificial|asistente\s+(?:virtual|autom[aá]tic[oa]|digital))\b/i
+];
+var NEGATION = String.raw`(?:not|never|isn't|aren't|ain't|wasn't)`;
+var GOVERNED = String.raw`(?:(?!but\b|and\b|or\b|though\b)[\w']+\s+){0,2}`;
+var DENIED = String.raw`(?:(?:a|an|the|some)\s+)?(?:bot|chatbot|robot|machine|computer|automated|automatic|A\.?I\.?|artificial intelligence|(?:virtual|digital)\s+${ROLE})`;
+var DENIES_AI = [
+  new RegExp(String.raw`\b${NEGATION}\s+${GOVERNED}${DENIED}\b`, "i"),
+  /\bno\s+(?:bots?|robots?|machines?|A\.?I\.?)\b/i,
+  /\bAI[- ]free\b/i,
+  /\b(?:I'm|I am|this is|you're (?:speaking|talking) (?:with|to)|you are (?:speaking|talking) (?:with|to))\s+(?:a\s+)?(?:real|live|actual)\s+(?:person|human)\b/i,
+  /(?<!\bnot\s(?:a\s)?)\b(?:a\s+)?(?:real|live|actual)\s+(?:person|human)\s+(?:here|speaking|answering)\b/i,
+  /\bno\s+(?:soy|es)\s+(?:un\s+|una\s+)?(?:robot|bot|m[aá]quina|autom[aá]tic[oa]|IA|asistente\s+virtual|inteligencia\s+artificial)\b/i,
+  /\bno\s+(?:est[aá]\s+)?habla(?:ndo)?\s+con\s+(?:un\s+|una\s+)?(?:robot|bot|m[aá]quina|IA|asistente\s+virtual)\b/i,
+  /(?<!\bno\s)\bsoy\s+una\s+persona(?:\s+real)?\b/i,
+  /(?<!\bno\s(?:soy|es)\s(?:una\s)?)\bpersona\s+real\b/i
+];
+var SAYS_RECORDING = [
+  /\brecord(?:ed|ing|s)?\b/i,
+  /\bgrab(?:a|an|ada|adas|ado|amos|ando|ar|aci[oó]n)\b/i
+];
+var DENIES_RECORDING = [
+  /\b(?:not|never)\s+(?:being\s+|be\s+|get\s+)?record(?:ed|ing|s)?\b/i,
+  /\bno\s+recordings?\b/i,
+  /\b(?:don't|doesn't|won't|aren't|isn't|ain't)\s+(?:being\s+|be\s+)?record(?:ed|ing|s)?\b/i,
+  /\bno\s+(?:se\s+)?(?:graba|graban|grabamos|grabada|grabadas|est[aá]\s+grabando|estamos\s+grabando|son\s+grabadas|es\s+grabada)\b/i,
+  /\bsin\s+grabar\b/i
+];
+var LINK2 = /\b(?:https?:\/\/|www\.)\S+|\b[\w-]+\.(?:com|net|org|co|io|us|mx|es)\b/i;
+var SPANISH = /[¿¡ñ]|\b(?:hola|gracias|llamar|llamada|ayudar|ayudarle|ayudarte|bienvenid[oa]s?|c[oó]mo|est[aá]|usted)\b/i;
+var NAME_STANDS_IN = "Xname";
+function judged(text, name) {
+  const straight = (s) => s.replace(/[‘’]/g, "'");
+  let t = straight(text).split(GREETING_NAME_SLOT).join(NAME_STANDS_IN);
+  const n = straight(name ?? "").trim();
+  if (n) t = t.split(n).join(NAME_STANDS_IN);
+  return t;
+}
+var any = (rules, t) => rules.some((r2) => r2.test(t));
+function statesAutomated(text, name = null) {
+  const t = judged(text, name);
+  return any(STATES_AI, t) && !any(DENIES_AI, t);
+}
+function deniesAutomated(text, name = null) {
+  return any(DENIES_AI, judged(text, name));
+}
+function spokenNameOf(name) {
+  const n = (name ?? "").trim();
+  return n || null;
+}
+var clauseFor = (text, name) => SPANISH.test(judged(text, name)) ? AI_CLAUSE.es : AI_CLAUSE.en;
+function withAiClause(text, clause2) {
+  const closing = /^([\s\S]*[.!?…])\s+([^.!?…]*\?)\s*$/.exec(text);
+  if (closing) {
+    const [, head, question] = closing;
+    return `${head} ${clause2} ${question}`;
+  }
+  const trimmed2 = text.trimEnd();
+  return `${trimmed2}${/[.!?…]$/.test(trimmed2) ? "" : "."} ${clause2}`;
+}
+function greetingOf(input) {
+  const name = spokenNameOf(input.name);
+  if (input.paused) return { text: pausedGreetingFor(name), source: "paused" };
+  const raw = (input.stored ?? "").replace(/\{\{/g, "{").replace(/\}\}/g, "}").trim();
+  if (!raw) return { text: greetingFor(name), source: "standard" };
+  if (deniesAutomated(raw, name)) return { text: greetingFor(name), source: "standard_denied" };
+  if (raw.includes(GREETING_NAME_SLOT) && !name) return { text: GREETING_DEFAULT, source: "standard" };
+  const filled = name ? raw.split(GREETING_NAME_SLOT).join(name) : raw;
+  return statesAutomated(raw, name) ? { text: filled, source: "owner" } : { text: withAiClause(filled, clauseFor(raw, name)), source: "owner_disclosed" };
+}
+function greetingNotes(input) {
+  const raw = (input.stored ?? "").trim();
+  if (!raw) return [];
+  const name = spokenNameOf(input.name);
+  const t = judged(raw, name);
+  const notes = [];
+  if (deniesAutomated(raw, name)) {
+    notes.push({
+      key: "denies_ai",
+      words: "This says it isn't automated, so callers hear the standard greeting instead: your receptionist always says it's an automated assistant."
+    });
+    return notes;
+  }
+  if (!statesAutomated(raw, name)) {
+    notes.push({
+      key: "adds_ai",
+      words: `It doesn't say it's automated, so callers also hear \u201C${clauseFor(raw, name)}\u201D Say it your own way to replace it.`
+    });
+  }
+  if (any(DENIES_RECORDING, t)) {
+    notes.push({
+      key: "denies_recording",
+      words: "This tells callers they aren't recorded. Calls to your receptionist are recorded, so that isn't so."
+    });
+  } else if (!any(SAYS_RECORDING, t)) {
+    notes.push({
+      key: "no_recording",
+      words: "The standard greeting says calls are recorded; yours doesn't. In some places callers have to be told first."
+    });
+  }
+  const spoken = greetingOf({ name, stored: raw, paused: false }).text;
+  const words3 = (name ? spoken.split(name).join(" ") : spoken).split(/\s+/).filter(Boolean).length;
+  if (words3 > GREETING_LONG_WORDS) {
+    notes.push({
+      key: "long",
+      words: `About ${Math.round(words3 * SECONDS_PER_WORD)} seconds before a caller can speak. Callers hang up during long greetings; under 7 seconds keeps more of them.`
+    });
+  }
+  if (LINK2.test(t)) notes.push({ key: "link", words: "A web address is read out letter by letter on a call." });
+  const [slot2] = (raw.match(/\{[^{}]*\}/g) ?? []).filter((s) => s !== GREETING_NAME_SLOT);
+  if (slot2) {
+    notes.push({
+      key: "slot",
+      words: `${slot2} isn't filled in, so callers hear it as written. Only ${GREETING_NAME_SLOT} is.`
+    });
+  }
+  if (input.namesMoney(t)) {
+    notes.push({
+      key: "money",
+      words: "It mentions a discount, deposit or refund. If a caller asks about it, your receptionist hands it to you."
+    });
+  }
+  if (input.neverQuotePrices && input.namesPrice(t)) {
+    notes.push({
+      key: "price",
+      words: "It says a price while \u201CNever quote a price\u201D is on. Callers hear this one anyway."
+    });
+  }
+  return notes;
+}
+
 // src/ask/ask-settings-change.ts
 var NOTE_TEXT_SAID_MAX = 160;
+var ASK_ANSWERS_ROWS = {
+  set_tone: "tone",
+  set_languages: "languages",
+  set_phone_greeting: "phone_greeting",
+  set_phone_voice: "phone_voice",
+  set_transfer_number: "handoff_number",
+  add_own_words: "extra_instructions",
+  set_message: "fallbacks",
+  set_photos: null
+};
+var languagesOf = (list2) => [
+  ...new Set(list2.map((l) => l.trim()).filter((l) => l !== ""))
+];
 function applySettingsChange(config, change) {
+  if (change.op === "set_photos")
+    return {
+      ...config,
+      features: { ...config.features ?? {}, vision: change.on }
+    };
+  if (isAnswersBrainChange(change)) return applyAnswersChange(config, change);
   if (change.op === "set_goal") {
     const ask = { ...config.ask ?? {} };
     const goal = change.goal.trim();
@@ -24756,6 +25898,91 @@ function applySettingsChange(config, change) {
   brain.profile = profile;
   return { ...config, brain };
 }
+var BRAIN_OPS = /* @__PURE__ */ new Set([
+  "set_tone",
+  "set_languages",
+  "set_phone_greeting",
+  "set_phone_voice",
+  "set_transfer_number",
+  "add_own_words",
+  "set_message"
+]);
+var isAnswersBrainChange = (change) => BRAIN_OPS.has(change.op);
+var putKey = (profile, key, value) => {
+  if (value === void 0) delete profile[key];
+  else profile[key] = value;
+};
+function applyAnswersChange(config, change) {
+  const brain = { ...config.brain ?? {} };
+  const profile = { ...brain.profile ?? {} };
+  switch (change.op) {
+    case "set_tone":
+      putKey(profile, "tone", change.tone.trim() || void 0);
+      break;
+    case "set_languages": {
+      const list2 = languagesOf(change.languages);
+      putKey(profile, "languages", list2.length ? list2 : void 0);
+      break;
+    }
+    case "set_phone_greeting": {
+      const line = change.greeting.trim();
+      putKey(profile, "phone_greeting", line && line !== GREETING_TEMPLATE ? line : void 0);
+      break;
+    }
+    case "set_phone_voice":
+      putKey(profile, "phone_voice", change.voice);
+      break;
+    case "set_transfer_number":
+      putKey(profile, "handoff_number", handoffE164(change.number) ?? void 0);
+      break;
+    case "add_own_words": {
+      const now = instructionsDraft({ ...brain, profile }).text.trim();
+      putKey(profile, "extra_instructions", [now, change.text.trim()].filter(Boolean).join("\n\n"));
+      brain.system_prompt = newReceptionistDefaults(brain.business_name || "").system_prompt;
+      break;
+    }
+    case "set_message":
+      brain.fallbacks = {
+        ...FALLBACK_DEFAULTS,
+        ...brain.fallbacks ?? {},
+        [change.which]: change.text.trim() || FALLBACK_DEFAULTS[change.which]
+      };
+      break;
+  }
+  brain.profile = profile;
+  return { ...config, brain };
+}
+var WORDS_SAID_MAX = 160;
+var quoted = (text) => `\u201C${clipAtWord(text.trim().replace(/\s+/g, " "), WORDS_SAID_MAX)}\u201D`;
+var firstLower = (s) => s.charAt(0).toLowerCase() + s.slice(1);
+function describeAnswersChange(change) {
+  switch (change.op) {
+    case "set_tone":
+      return change.tone.trim() ? `Its voice: ${quoted(change.tone)}` : "Its voice, taken away";
+    case "set_languages": {
+      const list2 = languagesOf(change.languages);
+      return list2.length ? `It speaks ${list2.join(", ")}` : "No languages set";
+    }
+    case "set_phone_greeting":
+      return change.greeting.trim() && change.greeting.trim() !== GREETING_TEMPLATE ? `Callers hear first: ${quoted(change.greeting)}` : "Callers hear the standard greeting";
+    case "set_phone_voice": {
+      const v = phoneVoiceOf(change.voice);
+      return v ? `Callers hear ${v.name} (${v.says}) from their next call` : `Callers hear ${change.voice}`;
+    }
+    case "set_transfer_number": {
+      const n = handoffE164(change.number);
+      return n ? `Callers who insist on a person reach ${formatPhoneDisplay(n) ?? n}` : "Callers who insist on a person leave a message";
+    }
+    case "add_own_words":
+      return `Added to your own words: ${quoted(change.text)}`;
+    case "set_message": {
+      const name = firstLower(FALLBACK_ROWS.find((r2) => r2.key === change.which)?.label ?? change.which);
+      return change.text.trim() ? `When ${name}: ${quoted(change.text)}` : `When ${name}: the product's wording`;
+    }
+    case "set_photos":
+      return VISION_SWITCH_WORDS.saved(change.on);
+  }
+}
 function describeSettingsChange(change) {
   switch (change.op) {
     case "add_closure":
@@ -24770,6 +25997,8 @@ function describeSettingsChange(change) {
       return `New service: ${change.name}${change.duration_min ? ` (${change.duration_min} min)` : ""}`;
     case "set_goal":
       return change.goal.trim() ? `Your goal: \u201C${change.goal.trim()}\u201D` : "Your goal, taken away";
+    default:
+      return describeAnswersChange(change);
   }
 }
 
@@ -26265,7 +27494,7 @@ function parseCsv(text) {
   const rows2 = [];
   let row2 = [];
   let cell3 = "";
-  let quoted = false;
+  let quoted2 = false;
   let lineNo = 1;
   let rowStartLine = 1;
   const pushRow = () => {
@@ -26274,12 +27503,12 @@ function parseCsv(text) {
   };
   for (let i = 0; i < s.length; i++) {
     const ch = s[i];
-    if (quoted) {
+    if (quoted2) {
       if (ch === '"') {
         if (s[i + 1] === '"') {
           cell3 += '"';
           i++;
-        } else quoted = false;
+        } else quoted2 = false;
       } else {
         if (ch === "\n") lineNo++;
         cell3 += ch;
@@ -26288,7 +27517,7 @@ function parseCsv(text) {
     }
     if (ch === '"') {
       if (cell3 === "") {
-        quoted = true;
+        quoted2 = true;
         continue;
       }
       cell3 += ch;
@@ -27397,7 +28626,13 @@ var settingsSpec = {
     },
     receipt: () => "Previous settings are back"
   },
-  open: () => "admin/workspace"
+  // A change to How it answers opens there, on its row (the Settings wiring review, item 14); the rest on Details.
+  open: (p) => {
+    const op = p.payload.change?.op;
+    if (!op || !(op in ASK_ANSWERS_ROWS)) return "admin/workspace";
+    const row2 = ASK_ANSWERS_ROWS[op];
+    return row2 ? `admin/receptionist/${row2}` : "admin/receptionist";
+  }
 };
 var inviteSpec = {
   needs: "owner",
@@ -31560,6 +32795,36 @@ function tokenBudgetSpent(limits, used) {
   const cap2 = tokenCapOf(limits);
   return cap2 > 0 && used >= cap2;
 }
+var BUDGET_SAMPLE_MIN = 10;
+function tokensPerReply(r2) {
+  if (!r2 || r2.replies < BUDGET_SAMPLE_MIN || r2.tokens <= 0) return null;
+  return Math.round(r2.tokens / r2.replies);
+}
+function repliesFor(cap2, perReply) {
+  const n = cap2 / perReply;
+  const step2 = n < 100 ? 5 : 10;
+  return Math.max(1, Math.round(n / step2) * step2);
+}
+var BUDGET_WORDS = {
+  inReplies: "Replies in a day, in all",
+  inTokens: "Model tokens in a day",
+  /** A cap of 0: none, so it never stops for the day. */
+  none: "No limit",
+  stops: "Over it, it stops for the day and every new message lands in Needs you.",
+  sized: (perReply) => `A reply here is about ${perReply.toLocaleString("en-US")} model tokens, over the last week.`,
+  unsized: "Said in replies once it has answered a few."
+};
+var tokensWord = (cap2) => cap2 >= 1e6 ? `${Math.round(cap2 / 1e5) / 10}M` : `${Math.round(cap2 / 1e3)}k`;
+function budgetDial(caps, perReply) {
+  const word = (c, inReplies2) => c <= 0 ? BUDGET_WORDS.none : inReplies2 && perReply ? `~${repliesFor(c, perReply)}` : tokensWord(c);
+  const said = caps.map((c) => [word(c, true), c]);
+  const inReplies = perReply !== null && new Set(said.map(([w]) => w)).size === said.length;
+  return {
+    label: inReplies ? BUDGET_WORDS.inReplies : BUDGET_WORDS.inTokens,
+    note: `${perReply ? BUDGET_WORDS.sized(perReply) : BUDGET_WORDS.unsized} ${BUDGET_WORDS.stops}`,
+    steps: inReplies ? said : caps.map((c) => [word(c, false), c])
+  };
+}
 
 // src/config/workspace-config/business-profile.ts
 import { z as z8 } from "zod";
@@ -31679,224 +32944,6 @@ var BusinessProfileSchema = z8.object({
    */
   extra_instructions: z8.string().max(PROFILE_LIMITS.instructions).optional()
 }).strip();
-
-// src/config/facts.ts
-var trimmed = (v) => {
-  const s = typeof v === "string" ? v.trim() : "";
-  return s || null;
-};
-var activeChannel = (known, kind) => {
-  const rows2 = known?.channels ?? [];
-  const row2 = rows2.find((c) => c.kind === kind && (c.status ?? "active") === "active");
-  return trimmed(row2?.number_e164);
-};
-var keptReaching = (known, line) => line ? trimmed((known?.forwarding ?? []).find((r2) => trimmed(r2.from_e164) && samePhone(r2.to_e164, line))?.from_e164) : null;
-function knownForwarding(rows2) {
-  const out = [];
-  for (const r2 of rows2) {
-    const from = trimmed(r2.e164);
-    if (r2.kind === "forwarded" && from) out.push({ from_e164: from, to_e164: r2.forwarding?.destination_e164 ?? null });
-  }
-  return out;
-}
-function sameAddress(a, b) {
-  const x = textKey(a).replace(/\b(usa|us|united states)\b/g, "").trim();
-  const y = textKey(b).replace(/\b(usa|us|united states)\b/g, "").trim();
-  if (!x || !y) return false;
-  return x === y || x.startsWith(y) || y.startsWith(x);
-}
-function sameName(a, b) {
-  const x = textKey(a);
-  const y = textKey(b);
-  return !!x && !!y && x === y;
-}
-function textKey(v) {
-  return String(v ?? "").toLowerCase().replace(/[’'.]/g, "").replace(/[^a-z0-9]+/g, " ").trim();
-}
-function typedOverKnown(typed, known, knownSource, same2) {
-  if (typed && known) {
-    return same2(typed, known) ? { value: typed, source: "typed" } : { value: typed, source: "typed", disputed: { value: known, source: knownSource } };
-  }
-  if (typed) return { value: typed, source: "typed" };
-  if (known) return { value: known, source: knownSource };
-  return { value: null, source: "absent" };
-}
-function resolveFacts(typed, known) {
-  const p = typed?.profile ?? null;
-  const voice2 = activeChannel(known, "voice");
-  const whatsapp = activeChannel(known, "whatsapp");
-  const kept = keptReaching(known, voice2);
-  const published = trimmed(typed?.phone_display);
-  const strEq = (a, b) => a === b;
-  return {
-    business_name: typedOverKnown(
-      trimmed(typed?.business_name),
-      trimmed(known?.listing?.name) ?? trimmed(known?.workspace?.name),
-      known?.listing?.name ? "verified" : "workspace",
-      sameName
-    ),
-    // The one that matters, and the one that should usually be absent.
-    //
-    // The fallback is FORMATTED, not raw E.164: this value is spoken and
-    // written to customers -- "Phone: +13085550109" in a prompt becomes a
-    // receptionist reading digits aloud -- so the provisioned line arrives as
-    // "+1 (308) 555-0109", the way a person says a number.
-    //
-    // The number the business keeps and forwards to THIS line is the one typed value that is not a disagreement
-    // with it: customers call the number they know, and when nobody picks up they reach the receptionist.
-    phone_display: published && samePhone(published, kept) ? { value: published, source: "typed" } : typedOverKnown(published, voice2 ? formatPhoneDisplay(voice2) : null, "provisioned", samePhone),
-    booking_link: typedOverKnown(trimmed(typed?.booking_link), null, "absent", strEq),
-    address: typedOverKnown(trimmed(p?.address), trimmed(known?.listing?.address), "verified", sameAddress),
-    website: typedOverKnown(trimmed(p?.website), null, "absent", strEq),
-    // Human-only by nature: nothing provisions "the person to put a caller through to".
-    handoff_number: p?.handoff_number ? { value: p.handoff_number, source: "typed" } : { value: null, source: "absent" },
-    voice_line: voice2 ? { value: voice2, source: "provisioned" } : { value: null, source: "absent" },
-    whatsapp_line: whatsapp ? { value: whatsapp, source: "provisioned" } : { value: null, source: "absent" },
-    kept_line: kept ? { value: kept, source: "provisioned" } : { value: null, source: "absent" }
-  };
-}
-function factConflicts(f) {
-  const out = [];
-  const phone = f.phone_display;
-  if (phone.disputed && phone.value) {
-    const isHandoff = samePhone(phone.value, f.handoff_number.value);
-    out.push({
-      fact: "phone_display",
-      severity: "serious",
-      used: phone.value,
-      known: phone.disputed.value,
-      knownSource: phone.disputed.source,
-      sentence: isHandoff ? `Your receptionist tells customers to call ${phone.value}, which is the number it transfers to \u2014 so they reach a person directly and never the receptionist answering on ${phone.disputed.value}.` : `Your receptionist tells customers to call ${phone.value}, but it answers on ${phone.disputed.value}. Anyone who calls the published number does not reach it.`,
-      to: "admin/workspace"
-    });
-  }
-  if (f.handoff_number.value && f.kept_line.value && samePhone(f.handoff_number.value, f.kept_line.value)) {
-    const kept = formatPhoneDisplay(f.kept_line.value) ?? f.kept_line.value;
-    out.push({
-      fact: "handoff_number",
-      severity: "serious",
-      used: f.handoff_number.value,
-      known: kept,
-      knownSource: f.kept_line.source,
-      sentence: `Your receptionist puts callers who ask for a person through to ${kept}, which forwards the calls nobody picks up back to it \u2014 they would come straight back. Give a mobile or another line a person answers.`,
-      to: "admin/workspace"
-    });
-  }
-  if (f.address.disputed && f.address.value) {
-    out.push({
-      fact: "address",
-      severity: "minor",
-      used: f.address.value,
-      known: f.address.disputed.value,
-      knownSource: f.address.disputed.source,
-      sentence: `Your receptionist gives ${f.address.value}; Google has you at ${f.address.disputed.value}.`,
-      to: "admin/workspace"
-    });
-  }
-  if (f.business_name.disputed && f.business_name.value) {
-    out.push({
-      fact: "business_name",
-      severity: "minor",
-      used: f.business_name.value,
-      known: f.business_name.disputed.value,
-      knownSource: f.business_name.disputed.source,
-      sentence: `Your receptionist introduces the business as ${f.business_name.value}; ${f.business_name.disputed.source === "verified" ? "Google lists it" : "this workspace is named"} ${f.business_name.disputed.value}.`,
-      to: "admin/workspace"
-    });
-  }
-  return out.sort((a, b) => a.severity === b.severity ? 0 : a.severity === "serious" ? -1 : 1);
-}
-var SOURCE_WORDS = {
-  provisioned: "your line",
-  verified: "from Google",
-  workspace: "this workspace",
-  typed: "you set this",
-  absent: "not set"
-};
-function changedConfigFields(before, after) {
-  const top = (v) => {
-    const cfg = v ?? {};
-    const brain = cfg.brain ?? {};
-    const { profile, ...rest } = brain;
-    return {
-      ...rest,
-      ...profile ?? {},
-      calendar: cfg.calendar ?? null,
-      bookings: cfg.bookings ?? null,
-      notifications: cfg.notifications ?? null,
-      features: cfg.features ?? null
-    };
-  };
-  const a = top(before);
-  const b = top(after);
-  const keys = [.../* @__PURE__ */ new Set([...Object.keys(a), ...Object.keys(b)])].sort();
-  return keys.filter((k) => JSON.stringify(a[k] ?? null) !== JSON.stringify(b[k] ?? null));
-}
-
-// src/config/workspace-config/fallbacks.ts
-var FALLBACK_DETAILS = ["business", "booking link", "phone"];
-var FALLBACK_DEFAULTS = {
-  greeting: "Hi! Thanks for reaching out to {business}.\n\nBook anytime: {booking link}\n\nReply here with any question.",
-  error: "Thanks for reaching out to {business}! A member of our team will reply here soon. Book anytime: {booking link}",
-  non_text: "Thanks for your message! A member of our team will take a look and reply here soon. For anything urgent, call us at {phone}."
-};
-var EARLIER_FALLBACK_DEFAULTS = /* @__PURE__ */ (() => ({
-  greeting: "Hi! Thanks for reaching out to {business}.\n\nBook anytime: {booking link}\n\nOr reply here with any question.",
-  error: "Thanks for reaching out to {business}! Book anytime: {booking link} \u2014 or a member of our team will reply here soon.",
-  non_text: FALLBACK_DEFAULTS.non_text
-}))();
-function isProductFallback(key, text) {
-  const t = typeof text === "string" ? text.trim() : "";
-  return t === FALLBACK_DEFAULTS[key] || t === EARLIER_FALLBACK_DEFAULTS[key];
-}
-var DETAIL = /\{\s*(business|booking\s+link|phone)\s*\}/gi;
-var namesADetail = (text) => /\{\s*(business|booking\s+link|phone)\s*\}/i.test(text);
-var detailOf = (raw) => raw.toLowerCase().replace(/\s+/g, " ");
-function fillDetails(text, values) {
-  if (!namesADetail(text)) return text;
-  return text.split("\n").map((line) => {
-    if (!namesADetail(line)) return line;
-    return line.split(/(?<=[.!?])\s+/).filter((s) => [...s.matchAll(DETAIL)].every((m) => values[detailOf(m[1])])).map((s) => s.replace(DETAIL, (_, name) => values[detailOf(name)])).join(" ");
-  }).join("\n").replace(/\n{3,}/g, "\n\n").trim();
-}
-function fallbackMessages(brain, known) {
-  const facts = resolveFacts(brain, known);
-  const values = {
-    business: facts.business_name.value ?? brain.business_name,
-    "booking link": facts.booking_link.value ?? brain.booking_link ?? null,
-    phone: facts.phone_display.value
-  };
-  const own = (kind) => {
-    const stored = brain.fallbacks[kind];
-    return !values["booking link"] && stored.trim() === EARLIER_FALLBACK_DEFAULTS[kind] ? FALLBACK_DEFAULTS[kind] : stored;
-  };
-  const say2 = (kind) => fillDetails(own(kind), values) || fillDetails(FALLBACK_DEFAULTS[kind], values);
-  return { greeting: say2("greeting"), error: say2("error"), non_text: say2("non_text") };
-}
-function unknownDetails(text) {
-  return [...text.matchAll(/\{[^{}\n]{1,40}\}/g)].map((m) => m[0]).filter((name) => !namesADetail(name));
-}
-
-// src/config/workspace-config/brain-config.ts
-function newReceptionistDefaults(businessName) {
-  return {
-    system_prompt: baselinePrompt(businessName),
-    // What a customer reads when the model cannot be reached: the product's
-    // wording, naming the business's details rather than copying them, so they
-    // are filled as each message goes out and follow the details from then on
-    // (fallbackMessages, S5). Copied, a workspace set up before its line existed
-    // told customers "call us at .", and a new booking link never reached them.
-    fallbacks: { ...FALLBACK_DEFAULTS }
-  };
-}
-var BASELINE_OPENING = "You are the assistant for ";
-var BASELINE_CLOSING = ", answering inbound customer messages. You are warm, concise and professional \u2014 a great front-desk person, in text form. If you do not know something, say so plainly and offer to have a person follow up.";
-function baselinePrompt(businessName) {
-  return `${BASELINE_OPENING}${businessName}${BASELINE_CLOSING}`;
-}
-function isBaselinePrompt(text) {
-  return text.startsWith(BASELINE_OPENING) && text.endsWith(BASELINE_CLOSING);
-}
 
 // src/config/workspace-config/brain-config-schema.ts
 import { z as z9 } from "zod";
@@ -32141,618 +33188,6 @@ function withFirstAlertAddress(config, email) {
   return next.success ? withStoredKeysKept(next.data, config) : null;
 }
 
-// src/config/workspace-config/offers-ask.ts
-var FACT = /* @__PURE__ */ (() => ({
-  yes: "Said yes to offers.",
-  no: "Said no to offers.",
-  never: "Has not been asked for the yes to offers.",
-  asked: (on) => `Asked for the yes to offers${on ? ` on ${on}` : ""}; has not said it.`,
-  text: "This conversation is by text message, not WhatsApp."
-}))();
-function offersFacts(p, channel, now, tz) {
-  const out = [];
-  if (channel === "sms") out.push(FACT.text);
-  const asked = p.offersAskedAt;
-  const open = p.marketingConsent === "unknown" || p.marketingConsent === "opted_in" && !yesCovers(p.marketingChannels, "whatsapp");
-  if (p.marketingConsent === "opted_in" && !open) out.push(FACT.yes);
-  else if (p.marketingConsent === "opted_out") out.push(FACT.no);
-  else if (open) {
-    if (typeof asked === "string") {
-      const at3 = Date.parse(asked);
-      out.push(FACT.asked(Number.isFinite(at3) ? clockDate(at3, tz, now.getTime()) : null));
-    } else if (asked === null && channel === "whatsapp" && !p.optedOut) out.push(FACT.never);
-  }
-  return out;
-}
-function offersAfterStart(p, channel) {
-  if (channel !== "whatsapp") return null;
-  if (p.marketingConsent !== "unknown" || p.marketingConsentSource !== STOP_ENDED_OFFERS_SOURCE) return null;
-  return `Offers and news stay off. Reply ${OFFERS_OPT_IN_PHRASES.en} to get them here again.`;
-}
-function offersAskRule() {
-  const { en, es } = OFFERS_OPT_IN_PHRASES;
-  return `When a WhatsApp conversation the customer started comes to its natural end after something went well (a booking made or confirmed, or their question fully answered), and the facts about them say "${FACT.never}", close your reply with this question, once, in their language: "Want our offers and news here too? Reply ${en}. You can stop any time." (in Spanish, ${es} in place of ${en}). Never ask twice; never on a text or email conversation, in a complaint, in a cancellation, after STOP, or of anyone who has said no to offers; never make it a condition of anything.`;
-}
-
-// src/config/workspace-config/assistant-disclosure.ts
-var CONVERSATION_UNDER_WAY = "This conversation is already under way.";
-var CONVERSATION_GAP_MS = DAY_MS;
-function disclosureFacts(p, channel, now) {
-  if (channel === "voice" || !p.returning || !p.lastTurnAt) return [];
-  const at3 = Date.parse(p.lastTurnAt);
-  return Number.isFinite(at3) && now.getTime() - at3 < CONVERSATION_GAP_MS ? [CONVERSATION_UNDER_WAY] : [];
-}
-
-// src/config/workspace-config/compose.ts
-function dateKeyInZone(tz, at3) {
-  try {
-    const parts2 = dateFormat("en-US", {
-      timeZone: tz,
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit"
-    }).formatToParts(at3);
-    const get = (t) => parts2.find((p) => p.type === t)?.value ?? "";
-    const y = get("year"), m = get("month"), d = get("day");
-    return y && m && d ? `${y}-${m}-${d}` : null;
-  } catch {
-    return null;
-  }
-}
-function labelDate(key, withWeekday) {
-  const at3 = /* @__PURE__ */ new Date(`${key}T12:00:00Z`);
-  if (Number.isNaN(at3.getTime()) || dateKeyInZone("UTC", at3) !== key) return key;
-  return dateFormat("en-US", {
-    timeZone: "UTC",
-    ...withWeekday ? { weekday: "long" } : {},
-    month: "long",
-    day: "numeric",
-    year: "numeric"
-  }).format(at3);
-}
-function businessToday(tz, at3) {
-  return tz && dateKeyInZone(tz, at3) || dateKeyInZone("UTC", new Date(at3.getTime() - 864e5));
-}
-function upcomingClosures(closures, today) {
-  if (!closures?.length) return [];
-  if (!today) return closures;
-  return closures.filter((c) => (c.until && c.until >= c.date ? c.until : c.date) >= today).sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
-}
-function notesInForceOn(notes, today) {
-  if (!notes?.length) return [];
-  if (!today) return [...notes];
-  return notes.filter((n) => !n.until || n.until >= today);
-}
-function notesInForce(notes, tz, now) {
-  return notesInForceOn(notes, businessToday(tz, now));
-}
-function noteAsTold(n) {
-  return n.until ? `${n.title} (until ${labelDate(n.until, true)}): ${n.text}` : `${n.title}: ${n.text}`;
-}
-function closureLines(closures) {
-  return closures.map((c) => {
-    const when = c.until && c.until !== c.date && c.until > c.date ? `${labelDate(c.date, false)} \u2013 ${labelDate(c.until, false)}` : labelDate(c.date, true);
-    return c.note ? `${when} \u2014 ${c.note}` : when;
-  });
-}
-function closedToday(closures, tz, at3) {
-  if (!closures?.length || !tz) return null;
-  const today = dateKeyInZone(tz, at3);
-  if (!today) return null;
-  return closures.find((c) => {
-    const end = c.until && c.until >= c.date ? c.until : c.date;
-    return c.date <= today && today <= end;
-  }) ?? null;
-}
-var NO_CLOCK = "You do not know today's date or the current time. If a customer asks whether the business is open right now, or about today or tomorrow, state the opening hours and let them compare \u2014 never guess which day it is.";
-function describeNow(tz, now = /* @__PURE__ */ new Date(), closures) {
-  if (!tz) return NO_CLOCK;
-  try {
-    const stamp = dateFormat("en-US", {
-      weekday: "long",
-      month: "long",
-      day: "numeric",
-      year: "numeric",
-      hour: "numeric",
-      minute: "2-digit",
-      timeZone: tz
-    }).format(now);
-    const shut = closedToday(closures, tz, now);
-    const today = shut ? ` The business is CLOSED today${shut.note ? ` \u2014 ${shut.note}` : ""}, whatever the weekly hours say. Do not offer today; offer the next day it is open.` : "";
-    return `Right now it is ${stamp} (${tz}).${today} Use this for anything about today, tomorrow, or whether the business is open at this moment \u2014 compare it against the opening hours and the closed dates, and treat a closed date as final.`;
-  } catch {
-    return NO_CLOCK;
-  }
-}
-var PROMPT_OPENINGS = {
-  hours: "Opening hours",
-  closures: "Closed on these dates",
-  services: "Services:",
-  notes: "Other things to know:",
-  bookingRules: "Booking rules:",
-  handoffChat: "Handing the conversation to a person:",
-  handoffCall: "Handing the caller to a person:",
-  /** The call's tool mechanics: check_availability, send_booking_link, end_call. */
-  callTools: "Open times: use check_availability",
-  callMedium: "You are speaking aloud.",
-  chatMedium: "Keep replies short enough to read on a phone.",
-  openTimes: "If open times are listed after these instructions",
-  /** The rules, last: the guardrails in a composed prompt, Autonomy's alone after a prompt nothing composed. */
-  rules: "Rules you must follow:",
-  /** Above the owner's own words, when there are details above for them to disagree with. */
-  ownWordsUnderDetails: "Further instructions from the business.",
-  /** Above the owner's own words on a call, alone or after the line above. */
-  ownWordsOnACall: "Some of it was written for text conversations"
-};
-function noLinkBooking(channel) {
-  return channel === "voice" ? `Booking: there is no booking link, so never use send_booking_link. When the caller wants to book, change or cancel a booking, or get a quote, take ${NO_LINK_DETAILS}, and say the team will follow up.` : `There is no booking link to send. When someone wants to book, change or cancel a booking, or get a quote, take ${NO_LINK_DETAILS}; once they have told you, say the team will follow up and set escalate to true.`;
-}
-function composeSystemPrompt(base, profile, channel = "whatsapp", tz, now = /* @__PURE__ */ new Date(), policy, audience = "customer") {
-  return composeSystemPromptWith(base, profile, channel, tz, now, policy, audience);
-}
-function composeSystemPromptWith(base, profile, wire, tz, now, policy, audience) {
-  const channel = wire === "voice" ? "voice" : "whatsapp";
-  const link = offersBookingLink(base) ? base.booking_link : null;
-  const handed = offersLinkOn(channel === "voice" ? "call" : "chat", base, base.whatsapp_line) ? link : null;
-  const hrs = hoursLines(profile.hours);
-  const today = businessToday(tz, now);
-  const closed = closureLines(upcomingClosures(profile.closures, today));
-  const notes = notesInForceOn(profile.notes, today).map(noteAsTold);
-  const facts = { base, profile, channel, wire, tz, policy, link, handed, hrs, closed, notes, audience };
-  return PROMPT_SECTIONS.flatMap((section) => section(facts)).join("\n");
-}
-var PROMPT_SECTIONS = [
-  identitySection,
-  contactSection,
-  hoursSection,
-  closuresSection,
-  servicesSection,
-  notesSection,
-  bookingRulesSection,
-  handoffSection,
-  callToolsSection,
-  ownWordsSection,
-  mediumSection,
-  openTimesSection,
-  rulesSection
-];
-function identitySection({ base, profile, channel, wire }) {
-  const s = [];
-  const medium = wire === "voice" ? "on the phone" : wire === "sms" ? "by text message" : "over WhatsApp";
-  s.push(`You are the assistant for ${base.business_name}, answering customers ${medium}.`);
-  if (profile.tone) s.push(`Tone: ${profile.tone}`);
-  if (profile.languages?.length) {
-    s.push(
-      `You speak: ${profile.languages.join(", ")}.` + // A caller picks the language by speaking it; nobody asks a phone
-      // agent to "reply in Spanish".
-      (channel === "voice" ? " Answer in whichever of these the caller uses, and switch if they do." : "")
-    );
-  }
-  return s;
-}
-function contactSection({ base, profile, link }) {
-  const s = [];
-  if (profile.address) s.push(`
-Address: ${profile.address}`);
-  if (base.phone_display) s.push(`Phone: ${base.phone_display}`);
-  if (link) s.push(`Booking link: ${link}`);
-  if (profile.website) s.push(`Website: ${profile.website}`);
-  return s;
-}
-function hoursSection({ tz, hrs }) {
-  const s = [];
-  if (hrs.length) {
-    const where = tz ? ` (all times ${tz})` : "";
-    s.push(`
-${PROMPT_OPENINGS.hours}${where}:
-${hrs.map((l) => `- ${l}`).join("\n")}`);
-  }
-  return s;
-}
-function closuresSection({ closed }) {
-  const s = [];
-  if (closed.length) {
-    s.push(
-      `
-${PROMPT_OPENINGS.closures}, whatever the opening hours above say:
-${closed.map((l) => `- ${l}`).join(
-        "\n"
-      )}
-If someone asks about one of these dates, say the business is closed that day and offer the next day it is open.`
-    );
-  }
-  return s;
-}
-function servicesSection({ profile }) {
-  const s = [];
-  if (profile.services?.length) {
-    const lines = profile.services.map((sv) => {
-      const bits2 = [sv.name];
-      if (sv.duration_min) bits2.push(`about ${sv.duration_min} minutes`);
-      if (sv.price_note) bits2.push(sv.price_note);
-      return `- ${bits2.join(" \u2014 ")}`;
-    });
-    s.push(`
-${PROMPT_OPENINGS.services}
-${lines.join("\n")}`);
-  }
-  return s;
-}
-function notesSection({ notes }) {
-  const s = [];
-  if (notes.length) s.push(`
-${PROMPT_OPENINGS.notes}
-${notes.map((l) => `- ${l}`).join("\n")}`);
-  return s;
-}
-function bookingRulesSection({ profile }) {
-  const s = [];
-  const br = profile.booking_rules;
-  if (br && (br.lead_hours !== void 0 || br.consult_first?.length || br.party_max || br.notes?.length || br.ask_email)) {
-    const lines = bookingRuleLines(br);
-    s.push(`
-${PROMPT_OPENINGS.bookingRules}
-${lines.map((l) => `- ${l}`).join("\n")}`);
-  }
-  return s;
-}
-function bookingRuleLines(br) {
-  const lines = [];
-  if (br.lead_hours !== void 0) {
-    lines.push(
-      br.lead_hours === 0 ? "Same-day bookings are fine, right up to the time." : `At least ${br.lead_hours} hour${br.lead_hours === 1 ? "" : "s"}' notice for any appointment.`
-    );
-  }
-  if (br.consult_first?.length)
-    lines.push(`These need a consultation before they can be booked: ${br.consult_first.join(", ")}.`);
-  if (br.party_max)
-    lines.push(
-      `Up to ${br.party_max} ${br.party_max === 1 ? "person" : "people"} per booking; larger groups go to a person.`
-    );
-  if (br.ask_email)
-    lines.push(
-      "When you send the booking link and no email address is on file for them, ask once for their best email address, then move on. Never insist; thank them if they give one."
-    );
-  for (const n of br.notes ?? []) lines.push(n);
-  return lines;
-}
-function handoffSection({ profile, channel }) {
-  const s = [];
-  if (channel === "whatsapp") {
-    const when = profile.escalate_when?.length ? `
-${profile.escalate_when.map((e) => `- ${e}`).join("\n")}` : "";
-    s.push(
-      `
-${PROMPT_OPENINGS.handoffChat}
-Set escalate to true: that is what tells a person and holds the conversation for them \u2014 saying you will fetch someone does nothing on its own. Write the reply you would normally send. If you ever answer in plain words, without that record, put the exact token [[HUMAN]] at the very end of your reply instead; it is removed before the customer sees it.
-Do this whenever the customer asks for a person, is upset, or asks something these instructions do not cover${when ? ", and whenever:" : "."}${when}`
-    );
-  } else {
-    const when = profile.escalate_when?.length ? `
-${profile.escalate_when.map((e) => `- ${e}`).join("\n")}` : "";
-    const staffed = profile.handoff_number ? "Use transfer_to_staff during opening hours \u2014 it rings the line a person answers, and you stay on until they pick up. Outside opening hours, or if the transfer does not connect, take the caller's name and a short message and say the team will follow up." : "There is no line to transfer to. Take the caller's name and a short message and say the team will follow up.";
-    s.push(
-      `
-${PROMPT_OPENINGS.handoffCall}
-${staffed}
-Do this whenever the caller asks for a person, is upset, or asks something these instructions do not cover${when ? ", and whenever:" : "."}${when}`
-    );
-  }
-  return s;
-}
-function callToolsSection({ base, channel, link, handed }) {
-  const s = [];
-  if (channel !== "whatsapp") {
-    s.push(
-      `
-${PROMPT_OPENINGS.callTools} before offering a time \u2014 it reads the calendar as it is at that moment (a list at the end of these instructions, if any, is from the start of the call). Ask which service first when you can, so only windows long enough are offered.
-` + (handed ? "Booking: when the caller wants to book, use send_booking_link \u2014 it sends the booking link to the caller's WhatsApp, on the number they are calling from, so do not ask them for a number unless they want it sent somewhere else. Tell them it comes by WhatsApp, not as a text message: it only arrives if that number has WhatsApp. Then confirm it was sent. " + // A number to give only where there is one other than the line they are ringing (resolveSystemPrompt).
-      (base.phone_display ? "If it fails, or they do not have WhatsApp on that number, give the phone number above and offer to have someone follow up.\n" : "If it fails, or they do not have WhatsApp on that number, offer to have someone follow up.\n") : link ? `${NO_WAY_TO_SEND_LINK}
-` : `${noLinkBooking("voice")}
-`) + "Ending: once the caller has said goodbye, use end_call."
-    );
-  }
-  return s;
-}
-function ownWordsSection({ profile, channel, hrs, closed }) {
-  const s = [];
-  if (profile.extra_instructions?.trim()) {
-    const above = [
-      profile.address ? "address" : "",
-      hrs.length ? "hours" : "",
-      closed.length ? "closed dates" : "",
-      profile.services?.length ? "services" : ""
-    ].filter(Boolean);
-    const stated2 = above.length > 0;
-    const text = profile.extra_instructions.trim();
-    const header = [
-      stated2 ? `${PROMPT_OPENINGS.ownWordsUnderDetails} Where these disagree with the ${joinList(above)} above, the details above are current and correct.` : "",
-      channel === "voice" ? `${PROMPT_OPENINGS.ownWordsOnACall}; you are on a phone call.` : ""
-    ].filter(Boolean).join(" ");
-    s.push(header ? `
-${header}
-${text}` : `
-${text}`);
-  }
-  return s;
-}
-function mediumSection({ channel, link, handed }) {
-  const s = [];
-  const callMedium = handed ? "Keep answers to one or two sentences, never read a URL out character by character, and offer to send the booking link to the caller's WhatsApp instead." : "Keep answers to one or two sentences, and never read a URL out character by character.";
-  const chatMedium = link ? "Send the booking link rather than describing how to book." : noLinkBooking("whatsapp");
-  s.push(
-    channel === "voice" ? `
-${PROMPT_OPENINGS.callMedium} ${callMedium}` : `
-${PROMPT_OPENINGS.chatMedium} ${chatMedium}`
-  );
-  return s;
-}
-function openTimesSection({ handed, policy }) {
-  const s = [];
-  s.push(
-    `
-${PROMPT_OPENINGS.openTimes}, offer up to three that fit what the customer wants, ` + (handed && bookingHeld(policy) ? "then say a member of the team will call or text them to confirm one, and take their name \u2014 the calendar decides, never you. If none are listed, do not guess at open times." : handed ? "then send the booking link \u2014 the calendar decides, never you. If none are listed, do not guess at open times; send the link." : `then take ${NO_LINK_DETAILS} so the team can confirm one \u2014 the calendar decides, never you. If none are listed, do not guess at open times.`)
-  );
-  return s;
-}
-var ASSISTANT_RULE = {
-  always: "You are the business's automated assistant: never claim or hint that you are a person. If anyone asks whether you are a bot, a person or AI, say plainly that you are the business's automated assistant and offer to bring in a person.",
-  textOpening: `Unless the facts about them say "${CONVERSATION_UNDER_WAY}", open your reply by saying, in a few words, that you are the business's automated assistant.`
-};
-var RULES_WIN = "Where anything above disagrees with these rules, the rules win.";
-function standingRules(policy, channel, audience) {
-  const assistant = audience === "draft" ? [] : channel === "voice" ? [ASSISTANT_RULE.always] : [ASSISTANT_RULE.always, ASSISTANT_RULE.textOpening];
-  return [...policyRules(policy, channel), ...assistant, RULES_WIN, DATA_NOT_INSTRUCTIONS];
-}
-function rulesSection({ base, profile, channel, policy, link, handed, audience }) {
-  const s = [];
-  const g = guardrailsInForce(profile.guardrails);
-  const rules = [];
-  if (g.never_quote_prices) {
-    rules.push(
-      `Never quote or confirm a price. Say it is quoted in person or at a consult, and ${priceNextStep(!!handed)}.`
-    );
-  } else {
-    rules.push(
-      `Say a price only as the business wrote it in the details above, exactly as written and in digits; never work one out or estimate one. For any other price, say it is quoted in person or at a consult, and ${priceNextStep(!!handed)}.`
-    );
-  }
-  if (g.never_confirm_booking) {
-    rules.push(
-      `Never promise or confirm an appointment yourself. Booking happens ${link ? "on the booking link or " : ""}with staff.`
-    );
-  }
-  rules.push(
-    base.whatsapp_line ? "If a message is only the words YES OFFERS or SI OFERTAS, the customer is saying yes to offers and news by WhatsApp: thank them in one short line, say they can reply STOP at any time, and ask nothing else." : "If a message is only the words YES OFFERS or SI OFERTAS, thank them in one short line and promise nothing: this business sends no offers or news by message."
-  );
-  if (channel === "whatsapp" && base.whatsapp_line) rules.push(offersAskRule());
-  if (g.no_health_advice) {
-    rules.push(
-      `Never give medical or health advice \u2014 for anything about skin reactions, allergies, pregnancy or medication, say a professional will advise at the appointment${handed ? " and offer the booking link" : ""}.`
-    );
-  }
-  rules.push(...standingRules(policy, channel, audience));
-  if (rules.length) s.push(`
-${PROMPT_OPENINGS.rules}
-${rules.map((r2) => `- ${r2}`).join("\n")}`);
-  return s;
-}
-
-// src/voice/greeting.ts
-function greetingFor(name) {
-  return `${opening(name)} I'm the automated assistant, and calls are recorded. How can I help?`;
-}
-function opening(name) {
-  return name ? `Hi, ${name}.` : "Hi, thanks for calling.";
-}
-function pausedGreetingFor(name) {
-  return `${opening(name)} I'm the automated assistant, and calls are recorded. Today I can only take a message for the team.`;
-}
-var GREETING_DEFAULT = /* @__PURE__ */ greetingFor(null);
-
-// src/voice/greeting-owner.ts
-var GREETING_NAME_SLOT = "{business}";
-var AI_CLAUSE = { en: "I'm the automated assistant.", es: "Soy el asistente autom\xE1tico." };
-var GREETING_TEMPLATE = greetingFor(GREETING_NAME_SLOT);
-var GREETING_LONG_WORDS = 18;
-var SECONDS_PER_WORD = 0.4;
-var ROLE = String.raw`(?:assistant|receptionist|agent|attendant|operator|concierge|helper|host)`;
-var MACHINE = String.raw`(?:A\.?I\.?|(?:chat)?bot|robot|machine|computer|automated|automatic|virtual|digital|artificial intelligence)`;
-var STATES_AI = [
-  new RegExp(
-    String.raw`\b(?:automated|automatic|virtual|digital|A\.?I\.?|artificial[- ]intelligence|robot(?:ic)?)\s+${ROLE}\b`,
-    "i"
-  ),
-  new RegExp(
-    String.raw`\b(?:I'm|I am|this is|you're (?:speaking|talking) (?:with|to)|you are (?:speaking|talking) (?:with|to)|you've reached|you have reached)\s+(?:(?:the|a|an|our|your|\w+'s)\s+)?(?:\w+\s+)?${MACHINE}\b`,
-    "i"
-  ),
-  /\bchat\s?bot\b/i,
-  /\b(?:asistente|recepcionista|agente|operador[a]?)\s+(?:virtual|digital|autom[aá]tic[oa]|de\s+IA|de\s+inteligencia\s+artificial)\b/i,
-  /\b(?:soy|habla\s+con|est[aá]\s+hablando\s+con|le\s+atiende)\s+(?:(?:el|la|un|una|su|nuestr[oa])\s+)?(?:IA|robot|bot|m[aá]quina|inteligencia\s+artificial|asistente\s+(?:virtual|autom[aá]tic[oa]|digital))\b/i
-];
-var NEGATION = String.raw`(?:not|never|isn't|aren't|ain't|wasn't)`;
-var GOVERNED = String.raw`(?:(?!but\b|and\b|or\b|though\b)[\w']+\s+){0,2}`;
-var DENIED = String.raw`(?:(?:a|an|the|some)\s+)?(?:bot|chatbot|robot|machine|computer|automated|automatic|A\.?I\.?|artificial intelligence|(?:virtual|digital)\s+${ROLE})`;
-var DENIES_AI = [
-  new RegExp(String.raw`\b${NEGATION}\s+${GOVERNED}${DENIED}\b`, "i"),
-  /\bno\s+(?:bots?|robots?|machines?|A\.?I\.?)\b/i,
-  /\bAI[- ]free\b/i,
-  /\b(?:I'm|I am|this is|you're (?:speaking|talking) (?:with|to)|you are (?:speaking|talking) (?:with|to))\s+(?:a\s+)?(?:real|live|actual)\s+(?:person|human)\b/i,
-  /(?<!\bnot\s(?:a\s)?)\b(?:a\s+)?(?:real|live|actual)\s+(?:person|human)\s+(?:here|speaking|answering)\b/i,
-  /\bno\s+(?:soy|es)\s+(?:un\s+|una\s+)?(?:robot|bot|m[aá]quina|autom[aá]tic[oa]|IA|asistente\s+virtual|inteligencia\s+artificial)\b/i,
-  /\bno\s+(?:est[aá]\s+)?habla(?:ndo)?\s+con\s+(?:un\s+|una\s+)?(?:robot|bot|m[aá]quina|IA|asistente\s+virtual)\b/i,
-  /(?<!\bno\s)\bsoy\s+una\s+persona(?:\s+real)?\b/i,
-  /(?<!\bno\s(?:soy|es)\s(?:una\s)?)\bpersona\s+real\b/i
-];
-var SAYS_RECORDING = [
-  /\brecord(?:ed|ing|s)?\b/i,
-  /\bgrab(?:a|an|ada|adas|ado|amos|ando|ar|aci[oó]n)\b/i
-];
-var DENIES_RECORDING = [
-  /\b(?:not|never)\s+(?:being\s+|be\s+|get\s+)?record(?:ed|ing|s)?\b/i,
-  /\bno\s+recordings?\b/i,
-  /\b(?:don't|doesn't|won't|aren't|isn't|ain't)\s+(?:being\s+|be\s+)?record(?:ed|ing|s)?\b/i,
-  /\bno\s+(?:se\s+)?(?:graba|graban|grabamos|grabada|grabadas|est[aá]\s+grabando|estamos\s+grabando|son\s+grabadas|es\s+grabada)\b/i,
-  /\bsin\s+grabar\b/i
-];
-var LINK2 = /\b(?:https?:\/\/|www\.)\S+|\b[\w-]+\.(?:com|net|org|co|io|us|mx|es)\b/i;
-var SPANISH = /[¿¡ñ]|\b(?:hola|gracias|llamar|llamada|ayudar|ayudarle|ayudarte|bienvenid[oa]s?|c[oó]mo|est[aá]|usted)\b/i;
-var NAME_STANDS_IN = "Xname";
-function judged(text, name) {
-  const straight = (s) => s.replace(/[‘’]/g, "'");
-  let t = straight(text).split(GREETING_NAME_SLOT).join(NAME_STANDS_IN);
-  const n = straight(name ?? "").trim();
-  if (n) t = t.split(n).join(NAME_STANDS_IN);
-  return t;
-}
-var any = (rules, t) => rules.some((r2) => r2.test(t));
-function statesAutomated(text, name = null) {
-  const t = judged(text, name);
-  return any(STATES_AI, t) && !any(DENIES_AI, t);
-}
-function deniesAutomated(text, name = null) {
-  return any(DENIES_AI, judged(text, name));
-}
-function spokenNameOf(name) {
-  const n = (name ?? "").trim();
-  return n || null;
-}
-var clauseFor = (text, name) => SPANISH.test(judged(text, name)) ? AI_CLAUSE.es : AI_CLAUSE.en;
-function withAiClause(text, clause2) {
-  const closing = /^([\s\S]*[.!?…])\s+([^.!?…]*\?)\s*$/.exec(text);
-  if (closing) {
-    const [, head, question] = closing;
-    return `${head} ${clause2} ${question}`;
-  }
-  const trimmed2 = text.trimEnd();
-  return `${trimmed2}${/[.!?…]$/.test(trimmed2) ? "" : "."} ${clause2}`;
-}
-function greetingOf(input) {
-  const name = spokenNameOf(input.name);
-  if (input.paused) return { text: pausedGreetingFor(name), source: "paused" };
-  const raw = (input.stored ?? "").replace(/\{\{/g, "{").replace(/\}\}/g, "}").trim();
-  if (!raw) return { text: greetingFor(name), source: "standard" };
-  if (deniesAutomated(raw, name)) return { text: greetingFor(name), source: "standard_denied" };
-  if (raw.includes(GREETING_NAME_SLOT) && !name) return { text: GREETING_DEFAULT, source: "standard" };
-  const filled = name ? raw.split(GREETING_NAME_SLOT).join(name) : raw;
-  return statesAutomated(raw, name) ? { text: filled, source: "owner" } : { text: withAiClause(filled, clauseFor(raw, name)), source: "owner_disclosed" };
-}
-function greetingNotes(input) {
-  const raw = (input.stored ?? "").trim();
-  if (!raw) return [];
-  const name = spokenNameOf(input.name);
-  const t = judged(raw, name);
-  const notes = [];
-  if (deniesAutomated(raw, name)) {
-    notes.push({
-      key: "denies_ai",
-      words: "This says it isn't automated, so callers hear the standard greeting instead: your receptionist always says it's an automated assistant."
-    });
-    return notes;
-  }
-  if (!statesAutomated(raw, name)) {
-    notes.push({
-      key: "adds_ai",
-      words: `It doesn't say it's automated, so callers also hear \u201C${clauseFor(raw, name)}\u201D Say it your own way to replace it.`
-    });
-  }
-  if (any(DENIES_RECORDING, t)) {
-    notes.push({
-      key: "denies_recording",
-      words: "This tells callers they aren't recorded. Calls to your receptionist are recorded, so that isn't so."
-    });
-  } else if (!any(SAYS_RECORDING, t)) {
-    notes.push({
-      key: "no_recording",
-      words: "The standard greeting says calls are recorded; yours doesn't. In some places callers have to be told first."
-    });
-  }
-  const spoken = greetingOf({ name, stored: raw, paused: false }).text;
-  const words3 = (name ? spoken.split(name).join(" ") : spoken).split(/\s+/).filter(Boolean).length;
-  if (words3 > GREETING_LONG_WORDS) {
-    notes.push({
-      key: "long",
-      words: `About ${Math.round(words3 * SECONDS_PER_WORD)} seconds before a caller can speak. Callers hang up during long greetings; under 7 seconds keeps more of them.`
-    });
-  }
-  if (LINK2.test(t)) notes.push({ key: "link", words: "A web address is read out letter by letter on a call." });
-  const [slot2] = (raw.match(/\{[^{}]*\}/g) ?? []).filter((s) => s !== GREETING_NAME_SLOT);
-  if (slot2) {
-    notes.push({
-      key: "slot",
-      words: `${slot2} isn't filled in, so callers hear it as written. Only ${GREETING_NAME_SLOT} is.`
-    });
-  }
-  if (input.namesMoney(t)) {
-    notes.push({
-      key: "money",
-      words: "It mentions a discount, deposit or refund. If a caller asks about it, your receptionist hands it to you."
-    });
-  }
-  if (input.neverQuotePrices && input.namesPrice(t)) {
-    notes.push({
-      key: "price",
-      words: "It says a price while \u201CNever quote a price\u201D is on. Callers hear this one anyway."
-    });
-  }
-  return notes;
-}
-
-// src/config/workspace-config/resolve.ts
-function instructionsDraft(brain) {
-  const whose = whoseWords(brain);
-  if (whose.kind === "own") return { text: whose.text, carried: false };
-  return whose.kind === "carried" || whose.kind === "prompt" ? { text: whose.text, carried: true } : { text: "", carried: false };
-}
-var NO_FIELDS_COMPOSED_WORDS = "Your details aren't in what it reads yet.";
-function hasProfile(p) {
-  if (!p) return false;
-  const statedHours = !!p.hours && Object.values(p.hours).some((h) => h?.open && h?.close || h?.intervals?.length);
-  return !!(p.address || p.tone || p.extra_instructions || statedHours || p.services?.length || p.languages?.length || p.escalate_when?.length || p.website || p.notes?.length);
-}
-function resolveSystemPrompt(brain, wire = "whatsapp", tz, now = /* @__PURE__ */ new Date(), policy, known, audience = "customer") {
-  const channel = wire === "voice" ? "voice" : "whatsapp";
-  const facts = resolveFacts(brain, known);
-  if (!hasProfile(brain.profile)) {
-    const link = !offersBookingLink(brain) ? [noLinkBooking(channel)] : channel === "voice" && !offersLinkOn("call", brain, facts.whatsapp_line.value) ? [NO_WAY_TO_SEND_LINK] : [];
-    const rules = [...link, ...standingRules(policy, channel, audience)];
-    return `${brain.system_prompt}
-
-${PROMPT_OPENINGS.rules}
-${rules.map((r2) => `- ${r2}`).join("\n")}`;
-  }
-  const profile = brain.profile;
-  const ringing = wire === "voice" && (samePhone(facts.phone_display.value, facts.voice_line.value) || samePhone(facts.phone_display.value, facts.kept_line.value));
-  const resolved = {
-    business_name: facts.business_name.value ?? brain.business_name,
-    phone_display: ringing ? null : facts.phone_display.value,
-    booking_link: facts.booking_link.value ?? brain.booking_link ?? null,
-    // Provisioned or nothing, never typed (facts.ts): the ask for the yes to offers is composed only where there is one.
-    whatsapp_line: facts.whatsapp_line.value
-  };
-  const carried = { ...profile, extra_instructions: ownWordsOf(brain) ?? void 0 };
-  return composeSystemPrompt(resolved, carried, wire, tz, now, policy, audience);
-}
-function ownWordsOf(brain) {
-  const own = brain?.profile?.extra_instructions;
-  return own?.trim() ? own : brain?.system_prompt ?? null;
-}
-function whoseWords(brain) {
-  const text = ownWordsOf(brain);
-  if (!text?.trim()) return { kind: "none", text: null };
-  if (brain?.profile?.extra_instructions?.trim())
-    return { kind: isBaselineInOwnersField(text) ? "baseline" : "own", text };
-  if (isBaselinePrompt(text.trim())) return { kind: "baseline", text };
-  return { kind: hasProfile(brain?.profile) ? "carried" : "prompt", text };
-}
-function isBaselineInOwnersField(text) {
-  const t = text.trim();
-  if (!isBaselinePrompt(t)) return false;
-  const name = t.slice(BASELINE_OPENING.length, t.length - BASELINE_CLOSING.length);
-  return name.trim().length > 0 && name.length <= 120 && !/[\r\n]/.test(name) && !/[.!?]\s/.test(name);
-}
-
 // src/config/workspace-config/price-allowance.ts
 var BARE_PRICE = /^\s*(?:from|starting at|desde|a partir de)?\s*\$?\s*(\d+(?:[.,]\d{1,2})?)\s*(?:(?:-|–|to|a)\s*\$?\s*(\d+(?:[.,]\d{1,2})?))?\s*\+?\s*$/i;
 var FORBIDS = /\b(?:never|don['’]?t|do not|not to|no digas|no menciones|nunca)\b/i;
@@ -32942,14 +33377,6 @@ function closuresAheadWords(closures, tz, now) {
   const named = `${closureDatesLabel(next)}${next.note ? ` \xB7 ${next.note}` : ""}`;
   return { count: ahead.length, line: `${ahead.length} ahead \xB7 ${ahead.length > 1 ? "next " : ""}${named}` };
 }
-
-// src/config/business-tab/counts.ts
-var count = (n) => n.toLocaleString("en-US");
-var CHIPS_SHOWN = 3;
-function chipsMoreWords(n) {
-  return `+${count(n)}`;
-}
-var pluralGrouped = (n, one, many) => `${count(n)} ${n === 1 ? one : many}`;
 
 // src/config/business-tab/prompt-cost-words.ts
 function blockShareWords(chars, total) {
@@ -33387,217 +33814,6 @@ function askGoalRefusal(goal) {
 function askGoalSaved(goal) {
   return describeSettingsChange({ op: "set_goal", goal });
 }
-
-// src/config/business-tab/handoff-words.ts
-var HANDED_OVER_ANYWAY = "a customer asks for a person or it can't help";
-function handoffChatWords(i) {
-  const when = i.hasEscalateWhen ? `On your reasons, or when ${HANDED_OVER_ANYWAY}, it` : `When ${HANDED_OVER_ANYWAY}, it`;
-  const pause = heldFor(hardLimitsWords({ pause_hours: i.pauseHours }).hours);
-  return `${when} stops answering, the thread turns Needs you in the Inbox, and anyone set to be alerted is emailed. It holds off for ${pause}, then answers the customer's next message itself.`;
-}
-function transferWords(hasHandoffNumber) {
-  return hasHandoffNumber ? "During opening hours it rings the number you gave and stays on until someone picks up. Outside them, or if nobody answers, it takes a message." : "No number yet, so it takes a message.";
-}
-function handoffChatRow(pauseHours) {
-  const pause = heldFor(hardLimitsWords({ pause_hours: pauseHours }).hours);
-  return { name: "Stops and marks it Needs you", sub: `Sends your alerts \xB7 replies again after ${pause}` };
-}
-function handoffCallRow(transfer) {
-  const number2 = typeof transfer === "string" ? transfer.trim() : "";
-  return number2 ? {
-    name: `Rings ${number2}`,
-    sub: "In opening hours, otherwise takes a message",
-    act: "Change",
-    actName: "Change the transfer number"
-  } : { name: "Takes a message", sub: "No transfer number", act: "Add one", actName: "Add a transfer number" };
-}
-var HANDOFF_ANYWAY = "Anyone who asks for a person, or needs help it can't give, is handed over too.";
-function handoffWords(reasons, transfer) {
-  const list2 = (Array.isArray(reasons) ? reasons : []).filter((r2) => typeof r2 === "string" && r2.trim() !== "").map((r2) => r2.trim());
-  const n = list2.length;
-  const number2 = typeof transfer === "string" ? transfer.trim() : "";
-  const phone = number2 ? `transfers to ${number2}` : "takes a message";
-  return {
-    line: `${n ? `For ${pluralGrouped(n, "reason", "reasons")}` : `When ${HANDED_OVER_ANYWAY}`} \xB7 on a call, ${phone}`,
-    phone
-  };
-}
-function heldFor(pauseHours) {
-  const hours = Math.max(1, Math.round(pauseHours));
-  if (hours % 24 === 0) return hours === 24 ? "a day" : `${hours / 24} days`;
-  return hours === 1 ? "an hour" : `${hours} hours`;
-}
-
-// src/config/business-tab/abilities.ts
-var BOOLEAN_INPUTS = {
-  voiceLive: true,
-  whatsappLive: true,
-  hasCalendarFeed: true,
-  hasBookingLink: true,
-  linkOptional: true,
-  hasBookingTemplate: true,
-  hasHandoffNumber: true,
-  hasEscalateWhen: true,
-  visionOn: true,
-  bookingHeld: true
-};
-function abilityRows(i) {
-  if (!i || typeof i !== "object")
-    throw new TypeError(
-      "abilityRows needs its inputs: which lines answer, what is filled in, and what the Autonomy tab holds."
-    );
-  const notBoolean = Object.keys(BOOLEAN_INPUTS).filter(
-    (k) => typeof i[k] !== "boolean"
-  );
-  if (notBoolean.length) {
-    throw new TypeError(
-      `abilityRows needs true or false for ${notBoolean.join(", ")}: missing or not a boolean, each would be drawn as false.`
-    );
-  }
-  if (!POLICY_MODES.includes(i.replyMode)) {
-    throw new TypeError(
-      `abilityRows needs replyMode, the Autonomy tab's Replies row (${POLICY_MODES.join(", ")}), not ${JSON.stringify(i.replyMode)}: every chat ability turns on it.`
-    );
-  }
-  const repliesHeld = i.replyMode === "ask" || i.replyMode === "never";
-  const chatAnswers = i.whatsappLive && !repliesHeld;
-  const both = { voice: i.voiceLive, whatsapp: chatAnswers };
-  const answering = i.voiceLive || chatAnswers;
-  const callSendsLink = i.voiceLive && i.whatsappLive && i.hasBookingTemplate;
-  const linkGoes2 = i.hasBookingLink && chatAnswers && !i.bookingHeld;
-  const linkIsChatsAlone = linkGoes2 && i.voiceLive && !callSendsLink;
-  const inChat = linkIsChatsAlone ? " in chat" : "";
-  const bookingDetail = !i.hasBookingLink ? i.linkOptional ? "No booking link, so it takes their details for you to follow up with a quote." : "No booking link yet, so there is nothing to send." : !i.whatsappLive ? i.voiceLive ? "It goes out on WhatsApp, which isn't connected here, so on a call it offers to have someone follow up instead." : "It goes out on WhatsApp, which isn't connected here." : i.bookingHeld ? "Your Autonomy tab holds bookings for you to confirm, so when someone asks to book, it sends no link: it tells them someone from the team will confirm." : !i.voiceLive ? "It sends it in the thread." : callSendsLink ? "On a call it sends it to the caller's WhatsApp, when their number has one, and says so. In chat it sends it in the thread." : "In chat it sends it in the thread. On a call it can't yet: sending it to a caller's WhatsApp needs an approved booking-link message.";
-  const rows2 = [
-    {
-      id: "answer",
-      title: "Answer from your facts",
-      // facts_used is the chat brain's (brain.ts); the phone agent reports an outcome, not its facts.
-      detail: "Hours, address, services, your notes. In chat it also records which facts it leaned on, so you can see why it said what it said.",
-      channels: both,
-      runsOn: { label: "Name and hours", row: "name" },
-      ready: answering,
-      // The facts it answers from are the rows' own subject, and a missing one is the gap line's (businessGap).
-      missing: false
-    },
-    {
-      id: "open_times",
-      title: "Say which times are open",
-      // describeOpenings hands chat up to five days (availability.ts maxDays), not one.
-      // With bookings held, a call still offers the openings (call-start.ts; check_availability, with the team
-      // confirming) and chat is handed them, while layerTwo replaces a booking reply carrying the link. So this
-      // says what holds on both: it has them, and a request to book gets no link.
-      detail: !i.hasCalendarFeed ? linkGoes2 ? `No calendar to read, so it does not guess at open times \u2014${inChat} it sends the link instead.` : "No calendar to read, so it does not guess at open times." : i.bookingHeld ? "It is handed the openings on a call and in chat, but your Autonomy tab holds bookings for you to confirm, so when someone asks to book, no link follows." : `On a call it asks the calendar at that moment. In chat it is handed the next few days' openings with each message. It offers up to three that fit${linkGoes2 ? `, then the link${inChat}` : ""}.`,
-      channels: { voice: i.voiceLive && i.hasCalendarFeed, whatsapp: chatAnswers && i.hasCalendarFeed },
-      runsOn: { label: "Your calendar link", row: "calendar" },
-      ready: answering && i.hasCalendarFeed,
-      missing: !i.hasCalendarFeed
-    },
-    {
-      id: "booking_link",
-      title: "Send the booking link",
-      detail: bookingDetail,
-      // The call's send goes through the same outbound gate the Replies row holds, so a
-      // workspace whose replies are held has no channel here at all -- and neither has one
-      // where there is no link to send, or where the Autonomy tab confirms bookings itself.
-      channels: { voice: linkGoes2 && callSendsLink && !repliesHeld, whatsapp: linkGoes2 },
-      runsOn: { label: "The booking link", row: "booking_link" },
-      ready: linkGoes2,
-      missing: !i.hasBookingLink && !i.linkOptional
-    },
-    {
-      id: "transfer",
-      title: "Put a caller through",
-      // What a transfer does, in the words the hand-off row's fold says it in too (transferWords).
-      detail: transferWords(i.hasHandoffNumber),
-      channels: { voice: i.voiceLive && i.hasHandoffNumber, whatsapp: false },
-      // The transfer number's one editor, Who you are's "Transfer number" (the plan's Task 3.2 decision): the
-      // hand-off row (escalate_when) shows the number and opens this same row, and edits only the reasons.
-      runsOn: { label: "The transfer number", row: "handoff_number" },
-      ready: i.voiceLive && i.hasHandoffNumber,
-      missing: !i.hasHandoffNumber
-    },
-    {
-      id: "handoff",
-      title: "Hand the thread to you",
-      // A hand-off pauses the thread for pause_hours and no longer (inbound.ts, steps.ts); after that the receptionist
-      // answers the next message itself, Needs you or not. The base triggers hold with no reasons at all -- they asked
-      // for a person, or it cannot help -- so the owner's reasons widen the hand-off; they do not switch it on. The
-      // hand-off row's fold says it in the same words (handoffChatWords).
-      detail: handoffChatWords({ hasEscalateWhen: i.hasEscalateWhen, pauseHours: i.pauseHours }),
-      channels: { voice: false, whatsapp: chatAnswers },
-      runsOn: { label: "Your reasons", row: "escalate_when" },
-      ready: chatAnswers,
-      // The base triggers hold with no reasons at all, so nothing here is missing.
-      missing: false
-    },
-    {
-      id: "vision",
-      title: "Look at a photo",
-      detail: i.visionOn ? "It says what it sees and suggests the next step, under the rules it always keeps." : "Off. A photo is passed to a person.",
-      channels: { voice: false, whatsapp: chatAnswers && i.visionOn },
-      // Its switch is on this row since 18 Oct 2026 (it sat in the rules fold, among limits): no other row supplies it.
-      runsOn: null,
-      ready: chatAnswers && i.visionOn,
-      // Off is the one state an owner changes from this card.
-      missing: !i.visionOn,
-      on: i.visionOn
-    }
-  ];
-  const held = repliesHeld ? {
-    sentence: `Replies on your Autonomy tab: it ${POLICY_MODE_WORDS[i.replyMode].chip} \u2014 ${POLICY_MODE_WORDS[i.replyMode].sub}. Until that changes it writes no WhatsApp reply at all, so nothing here happens in chat.${i.voiceLive ? " A call still answers, and cannot send the booking link." : ""}`,
-    door: "Your Autonomy tab",
-    to: "admin/autonomy"
-  } : null;
-  return { rows: rows2, held };
-}
-var CANNOT_ROWS = [
-  {
-    id: "book",
-    title: "Make, move or cancel a booking",
-    detail: "Not a setting you could switch on. Nothing in this product can make, move or cancel a booking: it only records the ones your booking tool reports. Your booking link does that, whichever tool is behind it."
-  },
-  {
-    id: "outbound_call",
-    title: "Ring a customer",
-    // Not "never dials out": a transfer rings the owner's number, two rows up the same card.
-    detail: "It answers your line and never calls a customer. The only number it rings is yours, to put a caller through. A call back is a person's, and the receptionist tells you when one is wanted."
-  },
-  {
-    id: "sms",
-    title: "Send a text message",
-    detail: "Not part of what is sold yet. It arrives with a line the carriers have approved, and Connections will say when. The booking link a caller receives goes to their WhatsApp.",
-    soon: true
-  }
-];
-var CANNOT_NO_LINK = {
-  book: "Not a setting you could switch on. Nothing in this product can make, move or cancel a booking. Your team does that, from the details it takes.",
-  sms: "Not part of what is sold yet. It arrives with a line the carriers have approved, and Connections will say when."
-};
-var CANNOT_REQUESTS_BOOK = "Not a setting you could switch on: it never makes, moves or cancels a booking itself. A time a customer picks by text waits on Today for your Booked it or Can't.";
-function cannotRows(i) {
-  if (typeof i?.smsLive !== "boolean") {
-    throw new TypeError("cannotRows needs true or false for smsLive: left out, texting would be drawn as not sold.");
-  }
-  if (typeof i?.hasBookingLink !== "boolean") {
-    throw new TypeError(
-      "cannotRows needs true or false for hasBookingLink: left out, a business with no link would be told its link books."
-    );
-  }
-  return CANNOT_ROWS.filter((r2) => !(r2.id === "sms" && i.smsLive)).map(
-    (r2) => r2.id === "book" && i.takesRequests === true ? { ...r2, detail: CANNOT_REQUESTS_BOOK } : !i.hasBookingLink && CANNOT_NO_LINK[r2.id] ? { ...r2, detail: CANNOT_NO_LINK[r2.id] } : r2
-  );
-}
-var CANNOT_COUNT_WORDS = ["No", "One", "Two", "Three", "Four", "Five"];
-function cannotFoldWords(count2) {
-  const n = CANNOT_COUNT_WORDS[count2] ?? String(count2);
-  return count2 === 1 ? `${n} thing it cannot do` : `${n} things it cannot do`;
-}
-var VISION_SWITCH_WORDS = {
-  label: "Look at a photo",
-  gate: "turn photos on or off",
-  saved: (on) => on ? "Photos on: it says what it sees." : "Photos off: a photo goes to a person."
-};
 
 // src/config/brain-schema.ts
 import { z as z11 } from "zod";
@@ -43441,10 +43657,10 @@ function attentionRow(p, tz, nowMs, dealsOn) {
   const channel = lc.kind === "call" ? "Phone" : lc.kind === "message" ? "WhatsApp" : null;
   const when = lc.ts === null ? "no contact yet" : ago(lc.ts, tz, nowMs);
   let sentence2;
-  let quoted = false;
+  let quoted2 = false;
   if (p.quote) {
     sentence2 = clippedLine(p.quote, 160);
-    quoted = true;
+    quoted2 = true;
   } else if (p.callSummary) sentence2 = clippedLine(tidyCallSummary(p.callSummary) ?? p.callSummary, 160);
   else if (p.deal && p.deal.stage === "proposed" && p.deal.brief) sentence2 = p.deal.brief;
   else if (p.nextVisit) sentence2 = `Booked \xB7 ${p.nextVisit}`;
@@ -43463,7 +43679,7 @@ function attentionRow(p, tz, nowMs, dealsOn) {
   if (p.state === "needs_you" && p.needsYouSinceMs !== null)
     status = [...status, `since ${clock2(p.needsYouSinceMs, tz, nowMs)}`];
   const cta = !p.threadId ? null : p.state === "needs_you" || p.state === "waiting_on_you" ? { label: "Open in Inbox", kind: "primary", to: `inbox/${p.threadId}` } : { label: "Open thread", kind: "ghost", to: `inbox/${p.threadId}` };
-  return { channel, when, sentence: sentence2, quoted, status, tone: r2.tone, cta };
+  return { channel, when, sentence: sentence2, quoted: quoted2, status, tone: r2.tone, cta };
 }
 
 // src/people/person-doubts.ts
@@ -56790,40 +57006,6 @@ function phoneLine(p, now) {
   return `${what} \xB7 ${ago3 === "now" ? "seen just now" : `seen ${ago3} ago`}`;
 }
 
-// src/voice/phone-voices.ts
-var PHONE_VOICE_SAMPLES_ORIGIN = "https://retell-utils-public.s3.us-west-2.amazonaws.com";
-var voice = (id, name, says, file) => ({
-  id,
-  name,
-  says,
-  sample: `${PHONE_VOICE_SAMPLES_ORIGIN}/${file}`
-});
-var PHONE_VOICES = [
-  voice("minimax-Tamsin", "Tamsin", "Woman \xB7 American", "minimax-Tamsin.mp3"),
-  voice("minimax-Grace", "Grace", "Woman \xB7 American", "minimax_grace.mp3"),
-  voice("minimax-Nia", "Nia", "Woman \xB7 American, younger", "minimax_nia.mp3"),
-  voice("minimax-Willa", "Willa", "Woman \xB7 British", "minimax-Willa.mp3"),
-  voice("minimax-Claudia", "Claudia", "Woman \xB7 Mexican", "minimax-Claudia.mp3"),
-  voice("minimax-Nico", "Nico", "Man \xB7 American", "minimax_nico.mp3"),
-  voice("minimax-Jack", "Jack", "Man \xB7 American", "jack.mp3"),
-  voice("minimax-Alejandro", "Alejandro", "Man \xB7 Mexican, younger", "minimax-Alejandro.mp3")
-];
-var PHONE_VOICE_DEFAULT = "minimax-Tamsin";
-function phoneVoiceOf(id) {
-  return typeof id === "string" ? PHONE_VOICES.find((v) => v.id === id) ?? null : null;
-}
-function phoneVoiceShown(id) {
-  return phoneVoiceOf(id) ?? phoneVoiceOf(PHONE_VOICE_DEFAULT);
-}
-var PHONE_VOICE_WORDS = {
-  label: "Voice",
-  gate: "change the voice callers hear",
-  listen: (name) => `Hear ${name}`,
-  stop: "Stop",
-  unlisted: "Choose one of the voices on the list.",
-  saved: (name) => `Callers hear ${name} from their next call.`
-};
-
 // src/waits/notice-closes.ts
 var NOTHING_WAITS_KNOWN = {
   runs: null,
@@ -59703,6 +59885,7 @@ export {
   APP_KEYS_RESIZE_CLASS,
   APP_ROUTE_RE,
   ASK,
+  ASK_ANSWERS_ROWS,
   ASK_ANSWER_CAPS,
   ASK_ANSWER_FORMAT,
   ASK_CAPS,
@@ -59807,6 +59990,7 @@ export {
   BROADCAST_WORDS,
   BROKEN_CONFIG_WORDS,
   BUDGET_RULES,
+  BUDGET_WORDS,
   BUILTIN_LISTS,
   BUSINESS_DOOR_LABEL,
   BUSINESS_INDUSTRIES,
@@ -59988,6 +60172,7 @@ export {
   FACT_SUGGEST_WORDS,
   FALLBACK_DEFAULTS,
   FALLBACK_DETAILS,
+  FALLBACK_ROWS,
   FAST_MODE_BETA,
   FAST_MODE_PRICES,
   FEED_CHECK_WORDS,
@@ -61079,6 +61264,7 @@ export {
   broadcastFailureWords,
   broadcastName,
   broughtWords,
+  budgetDial,
   buildAskSuggestions,
   buildNotificationFeed,
   businessFieldsFor,
@@ -62817,6 +63003,7 @@ export {
   togglePin,
   tokenBudgetSpent,
   tokenCapOf,
+  tokensPerReply,
   tomorrowAtIn,
   totalOf,
   totalsOf,

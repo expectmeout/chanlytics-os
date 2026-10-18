@@ -25,7 +25,7 @@
 // (the file-length ratchet's 800 lines); the notes, the owner's own words, the three messages and the two rows the first
 // run draws too are here; the cards that compose them, tab.tsx.
 
-import type { BrainConfig, BusinessProfile, GuardrailsInForce } from "@chanlytics/contracts";
+import { FALLBACK_ROWS, type BrainConfig, type BusinessProfile, type GuardrailsInForce } from "@chanlytics/contracts";
 import type { ComponentProps, ReactNode } from "react";
 import { BUSINESS_TAB } from "@/legacy-bridge/business-tab";
 import { gate } from "../../legacy-verbs";
@@ -76,15 +76,9 @@ const btaComposes = (on: Brain) => BUSINESS_TAB.hasProfile((on.profile || null) 
 
 /* ------------------------------------ the lists ------------------------------------ */
 
-// The three messages sent in the business's name when the receptionist cannot answer (S5), in the order an owner meets
-// them, each with when it goes out -- the edge's own conditions (whatsapp/inbound.ts), in an owner's words, and as few
-// of them as say it: the AI's failure leaves the thread for a person, a voice note, a sticker or a photo it cannot look
-// at is left for a person, and only while Chanlytics' AI connection is down does every conversation wait.
-const BTA_FALLBACK_ROWS: { key: FallbackKey; label: string; when: string }[] = [
-  { key: "error", label: "It couldn't write a reply", when: "Then it waits for you" },
-  { key: "non_text", label: "It got something it can't read", when: "Voice notes, stickers, some photos" },
-  { key: "greeting", label: "The AI is down", when: "Rare. Every chat waits for you" },
-];
+// The three messages sent in the business's name when the receptionist cannot answer (S5), each with when it goes out,
+// in contracts' words, which Ask's card names them by too.
+const BTA_FALLBACK_ROWS = FALLBACK_ROWS;
 
 // The details a message may name, which are filled in as each goes out (contracts fallbackMessages): a press puts the
 // name where the box's caret was, so the box teaches them by using them, where a sentence over the three listed them.

@@ -10,6 +10,11 @@ export const EARLIER_FALLBACK_DEFAULTS = /* @__PURE__ */ (() => ({
   error: "Thanks for reaching out to {business}! Book anytime: {booking link} \u2014 or a member of our team will reply here soon.",
   non_text: FALLBACK_DEFAULTS.non_text
 }))();
+export const FALLBACK_ROWS = [
+  { key: "error", label: "It couldn't write a reply", when: "Then it waits for you" },
+  { key: "non_text", label: "It got something it can't read", when: "Voice notes, stickers, some photos" },
+  { key: "greeting", label: "The AI is down", when: "Rare. Every chat waits for you" }
+];
 export function isProductFallback(key, text) {
   const t = typeof text === "string" ? text.trim() : "";
   return t === FALLBACK_DEFAULTS[key] || t === EARLIER_FALLBACK_DEFAULTS[key];

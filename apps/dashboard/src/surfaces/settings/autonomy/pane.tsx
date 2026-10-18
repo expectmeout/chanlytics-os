@@ -12,7 +12,15 @@
  * seeded twin (its own matrix, defaults and guardrails, kept in the browser) left with it.
  */
 import { useState, type ReactNode } from "react";
-import { MIN_MS, REPLY_DELAY_DEFAULT_MS, hardLimitsWords, heldDraftsByClass } from "@chanlytics/contracts";
+import {
+  MIN_MS,
+  REPLY_DELAY_DEFAULT_MS,
+  budgetDial,
+  hardLimitsWords,
+  heldDraftsByClass,
+  tokensPerReply,
+  type BudgetDial,
+} from "@chanlytics/contracts";
 import type { PolicyDials } from "@/legacy-bridge/inbox-verbs";
 import { modeLabel, uiRows, type UiRow } from "@/legacy-bridge/policy-store";
 import { FailedRead } from "../../kit/empty/empty";
@@ -43,15 +51,10 @@ const AUT_CONF: readonly Step[] = [
   ["75%", 0.75],
   ["90%", 0.9],
 ];
-// The day's model budget: tokens in and out over a rolling 24 hours, from the usage events every reply writes. Over it
-// the receptionist stops for the day and each new message lands in Needs you, as at the reply cap.
-const AUT_BUDGET: readonly Step[] = [
-  ["Off", 0],
-  ["100k", 100000],
-  ["250k", 250000],
-  ["500k", 500000],
-  ["1M", 1000000],
-];
+// The day's model budget: tokens in and out over a rolling 24 hours, from the usage events every reply writes, said on
+// its dial in the replies each cap buys. Over it the receptionist stops for the day and each new message lands in Needs
+// you, as at the reply cap. 0 is none.
+const AUT_BUDGET_CAPS: readonly number[] = [0, 100000, 250000, 500000, 1000000];
 // The two hard limits that are the owner's to set (S6): automatic replies to one person in 24 hours before the
 // receptionist stops and asks, and the hours it stays out of a conversation once a person steps in. Steps inside what
 // the route accepts (1 to 200, 1 to 168); a value stored off these steps shows as a step of its own, never as a wrong one.
@@ -77,7 +80,7 @@ const wordOf = (steps: readonly Step[], value: number, otherwise: string): strin
 const stepWords = (steps: readonly Step[]) => steps.map((s) => s[0]);
 
 /** What a save says it did, in the words the row above it uses: one dial at a time, or the class's mode. */
-function savedWords(r: UiRow, mode: string | undefined, d: PolicyDials): ReactNode {
+function savedWords(r: UiRow, mode: string | undefined, d: PolicyDials, budget: BudgetDial): ReactNode {
   const { replyDelayMs, minConfidence, maxTokensDay, maxRepliesDay, pauseHours } = d;
   if (replyDelayMs !== undefined)
     return (
@@ -95,8 +98,7 @@ function savedWords(r: UiRow, mode: string | undefined, d: PolicyDials): ReactNo
   if (maxTokensDay !== undefined)
     return (
       <>
-        <b>Day&apos;s model budget</b> → {wordOf(AUT_BUDGET, maxTokensDay, `${Math.round(maxTokensDay / 1000)}k`)} —
-        from the next reply
+        <b>{budget.label}</b> → {wordOf(budget.steps, maxTokensDay, String(maxTokensDay))} — from the next reply
       </>
     );
   if (maxRepliesDay !== undefined)
@@ -227,6 +229,11 @@ export const PaneAutonomyReal = ({ flash, row = null }: { flash: (f: LegacyFlash
   const capSteps = withStep(AUT_CAP, hard.cap, String(hard.cap));
   const pauseSteps = withStep(AUT_PAUSE, hard.hours, `${hard.hours}h`);
   const budget = Number(limits.max_llm_tokens_day) || 0;
+  // The budget's dial, a stored cap off its steps among them, each said in the replies it buys here.
+  const budgetAt = budgetDial(
+    [...new Set([...AUT_BUDGET_CAPS, budget])].sort((a, b) => a - b),
+    tokensPerReply(policies.replyTokens),
+  );
 
   // One dial at a time, and never the mode with it (the bridge's PolicyDials).
   const put = async (r: UiRow, mode: string | undefined, dials: PolicyDials = {}) => {
@@ -244,7 +251,7 @@ export const PaneAutonomyReal = ({ flash, row = null }: { flash: (f: LegacyFlash
       });
       return;
     }
-    flash({ msg: savedWords(r, mode, dials) });
+    flash({ msg: savedWords(r, mode, dials, budgetAt) });
   };
   const putDial = (r: UiRow, m: undefined, d: PolicyDials) => void put(r, m, d);
   const putMode = (r: UiRow, m: string) => void put(r, m);
@@ -312,11 +319,12 @@ export const PaneAutonomyReal = ({ flash, row = null }: { flash: (f: LegacyFlash
             testid: "aut-pause",
           },
           {
-            label: "Day's model budget",
-            note: "Model tokens it may spend in a rolling 24 hours, in and out. Over the budget it stops answering for the day, and every new message lands in Needs you.",
-            steps: AUT_BUDGET,
-            value: wordOf(AUT_BUDGET, budget, `${Math.round(budget / 1000)}k`),
+            // Said in replies at this workspace's own size of reply, kept in tokens (contracts budgetDial; the
+            // Settings wiring review, item 12): "100k" and "1M" were a developer's words.
+            ...budgetAt,
+            value: wordOf(budgetAt.steps, budget, String(budget)),
             save: (v: number) => ({ maxTokensDay: v }),
+            testid: "aut-budget",
           },
         ].map((d) => dialRow(d, phone, reply, putDial))}
       </section>

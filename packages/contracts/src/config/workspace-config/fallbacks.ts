@@ -44,6 +44,18 @@ export const EARLIER_FALLBACK_DEFAULTS: BrainConfig["fallbacks"] = /* @__PURE__ 
 }))();
 
 /**
+ * The three messages in the order an owner meets them, each with when it goes out -- the edge's own conditions
+ * (whatsapp/inbound.ts), in an owner's words, and as few of them as say it: the AI's failure leaves the thread for a
+ * person, a voice note, a sticker or a photo it cannot look at is left for a person, and only while Chanlytics' AI
+ * connection is down does every conversation wait. How it answers' rows and Ask's card name each by these.
+ */
+export const FALLBACK_ROWS: readonly { key: keyof BrainConfig["fallbacks"]; label: string; when: string }[] = [
+  { key: "error", label: "It couldn't write a reply", when: "Then it waits for you" },
+  { key: "non_text", label: "It got something it can't read", when: "Voice notes, stickers, some photos" },
+  { key: "greeting", label: "The AI is down", when: "Rare. Every chat waits for you" },
+];
+
+/**
  * Whether a message is in the product's wording, today's or the earlier one: the one test the Business tab's line
  * (business-tab.ts fallbacksWords) and each message's "Use the default wording" ask.
  */

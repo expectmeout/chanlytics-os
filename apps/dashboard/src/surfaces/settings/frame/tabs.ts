@@ -102,6 +102,8 @@ const ROW_PANES: Readonly<Record<string, string>> = {
   try: "receptionist",
   // The transfer number, on How it answers' On calls with the greeting (the Settings wiring review, items 6-7).
   handoff_number: "receptionist",
+  // The voice callers hear it in, on On calls (item 11), which Ask's card opens too (item 14).
+  phone_voice: "receptionist",
   guardrails: "autonomy",
   escalate_when: "autonomy",
 };

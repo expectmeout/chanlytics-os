@@ -164,7 +164,8 @@ const SALON_WHATSAPP = [
     [
       "You are the assistant for Example Salon, answering customers over WhatsApp.",
       "Tone: Warm and unhurried.",
-      "You speak: English, Spanish.",
+      // In writing the list is a preference: the customer's own language first (the Settings wiring review, item 13).
+      "The business serves customers in: English, Spanish. Reply in the language the customer writes in, and switch if they do.",
     ],
   ],
   ...SALON_FACTS,

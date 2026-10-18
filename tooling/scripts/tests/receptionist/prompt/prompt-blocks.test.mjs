@@ -356,7 +356,10 @@ test("the prompt is cut into blocks, each naming the row that wrote it", () => {
   // The head block holds the tone and the languages, which have no heading of their own.
   const head = blocks.find((b) => b.row === "identity");
   assert.match(head.text, /^Tone: Warm and unhurried\./m);
-  assert.match(head.text, /You speak: English, Spanish\./);
+  assert.match(
+    head.text,
+    /The business serves customers in: English, Spanish\. Reply in the language the customer writes in/,
+  );
 
   // Each block carries its own size, and the sizes add up to the whole.
   const total = blocks.reduce((n, b) => n + b.chars, 0);

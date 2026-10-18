@@ -626,7 +626,7 @@ test("a settings control is named by the row it sits in: what the row hands it l
     }
     assert.deepEqual(
       dials.map(({ drawn }) => drawn.props["data-testid"]).filter(Boolean),
-      ["aut-reply-cap", "aut-pause"],
+      ["aut-reply-cap", "aut-pause", "aut-budget"],
       "a test id handed to a dial lands on its group",
     );
   } finally {
