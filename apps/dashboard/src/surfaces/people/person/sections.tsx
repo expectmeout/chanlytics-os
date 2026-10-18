@@ -104,7 +104,7 @@ export function historySection(c: PageCtx, past: PersonVM["timeline"]) {
         onFilter={setTlFilter}
         showAll={tlAll}
         onShowAll={() => setTlAll(true)}
-        dealsOn={p.dealsOn}
+        word={p.word}
         fresh={c.fresh}
         notes={notes}
       />

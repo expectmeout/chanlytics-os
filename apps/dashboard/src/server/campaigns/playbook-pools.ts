@@ -14,7 +14,6 @@ import {
   enrolPurpose,
   messageAboutOfTrigger,
   triggerOf,
-  triggerOffered,
   ruleNeedsViewer,
   DEFAULT_CAMPAIGN_CHANNELS,
   PLAYBOOK_CAP_CHOICES,
@@ -159,7 +158,7 @@ function strictMessagePools(
 interface PoolReads {
   people: Promise<Settled<PersonRowDto[]>>;
   calendar: Promise<Settled<CalendarRead>>;
-  /** None where deals are off: no proposal is out. */
+  /** None where no deal was ever recorded: no proposal is out. */
   followUps: Promise<Settled<FollowUpsRead>>;
   /** Null where no playbook's message can be stricter than its moment: not read. */
   templates: Promise<Settled<TemplateRows | null>>;
@@ -170,9 +169,10 @@ interface PoolReads {
  * The pools' reads, all asked now. They were asked one behind another, people, then the calendar's settings, its feed,
  * the proposals out and their follow-ups, the templates and the lists, each waiting on the one before though none reads
  * what another answered, and every one of them behind the page's first reads: about ten waits in a row on a page whose
- * every read is a wait (9 Oct 2026, the slowest read Campaigns opens on). The two that do hang on an answer take it as a
- * promise: whether deals are on (no proposal is read where they are off) and the playbooks (the templates are read only
- * for one whose message may be stricter), so a caller that is still reading those hands them over unread.
+ * every read is a wait (9 Oct 2026, the slowest read Campaigns opens on). The two that do hang on an answer take it as
+ * a promise: whether a deal was ever recorded here (no proposal's follow-up is read where none was) and the playbooks
+ * (the templates are read only for one whose message may be stricter), so a caller that is still reading those hands
+ * them over unread.
  */
 export function poolReads(
   ctx: RouteContext,
@@ -181,7 +181,7 @@ export function poolReads(
   from: {
     people?: Lazy<PersonRowDto[]>;
     known?: ZoneAndSettings;
-    dealsOn: boolean | PromiseLike<boolean>;
+    hasDeals: boolean | PromiseLike<boolean>;
     playbooks: readonly StrictCandidate[] | PromiseLike<readonly StrictCandidate[]>;
   },
 ): PoolReads {
@@ -189,7 +189,7 @@ export function poolReads(
   return {
     people: settled((async () => (from.people === undefined ? everyone(ctx, tenantId) : lazily(from.people)))()),
     calendar: settled(calendarRead(ctx, tenantId, now, from.known)),
-    followUps: settled((async () => ((await from.dealsOn) ? proposalFollowUps(ctx, tenantId, now) : noFollowUps()))()),
+    followUps: settled((async () => ((await from.hasDeals) ? proposalFollowUps(ctx, tenantId, now) : noFollowUps()))()),
     templates: settled(
       (async () => (mayBeStricter(await from.playbooks).length ? templatesFor(ctx.supabase, tenantId, null) : null))(),
     ),
@@ -366,10 +366,11 @@ export async function triggerPools(
   tz: string,
   now: Date,
   /**
-   * Whether deals are on here, and the workspace's pace (contracts dealPaceOf): a proposal's moment is counted by the
-   * pace where they are on, and reaches nobody where they are off, as its run does (0006).
+   * Whether a deal was ever recorded here, and the workspace's pace (contracts dealPaceOf): a proposal's moment is
+   * counted by the pace, as its run is (0006); with no deal on file nobody waits on one, and its follow-ups are not
+   * read.
    */
-  deals: { on: boolean; pace: Pick<DealPaceVM, "waitDays"> | null },
+  deals: { any: boolean; pace: Pick<DealPaceVM, "waitDays"> | null },
   /**
    * What the caller already holds this turn, or how to read it from the turn (readers/playbooks.ts): everyone in People
    * and the calendar's zone and settings, which the visits' lookup then reads neither of, or the pools' reads themselves
@@ -396,7 +397,7 @@ export async function triggerPools(
     poolReads(ctx, tenantId, now, {
       people: from.people,
       known: from.known,
-      dealsOn: deals.on,
+      hasDeals: deals.any,
       playbooks: from.playbooks ?? [],
     });
   const everyoneRead = await reads.people;
@@ -412,14 +413,14 @@ export async function triggerPools(
   const rows = everyoneRead.value;
   const pv = visitsOrNull(tenantId, await reads.calendar, rows, now);
   const calendar = pv?.calendar.state ?? "none";
-  // The pool's one reading (contracts audience-pool.ts), as a run reads it: no one looking, and no deal where deals
-  // are off. The visits are marked as consultations by the same rule the edge's runner reads them by.
+  // The pool's one reading (contracts audience-pool.ts), as a run reads it: no one looking. The visits are marked as
+  // consultations by the same rule the edge's runner reads them by.
   const vms = poolRowsOf(
     withVisitsOf(rows, pv?.visits ?? new Map(), pv?.calendar ?? { state: "none", timezone: tz, source: "calendar" }),
-    { tz, now, viewer: null, dealsOn: deals.on, ready: from.ready ?? null },
+    { tz, now, viewer: null, ready: from.ready ?? null },
   );
   // Who already had their proposal's follow-up, from any playbook (proposalFollowUps): no run reaches them again for
-  // that proposal (0006), so the moment's count leaves them out as its run does. Read only where deals are on;
+  // that proposal (0006), so the moment's count leaves them out as its run does. Read only where a deal was recorded;
   // unreadable, the moment is not counted.
   const followUps = followUpsOrNull(tenantId, await reads.followUps);
   const breath = poolTouches(touched, followUps ?? noFollowUps(), now);
@@ -442,9 +443,8 @@ export async function triggerPools(
       pools[t.id] = null;
       continue;
     }
-    // A proposal's moment is not counted where deals are off -- its run is off, and the card says why (0006) -- nor
-    // where who already had a follow-up could not be read.
-    if (t.kind === "deal" && (!triggerOffered(t, deals.on) || !followUps)) {
+    // A proposal's moment is not counted where who already had a follow-up could not be read.
+    if (t.kind === "deal" && !followUps) {
       pools[t.id] = null;
       continue;
     }
@@ -459,7 +459,7 @@ export async function triggerPools(
   // playbook has no one looking, so a list about "me" is never offered; one it can't count here is null, never a zero.
   const listCtx = poolListContext({
     calendar,
-    dealsOn: deals.on,
+    hasDeals: deals.any,
     consultFirst: consultFirstOf(pv?.rules),
     viewer: null,
   });

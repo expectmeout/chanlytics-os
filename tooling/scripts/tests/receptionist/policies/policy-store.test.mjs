@@ -22,7 +22,6 @@ const { uiRows, modeLabel, dbMode, installPolicyStore, UI_ROWS, UI_MODES } = awa
 const REAL = {
   role: "owner",
   // A workspace whose customers book: the follow-ups' row is not drawn (0006).
-  dealsOn: false,
   rows: [
     { class: "reply", mode: "veto", limits: { reply_delay_ms: 30000, max_replies_day: 20 } },
     { class: "booking", mode: "auto", limits: {} },
@@ -86,16 +85,12 @@ test("uiRows maps stored rows onto the mockup's ids, never invents a mode, and k
   assert.equal(by.money.mode, "Never");
   assert.deepEqual(
     rows.map((r) => r.id),
-    ["reply", "faq", "book", "reengage", "campaign", "outreach", "reviews", "money"],
-    "a salon's pane: eight rows, the reach-outs' beside the campaigns",
-  );
-  const deals = uiRows({ ...REAL, dealsOn: true, rows: [...REAL.rows, { class: "follow_up", mode: "ask" }] });
-  assert.deepEqual(
-    deals.map((r) => r.id),
     ["reply", "faq", "book", "reengage", "follow_up", "campaign", "outreach", "reviews", "money"],
-    "where deals are on, nine: the follow-ups' beside Win-back",
+    "every workspace's pane (0008, amended 18 Oct 2026): nine rows, the follow-ups' beside Win-back, the reach-outs' beside the campaigns",
   );
-  assert.equal(deals.find((r) => r.id === "follow_up").mode, "Ask");
+  assert.equal(by.follow_up.mode, null, "no row, no mode");
+  const asked = uiRows({ ...REAL, rows: [...REAL.rows, { class: "follow_up", mode: "ask" }] });
+  assert.equal(asked.find((r) => r.id === "follow_up").mode, "Ask");
   assert.equal(
     uiRows({ role: null, rows: [{ class: "money", mode: "auto" }] }).find((r) => r.id === "money").mode,
     "Never",
@@ -125,7 +120,7 @@ test("the installed store answers from real rows, and writes only through the co
   assert.equal(S.modeOf("book"), "Auto");
   assert.equal(S.modeOf("faq"), null);
   assert.equal(S.row("money").locked, true);
-  assert.equal(S.ROWS.length, UI_ROWS.length - 1, "a salon's pane: the follow-ups' row only where deals are on");
+  assert.equal(S.ROWS.length, UI_ROWS.length, "every row, the follow-ups' among them, in every workspace");
 
   S.set("reply", "Ask");
   S.set("money", "Auto"); // locked: no write

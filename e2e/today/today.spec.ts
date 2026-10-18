@@ -108,7 +108,7 @@ test.describe("Today on a real workspace", () => {
     if (rows.length === 0) return;
     for (const r of rows) {
       const row = page.getByTestId(`today-leak-${r.id}`);
-      // The deal rows' tags (0008) show only where deals are on; the nightly workspace answers "booking".
+      // The deal rows' tags (0008) show where a proposal waits or a consultation was followed by nothing.
       await expect(row.locator(".tl-tag")).toHaveText(/^(Booking gap|No reply|Next step|Waiting|Reach|Gone quiet)$/);
       expect(r.doors).toContain("Ask why");
     }

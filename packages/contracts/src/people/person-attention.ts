@@ -10,7 +10,7 @@ import type { PersonRowVM } from "./person-row";
 import type { ReceptionistTone } from "./person-receptionist";
 import { fmtDate } from "./person-helpers";
 import { DAY_MS } from "../shared/time";
-import { appointmentWordWhere, appointmentWords } from "../journey/appointment-word";
+import { appointmentWords, type AppointmentWord } from "../journey/appointment-word";
 
 /* ------------------------- the attention strip --------------------------- */
 
@@ -47,11 +47,11 @@ function clock(ms: number, tz: string, nowMs: number): string {
  * where and when, one sentence, one state line, one button — filled only
  * with what is on record. Their words come first; then the last call's
  * summary; then the calendar, the last one in the workspace's word ("Last
- * meeting · Sep 3" where deals are on); then the plain fact of a call. The button is
+ * meeting · Sep 3"); then the plain fact of a call. The button is
  * the one thing the state asks of you, and it exists only when that differs
  * from opening the profile, which the row itself does.
  */
-export function attentionRow(p: PersonRowVM, tz: string, nowMs: number, dealsOn: boolean): AttentionRowVM {
+export function attentionRow(p: PersonRowVM, tz: string, nowMs: number, word: AppointmentWord): AttentionRowVM {
   const lc = p.lastContact;
   const channel: AttentionRowVM["channel"] = lc.kind === "call" ? "Phone" : lc.kind === "message" ? "WhatsApp" : null;
   const when = lc.ts === null ? "no contact yet" : ago(lc.ts, tz, nowMs);
@@ -65,7 +65,7 @@ export function attentionRow(p: PersonRowVM, tz: string, nowMs: number, dealsOn:
   // keeps the visit, which is the next thing about them; a pass or an end says nothing here.
   else if (p.deal && p.deal.stage === "proposed" && p.deal.brief) sentence = p.deal.brief;
   else if (p.nextVisit) sentence = `Booked · ${p.nextVisit}`;
-  else if (p.lastVisit) sentence = `${appointmentWords(appointmentWordWhere(dealsOn)).last} · ${p.lastVisit}`;
+  else if (p.lastVisit) sentence = `${appointmentWords(word).last} · ${p.lastVisit}`;
   else if (p.calls > 0)
     sentence =
       p.calls === 1 ? "Phoned once; nothing in writing yet" : `Phoned ${p.calls} times; nothing in writing yet`;

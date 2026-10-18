@@ -287,7 +287,7 @@ test("a mode saved announces policy:changed once in the tab that saved it: the s
       "PUT policies": { policy: { class: "reengage", mode: "auto" } },
       "GET settings": { config: { brain: {} }, version: 1 },
       "GET team": { members: [], invites: [] },
-      "GET policies": { policies: [{ class: "reengage", mode: "auto", limits: {} }], role: "owner", deals_on: false },
+      "GET policies": { policies: [{ class: "reengage", mode: "auto", limits: {} }], role: "owner" },
       "GET channels": { channels: [] },
       "GET templates": { templates: [], usedBy: {} },
     };

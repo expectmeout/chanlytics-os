@@ -43,6 +43,7 @@ const { toCampaignLensVM, toPeopleReportVM } = await import("@chanlytics/contrac
 after(() => forgetStanding());
 
 const at = (lens) => `/w/harbor/reports${lens === "overview" ? "" : `/${lens}`}`;
+/** The workspace list the shell holds; `sellsBy` is the retired answer to how its customers buy (00160), which switches nothing now. */
 const workspace = (sellsBy) => {
   globalThis.__WORKSPACES = [
     {
@@ -323,16 +324,14 @@ test("the page dims once while the People read is of another period than the str
   }
 });
 
-test("a lens the workspace has no use for says so at its address, in the registry's words, and draws none of its cards", () => {
+test("the Pipeline lens with no deal on file says so at its address, in the registry's words, with the door to the Pipeline, and draws none of its cards; with one, its cards, whatever the retired answer said", () => {
   workspace("booking");
-  const tree = draw("pipeline", { R: surface({ deals: DEALS }) });
+  const tree = draw("pipeline", { R: surface({ deals: NO_DEALS }) });
   const empty = byTestId(tree, "lens-empty");
   assert.equal(textOf(find(empty, (n) => classes(n).includes("empty-title"))), "No proposals to report");
-  assert.ok(textOf(empty).includes("Open Settings"));
+  assert.ok(textOf(empty).includes("Open the Pipeline"), "where proposals start");
   assert.equal(byTestId(tree, "rpt-deals"), null);
-  workspace("proposal");
-  const none = draw("pipeline", { R: surface({ deals: NO_DEALS }) });
-  assert.ok(byTestId(none, "lens-empty"), "deals on and none ever recorded: the same words, never a blank");
+  assert.ok(byTestId(draw("pipeline", { R: surface({ deals: DEALS }) }), "rpt-deals"), "a deal on file: the cards");
 });
 
 test("Ads reaches a workspace without ads as the registry's empty at its address, with the door to Ads: none of its cards, no head sentence, and no fact on the Overview", () => {
@@ -424,22 +423,20 @@ test("Reviews draws nothing while its own read is out: a read still out is not '
   assert.ok(byTestId(unread, "reports-real"), "the page itself stands");
 });
 
-test("a lens that waits on how the workspace sells draws nothing until the workspace list is held, and the Overview stands without it", () => {
+test("the Pipeline lens waits on nothing of the workspace list (0008, amended 18 Oct 2026): before it is held, its empty or its cards, as the report says, and the Overview stands", () => {
   delete globalThis.__WORKSPACES;
   delete globalThis.__ACTIVE_WORKSPACE;
   const pipeline = draw("pipeline", { R: surface({ deals: NO_DEALS }) });
-  assert.equal(
-    byTestId(pipeline, "lens-empty"),
-    null,
-    "REGRESSION: 'you book directly' said to a workspace nobody had asked",
-  );
+  assert.ok(byTestId(pipeline, "lens-empty"), "no deal on file: the lens says so");
   assert.equal(byTestId(pipeline, "rpt-deals"), null);
+  assert.ok(
+    byTestId(draw("pipeline", { R: surface({ deals: DEALS }) }), "rpt-deals"),
+    "a deal on file: the lens draws",
+  );
   assert.ok(
     byTestId(draw("overview", { R: surface({ deals: DEALS }) }), "reports-hero"),
     "open to everyone: no list needed",
   );
-  workspace("proposal");
-  assert.ok(byTestId(draw("pipeline", { R: surface({ deals: DEALS }) }), "rpt-deals"), "the list held: the lens draws");
 });
 
 // These two follow every test above that draws Reviews, in this order: a surface that never had a read is failed only until one

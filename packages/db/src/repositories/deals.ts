@@ -34,6 +34,17 @@ export async function yesesSince(db: Db, tenantId: string, since: Date): Promise
   return rows.map((r) => ({ stage: r.stage, proposed_at: r.proposed_at, decided_at: r.decided_at }));
 }
 
+/**
+ * Whether a deal was ever recorded in the workspace (0008, amended 18 Oct 2026). Every workspace has deals; what
+ * presumes a business sends proposals (a whole setup's proposal follow-up, Ask's question about proposals, People's
+ * deal lists) waits for its first. Under whatever row security the client carries. A read that fails answers false: a
+ * nudge left out, never a page.
+ */
+export async function dealOnFile(db: Db, tenantId: string): Promise<boolean> {
+  const r = await db.from("deals").select("id").eq("tenant_id", tenantId).limit(1);
+  return !r.error && (r.data?.length ?? 0) > 0;
+}
+
 /** What a move may name beside its stage: deal_record's own arguments, by their names without the `p_`. */
 export type DealMove = {
   deal_id?: string;

@@ -5,7 +5,6 @@
 import { shiftKey } from "../calendar/day-keys";
 import { clockNear, wallClockAt, zoneDayKey } from "../shared/clock";
 import { type AskedPurpose, purposeOfPlaybook } from "../consent/consent";
-import { SELLS_BY_QUESTION, SELLS_BY_WORDS } from "../deals/sells-by";
 import { type DealPaceVM, waitingOnProposal } from "../deals/deal-waits";
 import type { PersonRowVM } from "../people/person-row";
 import type { DealVM } from "../deals/deal-vm";
@@ -14,9 +13,6 @@ import { type ChannelsReady, DEFAULT_CAMPAIGN_CHANNELS, type ReachRow, reachFor 
 import { heardWithin } from "../broadcasts/run-words";
 import { runDueNow } from "./playbook-schedule";
 import { DAY_MS, sweepTickAtOrAfter } from "./playbook-time";
-
-/** Why a proposal follow-up is not made or run here: deals are off. The check, a run now and Ask say it alike. */
-export const FOLLOW_UP_NEEDS_DEALS = `Proposal follow-ups need deals: in Settings › Details, answer “${SELLS_BY_QUESTION}” with “${SELLS_BY_WORDS.proposal.label}”.`;
 
 /** Why a follow-up must carry its proposal's link (0006): without it the nudge is a bare "just checking in". */
 export const FOLLOW_UP_NEEDS_LINK =
@@ -52,7 +48,7 @@ export function followUpNames(
 }
 
 /**
- * The proposal follow-up as People and Today read it (0006), answered by the People read where deals are on and a
+ * The proposal follow-up as People and Today read it (0006), answered by the People read where a deal is on file and a
  * follow-up runs under a mode other than never: its clock, whether its runs wait for a person, and, from any
  * playbook's runs since the oldest proposal out, who had theirs and who is in a run on its way or waiting; and the
  * messages from any run, sent or due, by which the week's breath holds them. Contact id -> when.

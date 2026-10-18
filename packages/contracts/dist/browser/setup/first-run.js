@@ -5,7 +5,6 @@ import { openWeekWords } from "../config/business-tab/open-week.js";
 import { servicesWords } from "../config/business-tab/services-words.js";
 import { DAY_NAMES } from "../config/workspace-config/config-rules.js";
 import { ROLE_PERMS } from "../config/workspace-config/role-perms.js";
-import { bookingLinkOptional } from "../deals/sells-by.js";
 import { checkChipsOf } from "./check-chips.js";
 import { bookingPageOffered } from "../google/google.js";
 import { firstRunLiveOf, FIRST_RUN_LIVE_WORDS } from "./first-run-live.js";
@@ -134,7 +133,7 @@ export const FIRST_RUN_WORDS = {
     /** Not on Google, said, where Google can be searched: the way back to Find. */
     findIt: "On Google after all? Find it",
     /** What each group of rows is, for a screen reader: the words on screen are the rows' own. */
-    groups: { facts: "Your hours and where you are", buys: "How customers buy", offer: "What it offers" },
+    groups: { facts: "Your hours and where you are", booking: "Booking and prices", offer: "What it offers" },
     /** The chips (check-chips.ts): a tap adds one, a tap on one that is on takes it out, with an Undo. */
     chips: {
       services: "Tap what you offer. A few is enough.",
@@ -307,11 +306,6 @@ function cardGreeting(spoken, profile, setup) {
   return greetingOf({ name: spoken, stored, paused: false }).text;
 }
 export function receptionistCardOf(i) {
-  if (i.sellsBy !== null && typeof i.sellsBy !== "string") {
-    throw new TypeError(
-      "receptionistCardOf needs how customers buy (the workspace's sells_by, null when not said): how a business that quotes is reached turns on it."
-    );
-  }
   const b = i.brain;
   const p = b?.profile ?? null;
   const spoken = (b?.business_name || i.setup.business.name || "").trim();
@@ -323,7 +317,7 @@ export function receptionistCardOf(i) {
   const line = i.numbers?.voiceLine ?? i.setup.channels.voice.number ?? null;
   const through = i.numbers?.handoff ?? i.setup.business.handoff ?? null;
   const show = (n) => n ? formatPhoneDisplay(n) ?? n : null;
-  const quotes = !!b && !b.booking_link && bookingLinkOptional(i.sellsBy);
+  const takesDetails = !!b && !b.booking_link;
   return {
     caption: "Your receptionist, so far",
     initials: name ? initialsOf(name) : "",
@@ -339,7 +333,7 @@ export function receptionistCardOf(i) {
         label: "Knows",
         value: sv.count ? [sv.chips.map((c) => c.name).join(", "), sv.more].filter(Boolean).join(" ") : null
       },
-      quotes ? { key: "books", label: "For a quote", value: "Takes their details" } : { key: "books", label: "Books with", value: b?.booking_link ? linkShown(b.booking_link) : null },
+      takesDetails ? { key: "books", label: "To book", value: "Takes their details" } : { key: "books", label: "Books with", value: b?.booking_link ? linkShown(b.booking_link) : null },
       { key: "speaks", label: "Speaks", value: p?.languages?.length ? p.languages.join(", ") : null },
       // The line it answers, and the number set to forward to it, as recorded: no claim about when a call forwards.
       {

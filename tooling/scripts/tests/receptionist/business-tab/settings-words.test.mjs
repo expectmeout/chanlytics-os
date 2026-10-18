@@ -468,7 +468,7 @@ const workspace = (over = {}, rules = {}) => {
     },
     __TEAM: [],
     __TEAM_INVITES: [],
-    __POLICIES: { role: "owner", dealsOn: false, rows: [] },
+    __POLICIES: { role: "owner", rows: [] },
     ...over,
   });
   // The seam's settings value beside the globals it copies (legacy-bridge/surfaces/settings.ts), for the moved panes.
@@ -550,7 +550,6 @@ test("REGRESSION (S6): the reply cap and the pause are dials on the Hard limits 
   workspace({
     __POLICIES: {
       role: "owner",
-      dealsOn: false,
       rows: [{ class: "reply", mode: "auto", limits: { reply_delay_ms: 30000, pause_hours: 48 } }],
     },
   });

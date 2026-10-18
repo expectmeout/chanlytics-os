@@ -44,7 +44,7 @@ export function combineAsk(c: PageCtx): { title: string; sub: string; body: Reac
     here: { id: c.p.id, name: c.p.name, email: c.p.email },
     act,
     business,
-    dealsOn: c.p.dealsOn,
+    word: c.p.word,
   });
   const { busy } = c.merge;
   const combine = async () => {

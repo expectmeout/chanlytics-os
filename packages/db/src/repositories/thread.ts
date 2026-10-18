@@ -31,7 +31,6 @@ import {
   DAY_MS,
   dealIsOpen,
   dealSentence,
-  dealsAreOn,
   offersFacts,
   disclosureFacts,
   pickCurrentDeal,
@@ -242,33 +241,21 @@ export interface LeadContext {
   noteList?: { body: string; at: string }[] | null;
   /**
    * Their proposal, as a web address: the current deal's while it is a proposal out, none for any other deal, the
-   * person's own only with no deal at all (proposalLinkOf, 0008); none where deals are off. Sent when they ask about
-   * price, its figures never stated.
+   * person's own only with no deal at all (proposalLinkOf, 0008). Sent when they ask about price, its figures never
+   * stated.
    */
   proposalUrl?: string | null;
   /**
-   * Their deal (0004), the newest open or current one: the sentence the receptionist hears; none where deals are off
-   * (dealsAreOn, 0008). Optional so every fake still compiles.
+   * Their deal (0004), the newest open or current one: the sentence the receptionist hears, in every workspace (0008,
+   * amended 18 Oct 2026). Optional so every fake still compiles.
    */
   deal?: DealFacts | null;
   /**
    * Their other open deals (0029), newest first, each with its proposal's link: a client of one service may have a
-   * proposal out for another, and the receptionist hears each. Empty where none, or deals are off; optional so every
-   * fake still compiles.
+   * proposal out for another, and the receptionist hears each. Empty where none; optional so every fake still compiles.
    */
   otherDeals?: DealFacts[];
 }
-
-/** The workspace's answer to how its customers buy, from a contact read that embeds `tenants(sells_by)`. */
-function sellsByOf(embedded: unknown): string | null {
-  const t = Array.isArray(embedded) ? embedded[0] : embedded;
-  const v = t && typeof t === "object" ? (t as { sells_by?: unknown }).sells_by : null;
-  return typeof v === "string" ? v : null;
-}
-
-/** A read that names tenants.sells_by on a database 00160 has not reached answers "column does not exist". */
-const noSellsBy = (message: string): boolean =>
-  /\bsells_by\b/.test(message) && /does not exist|could not find/i.test(message);
 
 /** The same answer for contacts.offers_asked_at or marketing_channels, on a database the migration that adds them has not reached. */
 const noOffersColumns = (message: string): boolean =>
@@ -307,17 +294,15 @@ export async function readLeadContext(
   /** The message being answered, stored before they were read: not their history, nor their last touch (none on a call). */
   answering?: string,
 ): Promise<LeadContext> {
-  // Who they are, and in the same round trip how their workspace's customers buy (0008): a deal and a proposal link are
-  // the receptionist's to say only where deals are on. A database 00160 has not reached answers "column does not exist"
-  // for the answer: read again without it, and deals are off there, as they would be. And whether they were ever
-  // asked for the yes to offers, and on which channels that yes holds (offers_asked_at and marketing_channels, One
-  // message, every channel, step 2): the edge may deploy before its migration, and a missing column must cost the answer
-  // to that one question, never who they are. Read again without them, and the receptionist is told nothing that lets
-  // it ask (contracts offersFacts).
+  // Who they are, and whether they were ever asked for the yes to offers, and on which channels that yes holds
+  // (offers_asked_at and marketing_channels, One message, every channel, step 2): the edge may deploy before its
+  // migration, and a missing column must cost the answer to that one question, never who they are. Read again without
+  // them, and the receptionist is told nothing that lets it ask (contracts offersFacts). Their deals and proposal link
+  // are the receptionist's to say in every workspace (0008, amended 18 Oct 2026: deals for everyone).
   const withAnswer = await db
     .from("contacts")
     .select(
-      "id, display_name, wa_profile_name, name_source, last_seen_at, consent, dnc, notes, proposal_url, email, marketing_consent, marketing_channels, offers_asked_at, tenants(sells_by)",
+      "id, display_name, wa_profile_name, name_source, last_seen_at, consent, dnc, notes, proposal_url, email, marketing_consent, marketing_channels, offers_asked_at",
     )
     .eq("tenant_id", tenantId)
     .eq("phone_e164", phoneE164)
@@ -336,23 +321,10 @@ export async function readLeadContext(
     marketing_consent: string;
     marketing_channels?: string[] | null;
     offers_asked_at?: string | null;
-    sellsBy: string | null;
-  } | null = withAnswer.data ? { ...withAnswer.data, sellsBy: sellsByOf(withAnswer.data.tenants) } : null;
+  } | null = withAnswer.data;
   let cErr = withAnswer.error;
   if (cErr && noOffersColumns(cErr.message)) {
     const unasked = await db
-      .from("contacts")
-      .select(
-        "id, display_name, wa_profile_name, last_seen_at, consent, dnc, notes, proposal_url, email, marketing_consent, tenants(sells_by)",
-      )
-      .eq("tenant_id", tenantId)
-      .eq("phone_e164", phoneE164)
-      .maybeSingle();
-    contact = unasked.data ? { ...unasked.data, sellsBy: sellsByOf(unasked.data.tenants) } : null;
-    cErr = unasked.error;
-  }
-  if (cErr && noSellsBy(cErr.message)) {
-    const older = await db
       .from("contacts")
       .select(
         "id, display_name, wa_profile_name, last_seen_at, consent, dnc, notes, proposal_url, email, marketing_consent",
@@ -360,12 +332,11 @@ export async function readLeadContext(
       .eq("tenant_id", tenantId)
       .eq("phone_e164", phoneE164)
       .maybeSingle();
-    contact = older.data ? { ...older.data, sellsBy: null } : null;
-    cErr = older.error;
+    contact = unasked.data;
+    cErr = unasked.error;
   }
   if (cErr) throw new Error(`readLeadContext/contact: ${cErr.message}`);
   if (!contact) return EMPTY_LEAD;
-  const dealsOn = dealsAreOn(contact.sellsBy);
 
   const { data: conv, error: vErr } = await db
     .from("conversations")
@@ -379,18 +350,15 @@ export async function readLeadContext(
     ? await turnsBefore(db, tenantId, conv.id, historyLimit, answering)
     : { history: [], lastTurnAt: null };
 
-  // Their deal, read beside the note (0004), only where deals are on: a context lookup must never cost the reply, so an
-  // error is no deal. The whole list, because the current one may be the oldest: a running engagement outlives any
-  // number of newer proposals for other services, and a cap would hide it behind them. With its link (0008): the
-  // proposal the receptionist sends.
-  const { data: dealRows } = dealsOn
-    ? await db
-        .from("deals")
-        .select("stage, service, proposed_at, decided_at, ended_at, created_at, proposal_url")
-        .eq("tenant_id", tenantId)
-        .eq("contact_id", contact.id)
-        .order("created_at", { ascending: false })
-    : { data: [] };
+  // Their deal, read beside the note (0004): a context lookup must never cost the reply, so an error is no deal. The
+  // whole list, because the current one may be the oldest: a running engagement outlives any number of newer proposals
+  // for other services, and a cap would hide it behind them. With its link (0008): the proposal the receptionist sends.
+  const { data: dealRows } = await db
+    .from("deals")
+    .select("stage, service, proposed_at, decided_at, ended_at, created_at, proposal_url")
+    .eq("tenant_id", tenantId)
+    .eq("contact_id", contact.id)
+    .order("created_at", { ascending: false });
   const current = pickCurrentDeal(dealRows ?? []);
   // Every other open deal of theirs, newest first (0029): a proposal out for one service beside a client of another.
   const others = (dealRows ?? []).filter((d) => d !== current && dealIsOpen(d));
@@ -427,7 +395,7 @@ export async function readLeadContext(
     offersAskedAt: contact.offers_asked_at,
     notes: contact.notes ?? null,
     noteList: nErr ? null : (noteRows ?? []).map((n) => ({ body: n.body, at: n.created_at })),
-    proposalUrl: dealsOn ? proposalLinkOf(current, contact.proposal_url) : null,
+    proposalUrl: proposalLinkOf(current, contact.proposal_url),
     deal: current ? dealRowFacts(current) : null,
     otherDeals: others.map((d) => ({ ...dealRowFacts(d), proposal_url: d.proposal_url })),
   };
@@ -461,19 +429,18 @@ function dealRowFacts(d: Pick<DealFacts, "stage" | "service" | "proposed_at" | "
 }
 
 /**
- * The deal facts for a caller known by their number, or null: what the availability door needs and nothing more (0004).
- * None where deals are off (dealsAreOn, 0008): the workspace's answer rides on the contact read, and a database that
- * cannot say it has deals off. Every deal of theirs is read, because the current one may be the oldest (see
- * readLeadContext).
+ * The deal facts for a caller known by their number, or null: what the availability door needs and nothing more (0004),
+ * in every workspace (0008, amended 18 Oct 2026). Every deal of theirs is read, because the current one may be the
+ * oldest (see readLeadContext).
  */
 export async function readDealForPhone(db: Db, tenantId: string, phoneE164: string): Promise<DealFacts | null> {
   const { data: c } = await db
     .from("contacts")
-    .select("id, tenants(sells_by)")
+    .select("id")
     .eq("tenant_id", tenantId)
     .eq("phone_e164", phoneE164)
     .maybeSingle();
-  if (!c || !dealsAreOn(sellsByOf(c.tenants))) return null;
+  if (!c) return null;
   const { data } = await db
     .from("deals")
     .select("stage, service, proposed_at, decided_at, ended_at, created_at")

@@ -173,7 +173,6 @@ export interface VisitSheetInput {
   /** Where the calendar is ("Google Calendar"), for the footnote. */
   source: string;
   bookingLink: string | null;
-  dealsOn: boolean;
   /** What the notes say that the sheet does not (words.ts crNotesWorth), or null. */
   notes: string | null;
   /** Their next visit after this one in the days the board holds: "Tue, Oct 27 · 2 PM", or null. */
@@ -212,8 +211,7 @@ function personOf(i: VisitSheetInput, line: VisitLineVM, facts: CalendarPersonVM
   const b = i.block;
   if (b.person) {
     const p = b.person;
-    const deal =
-      facts?.deal && i.dealsOn ? [facts.deal.word, facts.deal.service, facts.deal.since].filter(Boolean) : null;
+    const deal = facts?.deal ? [facts.deal.word, facts.deal.service, facts.deal.since].filter(Boolean) : null;
     return {
       known: true,
       id: p.id,
@@ -251,8 +249,7 @@ function reminderOf(i: VisitSheetInput, ended: boolean): string | null {
   // It runs by the one rule (campaignRunsOn), and on the day before this visit, when its reminder goes: a campaign past its last
   // day by then sends this visit none (the wiring's second audit, S1-3).
   const runs =
-    campaignRunsOn(before, { tz: i.tz, now: new Date(i.nowMs), dealsOn: i.dealsOn }) &&
-    !campaignEnded(before, shiftKey(i.day.key, -1));
+    campaignRunsOn(before, { tz: i.tz, now: new Date(i.nowMs) }) && !campaignEnded(before, shiftKey(i.day.key, -1));
   return runs ? SHEET_WORDS.reminder.rule(before.run_hour, name) : SHEET_WORDS.reminder.off(name);
 }
 
@@ -352,7 +349,7 @@ function visitMoreOf(i: VisitSheetInput, line: VisitLineVM, phone: string | null
     add("note", M.note);
   }
   if (phone) add("copy", M.copy);
-  if (b.person?.facts?.deal && i.dealsOn) add("deal", M.deal);
+  if (b.person?.facts?.deal) add("deal", M.deal);
   // A correction is a word about a visit that has been said (visitActsOf): Kept corrects to Missed, and Missed to Kept.
   if (b.visit?.status === "kept" && line.acts.includes("missed")) add("missed", M.missed);
   if (b.visit?.status === "missed" && line.acts.includes("kept")) add("kept", M.kept);
@@ -365,17 +362,17 @@ function visitMoreOf(i: VisitSheetInput, line: VisitLineVM, phone: string | null
 }
 
 /**
- * A consultation over with no proposal since offers the deal sheet's own act (0008), where deals are on: the ask, and the
- * act's own words. A person the board's read carried no facts of (added between its two halves) has a deal it has not
- * read, never one it can say is missing: no row, so nothing is offered.
+ * A consultation over with nothing since (no proposal, no visit booked) offers the deal sheet's own act (0008): the
+ * ask, and the act's own words. A person the board's read carried no facts of (added between its two halves) has a deal
+ * it has not read, never one it can say is missing: no row, so nothing is offered.
  */
 function proposalOf(
   i: VisitSheetInput,
   facts: CalendarPersonVM | null,
 ): { proposal: VisitSheetVM["proposal"]; words: string | null } {
   const b = i.block;
-  const rows = b.person && facts ? [{ id: b.person.id, deal: facts.deal }] : [];
-  const start = calendarPeekDeal(b, { dealsOn: i.dealsOn, rows }, i.nowMs).start;
+  const rows = b.person && facts ? [{ id: b.person.id, deal: facts.deal, nextVisitMs: facts.nextVisitMs }] : [];
+  const start = calendarPeekDeal(b, { rows }, i.nowMs).start;
   if (!start) return { proposal: null, words: null };
   return {
     proposal: { personId: start.personId, mode: start.act.mode ?? "propose", service: start.service },

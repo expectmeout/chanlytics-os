@@ -235,7 +235,9 @@ export interface Workspace {
   name: string;
   status: string;
   timezone: string;
-  /** How its customers buy (0008): deals are on exactly when it is "proposal" (dealsAreOn); null is not asked yet. */
+  /** What it calls a booking (00458): appointment, visit, meeting, session or lesson; null where it never picked one. */
+  appointment_word?: string | null;
+  /** Retired (0008, amended 18 Oct 2026): read only as the word's fallback (contracts appointmentWordOf), until it goes. */
   sells_by?: string | null;
   /** The caller's role in it (0012): said beside every workspace on the switcher. */
   role?: string | null;

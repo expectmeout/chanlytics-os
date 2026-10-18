@@ -18,7 +18,6 @@ import {
   PERSON_ABOUT_WORDS,
   UP_NEXT_WORDS,
   answerSaidOf,
-  appointmentWordWhere,
   appointmentWords,
   isIdentifierName,
   messagesSummaryOf,
@@ -183,9 +182,9 @@ function receptionistFold(c: PageCtx, row: ReactNode) {
 
 /** What is on record about their messages, in a sentence: a yes says what may go to them, in the workspace's word. */
 function visitHint(c: PageCtx): string {
-  const { consent, dealsOn } = c.p;
+  const { consent, word } = c.p;
   if (consent.state === "opted_in")
-    return `Yes — ${consent.sub}. Reminders about their ${appointmentWords(appointmentWordWhere(dealsOn)).many} may go to them.`;
+    return `Yes — ${consent.sub}. Reminders about their ${appointmentWords(word).many} may go to them.`;
   if (consent.state === "opted_out")
     return consent.source === "customer_message"
       ? `${consent.sub}. Nothing goes out. Record a yes only if they ask again.`

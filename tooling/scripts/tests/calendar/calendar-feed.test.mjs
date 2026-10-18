@@ -623,6 +623,8 @@ test("reading the week adds nobody to People, whoever reads it; the board draws 
         last: { at: null, by: "No contact recorded" },
         phone: "+19175550100",
         email: null,
+        // When their next visit begins, which the consultation's "nothing since" reads (0008, amended 18 Oct 2026).
+        next_visit_at: null,
       },
     },
     "the board links the person People holds",

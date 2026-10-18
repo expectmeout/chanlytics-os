@@ -12,29 +12,18 @@ import { useState } from "react";
 import {
   VISIT_ASK_WORDS,
   VISIT_WORDS,
-  appointmentWordOf,
   appointmentWords,
-  type AppointmentWord,
   type VisitLineVM,
   type VisitMark,
   type VisitStateVM,
   type VisitWord,
 } from "@chanlytics/contracts";
 import { api } from "@/legacy-bridge/api";
-import { workspaceOverride } from "@/legacy-bridge/surface-data";
+import { visitWordHere } from "./workspace-word";
 import { Button } from "./kit/button/button";
 import { Confirm } from "./kit/confirm/confirm";
 import { StatePill } from "./kit/pill/state-pill";
 import { gate } from "./shell-doors";
-
-/**
- * What this workspace calls a visit (contracts appointmentWordOf: how its customers buy, as the workspace list the shell holds
- * says it), for the words a page says of one: the cancel's question here, and the booking link handed to the customer. An
- * appointment while the list is not held, as everywhere a workspace has said nothing.
- */
-export function visitWordHere(): AppointmentWord {
-  return appointmentWordOf({ stored: null, sellsBy: workspaceOverride.current()?.sells_by ?? null });
-}
 
 /** What the door answered: it wrote, or it refused in a sentence for the person who asked. */
 type VisitSaid = { ok: true } | { ok: false; message: string };

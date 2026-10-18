@@ -68,8 +68,7 @@ export function withVisitsOf(people, visits, cal) {
   }));
 }
 export function poolRowOf(person, o) {
-  const vm = toPersonRowVM(person, o.tz, o.now, o.viewer, o.ready, o.names ?? null);
-  return o.dealsOn ? vm : { ...vm, deal: null, dealStage: null, openDeals: [], dealStages: [] };
+  return toPersonRowVM(person, o.tz, o.now, o.viewer, o.ready, o.names ?? null);
 }
 export function poolRowsOf(people, o) {
   return people.map((p) => poolRowOf(p, o));
@@ -78,5 +77,5 @@ export function consultFirstOf(rules) {
   return (rules?.consult_first ?? []).length > 0;
 }
 export function poolListContext(o) {
-  return { calendar: o.calendar, dealsOn: o.dealsOn, consultFirst: o.consultFirst, viewer: o.viewer !== null };
+  return { calendar: o.calendar, hasDeals: o.hasDeals, consultFirst: o.consultFirst, viewer: o.viewer !== null };
 }

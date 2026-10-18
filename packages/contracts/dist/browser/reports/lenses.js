@@ -1,6 +1,5 @@
 import { ADS_ROUTE, ADS_SCOPE_ALL, adsScopeKey, adsScopeOfKey } from "../ads/address.js";
 import { roleAtLeast } from "../config/roles.js";
-import { dealsAreOn } from "../deals/sells-by.js";
 import { reportRangeKey, reportRangeOfKey } from "./report-periods.js";
 const NOTHING_CAME_IN = (r) => ({
   title: "Nothing came in",
@@ -36,12 +35,12 @@ export const REPORT_LENSES = [
     id: "pipeline",
     label: "Pipeline",
     sub: "proposals, and what became of them",
-    shownWhen: "deals_on",
+    shownWhen: "always",
     role: "viewer",
     empty: () => ({
       title: "No proposals to report",
-      body: "Proposals you send, and what became of them, show here. Where your customers book directly, there is nothing to report.",
-      door: { label: "Open Settings", to: "admin/workspace" }
+      body: "Proposals you send, and what became of them, show here. Start one from anyone's page in People.",
+      door: { label: "Open the Pipeline", to: "clients/pipeline" }
     })
   },
   {
@@ -129,7 +128,7 @@ export function reportsRouteParts(route) {
 export function lensOfRoute(route) {
   return reportsRouteParts(route)?.lens ?? null;
 }
-const shownTo = (l, who) => l.shownWhen === "always" || l.shownWhen === "deals_on" && dealsAreOn(who.sellsBy) || l.shownWhen === "ads_on" && who.adsOn;
+const shownTo = (l, who) => l.shownWhen === "always" || l.shownWhen === "ads_on" && who.adsOn;
 export function lensesFor(who) {
   return REPORT_LENSES.filter((l) => shownTo(l, who) && roleAtLeast(who.role ?? "viewer", l.role));
 }

@@ -5,16 +5,15 @@
  */
 import { BtLanguagesRow, BtRulesRow } from "./answers";
 import { BtCanCard } from "./can";
-import { BtServicesRow, btSellsByChoice } from "./offer";
+import { BtServicesRow } from "./offer";
 import { BtHoursRow, BtZoneRow } from "./open";
 import { businessTabSave } from "./saver";
 import { BtServicesSheet } from "./services";
 import { BtAddressRow, BtBookingLinkRow, BtWebsiteRow } from "./who";
 
 export const BUSINESS_GLOBALS = {
-  // The first run (setup/shell.ts businessPart, businessTabSave, sellsByChoice).
+  // The first run (setup/shell.ts businessPart, businessTabSave).
   __businessTabSave: businessTabSave,
-  btSellsByChoice,
   BtAddressRow,
   BtWebsiteRow,
   BtBookingLinkRow,

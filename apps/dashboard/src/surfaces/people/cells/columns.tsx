@@ -11,7 +11,6 @@
  * pill's dot and word, a fact two quiet lines, an act a button.
  */
 import {
-  appointmentWordWhere,
   appointmentWords,
   businessTrailOf,
   heldWords,
@@ -24,7 +23,8 @@ import {
 import { carryReply } from "../../inbox/carried-reply";
 import { navigate } from "../../legacy-verbs";
 import { unreadHere } from "../../seen";
-import { VisitState, visitWordHere } from "../../visit-line";
+import { VisitState } from "../../visit-line";
+import { visitWordHere } from "../../workspace-word";
 import { Button } from "../../kit/button/button";
 import { Face } from "../../kit/face/face";
 import { Icon } from "../../kit/icon/icon";
@@ -429,9 +429,9 @@ export const PL_COLUMNS: PeopleColumn[] = [
   {
     key: "visits",
     label: "Appointments",
-    // The workspace's word for an appointment, as Campaigns says it (decision 0041): "Meetings" where some customers get a
-    // proposal first, "Appointments" otherwise.
-    labelOf: (x) => appointmentWords(appointmentWordWhere(!!x.dealsOn)).Many,
+    // The workspace's word for an appointment, as Campaigns says it (decision 0041): "Meetings", "Sessions",
+    // "Appointments".
+    labelOf: (x) => appointmentWords(x.word ?? "appointment").Many,
     sortable: true,
     sortFirst: "asc",
     sortValue: plVisitsSort,
@@ -439,7 +439,7 @@ export const PL_COLUMNS: PeopleColumn[] = [
     width: { base: 144, min: 120, max: 240, grow: 1 },
     csv: {
       head: "Next appointment",
-      headOf: (x) => appointmentWords(appointmentWordWhere(!!x.dealsOn)).next,
+      headOf: (x) => appointmentWords(x.word ?? "appointment").next,
       cell: (p) => p.nextVisit || "",
     },
     cell: plVisitsCell,
@@ -570,14 +570,13 @@ export const PL_COLUMNS: PeopleColumn[] = [
       );
     },
   },
-  // The deal's stage as the one pill (0004), off until asked for, and offered only where deals are a thing here: a salon
-  // never sees "Deal" in the menu. The row's second line already says a proposal waiting.
+  // The deal's stage as the one pill (0004), off until asked for: every workspace has deals (0008, amended 18 Oct
+  // 2026). The row's second line already says a proposal waiting.
   {
     key: "deal",
     label: "Deal",
     sortable: false,
     on: false,
-    needs: (x) => !!x.dealsOn,
     width: { base: 130, min: 96 },
     csv: { head: "Deal", cell: (p) => (p.deal ? p.deal.stage : "") },
     cell: (p) => (

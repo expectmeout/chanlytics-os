@@ -155,12 +155,10 @@ export interface PoolOptions {
   tz: string;
   now: Date;
   viewer: string | null;
-  /** Deals are on here (dealsAreOn, 0008): where they are off, no row carries a deal, whatever the database holds. */
-  dealsOn: boolean;
   /**
    * What the workspace can send on now, channel by channel (the dashboard's channels-ready.ts, the edge's own read of the
-   * same rows): each row's reach is judged against it (reach-any.ts). Required, as `dealsOn` is: no reader may leave it
-   * out and count another workspace's. Null where it could not be read: counted as before the channels were, by WhatsApp.
+   * same rows): each row's reach is judged against it (reach-any.ts). Required: no reader may leave it out and count
+   * another workspace's. Null where it could not be read: counted as before the channels were, by WhatsApp.
    */
   ready: ChannelsReady | null;
   /** The roster, where the page has read it: a teammate's thread says whose it is (person-receptionist.ts heldThreadOf). */
@@ -168,12 +166,11 @@ export interface PoolOptions {
 }
 
 /**
- * The row one person is read as. Where deals are off it carries no deal and no deal stage: not the lists, the column,
- * the row's second line, the thread's chip, or Today's proposals waiting, which all read it from here.
+ * The row one person is read as: the lists, the column, the row's second line, the thread's chip and Today's proposals
+ * waiting all read it from here. Every workspace has deals (0008, amended 18 Oct 2026), so it carries theirs.
  */
 export function poolRowOf(person: PersonRowDto, o: PoolOptions): PersonRowVM {
-  const vm = toPersonRowVM(person, o.tz, o.now, o.viewer, o.ready, o.names ?? null);
-  return o.dealsOn ? vm : { ...vm, deal: null, dealStage: null, openDeals: [], dealStages: [] };
+  return toPersonRowVM(person, o.tz, o.now, o.viewer, o.ready, o.names ?? null);
 }
 
 /** Everyone's rows, as poolRowOf reads each. */
@@ -186,12 +183,12 @@ export function consultFirstOf(rules: ConsultRules | null | undefined): boolean 
   return (rules?.consult_first ?? []).length > 0;
 }
 
-/** What a pool can give a list (lists.ts ListContext): its calendar, deals, a consult-first service, and a viewer. */
+/** What a pool can give a list (lists.ts ListContext): its calendar, a deal on file, a consult-first service, and a viewer. */
 export function poolListContext(o: {
   calendar: ListContext["calendar"];
-  dealsOn: boolean;
+  hasDeals: boolean;
   consultFirst: boolean;
   viewer: string | null;
 }): ListContext {
-  return { calendar: o.calendar, dealsOn: o.dealsOn, consultFirst: o.consultFirst, viewer: o.viewer !== null };
+  return { calendar: o.calendar, hasDeals: o.hasDeals, consultFirst: o.consultFirst, viewer: o.viewer !== null };
 }

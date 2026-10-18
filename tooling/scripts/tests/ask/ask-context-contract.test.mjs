@@ -121,12 +121,12 @@ test("thirteen surfaces, each said once, Conversations and Live among them; each
     ["campaigns", "other"],
   ])
     assert.deepEqual(
-      buildAskSuggestions({ ...quiet, surface, language: "es", dealsOn: true }),
-      buildAskSuggestions({ ...quiet, surface: was, language: "es", dealsOn: true }),
+      buildAskSuggestions({ ...quiet, surface, language: "es", hasDeals: true }),
+      buildAskSuggestions({ ...quiet, surface: was, language: "es", hasDeals: true }),
       surface,
     );
   assert.equal(
-    buildAskSuggestions({ ...quiet, surface: "start", language: "es", dealsOn: true })[0].q,
+    buildAskSuggestions({ ...quiet, surface: "start", language: "es", hasDeals: true })[0].q,
     "¿Qué falta por configurar?",
     "the first run asks its own question first",
   );

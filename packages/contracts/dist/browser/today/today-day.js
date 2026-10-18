@@ -8,7 +8,7 @@ import {
 } from "../calendar/calendar-words.js";
 import { HELD_WORDS, NEEDS_YOU_WORD } from "../conversations/standing.js";
 import { initialsOf } from "../conversations/thread-contact.js";
-import { appointmentWordWhere, appointmentWords } from "../journey/appointment-word.js";
+import { appointmentWords } from "../journey/appointment-word.js";
 import { triggerOf, triggerWords } from "../playbooks/playbook-triggers.js";
 export function durationLabel(minutes) {
   if (!Number.isFinite(minutes) || minutes <= 0) return "";
@@ -33,7 +33,7 @@ function capDay(items, max) {
   return items.filter((i) => keep.has(i.id));
 }
 export function todayDay(cal, playbooks, people = null, max = TODAY_DAY_MAX) {
-  const word = playbooks ? playbooks.word : appointmentWordWhere(!!people?.dealsOn);
+  const word = playbooks ? playbooks.word : people?.word ?? "appointment";
   if (!cal) return { feed: "none", frames: [], nextOpening: null, reminders: null, word };
   const feed = cal.feed.state;
   const idx = cal.days.findIndex((d) => d.today);

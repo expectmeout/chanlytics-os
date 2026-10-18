@@ -56,7 +56,7 @@ export const lists = {
     if (!P) return null;
     const m = listMembers({ ids: [], rule }, P.rows, {
       calendar: P.calendar?.state ?? "none",
-      dealsOn: !!P.dealsOn,
+      hasDeals: !!P.hasDeals,
       consultFirst: !!P.consultFirst,
       viewer: !!viewerId(),
     });

@@ -110,9 +110,9 @@ test("a route with an App Router page has no row in app-routes.jsx, and a page h
       routeHasPage(route) && routeHasPage(`${route}/x`) === (page.params === true || !!page.takes?.("x")),
       "the route alone is the page, and an address under it only where the route takes one (for every address, or for the ones it names)",
     );
-    for (const { address, dealsOn } of allowed) {
+    for (const { address } of allowed) {
       if (address === null) continue;
-      setSurfaceValue("people", { dealsOn: !!dealsOn });
+      setSurfaceValue("people", {});
       try {
         assert.ok(!routeHasPage(`${route}/${address}`), `${route}/${address} is a row's, not the page's`);
       } finally {

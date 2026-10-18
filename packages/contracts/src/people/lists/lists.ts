@@ -16,7 +16,6 @@ import {
   type ListNeed,
   type ListRule,
 } from "./list-rules";
-import { SELLS_BY_QUESTION, SELLS_BY_WORDS } from "../../deals/sells-by";
 import { DEAL_STAGE_WORDS } from "../../deals/deal-words";
 import { STOP_WORDS } from "../../consent/consent";
 import { HELD_WORDS, NEEDS_YOU_WORD } from "../../conversations/standing";
@@ -87,7 +86,7 @@ const r = (...all: ListRule["all"]): ListRule => ({ v: 2, all });
 /**
  * The lists the product ships, each a rule in the language an owner writes theirs in (decision 0009). Their ids never
  * change: a sent broadcast's audience names them. The journey lists that read the calendar exist only when one is
- * read, the deal lists only where deals are on: what each needs comes from its rule (listNeeds).
+ * read, the deal lists only where a deal was ever recorded: what each needs comes from its rule (listNeeds).
  */
 export const BUILTIN_LISTS: readonly BuiltinSpec[] = [
   {
@@ -282,10 +281,11 @@ export function listAsks(id: string): boolean {
 
 /* ------------------------------------------------------------------ what a list needs, and who is on it */
 
-/** What a workspace and a reader can give a list: the rows' calendar, deals, a consult-first service, and a viewer. */
+/** What a workspace and a reader can give a list: the rows' calendar, a deal on file, a consult-first service, and a viewer. */
 export interface ListContext {
   calendar: "ok" | "unavailable" | "none";
-  dealsOn: boolean;
+  /** A deal was ever recorded here (the server's hasDeals): the deal lists are counted only then. */
+  hasDeals: boolean;
   consultFirst: boolean;
   /** The rows were built for someone looking (toPersonRowVM's viewer): "me" means them. A playbook has no one. */
   viewer: boolean;
@@ -301,7 +301,7 @@ export function unmetNeed(needs: readonly ListNeed[], ctx: ListContext): ListNee
   const met: Record<ListNeed, boolean> = {
     calendar: ctx.calendar === "ok",
     consult: ctx.consultFirst,
-    deals: ctx.dealsOn,
+    deals: ctx.hasDeals,
     viewer: ctx.viewer,
   };
   return LIST_NEEDS.find((n) => needs.includes(n) && !met[n]) ?? null;
@@ -524,7 +524,7 @@ export function listUnknownWords(reason: ListUnknownReason, calendar: ListContex
     case "consult":
       return "This list exists only where the profile lists a consult-first service under Settings › Hours & booking.";
     case "deals":
-      return `This list exists only where deals are on: the workspace answers “${SELLS_BY_QUESTION}” with “${SELLS_BY_WORDS.proposal.label}”.`;
+      return "This list fills once a deal is recorded here: start a proposal from anyone's page in People.";
     case "viewer":
       return "This list is about whoever is looking, so only a person can count it.";
     case "rule":

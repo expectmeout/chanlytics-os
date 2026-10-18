@@ -770,7 +770,7 @@ test("every message carries its own id on the page, the call's card too, so the 
 
 /* ------------------------------ the proposal, from the header ------------------------------ */
 
-test("a proposal on file (00154, 0008): the header's Actions put its words in the box -- only where deals are on, the deal's link over the person's, none for someone who passed or a client, only on a real thread with an open window, never for someone who said stop", () => {
+test("a proposal on file (00154, 0008): the header's Actions put its words in the box -- in every workspace, the deal's link over the person's, none for someone who passed or a client, only on a real thread with an open window, never for someone who said stop", () => {
   const url = "https://www.docs.example.com/p/emily";
   const dealUrl = "https://quotes.example.com/p/emily-deal";
   // The deal's kit, as the courier publishes it (0008): the send's words are the Deal group's.
@@ -778,10 +778,10 @@ test("a proposal on file (00154, 0008): the header's Actions put its words in th
   globalThis.window.__deal = { menu: dealMenuActs, actWords: DEAL_ACT_WORDS };
   const peopleWas = globalThis.window.__PEOPLE;
   // People's row for the person behind the thread, as the surface publishes it: their deal as the row carries it.
-  const people = (dealsOn, deal = null, id = "k-emily") => {
-    globalThis.window.__PEOPLE = { rows: [{ id, deal }], dealsOn };
+  const people = (deal = null, id = "k-emily") => {
+    globalThis.window.__PEOPLE = { rows: [{ id, deal }] };
   };
-  people(true);
+  people();
   const events = [];
   const dispatched = globalThis.window.dispatchEvent;
   globalThis.window.dispatchEvent = (e) => {
@@ -838,7 +838,7 @@ test("a proposal on file (00154, 0008): the header's Actions put its words in th
 
     // The link is the deal's (0008, proposalLinkOf over People's row): a proposal out sends its own link...
     const itemFor = () => itemsIn(menuOf(draw(vm))).find((i) => i.label === "Send proposal");
-    people(true, { stage: "proposed", proposal: { url: dealUrl, host: "quotes.example.com" } });
+    people({ stage: "proposed", proposal: { url: dealUrl, host: "quotes.example.com" } });
     assert.equal(itemFor().hint, "quotes.example.com", "the deal's link, not the one left on the person");
     events.length = 0;
     itemFor().onSelect();
@@ -850,15 +850,14 @@ test("a proposal on file (00154, 0008): the header's Actions put its words in th
       { stage: "won", proposal: { url: dealUrl, host: "quotes.example.com" } },
       { stage: "ended", proposal: null },
     ]) {
-      people(true, deal);
+      people(deal);
       assert.equal(itemFor(), undefined, `${deal.stage}: no item`);
     }
     // Someone People has not read (or who has no row) keeps the thread's own link, as someone with no deal does.
-    people(true, null, "k-someone-else");
+    people(null, "k-someone-else");
     assert.equal(itemFor().hint, "docs.example.com");
-    // Where deals are off there is no proposal to send, and before People says whether they are on, no item either.
-    people(false);
-    assert.equal(itemFor(), undefined, "REGRESSION: a workspace whose customers book was offered a proposal");
+    // Before People is read there is no item: their deal may hold another link (every workspace's, 0008 amended 18 Oct
+    // 2026).
     delete globalThis.window.__PEOPLE;
     assert.equal(itemFor(), undefined, "People not read yet: no item");
   } finally {

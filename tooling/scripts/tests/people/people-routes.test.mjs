@@ -1687,7 +1687,7 @@ test("deal: a proposal's link, its day, a reason for passing and what a person e
   assert.equal(tables.decisions.length, decided);
 });
 
-test("deals are on in People exactly where the workspace says some customers get a proposal first; a deal on file switches nothing (0008)", async () => {
+test("every workspace's People carries its deals (0008, amended 18 Oct 2026): the list says whether one is on file and the workspace's word, the person's page their deals and the word, whatever the retired answer said", async () => {
   const won = {
     id: D1,
     tenant_id: A,
@@ -1718,16 +1718,31 @@ test("deals are on in People exactly where the workspace says some customers get
   const rpcs = {
     people_list: (a) => (a.p_tenant_id === A && (!a.p_contact_id || a.p_contact_id === P1) ? [personRow(P1)] : []),
   };
-  const list = async (s) => (await contacts.GET.run(get(inA), ctxFor(world(s), {}, rpcs))).deals_on;
-  const page = async (s) => (await person.GET.run(get(inA), ctxFor(world(s), { id: P1 }, rpcs))).person;
-  assert.equal(await list("proposal"), true);
-  const p = await page("proposal");
-  assert.equal(p.deals_on, true);
-  assert.equal(p.deals[0].proposal_url, "https://docs.example.com/p/1", "each deal with its link");
-  for (const s of ["booking", null, undefined]) {
-    assert.equal(await list(s), false, `${s}: the list`);
-    assert.equal((await page(s)).deals_on, false, `${s}: the person's page`);
+  const list = async (w) => {
+    const r = await contacts.GET.run(get(inA), ctxFor(w, {}, rpcs));
+    return [r.has_deals, r.appointment_word];
+  };
+  const page = async (w) => (await person.GET.run(get(inA), ctxFor(w, { id: P1 }, rpcs))).person;
+  // None picked: the retired answer's word, a meeting where it said proposals (00458's backfill), else an appointment.
+  for (const [s, word] of [
+    ["proposal", "meeting"],
+    ["booking", "appointment"],
+    [null, "appointment"],
+    [undefined, "appointment"],
+  ]) {
+    assert.deepEqual(await list(world(s)), [true, word], `${s}: the list`);
+    const p = await page(world(s));
+    assert.equal(p.appointment_word, word, `${s}: the person's page says the workspace's word`);
+    assert.equal(p.deals[0].proposal_url, "https://docs.example.com/p/1", `${s}: each deal with its link`);
   }
+  // The word picked is the word said.
+  const picked = {
+    ...world("proposal"),
+    tenants: [{ id: A, slug: "harbor", sells_by: "proposal", appointment_word: "session" }],
+  };
+  assert.deepEqual(await list(picked), [true, "session"]);
+  // No deal on file: the list says so, and its deal lists wait for the first.
+  assert.deepEqual(await list({ ...world("proposal"), deals: [] }), [false, "meeting"]);
 });
 
 test("deal: the door answers the deal the person's People row shows now -- an open one first, then the newest -- which is not always the one it recorded", async () => {
@@ -1939,7 +1954,7 @@ test("a step (00166): the note route takes a day and a deal only when named, jud
   );
 });
 
-test("both People reads answer the workspace's pace where deals are on: its last year's yeses, their median wait and how many; the list reads it with its first page alone; none where deals are off", async () => {
+test("both People reads answer the workspace's pace: its last year's yeses, their median wait and how many; the list reads it with its first page alone; in every workspace (0008, amended 18 Oct 2026)", async () => {
   const now = Date.now();
   const DAY = 86_400_000;
   const iso = (ms) => new Date(ms).toISOString();
@@ -1979,8 +1994,8 @@ test("both People reads answer the workspace's pace where deals are on: its last
   assert.deepEqual(await list("proposal"), { median_days: 10, yeses: 5 });
   assert.deepEqual(await page("proposal"), { median_days: 10, yeses: 5 }, "the person's page reads the same pace");
   assert.equal(await list("proposal", "&q=ro"), null, "a search reads no pace: People keeps its first page's");
-  assert.equal(await list("booking"), null, "deals off: no pace");
-  assert.equal(await page("booking"), null);
+  assert.deepEqual(await list("booking"), { median_days: 10, yeses: 5 }, "whatever the retired answer said");
+  assert.deepEqual(await page("booking"), { median_days: 10, yeses: 5 });
   // A read that fails costs the pace, never the list, and says so in the log.
   const logged = [];
   const keep = console.error;
@@ -2001,7 +2016,7 @@ test("both People reads answer the workspace's pace where deals are on: its last
   );
 });
 
-test("the proposal follow-up's facts (0006): answered with People's first page where deals are on and its run would send -- its clock, whether it asks, what its template is for, and of who holds a proposal out, who had theirs, who is in a run on its way or waiting for a person, who heard this week; null otherwise", async () => {
+test("the proposal follow-up's facts (0006): answered with People's first page where a deal is on file and its run would send -- its clock, whether it asks, what its template is for, and of who holds a proposal out, who had theirs, who is in a run on its way or waiting for a person, who heard this week; null otherwise", async () => {
   const now = Date.now();
   const DAY = 86_400_000;
   const iso = (ms) => new Date(ms).toISOString();
@@ -2166,7 +2181,6 @@ test("the proposal follow-up's facts (0006): answered with People's first page w
       [{ playbooks: [playbook({ state: "paused" })] }, "paused"],
       [{ playbooks: [] }, "none made"],
       [{ deals: [] }, "no proposal out: nobody to say anything of"],
-      [{ tenants: [tenant({ sells_by: "booking" })] }, "deals off"],
       [{ tenants: [tenant({ status: "paused" })] }, "the workspace paused: the sweep runs nothing"],
       [{ templates: [] }, "its template gone"],
       [{ templates: [template({ meta_status: "pending" })] }, "its template not one Meta approved"],
@@ -2201,7 +2215,6 @@ test("the proposal follow-up's facts (0006): answered with People's first page w
         tz: "America/New_York",
         now: new Date(now),
         viewer: null,
-        dealsOn: page.deals_on,
         ready,
       }).map((vm) => [
         vm.id,

@@ -67,7 +67,7 @@ function dto(over = {}) {
     ...over,
   };
 }
-const rowOf = (over) => attentionRow(toPersonRowVM(dto(over), ZONE, NOW), ZONE, nowMs);
+const rowOf = (over) => attentionRow(toPersonRowVM(dto(over), ZONE, NOW), ZONE, nowMs, "appointment");
 
 test("their words come first, in quotes, with the channel and the moment beside the name", () => {
   const a = rowOf({});
@@ -99,7 +99,7 @@ test("waiting on you: the state's own words, and the same primary button", () =>
     NOW,
   );
   assert.equal(vm.state, "waiting_on_you");
-  const a = attentionRow(vm, ZONE, nowMs);
+  const a = attentionRow(vm, ZONE, nowMs, "appointment");
   assert.deepEqual(a.status, ["You have it", "they wrote last"], "the Inbox's own pill for a thread you have");
   assert.equal(vm.stateLabel, "You have it", "the pill says it, so the detail says only whose turn it is");
   assert.equal(vm.stateDetail, "they wrote last");
@@ -117,7 +117,7 @@ test("waiting on you: the state's own words, and the same primary button", () =>
   );
   assert.equal(answered.state, "waiting_on_you");
   assert.deepEqual(
-    attentionRow(answered, ZONE, nowMs).status,
+    attentionRow(answered, ZONE, nowMs, "appointment").status,
     ["You have it"],
     "REGRESSION: 'they wrote last' over your reply",
   );
@@ -205,10 +205,10 @@ test("the calendar speaks when nothing else does: the next visit, else the last"
     ...caller,
     visits: { ...visits, next: null, last: { start: iso(10 * D), end: iso(10 * D - H), title: "Gloss" } },
   };
-  // The last one is said in the workspace's word: an appointment, or a meeting where deals are on; never visit.
+  // The last one is said in the workspace's word: an appointment, or the word it picked (a meeting); never visit.
   assert.match(rowOf(lastOnly).sentence, /^Last appointment · .*Gloss$/);
   const lastVm = toPersonRowVM(dto(lastOnly), ZONE, NOW);
-  assert.match(attentionRow(lastVm, ZONE, nowMs, true).sentence, /^Last meeting · .*Gloss$/);
+  assert.match(attentionRow(lastVm, ZONE, nowMs, "meeting").sentence, /^Last meeting · .*Gloss$/);
   const summarised = rowOf({ ...caller, visits, last_inbound_call_summary: "Wants to move Saturday." });
   assert.equal(summarised.sentence, "Wants to move Saturday.", "the call's words beat the calendar");
 });
@@ -235,7 +235,7 @@ test("the wiring: the door carries the summary, the surface carries the rows, an
   assert.ok(surface.rows.length > 0);
   assert.deepEqual(
     surface.attention,
-    Object.fromEntries(surface.rows.map((r) => [r.id, attentionRow(r, "America/New_York", nowMs)])),
+    Object.fromEntries(surface.rows.map((r) => [r.id, attentionRow(r, "America/New_York", nowMs, "appointment")])),
     "computed once with the surface",
   );
   // The strip that drew three of these rows above the table is gone: it showed
@@ -258,7 +258,7 @@ test("the wiring: the door carries the summary, the surface carries the rows, an
     };
     const wordsOn = (over, attention) => {
       const vm = toPersonRowVM(dto(over), ZONE, NOW);
-      const said = attention === undefined ? { [vm.id]: attentionRow(vm, ZONE, nowMs) } : attention;
+      const said = attention === undefined ? { [vm.id]: attentionRow(vm, ZONE, nowMs, "appointment") } : attention;
       return { el: find(plNameCell(vm, { attention: said, onOpen() {} }), "row-words"), said: said?.[vm.id] };
     };
     const spoken = wordsOn({});

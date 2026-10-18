@@ -71,12 +71,12 @@ function unansweredLeak({ reports, noReply }) {
 function consultsWaitingLeak({ people, dealsAt }) {
   const at = dealsAt();
   const consultRows = (people?.rows ?? []).filter(
-    (r) => typeof r.id === "string" && typeof r.name === "string" && "deal" in r && "consultedMs" in r
+    (r) => typeof r.id === "string" && typeof r.name === "string" && "deal" in r && "consultedMs" in r && "nextVisitMs" in r
   );
   const held = consultationsWithoutProposal(consultRows, at);
-  if (!(people && people.dealsOn && held.length >= 1)) return null;
+  if (!(people && held.length >= 1)) return null;
   const n = held.length;
-  const text = `${n} consultation${n === 1 ? "" : "s"} in the last week ended with no proposal yet.`;
+  const text = `${n} consultation${n === 1 ? "" : "s"} in the last week with nothing booked or proposed since.`;
   const math = `${consultsHeldWords(n)} \xB7 on Pipeline`;
   return {
     id: "consults-waiting",
@@ -123,7 +123,7 @@ function proposalsWaitingLeak({ people, list, dealsAt }) {
   const inHand = out.filter((r) => r.followUp?.kind === "will").length;
   const waiting = out.filter((r) => r.followUp?.kind !== "will");
   const po = list("proposal_out");
-  if (!(people && people.dealsOn && waiting.length >= 1)) return null;
+  if (!(people && waiting.length >= 1)) return null;
   const { text, math } = proposalsWaitingWords(waiting.length, pace, po, inHand);
   return {
     id: "proposals-waiting",

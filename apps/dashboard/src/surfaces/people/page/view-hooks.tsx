@@ -10,7 +10,6 @@ import { refusalToast } from "../../legacy-verbs";
 import { lists as listsDoor } from "../people-lists";
 import { peopleMore, peopleSearch } from "../surface";
 import { plListGone } from "../rail/rail-kit";
-import { surfaceValue } from "../../surface-values";
 import { addressReplace, addressRoute } from "../shell-verbs";
 import type { Flash, PeopleRead, SavedList, SmartList } from "../types";
 import { PL_LIST_EMPTY, PL_TABS, plPhoneNow, plStandingList } from "../words";
@@ -87,8 +86,7 @@ export function usePeopleSheets(newList: boolean, savedId: string | null) {
 
 /**
  * The view in the address, so a list or a state can be sent to someone -- the assistant and Today link here. Replaced,
- * never pushed: Back leaves People. The Pipeline's address draws People where deals are off (app-routes.jsx), and People's
- * own address takes its place.
+ * never pushed: Back leaves People.
  */
 export function usePeopleAddress(listId: string | null, savedId: string | null, tab: string) {
   useEffect(() => {
@@ -99,10 +97,10 @@ export function usePeopleAddress(listId: string | null, savedId: string | null, 
     const want = peopleViewToken(listId, savedId, tab);
     if (cur === "clients/new-list" && !want) return;
     if (/^clients\/(?!seg:|list:|state:|pipeline(:|$)|new-list$)./.test(cur)) return;
-    // Where deals are on, the Pipeline's address is the Pipeline's. This page may still be mounted for the moment a move to
-    // it takes to draw, and must not take the address back (before People was one page, the frame's row drew the Pipeline
-    // and this page was already gone).
-    if (/^clients\/pipeline(:|$)/.test(cur) && surfaceValue("people")?.dealsOn) return;
+    // The Pipeline's address is the Pipeline's. This page may still be mounted for the moment a move to it takes to
+    // draw, and must not take the address back (before People was one page, the frame's row drew the Pipeline and this
+    // page was already gone).
+    if (/^clients\/pipeline(:|$)/.test(cur)) return;
     // A person peeked over the view is the peek's own to say (usePeoplePeek): this says the view, and a view that moved
     // drops the peek with it.
     if (parsePeopleRoute(cur)?.view === want) return;

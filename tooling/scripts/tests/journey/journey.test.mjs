@@ -13,12 +13,12 @@ import ts from "typescript";
 import { parse, visitsWrittenIn } from "../_ast.mjs";
 import { ROOT, readerFiles } from "../_source.mjs";
 
-/** The four shapes: a calendar connected or not, deals on or not. */
+/** The four shapes: a calendar connected or not, a deal on file or not. */
 const SHAPES = [
-  { calendarOn: false, dealsOn: false },
-  { calendarOn: true, dealsOn: false },
-  { calendarOn: true, dealsOn: true },
-  { calendarOn: false, dealsOn: true },
+  { calendarOn: false, hasDeals: false },
+  { calendarOn: true, hasDeals: false },
+  { calendarOn: true, hasDeals: true },
+  { calendarOn: false, hasDeals: true },
 ];
 const NONE_HELD = new Set();
 
@@ -79,7 +79,7 @@ test("journeyOf: the moments in the journey's order for each shape, Proposal wai
     const ids = stages.map((s) => s.id);
     assert.deepEqual(
       ids,
-      shape.dealsOn
+      shape.hasDeals
         ? ["first_contact", "before", "after", "proposal", "quiet"]
         : ["first_contact", "before", "after", "quiet"],
       JSON.stringify(shape),
@@ -94,13 +94,13 @@ test("journeyOf: the moments in the journey's order for each shape, Proposal wai
     assert.equal(stages[0].kind, "receptionist");
     assert.ok(stages.slice(1).every((s) => s.kind === "moment"));
   }
-  // A stage that holds a campaign is drawn whatever the shape: a follow-up made while deals were on.
-  const held = C.journeyOf({ calendarOn: true, dealsOn: false, word: "appointment", held: new Set(["proposal"]) });
+  // A stage that holds a campaign is drawn whatever the shape: a follow-up made before any deal was on file.
+  const held = C.journeyOf({ calendarOn: true, hasDeals: false, word: "appointment", held: new Set(["proposal"]) });
   assert.deepEqual(
     held.map((s) => s.id),
     ["first_contact", "before", "after", "proposal", "quiet"],
   );
-  const session = C.journeyOf({ calendarOn: true, dealsOn: true, word: "session", held: NONE_HELD });
+  const session = C.journeyOf({ calendarOn: true, hasDeals: true, word: "session", held: NONE_HELD });
   assert.deepEqual(
     session.map((s) => s.caps),
     ["First contact", "Session tomorrow", "After the session", "Proposal waiting", "Quiet or lapsed"],
@@ -207,7 +207,7 @@ const homeFor = (shape, word, rows) => {
       { candidates: 3, held: 0, pool: 4, saidYes: 3 },
     ]),
   );
-  const triggers = C.MOMENT_TRIGGERS.filter((t) => C.triggerOffered(t, shape.dealsOn)).map((t) => ({
+  const triggers = C.MOMENT_TRIGGERS.filter((t) => C.triggerOffered(t)).map((t) => ({
     id: t.id,
     offered: C.momentOffered(t, shape),
     candidates: 3,
@@ -242,7 +242,7 @@ const homeFor = (shape, word, rows) => {
     messages: [],
     reachOuts: [],
     report: { days: 30, totals: { sent: 0, delivered: 0, read: 0, replied: 0, optIns: 0, optOuts: 0 }, sources: [] },
-    shape: { calendar: shape.calendarOn ? "feed" : "none", dealsOn: shape.dealsOn, word },
+    shape: { calendar: shape.calendarOn ? "feed" : "none", hasDeals: shape.hasDeals, word },
     chains: undefined,
   });
 };

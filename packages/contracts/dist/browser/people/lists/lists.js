@@ -5,7 +5,6 @@ import {
   ruleNeeds,
   LIST_NEEDS
 } from "./list-rules.js";
-import { SELLS_BY_QUESTION, SELLS_BY_WORDS } from "../../deals/sells-by.js";
 import { DEAL_STAGE_WORDS } from "../../deals/deal-words.js";
 import { STOP_WORDS } from "../../consent/consent.js";
 import { HELD_WORDS, NEEDS_YOU_WORD } from "../../conversations/standing.js";
@@ -200,7 +199,7 @@ export function unmetNeed(needs, ctx) {
   const met = {
     calendar: ctx.calendar === "ok",
     consult: ctx.consultFirst,
-    deals: ctx.dealsOn,
+    deals: ctx.hasDeals,
     viewer: ctx.viewer
   };
   return LIST_NEEDS.find((n) => needs.includes(n) && !met[n]) ?? null;
@@ -322,7 +321,7 @@ export function listUnknownWords(reason, calendar) {
     case "consult":
       return "This list exists only where the profile lists a consult-first service under Settings \u203A Hours & booking.";
     case "deals":
-      return `This list exists only where deals are on: the workspace answers \u201C${SELLS_BY_QUESTION}\u201D with \u201C${SELLS_BY_WORDS.proposal.label}\u201D.`;
+      return "This list fills once a deal is recorded here: start a proposal from anyone's page in People.";
     case "viewer":
       return "This list is about whoever is looking, so only a person can count it.";
     case "rule":

@@ -39,7 +39,7 @@ import type { PickerGroup } from "../../kit/picker/picker";
 import { gate, navigate, openDealSheet } from "../../legacy-verbs";
 import { carryReply } from "../../inbox/carried-reply";
 import { openNewConversation } from "../../inbox/new-conversation/store";
-import { visitWordHere } from "../../visit-line";
+import { visitWordHere } from "../../workspace-word";
 import { deletePerson, keptOf, mergePerson, settleDoubt } from "../people-detail";
 import { personExportLink } from "../shell-verbs";
 import { BusinessTile, HeadLine, leaveBusiness } from "./business";

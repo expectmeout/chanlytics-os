@@ -251,7 +251,7 @@ function offerNote(offer, line, dates, notes) {
   return { change: { op: "add_note", title, text: clip(text, PROFILE_LIMITS.noteText), until: dates.until } };
 }
 function monthsOfferPauses(world, until) {
-  const at = { tz: world.tz, now: world.now, dealsOn: false };
+  const at = { tz: world.tz, now: world.now };
   return world.playbooks.filter((p) => p.trigger === "everyone_monthly" && campaignRunsOn(p, at)).map((p) => ({
     input: { playbook_id: p.id, state: "paused" },
     said: OFFER_PLAN_WORDS[world.says].monthsOfferPaused(p.name, until)

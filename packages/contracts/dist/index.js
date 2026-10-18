@@ -1446,48 +1446,6 @@ var CHECKS = {
 };
 var ratingLine = (o) => `${o.stars} on Google \xB7 ${o.reviews} reviews \xB7 as of ${o.day}`;
 
-// src/deals/sells-by.ts
-var SELLS_BY = ["booking", "proposal"];
-var SELLS_BY_QUESTION = "How customers buy";
-var SELLS_BY_WORDS = {
-  booking: { label: "They book an appointment", sentence: "Bookings and reminders." },
-  proposal: { label: "Some get a proposal first", sentence: "Adds proposals, a Pipeline and Deals in Reports." }
-};
-function isSellsBy(s) {
-  return typeof s === "string" && SELLS_BY.includes(s);
-}
-var SELLS_BY_REFUSAL = "How customers buy: they book an appointment, or some get a proposal first.";
-function dealsAreOn(sellsBy) {
-  return sellsBy === "proposal";
-}
-function bookingLinkOptional(sellsBy) {
-  return dealsAreOn(sellsBy);
-}
-var BOOKING_LINK_NEEDED = "The receptionist needs a booking link to send anyone who wants to book.";
-var SELLS_BY_FIRST = "booking";
-var CONSULT_FIRST_DEAL_HINT = "A consultation for these is the first step of a deal.";
-function sellsByVM(answer) {
-  const said = isSellsBy(answer) ? answer : null;
-  const on = dealsAreOn(said);
-  const verb = said ? "Change" : "Choose";
-  return {
-    question: SELLS_BY_QUESTION,
-    value: said ? SELLS_BY_WORDS[said].label : null,
-    empty: "Not said yet",
-    act: said ? "Change" : "Choose one",
-    name: `${verb} ${SELLS_BY_QUESTION.toLowerCase()}`,
-    choices: SELLS_BY.map((a) => ({ value: a, label: SELLS_BY_WORDS[a].label, hint: SELLS_BY_WORDS[a].sentence })),
-    refusal: SELLS_BY_REFUSAL,
-    first: said ?? SELLS_BY_FIRST,
-    dealsOn: on,
-    consultHint: on ? CONSULT_FIRST_DEAL_HINT : null
-  };
-}
-function sellsBySaved(was, now) {
-  if (dealsAreOn(now)) return "Saved \u2014 deals are on.";
-  return dealsAreOn(was) ? "Saved \u2014 deals are off. Any already recorded are kept." : "Saved \u2014 customers book an appointment.";
-}
-
 // src/journey/appointment-word.ts
 var APPOINTMENT_WORDS = ["appointment", "visit", "meeting", "session", "lesson"];
 function isAppointmentWord(value) {
@@ -1495,10 +1453,25 @@ function isAppointmentWord(value) {
 }
 function appointmentWordOf(o) {
   if (isAppointmentWord(o.stored)) return o.stored;
-  return dealsAreOn(o.sellsBy) ? "meeting" : "appointment";
+  return o.sellsBy === "proposal" ? "meeting" : "appointment";
 }
-function appointmentWordWhere(dealsOn) {
-  return appointmentWordOf({ stored: null, sellsBy: dealsOn ? "proposal" : null });
+var APPOINTMENT_WORD_QUESTION = "What you call a booking";
+var APPOINTMENT_WORD_REFUSAL = "What you call a booking: appointment, visit, meeting, session or lesson.";
+function appointmentWordVM(word) {
+  return {
+    question: APPOINTMENT_WORD_QUESTION,
+    value: capitalize(word),
+    act: "Change",
+    name: `Change ${APPOINTMENT_WORD_QUESTION.toLowerCase()}`,
+    choices: APPOINTMENT_WORDS.map((w) => {
+      const W = appointmentWords(w);
+      return { value: w, label: W.Title, hint: `${W.next} \xB7 ${W.before.name}` };
+    }),
+    word
+  };
+}
+function appointmentWordSaved(word) {
+  return `Saved \u2014 it says \u201C${word}\u201D now.`;
 }
 var FORMS = {
   appointment: {
@@ -7437,12 +7410,12 @@ var REPORT_LENSES = [
     id: "pipeline",
     label: "Pipeline",
     sub: "proposals, and what became of them",
-    shownWhen: "deals_on",
+    shownWhen: "always",
     role: "viewer",
     empty: () => ({
       title: "No proposals to report",
-      body: "Proposals you send, and what became of them, show here. Where your customers book directly, there is nothing to report.",
-      door: { label: "Open Settings", to: "admin/workspace" }
+      body: "Proposals you send, and what became of them, show here. Start one from anyone's page in People.",
+      door: { label: "Open the Pipeline", to: "clients/pipeline" }
     })
   },
   {
@@ -7530,7 +7503,7 @@ function reportsRouteParts(route) {
 function lensOfRoute(route) {
   return reportsRouteParts(route)?.lens ?? null;
 }
-var shownTo = (l, who) => l.shownWhen === "always" || l.shownWhen === "deals_on" && dealsAreOn(who.sellsBy) || l.shownWhen === "ads_on" && who.adsOn;
+var shownTo = (l, who) => l.shownWhen === "always" || l.shownWhen === "ads_on" && who.adsOn;
 function lensesFor(who) {
   return REPORT_LENSES.filter((l) => shownTo(l, who) && roleAtLeast(who.role ?? "viewer", l.role));
 }
@@ -8261,7 +8234,7 @@ var PLAYBOOK_TRIGGERS = [
     hint: "Everyone on a list: one of People's, or one you keep"
   },
   // A proposal out that has waited past the workspace's pace with nothing back (0006): one nudge per proposal, with
-  // its link, under its own class, where deals are on. Conversational: it answers the person's own request.
+  // its link, under its own class, in every workspace. Conversational: it answers the person's own request.
   {
     id: "proposal_waiting",
     label: "Proposal follow-up",
@@ -8343,9 +8316,8 @@ function triggerOf(id) {
   return PLAYBOOK_TRIGGERS.find((t) => t.id === id) ?? null;
 }
 var VISIT_TRIGGERS = PLAYBOOK_TRIGGERS.filter((t) => t.kind === "visit").map((t) => t.id);
-function triggerOffered(t, dealsOn) {
-  if (t.kind === "reach_out") return false;
-  return t.kind !== "deal" || dealsOn;
+function triggerOffered(t) {
+  return t.kind !== "reach_out";
 }
 var MOMENTS_RETIRED = {
   new_week: "Your receptionist answers a first contact itself, and asks there for the yes to offers that a welcome would need.",
@@ -8374,15 +8346,15 @@ function momentReadsCalendar(t) {
   return isWinBack(t.id) || t.kind === "visit";
 }
 function momentOffered(t, o) {
-  if (!triggerOffered(t, o.dealsOn)) return false;
+  if (!triggerOffered(t)) return false;
   if (t.id in MOMENTS_RETIRED) return false;
   if (!momentReadsCalendar(t)) return true;
   return t.id === "quiet_30" ? !o.calendarOn : o.calendarOn;
 }
-function policyClassOffered(cls, dealsOn) {
+function policyClassOffered(cls) {
   if (cls === "outreach") return true;
   const runs = PLAYBOOK_TRIGGERS.filter((t) => t.cls === cls);
-  return runs.length === 0 || runs.some((t) => triggerOffered(t, dealsOn));
+  return runs.length === 0 || runs.some((t) => triggerOffered(t));
 }
 
 // src/config/workspace-config/policy-classes.ts
@@ -12971,8 +12943,8 @@ var PERSON_TAB_WORDS = {
   campaigns: "Campaigns",
   about: "About"
 };
-function personTabWord(id, dealsOn) {
-  return id === "visits" ? appointmentWords(appointmentWordWhere(dealsOn)).Many : PERSON_TAB_WORDS[id];
+function personTabWord(id, word) {
+  return id === "visits" ? appointmentWords(word).Many : PERSON_TAB_WORDS[id];
 }
 var PERSON_TABS_LABEL = "Their page";
 var PERSON_FIGURES_LABEL = "At a glance";
@@ -12991,7 +12963,7 @@ function personTabsOf(f, phone) {
   if (f.thin) return [];
   const tab = (id, count2) => ({
     id,
-    label: personTabWord(id, f.dealsOn),
+    label: personTabWord(id, f.word),
     count: phone ? null : count2,
     to: personTabRoute(f.id, id)
   });
@@ -14174,7 +14146,7 @@ function unmetNeed(needs2, ctx) {
   const met = {
     calendar: ctx.calendar === "ok",
     consult: ctx.consultFirst,
-    deals: ctx.dealsOn,
+    deals: ctx.hasDeals,
     viewer: ctx.viewer
   };
   return LIST_NEEDS.find((n) => needs2.includes(n) && !met[n]) ?? null;
@@ -14296,7 +14268,7 @@ function listUnknownWords(reason, calendar) {
     case "consult":
       return "This list exists only where the profile lists a consult-first service under Settings \u203A Hours & booking.";
     case "deals":
-      return `This list exists only where deals are on: the workspace answers \u201C${SELLS_BY_QUESTION}\u201D with \u201C${SELLS_BY_WORDS.proposal.label}\u201D.`;
+      return "This list fills once a deal is recorded here: start a proposal from anyone's page in People.";
     case "viewer":
       return "This list is about whoever is looking, so only a person can count it.";
     case "rule":
@@ -14500,7 +14472,7 @@ function journeyOf(s) {
       }
     }
   ];
-  return stages.filter((x) => x.id !== "proposal" || s.dealsOn || s.held.has("proposal"));
+  return stages.filter((x) => x.id !== "proposal" || s.hasDeals || s.held.has("proposal"));
 }
 
 // src/broadcasts/run-words.ts
@@ -16949,7 +16921,7 @@ function buildAskSuggestions(input) {
   if (input.hasCalendar) add(input.surface === "today" ? t.openTomorrow : t.openSat, "ask", "calendar", true);
   for (const [key, icon] of PAGE_QUESTIONS[at3] ?? []) add(t[key], "ask", icon);
   if (at3 === "live" || at3 === "conversations") add(t.calls, "ask", "phone", input.missedToday > 0);
-  if (input.dealsOn && (at3 === "people" || at3 === "other")) add(t.proposals, "ask", "trending-up");
+  if (input.hasDeals && (at3 === "people" || at3 === "other")) add(t.proposals, "ask", "trending-up");
   if (input.needsYou === 0) add(t.needs, "ask", "inbox", true);
   add(t.week, "ask", "trending-up");
   add(t.rules, "ask", "shield");
@@ -19116,7 +19088,7 @@ function startersOffered(here) {
     if (s.retired) return false;
     if (!here.reviewLink && starterText(s, "en_US").slots.some((x) => x.kind === "review_link")) return false;
     const t = s.trigger ? triggerOf(s.trigger) : null;
-    return !t || triggerOffered(t, here.dealsOn);
+    return !t || triggerOffered(t);
   });
 }
 function starterForTrigger(trigger) {
@@ -20401,8 +20373,7 @@ function campaignEnded(p, day) {
 }
 function campaignRunsOn(p, at3) {
   if (p.state !== "running") return false;
-  if (campaignEnded(p, localDate(at3.tz, at3.now))) return false;
-  return triggerOf(p.trigger)?.kind !== "deal" || at3.dealsOn;
+  return !campaignEnded(p, localDate(at3.tz, at3.now));
 }
 function campaignDayWords(day, tz, now) {
   return clockDate(zoneMidnight(tz, day) + 12 * HOUR_MS, tz, now.getTime());
@@ -24029,7 +24000,6 @@ var lensJump = (lens) => ({
 var LENS_JUMPS = REPORT_LENSES.filter((l) => l.id !== "overview" && l.shownWhen === "always").map(
   lensJump
 );
-var DEALS_LENS_JUMPS = REPORT_LENSES.filter((l) => l.shownWhen === "deals_on").map(lensJump);
 var ASK_PAGES2 = [
   { label: "Today", to: "today", kind: "page" },
   { label: "Inbox", to: "inbox", kind: "page" },
@@ -24037,6 +24007,8 @@ var ASK_PAGES2 = [
   // Leads is the other scope of People, and it is its own place to an owner: the businesses
   // a search found, worked. `leads` was the mockup's page and is not offered.
   { label: "Leads", to: "clients/leads", kind: "page", sub: "businesses Claude found for you" },
+  // People's third scope, every workspace's (0008, amended 18 Oct 2026: deals for everyone).
+  { label: "Pipeline", to: "clients/pipeline", kind: "page", sub: "your deals, by stage", also: ["deals"] },
   // The lists are a view of People (its rail); `segments/<id>` still names one and lands there.
   { label: "Lists", to: "clients", kind: "page", sub: "the people you keep together, on People", also: ["segments"] },
   { label: "Conversations", to: "conversations", kind: "page" },
@@ -24111,13 +24083,6 @@ var ASK_PAGES2 = [
     also: ["ai memory"]
   }
 ];
-var PIPELINE = {
-  label: "Pipeline",
-  to: "clients/pipeline",
-  kind: "page",
-  sub: "your deals, by stage",
-  also: ["deals"]
-};
 var BACK_OFFICE = {
   label: "Back office",
   to: "admin/platform",
@@ -24125,15 +24090,7 @@ var BACK_OFFICE = {
   sub: "every workspace, for Chanlytics staff"
 };
 function askPages(has3) {
-  const out = [];
-  const lastLens = LENS_JUMPS.at(-1)?.to;
-  for (const p of ASK_PAGES2) {
-    out.push(p);
-    if (p.to === "clients/leads" && has3.dealsOn) out.push(PIPELINE);
-    if (p.to === lastLens && has3.dealsOn) out.push(...DEALS_LENS_JUMPS);
-  }
-  if (has3.platformAdmin) out.push(BACK_OFFICE);
-  return out;
+  return has3.platformAdmin ? [...ASK_PAGES2, BACK_OFFICE] : [...ASK_PAGES2];
 }
 function askJump(query, index, limit = 6) {
   const s = query.trim().toLowerCase();
@@ -24873,7 +24830,6 @@ var BOOLEAN_INPUTS = {
   whatsappLive: true,
   hasCalendarFeed: true,
   hasBookingLink: true,
-  linkOptional: true,
   hasBookingTemplate: true,
   hasHandoffNumber: true,
   hasEscalateWhen: true,
@@ -24906,7 +24862,7 @@ function abilityRows(i) {
   const linkGoes2 = i.hasBookingLink && chatAnswers && !i.bookingHeld;
   const linkIsChatsAlone = linkGoes2 && i.voiceLive && !callSendsLink;
   const inChat = linkIsChatsAlone ? " in chat" : "";
-  const bookingDetail = !i.hasBookingLink ? i.linkOptional ? "No booking link, so it takes their details for you to follow up with a quote." : "No booking link yet, so there is nothing to send." : !i.whatsappLive ? i.voiceLive ? "It goes out on WhatsApp, which isn't connected here, so on a call it offers to have someone follow up instead." : "It goes out on WhatsApp, which isn't connected here." : i.bookingHeld ? "Your Autonomy tab holds bookings for you to confirm, so when someone asks to book, it sends no link: it tells them someone from the team will confirm." : !i.voiceLive ? "It sends it in the thread." : callSendsLink ? "On a call it sends it to the caller's WhatsApp, when their number has one, and says so. In chat it sends it in the thread." : "In chat it sends it in the thread. On a call it can't yet: sending it to a caller's WhatsApp needs an approved booking-link message.";
+  const bookingDetail = !i.hasBookingLink ? "No booking link, so it takes their details for you to follow up." : !i.whatsappLive ? i.voiceLive ? "It goes out on WhatsApp, which isn't connected here, so on a call it offers to have someone follow up instead." : "It goes out on WhatsApp, which isn't connected here." : i.bookingHeld ? "Your Autonomy tab holds bookings for you to confirm, so when someone asks to book, it sends no link: it tells them someone from the team will confirm." : !i.voiceLive ? "It sends it in the thread." : callSendsLink ? "On a call it sends it to the caller's WhatsApp, when their number has one, and says so. In chat it sends it in the thread." : "In chat it sends it in the thread. On a call it can't yet: sending it to a caller's WhatsApp needs an approved booking-link message.";
   const rows2 = [
     {
       id: "answer",
@@ -24942,7 +24898,7 @@ function abilityRows(i) {
       channels: { voice: linkGoes2 && callSendsLink && !repliesHeld, whatsapp: linkGoes2 },
       runsOn: { label: "The booking link", row: "booking_link" },
       ready: linkGoes2,
-      missing: !i.hasBookingLink && !i.linkOptional
+      missing: !i.hasBookingLink
     },
     {
       id: "transfer",
@@ -26326,7 +26282,7 @@ var STAGE_WORDS = {
 };
 var JOURNEY_PLAN_WORDS = {
   journeyUnread: "The journey could not be read just now, so which moments are covered is not known: say so, and try again in a moment.",
-  nothingToCover: "Every moment asked for is covered already or not offered here (an appointment's moments need a calendar connected, a proposal's needs deals on): say so, and propose nothing.",
+  nothingToCover: "Every moment asked for is covered already or not offered here (an appointment's moments need a calendar connected): say so, and propose nothing.",
   notOffered: (stages) => `Not offered here: ${joinWords(stages)}.`,
   whyStage: (id) => `Nobody hears from you ${STAGE_WORDS[id]} yet.`,
   /** A campaign paused on a moment the setup covers: resumed by a card of its own, never doubled. */
@@ -26356,7 +26312,6 @@ function stageInput(id, moment2, world) {
   const version = goes.find((v) => v.channel === "whatsapp") ?? goes.at(0);
   return version ? { trigger: moment2, template_id: version.id } : { trigger: moment2, starter: REVIEW_STARTER };
 }
-var SETTINGS_BUSINESS_ROUTE = "admin/workspace";
 var APPOINTMENT_ES = {
   appointment: "cita",
   visit: "visita",
@@ -26383,13 +26338,12 @@ var SETUP_WORDS = {
     thing: (word) => appointmentWords(word).one,
     cover: (n, what) => `Starts ${plural(n, "campaign")} now${n > 1 ? ", each its own card" : ""}: ${what}.`,
     calendar: (feed, each, gets) => feed ? `First, connect your calendar's feed under Settings \u203A Hours & booking (booking emails alone cannot time a campaign), so each ${each} gets ${gets}.` : `First, connect your calendar under Settings \u203A Hours & booking, so each ${each} gets ${gets}.`,
-    proposals: (first) => `${first ? "First" : "Then"}, under Settings \u203A Details, answer ${SELLS_BY_QUESTION} with \u201C${SELLS_BY_WORDS.proposal.label}\u201D, so each proposal that waits gets a follow-up.`,
     nobody: (named, one) => `${capitalize(named)} ${one ? "reaches" : "reach"} nobody today; ${one ? "its card says" : "each card says"} why.`,
     resume: (names3) => `Resumes ${joinWords(names3.map((n) => `\u201C${n}\u201D`))}, paused on ${names3.length === 1 ? "its moment, on a card of its own" : "their moments, a card each"}.`,
-    again: (more2, needs2) => `Ask me again once ${onceOf(needs2, "en")}, and I'll add ${more2 === 1 ? "it" : "them"}.`,
-    headline: (needs2, now, more2) => `${needs2.size === 2 ? "Connect your calendar and turn on proposals" : needs2.has("calendar") ? "Connect your calendar" : "Turn on proposals"} first: ${plural(now, "campaign")} can start now, ${more2} more once ${onceOf(needs2, "en")}.`,
-    open: (needs2) => needs2.has("calendar") ? "Connect a calendar" : "Open Business settings",
-    next: (needs2) => needs2.has("calendar") ? "How do I connect my calendar in Settings?" : "How do I turn on proposals in Settings?"
+    again: (more2) => `Ask me again once it is connected, and I'll add ${more2 === 1 ? "it" : "them"}.`,
+    headline: (now, more2) => `Connect your calendar first: ${plural(now, "campaign")} can start now, ${more2} more once it is connected.`,
+    open: "Connect a calendar",
+    next: "How do I connect my calendar in Settings?"
   },
   es: {
     starts: {
@@ -26409,44 +26363,33 @@ var SETUP_WORDS = {
     thing: (word) => APPOINTMENT_ES[word],
     cover: (n, what) => `Empieza ${n === 1 ? "1 campa\xF1a" : `${n} campa\xF1as`} ya${n > 1 ? ", cada una en su tarjeta" : ""}: ${what}.`,
     calendar: (feed, each, gets) => feed ? `Primero, conecta el feed de tu calendario en Ajustes \u203A Negocio (los correos de reserva no bastan para programar una campa\xF1a), para que cada ${each} tenga ${gets}.` : `Primero, conecta tu calendario en Ajustes \u203A Negocio, para que cada ${each} tenga ${gets}.`,
-    proposals: (first) => `${first ? "Primero" : "Luego"}, en Ajustes \u203A Negocio, responde a \xABC\xF3mo compran tus clientes\xBB con \xABAlgunos reciben antes una propuesta\xBB, para que cada propuesta que espera tenga un seguimiento.`,
     nobody: (named, one) => `${capitalize(named)} no ${one ? "llega" : "llegan"} a nadie hoy; ${one ? "su tarjeta dice" : "cada tarjeta dice"} por qu\xE9.`,
     resume: (names3) => `Reanuda ${joinWordsEs(names3.map((n) => `\xAB${n}\xBB`))}, en pausa en ${names3.length === 1 ? "su momento, en su propia tarjeta" : "sus momentos, en una tarjeta cada una"}.`,
-    again: (more2, needs2) => `P\xEDdemelo otra vez cuando ${onceOf(needs2, "es")} y ${more2 === 1 ? "la a\xF1ado" : "las a\xF1ado"}.`,
-    headline: (needs2, now, more2) => `${needs2.size === 2 ? "Conecta tu calendario y activa las propuestas" : needs2.has("calendar") ? "Conecta tu calendario" : "Activa las propuestas"} primero: ${now === 1 ? "1 campa\xF1a puede" : `${now} campa\xF1as pueden`} empezar ya, ${more2} m\xE1s cuando ${onceOf(needs2, "es")}.`,
-    open: (needs2) => needs2.has("calendar") ? "Conectar un calendario" : "Abrir Ajustes del negocio",
-    next: (needs2) => needs2.has("calendar") ? "\xBFC\xF3mo conecto mi calendario en Ajustes?" : "\xBFC\xF3mo activo las propuestas en Ajustes?"
+    again: (more2) => `P\xEDdemelo otra vez cuando est\xE9 conectado y ${more2 === 1 ? "la a\xF1ado" : "las a\xF1ado"}.`,
+    headline: (now, more2) => `Conecta tu calendario primero: ${now === 1 ? "1 campa\xF1a puede" : `${now} campa\xF1as pueden`} empezar ya, ${more2} m\xE1s cuando est\xE9 conectado.`,
+    open: "Conectar un calendario",
+    next: "\xBFC\xF3mo conecto mi calendario en Ajustes?"
   }
 };
-function onceOf(needs2, says) {
-  if (needs2.size === 2) return says === "es" ? "est\xE9n los dos" : "both are on";
-  if (needs2.has("calendar")) return says === "es" ? "est\xE9 conectado" : "it is connected";
-  return says === "es" ? "est\xE9n activas" : "they are on";
-}
 function bookedThing(books, world) {
   const said = (books ?? "").trim().replace(/^(?:a|an|the|their|our|un|una|el|la|los|las|sus?|nuestras?)\s+/i, "").replace(/[.!?…,;:]+$/, "").trim();
   return said ? clip(said, 40) : SETUP_WORDS[world.says].thing(world.shape.word);
 }
 function needOf(id, world) {
   if (id === "before" || id === "after") return world.shape.calendar === "feed" ? null : "calendar";
-  if (id === "proposal") return world.shape.dealsOn ? null : "proposals";
   return null;
 }
 function momentsOf(intent, world) {
   const named = intent.stages;
   return JOURNEY_STAGE_IDS.filter(
-    (id) => id !== "first_contact" && (!named || named.includes(id)) && (id !== "proposal" || world.shape.dealsOn || intent.proposals === true || !!named?.includes(id))
+    (id) => id !== "first_contact" && (!named || named.includes(id)) && (id !== "proposal" || world.shape.hasDeals || intent.proposals === true || !!named?.includes(id))
   );
 }
 function needLines(needs2, later, books, world) {
   const S = SETUP_WORDS[world.says];
-  const lines = [];
-  if (needs2.has("calendar")) {
-    const gets = later.flatMap((id) => id === "before" || id === "after" ? [S.gets[id]] : []);
-    lines.push(S.calendar(world.shape.calendar === "email", bookedThing(books, world), S.join(gets)));
-  }
-  if (needs2.has("proposals")) lines.push(S.proposals(!needs2.has("calendar")));
-  return lines;
+  if (!needs2.has("calendar")) return [];
+  const gets = later.flatMap((id) => id === "before" || id === "after" ? [S.gets[id]] : []);
+  return [S.calendar(world.shape.calendar === "email", bookedThing(books, world), S.join(gets))];
 }
 function journeyPlan(intent, world) {
   const journey = world.journey;
@@ -26460,6 +26403,11 @@ function journeyPlan(intent, world) {
   const started2 = [];
   for (const id of momentsOf(intent, world)) {
     const stage = journey.find((s) => s.id === id);
+    if (!stage && id === "proposal") {
+      add(stageInput(id, "proposal_waiting", world), JOURNEY_PLAN_WORDS.whyStage(id));
+      started2.push(id);
+      continue;
+    }
     if (!stage) {
       const need = needOf(id, world);
       if (need) {
@@ -26484,7 +26432,7 @@ function journeyPlan(intent, world) {
     return { refused: [JOURNEY_PLAN_WORDS.nothingToCover, ...first, ...notOffered].join(" ") };
   }
   const nobody = started2.filter((id) => {
-    const moment2 = journey.find((s) => s.id === id)?.moment;
+    const moment2 = journey.find((s) => s.id === id)?.moment ?? (id === "proposal" ? "proposal_waiting" : null);
     return !!moment2 && world.reach[moment2] === 0;
   });
   const words3 = [
@@ -26493,12 +26441,12 @@ function journeyPlan(intent, world) {
     ...nobody.length ? [S.nobody(S.join(nobody.map((id) => S.named[id])), nobody.length === 1)] : [],
     ...notOffered,
     ...paused.length ? [S.resume(paused)] : [],
-    ...needs2.size ? [S.again(later.length, needs2)] : []
+    ...needs2.size ? [S.again(later.length)] : []
   ];
   const lead = needs2.size ? {
-    headline: S.headline(needs2, started2.length + paused.length, later.length),
-    open: { to: needs2.has("calendar") ? CALENDAR_SETTING_ROUTE : SETTINGS_BUSINESS_ROUTE, label: S.open(needs2) },
-    next: [S.next(needs2)]
+    headline: S.headline(started2.length + paused.length, later.length),
+    open: { to: CALENDAR_SETTING_ROUTE, label: S.open },
+    next: [S.next]
   } : null;
   return { steps, words: words3.join(" "), lead };
 }
@@ -26740,7 +26688,7 @@ function offerNote(offer, line, dates, notes) {
   return { change: { op: "add_note", title, text: clip(text, PROFILE_LIMITS.noteText), until: dates.until } };
 }
 function monthsOfferPauses(world, until) {
-  const at3 = { tz: world.tz, now: world.now, dealsOn: false };
+  const at3 = { tz: world.tz, now: world.now };
   return world.playbooks.filter((p) => p.trigger === "everyone_monthly" && campaignRunsOn(p, at3)).map((p) => ({
     input: { playbook_id: p.id, state: "paused" },
     said: OFFER_PLAN_WORDS[world.says].monthsOfferPaused(p.name, until)
@@ -30189,6 +30137,7 @@ function consultationHeld(r2, nowMs) {
   const at3 = r2.consultedMs;
   if (typeof at3 !== "number" || !Number.isFinite(at3)) return false;
   if (at3 > nowMs || nowMs - at3 > CONSULT_FOLLOW_DAYS * DAY_MS) return false;
+  if (r2.nextVisitMs !== null) return false;
   return noProposalSince(r2.deal, at3);
 }
 function dealStageOf(r2, nowMs) {
@@ -30209,7 +30158,7 @@ function consultationsWithoutProposal(rows2, nowMs) {
   );
 }
 function consultsHeldWords(n) {
-  return `${n} ended in the last week, no proposal yet`;
+  return `${n} ended in the last week, nothing since`;
 }
 
 // src/calendar/feed-appointments.ts
@@ -31826,7 +31775,8 @@ function calendarPersonFactsOf(r2, tz, nowMs) {
     step: stepColumnsOf(r2),
     last: { at: last.at, by: last.by },
     phone: r2.phone_e164 ?? null,
-    email: r2.email ?? null
+    email: r2.email ?? null,
+    next_visit_at: visitsAt(r2.visits ?? null, nowMs)?.next?.start ?? null
   };
 }
 function calendarPersonOf(f, tz, nowMs) {
@@ -31839,7 +31789,8 @@ function calendarPersonOf(f, tz, nowMs) {
     step: f.step ? nextStepOf(f.step, tz, nowMs) : null,
     last: Number.isFinite(at3) ? `${f.last.by} \xB7 ${agoWords(at3, nowMs)}` : null,
     phone: f.phone,
-    email: f.email
+    email: f.email,
+    nextVisitMs: f.next_visit_at ? Date.parse(f.next_visit_at) : null
   };
 }
 
@@ -31937,11 +31888,11 @@ function dealMenuActs(deal) {
 }
 function calendarPeekDeal(block, people, nowMs) {
   const who = block.person;
-  const row2 = who && people && people.dealsOn ? (people.rows ?? []).find((r2) => r2.id === who.id) : void 0;
+  const row2 = who && people ? (people.rows ?? []).find((r2) => r2.id === who.id) : void 0;
   if (!who || !row2) return { stage: null, start: null };
   const deal = row2.deal ?? null;
   const endMs = Date.parse(block.end);
-  const over = block.consultation && Number.isFinite(endMs) && endMs < nowMs && consultationHappened(block.visit);
+  const over = block.consultation && Number.isFinite(endMs) && endMs < nowMs && consultationHappened(block.visit) && (row2.nextVisitMs ?? null) === null;
   return {
     stage: deal ? deal.stage : null,
     start: over && noProposalSince(deal, endMs) ? { act: act("propose"), personId: who.id, service: block.consultService } : null
@@ -31993,25 +31944,23 @@ function personNextOf(f) {
       sub: [asking.title, asking.time].filter(Boolean).join(" \xB7 "),
       act: { kind: "visit", line: asking, label: asking.asks.map((a) => VISIT_WORDS[a]).join(" \xB7 ") }
     });
-  if (f.dealsOn) {
-    for (const c of f.deals.cards) {
-      if (!c.next) continue;
-      rows2.push({
-        id: `deal:${c.id ?? c.title}`,
-        title: c.title,
-        sub: dealRungSub(c),
-        act: { kind: "deal", dealId: c.id, act: c.next, label: c.next.label }
-      });
-    }
-    const q = f.deals.quiet;
-    if (q && (q.primary || f.talking && !q.dealId))
-      rows2.push({
-        id: "deal:quiet",
-        title: q.words,
-        sub: q.sub,
-        act: { kind: "deal", dealId: q.dealId, act: q.act, label: q.act.label }
-      });
+  for (const c of f.deals.cards) {
+    if (!c.next) continue;
+    rows2.push({
+      id: `deal:${c.id ?? c.title}`,
+      title: c.title,
+      sub: dealRungSub(c),
+      act: { kind: "deal", dealId: c.id, act: c.next, label: c.next.label }
+    });
   }
+  const q = f.deals.quiet;
+  if (q && (q.primary || f.talking && !q.dealId))
+    rows2.push({
+      id: "deal:quiet",
+      title: q.words,
+      sub: q.sub,
+      act: { kind: "deal", dealId: q.dealId, act: q.act, label: q.act.label }
+    });
   if (f.step)
     rows2.push({
       id: `step:${f.step.id}`,
@@ -32108,7 +32057,7 @@ function personOf(i, line, facts) {
   const b = i.block;
   if (b.person) {
     const p = b.person;
-    const deal = facts?.deal && i.dealsOn ? [facts.deal.word, facts.deal.service, facts.deal.since].filter(Boolean) : null;
+    const deal = facts?.deal ? [facts.deal.word, facts.deal.service, facts.deal.since].filter(Boolean) : null;
     return {
       known: true,
       id: p.id,
@@ -32141,7 +32090,7 @@ function reminderOf(i, ended) {
   if (b.person.stopped) return SHEET_WORDS.reminder.stopped;
   const before = i.moments.find((m) => m.trigger === "visit_tomorrow");
   if (!before) return null;
-  const runs = campaignRunsOn(before, { tz: i.tz, now: new Date(i.nowMs), dealsOn: i.dealsOn }) && !campaignEnded(before, shiftKey(i.day.key, -1));
+  const runs = campaignRunsOn(before, { tz: i.tz, now: new Date(i.nowMs) }) && !campaignEnded(before, shiftKey(i.day.key, -1));
   return runs ? SHEET_WORDS.reminder.rule(before.run_hour, name) : SHEET_WORDS.reminder.off(name);
 }
 function originOf(b) {
@@ -32205,7 +32154,7 @@ function visitMoreOf(i, line, phone) {
     add("note", M.note);
   }
   if (phone) add("copy", M.copy);
-  if (b.person?.facts?.deal && i.dealsOn) add("deal", M.deal);
+  if (b.person?.facts?.deal) add("deal", M.deal);
   if (b.visit?.status === "kept" && line.acts.includes("missed")) add("missed", M.missed);
   if (b.visit?.status === "missed" && line.acts.includes("kept")) add("kept", M.kept);
   if (b.request?.open) add("cant", BOOKING_REQUEST_WORDS.cant_it, true);
@@ -32216,8 +32165,8 @@ function visitMoreOf(i, line, phone) {
 }
 function proposalOf(i, facts) {
   const b = i.block;
-  const rows2 = b.person && facts ? [{ id: b.person.id, deal: facts.deal }] : [];
-  const start = calendarPeekDeal(b, { dealsOn: i.dealsOn, rows: rows2 }, i.nowMs).start;
+  const rows2 = b.person && facts ? [{ id: b.person.id, deal: facts.deal, nextVisitMs: facts.nextVisitMs }] : [];
+  const start = calendarPeekDeal(b, { rows: rows2 }, i.nowMs).start;
   if (!start) return { proposal: null, words: null };
   return {
     proposal: { personId: start.personId, mode: start.act.mode ?? "propose", service: start.service },
@@ -32854,8 +32803,8 @@ var BrainConfigSchema = z9.object({
   phone_display: z9.string().min(3).max(40).optional(),
   /**
    * Where a customer books. Optional since the first run's decision 2 (24 Sep 2026): a business that quotes each
-   * job has none, and its receptionist takes the customer's details instead (no-booking-link.ts). Who is asked for
-   * one is the pages' question, by how customers buy (deals.ts bookingLinkOptional): the config cannot see it.
+   * job has none, and its receptionist takes the customer's details instead (no-booking-link.ts). Every business is
+   * offered one the same way (business-gap.ts BOOKING_LINK_ROW_WORDS).
    */
   booking_link: z9.string().url().max(BOOKING_LINK_MAX).optional(),
   /** The complete system prompt the model receives — the "AI memory" pane's
@@ -33378,29 +33327,22 @@ function pricesWrittenWords(list2) {
 }
 
 // src/config/business-tab/business-gap.ts
-function bookingLinkRowWords(sellsBy) {
-  return bookingLinkOptional(sellsBy) ? {
-    empty: "None \u2014 it takes their details instead",
-    hint: "Optional. Without one, it takes their details."
-  } : { empty: "Not set", hint: "Sent so customers book themselves." };
-}
+var BOOKING_LINK_ROW_WORDS = {
+  empty: "None \u2014 it takes their details instead",
+  hint: "Optional. Add one and they book themselves."
+};
 var CANNOT_SAY_SERVICES = "cannot say what you offer";
 var has2 = (v) => typeof v === "string" ? v.trim().length > 0 : Array.isArray(v) ? v.length > 0 : !!v && Object.keys(v).length > 0;
-function businessGap(i, sellsBy) {
-  if (sellsBy !== null && typeof sellsBy !== "string") {
-    throw new TypeError(
-      "businessGap needs how customers buy (the workspace's sells_by, null when not said): whether a missing booking link is a gap turns on it."
-    );
-  }
+function businessGap(i) {
   const p = i.profile ?? {};
   if (!has2(i.business_name)) return { sentence: "It has no name to introduce itself with.", row: "name" };
-  if (!offersBookingLink(i) && !bookingLinkOptional(sellsBy))
-    return { sentence: "It has no booking link to send anyone.", row: "booking_link" };
   if (!has2(p.hours)) return { sentence: "It cannot say when you are open.", row: "hours" };
   if (!has2(p.services)) return { sentence: `It ${CANNOT_SAY_SERVICES}.`, row: "services" };
   if (!has2(p.address)) return { sentence: "It cannot say where you are.", row: "address" };
   if (!has2(p.tone))
     return { sentence: "It has no voice of its own yet \u2014 it answers in nobody in particular's words.", row: "tone" };
+  if (!offersBookingLink(i))
+    return { sentence: "It has no booking link to send, so it takes their details instead.", row: "booking_link" };
   return null;
 }
 
@@ -36077,7 +36019,6 @@ function leadMapLegend(rows2) {
 }
 
 // src/playbooks/playbook-follow-ups.ts
-var FOLLOW_UP_NEEDS_DEALS = `Proposal follow-ups need deals: in Settings \u203A Details, answer \u201C${SELLS_BY_QUESTION}\u201D with \u201C${SELLS_BY_WORDS.proposal.label}\u201D.`;
 var FOLLOW_UP_NEEDS_LINK = "A proposal follow-up carries the proposal's link: pick a message with a slot for it, and fill that slot with their proposal's link.";
 var FOLLOW_UP_ONE = "This workspace already has a proposal follow-up. Change that one rather than starting another.";
 var PLAYBOOK_TOUCH_WINDOW_MS = (365 + 7) * DAY_MS;
@@ -36526,7 +36467,7 @@ function quietOf2(p, nowMs, tz) {
   const deals = p.deals ?? (p.deal ? [p.deal] : []);
   const closed = [...deals].filter((d) => d.stage === "lost" || d.stage === "ended").sort((a, b) => (b.sinceMs ?? 0) - (a.sinceMs ?? 0))[0] ?? null;
   const consulted = p.consultedMs ?? null;
-  const fresh = consulted !== null && consultationsWithoutProposal([{ consultedMs: consulted, deal: p.deal }], nowMs).length > 0;
+  const fresh = consulted !== null && consultationsWithoutProposal([{ consultedMs: consulted, deal: p.deal, nextVisitMs: p.nextVisitMs ?? null }], nowMs).length > 0;
   const sub = fresh && consulted !== null ? consultationWas(consulted, tz, nowMs) : null;
   if (!closed)
     return {
@@ -39390,7 +39331,6 @@ var RUN_OFF_REASONS = [
   "list_uncounted",
   "template_not_approved",
   "number_flagged",
-  "deals_off",
   "never",
   "ended"
 ];
@@ -39401,7 +39341,6 @@ var RUN_OFF_WORDS = {
   list_uncounted: { said: "its list couldn\u2019t be counted", act: null, mends: null },
   template_not_approved: { said: "WhatsApp hasn\u2019t approved its message", act: "Open it", mends: "door" },
   number_flagged: { said: "WhatsApp has limited your number", act: "Channels", mends: "door" },
-  deals_off: { said: "deals are off", act: null, mends: null },
   never: { said: "this kind of message is set to Never", act: "Who approves", mends: "autonomy" },
   ended: { said: "its last day has passed", act: "End it", mends: "end" }
 };
@@ -39720,7 +39659,7 @@ function sequenceNextOf(row2, lastRunFor, tz, nowMs) {
   const first = row2.first;
   if (lastRunFor === void 0 || !first || row2.starts !== "moment" && row2.starts !== "list") return null;
   const now = new Date(nowMs);
-  if (!campaignRunsOn(first, { tz, now, dealsOn: true })) return null;
+  if (!campaignRunsOn(first, { tz, now })) return null;
   const run = nextRunOf({ run_hour: first.run_hour, last_run_for: lastRunFor }, tz, now);
   const today = zoneDayKey(nowMs, tz);
   const day = run.day === "today" ? today : zoneDayKey(wallClockAt(tz, today, 12, 0) + DAY_MS, tz);
@@ -43703,7 +43642,7 @@ function clock2(ms2, tz, nowMs) {
   const time = clockTime(ms2, tz);
   return nowMs - ms2 < DAY_MS ? time : `${fmtDate(ms2, tz, nowMs)} ${time}`;
 }
-function attentionRow(p, tz, nowMs, dealsOn) {
+function attentionRow(p, tz, nowMs, word) {
   const lc = p.lastContact;
   const channel = lc.kind === "call" ? "Phone" : lc.kind === "message" ? "WhatsApp" : null;
   const when = lc.ts === null ? "no contact yet" : ago(lc.ts, tz, nowMs);
@@ -43715,7 +43654,7 @@ function attentionRow(p, tz, nowMs, dealsOn) {
   } else if (p.callSummary) sentence2 = clippedLine(tidyCallSummary(p.callSummary) ?? p.callSummary, 160);
   else if (p.deal && p.deal.stage === "proposed" && p.deal.brief) sentence2 = p.deal.brief;
   else if (p.nextVisit) sentence2 = `Booked \xB7 ${p.nextVisit}`;
-  else if (p.lastVisit) sentence2 = `${appointmentWords(appointmentWordWhere(dealsOn)).last} \xB7 ${p.lastVisit}`;
+  else if (p.lastVisit) sentence2 = `${appointmentWords(word).last} \xB7 ${p.lastVisit}`;
   else if (p.calls > 0)
     sentence2 = p.calls === 1 ? "Phoned once; nothing in writing yet" : `Phoned ${p.calls} times; nothing in writing yet`;
   else sentence2 = "Nothing written yet";
@@ -43790,8 +43729,8 @@ function replyOf(d, row2, base, now, nowMs) {
   const hoursLeft = exactWindow.closesAtIso ? Math.max(0, Math.round((new Date(exactWindow.closesAtIso).getTime() - nowMs) / HOUR_MS)) : 0;
   return { via, window: { open: exactWindow.open, hoursLeft } };
 }
-function proposalOf2(d, dealsOn, current, tz) {
-  const proposalUrl = dealsOn ? proposalLinkOf(current, d.proposal_url) : null;
+function proposalOf2(d, current, tz) {
+  const proposalUrl = proposalLinkOf(current, d.proposal_url);
   const proposal = proposalUrl ? { url: proposalUrl, host: linkHost(proposalUrl), sent: proposalSent(d.conversations, proposalUrl) } : null;
   const sentAt = proposal?.sent ? ts(proposal.sent.at) : null;
   const sentWords2 = proposal?.sent && sentAt !== null ? `${clockDateYear(sentAt, tz)}${proposal.sent.via ? ` \xB7 ${proposal.sent.via}` : ""}` : null;
@@ -43801,9 +43740,9 @@ function personCardContext(d, tz, now, viewerId, names3 = null) {
   const nowMs = now.getTime();
   const row2 = personRowOf(d);
   const base = toPersonRowVM(row2, tz, now, viewerId, null, names3);
-  const dealsOn = !!d.deals_on;
-  const deals = dealsOn ? dealsListOf(d, tz, nowMs) : [];
-  const current = dealsOn ? deals.find((x) => x.id === base.deal?.id) ?? base.deal : null;
+  const word = isAppointmentWord(d.appointment_word) ? d.appointment_word : "appointment";
+  const deals = dealsListOf(d, tz, nowMs);
+  const current = deals.find((x) => x.id === base.deal?.id) ?? base.deal;
   return {
     profile: d,
     tz,
@@ -43814,12 +43753,12 @@ function personCardContext(d, tz, now, viewerId, names3 = null) {
     row: row2,
     base,
     stamp: (t) => ({ time: clockTime(t, tz), day: clockDayLabel(t, tz, nowMs) }),
-    dealsOn,
+    word,
     deals,
     current,
     firstChannel: firstChannelOf(d, base),
     reply: replyOf(d, row2, base, now, nowMs),
-    ...proposalOf2(d, dealsOn, current, tz)
+    ...proposalOf2(d, current, tz)
   };
 }
 function lastExchangeOf({ profile, stamp }) {
@@ -43948,7 +43887,7 @@ function personFactsOf({
   base,
   current,
   firstChannel,
-  dealsOn
+  word
 }) {
   const lc = base.lastContact;
   const attempts = profile.calls.filter(neverConnected).length;
@@ -43982,7 +43921,7 @@ function personFactsOf({
     const v = profile.visits;
     facts.push({
       // In the workspace's word for an appointment, as Campaigns says it (decision 0041).
-      label: appointmentWords(appointmentWordWhere(dealsOn)).next,
+      label: appointmentWords(word).next,
       value: v.next ? visitDay(v.next.start, v.timezone, nowMs) : "\u2014",
       // The cell is narrow: the time here, then how it stands if a word has been said of it and how it was matched if that
       // was a guess (the visit line's own words, person-row.ts), the service in About.
@@ -44003,7 +43942,7 @@ function aboutOf({
   firstChannel,
   reply,
   proposal,
-  dealsOn
+  word
 }) {
   const about = [];
   if (base.phone) about.push({ k: "Phone", v: base.phone });
@@ -44026,7 +43965,7 @@ function aboutOf({
   if (profile.visits) {
     const v = profile.visits;
     const nextLine = v.next ? `${visitLine(v.next, v.timezone, nowMs)} \xB7 ${visitTitleWithout(v.next.title, [base.name])}` : v.state === "ok" ? "Nothing on the calendar" : "Calendar could not be read";
-    const W = appointmentWords(appointmentWordWhere(dealsOn));
+    const W = appointmentWords(word);
     about.push({ k: W.next, v: nextLine, next: true });
     if (v.last)
       about.push({
@@ -44282,9 +44221,8 @@ function consentItems({ profile, stamp }) {
   }
   return items;
 }
-function visitItems({ profile, nowMs, base, stamp, dealsOn }) {
+function visitItems({ profile, nowMs, base, stamp, word }) {
   const items = [];
-  const word = appointmentWordWhere(dealsOn);
   if (profile.visits?.all?.length) {
     const zone = profile.visits.timezone;
     for (const v of profile.visits.all) {
@@ -44309,9 +44247,9 @@ function visitItems({ profile, nowMs, base, stamp, dealsOn }) {
   }
   return items;
 }
-function dealItems({ profile, dealsOn, stamp }) {
+function dealItems({ profile, stamp }) {
   const items = [];
-  for (const x of dealsOn ? profile.deals ?? [] : []) {
+  for (const x of profile.deals ?? []) {
     const svc = x.service ? ` \xB7 ${x.service}` : "";
     const put = (id, at3, text) => {
       const t = ts(at3);
@@ -44425,7 +44363,7 @@ function personFiguresOf(f) {
   if (f.visits.any)
     out.push({
       id: "visits",
-      label: personTabWord("visits", f.dealsOn),
+      label: personTabWord("visits", f.word),
       value: f.visits.ahead > 0 ? `${f.visits.ahead} ahead` : "None ahead",
       sub: f.visits.toMark > 0 ? `${f.visits.toMark} to mark` : f.visits.kept > 0 ? `${f.visits.kept} kept` : "none marked yet",
       to: "visits"
@@ -44636,8 +44574,8 @@ function visitsHeadOf(season, earlier, zone, nowMs) {
     over: earlier ? W.since(dayOf2(earlier.first_at)) : W.over(SEASON_BACK_DAYS)
   };
 }
-function personVisitsOf({ profile, nowMs, base, dealsOn }) {
-  const untitled = appointmentWords(appointmentWordWhere(dealsOn)).Title;
+function personVisitsOf({ profile, nowMs, base, word }) {
+  const untitled = appointmentWords(word).Title;
   const toMark = [];
   const ahead = [];
   const past = [];
@@ -45085,8 +45023,8 @@ var TIMELINE_FILTERS = [
   { id: "consent", label: "Consent", kinds: ["consent"] },
   { id: "deals", label: "Deals", kinds: ["deal"] }
 ];
-function timelineFilterLabel(f, dealsOn) {
-  return f.id === "visits" ? appointmentWords(appointmentWordWhere(dealsOn)).Many : f.label;
+function timelineFilterLabel(f, word) {
+  return f.id === "visits" ? appointmentWords(word).Many : f.label;
 }
 function filterTimeline(items, id) {
   const kinds = TIMELINE_FILTERS.find((f) => f.id === id)?.kinds ?? null;
@@ -45168,7 +45106,7 @@ function personActs(p) {
       off
     });
   const cardSends = p.deal?.stage === "proposed" && (!p.proposal?.sent || !!p.deal.proposal?.sending);
-  if (reach && p.dealsOn && p.proposal && p.proposalAction.ready && !cardSends)
+  if (reach && p.proposal && p.proposalAction.ready && !cardSends)
     acts.push({
       id: "proposal",
       label: p.proposal.sent ? `${DEAL_ACT_WORDS.send} again` : DEAL_ACT_WORDS.send,
@@ -45177,15 +45115,14 @@ function personActs(p) {
       needs: "record",
       off
     });
-  if (p.dealsOn)
-    acts.push({
-      id: "start-proposal",
-      label: W.startProposal,
-      hint: null,
-      group: "record",
-      needs: "record",
-      off: null
-    });
+  acts.push({
+    id: "start-proposal",
+    label: W.startProposal,
+    hint: null,
+    group: "record",
+    needs: "record",
+    off: null
+  });
   acts.push({ id: "add-to-list", label: W.addToList, hint: null, group: "record", needs: "record", off: null });
   if (p.phone)
     acts.push({ id: "copy-phone", label: W.copyPhone, hint: null, group: "record", needs: "any", off: null });
@@ -45255,7 +45192,7 @@ function ownMessagesOf(d, stamp) {
 }
 function toPersonVM(d, tz, now = /* @__PURE__ */ new Date(), viewerId = null, page2 = {}) {
   const ctx = personCardContext(d, tz, now, viewerId, page2?.names ?? null);
-  const { base, nowMs, dealsOn, reply } = ctx;
+  const { base, nowMs, word, reply } = ctx;
   const vm = {
     ...base,
     ...reply ? replyFields(reply, base.emailSuppressed, { optedOut: base.stopped, who: base.name }) : {},
@@ -45284,8 +45221,8 @@ function toPersonVM(d, tz, now = /* @__PURE__ */ new Date(), viewerId = null, pa
     doubts: doubtsOf(d),
     deal: ctx.current,
     deals: ctx.deals,
-    dealsOn,
-    dealPace: dealsOn ? dealPaceOf(d.deal_pace) : null,
+    word,
+    dealPace: dealPaceOf(d.deal_pace),
     services: d.services ?? [],
     consultFirst: d.consult_first ?? [],
     // The one rule's answer, wire by wire, over People's own row for them (the sheet asks the same of the same row).
@@ -45319,7 +45256,6 @@ function personNextFor(p, dealP, tz, nowMs) {
     lastVisit: p.visitTab.toMark[0]?.visit ?? p.lastVisitLine,
     ahead: p.comingUp,
     deals: dealCardsOf(dealP, nowMs, tz),
-    dealsOn: p.dealsOn,
     // A business you are talking to (the lead's stage converted, said "Talking"): with no deal, a proposal is next.
     talking: !!p.business && p.business.stage.word === LEAD_STAGE_WORDS.converted,
     step: p.nextStep,
@@ -45371,7 +45307,7 @@ function personPageOf(p, d, tz, now) {
       any: p.calendar === "ok" && (p.comingUp.length > 0 || visitsSeen > 0 || earlierSaid > 0)
     },
     emails: reachOut ? { out: sent, back: reachOut.readings.filter((r2) => !r2.undone).length } : null,
-    dealsOn: p.dealsOn
+    word: p.word
   });
   const tabFacts = {
     id: p.id,
@@ -45381,7 +45317,7 @@ function personPageOf(p, d, tz, now) {
     deals: p.deals.length,
     campaigns: p.campaigns.length + p.inSequences.length,
     thin,
-    dealsOn: p.dealsOn
+    word: p.word
   };
   const evidence = contactEvidenceOf(d, { ...p.firstContact, cameFrom: p.cameFrom?.key ?? null });
   return {
@@ -45528,8 +45464,7 @@ function withVisitsOf(people, visits, cal) {
   }));
 }
 function poolRowOf(person, o) {
-  const vm = toPersonRowVM(person, o.tz, o.now, o.viewer, o.ready, o.names ?? null);
-  return o.dealsOn ? vm : { ...vm, deal: null, dealStage: null, openDeals: [], dealStages: [] };
+  return toPersonRowVM(person, o.tz, o.now, o.viewer, o.ready, o.names ?? null);
 }
 function poolRowsOf(people, o) {
   return people.map((p) => poolRowOf(p, o));
@@ -45538,7 +45473,7 @@ function consultFirstOf(rules) {
   return (rules?.consult_first ?? []).length > 0;
 }
 function poolListContext(o) {
-  return { calendar: o.calendar, dealsOn: o.dealsOn, consultFirst: o.consultFirst, viewer: o.viewer !== null };
+  return { calendar: o.calendar, hasDeals: o.hasDeals, consultFirst: o.consultFirst, viewer: o.viewer !== null };
 }
 
 // src/people/erasure.ts
@@ -45963,7 +45898,7 @@ function combineOf(f) {
     rows: [
       named ? W.keeps : W.keepsNoName,
       W.takesThread(drop.name),
-      W.takesRecords(appointmentWords(appointmentWordWhere(f.dealsOn)).many),
+      W.takesRecords(appointmentWords(f.word).many),
       W.takesReachOut,
       W.answers,
       W.after(drop.name)
@@ -47079,7 +47014,7 @@ function lifecycleStages(at3) {
   );
   const defs = journeyOf({
     calendarOn: at3.shape.calendar === "feed",
-    dealsOn: at3.shape.dealsOn,
+    hasDeals: at3.shape.hasDeals,
     word: at3.shape.word,
     held
   });
@@ -47163,8 +47098,8 @@ function businessShapeOf(pb) {
   const calendarOn = (pb.calendar ?? "none") !== "none";
   return {
     calendar: calendarOn ? "feed" : pb.bookings_by_email === true ? "email" : "none",
-    dealsOn: !!pb.deals_on,
-    word: appointmentWordOf({ stored: pb.appointment_word ?? null, sellsBy: pb.deals_on ? "proposal" : null })
+    hasDeals: pb.has_deals === true,
+    word: appointmentWordOf({ stored: pb.appointment_word ?? null, sellsBy: null })
   };
 }
 function listNameOf(p, pb) {
@@ -47179,8 +47114,6 @@ function triggerLabelOf(p, pb, word) {
   return t ? triggerWords(t, word).label : p.trigger;
 }
 function cardReadOf(p, pb, at3) {
-  const t = triggerOf(p.trigger);
-  const dealsOff = t && !triggerOffered(t, at3.shape.dealsOn) ? FOLLOW_UP_NEEDS_DEALS : null;
   const last = campaignEnded(p, localDate(at3.tz, at3.now));
   const ended = last ? campaignDayWords(last, at3.tz, at3.now) : null;
   return {
@@ -47190,17 +47123,17 @@ function cardReadOf(p, pb, at3) {
     // While the workspace is paused no time is promised: the card says so instead of "tomorrow 10:00 AM".
     next: nextRunLabel(p, at3.tz, at3.now, pb.ready?.paused === true),
     // Why it runs nothing here: the card says it, and every rule of the home that skips what runs nothing skips it.
-    off: ended ? LIFECYCLE_WORDS.ended(ended) : dealsOff,
+    off: ended ? LIFECYCLE_WORDS.ended(ended) : null,
     ended,
     trial: trialDayWords(p, at3.tz, at3.now),
-    runs: campaignRunsOn(p, { tz: at3.tz, now: at3.now, dealsOn: at3.shape.dealsOn })
+    runs: campaignRunsOn(p, { tz: at3.tz, now: at3.now })
   };
 }
 function lifecyclePlaybooksOf(pb, now) {
   const shape = businessShapeOf(pb);
   const timezone = pb.timezone || ZONE_UNSAID;
-  const moments = PLAYBOOK_TRIGGERS.filter((t) => triggerOffered(t, shape.dealsOn));
-  const here = { dealsOn: shape.dealsOn, calendarOn: shape.calendar === "feed" };
+  const moments = PLAYBOOK_TRIGGERS.filter((t) => triggerOffered(t));
+  const here = { calendarOn: shape.calendar === "feed" };
   return {
     shape,
     timezone,
@@ -48014,7 +47947,7 @@ var SEQUENCE_ACT_WORDS = {
 function sequenceRunsNow(row2, at3) {
   const first = row2.first;
   if (!first || row2.starts !== "moment" && row2.starts !== "list" || row2.needs.waiting > 0) return false;
-  return campaignRunsOn(first, { tz: at3.tz, now: new Date(at3.nowMs), dealsOn: true });
+  return campaignRunsOn(first, { tz: at3.tz, now: new Date(at3.nowMs) });
 }
 function sequenceResumeAsk(rec2, reach, at3) {
   const W = LIFECYCLE_WORDS.ledger.resume;
@@ -49249,7 +49182,7 @@ function freshCountsOf(vms) {
   for (const v of vms) fresh[freshBucketOf(v.heardDays)] += 1;
   return fresh;
 }
-var BOOK_CONTEXT = poolListContext({ calendar: "none", dealsOn: false, consultFirst: false, viewer: null });
+var BOOK_CONTEXT = poolListContext({ calendar: "none", hasDeals: false, consultFirst: false, viewer: null });
 function listCountOf(id, vms) {
   const def = resolveList({ kind: "builtin", id }, []);
   const members = def ? membersOf(def, vms, BOOK_CONTEXT) : null;
@@ -49285,7 +49218,7 @@ function wireCountsOf(vms) {
   return wires;
 }
 function peopleNowOf(rows2, o) {
-  const vms = poolRowsOf(rows2, { tz: o.tz, now: new Date(o.nowMs), viewer: null, dealsOn: false, ready: o.ready });
+  const vms = poolRowsOf(rows2, { tz: o.tz, now: new Date(o.nowMs), viewer: null, ready: o.ready });
   return {
     people: vms.length,
     fresh: freshCountsOf(vms),
@@ -52741,7 +52674,7 @@ var FIRST_RUN_WORDS = {
     /** Not on Google, said, where Google can be searched: the way back to Find. */
     findIt: "On Google after all? Find it",
     /** What each group of rows is, for a screen reader: the words on screen are the rows' own. */
-    groups: { facts: "Your hours and where you are", buys: "How customers buy", offer: "What it offers" },
+    groups: { facts: "Your hours and where you are", booking: "Booking and prices", offer: "What it offers" },
     /** The chips (check-chips.ts): a tap adds one, a tap on one that is on takes it out, with an Undo. */
     chips: {
       services: "Tap what you offer. A few is enough.",
@@ -52914,11 +52847,6 @@ function cardGreeting(spoken, profile, setup) {
   return greetingOf({ name: spoken, stored, paused: false }).text;
 }
 function receptionistCardOf(i) {
-  if (i.sellsBy !== null && typeof i.sellsBy !== "string") {
-    throw new TypeError(
-      "receptionistCardOf needs how customers buy (the workspace's sells_by, null when not said): how a business that quotes is reached turns on it."
-    );
-  }
   const b = i.brain;
   const p = b?.profile ?? null;
   const spoken = (b?.business_name || i.setup.business.name || "").trim();
@@ -52930,7 +52858,7 @@ function receptionistCardOf(i) {
   const line = i.numbers?.voiceLine ?? i.setup.channels.voice.number ?? null;
   const through = i.numbers?.handoff ?? i.setup.business.handoff ?? null;
   const show = (n) => n ? formatPhoneDisplay(n) ?? n : null;
-  const quotes = !!b && !b.booking_link && bookingLinkOptional(i.sellsBy);
+  const takesDetails = !!b && !b.booking_link;
   return {
     caption: "Your receptionist, so far",
     initials: name ? initialsOf(name) : "",
@@ -52946,7 +52874,7 @@ function receptionistCardOf(i) {
         label: "Knows",
         value: sv.count ? [sv.chips.map((c) => c.name).join(", "), sv.more].filter(Boolean).join(" ") : null
       },
-      quotes ? { key: "books", label: "For a quote", value: "Takes their details" } : { key: "books", label: "Books with", value: b?.booking_link ? linkShown(b.booking_link) : null },
+      takesDetails ? { key: "books", label: "To book", value: "Takes their details" } : { key: "books", label: "Books with", value: b?.booking_link ? linkShown(b.booking_link) : null },
       { key: "speaks", label: "Speaks", value: p?.languages?.length ? p.languages.join(", ") : null },
       // The line it answers, and the number set to forward to it, as recorded: no claim about when a call forwards.
       {
@@ -54138,6 +54066,7 @@ var SCHEMA_SETS = {
   "templates.source": ["meta", "chanlytics"],
   "tenant_channels.kind": ["whatsapp", "voice", "sms", "email", "instagram"],
   "tenant_channels.status": ["active", "disabled"],
+  "tenants.appointment_word": ["appointment", "visit", "meeting", "session", "lesson"],
   "tenants.sells_by": ["booking", "proposal"],
   "tenants.status": ["active", "paused", "test"]
 };
@@ -55505,7 +55434,7 @@ function capDay(items, max) {
   return items.filter((i) => keep.has(i.id));
 }
 function todayDay(cal, playbooks, people = null, max = TODAY_DAY_MAX) {
-  const word = playbooks ? playbooks.word : appointmentWordWhere(!!people?.dealsOn);
+  const word = playbooks ? playbooks.word : people?.word ?? "appointment";
   if (!cal) return { feed: "none", frames: [], nextOpening: null, reminders: null, word };
   const feed = cal.feed.state;
   const idx = cal.days.findIndex((d) => d.today);
@@ -55765,12 +55694,12 @@ function unansweredLeak({ reports, noReply }) {
 function consultsWaitingLeak({ people, dealsAt }) {
   const at3 = dealsAt();
   const consultRows = (people?.rows ?? []).filter(
-    (r2) => typeof r2.id === "string" && typeof r2.name === "string" && "deal" in r2 && "consultedMs" in r2
+    (r2) => typeof r2.id === "string" && typeof r2.name === "string" && "deal" in r2 && "consultedMs" in r2 && "nextVisitMs" in r2
   );
   const held = consultationsWithoutProposal(consultRows, at3);
-  if (!(people && people.dealsOn && held.length >= 1)) return null;
+  if (!(people && held.length >= 1)) return null;
   const n = held.length;
-  const text = `${n} consultation${n === 1 ? "" : "s"} in the last week ended with no proposal yet.`;
+  const text = `${n} consultation${n === 1 ? "" : "s"} in the last week with nothing booked or proposed since.`;
   const math = `${consultsHeldWords(n)} \xB7 on Pipeline`;
   return {
     id: "consults-waiting",
@@ -55817,7 +55746,7 @@ function proposalsWaitingLeak({ people, list: list2, dealsAt }) {
   const inHand = out.filter((r2) => r2.followUp?.kind === "will").length;
   const waiting = out.filter((r2) => r2.followUp?.kind !== "will");
   const po = list2("proposal_out");
-  if (!(people && people.dealsOn && waiting.length >= 1)) return null;
+  if (!(people && waiting.length >= 1)) return null;
   const { text, math } = proposalsWaitingWords(waiting.length, pace, po, inHand);
   return {
     id: "proposals-waiting",
@@ -59950,6 +59879,7 @@ export {
   APPOINTMENT_SOURCES,
   APPOINTMENT_STATUSES,
   APPOINTMENT_WORDS,
+  APPOINTMENT_WORD_REFUSAL,
   APP_KEYS_RESIZE_CLASS,
   APP_ROUTE_RE,
   ASK,
@@ -60023,7 +59953,7 @@ export {
   BOOKING_CHOICES,
   BOOKING_CHOICE_WORDS,
   BOOKING_DEFAULTS,
-  BOOKING_LINK_NEEDED,
+  BOOKING_LINK_ROW_WORDS,
   BOOKING_PLATFORM_HOSTS,
   BOOKING_PLATFORM_TOOLS,
   BOOKING_REQUEST_INSTRUCTION,
@@ -60127,7 +60057,6 @@ export {
   CONSENT_RESET_SOURCE,
   CONSENT_SOURCES,
   CONSENT_STATES,
-  CONSULT_FIRST_DEAL_HINT,
   CONSULT_FOLLOW_DAYS,
   CONVERSATIONAL_ASK_TITLE,
   CONVERSATION_GAP_MS,
@@ -60261,7 +60190,6 @@ export {
   FLAG_MECHANISMS,
   FOLLOWUP_ECHO,
   FOLLOW_UP_CONDITIONS,
-  FOLLOW_UP_NEEDS_DEALS,
   FOLLOW_UP_NEEDS_LINK,
   FOLLOW_UP_ONE,
   FOLLOW_UP_PROMPT_MAX,
@@ -60973,11 +60901,6 @@ export {
   SECOND_FACTOR_PATH,
   SECOND_FACTOR_REQUIRED_PATH,
   SECOND_FACTOR_WORDS,
-  SELLS_BY,
-  SELLS_BY_FIRST,
-  SELLS_BY_QUESTION,
-  SELLS_BY_REFUSAL,
-  SELLS_BY_WORDS,
   SENDER_WORDS,
   SENDING_HOURS_WORDS,
   SENDING_NOW_WORDS,
@@ -61246,7 +61169,8 @@ export {
   appointmentKeysOf,
   appointmentTitle,
   appointmentWordOf,
-  appointmentWordWhere,
+  appointmentWordSaved,
+  appointmentWordVM,
   appointmentWords,
   approvalWordsOf,
   approvedWordsFor,
@@ -61310,8 +61234,6 @@ export {
   bookingEmailsStep,
   bookingHeld,
   bookingLinkAction,
-  bookingLinkOptional,
-  bookingLinkRowWords,
   bookingNoticeOf,
   bookingPageKept,
   bookingPageOf,
@@ -61556,7 +61478,6 @@ export {
   dealSinceMs,
   dealStageOf,
   dealStepOf,
-  dealsAreOn,
   dedupeFeed,
   defaultParamSpecs,
   defaultSlotKinds,
@@ -61901,7 +61822,6 @@ export {
   isReportDto,
   isReportPeriod,
   isReviewsLedgerDto,
-  isSellsBy,
   isSequencesParam,
   isSidebarPref,
   isSiteRoot,
@@ -62794,8 +62714,6 @@ export {
   secondFactorResetWords,
   secondFactorShown,
   seenBy,
-  sellsBySaved,
-  sellsByVM,
   sendFailureIsOurs,
   sendFailureWords,
   sendWindowsOf,

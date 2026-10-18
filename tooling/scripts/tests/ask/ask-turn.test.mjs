@@ -4022,7 +4022,7 @@ test("REGRESSION: campaigns.audiences counts everyone and every member, and name
   );
 });
 
-test("the deal lists reach Ask only where deals are on -- campaigns.audiences and people.search filtered People's lists on the calendar alone, so a salon was offered Proposal out and Clients, each counting nobody", async () => {
+test("the deal lists reach Ask once a deal is on file -- campaigns.audiences and people.search filtered People's lists on the calendar alone, so a salon was offered Proposal out and Clients, each counting nobody", async () => {
   const DEAL_LISTS = ["consultation_booked", "proposal_out", "clients", "deal_ended"];
   const ask = async (t) => {
     const tc = newToolContext(ctxFor(t, { ...RPCS, people_list: () => threeAnswers() }), A, "owner", TZ, NOW);
@@ -4032,13 +4032,13 @@ test("the deal lists reach Ask only where deals are on -- campaigns.audiences an
     const clients = await runTool(tc, { name: "people", input: { action: "search", query: "", list: "clients" } });
     return { named: DEAL_LISTS.filter((id) => ids.includes(id)), clients: JSON.parse(clients.result) };
   };
-  // Not asked how its customers buy, and no deal: a salon. None of the four is named.
+  // No deal on file: a salon. None of the four is named.
   const salon = await ask(tables());
-  assert.deepEqual(salon.named, [], "REGRESSION: the deal lists were offered where deals are not on");
-  assert.match(salon.clients.error, /deals are on/, "and the narrowing says why, instead of nobody");
-  assert.match(salon.clients.error, /How customers buy.*Some get a proposal first/, "in the words of the switch");
+  assert.deepEqual(salon.named, [], "REGRESSION: the deal lists were offered where no deal was ever recorded");
+  assert.match(salon.clients.error, /once a deal is recorded here/, "and the narrowing says why, instead of nobody");
+  assert.match(salon.clients.error, /start a proposal from anyone's page in People/, "and where one starts");
   assert.deepEqual(salon.clients.people, []);
-  // A deal on file switches nothing (0008): the answer does.
+  // A deal on file is what offers them (0008, amended 18 Oct 2026), whatever the retired answer said.
   const deal = {
     id: "dddddddd-dddd-4ddd-8ddd-ddddddddddd9",
     tenant_id: A,
@@ -4051,13 +4051,14 @@ test("the deal lists reach Ask only where deals are on -- campaigns.audiences an
   const booking = await ask(
     tables({ tenants: [{ id: A, name: "Harbor", timezone: TZ, sells_by: "booking" }], deals: [deal] }),
   );
-  assert.deepEqual(booking.named, [], "a workspace whose customers book keeps its deals out of sight");
-  // The workspace says some customers get a proposal first: the three lists the answer alone makes. Consultation
-  // booked also needs a calendar and a consult-first service, and this workspace has neither.
+  // The three lists a deal on file makes. Consultation booked also needs a calendar and a consult-first service, and
+  // this workspace has neither.
+  assert.deepEqual(booking.named, ["proposal_out", "clients", "deal_ended"]);
+  assert.equal(booking.clients.error, undefined, booking.clients.error);
+  assert.deepEqual(booking.clients.people, [], "the list is offered; nobody is a client yet");
+  // The retired answer alone, with no deal, offers none of them.
   const agency = await ask(tables({ tenants: [{ id: A, name: "Harbor", timezone: TZ, sells_by: "proposal" }] }));
-  assert.deepEqual(agency.named, ["proposal_out", "clients", "deal_ended"]);
-  assert.equal(agency.clients.error, undefined, agency.clients.error);
-  assert.deepEqual(agency.clients.people, [], "the list is offered; nobody is a client yet");
+  assert.deepEqual(agency.named, []);
 });
 
 test("Ask reaches any list by its reference: a People list or one of the workspace's own, to search, to count and to propose, and one it can't count says why (decision 0009)", async () => {
@@ -4241,7 +4242,7 @@ test("REGRESSION: a quiet rule says who it leaves out for want of a date -- aske
   assert.equal(asked.proposal.summary, "Never · everyone matching “Never heard from”");
 });
 
-test("a gated list's refusal names the condition that failed: with a calendar and deals on but no consult-first service, Consultation booked is refused for the service alone", async () => {
+test("a gated list's refusal names the condition that failed: with a calendar and a deal on file but no consult-first service, Consultation booked is refused for the service alone", async () => {
   const { forgetFeeds } = await import(at("apps/dashboard/src/server/ask/openings.ts"));
   const ICS = [
     "BEGIN:VCALENDAR",
@@ -4422,12 +4423,10 @@ test("calendar.week reads the board as its page reads it (ledger #11): with no d
         return { contact_id: "p-new", existed: false };
       },
     });
-    // The Ask route reads the workspace's facts, config, policies and sells_by through the turn's readers first.
+    // The Ask route reads the workspace's facts, config and policies through the turn's readers first.
     const rc = readerContext(ctx, { tenantId: A, role: "owner" }, WEDNESDAY);
     await Promise.all(
-      [workspaceReads.facts, workspaceReads.config, workspaceReads.policies, workspaceReads.sellsBy].map((r) =>
-        load(rc, r, undefined),
-      ),
+      [workspaceReads.facts, workspaceReads.config, workspaceReads.policies].map((r) => load(rc, r, undefined)),
     );
     const before = ctx.supabase.seen.length;
     const tc = newToolContext(ctx, A, "owner", TZ, WEDNESDAY, rc);
@@ -4549,9 +4548,7 @@ test("calendar.week leaves a cancelled visit out of what is taken, as Today and 
     const ctx = ctxFor(t, RPCS);
     const rc = readerContext(ctx, { tenantId: A, role: "owner" }, WEDNESDAY);
     await Promise.all(
-      [workspaceReads.facts, workspaceReads.config, workspaceReads.policies, workspaceReads.sellsBy].map((r) =>
-        load(rc, r, undefined),
-      ),
+      [workspaceReads.facts, workspaceReads.config, workspaceReads.policies].map((r) => load(rc, r, undefined)),
     );
     const tc = newToolContext(ctx, A, "owner", TZ, WEDNESDAY, rc);
     const week = await runTool(tc, { name: "calendar", input: { action: "week", day: "2026-09-16" } });
@@ -4585,12 +4582,10 @@ test("calendar.openings is the palette's own read (ledger #13): the service aske
     "Please look for any free time later this week, or else early next week if you can, for a moving estimate";
   assert.ok(asked.toLowerCase().indexOf("moving estimate") >= 80, "the service is named past the eightieth character");
   const ctx = ctxFor(t);
-  // The Ask route reads the workspace's facts, config, policies and sells_by through the turn's readers first.
+  // The Ask route reads the workspace's facts, config and policies through the turn's readers first.
   const rc = readerContext(ctx, { tenantId: A, role: "operator" }, NOW);
   await Promise.all(
-    [workspaceReads.facts, workspaceReads.config, workspaceReads.policies, workspaceReads.sellsBy].map((r) =>
-      load(rc, r, undefined),
-    ),
+    [workspaceReads.facts, workspaceReads.config, workspaceReads.policies].map((r) => load(rc, r, undefined)),
   );
   const before = ctx.supabase.seen.length;
   const tc = newToolContext(ctx, A, "operator", TZ, NOW, rc);
@@ -4606,7 +4601,7 @@ test("calendar.openings is the palette's own read (ledger #13): the service aske
   );
 });
 
-test("report reads what the Reports page reads (ledger #1): the series, then the booking line and the deals beside it, once a turn, with the calendar's zone and settings and how the workspace's customers buy taken from the turn; the booking line and the Deals section in the page's own words beside the numbers it gave before", async () => {
+test("report reads what the Reports page reads (ledger #1): the series, then the booking line and the deals beside it, once a turn, with the calendar's zone and settings taken from the turn; the booking line and the Deals section in the page's own words beside the numbers it gave before", async () => {
   const { forgetFeeds } = await import(at("apps/dashboard/src/server/ask/openings.ts"));
   const DAY = 86_400_000;
   const CLIENT = "cccccccc-cccc-4ccc-8ccc-cccccccccc01";
@@ -4699,9 +4694,7 @@ test("report reads what the Reports page reads (ledger #1): the series, then the
     const ctx = ctxFor(t, rpcs);
     const rc = readerContext(ctx, { tenantId: A, role: "operator" }, NOW);
     await Promise.all(
-      [workspaceReads.facts, workspaceReads.config, workspaceReads.policies, workspaceReads.sellsBy].map((r) =>
-        load(rc, r, undefined),
-      ),
+      [workspaceReads.facts, workspaceReads.config, workspaceReads.policies].map((r) => load(rc, r, undefined)),
     );
     const before = ctx.supabase.seen.length;
     const out = await runTool(newToolContext(ctx, A, "operator", TZ, NOW, rc), {
@@ -4742,9 +4735,8 @@ test("report reads what the Reports page reads (ledger #1): the series, then the
         // number's health (the reader's own read, readers/campaign-report.ts numberOf). This world's database has no
         // campaign_ledger or campaign_stuck, which no read counts.
         "tenant_channels.select",
-        // The calendar's zone and settings for the booking line, and how the workspace's customers buy, are the
-        // turn's: none read again. The record over the feed's season, joined to it (0002's readers): a booking's rows,
-        // and the feed's rows by key. The deals.
+        // The calendar's zone and settings for the booking line are the turn's: neither read again. The record over
+        // the feed's season, joined to it (0002's readers): a booking's rows, and the feed's rows by key. The deals.
         "appointments.select",
         "appointments.select",
         "deals.select",
@@ -4784,10 +4776,10 @@ test("report reads what the Reports page reads (ledger #1): the series, then the
   // No calendar: the line says why there is nothing to count, in the page's words.
   const bare = await turnOver(world(false));
   assert.equal(bare.read.booking, "Add a calendar link under Settings › Hours & booking to see who booked.");
-  // Where the workspace's customers book, the page draws no Deals section, and the deals are not even read.
+  // Every workspace has deals (0008, amended 18 Oct 2026): where the retired answer said its customers book, the Deals
+  // section is drawn all the same.
   const booked = await turnOver(world(false, "booking"));
-  assert.equal(booked.read.deals, null);
-  assert.ok(!booked.asked.includes("deals.select"));
+  assert.equal(booked.read.deals.stock, "1 client now · $2,500 a month.");
 });
 
 test("REGRESSION: campaigns.playbooks tells who said yes from who a run can reach -- 'said_yes_now' was the reach, so a moment whose yes had no number read as nobody's", async () => {
@@ -5430,7 +5422,7 @@ test("inbox.thread says nothing of reasoning beside a customer's words, though t
   );
 });
 
-test("people.get is the person page's one read (ledger #3): the reader's one round, every read keyed on the person asked for at once and only their threads' own waiting for the ids; the config and sells_by the turn already read are not read again; read once a turn; the page's own view model over the page's payload, so the About rows and the timeline say what the profile says; another workspace's person is an error, never a row", async () => {
+test("people.get is the person page's one read (ledger #3): the reader's one round, every read keyed on the person asked for at once and only their threads' own waiting for the ids; the config the turn already read is not read again, and the word is read once; read once a turn; the page's own view model over the page's payload, so the About rows and the timeline say what the profile says; another workspace's person is an error, never a row", async () => {
   const B = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
   const P2 = "abababab-abab-4aba-8aba-abababababa2";
   const C3 = "cccccccc-cccc-4ccc-8ccc-ccccccccccc3";
@@ -5515,13 +5507,11 @@ test("people.get is the person page's one read (ledger #3): the reader's one rou
     ],
   });
 
-  // The Ask route reads the workspace's facts, config, policies and sells_by through the turn's readers first.
+  // The Ask route reads the workspace's facts, config and policies through the turn's readers first.
   const ctx = ctxFor(t, rpcs);
   const rc = readerContext(ctx, { tenantId: A, role: "operator" }, NOW);
   await Promise.all(
-    [workspaceReads.facts, workspaceReads.config, workspaceReads.policies, workspaceReads.sellsBy].map((r) =>
-      load(rc, r, undefined),
-    ),
+    [workspaceReads.facts, workspaceReads.config, workspaceReads.policies].map((r) => load(rc, r, undefined)),
   );
   const before = ctx.supabase.seen.length;
   const tc = newToolContext(ctx, A, "operator", TZ, NOW, rc);
@@ -5561,9 +5551,9 @@ test("people.get is the person page's one read (ledger #3): the reader's one rou
   );
   const columns = (table) => seen.filter((q) => q.table === table).map((q) => q.columns);
   assert.deepEqual(
-    [columns("tenants"), columns("tenant_config")],
-    [["name, timezone"], ["tenant_id, config, version, updated_at, updated_by"]],
-    "the config and sells_by are the turn's; only the calendar's own lookup, which is not a reader, reads the zone and the config (the row, as the server reads it for a member: workspace/config-row.ts), as the page's read does",
+    [[...columns("tenants")].sort(), columns("tenant_config")],
+    [["appointment_word, sells_by", "name, timezone"], ["tenant_id, config, version, updated_at, updated_by"]],
+    "the config is the turn's; only the calendar's own lookup, which is not a reader, reads the zone and the config (the row, as the server reads it for a member: workspace/config-row.ts), as the page's read does; and the word, through its reader",
   );
   const reads = ctx.supabase.seen.length;
   await runTool(tc, { name: "people", input: { action: "get", contact_id: P1 } });
@@ -5762,7 +5752,7 @@ test("the notes Ask says the receptionist follows are the ones the composer tell
   );
 });
 
-test("people.get says where the proposal lives (00154), so a card can carry the address into a reply; nothing when there is none, and nothing of a deal where deals are off (0008)", async () => {
+test("people.get says where the proposal lives (00154), so a card can carry the address into a reply; nothing when there is none; and a deal is said wherever one is on file, whatever the retired answer (0008, amended 18 Oct 2026)", async () => {
   const wrote = iso(NOW.getTime() - 2 * 3600_000);
   const rosaRow = {
     id: P1,
@@ -5800,10 +5790,10 @@ test("people.get says where the proposal lives (00154), so a card can carry the 
     queued_reply_at: null,
   };
   const rpcs = { ...RPCS, people_list: () => [rosaRow] };
-  // The workspace says some customers get a proposal first (0008): a proposal is a deal's, and said only then.
-  const dealsOn = [{ id: A, name: "Harbor", timezone: TZ, sells_by: "proposal" }];
+  // A proposal is a deal's (0008), said in every workspace (amended 18 Oct 2026).
+  const harbor = [{ id: A, name: "Harbor", timezone: TZ, sells_by: "proposal" }];
   const withLink = tables({
-    tenants: dealsOn,
+    tenants: harbor,
     contacts: [{ ...contact, tenant_id: A, erased_at: null, proposal_url: "https://docs.example.com/p/rosa" }],
   });
   const r = await runTool(newToolContext(ctxFor(withLink, rpcs), A, "operator", TZ, NOW), {
@@ -5814,7 +5804,7 @@ test("people.get says where the proposal lives (00154), so a card can carry the 
   const person = JSON.parse(r.result);
   assert.ok(person.about.includes("Proposal: docs.example.com"), `About: ${person.about}`);
 
-  const without = await runTool(newToolContext(ctxFor(tables({ tenants: dealsOn }), rpcs), A, "operator", TZ, NOW), {
+  const without = await runTool(newToolContext(ctxFor(tables({ tenants: harbor }), rpcs), A, "operator", TZ, NOW), {
     name: "people",
     input: { action: "get", contact_id: P1 },
   });
@@ -5837,7 +5827,7 @@ test("people.get says where the proposal lives (00154), so a card can carry the 
   };
   const dealt = await runTool(
     newToolContext(
-      ctxFor(tables({ tenants: dealsOn }), { ...RPCS, people_list: () => [onDeal] }),
+      ctxFor(tables({ tenants: harbor }), { ...RPCS, people_list: () => [onDeal] }),
       A,
       "operator",
       TZ,
@@ -5855,9 +5845,9 @@ test("people.get says where the proposal lives (00154), so a card can carry the 
   assert.ok(!fact.includes("https://"), "the host, never the address");
   assert.ok(said.about.includes("Proposal: quotes.example.com"), `About: ${said.about}`);
 
-  // Where deals are off -- the workspace books, or was never asked -- no Deal fact, no proposal, no deal line.
+  // Where the retired answer said its customers book, or was never given, the deal is said all the same.
   for (const tenants of [[{ id: A, name: "Harbor", timezone: TZ, sells_by: "booking" }], undefined]) {
-    const off = await runTool(
+    const any = await runTool(
       newToolContext(
         ctxFor(
           tables({
@@ -5873,11 +5863,16 @@ test("people.get says where the proposal lives (00154), so a card can carry the 
       ),
       { name: "people", input: { action: "get", contact_id: P1 } },
     );
-    assert.equal(off.isError, false, off.result);
-    const p = JSON.parse(off.result);
-    assert.ok(!p.facts.some((f) => f.startsWith("Deal:")), `no Deal fact: ${p.facts}`);
-    assert.ok(!p.about.some((a) => a.startsWith("Proposal:")), `no proposal: ${p.about}`);
-    assert.ok(!p.timeline.some((i) => i.kind === "deal"), "no deal on the timeline");
+    assert.equal(any.isError, false, any.result);
+    const p = JSON.parse(any.result);
+    assert.ok(
+      p.facts.some((f) => f.startsWith("Deal: Proposal out")),
+      `the Deal fact: ${p.facts}`,
+    );
+    assert.ok(
+      p.about.some((a) => a.startsWith("Proposal:")),
+      `the proposal: ${p.about}`,
+    );
   }
 });
 
@@ -6151,7 +6146,7 @@ test("propose_deal carries a next step with its day: the card says it, the body 
   }
 });
 
-test("the proposal follow-up in Ask (0006): listed where deals are on and counted as the page counts it; proposed there once, with its link; refused where deals are off", async () => {
+test("the proposal follow-up in Ask (0006): listed in every workspace and counted as the page counts it; proposed once, with its link", async () => {
   const DAY = 86_400_000;
   const luis = peopleListRow({
     id: LUIS,
@@ -6197,8 +6192,9 @@ test("the proposal follow-up in Ask (0006): listed where deals are on and counte
     ],
   });
   assert.deepEqual(counts(await listed(followed)), [1, 0]);
-  assert.equal(counts(await listed(tables({ deals }))), undefined, "deals off: not listed");
-  // Proposed where deals are on, with its link; never where they are off, and never a second.
+  // Every workspace has it (0008, amended 18 Oct 2026), whatever the retired answer said.
+  assert.deepEqual(counts(await listed(tables({ deals }))), [1, 1], "listed, and Luis waits");
+  // Proposed with its link, and never a second.
   const tpl = {
     id: TPL,
     tenant_id: A,
@@ -6215,10 +6211,13 @@ test("the proposal follow-up in Ask (0006): listed where deals are on and counte
   };
   const propose = (t) =>
     buildProposal(context(t), "propose_sequence", { action: "moment", trigger: "proposal_waiting" });
-  // Said before anything else is read: a workspace whose customers book holds no follow-up's starter, and was told the
-  // starter was not approved yet.
-  assert.match((await propose(tables({ deals }))).result, /need deals/);
-  assert.match((await propose(tables({ deals, templates: [tpl] }))).result, /need deals/);
+  // Every workspace may make one (0008, amended 18 Oct 2026), whatever the retired answer said: with no message of its
+  // own yet, the card adds the follow-up's starter first.
+  const started = await propose(tables({ deals }));
+  assert.equal(started.isError, false, started.result);
+  assert.match(started.result, /adds the “Proposal follow-up” starter first/);
+  const own = await propose(tables({ deals, templates: [tpl] }));
+  assert.equal(own.isError, false, own.result);
   assert.match(
     (await propose(on({ templates: [tpl], playbooks: [{ id: "pb", tenant_id: A, trigger: "proposal_waiting" }] })))
       .result,
@@ -6379,7 +6378,7 @@ test("the assistant counts with the calendar too: a visit tomorrow on the owner'
 test("the assistant offers the moments a new playbook may start from (2 Oct 2026): the win-back is the one the workspace can read, welcome and save our number are not offered though a playbook made on one is still listed, and a proposal for the win-back it cannot read is refused in words", async () => {
   const { forgetFeeds } = await import(at("apps/dashboard/src/server/ask/openings.ts"));
   const { winBackWords } = await import("@chanlytics/contracts");
-  // This world never said how its customers buy: its word is the default (contracts appointmentWordOf).
+  // This world picked no word: its word is the default (contracts appointmentWordOf).
   const WIN_BACK_WORDS = winBackWords("appointment");
   const ICS = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//test//EN", "END:VCALENDAR"].join("\r\n");
   // A workspace with a calendar address on file: its feed read, or not.
@@ -6422,9 +6421,10 @@ test("the assistant offers the moments a new playbook may start from (2 Oct 2026
     return JSON.parse(out.result);
   };
   const offered = (read) => read.triggers.map((x) => x.trigger);
-  // No calendar: no appointment moment either (D44, 9 Oct 2026), since without one its run reads nothing.
-  const SILENCE = ["quiet_30", "everyone_monthly", "saved_list"];
-  const VISITS = ["everyone_monthly", "visit_tomorrow", "visited", "lapsed", "saved_list"];
+  // No calendar: no appointment moment either (D44, 9 Oct 2026), since without one its run reads nothing. And the
+  // proposal follow-up's moment, every workspace's (0008, amended 18 Oct 2026).
+  const SILENCE = ["quiet_30", "everyone_monthly", "saved_list", "proposal_waiting"];
+  const VISITS = ["everyone_monthly", "visit_tomorrow", "visited", "lapsed", "saved_list", "proposal_waiting"];
   const feed = (status) => async () => new Response(status === 200 ? ICS : "down", { status });
   const fetchWas = globalThis.fetch;
   try {

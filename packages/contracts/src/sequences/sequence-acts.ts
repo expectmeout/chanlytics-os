@@ -27,7 +27,7 @@ export const SEQUENCE_ACT_WORDS = {
 /**
  * Whether Run now is offered: a sequence on a moment or a list whose first step runs on the business's day (contracts
  * campaignRunsOn, the one rule every page asks: on, and not past its last day), with no batch waiting for an OK (the notice
- * holds that one). A follow-up to a proposal where deals are off is the door's to refuse, in its words.
+ * holds that one).
  */
 export function sequenceRunsNow(
   row: Pick<SequenceRowDto, "starts" | "first" | "needs">,
@@ -35,7 +35,7 @@ export function sequenceRunsNow(
 ): boolean {
   const first = row.first;
   if (!first || (row.starts !== "moment" && row.starts !== "list") || row.needs.waiting > 0) return false;
-  return campaignRunsOn(first, { tz: at.tz, now: new Date(at.nowMs), dealsOn: true });
+  return campaignRunsOn(first, { tz: at.tz, now: new Date(at.nowMs) });
 }
 
 /** Turn on, asked: its question, what it says of the next run, and its Yes. */

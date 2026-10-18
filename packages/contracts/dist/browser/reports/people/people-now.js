@@ -16,7 +16,7 @@ function freshCountsOf(vms) {
   for (const v of vms) fresh[freshBucketOf(v.heardDays)] += 1;
   return fresh;
 }
-const BOOK_CONTEXT = poolListContext({ calendar: "none", dealsOn: false, consultFirst: false, viewer: null });
+const BOOK_CONTEXT = poolListContext({ calendar: "none", hasDeals: false, consultFirst: false, viewer: null });
 function listCountOf(id, vms) {
   const def = resolveList({ kind: "builtin", id }, []);
   const members = def ? membersOf(def, vms, BOOK_CONTEXT) : null;
@@ -52,7 +52,7 @@ function wireCountsOf(vms) {
   return wires;
 }
 export function peopleNowOf(rows, o) {
-  const vms = poolRowsOf(rows, { tz: o.tz, now: new Date(o.nowMs), viewer: null, dealsOn: false, ready: o.ready });
+  const vms = poolRowsOf(rows, { tz: o.tz, now: new Date(o.nowMs), viewer: null, ready: o.ready });
   return {
     people: vms.length,
     fresh: freshCountsOf(vms),

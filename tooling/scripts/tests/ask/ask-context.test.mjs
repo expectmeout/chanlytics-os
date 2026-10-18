@@ -450,7 +450,7 @@ test("the Inbox: the threads in the bucket the page drew, each in inbox.list's w
 
 /* ------------------------------------------------------------------ people */
 
-test("People: the people the page drew, each as people.search says them, and how many there are in all; the Pipeline where deals are off draws People's rows; another workspace's person is absent", async () => {
+test("People: the people the page drew, each as people.search says them, and how many there are in all; the Pipeline of a workspace with no deal draws its board, nobody on it; another workspace's person is absent", async () => {
   const b = await buildContext(
     rcIn(ctxFor()),
     page(
@@ -481,18 +481,20 @@ test("People: the people the page drew, each as people.search says them, and how
     { kind: "person", id: P1, route: `clients/${P1}`, label: "Rosa" },
   ]);
 
-  const off = await buildContext(
+  // Every workspace has the Pipeline (0008, amended 18 Oct 2026): one with no deal draws its board, which holds nobody,
+  // so the person the page names is not on it.
+  const board = await buildContext(
     rcIn(ctxFor()),
     page("pipeline", [{ kind: "person", id: P1 }], { route: "clients/pipeline", view: "all" }),
   );
   assert.deepEqual(
-    off.blocks.map((x) => x.source),
-    ["page://pipeline", `person://${P1}`],
+    board.blocks.map((x) => x.source),
+    ["page://pipeline"],
   );
-  assert.match(textOf(off.blocks[0]), /^Pipeline, all: 1 people on screen/);
+  assert.match(textOf(board.blocks[0]), /^Pipeline, .*: 0 on screen/);
 });
 
-test("the Pipeline where deals are on: each row in its group with its service and value, and the line over the table and the groups' counts, as the page builds them", async () => {
+test("the Pipeline: each row in its group with its service and value, and the line over the table and the groups' counts, as the page builds them", async () => {
   const t = tables({
     tenants: [
       { id: A, name: "Harbor", timezone: TZ, sells_by: "proposal" },
@@ -1009,7 +1011,7 @@ test("Campaigns: the playbooks, the broadcasts or the messages the page drew, by
   );
   assert.match(
     textOf(s.blocks[0]),
-    /^Settings, hours · Harbor · America\/New_York · lines: whatsapp active · deals off$/,
+    /^Settings, hours · Harbor · America\/New_York · lines: whatsapp active · what it calls a booking: appointment$/,
   );
 
   const roster = () => [
@@ -1541,7 +1543,7 @@ test("the shape block: sorted and byte-stable -- the same workspace read in anot
   const many = shapeBlock({
     name: "Harbor",
     timezone: TZ,
-    deals_on: false,
+    has_deals: false,
     appointment_word: "appointment",
     calendar_feed: false,
     booking_link: false,

@@ -317,7 +317,7 @@ test("a consultation marked Missed or Cancelled offers no 'Start a proposal' on 
     end: iso(NOW - 2 * H),
     visit,
   });
-  const people = { dealsOn: true, rows: [{ id: "p1", deal: null }] };
+  const people = { rows: [{ id: "p1", deal: null }] };
   const start = (visit) => calendarPeekDeal(block(visit), people, NOW).start;
   assert.equal(
     start({ id: "r1", status: "missed" }),
@@ -375,7 +375,7 @@ test("the Pipeline says Past for a consultation nobody marked and Kept for one t
   const chip = (id) => group.rows.find((r) => r.id === id).chip.words;
   assert.match(chip("unmarked"), /^Past .* · no proposal yet$/, chip("unmarked"));
   assert.match(chip("kept"), /^Kept .* · no proposal yet$/, chip("kept"));
-  assert.equal(group.meta, "2 ended in the last week, no proposal yet");
+  assert.equal(group.meta, "2 ended in the last week, nothing since");
 });
 
 /* -------------------------------------------------------------------------- Today's yesterday */

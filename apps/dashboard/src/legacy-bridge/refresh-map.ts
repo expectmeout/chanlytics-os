@@ -495,19 +495,17 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   ],
   // The zone is the workspace's, saved through its own route, and the prompt names it: the settings read's preview
   // carries the zone every fold's consequence is resolved with (business-tab.ts), and the prompt card states it. Not
-  // re-read, they kept the old zone until something else was saved. How its customers buy is saved there too (0008),
-  // and it switches the deal layer: People's lists and column, Reports' Deals section and Today's proposals waiting. The zone
-  // is also where Today's period line counts its days from: the headline is read again where Today is on screen and forgotten
-  // elsewhere, and so is the overview's. The Reviews lens's read, which
-  // counts a review on the day it was written in the zone, is forgotten and read as the lens comes on screen; so is the Receptionist
-  // lens's, whose days are the zone's too, and the People lens's, whose days (and the day a step falls due) are, and the Campaigns
-  // lens's, whose window is counted in it. How its customers buy
-  // also shapes Campaigns' journey and the word it says (spec 2026-10-09 §4.8), and Sent's composer offers the proposal lists (who has
-  // a proposal out, whose deal is won) only where customers buy by proposal: both composers are read where they are drawn and left for
-  // the pages that draw them elsewhere (the wiring's second audit, S4-5: switched to proposal, the composer lacked the lists until a
-  // reload). Campaigns' 30 days are counted in the zone, and so are the Calendar's times and its "today", which Today's day card is
-  // drawn from too: each is read where it is drawn and left for its pages elsewhere (W-visit-deal-4: a zone changed, the board kept
-  // the old one's times for up to five minutes).
+  // re-read, they kept the old zone until something else was saved. The zone is also where Today's period line counts
+  // its days from: the headline is read again where Today is on screen and forgotten elsewhere, and so is the
+  // overview's. The Reviews lens's read, which counts a review on the day it was written in the zone, is forgotten and
+  // read as the lens comes on screen; so is the Receptionist lens's, whose days are the zone's too, and the People
+  // lens's, whose days (and the day a step falls due) are, and the Campaigns lens's, whose window is counted in it.
+  // What it calls a booking (00458) is the word People, Today, the Calendar and Campaigns' composers say (spec
+  // 2026-10-09 §4.8): both composers are read where they are drawn and left for the pages that draw them elsewhere (the
+  // wiring's second audit, S4-5: a change reached the composer only at a reload). Campaigns' 30 days are counted in the
+  // zone, and so are the Calendar's times and its "today", which Today's day card is drawn from too: each is read where
+  // it is drawn and left for its pages elsewhere (W-visit-deal-4: a zone changed, the board kept the old one's times
+  // for up to five minutes).
   "PATCH workspaces": () => {
     forgetReviews();
     return [

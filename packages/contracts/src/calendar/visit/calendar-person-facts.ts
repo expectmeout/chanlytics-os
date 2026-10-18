@@ -11,6 +11,7 @@
  * People's row and the person's page say, never a second spelling.
  */
 import type { PersonRowDto } from "../../people/person-dto";
+import { visitsAt } from "../calendar-people";
 import { personStateFor, PERSON_STATE_LABELS, type PersonState } from "../../people/person-state";
 import { lastContactOf } from "../../people/person-row-facts";
 import { dealOf, type DealColumns, type DealVM } from "../../deals/deal-vm";
@@ -34,6 +35,11 @@ export interface CalendarPersonFactsDto {
   /** Their number (E.164) and address, for Call and the copy in the sheet's More; null for none. */
   phone: string | null;
   email: string | null;
+  /**
+   * When their next visit begins, at the read's clock (visitsAt), or null with none ahead: a consultation with a visit
+   * booked after it waits on nobody (deal-consultations.ts consultationHeld). Absent from a read before it.
+   */
+  next_visit_at?: string | null;
 }
 
 /** The deal's columns of a row, and nothing else: what dealOf reads. */
@@ -79,6 +85,7 @@ export function calendarPersonFactsOf(r: PersonRowDto, tz: string, nowMs: number
     last: { at: last.at, by: last.by },
     phone: r.phone_e164 ?? null,
     email: r.email ?? null,
+    next_visit_at: visitsAt(r.visits ?? null, nowMs)?.next?.start ?? null,
   };
 }
 
@@ -94,6 +101,8 @@ export interface CalendarPersonVM {
   last: string | null;
   phone: string | null;
   email: string | null;
+  /** When their next visit begins, or null with none ahead (the read's next_visit_at). */
+  nextVisitMs: number | null;
 }
 
 /** The facts a visit carries, as words at `nowMs` in the business's zone: People's own rules for each. */
@@ -108,5 +117,6 @@ export function calendarPersonOf(f: CalendarPersonFactsDto, tz: string, nowMs: n
     last: Number.isFinite(at) ? `${f.last.by} · ${agoWords(at, nowMs)}` : null,
     phone: f.phone,
     email: f.email,
+    nextVisitMs: f.next_visit_at ? Date.parse(f.next_visit_at) : null,
   };
 }

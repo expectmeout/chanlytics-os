@@ -12,7 +12,7 @@ export function startersOffered(here) {
     if (s.retired) return false;
     if (!here.reviewLink && starterText(s, "en_US").slots.some((x) => x.kind === "review_link")) return false;
     const t = s.trigger ? triggerOf(s.trigger) : null;
-    return !t || triggerOffered(t, here.dealsOn);
+    return !t || triggerOffered(t);
   });
 }
 export function starterForTrigger(trigger) {

@@ -45,7 +45,7 @@ export const SURFACE_STATES: Record<string, SurfaceState> = {
   today: "real",
   inbox: "real",
   conversations: "real",
-  clients: "real", // People, and its scopes: Leads (clients/leads), the Pipeline where deals are on (clients/pipeline, 0008) and the lists (seg:, list:)
+  clients: "real", // People, and its scopes: Leads (clients/leads), the Pipeline (clients/pipeline, 0008) and the lists (seg:, list:)
   reports: "real", // the receptionist's numbers; the share link stays demo
   live: "real", // calls in progress + the last few, and the three writes: whisper, hand over, end. Live LISTEN stays in the demo — there is no audio path.
 
@@ -296,8 +296,8 @@ export const ROUTE_WAITS: Record<string, readonly string[]> = {
   // The Inbox's rows of the runs waiting for your word stand above its threads: landing after them, four pushed them 330px down
   // on a phone (18 Oct 2026). Sent's runs read nothing of People and leave from the document's head with the threads.
   inbox: ["broadcasts"],
-  // Reports' strip of lenses is decided from the workspace list (how its customers buy: the Pipeline is shown only where deals
-  // are on) and draws above the page's body, so a list that landed after it would add a tab to a strip already drawn.
+  // Reports' strip of lenses is decided from the workspace list (the role of who is looking: a lens is shown from its
+  // rung up) and draws above the page's body, so a list that landed after it would add a tab to a strip already drawn.
   reports: ["workspace"],
 };
 export const ROUTE_WAIT_MS = 3000;

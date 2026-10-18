@@ -43,8 +43,8 @@
  *                 check named only over a review ask the Library holds, else the action's pick, which may be the
  *                 after_visit the set retired; nothing for first contact, the receptionist's own. A moment of the
  *                 business's journey it cannot run yet is said with what comes first, never dropped: an appointment's
- *                 two need the calendar's feed, a proposal's needs deals on, a moment of theirs where the owner says
- *                 some customers get one; the words name what they book in the owner's words, say who a card reaches
+ *                 two need the calendar's feed; a proposal's is theirs where a deal was ever recorded or the owner
+ *                 says some customers get one; the words name what they book in the owner's words, say who a card reaches
  *                 nobody of today, and are said in the question's language; the answer leads with what comes first
  *                 (PlanLead: its headline, the Open to where it is set, and the next question); journey/journey-plan.ts
  */
@@ -101,7 +101,7 @@ export type PlanIntent =
       books?: string;
       /**
        * The owner said some of their customers get a proposal before they buy: the proposal follow-up is a moment of
-       * their journey whether deals are on yet or not, so a setup says how to turn them on where they are off.
+       * their journey whether a deal was recorded yet or not, so a setup starts it.
        */
       proposals?: boolean;
     };
@@ -117,10 +117,11 @@ export interface PlanWorld {
   says: "en" | "es";
   /**
    * How the business works, as GET playbooks says it: whether its appointments are read from a calendar's feed, from a
-   * booking tool's emails, or from neither (an appointment's moments run on the feed alone); whether deals are on (the
-   * proposal follow-up runs only then); and what it calls an appointment. What a setup says to connect first.
+   * booking tool's emails, or from neither (an appointment's moments run on the feed alone); whether a deal was ever
+   * recorded here (a whole setup offers the proposal follow-up unasked only then); and what it calls an appointment.
+   * What a setup says to connect first.
    */
-  shape: { calendar: "feed" | "email" | "none"; dealsOn: boolean; word: AppointmentWord };
+  shape: { calendar: "feed" | "email" | "none"; hasDeals: boolean; word: AppointmentWord };
   /**
    * Who a campaign on each moment would reach today, by its trigger (GET playbooks' pools: who a run would pick now);
    * absent or null where it was not counted, which is never "nobody".
@@ -150,7 +151,7 @@ export interface PlanWorld {
   room: { open: number; days: number } | null;
   /**
    * The journey's stages this workspace can run (journeyGuide's: an appointment's moments only with a calendar
-   * connected, a proposal's only where deals are on), each covered or not and the moment a campaign on it starts from
+   * connected, a proposal's only where a deal was recorded or a campaign stands on it), each covered or not and the moment a campaign on it starts from
    * (null for first contact); null where it could not be read. That `before` or `after` is here is how a plan knows a
    * calendar is connected.
    */
@@ -572,8 +573,8 @@ function offerNote(
  * is left alone, never paused to be resumed.
  */
 function monthsOfferPauses(world: PlanWorld, until: string): { input: Record<string, unknown>; said: string }[] {
-  // Running by the one rule (campaignRunsOn); a month's offer is no proposal's, so deals do not decide it.
-  const at = { tz: world.tz, now: world.now, dealsOn: false };
+  // Running by the one rule (campaignRunsOn).
+  const at = { tz: world.tz, now: world.now };
   return world.playbooks
     .filter((p) => p.trigger === "everyone_monthly" && campaignRunsOn(p, at))
     .map((p) => ({

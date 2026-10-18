@@ -292,8 +292,8 @@ const facts = (over = {}) => ({
  * last test left out, or its answer, is not this record's. `brain` changes the stored brain beside its profile; `facts`
  * replaces resolved facts, and `resolved` resolves them all from the brain the way the settings read does (contracts
  * resolveFacts). `config` replaces parts of the config beside the brain (the calendar's address), and `zone` is the
- * workspace's, which the settings read resolved the preview in. `sellsBy` is the workspace's answer to how its
- * customers buy (0008), as the workspace list carries it: null, never asked, unless a test says otherwise.
+ * workspace's, which the settings read resolved the preview in. `word` is what the workspace calls a booking (00458), as
+ * the workspace list carries it: null, never picked, unless a test says otherwise.
  *
  * The record is three pages of Settings since 17 Oct 2026 (Details, Hours & booking, How it answers), with two of its
  * rows on Autonomy's Limits. What is drawn here is the record whole, as one page of the three parts in their order
@@ -320,7 +320,7 @@ const drawTab = ({
   resolved = null,
   config = {},
   zone = "America/New_York",
-  sellsBy = null,
+  word = null,
   setup = SETUP(),
   policies = POLICIES(),
   templates = TEMPLATES(),
@@ -340,14 +340,14 @@ const drawTab = ({
   } else {
     W.__FACTS = facts({ conflicts, facts: known });
   }
-  W.__WORKSPACES = [{ id: "t-marisa", name: "Marisa's Beauty Salon", timezone: zone, sells_by: sellsBy }];
+  W.__WORKSPACES = [{ id: "t-marisa", name: "Marisa's Beauty Salon", timezone: zone, appointment_word: word }];
   W.__ACTIVE_WORKSPACE = "t-marisa";
   unmount();
   W.__recordFolds.reset();
   W.__businessTabSave.saver.reset();
-  // The workspace's own doors outlive the page too, and a zone or an answer the last test left out is not this record's.
+  // The workspace's own doors outlive the page too, and a zone or a word the last test left out is not this record's.
   W.__businessTabSave.zone.reset();
-  W.__businessTabSave.sellsBy.reset();
+  W.__businessTabSave.word.reset();
   return recordPage(flash, part);
 };
 /** The same page again, over the same hook cells, as React draws it after a state change. */

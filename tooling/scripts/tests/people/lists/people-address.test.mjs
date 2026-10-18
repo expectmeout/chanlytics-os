@@ -18,7 +18,6 @@ const { ListsRoute } = await importSrc("apps/dashboard/src/surfaces/people/lists
 const { SURFACE_ROUTES, routeHasPage, onOnePage } = await importSrc("apps/dashboard/src/surfaces/routes.ts");
 
 const people = (over = {}) => ({
-  dealsOn: false,
   lists: [
     { id: "needs_you", label: "Needs you", ids: [] },
     { id: "quiet", label: "Gone quiet", ids: [] },
@@ -38,16 +37,13 @@ test("the page takes People's views, the New list door, a person and every view 
   for (const param of ["leads", "leads:s-1", "leads:l-ready:c-review"]) assert.equal(peopleTakes(param), true, param);
 });
 
-test("the Pipeline's address is the page's, deals on or off: it draws the Pipeline where deals are on, People where they are off", () => {
-  setSurfaceValue("people", people({ dealsOn: false }));
-  assert.equal(peopleTakes("pipeline"), true);
+test("the Pipeline's address is the page's, in every workspace (0008, amended 18 Oct 2026): it draws the Pipeline", () => {
+  setSurfaceValue("people", people());
+  assert.equal(peopleTakes("pipeline"), true, "the page draws the Pipeline (people-route.tsx)");
   assert.equal(peopleTakes("pipeline:v-board"), true);
   assert.equal(peopleTakes("pipelineish"), true, "a word that only begins with it is somebody's id: a person's page");
-  setSurfaceValue("people", people({ dealsOn: true }));
-  assert.equal(peopleTakes("pipeline"), true, "where deals are on the page draws the Pipeline (people-route.tsx)");
-  assert.equal(peopleTakes("pipeline:v-board"), true);
   setSurfaceValue("people", undefined);
-  assert.equal(peopleTakes("pipeline"), true, "before People is read the address draws People, as it did");
+  assert.equal(peopleTakes("pipeline"), true, "and before People is read");
 });
 
 test("the frame's rows for People: routeHasPage and onOnePage follow what the page takes", () => {
@@ -100,8 +96,8 @@ test("the chrome of an address: People's crumb, what the view is called, one mou
   assert.equal(at("list:s1").act, undefined, "the door is the bare list's");
   assert.deepEqual(
     [at("pipeline").crumbs, at("pipeline").mount],
-    [["People"], "clients/pipeline"],
-    "the Pipeline's address where deals are off draws People, under the mount it always had",
+    [[{ label: "People", to: "clients" }, "Pipeline"], "clients/pipeline"],
+    "the Pipeline's address, every workspace's (0008, amended 18 Oct 2026), under the mount it always had",
   );
   setSurfaceValue("people", undefined);
   assert.equal(at("seg:needs_you").crumbs.at(-1), "Segment", "before People is read, nothing names the list");
@@ -160,7 +156,7 @@ test("a list's own route replaces itself with People's address for the list, onc
   await settle();
   assert.deepEqual(replaced, ["/w/acme/people/list:s1"], "replaced, never pushed: Back leaves People");
   // A later read of People, or a refresh of it, does not replace the address again.
-  setSurfaceValue("people", people({ dealsOn: false }));
+  setSurfaceValue("people", people());
   again(() => globalThis.React.createElement(ListsRoute, { pathname: "/w/acme/lists/s1" }));
   await settle();
   assert.equal(replaced.length, 1, "once for the address");

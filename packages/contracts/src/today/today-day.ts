@@ -15,7 +15,7 @@ import {
 } from "../calendar/calendar-words";
 import { HELD_WORDS, NEEDS_YOU_WORD } from "../conversations/standing";
 import { initialsOf } from "../conversations/thread-contact";
-import { appointmentWordWhere, appointmentWords, type AppointmentWord } from "../journey/appointment-word";
+import { appointmentWords, type AppointmentWord } from "../journey/appointment-word";
 import { triggerOf, triggerWords } from "../playbooks/playbook-triggers";
 import type { TodayQueueRowVM } from "./today-vm";
 
@@ -188,13 +188,13 @@ export function todayDay(
    */
   playbooks: { rows: PlaybookCardLike[]; word: AppointmentWord } | null,
   /**
-   * People's rows, for the red line: a person on the day whose thread needs someone. And whether deals are on, which says
-   * the workspace's word (appointmentWordWhere) while the playbooks are still unread.
+   * People's rows, for the red line: a person on the day whose thread needs someone. And the workspace's word as People's
+   * read says it (its `word`), while the playbooks are still unread.
    */
-  people: { rows: Array<{ id: string; state: string }>; dealsOn?: boolean } | null = null,
+  people: { rows: Array<{ id: string; state: string }>; word?: AppointmentWord } | null = null,
   max = TODAY_DAY_MAX,
 ): TodayDayVM {
-  const word = playbooks ? playbooks.word : appointmentWordWhere(!!people?.dealsOn);
+  const word = playbooks ? playbooks.word : (people?.word ?? "appointment");
   if (!cal) return { feed: "none", frames: [], nextOpening: null, reminders: null, word };
   const feed = cal.feed.state;
   const idx = cal.days.findIndex((d) => d.today);

@@ -80,11 +80,9 @@ import {
   PROFILE_LIMITS,
   profileRefusal,
   writtenOutDetail,
-  sellsByVM,
-  sellsBySaved,
-  bookingLinkOptional,
-  bookingLinkRowWords,
-  BOOKING_LINK_NEEDED,
+  appointmentWordVM,
+  appointmentWordSaved,
+  BOOKING_LINK_ROW_WORDS,
   offersBookingLink,
   COMMON_LANGUAGES,
   sameListed,
@@ -175,10 +173,6 @@ export const FOLD_BLOCK = {
   // The create fold of a workspace with no receptionist: the settings read composes no preview where there is no
   // brain (server/receptionist/prompt-preview.ts), so there are no inputs to resolve its draft with.
   receptionist: null,
-  // How customers buy (0008): the workspace's (tenants.sells_by, saved through its own route as the zone is), and not
-  // in the prompt at all. It decides whether deals exist here; the receptionist hears a person's deal only where they
-  // do, and that is read with the person on every message, never from the brain.
-  sells_by: null,
 } as const satisfies Record<string, string | null>;
 
 export type FoldSection = keyof typeof FOLD_BLOCK;
@@ -352,8 +346,8 @@ export function saveIssues(part: unknown): Array<{ path: Array<string | number>;
 // force, each with its default applied: the composer's and Ask's one reading, which the rules fold opens its switches by,
 // and rulesKept is which of them the row at rest may name -- derived from the three strengths, since a checked rule
 // holds with its switch off and an instructed one holds only where the record composes a prompt to put it in.
-// What you offer's first row is how customers buy (0008): sellsByVM is its row, its choice and what the answer switches
-// on the page (the consult-first row's hint), and sellsBySaved the toast once an answer is taken.
+// Who you are's word for a booking (0041 J4, 00458): appointmentWordVM is its row and its choices, appointmentWordSaved
+// the toast once one is picked. The booking link's empty row says BOOKING_LINK_ROW_WORDS, for every business.
 export const BUSINESS_TAB = {
   businessGap,
   rulesKept,
@@ -427,11 +421,9 @@ export const BUSINESS_TAB = {
   PROFILE_LIMITS,
   profileRefusal,
   writtenOutDetail,
-  sellsByVM,
-  sellsBySaved,
-  bookingLinkOptional,
-  bookingLinkRowWords,
-  BOOKING_LINK_NEEDED,
+  appointmentWordVM,
+  appointmentWordSaved,
+  BOOKING_LINK_ROW_WORDS,
   offersBookingLink,
   COMMON_LANGUAGES,
   sameListed,

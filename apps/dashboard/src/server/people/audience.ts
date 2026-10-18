@@ -1,7 +1,6 @@
 import { savedListFor, savedListsFor, type SavedListRow } from "@chanlytics/db";
 import {
   asListRule,
-  dealsAreOn,
   listUnknownWords,
   membersOf,
   poolListContext,
@@ -13,12 +12,11 @@ import {
   type ListRef,
   type PersonRowDto,
   type PersonRowVM,
-  type SellsBy,
 } from "@chanlytics/contracts";
 import type { RouteContext } from "../with-route";
 import { everyone } from "./people";
 import { withVisits, type PeopleVisits, type ZoneAndSettings } from "../calendar/people-visits";
-import { sellsByOf } from "./deals";
+import { hasDealsRead } from "./deals";
 import { lazily, type Lazy } from "../lazy";
 
 /**
@@ -39,9 +37,9 @@ export interface AudiencePool {
   calendar: PeopleVisits["calendar"];
   /** The profile lists a consult-first service (0004): the Consultations list can be counted only then. */
   consult_first: boolean;
-  /** Deals are on here: the workspace says some customers get a proposal first (dealsAreOn, 0008). The deal lists exist only then. */
-  deals_on: boolean;
-  /** What this pool can give a list (lists.ts): its calendar, deals, a consult-first service, and the member asking. */
+  /** A deal was ever recorded here (packages/db dealOnFile): the deal lists are counted only then. */
+  has_deals: boolean;
+  /** What this pool can give a list (lists.ts): its calendar, a deal on file, a consult-first service, and the member asking. */
   listCtx: ListContext;
 }
 
@@ -57,34 +55,33 @@ export async function audiencePool(
    */
   ready: ChannelsReady | null,
   /**
-   * What a caller already read this turn, or how to read it from the turn (readers/audience-pool.ts): how the
-   * workspace's customers buy, taken instead of reading it here; everyone in People, read just where this reads its
+   * What a caller already read this turn, or how to read it from the turn (readers/audience-pool.ts): whether a deal
+   * was ever recorded here, taken instead of reading it here; everyone in People, read just where this reads its
    * own (readers/everyone.ts, which the Playbooks page's pools share); and the calendar's zone and settings, which the
    * calendar's lookup then reads neither of (withVisits). The send reads its own.
    */
-  opts: { sellsBy?: SellsBy | null; people?: Lazy<PersonRowDto[]>; known?: ZoneAndSettings; stale?: boolean } = {},
+  opts: { hasDeals?: boolean; people?: Lazy<PersonRowDto[]>; known?: ZoneAndSettings; stale?: boolean } = {},
 ): Promise<AudiencePool> {
-  const [{ people, calendar, consult_first }, sellsBy] = await Promise.all([
+  const [{ people, calendar, consult_first }, has_deals] = await Promise.all([
     (opts.people === undefined ? everyone(ctx, tenantId) : lazily(opts.people)).then((rows) =>
       // `stale`: the calendar's last good read may answer, for a caller that only counts (readers/list-counts.ts).
       withVisits(ctx, tenantId, rows, now, opts.known, opts.stale ? { stale: true } : {}),
     ),
-    opts.sellsBy !== undefined ? opts.sellsBy : sellsByOf(ctx, tenantId),
+    opts.hasDeals !== undefined ? opts.hasDeals : hasDealsRead(ctx, tenantId),
   ]);
-  const deals_on = dealsAreOn(sellsBy);
   const viewer = ctx.userId ?? null;
   return {
     people,
     // The pool's one reading (contracts audience-pool.ts), for the member asking: a teammate's thread is theirs, and a
-    // list about "me" is about them. Where deals are off no row carries one.
-    rows: poolRowsOf(people, { tz, now, viewer, dealsOn: deals_on, ready }),
+    // list about "me" is about them.
+    rows: poolRowsOf(people, { tz, now, viewer, ready }),
     calendar,
     consult_first,
-    deals_on,
+    has_deals,
     // What the pool can give a list (contracts poolListContext), the consult-first service as withVisits read it.
     listCtx: poolListContext({
       calendar: calendar.state,
-      dealsOn: deals_on,
+      hasDeals: has_deals,
       consultFirst: consult_first,
       viewer,
     }),

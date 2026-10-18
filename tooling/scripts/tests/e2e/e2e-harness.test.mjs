@@ -25,7 +25,6 @@ import vm from "node:vm";
 import {
   campaignMessagesOf,
   channelsReady,
-  dealsAreOn,
   hoursLines,
   MEMBERSHIP_ROLES,
   pipelineOf,
@@ -434,8 +433,11 @@ test("the harness never writes: every method but a read is refused, whatever it 
 
 test("the pipeline record is People as the app is handed them: every group of the Pipeline, and a read of each person", () => {
   const record = scenario("pipeline", NOW);
-  assert.equal(record.sellsBy, "proposal", "a studio that sends proposals");
-  assert.equal(dealsAreOn(record.sellsBy), true, "so deals are on");
+  assert.deepEqual(
+    [record.word, record.hasDeals],
+    ["meeting", true],
+    "a studio that sends proposals: it calls a booking a meeting, and has deals on file",
+  );
   // People's rows through the People surface's own mapping, then the Pipeline's: every group has someone in it.
   const rows = record.people.map((r) => toPersonRowVM(r, TIMEZONE, new Date(NOW)));
   assert.deepEqual(
@@ -490,7 +492,8 @@ test("the server answers People's reads where the record has people, by the work
     calendar: { state: "ok", source: "your calendar", timezone: TIMEZONE },
     booking_link: record.config.brain.booking_link,
     consult_first: true,
-    deals_on: true,
+    has_deals: true,
+    appointment_word: "meeting",
   });
   // A page's own read names the workspace by the slug in its address, as the app's does.
   assert.equal(answer("GET", "/api/v1/contacts", bySlug, record).status, 200);
@@ -499,15 +502,15 @@ test("the server answers People's reads where the record has people, by the work
   assert.deepEqual(answer("GET", "/api/v1/contacts", next, record).body.data.people, []);
   assert.deepEqual(answer("GET", "/api/v1/segments", byId, record).body.data, { lists: [] });
   assert.deepEqual(answer("GET", "/api/v1/views", byId, record).body.data, { views: {} });
-  // The workspace list says how its customers buy, as the app's does; the records without an answer say nothing.
-  assert.equal(answer("GET", "/api/v1/workspaces", byId, record).body.data.workspaces[0].sells_by, "proposal");
+  // The workspace list says its word, as the app's does; the records that picked none say nothing.
+  assert.equal(answer("GET", "/api/v1/workspaces", byId, record).body.data.workspaces[0].appointment_word, "meeting");
   assert.equal(
-    "sells_by" in answer("GET", "/api/v1/workspaces", byId, scenario("salon", NOW)).body.data.workspaces[0],
+    "appointment_word" in answer("GET", "/api/v1/workspaces", byId, scenario("salon", NOW)).body.data.workspaces[0],
     false,
   );
   const id = record.people[0].id;
   const person = answer("GET", `/api/v1/contacts/${id}`, byId, record).body.data.person;
-  assert.deepEqual([person.row.id, person.deals_on], [id, true]);
+  assert.deepEqual([person.row.id, person.appointment_word], [id, "meeting"]);
   assert.equal(answer("GET", "/api/v1/contacts/00000000-0000-4000-8000-000000000000", byId, record).status, 404);
   // A record with no people answers none of them: People stays the seeded page there, as it always has.
   for (const name of ["nightly", "salon"]) {
@@ -624,7 +627,7 @@ test("in a browser, the pipeline record's page stands at its workspace's address
   // At the workspace's address before anything is read, with the route kept (the server serves that address).
   assert.deepEqual(at, { pathname: `/w/${WORKSPACE.slug}/`, hash: "#/clients/pipeline" });
   assert.equal(w.__PEOPLE.rows.length, record.people.length);
-  assert.equal(w.__PEOPLE.dealsOn, true);
+  assert.equal(w.__PEOPLE.hasDeals, true);
   // Every read named the workspace as the app's do from that address, by its slug; not one of them was a write.
   assert.ok(asked.length > 0);
   assert.deepEqual([...new Set(asked.map((a) => `${a.method} ${a.workspace}`))], [`GET ${WORKSPACE.slug}`]);

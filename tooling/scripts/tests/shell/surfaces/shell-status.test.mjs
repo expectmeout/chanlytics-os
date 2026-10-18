@@ -2038,9 +2038,9 @@ test("given the router's route, the frame draws that route and no other: an addr
   assert.equal(view(draw("clients")).props.key, "clients");
 });
 
-test("People › Pipeline is an address of People's route (clients/pipeline): the route takes it, deals on or off, its crumbs name the view, and the whole family is one mount -- and where deals are off it says People", async () => {
-  // The frame draws no page of its own for it: the route's page does (surfaces/people/people-route.tsx: the Pipeline
-  // where deals are on, People's own page where they are off), and the frame draws what surfaces/people/chrome.ts says
+test("People › Pipeline is an address of People's route (clients/pipeline): the route takes it in every workspace, its crumbs name the view, and the whole family is one mount", async () => {
+  // The frame draws no page of its own for it: the route's page does (surfaces/people/people-route.tsx: the Pipeline,
+  // every workspace's since 0008 was amended on 18 Oct 2026), and the frame draws what surfaces/people/chrome.ts says
   // of the address around it.
   const { peopleTakes, peopleChrome } = await importSrc("apps/dashboard/src/surfaces/people/chrome.ts");
   const { setSurfaceValue } = await importSrc("apps/dashboard/src/surfaces/surface-values.ts");
@@ -2052,7 +2052,7 @@ test("People › Pipeline is an address of People's route (clients/pipeline): th
   };
   const PEOPLE = { label: "People", to: "clients" };
   try {
-    setSurfaceValue("people", { rows: [], lists: [], saved: [], dealsOn: true });
+    setSurfaceValue("people", { rows: [], lists: [], saved: [] });
     for (const param of ["pipeline", "pipeline:v-proposals", "pipeline:v-proposals:p-5b3c1a2e"])
       assert.equal(peopleTakes(param), true, `the route takes ${param}`);
     assert.equal(peopleTakes("pipelines"), true, "an id that starts with the word is a person's: the page's");
@@ -2076,19 +2076,12 @@ test("People › Pipeline is an address of People's route (clients/pipeline): th
       rows: [],
       lists: [],
       saved: [],
-      dealsOn: true,
       dealPace: { medianDays: 8, yeses: 6, waitDays: 10, longerThanUsual: true, words: "Usually 8 days to a yes" },
     });
     assert.equal(chrome("pipeline:v-waiting").crumbs.at(-1), "Nothing back in 10 days");
-    // Where deals are off the address draws People, and says People.
-    setSurfaceValue("people", { rows: [], lists: [], saved: [], dealsOn: false });
-    assert.equal(peopleTakes("pipeline:v-proposals"), true, "the route still takes it: it draws People");
-    assert.deepEqual(where("pipeline"), { crumbs: ["People"], mount: "clients/pipeline" });
-    assert.deepEqual(
-      where("pipeline:v-proposals"),
-      { crumbs: ["People"], mount: "clients/pipeline" },
-      "every view of it too",
-    );
+    // Before People has landed the crumbs still say the Pipeline: nothing it holds decides them.
+    setSurfaceValue("people", undefined);
+    assert.deepEqual(where("pipeline"), { crumbs: [PEOPLE, "Pipeline"], mount: "clients/pipeline" });
   } finally {
     setSurfaceValue("people", undefined);
   }

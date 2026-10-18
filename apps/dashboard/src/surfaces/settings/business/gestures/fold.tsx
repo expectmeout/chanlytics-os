@@ -196,7 +196,7 @@ function btFoldAtRest<D>(r: BtFoldR<D>, e: BtEditor<D>, has: boolean) {
  * fold with a `rest` and no fact in its row (`row.value`) states nothing yet, so its untouched Save is judged rather
  * than closed (useBtEditor's `nothingYet`); one whose row holds its fact closes on it, as a row's does.
  * `check(draft)` is the card's own check, beside problemsOf: { fieldKey: sentence } for what the draft does not hold.
- * `door` is for a fold the settings save does not write (how customers buy, which is the workspace's as the zone is):
+ * `door` is for a fold the settings save does not write (a field of the workspace's own row, as the zone is):
  * { initial, save(draft, done), pending() }, the fold's own way out in place of the tab's saver, as a row's door is
  * (BtRow). It opens on `initial`, is judged by `check` alone, and says nothing it will tell the receptionist; with
  * nothing stored yet (`initial` null) its untouched Save is judged, as a `rest` fold's is, so a Save with nothing

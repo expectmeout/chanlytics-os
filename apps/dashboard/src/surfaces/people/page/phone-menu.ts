@@ -6,7 +6,7 @@
  * a desktop does on the list's title line and a phone does at the foot of the Lists sheet.
  */
 import type { Dispatch, SetStateAction } from "react";
-import type { ListRule, PersonRowVM } from "@chanlytics/contracts";
+import type { AppointmentWord, ListRule, PersonRowVM } from "@chanlytics/contracts";
 import type { SavedList, SmartList } from "../types";
 import { PL_LIST_EMPTY, PL_PHONE_SORTS, PL_TAB_LABEL } from "../words";
 import type { ListDraft } from "../words";
@@ -17,19 +17,19 @@ type Setter<T> = Dispatch<SetStateAction<T>>;
 /** The sorts a phone offers, the appointments' in the workspace's word: each checked when it is the one in use. */
 export function peopleSortItems({
   withCalendar,
-  dealsOn,
+  word,
   sortBy,
   sortDir,
   pickSort,
 }: {
   withCalendar: boolean;
-  dealsOn: boolean;
+  word: AppointmentWord;
   sortBy: string;
   sortDir: string;
   pickSort: (by: string, dir: string) => void;
 }): PeopleMenuItem[] {
   return PL_PHONE_SORTS.filter((s) => !s.needs || s.needs({ withCalendar })).map((s) => ({
-    label: s.labelOf ? s.labelOf({ dealsOn }) : s.label,
+    label: s.labelOf ? s.labelOf({ word }) : s.label,
     checked: sortBy === s.by && sortDir === s.dir,
     onClick: () => pickSort(s.by, s.dir),
   }));

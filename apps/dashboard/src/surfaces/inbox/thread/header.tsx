@@ -44,7 +44,7 @@ import { Button } from "../../kit/button/button";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { completeStep } from "../../step-done";
 import { wantPerson } from "../../people/want-person";
-import { visitWordHere } from "../../visit-line";
+import { visitWordHere } from "../../workspace-word";
 
 // A step due under the head (0007, amended): their next step once its day has come, with Done, so whoever answers
 // them ticks it where they are. People's row carries it, judged as every page judges a step: at the moment People's
@@ -155,8 +155,8 @@ function headerFacts(thread: Thread): HeaderFacts {
   const deal = person && person.deal && person.deal.brief ? person.deal : null;
   // Their proposal's link (0008): contracts' proposalLinkOf over People's row -- the deal's while it is a proposal out,
   // none for a client or someone who passed, the thread's own (the person's) only with no deal, or no row to read.
-  // Nothing where deals are off, or before People says whether they are.
-  const proposalUrl = people && people.dealsOn ? proposalLinkOf(person ? person.deal : null, thread.proposalUrl) : null;
+  // Nothing before People is read: their deal may hold another.
+  const proposalUrl = people ? proposalLinkOf(person ? person.deal : null, thread.proposalUrl) : null;
   const visit =
     deal || !person
       ? null
@@ -213,7 +213,7 @@ function dealGroup(thread: Thread, facts: HeaderFacts): MenuItem[] {
   const clientId = thread.clientId;
   const people = peopleRead();
   const dealItems: MenuItem[] =
-    kit && !demoSession() && clientId && person && people && people.dealsOn && hasDealSheet()
+    kit && !demoSession() && clientId && person && people && hasDealSheet()
       ? kit
           .menu(person.deal)
           .filter((a) => a.mode)
@@ -346,9 +346,9 @@ function actionsMenu(thread: Thread, dealActs: MenuItem[], acts: HeaderActs) {
   return ixMenu([
     conversation,
     person,
-    // The deal (0008): its proposal into the box -- the deal's link (above), only where deals are on and free text
-    // can go, never to someone who said stop, only on a real thread; the hint says where the link lives
-    // (contracts linkHost) -- and the moves for its stage, each opening the sheet. A salon sees none of it.
+    // The deal (0008): its proposal into the box -- the deal's link (above), only where free text can go, never to
+    // someone who said stop, only on a real thread; the hint says where the link lives (contracts linkHost) -- and the
+    // moves for its stage, each opening the sheet. Every workspace's (0008, amended 18 Oct 2026).
     dealActs,
     file,
     demoSession()

@@ -27086,7 +27086,7 @@ begin
     if v_deal.stage = 'proposed' and v_deal.proposal_url is distinct from v_url then
       update deals set proposal_url = v_url, version = version + 1 where id = v_deal.id;
     end if;
-  elsif v_url is not null and exists (select 1 from tenants t where t.id = v_tenant and t.sells_by = 'proposal') then
+  elsif v_url is not null then
     insert into deals (tenant_id, contact_id, lead_id, service, stage, proposed_at, proposal_url, source, created_by)
     values (
       v_tenant, p_contact_id,
@@ -27108,7 +27108,7 @@ end $_$;
 -- Name: FUNCTION set_person_proposal(p_contact_id uuid, p_url text); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.set_person_proposal(p_contact_id uuid, p_url text) IS 'Owner or operator sets a person''s proposal link; empty clears it. The event records that it changed, never the address. Writes through to the deal (0008): the person''s open proposal takes the link; with no open deal, a Proposal out is opened with it where deals are on (sells_by proposal); a client''s deal is left alone.';
+COMMENT ON FUNCTION public.set_person_proposal(p_contact_id uuid, p_url text) IS 'Owner or operator sets a person''s proposal link; empty clears it. The event records that it changed, never the address. Writes through to the deal (0008): the person''s open proposal takes the link; with no open deal, a Proposal out is opened with it (every workspace has deals, 00458); a client''s deal is left alone.';
 
 
 --
@@ -33182,6 +33182,8 @@ CREATE TABLE public.tenants (
     sells_by text,
     left_empty_at timestamp with time zone,
     logo_path text,
+    appointment_word text,
+    CONSTRAINT tenants_appointment_word_check CHECK (((appointment_word IS NULL) OR (appointment_word = ANY (ARRAY['appointment'::text, 'visit'::text, 'meeting'::text, 'session'::text, 'lesson'::text])))),
     CONSTRAINT tenants_logo_path_shape CHECK (((logo_path IS NULL) OR ((split_part(logo_path, '/'::text, 1) = (id)::text) AND (logo_path ~ '^[0-9a-f-]{36}/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.png$'::text)))),
     CONSTRAINT tenants_sells_by_check CHECK (((sells_by IS NULL) OR (sells_by = ANY (ARRAY['booking'::text, 'proposal'::text])))),
     CONSTRAINT tenants_status_check CHECK ((status = ANY (ARRAY['active'::text, 'paused'::text, 'test'::text])))
@@ -33199,7 +33201,7 @@ COMMENT ON COLUMN public.tenants.timezone IS 'IANA zone. Decides what "today" me
 -- Name: COLUMN tenants.sells_by; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.tenants.sells_by IS 'How this workspace''s customers buy (0008): booking (they book an appointment) or proposal (some get a proposal first). Deals are on exactly when it is proposal; null is not asked yet. Owner-settable through PATCH workspaces, like the timezone (00084).';
+COMMENT ON COLUMN public.tenants.sells_by IS 'Retired 18 Oct 2026 (0008, amended: deals for everyone). Was how this workspace''s customers buy (booking or proposal), the switch the deal layer hung on. Written by nothing; read only as appointment_word''s fallback, and dropped with it.';
 
 
 --
@@ -33214,6 +33216,13 @@ COMMENT ON COLUMN public.tenants.left_empty_at IS 'When the workspace''s last me
 --
 
 COMMENT ON COLUMN public.tenants.logo_path IS 'The workspace''s own logo (00407): <tenant id>/<uuid>.png in the public workspace-logos bucket, a square PNG the server remade; null when it has none and its initials stand in. Written only by set_workspace_logo.';
+
+
+--
+-- Name: COLUMN tenants.appointment_word; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.tenants.appointment_word IS 'What this workspace calls a booking (0041 J4): appointment, visit, meeting, session or lesson. Words only: it changes no moment, run, list or send. Null where never picked, read as appointment (contracts appointmentWordOf). Owner-settable through PATCH workspaces, like the timezone (00084).';
 
 
 --
@@ -37524,7 +37533,7 @@ CREATE TRIGGER workspace_tell_update AFTER UPDATE ON public.tenant_config FOR EA
 -- Name: tenants workspace_tell_update; Type: TRIGGER; Schema: public; Owner: -
 --
 
-CREATE TRIGGER workspace_tell_update AFTER UPDATE OF status, name, timezone, sells_by, logo_path ON public.tenants FOR EACH ROW WHEN (((old.status IS DISTINCT FROM new.status) OR (old.name IS DISTINCT FROM new.name) OR (old.timezone IS DISTINCT FROM new.timezone) OR (old.sells_by IS DISTINCT FROM new.sells_by) OR (old.logo_path IS DISTINCT FROM new.logo_path))) EXECUTE FUNCTION public.workspace_tell_row_change();
+CREATE TRIGGER workspace_tell_update AFTER UPDATE OF status, name, timezone, sells_by, appointment_word, logo_path ON public.tenants FOR EACH ROW WHEN (((old.status IS DISTINCT FROM new.status) OR (old.name IS DISTINCT FROM new.name) OR (old.timezone IS DISTINCT FROM new.timezone) OR (old.sells_by IS DISTINCT FROM new.sells_by) OR (old.appointment_word IS DISTINCT FROM new.appointment_word) OR (old.logo_path IS DISTINCT FROM new.logo_path))) EXECUTE FUNCTION public.workspace_tell_row_change();
 
 
 --
@@ -46813,6 +46822,13 @@ GRANT UPDATE(timezone) ON TABLE public.tenants TO authenticated;
 --
 
 GRANT UPDATE(sells_by) ON TABLE public.tenants TO authenticated;
+
+
+--
+-- Name: COLUMN tenants.appointment_word; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT UPDATE(appointment_word) ON TABLE public.tenants TO authenticated;
 
 
 --

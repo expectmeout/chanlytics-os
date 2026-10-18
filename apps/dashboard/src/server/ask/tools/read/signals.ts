@@ -155,9 +155,9 @@ const offersNeverAsked: Spot = ({ pool }) => {
   };
 };
 
-/** Deals out with no next step, where deals are on. */
+/** Deals out with no next step: none where no proposal is out. */
 const dealsWithoutAStep: Spot = ({ pool }) => {
-  if (!pool?.deals_on) return null;
+  if (!pool) return null;
   const n = pool.people.filter((r) => r.deal_stage === "proposed" && !r.step_id).length;
   if (!n) return null;
   return {

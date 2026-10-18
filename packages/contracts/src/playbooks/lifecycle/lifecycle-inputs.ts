@@ -7,11 +7,10 @@
  * from, whether every moment was counted, and the workspace's WhatsApp line.
  *
  * Pure, and tolerant of a key a server from before it does not send (either deploy order): no zone is New York's, no
- * calendar is none, no lists are none, and no word is the one derived from how its customers buy.
+ * calendar is none, no lists are none, no deal is none recorded, and no word is an appointment.
  */
 import { appointmentWordOf, type AppointmentWord } from "../../journey/appointment-word";
 import { PEOPLE_LISTS } from "../../people/lists/lists";
-import { FOLLOW_UP_NEEDS_DEALS } from "../playbook-follow-ups";
 import {
   campaignDayWords,
   campaignEnded,
@@ -40,7 +39,8 @@ export interface LifecycleAnswer<P extends AnswerPlaybook = AnswerPlaybook> {
   /** The workspace's own lists; null where they could not be read, absent from a server from before them. */
   lists?: readonly { id: string; name: string; archived?: boolean }[] | null;
   people_lists?: readonly { key: string; label: string }[] | null;
-  deals_on?: boolean | null;
+  /** A deal was ever recorded here (the journey's proposal stage); absent from a server from before it. */
+  has_deals?: boolean | null;
   ready?: { paused?: boolean } | null;
   appointment_word?: string | null;
   bookings_by_email?: boolean | null;
@@ -82,16 +82,16 @@ const ZONE_UNSAID = "America/New_York";
 
 /**
  * How the business works, from GET playbooks' answer (its businessShape): what the workspace calls an appointment, and
- * whether its appointment moments are counted from a calendar's feed (one connected, readable now or not), from a booking
- * tool's emails, or from neither. A server from before the word answers none, and the one derivation reads how its
- * customers buy instead.
+ * whether its appointment moments are counted from a calendar's feed (one connected, readable now or not), from a
+ * booking tool's emails, or from neither, and whether a deal was ever recorded here. The word is the server's (its
+ * businessShape reads the workspace's own, appointmentWordOf); one from before it answers none, read as "appointment".
  */
 function businessShapeOf(pb: LifecycleAnswer): LifecycleShape {
   const calendarOn = (pb.calendar ?? "none") !== "none";
   return {
     calendar: calendarOn ? "feed" : pb.bookings_by_email === true ? "email" : "none",
-    dealsOn: !!pb.deals_on,
-    word: appointmentWordOf({ stored: pb.appointment_word ?? null, sellsBy: pb.deals_on ? "proposal" : null }),
+    hasDeals: pb.has_deals === true,
+    word: appointmentWordOf({ stored: pb.appointment_word ?? null, sellsBy: null }),
   };
 }
 
@@ -123,10 +123,7 @@ function cardReadOf(
   pb: LifecycleAnswer,
   at: { tz: string; now: Date; shape: LifecycleShape },
 ): LifecycleCardRead {
-  const t = triggerOf(p.trigger);
-  // A follow-up made while deals were on runs nothing once they are off (0006).
-  const dealsOff = t && !triggerOffered(t, at.shape.dealsOn) ? FOLLOW_UP_NEEDS_DEALS : null;
-  // Nor does a campaign past its last day, by the business's today (00416).
+  // A campaign past its last day runs nothing, by the business's today (00416).
   const last = campaignEnded(p, localDate(at.tz, at.now));
   const ended = last ? campaignDayWords(last, at.tz, at.now) : null;
   return {
@@ -136,17 +133,17 @@ function cardReadOf(
     // While the workspace is paused no time is promised: the card says so instead of "tomorrow 10:00 AM".
     next: nextRunLabel(p, at.tz, at.now, pb.ready?.paused === true),
     // Why it runs nothing here: the card says it, and every rule of the home that skips what runs nothing skips it.
-    off: ended ? LIFECYCLE_WORDS.ended(ended) : dealsOff,
+    off: ended ? LIFECYCLE_WORDS.ended(ended) : null,
     ended,
     trial: trialDayWords(p, at.tz, at.now),
-    runs: campaignRunsOn(p, { tz: at.tz, now: at.now, dealsOn: at.shape.dealsOn }),
+    runs: campaignRunsOn(p, { tz: at.tz, now: at.now }),
   };
 }
 
 /**
  * GET playbooks' answer read for the home at `now`: the business's shape and zone, each playbook beside what the answer
- * says of it, the moments that may run here (a proposal's only where deals are on, 0006; a retired one among them, so a
- * card can read its own) each with whether a new campaign may start from it, and whether every moment was counted.
+ * says of it, the moments that may run here (a retired one among them, so a card can read its own) each with whether a
+ * new campaign may start from it, and whether every moment was counted.
  */
 export function lifecyclePlaybooksOf<P extends AnswerPlaybook>(
   pb: LifecycleAnswer<P>,
@@ -154,8 +151,8 @@ export function lifecyclePlaybooksOf<P extends AnswerPlaybook>(
 ): LifecycleAnswerRead<P> {
   const shape = businessShapeOf(pb);
   const timezone = pb.timezone || ZONE_UNSAID;
-  const moments = PLAYBOOK_TRIGGERS.filter((t) => triggerOffered(t, shape.dealsOn));
-  const here = { dealsOn: shape.dealsOn, calendarOn: shape.calendar === "feed" };
+  const moments = PLAYBOOK_TRIGGERS.filter((t) => triggerOffered(t));
+  const here = { calendarOn: shape.calendar === "feed" };
   return {
     shape,
     timezone,

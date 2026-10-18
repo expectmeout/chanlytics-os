@@ -57,7 +57,7 @@ export interface LifecyclePlaybook {
   candidates: number | null;
   held: number | null;
   named: LifecycleNamed | null;
-  /** Why it runs nothing here (a follow-up where deals are off, a campaign past its last day), or null. */
+  /** Why it runs nothing here (a campaign past its last day), or null. */
   off: string | null;
   /**
    * Its last day as its words say it ("Oct 1"), where the business's today is past it (00416 `until`): it has ended, and
@@ -231,7 +231,8 @@ export interface LifecycleShape {
    * email; "none": neither. The appointment moments are counted only from a feed (decision 0002's readers lane owes the rest).
    */
   calendar: "feed" | "email" | "none";
-  dealsOn: boolean;
+  /** A deal was ever recorded here (GET playbooks' has_deals): the journey draws the proposal's stage only then, or held. */
+  hasDeals: boolean;
   word: AppointmentWord;
 }
 
@@ -332,8 +333,8 @@ export interface LifecycleStage {
   people: number | null;
   unit: string;
   /**
-   * on: a running playbook, or the receptionist; paused; off: none made; not_here: where it cannot run (deals off) or
-   * cannot be counted (no calendar).
+   * on: a running playbook, or the receptionist; paused; off: none made; not_here: where it cannot be counted (no
+   * calendar).
    */
   state: "always" | "on" | "paused" | "off" | "not_here";
   stateWords: string;

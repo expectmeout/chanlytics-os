@@ -7,7 +7,6 @@
  */
 import { visitDateKey, visitDay } from "../calendar/calendar-people";
 import { visitDoor, visitLinkWords } from "../calendar/appointment-key";
-import { appointmentWordWhere } from "../journey/appointment-word";
 import type { VisitLineVM } from "../calendar/calendar-words";
 import { callNoteLines, callNotesOf, tidyCallSummary } from "../voice/call-words";
 import { STOP_WORDS, type ConsentChange } from "../consent/consent";
@@ -442,9 +441,8 @@ function consentItems({ profile, stamp }: PersonCardContext): PersonTimelineItem
  * visit line (person-row.ts visitLineForDto): its word is the line's state (Kept, Missed, or Past once it has ended and
  * nobody has said), "Booked" while it is ahead; a visit marked while it is under way reads as its mark and is not ahead.
  */
-function visitItems({ profile, nowMs, base, stamp, dealsOn }: PersonCardContext): PersonTimelineItemVM[] {
+function visitItems({ profile, nowMs, base, stamp, word }: PersonCardContext): PersonTimelineItemVM[] {
   const items: PersonTimelineItemVM[] = [];
-  const word = appointmentWordWhere(dealsOn);
   if (profile.visits?.all?.length) {
     const zone = profile.visits.timezone;
     for (const v of profile.visits.all) {
@@ -477,9 +475,9 @@ function visitItems({ profile, nowMs, base, stamp, dealsOn }: PersonCardContext)
  * proposal's value until they say yes, and then the client's, so it is said on the line it belongs to (0008); a pass
  * says why.
  */
-function dealItems({ profile, dealsOn, stamp }: PersonCardContext): PersonTimelineItemVM[] {
+function dealItems({ profile, stamp }: PersonCardContext): PersonTimelineItemVM[] {
   const items: PersonTimelineItemVM[] = [];
-  for (const x of dealsOn ? (profile.deals ?? []) : []) {
+  for (const x of profile.deals ?? []) {
     const svc = x.service ? ` · ${x.service}` : "";
     const put = (id: string, at: string | null, text: string) => {
       const t = ts(at);

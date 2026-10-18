@@ -39,7 +39,7 @@
  * anything else is said as `skip <id> (needs …)` before a turn is spent, counted as skipped, and never run or failed,
  * and `--list` says each case's needs. The tokens: `calendar`, `no_calendar`; `offers_yes` (someone's yes to offers),
  * `no_offers_yes` (nobody's, which Campaigns' decline rests on); `offers_channel`, `offers_whatsapp`,
- * `no_offers_channel`; `live_call`; `deals_on`; `winback_seed`; `escalated_thread` (a thread an open escalation flags
+ * `no_offers_channel`; `live_call`; `winback_seed`; `escalated_thread` (a thread an open escalation flags
  * and nobody has, which the snooze between two turns moves: never the nightly's); `waiting_run` (a campaign run waiting
  * for the owner's say), `leads_seed` (the leads the e2e Leads spec seeds, Zilker Strength Lab among them) and `reach_out`
  * (a cold email sequence to dentists), which the local stack's workspace holds none of (the eval-truth pass, 17 Oct

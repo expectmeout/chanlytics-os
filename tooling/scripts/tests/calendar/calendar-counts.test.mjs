@@ -40,7 +40,7 @@ const NOW = new Date("2026-09-08T16:00:00.000Z"); // Tuesday noon in New York
 const DAY = 86_400_000;
 const iso = (ms) => new Date(ms).toISOString();
 /** A workspace whose customers book: a proposal's moment reaches nobody (0006). */
-const NO_DEALS = { on: false, pace: null };
+const NO_DEALS = { any: false, pace: null };
 
 const realFetch = globalThis.fetch;
 let answers = new Map();
@@ -916,7 +916,7 @@ test("each list a playbook may run on is counted as a run on it would count it, 
   );
 });
 
-test("a proposal's moment (0006): counted by the workspace's pace where deals are on, and nobody where they are off, as its run does; the route says which", async () => {
+test("a proposal's moment (0006): counted by the workspace's pace in every workspace, as its run is; the route says whether a deal is on file", async () => {
   // Out ten and twenty days with their links, one out twenty with none, and one with no proposal at all.
   const out = (n, days, over = {}) =>
     person(n, {
@@ -928,13 +928,13 @@ test("a proposal's moment (0006): counted by the workspace's pace where deals ar
     });
   const all = [out(1, 10), out(2, 20), out(3, 20, { deal_proposal_url: null }), person(4)];
   const ctx = ctxFor(tables(null), { people_list: pagedList(all) });
-  const week = await triggerPools(ctx, T, {}, TZ, NOW, { on: true, pace: null });
+  const week = await triggerPools(ctx, T, {}, TZ, NOW, { any: true, pace: null });
   assert.deepEqual(
     [week.pools.proposal_waiting.pool, week.pools.proposal_waiting.candidates],
     [2, 2],
     "a week's wait without a pace; a proposal with no link is a person's to write, so it is not named",
   );
-  const slow = await triggerPools(ctx, T, {}, TZ, NOW, { on: true, pace: { waitDays: 14 } });
+  const slow = await triggerPools(ctx, T, {}, TZ, NOW, { any: true, pace: { waitDays: 14 } });
   assert.deepEqual(
     [slow.pools.proposal_waiting.pool, slow.pools.proposal_waiting.candidates],
     [1, 1],
@@ -965,7 +965,7 @@ test("a proposal's moment (0006): counted by the workspace's pace where deals ar
     }),
     { people_list: pagedList(all) },
   );
-  const done = (await triggerPools(followed, T, {}, TZ, NOW, { on: true, pace: null })).pools.proposal_waiting;
+  const done = (await triggerPools(followed, T, {}, TZ, NOW, { any: true, pace: null })).pools.proposal_waiting;
   assert.deepEqual([done.pool, done.candidates], [2, 1], "the one who had their follow-up is not counted as due");
   // Who had one could not be read: the moment is not counted, never counted as if nobody had.
   const unread = {
@@ -980,22 +980,29 @@ test("a proposal's moment (0006): counted by the workspace's pace where deals ar
       { people_list: pagedList(all) },
     ),
   };
-  const blind = await triggerPools(unread, T, {}, TZ, NOW, { on: true, pace: null });
+  const blind = await triggerPools(unread, T, {}, TZ, NOW, { any: true, pace: null });
   assert.equal(blind.pools.proposal_waiting, null);
   assert.ok(blind.pools.quiet_30, "and every other moment is");
-  const off = await triggerPools(ctx, T, {}, TZ, NOW, NO_DEALS);
-  assert.equal(off.pools.proposal_waiting, null, "deals off: its run is off, and the card says why rather than a zero");
-  assert.deepEqual(off.pools.quiet_30, week.pools.quiet_30, "every other moment counts alike");
-  // The route: whether deals are on here, and the pool by the pace its own read gives (no yeses: a week).
-  const on = tables(null, "owner", {
-    tenants: [{ id: T, slug: "harbor", name: "Harbor", status: "active", timezone: TZ, sells_by: "proposal" }],
-    deals: [],
+  // No deal on file: nobody's follow-up is read, since none could have gone, and the moment counts its people alike.
+  const none = await triggerPools(ctx, T, {}, TZ, NOW, NO_DEALS);
+  assert.deepEqual(none.pools.proposal_waiting, week.pools.proposal_waiting, "the moment, counted as ever");
+  assert.deepEqual(none.pools.quiet_30, week.pools.quiet_30, "every other moment counts alike");
+  // The route: whether a deal is on file here, and the pool by the pace its own read gives (no yeses: a week), in every
+  // workspace (0008, amended 18 Oct 2026).
+  const dealt = tables(null, "owner", {
+    deals: [
+      { id: "d1", tenant_id: T, contact_id: "p1", stage: "proposed", proposed_at: iso(NOW.getTime() - 10 * DAY) },
+    ],
   });
   const url = `http://localhost/api/v1/playbooks?workspace=${T}`;
-  const read = await playbooksRoute.GET.run(new Request(url), ctxFor(on, { people_list: pagedList(all) }));
-  assert.deepEqual([read.deals_on, read.pools.proposal_waiting.pool], [true, 2]);
-  const booked = await playbooksRoute.GET.run(new Request(url), ctxFor(tables(null), { people_list: pagedList(all) }));
-  assert.deepEqual([booked.deals_on, booked.pools.proposal_waiting], [false, null], "a workspace whose customers book");
+  const read = await playbooksRoute.GET.run(new Request(url), ctxFor(dealt, { people_list: pagedList(all) }));
+  assert.deepEqual([read.has_deals, read.pools.proposal_waiting.pool], [true, 2]);
+  const bare = await playbooksRoute.GET.run(new Request(url), ctxFor(tables(null), { people_list: pagedList(all) }));
+  assert.deepEqual(
+    [bare.has_deals, bare.pools.proposal_waiting.pool],
+    [false, 2],
+    "no deal on file: counted all the same",
+  );
 });
 
 test("each moment is counted for every set of channels a playbook on it may tick (One message, every channel, step 3): WhatsApp alone as ever, and each other set the workspace can send on and the kind of message allows", async () => {

@@ -379,18 +379,18 @@ test(
 );
 
 test(
-  "how customers buy is the owner's column: an owner writes it, an operator's write lands on no row, and nothing but the two answers is kept",
+  "what a workspace calls a booking is the owner's column (00458): an owner writes it, an operator's write lands on no row, and nothing but the five is kept",
   { skip },
   async () => {
     const set = (client, value) =>
-      client.from("tenants").update({ sells_by: value }).eq("id", w.tenant).select("id, sells_by");
-    const owner = await set(w.owner, "proposal");
+      client.from("tenants").update({ appointment_word: value }).eq("id", w.tenant).select("id, appointment_word");
+    const owner = await set(w.owner, "meeting");
     assert.equal(owner.error, null, owner.error?.message);
-    assert.deepEqual(owner.data, [{ id: w.tenant, sells_by: "proposal" }]);
-    const operator = await set(w.operator, "booking");
+    assert.deepEqual(owner.data, [{ id: w.tenant, appointment_word: "meeting" }]);
+    const operator = await set(w.operator, "session");
     assert.deepEqual(operator.data ?? [], [], "RLS: an operator's update matches no row, and raises nothing");
     const bad = await set(w.owner, "banana");
-    assert.match(bad.error?.message ?? "", /tenants_sells_by_check/);
+    assert.match(bad.error?.message ?? "", /tenants_appointment_word_check/);
     // A column the session was never granted: the address. The name is granted since 00439 (an owner's rename), so it no
     // longer shows this.
     const slug = await w.owner
@@ -399,8 +399,8 @@ test(
       .eq("id", w.tenant)
       .select("id");
     assert.match(slug.error?.message ?? "", /permission denied/, "the grant is the column, never the row");
-    const row = ok(await w.admin.from("tenants").select("sells_by, name").eq("id", w.tenant).single());
-    assert.deepEqual(row, { sells_by: "proposal", name: "Deals" });
+    const row = ok(await w.admin.from("tenants").select("appointment_word, name").eq("id", w.tenant).single());
+    assert.deepEqual(row, { appointment_word: "meeting", name: "Deals" });
   },
 );
 

@@ -400,7 +400,6 @@ test("the receptionist card: every value is Setup's or the settings read's, the 
     numbers: { voiceLine: VOICE, keptLine: "+12125550142", handoff: HANDOFF },
     workspaceName: "Northside",
     tz: "America/New_York",
-    sellsBy: "booking",
   });
   assert.equal(card.caption, "Your receptionist, so far");
   assert.equal(card.initials, "NM");
@@ -433,7 +432,6 @@ test("the receptionist card: every value is Setup's or the settings read's, the 
     numbers: null,
     workspaceName: "Luna Studio",
     tz: "America/New_York",
-    sellsBy: null,
   });
   assert.equal(bare.name, "Luna Studio", "the workspace's name until the receptionist has one");
   assert.equal(bare.initials, "LS");
@@ -456,7 +454,6 @@ test("the receptionist card: every value is Setup's or the settings read's, the 
     numbers: null,
     workspaceName: null,
     tz: "America/New_York",
-    sellsBy: null,
   });
   assert.deepEqual(untried.status, { state: "waiting_you", words: "Answering · not tried yet" });
   assert.equal(
@@ -773,8 +770,8 @@ test("the days Google gives hours for that the week cannot hold are named under 
   assert.equal(W.found, "Here's what we found");
 });
 
-test("the receptionist card says how a business that quotes, with no link, is reached; how customers buy is required", () => {
-  const card = (brain, sellsBy) =>
+test("the receptionist card says how a receptionist with no link is reached, for every business (0008, amended 18 Oct 2026)", () => {
+  const card = (brain) =>
     receptionistCardOf({
       setup: empty(),
       answering: false,
@@ -782,28 +779,16 @@ test("the receptionist card says how a business that quotes, with no link, is re
       numbers: null,
       workspaceName: "Harbor Moving",
       tz: "America/New_York",
-      sellsBy,
     }).rows.find((r) => r.key === "books");
-  const quoting = { business_name: "Harbor Moving" };
-  assert.deepEqual(card(quoting, "proposal"), { key: "books", label: "For a quote", value: "Takes their details" });
-  assert.deepEqual(
-    card(quoting, "booking"),
-    { key: "books", label: "Books with", value: null },
-    "missing, for one that books",
-  );
-  assert.deepEqual(card(null, "proposal"), { key: "books", label: "Books with", value: null }, "nothing read yet");
-  assert.throws(
-    () =>
-      receptionistCardOf({
-        setup: empty(),
-        answering: false,
-        brain: quoting,
-        numbers: null,
-        workspaceName: null,
-        tz: "America/New_York",
-      }),
-    TypeError,
-  );
+  assert.deepEqual(card({ business_name: "Harbor Moving" }), {
+    key: "books",
+    label: "To book",
+    value: "Takes their details",
+  });
+  const linked = card({ business_name: "Harbor Moving", booking_link: "https://book.example/harbor" });
+  assert.equal(linked.label, "Books with");
+  assert.match(linked.value, /book\.example/, "the link it sends");
+  assert.deepEqual(card(null), { key: "books", label: "Books with", value: null }, "nothing read yet");
 });
 
 test("Try it waits for a call: Setup's row names the number to call, the skip lets the first run go on, and Today keeps the row", () => {

@@ -33,11 +33,6 @@ export interface AbilityInputs {
   whatsappLive: boolean;
   hasCalendarFeed: boolean;
   hasBookingLink: boolean;
-  /**
-   * The workspace is not asked for a booking link: it says some customers get a proposal first (deals.ts
-   * bookingLinkOptional), and with none its receptionist takes their details instead (the first run's decision 2).
-   */
-  linkOptional: boolean;
   /** An approved booking-link template: the call sends the link as one (template-order bookingTemplate). */
   hasBookingTemplate: boolean;
   hasHandoffNumber: boolean;
@@ -82,7 +77,6 @@ const BOOLEAN_INPUTS: Record<
   whatsappLive: true,
   hasCalendarFeed: true,
   hasBookingLink: true,
-  linkOptional: true,
   hasBookingTemplate: true,
   hasHandoffNumber: true,
   hasEscalateWhen: true,
@@ -175,10 +169,10 @@ export function abilityRows(i: AbilityInputs): AbilitiesVM {
   // (outbound-gate.ts), and a chat reply CLASSED AS A BOOKING has the link taken back out
   // (steps.ts layerTwo) -- a price or services reply still carries it, which is why the
   // sentence says "when someone asks to book" and not "it sends no link".
+  // With no link it takes their details instead, for every business (the first run's decision 2; 0008, amended 18 Oct
+  // 2026: a business that quotes and one that books are told the same).
   const bookingDetail = !i.hasBookingLink
-    ? i.linkOptional
-      ? "No booking link, so it takes their details for you to follow up with a quote."
-      : "No booking link yet, so there is nothing to send."
+    ? "No booking link, so it takes their details for you to follow up."
     : !i.whatsappLive
       ? i.voiceLive
         ? "It goes out on WhatsApp, which isn't connected here, so on a call it offers to have someone follow up instead."
@@ -233,7 +227,7 @@ export function abilityRows(i: AbilityInputs): AbilitiesVM {
       channels: { voice: linkGoes && callSendsLink && !repliesHeld, whatsapp: linkGoes },
       runsOn: { label: "The booking link", row: "booking_link" },
       ready: linkGoes,
-      missing: !i.hasBookingLink && !i.linkOptional,
+      missing: !i.hasBookingLink,
     },
     {
       id: "transfer",

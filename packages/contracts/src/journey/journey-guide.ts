@@ -54,13 +54,13 @@ const MONTHS_OFFER: GuideRow = {
 };
 
 /**
- * The guide for a workspace's shape: `calendarOn` a calendar connected, `dealsOn` some customers get a proposal first,
- * `word` what it calls an appointment (contracts appointmentWordOf: "appointment" where it never picked). The stages in
- * the journey's order, those that need a calendar only with one and a proposal's only where deals are on, each moment's
+ * The guide for a workspace's shape: `calendarOn` a calendar connected, `hasDeals` a deal recorded here, `word` what it
+ * calls an appointment (contracts appointmentWordOf: "appointment" where it never picked). The stages in the journey's
+ * order, those that need a calendar only with one and a proposal's only where a deal was recorded, each moment's
  * said when its moment says it is (its hint in the word, lowercased as winBackWords says it), then the month's offer. Pure
  * and total.
  */
-export function journeyGuide(input: { calendarOn: boolean; dealsOn: boolean; word: AppointmentWord }): GuideRow[] {
+export function journeyGuide(input: { calendarOn: boolean; hasDeals: boolean; word: AppointmentWord }): GuideRow[] {
   const stages = journeyOf({ ...input, held: new Set() }).filter((s) => s.unmet === null);
   return [
     ...stages.map((s) => {

@@ -12,8 +12,8 @@ import { playbooks } from "@/server/readers/playbooks";
  *      reached this week (the breath the page shows), each trigger's pool
  *      over everyone, counted the way a run counts it, and the workspace's
  *      lists a playbook may run on, each with its own pool ("list:<id>"), and
- *      whether deals are on here (`deals_on`, 0008): the proposal follow-up is
- *      offered, and counted by the workspace's pace, only where they are (0006).
+ *      whether a deal was ever recorded here (`has_deals`): the proposal
+ *      follow-up is offered everywhere and counted by the workspace's pace (0006).
  * POST /api/v1/playbooks — { name?, trigger, template_id, params, run_hour?,
  *      cap_per_run?, gap_days?, cadence_days?, channels?, until?, trial_until? }, or `starter_key`
  *      in place of `template_id`: the playbook is judged whole, and only

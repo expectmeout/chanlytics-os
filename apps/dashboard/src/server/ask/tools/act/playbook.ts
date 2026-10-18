@@ -3,7 +3,6 @@ import { z } from "zod";
 import {
   CONSENT_CHANNELS,
   DEFAULT_CAMPAIGN_CHANNELS,
-  FOLLOW_UP_NEEDS_DEALS,
   FOLLOW_UP_ONE,
   LIBRARY_STARTER_WORDS,
   LIST_PLAYBOOK_CLASSES,
@@ -19,7 +18,6 @@ import {
   channelNeverCarries,
   cleanParam,
   enrolPurpose,
-  dealsAreOn,
   defaultParamSpecs,
   parseListToken,
   parseParamSpec,
@@ -33,7 +31,6 @@ import {
   startersForTrigger,
   messageAboutOfTrigger,
   triggerOf,
-  triggerOffered,
   type CampaignMessage,
   type ConsentChannel,
   type ListRef,
@@ -50,7 +47,6 @@ import {
   untilOf,
 } from "@chanlytics/core";
 import { followUpOnFile } from "@chanlytics/db";
-import { sellsByOf } from "../../../people/deals";
 import { twinRefusal } from "../../../campaigns/playbook-row";
 import { checkPlaybookInput, checkPlaybookMomentInput, type PlaybookInput } from "../../../campaigns/playbooks";
 import { checkStarterPlaybook } from "../../../campaigns/starter-templates";
@@ -104,7 +100,7 @@ const UNNAMED_GOES_BY = NEW_PLAYBOOK_TICKS_EVERY_CHANNEL ? "every one" : "the fi
  * reach-out's steps are not moments (MOMENT_TRIGGERS). The zod's enum and the refusal's list, one derivation. The tools
  * are a role's, never a workspace's, so which of them THIS workspace is offered (contracts momentOffered, decision 0041:
  * the reminder the day before and the check after an appointment, and the win-back by appointments, only where a
- * calendar is connected, the win-back by silence only where none is, the proposal follow-up only where deals are on) is
+ * calendar is connected, the win-back by silence only where none is) is
  * judged per proposal, by the route's own check (calendarRefusal, followUpRefusal, checkedPlaybook).
  */
 const PROPOSABLE_TRIGGERS = MOMENT_TRIGGERS.filter((t) => !(t.id in MOMENTS_RETIRED)).map((t) => t.id) as [
@@ -308,15 +304,11 @@ async function proposedSaying(
   return { asked, specs: values.specs, picked };
 }
 
-/** The proposal follow-up (0006): only where deals are on, and one per workspace (00167); its refusal, or null. */
+/** The proposal follow-up (0006): one per workspace (00167), in every workspace (0008, amended); its refusal, or null. */
 async function followUpRefusal(t: ToolContext, trig: Trigger): Promise<string | null> {
   if (trig.kind !== "deal") return null;
   // The one-follow-up index's reading (db followUpOnFile), the one a starter's route asks too.
-  const [sellsBy, one] = await Promise.all([
-    sellsByOf(t.ctx, t.tenantId),
-    followUpOnFile(t.ctx.supabase, t.tenantId, trig.id),
-  ]);
-  if (!triggerOffered(trig, dealsAreOn(sellsBy))) return FOLLOW_UP_NEEDS_DEALS;
+  const one = await followUpOnFile(t.ctx.supabase, t.tenantId, trig.id);
   return one ? FOLLOW_UP_ONE : null;
 }
 
@@ -745,7 +737,7 @@ export const playbookAction = actAction({
   ],
   label: "Preparing a campaign",
   words:
-    `Action moment takes trigger and proposes a standing rule that sends one message to newly eligible people who said yes: trigger is quiet_30 (win-back by silence, nothing heard in 30 days, where no calendar is connected), lapsed (win-back by appointments, none in 45 days, where a calendar is connected), ${APPOINTMENT_TRIGGERS.before} (a reminder the day before an appointment) or ${APPOINTMENT_TRIGGERS.after} (a check the day after one), both only where a calendar is connected and each sent whatever else the person hears from you within a week of it, everyone_monthly (the month's offer), saved_list (on any list: its token from sequences with action lists in list, one of People's or one of the workspace's own, with policy_class campaign for an offer or reengage for a win-back), or, where deals are on, proposal_waiting (the proposal follow-up: one nudge per proposal waiting past the workspace's pace, one such playbook per workspace, its message carrying the proposal's link as @proposal_link), a moment this workspace is not offered being refused in words to say; template_id is a message from sequences with action lists (the id of any of its versions), or omitted for the trigger's starter, which the card adds at its Approve where the workspace does not hold it yet (its WhatsApp version then goes to WhatsApp for review where none is on file, which the card says), but for a starter that takes words of its own such as the month's offer; starter, in place of template_id, is the moment's starter to file at Approve where the workspace does not hold it yet, by its key: on ${APPOINTMENT_TRIGGERS.after}, after_visit_review is the thank-you with a review ask, only where the Google listing keeps a review link, and after_visit_check, the thank-you that asks how it went, is the one taken when none is named; params are the message's values in order (typed text, or @first_name, @business_name, @booking_link, @review_link, the link its Google listing keeps for a review, @visit_when and @visit_service on an appointment's moment, or @proposal_link), filled in for a starter except a typed one such as the month's offer; run_hour is 9 to 20 by the business's clock (default 10), cap_per_run defaults to 25, and channels (whatsapp, sms, email; when none is named it goes by ` +
+    `Action moment takes trigger and proposes a standing rule that sends one message to newly eligible people who said yes: trigger is quiet_30 (win-back by silence, nothing heard in 30 days, where no calendar is connected), lapsed (win-back by appointments, none in 45 days, where a calendar is connected), ${APPOINTMENT_TRIGGERS.before} (a reminder the day before an appointment) or ${APPOINTMENT_TRIGGERS.after} (a check the day after one), both only where a calendar is connected and each sent whatever else the person hears from you within a week of it, everyone_monthly (the month's offer), saved_list (on any list: its token from sequences with action lists in list, one of People's or one of the workspace's own, with policy_class campaign for an offer or reengage for a win-back), or proposal_waiting (the proposal follow-up: one nudge per proposal waiting past the workspace's pace, one such playbook per workspace, its message carrying the proposal's link as @proposal_link), a moment this workspace is not offered being refused in words to say; template_id is a message from sequences with action lists (the id of any of its versions), or omitted for the trigger's starter, which the card adds at its Approve where the workspace does not hold it yet (its WhatsApp version then goes to WhatsApp for review where none is on file, which the card says), but for a starter that takes words of its own such as the month's offer; starter, in place of template_id, is the moment's starter to file at Approve where the workspace does not hold it yet, by its key: on ${APPOINTMENT_TRIGGERS.after}, after_visit_review is the thank-you with a review ask, only where the Google listing keeps a review link, and after_visit_check, the thank-you that asks how it went, is the one taken when none is named; params are the message's values in order (typed text, or @first_name, @business_name, @booking_link, @review_link, the link its Google listing keeps for a review, @visit_when and @visit_service on an appointment's moment, or @proposal_link), filled in for a starter except a typed one such as the month's offer; run_hour is 9 to 20 by the business's clock (default 10), cap_per_run defaults to 25, and channels (whatsapp, sms, email; when none is named it goes by ` +
     UNNAMED_GOES_BY +
     ` the workspace can send on now that the message holds, as a new playbook opens in Campaigns, and the card says which, so name them only to go by fewer, or by one that is not ready yet) are the ones it may go by, each person once on the first it can: a channel its purpose never carries is refused, and one the workspace cannot send on yet is kept, its runs holding those people until it can; until is its last day, YYYY-MM-DD by the business's clock, today or later, after which it runs nothing. Under a class that sends on its own (auto) a new playbook starts on trial for a week from when it is approved, each run waiting ${PLAYBOOK_VETO_DELAY_WORDS} for a Stop, and the card says so.`,
   build: proposePlaybook,

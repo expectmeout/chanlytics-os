@@ -18,8 +18,7 @@ export function campaignEnded(p, day) {
 }
 export function campaignRunsOn(p, at) {
   if (p.state !== "running") return false;
-  if (campaignEnded(p, localDate(at.tz, at.now))) return false;
-  return triggerOf(p.trigger)?.kind !== "deal" || at.dealsOn;
+  return !campaignEnded(p, localDate(at.tz, at.now));
 }
 export function campaignDayWords(day, tz, now) {
   return clockDate(zoneMidnight(tz, day) + 12 * HOUR_MS, tz, now.getTime());

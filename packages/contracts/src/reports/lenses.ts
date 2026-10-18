@@ -12,7 +12,6 @@ import { ADS_ROUTE, ADS_SCOPE_ALL, adsScopeKey, adsScopeOfKey } from "../ads/add
 import type { AdsScope } from "../ads/address";
 import { roleAtLeast } from "../config/roles";
 import type { Role } from "../config/workspace-config/role-perms";
-import { dealsAreOn } from "../deals/sells-by";
 import { reportRangeKey, reportRangeOfKey, type ReportDays } from "./report-periods";
 
 /** The period a lens's words are about: the report's own dates, as the page says them ("Aug 29" to "Sep 4"). */
@@ -37,11 +36,11 @@ interface ReportLens {
   /** The palette's sub-line. */
   sub: string;
   /**
-   * When the lens is shown: always, only where deals are on (`sells_by`, the one predicate `dealsAreOn`), or only where ads are
-   * on (`LensWho.adsOn`). Campaigns and Reviews are shown to every workspace for now (an owner sees "Nothing went out" today,
+   * When the lens is shown: always (the Pipeline's too, since every workspace has deals: 0008, amended 18 Oct 2026), or only
+   * where ads are on (`LensWho.adsOn`). Campaigns and Reviews are shown to every workspace for now (an owner sees "Nothing went out" today,
    * and nothing an owner sees disappears in this phase); each narrows to its spec's rule in the change that gives it its own tiles.
    */
-  shownWhen: "always" | "deals_on" | "ads_on";
+  shownWhen: "always" | "ads_on";
   /** The least role that may read it. */
   role: Role;
   /** What it says where it has nothing to draw (a period nobody wrote in, a lens the workspace has no use for). */
@@ -83,12 +82,12 @@ export const REPORT_LENSES = [
     id: "pipeline",
     label: "Pipeline",
     sub: "proposals, and what became of them",
-    shownWhen: "deals_on",
+    shownWhen: "always",
     role: "viewer",
     empty: () => ({
       title: "No proposals to report",
-      body: "Proposals you send, and what became of them, show here. Where your customers book directly, there is nothing to report.",
-      door: { label: "Open Settings", to: "admin/workspace" },
+      body: "Proposals you send, and what became of them, show here. Start one from anyone's page in People.",
+      door: { label: "Open the Pipeline", to: "clients/pipeline" },
     }),
   },
   {
@@ -243,9 +242,8 @@ export function lensOfRoute(route: string): LensId | null {
   return reportsRouteParts(route)?.lens ?? null;
 }
 
-/** What decides which lenses a workspace is shown: how its customers buy, whether it has ads, and the role of the person looking. */
+/** What decides which lenses a workspace is shown: whether it has ads, and the role of the person looking. */
 export interface LensWho {
-  sellsBy: string | null | undefined;
   /** Not yet known reads as a viewer, the lowest rung; a role the ladder does not know stands on none. */
   role: string | null | undefined;
   /** The workspace has ads to report: a demo session for now, then the workspaces with a connected ad account (decision 0049). */
@@ -254,9 +252,7 @@ export interface LensWho {
 
 /** Whether a lens's rule lets this workspace see it. */
 const shownTo = (l: LensRow, who: LensWho): boolean =>
-  l.shownWhen === "always" ||
-  (l.shownWhen === "deals_on" && dealsAreOn(who.sellsBy)) ||
-  (l.shownWhen === "ads_on" && who.adsOn);
+  l.shownWhen === "always" || (l.shownWhen === "ads_on" && who.adsOn);
 
 /** The lenses shown to this person in this workspace, in the strip's order. */
 export function lensesFor(who: LensWho): LensRow[] {

@@ -6,7 +6,6 @@ import {
   callerName,
   combinedInto,
   consentChangeOf,
-  dealsAreOn,
   personName,
   readyOrWhatsApp,
   writeReachOf,
@@ -147,7 +146,7 @@ async function notHere(sb: Parameters<typeof keptPersonOf>[0], tenantId: string,
  * One person in full, as GET contacts/:id answers it: the route's body, moved here whole, so the profile and Ask's
  * people.get read the same rows the same way. The row the list shows (people_list narrowed to this contact) and
  * everything the profile renders from, asked for in one round (the route's comment says why, and what it measured);
- * the workspace's config and how its customers buy come through their readers, once in a turn. A person this
+ * the workspace's config and its word come through their readers, once in a turn. A person this
  * workspace does not hold is the route's 404, in its words, before anything read is put together. The person is a row
  * a citation may name, as People names them; so is each of their threads, and each of their calls, by the caller as
  * the Calls page names them.
@@ -234,7 +233,7 @@ export const person: Reader<{ id: string }, { person: PersonDetailDto }> = {
       campaigns,
       lead,
       deals,
-      sellsBy,
+      word,
       thread,
       visits,
       notes,
@@ -303,9 +302,9 @@ export const person: Reader<{ id: string }, { person: PersonDetailDto }> = {
       // broadcast sent them, what is still to come, and the way back to where the finder found them.
       campaignsOfPerson(rc, id),
       leadOfPerson(rc.ctx, tenantId, id),
-      // Their deals, newest first, each with its link, the day it stands until and why they passed (0008); and how
-      // this workspace's customers buy, which decides whether the page says any of it. Each is safe on an older
-      // database: a table or a column that is not there costs the section, never the profile.
+      // Their deals, newest first, each with its link, the day it stands until and why they passed (0008); and what the
+      // workspace calls an appointment, which every card says. Each is safe on an older database: a table or a column
+      // that is not there costs the section, never the profile.
       sb
         .from("deals")
         .select(DEAL_DTO_COLUMNS)
@@ -313,7 +312,7 @@ export const person: Reader<{ id: string }, { person: PersonDetailDto }> = {
         .eq("contact_id", id)
         .order("created_at", { ascending: false })
         .then((r) => (r.error ? null : (r.data ?? []))),
-      load(rc, facts.sellsBy, undefined).then((r) => r.data),
+      load(rc, facts.appointmentWord, undefined).then((r) => r.data),
       threadRead,
       visitsRead,
       notesRead,
@@ -366,8 +365,8 @@ export const person: Reader<{ id: string }, { person: PersonDetailDto }> = {
       lead,
       doubts,
       deals: deals ?? undefined,
-      deals_on: dealsAreOn(sellsBy),
-      deal_pace: dealsAreOn(sellsBy) ? pace : null,
+      appointment_word: word,
+      deal_pace: pace,
       services: fromConfig.services,
       consult_first: fromConfig.consultFirst,
       added: cameFrom(added.data),
