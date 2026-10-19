@@ -476,8 +476,8 @@ test("the pages: titles not names, the starter set in Settings, one click on Bro
     "the card is the WHOLE message as the customer sees it: its heading and its buttons too",
   );
   assert.ok(
-    // The route is an App Router page since decision 0015 (its row left app-routes.jsx), on the route `messages`.
-    readCode("apps/dashboard/app/(os)/w/[workspace]/templates/page.tsx").includes("TemplatesPage"),
+    // Messages is the view of Campaigns it is (19 Oct 2026, `campaigns/messages`): its page a chunk of Campaigns' own.
+    readCode("apps/dashboard/src/surfaces/campaigns/home/campaigns-code.tsx").includes('"TemplatesPage"'),
   );
   // Integrations is Settings › Connections' TSX now (moved from integrations-real.jsx): the pane and its row.
   const integrations = ["pane", "row"]

@@ -72,9 +72,49 @@ export function warmSequenceRoute(route: string): void {
   if (place?.view !== "record") return;
   const { id, tab } = place;
   // A warm never throws: one that fails leaves nothing held, and the page reads as it opens (read-cache warm).
-  void records.warm(id, () => readRecord(id));
+  if (tab === "steps") void warmRecord(id);
+  else void records.warm(id, () => readRecord(id));
   if (tab === "people") void peoples.warm(id, () => readPeople(id));
   else if (tab === "history") void histories.warm(id, () => readHistory(id));
+}
+
+/** Whether a sequence's Steps draws who is in it (steps.tsx usePeopleOf): a step after the first, and no one-off. */
+const stepsDrawPeople = (r: RecordAnswer | null): boolean =>
+  !!r && r.ok && r.data.sequence.starts !== "date" && r.data.steps.length > 1;
+
+/**
+ * A sequence's record read ahead and, where its Steps draws who is in line, who is in it: opening it on its first tab drew
+ * the record, then waited again for its people (a local build, 19 Oct 2026: their read left as the record was drawn).
+ */
+async function warmRecord(id: string): Promise<void> {
+  const read = records.warm(id, () => readRecord(id));
+  const rec = read ? await read.catch(() => null) : records.peek(id);
+  if (stepsDrawPeople(rec)) await peoples.warm(id, () => readPeople(id))?.catch(() => null);
+}
+
+/** How many of the list's sequences are read ahead at most, and the breath between two, so none crowds a press. */
+const AHEAD_MAX = 12;
+const AHEAD_GAP_MS = 120;
+
+/**
+ * The list's sequences read ahead, one after another, as People reads the first people it shows once the boot is in
+ * (`__warmPeople`): on a phone a row has no pointer to reach it before the press, and a sequence opened read its record
+ * then, 480 to 570 ms on a local build and 580 ms to 2.2 s on production (19 Oct 2026). Only those this tab holds nothing
+ * of: one it holds paints at once and is read again as it opens. Stops when the tab is put away, or when asked (the answer).
+ */
+export function warmRecordsAhead(ids: readonly string[]): () => void {
+  let stopped = false;
+  void (async () => {
+    for (const id of ids.slice(0, AHEAD_MAX)) {
+      if (stopped || document.visibilityState === "hidden") return;
+      if (records.peek(id)) continue;
+      await warmRecord(id);
+      await new Promise((go) => setTimeout(go, AHEAD_GAP_MS));
+    }
+  })();
+  return () => {
+    stopped = true;
+  };
 }
 
 /**

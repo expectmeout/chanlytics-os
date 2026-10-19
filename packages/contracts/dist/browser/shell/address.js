@@ -1,3 +1,5 @@
+export const MESSAGES_ROUTE = "campaigns/messages";
+export const isMessagesParam = (param) => !!param && /^messages(\/|$)/.test(param);
 export const ROUTE_WORDS = {
   clients: "people",
   segments: "lists",
@@ -9,6 +11,7 @@ const headOf = (route) => route.includes("/") ? route.slice(0, route.indexOf("/"
 const SENT_OWN_WORDS = /* @__PURE__ */ new Set(["get-yes", "to-send"]);
 export function doorOf(route) {
   const head = headOf(route);
+  if (head === "messages") return route === head ? MESSAGES_ROUTE : null;
   const word = route.slice(head.length).replace(/^\//, "").split("/")[0] ?? "";
   if (head === "broadcasts") {
     return word && !word.startsWith("run:") && !SENT_OWN_WORDS.has(word) ? `campaigns/new:to:${word}` : null;

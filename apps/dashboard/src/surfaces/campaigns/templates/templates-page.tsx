@@ -35,9 +35,9 @@ import type { TemplateDto } from "@/surfaces/inbox/types";
 import { canDo, demoSession, gateTitle, navigate, useLegacyToast } from "../../legacy-verbs";
 import { FailedRead } from "../../kit/empty/empty";
 import { tabDraft } from "../../kit/record/work";
-import { useSurface } from "../../use-surface";
+import { usePartShown, useSurface } from "../../use-surface";
 import { CmHead } from "../parts/head";
-import { CmSplit, useCmPhone } from "../parts/split";
+import { CmSplit, useCmPhone, type CmView } from "../parts/split";
 import { PaneSheet } from "../home/pane-sheet";
 import { ReachOutEmailPane } from "../reach-out/email-message";
 import { tplEmailOpen, tplEmails, tplEmailsMatching } from "./emails";
@@ -64,18 +64,18 @@ import { brainOf } from "./words";
 const NO_VERSIONS: readonly TemplateDto[] = [];
 
 /** The page has read nothing yet, or is a session with no workspace to read. */
-function readingNow() {
+function readingNow(view: CmView | undefined) {
   return (
-    <div className="reports" data-testid="messages-real">
+    <div className="reports" data-testid="messages-real" ref={view?.ref} data-slide={view?.slide}>
       <div className="cm-standing">{demoSession() ? LIBRARY_WORDS.demo : LIBRARY_WORDS.reading}</div>
     </div>
   );
 }
 
 /** The templates could not be read: said, with the way to read them again. */
-function couldntLoad() {
+function couldntLoad(view: CmView | undefined) {
   return (
-    <div className="reports" data-testid="messages-real">
+    <div className="reports" data-testid="messages-real" ref={view?.ref} data-slide={view?.slide}>
       <div className="cm-standing">{LIBRARY_WORDS.failed}</div>
       <div className="rp-body">
         <FailedRead
@@ -139,7 +139,7 @@ function roleHint(canAct: boolean, hasWhatsApp: boolean): ReactNode {
   );
 }
 
-function MessagesReal() {
+function MessagesReal({ view }: { view?: CmView }) {
   // The settings surface holds the templates, the numbers and what sends and went out; a reach-out's emails are their
   // own surface (Part 4 PR 8): their rows draw when they land.
   const settings = useSurface("settings");
@@ -160,9 +160,12 @@ function MessagesReal() {
   const channels = useSurface("channels")?.rows;
   const hasWhatsApp = (channels || []).some((c) => c.kind === "whatsapp");
   const bizName = brainOf(settings ? settings.settings : undefined).business_name || null;
+  // Messages' first part (client/page-speed.ts, contracts PRIMARY_PART): its list, drawn once the settings read is in, or
+  // what could not be read. Shown beside Sequences under Campaigns' one mount, it is timed from the press that showed it.
+  usePartShown("templates", "list", templates !== undefined && messages !== undefined);
 
-  if (templates === undefined || messages === undefined) return readingNow();
-  if (templates === null || messages === null) return couldntLoad();
+  if (templates === undefined || messages === undefined) return readingNow(view);
+  if (templates === null || messages === null) return couldntLoad(view);
 
   const listing = listingOf(templates, messages, S);
   const { langs, starters, customGroups, hiddenGroups, missingTotal, allMissing } = listing;
@@ -278,7 +281,7 @@ function MessagesReal() {
   // phone, over it in the drawer.
   return (
     <>
-      <CmSplit className="tpl-page" testid="messages-real" list={list} open={phone ? null : pane} />
+      <CmSplit className="tpl-page" testid="messages-real" list={list} open={phone ? null : pane} view={view} />
       {phone ? phoneDrawer({ pane, composing, onClose: composing ? () => setComposing(false) : closeOpen }) : null}
       {toastNode}
     </>
@@ -303,7 +306,11 @@ function phoneDrawer({ pane, composing, onClose }: { pane: ReactNode; composing:
   );
 }
 
-/** The page, over what the settings and reach-out surfaces hold: no props, the address is its route's. */
-export function TemplatesPage() {
-  return <MessagesReal />;
+/**
+ * Messages, over what the settings and reach-out surfaces hold, as Campaigns draws it (home/route.tsx): a view kept beside
+ * Sequences under Campaigns' one mount, `view` the deck's seat, its side and whether it is shown (parts/split.tsx
+ * CmView). Its code is a chunk of Campaigns' own (home/campaigns-code.tsx), so no page's first load carries it.
+ */
+export function TemplatesPage({ view }: { view?: CmView } = {}) {
+  return <MessagesReal view={view} />;
 }

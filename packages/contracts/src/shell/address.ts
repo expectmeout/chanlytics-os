@@ -18,6 +18,18 @@
  * Pure: the shell reads it over `window.location`, and the tests over a made-up one.
  */
 
+/**
+ * Messages' address (D4: the Library is Messages): a view of Campaigns beside Sequences, under the one mount Campaigns' views
+ * share, as Ads is at `campaigns/ads`, so a switch between the two reveals a view kept drawn rather than loading a page (the
+ * tabs review of 19 Oct 2026: a phone showed nothing for 600 ms between them). Its old route, `messages`, whose path was
+ * `/w/<slug>/templates`, lands here for ever (doorOf, below). Declared here, beside the route words, so this module stays a
+ * leaf of the boot: from Campaigns' words it carried them into the error screen's chunk (+3.7 KB on every first load).
+ */
+export const MESSAGES_ROUTE = "campaigns/messages";
+
+/** Whether a param of `campaigns` is Messages' view (its first word). */
+export const isMessagesParam = (param: string | null | undefined): boolean => !!param && /^messages(\/|$)/.test(param);
+
 /** The parts of an address the functions below read; every part may be missing (a made-up window has few). */
 export interface AddressParts {
   readonly pathname?: string | null;
@@ -56,9 +68,13 @@ const SENT_OWN_WORDS: ReadonlySet<string> = new Set(["get-yes", "to-send"]);
  * Sent has one way to write, the home's New message (`campaigns/new`), so `broadcasts/<audience>`, which People and a list
  * write when they ask to message these people, is a door to it: `campaigns/new:to:<audience>`. A run (`broadcasts/run:<id>`),
  * Get their yes (`broadcasts/get-yes`), the one To send (`broadcasts/to-send`, 00429) and the room itself stay where they are.
+ *
+ * Messages is a view of Campaigns (19 Oct 2026): `messages`, and the Library's path `templates`, land on `campaigns/messages`;
+ * nothing was ever under it, so `messages/<word>` is no door and opens nothing, as before.
  */
 export function doorOf(route: string): string | null {
   const head = headOf(route);
+  if (head === "messages") return route === head ? MESSAGES_ROUTE : null;
   const word = route.slice(head.length).replace(/^\//, "").split("/")[0] ?? "";
   if (head === "broadcasts") {
     return word && !word.startsWith("run:") && !SENT_OWN_WORDS.has(word) ? `campaigns/new:to:${word}` : null;

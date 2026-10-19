@@ -10,8 +10,10 @@
 import { useEffect, useRef, useState } from "react";
 import { runStillMoving, type BroadcastDetailDto } from "@chanlytics/contracts";
 import type { ApiResult } from "@/client/api";
+import { warmsOnItsOwn } from "@/legacy-bridge/workspace";
 import { useSurface } from "../../use-surface";
 import { broadcasts } from "../broadcasts/verbs";
+import { warmRecordsAhead } from "./verbs";
 
 /** What a read is now: not answered yet, its answer, or why it could not be read. */
 type Read<T> = { state: "reading" } | { state: "read"; data: T } | { state: "failed"; why: string };
@@ -87,4 +89,35 @@ const batchMoves = (d: BroadcastDetailDto) => runStillMoving(d.broadcast, Date.n
  */
 export function useBatchRead(id: string | null): Read<BroadcastDetailDto> {
   return useSequenceRead(id, broadcasts.detail, broadcasts.peekDetail, { moves: batchMoves });
+}
+
+/** How long an idle frame may wait before the list's sequences are read ahead: after the page's own reads. */
+const AHEAD_IDLE_MS = 3000;
+
+/**
+ * The sequences a list shows, read ahead once the frame is idle (verbs.ts warmRecordsAhead), in the order it shows them,
+ * where the frame may fetch with nobody reaching (workspace.ts warmsOnItsOwn: not on Save-Data or 2g), so a press opens a
+ * record the tab holds. Again when the list's order changes; a sequence already held reads nothing.
+ */
+export function useRecordsAhead(ids: readonly string[]): void {
+  const key = ids.join(" ");
+  useEffect(() => {
+    if (!key || typeof window === "undefined" || !warmsOnItsOwn()) return undefined;
+    let stop = () => {};
+    const go = () => {
+      stop = warmRecordsAhead(key.split(" "));
+    };
+    if (typeof window.requestIdleCallback === "function") {
+      const id = window.requestIdleCallback(go, { timeout: AHEAD_IDLE_MS });
+      return () => {
+        window.cancelIdleCallback(id);
+        stop();
+      };
+    }
+    const id = window.setTimeout(go, AHEAD_IDLE_MS);
+    return () => {
+      window.clearTimeout(id);
+      stop();
+    };
+  }, [key]);
 }

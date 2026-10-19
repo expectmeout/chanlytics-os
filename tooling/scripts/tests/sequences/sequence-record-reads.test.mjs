@@ -182,6 +182,22 @@ test("any other sequence's record says neither", async () => {
   assert.equal("one_off" in rec, false);
 });
 
+test("a record asked by a part of its sequence, a step's id or a batch's, is its sequence's; an id of nothing is not found", async () => {
+  // Its own reads go out with the workspace's in one wave, by the id asked (the tabs review of 19 Oct 2026); an id that is
+  // no sequence's finds no row, and the sequence it is a part of is read after it.
+  const STEP = "88888888-8888-4888-8888-888888888888";
+  const BATCH = "99999999-9999-4999-8999-999999999999";
+  const [oneOff] = world().sequence_batches;
+  const tables = world({
+    sequence_steps: [{ id: STEP, tenant_id: TID, sequence_id: MOMENT }],
+    sequence_batches: [oneOff, { ...oneOff, id: BATCH, sequence_id: LEADS }],
+  });
+  assert.equal((await recordOf(STEP, tables)).sequence.id, MOMENT, "a step's, as the step editor asks");
+  assert.equal((await recordOf(BATCH, tables)).sequence.id, LEADS, "a batch's, as a run's address asks");
+  assert.equal((await recordOf(MOMENT, tables)).sequence.id, MOMENT, "its own");
+  await assert.rejects(recordOf("77777777-7777-4777-8777-000000000000", tables), /Sequence not found/);
+});
+
 /* ------------------------------------------------------------------------------------------- GET sequences/:id/reach -- */
 
 /** A campaign's card as GET playbooks answers it, the fields the reach reads. */

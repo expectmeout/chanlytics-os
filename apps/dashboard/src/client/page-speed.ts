@@ -174,7 +174,7 @@ const SHELL_ROUTE_OF: Readonly<Record<string, string>> = {
   lists: "segments",
   settings: "admin",
   playbooks: "outbound",
-  templates: "messages",
+  templates: "campaigns/messages",
 };
 
 /**

@@ -23,6 +23,7 @@ import {
   firstRunStepOf,
   FIRST_RUN_FIND_ROUTE,
   FIRST_RUN_ROUTE,
+  MESSAGES_ROUTE,
   newConversationOf,
   parseLeadsRoute,
   parseListToken,
@@ -111,11 +112,12 @@ function opensCalendar(param: string): Opened | null {
 }
 
 /**
- * What Campaigns' param opens: its Sequences view (0060: the list, a sequence on one of its tabs, a new one), else a moment (a
- * campaign or a reach-out) in its drawer, a message by its name, the composer or a group.
+ * What Campaigns' param opens: its Sequences view (0060: the list, a sequence on one of its tabs, a new one), its Messages
+ * view, else a moment (a campaign or a reach-out) in its drawer, a message by its name, the composer or a group.
  */
 function opensCampaigns(param: string): Opened | null {
   if (param === "") return { view: "campaigns" };
+  if (`campaigns/${param}` === MESSAGES_ROUTE) return { view: MESSAGES_ROUTE };
   const sequences = parseSequencesRoute(`campaigns/${param}`);
   if (sequences)
     return { view: sequences.view === "list" ? "campaigns/sequences" : `campaigns/sequences/${sequences.view}` };
@@ -234,7 +236,7 @@ function opensReports(param: string): Opened | null {
  *   conversations  `<tab>`, `<conversation>`, `cv-<call>`, and a row on its tab, `<tab>:<row>`
  *   live           `<call>`
  *   calendar       `<yyyy-mm-dd>`, `a-<visit>`, `<yyyy-mm-dd>:a-<visit>`
- *   campaigns      `in:<group>`, `moment:<campaign>`, `message:<template>`, `new` and the composer's other doors (`new:to:`,
+ *   campaigns      `messages`, `in:<group>`, `moment:<campaign>`, `message:<template>`, `new` and the composer's other doors (`new:to:`,
  *                  `new:leads`; `new:every`, `new:moment:` and `new:edit:` land on Sequences, contracts sequenceLandingOf)
  *   broadcasts     `run:<send>`, `get-yes`
  *   clients        `<person>`, `new-list`, `seg:<built-in list>`, `list:<kept list>`, `leads` and its views
@@ -243,7 +245,7 @@ function opensReports(param: string): Opened | null {
  *   start          `<step>`, `find`
  *   admin          `<pane>`, with a row of Business or Activity after it (`workspace/<row>`, `activity/<part>`)
  *   reports        `<lens>`, `<lens>:<days>`, `<days>`, `reviews:<review>`
- *   today, messages: the route alone. outbound: a door (contracts doorOf), read as the page that replaced it.
+ *   today: the route alone. outbound, messages: a door (contracts doorOf), read as the page that replaced it.
  */
 const PAGES: ReadonlyMap<string, Parse> = new Map<string, Parse>([
   ["today", alone("today")],
@@ -252,7 +254,9 @@ const PAGES: ReadonlyMap<string, Parse> = new Map<string, Parse>([
   ["live", flat(opensLive)],
   ["calendar", flat(opensCalendar)],
   ["campaigns", opensCampaigns],
-  ["messages", alone("messages")],
+  // Messages is a view of Campaigns (19 Oct 2026): canonicalRoute sends `messages` to `campaigns/messages` before the page
+  // is asked, so nothing is opened here.
+  ["messages", () => null],
   ["broadcasts", flat(opensSent)],
   // A person's tab has a slash (`clients/<id>/history`), which opensPeople reads itself.
   ["clients", opensPeople],

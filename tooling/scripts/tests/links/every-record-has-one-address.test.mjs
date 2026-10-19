@@ -219,7 +219,9 @@ test("a page opens its own views, which are no record: a day, a lens, a tab, the
     campaigns: "campaigns",
     "campaigns/new": "campaigns/new",
     "campaigns/in:reach_out": "campaigns/in",
-    messages: "messages",
+    // Messages is a view of Campaigns (19 Oct 2026), and its old word a door to it.
+    "campaigns/messages": "campaigns/messages",
+    messages: "campaigns/messages",
     broadcasts: "broadcasts",
     "broadcasts/get-yes": "broadcasts/get-yes",
     "broadcasts/to-send": "broadcasts/to-send",

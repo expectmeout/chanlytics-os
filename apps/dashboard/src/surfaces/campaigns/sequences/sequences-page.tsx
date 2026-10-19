@@ -23,7 +23,7 @@ import { useStanding } from "../../kit/head/standing";
 import { Icon } from "../../kit/icon/icon";
 import { gate, navigate, routeDoor } from "../../legacy-verbs";
 import { usePartShown, useSurface } from "../../use-surface";
-import { CmSplit } from "../parts/split";
+import { CmSplit, type CmView } from "../parts/split";
 import { SequencesList } from "./list";
 import { NewSequence } from "./new";
 import { SequenceRecord } from "./record";
@@ -78,7 +78,8 @@ function backWayOf(back: string | null) {
   return { label: (t && t.leadName) || SEQUENCE_WORDS.backToLeads, go: () => navigate(back) };
 }
 
-export function SequencesPage({ route }: { route: string }) {
+/** Sequences as Campaigns draws it, a view kept beside Messages: `view` is the deck's seat and side (parts/split.tsx CmView). */
+export function SequencesPage({ route, view }: { route: string; view?: CmView }) {
   const place = parseSequencesRoute(route) ?? { view: "list" as const };
   // Campaigns' first part (client/page-speed.ts, contracts PRIMARY_PART): Sequences' list, drawn with its rows, or with
   // what could not be read. Timed from the press, so the page's own chunk and its read are in it, not the gate's frame alone.
@@ -101,6 +102,7 @@ export function SequencesPage({ route }: { route: string }) {
     <CmSplit
       testid="sq-page"
       className="sq-page"
+      view={view}
       list={<SequencesListPane openId={place.view === "record" ? place.id : null} />}
       open={open}
     />
