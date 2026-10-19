@@ -1677,6 +1677,11 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
+/* A visit said off (cancelled): struck, in the dim ink, as the calendar's board strikes its block. */
+.ag-item[data-struck] .ag-item-name {
+  color: var(--ink-dim);
+  text-decoration: line-through;
+}
 .ag-item-sub {
   font-size: var(--text-xs);
   line-height: 1.35;

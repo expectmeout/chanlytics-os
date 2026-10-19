@@ -19,7 +19,7 @@ import {
   runHeldEmails,
   runDraftedEmails,
   runsThatWait,
-  runLabelOf,
+  runTitleOf,
   runTooLate,
   toSendRunsOf,
   type BroadcastVM,
@@ -140,7 +140,7 @@ function SoonRun({ r, nav, verbKind, stop, busy }: SoonRunProps) {
       <AttnRow
         initials="▶"
         glyph="bolt"
-        name={runLabelOf(r)}
+        name={runTitleOf(r)}
         meta={words.meta}
         sentence={words.sentence}
         status={words.status}
@@ -154,7 +154,7 @@ function SoonRun({ r, nav, verbKind, stop, busy }: SoonRunProps) {
         <Confirm
           block
           danger
-          question={W.question({ name: runLabelOf(r) })}
+          question={W.question({ name: runTitleOf(r) })}
           detail={W.detail}
           yes={W.yes}
           onYes={() => {
@@ -218,7 +218,7 @@ export const runRows = (nav: Nav, flash: Say, verbKind: VerbKind, { room, acting
       flash({
         msg: (
           <>
-            <b>{runLabelOf(r)}</b> {runStoppedWords(typeof data?.was === "string" ? data.was : "scheduled")}
+            <b>{runTitleOf(r)}</b> {runStoppedWords(typeof data?.was === "string" ? data.was : "scheduled")}
           </>
         ),
       });
@@ -236,7 +236,7 @@ export const runRows = (nav: Nav, flash: Say, verbKind: VerbKind, { room, acting
       const n = data.recipient_count || r.recipient_count;
       // When it really goes (broadcasts-real.jsx bcWhenWords): the server moves a send outside 9:00-20:59 to nine.
       const when = bcWhenWords(data);
-      const t = TODAY_HELPERS.runApproved(runLabelOf(r), n, when);
+      const t = TODAY_HELPERS.runApproved(runTitleOf(r), n, when);
       flash({
         msg: (
           <>
@@ -276,7 +276,7 @@ export const runRows = (nav: Nav, flash: Say, verbKind: VerbKind, { room, acting
           key={`run-${r.id}`}
           initials="▶"
           glyph="bolt"
-          name={runLabelOf(r)}
+          name={runTitleOf(r)}
           meta={said.meta}
           sentence={held || late ? said.sentence : paused ? CAMPAIGNS_PAUSED_WORDS : said.sentence}
           status={said.status}

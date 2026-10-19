@@ -332,6 +332,16 @@ export function runLabelOf(run: { audience?: unknown; name: string }): string {
   return typeof label === "string" && label.trim() ? label : run.name;
 }
 
+/**
+ * What a run is called at the head of its own page and its row in the Inbox: its own name, less the day a sequence's run
+ * carries after it (core run-playbook writes "VIP color clients · 2026-10-18"), which read as a code in a phone's head. A
+ * one-off keeps its name: runLabelOf would call one sent to a list by the list's.
+ */
+export function runTitleOf(run: { name: string; run_for?: string | null }): string {
+  const tail = run.run_for ? ` · ${run.run_for}` : null;
+  return tail && run.name.endsWith(tail) && run.name.length > tail.length ? run.name.slice(0, -tail.length) : run.name;
+}
+
 /** "today 9:00 AM" · "tomorrow 9:00 AM" · "Sep 12 · 10:00 AM", by the business's day and clock (clock.ts). */
 export function whenLabel(iso: string, tz: string, now = new Date()): string {
   const ms = Date.parse(iso);

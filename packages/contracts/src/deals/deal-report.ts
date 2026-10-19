@@ -152,6 +152,10 @@ function reasonsLine(reasons: DealReportDto["reasons"], passed: number): string 
   }
   const runnerUp = given.find((r) => r.count < top)?.count ?? 0;
   const end = none > 0 && (tied.length > 1 || runnerUp + none >= top) ? `; ${none} gave no reason.` : ".";
+  // Every reason given came up as often as every other: none was the most common, so the line says they were even (it
+  // read "Price, timing, ... were the most common reasons for passing, 1 each of 5": Ruben's screenshot, 18 Oct 2026).
+  if (tied.length === given.length)
+    return `No one reason stood out: ${leadAnd(tied.map((r) => DEAL_LOST_REASON_SAID[r.reason]))}, ${top} each of ${passed}${end}`;
   return tied.length > 1
     ? `${names} were the most common reasons for passing, ${top} each of ${passed}${end}`
     : `${names} was the most common reason for passing, ${top} of ${passed}${end}`;

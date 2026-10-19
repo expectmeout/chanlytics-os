@@ -930,6 +930,7 @@ test("the bridge: the jump index and Right now come from the surfaces, the quick
         {
           id: "r1",
           name: "Win-back · 2026-09-21",
+          playbook_id: "pb-win",
           state: "pending_approval",
           recipient_count: 1,
           when: "now",

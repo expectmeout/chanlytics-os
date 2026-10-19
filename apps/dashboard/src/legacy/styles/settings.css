@@ -153,7 +153,9 @@
    across: the two panes cross-fade where they stand. */
 .set-pane[data-slide] { animation: none; }
 @media (min-width: 721px) {
-  .set-pane { --view-travel: 0px; }
+  /* The first card's top is the rail's: 28px over it stood the cards a step below the sections beside them (the sample
+     walk, 18 Oct 2026). Two keep the card's ring inside the scroll box. */
+  .set-pane { --view-travel: 0px; padding-top: 2px; }
 }
 
 /* The settings column. Every section on this surface takes it -- including

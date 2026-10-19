@@ -252,7 +252,7 @@ function MessagesReal() {
     />
   ) : openEmail ? (
     <ReachOutEmailPane
-      key={`e:${openEmail.template_id}`}
+      key={`e:${openEmail.step_id}`}
       t={openEmail}
       busy={busy}
       onSave={acts.saveEmail}

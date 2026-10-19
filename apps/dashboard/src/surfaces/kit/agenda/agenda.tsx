@@ -39,6 +39,8 @@ interface AgendaItemProps {
   glyph?: string | null;
   /** Where it stands against the clock on today's list (past, now, next, later); "later" anywhere else. */
   phase?: string;
+  /** Said off (a visit cancelled): its name struck, as the board strikes its block. */
+  struck?: boolean;
   onOpen?: () => void;
   /** What the row says on hover. */
   hint?: string | null;
@@ -54,6 +56,7 @@ export function AgendaItem({
   flag = null,
   glyph = null,
   phase = "later",
+  struck = false,
   onOpen,
   hint = null,
   testid = null,
@@ -67,6 +70,7 @@ export function AgendaItem({
       title={hint || undefined}
       data-testid={testid || undefined}
       data-phase={phase}
+      data-struck={struck || undefined}
     >
       <span className="ag-item-time">{time}</span>
       <span className="ag-item-rail" aria-hidden="true" />

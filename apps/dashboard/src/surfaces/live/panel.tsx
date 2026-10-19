@@ -301,13 +301,15 @@ export const LrPanel = ({ c, elapsed, nowMs = Date.now(), notice = null, onBack 
   usePeopleTrails();
   if (!c) {
     // A chosen call that is gone is the panel's whole news; "nothing on the line" beside it would say less than is true.
+    // With no call the panel is the empty state's alone, so it takes the page's shape, standing in the panel's middle: the
+    // card's dashed edge lay on the panel's own, 12px corners inside its 30 (the sample walk, 18 Oct 2026).
     return (
       <div className="lm-panel lm-call">
         {notice ? (
           <LrMissing notice={notice} />
         ) : (
           <EmptyState
-            kind="card"
+            kind="page"
             glyph="phone"
             title="Nothing on the line"
             body="When a customer calls, you can follow the call here while it is happening."

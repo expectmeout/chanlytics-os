@@ -8,7 +8,8 @@
  * - a one-off send (a broadcast with no campaign) at its time, in Sent's words for its state (BROADCAST_STATE_LABELS);
  * - a campaign's run waiting for approval, on its day and never at an hour (its scheduled_for is the moment it was made),
  *   the page's one amber (RUN_WAITING_WORDS), "Too late to approve" once its day has passed;
- * - the campaign runs that went, one quiet "Campaigns · N sent" a day (todayRunWords' kind), the day's sheet naming each;
+ * - the campaign runs that went, at the minute they went, those within a quarter hour one quiet "N campaigns · N sent"
+ *   (todayRunWords' kind), the day's sheet naming each;
  * - each running campaign's next run, today or tomorrow only, per campaign: "10 AM · … · to come" where its class sends
  *   by itself or after a Stop, "to approve tomorrow" where it waits for a person; never where a run row already stands for
  *   it that day or a later one, where it has ended, or while the workspace is paused;
@@ -25,6 +26,7 @@ import { clockInZone, dayInZone } from "./zone-math";
 import { shiftKey } from "./day-keys";
 import { clockLabel } from "./calendar-words";
 import { plural } from "../shared/words";
+import { MIN_MS } from "../shared/time";
 
 /** One run as the span's read carries it: a one-off send, a campaign's run, or a reach-out step's. */
 export interface CalendarRunDto {
@@ -260,16 +262,42 @@ function failedMark(r: CalendarRunDto, name: string, tz: string): CalendarRunMar
   };
 }
 
-/** The day's campaign runs that went (or are going): one quiet mark, its sheet naming each. */
-function wentMark(day: string, runs: Array<{ r: CalendarRunDto; name: string }>): CalendarRunMark {
+/** Runs that went within this many minutes of the first of them are one mark on the board: the minute a day's runs go at. */
+const WENT_FOLD_MS = 15 * MIN_MS;
+
+/**
+ * The day's campaign runs that went (or are going), at the minute each went: runs within a quarter hour of each other are
+ * one quiet mark, its sheet naming each. They were one mark a day at no hour, so a run at 10 AM stood over the day's
+ * first hour (Ruben, 18 Oct 2026: the board draws a campaign at its time, the Calendar's lane C revisited).
+ */
+function wentMarks(day: string, runs: Array<{ r: CalendarRunDto; name: string }>, tz: string): CalendarRunMark[] {
+  const timed = runs.map((x) => ({ ...x, at: placedAt(x.r) })).sort((a, b) => a.at - b.at);
+  const folds: Array<typeof timed> = [];
+  for (const x of timed) {
+    const fold = folds[folds.length - 1];
+    const first = fold?.[0];
+    if (fold && first && Number.isFinite(x.at) && x.at - first.at <= WENT_FOLD_MS) fold.push(x);
+    else folds.push([x]);
+  }
+  return folds.map((fold) => wentMark(day, fold, tz));
+}
+
+/** One fold of runs that went: at its first run's minute, named for its one campaign or counting them. */
+function wentMark(
+  day: string,
+  runs: Array<{ r: CalendarRunDto; name: string; at: number }>,
+  tz: string,
+): CalendarRunMark {
   const sent = runs.reduce((n, x) => n + x.r.sent, 0);
   const one = runs.length === 1 ? runs[0] : undefined;
+  const first = runs[0];
+  const t = first && Number.isFinite(first.at) ? hoursIn(tz, first.at) : null;
   return {
-    key: `campaigns:${day}`,
+    key: `campaigns:${day}:${first?.r.id ?? ""}`,
     kind: "campaigns",
-    t: null,
-    time: "",
-    name: one ? one.name : RUN_WORDS.many,
+    t,
+    time: t === null ? "" : clockLabel(t),
+    name: one ? one.name : plural(runs.length, "campaign", "campaigns"),
     words: RUN_WORDS.sent(sent),
     tone: "plain",
     ahead: false,
@@ -341,7 +369,7 @@ function runMarks(dto: CalendarRunsDto, days: Days, todayKey: string, names: Rea
     else if (r.state === "failed") pushOn(days, day, failedMark(r, name, tz));
     else if (r.state === "sent" || r.state === "sending") went.set(day, [...(went.get(day) ?? []), { r, name }]);
   }
-  for (const [day, runs] of went) pushOn(days, day, wentMark(day, runs));
+  for (const [day, runs] of went) for (const m of wentMarks(day, runs, tz)) pushOn(days, day, m);
   for (const c of cold.values())
     pushOn(days, c.day, coldMark(c.day, c.id, names.get(c.id) ?? c.runs[0]?.name ?? "", c.runs, todayKey));
 }

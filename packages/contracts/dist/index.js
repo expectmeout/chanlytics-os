@@ -2005,7 +2005,7 @@ var peopleTile = ({ points, tot, prev, noun, rangeLabel, priorHadAny }) => ({
   metric: "new_people",
   label: "New people",
   value: String(tot.newPeople),
-  meta: tot.newPeople ? "first contact in this period, by evidence" : "nobody new",
+  meta: tot.newPeople ? "first got in touch in this period" : "nobody new",
   delta: deltaOf(tot.newPeople, prev.newPeople, true, noun),
   spark: points.map((p) => p.newPeople),
   compare: compareWords(tot.newPeople, prev.newPeople, rangeLabel, priorHadAny)
@@ -6906,13 +6906,13 @@ var ESCALATION_SUMMARIES = {
   policy_block: "Your reply setting holds every message for a person. Nothing was sent \u2014 answer them yourself.",
   policy_ask: "Your Autonomy setting hands bookings or service questions to a person. The receptionist told them someone will follow up \u2014 that someone is you.",
   person_hold: "You set the receptionist to stay out of this person's thread. Nothing was sent \u2014 answer them yourself.",
-  rate_cap: "The receptionist hit its daily reply limit and stopped. NOTHING was sent \u2014 they're waiting in silence.",
+  rate_cap: "The receptionist hit its daily reply limit and stopped. Nothing was sent \u2014 they're waiting in silence.",
   deadman: "This sat unanswered long enough to flag. Nobody has replied.",
   manual: "Flagged by hand for a human.",
   opt_out: `${STOP_WORDS.said("They")}. Nothing was sent, and nothing may be.`,
   state_unavailable: "The receptionist couldn't read this thread, so it stayed quiet. No reply went out.",
-  stale: "This reached us hours after they sent it, too late to answer automatically. NOTHING was sent \u2014 they have been waiting since.",
-  budget: "The day's model budget is used up, so the receptionist paused itself. NOTHING was sent \u2014 answer them yourself, or raise the budget under Settings \u203A Autonomy.",
+  stale: "This reached us hours after they sent it, too late to answer automatically. Nothing was sent \u2014 they have been waiting since then.",
+  budget: "The day's model budget is used up, so the receptionist paused itself. Nothing was sent \u2014 answer them yourself, or raise the budget under Settings \u203A Autonomy.",
   callback: "They phoned and are still owed a call: the call didn't connect, they hung up without a word, or the receptionist couldn't finish it.",
   paused: "The workspace is paused because billing stopped, so the receptionist did not answer. Resume from Settings \u203A Billing, or answer this one yourself.",
   carriers: "This text arrived before the carriers approved your line for texting, so the receptionist did not answer. Answer it yourself, or wait for the approval on Setup.",
@@ -7200,9 +7200,24 @@ function periodFactsOf(dto) {
     hold: holdOf(dto.replies)
   };
 }
-var reasonBarsOf = (reasons) => bars(
-  Object.entries(reasons ?? {}).sort((a, b) => b[1] - a[1]).map(([r2, n]) => [r2, capitalize(reasonShort(r2)) || r2, n])
-);
+var reasonBarsOf = (reasons) => {
+  const byLabel = /* @__PURE__ */ new Map();
+  for (const [r2, n] of Object.entries(reasons ?? {}).sort((a, b) => b[1] - a[1])) {
+    const label = capitalize(reasonShort(r2)) || r2;
+    const had = byLabel.get(label);
+    byLabel.set(label, had ? [had[0], label, had[2] + n] : [r2, label, n]);
+  }
+  return bars([...byLabel.values()].sort((a, b) => b[2] - a[2]));
+};
+var REPORT_REASONS_SHOWN = 7;
+var reasonsShownOf = (reasons) => {
+  if (reasons.length <= REPORT_REASONS_SHOWN + 1) return { bars: reasons, line: null };
+  const top = reasons.slice(0, REPORT_REASONS_SHOWN);
+  return {
+    bars: bars(top.map((r2) => [r2.id, r2.label, r2.value])),
+    line: `The ${REPORT_REASONS_SHOWN} most frequent of ${reasons.length} reasons. The table lists them all.`
+  };
+};
 var moodBarsOf = (sentiments) => bars(
   Object.entries(sentiments ?? {}).sort((a, b) => moodRank(a[0]) - moodRank(b[0]) || b[1] - a[1]).map(([s, n]) => [s, s, n])
 );
@@ -7325,6 +7340,7 @@ function toReportVM(dto, opts) {
     tiles,
     answered: answeredOf(f),
     reasons,
+    reasonsShown: reasonsShownOf(reasons),
     replyTime: replyTimeOf(f),
     calls: callsOf(f, sentiments),
     people: peopleOf(f),
@@ -21313,6 +21329,10 @@ function runLabelOf(run) {
   const label = run.audience?.label;
   return typeof label === "string" && label.trim() ? label : run.name;
 }
+function runTitleOf(run) {
+  const tail = run.run_for ? ` \xB7 ${run.run_for}` : null;
+  return tail && run.name.endsWith(tail) && run.name.length > tail.length ? run.name.slice(0, -tail.length) : run.name;
+}
 function whenLabel(iso, tz, now = /* @__PURE__ */ new Date()) {
   const ms2 = Date.parse(iso);
   return Number.isFinite(ms2) ? clockWhen(ms2, tz, now.getTime()) : "";
@@ -32374,15 +32394,29 @@ function failedMark(r2, name, tz) {
     items: []
   };
 }
-function wentMark(day, runs) {
+var WENT_FOLD_MS = 15 * MIN_MS;
+function wentMarks(day, runs, tz) {
+  const timed = runs.map((x) => ({ ...x, at: placedAt(x.r) })).sort((a, b) => a.at - b.at);
+  const folds = [];
+  for (const x of timed) {
+    const fold2 = folds[folds.length - 1];
+    const first = fold2?.[0];
+    if (fold2 && first && Number.isFinite(x.at) && x.at - first.at <= WENT_FOLD_MS) fold2.push(x);
+    else folds.push([x]);
+  }
+  return folds.map((fold2) => wentMark(day, fold2, tz));
+}
+function wentMark(day, runs, tz) {
   const sent = runs.reduce((n, x) => n + x.r.sent, 0);
   const one = runs.length === 1 ? runs[0] : void 0;
+  const first = runs[0];
+  const t = first && Number.isFinite(first.at) ? hoursIn(tz, first.at) : null;
   return {
-    key: `campaigns:${day}`,
+    key: `campaigns:${day}:${first?.r.id ?? ""}`,
     kind: "campaigns",
-    t: null,
-    time: "",
-    name: one ? one.name : RUN_WORDS.many,
+    t,
+    time: t === null ? "" : clockLabel(t),
+    name: one ? one.name : plural(runs.length, "campaign", "campaigns"),
     words: RUN_WORDS.sent(sent),
     tone: "plain",
     ahead: false,
@@ -32444,7 +32478,7 @@ function runMarks(dto, days, todayKey, names3) {
     else if (r2.state === "failed") pushOn(days, day, failedMark(r2, name, tz));
     else if (r2.state === "sent" || r2.state === "sending") went.set(day, [...went.get(day) ?? [], { r: r2, name }]);
   }
-  for (const [day, runs] of went) pushOn(days, day, wentMark(day, runs));
+  for (const [day, runs] of went) for (const m of wentMarks(day, runs, tz)) pushOn(days, day, m);
   for (const c of cold.values())
     pushOn(days, c.day, coldMark(c.day, c.id, names3.get(c.id) ?? c.runs[0]?.name ?? "", c.runs, todayKey));
 }
@@ -35751,6 +35785,8 @@ function reasonsLine(reasons, passed) {
   }
   const runnerUp = given.find((r2) => r2.count < top)?.count ?? 0;
   const end = none > 0 && (tied.length > 1 || runnerUp + none >= top) ? `; ${none} gave no reason.` : ".";
+  if (tied.length === given.length)
+    return `No one reason stood out: ${leadAnd(tied.map((r2) => DEAL_LOST_REASON_SAID[r2.reason]))}, ${top} each of ${passed}${end}`;
   return tied.length > 1 ? `${names3} were the most common reasons for passing, ${top} each of ${passed}${end}` : `${names3} was the most common reason for passing, ${top} of ${passed}${end}`;
 }
 function openLine(open) {
@@ -39669,7 +39705,7 @@ function sequenceRowLine(row2, tz, nowMs, twin = null) {
   if (row2.starts === "date" && row2.date) {
     const at3 = Date.parse(row2.date.at);
     if (row2.last)
-      return `Sent ${clockDate(Date.parse(row2.last.at), tz, nowMs)} \xB7 ${row2.last.sent} \xB7 ${row2.last.replied} replied`;
+      return `Sent ${clockDate(Date.parse(row2.last.at), tz, nowMs)} \xB7 ${plural(row2.last.sent, "person", "people")} \xB7 ${row2.last.replied} replied`;
     return `${clockDate(at3, tz, nowMs)} \xB7 ${plural(row2.date.people, "person", "people")}`;
   }
   if (row2.state === "paused") return row2.in_it > 0 ? `${row2.in_it} waiting` : "Paused";
@@ -42398,7 +42434,7 @@ function todayQueue(f, callRows, empty) {
   const earN = countOf3("call");
   const searchN = countOf3("search");
   const parts2 = [
-    needN ? `${needN} need you` : "",
+    needN ? `${needN} ${needN === 1 ? "person" : "people"}` : "",
     searchN ? `${searchN} ${searchN === 1 ? "search" : "searches"} waiting for your answer` : "",
     winN ? `${winN} reply window${winN === 1 ? "" : "s"} closing` : "",
     earN ? `${earN} call${earN === 1 ? "" : "s"} worth a listen` : ""
@@ -62717,6 +62753,7 @@ export {
   runStillMoving,
   runStopWords,
   runStoppedWords,
+  runTitleOf,
   runTooLate,
   runWaitsOnYou,
   runningTotal,

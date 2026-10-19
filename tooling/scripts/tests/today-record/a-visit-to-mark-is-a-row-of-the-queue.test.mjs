@@ -146,10 +146,7 @@ test("yesterday's unmarked visits are rows of the queue: the person, 'Did they c
   first.props.onClick();
   assert.equal(went.at(-1), "calendar/2026-09-17:a-r-a");
   // The head says them in its sub-line; its number is who is waiting on a person, and a visit to mark is nobody waiting.
-  assert.match(
-    textOf(find(queueOf(tree), (n) => classes(n).includes("tq-sub"))),
-    /1 need you · 4 appointments to mark/,
-  );
+  assert.match(textOf(find(queueOf(tree), (n) => classes(n).includes("tq-sub"))), /1 person · 4 appointments to mark/);
   assert.equal(textOf(byTestId(queueOf(tree), "today-queue-count")), "1");
   // The card is four rows: the fourth visit is cut, and the foot counts it with the Calendar as its door.
   const foot = find(queueOf(tree), (n) => classes(n).includes("tq-foot"));

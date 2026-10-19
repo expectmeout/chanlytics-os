@@ -27,6 +27,7 @@ import {
   runHeldEmails,
   runDraftedEmails,
   runLabelOf,
+  runTitleOf,
   runsThatWait,
   sameQuestion,
   scopeFromRoute,
@@ -214,7 +215,9 @@ export function waitingFrom(win: Window, parts: Waits | null = needsYouParts()):
     more: Math.max(0, threadsWaiting - people.length),
     runs: runs.map((r) => ({
       id: r.id,
-      label: runLabelOf(r),
+      // A campaign's run by its campaign (its audience's label), a one-off by its own name, as Today's card says them: a
+      // one-off sent to a list was named for the list (18 Oct 2026, the sample walk).
+      label: r.playbook_id ? runLabelOf(r) : runTitleOf(r),
       reach: r.recipient_count,
       to: `broadcasts/run:${r.id}`,
     })),

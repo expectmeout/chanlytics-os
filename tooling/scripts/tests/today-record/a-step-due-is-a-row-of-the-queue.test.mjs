@@ -269,7 +269,7 @@ test("Today's queue draws the steps due in the row every person wears: the row o
   assert.equal(went.at(-1), "clients/d");
   // The head says them in its sub-line; its number is who is waiting on a person, as Ask, the Inbox's badge and the phone say it:
   // a step is the team's own to-do and nobody waiting.
-  assert.match(textOf(find(queueOf(tree), (n) => classes(n).includes("tq-sub"))), /1 need you · 6 steps due/);
+  assert.match(textOf(find(queueOf(tree), (n) => classes(n).includes("tq-sub"))), /1 person · 6 steps due/);
   assert.equal(textOf(byTestId(queueOf(tree), "today-queue-count")), "1", "the one person waiting, and no step");
   // The card is four rows: the row for the rest is cut with the three steps it stands for, and the foot counts them.
   assert.equal(byTestId(queueOf(tree), "queue-steps"), null);
