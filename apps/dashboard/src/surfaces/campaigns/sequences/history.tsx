@@ -10,6 +10,7 @@
  */
 import { useEffect, useRef, useState } from "react";
 import {
+  batchModeOf,
   SEQUENCE_HISTORY_PERIODS,
   SEQUENCE_HISTORY_WORDS as H,
   batchWent,
@@ -188,8 +189,11 @@ function UpcomingRow(p: { rec: SequenceRecordDto; nowMs: number; batches: readon
   const next = sequenceNextOf(row, rec.last_run_for, rec.timezone, nowMs);
   const made = row.next;
   if (!next || (made && batches.some((b) => b.id === made.id))) return null;
-  // A batch made and waiting for an OK waits, whoever approves the rest.
-  const said = historyUpcomingWords(next.people, made?.state === "pending_approval" ? "ask" : rec.mode);
+  // A batch made and waiting for an OK waits; one to come goes by its sequence's mode, or asks while its words are new.
+  const said = historyUpcomingWords(
+    next.people,
+    made?.state === "pending_approval" ? "ask" : batchModeOf({ mode: row.mode, words_ok_at: row.first?.words_ok_at }),
+  );
   return (
     <ListRow
       bare

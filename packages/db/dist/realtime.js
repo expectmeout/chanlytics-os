@@ -164,8 +164,9 @@ var NARROWED_UPDATES = {
   memberships: ["role"],
   // The workspace's status, name, zone, word for a booking and logo (00431, 00458, 00460).
   tenants: ["status", "name", "timezone", "appointment_word", "logo_path"],
-  // A review answered (00431). Not last_seen_at, which the sync stamps on every review.
-  google_reviews: ["reply_text", "replied_at"],
+  // A review answered (00431), and the reply it holds written, stopped or posted (00461). Not last_seen_at, which the
+  // sync stamps on every review.
+  google_reviews: ["reply_text", "replied_at", "draft_text", "posts_at"],
   // What a round is and what it waits on (00431). Not its allowance, cost or judge's tokens and model.
   lead_rounds: [
     "state",

@@ -18,6 +18,7 @@
  *   { op: "disconnect", tenant_id }                        → the grant given back, the token gone, the profile's reviews gone
  *   { op: "reply", tenant_id, user_id, id, comment }       → an answer to a review, on Google and on the row
  *   { op: "draft", tenant_id, id }                         → the receptionist's draft of a reply, for a person to send; refused under Never
+ *   { op: "hold", tenant_id, user_id, id }                 → a held reply stopped: its time cleared, it waits for an OK (decision 0064)
  *
  * The key and the client secret live here and nowhere else. Without them the
  * ops that need them say so, and the dashboard draws nothing it cannot do.
@@ -38,7 +39,7 @@ import { googleReadiness, placesKey, profilePublic } from "./google-config.js";
 import { connectionForClient, listingForClient, type ConnectionRow, type ListingRow } from "./google-rows.js";
 import { findPlaces, readPlace } from "./places.js";
 import { checkListing } from "./listing-check.js";
-import { draftFor, replyOnProfile, reviewReplyMode } from "./review-answers.js";
+import { draftFor, holdReviewReply, replyOnProfile, reviewReplyMode } from "./review-answers.js";
 import { bindLocation, connectProfile, disconnectProfile, locationsFor } from "./profile-connection.js";
 import { syncProfile } from "./profile-sync.js";
 import { logger, type Logger } from "../log.js";
@@ -95,7 +96,7 @@ type OnListing = (c: GoogleCall, conn: ConnectionRow | null, row: ListingRow | n
  * done, so the reads are the phases, and an op nobody knows falls through all
  * of them.
  */
-const ON_WORKSPACE: Record<"link" | "connect" | "draft", OnWorkspace> = { link, connect, draft };
+const ON_WORKSPACE: Record<"link" | "connect" | "draft" | "hold", OnWorkspace> = { link, connect, draft, hold };
 
 const ON_CONNECTION: Record<"locations" | "choose" | "disconnect" | "reply", OnConnection> = {
   locations,
@@ -210,6 +211,20 @@ async function draft(c: GoogleCall): Promise<Response> {
   const { answer, log } = draftAnswer(id, mode, await draftFor(c.db, c.tenantId, id));
   c.L.info(log.event, log.fields);
   return respond(answer);
+}
+
+/**
+ * A held reply stopped (decision 0064, step 6): under Holds it, its time is cleared and it waits for an OK; one with no
+ * time to clear (Ask me, already answered, or none held) is no change, said as such.
+ */
+async function hold(c: GoogleCall): Promise<Response> {
+  const id = reviewIdOf(c.body.id);
+  if (!id) return respond(NO_REVIEW_ID);
+  const r = await holdReviewReply(c.db, c.tenantId, id);
+  if (!r.ok) return refuse(500, "write_failed", r.detail);
+  // The ledger's line is the dashboard's, as a reply's is (its route records the stop).
+  if (r.held) c.L.info("google_reply_stopped", { id });
+  return json(200, { ok: true, held: r.held });
 }
 
 /* ---------------------------------------------------- locations, choose */

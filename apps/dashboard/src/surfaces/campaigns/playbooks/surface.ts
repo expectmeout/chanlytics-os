@@ -230,8 +230,6 @@ export interface PlaybooksSurface {
   library: LifecycleTemplate[] | null | undefined;
   /** Every message of the workspace, on every channel (the settings read's `messages`): the Library's count. Null where unread. */
   messages: CampaignMessage[] | null;
-  /** Each autonomy class's mode (GET playbooks' `modes`): Resume says a class under `auto` in full. Null where unread. */
-  modes: Readonly<Record<string, string>> | null;
   number: { present: boolean; health: NumberHealth };
   businessName: string;
   /** Its postal address where the Business record holds one: the foot of an email names it (contracts emailFoot). */
@@ -315,7 +313,6 @@ function rederivePlaybooks(now: Date): boolean {
           next: card.next,
           off: card.off,
           ended: card.ended,
-          trial: card.trial,
           runs: card.runs,
           listArchived: card.listArchived,
         }
@@ -436,9 +433,8 @@ export const playbooksOverride: SurfaceOverride = {
           held: reading ? reading.held : null,
           named: namedOf(reading),
           off: card.off,
-          // The day it ended, or its trial ends (00416), in the card's words: what its state says.
+          // The day it ended (00416), in the card's words: what its state says.
           ended: card.ended,
-          trial: card.trial,
           // Whether it runs on the business's day (contracts campaignRunsOn): Run now and the card's next run read it.
           runs: card.runs,
         };
@@ -467,8 +463,6 @@ export const playbooksOverride: SurfaceOverride = {
       })),
       // The settings read's, as it stands now (absent while that is still being read; followSettings above).
       ...templatesOfSettings(surfaceValue("settings")),
-      // A server from before `modes` answers none: Resume then says when and to how many alone.
-      modes: pb.modes ?? null,
       number: { present: wa.present, health: wa.health },
       // The settings read's, as it stands now (followSettings above): a read not in yet says nothing of the listing.
       ...cmBusinessOf(surfaceValue("settings")),

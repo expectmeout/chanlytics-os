@@ -117,6 +117,8 @@ function world(over = {}) {
     processed: 0,
     handled: [],
     queued: [],
+    // The owner told of a reply that waits to go in their name (decision 0064: the sink's replyHeld).
+    heldTold: [],
     usage: [],
     unreachable: 0,
     media: 0,
@@ -190,6 +192,9 @@ function world(over = {}) {
           seen.emails.push(address);
         },
         vetoFallback: async () => {},
+        replyHeld: async (n) => {
+          seen.heldTold.push(n);
+        },
         pause: async (iso) => {
           seen.pauses.push(iso);
           memory.pausedUntil = Date.parse(iso);
@@ -2038,4 +2043,31 @@ test("a message held before the model is held for that hold, not for the day's t
     free.seen.escalations.map((e) => e.reason),
     ["budget"],
   );
+});
+
+test("a reply that waits to go in the owner's name tells them once, with when it goes and why it waits; one that could not wait tells nothing of a wait (decision 0064, step 2)", async () => {
+  const live = { env: { modelKey: "sk-test" } };
+  const before = Date.now();
+  const held = world({ ...live, rt: veto, queue: true });
+  await held.run(text("when do you open?"), reply("We open at 9."));
+  assert.equal(held.seen.queued.length, 1, "the reply waits");
+  assert.equal(held.seen.heldTold.length, 1, "and the owner is told once");
+  const told = held.seen.heldTold[0];
+  assert.deepEqual([told.reply, told.unsure], ["We open at 9.", false]);
+  assert.ok(told.atMs >= before + 60_000 && told.atMs <= Date.now() + 60_000, "when it goes: its own wait");
+  const unsureHeld = world({ ...live, rt: floor, queue: true });
+  await unsureHeld.run(text("when do you open?"), reply("We open at 9.", unsure));
+  assert.deepEqual(
+    unsureHeld.seen.heldTold.map((n) => n.unsure),
+    [true],
+    "the confidence floor's wait says it was not sure",
+  );
+  // A hold that could not be written: the veto window's reply went now, so no wait is told.
+  const sentNow = world({ ...live, rt: veto });
+  await sentNow.run(text("when do you open?"), reply("We open at 9."));
+  assert.deepEqual([sentNow.seen.sent.length, sentNow.seen.heldTold.length], [1, 0]);
+  // Nothing held, nothing told.
+  const plain = world(live);
+  await plain.run(text("when do you open?"), reply("We open at 9."));
+  assert.deepEqual(plain.seen.heldTold, []);
 });

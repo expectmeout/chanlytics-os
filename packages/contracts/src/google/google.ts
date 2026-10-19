@@ -18,7 +18,7 @@ import type { SchemaSet } from "../shared/schema-sets";
 import { clockDate, zoneDayKey } from "../shared/clock";
 import { agoWords, isoMs, WEEK_MS, HOUR_MS, DAY_MS } from "../shared/time";
 import { plural, reviewsPhrase } from "../shared/words";
-import { reviewReplyWords, type ReviewReplyMode } from "./review-reply";
+import { heldReviewReplyOf, reviewReplyWords, type HeldReviewReply, type ReviewReplyMode } from "./review-reply";
 import { reviewRoute } from "../reports/lenses";
 import { dayPointOf, fmtDay, rangeLabelOf, withinWords } from "../reports/reports";
 import { beforeWords, compareWords, type ReportTileVM } from "../reports/report-tiles";
@@ -200,6 +200,12 @@ export interface GoogleReviewDto {
   published_at: string | null;
   reply_text: string | null;
   replied_at: string | null;
+  /**
+   * The reply the receptionist wrote and holds (decision 0064, step 6): under Ask me for your OK, under Holds it until
+   * `posts_at`, when the hourly sync posts it unless it was stopped. Null where none is held; absent from a server before.
+   */
+  draft_text?: string | null;
+  posts_at?: string | null;
   maps_uri: string | null;
   first_seen_at: string;
 }
@@ -411,6 +417,8 @@ export interface GoogleReviewVM {
   isNew: boolean;
   /** Read through the owner's profile: every review, and it can be answered. */
   fromProfile: boolean;
+  /** The reply the receptionist wrote and holds for it (decision 0064, step 6); null where none is held. */
+  heldReply: HeldReviewReply | null;
 }
 
 export interface GoogleGainedPointVM {
@@ -520,6 +528,7 @@ export function toGoogleReviewVM(r: GoogleReviewDto, linkedAt: string, tz: strin
     text: (r.body ?? "").replace(/\s+/g, " ").trim(),
     replied: !!r.reply_text,
     replyText: (r.reply_text ?? "").replace(/\s+/g, " ").trim(),
+    heldReply: heldReviewReplyOf(r, tz),
     mapsUri: r.maps_uri,
     isNew: reviewIsNew(r, linkedAt, nowMs),
     fromProfile: r.origin === "profile",

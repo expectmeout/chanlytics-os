@@ -858,15 +858,15 @@ test("the queue: no count badge over the rows, one primary verb, the runs in con
     textOf(waiting).includes(w.waiting.sentence) && textOf(waiting).includes(w.waiting.status[0]),
     textOf(waiting),
   );
-  // Four rows: the two people waiting, then both runs — the one waiting for a word, then the one under its
-  // veto window. Everything fits, and the foot says so (E3); what does not fit is the next test's business.
-  assert.ok(byTestId(queue, "brief-run-soon"), "the scheduled run has a seat once the people are drawn");
+  // Three rows: the two people waiting, then the run waiting for a word. The run under its veto window is Going today's,
+  // above the queue (decision 0064), never a row here. Everything fits, and the foot says so (E3).
+  assert.equal(byTestId(queue, "brief-run-soon"), null, "a run that goes on its own is Going today's row");
   assert.match(
     textOf(find(queue, (n) => classes(n).includes("tq-foot"))),
     /Nothing more in the Inbox/,
     "nothing was cut, and the foot says so",
   );
-  assert.equal(all(queue, (n) => classes(n).includes("cl-attn-row")).length, 4, "the card is four rows");
+  assert.equal(all(queue, (n) => classes(n).includes("cl-attn-row")).length, 3, "the card is three rows");
   await press(buttons(waiting, "Approve")[0]);
   const t = todayRunApproved("Win-back", 3, bcWhenWords(approved));
   assert.match(t.rest, /scheduled for/, "the server moved it, and the sentence says when");
@@ -1049,11 +1049,9 @@ test("four rows: people take three while a run wants the fourth, and all four wh
     "brief-run-row",
     "and the fourth is the run waiting for a word — the decision no other row can stand in for",
   );
-  // Nothing is dropped in silence: the fourth person and the second run are both counted, each with its door.
-  assert.match(
-    textOf(find(queue, (n) => classes(n).includes("tq-foot"))),
-    /1 more in the Inbox · 1 more run in Campaigns/,
-  );
+  // Nothing is dropped in silence: the fourth person is counted, with its door. The run about to go is Going today's.
+  assert.match(textOf(find(queue, (n) => classes(n).includes("tq-foot"))), /1 more in the Inbox/);
+  assert.doesNotMatch(textOf(find(queue, (n) => classes(n).includes("tq-foot"))), /more run/);
 
   // No run wants the seat, so a fourth person has it rather than leaving a hole.
   set({ __BROADCASTS: { rows: [] } });
@@ -1665,7 +1663,8 @@ test("the page is its bands and nothing seeded", () => {
   const name = (c) => (typeof c.type === "function" ? c.type.name : String(c.props.className));
   // What is left to set up sits above the queue in its column, never across the page (canvas R10).
   const work = find(tree, (n) => classes(n).includes("dash-a-v2-work"));
-  assert.deepEqual(work.props.children.map(name), ["TodaySetup", "AgentCommand"]);
+  // And what goes on its own today sits above the queue, over what waits for your OK (decision 0064).
+  assert.deepEqual(work.props.children.map(name), ["TodaySetup", "TodayGoing", "AgentCommand"]);
   assert.equal(
     buttons(byTestId(tree, "today-card"), "Reports").length,
     1,
@@ -1714,7 +1713,7 @@ test("the queue's foot stands with nothing cut and says so, and a row carries it
   press(seeAll[0]);
   assert.equal(went.at(-1), "inbox");
   assert.equal(all(queue, (n) => n.props?.["data-testid"] === "queue-snooze").length, 0, "one verb a row (E3)");
-  assert.equal(all(queue, (n) => classes(n).includes("cl-attn-row")).length, 4, "the same four rows");
+  assert.equal(all(queue, (n) => classes(n).includes("cl-attn-row")).length, 3, "the same three rows");
   assert.ok(byTestId(queue, "today-queue-count"), "the count before the name");
 });
 
@@ -1984,7 +1983,7 @@ test("the brief: who needs you in bold with the oldest wait, the calendar's day,
   assert.ok(bold.includes("Dulce Amaro"));
   // Then what came in (the recap's line), then the run waiting for a word, its name in bold.
   assert.ok(said.includes(busy().recap.line), said);
-  assert.match(said, /Win-back is waiting for your approval: .*Nothing sends until you say so\./, said);
+  assert.match(said, /Win-back is waiting for your approval: .*Waits for your OK until the end of its day/, said);
   assert.ok(bold.includes("Win-back"));
   // The same words are what the follow-up asks about.
   press(buttons(tree, "Ask a follow-up")[0]);

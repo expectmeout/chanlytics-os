@@ -1,6 +1,7 @@
 {
   "ai_usage_purge()": 1,
-  "approve_broadcast()": 1,
+  "approve_broadcast()": 2,
+  "assemble_broadcast()": 1,
   "billing_card_mark()": 1,
   "billing_event_keep_amount()": 1,
   "claim_conversation_control()": 1,
@@ -89,6 +90,7 @@
   "set_template_hidden()": 1,
   "set_template_title()": 1,
   "sweep_voice_sessions()": 1,
+  "templates_words_changed()": 1,
   "tenant_config_version_keep()": 1,
   "tenant_config_write()": 1
 }

@@ -85,7 +85,16 @@ export interface CampaignLedgerSeriesDto {
     buckets: { m15: number; h1: number; h4: number; h24: number; h72: number };
   };
   /** The approvals made in the window, by the seconds from the run's being made to the decision. */
-  approval: { n: number; median_s: number | null; buckets: { h1: number; h4: number; h24: number; over: number } };
+  /**
+   * The waits for an OK of the runs approved in the window, and (since 00461, decision 0064) how many runs the night skipped
+   * there because nobody answered; absent from a database before it.
+   */
+  approval: {
+    n: number;
+    skipped?: number;
+    median_s: number | null;
+    buckets: { h1: number; h4: number; h24: number; over: number };
+  };
 }
 
 /* ---------------------------------------------------------------- campaign_stuck (00406) */

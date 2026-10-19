@@ -15,7 +15,7 @@ import { playbooks } from "@/server/readers/playbooks";
  *      whether a deal was ever recorded here (`has_deals`): the proposal
  *      follow-up is offered everywhere and counted by the workspace's pace (0006).
  * POST /api/v1/playbooks — { name?, trigger, template_id, params, run_hour?,
- *      cap_per_run?, gap_days?, cadence_days?, channels?, until?, trial_until? }, or `starter_key`
+ *      cap_per_run?, gap_days?, cadence_days?, channels?, until? }, or `starter_key`
  *      in place of `template_id`: the playbook is judged whole, and only
  *      where it goes by a channel the starter's message holds at once (an
  *      email or text version, or a WhatsApp version already approved) is
@@ -30,9 +30,8 @@ import { playbooks } from "@/server/readers/playbooks";
  *      go by, WhatsApp alone when none is named: a tick its purpose never
  *      carries (texts carry no offers) is refused here, and one the workspace
  *      is not ready on is not (a run holds the people it cannot reach there).
- *      `trial_until`, an instant with its zone, starts it on trial until then
- *      (00416, D5: Ask's card under an auto class), judged as a change's is;
- *      `until`, YYYY-MM-DD, is its last day (00416: Ask's plan, an offer's
+ *      Its mode is its class's Autonomy row (decision 0064), and its first
+ *      batch waits for an OK whatever that is. `until`, YYYY-MM-DD, is its last day (00416: Ask's plan, an offer's
  *      campaign), today or later by the business's clock, judged as a
  *      change's is.
  *

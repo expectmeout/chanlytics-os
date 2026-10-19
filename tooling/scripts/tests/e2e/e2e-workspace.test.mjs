@@ -104,11 +104,11 @@ const MODES = {
   faq: "auto",
   booking: "auto",
   reply: "auto",
-  reengage: "ask",
-  campaign: "ask",
+  reengage: "veto",
+  campaign: "veto",
   reviews: "ask",
   money: "never",
-  follow_up: "ask",
+  follow_up: "veto",
 };
 
 /** The moves 00140's lead_rounds_guard allows, and nothing else. */

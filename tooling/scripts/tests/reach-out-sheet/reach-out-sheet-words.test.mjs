@@ -111,7 +111,6 @@ test("Start says what really happened, each reason in its own words; within the 
   );
   assert.equal(said("held", "waiting_for_you", 0), "A run of this reach-out already waits on you. Answer it first.");
   assert.equal(said("held", "billing"), "Saved. Nothing is planned until billing is sorted: open Billing.");
-  assert.equal(said("off", "never"), "Saved. Outreach is set to Never in Settings › Autonomy, so nothing runs.");
   assert.equal(
     said("held", "no_mailbox"),
     "Saved. Nothing is planned yet. Connect the mailbox you'll write from first: Google or Microsoft, here or in Settings › Connections › Email.",
@@ -133,7 +132,7 @@ test("Start says what really happened, each reason in its own words; within the 
     "the workspace's pause is said as the workspace's",
   );
   const within = ["sent", "held", "empty", "off", "failed", "preview"].flatMap((o) =>
-    ["billing", "never", "no_mailbox", "no_room", "nobody", "waiting_for_you", "already_ran", "paused", null].map((r) =>
+    ["billing", "no_mailbox", "no_room", "nobody", "waiting_for_you", "already_ran", "paused", null].map((r) =>
       said(o, r, 3),
     ),
   );
@@ -144,7 +143,7 @@ test("Start says what really happened, each reason in its own words; within the 
   );
 });
 
-test("the next run says a paused chain, never, billing and a waiting run as they are, then the sweep's own clock (R23)", () => {
+test("the next run says a paused chain, billing and a waiting run as they are, then the sweep's own clock (R23)", () => {
   const TZ = "America/Chicago";
   const at = new Date("2026-09-28T13:00:00Z"); // 8 AM in Austin
   const chain = (over = {}, next = {}) => ({
@@ -155,10 +154,6 @@ test("the next run says a paused chain, never, billing and a waiting run as they
   assert.equal(
     nextRunWords(chain({ state: "paused" }), TZ, at).text,
     "Paused. Nothing is planned until you resume it.",
-  );
-  assert.equal(
-    nextRunWords(chain({}, { mode: "never" }), TZ, at).text,
-    "Outreach is set to Never in Settings › Autonomy, so nothing runs.",
   );
   assert.equal(
     nextRunWords(chain({}, { may_spend: false }), TZ, at).text,

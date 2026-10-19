@@ -258,6 +258,7 @@ installPolicyStore(globalThis.window);
 // Today's queue and card (TSX since decision 0015): the day comes over the seam, the rows a run needs off the window.
 const { AgentCommand } = await import(`${S}/surfaces/today/pages/queue.tsx`);
 const { TodayBriefPane } = await import(`${S}/surfaces/today/pages/brief-pane.tsx`);
+const { TodayGoing } = await import(`${S}/surfaces/today/pages/going-today.tsx`);
 // The moved surfaces: TSX, drawn over the values the seam holds, their verbs imported.
 const { BroadcastsPage } = await import(`${S}/surfaces/campaigns/broadcasts/broadcasts-page.tsx`);
 const { Picker } = await import(`${S}/surfaces/kit/picker/picker.tsx`);
@@ -559,14 +560,12 @@ test("REGRESSION (A21): Today's run rows open the run -- a run waiting for you o
     assert.ok(who, "REGRESSION: the run's second door was Open Playbooks");
     press(who);
     run.props.onClick();
-    const next = byTestId(queue, "brief-run-soon");
-    press(buttonsSaying(next, "Open")[0]);
+    assert.deepEqual(went, ["broadcasts/run:b-wait", "broadcasts/run:b-wait"], "REGRESSION: Playbooks");
+    // The run about to send is Going today's row (decision 0064), above the queue: it opens its run too.
+    fresh();
+    const next = byTestId(TodayGoing(), "today-going-row");
     next.props.onClick();
-    assert.deepEqual(
-      went,
-      ["broadcasts/run:b-wait", "broadcasts/run:b-wait", "broadcasts/run:b-soon", "broadcasts/run:b-soon"],
-      "REGRESSION: Playbooks, and the page of every broadcast",
-    );
+    assert.deepEqual(went, ["broadcasts/run:b-soon"], "REGRESSION: the page of every broadcast");
     fresh();
     // What ran today is a line of the brief beside the queue (TodayBriefPane, canvas E3); it was a beat of the hero
     // above it, then of the day's card.
@@ -615,7 +614,7 @@ test("REGRESSION: a playbook's list that could not be read is not called deleted
   }
 });
 
-test("D1-run-words: a run still to come is canceled on Today as on Sent -- the same verb, the same question first, the same words after", async () => {
+test("D1-run-words: a run still to come is stopped on Today's Going today as Sent cancels it -- the same question first, the same words after (decision 0064)", async () => {
   const quiet = { queued: 3, sent: 0, skipped: 0, failed: 0, delivered: 0, read: 0, replied: 0 };
   const soon = dto({
     id: "b-soon",
@@ -645,28 +644,28 @@ test("D1-run-words: a run still to come is canceled on Today as on Sent -- the s
   globalThis.window.usePPToast = () => [null, (t) => toasts.push(t)];
   try {
     fresh();
-    let queue = AgentCommand();
-    const row = byTestId(queue, "brief-run-soon");
-    // The verb is Sent's Cancel (it was a Stop at one tap here), and the row's sentence says it.
-    assert.match(textOf(row), /Cancel it if you'd rather not\./);
-    assert.equal(buttonsSaying(row, "Stop").length, 0, "no Stop for a run still to come");
-    press(buttonsSaying(row, "Cancel")[0]);
+    let band = TodayGoing();
+    const row = byTestId(band, "today-going-row");
+    // Its one verb is the wait rule's Stop, and its sentence says when it goes unless it is stopped.
+    assert.match(textOf(row), /3 people\. Goes at .+ unless you stop it\./);
+    assert.equal(buttonsSaying(row, "Cancel").length, 0, "one word for it: Stop");
+    press(buttonsSaying(row, "Stop")[0]);
     assert.deepEqual(cancelled, [], "a press asks; it does not cancel");
     // The question Sent asks before the same cancel (contracts runStopWords), in the kit's Confirm under the row.
-    queue = drawAgain(AgentCommand);
-    const ask = byTestId(queue, "brief-run-soon-stop-confirm");
+    band = drawAgain(TodayGoing);
+    const ask = byTestId(band, "today-going-stop-confirm");
     assert.ok(ask, "REGRESSION: Today canceled a scheduled run at one tap, where Sent asks first");
     assert.ok(textOf(ask).includes("Cancel Offers?") && textOf(ask).includes("Nothing will send."), textOf(ask));
-    assert.equal(textOf(byTestId(queue, "brief-run-soon-stop-yes")).trim(), "Yes, cancel it");
+    assert.equal(textOf(byTestId(band, "today-going-stop-yes")).trim(), "Yes, cancel it");
     // No keeps it as it was.
-    press(byTestId(queue, "brief-run-soon-stop-no"));
-    queue = drawAgain(AgentCommand);
-    assert.equal(byTestId(queue, "brief-run-soon-stop-confirm"), null);
+    press(byTestId(band, "today-going-stop-no"));
+    band = drawAgain(TodayGoing);
+    assert.equal(byTestId(band, "today-going-stop-confirm"), null);
     assert.deepEqual(cancelled, []);
     // Yes cancels it, and says what Sent says of a run canceled (runStoppedWords), not "stopped: nothing sends".
-    press(buttonsSaying(byTestId(queue, "brief-run-soon"), "Cancel")[0]);
-    queue = drawAgain(AgentCommand);
-    await press(byTestId(queue, "brief-run-soon-stop-yes"));
+    press(buttonsSaying(byTestId(band, "today-going-row"), "Stop")[0]);
+    band = drawAgain(TodayGoing);
+    await press(byTestId(band, "today-going-stop-yes"));
     await settle();
     assert.deepEqual(cancelled, ["b-soon"]);
     assert.equal(textOf(toasts.at(-1).msg), "Offers canceled — nothing will send");

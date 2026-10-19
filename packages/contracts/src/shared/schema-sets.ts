@@ -50,7 +50,7 @@ import type {
 } from "../workspace/partner";
 import type { BROADCAST_STATES, REACH_OUT_SEND_STATES, RECIPIENT_STATES } from "../broadcasts/broadcasts";
 import type { REPLY_INTENTS, REPLY_UNREADS } from "../reach-out/reach-out-replies";
-import type { SEQUENCE_STARTS, SEQUENCE_STATES } from "../sequences/sequence";
+import type { SEQUENCE_MODES, SEQUENCE_STARTS, SEQUENCE_STATES } from "../sequences/sequence";
 import type { CALL_OUTCOMES } from "../voice/call-words";
 import type { POLICY_CLASSES, POLICY_MODES } from "../config/workspace-config/policy-classes";
 import type { DEAL_LOST_REASONS, DEAL_PERS, DEAL_SOURCES, DEAL_STAGES } from "../deals/deal-words";
@@ -179,6 +179,8 @@ export type SchemaAgreement = [
   // Sequences (decision 0060, 00440): how one starts and where it stands; a batch's states; a send's, a customer's four within
   // a lead's nine. A step runs under one of the policy classes.
   Holds<Exactly<Of<typeof SEQUENCE_STARTS>, SchemaSet<"sequences.starts">>>,
+  // How its batches are decided (decision 0064, 00461).
+  Holds<Exactly<Of<typeof SEQUENCE_MODES>, SchemaSet<"sequences.mode">>>,
   Holds<Exactly<Of<typeof SEQUENCE_STATES>, SchemaSet<"sequences.state">>>,
   Holds<Exactly<Of<typeof BROADCAST_STATES>, SchemaSet<"sequence_batches.state">>>,
   Holds<Within<Of<typeof RECIPIENT_STATES>, SchemaSet<"sequence_sends.state">>>,

@@ -258,16 +258,10 @@ function rowWaitingOf(p: LifecyclePlaybook, at: RowAt): LifecycleWaiting | null 
   return { runId: run.id, people: run.recipient_count, refusal: offer.kind === "skip" ? offer.why : null };
 }
 
-/** Resume, asked in place (resumeDetailOf), with the class's mode as GET playbooks' `modes` says it. */
+/** Resume, asked in place (resumeDetailOf), with what the row's next batch does by its sequence's mode. */
 function resumeOf(p: LifecyclePlaybook, input: LifecycleInput): LifecycleAct {
   const W = LIFECYCLE_WORDS.ledger.resume;
-  const cls = p.policy_class ?? triggerOf(p.trigger)?.cls ?? null;
-  const detail = resumeDetailOf(p, {
-    tz: input.tz,
-    nowMs: input.nowMs,
-    paused: workspacePausedOf(input),
-    mode: cls === null ? null : input.playbooks?.modes?.[cls],
-  });
+  const detail = resumeDetailOf(p, { tz: input.tz, nowMs: input.nowMs, paused: workspacePausedOf(input) });
   return { kind: "resume", label: W.label, playbookId: p.id, ask: { question: W.question(p.name), detail } };
 }
 

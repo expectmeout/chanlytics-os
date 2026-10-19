@@ -32,6 +32,8 @@ export interface ReachOutStep {
    */
   owner_sends: boolean;
   cap_per_run: number;
+  /** When a person last let a run of its words go (00461): null while they are new, and its run then waits for them. */
+  words_ok_at: string | null;
   template_id: string;
   template_name: string;
   template_language: string;
@@ -132,16 +134,13 @@ export interface ReachOutRunPorts {
   now(): number;
   /** The workspace's zone: a lead whose state has no zone keeps the business's hours. */
   workspaceZone: string;
-  /** The workspace's policy for the class outreach: veto | ask | never (contracts POLICY_CLASS_MODES.outreach). */
-  mode: "veto" | "ask" | "never";
+  /** Its sequence's mode (decision 0064): a sequence to leads holds each run for a stop (veto) or asks for each (ask). */
+  mode: "veto" | "ask";
   /** Whether the workspace may spend (contracts maySpend): cold email is a cost on the platform's account. */
   maySpend: boolean;
   alreadyRan(stepId: string, runFor: string): Promise<boolean>;
-  /**
-   * waiting: a run of the chain waits for its owner (its first, or any under ask), and nothing more is made until they
-   * answer it; approved: one went ahead without its owner's yes being owed; none: neither, so the next run asks.
-   */
-  chainState(rootId: string): Promise<"none" | "waiting" | "approved">;
+  /** Whether a run of the chain waits for its owner: nothing more is made until they answer it. */
+  chainWaits(rootId: string): Promise<boolean>;
   audience(step: ReachOutStep): Promise<ReachOutLead[]>;
   followers(step: FollowedStep): Promise<ReachOutFollower[]>;
   /**
@@ -178,7 +177,7 @@ export type ReachOutRunOutcome =
   | { outcome: "sent"; planned: number }
   | { outcome: "held"; reason: "waiting_for_you" | "no_mailbox" | "no_room" | "billing"; planned: number }
   | { outcome: "empty"; reason: "already_ran" | "nobody"; planned: 0 }
-  | { outcome: "off"; reason: "paused" | "never"; planned: 0 };
+  | { outcome: "off"; reason: "paused"; planned: 0 };
 
 /**
  * Why a later step refuses one of its leads (the door's own mapping, contracts outreachRefusalOf), and for an email step

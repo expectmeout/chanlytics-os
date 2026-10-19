@@ -66,10 +66,13 @@ export async function runsInSpan(
   return [...runs, ...sends];
 }
 
-/** A campaign's schedule: what its next run and its last day are worked out from, and its class. */
+/**
+ * A campaign's schedule: what its next run and its last day are worked out from, its sequence (whose mode decides its
+ * batches, decision 0064) and when its words were last let go.
+ */
 export type MomentScheduleRow = Pick<
   Database["public"]["Tables"]["sequence_steps"]["Row"],
-  "id" | "name" | "trigger" | "state" | "policy_class" | "run_hour" | "last_run_for" | "until" | "trial_until"
+  "id" | "sequence_id" | "name" | "trigger" | "state" | "run_hour" | "last_run_for" | "until" | "words_ok_at"
 >;
 
 /** Every campaign's schedule columns, and nothing more: the board forecasts from these alone. */
@@ -77,7 +80,7 @@ export async function momentSchedules(db: Db, tenantId: string): Promise<MomentS
   return readAllRows<MomentScheduleRow>("calendar_moment_schedules", (from, to) =>
     db
       .from("sequence_steps")
-      .select("id, name, trigger, state, policy_class, run_hour, last_run_for, until, trial_until")
+      .select("id, sequence_id, name, trigger, state, run_hour, last_run_for, until, words_ok_at")
       .eq("tenant_id", tenantId)
       .order("id", { ascending: true })
       .range(from, to),

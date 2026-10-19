@@ -2584,10 +2584,10 @@ async function skipAt(ports, id, people, reason) {
 
 // src/campaigns/run-playbook.ts
 import {
+  batchModeOf,
   campaignEnded,
   campaignMessageOf as campaignMessageOf2,
   clockWhen,
-  effectiveMode,
   localDate,
   messageHolds as messageHolds2,
   nextOpenMoment as nextOpenMoment3,
@@ -2606,8 +2606,8 @@ import {
   proposalFactsFor,
   readyForMessage,
   touchesAfterRun,
-  trialDayWords,
   triggerOf as triggerOf3,
+  readyRunNotice,
   vetoRunNotice,
   visitFactsFor,
   theirVisitTest,
@@ -2853,17 +2853,12 @@ async function sayTheRun(run, made) {
   const { ports, p, ctx, by, mode } = run;
   const { n, at } = made;
   if (!at) {
-    await ports.notify(
-      // A person reads "campaign", never "playbook" (decision 19): Today's away card finds the queue's run in this title,
-      // and reads the old word too (contracts today-away.ts), since the bell keeps rows written before.
-      `Campaign \u201C${p.name}\u201D is ready: ${n} ${n === 1 ? "person" : "people"}`,
-      `${n} ${n === 1 ? "person has" : "people have"} become eligible for \u201C${p.name}\u201D. Approve or skip the run from your Inbox or Today. Nothing is sent until you do; it waits until tonight.`,
-      made.madeId
-    );
+    const told = readyRunNotice(p.name, n);
+    await ports.notify(told.subject, told.body, made.madeId);
     return;
   }
   if (mode === "veto" && by.kind !== "user") {
-    const told = vetoRunNotice(p.name, n, clockWhen(at.getTime(), ctx.tz, ctx.now.getTime()), run.trial);
+    const told = vetoRunNotice(p.name, n, clockWhen(at.getTime(), ctx.tz, ctx.now.getTime()));
     await ports.notify(told.subject, told.body, made.madeId).catch(() => void 0);
   }
 }
@@ -2871,23 +2866,20 @@ async function runPlaybook(ports, cmd) {
   const { playbook: p, ctx, by } = cmd;
   const now = ctx.now;
   const runFor = cmd.runFor ?? localDate(ctx.tz, now);
-  const classMode = ctx.modes.get(p.policy_class) ?? "ask";
-  const mode = effectiveMode(p, classMode, now);
-  const trial = mode === classMode ? null : trialDayWords(p, ctx.tz, now);
+  const mode = batchModeOf({ mode: p.mode, words_ok_at: p.words_ok_at });
   const record = (data) => ports.record(p.id, runFor, now, { run_for: runFor, by: by.kind, ...data });
   const off = async (skipped, opts = {}) => {
     if (opts.record !== false) await record({ mode, skipped });
     return { outcome: "off", mode, skipped };
   };
   if (campaignEnded(p, runFor)) return off("ended");
-  const plan = by.kind === "user" ? mode === "never" ? { kind: "off" } : { kind: "send", state: "scheduled", at: now } : planRun(mode, now);
-  if (plan.kind === "off") return off("never");
+  const plan = by.kind === "user" ? { kind: "send", state: "scheduled", at: now } : planRun(mode, now);
   const send = plan.kind === "send" ? plan : null;
   const open = send ? nextOpenMoment3(ctx.tz, send.at) : null;
   const movedFrom = send && open?.moved ? send.at.toISOString() : null;
   const goesAt = open ? open.at : now;
   const channels = parseChannels(void 0, p.channels ?? null);
-  const run = { ports, p, ctx, by, runFor, mode, trial, channels, record, off };
+  const run = { ports, p, ctx, by, runFor, mode, channels, record, off };
   const message = await readMessage(run);
   if ("error" in message) return { outcome: "failed", error: message.error };
   const gate = await allowed(run, message);
@@ -3070,6 +3062,7 @@ import {
   overLimitRefusal,
   paramLabel,
   readyForMessage as readyForMessage2,
+  SEND_ONCE_STOP_MS,
   UUID as UUID2,
   listToken as listToken2,
   DAY_MS as DAY_MS3
@@ -3113,12 +3106,13 @@ function asked(raw) {
   };
 }
 function askedTime(scheduledFor, now) {
-  if (typeof scheduledFor !== "string" || !scheduledFor) return now;
+  const soon = { at: new Date(now.getTime() + SEND_ONCE_STOP_MS), pressedNow: true };
+  if (typeof scheduledFor !== "string" || !scheduledFor) return soon;
   const t = new Date(scheduledFor);
   if (Number.isNaN(t.getTime())) throw new AppError12("validation", "That is not a time.");
   if (!OFFSET.test(scheduledFor))
     throw new AppError12("validation", "Give the time with its offset, like 2026-09-20T15:00:00-04:00.");
-  return t.getTime() > now.getTime() ? t : now;
+  return t.getTime() > now.getTime() ? { at: t, pressedNow: false } : soon;
 }
 async function campaignHow(ports, message, channels, about) {
   const { ready, health } = await ports.channels();
@@ -3164,7 +3158,8 @@ async function createBroadcast(ports, cmd) {
     visits: false,
     proposal: false
   });
-  let when = askedTime(want.scheduledFor, now);
+  const timed = askedTime(want.scheduledFor, now);
+  let when = timed.at;
   const purpose = message.purpose;
   const { how, health } = await campaignHowOf(ports, message, want.channels, purpose);
   const { pool, label, kept } = await audienceOf(ports, want.ref, now);
@@ -3172,7 +3167,7 @@ async function createBroadcast(ports, cmd) {
   if (enrolled.length === 0) throw new AppError12("conflict", emptyAudienceRefusal(purpose, label, pool, how), 409);
   if (enrolled.length > BROADCAST_MAX_RECIPIENTS)
     throw new AppError12("validation", `At most ${BROADCAST_MAX_RECIPIENTS} people in one broadcast.`);
-  const ahead = when.getTime() > now.getTime();
+  const ahead = !timed.pressedNow;
   const { goes, leftOut } = await breathOf(ports, enrolled, want.breathe, { now, sendsAt: when });
   if (goes.length === 0) throw new AppError12("conflict", allLeftOutWords(label, leftOut.length), 409);
   const over = health ? overLimitRefusal(health, goes.filter((e) => e.channel === "whatsapp").length) : null;
@@ -3254,6 +3249,7 @@ async function createBroadcast(ports, cmd) {
     // is not claimed either.
     left_out: out.size - made.leftOutUnwritten,
     scheduled_ahead: ahead,
+    pressed_now: timed.pressedNow,
     decision_id: made.decisionId
   };
 }
@@ -3395,6 +3391,7 @@ import {
   enrolPurpose as enrolPurpose3,
   isDayKey,
   isPlaybookState,
+  isSequenceMode,
   isWinBack,
   localDate as localDate2,
   messageFitsMoment,
@@ -3511,13 +3508,12 @@ async function untilOf(ports, v, when) {
     throw new AppError15("validation", PLAYBOOK_PATCH_WORDS.untilPast(campaignDayWords(today, tz, when.now)));
   return v;
 }
-var INSTANT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:?\d{2})$/;
-function trialUntilOf(v, when) {
-  if (v === void 0 || v === null) return v;
-  const at = typeof v === "string" && INSTANT.test(v) ? Date.parse(v) : Number.NaN;
-  if (!Number.isFinite(at)) throw new AppError15("validation", PLAYBOOK_PATCH_WORDS.trialWhen);
-  if (!when.undo && at <= when.now.getTime()) throw new AppError15("validation", PLAYBOOK_PATCH_WORDS.trialPast);
-  return new Date(at).toISOString();
+function patchMode(row, v) {
+  if (v === void 0) return void 0;
+  if (!isSequenceMode(v)) throw new AppError15("validation", PLAYBOOK_PATCH_WORDS.modeWhich);
+  if (v === "auto" && triggerOf4(row.trigger)?.kind === "reach_out")
+    throw new AppError15("validation", PLAYBOOK_PATCH_WORDS.modeLeads);
+  return v;
 }
 function patchHeldOf(row) {
   return {
@@ -3529,20 +3525,18 @@ function patchHeldOf(row) {
     cadence_days: row.cadence_days,
     params: parseParamSpecs3(row.params),
     until: row.until ?? null,
-    trial_until: row.trial_until ?? null
+    mode: row.mode
   };
 }
 function holdsAlready(k, to, held) {
   if (k === "params") return JSON.stringify(to) === JSON.stringify(held);
-  if (k === "trial_until" && typeof to === "string" && typeof held === "string")
-    return Date.parse(to) === Date.parse(held);
   return to === held;
 }
 async function checkPlaybookPatch(ports, row, asked2, when) {
   const keys = Object.keys(asked2).filter((k) => asked2[k] !== void 0);
   if (keys.length === 0 || keys.some((k) => !PLAYBOOK_PATCH_KEYS.includes(k)))
     throw new AppError15("validation", PLAYBOOK_PATCH_WORDS.nothing);
-  if (triggerOf4(row.trigger)?.kind === "reach_out" && keys.some((k) => k !== "state"))
+  if (triggerOf4(row.trigger)?.kind === "reach_out" && keys.some((k) => k !== "state" && k !== "mode"))
     throw new AppError15("conflict", REACH_OUT_IS_NOT_A_MOMENT, 409);
   if (asked2.state !== void 0 && !isPlaybookState(asked2.state))
     throw new AppError15("validation", PLAYBOOK_PATCH_WORDS.state);
@@ -3555,7 +3549,7 @@ async function checkPlaybookPatch(ports, row, asked2, when) {
     cadence_days: patchNumber("cadence_days", asked2.cadence_days, row.cadence_days),
     params: await patchParams(ports, row, asked2.params),
     until: await untilOf(ports, asked2.until, when),
-    trial_until: trialUntilOf(asked2.trial_until, when)
+    mode: patchMode(row, asked2.mode)
   };
   const held = patchHeldOf(row);
   const set = {};
@@ -3627,6 +3621,7 @@ async function checkPlaybook(ports, body, existing) {
 
 // src/campaigns/run-reach-out.ts
 import {
+  batchModeOf as batchModeOf2,
   PLAYBOOK_VETO_DELAY_MS,
   REACH_OUT_DRAFTS_OPEN_MAX,
   REACH_OUT_DRAFTS_PER_DAY,
@@ -3653,12 +3648,10 @@ function followerRefusalOf(f, o) {
 var neverOpen = (week) => Object.values(sendWindowsOf(week)).every((w) => w.length === 0);
 async function runReachOut(ports, step, cmd) {
   if (step.state !== "running") return { outcome: "off", reason: "paused", planned: 0 };
-  if (ports.mode === "never") return { outcome: "off", reason: "never", planned: 0 };
   if (!ports.maySpend) return { outcome: "held", reason: "billing", planned: 0 };
   if (await ports.alreadyRan(step.id, cmd.runFor)) return { outcome: "empty", reason: "already_ran", planned: 0 };
-  const chain = await ports.chainState(step.root_id);
-  if (chain === "waiting") return { outcome: "held", reason: "waiting_for_you", planned: 0 };
-  const asks = chain === "none" || ports.mode === "ask" || step.trigger === "lead_first" && step.fed_by === "list";
+  if (await ports.chainWaits(step.root_id)) return { outcome: "held", reason: "waiting_for_you", planned: 0 };
+  const asks = batchModeOf2({ mode: ports.mode, words_ok_at: step.words_ok_at }) === "ask" || step.trigger === "lead_first" && step.fed_by === "list";
   const skips = [];
   let leads = [];
   const keeps = /* @__PURE__ */ new Map();
@@ -39754,6 +39747,13 @@ async function planTheHold(at, turn) {
     brainMeta,
     channel
   ) : false;
+  if (queued && at.sink.replyHeld)
+    await at.sink.replyHeld({
+      atMs: Date.now() + delayMs,
+      unsure: heldForConfidence,
+      reply: replyText,
+      who: at.n.profileName ?? null
+    }).catch(() => void 0);
   const replyQuality = {
     intent: brainMeta?.intent ?? null,
     confidence: brainMeta?.confidence ?? null,
@@ -40151,7 +40151,6 @@ export {
   termsShortOf,
   toBase64,
   toldFromItsEvent,
-  trialUntilOf,
   unreadableThread,
   untilOf,
   wake,

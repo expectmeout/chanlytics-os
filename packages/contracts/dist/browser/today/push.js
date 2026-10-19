@@ -35,7 +35,9 @@ export const PUSH_KINDS = [
   "billing",
   "number",
   "review",
-  "reach_out_replied"
+  "reach_out_replied",
+  // A reply counting down to go in the owner's name (decision 0064): minutes to stop it, so the phone is where it is seen.
+  "reply_held"
 ];
 export const isPushKind = (kind) => PUSH_KINDS.includes(kind);
 export function pushOffOf(raw) {

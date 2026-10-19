@@ -6,6 +6,7 @@ import {
   policyModeOffered,
   type FactSuggestionDto,
   type HeldDraftsByIntent,
+  type SequenceEvidenceDto,
   type OwnModesDto,
   type PolicyClass,
   type PolicyMode,
@@ -101,10 +102,10 @@ export const UI_ROWS: readonly UiRowMeta[] = [
     },
   },
   { id: "reengage", cls: "reengage", ...W("reengage") },
-  // Beside Win-back (0006): the proposal follow-up's class, auto, ask or never, in every workspace (0008, amended).
+  // Beside Win-back (0006): the proposal follow-up's class, how a new one starts (decision 0064), in every workspace (0008).
   { id: "follow_up", cls: "follow_up", ...W("follow_up") },
   { id: "campaign", cls: "campaign", ...W("campaign") },
-  // Beside the campaigns (Reach out, Part 4 PR 6): what a reach-out's runs do. Never auto: a chain's first run waits.
+  // Beside the campaigns (Reach out, Part 4 PR 6): how a new sequence to leads starts. Never auto (decision 0064).
   { id: "outreach", cls: "outreach", ...W("outreach") },
   {
     id: "reviews",
@@ -112,7 +113,9 @@ export const UI_ROWS: readonly UiRowMeta[] = [
     ...W("reviews"),
     hints: {
       Auto: "answers each new review on Google within the hour, in the business's name — never about money",
-      Ask: "writes a draft when you open a reply on Reports; you send it",
+      // Holds it and Ask me write each reply ahead and hold it on Reports (decision 0064, step 6).
+      Veto: "writes each reply and posts it after 30 minutes on Reports, unless you stop it — never about money",
+      Ask: "writes each reply and holds it on Reports for your OK; you send it",
       Never: "writes nothing; you reply in your own words",
     },
   },
@@ -137,6 +140,8 @@ export interface PoliciesSurface {
   ownModes?: OwnModesDto | null;
   /** The last week's replies and their tokens, which say the day's budget in replies; null where unread or old. */
   replyTokens?: { replies: number; tokens: number } | null;
+  /** What each sequence's batches did (decision 0064): the sequences' rows' line; null where unread or old. */
+  evidence?: SequenceEvidenceDto[] | null;
 }
 
 export interface UiRow extends UiRowMeta {

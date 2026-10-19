@@ -1,10 +1,11 @@
 /**
- * A campaign runs on trial, and ends (00416 `trial_until`, `until`), EXECUTED: contracts effectiveMode, the one reading of
- * the mode a run goes under (auto waits for a person, as veto does, until the trial ends; every other mode is its own);
- * core runPlaybook over fakes that log their calls, a run on trial planned and told as veto ("on trial until"), a run on a
- * day past the campaign's last recorded once as `ended` with nothing read or sent; and Campaigns' home, which reads both
- * off GET playbooks' answer on the business's clock (contracts lifecyclePlaybooksOf) and says them as the campaign's
- * state ("Ended Oct 1", "On trial until Oct 9").
+ * A step's new words wait for an OK, and a campaign ends (decision 0064's `words_ok_at`, 00416's `until`), EXECUTED:
+ * contracts batchModeOf, the one reading of the mode a batch goes under (ask while its step's words are new to the owner,
+ * else its sequence's own, and ask for one it does not know); core runPlaybook over fakes that log their calls, a batch of
+ * new words held for an OK under every mode and, once seen, planned and told by its sequence's mode, a run on a day past
+ * the campaign's last recorded once as `ended` with nothing read or sent; and Campaigns' home, which reads the end off GET
+ * playbooks' answer on the business's clock (contracts lifecyclePlaybooksOf) and says it as the campaign's state ("Ended
+ * Oct 1"), and whose Resume says what the next batch does.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -12,27 +13,24 @@ import * as C from "@chanlytics/contracts";
 import { importSrc } from "../../_source.mjs";
 
 const { runPlaybook } = await importSrc("packages/core/src/campaigns/run-playbook.ts");
-const { effectiveMode, LIFECYCLE_WORDS, PLAYBOOK_VETO_DELAY_MS, channelsReady, numberHealth, vetoRunNotice } = C;
+const { batchModeOf, LIFECYCLE_WORDS, PLAYBOOK_VETO_DELAY_MS, channelsReady, numberHealth, vetoRunNotice } = C;
 
 const TZ = "America/New_York";
 /** Sunday 6 Sep 2026, 10:00 AM in New York. */
 const NOW = new Date("2026-09-06T14:00:00Z");
 const D = 86_400_000;
 
-/* ------------------------------------------------------------------------------------- the mode a run goes under -- */
+/* ------------------------------------------------------------------------------------- the mode a batch goes under -- */
 
-test("effectiveMode: auto waits for a person, as veto does, until the trial ends; veto, ask and never are their own; no trial, a trial that is over or a value that is no instant is no trial", () => {
-  const trial = { trial_until: "2026-10-18T14:00:00Z" };
-  const before = new Date("2026-10-18T13:59:59Z");
-  assert.equal(effectiveMode(trial, "auto", before), "veto");
-  assert.equal(effectiveMode(trial, "auto", new Date("2026-10-18T14:00:00Z")), "auto", "the trial is over at its end");
-  assert.equal(effectiveMode(trial, "auto", new Date("2026-10-19T09:00:00Z")), "auto");
-  for (const mode of ["veto", "ask", "never"]) assert.equal(effectiveMode(trial, mode, before), mode, mode);
-  assert.equal(effectiveMode({ trial_until: null }, "auto", before), "auto");
-  assert.equal(effectiveMode({}, "auto", before), "auto", "a row read before 00416 has no trial");
-  assert.equal(effectiveMode({ trial_until: "next week" }, "auto", before), "auto");
-  // The same instant however it is spelled: ten in New York is two in the afternoon UTC.
-  assert.equal(effectiveMode({ trial_until: "2026-10-18T10:00:00-04:00" }, "auto", before), "veto");
+const SEEN = "2026-09-01T10:00:00.000Z";
+
+test("batchModeOf: a step whose words are new waits for an OK whatever its mode; once seen, its sequence's mode; a mode it does not know asks", () => {
+  for (const mode of ["auto", "veto", "ask", null, undefined])
+    assert.equal(batchModeOf({ mode, words_ok_at: null }), "ask", String(mode));
+  for (const mode of ["auto", "veto", "ask"]) assert.equal(batchModeOf({ mode, words_ok_at: SEEN }), mode, mode);
+  for (const mode of ["never", "sometimes", null, undefined])
+    assert.equal(batchModeOf({ mode, words_ok_at: SEEN }), "ask", `${String(mode)} is no mode a sequence takes`);
+  assert.equal(batchModeOf({ mode: "auto", words_ok_at: undefined }), "ask", "a row read before 00461 asks");
 });
 
 /* -------------------------------------------------------------------------------------------------- the run -- */
@@ -68,6 +66,8 @@ const playbook = (over = {}) => ({
   template_language: "en_US",
   params: [{ kind: "first_name" }],
   policy_class: "reengage",
+  mode: "auto",
+  words_ok_at: SEEN,
   state: "running",
   run_hour: 10,
   cap_per_run: 25,
@@ -76,14 +76,12 @@ const playbook = (over = {}) => ({
   created_by: "owner",
   last_run_for: null,
   until: null,
-  trial_until: null,
   ...over,
 });
 const context = (over = {}) => ({
   tz: TZ,
   now: NOW,
   people: [person("a"), person("b", 90)],
-  modes: new Map([["reengage", "auto"]]),
   health: numberHealth({ quality: "GREEN", event: null, limit: "TIER_1K" }),
   ready: channelsReady({
     whatsapp: { canSend: true, refusal: null },
@@ -145,52 +143,51 @@ function fakes() {
   return { ports, log, asked, ops: () => log.map((l) => l[0]), of: (name) => log.filter((l) => l[0] === name) };
 }
 
-test("a run on trial is planned as veto: the send half an hour ahead with a Stop, the ledger and the run's record say veto, and the owner is told it is on trial until its day, by the business's clock", async () => {
-  const f = fakes();
-  const out = await runPlaybook(f.ports, cmd({ playbook: playbook({ trial_until: "2026-09-13T14:00:00Z" }) }));
-  const at = new Date(NOW.getTime() + PLAYBOOK_VETO_DELAY_MS);
-  assert.deepEqual(out, {
-    outcome: "sent",
-    broadcast_id: "b1",
-    eligible: 2,
-    mode: "veto",
-    state: "scheduled",
-    scheduled_for: at.toISOString(),
-    moved_from: null,
-  });
-  assert.deepEqual(f.ops(), ["assemble", "notify", "record"]);
-  assert.deepEqual(f.of("assemble")[0][3], at);
-  assert.equal(f.of("assemble")[0][4].payload.mode, "veto", "the system's decision names the mode it ran under");
-  assert.equal(f.of("record")[0][4].mode, "veto");
-  const told = vetoRunNotice("Win-back", 2, "today 10:30 AM", "Sep 13");
-  assert.deepEqual(f.of("notify")[0].slice(1), [told.subject, told.body, "b1"]);
-  assert.equal(told.subject, "Campaign “Win-back” sends today 10:30 AM: 2 people");
-  assert.equal(
-    told.body,
-    "2 people will be sent “Win-back” today 10:30 AM. Open the run to stop it before then if it should not go. “Win-back” is on trial until Sep 13: until then each of its runs waits 30 minutes for you to stop it, and after it they send on their own.",
-  );
+test("a batch of new words waits for an OK under every mode, and the owner is told it is ready; nothing is scheduled", async () => {
+  for (const mode of ["auto", "veto", "ask"]) {
+    const f = fakes();
+    const out = await runPlaybook(f.ports, cmd({ playbook: playbook({ mode, words_ok_at: null }) }));
+    assert.deepEqual(
+      out,
+      { outcome: "held", broadcast_id: "b1", eligible: 2, mode: "ask", state: "pending_approval" },
+      mode,
+    );
+    assert.deepEqual(f.ops(), ["assemble", "notify", "record"], mode);
+    assert.equal(f.of("assemble")[0][3], null, `${mode}: no job until a person approves it`);
+    assert.equal(f.of("notify")[0][1], "Campaign “Win-back” is ready: 2 people");
+  }
 });
 
-test("the trial changes auto alone: past its end a run sends at once and nobody is told; a class set to veto is told as veto always was; ask still waits; a person's Run now sends now", async () => {
-  const over = fakes();
-  const done = await runPlaybook(over.ports, cmd({ playbook: playbook({ trial_until: "2026-09-06T13:59:00Z" }) }));
-  assert.equal(done.mode, "auto");
-  assert.deepEqual(over.of("assemble")[0][3], NOW, "sent at once");
-  assert.ok(!over.ops().includes("notify"));
+test("once its words are seen, a batch goes by its sequence's mode: auto at once and untold, veto half an hour ahead and told, ask waits; a person's Run now sends now", async () => {
+  const auto = fakes();
+  const sent = await runPlaybook(auto.ports, cmd());
+  assert.equal(sent.mode, "auto");
+  assert.deepEqual(auto.of("assemble")[0][3], NOW, "sent at once");
+  assert.ok(!auto.ops().includes("notify"));
 
   const veto = fakes();
-  const trial = { playbook: playbook({ trial_until: "2026-09-13T14:00:00Z" }) };
-  await runPlaybook(veto.ports, cmd({ ...trial, ctx: context({ modes: new Map([["reengage", "veto"]]) }) }));
-  const told = vetoRunNotice("Win-back", 2, "today 10:30 AM", null);
-  assert.deepEqual(veto.of("notify")[0].slice(1), [told.subject, told.body, "b1"], "the trial did not make it veto");
-  assert.ok(!told.body.includes("on trial"));
+  const held = await runPlaybook(veto.ports, cmd({ playbook: playbook({ mode: "veto" }) }));
+  const at = new Date(NOW.getTime() + PLAYBOOK_VETO_DELAY_MS);
+  assert.deepEqual([held.outcome, held.mode, held.scheduled_for], ["sent", "veto", at.toISOString()]);
+  assert.equal(veto.of("assemble")[0][4].payload.mode, "veto", "the system's decision names the mode it ran under");
+  assert.equal(veto.of("record")[0][4].mode, "veto");
+  const told = vetoRunNotice("Win-back", 2, "today 10:30 AM");
+  assert.deepEqual(veto.of("notify")[0].slice(1), [told.subject, told.body, "b1"]);
+  // How its wait ends is the wait rule's (decision 0064, step 2): it goes at its time unless it is stopped.
+  assert.equal(
+    told.body,
+    "2 people will be sent “Win-back”. Goes today 10:30 AM unless you stop it, from Today or its run.",
+  );
 
   const ask = fakes();
-  const held = await runPlaybook(ask.ports, cmd({ ...trial, ctx: context({ modes: new Map([["reengage", "ask"]]) }) }));
-  assert.deepEqual([held.outcome, held.mode], ["held", "ask"]);
+  const waits = await runPlaybook(ask.ports, cmd({ playbook: playbook({ mode: "ask" }) }));
+  assert.deepEqual([waits.outcome, waits.mode], ["held", "ask"]);
 
   const asked = fakes();
-  const now = await runPlaybook(asked.ports, cmd({ ...trial, by: { kind: "user", userId: "u1" } }));
+  const now = await runPlaybook(
+    asked.ports,
+    cmd({ playbook: playbook({ mode: "ask" }), by: { kind: "user", userId: "u1" } }),
+  );
   assert.deepEqual([now.outcome, now.scheduled_for], ["sent", NOW.toISOString()], "a person who asks has decided");
   assert.ok(!asked.ops().includes("notify"), "and is not told of their own run");
 });
@@ -236,7 +233,7 @@ test("a run on a day past the campaign's last is off as ended: recorded once, no
 /** Friday 2 Oct 2026, 9:44 PM in New York: already Saturday the 3rd in UTC. */
 const HOME_NOW = new Date("2026-10-03T01:44:00Z");
 
-test("the home reads a campaign's end and its trial off GET playbooks' answer, on the business's clock: ended the day after its last, on trial until the day its trial ends while it has not", () => {
+test("the home reads a campaign's end off GET playbooks' answer, on the business's clock: ended the day after its last", () => {
   const row = (id, over) => ({
     id,
     trigger: "quiet_30",
@@ -249,13 +246,7 @@ test("the home reads a campaign's end and its trial off GET playbooks' answer, o
   });
   const read = C.lifecyclePlaybooksOf(
     {
-      playbooks: [
-        row("today", { until: "2026-10-02" }),
-        row("yesterday", { until: "2026-10-01" }),
-        row("trial", { trial_until: "2026-10-09T14:00:00Z" }),
-        row("over", { trial_until: "2026-10-03T01:00:00Z" }),
-        row("plain", {}),
-      ],
+      playbooks: [row("today", { until: "2026-10-02" }), row("yesterday", { until: "2026-10-01" }), row("plain", {})],
       timezone: TZ,
       calendar: "feed",
     },
@@ -264,11 +255,8 @@ test("the home reads a campaign's end and its trial off GET playbooks' answer, o
   const card = (id) => read.cards.find((c) => c.playbook.id === id).read;
   assert.deepEqual([card("today").ended, card("today").off], [null, null], "the 2nd is still today in New York");
   assert.deepEqual([card("yesterday").ended, card("yesterday").off], ["Oct 1", LIFECYCLE_WORDS.ended("Oct 1")]);
-  assert.equal(card("trial").trial, "Oct 9");
-  assert.equal(card("over").trial, null, "a trial that has ended is no trial");
-  assert.deepEqual([card("plain").ended, card("plain").trial], [null, null]);
+  assert.equal(card("plain").ended, null);
   assert.equal(LIFECYCLE_WORDS.ended("Oct 1"), "Ended Oct 1");
-  assert.equal(LIFECYCLE_WORDS.onTrial("Oct 9"), "On trial until Oct 9");
 });
 
 /** A playbook as the playbooks surface's card holds it. */
@@ -288,11 +276,12 @@ const card = (over = {}) => ({
   named: { pool: 5, saidYes: 4 },
   off: null,
   ended: null,
-  trial: null,
+  mode: "auto",
+  words_ok_at: SEEN,
   totals: { waiting: null },
   ...over,
 });
-/** The home over these cards, the win-back's class sending on its own (GET playbooks' `modes`). */
+/** The home over these cards, each with its sequence's own mode (GET playbooks' rows, decision 0064). */
 const homeOf = (rows) =>
   C.campaignsHomeOf({
     nowMs: HOME_NOW.getTime(),
@@ -303,7 +292,6 @@ const homeOf = (rows) =>
       triggers: [{ id: "quiet_30", offered: true, candidates: 0, named: null }],
       timezone: TZ,
       countsRead: true,
-      modes: { reengage: "auto" },
     },
     broadcasts: {
       rows: [],
@@ -319,37 +307,24 @@ const homeOf = (rows) =>
     chains: undefined,
   });
 
-test("the ledger says it: a campaign past its last day reads Ended with its day, runs nothing and promises no run; one on trial reads On trial until with its day, and is on", () => {
+test("the ledger says it: a campaign past its last day reads Ended with its day, runs nothing and promises no run; Resume says what its next batch does", () => {
   const ended = card({ ended: "Oct 1", off: LIFECYCLE_WORDS.ended("Oct 1") });
-  const trial = card({ id: "pb-2", name: "Win-back, gently", trial: "Oct 9" });
-  const home = homeOf([ended, trial]);
-  const row = (id) => home.ledger.groups.flatMap((g) => g.rows).find((r) => r.id === id);
-  const e = row("pb-1");
+  const home = homeOf([ended]);
+  const row = (h, id) => h.ledger.groups.flatMap((g) => g.rows).find((r) => r.id === id);
+  const e = row(home, "pb-1");
   assert.deepEqual(
     [e.stateWords, e.phoneWords, e.status, e.tone, e.next.words, e.next.atMs],
     ["Ended Oct 1", "Ended Oct 1", "not_here", "plain", LIFECYCLE_WORDS.ledger.dash, null],
   );
   assert.equal(e.hint, "Nothing heard in 30 days", "its line says its moment, not its end twice");
-  const t = row("pb-2");
-  assert.deepEqual(
-    [t.stateWords, t.phoneWords, t.status, t.tone],
-    ["On trial until Oct 9", "On trial until Oct 9", "on", "ok"],
-  );
   assert.ok(!home.coming.rows.some((r) => r.id === "moment:pb-1"), "an ended campaign is coming up nowhere");
-  assert.ok(
-    home.coming.rows.some((r) => r.id === "moment:pb-2"),
-    "one on trial runs as it would",
-  );
-  // Paused, and waiting on a person, say so first: the trial is no news beside either. Its Resume never says a campaign
-  // on trial sends on its own: its runs still wait for a person until the trial ends.
-  const paused = homeOf([card({ trial: "Oct 9", state: "paused" })]);
-  const resting = paused.ledger.groups.flatMap((g) => g.rows).find((r) => r.id === "pb-1");
-  assert.equal(resting.stateWords, "Paused");
-  assert.ok(!resting.act.ask.detail.includes(LIFECYCLE_WORDS.ledger.resume.auto), resting.act.ask.detail);
-  const plainPause = homeOf([card({ state: "paused" })])
-    .ledger.groups.flatMap((g) => g.rows)
-    .find((r) => r.id === "pb-1");
-  assert.ok(plainPause.act.ask.detail.endsWith(LIFECYCLE_WORDS.ledger.resume.auto), "off trial, auto says so in full");
-  const waits = homeOf([card({ trial: "Oct 9", totals: { waiting: { id: "r-1", recipient_count: 7 } } })]);
-  assert.equal(waits.ledger.groups.flatMap((g) => g.rows).find((r) => r.id === "pb-1").stateWords, C.RUN_WAITING_WORDS);
+  // Paused: its Resume says in full that it sends on its own where it does, that its first batch waits where its words
+  // are new (decision 0064), and nothing where it holds or asks.
+  const resume = (over) => row(homeOf([card({ state: "paused", ...over })]), "pb-1").act.ask.detail;
+  assert.ok(resume({}).endsWith(LIFECYCLE_WORDS.ledger.resume.auto), resume({}));
+  assert.ok(resume({ words_ok_at: null }).endsWith(LIFECYCLE_WORDS.ledger.resume.asksFirst), "new words wait first");
+  assert.ok(!resume({ mode: "veto" }).includes(LIFECYCLE_WORDS.ledger.resume.auto));
+  assert.ok(!resume({ mode: undefined }).includes(LIFECYCLE_WORDS.ledger.resume.auto), "unread, no mode is guessed");
+  const waits = homeOf([card({ totals: { waiting: { id: "r-1", recipient_count: 7 } } })]);
+  assert.equal(row(waits, "pb-1").stateWords, C.RUN_WAITING_WORDS);
 });

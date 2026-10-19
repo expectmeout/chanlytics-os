@@ -358,19 +358,21 @@ test(
         "author_photo_uri",
         "author_uri",
         "body",
+        "draft_text",
         "first_seen_at",
         "held",
         "id",
         "language_code",
         "maps_uri",
         "origin",
+        "posts_at",
         "published_at",
         "rating",
         "replied_at",
         "reply_text",
         "review_id",
       ],
-      "the Google read's own fourteen columns, and why a reply was held",
+      "the Google read's own sixteen columns, the reply it holds and when that goes among them (00461), and why a reply was held",
     );
     assert.ok(out.waiting.every((w) => w.origin === "profile" && w.reply_text === null));
     assert.deepEqual(

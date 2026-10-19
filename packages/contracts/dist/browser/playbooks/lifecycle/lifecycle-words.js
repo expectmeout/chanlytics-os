@@ -62,8 +62,6 @@ export const LIFECYCLE_WORDS = {
   monthsOffer: { name: "The month's offer" },
   /** A campaign past its last day (00416 `until`), its state: "Ended Oct 1", the day by the business's calendar. */
   ended: (day) => `Ended ${day}`,
-  /** A campaign on trial (00416 `trial_until`), its state: "On trial until Oct 9", the day its trial ends. */
-  onTrial: (day) => `On trial until ${day}`,
   gone: {
     title: "That campaign isn't here any more.",
     body: "Its runs are still counted in Reports, with their numbers."
@@ -294,8 +292,10 @@ export const LIFECYCLE_WORDS = {
       /** When, and to about how many; when alone where the moment could not be counted (null), never "about 0". */
       detail: (when, n) => n === null ? `Next run ${when}` : `Next run ${when}, about ${plural(n, "person", "people")}`,
       chain: "Its next emails go out on its next run.",
-      /** Said in full where the campaign's class sends without asking (`auto`, decision 7), where the page knows the mode. */
+      /** Said in full where its next batch goes without asking (`auto`, decision 7), where the page knows the mode. */
       auto: "It sends on its own: nothing will wait for your approval.",
+      /** Said where its next batch's words are new to you (decision 0064): that batch waits for your OK, whatever the mode. */
+      asksFirst: "Its first batch waits for your OK.",
       yes: "Yes, resume it"
     },
     /** What the drawer's head calls a campaign whose group the page does not hold. */
@@ -432,7 +432,6 @@ export function lifecycleStateOf(p) {
   const paused = p.state !== "running";
   if (p.totals.waiting) return stated(RUN_WAITING_WORDS, "warn", paused);
   if (paused) return stated("Paused", "plain", true);
-  if (p.trial) return stated(LIFECYCLE_WORDS.onTrial(p.trial), "ok");
   return stated(`On \xB7 ${lifecycleClock(p)}`, "ok", false, lifecycleClock(p));
 }
 export function lifecycleChainStateOf(c) {

@@ -970,8 +970,8 @@ test("a control says what it will do, in the words above it", () => {
       "Re-engage quiet customers: Sends it",
       "Re-engage quiet customers: Holds it",
       "Re-engage quiet customers: Asks you",
-      "Re-engage quiet customers: Stays quiet",
     ],
+    // How a new win-back sequence starts takes no Stays quiet: a sequence is paused on its page (decision 0064).
     "REGRESSION: a screen reader heard the filing word",
   );
   assert.equal(
@@ -1139,7 +1139,9 @@ test("Replies says how many people are set differently, by mode, and each of the
 
 test("a class that cannot honour a mode still shows a dash there, and the rest still set", async () => {
   const put = [];
+  // Follow-ups take no Never (decision 0064: a sequence is paused on its page), where reviews take every mode now.
   const tree = autonomy([
+    { class: "follow_up", mode: "auto", limits: {} },
     { class: "reviews", mode: "auto", limits: {} },
     { class: "reply", mode: "ask", limits: {} },
   ]);
@@ -1147,12 +1149,14 @@ test("a class that cannot honour a mode still shows a dash there, and the rest s
     put.push([cls, mode]);
     return { ok: true };
   };
-  const reviews = find(tree, (n) => n.type === "tr" && /Google reviews/.test(textOf(n)));
+  const followUps = find(tree, (n) => n.type === "tr" && /follow-up/i.test(textOf(n)));
   assert.equal(
-    all(reviews, (n) => n.props?.className === "pol-dash").length,
+    all(followUps, (n) => n.props?.className === "pol-dash").length,
     1,
-    "Holds it is not on offer for a review",
+    "Stays quiet is not on offer for a follow-up",
   );
+  const reviews = find(tree, (n) => n.type === "tr" && /Google reviews/.test(textOf(n)));
+  assert.equal(all(reviews, (n) => n.props?.className === "pol-dash").length, 0, "a review's reply takes every mode");
   const asks = all(reviews, (n) => n.type === "button" && n.props["aria-label"] === "Google reviews: Asks you");
   press(asks[0]);
   await flush();
@@ -1365,7 +1369,9 @@ test("Notifications: what the workspace is told, a topic a row in its group, whe
     );
   }
   assert.ok(
-    textOf(tree).includes("Also on the bell: finished searches, new Google reviews, notes left for you,"),
+    textOf(tree).includes(
+      "Also on the bell: replies about to go, finished searches, new Google reviews, notes left for you,",
+    ),
     "the bell's line names them",
   );
   // The two the receptionist must always reach someone with are locked, with nothing to press.

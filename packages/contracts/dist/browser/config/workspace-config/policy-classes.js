@@ -25,30 +25,30 @@ export const POLICY_CLASS_WORDS = {
   reengage: {
     name: "Re-engage quiet customers",
     short: "Re-engage",
-    note: `the win-back and save-our-number campaigns \xB7 auto sends each run, veto sends it ${PLAYBOOK_VETO_DELAY_WORDS} later unless you stop it, ask leaves it waiting on Today, never runs nothing`
+    note: `how a new win-back sequence starts \xB7 each keeps its own on its page, and asks you before its first batch and after new words`
   },
   campaign: {
     name: "Standing offers",
     short: "Offers",
-    note: `the welcome and month's-offer campaigns \xB7 auto sends each run, veto sends it ${PLAYBOOK_VETO_DELAY_WORDS} later unless you stop it, ask leaves it waiting on Today, never runs nothing`
+    note: `how a new offer or welcome sequence starts \xB7 each keeps its own on its page, and asks you before its first batch and after new words`
   },
   reviews: {
     name: "Google reviews",
     short: "Reviews",
-    note: "replies under new reviews on Google, through the connected Business Profile \xB7 auto answers each within the hour, ask drafts one for you to send, never leaves them all to you"
+    note: `replies under new reviews on Google, through the connected Business Profile \xB7 auto answers each within the hour, veto writes it and posts it ${PLAYBOOK_VETO_DELAY_WORDS} later unless you stop it, ask writes one and holds it for your OK, never leaves them all to you`
   },
   money: { name: "Refunds \xB7 rates \xB7 negotiation", short: "Money", note: "always goes to you" },
   // 0006: one nudge per proposal, with its link, once it has waited past the workspace's pace with nothing back.
   follow_up: {
     name: "Proposal follow-ups",
     short: "Follow-ups",
-    note: "the proposal follow-up campaign \xB7 one nudge per proposal, with its link, once it has waited with nothing back \xB7 auto sends each run, ask leaves it waiting on Today, never runs nothing"
+    note: "how the proposal follow-up starts \xB7 one nudge per proposal, with its link \xB7 it keeps its own on its page, and asks you before its first batch and after new words"
   },
-  // Reach out (Part 3): cold email to the businesses a search found. A chain's first run always waits for its owner.
+  // Reach out (Part 3): cold email to the businesses a search found. Never sent on its own (0064).
   outreach: {
     name: "Cold email to businesses a search found",
     short: "Reach-outs",
-    note: `every email a reach-out sends \xB7 its first run always waits for you; later runs send ${PLAYBOOK_VETO_DELAY_WORDS} after they are made unless you stop them \xB7 never sends none`
+    note: "how a new sequence to leads starts \xB7 each keeps its own on its page, and asks you before its first batch and after new words"
   }
 };
 export const POLICY_MODES = ["auto", "veto", "ask", "never"];
@@ -72,14 +72,13 @@ export const POLICY_CLASS_MODES = {
   reply: ["auto", "veto", "ask", "never"],
   booking: ["auto", "ask"],
   faq: ["auto", "ask"],
-  reengage: ["auto", "veto", "ask", "never"],
-  campaign: ["auto", "veto", "ask", "never"],
-  reviews: ["auto", "ask", "never"],
+  reengage: ["auto", "veto", "ask"],
+  campaign: ["auto", "veto", "ask"],
+  // Holds it (decision 0064, step 6): a reply written and posted after its wait unless stopped, as a batch is.
+  reviews: ["auto", "veto", "ask", "never"],
   money: ["never"],
-  follow_up: ["auto", "ask", "never"],
-  // Cold email never goes the moment a run is made: a chain's first run waits for its owner whatever the mode, and a
-  // later one gives thirty minutes to be stopped (veto), waits too (ask), or does not run (never).
-  outreach: ["veto", "ask", "never"]
+  follow_up: ["auto", "veto", "ask"],
+  outreach: ["veto", "ask"]
 };
 export function policyModeOffered(cls, mode) {
   return POLICY_CLASSES.includes(cls) && POLICY_CLASS_MODES[cls].includes(mode);

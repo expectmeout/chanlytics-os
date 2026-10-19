@@ -4,6 +4,7 @@ import {
   SEQUENCE_PEOPLE_GROUPS,
   UUID,
   clockStamp,
+  evidenceWords,
   needsCount,
   needsWords,
   noteRows,
@@ -84,7 +85,7 @@ export async function readSequence(t: ToolContext, input: { sequence_id: string 
     .filter((r) => r.enrollment_id && r.group !== "left" && r.group !== "done")
     .slice(0, PEOPLE_CAP);
   for (const r of inIt) notePerson(t, r.contact_id, r.name ?? "");
-  const { sequence: row, steps, mode, word } = record.data;
+  const { sequence: row, steps, word } = record.data;
   const nowMs = t.now.getTime();
   const notice = sequenceNotice(row, steps);
   return {
@@ -92,7 +93,10 @@ export async function readSequence(t: ToolContext, input: { sequence_id: string 
     head: sequenceHeadLine(row, word, t.timezone, nowMs),
     starts_when: sequenceStartsSentence(row, word, t.timezone, nowMs),
     stops_when: sequenceStopsSentence(row, steps),
-    mode,
+    // Its own mode (decision 0064): how its batches are decided; null for a one-off. And what its batches did, as How it
+    // runs says it under Before each batch (step 5): the evidence a mode is set on, never a suggestion of one.
+    mode: row.mode,
+    ...(record.data.evidence ? { batches_did: evidenceWords(record.data.evidence) } : {}),
     ...(notice ? { notice: notice.words } : {}),
     steps: steps.map((s) => ({
       step_id: s.id,

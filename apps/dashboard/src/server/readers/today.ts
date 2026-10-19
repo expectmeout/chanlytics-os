@@ -1,8 +1,8 @@
 import "server-only";
 import type { CallDto, ConversationDto, EscalationDto, LeadSearchDto, MetricsSummaryDto } from "@chanlytics/contracts";
-import type { WaitingRunRow } from "@chanlytics/db";
+import type { GoingRunRow, WaitingRunRow } from "@chanlytics/db";
 import { load, stamp, type Reader } from "./index";
-import { waitingRuns } from "./broadcasts";
+import { goingRuns, waitingRuns } from "./broadcasts";
 import { heldThreadsBeyond } from "./inbox";
 import { metrics } from "./metrics";
 import { conversations } from "./conversations";
@@ -25,6 +25,8 @@ interface TodayRead {
   runs: WaitingRunRow[] | null;
   /** The threads of open holds past the hundred, read by their ids; null where that read failed. */
   heldThreads: ConversationDto[] | null;
+  /** The runs set to go on their own in the next day (decision 0064: Going today); null where the read failed. */
+  going: GoingRunRow[] | null;
 }
 
 /**
@@ -39,7 +41,7 @@ interface TodayRead {
 export const today: Reader<undefined, TodayRead> = {
   name: "today",
   async read(rc) {
-    const [m, c, e, k, s, r] = await Promise.all([
+    const [m, c, e, k, s, r, g] = await Promise.all([
       load(rc, metrics, { days: 1 }),
       load(rc, conversations, { ids: null }),
       load(rc, escalations, { state: "open" }),
@@ -55,6 +57,10 @@ export const today: Reader<undefined, TodayRead> = {
         log.error("today_runs_fetch_failed", { error: err });
         return null;
       }),
+      load(rc, goingRuns, undefined).catch((err: unknown) => {
+        log.error("today_runs_fetch_failed", { error: err });
+        return null;
+      }),
     ]);
     const held = await heldThreadsBeyond(rc, c.data.conversations, e.data.escalations);
     if (held.threads === null) log.error("today_held_threads_fetch_failed", { asked: held.missing.length });
@@ -67,8 +73,9 @@ export const today: Reader<undefined, TodayRead> = {
         searches: s ? s.data.searches : null,
         runs: r ? r.data.runs : null,
         heldThreads: held.threads,
+        going: g ? g.data.runs : null,
       },
-      rows: [...c.rows, ...(k?.rows ?? []), ...(r?.rows ?? [])],
+      rows: [...c.rows, ...(k?.rows ?? []), ...(r?.rows ?? []), ...(g?.rows ?? [])],
       stamp: stamp(),
     };
   },

@@ -38,8 +38,6 @@ interface PlaybooksPage {
   appointment_word: AppointmentWord;
   /** Its bookings arrive by a booking tool's emails: with no calendar feed, its appointment moments need the feed. */
   bookings_by_email: boolean;
-  /** Each autonomy class's mode by class (policies, workspace rows); null where unread. Resume says `auto` in full. */
-  modes: Record<string, string> | null;
 }
 
 /**
@@ -79,7 +77,7 @@ export const playbooks: Reader<undefined, PlaybooksPage> = {
       hasDeals: dealtRead,
       playbooks: listed,
     });
-    const [playbooks, facts, touched, shape, paceRead, ready, month_sent, policyRows] = await Promise.all([
+    const [playbooks, facts, touched, shape, paceRead, ready, month_sent] = await Promise.all([
       listed,
       load(rc, readers.facts, undefined).then((r) => r.data),
       recentTouches(ctx.supabase, tenantId, now),
@@ -91,12 +89,6 @@ export const playbooks: Reader<undefined, PlaybooksPage> = {
       channelsReadyOrNull(ctx, tenantId, { withPause: true }),
       // The month's emails and texts already sent, which the composer says before a send and the head from half used.
       monthSentOrNull(tenantId, now),
-      // The autonomy matrix (readers/facts.ts policies, once a turn): a Resume asked on Campaigns says a class under `auto`
-      // in full (decision 7). A read that fails costs that sentence, never the page.
-      load(rc, readers.policies, undefined).then(
-        (r) => r.data,
-        () => null,
-      ),
     ]);
     const dealt = shape.hasDeals;
     const { pools, calendar, lists, people } = await triggerPools(
@@ -124,8 +116,6 @@ export const playbooks: Reader<undefined, PlaybooksPage> = {
         // What the workspace calls an appointment, and whether its bookings arrive by a tool's emails (businessShape).
         appointment_word: shape.word,
         bookings_by_email: shape.bookingsByEmail,
-        // Each autonomy class's mode as stored (a class with no row is `ask`); null where the matrix could not be read.
-        modes: policyRows ? Object.fromEntries(policyRows.map((p) => [p.class, p.mode])) : null,
       },
       rows: playbooks.map((p) => ({
         kind: "playbook" as const,

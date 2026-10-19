@@ -1,13 +1,6 @@
 import { appointmentWordOf } from "../../journey/appointment-word.js";
 import { PEOPLE_LISTS } from "../../people/lists/lists.js";
-import {
-  campaignDayWords,
-  campaignEnded,
-  campaignRunsOn,
-  localDate,
-  nextRunLabel,
-  trialDayWords
-} from "../playbook-schedule.js";
+import { campaignDayWords, campaignEnded, campaignRunsOn, localDate, nextRunLabel } from "../playbook-schedule.js";
 import { PLAYBOOK_TRIGGERS, momentOffered, triggerOf, triggerOffered, triggerWords } from "../playbook-triggers.js";
 import { LIFECYCLE_WORDS } from "./lifecycle-words.js";
 const ZONE_UNSAID = "America/New_York";
@@ -42,7 +35,6 @@ function cardReadOf(p, pb, at) {
     // Why it runs nothing here: the card says it, and every rule of the home that skips what runs nothing skips it.
     off: ended ? LIFECYCLE_WORDS.ended(ended) : null,
     ended,
-    trial: trialDayWords(p, at.tz, at.now),
     runs: campaignRunsOn(p, { tz: at.tz, now: at.now })
   };
 }

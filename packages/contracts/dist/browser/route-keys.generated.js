@@ -163,6 +163,7 @@ export const ROUTE_KEYS = [
   "POST google/refresh",
   "POST google/reviews/[id]/draft",
   "POST google/reviews/[id]/reply",
+  "POST google/reviews/[id]/stop",
   "POST google/search",
   "POST handovers/[id]/accept",
   "POST handovers/[id]/decline",

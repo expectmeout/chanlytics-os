@@ -288,15 +288,21 @@ test("three campaigns on one moment: all in its group, the stage's lead first, t
   assert.deepEqual(stage.bar, { on: 1, waiting: 1, paused: 1, of: 3 });
 });
 
-test("Resume under auto says in full that it sends on its own (decision 7); under ask, or with the mode unread, when and how many alone", () => {
-  const rows = [playbook({ id: "pb-p", state: "paused", next: "paused", policy_class: "reengage" })];
-  const detail = (modes) => row(ledger({ playbooks: playbooks(rows, { modes }) }), "pb-p").act.ask.detail;
+test("Resume says what its next batch does by its sequence's mode: in full where it sends on its own (decision 7), that it waits where its words are new (0064), and when and how many alone otherwise or unread", () => {
+  const SEEN = "2026-09-01T10:00:00.000Z";
+  const detail = (over) =>
+    row(ledger({ playbooks: playbooks([playbook({ id: "pb-p", state: "paused", next: "paused", ...over })]) }), "pb-p")
+      .act.ask.detail;
   assert.equal(
-    detail({ reengage: "auto" }),
+    detail({ mode: "auto", words_ok_at: SEEN }),
     "Next run tomorrow 10:00 AM, about 4 people. It sends on its own: nothing will wait for your approval.",
   );
-  assert.equal(detail({ reengage: "ask" }), "Next run tomorrow 10:00 AM, about 4 people");
-  assert.equal(detail(null), "Next run tomorrow 10:00 AM, about 4 people", "unread: the mode is not guessed");
+  assert.equal(
+    detail({ mode: "auto", words_ok_at: null }),
+    "Next run tomorrow 10:00 AM, about 4 people. Its first batch waits for your OK.",
+  );
+  assert.equal(detail({ mode: "ask", words_ok_at: SEEN }), "Next run tomorrow 10:00 AM, about 4 people");
+  assert.equal(detail({}), "Next run tomorrow 10:00 AM, about 4 people", "unread: the mode is not guessed");
   // A moment that could not be counted: when alone, never "about 0 people" nobody counted.
   const uncounted = [playbook({ id: "pb-u", state: "paused", next: "paused", candidates: null, named: null })];
   assert.equal(

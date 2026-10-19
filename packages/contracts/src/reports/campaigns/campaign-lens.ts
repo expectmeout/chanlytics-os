@@ -31,6 +31,7 @@ import type { CampaignLedgerDto, CampaignLedgerSeriesDto, CampaignStuckNowDto } 
 import {
   ANSWER_META,
   APPROVAL_EMPTY,
+  approvalSkippedLine,
   APPROVAL_ROWS,
   CANCELED_KEY,
   FAILED_WHAT,
@@ -427,7 +428,7 @@ function runsLineOf(series: Series | null): string | null {
 interface WaitWords {
   rows: readonly (readonly [key: string, label: string])[];
   empty: string;
-  line: (n: number, medianS: number | null) => string | null;
+  line: (n: number, medianS: number | null, skipped?: number) => string | null;
 }
 
 /**
@@ -436,7 +437,10 @@ interface WaitWords {
  */
 function waitPart(dist: Series["first_reply"] | Series["approval"] | null, words: WaitWords): MixPartVM {
   if (dist === null || !isCount(dist.n)) return noMix(null);
-  if (dist.n === 0) return noMix(words.empty);
+  // The runs skipped unanswered in the window (the approval's alone, since 00461): said with the wait, or alone.
+  const skipped = "skipped" in dist && isCount(dist.skipped) ? dist.skipped : 0;
+  // None approved: the ones that waited and were skipped are what is said, never "no run waited" over them.
+  if (dist.n === 0) return noMix(skipped > 0 ? approvalSkippedLine(skipped) : words.empty);
   const buckets: Readonly<Record<string, unknown>> = dist.buckets;
   const entries: MixEntry[] = [];
   for (const [key, label] of words.rows) {
@@ -445,7 +449,7 @@ function waitPart(dist: Series["first_reply"] | Series["approval"] | null, words
     entries.push([key, label, count]);
   }
   const median = typeof dist.median_s === "number" && Number.isFinite(dist.median_s) ? dist.median_s : null;
-  return { rows: barsOf(entries), line: words.line(dist.n, median), empty: null };
+  return { rows: barsOf(entries), line: words.line(dist.n, median, skipped), empty: null };
 }
 
 const FIRST_REPLY_WORDS: WaitWords = { rows: FIRST_REPLY_ROWS, empty: FIRST_REPLY_EMPTY, line: firstReplyLine };

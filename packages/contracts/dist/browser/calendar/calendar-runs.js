@@ -1,7 +1,7 @@
 import { BROADCAST_STATE_LABELS } from "../broadcasts/broadcasts.js";
 import { addressOf } from "../activity/record-address.js";
 import { RUN_WAITING_WORDS } from "../shell/campaign-rooms.js";
-import { campaignEnded, effectiveMode, nextRunOf, planRun } from "../playbooks/playbook-schedule.js";
+import { campaignEnded, nextRunOf, planRun } from "../playbooks/playbook-schedule.js";
 import { clockInZone, dayInZone } from "./zone-math.js";
 import { shiftKey } from "./day-keys.js";
 import { clockLabel } from "./calendar-words.js";
@@ -213,9 +213,7 @@ function nextMarks(dto, days, now, todayKey) {
     const day = next.day === "today" ? todayKey : shiftKey(todayKey, 1);
     const made = !!p.last_run_for && p.last_run_for >= day;
     if (made || standing.has(`${p.id}:${day}`) || campaignEnded(p, day)) continue;
-    const plan = planRun(effectiveMode(p, p.mode, now), now);
-    if (plan.kind === "off") continue;
-    const sends = plan.kind === "send";
+    const sends = planRun(p.mode, now).kind === "send";
     const t = sends && !next.soon ? next.hour : null;
     const when = next.day === "today" ? "today" : "tomorrow";
     pushOn(days, day, {

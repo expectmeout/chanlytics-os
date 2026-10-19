@@ -2527,12 +2527,15 @@ export type Database = {
           author_photo_uri: string | null
           author_uri: string | null
           body: string | null
+          draft_text: string | null
+          drafted_at: string | null
           first_seen_at: string
           id: string
           language_code: string | null
           last_seen_at: string
           maps_uri: string | null
           origin: string
+          posts_at: string | null
           published_at: string | null
           rating: number | null
           replied_at: string | null
@@ -2545,12 +2548,15 @@ export type Database = {
           author_photo_uri?: string | null
           author_uri?: string | null
           body?: string | null
+          draft_text?: string | null
+          drafted_at?: string | null
           first_seen_at?: string
           id?: string
           language_code?: string | null
           last_seen_at?: string
           maps_uri?: string | null
           origin?: string
+          posts_at?: string | null
           published_at?: string | null
           rating?: number | null
           replied_at?: string | null
@@ -2563,12 +2569,15 @@ export type Database = {
           author_photo_uri?: string | null
           author_uri?: string | null
           body?: string | null
+          draft_text?: string | null
+          drafted_at?: string | null
           first_seen_at?: string
           id?: string
           language_code?: string | null
           last_seen_at?: string
           maps_uri?: string | null
           origin?: string
+          posts_at?: string | null
           published_at?: string | null
           rating?: number | null
           replied_at?: string | null
@@ -6071,10 +6080,10 @@ export type Database = {
           template_language: string | null
           template_name: string | null
           tenant_id: string
-          trial_until: string | null
           trigger: string
           until: string | null
           updated_at: string
+          words_ok_at: string | null
         }
         Insert: {
           after_days?: number | null
@@ -6116,10 +6125,10 @@ export type Database = {
           template_language?: string | null
           template_name?: string | null
           tenant_id: string
-          trial_until?: string | null
           trigger: string
           until?: string | null
           updated_at?: string
+          words_ok_at?: string | null
         }
         Update: {
           after_days?: number | null
@@ -6161,10 +6170,10 @@ export type Database = {
           template_language?: string | null
           template_name?: string | null
           tenant_id?: string
-          trial_until?: string | null
           trigger?: string
           until?: string | null
           updated_at?: string
+          words_ok_at?: string | null
         }
         Relationships: [
           {
@@ -6244,6 +6253,7 @@ export type Database = {
           created_at: string
           created_by: string | null
           id: string
+          mode: string | null
           name: string
           starts: string
           state: string
@@ -6254,6 +6264,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           id?: string
+          mode?: string | null
           name: string
           starts: string
           state?: string
@@ -6264,6 +6275,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           id?: string
+          mode?: string | null
           name?: string
           starts?: string
           state?: string
@@ -9369,6 +9381,17 @@ export type Database = {
         }
         Returns: number
       }
+      sequence_evidence: {
+        Args: { p_days?: number; p_tenant_id: string }
+        Returns: {
+          approved: number
+          policy_class: string
+          sequence_id: string
+          skipped: number
+          stopped: number
+          went: number
+        }[]
+      }
       sequence_follow_ups_due: {
         Args: { p_run_for: string; p_step_id: string }
         Returns: {
@@ -9449,6 +9472,10 @@ export type Database = {
           p_why?: string
         }
         Returns: Json
+      }
+      sequence_mode_for: {
+        Args: { p_class: string; p_tenant_id: string; p_to_leads: boolean }
+        Returns: string
       }
       sequence_move: {
         Args: {

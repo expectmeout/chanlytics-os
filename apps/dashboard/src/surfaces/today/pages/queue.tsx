@@ -78,7 +78,7 @@ const LiveRail = ({ nav }: { nav: Nav }) => {
 };
 
 // Runs the queue draws before it counts the rest: a run waiting for a word needs a decision, so those come first; a
-// run about to send is news. On a busy day four runs under six people put "Nothing sends until you say so" three
+// run about to send is Going today's (going-today.tsx). On a busy day four runs under six people put "Nothing sends until you say so" three
 // hundred pixels below the fold, said four times.
 /**
  * What the card draws, people and runs together. Today is a summary: past four rows it stops being one.
@@ -322,7 +322,7 @@ const TodayQueue = ({ vm }: { vm: TodayVM }) => {
   };
   // The run's seat, held only while a run wants it (CARD_MAX).
   const wants = runsPending();
-  const peopleRoom = wants.waiting.length + wants.late.length + wants.soon.length > 0 ? PEOPLE_MAX : CARD_MAX;
+  const peopleRoom = wants.waiting.length + wants.late.length > 0 ? PEOPLE_MAX : CARD_MAX;
   const drawn = personRows(rows.slice(0, peopleRoom), nav, {
     kind: verbKind,
     done: (r) =>

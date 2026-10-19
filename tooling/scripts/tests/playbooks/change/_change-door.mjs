@@ -1,18 +1,19 @@
 /**
- * The change_playbook door in memory, as 00416 writes it, for the suites that run a change in place through the real
+ * The change_playbook door in memory, as 00416 writes it and 00461 gives it a sequence's mode, for the suites that run a change in place through the real
  * route over `_fake-db.mjs` (PUT playbooks/:id, Ask's change card, a list's archive and restore, the outbound routes).
  *
- * It refuses what the door refuses, with its code: nothing named, or a key outside the nine (22023); a null for any key
- * but the two dates a null clears (22023); no such row in the workspace named (P0002), with nothing written. Then, of the
- * columns named, only those that differ from the row are written, compared as the door stores them: the slot specs as
- * jsonb, a trial's end as the instant, the rest as they are. What each written column held is answered as `was`, and the
- * decision is the caller's, its verb following the state that moved. Where nothing differs nothing is written and no
- * line: `was` empty, `decision_id` null (00377's no-op).
+ * It refuses what the door refuses, with its code: nothing named, or a key outside the ten (22023); a null for any key
+ * but the two dates a null clears (22023); a mode none of the three (22023); no such row in the workspace named (P0002);
+ * a mode for a one-off, or Send it for a sequence to leads (23514), with nothing written. Then, of the columns named,
+ * only those that differ from the row are written, compared as the door stores them: the slot specs as jsonb, a trial's
+ * end as the instant, the rest as they are, and the mode on its sequence's row. What each held is answered as `was`, and
+ * the decision is the caller's, its verb following the state that moved. Where nothing differs nothing is written and
+ * no line: `was` empty, `decision_id` null (00377's no-op).
  *
  * Not named *.test.mjs on purpose: the runner globs that pattern.
  */
 
-/** The nine columns the door may write (00416), and the two of them a null clears. The door's own list, not core's. */
+/** The ten keys the door takes (00416, 00461's mode), and the two of them a null clears. The door's own list, not core's. */
 const DOOR_KEYS = [
   "state",
   "name",
@@ -23,6 +24,7 @@ const DOOR_KEYS = [
   "params",
   "until",
   "trial_until",
+  "mode",
 ];
 const CLEARED = ["until", "trial_until"];
 
@@ -47,12 +49,26 @@ export function changePlaybookDoor(tables, user) {
         throw refused("name a value for each column named: only until and trial_until may be cleared");
       if (named.some(([k, v]) => k === "params" && !Array.isArray(v)))
         throw refused("params is the message's slots, an array");
+      const mode = a.p_set?.mode;
+      if (mode !== undefined && !["auto", "veto", "ask"].includes(mode)) throw refused("mode is auto, veto or ask");
       const row = (tables.playbooks ?? []).find((p) => p.id === a.p_playbook_id && p.tenant_id === a.p_tenant_id);
       if (!row) throw Object.assign(new Error("Playbook not found."), { code: "P0002" });
-      const set = Object.fromEntries(named.filter(([k, v]) => !sameAsHeld(k, v, row[k])));
-      if (Object.keys(set).length === 0) return { id: row.id, was: {}, decision_id: null, undo_dropped: false };
-      const was = Object.fromEntries(Object.keys(set).map((k) => [k, row[k] ?? null]));
+      // Its sequence's mode (00461): a one-off has none, and a sequence to leads never sends on its own.
+      const sequence = (tables.sequences ?? []).find((q) => q.id === row.sequence_id && q.tenant_id === a.p_tenant_id);
+      if (mode !== undefined && (sequence?.mode ?? null) === null)
+        throw Object.assign(new Error("A one-off goes as it was sent: it has no mode."), { code: "23514" });
+      if (mode === "auto" && row.kind === "reach_out")
+        throw Object.assign(new Error("A sequence to leads never sends on its own."), { code: "23514" });
+      const set = Object.fromEntries(named.filter(([k, v]) => k !== "mode" && !sameAsHeld(k, v, row[k])));
+      const modeMoves = mode !== undefined && mode !== sequence.mode;
+      if (Object.keys(set).length === 0 && !modeMoves)
+        return { id: row.id, was: {}, decision_id: null, undo_dropped: false };
+      const was = {
+        ...Object.fromEntries(Object.keys(set).map((k) => [k, row[k] ?? null])),
+        ...(modeMoves ? { mode: sequence.mode } : {}),
+      };
       Object.assign(row, set);
+      if (modeMoves) sequence.mode = mode;
       const decisions = (tables.decisions ??= []);
       const verb =
         set.state === "running" ? "start_playbook" : set.state === "paused" ? "pause_playbook" : "change_playbook";

@@ -462,6 +462,8 @@
     "00457_a_held_email_says_what_its_check_flagged.sql": "972490ede2380f81f1d5de2a7c2de658bee823762fb5ca80554421061db8a2c3",
     "00458_every_workspace_has_deals_and_says_its_own_word.sql": "1ce22721bd788aac1993dfb158c9f1e5189196c39e28c8a348477b833f972e47",
     "00459_one_road_from_a_lead_to_a_sequence.sql": "008f087ab6fb8f042d68b36868dd47b774c9bb315dadd5d7bff83238cf679793",
-    "00460_how_customers_buy_goes.sql": "092f7542238dc0126971b889aa13bc32381027d610f5ac612a60f3f7cdfef85a"
+    "00460_how_customers_buy_goes.sql": "092f7542238dc0126971b889aa13bc32381027d610f5ac612a60f3f7cdfef85a",
+    "00461_a_sequence_is_approved_once_then_held.sql": "cdd28e1f6c9bd43abb3e26ec3354fce1f19f7b3c1c425f1f4e7765e4c0d3e9fd",
+    "00462_the_trial_goes_and_new_sequences_are_held.sql": "7b458ba931edd5524915272af57824e3ecb21f800ccd2285389872729496c883"
   }
 }

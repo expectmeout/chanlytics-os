@@ -36,7 +36,7 @@ import {
   PLACES_SEARCH_LIMIT,
   GBP_REVIEWS_MAX_PAGES,
 } from "@chanlytics/channels";
-import { localDate, reviewRoute } from "@chanlytics/contracts";
+import { REVIEW_HOLD_MS, localDate, reviewRoute } from "@chanlytics/contracts";
 import { fakeDb } from "../_fake-db.mjs";
 import { scripted, said } from "../ai/_model-world.mjs";
 
@@ -231,6 +231,10 @@ const reviewRow = (id, over = {}) => ({
   published_at: ago(3 * DAY),
   reply_text: null,
   replied_at: null,
+  // No reply held for it (00461, decision 0064 step 6).
+  draft_text: null,
+  drafted_at: null,
+  posts_at: null,
   maps_uri: null,
   first_seen_at: ago(2 * DAY),
   last_seen_at: ago(HOUR),
@@ -618,7 +622,7 @@ test("search: a few words become Google's Text Search -- the key in a header, th
 
 /* ------------------------------ the workspace ----------------------------- */
 
-test("past status and search every op needs a database and a workspace on record: no database is a 503, no id or a bad one a 400, an unknown workspace a 404, a workspace that cannot be read a 503 in the database's words; an unknown op is named back with the eleven", async () => {
+test("past status and search every op needs a database and a workspace on record: no database is a 503, no id or a bad one a 400, an unknown workspace a 404, a workspace that cannot be read a 503 in the database's words; an unknown op is named back with the twelve", async () => {
   setPg(null);
   const net = silent();
   assert.deepEqual(await answer(await knock({ op: "refresh" })), [503, { ok: false, error: "no_database" }]);
@@ -640,8 +644,9 @@ test("past status and search every op needs a database and a workspace on record
     404,
     { ok: false, error: "not_found", detail: "no such workspace" },
   ]);
+  // And the held reply's stop (decision 0064, step 6): twelve.
   const list =
-    "op must be status, search, link, unlink, refresh, connect, locations, choose, disconnect, reply or draft";
+    "op must be status, search, link, unlink, refresh, connect, locations, choose, disconnect, reply, draft or hold";
   assert.deepEqual(await answer(await knock({ op: "dance" })), [400, { ok: false, error: "unknown_op", detail: list }]);
   assert.deepEqual(await answer(await knock({})), [400, { ok: false, error: "unknown_op", detail: list }]);
   assert.deepEqual(await answer(await knock("not json")), [400, { ok: false, error: "unknown_op", detail: list }]);
@@ -1651,8 +1656,11 @@ test("refresh with the profile connected syncs it as the owner -- the expired to
   );
 });
 
-/** A workspace whose reviews are on the auto mode, a profile synced yesterday and one new review waiting for a reply (`unanswered`). */
-function autoModeWorld(unanswered) {
+/**
+ * A workspace whose reviews are on the auto mode (or `mode`), a profile synced yesterday and one new review waiting for a
+ * reply (`unanswered`).
+ */
+function autoModeWorld(unanswered, mode = "auto") {
   return world({
     google_listings: [listingRow()],
     google_connections: [connRow()],
@@ -1662,7 +1670,7 @@ function autoModeWorld(unanswered) {
         id: "55555555-5555-4555-8555-555555555555",
         tenant_id: A,
         class: "reviews",
-        mode: "auto",
+        mode,
         subject_type: null,
         subject_id: null,
         limits: {},
@@ -1711,6 +1719,89 @@ test("refresh under the auto mode: the review the receptionist answered rings on
     "one reply, filed as the receptionist's, with the words' length",
   );
   assert.equal(tables.events.filter((e) => e.kind === "google.reply_held").length, 0, "and none was held");
+});
+
+test("refresh under Holds it (decision 0064): the reply is written and held on its review, to post after its wait unless stopped, with one bell that says when; a later sync past its time posts it, and a reply held for naming a price waits for an OK with no time", async () => {
+  const unanswered = reviewRow(R1, { published_at: ago(2 * HOUR), first_seen_at: ago(HOUR) });
+  const tables = autoModeWorld(unanswered, "veto");
+  use(tables, new Map([[A, liveCreds()]]));
+  const REPLY = "Thank you, Rosa. See you next time.";
+  setModelFetch(scripted(said(REPLY)).fetch);
+  let net = google({
+    reviews: [{ ...GBP_REVIEW, createTime: unanswered.published_at, updateTime: unanswered.published_at }],
+  });
+  const before = Date.now();
+  const [status, body] = await withEnv({ ANTHROPIC_API_KEY: "model-key-for-this-file" }, async () =>
+    answer(await knock({ op: "refresh" })),
+  );
+  assert.equal(status, 200, JSON.stringify(body));
+  assert.deepEqual(body.read, { ok: true, fresh: 0, counted: 0, answered: 0 }, "nothing posted yet");
+  assert.deepEqual(
+    net.asked().filter(([method]) => method === "PUT"),
+    [],
+    "it waits for its time",
+  );
+  const row = tables.google_reviews.find((r) => r.id === R1);
+  assert.equal(row.draft_text, REPLY, "held on its review");
+  assert.ok(Date.parse(row.posts_at) >= before + REVIEW_HOLD_MS, "to post after its wait");
+  assert.equal(row.reply_text, null);
+  assert.deepEqual(
+    tables.notifications.map((n) => [n.kind, n.route, n.subject_type, n.subject_id]),
+    [["review", reviewRoute(R1), "review", R1]],
+    "one bell, about the review, that opens it",
+  );
+  assert.match(tables.notifications[0].title, /^A reply to Rosa's review posts after /);
+  assert.match(tables.notifications[0].body, /Goes after .* unless you stop it\.$/);
+  // An hour later the sync finds its time come: it is posted, its hold cleared, filed as the receptionist's.
+  row.posts_at = ago(60_000);
+  net = google({ reviews: [] });
+  const [again] = await withEnv({ ANTHROPIC_API_KEY: "model-key-for-this-file" }, async () =>
+    answer(await knock({ op: "refresh" })),
+  );
+  assert.equal(again, 200);
+  assert.deepEqual(
+    net.asked().filter(([method]) => method === "PUT"),
+    [["PUT", REPLY_URL("accounts/111", "222", "g-1")]],
+  );
+  assert.deepEqual([row.reply_text, row.draft_text, row.posts_at], [REPLY, null, null]);
+  // A reply that names a price is never posted alone: held for an OK, with no time.
+  const priced = autoModeWorld(reviewRow(R2, { published_at: ago(2 * HOUR), first_seen_at: ago(HOUR) }), "veto");
+  use(priced, new Map([[A, liveCreds()]]));
+  setModelFetch(scripted(said("Thank you. The full move is $450 and we would be glad to do it again.")).fetch);
+  google({ reviews: [{ ...GBP_REVIEW, createTime: ago(2 * HOUR), updateTime: ago(2 * HOUR) }] });
+  await withEnv({ ANTHROPIC_API_KEY: "model-key-for-this-file" }, async () => answer(await knock({ op: "refresh" })));
+  const held = priced.google_reviews.find((r) => r.id === R2);
+  assert.deepEqual([held.posts_at, held.reply_text], [null, null], "held for an OK, never posted alone");
+  assert.match(held.draft_text, /\$450/);
+});
+
+test("refresh under Ask me (decision 0064): the reply is written and held for an OK, never posted alone; a stop of one with no time is no change, and of one under Holds it clears its time", async () => {
+  const unanswered = reviewRow(R1, { published_at: ago(2 * HOUR), first_seen_at: ago(HOUR) });
+  const tables = autoModeWorld(unanswered, "ask");
+  use(tables, new Map([[A, liveCreds()]]));
+  setModelFetch(scripted(said("Thank you, Rosa.")).fetch);
+  const net = google({
+    reviews: [{ ...GBP_REVIEW, createTime: unanswered.published_at, updateTime: unanswered.published_at }],
+  });
+  const [status] = await withEnv({ ANTHROPIC_API_KEY: "model-key-for-this-file" }, async () =>
+    answer(await knock({ op: "refresh" })),
+  );
+  assert.equal(status, 200);
+  assert.deepEqual(
+    net.asked().filter(([method]) => method === "PUT"),
+    [],
+  );
+  const row = tables.google_reviews.find((r) => r.id === R1);
+  assert.deepEqual([row.draft_text, row.posts_at], ["Thank you, Rosa.", null], "held, with no time to go");
+  assert.equal(tables.notifications[0].title, "A reply to Rosa's review waits for your OK");
+  // Its stop is no change: it has no time to clear.
+  const [s1, b1] = await answer(await knock({ op: "hold", id: R1 }));
+  assert.deepEqual([s1, b1], [200, { ok: true, held: false }]);
+  // One under Holds it is stopped: its time cleared, its words kept for the owner's OK.
+  row.posts_at = new Date(Date.now() + REVIEW_HOLD_MS).toISOString();
+  const [s2, b2] = await answer(await knock({ op: "hold", id: R1 }));
+  assert.deepEqual([s2, b2], [200, { ok: true, held: true }]);
+  assert.deepEqual([row.posts_at, row.draft_text], [null, "Thank you, Rosa."]);
 });
 
 test("refresh under the auto mode: a reply that names a price is held, not posted: the review waits for its owner, with the reason filed under it that the Reviews report reads", async () => {

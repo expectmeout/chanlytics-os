@@ -37,10 +37,19 @@ import {
   type ThreadState,
   type Wire,
 } from "../packages/core.js";
-import { waCfgFor, type TenantRuntime } from "../tenant-runtime.js";
+import { loadTenantNotifications, waCfgFor, type TenantRuntime } from "../tenant-runtime.js";
+import { notify } from "../ops/notify.js";
 import { queueDraft } from "../receptionist/draft-queue.js";
 import { recordTokens } from "../receptionist/budget.js";
-import type { BrainIntent, BrainMeta, Handled, SendPurpose } from "../packages/contracts.js";
+import {
+  addressOf,
+  clockTime,
+  heldReplyNotice,
+  type BrainIntent,
+  type BrainMeta,
+  type Handled,
+  type SendPurpose,
+} from "../packages/contracts.js";
 import { logger, errField } from "../log.js";
 
 /**
@@ -225,6 +234,7 @@ type PgStep =
   | "offers_stop"
   | "pause"
   | "processed"
+  | "reply_held"
   | "status"
   | "unreachable_evt"
   | "usage"
@@ -328,6 +338,43 @@ const AN_ANSWER = { proactive: false, about: "theirs", trigger: null } as const;
  * business's token against their WABA, which cannot succeed: every voice note
  * and photo their customers send would fail to store.
  */
+/** What the draft queue says of a reply it holds: when it goes, whether the confidence dial held it, its words, whose. */
+type HeldReplyFacts = { atMs: number; unsure: boolean; reply: string; who: string | null };
+
+/**
+ * The receptionist's reply waits to go in the owner's name (decision 0064, step 2): told once, as it is queued, on the
+ * bell and the phones that take it (no mail: it waits minutes), opening its thread, with when it goes by the business's
+ * clock. The server closes the row when the reply goes or is stopped (00461). A notice that fails is logged by pgSafe,
+ * never the reply's failure: the sink's `replyHeld`.
+ */
+function tellReplyHeld(
+  db: SupabaseClient<Database>,
+  tenantId: string,
+  rt: TenantRuntime | null | undefined,
+  ing: IngestResult,
+  n: HeldReplyFacts,
+) {
+  return pgSafe("reply_held", async () => {
+    const target = await loadTenantNotifications(db, tenantId);
+    const told = heldReplyNotice({
+      who: n.who ?? "a customer",
+      reply: n.reply,
+      at: `at ${clockTime(n.atMs, rt?.timezone ?? "UTC")}`,
+      unsure: n.unsure,
+    });
+    await notify(
+      { tenantId, ...target },
+      {
+        kind: "reply_held",
+        route: addressOf({ kind: "conversation", id: ing.conversation_id }),
+        about: { type: "conversation", id: ing.conversation_id },
+        subject: told.subject,
+        body: told.body,
+      },
+    );
+  });
+}
+
 /**
  * A booking the receptionist asks for (decision 0061), the sink's `request`: the request and its hold opened together
  * (00443 booking_request_open), so neither is ever there without the other. A slot an hour away or less, or a door that
@@ -451,11 +498,11 @@ export function pgSink(
             if (error) throw new Error(error.message);
           })
         : Promise.resolve(),
+    replyHeld: (n: HeldReplyFacts) => (on ? tellReplyHeld(db, tenantId, rt, ing, n) : Promise.resolve()),
     /**
-     * A veto window this workspace CONFIGURED did not happen, and the customer
-     * has the receptionist's words already. The reply itself is fine — the
-     * promise the setting made is what broke, and a setting that quietly stops
-     * applying is the failure mode this project keeps finding.
+     * A veto window this workspace CONFIGURED did not happen, and the customer has the receptionist's words already. The
+     * reply itself is fine — the promise the setting made is what broke, and a setting that quietly stops applying is the
+     * failure mode this project keeps finding.
      */
     vetoFallback: (delayMs: number, source: "veto_window" | "low_confidence" = "veto_window") =>
       on

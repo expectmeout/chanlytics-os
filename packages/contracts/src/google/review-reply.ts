@@ -8,19 +8,85 @@
  * the prompt built here; the tests read the same functions.
  */
 
+import { clockTime } from "../shared/clock";
+import { PLAYBOOK_VETO_DELAY_MS } from "../playbooks/playbook-triggers";
 import { DAY_MS } from "../shared/time";
+import { waitEndsWords } from "../waits/wait-rules";
 import { violatesNoPrices, namesMoney } from "../config/policy";
 import { DATA_NOT_INSTRUCTIONS, fenced, promptSafeName } from "../ai/fence";
 
-export type ReviewReplyMode = "auto" | "ask" | "never";
+export type ReviewReplyMode = "auto" | "veto" | "ask" | "never";
 
-/** The row's mode, from the workspace's policy rows. No row, or a mode the class cannot take, reads as ask: a draft on request, nothing posted alone. */
+/** The row's mode, from the workspace's policy rows. No row, or a mode the class cannot take, reads as ask: a draft held for your OK, nothing posted alone. */
 export function reviewReplyModeOf(
   rows: ReadonlyArray<{ class: string; mode: string }> | null | undefined,
 ): ReviewReplyMode {
   const m = rows?.find((r) => r.class === "reviews")?.mode;
-  return m === "auto" || m === "never" ? m : "ask";
+  return m === "auto" || m === "veto" || m === "never" ? m : "ask";
 }
+
+/**
+ * Under Holds it (decision 0064, step 6), a review's reply is written and posted after this long unless it is stopped:
+ * the hold a batch is given (the veto's wait, so the Autonomy row's words are its), read by the hourly sync, which
+ * posts it at its first run after the time.
+ */
+export const REVIEW_HOLD_MS = PLAYBOOK_VETO_DELAY_MS;
+
+/**
+ * The reply the receptionist wrote and holds under a review (decision 0064, step 6): its words, which go in the composer;
+ * its line under the review, how its wait ends (reviewHeldReplyWords); and whether it posts on its own after its time
+ * (Holds it) or waits for your OK (Ask me).
+ */
+export interface HeldReviewReply {
+  text: string;
+  words: string;
+  posts: boolean;
+}
+
+/** A review's held reply as a card draws it, or null: none is held, or a reply is already posted. */
+export function heldReviewReplyOf(
+  r: { reply_text: string | null; draft_text?: string | null; posts_at?: string | null },
+  tz: string,
+): HeldReviewReply | null {
+  if (r.reply_text || !r.draft_text) return null;
+  return { text: r.draft_text.trim(), words: reviewHeldReplyWords(r.posts_at, tz), posts: !!r.posts_at };
+}
+
+/** A held reply's line under its review: when it goes (Holds it) or that it waits for your OK (Ask me), by the wait rule. */
+export function reviewHeldReplyWords(postsAt: string | null | undefined, tz: string): string {
+  const at = postsAt ? Date.parse(postsAt) : NaN;
+  return Number.isFinite(at)
+    ? `${waitEndsWords("review_hold", `after ${clockTime(at, tz)}`)}.`
+    : `${waitEndsWords("review_ask")}.`;
+}
+
+/**
+ * The bell when the sync wrote replies and holds them (decision 0064, step 6): under Ask me they wait for your OK, under
+ * Holds it each posts after its time unless stopped. One review's opens it; several open the lens. Null for none.
+ */
+export function reviewDraftsBell(
+  drafted: ReadonlyArray<{ author: string | null; text: string; posts_at: string | null }>,
+  tz: string,
+): { title: string; body: string } | null {
+  const [d, ...rest] = drafted;
+  if (!d) return null;
+  if (rest.length === 0) {
+    const who = (d.author ?? "").trim();
+    const goes = d.posts_at ? `posts after ${clockTime(Date.parse(d.posts_at), tz)}` : "waits for your OK";
+    return {
+      title: `${REVIEW_REPLY_HELD_TITLE} ${who ? `${who}'s review` : "a review"} ${goes}`,
+      body: `${d.text} ${reviewHeldReplyWords(d.posts_at, tz)}`,
+    };
+  }
+  const holds = drafted.some((r) => r.posts_at);
+  return {
+    title: `${drafted.length} replies to reviews ${holds ? "post unless you stop them" : "wait for your OK"}`,
+    body: "Each is on Reports, under its review.",
+  };
+}
+
+/** How a held reply's bell row begins, so the bell's close finds it (notice-closes.ts): "A reply to …". */
+export const REVIEW_REPLY_HELD_TITLE = "A reply to";
 
 /** What the receptionist knows about the business when it writes under a review. */
 export interface ReviewReplyFacts {
@@ -193,6 +259,7 @@ export function autoReplyBell(
 export function reviewReplyWords(mode: ReviewReplyMode | null | undefined, canReply: boolean): string {
   if (!canReply || !mode) return "";
   if (mode === "auto") return "new ones are answered by the receptionist within the hour";
-  if (mode === "ask") return "the receptionist drafts, you send";
+  if (mode === "veto") return "the receptionist writes each reply and posts it after 30 minutes unless you stop it";
+  if (mode === "ask") return "the receptionist writes each reply and holds it for your OK";
   return "";
 }

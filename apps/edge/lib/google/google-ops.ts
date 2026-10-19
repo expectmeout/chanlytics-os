@@ -48,7 +48,8 @@ export const UNKNOWN_GOOGLE_OP: DoorAnswer = {
   body: {
     ok: false,
     error: "unknown_op",
-    detail: "op must be status, search, link, unlink, refresh, connect, locations, choose, disconnect, reply or draft",
+    detail:
+      "op must be status, search, link, unlink, refresh, connect, locations, choose, disconnect, reply, draft or hold",
   },
 };
 

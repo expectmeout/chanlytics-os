@@ -153,7 +153,14 @@ export const SERVER_NOTIFICATION_KINDS = [
    * bell that opens Settings › Autonomy, where the note waits for Keep or Dismiss. Its words stay on the pane. No mail, no
    * phone; the answer closes it.
    */
-  "note_to_keep"
+  "note_to_keep",
+  /**
+   * The receptionist's reply waits to go in the owner's name (decision 0064, step 2): the hold window they set, or a reply
+   * it was not sure of. A line on the bell and the phone, told once per reply as it is queued (the edge's draft queue),
+   * that opens the thread; closed when the reply goes or is stopped (00461 messages_reply_held_closes). No mail: it waits
+   * minutes, not hours.
+   */
+  "reply_held"
 ];
 export function settledRow(row) {
   return { ...row, unread: false, tone: row.tone === "warn" ? "" : row.tone };
@@ -237,6 +244,8 @@ const SERVER_LOOK = {
    * row reads as read and loses the warning (notice-closes.ts).
    */
   playbook: { icon: "bolt", tone: "warn", action: "Open Campaigns", to: "outbound" },
+  /** A reply counting down to go in the owner's name (decision 0064): a decision with a deadline, so a warning. */
+  reply_held: { icon: "clock", tone: "warn", action: "Open the Inbox", to: "inbox" },
   calendar_people: { icon: "users", tone: "ok", action: "Open People", to: "clients" },
   /** A booking tool's email that could not be read as a booking (00345): a person looks, under Settings › Hours & booking. */
   booking_notice: { icon: "calendar", tone: "warn", action: "Open Settings", to: "admin/workspace" },

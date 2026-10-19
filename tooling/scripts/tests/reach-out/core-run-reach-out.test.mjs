@@ -1,6 +1,7 @@
 /**
  * A reach-out step's run (Reach out, Part 3): runReachOut over fakes for its ports. Who it writes to, the run it makes
- * and whether it waits, and when each email is planned, in its lead's own hours; and the ids a send and its email get.
+ * and whether it waits (decision 0064: a step whose words are new waits for its owner, any other goes by its sequence's
+ * mode), and when each email is planned, in its lead's own hours; and the ids a send and its email get.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -11,6 +12,8 @@ const { runReachOut, sendIdFor, sendMessageId, reachOutRunIdFor } = await import
 );
 
 const NOW = Date.parse("2026-09-28T11:00:00Z"); // a Monday, 6 AM in Austin, 4 AM in Los Angeles
+/** When its owner last let a batch of a step's words go (00461 words_ok_at): its words seen. */
+const SEEN = "2026-09-21T15:00:00Z";
 const RUN = await reachOutRunIdFor("p1", "2026-09-28");
 const lead = (id, over = {}) => ({
   lead_id: id,
@@ -39,6 +42,8 @@ const root = (over = {}) => ({
   template_id: "tpl1",
   template_name: "reach_first",
   template_language: "en",
+  // Its words new to its owner (00461): its first run waits for them.
+  words_ok_at: null,
   ...over,
 });
 function ports(over = {}) {
@@ -51,7 +56,7 @@ function ports(over = {}) {
       mode: "veto",
       maySpend: true,
       alreadyRan: async () => false,
-      chainState: async () => "none",
+      chainWaits: async () => false,
       audience: async () => [lead("a"), lead("b", { region: "CA" })],
       followers: async () => [],
       passOver: async (rootId, leads) => (made.passed.push([rootId, leads]), leads.length),
@@ -76,7 +81,7 @@ test("a send's id is its run and its lead; an attempt's email id is its send and
   assert.notEqual(m0, a);
 });
 
-test("a chain's first run waits for its owner, with every send planned in its lead's own hours", async () => {
+test("a step's first run, its words new, waits for its owner, with every send planned in its lead's own hours", async () => {
   const { ports: p, made } = ports();
   const out = await runReachOut(p, root(), day);
   assert.deepEqual(out, { outcome: "held", reason: "waiting_for_you", planned: 2 });
@@ -104,10 +109,10 @@ test("a chain's first run waits for its owner, with every send planned in its le
   assert.deepEqual(made.told, [[RUN, 2, Date.parse("2026-09-28T14:30:00Z")]]);
 });
 
-test("a chain fed by a list asks before every first email, approved or not; its later steps give thirty minutes", async () => {
+test("a chain fed by a list asks before every first email, its words seen or not; its later steps give thirty minutes", async () => {
   const inHours = Date.parse("2026-09-28T15:00:00Z"); // 10 AM in Austin
-  const first = ports({ chainState: async () => "approved", now: () => inHours, audience: async () => [lead("a")] });
-  const out = await runReachOut(first.ports, root({ fed_by: "list" }), day);
+  const first = ports({ now: () => inHours, audience: async () => [lead("a")] });
+  const out = await runReachOut(first.ports, root({ fed_by: "list", words_ok_at: SEEN }), day);
   assert.deepEqual(
     out,
     { outcome: "held", reason: "waiting_for_you", planned: 1 },
@@ -117,7 +122,6 @@ test("a chain fed by a list asks before every first email, approved or not; its 
   assert.equal(first.made.sends[0].send_at, "2026-09-28T15:00:00.000Z", "no thirty minutes: it goes when they say yes");
   assert.equal(first.made.told.length, 1, "its owner is told a run waits");
   const later = ports({
-    chainState: async () => "approved",
     now: () => inHours,
     followers: async () => [
       {
@@ -136,16 +140,17 @@ test("a chain fed by a list asks before every first email, approved or not; its 
     lead_search_id: null,
     after_playbook_id: "p1",
     after_days: 3,
+    words_ok_at: SEEN,
   });
   const next = await runReachOut(later.ports, step, day);
-  assert.deepEqual(next, { outcome: "sent", planned: 1 }, "a follow-up was said yes to with its chain");
+  assert.deepEqual(next, { outcome: "sent", planned: 1 }, "a follow-up whose words were seen holds for a stop");
   assert.equal(later.made.runs[0].state, "scheduled");
 });
 
-test("a later run of an approved chain gives thirty minutes and tells nobody; one whose owner asks for every run waits", async () => {
+test("a run of a step whose words were seen gives thirty minutes and tells nobody; one whose sequence asks for every batch waits; new words wait again", async () => {
   const inHours = Date.parse("2026-09-28T15:00:00Z"); // 10 AM in Austin
-  const later = ports({ chainState: async () => "approved", now: () => inHours, audience: async () => [lead("a")] });
-  const out = await runReachOut(later.ports, root(), day);
+  const later = ports({ now: () => inHours, audience: async () => [lead("a")] });
+  const out = await runReachOut(later.ports, root({ words_ok_at: SEEN }), day);
   assert.deepEqual(out, { outcome: "sent", planned: 1 });
   assert.equal(later.made.runs[0].state, "scheduled");
   assert.equal(later.made.sends[0].send_at, "2026-09-28T15:30:00.000Z", "thirty minutes to stop it first");
@@ -155,22 +160,19 @@ test("a later run of an approved chain gives thirty minutes and tells nobody; on
     [[later.made.runs[0].id, "scheduled", { planned: 1, skipped: 0 }]],
     "on the record",
   );
-  const asked = ports({
-    chainState: async () => "approved",
-    mode: "ask",
-    now: () => inHours,
-    audience: async () => [lead("a")],
-  });
-  assert.equal((await runReachOut(asked.ports, root(), day)).reason, "waiting_for_you");
+  const asked = ports({ mode: "ask", now: () => inHours, audience: async () => [lead("a")] });
+  assert.equal((await runReachOut(asked.ports, root({ words_ok_at: SEEN }), day)).reason, "waiting_for_you");
   assert.equal(asked.made.runs[0].state, "pending_approval");
   assert.equal(asked.made.sends[0].send_at, "2026-09-28T15:00:00.000Z", "waiting for its owner, it plans from now");
+  // A later step whose words changed (its words_ok_at cleared) waits once, under Holds it too.
+  const changed = ports({ now: () => inHours, audience: async () => [lead("a")] });
+  assert.equal((await runReachOut(changed.ports, root(), day)).reason, "waiting_for_you");
 });
 
-test("nothing is assembled while the chain's first run waits, a chain is paused, the class is never, or the workspace may not spend", async () => {
+test("nothing is assembled while a run of the chain waits, a chain is paused, or the workspace may not spend", async () => {
   const cases = [
-    [{ chainState: async () => "waiting" }, root(), { outcome: "held", reason: "waiting_for_you", planned: 0 }],
+    [{ chainWaits: async () => true }, root(), { outcome: "held", reason: "waiting_for_you", planned: 0 }],
     [{}, root({ state: "paused" }), { outcome: "off", reason: "paused", planned: 0 }],
-    [{ mode: "never" }, root(), { outcome: "off", reason: "never", planned: 0 }],
     [{ maySpend: false }, root(), { outcome: "held", reason: "billing", planned: 0 }],
     [{ alreadyRan: async () => true }, root(), { outcome: "empty", reason: "already_ran", planned: 0 }],
     [{ audience: async () => [] }, root(), { outcome: "empty", reason: "nobody", planned: 0 }],
@@ -223,7 +225,14 @@ test("a run takes the step's share of leads, and a lead whose state has no zone 
 });
 
 test("a step writes to the leads sent the step before; one refused for good is passed over, someone away only skipped", async () => {
-  const step = root({ id: "p2", trigger: "after_step", lead_search_id: null, after_playbook_id: "p1", after_days: 3 });
+  const step = root({
+    id: "p2",
+    trigger: "after_step",
+    lead_search_id: null,
+    after_playbook_id: "p1",
+    after_days: 3,
+    words_ok_at: SEEN,
+  });
   const f = (id, over = {}) => ({
     lead_id: id,
     contact_id: `k${id}`,
@@ -238,7 +247,6 @@ test("a step writes to the leads sent the step before; one refused for good is p
     ...over,
   });
   const { ports: p, made } = ports({
-    chainState: async () => "approved",
     audience: async () => assert.fail("a step reads its followers, never the search"),
     followers: async () => [
       f("a"),
@@ -287,7 +295,14 @@ test("a step writes to the leads sent the step before; one refused for good is p
 });
 
 test("a step whose every follower is refused plans nothing, and still passes each over", async () => {
-  const step = root({ id: "p2", trigger: "after_step", lead_search_id: null, after_playbook_id: "p1", after_days: 3 });
+  const step = root({
+    id: "p2",
+    trigger: "after_step",
+    lead_search_id: null,
+    after_playbook_id: "p1",
+    after_days: 3,
+    words_ok_at: SEEN,
+  });
   const stopped = {
     lead_id: "s",
     contact_id: "ks",
@@ -300,7 +315,7 @@ test("a step whose every follower is refused plans nothing, and still passes eac
     mailbox_id: "d1",
     country: "US",
   };
-  const { ports: p, made } = ports({ chainState: async () => "approved", followers: async () => [stopped] });
+  const { ports: p, made } = ports({ followers: async () => [stopped] });
   assert.deepEqual(await runReachOut(p, step, day), { outcome: "empty", reason: "nobody", planned: 0 });
   assert.deepEqual(made.passed, [["p1", [{ lead_id: "s", why: "outreach_stopped" }]]]);
   assert.deepEqual(made.runs, [], "no run is made for nobody");
@@ -340,7 +355,14 @@ test("the run is its step and its day, whatever tick makes it: a replay meets th
 });
 
 test("a later step's lead keeps the mailbox its chain wrote from; one whose mailbox is gone is skipped, never written to from another (decision 0056)", async () => {
-  const step = root({ id: "p2", trigger: "after_step", lead_search_id: null, after_playbook_id: "p1", after_days: 3 });
+  const step = root({
+    id: "p2",
+    trigger: "after_step",
+    lead_search_id: null,
+    after_playbook_id: "p1",
+    after_days: 3,
+    words_ok_at: SEEN,
+  });
   const f = (id, mailbox) => ({
     lead_id: id,
     contact_id: `k${id}`,
@@ -355,7 +377,6 @@ test("a later step's lead keeps the mailbox its chain wrote from; one whose mail
   });
   const asked = [];
   const { ports: p, made } = ports({
-    chainState: async () => "approved",
     followers: async () => [f("a", "d1"), f("b", "d2"), f("c", "gone-1")],
     mailboxes: async (_step, also) => {
       asked.push([...also].sort());

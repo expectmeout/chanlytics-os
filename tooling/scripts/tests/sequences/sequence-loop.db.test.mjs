@@ -282,7 +282,7 @@ test(
 );
 
 test(
-  "a first step's hour, cap, last day, trial and name reach the steps after it; a step with a name of its own keeps it; a step added later takes them",
+  "a first step's hour, cap, last day and name reach the steps after it; a step with a name of its own keeps it; a step added later takes them (the trial gone: 00462)",
   { skip },
   async () => {
     const [root, second, third] = await sequenceWith("VIP color clients", [14, 7]);
@@ -295,7 +295,6 @@ test(
           run_hour: 15,
           cap_per_run: 40,
           until: "2026-12-31",
-          trial_until: "2026-10-31T00:00:00Z",
           name: "VIP regulars",
         },
         p_decision: { name: "VIP regulars" },
@@ -305,14 +304,14 @@ test(
     const steps = wrote(
       await db
         .from("sequence_steps")
-        .select("id, name, run_hour, cap_per_run, until, trial_until")
+        .select("id, name, run_hour, cap_per_run, until")
         .eq("sequence_id", root)
         .order("place", { ascending: true }),
     );
     for (const s of steps) {
       assert.deepEqual(
-        [s.run_hour, s.cap_per_run, s.until, Date.parse(s.trial_until)],
-        [15, 40, "2026-12-31", Date.parse("2026-10-31T00:00:00Z")],
+        [s.run_hour, s.cap_per_run, s.until],
+        [15, 40, "2026-12-31"],
         `step ${s.id} runs on the first step's settings`,
       );
     }
@@ -331,15 +330,8 @@ test(
       "the step added",
     );
     const step = wrote(
-      await db
-        .from("sequence_steps")
-        .select("name, run_hour, cap_per_run, until, trial_until")
-        .eq("id", added.id)
-        .single(),
+      await db.from("sequence_steps").select("name, run_hour, cap_per_run, until").eq("id", added.id).single(),
     );
-    assert.deepEqual(
-      [step.name, step.run_hour, step.cap_per_run, step.until, Date.parse(step.trial_until)],
-      ["VIP regulars", 15, 40, "2026-12-31", Date.parse("2026-10-31T00:00:00Z")],
-    );
+    assert.deepEqual([step.name, step.run_hour, step.cap_per_run, step.until], ["VIP regulars", 15, 40, "2026-12-31"]);
   },
 );

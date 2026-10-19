@@ -3,12 +3,13 @@
  * the words a change says. The drawer's Pause and Resume, Ask's change card and PUT playbooks/:id's patch body name them
  * from here; core checkPlaybookPatch judges a change against the playbook as it stands; the change_playbook door writes
  * it with its line in the ledger. Since 00416 a change may name the campaign's words (`params`, the slot specs a run
- * fills), its last day (`until`) and the end of its trial (`trial_until`); null clears either date. English, as every
- * card is (Spanish cards are one later lane for all of them, D31).
+ * fills) and its last day (`until`), which null clears; since 00461 its sequence's mode (`mode`, decision 0064). English,
+ * as every card is (Spanish cards are one later lane for all of them, D31).
  */
 import { clockHour } from "../shared/clock";
 import { paramSaid, type ParamSpec } from "../templates/templates";
-import { PLAYBOOK_VETO_DELAY_WORDS, type PlaybookState } from "./playbook-triggers";
+import { SEQUENCE_MODE_WORDS, type SequenceMode } from "../sequences/sequence";
+import type { PlaybookState } from "./playbook-triggers";
 
 /** What a change may name, in the order a card says them. */
 export const PLAYBOOK_PATCH_KEYS = [
@@ -20,20 +21,20 @@ export const PLAYBOOK_PATCH_KEYS = [
   "cadence_days",
   "params",
   "until",
-  "trial_until",
+  "mode",
 ] as const;
 export type PlaybookPatchKey = (typeof PLAYBOOK_PATCH_KEYS)[number];
 
 /**
- * The keys a null clears (00416): the campaign's last day and its trial's end. The seven others are never empty, so a
- * null there names nothing; here it is the change, and an undo of a first end writes it back.
+ * The key a null clears (00416): the campaign's last day. The eight others are never empty, so a null there names
+ * nothing; here it is the change, and an undo of a first end writes it back.
  */
-export const PLAYBOOK_PATCH_CLEARS: readonly PlaybookPatchKey[] = ["until", "trial_until"];
+export const PLAYBOOK_PATCH_CLEARS: readonly PlaybookPatchKey[] = ["until"];
 
 /**
  * A change as it is asked or written: any of the nine, none required. A type, not an interface, so a change is the JSON
- * the door is handed as it stands. `until` is a day (YYYY-MM-DD, the business's), `trial_until` an instant (ISO); null
- * clears either.
+ * the door is handed as it stands. `until` is a day (YYYY-MM-DD, the business's), which null clears; `mode` is its
+ * sequence's (decision 0064).
  */
 export type PlaybookPatch = {
   state?: PlaybookState;
@@ -44,10 +45,10 @@ export type PlaybookPatch = {
   cadence_days?: number;
   params?: ParamSpec[];
   until?: string | null;
-  trial_until?: string | null;
+  mode?: SequenceMode;
 };
 
-/** The keys in a sentence, the last after `last`: "state, name, … until or trial_until". */
+/** The keys in a sentence, the last after `last`: "state, name, … until or mode". */
 const keysSaid = (last: string): string =>
   `${PLAYBOOK_PATCH_KEYS.slice(0, -1).join(", ")} ${last} ${PLAYBOOK_PATCH_KEYS.at(-1) ?? ""}`;
 
@@ -65,23 +66,21 @@ export const PLAYBOOK_PATCH_WORDS = {
   params: (to: readonly ParamSpec[]): string => `Its words changed: ${to.map(paramSaid).join(", ")}`,
   /** Its last day, said by the business's calendar (contracts campaignDayWords: "Nov 30"), or none. */
   until: (day: string | null): string => (day ? `Ends ${day}` : "Runs until it is paused, with no last day"),
-  /** The day its trial ends (campaignDayWords), or none: what a trial does is said with it. */
-  trial_until: (day: string | null): string =>
-    day
-      ? `On trial until ${day}: each run waits ${PLAYBOOK_VETO_DELAY_WORDS} for you to stop it`
-      : "No longer on trial: its runs go as its class is set in Settings › Autonomy",
-  /**
-   * A trial set where its class's mode sends nothing by itself (ask, never): the trial changes nothing there, said with
-   * what a run does under that mode (`does`), never that each run waits for a Stop.
-   */
-  trialInert: (day: string, cls: string, mode: string, does: string): string =>
-    `On trial until ${day}, which changes nothing under “${cls}” (${mode}): ${does}`,
+  /** Its sequence's mode (decision 0064), as How it runs says it: "Before each batch: Ask me, where it was Send it". */
+  mode: (to: SequenceMode, was: SequenceMode): string =>
+    `Before each batch: ${SEQUENCE_MODE_WORDS[to].choice}, where it was ${SEQUENCE_MODE_WORDS[was].choice}`,
+  /** A mode that is none of the three (decision 0064). */
+  modeWhich: "Before each batch is ask (Ask me), veto (Hold it for a stop) or auto (Send it).",
+  /** A mode a sequence to leads does not take: cold email never goes on its own. */
+  modeLeads: "A sequence to leads waits for your OK or holds each batch: it never sends on its own.",
+  /** A mode a one-off does not take: pressing Send decided it. */
+  modeOneOff: "A one-off goes as it was sent: it has no mode.",
   paused: "Nothing more runs until it is resumed",
   /** D8: a pause leaves the run that waits; skipping it is a second card. */
   pausedWaits: (people: number): string =>
     `The run waiting for you (${people} ${people === 1 ? "person" : "people"}) stays waiting: approve or skip it under Coming up`,
-  /** D7: a resume says its class's mode, in full. */
-  resumed: (cls: string, mode: string, does: string): string => `Runs again under “${cls}” (${mode}): ${does}`,
+  /** D7: a resume says what its batches do, by its sequence's mode (decision 0064), in full. */
+  resumed: (does: string): string => `Runs again: ${does}`,
   same: (name: string): string => `“${name}” already reads so: say so, and change nothing`,
   nothing: `Name what changes: ${keysSaid("or")}.`,
   state: "A campaign is running or paused.",
@@ -94,10 +93,6 @@ export const PLAYBOOK_PATCH_WORDS = {
   untilDay: "An end is a day, written YYYY-MM-DD.",
   /** An end before the business's today (`today` in campaignDayWords). */
   untilPast: (today: string): string => `An end is today or later: today is ${today} by your clock.`,
-  /** A trial's end that is no instant with its zone. */
-  trialWhen: "A trial ends at a date and a time with its zone, as 2026-10-18T14:00:00Z, or at null, which ends it now.",
-  /** A trial's end that has already passed: a trial that ended is none. */
-  trialPast: "A trial ends at a time still to come: name a later one, or null, which ends it now.",
   /**
    * What PUT playbooks/:id refuses a body that is none of its three in (a change, the channels alone, the whole
    * campaign): one sentence that names them, where zod said the first key of the nearest one it did not take.

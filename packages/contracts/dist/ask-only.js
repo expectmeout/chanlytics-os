@@ -210,12 +210,14 @@ var SENDING_HOURS_WORDS = {
 };
 var SENDING_NOW_WORDS = "sending now";
 var PLAYBOOK_VETO_DELAY_MS = 30 * MIN_MS;
+var SEND_ONCE_STOP_MS = 10 * MIN_MS;
 function delayWords(ms) {
   const minutes = Math.round(ms / MIN_MS);
   if (minutes < 60 || minutes % 60) return plural(minutes, "minute");
   return minutes === 60 ? "an hour" : plural(minutes / 60, "hour");
 }
 var PLAYBOOK_VETO_DELAY_WORDS = delayWords(PLAYBOOK_VETO_DELAY_MS);
+var SEND_ONCE_STOP_WORDS = delayWords(SEND_ONCE_STOP_MS);
 function triggerOf(id) {
   return PLAYBOOK_TRIGGERS.find((t) => t.id === id) ?? null;
 }
@@ -605,8 +607,6 @@ var LIFECYCLE_WORDS = {
   monthsOffer: { name: "The month's offer" },
   /** A campaign past its last day (00416 `until`), its state: "Ended Oct 1", the day by the business's calendar. */
   ended: (day) => `Ended ${day}`,
-  /** A campaign on trial (00416 `trial_until`), its state: "On trial until Oct 9", the day its trial ends. */
-  onTrial: (day) => `On trial until ${day}`,
   gone: {
     title: "That campaign isn't here any more.",
     body: "Its runs are still counted in Reports, with their numbers."
@@ -837,8 +837,10 @@ var LIFECYCLE_WORDS = {
       /** When, and to about how many; when alone where the moment could not be counted (null), never "about 0". */
       detail: (when, n) => n === null ? `Next run ${when}` : `Next run ${when}, about ${plural(n, "person", "people")}`,
       chain: "Its next emails go out on its next run.",
-      /** Said in full where the campaign's class sends without asking (`auto`, decision 7), where the page knows the mode. */
+      /** Said in full where its next batch goes without asking (`auto`, decision 7), where the page knows the mode. */
       auto: "It sends on its own: nothing will wait for your approval.",
+      /** Said where its next batch's words are new to you (decision 0064): that batch waits for your OK, whatever the mode. */
+      asksFirst: "Its first batch waits for your OK.",
       yes: "Yes, resume it"
     },
     /** What the drawer's head calls a campaign whose group the page does not hold. */
@@ -1054,11 +1056,10 @@ var PEOPLE_CHANGED = { type: "surface:clients" };
 // src/ask-proposals/campaigns.ts
 var PLAYBOOK_CARD_WORDS = {
   /**
-   * A campaign that starts on trial (D5: under an auto class only): for its first week, counted from its Approve
-   * (contracts newCampaignTrialUntil, at the route's clock), each run waits for a Stop as veto's do, said in veto's own
-   * words (PLAYBOOK_VETO_DELAY_WORDS), so a sentence that says both the trial and veto names one wait.
+   * Every new sequence's first batch, and its first after new words, waits for the owner's OK whatever its mode (decision
+   * 0064): the card says so beside what its batches do after that.
    */
-  trial: `on trial for a week from when you approve it: for seven days each run waits ${PLAYBOOK_VETO_DELAY_WORDS} with a Stop`,
+  asksFirst: "its first batch waits for your OK",
   /**
    * A reminder the day before or a check after an appointment (D2): one message per appointment, sent whatever else
    * the person hears from you within a week of it, sent or due (BREATH_WHY), since the run is daily and the appointment
@@ -1093,8 +1094,9 @@ var broadcastSpec = {
     const leftOut = typeof d.left_out === "number" ? d.left_out : 0;
     const n = typeof d.recipient_count === "number" ? goesToOf({ recipient_count: d.recipient_count, left_out: leftOut }) : Number(pl.count ?? 0);
     const ahead = d.scheduled_ahead === true;
+    const goes = ahead ? "scheduled" : d.pressed_now === true ? `goes in ${SEND_ONCE_STOP_WORDS} unless you stop it` : SENDING_NOW_WORDS;
     const said = heardWords(leftOut, true);
-    return `Broadcast \u201C${d.name ?? asText(pl.name)}\u201D \u2014 ${n} ${n === 1 ? "person" : "people"}, ${ahead ? "scheduled" : SENDING_NOW_WORDS}${said ? ` \xB7 ${said}` : ""}`;
+    return `Broadcast \u201C${d.name ?? asText(pl.name)}\u201D \u2014 ${n} ${n === 1 ? "person" : "people"}, ${goes}${said ? ` \xB7 ${said}` : ""}`;
   },
   undo: {
     label: () => "Cancel it, if it has not finished",
@@ -1124,8 +1126,6 @@ var playbookSpec = {
       gap_days: pl.gap_days,
       cadence_days: pl.cadence_days,
       ...channelsNamed(pl),
-      // It starts on trial (D5), where the card said so: the route counts the week from the Approve, at its own clock.
-      ...pl.trial === true ? { trial: true } : {},
       // Its last day (00416), where the card named one: the route judges it again at its own clock.
       ...typeof pl.until === "string" ? { until: pl.until } : {}
     }

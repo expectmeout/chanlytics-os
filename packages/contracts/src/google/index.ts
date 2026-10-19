@@ -46,6 +46,11 @@ export {
   cleanDraft,
   autoReplyCandidates,
   autoReplyBell,
+  reviewDraftsBell,
+  heldReviewReplyOf,
+  reviewHeldReplyWords,
+  REVIEW_HOLD_MS,
+  REVIEW_REPLY_HELD_TITLE,
   autoReplyHold,
   reviewHeldWords,
   reviewReplyWords,
@@ -54,6 +59,7 @@ export {
   REVIEW_AUTO_REPLIES_PER_SYNC,
   REVIEW_AUTO_REPLY_MAX_AGE_MS,
 } from "./review-reply";
+export type { HeldReviewReply } from "./review-reply";
 export type { ReviewReplyMode, ReviewReplyFacts, ReviewToAnswer, ReviewOnRecord } from "./review-reply";
 export {
   onDomain,

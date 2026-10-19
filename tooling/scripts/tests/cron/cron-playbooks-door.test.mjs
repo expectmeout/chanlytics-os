@@ -130,6 +130,8 @@ const playbook = (tenant, id, over = {}) => ({
   created_by: "owner-1",
   last_run_for: null,
   last_run_at: null,
+  // Its words seen going (00461): its batches go by its sequence's mode, the class's row's when it was made.
+  words_ok_at: iso(20 * D),
   created_at: iso(30 * D),
   updated_at: iso(30 * D),
   ...over,
@@ -427,16 +429,19 @@ test("a workspace paused after the page was read is counted off and said once, q
 /* ------------------------------------------------- the page and the clock */
 
 test("the page is bounded and least-recently-run first, and what it could not reach is noted: twenty-seven running playbooks, twenty-five run, the two run most recently wait for the next tick", async () => {
-  // `never` so that each run is off and recorded and nothing is sent: the
-  // ORDER is what this case is about, and it is visible in which rows were
-  // stamped for today.
+  // Each past its last day, so that each run is off and recorded and nothing is
+  // sent: the ORDER is what this case is about, and it is visible in which rows
+  // were stamped for today.
   const w = world({ people: { [R]: [person("c1")] } });
-  workspace(w.tables, R, OPEN, "never");
+  workspace(w.tables, R, OPEN, "auto");
   const N = PLAYBOOKS_PER_TICK + 2;
   for (let i = 0; i < N; i++) {
     // pb-00 and pb-01 never ran; pb-02 ran 25 hours ago ... pb-26 ran an hour ago.
     w.tables.playbooks.push(
-      playbook(R, `pb-${String(i).padStart(2, "0")}`, { last_run_at: i < 2 ? null : iso((N - i) * H) }),
+      playbook(R, `pb-${String(i).padStart(2, "0")}`, {
+        last_run_at: i < 2 ? null : iso((N - i) * H),
+        until: "2026-01-01",
+      }),
     );
   }
   const today = localDate(OPEN, new Date());
@@ -457,7 +462,7 @@ test("the page is bounded and least-recently-run first, and what it could not re
     PLAYBOOKS_PER_TICK,
     "every run is recorded, a run that sent nothing included",
   );
-  assert.ok(w.tables.events.every((e) => e.data.skipped === "never"));
+  assert.ok(w.tables.events.every((e) => e.data.skipped === "ended"));
   nothingMade(w);
   assert.deepEqual(w.backlog, [{ p_sweep: "playbooks", p_remaining: 2 }], "what it could not reach, noted");
   assert.equal(
@@ -488,9 +493,9 @@ test("by the business's clock: in the middle of the night nothing is due, the wo
 
 test("three ticks in a row with DUE work left behind, and the sweep says so with a 503, having still run the page", async () => {
   const w = world({ people: { [R]: [person("c1")] }, ticks: 3 });
-  workspace(w.tables, R, OPEN, "never");
+  workspace(w.tables, R, OPEN, "auto");
   for (let i = 0; i < PLAYBOOKS_PER_TICK + 2; i++)
-    w.tables.playbooks.push(playbook(R, `pb-${String(i).padStart(2, "0")}`));
+    w.tables.playbooks.push(playbook(R, `pb-${String(i).padStart(2, "0")}`, { until: "2026-01-01" }));
   const today = localDate(OPEN, new Date());
 
   const [status, body] = await answer(await w.tick());
@@ -766,6 +771,8 @@ const reachOut = (tenant, id, over = {}) =>
     after_days: null,
     gap_minutes: 12,
     mailbox_ids: [],
+    // A new chain's words, new to its owner (00461): its first run waits for them.
+    words_ok_at: null,
     ...over,
   });
 /** A workspace that may send cold email: its outreach class at its default, a mailbox it connected, and billing. */
@@ -864,10 +871,9 @@ test("a reach-out's first run waits for its owner: one pending run, its sends pl
   assert.equal(w.tables.broadcasts.length, 1);
 });
 
-test("a paused reach-out, a workspace whose class is never, or one that may not spend makes no run", async () => {
+test("a paused reach-out, or one in a workspace that may not spend, makes no run", async () => {
   for (const setup of [
     (t) => (t.playbooks[0].state = "paused"),
-    (t) => (t.policies.find((p) => p.class === "outreach").mode = "never"),
     (t) => (t.billing_accounts[0] = { tenant_id: A, mode: "stripe", status: "canceled" }),
   ]) {
     const w = world({ rpcs: coldRpcs([coldLead("l1")]) });
@@ -966,8 +972,8 @@ test("the reach-out page is only what is due: twenty-five steps that ran today h
 test("a veto run goes on the record: the system's decision under the mode its owner chose, and the run's event", async () => {
   const w = world({ rpcs: coldRpcs([coldLead("l1")]) });
   coldWorkspace(w.tables, A, OPEN);
-  w.tables.playbooks.push(reachOut(A, R));
-  // A run of the chain already went ahead: this one is not asked.
+  // A run of the chain already went ahead, its words seen (00461): this one is not asked.
+  w.tables.playbooks.push(reachOut(A, R, { words_ok_at: iso(D) }));
   w.tables.broadcasts.push({
     id: "prior-run",
     tenant_id: A,

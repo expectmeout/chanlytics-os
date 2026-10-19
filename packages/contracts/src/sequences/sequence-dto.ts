@@ -6,7 +6,8 @@
 import type { AppointmentWord } from "../journey/appointment-word";
 import type { ReachOutChainDto } from "../reach-out/reach-out-dtos";
 import type { ReachOutFedBy } from "../reach-out/reach-out-leads";
-import type { SequenceStart, SequenceState } from "./sequence";
+import type { SequenceMode, SequenceStart, SequenceState } from "./sequence";
+import type { SequenceEvidence } from "./sequence-evidence";
 
 /** A sequence's first step, as the list reads it: how it starts and the class it runs under. */
 export interface SequenceFirstStepDto {
@@ -36,7 +37,11 @@ export interface SequenceFirstStepDto {
   source_could?: { id: string; name: string } | null;
   owner_sends: boolean;
   until: string | null;
-  trial_until: string | null;
+  /**
+   * When a person last let a batch of its words go (00461): null while its words are new, and its next batch then waits
+   * for an OK whatever the mode (contracts batchModeOf).
+   */
+  words_ok_at: string | null;
   template_name: string | null;
   template_language: string | null;
 }
@@ -84,6 +89,8 @@ export interface SequenceRowDto {
   name: string;
   starts: SequenceStart;
   state: SequenceState;
+  /** How its batches are decided (decision 0064, `sequences.mode`); null for a one-off, which pressing Send decided. */
+  mode: SequenceMode | null;
   created_at: string;
   first: SequenceFirstStepDto | null;
   date: SequenceDateDto | null;
@@ -132,6 +139,8 @@ export interface SequenceStepDto {
   /** A sequence to leads' last step for the team: a call or a note. */
   hand: { kind: string; words: string } | null;
   next_words: SequenceNextWordsDto | null;
+  /** When a person last let a batch of its words go (00461); null while they are new, and its next batch asks. */
+  words_ok_at: string | null;
   /** What its batches of the last 30 days sent, and drew back. */
   sent: number;
   replied: number;
@@ -257,12 +266,10 @@ export interface SequencesPageDto {
   word: AppointmentWord;
 }
 
-/** GET sequences/:id: one sequence, its steps, who approves its batches, and the clock. */
+/** GET sequences/:id: one sequence (with how its batches are decided, its own mode), its steps, and the clock. */
 export interface SequenceRecordDto {
   sequence: SequenceRowDto;
   steps: SequenceStepDto[];
-  /** The autonomy mode its first step's class runs under (policies): who approves. Null where none is set (ask). */
-  mode: string | null;
   timezone: string;
   /** What the workspace calls an appointment, which says when a moment's sequence starts. */
   word: AppointmentWord;
@@ -294,6 +301,12 @@ export interface SequenceRecordDto {
    * its pace and who signs. Absent on any other sequence, and from a server before it; null where it could not be read.
    */
   chain?: ReachOutChainDto | null;
+  /**
+   * What its batches did over the last EVIDENCE_DAYS (decision 0064, step 5): went, after an OK, stopped, skipped
+   * unanswered; How it runs says it under Before each batch. Absent on a one-off, where it could not be read, and from a
+   * server before it.
+   */
+  evidence?: SequenceEvidence | null;
   /**
    * A one-off: its one message as its batch sends it. Absent on any other sequence, and from a server before it, which
    * then names the sequence alone; null where the batch could not be read.

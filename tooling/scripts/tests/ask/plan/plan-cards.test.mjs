@@ -578,7 +578,7 @@ test("a change to the campaign an earlier step makes (no plan names one today) t
     [stepToken(1), "paused", "2026-11-30"],
   );
   assert.equal(pause.proposal.summary, [PLAYBOOK_PATCH_WORDS.paused, PLAYBOOK_PATCH_WORDS.until("Nov 30")].join(" · "));
-  for (const input of [{ state: "running" }, { run_hour: 9 }, { trial_until: null }])
+  for (const input of [{ state: "running" }, { run_hour: 9 }, { mode: "veto" }])
     assert.equal(said(await asStep(input)).error, W.stepChangeOnly(1), JSON.stringify(input));
   assert.equal(said(await asStep({ until: "2026-10-01" })).error, PLAYBOOK_PATCH_WORDS.untilPast("Oct 11"));
 });

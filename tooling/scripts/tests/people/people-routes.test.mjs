@@ -2038,11 +2038,15 @@ test("the proposal follow-up's facts (0006): answered with People's first page w
     id: "pb-follow",
     tenant_id: A,
     trigger: "proposal_waiting",
+    // Its class: its sequence was made under the follow-ups' row (00461 sequence_mode_for).
+    policy_class: "follow_up",
     state: "running",
     run_hour: 10,
     last_run_for: null,
     template_name: "proposal_follow_up",
     template_language: "en_US",
+    // Its words seen going (00461): its batches go by its sequence's mode.
+    words_ok_at: iso(now - 20 * DAY),
     ...over,
   });
   const tenant = (over = {}) => ({
@@ -2149,8 +2153,14 @@ test("the proposal follow-up's facts (0006): answered with People's first page w
     }),
   );
   assert.deepEqual(chained.heard[P5], [iso(now - 2 * DAY), iso(now + 10 * DAY)], "both, the one due among them");
+  // Whether it asks is its sequence's mode, made from its class's row (decision 0064), and new words ask whatever that is.
   assert.equal((await read(world({ policies: [policy("auto")] }))).asks, false, "auto: its runs go");
-  assert.equal((await read(world({ policies: [] }))).asks, true, "a class with no row runs as ask");
+  assert.equal((await read(world({ policies: [] }))).asks, true, "a class with no row made a sequence that asks");
+  assert.equal(
+    (await read(world({ policies: [policy("auto")], playbooks: [playbook({ words_ok_at: null })] }))).asks,
+    true,
+    "its words new: its next batch waits for an OK",
+  );
   assert.equal(
     (await read(world({ templates: [template({ category: "marketing" })] }))).purpose,
     "marketing",
@@ -2168,7 +2178,6 @@ test("the proposal follow-up's facts (0006): answered with People's first page w
   console.error = (...a) => stopped.push(a.join(" "));
   try {
     for (const [over, why] of [
-      [{ policies: [policy("never")] }, "its class set to never"],
       [{ playbooks: [playbook({ state: "paused" })] }, "paused"],
       [{ playbooks: [] }, "none made"],
       [{ deals: [] }, "no proposal out: nobody to say anything of"],

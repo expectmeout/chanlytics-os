@@ -1,7 +1,7 @@
 /**
  * PUT playbooks/:id, run through route() with the database in memory (the moment spec §4.9 A5, decision D26). The route
  * declares its body: a change in place (any of state, name, run_hour, cap_per_run, gap_days, cadence_days, and since 00416
- * params, until and trial_until), the channels alone, or the whole playbook, and no other key. A change is judged against
+ * params and until, since 00461 its sequence's mode), the channels alone, or the whole playbook, and no other key. A change is judged against
  * the playbook as it stands and its message (core
  * checkPlaybookPatch) and written with its line in the ledger in one call (the change_playbook door, _change-door.mjs),
  * which answers what each field held; nothing to change writes nothing. On a database before the door (PGRST202) the
@@ -61,7 +61,6 @@ const row = (id, tenant_id, over = {}) => ({
   gap_days: 90,
   cadence_days: 30,
   until: null,
-  trial_until: null,
   created_at: "2026-09-01T00:00:00Z",
   ...over,
 });
@@ -135,11 +134,11 @@ test("the route declares its body: a change in place, the channels alone, or the
     { name: "Past clients", run_hour: 9 },
     { channels: ["whatsapp", "email"] },
     { name: null, trigger: "quiet_30", template_id: "t", params: [], run_hour: 10, cap_per_run: 25 },
-    // Its words, its end and its trial (00416), alone or beside the six; null clears either date.
+    // Its words and its end (00416) and its sequence's mode (00461), alone or beside the six; null clears its end.
     { params: ["@first_name"] },
-    { until: "2026-11-30", trial_until: null },
+    { until: "2026-11-30", mode: "veto" },
     { until: null, state: "paused" },
-    { trial_until: "2026-10-18T14:00:00Z" },
+    { mode: "auto" },
   ])
     assert.equal(body.safeParse(ok).success, true, JSON.stringify(ok));
   for (const no of [
@@ -148,13 +147,15 @@ test("the route declares its body: a change in place, the channels alone, or the
     { trigger: "quiet_30" },
     "paused",
     { until: 20261130 },
-    { trial_until: 5 },
+    // The trial is no key since decision 0064: its first batch's OK is the trial.
+    { trial_until: "2026-10-18T14:00:00Z" },
+    { mode: 5 },
     { params: "@first_name" },
   ])
     assert.equal(body.safeParse(no).success, false, JSON.stringify(no));
 });
 
-test("its words, its end and its trial change in place: judged against the row and its message, written through the door with their line, answering what each held, and an undo writes it back", async () => {
+test("its words, its end and its mode change in place: judged against the row and its message, written through the door with their line, answering what each held, and an undo writes it back", async () => {
   const tables = world({ playbooks: [row(K1, A), row(K2, B, { params: [{ kind: "text", value: "10% off" }] })] });
   setServiceClient(fakeDb(tables));
   const words = await put(tables, K2, { params: ["@first_name"] });
@@ -172,36 +173,38 @@ test("its words, its end and its trial change in place: judged against the row a
   assert.deepEqual((await put(tables, K2, words.was)).was, { params: [{ kind: "first_name" }] });
   assert.deepEqual(p().params, [{ kind: "text", value: "10% off" }]);
 
-  const ends = await put(tables, K2, { until: "2099-11-30", trial_until: "2099-10-18T10:00:00-04:00" });
-  assert.deepEqual(ends.was, { until: null, trial_until: null });
-  assert.deepEqual([p().until, p().trial_until], ["2099-11-30", "2099-10-18T14:00:00.000Z"]);
+  // Its sequence asks (a class with no row: 00461 sequence_mode_for); held for a stop now, on its sequence's row.
+  const sequence = () => tables.sequences.find((q) => q.id === K2);
+  const ends = await put(tables, K2, { until: "2099-11-30", mode: "veto" });
+  assert.deepEqual(ends.was, { until: null, mode: "ask" });
+  assert.deepEqual([p().until, sequence().mode], ["2099-11-30", "veto"]);
   assert.deepEqual(
     tables.decisions.at(-1).payload,
-    { name: "Win-back", until: "2099-11-30", trial_until: "2099-10-18T14:00:00.000Z" },
+    { name: "Win-back", until: "2099-11-30", mode: "veto" },
     "the line names each change as it was written",
   );
-  // The same instant again, spelled another way, is nothing written; null clears each date.
-  assert.deepEqual((await put(tables, K2, { trial_until: "2099-10-18T14:00:00Z" })).decision_id, null);
-  const cleared = await put(tables, K2, { until: null, trial_until: null });
-  assert.deepEqual(cleared.was, { until: "2099-11-30", trial_until: "2099-10-18T14:00:00.000Z" });
-  assert.deepEqual([p().until, p().trial_until], [null, null]);
+  // The mode it holds again is nothing written; null clears its end, and the undo writes its mode back.
+  assert.deepEqual((await put(tables, K2, { mode: "veto" })).decision_id, null);
+  const cleared = await put(tables, K2, { until: null, mode: "ask" });
+  assert.deepEqual(cleared.was, { until: "2099-11-30", mode: "veto" });
+  assert.deepEqual([p().until, sequence().mode], [null, "ask"]);
   assert.deepEqual(
     tables.decisions.map((d) => d.verb),
     ["change_playbook", "change_playbook", "change_playbook", "change_playbook"],
   );
 });
 
-test("its words, its end and its trial are refused in the product's words before anything is written: values its message does not take, an end in the past or no day, a trial's end that is no instant", async () => {
+test("its words, its end and its mode are refused in the product's words before anything is written: values its message does not take, an end in the past or no day, a mode none of the three", async () => {
   const tables = world();
   setServiceClient(fakeDb(tables));
   await refused(put(tables, K2, { params: [] }), "validation", 400, "This template takes 1 value.");
   await refused(put(tables, K2, { params: ["@visit_when"] }), "validation", 400, "Only a reminder the day before");
   await refused(put(tables, K2, { until: "2020-01-01" }), "validation", 400, "An end is today or later");
   await refused(put(tables, K2, { until: "next month" }), "validation", 400, PLAYBOOK_PATCH_WORDS.untilDay);
-  await refused(put(tables, K2, { trial_until: "next week" }), "validation", 400, PLAYBOOK_PATCH_WORDS.trialWhen);
+  await refused(put(tables, K2, { mode: "never" }), "validation", 400, PLAYBOOK_PATCH_WORDS.modeWhich);
   assert.deepEqual(tables.decisions, []);
   const p = tables.playbooks.find((x) => x.id === K2);
-  assert.deepEqual([p.params, p.until, p.trial_until], [[], null, null]);
+  assert.deepEqual([p.params, p.until, tables.sequences.find((q) => q.id === K2).mode], [[], null, "ask"]);
 });
 
 test("a change in place: judged against the row as it stands, written with its line in the ledger in one call, answering what each field held", async () => {

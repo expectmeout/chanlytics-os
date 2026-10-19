@@ -158,8 +158,13 @@ export interface PlaybookRow {
   channels?: string[] | null;
   /** Its last day (00416), YYYY-MM-DD by the business's clock: a run for a day past it is off as `ended`. Absent before it. */
   until?: string | null;
-  /** Until when it runs on trial (00416): before it, a run its class would send by itself waits (contracts effectiveMode). */
-  trial_until?: string | null;
+  /**
+   * Its sequence's mode (decision 0064, `sequences.mode`, which the due steps carry): how its batches are decided. Absent
+   * or unknown asks (contracts batchModeOf, fail safe).
+   */
+  mode?: string | null;
+  /** When a person last let a batch of its words go (00461): null while its words are new, and its batch then asks. */
+  words_ok_at?: string | null;
   /** A moment's step, or a sequence to leads' (00183). Absent: a moment's. */
   kind?: string;
   /** A customer's step after the first (decision 0060, D6): the step before it, and how many days after it it goes. */
@@ -177,12 +182,11 @@ export interface FollowUpDue {
   sent_at: string | null;
 }
 
-/** The workspace as the run reads it once per tenant: the people, the modes, the number, the touches, the calendar. */
+/** The workspace as the run reads it once per tenant: the people, the number, the touches, the calendar. */
 export interface RunContext {
   tz: string;
   now: Date;
   people: PersonRowVM[];
-  modes: Map<string, string>;
   health: NumberHealth;
   /**
    * What the workspace can send on now, channel by channel (contracts channelsReady): its WhatsApp number's health, its
@@ -236,7 +240,6 @@ export type RunOutcome =
       outcome: "off";
       mode: string;
       skipped:
-        | "never"
         | "template_not_approved"
         | "number_flagged"
         | "already_ran_today"

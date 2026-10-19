@@ -13,7 +13,7 @@ once per key for a day: the same request sent again is given the first answer an
 another request (another method, path or body) is refused with 422, and one that arrives while the first still runs
 with 409 (decision 0035). A write that keeps its own key, or has no workspace to keep one in, says so.
 
-290 handlers in 50 domains.
+291 handlers in 50 domains.
 
 ## activity
 
@@ -828,6 +828,12 @@ Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/ap
 Writes; for a member of the workspace the request names, operator or above; counts against the `google_reply` rate; spends nothing.
 
 Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/google/reviews/[id]/reply/route.ts`).
+
+### `POST /api/v1/google/reviews/[id]/stop`
+
+Writes; for a member of the workspace the request names, operator or above; counts against the `google_reply` rate; spends nothing.
+
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/google/reviews/[id]/stop/route.ts`).
 
 ### `POST /api/v1/google/search`
 
@@ -1669,7 +1675,7 @@ Body 1:
 | `cadence_days` | number | no |  |
 | `params` | array of any | no |  |
 | `until` | string or null | no |  |
-| `trial_until` | string or null | no |  |
+| `mode` | string | no |  |
 
 Body 2:
 

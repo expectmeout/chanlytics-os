@@ -315,7 +315,8 @@ export const SCHEMA_SETS = {
     "booking",
     "member_joined",
     "member_left",
-    "note_to_keep"
+    "note_to_keep",
+    "reply_held"
   ],
   "page_vitals.device": ["desk", "phone"],
   "page_vitals.metric": ["LCP", "INP", "CLS", "FCP", "TTFB", "READY", "SETTLED"],
@@ -384,6 +385,7 @@ export const SCHEMA_SETS = {
     "lead_first",
     "after_step"
   ],
+  "sequences.mode": ["auto", "veto", "ask"],
   "sequences.starts": ["moment", "list", "leads", "date"],
   "sequences.state": ["draft", "on", "paused", "ended"],
   "sweep_status.judged_by": ["request", "run"],

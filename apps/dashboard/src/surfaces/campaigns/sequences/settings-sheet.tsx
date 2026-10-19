@@ -1,17 +1,23 @@
 /**
- * How a customer's sequence runs, opened by Start's Change (the Sequences loop review's item 7): its hour, the most it sends
- * each day, the days before the same person hears it again (a moment over a group of people), the days between runs (the
- * month's offer), and the day it stops. The kit's sheet: from the bottom on a phone, a side pane on a desk. Saved through
- * the campaign's own verb (`playbook_change`), only what changed, with its receipt and its undo; the first step's settings
- * reach every step after it (00453). A list's sequence says it goes once to each person, which is no setting. Every word is
- * contracts' (SCHEDULE_WORDS.settings).
+ * How a customer's sequence runs, opened by Start's Change (the Sequences loop review's item 7) and by the head's Who
+ * approves: what happens before each batch (its own mode, decision 0064: ask, hold it for a stop, or send it; new words
+ * always ask first), its hour, the most it sends each day, the days before the same person hears it again (a moment over a
+ * group of people), the days between runs (the month's offer), and the day it stops. The kit's sheet: from the bottom on a
+ * phone, a side pane on a desk. Saved through the campaign's own verb (`playbook_change`), only what changed, with its
+ * receipt and its undo; the first step's settings reach every step after it (00453). A list's sequence says it goes once to
+ * each person, which is no setting. Every word is contracts' (SCHEDULE_WORDS.settings, SEQUENCE_MODE_WORDS).
  */
 import { useState } from "react";
 import {
   PLAYBOOK_HOURS,
   SCHEDULE_WORDS,
+  SEQUENCE_MODE_LABEL,
+  evidenceWords,
+  SEQUENCE_MODE_WORDS,
+  SEQUENCE_NEW_WORDS_ASK,
   clockTime,
   scheduleSettingsOf,
+  sequenceModesFor,
   type SequenceRecordDto,
 } from "@chanlytics/contracts";
 import { Button } from "../../kit/button/button";
@@ -38,6 +44,7 @@ const optionsOf = (choices: readonly number[], now: number, label: (n: number) =
   [...new Set([...choices, now])].sort((a, b) => a - b).map((n) => ({ value: String(n), label: label(n) }));
 
 interface Values {
+  mode: string;
   run_hour: string;
   cap_per_run: string;
   gap_days: string;
@@ -49,6 +56,7 @@ interface Values {
 function openingValues(rec: SequenceRecordDto): Values {
   const s = rec.settings;
   return {
+    mode: rec.sequence.mode ?? "ask",
     run_hour: String(rec.sequence.first?.run_hour ?? 10),
     cap_per_run: String(s?.cap_per_run ?? 25),
     gap_days: String(s?.gap_days ?? 90),
@@ -57,9 +65,14 @@ function openingValues(rec: SequenceRecordDto): Values {
   };
 }
 
-/** What changed, as the verb takes it: numbers as numbers, an end cleared as none. */
+/**
+ * What changed, as the verb takes it: numbers as numbers, an end cleared as none, and the sequence's mode as
+ * `sequence_mode`, the one key the change door reads it from (contracts playbookChangeSpec; a payload's `mode` is the
+ * card's reading of how its runs go, which its undo's words say).
+ */
 function changeOf(was: Values, now: Values): Record<string, number | string | null> {
   const out: Record<string, number | string | null> = {};
+  if (now.mode !== was.mode) out.sequence_mode = now.mode;
   for (const k of ["run_hour", "cap_per_run", "gap_days", "cadence_days"] as const)
     if (now[k] !== was[k]) out[k] = Number(now[k]);
   if (now.until !== was.until) out.until = now.until === "" ? null : now.until;
@@ -81,6 +94,23 @@ function SettingsFields(p: { rec: SequenceRecordDto; v: Values; set: (k: keyof V
   const chevron = <Icon name="chevron-down" size={12} />;
   return (
     <div className="sq-settings-form">
+      <Field
+        label={SEQUENCE_MODE_LABEL}
+        // What its batches did, then the rule over any mode (decision 0064): the mode is set on what happened.
+        hint={[evidenceWords(rec.evidence), SEQUENCE_NEW_WORDS_ASK].filter(Boolean).join(". ")}
+        control={
+          <Select
+            value={v.mode}
+            onValueChange={(x) => set("mode", x)}
+            options={sequenceModesFor(rec.sequence.starts).map((m) => ({
+              value: m,
+              label: SEQUENCE_MODE_WORDS[m].choice,
+            }))}
+            chevron={chevron}
+            data-testid="sq-settings-mode"
+          />
+        }
+      />
       <Field
         label={HOW_IT_RUNS.hour}
         control={

@@ -1,19 +1,17 @@
 /**
- * 00416 on a real Postgres: a campaign ends, runs on trial, and changes its words.
+ * 00416 on a real Postgres, as 00461 and 00462 left it: a campaign ends and changes its words; the trial is gone.
  *
- *   1. The two columns stand where 00440 moved the playbooks (decision 0060, sequence_steps): until is a date and
- *      trial_until a timestamptz, both null with no default, each saying what it is, a member's session may write both,
- *      and the change_playbook and start_playbook doors are a member's. 00416 is not run again: the table it altered
- *      is sequence_steps now, and its old name a view.
- *   2. The door takes the three keys beside the six: `until`, `trial_until` and `params` are each written where they
- *      differ from the row, answered as `was`, and recorded in the same transaction with the decision the caller names
- *      (its payload names each key changed, as it does for the six). The two dates take null, which clears them (an
- *      undo puts back what was there, and a campaign may stop ending or leave its trial); `params` is an array, never
- *      null, whose elements are core's to judge (the ParamSpecs the route builds, contracts parseParamSpecs), so what a
- *      campaign's params held is written back by an undo. A key outside the nine is refused as before, and nothing is
- *      written.
- *   3. The start_playbook door writes both columns where a new campaign names them (Ask's card starts one on trial
- *      under an auto class), each as the instant or day it is, and null where it names neither.
+ *   1. The column stands where 00440 moved the playbooks (decision 0060, sequence_steps): until is a date, null with no
+ *      default, saying what it is, a member's session may write it, and the change_playbook and start_playbook doors are
+ *      a member's. trial_until is gone (00462): a sequence's first batch's OK is its trial (decision 0064).
+ *   2. The door takes until and params beside the six (and its sequence's mode, which a-sequence-is-approved-once
+ *      proves): each is written where it differs from the row, answered as `was`, and recorded in the same transaction
+ *      with the decision the caller names (its payload names each key changed, as it does for the six). until takes
+ *      null, which clears it (an undo puts back what was there, and a campaign may stop ending); `params` is an array,
+ *      never null, whose elements are core's to judge (the ParamSpecs the route builds, contracts parseParamSpecs), so
+ *      what a campaign's params held is written back by an undo. A key outside the nine, trial_until now among them, is
+ *      refused, and nothing is written.
+ *   3. The start_playbook door writes the last day a new campaign names, as the day it is, and null where it names none.
  *
  * Local stack only: it makes workspaces, members and playbooks with the service key and removes them after, and reads
  * the catalog through ../../google/_db-stack.mjs, which first holds the stack under SUPABASE_WORKDIR to the one
@@ -116,8 +114,7 @@ const winBack = async (over = {}) =>
       .single(),
   ).id;
 
-const row = async (id) =>
-  ok(await db.from("sequence_steps").select("state, params, until, trial_until").eq("id", id).single());
+const row = async (id) => ok(await db.from("sequence_steps").select("state, params, until").eq("id", id).single());
 const decisions = async (id) =>
   ok(
     await db
@@ -136,10 +133,8 @@ const change = (who, id, set, over = {}) =>
     p_decision: { name: "Win-back", ...set },
     ...over,
   });
-/** An instant as a number, however it was spelled. */
-const at = (iso) => (iso == null ? null : Date.parse(iso));
 
-/** The two columns as the catalog says them, with their comments and the member's grants. */
+/** The last day's column, and the trial's that is gone (00462), as the catalog says them, with the member's grants. */
 const columns = () =>
   query(
     `select c.column_name, c.data_type, c.is_nullable, c.column_default,
@@ -161,19 +156,15 @@ const door = (signature = "public.change_playbook(uuid, uuid, jsonb, jsonb, text
 const START = "public.start_playbook(uuid, jsonb, jsonb, text, uuid)";
 
 test(
-  "00416's columns stand on sequence_steps (0060): until is a date and trial_until a timestamptz, null, with no default, each saying what it is and written by a member's session, and the doors are a member's",
+  "00416's column stands on sequence_steps (0060): until is a date, null, with no default, saying what it is and written by a member's session; trial_until is gone (00462); and the doors are a member's",
   { skip },
   () => {
     const once = columns();
     assert.deepEqual(
       once.map((c) => [c.column_name, c.data_type, c.is_nullable, c.column_default, c.may_insert, c.may_update]),
-      [
-        ["trial_until", "timestamp with time zone", "YES", null, true, true],
-        ["until", "date", "YES", null, true, true],
-      ],
+      [["until", "date", "YES", null, true, true]],
     );
-    assert.match(once[0].comment, /^Until when this campaign runs on trial/);
-    assert.match(once[1].comment, /^The last day this campaign runs/);
+    assert.match(once[0].comment, /^The last day this campaign runs/);
     const [change] = door();
     assert.deepEqual([change.member, change.anon], [true, false]);
     const [start] = door(START);
@@ -220,33 +211,6 @@ test(
     assert.equal(bad.error?.code, "22007", bad.error?.message);
     assert.equal((await row(id)).until, null);
     assert.equal((await decisions(id)).length, 3);
-  },
-);
-
-test(
-  "change_playbook takes trial_until: the instant written, however it is spelled, its line naming it; null ends the trial",
-  { skip },
-  async () => {
-    const id = await winBack();
-    const who = await operator();
-    const week = "2026-10-17T15:00:00.000Z";
-    const out = ok(await change(who, id, { trial_until: week }));
-    assert.deepEqual(out.was, { trial_until: null });
-    assert.equal(at((await row(id)).trial_until), at(week));
-    const [line] = await decisions(id);
-    assert.deepEqual([line.verb, line.payload.trial_until], ["change_playbook", week]);
-    // The same instant spelled on another clock differs from nothing: no line.
-    const same = ok(await change(who, id, { trial_until: "2026-10-17T11:00:00-04:00" }));
-    assert.deepEqual([same.was, same.decision_id], [{}, null]);
-    // Out of its trial early: null ends it, and what it held is answered.
-    const ended = ok(await change(who, id, { trial_until: null }));
-    assert.deepEqual(Object.keys(ended.was), ["trial_until"]);
-    assert.equal(at(ended.was.trial_until), at(week));
-    assert.equal((await row(id)).trial_until, null);
-    assert.deepEqual(
-      (await decisions(id)).map((d) => d.verb),
-      ["change_playbook", "change_playbook"],
-    );
   },
 );
 
@@ -305,7 +269,13 @@ test(
     const id = await winBack();
     const who = await operator();
     const before_ = await row(id);
-    for (const set of [{ ends: "2026-11-30" }, { until: "2026-11-30", template_id: templateId }]) {
+    // The trial among them since 00462: a sequence's first batch's OK is its trial (decision 0064).
+    for (const set of [
+      { ends: "2026-11-30" },
+      { until: "2026-11-30", template_id: templateId },
+      { trial_until: null },
+      { trial_until: "2026-10-17T15:00:00Z" },
+    ]) {
       const refused = await change(who, id, set);
       assert.equal(refused.error?.code, "22023", `${Object.keys(set)}: ${refused.error?.message}`);
     }
@@ -315,7 +285,7 @@ test(
 );
 
 test(
-  "start_playbook writes the end of a trial and a last day a new campaign names, as the instant and the day they are, its line the member's; one naming neither has neither; a trial's end that is no instant starts nothing",
+  "start_playbook writes the last day a new campaign names, as the day it is, its line the member's; one naming none has none; a day that is no day starts nothing",
   { skip },
   async () => {
     const who = await operator();
@@ -338,21 +308,18 @@ test(
           gap_days: 90,
           cadence_days: 30,
           channels: ["whatsapp"],
-          trial_until: null,
           ...over,
         },
         p_decision: { name: over.name ?? "Win-back" },
       });
-    const week = "2026-10-17T11:00:00-04:00";
-    const onTrial = ok(await start({ name: "On trial", trial_until: week, until: "2026-11-30" }));
-    const made = await row(onTrial.id);
-    assert.deepEqual([made.state, at(made.trial_until), made.until], ["running", at(week), "2026-11-30"]);
-    const [line] = await decisions(onTrial.id);
+    const ending = ok(await start({ name: "Ending", until: "2026-11-30" }));
+    const made = await row(ending.id);
+    assert.deepEqual([made.state, made.until], ["running", "2026-11-30"]);
+    const [line] = await decisions(ending.id);
     assert.deepEqual([line.verb, line.actor_user_id], ["start_playbook", who.id]);
-    const plain = ok(await start({ name: "No trial" }));
-    const none = await row(plain.id);
-    assert.deepEqual([none.trial_until, none.until], [null, null]);
-    const bad = await start({ name: "Never started", trial_until: "next week" });
+    const plain = ok(await start({ name: "Open-ended" }));
+    assert.equal((await row(plain.id)).until, null);
+    const bad = await start({ name: "Never started", until: "the end of November" });
     assert.equal(bad.error?.code, "22007", bad.error?.message);
     const named = ok(
       await db.from("sequence_steps").select("name").eq("tenant_id", tenantId).eq("name", "Never started"),

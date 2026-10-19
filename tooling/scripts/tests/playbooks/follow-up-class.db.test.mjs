@@ -63,43 +63,52 @@ after(async () => {
   await db.from("tenants").delete().eq("id", tenantId);
 });
 
-test("a new workspace's follow-ups row is seeded as ask, beside every class contracts declares", { skip }, async () => {
-  const { data, error } = await db
-    .from("policies")
-    .select("class, mode")
-    .eq("tenant_id", tenantId)
-    .is("subject_type", null);
-  assert.equal(error, null, error?.message);
-  const modes = Object.fromEntries(data.map((r) => [r.class, r.mode]));
-  assert.deepEqual(Object.keys(modes).sort(), [...POLICY_CLASSES].sort(), "the matrix is contracts' classes, no more");
-  assert.equal(modes.follow_up, "ask", "every run waits for a person until the owner says otherwise");
-  // Its modes are the route's: auto, ask or never. The row moves; money's never does.
-  const moved = await db
-    .from("policies")
-    .update({ mode: "auto" })
-    .eq("tenant_id", tenantId)
-    .eq("class", "follow_up")
-    .is("subject_type", null)
-    .select("mode");
-  assert.equal(moved.error, null, moved.error?.message);
-  assert.deepEqual(
-    moved.data.map((r) => r.mode),
-    ["auto"],
-  );
-  // The provisioner re-runs (the trigger, a backfill and onboarding may each call it): one row, the owner's mode kept.
-  const rerun = await db.rpc("provision_tenant", { p_tenant_id: tenantId });
-  assert.equal(rerun.error, null, rerun.error?.message);
-  const rows = await db
-    .from("policies")
-    .select("mode")
-    .eq("tenant_id", tenantId)
-    .eq("class", "follow_up")
-    .is("subject_type", null);
-  assert.deepEqual(
-    rows.data?.map((r) => r.mode),
-    ["auto"],
-  );
-});
+test(
+  "a new workspace's follow-ups row is seeded as veto, beside every class contracts declares",
+  { skip },
+  async () => {
+    const { data, error } = await db
+      .from("policies")
+      .select("class, mode")
+      .eq("tenant_id", tenantId)
+      .is("subject_type", null);
+    assert.equal(error, null, error?.message);
+    const modes = Object.fromEntries(data.map((r) => [r.class, r.mode]));
+    assert.deepEqual(
+      Object.keys(modes).sort(),
+      [...POLICY_CLASSES].sort(),
+      "the matrix is contracts' classes, no more",
+    );
+    // A new follow-up sequence's first batch waits for an OK, and each after it goes unless stopped (decision 0064, 00462).
+    assert.equal(modes.follow_up, "veto", "a new follow-up sequence starts held for a stop");
+    // Its modes are the route's: auto, veto or ask (0064). The row moves; money's never does.
+    const moved = await db
+      .from("policies")
+      .update({ mode: "auto" })
+      .eq("tenant_id", tenantId)
+      .eq("class", "follow_up")
+      .is("subject_type", null)
+      .select("mode");
+    assert.equal(moved.error, null, moved.error?.message);
+    assert.deepEqual(
+      moved.data.map((r) => r.mode),
+      ["auto"],
+    );
+    // The provisioner re-runs (the trigger, a backfill and onboarding may each call it): one row, the owner's mode kept.
+    const rerun = await db.rpc("provision_tenant", { p_tenant_id: tenantId });
+    assert.equal(rerun.error, null, rerun.error?.message);
+    const rows = await db
+      .from("policies")
+      .select("mode")
+      .eq("tenant_id", tenantId)
+      .eq("class", "follow_up")
+      .is("subject_type", null);
+    assert.deepEqual(
+      rows.data?.map((r) => r.mode),
+      ["auto"],
+    );
+  },
+);
 
 test(
   "the widened CHECKs take the follow-up's trigger and class, and still refuse what nobody wrote",

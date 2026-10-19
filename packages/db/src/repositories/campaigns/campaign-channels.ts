@@ -4,7 +4,8 @@
  * and routes and the edge's playbook runs read them here, so both ask the same rows.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { ConsentChannel } from "@chanlytics/contracts";
+import type { ConsentChannel, SequenceMode } from "@chanlytics/contracts";
+import { sequenceModesOf } from "./sequences";
 import type { Database } from "../../database.types";
 import { IDS_PER_READ } from "../people";
 
@@ -114,7 +115,8 @@ type PlaybookRowOf = Database["public"]["Tables"]["sequence_steps"]["Row"];
 
 /**
  * One playbook as a change in place is judged against it (core checkPlaybookPatch; Ask's change card, PUT
- * playbooks/:id's patch): its row under the caller's RLS, its message and words, its end and its trial (00416), and the
+ * playbooks/:id's patch): its row under the caller's RLS, its message and words, its end (00416), its sequence's mode
+ * and when its words were last let go (00461), and the
  * run of it that waits for approval, with how many it is for, which a pause leaves waiting (D8). Null where the workspace
  * has no such playbook. A reach-out's root is one too: its sheet's Pause is a change of its state. Throws on a failed
  * read.
@@ -140,14 +142,14 @@ export async function playbookForChange(
       | "template_id"
       | "params"
       | "until"
-      | "trial_until"
-    > & { waiting: { id: string; recipient_count: number } | null })
+      | "words_ok_at"
+    > & { mode: SequenceMode; waiting: { id: string; recipient_count: number } | null })
   | null
 > {
   const { data, error } = await db
     .from("sequence_steps")
     .select(
-      "id, name, trigger, state, policy_class, run_hour, cap_per_run, gap_days, cadence_days, list_id, list_key, template_id, params, until, trial_until",
+      "id, sequence_id, name, trigger, state, policy_class, run_hour, cap_per_run, gap_days, cadence_days, list_id, list_key, template_id, params, until, words_ok_at",
     )
     .eq("tenant_id", tenantId)
     .eq("id", playbookId)
@@ -163,7 +165,9 @@ export async function playbookForChange(
     .limit(1);
   if (waiting.error) throw new Error(`playbook_for_change: ${waiting.error.message}`);
   const [w] = waiting.data ?? [];
-  return { ...data, waiting: w ? { id: w.id, recipient_count: w.recipient_count } : null };
+  // Its sequence's mode (decision 0064): what a change of it is judged against, and what a resume says.
+  const mode = (await sequenceModesOf(db, tenantId, [data.sequence_id])).get(data.sequence_id) ?? "ask";
+  return { ...data, mode, waiting: w ? { id: w.id, recipient_count: w.recipient_count } : null };
 }
 
 /**

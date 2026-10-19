@@ -29,6 +29,7 @@ import {
 } from "@chanlytics/contracts";
 import { readAged, type SurfaceOverride } from "./surface-data";
 import { api, read } from "./api";
+import { commitVerb } from "./verbs/commit";
 import { bellNow } from "./notifications";
 import { declareReads, ownsTheScreen } from "./surface-registry";
 import { surfaceMoved } from "./surface-status";
@@ -138,6 +139,15 @@ export async function replyToReview(id: string, comment: string): Promise<{ ok: 
   const r = await api()("POST google/reviews/[id]/reply", { params: { id }, body: { comment }, once: true });
   if (r.ok) readNoticesOfReview(id);
   return { ok: r.ok, message: r.ok ? "" : r.message };
+}
+
+/**
+ * A reply the receptionist holds under Holds it, stopped before it posts (decision 0064, step 6): it then waits for an OK.
+ * Through the verbs' one door (contracts reviewReplyStopSpec), whose receipt says whether one was stopped.
+ */
+export async function stopHeldReply(id: string): Promise<{ ok: boolean; message: string }> {
+  const r = await commitVerb("review_reply_stop", { review_id: id });
+  return r.ok ? { ok: true, message: r.receipt } : { ok: false, message: r.message };
 }
 
 /** The receptionist's draft of a reply, for the composer. Nothing is posted. Refused under Never, with the words for it. */
