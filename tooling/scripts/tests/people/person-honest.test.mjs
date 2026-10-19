@@ -1876,18 +1876,36 @@ test("a person's page names the runs that reached them and what came of each -- 
     vm.campaigns.map((c) => [c.id, c.title, c.line, c.tone, c.to]),
     [
       // Each says the wire it went by, or would have: a person on three channels knows where to look.
-      ["b-queued", "Autumn offer", "Broadcast · Email · Waiting to send", "plain", "broadcasts/run:b-queued"],
-      ["b-win", "Win-back", "Campaign · WhatsApp · Replied", "ok", "broadcasts/run:b-win"],
+      [
+        "b-queued",
+        "Autumn offer",
+        "Broadcast · Email · Waiting to send",
+        "plain",
+        "campaigns/sequences/b-queued/runs/b-queued",
+      ],
+      ["b-win", "Win-back", "Campaign · WhatsApp · Replied", "ok", "campaigns/sequences/b-win/runs/b-win"],
       // A run made before runs had channels went by WhatsApp, and says so.
-      ["b-spring", "Spring offer", "Broadcast · WhatsApp · Sent", "plain", "broadcasts/run:b-spring"],
-      ["b-held", "Summer offer", "Broadcast · Text · Held — no yes to offers", "warn", "broadcasts/run:b-held"],
+      [
+        "b-spring",
+        "Spring offer",
+        "Broadcast · WhatsApp · Sent",
+        "plain",
+        "campaigns/sequences/b-spring/runs/b-spring",
+      ],
+      [
+        "b-held",
+        "Summer offer",
+        "Broadcast · Text · Held — no yes to offers",
+        "warn",
+        "campaigns/sequences/b-held/runs/b-held",
+      ],
       // The refusal's own words stay the provider's, never WhatsApp's by default: the wire is said beside them.
       [
         "b-refused",
         "May offer",
         "Broadcast · WhatsApp · Didn't send — the provider refused it",
         "warn",
-        "broadcasts/run:b-refused",
+        "campaigns/sequences/b-refused/runs/b-refused",
       ],
     ],
     "newest first; a reply inside the window is a reply, one four days later is not",
@@ -2098,7 +2116,7 @@ test("the profile's Campaigns rows open each run's report, and its Lists name th
     textOf(rows[1]),
   );
   press(rows[1]);
-  assert.deepEqual(went, ["broadcasts/run:b-win"]);
+  assert.deepEqual(went, ["campaigns/sequences/b-win/runs/b-win"]);
   const quiet = await profile(toPersonVM(detail(), ZONE, new Date(NOW)), "campaigns");
   assert.equal(
     byTestId(quiet(), "person-campaigns"),

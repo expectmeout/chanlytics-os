@@ -903,14 +903,31 @@ test("a reach-out's run waiting on Today is opened, never approved from the row 
     },
     __nav: (to) => opened.push(to),
   });
-  const queue = byTestId(draw(AgentCommand), "today-queue");
-  const rows = all(queue, (n) => n.props?.["data-testid"] === "brief-run-row");
-  assert.equal(rows.length, 2, "both runs wait on the card");
-  const [reach, playbook] = rows;
+  // Both waiting for an OK are one row (the run review's item 5, the Campaigns wiring review's rule D): it opens the first,
+  // whose screen walks the rest, and approves nothing.
+  let queue = byTestId(draw(AgentCommand), "today-queue");
+  const folded = byTestId(queue, "brief-runs-row");
+  assert.ok(folded, "two runs waiting for an OK are one row");
+  assert.equal(all(queue, (n) => n.props?.["data-testid"] === "brief-run-row").length, 0, "and no row a run");
+  assert.ok(textOf(folded).includes("2 runs wait for your OK"), textOf(folded));
+  assert.equal(buttons(folded, "Approve").length, 0, "no one-tap send of a reach-out from Today, folded or not");
+  went.length = 0;
+  press(buttons(folded, "Open")[0]);
+  assert.deepEqual(went, ["campaigns/sequences/b-reach/runs/b-reach"], "the first, at its home");
+  // A reach-out's run alone is opened, never approved from the row (D6).
+  set({
+    __BROADCASTS: {
+      rows: [run("b-reach", "pending_approval", { audience: { kind: "reach_out", label: "Movers nearby" } })],
+    },
+  });
+  queue = byTestId(draw(AgentCommand), "today-queue");
+  const reach = byTestId(queue, "brief-run-row");
   assert.equal(buttons(reach, "Approve").length, 0, "no one-tap send of a reach-out from Today");
   assert.equal(buttons(reach, "Open").length, 1, "the row opens the run");
   assert.equal(buttons(reach, "See who's on it").length, 0, "one door, not the same door twice");
-  // A playbook's run keeps its Approve, as before, in the one word every screen says for it (decision 19): with its count.
+  // A playbook's run alone keeps its Approve, in the one word every screen says for it (decision 19): with its count.
+  set({ __BROADCASTS: { rows: [run("b-wait", "pending_approval")] } });
+  const playbook = byTestId(byTestId(draw(AgentCommand), "today-queue"), "brief-run-row");
   assert.equal(buttons(playbook, "Approve").length, 1);
   assert.equal(textOf(buttons(playbook, "Approve")[0]), LIFECYCLE_WORDS.ledger.approve(3));
   assert.equal(textOf(buttons(playbook, "Approve")[0]), "Approve · 3 people");
@@ -1021,12 +1038,12 @@ test("a waiting run whose day has passed is opened from the queue, never approve
   assert.ok(!said.includes(w.waiting.sentence), "and not that nothing sends until you say so");
   went.length = 0;
   press(buttons(waiting, "Open")[0]);
-  assert.deepEqual(went, ["broadcasts/run:b-wait"], "it opens the run, where Skip is");
+  assert.deepEqual(went, ["campaigns/sequences/b-wait/runs/b-wait"], "it opens the run, where Skip is");
   assert.deepEqual(approvals, []);
   // The bell's row about one run says where it goes.
   const { verbForRoute } = await import("@chanlytics/contracts");
   assert.deepEqual(
-    [verbForRoute("broadcasts/run:b-wait"), verbForRoute("broadcasts")],
+    [verbForRoute("campaigns/sequences/b-wait/runs/b-wait"), verbForRoute("broadcasts")],
     ["Open the run", "Open Sequences"],
   );
 });

@@ -66,6 +66,8 @@ interface Run {
   audience?: { label?: string } | null;
   /** Its own name: what says the run, less a campaign run's day (contracts runTitleOf). */
   name: string;
+  /** The sequence it is a day of, which its home is under (contracts runRoute). */
+  sequence_id?: string | null;
 }
 
 export interface PaletteGlobals {
@@ -215,7 +217,7 @@ export function waitingFrom(win: Window, parts: Waits | null = needsYouParts()):
       // label a one-off sent to a list was named for the list (18 Oct 2026, the sample walk).
       label: runTitleOf(r),
       reach: r.recipient_count,
-      to: runRoute(r.id),
+      to: runRoute(r.id, r.sequence_id),
     })),
     searches,
     windows,

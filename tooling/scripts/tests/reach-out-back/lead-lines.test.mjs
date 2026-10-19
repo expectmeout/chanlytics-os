@@ -128,7 +128,7 @@ test("the strip says how many, today's of the day's share, the next and where fr
   assert.equal(older.parts[2], "from mail.example.com");
   assert.equal(s.running, true);
   assert.equal(s.progress, 0.6);
-  assert.deepEqual(s.going, { label: "How it's going", to: "outbound/r1" });
+  assert.deepEqual(s.going, { label: "How it's going", to: "campaigns/sequences/r1" });
   assert.deepEqual(s.toggle, { label: "Pause", pause: true });
   assert.equal(s.waiting, null);
 });
@@ -141,7 +141,7 @@ test("the strip, paused, with nothing planned, with holds and a run waiting", ()
   const quiet = reachOutStripOf(lines({ next: null, held: 2, waiting_run_id: "b9" }), null, NOW, TZ);
   assert.deepEqual(quiet.parts, ["18 today", "nothing more planned yet", "2 held for your OK"]);
   assert.equal(quiet.progress, null);
-  assert.deepEqual(quiet.waiting, { label: "Waits for your OK", to: "broadcasts/run:b9" });
+  assert.deepEqual(quiet.waiting, { label: "Waits for your OK", to: "campaigns/sequences/b9/runs/b9" });
   const tomorrow = reachOutStripOf(
     lines({ next: { at: "2026-09-29T14:40:00.000Z", business: null, host: null } }),
     chain,
@@ -328,7 +328,7 @@ test("a reach-out its owner sends: a draft is theirs to send, an email they sent
     handed.lines.map((l) => l.text),
     ["Email 2 · handed to you to send"],
   );
-  assert.deepEqual(handed.send, { label: "Send it", to: "broadcasts/run:b9" });
+  assert.deepEqual(handed.send, { label: "Send it", to: "campaigns/sequences/b9/runs/b9" });
   assert.equal(handed.said, null, "nothing has gone, so nothing came back");
   // Sent from their own inbox: said so, and its answer lands there, so the owner says what it was.
   const sent = reachOutTimelineOf(story({ sends: [mine], readings: [] }), NOW, TZ);

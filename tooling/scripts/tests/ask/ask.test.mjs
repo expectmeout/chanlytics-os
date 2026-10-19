@@ -975,7 +975,7 @@ test("the bridge: the jump index and Right now come from the surfaces, the quick
   ]);
   assert.deepEqual(
     api.waiting().runs.map((r) => [r.id, r.label, r.reach, r.to]),
-    [["r1", "Win-back", 1, "broadcasts/run:r1"]],
+    [["r1", "Win-back", 1, "campaigns/sequences/r1/runs/r1"]],
     "REGRESSION: a run is called by its own name less its day, as Today's queue and the Inbox say it; by its audience's label a one-off sent to a list was the list (18 Oct 2026)",
   );
   // A run whose audience has no name (a reach-out's carries its ids alone) is called the same way (contracts runTitleOf).
@@ -992,7 +992,7 @@ test("the bridge: the jump index and Right now come from the surfaces, the quick
   const needs = await api.quick("who needs me?");
   assert.deepEqual(
     needs.show.items.map((i) => i.source.to),
-    ["inbox/th-c1", "broadcasts/run:r1"],
+    ["inbox/th-c1", "campaigns/sequences/r1/runs/r1"],
   );
   const called = await api.quick("did anyone call?");
   assert.deepEqual(

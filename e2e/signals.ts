@@ -19,8 +19,8 @@ import { routeOf } from "./address";
  * checks that ran.
  */
 
-/** Where every "nobody has said yes to offers" leads (contracts GET_YES_ROUTE). */
-export const GET_YES_HASH = "#/broadcasts/get-yes";
+/** Where every "nobody has said yes to offers" leads (contracts GET_YES_ROUTE): People's sheet. */
+export const GET_YES_HASH = "#/clients/get-yes";
 /** The route it is, as the app's address names it (a path since decision 0015). */
 export const GET_YES_ROUTE = GET_YES_HASH.replace(/^#\//, "");
 
@@ -34,9 +34,9 @@ export const GET_YES_ROUTE = GET_YES_HASH.replace(/^#\//, "");
  * be scanned, so the image itself must be entirely in view.
  *
  * Since Glass the top bar holds the date and time where the crumbs stood, and the
- * frame head names what is open, its last crumb: Get their yes, a pane beside
- * Sequences' list since Sent's list went to each sequence's History (decision
- * 0060, D3); the pane's own title says it too. This read "Get their yes" off the
+ * frame head names what is open, its last crumb: Get their yes, a sheet over
+ * People's list since the Campaigns wiring review (19 Oct 2026: a yes is about
+ * people); the sheet's own title says it too. This read "Get their yes" off the
  * top bar until 7 Oct 2026, and "Sent" off the head until 16 Oct.
  */
 export async function expectQrInView(page: Page): Promise<void> {

@@ -46,7 +46,7 @@ Object.assign(globalThis, {
   gate: () => ({}),
   gateTitle: (perm, doing) => `Only an owner or operator can ${doing}.`,
 });
-const { BroadcastsPage } = await import(`${SRC}/surfaces/campaigns/broadcasts/broadcasts-page.tsx`);
+const { BroadcastSend } = await import(`${SRC}/surfaces/campaigns/broadcasts/broadcasts-page.tsx`);
 const { broadcastsSample } = await import(`${SRC}/surfaces/campaigns/broadcasts/sample.ts`);
 const { setSurfaceValue } = await import(`${SRC}/surfaces/surface-values.ts`);
 
@@ -59,9 +59,10 @@ test("the broadcast composer is one sentence in one pane: what, to whom, by whic
   const open = () => {
     setSurfaceValue("broadcasts", broadcastsSample(NOW));
     freshTree();
-    const page = (props = {}) => again(() => BroadcastsPage(props));
-    // The screen opens as the page still opens it, on a link that names a list: the home's New message hosts the same screen.
-    page({ initialSegment: "no-such-list" });
+    // The screen as New's Send once hosts it (the Campaigns wiring review's lane 6), over the sample's runs.
+    const props = { data: broadcastsSample(NOW), flash() {}, onDone() {}, onYes() {} };
+    const page = () => again(() => BroadcastSend(props));
+    page();
     return page();
   };
   const glass = open();

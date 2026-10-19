@@ -131,10 +131,8 @@ function OpenRecord(p: {
   moved: () => void;
   again: number;
   toast: ReactNode;
-  /** The day of History the address opens, where it names one (a run's address landed here). */
-  day: string | null;
 }) {
-  const { rec, tab, flash, moved, again, toast, day } = p;
+  const { rec, tab, flash, moved, again, toast } = p;
   const row = rec.sequence;
   const phone = useCmPhone();
   // The step open to be changed, held here so the dock's Edit step N opens it (on Steps, where it stands).
@@ -205,7 +203,7 @@ function OpenRecord(p: {
               />
             ) : null}
             {tab === "people" ? <SequencePeople rec={rec} flash={flash} again={again} moved={moved} /> : null}
-            {tab === "history" ? <SequenceHistory rec={rec} again={again} moved={moved} day={day} /> : null}
+            {tab === "history" ? <SequenceHistory rec={rec} again={again} moved={moved} /> : null}
           </TabView>
         </div>
       </RecordFootContext.Provider>
@@ -217,11 +215,9 @@ function OpenRecord(p: {
 interface SequenceRecordProps {
   id: string;
   tab: SequenceTab;
-  /** A day of History open, by its batch (`/history/<batch>`). */
-  day?: string | null;
 }
 
-export function SequenceRecord({ id, tab, day = null }: SequenceRecordProps) {
+export function SequenceRecord({ id, tab }: SequenceRecordProps) {
   const [again, setAgain] = useState(0);
   const moved = useCallback(() => setAgain((n) => n + 1), []);
   const [toast, flash] = useLegacyToast();
@@ -229,11 +225,11 @@ export function SequenceRecord({ id, tab, day = null }: SequenceRecordProps) {
   // Campaigns' second part (client/page-speed.ts): the sequence open, drawn with its record or saying why it could not be.
   // Each sequence opened is timed from the press that opened it, as a thread in the Inbox is.
   usePartShown("campaigns", "record", read.state !== "reading", id);
-  // An address that named one of its parts (a step's id, a run's) is replaced by the sequence's own, its day kept.
+  // An address that named one of its parts (a step's id, a run's) is replaced by the sequence's own, its tab kept.
   const named = read.state === "read" ? read.data.sequence.id : null;
   useEffect(() => {
-    if (named && named !== id) replaceRoute(sequenceRoute(named, tab, day));
-  }, [named, id, tab, day]);
+    if (named && named !== id) replaceRoute(sequenceRoute(named, tab));
+  }, [named, id, tab]);
   if (read.state !== "read") {
     return (
       <CmPane title={SEQUENCE_WORDS.title} onClose={() => navigate(SEQUENCES_ROUTE)} testid="sq-record">
@@ -257,7 +253,6 @@ export function SequenceRecord({ id, tab, day = null }: SequenceRecordProps) {
       moved={moved}
       again={again}
       toast={toast}
-      day={day}
     />
   );
 }

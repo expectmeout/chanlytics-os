@@ -19,14 +19,6 @@
   display: inline-flex;
   transform: scaleX(-1);
 }
-/* The Start row's two acts: How it runs, then Add leads (Leads, with this sequence where Add goes). */
-.ld-start-acts {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-3);
-  margin-top: var(--space-1);
-}
-
 /* A step's sheet: its words, then Insert, Ask rewrites it and Preview on one line, the note, and the list under it. */
 .ld-step,
 .ld-write {

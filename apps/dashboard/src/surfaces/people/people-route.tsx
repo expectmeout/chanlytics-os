@@ -14,7 +14,15 @@
  * view of the deck (scope-view.ts), so the scope arriving comes in from its tab's side and the one leaving goes by a copy.
  */
 import { Activity, useEffect, useRef, useState, type ReactNode } from "react";
-import { addressOf, parsePeopleRoute, peopleRoute, personRouteOf, routeOfPath } from "@chanlytics/contracts";
+import {
+  GET_YES_PARAM,
+  GET_YES_ROUTE,
+  addressOf,
+  parsePeopleRoute,
+  peopleRoute,
+  personRouteOf,
+  routeOfPath,
+} from "@chanlytics/contracts";
 import { demoSession, navigate } from "../legacy-verbs";
 import { usePartShown, useSurface } from "../use-surface";
 import { takeOwnAddress } from "./page/own-address";
@@ -24,6 +32,7 @@ import { PipelineScope } from "./pipeline/scope";
 import { addressReplace } from "./shell-verbs";
 import { isPersonParam } from "./chrome";
 import { ClientProfile } from "./person/person-real";
+import { GetYesSheet } from "./sheets/get-yes-sheet";
 import { viewDeck } from "../kit/motion/view-deck";
 import type { ScopeView } from "./scope-view";
 import { plScopes } from "./words";
@@ -53,6 +62,8 @@ function viewOf(param: string) {
  */
 function mountOf(route: string): string {
   if (route === "clients/pipeline" || route.startsWith("clients/pipeline:")) return "clients/pipeline";
+  // Get their yes is a sheet over Everyone: the list under it is the one it was opened over.
+  if (route === GET_YES_ROUTE) return "clients";
   const at = parsePeopleRoute(route);
   return at ? peopleRoute({ view: at.view }) : route;
 }
@@ -160,6 +171,17 @@ const SCOPE_ORDER: readonly string[] = plScopes().map((s) => s.id);
 /** The deck's one seat for People's scopes. */
 const SCOPE_SEAT = "people-scope";
 
+/**
+ * Get their yes over People's list (`clients/get-yes`, the Campaigns wiring review's lane 7): drawn from the first time it
+ * is asked for, so it leaves the way it came, and nothing of it before. Its Close is People's list, in its place: Back from
+ * there is where the sheet was opened from, never the sheet again.
+ */
+function GetYesOver({ open }: { open: boolean }) {
+  const asked = useRef(open);
+  if (open) asked.current = true;
+  return asked.current ? <GetYesSheet open={open} onClose={() => addressReplace("clients", { quiet: false })} /> : null;
+}
+
 /** A scope kept: drawn while it is shown, hidden and kept while another is. */
 function KeptScope({ shown, children }: { shown: boolean; children: ReactNode }) {
   return <Activity mode={shown ? "visible" : "hidden"}>{children}</Activity>;
@@ -241,6 +263,7 @@ export function PeopleRoute({ pathname }: { pathname: string | null }) {
           <LeadsScopePage param={kept.at.leads} scopeView={kept.viewOfScope("leads")} />
         </KeptScope>
       )}
+      <GetYesOver open={param === GET_YES_PARAM} />
       {kept.asked.has("pipeline") && listDrawn && (
         <KeptScope shown={scope === "pipeline"}>
           <PipelineScope

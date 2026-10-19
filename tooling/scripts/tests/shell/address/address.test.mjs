@@ -42,11 +42,13 @@ const ROUTES = [
   "reports",
   "conversations/phone:cv-k7",
   "live/c-live",
-  "broadcasts/run:b-1",
+  "campaigns/sequences/pb-1/runs/b-1",
   "campaigns/sequences",
   "campaigns/sequences/pb-1",
-  "campaigns/new",
+  "campaigns/sequences/new:once:to:s1",
   "campaigns/messages",
+  "inbox/to-send",
+  "clients/get-yes",
   "start",
   "start/phone",
   "soon/calendar",
@@ -229,7 +231,11 @@ test("Campaigns' addresses: the page is `campaigns`, Messages a view of it, and 
   assert.equal(workspacePath("acme", "campaigns/sequences/pb-1"), "/w/acme/campaigns/sequences/pb-1");
   // Messages is Campaigns' other view (19 Oct 2026): its old route is retired, written in one move.
   assert.equal(workspacePath("acme", "messages"), "/w/acme/campaigns/messages");
-  assert.equal(workspacePath("acme", "broadcasts/run:b-1"), "/w/acme/broadcasts/run:b-1", "Broadcasts keep their word");
+  assert.equal(
+    workspacePath("acme", "broadcasts/run:b-1"),
+    "/w/acme/campaigns/sequences/b-1/runs/b-1",
+    "a run's sheet lands at its home under its sequence",
+  );
   assert.equal(routeOfPath("/w/acme/campaigns/new"), "campaigns/new");
   assert.equal(routeOfPath("/w/acme/templates"), "messages");
   // The Playbooks list is Sequences now (contracts retiredRouteOf): a route written the old way lands on the new one in one move.

@@ -8,7 +8,7 @@ import { zoneMidnight, shiftKey } from "../../calendar/day-keys";
 import { purposeOfPlaybook } from "../../consent/consent";
 import { CONSENT_CHANNELS, countsByChannelWords, type ConsentChannel } from "../../consent/consent-channels";
 import type { JourneyStage } from "../../journey/journey";
-import { GET_YES_ROUTE } from "../../people/people-lists";
+import { GET_YES_ROUTE } from "../../people/lists/people-route";
 import type { PersonRowVM } from "../../people/person-row";
 import { CAMPAIGNS_RESULTS_PERIOD, fixedDaysOf } from "../../reports/report-periods";
 import { fmtDay } from "../../reports/reports";

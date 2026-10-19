@@ -21,6 +21,9 @@ export const PREFETCH_READS = {
   conversations: ["conversations", "calls", "escalations?state=open"],
   // People's list, its lists and the Pipeline are one page over one surface (a person's page reads the person instead).
   clients: ["contacts", "segments", "views"],
+  // Get their yes over People's list (`clients/get-yes`, the Campaigns wiring review's lane 7): People's reads, and Sent's,
+  // which holds the number and the opt-in its code carries.
+  "clients/get-yes": ["contacts", "segments", "views", "broadcasts"],
   segments: ["contacts", "segments", "views"],
   // Leads is a scope of People with a surface of its own: its searches, and the first page of everyone in its order.
   leads: ["lead-searches", "leads?list=all&sort=fit&dir=asc&limit=500"],
@@ -44,11 +47,23 @@ export const PREFETCH_READS = {
   // Campaigns › Sequences (decision 0060), its list and a record open beside it: the sequences' own read, and the settings
   // read, which holds the messages a step may send and the business's name its preview is filled with (ROUTE_DRAWS).
   "campaigns/sequences": ["sequences", "settings", "team", "policies", "templates?all=1"],
-  // The composer over Sequences' list (`campaigns/new…`, ROUTE_DRAWS): Send once, made of Sent's runs and who each audience
-  // reaches (People's book, its lists and the week's touches, their own read), the channels read and the settings read,
-  // which holds the messages it offers; and the reach-outs' chains a change to one opens on. Write to leads reads its
-  // searches as it is chosen. Each surface's first reads.
-  "campaigns/new": [
+  // A run at its home under its sequence (the Campaigns wiring review's lane 2): what Sequences opens on, and Sent's runs
+  // and the channels read its screen is made of; the run's own read is the screen's, which paints a run the tab has read at
+  // once.
+  "campaigns/sequences/runs": [
+    "sequences",
+    "broadcasts",
+    "channels",
+    "settings",
+    "team",
+    "policies",
+    "templates?all=1"
+  ],
+  // The one New beside Sequences' list (`campaigns/sequences/new…`, ROUTE_DRAWS; lane 6, where the composer over the list
+  // went): what Sequences opens on, and Send once, made of Sent's runs and who each audience reaches (People's book, its
+  // lists and the week's touches, their own read), the channels read and the settings read, which holds the messages it
+  // offers. Write to leads reads its searches as it is chosen. Each surface's first reads.
+  "campaigns/sequences/new": [
     "sequences",
     "channels",
     "settings",
@@ -56,7 +71,6 @@ export const PREFETCH_READS = {
     "broadcasts/touches",
     "contacts",
     "segments",
-    "reach-outs",
     "team",
     "policies",
     "templates?all=1"
@@ -112,10 +126,15 @@ export function routePrefetchScript() {
     `var s=${JSON.stringify(PREFETCH_ROUTE_OF_WORD)}[h[0]]||h[0]||"today",t=${JSON.stringify(PREFETCH_READS)},B=${JSON.stringify(PREFETCH_BESIDE)},O=Object.prototype.hasOwnProperty;`,
     // Leads is People's scope with a surface of its own: the scope alone opens on its own list.
     'if(s==="clients"&&l==="leads")s="leads";',
-    // Sequences is Campaigns' view with a surface of its own: its list, a record and a new one all open on its read. The
-    // composer and a message are sheets over its list that open on theirs too (`campaigns/new`, `message:<name>`).
-    'if(s==="campaigns"&&l==="sequences")s="campaigns/sequences";',
-    'if(s==="campaigns"&&/^(new|message)(:|$)/.test(l))s="campaigns/"+l.split(":")[0];',
+    // Get their yes is a sheet over People's list, which opens on Sent's read too.
+    'if(s==="clients"&&l==="get-yes")s="clients/get-yes";',
+    // Sequences is Campaigns' view with a surface of its own: its list and a record open on its read, a run at its home and
+    // the one New on what their screens are made of too; a day of History's older address is its run, where it lands
+    // (retiredRouteOf). A message is a sheet over its list that opens on its own (`message:<name>`).
+    'if(s==="campaigns"&&l==="sequences")s=(h[3]==="runs"||h[3]==="history")&&h[4]?"campaigns/sequences/runs":/^new(:|$)/.test(h[2]||"")?"campaigns/sequences/new":"campaigns/sequences";',
+    // The composer's old address (`campaigns/new…`) lands on the one New, and opens on what New opens on (lane 6).
+    'if(s==="campaigns"&&/^new(:|$)/.test(l))s="campaigns/sequences/new";',
+    'if(s==="campaigns"&&/^message(:|$)/.test(l))s="campaigns/message";',
     // Messages is a view of Campaigns beside Sequences (`campaigns/messages`), and opens on its own reads.
     'if(s==="campaigns"&&/^messages(\\/|$)/.test(l))s="campaigns/messages";',
     // A day the Calendar's address names is read by the weeks around that day, which the page works out: no read here. A

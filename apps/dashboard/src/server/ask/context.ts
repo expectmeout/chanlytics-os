@@ -121,7 +121,7 @@ function assemble(ctx: PageContext, got: Provided): Built {
   let used = size(block(`page://${ctx.surface}`, title, base)) + CUT_ROOM;
   const taken: Array<{ b: SearchResultBlock; r: ContextRow }> = [];
   for (const r of rows.slice(0, CONTEXT_CAPS.rows)) {
-    const b = block(r.source, blockTitle(r.title), clip(oneLine(r.text), CONTEXT_CAPS.text));
+    const b = block(r.source, blockTitle(r.title), clip(oneLine(r.text), CONTEXT_CAPS.line));
     if (used + size(b) > CONTEXT_CAPS.total) break;
     used += size(b);
     taken.push({ b, r });

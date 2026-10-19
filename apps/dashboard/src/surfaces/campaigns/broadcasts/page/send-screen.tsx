@@ -646,11 +646,11 @@ function bcTitleField({ name, setName, tpl }: BcV) {
   );
 }
 
-// The send screen is a pane (parts/split.tsx), as a thread opens beside the Inbox's list, or the home's sheet holds it: its
-// name the pane's title, its Cancel the pane's Close (which asks first where something was written, and is Escape's too),
-// and the send alone in its foot. The one screen in Campaigns that cannot be undone: who, what and when in one sentence,
-// with the people named rather than counted.
-export function bcComposerGlass(v: BcV) {
+// The send screen is a pane (parts/split.tsx), as a thread opens beside the Inbox's list: its name the pane's title, its
+// Cancel the pane's Close (which asks first where something was written, and is Escape's too), and the send alone in its
+// foot. The one screen in Campaigns that cannot be undone: who, what and when in one sentence, with the people named
+// rather than counted. `above` is its host's, over the sentence: New's who and when, where the screen is New's pane.
+export function bcComposerGlass(v: BcV, above: ReactNode = null) {
   return (
     <CmPane
       testid="bc-composer"
@@ -661,6 +661,7 @@ export function bcComposerGlass(v: BcV) {
       onClose={v.work.leave}
       foot={bcSendFoot(v)}
     >
+      {above}
       <div className="bc-composer cm-sentence">
         {bcNewTemplate(v)}
         {bcCallouts(v)}

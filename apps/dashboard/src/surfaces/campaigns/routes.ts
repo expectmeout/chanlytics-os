@@ -1,10 +1,12 @@
 /**
  * What the frame says around Campaigns' pages: the crumbs each address wears and the strip of its views. Campaigns is
  * Sequences (decision 0060; the home that stood here went in S6), with Messages and, where it is drawn, Ads beside it in the
- * strip. Every Campaigns address but Ads is Sequences' mount and crumbs (`campaigns/sequences…`, and the sheets Campaigns
- * opens over it, `campaigns/new…`, `campaigns/message:<name>`); the home's and a campaign's addresses land on Sequences.
- * Sent's sheets keep their addresses (`broadcasts/run:<run>/sheet`, `broadcasts/get-yes`, `broadcasts/to-send`), beside
- * Sequences' list and under its strip; Sent's own list lands on Sequences. Campaigns' crumbs are People's and Reports' kind:
+ * strip. Every Campaigns address but Ads is Sequences' mount and crumbs (`campaigns/sequences…`, the one New among them, and
+ * a message's drawer over it, `campaigns/message:<name>`); the home's and a campaign's addresses land on Sequences, and the
+ * composer's (`campaigns/new…`) on New. A run is at its home under its sequence (`campaigns/sequences/<id>/runs/<run>`, the
+ * Campaigns wiring review's lane 2), crumbed under its sequence. Sent draws nothing of its own: its list, a run's sheet, To
+ * send and Get their yes land on Sequences, the run's home, the Inbox's Needs you and People (lanes 2, 4 and 7), and an
+ * address that reaches it some other way wears Campaigns' crumbs. Campaigns' crumbs are People's and Reports' kind:
  * its first view, Sequences' list, is Campaigns alone, and anything under it goes back to it, the strip saying the view.
  */
 import {
@@ -13,9 +15,8 @@ import {
   CAMPAIGN_ROOMS,
   MESSAGES_ROUTE,
   RUN_UNNAMED_WORDS,
-  TO_SEND_ALL_WORDS,
-  TO_SEND_ROUTE,
   SEQUENCES_ROUTE,
+  SEQUENCE_NEW_WORDS,
   SEQUENCE_WORDS,
   isAdsParam,
   isMessagesParam,
@@ -24,6 +25,7 @@ import {
   routeOfPath,
   runDecidedOnItsPage,
   runTitleOf,
+  sequenceRoute,
 } from "@chanlytics/contracts";
 import { adsShown } from "./ads/shown";
 import { surfaceValue } from "../surface-values";
@@ -66,21 +68,41 @@ function campaignsViews(picked: "sequences" | "messages" | "ads"): SurfaceViews 
 }
 
 /**
+ * What a run's crumb says (lane 2: the run open at its home): Sent's row for it, else its own read's (a run older than the
+ * newest fifty), named as its screen's head names it -- a run waiting for its decision by its sheet's title (runTitleOf),
+ * one that went by its day's name -- and never "Broadcast".
+ */
+function runCrumbOf(runId: string): string {
+  const run = (surfaceValue("broadcasts")?.rows || []).find((r) => r.id === runId) ?? rememberedRun(runId);
+  return run ? (runDecidedOnItsPage(run) ? runTitleOf(run) : run.name) : RUN_UNNAMED_WORDS;
+}
+
+/**
  * Sequences' crumbs (decision 0060): Campaigns alone on the list, Campaigns' first view (as People's and Reports' first
  * views are their page's name alone, the strip saying which view), and under it the sequence open, named once the list
- * holds it, or a new one. Every address is the one mount of Campaigns, the page following its own address.
+ * holds it, or a new one; a run open under its sequence, the sequence a crumb back to its History, the days it is one of.
+ * Every address is the one mount of Campaigns, the page following its own address.
  */
 function sequencesChrome(): { crumbs: Crumb[]; mount: string; act: null; views: SurfaceViews; pane: true } {
   const route = typeof window === "undefined" ? null : routeOfPath(window.location.pathname);
   const place = route ? parseSequencesRoute(route) : null;
   const list = surfaceValue("sequences");
-  const named = place?.view === "record" ? (list?.sequences.find((q) => q.id === place.id)?.name ?? null) : null;
+  const rec = place?.view === "record" ? place : null;
+  const named = rec ? (list?.sequences.find((q) => q.id === rec.id)?.name ?? null) : null;
+  // A run open under its sequence: the sequence, where the list names it, a crumb back to the History it is a day of.
+  const runCrumbs = (seqId: string, run: string): Crumb[] => [
+    CAMPAIGNS,
+    ...(named ? [{ label: named, to: sequenceRoute(seqId, "history") }] : []),
+    runCrumbOf(run),
+  ];
   return {
-    crumbs: named
-      ? [CAMPAIGNS, named]
-      : place?.view === "new"
-        ? [CAMPAIGNS, SEQUENCE_WORDS.newSequence]
-        : [CAMPAIGN_ROOMS.home],
+    crumbs: rec?.run
+      ? runCrumbs(rec.id, rec.run)
+      : named
+        ? [CAMPAIGNS, named]
+        : place?.view === "new"
+          ? [CAMPAIGNS, SEQUENCE_NEW_WORDS.title]
+          : [CAMPAIGN_ROOMS.home],
     mount: "campaigns",
     act: null,
     views: campaignsViews("sequences"),
@@ -150,69 +172,10 @@ export function messagesChrome(): { crumbs: Crumb[]; views?: SurfaceViews } {
   return { crumbs: [CAMPAIGNS, ADS_WORDS.messagesTab], views: campaignsViews("messages") };
 }
 
-/** Sent's one list of every email handed to its owner, from each reach-out they send themselves (00429), as its param. */
-const TO_SEND_PARAM = TO_SEND_ROUTE.slice("broadcasts/".length);
-
 /**
- * What the Broadcasts page is handed for a param (`broadcasts/<param>`): a run's id for `run:<id>`, the "Get their yes"
- * section for `get-yes`, the one To send for `to-send`, and any other word as the audience the composer opens on.
+ * Sent's crumbs while its address lands (broadcasts/route.tsx): every address of it is retired (contracts retiredRouteOf),
+ * so it is Campaigns', on Sequences, the strip Campaigns'.
  */
-export function broadcastsProps(param: string | null): {
-  initialSegment: string | null;
-  initialRun: string | null;
-  initialYes: boolean;
-  initialToSend: boolean;
-} {
-  const run = param && param.startsWith("run:") ? param.slice(4) : null;
-  const yes = param === "get-yes";
-  const toSend = param === TO_SEND_PARAM;
-  return {
-    initialSegment: run || yes || toSend ? null : param,
-    initialRun: run,
-    initialYes: yes,
-    initialToSend: toSend,
-  };
-}
-
-/**
- * Sent's sheets' crumbs: `broadcasts/run:<id>` opens one broadcast, named for it once the list holds it; `broadcasts/get-yes`
- * Get their yes; `broadcasts/to-send` the one To send (00429); any other param is the audience the composer opens on, named
- * by the page's own rule (a list or a kept list with this id) and its own label. Every address is one mount, beside
- * Sequences' list, so the strip is Campaigns', on Sequences, and the page is its panes.
- */
-export function broadcastsChrome({ param }: { param: string | null }): {
-  crumbs: Crumb[];
-  mount: string;
-  views: SurfaceViews;
-  pane: true;
-} {
-  const data = surfaceValue("broadcasts");
-  const runId = param && param.startsWith("run:") ? param.slice(4) : null;
-  const getYes = param === "get-yes";
-  const toSend = param === TO_SEND_PARAM;
-  const audience = runId || getYes || toSend ? null : param;
-  // Sent's row for the run, else its own read's (a run older than the newest fifty): the crumb is never "Broadcast".
-  const run = runId ? ((data?.rows || []).find((r) => r.id === runId) ?? rememberedRun(runId)) : null;
-  // The audiences are their own read (broadcasts/audiences-surface.ts): the composer's, where an audience's address lands.
-  const list = audience
-    ? (surfaceValue("audiences")?.audiences || []).find(
-        (a) => (a.kind === "saved" || a.kind === "list") && a.id === audience,
-      )
-    : null;
-  // Sent's list went to Sequences (D3: a run is a day of its sequence's History): its sheets go back to Campaigns' list.
-  return {
-    mount: "broadcasts",
-    views: campaignsViews("sequences"),
-    pane: true,
-    // A run waiting for its decision is named as its sheet's head names it (runTitleOf); one that went keeps its day.
-    crumbs: runId
-      ? [CAMPAIGNS, run ? (runDecidedOnItsPage(run) ? runTitleOf(run) : run.name) : RUN_UNNAMED_WORDS]
-      : getYes
-        ? [CAMPAIGNS, "Get their yes"]
-        : toSend
-          ? [CAMPAIGNS, TO_SEND_ALL_WORDS.title]
-          : list
-            ? [CAMPAIGNS, list.label]
-            : [CAMPAIGN_ROOMS.home],
-  };
+export function broadcastsChrome(): { crumbs: Crumb[]; mount: string; views: SurfaceViews; pane: true } {
+  return { mount: "broadcasts", views: campaignsViews("sequences"), pane: true, crumbs: [CAMPAIGN_ROOMS.home] };
 }

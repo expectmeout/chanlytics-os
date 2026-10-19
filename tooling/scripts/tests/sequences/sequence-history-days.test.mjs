@@ -1,14 +1,14 @@
 /**
- * A sequence's History, as its record draws it (sequences/history.tsx): a day that went opens in place, and one that has
- * not (waiting for an OK, or still to go) is the door to its run's sheet, where it is decided. It opened in place onto
- * that door alone, a press for nothing (the Inbox's run review, 18 Oct 2026). And a period in which nothing went out says
- * so in one line, not four figures of nothing. Run here on the stub React, through the real component, with the record's
- * history read answered by the test.
+ * A sequence's History, as its record draws it (sequences/history.tsx): each day is its run, a door to the run's one
+ * screen at its home under the sequence (the Campaigns wiring review's lane 2), whatever the run is -- decided there while
+ * it waits for an OK, its report once it went. A day that went opened in place, and a run had three views. And a period in
+ * which nothing went out says so in one line, not four figures of nothing. Run here on the stub React, through the real
+ * component, with the record's history read answered by the test.
  */
 import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
-import { SEQUENCE_HISTORY_WORDS, runSheetRoute } from "@chanlytics/contracts";
+import { SEQUENCE_HISTORY_WORDS, runRoute } from "@chanlytics/contracts";
 import { again, byTestId, fresh, installLegacyReact, settle, textOf, unmount } from "../_legacy-react.mjs";
 
 installLegacyReact({ __DEMO_MODE: false });
@@ -71,17 +71,19 @@ beforeEach(() => {
   values.setSurfaceValue("sequences", { sequences: [], timezone: TZ, word: "appointment" });
 });
 
-test("a day still waiting for an OK is the door to its run's sheet, not a day that opens onto that door alone", async () => {
-  historyIs([batch("b-wait", "pending_approval")]);
+test("a day is the door to its run at its home, waiting for an OK or gone, never a day that opens in place", async () => {
+  historyIs([batch("b-wait", "pending_approval"), batch("b-went", "sent", { at: at(-60_000) })]);
   const tree = await draw();
-  const day = byTestId(tree, "sq-batch-b-wait");
-  assert.ok(day, "the day is drawn");
-  assert.ok(day.props.href.endsWith(runSheetRoute("b-wait")), `its door is the run's sheet: ${day.props.href}`);
-  assert.equal(day.props["aria-expanded"], undefined, "it is a link, never a day that opens in place");
+  for (const id of ["b-wait", "b-went"]) {
+    const day = byTestId(tree, `sq-batch-${id}`);
+    assert.ok(day, `${id} is drawn`);
+    assert.ok(day.props.href.endsWith(runRoute(id, "q-1")), `its door is the run's home: ${day.props.href}`);
+    assert.equal(day.props["aria-expanded"], undefined, "it is a link, never a day that opens in place");
+  }
   assert.equal(byTestId(tree, "sq-day-run"), null, "and no door inside it to press a second time");
 });
 
-test("a period in which nothing went out says so once, not four figures of nothing; a day that went is counted and opens in place", async () => {
+test("a period in which nothing went out says so once, not four figures of nothing; a day that went is counted", async () => {
   historyIs([batch("b-wait", "pending_approval")]);
   let tree = await draw();
   assert.equal(textOf(byTestId(tree, "sq-history-none")), SEQUENCE_HISTORY_WORDS.nothingIn);
@@ -93,7 +95,4 @@ test("a period in which nothing went out says so once, not four figures of nothi
   tree = await draw();
   assert.equal(byTestId(tree, "sq-history-none"), null);
   assert.ok(byTestId(tree, "sq-figure-sent"), "what went is counted");
-  const went = byTestId(tree, "sq-batch-b-went");
-  assert.equal(went.props["aria-expanded"], false, "a day that went opens in place");
-  assert.equal(went.props.href, undefined);
 });

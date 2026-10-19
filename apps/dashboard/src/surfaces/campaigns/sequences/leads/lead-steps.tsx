@@ -1,17 +1,20 @@
 /**
- * A sequence to leads' Steps (the lead-to-sequence canvas's board A: the draft is the record, same tabs, Start row, dock):
- * where it starts (who joins it, how many are in it, the day's pace, and How it runs), each step a box on its day (the
- * first by its subject with its values by name, a follow-up as the follow-up it is, two lines of its email or "Not
- * written yet" in amber), the wait between two and who it keeps going, Add a step above the call that always closes it,
- * and where it stops. The rail is the draft as it is being written (use-chain.ts), so a step added or taken out shows at
- * once; what each step did in 30 days and what it is doing are the record's. A box opens its sheet (step-sheet.tsx); the
- * record's dock opens one too (`editing`: Write step N).
+ * A sequence to leads' parts of the one record's Steps (the Campaigns wiring review's rule E, lane 5, 19 Oct 2026: every
+ * sequence draws the one rail, place/rail.tsx StepsRail, and four parts change with who it is for). Who joins it (its
+ * Start: who, how many are in it, the day's pace, How it runs and Add leads); how its words are written (each step a box
+ * on its day, the first by its subject with its values by name, a follow-up as the follow-up it is, two lines of its email
+ * or "Not written yet" in amber, and its sheet, step-sheet.tsx, with Insert and Preview); where it sends from (under the
+ * rail, with the door to its mailboxes); and the check (How it runs, runs-sheet.tsx). Add a step stands above the call
+ * that always closes it. The rail is the draft as it is being written (use-chain.ts), so a step added or taken out shows
+ * at once; what each step did in 30 days and what it is doing are the record's. The record's dock opens a step too
+ * (`editing`: Write step N). It drew a rail of its own (the lead-to-sequence canvas's board A), beside the customers'.
  */
 import { useEffect, useState } from "react";
 import {
   LEAD_BUILD_WORDS as W,
   SCHEDULE_WORDS as SW,
   SEQUENCE_FLOW_WORDS as F,
+  addressOf,
   leadBuildStepsOf,
   leadDraftChainOf,
   leadStartOf,
@@ -26,12 +29,10 @@ import {
   type SequenceRecordDto,
   type SequenceRowDto,
 } from "@chanlytics/contracts";
-import { Button } from "../../../kit/button/button";
-import { Icon } from "../../../kit/icon/icon";
 import { LinkButton } from "../../../kit/link-button/link-button";
-import { gate, type LegacyFlash } from "../../../legacy-verbs";
+import { gate, routeDoor, type LegacyFlash } from "../../../legacy-verbs";
 import { addLeadsTo } from "../../reach-out/people";
-import { RailBox, RailRow, RailWait } from "../place/rail";
+import { RailAdd, RailBox, RailRow, RailStart, StepsRail, type RailStep } from "../place/rail";
 import { LeadRunsSheet } from "./runs-sheet";
 import { LeadStepSheet } from "./step-sheet";
 import { useLeadChain } from "./use-chain";
@@ -85,8 +86,8 @@ interface LeadStepsProps {
 }
 
 /**
- * The rail's start: who it starts with and when (contracts leadStartOf), How it runs, which opens its sheet, and Add
- * leads, which takes the finder to the search its leads came from.
+ * Who joins it: who it starts with and when (contracts leadStartOf), How it runs, which opens its sheet, and Add leads,
+ * which takes the finder to the search its leads came from.
  */
 function LeadStartRow({
   row,
@@ -98,14 +99,17 @@ function LeadStartRow({
   onRuns: () => void;
 }) {
   return (
-    <RailRow day={SW.start} testid="sq-starts">
-      <div className="sq-rail-line">
-        <span className="sq-rail-lead">
+    <RailStart
+      day={SW.start}
+      lead={
+        <>
           {start.lead}
           <b>{start.name}</b>
-        </span>
-        <span className="sq-rail-sub">{start.sub}</span>
-        <span className="ld-start-acts">
+        </>
+      }
+      sub={start.sub}
+      acts={
+        <>
           <LinkButton onClick={onRuns} data-testid="ld-how-it-runs">
             {W.howItRuns}
           </LinkButton>
@@ -118,9 +122,25 @@ function LeadStartRow({
           >
             {F.addLeads}
           </LinkButton>
-        </span>
-      </div>
-    </RailRow>
+        </>
+      }
+    />
+  );
+}
+
+/** Where it sends from, under the rail: the owner's own inbox or the workspace's mailboxes, with the door to them. */
+function SendsFrom({ rec }: { rec: SequenceRecordDto }) {
+  const first = rec.sequence.first;
+  if (!first) return null;
+  return (
+    <p className="sq-sendsfrom" data-testid="sq-sends-from">
+      <span className="sq-sendsfrom-v">
+        <b>{SW.sendsFrom}</b> {first.owner_sends ? F.fromYou : F.fromMailboxes}
+      </span>
+      <LinkButton {...routeDoor(addressOf({ kind: "channel" }))} data-testid="sq-mailboxes">
+        {first.owner_sends ? F.connect : F.mailboxes}
+      </LinkButton>
+    </p>
   );
 }
 
@@ -161,89 +181,60 @@ export function LeadSteps({ rec, flash, moved, ctx, editing, onEditing, howAsked
     lc.edit(reachOutInsertStep);
     setOpen(place);
   };
-  const addRow = reachOutMayInsertStep(draft) ? (
-    <RailRow key="add">
-      <div className="sq-addstep">
-        <Button
-          variant="quiet"
-          className="sq-addstep-press"
-          onClick={add}
-          data-testid="sq-add-step"
-          {...gate("approve")}
-        >
-          <Icon name="plus" size={14} /> {SW.addStep}
-        </Button>
-      </div>
-    </RailRow>
-  ) : null;
-  return (
-    <div className="sq-steps-body" data-testid="sq-steps">
-      <p className="sq-span">
-        <span>
-          <b>{span.count}</b>
-          {span.over ? ` ${span.over}` : null}
-        </span>
-        {row.state === "draft" ? null : <span className="sq-span-per">{SW.per}</span>}
-      </p>
-      <ol className="sq-rail">
-        <LeadStartRow row={row} start={start} onRuns={() => setRuns(true)} />
-        {chain.steps.flatMap((s, i) => {
-          const box = boxes.get(s.id);
-          if (!box) return [];
-          const place = i + 1;
-          const recStep = rec.steps.find((x) => x.id === s.id) ?? null;
-          const state = box.unwritten
-            ? { tone: "need" as const, words: W.notWritten }
-            : recStep
-              ? scheduleStepState(row, recStep, { ...ctx, gone: false })
-              : null;
-          return [
-            closes && i === draft.steps.length - 1 ? addRow : null,
-            place > 1 ? (
-              <RailWait
-                key={`wait-${s.id}`}
-                wait={`${W.waits} ${W.afterDays(s.after_days ?? 0)}`}
-                only={W.onlyIfQuiet}
-                testid={`sq-step-wait-${place}`}
-              />
-            ) : null,
-            <RailRow key={s.id} day={SW.day(days.get(place) ?? 1)} need={box.unwritten} testid={`sq-step-${place}`}>
-              <RailBox
-                place={place}
-                title={<Parts parts={box.title} />}
-                named={box.named}
-                onOpen={() => setOpen(place)}
-                by={box.hand ? null : { glyph: "mail", words: SW.byEmail }}
-                figures={recStep ? <LeadStepFigures sent={recStep.sent} replied={recStep.replied} /> : null}
-                pre={
-                  box.hand ? (
-                    <span className="sq-stepbox-pre is-said">{W.callLine}</span>
-                  ) : box.pre ? (
-                    <span className="sq-stepbox-pre">
-                      <Parts parts={box.pre} />
-                    </span>
-                  ) : null
-                }
-                state={state}
-                done={state?.tone === "done"}
-              />
-            </RailRow>,
-          ];
-        })}
-        {closes ? null : addRow}
-        {end ? (
-          <RailRow day={SW.end} testid="sq-stops">
-            <div className="sq-rail-line">
-              <span className="sq-rail-lead">
-                <b>{end.head}</b>
-              </span>
-              <span className="sq-rail-sub">{end.sub}</span>
-            </div>
+  // Each step on its day, after the wait before it: how its words are written is this part's.
+  const steps: RailStep[] = chain.steps.flatMap((s, i) => {
+    const box = boxes.get(s.id);
+    if (!box) return [];
+    const place = i + 1;
+    const recStep = rec.steps.find((x) => x.id === s.id) ?? null;
+    const state = box.unwritten
+      ? { tone: "need" as const, words: W.notWritten }
+      : recStep
+        ? scheduleStepState(row, recStep, { ...ctx, gone: false })
+        : null;
+    return [
+      {
+        id: s.id,
+        place,
+        wait: place > 1 ? { wait: `${W.waits} ${W.afterDays(s.after_days ?? 0)}`, only: W.onlyIfQuiet } : null,
+        row: (
+          <RailRow day={SW.day(days.get(place) ?? 1)} need={box.unwritten} testid={`sq-step-${place}`}>
+            <RailBox
+              place={place}
+              title={<Parts parts={box.title} />}
+              named={box.named}
+              onOpen={() => setOpen(place)}
+              by={box.hand ? null : { glyph: "mail", words: SW.byEmail }}
+              figures={recStep ? <LeadStepFigures sent={recStep.sent} replied={recStep.replied} /> : null}
+              pre={
+                box.hand ? (
+                  <span className="sq-stepbox-pre is-said">{W.callLine}</span>
+                ) : box.pre ? (
+                  <span className="sq-stepbox-pre">
+                    <Parts parts={box.pre} />
+                  </span>
+                ) : null
+              }
+              state={state}
+              done={state?.tone === "done"}
+            />
           </RailRow>
-        ) : null}
-      </ol>
+        ),
+      },
+    ];
+  });
+  return (
+    <StepsRail
+      span={{ count: span.count, over: span.over, per: row.state !== "draft" }}
+      start={<LeadStartRow row={row} start={start} onRuns={() => setRuns(true)} />}
+      steps={steps}
+      add={reachOutMayInsertStep(draft) ? <RailAdd onAdd={add} gateProps={gate("approve")} /> : null}
+      addAboveLast={closes}
+      end={end}
+    >
+      <SendsFrom rec={rec} />
       <LeadStepSheet open={open !== null} place={open} rec={rec} lc={lc} flash={flash} onClose={() => setOpen(null)} />
       <LeadRunsSheet open={runs} rec={rec} lc={lc} flash={flash} moved={moved} onClose={() => setRuns(false)} />
-    </div>
+    </StepsRail>
   );
 }

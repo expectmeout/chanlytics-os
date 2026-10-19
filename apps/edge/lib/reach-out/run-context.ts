@@ -230,9 +230,11 @@ export async function reachOutRunContext(
           // The row opens the run it is about, where its emails are approved (as a playbook's does, playbooks.ts notify).
           route: runRoute(runId),
           about: { type: "broadcast", id: runId },
-          subject: `A reach-out waits for you: ${row.name}`,
+          // Its sequence's name first, in the words every run waiting says (the Campaigns wiring review's lane 7: it said
+          // "A reach-out waits for you: X", a noun that left the copy).
+          subject: `${row.name} waits for your OK`,
           // How its wait ends is the wait rule's (contracts waitEndsWords, leads_batch): it has no day to pass.
-          body: `${planned} ${planned === 1 ? "email" : "emails"} to businesses your search found, from ${firstWords(tz, firstAt)}. Approve them in Sent, or skip the run. ${waitEndsWords("leads_batch")}.`,
+          body: `${planned} ${planned === 1 ? "email" : "emails"} to businesses your search found, from ${firstWords(tz, firstAt)}. Approve them, or skip the run. ${waitEndsWords("leads_batch")}.`,
         },
       );
     },

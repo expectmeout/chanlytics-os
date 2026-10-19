@@ -7,7 +7,7 @@ export function todayRunWords(r) {
   const reach = isReachOutRun(r.audience);
   const one = r.recipient_count === 1;
   const people = reach ? `${r.recipient_count} ${one ? "business" : "businesses"}` : `${r.recipient_count} ${one ? "person" : "people"}`;
-  const kind = reach ? "Reach-out" : "Campaign";
+  const kind = reach ? "Cold email" : "Campaign";
   const sent = `${r.counts.sent} sent`;
   const held = `${heldEmailsWords(r.held ?? 0)}. The rest of the run goes as planned.`;
   const drafted = `${plural(r.drafted ?? 0, "email", "emails")} to send from your inbox, each written and checked.`;

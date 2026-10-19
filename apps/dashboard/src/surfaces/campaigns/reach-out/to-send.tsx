@@ -1,5 +1,5 @@
 /**
- * Every To send's rows (00429): a reach-out's run in Sent (approval.tsx), Sent's one To send (to-send-all.tsx) and a
+ * Every To send's rows (00429): a reach-out's run in Sent (approval.tsx), To send in Needs you (waits/to-send-part.tsx) and a
  * sequence's People (sequences/needs.tsx) lay out the same row. Each email handed to its owner, oldest first: its business
  * (its lead's door), its subject, its address and when it was handed over; then on one line their mail app, the door a
  * phone and a desk both send from, with Gmail, Outlook, Copy and its words to read under its More, and the owner's word on
@@ -8,8 +8,8 @@
  * words copies them as it opens. A step after the first answers an email the business may have answered in the owner's
  * own inbox, which nothing here reads: its Sent asks first whether they did, and They wrote back… stands under its More
  * (the peek's, read as a reply is). Each word is the `sequence_send_said` verb, said at the list's head, or at its row
- * when refused, and the run is read again behind it. Sent's one To send draws a run's list `bare`, a part of its pane
- * under the run's name, and says each word at the pane's head instead. Every sentence is contracts' (toSendRowOf,
+ * when refused, and the run is read again behind it. To send in Needs you draws a run's list `bare`, a part of it under
+ * the run's name, and says each word at its head instead. Every sentence is contracts' (toSendRowOf,
  * toSendSaidWords); never a fetch here.
  */
 import { useState } from "react";
@@ -273,7 +273,7 @@ export function RoToSend({
     />
   );
   if (bare) return rows;
-  // Other runs hand emails over too: the door to all of them, the one list (Sent's To send).
+  // Other runs hand emails over too: the door to all of them, the one list (To send, in Needs you).
   const every = toSendEveryOf(surfaceValue("broadcasts")?.rows ?? []);
   return (
     <section className="bc-touched bc-sheet-people bc-approval-people" data-testid="ro-to-send">

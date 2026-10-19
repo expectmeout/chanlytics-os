@@ -7,6 +7,7 @@ import type { PersonRowVM } from "./person-row";
 import { MONTH_MS } from "./person-helpers";
 import { WEEK_MS } from "../shared/time";
 import { sendOnceRoute } from "../sequences/sequence-address";
+import { GET_YES_ROUTE } from "./lists/people-route";
 
 /* ---------------------------- lists and totals --------------------------- */
 
@@ -22,20 +23,9 @@ export interface PeopleListAction {
   enabled: boolean;
 }
 
-/**
- * Where a person's yes to offers is got: Broadcasts' "Get their yes" section,
- * brought into view -- the QR for the desk, the phrase, the link for a bio, the
- * paper form.
- *
- * Five places said the fix was there -- "The phrase and the QR are on
- * Broadcasts" -- and none of them went there: two steps opened the TOP of
- * Broadcasts, where the composer is and the QR is below the fold, and three
- * printed the sentence beside a disabled button. One route, one spelling.
- */
-export const GET_YES_ROUTE = "broadcasts/get-yes";
-
 /** A list's broadcast, where the list is an audience of its own: a list kept by hand, and New this week once answered. */
-const USE_IN_A_BROADCAST = "Use in a broadcast";
+// A message sent once, in New's words (the Campaigns wiring review's lane 7: "broadcast" left the copy with Sent).
+const USE_IN_A_BROADCAST = "Send them a message";
 
 // Broadcasts has no audience for this list: its people are exactly who a broadcast reaches, so the composer opens on
 // Everyone, and the button says who that reaches. It said "New broadcast" here and "Use in a broadcast" on Lists,
@@ -43,7 +33,7 @@ const USE_IN_A_BROADCAST = "Use in a broadcast";
 // it, `campaigns/new:to:<list>`, sendOnceRoute): the composer reads a consent list as Everyone (CONSENT_LIST_IDS), and a
 // door that names a list wins over a draft kept in the tab, which a bare `campaigns/new` does not. `broadcasts` alone was
 // the Sent room, which is where this button landed: a list of what went out and nothing to write in.
-const OFFERS_STEP = { cta: "Broadcast to everyone who said yes", to: sendOnceRoute("offers_ok"), broadcast: true };
+const OFFERS_STEP = { cta: "Message everyone who said yes", to: sendOnceRoute("offers_ok"), broadcast: true };
 
 /**
  * `answered`: what a step that is a door to the yes to offers becomes once everyone on the list has given it. Asking

@@ -482,7 +482,7 @@ test("people still queued: the next batch is scheduled, unless a cancel landed m
   // Today's "N jobs did not finish", in warn amber, above everything else.
   assert.equal(news.kind, "broadcast_sent", "a broadcast that went out is not a job that did not finish");
   // The run it is about, not the list of runs: the bell, the phone and the mail open THIS broadcast (wiring task 1.7, A2b).
-  assert.deepEqual([news.route, news.about], ["broadcasts/run:b1", { type: "broadcast", id: "b1" }]);
+  assert.deepEqual([news.route, news.about], ["campaigns/sequences/b1/runs/b1", { type: "broadcast", id: "b1" }]);
   assert.equal(news.subject, "Broadcast “Spring offer” sent");
   assert.equal(
     news.body,
@@ -554,7 +554,7 @@ test("every way a broadcast can stop says it stopped, and none of them says a jo
   for (const f of [paused, withdrawn, down]) {
     const n = f.log.at(-1)[1];
     assert.equal(n.kind, "broadcast_stopped");
-    assert.equal(n.route, "broadcasts/run:b1");
+    assert.equal(n.route, "campaigns/sequences/b1/runs/b1");
     assert.deepEqual(n.about, { type: "broadcast", id: "b1" });
   }
 });
@@ -2793,7 +2793,7 @@ test("a message whose only row is a WhatsApp one that cannot be sent, with every
     const alert = call(alone.f.log, "alert")[1];
     assert.deepEqual(
       [alert.kind, alert.route, alert.about],
-      ["broadcast_stopped", "broadcasts/run:b1", { type: "broadcast", id: "b1" }],
+      ["broadcast_stopped", "campaigns/sequences/b1/runs/b1", { type: "broadcast", id: "b1" }],
     );
     assert.equal(alert.subject, "Broadcast “Visit reminder · 2026-09-11” stopped");
     return alert.body;
@@ -3054,7 +3054,9 @@ test("every alert any run in this file raised opens the run it is about, and no 
   // limit, throttled, its message withdrawn. A notice that names its run and opens the list of runs is the gap A2b closed.
   assert.ok(alertsRaised.length >= 10, `the file's runs raised ${alertsRaised.length} alerts to check`);
   assert.deepEqual(
-    alertsRaised.filter((a) => a.about?.type !== "broadcast" || a.route !== `broadcasts/run:${a.about.id}`),
+    alertsRaised.filter(
+      (a) => a.about?.type !== "broadcast" || a.route !== `campaigns/sequences/${a.about.id}/runs/${a.about.id}`,
+    ),
     [],
   );
 });

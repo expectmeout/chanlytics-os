@@ -1,3 +1,5 @@
+export const GET_YES_PARAM = "get-yes";
+export const GET_YES_ROUTE = `clients/${GET_YES_PARAM}`;
 const PEEK_ID = /^[A-Za-z0-9_-]{1,80}$/;
 const VIEW_TOKEN = /^(seg|list|state):[^:/]+$/;
 export function peopleRoute(v = {}) {

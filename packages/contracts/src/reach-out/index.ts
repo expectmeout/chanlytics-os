@@ -201,7 +201,6 @@ export type { ReachOutDraft, ReachOutDraftStep, ReachOutDraftIssues } from "./re
 export {
   REACH_OUT_RUN_REREAD_MS,
   TO_SEND_ALL_WORDS,
-  TO_SEND_ROUTE,
   heldNoticeWords,
   reachOutRunMoving,
   reachOutRunWordsOf,

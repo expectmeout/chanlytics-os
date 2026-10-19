@@ -34,6 +34,7 @@ const KEPT_AT = NOW - HOUR;
 const RUN = "aaaaaaaa-0000-4000-8000-000000000001";
 const RUN2 = "aaaaaaaa-0000-4000-8000-000000000002";
 const RUN3 = "aaaaaaaa-0000-4000-8000-000000000003";
+const RUN4 = "aaaaaaaa-0000-4000-8000-000000000004";
 const MAIL = "bbbbbbbb-0000-4000-8000-000000000001";
 const MAIL2 = "bbbbbbbb-0000-4000-8000-000000000002";
 const REVIEW = "cccccccc-0000-4000-8000-000000000001";
@@ -77,13 +78,19 @@ test("a run approved or skipped reads its 'is ready' row as read, in the old wor
   const a = ready();
   const b = ready({ type: "broadcast", id: RUN2 }, "Playbook “Win-back” is ready: 40 people");
   const c = ready({ type: "broadcast", id: RUN3 }, "A reach-out waits for you: Spring");
+  // A sequence to leads' run says its name first now (the Campaigns wiring review's lane 7); the old title is still read.
+  const d = ready({ type: "broadcast", id: RUN4 }, "Spring waits for your OK");
   const rows = byId(
-    feed([a, b, c], waitsOf({ runs: runs({ [RUN]: "pending_approval", [RUN2]: "scheduled", [RUN3]: "cancelled" }) })),
+    feed(
+      [a, b, c, d],
+      waitsOf({ runs: runs({ [RUN]: "pending_approval", [RUN2]: "scheduled", [RUN3]: "cancelled", [RUN4]: "sent" }) }),
+    ),
   );
   assert.equal(rows[`n:${a.id}`].unread, true, "the run still waits: the row still asks");
   assert.equal(rows[`n:${a.id}`].tone, "warn", "and asks as a decision, not as good news");
   assert.equal(rows[`n:${b.id}`].unread, false, "approved: it is on its way");
   assert.equal(rows[`n:${c.id}`].unread, false, "skipped: it will not go");
+  assert.equal(rows[`n:${d.id}`].unread, false, "gone, in a sequence to leads' words: no longer asks");
   assert.equal(rows[`n:${b.id}`].tone, "", "a settled row wears no warning");
   assert.equal(unreadCount(Object.values(rows)), 1, "the badge counts the one that still waits");
   // Every state a run goes on to is a run that no longer waits on a word.

@@ -185,7 +185,10 @@ test("Going today: every run set to start later today and every reply counting d
   assert.equal(rows[1].sentence, `1 person. ${waitEndsWords("one_off", at(NOW + 10 * MIN))}.`);
   assert.equal(rows[1].meta, `Sent once · goes ${at(NOW + 10 * MIN)}`);
   assert.equal(rows[2].sentence, `4 people. ${waitEndsWords("batch_hold", at(NOW + 30 * MIN))}.`);
-  assert.deepEqual([rows[2].stop, rows[2].to], [{ kind: "run", id: "b-batch" }, "broadcasts/run:b-batch"]);
+  assert.deepEqual(
+    [rows[2].stop, rows[2].to],
+    [{ kind: "run", id: "b-batch" }, "campaigns/sequences/b-batch/runs/b-batch"],
+  );
   assert.match(rows[3].sentence, /^4 businesses\. Goes at /);
   assert.match(rows[3].meta, /^Reach-out · goes at /);
 });

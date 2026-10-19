@@ -151,14 +151,22 @@ test("every page opens on its own reads, named by the path's word or the hash's;
     ["campaigns", "campaigns"],
     ["campaigns/in:winback", "campaigns"],
     ["campaigns/moment:3f6c1a52-0d1e-4b8a-9c2f-5e7d8a9b0c1d", "campaigns"],
-    // The composer and a message are sheets over that list, each opening on its own reads too.
-    ["campaigns/new", "campaigns/new"],
-    ["campaigns/new:leads", "campaigns/new"],
-    ["campaigns/new:to:list-1", "campaigns/new"],
+    // A message is a sheet over that list, opening on its own reads too; the composer's old addresses land on the one New
+    // (the Campaigns wiring review's lane 6), and open on what New opens on.
+    ["campaigns/new", "campaigns/sequences/new"],
+    ["campaigns/new:leads", "campaigns/sequences/new"],
+    ["campaigns/new:to:list-1", "campaigns/sequences/new"],
     ["campaigns/message:hello", "campaigns/message"],
-    // Sequences, its list and a new one: its own read (decision 0060). A record reads itself beside them (below).
+    // Sequences, its list: its own read (decision 0060). A record reads itself beside it (below). New, on each who, opens on
+    // what Send once is made of beside the list, and a run at its home on what its screen is (lanes 2 and 6).
     ["campaigns/sequences", "campaigns/sequences"],
-    ["campaigns/sequences/new", "campaigns/sequences"],
+    ["campaigns/sequences/new", "campaigns/sequences/new"],
+    ["campaigns/sequences/new:once:to:list-1", "campaigns/sequences/new"],
+    ["campaigns/sequences/new:leads", "campaigns/sequences/new"],
+    ["campaigns/sequences/sq-1/runs/b-1", "campaigns/sequences/runs"],
+    // Get their yes, a sheet over People's list (lane 7), opens on People's reads and Sent's.
+    ["people/get-yes", "clients/get-yes"],
+    ["clients/get-yes", "clients/get-yes"],
     ["broadcasts", "broadcasts"],
     ["playbooks", "outbound"],
     ["outbound", "outbound"],
@@ -195,7 +203,7 @@ test("every page opens on its own reads, named by the path's word or the hash's;
     );
 });
 
-test("a sequence's record reads itself beside Sequences' list, and the tab its address opens on where that tab reads its own; New and a word that is no id read none", () => {
+test("a sequence's record reads itself beside Sequences' list, and the tab its address opens on where that tab reads its own; New, a run and a word that is no id read none", () => {
   const SEQ = "3f6c1a52-0d1e-4b8a-9c2f-5e7d8a9b0c1d";
   const record = `/api/v1/sequences/${SEQ}?workspace=acme`;
   const reads = (path) => headRuns({ pathname: `/w/acme/${path}`, hash: "" }).calls.map(([u]) => u);
@@ -211,19 +219,17 @@ test("a sequence's record reads itself beside Sequences' list, and the tab its a
     record,
     `/api/v1/sequences/${SEQ}/history?workspace=acme`,
   ]);
-  // A day of History open is still its History; a way back to Leads is no tab.
-  assert.deepEqual(reads(`campaigns/sequences/${SEQ}/history/${ID}`), [
-    ...list,
-    record,
-    `/api/v1/sequences/${SEQ}/history?workspace=acme`,
-  ]);
+  // A day of History is its run, at its home (the Campaigns wiring review's lane 2): the older address opens on what the
+  // run's home does, where it lands, and reads no record it will not draw. A way back to Leads is no tab.
+  assert.deepEqual(reads(`campaigns/sequences/${SEQ}/history/${ID}`), opensOn("acme", "campaigns/sequences/runs"));
+  assert.deepEqual(reads(`campaigns/sequences/${SEQ}/runs/${ID}`), opensOn("acme", "campaigns/sequences/runs"));
   assert.deepEqual(reads(`campaigns/sequences/${SEQ}/back:s-1`), [...list, record]);
   // An address the frame has not moved yet says it in the hash, and reads the same.
   assert.deepEqual(
     headRuns({ pathname: "/w/acme", hash: `#/campaigns/sequences/${SEQ}` }).calls.map(([u]) => u),
     [...list, record],
   );
-  assert.deepEqual(reads("campaigns/sequences/new"), list);
+  assert.deepEqual(reads("campaigns/sequences/new"), opensOn("acme", "campaigns/sequences/new"));
   assert.deepEqual(reads("campaigns/sequences/not-an-id"), list);
 });
 
@@ -709,21 +715,24 @@ test("what the head starts for a page is what its surfaces ask for first, no mor
   const paramOf = { admin: "workspace" };
   // What a page draws on its first screen from another page's surface, started with its own: Today's strip (the next
   // visit, the next opening) is the calendar's weeks, which the frame reads right after Today's own (ROUTE_DRAWS);
-  // Campaigns, Sequences' list, draws the settings read beside it as Sequences does, and the sheets it opens over the list
-  // draw theirs at their own addresses: the composer Sent's runs, the reach-outs' chains a change opens on and the settings
-  // read, which holds the templates (the one read of them, task 3.3), a message the playbooks' read and the settings read; Sent's sheets stand beside Sequences' list (decision 0060,
-  // D3); and the Calendar's campaign marks are their own span's read, started beside the board's (the Calendar's lane C).
-  // And the channels read (surfaces/channels/surface.ts), which Live, both composers and the Library are made of: the one read
-  // of the numbers, started with the page's own. The composer is made of who each audience reaches too (the audiences), which
-  // Sent's sheets read only once their own are in. And the Inbox draws Sent's runs, waiting ones as rows of Needs you: their
-  // own read, nothing of People (the Inbox's run review, 18 Oct 2026).
+  // Campaigns, Sequences' list, draws the settings read beside it as Sequences does, and the screens beside the list draw
+  // theirs at their own addresses: the one New Sent's runs and the settings read, which holds the templates (the one read of
+  // them, task 3.3), a run at its home Sent's runs, a message the playbooks' read and the settings read (the Campaigns wiring
+  // review's lanes 2 and 6); and the Calendar's campaign marks are their own span's read, started beside the board's (the
+  // Calendar's lane C). And the channels read (surfaces/channels/surface.ts), which Live, New, a run and the Library are made
+  // of: the one read of the numbers, started with the page's own. New's Send once is made of who each audience reaches too
+  // (the audiences), which a run reads only once its own are in. The Inbox draws Sent's runs, waiting ones as rows of Needs
+  // you: their own read, nothing of People (the Inbox's run review, 18 Oct 2026). And Get their yes, over People's list,
+  // draws the opt-in Sent's read carries (lane 7).
   const alsoDrawn = {
     today: ["calendar"],
     inbox: ["broadcasts"],
     campaigns: ["settings"],
-    "campaigns/new": ["broadcasts", "audiences", "reach_outs", "settings", "channels"],
+    "campaigns/sequences/new": ["broadcasts", "audiences", "settings", "channels"],
+    "campaigns/sequences/runs": ["broadcasts", "settings", "channels"],
     "campaigns/message": ["playbooks", "settings", "channels"],
     "campaigns/sequences": ["settings"],
+    "clients/get-yes": ["broadcasts"],
     calendar: ["calendar_runs"],
     live: ["channels"],
     broadcasts: ["channels", "sequences"],
@@ -731,9 +740,12 @@ test("what the head starts for a page is what its surfaces ask for first, no mor
     messages: ["channels"],
     "campaigns/messages": ["channels"],
   };
-  // A key with a word after its page (`campaigns/new`) is that page at that address, as the registry reads one.
+  // A key with words after its page (`campaigns/sequences/new`) is that page at that address, as the registry reads one
+  // (routePartsOf); a key that names a screen, no address, is asked at one of its addresses (a run at its home).
+  const ADDRESS_OF = { "campaigns/sequences/runs": "campaigns/sequences/sq-1/runs/b-1" };
+  const addressOf = (route) => ADDRESS_OF[route] ?? route;
   const pageAt = (route) => {
-    const [page, param] = route.split("/");
+    const { page, param } = registry.routePartsOf(addressOf(route));
     return { page, param: param ?? paramOf[route] ?? null };
   };
   for (const [route, drawn] of Object.entries(alsoDrawn)) {
@@ -741,10 +753,10 @@ test("what the head starts for a page is what its surfaces ask for first, no mor
     for (const k of drawn)
       assert.ok(registry.routeDrawsFor(page, param).includes(k), `${route} draws ${k} beside its own`);
   }
-  // Campaigns' landing draws none of its sheets' surfaces: a landing reads Sequences' alone (the phone review's Reads on landing).
-  // And the composer draws no moment's since its Every time went (the closed-loop audit of 17 Oct 2026, G).
-  for (const k of ["playbooks", "campaign_results"])
-    for (const param of ["new", "new:leads", "new:to:list-1"])
+  // Campaigns' landing draws none of its screens' surfaces: a landing reads Sequences' alone (the phone review's Reads on
+  // landing). And New draws no moment's since the composer's Every time went (the closed-loop audit of 17 Oct 2026, G).
+  for (const k of ["playbooks", "campaign_results", "reach_outs"])
+    for (const param of ["sequences/new", "sequences/new:leads", "sequences/new:once:to:list-1"])
       assert.ok(!registry.routeDrawsFor("campaigns", param).includes(k), `campaigns/${param} draws no ${k}`);
   for (const k of ["playbooks", "broadcasts", "reach_outs"])
     for (const param of [null, "in:winback", "moment:p-1", "sequences"])
@@ -757,7 +769,7 @@ test("what the head starts for a page is what its surfaces ask for first, no mor
       keys.every((k) => overrides[k]),
       `${route}: every surface it opens on is run here (${keys.join(", ")})`,
     );
-    win.location.pathname = `/w/harbor/${route}`;
+    win.location.pathname = `/w/harbor/${addressOf(route)}`;
     api().forget();
     asked.length = 0;
     for (const k of keys) void overrides[k].apply().catch(() => {});

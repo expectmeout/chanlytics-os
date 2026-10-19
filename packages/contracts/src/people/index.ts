@@ -79,7 +79,6 @@ export {
   cannotBeSentWords,
   saidYesWords,
   peopleAggregates,
-  GET_YES_ROUTE,
   NO_NUMBER_REACH,
   NO_CHANNEL_REACH,
 } from "./people-lists";
@@ -130,7 +129,7 @@ export {
 export { ListDraftAnswerSchema, PeopleExportQuerySchema } from "./lists/list-schemas";
 export type { ListNeed, ListFact, ListAny, ListCondition, ListRule, InList } from "./lists/list-rules";
 export type { ListDraftAnswer } from "./lists/list-schemas";
-export { parsePeopleRoute, peopleRoute } from "./lists/people-route";
+export { GET_YES_PARAM, GET_YES_ROUTE, parsePeopleRoute, peopleRoute } from "./lists/people-route";
 export {
   listToken,
   parseListToken,

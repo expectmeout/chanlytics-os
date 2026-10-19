@@ -70,11 +70,17 @@ test("a sheet's address draws nothing until the sheets' chunk is in, asks for it
   setSurfaceValue("broadcasts", bc);
   setSurfaceValue("audiences", { audiences, listsRead, heardRead, reach, fetchedAt: bc.fetchedAt });
   setSurfaceValue("settings", { templatesAll: bc.templates, messages: contracts.campaignMessagesOf(bc.templates) });
-  const page = (param) => again(() => CampaignsSheets({ param }));
+  const page = (param) => again(() => CampaignsSheets({ param, flash() {} }));
   const sheet = (tree) => find(tree, (n) => n.type === PaneSheet);
-  assert.equal(sheet(page("new")), null, "nothing stands over Sequences while the sheets' chunk is out");
+  assert.equal(
+    sheet(page("message:spring_offer")),
+    null,
+    "nothing stands over Sequences while the sheets' chunk is out",
+  );
   await landed(`${SRC}/surfaces/campaigns/home/open-sheets.tsx`);
-  assert.ok(sheet(page("new")), "the composer's sheet, once the chunk the address asked for is in");
+  assert.ok(sheet(page("message:spring_offer")), "a message's drawer, once the chunk the address asked for is in");
+  // The composer's old address opens no sheet: it lands on the one New before the page is drawn (lane 6).
+  assert.equal(sheet(page("new")), null);
   // An address that names no sheet draws none, the chunk in or not.
   assert.equal(sheet(page("sequences")), null);
 });

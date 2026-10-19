@@ -9,9 +9,10 @@ import { JOURNEY_STAGE_IDS, type JourneyStageId } from "../journey/journey";
 import type { LifecycleGroup } from "../playbooks/lifecycle/lifecycle-types";
 import { parseLeadsRoute, leadsRoute } from "../leads/lead-plan";
 import { BUILTIN_LISTS, parseListToken } from "../people/lists/lists";
-import { GET_YES_ROUTE } from "../people/people-lists";
+import { GET_YES_ROUTE } from "../people/lists/people-route";
 import { LENS_ROUTES, reportsRouteParts } from "../reports/lenses";
 import { retiredRouteOf } from "../shell/address";
+import { TO_SEND_ROUTE } from "../sequences/sequence-address";
 
 /* ----------------------------------------------------------- the citation */
 
@@ -119,7 +120,7 @@ export const ASK_PAGE_ROUTES: readonly string[] = [
 /**
  * Whether a route is a page Ask may name: one of the listed pages (ASK_PAGE_ROUTES), or an address its page takes by a
  * parse of its own -- the Calendar's day, Reports' lens and the days after it, People's Leads views that name no search
- * and no lead and its built-in lists, the Sent room's Get their yes and the calls tab of Conversations. A visit is no page: it is a row, cited as kind visit, so `calendar/<day>:a-<id>` is not one, whatever
+ * and no lead and its built-in lists, People's Get their yes, the Inbox's To send and the calls tab of Conversations. A visit is no page: it is a row, cited as kind visit, so `calendar/<day>:a-<id>` is not one, whatever
  * the id. A route that only BEGINS with a page's word
  * is no page (`admin/opening`, `calendar/next-week`, `reports/foo`, `today/x`): it lands on "Not in this release", on the usual
  * week or on a card that names no surface. A list of the workspace's own (`clients/list:<id>`) is a row, its reader's route,
@@ -142,10 +143,10 @@ function isPageRoute(route: string): boolean {
       const parts = reportsRouteParts(route);
       return parts !== null && parts.review === null;
     }
-    case "broadcasts":
-      return route === GET_YES_ROUTE;
     case "clients":
-      return isPeopleView(route, param);
+      return route === GET_YES_ROUTE || isPeopleView(route, param);
+    case "inbox":
+      return route === TO_SEND_ROUTE;
     default:
       return false;
   }
@@ -179,8 +180,18 @@ const OTHER_GROUPS = { lists: true, reach_out: true, sent_once: true } satisfies
 /** The groups of Campaigns' ledger an address narrowed it to (`campaigns/in:<group>`): a journey stage, then the others. */
 const CAMPAIGN_GROUPS: readonly string[] = [...JOURNEY_STAGE_IDS, ...Object.keys(OTHER_GROUPS)];
 
-/** The retired pages an answer may still name (an older card, a citation it read): each is a page that moved. */
-const RETIRED_PAGES: ReadonlySet<string> = new Set(["campaigns", "outbound", "broadcasts", "messages"]);
+/**
+ * The retired pages an answer may still name (an older card, a citation it read): each is a page that moved. Sent's views
+ * went with it (the Campaigns wiring review's lanes 4 and 7): To send to the Inbox, Get their yes to People.
+ */
+const RETIRED_PAGES: ReadonlySet<string> = new Set([
+  "campaigns",
+  "outbound",
+  "broadcasts",
+  "broadcasts/to-send",
+  "broadcasts/get-yes",
+  "messages",
+]);
 
 /**
  * The page a retired one an answer names moved to (Campaigns' home and a real group of its ledger, the old Playbooks list,

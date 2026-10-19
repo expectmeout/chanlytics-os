@@ -126,7 +126,7 @@ test("Reports draws the reach-outs' section: the strip, the emails, the business
   went.length = 0;
   assert.match(byTestId(tree, "ro-source-open").props.href, /^#\//, "the chain's name is a link with its address");
   press(byTestId(tree, "ro-source-open"));
-  assert.deepEqual(went, ["outbound/r1"]);
+  assert.deepEqual(went, ["campaigns/sequences/r1"]);
 });
 
 test("Reports says a failed read, an empty period, and draws nothing where there is no reach-out", () => {

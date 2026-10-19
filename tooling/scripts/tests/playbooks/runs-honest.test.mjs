@@ -260,7 +260,7 @@ const { AgentCommand } = await import(`${S}/surfaces/today/pages/queue.tsx`);
 const { TodayBriefPane } = await import(`${S}/surfaces/today/pages/brief-pane.tsx`);
 const { TodayGoing } = await import(`${S}/surfaces/today/pages/going-today.tsx`);
 // The moved surfaces: TSX, drawn over the values the seam holds, their verbs imported.
-const { BroadcastsPage } = await import(`${S}/surfaces/campaigns/broadcasts/broadcasts-page.tsx`);
+const { BroadcastSend, BroadcastRun } = await import(`${S}/surfaces/campaigns/broadcasts/broadcasts-page.tsx`);
 const { Picker } = await import(`${S}/surfaces/kit/picker/picker.tsx`);
 /** One of the composer's choices, the kit's Picker (surfaces/kit/picker/), by its test id. */
 const pickerOf = (tree, testid) => find(tree, (n) => n.type === Picker && n.props["data-testid"] === testid);
@@ -297,18 +297,33 @@ broadcasts.detail = async (id) => {
     }
   );
 };
+/**
+ * A run's one screen at its home (`initialRun`: BroadcastRun, the Campaigns wiring review's lane 2), else the send screen as
+ * New's Send once hosts it, on the list named (lane 6): Sent's page, which held both beside Sequences' list, went with its
+ * mount.
+ */
+const screen = (props) =>
+  props.initialRun
+    ? BroadcastRun({ id: props.initialRun })
+    : BroadcastSend({
+        data: surfaceValue("broadcasts"),
+        initialSegment: props.initialSegment ?? null,
+        flash() {},
+        onDone() {},
+        onYes() {},
+      });
 const page = (props) => {
   fresh();
-  return BroadcastsPage(props);
+  return screen(props);
 };
-const again = (props) => drawAgain(() => BroadcastsPage(props));
+const again = (props) => drawAgain(() => screen(props));
 /* ------------------------------- a run's own door ------------------------------- */
 
 test("REGRESSION (C9): a link to a run opens it on its sheet -- its report on a screen of its own, as the canvas draws it, whether the read holds it or not", async () => {
   setSurfaceValue("broadcasts", broadcastsSurface());
   answers.set("b-sent", [{ ok: true, data: detailOf(dto()) }]);
-  // A run is opened from its sequence's History, a bell row, Today or Ask's card, each a link to its sheet's address
-  // (contracts runSheetRoute); Sent's list, whose rows linked to it too, went to the sequences' History (decision 0060, D3).
+  // A run is opened from its sequence's History, a bell row, Today or Ask's card, each a link to its home under its
+  // sequence (contracts runRoute, the Campaigns wiring review's lane 2).
   const listed = { initialSegment: null, initialRun: "b-sent" };
   page(listed);
   await settle();
@@ -320,9 +335,8 @@ test("REGRESSION (C9): a link to a run opens it on its sheet -- its report on a 
     "bc-run-b-sent",
     "the screen a link lands on carries the run's anchor",
   );
-  // The layout is the Inbox's list + pane (Claude Video/docs/2026-10-02-campaigns-on-the-kit.md §3.1): Sequences' list,
-  // and the report the pane beside it, its head (a CmPane's) saying the run's name and state.
-  assert.ok(String(byTestId(tree, "broadcasts-real").props.className).includes("sq-page"), "beside Sequences' list");
+  // The report is a pane (Sequences draws it beside its list at the run's home), its head (a CmPane's) saying the run's
+  // name and state.
   assert.equal(byTestId(tree, "bc-composer"), null);
   const solo0 = byTestId(tree, "bc-run-solo");
   assert.equal(paneTitle(tree), "Win-back · 2026-09-10", "the run's name is the pane's title");
@@ -354,7 +368,7 @@ test("REGRESSION (C9): a link to a run opens it on its sheet -- its report on a 
   );
 });
 
-test("the page follows its link rather than starting again: opening a run keeps the audience chosen, and a link to a list picks it", () => {
+test("the send screen follows its link rather than starting again: a later link to a list picks it, and a re-read keeps a choice made", () => {
   setSurfaceValue("broadcasts", broadcastsSurface());
   // The list the send is for is the kit's picker's token (the chips are gone): the label of the option chosen.
   const chosen = (tree) => {
@@ -363,15 +377,9 @@ test("the page follows its link rather than starting again: opening a run keeps 
   };
   let tree = page({ initialSegment: "s1", initialRun: null });
   assert.ok(chosen(tree).startsWith("Regulars"));
-  again({ initialSegment: null, initialRun: "b-sent" });
-  tree = again({ initialSegment: null, initialRun: "b-sent" });
-  assert.equal(byTestId(tree, "bc-composer"), null, "a run opens on its own screen");
-  again({ initialSegment: null, initialRun: null });
-  tree = again({ initialSegment: null, initialRun: null });
-  assert.ok(chosen(tree).startsWith("Regulars"), "and closing it leaves the send, and its audience, where they were");
   again({ initialSegment: "s2", initialRun: null });
   tree = again({ initialSegment: "s2", initialRun: null });
-  assert.ok(chosen(tree).startsWith("Walk-ins"), "and a later link to another list picks that list");
+  assert.ok(chosen(tree).startsWith("Walk-ins"), "a later link to another list picks that list");
   pickerOf(tree, "bc-audience").props.onValueChange("saved:s1");
   setSurfaceValue("broadcasts", broadcastsSurface());
   again({ initialSegment: "s2", initialRun: null });
@@ -560,18 +568,22 @@ test("REGRESSION (A21): Today's run rows open the run -- a run waiting for you o
     assert.ok(who, "REGRESSION: the run's second door was Open Playbooks");
     press(who);
     run.props.onClick();
-    assert.deepEqual(went, ["broadcasts/run:b-wait", "broadcasts/run:b-wait"], "REGRESSION: Playbooks");
+    assert.deepEqual(
+      went,
+      ["campaigns/sequences/b-wait/runs/b-wait", "campaigns/sequences/b-wait/runs/b-wait"],
+      "REGRESSION: Playbooks",
+    );
     // The run about to send is Going today's row (decision 0064), above the queue: it opens its run too.
     fresh();
     const next = byTestId(TodayGoing(), "today-going-row");
     next.props.onClick();
-    assert.deepEqual(went, ["broadcasts/run:b-soon"], "REGRESSION: the page of every broadcast");
+    assert.deepEqual(went, ["campaigns/sequences/b-soon/runs/b-soon"], "REGRESSION: the page of every broadcast");
     fresh();
     // What ran today is a line of the brief beside the queue (TodayBriefPane, canvas E3); it was a beat of the hero
     // above it, then of the day's card.
     const recap = TodayBriefPane();
     press(buttonsSaying(byTestId(recap, "brief-run-done"), "Open")[0]);
-    assert.deepEqual(went, ["broadcasts/run:b-done"]);
+    assert.deepEqual(went, ["campaigns/sequences/b-done/runs/b-done"]);
   } finally {
     setSurfaceValue("today", undefined);
   }

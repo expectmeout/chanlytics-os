@@ -617,13 +617,6 @@ var LIFECYCLE_WORDS = {
     body: "Every message you keep is in Messages."
   },
   compose: {
-    title: CAMPAIGN_ROOMS.newMessage,
-    kind: "What kind of message",
-    once: "Send once",
-    /** Beside "Send once" (00426, canvas B): a reach-out to leads, from a search, a list, or the ones the pile adds. */
-    leads: "Write to leads",
-    /** A reach-out's change (`campaigns/new:edit:<root>`): its sheet's kicker while its chain is read. */
-    edit: "Edit",
     /**
      * The composers and a campaign's drawer as one sentence of words to press (Ruben, 11 Oct 2026, "Option B"): the words
      * round its tokens, the one line under it saying who it reaches now, what happens next, and what an edit changes.
@@ -707,9 +700,7 @@ var LIFECYCLE_WORDS = {
       what: "who and what you can send to",
       body: "Nothing goes out until it reads. Everything else here is current.",
       surface: "broadcasts"
-    },
-    // A reach-out's change opens on its chain, which the reach-outs read holds: said where it could not be, with its Retry.
-    chainFailed: { what: "your reach-out", body: "Its sheet opens once it reads.", surface: "reach_outs" }
+    }
   },
   phone: { moments: "Moments" },
   // The channels a campaign goes by: the row's word in the drawer, and what a mark that waits says of itself.
@@ -970,8 +961,10 @@ var TEMPLATE_SAME_NAME_WORDS = "A template with that name and language already e
 
 // src/sequences/sequence-address.ts
 var SEQUENCES_ROUTE = "campaigns/sequences";
-var sequenceRoute = (id, tab = "steps", day) => tab === "steps" ? `${SEQUENCES_ROUTE}/${id}` : `${SEQUENCES_ROUTE}/${id}/${tab}${tab === "history" && day ? `/${day}` : ""}`;
+var sequenceRoute = (id, tab = "steps") => tab === "steps" ? `${SEQUENCES_ROUTE}/${id}` : `${SEQUENCES_ROUTE}/${id}/${tab}`;
 var newSequenceRoute = (moment) => moment ? `${SEQUENCES_ROUTE}/new:moment:${moment}` : `${SEQUENCES_ROUTE}/new`;
+var TO_SEND_PARAM = "to-send";
+var TO_SEND_ROUTE = `inbox/${TO_SEND_PARAM}`;
 
 // src/shell/address.ts
 var MESSAGES_ROUTE = "campaigns/messages";

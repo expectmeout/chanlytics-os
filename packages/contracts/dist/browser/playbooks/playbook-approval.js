@@ -3,7 +3,7 @@ import { BREATH_WHY } from "../broadcasts/run-words.js";
 import { purposeOfPlaybook } from "../consent/consent.js";
 import { consentRuleWords } from "../consent/consent-asks.js";
 import { appointmentWords } from "../journey/appointment-word.js";
-import { GET_YES_ROUTE } from "../people/people-lists.js";
+import { GET_YES_ROUTE } from "../people/lists/people-route.js";
 import { CAMPAIGNS_PAUSED_WORDS } from "../workspace/billing.js";
 import { runApproveWords } from "../shell/campaign-rooms.js";
 import { isReachOutRun } from "../reach-out/reach-out-rules.js";

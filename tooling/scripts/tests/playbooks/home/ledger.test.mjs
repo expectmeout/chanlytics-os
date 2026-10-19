@@ -403,7 +403,7 @@ test("six rows keep the page short; the seventh brings the tools, and the one-of
     once.rows.map((r) => [r.id, r.kind, r.results]),
     [["b-1", "sent_once", { kind: "sent", sent: 30, replied: 4 }]],
   );
-  assert.deepEqual(once.rows[0].open, { kind: "route", label: "Open", route: "broadcasts/run:b-1" });
+  assert.deepEqual(once.rows[0].open, { kind: "route", label: "Open", route: "campaigns/sequences/b-1/runs/b-1" });
   assert.equal(once.meta, "1 send · last 30 days");
 });
 
@@ -463,7 +463,7 @@ test("a reach-out's numbers: written, businesses and wrote back from its own tot
   const waits = row(ledger({ reachOuts: [chain("ro-w", { next: { waiting_run_id: "r-9" } })] }), "ro-w");
   assert.deepEqual(
     [waits.status, waits.waiting, waits.act],
-    ["waiting", null, { kind: "route", label: "Open the run", route: "broadcasts/run:r-9" }],
+    ["waiting", null, { kind: "route", label: "Open the run", route: "campaigns/sequences/r-9/runs/r-9" }],
     "a chain's run is decided on its own page",
   );
 });
@@ -669,7 +669,7 @@ test("D1-campaign-state: a reach-out with a run waiting is shown waiting whether
   assert.deepEqual(row(l, "c-pw").act, {
     kind: "route",
     label: C.LIFECYCLE_WORDS.ledger.openRun,
-    route: "broadcasts/run:r-9",
+    route: "campaigns/sequences/r-9/runs/r-9",
   });
   assert.deepEqual(states("c-p"), ["paused", "Paused", "plain"]);
   assert.equal(row(l, "c-p").act.kind, "resume");

@@ -973,7 +973,10 @@ test("Campaigns: the playbooks, the broadcasts or the messages the page drew, by
       [`run://${BC1}`, "September offer"],
     ],
   );
-  assert.match(textOf(bc.blocks[1]), /^September offer · .* · 3 people · 0 sent · route: broadcasts\/run:/);
+  assert.match(
+    textOf(bc.blocks[1]),
+    /^September offer · .* · 3 people · 0 sent · route: campaigns\/sequences\/[^/]+\/runs\//,
+  );
 
   const msgs = await buildContext(
     rcIn(ctxFor(t)),
@@ -996,7 +999,7 @@ test("Campaigns: the playbooks, the broadcasts or the messages the page drew, by
     [pb, bc, msgs].map((b) => b.refs.slice(1)),
     [
       [{ kind: "playbook", id: PB1, route: `campaigns/sequences/${PB1}`, label: "Win-back" }],
-      [{ kind: "broadcast", id: BC1, route: `broadcasts/run:${BC1}`, label: "September offer" }],
+      [{ kind: "broadcast", id: BC1, route: `campaigns/sequences/${BC1}/runs/${BC1}`, label: "September offer" }],
       [{ kind: "template", id: T1, route: "campaigns/message:winback_offer", label: "Win-back offer" }],
     ],
   );

@@ -15,7 +15,7 @@ import type { ReachOutDraftedSend, ReachOutRunDto } from "./reach-out-dtos";
 import { holdDoors, HOLD_DOOR_WORDS, type ReachOutHold } from "./reach-out-words";
 import { reachOutRootOf } from "./reach-out-rules";
 import { approvalWordsOf, chainPaceOf, leadDoorOf, stepLabel } from "./reach-out-sheet";
-import { SEQUENCES_ROUTE, runRoute } from "../sequences/sequence-address";
+import { TO_SEND_ROUTE, runRoute } from "../sequences/sequence-address";
 
 /**
  * Why a send was skipped, as a run's block says it after the count and a lead's story says it (Part 6): the reasons
@@ -267,27 +267,27 @@ export interface ToSendCount {
   from: number;
 }
 
-/** Sent's one To send: every email handed to its owner, from each reach-out they send themselves (00429). */
-export const TO_SEND_ROUTE = "broadcasts/to-send";
-
 /** The one To send's own words: Today's row that opens it, and Sent's pane that lists every run's emails. */
 export const TO_SEND_ALL_WORDS = {
   title: "To send",
   /** Today's row and the door to it: what it opens. */
   door: "Open To send",
-  meta: "Reach-out · to send",
+  /** Its row's act: To send opens under it, in Needs you, and closes again (the Campaigns wiring review's lane 4). */
+  open: "Open",
+  hide: "Hide",
+  meta: "Cold email · to send",
   status: "Handed to you",
-  /** "12 emails handed to you, from 3 reach-outs"; one reach-out (its first email and its nudge) says none. */
+  /** "12 emails handed to you, from 3 sequences"; one sequence (its first email and its nudge) says none. */
   sub: (n: number, from: number) =>
-    `${plural(n, "email", "emails")} handed to you${from > 1 ? `, from ${from} reach-outs` : ""}`,
-  /** Today's one row for them: what waits, and from how many reach-outs where more than one. */
+    `${plural(n, "email", "emails")} handed to you${from > 1 ? `, from ${from} sequences` : ""}`,
+  /** Today's one row for them: what waits, and from how many sequences to leads where more than one. */
   sentence: (n: number, from: number) =>
-    `${plural(n, "email", "emails")} to send from your inbox${from > 1 ? `, from ${from} reach-outs` : ""}, each written and checked.`,
-  /** Today's brief for them, as one run's line: "Your reach-outs are waiting for you: …". */
+    `${plural(n, "email", "emails")} to send from your inbox${from > 1 ? `, from ${from} sequences` : ""}, each written and checked.`,
+  /** Today's brief for them, as one run's line: "Your cold emails are waiting for you: …". */
   brief: (from: number) =>
     from > 1
-      ? { label: "Your reach-outs", verb: "are" as const, waits: "waiting for you" }
-      : { label: "Your reach-out", verb: "is" as const, waits: "waiting for you" },
+      ? { label: "Your cold emails", verb: "are" as const, waits: "waiting for you" }
+      : { label: "Your cold email", verb: "is" as const, waits: "waiting for you" },
   note: REACH_OUT_TO_SEND_LABELS.note,
   /**
    * A run's part of the list: its reach-out, which of its emails (a first email and its nudge are two parts of one
@@ -297,7 +297,7 @@ export const TO_SEND_ALL_WORDS = {
     step === null ? `${name} · ${n}` : `${name} · ${step === 0 ? "first email" : stepLabel(step).toLowerCase()} · ${n}`,
   openRun: RUN_OPEN_WORDS,
   /** A run's own To send, where other runs hand emails over too: the door to all of them. */
-  everyRun: (n: number, from: number) => `All ${n} to send${from > 1 ? `, from ${from} reach-outs` : ""}`,
+  everyRun: (n: number, from: number) => `All ${n} to send${from > 1 ? `, from ${from} sequences` : ""}`,
   reading: "Reading its emails…",
   unread: "Its emails could not be read just now. Open the run to see them.",
   /** Every email handed over is said: what the pane says once its list is empty. */
@@ -324,8 +324,8 @@ export function toSendAllOf<R extends ToSendRunLike>(runs: readonly R[]): ({ run
   };
 }
 
-/** A run waiting for you, as the doors to the waiting runs read it: whether its check holds emails too. */
-type WaitingToSend = ToSendRunLike & { held?: number | null };
+/** A run waiting for you, as the doors to the waiting runs read it: whether its check holds emails too, and its sequence. */
+type WaitingToSend = ToSendRunLike & { held?: number | null; sequence_id?: string | null };
 
 /**
  * The runs waiting for you that fold into the one To send's row on Today: two or more going runs whose emails are handed
@@ -346,15 +346,19 @@ export function toSendEveryOf<R extends ToSendRunLike>(runs: readonly R[]): ToSe
 }
 
 /**
- * Where a door to the runs waiting for you goes (Today's queue, the Inbox's line): the run, where one waits; the one To
- * send, where every one waits only for its owner to send its emails; else Sequences.
+ * Where a door to the runs waiting for you goes (Today's queue head): the run, at its home, where one waits; To send, the
+ * part of Needs you, where every one waits only for its owner to send its emails; else Needs you, the whole list (the
+ * Campaigns wiring review's rule D), where it went to Sequences.
  */
 export function waitingRunsDoor(waiting: readonly WaitingToSend[]): string {
   const [only] = waiting;
-  if (waiting.length === 1 && only) return runRoute(only.id);
+  if (waiting.length === 1 && only) return runRoute(only.id, only.sequence_id);
   const toSend = toSendRunsOf(waiting);
-  return toSend && toSend.runs.length === waiting.length ? TO_SEND_ROUTE : SEQUENCES_ROUTE;
+  return toSend && toSend.runs.length === waiting.length ? TO_SEND_ROUTE : NEEDS_YOU_ROUTE;
 }
+
+/** Needs you, the whole list of what waits for you: the Inbox, which opens on it while anything waits. */
+const NEEDS_YOU_ROUTE = "inbox";
 
 /** The block's own acts. */
 const REACH_OUT_RUN_LABELS = {

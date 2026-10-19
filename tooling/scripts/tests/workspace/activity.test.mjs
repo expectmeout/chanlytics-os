@@ -1020,7 +1020,7 @@ test("a row opens the page of what it is about, and a fold's row says only what 
   assert.equal(activityDoor({ subject_type: "contact", subject_id: P1 }), `clients/${P1}`);
   assert.equal(activityDoor({ subject_type: "call", subject_id: K1 }), `conversations/cv-${K1}`);
   assert.equal(activityDoor({ subject_type: "lead", subject_id: "l1" }), "clients/leads:p-l1");
-  assert.equal(activityDoor({ subject_type: "broadcast", subject_id: "b1" }), "broadcasts/run:b1");
+  assert.equal(activityDoor({ subject_type: "broadcast", subject_id: "b1" }), "campaigns/sequences/b1/runs/b1");
   assert.equal(activityDoor({ subject_type: "membership", subject_id: "m1" }), "admin/team");
   assert.equal(activityDoor({ subject_type: "workspace", subject_id: A }), null);
   const heard = { kind: "open_recording", text: "Listened to a call's recording" };

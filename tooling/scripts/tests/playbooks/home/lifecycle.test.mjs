@@ -607,9 +607,9 @@ test("who can hear you: In People, can get your messages, said yes to offers, ea
   assert.deepEqual(t.phone, {
     words: "7 of 29 can hear you",
     offers: { words: "0 to offers", tone: "warn" },
-    yes: { label: "Get their yes", route: "broadcasts/get-yes" },
+    yes: { label: "Get their yes", route: "clients/get-yes" },
   });
-  assert.equal(C.GET_YES_ROUTE, "broadcasts/get-yes");
+  assert.equal(C.GET_YES_ROUTE, "clients/get-yes");
   assert.equal(t.phone.offers.tone, "warn", "none to offers is the phone's one word that asks to be seen");
   const some = home({ broadcasts: broadcasts({ reach: { ...reach, saidOffers: 3 } }) }).reach;
   assert.deepEqual(some.phone.offers, { words: "3 to offers", tone: "plain" });
@@ -623,7 +623,7 @@ test("the receptionist's note and the doors to the yes are drawn only where ther
   );
   assert.deepEqual(
     t.yes.code,
-    { kind: "route", label: "Show the code", route: "broadcasts/get-yes" },
+    { kind: "route", label: "Show the code", route: "clients/get-yes" },
     "the get-yes address the ledger's section answers",
   );
   assert.deepEqual([t.yes.phrase, t.yes.copy], ["YES OFFERS", "Copy the phrase"]);
@@ -913,7 +913,7 @@ test("a scheduled run and a run waiting on you are lines, in time order, and sta
     ],
     "the win-back's own line gives way to its run, named for the playbook; a run past the week is not here",
   );
-  assert.deepEqual(t.rows[0].act, { kind: "route", label: "Open", route: "broadcasts/run:r-w" });
+  assert.deepEqual(t.rows[0].act, { kind: "route", label: "Open", route: "campaigns/sequences/r-w/runs/r-w" });
   assert.deepEqual(t.rows[1].when, { day: "Tue", at: "10:00 AM" });
 });
 
@@ -965,12 +965,12 @@ test("a run waiting on you is approved or skipped where it waits: who gets it, a
   );
   assert.equal(reachOut.waiting, null);
   assert.equal(reachOut.why, "12 businesses. Waits for your OK; nothing goes until you give it.");
-  assert.deepEqual(reachOut.act, { kind: "route", label: "Open", route: "broadcasts/run:r-w" });
+  assert.deepEqual(reachOut.act, { kind: "route", label: "Open", route: "campaigns/sequences/r-w/runs/r-w" });
   // A run whose playbook the page does not hold (it was deleted): nothing here says what it sends, so it is opened too.
   const orphan = row(waitingRun({ playbook_id: "pb-gone" }));
   assert.equal(orphan.waiting, null);
   assert.equal(orphan.what, "Win-back · Oct 2", "it keeps the name the run has");
-  assert.equal(orphan.act.route, "broadcasts/run:r-w");
+  assert.equal(orphan.act.route, "campaigns/sequences/r-w/runs/r-w");
   // A workspace paused for billing: the verb refuses an approval before it looks at the day (402), so the line says the
   // pause in the composers' sentence and Skip is the act left. Either surface's readiness says it.
   const open = {
@@ -1127,8 +1127,8 @@ test("what came back: the funnel from what was sent, who said yes and who asked 
   assert.deepEqual(
     t.runs.map((r) => [r.name, r.words, r.result, r.route]),
     [
-      ["Win-back", "Sep 14 · 10:02 AM · 2 sent", "1 reply", "broadcasts/run:r-1"],
-      ["The month's offer · Sep 8", "Sep 8 · 10:02 AM · 6 sent", "2 replies", "broadcasts/run:r-2"],
+      ["Win-back", "Sep 14 · 10:02 AM · 2 sent", "1 reply", "campaigns/sequences/r-1/runs/r-1"],
+      ["The month's offer · Sep 8", "Sep 8 · 10:02 AM · 6 sent", "2 replies", "campaigns/sequences/r-2/runs/r-2"],
     ],
     "newest first; a playbook's run is named for it, a run sent by hand keeps its own name",
   );

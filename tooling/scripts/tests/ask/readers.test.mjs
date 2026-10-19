@@ -4565,7 +4565,12 @@ test("the broadcasts, for Ask and for the page: GET broadcasts answers its reade
     assert.deepEqual(r.data.ready.paused, undefined, "a workspace that is not paused says nothing of it");
     assert.deepEqual(
       r.rows,
-      r.data.broadcasts.map((b) => ({ kind: "broadcast", id: b.id, route: `broadcasts/run:${b.id}`, label: b.name })),
+      r.data.broadcasts.map((b) => ({
+        kind: "broadcast",
+        id: b.id,
+        route: `campaigns/sequences/${b.id}/runs/${b.id}`,
+        label: b.name,
+      })),
     );
     const heard = await touchesRoute.GET.run(req(`?workspace=${tenant}`), worldCtx(w));
     const t = await kernel.load(turnIn(worldCtx(w), tenant), touchesReader, undefined);
@@ -4726,7 +4731,7 @@ test("one broadcast, for Ask and for the page: GET broadcasts/:id answers its re
   assert.equal(JSON.stringify(r.data), JSON.stringify(page), "byte for byte");
   assert.deepEqual(r.data, await getBroadcast(worldCtx(w), A, BC1), "getBroadcast's own answer");
   assert.deepEqual(r.rows, [
-    { kind: "broadcast", id: BC1, route: `broadcasts/run:${BC1}`, label: r.data.broadcast.name },
+    { kind: "broadcast", id: BC1, route: `campaigns/sequences/${BC1}/runs/${BC1}`, label: r.data.broadcast.name },
   ]);
   const by = Object.fromEntries(r.data.recipients.map((x) => [x.contact_id, x]));
   assert.deepEqual(

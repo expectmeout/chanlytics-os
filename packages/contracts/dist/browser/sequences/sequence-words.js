@@ -10,7 +10,6 @@ import { SEQUENCE_MODE_WORDS, isSequenceMode } from "./sequence.js";
 import { sequenceRunOff } from "./sequence-run-off.js";
 export const SEQUENCE_WORDS = {
   title: "Sequences",
-  newSequence: "New sequence",
   /** The head's way back to Leads, where a trip from a lead did not say its name. */
   backToLeads: "Leads",
   /** A phone record's Back, where Leads opened it: the way back is the screen's only one. */
@@ -58,6 +57,8 @@ export const SEQUENCE_WORDS = {
   next: "Next",
   /** How long a customer's batch waits for an OK: an OK sends it at once, and the sweep skips it once its day is gone. */
   untilTonight: "until tonight",
+  /** A phone dock's line over a batch waiting for an OK: its Approve says how many (the run review's item 12, 19 Oct 2026). */
+  waitsForOk: "Waits for your OK",
   /** Who approves its batches, said in the record's More, which opens How it runs, where it is changed (decision 0064). */
   whoApproves: "Who approves",
   turnOff: "Turn this off",
@@ -333,7 +334,9 @@ function waitingNotice(steps, batch) {
   return noticeOf({
     kind: "waiting",
     words: people > 0 ? `${plural(people, "person waits", "people wait")} for your OK${until}` : `The next batch waits for your OK${until}`,
-    line: people > 0 ? `${people} wait${people === 1 ? "s" : ""} for your OK` : "The next batch waits for your OK",
+    // The dock's line beside its Approve, which says how many: "Waits for your OK" over "Approve · 6 people", where it said
+    // the count twice, "6 wait for your OK" beside it (the run review's item 12).
+    line: people > 0 ? SEQUENCE_WORDS.waitsForOk : "The next batch waits for your OK",
     fact: fact || null,
     // One word per act, as the run's own sheet and Today's row say it (decision 19 of the spec of 9 Oct 2026).
     act: people > 0 ? runApproveWords(people) : SEQUENCE_WORDS.approve,

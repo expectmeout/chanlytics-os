@@ -220,7 +220,7 @@ const waiting = (people, runs = 0, more = 0, searches = []) => ({
     id: `r${i}`,
     label: "Win-back · quiet 30 days",
     reach: 1,
-    to: `broadcasts/run:r${i}`,
+    to: `campaigns/sequences/q${i}/runs/r${i}`,
   })),
   searches,
   windows: [],
@@ -295,7 +295,7 @@ test("rightNowCounts: the people, the runs and the searches the sentence counts;
       { id: "c2", kind: "call", who: "Emily", channel: "Phone", when: "3d", line: "", to: "conversations/cv-c2" },
     ],
     more: 1,
-    runs: [{ id: "r1", label: "Win-back", reach: 1, to: "broadcasts/run:r1" }],
+    runs: [{ id: "r1", label: "Win-back", reach: 1, to: "campaigns/sequences/q1/runs/r1" }],
     searches: [SEARCH],
     windows: [closing("Eve")],
   };
@@ -338,7 +338,7 @@ test("who needs me: the sentence, then the people, the searches and the runs as 
         "Most of the first 25 are gyms, not trainers. Keep them?",
         "clients/leads:s-s1:c-excluded",
       ],
-      ["Win-back · quiet 30 days", "Campaign", "1 person", "broadcasts/run:r0"],
+      ["Win-back · quiet 30 days", "Campaign", "1 person", "campaigns/sequences/q0/runs/r0"],
     ],
     "the search's door is its question, opened where the answer row is (leadQuestionRoute)",
   );
@@ -802,7 +802,7 @@ const NEW_ROWS = [
   ref("deal", DEAL, `clients/${PERSON}`, "Dana's move"),
   ref("list", "quiet", "clients/seg:quiet", "Gone quiet"),
   ref("list", SAVED, `clients/list:${SAVED}`, "Regulars"),
-  ref("broadcast", RUN, `broadcasts/run:${RUN}`, "Monday offer"),
+  ref("broadcast", RUN, `campaigns/sequences/${PLAYBOOK}/runs/${RUN}`, "Monday offer"),
   ref("playbook", PLAYBOOK, `outbound/${PLAYBOOK}`, "Win-back"),
   ref("template", TEMPLATE, "messages", "spring_offer"),
   ref("mailbox", DOMAIN, "admin/integrations", "sam@mail.example.com"),
@@ -880,11 +880,21 @@ test("a row of each new kind a reader returned is kept and opens where the reade
     "list",
     "a People list's name under another kind is the list that read it",
   );
+  // A run's home carries its sequence's id first and its own last (the Campaigns wiring review's lane 2): the run is the
+  // row it names, and Sent's older spelling of it is the same run, opened at its home.
+  const home = {
+    kind: "broadcast",
+    id: RUN,
+    label: "Monday offer",
+    to: `campaigns/sequences/${PLAYBOOK}/runs/${RUN}`,
+    door: true,
+  };
   assert.deepEqual(
-    item({ kind: "broadcast", id: `broadcasts/run:${RUN}`, label: "Monday offer" }).source,
-    { kind: "broadcast", id: RUN, label: "Monday offer", to: `broadcasts/run:${RUN}`, door: true },
+    item({ kind: "broadcast", id: `campaigns/sequences/${PLAYBOOK}/runs/${RUN}`, label: "Monday offer" }).source,
+    home,
     "a run spelled by its address is the broadcast",
   );
+  assert.deepEqual(item({ kind: "broadcast", id: `broadcasts/run:${RUN}`, label: "Monday offer" }).source, home);
   assert.deepEqual(
     item({ kind: "run", id: RUN, label: "Monday offer" }),
     { source: null, dropped: 1 },
@@ -905,7 +915,13 @@ test("a row of each new kind a reader returned is kept and opens where the reade
     "clients/seg:new_week",
     "a People list's view is a page",
   );
-  for (const cut of ["outbound/12ab", "broadcasts/run:12ab", "clients/leads:s-12ab", "clients/list:12ab"])
+  for (const cut of [
+    "outbound/12ab",
+    "broadcasts/run:12ab",
+    "campaigns/sequences/12ab/runs/12ab",
+    "clients/leads:s-12ab",
+    "clients/list:12ab",
+  ])
     assert.equal(
       item({ kind: "page", id: cut, label: "x" }).source,
       null,
@@ -916,10 +932,10 @@ test("a row of each new kind a reader returned is kept and opens where the reade
     "clients/leads:l-ready",
     "a Leads view is a page",
   );
-  assert.equal(
-    item({ kind: "page", id: "broadcasts/get-yes", label: "Get their yes" }).source.to,
-    "broadcasts/get-yes",
-  );
+  // Get their yes is People's sheet (the Campaigns wiring review's lane 7); an older card's Sent address of it lands there.
+  for (const spelled of ["clients/get-yes", "broadcasts/get-yes"])
+    assert.equal(item({ kind: "page", id: spelled, label: "Get their yes" }).source.to, "clients/get-yes", spelled);
+  assert.equal(item({ kind: "page", id: "broadcasts/to-send", label: "To send" }).source.to, "inbox/to-send");
 });
 
 test("REGRESSION (PR 4.2 review): People's page is People, never the built-in list of the same name; a list's own spelling still reaches the list", () => {

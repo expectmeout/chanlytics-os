@@ -1,14 +1,20 @@
 /**
  * The record's rail of days (the Steps redesign, 17 Oct 2026), one part with three lenses (the canvas's PlaceRail, "One
- * place, two windows", 18 Oct 2026): everyone's, as a sequence's Steps draws it (steps.tsx builds its own rows from these
- * pieces); one lead's place, as the lead sheet's Sequence section draws it (each step by what its send did for them, the
- * next by when it goes); and as they'd get it before they join (each email filled for them, step 1 after your OK). Its
- * rows: Start, a step on its day, the wait between two steps and who it keeps going, and End.
+ * place, two windows", 18 Oct 2026): everyone's, as every sequence's Steps draws it (StepsRail); one lead's place, as the
+ * lead sheet's Sequence section draws it (each step by what its send did for them, the next by when it goes); and as
+ * they'd get it before they join (each email filled for them, step 1 after your OK). Its rows: Start, a step on its day,
+ * the wait between two steps and who it keeps going, and End.
+ *
+ * One record for every sequence (the Campaigns wiring review's rule E, lane 5, 19 Oct 2026): a sequence to customers and
+ * a sequence to leads draw the one rail, and four parts change with who it is for -- who joins (its Start), where it sends
+ * from, how its words are written (each step's box and sheet) and the check (How it runs). A sequence to leads drew its
+ * own rail beside this one (leads/lead-steps.tsx), and every change to the record was made twice.
  *
  * Hookless. Every word is contracts' (sequence-schedule.ts, sequence-place.ts).
  */
-import type { ReactNode } from "react";
+import { Fragment, type ReactNode } from "react";
 import { SCHEDULE_WORDS as SW, type PlaceRailStepVM, type PlaceRailVM } from "@chanlytics/contracts";
+import { Button } from "../../../kit/button/button";
 import { Icon } from "../../../kit/icon/icon";
 import { LinkButton } from "../../../kit/link-button/link-button";
 import { cx } from "../../../kit/variants";
@@ -27,7 +33,7 @@ export function RailRow(p: { day?: string; need?: boolean; gap?: boolean; childr
 }
 
 /** The wait before a step, and who it keeps going, on the rail between the two days. */
-export function RailWait({ wait, only, testid }: { wait: string; only: string | null; testid?: string }) {
+function RailWait({ wait, only, testid }: { wait: string; only: string | null; testid?: string }) {
   return (
     <RailRow gap>
       <p className="sq-rail-wait" data-testid={testid}>
@@ -121,6 +127,98 @@ export function RailBox(p: RailBoxProps) {
         </span>
       ) : null}
     </div>
+  );
+}
+
+/**
+ * Where a sequence starts, its rail's first row: who joins it and when (`lead`), the line under it, and its acts -- How it
+ * runs for every sequence, where it can change, and Add leads for a sequence to leads. What its acts open (a sheet) rides
+ * after the row's line.
+ */
+export function RailStart(p: { day: string; lead: ReactNode; sub: ReactNode; acts?: ReactNode; children?: ReactNode }) {
+  return (
+    <RailRow day={p.day} testid="sq-starts">
+      <div className="sq-rail-line">
+        <span className="sq-rail-lead">{p.lead}</span>
+        <span className="sq-rail-sub">{p.sub}</span>
+        {p.acts ? <span className="sq-rail-acts">{p.acts}</span> : null}
+      </div>
+      {p.children}
+    </RailRow>
+  );
+}
+
+/** One step of a sequence's rail, as its audience's part draws it: its place, the wait before it, and its row. */
+export interface RailStep {
+  id: string;
+  place: number;
+  /** The wait before it and who it keeps going; none for the first. */
+  wait: { wait: string; only: string | null } | null;
+  /** Its row on its day (a RailRow holding its RailBox), drawn by the part that knows how its words are written. */
+  row: ReactNode;
+}
+
+interface StepsRailProps {
+  /** How many steps over how many days, and whether it says "for each person" (a sequence that runs on). */
+  span: { count: ReactNode; over: string | null; per: boolean };
+  /** Who joins it: its Start (RailStart). */
+  start: ReactNode;
+  steps: readonly RailStep[];
+  /** A one-off's day and its one message, in place of steps. */
+  day?: ReactNode;
+  /** Add a step, after the steps, or above the last where a call always closes it (a sequence to leads). */
+  add?: ReactNode;
+  addAboveLast?: boolean;
+  /** Where it stops. */
+  end: { head: string; sub: string } | null;
+  /** Under the rail: its notes, where it sends from, and the sheets its steps and its start open. */
+  children?: ReactNode;
+}
+
+/** Every sequence's Steps: its span, then the rail from its start to where it stops, then what stands under it. */
+export function StepsRail(p: StepsRailProps) {
+  const last = p.steps.length - 1;
+  return (
+    <div className="sq-steps-body" data-testid="sq-steps">
+      <p className="sq-span">
+        <span>
+          <b>{p.span.count}</b>
+          {p.span.over ? ` ${p.span.over}` : null}
+        </span>
+        {p.span.per ? <span className="sq-span-per">{SW.per}</span> : null}
+      </p>
+      <ol className="sq-rail">
+        {p.start}
+        {p.steps.map((s, i) => (
+          <Fragment key={s.id}>
+            {p.addAboveLast && i === last ? p.add : null}
+            {s.wait ? <RailWait wait={s.wait.wait} only={s.wait.only} testid={`sq-step-wait-${s.place}`} /> : null}
+            {s.row}
+          </Fragment>
+        ))}
+        {p.day}
+        {p.addAboveLast && last >= 0 ? null : p.add}
+        {p.end ? (
+          <RailRow day={SW.end} testid="sq-stops">
+            <RailLine head={<b>{p.end.head}</b>} sub={p.end.sub} />
+          </RailRow>
+        ) : null}
+      </ol>
+      {p.children}
+    </div>
+  );
+}
+
+/** Add a step, a thumb tall at the steps' end, for every sequence that takes another. */
+export function RailAdd({ onAdd, gateProps }: { onAdd: () => void; gateProps: Record<string, unknown> }) {
+  return (
+    <RailRow>
+      <div className="sq-addstep">
+        <Button variant="quiet" className="sq-addstep-press" onClick={onAdd} data-testid="sq-add-step" {...gateProps}>
+          <Icon name="plus" size={14} /> {SW.addStep}
+        </Button>
+      </div>
+    </RailRow>
   );
 }
 

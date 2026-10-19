@@ -676,7 +676,7 @@ test("a tick tells the owner of a live run it held a send in, once, with the run
   assert.equal(out.noticed, 1);
   assert.deepEqual(
     told.map((t) => [t.tenantId, t.kind, t.route, t.about.id, t.subject]),
-    [[T, "playbook", "broadcasts/run:run-1", "run-1", "The check held 1 email in Reach out · Movers"]],
+    [[T, "playbook", "campaigns/sequences/run-1/runs/run-1", "run-1", "The check held 1 email in Reach out · Movers"]],
   );
   assert.ok(w.tables.broadcasts[0].audience.held_notice.sent_at, "marked sent on the run");
   // Another hold in the same run, a tick later: nobody is told twice.

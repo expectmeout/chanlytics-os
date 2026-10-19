@@ -3,9 +3,10 @@ import { calendarParamParts } from "../calendar/appointment-key.js";
 import { JOURNEY_STAGE_IDS } from "../journey/journey.js";
 import { parseLeadsRoute, leadsRoute } from "../leads/lead-plan.js";
 import { BUILTIN_LISTS, parseListToken } from "../people/lists/lists.js";
-import { GET_YES_ROUTE } from "../people/people-lists.js";
+import { GET_YES_ROUTE } from "../people/lists/people-route.js";
 import { LENS_ROUTES, reportsRouteParts } from "../reports/lenses.js";
 import { retiredRouteOf } from "../shell/address.js";
+import { TO_SEND_ROUTE } from "../sequences/sequence-address.js";
 export const ASK_CITATION_KINDS = [
   "thread",
   "conversation",
@@ -76,10 +77,10 @@ function isPageRoute(route) {
       const parts = reportsRouteParts(route);
       return parts !== null && parts.review === null;
     }
-    case "broadcasts":
-      return route === GET_YES_ROUTE;
     case "clients":
-      return isPeopleView(route, param);
+      return route === GET_YES_ROUTE || isPeopleView(route, param);
+    case "inbox":
+      return route === TO_SEND_ROUTE;
     default:
       return false;
   }
@@ -97,7 +98,14 @@ const ASK_PAGES = new Set(ASK_PAGE_ROUTES);
 const CALLS_ROUTE = "conversations/phone";
 const OTHER_GROUPS = { lists: true, reach_out: true, sent_once: true };
 const CAMPAIGN_GROUPS = [...JOURNEY_STAGE_IDS, ...Object.keys(OTHER_GROUPS)];
-const RETIRED_PAGES = /* @__PURE__ */ new Set(["campaigns", "outbound", "broadcasts", "messages"]);
+const RETIRED_PAGES = /* @__PURE__ */ new Set([
+  "campaigns",
+  "outbound",
+  "broadcasts",
+  "broadcasts/to-send",
+  "broadcasts/get-yes",
+  "messages"
+]);
 function movedPageOf(route) {
   const group = route.startsWith("campaigns/in:") ? route.slice("campaigns/in:".length) : null;
   return RETIRED_PAGES.has(route) || group !== null && CAMPAIGN_GROUPS.includes(group) ? retiredRouteOf(route) : null;

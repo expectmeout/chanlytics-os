@@ -76,7 +76,9 @@ const RECORDS = [
     route: `campaigns/sequences/${ID}`,
     opens: { kind: "campaign", id: ID },
   },
-  { ref: { kind: "send", id: ID }, route: `broadcasts/run:${ID}` },
+  // A run's home, under its sequence (the Campaigns wiring review's lane 2): a writer that does not know the sequence names
+  // the run in its place.
+  { ref: { kind: "send", id: ID }, route: `campaigns/sequences/${ID}/runs/${ID}` },
   { ref: { kind: "template", name: "appointment_reminder" }, route: "campaigns/message:appointment_reminder" },
   { ref: { kind: "review" }, route: "reports/reviews" },
   // One review, by its row: the lens with that review's reply box open (task 5.2, D1-review-twice).
@@ -152,7 +154,13 @@ test("a retired route lands on the page that replaced it: a playbook is its sequ
   assert.deepEqual(recordNamedBy(`outbound/${ID}`), { kind: "campaign", id: ID });
   assert.deepEqual(recordNamedBy(`campaigns/moment:${ID}`), { kind: "campaign", id: ID });
   assert.deepEqual(opensRoute("outbound"), { view: "campaigns/sequences" });
-  assert.deepEqual(opensRoute("broadcasts/lapsed"), { view: "campaigns/new" }, "People's Bring them back writes this");
+  assert.deepEqual(
+    opensRoute("broadcasts/lapsed"),
+    { view: "campaigns/sequences/new" },
+    "People's Bring them back wrote this: New's Send once on that list",
+  );
+  // Sent went (the Campaigns wiring review's lane 2): a run named by no id lands where runs are, on Sequences.
+  assert.deepEqual(opensRoute("broadcasts/run:"), { view: "campaigns/sequences" });
   assert.equal(canonicalRoute(`outbound/${ID}`), addressOf({ kind: "campaign", id: ID }));
 });
 
@@ -186,7 +194,6 @@ test("the shapes that are no address open nothing: a word a page only begins wit
     "calendar/week:next",
     "calendar/month:2026-9-9:a-x",
     "campaigns/new:edit:",
-    "broadcasts/run:",
     "inbox/xyz",
     "inbox/th-",
     "clients/seg:Not A Word",
@@ -220,14 +227,18 @@ test("a page opens its own views, which are no record: a day, a lens, a tab, the
     // Campaigns' home, a group of its ledger and Sent's list are retired (decision 0060): each is read as Sequences.
     campaigns: "campaigns/sequences",
     "campaigns/sequences": "campaigns/sequences",
-    "campaigns/new": "campaigns/new",
+    "campaigns/new": "campaigns/sequences/new",
+    "campaigns/sequences/new:once:to:s1": "campaigns/sequences/new",
     "campaigns/in:reach_out": "campaigns/sequences",
     // Messages is a view of Campaigns (19 Oct 2026), and its old word lands on it.
     "campaigns/messages": "campaigns/messages",
     messages: "campaigns/messages",
     broadcasts: "campaigns/sequences",
-    "broadcasts/get-yes": "broadcasts/get-yes",
-    "broadcasts/to-send": "broadcasts/to-send",
+    // Sent's views went too (the Campaigns wiring review's lanes 4 and 7): To send to the Inbox, Get their yes to People.
+    "broadcasts/get-yes": "clients/get-yes",
+    "broadcasts/to-send": "inbox/to-send",
+    "clients/get-yes": "clients/get-yes",
+    "inbox/to-send": "inbox/to-send",
     clients: "clients",
     "clients/new-list": "clients/new-list",
     "clients/leads": "clients/leads",

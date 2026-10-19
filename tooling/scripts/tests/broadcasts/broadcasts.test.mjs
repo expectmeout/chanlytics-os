@@ -696,7 +696,9 @@ installLegacyReact({
 const SRC = "../../../../apps/dashboard/src";
 // What the shell still owns and the page draws by name: Confirm, StatePill.
 await import(`${SRC}/legacy/components/data-bits.jsx`);
-const { BroadcastsPage } = await import(`${SRC}/surfaces/campaigns/broadcasts/broadcasts-page.tsx`);
+const { BroadcastSend, BroadcastRun } = await import(`${SRC}/surfaces/campaigns/broadcasts/broadcasts-page.tsx`);
+const { GetYesSheet } = await import(`${SRC}/surfaces/people/sheets/get-yes-sheet.tsx`);
+const { NewOnce } = await import(`${SRC}/surfaces/campaigns/home/new-message.tsx`);
 const { setSurfaceValue } = await import(`${SRC}/surfaces/surface-values.ts`);
 const { Picker } = await import(`${SRC}/surfaces/kit/picker/picker.tsx`);
 const { SURFACE_ROUTES, routeHasPage } = await import(`${SRC}/surfaces/routes.ts`);
@@ -787,11 +789,23 @@ const surfaceOf = (over = {}) => ({
   fetchedAt: 1,
   ...over,
 });
-/** The page drawn afresh over a surface: a link that names a list opens the send screen on it, none opens the ledger. */
+/**
+ * What a test asks to see, drawn afresh over a surface: People's Get their yes (`initialYes`, the Campaigns wiring review's
+ * lane 7), a run's one screen at its home (`initialRun`, lane 2), else the send screen as New's Send once hosts it, on the
+ * list named (lane 6). Sent's page, which drew all three beside Sequences' list, went with its mount.
+ */
 const drawn = (props = {}, over = {}) => {
   setSurfaceValue("broadcasts", surfaceOf(over));
   freshTree();
-  return BroadcastsPage(props);
+  if (props.initialYes) return globalThis.React.createElement(GetYesSheet, { open: true, onClose() {} });
+  if (props.initialRun) return BroadcastRun({ id: props.initialRun });
+  return BroadcastSend({
+    data: surfaceOf(over),
+    initialSegment: props.initialSegment ?? null,
+    flash() {},
+    onDone() {},
+    onYes() {},
+  });
 };
 const compose = (over = {}) => drawn({ initialSegment: "s-regulars" }, over);
 // The list the send is for is the kit's picker's token: the one chosen, with the count this message reaches, which is its
@@ -870,21 +884,22 @@ test("the surface and the page: Broadcasts is real, fed by the same rules, and t
   // The shell mounts the page on its route (surfaces/routes.ts): it once imported the script.
   assert.ok(routeHasPage("broadcasts") && SURFACE_ROUTES.broadcasts.activeNav === "broadcasts");
 
-  // The demo keeps the page: a session that declared itself a demo draws the sample through it; a real workspace that
-  // has read nothing draws nothing, never the sample.
+  // The demo keeps the send screen: a session that declared itself a demo draws the sample through New's Send once; a
+  // real workspace that has read nothing says it is reading, never the sample.
   setSurfaceValue("broadcasts", undefined);
-  assert.equal(BroadcastsPage({}), null, "nothing read, nothing drawn");
+  const once = () => NewOnce({ to: null, flash() {}, onDone() {}, onYes() {}, above: null, pane: (body) => body });
+  freshTree();
+  assert.ok(byTestId(once(), "cmh-composer-reading"), "nothing read: reading, never the sample");
   globalThis.__DEMO_MODE = true;
   try {
     freshTree();
-    const demo = BroadcastsPage({});
-    assert.ok(byTestId(demo, "broadcasts-real"), "the demo draws the page, over the sample");
+    assert.ok(byTestId(once(), "bc-composer"), "the demo draws the send screen, over the sample");
   } finally {
     globalThis.__DEMO_MODE = false;
   }
 
   const composer = compose();
-  for (const id of ["broadcasts-real", "bc-audience", "bc-preview", "bc-send"]) assert.ok(byTestId(composer, id), id);
+  for (const id of ["bc-composer", "bc-audience", "bc-preview", "bc-send"]) assert.ok(byTestId(composer, id), id);
   // The template picker is one component across both composers, so the page
   // names its chips rather than spelling the attribute.
   assert.ok(byTestId(composer, "bc-template"), "bc-template");
@@ -1203,7 +1218,7 @@ test("a door to the composer that names a list it does not offer says so: it ope
   // The consent lists are named once, for the composer's audiences and for this door (CONSENT_LIST_IDS).
   assert.deepEqual([...CONSENT_LIST_IDS], ["opted_in", "offers_ok", "opted_out"]);
   // People's own step for the Can receive offers list writes this door: the composer, on Everyone, with no word.
-  assert.equal(retiredRouteOf("broadcasts/offers_ok"), "campaigns/new:to:offers_ok");
+  assert.equal(retiredRouteOf("broadcasts/offers_ok"), "campaigns/sequences/new:once:to:offers_ok");
   assert.equal(doorNamesNoAudience("offers_ok", audiences), false);
   assert.equal(
     UNKNOWN_AUDIENCE_WORDS,

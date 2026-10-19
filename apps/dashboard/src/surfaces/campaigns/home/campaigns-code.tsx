@@ -1,8 +1,8 @@
 /**
  * Campaigns' code that no page's first load carries, each a chunk of its own, fetched once for the tab by whichever asks
  * first:
- *   - Sequences, the page Campaigns lands on (route.tsx), and its list beside a sheet of Sent's (broadcasts-page.tsx);
- *   - the sheets Campaigns opens over it, the composer and a message's drawer (open-sheets.tsx);
+ *   - Sequences, the page Campaigns lands on (route.tsx);
+ *   - the sheet Campaigns opens over it, a message's drawer (open-sheets.tsx);
  *   - a message's own pane, the Library's (parts/message-in-place.tsx), which the drawer and Sequences' step editor draw;
  *   - Messages, the Library's page as the view of Campaigns it is beside Sequences (templates/templates-page.tsx), which
  *     Campaigns draws ahead, hidden, once the frame is idle on it (route.tsx), so a switch to it shows a view already drawn.
@@ -48,7 +48,6 @@ const pane = codeChunk(() => import("../parts/message-in-place"));
 const messages = codeChunk(() => import("../templates/templates-page"));
 
 const PageWhenRead = lazy(() => sequences.load().then((m) => ({ default: m.SequencesPage })));
-const ListPaneWhenRead = lazy(() => sequences.load().then((m) => ({ default: m.SequencesListPane })));
 
 /**
  * Sequences' page as a mount draws it: the component itself where the code is in, which draws at once and never suspends,
@@ -56,8 +55,6 @@ const ListPaneWhenRead = lazy(() => sequences.load().then((m) => ({ default: m.S
  * it holds.
  */
 export const sequencesPageNow = () => sequences.now()?.SequencesPage ?? PageWhenRead;
-/** Sequences' list as Sent draws it beside a sheet, the same way. */
-export const sequencesListPaneNow = () => sequences.now()?.SequencesListPane ?? ListPaneWhenRead;
 
 /**
  * A part held in a chunk, as a component draws it: the part itself where the chunk is in, else null while `wanted` asks
@@ -123,8 +120,8 @@ export const warmMessagePane = pane.warm;
 
 /** The routes that draw Sequences' code: Campaigns but its Ads view, and Sent. */
 const DRAWS_SEQUENCES = /^(campaigns(?!\/ads)|broadcasts)(\/|$)/;
-/** The routes that open a sheet over it: the composer (`campaigns/new…`) and a message (`campaigns/message:<name>`). */
-const OPENS_A_SHEET = /^campaigns\/(new|message)(:|$)/;
+/** The routes that open a sheet over it: a message (`campaigns/message:<name>`). */
+const OPENS_A_SHEET = /^campaigns\/message(:|$)/;
 
 /** A route somebody is reaching for: the code it draws, fetched now. A fetch that fails is the page's to ask again. */
 export function warmCampaignsCode(route: string): void {
@@ -132,7 +129,7 @@ export function warmCampaignsCode(route: string): void {
   if (/^campaigns\/messages(\/|$)/.test(route)) messages.warm();
   if (!OPENS_A_SHEET.test(route)) return;
   sheets.warm();
-  if (route.startsWith("campaigns/message")) pane.warm();
+  pane.warm();
 }
 
 /** How long an idle frame may wait before Campaigns is reached for: after the page's own reads, which a load starts first. */

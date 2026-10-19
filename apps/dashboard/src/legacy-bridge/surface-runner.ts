@@ -22,6 +22,7 @@ import {
   keepUntilDrawn,
   readLanded,
   routeDrawsFor,
+  routePartsOf,
   routeSurfaceFor,
 } from "./surface-registry";
 import {
@@ -174,16 +175,16 @@ async function inLanes<T>(items: readonly T[], lanes: number, work: (item: T) =>
  * a preference.
  */
 function screenRank(win: Window): (o: SurfaceOverride) => number {
-  const [page, param] = routeOnScreen(win).split("/");
-  const wanted = routeSurfaceFor(page || "today", param || null);
-  const drawn = routeDrawsFor(page || "today", param || null);
+  const { page, param } = routePartsOf(routeOnScreen(win));
+  const wanted = routeSurfaceFor(page, param);
+  const drawn = routeDrawsFor(page, param);
   return (o) => (o.key === wanted ? 0 : drawn.includes(o.key) ? 1 + drawn.indexOf(o.key) : 1 + drawn.length);
 }
 /** Whether the page on screen is drawn from this surface: its own, or one it names (ROUTE_DRAWS). A stranger is not. */
 function screenOwn(win: Window): (o: SurfaceOverride) => boolean {
   const rank = screenRank(win);
-  const [page, param] = routeOnScreen(win).split("/");
-  const strangers = 1 + routeDrawsFor(page || "today", param || null).length;
+  const { page, param } = routePartsOf(routeOnScreen(win));
+  const strangers = 1 + routeDrawsFor(page, param).length;
   return (o) => rank(o) < strangers;
 }
 

@@ -1,12 +1,11 @@
 /**
- * Campaigns' sheets over Sequences (decision 0060, S6: home/sheets.tsx): the home's own page went, and the sheets it opened
- * stay at their addresses. Drawn on the stub React over the surfaces the seam hands it, in the real surfaces' shape (the
- * Broadcasts sample). What is proved: nothing is drawn while the address names no sheet; the composer stands at its
- * addresses (Send once, Write to leads, a list's send) with its choice of kind replacing the address; the addresses of its
- * Every time, which went (the closed-loop audit of 17 Oct 2026, G), open no sheet here, since they land on New sequence
- * before the page is drawn; a reach-out's change (`new:edit:<root>`) is titled Edit, with no choice of kind, while the
- * chains it opens on are read (reach-out-rows.test.mjs holds the rest of it); a read it is made of that has not landed, or
- * failed, is said in the sheet; and the sheet hands the send screen its own toast host.
+ * Campaigns' sheet over Sequences (decision 0060, S6: home/sheets.tsx), a message's drawer, and Send once inside the one New
+ * (home/new-message.tsx NewOnce, the Campaigns wiring review's lane 6), where the composer's sheet over Sequences went. Drawn
+ * on the stub React over the surfaces the seam hands it, in the real surfaces' shape (the Broadcasts sample). What is proved:
+ * nothing stands over Sequences while the address names no message, the composer's old addresses among them (they land on
+ * New, or on a sequence's record, before the page is drawn); Send once draws the send screen on the audience its address
+ * names, with New's who and when over it; a read it is made of that has not landed, or failed, is said in New's own pane;
+ * and New hands the send screen the route's toast host and its close.
  */
 import { test, afterEach } from "node:test";
 import assert from "node:assert/strict";
@@ -50,6 +49,7 @@ Object.assign(globalThis, {
   gateTitle: (perm, doing) => `Only an owner or operator can ${doing}.`,
 });
 const { CampaignsSheets } = await import(`${SRC}/surfaces/campaigns/home/sheets.tsx`);
+const { NewOnce } = await import(`${SRC}/surfaces/campaigns/home/new-message.tsx`);
 // The sheets and the Library's pane are chunks of their own (campaigns-code.tsx): fetched here as a reach for a message's
 // door fetches them, so every draw below finds them in, as a press after that reach does.
 const { warmCampaignsCode } = await import(`${SRC}/surfaces/campaigns/home/campaigns-code.tsx`);
@@ -59,9 +59,7 @@ await import(`${SRC}/surfaces/campaigns/parts/message-in-place.tsx`);
 await new Promise((r) => setTimeout(r, 0));
 const { broadcastsSample } = await import(`${SRC}/surfaces/campaigns/broadcasts/sample.ts`);
 const { setSurfaceValue } = await import(`${SRC}/surfaces/surface-values.ts`);
-const { WriteToLeads } = await import(`${SRC}/surfaces/campaigns/reach-out/sources.tsx`);
 const { PaneSheet } = await import(`${SRC}/surfaces/campaigns/home/pane-sheet.tsx`);
-const { Segmented } = await import(`${SRC}/surfaces/kit/segmented/segmented.tsx`);
 const { Picker } = await import(`${SRC}/surfaces/kit/picker/picker.tsx`);
 const { BroadcastSend } = await import(`${SRC}/surfaces/campaigns/broadcasts/broadcasts-page.tsx`);
 const status = await import(`${SRC}/legacy-bridge/surface-status.ts`);
@@ -99,17 +97,29 @@ const fresh = () => {
   replaced.length = 0;
   toasts.length = 0;
 };
-const page = (param = null) => again(() => CampaignsSheets({ param }));
+const page = (param = null) => again(() => CampaignsSheets({ param, flash() {} }));
+/** New's own pane, as NewOncePane draws it while the screen cannot be: the body handed, under its testid. */
+const PANE = (body) => globalThis.React.createElement("section", { "data-testid": "sq-new" }, body);
+const WHO = globalThis.React.createElement("div", { "data-testid": "sq-new-starts" });
+/** Send once as New draws it, on the audience its address names: New's who and when over it, its own pane while it reads. */
+const once = (to = null, over = {}) =>
+  again(() =>
+    NewOnce({ to, flash() {}, onDone() {}, onYes: (r) => replaced.push(r), above: WHO, pane: PANE, ...over }),
+  );
 const sheet = (tree) => find(tree, (n) => n.type === PaneSheet);
 
-test("nothing stands over Sequences while the address names no sheet: its list, a record, a word it does not know, and the composer's Every time that went", () => {
+test("nothing stands over Sequences while the address names no message: its list, a record, a word it does not know, and every address of the composer, which went into the one New", () => {
   surfaces();
   for (const param of [
     null,
     "sequences",
     "sequences/pb-sample-winback/history",
     "surprise",
-    // Each lands on New sequence, or on it on its moment (contracts retiredRouteOf).
+    // Each lands on New, for whom it named or on its moment, or on the sequence's record (contracts retiredRouteOf).
+    "new",
+    "new:to:s-1",
+    "new:leads",
+    "new:edit:ro-1",
     "new:every",
     "new:moment:visited",
   ]) {
@@ -118,63 +128,37 @@ test("nothing stands over Sequences while the address names no sheet: its list, 
   }
 });
 
-test("the composer stands at its addresses: Send once and Write to leads, a choice of kind replacing the address", () => {
+test("Send once is the send screen inside New, on the audience its address names, with New's who and when over its sentence", () => {
   surfaces();
   fresh();
-  const once = page("new");
-  const s = sheet(once);
-  assert.equal(s.props.title, "New message");
-  assert.equal(s.props.askFirst, true, "the sheet's close asks where the composer asks");
-  const seg = find(s.props.tools, (n) => n.type === Segmented);
-  assert.equal(seg.props.value, "once");
-  assert.deepEqual(
-    seg.props.options.map((o) => [o.value, o.label]),
-    [
-      ["once", "Send once"],
-      ["leads", "Write to leads"],
-    ],
-    "a moment's sequence is made in New sequence, not here",
-  );
-  seg.props.onValueChange("leads");
-  assert.deepEqual(replaced, ["campaigns/new:leads"], "a choice of kind replaces the address, never pushes");
-  fresh();
-  const leads = page("new:leads");
-  assert.equal(find(sheet(leads).props.tools, (n) => n.type === Segmented).props.value, "leads");
-  assert.ok(
-    find(leads, (n) => n.type === WriteToLeads),
-    "the reach-out's sources, read when it is chosen",
-  );
-  assert.equal(
-    find(leads, (n) => n.type === BroadcastSend),
-    null,
-    "and no send screen",
-  );
-  seg.props.onValueChange("once");
-  assert.deepEqual(replaced, ["campaigns/new"]);
+  const tree = once("s-sample-regulars");
+  const send = find(tree, (n) => n.type === BroadcastSend);
+  assert.equal(send.props.initialSegment, "s-sample-regulars", "the send opens on the list it was asked for");
+  assert.ok(byTestId(tree, "sq-new-starts"), "New's who and when, over the sentence");
+  assert.ok(byTestId(tree, "bc-composer"), "the send screen is New's pane: one head, one foot");
+  const audience = find(tree, (n) => n.type === Picker && n.props["data-testid"] === "bc-audience");
+  assert.equal(audience.props.value, "saved:s-sample-regulars");
+  for (const to of ["s-1", null]) {
+    fresh();
+    surfaces();
+    assert.equal(find(once(to), (n) => n.type === BroadcastSend).props.initialSegment, to, String(to));
+  }
 });
 
-test("a reach-out's change draws no composer: it lands on its sequence's record (reach-out-rows.test.mjs)", () => {
-  surfaces();
-  fresh();
-  const s = sheet(page("new:edit:ro-1"));
-  // A sequence to leads is written on its record (the lead-to-sequence canvas, 18 Oct 2026): the composer's change went.
-  assert.ok(!s || s.props.open === false, "no sheet stands for a change");
-});
-
-test("Send once says it is reading rather than draw a sheet with nothing in it; Write to leads needs no such read", () => {
+test("Send once says it is reading, in New's own pane, rather than draw a screen with nothing in it", () => {
   surfaces();
   setSurfaceValue("broadcasts", undefined);
   fresh();
-  const send = page("new");
-  assert.ok(byTestId(send, "cmh-composer-reading"), "Send once: reading, in the sheet");
-  assert.equal(find(send, (n) => n.type === Segmented).props.value, "once", "the choice of kind is still at its head");
+  const send = once();
+  assert.ok(byTestId(send, "sq-new"), "in New's own pane");
+  assert.ok(byTestId(send, "cmh-composer-reading"), "Send once: reading");
   assert.equal(
     find(send, (n) => n.type === BroadcastSend),
     null,
     "and no half of a send screen",
   );
-  fresh();
-  assert.ok(find(page("new:leads"), (n) => n.type === WriteToLeads));
+  // New is Sequences' address, which opens on its list alone: Send once asks for what it is made of as it is drawn.
+  assert.ok(refreshed.includes("broadcasts"), "Sent's runs, asked for");
 });
 
 test("a broadcasts read that failed is said in Send once, with a Retry that reads the broadcasts again", () => {
@@ -183,8 +167,8 @@ test("a broadcasts read that failed is said in Send once, with a Retry that read
   status.setStatus("broadcasts", "seeded");
   try {
     fresh();
+    const send = once();
     refreshed.length = 0;
-    const send = page("new");
     const failed = byTestId(send, "cmh-composer-failed");
     assert.ok(failed, "Send once says so");
     assert.match(textOf(failed), /Couldn't read who and what you can send to/);
@@ -201,12 +185,12 @@ test("who each audience reaches is half of what Send once is made of: while it i
   surfaces();
   setSurfaceValue("audiences", undefined);
   fresh();
-  assert.ok(byTestId(page("new"), "cmh-composer-reading"), "Sent's runs alone are no send screen: reading");
+  assert.ok(byTestId(once(), "cmh-composer-reading"), "Sent's runs alone are no send screen: reading");
   status.setStatus("audiences", "seeded");
   try {
     fresh();
+    const send = once();
     refreshed.length = 0;
-    const send = page("new");
     assert.match(textOf(byTestId(send, "cmh-composer-failed")), /Couldn't read who and what you can send to/);
     press(byTestId(send, "cmh-composer-failed-retry"));
     assert.deepEqual(refreshed, ["audiences"], "its Retry reads the audiences, not Sent's runs, which were read");
@@ -215,29 +199,19 @@ test("who each audience reaches is half of what Send once is made of: while it i
   }
 });
 
-test("a link that names a list opens the composer on it: campaigns/new:to:<list> hosts the send screen on that audience", () => {
+test("New hands the send screen the route's toast host and its close, so a toast it raises outlives New (campaigns-drafts.test.mjs)", () => {
   surfaces();
   fresh();
-  const tree = page("new:to:s-sample-regulars");
-  const audience = (t) => find(t, (n) => n.type === Picker && n.props["data-testid"] === "bc-audience");
-  assert.equal(audience(tree).props.value, "saved:s-sample-regulars", "the send opens on the list it was asked for");
-  assert.equal(find(tree, (n) => n.type === BroadcastSend).props.initialSegment, "s-sample-regulars");
-  assert.equal(find(sheet(tree).props.tools, (n) => n.type === Segmented).props.value, "once", "it is Send once");
-  for (const [param, to] of [
-    ["new:to:s-1", "s-1"],
-    ["new:to:", null],
-    ["new", null],
-  ]) {
-    fresh();
-    surfaces();
-    assert.equal(find(page(param), (n) => n.type === BroadcastSend).props.initialSegment, to, param);
-  }
-});
-
-test("the send screen is handed the sheets' own toast host, so a toast it raises outlives the sheet (campaigns-drafts.test.mjs)", () => {
-  surfaces();
-  fresh();
-  const send = find(page("new"), (n) => n.type === BroadcastSend);
-  assert.equal(typeof send.props.flash, "function");
-  assert.equal(typeof send.props.onDone, "function", "and closes the sheet once the send is made");
+  const said = [];
+  let closed = 0;
+  const send = find(
+    once(null, { flash: (t) => said.push(t), onDone: () => (closed += 1) }),
+    (n) => n.type === BroadcastSend,
+  );
+  send.props.flash({ msg: "Sent" });
+  assert.deepEqual(said, [{ msg: "Sent" }], "the host's toast");
+  send.props.onDone();
+  assert.equal(closed, 1, "and New closes once the send is made");
+  send.props.onYes("clients/get-yes");
+  assert.deepEqual(replaced, ["clients/get-yes"], "its door to their yes is New's to follow");
 });

@@ -6,9 +6,13 @@
  * needs you (a batch waiting for your OK, a message gone, new words turned down, emails the check held) and quiet where it
  * is only coming (its next run, who is in line). Between two steps, the wait and who it keeps going, on the rail where it
  * happens. Then Add a step (a reminder says once why it takes none), and where it stops. A one-off is its day and its one
- * message, with the way out while it waits. A sequence to leads is written on its own rail (leads/lead-steps.tsx). Every
- * word is contracts' (sequence-schedule.ts). A step opened is the kit's sheet (step-sheet.tsx): its words, its facts and its
- * acts, and its editor in the same sheet; the record's dock opens a step to be changed there too (`editing`).
+ * message, with the way out while it waits. Every word is contracts' (sequence-schedule.ts). A step opened is the kit's
+ * sheet (step-sheet.tsx): its words, its facts and its acts, and its editor in the same sheet; the record's dock opens a
+ * step to be changed there too (`editing`).
+ *
+ * One record for every sequence (the Campaigns wiring review's rule E, lane 5): the rail is every sequence's (place/rail.tsx
+ * StepsRail), and a sequence to leads hands it its own parts -- who joins, where it sends from, its emails written on their
+ * steps and the check (leads/lead-steps.tsx) -- where it drew a rail of its own.
  */
 import { useEffect, useState } from "react";
 import {
@@ -38,7 +42,7 @@ import { cx } from "../../kit/variants";
 import { gate, routeDoor } from "../../legacy-verbs";
 import type { LegacyFlash } from "../../legacy-verbs";
 import { LeadSteps } from "./leads/lead-steps";
-import { RailBox, RailRow, RailWait } from "./place/rail";
+import { RailAdd, RailBox, RailRow, RailStart, StepsRail, type RailStep } from "./place/rail";
 import { SettingsSheet } from "./settings-sheet";
 import { StepSheet, type StepSheetTarget } from "./step-sheet";
 import { StepPreviewLine, StepWords, useStepMessageRead } from "./step-words";
@@ -64,8 +68,8 @@ function StartsOn({ rec, name }: { rec: SequenceRecordDto; name: string }) {
 }
 
 /**
- * Where it starts: what starts it, the list it starts on a door to it, and the line under (its hour and Change where a
- * moment or a list starts it, a one-off's day and how it stands).
+ * Who joins it, where it starts: what starts it, the list it starts on a door to it, and the line under (its hour, a
+ * one-off's day and how it stands), with How it runs where a moment or a list starts it.
  */
 function StartRow(p: { rec: SequenceRecordDto; flash: Flash; moved: () => void; howAsked: number }) {
   const { rec, flash, moved, howAsked } = p;
@@ -83,32 +87,34 @@ function StartRow(p: { rec: SequenceRecordDto; flash: Flash; moved: () => void; 
     setOpen(true);
   }, [howAsked, changes]);
   return (
-    <RailRow day={row.starts === "date" ? SW.date : SW.start} testid="sq-starts">
-      <div className="sq-rail-line">
-        <span className="sq-rail-lead">
+    <RailStart
+      day={row.starts === "date" ? SW.date : SW.start}
+      lead={
+        <>
           {row.starts === "date" ? <b>{start.lead}</b> : start.lead}
           {start.name ? <StartsOn rec={rec} name={start.name} /> : null}
-        </span>
-        <span className="sq-rail-sub">
-          {start.sub}
-          {changes ? (
-            <LinkButton
-              onClick={() => {
-                setOpened((n) => n + 1);
-                setOpen(true);
-              }}
-              data-testid="sq-starts-change"
-              {...gate("approve")}
-            >
-              {SEQUENCE_WORDS.change}
-            </LinkButton>
-          ) : null}
-        </span>
-      </div>
+        </>
+      }
+      sub={start.sub}
+      acts={
+        changes ? (
+          <LinkButton
+            onClick={() => {
+              setOpened((n) => n + 1);
+              setOpen(true);
+            }}
+            data-testid="sq-starts-change"
+            {...gate("approve")}
+          >
+            {SW.settings.title}
+          </LinkButton>
+        ) : null
+      }
+    >
       {changes ? (
         <SettingsSheet key={opened} open={open} rec={rec} flash={flash} moved={moved} onClose={() => setOpen(false)} />
       ) : null}
-    </RailRow>
+    </RailStart>
   );
 }
 
@@ -176,12 +182,6 @@ function StepRow({ rec, step, day, ctx, onOpen }: StepRowProps) {
   );
 }
 
-/** The wait before a step, and who it keeps going, on the rail between the two days. */
-function WaitRow({ step }: { step: SequenceStepDto }) {
-  const w = scheduleWait(step);
-  return <RailWait wait={w.wait} only={w.only} testid={`sq-step-wait-${step.place}`} />;
-}
-
 /**
  * A one-off's one message on its day: its batch's message as the record reads it (`one_off`), how it goes, its words as
  * one person reads them, and what it sent and drew back once it went. It opens nothing: no door changes a one-off's
@@ -221,41 +221,10 @@ function DateRow({ rec, date }: { rec: SequenceRecordDto; date: NonNullable<Sequ
   );
 }
 
-/** Where a sequence to leads sends from, at the schedule's foot, with the door to its mailboxes. */
-function SendsFrom({ rec }: { rec: SequenceRecordDto }) {
-  const first = rec.sequence.first;
-  if (rec.sequence.starts !== "leads" || !first) return null;
-  return (
-    <p className="sq-sendsfrom" data-testid="sq-sends-from">
-      <span className="sq-sendsfrom-v">
-        <b>{SW.sendsFrom}</b> {first.owner_sends ? F.fromYou : F.fromMailboxes}
-      </span>
-      <LinkButton {...routeDoor(addressOf({ kind: "channel" }))} data-testid="sq-mailboxes">
-        {first.owner_sends ? F.connect : F.mailboxes}
-      </LinkButton>
-    </p>
-  );
-}
-
 /** Add a step, a thumb tall at the steps' end; or, on a reminder, the one line that says why it takes none. */
 function AddRow({ rec, onAdd }: { rec: SequenceRecordDto; onAdd: () => void }) {
   const row = rec.sequence;
-  if (takesFollowUps(row))
-    return (
-      <RailRow>
-        <div className="sq-addstep">
-          <Button
-            variant="quiet"
-            className="sq-addstep-press"
-            onClick={onAdd}
-            data-testid="sq-add-step"
-            {...gate("approve")}
-          >
-            <Icon name="plus" size={14} /> {SW.addStep}
-          </Button>
-        </div>
-      </RailRow>
-    );
+  if (takesFollowUps(row)) return <RailAdd onAdd={onAdd} gateProps={gate("approve")} />;
   if (row.starts !== "moment") return null;
   return (
     <RailRow>
@@ -314,8 +283,8 @@ export function SequenceSteps({ rec, flash, moved, again, editing, onEditing, ho
       </div>
     );
   const ctx: StepsCtx = { tz: rec.timezone, nowMs: Date.now(), lastRunFor: rec.last_run_for, people };
-  // A sequence to leads is written on its record (the lead-to-sequence canvas's Build boards): its own rail and sheets,
-  // drawn once its chain is read with it.
+  // A sequence to leads hands the rail its own parts (the lead-to-sequence canvas's Build boards: who joins, its emails
+  // written on their steps, where it sends from, the check), drawn once its chain is read with it.
   if (row.starts === "leads")
     return rec.chain ? (
       <LeadSteps
@@ -348,41 +317,30 @@ export function SequenceSteps({ rec, flash, moved, again, editing, onEditing, ho
     else setOpen(false);
     onEditing(null);
   };
+  // Each step on its day, after the wait before it.
+  const steps: RailStep[] = rec.steps.map((step) => ({
+    id: step.id,
+    place: step.place,
+    wait: step.place > 1 ? scheduleWait(step) : null,
+    row: (
+      <StepRow
+        rec={rec}
+        step={step}
+        day={days.get(step.place) ?? 1}
+        ctx={ctx}
+        onOpen={() => openOn({ kind: "step", id: step.id })}
+      />
+    ),
+  }));
   return (
-    <div className="sq-steps-body" data-testid="sq-steps">
-      <p className="sq-span">
-        <span>
-          <b>{span.count}</b>
-          {span.over ? ` ${span.over}` : null}
-        </span>
-        {row.starts === "date" ? null : <span className="sq-span-per">{SW.per}</span>}
-      </p>
-      <ol className="sq-rail">
-        <StartRow rec={rec} flash={flash} moved={moved} howAsked={howAsked} />
-        {rec.steps.flatMap((step) => [
-          step.place > 1 ? <WaitRow key={`wait-${step.id}`} step={step} /> : null,
-          <StepRow
-            key={step.id}
-            rec={rec}
-            step={step}
-            day={days.get(step.place) ?? 1}
-            ctx={ctx}
-            onOpen={() => openOn({ kind: "step", id: step.id })}
-          />,
-        ])}
-        {row.starts === "date" && row.date ? <DateRow rec={rec} date={row.date} /> : null}
-        {row.starts === "date" ? null : <AddRow rec={rec} onAdd={() => onEditing("new")} />}
-        {end ? (
-          <RailRow day={SW.end} testid="sq-stops">
-            <div className="sq-rail-line">
-              <span className="sq-rail-lead">
-                <b>{end.head}</b>
-              </span>
-              <span className="sq-rail-sub">{end.sub}</span>
-            </div>
-          </RailRow>
-        ) : null}
-      </ol>
+    <StepsRail
+      span={{ count: span.count, over: span.over, per: row.starts !== "date" }}
+      start={<StartRow rec={rec} flash={flash} moved={moved} howAsked={howAsked} />}
+      steps={steps}
+      day={row.starts === "date" && row.date ? <DateRow rec={rec} date={row.date} /> : null}
+      add={row.starts === "date" ? null : <AddRow rec={rec} onAdd={() => onEditing("new")} />}
+      end={end}
+    >
       {sequenceCancels(row) ? (
         <>
           <p className="sq-rail-note">
@@ -402,7 +360,6 @@ export function SequenceSteps({ rec, flash, moved, again, editing, onEditing, ho
           </div>
         </>
       ) : null}
-      <SendsFrom rec={rec} />
       <StepSheet
         open={open || editing !== null}
         target={target}
@@ -415,6 +372,6 @@ export function SequenceSteps({ rec, flash, moved, again, editing, onEditing, ho
         onEditDone={editDone}
         onClose={close}
       />
-    </div>
+    </StepsRail>
   );
 }

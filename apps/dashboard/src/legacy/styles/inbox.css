@@ -152,14 +152,6 @@
 }
 .ix-thread.selected { background: var(--accent-soft); }
 .ix-thread.unread .ix-thread-who { font-weight: 500; }
-/* A campaign run waiting for your say, a row of Needs you over the threads (surfaces/inbox/pages/inbox-runs.tsx): a link,
-   in the row's ink. It has no box to pick it by, and needs none: a thread's box lies over its face, out of the grid. Few and
-   always in sight, it is laid out with the first frame: drawn at the threads' placeholder height and shrunk a frame later, four
-   of them moved every thread under them 144px (the campaigns rig, 18 Oct 2026). */
-.ix-run { color: inherit; text-decoration: none; content-visibility: visible; }
-/* Its state is why the row is here, as a thread's wait is: the pill keeps its width and the run's name ellipses before it. Let
-   shrink with the name, the pill's box gave way under a long reach-out's name and "Waits for you" ran past the row's edge. */
-.ix-run .ix-thread-meta { flex: none; }
 /* A row is an option in a listbox: its ring sits inside it, where the scrolling list cannot clip it,
    and the open row keeps its edge. */
 .ix-thread:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; box-shadow: none; }
@@ -2176,13 +2168,28 @@ button.ix-ctx { text-align: left; cursor: pointer; transition: background 100ms;
   padding: 12px 18px 4px 20px;
 }
 /* ---- A row is one person on the pane itself; the open one is the lozenge (I1) ---- */
-/* The runs waiting for your say over them are rows of the same column (.ix-runs, inbox-runs.tsx). */
+/* The runs waiting for your say over them are rows of the same column (.ix-runs, inbox-runs.tsx): Today's queue's rows (the
+   kit's attention row, surfaces/waits/wait-rows.tsx), the Campaigns wiring review's rule D. */
 .ix-thread-rows,
 .ix-runs {
   display: flex;
   flex-direction: column;
   gap: 2px;
   padding: 8px 0;
+}
+/* The kit's row is three columns on Today's wide card (clients.css .cl-attn-row: the glyph, the words, the verbs); in this
+   column the verbs took the width and a run's name and sentence fell to nothing (the lanes' walk in the app, 19 Oct 2026).
+   Here the verbs go under the words, as a phone's row draws them. */
+.ix-runs .cl-attn-row {
+  grid-template-columns: 30px minmax(0, 1fr);
+  height: auto;
+  align-items: start;
+  row-gap: 8px;
+  padding: 10px 12px;
+}
+.ix-runs .cl-attn-acts {
+  grid-column: 2;
+  justify-self: start;
 }
 .ix-thread {
   margin: 0 8px;

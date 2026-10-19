@@ -11,7 +11,7 @@ import { surfaceValue } from "../../surface-values";
 import { useSurface } from "../../use-surface";
 import { TODAY_HELPERS } from "../helpers";
 import { appNavigate, bell, holdStill } from "../shell";
-import { runsPending } from "./queue-runs";
+import { runsPending } from "../../waits/run-acts";
 import { Button } from "../../kit/button/button";
 import { reviewLineOf } from "./review-line";
 
@@ -56,7 +56,7 @@ export const TodayAway = () => {
   // What each row above is about: a queue row's thread, its call, or both (contracts AwayQueueRef), a waiting search by its
   // door, the runs the queue draws, by name (a run held for a word is a row up there, and the bell's "is ready" is about the
   // same run), and the review the card draws.
-  // The runs the queue draws, waiting and too late alike (queue-runs.tsx runsPending), the first three.
+  // The runs the queue draws, waiting and too late alike (waits/run-acts.tsx runsPending), the first three.
   const { waiting: runsWaiting, late: runsLate } = runsPending();
   const runsDrawn = [...runsWaiting, ...runsLate].slice(0, 3);
   const inQueue: AwayQueueRef[] = [

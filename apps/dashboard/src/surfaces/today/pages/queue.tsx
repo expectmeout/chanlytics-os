@@ -3,8 +3,8 @@
  * in one row grammar (the kit's AttnRow), the longest wait first: WhatsApp handoffs, callers who need a call back,
  * reply windows closing, calls worth an ear (contracts today.ts queue), a person's next step once its day has come
  * (0007: queue-steps.tsx), yesterday's visits nobody has said whether they came to (0047: queue-visits.tsx), and the
- * playbook runs that wait for a word or
- * sit under a Stop (the broadcasts surface, queue-runs.tsx). A call in progress rides above the list while it lasts.
+ * runs that wait for a word, the very rows the Inbox's Needs you draws (surfaces/waits/wait-rows.tsx: the Campaigns wiring
+ * review's rule D). A call in progress rides above the list while it lasts.
  * The first row carries the page's one primary verb; the rest wear theirs quietly. Every sentence with a number is
  * contracts' (todayRunWords, todayRunsSub, todayRunApproved).
  *
@@ -23,7 +23,6 @@ import {
   type TodayQueueRowVM,
   type TodayVM,
   type VisitWord,
-  SEQUENCES_ROUTE,
 } from "@chanlytics/contracts";
 import { AttnRow } from "../../kit/attention/attn-row";
 import { Button } from "../../kit/button/button";
@@ -37,7 +36,8 @@ import { TODAY_HELPERS } from "../helpers";
 import { appNavigate, doorGlyph, surfaceFailed, useMoved, useToast } from "../shell";
 import { useDayVm } from "./day";
 import { liveClock, useLiveNow } from "./live-now";
-import { broadcastsRead, runRows, runsPending, useRunsActing, type Nav, type VerbKind } from "./queue-runs";
+import { broadcastsRead, runsPending, useRunsActing } from "../../waits/run-acts";
+import { waitRows, type Nav, type VerbKind } from "../../waits/wait-rows";
 import { dueSteps, stepAct, stepDone, stepsLeft } from "./queue-steps";
 import { askedVisits, visitActs, visitSay, visitsLeft } from "./queue-visits";
 import { requestActs, requestAnswer } from "./queue-requests";
@@ -247,11 +247,12 @@ function queueFoot(
   const parts = [
     cut.rows > 0 ? `${cut.rows} more in the Inbox` : "",
     sends ? `${sends} in the Inbox` : "",
-    cut.runs > 0 ? `${cut.runs} more run${cut.runs === 1 ? "" : "s"} in Campaigns` : "",
+    // The runs the card had no room for wait in Needs you, the whole list (the Campaigns wiring review's rule D).
+    cut.runs > 0 ? `${cut.runs} more run${cut.runs === 1 ? "" : "s"} in the Inbox` : "",
   ].filter(Boolean);
   // The steps cut are their own door, People's Steps due (the list the row for the rest opens), and the visits to mark that
-  // were cut are the Calendar's, on yesterday: "See all" goes to the Inbox or Campaigns, where people and runs wait, and a
-  // step or a visit is neither.
+  // were cut are the Calendar's, on yesterday: "See all" goes to the Inbox, where people and runs wait, and a step or a
+  // visit is neither.
   const steps = cut.steps > 0 && doors.steps ? doors.steps : null;
   const visits = cut.visits > 0 && doors.visits ? doors.visits : null;
   return (
@@ -271,10 +272,7 @@ function queueFoot(
           </Button>
         )}
       </span>
-      <button
-        className="cl-attn-cta ghost"
-        onClick={() => nav(cut.rows === 0 && cut.runs > 0 ? SEQUENCES_ROUTE : "inbox")}
-      >
+      <button className="cl-attn-cta ghost" onClick={() => nav("inbox")}>
         See all
       </button>
     </div>
@@ -340,7 +338,7 @@ const TodayQueue = ({ vm }: { vm: TodayVM }) => {
     drawn: runs,
     count: runsCount,
     cut: runsCut,
-  } = runRows(nav, ppFlash, verbKind, { room: Math.max(0, CARD_MAX - drawn.length), acting });
+  } = waitRows({ nav, flash: ppFlash, verbKind, acting }, Math.max(0, CARD_MAX - drawn.length));
   const parts = needsYouOnToday(vm, live);
   // What the card could not hold is counted, never dropped: the rows past the cap and the ones the view
   // model already counted for the Inbox are the same kind of thing to a reader. The PEOPLE among them, since the foot
@@ -359,10 +357,10 @@ const TodayQueue = ({ vm }: { vm: TodayVM }) => {
   // so it read 24 over 19: the 2 Oct 2026 audit). Until the Inbox has been read, it is Today's own copy of the same threads
   // (the brief's holds and sends) and the runs on this card (needsYouOnToday).
   const waiting = needsYouCount(parts);
-  // Where the door goes: the Inbox while a person waits, else, when only runs wait, the run (one), the one To send (every
-  // one waiting waits for its owner to send its emails) or Sent (contracts waitingRunsDoor).
+  // Where the door goes: the Inbox while a person waits, else, when only runs wait, the run (one), To send (every one
+  // waiting waits for its owner to send its emails) or Needs you (contracts waitingRunsDoor).
   const doorTo = parts.holds + parts.sends === 0 && parts.runs > 0 ? waitingRunsDoor(wants.waiting) : "inbox";
-  const door = { to: doorTo, label: doorTo === "inbox" ? "Open Inbox" : (verbForRoute(doorTo) ?? "Open Sent") };
+  const door = { to: doorTo, label: doorTo === "inbox" ? "Open Inbox" : (verbForRoute(doorTo) ?? "Open Inbox") };
   return (
     <section className="tq today-queue" data-testid="today-queue">
       {/* No count over the rows: the sentence says what they hold, and the rows are right under it. */}

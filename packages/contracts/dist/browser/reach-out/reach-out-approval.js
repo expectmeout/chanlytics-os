@@ -7,7 +7,7 @@ import { composeLinksOf } from "./owner/compose.js";
 import { holdDoors, HOLD_DOOR_WORDS } from "./reach-out-words.js";
 import { reachOutRootOf } from "./reach-out-rules.js";
 import { approvalWordsOf, chainPaceOf, leadDoorOf, stepLabel } from "./reach-out-sheet.js";
-import { SEQUENCES_ROUTE, runRoute } from "../sequences/sequence-address.js";
+import { TO_SEND_ROUTE, runRoute } from "../sequences/sequence-address.js";
 export function skippedReasonWords(reason) {
   switch (reason) {
     case "closed_every_day":
@@ -164,19 +164,21 @@ export const REACH_OUT_TO_SEND_LABELS = {
   /** Another member, or another tab, said first. */
   already: (state) => state === "sent" ? "Already said: it went." : "Already said: it was left out."
 };
-export const TO_SEND_ROUTE = "broadcasts/to-send";
 export const TO_SEND_ALL_WORDS = {
   title: "To send",
   /** Today's row and the door to it: what it opens. */
   door: "Open To send",
-  meta: "Reach-out \xB7 to send",
+  /** Its row's act: To send opens under it, in Needs you, and closes again (the Campaigns wiring review's lane 4). */
+  open: "Open",
+  hide: "Hide",
+  meta: "Cold email \xB7 to send",
   status: "Handed to you",
-  /** "12 emails handed to you, from 3 reach-outs"; one reach-out (its first email and its nudge) says none. */
-  sub: (n, from) => `${plural(n, "email", "emails")} handed to you${from > 1 ? `, from ${from} reach-outs` : ""}`,
-  /** Today's one row for them: what waits, and from how many reach-outs where more than one. */
-  sentence: (n, from) => `${plural(n, "email", "emails")} to send from your inbox${from > 1 ? `, from ${from} reach-outs` : ""}, each written and checked.`,
-  /** Today's brief for them, as one run's line: "Your reach-outs are waiting for you: …". */
-  brief: (from) => from > 1 ? { label: "Your reach-outs", verb: "are", waits: "waiting for you" } : { label: "Your reach-out", verb: "is", waits: "waiting for you" },
+  /** "12 emails handed to you, from 3 sequences"; one sequence (its first email and its nudge) says none. */
+  sub: (n, from) => `${plural(n, "email", "emails")} handed to you${from > 1 ? `, from ${from} sequences` : ""}`,
+  /** Today's one row for them: what waits, and from how many sequences to leads where more than one. */
+  sentence: (n, from) => `${plural(n, "email", "emails")} to send from your inbox${from > 1 ? `, from ${from} sequences` : ""}, each written and checked.`,
+  /** Today's brief for them, as one run's line: "Your cold emails are waiting for you: …". */
+  brief: (from) => from > 1 ? { label: "Your cold emails", verb: "are", waits: "waiting for you" } : { label: "Your cold email", verb: "is", waits: "waiting for you" },
   note: REACH_OUT_TO_SEND_LABELS.note,
   /**
    * A run's part of the list: its reach-out, which of its emails (a first email and its nudge are two parts of one
@@ -185,7 +187,7 @@ export const TO_SEND_ALL_WORDS = {
   runHead: (name, step, n) => step === null ? `${name} \xB7 ${n}` : `${name} \xB7 ${step === 0 ? "first email" : stepLabel(step).toLowerCase()} \xB7 ${n}`,
   openRun: RUN_OPEN_WORDS,
   /** A run's own To send, where other runs hand emails over too: the door to all of them. */
-  everyRun: (n, from) => `All ${n} to send${from > 1 ? `, from ${from} reach-outs` : ""}`,
+  everyRun: (n, from) => `All ${n} to send${from > 1 ? `, from ${from} sequences` : ""}`,
   reading: "Reading its emails\u2026",
   unread: "Its emails could not be read just now. Open the run to see them.",
   /** Every email handed over is said: what the pane says once its list is empty. */
@@ -214,10 +216,11 @@ export function toSendEveryOf(runs) {
 }
 export function waitingRunsDoor(waiting) {
   const [only] = waiting;
-  if (waiting.length === 1 && only) return runRoute(only.id);
+  if (waiting.length === 1 && only) return runRoute(only.id, only.sequence_id);
   const toSend = toSendRunsOf(waiting);
-  return toSend && toSend.runs.length === waiting.length ? TO_SEND_ROUTE : SEQUENCES_ROUTE;
+  return toSend && toSend.runs.length === waiting.length ? TO_SEND_ROUTE : NEEDS_YOU_ROUTE;
 }
+const NEEDS_YOU_ROUTE = "inbox";
 const REACH_OUT_RUN_LABELS = {
   back: "Back to Sequences",
   approving: "Approving\u2026",

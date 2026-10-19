@@ -1062,7 +1062,9 @@ var MAILBOX_CONNECT_WORDS = {
 
 // src/sequences/sequence-address.ts
 var SEQUENCES_ROUTE = "campaigns/sequences";
-var sequenceRoute = (id, tab = "steps", day) => tab === "steps" ? `${SEQUENCES_ROUTE}/${id}` : `${SEQUENCES_ROUTE}/${id}/${tab}${tab === "history" && day ? `/${day}` : ""}`;
+var sequenceRoute = (id, tab = "steps") => tab === "steps" ? `${SEQUENCES_ROUTE}/${id}` : `${SEQUENCES_ROUTE}/${id}/${tab}`;
+var TO_SEND_PARAM = "to-send";
+var TO_SEND_ROUTE = `inbox/${TO_SEND_PARAM}`;
 
 // src/playbooks/playbook-triggers.ts
 var PLAYBOOK_TRIGGERS = [

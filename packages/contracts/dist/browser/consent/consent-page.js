@@ -5,6 +5,10 @@ import { takesSignUps, WORKSPACE_PAUSED_FACT } from "../workspace/billing.js";
 export function notTakingSignUps(name, so) {
   return `${name} is not taking sign-ups right now${so ? `, so ${so}` : ""}.`;
 }
+export const GET_YES_WORDS = {
+  title: "Get their yes",
+  note: "only people who said yes get an offer"
+};
 export const GET_YES_PAUSED_WORDS = {
   note: "not taking sign-ups while the workspace is paused",
   body: `${WORKSPACE_PAUSED_FACT}. Meanwhile your sign-up page, desk sign and paper form tell customers you are not taking sign-ups, and there is no code or link to hand out. Resume it from Settings \u203A Billing.`

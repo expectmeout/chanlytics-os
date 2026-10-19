@@ -9,7 +9,7 @@ import { purposeOfPlaybook } from "../consent/consent";
 import { consentRuleWords } from "../consent/consent-asks";
 import type { ConsentChannel } from "../consent/consent-channels";
 import { appointmentWords, type AppointmentWord } from "../journey/appointment-word";
-import { GET_YES_ROUTE } from "../people/people-lists";
+import { GET_YES_ROUTE } from "../people/lists/people-route";
 import { CAMPAIGNS_PAUSED_WORDS } from "../workspace/billing";
 import { runApproveWords } from "../shell/campaign-rooms";
 import { isReachOutRun } from "../reach-out/reach-out-rules";

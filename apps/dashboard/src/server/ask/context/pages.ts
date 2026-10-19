@@ -194,7 +194,7 @@ async function broadcastRows(rc: ReaderContext, ids: string[]) {
           `${b.counts.sent} sent`,
           b.deliveredPct === null ? null : `${b.deliveredPct}% delivered`,
         ],
-        runRoute(id),
+        runRoute(id, b.sequence_id),
       ),
       ref: refs.get(id) ?? null,
     });

@@ -400,8 +400,8 @@ const ROUTES = [
   "reports/people",
   "reports/reviews",
   "campaigns",
-  // Campaigns' composer, where Sent's runs are drawn (its landing is Sequences' list).
-  "campaigns/new",
+  // New's Send once, where Sent's runs are drawn (its landing is Sequences' list).
+  "campaigns/sequences/new:once",
   "broadcasts",
   "calendar",
   "live",

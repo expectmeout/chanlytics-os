@@ -861,7 +861,7 @@ test("a reach-out's first run waits for its owner: one pending run, its sends pl
   assert.deepEqual(w.tables.broadcast_recipients, []);
   assert.deepEqual(
     w.tables.notifications.map((n) => [n.route, n.subject_type, n.subject_id]),
-    [[`broadcasts/run:${run.id}`, "broadcast", run.id]],
+    [[`campaigns/sequences/${run.id}/runs/${run.id}`, "broadcast", run.id]],
     "its owner is told where to approve it: the row opens the run itself",
   );
   assert.equal(w.tables.playbooks[0].last_run_for, today, "the step remembers the day");
@@ -1022,7 +1022,13 @@ test("a run that waits for a person tells them WHICH run: the bell's row is abou
   const [notice] = bellOf(w, A);
   assert.deepEqual(
     [notice.kind, notice.title, notice.route, notice.subject_type, notice.subject_id],
-    ["playbook", "Campaign “Win-back” is ready: 2 people", `broadcasts/run:${run.id}`, "broadcast", run.id],
+    [
+      "playbook",
+      "Campaign “Win-back” is ready: 2 people",
+      `campaigns/sequences/${run.id}/runs/${run.id}`,
+      "broadcast",
+      run.id,
+    ],
     "REGRESSION: the row named no run and opened Campaigns' home (route outbound)",
   );
   // And their phone hears it: a waiting run is refused once its day has passed, and the bell alone was the only word.

@@ -23,7 +23,8 @@ import {
 } from "../workspace/billing";
 import { capabilityStatus } from "./capabilities";
 import { EMAIL_ELSEWHERE_SENTENCE, EMAIL_NOT_ANSWERED_SENTENCE } from "../email/mailbox";
-import { GET_YES_ROUTE, NO_NUMBER_REACH } from "../people/people-lists";
+import { NO_NUMBER_REACH } from "../people/people-lists";
+import { GET_YES_ROUTE } from "../people/lists/people-route";
 import { lensRoute } from "../reports/lenses";
 import { FIRST_RUN_FIND_ROUTE } from "./first-run-route";
 import {

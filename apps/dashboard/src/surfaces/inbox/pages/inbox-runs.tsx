@@ -1,87 +1,80 @@
 /**
- * The campaign runs waiting for your word, said where the badge counts them (the wiring's second audit, S7-2): rows of
- * Needs you, above its threads, one a run (the Inbox's run review, 18 Oct 2026). The Needs-you badge counts the runs
- * waiting for your say (an approval, or the emails a going run's check holds or hands to you: contracts runWaitsOnYou), and
- * the band that stood here was a line at the list's edge, said after the threads were in, whose door went to Sent's page,
- * on to the run's sequence, and back to the run. A row is a thread's, in its words and its place: the run's name, what it
- * waits for, in Today's words for the same run (contracts todayRunWords), and its door, the run's own page, where it is
- * decided; its page and its read are begun as the row is drawn, so the press paints at once. A row opens; it never sends
- * (Today's queue is where a run is approved in one press). Outside the threads' list, whose keys walk threads alone.
+ * The campaign runs waiting for your word, in Needs you above its threads (the wiring's second audit, S7-2): the whole
+ * list of what waits for you, of which Today's queue is a part (the Campaigns wiring review's rule D, lane 4, 19 Oct 2026).
+ * The rows are the one builder's (surfaces/waits/wait-rows.tsx), Today's own: the same row with the same act, Approve in
+ * place where an OK alone sends a run, Open where its screen answers it, two or more waiting for an OK one row whose first
+ * opens and walks the rest. They used to be rows of the Inbox's own, which only opened. A run opens over the Inbox (rule
+ * C), so Back comes back here.
+ *
+ * To send is a part of Needs you (Ruben's call 3): its row opens it under itself, and its address says so
+ * (`inbox/to-send`, replaced as it opens and closes), which Sent's old page of it lands on. Each run's read is begun as
+ * its row is drawn, so its screen paints at once. Outside the threads' list, whose keys walk threads alone.
  */
-import { useCallback, useEffect, useSyncExternalStore } from "react";
-import {
-  RUN_WAITING_SHORT,
-  runDraftedEmails,
-  runHeldEmails,
-  runSheetRoute,
-  runTitleOf,
-  todayRunWords,
-  type BroadcastVM,
-} from "@chanlytics/contracts";
-import { warmSoon } from "@/legacy-bridge/workspace";
+import { Suspense, lazy, useCallback, useEffect, useState, useSyncExternalStore } from "react";
+import { TO_SEND_ROUTE } from "@chanlytics/contracts";
 import { surfaceHook } from "@/legacy-bridge/surface-status";
-import { Face } from "../../kit/face/face";
-import { Icon } from "../../kit/icon/icon";
-import { StatePill } from "../../kit/pill/state-pill";
-import { routeDoor } from "../../legacy-verbs";
+import type { Flash } from "../../shell-doors";
 import { warmRunDetail } from "../../campaigns/broadcasts/detail-read";
-import { useNeedsYouParts, waitingRunsNow } from "../../needs-you";
+import { useNeedsYouParts } from "../../needs-you";
+import { runsPending, useRunsActing } from "../../waits/run-acts";
+import { waitRows } from "../../waits/wait-rows";
+import { appNavigate, currentRoute } from "../shell";
 
 // Drawn again when Sent's runs move (a run approved and another made keeps the count, and changes the rows).
 const useMoved = surfaceHook({ useCallback, useSyncExternalStore });
 
-const NO_RUNS: BroadcastVM[] = [];
+// To send's part, its own chunk: most Inboxes never open it.
+const ToSendPart = lazy(() => import("../../waits/to-send-part").then((m) => ({ default: m.ToSendPart })));
 
-/** What a waiting run's row says: what it waits for, in Today's words, and the pill beside its name. */
-function runRowWords(r: BroadcastVM): { sentence: string; meta: string; pill: string } {
-  const words = todayRunWords(r);
-  if (runHeldEmails(r) > 0) return { ...words.held, pill: words.held.status[0] ?? RUN_WAITING_SHORT };
-  if (runDraftedEmails(r) > 0) return { ...words.drafted, pill: words.drafted.status[0] ?? RUN_WAITING_SHORT };
-  return { ...words.waiting, pill: RUN_WAITING_SHORT };
-}
-
-function RunRow({ r }: { r: BroadcastVM }) {
-  const said = runRowWords(r);
-  return (
-    <a className="ix-thread ix-run" {...routeDoor(runSheetRoute(r.id))} data-testid="inbox-run-row">
-      <span className="ix-thread-lead">
-        <Face glyph={<Icon name="bolt" size={14} />} className="ix-thread-pic" />
-      </span>
-      <div className="ix-thread-body">
-        <div className="ix-thread-line1">
-          <span className="ix-thread-who">{runTitleOf(r)}</span>
-          <div className="ix-thread-meta">
-            <StatePill kind="tone" value="warn" label={said.pill} className="ix-state-pill" />
-          </div>
-        </div>
-        <div className="ix-thread-subject">{said.sentence}</div>
-        <div className="ix-thread-line3">
-          <span className="ix-thread-preview">{said.meta}</span>
-        </div>
-      </div>
-    </a>
-  );
-}
-
-export function InboxRunsWaiting() {
+export function InboxRunsWaiting({ toSendOpen, flash }: { toSendOpen: boolean; flash: (flash: Flash) => void }) {
   useMoved(["broadcasts"]);
   const parts = useNeedsYouParts();
-  const runs = parts?.runs ? waitingRunsNow() : NO_RUNS;
-  const ids = runs.map((r) => r.id).join(",");
-  // Each run's page and its read, begun before the press: the page when the tab is idle, the read now (one small read a
-  // run, held for the tab until a write).
+  const acting = useRunsActing();
+  // To send open, as it was last asked: a door to it opens it (`inbox/to-send`), and its row opens and closes it. It stays
+  // open while a thread is read beside it, whose address the Inbox writes in its place.
+  const [open, setOpen] = useState(toSendOpen);
+  useEffect(() => {
+    if (toSendOpen) setOpen(true);
+  }, [toSendOpen]);
+  // Its address follows it, replaced, where the address is the list's: a reload opens it again, and Back leaves the Inbox.
+  const toggle = () => {
+    setOpen(!open);
+    const here = currentRoute();
+    if (here === "inbox" || here === TO_SEND_ROUTE) appNavigate(open ? "inbox" : TO_SEND_ROUTE, { replace: true });
+  };
+  // The runs the badge counts (contracts runWaitsOnYou), once the Inbox is read: the rows' own list.
+  const ids = parts?.runs
+    ? runsPending()
+        .waiting.map((r) => r.id)
+        .join(",")
+    : "";
+  // Each run's read, begun before the press (one small read a run, held for the tab until a write): a row opens its run
+  // over the Inbox (the Campaigns wiring review's rule C), so no page of its own is warmed for it.
   useEffect(() => {
     if (!ids) return;
-    const each = ids.split(",");
-    each.forEach((id) => warmRunDetail(id));
-    warmSoon(each.map((id) => runSheetRoute(id)));
+    ids.split(",").forEach((id) => warmRunDetail(id));
   }, [ids]);
-  if (runs.length === 0) return null;
+  if (!ids) return null;
+  // The Inbox's verbs are quiet beside its threads: no row of a run is the page's one primary verb.
+  const { drawn } = waitRows({
+    nav: (to) => appNavigate(to),
+    flash,
+    verbKind: () => "ghost",
+    acting,
+    late: false,
+    toSend: {
+      open,
+      toggle,
+      part: (
+        <Suspense fallback={null}>
+          <ToSendPart onOpenRun={(to) => appNavigate(to)} />
+        </Suspense>
+      ),
+    },
+  });
   return (
     <div className="ix-runs" data-testid="inbox-runs-waiting">
-      {runs.map((r) => (
-        <RunRow key={r.id} r={r} />
-      ))}
+      {drawn}
     </div>
   );
 }

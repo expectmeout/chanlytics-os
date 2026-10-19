@@ -1073,7 +1073,7 @@ test("a run (D11): approve and skip are the run's own doors, approve's undo is a
   assert.deepEqual(spec.undo.call(kept, TAB_AFTER), { route: "POST broadcasts/[id]/cancel", params: { id: RUN } });
   assert.equal(spec.undo.receipt(CANCELED("scheduled")), "Canceled — nothing will send");
   assert.equal(spec.undo.receipt(CANCELED("sending")), "Stopped — it ends after this batch");
-  assert.equal(cardOpenRoute(approve), `broadcasts/run:${RUN}`, "the run's sheet");
+  assert.equal(cardOpenRoute(approve), `campaigns/sequences/${RUN}/runs/${RUN}`, "the run's sheet");
   // No verb, or one it does not know, is no card to send: the verb has no default.
   for (const verb of [undefined, null, "", "cancel", "Approve"])
     assert.deepEqual(spec.commit(card("run", { ...run, verb }), TAB), {

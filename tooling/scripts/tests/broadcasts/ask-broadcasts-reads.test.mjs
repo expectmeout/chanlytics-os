@@ -154,7 +154,7 @@ const rowOf = (b) => {
   const vm = toBroadcastVM(b, TZ, NOW);
   return {
     broadcast_id: b.id,
-    route: `broadcasts/run:${b.id}`,
+    route: `campaigns/sequences/${b.sequence_id ?? b.id}/runs/${b.id}`,
     name: b.name,
     // A person reads "campaign", never "playbook" (decision 19), and the model repeats what the row says.
     by: b.playbook_id ? "a campaign" : "a person",
@@ -235,7 +235,7 @@ test("campaigns.broadcast answers one run as its opened page draws it over the s
     "in the page's order",
   );
   assert.ok(!JSON.stringify(out).includes("555"), "no number field: the page's name, and the id");
-  assert.deepEqual(tc.read.broadcast.get(BC1).route, `broadcasts/run:${BC1}`);
+  assert.deepEqual(tc.read.broadcast.get(BC1).route, `campaigns/sequences/${BC1}/runs/${BC1}`);
   assert.deepEqual(tc.read.person.get(P1), { kind: "person", id: P1, route: `clients/${P1}`, label: "Ana Ruiz" });
   const other = await ask({ action: "batch", broadcast_id: BCB });
   assert.deepEqual([other.isError, other.out.error], [true, "no such broadcast in this workspace"]);

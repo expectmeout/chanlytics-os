@@ -223,6 +223,8 @@ interface InboxProps {
   opening?: boolean;
   /** A sequence's replies the address names (inbox-from.tsx): the list holds them and nothing else, with its line. */
   replies?: SequenceRepliesRead | null;
+  /** `inbox/to-send`: Needs you, with its To send open (the Campaigns wiring review's lane 4). */
+  toSendOpen?: boolean;
 }
 
 /** A link to a thread outside the loaded list, while it is read by its id: say it is on its way, and open nobody else's in its place. */
@@ -382,12 +384,14 @@ const inboxPage = (
     onOpenClient,
     opening,
     replies,
+    toSendOpen,
   }: {
     density: Density;
     showAgentRail: boolean;
     onOpenClient: NonNullable<InboxProps["onOpenClient"]>;
     opening: boolean;
     replies: SequenceRepliesRead | null;
+    toSendOpen: boolean;
   },
 ) => {
   const {
@@ -414,6 +418,7 @@ const inboxPage = (
     requestedMissing,
     phoneThreadOpen,
     toastNode,
+    ppFlash,
   } = ix;
   // The agent rail is the mockup's, drawn for a seeded thread only. On a real one it invented the
   // receptionist -- an autonomy line and a voice nobody set, an Ask box answering with canned text, a
@@ -449,6 +454,8 @@ const inboxPage = (
         density={density}
         sendingIn={vetoRemaining}
         fromLine={replies ? <SequenceRepliesLine read={replies} held={threads} /> : null}
+        toSendOpen={toSendOpen}
+        flash={ppFlash}
       />
       {ixOnPhone() && !phoneThreadOpen
         ? // On a phone the list and the thread take turns on the screen (mobile.css hides the pane until the page wears
@@ -481,6 +488,7 @@ export const Inbox = ({
   initialThreadId = null,
   opening = false,
   replies = null,
+  toSendOpen = false,
 }: InboxProps) => {
   // The page draws again when the Inbox surface moves, as the frame drew it again; its list is the page's first part
   // (client/page-speed.ts), drawn once the Inbox's read is in, the empty Inbox included.
@@ -498,7 +506,7 @@ export const Inbox = ({
   }, []);
   const { INBOX_BUCKETS, INBOX_VIEWS, THREADS, INBOX_BASELINE } = inboxData();
   // One record of the page, made in the order the page always made it: each part reads what the parts above it made.
-  const ix = useInboxState(THREADS, initialThreadId);
+  const ix = useInboxState(THREADS, initialThreadId, toSendOpen);
   const withMoves = Object.assign(ix, inboxMoves(ix));
   const withVerdict = Object.assign(withMoves, inboxVerdict(withMoves));
   const withVeto = Object.assign(withVerdict, useInboxVeto(withVerdict));
@@ -527,5 +535,5 @@ export const Inbox = ({
     withBucketMoves,
     inboxCounts(withBucketMoves.threads, { INBOX_BUCKETS, INBOX_VIEWS, INBOX_BASELINE }, runs),
   );
-  return inboxPage(full, { density, showAgentRail, onOpenClient, opening, replies });
+  return inboxPage(full, { density, showAgentRail, onOpenClient, opening, replies, toSendOpen });
 };

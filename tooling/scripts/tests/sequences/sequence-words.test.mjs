@@ -15,7 +15,9 @@ import {
   newSequenceRoute,
   parseSequencesRoute,
   sequenceRouteBack,
-  runSheetRoute,
+  runRoute,
+  TO_SEND_ROUTE,
+  GET_YES_ROUTE,
   sequenceGroupOf,
   retiredRouteOf,
   sequenceNotice,
@@ -156,8 +158,9 @@ test("the one notice: a batch waiting for an OK with its act and how long it wai
   );
   // The act in the words every Approve of a run says (decision 19 of the spec of 9 Oct 2026): its sheet's, Today's row.
   assert.deepEqual([named.words, named.act], ["3 people wait for your OK · until tonight", "Approve · 3 people"]);
-  // A phone's dock says it in a line and one fact, the step where there are several.
-  assert.deepEqual([named.line, named.fact], ["3 wait for your OK", "until tonight"]);
+  // A phone's dock says it in a line and one fact, the step where there are several; the count is its Approve's alone, never
+  // said twice beside it (the run review's item 12).
+  assert.deepEqual([named.line, named.fact], ["Waits for your OK", "until tonight"]);
   const steps = [
     { id: "s1", place: 1 },
     { id: "s2", place: 2 },
@@ -227,15 +230,12 @@ test("an address is read and written by one parser and one writer: the list, a r
   });
   assert.equal(parseSequencesRoute("campaigns/moment:s1"), null);
   assert.equal(sequenceRoute("s1", "people"), "campaigns/sequences/s1/people");
-  // A day of History open is the address's own: written and read back.
-  assert.equal(sequenceRoute("s1", "history", "b1"), "campaigns/sequences/s1/history/b1");
-  assert.equal(sequenceRoute("s1", "people", "b1"), "campaigns/sequences/s1/people", "a day is History's alone");
-  assert.deepEqual(parseSequencesRoute(sequenceRoute("s1", "history", "b1")), {
-    view: "record",
-    id: "s1",
-    tab: "history",
-    day: "b1",
-  });
+  // A day of History is its run, at its home under the sequence (the Campaigns wiring review's lane 2): written and read
+  // back, over the History it is a day of; an older day's address reads as the same run.
+  assert.equal(runRoute("b1", "s1"), "campaigns/sequences/s1/runs/b1");
+  assert.deepEqual(parseSequencesRoute(runRoute("b1", "s1")), { view: "record", id: "s1", tab: "history", run: "b1" });
+  assert.deepEqual(parseSequencesRoute("campaigns/sequences/s1/history/b1"), parseSequencesRoute(runRoute("b1", "s1")));
+  assert.equal(retiredRouteOf("campaigns/sequences/s1/history/b1"), runRoute("b1", "s1"));
 });
 
 test("a new sequence to leads is made where its leads are chosen; an old composer address opens New, and every trip comes back", () => {
@@ -264,32 +264,39 @@ test("a new sequence to leads is made where its leads are chosen; an old compose
   );
 });
 
-test("an older address lands on what it names: the home and Sent's list on Sequences; the composer, a message and Sent's sheets stay", () => {
+test("an older address lands on what it names: the home and Sent's list on Sequences, a run at its home, the composer on New; a message stays", () => {
   assert.equal(retiredRouteOf("campaigns"), SEQUENCES_ROUTE);
   // Sent's list is History now (D3): its bare address is Sequences' list.
   assert.equal(retiredRouteOf("broadcasts"), SEQUENCES_ROUTE);
-  // A run a link names lands by what the run is, which the address does not say (contracts runLandingOf); its sheet stays.
-  assert.equal(retiredRouteOf("broadcasts/run:b1"), null);
-  assert.equal(retiredRouteOf(runSheetRoute("b1")), null);
+  // A run Sent named lands at its home, under its sequence (the Campaigns wiring review's lane 2): the address does not
+  // say the sequence, so the run names its place until it is read. Its sheet is the same screen.
+  assert.equal(retiredRouteOf("broadcasts/run:b1"), runRoute("b1"));
+  assert.equal(retiredRouteOf("broadcasts/run:b1/sheet"), runRoute("b1"), "a run's sheet in Sent is its home");
+  // Sent's views went with it: To send to the Inbox's Needs you (lane 4), Get their yes to People (lane 7).
+  assert.equal(retiredRouteOf("broadcasts/to-send"), TO_SEND_ROUTE);
+  assert.equal(retiredRouteOf("broadcasts/get-yes"), GET_YES_ROUTE);
   assert.equal(retiredRouteOf("campaigns/in:before"), SEQUENCES_ROUTE);
   assert.equal(retiredRouteOf("campaigns/moment:s1"), "campaigns/sequences/s1");
   assert.equal(retiredRouteOf("campaigns/moment:s1:people"), "campaigns/sequences/s1/people");
   // The composer's Every time went (the closed-loop audit of 17 Oct 2026, G): its addresses, in a bookmark or an old
-  // Ask card, land on New, and on New on that moment. A change (`new:edit:<root>`) stays: it is a reach-out's sheet.
+  // Ask card, land on New, and on New on that moment. The composer went into the one New too (the Campaigns wiring
+  // review's lane 6): Send once on its audience, Write to leads, and a change on its sequence's record.
   assert.equal(retiredRouteOf("campaigns/new:every"), "campaigns/sequences/new");
   assert.equal(retiredRouteOf("campaigns/new:moment:quiet_30"), "campaigns/sequences/new:moment:quiet_30");
+  assert.equal(retiredRouteOf("campaigns/new"), "campaigns/sequences/new:once");
+  assert.equal(retiredRouteOf("campaigns/new:to:list-1"), "campaigns/sequences/new:once:to:list-1");
+  assert.equal(retiredRouteOf("campaigns/new:leads"), "campaigns/sequences/new:leads");
+  assert.equal(retiredRouteOf("campaigns/new:edit:s1"), "campaigns/sequences/s1");
   for (const stays of [
-    "campaigns/new",
-    "campaigns/new:to:list-1",
-    "campaigns/new:leads",
     "campaigns/new:moment:",
     "campaigns/new:edit:",
-    "campaigns/new:edit:s1",
     "campaigns/message:come_back",
     "campaigns/ads",
     "campaigns/sequences/s1",
-    "broadcasts/get-yes",
-    "broadcasts/to-send",
+    "campaigns/sequences/s1/runs/b1",
+    "campaigns/sequences/new:once",
+    TO_SEND_ROUTE,
+    GET_YES_ROUTE,
     "campaigns/messages",
   ])
     assert.equal(retiredRouteOf(stays), null, stays);

@@ -3,10 +3,12 @@
  * legacy/pages/broadcasts.jsx, decision 0015). Every number is a row's. Nothing here scores, estimates or invents: no
  * credits, no revenue, no "booked from broadcasts" — the schema has no column for it.
  *
- * Sent's list went to each sequence's History (decision 0060, D3), and its own address lands on Sequences: what stays here
- * is what its sheets open, each at its own address and beside Sequences' list, as a sequence's record stands -- a run's
- * sheet (`broadcasts/run:<id>/sheet`, where a held email is decided), To send (`broadcasts/to-send`) and Get their yes
- * (`broadcasts/get-yes`) -- and the send screen, which Campaigns' composer hosts (BroadcastSend).
+ * Sent's list went to each sequence's History (decision 0060, D3), and its mount went with the Campaigns wiring review
+ * (19 Oct 2026): each of its addresses lands on the page that took it over (contracts retiredRouteOf). What stays here is
+ * the two screens the page's one state holds: the send screen, which New's Send once draws (BroadcastSend: lane 6), and a
+ * run's own screen, which Sequences draws at the run's home under its sequence and any page opens over itself
+ * (BroadcastRun: lanes 2 and 3). To send is a part of the Inbox's Needs you (lane 4: surfaces/waits/to-send-part.tsx), and
+ * Get their yes a sheet over People's list (lane 7: people/sheets/get-yes-sheet.tsx).
  *
  * The audience chips carry the count of people who may receive an offer (what
  * the channels it goes by ask of them), computed by the same contracts predicate the
@@ -19,22 +21,18 @@
  * (`useSurface("audiences")`) once that is read; a demo session draws the same page from the sample (sample.ts); without
  * either, nothing is drawn.
  */
-import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
-import { LIFECYCLE_WORDS, type ConsentChannel } from "@chanlytics/contracts";
-import { canDo, demoSession, useLegacyToast } from "../../legacy-verbs";
+import { SEQUENCES_ROUTE, type ConsentChannel } from "@chanlytics/contracts";
+import { backFrom, canDo, demoSession, useLegacyToast } from "../../legacy-verbs";
 import { useUnsavedWork } from "../../kit/record/work";
 import { surfaceValue } from "../../surface-values";
 import { useSurface } from "../../use-surface";
 import { cmDefaultChannels, cmReadyOf } from "../parts/channels";
-import { CmSplit } from "../parts/split";
 import { bcAgainOf, bcRunSolo, bcRunsOf, bcSheetOf } from "./page/runs";
 import { bcRunActs, bcSendActs } from "./page/acts";
 import { bcPeopleOf, bcPreviewOf, bcReachOf, bcSlotChoicesOf, bcSlotWordsOf } from "./page/reach";
 import { bcComposerGlass } from "./page/send-screen";
-import { bcYesPane } from "./page/yes-pane";
-import { BcToSendAll } from "../reach-out/to-send-all";
-import { sequencesListPaneNow } from "../home/campaigns-code";
 import {
   useBcArmed,
   useBcList,
@@ -44,22 +42,19 @@ import {
   useBcWords,
   useBcYes,
   useUnknownAudienceNotice,
+  type RunOver,
 } from "./page/state";
 import type { BcApproving, BcBase, BcData, BcV, BcWhole, Flash } from "./page/types";
 import { bcDefault, bcIsStarter } from "./page/words";
-import { BC_NONE } from "./run";
+import { BC_NONE, BroadcastDetail } from "./run";
 import { broadcastsSample } from "./sample";
 
+/** What the page's state opens on: the audience a send is for, or the run open (a run's own screen, BroadcastRun). */
 interface BroadcastsPageProps {
-  initialSegment?: string | null;
-  initialRun?: string | null;
-  initialYes?: boolean;
-  /** `broadcasts/to-send`: every email handed to its owner, from each reach-out they send themselves (00429). */
-  initialToSend?: boolean;
-}
-
-interface BroadcastsRealProps extends BroadcastsPageProps {
   data: BcData;
+  initialSegment?: string | null;
+  /** The run open: a run's own screen (BroadcastRun), drawn at its home under its sequence. */
+  initialRun?: string | null;
 }
 
 // Starters in review at WhatsApp: the honest line while nothing is approved yet. Settings' templates are read as they
@@ -85,9 +80,9 @@ function bcWorked(base: BcBase, approving: BcApproving): BcV {
   return { ...v10, ...bcAgainOf(v10) };
 }
 
-/** What the page's state is opened with: what a link names, and (Campaigns' home) the send already open. */
-interface BroadcastsPageState extends BroadcastsRealProps {
-  /** The send screen is open from the first draw: the home's New message, which opens it by its address. */
+/** What the page's state is opened with: what a link names, and (New's Send once) the send already open. */
+interface BroadcastsPageState extends BroadcastsPageProps {
+  /** The send screen is open from the first draw: New's Send once, which opens it by its address. */
   opened?: boolean;
   /**
    * The host's own toast, where the screen is hosted in a sheet that closes over what a send says (Campaigns' home): the page
@@ -99,6 +94,8 @@ interface BroadcastsPageState extends BroadcastsRealProps {
    * told about the screen having been left (Campaigns' home replaces the composer's address with the section's).
    */
   onYes?: (route: string) => void;
+  /** A run's screen open over another page (`?see=`): the sheet it stands in is told what it opens next. */
+  over?: RunOver;
 }
 
 // The page calls its hooks in the order it always has, each holding one concern (page/state.tsx); plain functions
@@ -108,11 +105,10 @@ function useBroadcastsPage({
   data,
   initialSegment = null,
   initialRun = null,
-  initialYes = false,
-  initialToSend = false,
   opened = false,
   flash: hosted,
   onYes,
+  over,
 }: BroadcastsPageState) {
   const [ownToast, ownFlash]: [ReactNode, Flash] = useLegacyToast();
   const flash = hosted ?? ownFlash;
@@ -154,12 +150,11 @@ function useBroadcastsPage({
   const now = useBcNow(data);
   // Whether Send now has been pressed once and is asking: put away once it is not the question asked (useBcArmed).
   const { armed, setArmed } = useBcArmed({ tplId, aud, channels, whenAt, heardTooFor });
-  // What is open beside Sequences' list, by the address: a run, or the one To send (useBcOpen).
-  const { openId, openRun, toSend } = useBcOpen(initialRun, initialToSend);
+  // The run open beside Sequences' list, by the address (useBcOpen).
+  const { openId, openRun } = useBcOpen(initialRun, data.rows ?? null, over);
   // Left by the door to the yes, a hosted screen has been moved on by its host: it is not "done" as a send or a Cancel is.
   const leftByDoor = useRef(false);
-  const { yesOpen, setYesOpen, closeYes, yesDoor, yesLink } = useBcYes(
-    initialYes,
+  const { yesDoor, yesLink } = useBcYes(
     data,
     setWriting,
     onYes
@@ -210,9 +205,6 @@ function useBroadcastsPage({
     setArmed,
     openId,
     openRun,
-    yesOpen,
-    setYesOpen,
-    closeYes,
     yesDoor,
     yesLink,
     armId,
@@ -228,48 +220,7 @@ function useBroadcastsPage({
   const approvingRef = useRef<string | null>(null);
   const [approving, setApproving] = useState<string | null>(null);
   const v = bcWorked(base, { approvingRef, approving, setApproving });
-  return { v, toastNode, writing, openId, toSend, leftByDoor };
-}
-
-function BroadcastsReal(props: BroadcastsRealProps) {
-  const { v, toastNode, writing, openId, toSend } = useBroadcastsPage(props);
-  // Sequences' list is Campaigns' chunk (home/campaigns-code.tsx): drawn at once where the tab holds it, which a visit from
-  // Campaigns, a reach for Sent's door or the idle frame has seen to; taken once for the mount.
-  const [SequencesListPane] = useState(sequencesListPaneNow);
-  // Sequences' list, and beside it, in a pane, what the address opens (parts/split.tsx): a run, else the one To send, else
-  // Get their yes, else the send an audience's address asks for (`broadcasts/<list>`, retired, which a link moves to
-  // Campaigns' composer, `campaigns/new:to:<list>`, before it lands: contracts retiredRouteOf). Its own address has nothing open, and lands on
-  // Sequences (route.tsx). Send it again goes to Campaigns' composer too.
-  const open = openId ? (
-    bcRunSolo({ ...v, openId })
-  ) : toSend.open ? (
-    <BcToSendAll rows={v.data.rows} onClose={toSend.close} onOpenRun={(id) => v.openRun(id, true)} />
-  ) : v.yesOpen ? (
-    bcYesPane(v)
-  ) : writing ? (
-    bcComposerGlass(v)
-  ) : null;
-  return (
-    <>
-      <CmSplit
-        className="sq-page"
-        testid="broadcasts-real"
-        list={
-          <Suspense
-            fallback={
-              <div className="route-reading sq-reading" role="status" aria-busy="true">
-                {LIFECYCLE_WORDS.reading}
-              </div>
-            }
-          >
-            <SequencesListPane />
-          </Suspense>
-        }
-        open={open}
-      />
-      {toastNode}
-    </>
-  );
+  return { v, toastNode, writing, openId, leftByDoor };
 }
 
 /**
@@ -287,12 +238,15 @@ export function BroadcastSend({
   flash,
   onDone,
   onYes,
+  above = null,
 }: {
   data: BcWhole;
   initialSegment?: string | null;
   flash: Flash;
   onDone: () => void;
   onYes: (route: string) => void;
+  /** What its host draws over the sentence: New's who and when, where the screen is New's pane. */
+  above?: ReactNode;
 }) {
   const { v, writing, leftByDoor } = useBroadcastsPage({ data, initialSegment, opened: true, flash, onYes });
   const seen = useRef(false);
@@ -302,16 +256,52 @@ export function BroadcastSend({
       leftByDoor.current = false;
     } else if (seen.current && !leftByDoor.current) onDone();
   }, [writing]); // eslint-disable-line react-hooks/exhaustive-deps -- told when the send screen is left, not when its host re-draws
-  return bcComposerGlass(v);
+  return bcComposerGlass(v, above);
 }
 
-export function BroadcastsPage(props: BroadcastsPageProps) {
+/**
+ * What the page is drawn from: Sent's runs, with who each audience reaches once that is read (Send it again offers a run's
+ * list then; a run's screen, To send and Get their yes never wait for it, since it is every page of People:
+ * audiences-surface.ts); a demo session's sample; else nothing yet.
+ */
+function useBroadcastsData(): BcData | null {
   const live = useSurface("broadcasts");
-  // Who each audience reaches, once it is read: Send it again offers a run's list then. A run's sheet, To send and Get their yes
-  // never wait for it, since it is every page of People (audiences-surface.ts).
   const audiences = useSurface("audiences");
   const real = useMemo(() => (live ? { ...audiences, ...live } : null), [live, audiences]);
-  const data = real || (demoSession() ? broadcastsSample() : null);
-  if (!data) return null;
-  return <BroadcastsReal data={data} {...props} />;
+  return real || (demoSession() ? broadcastsSample() : null);
+}
+
+/** What a run's screen is told of where it stands: its id, and, over another page, the host's toast and the sheet. */
+interface RunPlace {
+  id: string;
+  /** The toast host of the page it stands over (surfaces/see/see-mount.tsx), whose toast outlives the sheet. */
+  flash?: Flash;
+  over?: RunOver;
+}
+
+/** A run's screen held by the page's own hook: its acts, the next run waiting it opens, Send it again, and its toasts. */
+function BroadcastRunOf({ data, id, flash, over }: RunPlace & { data: BcData }) {
+  const { v, toastNode } = useBroadcastsPage({ data, initialRun: id, flash, over });
+  return (
+    <>
+      {bcRunSolo({ ...v, openId: v.openId ?? id })}
+      {toastNode}
+    </>
+  );
+}
+
+/**
+ * A run's own screen, at its home under its sequence (the Campaigns wiring review's lane 2, 19 Oct 2026): the one screen a
+ * run has, which follows what it is -- its decision while it waits for an OK (a campaign run's sheet, a reach-out's block),
+ * its Stop while it goes, its report once it went -- held by the same hook as Sent's sheets, so its Approve, its Skip,
+ * the next run waiting it opens and Send it again are the page's. Sequences draws it in place of the record (sequences/
+ * run-pane.tsx). Before Sent's runs are read it is the run's report alone, which reads itself, with no acts yet.
+ */
+export function BroadcastRun({ id, flash, over }: RunPlace) {
+  const data = useBroadcastsData();
+  if (!data)
+    return (
+      <BroadcastDetail id={id} onClose={() => (over ? over.go(null) : backFrom(SEQUENCES_ROUTE, { replace: true }))} />
+    );
+  return <BroadcastRunOf data={data} id={id} flash={flash} over={over} />;
 }
