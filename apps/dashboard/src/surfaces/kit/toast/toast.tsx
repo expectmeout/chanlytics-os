@@ -155,7 +155,7 @@ export function useToast(glyphs: ToastGlyphs): [ReactNode, (flash: ToastFlash) =
       const shape = toastShape({ tone, undo, action, ms, stays });
       if (window.matchMedia?.(PHONE_QUERY).matches)
         for (const [id, kept] of shown.current) if (!kept && id !== once) manager.close(id);
-      const id = manager.add({
+      const id: string = manager.add({
         id: once,
         description: msg,
         timeout: shape.ms,
