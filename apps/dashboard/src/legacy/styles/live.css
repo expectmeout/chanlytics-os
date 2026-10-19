@@ -48,7 +48,7 @@
   cursor: pointer;
   transition: background 100ms;
 }
-.lm-row:hover { background: var(--bg-hover); }
+@media (hover: hover) { .lm-row:hover { background: var(--bg-hover); } }
 .lm-row.active { background: var(--bg-raised); box-shadow: inset 2px 0 0 var(--ink); }
 .lm-row:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .lm-row-dot { display: flex; align-items: center; justify-content: center; height: 32px; }
@@ -79,7 +79,7 @@
 }
 .lm-list-door b { color: var(--ink); font-weight: 500; }
 .lm-list-door > .icon { flex-shrink: 0; margin-left: auto; color: var(--ink-dim); }
-.lm-list-door:hover { background: var(--bg-hover); color: var(--ink); }
+@media (hover: hover) { .lm-list-door:hover { background: var(--bg-hover); color: var(--ink); } }
 .lm-list-door:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 
 /* ---------- Table ---------- */
@@ -142,7 +142,7 @@
   cursor: pointer;
   font-size: var(--text-xs);
 }
-.lm-link:hover { color: var(--ink); }
+@media (hover: hover) { .lm-link:hover { color: var(--ink); } }
 
 /* ---------- Panel ---------- */
 .lm-panel {
@@ -193,7 +193,7 @@
 /* The caller's name opens their page and their number rings them: links in the words' own ink, underlined under a
    pointer, pressed with a thumb's reach that does not make the line taller. */
 .lm-head-who, .lm-head-tel { color: inherit; text-decoration: none; border-radius: var(--radius-xs); -webkit-tap-highlight-color: transparent; }
-.lm-head-who:hover, .lm-head-tel:hover { text-decoration: underline; text-decoration-color: var(--ink-faint); text-underline-offset: 3px; }
+@media (hover: hover) { .lm-head-who:hover, .lm-head-tel:hover { text-decoration: underline; text-decoration-color: var(--ink-faint); text-underline-offset: 3px; } }
 .lm-head-who:focus-visible, .lm-head-tel:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 /* The name's reach grows up, into the head's padding, and the number's down, so the two never share a pixel: both
    reaching 12px each way, a press on the name's lower edge rang the number. */
@@ -348,7 +348,7 @@ a.lm-head-door:active { opacity: 0.72; }
   background: var(--accent-soft);
 }
 .lm-end { color: var(--danger); }
-.lm-end:hover { background: var(--danger-soft); border-color: var(--danger); }
+@media (hover: hover) { .lm-end:hover { background: var(--danger-soft); border-color: var(--danger); } }
 .lm-ended-chip { font-size: 11.5px; color: var(--ink-dim); }
 
 /* Ended call note */
@@ -454,7 +454,7 @@ a.lm-head-door:active { opacity: 0.72; }
 .lm-whisper-row > input { flex: 1 1 auto; min-width: 0; height: 32px; padding: 0; border: 0; background: transparent; box-shadow: none; font: inherit; font-size: var(--text-base); color: var(--ink); outline: none; }
 .lm-whisper-row > input::placeholder { color: var(--ink-faint); }
 .lm-whisper-note { display: flex; align-items: center; justify-self: start; gap: 6px; max-width: 100%; padding: 2px 4px; border: 0; background: none; font: inherit; font-size: var(--text-xs); color: var(--ink-dim); text-align: left; cursor: pointer; }
-.lm-whisper-note:hover { color: var(--ink-muted); }
+@media (hover: hover) { .lm-whisper-note:hover { color: var(--ink-muted); } }
 .lm-whisper-note:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: var(--radius-xs); }
 .lm-whisper-note > svg { flex: none; }
 .lm-whisper-note-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

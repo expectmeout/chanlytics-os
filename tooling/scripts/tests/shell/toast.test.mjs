@@ -148,16 +148,35 @@ globalThis.React = {
 globalThis.ReactDOM = { createPortal: (node) => node };
 // The document's listeners, by type: the toast's press besides is heard here.
 const heard = {};
+// Every listener of each type, in the order they were added: the tip's are the last the file adds as it loads.
+const allHeard = {};
+// The tip's one node: what it says, and whether it shows.
+const tipNode = {
+  shown: new Set(),
+  classList: {
+    add: (c) => tipNode.shown.add(c),
+    remove: (c) => tipNode.shown.delete(c),
+    contains: (c) => tipNode.shown.has(c),
+  },
+  setAttribute() {},
+  style: {},
+  offsetWidth: 120,
+  offsetHeight: 24,
+  textContent: "",
+};
 globalThis.document = {
-  body: {},
+  body: { appendChild() {} },
   addEventListener(type, fn) {
+    (allHeard[type] ??= []).push(fn);
     heard[type] = fn;
   },
   removeEventListener(type, fn) {
     if (heard[type] === fn) delete heard[type];
   },
-  createElement: () => ({ setAttribute() {}, style: {}, classList: { add() {}, remove() {} } }),
+  createElement: () => tipNode,
 };
+globalThis.innerWidth = 375;
+globalThis.innerHeight = 812;
 globalThis.window = {
   __chrome: { toast: toastShape },
   CHANLY: { nav() {} },
@@ -172,6 +191,8 @@ globalThis.window = {
   },
 };
 await import("../../../../apps/dashboard/src/legacy/components/data-bits.jsx");
+// The file ends with its tip: the last listener of each type it added as it loaded is the tip's.
+const tipHeard = Object.fromEntries(Object.entries(allHeard).map(([type, fns]) => [type, fns[fns.length - 1]]));
 const usePPToast = globalThis.window.usePPToast;
 
 /** A component that owns one toast stack; mounting it again reads the cells back. */
@@ -378,6 +399,93 @@ test("a phone shows the newest toast alone, as one snackbar, and stops the clock
   } finally {
     delete globalThis.window.matchMedia;
   }
+});
+
+test("on a phone a send's Undo is never pushed out: the newest toast stands beside it", () => {
+  fresh();
+  mount();
+  globalThis.window.matchMedia = (q) => ({ matches: q === "(max-width: 900px)" });
+  try {
+    flash({ msg: "Rosa — sends in 15 s unless you undo", undo: () => {}, ms: 14_800, stays: true });
+    flash({ msg: "Off Regulars", undo: () => {} });
+    flash({ msg: "Saved" });
+    assert.deepEqual(
+      toastsOf(mount()).map(msgOf),
+      ["Rosa — sends in 15 s unless you undo", "Saved"],
+      "REGRESSION: a toast within the send's four seconds took its Undo away",
+    );
+    assert.equal(live().length, 2);
+  } finally {
+    delete globalThis.window.matchMedia;
+  }
+});
+
+/* ------------------------------- the tip -------------------------------- */
+
+// A control with a tip, as the page draws one.
+const tipped = (text, focusVisible = false) => ({
+  getAttribute: (k) => (k === "data-tip" ? text : null),
+  isConnected: true,
+  getBoundingClientRect: () => ({ top: 400, bottom: 444, left: 100, width: 80, height: 44 }),
+  closest: function () {
+    return this;
+  },
+  matches: (sel) => sel === ":focus-visible" && focusVisible,
+});
+/** Run the tip's timers by hand: the ones it set while `fn` ran, with their lengths. */
+const tipTimers = (fn) => {
+  const set = [];
+  const real = globalThis.setTimeout;
+  globalThis.setTimeout = (cb, ms) => {
+    set.push({ cb, ms });
+    return set.length;
+  };
+  try {
+    fn();
+  } finally {
+    globalThis.setTimeout = real;
+  }
+  return set;
+};
+
+test("a tip a press shows goes by itself under a finger, after a plain toast's three seconds; a mouse's stays", () => {
+  assert.ok(globalThis.window.__tip, "the file's tip is the frame's");
+  tipNode.shown.clear();
+  const control = tipped("Only an owner can change this");
+  const touch = tipTimers(() => {
+    tipHeard.pointerdown({ pointerType: "touch" });
+    globalThis.window.__tip.show(control);
+  });
+  assert.ok(tipNode.shown.has("show"), "the reason shows at the control");
+  const away = touch.find((t) => t.ms === 3000);
+  assert.ok(away, "REGRESSION: under a finger the tip stood until the next tap");
+  const after = tipTimers(() => away.cb());
+  after.forEach((t) => t.cb());
+  assert.ok(!tipNode.shown.has("show"), "three seconds on, it is gone");
+  tipNode.shown.clear();
+  const mouse = tipTimers(() => {
+    tipHeard.pointerdown({ pointerType: "mouse" });
+    globalThis.window.__tip.show(control);
+  });
+  assert.ok(tipNode.shown.has("show"));
+  assert.ok(!mouse.some((t) => t.ms === 3000), "under a mouse it stays until the pointer leaves");
+});
+
+test("focus shows a tip to a keyboard alone: a tap that focuses a button starts none", () => {
+  tipNode.shown.clear();
+  const tapped = tipTimers(() => {
+    const el = tipped("Download everyone as a CSV file", false);
+    tipHeard.focusin({ target: el });
+  });
+  assert.ok(!tapped.some((t) => t.ms === 280 || t.ms === 50), "REGRESSION: a tap's focus raised the tip");
+  const keyed = tipTimers(() => {
+    const el = tipped("Download everyone as a CSV file", true);
+    tipHeard.focusin({ target: el });
+  });
+  assert.ok(
+    keyed.some((t) => t.ms === 280 || t.ms === 50),
+    "Tab to it, and its tip comes",
+  );
 });
 
 test("a press anywhere besides takes every toast but a send's; a press on the stack takes none", () => {

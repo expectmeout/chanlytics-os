@@ -92,7 +92,7 @@
   transition: background 90ms;
   position: relative;
 }
-.sg-row:hover { background: var(--bg-hover); }
+@media (hover: hover) { .sg-row:hover { background: var(--bg-hover); } }
 .sg-row.active { background: var(--bg-active); }
 .sg-row.active::before {
   content: "";
@@ -191,7 +191,7 @@
   border-radius: var(--radius-full);
   transition: color 100ms, border-color 100ms;
 }
-.sg-rule-add:hover { color: var(--ink); border-color: var(--ink-faint); }
+@media (hover: hover) { .sg-rule-add:hover { color: var(--ink); border-color: var(--ink-faint); } }
 
 .sg-statrow {
   margin-top: 16px;
@@ -245,7 +245,7 @@
   transition: background 90ms;
 }
 .sg-usage-row:last-child { border-bottom: none; }
-.sg-usage-row:hover { background: var(--bg-hover); }
+@media (hover: hover) { .sg-usage-row:hover { background: var(--bg-hover); } }
 .sg-usage-row .icon { color: var(--ink-faint); }
 .sg-usage-row .grow { flex: 1; }
 .sg-usage-empty { padding: 14px; font-size: 11.5px; color: var(--ink-dim); text-align: center; }
@@ -276,7 +276,7 @@
   text-underline-offset: 2px;
   transition: color 100ms;
 }
-.sg-notify-note button:hover { color: var(--ink); }
+@media (hover: hover) { .sg-notify-note button:hover { color: var(--ink); } }
 
 /* A list or a segment is a name, not a state: the one chip (components.css .chip). It was blue here, the colour every
    other badge spends on "in progress", and amber for a lead list, which means a person is needed. */
@@ -296,7 +296,7 @@
   transition: color 100ms;
 }
 .cl-next .icon { color: var(--ink-faint); }
-.cl-next:hover { color: var(--info); }
+@media (hover: hover) { .cl-next:hover { color: var(--info); } }
 .cl-next-none { font-size: var(--text-xs); color: var(--ink-faint); font-style: italic; }
 
 /* Preview-only segment filter note */
@@ -345,7 +345,7 @@
   text-align: left;
   transition: background 100ms;
 }
-.cl-health-row:hover { background: var(--bg-hover); }
+@media (hover: hover) { .cl-health-row:hover { background: var(--bg-hover); } }
 .cl-health-row:last-of-type { border-bottom: none; }
 .cl-health-row-label { flex: 1; font-size: 11.5px; color: var(--ink-muted); }
 .cl-health-row-val { font-size: 11.5px; font-weight: 600; }
@@ -404,7 +404,7 @@
   cursor: pointer;
   transition: color 100ms;
 }
-.fl-hint-link:hover { color: var(--ink); }
+@media (hover: hover) { .fl-hint-link:hover { color: var(--ink); } }
 .fl-hint-link .icon { vertical-align: -1px; }
 
 /* Playbook guardrail chip → Settings › Autonomy */
@@ -421,7 +421,7 @@
   padding: 1px 8px;
   transition: color 100ms;
 }
-.fl-guard-link:hover { color: var(--ink); }
+@media (hover: hover) { .fl-guard-link:hover { color: var(--ink); } }
 .fl-guard-link .icon { color: var(--ink-faint); }
 
 /* ---------- Segment Pulse (Today) ---------- */
@@ -454,7 +454,7 @@
   color: var(--ink);
   transition: color 100ms;
 }
-.sp-seg:hover { color: var(--info); }
+@media (hover: hover) { .sp-seg:hover { color: var(--info); } }
 .sp-who { color: var(--ink-muted); }
 .sp-note { color: var(--ink-dim); font-size: var(--text-xs); margin-left: 8px; }
 .sp-row .btn { flex-shrink: 0; }
@@ -481,8 +481,8 @@
   color: var(--info);
   transition: background 100ms, color 100ms;
 }
-.cl-seg-filter-x:hover, .cl-seg-filter-open:hover { background: oklch(0.6 0.12 235 / 0.18); }
-.cl-seg-filter-x:hover { color: var(--danger); background: var(--danger-soft); }
+@media (hover: hover) { .cl-seg-filter-x:hover, .cl-seg-filter-open:hover { background: oklch(0.6 0.12 235 / 0.18); } }
+@media (hover: hover) { .cl-seg-filter-x:hover { color: var(--danger); background: var(--danger-soft); } }
 
 @media (max-width: 900px) {
   .sg-page { grid-template-columns: 1fr; grid-template-rows: auto 1fr; overflow-y: auto; }
@@ -538,6 +538,6 @@
   padding: 3px 10px;
   transition: border-color 100ms, color 100ms;
 }
-.sg-compose-chip:hover { border-color: var(--accent); color: var(--ink); }
+@media (hover: hover) { .sg-compose-chip:hover { border-color: var(--accent); color: var(--ink); } }
 .sg-compose-chip .icon { color: var(--accent); }
 

@@ -220,7 +220,7 @@
 .cal-grid.cal-grid-day { grid-template-columns: 56px minmax(0, 1fr); min-width: 0; }
 /* The day's name as a button (C4): it looks as the head always did, and a keyboard reaches it. */
 .cal-dayhead-open { display: inline-flex; align-items: center; gap: 6px; padding: 0; border: 0; background: none; font: inherit; color: inherit; cursor: pointer; border-radius: var(--radius-sm); }
-.cal-dayhead-open:hover .cal-dow { color: var(--ink); }
+@media (hover: hover) { .cal-dayhead-open:hover .cal-dow { color: var(--ink); } }
 
 /* Footer actions wrap instead of clipping the last button */
 .st-modal-foot{flex-wrap:wrap;row-gap:6px}
@@ -228,7 +228,7 @@
 
 /* ---- The real board: taken blocks from the feed, open windows, the feed's state ---- */
 .cal-appt.feed { background: var(--bg-raised); border-color: var(--line-strong); cursor: pointer; text-align: left; font: inherit; color: var(--ink); }
-.cal-appt.feed:hover { border-color: var(--ink-faint); }
+@media (hover: hover) { .cal-appt.feed:hover { border-color: var(--ink-faint); } }
 .cal-col.past .cal-appt.feed { opacity: 0.7; }
 .cal-open { position: absolute; left: 4px; right: 4px; border: 0; border-radius: var(--radius-sm); background: var(--ok-soft); padding: 3px 6px; overflow: hidden; pointer-events: auto; }
 .cal-open-label { font-size: 10px; color: var(--ok-ink); white-space: nowrap; }
@@ -276,7 +276,7 @@
 /* The day's press is the cell's: the button fills it, and its campaigns' line stands under it with its own press. */
 .cal-month-day { display: flex; flex: 1 1 auto; flex-direction: column; align-items: flex-start; gap: 3px; width: 100%; min-width: 0; padding: 0; border: 0; background: none; font: inherit; color: inherit; text-align: left; cursor: pointer; }
 .cal-month-cell:first-child { border-left: none; }
-.cal-month-cell:hover { background: var(--bg-hover); }
+@media (hover: hover) { .cal-month-cell:hover { background: var(--bg-hover); } }
 .cal-month-cell.muted { color: var(--ink-faint); }
 .cal-month-cell.muted .cal-month-num { color: var(--ink-faint); }
 .cal-month-cell.closed { background: var(--bg-sunken); }
@@ -344,11 +344,11 @@
 .cal-steps .btn:last-child { border-radius: 0 calc(var(--radius-md) - 1px) calc(var(--radius-md) - 1px) 0; }
 .cal-steps .btn-icon { width: 30px; }
 .cal-steps .btn + .btn { border-left: 1px solid var(--line); }
-.cal-steps .btn:hover:not([disabled]) { color: var(--ink); }
+@media (hover: hover) { .cal-steps .btn:hover:not([disabled]) { color: var(--ink); } }
 .cal-steps .btn:focus-visible { position: relative; z-index: 1; }
 .cal-flip { transform: scaleX(-1); }
 .cal-title { position: relative; display: inline-flex; align-items: center; gap: 6px; min-width: 0; padding: 2px 8px; margin-left: -8px; border-radius: var(--radius-sm); color: var(--ink-faint); cursor: pointer; }
-.cal-title:hover { background: var(--bg-hover); color: var(--ink-muted); }
+@media (hover: hover) { .cal-title:hover { background: var(--bg-hover); color: var(--ink-muted); } }
 .cal-title-range { overflow: hidden; font-size: var(--text-lg); font-weight: 500; letter-spacing: -0.01em; color: var(--ink); white-space: nowrap; text-overflow: ellipsis; }
 .cal-title > .icon { flex: none; }
 .cal-tools { display: flex; align-items: center; gap: var(--space-2); min-width: 0; }
@@ -541,8 +541,10 @@
   background: var(--surface-inset-fill);
   box-shadow: var(--surface-inset-depth);
 }
-.main-scroll > .calendar .cal-appt.feed:hover {
-  background: var(--selected-fill);
+@media (hover: hover) {
+  .main-scroll > .calendar .cal-appt.feed:hover {
+    background: var(--selected-fill);
+  }
 }
 /* Today's column against the clock: a booking that is over stands back, the one under way is ringed in the accent. */
 .main-scroll > .calendar .cal-appt.feed[data-phase="past"] {
@@ -794,7 +796,7 @@
   color: var(--ink-muted);
   cursor: pointer;
 }
-.cal-run:hover { background: var(--bg-hover); }
+@media (hover: hover) { .cal-run:hover { background: var(--bg-hover); } }
 .cal-run-words { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cal-run-dot { flex: none; width: 6px; height: 6px; border-radius: var(--radius-full); background: var(--ink-dim); }
 /* Still to come: hollow. A run waiting: the page's one amber. Failed: danger. What went: quiet. */
