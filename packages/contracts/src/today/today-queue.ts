@@ -254,8 +254,11 @@ export function todayQueue(f: TodayFacts, callRows: TodayCallRowVM[], empty: Tod
   const winN = countOf("window");
   const earN = countOf("call");
   const searchN = countOf("search");
+  // The people waiting are said as people: the head's count beside this line is every one of them and every run
+  // waiting for a word (needs-you.ts), and "25 need you" beside a 28 read as two answers to one question (Ruben's
+  // screenshot, 18 Oct 2026); "25 people" and "3 runs waiting" add up to it.
   const parts = [
-    needN ? `${needN} need you` : "",
+    needN ? `${needN} ${needN === 1 ? "person" : "people"}` : "",
     searchN ? `${searchN} ${searchN === 1 ? "search" : "searches"} waiting for your answer` : "",
     winN ? `${winN} reply window${winN === 1 ? "" : "s"} closing` : "",
     earN ? `${earN} call${earN === 1 ? "" : "s"} worth a listen` : "",

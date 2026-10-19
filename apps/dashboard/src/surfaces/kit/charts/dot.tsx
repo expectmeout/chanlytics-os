@@ -106,22 +106,40 @@ function dotWords(p: Placed, days: ChartRow[], props: DotPlotProps) {
   };
 }
 
-/** The dots: the held one whole, the others stepped back while one is held. */
+/**
+ * Where the axis stops when a few dots stand far past the rest: twice the value nine in ten stay under, once the highest is
+ * more than four times it; none for fewer than ten dots, which are drawn whole. One reply eight days late laid every
+ * other dot on the floor of a plot as tall as its eight days (Ruben's screenshot, 18 Oct 2026).
+ */
+function axisCap(values: number[]): number | null {
+  if (values.length < 10) return null;
+  const sorted = [...values].sort((a, b) => a - b);
+  const most = Math.max(1, sorted[Math.floor(0.9 * (sorted.length - 1))] ?? 0);
+  const top = sorted[sorted.length - 1] ?? 0;
+  return top > most * CK_OUTLIER_TIMES ? most * 2 : null;
+}
+const CK_OUTLIER_TIMES = 4;
+
+/** The dots: the held one whole, the others stepped back while one is held; one past the axis stands on its top edge, hollow, its own value in its tip. */
 function dotMarks(
   placed: Placed[],
-  where: { x: (p: Placed) => number; y: (v: number) => number },
+  where: { x: (p: Placed) => number; y: (v: number) => number; top: number },
   active: number | null,
 ) {
-  return placed.map((p, k) => (
-    <circle
-      key={p.at}
-      cx={where.x(p)}
-      cy={where.y(p.dot.value)}
-      r={CK_DOT_R}
-      fill="var(--color-dot)"
-      className={`ck-dotplot-dot${active === null ? "" : active === k ? " hot" : " dim"}`}
-    />
-  ));
+  return placed.map((p, k) => {
+    const over = p.dot.value > where.top;
+    return (
+      <circle
+        key={p.at}
+        cx={where.x(p)}
+        cy={where.y(over ? where.top : p.dot.value)}
+        r={CK_DOT_R}
+        fill={over ? "none" : "var(--color-dot)"}
+        stroke={over ? "var(--color-dot)" : undefined}
+        className={`ck-dotplot-dot${over ? " over" : ""}${active === null ? "" : active === k ? " hot" : " dim"}`}
+      />
+    );
+  });
 }
 
 // days: the card's days, the slots · dots: [{ day, value }], one per event · config: the card's, one series "dot"
@@ -133,7 +151,11 @@ export function DotPlot(props: DotPlotProps) {
   const [ref, width] = useChartWidth();
   const placed = dotsPlaced(days, dots);
   const [active, setActive, nav] = useChartNav(placed.length);
-  const values = [...placed.map((p) => p.dot.value), reference?.value ?? 0];
+  const cap = axisCap(placed.map((p) => p.dot.value));
+  const values = [
+    ...placed.map((p) => (cap === null ? p.dot.value : Math.min(p.dot.value, cap))),
+    reference?.value ?? 0,
+  ];
   const axis = lineAxis(values, { ...props, reference });
   const f = ckFrame({ width, height, max: axis.max, ticks: axis.ticks, labels: axis.labels, R: 2, T: 10, B: 24 });
   const slot = f.pw / Math.max(1, days.length);
@@ -165,7 +187,7 @@ export function DotPlot(props: DotPlotProps) {
         <svg key={animKey} width={width} height={height} className="ck-svg" aria-hidden="true">
           <CkYAxis ticks={axis.ticks} labels={axis.labels} y={f.y} L={f.L} width={width} R={f.R} />
           {reference && referenceLine({ value: reference.value }, f, width)}
-          {dotMarks(placed, { x: dotX, y: f.y }, active)}
+          {dotMarks(placed, { x: dotX, y: f.y, top: cap === null ? Infinity : axis.max }, active)}
           <CkXLabels data={days} x={slotX} every={ckEvery(days.length, f.pw, 46)} height={height} edges={slot < 44} />
         </svg>
       )}

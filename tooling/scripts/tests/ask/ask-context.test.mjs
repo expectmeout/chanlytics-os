@@ -309,7 +309,7 @@ test("Today: the queue's rows the page drew, each as the queue says it (who, the
   );
   assert.equal(b.blocks[0].title, "Today");
   assert.match(textOf(b.blocks[0]), /^Today: /, "the day's standing, first");
-  assert.match(textOf(b.blocks[0]), /1 need you/, "the queue's own parts");
+  assert.match(textOf(b.blocks[0]), /1 person/, "the queue's own parts");
   assert.equal(b.blocks[1].title, "Quinn");
   assert.match(textOf(b.blocks[1]), /^Quinn · /);
   assert.ok(textOf(b.blocks[1]).endsWith(`route: inbox/th-${C2}`), textOf(b.blocks[1]));

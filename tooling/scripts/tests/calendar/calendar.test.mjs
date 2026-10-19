@@ -670,7 +670,7 @@ const marksOn = (dto, day) => calendarRunMarksOf(dto, RUNS_NOW).get(day) ?? [];
 const said = (m) => [m.time, m.name, m.words].filter(Boolean).join(" · ");
 const tueSaid = (dto) => marksOn(dto, "2026-09-08").map(said);
 
-test("(lane C) a one-off send stands at its time in Sent's words; a campaign's run waiting for approval is the day's amber, at no hour; the runs that went are one quiet mark", () => {
+test("(lane C) a one-off send stands at its time in Sent's words; a campaign's run waiting for approval is the day's amber, at no hour; the runs that went stand at their minute", () => {
   const dto = runsWeek(
     [
       runOf("s1", {
@@ -733,7 +733,11 @@ test("(lane C) a one-off send stands at its time in Sent's words; a campaign's r
   );
   const tue = marksOn(dto, "2026-09-08");
   const went = tue.find((m) => m.kind === "campaigns");
-  assert.equal(said(went), "Campaigns · 9 sent", "the day's runs that went, one mark");
+  assert.equal(
+    said(went),
+    "10:05 AM · 2 campaigns · 9 sent",
+    "the runs that went within a quarter hour, one mark at their minute",
+  );
   assert.deepEqual(
     went.items.map((i) => `${i.name} · ${i.words}`),
     ["Appointment reminder · 6 sent", "Thank you · 3 sent"],

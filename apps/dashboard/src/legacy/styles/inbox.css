@@ -59,7 +59,7 @@
   cursor: pointer;
   transition: all 120ms;
 }
-.ix-views-toggle:hover { color: var(--ink); border-color: var(--ink-faint); }
+@media (hover: hover) { .ix-views-toggle:hover { color: var(--ink); border-color: var(--ink-faint); } }
 .ix-views-toggle.open { background: var(--bg-raised); color: var(--ink); }
 
 /* Saved views (collapsed by default) */
@@ -86,9 +86,11 @@
   transition: all 120ms;
   cursor: pointer;
 }
-.ix-view-chip:hover {
-  color: var(--ink);
-  border-color: var(--ink-faint);
+@media (hover: hover) {
+  .ix-view-chip:hover {
+    color: var(--ink);
+    border-color: var(--ink-faint);
+  }
 }
 .ix-view-count { color: var(--ink-faint); font-size: 10px; }
 
@@ -425,7 +427,7 @@
 .ix-th-step-when { flex: none; color: var(--warn-ink); font-weight: 500; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .ix-th-step-for { flex: none; font-size: var(--text-xs); color: var(--ink-dim); white-space: nowrap; }
 .ix-th-step-done { flex: none; margin-left: 4px; padding: 0; border: 0; background: none; font: inherit; font-size: 12px; font-weight: 500; color: var(--ink-muted); cursor: pointer; }
-.ix-th-step-done:hover { color: var(--ink); text-decoration: underline; text-underline-offset: 2px; }
+@media (hover: hover) { .ix-th-step-done:hover { color: var(--ink); text-decoration: underline; text-underline-offset: 2px; } }
 .ix-th-step-done:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: var(--radius-sm); }
 /* A reply to a reach-out, read (reply-strip.jsx): what it was read as and did, above the composer, in the thread's own
    type; its doors are the thread's small ghost buttons, and the composer's line says where an answer goes from. */
@@ -469,8 +471,8 @@
 .ix-th-offer { grid-column: 1 / -1; min-width: 0; margin-top: -4px; }
 .ix-th-go { display: inline-flex; flex: none; color: var(--ink-faint); transition: color var(--duration-fast) var(--ease-out); }
 a.ix-th-who { cursor: pointer; -webkit-tap-highlight-color: transparent; }
-a.ix-th-who:hover .ix-th-name-words { text-decoration: underline; text-decoration-color: var(--ink-faint); text-underline-offset: 3px; }
-a.ix-th-who:hover .ix-th-go { color: var(--ink-dim); }
+@media (hover: hover) { a.ix-th-who:hover .ix-th-name-words { text-decoration: underline; text-decoration-color: var(--ink-faint); text-underline-offset: 3px; } }
+@media (hover: hover) { a.ix-th-who:hover .ix-th-go { color: var(--ink-dim); } }
 a.ix-th-who:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 a.ix-th-who:active { opacity: 0.72; }
 
@@ -756,10 +758,12 @@ a.ix-th-who:active { opacity: 0.72; }
   cursor: pointer;
   transition: all 120ms;
 }
-.ix-exp-toggle:hover {
-  background: var(--bg-sunken);
-  color: var(--ink);
-  border-color: var(--ink-faint);
+@media (hover: hover) {
+  .ix-exp-toggle:hover {
+    background: var(--bg-sunken);
+    color: var(--ink);
+    border-color: var(--ink-faint);
+  }
 }
 .ix-exp-toggle.open {
   background: var(--bg-sunken);
@@ -994,7 +998,7 @@ a.ix-th-who:active { opacity: 0.72; }
   cursor: pointer;
   text-align: left;
 }
-.tl-msg-quote-toggle:hover { color: var(--ink); }
+@media (hover: hover) { .tl-msg-quote-toggle:hover { color: var(--ink); } }
 /* A thumb's reach without a thumb's height. Every button on a touch screen is 44px tall
    (legacy.css), which put 25px of air under the words in every email that quoted; the height
    comes off the box and the reach goes to an ::after that takes no room. */
@@ -1069,7 +1073,7 @@ html.legacy-on .tl-msg-quote-toggle { position: relative; min-height: 0; }
 /* A finger's reach without a finger's size: 44px to press, 22px to see. */
 .tl-call-play::after { content: ""; position: absolute; inset: -11px; border-radius: var(--radius-full); }
 .tl-call-file { display: grid; place-items: center; flex: none; width: 22px; height: 22px; border-radius: var(--radius-full); color: var(--ink-dim); }
-.tl-call-file:hover { color: var(--ink); background: color-mix(in oklab, var(--ink) 7%, transparent); }
+@media (hover: hover) { .tl-call-file:hover { color: var(--ink); background: color-mix(in oklab, var(--ink) 7%, transparent); } }
 .tl-call-file:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 
 /* A call the conversation moved on from, folded to what it was about. */
@@ -1088,7 +1092,7 @@ html.legacy-on .tl-msg-quote-toggle { position: relative; min-height: 0; }
   text-decoration-color: color-mix(in oklab, currentColor 35%, transparent);
   text-underline-offset: 2px;
 }
-.tl-call-open:hover { color: var(--ink); }
+@media (hover: hover) { .tl-call-open:hover { color: var(--ink); } }
 .tl-call-open::after { content: ""; position: absolute; inset: -12px -8px; }
 .tl-call-open:focus-visible { outline: none; border-radius: var(--radius-xs); box-shadow: var(--focus-ring); }
 
@@ -1101,7 +1105,7 @@ html.legacy-on .tl-msg-quote-toggle { position: relative; min-height: 0; }
 .tl-msg.tl-spoken.whisper .tl-msg-body { font-style: italic; }
 .tl-spoken-whisper { color: var(--ink-dim); }
 .tl-spoken-t { position: relative; padding: 0; border: 0; background: none; font: inherit; font-size: 10.5px; color: var(--ink-dim); cursor: pointer; }
-.tl-spoken-t:hover { color: var(--ink); text-decoration: underline; text-underline-offset: 2px; }
+@media (hover: hover) { .tl-spoken-t:hover { color: var(--ink); text-decoration: underline; text-underline-offset: 2px; } }
 .tl-spoken-t:focus-visible { outline: none; border-radius: var(--radius-xs); box-shadow: var(--focus-ring); }
 .tl-spoken-t::after { content: ""; position: absolute; inset: -12px -10px; }
 .tl-msg.tl-spoken.now .tl-spoken-t { color: var(--ink); font-weight: 600; }
@@ -1142,7 +1146,7 @@ html.legacy-on .tl-listen-play, html.legacy-on .tl-listen-speed, html.legacy-on 
   color: var(--ink);
   cursor: pointer;
 }
-.tl-listen-play:hover { background: color-mix(in oklab, var(--ink) 15%, transparent); }
+@media (hover: hover) { .tl-listen-play:hover { background: color-mix(in oklab, var(--ink) 15%, transparent); } }
 .tl-listen-play::after { content: ""; position: absolute; inset: -7px; border-radius: var(--radius-full); }
 .tl-listen-who { flex: none; max-width: 30%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; font-weight: 550; color: var(--ink); }
 .tl-listen-clock { flex: none; font-size: var(--text-xs); color: var(--ink-dim); }
@@ -1163,7 +1167,7 @@ html.legacy-on .tl-listen-play, html.legacy-on .tl-listen-speed, html.legacy-on 
   color: var(--ink-muted);
   cursor: pointer;
 }
-.tl-listen-speed:hover, .tl-listen-close:hover { background: color-mix(in oklab, var(--ink) 8%, transparent); color: var(--ink); }
+@media (hover: hover) { .tl-listen-speed:hover, .tl-listen-close:hover { background: color-mix(in oklab, var(--ink) 8%, transparent); color: var(--ink); } }
 .tl-listen-speed::after, .tl-listen-close::after { content: ""; position: absolute; inset: -10px -4px; }
 .tl-listen-play:focus-visible, .tl-listen-speed:focus-visible, .tl-listen-close:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 /* The track: pressed, dragged, or moved by the keyboard's arrows. */
@@ -1273,7 +1277,7 @@ html.legacy-on .tl-listen-play, html.legacy-on .tl-listen-speed, html.legacy-on 
   border-radius: 3px;
   cursor: pointer;
 }
-.ix-composer-regen:hover { background: var(--bg-raised); color: var(--ink); }
+@media (hover: hover) { .ix-composer-regen:hover { background: var(--bg-raised); color: var(--ink); } }
 
 .ix-composer-text {
   width: 100%;
@@ -1495,10 +1499,12 @@ html.legacy-on .tl-listen-play, html.legacy-on .tl-listen-speed, html.legacy-on 
   cursor: pointer;
   transition: all 120ms;
 }
-.ix-ask-chip:hover {
-  background: var(--bg-raised);
-  color: var(--ink);
-  border-color: var(--ink-faint);
+@media (hover: hover) {
+  .ix-ask-chip:hover {
+    background: var(--bg-raised);
+    color: var(--ink);
+    border-color: var(--ink-faint);
+  }
 }
 
 /* Autonomy segmented */
@@ -1528,7 +1534,7 @@ html.legacy-on .tl-listen-play, html.legacy-on .tl-listen-speed, html.legacy-on 
   text-align: center;
   line-height: 1.3;
 }
-.ix-aut-seg:hover { color: var(--ink); background: var(--bg-sunken); }
+@media (hover: hover) { .ix-aut-seg:hover { color: var(--ink); background: var(--bg-sunken); } }
 .ix-aut-seg.active {
   background: var(--bg-raised);
   color: var(--ink);
@@ -1697,11 +1703,11 @@ html.legacy-on .tl-listen-play, html.legacy-on .tl-listen-speed, html.legacy-on 
 
 /* Linked context-strip cells + evidence rows */
 button.ix-ctx { text-align: left; cursor: pointer; transition: background 100ms; }
-button.ix-ctx:hover { background: var(--bg-hover); }
+@media (hover: hover) { button.ix-ctx:hover { background: var(--bg-hover); } }
 .ix-ctx.linked .ix-ctx-value { display: inline-flex; align-items: center; gap: 4px; }
 .ix-ctx.linked .ix-ctx-value .icon { color: var(--ink-faint); }
 .ix-evid.linked { cursor: pointer; transition: background 100ms; border-radius: var(--radius-sm); }
-.ix-evid.linked:hover { background: var(--bg-hover); }
+@media (hover: hover) { .ix-evid.linked:hover { background: var(--bg-hover); } }
 
 /* Ask-the-agent mini log */
 .ix-ask-log { display: flex; flex-direction: column; gap: 8px; margin-bottom: 8px; }
@@ -1736,7 +1742,7 @@ button.ix-ctx:hover { background: var(--bg-hover); }
   text-decoration: underline;
   text-underline-offset: 2px;
 }
-.ix-aut-saved button:hover { color: var(--ink); }
+@media (hover: hover) { .ix-aut-saved button:hover { color: var(--ink); } }
 
 /* Stale-view reconciliation — concurrent change landed while reading */
 .ix-stale {
@@ -1773,7 +1779,7 @@ button.ix-ctx:hover { background: var(--bg-hover); }
 /* Verdict card */
 .ix-verdict-opts{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;padding:0 14px 12px}
 .ix-verdict-opt{display:flex;flex-direction:column;align-items:flex-start;gap:4px;border:1px solid var(--line);border-radius:var(--radius-md);background:var(--bg-raised);padding:12px;cursor:pointer;text-align:left}
-.ix-verdict-opt:hover{border-color:var(--accent);box-shadow:var(--shadow-sm)}
+@media (hover: hover) { .ix-verdict-opt:hover{border-color:var(--accent);box-shadow:var(--shadow-sm)} }
 .ix-verdict-opt .icon{color:var(--accent)}
 .ix-verdict-label{font-size:13px;font-weight:600;color:var(--ink)}
 .ix-verdict-sub{font-size:var(--text-xs);color:var(--ink-dim);line-height:1.4}
@@ -1800,7 +1806,7 @@ button.ix-ctx:hover { background: var(--bg-hover); }
 .ix-pol-locked b{color:var(--ink);font-weight:var(--weight-medium)}
 .ix-pol-locked .icon{color:var(--warn);flex-shrink:0;margin-top:1px}
 .ix-pol-link{display:inline-flex;align-items:center;gap:3px;background:none;border:none;padding:0;margin-top:4px;color:var(--accent);font:inherit;font-size:var(--text-xs);cursor:pointer}
-.ix-pol-link:hover{text-decoration:underline}
+@media (hover: hover) { .ix-pol-link:hover{text-decoration:underline} }
 
 /* The composer's honest state when a workspace has no approved template.
    Outside the 24-hour window WhatsApp delivers nothing else, so the operator
@@ -1816,7 +1822,7 @@ button.ix-ctx:hover { background: var(--bg-hover); }
   text-underline-offset: 2px;
   cursor: pointer;
 }
-.ix-why:hover { color: var(--ink); }
+@media (hover: hover) { .ix-why:hover { color: var(--ink); } }
 .ix-why-said { display: block; margin-top: 4px; color: var(--ink-dim); }
 .ix-tpl-none {
   font-size: 12px;
@@ -1843,7 +1849,7 @@ button.ix-ctx:hover { background: var(--bg-hover); }
 }
 .ix-composer-row .ix-tpl-name:hover { background: transparent; }
 .ix-composer-row .ix-tpl-name .icon { flex: none; color: var(--ink-dim); }
-.ix-composer-row .ix-tpl-name:hover .icon { color: var(--ink); }
+@media (hover: hover) { .ix-composer-row .ix-tpl-name:hover .icon { color: var(--ink); } }
 .ix-tpl-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* A call offered over the capsule: the two read as one dock, not two boxes. */
 .ix-composer-lead { padding-bottom: 0; }
@@ -1914,7 +1920,7 @@ button.ix-ctx:hover { background: var(--bg-hover); }
 .ix-state-acts { display: flex; align-items: center; }
 /* The act that answers the state: a soft fill, not a slab. The screen keeps one solid button, the reply box's Send. */
 .btn.ix-state-go { background: color-mix(in oklab, var(--ink) 9%, transparent); border-color: transparent; color: var(--ink); }
-.btn.ix-state-go:hover { background: color-mix(in oklab, var(--ink) 15%, transparent); border-color: transparent; }
+@media (hover: hover) { .btn.ix-state-go:hover { background: color-mix(in oklab, var(--ink) 15%, transparent); border-color: transparent; } }
 .btn.ix-state-go .icon { color: currentColor; }
 
 /* ---- Where the conversation stands: one slim bar under the header (ThreadBar) ----
@@ -1933,7 +1939,9 @@ button.ix-ctx:hover { background: var(--bg-hover); }
   background: var(--bg-sunken);
   color: var(--ink-dim);
 }
-.ix-th-standing { flex: 1 1 0; display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
+/* The state and its wait, "Needs you · waiting 42m": as far apart as the space after the dot, which 8px made
+   "Needs you  ·waiting" (the sample walk, 18 Oct 2026). */
+.ix-th-standing { flex: 1 1 0; display: inline-flex; align-items: center; gap: 4px; min-width: 0; }
 /* The pill names the state, with a dot in its colour: how much it asks of you, said without a word more. */
 .ix-th-standing .pill { display: inline-block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; line-height: 20px; }
 /* Inline-block so the words clip: the quiet state's dot is laid inline, and a filled pill draws none (a dot inside a
@@ -1956,7 +1964,7 @@ button.ix-ctx:hover { background: var(--bg-hover); }
 /* The thread's Actions: a ghost button with a word, lit while its menu is open. A ⋯ alone in the dim ink was too
    faint to find on a phone. */
 .btn.ix-th-more { height: var(--control-h-md); padding: 0 10px; border-radius: var(--control-radius); color: var(--ink-muted); font-size: 12px; }
-.btn.ix-th-more:hover, .btn.ix-th-more[aria-expanded="true"] { background: var(--bg-hover); color: var(--ink); }
+.btn.ix-th-more[aria-expanded="true"] { background: var(--bg-hover); color: var(--ink); } @media (hover: hover) { .btn.ix-th-more:hover { background: var(--bg-hover); color: var(--ink); } }
 /* Beside the wires, who this is: the next visit ahead, or the last one behind them, in People's words. The wires keep
    their words; the chip is what gives way when the line is short (it squeezed "Phone" out on a 375px phone). */
 .ix-th-sub { display: flex; align-items: center; min-width: 0; }
@@ -1967,7 +1975,7 @@ button.ix-ctx:hover { background: var(--bg-hover); }
 /* Their visit the same way (S9-7): a desk draws the chip as its own door beside the head, a phone as the chip in it. */
 .ix-th-sub .ix-th-visit-said { display: none; }
 .ix-th-visit-door { flex: none; text-decoration: none; }
-.ix-th-visit-door:hover { color: var(--ink); }
+@media (hover: hover) { .ix-th-visit-door:hover { color: var(--ink); } }
 /* The door gives way before the name does, and its words end in an ellipsis rather than reach the Actions beside it. */
 .ix-th-works { flex: 0 3 auto; min-width: 0; max-width: 50%; overflow: hidden; }
 .ix-th-works-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -2161,6 +2169,12 @@ button.ix-ctx:hover { background: var(--bg-hover); }
 .ix-threads {
   order: 4;
 }
+/* The runs waiting, a line over the rows: the list has no sides of its own (each row brings its 8px and its 12px), so the
+   line stood on the pane's edge, its door wrapped under it there (the sample walk, 18 Oct 2026). Its glyph stands where a
+   row's face does, and its words end where a row's do. */
+.ix-threads > [data-testid="inbox-runs-waiting"] {
+  padding: 12px 18px 4px 20px;
+}
 /* ---- A row is one person on the pane itself; the open one is the lozenge (I1) ---- */
 /* The runs waiting for your say over them are rows of the same column (.ix-runs, inbox-runs.tsx). */
 .ix-thread-rows,
@@ -2175,8 +2189,10 @@ button.ix-ctx:hover { background: var(--bg-hover); }
   border-bottom-color: transparent;
   border-radius: var(--surface-row-radius);
 }
-.ix-thread:hover {
-  background: var(--hover-fill);
+@media (hover: hover) {
+  .ix-thread:hover {
+    background: var(--hover-fill);
+  }
 }
 .ix-thread.active {
   background: var(--selected-fill);
@@ -2302,10 +2318,15 @@ button.ix-ctx:hover { background: var(--bg-hover); }
   font-weight: var(--weight-medium);
   color: var(--ink-muted);
 }
-.ix-th-actions .ix-th-more:hover,
 .ix-th-actions .ix-th-more[aria-expanded="true"] {
   background: var(--surface-inset-fill);
   color: var(--ink);
+}
+@media (hover: hover) {
+  .ix-th-actions .ix-th-more:hover {
+    background: var(--surface-inset-fill);
+    color: var(--ink);
+  }
 }
 /* Where it stands: the kit's pill as Glass draws a state, its dot and its words in the tone's ink (amber is the one
    warning), and the wait beside it in the dim ink; the chat's state, when WhatsApp's window is shut, a lock and its words
@@ -2335,8 +2356,10 @@ button.ix-ctx:hover { background: var(--bg-hover); }
   position: absolute;
   inset: -12px -8px;
 }
-.ix-th-bar .ix-th-window:hover {
-  color: var(--ink);
+@media (hover: hover) {
+  .ix-th-bar .ix-th-window:hover {
+    color: var(--ink);
+  }
 }
 .ix-th-standing-meta {
   font-size: var(--text-sm);
@@ -2460,8 +2483,10 @@ button.ix-ctx:hover { background: var(--bg-hover); }
     var(--surface-inset-depth);
   color: var(--ink);
 }
-.ix-th-status .ix-state-acts > .ix-state-go:hover {
-  background: var(--selected-fill);
+@media (hover: hover) {
+  .ix-th-status .ix-state-acts > .ix-state-go:hover {
+    background: var(--selected-fill);
+  }
 }
 /* The reply box as the canvas draws it (I1): one capsule of the control layer's glass, holding the line that grows
    and, at its right end, the one Send in coral; the field has no edge of its own inside it. The boxes that offer a
@@ -2571,8 +2596,10 @@ button.tl-stamp::after {
   position: absolute;
   inset: -14px -6px;
 }
-button.tl-stamp:hover {
-  color: var(--ink);
+@media (hover: hover) {
+  button.tl-stamp:hover {
+    color: var(--ink);
+  }
 }
 button.tl-stamp:focus-visible {
   outline: none;

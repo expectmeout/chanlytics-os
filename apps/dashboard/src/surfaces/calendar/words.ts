@@ -6,7 +6,7 @@
 import { DAY_MS, MIN_MS, type CalendarView } from "@chanlytics/contracts";
 
 /**
- * The least an hour may be on the board, in px. A desk draws 64 (calendar.css `--cal-hour`); a phone shares the room the
+ * The least an hour may be on a phone's board, in px. A desk draws 64 where its day fits (fitDeskHourPx); a phone shares the room the
  * page leaves among the day's hours (blocks.tsx CrBoard), and under this a half-hour block (22px at the least) would cover
  * more than a sliver of the one after it. Nine hours fit a 375px phone at it; a longer day scrolls inside its pane.
  */
@@ -18,6 +18,19 @@ const CR_HOUR_MIN_PX = 40;
  */
 export const fitHourPx = (room: number, hours: number): number =>
   Math.max(CR_HOUR_MIN_PX, Math.floor(Math.max(0, room) / Math.max(1, hours)));
+
+/** A desk's hour where the day fits at it (calendar.css `--cal-hour`), and the least a desk's hour is drawn at. */
+const CR_DESK_HOUR_PX = 64;
+const CR_DESK_HOUR_MIN_PX = 48;
+
+/**
+ * A desk's hour: the stylesheet's 64px where the day fits at it, else what fits, never under 48. A desk's board holds still
+ * where its day fits, as a phone's does: at a flat 64px an 8 AM to 7 PM day was 704px in a board of about 620, so it
+ * always scrolled, and opening an hour above five-thirty pushed the morning, a 9 AM visit with it, off the top (Ruben's
+ * screenshots, 18 Oct 2026). Only a day too long for 48px scrolls, and that one opens at now (CAL-7).
+ */
+export const fitDeskHourPx = (room: number, hours: number): number =>
+  Math.min(CR_DESK_HOUR_PX, Math.max(CR_DESK_HOUR_MIN_PX, Math.floor(Math.max(0, room) / Math.max(1, hours))));
 
 export const CR_VIEWS: ReadonlyArray<readonly [CalendarView, string]> = [
   ["week", "Week"],

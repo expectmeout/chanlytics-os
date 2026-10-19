@@ -262,7 +262,7 @@ export function sequenceRowLine(row, tz, nowMs, twin = null) {
   if (row.starts === "date" && row.date) {
     const at = Date.parse(row.date.at);
     if (row.last)
-      return `Sent ${clockDate(Date.parse(row.last.at), tz, nowMs)} \xB7 ${row.last.sent} \xB7 ${row.last.replied} replied`;
+      return `Sent ${clockDate(Date.parse(row.last.at), tz, nowMs)} \xB7 ${plural(row.last.sent, "person", "people")} \xB7 ${row.last.replied} replied`;
     return `${clockDate(at, tz, nowMs)} \xB7 ${plural(row.date.people, "person", "people")}`;
   }
   if (row.state === "paused") return row.in_it > 0 ? `${row.in_it} waiting` : "Paused";

@@ -227,9 +227,24 @@ function periodFactsOf(dto) {
     hold: holdOf(dto.replies)
   };
 }
-const reasonBarsOf = (reasons) => bars(
-  Object.entries(reasons ?? {}).sort((a, b) => b[1] - a[1]).map(([r, n]) => [r, capitalize(reasonShort(r)) || r, n])
-);
+const reasonBarsOf = (reasons) => {
+  const byLabel = /* @__PURE__ */ new Map();
+  for (const [r, n] of Object.entries(reasons ?? {}).sort((a, b) => b[1] - a[1])) {
+    const label = capitalize(reasonShort(r)) || r;
+    const had = byLabel.get(label);
+    byLabel.set(label, had ? [had[0], label, had[2] + n] : [r, label, n]);
+  }
+  return bars([...byLabel.values()].sort((a, b) => b[2] - a[2]));
+};
+const REPORT_REASONS_SHOWN = 7;
+const reasonsShownOf = (reasons) => {
+  if (reasons.length <= REPORT_REASONS_SHOWN + 1) return { bars: reasons, line: null };
+  const top = reasons.slice(0, REPORT_REASONS_SHOWN);
+  return {
+    bars: bars(top.map((r) => [r.id, r.label, r.value])),
+    line: `The ${REPORT_REASONS_SHOWN} most frequent of ${reasons.length} reasons. The table lists them all.`
+  };
+};
 const moodBarsOf = (sentiments) => bars(
   Object.entries(sentiments ?? {}).sort((a, b) => moodRank(a[0]) - moodRank(b[0]) || b[1] - a[1]).map(([s, n]) => [s, s, n])
 );
@@ -352,6 +367,7 @@ export function toReportVM(dto, opts) {
     tiles,
     answered: answeredOf(f),
     reasons,
+    reasonsShown: reasonsShownOf(reasons),
     replyTime: replyTimeOf(f),
     calls: callsOf(f, sentiments),
     people: peopleOf(f),

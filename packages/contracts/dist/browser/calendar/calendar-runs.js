@@ -6,6 +6,7 @@ import { clockInZone, dayInZone } from "./zone-math.js";
 import { shiftKey } from "./day-keys.js";
 import { clockLabel } from "./calendar-words.js";
 import { plural } from "../shared/words.js";
+import { MIN_MS } from "../shared/time.js";
 const CALENDAR_RUN_DOORS = { sent: "Open in Sent", campaigns: "Open in Campaigns" };
 export const CALENDAR_SHOW_WORDS = {
   label: "Show",
@@ -112,15 +113,29 @@ function failedMark(r, name, tz) {
     items: []
   };
 }
-function wentMark(day, runs) {
+const WENT_FOLD_MS = 15 * MIN_MS;
+function wentMarks(day, runs, tz) {
+  const timed = runs.map((x) => ({ ...x, at: placedAt(x.r) })).sort((a, b) => a.at - b.at);
+  const folds = [];
+  for (const x of timed) {
+    const fold = folds[folds.length - 1];
+    const first = fold?.[0];
+    if (fold && first && Number.isFinite(x.at) && x.at - first.at <= WENT_FOLD_MS) fold.push(x);
+    else folds.push([x]);
+  }
+  return folds.map((fold) => wentMark(day, fold, tz));
+}
+function wentMark(day, runs, tz) {
   const sent = runs.reduce((n, x) => n + x.r.sent, 0);
   const one = runs.length === 1 ? runs[0] : void 0;
+  const first = runs[0];
+  const t = first && Number.isFinite(first.at) ? hoursIn(tz, first.at) : null;
   return {
-    key: `campaigns:${day}`,
+    key: `campaigns:${day}:${first?.r.id ?? ""}`,
     kind: "campaigns",
-    t: null,
-    time: "",
-    name: one ? one.name : RUN_WORDS.many,
+    t,
+    time: t === null ? "" : clockLabel(t),
+    name: one ? one.name : plural(runs.length, "campaign", "campaigns"),
     words: RUN_WORDS.sent(sent),
     tone: "plain",
     ahead: false,
@@ -182,7 +197,7 @@ function runMarks(dto, days, todayKey, names) {
     else if (r.state === "failed") pushOn(days, day, failedMark(r, name, tz));
     else if (r.state === "sent" || r.state === "sending") went.set(day, [...went.get(day) ?? [], { r, name }]);
   }
-  for (const [day, runs] of went) pushOn(days, day, wentMark(day, runs));
+  for (const [day, runs] of went) for (const m of wentMarks(day, runs, tz)) pushOn(days, day, m);
   for (const c of cold.values())
     pushOn(days, c.day, coldMark(c.day, c.id, names.get(c.id) ?? c.runs[0]?.name ?? "", c.runs, todayKey));
 }

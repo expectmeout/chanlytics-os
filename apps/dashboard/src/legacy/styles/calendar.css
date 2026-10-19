@@ -220,7 +220,7 @@
 .cal-grid.cal-grid-day { grid-template-columns: 56px minmax(0, 1fr); min-width: 0; }
 /* The day's name as a button (C4): it looks as the head always did, and a keyboard reaches it. */
 .cal-dayhead-open { display: inline-flex; align-items: center; gap: 6px; padding: 0; border: 0; background: none; font: inherit; color: inherit; cursor: pointer; border-radius: var(--radius-sm); }
-.cal-dayhead-open:hover .cal-dow { color: var(--ink); }
+@media (hover: hover) { .cal-dayhead-open:hover .cal-dow { color: var(--ink); } }
 
 /* Footer actions wrap instead of clipping the last button */
 .st-modal-foot{flex-wrap:wrap;row-gap:6px}
@@ -228,7 +228,7 @@
 
 /* ---- The real board: taken blocks from the feed, open windows, the feed's state ---- */
 .cal-appt.feed { background: var(--bg-raised); border-color: var(--line-strong); cursor: pointer; text-align: left; font: inherit; color: var(--ink); }
-.cal-appt.feed:hover { border-color: var(--ink-faint); }
+@media (hover: hover) { .cal-appt.feed:hover { border-color: var(--ink-faint); } }
 .cal-col.past .cal-appt.feed { opacity: 0.7; }
 .cal-open { position: absolute; left: 4px; right: 4px; border: 0; border-radius: var(--radius-sm); background: var(--ok-soft); padding: 3px 6px; overflow: hidden; pointer-events: auto; }
 .cal-open-label { font-size: 10px; color: var(--ok-ink); white-space: nowrap; }
@@ -242,11 +242,12 @@
   html.legacy-on .cal-appt { min-height: 0; }
 }
 .cal-nav .icon { display: block; }
-/* A day head holds the day, the date, and at most a Today chip on one line;
-   a closure or an all-day event takes its own line under them. */
-.cal-dayhead { flex-wrap: wrap; row-gap: 3px; align-items: center; }
+/* A day head holds the day and the date on one line at its top, a closure under them, and the day's lane at its foot: the
+   same on every day, so the dates line up. A head with less in it centred its date, and the week's dates stood at two
+   heights (Ruben's screenshot, 18 Oct 2026). */
+.cal-dayhead { flex-direction: column; align-items: flex-start; row-gap: 3px; }
+.cal-dayhead-when { display: inline-flex; align-items: center; gap: 6px; }
 .cal-dayhead .cal-date { white-space: nowrap; }
- .cal-dayhead .cal-allday { flex-basis: 100%; }
 
 /* ---- Month, agenda, the rules bar, the controls ---- */
 /* The service picker takes the room its choice needs and no more, on one line: it narrows the board's open times to the
@@ -276,7 +277,7 @@
 /* The day's press is the cell's: the button fills it, and its campaigns' line stands under it with its own press. */
 .cal-month-day { display: flex; flex: 1 1 auto; flex-direction: column; align-items: flex-start; gap: 3px; width: 100%; min-width: 0; padding: 0; border: 0; background: none; font: inherit; color: inherit; text-align: left; cursor: pointer; }
 .cal-month-cell:first-child { border-left: none; }
-.cal-month-cell:hover { background: var(--bg-hover); }
+@media (hover: hover) { .cal-month-cell:hover { background: var(--bg-hover); } }
 .cal-month-cell.muted { color: var(--ink-faint); }
 .cal-month-cell.muted .cal-month-num { color: var(--ink-faint); }
 .cal-month-cell.closed { background: var(--bg-sunken); }
@@ -344,11 +345,11 @@
 .cal-steps .btn:last-child { border-radius: 0 calc(var(--radius-md) - 1px) calc(var(--radius-md) - 1px) 0; }
 .cal-steps .btn-icon { width: 30px; }
 .cal-steps .btn + .btn { border-left: 1px solid var(--line); }
-.cal-steps .btn:hover:not([disabled]) { color: var(--ink); }
+@media (hover: hover) { .cal-steps .btn:hover:not([disabled]) { color: var(--ink); } }
 .cal-steps .btn:focus-visible { position: relative; z-index: 1; }
 .cal-flip { transform: scaleX(-1); }
 .cal-title { position: relative; display: inline-flex; align-items: center; gap: 6px; min-width: 0; padding: 2px 8px; margin-left: -8px; border-radius: var(--radius-sm); color: var(--ink-faint); cursor: pointer; }
-.cal-title:hover { background: var(--bg-hover); color: var(--ink-muted); }
+@media (hover: hover) { .cal-title:hover { background: var(--bg-hover); color: var(--ink-muted); } }
 .cal-title-range { overflow: hidden; font-size: var(--text-lg); font-weight: 500; letter-spacing: -0.01em; color: var(--ink); white-space: nowrap; text-overflow: ellipsis; }
 .cal-title > .icon { flex: none; }
 .cal-tools { display: flex; align-items: center; gap: var(--space-2); min-width: 0; }
@@ -541,8 +542,10 @@
   background: var(--surface-inset-fill);
   box-shadow: var(--surface-inset-depth);
 }
-.main-scroll > .calendar .cal-appt.feed:hover {
-  background: var(--selected-fill);
+@media (hover: hover) {
+  .main-scroll > .calendar .cal-appt.feed:hover {
+    background: var(--selected-fill);
+  }
 }
 /* Today's column against the clock: a booking that is over stands back, the one under way is ringed in the accent. */
 .main-scroll > .calendar .cal-appt.feed[data-phase="past"] {
@@ -775,7 +778,80 @@
 
 /* ---- A closure in a day's head ---- */
 .cal-closed { font-size: var(--text-2xs); color: var(--ink-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
-.cal-dayhead .cal-closed, .cal-dayhead .cal-runs { flex-basis: 100%; }
+
+/* ---- The day lane under the dates (C1, C5, C6): the all-day events and the campaigns of the day alone, a row each; every
+   lane of the week as tall as its fullest (blocks.tsx sets --cal-lane-rows), so their tops line up ---- */
+.cal-daylane {
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-width: 0;
+  /* Its rows, the gaps between them, and its own top padding and line (a border-box's height holds both). */
+  min-height: calc(var(--cal-lane-rows, 1) * 20px + (var(--cal-lane-rows, 1) - 1) * 2px + var(--space-1) + 1px);
+  margin-top: auto;
+  padding-top: var(--space-1);
+  border-top: 1px solid var(--line);
+}
+.cal-daylane .cal-runs { flex-direction: column; flex-wrap: nowrap; align-items: flex-start; gap: 2px; max-width: 100%; }
+.cal-daylane .cal-allday { display: flex; align-items: center; min-height: 20px; margin-top: 0; }
+/* Every row of a lane is one height, so a lane with a mark is no taller than an empty one and the band stays one line. */
+.cal-daylane :is(.cal-run, .cal-allday) { height: 20px; }
+/* One band across the board: each lane's line runs to its column's edges, and the corner over the hours draws its piece,
+   standing where the heads' lanes stand (the heads' foot padding). */
+.main-scroll > .calendar .cal-dayhead > .cal-daylane { margin-inline: calc(-1 * var(--space-3)); padding-inline: var(--space-3); }
+.cal-corner:has(> .cal-daylane) { display: flex; flex-direction: column; padding-bottom: var(--space-2); }
+@media (max-width: 720px) {
+  .main-scroll > .calendar .cal-grid:not(.cal-grid-day) .cal-corner > .cal-daylane { display: none; }
+}
+
+/* ---- A campaign at its minute (C2, C3): a moment, never a block. One height whatever it holds, no fill for what is to
+   come (dashed) and the faintest for what went, so it never reads as a booked chair; beside a visit, the right half ---- */
+.cal-moment {
+  position: absolute;
+  left: 4px;
+  right: 4px;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 18px;
+  padding: 0 var(--space-1);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  font: inherit;
+  font-size: var(--text-2xs);
+  line-height: 1;
+  color: var(--ink-muted);
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  cursor: pointer;
+}
+.cal-moment[data-side] { left: calc(50% + 1px); }
+/* A week's column is narrow: beside a visit a moment is its glyph and its clock at the column's right, and the visit keeps
+   the rest (blocks.tsx CR_SIDE_W), its name whole; Day view, and the sheet, say the moment's words. */
+.cal-grid:not(.cal-grid-day) .cal-moment[data-side] { left: auto; width: 60px; }
+.cal-grid:not(.cal-grid-day) .cal-moment[data-side] .cal-moment-words { display: none; }
+.cal-moment > svg { flex: none; }
+.cal-moment-time { flex: none; color: var(--ink-dim); }
+.cal-moment-words { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.cal-moment[data-look="went"] { background: var(--info-soft); border-color: transparent; }
+.cal-moment[data-look="ahead"] { border-style: dashed; border-color: var(--info); }
+.cal-moment[data-look="fail"] { border-color: var(--danger); color: var(--danger-ink); }
+.cal-moment[data-look="wait"] { background: var(--warn-soft); border-color: transparent; color: var(--warn-ink); }
+/* Lit under a pointer only: a finger's last tap keeps nothing lit (#1718). */
+@media (hover: hover) {
+  .cal-moment:hover { border-color: var(--ink-faint); }
+}
+.cal-moment:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+/* A phone's week is seven narrow columns: a moment there is its glyph, its words in Day view and the sheet. */
+@media (max-width: 720px) {
+  .main-scroll > .calendar .cal-grid:not(.cal-grid-day) .cal-moment { justify-content: center; padding: 0; }
+  .main-scroll > .calendar .cal-grid:not(.cal-grid-day) .cal-moment :is(.cal-moment-time, .cal-moment-words) { display: none; }
+}
 
 /* ---- Campaigns on the board (lane C): marks, never blocks ---- */
 .cal-runs { display: flex; flex-wrap: wrap; gap: 2px var(--space-1); min-width: 0; }
@@ -794,7 +870,7 @@
   color: var(--ink-muted);
   cursor: pointer;
 }
-.cal-run:hover { background: var(--bg-hover); }
+@media (hover: hover) { .cal-run:hover { background: var(--bg-hover); } }
 .cal-run-words { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cal-run-dot { flex: none; width: 6px; height: 6px; border-radius: var(--radius-full); background: var(--ink-dim); }
 /* Still to come: hollow. A run waiting: the page's one amber. Failed: danger. What went: quiet. */

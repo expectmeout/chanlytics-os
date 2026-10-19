@@ -121,6 +121,22 @@
     position: absolute;
     inset: -8px -4px;
   }
+  /* Today's other small presses, each the 44px floor round it and nothing new drawn (18 Oct 2026, measured at 375px):
+     Open Inbox is a 20px line of words (8px over and under made 36), a card's door ("See the thread", "Open Reports")
+     36px, and While you were away's Mark all read the kit's 32px small button. */
+  html.legacy-on .tq-open::after {
+    inset: -12px -4px;
+  }
+  html.legacy-on .brief-door,
+  html.legacy-on .ta-readall {
+    position: relative;
+  }
+  html.legacy-on .brief-door::after,
+  html.legacy-on .ta-readall::after {
+    content: "";
+    position: absolute;
+    inset: -6px 0;
+  }
 }
 
 /* A held draft has NOT been sent. It must not read like the messages above it

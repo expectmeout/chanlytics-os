@@ -5554,6 +5554,14 @@ interface ReportVM {
         priorShare: number | null;
     };
     reasons: ReportBarVM[];
+    /**
+     * What Why it stopped draws: every reason, or the most frequent where there are more than a card holds, with the line
+     * that says so (null when every one is drawn). The table beside it keeps `reasons`, all of them.
+     */
+    reasonsShown: {
+        bars: ReportBarVM[];
+        line: string | null;
+    };
     replyTime: {
         count: number;
         median: number | null;
@@ -26190,7 +26198,8 @@ declare function visitTitleWithout(title: string, names: readonly (string | null
  * - a one-off send (a broadcast with no campaign) at its time, in Sent's words for its state (BROADCAST_STATE_LABELS);
  * - a campaign's run waiting for approval, on its day and never at an hour (its scheduled_for is the moment it was made),
  *   the page's one amber (RUN_WAITING_WORDS), "Too late to approve" once its day has passed;
- * - the campaign runs that went, one quiet "Campaigns · N sent" a day (todayRunWords' kind), the day's sheet naming each;
+ * - the campaign runs that went, at the minute they went, those within a quarter hour one quiet "N campaigns · N sent"
+ *   (todayRunWords' kind), the day's sheet naming each;
  * - each running campaign's next run, today or tomorrow only, per campaign: "10 AM · … · to come" where its class sends
  *   by itself or after a Stop, "to approve tomorrow" where it waits for a person; never where a run row already stands for
  *   it that day or a later one, where it has ended, or while the workspace is paused;
@@ -41697,8 +41706,9 @@ declare function sequenceRowState(row: SequenceRowDto): {
 } | null;
 /**
  * A list row's second line, after what starts it: what needs you where something does, else what comes next or what
- * went last. "Fri, Oct 30 · 186 people", "next tomorrow 9:00 AM", "Sent Oct 12 · 184 · 12 replied", "10 in it". A twin
- * says so first (sequenceTwinOf).
+ * went last. "Fri, Oct 30 · 186 people", "next tomorrow 9:00 AM", "Sent Oct 12 · 184 people · 12 replied", "10 in it". A
+ * twin says so first (sequenceTwinOf). A count says what it counts: "Sent Oct 12 · 184 · 12 replied" read as a stray number
+ * under "Dec 29 · 5 people" (the sample walk, 18 Oct 2026).
  */
 declare function sequenceRowLine(row: SequenceRowDto, tz: string, nowMs: number, twin?: SequenceTwin | null): string;
 /** A sequence's head line under its name: "Before a visit · one message · since Sep 18". */

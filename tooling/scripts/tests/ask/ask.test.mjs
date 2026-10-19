@@ -929,8 +929,8 @@ test("the bridge: the jump index and Right now come from the surfaces, the quick
       rows: [
         {
           id: "r1",
-          name: "Win-back · 2026-09-21",
-          run_for: "2026-09-21",
+          name: "Win-back",
+          playbook_id: "pb-win",
           state: "pending_approval",
           recipient_count: 1,
           when: "now",
@@ -974,12 +974,13 @@ test("the bridge: the jump index and Right now come from the surfaces, the quick
   assert.deepEqual(
     api.waiting().runs.map((r) => [r.id, r.label, r.reach, r.to]),
     [["r1", "Win-back", 1, "broadcasts/run:r1"]],
+    "REGRESSION: a run is called by its own name less its day, as Today's queue and the Inbox say it; by its audience's label a one-off sent to a list was the list (18 Oct 2026)",
   );
-  // A run is called by its own name less its day (contracts runTitleOf), as the Inbox and its sheet call it, never by
-  // its audience's label; a name that does not end in its day is kept whole.
-  win.__BROADCASTS.rows[0].run_for = "2026-09-22";
-  assert.equal(api.waiting().runs[0].label, "Win-back · 2026-09-21");
-  win.__BROADCASTS.rows[0].run_for = "2026-09-21";
+  // A run whose audience has no name (a reach-out's carries its ids alone) is called the same way (contracts runTitleOf).
+  const named = win.__BROADCASTS.rows[0].audience;
+  win.__BROADCASTS.rows[0].audience = null;
+  assert.equal(api.waiting().runs[0].label, "Win-back");
+  win.__BROADCASTS.rows[0].audience = named;
   // How many more wait past the rows is the one count's threads (Today's own copy until the Inbox is read), not a sum of rows.
   const counted = win.TODAY_DATA.needsYou;
   win.TODAY_DATA.needsYou = { ...(counted ?? { hint: "", rows: [], empty: null }), count: 9, holds: 9, sends: 0 };

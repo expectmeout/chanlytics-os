@@ -285,7 +285,9 @@ function sourceRow(s: CampaignSourceVM) {
   return (
     <tr key={s.id} data-testid="source-row">
       <td>
+        {/* The row's door: the cell's size and ink, no underline (the kit's `inherit`; see campaigns-reach-outs.tsx sourceName). */}
         <LinkButton
+          size="inherit"
           className="rpt-src"
           {...routeDoor(
             addressOf(s.kind === "broadcast" ? { kind: "send", id: s.id } : { kind: "campaign", id: s.id }),

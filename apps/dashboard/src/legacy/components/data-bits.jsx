@@ -53,7 +53,7 @@ const StatCell = ({ label, value, valueSize, meta, metaTone = "", spark, tip, ch
 // GOING (Ruben, 18 Oct 2026: on a phone toasts stood far too long). A press anywhere besides it, or on its words, takes
 // it (the press does what it does as well), and so do Escape inside it, its Undo or act, and under a finger a pull down
 // or a flick across (touchSwipe); no × (a tap besides is one). A send's Undo `stays` through a tap besides. A phone
-// shows the newest alone, as one snackbar: three stood over its page's foot.
+// shows the newest alone, as one snackbar (three stood over its foot), and a send's Undo beside it, never pushed out.
 // Usage: const [toastNode, flash] = usePPToast();
 //   flash({ msg, tone?: "ok"|"info"|"warn"|"danger", undo?, action?: {label,onClick}, links?: [{label,to}], ms?, icon?, once?, stays? })
 // `once`: a name for what the toast says; a second flash with the same name refreshes that toast in place of stacking
@@ -107,7 +107,7 @@ const usePPToast = (place) => {
       const twin = payload.once ? ts.find((x) => x.once === payload.once) : null;
       if (twin) stop(twin.id);
       const next = [...ts.filter((x) => x !== twin), { ...payload, ...shape, id }];
-      while (next.length > toastCap()) stop(next.shift().id);
+      while (next.filter((x) => !x.stays).length > toastCap()) stop(next.splice(next.findIndex((x) => !x.stays), 1)[0].id);
       return next;
     });
     arm(id, shape.ms);
@@ -857,7 +857,7 @@ Object.assign(window, { refusalToast, trapFocus, dialogRef, keyPress });
 // ---- Tip — one styled tooltip for every [data-tip] element (hover + keyboard focus) ----
 (() => {
   if (window.__tip) return;
-  let node = null, showT = null, hideT = null, lastHide = 0, cur = null;
+  let node = null, showT = null, hideT = null, lastHide = 0, cur = null, touch = false; const TIP_TOUCH_MS = 3000;
   const ensure = () => {
     if (!node) { node = document.createElement("div"); node.className = "ui-tip"; node.setAttribute("role", "tooltip"); document.body.appendChild(node); }
     return node;
@@ -880,7 +880,7 @@ Object.assign(window, { refusalToast, trapFocus, dialogRef, keyPress });
     if (y + th > innerHeight - 6) y = Math.max(6, r.top - th - m);
     const x = Math.max(6, Math.min(r.left + r.width / 2 - tw / 2, innerWidth - tw - 6));
     tip.style.left = x + "px"; tip.style.top = y + "px";
-    tip.classList.add("show");
+    tip.classList.add("show"); if (touch) hideT = setTimeout(hide, TIP_TOUCH_MS);
   };
   const show = (t) => {
     cur = t;
@@ -900,15 +900,15 @@ Object.assign(window, { refusalToast, trapFocus, dialogRef, keyPress });
     if (t === cur) return;
     if (t) show(t); else if (cur) hide();
   });
-  document.addEventListener("mousedown", hide, true);
+  document.addEventListener("pointerdown", (e) => { touch = e.pointerType !== "mouse"; hide(); }, true);
   document.addEventListener("focusin", (e) => {
     const t = e.target && e.target.closest ? e.target.closest("[data-tip]") : null;
-    if (t) show(t); else if (cur) hide();
+    if (t && e.target.matches && e.target.matches(":focus-visible")) show(t); else if (cur) hide();
   });
   window.addEventListener("scroll", hide, true);
   window.addEventListener("resize", hide);
   window.addEventListener("keydown", (e) => { if (e.key === "Escape") hide(); });
-  // A pressed gate shows its reason at once, at the control: a tap has no hover,
-  // and the press's own mousedown has just hidden whatever the hover began.
+  // A pressed gate shows its reason at once, at the control (a tap has no hover). Under a finger a tip goes after a plain
+  // toast's 3 s and focus shows one to a keyboard alone: a tapped tip stood until the next tap (Ruben, 18 Oct 2026).
   window.__tip = { show: (t) => { if (!t || !t.getAttribute || !t.getAttribute("data-tip")) return; cur = t; clearTimeout(showT); clearTimeout(hideT); place(t); } };
 })();

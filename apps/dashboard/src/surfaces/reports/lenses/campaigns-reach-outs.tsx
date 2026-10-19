@@ -60,12 +60,17 @@ function MailboxesTable({ rows }: { rows: ReachOutMailboxRow[] }) {
   );
 }
 
-/** A reach-out's name, a door to its row on Playbooks; a step's is plain, and a line under either says what it is. */
+/**
+ * A reach-out's name, a door to its row on Playbooks; a step's is plain, and a line under either says what it is. The name
+ * is the row's door, so it takes the cell's own size and ink with no underline (the kit's `inherit`): the quiet link's
+ * small underlined words showed their line only through the gaps between letters, a mark at each space and hyphen
+ * (Ruben's screenshot, 18 Oct 2026).
+ */
 function sourceName(s: ReachOutLensSourceLine) {
   if (s.kind === "step") return <span className="rpt-src-meta">{s.name}</span>;
   if (s.to === null) return <span className="rpt-src">{s.name}</span>;
   return (
-    <LinkButton className="rpt-src" {...routeDoor(s.to)} data-testid="ro-source-open">
+    <LinkButton size="inherit" className="rpt-src" {...routeDoor(s.to)} data-testid="ro-source-open">
       {s.name}
     </LinkButton>
   );

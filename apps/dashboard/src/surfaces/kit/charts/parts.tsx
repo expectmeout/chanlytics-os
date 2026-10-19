@@ -58,26 +58,46 @@ export function CkXLabels({
   edges?: boolean;
 }) {
   const n = data.length;
+  const said = (i: number) => {
+    const row = data[i];
+    return String((i === 0 || i === n - 1 || n <= 8 ? row?.label : row?.short || row?.label) ?? "");
+  };
+  const anchor = (i: number) => (!edges || n === 1 ? "middle" : i === 0 ? "start" : i === n - 1 ? "end" : "middle");
+  // Where a tick's words reach, from the mono face's width: the first and last say the whole date ("Oct 18") where the
+  // others say the day alone, and on a long window a day's "14" stood inside the last one's words ("14Oct 18"; Ruben's
+  // screenshot, 18 Oct 2026). A tick between them is drawn only clear of both.
+  const span = (i: number): [number, number] => {
+    const w = said(i).length * CK_TICK_CH;
+    const at = x(i);
+    const a = anchor(i);
+    return a === "start" ? [at, at + w] : a === "end" ? [at - w, at] : [at - w / 2, at + w / 2];
+  };
+  const ends = n > 1 ? [span(0), span(n - 1)] : [];
+  const clear = (i: number) => {
+    if (i === 0 || i === n - 1) return true;
+    const [l, r] = span(i);
+    return ends.every(([el, er]) => r + CK_TICK_GAP <= el || l - CK_TICK_GAP >= er);
+  };
   return (
     <g className="ck-x">
       {data.map(
         (row, i) =>
           (i % every === 0 || i === n - 1) &&
-          (i === n - 1 || n - 1 - i >= every * 0.6) && (
-            <text
-              key={row.day || i}
-              x={x(i)}
-              y={height - 7}
-              className="ck-tick"
-              textAnchor={!edges || n === 1 ? "middle" : i === 0 ? "start" : i === n - 1 ? "end" : "middle"}
-            >
-              {i === 0 || i === n - 1 || n <= 8 ? row.label : row.short || row.label}
+          (i === n - 1 || n - 1 - i >= every * 0.6) &&
+          clear(i) && (
+            <text key={row.day || i} x={x(i)} y={height - 7} className="ck-tick" textAnchor={anchor(i)}>
+              {said(i)}
             </text>
           ),
       )}
     </g>
   );
 }
+
+/** About how wide one character of a tick is: the mono face at charts.css's 10.5px (`.ck-tick`) is 0.6 of its size. */
+const CK_TICK_CH = 6.3;
+/** The least room between two ticks' words: two characters, since one read "13 Oct 18" as one date. */
+const CK_TICK_GAP = 2 * CK_TICK_CH;
 
 // The legend mirrors the mark (a rect for bars and areas, a short line for lines), for two or more series: one
 // series' legend only says the title again. Values ride beside the label in ink; the colour is only ever the key's.

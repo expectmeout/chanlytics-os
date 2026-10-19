@@ -49,7 +49,10 @@ function answeredCard(vm: ReportVM, days: number) {
           data={vm.answered.points}
           keys={["ai", "you", "none"]}
           config={RPT_ANSWERED}
-          height={188}
+          // The room its row gives it: Why it stopped beside it may stand taller, and a chart of a set height left the
+          // card's lower half empty (Ruben's screenshot, 18 Oct 2026).
+          height="fill"
+          floor={188}
           animKey={days}
           ariaLabel="Customer messages per day, split by who answered. The arrow keys read each day."
           tipNote={(d) => plural(d.in, "customer message")}
@@ -75,10 +78,11 @@ function reasonsCard(vm: ReportVM) {
       className="rpt-span-4"
       title="Why it stopped"
       testid="chart-reasons"
+      takeaway={vm.reasonsShown.line}
       table={{ columns: ["Reason", "Times"], rows: vm.reasons.map((r) => [r.label, r.value]) }}
     >
       {vm.reasons.length ? (
-        <BarList rows={vm.reasons.map((r) => ({ id: r.id, label: r.label, value: r.value }))} />
+        <BarList rows={vm.reasonsShown.bars.map((r) => ({ id: r.id, label: r.label, value: r.value }))} />
       ) : (
         <EmptyState
           kind="line"
