@@ -578,10 +578,11 @@
    state. The line is the kit's list row's (kit.css), drawn on the Inbox's, Conversations', Live's and People's and
    Leads' rows, which are their pages' own: at the top of every row but a list's first, from under the name
    (--row-rule-start) to the row's far padding, inside the row, since a row out of sight is painted only inside its box
-   (content-visibility). A row in a fill of its own (under a finger or the pointer, picked, a call going on) stands
-   clear of the lines on either side of it, which fade with the fill. Above 900px each list keeps the row it has.
-   Messages' line is campaigns.css's, on the lozenge inside its row, and History's days say where they take none
-   (sequences.css). */
+   (content-visibility). A row in a fill of its own (under the pointer, picked, a call going on) stands clear of the
+   lines on either side of it, which fade with the fill. Under the pointer only where a pointer hovers, as the fill is
+   (#1718): a touch keeps :hover on the last row tapped, and its lines went while it wore no fill (Ruben, 19 Oct 2026).
+   Above 900px each list keeps the row it has. Messages' line is campaigns.css's, on the lozenge inside its row, and
+   History's days say where they take none (sequences.css). */
 @media (max-width: 900px) {
   .ix-thread + .ix-thread::after,
   .cv-row + .cv-row::after,
@@ -597,14 +598,24 @@
     pointer-events: none;
     transition: opacity var(--duration-fast) var(--ease-out);
   }
-  .ix-thread + .ix-thread:is(:hover, .selected)::after,
-  .ix-thread:is(:hover, .selected) + .ix-thread::after,
-  .cv-row + .cv-row:is(:hover, .selected, .is-live:not(.active))::after,
-  .cv-row:is(:hover, .selected, .is-live:not(.active)) + .cv-row::after,
+  .ix-thread + .ix-thread.selected::after,
+  .ix-thread.selected + .ix-thread::after,
+  .cv-row + .cv-row:is(.selected, .is-live:not(.active))::after,
+  .cv-row:is(.selected, .is-live:not(.active)) + .cv-row::after,
+  .pl-table tbody > tr[id] + tr[id].selected::after,
+  .pl-table tbody > tr[id].selected + tr[id]::after {
+    opacity: 0;
+  }
+}
+@media (max-width: 900px) and (hover: hover) {
+  .ix-thread + .ix-thread:hover::after,
+  .ix-thread:hover + .ix-thread::after,
+  .cv-row + .cv-row:hover::after,
+  .cv-row:hover + .cv-row::after,
   .lm-row + .lm-row:hover::after,
   .lm-row:hover + .lm-row::after,
-  .pl-table tbody > tr[id] + tr[id]:is(:hover, .selected)::after,
-  .pl-table tbody > tr[id]:is(:hover, .selected) + tr[id]::after {
+  .pl-table tbody > tr[id] + tr[id]:hover::after,
+  .pl-table tbody > tr[id]:hover + tr[id]::after {
     opacity: 0;
   }
 }
@@ -700,9 +711,11 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
     top: calc(118px + env(safe-area-inset-top, 0px));
   }
   /* A page that takes the screen over (data-takeover on its root, above) is headed by its own person or call: the
-     frame's head and strip of views, the tab bar and the room kept for it leave. */
+     frame's head and strip of views, the tab bar and the room kept for it leave. The bar is named by its class under a
+     :has(), never its test id: a :has() over an attribute had every element with a test id styled again each time the
+     page under the strip changed (the strips review, 18 Oct 2026: 12 to 17 ms a swap on a phone's CPU). */
   .main:has(> .main-scroll > [data-takeover]) .pg-slot,
-  .app-root:has([data-takeover]) [data-testid="phone-tabs"] {
+  .app-root:has([data-takeover]) .phone-places {
     display: none;
   }
   /* An open thread is headed by its own person: the page's date and the bell over its capsule stand down too, 44px given
@@ -730,7 +743,7 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
       translate var(--duration-fast) var(--ease-out),
       visibility 0s linear 0s;
   }
-  .app-root:has([data-dock]:not([data-leaving])) [data-testid="phone-tabs"] {
+  .app-root:has([data-dock]:not([data-leaving])) .phone-places {
     opacity: 0;
     translate: 0 6px;
     visibility: hidden;
@@ -742,7 +755,7 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
   }
   @media (prefers-reduced-motion: reduce) {
     [data-testid="phone-tabs"],
-    .app-root:has([data-dock]:not([data-leaving])) [data-testid="phone-tabs"] {
+    .app-root:has([data-dock]:not([data-leaving])) .phone-places {
       transition: none;
     }
   }

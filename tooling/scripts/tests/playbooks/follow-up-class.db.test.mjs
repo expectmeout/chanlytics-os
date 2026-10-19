@@ -79,7 +79,7 @@ test(
       [...POLICY_CLASSES].sort(),
       "the matrix is contracts' classes, no more",
     );
-    // A new follow-up sequence's first batch waits for an OK, and each after it goes unless stopped (decision 0064, 00462).
+    // A new follow-up sequence's first batch waits for an OK, and each after it goes unless stopped (decision 0064, 00463).
     assert.equal(modes.follow_up, "veto", "a new follow-up sequence starts held for a stop");
     // Its modes are the route's: auto, veto or ask (0064). The row moves; money's never does.
     const moved = await db

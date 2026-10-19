@@ -92,6 +92,11 @@ function summaryStateOf(c) {
   if (c.summary) return "ready";
   return c.live || c.endedMs !== null && c.nowMs - c.endedMs < ANALYSIS_GRACE_MS ? "pending" : "none";
 }
+function turnsAndLastOf(dto) {
+  const transcript = turnsOf(dto);
+  const said = [...transcript].reverse().find((t) => t.speaker === "client" && t.text);
+  return { transcript, saidLast: said ? said.text : dto.said_last ?? null };
+}
 export function toLiveCallVM(dto, tz, now = /* @__PURE__ */ new Date()) {
   const nowMs = now.getTime();
   const withheld = !dto.from_e164 && !dto.from_raw;
@@ -142,7 +147,7 @@ export function toLiveCallVM(dto, tz, now = /* @__PURE__ */ new Date()) {
     outcomeWords: live ? null : callOutcomeWords(dto.outcome),
     notes: live ? { todo: null, gave: [] } : callNotesOf(dto),
     lengthWords: live || missed || !callLength(dto.duration_ms) ? null : spokenDuration(dto.duration_ms),
-    transcript: turnsOf(dto)
+    ...turnsAndLastOf(dto)
   };
 }
 export function toLiveVM(calls, channels, tz, now = /* @__PURE__ */ new Date()) {

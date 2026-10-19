@@ -4,14 +4,14 @@
  * How it runs, under "Before each batch", and under each Autonomy row for its class, so the owner moves a mode on what
  * happened. Nothing here suggests a mode or moves one (the decision's "a sequence never moves itself to Send it").
  *
- * The counts are the database's (00461 sequence_evidence, over EVIDENCE_DAYS); pure words here.
+ * The counts are the database's (00462 sequence_evidence, over EVIDENCE_DAYS); pure words here.
  */
 import { plural } from "../shared/words";
 
 /** How far back a sequence's evidence reaches: the database function's own default. */
 export const EVIDENCE_DAYS = 90;
 
-/** One sequence's batches over EVIDENCE_DAYS, as 00461 sequence_evidence counts them. */
+/** One sequence's batches over EVIDENCE_DAYS, as 00462 sequence_evidence counts them. */
 export interface SequenceEvidenceDto {
   sequence_id: string;
   /** Its first step's class: the Autonomy row it is counted under. */

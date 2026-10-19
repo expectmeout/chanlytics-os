@@ -299,7 +299,7 @@ export const SERVER_NOTIFICATION_KINDS = [
   /**
    * The receptionist's reply waits to go in the owner's name (decision 0064, step 2): the hold window they set, or a reply
    * it was not sure of. A line on the bell and the phone, told once per reply as it is queued (the edge's draft queue),
-   * that opens the thread; closed when the reply goes or is stopped (00461 messages_reply_held_closes). No mail: it waits
+   * that opens the thread; closed when the reply goes or is stopped (00462 messages_reply_held_closes). No mail: it waits
    * minutes, not hours.
    */
   "reply_held",

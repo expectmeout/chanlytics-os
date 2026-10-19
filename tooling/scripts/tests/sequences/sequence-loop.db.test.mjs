@@ -282,7 +282,7 @@ test(
 );
 
 test(
-  "a first step's hour, cap, last day and name reach the steps after it; a step with a name of its own keeps it; a step added later takes them (the trial gone: 00462)",
+  "a first step's hour, cap, last day and name reach the steps after it; a step with a name of its own keeps it; a step added later takes them (the trial gone: 00463)",
   { skip },
   async () => {
     const [root, second, third] = await sequenceWith("VIP color clients", [14, 7]);

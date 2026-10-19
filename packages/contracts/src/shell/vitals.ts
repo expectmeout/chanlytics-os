@@ -176,6 +176,8 @@ export const PRIMARY_PART: Readonly<Record<string, string>> = {
   pipeline: "board",
   person: "hero",
   calendar: "board",
+  // Campaigns is Sequences' list (decision 0060): its rows, which the page's code arrives with (a chunk of its own).
+  campaigns: "list",
 };
 
 /**

@@ -344,7 +344,7 @@ type HeldReplyFacts = { atMs: number; unsure: boolean; reply: string; who: strin
 /**
  * The receptionist's reply waits to go in the owner's name (decision 0064, step 2): told once, as it is queued, on the
  * bell and the phones that take it (no mail: it waits minutes), opening its thread, with when it goes by the business's
- * clock. The server closes the row when the reply goes or is stopped (00461). A notice that fails is logged by pgSafe,
+ * clock. The server closes the row when the reply goes or is stopped (00462). A notice that fails is logged by pgSafe,
  * never the reply's failure: the sink's `replyHeld`.
  */
 function tellReplyHeld(

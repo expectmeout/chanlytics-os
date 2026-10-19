@@ -182,16 +182,19 @@
   .fr-find[data-hits]:not([data-more]) .fr-stack > div > :nth-child(n + 2),
   .fr-find[data-hits]:not([data-more]) .fr-find-form { display: none; }
   .fr-find[data-hits]:not([data-more]) .fr-find-more { display: inline-flex; justify-self: start; }
+  /* The foot floats as every phone foot does, a sheet's and a person's dock: a capsule 14px in from the edges and over
+     the home bar, its way on 6px in (19 Oct 2026: a flat bar on the screen's edge, the only one). */
   .fr-foot {
-    position: fixed; left: 0; right: 0; bottom: 0; z-index: 2; flex-wrap: wrap;
-    padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px));
-    border-top: 1px solid var(--line);
+    position: fixed; left: 14px; right: 14px; bottom: calc(14px + env(safe-area-inset-bottom, 0px)); z-index: 2;
+    flex-wrap: wrap; gap: 8px; padding: 6px;
+    border-radius: var(--surface-control-radius);
+    box-shadow: var(--surface-control-depth);
   }
   /* No Back on the first step: its empty place is not kept, or the button starts a gap in from the page's edge. */
   .fr-foot > span:empty { display: none; }
   .fr-go { flex: 1 1 auto; justify-content: center; }
   /* Why the way on is held, what it starts charging, and Live's note: over the button, never squeezed beside it. */
-  .fr-held, .fr-foot-note, .fr-price { flex: 1 1 100%; order: -1; text-align: left; }
+  .fr-held, .fr-foot-note, .fr-price { flex: 1 1 100%; order: -1; padding: 8px 10px 2px; text-align: left; }
   .fr-price { display: block; font-size: var(--text-base); font-weight: var(--weight-medium); color: var(--ink); }
   .fr-call { display: inline-flex; }
   .fr-summary-row { grid-template-columns: minmax(0, 1fr); gap: 2px; }

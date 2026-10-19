@@ -85,7 +85,9 @@ export const PRIMARY_PART = {
   leads: "table",
   pipeline: "board",
   person: "hero",
-  calendar: "board"
+  calendar: "board",
+  // Campaigns is Sequences' list (decision 0060): its rows, which the page's code arrives with (a chunk of its own).
+  campaigns: "list"
 };
 export const PAGE_VITALS_READ = { days: 7, most: 25e3 };
 export const PAGE_VITALS_MIN_LOADS = 20;

@@ -12,7 +12,7 @@ const { runReachOut, sendIdFor, sendMessageId, reachOutRunIdFor } = await import
 );
 
 const NOW = Date.parse("2026-09-28T11:00:00Z"); // a Monday, 6 AM in Austin, 4 AM in Los Angeles
-/** When its owner last let a batch of a step's words go (00461 words_ok_at): its words seen. */
+/** When its owner last let a batch of a step's words go (00462 words_ok_at): its words seen. */
 const SEEN = "2026-09-21T15:00:00Z";
 const RUN = await reachOutRunIdFor("p1", "2026-09-28");
 const lead = (id, over = {}) => ({
@@ -42,7 +42,7 @@ const root = (over = {}) => ({
   template_id: "tpl1",
   template_name: "reach_first",
   template_language: "en",
-  // Its words new to its owner (00461): its first run waits for them.
+  // Its words new to its owner (00462): its first run waits for them.
   words_ok_at: null,
   ...over,
 });

@@ -3,7 +3,7 @@
  * the words a change says. The drawer's Pause and Resume, Ask's change card and PUT playbooks/:id's patch body name them
  * from here; core checkPlaybookPatch judges a change against the playbook as it stands; the change_playbook door writes
  * it with its line in the ledger. Since 00416 a change may name the campaign's words (`params`, the slot specs a run
- * fills) and its last day (`until`), which null clears; since 00461 its sequence's mode (`mode`, decision 0064). English,
+ * fills) and its last day (`until`), which null clears; since 00462 its sequence's mode (`mode`, decision 0064). English,
  * as every card is (Spanish cards are one later lane for all of them, D31).
  */
 import { clockHour } from "../shared/clock";

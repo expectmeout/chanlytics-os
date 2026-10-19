@@ -14,7 +14,7 @@ import { declareReads } from "@/legacy-bridge/surface-registry";
 import type { SurfaceOverride } from "@/legacy-bridge/surface-data";
 import { routeOnScreen } from "@/legacy-bridge/workspace";
 import { toConversationVM, toCallVM, type CallDto, type ConversationDto } from "@chanlytics/contracts";
-import { declareSurfaceValue, setSurfaceValue } from "../surface-values";
+import { declareSurfaceValue, setSurfaceValue, shareUnchanged, surfaceValue } from "../surface-values";
 import { namedByRoute } from "./address";
 import { cvCallsStandAsTheirThread } from "./cv-rules";
 import type { ConversationRow } from "./types";
@@ -136,14 +136,19 @@ export const conversationsOverride: SurfaceOverride = {
     // display strings ("Aug 26" vs "3:22 AM"), which is not an ordering at all
     // — a message sent this morning listed below yesterday's calls.
     const merged: ConversationRow[] = [...threads, ...callRows].sort((a, b) => (b.ts ?? 0) - (a.ts ?? 0));
+    const was = surfaceValue("conversations");
     setSurfaceValue("conversations", {
-      CONVERSATIONS: merged,
+      // A row the read gave as it was keeps its object, so it is not drawn again (shareUnchanged), as the Inbox's threads.
+      CONVERSATIONS: shareUnchanged(was?.CONVERSATIONS, merged),
       // A calls read that failed is its own state: the page says so instead
       // of listing no calls (the audit's D9 family).
       CALLS_READ: !(callsRes instanceof Error),
-      CV_CHANNELS: conversationTabs(
-        callRows.length > 0,
-        threads.map((t) => t.channel),
+      CV_CHANNELS: shareUnchanged(
+        was?.CV_CHANNELS,
+        conversationTabs(
+          callRows.length > 0,
+          threads.map((t) => t.channel),
+        ),
       ),
     });
   },

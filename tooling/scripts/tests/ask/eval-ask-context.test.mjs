@@ -1183,7 +1183,7 @@ const SETUP_AND_CHANGE = [
   "change_rename_and_hour",
   "change_hour_out_of_bounds",
   "change_leads_pause",
-  // A change's new fields (00416; the review after the merge, batch E): its words, its last day, and since 00461 its
+  // A change's new fields (00416; the review after the merge, batch E): its words, its last day, and since 00462 its
   // sequence's mode, where its trial was.
   "change_words",
   "change_last_day",
@@ -1345,7 +1345,7 @@ test("the cases fit their workspace and name the new reads (the review after the
   );
   for (const [id, field] of [
     ["change_last_day", "until"],
-    // Its sequence's mode (00461, decision 0064), where its trial was: the card names it as sequence_mode.
+    // Its sequence's mode (00462, decision 0064), where its trial was: the card names it as sequence_mode.
     ["change_hold_each_batch", "sequence_mode"],
   ])
     assert.deepEqual(

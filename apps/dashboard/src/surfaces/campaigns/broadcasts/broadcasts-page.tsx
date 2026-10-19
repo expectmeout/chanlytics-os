@@ -19,9 +19,9 @@
  * (`useSurface("audiences")`) once that is read; a demo session draws the same page from the sample (sample.ts); without
  * either, nothing is drawn.
  */
-import { Suspense, lazy, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
-import type { ConsentChannel } from "@chanlytics/contracts";
+import { LIFECYCLE_WORDS, type ConsentChannel } from "@chanlytics/contracts";
 import { canDo, demoSession, useLegacyToast } from "../../legacy-verbs";
 import { useUnsavedWork } from "../../kit/record/work";
 import { surfaceValue } from "../../surface-values";
@@ -34,6 +34,7 @@ import { bcPeopleOf, bcPreviewOf, bcReachOf, bcSlotChoicesOf, bcSlotWordsOf } fr
 import { bcComposerGlass } from "./page/send-screen";
 import { bcYesPane } from "./page/yes-pane";
 import { BcToSendAll } from "../reach-out/to-send-all";
+import { sequencesListPaneNow } from "../home/campaigns-code";
 import {
   useBcArmed,
   useBcList,
@@ -48,12 +49,6 @@ import type { BcApproving, BcBase, BcData, BcV, BcWhole, Flash } from "./page/ty
 import { bcDefault, bcIsStarter } from "./page/words";
 import { BC_NONE } from "./run";
 import { broadcastsSample } from "./sample";
-
-// Sequences' list, beside what a sheet opens: its own chunk, the one Campaigns fetches for Sequences, so a sheet's page carries
-// none of it until it draws, and a visit from Sequences has it already.
-const SequencesListPane = lazy(() =>
-  import("../sequences/sequences-page").then((m) => ({ default: m.SequencesListPane })),
-);
 
 interface BroadcastsPageProps {
   initialSegment?: string | null;
@@ -238,6 +233,9 @@ function useBroadcastsPage({
 
 function BroadcastsReal(props: BroadcastsRealProps) {
   const { v, toastNode, writing, openId, toSend } = useBroadcastsPage(props);
+  // Sequences' list is Campaigns' chunk (home/campaigns-code.tsx): drawn at once where the tab holds it, which a visit from
+  // Campaigns, a reach for Sent's door or the idle frame has seen to; taken once for the mount.
+  const [SequencesListPane] = useState(sequencesListPaneNow);
   // Sequences' list, and beside it, in a pane, what the address opens (parts/split.tsx): a run, else the one To send, else
   // Get their yes, else the send an audience's address asks for (`broadcasts/<list>`, which a link moves to Campaigns'
   // composer, `campaigns/new:to:<list>`, before it lands: contracts doorOf). Its own address has nothing open, and lands on
@@ -257,7 +255,13 @@ function BroadcastsReal(props: BroadcastsRealProps) {
         className="sq-page"
         testid="broadcasts-real"
         list={
-          <Suspense fallback={<div className="sq-reading" aria-busy="true" />}>
+          <Suspense
+            fallback={
+              <div className="route-reading sq-reading" role="status" aria-busy="true">
+                {LIFECYCLE_WORDS.reading}
+              </div>
+            }
+          >
             <SequencesListPane />
           </Suspense>
         }

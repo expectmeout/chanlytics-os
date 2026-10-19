@@ -1,4 +1,4 @@
--- 00461 · A sequence is approved once, then held (decision 0064, step 1: the expand half).
+-- 00462 · A sequence is approved once, then held (decision 0064, step 1: the expand half).
 --
 -- What decides a batch moves from the class's Autonomy row to the sequence, and a step's words are seen once:
 --
@@ -21,12 +21,12 @@
 --   google_reviews               A review's reply held (step 6): draft_text, drafted_at, and posts_at under Holds it;
 --                                told when they move, and in reviews_ledger's waiting list, where Reports draws it.
 --
--- Backfills: every sequence takes its class's row as it stands (the move of the live workspaces' rows to veto is 00462's,
+-- Backfills: every sequence takes its class's row as it stands (the move of the live workspaces' rows to veto is 00463's,
 -- after the deploy, with the sequences that follow them); a step that ever had a batch go is taken as seen; a sequence
 -- whose class is set to Never is paused, since the mode it takes cannot be never.
 --
 -- Deploy order: this first, then either app. A release before this one reads the class's row and the trial as it did,
--- and asks for no new key: change_playbook still takes trial_until, and the trial stays a column until 00462. Re-runnable.
+-- and asks for no new key: change_playbook still takes trial_until, and the trial stays a column until 00463. Re-runnable.
 
 set local lock_timeout = '3s';
 do $$
@@ -287,7 +287,7 @@ begin
 end $$;
 
 comment on function public.assemble_broadcast(uuid, jsonb, jsonb, jsonb, timestamptz, uuid, text, uuid) is
-  'A broadcast''s run, its people, its send job (when p_send_at is set) and the send_broadcast decision on it, in one transaction (00381): 00282''s door called whole, then the decision as the member''s (p_actor, the person the caller acts for) or the system''s (p_actor null, the sweep''s). A member''s run of a step lets its words go (sequence_steps.words_ok_at, 00461). The service role''s alone. Returns {id, decision_id, undo_dropped}; {id} alone when p_decision is null (a run that waits for a person: its approval is its decision, 00353).';
+  'A broadcast''s run, its people, its send job (when p_send_at is set) and the send_broadcast decision on it, in one transaction (00381): 00282''s door called whole, then the decision as the member''s (p_actor, the person the caller acts for) or the system''s (p_actor null, the sweep''s). A member''s run of a step lets its words go (sequence_steps.words_ok_at, 00462). The service role''s alone. Returns {id, decision_id, undo_dropped}; {id} alone when p_decision is null (a run that waits for a person: its approval is its decision, 00353).';
 
 /* ----------------------------------------------------------------------------------------- 6. the mode is changed -- */
 
@@ -445,7 +445,7 @@ begin
 end $$;
 
 comment on function public.change_playbook(uuid, uuid, jsonb, jsonb, text, uuid) is
-  'A member changes a playbook in place and its line in the ledger together (the change_playbook door): the row locked on the caller''s rights, of the columns p_set names (state, name, run_hour, cap_per_run, gap_days, cadence_days, params, until, trial_until) only those that differ from the row written, and its sequence''s mode where p_set names mode (auto, veto or ask; none for a one-off, never auto to leads: 00461), then start_playbook or pause_playbook where the state moved, else change_playbook, as theirs (member_decision), in one transaction. A sequence''s first step''s hour, cap, last day and trial reach its customer''s steps after it, and its name those named as it was (00453). A key outside the ten is refused (22023); so is a null, but for until and trial_until, which it clears, and a params that is not an array. Security invoker: the update policies and the column grants judge it. P0002 where the caller cannot see or change the row. Returns id, was (what each written column held, and the mode), decision_id and undo_dropped; where nothing differs, nothing is written and no line (00377, 00416, 00453, 00461).';
+  'A member changes a playbook in place and its line in the ledger together (the change_playbook door): the row locked on the caller''s rights, of the columns p_set names (state, name, run_hour, cap_per_run, gap_days, cadence_days, params, until, trial_until) only those that differ from the row written, and its sequence''s mode where p_set names mode (auto, veto or ask; none for a one-off, never auto to leads: 00462), then start_playbook or pause_playbook where the state moved, else change_playbook, as theirs (member_decision), in one transaction. A sequence''s first step''s hour, cap, last day and trial reach its customer''s steps after it, and its name those named as it was (00453). A key outside the ten is refused (22023); so is a null, but for until and trial_until, which it clears, and a params that is not an array. Security invoker: the update policies and the column grants judge it. P0002 where the caller cannot see or change the row. Returns id, was (what each written column held, and the mode), decision_id and undo_dropped; where nothing differs, nothing is written and no line (00377, 00416, 00453, 00462).';
 
 /* --------------------------------------------------------------------------------------------- 7. the reads -- */
 
@@ -473,7 +473,7 @@ as $$
 $$;
 
 comment on function public.sequence_steps_due(text, timestamptz, integer, integer, uuid) is
-  'The running steps of one kind due at p_at by their workspace''s own clock, each with its sequence''s mode (00461), a paused workspace''s never, never run first, then least recently run, with due_total the count of all that were due: the hourly sweep''s pages (playbooks_due''s rule, 00245). A customer''s step after the first is due only while its sequence is on (0060).';
+  'The running steps of one kind due at p_at by their workspace''s own clock, each with its sequence''s mode (00462), a paused workspace''s never, never run first, then least recently run, with due_total the count of all that were due: the hourly sweep''s pages (playbooks_due''s rule, 00245). A customer''s step after the first is due only while its sequence is on (0060).';
 
 create or replace function public.sequence_overview(p_tenant_id uuid, p_sequence_id uuid default null)
 returns jsonb
@@ -637,7 +637,7 @@ as $$
 $$;
 
 comment on function public.sequence_overview(uuid, uuid) is
-  'The workspace''s sequences (0060), or the one named: how each starts (its first step, with the search it adds from: 00459, when its words were last let go: 00461, or a one-off''s date), how its batches are decided (its mode, 00461), where it stands, its steps, the days they span and the emails still to write (00459), its channels, what needs you (batches waiting for an OK and their people, emails held by the check, emails for you to send, replies to answer, the oldest of them), the batch to come, the last that went with its sent and replied, and who is in it (everyone whose place stands, sequence_places: 00459). Newest first. Under the caller''s row security.';
+  'The workspace''s sequences (0060), or the one named: how each starts (its first step, with the search it adds from: 00459, when its words were last let go: 00462, or a one-off''s date), how its batches are decided (its mode, 00462), where it stands, its steps, the days they span and the emails still to write (00459), its channels, what needs you (batches waiting for an OK and their people, emails held by the check, emails for you to send, replies to answer, the oldest of them), the batch to come, the last that went with its sent and replied, and who is in it (everyone whose place stands, sequence_places: 00459). Newest first. Under the caller''s row security.';
 
 create or replace function public.sequence_steps_of(p_tenant_id uuid, p_sequence_id uuid, p_days integer default 30)
 returns jsonb
@@ -699,7 +699,7 @@ as $$
 $$;
 
 comment on function public.sequence_steps_of(uuid, uuid, integer) is
-  'A sequence''s steps in their places (0060): each one''s message and the words waiting for WhatsApp with WhatsApp''s answer, when a person last let its words go (00461), its wait and what must still hold of someone due it, its channels, a hand step''s call or note, and what its batches of the last p_days (1 to 90, 30) sent and drew back. Under the caller''s row security.';
+  'A sequence''s steps in their places (0060): each one''s message and the words waiting for WhatsApp with WhatsApp''s answer, when a person last let its words go (00462), its wait and what must still hold of someone due it, its channels, a hand step''s call or note, and what its batches of the last p_days (1 to 90, 30) sent and drew back. Under the caller''s row security.';
 
 /* ------------------------------------------------------------------------------- 8. a reply that waits is told -- */
 
@@ -737,7 +737,7 @@ exception when others then
 end $$;
 
 comment on function public.messages_reply_held_closes() is
-  'Closes the open reply_held rows about a thread once a reply of the receptionist''s leaves the queue and none is left queued there (00461, decision 0064: sent, failed or withdrawn by a Stop), through notifications_close_about. Never fails the send: a failure is a warning.';
+  'Closes the open reply_held rows about a thread once a reply of the receptionist''s leaves the queue and none is left queued there (00462, decision 0064: sent, failed or withdrawn by a Stop), through notifications_close_about. Never fails the send: a failure is a warning.';
 
 revoke all on function public.messages_reply_held_closes() from public, anon, authenticated;
 
@@ -800,7 +800,7 @@ as $$
 $$;
 
 comment on function public.sequence_evidence(uuid, integer) is
-  'What each of a workspace''s sequences'' batches did over the last p_days (1 to 365, 90): went, went after a member''s OK, stopped by a member, skipped by the sweep because nobody answered before their day ended (00461, decision 0064 step 5). One-offs are not counted. Under the caller''s row security.';
+  'What each of a workspace''s sequences'' batches did over the last p_days (1 to 365, 90): went, went after a member''s OK, stopped by a member, skipped by the sweep because nobody answered before their day ended (00462, decision 0064 step 5). One-offs are not counted. Under the caller''s row security.';
 
 revoke all on function public.sequence_evidence(uuid, integer) from public, anon;
 grant execute on function public.sequence_evidence(uuid, integer) to authenticated, service_role;
@@ -1109,7 +1109,7 @@ alter table public.google_reviews add constraint google_reviews_posts_at_needs_a
   check (posts_at is null or draft_text is not null);
 
 comment on column public.google_reviews.draft_text is
-  'The reply the receptionist wrote for this review and holds (00461, decision 0064 step 6): for a member''s OK under Ask me, or until posts_at under Holds it. Cleared when a reply is posted. The edge writes it.';
+  'The reply the receptionist wrote for this review and holds (00462, decision 0064 step 6): for a member''s OK under Ask me, or until posts_at under Holds it. Cleared when a reply is posted. The edge writes it.';
 comment on column public.google_reviews.drafted_at is
   'When the receptionist wrote the reply it holds (draft_text).';
 comment on column public.google_reviews.posts_at is
@@ -1192,7 +1192,7 @@ begin
                         and r.published_at < v_stop) w), '[]'::jsonb),
     'waiting_total', c.waiting,
     -- The oldest that wait, the ones with no date last: the columns the Google read draws a review by (the reply it holds
-    -- and when that goes among them, 00461), and why a reply written for it was held (google.reply_held), where one was.
+    -- and when that goes among them, 00462), and why a reply written for it was held (google.reply_held), where one was.
     'waiting', coalesce((select jsonb_agg(to_jsonb(q) order by q.published_at asc nulls last, q.id)
                  from (select r.id, r.review_id, r.origin, r.rating, r.author, r.author_uri, r.author_photo_uri, r.body,
                               r.language_code, r.published_at, r.reply_text, r.replied_at, r.draft_text, r.posts_at,
@@ -1222,7 +1222,7 @@ revoke all on function public.reviews_ledger(uuid, integer, date) from public, a
 grant execute on function public.reviews_ledger(uuid, integer, date) to authenticated, service_role;
 
 comment on function public.reviews_ledger(uuid, integer, date) is
-  'Reports › Reviews: the profile''s reviews from the period before''s first day (each on its day in the workspace''s zone, with whether it has a reply, how long the reply took, and who wrote it: the receptionist where its own event is within six hours of the reply), the counts of each origin, whether the record is all of Google''s, and the oldest five that wait for a reply with the reply the receptionist holds for each and when it goes (00461), and why a reply written for one was held. One statement, under the caller''s RLS. `p_end` (00360) is the window''s last day, in the workspace''s zone: null is today, and a day that has not come is read as today.';
+  'Reports › Reviews: the profile''s reviews from the period before''s first day (each on its day in the workspace''s zone, with whether it has a reply, how long the reply took, and who wrote it: the receptionist where its own event is within six hours of the reply), the counts of each origin, whether the record is all of Google''s, and the oldest five that wait for a reply with the reply the receptionist holds for each and when it goes (00462), and why a reply written for one was held. One statement, under the caller''s RLS. `p_end` (00360) is the window''s last day, in the workspace''s zone: null is today, and a day that has not come is read as today.';
 
 -- A held reply written, stopped or posted is told as a reply is (00431's narrowed update, packages/db realtime.ts):
 -- Reports' Reviews, Today's Google line and the bell repaint when it appears and when it goes. Not last_seen_at.

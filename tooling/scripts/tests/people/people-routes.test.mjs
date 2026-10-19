@@ -2038,14 +2038,14 @@ test("the proposal follow-up's facts (0006): answered with People's first page w
     id: "pb-follow",
     tenant_id: A,
     trigger: "proposal_waiting",
-    // Its class: its sequence was made under the follow-ups' row (00461 sequence_mode_for).
+    // Its class: its sequence was made under the follow-ups' row (00462 sequence_mode_for).
     policy_class: "follow_up",
     state: "running",
     run_hour: 10,
     last_run_for: null,
     template_name: "proposal_follow_up",
     template_language: "en_US",
-    // Its words seen going (00461): its batches go by its sequence's mode.
+    // Its words seen going (00462): its batches go by its sequence's mode.
     words_ok_at: iso(now - 20 * DAY),
     ...over,
   });

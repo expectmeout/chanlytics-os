@@ -554,9 +554,10 @@ button.ask-tile-value { text-decoration: underline dotted; text-decoration-color
   /* While it listens: "Let go to ask" where the field was, where the finger that held the mic lifts (spec 5.3). */
   .ask-letgo-wrap { order: 9; display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 0 16px 12px; }
   .ask-letgo { display: inline-flex; align-items: center; justify-content: center; gap: 10px; width: 100%; height: 60px; border: 0; border-radius: 18px; background: var(--accent); color: var(--accent-fg); font: inherit; font-size: var(--text-lg); font-weight: 600; touch-action: none; user-select: none; }
-  /* A card a thumb can act on (D16): 40px acts, the words and the line a size up. */
+  /* A card a thumb can act on (D16): the words and the line a size up, and its acts the house's on a phone: 44px
+     capsules worded at the base step, as every sheet's foot and question are (19 Oct 2026: 8px corners and 14px words). */
   .ask-card-title, .ask-card-summary { font-size: var(--text-md); }
-  .ask-card-actions .btn { height: 40px; padding: 0 16px; font-size: 14px; border-radius: var(--radius-md); }
+  .ask-card-actions .btn { height: var(--control-h-touch); padding: 0 16px; font-size: var(--text-base); border-radius: var(--control-radius); }
   .ask-card-actions .ask-card-not-now { padding: 0 10px; }
   .ask-card-receipt { min-height: 44px; padding: 6px 6px 6px 12px; font-size: var(--text-base); }
   .ask-card-receipt .btn { height: 32px; padding: 0 10px; font-size: 13px; }

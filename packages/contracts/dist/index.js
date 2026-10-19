@@ -17146,6 +17146,7 @@ function runApprovedTail(people, when) {
 var RUN_WAITING_WORDS = "Waiting for your approval";
 var RUN_WAITING_SHORT = "Waits for you";
 var runApproveWords = (n) => `Approve \xB7 ${n} ${n === 1 ? "person" : "people"}`;
+var runStopDoorWords = (waits) => waits ? "Cancel it" : "Stop it";
 var RUN_OPEN_WORDS = "Open the run";
 var RUN_UNNAMED_WORDS = "Run";
 function runsWaitingSentence(n) {
@@ -25600,6 +25601,7 @@ function abandonedCall(dto) {
   if (Array.isArray(dto.transcript_object) && dto.transcript_object.length) {
     return !dto.transcript_object.some((t) => t?.role === "user" && (t.content ?? "").trim() !== "");
   }
+  if (dto.turns && typeof dto.caller_spoke === "boolean") return !dto.caller_spoke;
   const ms2 = dto.duration_ms;
   return typeof ms2 === "number" && ms2 > 0 && ms2 < ABANDONED_MS;
 }
@@ -25865,6 +25867,9 @@ var RECORDING_NOTE = {
   failed: "Recording couldn't be saved",
   purged: `Recording removed after ${RECORDING_RETENTION_DAYS} days`
 };
+function linesOf2(transcript, dto) {
+  return !transcript.length && dto.turns ? { transcript, turnsToRead: dto.turns } : { transcript };
+}
 function toCallVM(dto, tz, now = /* @__PURE__ */ new Date()) {
   const withheld = !dto.from_e164 && !dto.from_raw;
   const name = dto.contact?.display_name || dto.contact?.wa_profile_name || null;
@@ -25916,7 +25921,7 @@ function toCallVM(dto, tz, now = /* @__PURE__ */ new Date()) {
     ...live ? { live: true } : {},
     snippet: withheld ? `${dto.direction === "inbound" ? "Inbound" : "Outbound"} call${dur ? ` \xB7 ${dur}` : ""} \u2014 caller ID withheld, so this call isn't linked to a customer.` : `${dto.direction === "inbound" ? "Inbound" : "Outbound"} call${dur ? ` \xB7 ${dur}` : ""} \u2014 ${snippetBody}`,
     summary: { headline: wanted || firstSentence2 || snippetBody, bullets },
-    transcript,
+    ...linesOf2(transcript, dto),
     durationSec: dto.duration_ms ? Math.round(dto.duration_ms / 1e3) : null,
     recordingState: recState,
     ...recState === "ready" ? { recordingUrl: `/api/v1/calls/${dto.id}/recording` } : {},
@@ -26016,6 +26021,11 @@ function summaryStateOf(c) {
   if (c.summary) return "ready";
   return c.live || c.endedMs !== null && c.nowMs - c.endedMs < ANALYSIS_GRACE_MS ? "pending" : "none";
 }
+function turnsAndLastOf(dto) {
+  const transcript = turnsOf(dto);
+  const said = [...transcript].reverse().find((t) => t.speaker === "client" && t.text);
+  return { transcript, saidLast: said ? said.text : dto.said_last ?? null };
+}
 function toLiveCallVM(dto, tz, now = /* @__PURE__ */ new Date()) {
   const nowMs = now.getTime();
   const withheld = !dto.from_e164 && !dto.from_raw;
@@ -26066,7 +26076,7 @@ function toLiveCallVM(dto, tz, now = /* @__PURE__ */ new Date()) {
     outcomeWords: live ? null : callOutcomeWords(dto.outcome),
     notes: live ? { todo: null, gave: [] } : callNotesOf(dto),
     lengthWords: live || missed || !callLength(dto.duration_ms) ? null : spokenDuration(dto.duration_ms),
-    transcript: turnsOf(dto)
+    ...turnsAndLastOf(dto)
   };
 }
 function toLiveVM(calls, channels, tz, now = /* @__PURE__ */ new Date()) {
@@ -43384,7 +43394,7 @@ var NEW_CONVERSATION_WORDS = {
     question: "Discard what you wrote?",
     detail: null,
     yes: "Discard",
-    no: "Keep writing"
+    no: "Keep editing"
   },
   done: "Done",
   change: "Change",
@@ -45589,8 +45599,8 @@ var PERSON_ACT_WORDS = {
 var PERSON_DELETE_WORDS = {
   title: "Delete person",
   detail: "Removes their messages, media and recordings from Chanlytics and stops any reply still queued. This cannot be undone.",
+  // The foot's question: the sheet's title asks what is done (title), so the foot asks only for the name.
   typed: (name) => `Type ${name} to confirm.`,
-  question: (name) => `Delete ${name}?`,
   yes: "Delete this person",
   busy: "Deleting\u2026",
   cancel: "Cancel",
@@ -55040,6 +55050,10 @@ function routePrefetchScript() {
     // A view of Leads the address names (a search, a list) is the page's to read: it opens on who is looking alone.
     'else if(!(s==="clients"&&/^leads(:|$)/.test(l))&&Object.prototype.hasOwnProperty.call(t,s))',
     `for(var j=0;j<t[s].length;j++){var x=P?t[s][j].replace(${JSON.stringify(`period=${REPORT_PERIOD_DEFAULT}`)},P):t[s][j];u.push("/api/v1/"+x+(x.indexOf("?")<0?"?":"&")+"workspace="+w)}`,
+    // A sequence's record the address opens (`campaigns/sequences/<id>`, a tab after it) is read beside the list it opens over,
+    // as a person's page reads the person, and so is the tab's own read where it has one (People, History): it waited for the
+    // page's code and its mount (the load review of 18 Oct 2026). New (`campaigns/sequences/new`) names no id and reads none.
+    `if(s==="campaigns/sequences"&&new RegExp(${JSON.stringify(PREFETCH_UUID)},"i").test(h[2]||"")){var q="/api/v1/sequences/"+h[2];u.push(q+"?workspace="+w);if(h[3]==="people"||h[3]==="history")u.push(q+"/"+h[3]+"?workspace="+w)}`,
     `var f=window[${JSON.stringify(PREFETCH_SLOT)}]=window[${JSON.stringify(PREFETCH_SLOT)}]||{};`,
     "var M=window.AbortController;",
     "var g=function(x){",
@@ -55150,7 +55164,9 @@ var PRIMARY_PART = {
   leads: "table",
   pipeline: "board",
   person: "hero",
-  calendar: "board"
+  calendar: "board",
+  // Campaigns is Sequences' list (decision 0060): its rows, which the page's code arrives with (a chunk of its own).
+  campaigns: "list"
 };
 var PAGE_VITALS_READ = { days: 7, most: 25e3 };
 var PAGE_VITALS_MIN_LOADS = 20;
@@ -56748,7 +56764,7 @@ var SERVER_NOTIFICATION_KINDS = [
   /**
    * The receptionist's reply waits to go in the owner's name (decision 0064, step 2): the hold window they set, or a reply
    * it was not sure of. A line on the bell and the phone, told once per reply as it is queued (the edge's draft queue),
-   * that opens the thread; closed when the reply goes or is stopped (00461 messages_reply_held_closes). No mail: it waits
+   * that opens the thread; closed when the reply goes or is stopped (00462 messages_reply_held_closes). No mail: it waits
    * minutes, not hours.
    */
   "reply_held"
@@ -57597,7 +57613,9 @@ var NOTICE_ENDS = {
   handoff: { ends: "hold", server: "hold_resolved" },
   deadman: { ends: "hold", server: "hold_resolved" },
   call: { ends: "hold", server: "hold_resolved" },
-  playbook: { ends: "run" },
+  // A run approved, skipped or skipped by the night's sweep, or ended, closes its rows on the server (00461
+  // batch_closes_its_notices): a browser that held the run among Sent's alone closed them, and the phone's icon never.
+  playbook: { ends: "run", server: "run_decided" },
   booking_notice: { ends: "email" },
   review: { ends: "review" },
   leads_question: { ends: "search", server: "question_settled" },
@@ -63356,6 +63374,7 @@ export {
   runReadingOf,
   runSheetRoute,
   runStillMoving,
+  runStopDoorWords,
   runStopWords,
   runStoppedWords,
   runTitleOf,

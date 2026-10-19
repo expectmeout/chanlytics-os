@@ -632,7 +632,7 @@ var ERASURE_STRATEGIES = {
   // A review as Google shows it: a complete read drops one Google no longer lists, and one not seen for its days goes
   // (purge_google_reviews, 00392). Its ids and language are nobody's.
   google_reviews: {
-    // The reply the receptionist holds (00461) names the reviewer as a posted one does, and goes with the review.
+    // The reply the receptionist holds (00462) names the reviewer as a posted one does, and goes with the review.
     ...all(byAge("google_reviews"), "author", "author_uri", "author_photo_uri", "body", "reply_text", "draft_text"),
     ...all(NOT_PERSONAL, "language_code", "maps_uri", "review_id")
   },
@@ -6437,7 +6437,7 @@ var NARROWED_UPDATES = {
   memberships: ["role"],
   // The workspace's status, name, zone, word for a booking and logo (00431, 00458, 00460).
   tenants: ["status", "name", "timezone", "appointment_word", "logo_path"],
-  // A review answered (00431), and the reply it holds written, stopped or posted (00461). Not last_seen_at, which the
+  // A review answered (00431), and the reply it holds written, stopped or posted (00462). Not last_seen_at, which the
   // sync stamps on every review.
   google_reviews: ["reply_text", "replied_at", "draft_text", "posts_at"],
   // What a round is and what it waits on (00431). Not its allowance, cost or judge's tokens and model.

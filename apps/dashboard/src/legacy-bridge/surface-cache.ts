@@ -170,7 +170,19 @@ function keep(blob: CacheBlob): void {
   if (writeTimer) clearTimeout(writeTimer);
   writeTimer = null;
   if (now - waitingSince >= MAX_WAIT_MS) return flushSurfaceCache();
-  writeTimer = setTimeout(flushSurfaceCache, Math.min(WRITE_AFTER_MS, MAX_WAIT_MS - (now - waitingSince)));
+  writeTimer = setTimeout(flushWhenIdle, Math.min(WRITE_AFTER_MS, MAX_WAIT_MS - (now - waitingSince)));
+}
+
+/**
+ * The write, once the page is idle as well as quiet: the snapshot is up to 2 MB of text made and stored in one go, and
+ * written on the timer alone it fell under a press or a swipe after a refresh (the strips review, 18 Oct 2026: 134 ms on a
+ * phone's CPU). The page hidden still writes at once (flushSurfaceCache).
+ */
+function flushWhenIdle(): void {
+  writeTimer = null;
+  if (typeof requestIdleCallback === "function")
+    requestIdleCallback(() => flushSurfaceCache(), { timeout: MAX_WAIT_MS });
+  else flushSurfaceCache();
 }
 
 /** Restore cached globals onto window. Call ONCE, at module scope, after the

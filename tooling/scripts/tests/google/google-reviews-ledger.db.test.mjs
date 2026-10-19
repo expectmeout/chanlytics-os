@@ -372,7 +372,7 @@ test(
         "reply_text",
         "review_id",
       ],
-      "the Google read's own sixteen columns, the reply it holds and when that goes among them (00461), and why a reply was held",
+      "the Google read's own sixteen columns, the reply it holds and when that goes among them (00462), and why a reply was held",
     );
     assert.ok(out.waiting.every((w) => w.origin === "profile" && w.reply_text === null));
     assert.deepEqual(

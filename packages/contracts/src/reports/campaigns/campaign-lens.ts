@@ -437,7 +437,7 @@ interface WaitWords {
  */
 function waitPart(dist: Series["first_reply"] | Series["approval"] | null, words: WaitWords): MixPartVM {
   if (dist === null || !isCount(dist.n)) return noMix(null);
-  // The runs skipped unanswered in the window (the approval's alone, since 00461): said with the wait, or alone.
+  // The runs skipped unanswered in the window (the approval's alone, since 00462): said with the wait, or alone.
   const skipped = "skipped" in dist && isCount(dist.skipped) ? dist.skipped : 0;
   // None approved: the ones that waited and were skipped are what is said, never "no run waited" over them.
   if (dist.n === 0) return noMix(skipped > 0 ? approvalSkippedLine(skipped) : words.empty);

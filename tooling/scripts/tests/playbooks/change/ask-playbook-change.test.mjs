@@ -3,7 +3,7 @@
  * proposed as a card through the real registry over a workspace in memory. The card is judged by the PUT's own core
  * judgement (checkPlaybookPatch, against the playbook as it stands), carries what changes and what it held and nothing
  * else of the playbook, says a pause leaves a waiting run waiting and a resume's mode in full, and its Approve and Undo
- * go to the real route. Since 00461 it also sets its sequence's mode (decision 0064), which a resume says.
+ * go to the real route. Since 00462 it also sets its sequence's mode (decision 0064), which a resume says.
  */
 import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
@@ -59,7 +59,7 @@ const playbookRow = (over = {}) => ({
   cadence_days: 30,
   created_at: "2026-09-01T00:00:00Z",
   channels: null,
-  // Its words seen going (00461): its batches go by its sequence's mode, the class's row's when it was made.
+  // Its words seen going (00462): its batches go by its sequence's mode, the class's row's when it was made.
   words_ok_at: "2026-09-02T14:00:00Z",
   ...over,
 });
@@ -172,7 +172,7 @@ test("a pause says the run that waits stays waiting; a resume says its sequence'
   // Under auto it sends on its own: one fact, one sentence, the drawer's Resume line, which the pause's undo says too.
   assert.equal(resume.proposal.summary, PLAYBOOK_PATCH_WORDS.resumed(LIFECYCLE_WORDS.ledger.resume.auto));
   assert.ok(pause.proposal.undo.endsWith(LIFECYCLE_WORDS.ledger.resume.auto));
-  // A class with no row made its sequence one that asks (00461 sequence_mode_for), and the card says that one.
+  // A class with no row made its sequence one that asks (00462 sequence_mode_for), and the card says that one.
   const asks = await change(
     { state: "running" },
     tables({ policies: [], playbooks: [playbookRow({ state: "paused" })] }),

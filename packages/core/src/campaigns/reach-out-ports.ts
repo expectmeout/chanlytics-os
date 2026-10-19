@@ -32,7 +32,7 @@ export interface ReachOutStep {
    */
   owner_sends: boolean;
   cap_per_run: number;
-  /** When a person last let a run of its words go (00461): null while they are new, and its run then waits for them. */
+  /** When a person last let a run of its words go (00462): null while they are new, and its run then waits for them. */
   words_ok_at: string | null;
   template_id: string;
   template_name: string;

@@ -596,7 +596,7 @@ export const ALERT_INBOX = "delivered@resend.dev";
 /** The name workspace-create.spec.ts gives the workspaces it makes and deletes. */
 const PROBE_PREFIX = "E2E probe";
 /**
- * What provision_tenant gives a new workspace (00073; offers, win-backs and follow-ups held for a stop since 00462,
+ * What provision_tenant gives a new workspace (00073; offers, win-backs and follow-ups held for a stop since 00463,
  * decision 0064), so a run starts from it.
  */
 const POLICY_MODES = {

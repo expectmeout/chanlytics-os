@@ -8,6 +8,7 @@ import {
   goesToOf,
   heardWords,
   runApprovedTail,
+  runStopDoorWords,
   runStoppedWords,
   runTitleOf,
 } from "@chanlytics/contracts";
@@ -66,6 +67,7 @@ export function bcRunActs({
       said = true;
       approvingRef.current = null;
       setApproving(null);
+      const when = bcWhenWords(data);
       flash({
         tone: "ok",
         msg:
@@ -73,9 +75,12 @@ export function bcRunActs({
             <>{words}</>
           ) : (
             <>
-              <b>{runTitleOf(row)}</b> {runApprovedTail(data.recipient_count ?? 0, bcWhenWords(data))}
+              <b>{runTitleOf(row)}</b> {runApprovedTail(data.recipient_count ?? 0, when)}
             </>
           ),
+        // The way back, as Send once's toast offers it: an approved run still to go is canceled, one sending stops after
+        // the batch in hand.
+        action: { label: runStopDoorWords(when !== SENDING_NOW_WORDS), onClick: () => cancel(row) },
       });
     };
     const r = await broadcasts.approve(row.id, { onAccepted: say });
@@ -180,7 +185,7 @@ export function bcSendActs({
       ),
       action: canSend
         ? {
-            label: pressedNow ? WAIT_ACT_WORDS.stop : waits ? "Cancel it" : "Stop it",
+            label: pressedNow ? WAIT_ACT_WORDS.stop : runStopDoorWords(waits),
             onClick: () =>
               cancel({ id: r.data.id, name: r.data.name || "Broadcast", state: waits ? "scheduled" : "sending" }),
           }

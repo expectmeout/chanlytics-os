@@ -1,5 +1,5 @@
 /**
- * The change_playbook door in memory, as 00416 writes it and 00461 gives it a sequence's mode, for the suites that run a change in place through the real
+ * The change_playbook door in memory, as 00416 writes it and 00462 gives it a sequence's mode, for the suites that run a change in place through the real
  * route over `_fake-db.mjs` (PUT playbooks/:id, Ask's change card, a list's archive and restore, the outbound routes).
  *
  * It refuses what the door refuses, with its code: nothing named, or a key outside the ten (22023); a null for any key
@@ -13,7 +13,7 @@
  * Not named *.test.mjs on purpose: the runner globs that pattern.
  */
 
-/** The ten keys the door takes (00416, 00461's mode), and the two of them a null clears. The door's own list, not core's. */
+/** The ten keys the door takes (00416, 00462's mode), and the two of them a null clears. The door's own list, not core's. */
 const DOOR_KEYS = [
   "state",
   "name",
@@ -53,7 +53,7 @@ export function changePlaybookDoor(tables, user) {
       if (mode !== undefined && !["auto", "veto", "ask"].includes(mode)) throw refused("mode is auto, veto or ask");
       const row = (tables.playbooks ?? []).find((p) => p.id === a.p_playbook_id && p.tenant_id === a.p_tenant_id);
       if (!row) throw Object.assign(new Error("Playbook not found."), { code: "P0002" });
-      // Its sequence's mode (00461): a one-off has none, and a sequence to leads never sends on its own.
+      // Its sequence's mode (00462): a one-off has none, and a sequence to leads never sends on its own.
       const sequence = (tables.sequences ?? []).find((q) => q.id === row.sequence_id && q.tenant_id === a.p_tenant_id);
       if (mode !== undefined && (sequence?.mode ?? null) === null)
         throw Object.assign(new Error("A one-off goes as it was sent: it has no mode."), { code: "23514" });

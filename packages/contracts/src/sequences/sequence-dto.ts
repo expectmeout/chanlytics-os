@@ -38,7 +38,7 @@ export interface SequenceFirstStepDto {
   owner_sends: boolean;
   until: string | null;
   /**
-   * When a person last let a batch of its words go (00461): null while its words are new, and its next batch then waits
+   * When a person last let a batch of its words go (00462): null while its words are new, and its next batch then waits
    * for an OK whatever the mode (contracts batchModeOf).
    */
   words_ok_at: string | null;
@@ -139,7 +139,7 @@ export interface SequenceStepDto {
   /** A sequence to leads' last step for the team: a call or a note. */
   hand: { kind: string; words: string } | null;
   next_words: SequenceNextWordsDto | null;
-  /** When a person last let a batch of its words go (00461); null while they are new, and its next batch asks. */
+  /** When a person last let a batch of its words go (00462); null while they are new, and its next batch asks. */
   words_ok_at: string | null;
   /** What its batches of the last 30 days sent, and drew back. */
   sent: number;

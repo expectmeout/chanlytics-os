@@ -749,7 +749,7 @@ test("the chains read the step's run's own readings: a paused workspace may not 
     ),
   );
   assert.equal(paused.chains[0].next.may_spend, false, "a paused workspace may not spend (workspaceMaySpend)");
-  // Its sequence was made under the workspace's outreach row (00461 sequence_mode_for), and keeps that mode as its own.
+  // Its sequence was made under the workspace's outreach row (00462 sequence_mode_for), and keeps that mode as its own.
   const asks = await chains.GET.run(
     get(),
     ctxFor(

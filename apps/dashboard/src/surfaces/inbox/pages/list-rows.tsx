@@ -5,6 +5,8 @@
  */
 import { heldPill } from "@chanlytics/contracts";
 import { Face } from "../../kit/face/face";
+import { RowGap } from "../../kit/rows/row-gap";
+import { useShownRows, type ShownRows } from "../../kit/rows/shown-rows";
 import { Icon } from "../../kit/icon/icon";
 import { StatePill } from "../../kit/pill/state-pill";
 import { StoppedMark } from "../../kit/pill/stopped-mark";
@@ -199,7 +201,34 @@ function rowBody(L: ListCtx, t: Thread, words: { text: string }) {
   );
 }
 
-export function threadRow(L: ListCtx, t: Thread, i: number) {
+/**
+ * The Inbox's rows drawn: the ones on screen and a few either side (kit/rows/shown-rows.ts), and the open one and its
+ * neighbours wherever they are, so the arrows and J/K that walk them find each (pick.tsx pickKeys).
+ */
+export function useShownThreads(visible: readonly Thread[], openId: string | null, density: string): ShownRows {
+  const open = visible.findIndex((t) => t.id === openId);
+  return useShownRows({
+    count: visible.length,
+    estimate: density === "compact" ? 56 : 76,
+    keyOf: (i) => visible[i]?.id ?? String(i),
+    keep: open >= 0 ? [open - 1, open, open + 1] : [0],
+  });
+}
+
+/** The rows `useShownThreads` says, and the room of the others. */
+export function threadRows(L: ListCtx, shown: ShownRows) {
+  return shown.parts.map((part) => {
+    if (part.kind === "gap") return <RowGap key={part.key} height={part.height} />;
+    const t = L.visible[part.index];
+    return t ? threadRow(L, t, part.index, { measure: shown.measure, of: L.visible.length }) : null;
+  });
+}
+
+/**
+ * One row. `place`, where it is one of a list's (threadRows): what measures it once drawn, and how many rows the list has,
+ * so it says its place in all of them to a screen reader.
+ */
+function threadRow(L: ListCtx, t: Thread, i: number, place?: { measure: (el: Element | null) => void; of: number }) {
   const { activeThreadId, selected, tabStopId, onSelectThread, onToggleSelect, onRowKey } = L;
   const isActive = activeThreadId === t.id;
   const isSelected = selected.includes(t.id);
@@ -213,8 +242,13 @@ export function threadRow(L: ListCtx, t: Thread, i: number) {
       role="option"
       aria-selected={isSelected}
       aria-current={isActive ? "true" : undefined}
+      // Its place in the list, which draws only the rows near the screen (useShownThreads): a screen reader counts them all.
+      aria-setsize={place?.of}
+      aria-posinset={place ? i + 1 : undefined}
       tabIndex={t.id === tabStopId ? 0 : -1}
       data-thread-id={t.id}
+      ref={place?.measure}
+      data-index={i}
       onClick={() => onSelectThread(t.id)}
       onKeyDown={(e) => onRowKey(e, i)}
     >

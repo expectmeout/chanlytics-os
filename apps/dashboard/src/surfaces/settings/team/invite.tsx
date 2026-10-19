@@ -251,7 +251,8 @@ export function TeamInvite({
       <p className="set-team-invite-note">
         Another owner? Invite them as Operator, then make them Owner from their row.
       </p>
-      <div className="set-team-invite-foot">
+      {/* On a phone the house's pair: Send first, the two an equal pair (kit.css, data-foot-pair); a desk keeps its row. */}
+      <div className="set-team-invite-foot" data-foot-pair="">
         <Button size="sm" variant="quiet" onClick={onClose} data-testid="team-invite-cancel">
           Cancel
         </Button>

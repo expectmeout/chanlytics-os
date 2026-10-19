@@ -145,13 +145,16 @@ const bridge = await import("../../../../apps/dashboard/src/surfaces/people/peop
 // What the person's page reads them with (surfaces/people/person/read.ts): the courier's, the tab's copy first.
 const { heldPerson, readPerson } = await import("../../../../apps/dashboard/src/surfaces/people/person/read.ts");
 const { startSurfaces } = await import("../../../../apps/dashboard/src/legacy-bridge/surface-runner.ts");
-const { readCache, clearReadCaches } = await import("../../../../apps/dashboard/src/legacy-bridge/read-cache.ts");
+const { readCache, clearReadCaches, flushReadCaches } =
+  await import("../../../../apps/dashboard/src/legacy-bridge/read-cache.ts");
 const { clearSurfaceCache } = await import("../../../../apps/dashboard/src/legacy-bridge/surface-cache.ts");
 /**
  * What a reload finds: the person cache made again the way people-detail.ts makes it, over the same tab's storage and
- * with nothing in memory. (A module imported again under a query is the same instance here, so it cannot stand in.)
+ * with nothing in memory. (A module imported again under a query is the same instance here, so it cannot stand in.) The page
+ * going away writes what waited for an idle moment (read-cache.ts flushReadCaches), as a reload does.
  */
 const reloaded = () => {
+  flushReadCaches();
   const c = readCache("person", (vm) => vm !== null, { tab: true });
   return { peekPerson: (id) => c.peek(id), warmPerson: (id) => c.warm(id, () => bridge.personDetail(id)) };
 };
@@ -221,6 +224,8 @@ test("nothing is asked off a person's page: a list, a lead, a seeded id, or a pa
 
 test("a reload paints the person whole: the tab keeps them, as it keeps Today and Leads", async () => {
   await bridge.personDetail(ID);
+  // Written once the page is idle, or as it goes (read-cache.ts): a reload finds it either way.
+  flushReadCaches();
   assert.ok(globalThis.sessionStorage.getItem(SLOT), "REGRESSION: the courier's cache lived in memory only");
   const after = reloaded();
   const held = after.peekPerson(ID);

@@ -2472,13 +2472,20 @@ a.more-item {
   display: none;
 }
 /* The two presses, in the act's column: a glyph each, 28px square, the dim ink for Cancel and the ink for Save, the
-   hover ground as the row's act takes. Each reaches 44px for a finger from an ::after, as a fold's Close does (below),
-   so the row stays 44px tall on a touch screen too. Busy, Save says so and takes no press (record-fold.jsx). */
+   hover ground as the row's act takes. Each reaches 44px tall from an ::after, as a fold's Close does (below), so the
+   row stays 44px tall on a touch screen too, and no wider than half the room between them: 2px apart, a press on the
+   right edge of the drawn ✓ answered Cancel (19 Oct 2026). Under a finger they stand 16px apart, so each reaches 44px
+   square and the two meet without overlapping. Busy, Save says so and takes no press (record-fold.jsx). */
 .rec-inline-acts {
   grid-area: acts;
   display: inline-flex;
   align-items: center;
   gap: 2px;
+}
+@media (pointer: coarse) {
+  .rec-inline-acts {
+    gap: 16px;
+  }
 }
 .rec-inline-act {
   position: relative;
@@ -2496,7 +2503,12 @@ a.more-item {
 .rec-inline-act::after {
   content: "";
   position: absolute;
-  inset: -8px;
+  inset: -8px -1px;
+}
+@media (pointer: coarse) {
+  .rec-inline-act::after {
+    inset: -8px;
+  }
 }
 .rec-inline-act[data-act="save"] {
   color: var(--ink);
@@ -4065,6 +4077,12 @@ a.list-row {
   .sheet[data-leaving="true"] {
     animation-name: sheet-out;
   }
+  /* A sheet with a foot leaves the screen's edge to it: the foot keeps the home bar's room itself (.rec-sheet-foot,
+     below), and with both keeping it a kit sheet's Send stood 30px off the edge, and on an iPhone ~98px, where a record
+     sheet's stands 14px and 48px (Ruben, 19 Oct 2026). */
+  .sheet:has(> .rec-sheet-foot) {
+    padding-bottom: 0;
+  }
   .sheet-handle {
     display: block;
     flex: none;
@@ -4994,6 +5012,27 @@ footer.rec-sheet-foot .btn {
 .rec-sheet-foot[data-asking="true"] .confirm-words {
   padding: 0 10px;
 }
+/* The question opens into the foot over the overlays' beat, so the foot grows to hold it rather than standing a line
+   taller at once while only its words faded in (19 Oct 2026). Nothing moves under reduced motion. */
+.rec-sheet-foot .confirm-words {
+  overflow: hidden;
+  animation: foot-ask var(--duration-base) var(--ease-out);
+}
+@keyframes foot-ask {
+  from {
+    max-height: 0;
+    opacity: 0;
+  }
+  to {
+    max-height: 6em;
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .rec-sheet-foot .confirm-words {
+    animation: none;
+  }
+}
 /* On a phone, and from the kit's 900px, where a sheet is the width of the screen or near it, Save and Cancel are an equal pair
    across its foot, as the foot's question already is: two short buttons at the left of a capsule a thumb wide left
    more than half of it empty, and the foot changed shape when it asked. The foot's line, and a line of the page's,
@@ -5005,30 +5044,36 @@ footer.rec-sheet-foot .btn {
    A foot of a page's own (a composer's Cancel and Send, at the foot's end on a desk) names its row of acts with
    `data-foot-pair` and is laid out the same from the width a sheet of the kit's rises at: its line over the pair, and
    the filled act first, where Save is, whichever way the row is written. The attribute is named twice so
-   that a page's own rule for its row on a desk (a class, written after the kit's) does not outrank the pair. */
+   that a page's own rule for its row on a desk (a class, written after the kit's) does not outrank the pair.
+
+   The kit's foot is the pair wherever in the foot it stands: a sequence's step editor hands its Save and Cancel to a
+   row of the page's inside the foot, and they stood as two small buttons at its left. Every answer in a foot reads at
+   the base step, as the question's do: a foot's Save and Cancel were 12px and its question's answers 13.5, so the
+   words grew as the foot asked (19 Oct 2026). */
 @media (max-width: 900px) {
-  .rec-sheet-foot:where(:has(> .rec-foot)) {
+  .rec-sheet-foot:where(:has(.rec-foot)) {
     padding: 6px;
   }
-  .rec-sheet-foot:where(:has(> .rec-foot)) > :where(:not(.rec-foot, .confirm)) {
+  .rec-sheet-foot:where(:has(.rec-foot)) > :where(:not(.rec-foot, .confirm, :has(.rec-foot))) {
     padding: 8px 10px 0;
   }
-  .rec-sheet-foot > .rec-foot {
+  .rec-sheet-foot .rec-foot {
     gap: 8px;
   }
-  .rec-sheet-foot > .rec-foot .btn {
+  .rec-sheet-foot .rec-foot .btn {
     flex: 1 1 calc(50% - 4px);
     min-width: max-content;
     max-width: 100%;
     justify-content: center;
+    font-size: var(--text-base);
   }
-  .rec-sheet-foot > .rec-foot .rec-foot-note {
+  .rec-sheet-foot .rec-foot .rec-foot-note {
     flex: 1 1 100%;
     order: -1;
     padding: 8px 10px 2px;
     text-align: left;
   }
-  :where(.rec-sheet-foot > .rec-foot) .btn-ghost:where(:not(.danger)) {
+  :where(.rec-sheet-foot .rec-foot) .btn-ghost:where(:not(.danger)) {
     background: var(--secondary-fill);
     border-color: var(--line);
     color: var(--ink);
@@ -5052,9 +5097,17 @@ footer.rec-sheet-foot .btn {
     max-width: 100%;
     justify-content: center;
     border-radius: var(--control-radius);
+    font-size: var(--text-base);
   }
   [data-foot-pair][data-foot-pair] > .btn-primary {
     order: -1;
+  }
+  /* The one that is not the act is the plain button, as in the kit's foot (above): a quiet Cancel stood as words on
+     no ground beside a filled half. */
+  :where([data-foot-pair][data-foot-pair]) > .btn-ghost:where(:not(.danger)) {
+    background: var(--secondary-fill);
+    border-color: var(--line);
+    color: var(--ink);
   }
   [data-foot-pair][data-foot-pair] > :where(:not(.btn, .confirm)) {
     flex: 1 1 100%;

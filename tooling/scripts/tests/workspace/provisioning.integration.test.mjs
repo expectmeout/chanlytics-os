@@ -72,7 +72,7 @@ test("creating a tenant provisions it — no application code involved", { skip 
   assert.equal(byClass.reply.mode, "auto");
   assert.equal(byClass.faq.mode, "auto");
   assert.equal(byClass.booking.mode, "auto");
-  // A new sequence of these classes starts held for a stop; its first batch still waits for an OK (decision 0064, 00462).
+  // A new sequence of these classes starts held for a stop; its first batch still waits for an OK (decision 0064, 00463).
   assert.equal(byClass.reengage.mode, "veto");
   assert.equal(byClass.campaign.mode, "veto");
   assert.equal(

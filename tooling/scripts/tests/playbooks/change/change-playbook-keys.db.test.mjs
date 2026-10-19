@@ -1,9 +1,9 @@
 /**
- * 00416 on a real Postgres, as 00461 and 00462 left it: a campaign ends and changes its words; the trial is gone.
+ * 00416 on a real Postgres, as 00462 and 00463 left it: a campaign ends and changes its words; the trial is gone.
  *
  *   1. The column stands where 00440 moved the playbooks (decision 0060, sequence_steps): until is a date, null with no
  *      default, saying what it is, a member's session may write it, and the change_playbook and start_playbook doors are
- *      a member's. trial_until is gone (00462): a sequence's first batch's OK is its trial (decision 0064).
+ *      a member's. trial_until is gone (00463): a sequence's first batch's OK is its trial (decision 0064).
  *   2. The door takes until and params beside the six (and its sequence's mode, which a-sequence-is-approved-once
  *      proves): each is written where it differs from the row, answered as `was`, and recorded in the same transaction
  *      with the decision the caller names (its payload names each key changed, as it does for the six). until takes
@@ -134,7 +134,7 @@ const change = (who, id, set, over = {}) =>
     ...over,
   });
 
-/** The last day's column, and the trial's that is gone (00462), as the catalog says them, with the member's grants. */
+/** The last day's column, and the trial's that is gone (00463), as the catalog says them, with the member's grants. */
 const columns = () =>
   query(
     `select c.column_name, c.data_type, c.is_nullable, c.column_default,
@@ -156,7 +156,7 @@ const door = (signature = "public.change_playbook(uuid, uuid, jsonb, jsonb, text
 const START = "public.start_playbook(uuid, jsonb, jsonb, text, uuid)";
 
 test(
-  "00416's column stands on sequence_steps (0060): until is a date, null, with no default, saying what it is and written by a member's session; trial_until is gone (00462); and the doors are a member's",
+  "00416's column stands on sequence_steps (0060): until is a date, null, with no default, saying what it is and written by a member's session; trial_until is gone (00463); and the doors are a member's",
   { skip },
   () => {
     const once = columns();
@@ -269,7 +269,7 @@ test(
     const id = await winBack();
     const who = await operator();
     const before_ = await row(id);
-    // The trial among them since 00462: a sequence's first batch's OK is its trial (decision 0064).
+    // The trial among them since 00463: a sequence's first batch's OK is its trial (decision 0064).
     for (const set of [
       { ends: "2026-11-30" },
       { until: "2026-11-30", template_id: templateId },

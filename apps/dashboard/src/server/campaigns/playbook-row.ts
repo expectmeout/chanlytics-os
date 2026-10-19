@@ -69,7 +69,7 @@ const ONE_OF_THREE = {
 /**
  * A change in place (the moment spec §4.9 A5): any of the nine, and no other key; its words (`params`, the values its
  * message takes) and its last day (`until`, YYYY-MM-DD, a null clearing it) since 00416, and its sequence's mode
- * (`mode`: ask, veto or auto, decision 0064) since 00461. Core judges each value, in words.
+ * (`mode`: ask, veto or auto, decision 0064) since 00462. Core judges each value, in words.
  */
 const PATCH_BODY = z.strictObject(
   {
@@ -170,7 +170,7 @@ export async function visitTwinRefusal(
  * naming `starter_key` and no message is judged whole, then files that starter (withStarterMessage: a refused one files
  * nothing and asks nothing of Meta), and the answer says what became of its WhatsApp version (`starter`). Its last day
  * (`until`, YYYY-MM-DD: core untilOf, a change's own judge, today or later by the business's clock) is judged first, at
- * this route's clock. Its mode is its class's Autonomy row, which the database gives it as it makes its sequence (00461
+ * this route's clock. Its mode is its class's Autonomy row, which the database gives it as it makes its sequence (00462
  * sequence_mode_for, decision 0064), and its first batch waits for an OK whatever that is.
  *
  * A card's start (x-via ask) meets twinRefusal again, 409 in the owner's words (contracts twinRunsWords). It refuses a

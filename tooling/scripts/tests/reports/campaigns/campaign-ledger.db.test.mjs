@@ -91,7 +91,7 @@ test(
       buckets: { m15: 1, h1: 1, h4: 1, h24: 0, h72: 1 },
     });
     // 55 and 90 minutes, and twenty hours: the reach-out step's wait counts as any run's does.
-    // And the runs the night skipped unanswered (00461, decision 0064 step 5): none in this world.
+    // And the runs the night skipped unanswered (00462, decision 0064 step 5): none in this world.
     assert.deepEqual(r.approval, { n: 3, skipped: 0, median_s: 5400, buckets: { h1: 1, h4: 1, h24: 1, over: 0 } });
 
     // A deleted playbook leaves its run looking like a one-off: the run keeps its kind from its audience (trap 10).

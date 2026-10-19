@@ -40,7 +40,7 @@ const { Icon } = await import(`${S}/surfaces/kit/icon/icon.tsx`);
 const { StoppedMark } = await import(`${S}/surfaces/kit/pill/stopped-mark.tsx`);
 const { PL_COLUMNS, PL_PHONE_COLUMNS } = await import(`${S}/surfaces/people/cells/columns.tsx`);
 const { pipeGlassColumns, pipePhoneColumns } = await import(`${S}/surfaces/people/pipeline/columns.tsx`);
-const { threadRow } = await import(`${S}/surfaces/inbox/pages/list-rows.tsx`);
+const { threadRows } = await import(`${S}/surfaces/inbox/pages/list-rows.tsx`);
 const { IxWho } = await import(`${S}/surfaces/inbox/thread/who.tsx`);
 const { LrList } = await import(`${S}/surfaces/live/list.tsx`);
 const { cvStopped } = await import(`${S}/surfaces/inbox/cv-rules.ts`);
@@ -371,7 +371,11 @@ const LIST = {
 test("the Inbox's row draws one face for the person, with the wire's badge, and says a stop beside the name", () => {
   fresh();
   const rowOf = (name, consent, over = {}) =>
-    threadRow(LIST, toInboxThreadVM(conv(name, consent, over), null, ZONE, NOW), 0);
+    // The row as the Inbox draws it: one of the list's (threadRows), the list here holding it alone.
+    threadRows(
+      { ...LIST, visible: [toInboxThreadVM(conv(name, consent, over), null, ZONE, NOW)] },
+      { parts: [{ kind: "row", index: 0 }], measure: () => {} },
+    )[0];
   const stopped = rowOf("Dana Cole", STOPPED);
   assert.ok(byTestId(stopped, "thread-stopped"), "a person who asked to stop");
   assert.equal(textOf(byTestId(stopped, "thread-stopped")), "Stopped");

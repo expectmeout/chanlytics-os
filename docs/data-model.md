@@ -1077,7 +1077,7 @@ Reviews of the workspace's listing as Google showed them, one row per review, ke
 | `maps_uri` | text | yes |  |  |
 | `first_seen_at` | timestamp with time zone | no | `now()` |  |
 | `last_seen_at` | timestamp with time zone | no | `now()` |  |
-| `draft_text` | text | yes |  | The reply the receptionist wrote for this review and holds (00461, decision 0064 step 6): for a member's OK under Ask me, or until posts_at under Holds it. Cleared when a reply is posted. The edge writes it. |
+| `draft_text` | text | yes |  | The reply the receptionist wrote for this review and holds (00462, decision 0064 step 6): for a member's OK under Ask me, or until posts_at under Holds it. Cleared when a reply is posted. The edge writes it. |
 | `drafted_at` | timestamp with time zone | yes |  | When the receptionist wrote the reply it holds (draft_text). |
 | `posts_at` | timestamp with time zone | yes |  | Under Holds it: when the held reply (draft_text) goes; the hourly sync posts it at its first run after, unless a member stopped it, which clears this and leaves the reply waiting for their OK. Null under Ask me. |
 

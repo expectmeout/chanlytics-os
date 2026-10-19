@@ -213,7 +213,7 @@ function proposeLeadsState(
 
 /**
  * A playbook that exists, paused, resumed, renamed or retimed (the moment spec §4.9 A5), and since 00416 given new
- * words or a last day, and since 00461 its sequence's mode (decision 0064): what its drawer does, proposed as a card. It reads the
+ * words or a last day, and since 00462 its sequence's mode (decision 0064): what its drawer does, proposed as a card. It reads the
  * one playbook (packages/db playbookForChange: its row, and a run of it that waits), never the Playbooks page, and judges
  * what is asked by the PUT's own judgement (core checkPlaybookPatch, against the playbook as it stands), so a value its
  * Approve would refuse is refused here in the same words. The card carries what changes and what each field held, and

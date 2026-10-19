@@ -1,12 +1,12 @@
--- 00462 · A sequence is approved once, then held (decision 0064: the contract half, applied after the merge's deploys).
+-- 00463 · A sequence is approved once, then held (decision 0064: the contract half, applied after the merge's deploys).
 --
--- What 00461 left for both apps to stop reading, and the defaults the decision moves:
+-- What 00462 left for both apps to stop reading, and the defaults the decision moves:
 --
 --   policies                     Win-backs, offers and follow-ups start new sequences held for a stop (veto): every
 --                                workspace's row that still says ask moves, and a Never (no longer a mode a sequence
 --                                takes: one is paused on its page) becomes ask. Ruben's word of 19 Oct 2026 for the live
 --                                workspaces; none had approved a batch.
---   sequences                    Each of those classes' sequences that still goes as 00461 found it (ask, never changed
+--   sequences                    Each of those classes' sequences that still goes as 00462 found it (ask, never changed
 --                                by a member since) follows its row to veto. Its first batch, and any batch of new words,
 --                                still waits for an OK (sequence_steps.words_ok_at).
 --   provision_tenant             A new workspace's rows for those three classes start at veto.
@@ -28,7 +28,7 @@ end $$;
 
 /* --------------------------------------------------------------------------------------------- 1. the defaults -- */
 
--- The sequences of the three classes that still go as 00461 found them follow their row: ask, and no member's change of
+-- The sequences of the three classes that still go as 00462 found them follow their row: ask, and no member's change of
 -- their mode since (a change_playbook line naming mode on the first step, whose id is the sequence's).
 update public.sequences q
    set mode = 'veto'
@@ -112,7 +112,7 @@ begin
     raise exception 'change_playbook: a playbook is named by its workspace and its id' using errcode = '22004';
   end if;
   -- The nine keys a change may name, and nothing else: a key outside them is refused, never ignored. Eight are the step's
-  -- columns; mode is its sequence's (0064). The trial is no key since 00462: a sequence's first batch's OK is it.
+  -- columns; mode is its sequence's (0064). The trial is no key since 00463: a sequence's first batch's OK is it.
   if v_set = '{}'::jsonb or exists (
     select 1 from jsonb_object_keys(v_set) k
      where k not in ('state', 'name', 'run_hour', 'cap_per_run', 'gap_days', 'cadence_days', 'params', 'until',
@@ -238,7 +238,7 @@ begin
 end $$;
 
 comment on function public.change_playbook(uuid, uuid, jsonb, jsonb, text, uuid) is
-  'A member changes a playbook in place and its line in the ledger together (the change_playbook door): the row locked on the caller''s rights, of the columns p_set names (state, name, run_hour, cap_per_run, gap_days, cadence_days, params, until) only those that differ from the row written, and its sequence''s mode where p_set names mode (auto, veto or ask; none for a one-off, never auto to leads: 00461), then start_playbook or pause_playbook where the state moved, else change_playbook, as theirs (member_decision), in one transaction. A sequence''s first step''s hour, cap and last day reach its customer''s steps after it, and its name those named as it was (00453). A key outside the nine is refused (22023); so is a null, but for until, which it clears, and a params that is not an array. Security invoker: the update policies and the column grants judge it. P0002 where the caller cannot see or change the row. Returns id, was (what each written column held, and the mode), decision_id and undo_dropped; where nothing differs, nothing is written and no line (00377, 00416, 00453, 00461, 00462).';
+  'A member changes a playbook in place and its line in the ledger together (the change_playbook door): the row locked on the caller''s rights, of the columns p_set names (state, name, run_hour, cap_per_run, gap_days, cadence_days, params, until) only those that differ from the row written, and its sequence''s mode where p_set names mode (auto, veto or ask; none for a one-off, never auto to leads: 00462), then start_playbook or pause_playbook where the state moved, else change_playbook, as theirs (member_decision), in one transaction. A sequence''s first step''s hour, cap and last day reach its customer''s steps after it, and its name those named as it was (00453). A key outside the nine is refused (22023); so is a null, but for until, which it clears, and a params that is not an array. Security invoker: the update policies and the column grants judge it. P0002 where the caller cannot see or change the row. Returns id, was (what each written column held, and the mode), decision_id and undo_dropped; where nothing differs, nothing is written and no line (00377, 00416, 00453, 00462, 00463).';
 
 create or replace function public.start_playbook(p_tenant_id uuid, p_playbook jsonb, p_decision jsonb DEFAULT '{}'::jsonb, p_via text DEFAULT NULL::text, p_undo_of uuid DEFAULT NULL::uuid)
  returns jsonb
@@ -258,7 +258,7 @@ begin
   -- On the caller's rights: the table's insert policy judges the row (an acting member, as themselves, a moment, a
   -- list and a message of this workspace), and its checks and unique indexes refuse what they refuse. The workspace,
   -- who made it and that it runs are said here, never by the caller; `kind` is the table's default, a moment. Its last
-  -- day is the caller's (00416), null where it names none. Its sequence's mode is made with it (00461 sequence_mode_for).
+  -- day is the caller's (00416), null where it names none. Its sequence's mode is made with it (00462 sequence_mode_for).
   insert into public.sequence_steps (tenant_id, name, trigger, list_id, list_key, template_id, template_name,
                                 template_language, params, policy_class, state, run_hour, cap_per_run, gap_days,
                                 cadence_days, channels, until, created_by)
@@ -272,7 +272,7 @@ begin
 end $$;
 
 comment on function public.start_playbook(uuid, jsonb, jsonb, text, uuid) is
-  'A member starts a playbook and its line in the ledger together (00357): the row, running, then the start_playbook decision as theirs (member_decision), in one transaction. Security invoker: the insert is judged by the table''s own policy, checks and unique indexes, as the route''s insert was. Its last day (until) is written where p_playbook names it, null where it does not (00416); its sequence''s mode is made with it (00461). Returns id, decision_id and undo_dropped.';
+  'A member starts a playbook and its line in the ledger together (00357): the row, running, then the start_playbook decision as theirs (member_decision), in one transaction. Security invoker: the insert is judged by the table''s own policy, checks and unique indexes, as the route''s insert was. Its last day (until) is written where p_playbook names it, null where it does not (00416); its sequence''s mode is made with it (00462). Returns id, decision_id and undo_dropped.';
 
 create or replace function public.sequence_step_save(p_tenant_id uuid, p_sequence_id uuid, p_step jsonb,
                                                     p_decision jsonb default '{}'::jsonb, p_via text default null,

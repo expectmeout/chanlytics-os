@@ -5148,7 +5148,7 @@ test("GET playbooks through its reader asks what it asked at origin/main, in its
     // (server/campaigns/channels-ready.ts) with its first reads: the WhatsApp number's config and the texting line (no email
     // domain is set here, so no mailbox).
     for (const q of want) if (q[0] === "sequence_steps.select") q[1] += ", channels";
-    // 11 Oct 2026 (00416): and each one's last day, which Campaigns' home says as its state. 19 Oct 2026 (00461, decision
+    // 11 Oct 2026 (00416): and each one's last day, which Campaigns' home says as its state. 19 Oct 2026 (00462, decision
     // 0064): its sequence and when its words were last let go, where the trial's end was, and its sequence's mode after.
     for (const q of want)
       if (q[0] === "sequence_steps.select")

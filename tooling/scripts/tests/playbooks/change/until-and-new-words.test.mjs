@@ -30,7 +30,7 @@ test("batchModeOf: a step whose words are new waits for an OK whatever its mode;
   for (const mode of ["auto", "veto", "ask"]) assert.equal(batchModeOf({ mode, words_ok_at: SEEN }), mode, mode);
   for (const mode of ["never", "sometimes", null, undefined])
     assert.equal(batchModeOf({ mode, words_ok_at: SEEN }), "ask", `${String(mode)} is no mode a sequence takes`);
-  assert.equal(batchModeOf({ mode: "auto", words_ok_at: undefined }), "ask", "a row read before 00461 asks");
+  assert.equal(batchModeOf({ mode: "auto", words_ok_at: undefined }), "ask", "a row read before 00462 asks");
 });
 
 /* -------------------------------------------------------------------------------------------------- the run -- */

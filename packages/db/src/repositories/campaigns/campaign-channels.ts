@@ -116,7 +116,7 @@ type PlaybookRowOf = Database["public"]["Tables"]["sequence_steps"]["Row"];
 /**
  * One playbook as a change in place is judged against it (core checkPlaybookPatch; Ask's change card, PUT
  * playbooks/:id's patch): its row under the caller's RLS, its message and words, its end (00416), its sequence's mode
- * and when its words were last let go (00461), and the
+ * and when its words were last let go (00462), and the
  * run of it that waits for approval, with how many it is for, which a pause leaves waiting (D8). Null where the workspace
  * has no such playbook. A reach-out's root is one too: its sheet's Pause is a change of its state. Throws on a failed
  * read.

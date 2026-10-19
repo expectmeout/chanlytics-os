@@ -31,7 +31,7 @@ test("the bounds a playbook's whole numbers keep are said once: the hour the sen
   assert.equal(PLAYBOOK_NAME_MAX, 80);
 });
 
-test("a change names any of nine things, in the order a card says them, and says each of the six in the product's words (the three of 00416 and 00461: playbook-change-words.test.mjs)", () => {
+test("a change names any of nine things, in the order a card says them, and says each of the six in the product's words (the three of 00416 and 00462: playbook-change-words.test.mjs)", () => {
   assert.deepEqual(
     [...PLAYBOOK_PATCH_KEYS],
     ["state", "name", "run_hour", "cap_per_run", "gap_days", "cadence_days", "params", "until", "mode"],

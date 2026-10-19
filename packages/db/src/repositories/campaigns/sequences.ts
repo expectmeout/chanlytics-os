@@ -205,7 +205,7 @@ export async function sequenceModesOf(
 }
 
 /**
- * What each of the workspace's sequences' batches did over the last `days` (00461 sequence_evidence, decision 0064 step
+ * What each of the workspace's sequences' batches did over the last `days` (00462 sequence_evidence, decision 0064 step
  * 5): went, after an OK, stopped, skipped unanswered. On the session's client (its row security decides). A read that
  * fails throws.
  */

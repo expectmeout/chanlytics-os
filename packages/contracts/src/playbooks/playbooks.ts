@@ -138,11 +138,11 @@ export interface PlaybookDto {
   created_at: string;
   /** Its last day (00416), YYYY-MM-DD by the business's clock, or null; absent from a server before it. */
   until?: string | null;
-  /** Its sequence's mode (decision 0064): how its batches are decided. Absent from a server before 00461. */
+  /** Its sequence's mode (decision 0064): how its batches are decided. Absent from a server before 00462. */
   mode?: SequenceMode | null;
   /**
-   * When a person last let a batch of its words go (00461): null while its words are new, and its next batch then waits
-   * for an OK whatever the mode (contracts batchModeOf). Absent from a server before 00461.
+   * When a person last let a batch of its words go (00462): null while its words are new, and its next batch then waits
+   * for an OK whatever the mode (contracts batchModeOf). Absent from a server before 00462.
    */
   words_ok_at?: string | null;
 }

@@ -2099,7 +2099,7 @@ interface PlaybookRow {
      * or unknown asks (contracts batchModeOf, fail safe).
      */
     mode?: string | null;
-    /** When a person last let a batch of its words go (00461): null while its words are new, and its batch then asks. */
+    /** When a person last let a batch of its words go (00462): null while its words are new, and its batch then asks. */
     words_ok_at?: string | null;
     /** A moment's step, or a sequence to leads' (00183). Absent: a moment's. */
     kind?: string;
@@ -2751,7 +2751,7 @@ interface ReachOutStep {
      */
     owner_sends: boolean;
     cap_per_run: number;
-    /** When a person last let a run of its words go (00461): null while they are new, and its run then waits for them. */
+    /** When a person last let a run of its words go (00462): null while they are new, and its run then waits for them. */
     words_ok_at: string | null;
     template_id: string;
     template_name: string;

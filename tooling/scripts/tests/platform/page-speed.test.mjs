@@ -113,6 +113,45 @@ test("a part that opens one thing at a time is timed from the press that opened 
   assert.equal(rig.reports.filter((r) => !r.part).length, 0, "a thread opened is never the page's own READY");
 });
 
+test("a part first begun once its page was drawn is timed from the press that opened it, never from the page's start", () => {
+  const rig = speedRig();
+  rig.speed.begin("campaigns", { from: "today", at: 0, warm: true, cold: false });
+  rig.set(10);
+  rig.speed.partBegins({ page: "campaigns", part: "list", key: "", warm: true, changed: false }, 10);
+  rig.speed.partReady("campaigns", "list", "");
+  rig.paint(200);
+  assert.equal(PRIMARY_PART.campaigns, "list");
+  // Nothing was open as the list arrived: the first sequence opened, seconds later, mounts its part afresh.
+  rig.set(5000);
+  rig.speed.partBegins({ page: "campaigns", part: "record", key: "seq-1", warm: false, changed: false }, 4980);
+  rig.set(5140);
+  rig.speed.partReady("campaigns", "record", "seq-1");
+  rig.paint(5150);
+  assert.deepEqual(rig.reports, [
+    { name: "READY", value: 200, page: "campaigns", part: "list", from: "today", warm: true },
+    { name: "READY", value: 200, page: "campaigns", from: "today", warm: true },
+    { name: "READY", value: 170, page: "campaigns", part: "record", from: "campaigns", warm: false },
+  ]);
+  // A sequence the address opened as the page arrived is the page's own wait, timed from its start.
+  const load = speedRig();
+  load.speed.begin("campaigns", { from: null, at: 0, warm: false, cold: true });
+  load.speed.partBegins({ page: "campaigns", part: "record", key: "seq-1", warm: false, changed: false }, 0);
+  load.speed.partBegins({ page: "campaigns", part: "list", key: "", warm: false, changed: false }, 0);
+  load.speed.partReady("campaigns", "record", "seq-1");
+  load.speed.partReady("campaigns", "list", "");
+  load.paint(900);
+  assert.deepEqual(
+    load.reports.find((r) => r.part === "record"),
+    {
+      name: "READY",
+      value: 900,
+      page: "campaigns",
+      part: "record",
+      warm: false,
+    },
+  );
+});
+
 test("a begin said twice at once is one (strict mode), and a part drawn afresh later is a move inside its page", () => {
   const rig = speedRig();
   rig.speed.begin("people", { from: "today", at: 0, warm: true, cold: false });

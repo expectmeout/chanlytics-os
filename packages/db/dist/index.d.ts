@@ -44731,7 +44731,7 @@ declare function sequenceRow(db: Db$m, id: string): Promise<{
  */
 declare function sequenceModesOf(db: Db$m, tenantId: string, ids: readonly string[]): Promise<Map<string, SequenceMode>>;
 /**
- * What each of the workspace's sequences' batches did over the last `days` (00461 sequence_evidence, decision 0064 step
+ * What each of the workspace's sequences' batches did over the last `days` (00462 sequence_evidence, decision 0064 step
  * 5): went, after an OK, stopped, skipped unanswered. On the session's client (its row security decides). A read that
  * fails throws.
  */
@@ -45031,7 +45031,7 @@ type PlaybookRowOf = Database["public"]["Tables"]["sequence_steps"]["Row"];
 /**
  * One playbook as a change in place is judged against it (core checkPlaybookPatch; Ask's change card, PUT
  * playbooks/:id's patch): its row under the caller's RLS, its message and words, its end (00416), its sequence's mode
- * and when its words were last let go (00461), and the
+ * and when its words were last let go (00462), and the
  * run of it that waits for approval, with how many it is for, which a pause leaves waiting (D8). Null where the workspace
  * has no such playbook. A reach-out's root is one too: its sheet's Pause is a change of its state. Throws on a failed
  * read.
@@ -46442,7 +46442,7 @@ type PlaybookToStart = Required<Pick<Database["public"]["Tables"]["sequence_step
  * Start a playbook with its line in the ledger (00357 start_playbook), on the member's own session: the row, running
  * and theirs, then the start_playbook decision, in one transaction. The door runs on the caller's rights, so the
  * table's policy, checks and unique indexes judge the row. Since 00416 it writes the last day the playbook names
- * (`until`); its sequence takes its class's mode as the first step makes it (00461, decision 0064). The
+ * (`until`); its sequence takes its class's mode as the first step makes it (00462, decision 0064). The
  * new row's id with its decision's, or the database's refusal, which the caller words; an answer with neither id is a
  * door that is not this one, and throws.
  */

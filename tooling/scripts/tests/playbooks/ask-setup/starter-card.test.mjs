@@ -421,7 +421,7 @@ test("a new campaign's card says what its batches will do: its first waits for y
     assert.equal(onStarter.proposal.payload.starter_key, STARTER.key, "the starter path");
     assert.ok(onFile_.proposal.payload.template_id, "the message-on-file path");
   }
-  // A class with no row asks, as a new sequence of it would (00461 sequence_mode_for).
+  // A class with no row asks, as a new sequence of it would (00462 sequence_mode_for).
   const unrowed = await propose({ trigger: "quiet_30" }, { policies: [] }).made;
   assert.equal(unrowed.proposal.payload.mode, "ask");
 });

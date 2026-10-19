@@ -787,7 +787,7 @@ end $$;
 -- Name: FUNCTION assemble_broadcast(p_tenant uuid, p_run jsonb, p_recipients jsonb, p_decision jsonb, p_send_at timestamp with time zone, p_actor uuid, p_via text, p_undo_of uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.assemble_broadcast(p_tenant uuid, p_run jsonb, p_recipients jsonb, p_decision jsonb, p_send_at timestamp with time zone, p_actor uuid, p_via text, p_undo_of uuid) IS 'A broadcast''s run, its people, its send job (when p_send_at is set) and the send_broadcast decision on it, in one transaction (00381): 00282''s door called whole, then the decision as the member''s (p_actor, the person the caller acts for) or the system''s (p_actor null, the sweep''s). A member''s run of a step lets its words go (sequence_steps.words_ok_at, 00461). The service role''s alone. Returns {id, decision_id, undo_dropped}; {id} alone when p_decision is null (a run that waits for a person: its approval is its decision, 00353).';
+COMMENT ON FUNCTION public.assemble_broadcast(p_tenant uuid, p_run jsonb, p_recipients jsonb, p_decision jsonb, p_send_at timestamp with time zone, p_actor uuid, p_via text, p_undo_of uuid) IS 'A broadcast''s run, its people, its send job (when p_send_at is set) and the send_broadcast decision on it, in one transaction (00381): 00282''s door called whole, then the decision as the member''s (p_actor, the person the caller acts for) or the system''s (p_actor null, the sweep''s). A member''s run of a step lets its words go (sequence_steps.words_ok_at, 00462). The service role''s alone. Returns {id, decision_id, undo_dropped}; {id} alone when p_decision is null (a run that waits for a person: its approval is its decision, 00353).';
 
 
 --
@@ -801,6 +801,33 @@ CREATE FUNCTION public.automated_send(p_meta jsonb) RETURNS boolean
   -- A send written as 'human' that no person made; it lists every source packages/core/src/deliver.ts treats as automated.
   select coalesce(p_meta->>'source', '') in ('broadcast', 'reach_out')
 $$;
+
+
+--
+-- Name: batch_closes_its_notices(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.batch_closes_its_notices() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+begin
+  if (OLD.state = 'pending_approval' and NEW.state <> 'pending_approval')
+     or (NEW.state in ('sent', 'canceled', 'failed') and OLD.state not in ('sent', 'canceled', 'failed')) then
+    perform public.notifications_close_about(NEW.tenant_id, array['playbook'], 'broadcast', NEW.id::text);
+  end if;
+  return null;
+exception when others then
+  raise warning 'batch_closes_its_notices: %', sqlerrm;
+  return null;
+end $$;
+
+
+--
+-- Name: FUNCTION batch_closes_its_notices(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.batch_closes_its_notices() IS 'Closes the open playbook rows about a run when it leaves pending_approval (approved, skipped, or skipped by the sweep, whoever does it) or ends (sent, canceled, failed), through notifications_close_about (00461). Never fails the change: a failure is a warning.';
 
 
 --
@@ -2074,7 +2101,7 @@ begin
     raise exception 'change_playbook: a playbook is named by its workspace and its id' using errcode = '22004';
   end if;
   -- The nine keys a change may name, and nothing else: a key outside them is refused, never ignored. Eight are the step's
-  -- columns; mode is its sequence's (0064). The trial is no key since 00462: a sequence's first batch's OK is it.
+  -- columns; mode is its sequence's (0064). The trial is no key since 00463: a sequence's first batch's OK is it.
   if v_set = '{}'::jsonb or exists (
     select 1 from jsonb_object_keys(v_set) k
      where k not in ('state', 'name', 'run_hour', 'cap_per_run', 'gap_days', 'cadence_days', 'params', 'until',
@@ -2204,7 +2231,7 @@ end $$;
 -- Name: FUNCTION change_playbook(p_tenant_id uuid, p_playbook_id uuid, p_set jsonb, p_decision jsonb, p_via text, p_undo_of uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.change_playbook(p_tenant_id uuid, p_playbook_id uuid, p_set jsonb, p_decision jsonb, p_via text, p_undo_of uuid) IS 'A member changes a playbook in place and its line in the ledger together (the change_playbook door): the row locked on the caller''s rights, of the columns p_set names (state, name, run_hour, cap_per_run, gap_days, cadence_days, params, until) only those that differ from the row written, and its sequence''s mode where p_set names mode (auto, veto or ask; none for a one-off, never auto to leads: 00461), then start_playbook or pause_playbook where the state moved, else change_playbook, as theirs (member_decision), in one transaction. A sequence''s first step''s hour, cap and last day reach its customer''s steps after it, and its name those named as it was (00453). A key outside the nine is refused (22023); so is a null, but for until, which it clears, and a params that is not an array. Security invoker: the update policies and the column grants judge it. P0002 where the caller cannot see or change the row. Returns id, was (what each written column held, and the mode), decision_id and undo_dropped; where nothing differs, nothing is written and no line (00377, 00416, 00453, 00461, 00462).';
+COMMENT ON FUNCTION public.change_playbook(p_tenant_id uuid, p_playbook_id uuid, p_set jsonb, p_decision jsonb, p_via text, p_undo_of uuid) IS 'A member changes a playbook in place and its line in the ledger together (the change_playbook door): the row locked on the caller''s rights, of the columns p_set names (state, name, run_hour, cap_per_run, gap_days, cadence_days, params, until) only those that differ from the row written, and its sequence''s mode where p_set names mode (auto, veto or ask; none for a one-off, never auto to leads: 00462), then start_playbook or pause_playbook where the state moved, else change_playbook, as theirs (member_decision), in one transaction. A sequence''s first step''s hour, cap and last day reach its customer''s steps after it, and its name those named as it was (00453). A key outside the nine is refused (22023); so is a null, but for until, which it clears, and a params that is not an array. Security invoker: the update policies and the column grants judge it. P0002 where the caller cannot see or change the row. Returns id, was (what each written column held, and the mode), decision_id and undo_dropped; where nothing differs, nothing is written and no line (00377, 00416, 00453, 00462, 00463).';
 
 
 --
@@ -12798,7 +12825,7 @@ end $$;
 -- Name: FUNCTION messages_reply_held_closes(); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.messages_reply_held_closes() IS 'Closes the open reply_held rows about a thread once a reply of the receptionist''s leaves the queue and none is left queued there (00461, decision 0064: sent, failed or withdrawn by a Stop), through notifications_close_about. Never fails the send: a failure is a warning.';
+COMMENT ON FUNCTION public.messages_reply_held_closes() IS 'Closes the open reply_held rows about a thread once a reply of the receptionist''s leaves the queue and none is left queued there (00462, decision 0064: sent, failed or withdrawn by a Stop), through notifications_close_about. Never fails the send: a failure is a warning.';
 
 
 --
@@ -23938,7 +23965,7 @@ begin
                         and r.published_at < v_stop) w), '[]'::jsonb),
     'waiting_total', c.waiting,
     -- The oldest that wait, the ones with no date last: the columns the Google read draws a review by (the reply it holds
-    -- and when that goes among them, 00461), and why a reply written for it was held (google.reply_held), where one was.
+    -- and when that goes among them, 00462), and why a reply written for it was held (google.reply_held), where one was.
     'waiting', coalesce((select jsonb_agg(to_jsonb(q) order by q.published_at asc nulls last, q.id)
                  from (select r.id, r.review_id, r.origin, r.rating, r.author, r.author_uri, r.author_photo_uri, r.body,
                               r.language_code, r.published_at, r.reply_text, r.replied_at, r.draft_text, r.posts_at,
@@ -23969,7 +23996,7 @@ end $$;
 -- Name: FUNCTION reviews_ledger(p_tenant_id uuid, p_days integer, p_end date); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.reviews_ledger(p_tenant_id uuid, p_days integer, p_end date) IS 'Reports › Reviews: the profile''s reviews from the period before''s first day (each on its day in the workspace''s zone, with whether it has a reply, how long the reply took, and who wrote it: the receptionist where its own event is within six hours of the reply), the counts of each origin, whether the record is all of Google''s, and the oldest five that wait for a reply with the reply the receptionist holds for each and when it goes (00461), and why a reply written for one was held. One statement, under the caller''s RLS. `p_end` (00360) is the window''s last day, in the workspace''s zone: null is today, and a day that has not come is read as today.';
+COMMENT ON FUNCTION public.reviews_ledger(p_tenant_id uuid, p_days integer, p_end date) IS 'Reports › Reviews: the profile''s reviews from the period before''s first day (each on its day in the workspace''s zone, with whether it has a reply, how long the reply took, and who wrote it: the receptionist where its own event is within six hours of the reply), the counts of each origin, whether the record is all of Google''s, and the oldest five that wait for a reply with the reply the receptionist holds for each and when it goes (00462), and why a reply written for one was held. One statement, under the caller''s RLS. `p_end` (00360) is the window''s last day, in the workspace''s zone: null is today, and a day that has not come is read as today.';
 
 
 --
@@ -25491,7 +25518,7 @@ $$;
 -- Name: FUNCTION sequence_evidence(p_tenant_id uuid, p_days integer); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.sequence_evidence(p_tenant_id uuid, p_days integer) IS 'What each of a workspace''s sequences'' batches did over the last p_days (1 to 365, 90): went, went after a member''s OK, stopped by a member, skipped by the sweep because nobody answered before their day ended (00461, decision 0064 step 5). One-offs are not counted. Under the caller''s row security.';
+COMMENT ON FUNCTION public.sequence_evidence(p_tenant_id uuid, p_days integer) IS 'What each of a workspace''s sequences'' batches did over the last p_days (1 to 365, 90): went, went after a member''s OK, stopped by a member, skipped by the sweep because nobody answered before their day ended (00462, decision 0064 step 5). One-offs are not counted. Under the caller''s row security.';
 
 
 --
@@ -25990,7 +26017,7 @@ $$;
 -- Name: FUNCTION sequence_overview(p_tenant_id uuid, p_sequence_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.sequence_overview(p_tenant_id uuid, p_sequence_id uuid) IS 'The workspace''s sequences (0060), or the one named: how each starts (its first step, with the search it adds from: 00459, when its words were last let go: 00461, or a one-off''s date), how its batches are decided (its mode, 00461), where it stands, its steps, the days they span and the emails still to write (00459), its channels, what needs you (batches waiting for an OK and their people, emails held by the check, emails for you to send, replies to answer, the oldest of them), the batch to come, the last that went with its sent and replied, and who is in it (everyone whose place stands, sequence_places: 00459). Newest first. Under the caller''s row security.';
+COMMENT ON FUNCTION public.sequence_overview(p_tenant_id uuid, p_sequence_id uuid) IS 'The workspace''s sequences (0060), or the one named: how each starts (its first step, with the search it adds from: 00459, when its words were last let go: 00462, or a one-off''s date), how its batches are decided (its mode, 00462), where it stands, its steps, the days they span and the emails still to write (00459), its channels, what needs you (batches waiting for an OK and their people, emails held by the check, emails for you to send, replies to answer, the oldest of them), the batch to come, the last that went with its sent and replied, and who is in it (everyone whose place stands, sequence_places: 00459). Newest first. Under the caller''s row security.';
 
 
 --
@@ -26866,7 +26893,7 @@ $$;
 -- Name: FUNCTION sequence_steps_due(p_kind text, p_at timestamp with time zone, p_last_hour integer, p_limit integer, p_tenant_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.sequence_steps_due(p_kind text, p_at timestamp with time zone, p_last_hour integer, p_limit integer, p_tenant_id uuid) IS 'The running steps of one kind due at p_at by their workspace''s own clock, each with its sequence''s mode (00461), a paused workspace''s never, never run first, then least recently run, with due_total the count of all that were due: the hourly sweep''s pages (playbooks_due''s rule, 00245). A customer''s step after the first is due only while its sequence is on (0060).';
+COMMENT ON FUNCTION public.sequence_steps_due(p_kind text, p_at timestamp with time zone, p_last_hour integer, p_limit integer, p_tenant_id uuid) IS 'The running steps of one kind due at p_at by their workspace''s own clock, each with its sequence''s mode (00462), a paused workspace''s never, never run first, then least recently run, with due_total the count of all that were due: the hourly sweep''s pages (playbooks_due''s rule, 00245). A customer''s step after the first is due only while its sequence is on (0060).';
 
 
 --
@@ -26974,7 +27001,7 @@ $$;
 -- Name: FUNCTION sequence_steps_of(p_tenant_id uuid, p_sequence_id uuid, p_days integer); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.sequence_steps_of(p_tenant_id uuid, p_sequence_id uuid, p_days integer) IS 'A sequence''s steps in their places (0060): each one''s message and the words waiting for WhatsApp with WhatsApp''s answer, when a person last let its words go (00461), its wait and what must still hold of someone due it, its channels, a hand step''s call or note, and what its batches of the last p_days (1 to 90, 30) sent and drew back. Under the caller''s row security.';
+COMMENT ON FUNCTION public.sequence_steps_of(p_tenant_id uuid, p_sequence_id uuid, p_days integer) IS 'A sequence''s steps in their places (0060): each one''s message and the words waiting for WhatsApp with WhatsApp''s answer, when a person last let its words go (00462), its wait and what must still hold of someone due it, its channels, a hand step''s call or note, and what its batches of the last p_days (1 to 90, 30) sent and drew back. Under the caller''s row security.';
 
 
 --
@@ -28175,7 +28202,7 @@ begin
   -- On the caller's rights: the table's insert policy judges the row (an acting member, as themselves, a moment, a
   -- list and a message of this workspace), and its checks and unique indexes refuse what they refuse. The workspace,
   -- who made it and that it runs are said here, never by the caller; `kind` is the table's default, a moment. Its last
-  -- day is the caller's (00416), null where it names none. Its sequence's mode is made with it (00461 sequence_mode_for).
+  -- day is the caller's (00416), null where it names none. Its sequence's mode is made with it (00462 sequence_mode_for).
   insert into public.sequence_steps (tenant_id, name, trigger, list_id, list_key, template_id, template_name,
                                 template_language, params, policy_class, state, run_hour, cap_per_run, gap_days,
                                 cadence_days, channels, until, created_by)
@@ -28193,7 +28220,7 @@ end $$;
 -- Name: FUNCTION start_playbook(p_tenant_id uuid, p_playbook jsonb, p_decision jsonb, p_via text, p_undo_of uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.start_playbook(p_tenant_id uuid, p_playbook jsonb, p_decision jsonb, p_via text, p_undo_of uuid) IS 'A member starts a playbook and its line in the ledger together (00357): the row, running, then the start_playbook decision as theirs (member_decision), in one transaction. Security invoker: the insert is judged by the table''s own policy, checks and unique indexes, as the route''s insert was. Its last day (until) is written where p_playbook names it, null where it does not (00416); its sequence''s mode is made with it (00461). Returns id, decision_id and undo_dropped.';
+COMMENT ON FUNCTION public.start_playbook(p_tenant_id uuid, p_playbook jsonb, p_decision jsonb, p_via text, p_undo_of uuid) IS 'A member starts a playbook and its line in the ledger together (00357): the row, running, then the start_playbook decision as theirs (member_decision), in one transaction. Security invoker: the insert is judged by the table''s own policy, checks and unique indexes, as the route''s insert was. Its last day (until) is written where p_playbook names it, null where it does not (00416); its sequence''s mode is made with it (00462). Returns id, decision_id and undo_dropped.';
 
 
 --
@@ -31139,7 +31166,7 @@ COMMENT ON TABLE public.google_reviews IS 'Reviews of the workspace''s listing a
 -- Name: COLUMN google_reviews.draft_text; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.google_reviews.draft_text IS 'The reply the receptionist wrote for this review and holds (00461, decision 0064 step 6): for a member''s OK under Ask me, or until posts_at under Holds it. Cleared when a reply is posted. The edge writes it.';
+COMMENT ON COLUMN public.google_reviews.draft_text IS 'The reply the receptionist wrote for this review and holds (00462, decision 0064 step 6): for a member''s OK under Ask me, or until posts_at under Holds it. Cleared when a reply is posted. The edge writes it.';
 
 
 --
@@ -36831,6 +36858,13 @@ CREATE TRIGGER appointments_set_updated_at BEFORE UPDATE ON public.appointments 
 
 
 --
+-- Name: sequence_batches batch_closes_its_notices; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER batch_closes_its_notices AFTER UPDATE OF state ON public.sequence_batches FOR EACH ROW WHEN ((old.state IS DISTINCT FROM new.state)) EXECUTE FUNCTION public.batch_closes_its_notices();
+
+
+--
 -- Name: billing_accounts billing_accounts_moddatetime; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -41564,6 +41598,14 @@ GRANT ALL ON FUNCTION public.assemble_broadcast(p_tenant uuid, p_run jsonb, p_re
 REVOKE ALL ON FUNCTION public.automated_send(p_meta jsonb) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.automated_send(p_meta jsonb) TO authenticated;
 GRANT ALL ON FUNCTION public.automated_send(p_meta jsonb) TO service_role;
+
+
+--
+-- Name: FUNCTION batch_closes_its_notices(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.batch_closes_its_notices() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.batch_closes_its_notices() TO service_role;
 
 
 --

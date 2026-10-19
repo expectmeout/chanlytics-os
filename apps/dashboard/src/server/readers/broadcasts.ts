@@ -33,7 +33,8 @@ const runRef = (b: Pick<BroadcastDto, "id" | "name">): RowRef => ({
 
 /**
  * GET broadcasts, as the route answers it: the recent fifty with what their messages earned, and whether older ones exist
- * beyond them: what the badge, the Inbox's run rows, Today's queue and a run's sheet are drawn from, read before the
+ * beyond them, and after them every older run still waiting for a word (campaigns/broadcasts.ts listBroadcasts): what the
+ * badge, the Inbox's run rows, Today's queue and a run's sheet are drawn from, read before the
  * Inbox's first draw. Who a run reached this week is not here: it is every touch of the week, which the composer alone
  * reads (broadcastTouches, GET broadcasts/touches; the Inbox's run review, 18 Oct 2026). And whether the workspace can send on each channel now (`ready`, channels-ready.ts), which
  * the composer's Send by ticks and its reach line are drawn from; null where that could not be read, which the composer

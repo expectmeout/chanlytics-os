@@ -2,8 +2,8 @@
 
 **Status:** Decided 19 October 2026 (Ruben: "all approved as you best suggest", on the One hold review of 18 October,
 `Claude Video/docs/2026-10-18-chanlytics-one-hold-review/index.html`), with its six calls as recommended. Built in part on
-the lane `sequences/one-hold` from main's `d2dd2c3e5`: steps 1, 2, 3, 5 and 6 in one change (00461 before the merge,
-00462 after its deploys); step 4 is its own change, after this one is on production. Where this note and the code
+the lane `sequences/one-hold` from main's `d2dd2c3e5`: steps 1, 2, 3, 5 and 6 in one change (00462 before the merge,
+00463 after its deploys); step 4 is its own change, after this one is on production. Where this note and the code
 disagree, the code wins.
 
 ## Context
@@ -58,10 +58,10 @@ Two refinements of the review, made while building it and said to Ruben with how
 
 ## Steps
 
-1. **Approve the sequence, not the batch.** Migration 00461 (expand): `sequences.mode`, `sequence_steps.words_ok_at`,
+1. **Approve the sequence, not the batch.** Migration 00462 (expand): `sequences.mode`, `sequence_steps.words_ok_at`,
    the defaults and backfills, the doors that set and clear them, the class modes without Never. Core plans by
    `batchModeOf`; a reach-out asks by the same rule; the sweep's skip tells; the readers, the record, How it runs, the
-   Autonomy rows and Ask read and set the sequence's mode; the trial goes from the code. Migration 00462 (contract,
+   Autonomy rows and Ask read and set the sequence's mode; the trial goes from the code. Migration 00463 (contract,
    applied after the merge's deploys, as 00460 was): `sequence_steps.trial_until` goes.
 2. **Every hold tells once and says its expiry.** A reply held in its window (or for low confidence) is a bell row and
    a push, closed when it goes or is stopped. One rule says each wait's expiry (contracts `waitRuleOf`); every notice
@@ -70,7 +70,7 @@ Two refinements of the review, made while building it and said to Ruben with how
    set for later already can be canceled.
 4. **A step carries only what is its own.** The hour, the cap, the gap, the cadence and the last day move to
    `sequences`; the copies on later steps, and 00453's carrying of them, go. Not built with the others: it moves every
-   setting's storage and re-creates the functions 00461 and 00462 just re-created, so it lands on its own, after them,
+   setting's storage and re-creates the functions 00462 and 00463 just re-created, so it lands on its own, after them,
    with its own rollback.
 5. **Each sequence shows its evidence.** "12 batches went: 11 as approved, 1 stopped, 2 skipped because nobody
    answered" on the record and under each Autonomy row, from the ledger and the runs.

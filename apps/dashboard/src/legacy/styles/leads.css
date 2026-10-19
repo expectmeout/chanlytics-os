@@ -490,7 +490,7 @@ textarea.ld-line-box { height: auto; min-height: 112px; padding: 12px 14px; line
      .pl-peek the name PL_OVERLAY knows it by; both are on the one element). */
   .pl-peek { position: fixed; inset: 0; z-index: 40; width: auto; border-left: 0; background: var(--bg); box-shadow: none; }
   .pl-peek .pk-decide, .pl-peek .pk-foot { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-  .pl-peek .pk-decide .btn, .pl-peek .pk-foot .btn { min-height: 48px; justify-content: center; border-radius: var(--radius-md); }
+  .pl-peek .pk-decide .btn, .pl-peek .pk-foot .btn { min-height: var(--control-h-touch); justify-content: center; border-radius: var(--control-radius); font-size: var(--text-base); }
   .pl-peek .pk-foot .sp { display: none; }
 
   /* The six outcomes are a 2 x 3 grid of 44px targets (PRD 9.4). Task 18's
@@ -1420,9 +1420,13 @@ button.ld-slot-btn { cursor: pointer; }
 .lw-keys span { display: inline-flex; align-items: center; gap: 4px; }
 .lw-kbd { display: inline-grid; place-items: center; min-width: 18px; height: 18px; padding: 0 4px; border: 1px solid currentColor; border-radius: var(--radius-xs); font-family: var(--font-mono); font-size: var(--text-2xs); line-height: 1; opacity: 0.7; }
 .lw-x { flex: none; width: 44px; height: 44px; padding: 0; border-radius: var(--radius-circle); }
-/* A phone's dock keeps a thumb's 48px in the kit sheet's foot, whose button takes the foot's height otherwise. */
-.lw-phone .lw-dock .lw-dock-b, .lw-phone .lw-dock .lw-x { height: 48px; }
-.lw-phone .lw-dock .lw-x { width: 48px; }
+/* A phone's dock is the sheet's foot: it stands on the foot's own ground (the foot's capsule held the dock's, and the
+   foot stood 72px tall where every other is 56), its acts the house's 44px with their words at the base step, as every
+   foot's are (19 Oct 2026; the foot's own button rule would take them to 36 otherwise). */
+.lw-phone .lw-dock, .lw-phone .lw-dock-ask { margin: -6px -6px -6px -16px; background: none; box-shadow: none; }
+.lw-phone .lw-dock .lw-dock-b, .lw-phone .lw-dock .lw-x { height: var(--control-h-touch); }
+.lw-phone .lw-dock .lw-dock-b { font-size: var(--text-base); }
+.lw-phone .lw-dock .lw-x { width: var(--control-h-touch); }
 /* Something being read beside the line: a small ring turning, standing still under reduced motion. */
 .lw-spin { flex: none; width: 12px; height: 12px; border: 2px solid var(--line-strong); border-top-color: var(--accent); border-radius: var(--radius-circle); animation: lw-spin 0.9s linear infinite; }
 @keyframes lw-spin { to { rotate: 1turn; } }
@@ -1502,13 +1506,13 @@ button.ld-slot-btn { cursor: pointer; }
 .lw-held.is-row { flex-wrap: wrap; gap: 2px 4px; }
 .lw-split { display: inline-flex; flex: none; gap: 2px; }
 .lw-split-more { flex: none; width: 36px; height: 44px; padding: 0; }
-.lw-phone .lw-dock .lw-split-more { height: 48px; }
+.lw-phone .lw-dock .lw-split-more { height: var(--control-h-touch); }
 /* On a phone the primary act takes the room the glyphs leave, its words cut short, so ▾ beside it always shows; each
    glyph says its word under it (the canvas's PhoneHalf), with no keys to name. */
 .lw-dock-w { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .lw-phone .lw-dock .lw-split { flex: 1 1 auto; min-width: 0; }
 .lw-phone .lw-dock .lw-split > .lw-dock-b { flex: 1 1 auto; min-width: 0; }
-.lw-phone .lw-dock .lw-x-said { width: auto; min-width: 52px; flex-direction: column; gap: 3px; padding: 0 4px; border-radius: var(--radius-lg); }
+.lw-phone .lw-dock .lw-x-said { width: auto; min-width: 52px; flex-direction: column; gap: 3px; padding: 0 4px; border-radius: var(--radius-full); }
 .lw-x-w { font-size: var(--text-2xs); line-height: 1; color: var(--ink-muted); white-space: nowrap; }
 .lw-take { display: flex; align-items: center; gap: 10px; margin: 2px 0 0; }
 .lw-every { align-self: flex-start; font-size: var(--text-sm); }

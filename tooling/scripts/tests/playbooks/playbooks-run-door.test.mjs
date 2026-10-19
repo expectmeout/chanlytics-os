@@ -175,7 +175,7 @@ const playbook = (tenant, id, over = {}) => ({
   created_by: "owner-1",
   last_run_for: null,
   last_run_at: null,
-  // Its words seen going (00461): the run says its sequence's own mode.
+  // Its words seen going (00462): the run says its sequence's own mode.
   words_ok_at: iso(20 * D),
   created_at: iso(30 * D),
   updated_at: iso(30 * D),
@@ -203,7 +203,7 @@ function world({ people = {}, faults = {}, rpcs = {} } = {}) {
 }
 /**
  * A workspace on New York's clock, with a number that may send, a template Meta approved, and the win-back class set to
- * `mode`: what a new win-back sequence there starts as (00461), so the playbook pushed after it takes that mode.
+ * `mode`: what a new win-back sequence there starts as (00462), so the playbook pushed after it takes that mode.
  */
 function workspace(tables, id, mode, over = {}) {
   tables.tenants.push({ id, name: `Workspace ${id.slice(0, 8)}`, timezone: TZ, status: "active", ...over });

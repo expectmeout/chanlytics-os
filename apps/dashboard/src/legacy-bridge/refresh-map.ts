@@ -588,7 +588,7 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   // replyToReview), which writes through the notifications door.
   "POST google/reviews/[id]/reply": () => [reviewsOverride],
   // A held reply stopped (decision 0064, step 6): the review still waits, now with its words held for an OK, on the lens
-  // that drew the Stop. The live feed tells the change to every tab (00461), and this tab reads the lens once, at once.
+  // that drew the Stop. The live feed tells the change to every tab (00462), and this tab reads the lens once, at once.
   "POST google/reviews/[id]/stop": () => [reviewsOverride],
   // A partner joining a workspace (0020): the switcher's list, so the workspace just joined is there to open, and the
   // partner's count. It was a second path, read by hand in partner.ts.

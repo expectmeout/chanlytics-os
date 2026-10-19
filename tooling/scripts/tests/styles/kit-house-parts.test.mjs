@@ -37,7 +37,8 @@ test("a Confirm asks a question, says what happens, and takes its test ids from 
   assert.equal(byTestId(tree, "gd-confirm").props["aria-label"], "Disconnect Google?");
   assert.ok(classes(byTestId(tree, "gd-confirm")).includes("confirm-danger"));
   assert.ok(classes(byTestId(tree, "gd-yes")).includes("btn-danger"));
-  assert.equal(byTestId(tree, "gd-yes").props.autoFocus, true, "the Yes takes focus as the question appears");
+  assert.equal(byTestId(tree, "gd-yes").props.autoFocus, false, "a Yes that destroys does not take focus");
+  assert.equal(byTestId(tree, "gd-no").props.autoFocus, true, "the No does: Enter out of habit keeps what is there");
 });
 
 test("Escape is No, and it is not said while the answer is on its way", () => {

@@ -138,7 +138,9 @@ export const inboxOverride: SurfaceOverride = {
     const settings = surfaceValue("settings");
     setSurfaceValue("inbox", {
       ...prev,
-      THREADS: threads,
+      // A thread the read gave as it was keeps its object, so its row is not drawn again (shareUnchanged): a new message
+      // read the hundred threads again and drew every row for one (the strips review, 18 Oct 2026).
+      THREADS: shareUnchanged(prev.THREADS, threads),
       INBOX_BUCKETS: REAL_BUCKETS,
       INBOX_VIEWS: [], // saved views are all structurally zero on real data
       // The wires a real thread travels: the demo's labels are never laid under them (X6-1).

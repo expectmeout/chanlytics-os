@@ -11,7 +11,7 @@ import { isLiveCallTurn } from "@/legacy-bridge/surface-realtime";
 import { declareReads, keepForItsPage, ownsTheScreen } from "@/legacy-bridge/surface-registry";
 import { routeOnScreen } from "@/legacy-bridge/workspace";
 import { channelsHeld, followChannels } from "../channels/surface";
-import { declareSurfaceValue, setSurfaceValue } from "../surface-values";
+import { declareSurfaceValue, setSurfaceValue, shareUnchanged, surfaceValue } from "../surface-values";
 
 /** The phone line right now: the calls in progress and the ones that just ended, with the line's number and switch. */
 export type LiveSurface = LiveVM;
@@ -70,6 +70,7 @@ export const liveOverride: SurfaceOverride = {
     const [callsRes, tz] = await Promise.all([read("GET calls"), workspaceZone()]);
     made = { calls: callsRes.calls, tz };
     readAtMs = Date.now();
-    setSurfaceValue("live", toLiveVM(callsRes.calls, channelsHeld() ?? null, tz));
+    // What the read gave as it was keeps its object (shareUnchanged): a row of the calls is drawn again only when it moved.
+    setSurfaceValue("live", shareUnchanged(surfaceValue("live"), toLiveVM(callsRes.calls, channelsHeld() ?? null, tz)));
   },
 };

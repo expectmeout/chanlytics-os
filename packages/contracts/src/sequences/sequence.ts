@@ -56,7 +56,7 @@ export function sequenceModesFor(starts: string | null | undefined): readonly Se
 
 /**
  * What a new sequence starts as (decision 0064): its class's Autonomy row where that is a mode a sequence of its kind
- * takes, else ask. The database's sequence_mode_for (00461) says the same when it makes the sequence.
+ * takes, else ask. The database's sequence_mode_for (00462) says the same when it makes the sequence.
  */
 export function newSequenceMode(classMode: string | null | undefined, starts: string | null | undefined): SequenceMode {
   return isSequenceMode(classMode) && sequenceModesFor(starts).includes(classMode) ? classMode : "ask";

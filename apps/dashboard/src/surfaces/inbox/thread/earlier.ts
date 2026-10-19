@@ -1,8 +1,8 @@
 /**
  * How much of a thread is drawn (8 Oct 2026). A thread opens at its newest message, so a long one draws its newest
- * entries only, and the ones before them as its top is scrolled near, as People's table draws its rows
- * (people/table/row-window.ts). One person's 44 calls and 15 messages were 1,086 elements built before the first of them
- * could be read, 0.38 s from the tap on a CPU slowed four times, for a screen that shows five.
+ * entries only, and the ones before them as its top is scrolled near, as People's table once drew its rows. One person's
+ * 44 calls and 15 messages were 1,086 elements built before the first of them could be read, 0.38 s from the tap on a
+ * CPU slowed four times, for a screen that shows five.
  *
  * The window is counted from the end and only ever grows: an entry that arrives is drawn after it, and nothing drawn is
  * taken away. Where a thread is opened at a message (a call, from Conversations), the window starts before that message.

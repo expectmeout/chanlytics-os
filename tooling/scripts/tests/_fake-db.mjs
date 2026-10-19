@@ -836,7 +836,7 @@ function throughOldName(name, base) {
 }
 
 /**
- * What a new sequence of a class starts as (00461 sequence_mode_for): its class's row where that is a mode a sequence
+ * What a new sequence of a class starts as (00462 sequence_mode_for): its class's row where that is a mode a sequence
  * takes (never auto to leads), else ask.
  */
 function sequenceModeFor(tables, tenantId, cls, toLeads) {
@@ -848,7 +848,7 @@ function sequenceModeFor(tables, tenantId, cls, toLeads) {
 }
 
 /**
- * A first step's sequence (00440 sequence_steps_place, with its mode since 00461): its id, its name, how it starts,
+ * A first step's sequence (00440 sequence_steps_place, with its mode since 00462): its id, its name, how it starts,
  * whether it is on, and how its batches are decided.
  */
 const sequenceOfFirstStep = (tables, row) => ({
@@ -1184,7 +1184,7 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
         );
       if (!("p_decision" in args)) return id;
       if (p_decision == null) return { id };
-      // A member's run of a step lets its words go (00461 words_ok_at): its next batches go by its sequence's mode.
+      // A member's run of a step lets its words go (00462 words_ok_at): its next batches go by its sequence's mode.
       if (p_actor && run.playbook_id) {
         const step = (tables.sequence_steps ?? []).find((st) => st.id === run.playbook_id && st.tenant_id === p_tenant);
         if (step) step.words_ok_at = at;
@@ -1503,7 +1503,7 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
       return (
         due
           .slice(0, Math.max(0, p_limit ?? 0))
-          // Each with its sequence's mode (00461), as the SQL joins it.
+          // Each with its sequence's mode (00462), as the SQL joins it.
           .map(({ p, tz }) => ({
             step: { ...p, mode: (tables.sequences ?? []).find((q) => q.id === p.sequence_id)?.mode ?? null },
             timezone: tz,

@@ -130,7 +130,7 @@ const playbook = (tenant, id, over = {}) => ({
   created_by: "owner-1",
   last_run_for: null,
   last_run_at: null,
-  // Its words seen going (00461): its batches go by its sequence's mode, the class's row's when it was made.
+  // Its words seen going (00462): its batches go by its sequence's mode, the class's row's when it was made.
   words_ok_at: iso(20 * D),
   created_at: iso(30 * D),
   updated_at: iso(30 * D),
@@ -771,7 +771,7 @@ const reachOut = (tenant, id, over = {}) =>
     after_days: null,
     gap_minutes: 12,
     mailbox_ids: [],
-    // A new chain's words, new to its owner (00461): its first run waits for them.
+    // A new chain's words, new to its owner (00462): its first run waits for them.
     words_ok_at: null,
     ...over,
   });
@@ -972,7 +972,7 @@ test("the reach-out page is only what is due: twenty-five steps that ran today h
 test("a veto run goes on the record: the system's decision under the mode its owner chose, and the run's event", async () => {
   const w = world({ rpcs: coldRpcs([coldLead("l1")]) });
   coldWorkspace(w.tables, A, OPEN);
-  // A run of the chain already went ahead, its words seen (00461): this one is not asked.
+  // A run of the chain already went ahead, its words seen (00462): this one is not asked.
   w.tables.playbooks.push(reachOut(A, R, { words_ok_at: iso(D) }));
   w.tables.broadcasts.push({
     id: "prior-run",

@@ -109,14 +109,13 @@ export function usePeoplePlace({
   const shownIds = shown.map((r) => r.id);
   // Each view keeps its own place: everyone, a smart list, a kept list or a state.
   const peopleView = peopleViewToken(listId, savedId, tab) ?? "all";
-  const { cursor, setCursor, rowBudget, keysWith, toggleAll } = usePlPlace({
+  const { cursor, setCursor, keysWith, toggleAll } = usePlPlace({
     controls,
     page: "people",
     view: peopleView,
     ids: shownIds,
     noun: "person",
     selectionOf: `${tab}|${listId}|${savedId}`,
-    windowed: true,
   });
   // The people this view shows first, read in the background once the boot is in, so a press opens a page the tab already
   // holds, whole (people-detail.ts warmPeople): a person not read yet opens on nothing of theirs until it is.
@@ -147,5 +146,5 @@ export function usePeoplePlace({
       if (askOnScreenKey() === "people") setAskOnScreen(null);
     };
   });
-  return { filtered, shownIds, cursor, setCursor, rowBudget, keysWith, toggleAll };
+  return { filtered, shownIds, cursor, setCursor, keysWith, toggleAll };
 }

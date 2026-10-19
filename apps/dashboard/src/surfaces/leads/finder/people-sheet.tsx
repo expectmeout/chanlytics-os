@@ -34,6 +34,8 @@ import { Button } from "../../kit/button/button";
 import { Field } from "../../kit/field/field";
 import { Icon } from "../../kit/icon/icon";
 import { Menu } from "../../kit/menu/menu";
+import { UnsavedAsk, useUnsavedWork } from "../../kit/record/work";
+import type { UnsavedWork } from "../../kit/record/work";
 import { Sheet } from "../../kit/sheet/sheet";
 import { focusAsDrawn, gate, navigate } from "../../legacy-verbs";
 import type { Flash } from "../../people/types";
@@ -91,6 +93,24 @@ function Toggles<V extends string>(p: {
 const problemOf = (problem: string | undefined) =>
   problem ? { problem, problemGlyph: <Icon name="alert" size={12} /> } : {};
 
+/**
+ * The sheet's foot: the one question while Cancel asks about what was typed, else the house's pair, which a phone draws
+ * with the filled act first and the two an equal pair across the foot (kit.css, data-foot-pair).
+ */
+const findFoot = (work: UnsavedWork, startWords: string, busy: boolean, onStart: () => void) =>
+  work.asking ? (
+    <UnsavedAsk onYes={work.discard} onNo={work.stay} testid="find-people-leave" />
+  ) : (
+    <div data-foot-pair="">
+      <Button variant="quiet" onClick={work.leave} data-testid="find-people-cancel">
+        {PW.cancel}
+      </Button>
+      <Button variant="primary" disabled={busy} onClick={onStart} data-testid="find-people-start">
+        {startWords}
+      </Button>
+    </div>
+  );
+
 /** The sheet: the plan's fields, its sentence, the source's note, and Find. `from` fills it in with a plan made before. */
 function FindPeopleSheet({
   onClose,
@@ -116,6 +136,16 @@ function FindPeopleSheet({
   const [tried, setTried] = useState(false);
   // The first box takes the focus as the sheet opens, where a keyboard is not raised over it (focusAsDrawn).
   const first = useRef<HTMLInputElement | null>(null);
+
+  // What was typed, against what the sheet opened on: changed and not yet found, Cancel, the wash, a pull or Escape ask
+  // before throwing it away (Ruben, 19 Oct 2026).
+  const typed = JSON.stringify([titles, seniority, industries, sizes, states, count]);
+  const [opened] = useState(typed);
+  const work = useUnsavedWork("find-people", null, {
+    value: { titles, seniority, industries, sizes, states, count },
+    dirty: typed !== opened && !busy,
+    onLeave: onClose,
+  });
 
   const problems = peopleSheetProblems({ titles, industries, states, count });
   const shown = tried ? { ...problems, ...(industryRefused ? { industries: industryRefused } : {}) } : {};
@@ -146,6 +176,7 @@ function FindPeopleSheet({
       return;
     }
     if (flash) flash({ msg: <>{PW.done}</> });
+    work.done();
     onClose();
     if (r.data.search_id) navigate(leadsRoute({ searchId: r.data.search_id, list: "all" }));
   };
@@ -153,22 +184,13 @@ function FindPeopleSheet({
   return (
     <Sheet
       open
-      onClose={onClose}
+      onClose={work.leave}
       title={PW.title}
       sub={PW.sub}
       close={{ label: PW.cancel, glyph: <Icon name="x" size={13} /> }}
       testid="find-people"
       {...(focusAsDrawn() ? { initialFocus: first } : {})}
-      foot={
-        <>
-          <Button variant="quiet" onClick={onClose} data-testid="find-people-cancel">
-            {PW.cancel}
-          </Button>
-          <Button variant="primary" disabled={busy} onClick={() => void start()} data-testid="find-people-start">
-            {busy ? PW.starting : PW.start(plan.count)}
-          </Button>
-        </>
-      }
+      foot={findFoot(work, busy ? PW.starting : PW.start(plan.count), busy, () => void start())}
     >
       <Field
         label={PW.titles}

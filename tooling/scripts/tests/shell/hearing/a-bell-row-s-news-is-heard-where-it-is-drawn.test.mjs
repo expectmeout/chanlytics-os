@@ -223,7 +223,7 @@ const ANNOUNCES = {
   note_to_keep:
     "Settings, which the row opens at Autonomy, reads the notes waiting with its read; the feed does not tell of fact_suggestions, and a Keep or a Dismiss reads it again behind its verb (decision 0063).",
   reply_held:
-    "The thread the row opens hears the queued reply's message, and Today's Going today hears it through the Inbox's read; the row closes once the reply leaves the queue (00461, decision 0064).",
+    "The thread the row opens hears the queued reply's message, and Today's Going today hears it through the Inbox's read; the row closes once the reply leaves the queue (00462, decision 0064).",
   // Not traced to the depth the others were (N2 says so): no read is owed until one is found to be.
   call: "Its page, the calls, is not traced to the depth the others were; the call's note lands in the thread.",
   job_failed:

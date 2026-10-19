@@ -1,7 +1,7 @@
 /**
  * PUT playbooks/:id, run through route() with the database in memory (the moment spec §4.9 A5, decision D26). The route
  * declares its body: a change in place (any of state, name, run_hour, cap_per_run, gap_days, cadence_days, and since 00416
- * params and until, since 00461 its sequence's mode), the channels alone, or the whole playbook, and no other key. A change is judged against
+ * params and until, since 00462 its sequence's mode), the channels alone, or the whole playbook, and no other key. A change is judged against
  * the playbook as it stands and its message (core
  * checkPlaybookPatch) and written with its line in the ledger in one call (the change_playbook door, _change-door.mjs),
  * which answers what each field held; nothing to change writes nothing. On a database before the door (PGRST202) the
@@ -134,7 +134,7 @@ test("the route declares its body: a change in place, the channels alone, or the
     { name: "Past clients", run_hour: 9 },
     { channels: ["whatsapp", "email"] },
     { name: null, trigger: "quiet_30", template_id: "t", params: [], run_hour: 10, cap_per_run: 25 },
-    // Its words and its end (00416) and its sequence's mode (00461), alone or beside the six; null clears its end.
+    // Its words and its end (00416) and its sequence's mode (00462), alone or beside the six; null clears its end.
     { params: ["@first_name"] },
     { until: "2026-11-30", mode: "veto" },
     { until: null, state: "paused" },
@@ -173,7 +173,7 @@ test("its words, its end and its mode change in place: judged against the row an
   assert.deepEqual((await put(tables, K2, words.was)).was, { params: [{ kind: "first_name" }] });
   assert.deepEqual(p().params, [{ kind: "text", value: "10% off" }]);
 
-  // Its sequence asks (a class with no row: 00461 sequence_mode_for); held for a stop now, on its sequence's row.
+  // Its sequence asks (a class with no row: 00462 sequence_mode_for); held for a stop now, on its sequence's row.
   const sequence = () => tables.sequences.find((q) => q.id === K2);
   const ends = await put(tables, K2, { until: "2099-11-30", mode: "veto" });
   assert.deepEqual(ends.was, { until: null, mode: "ask" });

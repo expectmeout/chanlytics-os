@@ -15,6 +15,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import {
+  LIFECYCLE_WORDS,
   SEQUENCES_ROUTE,
   SEQUENCE_WORDS,
   peopleTabWord,
@@ -34,6 +35,7 @@ import { viewPager, type ViewPage } from "../../kit/view-tabs/pager";
 import { ViewTabs } from "../../kit/view-tabs/view-tabs";
 import { navigate, replaceRoute, routeDoor, touchSwipe, useLegacyToast } from "../../legacy-verbs";
 import type { LegacyFlash } from "../../legacy-verbs";
+import { usePartShown } from "../../use-surface";
 import { CmPane, cmGoing, useCmPhone } from "../parts/split";
 import { SequenceHistory } from "./history";
 import { SequencePeople } from "./people";
@@ -224,6 +226,9 @@ export function SequenceRecord({ id, tab, day = null }: SequenceRecordProps) {
   const moved = useCallback(() => setAgain((n) => n + 1), []);
   const [toast, flash] = useLegacyToast();
   const read = useSequenceRead(id, verbs.record, verbs.peekRecord, { again });
+  // Campaigns' second part (client/page-speed.ts): the sequence open, drawn with its record or saying why it could not be.
+  // Each sequence opened is timed from the press that opened it, as a thread in the Inbox is.
+  usePartShown("campaigns", "record", read.state !== "reading", id);
   // An address that named one of its parts (a step's id, a run's) is replaced by the sequence's own, its day kept.
   const named = read.state === "read" ? read.data.sequence.id : null;
   useEffect(() => {
@@ -235,7 +240,9 @@ export function SequenceRecord({ id, tab, day = null }: SequenceRecordProps) {
         {read.state === "failed" ? (
           <FailedRead what="this sequence" why={read.why} onRetry={moved} testid="sq-record-failed" />
         ) : (
-          <div className="sq-reading" aria-busy="true" />
+          <div className="route-reading sq-reading" role="status" aria-busy="true">
+            {LIFECYCLE_WORDS.reading}
+          </div>
         )}
         {toast}
       </CmPane>

@@ -231,7 +231,7 @@ const reviewRow = (id, over = {}) => ({
   published_at: ago(3 * DAY),
   reply_text: null,
   replied_at: null,
-  // No reply held for it (00461, decision 0064 step 6).
+  // No reply held for it (00462, decision 0064 step 6).
   draft_text: null,
   drafted_at: null,
   posts_at: null,

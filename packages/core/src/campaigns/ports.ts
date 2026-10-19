@@ -163,7 +163,7 @@ export interface PlaybookRow {
    * or unknown asks (contracts batchModeOf, fail safe).
    */
   mode?: string | null;
-  /** When a person last let a batch of its words go (00461): null while its words are new, and its batch then asks. */
+  /** When a person last let a batch of its words go (00462): null while its words are new, and its batch then asks. */
   words_ok_at?: string | null;
   /** A moment's step, or a sequence to leads' (00183). Absent: a moment's. */
   kind?: string;

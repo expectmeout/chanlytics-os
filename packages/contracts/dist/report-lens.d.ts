@@ -896,7 +896,7 @@ interface CampaignLedgerSeriesDto {
     };
     /** The approvals made in the window, by the seconds from the run's being made to the decision. */
     /**
-     * The waits for an OK of the runs approved in the window, and (since 00461, decision 0064) how many runs the night skipped
+     * The waits for an OK of the runs approved in the window, and (since 00462, decision 0064) how many runs the night skipped
      * there because nobody answered; absent from a database before it.
      */
     approval: {

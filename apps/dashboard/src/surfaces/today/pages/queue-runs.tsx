@@ -11,8 +11,11 @@ import { useMemo, useReducer, useRef } from "react";
 import {
   CAMPAIGNS_PAUSED_WORDS,
   LIFECYCLE_WORDS,
+  SENDING_NOW_WORDS,
   TO_SEND_ALL_WORDS,
   TO_SEND_ROUTE,
+  runStopDoorWords,
+  runStoppedWords,
   runHeldEmails,
   runDraftedEmails,
   runsThatWait,
@@ -150,7 +153,27 @@ export const runRows = (nav: Nav, flash: Say, verbKind: VerbKind, { room, acting
   const paused = (surfaceValue("today")?.standing.paused ?? broadcastsRead()?.ready?.paused) === true;
   // Each is said the moment the server takes it, from what it answered, not once the runs are read again behind it.
   // What a verb returns is the caller's (the tests await it), so it is typed as nothing React would read.
+  const stop: (r: BroadcastVM) => unknown = (r) => acting.run(r.id, () => stopNow(r));
   const approve: (r: BroadcastVM) => unknown = (r) => acting.run(r.id, () => approveNow(r));
+  // An approved run stopped from its toast (#1727): what the server stopped, said as Sent says it (runStoppedWords).
+  const stopNow = async (r: BroadcastVM) => {
+    if (!can || !api) return;
+    let said = false;
+    const say = (data?: Record<string, unknown>) => {
+      said = true;
+      flash({
+        msg: (
+          <>
+            <b>{runTitleOf(r)}</b> {runStoppedWords(typeof data?.was === "string" ? data.was : "scheduled")}
+          </>
+        ),
+      });
+    };
+    const res = await api.cancel(r.id, { onAccepted: say });
+    if (res.ok) refreshed();
+    if (!res.ok) flash(refusalFlash(res, "Not canceled"));
+    else if (!said) say();
+  };
   const approveNow = async (r: BroadcastVM) => {
     if (!can || !api || paused) return;
     let said = false;
@@ -166,6 +189,8 @@ export const runRows = (nav: Nav, flash: Say, verbKind: VerbKind, { room, acting
             <b>{t.lead}</b> {t.rest}
           </>
         ),
+        // The way back, as the run's sheet and Send once offer it: the same stop as a run still to come has on its row.
+        action: { label: runStopDoorWords(when !== SENDING_NOW_WORDS), onClick: () => stop(r) },
       });
     };
     const res = await api.approve(r.id, { onAccepted: say });

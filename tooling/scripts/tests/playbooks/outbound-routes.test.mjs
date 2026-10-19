@@ -247,6 +247,48 @@ test("the broadcasts list is the workspace the tab named, newest first, with wha
   );
 });
 
+test("past the newest fifty the list keeps every run still waiting for a word, as Ask and the server's Today count them, and no other older run", async () => {
+  // Fifty-one runs that went, an older run waiting for approval and an older one that went: the badge, the Inbox's run
+  // rows, Today's queue and the bell judge what waits from this list, and the waiting one fell out of it.
+  const at = (h) => new Date(Date.parse("2026-09-01T00:00:00Z") + h * 3_600_000).toISOString();
+  const recent = Array.from({ length: 51 }, (_, i) =>
+    bc(`run-${100 + i}`, A, { created_at: at(100 + i), state: "sent" }),
+  );
+  const tables = {
+    memberships: both("viewer", "viewer"),
+    broadcasts: [
+      ...recent,
+      bc("old-waiting", A, { created_at: at(1), state: "pending_approval", run_for: "2026-09-01" }),
+      bc("old-sent", A, { created_at: at(2), state: "sent" }),
+      bc("theirs-waiting", B, { created_at: at(1), state: "pending_approval" }),
+    ],
+    broadcast_recipients: [],
+  };
+  const out = await broadcasts.GET.run(get(inA), ctxFor(tables));
+  const ids = out.broadcasts.map((b) => b.id);
+  assert.equal(ids.length, 51, "the newest fifty and the one older run that waits");
+  assert.deepEqual(ids.slice(0, 2), ["run-150", "run-149"], "newest first");
+  assert.equal(ids.at(-1), "old-waiting", "the older waiting run after them, so the list stays newest first");
+  assert.ok(
+    !ids.includes("run-100") && !ids.includes("old-sent"),
+    "an older run that does not wait stays past the list",
+  );
+  assert.ok(!ids.includes("theirs-waiting"), "this workspace's alone");
+  assert.equal(out.more, true, "older runs exist");
+  assert.equal(out.broadcasts.at(-1).state, "pending_approval");
+  // Fifty or fewer: every run is in the list already, and nothing more is read.
+  const few = { memberships: both("viewer", "viewer"), broadcasts: recent.slice(0, 50), broadcast_recipients: [] };
+  const ctx = ctxFor(few);
+  const small = await broadcasts.GET.run(get(inA), ctx);
+  assert.equal(small.broadcasts.length, 50);
+  assert.equal(small.more, false);
+  assert.equal(
+    ctx.supabase.seen.filter((x) => x.op === "select" && /sequence_batches|broadcasts/.test(x.table)).length,
+    1,
+    "one read of the runs: no waiting runs are asked for when none can be past the list",
+  );
+});
+
 test("who a run of any kind reached this week is its own read, for the send screen's note -- never a run canceled, never last month -- and not the broadcasts list's, which the Inbox waits for", async () => {
   const hour = 3_600_000;
   const ago = (ms) => new Date(Date.now() - ms).toISOString();

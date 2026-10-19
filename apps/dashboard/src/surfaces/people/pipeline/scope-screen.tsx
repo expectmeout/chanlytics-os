@@ -232,7 +232,7 @@ function rowsView(s: PipelineState) {
   const { f, ui, r, place, d, tableColumns, boardColumns, boardActs, emptyWords } = s;
   const { phone, sel, toggleSel, sortBy, sortDir, onSort, setQ, scrolledX, setScrolledX, selectMode } = f.controls;
   const { canRecord, selectable, shown, sections, viewCount, searching } = r;
-  const { cursor, setCursor, rowBudget, toggleAll } = place;
+  const { cursor, setCursor, toggleAll } = place;
   if (boardColumns) {
     return (
       <PipelineBoard
@@ -261,7 +261,6 @@ function rowsView(s: PipelineState) {
   }
   return (
     <PeopleTable
-      budget={rowBudget}
       noun="deal"
       selectMode={phone && selectMode}
       columns={tableColumns}

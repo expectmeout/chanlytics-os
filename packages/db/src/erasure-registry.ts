@@ -223,7 +223,7 @@ export const ERASURE_STRATEGIES: Readonly<Record<string, Readonly<Record<string,
   // A review as Google shows it: a complete read drops one Google no longer lists, and one not seen for its days goes
   // (purge_google_reviews, 00392). Its ids and language are nobody's.
   google_reviews: {
-    // The reply the receptionist holds (00461) names the reviewer as a posted one does, and goes with the review.
+    // The reply the receptionist holds (00462) names the reviewer as a posted one does, and goes with the review.
     ...all(byAge("google_reviews"), "author", "author_uri", "author_photo_uri", "body", "reply_text", "draft_text"),
     ...all(NOT_PERSONAL, "language_code", "maps_uri", "review_id"),
   },

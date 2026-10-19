@@ -1,5 +1,5 @@
 /**
- * A sequence is approved once, then held (decision 0064, 00461 and 00462), against the replayed database: a new sequence
+ * A sequence is approved once, then held (decision 0064, 00462 and 00463), against the replayed database: a new sequence
  * takes its class's row as its mode (never Send it to leads), a step's words are new until a person lets a batch of them
  * go and new again when its message or the message's words change, the change door sets a sequence's mode on a member's
  * own rights and refuses what a sequence does not take, the hourly page carries each step's mode, a held reply's bell row
@@ -211,7 +211,7 @@ test(
       p_set: { mode: "never" },
     });
     assert.equal(odd.error?.code, "22023", odd.error?.message);
-    // The trial is no key (00462).
+    // The trial is no key (00463).
     const trial = await operator.rpc("change_playbook", {
       p_tenant_id: tenantId,
       p_playbook_id: s.id,
@@ -386,7 +386,7 @@ test(
         .update({ draft_text: "Thank you, Rosa.", drafted_at: new Date().toISOString(), posts_at: goes })
         .eq("id", review),
     );
-    // Reports' Reviews draws a waiting review from reviews_ledger (00461 section 12): its held reply and when it goes.
+    // Reports' Reviews draws a waiting review from reviews_ledger (00462 section 12): its held reply and when it goes.
     const ledger = ok(await operator.rpc("reviews_ledger", { p_tenant_id: tenantId, p_days: 30 }));
     const waits = ledger.waiting.find((w) => w.id === review);
     assert.deepEqual([waits?.draft_text, Date.parse(waits?.posts_at)], ["Thank you, Rosa.", Date.parse(goes)]);
@@ -394,7 +394,7 @@ test(
 );
 
 test(
-  "the trial is gone (00462): no column, and a new workspace's sequences start held for a stop",
+  "the trial is gone (00463): no column, and a new workspace's sequences start held for a stop",
   { skip },
   async () => {
     const cols = await db.from("sequence_steps").select("trial_until").limit(1);
