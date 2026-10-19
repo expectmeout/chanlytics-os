@@ -43,8 +43,8 @@ const { toCampaignLensVM, toPeopleReportVM } = await import("@chanlytics/contrac
 after(() => forgetStanding());
 
 const at = (lens) => `/w/harbor/reports${lens === "overview" ? "" : `/${lens}`}`;
-/** The workspace list the shell holds; `sellsBy` is the retired answer to how its customers buy (00160), which switches nothing now. */
-const workspace = (sellsBy) => {
+/** The workspace list the shell holds. */
+const workspace = () => {
   globalThis.__WORKSPACES = [
     {
       id: "w1",
@@ -52,7 +52,6 @@ const workspace = (sellsBy) => {
       name: "Harbor Studio",
       status: "active",
       timezone: "America/New_York",
-      sells_by: sellsBy,
       role: "owner",
     },
   ];
@@ -153,7 +152,7 @@ const BODIES = {
 };
 
 test("each lens draws its own body and none another's, from one read, under the page's testid", () => {
-  workspace("proposal");
+  workspace();
   for (const [lens, ids] of Object.entries(BODIES)) {
     const tree = draw(lens);
     assert.ok(byTestId(tree, "reports-real"), `${lens}: the page`);
@@ -174,7 +173,7 @@ test("each lens draws its own body and none another's, from one read, under the 
 });
 
 test("a move between lenses asks for nothing, and the body is never blank: every lens is drawn from the read already held", () => {
-  workspace("proposal");
+  workspace();
   reads.length = 0;
   for (const lens of ["people", "receptionist", "overview", "campaigns", "people"]) {
     const tree = draw(lens);
@@ -185,7 +184,7 @@ test("a move between lenses asks for nothing, and the body is never blank: every
 });
 
 test("the head says Reports and the lens's own answer, from contracts, on every lens", () => {
-  workspace("proposal");
+  workspace();
   const R = surface({ deals: DEALS });
   for (const lens of Object.keys(BODIES)) {
     draw(lens, { R });
@@ -225,7 +224,7 @@ test("the head says Reports and the lens's own answer, from contracts, on every 
 });
 
 test("the Reviews head says the sentence of the fold its figures are drawn from, and nothing while that read is out", () => {
-  workspace("proposal");
+  workspace();
   draw("reviews", { reviews: REVIEWS_LINKED });
   assert.equal(
     standingSaid().sentence,
@@ -248,7 +247,7 @@ const dimmed = (tree) => all(tree, (n) => n.props?.["data-loading"] === "");
 const dims = (tree) => all(tree, (n) => n.props?.["data-dims"] === true);
 
 test("the page dims once while the Reviews read is of another period than the strip shows, by the one rule every page uses, and not when they agree", () => {
-  workspace("proposal");
+  workspace();
   const same = draw("reviews", { reviews: REVIEWS_LINKED });
   assert.deepEqual(dimmed(same), [], "the same period: nothing on its way");
   assert.equal(dims(same).length, 1, "the page's body is the one thing the rule dims");
@@ -269,7 +268,7 @@ test("the page dims once while the Reviews read is of another period than the st
 });
 
 test("the page dims once while the Receptionist read is of another period than the strip shows or still out, on that lens alone, and not when they agree", () => {
-  workspace("proposal");
+  workspace();
   const same = draw("receptionist");
   assert.deepEqual(dimmed(same), [], "the same period: nothing on its way");
   assert.equal(dims(same).length, 1, "the page's body is the one thing the rule dims");
@@ -299,7 +298,7 @@ test("the page dims once while the Receptionist read is of another period than t
 });
 
 test("the page dims once while the People read is of another period than the strip shows or still out, on that lens alone, and not when they agree", () => {
-  workspace("proposal");
+  workspace();
   const same = draw("people");
   assert.deepEqual(dimmed(same), [], "the same period: nothing on its way");
   assert.equal(dims(same).length, 1, "the page's body is the one thing the rule dims");
@@ -325,7 +324,7 @@ test("the page dims once while the People read is of another period than the str
 });
 
 test("the Pipeline lens with no deal on file says so at its address, in the registry's words, with the door to the Pipeline, and draws none of its cards; with one, its cards, whatever the retired answer said", () => {
-  workspace("booking");
+  workspace();
   const tree = draw("pipeline", { R: surface({ deals: NO_DEALS }) });
   const empty = byTestId(tree, "lens-empty");
   assert.equal(textOf(find(empty, (n) => classes(n).includes("empty-title"))), "No proposals to report");
@@ -335,27 +334,25 @@ test("the Pipeline lens with no deal on file says so at its address, in the regi
 });
 
 test("Ads reaches a workspace without ads as the registry's empty at its address, with the door to Ads: none of its cards, no head sentence, and no fact on the Overview", () => {
-  for (const sellsBy of ["booking", "proposal"]) {
-    workspace(sellsBy);
-    const tree = draw("ads", { R: surface({ deals: DEALS }) });
-    const empty = byTestId(tree, "lens-empty");
-    assert.ok(empty, `${sellsBy}: the lens says it has nothing, never a blank`);
-    assert.equal(textOf(find(empty, (n) => classes(n).includes("empty-title"))), "No ads in this period");
-    assert.ok(textOf(empty).includes("Open Ads"), "and where Ads is");
-    for (const id of ["ads-lens", "ads-res-days", "ads-res-figures", "ads-res-funnel", "ads-res-platforms"])
-      assert.equal(byTestId(tree, id), null, `${sellsBy}: ${id} is a card of the demo's lens alone`);
-    assert.equal(standingSaid().sentence, undefined, "its head says Reports and nothing of ads");
-    const overview = draw("overview", { R: surface({ deals: DEALS }) });
-    assert.deepEqual(
-      all(overview, (n) => n.props?.["data-fact"] === "ads"),
-      [],
-      `${sellsBy}: Worth knowing says nothing of ads where there are none`,
-    );
-  }
+  workspace();
+  const tree = draw("ads", { R: surface({ deals: DEALS }) });
+  const empty = byTestId(tree, "lens-empty");
+  assert.ok(empty, "the lens says it has nothing, never a blank");
+  assert.equal(textOf(find(empty, (n) => classes(n).includes("empty-title"))), "No ads in this period");
+  assert.ok(textOf(empty).includes("Open Ads"), "and where Ads is");
+  for (const id of ["ads-lens", "ads-res-days", "ads-res-figures", "ads-res-funnel", "ads-res-platforms"])
+    assert.equal(byTestId(tree, id), null, `${id} is a card of the demo's lens alone`);
+  assert.equal(standingSaid().sentence, undefined, "its head says Reports and nothing of ads");
+  const overview = draw("overview", { R: surface({ deals: DEALS }) });
+  assert.deepEqual(
+    all(overview, (n) => n.props?.["data-fact"] === "ads"),
+    [],
+    "Worth knowing says nothing of ads where there are none",
+  );
 });
 
 test("a period with nothing in it says so on each lens that draws sections, and on People it hides nothing: the lens never draws the empty", () => {
-  workspace("booking");
+  workspace();
   const R = surface({ report: quiet(), deals: NO_DEALS });
   for (const lens of ["overview", "receptionist"]) {
     const tree = draw(lens, { R });
@@ -371,7 +368,7 @@ test("a period with nothing in it says so on each lens that draws sections, and 
 });
 
 test("Reviews says why nothing is drawn where nothing is linked, in the fold's words: a deployment that cannot look a listing up says so and offers no door, one that can says what the lens would show, and the door to find it is for a person who may use it", () => {
-  workspace("booking");
+  workspace();
   const wasCanDo = globalThis.canDo;
   const door = (tree) => find(byTestId(tree, "google-none"), (n) => n.type === "button");
   const found = lensEmpty("reviews", { since: "Aug 29", until: "Sep 4" });
@@ -412,7 +409,7 @@ test("Reviews says why nothing is drawn where nothing is linked, in the fold's w
 });
 
 test("Reviews draws nothing while its own read is out: a read still out is not 'nothing is linked'", () => {
-  workspace("booking");
+  workspace();
   const unread = draw("reviews", { reviews: undefined });
   assert.equal(
     byTestId(unread, "lens-empty"),
@@ -443,7 +440,7 @@ test("the Pipeline lens waits on nothing of the workspace list (0008, amended 18
 // lands (surface-status.ts keeps `ready` for good), and those draw Reviews on a surface with neither. The second leaves it live, and
 // no test after them draws Reviews.
 test("Reviews says the read failed, with its Retry, where its read could not be made, and never the empty that says nothing is linked", () => {
-  workspace("booking");
+  workspace();
   setStatus("reports_reviews", "seeded");
   const failed = draw("reviews", { reviews: undefined });
   const words = byTestId(failed, "reviews-failed");
@@ -461,7 +458,7 @@ test("Reviews says the read failed, with its Retry, where its read could not be 
 });
 
 test("a pick whose Reviews read could not be made says so, with its Retry, and never holds the period it left dimmed for good", () => {
-  workspace("proposal");
+  workspace();
   // The report landed for the pick and the Reviews read did not: the surface holds the period left, and its latest read failed
   // (a read that landed once is never "failed" to useSurfaceFailed, so the lens would dim the old period for ever).
   setStatus("reports_reviews", "degraded");
@@ -497,7 +494,7 @@ test("a pick whose Reviews read could not be made says so, with its Retry, and n
 });
 
 test("the Campaigns lens draws its channels where more than one sent (0030): a bar each in the channel's own colour, its delivered share beside it, every figure in its table, and what a read is under it; one channel, no card", () => {
-  workspace("proposal");
+  workspace();
   const split = [
     { channel: "whatsapp", sent: 14, delivered: 12, read: 11, replied: 3 },
     { channel: "sms", sent: 4, delivered: 3, read: 0, replied: 1 },
@@ -537,7 +534,7 @@ test("the Campaigns lens draws its channels where more than one sent (0030): a b
 });
 
 test("the page dims once while the Campaigns read is of another period than the strip shows or still out, on that lens alone, and not when they agree", () => {
-  workspace("proposal");
+  workspace();
   const same = draw("campaigns");
   assert.deepEqual(dimmed(same), [], "the same period: nothing on its way");
   assert.equal(dims(same).length, 1, "the page's body is the one thing the rule dims");

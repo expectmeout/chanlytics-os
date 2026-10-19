@@ -91,8 +91,8 @@ function world(role = "operator") {
       { user_id: USER, tenant_id: B, role, tenants: { slug: "bayside" }, created_at: "2026-02-01T00:00:00Z" },
     ],
     tenants: [
-      { id: A, name: "Harbor", timezone: TZ, sells_by: "booking" },
-      { id: B, name: "Bayside", timezone: "Europe/Madrid", sells_by: "booking" },
+      { id: A, name: "Harbor", timezone: TZ },
+      { id: B, name: "Bayside", timezone: "Europe/Madrid" },
     ],
     tenant_config: [],
     tenant_channels: [],

@@ -133,6 +133,45 @@ function writeTab(name: string, keys: Iterable<string>, words: Map<string, strin
   }
 }
 
+/** How long a tab's copy waits for the page to be idle before it is written all the same. */
+const TAB_SAVE_WAIT_MS = 2000;
+
+/** The tab copies waiting to be written, by cache: written together when the page is idle, or hidden. */
+const dueWrites = new Map<string, () => void>();
+let hideHeard = false;
+
+/** Write every tab copy that waits, now: the page going away, or a test reading the tab's storage. */
+export function flushReadCaches(): void {
+  const writes = [...dueWrites.values()];
+  dueWrites.clear();
+  for (const w of writes) w();
+}
+
+/**
+ * A tab copy's write, once the page is idle. Written on every read that changed it, a read again of a dozen people put
+ * up to 600 KB into the tab's storage in the middle of a press (the strips review, 18 Oct 2026: 83 ms of a refresh on a
+ * phone's CPU). Every change before it goes in the one write; the page hidden writes it at once.
+ */
+function writeWhenIdle(name: string, write: () => void): void {
+  const first = !dueWrites.has(name);
+  dueWrites.set(name, write);
+  if (!first) return;
+  if (!hideHeard && typeof window !== "undefined" && typeof window.addEventListener === "function") {
+    hideHeard = true;
+    window.addEventListener("pagehide", flushReadCaches);
+    window.addEventListener("visibilitychange", () => {
+      if (typeof document !== "undefined" && document.visibilityState === "hidden") flushReadCaches();
+    });
+  }
+  const run = () => {
+    const w = dueWrites.get(name);
+    dueWrites.delete(name);
+    if (w) w();
+  };
+  if (typeof requestIdleCallback === "function") requestIdleCallback(run, { timeout: TAB_SAVE_WAIT_MS });
+  else setTimeout(run, 0);
+}
+
 export function readCache<T>(
   name: string,
   isWorthKeeping: (value: T) => boolean = () => true,
@@ -159,7 +198,12 @@ export function readCache<T>(
     }
   };
   const save = () => {
-    if (opts.tab) writeTab(name, store.keys(), words);
+    if (!opts.tab) return;
+    // Written as the cache stands when the page is idle; a clear() before then (a sign-out) writes nothing.
+    const asked = generation;
+    writeWhenIdle(name, () => {
+      if (asked === generation) writeTab(name, store.keys(), words);
+    });
   };
   const scoped = (key: string) => `${getActiveWorkspace() || "-"}|${name}|${key}`;
   const cache: ReadCache<T> = {

@@ -303,18 +303,13 @@ test(
       const dealsOf = async (contact) =>
         (await db.from("deals").select("stage, proposal_url").eq("contact_id", contact).order("created_at")).data;
 
-      // Every workspace has deals (00458): a link set on someone with no open deal opens a Proposal out with it,
-      // whatever the retired answer to how its customers buy said, never said or booking.
+      // Every workspace has deals (00458): a link set on someone with no open deal opens a Proposal out with it.
       const nobody = await add({ display_name: "Nobody", phone_e164: "+15550100251" });
-      for (const [i, answer] of [null, "booking"].entries()) {
-        const { error: aErr } = await db.from("tenants").update({ sells_by: answer }).eq("id", far.id);
-        assert.equal(aErr, null, aErr?.message);
-        const who = await add({ display_name: `Someone ${i}`, phone_e164: `+1555010025${5 + i}` });
-        const url = `https://docs.example.com/p/${answer ?? "unasked"}`;
-        const { error } = await set(who, url);
-        assert.equal(error, null, error?.message);
-        assert.deepEqual(await dealsOf(who), [{ stage: "proposed", proposal_url: url }], `${answer ?? "never said"}`);
-      }
+      const who = await add({ display_name: "Someone", phone_e164: "+15550100255" });
+      const url = "https://docs.example.com/p/someone";
+      const { error } = await set(who, url);
+      assert.equal(error, null, error?.message);
+      assert.deepEqual(await dealsOf(who), [{ stage: "proposed", proposal_url: url }]);
       // A proposal already out takes the link whatever the answer: the two never disagree on one it holds.
       const waiting = await add({ display_name: "Waiting", phone_e164: "+15550100252" });
       const { error: dErr } = await db

@@ -89,6 +89,14 @@ export function demoSession(): boolean {
 }
 
 /**
+ * Whether a pointer that reaches a row or a door warms what it opens: a mouse or a pen resting on it, never a finger. A touch
+ * starts a scroll, or a swipe across a strip, far more often than a tap, and each warm read a person or a view whole on the
+ * way (18 Oct 2026: a swipe from People to Leads read the person under the thumb, 110 KB). A tap opens it and reads it then.
+ */
+export const warmsOnReach = (e: { pointerType?: string } | null | undefined): boolean =>
+  !e || e.pointerType !== "touch";
+
+/**
  * A change that moves what is drawn beside the control that made it, run so the control stays where it was (data-bits
  * `holdStill`); where the page has no such verb, just the change.
  */

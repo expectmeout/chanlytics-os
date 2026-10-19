@@ -47,7 +47,6 @@ import { keysDrawn } from "../../_keys.mjs";
 const { surfaceMoved } = await importSrc("apps/dashboard/src/legacy-bridge/surface-status.ts");
 const { setSurfaceValue, surfaceValue } = await importSrc("apps/dashboard/src/surfaces/surface-values.ts");
 const { PeopleReal } = await importSrc("apps/dashboard/src/surfaces/people/page/people-real.tsx");
-const { PL_FIRST_ROWS } = await importSrc("apps/dashboard/src/surfaces/people/table/row-window.ts");
 const { forgetLeadsViews, leadsOverride, leadsView } = await importSrc("apps/dashboard/src/surfaces/leads/surface.ts");
 
 /** What a page reads the address through (data/constants.jsx), for the `CHANLY` this file makes up. */
@@ -858,6 +857,10 @@ const settle = async (n = 8) => {
 const flashSaid = async (before) => {
   for (let i = 0; i < 200 && flashes.length <= before; i += 1) await tick();
 };
+/** Until `done()` says so, for the same answers through the wire's Response: at most two hundred turns of the loop. */
+const until = async (done) => {
+  for (let i = 0; i < 200 && !done(); i += 1) await tick();
+};
 /**
  * The files the kit offers the app's bridge (kit/download.ts: an `app:file` event the bridge takes and cancels): taken here, so a
  * test sees what would be saved and nothing is made in a document that has no body. `stop` lets go of the listener.
@@ -1032,18 +1035,13 @@ const openPlanFrom = (name = "Personal trainers · Austin") => {
   draw();
 };
 
-test("a fresh mount of Leads draws its first rows and the next draw every row", async () => {
-  // The switch from People is a remount, and the table's rows were most of what it waited on (measured on the salon:
-  // a 250 ms draw of 96 leads, 125 ms with the first 24).
+test("Leads draws every row of a list on its first draw where its box cannot be watched", async () => {
+  // The window of a long list's rows (kit/rows/shown-rows.ts) is drawn only where the browser can watch the list's box;
+  // the table's own staged window (24 rows, then the rest) went with it (the strips review, 18 Oct 2026).
   const rows = Array.from({ length: 40 }, (_, i) => ({ ...ROW_DTOS[0], id: `many-${i}`, place_id: `ChIJmany${i}` }));
   await fresh({ leads: { rows } });
   const rowsOf = (tree) => all(tree, (n) => n.type === "tr" && /^lead-many-/.test(String(n.props?.id || ""))).length;
-  const first = draw();
-  assert.ok(
-    rowsOf(first) > 0 && rowsOf(first) <= PL_FIRST_ROWS,
-    `the first draw carries the first rows only, saw ${rowsOf(first)}`,
-  );
-  assert.equal(rowsOf(draw()), 40, "the next draw carries every row");
+  assert.equal(rowsOf(draw()), 40, "every row on the first draw");
 });
 
 test("Leads' rows swap in with the kit's rise as a view's rows land, as People's and the Inbox's lists do", async () => {
@@ -1498,6 +1496,8 @@ test("Edit opens the business line in a sheet of its own: Cancel closes it, Save
     [{ key: "PUT /api/v1/lead-suggestions", body: { business_line: "a yoga studio in Boulder" } }],
     "Save sends the owner's own words, once",
   );
+  // The answer is read through the wire's Response, in turns a busy machine spends more of than eight (flashSaid).
+  await until(() => sheet(day()) === null);
   assert.equal(sheet(day()), null, "and the sheet closes on the answer");
 });
 

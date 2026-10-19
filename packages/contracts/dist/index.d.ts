@@ -7,14 +7,10 @@ type AppointmentWord = (typeof APPOINTMENT_WORDS)[number];
 /** Whether a value is one of the five: a stored word read back is checked, never trusted. */
 declare function isAppointmentWord(value: unknown): value is AppointmentWord;
 /**
- * What the workspace calls an appointment: the word it picked, else the word its retired answer to how its customers
- * buy gave it (a meeting where some got a proposal first, which 00458 stored for each of them), else an appointment.
- * The one derivation: the server reads it once for a workspace and hands the pages the word (0041: one page, one word).
+ * What the workspace calls an appointment: the word it picked, else an appointment. The one derivation: the server
+ * reads it once for a workspace and hands the pages the word (0041: one page, one word).
  */
-declare function appointmentWordOf(o: {
-    stored: string | null;
-    sellsBy: string | null;
-}): AppointmentWord;
+declare function appointmentWordOf(stored: string | null): AppointmentWord;
 /** What PATCH workspaces answers for anything but the five. */
 declare const APPOINTMENT_WORD_REFUSAL = "What you call a booking: appointment, visit, meeting, session or lesson.";
 /** The word's row on Details: what it says, and the five to choose from. */
@@ -4552,7 +4548,6 @@ declare const SCHEMA_SETS: {
     readonly "tenant_channels.kind": readonly ["whatsapp", "voice", "sms", "email", "instagram"];
     readonly "tenant_channels.status": readonly ["active", "disabled"];
     readonly "tenants.appointment_word": readonly ["appointment", "visit", "meeting", "session", "lesson"];
-    readonly "tenants.sells_by": readonly ["booking", "proposal"];
     readonly "tenants.status": readonly ["active", "paused", "test"];
 };
 
@@ -10735,6 +10730,12 @@ interface CallDto {
             end?: number;
         }>;
     }> | null;
+    /** On an ended call a list gives (GET calls without ids), in place of its turns, which the call read by its id has
+     *  (18 Oct 2026): how many turns there were, whether the caller said anything, and the last thing they said. Absent
+     *  on a call read whole, whose turns say these. */
+    turns?: number;
+    caller_spoke?: boolean;
+    said_last?: string | null;
     /** storage_path and provider_url are stripped server-side — audio is only
      *  reachable through the signed-URL route. */
     recording: {
@@ -10785,6 +10786,8 @@ interface CallDto {
 declare const ABANDONED_MS = 15000;
 declare function abandonedCall(dto: Pick<CallDto, "direction" | "status" | "duration_ms" | "disconnection_reason" | "in_voicemail" | "outcome"> & {
     transcript_object?: CallDto["transcript_object"];
+    turns?: number;
+    caller_spoke?: boolean;
 }): boolean;
 /** Retell's not_connected: the dial never connected. An attempt, not a call, whoever dialled (missedCall says whose). */
 declare function neverConnected(dto: Pick<CallDto, "status">): boolean;
@@ -10942,7 +10945,7 @@ declare function isOptedOut(dto: Pick<ConversationDto, "contact">): boolean;
 /**
  * A deal's closed sets and their words (0004, 0008): its stages, how an amount recurs, where it came from and why
  * someone passed, each with the word a page says; the acts a deal offers and their labels; and the door's
- * refusals. The deal as a page says it is deal-vm.ts; how a workspace sells is sells-by.ts.
+ * refusals. The deal as a page says it is deal-vm.ts.
  */
 
 declare const DEAL_STAGES: readonly ["proposed", "won", "lost", "ended"];
@@ -21256,16 +21259,6 @@ declare function heldDraftsByClass(rows: readonly HeldDraftsByIntent[]): Partial
  */
 declare function heldDraftsLine(c: HeldDraftsCount | undefined): string | null;
 
-/**
- * How a workspace's customers buy (tenants.sells_by, 00160), retired on 18 October 2026 (0008, amended: deals for
- * everyone). It was the one switch the deal layer hung on; every workspace has deals now, a missing booking link is
- * said the same way to everyone, and the word for a booking is the workspace's own (tenants.appointment_word, 00458).
- * The column stays one release, written by nothing and read only as the word's fallback (appointmentWordOf), and goes
- * with it.
- */
-/** The retired column's two answers, held to its CHECK (schema-sets.ts) until the column goes. */
-declare const SELLS_BY: readonly ["booking", "proposal"];
-
 interface CallVM {
     id: string;
     real: true;
@@ -21295,6 +21288,9 @@ interface CallVM {
         headline: string;
         bullets: string[];
     };
+    /** The turns a list read left on the server (CallDto.turns), which the call read by its id has: the card asks for
+     *  them as it opens. Absent where the lines are here, or the call had none. */
+    turnsToRead?: number;
     /** Each line with its moment in the call, in seconds: where it starts and where it ends (null for a whisper, which
      *  is not a sound in the recording). The thread plays from a line and lights the one being said by these. */
     transcript: Array<{
@@ -21667,6 +21663,9 @@ interface LiveCallVM {
     /** "3 min 10 sec" once the call has ended: a length in words, so it never reads as a time beside a date. */
     lengthWords: string | null;
     transcript: LiveTurnVM[];
+    /** The last thing the caller said: the last of their turns, or what a list's ended call carries in their place
+     *  (CallDto.said_last). Live's row says it under the name. */
+    saidLast: string | null;
 }
 interface LiveLineVM {
     number: string | null;
@@ -22484,7 +22483,6 @@ type SchemaAgreement = [
     Holds<Exactly<Of<typeof DEAL_PERS>, SchemaSet<"deals.per">>>,
     Holds<Exactly<Of<typeof DEAL_SOURCES>, SchemaSet<"deals.source">>>,
     Holds<Exactly<Of<typeof DEAL_LOST_REASONS>, SchemaSet<"deals.lost_reason">>>,
-    Holds<Exactly<Of<typeof SELLS_BY>, SchemaSet<"tenants.sells_by">>>,
     Holds<Exactly<Of<typeof APPOINTMENT_WORDS>, SchemaSet<"tenants.appointment_word">>>,
     Holds<Exactly<Of<typeof MAILBOX_PROVIDERS>, SchemaSet<"mailbox_connections.provider">>>,
     Holds<Exactly<Of<typeof MAILBOX_CONNECTION_STATES>, SchemaSet<"mailbox_connections.state">>>,

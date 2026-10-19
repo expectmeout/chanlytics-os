@@ -501,8 +501,17 @@ installLists();
 const { PeopleReal } = await import("../../../../apps/dashboard/src/surfaces/people/page/people-real.tsx");
 const { PeopleAddSheet } = await import("../../../../apps/dashboard/src/surfaces/people/import/import-sheet.tsx");
 const { standingSaid } = await import("../../../../apps/dashboard/src/surfaces/kit/head/standing.ts");
-const { PL_FIRST_ROWS, PL_WINDOW_ROWS, PL_WINDOW_STEP } =
-  await import("../../../../apps/dashboard/src/surfaces/people/table/row-window.ts");
+/** A browser that can watch a list's box, where the table draws a window of its rows (kit/rows/shown-rows.ts). */
+const watchingBoxes = () => {
+  const kept = globalThis.ResizeObserver;
+  globalThis.ResizeObserver = class {
+    observe() {}
+    disconnect() {}
+  };
+  return () => {
+    globalThis.ResizeObserver = kept;
+  };
+};
 // The person's lists are TSX (surfaces/people/person): they read People through the seam, which the override publishes.
 const { PersonLists } = await import("../../../../apps/dashboard/src/surfaces/people/person/lists.tsx");
 // A phone sheet's rows and a step's way back (surfaces/people/sheets/phone-sheet.tsx), which People and Leads import; the
@@ -4115,18 +4124,12 @@ test("People keeps its place per view in the tab: the words in the box and the c
   }
 });
 
-test("a fresh mount draws its first rows and the next draw every row; a place to put back draws them all at once", async () => {
-  // The switch between People and Leads is a remount, and the table's rows were most of what it waited on (measured
-  // on the salon: a 250 ms draw of 96 leads, 125 ms with the first 24). A scroll or a cursor to put back needs every
-  // row on the first draw, so it draws them all.
+test("where a list's box cannot be watched, every row is drawn on the first draw, and so it is with a place to put back", async () => {
+  // The window of a long list's rows is drawn only where the browser can watch the list's box (kit/rows/shown-rows.ts):
+  // anywhere else the table is drawn whole, at once, as it always could be.
   const rowsOf = (tree) => all(tree, (n) => n.type === "tr" && /^person-/.test(String(n.props?.id || ""))).length;
   await freshPage({ people: Array.from({ length: 60 }, (_, i) => person(i)) });
-  const first = draw();
-  assert.ok(
-    rowsOf(first) > 0 && rowsOf(first) <= PL_FIRST_ROWS,
-    `the first draw carries the first rows only, saw ${rowsOf(first)}`,
-  );
-  assert.equal(rowsOf(draw()), 60, "the next draw carries every row");
+  assert.equal(rowsOf(draw()), 60, "every row on the first draw");
   installTabMemory(globalThis.window);
   clearTabMemory();
   try {
@@ -4139,122 +4142,27 @@ test("a fresh mount draws its first rows and the next draw every row; a place to
   }
 });
 
-test("a long list draws a window of its rows: its foot is watched and grows the window, and the cursor walks past it -- a thousand people were a thousand rows on every keystroke", async () => {
-  // Measured on a salon's 500 people, a keystroke in the search box redrew every row (85 ms), and the rows a person
-  // scrolls to are a few dozen of a list that can be thousands. The window is PL_WINDOW_ROWS, a foot after it is watched,
-  // and each time it comes near the window grows by a step; a browser that cannot watch draws every row.
+test("a long list draws a window of its rows, and the cursor's row wherever the cursor walks or a sort carries it -- a thousand people were a thousand rows on every press of the tab", async () => {
+  // Every row was built on each press of People's tab, and taken down on the way out (the strips review, 18 Oct 2026). Where
+  // the browser can watch the list's box the table draws the rows on screen (here, before it has found where it scrolls: its
+  // first screen), and the cursor's row wherever it is, so J and K, and a sort that keeps the cursor, always find it.
   const rowsOf = (tree) => all(tree, (n) => n.type === "tr" && /^person-/.test(String(n.props?.id || ""))).length;
-  const footOf = (tree) => find(tree, (n) => n.type === "tr" && n.props?.id === "pl-foot");
+  const focusedOf = (tree) => find(tree, (n) => n.type === "tr" && /\bfocused\b/.test(n.props?.className || ""));
   const everyone = Array.from({ length: 1000 }, (_, i) => person(i + 1));
-  const watchers = [];
-  // The foot sits in a box that scrolls, and is watched from inside it: a margin on the page's viewport does not widen the
-  // clip of a scroller between the two.
-  const scroller = { overflowY: "auto", parentElement: null };
-  const foot = { parentElement: scroller };
-  const keepStyle = globalThis.window.getComputedStyle;
-  globalThis.window.getComputedStyle = (n) => ({ overflowY: n.overflowY });
-  const keepWatcher = globalThis.IntersectionObserver;
-  const keepGet = globalThis.document.getElementById;
-  globalThis.document.getElementById = (id) => (id === "pl-foot" ? foot : null);
-  globalThis.IntersectionObserver = class {
-    constructor(seen, options) {
-      this.seen = seen;
-      this.options = options;
-      watchers.push(this);
-    }
-    observe() {}
-    disconnect() {
-      this.gone = true;
-    }
-  };
+  const done = watchingBoxes();
   try {
     await freshPage({ people: everyone });
-    draw();
     let tree = draw();
-    assert.equal(rowsOf(tree), PL_WINDOW_ROWS, "a window of the rows, not all of them");
-    assert.ok(footOf(tree), "with its foot drawn, so it can be watched");
-    assert.equal(footOf(tree).props["aria-hidden"], "true", "nothing for a screen reader to say");
-    const watcher = watchers.at(-1);
-    assert.ok(watcher && !watcher.gone, "the foot is watched");
-    assert.equal(watcher.options.root, scroller, "from inside the box that scrolls it");
-    assert.equal(watcher.options.rootMargin, "800px 0px", "from a screen's height before it is on screen");
-    watcher.seen([{ isIntersecting: false }]);
-    assert.equal(rowsOf(draw()), PL_WINDOW_ROWS, "out of range: nothing grows");
-    watcher.seen([{ isIntersecting: true }]);
+    assert.equal(rowsOf(tree), 40, "a window of the rows, not a thousand");
+    const past = 45;
+    for (let i = 0; i < past; i += 1) press("j");
     tree = draw();
-    assert.equal(rowsOf(tree), PL_WINDOW_ROWS + PL_WINDOW_STEP, "the foot came near: a step more");
-    assert.ok(watcher.gone, "the old foot is let go, the new one watched");
-
-    // The cursor walks to a row past the window: it is drawn, and holds the cursor.
+    assert.equal(focusedOf(tree)?.props.id, `person-p${past}`, "the row the cursor walked to past the window is there");
+    assert.equal(rowsOf(tree), 41, "the window and the cursor's row, still not a thousand");
+    // A sort that carries the cursor's row to the foot of the list keeps it drawn there. Names sort as words, so
+    // "Person 1" is first ascending and last descending.
     await freshPage({ people: everyone });
     draw();
-    draw();
-    const past = PL_WINDOW_ROWS + 5;
-    // A draw between short runs of keys, as a person's are: the window reaches a step past the cursor each time.
-    for (let i = 0; i < past; i += 1) {
-      press("j");
-      if (i % 20 === 19) draw();
-    }
-    tree = draw();
-    const focused = find(tree, (n) => n.type === "tr" && /\bfocused\b/.test(n.props?.className || ""));
-    assert.equal(
-      focused?.props.id,
-      `person-p${past}`,
-      "the row the cursor walked to past the window is there to hold it",
-    );
-    assert.ok(rowsOf(tree) >= past, "the window reached it");
-
-    // A place to put back is reached, not every row: a cursor's row and a step past it, a scroll's height and a step past it.
-    installTabMemory(globalThis.window);
-    try {
-      clearTabMemory();
-      await freshPage({ people: everyone });
-      globalThis.window.__tabMemory.keepPlace("people", "all", { q: "", cursor: "p700", top: 0 });
-      cells = [];
-      assert.equal(
-        rowsOf(draw()),
-        699 + PL_WINDOW_STEP,
-        "a cursor on the 700th (index 699): a step past its index, not a thousand",
-      );
-      globalThis.window.__tabMemory.keepPlace("people", "all", { q: "", cursor: null, top: 20000 });
-      cells = [];
-      assert.equal(
-        rowsOf(draw()),
-        20000 / 40 + PL_WINDOW_STEP,
-        "a scroll of 20,000px at 40px a row: as many rows and a step more",
-      );
-    } finally {
-      clearTabMemory();
-      delete globalThis.window.__tabMemory;
-    }
-
-    // No way to watch a foot, no window: every row, as before.
-    delete globalThis.IntersectionObserver;
-    await freshPage({ people: everyone });
-    draw();
-    draw();
-    assert.equal(rowsOf(draw()), 1000, "a browser that cannot watch draws every row");
-  } finally {
-    globalThis.IntersectionObserver = keepWatcher;
-    globalThis.document.getElementById = keepGet;
-    globalThis.window.getComputedStyle = keepStyle;
-  }
-});
-
-test("the cursor's row is drawn wherever the cursor came from: a sort that carries it past the window keeps it on the page", async () => {
-  // Only J and K reached past the window, and a sort keeps the cursor: it moved to a row that was not drawn, and the table
-  // was left with no tab stop. Names sort as words, so \"Person 1\" is first ascending and last descending.
-  const rowsOf = (tree) => all(tree, (n) => n.type === "tr" && /^person-/.test(String(n.props?.id || ""))).length;
-  const everyone = Array.from({ length: 1000 }, (_, i) => person(i + 1));
-  const keepGet = globalThis.document.getElementById;
-  const keepWatcher = globalThis.IntersectionObserver;
-  delete globalThis.IntersectionObserver;
-  globalThis.document.getElementById = () => null;
-  try {
-    await freshPage({ people: everyone });
-    draw();
-    let tree = draw();
-    assert.equal(rowsOf(tree), PL_WINDOW_ROWS, "a window of the rows");
     press("j");
     tree = draw();
     const isPerson = (n) =>
@@ -4263,17 +4171,12 @@ test("the cursor's row is drawn wherever the cursor came from: a sort that carri
     find(draw(), isPerson).props.onClick();
     tree = draw();
     tree = draw();
-    const cursor = find(tree, (n) => n.type === "tr" && /\bfocused\b/.test(n.props?.className || ""));
-    assert.equal(
-      cursor?.props.id,
-      "person-p1",
-      "the cursor is on the row it was on, which the sort moved to the foot of the list",
-    );
-    assert.ok(rowsOf(tree) >= 1000 - 1, "the window reached it");
+    assert.equal(focusedOf(tree)?.props.id, "person-p1", "the cursor's row is drawn where the sort moved it");
   } finally {
-    globalThis.IntersectionObserver = keepWatcher;
-    globalThis.document.getElementById = keepGet;
+    done();
   }
+  await freshPage({ people: everyone });
+  assert.equal(rowsOf(draw()), 1000, "a browser that cannot watch a box draws every row");
 });
 
 test("past everyone loaded, the line under the table says the server is being searched while it is, and the table is busy -- the search was silent until its rows landed", async () => {

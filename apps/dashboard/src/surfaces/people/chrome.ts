@@ -126,10 +126,11 @@ function scopeViews(picked: "people" | "leads" | "pipeline"): SurfaceViews | nul
 }
 
 /**
- * The crumbs, the mount, the act and the views of an address. The mount is one for every view of People, one for the Pipeline's
- * address, and one for Leads, because the page follows its own
- * address (people-route.tsx): a list picked is said in the path by the page, and a page mounted afresh for each would lose its
- * toast and its selection with every pick.
+ * The crumbs, the mount, the act and the views of an address. The mount is one for People's three scopes, every view of
+ * People, the Pipeline's address and every view of Leads, because the page keeps the three mounted and shows the one asked
+ * for (people-route.tsx, the strips review of 18 Oct 2026): a scope pressed is drawn as it was left, and its move is the
+ * page's own, inside the frame's view. It follows its own address too: a list picked is said in the path by the page, and a
+ * page mounted afresh for each would lose its toast and its selection with every pick.
  */
 export function peopleChrome({ param, backToPeople }: { param: string | null; backToPeople: unknown }) {
   // Everyone, with or without a person peeked over it (`state:all:p-<id>`): the list's own chrome.
@@ -158,13 +159,12 @@ export function peopleChrome({ param, backToPeople }: { param: string | null; ba
   if (/^pipeline(:|$)/.test(param)) {
     return {
       crumbs: pipelineCrumbs(param),
-      mount: "clients/pipeline",
+      mount: "clients",
       views: scopeViews("pipeline"),
     };
   }
-  // Every view of Leads is one mount: the page follows its address (`p-<lead>` is the lead open over the view).
-  if (/^leads(:|$)/.test(param))
-    return { crumbs: leadsCrumbs(param), mount: "clients/leads", views: scopeViews("leads") };
+  // Every view of Leads is People's mount: the page follows its address (`p-<lead>` is the lead open over the view).
+  if (/^leads(:|$)/.test(param)) return { crumbs: leadsCrumbs(param), mount: "clients", views: scopeViews("leads") };
   // A view of People, with or without a person peeked over it: named by its token.
   return { crumbs: [PEOPLE_CRUMB, viewLabel(at?.view ?? param)], mount: "clients", views: scopeViews("people") };
 }

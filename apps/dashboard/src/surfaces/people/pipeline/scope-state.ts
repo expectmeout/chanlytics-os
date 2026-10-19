@@ -4,6 +4,7 @@
  * beside it, so a setter never leaves its hook. The elements are drawn from what these return (scope-screen.tsx).
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { ScopeView } from "../scope-view";
 import type { PersonVM, PipelineGroupKey, PipelineRowVM } from "@chanlytics/contracts";
 import { pageClock } from "@/legacy-bridge/zone";
 import { askOnScreenKey, navigate, setAskOnScreen } from "../../legacy-verbs";
@@ -31,6 +32,8 @@ import {
 
 /** What the frame hands the page: the door a row's press opens a person by, how the page moves the address, and the address's own part. */
 export interface PipelineScopeProps {
+  /** What People's page says of this scope it keeps (people/scope-view.ts): the deck's seat and the side it comes in from. */
+  scopeView?: ScopeView;
   onOpenProfile?: (id: string) => void;
   onNavigate?: PipeNav | null;
   pipelineRoute?: string | null;
@@ -247,7 +250,6 @@ export function usePipelinePlace(controls: PipelineFrame["controls"], r: Pipelin
     ids: r.ids,
     noun: "person",
     selectionOf: `pipeline:${r.view}`,
-    windowed: false,
   });
 }
 type PipelinePlace = ReturnType<typeof usePipelinePlace>;

@@ -10,6 +10,7 @@ import type { ReactNode } from "react";
 import { Icon } from "../../kit/icon/icon";
 import type { PeopleRead } from "../types";
 import { RecordDisclosure } from "../../kit/record/disclosure";
+import { warmsOnReach } from "../../legacy-verbs";
 
 /** The rail's one rule for a pick: the row pressed, unless it was the one picked, which goes back to none. */
 export const railToggle = <T,>(current: T | null, id: T): T | null => (current === id ? null : id);
@@ -181,7 +182,7 @@ export function RailRow({
   // What the pick carries: its press, the warm-up under a pointer or Tab, and what a screen reader and a tip say of it.
   const pick = {
     onClick: onPick,
-    onPointerEnter: onWarm || undefined,
+    onPointerEnter: onWarm ? (e: { pointerType?: string }) => warmsOnReach(e) && onWarm() : undefined,
     onFocus: onWarm || undefined,
     "aria-current": active ? ("true" as const) : undefined,
     "data-tip": tip || undefined,

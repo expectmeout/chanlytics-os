@@ -18,6 +18,7 @@ import { demoSession } from "../shell";
 import { hasHref, hrefOf } from "./shell-thread";
 import { conversationsData } from "../store";
 import type { CallLine, ConversationRow } from "../types";
+import { useCallTurns } from "./call-turns";
 
 // The call a note stands for, from the calls Conversations reads: one GET calls page, which every surface boots with.
 // A call older than that page is drawn from its note alone.
@@ -226,6 +227,8 @@ interface CallDraw extends CallWords {
   src: string | null;
   file: string | null;
   lines: CallLine[] | null;
+  /** The lines a list's call came without, read as it opens (call-turns.ts): the folded card counts them meanwhile. */
+  owed: number;
   active: number;
   open: boolean;
   listening: boolean;
@@ -475,9 +478,10 @@ function callOpened(c: CallDraw) {
 
 /** A call with lines, folded: what it was about, and the press that shows them. */
 function callFolded(c: CallDraw) {
-  const { lines, open, about, setOpen } = c;
+  const { lines, owed, open, about, setOpen } = c;
+  const count = lines ? lines.length : owed;
   return (
-    lines &&
+    count > 0 &&
     !open && (
       <div className="tl-call-folded">
         {about && <span className="tl-call-about">{about}</span>}
@@ -489,7 +493,7 @@ function callFolded(c: CallDraw) {
           onClick={() => setOpen(true)}
           data-testid="tl-call-open"
         >
-          Show the call · {lines.length} {lines.length === 1 ? "line" : "lines"}
+          Show the call · {count} {count === 1 ? "line" : "lines"}
         </button>
       </div>
     )
@@ -526,7 +530,12 @@ export const ThreadCall = ({
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const turnsRef = useRef<HTMLDivElement | null>(null);
   const followed = useRef(-1);
-  const lines = call && call.transcript && call.transcript.length ? call.transcript : null;
+  const held = call && call.transcript && call.transcript.length ? call.transcript : null;
+  // A list's ended call came without its lines: read as the card opens (call-turns.ts).
+  const owedTurns = held ? 0 : (call?.turnsToRead ?? 0);
+  const fetched = useCallTurns(call?.callId, open && owedTurns > 0);
+  const lines = held ?? fetched;
+  const owed = lines ? 0 : owedTurns;
   const active = listening && lines ? tlLineAt(lines, pos) : -1;
 
   useEffect(() => keepLineInView(turnsRef.current, followed, active), [active]);
@@ -540,6 +549,7 @@ export const ThreadCall = ({
     call,
     at,
     lines,
+    owed,
     active,
     open,
     listening,
@@ -570,8 +580,8 @@ export const ThreadCall = ({
       {callMark(c)}
       {callOpened(c)}
       {callFolded(c)}
-      {!lines && words.about && <div className="tl-call-about">{words.about}</div>}
-      {!lines && words.noted.length > 0 && <div className="tl-call-folded">{notedLines(c)}</div>}
+      {!lines && !owed && words.about && <div className="tl-call-about">{words.about}</div>}
+      {!lines && !owed && words.noted.length > 0 && <div className="tl-call-folded">{notedLines(c)}</div>}
     </div>
   );
 };

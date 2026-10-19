@@ -148,8 +148,8 @@ const USER = "u1";
 const ctxFor = (tables) => ({ supabase: fakeDb(tables, {}), userId: USER, email: "ada@example.com", metadata: {} });
 const tables = () => ({
   tenants: [
-    { id: A, name: "Harbor", timezone: "America/New_York", sells_by: "booking" },
-    { id: B, name: "Bayside", timezone: "Europe/Madrid", sells_by: "booking" },
+    { id: A, name: "Harbor", timezone: "America/New_York" },
+    { id: B, name: "Bayside", timezone: "Europe/Madrid" },
   ],
   tenant_config: [{ tenant_id: A, config: { hours: "9-5" }, version: 3 }],
   policies: [],
@@ -304,26 +304,21 @@ test("the facts readers: the tenant's name and zone are read once and kept for t
   assert.equal((await kernel.load(none, config, undefined)).data, null);
 });
 
-test("the word reader says the word picked, else the retired answer's, else an appointment; on a database 00458 has not reached it reads the retired answer alone, and one it cannot read says an appointment", async () => {
+test("the word reader says the word picked, else an appointment, and a row it cannot read (a database 00458 has not reached among them) says an appointment", async () => {
   const wordOf = async (tenant, faults = {}) => {
     const t = tables();
     t.tenants = [{ ...t.tenants[0], ...tenant }];
     const rc = kernel.readerContext({ ...ctxFor(t), supabase: fakeDb(t, faults) }, { tenantId: A, role: "operator" });
     return (await kernel.load(rc, appointmentWord, undefined)).data;
   };
-  assert.equal(await wordOf({ appointment_word: "session", sells_by: "proposal" }), "session", "the word picked");
-  assert.equal(
-    await wordOf({ sells_by: "proposal" }),
-    "meeting",
-    "none picked: the retired answer's (00458's backfill)",
-  );
-  assert.equal(await wordOf({ sells_by: null }), "appointment");
+  assert.equal(await wordOf({ appointment_word: "session" }), "session", "the word picked");
+  assert.equal(await wordOf({ appointment_word: null }), "appointment", "none picked");
   assert.equal(
     await wordOf({}, { "tenants.select": { message: "down" } }),
     "appointment",
     "unreadable: an appointment",
   );
-  // An older database: the column is not there, so the read asks for the retired answer alone.
+  // An older database: the column is not there, and the one read says an appointment.
   const asked = [];
   const older = {
     from: () => ({
@@ -331,17 +326,15 @@ test("the word reader says the word picked, else the retired answer's, else an a
         eq: () => ({
           maybeSingle: async () => {
             asked.push(columns);
-            return /appointment_word/.test(columns)
-              ? { data: null, error: { message: "column tenants.appointment_word does not exist" } }
-              : { data: { sells_by: "proposal" }, error: null };
+            return { data: null, error: { message: "column tenants.appointment_word does not exist" } };
           },
         }),
       }),
     }),
   };
   const rc = kernel.readerContext({ ...ctxFor(tables()), supabase: older }, { tenantId: A, role: "operator" });
-  assert.equal((await kernel.load(rc, appointmentWord, undefined)).data, "meeting");
-  assert.deepEqual(asked, ["appointment_word, sells_by", "sells_by"]);
+  assert.equal((await kernel.load(rc, appointmentWord, undefined)).data, "appointment");
+  assert.deepEqual(asked, ["appointment_word"]);
 });
 
 /* ----------------------------------------------- the day's readers (PR 1.2) */
@@ -1541,7 +1534,7 @@ test("GET contacts/:id through its reader reads what it read at origin/main, in 
   );
   assert.deepEqual(
     columns("tenants"),
-    ["appointment_word, sells_by", "name, timezone"],
+    ["appointment_word", "name, timezone"],
     "the calendar's zone, and the word through its reader (with the retired answer, which says it where none was picked)",
   );
 });
@@ -1714,13 +1707,12 @@ const presetsWorld = () => ({
 const CLIENT = "cccccccc-cccc-4ccc-8ccc-cccccccccc01";
 /**
  * ask-routes.test.mjs, "the reports' Deals section": one page of People, whose one row says the client came from a
- * lead, and their deal, won five days ago at $2,500 a month. `sellsBy` is the retired answer to how the workspace's
- * customers buy (00160), or unset: it switches nothing now (0008, amended 18 Oct 2026).
+ * lead, and their deal, won five days ago at $2,500 a month.
  */
-const dealsWorld = (sellsBy) => ({
+const dealsWorld = () => ({
   tables: {
     memberships: reportMembers(),
-    tenants: [{ id: A, slug: "harbor", ...(sellsBy === undefined ? {} : { sells_by: sellsBy }) }],
+    tenants: [{ id: A, slug: "harbor" }],
     tenant_config: [],
     policies: [],
     deals: [
@@ -1755,11 +1747,9 @@ test("the reports, for Ask and for the page: GET reports answers its reader's pa
   for (const [w, days] of [
     [presetsWorld(), 7],
     [presetsWorld(), 30],
-    [dealsWorld("proposal"), 30],
-    [dealsWorld("proposal"), 90],
-    [dealsWorld("booking"), 30],
-    [dealsWorld(null), 7],
-    [dealsWorld(undefined), 30],
+    [dealsWorld(), 30],
+    [dealsWorld(), 90],
+    [dealsWorld(), 7],
   ]) {
     const page = await reportsRoute.GET.run(req(`?period=${days}d&workspace=${A}`), worldCtx(w));
     const r = await kernel.load(turnIn(worldCtx(w)), reportReader, { days, end: null });
@@ -1776,18 +1766,10 @@ test("the reports, for Ask and for the page: GET reports answers its reader's pa
   const week = await kernel.load(turnIn(worldCtx(presetsWorld())), reportReader, { days: 7, end: null });
   assert.deepEqual(week.data.report, { days: 7, tenant: A });
   assert.deepEqual(week.data.booking, { calendar: "none", days: 7, asked: 0, booked: 0 }, "no calendar, said as none");
-  const on = await kernel.load(turnIn(worldCtx(dealsWorld("proposal"))), reportReader, { days: 30, end: null });
+  // Every workspace has deals (0008, amended 18 Oct 2026): its deal is reported.
+  const on = await kernel.load(turnIn(worldCtx(dealsWorld())), reportReader, { days: 30, end: null });
   assert.deepEqual([on.data.deals.any, on.data.deals.clients, on.data.deals.monthly_cents], [true, 1, 250_000]);
   assert.deepEqual(on.data.deals.sources, [{ came_from: "lead", count: 1 }], "the new client's source, from People");
-  // Every workspace has deals (0008, amended 18 Oct 2026): whatever the retired answer said, its deal is reported.
-  for (const sellsBy of ["booking", null, undefined]) {
-    const any = await kernel.load(turnIn(worldCtx(dealsWorld(sellsBy))), reportReader, { days: 30, end: null });
-    assert.deepEqual(
-      [any.data.deals.any, any.data.deals.clients],
-      [true, 1],
-      `${sellsBy}: the deal on file is reported`,
-    );
-  }
 });
 
 test("the Reports row Ask cites names its period as the page does: one day is '1 day', never '1 days' (Month on the 1st)", async () => {
@@ -3985,11 +3967,11 @@ test("the business's shape (readers/facts.ts businessShape): whether a deal was 
   const bare = await kernel.load(turnIn(ctxFor(calTables(null))), businessShape, undefined);
   assert.deepEqual(bare.data, { hasDeals: false, word: "appointment", bookingsByEmail: false });
   const quoted = calTables(null);
-  quoted.tenants[0].sells_by = "proposal";
+  quoted.tenants[0].appointment_word = "meeting";
   assert.equal(
     (await kernel.load(turnIn(ctxFor(quoted)), businessShape, undefined)).data.word,
     "meeting",
-    "none picked: the retired answer's word (00458's backfill)",
+    "the word picked",
   );
   const unreadable = calTables(null);
   unreadable.tenant_config = [];
@@ -4122,7 +4104,7 @@ const peopleWorld = () => {
     tables: {
       ...cal,
       memberships: reportMembers(),
-      tenants: [{ ...cal.tenants[0], sells_by: "proposal" }],
+      tenants: [{ ...cal.tenants[0], appointment_word: "meeting" }],
       policies: [
         pol(A, null, null, "auto"),
         { tenant_id: A, class: "follow_up", subject_type: null, subject_id: null, mode: "ask" },
@@ -4214,7 +4196,7 @@ const PEOPLE_ASKED_AT_MAIN = [
   ["contacts.select", "id"],
   ["policies.select", "subject_type, subject_id, mode"],
   ["deals.select", "id"],
-  ["tenants.select", "appointment_word, sells_by"],
+  ["tenants.select", "appointment_word"],
   ["tenants.select", "name, timezone"],
   ["tenant_config.select", "config"],
   // 7 Oct 2026 (00349): what the member asking has seen of each person on the page (server/people/person-seen.ts), for
@@ -4262,7 +4244,7 @@ const PEOPLE_ASKED_AT_MAIN = [
 const PEOPLE_ASKED_NOW = [
   ["memberships.select", "tenant_id, role, tenants (slug, name, timezone)"],
   ["rpc:people_list", null],
-  ["tenants.select", "appointment_word, sells_by"],
+  ["tenants.select", "appointment_word"],
   ["tenant_channels.select", "config, number_e164"],
   ["lines.select", "sms_state, reg_mock"],
   ["tenants.select", "name, timezone"],
@@ -4632,7 +4614,7 @@ test("the month a page says is null where it could not be counted, said in the l
 
 test("a paused workspace is said by the readiness the composers and the Campaigns home read -- the broadcasts' and the playbooks' -- and by People's reads never: it changes what is sent, not who can hear the business", async () => {
   const paused = (w) => {
-    w.tables.tenants = [{ id: A, name: "Harbor", timezone: "America/New_York", status: "paused", sells_by: null }];
+    w.tables.tenants = [{ id: A, name: "Harbor", timezone: "America/New_York", status: "paused" }];
     return w;
   };
   const read = async (w, reader) => (await kernel.load(turnIn(worldCtx(w)), reader, undefined)).data;
@@ -4644,7 +4626,7 @@ test("a paused workspace is said by the readiness the composers and the Campaign
     "and the channels are as they were: what each can do",
   );
   const active = bcWorld();
-  active.tables.tenants = [{ id: A, name: "Harbor", timezone: "America/New_York", status: "active", sells_by: null }];
+  active.tables.tenants = [{ id: A, name: "Harbor", timezone: "America/New_York", status: "active" }];
   assert.equal(
     "paused" in (await read(active, broadcastsReader)).ready,
     false,
@@ -4993,7 +4975,14 @@ test("the playbooks, for Ask and for the page: GET playbooks answers its reader'
   const proposals = pagedPeople([out(1, 10), out(2, 20), out(3, 20, { deal_proposal_url: null }), poolPerson(4)]);
   const dealt = countsWorld(proposals, {
     tenants: [
-      { id: A, slug: "harbor", name: "Harbor", status: "active", timezone: "America/New_York", sells_by: "proposal" },
+      {
+        id: A,
+        slug: "harbor",
+        name: "Harbor",
+        status: "active",
+        timezone: "America/New_York",
+        appointment_word: "meeting",
+      },
     ],
     deals: [
       {
@@ -5089,7 +5078,7 @@ const PLAYBOOKS_ASKED_AT_MAIN = [
   ["memberships.select", "tenant_id, role, tenants (slug, name, timezone)"],
   ["tenants.select", "name, timezone"],
   ["tenants.select", "timezone"],
-  ["tenants.select", "appointment_word, sells_by"],
+  ["tenants.select", "appointment_word"],
   ["deals.select", "id"],
   [
     "sequence_batches.select",

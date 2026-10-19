@@ -237,8 +237,6 @@ export interface Workspace {
   timezone: string;
   /** What it calls a booking (00458): appointment, visit, meeting, session or lesson; null where it never picked one. */
   appointment_word?: string | null;
-  /** Retired (0008, amended 18 Oct 2026): read only as the word's fallback (contracts appointmentWordOf), until it goes. */
-  sells_by?: string | null;
   /** The caller's role in it (0012): said beside every workspace on the switcher. */
   role?: string | null;
   /** Where its own logo is served (00407): the sidebar's circle, the rail and the switcher draw it over its initials. */

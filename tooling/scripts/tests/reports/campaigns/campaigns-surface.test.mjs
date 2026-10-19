@@ -29,6 +29,8 @@ installLegacyReact();
 Object.assign(globalThis, {
   __WORKSPACES: [{ id: "t1", slug: "studio", name: "Studio", status: "active", timezone: "America/New_York" }],
   __ACTIVE_WORKSPACE: "t1",
+  // A move's owed reads are made once its motion is over (legacy-bridge/hearing/after-the-move.ts): no motion here.
+  __afterTheMoveMs: 0,
 });
 // On screen: a hidden page reads, of what the feed tells, only what says itself in the tab's title and badge, and holds the
 // rest until it is in front (shell/feed/the-runner-heals.test.mjs).

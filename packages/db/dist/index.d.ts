@@ -6534,7 +6534,6 @@ type Database = {
                     locale: string;
                     logo_path: string | null;
                     name: string;
-                    sells_by: string | null;
                     slug: string;
                     status: string;
                     timezone: string;
@@ -6548,7 +6547,6 @@ type Database = {
                     locale?: string;
                     logo_path?: string | null;
                     name: string;
-                    sells_by?: string | null;
                     slug: string;
                     status?: string;
                     timezone?: string;
@@ -6562,7 +6560,6 @@ type Database = {
                     locale?: string;
                     logo_path?: string | null;
                     name?: string;
-                    sells_by?: string | null;
                     slug?: string;
                     status?: string;
                     timezone?: string;
@@ -18287,7 +18284,6 @@ declare function builderOf<T extends TenantTable>(db: Db$J, table: T): _supabase
                 locale: string;
                 logo_path: string | null;
                 name: string;
-                sells_by: string | null;
                 slug: string;
                 status: string;
                 timezone: string;
@@ -18301,7 +18297,6 @@ declare function builderOf<T extends TenantTable>(db: Db$J, table: T): _supabase
                 locale?: string;
                 logo_path?: string | null;
                 name: string;
-                sells_by?: string | null;
                 slug: string;
                 status?: string;
                 timezone?: string;
@@ -18315,7 +18310,6 @@ declare function builderOf<T extends TenantTable>(db: Db$J, table: T): _supabase
                 locale?: string;
                 logo_path?: string | null;
                 name?: string;
-                sells_by?: string | null;
                 slug?: string;
                 status?: string;
                 timezone?: string;
@@ -29228,7 +29222,6 @@ declare function builderOf<T extends TenantTable>(db: Db$J, table: T): _supabase
             locale: string;
             logo_path: string | null;
             name: string;
-            sells_by: string | null;
             slug: string;
             status: string;
             timezone: string;
@@ -29242,7 +29235,6 @@ declare function builderOf<T extends TenantTable>(db: Db$J, table: T): _supabase
             locale?: string;
             logo_path?: string | null;
             name: string;
-            sells_by?: string | null;
             slug: string;
             status?: string;
             timezone?: string;
@@ -29256,7 +29248,6 @@ declare function builderOf<T extends TenantTable>(db: Db$J, table: T): _supabase
             locale?: string;
             logo_path?: string | null;
             name?: string;
-            sells_by?: string | null;
             slug?: string;
             status?: string;
             timezone?: string;
@@ -35556,7 +35547,6 @@ declare function builderOf<T extends TenantTable>(db: Db$J, table: T): _supabase
             locale: string;
             logo_path: string | null;
             name: string;
-            sells_by: string | null;
             slug: string;
             status: string;
             timezone: string;
@@ -35570,7 +35560,6 @@ declare function builderOf<T extends TenantTable>(db: Db$J, table: T): _supabase
             locale?: string;
             logo_path?: string | null;
             name: string;
-            sells_by?: string | null;
             slug: string;
             status?: string;
             timezone?: string;
@@ -35584,7 +35573,6 @@ declare function builderOf<T extends TenantTable>(db: Db$J, table: T): _supabase
             locale?: string;
             logo_path?: string | null;
             name?: string;
-            sells_by?: string | null;
             slug?: string;
             status?: string;
             timezone?: string;
@@ -41884,7 +41872,6 @@ declare function builderOf<T extends TenantTable>(db: Db$J, table: T): _supabase
             locale: string;
             logo_path: string | null;
             name: string;
-            sells_by: string | null;
             slug: string;
             status: string;
             timezone: string;
@@ -41898,7 +41885,6 @@ declare function builderOf<T extends TenantTable>(db: Db$J, table: T): _supabase
             locale?: string;
             logo_path?: string | null;
             name: string;
-            sells_by?: string | null;
             slug: string;
             status?: string;
             timezone?: string;
@@ -41912,7 +41898,6 @@ declare function builderOf<T extends TenantTable>(db: Db$J, table: T): _supabase
             locale?: string;
             logo_path?: string | null;
             name?: string;
-            sells_by?: string | null;
             slug?: string;
             status?: string;
             timezone?: string;

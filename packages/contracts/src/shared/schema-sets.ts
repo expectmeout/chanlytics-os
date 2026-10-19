@@ -54,7 +54,6 @@ import type { SEQUENCE_STARTS, SEQUENCE_STATES } from "../sequences/sequence";
 import type { CALL_OUTCOMES } from "../voice/call-words";
 import type { POLICY_CLASSES, POLICY_MODES } from "../config/workspace-config/policy-classes";
 import type { DEAL_LOST_REASONS, DEAL_PERS, DEAL_SOURCES, DEAL_STAGES } from "../deals/deal-words";
-import type { SELLS_BY } from "../deals/sells-by";
 import type { APPOINTMENT_WORDS } from "../journey/appointment-word";
 import type { DOUBT_SEEN, DOUBT_SETTLED_AS } from "../people/person-doubts";
 import type { NAME_SOURCES } from "../person-page/words";
@@ -225,9 +224,8 @@ export type SchemaAgreement = [
   Holds<Exactly<Of<typeof DEAL_STAGES>, SchemaSet<"deals.stage">>>,
   Holds<Exactly<Of<typeof DEAL_PERS>, SchemaSet<"deals.per">>>,
   Holds<Exactly<Of<typeof DEAL_SOURCES>, SchemaSet<"deals.source">>>,
-  // A proposal is part of the deal (00160): why they passed, and the retired answer to how customers buy (00458).
+  // A proposal is part of the deal (00160): why they passed.
   Holds<Exactly<Of<typeof DEAL_LOST_REASONS>, SchemaSet<"deals.lost_reason">>>,
-  Holds<Exactly<Of<typeof SELLS_BY>, SchemaSet<"tenants.sells_by">>>,
   // What a workspace calls a booking (00458, decision 0041 J4).
   Holds<Exactly<Of<typeof APPOINTMENT_WORDS>, SchemaSet<"tenants.appointment_word">>>,
   // A business writes cold email from mailboxes it connected (00423, decision 0056): whose, where each stands, and why

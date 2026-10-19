@@ -238,9 +238,12 @@ export function pickKeys(p: {
     const next = rows[Math.max(0, Math.min(rows.length - 1, to))];
     if (!next || next.id === t.id) return;
     onOpen(next.id);
-    const row =
-      e.currentTarget.parentNode && e.currentTarget.parentNode.querySelector<HTMLElement>(`[${attr}="${next.id}"]`);
+    const list = e.currentTarget.parentNode;
+    const rowOf = () => (list ? list.querySelector<HTMLElement>(`[${attr}="${next.id}"]`) : null);
+    const row = rowOf();
     if (row) row.focus();
+    // A long list draws the rows on screen (kit/rows/shown-rows.ts): a row far off (End, Home) is drawn once it is open.
+    else if (typeof requestAnimationFrame === "function") requestAnimationFrame(() => rowOf()?.focus());
   };
 }
 

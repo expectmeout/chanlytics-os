@@ -306,6 +306,7 @@ Reads; for a member of the workspace the request names; no rate bucket; spends n
 | `conversation_id` | string | no |  |
 | `status` | string | no |  |
 | `ids` | string | no |  |
+| `q` | string | no | at most 100 characters |
 
 ### `POST /api/v1/calls/[id]/end`
 

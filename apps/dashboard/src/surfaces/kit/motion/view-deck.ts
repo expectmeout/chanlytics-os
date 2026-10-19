@@ -23,6 +23,9 @@
  * length on a desk, where the page leaving dims and waits and the two cross-fade. Nothing here knows which page it moves.
  * Where the window scrolls the page (a phone, motion/page-scroll.ts), the copy is pinned to the screen where it stood,
  * since the window moves under it as the next page arrives.
+ * A view kept mounted and hidden in place rather than taken away (React's Activity: People's scopes, 18 Oct 2026) leaves
+ * by a copy of itself, drawn as it stood, and the view itself is left as React keeps it; a hidden view is never the one a
+ * gesture or a press moves.
  */
 import { documentScroller, isDocumentScroller, scrollerOf, shownHeight } from "./page-scroll";
 
@@ -327,7 +330,8 @@ function nestedIn(table: Table, el: HTMLElement): boolean {
 /** The view a gesture moves: the innermost one on the page. */
 function liveOf(table: Table): HTMLElement | null {
   const on: HTMLElement[] = [];
-  for (const seat of table.seats.values()) if (seat.el && seat.el.isConnected) on.push(seat.el);
+  for (const seat of table.seats.values())
+    if (seat.el && seat.el.isConnected && !hiddenInPlace(seat.el)) on.push(seat.el);
   return on.find((el) => !on.some((other) => other !== el && el.contains(other))) ?? null;
 }
 
@@ -354,6 +358,8 @@ function clearFinger(el: HTMLElement): void {
 
 /** Remember where each thing inside a view is scrolled to: a node taken off the page forgets. */
 function keepScrolls(table: Table, el: HTMLElement): void {
+  // A view kept and shown again (hiddenInPlace) is heard already.
+  if (table.scrolled.has(el)) return;
   const seen = new Map<Element, [number, number]>();
   table.scrolled.set(el, seen);
   el.addEventListener(
@@ -435,6 +441,44 @@ function adopt(table: Table, gone: HTMLElement, next: HTMLElement, move: Timelin
   after(was?.role !== "in" && move.whole ? anims[0] : anims.at(-1), () => gone.remove());
 }
 
+/** A view React keeps mounted but hidden where it stands (Activity hides it so), rather than one it took away. */
+function hiddenInPlace(el: HTMLElement): boolean {
+  return el.isConnected && el.style.display === "none";
+}
+
+/** Where a node stands under a root: the index of each child on the way down. */
+function pathTo(root: Element, node: Element): number[] | null {
+  const path: number[] = [];
+  for (let n: Element | null = node; n && n !== root; n = n.parentElement) {
+    const parent: Element | null = n.parentElement;
+    if (!parent) return null;
+    path.unshift(Array.prototype.indexOf.call(parent.children, n));
+  }
+  return path;
+}
+
+/**
+ * The copy a kept view leaves by: drawn as the view stood (shown, its boxes scrolled where they were), carrying what the
+ * deck held of the view (where it stood, the change it is on), and the view itself let go of: its own animations taken
+ * off, so it shows at rest when it is shown again.
+ */
+function keptCopy(table: Table, kept: HTMLElement): HTMLElement {
+  const copy = kept.cloneNode(true) as HTMLElement;
+  copy.style.removeProperty("display");
+  const scrolls = new Map<Element, [number, number]>();
+  for (const [node, at] of table.scrolled.get(kept) ?? []) {
+    const path = kept.contains(node) ? pathTo(kept, node) : null;
+    let twin: Element | null = path ? copy : null;
+    for (const i of path ?? []) twin = twin?.children[i] ?? null;
+    if (twin) scrolls.set(twin, at);
+  }
+  table.scrolled.set(copy, scrolls);
+  const was = table.held.get(kept);
+  stop(table, kept);
+  if (was) table.held.set(copy, { ...was, anims: [] });
+  return copy;
+}
+
 /** The page arriving, on the timeline of the one leaving and attached to its edge, fading in where it joins. */
 function enter(table: Table, el: HTMLElement, move: Timeline): void {
   const now = table.env.now();
@@ -467,6 +511,7 @@ function arrive(table: Table, el: HTMLElement, prev: HTMLElement | null): void {
   const under = was?.move && was.move.dir === dir ? was.move : null;
   const move = under ?? timelineOf(table.env, el, { dir, from: 0, speed: 0, width: el.getBoundingClientRect().width });
   if (prev && !prev.isConnected) adopt(table, prev, el, move);
+  else if (prev && hiddenInPlace(prev)) adopt(table, keptCopy(table, prev), el, move);
   else if (prev) stop(table, prev);
   enter(table, el, move);
 }

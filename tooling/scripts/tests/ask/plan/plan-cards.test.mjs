@@ -199,7 +199,7 @@ const tables = (over = {}) => ({
     { user_id: USER, tenant_id: A, role: "owner", tenants: { slug: "harbor" }, created_at: "2026-01-01T00:00:00Z" },
     { user_id: "u2", tenant_id: A, role: "operator", tenants: { slug: "harbor" }, created_at: "2026-01-02T00:00:00Z" },
   ],
-  tenants: [{ id: A, name: "Harbor", timezone: TZ, sells_by: "appointment" }],
+  tenants: [{ id: A, name: "Harbor", timezone: TZ }],
   tenant_config: [
     {
       tenant_id: A,

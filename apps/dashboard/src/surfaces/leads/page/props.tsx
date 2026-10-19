@@ -4,6 +4,7 @@
  * rail's doors; a kept search's acts, the plan panel and the peek; the strip, the next page and the first day.
  */
 import type { ReactNode, RefObject } from "react";
+import type { ScopeView } from "../../people/scope-view";
 import {
   isLeadList,
   type leadBand,
@@ -47,7 +48,7 @@ import type { FinderActs, SearchActs } from "./search-acts";
 import type { LeadsState, LeadView } from "./state";
 
 type Controls = ReturnType<typeof usePlControls<LeadRowVM, LeadCellCtx>>;
-type Place = Pick<ReturnType<typeof usePlPlace>, "cursor" | "setCursor" | "rowBudget" | "toggleAll">;
+type Place = Pick<ReturnType<typeof usePlPlace>, "cursor" | "setCursor" | "toggleAll">;
 
 /** Everything the page holds this draw, as one bag the five builders read. */
 export type LeadsPage = Controls &
@@ -168,7 +169,6 @@ export const leadsListProps = (p: LeadsPage) => {
     pileDoor: p.pileDoor,
     rows: leadShown,
     swapRef: p.swap,
-    rowBudget: p.rowBudget,
     phone: p.phone,
     // The rows drawn are the last view's, or its last order, until the surface holds the one the address names in the
     // order asked (a view read before paints at once; one not yet read is on its way): said, not left looking right and
@@ -571,4 +571,7 @@ export type LeadsScopeProps = ReturnType<typeof leadsListProps> &
   ReturnType<typeof leadsBandProps> &
   ReturnType<typeof leadsBulkProps> &
   ReturnType<typeof leadsPeekProps> &
-  ReturnType<typeof leadsFootProps>;
+  ReturnType<typeof leadsFootProps> & {
+    /** What People's page says of this scope it keeps (people/scope-view.ts): the deck's seat and the side it comes in from. */
+    scopeView?: ScopeView;
+  };

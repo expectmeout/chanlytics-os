@@ -83,7 +83,7 @@ const tables = () => ({
   memberships: [
     { user_id: USER, tenant_id: T, role: "owner", tenants: { slug: "harbor" }, created_at: "2026-01-01T00:00:00Z" },
   ],
-  tenants: [{ id: T, slug: "harbor", name: "Harbor", status: "active", timezone: TZ, sells_by: null }],
+  tenants: [{ id: T, slug: "harbor", name: "Harbor", status: "active", timezone: TZ }],
   tenant_config: [
     {
       tenant_id: T,

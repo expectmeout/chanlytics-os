@@ -47,7 +47,7 @@ const tables = (role = "operator") => ({
   memberships: [
     { user_id: USER, tenant_id: W, role, tenants: { slug: "bayside" }, created_at: "2026-02-01T00:00:00Z" },
   ],
-  tenants: [{ id: W, name: "Bayside", timezone: "America/New_York", sells_by: "proposal" }],
+  tenants: [{ id: W, name: "Bayside", timezone: "America/New_York", appointment_word: "meeting" }],
   policies: POLICY_CLASSES.map((cls) => ({
     id: `${cls}-w`,
     tenant_id: W,

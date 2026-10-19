@@ -6,6 +6,7 @@ export function abandonedCall(dto) {
   if (Array.isArray(dto.transcript_object) && dto.transcript_object.length) {
     return !dto.transcript_object.some((t) => t?.role === "user" && (t.content ?? "").trim() !== "");
   }
+  if (dto.turns && typeof dto.caller_spoke === "boolean") return !dto.caller_spoke;
   const ms = dto.duration_ms;
   return typeof ms === "number" && ms > 0 && ms < ABANDONED_MS;
 }

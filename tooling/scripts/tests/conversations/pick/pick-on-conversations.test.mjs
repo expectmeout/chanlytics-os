@@ -259,6 +259,17 @@ test("the mark the bar offers: read while anyone picked is new to the reader, el
 test("REGRESSION (7 Oct 2026): a Conversations row wears the Inbox's box, and picking one draws the select-all and the bar of acts", () => {
   draw();
   assert.equal(rows().length, 4);
+  // The list draws only the rows near the screen once it is long (cv-shown.ts): each row says its place in all of them.
+  assert.deepEqual(
+    rows().map((r) => [r.props["aria-posinset"], r.props["aria-setsize"]]),
+    [
+      [1, 4],
+      [2, 4],
+      [3, 4],
+      [4, 4],
+    ],
+    "each row's place in the whole list, for a screen reader",
+  );
   for (const name of ["Rosa", "Nina", "Emily"]) {
     const row = rowOf(name);
     assert.ok(boxOf(row), `${name}'s row can be picked: Conversations drew no box at all`);

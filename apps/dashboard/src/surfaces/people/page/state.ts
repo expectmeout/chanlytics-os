@@ -4,6 +4,7 @@
  * effects that set its state beside it, so a setter never leaves its hook.
  */
 import { useMemo } from "react";
+import type { ScopeView } from "../scope-view";
 import { mayAtLeast, navigate } from "../../legacy-verbs";
 import { useSwapMotion } from "../../kit/motion/use-swap-motion";
 import { PL_COLUMNS, PL_PHONE_COLUMNS } from "../cells/columns";
@@ -30,6 +31,8 @@ import {
  * peeked at over it on a desk, and the page's own move of its address (a push, or a replace).
  */
 export interface PeopleRealProps {
+  /** What People's page says of this scope it keeps (people/scope-view.ts): the deck's seat and the side it comes in from. */
+  scopeView?: ScopeView;
   onOpenProfile?: (id: string) => void;
   initialSegment?: string | null;
   initialSaved?: string | null;

@@ -125,6 +125,11 @@ a.btn {
   opacity: 0.55;
   transition-duration: 0s;
 }
+/* Under a pointer, pressed or with its menu open as much as at rest: the rule above outranked the house's ring there, so
+   Sort with its menu open showed a key nothing (kit.spec.ts, 19 Oct 2026). */
+.btn-plain:focus-visible {
+  box-shadow: var(--focus-ring);
+}
 
 /* The destructive act, filled: Confirm's Yes for anything that destroys or
    cannot be undone. A touch darker than the tone so its white words hold
@@ -4487,6 +4492,14 @@ a.list-row {
   background: var(--selected-fill);
   box-shadow: var(--selected-depth);
   font-weight: var(--weight-semibold);
+}
+/* A key's focus on a chip draws the house's ring over the chip's own depth, as on a picked segment (below): the chips'
+   shadows outranked the ring's rule, so a keyboard walking a row of them saw nothing move (kit.spec.ts, 19 Oct 2026). */
+.rec-seg:is([data-look="chips"], [data-look="chips-sm"]) .rec-seg-btn:focus-visible {
+  box-shadow: var(--focus-ring), var(--surface-inset-depth);
+}
+.rec-seg:is([data-look="chips"], [data-look="chips-sm"]) .rec-seg-btn[aria-checked="true"]:focus-visible {
+  box-shadow: var(--focus-ring), var(--selected-depth);
 }
 @media (max-width: 900px) {
   .rec-seg:is([data-look="chips"], [data-look="chips-sm"]) .rec-seg-btn {

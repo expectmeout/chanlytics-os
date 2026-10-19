@@ -35,7 +35,8 @@ import {
   type RealtimeChange,
 } from "./surface-realtime";
 import { getSurfaceStatuses, isSurfaceFailed, isSurfaceReady, onSurfaceStatusChange } from "./surface-status";
-import { hearAddress, routeOnScreen } from "./workspace";
+import { routeOnScreen } from "./workspace";
+import { hearMoves } from "./hearing/after-the-move";
 import { PAGE_HEARS, type PageCell } from "./hearing/page-hears";
 
 export type SurfaceState = "real" | "demo";
@@ -559,14 +560,14 @@ export function declareReads(key: string, d: ReadsDeclaration): DeclaredReads {
  * owns the screen. One marked `onDemand` (surface-data.ts), when a page that draws it (its own surface, or one the route
  * names) is on screen and it has never been read this session, a pass left it for its page (keepForItsPage), or it says it has
  * aged: one list, so a surface that missed an event and was never read is read once. And one a write left for the pages that
- * draw it (drawnHere), when one of them is on screen. Answers the stop.
+ * draw it (drawnHere), when one of them is on screen. When each is read: hearing/after-the-move.ts. Answers the stop.
  */
 export function readWhatWasMissed(
   overrides: readonly { key: string; onDemand?: boolean; isStale?: () => boolean }[],
   read: (keys: string[]) => void,
   win: Window = window,
 ): () => void {
-  const onMove = () => {
+  const dueAtMove = () => {
     const route = routeOnScreen(win);
     const { page, param } = pageOfRoute(route);
     const drawn = routeSurfaces(page, param);
@@ -582,9 +583,9 @@ export function readWhatWasMissed(
       missedWhileAway.delete(o.key);
       leftUntilDrawn.delete(o.key);
     }
-    if (due.length) read(due.map((o) => o.key));
+    return due.map((o) => o.key);
   };
-  return hearAddress(onMove, win);
+  return hearMoves(dueAtMove, read, win);
 }
 
 /**
