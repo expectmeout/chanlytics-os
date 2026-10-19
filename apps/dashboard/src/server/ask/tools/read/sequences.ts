@@ -20,6 +20,7 @@ import {
   sequenceWaitWords,
   type SequenceRowDto,
   type AppointmentWord,
+  SEQUENCES_ROUTE,
 } from "@chanlytics/contracts";
 import { load } from "../../../readers";
 import { sequence, sequenceHistory, sequencePeople, sequences } from "../../../readers/sequences";
@@ -59,7 +60,7 @@ export async function readSequences(t: ToolContext): Promise<unknown> {
   const nowMs = t.now.getTime();
   const rows = read.data.sequences.map((r) => sequenceLine(r, read.data.word, t.timezone, nowMs));
   return {
-    route: "campaigns",
+    route: SEQUENCES_ROUTE,
     needs_you: rows.reduce((n, r) => n + (r.needs_count ?? 0), 0),
     sequences: rows,
   };

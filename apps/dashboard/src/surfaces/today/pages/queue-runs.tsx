@@ -23,6 +23,7 @@ import {
   runTooLate,
   toSendRunsOf,
   type BroadcastVM,
+  runRoute,
 } from "@chanlytics/contracts";
 import type { BroadcastsSurface } from "@/surfaces/campaigns/broadcasts/surface";
 import { approvalDaysNow } from "@/surfaces/campaigns/broadcasts/when-words";
@@ -233,7 +234,7 @@ export const runRows = (nav: Nav, flash: Say, verbKind: VerbKind, { room, acting
           // first, Ask refuses to approve one, and a one-tap send from Today is the wrong habit for a first cold email.
           cta={
             opens
-              ? { label: "Open", kind: verbKind(), onClick: () => nav(`broadcasts/run:${r.id}`) }
+              ? { label: "Open", kind: verbKind(), onClick: () => nav(runRoute(r.id)) }
               : {
                   // One word per act (decision 19 of the spec of 9 Oct 2026): "Approve · 7 people", as every screen says it.
                   label: LIFECYCLE_WORDS.ledger.approve(r.recipient_count),
@@ -243,8 +244,8 @@ export const runRows = (nav: Nav, flash: Say, verbKind: VerbKind, { room, acting
                   gate: paused ? gatedProps(CAMPAIGNS_PAUSED_WORDS) : gate("approve", "approve a run"),
                 }
           }
-          also={opens ? null : { label: "See who's on it", onClick: () => nav(`broadcasts/run:${r.id}`) }}
-          onOpen={() => nav(`broadcasts/run:${r.id}`)}
+          also={opens ? null : { label: "See who's on it", onClick: () => nav(runRoute(r.id)) }}
+          onOpen={() => nav(runRoute(r.id))}
           testid="brief-run-row"
         />
       );

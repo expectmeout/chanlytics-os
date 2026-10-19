@@ -371,7 +371,7 @@ test("sources: a chain is the sum of its steps, in businesses", () => {
     ],
   );
   assert.equal(one.name, "Trainers in Austin");
-  assert.equal(one.to, "outbound/r1");
+  assert.equal(one.to, "campaigns/sequences/r1");
   assert.equal(one.meta, "Reach-out · 2 steps · 2 runs · Personal trainers · Austin");
   assert.equal(two.meta, "Reach-out · 2 steps · 1 run");
   const cells = (s) => [

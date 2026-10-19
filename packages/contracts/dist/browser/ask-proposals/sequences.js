@@ -1,7 +1,7 @@
 import { plural } from "../shared/words.js";
 import { REACH_OUT_DECISIONS, REACH_OUT_SAID_OUTCOMES } from "../reach-out/reach-out-dtos.js";
 import { toSendSaidWords } from "../reach-out/reach-out-approval.js";
-import { SEQUENCES_ROUTE, sequenceRoute } from "../sequences/sequence-address.js";
+import { SEQUENCES_ROUTE, runRoute, sequenceRoute } from "../sequences/sequence-address.js";
 import { SEQUENCE_TEST_WORDS } from "../sequences/sequence-test.js";
 import { leadsRoute } from "../leads/lead-plan.js";
 import {
@@ -365,7 +365,7 @@ export const sequenceEndSpec = {
 };
 const openRun = ({ payload }) => {
   const run = idIn(payload, "run_id");
-  return run ? `broadcasts/run:${run}` : null;
+  return run ? runRoute(run) : null;
 };
 const theirs = (name) => /s$/i.test(name) ? `${name}'` : `${name}'s`;
 const DECIDED = {

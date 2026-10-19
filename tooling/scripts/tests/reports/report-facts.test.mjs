@@ -221,7 +221,7 @@ test("the campaign that drew the most replies, and for the same replies the one 
   ]);
   const t = reportFacts(report(), tied).find((x) => x.id === "campaign");
   assert.equal(t.text, "Quiet for a month drew the most replies", "six replies from twelve beat six from forty");
-  assert.deepEqual(t.door, { label: "Open it", to: "outbound/p2" });
+  assert.deepEqual(t.door, { label: "Open it", to: "campaigns/sequences/p2" });
 });
 
 test("the campaign fact reads the sources of the Campaigns lens's own read alone, and says nothing before it lands, where it failed, or where none was answered", () => {

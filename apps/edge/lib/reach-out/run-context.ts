@@ -19,7 +19,7 @@ import {
   type Json,
 } from "../packages/db.js";
 import type { HandStep, HandStepPorts, ReachOutRunPorts, ReachOutStep } from "../packages/core.js";
-import { handOf, waitEndsWords } from "../packages/contracts.js";
+import { handOf, waitEndsWords, runRoute } from "../packages/contracts.js";
 import { stepSenders } from "./senders.js";
 import { notify } from "../ops/notify.js";
 import { loadTenantNotifications } from "../tenant-runtime.js";
@@ -228,7 +228,7 @@ export async function reachOutRunContext(
         {
           kind: "playbook",
           // The row opens the run it is about, where its emails are approved (as a playbook's does, playbooks.ts notify).
-          route: `broadcasts/run:${runId}`,
+          route: runRoute(runId),
           about: { type: "broadcast", id: runId },
           subject: `A reach-out waits for you: ${row.name}`,
           // How its wait ends is the wait rule's (contracts waitEndsWords, leads_batch): it has no day to pass.

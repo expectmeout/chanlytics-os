@@ -179,7 +179,11 @@ test("campaigns.broadcasts answers the Broadcasts page's rows over its reader, e
   const { out, isError, tc } = await ask({ action: "sent" });
   assert.equal(isError, false, JSON.stringify(out));
   const page = await load(rcIn(), broadcastsReader, undefined);
-  assert.deepEqual(out, { route: "broadcasts", broadcasts: page.data.broadcasts.map(rowOf), older: page.data.more });
+  assert.deepEqual(out, {
+    route: "campaigns/sequences",
+    broadcasts: page.data.broadcasts.map(rowOf),
+    older: page.data.more,
+  });
   const waiting = out.broadcasts.find((b) => b.broadcast_id === BC2);
   assert.deepEqual(
     [waiting.state, waiting.waiting_on_you, waiting.by, waiting.audience],

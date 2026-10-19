@@ -16,7 +16,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { addressOf } from "../packages/channels.js";
-import { OFFERS_NOTICE_WORDS, offerGate, type OfferPauseReason } from "../packages/contracts.js";
+import { OFFERS_NOTICE_WORDS, offerGate, type OfferPauseReason, SEQUENCES_ROUTE } from "../packages/contracts.js";
 import { emailOfferCounts, pauseEmailOffers, type Database } from "../packages/db.js";
 import { logger, errField } from "../log.js";
 import { notify } from "../ops/notify.js";
@@ -40,7 +40,7 @@ async function tellOffersPaused(db: Db, tenantId: string, reason: OfferPauseReas
       { tenantId, ...addressing },
       {
         kind: "sweep",
-        route: "outbound",
+        route: SEQUENCES_ROUTE,
         subject: words.title,
         body: words.body,
         redactedBody: "A workspace's offers by email were paused.",

@@ -109,7 +109,7 @@ test("nothing stands over Sequences while the address names no sheet: its list, 
     "sequences",
     "sequences/pb-sample-winback/history",
     "surprise",
-    // Each lands on New sequence, or on it on its moment (contracts sequenceLandingOf).
+    // Each lands on New sequence, or on it on its moment (contracts retiredRouteOf).
     "new:every",
     "new:moment:visited",
   ]) {

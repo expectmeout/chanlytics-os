@@ -26,6 +26,7 @@ import {
   type ChainIssue,
 } from "./reach-out-words";
 import type { ReachOutChainInput } from "./reach-out-schemas";
+import { runRoute, sequenceRoute } from "../sequences/sequence-address";
 
 export interface ReachOutDraftStep {
   /** The step's row when the chain is being changed; null for a step not saved yet. */
@@ -373,8 +374,8 @@ export function reachOutSavedWords(saved: ReachOutSavedDto): {
     : { tone: "good" as const, text: reachOutEditedWords(saved.rechecked) };
   const run = saved.start ? saved.start.run_id : null;
   return run
-    ? { ...said, to: `broadcasts/run:${run}`, label: RUN_OPEN_WORDS }
-    : { ...said, to: `outbound/${saved.root_id}`, label: "Open its reach-out" };
+    ? { ...said, to: runRoute(run), label: RUN_OPEN_WORDS }
+    : { ...said, to: sequenceRoute(saved.root_id), label: "Open its reach-out" };
 }
 
 /** The sheet's own labels: its parts, its fields and its acts. */

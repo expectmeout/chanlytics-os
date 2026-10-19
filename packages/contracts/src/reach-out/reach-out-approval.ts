@@ -15,6 +15,7 @@ import type { ReachOutDraftedSend, ReachOutRunDto } from "./reach-out-dtos";
 import { holdDoors, HOLD_DOOR_WORDS, type ReachOutHold } from "./reach-out-words";
 import { reachOutRootOf } from "./reach-out-rules";
 import { approvalWordsOf, chainPaceOf, leadDoorOf, stepLabel } from "./reach-out-sheet";
+import { SEQUENCES_ROUTE, runRoute } from "../sequences/sequence-address";
 
 /**
  * Why a send was skipped, as a run's block says it after the count and a lead's story says it (Part 6): the reasons
@@ -350,13 +351,13 @@ export function toSendEveryOf<R extends ToSendRunLike>(runs: readonly R[]): ToSe
 
 /**
  * Where a door to the runs waiting for you goes (Today's queue, the Inbox's line): the run, where one waits; the one To
- * send, where every one waits only for its owner to send its emails; else Sent.
+ * send, where every one waits only for its owner to send its emails; else Sequences.
  */
 export function waitingRunsDoor(waiting: readonly WaitingToSend[]): string {
   const [only] = waiting;
-  if (waiting.length === 1 && only) return `broadcasts/run:${only.id}`;
+  if (waiting.length === 1 && only) return runRoute(only.id);
   const toSend = toSendRunsOf(waiting);
-  return toSend && toSend.runs.length === waiting.length ? TO_SEND_ROUTE : "broadcasts";
+  return toSend && toSend.runs.length === waiting.length ? TO_SEND_ROUTE : SEQUENCES_ROUTE;
 }
 
 /** The block's own acts. */

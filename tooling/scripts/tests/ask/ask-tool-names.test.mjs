@@ -1281,6 +1281,16 @@ function withEachSequencesMode(frozen) {
 }
 
 /**
+ * 19 Oct 2026 (the Campaigns wiring review's lane 1): a tool's route is its page's own address, never a retired one that an
+ * edge moves on: the playbooks' read (Campaigns, `campaigns`) and the audiences' (Sent's, `broadcasts`) say Sequences, which
+ * those landed on. Nothing else moved.
+ */
+const withTheHomes = (frozen) =>
+  frozen
+    .replaceAll('"route":"campaigns"', '"route":"campaigns/sequences"')
+    .replaceAll('"route":"broadcasts"', '"route":"campaigns/sequences"');
+
+/**
  * 19 Oct 2026 (decision 0064): a new campaign's card says what its batches do by the mode its sequence starts with, where
  * it said its class's mode and a run's wait; this world's Re-engage has no row, so its sequence asks before each batch.
  */
@@ -1546,8 +1556,11 @@ test("every old tool's call, made by its new name and action, answers the bytes 
     const [gotResult, wantResult] = withoutStoredWords(
       old,
       ...(NAMES[old] === "sequences.moments"
-        ? againstOffered(got.result, withLastThirtyDays(result))
-        : [withoutVisitIds(old, got.result), NAMES[old] === "people.get" ? withoutRightNowDetail(result) : result]),
+        ? againstOffered(got.result, withTheHomes(withLastThirtyDays(result)))
+        : [
+            withoutVisitIds(old, got.result),
+            withTheHomes(NAMES[old] === "people.get" ? withoutRightNowDetail(result) : result),
+          ]),
     );
     // 2 Oct 2026: a win-back proposed asks first whether a calendar is connected (check-playbook's calendarOn), from the
     // zone and settings the turn reads once: the same reads as before, those two earlier.

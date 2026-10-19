@@ -7,6 +7,7 @@ import { shiftKey } from "./day-keys.js";
 import { clockLabel } from "./calendar-words.js";
 import { plural } from "../shared/words.js";
 import { MIN_MS } from "../shared/time.js";
+import { SEQUENCES_ROUTE } from "../sequences/sequence-address.js";
 const CALENDAR_RUN_DOORS = { sent: "Open in Sent", campaigns: "Open in Campaigns" };
 export const CALENDAR_SHOW_WORDS = {
   label: "Show",
@@ -140,7 +141,7 @@ function wentMark(day, runs, tz) {
     tone: "plain",
     ahead: false,
     cold: false,
-    route: one ? addressOf({ kind: "send", id: one.r.id }) : "broadcasts",
+    route: one ? addressOf({ kind: "send", id: one.r.id }) : SEQUENCES_ROUTE,
     door: CALENDAR_RUN_DOORS.sent,
     named: false,
     items: runs.map((x) => ({
@@ -166,7 +167,7 @@ function coldMark(day, playbookId, name, runs, todayKey) {
     tone: waiting ? "warn" : "plain",
     ahead: waiting || !sent && planned > 0,
     cold: true,
-    route: runs.length === 1 && first ? addressOf({ kind: "send", id: first.id }) : "broadcasts",
+    route: runs.length === 1 && first ? addressOf({ kind: "send", id: first.id }) : SEQUENCES_ROUTE,
     door: CALENDAR_RUN_DOORS.sent,
     named: false,
     items: runs.map((r) => ({

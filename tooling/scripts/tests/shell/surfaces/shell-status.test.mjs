@@ -26,8 +26,7 @@ import {
   toLiveVM,
   LOOK_OPTIONS,
   LOOK_OFFERED,
-  doorOf,
-  sequenceLandingOf,
+  retiredRouteOf,
 } from "@chanlytics/contracts";
 import { importSrc } from "../../_source.mjs";
 import { hookFrames } from "../../_hook-frames.mjs";
@@ -1161,9 +1160,9 @@ test("REGRESSION (C13): a link to a playbook lands on its sequence, named in the
   setSurfaceValue("sequences", { sequences: [{ id: "pb-1", name: "Win-back", starts: "moment" }] });
   try {
     const crumbs = (hash) => find(mount(hash).tree, (n) => n.type === "Topbar").props.crumbs;
-    // The old Playbooks list is a door (contracts doorOf): `outbound/<id>` is `campaigns/moment:<id>`, which lands on its
-    // sequence (decision 0060: sequenceLandingOf), which the frame names.
-    assert.equal(sequenceLandingOf(doorOf("outbound/pb-1")), "campaigns/sequences/pb-1");
+    // The old Playbooks list is retired (contracts retiredRouteOf): `outbound/<id>` lands on its sequence in one move
+    // (decision 0060), which the frame names.
+    assert.equal(retiredRouteOf("outbound/pb-1"), "campaigns/sequences/pb-1");
     assert.equal(
       crumbs("#/campaigns/sequences/pb-1").at(-1),
       "Win-back",

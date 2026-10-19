@@ -8,6 +8,8 @@ import { firstLine } from "./push.js";
 import { RUN_OPEN_WORDS } from "../shell/campaign-rooms.js";
 import { invitationExpired } from "../shell/identity.js";
 import { noticeTone } from "../waits/notice-tones.js";
+import { SEQUENCES_ROUTE } from "../sequences/sequence-address.js";
+import { MESSAGES_ROUTE } from "../shell/address.js";
 export function bellCalls(live) {
   const seen = /* @__PURE__ */ new Set();
   const out = [];
@@ -210,7 +212,7 @@ function jobRowWords(n) {
   const w = jobNewsWords(m[1], OLD_JOB_END[m[2]], { attempts: tries ? Number(tries[1]) : 1, resumed: false });
   return { title: w.title, message: w.lead, route: n.route && n.route !== "inbox" ? n.route : w.to };
 }
-export const REACH_OUT_DAY_ROUTE = "campaigns/in:reach_out";
+export const REACH_OUT_DAY_ROUTE = SEQUENCES_ROUTE;
 const ALERT_LOOK = { icon: "bell", tone: "", action: "Open Today", to: "today" };
 const SERVER_LOOK = {
   handoff: { icon: "alert", tone: "warn", action: "Open the Inbox", to: "inbox" },
@@ -229,8 +231,8 @@ const SERVER_LOOK = {
    * a change is belongs to the change (waba-events.ts describeWabaChange), and
    * how it should read belongs here. Never inferred from the title.
    */
-  template_ready: { icon: "check", tone: "ok", action: "Open Messages", to: "messages" },
-  template_blocked: { icon: "alert", tone: "warn", action: "Open Messages", to: "messages" },
+  template_ready: { icon: "check", tone: "ok", action: "Open Messages", to: MESSAGES_ROUTE },
+  template_blocked: { icon: "alert", tone: "warn", action: "Open Messages", to: MESSAGES_ROUTE },
   sweep: { icon: "alert", tone: "warn", action: "Open Connections", to: "admin/integrations" },
   /** A JOB that did not finish, and nothing else. See JobNewsKind. */
   job_failed: { icon: "alert", tone: "warn", action: "Open the Inbox", to: "inbox" },
@@ -243,7 +245,7 @@ const SERVER_LOOK = {
    * says it ("needs you", ALERT_TOPICS playbook), never good news sorted below the warnings. Once the run is settled the
    * row reads as read and loses the warning (notice-closes.ts).
    */
-  playbook: { icon: "bolt", tone: "warn", action: "Open Campaigns", to: "outbound" },
+  playbook: { icon: "bolt", tone: "warn", action: "Open Campaigns", to: SEQUENCES_ROUTE },
   /** A reply counting down to go in the owner's name (decision 0064): a decision with a deadline, so a warning. */
   reply_held: { icon: "clock", tone: "warn", action: "Open the Inbox", to: "inbox" },
   calendar_people: { icon: "users", tone: "ok", action: "Open People", to: "clients" },
@@ -303,6 +305,8 @@ const ROUTE_VERBS = [
   [/^outbound/, "Open Campaigns"],
   // A message open in its own drawer over Campaigns (a template's notice: refused, paused, approved): the door says what it opens.
   [/^campaigns\/message:/, "Open the message"],
+  // Messages, Campaigns' other view (19 Oct 2026): the door says the page's name.
+  [/^campaigns\/messages(\/|$)/, "Open Messages"],
   [/^campaigns/, "Open Campaigns"],
   // A row about one run opens that run (a playbook's waiting or about to go, a reach-out's held sends), and says so.
   [/^broadcasts\/run:/, RUN_OPEN_WORDS],

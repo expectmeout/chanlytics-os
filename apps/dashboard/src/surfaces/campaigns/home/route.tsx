@@ -2,9 +2,10 @@
  * Campaigns as the route draws it: its two views, Sequences (decision 0060) and Messages (D4: the Library is Messages, at
  * `campaigns/messages`), and the sheets Campaigns opens over them (sheets.tsx: the composer at `campaigns/new…`, a message at
  * `campaigns/message:<name>`). The home that stood here went in S6: its address and a campaign's (`campaigns`,
- * `campaigns/in:<group>`, `campaigns/moment:<id>[:people]`) land on Sequences, or on the campaign's sequence (contracts
- * sequenceLandingOf), the address replaced so a link kept from before opens what it names. `campaigns/ads…` is the Ads view,
- * where it is drawn. The address is read from the path, never from the route params: a move between two of its addresses is
+ * `campaigns/in:<group>`, `campaigns/moment:<id>[:people]`) land on Sequences, or on the campaign's sequence, by the one
+ * table of retired addresses (contracts retiredRouteOf): every edge moves them before the page is asked, and one that
+ * reaches it some other way (a history entry from before) is replaced here. `campaigns/ads…` is the Ads view, where it is
+ * drawn. The address is read from the path, never from the route params: a move between two of its addresses is
  * a change of the path alone (workspace.ts goToRoute), and the page follows it, one mount across them all.
  *
  * Sequences and Messages are kept, as People's scopes are (people/people-route.tsx): each drawn from the first time it is
@@ -21,8 +22,8 @@ import {
   SEQUENCES_ROUTE,
   isAdsParam,
   isMessagesParam,
+  retiredRouteOf,
   routeOfPath,
-  sequenceLandingOf,
 } from "@chanlytics/contracts";
 import { warmsOnItsOwn } from "@/legacy-bridge/workspace";
 import { viewDeck } from "../../kit/motion/view-deck";
@@ -107,7 +108,7 @@ export function CampaignsRoute() {
   // The route's second word, as the shell reads its param (`campaigns/new:to:list-1` names new:to:list-1).
   const param = route.split("/")[1] || null;
   const adsShown = useAdsShown();
-  const landing = sequenceLandingOf(route);
+  const landing = retiredRouteOf(route);
   const view: View = isMessagesParam(param) ? "messages" : "sequences";
   // Sequences is a chunk of its own (campaigns-code.tsx), most often fetched before the press: then the page is drawn at once,
   // and only a press that beat it waits under the Suspense below. Taken once for the mount, which follows every address.

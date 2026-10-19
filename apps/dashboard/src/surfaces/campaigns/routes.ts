@@ -144,7 +144,7 @@ export function campaignsChrome({ param }: { param: string | null }): {
 
 /**
  * Messages' chrome at its old route (`messages`, the path `templates`), which lands on `campaigns/messages` as it loads
- * (contracts doorOf): Campaigns › Messages, in the strip beside Sequences, for the frame it stands in until it has moved.
+ * (contracts retiredRouteOf): Campaigns › Messages, in the strip beside Sequences, for the frame it stands in until it has moved.
  */
 export function messagesChrome(): { crumbs: Crumb[]; views?: SurfaceViews } {
   return { crumbs: [CAMPAIGNS, ADS_WORDS.messagesTab], views: campaignsViews("messages") };

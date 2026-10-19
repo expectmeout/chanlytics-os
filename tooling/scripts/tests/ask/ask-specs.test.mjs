@@ -34,6 +34,7 @@ import {
   ROUTE_KEYS,
   askUndoOpen,
   cardOpenRoute,
+  canonicalRoute,
 } from "@chanlytics/contracts";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
@@ -352,7 +353,15 @@ test("a card's Open goes exactly where it went at a993b71d, for every kind over 
     const got = CASES.map(([payload, outcome]) =>
       cardOpenRoute({ kind, payload, ...(outcome !== undefined ? { outcome } : {}) }),
     );
-    assert.deepEqual(got, want, kind);
+    // The same place: a card writes the page's own address now, where the table froze a retired one that lands on it
+    // (contracts retiredRouteOf, the Campaigns wiring review's lane 1, 19 Oct 2026).
+    const place = (r) => (r === null ? null : canonicalRoute(r));
+    assert.deepEqual(got.map(place), want.map(place), kind);
+    assert.deepEqual(
+      got.filter((r) => r !== null && canonicalRoute(r) !== r),
+      [],
+      `${kind}: never a retired address`,
+    );
   }
 });
 
@@ -604,7 +613,7 @@ test("leads added to a reach-out from a card (00426): the add door with the lead
     params: { id: "op1" },
     body: { version: 2 },
   });
-  assert.equal(spec.open(p, null), "campaigns/moment:r1");
+  assert.equal(spec.open(p, null), "campaigns/sequences/r1");
   assert.equal(spec.needs, "operator");
 });
 
@@ -655,7 +664,7 @@ test("a playbook's channels, changed from a card: the playbook's own PUT with th
     body: { channels: ["whatsapp"] },
   });
   assert.equal(spec.undo.receipt({}), "Its channels are as they were");
-  assert.equal(spec.open(p, null), "campaigns/moment:pb1", "its drawer, where the Goes by row is");
+  assert.equal(spec.open(p, null), "campaigns/sequences/pb1", "its record, where the Goes by row is");
   // A card with no playbook, or no channel it knows, commits nothing; an undo with nothing to put back says so.
   for (const broken of [
     { ...GOES_BY, playbook_id: null },
@@ -664,22 +673,26 @@ test("a playbook's channels, changed from a card: the playbook's own PUT with th
   ])
     assert.deepEqual(spec.commit(card("playbook_channels", broken), TAB), { refused: PROPOSAL_WORDS.cannotApprove });
   assert.deepEqual(spec.undo.call({ ...kept, was: [] }, TAB_AFTER), { refused: PROPOSAL_WORDS.noUndo });
-  assert.equal(spec.open(card("playbook_channels", { ...GOES_BY, playbook_id: null }), null), "outbound");
+  assert.equal(spec.open(card("playbook_channels", { ...GOES_BY, playbook_id: null }), null), "campaigns/sequences");
 });
 
 test("Ask's new campaign opens its drawer once it is made, by the id the route answered; before then the home", () => {
   const spec = PROPOSAL_SPECS.playbook;
   assert.equal(
     spec.open(card("playbook", {}), done({ playbook_id: "pb9", decision_id: "d9" })),
-    "campaigns/moment:pb9",
+    "campaigns/sequences/pb9",
   );
   assert.equal(
     spec.open(card("playbook", {}), null),
-    "outbound",
-    "not approved yet: the home, where the old address lands",
+    "campaigns/sequences",
+    "not approved yet: Sequences, which the old address lands on",
   );
-  assert.equal(spec.open(card("playbook", {}), done(null)), "outbound");
-  assert.equal(spec.open(card("playbook", {}), done({ playbook_id: "" })), "outbound", "an empty id names nothing");
+  assert.equal(spec.open(card("playbook", {}), done(null)), "campaigns/sequences");
+  assert.equal(
+    spec.open(card("playbook", {}), done({ playbook_id: "" })),
+    "campaigns/sequences",
+    "an empty id names nothing",
+  );
   // The id is the one the commit kept for its undo: what the route answered when it made the campaign.
   assert.deepEqual(spec.undo.record(card("playbook", {}), { id: "pb9", decision_id: "d9" }), {
     playbook_id: "pb9",
@@ -1135,7 +1148,7 @@ test("a playbook's change from a card (A5): its own PUT with what it changes and
   assert.equal(spec.undo.record(p, { was: {}, decision_id: null }, TAB), null);
   assert.deepEqual(spec.undo.call({ playbook_id: "pb1", was: {} }, TAB_AFTER), { refused: PROPOSAL_WORDS.noUndo });
   assert.equal(spec.undo.receipt({}), "It is as it was");
-  assert.equal(spec.open(p, null), "campaigns/moment:pb1", "its drawer");
+  assert.equal(spec.open(p, null), "campaigns/sequences/pb1", "its record");
 });
 
 test("a playbook card (A0, the landing rule): a starter it names is committed in place of a message, it opens in the composer on its moment before Approve, and in the new drawer after, from the undo the commit kept", () => {
@@ -1152,8 +1165,8 @@ test("a playbook card (A0, the landing rule): a starter it names is committed in
   assert.equal("template_id" in body, false, "no message: the route files the starter first");
   assert.equal(spec.commit(card("playbook", { trigger: "quiet_30", template_id: "t1" }), TAB).body.template_id, "t1");
   assert.equal(spec.open(onStarter, null), "campaigns/sequences/new:moment:quiet_30");
-  assert.equal(spec.open(onStarter, done({ playbook_id: "pb9", decision_id: "d1" })), "campaigns/moment:pb9");
-  assert.equal(spec.open(card("playbook", {}), null), "outbound");
+  assert.equal(spec.open(onStarter, done({ playbook_id: "pb9", decision_id: "d1" })), "campaigns/sequences/pb9");
+  assert.equal(spec.open(card("playbook", {}), null), "campaigns/sequences");
   // The receipt says the starter's WhatsApp version went for review, where the route says it did, naming the reviewer as
   // every sentence a person reads does (WhatsApp, never Meta); and "Campaign", the word a person reads.
   const submitted = spec.receipt(onStarter, { name: "Win-back", starter: { status: "submitted" } });

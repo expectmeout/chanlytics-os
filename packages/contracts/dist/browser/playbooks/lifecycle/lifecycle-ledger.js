@@ -18,9 +18,10 @@ import {
 import { PLAYBOOK_DEFAULTS, triggerOf, triggerWords } from "../playbook-triggers.js";
 import { nextRunLine, resumeDetailOf, waitingOffer, workspacePausedOf } from "./lifecycle-tiles.js";
 import { LIFECYCLE_WORDS, lifecycleChainStateOf, lifecycleStateOf, tallyWords } from "./lifecycle-words.js";
+import { SEQUENCES_ROUTE, messageRoute, runRoute } from "../../sequences/sequence-address.js";
+import { MESSAGES_ROUTE } from "../../shell/address.js";
 const LEDGER_TOOLS_AT = 7;
 const LEDGER_PERIOD = periodWords(fixedDaysOf(CAMPAIGNS_RESULTS_PERIOD), null).now;
-const SENT_ROUTE = "broadcasts";
 const LEADS_ROUTE = "clients/leads";
 export function readyOf(input) {
   return input.playbooks?.ready ?? input.broadcasts?.ready ?? null;
@@ -188,7 +189,7 @@ function callTextRow(library, caps) {
     people: { n: null, unit: "" },
     results: "uncounted",
     next: NO_NEXT,
-    open: { kind: "route", label: "Open", route: found ? `campaigns/message:${found.name}` : "messages" },
+    open: { kind: "route", label: "Open", route: found ? messageRoute(found.name) : MESSAGES_ROUTE },
     waiting: null,
     act: null,
     search: rowSearchOf(W.name, W.words, caps)
@@ -280,7 +281,7 @@ function chainRow(c, at) {
     open: { kind: "open", label: "Open", playbookId: c.root_id },
     waiting: null,
     // The run waiting is the thing to answer, so its door comes before Resume (the drawer has Resume either way).
-    act: waitingRun ? { kind: "route", label: W.openRun, route: `broadcasts/run:${waitingRun}` } : heldRun ? { kind: "route", label: W.openRun, route: `broadcasts/run:${heldRun}` } : paused ? resume : null,
+    act: waitingRun ? { kind: "route", label: W.openRun, route: runRoute(waitingRun) } : heldRun ? { kind: "route", label: W.openRun, route: runRoute(heldRun) } : paused ? resume : null,
     search: rowSearchOf(c.name, hint, at.caps)
   };
 }
@@ -302,7 +303,7 @@ function sentOnceRow(s, at) {
     people: { n: null, unit: "" },
     results: sentResultsOfSource(s),
     next: NO_NEXT,
-    open: { kind: "route", label: "Open", route: `${SENT_ROUTE}/run:${s.id}` },
+    open: { kind: "route", label: "Open", route: runRoute(s.id) },
     waiting: null,
     act: null,
     search: rowSearchOf(s.name, hint, at.caps)
@@ -429,7 +430,10 @@ export function lifecycleLedger(at) {
     groups: every,
     counts: countsOf(every.flatMap((g) => g.rows)),
     tools,
-    sentOnce: !tools && once.length > 0 ? { n: once.length, open: { kind: "route", label: LIFECYCLE_WORDS.ledger.sentOnce.open, route: SENT_ROUTE } } : null,
+    sentOnce: !tools && once.length > 0 ? {
+      n: once.length,
+      open: { kind: "route", label: LIFECYCLE_WORDS.ledger.sentOnce.open, route: SEQUENCES_ROUTE }
+    } : null,
     ...said
   };
 }

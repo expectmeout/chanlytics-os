@@ -69,8 +69,9 @@ export const SURFACE_STATES: Record<string, SurfaceState> = {
   store: "demo",
   studio: "demo",
   campaigns: "real", // Campaigns: Sequences (decision 0060) and the sheets it opens over it, the composer and a message, over the playbooks', broadcasts', library's and reach-outs' surfaces
-  outbound: "real", // the old Playbooks list, a door now: it lands on campaigns (contracts doorOf), and a playbook is campaigns/moment:<id>
-  "campaigns/sequences": "real", // Campaigns › Sequences (decision 0060): everything sent on its own, one list and a record, over the sequences surface
+  outbound: "real", // the old Playbooks list, retired: it lands on Sequences, and a playbook on its sequence (contracts retiredRouteOf)
+  // Campaigns › Sequences (decision 0060): everything sent on its own, one list and a record, over the sequences surface.
+  "campaigns/sequences": "real",
   "campaigns/messages": "real", // Campaigns › Messages (D4: the Library), a view kept beside Sequences under Campaigns' one mount (19 Oct 2026)
   content: "demo",
   broadcasts: "real", // Sent's sheets (a run's, To send, Get their yes) beside Sequences' list; its own address lands on Sequences

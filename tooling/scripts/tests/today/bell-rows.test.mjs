@@ -623,10 +623,10 @@ test("the day's reach-out numbers open Campaigns at its Reach-outs, whatever rou
       day("n3", null, "2026-09-30"),
     ],
   });
-  assert.equal(REACH_OUT_DAY_ROUTE, "campaigns/in:reach_out");
+  assert.equal(REACH_OUT_DAY_ROUTE, "campaigns/sequences");
   assert.deepEqual(
     rows.map((r) => r.to),
-    ["campaigns/in:reach_out", "campaigns/in:reach_out", "campaigns/in:reach_out"],
+    ["campaigns/sequences", "campaigns/sequences", "campaigns/sequences"],
     "a row kept before this lands there too",
   );
   assert.deepEqual(
@@ -660,5 +660,5 @@ test("D1-template-marks: a kept template notice opens the message it is about in
   assert.equal(by["n:t1"].action, "Open the message");
   assert.deepEqual(by["n:t1"].about, { type: "template", id: "winback_offer" });
   assert.deepEqual([by["n:t0"].to, by["n:t0"].action], ["messages", "Open Messages"]);
-  assert.deepEqual([by["n:t2"].to, by["n:t2"].action], ["messages", "Open Messages"]);
+  assert.deepEqual([by["n:t2"].to, by["n:t2"].action], ["campaigns/messages", "Open Messages"]);
 });

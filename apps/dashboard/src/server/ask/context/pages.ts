@@ -21,6 +21,8 @@ import {
   emailTemplateRowsOf,
   isLibrarySample,
   libraryCount,
+  runRoute,
+  sequenceRoute,
 } from "@chanlytics/contracts";
 import { load, type ReaderContext } from "../../readers";
 import * as facts from "../../readers/facts";
@@ -132,7 +134,7 @@ async function playbookContextRows(rc: ReaderContext, ids: string[]) {
           `next run ${card.read.next}`,
           moment.trim().toLowerCase() === p.name.trim().toLowerCase() ? null : moment,
         ],
-        `campaigns/moment:${id}`,
+        sequenceRoute(id),
       ),
       ref: refs.get(id) ?? null,
     });
@@ -162,7 +164,7 @@ async function chainContextRows(rc: ReaderContext, ids: string[]) {
       title: c.name,
       text: line(
         [c.name, lastDaysPart(chains ? chainResultsOf(id, chains) : null), lifecycleChainStateOf(c).words],
-        `campaigns/moment:${id}`,
+        sequenceRoute(id),
       ),
       ref: refs.get(id) ?? null,
     });
@@ -192,7 +194,7 @@ async function broadcastRows(rc: ReaderContext, ids: string[]) {
           `${b.counts.sent} sent`,
           b.deliveredPct === null ? null : `${b.deliveredPct}% delivered`,
         ],
-        `broadcasts/run:${id}`,
+        runRoute(id),
       ),
       ref: refs.get(id) ?? null,
     });

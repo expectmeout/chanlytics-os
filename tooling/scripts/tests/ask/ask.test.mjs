@@ -220,9 +220,9 @@ const REACHED = {
   // People › Lists is People's rail; `segments/<id>` still lands there.
   segments: ["Lists", "clients"],
   calendar: ["Calendar", "calendar"],
-  // Campaigns, which is Sequences (decision 0060); the old Playbooks list, `outbound`, is a door to it (contracts doorOf).
-  campaigns: ["Campaigns", "campaigns"],
-  outbound: ["Campaigns", "campaigns"],
+  // Campaigns, which is Sequences (decision 0060); the old Playbooks list, `outbound`, is a door to it (contracts retiredRouteOf).
+  campaigns: ["Campaigns", "campaigns/sequences"],
+  outbound: ["Campaigns", "campaigns/sequences"],
   "campaigns/sequences": ["Sequences", "campaigns/sequences"],
   // Sent's list went to each sequence's History (D3): its sheets stay at their addresses, and its jump is Sequences'.
   broadcasts: ["Sequences", "campaigns/sequences"],

@@ -11,6 +11,7 @@
  * disagree. Pure: the page feeds it window globals, the tests fixtures.
  */
 import type { Tone } from "../shell/tone";
+import { MESSAGES_ROUTE } from "../shell/address";
 import { numberHealth } from "../broadcasts/broadcasts";
 import { PHONE_LINE_OFF } from "../lines/caller-gets";
 import { channelFor, type ChannelVM } from "../lines/channels";
@@ -392,7 +393,7 @@ function signupLeftOpenNotes(startedAt: string | null | undefined, nowMs: number
 }
 
 /** The WhatsApp row's own verb: the Library, what the receptionist and the campaigns send on the number. */
-const LIBRARY: ConnectionVerb = { label: "Messages", to: "messages", who: "operator" };
+const LIBRARY: ConnectionVerb = { label: "Messages", to: MESSAGES_ROUTE, who: "operator" };
 
 /**
  * The row of a connected number. What Meta holds against it comes first (channel.standing, 00338, in contracts' words: a

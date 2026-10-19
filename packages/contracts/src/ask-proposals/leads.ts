@@ -4,6 +4,7 @@
  * a run).
  */
 import { leadQuestionRoute, leadsRoute } from "../leads/leads";
+import { SEQUENCES_ROUTE, sequenceRoute } from "../sequences/sequence-address";
 import { asText, idIn, rec, type ProposalSpec, type ProposalSpecAboveOperator } from "./spec";
 
 /** The search a lead card answers (spec G4), when it answers one rather than starting its own. */
@@ -129,6 +130,6 @@ export const reachOutAddSpec: ProposalSpec = {
   },
   open: ({ payload }) => {
     const id = idIn(payload, "root_id");
-    return id ? `campaigns/moment:${id}` : "outbound";
+    return id ? sequenceRoute(id) : SEQUENCES_ROUTE;
   },
 };

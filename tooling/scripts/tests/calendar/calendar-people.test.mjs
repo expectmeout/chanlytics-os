@@ -1766,7 +1766,7 @@ test("the journey from visits: Booked this week and Lapsed, in three groups; eac
   assert.deepEqual(peopleListAction("lapsed", [lapsed, yes]), {
     text: "1 of 2 on this list said yes to offers — an offer reaches them.",
     cta: "Bring them back",
-    to: "broadcasts/lapsed",
+    to: "campaigns/new:to:lapsed",
     enabled: true,
   });
   // Nobody on the list has said yes to offers: the list's own step cannot run, and the step that CAN is the
@@ -1781,7 +1781,7 @@ test("the journey from visits: Booked this week and Lapsed, in three groups; eac
   // to the SECOND yes, which is precisely what this person has not given.
   assert.notEqual(
     peopleListAction("lapsed", [talkOnly]).to,
-    "broadcasts/lapsed",
+    "campaigns/new:to:lapsed",
     "a yes to messages is not a yes to offers",
   );
   assert.equal(peopleListAction("lapsed", [talkOnly]).to, GET_YES_ROUTE);
@@ -1791,7 +1791,7 @@ test("the journey from visits: Booked this week and Lapsed, in three groups; eac
   // answer they already gave. The list keeps its own step, waiting, and says what is actually missing.
   const yesNoNumber = lapsedWith({ consent: "opted_in", marketing_consent: "opted_in", phone_e164: null });
   const waiting = peopleListAction("lapsed", [yesNoNumber]);
-  assert.equal(waiting.to, "broadcasts/lapsed");
+  assert.equal(waiting.to, "campaigns/new:to:lapsed");
   assert.equal(waiting.enabled, false);
   assert.match(waiting.text, /a recorded yes with a number to send to/);
   // Someone DID say yes and has a number, and the workspace has no channel to send an offer on now (its WhatsApp number is
@@ -1828,7 +1828,7 @@ test("the journey from visits: Booked this week and Lapsed, in three groups; eac
   assert.deepEqual(peopleListAction("new_week", [yes]), {
     text: "1 of 1 on this list said yes to offers — an offer reaches them.",
     cta: "Use in a broadcast",
-    to: "broadcasts/new_week",
+    to: "campaigns/new:to:new_week",
     enabled: true,
   });
   assert.deepEqual(
@@ -1838,14 +1838,14 @@ test("the journey from visits: Booked this week and Lapsed, in three groups; eac
       cta: "Broadcast to everyone who said yes",
       // The composer, on Everyone: the door names this list, which the composer reads as Everyone, and a door that
       // names a list wins over a draft kept in the tab. `broadcasts` alone is the Sent room, with nothing to write in.
-      to: "broadcasts/offers_ok",
+      to: "campaigns/new:to:offers_ok",
       enabled: true,
     },
     "the Can receive offers list's own step",
   );
   // Everyone said it and nobody has a number: the broadcast waits, and says what is missing.
   const answeredNoNumber = peopleListAction("opted_in", [yesNoNumber]);
-  assert.deepEqual([answeredNoNumber.to, answeredNoNumber.enabled], ["broadcasts/offers_ok", false]);
+  assert.deepEqual([answeredNoNumber.to, answeredNoNumber.enabled], ["campaigns/new:to:offers_ok", false]);
   assert.match(answeredNoNumber.text, /a recorded yes with a number to send to/);
   assert.deepEqual(peopleListAction("booked_week", [week]), {
     text: "Their bookings are on the Calendar.",
@@ -1853,7 +1853,7 @@ test("the journey from visits: Booked this week and Lapsed, in three groups; eac
     to: "calendar",
     enabled: true,
   });
-  assert.equal(peopleListAction("asked_never_booked", [yes]).to, "broadcasts/asked_never_booked");
+  assert.equal(peopleListAction("asked_never_booked", [yes]).to, "campaigns/new:to:asked_never_booked");
   assert.equal(peopleListAction("booked", [week]), null, "no step for a fact that needs none");
   assert.equal(peopleListAction("opted_out", [week]), null);
 });

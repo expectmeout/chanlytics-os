@@ -18,6 +18,7 @@ import { initialsOf } from "../conversations/thread-contact";
 import { appointmentWords, type AppointmentWord } from "../journey/appointment-word";
 import { triggerOf, triggerWords } from "../playbooks/playbook-triggers";
 import type { TodayQueueRowVM } from "./today-vm";
+import { SEQUENCES_ROUTE } from "../sequences/sequence-address";
 
 /* ------------------------------ the day ---------------------------------- */
 
@@ -273,7 +274,7 @@ export function todayDay(
             // "Write", not "text": a campaign goes by WhatsApp, text or email, whichever each person is reached on. A
             // person reads "campaign", never "playbook" (decision 19 of 9 Oct 2026).
             text: `No ${W.one} reminders yet — a campaign can write the day before ${W.a} and the day after.`,
-            to: "outbound",
+            to: SEQUENCES_ROUTE,
           }
         : {
             text: visit
@@ -285,7 +286,7 @@ export function todayDay(
                 return `${t ? triggerWords(t, word).label : p.trigger}: ${p.candidates == null ? "" : `${p.candidates} ${p.candidates === 1 ? "person" : "people"} · `}next run ${p.next}`;
               })
               .join(" · "),
-            to: "outbound",
+            to: SEQUENCES_ROUTE,
           };
   }
   return {

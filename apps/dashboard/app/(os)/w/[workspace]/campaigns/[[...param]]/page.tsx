@@ -7,7 +7,7 @@ import { CampaignsRoute } from "@/surfaces/campaigns/home/route";
  * its own, with the sheets Campaigns opens over it (`campaigns/new…`, `campaigns/message:<name>`) and the Ads view where
  * it is drawn. Its code is `src/surfaces/campaigns/home/route.tsx`, and the frame in the layout draws its chrome around
  * this page. The old addresses (`/w/<slug>/playbooks`, the shell's `outbound`, the home's own and a campaign's) land on
- * Sequences for ever (contracts doorOf, sequenceLandingOf).
+ * Sequences for ever (contracts retiredRouteOf, the one table of retired addresses).
  */
 export default function Page() {
   return <CampaignsRoute />;

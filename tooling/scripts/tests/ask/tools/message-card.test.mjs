@@ -449,8 +449,8 @@ test("the spec: an operator's, gated by approve; the commit is POST templates/me
     { ...p.payload, versions: null },
   ])
     assert.deepEqual(spec.commit(card(broken), { settings: null }), { refused: C.PROPOSAL_WORDS.cannotApprove });
-  assert.equal(spec.open(card(p.payload), null), "messages", "the Library");
-  assert.equal(C.cardOpenRoute({ kind: "message", payload: p.payload }), "messages");
+  assert.equal(spec.open(card(p.payload), null), "campaigns/messages", "the Library, Messages");
+  assert.equal(C.cardOpenRoute({ kind: "message", payload: p.payload }), "campaigns/messages");
 });
 
 test("the receipt says what the door filed and what it refused, from its answer", () => {

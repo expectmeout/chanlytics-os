@@ -17,6 +17,7 @@ import { runCapOf } from "../playbook-run-split.js";
 import { nextOpenMoment, nextRunLabel, nextRunOf } from "../playbook-schedule.js";
 import { triggerOf } from "../playbook-triggers.js";
 import { batchModeOf } from "../../sequences/sequence.js";
+import { runRoute } from "../../sequences/sequence-address.js";
 const COMING_DAYS = 7;
 const RESULTS_DAYS = fixedDaysOf(CAMPAIGNS_RESULTS_PERIOD);
 const RUNS_SHOWN = 3;
@@ -191,7 +192,7 @@ function runRow(r, name, nowMs, tz, at) {
     what: name,
     why: waits ? refusal ?? todayRunWords(r).waiting.sentence : "Scheduled",
     pill: waits ? { tone: "warn", label: LIFECYCLE_WORDS.coming.waiting } : { tone: "ok", label: plural(r.recipient_count, "person", "people") },
-    act: { kind: "route", label: "Open", route: `broadcasts/run:${r.id}` },
+    act: { kind: "route", label: "Open", route: runRoute(r.id) },
     waiting: offer && offer.kind !== "open" ? { runId: r.id, people: r.recipient_count, refusal } : null,
     atMs
   };
@@ -249,7 +250,7 @@ function cameBack(input, days) {
     name: (r.playbook_id ? names.get(r.playbook_id) : null) ?? r.name,
     words: `${r.when} \xB7 ${r.counts.sent} sent`,
     result: plural(r.counts.replied, "reply", "replies"),
-    route: `broadcasts/run:${r.id}`
+    route: runRoute(r.id)
   }));
 }
 export function lifecycleResults(input) {

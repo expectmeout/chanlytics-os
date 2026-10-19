@@ -39,6 +39,7 @@ import { runCapOf } from "../playbook-run-split";
 import { nextOpenMoment, nextRunLabel, nextRunOf } from "../playbook-schedule";
 import { triggerOf } from "../playbook-triggers";
 import { batchModeOf } from "../../sequences/sequence";
+import { runRoute } from "../../sequences/sequence-address";
 
 /** How far ahead "Coming up" looks. */
 const COMING_DAYS = 7;
@@ -336,7 +337,7 @@ function runRow(r: LifecycleRun, name: string, nowMs: number, tz: string, at: Wa
     pill: waits
       ? { tone: "warn", label: LIFECYCLE_WORDS.coming.waiting }
       : { tone: "ok", label: plural(r.recipient_count, "person", "people") },
-    act: { kind: "route", label: "Open", route: `broadcasts/run:${r.id}` },
+    act: { kind: "route", label: "Open", route: runRoute(r.id) },
     waiting: offer && offer.kind !== "open" ? { runId: r.id, people: r.recipient_count, refusal } : null,
     atMs,
   };
@@ -420,7 +421,7 @@ function cameBack(input: LifecycleInput, days: number): LifecycleCameBack[] {
       name: (r.playbook_id ? names.get(r.playbook_id) : null) ?? r.name,
       words: `${r.when} · ${r.counts.sent} sent`,
       result: plural(r.counts.replied, "reply", "replies"),
-      route: `broadcasts/run:${r.id}`,
+      route: runRoute(r.id),
     }));
 }
 

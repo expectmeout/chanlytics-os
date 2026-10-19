@@ -735,7 +735,7 @@ test("campaigns with action playbooks says the channels each playbook goes by no
   // What each says it earned is its last 30 days, as its row on Campaigns says them (the moment spec, A6; D35), never
   // all-time totals; and the read names Campaigns, never outbound.
   const read = JSON.parse(out.result);
-  assert.equal(read.route, "campaigns", "Campaigns' own word, never outbound");
+  assert.equal(read.route, "campaigns/sequences", "Sequences' own address, never a retired one");
   const days = Object.fromEntries(read.playbooks.map((p) => [p.name, p.last_30_days]));
   assert.deepEqual(days, {
     "Visit reminder": { sent: 40, replied: 6 },

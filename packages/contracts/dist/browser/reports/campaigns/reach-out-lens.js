@@ -13,6 +13,7 @@ import {
   shareWasWords
 } from "../report-tiles.js";
 import { dayPointOf, endedOn, rangeLabelOf, withinWords } from "../reports.js";
+import { sequenceRoute } from "../../sequences/sequence-address.js";
 const NO_BUSINESSES = "This database does not count businesses yet.";
 const MAILBOXES_LINE = "Where it left from, and how it landed. Past 3% bounced, a mailbox holds itself.";
 const STANDS_NOW = "as they stand now";
@@ -228,7 +229,7 @@ function chainSourceLine(c, nowMs, tz) {
     kind: "chain",
     name: c.name,
     meta: meta.filter(Boolean).join(" \xB7 "),
-    to: `outbound/${c.root_id}`,
+    to: sequenceRoute(c.root_id),
     ...cellsOf(summed(c.steps), chainBusinesses(c.steps)),
     last: Number.isFinite(last) ? clockDate(last, tz, nowMs) : ""
   };

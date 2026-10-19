@@ -5,6 +5,7 @@ import { parseLeadsRoute, leadsRoute } from "../leads/lead-plan.js";
 import { BUILTIN_LISTS, parseListToken } from "../people/lists/lists.js";
 import { GET_YES_ROUTE } from "../people/people-lists.js";
 import { LENS_ROUTES, reportsRouteParts } from "../reports/lenses.js";
+import { retiredRouteOf } from "../shell/address.js";
 export const ASK_CITATION_KINDS = [
   "thread",
   "conversation",
@@ -41,14 +42,10 @@ export const ASK_PAGE_ROUTES = [
   "conversations",
   "live",
   "calendar",
-  "campaigns",
-  // Campaigns › Sequences (decision 0060): everything that sends on its own.
+  // Campaigns › Sequences (decision 0060): everything that sends on its own, Campaigns' first view.
   "campaigns/sequences",
-  // Campaigns › Messages, its other view (19 Oct 2026); its old route, `messages` below, a door to it.
+  // Campaigns › Messages, its other view (19 Oct 2026); its old route, `messages`, lands on it (RETIRED_PAGES).
   "campaigns/messages",
-  "outbound",
-  "broadcasts",
-  "messages",
   ...LENS_ROUTES,
   "start",
   "admin/workspace",
@@ -75,8 +72,6 @@ function isPageRoute(route) {
     }
     case "conversations":
       return route === CALLS_ROUTE;
-    case "campaigns":
-      return param.startsWith("in:") && CAMPAIGN_GROUPS.includes(param.slice("in:".length));
     case "reports": {
       const parts = reportsRouteParts(route);
       return parts !== null && parts.review === null;
@@ -102,11 +97,18 @@ const ASK_PAGES = new Set(ASK_PAGE_ROUTES);
 const CALLS_ROUTE = "conversations/phone";
 const OTHER_GROUPS = { lists: true, reach_out: true, sent_once: true };
 const CAMPAIGN_GROUPS = [...JOURNEY_STAGE_IDS, ...Object.keys(OTHER_GROUPS)];
+const RETIRED_PAGES = /* @__PURE__ */ new Set(["campaigns", "outbound", "broadcasts", "messages"]);
+function movedPageOf(route) {
+  const group = route.startsWith("campaigns/in:") ? route.slice("campaigns/in:".length) : null;
+  return RETIRED_PAGES.has(route) || group !== null && CAMPAIGN_GROUPS.includes(group) ? retiredRouteOf(route) : null;
+}
 export function groundCitations(citations, read) {
   const kept = [];
   let dropped = 0;
   const seen = /* @__PURE__ */ new Set();
-  for (const c of citations) {
+  for (const said of citations) {
+    const landed = said.kind === "page" ? movedPageOf(said.id) : null;
+    const c = landed === null ? said : { ...said, id: landed };
     const ok = c.kind === "page" ? isPageRoute(c.id) : read[c.kind].has(c.id);
     const key = `${c.kind}:${c.id}`;
     if (!ok || seen.has(key)) {

@@ -854,10 +854,10 @@ test("what is stuck wears its tone and opens its door; with every count at 0 no 
   assert.deepEqual(
     STUCK_METRICS.map((m) => hrefOf(tree, m)),
     [
-      "/w/studio/campaigns",
-      "/w/studio/broadcasts",
+      "/w/studio/campaigns/sequences",
+      "/w/studio/campaigns/sequences",
       "/w/studio/inbox",
-      "/w/studio/templates",
+      "/w/studio/campaigns/messages",
       "/w/studio/settings/integrations",
     ],
     "a door each",
@@ -875,7 +875,7 @@ test("what is stuck wears its tone and opens its door; with every count at 0 no 
   );
   navigated.length = 0;
   press(find(figureOf(tree, "runs_waiting"), (n) => n.type === "a"));
-  assert.deepEqual(navigated, ["campaigns"], "a plain press goes the app's own way");
+  assert.deepEqual(navigated, ["campaigns/sequences"], "a plain press goes the app's own way");
   // The number carries its own tone: amber at medium, red once flagged, nothing otherwise, and a door to where it is fixed.
   const numberAs = (number) => draw({ own: own({ ledger: dtoWith({}, stuckWith({ number })) }) });
   const medium = numberAs({ ...NUMBER, tone: "warn", label: "Number quality: medium" });
@@ -904,7 +904,7 @@ test("what is stuck wears its tone and opens its door; with every count at 0 no 
     all(byTestId(calm, "campaigns-stuck-strip"), (n) => /^is-(warn|fail)$/.test(classes(n).join(" "))).length,
     0,
   );
-  assert.equal(hrefOf(calm, "runs_waiting"), "/w/studio/campaigns", "the door is still there at 0");
+  assert.equal(hrefOf(calm, "runs_waiting"), "/w/studio/campaigns/sequences", "the door is still there at 0");
   // A list the database cut at 500 is a floor, said as one.
   const capped = draw({
     own: own({ ledger: dtoWith({}, stuckWith({ waiting: { n: 500, late: 2, oldest_at: null, capped: true } })) }),
@@ -1101,11 +1101,11 @@ test("the sources say a business once: the Businesses column, a door on a reach-
   );
   assert.deepEqual(
     doors.map((d) => d.props.href),
-    ["/w/studio/campaigns/moment:r1", "/w/studio/campaigns/moment:r2"],
+    ["/w/studio/campaigns/sequences/r1", "/w/studio/campaigns/sequences/r2"],
   );
   navigated.length = 0;
   press(doors[0]);
-  assert.deepEqual(navigated, ["outbound/r1"]);
+  assert.deepEqual(navigated, ["campaigns/sequences/r1"]);
   // A hand step is dashes, as the fold says it.
   const withHand = reachOuts();
   withHand.chains[0].steps.push({ id: "p3", n: 2, hand: "call", ...reachCounts({ handed: 4, businesses: 0 }) });
@@ -1315,7 +1315,7 @@ test("a reach-out period that wrote nothing is the old card with the fold's word
   assert.equal(byTestId(tree, "ro-strip"), null, "and no strip of zeros");
   navigated.length = 0;
   press(find(card, (n) => n.type === "button"));
-  assert.deepEqual(navigated, ["outbound"]);
+  assert.deepEqual(navigated, ["campaigns/sequences"]);
   // A workspace with no reach-out, and a demo that reads none, draw nothing.
   const none = draw({ own: held(dtoWith(), "7d", { reachOuts: reachOuts({ has_reach_out: false }) }) });
   assert.equal(byTestId(none, "rpt-reach-outs"), null);

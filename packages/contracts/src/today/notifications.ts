@@ -9,6 +9,8 @@ import type { JobKind } from "../shared/enums";
 import { RUN_OPEN_WORDS } from "../shell/campaign-rooms";
 import { invitationExpired } from "../shell/identity";
 import { noticeTone } from "../waits/notice-tones";
+import { SEQUENCES_ROUTE } from "../sequences/sequence-address";
+import { MESSAGES_ROUTE } from "../shell/address";
 /**
  * The bell: what needs the owner, from what the browser already holds.
  *
@@ -487,10 +489,11 @@ function jobRowWords(n: NotificationDto): { title: string; message: string; rout
 }
 
 /**
- * Where the day's reach-out numbers open (spec 2026-10-09 §4.6): Campaigns narrowed to its Reach-outs, the chains the
- * numbers are about. The edge writes it on the row; a row kept before then says `outbound`, and opens here too.
+ * Where the day's reach-out numbers open (spec 2026-10-09 §4.6): Sequences, where the sequences to leads the numbers are
+ * about are listed (decision 0060; Campaigns' Reach-outs group, `campaigns/in:reach_out`, retired with its home). The edge
+ * writes it on the row; a row kept before then says `outbound` or the group, and opens here too (retiredRouteOf).
  */
-export const REACH_OUT_DAY_ROUTE = "campaigns/in:reach_out";
+export const REACH_OUT_DAY_ROUTE = SEQUENCES_ROUTE;
 
 /**
  * How a kept kind reads. `own` keeps the kind's verb over the route's: a question asks for an answer, and "Open
@@ -515,8 +518,8 @@ const SERVER_LOOK: Record<string, ServerLook> = {
    * a change is belongs to the change (waba-events.ts describeWabaChange), and
    * how it should read belongs here. Never inferred from the title.
    */
-  template_ready: { icon: "check", tone: "ok", action: "Open Messages", to: "messages" },
-  template_blocked: { icon: "alert", tone: "warn", action: "Open Messages", to: "messages" },
+  template_ready: { icon: "check", tone: "ok", action: "Open Messages", to: MESSAGES_ROUTE },
+  template_blocked: { icon: "alert", tone: "warn", action: "Open Messages", to: MESSAGES_ROUTE },
   sweep: { icon: "alert", tone: "warn", action: "Open Connections", to: "admin/integrations" },
   /** A JOB that did not finish, and nothing else. See JobNewsKind. */
   job_failed: { icon: "alert", tone: "warn", action: "Open the Inbox", to: "inbox" },
@@ -529,7 +532,7 @@ const SERVER_LOOK: Record<string, ServerLook> = {
    * says it ("needs you", ALERT_TOPICS playbook), never good news sorted below the warnings. Once the run is settled the
    * row reads as read and loses the warning (notice-closes.ts).
    */
-  playbook: { icon: "bolt", tone: "warn", action: "Open Campaigns", to: "outbound" },
+  playbook: { icon: "bolt", tone: "warn", action: "Open Campaigns", to: SEQUENCES_ROUTE },
   /** A reply counting down to go in the owner's name (decision 0064): a decision with a deadline, so a warning. */
   reply_held: { icon: "clock", tone: "warn", action: "Open the Inbox", to: "inbox" },
   calendar_people: { icon: "users", tone: "ok", action: "Open People", to: "clients" },
@@ -606,6 +609,8 @@ const ROUTE_VERBS: Array<[RegExp, string]> = [
   [/^outbound/, "Open Campaigns"],
   // A message open in its own drawer over Campaigns (a template's notice: refused, paused, approved): the door says what it opens.
   [/^campaigns\/message:/, "Open the message"],
+  // Messages, Campaigns' other view (19 Oct 2026): the door says the page's name.
+  [/^campaigns\/messages(\/|$)/, "Open Messages"],
   [/^campaigns/, "Open Campaigns"],
   // A row about one run opens that run (a playbook's waiting or about to go, a reach-out's held sends), and says so.
   [/^broadcasts\/run:/, RUN_OPEN_WORDS],

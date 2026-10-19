@@ -28,6 +28,7 @@ import { clockLabel } from "./calendar-words";
 import { plural } from "../shared/words";
 import { MIN_MS } from "../shared/time";
 import type { SequenceMode } from "../sequences/sequence";
+import { SEQUENCES_ROUTE } from "../sequences/sequence-address";
 
 /** One run as the span's read carries it: a one-off send, a campaign's run, or a reach-out step's. */
 export interface CalendarRunDto {
@@ -305,7 +306,7 @@ function wentMark(
     tone: "plain",
     ahead: false,
     cold: false,
-    route: one ? addressOf({ kind: "send", id: one.r.id }) : "broadcasts",
+    route: one ? addressOf({ kind: "send", id: one.r.id }) : SEQUENCES_ROUTE,
     door: CALENDAR_RUN_DOORS.sent,
     named: false,
     items: runs.map((x) => ({
@@ -339,7 +340,7 @@ function coldMark(
     tone: waiting ? "warn" : "plain",
     ahead: waiting || (!sent && planned > 0),
     cold: true,
-    route: runs.length === 1 && first ? addressOf({ kind: "send", id: first.id }) : "broadcasts",
+    route: runs.length === 1 && first ? addressOf({ kind: "send", id: first.id }) : SEQUENCES_ROUTE,
     door: CALENDAR_RUN_DOORS.sent,
     named: false,
     items: runs.map((r) => ({

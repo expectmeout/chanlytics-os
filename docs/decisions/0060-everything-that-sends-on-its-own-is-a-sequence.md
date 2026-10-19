@@ -56,4 +56,4 @@ a `broadcasts` row. Production on 15 October 2026 held 7 moment playbooks in one
 - **One way to make one** (the closed-loop audit of 17 Oct 2026, G): Campaigns' composer kept a second way to make a
   moment's sequence, its "Every time a moment comes", until it went. New sequence takes the moment a door asks for
   (`campaigns/sequences/new:moment:<trigger>`, the owner's line for it written in), the composer's old addresses land on
-  New or on the sequence (contracts `sequenceLandingOf`), and the composer is Send once and Write to leads.
+  New or on the sequence (contracts `retiredRouteOf`, since 19 Oct 2026 the one table of retired addresses), and the composer is Send once and Write to leads.

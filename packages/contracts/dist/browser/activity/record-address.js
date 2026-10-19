@@ -5,6 +5,7 @@ import { leadsRoute } from "../leads/lead-plan.js";
 import { listToken } from "../people/lists/lists.js";
 import { personTabRoute } from "../person-page/route.js";
 import { lensRoute, reviewRoute } from "../reports/lenses.js";
+import { messageRoute, runRoute, sequenceRoute } from "../sequences/sequence-address.js";
 export const RECORDS_WITHOUT_AN_ADDRESS = {
   notification: "a kept notice opens where its own row says (noticeRoute), which is the address of the record it is about; the notice has no page of its own",
   workspace: "the workspace has no page of its own: what is about it is the business's facts, its rules, its lines, its team and its bill, each a kind with its address"
@@ -32,11 +33,11 @@ export function addressOf(ref) {
       return leadsRoute({ peek: ref.id ?? null, searchId: ref.searchId ?? null });
     case "campaign":
     case "reach_out":
-      return `campaigns/moment:${ref.id}`;
+      return sequenceRoute(ref.id);
     case "send":
-      return `broadcasts/run:${ref.id}`;
+      return runRoute(ref.id);
     case "template":
-      return `campaigns/message:${ref.name}`;
+      return messageRoute(ref.name);
     case "review":
       return ref.id ? reviewRoute(ref.id) : lensRoute("reviews");
     case "facts":

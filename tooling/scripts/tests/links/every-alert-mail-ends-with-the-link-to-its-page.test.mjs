@@ -96,7 +96,7 @@ test("a mail with no route links the page the kind's list lives on", async () =>
     number: "/w/harbor/settings/integrations",
     sweep: "/w/harbor/settings/integrations",
     job_failed: "/w/harbor/inbox",
-    playbook: "/w/harbor/campaigns",
+    playbook: "/w/harbor/campaigns/sequences",
     // Messages, the view of Campaigns it is (19 Oct 2026)
     template_ready: "/w/harbor/campaigns/messages",
     template_blocked: "/w/harbor/campaigns/messages",

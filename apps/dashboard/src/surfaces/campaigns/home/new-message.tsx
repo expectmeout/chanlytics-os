@@ -7,7 +7,7 @@
  *
  * Every time a moment comes went (the closed-loop audit of 17 Oct 2026, G): a moment's sequence is made in New sequence
  * (sequences/new.tsx), on the moment a door asks for, and changed on its own record. Its addresses land there (contracts
- * sequenceLandingOf). A reach-out's change (`new:edit:<root>`) is the reach-out's own sheet (sheets.tsx); this sheet only
+ * retiredRouteOf). A reach-out's change (`new:edit:<root>`) is the reach-out's own sheet (sheets.tsx); this sheet only
  * says so while the chains it opens on are read, or that they could not be.
  *
  * The address says what is open (`campaigns/new`, `new:to:<audience>`, `new:leads`), so a "message these people" lands on

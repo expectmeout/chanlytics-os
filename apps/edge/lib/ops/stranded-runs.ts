@@ -12,7 +12,7 @@
  * the last week: a run stranded before this watchdog existed is found too. Bounded per tick; every write is guarded on
  * the row's present state, so two overlapping ticks tell once.
  */
-import { broadcastFailureFix, audienceTrigger, MIN_MS, DAY_MS } from "../packages/contracts.js";
+import { broadcastFailureFix, audienceTrigger, MIN_MS, DAY_MS, runRoute } from "../packages/contracts.js";
 import { failStrandedRun, strandedRuns, type StrandedRun } from "../packages/db.js";
 import type { SweepTick } from "./sweep-door.js";
 import type { notifyOnce as notifyOnceFn } from "./notify.js";
@@ -42,7 +42,7 @@ function strandedNews(r: StrandedRun) {
   });
   return {
     kind: "broadcast_stopped" as const,
-    route: `broadcasts/run:${r.id}`,
+    route: runRoute(r.id),
     about: { type: "broadcast", id: r.id },
     subject: `Broadcast “${r.name}” not sent`,
     body: `It was due to go out, and nothing was left to send it, so it is marked not sent. ${fix ?? ""}`.trim(),

@@ -135,9 +135,9 @@ export const SURFACE_ROUTES: Readonly<Record<string, SurfaceRoute>> = {
     mount: "campaigns",
     chrome: campaignsChrome,
   },
-  // The old Playbooks list, a door (3 Oct 2026): `outbound` lands on `campaigns` and `outbound/<id>` on `campaigns/moment:<id>`
-  // (contracts doorOf, applied where a route is written and where an address is moved on load), and from there on Sequences;
-  // this draws only for an address that arrives some other way, which the page at `playbooks` replaces.
+  // The old Playbooks list, retired (3 Oct 2026): `outbound` lands on Sequences and `outbound/<id>` on its sequence, in one
+  // move (contracts retiredRouteOf, applied where a route is written and where an address is moved on load); this draws only
+  // for an address that arrives some other way, which the page at `playbooks` replaces.
   outbound: { activeNav: "campaigns", crumbs: [CAMPAIGN_ROOMS.home], pane: false, takes: () => true },
   // Campaigns › Messages (0060, D4: the Library is Messages), in the strip beside Sequences.
   messages: {

@@ -2,12 +2,12 @@
  * The one To send (00429): every email handed to its owner, from each reach-out they send themselves, as one list on Sent
  * (`broadcasts/to-send`), and one row on Today where two or more runs hand emails over. Contracts' rules, run as written:
  * which runs are on it and in what order (toSendAllOf), when Today draws them as one row (toSendRunsOf), where a door to
- * the waiting runs goes (waitingRunsDoor), and that the address stays on Sent (doorOf), never a door to the composer.
+ * the waiting runs goes (waitingRunsDoor), and that the address stays on Sent (retiredRouteOf), never a door to the composer.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-const { toSendAllOf, toSendRunsOf, toSendEveryOf, waitingRunsDoor, doorOf, TO_SEND_ROUTE, TO_SEND_ALL_WORDS } =
+const { toSendAllOf, toSendRunsOf, toSendEveryOf, waitingRunsDoor, retiredRouteOf, TO_SEND_ROUTE, TO_SEND_ALL_WORDS } =
   await import("@chanlytics/contracts");
 
 /** A run as Sent's list holds it, as far as the rules read it. */
@@ -71,15 +71,15 @@ test("Today draws two or more as one row; one alone, or one whose check holds em
   assert.equal(TO_SEND_ALL_WORDS.sub(5, 2), "5 emails handed to you, from 2 reach-outs");
 });
 
-test("a door to the waiting runs: the run, the one To send, else Sent", () => {
+test("a door to the waiting runs: the run, the one To send, else Sequences", () => {
   assert.equal(waitingRunsDoor([run("a", { drafted: 2 })]), "broadcasts/run:a");
   assert.equal(waitingRunsDoor([run("a", { drafted: 2 }), run("b", { drafted: 1 })]), TO_SEND_ROUTE);
   assert.equal(
     waitingRunsDoor([run("a", { drafted: 2 }), run("b", { state: "pending_approval" })]),
-    "broadcasts",
-    "a run waiting for approval among them: Sent, where both are",
+    "campaigns/sequences",
+    "a run waiting for approval among them: Sequences, where both are",
   );
-  assert.equal(waitingRunsDoor([run("a", { drafted: 2 }), run("b", { drafted: 1, held: 1 })]), "broadcasts");
+  assert.equal(waitingRunsDoor([run("a", { drafted: 2 }), run("b", { drafted: 1, held: 1 })]), "campaigns/sequences");
 });
 
 test("a first email and its nudge are one reach-out: counted once, and each part says which email it is", () => {
@@ -108,6 +108,6 @@ test("a first email and its nudge are one reach-out: counted once, and each part
 
 test("the address is Sent's own, never a door to the composer on an audience called to-send", () => {
   assert.equal(TO_SEND_ROUTE, "broadcasts/to-send");
-  assert.equal(doorOf(TO_SEND_ROUTE), null);
-  assert.equal(doorOf("broadcasts/to-sendx"), "campaigns/new:to:to-sendx");
+  assert.equal(retiredRouteOf(TO_SEND_ROUTE), null);
+  assert.equal(retiredRouteOf("broadcasts/to-sendx"), "campaigns/new:to:to-sendx");
 });

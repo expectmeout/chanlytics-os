@@ -14,7 +14,7 @@
  */
 import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
-import { arrivedRunOf, routeOfPath, runLandingOf, sequenceLandingOf, type BroadcastDto } from "@chanlytics/contracts";
+import { arrivedRunOf, retiredRouteOf, routeOfPath, runLandingOf, type BroadcastDto } from "@chanlytics/contracts";
 import { demoSession, replaceRoute } from "../../legacy-verbs";
 import { useSurface } from "../../use-surface";
 import { broadcastsProps } from "../routes";
@@ -49,10 +49,11 @@ function useLinkedRun(id: string | null): BroadcastDto | null {
 
 export function BroadcastsRoute() {
   const route = routeOfPath(usePathname()) ?? "broadcasts";
-  // The address the page was opened on lands where an older address of Campaigns does, and Sent's own list always lands on
-  // Sequences, a sheet closed onto it among them (D3: Sent is History now). A run's address lands whenever it is the one.
+  // The address the page was opened on lands where a retired address does (contracts retiredRouteOf: an audience on Send
+  // once), and Sent's own list always lands on Sequences, a sheet closed onto it among them (D3: Sent is History now). A run's
+  // address lands whenever it is the one.
   const arrived = useRef(route);
-  const landing = route === arrived.current || route === "broadcasts" ? sequenceLandingOf(route) : null;
+  const landing = route === arrived.current || route === "broadcasts" ? retiredRouteOf(route) : null;
   const runId = arrivedRunOf(route);
   const run = useLinkedRun(runId);
   const runLanding = run ? runLandingOf(route, run) : null;

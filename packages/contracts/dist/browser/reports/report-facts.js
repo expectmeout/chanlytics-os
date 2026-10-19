@@ -1,6 +1,7 @@
 import { reportHourWords } from "./reports.js";
 import { beforeWords, messagesAnsweredWords } from "./report-tiles.js";
 import { plural } from "../shared/words.js";
+import { runRoute, sequenceRoute } from "../sequences/sequence-address.js";
 const lowerFirst = (s) => s ? s.charAt(0).toLowerCase() + s.slice(1) : s;
 export function reportFacts(vm, campaigns, ads = null) {
   const out = [];
@@ -69,7 +70,7 @@ export function reportFacts(vm, campaigns, ads = null) {
       icon: "sparkle",
       text: `${best.name} drew the most replies`,
       sub: messagesAnsweredWords(best.replied, best.sent),
-      door: { label: "Open it", to: best.kind === "broadcast" ? `broadcasts/run:${best.id}` : `outbound/${best.id}` }
+      door: { label: "Open it", to: best.kind === "broadcast" ? runRoute(best.id) : sequenceRoute(best.id) }
     });
   }
   const ch = vm.channels;

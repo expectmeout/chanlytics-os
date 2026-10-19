@@ -3960,8 +3960,8 @@ test("REGRESSION (N18): every page a real workspace ships is a jump away -- 'cal
   for (const [words, to] of [
     ["calendar", "calendar"],
     ["lists", "clients"],
-    ["playbooks", "campaigns"], // the Playbooks list landed on Campaigns (contracts doorOf); the old name still finds it
-    ["campaigns", "campaigns"],
+    ["playbooks", "campaigns/sequences"], // the Playbooks list is Sequences (contracts retiredRouteOf); the old name still finds it
+    ["campaigns", "campaigns/sequences"],
     ["sequences", "campaigns/sequences"],
     // Sent's list went to each sequence's History (decision 0060, D3): its names find Sequences.
     ["sent", "campaigns/sequences"],

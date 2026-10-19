@@ -123,7 +123,11 @@ test("the surface: lists ride People, counted over the rows on the page; the ver
   const kept = peopleSurfaceOf(loaded, null, new Date(ROW_NOW)).saved[0];
   assert.equal(kept.count, 1, "an erased person never counts");
   assert.deepEqual(kept.ids, ["p1"]);
-  assert.equal(kept.action.to, "broadcasts/s1", "and the list carries its one step: a broadcast to those who said yes");
+  assert.equal(
+    kept.action.to,
+    "campaigns/new:to:s1",
+    "and the list carries its one step: a broadcast to those who said yes",
+  );
   const v = readCode("apps/dashboard/src/surfaces/people/people-lists.ts");
   for (const verb of ["create:", "rename:", "remove:", "add:", "drop:"]) assert.ok(v.includes(verb), verb);
   const { AFTER } = await importSrc("apps/dashboard/src/legacy-bridge/refresh-map.ts");

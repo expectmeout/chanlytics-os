@@ -54,6 +54,8 @@ import type {
   LifecycleWaiting,
 } from "./lifecycle-types";
 import { LIFECYCLE_WORDS, lifecycleChainStateOf, lifecycleStateOf, tallyWords } from "./lifecycle-words";
+import { SEQUENCES_ROUTE, messageRoute, runRoute } from "../../sequences/sequence-address";
+import { MESSAGES_ROUTE } from "../../shell/address";
 
 /** Campaigns before the tools: under seven, no tool line, tabs, heads, phone strip or search (decision 15, a judgment). */
 const LEDGER_TOOLS_AT = 7;
@@ -61,8 +63,6 @@ const LEDGER_TOOLS_AT = 7;
 /** The period every number of the ledger is over: "Last 30 days". */
 // periodWords takes (days, until) since main's #1526; null is a window ending today ("Last 30 days").
 const LEDGER_PERIOD = periodWords(fixedDaysOf(CAMPAIGNS_RESULTS_PERIOD), null).now;
-/** Sent: where the one-off sends and a run open. */
-const SENT_ROUTE = "broadcasts";
 /** Leads: where a reach-out begins, from a search's businesses (cmp/reach-out/door.tsx). */
 const LEADS_ROUTE = "clients/leads";
 
@@ -353,7 +353,7 @@ function callTextRow(library: LifecycleInput["library"], caps: string): Lifecycl
     people: { n: null, unit: "" },
     results: "uncounted",
     next: NO_NEXT,
-    open: { kind: "route", label: "Open", route: found ? `campaigns/message:${found.name}` : "messages" },
+    open: { kind: "route", label: "Open", route: found ? messageRoute(found.name) : MESSAGES_ROUTE },
     waiting: null,
     act: null,
     search: rowSearchOf(W.name, W.words, caps),
@@ -484,9 +484,9 @@ function chainRow(
     waiting: null,
     // The run waiting is the thing to answer, so its door comes before Resume (the drawer has Resume either way).
     act: waitingRun
-      ? { kind: "route", label: W.openRun, route: `broadcasts/run:${waitingRun}` }
+      ? { kind: "route", label: W.openRun, route: runRoute(waitingRun) }
       : heldRun
-        ? { kind: "route", label: W.openRun, route: `broadcasts/run:${heldRun}` }
+        ? { kind: "route", label: W.openRun, route: runRoute(heldRun) }
         : paused
           ? resume
           : null,
@@ -513,7 +513,7 @@ function sentOnceRow(s: LifecycleSource, at: { input: LifecycleInput; caps: stri
     people: { n: null, unit: "" },
     results: sentResultsOfSource(s),
     next: NO_NEXT,
-    open: { kind: "route", label: "Open", route: `${SENT_ROUTE}/run:${s.id}` },
+    open: { kind: "route", label: "Open", route: runRoute(s.id) },
     waiting: null,
     act: null,
     search: rowSearchOf(s.name, hint, at.caps),
@@ -691,7 +691,10 @@ export function lifecycleLedger(at: {
     tools,
     sentOnce:
       !tools && once.length > 0
-        ? { n: once.length, open: { kind: "route", label: LIFECYCLE_WORDS.ledger.sentOnce.open, route: SENT_ROUTE } }
+        ? {
+            n: once.length,
+            open: { kind: "route", label: LIFECYCLE_WORDS.ledger.sentOnce.open, route: SEQUENCES_ROUTE },
+          }
         : null,
     ...said,
   };

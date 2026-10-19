@@ -730,7 +730,7 @@ test("what is stuck now: five figures, each with the tone it earns and the page 
       "Runs waiting for you",
       "3",
       "warn",
-      "campaigns",
+      "campaigns/sequences",
       "1 past their day (skip those), 2 can still be approved",
     ],
     [
@@ -739,7 +739,7 @@ test("what is stuck now: five figures, each with the tone it earns and the page 
       "Failed runs",
       "1",
       "fail",
-      "broadcasts",
+      "campaigns/sequences",
       `the latest: Spring note, the workspace was paused · ${STEP_COUNTS}`,
     ],
     [
@@ -757,7 +757,7 @@ test("what is stuck now: five figures, each with the tone it earns and the page 
       "Messages Meta stopped",
       "2",
       "fail",
-      "messages",
+      "campaigns/messages",
       "Win-back (earlier) paused, Spring note refused",
     ],
     [
@@ -776,18 +776,18 @@ test("what is stuck now: five figures, each with the tone it earns and the page 
 
 test("runs waiting say how many can still be approved and how many are past their day", () => {
   const waiting = (n, late) => stuckTile(stuckWith({ waiting: { n, late, oldest_at: null, capped: false } }).at(0));
-  assert.deepEqual(waiting(2, 0).slice(3), ["2", "warn", "campaigns", "they can still be approved"]);
-  assert.deepEqual(waiting(1, 0).slice(3), ["1", "warn", "campaigns", "it can still be approved"]);
-  assert.deepEqual(waiting(2, 2).slice(3), ["2", "warn", "campaigns", "they are past their day: skip them"]);
-  assert.deepEqual(waiting(1, 1).slice(3), ["1", "warn", "campaigns", "it is past its day: skip it"]);
+  assert.deepEqual(waiting(2, 0).slice(3), ["2", "warn", "campaigns/sequences", "they can still be approved"]);
+  assert.deepEqual(waiting(1, 0).slice(3), ["1", "warn", "campaigns/sequences", "it can still be approved"]);
+  assert.deepEqual(waiting(2, 2).slice(3), ["2", "warn", "campaigns/sequences", "they are past their day: skip them"]);
+  assert.deepEqual(waiting(1, 1).slice(3), ["1", "warn", "campaigns/sequences", "it is past its day: skip it"]);
   assert.deepEqual(waiting(5, 2).slice(3), [
     "5",
     "warn",
-    "campaigns",
+    "campaigns/sequences",
     "2 past their day (skip those), 3 can still be approved",
   ]);
   // Nothing waiting is a zero with no tone.
-  assert.deepEqual(waiting(0, 0).slice(3), ["0", undefined, "campaigns", "nothing is waiting for your OK"]);
+  assert.deepEqual(waiting(0, 0).slice(3), ["0", undefined, "campaigns/sequences", "nothing is waiting for your OK"]);
   // A list cut at what the database lists is a floor: "500+".
   const capped = stuckTile(stuckWith({ waiting: { n: 500, late: 0, oldest_at: null, capped: true } }).at(0));
   assert.equal(capped[3], "500+");

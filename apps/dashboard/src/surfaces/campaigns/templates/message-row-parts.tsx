@@ -431,7 +431,7 @@ function cardActs(c: RowCtx, row: TemplateDto) {
             size="sm"
             onClick={() => {
               closeActs();
-              navigate("outbound");
+              navigate(SEQUENCES_ROUTE);
             }}
           >
             Open Campaigns

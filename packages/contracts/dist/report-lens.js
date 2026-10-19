@@ -1060,6 +1060,10 @@ var MAILBOX_CONNECT_WORDS = {
   failed: CONNECT_FAILED
 };
 
+// src/sequences/sequence-address.ts
+var SEQUENCES_ROUTE = "campaigns/sequences";
+var sequenceRoute = (id, tab = "steps", day) => tab === "steps" ? `${SEQUENCES_ROUTE}/${id}` : `${SEQUENCES_ROUTE}/${id}/${tab}${tab === "history" && day ? `/${day}` : ""}`;
+
 // src/playbooks/playbook-triggers.ts
 var PLAYBOOK_TRIGGERS = [
   { id: "quiet_30", label: "Win-back", list: "quiet", cls: "reengage", kind: "list", hint: "Nothing heard in 30 days" },
@@ -1668,7 +1672,7 @@ function chainSourceLine(c, nowMs, tz) {
     kind: "chain",
     name: c.name,
     meta: meta.filter(Boolean).join(" \xB7 "),
-    to: `outbound/${c.root_id}`,
+    to: sequenceRoute(c.root_id),
     ...cellsOf(summed(c.steps), chainBusinesses(c.steps)),
     last: Number.isFinite(last) ? clockDate(last, tz, nowMs) : ""
   };
@@ -2708,6 +2712,9 @@ var REST_IS_CURRENT = "The rest of this page is current.";
 var NOTHING_ELSE_READ = "Nothing else on this page could be read either.";
 var onlyReadWords = (landed) => `Only ${joinWords(landed.map((part) => STILL_READ[part]))} could be read.`;
 
+// src/shell/address.ts
+var MESSAGES_ROUTE = "campaigns/messages";
+
 // src/reports/campaigns/campaign-lens.ts
 var knownCount = (v) => isCount(v) ? v : null;
 function readsOf({ campaigns, ledger, reachOuts }) {
@@ -2964,7 +2971,7 @@ function stuckFiguresOf(stuck, tz, nowMs) {
       label: "Runs waiting for you",
       value: stuckValue(waiting.n, waiting.capped),
       meta: runsWaitingMeta(waiting.n, waiting.late),
-      door: "campaigns",
+      door: SEQUENCES_ROUTE,
       ...stuckTone(waiting.n, "warn")
     },
     {
@@ -2974,7 +2981,7 @@ function stuckFiguresOf(stuck, tz, nowMs) {
       label: "Failed runs",
       value: stuckValue(failed.n, failed.capped),
       meta: failedRunMeta(failed),
-      door: "broadcasts",
+      door: SEQUENCES_ROUTE,
       ...stuckTone(failed.n, "fail")
     },
     {
@@ -2994,7 +3001,7 @@ function stuckFiguresOf(stuck, tz, nowMs) {
       label: "Messages Meta stopped",
       value: String(templates.n),
       meta: templatesMeta(templates),
-      door: "messages",
+      door: MESSAGES_ROUTE,
       ...stuckTone(templates.n, "fail")
     },
     {

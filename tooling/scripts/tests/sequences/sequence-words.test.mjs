@@ -17,7 +17,7 @@ import {
   sequenceRouteBack,
   runSheetRoute,
   sequenceGroupOf,
-  sequenceLandingOf,
+  retiredRouteOf,
   sequenceNotice,
   sequenceRoute,
   sequenceRowLine,
@@ -265,19 +265,19 @@ test("a new sequence to leads is made where its leads are chosen; an old compose
 });
 
 test("an older address lands on what it names: the home and Sent's list on Sequences; the composer, a message and Sent's sheets stay", () => {
-  assert.equal(sequenceLandingOf("campaigns"), SEQUENCES_ROUTE);
+  assert.equal(retiredRouteOf("campaigns"), SEQUENCES_ROUTE);
   // Sent's list is History now (D3): its bare address is Sequences' list.
-  assert.equal(sequenceLandingOf("broadcasts"), SEQUENCES_ROUTE);
+  assert.equal(retiredRouteOf("broadcasts"), SEQUENCES_ROUTE);
   // A run a link names lands by what the run is, which the address does not say (contracts runLandingOf); its sheet stays.
-  assert.equal(sequenceLandingOf("broadcasts/run:b1"), null);
-  assert.equal(sequenceLandingOf(runSheetRoute("b1")), null);
-  assert.equal(sequenceLandingOf("campaigns/in:before"), SEQUENCES_ROUTE);
-  assert.equal(sequenceLandingOf("campaigns/moment:s1"), "campaigns/sequences/s1");
-  assert.equal(sequenceLandingOf("campaigns/moment:s1:people"), "campaigns/sequences/s1/people");
+  assert.equal(retiredRouteOf("broadcasts/run:b1"), null);
+  assert.equal(retiredRouteOf(runSheetRoute("b1")), null);
+  assert.equal(retiredRouteOf("campaigns/in:before"), SEQUENCES_ROUTE);
+  assert.equal(retiredRouteOf("campaigns/moment:s1"), "campaigns/sequences/s1");
+  assert.equal(retiredRouteOf("campaigns/moment:s1:people"), "campaigns/sequences/s1/people");
   // The composer's Every time went (the closed-loop audit of 17 Oct 2026, G): its addresses, in a bookmark or an old
   // Ask card, land on New, and on New on that moment. A change (`new:edit:<root>`) stays: it is a reach-out's sheet.
-  assert.equal(sequenceLandingOf("campaigns/new:every"), "campaigns/sequences/new");
-  assert.equal(sequenceLandingOf("campaigns/new:moment:quiet_30"), "campaigns/sequences/new:moment:quiet_30");
+  assert.equal(retiredRouteOf("campaigns/new:every"), "campaigns/sequences/new");
+  assert.equal(retiredRouteOf("campaigns/new:moment:quiet_30"), "campaigns/sequences/new:moment:quiet_30");
   for (const stays of [
     "campaigns/new",
     "campaigns/new:to:list-1",
@@ -290,9 +290,9 @@ test("an older address lands on what it names: the home and Sent's list on Seque
     "campaigns/sequences/s1",
     "broadcasts/get-yes",
     "broadcasts/to-send",
-    "messages",
+    "campaigns/messages",
   ])
-    assert.equal(sequenceLandingOf(stays), null, stays);
+    assert.equal(retiredRouteOf(stays), null, stays);
 });
 
 test("New on a moment is written in: the owner's line for that moment, in the workspace's word, and none for one it does not know", () => {

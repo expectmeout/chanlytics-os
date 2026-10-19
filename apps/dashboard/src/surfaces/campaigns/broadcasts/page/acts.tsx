@@ -11,6 +11,7 @@ import {
   runStopDoorWords,
   runStoppedWords,
   runTitleOf,
+  runRoute,
 } from "@chanlytics/contracts";
 import type { Output } from "@/client/api";
 import { starterWords } from "../../templates/composer";
@@ -190,7 +191,7 @@ export function bcSendActs({
               cancel({ id: r.data.id, name: r.data.name || "Broadcast", state: waits ? "scheduled" : "sending" }),
           }
         : null,
-      links: [{ label: "See who", to: `broadcasts/run:${r.data.id}` }],
+      links: [{ label: "See who", to: runRoute(r.data.id) }],
     });
   };
   const addStarters = async () => {

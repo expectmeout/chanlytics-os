@@ -9,6 +9,7 @@ import { reportHourWords, type ReportVM } from "./reports";
 import { beforeWords, messagesAnsweredWords } from "./report-tiles";
 import type { CampaignReportVM } from "./campaign-report";
 import { plural } from "../shared/words";
+import { runRoute, sequenceRoute } from "../sequences/sequence-address";
 
 export interface ReportFactVM {
   id: "unanswered" | "handovers" | "busiest" | "hours" | "closed" | "campaign" | "channel" | "ads";
@@ -119,7 +120,7 @@ export function reportFacts(
       icon: "sparkle",
       text: `${best.name} drew the most replies`,
       sub: messagesAnsweredWords(best.replied, best.sent),
-      door: { label: "Open it", to: best.kind === "broadcast" ? `broadcasts/run:${best.id}` : `outbound/${best.id}` },
+      door: { label: "Open it", to: best.kind === "broadcast" ? runRoute(best.id) : sequenceRoute(best.id) },
     });
   }
 

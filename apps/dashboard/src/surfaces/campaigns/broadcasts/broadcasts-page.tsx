@@ -237,8 +237,8 @@ function BroadcastsReal(props: BroadcastsRealProps) {
   // Campaigns, a reach for Sent's door or the idle frame has seen to; taken once for the mount.
   const [SequencesListPane] = useState(sequencesListPaneNow);
   // Sequences' list, and beside it, in a pane, what the address opens (parts/split.tsx): a run, else the one To send, else
-  // Get their yes, else the send an audience's address asks for (`broadcasts/<list>`, which a link moves to Campaigns'
-  // composer, `campaigns/new:to:<list>`, before it lands: contracts doorOf). Its own address has nothing open, and lands on
+  // Get their yes, else the send an audience's address asks for (`broadcasts/<list>`, retired, which a link moves to
+  // Campaigns' composer, `campaigns/new:to:<list>`, before it lands: contracts retiredRouteOf). Its own address has nothing open, and lands on
   // Sequences (route.tsx). Send it again goes to Campaigns' composer too.
   const open = openId ? (
     bcRunSolo({ ...v, openId })

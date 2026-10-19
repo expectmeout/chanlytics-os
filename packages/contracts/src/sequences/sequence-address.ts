@@ -84,36 +84,31 @@ export const newSequenceRoute = (moment?: string | null): string =>
   moment ? `${SEQUENCES_ROUTE}/new:moment:${moment}` : `${SEQUENCES_ROUTE}/new`;
 
 /**
+ * A link to a run (a bell row, Today, the Inbox, Ask, a report, the Calendar): `broadcasts/run:<id>`, which lands by what
+ * the run is once it is read (runLandingOf): on its sheet while it waits for a decision, on its day of its sequence's
+ * History once it went. The one writer of it (the Campaigns wiring review's lane 1, 19 Oct 2026): every place that links
+ * to a run calls this, so the run's own address, when it has one, is changed here alone.
+ */
+export const runRoute = (id: string): string => `broadcasts/run:${id}`;
+
+/**
  * A run's sheet in Sent, where a link lands on it whether or not Sequences is drawn (the run's address with `/sheet`, a
  * word the sheet's page reads past): History's Open the run, and People's door to a batch it holds no draft of.
  */
-export const runSheetRoute = (id: string): string => `broadcasts/run:${id}/sheet`;
+export const runSheetRoute = (id: string): string => `${runRoute(id)}/sheet`;
 
 /**
- * Where an older address of Campaigns lands (the plan's S5 and S6, D1 and D3): Campaigns' home, or one of its groups, and
- * Sent's list (`broadcasts`) on the list; a campaign open (`campaigns/moment:<id>`, its People at `:people`) on its sequence.
- * The server reads a sequence by the id of any of its parts (a step's, a batch's), and the record then names its own. The
- * composer's retired modes land too: Every time on New, a moment's Turn on on New on that moment. Null where the address
- * stays: the composer (Send once, Write to leads, a reach-out's change, `new:edit:<root>`, whose sheet sends an id that is
- * no reach-out's to its sequence once the chains are read), a message, Ads, and Sent's sheets (Get their yes, To send, an
- * audience). A run's address is landed by what the run is, which no address says (runLandingOf).
+ * Send once's address: the composer over Sequences, on the audience it is for (`campaigns/new:to:<audience>`, a list's or
+ * an audience's id, the way People and a list ask to message these people) or on none (`campaigns/new`). The one writer.
  */
-export function sequenceLandingOf(route: string): string | null {
-  const [path = ""] = route.split("?");
-  const [root, param = ""] = path.split("/");
-  if (root === "campaigns") {
-    if (param === "" || param.startsWith("in:")) return SEQUENCES_ROUTE;
-    const moment = /^moment:([^:/]+)(:people)?$/.exec(param);
-    if (moment?.[1]) return sequenceRoute(moment[1], moment[2] ? "people" : "steps");
-    // The composer's Every time and its moment mode went (the closed-loop audit of 17 Oct 2026, G): a moment's sequence is
-    // made in New.
-    if (param === "new:every") return newSequenceRoute();
-    const on = /^new:moment:([^:/]+)$/.exec(param);
-    if (on?.[1]) return newSequenceRoute(on[1]);
-  }
-  if (root === "broadcasts" && param === "") return SEQUENCES_ROUTE;
-  return null;
-}
+export const sendOnceRoute = (audience?: string | null): string =>
+  audience ? `campaigns/new:to:${audience}` : "campaigns/new";
+
+/**
+ * A message of the Library, open in its own drawer over Sequences by its name (`campaigns/message:<name>`): a template's
+ * notice, an Activity line about it, the call's text. The one writer.
+ */
+export const messageRoute = (name: string): string => `campaigns/message:${name}`;
 
 /**
  * A sequence's replies in the Inbox (the canvas's History board: Replied is a door to the Inbox): `inbox/from:<id>` over

@@ -43,8 +43,8 @@ const ROUTES = [
   "conversations/phone:cv-k7",
   "live/c-live",
   "broadcasts/run:b-1",
-  "campaigns",
-  "campaigns/moment:pb-1",
+  "campaigns/sequences",
+  "campaigns/sequences/pb-1",
   "campaigns/new",
   "campaigns/messages",
   "start",
@@ -222,24 +222,31 @@ test("the old name in an address moves to the word, for ever: a path, and a hash
   assert.equal(movedAddress({ pathname: "/login/clients", hash: "" }), null, "off a workspace page");
 });
 
-test("Campaigns' addresses: the page is `campaigns`, Messages a view of it, and the old Playbooks list is a door to the home", () => {
-  assert.equal(workspacePath("acme", "campaigns"), "/w/acme/campaigns");
-  assert.equal(workspacePath("acme", "campaigns/moment:pb-1"), "/w/acme/campaigns/moment:pb-1");
-  // Messages is Campaigns' other view (19 Oct 2026): its old route is a door to it, written in one move.
+test("Campaigns' addresses: the page is `campaigns`, Messages a view of it, and the old Playbooks list lands on Sequences", () => {
+  // Campaigns' home and a campaign's drawer are retired (decision 0060): a link written the old way says Sequences' own.
+  assert.equal(workspacePath("acme", "campaigns"), "/w/acme/campaigns/sequences");
+  assert.equal(workspacePath("acme", "campaigns/moment:pb-1"), "/w/acme/campaigns/sequences/pb-1");
+  assert.equal(workspacePath("acme", "campaigns/sequences/pb-1"), "/w/acme/campaigns/sequences/pb-1");
+  // Messages is Campaigns' other view (19 Oct 2026): its old route is retired, written in one move.
   assert.equal(workspacePath("acme", "messages"), "/w/acme/campaigns/messages");
   assert.equal(workspacePath("acme", "broadcasts/run:b-1"), "/w/acme/broadcasts/run:b-1", "Broadcasts keep their word");
   assert.equal(routeOfPath("/w/acme/campaigns/new"), "campaigns/new");
   assert.equal(routeOfPath("/w/acme/templates"), "messages");
-  // The Playbooks list is Campaigns' home now (contracts doorOf): a route written the old way lands on the new one in one move.
-  assert.equal(workspacePath("acme", "outbound"), "/w/acme/campaigns");
-  assert.equal(workspacePath("acme", "outbound/pb-1"), "/w/acme/campaigns/moment:pb-1");
-  assert.equal(movedAddress({ pathname: "/w/acme/outbound/pb-1", hash: "" }), "/w/acme/campaigns/moment:pb-1");
-  assert.equal(movedAddress({ pathname: "/w/acme/playbooks/pb-1", hash: "" }), "/w/acme/campaigns/moment:pb-1");
-  assert.equal(movedAddress({ pathname: "/w/acme/playbooks", hash: "" }), "/w/acme/campaigns");
-  assert.equal(movedAddress({ pathname: "/w/acme", hash: "#/outbound" }), "/w/acme/campaigns");
-  assert.equal(movedAddress({ pathname: "/w/acme", hash: "#/outbound/pb-1" }), "/w/acme/campaigns/moment:pb-1");
-  assert.equal(movedAddress({ pathname: "/w/acme", hash: "#/playbooks" }), "/w/acme/campaigns");
-  assert.equal(movedAddress({ pathname: "/w/acme/campaigns", hash: "" }), null, "the home is where it should be");
+  // The Playbooks list is Sequences now (contracts retiredRouteOf): a route written the old way lands on the new one in one move.
+  assert.equal(workspacePath("acme", "outbound"), "/w/acme/campaigns/sequences");
+  assert.equal(workspacePath("acme", "outbound/pb-1"), "/w/acme/campaigns/sequences/pb-1");
+  assert.equal(movedAddress({ pathname: "/w/acme/outbound/pb-1", hash: "" }), "/w/acme/campaigns/sequences/pb-1");
+  assert.equal(movedAddress({ pathname: "/w/acme/playbooks/pb-1", hash: "" }), "/w/acme/campaigns/sequences/pb-1");
+  assert.equal(movedAddress({ pathname: "/w/acme/playbooks", hash: "" }), "/w/acme/campaigns/sequences");
+  assert.equal(movedAddress({ pathname: "/w/acme", hash: "#/outbound" }), "/w/acme/campaigns/sequences");
+  assert.equal(movedAddress({ pathname: "/w/acme", hash: "#/outbound/pb-1" }), "/w/acme/campaigns/sequences/pb-1");
+  assert.equal(movedAddress({ pathname: "/w/acme", hash: "#/playbooks" }), "/w/acme/campaigns/sequences");
+  assert.equal(movedAddress({ pathname: "/w/acme/campaigns", hash: "" }), "/w/acme/campaigns/sequences");
+  assert.equal(
+    movedAddress({ pathname: "/w/acme/campaigns/sequences", hash: "" }),
+    null,
+    "Sequences is where it should be",
+  );
   // Messages' old addresses, the route's word and the path's (`templates`), in a path or a hash, move to Campaigns' view.
   assert.equal(
     movedAddress({ pathname: "/w/acme/messages", search: "?a=1", hash: "" }),
@@ -253,5 +260,5 @@ test("Campaigns' addresses: the page is `campaigns`, Messages a view of it, and 
     null,
     "the view is where it should be",
   );
-  assert.equal(movedAddress({ pathname: "/w/acme/broadcasts", hash: "" }), null);
+  assert.equal(movedAddress({ pathname: "/w/acme/broadcasts", hash: "" }), "/w/acme/campaigns/sequences");
 });

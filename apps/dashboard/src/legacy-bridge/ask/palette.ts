@@ -43,6 +43,7 @@ import {
   type JumpEntry,
   type TodayQueueRowVM,
   type Waits,
+  runRoute,
 } from "@chanlytics/contracts";
 import { surfaceValue } from "@/surfaces/surface-values";
 import { needsYouParts } from "@/surfaces/needs-you";
@@ -214,7 +215,7 @@ export function waitingFrom(win: Window, parts: Waits | null = needsYouParts()):
       // label a one-off sent to a list was named for the list (18 Oct 2026, the sample walk).
       label: runTitleOf(r),
       reach: r.recipient_count,
-      to: `broadcasts/run:${r.id}`,
+      to: runRoute(r.id),
     })),
     searches,
     windows,

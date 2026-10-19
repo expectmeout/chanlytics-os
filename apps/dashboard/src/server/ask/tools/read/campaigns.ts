@@ -58,6 +58,9 @@ import {
   runDaysAt,
   runWaitsOnYou,
   lifecycleStateOf,
+  SEQUENCES_ROUTE,
+  runRoute,
+  MESSAGES_ROUTE,
 } from "@chanlytics/contracts";
 import { load } from "../../../readers";
 import { readSequence, readSequences } from "./sequences";
@@ -280,7 +283,7 @@ async function listAudiences(t: ToolContext): Promise<unknown> {
     ? " A broadcast leaves out whoever hears from you within a week of it, before or after: can_be_sent counts who a send that goes now goes to, and left_out_offers and left_out_messages how many are left out, which the card says too; a card set for later counts for its own time, so it may leave out more or fewer."
     : "";
   return {
-    route: "broadcasts",
+    route: SEQUENCES_ROUTE,
     audiences,
     templates: offeredList,
     cannot_send: split?.why ?? null,
@@ -374,7 +377,7 @@ async function listPlaybooksTool(t: ToolContext): Promise<unknown> {
   // The run's breath and the appointment moments it does not hold, in the contracts' words and the workspace's word.
   const W = appointmentWords(shape.word);
   return {
-    route: "campaigns",
+    route: SEQUENCES_ROUTE,
     timezone,
     // What a new sequence of each class starts as (Settings › Autonomy's rows, decision 0064), the follow-ups' class every
     // workspace's (0006; 0008, amended 18 Oct 2026): each existing sequence's own is its `mode` below.
@@ -454,7 +457,7 @@ function broadcastLine(b: BroadcastDto, tz: string, now: Date) {
   const vm = toBroadcastVM(b, tz, now);
   return {
     broadcast_id: b.id,
-    route: `broadcasts/run:${b.id}`,
+    route: runRoute(b.id),
     name: b.name,
     // A person reads "campaign", never "playbook" (decision 19), and the model repeats what the row says.
     by: b.playbook_id ? "a campaign" : "a person",
@@ -491,7 +494,7 @@ async function readBroadcasts(t: ToolContext): Promise<unknown> {
   // Every broadcast it lists is a row an answer may cite, opened where the page opens a run: the reader's RowRefs.
   noteRows(t.read, read.rows);
   return {
-    route: "broadcasts",
+    route: SEQUENCES_ROUTE,
     broadcasts: read.data.broadcasts.map((b) => broadcastLine(b, t.timezone, t.now)),
     older: read.data.more,
   };
@@ -552,7 +555,7 @@ export async function readMessages(t: ToolContext) {
     t.read,
     read.rows.filter((r) => versions.has(r.id)),
   );
-  return { route: "messages", messages };
+  return { route: MESSAGES_ROUTE, messages };
 }
 
 /** GET playbooks' answer and GET broadcasts', as their readers give them. */
@@ -676,7 +679,7 @@ export async function readJourney(t: ToolContext) {
     read.rows.filter((r) => named.has(r.id)),
   );
   return {
-    route: "campaigns",
+    route: SEQUENCES_ROUTE,
     covered: home.rail.covered,
     of: home.rail.of,
     stages,
@@ -693,7 +696,7 @@ async function readColdEmails(t: ToolContext): Promise<unknown> {
   const read = await load(t.rc, reachOutChains, undefined);
   noteRows(t.read, read.rows);
   return {
-    route: "campaigns",
+    route: SEQUENCES_ROUTE,
     cold_emails: read.data.chains.map((c) => ({
       root_id: c.root_id,
       name: c.name,

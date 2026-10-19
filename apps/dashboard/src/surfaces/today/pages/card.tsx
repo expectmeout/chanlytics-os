@@ -17,6 +17,7 @@ import {
   type TodayFigureId,
   type TodayFigureVM,
   type TodayVM,
+  runRoute,
 } from "@chanlytics/contracts";
 import type { BroadcastsSurface } from "@/surfaces/campaigns/broadcasts/surface";
 import type { PageClock } from "@/legacy-bridge/zone";
@@ -71,7 +72,7 @@ const RunsDone = ({ nav }: { nav: Nav }) => {
           {timeOf(r.started_at)}: {w.counts}
           {w.still ? " · still sending" : ""}
         </span>
-        <button className="brief-chip brief-door" onClick={() => nav(`broadcasts/run:${r.id}`)}>
+        <button className="brief-chip brief-door" onClick={() => nav(runRoute(r.id))}>
           Open <Icon name={doorGlyph()} size={10} />
         </button>
       </div>

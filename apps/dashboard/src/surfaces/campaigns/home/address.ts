@@ -1,8 +1,8 @@
 /**
  * Campaigns' addresses (`campaigns/<param>`) beside Sequences' own (contracts sequence-address.ts): the sheets Campaigns opens
  * over Sequences (home/sheets.tsx), and the home's addresses, which went with it in decision 0060's S6 and are read here so a
- * link kept from before still says what it named (surfaces/addresses.ts) as it lands on Sequences (contracts
- * sequenceLandingOf).
+ * link kept from before still says what it named as it lands on Sequences (contracts retiredRouteOf, the one table of
+ * retired addresses).
  *
  *   campaigns                        the home: lands on Sequences
  *   campaigns/in:<group>             the ledger narrowed to one group (`before`, `lists`, `reach_out`, `sent_once`): the same
@@ -16,13 +16,15 @@
  *                                    no reach-out's, once they are read, is a moment's sequence, and lands on its record
  *
  * The composer's Every time (`new:every`, `new:moment:<trigger>`) went (the closed-loop audit of 17 Oct 2026, G): those
- * addresses land on New sequence, on that moment (contracts sequenceLandingOf).
+ * addresses land on New sequence, on that moment (contracts retiredRouteOf).
  *
  * A message's drawer and the composer are the address's, as the Inbox's thread is: opened by the page, pushed so Back closes
  * it; arrived at by a link, replaced with Sequences when closed. A composer opened over a drawer is pushed over it, so Back,
  * and Cancel, return to the drawer it came from. A word the page does not know is the home, so it lands on Sequences (a link
  * must never land on nothing).
  */
+
+import { sendOnceRoute } from "@chanlytics/contracts";
 
 /** What the address asks of the page: the group its ledger shows, a moment open, and the composer. */
 export interface HomeAddress {
@@ -83,7 +85,7 @@ export function parseHome(param: string | null): HomeAddress {
 
 /** The route a composer is spelled as: the shell's, `campaigns/new…`. */
 function composerRoute(c: NonNullable<HomeAddress["compose"]>): string {
-  if (c.mode === "once") return c.to ? `${HOME_ROUTE}/new:to:${c.to}` : `${HOME_ROUTE}/new`;
+  if (c.mode === "once") return sendOnceRoute(c.to);
   if (c.mode === "change") return `${HOME_ROUTE}/new:edit:${c.root}`;
   return `${HOME_ROUTE}/new:leads`;
 }

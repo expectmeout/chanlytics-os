@@ -70,10 +70,10 @@ const RECORDS = [
   { ref: { kind: "lead", id: ID }, route: `clients/leads:p-${ID}` },
   { ref: { kind: "lead", searchId: ID }, route: `clients/leads:s-${ID}` },
   { ref: { kind: "lead", id: ID, searchId: ID2 }, route: `clients/leads:s-${ID2}:p-${ID}` },
-  { ref: { kind: "campaign", id: ID }, route: `campaigns/moment:${ID}` },
+  { ref: { kind: "campaign", id: ID }, route: `campaigns/sequences/${ID}` },
   {
     ref: { kind: "reach_out", id: ID },
-    route: `campaigns/moment:${ID}`,
+    route: `campaigns/sequences/${ID}`,
     opens: { kind: "campaign", id: ID },
   },
   { ref: { kind: "send", id: ID }, route: `broadcasts/run:${ID}` },
@@ -148,9 +148,10 @@ test("the people's word, the shell's name and a path's trailing slash name the s
   assert.deepEqual(recordNamedBy(`inbox/th-${ID}/x`), null, "an address with more after the thread is nobody's");
 });
 
-test("a retired route lands on the page that replaced it: a playbook is a campaign's drawer, and an audience opens the composer", () => {
+test("a retired route lands on the page that replaced it: a playbook is its sequence, and an audience opens the composer", () => {
   assert.deepEqual(recordNamedBy(`outbound/${ID}`), { kind: "campaign", id: ID });
-  assert.deepEqual(opensRoute("outbound"), { view: "campaigns" });
+  assert.deepEqual(recordNamedBy(`campaigns/moment:${ID}`), { kind: "campaign", id: ID });
+  assert.deepEqual(opensRoute("outbound"), { view: "campaigns/sequences" });
   assert.deepEqual(opensRoute("broadcasts/lapsed"), { view: "campaigns/new" }, "People's Bring them back writes this");
   assert.equal(canonicalRoute(`outbound/${ID}`), addressOf({ kind: "campaign", id: ID }));
 });
@@ -164,8 +165,8 @@ test("every page the frame draws is a page the registry opens, by the route alon
     );
   assert.deepEqual(
     opensRoute("outbound"),
-    { view: "campaigns" },
-    "the retired Playbooks page is read as Campaigns' home",
+    { view: "campaigns/sequences" },
+    "the retired Playbooks page is read as Sequences, Campaigns' first view",
   );
 });
 
@@ -216,13 +217,15 @@ test("a page opens its own views, which are no record: a day, a lens, a tab, the
     "calendar/agenda": "calendar/agenda",
     "calendar/day": "calendar/day",
     [`calendar/week:${DAY}`]: "calendar/week",
-    campaigns: "campaigns",
+    // Campaigns' home, a group of its ledger and Sent's list are retired (decision 0060): each is read as Sequences.
+    campaigns: "campaigns/sequences",
+    "campaigns/sequences": "campaigns/sequences",
     "campaigns/new": "campaigns/new",
-    "campaigns/in:reach_out": "campaigns/in",
-    // Messages is a view of Campaigns (19 Oct 2026), and its old word a door to it.
+    "campaigns/in:reach_out": "campaigns/sequences",
+    // Messages is a view of Campaigns (19 Oct 2026), and its old word lands on it.
     "campaigns/messages": "campaigns/messages",
     messages: "campaigns/messages",
-    broadcasts: "broadcasts",
+    broadcasts: "campaigns/sequences",
     "broadcasts/get-yes": "broadcasts/get-yes",
     "broadcasts/to-send": "broadcasts/to-send",
     clients: "clients",
