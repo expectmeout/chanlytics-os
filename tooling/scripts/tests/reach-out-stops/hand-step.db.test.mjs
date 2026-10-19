@@ -305,7 +305,7 @@ test(
     };
     refusedWith(await save(edit), "23503", "That step has run already. Add a new step instead.");
     const drop = { ...chainOf(search, [{ ...FIRST, id: c.root }]), root_id: c.root };
-    refusedWith(await save(drop), "23503", "That step has written already. Pause the sequence instead.");
+    refusedWith(await save(drop), "23503", "That step has written already. Pause the reach-out instead.");
   },
 );
 

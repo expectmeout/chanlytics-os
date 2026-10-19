@@ -27041,16 +27041,16 @@ var REACH_OUT_SHEET_WORDS = {
   openLead: "Open this business's lead"
 };
 var REACH_OUT_REFUSALS = {
-  exists: "This search has a sequence already.",
-  wrote: "This sequence has written already. Pause it instead.",
-  stepWrote: "That step has written already. Pause the sequence instead.",
+  exists: "This search has a reach-out already.",
+  wrote: "This reach-out has written already. Pause it instead.",
+  stepWrote: "That step has written already. Pause the reach-out instead.",
   /** 00228's: a call or a note anywhere but last, and a step changed from one to the other once it has run. */
   handLast: "A call or a note ends the chain.",
   stepRan: "That step has run already. Add a new step instead.",
-  outOfPlace: "A step is out of its place. Open the sequence again.",
-  notFound: "Sequence not found.",
+  outOfPlace: "A step is out of its place. Open the reach-out again.",
+  notFound: "Reach-out not found.",
   workspaceNotFound: "Workspace not found.",
-  oneEmail: "A sequence to leads has at least one email.",
+  oneEmail: "A reach-out has at least one email.",
   /** lead_set_stage's own, when Not a fit finds its lead missing or erased. */
   leadNotFound: "Lead not found.",
   leadGone: "This lead is gone.",
@@ -57159,9 +57159,9 @@ var AWAY_NOUN = {
   // problem with the wording, not as five separate pieces of news.
   template_ready: ["template is ready to send", "templates are ready to send"],
   template_blocked: ["template cannot be sent", "templates cannot be sent"],
-  // "A broadcast finished" is already this repo's word for the event
-  // (activity.ts, kind broadcast.sent), so the bell and the Activity log say
-  // the same thing about the same fact.
+  // "A run finished" is this repo's word for the event (activity.ts, kind
+  // broadcast.sent), so the bell and the Activity log say the same thing about
+  // the same fact.
   broadcast_sent: ["run finished", "runs finished"],
   broadcast_stopped: ["run did not go out", "runs did not go out"],
   note_for_you: ["note left for you", "notes left for you"],

@@ -40544,16 +40544,16 @@ declare const REACH_OUT_SHEET_WORDS: {
  * (reach-out-sheet-doors.db.test.mjs holds the two to the same words).
  */
 declare const REACH_OUT_REFUSALS: {
-    readonly exists: "This search has a sequence already.";
-    readonly wrote: "This sequence has written already. Pause it instead.";
-    readonly stepWrote: "That step has written already. Pause the sequence instead.";
+    readonly exists: "This search has a reach-out already.";
+    readonly wrote: "This reach-out has written already. Pause it instead.";
+    readonly stepWrote: "That step has written already. Pause the reach-out instead.";
     /** 00228's: a call or a note anywhere but last, and a step changed from one to the other once it has run. */
     readonly handLast: "A call or a note ends the chain.";
     readonly stepRan: "That step has run already. Add a new step instead.";
-    readonly outOfPlace: "A step is out of its place. Open the sequence again.";
-    readonly notFound: "Sequence not found.";
+    readonly outOfPlace: "A step is out of its place. Open the reach-out again.";
+    readonly notFound: "Reach-out not found.";
     readonly workspaceNotFound: "Workspace not found.";
-    readonly oneEmail: "A sequence to leads has at least one email.";
+    readonly oneEmail: "A reach-out has at least one email.";
     /** lead_set_stage's own, when Not a fit finds its lead missing or erased. */
     readonly leadNotFound: "Lead not found.";
     readonly leadGone: "This lead is gone.";

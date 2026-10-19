@@ -13,9 +13,9 @@ const AWAY_NOUN = {
   // problem with the wording, not as five separate pieces of news.
   template_ready: ["template is ready to send", "templates are ready to send"],
   template_blocked: ["template cannot be sent", "templates cannot be sent"],
-  // "A broadcast finished" is already this repo's word for the event
-  // (activity.ts, kind broadcast.sent), so the bell and the Activity log say
-  // the same thing about the same fact.
+  // "A run finished" is this repo's word for the event (activity.ts, kind
+  // broadcast.sent), so the bell and the Activity log say the same thing about
+  // the same fact.
   broadcast_sent: ["run finished", "runs finished"],
   broadcast_stopped: ["run did not go out", "runs did not go out"],
   note_for_you: ["note left for you", "notes left for you"],

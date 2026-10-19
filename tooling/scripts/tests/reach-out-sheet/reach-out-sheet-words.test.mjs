@@ -478,12 +478,12 @@ test("Templates says an email is a reach-out's and what sends it (R19); its word
 
 test("the doors' refusals are one set of sentences, the ones the database raises", () => {
   assert.equal(isReachOutRefusal(REACH_OUT_REFUSALS.wrote), true);
-  assert.equal(isReachOutRefusal("This sequence has written already. Pause it instead."), true);
+  assert.equal(isReachOutRefusal("This reach-out has written already. Pause it instead."), true);
   assert.equal(isReachOutRefusal('duplicate key value violates unique constraint "playbooks_one_reach_out"'), false);
   assert.equal(isReachOutRefusal(null), false);
   for (const w of [
     "Workspace not found.",
-    "A sequence to leads has at least one email.",
+    "A reach-out has at least one email.",
     "This lead is gone.",
     "Lead not found.",
   ])
