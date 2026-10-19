@@ -348,7 +348,7 @@ test("the send screen keeps its words -- a name, a typed value, a picked time --
   assert.equal(tabClosing(), true, "the tab asks before closing over it");
 
   // Cancel with words asks -- in the pane's foot, where the send's acts were (the pane's Close stays at its head, as the
-  // layout is the Inbox's list + pane, docs/2026-10-02-campaigns-on-the-kit.md §3.1); Keep writing puts them back.
+  // layout is the Inbox's list + pane, docs/2026-10-02-campaigns-on-the-kit.md §3.1); Keep editing puts them back.
   press(byTestId(tree, "bc-compose-close"));
   tree = redraw(page);
   assert.ok(byTestId(tree, "bc-composer"), "not closed");

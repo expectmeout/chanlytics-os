@@ -32887,7 +32887,6 @@ declare const PERSON_DELETE_WORDS: {
     readonly title: "Delete person";
     readonly detail: "Removes their messages, media and recordings from Chanlytics and stops any reply still queued. This cannot be undone.";
     readonly typed: (name: string) => string;
-    readonly question: (name: string) => string;
     readonly yes: "Delete this person";
     readonly busy: "Deleting…";
     readonly cancel: "Cancel";
@@ -36451,7 +36450,7 @@ declare const NEW_CONVERSATION_WORDS: {
         readonly question: "Discard what you wrote?";
         readonly detail: null;
         readonly yes: "Discard";
-        readonly no: "Keep writing";
+        readonly no: "Keep editing";
     };
     readonly done: "Done";
     readonly change: "Change";

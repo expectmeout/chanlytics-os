@@ -238,7 +238,7 @@ function deleteAsk(c: PageCtx): SheetAsk {
   return {
     body: (
       <p className="cl-prof-ask-detail" data-testid="delete">
-        {W.detail} {W.typed(p.name)}
+        {W.detail}
       </p>
     ),
     foot: (
@@ -248,7 +248,7 @@ function deleteAsk(c: PageCtx): SheetAsk {
         value={del.typed}
         onType={(v) => setDel((d) => ({ ...d, typed: v }))}
         ready={typedMatches}
-        question={W.question(p.name)}
+        question={W.typed(p.name)}
         yes={W.yes}
         no={W.cancel}
         busyLabel={W.busy}

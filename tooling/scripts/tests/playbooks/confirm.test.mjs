@@ -121,6 +121,9 @@ test("a discard is never the red fill: red words on no ground, and the No as the
   assert.equal(byTestId(d, "x-yes").props.className, "btn btn-sm btn-ghost danger", "the quiet red, never btn-danger");
   assert.equal(byTestId(d, "x-no").props.className, "btn btn-sm", "the plain button, a pair with the Yes");
   assert.equal(textOf(byTestId(d, "x-no")), "Keep editing");
+  // Ruben, 19 Oct 2026: the answer that keeps the work holds focus, so an Enter out of habit throws nothing away.
+  assert.equal(byTestId(d, "x-yes").props.autoFocus, false, "Discard does not take focus");
+  assert.equal(byTestId(d, "x-no").props.autoFocus, true, "Keep editing does");
 });
 
 test("Escape is No -- unless the act is already on its way", () => {

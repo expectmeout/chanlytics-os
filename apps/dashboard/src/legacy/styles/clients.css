@@ -4824,6 +4824,7 @@ a.cl-prof-word:focus-visible > .cl-prof-word-text {
     flex: 1 1 auto;
     justify-content: center;
     height: 44px;
+    font-size: var(--text-base);
   }
   .main-scroll .cl-prof-page {
     padding-bottom: calc(52px + 26px + env(safe-area-inset-bottom, 0px));

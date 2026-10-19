@@ -109,7 +109,7 @@ export function UnsavedAsk({
     <Confirm
       question="Discard what you wrote?"
       yes="Discard"
-      no="Keep writing"
+      no="Keep editing"
       discard
       busy={busy}
       onYes={onYes}
