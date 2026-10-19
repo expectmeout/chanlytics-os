@@ -74,7 +74,7 @@ body.ask-open .tb-ask .tb-ask-face { visibility: hidden; }
 /* An answer's two acts, Copy and Read aloud (ask-turn.jsx AskActs): under the newest answer in the thread. */
 .ask-acts { display: flex; align-items: center; gap: 4px; }
 .ask-line-btn { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: var(--control-radius); border: 1px solid var(--line); background: transparent; color: var(--ink-muted); cursor: pointer; }
-.ask-line-btn:hover, .ask-line-btn:focus-visible { color: var(--ink); background: var(--bg-hover); outline: none; }
+.ask-line-btn:focus-visible { color: var(--ink); background: var(--bg-hover); outline: none; } @media (hover: hover) { .ask-line-btn:hover { color: var(--ink); background: var(--bg-hover); outline: none; } }
 .ask-line-btn.quiet { width: 32px; height: 32px; border-color: transparent; color: var(--ink-dim); }
 .ask-line-btn.on { color: var(--accent); background: var(--accent-soft); border-color: transparent; }
 /* One button at the field's end (S12): the mic with no words, Send with words, Stop while a turn runs. An ink circle,
@@ -82,8 +82,8 @@ body.ask-open .tb-ask .tb-ask-face { visibility: hidden; }
    the ground crosses over. A hold on the mic never scrolls or selects through it. */
 .ask-send { flex: none; display: inline-grid; place-items: center; width: 32px; height: 32px; border: 0; border-radius: 50%; background: var(--ink); color: var(--bg); cursor: pointer; touch-action: none; user-select: none; -webkit-user-select: none; transition: background-color var(--duration-fast) var(--ease-out), color var(--duration-fast) var(--ease-out); }
 .ask-send:disabled { background: var(--bg-active); color: var(--ink-faint); cursor: default; }
-.ask-send:not(:disabled):hover { background: oklch(from var(--ink) calc(l + 0.08) c h); }
-.ask-send.talk.on, .ask-send.talk.on:hover { background: var(--accent); color: var(--accent-fg); }
+@media (hover: hover) { .ask-send:not(:disabled):hover { background: oklch(from var(--ink) calc(l + 0.08) c h); } }
+.ask-send.talk.on { background: var(--accent); color: var(--accent-fg); } @media (hover: hover) { .ask-send.talk.on:hover { background: var(--accent); color: var(--accent-fg); } }
 /* The agent speaking (data-state, the hold's answer coming back aloud): a ring breathes out of the mic, so the voice
    on the line is seen as well as heard; the next hold cuts it off. */
 .ask-send.talk { position: relative; }
@@ -101,7 +101,7 @@ body.ask-open .tb-ask .tb-ask-face { visibility: hidden; }
 .ask-scope { flex: none; display: inline-flex; align-items: center; gap: 5px; max-width: 180px; height: 26px; padding: 0 4px 0 8px; border: 1px solid var(--line); border-radius: var(--radius-full); font-size: 12px; color: var(--ink-muted); }
 .ask-scope > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ask-scope button { display: inline-flex; padding: 2px; border: 0; background: transparent; color: var(--ink-dim); cursor: pointer; }
-.ask-scope button:hover { color: var(--ink); }
+@media (hover: hover) { .ask-scope button:hover { color: var(--ink); } }
 /* The delete question sits under the middle, over the foot. */
 .ask-line .ask-confirm { flex: none; order: 8; margin: 8px 12px 0; max-width: none; }
 /* The head: Earlier, and New in a conversation, at the left; the close at the right, the kit's quiet round button as they
@@ -115,7 +115,7 @@ body.ask-open .tb-ask .tb-ask-face { visibility: hidden; }
 
 /* A chip of words to pick (the peek's tones, leads-peek.jsx). */
 .ask-follow-chip { font: inherit; font-size: 12px; color: var(--ink); background: var(--bg-sunken); border: 1px solid var(--line); border-radius: var(--radius-full); padding: 5px 11px; cursor: pointer; text-align: left; }
-.ask-follow-chip:hover { border-color: var(--line-strong); background: var(--bg-hover); }
+@media (hover: hover) { .ask-follow-chip:hover { border-color: var(--line-strong); background: var(--bg-hover); } }
 
 /* ---- Under the band: Right now, chips for the questions, compact rows for the conversations; the question while Ask
    reads. No hairline on top: the band's own is it. ---- */
@@ -144,7 +144,7 @@ body.ask-open .tb-ask .tb-ask-face { visibility: hidden; }
 .ask-now-brief { flex: none; }
 .ask-row-del { display: none; flex: none; align-items: center; justify-content: center; width: 24px; height: 24px; padding: 0; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--ink-faint); cursor: pointer; }
 .ask-row.thread:hover .ask-row-del, .ask-row.thread.sel .ask-row-del { display: inline-flex; }
-.ask-row-del:hover { color: var(--danger); background: var(--danger-soft); }
+@media (hover: hover) { .ask-row-del:hover { color: var(--danger); background: var(--danger-soft); } }
 .ask-chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 6px; }
 /* Earlier's chip for the rest sits under its rows, a breath below the last. */
 .ask-row + .ask-chips { padding-top: 6px; }
@@ -153,7 +153,7 @@ body.ask-open .tb-ask .tb-ask-face { visibility: hidden; }
 .ask-chip > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .ask-chip .icon, .ask-chip-meta { color: var(--ink-dim); }
 .ask-chip-meta { font-size: var(--text-xs); }
-.ask-chip:hover, .ask-chip.sel { border-color: var(--line-strong); background: var(--bg-hover); }
+.ask-chip.sel { border-color: var(--line-strong); background: var(--bg-hover); } @media (hover: hover) { .ask-chip:hover { border-color: var(--line-strong); background: var(--bg-hover); } }
 .ask-chip.next::before { content: ""; flex: none; width: 7px; height: 7px; border-radius: 2px; background: color-mix(in oklab, var(--ink) 34%, var(--bg-raised)); }
 .ask-rows-empty { padding: 18px 20px; font-size: 13px; color: var(--ink-dim); }
 .ask-trace { display: flex; flex-direction: column; gap: 10px; padding: 0; font-size: var(--text-base); color: var(--ink); }
@@ -219,7 +219,7 @@ body.ask-open .tb-ask .tb-ask-face { visibility: hidden; }
 .ask-tile:has(:focus-visible) .ask-tile-from, .ask-tile-from[data-open="true"] { display: inline-flex; }
 .ask-tile:has(:focus-visible) .ask-tile-note, .ask-tile.open .ask-tile-note { display: none; }
 .ask-tile-door { display: inline-flex; padding: 2px; border: 0; background: transparent; color: var(--ink-muted); cursor: pointer; }
-.ask-tile-door:hover { color: var(--ink); }
+@media (hover: hover) { .ask-tile-door:hover { color: var(--ink); } }
 .ask-breakdown { display: flex; flex-direction: column; gap: 6px; }
 /* A chart the answer drew (the answer canvas, C3): its one series in the chart kit's single data hue. */
 .ask-chart { display: flex; flex-direction: column; gap: 6px; min-width: 0; --color-v: var(--chart-1); }
@@ -235,7 +235,7 @@ body.ask-open .tb-ask .tb-ask-face { visibility: hidden; }
 .ask-list > li::marker { color: var(--ink-dim); font-variant-numeric: tabular-nums; }
 .ask-items { display: flex; flex-direction: column; gap: 2px; margin: 0 -10px; }
 .ask-item { display: grid; grid-template-columns: 24px minmax(0, 1fr) 12px; column-gap: 12px; align-items: center; width: 100%; min-height: 44px; padding: 8px 10px; border: 0; border-radius: 10px; background: transparent; font: inherit; text-align: left; cursor: pointer; }
-.ask-item:hover, .ask-item.sel { background: var(--bg-hover); }
+.ask-item.sel { background: var(--bg-hover); } @media (hover: hover) { .ask-item:hover { background: var(--bg-hover); } }
 /* A later row to a place an earlier one already opens: said, not a second door. */
 .ask-item.plain { grid-template-columns: 24px minmax(0, 1fr); cursor: default; }
 .ask-item.plain:hover { background: transparent; }
@@ -395,7 +395,7 @@ body.ask-open .tb-ask .tb-ask-face { visibility: hidden; }
 .ask-prose { font-size: 15px; }
 .ask-items { margin: 0; gap: 8px; }
 .ask-item { border: 1px solid var(--line); border-radius: 14px; background: var(--surface-pane-fill); }
-.ask-item.plain:hover { background: var(--surface-pane-fill); }
+@media (hover: hover) { .ask-item.plain:hover { background: var(--surface-pane-fill); } }
 .ask-figures { display: flex; flex-direction: column; gap: 6px; }
 .ask-tile, .ask-tile.open, .ask-tile:has(:focus-visible) { display: block; padding: 0; border: 0; border-radius: 0; background: transparent; }
 .ask-tile-value { display: inline; font-size: 15px; font-weight: 600; letter-spacing: 0; }
@@ -619,8 +619,10 @@ button.ask-tile-value { text-decoration: underline dotted; text-decoration-color
   background: var(--surface-inset-fill);
   box-shadow: var(--surface-inset-depth);
 }
-.ask-suggestion:hover {
-  background: var(--surface-control-fill);
+@media (hover: hover) {
+  .ask-suggestion:hover {
+    background: var(--surface-control-fill);
+  }
 }
 
 /* ---- Ask's takeover on a phone, in Glass (Ruben, 2 Oct 2026: "it seems to have a background; remove it so it follows the

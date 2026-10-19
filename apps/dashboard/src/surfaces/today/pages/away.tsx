@@ -137,7 +137,12 @@ export const TodayAway = () => {
         <span className={`tq-count ${total ? "" : "calm"}`}>{total}</span>
         {/* The page's last section: as its rows go, the page holds still under the thumb (data-bits holdStill). */}
         {total > 0 && (
-          <Button variant="quiet" size="sm" onClick={(e) => holdStill(e && e.currentTarget, () => api.seenAll())}>
+          <Button
+            variant="quiet"
+            size="sm"
+            className="ta-readall"
+            onClick={(e) => holdStill(e && e.currentTarget, () => api.seenAll())}
+          >
             Mark all read
           </Button>
         )}

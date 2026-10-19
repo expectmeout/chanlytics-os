@@ -393,8 +393,10 @@
   text-decoration: none;
   word-break: break-all;
 }
-.mp-link:hover {
-  text-decoration: underline;
+@media (hover: hover) {
+  .mp-link:hover {
+    text-decoration: underline;
+  }
 }
 .mp-foot {
   display: block;
@@ -683,8 +685,10 @@
   color: var(--ink-dim);
   cursor: pointer;
 }
-.tpl-fresh:hover:not(:disabled) {
-  color: var(--ink-muted);
+@media (hover: hover) {
+  .tpl-fresh:hover:not(:disabled) {
+    color: var(--ink-muted);
+  }
 }
 .tpl-fresh:focus-visible {
   outline: none;
@@ -705,9 +709,11 @@
   border-radius: var(--radius-sm);
   color: var(--ink-faint);
 }
-.tpl-fresh:hover:not(:disabled) .tpl-fresh-again {
-  background: var(--bg-hover);
-  color: var(--ink-muted);
+@media (hover: hover) {
+  .tpl-fresh:hover:not(:disabled) .tpl-fresh-again {
+    background: var(--bg-hover);
+    color: var(--ink-muted);
+  }
 }
 .tpl-fresh.is-busy .icon {
   animation: tpl-fresh-spin 1.1s linear infinite;
@@ -1092,8 +1098,10 @@ html.legacy-on .tpl-fresh {
   text-align: left;
   cursor: pointer;
 }
-.pb-chain-add:hover {
-  background: var(--bg-hover);
+@media (hover: hover) {
+  .pb-chain-add:hover {
+    background: var(--bg-hover);
+  }
 }
 .ro-domain {
   display: flex;
@@ -1227,10 +1235,12 @@ html.legacy-on .tpl-fresh {
   color: inherit;
   cursor: pointer;
 }
-.bc-run-link:hover {
-  color: var(--ink);
-  text-decoration: underline;
-  text-underline-offset: 2px;
+@media (hover: hover) {
+  .bc-run-link:hover {
+    color: var(--ink);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
 }
 /* Get their yes: folded to its one line under the runs; open, the code beside what it does. */
 .ct-section.bc-optin {
@@ -1446,9 +1456,11 @@ html.legacy-on .tpl-fresh {
   white-space: nowrap;
   cursor: pointer;
 }
-.bc-person-name:hover {
-  text-decoration: underline;
-  text-underline-offset: 2px;
+@media (hover: hover) {
+  .bc-person-name:hover {
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
 }
 .bc-person.is-held .bc-person-name {
   color: var(--ink-dim);
@@ -1477,9 +1489,11 @@ html.legacy-on .tpl-fresh {
   white-space: nowrap;
   cursor: pointer;
 }
-.bc-person-door:hover {
-  text-decoration: underline;
-  text-underline-offset: 2px;
+@media (hover: hover) {
+  .bc-person-door:hover {
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
 }
 /* A held email's doors (Include, Rewrite, Skip, Not a fit): one group, so each keeps its own place and its own press. */
 .bc-person-doors {
@@ -1596,8 +1610,10 @@ html.legacy-on .tpl-fresh {
   color: var(--ink-muted);
   overflow-wrap: anywhere;
 }
-.bc-back-row:not(:disabled):hover .bc-back-quote {
-  color: var(--ink);
+@media (hover: hover) {
+  .bc-back-row:not(:disabled):hover .bc-back-quote {
+    color: var(--ink);
+  }
 }
 .bc-back-outcome {
   font-size: var(--text-xs);
@@ -1630,9 +1646,11 @@ html.legacy-on .tpl-fresh {
   color: var(--ink);
   cursor: pointer;
 }
-.bc-back-all:hover {
-  text-decoration: underline;
-  text-underline-offset: 2px;
+@media (hover: hover) {
+  .bc-back-all:hover {
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
 }
 .bc-stop-box {
   display: flex;
@@ -2026,8 +2044,10 @@ html.legacy-on .bc-nobody-door {
 .msg-row:last-child {
   border-bottom: 0;
 }
-.msg-row:hover {
-  background: var(--bg-hover);
+@media (hover: hover) {
+  .msg-row:hover {
+    background: var(--bg-hover);
+  }
 }
 /* A language something sends is missing or not approved: those sends are refused or
    skipped. The row is the hover's grey, standing still. */
@@ -2135,9 +2155,11 @@ html.legacy-on .bc-nobody-door {
   color: var(--ink-dim);
   white-space: nowrap;
 }
-.msg-use-link:hover {
-  text-decoration: underline;
-  text-underline-offset: 2px;
+@media (hover: hover) {
+  .msg-use-link:hover {
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
 }
 .msg-use-note {
   max-width: 100%;
@@ -3958,9 +3980,11 @@ div.tpl-slotbox:not([data-lines="1"]) {
 }
 /* A door answers the pointer as the kit's quiet words do (its own hover is outranked by the rule above, which this page
    needs for the size and the wrap): the ink, and an underline in it. */
-:is(.cmh, .cm-via) .cmh-channel-door:hover {
-  color: var(--ink);
-  text-decoration-color: currentColor;
+@media (hover: hover) {
+  :is(.cmh, .cm-via) .cmh-channel-door:hover {
+    color: var(--ink);
+    text-decoration-color: currentColor;
+  }
 }
 /* A thumb's door: on a touch screen the door is a box 44px tall that stands on a line of its own once the words before it
    end, its words wrapping inside it. As 17px words in a wrapped line, three doors were three strips a thumb missed. */

@@ -382,14 +382,14 @@
 .sd-aud-portal { color: var(--ink-dim); }
 .sd-aud-agent { color: var(--info); }
 .btn-danger-ghost { color: var(--danger); border-color: color-mix(in oklab, var(--danger) 30%, var(--line)); }
-.btn-danger-ghost:hover:not(:disabled) { background: color-mix(in oklab, var(--danger) 7%, transparent); }
+@media (hover: hover) { .btn-danger-ghost:hover:not(:disabled) { background: color-mix(in oklab, var(--danger) 7%, transparent); } }
 .btn-danger-ghost:disabled { opacity: 0.5; }
 
 /* Publisher profiles */
 .st-prov-pub { cursor: pointer; text-decoration: underline dotted color-mix(in oklab, var(--ink-dim) 45%, transparent); text-underline-offset: 2px; }
-.st-prov-pub:hover { color: var(--ink); text-decoration-color: var(--ink-dim); }
+@media (hover: hover) { .st-prov-pub:hover { color: var(--ink); text-decoration-color: var(--ink-dim); } }
 .st-pub-agent { width: 100%; text-align: left; cursor: pointer; font: inherit; color: inherit; }
-.st-pub-agent:hover { border-color: color-mix(in oklab, var(--accent) 35%, var(--line)); }
+@media (hover: hover) { .st-pub-agent:hover { border-color: color-mix(in oklab, var(--accent) 35%, var(--line)); } }
 .st-pub-agent > svg { color: var(--ink-faint); flex: none; }
 
 /* Publisher earnings */
