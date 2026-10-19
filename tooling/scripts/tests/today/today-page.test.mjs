@@ -352,7 +352,8 @@ const people = () => ({
 const iso = (ms) => new Date(Date.now() + ms).toISOString();
 const run = (id, state, over = {}) => ({
   id,
-  name: `${id} · run`,
+  // A run is called by its own name (contracts runTitleOf): a campaign's is its campaign's, less the day it ran for.
+  name: over.audience?.label ?? "Win-back",
   state,
   playbook_id: "pb-1",
   audience: { label: "Win-back" },

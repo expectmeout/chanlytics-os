@@ -117,12 +117,13 @@
 /* Where a pointer can show them, the acts stand over the count instead of beside it, and the count steps aside while they
    show: kept beside it, every search's count stood 28px left of the views' counts above, under a ⋯ nobody could see (the
    sample walk, 18 Oct 2026). The picked row shows its ⋯ on hover too, so its count is read like every other. */
+/* The acts are the element after the pick (RailRow's menu), reached by place so these rules name no kit class. */
 @media (hover: hover) {
   .cl-rail-row.has-acts { position: relative; }
   .cl-rail-row.has-acts > .cl-rail-pick { padding-right: 6px; }
-  .cl-rail-row.has-acts > .more-wrap { position: absolute; top: 1px; right: 4px; }
-  .cl-rail-row.has-acts.active:not(:hover) > .more-wrap > button:not(:focus-visible, [aria-expanded="true"]) { opacity: 0; }
-  .cl-rail-row.has-acts:is(:hover, :has(> .more-wrap > button:is(:focus-visible, [aria-expanded="true"])))
+  .cl-rail-row.has-acts > .cl-rail-pick + * { position: absolute; top: 1px; right: 4px; }
+  .cl-rail-row.has-acts.active:not(:hover) > .cl-rail-pick + * > button:not(:focus-visible, [aria-expanded="true"]) { opacity: 0; }
+  .cl-rail-row.has-acts:is(:hover, :has(> .cl-rail-pick + * > button:is(:focus-visible, [aria-expanded="true"])))
     > .cl-rail-pick
     .count { visibility: hidden; }
 }
