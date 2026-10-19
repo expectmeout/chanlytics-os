@@ -252,8 +252,10 @@ const escapeGivesFocusBack =
       return [`${name}: Enter on its control did not open it`];
     await page.keyboard.press("Escape");
     if (!(await met(page, (sel) => !document.querySelector(sel), popup))) return [`${name}: Escape left it open`];
-    const back = await focused(page);
-    return back === opener ? [] : [`${name}: focus went to ${back}, not back to its control (${opener})`];
+    // Base UI gives focus back once the popup's motion ends: a phone's list, closed as its sheet still rises, gave it
+    // back 121ms after (19 Oct 2026), so focus is waited for, as everything else here is.
+    if (await met(page, (id) => document.activeElement?.getAttribute("data-testid") === id, opener)) return [];
+    return [`${name}: focus went to ${await focused(page)}, not back to its control (${opener})`];
   };
 
 const sheetEscape = escapeGivesFocusBack("the sheet", "sheet-open", "section.sheet");
@@ -853,7 +855,7 @@ const tooltipShows: Check = async (page) => {
   return out;
 };
 
-/** A toast arrives in a region a screen reader hears, is reached by F6, and goes on a press besides it (it has no ×). */
+/** A toast arrives in a region a screen reader hears, is reached by F6, and goes on a press beside it (it has no ×). */
 const toastArrives: Check = async (page) => {
   const out: string[] = [];
   await page.getByTestId("sheet-open").click();
@@ -936,7 +938,7 @@ const CHECKS: [string, Check][] = [
   ["the sub-tabs answer the arrows and Enter, and the bar follows the pick", subTabsKeys],
   ["the combobox narrows and chooses by the keys", comboboxKeys],
   ["the tooltip shows on hover and on focus, and hides on Escape", tooltipShows],
-  ["a toast is heard and goes on its ×", toastArrives],
+  ["a toast is heard and goes on a press beside it", toastArrives],
   ["a field's problem is wired to its box", fieldProblem],
 ];
 
