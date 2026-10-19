@@ -142,7 +142,39 @@ const hoverOnly = (selector) => {
 };
 const asksForPointer = (query) => /"name":"(hover|pointer|any-hover|any-pointer)"/.test(JSON.stringify(query));
 
-test("no sheet paints on :hover outside a pointer's media query, so a finger's last tap keeps nothing lit", () => {
+/*
+ * The exception, by name: a list's row a finger opens (the Inbox's, Conversations', Live's, People's, Leads' and the
+ * Pipeline's, Messages', Today's queue, Settings' sections, People's lists). On a phone the row last opened stays lit
+ * until the next tap, the list's selection, which a button's stuck fill is not (Ruben, 19 Oct 2026: "i do not see the
+ * hover over select color we had before"; #1718 had held them to a pointer with every button).
+ */
+const ROW_CLASSES = new Set(["ix-thread", "cv-row", "lm-row", "msg-row", "cl-attn-row", "set-nav-row", "cl-rail-row"]);
+const ROW_TABLES = new Set(["pl-table", "cl-table"]);
+const compoundsOf = (selector) => {
+  let compound = [];
+  const compounds = [compound];
+  for (const c of selector) {
+    if (c.type === "combinator") compounds.push((compound = []));
+    else compound.push(c);
+  }
+  return compounds;
+};
+/** The list row a selector's hover is on: its row class, or the table a hovered `tr` is a row of; else null. */
+const rowOf = (selector) => {
+  const compounds = compoundsOf(selector);
+  const at = compounds.findIndex((parts) => /"kind":"hover"/.test(JSON.stringify(parts)));
+  if (at < 0) return null;
+  const own = compounds[at].find((p) => p.type === "class" && ROW_CLASSES.has(p.name));
+  if (own) return own.name;
+  if (!compounds[at].some((p) => p.type === "type" && p.name === "tr")) return null;
+  const table = compounds
+    .slice(0, at)
+    .flat()
+    .find((p) => p.type === "class" && ROW_TABLES.has(p.name));
+  return table ? table.name : null;
+};
+/** Every stylesheet of the dashboard's, by its path from the root. */
+const allSheets = () => {
   const sheets = [];
   const walkDir = (dir) => {
     for (const f of fs.readdirSync(path.join(ROOT, dir), { withFileTypes: true })) {
@@ -153,6 +185,28 @@ test("no sheet paints on :hover outside a pointer's media query, so a finger's l
   };
   walkDir("apps/dashboard/src");
   walkDir("apps/dashboard/app");
+  return sheets;
+};
+/** Whether a rule only paints, and draws something (a fill, an ink): what a hover's lit state is. */
+const paints = (r) => {
+  const ds = [...(r.value.declarations.declarations ?? []), ...(r.value.declarations.importantDeclarations ?? [])];
+  return ds.length > 0 && ds.every((d) => PAINTS.has(propertyOf(d))) && ds.some(draws);
+};
+/** Each style rule of a sheet, with whether it stands under a pointer's media query. */
+const eachRule = (sheet, visit) => {
+  const walk = (rules, guarded) => {
+    for (const r of rules) {
+      if (r.type === "media") walk(r.value.rules, guarded || asksForPointer(r.value.query));
+      else if (r.type === "supports" || r.type === "container" || r.type === "layer-block")
+        walk(r.value.rules, guarded);
+      else if (r.type === "style") visit(r, guarded);
+    }
+  };
+  walk(parse(sheet).rules, false);
+};
+
+test("no sheet paints on :hover outside a pointer's media query, so a finger's last tap keeps nothing lit", () => {
+  const sheets = allSheets();
   assert.ok(sheets.length > 20, "the sheets are read");
   const lit = [];
   for (const sheet of sheets) {
@@ -166,7 +220,8 @@ test("no sheet paints on :hover outside a pointer's media query, so a finger's l
             ...(r.value.declarations.declarations ?? []),
             ...(r.value.declarations.importantDeclarations ?? []),
           ];
-          if (ds.length && ds.every((d) => PAINTS.has(propertyOf(d))) && ds.some(draws))
+          const rowsAlone = r.value.selectors.filter(hoverOnly).every((x) => rowOf(x) !== null);
+          if (ds.length && ds.every((d) => PAINTS.has(propertyOf(d))) && ds.some(draws) && !rowsAlone)
             lit.push(`${sheet}: ${ds.map(propertyOf).join(", ")}`);
         }
       }
@@ -187,33 +242,49 @@ for (const { sheet, cls } of CONTROLS) {
 
 /*
  * What goes with a fill goes where the fill goes. On a phone a hairline parts two rows (mobile.css), and a row in a fill
- * of its own stands clear of the lines either side of it; the hover's fill stands under a pointer's media query (above),
- * so a line hidden on :hover outside one went with no fill beside it, on the row a finger last tapped (Ruben, 19 Oct
- * 2026: "it hides the divider lines").
+ * of its own stands clear of the lines either side of it. When #1718 held the rows' hover fill to a pointer and left the
+ * lines hidden on any :hover, a finger's last row lost its lines with no fill beside it (Ruben, 19 Oct 2026: "it hides
+ * the divider lines"); now both stand under a finger again. Each row's lines hide on :hover under the same kinds of
+ * pointer its fill shows under, whichever that is.
  */
-test("a line hidden beside a hovered row is hidden only where a pointer hovers, as the row's fill is", () => {
-  const sheet = "apps/dashboard/src/legacy/styles/mobile.css";
+test("the lines beside a hovered row hide wherever the row's hover fill shows, and nowhere else", () => {
   const hides = (r) => {
     const ds = r.value.declarations.declarations ?? [];
     return ds.length > 0 && ds.every((d) => propertyOf(d) === "opacity" && JSON.stringify(d.value) === "0");
   };
-  const lines = (selector) => /"kind":"after"/.test(JSON.stringify(selector));
-  const found = [];
-  const walk = (rules, guarded) => {
-    for (const r of rules) {
-      if (r.type === "media") walk(r.value.rules, guarded || asksForPointer(r.value.query));
-      else if (r.type === "style" && hides(r))
-        for (const s of r.value.selectors.filter((x) => hoverOnly(x) && lines(x))) found.push({ guarded, s });
-    }
-  };
-  walk(parse(sheet).rules, false);
+  const fills = new Map();
+  const lines = new Map();
+  const add = (map, row, guarded) => map.set(row, new Set([...(map.get(row) ?? []), guarded]));
+  for (const sheet of allSheets())
+    eachRule(sheet, (r, guarded) => {
+      for (const x of r.value.selectors.filter(hoverOnly)) {
+        const row = rowOf(x);
+        if (!row) continue;
+        if (hides(r) && /"kind":"after"/.test(JSON.stringify(x))) add(lines, row, guarded);
+        else if (paints(r)) add(fills, row, guarded);
+      }
+    });
   assert.ok(
-    found.length >= 8,
-    "the sheet still hides the lines beside a hovered row: this test would otherwise prove nothing",
+    lines.size >= 4,
+    "the lines beside a hovered row are still hidden: this test would otherwise prove nothing",
   );
-  assert.deepEqual(
-    found.filter((f) => !f.guarded).length,
-    0,
-    "a hairline hidden on :hover stands under @media (hover: hover)",
-  );
+  for (const [row, where] of lines)
+    assert.deepEqual([...where].sort(), [...(fills.get(row) ?? [])].sort(), `.${row}: its lines and its fill disagree`);
+});
+
+test("a list's row keeps its hover fill under a finger: the row last opened is the list's selection", () => {
+  const under = new Map();
+  for (const sheet of allSheets())
+    eachRule(sheet, (r, guarded) => {
+      if (!paints(r)) return;
+      for (const x of r.value.selectors.filter(hoverOnly)) {
+        const row = rowOf(x);
+        if (row && !guarded) under.set(row, true);
+      }
+    });
+  for (const row of ["ix-thread", "cv-row", "lm-row", "pl-table", "cl-table", "msg-row"])
+    assert.ok(
+      under.get(row),
+      `.${row}'s hover fill stands under @media (hover: hover), so a phone's tapped row is not lit`,
+    );
 });

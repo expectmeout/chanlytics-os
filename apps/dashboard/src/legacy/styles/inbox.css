@@ -2189,10 +2189,10 @@ button.ix-ctx { text-align: left; cursor: pointer; transition: background 100ms;
   border-bottom-color: transparent;
   border-radius: var(--surface-row-radius);
 }
-@media (hover: hover) {
-  .ix-thread:hover {
-    background: var(--hover-fill);
-  }
+/* A row keeps its fill under a finger too: on a phone the row last opened stays lit, a list's selection (Ruben, 19 Oct
+   2026: the hover select colour we had before). Buttons keep theirs to a pointer (#1718). */
+.ix-thread:hover {
+  background: var(--hover-fill);
 }
 .ix-thread.active {
   background: var(--selected-fill);
