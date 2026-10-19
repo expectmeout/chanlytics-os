@@ -842,7 +842,10 @@
 .cal-moment[data-look="ahead"] { border-style: dashed; border-color: var(--info); }
 .cal-moment[data-look="fail"] { border-color: var(--danger); color: var(--danger-ink); }
 .cal-moment[data-look="wait"] { background: var(--warn-soft); border-color: transparent; color: var(--warn-ink); }
-.cal-moment:hover { border-color: var(--ink-faint); }
+/* Lit under a pointer only: a finger's last tap keeps nothing lit (#1718). */
+@media (hover: hover) {
+  .cal-moment:hover { border-color: var(--ink-faint); }
+}
 .cal-moment:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 /* A phone's week is seven narrow columns: a moment there is its glyph, its words in Day view and the sheet. */
 @media (max-width: 720px) {
