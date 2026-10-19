@@ -9,7 +9,7 @@ import { clockNear, clockWhen } from "../shared/clock";
 import { HELD_REASONS } from "../broadcasts/run-words";
 import { plural } from "../shared/words";
 import { runDraftedEmails, runHeldEmails } from "../waits/waits";
-import { RUN_OPEN_WORDS, RUN_WAITING_WORDS } from "../shell/campaign-rooms";
+import { RUN_OPEN_WORDS, RUN_WAITING_WORDS, WHO_GETS_IT_WORDS } from "../shell/campaign-rooms";
 import { composeLinksOf, type ComposeLinks } from "./owner/compose";
 import type { ReachOutDraftedSend, ReachOutRunDto } from "./reach-out-dtos";
 import { holdDoors, HOLD_DOOR_WORDS, type ReachOutHold } from "./reach-out-words";
@@ -104,13 +104,6 @@ export function reachOutRunWordsOf(
     approveNote: waiting ? a.approveNote : null,
     note: waiting ? a.note : null,
     skipped: skippedWordsOf(r.skipped),
-    // Today's and the coming days' as the reach line counts them: "See the 30 today and 12 later".
-    see:
-      checked.length === 0
-        ? null
-        : checked.length > r.today
-          ? `See the ${r.today} today and ${checked.length - r.today} later`
-          : `See the ${checked.length}`,
     // By day and time; a run from an earlier day, or a time already past, is re-timed when it goes, never a past time.
     list: checked.map((x) => {
       const ms = Date.parse(x.send_at);
@@ -133,8 +126,11 @@ export function reachOutRunWordsOf(
         ? `${r.chain_name} approved — ${plural(r.later, "email", "emails")} in the coming days, in their hours`
         : `${r.chain_name} approved — ${plural(r.today, "email", "emails")} today, in their hours`,
     labels: REACH_OUT_RUN_LABELS,
+    // Folded under its own head (WHO_GETS_IT_WORDS), its press at the head's right; none while nothing is checked.
     listHead:
-      r.checking > 0 ? `Who gets it · ${plural(r.checking, "more is", "more are")} being checked` : "Who gets it",
+      r.checking > 0
+        ? `${WHO_GETS_IT_WORDS.head} · ${plural(r.checking, "more is", "more are")} being checked`
+        : WHO_GETS_IT_WORDS.head,
   };
 }
 
@@ -366,7 +362,6 @@ const REACH_OUT_RUN_LABELS = {
   approving: "Approving…",
   skip: "Skip this run",
   skipYes: "Yes, skip it",
-  hide: "Hide the list",
   hideHeld: "Hide them",
   deciding: "Saying so…",
   rechecking: "Checking again…",

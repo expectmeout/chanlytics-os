@@ -18,7 +18,7 @@
  */
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
-import { canonicalRoute, localDate, localHour, playbookFailedWords } from "@chanlytics/contracts";
+import { canonicalRoute, localDate, localHour, playbookFailedWords, sequenceRoute } from "@chanlytics/contracts";
 import { fakeDb } from "../_fake-db.mjs";
 import { rows } from "../_rows.mjs";
 import { withoutRequestId } from "../_log-lines.mjs";
@@ -1216,7 +1216,8 @@ test("a playbook that cannot run is told: the platform is paged once per workspa
       const [notice] = bellOf(w, A);
       assert.deepEqual(
         [notice.kind, notice.title, notice.route, notice.subject_type, notice.subject_id],
-        ["playbook", "“Win-back” could not run today", "campaigns/moment:pb-a", "playbook_day", `pb-a:${today}`],
+        // Its sequence's own address (#1737: campaigns/moment:<id> is a retired one that lands there).
+        ["playbook", "“Win-back” could not run today", sequenceRoute("pb-a"), "playbook_day", `pb-a:${today}`],
       );
       assert.equal(
         canonicalRoute(notice.route),

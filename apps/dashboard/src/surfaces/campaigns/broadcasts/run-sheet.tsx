@@ -3,11 +3,12 @@
  * decision 0015), with the two things the sheet shares with the report beside it: one person's line, and what each stop
  * asks and promises.
  */
-import { Fragment } from "react";
+import { Fragment, type ReactNode } from "react";
 import {
   BROADCAST_STATE_LABELS,
   CONSENT_CHANNELS,
   LIFECYCLE_WORDS,
+  WHO_GETS_IT_WORDS,
   messageAboutOfTrigger,
   runStopWords,
   runTitleOf,
@@ -272,15 +273,9 @@ function bcSheetWords(says: CmPreviewBy, avm: ApprovalVM) {
   );
 }
 
-/** The act, pinned to the foot while the list above it scrolls. */
-function bcSheetActs(p: {
-  b: BroadcastDto;
-  avm: ApprovalVM;
-  sheet: BcSheetAsk;
-  seeAll: boolean;
-  onSeeAll: () => void;
-}) {
-  const { b, avm, sheet, seeAll, onSeeAll } = p;
+/** The act, pinned to the foot while the list above it scrolls: Approve, and Skip under it, which asks first. */
+function bcSheetActs(p: { b: BroadcastDto; avm: ApprovalVM; sheet: BcSheetAsk }) {
+  const { b, avm, sheet } = p;
   const stop = runStopWords("pending_approval");
   return (
     <div className="bc-sheet-acts bc-approval-acts" data-testid="bc-sheet-acts">
@@ -312,16 +307,13 @@ function bcSheetActs(p: {
           testid="bc-sheet-skip"
         />
       ) : (
-        <div className="bc-sheet-pair">
-          {sheet.canSend && (
+        sheet.canSend && (
+          <div className="bc-sheet-pair">
             <Button className="bc-second" onClick={() => sheet.onArm(true)} data-testid="bc-sheet-skip">
               {LIFECYCLE_WORDS.ledger.skip}
             </Button>
-          )}
-          <Button className="bc-second" aria-expanded={seeAll} onClick={onSeeAll} data-testid="bc-sheet-see">
-            {seeAll ? "Hide the list" : `See the ${avm.will}`}
-          </Button>
-        </div>
+          </div>
+        )
       )}
       <span className="bc-sheet-note" data-testid="bc-sheet-goes">
         {sheet.canSend
@@ -343,21 +335,66 @@ export function bringListIntoView(el: HTMLElement | null): void {
   if (el && typeof el.scrollIntoView === "function") el.scrollIntoView({ block: "nearest" });
 }
 
+interface WhoGetsItProps {
+  /** The rows' region, which the press names (aria-controls). */
+  id: string;
+  /** The card's head: "Who gets it", and what more a run says of its list. */
+  head: ReactNode;
+  open: boolean;
+  onToggle: () => void;
+  testid: string;
+  children?: ReactNode;
+}
+
+/**
+ * Who gets it, as a waiting run's sheet folds it, a campaign run's and a reach-out run's alike: its head says so, with the
+ * press that opens and closes the list at the head's right (Ruben, 19 Oct 2026: "See the 4" and "Hide the list" stood in
+ * the foot beside Approve, as wide as it), and its rows under the head once open, brought into view as they open.
+ */
+export function WhoGetsIt({ id, head, open, onToggle, testid, children = null }: WhoGetsItProps) {
+  return (
+    <section
+      className="bc-touched bc-sheet-people bc-approval-people"
+      data-open={open ? "true" : "false"}
+      data-testid={testid}
+    >
+      <div className="bc-touched-head">
+        <span className="bc-card-title">{head}</span>
+        <Button
+          variant="quiet"
+          size="sm"
+          iconOnly
+          className="bc-who-press"
+          aria-label={open ? WHO_GETS_IT_WORDS.hide : WHO_GETS_IT_WORDS.show}
+          aria-expanded={open}
+          aria-controls={id}
+          onClick={onToggle}
+          data-testid={`${testid}-press`}
+        >
+          <Icon name={open ? "chevron-up" : "chevron-down"} size={16} />
+        </Button>
+      </div>
+      <div id={id} hidden={!open}>
+        {open ? <div ref={bringListIntoView}>{children}</div> : null}
+      </div>
+    </section>
+  );
+}
+
 /** What the dock and the menu read of the sheet. */
 interface BcSheetActsAsk {
   b: BroadcastDto;
   avm: ApprovalVM;
   sheet: BcSheetAsk;
-  seeAll: boolean;
-  onSeeAll: () => void;
 }
 
 /**
- * The acts on a phone, docked at the screen's foot as a sequence's are (its Approve in the record's dock): Approve, and who
- * gets it, an equal pair; Skip's question in their place once the menu asks it. A run too late to approve has Skip there
- * instead, with why. On a phone the band of acts stood after the words, a solid slab halfway down the screen.
+ * The acts on a phone, docked at the screen's foot as a sequence's are (its Approve in the record's dock): when it goes, and
+ * Approve across the foot, Skip in the head's menu as the record has it; Skip's question in their place once the menu
+ * asks it. A run too late to approve has Skip there instead, with why. On a phone the band of acts stood after the words,
+ * a solid slab halfway down the screen; who gets it is the sheet's own fold (WhoGetsIt), no longer a half of the foot.
  */
-export function bcSheetDock({ b, avm, sheet, seeAll, onSeeAll }: BcSheetActsAsk) {
+export function bcSheetDock({ b, avm, sheet }: BcSheetActsAsk) {
   const stop = runStopWords("pending_approval");
   if (sheet.armed && sheet.canSend)
     return (
@@ -375,6 +412,20 @@ export function bcSheetDock({ b, avm, sheet, seeAll, onSeeAll }: BcSheetActsAsk)
       </div>
     );
   const why = avm.expired ?? (sheet.canSend ? null : gateTitle("approve", "approve or skip a run"));
+  // A run to approve is one row, as a sequence's record docks its Approve (record-acts.tsx) and the lead dock is (#1729):
+  // when it goes, then Approve. The line over the button made two rows in a capsule rounded as one, whose ends cut
+  // across the pill's (Ruben, 19 Oct 2026).
+  if (!why && sheet.canSend && avm.approve)
+    return (
+      <div className="bc-approval-foot bc-dock-row" data-testid="bc-sheet-acts">
+        <span className="bc-dock-said" data-testid="bc-sheet-goes">
+          {avm.goesLine}
+        </span>
+        <Button variant="primary" disabled={sheet.approving} onClick={sheet.approve} data-testid="bc-sheet-approve">
+          <Icon name="check" size={16} /> {sheet.approving ? "Approving…" : avm.approve}
+        </Button>
+      </div>
+    );
   return (
     <div className="bc-approval-foot" data-foot-pair="" data-testid="bc-sheet-acts">
       {why ? (
@@ -382,24 +433,11 @@ export function bcSheetDock({ b, avm, sheet, seeAll, onSeeAll }: BcSheetActsAsk)
           {why}
         </span>
       ) : null}
-      {sheet.canSend && avm.approve ? (
-        <span className="bc-sheet-note" data-testid="bc-sheet-goes">
-          {avm.goesLine}
-        </span>
-      ) : null}
-      {sheet.canSend && avm.approve ? (
-        <Button variant="primary" disabled={sheet.approving} onClick={sheet.approve} data-testid="bc-sheet-approve">
-          <Icon name="check" size={16} /> {sheet.approving ? "Approving…" : avm.approve}
-        </Button>
-      ) : null}
       {sheet.canSend && !avm.approve ? (
         <Button onClick={() => sheet.onArm(true)} data-testid="bc-sheet-skip">
           {LIFECYCLE_WORDS.ledger.skip}
         </Button>
       ) : null}
-      <Button aria-expanded={seeAll} onClick={onSeeAll} data-testid="bc-sheet-see">
-        {seeAll ? "Hide the list" : `See the ${avm.will}`}
-      </Button>
     </div>
   );
 }
@@ -481,19 +519,18 @@ export function BcSheet({ d, people, avm, sheet, seeAll, onSeeAll, docked }: BcS
         {bcSheetReach(avm)}
         {says && bcSheetWords(says, avm)}
       </div>
-      {seeAll && (
-        <section
-          ref={bringListIntoView}
-          className="bc-touched bc-sheet-people bc-approval-people"
-          data-testid="bc-sheet-people"
+      {people.length > 0 ? (
+        <WhoGetsIt
+          id={`bc-who-${b.id}`}
+          head={WHO_GETS_IT_WORDS.head}
+          open={seeAll}
+          onToggle={onSeeAll}
+          testid="bc-sheet-people"
         >
-          <div className="bc-touched-head">
-            <span className="bc-card-title">Who gets it</span>
-          </div>
           {people.map(bcPersonRow)}
-        </section>
-      )}
-      {docked ? null : bcSheetActs({ b, avm, sheet, seeAll, onSeeAll })}
+        </WhoGetsIt>
+      ) : null}
+      {docked ? null : bcSheetActs({ b, avm, sheet })}
     </div>
   );
 }
