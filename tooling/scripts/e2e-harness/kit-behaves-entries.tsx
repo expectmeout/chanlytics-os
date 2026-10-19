@@ -59,7 +59,6 @@ const TOAST_GLYPHS = {
   info: glyph("info", 13),
   warn: glyph("alert", 13),
   danger: glyph("alert", 13),
-  dismiss: glyph("x", 11),
 };
 
 /** A figure of the page, as the static gallery draws an entry: its id, what it holds, and what it is. */

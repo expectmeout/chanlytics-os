@@ -853,7 +853,7 @@ const tooltipShows: Check = async (page) => {
   return out;
 };
 
-/** A toast arrives in a region a screen reader hears, is reached by F6, and goes on its ×. */
+/** A toast arrives in a region a screen reader hears, is reached by F6, and goes on a press besides it (it has no ×). */
 const toastArrives: Check = async (page) => {
   const out: string[] = [];
   await page.getByTestId("sheet-open").click();
@@ -871,9 +871,10 @@ const toastArrives: Check = async (page) => {
   await page.keyboard.press("F6");
   if (!(await met(page, () => !!document.activeElement?.closest(".pp-toast-stack"), null)))
     out.push(`the toast: F6 took focus to ${await focused(page)}, not the toasts`);
-  await page.locator(".pp-toast-x").click();
+  if (await page.locator(".pp-toast-x").count()) out.push("the toast: it draws a ×, which a press besides it is");
+  await page.mouse.click(4, 4);
   if (!(await met(page, () => !document.querySelector(".pp-toast"), null)))
-    out.push("the toast: its × left it standing");
+    out.push("the toast: a press besides it left it standing");
   return out;
 };
 

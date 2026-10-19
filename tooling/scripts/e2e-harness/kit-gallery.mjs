@@ -356,7 +356,7 @@ const SHEET_TOAST =
   `<div class="pp-toast-stack"><div class="pp-toast pp-toast-ok" data-tone="ok" role="status">${icon("check", 13)}` +
   `<span class="pp-toast-msg"><b>Follow-up visit</b> is 45 minutes now</span>` +
   `<button type="button" class="pp-toast-cta">Undo</button>` +
-  `<button type="button" class="pp-toast-x" aria-label="Dismiss">${icon("x", 11)}</button></div></div>`;
+  `</div></div>`;
 /* ---- the kit's components on Base UI, as they draw themselves (step 2.5; kit-behaves.tsx draws the same) ---- */
 
 /** Where a popup stands in its stage: Base UI places its positioner against the window with a style of its own. */
@@ -856,14 +856,12 @@ const kitPickerInline = () =>
   `<span class="token-face">10:00</span><span aria-hidden="true" class="token-caret">` +
   `${icon("chevron-down", 11)}</span></button>, up to 25 people a run.</span>`;
 
-/** The kit's toast, raised: Base UI's region wearing the house's stack, a confirmation with its Undo and its ×. */
+/** The kit's toast, raised: Base UI's region wearing the house's stack, a confirmation with its Undo (no ×). */
 const kitToast = () =>
   `<div class="pp-toast-stack" role="region" tabindex="-1" aria-live="polite" aria-label="Notifications">` +
   `<div class="pp-toast pp-toast-ok" data-tone="ok" role="dialog" tabindex="0" aria-modal="false">${icon("check", 13)}` +
   `<span class="pp-toast-msg">Saved for every line.</span>` +
-  `<button type="button" tabindex="0" class="pp-toast-cta">Undo</button>` +
-  `<button type="button" tabindex="0" aria-hidden="true" aria-label="Dismiss" class="pp-toast-x">${icon("x", 11)}` +
-  `</button></div></div>`;
+  `<button type="button" tabindex="0" class="pp-toast-cta">Undo</button></div></div>`;
 
 /** A switch of the kit's (Base UI's Switch): on or off, read-only or not. */
 const kitSwitch = (on, label, readOnly = false) =>
@@ -1405,7 +1403,7 @@ export const FAMILIES = [
     family: "Toast",
     about:
       "The one flash, usePPToast's stack: a confirmation with its Undo, a note with a link, a warning and a failure, " +
-      "each with its ×. The stack stands where this page's sheets put it: beside a sheet on a desk, above its foot on " +
+      "none with a ×: a press besides a toast takes it. The stack stands where this page's sheets put it: beside a sheet on a desk, above its foot on " +
       "a phone (record.css and kit.css, :root:has(.rec-sheet) and :root:has(.sheet)). Its place with none open is " +
       "drawn by the style-equality recorder's toast scene, not here.",
     entries: [
@@ -1417,17 +1415,17 @@ export const FAMILIES = [
           `<div class="pp-toast pp-toast-ok" data-tone="ok" role="status">${icon("check", 13)}` +
           `<span class="pp-toast-msg"><b>Sam Ortega</b> is off Regulars</span>` +
           `<button type="button" class="pp-toast-cta">Undo</button>` +
-          `<button type="button" class="pp-toast-x" aria-label="Dismiss">${icon("x", 11)}</button></div>` +
+          `</div>` +
           `<div class="pp-toast pp-toast-info" data-tone="info" role="status">${icon("info", 13)}` +
           `<span class="pp-toast-msg">Saved. <a class="pp-toast-link" href="#kit">See it on Today</a></span>` +
-          `<button type="button" class="pp-toast-x" aria-label="Dismiss">${icon("x", 11)}</button></div>` +
+          `</div>` +
           `<div class="pp-toast pp-toast-warn" data-tone="warn" role="status">${icon("alert", 13)}` +
           `<span class="pp-toast-msg">Sent to 11 of 12: one has no number.</span>` +
-          `<button type="button" class="pp-toast-x" aria-label="Dismiss">${icon("x", 11)}</button></div>` +
+          `</div>` +
           `<div class="pp-toast pp-toast-danger" data-tone="danger" role="status">${icon("alert", 13)}` +
           `<span class="pp-toast-msg"><b>Not stopped</b> — That didn't go through.</span>` +
           `<button type="button" class="pp-toast-cta">Try again</button>` +
-          `<button type="button" class="pp-toast-x" aria-label="Dismiss">${icon("x", 11)}</button></div>` +
+          `</div>` +
           `</div>`,
       },
     ],
